@@ -1,7 +1,8 @@
 /tmp
 /out-tsc
 /.idea
-
+/dist
+/.claude
 /node_modules
 npm-debug.log*
 yarn-debug.log*

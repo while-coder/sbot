@@ -1,18 +1,27 @@
 {
-  "name": "wmbot",
+  "name": "sbot",
   "version": "1.0.0",
   "description": "",
   "main": "dist/index.js",
+  "bin": {
+    "sbot": "./dist/index.js"
+  },
   "scripts": {
     "build": "tsc"
   },
   "dependencies": {
     "@langchain/langgraph": "^1.1.2",
+    "@langchain/langgraph-checkpoint-sqlite": "^1.0.0",
+    "@langchain/mcp-adapters": "^1.1.1",
     "@langchain/openai": "^1.2.4",
+    "@langchain/textsplitters": "^1.0.1",
     "@larksuiteoapi/node-sdk": "^1.58.0",
+    "@types/node": "^22.10.5",
+    "axios": "^1.13.2",
     "dotenv": "^17.2.3",
     "langchain": "^1.2.16",
     "log4js": "^6.9.1",
+    "sequelize": "^6.37.7",
     "weimingcommons": "^0.0.55"
   },
   "devDependencies": {
