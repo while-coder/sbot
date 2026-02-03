@@ -2,24 +2,24 @@ import {Util} from "weimingcommons";
 import {larkService } from "../LarkService";
 import {LarkChatProvider, type ProviderToolMessage} from "../LarkChatProvider";
 import log4js from "log4js";
-import GraphService, {type LangChainMessageChunk} from "../Graph/GraphService";
+import GraphService, {type LangChainMessageChunk, MessageChunkType} from "../Graph/GraphService";
 import {BaseUserService} from "./BaseUserService";
 const logger = log4js.getLogger('UserService.js')
 
 
 function parseChunk2Message(provider: LarkChatProvider, message: LangChainMessageChunk) {
-  if (message.type === "ai") {
-    if (message.tool_calls?.length > 0) {
+  if (message.type === MessageChunkType.AI) {
+    if (message.tool_calls && message.tool_calls.length > 0) {
       for (const t of message.tool_calls) {
         const toolCall: ProviderToolMessage = { type: "tool", name: t.name, args: t.args };
         provider.tools[t.id] = toolCall;
         provider.messages.push(toolCall);
       }
     } else {
-      provider.messages.push({ type: "text", content: message.content });
+      provider.messages.push({ type: "text", content: message.content || "" });
     }
-  } else if (message.type === "tool") {
-    const toolCall = provider.tools[message.tool_call_id];
+  } else if (message.type === MessageChunkType.TOOL) {
+    const toolCall = provider.tools[message.tool_call_id || ""];
     if (toolCall) {
       toolCall.result = true;
       toolCall.status = message.status;
