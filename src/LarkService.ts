@@ -4,6 +4,7 @@ import {UserService} from "./UserService/UserService";
 import log4js from "log4js";
 import {database} from "./Database";
 import {Op} from "sequelize";
+import {config} from "./Config";
 
 const logger = log4js.getLogger("LarkService.ts");
 
@@ -11,29 +12,25 @@ const HourMilliseconds = 1000 * 60 * 60;
 const CheckInterval = HourMilliseconds;
 const ExpireTime = HourMilliseconds * 24 * 3;
 
-declare const IsDocker: boolean;
 
 class LarkService {
   private checkTime = 0;
   private larkClient!: Lark.Client;
   private larkWsClient!: Lark.WSClient;
 
-  async init() {
-    const baseConfig = IsDocker
-      ? {
-          appId: "cli_a708a443233b1013",
-          appSecret: "K54AsLjZo7VL4jfVs8kjpDWMjnsrPPAN",
-        }
-      : {
-          appId: "cli_a9bc192e176e1cd1",
-          appSecret: "iNeV9dI05caVxsKt3CGLCdhVkKNX0Bgu",
-        };
+  async start() {
+    // 验证飞书配置
+    config.validateFeishuConfig();
 
+    let baseConfig = {
+      appId: config.settings.feishu!.appId!,
+      appSecret: config.settings.feishu!.appSecret!,
+    };
     this.checkTime = 0;
     this.larkClient = new Lark.Client(baseConfig);
     this.larkWsClient = new Lark.WSClient(baseConfig);
 
-    await this.registerEventDispatcher()
+    this.registerEventDispatcher()
   }
 
   async sendMessage(chatId: string, msgType: string, content: string) {
@@ -90,7 +87,6 @@ class LarkService {
         elements: elements,
       },
     };
-    // logger.info(`[发送频率] updateCardMessage messageId=${messageId}`);
     return await this.larkClient.im.message.patch({
       path: {message_id: messageId},
       data: {content: JSON.stringify(content)},

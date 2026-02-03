@@ -10,6 +10,7 @@
     "build": "tsc"
   },
   "dependencies": {
+    "@iarna/toml": "^2.2.5",
     "@langchain/langgraph": "^1.1.2",
     "@langchain/langgraph-checkpoint-sqlite": "^1.0.0",
     "@langchain/mcp-adapters": "^1.1.1",
@@ -25,6 +26,7 @@
     "weimingcommons": "^0.0.55"
   },
   "devDependencies": {
+    "@types/iarna__toml": "^2.0.5",
     "typescript": "^5.5.3"
   },
   "private": true

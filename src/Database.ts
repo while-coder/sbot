@@ -16,6 +16,7 @@ export type StateRow = {
   value: string;
 };
 
+
 class Database {
   private running = false;
   private dbConfig: {
