@@ -1,0 +1,22 @@
+{
+  "name": "wmbot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@langchain/langgraph": "^1.1.2",
+    "@langchain/openai": "^1.2.4",
+    "@larksuiteoapi/node-sdk": "^1.58.0",
+    "dotenv": "^17.2.3",
+    "langchain": "^1.2.16",
+    "log4js": "^6.9.1",
+    "weimingcommons": "^0.0.55"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.3"
+  },
+  "private": true
+}
