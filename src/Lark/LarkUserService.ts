@@ -28,14 +28,14 @@ function parseChunk2Message(provider: LarkChatProvider, message: LangChainMessag
   return provider;
 }
 
-export class UserService {
-  static allUsers = new Map<string, UserService>();
-  static getUserAgentService(userId: string):UserService {
-    if (UserService.allUsers.has(userId)) {
-      return UserService.allUsers.get(userId)!;
+export class LarkUserService {
+  static allUsers = new Map<string, LarkUserService>();
+  static getUserAgentService(userId: string):LarkUserService {
+    if (LarkUserService.allUsers.has(userId)) {
+      return LarkUserService.allUsers.get(userId)!;
     }
-    const user = new UserService(userId);
-    UserService.allUsers.set(userId, user);
+    const user = new LarkUserService(userId);
+    LarkUserService.allUsers.set(userId, user);
     return user;
   }
   isRunning = false;

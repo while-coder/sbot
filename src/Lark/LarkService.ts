@@ -1,6 +1,6 @@
 import * as Lark from "@larksuiteoapi/node-sdk";
 import {Util} from "weimingcommons";
-import {UserService} from "./UserService";
+import {LarkUserService} from "./LarkUserService";
 import log4js from "log4js";
 import {database} from "../Database";
 import {Op} from "sequelize";
@@ -137,7 +137,7 @@ class LarkService {
 
           await database.create(database.message, { id: event_id, expireTime: Util.NowDate + ExpireTime });
 
-          const userService = UserService.getUserAgentService(user_id);
+          const userService = LarkUserService.getUserAgentService(user_id);
           userService.onReceiveMessage(chat_type, chat_id, query.trim()).then(() => {})
         } catch (e: any) {
           logger.error(`Receive message error: ${e.stack}`);
@@ -162,7 +162,7 @@ class LarkService {
 
           await database.create(database.message, { id: event_id, expireTime: Util.NowDate + ExpireTime });
 
-          const agentService = UserService.getUserAgentService(user_id);
+          const agentService = LarkUserService.getUserAgentService(user_id);
           return await agentService.onTriggerAction(open_chat_id, value.code, value.data, form_value)
         } catch (e: any) {
           logger.error(`Card Action error: ${e.stack}`);
