@@ -1,13 +1,13 @@
 import {Util} from "weimingcommons";
 import {larkService } from "./LarkService";
 import {LarkChatProvider, type ProviderToolMessage} from "./LarkChatProvider";
-import GraphService, {type LangChainMessageChunk, MessageChunkType} from "../Agent/AgentService";
+import GraphService, {type AgentMessageChunk, MessageChunkType} from "../Agent/AgentService";
 import {getLogger} from "../logger";
 
 const logger = getLogger('LarkUserService.ts');
 
 
-function parseChunk2Message(provider: LarkChatProvider, message: LangChainMessageChunk) {
+function parseChunk2Message(provider: LarkChatProvider, message: AgentMessageChunk) {
   if (message.type === MessageChunkType.AI) {
     if (message.tool_calls && message.tool_calls.length > 0) {
       for (const t of message.tool_calls) {
@@ -111,12 +111,12 @@ export class LarkUserService {
     this.isProcessingQueue = false;
     logger.info(`${this.userId} 队列处理完成`);
   }
-  async onMessage(message: LangChainMessageChunk): Promise<void> {
+  async onMessage(message: AgentMessageChunk): Promise<void> {
     parseChunk2Message(this.provider!, message);
     this.provider!.resetStreamMessage()
     await this.provider!.updateMessage()
   }
-  async onStreamMessage(message: LangChainMessageChunk): Promise<void> {
+  async onStreamMessage(message: AgentMessageChunk): Promise<void> {
     // 从消息块中提取文本内容用于流式显示
     const content = message.content || "";
     await this.provider?.setStreamMessage(content)

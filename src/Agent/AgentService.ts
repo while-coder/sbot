@@ -15,16 +15,16 @@ export enum MessageChunkType {
     TOOL = "tool"
 }
 
-type LangChainToolCall = {
-    id: string;
+type AgentToolCall = {
+    id?: string;
     name: string;
-    args: unknown;
+    args: Record<string, any>;
 };
 
-export interface LangChainMessageChunk {
+export interface AgentMessageChunk {
     type: MessageChunkType;
     content?: string;
-    tool_calls?: LangChainToolCall[];
+    tool_calls?: AgentToolCall[];
     tool_call_id?: string;
     status?: string;
 }
@@ -34,23 +34,19 @@ export interface LangChainMessageChunk {
  * @param toolCall 工具调用信息
  * @returns Promise<boolean> - true 表示允许执行，false 表示拒绝执行
  */
-export type ExecuteToolCallback = (toolCall: {
-    id?: string;
-    name: string;
-    args: Record<string, any>;
-}) => Promise<boolean>;
+export type ExecuteToolCallback = (toolCall: AgentToolCall) => Promise<boolean>;
 
 /**
  * 消息回调类型 - 用于接收完整的消息（在节点输出完成后触发）
  * @param message 消息块
  */
-export type OnMessageCallback = (message: LangChainMessageChunk) => Promise<void>;
+export type OnMessageCallback = (message: AgentMessageChunk) => Promise<void>;
 
 /**
  * 流式消息回调类型 - 用于接收实时的流式消息块（在模型生成过程中触发）
  * @param message 消息块
  */
-export type OnStreamMessageCallback = (message: LangChainMessageChunk) => Promise<void>;
+export type OnStreamMessageCallback = (message: AgentMessageChunk) => Promise<void>;
 
 /**
  * 使用 LangGraph 的 StateGraph 构建的 Agent 服务
@@ -339,10 +335,10 @@ class GraphService {
     /**
      * 将 BaseMessage 转换为 LangChainMessageChunk 格式
      */
-    private convertToMessageChunk(message: BaseMessage): LangChainMessageChunk | null {
+    private convertToMessageChunk(message: BaseMessage): AgentMessageChunk | null {
         if (message instanceof AIMessage || message instanceof AIMessageChunk) {
             // 转换工具调用格式
-            const toolCalls: LangChainToolCall[] = (message.tool_calls || []).map(tc => ({
+            const toolCalls: AgentToolCall[] = (message.tool_calls || []).map(tc => ({
                 id: tc.id || "",
                 name: tc.name,
                 args: tc.args
