@@ -61,6 +61,7 @@ export class AgentService {
     model: ChatOpenAI | null = null;
     private skills: Skill[]|undefined;
     private skillsDir: string = "";
+    private maxHistoryMessages: number = 50; // 最大历史消息数
 
     constructor(userId: string, skillsDir?: string) {
         this.threadId = userId;
@@ -68,9 +69,34 @@ export class AgentService {
         this.skillsDir = skillsDir || config.getConfigPath("skills", true);
     }
 
+    /**
+     * 清除当前线程的所有历史记录
+     */
     async clear() {
         const saver = await this.createSaver()
         await saver.deleteThread(this.threadId)
+        logger.info(`Cleared history for thread ${this.threadId}`)
+    }
+
+    /**
+     * 获取当前历史消息数量（估算）
+     */
+    async getHistorySize(): Promise<number> {
+        try {
+            const saver = await this.createSaver();
+            // 尝试获取最新的 checkpoint 来估算消息数
+            const state = await saver.get({ configurable: { thread_id: this.threadId } });
+            if (state?.channel_values) {
+                const channelValues = state.channel_values as any;
+                if (channelValues.messages && Array.isArray(channelValues.messages)) {
+                    return channelValues.messages.length;
+                }
+            }
+            return 0;
+        } catch (error: any) {
+            logger.warn(`Error getting history size: ${error.message}`);
+            return 0;
+        }
     }
 
     /**
@@ -271,10 +297,18 @@ ${skillsList}
             systemMessages.push({ role: "system", content: skillSystemMessage });
         }
 
+        // 限制历史消息数量，只保留最近的消息
+        let historyMessages = state.messages;
+        if (historyMessages.length > this.maxHistoryMessages) {
+            // 保留最近的消息
+            historyMessages = historyMessages.slice(-this.maxHistoryMessages);
+            logger.info(`Trimmed history to last ${this.maxHistoryMessages} messages (was ${state.messages.length})`);
+        }
+
         // 所有提示词
         const messages = [
             ...systemMessages,
-            ...state.messages,
+            ...historyMessages,
         ];
 
         // 使用流式调用收集完整响应
@@ -443,9 +477,70 @@ ${skillsList}
                     }
                 }
             }
+
+            // 清理超过限制的历史记录
+            await this.trimHistoryInSaver();
+
         } finally {
             // 确保释放资源
             await this.dispose();
+        }
+    }
+
+    /**
+     * 清理 saver 中超过限制的历史记录，保留最近的消息
+     */
+    private async trimHistoryInSaver() {
+        try {
+            const historySize = await this.getHistorySize();
+
+            // 如果超过限制的 120%，则进行清理（留一些缓冲）
+            const threshold = Math.floor(this.maxHistoryMessages * 1.2);
+
+            if (historySize > threshold) {
+                logger.info(`History size ${historySize} exceeds threshold ${threshold}, trimming...`);
+
+                const saver = await this.createSaver();
+
+                // 获取当前状态
+                const currentState = await saver.get({ configurable: { thread_id: this.threadId } });
+
+                if (currentState?.channel_values) {
+                    const channelValues = currentState.channel_values as any;
+
+                    if (channelValues.messages && Array.isArray(channelValues.messages)) {
+                        const allMessages = channelValues.messages;
+
+                        // 只保留最近的消息
+                        const recentMessages = allMessages.slice(-this.maxHistoryMessages);
+
+                        logger.info(`Trimming from ${allMessages.length} to ${recentMessages.length} messages`);
+
+                        // 删除旧的 thread
+                        await saver.deleteThread(this.threadId);
+
+                        // 如果有保留的消息，需要重新初始化
+                        if (recentMessages.length > 0) {
+                            // 通过运行一次空的 graph stream 来初始化 thread
+                            // 这会创建新的 checkpoint
+                            const graph = await this.createGraph();
+
+                            // 使用保留的消息初始化新的 thread
+                            // 我们需要手动将这些消息添加回去
+                            await graph.invoke(
+                                { messages: recentMessages },
+                                { configurable: { thread_id: this.threadId } }
+                            );
+
+                            logger.info(`Recreated thread ${this.threadId} with ${recentMessages.length} messages`);
+                        }
+                    }
+                } else {
+                    logger.info(`No state found for thread ${this.threadId}, skipping trim`);
+                }
+            }
+        } catch (error: any) {
+            logger.warn(`Error trimming history in saver: ${error.message}`);
         }
     }
     /**
