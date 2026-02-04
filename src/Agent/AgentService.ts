@@ -122,10 +122,10 @@ export class AgentService {
         const skillTools = createSkillTools(this.skillsDir);
         this.tools.push(...skillTools);
 
+        await this.addMcpServers(config.getBuiltinMcpServers())
         // 从 mcp.json 自动加载 MCP 服务器配置
         const mcpServers = config.getMcpServers();
-        if (mcpServers && Object.keys(mcpServers).length > 0) {
-            logger.info(`从 mcp.json 加载 ${Object.keys(mcpServers).length} 个 MCP 服务器`);
+        if (mcpServers) {
             await this.addMcpServers(mcpServers);
         }
 
@@ -135,7 +135,7 @@ export class AgentService {
     /**
      * 添加 MCP 服务器工具
      */
-    async addMcpServers(mcpServers: any) {
+    private async addMcpServers(mcpServers: any) {
         if (Object.keys(mcpServers).length == 0) return
 
         for (let key in mcpServers) {

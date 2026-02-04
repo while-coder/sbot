@@ -35,7 +35,6 @@ export interface Settings {
 class Config {
   private _configDir: string;
   private _settings: Settings = {};
-  private _mcpServers: MCPServers = {};
 
   constructor() {
     // 获取用户目录
@@ -48,7 +47,6 @@ class Config {
 
     // 加载配置文件
     this.loadSettings();
-    this.loadMcpServers();
   }
 
   /**
@@ -91,9 +89,9 @@ class Config {
   }
 
   /**
-   * 加载 MCP 服务器配置
+   * 获取 MCP 服务器配置（每次都实时读取 mcp.json 文件）
    */
-  private loadMcpServers(): void {
+  getMcpServers(): MCPServers {
     const mcpConfigPath = this.getConfigPath("mcp.json");
 
     try {
@@ -101,18 +99,32 @@ class Config {
         const content = fs.readFileSync(mcpConfigPath, "utf-8");
         const parsed = JSON.parse(content);
         // 支持 mcpServers 或直接的服务器配置
-        this._mcpServers = parsed.mcpServers || parsed;
+        return parsed.mcpServers || parsed;
       }
     } catch (error) {
-      this._mcpServers = {};
+      // 读取失败时返回空对象
     }
+
+    return {};
   }
 
   /**
-   * 获取 MCP 服务器配置
+   * 获取内置的 MCP 服务器配置
+   * @returns 内置的 MCP 服务器配置对象
    */
-  getMcpServers(): MCPServers {
-    return this._mcpServers;
+  getBuiltinMcpServers(): MCPServers {
+    return {
+      "playwright": {
+        command: "npx",
+        args: ["@playwright/mcp@latest"],
+        disabledAutoApproveTools: []
+      },
+      "windows-mcp": {
+        command: "uvx",
+        args: ["windows-mcp"],
+        disabledAutoApproveTools: []
+      }
+    };
   }
 
   /**
@@ -314,24 +326,6 @@ model = "gpt-4"
     if (errors.length > 0) {
       throw new Error(errors.join("\n"));
     }
-  }
-
-  /**
-   * 验证 Lark 配置是否完整（兼容旧方法）
-   * @throws 如果配置不完整则抛出错误
-   * @deprecated 请使用 validateConfig() 代替
-   */
-  validateFeishuConfig(): void {
-    this.validateConfig();
-  }
-
-  /**
-   * 验证 Lark 配置是否完整
-   * @throws 如果配置不完整则抛出错误
-   * @deprecated 请使用 validateConfig() 代替
-   */
-  validateLarkConfig(): void {
-    this.validateConfig();
   }
 }
 
