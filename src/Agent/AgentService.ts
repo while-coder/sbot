@@ -268,7 +268,7 @@ class GraphService {
         if (this.saver != null) return this.saver;
         // 使用 SQLite 数据库作为 checkpoint 存储
         const {config} = await import("../Config");
-        const dbPath = config.getConfigPath("langgraph_checkpoints.sqlite");
+        const dbPath = config.getConfigPath(`saver/${this.threadId}.sqlite`);
         // 初始化 SqliteSaver (无需手动调用 setup，会自动初始化)
         this.saver = SqliteSaver.fromConnString(dbPath);
         return this.saver;

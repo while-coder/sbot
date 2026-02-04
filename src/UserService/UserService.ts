@@ -3,7 +3,6 @@ import {larkService } from "../LarkService";
 import {LarkChatProvider, type ProviderToolMessage} from "../LarkChatProvider";
 import log4js from "log4js";
 import GraphService, {type LangChainMessageChunk, MessageChunkType} from "../Agent/AgentService";
-import {BaseUserService} from "./BaseUserService";
 const logger = log4js.getLogger('UserService.js')
 
 
@@ -29,7 +28,7 @@ function parseChunk2Message(provider: LarkChatProvider, message: LangChainMessag
   return provider;
 }
 
-export class UserService implements BaseUserService {
+export class UserService {
   static allUsers = new Map<string, UserService>();
   static getUserAgentService(userId: string):UserService {
     if (UserService.allUsers.has(userId)) {
