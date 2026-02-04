@@ -2,7 +2,7 @@ import { HumanMessage, AIMessage, ToolMessage, BaseMessage, AIMessageChunk } fro
 import { Util } from "weimingcommons";
 import { ChatOpenAI } from "@langchain/openai";
 import { MultiServerMCPClient } from "@langchain/mcp-adapters";
-import {StateGraph, END, START, MessagesAnnotation, CompiledStateGraph} from '@langchain/langgraph';
+import {StateGraph, END, START, MessagesAnnotation} from '@langchain/langgraph';
 
 import log4js from "log4js";
 import {SqliteSaver} from "@langchain/langgraph-checkpoint-sqlite";
@@ -31,12 +31,34 @@ export interface LangChainMessageChunk {
 }
 
 /**
+ * 工具调用回调类型 - 用于在工具执行前进行确认
+ * @param toolCall 工具调用信息
+ * @returns Promise<boolean> - true 表示允许执行，false 表示拒绝执行
+ */
+export type ExecuteToolCallback = (toolCall: {
+    id?: string;
+    name: string;
+    args: Record<string, any>;
+}) => Promise<boolean>;
+
+/**
+ * 消息回调类型 - 用于接收完整的消息（在节点输出完成后触发）
+ * @param message 消息块
+ */
+export type OnMessageCallback = (message: LangChainMessageChunk) => Promise<void>;
+
+/**
+ * 流式消息回调类型 - 用于接收实时的流式消息块（在模型生成过程中触发）
+ * @param message 消息块
+ */
+export type OnStreamMessageCallback = (message: LangChainMessageChunk) => Promise<void>;
+
+/**
  * 使用 LangGraph 的 StateGraph 构建的 Agent 服务
  * 提供更灵活的工作流控制和状态管理
  */
 class GraphService {
     private userId: string;
-    private chatId = "";
     tools: any[] = [];
     disabledAutoApproveTools: Set<string> = new Set<string>();
     saver:SqliteSaver|undefined;
@@ -135,7 +157,7 @@ class GraphService {
     /**
      * 调用模型节点
      */
-    private async callModelNode(state: typeof MessagesAnnotation.State, onStreamMessage?: (content: string) => Promise<void>) {
+    private async callModelNode(state: typeof MessagesAnnotation.State, onStreamMessage?: OnStreamMessageCallback) {
         const model = await this.createModel();
         const tools = await this.createTools();
 
@@ -159,8 +181,12 @@ class GraphService {
             } else {
                 response = response.concat(chunk)
             }
-            if (onStreamMessage && !Util.isNullOrEmpty(response.text)) {
-                await onStreamMessage(response.text as string)
+            if (onStreamMessage) {
+                // 转换为回调格式
+                const messageChunk = this.convertToMessageChunk(response);
+                if (messageChunk) {
+                    await onStreamMessage(messageChunk!)
+                }
             }
         }
         // 返回新的状态，LangGraph 会自动合并消息
@@ -170,7 +196,7 @@ class GraphService {
     /**
      * 工具执行节点 - 替代 ToolNode
      */
-    private async callToolsNode(state: typeof MessagesAnnotation.State, executeTool?: (toolCall: {type?: "tool_call", id?: string, name: string, args: Record<string, any>}) => Promise<boolean>) {
+    private async callToolsNode(state: typeof MessagesAnnotation.State, executeTool?: ExecuteToolCallback) {
         const messages = state.messages;
         const lastMessage = messages[messages.length - 1] as AIMessage;
         
@@ -251,7 +277,7 @@ class GraphService {
      * @param onStreamMessage 流式消息回调，通过闭包传递给 callModelNode，避免实例属性冲突
      * @param executeTool 工具执行回调，通过闭包传递给 callToolsNode
      */
-    private async createGraph(onStreamMessage?: (content: string) => Promise<void>, executeTool?: (toolCall: {type?: "tool_call", id?: string, name: string, args: Record<string, any>}) => Promise<boolean>) {
+    private async createGraph(onStreamMessage?: OnStreamMessageCallback, executeTool?: ExecuteToolCallback) {
         // 初始化工具
         await this.createTools();
         // 创建状态图，使用闭包传递回调
@@ -274,8 +300,7 @@ class GraphService {
     /**
      * 流式处理用户查询
      */
-    async stream(chatId: string, query: string, onMessage: (message: LangChainMessageChunk) => Promise<void>, onStreamMessage: (content: string) => Promise<void>, executeTool: (toolCall: {type?: "tool_call", id?: string, name: string, args: Record<string, any>}) => Promise<boolean>): Promise<void> {
-        this.chatId = chatId;
+    async stream(query: string, onMessage: OnMessageCallback, onStreamMessage?: OnStreamMessageCallback, executeTool?: ExecuteToolCallback): Promise<void> {
         // 添加用户消息到历史
         const humanMessage = new HumanMessage(query);
 
