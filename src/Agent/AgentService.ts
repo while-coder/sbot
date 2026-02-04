@@ -74,6 +74,25 @@ export class AgentService {
     }
 
     /**
+     * 释放资源
+     */
+    async dispose() {
+        if (this.saver) {
+            try {
+                // SqliteSaver 通常会有 end() 或类似方法来关闭数据库连接
+                // @ts-ignore - SqliteSaver 可能有 db 属性用于访问底层数据库
+                if (this.saver.db && typeof this.saver.db.close === 'function') {
+                    await this.saver.db.close();
+                }
+            } catch (error: any) {
+                logger.warn(`Error disposing saver: ${error.message}`);
+            } finally {
+                this.saver = undefined;
+            }
+        }
+    }
+
+    /**
      * 加载 skills
      */
     private loadSkills() {
@@ -389,39 +408,44 @@ ${skillsList}
      * 流式处理用户查询
      */
     async stream(query: string, onMessage: OnMessageCallback, onStreamMessage?: OnStreamMessageCallback, executeTool?: ExecuteToolCallback): Promise<void> {
-        // 添加用户消息到历史
-        const humanMessage = new HumanMessage(query);
+        try {
+            // 添加用户消息到历史
+            const humanMessage = new HumanMessage(query);
 
-        // 为本次调用创建独立的图，通过闭包传递回调
-        const graph = await this.createGraph(onStreamMessage, executeTool);
+            // 为本次调用创建独立的图，通过闭包传递回调
+            const graph = await this.createGraph(onStreamMessage, executeTool);
 
-        // 流式执行图 - 使用 updates 模式，每次只返回该步骤的更新
-        // 使用 userId 作为 thread_id
-        const stream = await graph.stream(
-            { messages: [humanMessage] },
-            { streamMode: "updates", configurable: { thread_id: this.threadId } }
-        );
+            // 流式执行图 - 使用 updates 模式，每次只返回该步骤的更新
+            // 使用 userId 作为 thread_id
+            const stream = await graph.stream(
+                { messages: [humanMessage] },
+                { streamMode: "updates", configurable: { thread_id: this.threadId } }
+            );
 
-        // 处理流式输出
-        for await (const update of stream) {
-            // update 是一个对象，键是节点名称，值是该节点的输出
-            // 例如: { agent: { messages: [...] } } 或 { tools: { messages: [...] } }
-            for (const [nodeName, nodeOutput] of Object.entries(update)) {
-                // 获取该节点输出的消息
-                const messages = (nodeOutput as any).messages || [];
+            // 处理流式输出
+            for await (const update of stream) {
+                // update 是一个对象，键是节点名称，值是该节点的输出
+                // 例如: { agent: { messages: [...] } } 或 { tools: { messages: [...] } }
+                for (const [, nodeOutput] of Object.entries(update)) {
+                    // 获取该节点输出的消息
+                    const messages = (nodeOutput as any).messages || [];
 
-                // 处理每条新消息
-                for (const message of messages) {
-                    // 跳过人类消息
-                    if (message instanceof HumanMessage) continue;
+                    // 处理每条新消息
+                    for (const message of messages) {
+                        // 跳过人类消息
+                        if (message instanceof HumanMessage) continue;
 
-                    // 转换为回调格式
-                    const messageChunk = this.convertToMessageChunk(message);
-                    if (messageChunk) {
-                        await onMessage(messageChunk!)
+                        // 转换为回调格式
+                        const messageChunk = this.convertToMessageChunk(message);
+                        if (messageChunk) {
+                            await onMessage(messageChunk!)
+                        }
                     }
                 }
             }
+        } finally {
+            // 确保释放资源
+            await this.dispose();
         }
     }
     /**
