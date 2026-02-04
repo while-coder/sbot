@@ -92,10 +92,9 @@ export function createExecuteSkillScriptTool(skillsDir: string): DynamicStructur
         schema: z.object({
             skillName: z.string().describe('skill 名称（kebab-case 格式）'),
             scriptPath: z.string().describe('脚本文件的相对路径，例如："scripts/process.py"、"scripts/build.sh"'),
-            args: z.array(z.string()).optional().describe('传递给脚本的参数列表'),
-            env: z.record(z.string()).optional().describe('环境变量（键值对）')
+            args: z.array(z.string()).optional().describe('传递给脚本的参数列表')
         }),
-        func: async ({ skillName, scriptPath, args = [], env = {} }) => {
+        func: async ({ skillName, scriptPath, args = [] }) => {
             try {
                 // 构建完整路径
                 const fullPath = path.join(skillsDir, skillName, scriptPath);
@@ -146,7 +145,7 @@ export function createExecuteSkillScriptTool(skillsDir: string): DynamicStructur
                 // 执行脚本
                 const { stdout, stderr } = await execAsync(command, {
                     cwd: skillDir, // 在 skill 目录下执行
-                    env: { ...process.env, ...env },
+                    env: process.env,
                     timeout: 60000, // 60 秒超时
                     maxBuffer: 10 * 1024 * 1024 // 10MB buffer
                 });
