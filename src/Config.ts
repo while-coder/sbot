@@ -15,12 +15,79 @@ export interface ModelConfig {
   model?: string;
 }
 
+/**
+ * MCP 服务器配置
+ * 支持 stdio、http 两种传输方式
+ */
 export interface MCPServerConfig {
-  command: string;
+  // === 通用配置 ===
+  /** 传输类型（可选，会根据配置结构自动推断） */
+  transport?: "stdio" | "http";
+  /** 传输类型别名（与 transport 相同，用于兼容） */
+  type?: "stdio" | "http";
+
+  // === Stdio 传输配置 ===
+  /** 要运行的可执行文件（如 node、npx、python 等）- stdio 必需 */
+  command?: string;
+  /** 传递给可执行文件的命令行参数 */
   args?: string[];
+  /** 环境变量 */
   env?: Record<string, string>;
+  /** 进程编码方式 */
+  encoding?: string;
+  /** 工作目录 */
+  cwd?: string;
+  /** stderr 处理方式（默认：inherit） */
+  stderr?: "overlapped" | "pipe" | "ignore" | "inherit";
+  /** 进程重启配置 */
+  restart?: {
+    /** 是否启用自动重启 */
+    enabled?: boolean;
+    /** 最大重启次数 */
+    maxAttempts?: number;
+    /** 重启延迟（毫秒） */
+    delayMs?: number;
+  };
+
+  // === HTTP 传输配置 ===
+  /** 服务器 URL - http 必需 */
+  url?: string;
+  /** 请求头（用于身份验证等）- http 可用 */
   headers?: Record<string, string>;
+  /** OAuth 认证提供者（推荐用于身份验证，自动处理 token 刷新和 401 重试）- http 可用 */
+  authProvider?: any; // OAuthClientProvider 类型
+  /** 重新连接配置 - http 可用 */
+  reconnect?: {
+    /** 是否启用自动重连 */
+    enabled?: boolean;
+    /** 最大重连次数 */
+    maxAttempts?: number;
+    /** 重连延迟（毫秒） */
+    delayMs?: number;
+  };
+  /** 是否自动回退到 SSE（当 Streamable HTTP 不可用时）- 默认：true */
+  automaticSSEFallback?: boolean;
+
+  // === 工具配置 ===
+  /** 禁用自动批准的工具列表（需要用户确认） */
   disabledAutoApproveTools?: string[];
+  /** 工具执行的默认超时时间（毫秒） */
+  defaultToolTimeout?: number;
+
+  // === 输出处理 ===
+  /**
+   * 工具输出的处理方式
+   * - "content": 所有输出放入 ToolMessage.content
+   * - "artifact": 所有输出放入 ToolMessage.artifact
+   * - 对象: 为每种内容类型单独指定
+   */
+  outputHandling?: "artifact" | "content" | {
+    audio?: "artifact" | "content";
+    image?: "artifact" | "content";
+    resource?: "artifact" | "content";
+    resource_link?: "artifact" | "content";
+    text?: "artifact" | "content";
+  };
 }
 
 export interface MCPServers {
@@ -90,17 +157,17 @@ class Config {
   }
 
   /**
-   * 获取 MCP 服务器配置（每次都实时读取 mcp.json 文件）
+   * 获取 MCP 服务器配置（每次都实时读取 mcp.toml 文件）
    */
   getMcpServers(): MCPServers {
-    const mcpConfigPath = this.getConfigPath("mcp.json");
+    const mcpConfigPath = this.getConfigPath("mcp.toml");
 
     try {
       if (fs.existsSync(mcpConfigPath)) {
         const content = fs.readFileSync(mcpConfigPath, "utf-8");
-        const parsed = JSON.parse(content);
+        const parsed = toml.parse(content);
         // 支持 mcpServers 或直接的服务器配置
-        return parsed.mcpServers || parsed;
+        return (parsed.mcpServers || parsed) as MCPServers;
       }
     } catch (error) {
       // 读取失败时返回空对象
@@ -179,34 +246,10 @@ model = "gpt-4"
   }
 
   /**
-   * 获取默认 MCP 配置内容模板
-   */
-  private getDefaultMcpConfigTemplate(): string {
-    const exampleConfig = {
-      mcpServers: {
-        "example-server": {
-          command: "node",
-          args: ["path/to/your/mcp-server.js"],
-          env: {
-            "API_KEY": "your-api-key-here"
-          },
-          disabledAutoApproveTools: ["dangerous_tool"]
-        },
-        "python-server": {
-          command: "python",
-          args: ["-m", "your_mcp_module"],
-          disabledAutoApproveTools: []
-        }
-      }
-    };
-    return JSON.stringify(exampleConfig, null, 2);
-  }
-
-  /**
-   * 每次启动时生成 MCP 配置示例文件 mcp.json.example
+   * 每次启动时生成 MCP 配置示例文件 mcp.toml.example
    */
   private createExampleMcpConfig(): void {
-    const examplePath = this.getConfigPath("mcp.json.example");
+    const examplePath = this.getConfigPath("mcp.toml.example");
     const defaultMcpConfig = this.getDefaultMcpConfigTemplate();
 
     try {
@@ -215,6 +258,75 @@ model = "gpt-4"
       // 忽略错误
     }
   }
+
+  /**
+   * 获取默认 MCP 配置内容模板（TOML 格式）
+   */
+  private getDefaultMcpConfigTemplate(): string {
+    return `# SBot MCP 服务器配置文件
+# 支持 stdio 和 http 两种传输方式
+
+# ========================================
+# Stdio 传输示例 - 本地进程
+# ========================================
+
+# 简单的 Python MCP 服务器
+[mcpServers.python-server]
+command = "python"
+args = ["-m", "your_mcp_module"]
+disabledAutoApproveTools = []
+
+# 完整配置的 Node.js MCP 服务器
+[mcpServers.local-node-server]
+transport = "stdio"
+command = "node"
+args = ["path/to/your/mcp-server.js"]
+cwd = "/path/to/working/directory"
+stderr = "inherit"
+defaultToolTimeout = 30000
+disabledAutoApproveTools = ["dangerous_tool"]
+
+# 环境变量配置
+[mcpServers.local-node-server.env]
+API_KEY = "your-api-key-here"
+NODE_ENV = "production"
+
+# 进程重启配置
+[mcpServers.local-node-server.restart]
+enabled = true
+maxAttempts = 3
+delayMs = 1000
+
+# ========================================
+# HTTP 传输示例 - 远程服务器
+# ========================================
+
+[mcpServers.remote-http-server]
+transport = "http"
+url = "https://mcp-server.example.com"
+automaticSSEFallback = true
+defaultToolTimeout = 60000
+disabledAutoApproveTools = []
+
+# HTTP 请求头（用于身份验证）
+[mcpServers.remote-http-server.headers]
+Authorization = "Bearer your-token"
+X-Custom-Header = "custom-value"
+
+# 自动重连配置
+[mcpServers.remote-http-server.reconnect]
+enabled = true
+maxAttempts = 5
+delayMs = 2000
+
+# 输出处理配置
+[mcpServers.remote-http-server.outputHandling]
+text = "content"
+image = "artifact"
+resource = "artifact"
+`;
+  }
+
 
   /**
    * 创建默认配置文件
