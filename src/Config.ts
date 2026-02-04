@@ -15,6 +15,17 @@ export interface ModelConfig {
   model?: string;
 }
 
+export interface MCPServerConfig {
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+  disabledAutoApproveTools?: string[];
+}
+
+export interface MCPServers {
+  [serverName: string]: MCPServerConfig;
+}
+
 export interface Settings {
   model?: string; // 当前使用的模型名称（对应 models 中的 key）
   lark?: LarkConfig;
@@ -24,6 +35,7 @@ export interface Settings {
 class Config {
   private _configDir: string;
   private _settings: Settings = {};
+  private _mcpServers: MCPServers = {};
 
   constructor() {
     // 获取用户目录
@@ -32,9 +44,11 @@ class Config {
 
     // 每次启动都生成示例配置文件
     this.createExampleSettings();
+    this.createExampleMcpConfig();
 
     // 加载配置文件
     this.loadSettings();
+    this.loadMcpServers();
   }
 
   /**
@@ -74,6 +88,31 @@ class Config {
     } catch (error) {
       this._settings = {};
     }
+  }
+
+  /**
+   * 加载 MCP 服务器配置
+   */
+  private loadMcpServers(): void {
+    const mcpConfigPath = this.getConfigPath("mcp.json");
+
+    try {
+      if (fs.existsSync(mcpConfigPath)) {
+        const content = fs.readFileSync(mcpConfigPath, "utf-8");
+        const parsed = JSON.parse(content);
+        // 支持 mcpServers 或直接的服务器配置
+        this._mcpServers = parsed.mcpServers || parsed;
+      }
+    } catch (error) {
+      this._mcpServers = {};
+    }
+  }
+
+  /**
+   * 获取 MCP 服务器配置
+   */
+  getMcpServers(): MCPServers {
+    return this._mcpServers;
   }
 
   /**
@@ -121,6 +160,44 @@ model = "gpt-4"
 
     try {
       fs.writeFileSync(examplePath, defaultSettings, "utf-8");
+    } catch (error) {
+      // 忽略错误
+    }
+  }
+
+  /**
+   * 获取默认 MCP 配置内容模板
+   */
+  private getDefaultMcpConfigTemplate(): string {
+    const exampleConfig = {
+      mcpServers: {
+        "example-server": {
+          command: "node",
+          args: ["path/to/your/mcp-server.js"],
+          env: {
+            "API_KEY": "your-api-key-here"
+          },
+          disabledAutoApproveTools: ["dangerous_tool"]
+        },
+        "python-server": {
+          command: "python",
+          args: ["-m", "your_mcp_module"],
+          disabledAutoApproveTools: []
+        }
+      }
+    };
+    return JSON.stringify(exampleConfig, null, 2);
+  }
+
+  /**
+   * 每次启动时生成 MCP 配置示例文件 mcp.json.example
+   */
+  private createExampleMcpConfig(): void {
+    const examplePath = this.getConfigPath("mcp.json.example");
+    const defaultMcpConfig = this.getDefaultMcpConfigTemplate();
+
+    try {
+      fs.writeFileSync(examplePath, defaultMcpConfig, "utf-8");
     } catch (error) {
       // 忽略错误
     }

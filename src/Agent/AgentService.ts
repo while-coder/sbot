@@ -122,8 +122,12 @@ export class AgentService {
         const skillTools = createSkillTools(this.skillsDir);
         this.tools.push(...skillTools);
 
-        // 工具需要通过配置或外部方式添加
-        // 可以通过 addMcpServers 方法动态添加
+        // 从 mcp.json 自动加载 MCP 服务器配置
+        const mcpServers = config.getMcpServers();
+        if (mcpServers && Object.keys(mcpServers).length > 0) {
+            logger.info(`从 mcp.json 加载 ${Object.keys(mcpServers).length} 个 MCP 服务器`);
+            await this.addMcpServers(mcpServers);
+        }
 
         return this.tools;
     }
