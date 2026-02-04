@@ -61,7 +61,7 @@ export class AgentService {
     model: ChatOpenAI | null = null;
     private skills: Skill[]|undefined;
     private skillsDir: string = "";
-    private maxHistoryMessages: number = 50; // 最大历史消息数
+    private maxHistoryMessages: number = 5; // 最大历史消息数
 
     constructor(userId: string, skillsDir?: string) {
         this.threadId = userId;
@@ -76,27 +76,6 @@ export class AgentService {
         const saver = await this.createSaver()
         await saver.deleteThread(this.threadId)
         logger.info(`Cleared history for thread ${this.threadId}`)
-    }
-
-    /**
-     * 获取当前历史消息数量（估算）
-     */
-    async getHistorySize(): Promise<number> {
-        try {
-            const saver = await this.createSaver();
-            // 尝试获取最新的 checkpoint 来估算消息数
-            const state = await saver.get({ configurable: { thread_id: this.threadId } });
-            if (state?.channel_values) {
-                const channelValues = state.channel_values as any;
-                if (channelValues.messages && Array.isArray(channelValues.messages)) {
-                    return channelValues.messages.length;
-                }
-            }
-            return 0;
-        } catch (error: any) {
-            logger.warn(`Error getting history size: ${error.message}`);
-            return 0;
-        }
     }
 
     /**
@@ -446,13 +425,21 @@ ${skillsList}
             // 添加用户消息到历史
             const humanMessage = new HumanMessage(query);
 
+            // 检查是否需要清理历史记录
+            const historyMessages = await this.prepareHistoryForStream();
+
+            // 准备要传递的消息
+            // 如果已经清理过历史，使用清理后的消息；否则只传递当前消息
+            const inputMessages = historyMessages.length > 0
+                ? [...historyMessages, humanMessage]
+                : [humanMessage];
+
             // 为本次调用创建独立的图，通过闭包传递回调
             const graph = await this.createGraph(onStreamMessage, executeTool);
-
             // 流式执行图 - 使用 updates 模式，每次只返回该步骤的更新
             // 使用 userId 作为 thread_id
             const stream = await graph.stream(
-                { messages: [humanMessage] },
+                { messages: inputMessages },
                 { streamMode: "updates", configurable: { thread_id: this.threadId } }
             );
 
@@ -478,9 +465,6 @@ ${skillsList}
                 }
             }
 
-            // 清理超过限制的历史记录
-            await this.trimHistoryInSaver();
-
         } finally {
             // 确保释放资源
             await this.dispose();
@@ -488,33 +472,50 @@ ${skillsList}
     }
 
     /**
-     * 清理 saver 中超过限制的历史记录
-     * 直接删除 thread，下次对话会重新开始（但由于 callModelNode 中已经截断历史，
-     * 所以实际上只会丢失超过 maxHistoryMessages 的旧消息）
+     * 准备历史记录用于 stream
+     * 如果历史记录超过限制，返回截断后的历史消息并清理 saver
+     * 否则返回空数组（使用 saver 中的历史）
      */
-    private async trimHistoryInSaver() {
+    private async prepareHistoryForStream(): Promise<BaseMessage[]> {
         try {
-            const historySize = await this.getHistorySize();
+            const saver = await this.createSaver();
 
-            // 如果超过限制的 150%，则进行清理（留更多缓冲，减少清理频率）
-            const threshold = Math.floor(this.maxHistoryMessages * 1.5);
+            // 获取当前状态
+            const currentState = await saver.get({ configurable: { thread_id: this.threadId } });
 
-            if (historySize > threshold) {
-                logger.info(`History size ${historySize} exceeds threshold ${threshold}, clearing thread...`);
+            if (currentState?.channel_values) {
+                const channelValues = currentState.channel_values as any;
 
-                const saver = await this.createSaver();
+                if (channelValues.messages && Array.isArray(channelValues.messages)) {
+                    const allMessages = channelValues.messages;
 
-                // 直接删除整个 thread
-                // 由于我们在 callModelNode 中已经截断到最近 50 条消息
-                // 所以下次对话时，只会从最近的对话开始，不会丢失太多上下文
-                await saver.deleteThread(this.threadId);
+                    // 如果超过最大限制，需要清理
+                    if (allMessages.length > this.maxHistoryMessages) {
+                        logger.info(`History size ${allMessages.length} exceeds limit ${this.maxHistoryMessages}, trimming...`);
 
-                logger.info(`Cleared thread ${this.threadId} (history size was ${historySize})`);
+                        // 只保留最近的消息
+                        const recentMessages = allMessages.slice(-this.maxHistoryMessages);
+
+                        // 删除旧的 thread（清理数据库）
+                        await saver.deleteThread(this.threadId);
+
+                        logger.info(`Cleared thread ${this.threadId}, will reinitialize with ${recentMessages.length} messages`);
+
+                        // 返回截断后的历史消息，让 graph.stream 重新初始化
+                        return recentMessages;
+                    }
+                }
             }
+
+            // 历史未超限，返回空数组，使用 saver 中的历史
+            return [];
+
         } catch (error: any) {
-            logger.warn(`Error trimming history in saver: ${error.message}`);
+            logger.warn(`Error preparing history: ${error.message}`);
+            return [];
         }
     }
+
     /**
      * 将 BaseMessage 转换为 LangChainMessageChunk 格式
      */
