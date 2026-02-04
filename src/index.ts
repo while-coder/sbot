@@ -5,7 +5,7 @@ import {database} from "./Database";
 import {larkService} from "./LarkService";
 
 // 确保日志目录存在并获取路径
-const logsDir = config.getConfigPath("logs", { isDirectory: true });
+const logsDir = config.getConfigPath("logs", true);
 
 log4js.configure({
     appenders: {
@@ -47,9 +47,9 @@ async function main() {
             logger.error(`未捕获的异常:${err?.stack}\n${origin}`)
         })
 
-        // 验证飞书配置
+        // 验证配置
         logger.info("正在验证配置...")
-        config.validateFeishuConfig()
+        config.validateConfig()
         logger.info("配置验证完成")
 
         await database.init()

@@ -116,13 +116,14 @@ class GraphService {
     private async createModel(): Promise<ChatOpenAI> {
         if (this.model != null) return this.model;
 
-        const modelConfig = config.settings.model;
+        const modelConfig = config.getCurrentModel();
 
-        if (Util.isNullOrEmpty(modelConfig?.baseURL) ||
-            Util.isNullOrEmpty(modelConfig?.apiKey) ||
-            Util.isNullOrEmpty(modelConfig?.model)
+        if (!modelConfig ||
+            Util.isNullOrEmpty(modelConfig.baseURL) ||
+            Util.isNullOrEmpty(modelConfig.apiKey) ||
+            Util.isNullOrEmpty(modelConfig.model)
         ) {
-            throw new Error("模型配置不完整，请在配置文件中设置 model.baseURL, model.apiKey 和 model.model");
+            throw new Error("模型配置不完整，请在配置文件中正确配置当前使用的模型");
         }
 
         this.model = new ChatOpenAI({

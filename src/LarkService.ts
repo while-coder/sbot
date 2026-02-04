@@ -19,8 +19,8 @@ class LarkService {
   private larkWsClient!: Lark.WSClient;
 
   async start() {
-    // 验证飞书配置
-    config.validateFeishuConfig();
+    // 验证配置
+    config.validateConfig();
 
     let baseConfig = {
       appId: config.settings.feishu!.appId!,

@@ -19,8 +19,9 @@ export interface ModelConfig {
 }
 
 export interface Settings {
+  model?: string; // 当前使用的模型名称（对应 models 中的 key）
   feishu?: FeishuConfig;
-  model?: ModelConfig;
+  models?: Record<string, ModelConfig>; // 多个模型配置
 }
 
 class Config {
@@ -32,18 +33,11 @@ class Config {
     const userHome = os.homedir();
     this._configDir = path.join(userHome, ".sbot");
 
-    // 确保配置目录存在
-    this.ensureConfigDir();
+    // 每次启动都生成示例配置文件
+    this.createExampleSettings();
 
     // 加载配置文件
     this.loadSettings();
-  }
-
-  /**
-   * 获取配置目录路径
-   */
-  get configDir(): string {
-    return this._configDir;
   }
 
   /**
@@ -54,13 +48,16 @@ class Config {
   }
 
   /**
-   * 确保配置目录存在
+   * 获取当前使用的模型配置
+   * @returns 当前模型配置，如果未配置则返回 undefined
    */
-  private ensureConfigDir(): void {
-    if (!fs.existsSync(this._configDir)) {
-      fs.mkdirSync(this._configDir, { recursive: true });
-      logger.info(`创建配置目录: ${this._configDir}`);
+  getCurrentModel(): ModelConfig | undefined {
+    if (!this._settings.model || typeof this._settings.model !== 'string' || !this._settings.models) {
+      return undefined;
     }
+
+    const currentModelName = this._settings.model.trim();
+    return this._settings.models[currentModelName];
   }
 
   /**
@@ -86,10 +83,13 @@ class Config {
   }
 
   /**
-   * 创建默认配置文件
+   * 获取默认配置内容模板
    */
-  private createDefaultSettings(settingsPath: string): void {
-    const defaultSettings = `# SBot 配置文件
+  private getDefaultSettingsTemplate(): string {
+    return `# SBot 配置文件
+
+# 当前使用的模型名称（对应下面 [models.xxx] 中的名称）
+model = "openai-gpt4"
 
 [feishu]
 # 飞书应用配置
@@ -97,17 +97,47 @@ class Config {
 appId = ""
 appSecret = ""
 
-[model]
-# AI 模型配置
-# provider: 模型提供商 (如: openai, anthropic, azure, etc)
-# apiKey: API 密钥
-# baseURL: API 基础地址 (可选)
-# model: 模型名称 (如: gpt-4, claude-3-opus, etc)
-provider = ""
-apiKey = ""
-baseURL = ""
-model = ""
+# 多模型配置 - 可以配置多个模型，通过上面的 model 字段切换使用哪个
+[models.openai-gpt4]
+provider = "openai"
+apiKey = "your-api-key"
+baseURL = "https://api.openai.com/v1"
+model = "gpt-4"
+
+[models.claude]
+provider = "anthropic"
+apiKey = "your-api-key"
+baseURL = "https://api.anthropic.com"
+model = "claude-3-opus-20240229"
+
+[models.azure]
+provider = "azure"
+apiKey = "your-api-key"
+baseURL = "https://your-resource.openai.azure.com"
+model = "gpt-4"
 `;
+  }
+
+  /**
+   * 每次启动时生成示例配置文件 settings.toml.example
+   */
+  private createExampleSettings(): void {
+    const examplePath = this.getConfigPath("settings.toml.example");
+    const defaultSettings = this.getDefaultSettingsTemplate();
+
+    try {
+      fs.writeFileSync(examplePath, defaultSettings, "utf-8");
+      logger.info(`生成示例配置文件: ${examplePath}`);
+    } catch (error) {
+      logger.error(`生成示例配置文件失败: ${examplePath}`, error);
+    }
+  }
+
+  /**
+   * 创建默认配置文件
+   */
+  private createDefaultSettings(settingsPath: string): void {
+    const defaultSettings = this.getDefaultSettingsTemplate();
 
     try {
       fs.writeFileSync(settingsPath, defaultSettings, "utf-8");
@@ -128,9 +158,7 @@ model = ""
   /**
    * 获取配置目录下的文件或目录路径，自动确保父目录存在
    * @param pathSegment 文件名或路径（支持多层目录，如 "logs/app.log" 或 "cache/images/thumb.png"）
-   * @param options 选项
-   * @param options.ensureDir 是否确保目录存在（默认 true）。如果路径是文件，则确保其父目录存在；如果是目录，则确保该目录存在
-   * @param options.isDirectory 明确指定路径是否为目录（默认根据是否有扩展名判断）
+   * @param isDirectory 是否为目录路径（默认 false，即文件路径）
    * @returns 完整的文件或目录路径
    *
    * @example
@@ -139,58 +167,96 @@ model = ""
    * config.getConfigPath("logs/app.log")   // ~/.sbot/logs/app.log (自动创建 logs 目录)
    *
    * // 获取目录路径，自动创建该目录
-   * config.getConfigPath("cache", { isDirectory: true })  // ~/.sbot/cache (自动创建)
-   * config.getConfigPath("data/images", { isDirectory: true })  // ~/.sbot/data/images (自动创建多层目录)
-   *
-   * // 仅获取路径，不创建目录
-   * config.getConfigPath("temp/file.txt", { ensureDir: false })
+   * config.getConfigPath("cache", true)  // ~/.sbot/cache (自动创建)
+   * config.getConfigPath("data/images", true)  // ~/.sbot/data/images (自动创建多层目录)
    */
-  getConfigPath(pathSegment: string, options: { ensureDir?: boolean; isDirectory?: boolean } = {}): string {
-    const { ensureDir = true, isDirectory } = options;
+  getConfigPath(pathSegment: string, isDirectory: boolean = false): string {
     const fullPath = path.join(this._configDir, pathSegment);
 
-    if (ensureDir) {
-      let dirToEnsure: string;
+    // 确定需要创建的目录
+    // 如果是目录，则创建该目录；如果是文件，则创建其父目录
+    const dirToEnsure = isDirectory ? fullPath : path.dirname(fullPath);
 
-      if (isDirectory !== undefined) {
-        // 明确指定是否为目录
-        dirToEnsure = isDirectory ? fullPath : path.dirname(fullPath);
-      } else {
-        // 根据是否有扩展名自动判断（有扩展名认为是文件，否则认为是目录）
-        const hasExtension = path.extname(pathSegment) !== "";
-        dirToEnsure = hasExtension ? path.dirname(fullPath) : fullPath;
-      }
-
-      // 确保目录存在
-      if (!fs.existsSync(dirToEnsure)) {
-        fs.mkdirSync(dirToEnsure, { recursive: true });
-        logger.info(`创建目录: ${dirToEnsure}`);
-      }
+    // 确保目录存在
+    if (!fs.existsSync(dirToEnsure)) {
+      fs.mkdirSync(dirToEnsure, { recursive: true });
+      logger.info(`创建目录: ${dirToEnsure}`);
     }
 
     return fullPath;
   }
 
   /**
-   * 验证飞书配置是否完整
+   * 验证所有配置是否完整
    * @throws 如果配置不完整则抛出错误
    */
-  validateFeishuConfig(): void {
+  validateConfig(): void {
+    const errors: string[] = [];
+
+    // 验证飞书配置
     if (!this._settings.feishu) {
-      throw new Error("缺少飞书配置 [feishu]，请在配置文件中添加飞书应用配置");
+      errors.push("缺少飞书配置 [feishu]，请在配置文件中添加飞书应用配置");
+    } else {
+      const { appId, appSecret } = this._settings.feishu;
+
+      if (!appId || appId.trim() === "") {
+        errors.push("飞书配置缺少 appId，请在配置文件 [feishu] 区间中填写 appId");
+      }
+
+      if (!appSecret || appSecret.trim() === "") {
+        errors.push("飞书配置缺少 appSecret，请在配置文件 [feishu] 区间中填写 appSecret");
+      }
     }
 
-    const { appId, appSecret } = this._settings.feishu;
-
-    if (!appId || appId.trim() === "") {
-      throw new Error("飞书配置缺少 appId，请在配置文件 [feishu] 区间中填写 appId");
+    // 验证模型配置
+    // 检查 model 字段类型和值
+    if (!this._settings.model || typeof this._settings.model !== 'string' || this._settings.model.trim() === "") {
+      errors.push("缺少 model 配置项，请在配置文件顶部指定当前使用的模型名称（如: model = \"openai-gpt4\"）");
     }
 
-    if (!appSecret || appSecret.trim() === "") {
-      throw new Error("飞书配置缺少 appSecret，请在配置文件 [feishu] 区间中填写 appSecret");
+    // 检查是否有模型配置
+    if (!this._settings.models || Object.keys(this._settings.models).length === 0) {
+      errors.push("缺少模型配置 [models]，请在配置文件中添加至少一个模型配置");
+    } else if (this._settings.model && typeof this._settings.model === 'string' && this._settings.model.trim() !== "") {
+      // 验证指定的模型是否存在
+      const currentModelName = this._settings.model.trim();
+      const currentModel = this._settings.models[currentModelName];
+
+      if (!currentModel) {
+        errors.push(`指定的模型 "${currentModelName}" 不存在，请在 [models.${currentModelName}] 中配置或修改 model 字段`);
+      } else {
+        // 验证当前模型的配置是否完整
+        const { apiKey, baseURL, model } = currentModel;
+
+        if (!apiKey || apiKey.trim() === "") {
+          errors.push(`模型 "${currentModelName}" 缺少 apiKey，请在 [models.${currentModelName}] 中填写 apiKey`);
+        }
+
+        if (!baseURL || baseURL.trim() === "") {
+          errors.push(`模型 "${currentModelName}" 缺少 baseURL，请在 [models.${currentModelName}] 中填写 baseURL`);
+        }
+
+        if (!model || model.trim() === "") {
+          errors.push(`模型 "${currentModelName}" 缺少 model，请在 [models.${currentModelName}] 中填写 model`);
+        }
+      }
     }
 
-    logger.info("飞书配置验证通过");
+    // 如果有错误，抛出异常
+    if (errors.length > 0) {
+      throw new Error(errors.join("\n"));
+    }
+
+    logger.info("配置验证通过");
+  }
+
+  /**
+   * 验证飞书配置是否完整（兼容旧方法）
+   * @throws 如果配置不完整则抛出错误
+   * @deprecated 请使用 validateConfig() 代替
+   */
+  validateFeishuConfig(): void {
+    this.validateConfig();
   }
 }
 
