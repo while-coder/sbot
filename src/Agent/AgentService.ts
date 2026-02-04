@@ -6,6 +6,8 @@ import {StateGraph, END, START, MessagesAnnotation} from '@langchain/langgraph';
 import {SqliteSaver} from "@langchain/langgraph-checkpoint-sqlite";
 import {config} from "../Config";
 import {getLogger} from "../logger";
+import { loadSkills, Skill } from "../Skills";
+import path from "path";
 // import { TextSplitter } from '@langchain/textsplitters'
 
 const logger = getLogger("AgentService.ts");
@@ -58,14 +60,45 @@ export class AgentService {
     disabledAutoApproveTools: Set<string> = new Set<string>();
     saver:SqliteSaver|undefined;
     model: ChatOpenAI | null = null;
+    private skills: Skill[] = [];
+    private skillsDir: string = "";
 
-    constructor(userId: string) {
+    constructor(userId: string, skillsDir?: string) {
         this.threadId = userId;
+        // 如果未指定 skills 目录，使用项目根目录下的 skills 文件夹
+        this.skillsDir = skillsDir || path.join(process.cwd(), "skills");
     }
 
     async clear() {
         const saver = await this.createSaver()
         await saver.deleteThread(this.threadId)
+    }
+
+    /**
+     * 加载 skills
+     */
+    private loadSkillsIfNeeded() {
+        if (this.skills.length > 0) return;
+
+        try {
+            this.skills = loadSkills(this.skillsDir);
+            if (this.skills.length > 0) {
+                logger.info(`Loaded ${this.skills.length} skills from ${this.skillsDir}`);
+            }
+        } catch (error: any) {
+            logger.error(`Failed to load skills: ${error.message}`);
+        }
+    }
+
+    /**
+     * 生成 skills 列表字符串用于系统提示词
+     */
+    private generateSkillsListString(): string {
+        if (this.skills.length === 0) return "";
+
+        return this.skills.map(skill =>
+            `- ${skill.name}: ${skill.path}\n  ${skill.description}`
+        ).join('\n');
     }
     /**
      * 初始化工具
@@ -157,11 +190,40 @@ export class AgentService {
         const model = await this.createModel();
         const tools = await this.createTools();
 
+        // 加载 skills
+        this.loadSkillsIfNeeded();
+
         // 绑定工具到模型
         const modelWithTools = model.bindTools(tools);
 
-        // 添加系统提示
-        const systemMessage = `你是一个有用的AI助手。`;
+        // 构建系统提示词，包含 skills 信息
+        let systemMessage = `你是一个有用的AI助手。`;
+
+        // 如果有 skills，添加 skills 系统提示
+        if (this.skills.length > 0) {
+            const skillsList = this.generateSkillsListString();
+            systemMessage += `
+
+<skill_system>
+你可以访问为特定任务优化工作流的 skills。
+
+**渐进式加载模式**:
+1. 当用户查询与 skill 用例匹配时，识别相关的 skill
+2. 告知用户你将使用该 skill 来处理任务
+3. 理解 skill 的工作流和指导（skill 信息已在下方列表中）
+4. skill 目录包含可能的外部资源（scripts、references、assets 等）
+5. 如需访问 skill 的详细内容，可以读取对应目录下的文件
+6. 严格遵循 skill 的指导来完成任务
+
+**Skills 目录**: ${this.skillsDir}
+
+<all_available_skills>
+${skillsList}
+</all_available_skills>
+
+</skill_system>`;
+        }
+
         const messages = [
             { role: "system", content: systemMessage },
             ...state.messages
