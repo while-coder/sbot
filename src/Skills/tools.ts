@@ -7,7 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { DynamicStructuredTool } from '@langchain/core/tools';
+import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import { LoggerService } from '../LoggerService';
 
@@ -18,15 +18,15 @@ const execAsync = promisify(exec);
  * 创建读取 skill 文件的工具
  * @param skillsDir skills 目录路径
  */
-export function createReadSkillFileTool(skillsDir: string): DynamicStructuredTool {
+export function createReadSkillFileTool(skillsDir: string): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'read_skill_file',
         description: '读取 skill 目录下的文件内容。用于读取 SKILL.md、scripts/、references/、assets/ 等目录下的文件。',
         schema: z.object({
             skillName: z.string().describe('skill 名称（kebab-case 格式）'),
             filePath: z.string().describe('skill 目录内的相对路径，例如："SKILL.md"、"scripts/init.py"、"references/api.md"')
-        }),
-        func: async ({ skillName, filePath }) => {
+        }) as any,
+        func: async ({ skillName, filePath }: any) => {
             try {
                 // 构建完整路径
                 const fullPath = path.join(skillsDir, skillName, filePath);
@@ -85,7 +85,7 @@ export function createReadSkillFileTool(skillsDir: string): DynamicStructuredToo
  * 创建执行 skill 脚本的工具
  * @param skillsDir skills 目录路径
  */
-export function createExecuteSkillScriptTool(skillsDir: string): DynamicStructuredTool {
+export function createExecuteSkillScriptTool(skillsDir: string): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'execute_skill_script',
         description: '执行 skill 目录下的脚本文件（支持 Python、Shell、Node.js 等）。脚本会在 skill 目录下执行。',
@@ -93,8 +93,8 @@ export function createExecuteSkillScriptTool(skillsDir: string): DynamicStructur
             skillName: z.string().describe('skill 名称（kebab-case 格式）'),
             scriptPath: z.string().describe('脚本文件的相对路径，例如："scripts/process.py"、"scripts/build.sh"'),
             args: z.array(z.string()).optional().describe('传递给脚本的参数列表')
-        }),
-        func: async ({ skillName, scriptPath, args = [] }) => {
+        }) as any,
+        func: async ({ skillName, scriptPath, args = [] }: any) => {
             try {
                 // 构建完整路径
                 const fullPath = path.join(skillsDir, skillName, scriptPath);
@@ -177,15 +177,15 @@ export function createExecuteSkillScriptTool(skillsDir: string): DynamicStructur
  * 创建列出 skill 目录结构的工具
  * @param skillsDir skills 目录路径
  */
-export function createListSkillFilesTool(skillsDir: string): DynamicStructuredTool {
+export function createListSkillFilesTool(skillsDir: string): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'list_skill_files',
         description: '列出指定 skill 目录下的所有文件和子目录结构。用于了解 skill 包含哪些文件和资源。',
         schema: z.object({
             skillName: z.string().describe('skill 名称（kebab-case 格式）'),
             subPath: z.string().optional().describe('可选的子路径，例如："scripts"、"references"')
-        }),
-        func: async ({ skillName, subPath = '' }) => {
+        }) as any,
+        func: async ({ skillName, subPath = '' }: any) => {
             try {
                 // 构建完整路径
                 const fullPath = path.join(skillsDir, skillName, subPath);
@@ -264,7 +264,7 @@ export function createListSkillFilesTool(skillsDir: string): DynamicStructuredTo
  * 创建所有 skill 相关工具
  * @param skillsDir skills 目录路径
  */
-export function createSkillTools(skillsDir: string): DynamicStructuredTool[] {
+export function createSkillTools(skillsDir: string): StructuredToolInterface[] {
     return [
         createReadSkillFileTool(skillsDir),
         createExecuteSkillScriptTool(skillsDir),
