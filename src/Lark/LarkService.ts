@@ -19,19 +19,56 @@ const ExpireTime = HourMilliseconds * 24 * 3;
 
 class LarkService {
   private checkTime = 0;
+  private larkConfig: { appId: string, appSecret: string} | undefined;
   private larkClient!: Lark.Client;
   private larkWsClient!: Lark.WSClient;
+  private tenantAccessToken: string = '';
+  private tokenExpireTime: number = 0;
 
   async start() {
-    let baseConfig = {
+    this.larkConfig = {
       appId: config.settings.lark!.appId!,
       appSecret: config.settings.lark!.appSecret!,
     };
     this.checkTime = 0;
-    this.larkClient = new Lark.Client(baseConfig);
-    this.larkWsClient = new Lark.WSClient(baseConfig);
+    this.larkClient = new Lark.Client(this.larkConfig);
+    this.larkWsClient = new Lark.WSClient(this.larkConfig);
 
     this.registerEventDispatcher()
+  }
+
+  /**
+   * 获取 tenant_access_token
+   * @returns tenant_access_token
+   */
+  private async getTenantAccessToken(): Promise<string> {
+    // 如果 token 还未过期，直接返回
+    if (this.tenantAccessToken && Util.NowDate < this.tokenExpireTime) {
+      return this.tenantAccessToken;
+    }
+
+    try {
+      const response = await this.larkClient.auth.tenantAccessToken.internal({
+        data: {
+          app_id: this.larkConfig!.appId,
+          app_secret: this.larkConfig!.appSecret,
+        },
+      }) as any;
+
+      if (response.code !== 0) {
+        throw new Error(`获取 tenant_access_token 失败: ${response.msg}`);
+      }
+
+      this.tenantAccessToken = response.tenant_access_token;
+      // 提前 5 分钟过期，避免边界问题
+      this.tokenExpireTime = Util.NowDate + (response.expire - 300) * 1000;
+
+      logger.info(`成功获取 tenant_access_token，过期时间: ${new Date(this.tokenExpireTime).toISOString()}`);
+      return this.tenantAccessToken;
+    } catch (error: any) {
+      logger.error(`获取 tenant_access_token 失败: ${error.message}`);
+      throw error;
+    }
   }
 
   async sendMessage(chatId: string, msgType: string, content: string) {
@@ -170,19 +207,22 @@ class LarkService {
 
       logger.info(`正在上传图片到飞书 (${imageBuffer.length} bytes)`);
 
-      // 上传图片到飞书
+      // 获取 tenant_access_token
+      const token = await this.getTenantAccessToken();
+
+      // 使用 Lark SDK 上传图片
       const response = await this.larkClient.im.v1.image.create({
         data: {
           image_type: 'message',
-          image: imageBuffer
-        }
-      });
+          image: imageBuffer,
+        },
+      }, Lark.withTenantToken(token)) as any;
 
-      if (!response || !(response as any).data || !(response as any).data.image_key) {
-        throw new Error('飞书返回数据格式错误');
+      if (!response || response.code !== 0) {
+        throw new Error(`飞书返回错误: ${response?.msg || '未知错误'}`);
       }
 
-      const imageKey = (response as any).data.image_key;
+      const imageKey = response.data.image_key;
       logger.info(`图片上传成功，image_key: ${imageKey}`);
 
       return imageKey;
@@ -204,64 +244,34 @@ class LarkService {
 
   /**
    * 转换工具返回内容中的图片链接为飞书图片格式
-   * 检测内容中的图片路径或 URL，自动上传到飞书并替换为飞书图片标签
+   * 检测内容中的纯 URL 或本地路径，自动上传到飞书并替换为 Markdown 图片格式
    * @param content 工具返回的内容
    * @returns 转换后的内容
    */
   async convertImagesToLarkFormat(content: string): Promise<string> {
     try {
-      // 正则匹配常见的图片模式
-      // 1. Markdown 图片：![alt](path/to/image.png)
-      // 2. HTML img 标签：<img src="path/to/image.png" />
-      // 3. 纯图片 URL：http(s)://.../*.{png,jpg,jpeg,gif,webp}
-      // 4. 本地文件路径：/path/to/image.{png,jpg,jpeg,gif,webp}
-
-      const imagePatterns = [
-        // Markdown 图片: ![alt](url)
-        /!\[([^\]]*)\]\(([^)]+\.(?:png|jpg|jpeg|gif|webp|bmp))\)/gi,
-        // HTML img 标签: <img src="url" />
-        /<img[^>]+src=["']([^"']+\.(?:png|jpg|jpeg|gif|webp|bmp))["'][^>]*>/gi,
-        // 纯 URL 或本地路径（以图片扩展名结尾的路径）
-        /(?:https?:\/\/[^\s]+|\/[^\s]+)\.(?:png|jpg|jpeg|gif|webp|bmp)/gi
-      ];
+      // 正则匹配图片路径：纯 URL 或本地路径（以图片扩展名结尾）
+      const imagePattern = /(?:https?:\/\/[^\s]+|\/[^\s]+)\.(?:png|jpg|jpeg|gif|webp|bmp)/gi;
 
       let convertedContent = content;
-      const imageCache = new Map<string, string>(); // 缓存已上传的图片，避免重复上传
 
-      for (const pattern of imagePatterns) {
-        const matches = content.matchAll(pattern);
+      const matches = content.matchAll(imagePattern);
 
-        for (const match of matches) {
-          const fullMatch = match[0];
-          // 提取图片路径（不同模式有不同的捕获组）
-          const imagePath = match[2] || match[1] || fullMatch;
+      for (const match of matches) {
+        const imagePath = match[0];
 
-          // 跳过已经是飞书图片格式的内容
-          if (imagePath.startsWith('img_')) {
-            continue;
-          }
+        try {
+          // 上传图片到飞书
+          const imageKey = await this.uploadImageToLark(imagePath);
 
-          try {
-            // 检查缓存
-            let imageKey: string;
-            if (imageCache.has(imagePath)) {
-              imageKey = imageCache.get(imagePath)!;
-            } else {
-              // 上传图片到飞书
-              imageKey = await this.uploadImageToLark(imagePath);
-              imageCache.set(imagePath, imageKey);
-            }
+          // 替换为 Markdown 图片格式
+          const larkImageTag = `![](${imageKey})`;
+          convertedContent = convertedContent.replace(imagePath, larkImageTag);
 
-            // 替换为飞书图片标签
-            // 飞书消息中使用 <img img_key="xxx" /> 格式
-            const larkImageTag = `<img img_key="${imageKey}" />`;
-            convertedContent = convertedContent.replace(fullMatch, larkImageTag);
-
-            logger.info(`已转换图片: ${imagePath} -> ${imageKey}`);
-          } catch (error: any) {
-            logger.error(`转换图片失败 ${imagePath}: ${error.message}`);
-            // 转换失败，保留原始内容
-          }
+          logger.info(`已转换图片: ${imagePath} -> ${imageKey}`);
+        } catch (error: any) {
+          logger.error(`转换图片失败 ${imagePath}: ${error.message}`);
+          // 转换失败，保留原始内容
         }
       }
 
