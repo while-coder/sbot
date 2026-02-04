@@ -53,7 +53,6 @@ export function loadSkills(skillsDir: string): Skill[] {
             const skill = parseSkill(skillDir);
             if (skill) {
                 skills.push(skill);
-                logger.info(`✓ 已加载 skill: ${skill.name}`);
             } else {
                 logger.warn(`✗ 加载 skill 失败: ${entry.name}`);
             }
