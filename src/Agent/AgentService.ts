@@ -193,24 +193,44 @@ export class AgentService {
             ).join('\n');
 
             const skillSystemMessage = `
-<skill_system>
-你可以访问为特定任务优化工作流的 skills。
+# 🎯 Skills 系统
 
-**渐进式加载模式**:
-1. 当用户查询与 skill 用例匹配时，识别相关的 skill
-2. 告知用户你将使用该 skill 来处理任务
-3. 理解 skill 的工作流和指导（skill 信息已在下方列表中）
-4. skill 目录包含可能的外部资源（scripts、references、assets 等）
-5. 如需访问 skill 的详细内容，可以读取对应目录下的文件
-6. 严格遵循 skill 的指导来完成任务
+你拥有一套专为特定任务优化的 **Skills**。当用户的请求与下列任意 skill 的描述相关时，你**必须立即使用**对应的 skill。
 
-**Skills 目录**: ${this.skillsDir}
+## 📋 可用的 Skills 列表
 
-<all_available_skills>
 ${skillsList}
-</all_available_skills>
 
-</skill_system>`;
+**Skills 存储路径**: ${this.skillsDir}
+
+---
+
+## 🔍 识别与匹配规则
+
+**关键原则**: 根据用户请求的**关键词、任务类型、文件类型**来匹配 skill。
+
+匹配示例：
+- 用户提到 "PDF"、"表格提取"、"填写 PDF" → 使用 **pdf** skill
+- 用户提到 "Excel"、"xlsx"、"电子表格" → 使用 **xlsx** skill
+- 用户提到 "Unity shader"、"着色器分析" → 使用 **unity-shader-analyzer** skill
+- 用户提到 "创建 skill"、"新建 skill" → 使用 **skill-creator** skill
+
+## ⚡ 使用流程（必须遵守）
+
+当匹配到 skill 时，立即执行以下步骤：
+
+1. **告知用户**："我将使用 '{skill-name}' skill 来处理这个任务"
+2. **读取 SKILL.md**：立即读取 \`${this.skillsDir}/{skill-name}/SKILL.md\` 文件
+3. **理解指导**：仔细阅读 SKILL.md 中的完整工作流程和指导说明
+4. **严格执行**：完全按照 skill 中的指导和步骤来完成任务
+5. **访问资源**：如果 skill 引用了其他文件（scripts/、references/ assets/ 等），按需读取
+
+## ⚠️ 重要约束
+
+- ✅ **必须先读取 SKILL.md**：在执行任何 skill 相关操作前，必须先读取并理解 SKILL.md
+- ✅ **严格遵循指导**：SKILL.md 中的指导是权威的，必须完全遵守
+- ✅ **主动识别**：不要等用户明确说"使用某个 skill"，要主动识别和使用
+- ❌ **禁止猜测**：如果不确定 skill 的使用方式，必须先读取 SKILL.md`;
             systemMessages.push({ role: "system", content: skillSystemMessage });
         }
 
