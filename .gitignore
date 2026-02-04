@@ -10,5 +10,4 @@ yarn-error.log*
 /.pnp
 .pnp.js
 
-.vscode/*
 package-lock.json
