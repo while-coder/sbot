@@ -1,8 +1,8 @@
 import { Util } from "weimingcommons";
 import { AgentService, AgentMessage, AgentToolCall } from "../Agent/AgentService";
-import { getLogger } from "../LoggerService";
+import { LoggerService } from "../LoggerService";
 
-const logger = getLogger('UserServiceBase.ts');
+const logger = LoggerService.getLogger('UserServiceBase.ts');
 
 interface MessageQueueItem {
   query: string;

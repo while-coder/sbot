@@ -1,10 +1,10 @@
 import {Util} from "weimingcommons";
 import {LarkChatProvider, type ProviderToolMessage} from "./LarkChatProvider";
 import {type AgentMessage, MessageChunkType, AgentToolCall} from "../Agent/AgentService";
-import {getLogger} from "../LoggerService";
+import {LoggerService} from "../LoggerService";
 import {UserServiceBase} from "../UserService/UserServiceBase";
 
-const logger = getLogger('LarkUserService.ts');
+const logger = LoggerService.getLogger('LarkUserService.ts');
 
 
 function parseChunk2Message(provider: LarkChatProvider, message: AgentMessage) {

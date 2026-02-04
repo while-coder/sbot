@@ -4,9 +4,9 @@ import {LarkUserService} from "./LarkUserService";
 import {database} from "../Database";
 import {Op} from "sequelize";
 import {config} from "../Config";
-import {getLogger} from "../LoggerService";
+import {LoggerService} from "../LoggerService";
 
-const logger = getLogger("LarkService.ts");
+const logger = LoggerService.getLogger("LarkService.ts");
 
 const HourMilliseconds = 1000 * 60 * 60;
 const CheckInterval = HourMilliseconds;

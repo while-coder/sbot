@@ -9,9 +9,9 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { getLogger } from '../LoggerService';
+import { LoggerService } from '../LoggerService';
 
-const logger = getLogger('Skills/tools.ts');
+const logger = LoggerService.getLogger('Skills/tools.ts');
 const execAsync = promisify(exec);
 
 /**

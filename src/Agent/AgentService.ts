@@ -5,11 +5,11 @@ import { MultiServerMCPClient } from "@langchain/mcp-adapters";
 import {StateGraph, END, START, MessagesAnnotation} from '@langchain/langgraph';
 import {SqliteSaver} from "@langchain/langgraph-checkpoint-sqlite";
 import {config} from "../Config";
-import {getLogger} from "../LoggerService";
+import {LoggerService} from "../LoggerService";
 import { loadSkills, Skill, createSkillTools } from "../Skills";
 // import { TextSplitter } from '@langchain/textsplitters'
 
-const logger = getLogger("AgentService.ts");
+const logger = LoggerService.getLogger("AgentService.ts");
 
 export enum MessageChunkType {
     AI = "ai",

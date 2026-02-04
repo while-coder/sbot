@@ -1,10 +1,10 @@
 // 第一行必须导入 logger 配置，确保 log4js 在所有模块加载前初始化
-import {getLogger, log4js} from "./LoggerService";
+import {LoggerService, log4js} from "./LoggerService";
 import {config} from "./Config";
 import {database} from "./Database";
 import {larkService} from "./Lark/LarkService";
 
-const logger = getLogger('index.ts');
+const logger = LoggerService.getLogger('index.ts');
 logger.info("=========================开始启动=========================")
 
 async function main() {

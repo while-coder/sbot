@@ -7,9 +7,9 @@ import fs from 'fs';
 import path from 'path';
 import { Skill } from './types';
 import { parseSkill, isValidSkillDirectory } from './parser';
-import { getLogger } from '../LoggerService';
+import { LoggerService } from '../LoggerService';
 
-const logger = getLogger('Skills/loader.ts');
+const logger = LoggerService.getLogger('Skills/loader.ts');
 
 /**
  * 从指定目录加载所有 skills
