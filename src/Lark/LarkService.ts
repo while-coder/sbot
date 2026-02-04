@@ -19,9 +19,6 @@ class LarkService {
   private larkWsClient!: Lark.WSClient;
 
   async start() {
-    // 验证配置
-    config.validateConfig();
-
     let baseConfig = {
       appId: config.settings.lark!.appId!,
       appSecret: config.settings.lark!.appSecret!,
@@ -112,9 +109,19 @@ class LarkService {
         try {
           const {
             event_id,
-            message: { chat_type, message_type, chat_id, content, mentions },
+            message: { 
+              chat_type,
+              message_type,
+              chat_id,
+              content,
+              mentions
+            },
             sender: {
-              sender_id: { user_id },
+              sender_id: {
+                open_id,    //不同应用 open_id 不同
+                union_id,   //不同组织 union_id不同
+                user_id,    //唯一ID
+              },
             },
           } = data;
 
@@ -137,7 +144,7 @@ class LarkService {
 
           await database.create(database.message, { id: event_id, expireTime: Util.NowDate + ExpireTime });
 
-          const userService = LarkUserService.getUserAgentService(user_id);
+          const userService = LarkUserService.getUserAgentService(union_id);
           userService.onReceiveMessage(chat_type, chat_id, query.trim()).then(() => {})
         } catch (e: any) {
           logger.error(`Receive message error: ${e.stack}`);

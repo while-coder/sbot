@@ -1,5 +1,5 @@
 // 第一行必须导入 logger 配置，确保 log4js 在所有模块加载前初始化
-import {getLogger} from "./logger";
+import {getLogger, log4js} from "./logger";
 import {config} from "./Config";
 import {database} from "./Database";
 import {larkService} from "./Lark/LarkService";
@@ -34,7 +34,10 @@ async function main() {
             logger.error("未知错误:", e)
         }
         logger.error("=============================================================")
-        process.exit(1)
+        // 确保日志刷新到磁盘后再退出
+        log4js.shutdown(() => {
+            process.exit(1)
+        })
     }
 }
 main().then(() => {})

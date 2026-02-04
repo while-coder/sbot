@@ -23,6 +23,7 @@
     "langchain": "^1.2.17",
     "log4js": "^6.9.1",
     "sequelize": "^6.37.7",
+    "sqlite3": "^5.1.7",
     "weimingcommons": "^0.0.55"
   },
   "devDependencies": {
