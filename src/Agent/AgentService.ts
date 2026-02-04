@@ -537,7 +537,7 @@ ${skillsList}
                 content: (message.content as string).trim()
             };
         } else {
-            logger.warn(`用户 ${this.threadId} Unknown message type: ${message.constructor.name}`);
+            logger.warn(`用户 ${this.threadId} 未知AI消息类型 : ${message.constructor.name}`);
         }
         return null;
     }
