@@ -19,6 +19,7 @@ export interface MCPServerConfig {
   command: string;
   args?: string[];
   env?: Record<string, string>;
+  headers?: Record<string, string>;
   disabledAutoApproveTools?: string[];
 }
 
