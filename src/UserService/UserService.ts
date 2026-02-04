@@ -65,7 +65,6 @@ export class UserService implements BaseUserService {
     try {
       logger.info(`${this.userId} from (${chat_type} - ${chatId}) 收到消息: ${query}`);
       await this.agentService.stream(
-        chat_type === "p2p" ? "" : chatId,
         query,
         this.onMessage.bind(this),
         this.onStreamMessage.bind(this),
@@ -84,8 +83,10 @@ export class UserService implements BaseUserService {
     this.provider!.resetStreamMessage()
     await this.provider!.updateMessage()
   }
-  async onStreamMessage(message: string): Promise<void> {
-    await this.provider?.setStreamMessage(message)
+  async onStreamMessage(message: LangChainMessageChunk): Promise<void> {
+    // 从消息块中提取文本内容用于流式显示
+    const content = message.content || "";
+    await this.provider?.setStreamMessage(content)
   }
   async executeTool(toolCall: {type?: "tool_call", id?: string, name: string, args: Record<string, any>}): Promise<boolean> {
     this.toolCallId = toolCall.id

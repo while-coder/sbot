@@ -58,19 +58,19 @@ export type OnStreamMessageCallback = (message: LangChainMessageChunk) => Promis
  * 提供更灵活的工作流控制和状态管理
  */
 class GraphService {
-    private userId: string;
+    private threadId: string;
     tools: any[] = [];
     disabledAutoApproveTools: Set<string> = new Set<string>();
     saver:SqliteSaver|undefined;
     model: ChatOpenAI | null = null;
 
     constructor(userId: string) {
-        this.userId = userId;
+        this.threadId = userId;
     }
 
     async clear() {
         const saver = await this.createSaver()
-        await saver.deleteThread(this.userId)
+        await saver.deleteThread(this.threadId)
     }
     /**
      * 初始化工具
@@ -311,17 +311,14 @@ class GraphService {
         // 使用 userId 作为 thread_id
         const stream = await graph.stream(
             { messages: [humanMessage] },
-            { streamMode: "updates", configurable: { thread_id: this.userId } }
+            { streamMode: "updates", configurable: { thread_id: this.threadId } }
         );
 
         // 处理流式输出
         for await (const update of stream) {
             // update 是一个对象，键是节点名称，值是该节点的输出
             // 例如: { agent: { messages: [...] } } 或 { tools: { messages: [...] } }
-            // logger.info("update", update);
             for (const [nodeName, nodeOutput] of Object.entries(update)) {
-                // logger.info(`节点 ${nodeName} 输出:`, nodeOutput);
-
                 // 获取该节点输出的消息
                 const messages = (nodeOutput as any).messages || [];
 

@@ -5,7 +5,7 @@ import {database} from "./Database";
 import {larkService} from "./LarkService";
 
 // 确保日志目录存在并获取路径
-const logsDir = config.ensureSubDir("logs");
+const logsDir = config.getConfigPath("logs", { isDirectory: true });
 
 log4js.configure({
     appenders: {

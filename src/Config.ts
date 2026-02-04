@@ -126,26 +126,49 @@ model = ""
   }
 
   /**
-   * 获取配置目录下的文件路径
-   * @param filename 文件名
-   * @returns 完整的文件路径
+   * 获取配置目录下的文件或目录路径，自动确保父目录存在
+   * @param pathSegment 文件名或路径（支持多层目录，如 "logs/app.log" 或 "cache/images/thumb.png"）
+   * @param options 选项
+   * @param options.ensureDir 是否确保目录存在（默认 true）。如果路径是文件，则确保其父目录存在；如果是目录，则确保该目录存在
+   * @param options.isDirectory 明确指定路径是否为目录（默认根据是否有扩展名判断）
+   * @returns 完整的文件或目录路径
+   *
+   * @example
+   * // 获取文件路径，自动创建父目录
+   * config.getConfigPath("settings.toml")  // ~/.sbot/settings.toml
+   * config.getConfigPath("logs/app.log")   // ~/.sbot/logs/app.log (自动创建 logs 目录)
+   *
+   * // 获取目录路径，自动创建该目录
+   * config.getConfigPath("cache", { isDirectory: true })  // ~/.sbot/cache (自动创建)
+   * config.getConfigPath("data/images", { isDirectory: true })  // ~/.sbot/data/images (自动创建多层目录)
+   *
+   * // 仅获取路径，不创建目录
+   * config.getConfigPath("temp/file.txt", { ensureDir: false })
    */
-  getConfigPath(filename: string): string {
-    return path.join(this._configDir, filename);
-  }
+  getConfigPath(pathSegment: string, options: { ensureDir?: boolean; isDirectory?: boolean } = {}): string {
+    const { ensureDir = true, isDirectory } = options;
+    const fullPath = path.join(this._configDir, pathSegment);
 
-  /**
-   * 确保配置目录下的子目录存在
-   * @param subDir 子目录名
-   * @returns 子目录的完整路径
-   */
-  ensureSubDir(subDir: string): string {
-    const subDirPath = path.join(this._configDir, subDir);
-    if (!fs.existsSync(subDirPath)) {
-      fs.mkdirSync(subDirPath, { recursive: true });
-      logger.info(`创建子目录: ${subDirPath}`);
+    if (ensureDir) {
+      let dirToEnsure: string;
+
+      if (isDirectory !== undefined) {
+        // 明确指定是否为目录
+        dirToEnsure = isDirectory ? fullPath : path.dirname(fullPath);
+      } else {
+        // 根据是否有扩展名自动判断（有扩展名认为是文件，否则认为是目录）
+        const hasExtension = path.extname(pathSegment) !== "";
+        dirToEnsure = hasExtension ? path.dirname(fullPath) : fullPath;
+      }
+
+      // 确保目录存在
+      if (!fs.existsSync(dirToEnsure)) {
+        fs.mkdirSync(dirToEnsure, { recursive: true });
+        logger.info(`创建目录: ${dirToEnsure}`);
+      }
     }
-    return subDirPath;
+
+    return fullPath;
   }
 
   /**
