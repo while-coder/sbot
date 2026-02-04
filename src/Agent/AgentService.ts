@@ -61,7 +61,7 @@ export class AgentService {
     model: ChatOpenAI | null = null;
     private skills: Skill[]|undefined;
     private skillsDir: string = "";
-    private maxHistoryMessages: number = 50; // 最大历史消息数
+    private maxHistoryMessages: number = 10; // 最大历史消息数
 
     constructor(userId: string, skillsDir?: string) {
         this.threadId = userId;
@@ -283,8 +283,8 @@ ${skillsList}
         // 限制历史消息数量，只保留最近的消息
         let historyMessages = state.messages;
         if (historyMessages.length > this.maxHistoryMessages) {
-            // 保留最近的消息
-            historyMessages = historyMessages.slice(-this.maxHistoryMessages);
+            // 智能截断：确保消息对的完整性
+            historyMessages = this.truncateMessages(historyMessages, this.maxHistoryMessages);
         }
 
         // 所有提示词
@@ -494,8 +494,8 @@ ${skillsList}
 
                     // 如果超过最大限制，需要清理
                     if (allMessages.length > this.maxHistoryMessages) {
-                        // 只保留最近的消息
-                        const recentMessages = allMessages.slice(-this.maxHistoryMessages);
+                        // 智能截断：确保消息对的完整性
+                        const recentMessages = this.truncateMessages(allMessages, this.maxHistoryMessages);
 
                         // 删除旧的 thread（清理数据库）
                         await saver.deleteThread(this.threadId);
@@ -515,6 +515,58 @@ ${skillsList}
             logger.warn(`用户 ${this.threadId} 检查历史记录时出错: ${error.message}`);
             return [];
         }
+    }
+
+    /**
+     * 智能截断消息历史，确保不会破坏 tool_calls 和 ToolMessage 的配对
+     * @param messages 原始消息数组
+     * @param maxCount 最大保留数量
+     * @returns 截断后的消息数组
+     */
+    private truncateMessages(messages: BaseMessage[], maxCount: number): BaseMessage[] {
+        if (messages.length <= maxCount) {
+            return messages;
+        }
+
+        // 从目标位置开始向前查找合适的截断点
+        let startIndex = messages.length - maxCount;
+
+        // 向前搜索，找到一个不会破坏消息对的位置
+        for (let i = startIndex; i >= 0 && i < messages.length; i++) {
+            const msg = messages[i];
+
+            // 如果这是一个 ToolMessage，需要检查它前面是否有对应的 AI message with tool_calls
+            if (msg instanceof ToolMessage) {
+                // 继续向后找，直到找到一个非 ToolMessage 的位置
+                continue;
+            }
+
+            // 如果这是一个 AI message with tool_calls，需要确保后续的 ToolMessage 都被包含
+            if ((msg instanceof AIMessage || msg instanceof AIMessageChunk) && msg.tool_calls && msg.tool_calls.length > 0) {
+                // 检查后续有多少个 ToolMessage
+                let toolMessageCount = 0;
+                for (let j = i + 1; j < messages.length; j++) {
+                    if (messages[j] instanceof ToolMessage) {
+                        toolMessageCount++;
+                    } else {
+                        break;
+                    }
+                }
+
+                // 如果从这里开始能包含所有的 tool messages，这是一个好的截断点
+                if (i + toolMessageCount < messages.length) {
+                    startIndex = i;
+                    break;
+                }
+            } else {
+                // 这是一个普通消息（HumanMessage 或没有 tool_calls 的 AIMessage）
+                // 这是一个安全的截断点
+                startIndex = i;
+                break;
+            }
+        }
+
+        return messages.slice(startIndex);
     }
 
     /**
