@@ -1,5 +1,5 @@
 import { Util } from "weimingcommons";
-import { AgentService, AgentMessageChunk, AgentToolCall } from "../Agent/AgentService";
+import { AgentService, AgentMessage, AgentToolCall } from "../Agent/AgentService";
 import { getLogger } from "../logger";
 
 const logger = getLogger('UserServiceBase.ts');
@@ -49,24 +49,21 @@ export abstract class UserServiceBase {
                     this.executeAgentTool.bind(this)
                 );
             } catch (e: any) {
+                logger.error(`${this.userId} 消息处理出错: ${query} : ${e.message}\n${e.stack}`);
                 try {
-                    logger.error(`${query}\n生成回复时出错 : ${e.message}\n${e.stack}`);
                     await this.processMessageError(e);
                 } catch (e) {
-                    logger.error(`处理错误时出错: ${e}`);
                 }
             } finally {
                 logger.info(`${this.userId} 消息处理完成: ${query}`);
             }
         }
-
         this.isProcessingQueue = false;
-        logger.info(`${this.userId} 队列处理完成`);
     }
 
     abstract startProcessMessage(query: string, args: any): Promise<void>;
     abstract processMessageError(e: any): Promise<void>;
-    abstract onAgentMessage(message: AgentMessageChunk): Promise<void>;
-    abstract onAgentStreamMessage(message: AgentMessageChunk): Promise<void>;
+    abstract onAgentMessage(message: AgentMessage): Promise<void>;
+    abstract onAgentStreamMessage(message: AgentMessage): Promise<void>;
     abstract executeAgentTool(toolCall: AgentToolCall): Promise<boolean>;
 }

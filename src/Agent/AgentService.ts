@@ -21,13 +21,13 @@ export type AgentToolCall = {
     args: Record<string, any>;
 };
 
-export interface AgentMessageChunk {
+export type AgentMessage = {
     type: MessageChunkType;
     content?: string;
     tool_calls?: AgentToolCall[];
     tool_call_id?: string;
     status?: string;
-}
+};
 
 /**
  * 工具调用回调类型 - 用于在工具执行前进行确认
@@ -40,13 +40,13 @@ export type ExecuteToolCallback = (toolCall: AgentToolCall) => Promise<boolean>;
  * 消息回调类型 - 用于接收完整的消息（在节点输出完成后触发）
  * @param message 消息块
  */
-export type OnMessageCallback = (message: AgentMessageChunk) => Promise<void>;
+export type OnMessageCallback = (message: AgentMessage) => Promise<void>;
 
 /**
  * 流式消息回调类型 - 用于接收实时的流式消息块（在模型生成过程中触发）
  * @param message 消息块
  */
-export type OnStreamMessageCallback = (message: AgentMessageChunk) => Promise<void>;
+export type OnStreamMessageCallback = (message: AgentMessage) => Promise<void>;
 
 /**
  * 使用 LangGraph 的 StateGraph 构建的 Agent 服务
@@ -335,7 +335,7 @@ export class AgentService {
     /**
      * 将 BaseMessage 转换为 LangChainMessageChunk 格式
      */
-    private convertToMessageChunk(message: BaseMessage): AgentMessageChunk | null {
+    private convertToMessageChunk(message: BaseMessage): AgentMessage | null {
         if (message instanceof AIMessage || message instanceof AIMessageChunk) {
             // 转换工具调用格式
             const toolCalls: AgentToolCall[] = (message.tool_calls || []).map(tc => ({

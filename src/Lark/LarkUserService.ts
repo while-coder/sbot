@@ -1,13 +1,13 @@
 import {Util} from "weimingcommons";
 import {LarkChatProvider, type ProviderToolMessage} from "./LarkChatProvider";
-import {type AgentMessageChunk, MessageChunkType, AgentToolCall} from "../Agent/AgentService";
+import {type AgentMessage, MessageChunkType, AgentToolCall} from "../Agent/AgentService";
 import {getLogger} from "../logger";
 import {UserServiceBase} from "../UserService/UserServiceBase";
 
 const logger = getLogger('LarkUserService.ts');
 
 
-function parseChunk2Message(provider: LarkChatProvider, message: AgentMessageChunk) {
+function parseChunk2Message(provider: LarkChatProvider, message: AgentMessage) {
   if (message.type === MessageChunkType.AI) {
     if (message.tool_calls && message.tool_calls.length > 0) {
       for (const t of message.tool_calls) {
@@ -84,13 +84,13 @@ export class LarkUserService extends UserServiceBase {
     this.isRunning = false;
   }
 
-  async onAgentMessage(message: AgentMessageChunk): Promise<void> {
+  async onAgentMessage(message: AgentMessage): Promise<void> {
     parseChunk2Message(this.provider!, message);
     this.provider!.resetStreamMessage();
     await this.provider!.updateMessage();
   }
 
-  async onAgentStreamMessage(message: AgentMessageChunk): Promise<void> {
+  async onAgentStreamMessage(message: AgentMessage): Promise<void> {
     // 从消息块中提取文本内容用于流式显示
     const content = message.content || "";
     await this.provider?.setStreamMessage(content);
