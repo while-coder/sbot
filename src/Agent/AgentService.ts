@@ -488,56 +488,28 @@ ${skillsList}
     }
 
     /**
-     * 清理 saver 中超过限制的历史记录，保留最近的消息
+     * 清理 saver 中超过限制的历史记录
+     * 直接删除 thread，下次对话会重新开始（但由于 callModelNode 中已经截断历史，
+     * 所以实际上只会丢失超过 maxHistoryMessages 的旧消息）
      */
     private async trimHistoryInSaver() {
         try {
             const historySize = await this.getHistorySize();
 
-            // 如果超过限制的 120%，则进行清理（留一些缓冲）
-            const threshold = Math.floor(this.maxHistoryMessages * 1.2);
+            // 如果超过限制的 150%，则进行清理（留更多缓冲，减少清理频率）
+            const threshold = Math.floor(this.maxHistoryMessages * 1.5);
 
             if (historySize > threshold) {
-                logger.info(`History size ${historySize} exceeds threshold ${threshold}, trimming...`);
+                logger.info(`History size ${historySize} exceeds threshold ${threshold}, clearing thread...`);
 
                 const saver = await this.createSaver();
 
-                // 获取当前状态
-                const currentState = await saver.get({ configurable: { thread_id: this.threadId } });
+                // 直接删除整个 thread
+                // 由于我们在 callModelNode 中已经截断到最近 50 条消息
+                // 所以下次对话时，只会从最近的对话开始，不会丢失太多上下文
+                await saver.deleteThread(this.threadId);
 
-                if (currentState?.channel_values) {
-                    const channelValues = currentState.channel_values as any;
-
-                    if (channelValues.messages && Array.isArray(channelValues.messages)) {
-                        const allMessages = channelValues.messages;
-
-                        // 只保留最近的消息
-                        const recentMessages = allMessages.slice(-this.maxHistoryMessages);
-
-                        logger.info(`Trimming from ${allMessages.length} to ${recentMessages.length} messages`);
-
-                        // 删除旧的 thread
-                        await saver.deleteThread(this.threadId);
-
-                        // 如果有保留的消息，需要重新初始化
-                        if (recentMessages.length > 0) {
-                            // 通过运行一次空的 graph stream 来初始化 thread
-                            // 这会创建新的 checkpoint
-                            const graph = await this.createGraph();
-
-                            // 使用保留的消息初始化新的 thread
-                            // 我们需要手动将这些消息添加回去
-                            await graph.invoke(
-                                { messages: recentMessages },
-                                { configurable: { thread_id: this.threadId } }
-                            );
-
-                            logger.info(`Recreated thread ${this.threadId} with ${recentMessages.length} messages`);
-                        }
-                    }
-                } else {
-                    logger.info(`No state found for thread ${this.threadId}, skipping trim`);
-                }
+                logger.info(`Cleared thread ${this.threadId} (history size was ${historySize})`);
             }
         } catch (error: any) {
             logger.warn(`Error trimming history in saver: ${error.message}`);
