@@ -75,7 +75,7 @@ export class AgentService {
     async clear() {
         const saver = await this.createSaver()
         await saver.deleteThread(this.threadId)
-        logger.info(`Cleared history for thread ${this.threadId}`)
+        logger.info(`清除用户 ${this.threadId} 的所有历史记录`)
     }
 
     /**
@@ -90,7 +90,7 @@ export class AgentService {
                     await this.saver.db.close();
                 }
             } catch (error: any) {
-                logger.warn(`Error disposing saver: ${error.message}`);
+                logger.warn(`用户 ${this.threadId} 释放saver 资源时出错: ${error.message}`);
             } finally {
                 this.saver = undefined;
             }
@@ -106,7 +106,7 @@ export class AgentService {
         try {
             this.skills = loadSkills(this.skillsDir);
         } catch (error: any) {
-            logger.error(`Failed to load skills: ${error.message}`);
+            logger.error(`用户 ${this.threadId} 加载 skills 失败: ${error.message}`);
         }
     }
     /**
@@ -281,7 +281,6 @@ ${skillsList}
         if (historyMessages.length > this.maxHistoryMessages) {
             // 保留最近的消息
             historyMessages = historyMessages.slice(-this.maxHistoryMessages);
-            logger.info(`Trimmed history to last ${this.maxHistoryMessages} messages (was ${state.messages.length})`);
         }
 
         // 所有提示词
@@ -491,15 +490,13 @@ ${skillsList}
 
                     // 如果超过最大限制，需要清理
                     if (allMessages.length > this.maxHistoryMessages) {
-                        logger.info(`History size ${allMessages.length} exceeds limit ${this.maxHistoryMessages}, trimming...`);
-
                         // 只保留最近的消息
                         const recentMessages = allMessages.slice(-this.maxHistoryMessages);
 
                         // 删除旧的 thread（清理数据库）
                         await saver.deleteThread(this.threadId);
 
-                        logger.info(`Cleared thread ${this.threadId}, will reinitialize with ${recentMessages.length} messages`);
+                        logger.info(`用户 ${this.threadId} 历史消息数 ${allMessages.length} 超过限制 ${this.maxHistoryMessages}，开始清理多余的消息...`);
 
                         // 返回截断后的历史消息，让 graph.stream 重新初始化
                         return recentMessages;
@@ -511,7 +508,7 @@ ${skillsList}
             return [];
 
         } catch (error: any) {
-            logger.warn(`Error preparing history: ${error.message}`);
+            logger.warn(`用户 ${this.threadId} 检查历史记录时出错: ${error.message}`);
             return [];
         }
     }
@@ -540,7 +537,7 @@ ${skillsList}
                 content: (message.content as string).trim()
             };
         } else {
-            logger.warn(`Unknown message type: ${message.constructor.name}`);
+            logger.warn(`用户 ${this.threadId} Unknown message type: ${message.constructor.name}`);
         }
         return null;
     }

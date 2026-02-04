@@ -21,14 +21,14 @@ export function loadSkills(skillsDir: string): Skill[] {
 
     // 检查目录是否存在
     if (!fs.existsSync(skillsDir)) {
-        logger.warn(`Skills directory does not exist: ${skillsDir}`);
+        logger.warn(`Skills 目录不存在: ${skillsDir}`);
         return skills;
     }
 
     // 检查是否为目录
     const stat = fs.statSync(skillsDir);
     if (!stat.isDirectory()) {
-        logger.warn(`Skills path is not a directory: ${skillsDir}`);
+        logger.warn(`Skills 路径不是目录: ${skillsDir}`);
         return skills;
     }
 
@@ -53,16 +53,16 @@ export function loadSkills(skillsDir: string): Skill[] {
             const skill = parseSkill(skillDir);
             if (skill) {
                 skills.push(skill);
-                logger.info(`✓ Loaded skill: ${skill.name}`);
+                logger.info(`✓ 已加载 skill: ${skill.name}`);
             } else {
-                logger.warn(`✗ Failed to load skill from: ${entry.name}`);
+                logger.warn(`✗ 加载 skill 失败: ${entry.name}`);
             }
         }
 
         return skills;
 
     } catch (error: any) {
-        logger.error(`Error loading skills from ${skillsDir}: ${error.message}`);
+        logger.error(`加载 skills 出错 ${skillsDir}: ${error.message}`);
         return skills;
     }
 }
@@ -97,7 +97,7 @@ export function readSkillContent(skill: Skill): string | null {
     try {
         return fs.readFileSync(skillMdPath, 'utf-8');
     } catch (error: any) {
-        logger.error(`Error reading SKILL.md for ${skill.name}: ${error.message}`);
+        logger.error(`读取 SKILL.md 失败 ${skill.name}: ${error.message}`);
         return null;
     }
 }
