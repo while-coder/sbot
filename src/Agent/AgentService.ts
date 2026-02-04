@@ -7,6 +7,7 @@ import {SqliteSaver} from "@langchain/langgraph-checkpoint-sqlite";
 import {config} from "../Config";
 import {LoggerService} from "../LoggerService";
 import { loadSkills, Skill, createSkillTools } from "../Skills";
+import { createFileSystemTools, FileSystemToolsConfig } from "../FileSystemTools";
 // import { TextSplitter } from '@langchain/textsplitters'
 
 const logger = LoggerService.getLogger("AgentService.ts");
@@ -62,11 +63,16 @@ export class AgentService {
     private skills: Skill[]|undefined;
     private skillsDir: string = "";
     private maxHistoryMessages: number = 10; // 最大历史消息数
+    private fileSystemConfig: FileSystemToolsConfig = { maxFileSize: 10 * 1024 * 1024 }; // 文件系统工具配置
 
-    constructor(userId: string, skillsDir?: string) {
+    constructor(userId: string, skillsDir?: string, fileSystemConfig?: FileSystemToolsConfig) {
         this.threadId = userId;
         // 如果未指定 skills 目录，使用配置目录下的 skills 文件夹
         this.skillsDir = skillsDir || config.getConfigPath("skills", true);
+        // 文件系统工具配置
+        this.fileSystemConfig = fileSystemConfig || {
+            maxFileSize: 10 * 1024 * 1024 // 10MB
+        };
     }
 
     /**
@@ -117,6 +123,10 @@ export class AgentService {
 
         this.disabledAutoApproveTools = new Set<string>()
         this.tools = []
+
+        // 添加文件系统工具
+        const fileSystemTools = createFileSystemTools(this.fileSystemConfig);
+        this.tools.push(...fileSystemTools);
 
         // 添加 skill 工具
         const skillTools = createSkillTools(this.skillsDir);
