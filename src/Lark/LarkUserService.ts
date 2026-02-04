@@ -1,9 +1,10 @@
 import {Util} from "weimingcommons";
 import {larkService } from "./LarkService";
 import {LarkChatProvider, type ProviderToolMessage} from "./LarkChatProvider";
-import log4js from "log4js";
 import GraphService, {type LangChainMessageChunk, MessageChunkType} from "../Agent/AgentService";
-const logger = log4js.getLogger('UserService.js')
+import {getLogger} from "../logger";
+
+const logger = getLogger('LarkUserService.ts');
 
 
 function parseChunk2Message(provider: LarkChatProvider, message: LangChainMessageChunk) {

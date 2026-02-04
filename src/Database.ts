@@ -1,9 +1,9 @@
-import log4js from "log4js";
 import { DataTypes, type FindOptions, type ModelStatic, type UpdateOptions, Sequelize } from "sequelize";
 import { Util } from "weimingcommons";
 import { config } from "./Config";
+import { getLogger } from "./logger";
 
-const logger = log4js.getLogger("Database.ts");
+const logger = getLogger("Database.ts");
 const DBVersionName = "db_version";
 const DBVersion = '0.0.1'
 export type MessageRow = {

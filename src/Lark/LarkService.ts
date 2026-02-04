@@ -1,12 +1,12 @@
 import * as Lark from "@larksuiteoapi/node-sdk";
 import {Util} from "weimingcommons";
 import {LarkUserService} from "./LarkUserService";
-import log4js from "log4js";
 import {database} from "../Database";
 import {Op} from "sequelize";
 import {config} from "../Config";
+import {getLogger} from "../logger";
 
-const logger = log4js.getLogger("LarkService.ts");
+const logger = getLogger("LarkService.ts");
 
 const HourMilliseconds = 1000 * 60 * 60;
 const CheckInterval = HourMilliseconds;

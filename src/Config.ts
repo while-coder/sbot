@@ -1,10 +1,7 @@
 import os from "os";
 import path from "path";
 import fs from "fs";
-import log4js from "log4js";
 import * as toml from "@iarna/toml";
-
-const logger = log4js.getLogger("Config.ts");
 
 export interface LarkConfig {
   appId?: string;
@@ -70,14 +67,11 @@ class Config {
       if (fs.existsSync(settingsPath)) {
         const content = fs.readFileSync(settingsPath, "utf-8");
         this._settings = toml.parse(content);
-        logger.info(`成功加载配置文件: ${settingsPath}`);
       } else {
-        logger.warn(`配置文件不存在: ${settingsPath}`);
         // 创建默认配置文件
         this.createDefaultSettings(settingsPath);
       }
     } catch (error) {
-      logger.error(`加载配置文件失败: ${settingsPath}`, error);
       this._settings = {};
     }
   }
@@ -127,9 +121,8 @@ model = "gpt-4"
 
     try {
       fs.writeFileSync(examplePath, defaultSettings, "utf-8");
-      logger.info(`生成示例配置文件: ${examplePath}`);
     } catch (error) {
-      logger.error(`生成示例配置文件失败: ${examplePath}`, error);
+      // 忽略错误
     }
   }
 
@@ -141,10 +134,9 @@ model = "gpt-4"
 
     try {
       fs.writeFileSync(settingsPath, defaultSettings, "utf-8");
-      logger.info(`创建默认配置文件: ${settingsPath}`);
       this._settings = toml.parse(defaultSettings);
     } catch (error) {
-      logger.error(`创建默认配置文件失败: ${settingsPath}`, error);
+      // 忽略错误
     }
   }
 
@@ -180,7 +172,6 @@ model = "gpt-4"
     // 确保目录存在
     if (!fs.existsSync(dirToEnsure)) {
       fs.mkdirSync(dirToEnsure, { recursive: true });
-      logger.info(`创建目录: ${dirToEnsure}`);
     }
 
     return fullPath;
@@ -246,8 +237,6 @@ model = "gpt-4"
     if (errors.length > 0) {
       throw new Error(errors.join("\n"));
     }
-
-    logger.info("配置验证通过");
   }
 
   /**

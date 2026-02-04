@@ -3,13 +3,12 @@ import { Util } from "weimingcommons";
 import { ChatOpenAI } from "@langchain/openai";
 import { MultiServerMCPClient } from "@langchain/mcp-adapters";
 import {StateGraph, END, START, MessagesAnnotation} from '@langchain/langgraph';
-
-import log4js from "log4js";
 import {SqliteSaver} from "@langchain/langgraph-checkpoint-sqlite";
 import {config} from "../Config";
+import {getLogger} from "../logger";
 // import { TextSplitter } from '@langchain/textsplitters'
 
-const logger = log4js.getLogger("GraphService.ts");
+const logger = getLogger("AgentService.ts");
 
 export enum MessageChunkType {
     AI = "ai",

@@ -1,43 +1,10 @@
-import path from "path";
-import log4js from "log4js";
+// 第一行必须导入 logger 配置，确保 log4js 在所有模块加载前初始化
+import {getLogger} from "./logger";
 import {config} from "./Config";
 import {database} from "./Database";
 import {larkService} from "./Lark/LarkService";
 
-// 确保日志目录存在并获取路径
-const logsDir = config.getConfigPath("logs", true);
-
-log4js.configure({
-    appenders: {
-        console: {
-            type: "console",
-            layout: {
-                type: "pattern",
-                pattern: "[%d{yyyy-MM-dd hh:mm:ss:SSS}] [%p] %c:%l - %m",
-            },
-        },
-        file: {
-            type: "dateFile",
-            encoding: "utf-8",
-            filename: path.join(logsDir, "log"),
-            alwaysIncludePattern: true,
-            numBackups: 7,
-            pattern: "yyyy-MM-dd.log",
-            layout: {
-                type: "pattern",
-                pattern: "[%d{yyyy-MM-dd hh:mm:ss}][%p] %c:%l - %m",
-            },
-        },
-    },
-    categories: {
-        default: {
-            enableCallStack: true,
-            appenders: ["console", "file"],
-            level: "ALL",
-        },
-    },
-});
-const logger = log4js.getLogger('index.js')
+const logger = getLogger('index.ts');
 logger.info("=========================开始启动=========================")
 
 async function main() {
