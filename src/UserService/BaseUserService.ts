@@ -1,4 +1,4 @@
-import {LangChainMessageChunk} from "../Graph/GraphService";
+import {LangChainMessageChunk} from "../Agent/AgentService";
 
 export interface BaseUserService {
     get userId(): string;

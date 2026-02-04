@@ -2,7 +2,7 @@ import {Util} from "weimingcommons";
 import {larkService } from "../LarkService";
 import {LarkChatProvider, type ProviderToolMessage} from "../LarkChatProvider";
 import log4js from "log4js";
-import GraphService, {type LangChainMessageChunk, MessageChunkType} from "../Graph/GraphService";
+import GraphService, {type LangChainMessageChunk, MessageChunkType} from "../Agent/AgentService";
 import {BaseUserService} from "./BaseUserService";
 const logger = log4js.getLogger('UserService.js')
 
