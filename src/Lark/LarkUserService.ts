@@ -15,6 +15,9 @@ function parseChunk2Message(provider: LarkChatProvider, message: LangChainMessag
         provider.tools[t.id] = toolCall;
         provider.messages.push(toolCall);
       }
+      if (message.content) {
+        provider.messages.push({ type: "text", content: message.content || "" });
+      }
     } else {
       provider.messages.push({ type: "text", content: message.content || "" });
     }
@@ -29,6 +32,12 @@ function parseChunk2Message(provider: LarkChatProvider, message: LangChainMessag
   return provider;
 }
 
+interface MessageQueueItem {
+  chat_type: string;
+  chatId: string;
+  query: string;
+}
+
 export class LarkUserService {
   static allUsers = new Map<string, LarkUserService>();
   static getUserAgentService(userId: string):LarkUserService {
@@ -41,42 +50,66 @@ export class LarkUserService {
   }
   isRunning = false;
   private readonly _userId: string;
-  agentService: GraphService;
+  agentService: GraphService | undefined;
   provider: LarkChatProvider|undefined;
   toolCallId: string | undefined;
   toolCallStatus:"none"|"wait"|"ok"|"cancel" = "none"
+  private messageQueue: MessageQueueItem[] = [];
+  private isProcessingQueue = false;
 
   get userId(): string { return this._userId; }
 
   constructor(userId: string) {
     this._userId = userId;
-    this.agentService = new GraphService(userId)
   }
 
   async onReceiveMessage(chat_type: string, chatId: string, query: string) {
     if (Util.isNullOrEmpty(query)) return;
-    if (this.isRunning) {
-      await larkService.sendMarkdownMessage(chatId, `${query}\n不能同时执行多个任务,请稍后再试 / Cannot execute multiple tasks simultaneously, please try again later`);
-      return;
+
+    // 将消息加入队列
+    this.messageQueue.push({ chat_type, chatId, query });
+    logger.info(`${this.userId} 消息加入队列: ${query} (队列长度: ${this.messageQueue.length})`);
+
+    // 如果没有正在处理队列，启动处理
+    if (!this.isProcessingQueue) {
+      this.processMessageQueue();
     }
-    this.isRunning = true;
-    this.provider = await new LarkChatProvider().init(chatId, query);
-    let provider = this.provider!
-    try {
-      logger.info(`${this.userId} from (${chat_type} - ${chatId}) 收到消息: ${query}`);
-      await this.agentService.stream(
-        query,
-        this.onMessage.bind(this),
-        this.onStreamMessage.bind(this),
-        this.executeTool.bind(this)
-      )
-    } catch (e: any) {
-      let errorMsg = `${query}\n生成回复时出错 : ${e.message}\n${e.stack}`
-      logger.error(errorMsg);
-      await provider.setMessage(errorMsg)
-    } finally {
-      this.isRunning = false;
+  }
+
+  private async processMessageQueue() {
+    if (this.isProcessingQueue) return;
+    this.isProcessingQueue = true;
+
+    while (this.messageQueue.length > 0) {
+      const messageItem = this.messageQueue.shift()!;
+      const { chat_type, chatId, query } = messageItem;
+
+      this.isRunning = true;
+      // 每次处理消息时创建新的 agentService
+      this.agentService = new GraphService(this.userId);
+      this.provider = await new LarkChatProvider().init(chatId, query);
+      const provider = this.provider;
+
+      try {
+        logger.info(`${this.userId} from (${chat_type} - ${chatId}) 开始处理消息: ${query} (剩余队列: ${this.messageQueue.length})`);
+        await this.agentService.stream(
+          query,
+          this.onMessage.bind(this),
+          this.onStreamMessage.bind(this),
+          this.executeTool.bind(this)
+        );
+      } catch (e: any) {
+        const errorMsg = `${query}\n生成回复时出错 : ${e.message}\n${e.stack}`;
+        logger.error(errorMsg);
+        await provider.setMessage(errorMsg);
+      } finally {
+        this.isRunning = false;
+        logger.info(`${this.userId} 消息处理完成: ${query}`);
+      }
     }
+
+    this.isProcessingQueue = false;
+    logger.info(`${this.userId} 队列处理完成`);
   }
   async onMessage(message: LangChainMessageChunk): Promise<void> {
     parseChunk2Message(this.provider!, message);
