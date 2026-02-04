@@ -4,7 +4,7 @@ import {LarkUserService} from "./LarkUserService";
 import {database} from "../Database";
 import {Op} from "sequelize";
 import {config} from "../Config";
-import {getLogger} from "../logger";
+import {getLogger} from "../LoggerService";
 
 const logger = getLogger("LarkService.ts");
 

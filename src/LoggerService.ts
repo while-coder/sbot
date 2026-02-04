@@ -38,12 +38,27 @@ log4js.configure({
 });
 
 /**
- * 获取 logger 实例
+ * LoggerService - 日志服务类
+ */
+export class LoggerService {
+    /**
+     * 获取 logger 实例
+     * @param name logger 名称
+     * @returns logger 实例
+     */
+    static getLogger(name: string): log4js.Logger {
+        return log4js.getLogger(name);
+    }
+}
+
+/**
+ * 获取 logger 实例 (向后兼容的便捷函数)
  * @param name logger 名称
  * @returns logger 实例
+ * @deprecated 建议使用 LoggerService.getLogger
  */
 export function getLogger(name: string): log4js.Logger {
-    return log4js.getLogger(name);
+    return LoggerService.getLogger(name);
 }
 
 // 导出 log4js 供特殊场景使用

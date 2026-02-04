@@ -7,7 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { Skill } from './types';
 import { parseSkill, isValidSkillDirectory } from './parser';
-import { getLogger } from '../logger';
+import { getLogger } from '../LoggerService';
 
 const logger = getLogger('Skills/loader.ts');
 

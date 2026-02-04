@@ -9,7 +9,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { getLogger } from '../logger';
+import { getLogger } from '../LoggerService';
 
 const logger = getLogger('Skills/tools.ts');
 const execAsync = promisify(exec);

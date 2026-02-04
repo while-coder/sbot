@@ -1,6 +1,6 @@
 import { Util } from "weimingcommons";
 import { larkService } from "./LarkService.js";
-import { getLogger } from "../logger";
+import { getLogger } from "../LoggerService.js";
 
 const logger = getLogger("LarkChatProvider.ts");
 export type ProviderTextMessage = {

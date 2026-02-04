@@ -1,7 +1,7 @@
 import { DataTypes, type FindOptions, type ModelStatic, type UpdateOptions, Sequelize } from "sequelize";
 import { Util } from "weimingcommons";
 import { config } from "./Config";
-import { getLogger } from "./logger";
+import { getLogger } from "./LoggerService";
 
 const logger = getLogger("Database.ts");
 const DBVersionName = "db_version";

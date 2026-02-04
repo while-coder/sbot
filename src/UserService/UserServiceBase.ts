@@ -1,6 +1,6 @@
 import { Util } from "weimingcommons";
 import { AgentService, AgentMessage, AgentToolCall } from "../Agent/AgentService";
-import { getLogger } from "../logger";
+import { getLogger } from "../LoggerService";
 
 const logger = getLogger('UserServiceBase.ts');
 
