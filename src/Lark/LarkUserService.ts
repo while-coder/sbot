@@ -1,8 +1,8 @@
 import {Util} from "weimingcommons";
-import {larkService } from "./LarkService";
 import {LarkChatProvider, type ProviderToolMessage} from "./LarkChatProvider";
-import GraphService, {type AgentMessageChunk, MessageChunkType} from "../Agent/AgentService";
+import {type AgentMessageChunk, MessageChunkType, AgentToolCall} from "../Agent/AgentService";
 import {getLogger} from "../logger";
+import {UserServiceBase} from "../UserService/UserServiceBase";
 
 const logger = getLogger('LarkUserService.ts');
 
@@ -12,7 +12,9 @@ function parseChunk2Message(provider: LarkChatProvider, message: AgentMessageChu
     if (message.tool_calls && message.tool_calls.length > 0) {
       for (const t of message.tool_calls) {
         const toolCall: ProviderToolMessage = { type: "tool", name: t.name, args: t.args };
-        provider.tools[t.id] = toolCall;
+        if (t.id) {
+          provider.tools[t.id] = toolCall;
+        }
         provider.messages.push(toolCall);
       }
       if (message.content) {
@@ -32,15 +34,14 @@ function parseChunk2Message(provider: LarkChatProvider, message: AgentMessageChu
   return provider;
 }
 
-interface MessageQueueItem {
+interface LarkMessageArgs {
   chat_type: string;
   chatId: string;
-  query: string;
 }
 
-export class LarkUserService {
+export class LarkUserService extends UserServiceBase {
   static allUsers = new Map<string, LarkUserService>();
-  static getUserAgentService(userId: string):LarkUserService {
+  static getUserAgentService(userId: string): LarkUserService {
     if (LarkUserService.allUsers.has(userId)) {
       return LarkUserService.allUsers.get(userId)!;
     }
@@ -48,80 +49,54 @@ export class LarkUserService {
     LarkUserService.allUsers.set(userId, user);
     return user;
   }
-  isRunning = false;
-  private readonly _userId: string;
-  agentService: GraphService | undefined;
-  provider: LarkChatProvider|undefined;
-  toolCallId: string | undefined;
-  toolCallStatus:"none"|"wait"|"ok"|"cancel" = "none"
-  private messageQueue: MessageQueueItem[] = [];
-  private isProcessingQueue = false;
 
-  get userId(): string { return this._userId; }
+  isRunning = false;
+  provider: LarkChatProvider | undefined;
+  toolCallId: string | undefined;
+  toolCallStatus: "none" | "wait" | "ok" | "cancel" = "none";
 
   constructor(userId: string) {
-    this._userId = userId;
+    super(userId);
   }
 
-  async onReceiveMessage(chat_type: string, chatId: string, query: string) {
+  // Lark 特定的接收消息方法
+  async onReceiveLarkMessage(chat_type: string, chatId: string, query: string) {
     if (Util.isNullOrEmpty(query)) return;
 
-    // 将消息加入队列
-    this.messageQueue.push({ chat_type, chatId, query });
-    logger.info(`${this.userId} 消息加入队列: ${query} (队列长度: ${this.messageQueue.length})`);
-
-    // 如果没有正在处理队列，启动处理
-    if (!this.isProcessingQueue) {
-      this.processMessageQueue();
-    }
+    const args: LarkMessageArgs = { chat_type, chatId };
+    await super.onReceiveMessage(query, args);
   }
 
-  private async processMessageQueue() {
-    if (this.isProcessingQueue) return;
-    this.isProcessingQueue = true;
-
-    while (this.messageQueue.length > 0) {
-      const messageItem = this.messageQueue.shift()!;
-      const { chat_type, chatId, query } = messageItem;
-
-      this.isRunning = true;
-      // 每次处理消息时创建新的 agentService
-      this.agentService = new GraphService(this.userId);
-      this.provider = await new LarkChatProvider().init(chatId, query);
-      const provider = this.provider;
-
-      try {
-        logger.info(`${this.userId} from (${chat_type} - ${chatId}) 开始处理消息: ${query} (剩余队列: ${this.messageQueue.length})`);
-        await this.agentService.stream(
-          query,
-          this.onMessage.bind(this),
-          this.onStreamMessage.bind(this),
-          this.executeTool.bind(this)
-        );
-      } catch (e: any) {
-        const errorMsg = `${query}\n生成回复时出错 : ${e.message}\n${e.stack}`;
-        logger.error(errorMsg);
-        await provider.setMessage(errorMsg);
-      } finally {
-        this.isRunning = false;
-        logger.info(`${this.userId} 消息处理完成: ${query}`);
-      }
-    }
-
-    this.isProcessingQueue = false;
-    logger.info(`${this.userId} 队列处理完成`);
+  // 实现基类的抽象方法
+  async startProcessMessage(query: string, args: any): Promise<void> {
+    const { chat_type, chatId } = args as LarkMessageArgs;
+    this.isRunning = true;
+    this.provider = await new LarkChatProvider().init(chatId, query);
+    logger.info(`${this.userId} from (${chat_type} - ${chatId}) 开始处理消息: ${query}`);
   }
-  async onMessage(message: AgentMessageChunk): Promise<void> {
+
+  async processMessageError(e: any): Promise<void> {
+    const errorMsg = `生成回复时出错: ${e.message}\n${e.stack}`;
+    logger.error(errorMsg);
+    if (this.provider) {
+      await this.provider.setMessage(errorMsg);
+    }
+    this.isRunning = false;
+  }
+
+  async onAgentMessage(message: AgentMessageChunk): Promise<void> {
     parseChunk2Message(this.provider!, message);
-    this.provider!.resetStreamMessage()
-    await this.provider!.updateMessage()
+    this.provider!.resetStreamMessage();
+    await this.provider!.updateMessage();
   }
-  async onStreamMessage(message: AgentMessageChunk): Promise<void> {
+
+  async onAgentStreamMessage(message: AgentMessageChunk): Promise<void> {
     // 从消息块中提取文本内容用于流式显示
     const content = message.content || "";
-    await this.provider?.setStreamMessage(content)
+    await this.provider?.setStreamMessage(content);
   }
-  async executeTool(toolCall: {type?: "tool_call", id?: string, name: string, args: Record<string, any>}): Promise<boolean> {
+
+  async executeAgentTool(toolCall: AgentToolCall): Promise<boolean> {
     this.toolCallId = toolCall.id
     this.toolCallStatus = "wait";
     try {

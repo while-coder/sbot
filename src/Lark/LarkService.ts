@@ -145,7 +145,7 @@ class LarkService {
           await database.create(database.message, { id: event_id, expireTime: Util.NowDate + ExpireTime });
 
           const userService = LarkUserService.getUserAgentService(union_id);
-          userService.onReceiveMessage(chat_type, chat_id, query.trim()).then(() => {})
+          userService.onReceiveLarkMessage(chat_type, chat_id, query.trim()).then(() => {})
         } catch (e: any) {
           logger.error(`Receive message error: ${e.stack}`);
           return;

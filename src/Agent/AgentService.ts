@@ -15,7 +15,7 @@ export enum MessageChunkType {
     TOOL = "tool"
 }
 
-type AgentToolCall = {
+export type AgentToolCall = {
     id?: string;
     name: string;
     args: Record<string, any>;
@@ -52,7 +52,7 @@ export type OnStreamMessageCallback = (message: AgentMessageChunk) => Promise<vo
  * 使用 LangGraph 的 StateGraph 构建的 Agent 服务
  * 提供更灵活的工作流控制和状态管理
  */
-class GraphService {
+export class AgentService {
     private threadId: string;
     tools: any[] = [];
     disabledAutoApproveTools: Set<string> = new Set<string>();
@@ -361,5 +361,3 @@ class GraphService {
         return null;
     }
 }
-
-export default GraphService
