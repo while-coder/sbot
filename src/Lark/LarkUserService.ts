@@ -3,6 +3,7 @@ import {LarkChatProvider, type ProviderToolMessage} from "./LarkChatProvider";
 import {type AgentMessage, MessageChunkType, AgentToolCall} from "../Agent/AgentService";
 import {LoggerService} from "../LoggerService";
 import {UserServiceBase} from "../UserService/UserServiceBase";
+import {larkService} from "./LarkService";
 
 const logger = LoggerService.getLogger('LarkUserService.ts');
 
@@ -183,6 +184,10 @@ export class LarkUserService extends UserServiceBase {
 
     // 可以扩展更多的卡片操作处理逻辑
     logger.warn(`未处理的卡片操作: ${code}`);
+  }
+
+  async convertImages(content: string): Promise<string> {
+    return await larkService.convertImagesToLarkFormat(content);
   }
 
 }

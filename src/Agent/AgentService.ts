@@ -51,6 +51,13 @@ export type OnMessageCallback = (message: AgentMessage) => Promise<void>;
 export type OnStreamMessageCallback = (message: AgentMessage) => Promise<void>;
 
 /**
+ * 图片转换回调类型 - 用于转换工具返回内容中的图片链接
+ * @param content 原始内容
+ * @returns Promise<string> - 转换后的内容
+ */
+export type ConvertImagesCallback = (content: string) => Promise<string>;
+
+/**
  * 使用 LangGraph 的 StateGraph 构建的 Agent 服务
  * 提供更灵活的工作流控制和状态管理
  */
@@ -329,7 +336,7 @@ ${skillsList}
     /**
      * 工具执行节点 - 替代 ToolNode
      */
-    private async callToolsNode(state: typeof MessagesAnnotation.State, executeTool?: ExecuteToolCallback) {
+    private async callToolsNode(state: typeof MessagesAnnotation.State, executeTool?: ExecuteToolCallback, convertImages?: ConvertImagesCallback) {
         const messages = state.messages;
         const lastMessage = messages[messages.length - 1] as AIMessage;
         
@@ -365,10 +372,22 @@ ${skillsList}
                 if (ok) {
                     // 执行工具
                     const result = await tool.invoke(toolCall.args);
+                    let content = typeof result === "string" ? result : JSON.stringify(result);
+
+                    // 如果提供了图片转换回调，转换内容中的图片
+                    if (convertImages) {
+                        try {
+                            content = await convertImages(content);
+                        } catch (error: any) {
+                            logger.error(`用户 ${this.threadId} 图片转换失败: ${error.message}`);
+                            // 图片转换失败不影响工具执行结果，保留原始内容
+                        }
+                    }
+
                     toolMessages.push(
                         new ToolMessage({
                             tool_call_id: toolCall.id || "",
-                            content: typeof result === "string" ? result : JSON.stringify(result),
+                            content: content,
                             status: "success"
                         })
                     );
@@ -409,15 +428,16 @@ ${skillsList}
      * 使用 LangGraph 创建 Agent 图
      * @param onStreamMessage 流式消息回调，通过闭包传递给 callModelNode，避免实例属性冲突
      * @param executeTool 工具执行回调，通过闭包传递给 callToolsNode
+     * @param convertImages 图片转换回调，通过闭包传递给 callToolsNode
      */
-    private async createGraph(onStreamMessage?: OnStreamMessageCallback, executeTool?: ExecuteToolCallback) {
+    private async createGraph(onStreamMessage?: OnStreamMessageCallback, executeTool?: ExecuteToolCallback, convertImages?: ConvertImagesCallback) {
         // 初始化工具
         await this.createTools();
         // 创建状态图，使用闭包传递回调
         const workflow = new StateGraph(MessagesAnnotation)
             // 添加节点 - 使用闭包绑定回调
             .addNode("agent", (state) => this.callModelNode(state, onStreamMessage))
-            .addNode("tools", (state) => this.callToolsNode(state, executeTool))
+            .addNode("tools", (state) => this.callToolsNode(state, executeTool, convertImages))
             // 添加边
             .addEdge(START, "agent")
             .addConditionalEdges("agent", this.agentNext.bind(this))
@@ -432,8 +452,13 @@ ${skillsList}
 
     /**
      * 流式处理用户查询
+     * @param query 用户查询
+     * @param onMessage 消息回调
+     * @param onStreamMessage 流式消息回调
+     * @param executeTool 工具执行回调
+     * @param convertImages 图片转换回调（可选）
      */
-    async stream(query: string, onMessage: OnMessageCallback, onStreamMessage?: OnStreamMessageCallback, executeTool?: ExecuteToolCallback): Promise<void> {
+    async stream(query: string, onMessage: OnMessageCallback, onStreamMessage?: OnStreamMessageCallback, executeTool?: ExecuteToolCallback, convertImages?: ConvertImagesCallback): Promise<void> {
         try {
             // 添加用户消息到历史
             const humanMessage = new HumanMessage(query);
@@ -448,7 +473,7 @@ ${skillsList}
                 : [humanMessage];
 
             // 为本次调用创建独立的图，通过闭包传递回调
-            const graph = await this.createGraph(onStreamMessage, executeTool);
+            const graph = await this.createGraph(onStreamMessage, executeTool, convertImages);
             // 流式执行图 - 使用 updates 模式，每次只返回该步骤的更新
             // 使用 userId 作为 thread_id
             const stream = await graph.stream(

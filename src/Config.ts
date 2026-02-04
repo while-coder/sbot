@@ -6,6 +6,7 @@ import * as toml from "@iarna/toml";
 export interface LarkConfig {
   appId?: string;
   appSecret?: string;
+  tenantToken?: string; // 可选的手动配置的租户 token
 }
 
 export interface ModelConfig {
@@ -206,9 +207,12 @@ model = "openai-gpt4"
 
 [lark]
 # Lark (飞书) 应用配置
+# 用于工具返回的图片自动上传到飞书
 # 请填写您的 Lark 应用 App ID 和 App Secret
+# 获取方式：https://open.feishu.cn/app
 appId = ""
 appSecret = ""
+# tenantToken = ""  # 可选：手动指定租户 token（通常不需要，SDK 会自动管理）
 
 # 多模型配置 - 可以配置多个模型，通过上面的 model 字段切换使用哪个
 [models.openai-gpt4]

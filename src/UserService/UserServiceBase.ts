@@ -45,7 +45,8 @@ export abstract class UserServiceBase {
                     query,
                     this.onAgentMessage.bind(this),
                     this.onAgentStreamMessage.bind(this),
-                    this.executeAgentTool.bind(this)
+                    this.executeAgentTool.bind(this),
+                    this.convertImages.bind(this)
                 );
             } catch (e: any) {
                 logger.error(`${this.userId} 消息处理出错: ${query} : ${e.message}\n${e.stack}`);
@@ -65,4 +66,5 @@ export abstract class UserServiceBase {
     abstract onAgentMessage(message: AgentMessage): Promise<void>;
     abstract onAgentStreamMessage(message: AgentMessage): Promise<void>;
     abstract executeAgentTool(toolCall: AgentToolCall): Promise<boolean>;
+    abstract convertImages(content: string): Promise<string>;
 }
