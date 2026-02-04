@@ -6,7 +6,7 @@ import * as toml from "@iarna/toml";
 
 const logger = log4js.getLogger("Config.ts");
 
-export interface FeishuConfig {
+export interface LarkConfig {
   appId?: string;
   appSecret?: string;
 }
@@ -20,7 +20,7 @@ export interface ModelConfig {
 
 export interface Settings {
   model?: string; // 当前使用的模型名称（对应 models 中的 key）
-  feishu?: FeishuConfig;
+  lark?: LarkConfig;
   models?: Record<string, ModelConfig>; // 多个模型配置
 }
 
@@ -91,9 +91,9 @@ class Config {
 # 当前使用的模型名称（对应下面 [models.xxx] 中的名称）
 model = "openai-gpt4"
 
-[feishu]
-# 飞书应用配置
-# 请填写您的飞书应用 App ID 和 App Secret
+[lark]
+# Lark (飞书) 应用配置
+# 请填写您的 Lark 应用 App ID 和 App Secret
 appId = ""
 appSecret = ""
 
@@ -193,18 +193,18 @@ model = "gpt-4"
   validateConfig(): void {
     const errors: string[] = [];
 
-    // 验证飞书配置
-    if (!this._settings.feishu) {
-      errors.push("缺少飞书配置 [feishu]，请在配置文件中添加飞书应用配置");
+    // 验证 Lark 配置
+    if (!this._settings.lark) {
+      errors.push("缺少 Lark 配置 [lark]，请在配置文件中添加 Lark 应用配置");
     } else {
-      const { appId, appSecret } = this._settings.feishu;
+      const { appId, appSecret } = this._settings.lark;
 
       if (!appId || appId.trim() === "") {
-        errors.push("飞书配置缺少 appId，请在配置文件 [feishu] 区间中填写 appId");
+        errors.push("Lark 配置缺少 appId，请在配置文件 [lark] 区间中填写 appId");
       }
 
       if (!appSecret || appSecret.trim() === "") {
-        errors.push("飞书配置缺少 appSecret，请在配置文件 [feishu] 区间中填写 appSecret");
+        errors.push("Lark 配置缺少 appSecret，请在配置文件 [lark] 区间中填写 appSecret");
       }
     }
 
@@ -251,11 +251,20 @@ model = "gpt-4"
   }
 
   /**
-   * 验证飞书配置是否完整（兼容旧方法）
+   * 验证 Lark 配置是否完整（兼容旧方法）
    * @throws 如果配置不完整则抛出错误
    * @deprecated 请使用 validateConfig() 代替
    */
   validateFeishuConfig(): void {
+    this.validateConfig();
+  }
+
+  /**
+   * 验证 Lark 配置是否完整
+   * @throws 如果配置不完整则抛出错误
+   * @deprecated 请使用 validateConfig() 代替
+   */
+  validateLarkConfig(): void {
     this.validateConfig();
   }
 }

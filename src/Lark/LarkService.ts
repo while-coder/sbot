@@ -1,10 +1,10 @@
 import * as Lark from "@larksuiteoapi/node-sdk";
 import {Util} from "weimingcommons";
-import {UserService} from "./UserService/UserService";
+import {UserService} from "./UserService";
 import log4js from "log4js";
-import {database} from "./Database";
+import {database} from "../Database";
 import {Op} from "sequelize";
-import {config} from "./Config";
+import {config} from "../Config";
 
 const logger = log4js.getLogger("LarkService.ts");
 
@@ -23,8 +23,8 @@ class LarkService {
     config.validateConfig();
 
     let baseConfig = {
-      appId: config.settings.feishu!.appId!,
-      appSecret: config.settings.feishu!.appSecret!,
+      appId: config.settings.lark!.appId!,
+      appSecret: config.settings.lark!.appSecret!,
     };
     this.checkTime = 0;
     this.larkClient = new Lark.Client(baseConfig);

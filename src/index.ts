@@ -2,7 +2,7 @@ import path from "path";
 import log4js from "log4js";
 import {config} from "./Config";
 import {database} from "./Database";
-import {larkService} from "./LarkService";
+import {larkService} from "./Lark/LarkService";
 
 // 确保日志目录存在并获取路径
 const logsDir = config.getConfigPath("logs", true);
