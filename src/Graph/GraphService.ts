@@ -135,7 +135,7 @@ class GraphService {
     /**
      * 调用模型节点
      */
-    private async callModelNode(state: typeof MessagesAnnotation.State, onStreamMessage: (message: LangChainMessageChunk) => Promise<void>) {
+    private async callModelNode(state: typeof MessagesAnnotation.State, onStreamMessage?: (content: string) => Promise<void>) {
         const model = await this.createModel();
         const tools = await this.createTools();
 
@@ -159,9 +159,8 @@ class GraphService {
             } else {
                 response = response.concat(chunk)
             }
-            const messageChunk = this.convertToMessageChunk(response);
-            if (messageChunk) {
-                await onStreamMessage(messageChunk!)
+            if (onStreamMessage && !Util.isNullOrEmpty(response.text)) {
+                await onStreamMessage(response.text as string)
             }
         }
         // 返回新的状态，LangGraph 会自动合并消息
