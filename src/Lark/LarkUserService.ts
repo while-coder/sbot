@@ -49,8 +49,6 @@ export class LarkUserService extends UserServiceBase {
     LarkUserService.allUsers.set(userId, user);
     return user;
   }
-
-  isRunning = false;
   provider: LarkChatProvider | undefined;
   toolCallId: string | undefined;
   toolCallStatus: "none" | "wait" | "ok" | "cancel" = "none";
@@ -70,18 +68,13 @@ export class LarkUserService extends UserServiceBase {
   // 实现基类的抽象方法
   async startProcessMessage(query: string, args: any): Promise<void> {
     const { chat_type, chatId } = args as LarkMessageArgs;
-    this.isRunning = true;
     this.provider = await new LarkChatProvider().init(chatId, query);
-    logger.info(`${this.userId} from (${chat_type} - ${chatId}) 开始处理消息: ${query}`);
   }
 
   async processMessageError(e: any): Promise<void> {
-    const errorMsg = `生成回复时出错: ${e.message}\n${e.stack}`;
-    logger.error(errorMsg);
     if (this.provider) {
-      await this.provider.setMessage(errorMsg);
+      await this.provider.setMessage(`生成回复时出错: ${e.message}\n${e.stack}`);
     }
-    this.isRunning = false;
   }
 
   async onAgentMessage(message: AgentMessage): Promise<void> {

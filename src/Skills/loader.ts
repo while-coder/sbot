@@ -46,7 +46,6 @@ export function loadSkills(skillsDir: string): Skill[] {
 
             // 验证是否为有效的 skill 目录
             if (!isValidSkillDirectory(skillDir)) {
-                logger.debug(`Skipping invalid skill directory: ${skillDir}`);
                 continue;
             }
 
@@ -54,13 +53,12 @@ export function loadSkills(skillsDir: string): Skill[] {
             const skill = parseSkill(skillDir);
             if (skill) {
                 skills.push(skill);
-                logger.info(`Loaded skill: ${skill.name} from ${skillDir}`);
+                logger.info(`✓ Loaded skill: ${skill.name}`);
             } else {
-                logger.warn(`Failed to parse skill from ${skillDir}`);
+                logger.warn(`✗ Failed to load skill from: ${entry.name}`);
             }
         }
 
-        logger.info(`Loaded ${skills.length} skills from ${skillsDir}`);
         return skills;
 
     } catch (error: any) {

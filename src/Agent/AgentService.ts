@@ -59,7 +59,7 @@ export class AgentService {
     disabledAutoApproveTools: Set<string> = new Set<string>();
     saver:SqliteSaver|undefined;
     model: ChatOpenAI | null = null;
-    private skills: Skill[]|undefined = [];
+    private skills: Skill[]|undefined;
     private skillsDir: string = "";
 
     constructor(userId: string, skillsDir?: string) {

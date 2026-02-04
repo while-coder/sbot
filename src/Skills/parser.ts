@@ -7,9 +7,6 @@ import fs from 'fs';
 import path from 'path';
 import yaml from 'js-yaml';
 import { Skill, SkillMetadata } from './types';
-import { getLogger } from '../logger';
-
-const logger = getLogger('Skills/parser.ts');
 
 /**
  * 解析单个 skill 目录中的 SKILL.md 文件
@@ -21,7 +18,6 @@ export function parseSkill(skillDir: string): Skill | null {
 
     // 检查 SKILL.md 是否存在
     if (!fs.existsSync(skillMdPath)) {
-        logger.debug(`SKILL.md not found in ${skillDir}`);
         return null;
     }
 
@@ -31,7 +27,6 @@ export function parseSkill(skillDir: string): Skill | null {
 
         // 验证文件是否以 --- 开头（YAML frontmatter）
         if (!content.trimStart().startsWith('---')) {
-            logger.warn(`SKILL.md in ${skillDir} does not start with YAML frontmatter (---)`);
             return null;
         }
 
@@ -39,7 +34,6 @@ export function parseSkill(skillDir: string): Skill | null {
         // 格式: ---\nyaml content\n---\nmarkdown content
         const frontmatterMatch = content.match(/^---\s*\n([\s\S]*?)\n---/);
         if (!frontmatterMatch) {
-            logger.warn(`Failed to extract YAML frontmatter from ${skillMdPath}`);
             return null;
         }
 
@@ -50,31 +44,26 @@ export function parseSkill(skillDir: string): Skill | null {
 
         // 验证必需字段
         if (!metadata.name || !metadata.description) {
-            logger.warn(`SKILL.md in ${skillDir} is missing required fields (name or description)`);
             return null;
         }
 
         // 验证 name 格式（应为 kebab-case）
         if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(metadata.name)) {
-            logger.warn(`Skill name "${metadata.name}" is not in kebab-case format`);
             return null;
         }
 
         // 验证 name 长度
         if (metadata.name.length > 64) {
-            logger.warn(`Skill name "${metadata.name}" exceeds 64 characters`);
             return null;
         }
 
         // 验证 description 长度
         if (metadata.description.length > 1024) {
-            logger.warn(`Skill description in ${skillDir} exceeds 1024 characters`);
             return null;
         }
 
         // 验证 description 不包含 < 或 >
         if (metadata.description.includes('<') || metadata.description.includes('>')) {
-            logger.warn(`Skill description in ${skillDir} contains invalid characters (< or >)`);
             return null;
         }
 
@@ -86,11 +75,9 @@ export function parseSkill(skillDir: string): Skill | null {
             path: skillDir
         };
 
-        logger.debug(`Successfully parsed skill: ${skill.name} from ${skillDir}`);
         return skill;
 
     } catch (error: any) {
-        logger.error(`Error parsing SKILL.md in ${skillDir}: ${error.message}`);
         return null;
     }
 }
