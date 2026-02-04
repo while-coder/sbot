@@ -7,7 +7,6 @@ import {SqliteSaver} from "@langchain/langgraph-checkpoint-sqlite";
 import {config} from "../Config";
 import {getLogger} from "../logger";
 import { loadSkills, Skill } from "../Skills";
-import path from "path";
 // import { TextSplitter } from '@langchain/textsplitters'
 
 const logger = getLogger("AgentService.ts");
@@ -60,13 +59,13 @@ export class AgentService {
     disabledAutoApproveTools: Set<string> = new Set<string>();
     saver:SqliteSaver|undefined;
     model: ChatOpenAI | null = null;
-    private skills: Skill[] = [];
+    private skills: Skill[]|undefined = [];
     private skillsDir: string = "";
 
     constructor(userId: string, skillsDir?: string) {
         this.threadId = userId;
-        // 如果未指定 skills 目录，使用项目根目录下的 skills 文件夹
-        this.skillsDir = skillsDir || path.join(process.cwd(), "skills");
+        // 如果未指定 skills 目录，使用配置目录下的 skills 文件夹
+        this.skillsDir = skillsDir || config.getConfigPath("skills", true);
     }
 
     async clear() {
@@ -78,7 +77,7 @@ export class AgentService {
      * 加载 skills
      */
     private loadSkillsIfNeeded() {
-        if (this.skills.length > 0) return;
+        if (this.skills) return;
 
         try {
             this.skills = loadSkills(this.skillsDir);
@@ -88,17 +87,6 @@ export class AgentService {
         } catch (error: any) {
             logger.error(`Failed to load skills: ${error.message}`);
         }
-    }
-
-    /**
-     * 生成 skills 列表字符串用于系统提示词
-     */
-    private generateSkillsListString(): string {
-        if (this.skills.length === 0) return "";
-
-        return this.skills.map(skill =>
-            `- ${skill.name}: ${skill.path}\n  ${skill.description}`
-        ).join('\n');
     }
     /**
      * 初始化工具
@@ -200,8 +188,8 @@ export class AgentService {
         let systemMessage = `你是一个有用的AI助手。`;
 
         // 如果有 skills，添加 skills 系统提示
-        if (this.skills.length > 0) {
-            const skillsList = this.generateSkillsListString();
+        if (this.skills && this.skills.length > 0) {
+            const skillsList = this.skills.map(skill =>`- ${skill.name}: ${skill.path}\n  ${skill.description}`).join('\n');
             systemMessage += `
 
 <skill_system>

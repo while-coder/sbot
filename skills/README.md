@@ -2,6 +2,12 @@
 
 这个目录包含所有可用的 skills。Skills 是为特定任务优化工作流的自包含模块。
 
+## Skills 目录位置
+
+**重要**: Skills 目录位于配置目录下，而不是项目根目录：
+- **配置目录**: `~/.sbot/skills/` (Linux/Mac) 或 `C:\Users\{用户名}\.sbot\skills\` (Windows)
+- 这样做的好处是多个项目可以共享同一套 skills
+
 ## 什么是 Skill？
 
 Skill 是一个包含以下内容的目录：
@@ -12,7 +18,14 @@ Skill 是一个包含以下内容的目录：
 
 ## 如何创建 Skill
 
-1. 在 `skills/` 目录下创建新文件夹（使用 kebab-case 命名）
+1. 在配置目录的 `skills/` 文件夹下创建新文件夹（使用 kebab-case 命名）
+   ```bash
+   # Linux/Mac
+   mkdir -p ~/.sbot/skills/my-skill
+
+   # Windows
+   mkdir %USERPROFILE%\.sbot\skills\my-skill
+   ```
 2. 创建 `SKILL.md` 文件
 3. 添加 YAML frontmatter：
    ```yaml

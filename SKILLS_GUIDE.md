@@ -30,23 +30,40 @@ Skills 的设计参考了 [mini-opencode](https://github.com/anthropics/mini-ope
 
 ## Skills 系统架构
 
+### Skills 目录位置
+
+**重要**: Skills 存放在配置目录下，而不是项目根目录：
+
+- **Linux/Mac**: `~/.sbot/skills/`
+- **Windows**: `C:\Users\{用户名}\.sbot\skills\`
+
+这样设计的好处：
+- 多个项目共享同一套 skills
+- Skills 作为用户级配置，更容易管理
+- 即使删除项目，skills 依然保留
+
 ### 目录结构
 ```
-sbot/
+sbot/                         # 项目目录
 ├── src/
 │   └── Skills/              # Skills 系统源代码
 │       ├── types.ts         # Skill 类型定义
 │       ├── parser.ts        # SKILL.md 解析器
 │       ├── loader.ts        # Skills 批量加载器
 │       └── index.ts         # 模块导出
-├── skills/                  # Skills 存放目录
+├── skills/                  # 项目中的 skills（仅供参考）
 │   ├── README.md           # Skills 使用说明
 │   └── example-skill/      # 示例 Skill
-│       ├── SKILL.md        # Skill 主文件
-│       ├── scripts/        # 可执行脚本
-│       ├── references/     # 参考文档
-│       └── assets/         # 资源文件
 └── test-skills.js          # Skills 系统测试脚本
+
+~/.sbot/skills/              # 实际 Skills 存放位置
+├── example-skill/          # 示例 Skill
+│   ├── SKILL.md           # Skill 主文件
+│   ├── scripts/           # 可执行脚本
+│   ├── references/        # 参考文档
+│   └── assets/            # 资源文件
+└── my-skill/              # 自定义 Skill
+    └── SKILL.md
 ```
 
 ### 核心组件
@@ -118,8 +135,16 @@ Skills 信息会自动注入到系统提示词中：
 
 ### 步骤 1: 创建目录
 
+在配置目录的 skills 文件夹下创建新 skill：
+
 ```bash
-cd skills
+# Linux/Mac
+cd ~/.sbot/skills
+mkdir my-awesome-skill
+cd my-awesome-skill
+
+# Windows (PowerShell)
+cd $env:USERPROFILE\.sbot\skills
 mkdir my-awesome-skill
 cd my-awesome-skill
 ```

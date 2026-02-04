@@ -4,16 +4,17 @@
  */
 
 const { loadSkills } = require('./dist/Skills');
-const path = require('path');
+const { config } = require('./dist/Config');
 
 console.log('='.repeat(60));
 console.log('Testing Skills System');
 console.log('='.repeat(60));
 console.log();
 
-// 测试加载 skills
-const skillsDir = path.join(__dirname, 'skills');
-console.log(`Loading skills from: ${skillsDir}`);
+// 测试加载 skills（从配置目录）
+const skillsDir = config.getConfigPath('skills', true);
+console.log(`Skills directory: ${skillsDir}`);
+console.log(`Loading skills from config directory...`);
 console.log();
 
 try {
@@ -36,7 +37,8 @@ try {
             console.log();
         });
     } else {
-        console.log('⚠ No skills found. Please add skills to the skills/ directory.');
+        console.log('⚠ No skills found in config directory.');
+        console.log(`   Please add skills to: ${skillsDir}`);
     }
 
     console.log('='.repeat(60));
