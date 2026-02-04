@@ -22,7 +22,6 @@ export abstract class UserServiceBase {
         if (Util.isNullOrEmpty(query)) return;
         // 将消息加入队列
         this.messageQueue.push({ query, args });
-        logger.info(`${this.userId} 消息加入队列: ${query} (队列长度: ${this.messageQueue.length})`);
         // 如果没有正在处理队列，启动处理
         if (!this.isProcessingQueue) {
             this.processMessageQueue();

@@ -81,9 +81,6 @@ export class AgentService {
 
         try {
             this.skills = loadSkills(this.skillsDir);
-            if (this.skills.length > 0) {
-                logger.info(`Loaded ${this.skills.length} skills from ${this.skillsDir}`);
-            }
         } catch (error: any) {
             logger.error(`Failed to load skills: ${error.message}`);
         }
