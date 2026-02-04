@@ -26,7 +26,15 @@ function parseChunk2Message(provider: LarkChatProvider, message: AgentMessage) {
     if (toolCall) {
       toolCall.result = true;
       toolCall.status = message.status;
-      toolCall.response = message.content;
+
+      // 截断过长的工具响应内容（飞书消息有长度限制）
+      const MAX_TOOL_RESPONSE_LENGTH = 128;
+      let response = message.content || "";
+      if (response.length > MAX_TOOL_RESPONSE_LENGTH) {
+        response = response.substring(0, MAX_TOOL_RESPONSE_LENGTH) +
+                   `\n\n...\n[内容过长，已截断。原始长度: ${response.length} 字符]`;
+      }
+      toolCall.response = response;
     }
   }
   return provider;

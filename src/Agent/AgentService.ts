@@ -61,7 +61,7 @@ export class AgentService {
     model: ChatOpenAI | null = null;
     private skills: Skill[]|undefined;
     private skillsDir: string = "";
-    private maxHistoryMessages: number = 5; // 最大历史消息数
+    private maxHistoryMessages: number = 50; // 最大历史消息数
 
     constructor(userId: string, skillsDir?: string) {
         this.threadId = userId;
