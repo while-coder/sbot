@@ -76,7 +76,7 @@ export class AgentService {
     /**
      * 加载 skills
      */
-    private loadSkillsIfNeeded() {
+    private loadSkills() {
         if (this.skills) return;
 
         try {
@@ -179,19 +179,23 @@ export class AgentService {
         const tools = await this.createTools();
 
         // 加载 skills
-        this.loadSkillsIfNeeded();
+        this.loadSkills();
 
         // 绑定工具到模型
         const modelWithTools = model.bindTools(tools);
 
-        // 构建系统提示词，包含 skills 信息
-        let systemMessage = `你是一个有用的AI助手。`;
+        // 构建基础系统提示词
+        const systemMessages = [
+            { role: "system", content: `你是一个有用的AI助手。` },
+        ];
 
-        // 如果有 skills，添加 skills 系统提示
+        // 构建 skills 系统提示词
         if (this.skills && this.skills.length > 0) {
-            const skillsList = this.skills.map(skill =>`- ${skill.name}: ${skill.path}\n  ${skill.description}`).join('\n');
-            systemMessage += `
+            const skillsList = this.skills.map(skill =>
+                `- ${skill.name}: ${skill.path}\n  ${skill.description}`
+            ).join('\n');
 
+            const skillSystemMessage = `
 <skill_system>
 你可以访问为特定任务优化工作流的 skills。
 
@@ -210,12 +214,15 @@ ${skillsList}
 </all_available_skills>
 
 </skill_system>`;
+            systemMessages.push({ role: "system", content: skillSystemMessage });
         }
 
+        // 所有提示词
         const messages = [
-            { role: "system", content: systemMessage },
-            ...state.messages
+            ...systemMessages,
+            ...state.messages,
         ];
+
         // 使用流式调用收集完整响应
         const stream = await modelWithTools.stream(messages);
 
