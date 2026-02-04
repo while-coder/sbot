@@ -6,7 +6,7 @@ import {StateGraph, END, START, MessagesAnnotation} from '@langchain/langgraph';
 import {SqliteSaver} from "@langchain/langgraph-checkpoint-sqlite";
 import {config} from "../Config";
 import {getLogger} from "../logger";
-import { loadSkills, Skill } from "../Skills";
+import { loadSkills, Skill, createSkillTools } from "../Skills";
 // import { TextSplitter } from '@langchain/textsplitters'
 
 const logger = getLogger("AgentService.ts");
@@ -93,6 +93,10 @@ export class AgentService {
 
         this.disabledAutoApproveTools = new Set<string>()
         this.tools = []
+
+        // 添加 skill 工具
+        const skillTools = createSkillTools(this.skillsDir);
+        this.tools.push(...skillTools);
 
         // 工具需要通过配置或外部方式添加
         // 可以通过 addMcpServers 方法动态添加
@@ -220,13 +224,27 @@ ${skillsList}
 当匹配到 skill 时，立即执行以下步骤：
 
 1. **告知用户**："我将使用 '{skill-name}' skill 来处理这个任务"
-2. **读取 SKILL.md**：立即读取 \`${this.skillsDir}/{skill-name}/SKILL.md\` 文件
+2. **读取 SKILL.md**：使用 \`read_skill_file\` 工具读取 SKILL.md 文件
+   - skillName: skill 名称
+   - filePath: "SKILL.md"
 3. **理解指导**：仔细阅读 SKILL.md 中的完整工作流程和指导说明
 4. **严格执行**：完全按照 skill 中的指导和步骤来完成任务
-5. **访问资源**：如果 skill 引用了其他文件（scripts/、references/ assets/ 等），按需读取
+5. **访问资源**：如果 skill 引用了其他文件，使用以下工具：
+   - \`list_skill_files\`: 查看 skill 目录结构
+   - \`read_skill_file\`: 读取 skill 目录下的任何文件
+   - \`execute_skill_script\`: 执行 skill 中的脚本（.py, .sh, .js, .ts）
+
+## 🛠️ 可用的 Skill 工具
+
+你有以下工具来操作 skills：
+
+- **read_skill_file**: 读取 skill 目录下的任何文件（SKILL.md、scripts/、references/ 等）
+- **list_skill_files**: 列出 skill 的目录结构，查看包含哪些文件
+- **execute_skill_script**: 执行 skill 中的脚本文件
 
 ## ⚠️ 重要约束
 
+- ✅ **必须使用工具**：使用 \`read_skill_file\` 工具读取文件，不要尝试猜测文件内容
 - ✅ **必须先读取 SKILL.md**：在执行任何 skill 相关操作前，必须先读取并理解 SKILL.md
 - ✅ **严格遵循指导**：SKILL.md 中的指导是权威的，必须完全遵守
 - ✅ **主动识别**：不要等用户明确说"使用某个 skill"，要主动识别和使用
