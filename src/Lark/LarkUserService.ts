@@ -9,6 +9,9 @@ const logger = LoggerService.getLogger('LarkUserService.ts');
 
 function parseChunk2Message(provider: LarkChatProvider, message: AgentMessage) {
   if (message.type === MessageChunkType.AI) {
+    if (message.content) {
+      provider.messages.push({ type: "text", content: message.content || "" });
+    }
     if (message.tool_calls && message.tool_calls.length > 0) {
       for (const t of message.tool_calls) {
         const toolCall: ProviderToolMessage = { type: "tool", name: t.name, args: t.args };
@@ -17,11 +20,6 @@ function parseChunk2Message(provider: LarkChatProvider, message: AgentMessage) {
         }
         provider.messages.push(toolCall);
       }
-      if (message.content) {
-        provider.messages.push({ type: "text", content: message.content || "" });
-      }
-    } else {
-      provider.messages.push({ type: "text", content: message.content || "" });
     }
   } else if (message.type === MessageChunkType.TOOL) {
     const toolCall = provider.tools[message.tool_call_id || ""];
