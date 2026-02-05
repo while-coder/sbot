@@ -1,5 +1,6 @@
 import { Command as CommanderCommand } from "commander";
 import { CommandBase, Command, Arg, Option, Parsers } from "./CommandBase";
+import { AgentService } from "../Agent/AgentService";
 
 /**
  * /clear 命令 - 清空消息队列
@@ -8,15 +9,14 @@ import { CommandBase, Command, Arg, Option, Parsers } from "./CommandBase";
 export class ClearCommand extends CommandBase {
     async execute(): Promise<string> {
         // 通过 _context 访问 userService
-        const userService = (this._context as any).userService;
+        const userService = this._context.userService;
         if (!userService) {
             return '❌ 无法访问用户服务';
         }
+        const agentService = new AgentService(userService.userId)
+        await agentService.clearSaver()
 
-        // const clearedCount = userService.messageQueue.length;
-        // userService.messageQueue = [];
-
-        return `✅ 队列已清空，共清除 条消息`;
+        return `✅ 清除用户 ${userService.userId} 的所有历史记录`;
     }
 }
 

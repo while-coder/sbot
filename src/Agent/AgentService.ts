@@ -89,16 +89,16 @@ export class AgentService {
     /**
      * 清除当前线程的所有历史记录
      */
-    async clear() {
+    async clearSaver() {
         const saver = await this.createSaver()
         await saver.deleteThread(this.threadId)
+        await this.disposeSaver();
         logger.info(`清除用户 ${this.threadId} 的所有历史记录`)
     }
-
     /**
      * 释放资源
      */
-    async dispose() {
+    async disposeSaver() {
         if (this.saver) {
             try {
                 // SqliteSaver 通常会有 end() 或类似方法来关闭数据库连接
@@ -112,6 +112,12 @@ export class AgentService {
                 this.saver = undefined;
             }
         }
+    }
+    /**
+     * 释放资源
+     */
+    async dispose() {
+        await this.disposeSaver()
     }
 
     /**

@@ -191,7 +191,7 @@ export function Arg(
 /**
  * @Option 装饰器 - 定义选项
  * @param flags 选项标志，支持以下格式：
- *   - 数组: ['-f', '--force'] 或 ['--verbose']
+ *   - 数组: ['-f', '--force'] 或 ['--verbose'] 或 ['-c', '--count <n>']
  *   - 空: 默认使用 '--propertyName'
  * @param options 选项配置
  *
@@ -207,19 +207,39 @@ export function Option(
     }
 ) {
     return function (target: any, propertyKey: string) {
-        // 处理 flags：始终包含 --propertyName
         let finalFlags: string;
 
         if (!flags || flags.length === 0) {
             // 没有指定 flags，只使用属性名
             finalFlags = `--${propertyKey}`;
         } else {
-            // 有指定 flags，追加 --propertyName 作为别名
-            // 确保 --propertyName 总是在最后
             const flagsList = [...flags];
-            if (!flagsList.includes(`--${propertyKey}`)) {
-                flagsList.push(`--${propertyKey}`);
+
+            // 检查是否存在带值的选项（<xxx> 或 [xxx]）
+            let valuePattern = '';
+            for (const flag of flagsList) {
+                const match = flag.match(/<[^>]+>|\[[^\]]+\]/);
+                if (match) {
+                    valuePattern = match[0];
+                    break;
+                }
             }
+
+            // 检查是否已经包含 --propertyName（忽略值部分）
+            const hasPropertyName = flagsList.some(flag => {
+                // 提取选项的基础名称（去掉 <xxx> 或 [xxx]）
+                const baseFlag = flag.trim().split(/\s+/)[0];
+                return baseFlag === `--${propertyKey}`;
+            });
+
+            // 只有在没有找到属性名对应的长选项时才添加
+            if (!hasPropertyName) {
+                const propertyFlag = valuePattern
+                    ? `--${propertyKey} ${valuePattern}`
+                    : `--${propertyKey}`;
+                flagsList.push(propertyFlag);
+            }
+
             finalFlags = flagsList.join(', ');
         }
 
@@ -307,6 +327,7 @@ export abstract class CommandBase {
             // Commander 传递参数顺序: arg1, arg2, ..., options, command
             // 倒数第二个是 options 对象
             const options = args[args.length - 2] || {};
+            console.log(options)
             const actualArgs = args.slice(0, metadata.args.length);
 
             // 注入参数到实例属性
