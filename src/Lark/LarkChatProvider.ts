@@ -30,9 +30,10 @@ function parseMessages2Markdown(messages: ProviderMessage[]) {
 调用:${message.name}参数:
 ${JSON.stringify(message.args, null, 2)}`;
       if (message.result) {
+        const escapedResponse = String(message.response).replace(/`/g, '\\`');
         content += `
 返回值:
-${message.response}`;
+${escapedResponse}`;
       } else {
         content += `
 执行中...`
