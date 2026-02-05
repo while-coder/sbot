@@ -9,6 +9,7 @@ import {LoggerService} from "../LoggerService";
 import { loadSkills, Skill } from "../Skills";
 import { createFileSystemTools, FileSystemToolsConfig } from '../Tools/FileSystem'
 import { createSkillTools } from "../Tools/Skills";
+import { createCommandTools } from '../Tools/Command';
 
 const logger = LoggerService.getLogger("AgentService.ts");
 
@@ -134,6 +135,10 @@ export class AgentService {
         // 添加文件系统工具
         const fileSystemTools = createFileSystemTools(this.fileSystemConfig);
         this.tools.push(...fileSystemTools);
+
+        // 添加命令执行工具
+        const commandTools = createCommandTools();
+        this.tools.push(...commandTools);
 
         // 添加 skill 工具
         const skillTools = createSkillTools(this.skillsDir);
