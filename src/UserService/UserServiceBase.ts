@@ -5,6 +5,7 @@ import { MCPToolResult } from "../Tools/ToolsConfig";
 import { Command } from "commander";
 import { CommandBase, CommandContext } from "./CommandBase";
 import { getBuiltInCommands } from "./BuiltInCommands";
+import { config } from "../Config";
 
 const logger = LoggerService.getLogger('UserServiceBase.ts');
 
@@ -50,7 +51,7 @@ export abstract class UserServiceBase {
                 if (query.startsWith('/')) {
                     await this.processCommand(query.substring(1), args);
                 } else {
-                    const agentService = new AgentService(this.userId);
+                    const agentService = new AgentService(this.userId, config.getCurrentModel()!, config.getConfigPath("skills", true));
                     await agentService.stream(
                         query,
                         this.onAgentMessage.bind(this),

@@ -1,6 +1,7 @@
 import { Command as CommanderCommand } from "commander";
 import { CommandBase, Command, Arg, Option, Parsers } from "./CommandBase";
 import { AgentService } from "../Agent/AgentService";
+import { config } from "../Config";
 
 /**
  * /clear 命令 - 清空消息队列
@@ -13,7 +14,7 @@ export class ClearCommand extends CommandBase {
         if (!userService) {
             return '❌ 无法访问用户服务';
         }
-        const agentService = new AgentService(userService.userId)
+        const agentService = new AgentService(userService.userId, config.getCurrentModel()!)
         await agentService.clearSaver()
 
         return `✅ 清除用户 ${userService.userId} 的所有历史记录`;

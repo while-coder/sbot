@@ -16,9 +16,11 @@ const logger = LoggerService.getLogger('Skills/loader.ts');
  * @param skillsDir skills 目录路径
  * @returns 成功解析的 Skill 对象数组
  */
-export function loadSkills(skillsDir: string): Skill[] {
+export function loadSkills(skillsDir?: string): Skill[] {
     const skills: Skill[] = [];
-
+    if (!skillsDir) {
+        return skills;
+    }
     // 检查目录是否存在
     if (!fs.existsSync(skillsDir)) {
         logger.warn(`Skills 目录不存在: ${skillsDir}`);

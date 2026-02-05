@@ -4,7 +4,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import { MultiServerMCPClient } from "@langchain/mcp-adapters";
 import {StateGraph, END, START, MessagesAnnotation} from '@langchain/langgraph';
 import {SqliteSaver} from "@langchain/langgraph-checkpoint-sqlite";
-import {config} from "../Config";
+import {config, ModelConfig} from "../Config";
 import {LoggerService} from "../LoggerService";
 import { loadSkills, Skill } from "../Skills";
 import { MCPToolResult, normalizeToMCPResult } from '../Tools/ToolsConfig'
@@ -72,18 +72,15 @@ export class AgentService {
     saver:SqliteSaver|undefined;
     model: ChatOpenAI | null = null;
     private skills: Skill[]|undefined;
-    private skillsDir: string = "";
+    private skillsDir?: string;
     private maxHistoryMessages: number = 10; // 最大历史消息数
-    private fileSystemConfig: FileSystemToolsConfig = { maxFileSize: 10 * 1024 * 1024 }; // 文件系统工具配置
+    private modelConfig: ModelConfig;
 
-    constructor(userId: string, skillsDir?: string, fileSystemConfig?: FileSystemToolsConfig) {
+
+    constructor(userId: string, modelConfig: ModelConfig, skillsDir?: string) {
         this.threadId = userId;
-        // 如果未指定 skills 目录，使用配置目录下的 skills 文件夹
-        this.skillsDir = skillsDir || config.getConfigPath("skills", true);
-        // 文件系统工具配置
-        this.fileSystemConfig = fileSystemConfig || {
-            maxFileSize: 10 * 1024 * 1024 // 10MB
-        };
+        this.modelConfig = modelConfig;
+        this.skillsDir = skillsDir;
     }
 
     /**
@@ -125,7 +122,6 @@ export class AgentService {
      */
     private loadSkills() {
         if (this.skills) return;
-
         try {
             this.skills = loadSkills(this.skillsDir);
         } catch (error: any) {
@@ -142,7 +138,7 @@ export class AgentService {
         this.tools = []
 
         // 添加文件系统工具
-        const fileSystemTools = createFileSystemTools(this.fileSystemConfig);
+        const fileSystemTools = createFileSystemTools({ maxFileSize: 10 * 1024 * 1024 });
         this.tools.push(...fileSystemTools);
 
         // 添加命令执行工具
@@ -192,26 +188,24 @@ export class AgentService {
     private async createModel(): Promise<ChatOpenAI> {
         if (this.model != null) return this.model;
 
-        const modelConfig = config.getCurrentModel();
-
-        if (!modelConfig ||
-            Util.isNullOrEmpty(modelConfig.baseURL) ||
-            Util.isNullOrEmpty(modelConfig.apiKey) ||
-            Util.isNullOrEmpty(modelConfig.model)
+        if (!this.modelConfig ||
+            Util.isNullOrEmpty(this.modelConfig.baseURL) ||
+            Util.isNullOrEmpty(this.modelConfig.apiKey) ||
+            Util.isNullOrEmpty(this.modelConfig.model)
         ) {
             throw new Error("模型配置不完整，请在配置文件中正确配置当前使用的模型");
         }
 
         this.model = new ChatOpenAI({
             configuration: {
-                baseURL: modelConfig!.baseURL,
-                apiKey: modelConfig!.apiKey,
+                baseURL: this.modelConfig!.baseURL,
+                apiKey: this.modelConfig!.apiKey,
                 defaultHeaders: {
-                    Authorization: `Bearer ${modelConfig!.apiKey}`,
+                    Authorization: `Bearer ${this.modelConfig!.apiKey}`,
                 },
             },
-            apiKey: modelConfig!.apiKey,
-            model: modelConfig!.model,
+            apiKey: this.modelConfig!.apiKey,
+            model: this.modelConfig!.model,
         });
 
         return this.model;

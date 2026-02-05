@@ -237,10 +237,14 @@ export function createListSkillFilesTool(skillsDir: string): StructuredToolInter
  * 创建所有 skill 相关工具
  * @param skillsDir skills 目录路径
  */
-export function createSkillTools(skillsDir: string): StructuredToolInterface[] {
-    return [
-        createReadSkillFileTool(skillsDir),
-        createExecuteSkillScriptTool(skillsDir),
-        createListSkillFilesTool(skillsDir)
-    ];
+export function createSkillTools(skillsDir?: string): StructuredToolInterface[] {
+    if (skillsDir) {
+        return [
+            createReadSkillFileTool(skillsDir),
+            createExecuteSkillScriptTool(skillsDir),
+            createListSkillFilesTool(skillsDir)
+        ];
+    } else {
+        return []
+    }
 }
