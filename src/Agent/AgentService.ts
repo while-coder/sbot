@@ -8,7 +8,7 @@ import {config, ModelConfig} from "../Config";
 import {LoggerService} from "../LoggerService";
 import { loadSkills, Skill } from "../Skills";
 import { MCPToolResult, normalizeToMCPResult } from '../Tools/ToolsConfig'
-import { createFileSystemTools, FileSystemToolsConfig } from '../Tools/FileSystem'
+import { createFileSystemTools } from '../Tools/FileSystem'
 import { createSkillTools } from "../Tools/Skills";
 import { createCommandTools } from '../Tools/Command';
 
@@ -384,7 +384,6 @@ ${skillsList}
 
                     // 标准化为 MCP 格式（自动检测和转换各种格式）
                     let mcpResult = normalizeToMCPResult(result);
-                    logger.info(`用户 ${this.threadId} 工具 ${tool.name} 返回已标准化为 MCP 格式`);
 
                     // 如果提供了图片转换回调，转换内容中的图片
                     if (convertImages) {
