@@ -1,5 +1,5 @@
 import {Util} from "weimingcommons";
-import {LarkChatProvider, type ProviderToolMessage} from "./LarkChatProvider";
+import {LarkChatProvider, type ProviderToolMessage, ProviderMessageType} from "./LarkChatProvider";
 import {type AgentMessage, MessageChunkType, AgentToolCall} from "../Agent/AgentService";
 import {LoggerService} from "../LoggerService";
 import {UserServiceBase} from "../UserService/UserServiceBase";
@@ -8,45 +8,6 @@ import { MCPToolResult } from "../Tools/ToolsConfig";
 import { CommandBase, Command } from "../UserService/CommandBase";
 
 const logger = LoggerService.getLogger('LarkUserService.ts');
-
-
-function parseChunk2Message(provider: LarkChatProvider, message: AgentMessage) {
-  if (message.type === MessageChunkType.AI) {
-    if (message.content) {
-      provider.messages.push({ type: "text", content: message.content || "" });
-    }
-    if (message.tool_calls && message.tool_calls.length > 0) {
-      for (const t of message.tool_calls) {
-        const toolCall: ProviderToolMessage = { type: "tool", name: t.name, args: t.args };
-        if (t.id) {
-          provider.tools[t.id] = toolCall;
-        }
-        provider.messages.push(toolCall);
-      }
-    }
-  } else if (message.type === MessageChunkType.TOOL) {
-    const toolCall = provider.tools[message.tool_call_id || ""];
-    if (toolCall) {
-      toolCall.result = true;
-      toolCall.status = message.status;
-
-      // 截断过长的工具响应内容（飞书消息有长度限制）
-      const MAX_TOOL_RESPONSE_LENGTH = 128;
-      let response = message.content || "";
-      if (response.length > MAX_TOOL_RESPONSE_LENGTH) {
-        response = response.substring(0, MAX_TOOL_RESPONSE_LENGTH) +
-                   `\n\n...\n[内容过长，已截断。原始长度: ${response.length} 字符]`;
-      }
-      toolCall.response = response;
-    }
-  } else if (message.type === MessageChunkType.COMMAND) {
-    // 处理命令结果消息
-    if (message.content) {
-      provider.messages.push({ type: "text", content: message.content });
-    }
-  }
-  return provider;
-}
 
 interface LarkMessageArgs {
   chat_type: string;
@@ -71,6 +32,47 @@ export class LarkUserService extends UserServiceBase {
     super(userId);
   }
 
+  /**
+   * 解析 Agent 消息并更新 Provider
+   */
+  private parseChunk2Message(provider: LarkChatProvider, message: AgentMessage) {
+    if (message.type === MessageChunkType.AI) {
+      if (message.content) {
+        provider.messages.push({ type: ProviderMessageType.TEXT, content: message.content || "" });
+      }
+      if (message.tool_calls && message.tool_calls.length > 0) {
+        for (const t of message.tool_calls) {
+          const toolCall: ProviderToolMessage = { type: ProviderMessageType.TOOL, name: t.name, args: t.args };
+          if (t.id) {
+            provider.tools[t.id] = toolCall;
+          }
+          provider.messages.push(toolCall);
+        }
+      }
+    } else if (message.type === MessageChunkType.TOOL) {
+      const toolCall = provider.tools[message.tool_call_id || ""];
+      if (toolCall) {
+        toolCall.result = true;
+        toolCall.status = message.status;
+
+        // 截断过长的工具响应内容（飞书消息有长度限制）
+        const MAX_TOOL_RESPONSE_LENGTH = 128;
+        let response = message.content || "";
+        if (response.length > MAX_TOOL_RESPONSE_LENGTH) {
+          response = response.substring(0, MAX_TOOL_RESPONSE_LENGTH) +
+                     `\n\n...\n[内容过长，已截断。原始长度: ${response.length} 字符]`;
+        }
+        toolCall.response = response;
+      }
+    } else if (message.type === MessageChunkType.COMMAND) {
+      // 处理命令结果消息
+      if (message.content) {
+        provider.messages.push({ type: ProviderMessageType.TEXT, content: message.content });
+      }
+    }
+    return provider;
+  }
+
   // Lark 特定的接收消息方法
   async onReceiveLarkMessage(chat_type: string, chatId: string, query: string) {
     if (Util.isNullOrEmpty(query)) return;
@@ -92,7 +94,7 @@ export class LarkUserService extends UserServiceBase {
   }
 
   async onAgentMessage(message: AgentMessage): Promise<void> {
-    parseChunk2Message(this.provider!, message);
+    this.parseChunk2Message(this.provider!, message);
     this.provider!.resetStreamMessage();
     await this.provider!.updateMessage();
   }
@@ -195,34 +197,5 @@ export class LarkUserService extends UserServiceBase {
 
   async convertImages(result: MCPToolResult): Promise<MCPToolResult> {
     return await larkService.convertMCPImagesToLarkFormat(result);
-  }
-
-  /**
-   * 获取 Lark 特定的命令（使用装饰器）
-   */
-  protected getCommands(): CommandBase[] {
-    return [
-      new StatusCommand(this)
-    ];
-  }
-}
-
-/**
- * Lark 特定的 status 命令
- */
-@Command('status', '显示当前用户和会话状态')
-class StatusCommand extends CommandBase {
-  constructor(private larkService: LarkUserService) {
-    super();
-  }
-
-  async execute(): Promise<string> {
-    const statusInfo = [
-      `👤 用户ID: ${this.larkService.userId}`,
-      `📊 队列状态: ${this.larkService.messageQueue.length} 条消息待处理`,
-      `🔧 工具调用状态: ${this.larkService.toolCallStatus}`,
-      this.larkService.provider ? `💬 当前会话: 活跃` : `💬 当前会话: 空闲`
-    ].join('\n');
-    return statusInfo;
   }
 }

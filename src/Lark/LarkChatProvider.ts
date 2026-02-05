@@ -3,13 +3,19 @@ import { larkService } from "./LarkService.js";
 import { LoggerService } from "../LoggerService.js";
 
 const logger = LoggerService.getLogger("LarkChatProvider.ts");
+
+export enum ProviderMessageType {
+  TEXT = "text",
+  TOOL = "tool"
+}
+
 export type ProviderTextMessage = {
-  type: "text";
+  type: ProviderMessageType.TEXT;
   content: string;
 };
 
 export type ProviderToolMessage = {
-  type: "tool";
+  type: ProviderMessageType.TOOL;
   name: string;
   args: unknown;
   result?: boolean;
@@ -18,34 +24,6 @@ export type ProviderToolMessage = {
 };
 
 export type ProviderMessage = ProviderTextMessage | ProviderToolMessage;
-
-function parseMessages2Markdown(messages: ProviderMessage[]) {
-  const result: string[] = [];
-  for (const message of messages) {
-    if (message.type === "text") {
-      result.push(message.content);
-    } else if (message.type === "tool") {
-      let content = `
-\`\`\`
-调用:${message.name}参数:
-${JSON.stringify(message.args, null, 2)}`;
-      if (message.result) {
-        const escapedResponse = String(message.response).replace(/`/g, '\\`');
-        content += `
-返回值:
-${escapedResponse}`;
-      } else {
-        content += `
-执行中...`
-      }
-      content += `
-\`\`\`
----`;
-      result.push(content);
-    }
-  }
-  return result.join("\n\n");
-}
 
 export class LarkChatProvider {
   messageId: string | null = null;
@@ -62,12 +40,45 @@ export class LarkChatProvider {
     this.messageId = resp?.message_id ?? null;
     return this;
   }
+
+  /**
+   * 将消息数组转换为 Markdown 格式
+   */
+  private parseMessages2Markdown(messages: ProviderMessage[]) {
+    const result: string[] = [];
+    for (const message of messages) {
+      if (message.type === ProviderMessageType.TEXT) {
+        result.push(message.content);
+      } else if (message.type === ProviderMessageType.TOOL) {
+        let content = `
+\`\`\`
+调用:${message.name}参数:
+${JSON.stringify(message.args, null, 2)}`;
+        if (message.result) {
+          const escapedResponse = String(message.response).replace(/`/g, '\\`');
+          content += `
+返回值:
+${escapedResponse}`;
+        } else {
+          content += `
+执行中...`
+        }
+        content += `
+\`\`\`
+---`;
+        result.push(content);
+      }
+    }
+    return result.join("\n\n");
+  }
+
+
   async setMessage(content:string) {
-    this.messages = [{ type: "text", content: content }];
+    this.messages = [{ type: ProviderMessageType.TEXT, content: content }];
     await this.updateMessage()
   }
   async setStreamMessage(content:string) {
-    this.streamMessage = {type: "text", content: content}
+    this.streamMessage = {type: ProviderMessageType.TEXT, content: content}
     await this.updateMessage()
   }
   resetStreamMessage() {
@@ -82,7 +93,7 @@ export class LarkChatProvider {
     await this.insertElement(0, {
       tag: "markdown",
       element_id: "markdown",
-      content: parseMessages2Markdown(messages),
+      content: this.parseMessages2Markdown(messages),
       text_align: "left",
       text_size: "normal",
     })
