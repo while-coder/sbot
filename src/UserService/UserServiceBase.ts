@@ -1,6 +1,7 @@
 import { Util } from "weimingcommons";
 import { AgentService, AgentMessage, AgentToolCall } from "../Agent/AgentService";
 import { LoggerService } from "../LoggerService";
+import { MCPToolResult } from "../Tools/ToolsConfig";
 
 const logger = LoggerService.getLogger('UserServiceBase.ts');
 
@@ -66,5 +67,5 @@ export abstract class UserServiceBase {
     abstract onAgentMessage(message: AgentMessage): Promise<void>;
     abstract onAgentStreamMessage(message: AgentMessage): Promise<void>;
     abstract executeAgentTool(toolCall: AgentToolCall): Promise<boolean>;
-    abstract convertImages(content: string): Promise<string>;
+    abstract convertImages(result: MCPToolResult): Promise<MCPToolResult>;
 }

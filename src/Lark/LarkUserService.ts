@@ -186,8 +186,8 @@ export class LarkUserService extends UserServiceBase {
     logger.warn(`未处理的卡片操作: ${code}`);
   }
 
-  async convertImages(content: string): Promise<string> {
-    return await larkService.convertImagesToLarkFormat(content);
+  async convertImages(result: import('../Tools/ToolsConfig').MCPToolResult): Promise<import('../Tools/ToolsConfig').MCPToolResult> {
+    return await larkService.convertMCPImagesToLarkFormat(result);
   }
 
 }

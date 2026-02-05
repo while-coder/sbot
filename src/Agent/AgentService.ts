@@ -7,9 +7,11 @@ import {SqliteSaver} from "@langchain/langgraph-checkpoint-sqlite";
 import {config} from "../Config";
 import {LoggerService} from "../LoggerService";
 import { loadSkills, Skill } from "../Skills";
+import { MCPToolResult } from '../Tools/ToolsConfig'
 import { createFileSystemTools, FileSystemToolsConfig } from '../Tools/FileSystem'
 import { createSkillTools } from "../Tools/Skills";
 import { createCommandTools } from '../Tools/Command';
+
 
 const logger = LoggerService.getLogger("AgentService.ts");
 
@@ -53,10 +55,10 @@ export type OnStreamMessageCallback = (message: AgentMessage) => Promise<void>;
 
 /**
  * 图片转换回调类型 - 用于转换工具返回内容中的图片链接
- * @param content 原始内容
- * @returns Promise<string> - 转换后的内容
+ * @param result MCP 标准格式的工具结果
+ * @returns Promise<MCPToolResult> - 转换后的 MCP 格式结果
  */
-export type ConvertImagesCallback = (content: string) => Promise<string>;
+export type ConvertImagesCallback = (result: MCPToolResult) => Promise<MCPToolResult>;
 
 /**
  * 使用 LangGraph 的 StateGraph 构建的 Agent 服务
@@ -379,27 +381,33 @@ ${skillsList}
                     logger.info(`用户 ${this.threadId} 执行工具 ${tool.name} 参数: ${JSON.stringify(toolCall.args)}`);
                     const result = await tool.invoke(toolCall.args);
 
-                    // 处理 MCP 标准格式: { content: [{ type: "text", text: "..." }] }
-                    let content: string;
+                    // 标准化为 MCP 格式
+                    let mcpResult: MCPToolResult;
                     if (result && typeof result === "object" && "content" in result && Array.isArray(result.content)) {
-                        // 已经是 MCP 标准格式，保持不变
-                        content = JSON.stringify(result);
+                        // 已经是 MCP 标准格式
+                        mcpResult = result as MCPToolResult;
                         logger.info(`用户 ${this.threadId} 工具 ${tool.name} 返回 MCP 格式`);
                     } else {
-                        // 旧格式，转换为字符串
-                        content = typeof result === "string" ? result : JSON.stringify(result);
-                        logger.info(`用户 ${this.threadId} 工具 ${tool.name} 返回旧格式`);
+                        // 旧格式或 string，转换为 MCP 格式
+                        const textContent = typeof result === "string" ? result : JSON.stringify(result);
+                        mcpResult = {
+                            content: [{ type: "text", text: textContent }]
+                        };
+                        logger.info(`用户 ${this.threadId} 工具 ${tool.name} 返回旧格式，已转换为 MCP 格式`);
                     }
 
                     // 如果提供了图片转换回调，转换内容中的图片
                     if (convertImages) {
                         try {
-                            content = await convertImages(content);
+                            mcpResult = await convertImages(mcpResult);
                         } catch (error: any) {
                             logger.error(`用户 ${this.threadId} 图片转换失败: ${error.message}`);
                             // 图片转换失败不影响工具执行结果，保留原始内容
                         }
                     }
+
+                    // 将 MCP 格式序列化为 JSON 字符串
+                    const content = JSON.stringify(mcpResult);
 
                     toolMessages.push(
                         new ToolMessage({

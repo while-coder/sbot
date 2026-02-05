@@ -243,7 +243,7 @@ class LarkService {
   }
 
   /**
-   * 转换工具返回内容中的图片链接为飞书图片格式
+   * 转换工具返回内容中的图片链接为飞书图片格式（旧版本，兼容性保留）
    * 检测内容中的纯 URL 或本地路径，自动上传到飞书并替换为 Markdown 图片格式
    * @param content 工具返回的内容
    * @returns 转换后的内容
@@ -279,6 +279,56 @@ class LarkService {
     } catch (error: any) {
       logger.error(`图片转换过程出错: ${error.message}`);
       return content; // 出错时返回原始内容
+    }
+  }
+
+  /**
+   * 转换 MCP 格式结果中的图片链接为飞书图片格式
+   * @param result MCP 格式的工具结果
+   * @returns 转换后的 MCP 格式结果
+   */
+  async convertMCPImagesToLarkFormat(result: import('../Tools/ToolsConfig').MCPToolResult): Promise<import('../Tools/ToolsConfig').MCPToolResult> {
+    try {
+      // 深拷贝结果以避免修改原始数据
+      const convertedResult: import('../Tools/ToolsConfig').MCPToolResult = {
+        ...result,
+        content: []
+      };
+
+      // 处理每个内容块
+      for (const contentItem of result.content) {
+        if (contentItem.type === 'text') {
+          // 转换文本内容中的图片链接
+          const convertedText = await this.convertImagesToLarkFormat(contentItem.text);
+          convertedResult.content.push({
+            type: 'text',
+            text: convertedText
+          });
+        } else if (contentItem.type === 'image') {
+          // 对于 MCP 图片内容，上传到飞书并转换为文本引用
+          try {
+            // 这里假设 data 是 base64 或 URL
+            const imageKey = await this.uploadImageToLark(contentItem.data);
+            convertedResult.content.push({
+              type: 'text',
+              text: `![](${imageKey})`
+            });
+            logger.info(`已转换 MCP 图片内容到飞书格式`);
+          } catch (error: any) {
+            logger.error(`转换 MCP 图片失败: ${error.message}`);
+            // 转换失败，保留原始内容
+            convertedResult.content.push(contentItem);
+          }
+        } else {
+          // 其他类型（如 audio）保持不变
+          convertedResult.content.push(contentItem);
+        }
+      }
+
+      return convertedResult;
+    } catch (error: any) {
+      logger.error(`MCP 图片转换过程出错: ${error.message}`);
+      return result; // 出错时返回原始结果
     }
   }
 
