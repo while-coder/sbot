@@ -11,7 +11,7 @@ import { promisify } from 'util';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import { LoggerService } from '../../LoggerService';
-import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from '../mcpconfig';
+import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from '../ToolsConfig';
 import { FileSystemToolsConfig, DEFAULT_CONFIG } from './config';
 
 const logger = LoggerService.getLogger('Tools/FileSystem/index.ts');
