@@ -12,7 +12,7 @@ import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/
 import { z } from 'zod';
 import { LoggerService } from '../../LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from '../ToolsConfig';
-import { FileSystemToolsConfig, DEFAULT_CONFIG } from './config';
+import { FileSystemToolsConfig } from './config';
 
 const logger = LoggerService.getLogger('Tools/FileSystem/index.ts');
 const execAsync = promisify(exec);
@@ -80,13 +80,8 @@ export function createReadFileTool(config: FileSystemToolsConfig = { maxFileSize
 
                 // 读取文件内容
                 const content = fs.readFileSync(absolutePath, encoding as BufferEncoding);
-                const lines = content.toString().split('\n').length;
-
-                logger.info(`Read file: ${absolutePath} (${(stat.size / 1024).toFixed(2)}KB)`);
 
                 return createSuccessResult(
-                    createTextContent(`文件读取成功: ${absolutePath}`),
-                    createTextContent(`大小: ${(stat.size / 1024).toFixed(2)}KB, 编码: ${encoding}, 行数: ${lines}`),
                     createTextContent(content.toString())
                 );
 
@@ -146,11 +141,7 @@ export function createReadFileLinesTool(config: FileSystemToolsConfig = { maxFil
 
                 const selectedLines = lines.slice(startLine - 1, actualEndLine);
 
-                logger.info(`Read file lines: ${absolutePath} (${startLine}-${actualEndLine})`);
-
                 return createSuccessResult(
-                    createTextContent(`文件行读取成功: ${absolutePath}`),
-                    createTextContent(`起始行: ${startLine}, 结束行: ${actualEndLine}, 总行数: ${lines.length}, 读取行数: ${selectedLines.length}`),
                     createTextContent(selectedLines.join('\n'))
                 );
 
@@ -193,12 +184,8 @@ export function createWriteFileTool(): StructuredToolInterface {
                 // 写入文件
                 fs.writeFileSync(absolutePath, content, encoding as BufferEncoding);
 
-                const stat = fs.statSync(absolutePath);
-                logger.info(`Wrote file: ${absolutePath} (${(stat.size / 1024).toFixed(2)}KB)`);
-
                 return createSuccessResult(
-                    createTextContent(`文件写入成功: ${absolutePath}`),
-                    createTextContent(`大小: ${(stat.size / 1024).toFixed(2)}KB`)
+                    createTextContent(`文件写入成功: ${absolutePath}`)
                 );
 
             } catch (error: any) {
@@ -244,12 +231,8 @@ export function createAppendFileTool(): StructuredToolInterface {
 
                 fs.appendFileSync(absolutePath, contentToAppend, encoding as BufferEncoding);
 
-                const stat = fs.statSync(absolutePath);
-                logger.info(`Appended to file: ${absolutePath}`);
-
                 return createSuccessResult(
-                    createTextContent(`内容追加成功: ${absolutePath}`),
-                    createTextContent(`文件大小: ${(stat.size / 1024).toFixed(2)}KB`)
+                    createTextContent(`内容追加成功: ${absolutePath}`)
                 );
 
             } catch (error: any) {
@@ -321,12 +304,8 @@ export function createReplaceInFileTool(config: FileSystemToolsConfig = { maxFil
 
                 fs.writeFileSync(absolutePath, replacedContent, encoding as BufferEncoding);
 
-                logger.info(`Replaced in file: ${absolutePath} (${matchCount} matches)`);
-
-                const newSize = Buffer.byteLength(replacedContent, encoding as BufferEncoding);
                 return createSuccessResult(
-                    createTextContent(`文件替换成功: ${absolutePath}`),
-                    createTextContent(`匹配次数: ${matchCount}, 原始大小: ${(stat.size / 1024).toFixed(2)}KB, 新大小: ${(newSize / 1024).toFixed(2)}KB`)
+                    createTextContent(`文件替换成功，匹配 ${matchCount} 处`)
                 );
 
             } catch (error: any) {
@@ -413,11 +392,7 @@ export function createSearchInFileTool(config: FileSystemToolsConfig = { maxFile
                     }
                 }
 
-                logger.info(`Searched in file: ${absolutePath} (${matches.length} matches)`);
-
                 return createSuccessResult(
-                    createTextContent(`文件搜索成功: ${absolutePath}`),
-                    createTextContent(`搜索文本: ${searchText}, 匹配数: ${matches.length}`),
                     createTextContent(JSON.stringify(matches, null, 2))
                 );
 
@@ -506,11 +481,7 @@ export function createSearchFilesTool(): StructuredToolInterface {
 
                 searchDirectory(absolutePath);
 
-                logger.info(`Searched files in: ${absolutePath} (${results.length} matches)`);
-
                 return createSuccessResult(
-                    createTextContent(`文件搜索成功: ${absolutePath}`),
-                    createTextContent(`匹配模式: ${pattern}, 找到文件数: ${results.length}`),
                     createTextContent(JSON.stringify(results, null, 2))
                 );
 
@@ -646,11 +617,7 @@ export function createGrepFilesTool(config: FileSystemToolsConfig = { maxFileSiz
 
                 searchDirectory(absolutePath);
 
-                logger.info(`Grep in: ${absolutePath} (${results.length} files with matches)`);
-
                 return createSuccessResult(
-                    createTextContent(`文件内容搜索成功: ${absolutePath}`),
-                    createTextContent(`搜索文本: ${searchText}, 找到包含匹配的文件数: ${results.length}`),
                     createTextContent(JSON.stringify(results, null, 2))
                 );
 
@@ -734,11 +701,7 @@ export function createListDirectoryTool(): StructuredToolInterface {
 
                 const items = readDirectory(absolutePath);
 
-                logger.info(`Listed directory: ${absolutePath} (${items.length} items)`);
-
                 return createSuccessResult(
-                    createTextContent(`目录列表成功: ${absolutePath}`),
-                    createTextContent(`项目数: ${items.length}`),
                     createTextContent(JSON.stringify(items, null, 2))
                 );
 
@@ -779,7 +742,6 @@ export function createDeleteFileTool(): StructuredToolInterface {
                 }
 
                 fs.unlinkSync(absolutePath);
-                logger.info(`Deleted file: ${absolutePath}`);
 
                 return createSuccessResult(
                     createTextContent(`文件删除成功: ${absolutePath}`)
@@ -814,8 +776,7 @@ export function createFileExistsTool(): StructuredToolInterface {
 
                 if (!fs.existsSync(absolutePath)) {
                     return createSuccessResult(
-                        createTextContent(`文件检查完成: ${absolutePath}`),
-                        createTextContent('文件不存在')
+                        createTextContent(JSON.stringify({ exists: false, filePath: absolutePath }, null, 2))
                     );
                 }
 
@@ -832,8 +793,6 @@ export function createFileExistsTool(): StructuredToolInterface {
                 };
 
                 return createSuccessResult(
-                    createTextContent(`文件检查完成: ${absolutePath}`),
-                    createTextContent(`类型: ${fileType}, 大小: ${(stat.size / 1024).toFixed(2)}KB`),
                     createTextContent(JSON.stringify(fileInfo, null, 2))
                 );
 
@@ -870,7 +829,6 @@ export function createDirectoryTool(): StructuredToolInterface {
                 }
 
                 fs.mkdirSync(absolutePath, { recursive });
-                logger.info(`Created directory: ${absolutePath}`);
 
                 return createSuccessResult(
                     createTextContent(`目录创建成功: ${absolutePath}`)
@@ -914,7 +872,6 @@ export function createDeleteDirectoryTool(): StructuredToolInterface {
                 }
 
                 fs.rmSync(absolutePath, { recursive, force: true });
-                logger.info(`Deleted directory: ${absolutePath}`);
 
                 return createSuccessResult(
                     createTextContent(`目录删除成功: ${absolutePath}`)
@@ -970,12 +927,9 @@ export function createMoveFileTool(): StructuredToolInterface {
                 }
 
                 fs.renameSync(absoluteSource, absoluteDest);
-                logger.info(`Moved: ${absoluteSource} -> ${absoluteDest}`);
 
                 return createSuccessResult(
-                    createTextContent(`文件移动成功`),
-                    createTextContent(`源路径: ${absoluteSource}`),
-                    createTextContent(`目标路径: ${absoluteDest}`)
+                    createTextContent(`移动成功: ${absoluteSource} -> ${absoluteDest}`)
                 );
 
             } catch (error: any) {
@@ -1033,14 +987,9 @@ export function createCopyFileTool(): StructuredToolInterface {
                 }
 
                 fs.copyFileSync(absoluteSource, absoluteDest);
-                logger.info(`Copied: ${absoluteSource} -> ${absoluteDest}`);
-
-                const destStat = fs.statSync(absoluteDest);
 
                 return createSuccessResult(
-                    createTextContent(`文件复制成功`),
-                    createTextContent(`源路径: ${absoluteSource}`),
-                    createTextContent(`目标路径: ${absoluteDest}, 大小: ${(destStat.size / 1024).toFixed(2)}KB`)
+                    createTextContent(`复制成功: ${absoluteSource} -> ${absoluteDest}`)
                 );
 
             } catch (error: any) {
@@ -1094,19 +1043,14 @@ export function createExecuteCommandTool(): StructuredToolInterface {
                     maxBuffer: 10 * 1024 * 1024 // 10MB buffer
                 });
 
-                logger.info(`Executed command: ${command} (cwd: ${workingDir || process.cwd()})`);
-
-                const result = [
-                    createTextContent(`命令执行成功: ${command}`),
-                    createTextContent(`工作目录: ${workingDir || process.cwd()}`)
-                ];
+                const result = [];
 
                 if (stdout.trim()) {
-                    result.push(createTextContent(`标准输出:\n${stdout.trim()}`));
+                    result.push(createTextContent(stdout.trim()));
                 }
 
                 if (stderr.trim()) {
-                    result.push(createTextContent(`错误输出:\n${stderr.trim()}`));
+                    result.push(createTextContent(`stderr:\n${stderr.trim()}`));
                 }
 
                 return createSuccessResult(...result);
@@ -1115,16 +1059,15 @@ export function createExecuteCommandTool(): StructuredToolInterface {
                 logger.error(`Error executing command "${command}": ${error.message}`);
 
                 const errorDetails = [
-                    createTextContent(`命令执行失败: ${command}`),
                     createTextContent(`错误: ${error.message}`)
                 ];
 
                 if (error.stdout?.trim()) {
-                    errorDetails.push(createTextContent(`标准输出:\n${error.stdout.trim()}`));
+                    errorDetails.push(createTextContent(`stdout:\n${error.stdout.trim()}`));
                 }
 
                 if (error.stderr?.trim()) {
-                    errorDetails.push(createTextContent(`错误输出:\n${error.stderr.trim()}`));
+                    errorDetails.push(createTextContent(`stderr:\n${error.stderr.trim()}`));
                 }
 
                 return {
@@ -1230,23 +1173,14 @@ export function createExecuteScriptTool(): StructuredToolInterface {
                     maxBuffer: 10 * 1024 * 1024 // 10MB buffer
                 });
 
-                logger.info(`Executed script: ${absoluteScriptPath} (cwd: ${cwd})`);
-
-                const result = [
-                    createTextContent(`脚本执行成功: ${absoluteScriptPath}`),
-                    createTextContent(`工作目录: ${cwd}`)
-                ];
-
-                if (args.length > 0) {
-                    result.push(createTextContent(`参数: ${args.join(' ')}`));
-                }
+                const result = [];
 
                 if (stdout.trim()) {
-                    result.push(createTextContent(`标准输出:\n${stdout.trim()}`));
+                    result.push(createTextContent(stdout.trim()));
                 }
 
                 if (stderr.trim()) {
-                    result.push(createTextContent(`错误输出:\n${stderr.trim()}`));
+                    result.push(createTextContent(`stderr:\n${stderr.trim()}`));
                 }
 
                 return createSuccessResult(...result);
@@ -1255,16 +1189,15 @@ export function createExecuteScriptTool(): StructuredToolInterface {
                 logger.error(`Error executing script "${scriptPath}": ${error.message}`);
 
                 const errorDetails = [
-                    createTextContent(`脚本执行失败: ${scriptPath}`),
                     createTextContent(`错误: ${error.message}`)
                 ];
 
                 if (error.stdout?.trim()) {
-                    errorDetails.push(createTextContent(`标准输出:\n${error.stdout.trim()}`));
+                    errorDetails.push(createTextContent(`stdout:\n${error.stdout.trim()}`));
                 }
 
                 if (error.stderr?.trim()) {
-                    errorDetails.push(createTextContent(`错误输出:\n${error.stderr.trim()}`));
+                    errorDetails.push(createTextContent(`stderr:\n${error.stderr.trim()}`));
                 }
 
                 return {

@@ -53,10 +53,7 @@ export function createReadSkillFileTool(skillsDir: string): StructuredToolInterf
                 // 读取文件内容
                 const content = fs.readFileSync(fullPath, 'utf-8');
 
-                logger.info(`Read skill file: ${skillName}/${filePath}`);
-
                 return createSuccessResult(
-                    createTextContent(`Skill文件读取成功: ${skillName}/${filePath}`),
                     createTextContent(content)
                 );
 
@@ -128,18 +125,14 @@ export function createExecuteSkillScriptTool(skillsDir: string): StructuredToolI
                     maxBuffer: 10 * 1024 * 1024 // 10MB buffer
                 });
 
-                logger.info(`Executed skill script: ${skillName}/${scriptPath}`);
-
-                const result = [
-                    createTextContent(`脚本执行成功: ${skillName}/${scriptPath}`)
-                ];
+                const result = [];
 
                 if (stdout.trim()) {
-                    result.push(createTextContent(`输出:\n${stdout.trim()}`));
+                    result.push(createTextContent(stdout.trim()));
                 }
 
                 if (stderr.trim()) {
-                    result.push(createTextContent(`错误输出:\n${stderr.trim()}`));
+                    result.push(createTextContent(`stderr:\n${stderr.trim()}`));
                 }
 
                 return createSuccessResult(...result);
@@ -148,15 +141,15 @@ export function createExecuteSkillScriptTool(skillsDir: string): StructuredToolI
                 logger.error(`Error executing skill script ${skillName}/${scriptPath}: ${error.message}`);
 
                 const errorDetails = [
-                    createTextContent(`脚本执行失败: ${error.message}`)
+                    createTextContent(`错误: ${error.message}`)
                 ];
 
                 if (error.stdout?.trim()) {
-                    errorDetails.push(createTextContent(`输出:\n${error.stdout.trim()}`));
+                    errorDetails.push(createTextContent(`stdout:\n${error.stdout.trim()}`));
                 }
 
                 if (error.stderr?.trim()) {
-                    errorDetails.push(createTextContent(`错误输出:\n${error.stderr.trim()}`));
+                    errorDetails.push(createTextContent(`stderr:\n${error.stderr.trim()}`));
                 }
 
                 return {
@@ -227,12 +220,8 @@ export function createListSkillFilesTool(skillsDir: string): StructuredToolInter
                 };
 
                 const structure = getDirectoryStructure(fullPath);
-                const displayPath = subPath || '/';
-
-                logger.info(`Listed skill files: ${skillName}/${displayPath}`);
 
                 return createSuccessResult(
-                    createTextContent(`Skill目录结构: ${skillName}/${displayPath}`),
                     createTextContent(structure.join('\n'))
                 );
 
