@@ -7,7 +7,7 @@ import {SqliteSaver} from "@langchain/langgraph-checkpoint-sqlite";
 import {config} from "../Config";
 import {LoggerService} from "../LoggerService";
 import { loadSkills, Skill } from "../Skills";
-import { MCPToolResult, isMCPToolResult } from '../Tools/ToolsConfig'
+import { MCPToolResult, normalizeToMCPResult } from '../Tools/ToolsConfig'
 import { createFileSystemTools, FileSystemToolsConfig } from '../Tools/FileSystem'
 import { createSkillTools } from "../Tools/Skills";
 import { createCommandTools } from '../Tools/Command';
@@ -381,20 +381,9 @@ ${skillsList}
                     logger.info(`用户 ${this.threadId} 执行工具 ${tool.name} 参数: ${JSON.stringify(toolCall.args)}`);
                     const result = await tool.invoke(toolCall.args);
 
-                    // 标准化为 MCP 格式
-                    let mcpResult: MCPToolResult;
-                    if (isMCPToolResult(result)) {
-                        // 已经是 MCP 标准格式
-                        mcpResult = result;
-                        logger.info(`用户 ${this.threadId} 工具 ${tool.name} 返回 MCP 格式`);
-                    } else {
-                        // 旧格式或 string，转换为 MCP 格式
-                        const textContent = typeof result === "string" ? result : JSON.stringify(result);
-                        mcpResult = {
-                            content: [{ type: "text", text: textContent }]
-                        };
-                        logger.info(`用户 ${this.threadId} 工具 ${tool.name} 返回旧格式，已转换为 MCP 格式`);
-                    }
+                    // 标准化为 MCP 格式（自动检测和转换各种格式）
+                    let mcpResult = normalizeToMCPResult(result);
+                    logger.info(`用户 ${this.threadId} 工具 ${tool.name} 返回已标准化为 MCP 格式`);
 
                     // 如果提供了图片转换回调，转换内容中的图片
                     if (convertImages) {

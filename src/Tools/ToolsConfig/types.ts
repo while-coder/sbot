@@ -1,13 +1,23 @@
 /**
  * MCP 标准内容类型定义
- * 基于 @modelcontextprotocol/sdk 的类型定义
+ * 基于 @modelcontextprotocol/sdk 的类型定义，扩展支持 OpenAI 格式
  */
+
+/**
+ * 内容类型枚举
+ */
+export enum MCPContentType {
+    Text = "text",
+    Image = "image",
+    Audio = "audio",
+    ImageUrl = "image_url"  // OpenAI 格式支持
+}
 
 /**
  * MCP 文本内容
  */
 export type MCPTextContent = {
-    type: "text";
+    type: MCPContentType.Text;
     text: string;
 };
 
@@ -15,7 +25,7 @@ export type MCPTextContent = {
  * MCP 图片内容
  */
 export type MCPImageContent = {
-    type: "image";
+    type: MCPContentType.Image;
     data: string;
     mimeType: string;
 };
@@ -24,15 +34,23 @@ export type MCPImageContent = {
  * MCP 音频内容
  */
 export type MCPAudioContent = {
-    type: "audio";
+    type: MCPContentType.Audio;
     data: string;
     mimeType: string;
 };
 
 /**
+ * OpenAI 风格的图片 URL 内容
+ */
+export type MCPImageUrlContent = {
+    type: MCPContentType.ImageUrl;
+    url: string | { url: string };
+};
+
+/**
  * MCP 内容块（联合类型）
  */
-export type MCPContent = MCPTextContent | MCPImageContent | MCPAudioContent;
+export type MCPContent = MCPTextContent | MCPImageContent | MCPAudioContent | MCPImageUrlContent;
 
 /**
  * MCP 工具调用结果
@@ -46,21 +64,21 @@ export type MCPToolResult = {
  * 创建文本内容块
  */
 export function createTextContent(text: string): MCPTextContent {
-    return { type: "text", text };
+    return { type: MCPContentType.Text, text };
 }
 
 /**
  * 创建图片内容块
  */
 export function createImageContent(data: string, mimeType: string = "image/png"): MCPImageContent {
-    return { type: "image", data, mimeType };
+    return { type: MCPContentType.Image, data, mimeType };
 }
 
 /**
  * 创建音频内容块
  */
 export function createAudioContent(data: string, mimeType: string = "audio/mpeg"): MCPAudioContent {
-    return { type: "audio", data, mimeType };
+    return { type: MCPContentType.Audio, data, mimeType };
 }
 
 /**
@@ -75,28 +93,9 @@ export function createSuccessResult(...contents: MCPContent[]): MCPToolResult {
  */
 export function createErrorResult(errorMessage: string): MCPToolResult {
     return {
-        content: [{ type: "text", text: errorMessage }],
+        content: [{ type: MCPContentType.Text, text: errorMessage }],
         isError: true
     };
-}
-
-/**
- * 检查一个内容块是否为有效的 MCP 内容
- */
-function isMCPContent(item: any): item is MCPContent {
-    if (!item || typeof item !== "object") return false;
-
-    const type = item.type;
-
-    if (type === "text") {
-        return typeof item.text === "string";
-    } else if (type === "image") {
-        return typeof item.data === "string" && typeof item.mimeType === "string";
-    } else if (type === "audio") {
-        return typeof item.data === "string" && typeof item.mimeType === "string";
-    }
-
-    return false;
 }
 
 /**
@@ -105,14 +104,36 @@ function isMCPContent(item: any): item is MCPContent {
  * @returns 如果是有效的 MCPToolResult 返回 true
  */
 export function isMCPToolResult(value: any): value is MCPToolResult {
-    // 检查基本结构
-    if (!value || typeof value !== "object") return false;
-    if (!("content" in value)) return false;
-    if (!Array.isArray(value.content)) return false;
+    return value && typeof value === "object" && "content" in value && Array.isArray(value.content);
+}
 
-    // 检查 content 数组是否为空
-    if (value.content.length === 0) return false;
+/**
+ * 尝试将各种格式转换为 MCP 标准格式
+ * @param result 工具返回的结果
+ * @returns MCP 格式的工具结果
+ */
+export function normalizeToMCPResult(result: any): MCPToolResult {
+    // 1. 已经是 MCP 格式
+    if (isMCPToolResult(result)) {
+        return result;
+    }
 
-    // 检查每个内容块是否符合 MCPContent 类型
-    return value.content.every(isMCPContent);
+    // 2. 数组格式（包括 OpenAI 风格），直接包装
+    if (Array.isArray(result)) {
+        return {
+            content: result
+        };
+    }
+
+    // 3. 字符串，转换为文本内容
+    if (typeof result === "string") {
+        return {
+            content: [{ type: MCPContentType.Text, text: result }]
+        };
+    }
+
+    // 4. 其他对象，JSON 序列化为文本
+    return {
+        content: [{ type: MCPContentType.Text, text: JSON.stringify(result) }]
+    };
 }

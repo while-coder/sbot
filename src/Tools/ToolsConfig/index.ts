@@ -3,9 +3,11 @@
  */
 
 export {
+    MCPContentType,
     MCPTextContent,
     MCPImageContent,
     MCPAudioContent,
+    MCPImageUrlContent,
     MCPContent,
     MCPToolResult,
     createTextContent,
@@ -14,4 +16,5 @@ export {
     createSuccessResult,
     createErrorResult,
     isMCPToolResult,
+    normalizeToMCPResult,
 } from './types';

@@ -290,19 +290,19 @@ class LarkService {
    */
   async convertMCPImagesToLarkFormat(result: MCPToolResult): Promise<MCPToolResult> {
     try {
-      // 深拷贝结果以避免修改原始数据
+      // 创建新的结果对象，保留 isError 标志
       const convertedResult: MCPToolResult = {
-        ...result,
-        content: []
+        content: [],
+        isError: result.isError,
       };
 
       // 处理每个内容块
       for (const contentItem of result.content) {
         if (contentItem.type === 'text') {
-          // 转换文本内容中的图片链接
+          // 转换文本内容中的图片链接，保留原对象的所有属性
           const convertedText = await this.convertImagesToLarkFormat(contentItem.text);
           convertedResult.content.push({
-            type: 'text',
+            ...contentItem,
             text: convertedText
           });
         } else if (contentItem.type === 'image') {
