@@ -9,7 +9,7 @@ import fs from 'fs';
 import path from 'path';
 import https from 'https';
 import http from 'http';
-import { MCPToolResult } from "../Tools/ToolsConfig";
+import { MCPToolResult, MCPContentType } from "../Tools/ToolsConfig";
 
 const logger = LoggerService.getLogger("LarkService.ts");
 
@@ -183,28 +183,40 @@ class LarkService {
 
   /**
    * 上传图片到飞书并获取图片 key
-   * @param imagePath 图片文件路径（支持本地路径或 HTTP/HTTPS URL）
+   * @param imagePath 图片文件路径（支持本地路径、HTTP/HTTPS URL 或 base64 data URI）
    * @returns 飞书图片 key (img_xxx)
    */
   async uploadImageToLark(imagePath: string): Promise<string> {
     let localImagePath = imagePath;
     let isTemporaryFile = false;
+    let imageBuffer: Buffer;
 
     try {
+      // 如果是 base64 数据 (data:image/xxx;base64,...)
+      if (imagePath.startsWith('data:image/')) {
+        logger.info(`正在解析 base64 图片数据`);
+        const base64Data = imagePath.split(',')[1];
+        if (!base64Data) {
+          throw new Error('无效的 base64 图片数据格式');
+        }
+        imageBuffer = Buffer.from(base64Data, 'base64');
+      }
       // 如果是 URL，先下载到本地
-      if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      else if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
         logger.info(`正在从 URL 下载图片: ${imagePath}`);
         localImagePath = await this.downloadImageFromUrl(imagePath);
         isTemporaryFile = true;
+        imageBuffer = fs.readFileSync(localImagePath);
       }
-
-      // 检查文件是否存在
-      if (!fs.existsSync(localImagePath)) {
-        throw new Error(`图片文件不存在: ${localImagePath}`);
+      // 否则作为本地文件路径处理
+      else {
+        // 检查文件是否存在
+        if (!fs.existsSync(localImagePath)) {
+          throw new Error(`图片文件不存在: ${localImagePath}`);
+        }
+        // 读取图片文件
+        imageBuffer = fs.readFileSync(localImagePath);
       }
-
-      // 读取图片文件
-      const imageBuffer = fs.readFileSync(localImagePath);
 
       logger.info(`正在上传图片到飞书 (${imageBuffer.length} bytes)`);
 
@@ -298,25 +310,45 @@ class LarkService {
 
       // 处理每个内容块
       for (const contentItem of result.content) {
-        if (contentItem.type === 'text') {
+        if (contentItem.type === MCPContentType.Text) {
           // 转换文本内容中的图片链接，保留原对象的所有属性
           const convertedText = await this.convertImagesToLarkFormat(contentItem.text);
           convertedResult.content.push({
             ...contentItem,
             text: convertedText
           });
-        } else if (contentItem.type === 'image') {
+        } else if (contentItem.type === MCPContentType.Image) {
           // 对于 MCP 图片内容，上传到飞书并转换为文本引用
           try {
             // 这里假设 data 是 base64 或 URL
             const imageKey = await this.uploadImageToLark(contentItem.data);
             convertedResult.content.push({
-              type: 'text',
+              type: MCPContentType.Text,
               text: `![](${imageKey})`
             });
             logger.info(`已转换 MCP 图片内容到飞书格式`);
           } catch (error: any) {
             logger.error(`转换 MCP 图片失败: ${error.message}`);
+            // 转换失败，保留原始内容
+            convertedResult.content.push(contentItem);
+          }
+        } else if (contentItem.type === MCPContentType.ImageUrl) {
+          // 对于 OpenAI 风格的图片 URL 内容
+          try {
+            // 获取 URL（支持两种格式）
+            const imageUrl = typeof contentItem.url === 'string'
+              ? contentItem.url
+              : contentItem.url.url;
+
+            // 上传到飞书并转换为文本引用
+            const imageKey = await this.uploadImageToLark(imageUrl);
+            convertedResult.content.push({
+              type: MCPContentType.Text,
+              text: `![](${imageKey})`
+            });
+            logger.info(`已转换 image_url 内容到飞书格式: ${imageUrl}`);
+          } catch (error: any) {
+            logger.error(`转换 image_url 失败: ${error.message}`);
             // 转换失败，保留原始内容
             convertedResult.content.push(contentItem);
           }
