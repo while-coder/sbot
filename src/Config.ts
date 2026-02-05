@@ -72,6 +72,8 @@ export interface MCPServerConfig {
   // === 工具配置 ===
   /** 禁用自动批准的工具列表（需要用户确认） */
   disabledAutoApproveTools?: string[];
+  /** 禁用的工具列表（这些工具将不会被加载） */
+  disabled?: string[];
   /** 工具执行的默认超时时间（毫秒） */
   defaultToolTimeout?: number;
 

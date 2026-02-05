@@ -165,10 +165,20 @@ export class AgentService {
     private async addMcpServers(mcpServers: any) {
         if (Object.keys(mcpServers).length == 0) return
 
+        // 收集所有被禁用的工具名称
+        const disabledTools = new Set<string>();
+
         for (let key in mcpServers) {
             if (mcpServers[key]?.disabledAutoApproveTools != null) {
                 mcpServers[key].disabledAutoApproveTools.forEach((tool: string) => {
                     this.disabledAutoApproveTools.add(tool);
+                });
+            }
+
+            // 收集 disabled 列表中的工具
+            if (mcpServers[key]?.disabled != null) {
+                mcpServers[key].disabled.forEach((tool: string) => {
+                    disabledTools.add(tool);
                 });
             }
         }
@@ -177,7 +187,8 @@ export class AgentService {
         let tools = await mcpClient.getTools()
 
         for (let tool of tools) {
-            if (this.tools.findIndex(x => x.name == tool.name) < 0) {
+            // 排除掉 disabled 中包含的工具和已存在的工具
+            if (!disabledTools.has(tool.name) && this.tools.findIndex(x => x.name == tool.name) < 0) {
                 this.tools.push(tool)
             }
         }
@@ -265,12 +276,6 @@ ${skillsList}
 ## 🔍 识别与匹配规则
 
 **关键原则**: 根据用户请求的**关键词、任务类型、文件类型**来匹配 skill。
-
-匹配示例：
-- 用户提到 "PDF"、"表格提取"、"填写 PDF" → 使用 **pdf** skill
-- 用户提到 "Excel"、"xlsx"、"电子表格" → 使用 **xlsx** skill
-- 用户提到 "Unity shader"、"着色器分析" → 使用 **unity-shader-analyzer** skill
-- 用户提到 "创建 skill"、"新建 skill" → 使用 **skill-creator** skill
 
 ## ⚡ 使用流程（必须遵守）
 
