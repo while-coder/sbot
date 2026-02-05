@@ -10,7 +10,7 @@ import { promisify } from 'util';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import { LoggerService } from '../../LoggerService';
-import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from '../mcp';
+import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from '../mcpconfig';
 
 const logger = LoggerService.getLogger('Tools/Skills/index.ts');
 const execAsync = promisify(exec);

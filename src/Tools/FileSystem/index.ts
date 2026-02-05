@@ -11,7 +11,7 @@ import { promisify } from 'util';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import { LoggerService } from '../../LoggerService';
-import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from '../mcp';
+import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from '../mcpconfig';
 import { FileSystemToolsConfig, DEFAULT_CONFIG } from './config';
 
 const logger = LoggerService.getLogger('Tools/FileSystem/index.ts');
@@ -113,29 +113,26 @@ export function createReadFileLinesTool(config: FileSystemToolsConfig = { maxFil
             endLine: z.number().min(1).optional().describe('结束行号（可选，不指定则读取到文件末尾）'),
             encoding: z.enum(['utf8', 'utf-8', 'ascii']).optional().default('utf8').describe('文件编码格式')
         }) as any,
-        func: async ({ filePath, startLine, endLine, encoding = 'utf8' }: any) => {
+        func: async ({ filePath, startLine, endLine, encoding = 'utf8' }: any): Promise<MCPToolResult> => {
             try {
                 const validation = validatePath(filePath);
                 if (!validation.valid) {
-                    return JSON.stringify({ success: false, error: validation.error });
+                    return createErrorResult(validation.error!);
                 }
 
                 const absolutePath = validation.absolutePath!;
 
                 if (!fs.existsSync(absolutePath)) {
-                    return JSON.stringify({ success: false, error: `文件不存在: ${absolutePath}` });
+                    return createErrorResult(`文件不存在: ${absolutePath}`);
                 }
 
                 const stat = fs.statSync(absolutePath);
                 if (!stat.isFile()) {
-                    return JSON.stringify({ success: false, error: `路径不是文件: ${absolutePath}` });
+                    return createErrorResult(`路径不是文件: ${absolutePath}`);
                 }
 
                 if (stat.size > maxSize) {
-                    return JSON.stringify({
-                        success: false,
-                        error: `文件过大: ${(stat.size / 1024 / 1024).toFixed(2)}MB`
-                    });
+                    return createErrorResult(`文件过大: ${(stat.size / 1024 / 1024).toFixed(2)}MB`);
                 }
 
                 const content = fs.readFileSync(absolutePath, encoding as BufferEncoding);
@@ -144,29 +141,22 @@ export function createReadFileLinesTool(config: FileSystemToolsConfig = { maxFil
                 const actualEndLine = endLine || lines.length;
 
                 if (startLine > lines.length) {
-                    return JSON.stringify({
-                        success: false,
-                        error: `起始行号 ${startLine} 超出文件总行数 ${lines.length}`
-                    });
+                    return createErrorResult(`起始行号 ${startLine} 超出文件总行数 ${lines.length}`);
                 }
 
                 const selectedLines = lines.slice(startLine - 1, actualEndLine);
 
                 logger.info(`Read file lines: ${absolutePath} (${startLine}-${actualEndLine})`);
 
-                return JSON.stringify({
-                    success: true,
-                    filePath: absolutePath,
-                    startLine,
-                    endLine: actualEndLine,
-                    totalLines: lines.length,
-                    linesRead: selectedLines.length,
-                    content: selectedLines.join('\n')
-                });
+                return createSuccessResult(
+                    createTextContent(`文件行读取成功: ${absolutePath}`),
+                    createTextContent(`起始行: ${startLine}, 结束行: ${actualEndLine}, 总行数: ${lines.length}, 读取行数: ${selectedLines.length}`),
+                    createTextContent(selectedLines.join('\n'))
+                );
 
             } catch (error: any) {
                 logger.error(`Error reading file lines ${filePath}: ${error.message}`);
-                return JSON.stringify({ success: false, error: error.message });
+                return createErrorResult(error.message);
             }
         }
     });
@@ -185,11 +175,11 @@ export function createWriteFileTool(): StructuredToolInterface {
             encoding: z.enum(['utf8', 'utf-8', 'ascii']).optional().default('utf8').describe('文件编码格式，默认为 utf8'),
             createDirs: z.boolean().optional().default(true).describe('如果目录不存在，是否自动创建目录，默认为 true')
         }) as any,
-        func: async ({ filePath, content, encoding = 'utf8', createDirs = true }: any) => {
+        func: async ({ filePath, content, encoding = 'utf8', createDirs = true }: any): Promise<MCPToolResult> => {
             try {
                 const validation = validatePath(filePath);
                 if (!validation.valid) {
-                    return JSON.stringify({ success: false, error: validation.error });
+                    return createErrorResult(validation.error!);
                 }
 
                 const absolutePath = validation.absolutePath!;
@@ -206,19 +196,14 @@ export function createWriteFileTool(): StructuredToolInterface {
                 const stat = fs.statSync(absolutePath);
                 logger.info(`Wrote file: ${absolutePath} (${(stat.size / 1024).toFixed(2)}KB)`);
 
-                return JSON.stringify({
-                    success: true,
-                    filePath: absolutePath,
-                    size: stat.size,
-                    created: true
-                });
+                return createSuccessResult(
+                    createTextContent(`文件写入成功: ${absolutePath}`),
+                    createTextContent(`大小: ${(stat.size / 1024).toFixed(2)}KB`)
+                );
 
             } catch (error: any) {
                 logger.error(`Error writing file ${filePath}: ${error.message}`);
-                return JSON.stringify({
-                    success: false,
-                    error: error.message
-                });
+                return createErrorResult(error.message);
             }
         }
     });
@@ -237,11 +222,11 @@ export function createAppendFileTool(): StructuredToolInterface {
             encoding: z.enum(['utf8', 'utf-8', 'ascii']).optional().default('utf8').describe('文件编码格式'),
             newLine: z.boolean().optional().default(true).describe('是否在追加内容前添加换行符，默认为 true')
         }) as any,
-        func: async ({ filePath, content, encoding = 'utf8', newLine = true }: any) => {
+        func: async ({ filePath, content, encoding = 'utf8', newLine = true }: any): Promise<MCPToolResult> => {
             try {
                 const validation = validatePath(filePath);
                 if (!validation.valid) {
-                    return JSON.stringify({ success: false, error: validation.error });
+                    return createErrorResult(validation.error!);
                 }
 
                 const absolutePath = validation.absolutePath!;
@@ -262,18 +247,14 @@ export function createAppendFileTool(): StructuredToolInterface {
                 const stat = fs.statSync(absolutePath);
                 logger.info(`Appended to file: ${absolutePath}`);
 
-                return JSON.stringify({
-                    success: true,
-                    filePath: absolutePath,
-                    size: stat.size
-                });
+                return createSuccessResult(
+                    createTextContent(`内容追加成功: ${absolutePath}`),
+                    createTextContent(`文件大小: ${(stat.size / 1024).toFixed(2)}KB`)
+                );
 
             } catch (error: any) {
                 logger.error(`Error appending to file ${filePath}: ${error.message}`);
-                return JSON.stringify({
-                    success: false,
-                    error: error.message
-                });
+                return createErrorResult(error.message);
             }
         }
     });
@@ -296,29 +277,26 @@ export function createReplaceInFileTool(config: FileSystemToolsConfig = { maxFil
             regexFlags: z.string().optional().default('g').describe('正则表达式标志（如 g, i, m），默认为 g（全局替换）'),
             encoding: z.enum(['utf8', 'utf-8', 'ascii']).optional().default('utf8').describe('文件编码格式')
         }) as any,
-        func: async ({ filePath, searchText, replaceText, useRegex = false, regexFlags = 'g', encoding = 'utf8' }: any) => {
+        func: async ({ filePath, searchText, replaceText, useRegex = false, regexFlags = 'g', encoding = 'utf8' }: any): Promise<MCPToolResult> => {
             try {
                 const validation = validatePath(filePath);
                 if (!validation.valid) {
-                    return JSON.stringify({ success: false, error: validation.error });
+                    return createErrorResult(validation.error!);
                 }
 
                 const absolutePath = validation.absolutePath!;
 
                 if (!fs.existsSync(absolutePath)) {
-                    return JSON.stringify({ success: false, error: `文件不存在: ${absolutePath}` });
+                    return createErrorResult(`文件不存在: ${absolutePath}`);
                 }
 
                 const stat = fs.statSync(absolutePath);
                 if (!stat.isFile()) {
-                    return JSON.stringify({ success: false, error: `路径不是文件: ${absolutePath}` });
+                    return createErrorResult(`路径不是文件: ${absolutePath}`);
                 }
 
                 if (stat.size > maxSize) {
-                    return JSON.stringify({
-                        success: false,
-                        error: `文件过大: ${(stat.size / 1024 / 1024).toFixed(2)}MB`
-                    });
+                    return createErrorResult(`文件过大: ${(stat.size / 1024 / 1024).toFixed(2)}MB`);
                 }
 
                 let content = fs.readFileSync(absolutePath, encoding as BufferEncoding).toString();
@@ -338,27 +316,22 @@ export function createReplaceInFileTool(config: FileSystemToolsConfig = { maxFil
                 }
 
                 if (matchCount === 0) {
-                    return JSON.stringify({
-                        success: false,
-                        error: `未找到匹配的文本: ${searchText}`
-                    });
+                    return createErrorResult(`未找到匹配的文本: ${searchText}`);
                 }
 
                 fs.writeFileSync(absolutePath, replacedContent, encoding as BufferEncoding);
 
                 logger.info(`Replaced in file: ${absolutePath} (${matchCount} matches)`);
 
-                return JSON.stringify({
-                    success: true,
-                    filePath: absolutePath,
-                    matchCount,
-                    originalSize: stat.size,
-                    newSize: Buffer.byteLength(replacedContent, encoding as BufferEncoding)
-                });
+                const newSize = Buffer.byteLength(replacedContent, encoding as BufferEncoding);
+                return createSuccessResult(
+                    createTextContent(`文件替换成功: ${absolutePath}`),
+                    createTextContent(`匹配次数: ${matchCount}, 原始大小: ${(stat.size / 1024).toFixed(2)}KB, 新大小: ${(newSize / 1024).toFixed(2)}KB`)
+                );
 
             } catch (error: any) {
                 logger.error(`Error replacing in file ${filePath}: ${error.message}`);
-                return JSON.stringify({ success: false, error: error.message });
+                return createErrorResult(error.message);
             }
         }
     });
@@ -381,29 +354,26 @@ export function createSearchInFileTool(config: FileSystemToolsConfig = { maxFile
             maxResults: z.number().optional().default(100).describe('最大返回结果数，默认为 100'),
             encoding: z.enum(['utf8', 'utf-8', 'ascii']).optional().default('utf8').describe('文件编码格式')
         }) as any,
-        func: async ({ filePath, searchText, useRegex = false, caseSensitive = true, maxResults = 100, encoding = 'utf8' }: any) => {
+        func: async ({ filePath, searchText, useRegex = false, caseSensitive = true, maxResults = 100, encoding = 'utf8' }: any): Promise<MCPToolResult> => {
             try {
                 const validation = validatePath(filePath);
                 if (!validation.valid) {
-                    return JSON.stringify({ success: false, error: validation.error });
+                    return createErrorResult(validation.error!);
                 }
 
                 const absolutePath = validation.absolutePath!;
 
                 if (!fs.existsSync(absolutePath)) {
-                    return JSON.stringify({ success: false, error: `文件不存在: ${absolutePath}` });
+                    return createErrorResult(`文件不存在: ${absolutePath}`);
                 }
 
                 const stat = fs.statSync(absolutePath);
                 if (!stat.isFile()) {
-                    return JSON.stringify({ success: false, error: `路径不是文件: ${absolutePath}` });
+                    return createErrorResult(`路径不是文件: ${absolutePath}`);
                 }
 
                 if (stat.size > maxSize) {
-                    return JSON.stringify({
-                        success: false,
-                        error: `文件过大: ${(stat.size / 1024 / 1024).toFixed(2)}MB`
-                    });
+                    return createErrorResult(`文件过大: ${(stat.size / 1024 / 1024).toFixed(2)}MB`);
                 }
 
                 const content = fs.readFileSync(absolutePath, encoding as BufferEncoding).toString();
@@ -445,17 +415,15 @@ export function createSearchInFileTool(config: FileSystemToolsConfig = { maxFile
 
                 logger.info(`Searched in file: ${absolutePath} (${matches.length} matches)`);
 
-                return JSON.stringify({
-                    success: true,
-                    filePath: absolutePath,
-                    searchText,
-                    totalMatches: matches.length,
-                    matches: matches
-                });
+                return createSuccessResult(
+                    createTextContent(`文件搜索成功: ${absolutePath}`),
+                    createTextContent(`搜索文本: ${searchText}, 匹配数: ${matches.length}`),
+                    createTextContent(JSON.stringify(matches, null, 2))
+                );
 
             } catch (error: any) {
                 logger.error(`Error searching in file ${filePath}: ${error.message}`);
-                return JSON.stringify({ success: false, error: error.message });
+                return createErrorResult(error.message);
             }
         }
     });
@@ -475,22 +443,22 @@ export function createSearchFilesTool(): StructuredToolInterface {
             maxResults: z.number().optional().default(100).describe('最大返回结果数，默认为 100'),
             includeHidden: z.boolean().optional().default(false).describe('是否包含隐藏文件')
         }) as any,
-        func: async ({ searchPath, pattern, recursive = true, maxResults = 100, includeHidden = false }: any) => {
+        func: async ({ searchPath, pattern, recursive = true, maxResults = 100, includeHidden = false }: any): Promise<MCPToolResult> => {
             try {
                 const validation = validatePath(searchPath);
                 if (!validation.valid) {
-                    return JSON.stringify({ success: false, error: validation.error });
+                    return createErrorResult(validation.error!);
                 }
 
                 const absolutePath = validation.absolutePath!;
 
                 if (!fs.existsSync(absolutePath)) {
-                    return JSON.stringify({ success: false, error: `目录不存在: ${absolutePath}` });
+                    return createErrorResult(`目录不存在: ${absolutePath}`);
                 }
 
                 const stat = fs.statSync(absolutePath);
                 if (!stat.isDirectory()) {
-                    return JSON.stringify({ success: false, error: `路径不是目录: ${absolutePath}` });
+                    return createErrorResult(`路径不是目录: ${absolutePath}`);
                 }
 
                 // 将通配符模式转换为正则表达式
@@ -540,17 +508,15 @@ export function createSearchFilesTool(): StructuredToolInterface {
 
                 logger.info(`Searched files in: ${absolutePath} (${results.length} matches)`);
 
-                return JSON.stringify({
-                    success: true,
-                    searchPath: absolutePath,
-                    pattern,
-                    totalMatches: results.length,
-                    files: results
-                });
+                return createSuccessResult(
+                    createTextContent(`文件搜索成功: ${absolutePath}`),
+                    createTextContent(`匹配模式: ${pattern}, 找到文件数: ${results.length}`),
+                    createTextContent(JSON.stringify(results, null, 2))
+                );
 
             } catch (error: any) {
                 logger.error(`Error searching files in ${searchPath}: ${error.message}`);
-                return JSON.stringify({ success: false, error: error.message });
+                return createErrorResult(error.message);
             }
         }
     });
@@ -575,22 +541,22 @@ export function createGrepFilesTool(config: FileSystemToolsConfig = { maxFileSiz
             maxResults: z.number().optional().default(50).describe('最大返回文件数，默认为 50'),
             includeHidden: z.boolean().optional().default(false).describe('是否包含隐藏文件')
         }) as any,
-        func: async ({ searchPath, searchText, filePattern = '*', useRegex = false, caseSensitive = true, recursive = true, maxResults = 50, includeHidden = false }: any) => {
+        func: async ({ searchPath, searchText, filePattern = '*', useRegex = false, caseSensitive = true, recursive = true, maxResults = 50, includeHidden = false }: any): Promise<MCPToolResult> => {
             try {
                 const validation = validatePath(searchPath);
                 if (!validation.valid) {
-                    return JSON.stringify({ success: false, error: validation.error });
+                    return createErrorResult(validation.error!);
                 }
 
                 const absolutePath = validation.absolutePath!;
 
                 if (!fs.existsSync(absolutePath)) {
-                    return JSON.stringify({ success: false, error: `目录不存在: ${absolutePath}` });
+                    return createErrorResult(`目录不存在: ${absolutePath}`);
                 }
 
                 const stat = fs.statSync(absolutePath);
                 if (!stat.isDirectory()) {
-                    return JSON.stringify({ success: false, error: `路径不是目录: ${absolutePath}` });
+                    return createErrorResult(`路径不是目录: ${absolutePath}`);
                 }
 
                 // 文件名过滤器
@@ -682,17 +648,15 @@ export function createGrepFilesTool(config: FileSystemToolsConfig = { maxFileSiz
 
                 logger.info(`Grep in: ${absolutePath} (${results.length} files with matches)`);
 
-                return JSON.stringify({
-                    success: true,
-                    searchPath: absolutePath,
-                    searchText,
-                    totalFiles: results.length,
-                    files: results
-                });
+                return createSuccessResult(
+                    createTextContent(`文件内容搜索成功: ${absolutePath}`),
+                    createTextContent(`搜索文本: ${searchText}, 找到包含匹配的文件数: ${results.length}`),
+                    createTextContent(JSON.stringify(results, null, 2))
+                );
 
             } catch (error: any) {
                 logger.error(`Error grepping files in ${searchPath}: ${error.message}`);
-                return JSON.stringify({ success: false, error: error.message });
+                return createErrorResult(error.message);
             }
         }
     });
@@ -710,28 +674,22 @@ export function createListDirectoryTool(): StructuredToolInterface {
             recursive: z.boolean().optional().default(false).describe('是否递归列出子目录，默认为 false'),
             includeHidden: z.boolean().optional().default(false).describe('是否包含隐藏文件（以 . 开头），默认为 false')
         }) as any,
-        func: async ({ dirPath, recursive = false, includeHidden = false }: any) => {
+        func: async ({ dirPath, recursive = false, includeHidden = false }: any): Promise<MCPToolResult> => {
             try {
                 const validation = validatePath(dirPath);
                 if (!validation.valid) {
-                    return JSON.stringify({ success: false, error: validation.error });
+                    return createErrorResult(validation.error!);
                 }
 
                 const absolutePath = validation.absolutePath!;
 
                 if (!fs.existsSync(absolutePath)) {
-                    return JSON.stringify({
-                        success: false,
-                        error: `目录不存在: ${absolutePath}`
-                    });
+                    return createErrorResult(`目录不存在: ${absolutePath}`);
                 }
 
                 const stat = fs.statSync(absolutePath);
                 if (!stat.isDirectory()) {
-                    return JSON.stringify({
-                        success: false,
-                        error: `路径不是目录: ${absolutePath}`
-                    });
+                    return createErrorResult(`路径不是目录: ${absolutePath}`);
                 }
 
                 // 递归读取目录结构
@@ -778,19 +736,15 @@ export function createListDirectoryTool(): StructuredToolInterface {
 
                 logger.info(`Listed directory: ${absolutePath} (${items.length} items)`);
 
-                return JSON.stringify({
-                    success: true,
-                    dirPath: absolutePath,
-                    items: items,
-                    count: items.length
-                });
+                return createSuccessResult(
+                    createTextContent(`目录列表成功: ${absolutePath}`),
+                    createTextContent(`项目数: ${items.length}`),
+                    createTextContent(JSON.stringify(items, null, 2))
+                );
 
             } catch (error: any) {
                 logger.error(`Error listing directory ${dirPath}: ${error.message}`);
-                return JSON.stringify({
-                    success: false,
-                    error: error.message
-                });
+                return createErrorResult(error.message);
             }
         }
     });
@@ -806,45 +760,34 @@ export function createDeleteFileTool(): StructuredToolInterface {
         schema: z.object({
             filePath: z.string().describe('要删除的文件的绝对路径')
         }) as any,
-        func: async ({ filePath }: any) => {
+        func: async ({ filePath }: any): Promise<MCPToolResult> => {
             try {
                 const validation = validatePath(filePath);
                 if (!validation.valid) {
-                    return JSON.stringify({ success: false, error: validation.error });
+                    return createErrorResult(validation.error!);
                 }
 
                 const absolutePath = validation.absolutePath!;
 
                 if (!fs.existsSync(absolutePath)) {
-                    return JSON.stringify({
-                        success: false,
-                        error: `文件不存在: ${absolutePath}`
-                    });
+                    return createErrorResult(`文件不存在: ${absolutePath}`);
                 }
 
                 const stat = fs.statSync(absolutePath);
                 if (!stat.isFile()) {
-                    return JSON.stringify({
-                        success: false,
-                        error: `路径不是文件: ${absolutePath}`
-                    });
+                    return createErrorResult(`路径不是文件: ${absolutePath}`);
                 }
 
                 fs.unlinkSync(absolutePath);
                 logger.info(`Deleted file: ${absolutePath}`);
 
-                return JSON.stringify({
-                    success: true,
-                    filePath: absolutePath,
-                    deleted: true
-                });
+                return createSuccessResult(
+                    createTextContent(`文件删除成功: ${absolutePath}`)
+                );
 
             } catch (error: any) {
                 logger.error(`Error deleting file ${filePath}: ${error.message}`);
-                return JSON.stringify({
-                    success: false,
-                    error: error.message
-                });
+                return createErrorResult(error.message);
             }
         }
     });
@@ -860,42 +803,43 @@ export function createFileExistsTool(): StructuredToolInterface {
         schema: z.object({
             filePath: z.string().describe('要检查的文件或目录的绝对路径')
         }) as any,
-        func: async ({ filePath }: any) => {
+        func: async ({ filePath }: any): Promise<MCPToolResult> => {
             try {
                 const validation = validatePath(filePath);
                 if (!validation.valid) {
-                    return JSON.stringify({ success: false, error: validation.error });
+                    return createErrorResult(validation.error!);
                 }
 
                 const absolutePath = validation.absolutePath!;
 
                 if (!fs.existsSync(absolutePath)) {
-                    return JSON.stringify({
-                        success: true,
-                        exists: false,
-                        filePath: absolutePath
-                    });
+                    return createSuccessResult(
+                        createTextContent(`文件检查完成: ${absolutePath}`),
+                        createTextContent('文件不存在')
+                    );
                 }
 
                 const stat = fs.statSync(absolutePath);
-
-                return JSON.stringify({
-                    success: true,
+                const fileType = stat.isFile() ? 'file' : stat.isDirectory() ? 'directory' : 'other';
+                const fileInfo = {
                     exists: true,
                     filePath: absolutePath,
-                    type: stat.isFile() ? 'file' : stat.isDirectory() ? 'directory' : 'other',
+                    type: fileType,
                     size: stat.size,
                     created: stat.birthtime,
                     modified: stat.mtime,
                     accessed: stat.atime
-                });
+                };
+
+                return createSuccessResult(
+                    createTextContent(`文件检查完成: ${absolutePath}`),
+                    createTextContent(`类型: ${fileType}, 大小: ${(stat.size / 1024).toFixed(2)}KB`),
+                    createTextContent(JSON.stringify(fileInfo, null, 2))
+                );
 
             } catch (error: any) {
                 logger.error(`Error checking file ${filePath}: ${error.message}`);
-                return JSON.stringify({
-                    success: false,
-                    error: error.message
-                });
+                return createErrorResult(error.message);
             }
         }
     });
@@ -912,37 +856,29 @@ export function createDirectoryTool(): StructuredToolInterface {
             dirPath: z.string().describe('要创建的目录的绝对路径'),
             recursive: z.boolean().optional().default(true).describe('是否递归创建父目录，默认为 true')
         }) as any,
-        func: async ({ dirPath, recursive = true }: any) => {
+        func: async ({ dirPath, recursive = true }: any): Promise<MCPToolResult> => {
             try {
                 const validation = validatePath(dirPath);
                 if (!validation.valid) {
-                    return JSON.stringify({ success: false, error: validation.error });
+                    return createErrorResult(validation.error!);
                 }
 
                 const absolutePath = validation.absolutePath!;
 
                 if (fs.existsSync(absolutePath)) {
-                    return JSON.stringify({
-                        success: false,
-                        error: `目录已存在: ${absolutePath}`
-                    });
+                    return createErrorResult(`目录已存在: ${absolutePath}`);
                 }
 
                 fs.mkdirSync(absolutePath, { recursive });
                 logger.info(`Created directory: ${absolutePath}`);
 
-                return JSON.stringify({
-                    success: true,
-                    dirPath: absolutePath,
-                    created: true
-                });
+                return createSuccessResult(
+                    createTextContent(`目录创建成功: ${absolutePath}`)
+                );
 
             } catch (error: any) {
                 logger.error(`Error creating directory ${dirPath}: ${error.message}`);
-                return JSON.stringify({
-                    success: false,
-                    error: error.message
-                });
+                return createErrorResult(error.message);
             }
         }
     });
@@ -959,45 +895,34 @@ export function createDeleteDirectoryTool(): StructuredToolInterface {
             dirPath: z.string().describe('要删除的目录的绝对路径'),
             recursive: z.boolean().optional().default(true).describe('是否递归删除所有内容，默认为 true')
         }) as any,
-        func: async ({ dirPath, recursive = true }: any) => {
+        func: async ({ dirPath, recursive = true }: any): Promise<MCPToolResult> => {
             try {
                 const validation = validatePath(dirPath);
                 if (!validation.valid) {
-                    return JSON.stringify({ success: false, error: validation.error });
+                    return createErrorResult(validation.error!);
                 }
 
                 const absolutePath = validation.absolutePath!;
 
                 if (!fs.existsSync(absolutePath)) {
-                    return JSON.stringify({
-                        success: false,
-                        error: `目录不存在: ${absolutePath}`
-                    });
+                    return createErrorResult(`目录不存在: ${absolutePath}`);
                 }
 
                 const stat = fs.statSync(absolutePath);
                 if (!stat.isDirectory()) {
-                    return JSON.stringify({
-                        success: false,
-                        error: `路径不是目录: ${absolutePath}`
-                    });
+                    return createErrorResult(`路径不是目录: ${absolutePath}`);
                 }
 
                 fs.rmSync(absolutePath, { recursive, force: true });
                 logger.info(`Deleted directory: ${absolutePath}`);
 
-                return JSON.stringify({
-                    success: true,
-                    dirPath: absolutePath,
-                    deleted: true
-                });
+                return createSuccessResult(
+                    createTextContent(`目录删除成功: ${absolutePath}`)
+                );
 
             } catch (error: any) {
                 logger.error(`Error deleting directory ${dirPath}: ${error.message}`);
-                return JSON.stringify({
-                    success: false,
-                    error: error.message
-                });
+                return createErrorResult(error.message);
             }
         }
     });
@@ -1015,33 +940,27 @@ export function createMoveFileTool(): StructuredToolInterface {
             destPath: z.string().describe('目标路径的绝对路径'),
             overwrite: z.boolean().optional().default(false).describe('如果目标已存在是否覆盖，默认为 false')
         }) as any,
-        func: async ({ sourcePath, destPath, overwrite = false }: any) => {
+        func: async ({ sourcePath, destPath, overwrite = false }: any): Promise<MCPToolResult> => {
             try {
                 const sourceValidation = validatePath(sourcePath);
                 if (!sourceValidation.valid) {
-                    return JSON.stringify({ success: false, error: `源路径: ${sourceValidation.error}` });
+                    return createErrorResult(`源路径: ${sourceValidation.error}`);
                 }
 
                 const destValidation = validatePath(destPath);
                 if (!destValidation.valid) {
-                    return JSON.stringify({ success: false, error: `目标路径: ${destValidation.error}` });
+                    return createErrorResult(`目标路径: ${destValidation.error}`);
                 }
 
                 const absoluteSource = sourceValidation.absolutePath!;
                 const absoluteDest = destValidation.absolutePath!;
 
                 if (!fs.existsSync(absoluteSource)) {
-                    return JSON.stringify({
-                        success: false,
-                        error: `源路径不存在: ${absoluteSource}`
-                    });
+                    return createErrorResult(`源路径不存在: ${absoluteSource}`);
                 }
 
                 if (fs.existsSync(absoluteDest) && !overwrite) {
-                    return JSON.stringify({
-                        success: false,
-                        error: `目标路径已存在: ${absoluteDest}。设置 overwrite=true 以覆盖。`
-                    });
+                    return createErrorResult(`目标路径已存在: ${absoluteDest}。设置 overwrite=true 以覆盖。`);
                 }
 
                 // 确保目标目录存在
@@ -1053,19 +972,15 @@ export function createMoveFileTool(): StructuredToolInterface {
                 fs.renameSync(absoluteSource, absoluteDest);
                 logger.info(`Moved: ${absoluteSource} -> ${absoluteDest}`);
 
-                return JSON.stringify({
-                    success: true,
-                    sourcePath: absoluteSource,
-                    destPath: absoluteDest,
-                    moved: true
-                });
+                return createSuccessResult(
+                    createTextContent(`文件移动成功`),
+                    createTextContent(`源路径: ${absoluteSource}`),
+                    createTextContent(`目标路径: ${absoluteDest}`)
+                );
 
             } catch (error: any) {
                 logger.error(`Error moving ${sourcePath} to ${destPath}: ${error.message}`);
-                return JSON.stringify({
-                    success: false,
-                    error: error.message
-                });
+                return createErrorResult(error.message);
             }
         }
     });
@@ -1083,41 +998,32 @@ export function createCopyFileTool(): StructuredToolInterface {
             destPath: z.string().describe('目标文件的绝对路径'),
             overwrite: z.boolean().optional().default(false).describe('如果目标已存在是否覆盖，默认为 false')
         }) as any,
-        func: async ({ sourcePath, destPath, overwrite = false }: any) => {
+        func: async ({ sourcePath, destPath, overwrite = false }: any): Promise<MCPToolResult> => {
             try {
                 const sourceValidation = validatePath(sourcePath);
                 if (!sourceValidation.valid) {
-                    return JSON.stringify({ success: false, error: `源路径: ${sourceValidation.error}` });
+                    return createErrorResult(`源路径: ${sourceValidation.error}`);
                 }
 
                 const destValidation = validatePath(destPath);
                 if (!destValidation.valid) {
-                    return JSON.stringify({ success: false, error: `目标路径: ${destValidation.error}` });
+                    return createErrorResult(`目标路径: ${destValidation.error}`);
                 }
 
                 const absoluteSource = sourceValidation.absolutePath!;
                 const absoluteDest = destValidation.absolutePath!;
 
                 if (!fs.existsSync(absoluteSource)) {
-                    return JSON.stringify({
-                        success: false,
-                        error: `源文件不存在: ${absoluteSource}`
-                    });
+                    return createErrorResult(`源文件不存在: ${absoluteSource}`);
                 }
 
                 const stat = fs.statSync(absoluteSource);
                 if (!stat.isFile()) {
-                    return JSON.stringify({
-                        success: false,
-                        error: `源路径不是文件: ${absoluteSource}`
-                    });
+                    return createErrorResult(`源路径不是文件: ${absoluteSource}`);
                 }
 
                 if (fs.existsSync(absoluteDest) && !overwrite) {
-                    return JSON.stringify({
-                        success: false,
-                        error: `目标文件已存在: ${absoluteDest}。设置 overwrite=true 以覆盖。`
-                    });
+                    return createErrorResult(`目标文件已存在: ${absoluteDest}。设置 overwrite=true 以覆盖。`);
                 }
 
                 // 确保目标目录存在
@@ -1131,20 +1037,15 @@ export function createCopyFileTool(): StructuredToolInterface {
 
                 const destStat = fs.statSync(absoluteDest);
 
-                return JSON.stringify({
-                    success: true,
-                    sourcePath: absoluteSource,
-                    destPath: absoluteDest,
-                    size: destStat.size,
-                    copied: true
-                });
+                return createSuccessResult(
+                    createTextContent(`文件复制成功`),
+                    createTextContent(`源路径: ${absoluteSource}`),
+                    createTextContent(`目标路径: ${absoluteDest}, 大小: ${(destStat.size / 1024).toFixed(2)}KB`)
+                );
 
             } catch (error: any) {
                 logger.error(`Error copying ${sourcePath} to ${destPath}: ${error.message}`);
-                return JSON.stringify({
-                    success: false,
-                    error: error.message
-                });
+                return createErrorResult(error.message);
             }
         }
     });
@@ -1162,30 +1063,24 @@ export function createExecuteCommandTool(): StructuredToolInterface {
             workingDir: z.string().optional().describe('可选的工作目录绝对路径，默认为当前工作目录'),
             timeout: z.number().optional().default(60000).describe('超时时间（毫秒），默认为 60000（60秒）')
         }) as any,
-        func: async ({ command, workingDir, timeout = 60000 }: any) => {
+        func: async ({ command, workingDir, timeout = 60000 }: any): Promise<MCPToolResult> => {
             try {
                 // 如果指定了工作目录，验证路径
                 if (workingDir) {
                     const validation = validatePath(workingDir);
                     if (!validation.valid) {
-                        return JSON.stringify({ success: false, error: validation.error });
+                        return createErrorResult(validation.error!);
                     }
 
                     const absoluteWorkingDir = validation.absolutePath!;
 
                     // 检查目录是否存在
                     if (!fs.existsSync(absoluteWorkingDir)) {
-                        return JSON.stringify({
-                            success: false,
-                            error: `工作目录不存在: ${absoluteWorkingDir}`
-                        });
+                        return createErrorResult(`工作目录不存在: ${absoluteWorkingDir}`);
                     }
 
                     if (!fs.statSync(absoluteWorkingDir).isDirectory()) {
-                        return JSON.stringify({
-                            success: false,
-                            error: `路径不是目录: ${absoluteWorkingDir}`
-                        });
+                        return createErrorResult(`路径不是目录: ${absoluteWorkingDir}`);
                     }
 
                     workingDir = absoluteWorkingDir;
@@ -1201,23 +1096,41 @@ export function createExecuteCommandTool(): StructuredToolInterface {
 
                 logger.info(`Executed command: ${command} (cwd: ${workingDir || process.cwd()})`);
 
-                return JSON.stringify({
-                    success: true,
-                    command,
-                    workingDir: workingDir || process.cwd(),
-                    stdout: stdout.trim(),
-                    stderr: stderr.trim()
-                });
+                const result = [
+                    createTextContent(`命令执行成功: ${command}`),
+                    createTextContent(`工作目录: ${workingDir || process.cwd()}`)
+                ];
+
+                if (stdout.trim()) {
+                    result.push(createTextContent(`标准输出:\n${stdout.trim()}`));
+                }
+
+                if (stderr.trim()) {
+                    result.push(createTextContent(`错误输出:\n${stderr.trim()}`));
+                }
+
+                return createSuccessResult(...result);
 
             } catch (error: any) {
                 logger.error(`Error executing command "${command}": ${error.message}`);
-                return JSON.stringify({
-                    success: false,
-                    error: error.message,
-                    command,
-                    stdout: error.stdout?.trim() || '',
-                    stderr: error.stderr?.trim() || ''
-                });
+
+                const errorDetails = [
+                    createTextContent(`命令执行失败: ${command}`),
+                    createTextContent(`错误: ${error.message}`)
+                ];
+
+                if (error.stdout?.trim()) {
+                    errorDetails.push(createTextContent(`标准输出:\n${error.stdout.trim()}`));
+                }
+
+                if (error.stderr?.trim()) {
+                    errorDetails.push(createTextContent(`错误输出:\n${error.stderr.trim()}`));
+                }
+
+                return {
+                    content: errorDetails,
+                    isError: true
+                };
             }
         }
     });
@@ -1236,31 +1149,25 @@ export function createExecuteScriptTool(): StructuredToolInterface {
             workingDir: z.string().optional().describe('可选的工作目录绝对路径，默认为脚本所在目录'),
             timeout: z.number().optional().default(60000).describe('超时时间（毫秒），默认为 60000（60秒）')
         }) as any,
-        func: async ({ scriptPath, args = [], workingDir, timeout = 60000 }: any) => {
+        func: async ({ scriptPath, args = [], workingDir, timeout = 60000 }: any): Promise<MCPToolResult> => {
             try {
                 // 验证脚本路径
                 const validation = validatePath(scriptPath);
                 if (!validation.valid) {
-                    return JSON.stringify({ success: false, error: validation.error });
+                    return createErrorResult(validation.error!);
                 }
 
                 const absoluteScriptPath = validation.absolutePath!;
 
                 // 检查脚本是否存在
                 if (!fs.existsSync(absoluteScriptPath)) {
-                    return JSON.stringify({
-                        success: false,
-                        error: `脚本不存在: ${absoluteScriptPath}`
-                    });
+                    return createErrorResult(`脚本不存在: ${absoluteScriptPath}`);
                 }
 
                 // 检查是否为文件
                 const stat = fs.statSync(absoluteScriptPath);
                 if (!stat.isFile()) {
-                    return JSON.stringify({
-                        success: false,
-                        error: `路径不是文件: ${absoluteScriptPath}`
-                    });
+                    return createErrorResult(`路径不是文件: ${absoluteScriptPath}`);
                 }
 
                 // 确定工作目录
@@ -1268,22 +1175,16 @@ export function createExecuteScriptTool(): StructuredToolInterface {
                 if (workingDir) {
                     const workingDirValidation = validatePath(workingDir);
                     if (!workingDirValidation.valid) {
-                        return JSON.stringify({ success: false, error: workingDirValidation.error });
+                        return createErrorResult(workingDirValidation.error!);
                     }
                     cwd = workingDirValidation.absolutePath!;
 
                     if (!fs.existsSync(cwd)) {
-                        return JSON.stringify({
-                            success: false,
-                            error: `工作目录不存在: ${cwd}`
-                        });
+                        return createErrorResult(`工作目录不存在: ${cwd}`);
                     }
 
                     if (!fs.statSync(cwd).isDirectory()) {
-                        return JSON.stringify({
-                            success: false,
-                            error: `路径不是目录: ${cwd}`
-                        });
+                        return createErrorResult(`路径不是目录: ${cwd}`);
                     }
                 } else {
                     // 默认使用脚本所在目录
@@ -1318,10 +1219,7 @@ export function createExecuteScriptTool(): StructuredToolInterface {
                         command = `php "${absoluteScriptPath}" ${args.join(' ')}`;
                         break;
                     default:
-                        return JSON.stringify({
-                            success: false,
-                            error: `不支持的脚本类型: ${ext}。支持的类型：.py, .sh, .bash, .js, .ts, .rb, .pl, .php`
-                        });
+                        return createErrorResult(`不支持的脚本类型: ${ext}。支持的类型：.py, .sh, .bash, .js, .ts, .rb, .pl, .php`);
                 }
 
                 // 执行脚本
@@ -1334,24 +1232,45 @@ export function createExecuteScriptTool(): StructuredToolInterface {
 
                 logger.info(`Executed script: ${absoluteScriptPath} (cwd: ${cwd})`);
 
-                return JSON.stringify({
-                    success: true,
-                    scriptPath: absoluteScriptPath,
-                    args,
-                    workingDir: cwd,
-                    stdout: stdout.trim(),
-                    stderr: stderr.trim()
-                });
+                const result = [
+                    createTextContent(`脚本执行成功: ${absoluteScriptPath}`),
+                    createTextContent(`工作目录: ${cwd}`)
+                ];
+
+                if (args.length > 0) {
+                    result.push(createTextContent(`参数: ${args.join(' ')}`));
+                }
+
+                if (stdout.trim()) {
+                    result.push(createTextContent(`标准输出:\n${stdout.trim()}`));
+                }
+
+                if (stderr.trim()) {
+                    result.push(createTextContent(`错误输出:\n${stderr.trim()}`));
+                }
+
+                return createSuccessResult(...result);
 
             } catch (error: any) {
                 logger.error(`Error executing script "${scriptPath}": ${error.message}`);
-                return JSON.stringify({
-                    success: false,
-                    error: error.message,
-                    scriptPath,
-                    stdout: error.stdout?.trim() || '',
-                    stderr: error.stderr?.trim() || ''
-                });
+
+                const errorDetails = [
+                    createTextContent(`脚本执行失败: ${scriptPath}`),
+                    createTextContent(`错误: ${error.message}`)
+                ];
+
+                if (error.stdout?.trim()) {
+                    errorDetails.push(createTextContent(`标准输出:\n${error.stdout.trim()}`));
+                }
+
+                if (error.stderr?.trim()) {
+                    errorDetails.push(createTextContent(`错误输出:\n${error.stderr.trim()}`));
+                }
+
+                return {
+                    content: errorDetails,
+                    isError: true
+                };
             }
         }
     });
