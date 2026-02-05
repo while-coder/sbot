@@ -5,6 +5,7 @@ import {LoggerService} from "../LoggerService";
 import {UserServiceBase} from "../UserService/UserServiceBase";
 import {larkService} from "./LarkService";
 import { MCPToolResult } from "../Tools/ToolsConfig";
+import { CommandBase, Command } from "../UserService/CommandBase";
 
 const logger = LoggerService.getLogger('LarkUserService.ts');
 
@@ -37,6 +38,11 @@ function parseChunk2Message(provider: LarkChatProvider, message: AgentMessage) {
                    `\n\n...\n[内容过长，已截断。原始长度: ${response.length} 字符]`;
       }
       toolCall.response = response;
+    }
+  } else if (message.type === MessageChunkType.COMMAND) {
+    // 处理命令结果消息
+    if (message.content) {
+      provider.messages.push({ type: "text", content: message.content });
     }
   }
   return provider;
@@ -191,4 +197,32 @@ export class LarkUserService extends UserServiceBase {
     return await larkService.convertMCPImagesToLarkFormat(result);
   }
 
+  /**
+   * 获取 Lark 特定的命令（使用装饰器）
+   */
+  protected getCommands(): CommandBase[] {
+    return [
+      new StatusCommand(this)
+    ];
+  }
+}
+
+/**
+ * Lark 特定的 status 命令
+ */
+@Command('status', '显示当前用户和会话状态')
+class StatusCommand extends CommandBase {
+  constructor(private larkService: LarkUserService) {
+    super();
+  }
+
+  async execute(): Promise<string> {
+    const statusInfo = [
+      `👤 用户ID: ${this.larkService.userId}`,
+      `📊 队列状态: ${this.larkService.messageQueue.length} 条消息待处理`,
+      `🔧 工具调用状态: ${this.larkService.toolCallStatus}`,
+      this.larkService.provider ? `💬 当前会话: 活跃` : `💬 当前会话: 空闲`
+    ].join('\n');
+    return statusInfo;
+  }
 }

@@ -17,7 +17,8 @@ const logger = LoggerService.getLogger("AgentService.ts");
 
 export enum MessageChunkType {
     AI = "ai",
-    TOOL = "tool"
+    TOOL = "tool",
+    COMMAND = "command",
 }
 
 export type AgentToolCall = {
