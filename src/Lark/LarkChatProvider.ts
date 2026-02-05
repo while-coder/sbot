@@ -1,6 +1,7 @@
 import { Util } from "weimingcommons";
 import { larkService } from "./LarkService.js";
 import { LoggerService } from "../LoggerService.js";
+import { AgentMessage, MessageChunkType } from "../Agent/AgentService.js";
 
 const logger = LoggerService.getLogger("LarkChatProvider.ts");
 
@@ -72,7 +73,38 @@ ${escapedResponse}`;
     return result.join("\n\n");
   }
 
+  async addAIMessage(message: AgentMessage) {
+    if (message.type === MessageChunkType.AI) {
+      if (message.content) {
+        this.messages.push({ type: ProviderMessageType.TEXT, content: message.content || "" });
+      }
+      if (message.tool_calls && message.tool_calls.length > 0) {
+        for (const t of message.tool_calls) {
+          const toolCall: ProviderToolMessage = { type: ProviderMessageType.TOOL, name: t.name, args: t.args };
+          if (t.id) {
+            this.tools[t.id] = toolCall;
+          }
+          this.messages.push(toolCall);
+        }
+      }
+    } else if (message.type === MessageChunkType.TOOL) {
+      const toolCall = this.tools[message.tool_call_id || ""];
+      if (toolCall) {
+        toolCall.result = true;
+        toolCall.status = message.status;
 
+        // 截断过长的工具响应内容（飞书消息有长度限制）
+        const MAX_TOOL_RESPONSE_LENGTH = 128;
+        let response = message.content || "";
+        if (response.length > MAX_TOOL_RESPONSE_LENGTH) {
+          response = response.substring(0, MAX_TOOL_RESPONSE_LENGTH) +
+                     `\n\n...\n[内容过长，已截断。原始长度: ${response.length} 字符]`;
+        }
+        toolCall.response = response;
+      }
+    }
+    await this.updateMessage()
+  }
   async setMessage(content:string) {
     this.messages = [{ type: ProviderMessageType.TEXT, content: content }];
     await this.updateMessage()
