@@ -184,17 +184,17 @@ class LarkService {
         },
       }, Lark.withTenantToken(token)) as any;
 
-      if (!response || response.code !== 0) {
+      if (!response || !response.image_key) {
         throw new Error(`飞书返回错误: ${response?.msg || '未知错误'}`);
       }
 
-      const imageKey = response.data.image_key;
+      const imageKey = response.image_key;
       logger.info(`图片上传成功，image_key: ${imageKey}`);
 
       return imageKey;
 
     } catch (error: any) {
-      logger.error(`上传图片到飞书失败: ${error.message}`);
+      logger.error(`上传图片到飞书失败: ${error.message}\n${error.stack}`);
       throw error;
     }
   }
@@ -215,10 +215,7 @@ class LarkService {
 
       // 处理每个内容块
       for (const contentItem of result.content) {
-        if (contentItem.type === MCPContentType.Text) {
-          // 文本内容直接保留
-          convertedResult.content.push(contentItem);
-        } else if (contentItem.type === MCPContentType.Image || contentItem.type === MCPContentType.ImageUrl) {
+        if (contentItem.type === MCPContentType.Image || contentItem.type === MCPContentType.ImageUrl) {
           // 处理图片内容（MCP 图片或 OpenAI 风格的 image_url），只处理 base64 或本地文件
           try {
             // 获取图片数据或 URL
