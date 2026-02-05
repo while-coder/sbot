@@ -97,10 +97,17 @@ export interface MCPServers {
   [serverName: string]: MCPServerConfig;
 }
 
+export interface MemoryConfig {
+  enabled?: boolean;           // 是否启用长期记忆功能
+  autoCleanup?: boolean;       // 是否自动清理过期记忆
+  maxAgeDays?: number;         // 记忆最大保留天数
+}
+
 export interface Settings {
   model?: string; // 当前使用的模型名称（对应 models 中的 key）
   lark?: LarkConfig;
   models?: Record<string, ModelConfig>; // 多个模型配置
+  memory?: MemoryConfig; // 长期记忆配置
 }
 
 class Config {
@@ -215,6 +222,12 @@ model = "openai-gpt4"
 appId = ""
 appSecret = ""
 # tenantToken = ""  # 可选：手动指定租户 token（通常不需要，SDK 会自动管理）
+
+# 长期记忆配置
+[memory]
+enabled = true           # 是否启用长期记忆功能
+autoCleanup = true       # 是否自动清理过期记忆
+maxAgeDays = 90          # 记忆最大保留天数
 
 # 多模型配置 - 可以配置多个模型，通过上面的 model 字段切换使用哪个
 [models.openai-gpt4]

@@ -11,6 +11,7 @@ import { MCPToolResult, normalizeToMCPResult } from '../Tools/ToolsConfig'
 import { createFileSystemTools } from '../Tools/FileSystem'
 import { createSkillTools } from "../Tools/Skills";
 import { createCommandTools } from '../Tools/Command';
+import { MemoryService } from "../Memory/MemoryService";
 
 
 const logger = LoggerService.getLogger("AgentService.ts");
@@ -75,12 +76,37 @@ export class AgentService {
     private skillsDir?: string;
     private maxHistoryMessages: number = 10; // 最大历史消息数
     private modelConfig: ModelConfig;
+    private memoryService?: MemoryService;
+    private enableMemory: boolean;
 
 
-    constructor(userId: string, modelConfig: ModelConfig, skillsDir?: string) {
+    constructor(userId: string, modelConfig: ModelConfig, skillsDir?: string, enableMemory: boolean = true) {
         this.threadId = userId;
         this.modelConfig = modelConfig;
         this.skillsDir = skillsDir;
+        this.enableMemory = enableMemory;
+
+        // 初始化记忆服务
+        if (this.enableMemory && modelConfig.apiKey && modelConfig.baseURL) {
+            try {
+                const memoryDbPath = config.getConfigPath(`memory/${userId}.db`);
+                this.memoryService = new MemoryService({
+                    userId,
+                    dbPath: memoryDbPath,
+                    embeddingConfig: {
+                        apiKey: modelConfig.apiKey,
+                        baseURL: modelConfig.baseURL,
+                        model: "text-embedding-ada-002"
+                    },
+                    enableAutoCleanup: true,
+                    maxMemoryAgeDays: 90
+                });
+                logger.info(`用户 ${userId} 的长期记忆服务已启用`);
+            } catch (error: any) {
+                logger.warn(`初始化记忆服务失败: ${error.message}`);
+                this.memoryService = undefined;
+            }
+        }
     }
 
     /**
@@ -114,7 +140,39 @@ export class AgentService {
      * 释放资源
      */
     async dispose() {
-        await this.disposeSaver()
+        await this.disposeSaver();
+
+        if (this.memoryService) {
+            this.memoryService.dispose();
+        }
+    }
+
+    /**
+     * 获取记忆服务实例（供外部使用）
+     */
+    getMemoryService(): MemoryService | undefined {
+        return this.memoryService;
+    }
+
+    /**
+     * 清空当前用户的所有长期记忆
+     */
+    async clearMemories(): Promise<number> {
+        if (!this.memoryService) {
+            logger.warn(`用户 ${this.threadId} 未启用记忆服务`);
+            return 0;
+        }
+        return this.memoryService.clearAllMemories();
+    }
+
+    /**
+     * 获取记忆统计信息
+     */
+    getMemoryStatistics() {
+        if (!this.memoryService) {
+            return null;
+        }
+        return this.memoryService.getStatistics();
     }
 
     /**
@@ -249,10 +307,36 @@ export class AgentService {
         // 绑定工具到模型
         const modelWithTools = model.bindTools(tools);
 
+        // 获取用户最新消息（用于记忆检索）
+        const lastHumanMessage = state.messages
+            .slice()
+            .reverse()
+            .find(m => m instanceof HumanMessage);
+
         // 构建基础系统提示词
         const systemMessages = [
             { role: "system", content: `你是一个有用的AI助手。` },
         ];
+
+        // 注入长期记忆
+        if (this.memoryService && lastHumanMessage) {
+            try {
+                const memorySummary = await this.memoryService.getMemorySummary(
+                    lastHumanMessage.content as string,
+                    500 // 最大 token 数
+                );
+
+                if (memorySummary) {
+                    systemMessages.push({
+                        role: "system",
+                        content: memorySummary
+                    });
+                    logger.debug(`已注入长期记忆上下文到提示词中`);
+                }
+            } catch (error: any) {
+                logger.warn(`获取记忆摘要失败: ${error.message}`);
+            }
+        }
 
         // 构建 skills 系统提示词
         if (this.skills && this.skills.length > 0) {
@@ -499,6 +583,9 @@ ${skillsList}
                 { streamMode: "updates", configurable: { thread_id: this.threadId } }
             );
 
+            // 收集 AI 响应用于保存记忆
+            let aiResponse = "";
+
             // 处理流式输出
             for await (const update of stream) {
                 // update 是一个对象，键是节点名称，值是该节点的输出
@@ -512,12 +599,27 @@ ${skillsList}
                         // 跳过人类消息
                         if (message instanceof HumanMessage) continue;
 
+                        // 收集 AI 响应
+                        if (message instanceof AIMessage || message instanceof AIMessageChunk) {
+                            aiResponse += message.content || "";
+                        }
+
                         // 转换为回调格式
                         const messageChunk = this.convertToMessageChunk(message);
                         if (messageChunk) {
                             await onMessage(messageChunk!)
                         }
                     }
+                }
+            }
+
+            // 保存对话到长期记忆
+            if (this.memoryService && aiResponse) {
+                try {
+                    await this.memoryService.memorizeConversation(query, aiResponse);
+                    logger.debug(`对话已保存到长期记忆`);
+                } catch (error: any) {
+                    logger.warn(`保存对话记忆失败: ${error.message}`);
                 }
             }
 
