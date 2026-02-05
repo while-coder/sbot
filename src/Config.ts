@@ -103,28 +103,11 @@ export interface MemoryConfig {
   maxAgeDays?: number;         // 记忆最大保留天数
 }
 
-/**
- * 插件配置
- */
-export interface PluginConfig {
-  enabled?: boolean;                    // 是否启用插件
-  priority?: number;                    // 插件优先级（数字越小越先执行）
-  config?: Record<string, any>;         // 插件特定配置
-}
-
-/**
- * 插件配置集合
- */
-export interface PluginsConfig {
-  [pluginName: string]: PluginConfig;
-}
-
 export interface Settings {
   model?: string; // 当前使用的模型名称（对应 models 中的 key）
   lark?: LarkConfig;
   models?: Record<string, ModelConfig>; // 多个模型配置
-  memory?: MemoryConfig; // 长期记忆配置（向后兼容）
-  plugins?: PluginsConfig; // 插件配置
+  memory?: MemoryConfig; // 长期记忆配置
 }
 
 class Config {
@@ -240,45 +223,11 @@ appId = ""
 appSecret = ""
 # tenantToken = ""  # 可选：手动指定租户 token（通常不需要，SDK 会自动管理）
 
-# 长期记忆配置（向后兼容，推荐使用下面的 plugins.MemoryPlugin 配置）
+# 长期记忆配置
 [memory]
 enabled = true           # 是否启用长期记忆功能
 autoCleanup = true       # 是否自动清理过期记忆
 maxAgeDays = 90          # 记忆最大保留天数
-
-# ========================================
-# 插件配置
-# ========================================
-
-# 长期记忆插件
-[plugins.MemoryPlugin]
-enabled = true           # 是否启用插件
-priority = 10            # 优先级（数字越小越先执行）
-
-[plugins.MemoryPlugin.config]
-dbPath = "memory.db"     # 数据库路径（相对于 ~/.sbot）
-autoMemorize = true      # 是否自动记忆对话
-memorizeThreshold = 0.5  # 自动记忆的重要性阈值
-autoRetrieve = true      # 是否自动检索相关记忆
-retrievalLimit = 5       # 检索记忆的数量限制
-enableAutoCleanup = true # 是否自动清理过期记忆
-maxMemoryAgeDays = 90    # 记忆最大保留天数
-enableLLMEvaluation = true  # 是否启用 LLM 重要性评估
-enableCompression = true    # 是否启用记忆压缩
-compressionModel = "gpt-3.5-turbo"  # 压缩使用的模型
-
-# Embedding 配置（使用当前模型的配置）
-[plugins.MemoryPlugin.config.embeddingConfig]
-apiKey = "your-api-key"
-baseURL = "https://api.openai.com/v1"
-model = "text-embedding-ada-002"
-
-# 其他插件示例...
-# [plugins.CustomPlugin]
-# enabled = true
-# priority = 20
-# [plugins.CustomPlugin.config]
-# option1 = "value1"
 
 # 多模型配置 - 可以配置多个模型，通过上面的 model 字段切换使用哪个
 [models.openai-gpt4]
