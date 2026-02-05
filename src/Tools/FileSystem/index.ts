@@ -10,19 +10,15 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
-import { LoggerService } from '../LoggerService';
+import { LoggerService } from '../../LoggerService';
+import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from '../mcp';
+import { FileSystemToolsConfig, DEFAULT_CONFIG } from './config';
 
-const logger = LoggerService.getLogger('FileSystemTools/index.ts');
+const logger = LoggerService.getLogger('Tools/FileSystem/index.ts');
 const execAsync = promisify(exec);
 
-/**
- * 工作目录配置
- * 用于限制文件操作的范围，提高安全性
- */
-export interface FileSystemToolsConfig {
-    /** 文件大小限制（字节），默认为 10MB */
-    maxFileSize: number;
-}
+// 配置类型已移到 config.ts
+export type { FileSystemToolsConfig } from './config';
 
 /**
  * 验证路径是否为绝对路径
@@ -57,60 +53,46 @@ export function createReadFileTool(config: FileSystemToolsConfig = { maxFileSize
             filePath: z.string().describe('要读取的文件的绝对路径（必须是绝对路径，如 /path/to/file.txt）'),
             encoding: z.enum(['utf8', 'utf-8', 'ascii', 'base64']).optional().default('utf8').describe('文件编码格式，默认为 utf8')
         }) as any,
-        func: async ({ filePath, encoding = 'utf8' }: any) => {
+        func: async ({ filePath, encoding = 'utf8' }: any): Promise<MCPToolResult> => {
             try {
                 const validation = validatePath(filePath);
                 if (!validation.valid) {
-                    return JSON.stringify({ success: false, error: validation.error });
+                    return createErrorResult(validation.error!);
                 }
 
                 const absolutePath = validation.absolutePath!;
 
                 // 检查文件是否存在
                 if (!fs.existsSync(absolutePath)) {
-                    return JSON.stringify({
-                        success: false,
-                        error: `文件不存在: ${absolutePath}`
-                    });
+                    return createErrorResult(`文件不存在: ${absolutePath}`);
                 }
 
                 // 检查是否为文件
                 const stat = fs.statSync(absolutePath);
                 if (!stat.isFile()) {
-                    return JSON.stringify({
-                        success: false,
-                        error: `路径不是文件: ${absolutePath}`
-                    });
+                    return createErrorResult(`路径不是文件: ${absolutePath}`);
                 }
 
                 // 检查文件大小
                 if (stat.size > maxSize) {
-                    return JSON.stringify({
-                        success: false,
-                        error: `文件过大: ${(stat.size / 1024 / 1024).toFixed(2)}MB (限制: ${(maxSize / 1024 / 1024).toFixed(2)}MB)`
-                    });
+                    return createErrorResult(`文件过大: ${(stat.size / 1024 / 1024).toFixed(2)}MB (限制: ${(maxSize / 1024 / 1024).toFixed(2)}MB)`);
                 }
 
                 // 读取文件内容
                 const content = fs.readFileSync(absolutePath, encoding as BufferEncoding);
+                const lines = content.toString().split('\n').length;
 
                 logger.info(`Read file: ${absolutePath} (${(stat.size / 1024).toFixed(2)}KB)`);
 
-                return JSON.stringify({
-                    success: true,
-                    filePath: absolutePath,
-                    size: stat.size,
-                    content: content,
-                    encoding: encoding,
-                    lines: content.toString().split('\n').length
-                });
+                return createSuccessResult(
+                    createTextContent(`文件读取成功: ${absolutePath}`),
+                    createTextContent(`大小: ${(stat.size / 1024).toFixed(2)}KB, 编码: ${encoding}, 行数: ${lines}`),
+                    createTextContent(content.toString())
+                );
 
             } catch (error: any) {
                 logger.error(`Error reading file ${filePath}: ${error.message}`);
-                return JSON.stringify({
-                    success: false,
-                    error: error.message
-                });
+                return createErrorResult(error.message);
             }
         }
     });

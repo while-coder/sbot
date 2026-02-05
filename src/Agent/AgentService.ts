@@ -6,9 +6,9 @@ import {StateGraph, END, START, MessagesAnnotation} from '@langchain/langgraph';
 import {SqliteSaver} from "@langchain/langgraph-checkpoint-sqlite";
 import {config} from "../Config";
 import {LoggerService} from "../LoggerService";
-import { loadSkills, Skill, createSkillTools } from "../Skills";
-import { createFileSystemTools, FileSystemToolsConfig } from "../FileSystemTools";
-// import { TextSplitter } from '@langchain/textsplitters'
+import { loadSkills, Skill } from "../Skills";
+import { createFileSystemTools, FileSystemToolsConfig } from '../Tools/FileSystem'
+import { createSkillTools } from "../Tools/Skills";
 
 const logger = LoggerService.getLogger("AgentService.ts");
 
@@ -371,8 +371,20 @@ ${skillsList}
                 }
                 if (ok) {
                     // 执行工具
+                    logger.info(`用户 ${this.threadId} 执行工具 ${tool.name} 参数: ${JSON.stringify(toolCall.args)}`);
                     const result = await tool.invoke(toolCall.args);
-                    let content = typeof result === "string" ? result : JSON.stringify(result);
+
+                    // 处理 MCP 标准格式: { content: [{ type: "text", text: "..." }] }
+                    let content: string;
+                    if (result && typeof result === "object" && "content" in result && Array.isArray(result.content)) {
+                        // 已经是 MCP 标准格式，保持不变
+                        content = JSON.stringify(result);
+                        logger.info(`用户 ${this.threadId} 工具 ${tool.name} 返回 MCP 格式`);
+                    } else {
+                        // 旧格式，转换为字符串
+                        content = typeof result === "string" ? result : JSON.stringify(result);
+                        logger.info(`用户 ${this.threadId} 工具 ${tool.name} 返回旧格式`);
+                    }
 
                     // 如果提供了图片转换回调，转换内容中的图片
                     if (convertImages) {

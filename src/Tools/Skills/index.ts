@@ -9,9 +9,10 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
-import { LoggerService } from '../LoggerService';
+import { LoggerService } from '../../LoggerService';
+import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from '../mcp';
 
-const logger = LoggerService.getLogger('Skills/tools.ts');
+const logger = LoggerService.getLogger('Tools/Skills/index.ts');
 const execAsync = promisify(exec);
 
 /**
@@ -26,7 +27,7 @@ export function createReadSkillFileTool(skillsDir: string): StructuredToolInterf
             skillName: z.string().describe('skill 名称（kebab-case 格式）'),
             filePath: z.string().describe('skill 目录内的相对路径，例如："SKILL.md"、"scripts/init.py"、"references/api.md"')
         }) as any,
-        func: async ({ skillName, filePath }: any) => {
+        func: async ({ skillName, filePath }: any): Promise<MCPToolResult> => {
             try {
                 // 构建完整路径
                 const fullPath = path.join(skillsDir, skillName, filePath);
@@ -35,27 +36,18 @@ export function createReadSkillFileTool(skillsDir: string): StructuredToolInterf
                 const normalizedPath = path.normalize(fullPath);
                 const normalizedSkillsDir = path.normalize(skillsDir);
                 if (!normalizedPath.startsWith(normalizedSkillsDir)) {
-                    return JSON.stringify({
-                        success: false,
-                        error: '安全错误：不允许访问 skills 目录之外的文件'
-                    });
+                    return createErrorResult('安全错误：不允许访问 skills 目录之外的文件');
                 }
 
                 // 检查文件是否存在
                 if (!fs.existsSync(fullPath)) {
-                    return JSON.stringify({
-                        success: false,
-                        error: `文件不存在: ${filePath}`
-                    });
+                    return createErrorResult(`文件不存在: ${filePath}`);
                 }
 
                 // 检查是否为文件
                 const stat = fs.statSync(fullPath);
                 if (!stat.isFile()) {
-                    return JSON.stringify({
-                        success: false,
-                        error: `路径不是文件: ${filePath}`
-                    });
+                    return createErrorResult(`路径不是文件: ${filePath}`);
                 }
 
                 // 读取文件内容
@@ -63,19 +55,14 @@ export function createReadSkillFileTool(skillsDir: string): StructuredToolInterf
 
                 logger.info(`Read skill file: ${skillName}/${filePath}`);
 
-                return JSON.stringify({
-                    success: true,
-                    skillName,
-                    filePath,
-                    content
-                });
+                return createSuccessResult(
+                    createTextContent(`Skill文件读取成功: ${skillName}/${filePath}`),
+                    createTextContent(content)
+                );
 
             } catch (error: any) {
                 logger.error(`Error reading skill file ${skillName}/${filePath}: ${error.message}`);
-                return JSON.stringify({
-                    success: false,
-                    error: error.message
-                });
+                return createErrorResult(error.message);
             }
         }
     });
@@ -94,7 +81,7 @@ export function createExecuteSkillScriptTool(skillsDir: string): StructuredToolI
             scriptPath: z.string().describe('脚本文件的相对路径，例如："scripts/process.py"、"scripts/build.sh"'),
             args: z.array(z.string()).optional().describe('传递给脚本的参数列表')
         }) as any,
-        func: async ({ skillName, scriptPath, args = [] }: any) => {
+        func: async ({ skillName, scriptPath, args = [] }: any): Promise<MCPToolResult> => {
             try {
                 // 构建完整路径
                 const fullPath = path.join(skillsDir, skillName, scriptPath);
@@ -104,18 +91,12 @@ export function createExecuteSkillScriptTool(skillsDir: string): StructuredToolI
                 const normalizedPath = path.normalize(fullPath);
                 const normalizedSkillsDir = path.normalize(skillsDir);
                 if (!normalizedPath.startsWith(normalizedSkillsDir)) {
-                    return JSON.stringify({
-                        success: false,
-                        error: '安全错误：不允许执行 skills 目录之外的脚本'
-                    });
+                    return createErrorResult('安全错误：不允许执行 skills 目录之外的脚本');
                 }
 
                 // 检查脚本是否存在
                 if (!fs.existsSync(fullPath)) {
-                    return JSON.stringify({
-                        success: false,
-                        error: `脚本不存在: ${scriptPath}`
-                    });
+                    return createErrorResult(`脚本不存在: ${scriptPath}`);
                 }
 
                 // 根据文件扩展名确定执行器
@@ -136,10 +117,7 @@ export function createExecuteSkillScriptTool(skillsDir: string): StructuredToolI
                         command = `ts-node "${fullPath}" ${args.join(' ')}`;
                         break;
                     default:
-                        return JSON.stringify({
-                            success: false,
-                            error: `不支持的脚本类型: ${ext}。支持的类型：.py, .sh, .js, .ts`
-                        });
+                        return createErrorResult(`不支持的脚本类型: ${ext}。支持的类型：.py, .sh, .js, .ts`);
                 }
 
                 // 执行脚本
@@ -152,22 +130,39 @@ export function createExecuteSkillScriptTool(skillsDir: string): StructuredToolI
 
                 logger.info(`Executed skill script: ${skillName}/${scriptPath}`);
 
-                return JSON.stringify({
-                    success: true,
-                    skillName,
-                    scriptPath,
-                    stdout: stdout.trim(),
-                    stderr: stderr.trim()
-                });
+                const result = [
+                    createTextContent(`脚本执行成功: ${skillName}/${scriptPath}`)
+                ];
+
+                if (stdout.trim()) {
+                    result.push(createTextContent(`输出:\n${stdout.trim()}`));
+                }
+
+                if (stderr.trim()) {
+                    result.push(createTextContent(`错误输出:\n${stderr.trim()}`));
+                }
+
+                return createSuccessResult(...result);
 
             } catch (error: any) {
                 logger.error(`Error executing skill script ${skillName}/${scriptPath}: ${error.message}`);
-                return JSON.stringify({
-                    success: false,
-                    error: error.message,
-                    stdout: error.stdout?.trim() || '',
-                    stderr: error.stderr?.trim() || ''
-                });
+
+                const errorDetails = [
+                    createTextContent(`脚本执行失败: ${error.message}`)
+                ];
+
+                if (error.stdout?.trim()) {
+                    errorDetails.push(createTextContent(`输出:\n${error.stdout.trim()}`));
+                }
+
+                if (error.stderr?.trim()) {
+                    errorDetails.push(createTextContent(`错误输出:\n${error.stderr.trim()}`));
+                }
+
+                return {
+                    content: errorDetails,
+                    isError: true
+                };
             }
         }
     });
@@ -185,7 +180,7 @@ export function createListSkillFilesTool(skillsDir: string): StructuredToolInter
             skillName: z.string().describe('skill 名称（kebab-case 格式）'),
             subPath: z.string().optional().describe('可选的子路径，例如："scripts"、"references"')
         }) as any,
-        func: async ({ skillName, subPath = '' }: any) => {
+        func: async ({ skillName, subPath = '' }: any): Promise<MCPToolResult> => {
             try {
                 // 构建完整路径
                 const fullPath = path.join(skillsDir, skillName, subPath);
@@ -194,18 +189,12 @@ export function createListSkillFilesTool(skillsDir: string): StructuredToolInter
                 const normalizedPath = path.normalize(fullPath);
                 const normalizedSkillsDir = path.normalize(skillsDir);
                 if (!normalizedPath.startsWith(normalizedSkillsDir)) {
-                    return JSON.stringify({
-                        success: false,
-                        error: '安全错误：不允许访问 skills 目录之外的文件'
-                    });
+                    return createErrorResult('安全错误：不允许访问 skills 目录之外的文件');
                 }
 
                 // 检查目录是否存在
                 if (!fs.existsSync(fullPath)) {
-                    return JSON.stringify({
-                        success: false,
-                        error: `目录不存在: ${subPath || '/'}`
-                    });
+                    return createErrorResult(`目录不存在: ${subPath || '/'}`);
                 }
 
                 // 递归读取目录结构
@@ -242,19 +231,14 @@ export function createListSkillFilesTool(skillsDir: string): StructuredToolInter
 
                 logger.info(`Listed skill files: ${skillName}/${displayPath}`);
 
-                return JSON.stringify({
-                    success: true,
-                    skillName,
-                    path: displayPath,
-                    structure: structure.join('\n')
-                });
+                return createSuccessResult(
+                    createTextContent(`Skill目录结构: ${skillName}/${displayPath}`),
+                    createTextContent(structure.join('\n'))
+                );
 
             } catch (error: any) {
                 logger.error(`Error listing skill files ${skillName}/${subPath}: ${error.message}`);
-                return JSON.stringify({
-                    success: false,
-                    error: error.message
-                });
+                return createErrorResult(error.message);
             }
         }
     });
