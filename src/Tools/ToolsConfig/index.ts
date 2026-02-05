@@ -13,4 +13,5 @@ export {
     createAudioContent,
     createSuccessResult,
     createErrorResult,
+    isMCPToolResult,
 } from './types';

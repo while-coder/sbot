@@ -4,6 +4,7 @@ import {type AgentMessage, MessageChunkType, AgentToolCall} from "../Agent/Agent
 import {LoggerService} from "../LoggerService";
 import {UserServiceBase} from "../UserService/UserServiceBase";
 import {larkService} from "./LarkService";
+import { MCPToolResult } from "../Tools/ToolsConfig";
 
 const logger = LoggerService.getLogger('LarkUserService.ts');
 
@@ -186,7 +187,7 @@ export class LarkUserService extends UserServiceBase {
     logger.warn(`未处理的卡片操作: ${code}`);
   }
 
-  async convertImages(result: import('../Tools/ToolsConfig').MCPToolResult): Promise<import('../Tools/ToolsConfig').MCPToolResult> {
+  async convertImages(result: MCPToolResult): Promise<MCPToolResult> {
     return await larkService.convertMCPImagesToLarkFormat(result);
   }
 

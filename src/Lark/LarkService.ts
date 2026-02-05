@@ -9,6 +9,7 @@ import fs from 'fs';
 import path from 'path';
 import https from 'https';
 import http from 'http';
+import { MCPToolResult } from "../Tools/ToolsConfig";
 
 const logger = LoggerService.getLogger("LarkService.ts");
 
@@ -287,10 +288,10 @@ class LarkService {
    * @param result MCP 格式的工具结果
    * @returns 转换后的 MCP 格式结果
    */
-  async convertMCPImagesToLarkFormat(result: import('../Tools/ToolsConfig').MCPToolResult): Promise<import('../Tools/ToolsConfig').MCPToolResult> {
+  async convertMCPImagesToLarkFormat(result: MCPToolResult): Promise<MCPToolResult> {
     try {
       // 深拷贝结果以避免修改原始数据
-      const convertedResult: import('../Tools/ToolsConfig').MCPToolResult = {
+      const convertedResult: MCPToolResult = {
         ...result,
         content: []
       };

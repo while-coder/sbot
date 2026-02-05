@@ -7,7 +7,7 @@ import {SqliteSaver} from "@langchain/langgraph-checkpoint-sqlite";
 import {config} from "../Config";
 import {LoggerService} from "../LoggerService";
 import { loadSkills, Skill } from "../Skills";
-import { MCPToolResult } from '../Tools/ToolsConfig'
+import { MCPToolResult, isMCPToolResult } from '../Tools/ToolsConfig'
 import { createFileSystemTools, FileSystemToolsConfig } from '../Tools/FileSystem'
 import { createSkillTools } from "../Tools/Skills";
 import { createCommandTools } from '../Tools/Command';
@@ -383,9 +383,9 @@ ${skillsList}
 
                     // 标准化为 MCP 格式
                     let mcpResult: MCPToolResult;
-                    if (result && typeof result === "object" && "content" in result && Array.isArray(result.content)) {
+                    if (isMCPToolResult(result)) {
                         // 已经是 MCP 标准格式
-                        mcpResult = result as MCPToolResult;
+                        mcpResult = result;
                         logger.info(`用户 ${this.threadId} 工具 ${tool.name} 返回 MCP 格式`);
                     } else {
                         // 旧格式或 string，转换为 MCP 格式
@@ -443,7 +443,6 @@ ${skillsList}
     private async createSaver():Promise<SqliteSaver> {
         if (this.saver != null) return this.saver;
         // 使用 SQLite 数据库作为 checkpoint 存储
-        const {config} = await import("../Config");
         const dbPath = config.getConfigPath(`saver/${this.threadId}.sqlite`);
         // 初始化 SqliteSaver (无需手动调用 setup，会自动初始化)
         this.saver = SqliteSaver.fromConnString(dbPath);
