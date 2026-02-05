@@ -41,11 +41,14 @@ export type MCPAudioContent = {
 
 /**
  * OpenAI 风格的图片 URL 内容
+ * 支持 url 或 image_url 字段名
  */
 export type MCPImageUrlContent = {
     type: MCPContentType.ImageUrl;
-    url: string | { url: string };
-};
+} & (
+    | { url: string | { url: string }; image_url?: never }
+    | { image_url: string | { url: string }; url?: never }
+);
 
 /**
  * MCP 内容块（联合类型）

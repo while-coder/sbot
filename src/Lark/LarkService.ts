@@ -222,9 +222,17 @@ class LarkService {
           // 处理图片内容（MCP 图片或 OpenAI 风格的 image_url），只处理 base64 或本地文件
           try {
             // 获取图片数据或 URL
-            const imageData = contentItem.type === MCPContentType.Image
-              ? contentItem.data
-              : (typeof contentItem.url === 'string' ? contentItem.url : contentItem.url.url);
+            let imageData: string;
+            if (contentItem.type === MCPContentType.Image) {
+              imageData = contentItem.data;
+            } else {
+              // 支持 url 或 image_url 字段
+              const urlField = contentItem.url || contentItem.image_url;
+              if (!urlField) {
+                throw new Error('图片 URL 字段为空');
+              }
+              imageData = typeof urlField === 'string' ? urlField : urlField.url;
+            }
 
             // 跳过 HTTP/HTTPS URL
             if (imageData.startsWith('http://') || imageData.startsWith('https://')) {
