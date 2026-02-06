@@ -24,6 +24,7 @@
     "js-yaml": "^4.1.1",
     "langchain": "^1.2.17",
     "log4js": "^6.9.1",
+    "reflect-metadata": "^0.2.2",
     "sequelize": "^6.37.7",
     "sqlite3": "^5.1.7",
     "uuid": "^13.0.0",
