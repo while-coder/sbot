@@ -1,63 +1,114 @@
 import { ChatOpenAI } from "@langchain/openai";
+import { singleton, inject, init, dispose } from "../Core";
 import { Memory, MemoryType } from "./types";
 import { LoggerService } from "../LoggerService";
 
 const logger = LoggerService.getLogger("MemoryCompressor.ts");
 
 /**
+ * 记忆压缩器配置
+ */
+export interface MemoryCompressorConfig {
+  apiKey: string;
+  baseURL?: string;
+  model?: string;
+  enabled?: boolean;
+}
+
+/**
  * 压缩结果
  */
 export interface CompressionResult {
-  compressedMemory: Memory;     // 压缩后的记忆
-  sourceMemoryIds: string[];    // 源记忆ID列表
-  compressionRatio: number;     // 压缩比例（压缩后长度/原始长度）
-  summary: string;              // 压缩摘要
+  compressedMemory: Memory;
+  sourceMemoryIds: string[];
+  compressionRatio: number;
+  summary: string;
 }
 
 /**
  * 合并策略
  */
 export enum MergeStrategy {
-  CHRONOLOGICAL = "chronological",   // 按时间顺序合并
-  THEMATIC = "thematic",             // 按主题合并
-  IMPORTANCE = "importance"          // 按重要性合并
+  CHRONOLOGICAL = "chronological",
+  THEMATIC = "thematic",
+  IMPORTANCE = "importance"
 }
 
 /**
  * 记忆压缩器
  * 使用 LLM 合并和压缩相似或相关的记忆
+ *
+ * @example
+ * ```ts
+ * container.registerInstance("MemoryCompressorConfig", {
+ *   apiKey: "xxx", baseURL: "https://api.openai.com", model: "gpt-3.5-turbo", enabled: true
+ * });
+ *
+ * const compressor = await container.resolve(MemoryCompressor);
+ * const result = await compressor.compress(memories, MergeStrategy.CHRONOLOGICAL, embedFn);
+ * ```
  */
+@singleton()
 export class MemoryCompressor {
   private model?: ChatOpenAI;
   private enabled: boolean;
 
-  constructor(config: {
-    apiKey: string;
-    baseURL?: string;
-    model?: string;
-    enabled?: boolean;
-  }) {
+  constructor(
+    @inject("MemoryCompressorConfig") private config: MemoryCompressorConfig
+  ) {
     this.enabled = config.enabled ?? true;
+  }
 
+  @init()
+  async initialize(): Promise<void> {
     if (this.enabled) {
       this.model = new ChatOpenAI({
         configuration: {
-          baseURL: config.baseURL || "https://api.openai.com/v1",
-          apiKey: config.apiKey,
+          baseURL: this.config.baseURL || "https://api.openai.com/v1",
+          apiKey: this.config.apiKey,
         },
-        apiKey: config.apiKey,
-        model: config.model || "gpt-3.5-turbo",
+        apiKey: this.config.apiKey,
+        model: this.config.model || "gpt-3.5-turbo",
         temperature: 0.3,
       });
+      logger.info("记忆压缩器已初始化");
+    } else {
+      logger.info("记忆压缩器已禁用");
     }
+  }
+
+  @dispose()
+  async cleanup(): Promise<void> {
+    this.enabled = false;
+    this.model = undefined;
+    logger.info("记忆压缩器已释放");
+  }
+
+  /**
+   * 是否已启用
+   */
+  isEnabled(): boolean {
+    return this.enabled && this.model !== undefined;
+  }
+
+  /**
+   * 禁用压缩功能
+   */
+  disable(): void {
+    this.enabled = false;
+    logger.info("记忆压缩功能已禁用");
+  }
+
+  /**
+   * 启用压缩功能
+   */
+  enable(): void {
+    this.enabled = true;
+    logger.info("记忆压缩功能已启用");
   }
 
   /**
    * 压缩多个记忆为一个
-   * @param memories 要压缩的记忆列表
-   * @param strategy 合并策略
-   * @param generateEmbedding 生成新嵌入的函数
-   * @returns 压缩结果
    */
   async compress(
     memories: Memory[],
@@ -75,21 +126,14 @@ export class MemoryCompressor {
     }
 
     try {
-      // 按策略排序记忆
       const sortedMemories = this.sortMemoriesByStrategy(memories, strategy);
-
-      // 生成压缩内容
       const compressedContent = await this.generateCompressedContent(sortedMemories, strategy);
-
-      // 生成新的嵌入
       const newEmbedding = await generateEmbedding(compressedContent);
 
-      // 计算综合重要性
       const avgImportance = memories.reduce((sum, m) => sum + m.metadata.importance, 0) / memories.length;
       const maxImportance = Math.max(...memories.map(m => m.metadata.importance));
-      const finalImportance = (avgImportance + maxImportance) / 2; // 取平均值和最大值的中间
+      const finalImportance = (avgImportance + maxImportance) / 2;
 
-      // 合并标签
       const allTags = new Set<string>();
       memories.forEach(m => {
         if (m.metadata.tags) {
@@ -97,7 +141,6 @@ export class MemoryCompressor {
         }
       });
 
-      // 创建压缩后的记忆
       const compressedMemory: Memory = {
         id: `compressed_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         type: this.determineMemoryType(memories),
@@ -117,7 +160,6 @@ export class MemoryCompressor {
         }
       };
 
-      // 计算压缩比
       const originalLength = memories.reduce((sum, m) => sum + m.content.length, 0);
       const compressionRatio = compressedContent.length / originalLength;
 
@@ -137,9 +179,6 @@ export class MemoryCompressor {
 
   /**
    * 查找可以压缩的记忆组
-   * @param memories 所有记忆
-   * @param similarityThreshold 相似度阈值
-   * @returns 可压缩的记忆组列表
    */
   findCompressibleGroups(
     memories: Memory[],
@@ -154,7 +193,6 @@ export class MemoryCompressor {
       const group: Memory[] = [memories[i]];
       processed.add(memories[i].id);
 
-      // 查找相似的记忆
       for (let j = i + 1; j < memories.length; j++) {
         if (processed.has(memories[j].id)) continue;
 
@@ -169,7 +207,6 @@ export class MemoryCompressor {
         }
       }
 
-      // 只有至少2条记忆的组才需要压缩
       if (group.length >= 2) {
         groups.push(group);
       }
@@ -181,17 +218,12 @@ export class MemoryCompressor {
 
   /**
    * 按时间范围压缩记忆
-   * @param memories 记忆列表
-   * @param timeWindowMs 时间窗口（毫秒）
-   * @param minGroupSize 最小组大小
-   * @returns 按时间窗口分组的记忆
    */
   groupByTimeWindow(
     memories: Memory[],
     timeWindowMs: number,
     minGroupSize: number = 3
   ): Memory[][] {
-    // 按时间排序
     const sorted = [...memories].sort((a, b) => a.metadata.timestamp - b.metadata.timestamp);
 
     const groups: Memory[][] = [];
@@ -216,7 +248,6 @@ export class MemoryCompressor {
       }
     }
 
-    // 处理最后一组
     if (currentGroup.length >= minGroupSize) {
       groups.push(currentGroup);
     }
@@ -226,8 +257,16 @@ export class MemoryCompressor {
   }
 
   /**
-   * 生成压缩后的内容
+   * 估算压缩收益
    */
+  estimateCompressionBenefit(memories: Memory[]): number {
+    const totalLength = memories.reduce((sum, m) => sum + m.content.length, 0);
+    const estimatedCompressedLength = totalLength * 0.6;
+    return totalLength - estimatedCompressedLength;
+  }
+
+  // ===== 私有方法 =====
+
   private async generateCompressedContent(
     memories: Memory[],
     strategy: MergeStrategy
@@ -235,15 +274,12 @@ export class MemoryCompressor {
     if (!this.model) {
       throw new Error("LLM 模型未初始化");
     }
-    const model = this.model; // 保存引用确保类型安全
+    const model = this.model;
     const prompt = this.buildCompressionPrompt(memories, strategy);
     const response = await model.invoke(prompt);
     return this.cleanCompressedContent(response.content as string);
   }
 
-  /**
-   * 构建压缩提示词
-   */
   private buildCompressionPrompt(memories: Memory[], strategy: MergeStrategy): string {
     const memoriesText = memories.map((m, i) =>
       `[${i + 1}] (${new Date(m.metadata.timestamp).toLocaleString()}) ${m.content}`
@@ -280,9 +316,6 @@ ${memoriesText}
 请直接输出整合后的记忆内容，不要添加任何解释或注释：`;
   }
 
-  /**
-   * 清理压缩内容
-   */
   private cleanCompressedContent(content: string): string {
     return content
       .replace(/^整合后的记忆[：:]\s*/i, '')
@@ -291,38 +324,26 @@ ${memoriesText}
       .trim();
   }
 
-  /**
-   * 按策略排序记忆
-   */
   private sortMemoriesByStrategy(memories: Memory[], strategy: MergeStrategy): Memory[] {
     const sorted = [...memories];
-
     switch (strategy) {
       case MergeStrategy.CHRONOLOGICAL:
         return sorted.sort((a, b) => a.metadata.timestamp - b.metadata.timestamp);
-
       case MergeStrategy.IMPORTANCE:
         return sorted.sort((a, b) => b.metadata.importance - a.metadata.importance);
-
       case MergeStrategy.THEMATIC:
-        // 主题排序可以基于内容相似度
-        return sorted; // 简化实现，保持原顺序
-
+        return sorted;
       default:
         return sorted;
     }
   }
 
-  /**
-   * 确定压缩后的记忆类型
-   */
   private determineMemoryType(memories: Memory[]): MemoryType {
     const typeCounts = memories.reduce((acc, m) => {
       acc[m.type] = (acc[m.type] || 0) + 1;
       return acc;
     }, {} as Record<MemoryType, number>);
 
-    // 返回最常见的类型
     let maxType = memories[0].type;
     let maxCount = 0;
 
@@ -336,9 +357,6 @@ ${memoriesText}
     return maxType;
   }
 
-  /**
-   * 计算余弦相似度
-   */
   private calculateCosineSimilarity(a: number[], b: number[]): number {
     if (a.length !== b.length) {
       throw new Error("向量维度不匹配");
@@ -355,33 +373,6 @@ ${memoriesText}
     }
 
     const similarity = dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-    return (similarity + 1) / 2; // 归一化到 [0, 1]
-  }
-
-  /**
-   * 估算压缩收益
-   * @param memories 要压缩的记忆列表
-   * @returns 估算的空间节省（字节）
-   */
-  estimateCompressionBenefit(memories: Memory[]): number {
-    const totalLength = memories.reduce((sum, m) => sum + m.content.length, 0);
-    const estimatedCompressedLength = totalLength * 0.6; // 假设压缩到60%
-    return totalLength - estimatedCompressedLength;
-  }
-
-  /**
-   * 禁用压缩功能
-   */
-  disable(): void {
-    this.enabled = false;
-    logger.info("记忆压缩功能已禁用");
-  }
-
-  /**
-   * 启用压缩功能
-   */
-  enable(): void {
-    this.enabled = true;
-    logger.info("记忆压缩功能已启用");
+    return (similarity + 1) / 2;
   }
 }

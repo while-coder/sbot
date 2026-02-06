@@ -4,5 +4,5 @@
 export { MemoryService, MemoryServiceConfig } from "./MemoryService";
 export { MemoryDatabase } from "./MemoryDatabase";
 export { Memory, MemoryType, MemoryMetadata, MemoryRetrievalOptions, MemorySearchResult } from "./types";
-export { ImportanceEvaluator, ImportanceEvaluation } from "./ImportanceEvaluator";
-export { MemoryCompressor, MergeStrategy, CompressionResult } from "./MemoryCompressor";
+export { ImportanceEvaluator, ImportanceEvaluation, ImportanceEvaluatorConfig } from "./ImportanceEvaluator";
+export { MemoryCompressor, MemoryCompressorConfig, MergeStrategy, CompressionResult } from "./MemoryCompressor";

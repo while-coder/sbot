@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { Embeddings } from "@langchain/core/embeddings";
 import { OpenAIEmbeddings } from "@langchain/openai";
+import { Container } from "../Core";
 import { MemoryDatabase } from "./MemoryDatabase";
 import { Memory, MemoryType, MemoryRetrievalOptions, MemoryMetadata } from "./types";
 import { ImportanceEvaluator, ImportanceEvaluation } from "./ImportanceEvaluator";
@@ -30,6 +31,25 @@ export interface MemoryServiceConfig {
 /**
  * 记忆服务
  * 提供记忆的添加、检索、管理功能
+ *
+ * 内部使用 DI 容器管理子服务（ImportanceEvaluator、MemoryCompressor），
+ * 通过配置开关可以方便地启用/禁用某个子服务。
+ *
+ * @example
+ * ```ts
+ * const memoryService = new MemoryService({
+ *   userId: "user1",
+ *   dbPath: "./memory.db",
+ *   embeddingConfig: { apiKey: "xxx", baseURL: "https://api.openai.com" },
+ *   enableLLMEvaluation: true,   // 启用重要性评估
+ *   enableCompression: true,      // 启用记忆压缩
+ * });
+ * await memoryService.init();
+ *
+ * // 通过容器获取子服务
+ * const evaluator = await memoryService.getService(ImportanceEvaluator);
+ * const compressor = await memoryService.getService(MemoryCompressor);
+ * ```
  */
 export class MemoryService {
   private db: MemoryDatabase;
@@ -38,10 +58,15 @@ export class MemoryService {
   private sessionId: string;
   private enableAutoCleanup: boolean;
   private maxMemoryAgeDays: number;
-  private importanceEvaluator?: ImportanceEvaluator;
-  private memoryCompressor?: MemoryCompressor;
+  private config: MemoryServiceConfig;
+
+  /**
+   * 内部 DI 容器，管理 ImportanceEvaluator 和 MemoryCompressor 等子服务
+   */
+  readonly container: Container;
 
   constructor(config: MemoryServiceConfig) {
+    this.config = config;
     this.userId = config.userId;
     this.sessionId = uuidv4();
     this.db = new MemoryDatabase(config.dbPath);
@@ -61,29 +86,26 @@ export class MemoryService {
       throw new Error("必须提供 embeddingConfig 配置");
     }
 
-    // 初始化 LLM 重要性评估器
-    if (config.enableLLMEvaluation && config.embeddingConfig) {
-      this.importanceEvaluator = new ImportanceEvaluator({
-        apiKey: config.embeddingConfig.apiKey,
-        baseURL: config.embeddingConfig.baseURL,
-        model: config.compressionModel || "gpt-3.5-turbo",
-        enabled: true
-      });
-      logger.info(`LLM 重要性评估已启用`);
+    // 创建内部 DI 容器
+    this.container = new Container();
+    this.registerServices();
+
+    logger.info(`记忆服务已创建 - 用户: ${this.userId}, 会话: ${this.sessionId}`);
+  }
+
+  /**
+   * 初始化服务（解析并初始化所有已注册的子服务）
+   */
+  async init(): Promise<void> {
+    // 解析子服务（触发 @init() 方法）
+    if (this.config.enableLLMEvaluation) {
+      await this.container.resolve(ImportanceEvaluator);
+    }
+    if (this.config.enableCompression) {
+      await this.container.resolve(MemoryCompressor);
     }
 
-    // 初始化记忆压缩器
-    if (config.enableCompression && config.embeddingConfig) {
-      this.memoryCompressor = new MemoryCompressor({
-        apiKey: config.embeddingConfig.apiKey,
-        baseURL: config.embeddingConfig.baseURL,
-        model: config.compressionModel || "gpt-3.5-turbo",
-        enabled: true
-      });
-      logger.info(`记忆压缩功能已启用`);
-    }
-
-    logger.info(`记忆服务已启动 - 用户: ${this.userId}, 会话: ${this.sessionId}`);
+    logger.info(`记忆服务已初始化 - 用户: ${this.userId}`);
 
     // 如果启用自动清理，执行一次清理
     if (this.enableAutoCleanup) {
@@ -94,13 +116,48 @@ export class MemoryService {
   }
 
   /**
+   * 注册子服务到内部容器
+   */
+  private registerServices(): void {
+    const embeddingConfig = this.config.embeddingConfig!;
+    const model = this.config.compressionModel || "gpt-3.5-turbo";
+
+    // 注册 ImportanceEvaluator 配置和服务
+    this.container.registerInstance("ImportanceEvaluatorConfig", {
+      apiKey: embeddingConfig.apiKey,
+      baseURL: embeddingConfig.baseURL,
+      model,
+      enabled: this.config.enableLLMEvaluation ?? false,
+    });
+
+    // 注册 MemoryCompressor 配置和服务
+    this.container.registerInstance("MemoryCompressorConfig", {
+      apiKey: embeddingConfig.apiKey,
+      baseURL: embeddingConfig.baseURL,
+      model,
+      enabled: this.config.enableCompression ?? false,
+    });
+
+    // 服务类已通过 @singleton() 装饰器标记，resolve 时自动注册
+  }
+
+  /**
+   * 从内部容器获取子服务
+   *
+   * @example
+   * ```ts
+   * const evaluator = await memoryService.getService(ImportanceEvaluator);
+   * if (evaluator) {
+   *   const result = await evaluator.evaluate("some text");
+   * }
+   * ```
+   */
+  async getService<T>(token: new (...args: any[]) => T): Promise<T | null> {
+    return await this.container.tryResolve<T>(token);
+  }
+
+  /**
    * 添加记忆
-   * @param content 记忆内容
-   * @param type 记忆类型
-   * @param importance 重要性（0-1），如果不提供则自动评估
-   * @param additionalMetadata 额外的元数据
-   * @param useLLMEvaluation 是否使用 LLM 评估重要性
-   * @returns 记忆ID
    */
   async addMemory(
     content: string,
@@ -110,14 +167,12 @@ export class MemoryService {
     useLLMEvaluation: boolean = true
   ): Promise<string> {
     try {
-      // 生成向量嵌入
       const embedding = await this.embeddings.embedQuery(content);
 
-      // 自动评估重要性（如果未提供）
       let finalImportance: number;
       if (importance !== undefined) {
         finalImportance = importance;
-      } else if (useLLMEvaluation && this.importanceEvaluator) {
+      } else if (useLLMEvaluation) {
         finalImportance = await this.evaluateImportanceAsync(content);
       } else {
         finalImportance = this.evaluateImportance(content);
@@ -151,7 +206,6 @@ export class MemoryService {
 
   /**
    * 批量添加记忆
-   * @param items 记忆项数组
    */
   async batchAddMemories(
     items: Array<{
@@ -162,11 +216,9 @@ export class MemoryService {
     }>
   ): Promise<string[]> {
     try {
-      // 批量生成嵌入
       const contents = items.map(item => item.content);
       const embeddings = await this.embeddings.embedDocuments(contents);
 
-      // 创建记忆对象
       const memories: Memory[] = items.map((item, index) => ({
         id: uuidv4(),
         type: item.type || MemoryType.EPISODIC,
@@ -195,7 +247,6 @@ export class MemoryService {
 
   /**
    * 智能记忆检索
-   * 结合向量相似度、时间衰减、访问频率等多种策略
    */
   async retrieveRelevantMemories(
     query: string,
@@ -210,55 +261,31 @@ export class MemoryService {
         keywords = []
       } = options;
 
-      // 生成查询向量
       const queryEmbedding = await this.embeddings.embedQuery(query);
 
       let results;
 
       if (keywords.length > 0) {
-        // 混合检索：向量 + 关键词 + 时间衰减
         results = this.db.hybridSearch(
-          queryEmbedding,
-          keywords,
-          Date.now(),
-          limit * 2,
-          type,
-          this.userId
+          queryEmbedding, keywords, Date.now(), limit * 2, type, this.userId
         );
       } else if (useTimeDecay) {
-        // 时间衰减检索
         results = this.db.searchWithTimeDecay(
-          queryEmbedding,
-          Date.now(),
-          0.995, // 每小时衰减 0.5%
-          limit * 2,
-          type,
-          this.userId
+          queryEmbedding, Date.now(), 0.995, limit * 2, type, this.userId
         );
       } else {
-        // 纯向量相似度检索
         results = this.db.searchSimilar(
-          queryEmbedding,
-          limit * 2,
-          type,
-          minImportance,
-          this.userId
+          queryEmbedding, limit * 2, type, minImportance, this.userId
         );
       }
 
-      // 更新访问统计
       results.forEach(result => {
         this.db.updateMemoryAccess(result.memory.id);
       });
 
-      // 应用重排序
-      const rankedMemories = this.rerankMemories(
-        results.map(r => r.memory),
-        query
-      );
+      const rankedMemories = this.rerankMemories(results.map(r => r.memory), query);
 
       logger.debug(`检索到 ${rankedMemories.length} 条相关记忆`);
-
       return rankedMemories.slice(0, limit);
     } catch (error: any) {
       logger.error(`检索记忆失败: ${error.message}`);
@@ -268,26 +295,16 @@ export class MemoryService {
 
   /**
    * 记忆重排序
-   * 综合考虑：重要性、新鲜度、访问频率
    */
   private rerankMemories(memories: Memory[], query: string): Memory[] {
     const now = Date.now();
 
     return memories
       .map(memory => {
-        // 计算时间衰减因子（24小时为半衰期）
         const hoursSinceCreation = (now - memory.metadata.timestamp) / 3600000;
         const recencyScore = Math.pow(0.5, hoursSinceCreation / 24);
-
-        // 访问频率得分（对数归一化）
         const accessScore = Math.log(memory.metadata.accessCount + 1) / 10;
-
-        // 综合得分
-        const score =
-          recencyScore * 0.3 +
-          memory.metadata.importance * 0.4 +
-          accessScore * 0.3;
-
+        const score = recencyScore * 0.3 + memory.metadata.importance * 0.4 + accessScore * 0.3;
         return { memory, score };
       })
       .sort((a, b) => b.score - a.score)
@@ -295,20 +312,19 @@ export class MemoryService {
   }
 
   /**
-   * 自动评估记忆重要性
-   * 优先使用 LLM 评估，如果未启用则使用启发式规则
+   * 自动评估记忆重要性（优先使用 LLM）
    */
   private async evaluateImportanceAsync(content: string, context?: string): Promise<number> {
-    if (this.importanceEvaluator) {
+    const evaluator = await this.container.tryResolve(ImportanceEvaluator);
+    if (evaluator && evaluator.isEnabled()) {
       try {
-        const evaluation = await this.importanceEvaluator.evaluate(content, context);
+        const evaluation = await evaluator.evaluate(content, context);
         logger.debug(`LLM 评估重要性: ${evaluation.score.toFixed(2)} - ${evaluation.reasoning}`);
         return evaluation.score;
       } catch (error: any) {
         logger.warn(`LLM 评估失败，使用启发式方法: ${error.message}`);
       }
     }
-
     return this.evaluateImportance(content);
   }
 
@@ -316,9 +332,8 @@ export class MemoryService {
    * 启发式重要性评估（备用方案）
    */
   private evaluateImportance(content: string): number {
-    let importance = 0.5; // 基础分
+    let importance = 0.5;
 
-    // 包含关键词加分
     const highImportanceKeywords = [
       '重要', '关键', '务必', '记住', '不要忘记',
       'important', 'remember', 'critical', 'must', 'never forget'
@@ -327,27 +342,15 @@ export class MemoryService {
       importance += 0.3;
     }
 
-    // 长度影响（较长的内容可能更重要）
-    if (content.length > 200) {
-      importance += 0.1;
-    }
-
-    // 问题或决策类内容
-    if (content.includes('?') || content.includes('？')) {
-      importance += 0.1;
-    }
-
-    // 包含数字或具体数据
-    if (/\d+/.test(content)) {
-      importance += 0.05;
-    }
+    if (content.length > 200) importance += 0.1;
+    if (content.includes('?') || content.includes('？')) importance += 0.1;
+    if (/\d+/.test(content)) importance += 0.05;
 
     return Math.min(importance, 1.0);
   }
 
   /**
    * 对话历史记忆化
-   * 将当前对话存储为情节记忆
    */
   async memorizeConversation(
     userMessage: string,
@@ -355,66 +358,41 @@ export class MemoryService {
     importance?: number
   ): Promise<void> {
     const conversationText = `User: ${userMessage}\nAssistant: ${assistantMessage}`;
-
     await this.addMemory(
       conversationText,
       MemoryType.EPISODIC,
       importance,
-      {
-        userMessage,
-        assistantMessage,
-        conversationType: 'dialogue'
-      }
+      { userMessage, assistantMessage, conversationType: 'dialogue' }
     );
   }
 
   /**
    * 提取并存储语义知识
-   * 从对话中提取关键事实
    */
-  async extractSemanticMemory(
-    text: string,
-    tags?: string[]
-  ): Promise<string> {
-    return await this.addMemory(
-      text,
-      MemoryType.SEMANTIC,
-      0.8,
-      { tags }
-    );
+  async extractSemanticMemory(text: string, tags?: string[]): Promise<string> {
+    return await this.addMemory(text, MemoryType.SEMANTIC, 0.8, { tags });
   }
 
   /**
    * 获取记忆摘要（用于注入到 prompt）
-   * @param query 查询内容
-   * @param maxTokens 最大 token 数（粗略估算）
-   * @returns 格式化的记忆摘要
    */
-  async getMemorySummary(
-    query: string,
-    maxTokens: number = 500
-  ): Promise<string> {
+  async getMemorySummary(query: string, maxTokens: number = 500): Promise<string> {
     const memories = await this.retrieveRelevantMemories(query, {
       limit: 10,
       useTimeDecay: true
     });
 
-    if (memories.length === 0) {
-      return "";
-    }
+    if (memories.length === 0) return "";
 
-    // 构建摘要
     let summary = "# 相关记忆\n\n";
     let currentTokens = 0;
 
     for (const memory of memories) {
       const timeAgo = this.formatTimeAgo(memory.metadata.timestamp);
       const memoryText = `- [${memory.type}] (${timeAgo}) ${memory.content}\n`;
-      const tokens = memoryText.length / 4; // 粗略估算 token 数
+      const tokens = memoryText.length / 4;
 
-      if (currentTokens + tokens > maxTokens) {
-        break;
-      }
+      if (currentTokens + tokens > maxTokens) break;
 
       summary += memoryText;
       currentTokens += tokens;
@@ -424,7 +402,7 @@ export class MemoryService {
   }
 
   /**
-   * 获取完整的记忆上下文（结构化格式）
+   * 获取完整的记忆上下文
    */
   async getMemoryContext(query: string, limit: number = 5): Promise<Array<{
     content: string;
@@ -433,7 +411,6 @@ export class MemoryService {
     timeAgo: string;
   }>> {
     const memories = await this.retrieveRelevantMemories(query, { limit });
-
     return memories.map(memory => ({
       content: memory.content,
       type: memory.type,
@@ -448,17 +425,11 @@ export class MemoryService {
   async updateMemoryImportance(memoryId: string, importance: number): Promise<void> {
     try {
       const memory = this.db.getMemoryById(memoryId);
-      if (!memory) {
-        throw new Error(`记忆 ${memoryId} 不存在`);
-      }
+      if (!memory) throw new Error(`记忆 ${memoryId} 不存在`);
 
       this.db.updateMemory(memoryId, {
-        metadata: {
-          ...memory.metadata,
-          importance
-        }
+        metadata: { ...memory.metadata, importance }
       });
-
       logger.debug(`更新记忆 ${memoryId} 的重要性为 ${importance}`);
     } catch (error: any) {
       logger.error(`更新记忆重要性失败: ${error.message}`);
@@ -476,18 +447,11 @@ export class MemoryService {
 
   /**
    * 清理过期记忆
-   * @param maxAgeDays 最大保留天数
    */
   async cleanupOldMemories(maxAgeDays?: number): Promise<number> {
     const days = maxAgeDays ?? this.maxMemoryAgeDays;
     const maxAgeMs = days * 24 * 3600 * 1000;
-
-    const deletedCount = this.db.pruneMemories(
-      maxAgeMs,
-      0.3, // 最低重要性阈值
-      2    // 最少访问次数
-    );
-
+    const deletedCount = this.db.pruneMemories(maxAgeMs, 0.3, 2);
     logger.info(`清理了 ${deletedCount} 条过期记忆（超过 ${days} 天）`);
     return deletedCount;
   }
@@ -516,29 +480,11 @@ export class MemoryService {
   }
 
   /**
-   * 格式化时间差
-   */
-  private formatTimeAgo(timestamp: number): string {
-    const now = Date.now();
-    const diff = now - timestamp;
-
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
-
-    if (days > 0) return `${days}天前`;
-    if (hours > 0) return `${hours}小时前`;
-    if (minutes > 0) return `${minutes}分钟前`;
-    return '刚刚';
-  }
-
-  /**
    * 使用 LLM 评估记忆重要性
-   * @param memoryId 记忆ID
-   * @returns 评估结果
    */
   async evaluateMemoryImportanceWithLLM(memoryId: string): Promise<ImportanceEvaluation | null> {
-    if (!this.importanceEvaluator) {
+    const evaluator = await this.container.tryResolve(ImportanceEvaluator);
+    if (!evaluator || !evaluator.isEnabled()) {
       logger.warn("LLM 重要性评估未启用");
       return null;
     }
@@ -550,9 +496,7 @@ export class MemoryService {
     }
 
     try {
-      const evaluation = await this.importanceEvaluator.evaluate(memory.content);
-
-      // 更新记忆的重要性和标签
+      const evaluation = await evaluator.evaluate(memory.content);
       await this.updateMemoryImportance(memoryId, evaluation.score);
 
       if (evaluation.tags && evaluation.tags.length > 0) {
@@ -576,32 +520,25 @@ export class MemoryService {
 
   /**
    * 压缩相似的记忆
-   * @param similarityThreshold 相似度阈值
-   * @param strategy 合并策略
-   * @returns 压缩结果列表
    */
   async compressSimilarMemories(
     similarityThreshold: number = 0.8,
     strategy: MergeStrategy = MergeStrategy.CHRONOLOGICAL
   ): Promise<CompressionResult[]> {
-    if (!this.memoryCompressor) {
+    const compressor = await this.container.tryResolve(MemoryCompressor);
+    if (!compressor || !compressor.isEnabled()) {
       logger.warn("记忆压缩功能未启用");
       return [];
     }
 
     try {
-      // 获取所有记忆
       const stats = this.db.getStatistics(this.userId);
       if (stats.totalCount < 2) {
         logger.info("记忆数量不足，无需压缩");
         return [];
       }
 
-      // 这里简化实现，实际应该从数据库获取所有记忆
       logger.info("正在查找可压缩的记忆组...");
-
-      // 由于我们没有获取所有记忆的方法，这里返回空数组
-      // 实际使用时需要先实现获取所有记忆的方法
       logger.warn("压缩功能需要先实现获取所有记忆的方法");
       return [];
     } catch (error: any) {
@@ -612,39 +549,32 @@ export class MemoryService {
 
   /**
    * 按时间窗口压缩记忆
-   * @param timeWindowMs 时间窗口（毫秒）
-   * @param minGroupSize 最小组大小
-   * @param strategy 合并策略
-   * @returns 压缩结果数量
    */
   async compressMemoriesByTimeWindow(
-    timeWindowMs: number = 7 * 24 * 3600 * 1000, // 默认7天
+    timeWindowMs: number = 7 * 24 * 3600 * 1000,
     minGroupSize: number = 3,
     strategy: MergeStrategy = MergeStrategy.CHRONOLOGICAL
   ): Promise<number> {
-    if (!this.memoryCompressor) {
+    const compressor = await this.container.tryResolve(MemoryCompressor);
+    if (!compressor || !compressor.isEnabled()) {
       logger.warn("记忆压缩功能未启用");
       return 0;
     }
 
     logger.info(`开始按时间窗口压缩记忆（窗口: ${timeWindowMs}ms, 最小组: ${minGroupSize}）`);
-
-    // 实际实现需要从数据库获取记忆并分组压缩
     logger.warn("此功能需要进一步实现");
     return 0;
   }
 
   /**
    * 手动压缩指定的记忆
-   * @param memoryIds 要压缩的记忆ID列表
-   * @param strategy 合并策略
-   * @returns 压缩结果
    */
   async compressSpecificMemories(
     memoryIds: string[],
     strategy: MergeStrategy = MergeStrategy.THEMATIC
   ): Promise<CompressionResult | null> {
-    if (!this.memoryCompressor) {
+    const compressor = await this.container.tryResolve(MemoryCompressor);
+    if (!compressor || !compressor.isEnabled()) {
       logger.warn("记忆压缩功能未启用");
       return null;
     }
@@ -655,13 +585,10 @@ export class MemoryService {
     }
 
     try {
-      // 获取所有指定的记忆
       const memories: Memory[] = [];
       for (const id of memoryIds) {
         const memory = this.db.getMemoryById(id);
-        if (memory) {
-          memories.push(memory);
-        }
+        if (memory) memories.push(memory);
       }
 
       if (memories.length < 2) {
@@ -669,22 +596,17 @@ export class MemoryService {
         return null;
       }
 
-      // 压缩记忆
-      const result = await this.memoryCompressor.compress(
+      const result = await compressor.compress(
         memories,
         strategy,
         (text: string) => this.embeddings.embedQuery(text)
       );
 
       if (result) {
-        // 保存压缩后的记忆
         this.db.insertMemory(result.compressedMemory);
-
-        // 删除源记忆
         for (const id of result.sourceMemoryIds) {
           this.db.deleteMemory(id);
         }
-
         logger.info(`成功压缩 ${result.sourceMemoryIds.length} 条记忆，压缩比: ${(result.compressionRatio * 100).toFixed(1)}%`);
       }
 
@@ -696,23 +618,41 @@ export class MemoryService {
   }
 
   /**
-   * 获取压缩器实例（供外部使用）
+   * 获取重要性评估器
    */
-  getCompressor(): MemoryCompressor | undefined {
-    return this.memoryCompressor;
+  async getImportanceEvaluator(): Promise<ImportanceEvaluator | null> {
+    return await this.container.tryResolve(ImportanceEvaluator);
   }
 
   /**
-   * 获取重要性评估器实例（供外部使用）
+   * 获取记忆压缩器
    */
-  getImportanceEvaluator(): ImportanceEvaluator | undefined {
-    return this.importanceEvaluator;
+  async getCompressor(): Promise<MemoryCompressor | null> {
+    return await this.container.tryResolve(MemoryCompressor);
   }
 
   /**
-   * 释放资源
+   * 格式化时间差
    */
-  dispose(): void {
+  private formatTimeAgo(timestamp: number): string {
+    const now = Date.now();
+    const diff = now - timestamp;
+
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (days > 0) return `${days}天前`;
+    if (hours > 0) return `${hours}小时前`;
+    if (minutes > 0) return `${minutes}分钟前`;
+    return '刚刚';
+  }
+
+  /**
+   * 释放资源（同时销毁内部容器）
+   */
+  async dispose(): Promise<void> {
+    await this.container.dispose();
     this.db.close();
     logger.info(`记忆服务已关闭 - 用户: ${this.userId}`);
   }

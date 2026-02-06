@@ -1,7 +1,18 @@
 import { ChatOpenAI } from "@langchain/openai";
+import { singleton, inject, init, dispose } from "../Core";
 import { LoggerService } from "../LoggerService";
 
 const logger = LoggerService.getLogger("ImportanceEvaluator.ts");
+
+/**
+ * 重要性评估器配置
+ */
+export interface ImportanceEvaluatorConfig {
+  apiKey: string;
+  baseURL?: string;
+  model?: string;
+  enabled?: boolean;
+}
 
 /**
  * 评估结果
@@ -16,30 +27,53 @@ export interface ImportanceEvaluation {
 /**
  * LLM 驱动的智能重要性评估器
  * 使用语言模型判断记忆的重要性
+ *
+ * @example
+ * ```ts
+ * // 注册配置
+ * container.registerInstance("ImportanceEvaluatorConfig", {
+ *   apiKey: "xxx", baseURL: "https://api.openai.com", model: "gpt-3.5-turbo", enabled: true
+ * });
+ *
+ * // 解析服务
+ * const evaluator = await container.resolve(ImportanceEvaluator);
+ * const result = await evaluator.evaluate("some text");
+ * ```
  */
+@singleton()
 export class ImportanceEvaluator {
   private model?: ChatOpenAI;
   private enabled: boolean;
 
-  constructor(config: {
-    apiKey: string;
-    baseURL?: string;
-    model?: string;
-    enabled?: boolean;
-  }) {
+  constructor(
+    @inject("ImportanceEvaluatorConfig") private config: ImportanceEvaluatorConfig
+  ) {
     this.enabled = config.enabled ?? true;
+  }
 
+  @init()
+  async initialize(): Promise<void> {
     if (this.enabled) {
       this.model = new ChatOpenAI({
         configuration: {
-          baseURL: config.baseURL || "https://api.openai.com/v1",
-          apiKey: config.apiKey,
+          baseURL: this.config.baseURL || "https://api.openai.com/v1",
+          apiKey: this.config.apiKey,
         },
-        apiKey: config.apiKey,
-        model: config.model || "gpt-3.5-turbo",
-        temperature: 0.3, // 较低的温度以获得一致的评分
+        apiKey: this.config.apiKey,
+        model: this.config.model || "gpt-3.5-turbo",
+        temperature: 0.3,
       });
+      logger.info("LLM 重要性评估器已初始化");
+    } else {
+      logger.info("LLM 重要性评估器已禁用");
     }
+  }
+
+  @dispose()
+  async cleanup(): Promise<void> {
+    this.enabled = false;
+    this.model = undefined;
+    logger.info("LLM 重要性评估器已释放");
   }
 
   /**
@@ -50,18 +84,16 @@ export class ImportanceEvaluator {
    */
   async evaluate(content: string, context?: string): Promise<ImportanceEvaluation> {
     if (!this.enabled || !this.model) {
-      // 如果未启用 LLM 评估，使用启发式方法
       return this.heuristicEvaluation(content);
     }
 
     try {
-      const model = this.model; // 保存引用确保类型安全
+      const model = this.model;
       const prompt = this.buildEvaluationPrompt(content, context);
       const response = await model.invoke(prompt);
       const result = this.parseResponse(response.content as string);
 
       logger.debug(`LLM 重要性评估: ${content.substring(0, 50)}... -> ${result.score.toFixed(2)}`);
-
       return result;
     } catch (error: any) {
       logger.warn(`LLM 重要性评估失败，使用启发式方法: ${error.message}`);
@@ -78,14 +110,12 @@ export class ImportanceEvaluator {
     }
 
     try {
-      const model = this.model; // 保存引用确保类型安全
-      // 为了节省 API 调用，一次性评估多个项目
+      const model = this.model;
       const prompt = this.buildBatchEvaluationPrompt(items);
       const response = await model.invoke(prompt);
       const results = this.parseBatchResponse(response.content as string, items.length);
 
       logger.debug(`批量评估了 ${items.length} 个记忆的重要性`);
-
       return results;
     } catch (error: any) {
       logger.warn(`批量LLM评估失败，使用启发式方法: ${error.message}`);
@@ -94,8 +124,30 @@ export class ImportanceEvaluator {
   }
 
   /**
-   * 构建单个评估的提示词
+   * 是否已启用
    */
+  isEnabled(): boolean {
+    return this.enabled && this.model !== undefined;
+  }
+
+  /**
+   * 禁用 LLM 评估
+   */
+  disable(): void {
+    this.enabled = false;
+    logger.info("LLM 重要性评估已禁用");
+  }
+
+  /**
+   * 启用 LLM 评估
+   */
+  enable(): void {
+    this.enabled = true;
+    logger.info("LLM 重要性评估已启用");
+  }
+
+  // ===== 私有方法 =====
+
   private buildEvaluationPrompt(content: string, context?: string): string {
     return `你是一个记忆重要性评估专家。请评估以下文本作为长期记忆的重要性。
 
@@ -117,9 +169,6 @@ ${content}
 - 0.9-1.0: 极其重要的信息、永久性决策、核心价值观`;
   }
 
-  /**
-   * 构建批量评估的提示词
-   */
   private buildBatchEvaluationPrompt(items: Array<{ content: string; context?: string }>): string {
     const itemsList = items.map((item, index) =>
       `[${index + 1}] ${item.content}${item.context ? ` (上下文: ${item.context})` : ''}`
@@ -149,19 +198,14 @@ ${itemsList}
 - 0.9-1.0: 极其重要的信息`;
   }
 
-  /**
-   * 解析单个评估响应
-   */
   private parseResponse(response: string): ImportanceEvaluation {
     try {
-      // 提取 JSON 部分
       const jsonMatch = response.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         throw new Error("未找到有效的 JSON 响应");
       }
 
       const result = JSON.parse(jsonMatch[0]);
-
       return {
         score: Math.max(0, Math.min(1, parseFloat(result.score))),
         reasoning: result.reasoning || "无理由",
@@ -174,19 +218,14 @@ ${itemsList}
     }
   }
 
-  /**
-   * 解析批量评估响应
-   */
   private parseBatchResponse(response: string, expectedCount: number): ImportanceEvaluation[] {
     try {
-      // 提取 JSON 数组部分
       const jsonMatch = response.match(/\[[\s\S]*\]/);
       if (!jsonMatch) {
         throw new Error("未找到有效的 JSON 数组响应");
       }
 
       const results = JSON.parse(jsonMatch[0]);
-
       if (!Array.isArray(results) || results.length !== expectedCount) {
         throw new Error(`响应数量不匹配: 期望 ${expectedCount}，实际 ${results.length}`);
       }
@@ -199,7 +238,6 @@ ${itemsList}
       }));
     } catch (error: any) {
       logger.warn(`解析批量LLM响应失败: ${error.message}`);
-      // 返回启发式评估结果
       return Array(expectedCount).fill(null).map(() => ({
         score: 0.5,
         reasoning: "LLM评估失败，使用默认值",
@@ -208,22 +246,17 @@ ${itemsList}
     }
   }
 
-  /**
-   * 启发式重要性评估（备用方案）
-   */
   private heuristicEvaluation(content: string): ImportanceEvaluation {
-    let score = 0.5; // 基础分
+    let score = 0.5;
     const tags: string[] = [];
     let category = "一般信息";
     const reasons: string[] = [];
 
-    // 长度分析
     if (content.length > 200) {
       score += 0.1;
       reasons.push("内容较长");
     }
 
-    // 关键词检测 - 高重要性
     const highImportanceKeywords = [
       '重要', '关键', '务必', '记住', '不要忘记', '永远', '总是',
       'important', 'remember', 'critical', 'must', 'never forget', 'always'
@@ -234,7 +267,6 @@ ${itemsList}
       reasons.push("包含重要性关键词");
     }
 
-    // 决策和偏好
     const decisionKeywords = ['决定', '选择', '喜欢', '偏好', '倾向', '不喜欢', 'prefer', 'like', 'dislike', 'choose'];
     if (decisionKeywords.some(k => content.toLowerCase().includes(k.toLowerCase()))) {
       score += 0.2;
@@ -243,7 +275,6 @@ ${itemsList}
       reasons.push("涉及偏好或决策");
     }
 
-    // 技术栈和工具
     const techKeywords = ['使用', '工具', '语言', '框架', '技术', 'use', 'tool', 'language', 'framework', 'technology'];
     if (techKeywords.some(k => content.toLowerCase().includes(k.toLowerCase()))) {
       score += 0.15;
@@ -251,7 +282,6 @@ ${itemsList}
       reasons.push("涉及技术栈");
     }
 
-    // 个人信息
     const personalKeywords = ['我的', '我是', '我叫', '生日', '联系', 'my', 'I am', 'my name', 'birthday', 'contact'];
     if (personalKeywords.some(k => content.toLowerCase().includes(k.toLowerCase()))) {
       score += 0.2;
@@ -260,20 +290,17 @@ ${itemsList}
       reasons.push("包含个人信息");
     }
 
-    // 问题
     if (content.includes('?') || content.includes('？')) {
       score += 0.1;
       tags.push('问题');
       reasons.push("包含问题");
     }
 
-    // 数字和数据
     if (/\d+/.test(content)) {
       score += 0.05;
       reasons.push("包含具体数据");
     }
 
-    // 规范化分数
     score = Math.min(score, 1.0);
 
     return {
@@ -282,21 +309,5 @@ ${itemsList}
       category,
       tags
     };
-  }
-
-  /**
-   * 禁用 LLM 评估，仅使用启发式方法
-   */
-  disable(): void {
-    this.enabled = false;
-    logger.info("LLM 重要性评估已禁用");
-  }
-
-  /**
-   * 启用 LLM 评估
-   */
-  enable(): void {
-    this.enabled = true;
-    logger.info("LLM 重要性评估已启用");
   }
 }
