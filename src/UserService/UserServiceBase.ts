@@ -6,8 +6,9 @@ import { Command } from "commander";
 import { CommandBase, CommandContext } from "./CommandBase";
 import { getBuiltInCommands } from "./BuiltInCommands";
 import { config } from "../Config";
-import { IModelService, OpenAIModelService, MODEL_NAME, ModelServiceFactory } from "../Model";
-import { ImportanceEvaluator, MEMORY_SERVICE_CONFIG, MemoryCompressor, MemoryService } from "../Memory";
+import { IModelService, ModelServiceFactory } from "../Model";
+import { ImportanceEvaluator, MEMORY_SERVICE_CONFIG, MemoryCompressor } from "../Memory";
+import { IEmbeddingService, EmbeddingServiceFactory } from "../Embedding";
 import { Container } from "../Core";
 import { SkillService } from "../Skills";
 
@@ -71,28 +72,34 @@ export abstract class UserServiceBase {
 
                     // 必需：基础配置
                     container.registerInstance("UserId", this.userId);
-                    container.registerInstance(IModelService, await ModelServiceFactory.getModelService(config.getModelName()));
-                    container.registerInstance(SkillService, new SkillService(config.getConfigPath("skills")));
-                    container.registerInstance(ImportanceEvaluator, new ImportanceEvaluator(await ModelServiceFactory.getModelService("aaa")))
-                    container.registerInstance(MemoryCompressor, new MemoryCompressor(await ModelServiceFactory.getModelService("bbb")))
-                    container.registerInstance(MEMORY_SERVICE_CONFIG, {
-                        userId: this.userId,
-                        dbPath: config.getConfigPath(`memory/${this.userId}.db`),
-                        embeddingConfig: {
-                            apiKey: "apiKey",
-                            baseURL: "baseURL",
-                            model: "text-embedding-ada-002"
-                        },
-                        maxMemoryAgeDays: 90
-                    });
-                    container.registerSingleton(MemoryService);
 
-                    // 可选：注册记忆相关依赖（如果有 apiKey 和 baseURL 则启用）
-                    if (modelConfig.apiKey && modelConfig.baseURL) {
-                        container.registerInstance(MODEL_NAME, modelConfig.model);
-                        
-                        // ImportanceEvaluator, MemoryCompressor, MemoryService
-                        // 会通过 @transient() 装饰器自动解析（它们的依赖链已在上方注册）
+                    // 模型服务
+                    const modelServiceFactory = new ModelServiceFactory();
+                    container.registerInstance(IModelService, await modelServiceFactory.getModelService(config.getModelName()));
+
+                    // 技能服务
+                    container.registerInstance(SkillService, new SkillService(config.getConfigPath("skills")));
+
+                    // 可选：注册记忆相关依赖（如果有配置则启用）
+                    const embeddingConfig = config.getCurrentEmbedding();
+                    if (embeddingConfig && embeddingConfig.apiKey && embeddingConfig.baseURL) {
+                        // Embedding 服务（从配置读取）
+                        const embeddingFactory = new EmbeddingServiceFactory();
+                        container.registerInstance(IEmbeddingService, await embeddingFactory.getEmbeddingService(embeddingConfig));
+
+                        // 重要性评估器和记忆压缩器（使用相同的模型服务）
+                        const modelForMemory = await modelServiceFactory.getModelService(config.getModelName());
+                        container.registerInstance(ImportanceEvaluator, new ImportanceEvaluator(modelForMemory));
+                        container.registerInstance(MemoryCompressor, new MemoryCompressor(modelForMemory));
+
+                        // 记忆服务配置
+                        container.registerInstance(MEMORY_SERVICE_CONFIG, {
+                            userId: this.userId,
+                            dbPath: config.getConfigPath(`memory/${this.userId}.db`),
+                            maxMemoryAgeDays: config.settings.memory?.maxAgeDays ?? 90
+                        });
+
+                        // MemoryService 会通过 @transient() 装饰器自动解析
                     }
 
                     // 解析 AgentService（自动注入所有已注册的依赖，未注册的 optional 依赖为 undefined）

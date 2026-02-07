@@ -17,6 +17,13 @@ export interface ModelConfig {
   temperature?: number;
 }
 
+export interface EmbeddingConfig {
+  provider?: string;
+  apiKey?: string;
+  baseURL?: string;
+  model?: string;
+}
+
 /**
  * MCP 服务器配置
  * 支持 stdio、http 两种传输方式
@@ -106,8 +113,10 @@ export interface MemoryConfig {
 
 export interface Settings {
   model?: string; // 当前使用的模型名称（对应 models 中的 key）
+  embedding?: string; // 当前使用的 embedding 名称（对应 embeddings 中的 key）
   lark?: LarkConfig;
   models?: Record<string, ModelConfig>; // 多个模型配置
+  embeddings?: Record<string, EmbeddingConfig>; // 多个 embedding 配置
   memory?: MemoryConfig; // 长期记忆配置
 }
 
@@ -138,6 +147,11 @@ class Config {
   getModelName(): string {
     return this._settings.model || "";
   }
+
+  getEmbeddingName(): string {
+    return this._settings.embedding || "";
+  }
+
   /**
    * 根据名称获取模型配置
    * @param name 模型名称（对应 settings.models 中的 key），不传则使用当前选中的模型
@@ -158,6 +172,28 @@ class Config {
    */
   getCurrentModel(): ModelConfig | undefined {
     return this.getModel();
+  }
+
+  /**
+   * 根据名称获取 embedding 配置
+   * @param name embedding 名称（对应 settings.embeddings 中的 key），不传则使用当前选中的 embedding
+   * @returns embedding 配置，如果未配置则返回 undefined
+   */
+  getEmbedding(name?: string): EmbeddingConfig | undefined {
+    if (!this._settings.embeddings) return undefined;
+
+    const embeddingName = name ?? this._settings.embedding;
+    if (!embeddingName || typeof embeddingName !== 'string') return undefined;
+
+    return this._settings.embeddings[embeddingName.trim()];
+  }
+
+  /**
+   * 获取当前使用的 embedding 配置
+   * @returns 当前 embedding 配置，如果未配置则返回 undefined
+   */
+  getCurrentEmbedding(): EmbeddingConfig | undefined {
+    return this.getEmbedding();
   }
 
   /**
@@ -227,6 +263,9 @@ class Config {
 # 当前使用的模型名称（对应下面 [models.xxx] 中的名称）
 model = "openai-gpt4"
 
+# 当前使用的 embedding 名称（对应下面 [embeddings.xxx] 中的名称）
+embedding = "openai-ada"
+
 [lark]
 # Lark (飞书) 应用配置
 # 用于工具返回的图片自动上传到飞书
@@ -260,6 +299,31 @@ provider = "azure"
 apiKey = "your-api-key"
 baseURL = "https://your-resource.openai.azure.com"
 model = "gpt-4"
+
+# 多 Embedding 配置 - 可以配置多个 embedding 服务，通过上面的 embedding 字段切换使用哪个
+[embeddings.openai-ada]
+provider = "openai"
+apiKey = "your-api-key"
+baseURL = "https://api.openai.com/v1"
+model = "text-embedding-ada-002"
+
+[embeddings.openai-3-small]
+provider = "openai"
+apiKey = "your-api-key"
+baseURL = "https://api.openai.com/v1"
+model = "text-embedding-3-small"
+
+[embeddings.openai-3-large]
+provider = "openai"
+apiKey = "your-api-key"
+baseURL = "https://api.openai.com/v1"
+model = "text-embedding-3-large"
+
+[embeddings.azure-ada]
+provider = "azure"
+apiKey = "your-api-key"
+baseURL = "https://your-resource.openai.azure.com"
+model = "text-embedding-ada-002"
 `;
   }
 

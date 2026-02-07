@@ -1,12 +1,11 @@
 import { v4 as uuidv4 } from "uuid";
-import { Embeddings } from "@langchain/core/embeddings";
-import { OpenAIEmbeddings } from "@langchain/openai";
 import { inject, transient, init } from "../Core";
 import { MemoryDatabase } from "./MemoryDatabase";
 import { Memory, MemoryType, MemoryRetrievalOptions } from "./types";
 import { ImportanceEvaluator, ImportanceEvaluation } from "./ImportanceEvaluator";
 import { MemoryCompressor, MergeStrategy, CompressionResult } from "./MemoryCompressor";
 import { MEMORY_SERVICE_CONFIG } from "./index";
+import { IEmbeddingService } from "../Embedding";
 import { LoggerService } from "../LoggerService";
 
 const logger = LoggerService.getLogger("MemoryService.ts");
@@ -17,11 +16,6 @@ const logger = LoggerService.getLogger("MemoryService.ts");
 export interface MemoryServiceConfig {
   userId: string;
   dbPath: string;
-  embeddingConfig: {
-    apiKey: string;
-    baseURL?: string;
-    model?: string;
-  };
   maxMemoryAgeDays?: number;
 }
 
@@ -29,15 +23,16 @@ export interface MemoryServiceConfig {
  * 记忆服务
  * 提供记忆的添加、检索、管理功能
  */
+@transient()
 export class MemoryService {
   private db: MemoryDatabase;
-  private embeddings: Embeddings;
   private userId: string;
   private sessionId: string;
   private maxMemoryAgeDays: number;
 
   constructor(
     @inject(MEMORY_SERVICE_CONFIG) config: MemoryServiceConfig,
+    @inject(IEmbeddingService) private embeddings: IEmbeddingService,
     @inject(ImportanceEvaluator, { optional: true }) private importanceEvaluator?: ImportanceEvaluator,
     @inject(MemoryCompressor, { optional: true }) private memoryCompressor?: MemoryCompressor
   ) {
@@ -45,14 +40,6 @@ export class MemoryService {
     this.sessionId = uuidv4();
     this.db = new MemoryDatabase(config.dbPath);
     this.maxMemoryAgeDays = config.maxMemoryAgeDays ?? 90;
-
-    this.embeddings = new OpenAIEmbeddings({
-      modelName: config.embeddingConfig.model || "text-embedding-ada-002",
-      openAIApiKey: config.embeddingConfig.apiKey,
-      configuration: {
-        baseURL: config.embeddingConfig.baseURL
-      }
-    });
 
     logger.info(`记忆服务已创建 - 用户: ${this.userId}, 会话: ${this.sessionId}`);
   }

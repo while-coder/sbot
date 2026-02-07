@@ -109,4 +109,25 @@ export class SkillService {
       skill.description.toLowerCase().includes(lowerQuery)
     );
   }
+
+  /**
+   * 获取技能统计信息
+   */
+  getStatistics() {
+    return {
+      totalSkills: this.skills?.length ?? 0,
+      skillNames: this.skills?.map(s => s.name) ?? [],
+      skillsDir: undefined as string | undefined
+    };
+  }
+
+  /**
+   * 重新加载所有技能
+   */
+  reload(skillsDir: string): void {
+    this.skills = undefined;
+    this.skillsMap.clear();
+    this.loadSkills(skillsDir);
+    logger.info("技能已重新加载");
+  }
 }
