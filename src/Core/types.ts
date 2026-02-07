@@ -5,14 +5,19 @@
 
 /**
  * 注入令牌类型
- * 可以是类构造函数、字符串或 Symbol
+ * 可以是类构造函数（含抽象类）、字符串或 Symbol
  */
-export type InjectionToken<T = any> = Constructor<T> | string | symbol;
+export type InjectionToken<T = any> = Constructor<T> | AbstractConstructor<T> | string | symbol;
 
 /**
  * 构造函数类型
  */
 export type Constructor<T = any> = new (...args: any[]) => T;
+
+/**
+ * 抽象构造函数类型（用于抽象类作为 DI token）
+ */
+export type AbstractConstructor<T = any> = abstract new (...args: any[]) => T;
 
 /**
  * 服务生命周期

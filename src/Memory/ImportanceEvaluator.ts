@@ -1,17 +1,8 @@
-import { ChatOpenAI } from "@langchain/openai";
-import { singleton, inject, init, dispose } from "../Core";
+import { singleton, inject } from "../Core";
+import { IModelService } from "../Model";
 import { LoggerService } from "../LoggerService";
 
 const logger = LoggerService.getLogger("ImportanceEvaluator.ts");
-
-/**
- * 重要性评估器配置
- */
-export interface ImportanceEvaluatorConfig {
-  apiKey: string;
-  baseURL?: string;
-  model?: string;
-}
 
 /**
  * 评估结果
@@ -29,43 +20,16 @@ export interface ImportanceEvaluation {
  *
  * @example
  * ```ts
- * // 注册配置
- * container.registerInstance("ImportanceEvaluatorConfig", {
- *   apiKey: "xxx", baseURL: "https://api.openai.com", model: "gpt-3.5-turbo", enabled: true
- * });
- *
- * // 解析服务
+ * // 在容器中注册 IModelService 后
  * const evaluator = await container.resolve(ImportanceEvaluator);
  * const result = await evaluator.evaluate("some text");
  * ```
  */
 @singleton()
 export class ImportanceEvaluator {
-  private model?: ChatOpenAI;
-
   constructor(
-    @inject("ImportanceEvaluatorConfig") private config: ImportanceEvaluatorConfig
+    @inject(IModelService) private modelService: IModelService
   ) {}
-
-  @init()
-  async initialize(): Promise<void> {
-    this.model = new ChatOpenAI({
-      configuration: {
-        baseURL: this.config.baseURL || "https://api.openai.com/v1",
-        apiKey: this.config.apiKey,
-      },
-      apiKey: this.config.apiKey,
-      model: this.config.model || "gpt-3.5-turbo",
-      temperature: 0.3,
-    });
-    logger.info("LLM 重要性评估器已初始化");
-  }
-
-  @dispose()
-  async cleanup(): Promise<void> {
-    this.model = undefined;
-    logger.info("LLM 重要性评估器已释放");
-  }
 
   /**
    * 评估文本的重要性
@@ -74,15 +38,10 @@ export class ImportanceEvaluator {
    * @returns 重要性评估结果
    */
   async evaluate(content: string, context?: string): Promise<ImportanceEvaluation> {
-    if (!this.model) {
-      return this.heuristicEvaluation(content);
-    }
-
     try {
-      const model = this.model;
       const prompt = this.buildEvaluationPrompt(content, context);
-      const response = await model.invoke(prompt);
-      const result = this.parseResponse(response.content as string);
+      const response = await this.modelService.invoke(prompt);
+      const result = this.parseResponse(response.content);
 
       logger.debug(`LLM 重要性评估: ${content.substring(0, 50)}... -> ${result.score.toFixed(2)}`);
       return result;
@@ -96,15 +55,14 @@ export class ImportanceEvaluator {
    * 批量评估多个文本的重要性
    */
   async evaluateBatch(items: Array<{ content: string; context?: string }>): Promise<ImportanceEvaluation[]> {
-    if (!this.model || items.length === 0) {
-      return items.map(item => this.heuristicEvaluation(item.content));
+    if (items.length === 0) {
+      return [];
     }
 
     try {
-      const model = this.model;
       const prompt = this.buildBatchEvaluationPrompt(items);
-      const response = await model.invoke(prompt);
-      const results = this.parseBatchResponse(response.content as string, items.length);
+      const response = await this.modelService.invoke(prompt);
+      const results = this.parseBatchResponse(response.content, items.length);
 
       logger.debug(`批量评估了 ${items.length} 个记忆的重要性`);
       return results;
@@ -112,13 +70,6 @@ export class ImportanceEvaluator {
       logger.warn(`批量LLM评估失败，使用启发式方法: ${error.message}`);
       return items.map(item => this.heuristicEvaluation(item.content));
     }
-  }
-
-  /**
-   * 是否已启用
-   */
-  isEnabled(): boolean {
-    return this.model !== undefined;
   }
 
   // ===== 私有方法 =====

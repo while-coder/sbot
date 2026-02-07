@@ -355,4 +355,4 @@ export class Container {
 /**
  * 全局容器实例
  */
-export const container = new Container();
+export const globalContainer = new Container();

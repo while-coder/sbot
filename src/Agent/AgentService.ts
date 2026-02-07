@@ -1,11 +1,11 @@
 import { HumanMessage, AIMessage, ToolMessage, BaseMessage, AIMessageChunk } from "langchain";
 import { Util } from "weimingcommons";
-import { ChatOpenAI } from "@langchain/openai";
 import { MultiServerMCPClient } from "@langchain/mcp-adapters";
 import {StateGraph, END, START, MessagesAnnotation} from '@langchain/langgraph';
 import {SqliteSaver} from "@langchain/langgraph-checkpoint-sqlite";
 import {config, ModelConfig} from "../Config";
 import {LoggerService} from "../LoggerService";
+import { IModelService } from "../Model";
 import { loadSkills, Skill } from "../Skills";
 import { MCPToolResult, normalizeToMCPResult } from '../Tools/ToolsConfig'
 import { createFileSystemTools } from '../Tools/FileSystem'
@@ -71,7 +71,7 @@ export class AgentService {
     tools: any[] = [];
     disabledAutoApproveTools: Set<string> = new Set<string>();
     saver:SqliteSaver|undefined;
-    model: ChatOpenAI | null = null;
+    private modelService?: IModelService;
     private skills: Skill[]|undefined;
     private skillsDir?: string;
     private maxHistoryMessages: number = 10; // 最大历史消息数
@@ -80,9 +80,10 @@ export class AgentService {
     private enableMemory: boolean;
 
 
-    constructor(userId: string, modelConfig: ModelConfig, skillsDir?: string, enableMemory: boolean = true) {
+    constructor(userId: string, modelConfig: ModelConfig, modelService?: IModelService, skillsDir?: string, enableMemory: boolean = true) {
         this.threadId = userId;
         this.modelConfig = modelConfig;
+        this.modelService = modelService;
         this.skillsDir = skillsDir;
         this.enableMemory = enableMemory;
 
@@ -252,35 +253,6 @@ export class AgentService {
         }
     }
     /**
-     * 初始化 OpenAI 模型
-     */
-    private async createModel(): Promise<ChatOpenAI> {
-        if (this.model != null) return this.model;
-
-        if (!this.modelConfig ||
-            Util.isNullOrEmpty(this.modelConfig.baseURL) ||
-            Util.isNullOrEmpty(this.modelConfig.apiKey) ||
-            Util.isNullOrEmpty(this.modelConfig.model)
-        ) {
-            throw new Error("模型配置不完整，请在配置文件中正确配置当前使用的模型");
-        }
-
-        this.model = new ChatOpenAI({
-            configuration: {
-                baseURL: this.modelConfig!.baseURL,
-                apiKey: this.modelConfig!.apiKey,
-                defaultHeaders: {
-                    Authorization: `Bearer ${this.modelConfig!.apiKey}`,
-                },
-            },
-            apiKey: this.modelConfig!.apiKey,
-            model: this.modelConfig!.model,
-        });
-
-        return this.model;
-    }
-
-    /**
      * 判断是否应该继续执行
      */
     private agentNext(state: typeof MessagesAnnotation.State): "tools" | typeof END {
@@ -298,14 +270,16 @@ export class AgentService {
      * 调用模型节点
      */
     private async callModelNode(state: typeof MessagesAnnotation.State, onStreamMessage?: OnStreamMessageCallback) {
-        const model = await this.createModel();
+        if (!this.modelService) {
+            throw new Error("模型服务未初始化");
+        }
         const tools = await this.createTools();
 
         // 加载 skills
         this.loadSkills();
 
         // 绑定工具到模型
-        const modelWithTools = model.bindTools(tools);
+        const modelWithTools = this.modelService.bindTools(tools);
 
         // 获取用户最新消息（用于记忆检索）
         const lastHumanMessage = state.messages

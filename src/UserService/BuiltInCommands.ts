@@ -17,6 +17,7 @@ export class ClearCommand extends CommandBase {
         const agentService = new AgentService(userService.userId, config.getCurrentModel()!)
         await agentService.clearSaver()
 
+
         return `✅ 清除用户 ${userService.userId} 的所有历史记录`;
     }
 }

@@ -6,6 +6,7 @@ import { Command } from "commander";
 import { CommandBase, CommandContext } from "./CommandBase";
 import { getBuiltInCommands } from "./BuiltInCommands";
 import { config } from "../Config";
+import { OpenAIModelService } from "../Model";
 
 const logger = LoggerService.getLogger('UserServiceBase.ts');
 
@@ -51,7 +52,17 @@ export abstract class UserServiceBase {
                 if (query.startsWith('/')) {
                     await this.processCommand(query.substring(1), args);
                 } else {
-                    const agentService = new AgentService(this.userId, config.getCurrentModel()!, config.getConfigPath("skills", true));
+                    const modelConfig = config.getCurrentModel()!;
+                    const modelService = new OpenAIModelService({
+                        apiKey: modelConfig.apiKey!,
+                        baseURL: modelConfig.baseURL,
+                        model: modelConfig.model,
+                        defaultHeaders: {
+                            Authorization: `Bearer ${modelConfig.apiKey}`,
+                        },
+                    });
+                    await modelService.initialize();
+                    const agentService = new AgentService(this.userId, modelConfig, modelService, config.getConfigPath("skills", true));
                     await agentService.stream(
                         query,
                         this.onAgentMessage.bind(this),

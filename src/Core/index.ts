@@ -5,7 +5,7 @@
  *
  * @example
  * ```ts
- * import { singleton, injectable, inject, init, dispose, container } from "./Core";
+ * import { singleton, injectable, inject, init, dispose, globalContainer } from "./Core";
  *
  * @singleton()
  * class DatabaseService {
@@ -22,15 +22,15 @@
  * }
  *
  * // 解析（自动注入依赖）
- * const userService = await container.resolve(UserService);
+ * const userService = await globalContainer.resolve(UserService);
  * ```
  */
 
 // 容器
-export { Container, container } from "./Container";
+export { Container, globalContainer } from "./Container";
 
 // 装饰器
 export { injectable, singleton, inject, init, dispose } from "./decorators";
 
 // 类型
-export { InjectionToken, Constructor, Lifecycle, Provider, ClassProvider, FactoryProvider, ValueProvider } from "./types";
+export { InjectionToken, Constructor, AbstractConstructor, Lifecycle, Provider, ClassProvider, FactoryProvider, ValueProvider } from "./types";

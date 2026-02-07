@@ -1,18 +1,9 @@
-import { ChatOpenAI } from "@langchain/openai";
-import { singleton, inject, init, dispose } from "../Core";
+import { singleton, inject } from "../Core";
+import { IModelService } from "../Model";
 import { Memory, MemoryType } from "./types";
 import { LoggerService } from "../LoggerService";
 
 const logger = LoggerService.getLogger("MemoryCompressor.ts");
-
-/**
- * 记忆压缩器配置
- */
-export interface MemoryCompressorConfig {
-  apiKey: string;
-  baseURL?: string;
-  model?: string;
-}
 
 /**
  * 压缩结果
@@ -39,48 +30,16 @@ export enum MergeStrategy {
  *
  * @example
  * ```ts
- * container.registerInstance("MemoryCompressorConfig", {
- *   apiKey: "xxx", baseURL: "https://api.openai.com", model: "gpt-3.5-turbo", enabled: true
- * });
- *
+ * // 在容器中注册 IModelService 后
  * const compressor = await container.resolve(MemoryCompressor);
  * const result = await compressor.compress(memories, MergeStrategy.CHRONOLOGICAL, embedFn);
  * ```
  */
 @singleton()
 export class MemoryCompressor {
-  private model?: ChatOpenAI;
-
   constructor(
-    @inject("MemoryCompressorConfig") private config: MemoryCompressorConfig
+    @inject(IModelService) private modelService: IModelService
   ) {}
-
-  @init()
-  async initialize(): Promise<void> {
-    this.model = new ChatOpenAI({
-      configuration: {
-        baseURL: this.config.baseURL || "https://api.openai.com/v1",
-        apiKey: this.config.apiKey,
-      },
-      apiKey: this.config.apiKey,
-      model: this.config.model || "gpt-3.5-turbo",
-      temperature: 0.3,
-    });
-    logger.info("记忆压缩器已初始化");
-  }
-
-  @dispose()
-  async cleanup(): Promise<void> {
-    this.model = undefined;
-    logger.info("记忆压缩器已释放");
-  }
-
-  /**
-   * 是否已启用
-   */
-  isEnabled(): boolean {
-    return this.model !== undefined;
-  }
 
   /**
    * 压缩多个记忆为一个
@@ -92,11 +51,6 @@ export class MemoryCompressor {
   ): Promise<CompressionResult | null> {
     if (memories.length < 2) {
       logger.warn("至少需要2条记忆才能压缩");
-      return null;
-    }
-
-    if (!this.model) {
-      logger.warn("记忆压缩功能未启用");
       return null;
     }
 
@@ -246,13 +200,9 @@ export class MemoryCompressor {
     memories: Memory[],
     strategy: MergeStrategy
   ): Promise<string> {
-    if (!this.model) {
-      throw new Error("LLM 模型未初始化");
-    }
-    const model = this.model;
     const prompt = this.buildCompressionPrompt(memories, strategy);
-    const response = await model.invoke(prompt);
-    return this.cleanCompressedContent(response.content as string);
+    const response = await this.modelService.invoke(prompt);
+    return this.cleanCompressedContent(response.content);
   }
 
   private buildCompressionPrompt(memories: Memory[], strategy: MergeStrategy): string {

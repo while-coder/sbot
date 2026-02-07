@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from "uuid";
 import { Embeddings } from "@langchain/core/embeddings";
 import { OpenAIEmbeddings } from "@langchain/openai";
 import { Container } from "../Core";
+import { IModelService, OpenAIModelService } from "../Model";
 import { MemoryDatabase } from "./MemoryDatabase";
 import { Memory, MemoryType, MemoryRetrievalOptions, MemoryMetadata } from "./types";
 import { ImportanceEvaluator, ImportanceEvaluation } from "./ImportanceEvaluator";
@@ -83,15 +84,16 @@ export class MemoryService {
 
     // 创建内部 DI 容器
     this.container = new Container();
-    this.registerServices();
 
     logger.info(`记忆服务已创建 - 用户: ${this.userId}, 会话: ${this.sessionId}`);
   }
 
   /**
-   * 初始化服务
+   * 初始化服务（注册子服务到容器）
    */
   async init(): Promise<void> {
+    await this.registerServices();
+
     logger.info(`记忆服务已初始化 - 用户: ${this.userId}`);
 
     // 如果启用自动清理，执行一次清理
@@ -105,23 +107,21 @@ export class MemoryService {
   /**
    * 注册子服务到内部容器
    */
-  private registerServices(): void {
+  private async registerServices(): Promise<void> {
     const embeddingConfig = this.config.embeddingConfig!;
     const model = this.config.compressionModel || "gpt-3.5-turbo";
 
-    // 注册 ImportanceEvaluator 配置
-    this.container.registerInstance("ImportanceEvaluatorConfig", {
+    // 创建并初始化模型服务
+    const modelService = new OpenAIModelService({
       apiKey: embeddingConfig.apiKey,
       baseURL: embeddingConfig.baseURL,
       model,
+      temperature: 0.3,
     });
+    await modelService.initialize();
 
-    // 注册 MemoryCompressor 配置
-    this.container.registerInstance("MemoryCompressorConfig", {
-      apiKey: embeddingConfig.apiKey,
-      baseURL: embeddingConfig.baseURL,
-      model,
-    });
+    // 注册到容器，子服务通过 @inject(IModelService) 获取
+    this.container.registerInstance(IModelService, modelService);
   }
 
   /**
@@ -598,20 +598,6 @@ export class MemoryService {
       logger.error(`压缩指定记忆失败: ${error.message}`);
       return null;
     }
-  }
-
-  /**
-   * 获取重要性评估器
-   */
-  async getImportanceEvaluator(): Promise<ImportanceEvaluator | null> {
-    return await this.container.tryResolve(ImportanceEvaluator);
-  }
-
-  /**
-   * 获取记忆压缩器
-   */
-  async getCompressor(): Promise<MemoryCompressor | null> {
-    return await this.container.tryResolve(MemoryCompressor);
   }
 
   /**
