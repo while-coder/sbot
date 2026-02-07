@@ -10,13 +10,6 @@ export interface ModelInvokeResult {
 }
 
 /**
- * 绑定工具后的模型，支持流式调用
- */
-export interface IBoundModel {
-  stream(messages: BaseMessageLike[]): Promise<IterableReadableStream<AIMessageChunk>>;
-}
-
-/**
  * 模型服务抽象基类
  * 作为 DI 注入 token 使用（abstract class 可作为 token，interface 不行）
  */
@@ -27,12 +20,12 @@ export abstract class IModelService {
   abstract invoke(prompt: string): Promise<ModelInvokeResult>;
 
   /**
-   * 绑定工具并返回支持流式调用的 BoundModel
+   * 绑定工具到模型（内部保存，后续 stream 调用时自动使用）
    */
-  abstract bindTools(tools: any[]): IBoundModel;
+  abstract bindTools(tools: any[]): void;
 
   /**
-   * 直接流式调用（不绑定工具）
+   * 流式调用（如果已绑定工具，则使用绑定后的模型）
    */
   abstract stream(messages: BaseMessageLike[]): Promise<IterableReadableStream<AIMessageChunk>>;
 }

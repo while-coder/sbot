@@ -279,7 +279,7 @@ export class AgentService {
         this.loadSkills();
 
         // 绑定工具到模型
-        const modelWithTools = this.modelService.bindTools(tools);
+        this.modelService.bindTools(tools);
 
         // 获取用户最新消息（用于记忆检索）
         const lastHumanMessage = state.messages
@@ -382,7 +382,7 @@ ${skillsList}
         ];
 
         // 使用流式调用收集完整响应
-        const stream = await modelWithTools.stream(messages);
+        const stream = await this.modelService.stream(messages);
 
         let response:AIMessageChunk|undefined
         // 收集所有流式片段

@@ -2,7 +2,8 @@ import { ChatOpenAI } from "@langchain/openai";
 import { AIMessageChunk } from "langchain";
 import { BaseMessageLike } from "@langchain/core/messages";
 import { IterableReadableStream } from "@langchain/core/utils/stream";
-import { IModelService, ModelInvokeResult, IBoundModel } from "./IModelService";
+import { Runnable } from "@langchain/core/runnables";
+import { IModelService, ModelInvokeResult } from "./IModelService";
 import { singleton, init, dispose } from "../Core";
 import { LoggerService } from "../LoggerService";
 
@@ -26,6 +27,7 @@ export interface ModelServiceConfig {
 @singleton()
 export class OpenAIModelService extends IModelService {
   private model!: ChatOpenAI;
+  private boundModel?: Runnable;
 
   constructor(private config: ModelServiceConfig) {
     super();
@@ -49,6 +51,7 @@ export class OpenAIModelService extends IModelService {
   @dispose()
   async cleanup(): Promise<void> {
     (this as any).model = undefined;
+    this.boundModel = undefined;
     logger.info("OpenAIModelService 已释放");
   }
 
@@ -57,16 +60,12 @@ export class OpenAIModelService extends IModelService {
     return { content: response.content as string };
   }
 
-  bindTools(tools: any[]): IBoundModel {
-    const boundRunnable = this.model.bindTools(tools);
-    return {
-      stream(messages: BaseMessageLike[]): Promise<IterableReadableStream<AIMessageChunk>> {
-        return boundRunnable.stream(messages);
-      }
-    };
+  bindTools(tools: any[]): void {
+    this.boundModel = this.model.bindTools(tools);
   }
 
   async stream(messages: BaseMessageLike[]): Promise<IterableReadableStream<AIMessageChunk>> {
-    return this.model.stream(messages);
+    const target = this.boundModel ?? this.model;
+    return target.stream(messages);
   }
 }
