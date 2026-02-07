@@ -127,6 +127,51 @@ export class Container {
   }
 
   /**
+   * 使用自定义参数注册单例
+   *
+   * 与 registerInstance 不同，此方法接受类和构造参数。
+   * 参数会根据类型自动匹配到构造函数参数，未匹配的参数会通过容器解析。
+   *
+   * @example
+   * ```ts
+   * // 方式 1: 直接使用类 token
+   * await container.registerWithArgs(DatabaseService, "localhost", 5432);
+   *
+   * // 方式 2: 使用接口 token + 实现类
+   * await container.registerWithArgs("ILogger", ConsoleLogger, ...args);
+   * ```
+   */
+  async registerWithArgs<T>(token: Constructor<T>, ...args: any[]): Promise<this>;
+  async registerWithArgs<T>(token: string | symbol, impl: Constructor<T>, ...args: any[]): Promise<this>;
+  async registerWithArgs<T>(token: InjectionToken<T>, ...args: any[]): Promise<this> {
+    // 确定实际的实现类
+    let actualImpl: Constructor<T>;
+    let actualArgs: any[];
+
+    if (typeof token === "function") {
+      // 情况 1: token 是类，所有剩余参数都是构造函数参数
+      actualImpl = token as Constructor<T>;
+      actualArgs = args;
+    } else {
+      // 情况 2: token 是字符串或 Symbol，第一个参数是实现类，其余是构造函数参数
+      if (args.length === 0 || typeof args[0] !== "function") {
+        throw new Error(`registerWithArgs: 当使用字符串或 Symbol 作为 token 时，必须提供实现类作为第一个参数`);
+      }
+      actualImpl = args[0] as Constructor<T>;
+      actualArgs = args.slice(1);
+    }
+
+    // 使用增强的 constructInstance，传入参数
+    const instance = await this.constructInstance(actualImpl, actualArgs.length > 0 ? actualArgs : undefined);
+
+    // 注册为单例
+    this.register(token, { useValue: instance }, Lifecycle.Singleton);
+
+    logger.debug(`注册实例（自定义参数）: ${tokenToString(token)}`);
+    return this;
+  }
+
+  /**
    * 解析服务
    *
    * @param token 注入令牌
@@ -281,12 +326,17 @@ export class Container {
 
   /**
    * 通过构造函数创建实例，自动解析依赖
+   * @param target 目标类
+   * @param providedArgs 可选的预提供参数，会根据类型匹配自动分配
    */
-  private async constructInstance<T>(target: Constructor<T>): Promise<T> {
+  private async constructInstance<T>(target: Constructor<T>, providedArgs?: any[]): Promise<T> {
     // 获取构造函数参数类型
     const paramTypes = getParamTypes(target);
     const injectTokens = getInjectTokens(target);
     const optionalParams = getOptionalParams(target);
+
+    // 用于跟踪已使用的 providedArgs
+    const usedArgIndices = new Set<number>();
 
     // 解析每个参数
     const args: any[] = [];
@@ -309,7 +359,27 @@ export class Container {
       // 特殊处理：如果注入的是 Container 本身，返回当前容器实例
       if (token === Container) {
         args.push(this);
-      } else if (isOptional) {
+        continue;
+      }
+
+      // 尝试从 providedArgs 中找到类型匹配的值
+      let foundInProvided = false;
+      if (providedArgs && providedArgs.length > 0) {
+        const matchedValue = this.findMatchingArg(token, providedArgs, usedArgIndices);
+        if (matchedValue !== undefined) {
+          args.push(matchedValue.value);
+          usedArgIndices.add(matchedValue.index);
+          foundInProvided = true;
+        }
+      }
+
+      // 如果在 providedArgs 中找到了，跳过容器解析
+      if (foundInProvided) {
+        continue;
+      }
+
+      // 否则通过容器解析
+      if (isOptional) {
         // 可选依赖：解析失败时注入 undefined（包括依赖链上的失败）
         try {
           if (!this.isRegistered(token)) {
@@ -326,6 +396,64 @@ export class Container {
     }
 
     return new target(...args);
+  }
+
+  /**
+   * 在提供的参数中查找类型匹配的值
+   * @param token 需要匹配的 token
+   * @param providedArgs 提供的参数列表
+   * @param usedIndices 已使用的参数索引
+   * @returns 匹配的值和索引，如果没找到返回 undefined
+   */
+  private findMatchingArg(
+    token: InjectionToken,
+    providedArgs: any[],
+    usedIndices: Set<number>
+  ): { value: any; index: number } | undefined {
+    for (let i = 0; i < providedArgs.length; i++) {
+      // 跳过已使用的参数
+      if (usedIndices.has(i)) continue;
+
+      const arg = providedArgs[i];
+
+      // 1. 如果 token 是类，检查实例类型
+      if (typeof token === "function" && token.prototype) {
+        if (arg instanceof token) {
+          return { value: arg, index: i };
+        }
+        // 也检查构造函数
+        if (arg?.constructor === token) {
+          return { value: arg, index: i };
+        }
+      }
+
+      // 2. 如果 token 是 Symbol，检查 Symbol 类型
+      if (typeof token === "symbol" && typeof arg === "symbol") {
+        if (token === arg) {
+          return { value: arg, index: i };
+        }
+      }
+
+      // 3. 如果 token 是字符串，检查字符串类型
+      if (typeof token === "string" && typeof arg === "string") {
+        // 字符串匹配比较宽松：只要类型相同即可
+        // （因为字符串 token 通常用于配置值）
+        return { value: arg, index: i };
+      }
+
+      // 4. 基本类型匹配
+      if (token === String && typeof arg === "string") {
+        return { value: arg, index: i };
+      }
+      if (token === Number && typeof arg === "number") {
+        return { value: arg, index: i };
+      }
+      if (token === Boolean && typeof arg === "boolean") {
+        return { value: arg, index: i };
+      }
+    }
+
+    return undefined;
   }
 
   /**
