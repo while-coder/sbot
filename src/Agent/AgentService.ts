@@ -7,7 +7,7 @@ import {config, ModelConfig} from "../Config";
 import {LoggerService} from "../LoggerService";
 import { transient, inject } from "../Core";
 import { IModelService } from "../Model";
-import { loadSkills, Skill } from "../Skills";
+import { Skill, SkillService } from "../Skills";
 import { MCPToolResult, normalizeToMCPResult } from '../Tools/ToolsConfig'
 import { createFileSystemTools } from '../Tools/FileSystem'
 import { createSkillTools } from "../Tools/Skills";
@@ -74,28 +74,29 @@ export class AgentService {
     disabledAutoApproveTools: Set<string> = new Set<string>();
     saver:SqliteSaver|undefined;
     private modelService?: IModelService;
-    private skills: Skill[]|undefined;
-    private skillsDir?: string;
+    private skillService?: SkillService;
     private maxHistoryMessages: number = 10; // 最大历史消息数
-    private modelConfig: ModelConfig;
     private memoryService?: MemoryService;
 
 
     constructor(
         @inject("UserId") userId: string,
-        @inject("ModelConfig") modelConfig: ModelConfig,
         @inject(IModelService, { optional: true }) modelService?: IModelService,
-        @inject("SkillsDir", { optional: true }) skillsDir?: string,
+        @inject(SkillService, { optional: true }) skillService?: SkillService,
         @inject(MemoryService, { optional: true }) memoryService?: MemoryService,
     ) {
         this.threadId = userId;
-        this.modelConfig = modelConfig;
         this.modelService = modelService;
-        this.skillsDir = skillsDir;
+        this.skillService = skillService;
         this.memoryService = memoryService;
 
         if (this.memoryService) {
             logger.info(`用户 ${userId} 的长期记忆服务已启用`);
+        }
+
+        if (this.skillService) {
+            const stats = this.skillService.getStatistics();
+            logger.info(`用户 ${userId} 的技能服务已启用，加载了 ${stats.totalSkills} 个技能`);
         }
     }
 
@@ -166,17 +167,6 @@ export class AgentService {
     }
 
     /**
-     * 加载 skills
-     */
-    private loadSkills() {
-        if (this.skills) return;
-        try {
-            this.skills = loadSkills(this.skillsDir);
-        } catch (error: any) {
-            logger.error(`用户 ${this.threadId} 加载 skills 失败: ${error.message}`);
-        }
-    }
-    /**
      * 初始化工具
      */
     private async createTools() {
@@ -193,9 +183,12 @@ export class AgentService {
         const commandTools = createCommandTools();
         this.tools.push(...commandTools);
 
-        // 添加 skill 工具
-        const skillTools = createSkillTools(this.skillsDir);
-        this.tools.push(...skillTools);
+        // 添加 skill 工具（如果 skillService 可用）
+        if (this.skillService) {
+            const stats = this.skillService.getStatistics();
+            const skillTools = createSkillTools(stats.skillsDir);
+            this.tools.push(...skillTools);
+        }
 
         await this.addMcpServers(config.getBuiltinMcpServers())
         // 从 mcp.json 自动加载 MCP 服务器配置
@@ -264,9 +257,6 @@ export class AgentService {
         }
         const tools = await this.createTools();
 
-        // 加载 skills
-        this.loadSkills();
-
         // 绑定工具到模型
         this.modelService.bindTools(tools);
 
@@ -302,12 +292,15 @@ export class AgentService {
         }
 
         // 构建 skills 系统提示词
-        if (this.skills && this.skills.length > 0) {
-            const skillsList = this.skills.map(skill =>
-                `- ${skill.name}: ${skill.path}\n  ${skill.description}`
-            ).join('\n');
+        if (this.skillService) {
+            const skills = this.skillService.getAllSkills();
+            if (skills.length > 0) {
+                const skillsList = skills.map(skill =>
+                    `- ${skill.name}: ${skill.path}\n  ${skill.description}`
+                ).join('\n');
 
-            const skillSystemMessage = `
+                const stats = this.skillService.getStatistics();
+                const skillSystemMessage = `
 # 🎯 Skills 系统
 
 你拥有一套专为特定任务优化的 **Skills**。当用户的请求与下列任意 skill 的描述相关时，你**必须立即使用**对应的 skill。
@@ -316,7 +309,7 @@ export class AgentService {
 
 ${skillsList}
 
-**Skills 存储路径**: ${this.skillsDir}
+**Skills 存储路径**: ${stats.skillsDir}
 
 ---
 
@@ -354,7 +347,8 @@ ${skillsList}
 - ✅ **严格遵循指导**：SKILL.md 中的指导是权威的，必须完全遵守
 - ✅ **主动识别**：不要等用户明确说"使用某个 skill"，要主动识别和使用
 - ❌ **禁止猜测**：如果不确定 skill 的使用方式，必须先读取 SKILL.md`;
-            systemMessages.push({ role: "system", content: skillSystemMessage });
+                systemMessages.push({ role: "system", content: skillSystemMessage });
+            }
         }
 
         // 限制历史消息数量，只保留最近的消息

@@ -24,7 +24,6 @@ export interface ImportanceEvaluation {
  * const result = await evaluator.evaluate("some text");
  * ```
  */
-@transient()
 export class ImportanceEvaluator {
   constructor(private modelService: IModelService) {}
 

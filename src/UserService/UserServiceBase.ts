@@ -6,9 +6,10 @@ import { Command } from "commander";
 import { CommandBase, CommandContext } from "./CommandBase";
 import { getBuiltInCommands } from "./BuiltInCommands";
 import { config } from "../Config";
-import { IModelService, OpenAIModelService, MODEL_NAME } from "../Model";
-import { MEMORY_SERVICE_CONFIG } from "../Memory";
+import { IModelService, OpenAIModelService, MODEL_NAME, ModelServiceFactory } from "../Model";
+import { ImportanceEvaluator, MEMORY_SERVICE_CONFIG, MemoryCompressor, MemoryService } from "../Memory";
 import { Container } from "../Core";
+import { SkillService } from "../Skills";
 
 const logger = LoggerService.getLogger('UserServiceBase.ts');
 
@@ -54,39 +55,42 @@ export abstract class UserServiceBase {
                 if (query.startsWith('/')) {
                     await this.processCommand(query.substring(1), args);
                 } else {
-                    const modelConfig = config.getCurrentModel()!;
-                    const modelService = new OpenAIModelService({
-                        apiKey: modelConfig.apiKey!,
-                        baseURL: modelConfig.baseURL,
-                        model: modelConfig.model,
-                        defaultHeaders: {
-                            Authorization: `Bearer ${modelConfig.apiKey}`,
-                        },
-                    });
-                    await modelService.initialize();
+                    // const modelConfig = config.getCurrentModel()!;
+                    // const modelService = new OpenAIModelService({
+                    //     apiKey: modelConfig.apiKey!,
+                    //     baseURL: modelConfig.baseURL,
+                    //     model: modelConfig.model,
+                    //     defaultHeaders: {
+                    //         Authorization: `Bearer ${modelConfig.apiKey}`,
+                    //     },
+                    // });
+                    // await modelService.initialize();
 
                     // 创建 DI 容器并注册服务
                     const container = new Container();
 
                     // 必需：基础配置
                     container.registerInstance("UserId", this.userId);
-                    container.registerInstance("ModelConfig", modelConfig);
-                    container.registerInstance(IModelService, modelService);
-                    container.registerInstance("SkillsDir", config.getConfigPath("skills", true));
+                    container.registerInstance(IModelService, await ModelServiceFactory.getModelService(config.getModelName()));
+                    container.registerInstance(SkillService, new SkillService(config.getConfigPath("skills")));
+                    container.registerInstance(ImportanceEvaluator, new ImportanceEvaluator(await ModelServiceFactory.getModelService("aaa")))
+                    container.registerInstance(MemoryCompressor, new MemoryCompressor(await ModelServiceFactory.getModelService("bbb")))
+                    container.registerInstance(MEMORY_SERVICE_CONFIG, {
+                        userId: this.userId,
+                        dbPath: config.getConfigPath(`memory/${this.userId}.db`),
+                        embeddingConfig: {
+                            apiKey: "apiKey",
+                            baseURL: "baseURL",
+                            model: "text-embedding-ada-002"
+                        },
+                        maxMemoryAgeDays: 90
+                    });
+                    container.registerSingleton(MemoryService);
 
                     // 可选：注册记忆相关依赖（如果有 apiKey 和 baseURL 则启用）
                     if (modelConfig.apiKey && modelConfig.baseURL) {
                         container.registerInstance(MODEL_NAME, modelConfig.model);
-                        container.registerInstance(MEMORY_SERVICE_CONFIG, {
-                            userId: this.userId,
-                            dbPath: config.getConfigPath(`memory/${this.userId}.db`),
-                            embeddingConfig: {
-                                apiKey: modelConfig.apiKey,
-                                baseURL: modelConfig.baseURL,
-                                model: "text-embedding-ada-002"
-                            },
-                            maxMemoryAgeDays: 90
-                        });
+                        
                         // ImportanceEvaluator, MemoryCompressor, MemoryService
                         // 会通过 @transient() 装饰器自动解析（它们的依赖链已在上方注册）
                     }

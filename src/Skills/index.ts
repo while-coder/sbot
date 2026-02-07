@@ -6,3 +6,4 @@
 export { Skill, SkillMetadata } from './types';
 export { parseSkill, isValidSkillDirectory } from './parser';
 export { loadSkills, getSkillFilePath, getSkillMdPath, readSkillContent } from './loader';
+export { SkillService, SkillServiceConfig } from './SkillService';

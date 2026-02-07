@@ -135,6 +135,9 @@ class Config {
     return this._settings;
   }
 
+  getModelName(): string {
+    return this._settings.model || "";
+  }
   /**
    * 根据名称获取模型配置
    * @param name 模型名称（对应 settings.models 中的 key），不传则使用当前选中的模型
