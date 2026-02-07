@@ -1,8 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { Embeddings } from "@langchain/core/embeddings";
 import { OpenAIEmbeddings } from "@langchain/openai";
-import { Container } from "../Core";
-import { MODEL_NAME } from "../Model";
+import { singleton, inject } from "../Core";
 import { MemoryDatabase } from "./MemoryDatabase";
 import { Memory, MemoryType, MemoryRetrievalOptions, MemoryMetadata } from "./types";
 import { ImportanceEvaluator, ImportanceEvaluation } from "./ImportanceEvaluator";
@@ -22,51 +21,40 @@ export interface MemoryServiceConfig {
     baseURL?: string;
     model?: string;
   };
-  enableAutoCleanup?: boolean;
   maxMemoryAgeDays?: number;
-  compressionModel?: string;           // 压缩使用的模型
 }
 
 /**
  * 记忆服务
  * 提供记忆的添加、检索、管理功能
  *
- * 内部使用 DI 容器管理子服务（ImportanceEvaluator、MemoryCompressor），
- * 子服务通过 tryResolve 按需获取，容器中注册了配置即启用。
+ * 使用依赖注入模式，自动注入 ImportanceEvaluator 和 MemoryCompressor。
  *
  * @example
  * ```ts
- * const memoryService = new MemoryService({
- *   userId: "user1",
- *   dbPath: "./memory.db",
- *   embeddingConfig: { apiKey: "xxx", baseURL: "https://api.openai.com" },
- * });
+ * // 注册配置和依赖
+ * container.registerInstance("MemoryServiceConfig", config);
  *
- * // 子服务通过 tryResolve 按需获取，有注册即启用，无注册即禁用
- * const evaluator = await memoryService.getService(ImportanceEvaluator);
- * const compressor = await memoryService.getService(MemoryCompressor);
+ * // 解析服务
+ * const memoryService = await container.resolve(MemoryService);
  * ```
  */
+@singleton()
 export class MemoryService {
   private db: MemoryDatabase;
   private embeddings: Embeddings;
   private userId: string;
   private sessionId: string;
-  private enableAutoCleanup: boolean;
   private maxMemoryAgeDays: number;
-  private config: MemoryServiceConfig;
 
-  /**
-   * 内部 DI 容器，管理 ImportanceEvaluator 和 MemoryCompressor 等子服务
-   */
-  readonly container: Container;
-
-  constructor(config: MemoryServiceConfig) {
-    this.config = config;
+  constructor(
+    @inject("MemoryServiceConfig") private config: MemoryServiceConfig,
+    @inject(ImportanceEvaluator) private importanceEvaluator: ImportanceEvaluator,
+    @inject(MemoryCompressor) private memoryCompressor: MemoryCompressor
+  ) {
     this.userId = config.userId;
     this.sessionId = uuidv4();
     this.db = new MemoryDatabase(config.dbPath);
-    this.enableAutoCleanup = config.enableAutoCleanup ?? false;
     this.maxMemoryAgeDays = config.maxMemoryAgeDays ?? 90;
 
     // 初始化 embedding 模型
@@ -82,66 +70,19 @@ export class MemoryService {
       throw new Error("必须提供 embeddingConfig 配置");
     }
 
-    // 创建内部 DI 容器
-    this.container = new Container();
-
     logger.info(`记忆服务已创建 - 用户: ${this.userId}, 会话: ${this.sessionId}`);
   }
 
   /**
-   * 初始化服务（注册子服务到容器）
+   * 初始化服务
    */
   async init(): Promise<void> {
-    await this.registerServices();
-
     logger.info(`记忆服务已初始化 - 用户: ${this.userId}`);
 
-    // 如果启用自动清理，执行一次清理
-    if (this.enableAutoCleanup) {
-      this.cleanupOldMemories().catch(err => {
-        logger.error(`自动清理记忆失败: ${err.message}`);
-      });
-    }
-  }
-
-  /**
-   * 注册子服务到内部容器
-   */
-  private async registerServices(): Promise<void> {
-    // const embeddingConfig = this.config.embeddingConfig!;
-    // const model = this.config.compressionModel || "gpt-3.5-turbo";
-
-    // // 创建并初始化模型服务
-    // const modelService = new OpenAIModelService({
-    //   apiKey: embeddingConfig.apiKey,
-    //   baseURL: embeddingConfig.baseURL,
-    //   model,
-    //   temperature: 0.3,
-    // });
-    // await modelService.initialize();
-
-    // // 注册到容器，子服务通过 @inject(IModelService) 获取
-    // this.container.registerInstance(IModelService, modelService);
-    if (this.config.compressionModel) {
-      this.container.registerInstance(MODEL_NAME, this.config.compressionModel);
-    }
-    this.container.register(ImportanceEvaluator, { useClass: ImportanceEvaluator });
-    this.container.register(MemoryCompressor, { useClass: MemoryCompressor });
-  }
-
-  /**
-   * 从内部容器获取子服务
-   *
-   * @example
-   * ```ts
-   * const evaluator = await memoryService.getService(ImportanceEvaluator);
-   * if (evaluator) {
-   *   const result = await evaluator.evaluate("some text");
-   * }
-   * ```
-   */
-  async getService<T>(token: new (...args: any[]) => T): Promise<T | null> {
-    return await this.container.tryResolve<T>(token);
+    // 自动清理过期记忆
+    this.cleanupOldMemories().catch(err => {
+      logger.error(`自动清理记忆失败: ${err.message}`);
+    });
   }
 
   /**
@@ -151,16 +92,16 @@ export class MemoryService {
     content: string,
     type: MemoryType = MemoryType.EPISODIC,
     importance?: number,
-    additionalMetadata?: Record<string, any>,
-    useLLMEvaluation: boolean = true
+    additionalMetadata?: Record<string, any>
   ): Promise<string> {
     try {
       const embedding = await this.embeddings.embedQuery(content);
 
+      // 优先使用显式指定的重要性，否则根据 importanceEvaluator 是否存在决定评估方式
       let finalImportance: number;
       if (importance !== undefined) {
         finalImportance = importance;
-      } else if (useLLMEvaluation) {
+      } else if (this.importanceEvaluator) {
         finalImportance = await this.evaluateImportanceAsync(content);
       } else {
         finalImportance = this.evaluateImportance(content);
@@ -303,10 +244,9 @@ export class MemoryService {
    * 自动评估记忆重要性（优先使用 LLM）
    */
   private async evaluateImportanceAsync(content: string, context?: string): Promise<number> {
-    const evaluator = await this.container.tryResolve(ImportanceEvaluator);
-    if (evaluator) {
+    if (this.importanceEvaluator) {
       try {
-        const evaluation = await evaluator.evaluate(content, context);
+        const evaluation = await this.importanceEvaluator.evaluate(content, context);
         logger.debug(`LLM 评估重要性: ${evaluation.score.toFixed(2)} - ${evaluation.reasoning}`);
         return evaluation.score;
       } catch (error: any) {
@@ -471,8 +411,7 @@ export class MemoryService {
    * 使用 LLM 评估记忆重要性
    */
   async evaluateMemoryImportanceWithLLM(memoryId: string): Promise<ImportanceEvaluation | null> {
-    const evaluator = await this.container.tryResolve(ImportanceEvaluator);
-    if (!evaluator) {
+    if (!this.importanceEvaluator) {
       logger.warn("LLM 重要性评估未启用");
       return null;
     }
@@ -484,7 +423,7 @@ export class MemoryService {
     }
 
     try {
-      const evaluation = await evaluator.evaluate(memory.content);
+      const evaluation = await this.importanceEvaluator.evaluate(memory.content);
       await this.updateMemoryImportance(memoryId, evaluation.score);
 
       if (evaluation.tags && evaluation.tags.length > 0) {
@@ -513,8 +452,7 @@ export class MemoryService {
     similarityThreshold: number = 0.8,
     strategy: MergeStrategy = MergeStrategy.CHRONOLOGICAL
   ): Promise<CompressionResult[]> {
-    const compressor = await this.container.tryResolve(MemoryCompressor);
-    if (!compressor) {
+    if (!this.memoryCompressor) {
       logger.warn("记忆压缩功能未启用");
       return [];
     }
@@ -543,8 +481,7 @@ export class MemoryService {
     minGroupSize: number = 3,
     strategy: MergeStrategy = MergeStrategy.CHRONOLOGICAL
   ): Promise<number> {
-    const compressor = await this.container.tryResolve(MemoryCompressor);
-    if (!compressor) {
+    if (!this.memoryCompressor) {
       logger.warn("记忆压缩功能未启用");
       return 0;
     }
@@ -561,8 +498,7 @@ export class MemoryService {
     memoryIds: string[],
     strategy: MergeStrategy = MergeStrategy.THEMATIC
   ): Promise<CompressionResult | null> {
-    const compressor = await this.container.tryResolve(MemoryCompressor);
-    if (!compressor) {
+    if (!this.memoryCompressor) {
       logger.warn("记忆压缩功能未启用");
       return null;
     }
@@ -584,7 +520,7 @@ export class MemoryService {
         return null;
       }
 
-      const result = await compressor.compress(
+      const result = await this.memoryCompressor.compress(
         memories,
         strategy,
         (text: string) => this.embeddings.embedQuery(text)
@@ -623,10 +559,9 @@ export class MemoryService {
   }
 
   /**
-   * 释放资源（同时销毁内部容器）
+   * 释放资源
    */
   async dispose(): Promise<void> {
-    await this.container.dispose();
     this.db.close();
     logger.info(`记忆服务已关闭 - 用户: ${this.userId}`);
   }
