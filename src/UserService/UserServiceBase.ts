@@ -7,6 +7,8 @@ import { CommandBase, CommandContext } from "./CommandBase";
 import { getBuiltInCommands } from "./BuiltInCommands";
 import { config } from "../Config";
 import { OpenAIModelService } from "../Model";
+import { Container } from "../Core";
+import { ImportanceEvaluator, MemoryCompressor, MemoryService } from "../Memory";
 
 const logger = LoggerService.getLogger('UserServiceBase.ts');
 
@@ -62,7 +64,12 @@ export abstract class UserServiceBase {
                         },
                     });
                     await modelService.initialize();
-                    const agentService = new AgentService(this.userId, modelConfig, modelService, config.getConfigPath("skills", true));
+                    const container = new Container()
+                    container.registerInstance(ImportanceEvaluator, new ImportanceEvaluator())
+                    container.registerInstance(MemoryCompressor, new MemoryCompressor())
+                    container.registerInstance(MemoryService, new MemoryService())
+                    const agentService = container.resolve(AgentService);
+                    // const agentService = new AgentService(this.userId, modelConfig, modelService, config.getConfigPath("skills", true));
                     await agentService.stream(
                         query,
                         this.onAgentMessage.bind(this),
