@@ -1,5 +1,5 @@
 import { inject } from "../Core";
-import { IModelService, ModelServiceFactory } from "../Model";
+import { IModelService, MODEL_NAME, ModelServiceFactory } from "../Model";
 import { LoggerService } from "../LoggerService";
 
 const logger = LoggerService.getLogger("ImportanceEvaluator.ts");
@@ -28,7 +28,7 @@ export class ImportanceEvaluator {
   private modelService: IModelService | null = null;
 
   constructor(
-    private modelName: string,
+    @inject(MODEL_NAME) private modelName: string,
     @inject(ModelServiceFactory) private modelFactory: ModelServiceFactory
   ) {}
 
