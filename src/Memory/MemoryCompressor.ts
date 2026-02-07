@@ -12,7 +12,6 @@ export interface MemoryCompressorConfig {
   apiKey: string;
   baseURL?: string;
   model?: string;
-  enabled?: boolean;
 }
 
 /**
@@ -51,35 +50,27 @@ export enum MergeStrategy {
 @singleton()
 export class MemoryCompressor {
   private model?: ChatOpenAI;
-  private enabled: boolean;
 
   constructor(
     @inject("MemoryCompressorConfig") private config: MemoryCompressorConfig
-  ) {
-    this.enabled = config.enabled ?? true;
-  }
+  ) {}
 
   @init()
   async initialize(): Promise<void> {
-    if (this.enabled) {
-      this.model = new ChatOpenAI({
-        configuration: {
-          baseURL: this.config.baseURL || "https://api.openai.com/v1",
-          apiKey: this.config.apiKey,
-        },
+    this.model = new ChatOpenAI({
+      configuration: {
+        baseURL: this.config.baseURL || "https://api.openai.com/v1",
         apiKey: this.config.apiKey,
-        model: this.config.model || "gpt-3.5-turbo",
-        temperature: 0.3,
-      });
-      logger.info("记忆压缩器已初始化");
-    } else {
-      logger.info("记忆压缩器已禁用");
-    }
+      },
+      apiKey: this.config.apiKey,
+      model: this.config.model || "gpt-3.5-turbo",
+      temperature: 0.3,
+    });
+    logger.info("记忆压缩器已初始化");
   }
 
   @dispose()
   async cleanup(): Promise<void> {
-    this.enabled = false;
     this.model = undefined;
     logger.info("记忆压缩器已释放");
   }
@@ -88,23 +79,7 @@ export class MemoryCompressor {
    * 是否已启用
    */
   isEnabled(): boolean {
-    return this.enabled && this.model !== undefined;
-  }
-
-  /**
-   * 禁用压缩功能
-   */
-  disable(): void {
-    this.enabled = false;
-    logger.info("记忆压缩功能已禁用");
-  }
-
-  /**
-   * 启用压缩功能
-   */
-  enable(): void {
-    this.enabled = true;
-    logger.info("记忆压缩功能已启用");
+    return this.model !== undefined;
   }
 
   /**
@@ -120,7 +95,7 @@ export class MemoryCompressor {
       return null;
     }
 
-    if (!this.enabled || !this.model) {
+    if (!this.model) {
       logger.warn("记忆压缩功能未启用");
       return null;
     }

@@ -11,7 +11,6 @@ export interface ImportanceEvaluatorConfig {
   apiKey: string;
   baseURL?: string;
   model?: string;
-  enabled?: boolean;
 }
 
 /**
@@ -43,35 +42,27 @@ export interface ImportanceEvaluation {
 @singleton()
 export class ImportanceEvaluator {
   private model?: ChatOpenAI;
-  private enabled: boolean;
 
   constructor(
     @inject("ImportanceEvaluatorConfig") private config: ImportanceEvaluatorConfig
-  ) {
-    this.enabled = config.enabled ?? true;
-  }
+  ) {}
 
   @init()
   async initialize(): Promise<void> {
-    if (this.enabled) {
-      this.model = new ChatOpenAI({
-        configuration: {
-          baseURL: this.config.baseURL || "https://api.openai.com/v1",
-          apiKey: this.config.apiKey,
-        },
+    this.model = new ChatOpenAI({
+      configuration: {
+        baseURL: this.config.baseURL || "https://api.openai.com/v1",
         apiKey: this.config.apiKey,
-        model: this.config.model || "gpt-3.5-turbo",
-        temperature: 0.3,
-      });
-      logger.info("LLM 重要性评估器已初始化");
-    } else {
-      logger.info("LLM 重要性评估器已禁用");
-    }
+      },
+      apiKey: this.config.apiKey,
+      model: this.config.model || "gpt-3.5-turbo",
+      temperature: 0.3,
+    });
+    logger.info("LLM 重要性评估器已初始化");
   }
 
   @dispose()
   async cleanup(): Promise<void> {
-    this.enabled = false;
     this.model = undefined;
     logger.info("LLM 重要性评估器已释放");
   }
@@ -83,7 +74,7 @@ export class ImportanceEvaluator {
    * @returns 重要性评估结果
    */
   async evaluate(content: string, context?: string): Promise<ImportanceEvaluation> {
-    if (!this.enabled || !this.model) {
+    if (!this.model) {
       return this.heuristicEvaluation(content);
     }
 
@@ -105,7 +96,7 @@ export class ImportanceEvaluator {
    * 批量评估多个文本的重要性
    */
   async evaluateBatch(items: Array<{ content: string; context?: string }>): Promise<ImportanceEvaluation[]> {
-    if (!this.enabled || !this.model || items.length === 0) {
+    if (!this.model || items.length === 0) {
       return items.map(item => this.heuristicEvaluation(item.content));
     }
 
@@ -127,23 +118,7 @@ export class ImportanceEvaluator {
    * 是否已启用
    */
   isEnabled(): boolean {
-    return this.enabled && this.model !== undefined;
-  }
-
-  /**
-   * 禁用 LLM 评估
-   */
-  disable(): void {
-    this.enabled = false;
-    logger.info("LLM 重要性评估已禁用");
-  }
-
-  /**
-   * 启用 LLM 评估
-   */
-  enable(): void {
-    this.enabled = true;
-    logger.info("LLM 重要性评估已启用");
+    return this.model !== undefined;
   }
 
   // ===== 私有方法 =====

@@ -23,8 +23,6 @@ export interface MemoryServiceConfig {
   };
   enableAutoCleanup?: boolean;
   maxMemoryAgeDays?: number;
-  enableLLMEvaluation?: boolean;      // 是否启用 LLM 重要性评估
-  enableCompression?: boolean;         // 是否启用记忆压缩
   compressionModel?: string;           // 压缩使用的模型
 }
 
@@ -33,7 +31,7 @@ export interface MemoryServiceConfig {
  * 提供记忆的添加、检索、管理功能
  *
  * 内部使用 DI 容器管理子服务（ImportanceEvaluator、MemoryCompressor），
- * 通过配置开关可以方便地启用/禁用某个子服务。
+ * 子服务通过 tryResolve 按需获取，容器中注册了配置即启用。
  *
  * @example
  * ```ts
@@ -41,12 +39,9 @@ export interface MemoryServiceConfig {
  *   userId: "user1",
  *   dbPath: "./memory.db",
  *   embeddingConfig: { apiKey: "xxx", baseURL: "https://api.openai.com" },
- *   enableLLMEvaluation: true,   // 启用重要性评估
- *   enableCompression: true,      // 启用记忆压缩
  * });
- * await memoryService.init();
  *
- * // 通过容器获取子服务
+ * // 子服务通过 tryResolve 按需获取，有注册即启用，无注册即禁用
  * const evaluator = await memoryService.getService(ImportanceEvaluator);
  * const compressor = await memoryService.getService(MemoryCompressor);
  * ```
@@ -94,17 +89,9 @@ export class MemoryService {
   }
 
   /**
-   * 初始化服务（解析并初始化所有已注册的子服务）
+   * 初始化服务
    */
   async init(): Promise<void> {
-    // 解析子服务（触发 @init() 方法）
-    if (this.config.enableLLMEvaluation) {
-      await this.container.resolve(ImportanceEvaluator);
-    }
-    if (this.config.enableCompression) {
-      await this.container.resolve(MemoryCompressor);
-    }
-
     logger.info(`记忆服务已初始化 - 用户: ${this.userId}`);
 
     // 如果启用自动清理，执行一次清理
@@ -122,23 +109,19 @@ export class MemoryService {
     const embeddingConfig = this.config.embeddingConfig!;
     const model = this.config.compressionModel || "gpt-3.5-turbo";
 
-    // 注册 ImportanceEvaluator 配置和服务
+    // 注册 ImportanceEvaluator 配置
     this.container.registerInstance("ImportanceEvaluatorConfig", {
       apiKey: embeddingConfig.apiKey,
       baseURL: embeddingConfig.baseURL,
       model,
-      enabled: this.config.enableLLMEvaluation ?? false,
     });
 
-    // 注册 MemoryCompressor 配置和服务
+    // 注册 MemoryCompressor 配置
     this.container.registerInstance("MemoryCompressorConfig", {
       apiKey: embeddingConfig.apiKey,
       baseURL: embeddingConfig.baseURL,
       model,
-      enabled: this.config.enableCompression ?? false,
     });
-
-    // 服务类已通过 @singleton() 装饰器标记，resolve 时自动注册
   }
 
   /**
@@ -316,7 +299,7 @@ export class MemoryService {
    */
   private async evaluateImportanceAsync(content: string, context?: string): Promise<number> {
     const evaluator = await this.container.tryResolve(ImportanceEvaluator);
-    if (evaluator && evaluator.isEnabled()) {
+    if (evaluator) {
       try {
         const evaluation = await evaluator.evaluate(content, context);
         logger.debug(`LLM 评估重要性: ${evaluation.score.toFixed(2)} - ${evaluation.reasoning}`);
@@ -484,7 +467,7 @@ export class MemoryService {
    */
   async evaluateMemoryImportanceWithLLM(memoryId: string): Promise<ImportanceEvaluation | null> {
     const evaluator = await this.container.tryResolve(ImportanceEvaluator);
-    if (!evaluator || !evaluator.isEnabled()) {
+    if (!evaluator) {
       logger.warn("LLM 重要性评估未启用");
       return null;
     }
@@ -526,7 +509,7 @@ export class MemoryService {
     strategy: MergeStrategy = MergeStrategy.CHRONOLOGICAL
   ): Promise<CompressionResult[]> {
     const compressor = await this.container.tryResolve(MemoryCompressor);
-    if (!compressor || !compressor.isEnabled()) {
+    if (!compressor) {
       logger.warn("记忆压缩功能未启用");
       return [];
     }
@@ -556,7 +539,7 @@ export class MemoryService {
     strategy: MergeStrategy = MergeStrategy.CHRONOLOGICAL
   ): Promise<number> {
     const compressor = await this.container.tryResolve(MemoryCompressor);
-    if (!compressor || !compressor.isEnabled()) {
+    if (!compressor) {
       logger.warn("记忆压缩功能未启用");
       return 0;
     }
@@ -574,7 +557,7 @@ export class MemoryService {
     strategy: MergeStrategy = MergeStrategy.THEMATIC
   ): Promise<CompressionResult | null> {
     const compressor = await this.container.tryResolve(MemoryCompressor);
-    if (!compressor || !compressor.isEnabled()) {
+    if (!compressor) {
       logger.warn("记忆压缩功能未启用");
       return null;
     }
