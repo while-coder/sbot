@@ -7,6 +7,7 @@ import { CommandBase, CommandContext } from "./CommandBase";
 import { getBuiltInCommands } from "./BuiltInCommands";
 import { config } from "../Config";
 import { IModelService, OpenAIModelService, MODEL_NAME } from "../Model";
+import { MEMORY_SERVICE_CONFIG } from "../Memory";
 import { Container } from "../Core";
 
 const logger = LoggerService.getLogger('UserServiceBase.ts');
@@ -76,7 +77,7 @@ export abstract class UserServiceBase {
                     // 可选：注册记忆相关依赖（如果有 apiKey 和 baseURL 则启用）
                     if (modelConfig.apiKey && modelConfig.baseURL) {
                         container.registerInstance(MODEL_NAME, modelConfig.model);
-                        container.registerInstance("MemoryServiceConfig", {
+                        container.registerInstance(MEMORY_SERVICE_CONFIG, {
                             userId: this.userId,
                             dbPath: config.getConfigPath(`memory/${this.userId}.db`),
                             embeddingConfig: {

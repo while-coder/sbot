@@ -6,6 +6,7 @@ import { MemoryDatabase } from "./MemoryDatabase";
 import { Memory, MemoryType, MemoryRetrievalOptions } from "./types";
 import { ImportanceEvaluator, ImportanceEvaluation } from "./ImportanceEvaluator";
 import { MemoryCompressor, MergeStrategy, CompressionResult } from "./MemoryCompressor";
+import { MEMORY_SERVICE_CONFIG } from "./index";
 import { LoggerService } from "../LoggerService";
 
 const logger = LoggerService.getLogger("MemoryService.ts");
@@ -36,7 +37,7 @@ export class MemoryService {
   private maxMemoryAgeDays: number;
 
   constructor(
-    @inject("MemoryServiceConfig") config: MemoryServiceConfig,
+    @inject(MEMORY_SERVICE_CONFIG) config: MemoryServiceConfig,
     @inject(ImportanceEvaluator, { optional: true }) private importanceEvaluator?: ImportanceEvaluator,
     @inject(MemoryCompressor, { optional: true }) private memoryCompressor?: MemoryCompressor
   ) {
