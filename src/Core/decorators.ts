@@ -15,6 +15,8 @@ export const METADATA_KEYS = {
   INIT_METHOD: "di:init_method",
   /** 标记类需要在销毁时调用的销毁方法 */
   DISPOSE_METHOD: "di:dispose_method",
+  /** 标记构造函数参数为可选注入 */
+  OPTIONAL_PARAMS: "di:optional_params",
 };
 
 /**
@@ -55,24 +57,35 @@ export function singleton(): ClassDecorator {
 /**
  * @inject(token) - 指定构造函数参数的注入令牌
  * 用于注入接口或字符串/Symbol 令牌对应的服务
- * 
+ *
+ * @param token 注入令牌
+ * @param options 可选配置，{ optional: true } 表示服务未注册时注入 undefined 而非报错
+ *
  * @example
  * ```ts
  * @injectable()
  * class MyService {
  *   constructor(
  *     @inject("API_KEY") private apiKey: string,
- *     @inject(ILogger) private logger: ILogger
+ *     @inject(ILogger) private logger: ILogger,
+ *     @inject(ImportanceEvaluator, { optional: true }) private evaluator?: ImportanceEvaluator,
  *   ) {}
  * }
  * ```
  */
-export function inject(token: InjectionToken): ParameterDecorator {
+export function inject(token: InjectionToken, options?: { optional?: boolean }): ParameterDecorator {
   return function (target: Object, _propertyKey: string | symbol | undefined, parameterIndex: number) {
     const existingTokens: Map<number, InjectionToken> =
       Reflect.getOwnMetadata(METADATA_KEYS.INJECT_TOKENS, target) || new Map();
     existingTokens.set(parameterIndex, token);
     Reflect.defineMetadata(METADATA_KEYS.INJECT_TOKENS, existingTokens, target);
+
+    if (options?.optional) {
+      const existingOptionals: Set<number> =
+        Reflect.getOwnMetadata(METADATA_KEYS.OPTIONAL_PARAMS, target) || new Set();
+      existingOptionals.add(parameterIndex);
+      Reflect.defineMetadata(METADATA_KEYS.OPTIONAL_PARAMS, existingOptionals, target);
+    }
   };
 }
 
@@ -156,4 +169,11 @@ export function getInitMethod(target: Function): string | symbol | undefined {
  */
 export function getDisposeMethod(target: Function): string | symbol | undefined {
   return Reflect.getMetadata(METADATA_KEYS.DISPOSE_METHOD, target);
+}
+
+/**
+ * 获取构造函数中标记为可选的参数索引集合
+ */
+export function getOptionalParams(target: Function): Set<number> {
+  return Reflect.getOwnMetadata(METADATA_KEYS.OPTIONAL_PARAMS, target) || new Set();
 }

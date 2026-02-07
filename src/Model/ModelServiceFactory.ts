@@ -1,0 +1,87 @@
+import { singleton } from "../Core";
+import { config } from "../Config";
+import { IModelService } from "./IModelService";
+import { OpenAIModelService } from "./OpenAIModelService";
+import { LoggerService } from "../LoggerService";
+
+const logger = LoggerService.getLogger("ModelServiceFactory");
+
+/**
+ * 模型服务工厂
+ *
+ * 负责创建和缓存 ModelService 实例，确保相同 modelName 返回同一个实例。
+ *
+ * @example
+ * ```ts
+ * const factory = await container.resolve(ModelServiceFactory);
+ * const model1 = await factory.getModelService("gpt-4");
+ * const model2 = await factory.getModelService("gpt-4");
+ * // model1 === model2 (同一个实例)
+ * ```
+ */
+@singleton()
+export class ModelServiceFactory {
+  private readonly cache = new Map<string, IModelService>();
+
+  /**
+   * 获取指定模型的服务实例（带缓存）
+   * @param modelName 模型名称
+   * @returns 模型服务实例
+   */
+  async getModelService(modelName: string): Promise<IModelService> {
+    // 从缓存中获取
+    if (this.cache.has(modelName)) {
+      logger.debug(`使用缓存的模型服务: ${modelName}`);
+      return this.cache.get(modelName)!;
+    }
+
+    // 创建新实例
+    logger.debug(`创建新的模型服务: ${modelName}`);
+    const service = await this.createModelService(modelName);
+
+    // 缓存
+    this.cache.set(modelName, service);
+    return service;
+  }
+
+  /**
+   * 创建模型服务实例
+   */
+  private async createModelService(modelName: string): Promise<IModelService> {
+    const modelConfig = config.getModel(modelName);
+    if (!modelConfig) {
+      throw new Error(`模型配置 "${modelName}" 未找到`);
+    }
+
+    switch (modelConfig.provider) {
+      case "openai":
+        const service = new OpenAIModelService(modelConfig);
+        await service.initialize();
+        return service;
+      default:
+        throw new Error(`不支持的模型提供者: ${modelConfig.provider}`);
+    }
+  }
+
+  /**
+   * 清除缓存
+   */
+  clearCache(): void {
+    this.cache.clear();
+    logger.debug("已清除所有模型服务缓存");
+  }
+
+  /**
+   * 检查是否已缓存
+   */
+  hasCached(modelName: string): boolean {
+    return this.cache.has(modelName);
+  }
+
+  /**
+   * 获取缓存的模型列表
+   */
+  getCachedModels(): string[] {
+    return Array.from(this.cache.keys());
+  }
+}

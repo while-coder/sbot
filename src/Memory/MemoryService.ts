@@ -39,7 +39,6 @@ export interface MemoryServiceConfig {
  * const memoryService = await container.resolve(MemoryService);
  * ```
  */
-@singleton()
 export class MemoryService {
   private db: MemoryDatabase;
   private embeddings: Embeddings;
@@ -49,8 +48,8 @@ export class MemoryService {
 
   constructor(
     @inject("MemoryServiceConfig") private config: MemoryServiceConfig,
-    @inject(ImportanceEvaluator) private importanceEvaluator: ImportanceEvaluator,
-    @inject(MemoryCompressor) private memoryCompressor: MemoryCompressor
+    @inject(ImportanceEvaluator, { optional: true }) private importanceEvaluator?: ImportanceEvaluator,
+    @inject(MemoryCompressor, { optional: true }) private memoryCompressor?: MemoryCompressor
   ) {
     this.userId = config.userId;
     this.sessionId = uuidv4();
@@ -97,15 +96,7 @@ export class MemoryService {
     try {
       const embedding = await this.embeddings.embedQuery(content);
 
-      // 优先使用显式指定的重要性，否则根据 importanceEvaluator 是否存在决定评估方式
-      let finalImportance: number;
-      if (importance !== undefined) {
-        finalImportance = importance;
-      } else if (this.importanceEvaluator) {
-        finalImportance = await this.evaluateImportanceAsync(content);
-      } else {
-        finalImportance = this.evaluateImportance(content);
-      }
+      const finalImportance = importance ?? await this.evaluateImportance(content);
 
       const memory: Memory = {
         id: uuidv4(),
@@ -148,6 +139,13 @@ export class MemoryService {
       const contents = items.map(item => item.content);
       const embeddings = await this.embeddings.embedDocuments(contents);
 
+      const importances = await Promise.all(
+        items.map(item => item.importance !== undefined
+          ? Promise.resolve(item.importance)
+          : this.evaluateImportance(item.content)
+        )
+      );
+
       const memories: Memory[] = items.map((item, index) => ({
         id: uuidv4(),
         type: item.type || MemoryType.EPISODIC,
@@ -157,7 +155,7 @@ export class MemoryService {
           timestamp: Date.now(),
           userId: this.userId,
           sessionId: this.sessionId,
-          importance: item.importance ?? this.evaluateImportance(item.content),
+          importance: importances[index],
           accessCount: 0,
           lastAccessed: Date.now(),
           ...item.metadata
@@ -241,9 +239,9 @@ export class MemoryService {
   }
 
   /**
-   * 自动评估记忆重要性（优先使用 LLM）
+   * 评估记忆重要性（优先 LLM，fallback 启发式）
    */
-  private async evaluateImportanceAsync(content: string, context?: string): Promise<number> {
+  private async evaluateImportance(content: string, context?: string): Promise<number> {
     if (this.importanceEvaluator) {
       try {
         const evaluation = await this.importanceEvaluator.evaluate(content, context);
@@ -253,13 +251,8 @@ export class MemoryService {
         logger.warn(`LLM 评估失败，使用启发式方法: ${error.message}`);
       }
     }
-    return this.evaluateImportance(content);
-  }
 
-  /**
-   * 启发式重要性评估（备用方案）
-   */
-  private evaluateImportance(content: string): number {
+    // 启发式评估
     let importance = 0.5;
 
     const highImportanceKeywords = [

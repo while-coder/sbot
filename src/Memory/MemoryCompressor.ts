@@ -1,5 +1,5 @@
-import { singleton, inject } from "../Core";
-import { IModelService } from "../Model";
+import { inject } from "../Core";
+import { IModelService, ModelServiceFactory } from "../Model";
 import { Memory, MemoryType } from "./types";
 import { LoggerService } from "../LoggerService";
 
@@ -30,16 +30,27 @@ export enum MergeStrategy {
  *
  * @example
  * ```ts
- * // 在容器中注册 IModelService 后
- * const compressor = await container.resolve(MemoryCompressor);
+ * const compressor = new MemoryCompressor("gpt-4", modelFactory);
  * const result = await compressor.compress(memories, MergeStrategy.CHRONOLOGICAL, embedFn);
  * ```
  */
-@singleton()
 export class MemoryCompressor {
+  private modelService: IModelService | null = null;
+
   constructor(
-    @inject(IModelService) private modelService: IModelService
+    private modelName: string,
+    @inject(ModelServiceFactory) private modelFactory: ModelServiceFactory
   ) {}
+
+  /**
+   * 获取模型服务实例（懒加载 + 缓存）
+   */
+  private async getModelService(): Promise<IModelService> {
+    if (!this.modelService) {
+      this.modelService = await this.modelFactory.getModelService(this.modelName);
+    }
+    return this.modelService;
+  }
 
   /**
    * 压缩多个记忆为一个
@@ -200,8 +211,9 @@ export class MemoryCompressor {
     memories: Memory[],
     strategy: MergeStrategy
   ): Promise<string> {
+    const model = await this.getModelService();
     const prompt = this.buildCompressionPrompt(memories, strategy);
-    const response = await this.modelService.invoke(prompt);
+    const response = await model.invoke(prompt);
     return this.cleanCompressedContent(response.content);
   }
 

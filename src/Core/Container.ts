@@ -16,6 +16,7 @@ import {
   getParamTypes,
   getInitMethod,
   getDisposeMethod,
+  getOptionalParams,
 } from "./decorators";
 import { LoggerService } from "../LoggerService";
 
@@ -285,21 +286,34 @@ export class Container {
     // 获取构造函数参数类型
     const paramTypes = getParamTypes(target);
     const injectTokens = getInjectTokens(target);
+    const optionalParams = getOptionalParams(target);
 
     // 解析每个参数
     const args: any[] = [];
     for (let i = 0; i < paramTypes.length; i++) {
       // 优先使用 @inject() 指定的令牌
       const token = injectTokens.get(i) ?? paramTypes[i];
+      const isOptional = optionalParams.has(i);
 
       if (!token || token === Object || token === undefined) {
+        if (isOptional) {
+          args.push(undefined);
+          continue;
+        }
         throw new Error(
           `无法解析 ${target.name} 的第 ${i} 个构造函数参数。` +
           `请使用 @inject() 装饰器指定注入令牌，或确保参数类型是可注入的类。`
         );
       }
 
-      args.push(await this.resolve(token));
+      // 特殊处理：如果注入的是 Container 本身，返回当前容器实例
+      if (token === Container) {
+        args.push(this);
+      } else if (isOptional && !this.isRegistered(token)) {
+        args.push(undefined);
+      } else {
+        args.push(await this.resolve(token));
+      }
     }
 
     return new target(...args);

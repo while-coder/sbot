@@ -1,5 +1,5 @@
-import { singleton, inject, Container, Lifecycle } from "../Core";
-import { createModelService, IModelService, MODEL_NAME } from "../Model";
+import { inject } from "../Core";
+import { IModelService, ModelServiceFactory } from "../Model";
 import { LoggerService } from "../LoggerService";
 
 const logger = LoggerService.getLogger("ImportanceEvaluator.ts");
@@ -20,26 +20,26 @@ export interface ImportanceEvaluation {
  *
  * @example
  * ```ts
- * // 在容器中注册 IModelService 后
- * const evaluator = await container.resolve(ImportanceEvaluator);
+ * const evaluator = new ImportanceEvaluator("gpt-4", modelFactory);
  * const result = await evaluator.evaluate("some text");
  * ```
  */
-@singleton()
 export class ImportanceEvaluator {
-  private readonly container : Container;
+  private modelService: IModelService | null = null;
+
   constructor(
-    @inject(MODEL_NAME) private modelName: string
-  ) {
-    this.container = new Container();
-    this.container.registerInstance(MODEL_NAME, this.modelName)
-    this.container.register(
-      "Model",
-      {
-        useFactory: createModelService,
-      },
-      Lifecycle.Singleton
-    );
+    private modelName: string,
+    @inject(ModelServiceFactory) private modelFactory: ModelServiceFactory
+  ) {}
+
+  /**
+   * 获取模型服务实例（懒加载 + 缓存）
+   */
+  private async getModelService(): Promise<IModelService> {
+    if (!this.modelService) {
+      this.modelService = await this.modelFactory.getModelService(this.modelName);
+    }
+    return this.modelService;
   }
 
   /**
@@ -50,8 +50,9 @@ export class ImportanceEvaluator {
    */
   async evaluate(content: string, context?: string): Promise<ImportanceEvaluation> {
     try {
+      const model = await this.getModelService();
       const prompt = this.buildEvaluationPrompt(content, context);
-      const response = await (await this.container.resolve<IModelService>("Model")).invoke(prompt);
+      const response = await model.invoke(prompt);
       const result = this.parseResponse(response.content);
 
       logger.debug(`LLM 重要性评估: ${content.substring(0, 50)}... -> ${result.score.toFixed(2)}`);
@@ -71,8 +72,9 @@ export class ImportanceEvaluator {
     }
 
     try {
+      const model = await this.getModelService();
       const prompt = this.buildBatchEvaluationPrompt(items);
-      const response = await (await this.container.resolve<IModelService>("Model")).invoke(prompt);
+      const response = await model.invoke(prompt);
       const results = this.parseBatchResponse(response.content, items.length);
 
       logger.debug(`批量评估了 ${items.length} 个记忆的重要性`);
