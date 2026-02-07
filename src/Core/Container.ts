@@ -127,47 +127,72 @@ export class Container {
   }
 
   /**
-   * 使用自定义参数注册单例
+   * 使用自定义参数注册服务
    *
    * 与 registerInstance 不同，此方法接受类和构造参数。
    * 参数会根据类型自动匹配到构造函数参数，未匹配的参数会通过容器解析。
    *
+   * 注意：此方法使用延迟创建，实例在首次 resolve 时才会创建。
+   *
+   * @param lifecycle 生命周期，默认为 Singleton
+   *
    * @example
    * ```ts
-   * // 方式 1: 直接使用类 token
-   * await container.registerWithArgs(DatabaseService, "localhost", 5432);
+   * // 方式 1: 直接使用类 token（默认单例）
+   * container.registerWithArgs(DatabaseService, "localhost", 5432);
    *
-   * // 方式 2: 使用接口 token + 实现类
-   * await container.registerWithArgs("ILogger", ConsoleLogger, ...args);
+   * // 方式 2: 指定生命周期
+   * container.registerWithArgs(DatabaseService, Lifecycle.Transient, "localhost", 5432);
+   *
+   * // 方式 3: 使用接口 token + 实现类
+   * container.registerWithArgs("ILogger", ConsoleLogger, ...args);
    * ```
    */
-  async registerWithArgs<T>(token: Constructor<T>, ...args: any[]): Promise<this>;
-  async registerWithArgs<T>(token: string | symbol, impl: Constructor<T>, ...args: any[]): Promise<this>;
-  async registerWithArgs<T>(token: InjectionToken<T>, ...args: any[]): Promise<this> {
-    // 确定实际的实现类
+  registerWithArgs<T>(token: Constructor<T>, ...args: any[]): this;
+  registerWithArgs<T>(token: Constructor<T>, lifecycle: Lifecycle, ...args: any[]): this;
+  registerWithArgs<T>(token: string | symbol, impl: Constructor<T>, ...args: any[]): this;
+  registerWithArgs<T>(token: string | symbol, impl: Constructor<T>, lifecycle: Lifecycle, ...args: any[]): this;
+  registerWithArgs<T>(token: InjectionToken<T>, ...args: any[]): this {
+    // 确定实际的实现类、生命周期和参数
     let actualImpl: Constructor<T>;
     let actualArgs: any[];
+    let lifecycle: Lifecycle = Lifecycle.Singleton;
 
     if (typeof token === "function") {
-      // 情况 1: token 是类，所有剩余参数都是构造函数参数
+      // 情况 1: token 是类
       actualImpl = token as Constructor<T>;
-      actualArgs = args;
+
+      // 检查第一个参数是否是 Lifecycle
+      if (args.length > 0 && typeof args[0] === "string" && Object.values(Lifecycle).includes(args[0] as Lifecycle)) {
+        lifecycle = args[0] as Lifecycle;
+        actualArgs = args.slice(1);
+      } else {
+        actualArgs = args;
+      }
     } else {
-      // 情况 2: token 是字符串或 Symbol，第一个参数是实现类，其余是构造函数参数
+      // 情况 2: token 是字符串或 Symbol
       if (args.length === 0 || typeof args[0] !== "function") {
         throw new Error(`registerWithArgs: 当使用字符串或 Symbol 作为 token 时，必须提供实现类作为第一个参数`);
       }
       actualImpl = args[0] as Constructor<T>;
-      actualArgs = args.slice(1);
+
+      // 检查第二个参数是否是 Lifecycle
+      if (args.length > 1 && typeof args[1] === "string" && Object.values(Lifecycle).includes(args[1] as Lifecycle)) {
+        lifecycle = args[1] as Lifecycle;
+        actualArgs = args.slice(2);
+      } else {
+        actualArgs = args.slice(1);
+      }
     }
 
-    // 使用增强的 constructInstance，传入参数
-    const instance = await this.constructInstance(actualImpl, actualArgs.length > 0 ? actualArgs : undefined);
+    // 使用工厂函数延迟创建，在 resolve 时才创建实例
+    this.register(token, {
+      useFactory: async () => {
+        return await this.constructInstance(actualImpl, actualArgs.length > 0 ? actualArgs : undefined);
+      }
+    }, lifecycle);
 
-    // 注册为单例
-    this.register(token, { useValue: instance }, Lifecycle.Singleton);
-
-    logger.debug(`注册实例（自定义参数）: ${tokenToString(token)}`);
+    logger.debug(`注册服务（自定义参数）: ${tokenToString(token)} (${lifecycle})`);
     return this;
   }
 

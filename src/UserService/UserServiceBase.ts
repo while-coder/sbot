@@ -86,10 +86,12 @@ export abstract class UserServiceBase {
 
                     // 模型服务（使用静态方法）
                     container.registerInstance(IModelService, await ModelServiceFactory.getModelService(config.getModelName()));
-                    await container.registerWithArgs(AgentService, this.userId);
-                    
+
+                    // 注册 AgentService（使用自定义参数）
+                    container.registerWithArgs(AgentService, this.userId);
+
                     // 解析 AgentService（自动注入所有已注册的依赖，未注册的 optional 依赖为 undefined）
-                    const agentService = 
+                    const agentService = await container.resolve(AgentService);
                     await agentService.stream(
                         query,
                         this.onAgentMessage.bind(this),

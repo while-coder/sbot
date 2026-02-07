@@ -68,7 +68,7 @@ async function main() {
 
   // 使用 registerWithArgs 创建 DatabaseService，提供 host 和 port
   // logger 会自动从容器解析
-  await container.registerWithArgs(
+  container.registerWithArgs(
     DatabaseService,
     "localhost",  // host: string
     5432          // port: number
@@ -88,7 +88,7 @@ async function main() {
   const customLogger = new ConsoleLogger();
 
   // 提供所有参数，完全不依赖容器解析
-  await container2.registerWithArgs(
+  container2.registerWithArgs(
     DatabaseService,
     "192.168.1.100",  // host: string
     3306,             // port: number
@@ -108,7 +108,7 @@ async function main() {
   const logger3 = new ConsoleLogger();
 
   // 参数顺序不同，但会根据类型自动匹配
-  await container3.registerWithArgs(
+  container3.registerWithArgs(
     DatabaseService,
     5432,             // port: number（顺序与构造函数不同）
     logger3,          // logger: ILogger
@@ -128,7 +128,7 @@ async function main() {
   container4.registerSingleton(ConsoleLogger);
 
   // 创建 DatabaseService（提供 host 和 port）
-  await container4.registerWithArgs(
+  container4.registerWithArgs(
     DatabaseService,
     "db.example.com",
     5432
@@ -136,7 +136,7 @@ async function main() {
 
   // 创建 ApiService（提供 baseURL 和 timeout）
   // dbService 会从容器中解析（前面已经注册）
-  await container4.registerWithArgs(
+  container4.registerWithArgs(
     ApiService,
     "https://api.example.com",  // baseURL: string
     3000                          // timeout: number
@@ -166,7 +166,7 @@ async function main() {
   const container5 = new Container();
 
   // 提供不同顺序的基本类型参数
-  await container5.registerWithArgs(
+  container5.registerWithArgs(
     ConfigService,
     true,                          // debugMode: boolean
     "sk-1234567890abcdef",         // apiKey: string
@@ -197,14 +197,14 @@ async function main() {
   const container6 = new Container();
   container6.registerSingleton(ConsoleLogger);
 
-  await container6.registerWithArgs(
+  container6.registerWithArgs(
     DatabaseService,
     "db.example.com",
     5432
   );
 
   // 只提供 SMTP 配置，logger 和 dbService 从容器解析
-  await container6.registerWithArgs(
+  container6.registerWithArgs(
     EmailService,
     "smtp.example.com",  // smtpHost
     587                   // smtpPort
