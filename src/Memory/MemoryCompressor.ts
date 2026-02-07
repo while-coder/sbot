@@ -1,4 +1,4 @@
-import { inject } from "../Core";
+import { inject, transient } from "../Core";
 import { IModelService, MODEL_NAME, ModelServiceFactory } from "../Model";
 import { Memory, MemoryType } from "./types";
 import { LoggerService } from "../LoggerService";
@@ -34,6 +34,7 @@ export enum MergeStrategy {
  * const result = await compressor.compress(memories, MergeStrategy.CHRONOLOGICAL, embedFn);
  * ```
  */
+@transient()
 export class MemoryCompressor {
   private modelService: IModelService | null = null;
 

@@ -5,6 +5,7 @@ import {StateGraph, END, START, MessagesAnnotation} from '@langchain/langgraph';
 import {SqliteSaver} from "@langchain/langgraph-checkpoint-sqlite";
 import {config, ModelConfig} from "../Config";
 import {LoggerService} from "../LoggerService";
+import { transient, inject } from "../Core";
 import { IModelService } from "../Model";
 import { loadSkills, Skill } from "../Skills";
 import { MCPToolResult, normalizeToMCPResult } from '../Tools/ToolsConfig'
@@ -66,6 +67,7 @@ export type ConvertImagesCallback = (result: MCPToolResult) => Promise<MCPToolRe
  * 使用 LangGraph 的 StateGraph 构建的 Agent 服务
  * 提供更灵活的工作流控制和状态管理
  */
+@transient()
 export class AgentService {
     private threadId: string;
     tools: any[] = [];
@@ -77,36 +79,23 @@ export class AgentService {
     private maxHistoryMessages: number = 10; // 最大历史消息数
     private modelConfig: ModelConfig;
     private memoryService?: MemoryService;
-    private enableMemory: boolean;
 
 
-    constructor(userId: string, modelConfig: ModelConfig, modelService?: IModelService, skillsDir?: string, enableMemory: boolean = true) {
+    constructor(
+        @inject("UserId") userId: string,
+        @inject("ModelConfig") modelConfig: ModelConfig,
+        @inject(IModelService, { optional: true }) modelService?: IModelService,
+        @inject("SkillsDir", { optional: true }) skillsDir?: string,
+        @inject(MemoryService, { optional: true }) memoryService?: MemoryService,
+    ) {
         this.threadId = userId;
         this.modelConfig = modelConfig;
         this.modelService = modelService;
         this.skillsDir = skillsDir;
-        this.enableMemory = enableMemory;
+        this.memoryService = memoryService;
 
-        // 初始化记忆服务
-        if (this.enableMemory && modelConfig.apiKey && modelConfig.baseURL) {
-            try {
-                const memoryDbPath = config.getConfigPath(`memory/${userId}.db`);
-                this.memoryService = new MemoryService({
-                    userId,
-                    dbPath: memoryDbPath,
-                    embeddingConfig: {
-                        apiKey: modelConfig.apiKey,
-                        baseURL: modelConfig.baseURL,
-                        model: "text-embedding-ada-002"
-                    },
-                    enableAutoCleanup: true,
-                    maxMemoryAgeDays: 90
-                });
-                logger.info(`用户 ${userId} 的长期记忆服务已启用`);
-            } catch (error: any) {
-                logger.warn(`初始化记忆服务失败: ${error.message}`);
-                this.memoryService = undefined;
-            }
+        if (this.memoryService) {
+            logger.info(`用户 ${userId} 的长期记忆服务已启用`);
         }
     }
 

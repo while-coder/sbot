@@ -20,21 +20,28 @@ export const METADATA_KEYS = {
 };
 
 /**
- * @injectable() - 标记类为可注入的
- * 
+ * @transient() - 标记类为可注入的（瞬时生命周期）
+ * 每次 resolve 都会创建新实例
+ *
  * @example
  * ```ts
- * @injectable()
+ * @transient()
  * class MyService {
  *   constructor(private dep: OtherService) {}
  * }
  * ```
  */
-export function injectable(): ClassDecorator {
+export function transient(): ClassDecorator {
   return function (target: Function) {
     Reflect.defineMetadata(METADATA_KEYS.INJECTABLE, true, target);
   };
 }
+
+/**
+ * @deprecated 使用 @transient() 代替
+ * @injectable() - 标记类为可注入的
+ */
+export const injectable = transient;
 
 /**
  * @singleton() - 标记类为单例可注入的
@@ -63,7 +70,7 @@ export function singleton(): ClassDecorator {
  *
  * @example
  * ```ts
- * @injectable()
+ * @transient()
  * class MyService {
  *   constructor(
  *     @inject("API_KEY") private apiKey: string,
@@ -130,10 +137,17 @@ export function dispose(): MethodDecorator {
 }
 
 /**
- * 获取类是否标记为可注入
+ * 获取类是否标记为可注入（transient 或 singleton）
  */
 export function isInjectable(target: Function): boolean {
   return Reflect.getMetadata(METADATA_KEYS.INJECTABLE, target) === true;
+}
+
+/**
+ * 获取类是否标记为 transient
+ */
+export function isTransient(target: Function): boolean {
+  return isInjectable(target) && getLifecycle(target) !== Lifecycle.Singleton;
 }
 
 /**

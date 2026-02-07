@@ -5,7 +5,7 @@
  *
  * @example
  * ```ts
- * import { singleton, injectable, inject, init, dispose, globalContainer } from "./Core";
+ * import { singleton, transient, inject, init, dispose, globalContainer } from "./Core";
  *
  * @singleton()
  * class DatabaseService {
@@ -16,7 +16,7 @@
  *   async disconnect() { await db.close(); }
  * }
  *
- * @injectable()
+ * @transient()
  * class UserService {
  *   constructor(private db: DatabaseService) {}
  * }
@@ -30,7 +30,7 @@
 export { Container, globalContainer } from "./Container";
 
 // 装饰器
-export { injectable, singleton, inject, init, dispose } from "./decorators";
+export { transient, injectable, singleton, inject, init, dispose } from "./decorators";
 
 // 类型
 export { InjectionToken, Constructor, AbstractConstructor, Lifecycle, Provider, ClassProvider, FactoryProvider, ValueProvider } from "./types";

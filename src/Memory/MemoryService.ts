@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { Embeddings } from "@langchain/core/embeddings";
 import { OpenAIEmbeddings } from "@langchain/openai";
-import { inject } from "../Core";
+import { inject, transient, init } from "../Core";
 import { MemoryDatabase } from "./MemoryDatabase";
 import { Memory, MemoryType, MemoryRetrievalOptions } from "./types";
 import { ImportanceEvaluator, ImportanceEvaluation } from "./ImportanceEvaluator";
@@ -28,6 +28,7 @@ export interface MemoryServiceConfig {
  * 记忆服务
  * 提供记忆的添加、检索、管理功能
  */
+@transient()
 export class MemoryService {
   private db: MemoryDatabase;
   private embeddings: Embeddings;
@@ -59,6 +60,7 @@ export class MemoryService {
   /**
    * 初始化服务
    */
+  @init()
   async init(): Promise<void> {
     logger.info(`记忆服务已初始化 - 用户: ${this.userId}`);
 

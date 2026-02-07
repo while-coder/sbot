@@ -1,4 +1,4 @@
-import { inject } from "../Core";
+import { inject, transient } from "../Core";
 import { IModelService, MODEL_NAME, ModelServiceFactory } from "../Model";
 import { LoggerService } from "../LoggerService";
 
@@ -24,6 +24,7 @@ export interface ImportanceEvaluation {
  * const result = await evaluator.evaluate("some text");
  * ```
  */
+@transient()
 export class ImportanceEvaluator {
   private modelService: IModelService | null = null;
 

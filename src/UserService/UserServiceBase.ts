@@ -6,9 +6,8 @@ import { Command } from "commander";
 import { CommandBase, CommandContext } from "./CommandBase";
 import { getBuiltInCommands } from "./BuiltInCommands";
 import { config } from "../Config";
-import { OpenAIModelService } from "../Model";
+import { IModelService, OpenAIModelService, MODEL_NAME } from "../Model";
 import { Container } from "../Core";
-import { ImportanceEvaluator, MemoryCompressor, MemoryService } from "../Memory";
 
 const logger = LoggerService.getLogger('UserServiceBase.ts');
 
@@ -64,12 +63,35 @@ export abstract class UserServiceBase {
                         },
                     });
                     await modelService.initialize();
-                    const container = new Container()
-                    container.registerInstance(ImportanceEvaluator, new ImportanceEvaluator())
-                    container.registerInstance(MemoryCompressor, new MemoryCompressor())
-                    container.registerInstance(MemoryService, new MemoryService())
-                    const agentService = container.resolve(AgentService);
-                    // const agentService = new AgentService(this.userId, modelConfig, modelService, config.getConfigPath("skills", true));
+
+                    // 创建 DI 容器并注册服务
+                    const container = new Container();
+
+                    // 必需：基础配置
+                    container.registerInstance("UserId", this.userId);
+                    container.registerInstance("ModelConfig", modelConfig);
+                    container.registerInstance(IModelService, modelService);
+                    container.registerInstance("SkillsDir", config.getConfigPath("skills", true));
+
+                    // 可选：注册记忆相关依赖（如果有 apiKey 和 baseURL 则启用）
+                    if (modelConfig.apiKey && modelConfig.baseURL) {
+                        container.registerInstance(MODEL_NAME, modelConfig.model);
+                        container.registerInstance("MemoryServiceConfig", {
+                            userId: this.userId,
+                            dbPath: config.getConfigPath(`memory/${this.userId}.db`),
+                            embeddingConfig: {
+                                apiKey: modelConfig.apiKey,
+                                baseURL: modelConfig.baseURL,
+                                model: "text-embedding-ada-002"
+                            },
+                            maxMemoryAgeDays: 90
+                        });
+                        // ImportanceEvaluator, MemoryCompressor, MemoryService
+                        // 会通过 @transient() 装饰器自动解析（它们的依赖链已在上方注册）
+                    }
+
+                    // 解析 AgentService（自动注入所有已注册的依赖，未注册的 optional 依赖为 undefined）
+                    const agentService = await container.resolve(AgentService);
                     await agentService.stream(
                         query,
                         this.onAgentMessage.bind(this),

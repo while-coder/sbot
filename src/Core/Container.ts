@@ -35,7 +35,7 @@ function tokenToString(token: InjectionToken): string {
  * 依赖注入容器
  *
  * 参考 tsyringe 设计，提供简洁的 API：
- * - 装饰器自动注册：@singleton(), @injectable()
+ * - 装饰器自动注册：@singleton(), @transient()
  * - 类型安全的解析：container.resolve(MyService)
  * - 支持多种注册方式：类、工厂、值
  *
@@ -161,7 +161,7 @@ export class Container {
     if (!registration) {
       throw new Error(
         `服务未注册: ${tokenToString(token)}。` +
-        `${typeof token === "function" ? "请使用 @singleton() 或 @injectable() 装饰器，或手动注册服务。" : "请先使用 container.register() 注册服务。"}`
+        `${typeof token === "function" ? "请使用 @singleton() 或 @transient() 装饰器，或手动注册服务。" : "请先使用 container.register() 注册服务。"}`
       );
     }
 
@@ -309,8 +309,17 @@ export class Container {
       // 特殊处理：如果注入的是 Container 本身，返回当前容器实例
       if (token === Container) {
         args.push(this);
-      } else if (isOptional && !this.isRegistered(token)) {
-        args.push(undefined);
+      } else if (isOptional) {
+        // 可选依赖：解析失败时注入 undefined（包括依赖链上的失败）
+        try {
+          if (!this.isRegistered(token)) {
+            args.push(undefined);
+          } else {
+            args.push(await this.resolve(token));
+          }
+        } catch {
+          args.push(undefined);
+        }
       } else {
         args.push(await this.resolve(token));
       }

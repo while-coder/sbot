@@ -6,7 +6,7 @@
 //  * 本示例展示了 Container 的所有核心特性：
 //  *
 //  *  1. @singleton()   — 单例装饰器
-//  *  2. @injectable()  — 可注入装饰器（每次 resolve 创建新实例）
+//  *  2. @transient()  — 瞬时装饰器（每次 resolve 创建新实例）
 //  *  3. @inject(token) — 参数注入装饰器（字符串/Symbol/类 令牌）
 //  *  4. @init()        — 初始化方法装饰器（创建后自动调用）
 //  *  5. @dispose()     — 销毁方法装饰器（容器销毁时自动调用）
@@ -31,7 +31,7 @@
 //   Container,
 //   container,
 //   singleton,
-//   injectable,
+//   transient,
 //   inject,
 //   init,
 //   dispose,
@@ -52,12 +52,12 @@
 // }
 
 // // ============================================================
-// // 特性 2: @injectable() — 瞬时服务
+// // 特性 2: @transient() — 瞬时服务
 // // ============================================================
 // // 每次 resolve 都会创建一个新实例。
 // // 适用于无状态的工具类或需要独立实例的场景。
 
-// @injectable()
+// @transient()
 // class RequestContext {
 //   readonly requestId = Math.random().toString(36).substring(2, 10);
 //   readonly createdAt = new Date();
@@ -157,7 +157,7 @@
 //   }
 // }
 
-// @injectable()
+// @transient()
 // class UserRepository {
 //   // 自动注入 DatabaseService 和 CacheService（都是单例）
 //   constructor(
@@ -205,7 +205,7 @@
 //   abstract error(message: string): void;
 // }
 
-// @injectable()
+// @transient()
 // class ConsoleLogger extends ILogger {
 //   log(message: string): void {
 //     console.log(`    📝 [LOG] ${message}`);
@@ -339,7 +339,7 @@
 //   console.log();
 
 //   // ----------------------------------------------------------
-//   // 7. 瞬时服务验证（@injectable）
+//   // 7. 瞬时服务验证（@transient）
 //   // ----------------------------------------------------------
 //   console.log("🔄 [步骤 7] 瞬时服务验证（每次创建新实例）\n");
 
