@@ -59,13 +59,6 @@ export abstract class UserServiceBase {
                     // 创建 DI 容器并注册服务
                     const container = new Container();
 
-                    // // 必需：基础配置
-                    // container.registerInstance("UserId", this.userId);
-
-                    
-                    // 技能服务
-                    container.registerInstance(SkillService, new SkillService(config.getConfigPath("skills")));
-
                     // 可选：注册记忆相关依赖（如果有配置则启用）
                     if (config.getEmbeddingName()) {
                         // 重要性评估器和记忆压缩器（使用相同的模型服务）
@@ -83,6 +76,9 @@ export abstract class UserServiceBase {
                         container.registerInstance(IEmbeddingService, await EmbeddingServiceFactory.getEmbeddingService(config.getEmbeddingName()));
                         container.registerSingleton(MemoryService);
                     }
+
+                    // 技能服务
+                    container.registerInstance(SkillService, new SkillService(config.getConfigPath("skills")));
 
                     // 模型服务（使用静态方法）
                     container.registerInstance(IModelService, await ModelServiceFactory.getModelService(config.getModelName()));
