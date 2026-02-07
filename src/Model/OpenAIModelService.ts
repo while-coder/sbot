@@ -4,21 +4,11 @@ import { BaseMessageLike } from "@langchain/core/messages";
 import { IterableReadableStream } from "@langchain/core/utils/stream";
 import { Runnable } from "@langchain/core/runnables";
 import { IModelService, ModelInvokeResult } from "./IModelService";
+import { ModelConfig } from "../Config";
 import { singleton, init, dispose } from "../Core";
 import { LoggerService } from "../LoggerService";
 
 const logger = LoggerService.getLogger("OpenAIModelService");
-
-/**
- * 模型服务配置
- */
-export interface ModelServiceConfig {
-  apiKey: string;
-  baseURL?: string;
-  model?: string;
-  temperature?: number;
-  defaultHeaders?: Record<string, string>;
-}
 
 /**
  * OpenAI 模型服务实现
@@ -29,7 +19,7 @@ export class OpenAIModelService extends IModelService {
   private model!: ChatOpenAI;
   private boundModel?: Runnable;
 
-  constructor(private config: ModelServiceConfig) {
+  constructor(private config: ModelConfig) {
     super();
   }
 
@@ -39,7 +29,6 @@ export class OpenAIModelService extends IModelService {
       configuration: {
         baseURL: this.config.baseURL || "https://api.openai.com/v1",
         apiKey: this.config.apiKey,
-        defaultHeaders: this.config.defaultHeaders,
       },
       apiKey: this.config.apiKey,
       model: this.config.model || "gpt-3.5-turbo",

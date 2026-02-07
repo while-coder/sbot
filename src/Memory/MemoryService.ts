@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from "uuid";
 import { Embeddings } from "@langchain/core/embeddings";
 import { OpenAIEmbeddings } from "@langchain/openai";
 import { Container } from "../Core";
-import { IModelService, OpenAIModelService } from "../Model";
+import { MODEL_NAME } from "../Model";
 import { MemoryDatabase } from "./MemoryDatabase";
 import { Memory, MemoryType, MemoryRetrievalOptions, MemoryMetadata } from "./types";
 import { ImportanceEvaluator, ImportanceEvaluation } from "./ImportanceEvaluator";
@@ -108,20 +108,25 @@ export class MemoryService {
    * 注册子服务到内部容器
    */
   private async registerServices(): Promise<void> {
-    const embeddingConfig = this.config.embeddingConfig!;
-    const model = this.config.compressionModel || "gpt-3.5-turbo";
+    // const embeddingConfig = this.config.embeddingConfig!;
+    // const model = this.config.compressionModel || "gpt-3.5-turbo";
 
-    // 创建并初始化模型服务
-    const modelService = new OpenAIModelService({
-      apiKey: embeddingConfig.apiKey,
-      baseURL: embeddingConfig.baseURL,
-      model,
-      temperature: 0.3,
-    });
-    await modelService.initialize();
+    // // 创建并初始化模型服务
+    // const modelService = new OpenAIModelService({
+    //   apiKey: embeddingConfig.apiKey,
+    //   baseURL: embeddingConfig.baseURL,
+    //   model,
+    //   temperature: 0.3,
+    // });
+    // await modelService.initialize();
 
-    // 注册到容器，子服务通过 @inject(IModelService) 获取
-    this.container.registerInstance(IModelService, modelService);
+    // // 注册到容器，子服务通过 @inject(IModelService) 获取
+    // this.container.registerInstance(IModelService, modelService);
+    if (this.config.compressionModel) {
+      this.container.registerInstance(MODEL_NAME, this.config.compressionModel);
+    }
+    this.container.register(ImportanceEvaluator, { useClass: ImportanceEvaluator });
+    this.container.register(MemoryCompressor, { useClass: MemoryCompressor });
   }
 
   /**

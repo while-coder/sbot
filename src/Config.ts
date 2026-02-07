@@ -14,6 +14,7 @@ export interface ModelConfig {
   apiKey?: string;
   baseURL?: string;
   model?: string;
+  temperature?: number;
 }
 
 /**
@@ -135,16 +136,25 @@ class Config {
   }
 
   /**
+   * 根据名称获取模型配置
+   * @param name 模型名称（对应 settings.models 中的 key），不传则使用当前选中的模型
+   * @returns 模型配置，如果未配置则返回 undefined
+   */
+  getModel(name?: string): ModelConfig | undefined {
+    if (!this._settings.models) return undefined;
+
+    const modelName = name ?? this._settings.model;
+    if (!modelName || typeof modelName !== 'string') return undefined;
+
+    return this._settings.models[modelName.trim()];
+  }
+
+  /**
    * 获取当前使用的模型配置
    * @returns 当前模型配置，如果未配置则返回 undefined
    */
   getCurrentModel(): ModelConfig | undefined {
-    if (!this._settings.model || typeof this._settings.model !== 'string' || !this._settings.models) {
-      return undefined;
-    }
-
-    const currentModelName = this._settings.model.trim();
-    return this._settings.models[currentModelName];
+    return this.getModel();
   }
 
   /**
