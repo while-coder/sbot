@@ -5,7 +5,7 @@
 
 import { Container } from "../src/Core";
 import { IEmbeddingService, EmbeddingServiceFactory } from "../src/Embedding";
-import { EmbeddingConfig } from "../src/Config";
+import { config } from "../src/Config";
 
 async function main() {
     console.log("🔢 EmbeddingService 示例\n");
@@ -15,13 +15,16 @@ async function main() {
     // ============================================================
     console.log("📦 [示例 1] 使用 EmbeddingServiceFactory 静态方法\n");
 
-    const config: EmbeddingConfig = {
-        apiKey: "your-api-key",
-        baseURL: "https://api.openai.com/v1",
-        model: "text-embedding-ada-002"
-    };
+    // 从配置文件获取当前 embedding 名称
+    const embeddingName = config.getEmbeddingName();
+    if (!embeddingName) {
+        console.log("  ❌ 未配置 embedding，请在 ~/.sbot/settings.toml 中配置");
+        return;
+    }
 
-    const embeddingService = await EmbeddingServiceFactory.getEmbeddingService(config);
+    console.log(`  使用 embedding: ${embeddingName}`);
+
+    const embeddingService = await EmbeddingServiceFactory.getEmbeddingService(embeddingName);
 
     // 为单个文本生成 embedding
     console.log("  📝 为单个文本生成 embedding...");
@@ -37,7 +40,7 @@ async function main() {
 
     // 验证缓存机制
     console.log("  🔍 验证缓存机制...");
-    const embeddingService2 = await EmbeddingServiceFactory.getEmbeddingService(config);
+    const embeddingService2 = await EmbeddingServiceFactory.getEmbeddingService(embeddingName);
     console.log(`  ✅ 缓存工作正常: ${embeddingService === embeddingService2}\n`);
 
     // ============================================================
@@ -47,8 +50,8 @@ async function main() {
 
     const container = new Container();
 
-    // 创建并注册 embedding 服务（使用静态方法）
-    const embeddingInstance = await EmbeddingServiceFactory.getEmbeddingService(config);
+    // 创建并注册 embedding 服务（使用静态方法，传入名称）
+    const embeddingInstance = await EmbeddingServiceFactory.getEmbeddingService(embeddingName);
     container.registerInstance(IEmbeddingService, embeddingInstance);
 
     // 定义一个需要 embedding 服务的类
@@ -92,21 +95,22 @@ async function main() {
     // ============================================================
     console.log("🧹 [示例 3] 工厂管理和清理\n");
 
-    console.log(`  📊 当前缓存数量: ${EmbeddingServiceFactory.getCacheSize()}`);
-    console.log(`  🔍 是否已缓存: ${EmbeddingServiceFactory.hasCached(config)}\n`);
+    const cachedEmbeddings = EmbeddingServiceFactory.getCachedEmbeddings();
+    console.log(`  📊 已缓存的 embeddings: ${cachedEmbeddings.join(", ")}`);
+    console.log(`  🔍 是否已缓存 ${embeddingName}: ${EmbeddingServiceFactory.hasCached(embeddingName)}\n`);
 
     // 清理所有缓存
     console.log("  🧹 清理所有缓存...");
     await EmbeddingServiceFactory.clearCache();
-    console.log(`  ✅ 清理完成，当前缓存数量: ${EmbeddingServiceFactory.getCacheSize()}\n`);
+    console.log(`  ✅ 清理完成，缓存的 embeddings: ${EmbeddingServiceFactory.getCachedEmbeddings().join(", ") || "无"}\n`);
 
     console.log("✨ 示例完成！");
 }
 
-// 运行示例（需要有效的 API 密钥）
+// 运行示例（需要有效的配置）
 if (require.main === module) {
-    console.log("⚠️  注意：此示例需要有效的 OpenAI API 密钥才能运行");
-    console.log("⚠️  请修改 config 对象中的 apiKey\n");
+    console.log("⚠️  注意：此示例需要在 ~/.sbot/settings.toml 中配置 embedding");
+    console.log("⚠️  请参考 EmbeddingConfigExample.ts 了解配置格式\n");
 
     // 取消注释以下行来运行示例
     // main().catch(console.error);

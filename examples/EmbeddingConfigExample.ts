@@ -37,7 +37,7 @@ async function main() {
     // ============================================================
     console.log("🏭 [示例 2] 使用配置创建 embedding 服务（静态方法）\n");
 
-    const embeddingService = await EmbeddingServiceFactory.getEmbeddingService(currentEmbedding);
+    const embeddingService = await EmbeddingServiceFactory.getEmbeddingService(currentEmbeddingName);
 
     console.log("  ✅ Embedding 服务创建成功\n");
 
@@ -78,17 +78,18 @@ async function main() {
     console.log("🎯 [示例 4] 使用指定名称的 embedding\n");
 
     // 假设配置中有 "openai-3-small"
-    const specificEmbedding = config.getEmbedding("openai-3-small");
+    const specificEmbeddingName = "openai-3-small";
+    const specificEmbedding = config.getEmbedding(specificEmbeddingName);
     if (specificEmbedding) {
-        console.log(`  ✅ 找到指定的 embedding: openai-3-small`);
+        console.log(`  ✅ 找到指定的 embedding: ${specificEmbeddingName}`);
         console.log(`     Model: ${specificEmbedding.model}\n`);
 
-        // 创建该 embedding 服务（使用静态方法）
-        const specificService = await EmbeddingServiceFactory.getEmbeddingService(specificEmbedding);
+        // 创建该 embedding 服务（使用静态方法，传入名称）
+        const specificService = await EmbeddingServiceFactory.getEmbeddingService(specificEmbeddingName);
         const embedding2 = await specificService.embedQuery("Test text");
-        console.log(`  ✅ 使用 openai-3-small 生成了 ${embedding2.length} 维的向量\n`);
+        console.log(`  ✅ 使用 ${specificEmbeddingName} 生成了 ${embedding2.length} 维的向量\n`);
     } else {
-        console.log("  ℹ️  未找到 openai-3-small 配置\n");
+        console.log(`  ℹ️  未找到 ${specificEmbeddingName} 配置\n`);
     }
 
     // ============================================================

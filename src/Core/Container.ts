@@ -344,20 +344,10 @@ export class Container {
       // 优先使用 @inject() 指定的令牌
       const token = injectTokens.get(i) ?? paramTypes[i];
       const isOptional = optionalParams.has(i);
-
-      if (!token || token === Object || token === undefined) {
-        if (isOptional) {
-          args.push(undefined);
-          continue;
-        }
-        throw new Error(
-          `无法解析 ${target.name} 的第 ${i} 个构造函数参数。` +
-          `请使用 @inject() 装饰器指定注入令牌，或确保参数类型是可注入的类。`
-        );
-      }
+      const hasValidToken = token && token !== Object && token !== undefined;
 
       // 特殊处理：如果注入的是 Container 本身，返回当前容器实例
-      if (token === Container) {
+      if (hasValidToken && token === Container) {
         args.push(this);
         continue;
       }
@@ -365,11 +355,25 @@ export class Container {
       // 尝试从 providedArgs 中找到类型匹配的值
       let foundInProvided = false;
       if (providedArgs && providedArgs.length > 0) {
-        const matchedValue = this.findMatchingArg(token, providedArgs, usedArgIndices);
-        if (matchedValue !== undefined) {
-          args.push(matchedValue.value);
-          usedArgIndices.add(matchedValue.index);
-          foundInProvided = true;
+        // 如果有有效的 token，使用 token 匹配
+        // 如果没有有效的 token，尝试按位置匹配（取第一个未使用的参数）
+        if (hasValidToken) {
+          const matchedValue = this.findMatchingArg(token, providedArgs, usedArgIndices);
+          if (matchedValue !== undefined) {
+            args.push(matchedValue.value);
+            usedArgIndices.add(matchedValue.index);
+            foundInProvided = true;
+          }
+        } else {
+          // 没有 token 信息时，按顺序匹配第一个未使用的参数
+          for (let j = 0; j < providedArgs.length; j++) {
+            if (!usedArgIndices.has(j)) {
+              args.push(providedArgs[j]);
+              usedArgIndices.add(j);
+              foundInProvided = true;
+              break;
+            }
+          }
         }
       }
 
@@ -378,7 +382,20 @@ export class Container {
         continue;
       }
 
-      // 否则通过容器解析
+      // 如果没有有效的 token 且没有在 providedArgs 中找到
+      if (!hasValidToken) {
+        if (isOptional) {
+          args.push(undefined);
+          continue;
+        }
+        throw new Error(
+          `无法解析 ${target.name} 的第 ${i} 个构造函数参数。` +
+          `请使用 @inject() 装饰器指定注入令牌，或确保参数类型是可注入的类，` +
+          `或在调用 registerWithArgs 时提供该参数的值。`
+        );
+      }
+
+      // 通过容器解析
       if (isOptional) {
         // 可选依赖：解析失败时注入 undefined（包括依赖链上的失败）
         try {

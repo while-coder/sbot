@@ -7,7 +7,7 @@ import { CommandBase, CommandContext } from "./CommandBase";
 import { getBuiltInCommands } from "./BuiltInCommands";
 import { config } from "../Config";
 import { IModelService, ModelServiceFactory } from "../Model";
-import { ImportanceEvaluator, MEMORY_SERVICE_CONFIG, MemoryCompressor } from "../Memory";
+import { ImportanceEvaluator, MEMORY_SERVICE_CONFIG, MemoryCompressor, MemoryService } from "../Memory";
 import { IEmbeddingService, EmbeddingServiceFactory } from "../Embedding";
 import { Container } from "../Core";
 import { SkillService } from "../Skills";
@@ -56,35 +56,18 @@ export abstract class UserServiceBase {
                 if (query.startsWith('/')) {
                     await this.processCommand(query.substring(1), args);
                 } else {
-                    // const modelConfig = config.getCurrentModel()!;
-                    // const modelService = new OpenAIModelService({
-                    //     apiKey: modelConfig.apiKey!,
-                    //     baseURL: modelConfig.baseURL,
-                    //     model: modelConfig.model,
-                    //     defaultHeaders: {
-                    //         Authorization: `Bearer ${modelConfig.apiKey}`,
-                    //     },
-                    // });
-                    // await modelService.initialize();
-
                     // 创建 DI 容器并注册服务
                     const container = new Container();
 
-                    // 必需：基础配置
-                    container.registerInstance("UserId", this.userId);
+                    // // 必需：基础配置
+                    // container.registerInstance("UserId", this.userId);
 
-                    // 模型服务（使用静态方法）
-                    container.registerInstance(IModelService, await ModelServiceFactory.getModelService(config.getModelName()));
-
+                    
                     // 技能服务
                     container.registerInstance(SkillService, new SkillService(config.getConfigPath("skills")));
 
                     // 可选：注册记忆相关依赖（如果有配置则启用）
-                    const embeddingConfig = config.getCurrentEmbedding();
-                    if (embeddingConfig && embeddingConfig.apiKey && embeddingConfig.baseURL) {
-                        // Embedding 服务（从配置读取，使用静态方法）
-                        container.registerInstance(IEmbeddingService, await EmbeddingServiceFactory.getEmbeddingService(embeddingConfig));
-
+                    if (config.getEmbeddingName()) {
                         // 重要性评估器和记忆压缩器（使用相同的模型服务）
                         const modelForMemory = await ModelServiceFactory.getModelService(config.getModelName());
                         container.registerInstance(ImportanceEvaluator, new ImportanceEvaluator(modelForMemory));
@@ -96,12 +79,17 @@ export abstract class UserServiceBase {
                             dbPath: config.getConfigPath(`memory/${this.userId}.db`),
                             maxMemoryAgeDays: config.settings.memory?.maxAgeDays ?? 90
                         });
-
-                        // MemoryService 会通过 @transient() 装饰器自动解析
+                        // Embedding 服务（从配置读取，使用静态方法）
+                        container.registerInstance(IEmbeddingService, await EmbeddingServiceFactory.getEmbeddingService(config.getEmbeddingName()));
+                        container.registerSingleton(MemoryService);
                     }
 
+                    // 模型服务（使用静态方法）
+                    container.registerInstance(IModelService, await ModelServiceFactory.getModelService(config.getModelName()));
+                    await container.registerWithArgs(AgentService, this.userId);
+                    
                     // 解析 AgentService（自动注入所有已注册的依赖，未注册的 optional 依赖为 undefined）
-                    const agentService = await container.resolve(AgentService);
+                    const agentService = 
                     await agentService.stream(
                         query,
                         this.onAgentMessage.bind(this),

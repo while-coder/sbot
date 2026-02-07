@@ -23,7 +23,6 @@ export interface MemoryServiceConfig {
  * 记忆服务
  * 提供记忆的添加、检索、管理功能
  */
-@transient()
 export class MemoryService {
   private db: MemoryDatabase;
   private userId: string;
