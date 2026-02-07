@@ -1,20 +1,15 @@
 import { ChatOpenAI } from "@langchain/openai";
-import { AIMessageChunk } from "langchain";
+import { AIMessage, AIMessageChunk } from "langchain";
 import { BaseMessageLike } from "@langchain/core/messages";
 import { IterableReadableStream } from "@langchain/core/utils/stream";
 import { Runnable } from "@langchain/core/runnables";
-import { IModelService, ModelInvokeResult } from "./IModelService";
+import { IModelService } from "./IModelService";
 import { ModelConfig } from "../Config";
-import { singleton, init, dispose } from "../Core";
-import { LoggerService } from "../LoggerService";
-
-const logger = LoggerService.getLogger("OpenAIModelService");
 
 /**
  * OpenAI 模型服务实现
  * 封装 @langchain/openai 的 ChatOpenAI
  */
-@singleton()
 export class OpenAIModelService extends IModelService {
   private model!: ChatOpenAI;
   private boundModel?: Runnable;
@@ -23,30 +18,26 @@ export class OpenAIModelService extends IModelService {
     super();
   }
 
-  @init()
   async initialize(): Promise<void> {
     this.model = new ChatOpenAI({
       configuration: {
-        baseURL: this.config.baseURL || "https://api.openai.com/v1",
+        baseURL: this.config.baseURL,
         apiKey: this.config.apiKey,
       },
       apiKey: this.config.apiKey,
-      model: this.config.model || "gpt-3.5-turbo",
+      model: this.config.model,
       temperature: this.config.temperature,
     });
-    logger.info("OpenAIModelService 已初始化");
   }
 
-  @dispose()
   async cleanup(): Promise<void> {
     (this as any).model = undefined;
     this.boundModel = undefined;
-    logger.info("OpenAIModelService 已释放");
   }
 
-  async invoke(prompt: string): Promise<ModelInvokeResult> {
-    const response = await this.model.invoke(prompt);
-    return { content: response.content as string };
+  async invoke(prompt: string): Promise<AIMessage> {
+    const target = this.boundModel ?? this.model;
+    return await target.invoke(prompt);
   }
 
   bindTools(tools: any[]): void {

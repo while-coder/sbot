@@ -19,7 +19,6 @@ const logger = LoggerService.getLogger("ModelServiceFactory");
  * // model1 === model2 (同一个实例)
  * ```
  */
-@singleton()
 export class ModelServiceFactory {
   private readonly cache = new Map<string, IModelService>();
 
@@ -64,9 +63,19 @@ export class ModelServiceFactory {
   }
 
   /**
-   * 清除缓存
+   * 清除缓存并释放所有模型服务资源
    */
-  clearCache(): void {
+  async clearCache(): Promise<void> {
+    // 调用每个缓存服务的 cleanup 方法
+    for (const [modelName, service] of this.cache.entries()) {
+      try {
+        await service.cleanup();
+        logger.debug(`已释放模型服务: ${modelName}`);
+      } catch (error: any) {
+        logger.warn(`释放模型服务失败 (${modelName}): ${error.message}`);
+      }
+    }
+
     this.cache.clear();
     logger.debug("已清除所有模型服务缓存");
   }

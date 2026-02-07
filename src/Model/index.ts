@@ -1,7 +1,7 @@
 /**
  * 模型服务模块
  */
-export { IModelService, ModelInvokeResult } from "./IModelService";
+export { IModelService } from "./IModelService";
 export { OpenAIModelService } from "./OpenAIModelService";
 export { ModelServiceFactory } from "./ModelServiceFactory";
 

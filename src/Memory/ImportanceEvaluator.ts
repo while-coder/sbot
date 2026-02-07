@@ -26,22 +26,7 @@ export interface ImportanceEvaluation {
  */
 @transient()
 export class ImportanceEvaluator {
-  private modelService: IModelService | null = null;
-
-  constructor(
-    @inject(MODEL_NAME) private modelName: string,
-    @inject(ModelServiceFactory) private modelFactory: ModelServiceFactory
-  ) {}
-
-  /**
-   * 获取模型服务实例（懒加载 + 缓存）
-   */
-  private async getModelService(): Promise<IModelService> {
-    if (!this.modelService) {
-      this.modelService = await this.modelFactory.getModelService(this.modelName);
-    }
-    return this.modelService;
-  }
+  constructor(private modelService: IModelService) {}
 
   /**
    * 评估文本的重要性
@@ -51,10 +36,9 @@ export class ImportanceEvaluator {
    */
   async evaluate(content: string, context?: string): Promise<ImportanceEvaluation> {
     try {
-      const model = await this.getModelService();
       const prompt = this.buildEvaluationPrompt(content, context);
-      const response = await model.invoke(prompt);
-      const result = this.parseResponse(response.content);
+      const response = await this.modelService.invoke(prompt);
+      const result = this.parseResponse(response.text);
 
       logger.debug(`LLM 重要性评估: ${content.substring(0, 50)}... -> ${result.score.toFixed(2)}`);
       return result;
@@ -73,10 +57,9 @@ export class ImportanceEvaluator {
     }
 
     try {
-      const model = await this.getModelService();
       const prompt = this.buildBatchEvaluationPrompt(items);
-      const response = await model.invoke(prompt);
-      const results = this.parseBatchResponse(response.content, items.length);
+      const response = await this.modelService.invoke(prompt);
+      const results = this.parseBatchResponse(response.text, items.length);
 
       logger.debug(`批量评估了 ${items.length} 个记忆的重要性`);
       return results;

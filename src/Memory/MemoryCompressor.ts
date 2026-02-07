@@ -34,24 +34,8 @@ export enum MergeStrategy {
  * const result = await compressor.compress(memories, MergeStrategy.CHRONOLOGICAL, embedFn);
  * ```
  */
-@transient()
 export class MemoryCompressor {
-  private modelService: IModelService | null = null;
-
-  constructor(
-    @inject(MODEL_NAME) private modelName: string,
-    @inject(ModelServiceFactory) private modelFactory: ModelServiceFactory
-  ) {}
-
-  /**
-   * 获取模型服务实例（懒加载 + 缓存）
-   */
-  private async getModelService(): Promise<IModelService> {
-    if (!this.modelService) {
-      this.modelService = await this.modelFactory.getModelService(this.modelName);
-    }
-    return this.modelService;
-  }
+  constructor(private modelService: IModelService) {}
 
   /**
    * 压缩多个记忆为一个
@@ -212,10 +196,9 @@ export class MemoryCompressor {
     memories: Memory[],
     strategy: MergeStrategy
   ): Promise<string> {
-    const model = await this.getModelService();
     const prompt = this.buildCompressionPrompt(memories, strategy);
-    const response = await model.invoke(prompt);
-    return this.cleanCompressedContent(response.content);
+    const response = await this.modelService.invoke(prompt);
+    return this.cleanCompressedContent(response.text);
   }
 
   private buildCompressionPrompt(memories: Memory[], strategy: MergeStrategy): string {
