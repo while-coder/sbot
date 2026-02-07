@@ -30,7 +30,7 @@
 export { Container, globalContainer } from "./Container";
 
 // 装饰器
-export { transient, injectable, singleton, inject, init, dispose } from "./decorators";
+export { transient, singleton, inject, init, dispose } from "./decorators";
 
 // 类型
 export { InjectionToken, Constructor, AbstractConstructor, Lifecycle, Provider, ClassProvider, FactoryProvider, ValueProvider } from "./types";

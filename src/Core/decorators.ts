@@ -2,21 +2,22 @@ import "reflect-metadata";
 import { InjectionToken, Lifecycle } from "./types";
 
 /**
- * Metadata keys
+ * 依赖注入元数据键
+ * 用于存储装饰器标记的元数据信息
  */
 export const METADATA_KEYS = {
-  /** 标记类为可注入 */
+  /** 标记类为可注入（transient 或 singleton） */
   INJECTABLE: "di:injectable",
-  /** 标记类的生命周期 */
+  /** 标记类的生命周期（Singleton | Transient） */
   LIFECYCLE: "di:lifecycle",
-  /** 标记构造函数参数的注入令牌 */
-  INJECT_TOKENS: "di:inject_tokens",
-  /** 标记类需要在创建后调用的初始化方法 */
+  /** 标记构造函数参数的注入令牌映射 */
+  INJECTION_TOKENS: "di:injection_tokens",
+  /** 标记类的初始化方法名（@init 装饰的方法） */
   INIT_METHOD: "di:init_method",
-  /** 标记类需要在销毁时调用的销毁方法 */
+  /** 标记类的销毁方法名（@dispose 装饰的方法） */
   DISPOSE_METHOD: "di:dispose_method",
-  /** 标记构造函数参数为可选注入 */
-  OPTIONAL_PARAMS: "di:optional_params",
+  /** 标记构造函数的可选参数索引集合 */
+  OPTIONAL_PARAMETERS: "di:optional_parameters",
 };
 
 /**
@@ -36,12 +37,6 @@ export function transient(): ClassDecorator {
     Reflect.defineMetadata(METADATA_KEYS.INJECTABLE, true, target);
   };
 }
-
-/**
- * @deprecated 使用 @transient() 代替
- * @injectable() - 标记类为可注入的
- */
-export const injectable = transient;
 
 /**
  * @singleton() - 标记类为单例可注入的
@@ -83,15 +78,15 @@ export function singleton(): ClassDecorator {
 export function inject(token: InjectionToken, options?: { optional?: boolean }): ParameterDecorator {
   return function (target: Object, _propertyKey: string | symbol | undefined, parameterIndex: number) {
     const existingTokens: Map<number, InjectionToken> =
-      Reflect.getOwnMetadata(METADATA_KEYS.INJECT_TOKENS, target) || new Map();
+      Reflect.getOwnMetadata(METADATA_KEYS.INJECTION_TOKENS, target) || new Map();
     existingTokens.set(parameterIndex, token);
-    Reflect.defineMetadata(METADATA_KEYS.INJECT_TOKENS, existingTokens, target);
+    Reflect.defineMetadata(METADATA_KEYS.INJECTION_TOKENS, existingTokens, target);
 
     if (options?.optional) {
       const existingOptionals: Set<number> =
-        Reflect.getOwnMetadata(METADATA_KEYS.OPTIONAL_PARAMS, target) || new Set();
+        Reflect.getOwnMetadata(METADATA_KEYS.OPTIONAL_PARAMETERS, target) || new Set();
       existingOptionals.add(parameterIndex);
-      Reflect.defineMetadata(METADATA_KEYS.OPTIONAL_PARAMS, existingOptionals, target);
+      Reflect.defineMetadata(METADATA_KEYS.OPTIONAL_PARAMETERS, existingOptionals, target);
     }
   };
 }
@@ -161,7 +156,7 @@ export function getLifecycle(target: Function): Lifecycle | undefined {
  * 获取构造函数参数的注入令牌
  */
 export function getInjectTokens(target: Function): Map<number, InjectionToken> {
-  return Reflect.getOwnMetadata(METADATA_KEYS.INJECT_TOKENS, target) || new Map();
+  return Reflect.getOwnMetadata(METADATA_KEYS.INJECTION_TOKENS, target) || new Map();
 }
 
 /**
@@ -189,5 +184,5 @@ export function getDisposeMethod(target: Function): string | symbol | undefined 
  * 获取构造函数中标记为可选的参数索引集合
  */
 export function getOptionalParams(target: Function): Set<number> {
-  return Reflect.getOwnMetadata(METADATA_KEYS.OPTIONAL_PARAMS, target) || new Set();
+  return Reflect.getOwnMetadata(METADATA_KEYS.OPTIONAL_PARAMETERS, target) || new Set();
 }
