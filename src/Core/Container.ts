@@ -147,17 +147,21 @@ export class Container {
     // 2. 查找注册信息
     let registration = this.registrations.get(token);
 
-    // 3. 如果没有注册，尝试自动注册（仅限带装饰器的类）
+    // 3. 如果没有注册，且是带装饰器的类，则自动注册
     if (!registration && typeof token === "function") {
       if (isInjectable(token)) {
         const lifecycle = getLifecycle(token) ?? Lifecycle.Transient;
         this.register(token, { useClass: token as Constructor<T> }, lifecycle);
         registration = this.registrations.get(token);
+        logger.debug(`自动注册装饰器类: ${tokenToString(token)} (${lifecycle})`);
       }
     }
 
     if (!registration) {
-      throw new Error(`服务未注册: ${tokenToString(token)}`);
+      throw new Error(
+        `服务未注册: ${tokenToString(token)}。` +
+        `${typeof token === "function" ? "请使用 @singleton() 或 @injectable() 装饰器，或手动注册服务。" : "请先使用 container.register() 注册服务。"}`
+      );
     }
 
     // 4. 单例：返回缓存实例
@@ -193,11 +197,11 @@ export class Container {
   }
 
   /**
-   * 检查服务是否已注册
+   * 检查服务是否已注册（包括可以自动注册的装饰器类）
    */
   isRegistered<T>(token: InjectionToken<T>): boolean {
     if (this.registrations.has(token)) return true;
-    // 检查是否有装饰器自动注册
+    // 检查是否是带装饰器的类（可以自动注册）
     if (typeof token === "function" && isInjectable(token)) return true;
     return false;
   }
