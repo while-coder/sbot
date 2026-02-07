@@ -35,6 +35,7 @@ export const METADATA_KEYS = {
 export function transient(): ClassDecorator {
   return function (target: Function) {
     Reflect.defineMetadata(METADATA_KEYS.INJECTABLE, true, target);
+    Reflect.defineMetadata(METADATA_KEYS.LIFECYCLE, Lifecycle.Transient, target);
   };
 }
 
@@ -136,13 +137,6 @@ export function dispose(): MethodDecorator {
  */
 export function isInjectable(target: Function): boolean {
   return Reflect.getMetadata(METADATA_KEYS.INJECTABLE, target) === true;
-}
-
-/**
- * 获取类是否标记为 transient
- */
-export function isTransient(target: Function): boolean {
-  return isInjectable(target) && getLifecycle(target) !== Lifecycle.Singleton;
 }
 
 /**
