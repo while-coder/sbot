@@ -73,9 +73,8 @@ export abstract class UserServiceBase {
                     // 必需：基础配置
                     container.registerInstance("UserId", this.userId);
 
-                    // 模型服务
-                    const modelServiceFactory = new ModelServiceFactory();
-                    container.registerInstance(IModelService, await modelServiceFactory.getModelService(config.getModelName()));
+                    // 模型服务（使用静态方法）
+                    container.registerInstance(IModelService, await ModelServiceFactory.getModelService(config.getModelName()));
 
                     // 技能服务
                     container.registerInstance(SkillService, new SkillService(config.getConfigPath("skills")));
@@ -83,12 +82,11 @@ export abstract class UserServiceBase {
                     // 可选：注册记忆相关依赖（如果有配置则启用）
                     const embeddingConfig = config.getCurrentEmbedding();
                     if (embeddingConfig && embeddingConfig.apiKey && embeddingConfig.baseURL) {
-                        // Embedding 服务（从配置读取）
-                        const embeddingFactory = new EmbeddingServiceFactory();
-                        container.registerInstance(IEmbeddingService, await embeddingFactory.getEmbeddingService(embeddingConfig));
+                        // Embedding 服务（从配置读取，使用静态方法）
+                        container.registerInstance(IEmbeddingService, await EmbeddingServiceFactory.getEmbeddingService(embeddingConfig));
 
                         // 重要性评估器和记忆压缩器（使用相同的模型服务）
-                        const modelForMemory = await modelServiceFactory.getModelService(config.getModelName());
+                        const modelForMemory = await ModelServiceFactory.getModelService(config.getModelName());
                         container.registerInstance(ImportanceEvaluator, new ImportanceEvaluator(modelForMemory));
                         container.registerInstance(MemoryCompressor, new MemoryCompressor(modelForMemory));
 

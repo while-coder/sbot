@@ -4,17 +4,16 @@
  */
 
 import { Container } from "../src/Core";
-import { IEmbeddingService, EmbeddingServiceFactory, EmbeddingConfig } from "../src/Embedding";
+import { IEmbeddingService, EmbeddingServiceFactory } from "../src/Embedding";
+import { EmbeddingConfig } from "../src/Config";
 
 async function main() {
     console.log("🔢 EmbeddingService 示例\n");
 
     // ============================================================
-    // 示例 1: 使用工厂直接创建
+    // 示例 1: 使用工厂静态方法直接创建
     // ============================================================
-    console.log("📦 [示例 1] 使用 EmbeddingServiceFactory\n");
-
-    const factory = new EmbeddingServiceFactory();
+    console.log("📦 [示例 1] 使用 EmbeddingServiceFactory 静态方法\n");
 
     const config: EmbeddingConfig = {
         apiKey: "your-api-key",
@@ -22,7 +21,7 @@ async function main() {
         model: "text-embedding-ada-002"
     };
 
-    const embeddingService = await factory.getEmbeddingService(config);
+    const embeddingService = await EmbeddingServiceFactory.getEmbeddingService(config);
 
     // 为单个文本生成 embedding
     console.log("  📝 为单个文本生成 embedding...");
@@ -38,7 +37,7 @@ async function main() {
 
     // 验证缓存机制
     console.log("  🔍 验证缓存机制...");
-    const embeddingService2 = await factory.getEmbeddingService(config);
+    const embeddingService2 = await EmbeddingServiceFactory.getEmbeddingService(config);
     console.log(`  ✅ 缓存工作正常: ${embeddingService === embeddingService2}\n`);
 
     // ============================================================
@@ -48,9 +47,8 @@ async function main() {
 
     const container = new Container();
 
-    // 创建并注册 embedding 服务
-    const embeddingFactory = new EmbeddingServiceFactory();
-    const embeddingInstance = await embeddingFactory.getEmbeddingService(config);
+    // 创建并注册 embedding 服务（使用静态方法）
+    const embeddingInstance = await EmbeddingServiceFactory.getEmbeddingService(config);
     container.registerInstance(IEmbeddingService, embeddingInstance);
 
     // 定义一个需要 embedding 服务的类
@@ -94,13 +92,13 @@ async function main() {
     // ============================================================
     console.log("🧹 [示例 3] 工厂管理和清理\n");
 
-    console.log(`  📊 当前缓存数量: ${factory.getCacheSize()}`);
-    console.log(`  🔍 是否已缓存: ${factory.hasCached(config)}\n`);
+    console.log(`  📊 当前缓存数量: ${EmbeddingServiceFactory.getCacheSize()}`);
+    console.log(`  🔍 是否已缓存: ${EmbeddingServiceFactory.hasCached(config)}\n`);
 
     // 清理所有缓存
     console.log("  🧹 清理所有缓存...");
-    await factory.clearCache();
-    console.log(`  ✅ 清理完成，当前缓存数量: ${factory.getCacheSize()}\n`);
+    await EmbeddingServiceFactory.clearCache();
+    console.log(`  ✅ 清理完成，当前缓存数量: ${EmbeddingServiceFactory.getCacheSize()}\n`);
 
     console.log("✨ 示例完成！");
 }

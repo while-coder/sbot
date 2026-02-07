@@ -35,10 +35,9 @@ async function main() {
     // ============================================================
     // 示例 2: 使用配置创建 embedding 服务
     // ============================================================
-    console.log("🏭 [示例 2] 使用配置创建 embedding 服务\n");
+    console.log("🏭 [示例 2] 使用配置创建 embedding 服务（静态方法）\n");
 
-    const factory = new EmbeddingServiceFactory();
-    const embeddingService = await factory.getEmbeddingService(currentEmbedding);
+    const embeddingService = await EmbeddingServiceFactory.getEmbeddingService(currentEmbedding);
 
     console.log("  ✅ Embedding 服务创建成功\n");
 
@@ -84,8 +83,8 @@ async function main() {
         console.log(`  ✅ 找到指定的 embedding: openai-3-small`);
         console.log(`     Model: ${specificEmbedding.model}\n`);
 
-        // 创建该 embedding 服务
-        const specificService = await factory.getEmbeddingService(specificEmbedding);
+        // 创建该 embedding 服务（使用静态方法）
+        const specificService = await EmbeddingServiceFactory.getEmbeddingService(specificEmbedding);
         const embedding2 = await specificService.embedQuery("Test text");
         console.log(`  ✅ 使用 openai-3-small 生成了 ${embedding2.length} 维的向量\n`);
     } else {
@@ -112,8 +111,8 @@ async function main() {
     console.log(`  baseURL = "https://api.openai.com/v1"`);
     console.log(`  model = "text-embedding-3-small"\n`);
 
-    // 清理
-    await factory.clearCache();
+    // 清理缓存（使用静态方法）
+    await EmbeddingServiceFactory.clearCache();
     console.log("✨ 示例完成！");
 }
 

@@ -12,8 +12,7 @@ const logger = LoggerService.getLogger("EmbeddingServiceFactory");
  *
  * @example
  * ```ts
- * const factory = new EmbeddingServiceFactory();
- * const embedding = await factory.getEmbeddingService({
+ * const embedding = await EmbeddingServiceFactory.getEmbeddingService({
  *   apiKey: "sk-xxx",
  *   baseURL: "https://api.openai.com/v1",
  *   model: "text-embedding-ada-002"
@@ -21,14 +20,14 @@ const logger = LoggerService.getLogger("EmbeddingServiceFactory");
  * ```
  */
 export class EmbeddingServiceFactory {
-  private readonly cache = new Map<string, IEmbeddingService>();
+  private static readonly cache = new Map<string, IEmbeddingService>();
 
   /**
    * 获取 embedding 服务实例（带缓存）
    * @param config Embedding 配置
    * @returns Embedding 服务实例
    */
-  async getEmbeddingService(config: EmbeddingConfig): Promise<IEmbeddingService> {
+  static async getEmbeddingService(config: EmbeddingConfig): Promise<IEmbeddingService> {
     const cacheKey = this.getCacheKey(config);
 
     // 从缓存中获取
@@ -49,7 +48,7 @@ export class EmbeddingServiceFactory {
   /**
    * 创建 embedding 服务实例
    */
-  private async createEmbeddingService(config: EmbeddingConfig): Promise<IEmbeddingService> {
+  private static async createEmbeddingService(config: EmbeddingConfig): Promise<IEmbeddingService> {
     // 目前只支持 OpenAI，未来可以根据 provider 字段扩展
     const service = new OpenAIEmbeddingService(config);
     await service.initialize();
@@ -59,14 +58,14 @@ export class EmbeddingServiceFactory {
   /**
    * 生成缓存键
    */
-  private getCacheKey(config: EmbeddingConfig): string {
+  private static getCacheKey(config: EmbeddingConfig): string {
     return `${config.baseURL || "default"}:${config.model || "text-embedding-ada-002"}`;
   }
 
   /**
    * 清除缓存并释放所有 embedding 服务资源
    */
-  async clearCache(): Promise<void> {
+  static async clearCache(): Promise<void> {
     for (const [key, service] of this.cache.entries()) {
       try {
         await service.cleanup();
@@ -83,14 +82,14 @@ export class EmbeddingServiceFactory {
   /**
    * 检查是否已缓存
    */
-  hasCached(config: EmbeddingConfig): boolean {
+  static hasCached(config: EmbeddingConfig): boolean {
     return this.cache.has(this.getCacheKey(config));
   }
 
   /**
    * 获取缓存的服务数量
    */
-  getCacheSize(): number {
+  static getCacheSize(): number {
     return this.cache.size;
   }
 }
