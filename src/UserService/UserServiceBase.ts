@@ -10,7 +10,7 @@ import { IModelService, ModelServiceFactory } from "../Model";
 import { ImportanceEvaluator, MEMORY_SERVICE_CONFIG, MemoryCompressor, MemoryService } from "../Memory";
 import { IEmbeddingService, EmbeddingServiceFactory } from "../Embedding";
 import { Container } from "../Core";
-import { SkillService } from "../Skills";
+import { ISkillService, SkillService } from "../Skills";
 
 const logger = LoggerService.getLogger('UserServiceBase.ts');
 
@@ -78,7 +78,7 @@ export abstract class UserServiceBase {
                     }
 
                     // 技能服务
-                    container.registerInstance(SkillService, new SkillService(config.getConfigPath("skills")));
+                    container.registerInstance(ISkillService, new SkillService(config.getConfigPath("skills")));
 
                     // 模型服务（使用静态方法）
                     container.registerInstance(IModelService, await ModelServiceFactory.getModelService(config.getModelName()));

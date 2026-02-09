@@ -6,7 +6,7 @@ import {config} from "../Config";
 import {LoggerService} from "../LoggerService";
 import { transient, inject } from "../Core";
 import { IModelService } from "../Model";
-import { SkillService } from "../Skills";
+import { ISkillService } from "../Skills";
 import { MCPToolResult, normalizeToMCPResult } from '../Tools/ToolsConfig'
 import { createFileSystemTools } from '../Tools/FileSystem'
 import { createSkillTools } from "../Tools/Skills";
@@ -74,7 +74,7 @@ export class AgentService {
     disabledAutoApproveTools: Set<string> = new Set<string>();
     private agentSaver?: IAgentSaver;
     private modelService?: IModelService;
-    private skillService?: SkillService;
+    private skillService?: ISkillService;
     private memoryService?: MemoryService;
 
 
@@ -82,7 +82,7 @@ export class AgentService {
         @inject("UserId") userId: string,
         @inject(IAgentSaver, { optional: true }) agentSaver?: IAgentSaver,
         @inject(IModelService, { optional: true }) modelService?: IModelService,
-        @inject(SkillService, { optional: true }) skillService?: SkillService,
+        @inject(ISkillService, { optional: true }) skillService?: ISkillService,
         @inject(MemoryService, { optional: true }) memoryService?: MemoryService,
     ) {
         this.threadId = userId;
@@ -96,8 +96,7 @@ export class AgentService {
         }
 
         if (this.skillService) {
-            const stats = this.skillService.getStatistics();
-            logger.info(`用户 ${userId} 的技能服务已启用，加载了 ${stats.totalSkills} 个技能`);
+            logger.info(`用户 ${userId} 的技能服务已启用，加载了 ${this.skillService.getAllSkills().length} 个技能`);
         }
     }
 
