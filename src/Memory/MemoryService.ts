@@ -1,8 +1,9 @@
 import { v4 as uuidv4 } from "uuid";
-import { inject, transient, init } from "../Core";
+import { inject, init } from "../Core";
 import { MemoryDatabase } from "./MemoryDatabase";
 import { Memory, MemoryType } from "./types";
 import { ImportanceEvaluator } from "./ImportanceEvaluator";
+import { MemoryCompressor, MergeStrategy } from "./MemoryCompressor";
 import { IMemoryService, MEMORY_SERVICE_CONFIG } from "./index";
 import { IEmbeddingService } from "../Embedding";
 import { LoggerService } from "../LoggerService";
@@ -32,6 +33,7 @@ export class MemoryService implements IMemoryService {
     @inject(MEMORY_SERVICE_CONFIG) config: MemoryServiceConfig,
     @inject(IEmbeddingService) private embeddings: IEmbeddingService,
     @inject(ImportanceEvaluator, { optional: true }) private importanceEvaluator?: ImportanceEvaluator,
+    @inject(MemoryCompressor, { optional: true }) private compressor?: MemoryCompressor,
   ) {
     this.userId = config.userId;
     this.sessionId = uuidv4();
@@ -93,6 +95,47 @@ export class MemoryService implements IMemoryService {
     }
 
     return summary;
+  }
+
+  /**
+   * 压缩相似记忆
+   * @returns 压缩的记忆组数
+   */
+  async compressMemories(): Promise<number> {
+    if (!this.compressor) {
+      logger.warn("MemoryCompressor 未启用，跳过压缩");
+      return 0;
+    }
+
+    try {
+      const allMemories = this.db.getAllMemories(this.userId);
+      if (allMemories.length < 2) return 0;
+
+      const groups = this.compressor.findCompressibleGroups(allMemories);
+      let compressedCount = 0;
+
+      for (const group of groups) {
+        const result = await this.compressor.compress(
+          group,
+          MergeStrategy.CHRONOLOGICAL,
+          (text) => this.embeddings.embedQuery(text)
+        );
+
+        if (result) {
+          this.db.insertMemory(result.compressedMemory);
+          for (const id of result.sourceMemoryIds) {
+            this.db.deleteMemory(id);
+          }
+          compressedCount++;
+          logger.info(`压缩记忆组: ${result.summary}`);
+        }
+      }
+
+      return compressedCount;
+    } catch (error: any) {
+      logger.error(`压缩记忆失败: ${error.message}`);
+      return 0;
+    }
   }
 
   /**

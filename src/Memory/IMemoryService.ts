@@ -13,6 +13,11 @@ export interface IMemoryService {
     memorizeConversation(userMessage: string, assistantMessage: string, importance?: number): Promise<void>;
 
     /**
+     * 压缩相似记忆（需要 MemoryCompressor 可用）
+     */
+    compressMemories(): Promise<number>;
+
+    /**
      * 释放资源
      */
     dispose(): Promise<void>;

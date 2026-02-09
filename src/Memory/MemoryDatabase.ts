@@ -106,6 +106,15 @@ export class MemoryDatabase {
   }
 
   /**
+   * 获取用户的所有记忆
+   */
+  getAllMemories(userId: string): Memory[] {
+    const stmt = this.db.prepare(`SELECT * FROM memories WHERE json_extract(metadata, '$.userId') = ?`);
+    const rows = stmt.all(userId) as any[];
+    return rows.map(row => this.rowToMemory(row));
+  }
+
+  /**
    * 向量相似度搜索
    * 使用余弦相似度计算
    */
