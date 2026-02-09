@@ -18,6 +18,7 @@ export interface MemoryMetadata {
   accessCount: number;        // 访问次数
   lastAccessed: number;       // 最后访问时间
   tags?: string[];            // 标签
+  category?: string;          // 记忆分类 (fact/preference/decision/instruction/context)
   [key: string]: any;         // 其他元数据
 }
 

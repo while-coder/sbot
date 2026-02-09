@@ -281,6 +281,7 @@ export class AgentService {
 
         // 编译图，使用 AgentSaver 提供的 checkpointer
         const checkpointer = await this.agentSaver?.getCheckpointer();
+        logger.info(`正在编译图 : ` + checkpointer);
         return workflow.compile({
             checkpointer: checkpointer
         });

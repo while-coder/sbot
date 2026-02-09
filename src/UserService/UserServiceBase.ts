@@ -7,7 +7,7 @@ import { CommandBase, CommandContext } from "./CommandBase";
 import { getBuiltInCommands } from "./BuiltInCommands";
 import { config } from "../Config";
 import { IModelService, ModelServiceFactory } from "../Model";
-import { IMemoryService, MemoryEvaluator, MemoryCompressor, MemoryService } from "../Memory";
+import { IMemoryService, MemoryEvaluator, MemoryCompressor, MemoryExtractor, MemoryService } from "../Memory";
 import { IEmbeddingService, EmbeddingServiceFactory } from "../Embedding";
 import { ServiceContainer } from "../Core";
 import { ISkillService, SkillService } from "../Skills";
@@ -66,6 +66,8 @@ export abstract class UserServiceBase {
                         if (memoryConfig.evaluator) {
                             const evaluatorModel = await ModelServiceFactory.getModelService(memoryConfig.evaluator);
                             container.registerInstance(MemoryEvaluator, new MemoryEvaluator(evaluatorModel));
+                            // 复用 evaluator 模型作为知识提取器
+                            container.registerInstance(MemoryExtractor, new MemoryExtractor(evaluatorModel));
                         }
 
                         // 记忆压缩器（可选）

@@ -17,9 +17,8 @@ export class SkillService implements ISkillService {
     this.skillsDir = skillsDir;
     if (skillsDir) {
       this.skills = loadSkills(skillsDir);
-      logger.info(`技能服务已初始化，加载了 ${this.skills.length} 个技能`);
     } else {
-      logger.info("技能服务已初始化（未配置技能目录）");
+      logger.warn("技能服务已初始化（未配置技能目录）");
     }
   }
 

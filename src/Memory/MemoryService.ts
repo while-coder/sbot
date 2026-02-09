@@ -4,6 +4,7 @@ import { MemoryDatabase } from "./MemoryDatabase";
 import { Memory, MemoryType } from "./types";
 import { MemoryEvaluator } from "./MemoryEvaluator";
 import { MemoryCompressor, MergeStrategy } from "./MemoryCompressor";
+import { MemoryExtractor } from "./MemoryExtractor";
 import { IMemoryService } from "./index";
 import { IEmbeddingService } from "../Embedding";
 import { LoggerService } from "../LoggerService";
@@ -25,6 +26,7 @@ export class MemoryService implements IMemoryService {
     @inject(IEmbeddingService) private embeddings: IEmbeddingService,
     @inject(MemoryEvaluator, { optional: true }) private importanceEvaluator?: MemoryEvaluator,
     @inject(MemoryCompressor, { optional: true }) private compressor?: MemoryCompressor,
+    @inject(MemoryExtractor, { optional: true }) private extractor?: MemoryExtractor,
   ) {
     this.userId = userId;
     this.sessionId = uuidv4();
@@ -39,8 +41,6 @@ export class MemoryService implements IMemoryService {
    */
   @init()
   async init(): Promise<void> {
-    logger.info(`记忆服务已初始化 - 用户: ${this.userId}`);
-
     this.cleanupOldMemories().catch(err => {
       logger.error(`自动清理记忆失败: ${err.message}`);
     });
@@ -48,18 +48,42 @@ export class MemoryService implements IMemoryService {
 
   /**
    * 对话历史记忆化
+   * 有 extractor 时提取知识点存为 SEMANTIC 记忆，否则存原始对话为 EPISODIC
    */
   async memorizeConversation(
     userMessage: string,
     assistantMessage: string,
     importance?: number
   ): Promise<void> {
+    if (this.extractor) {
+      try {
+        const facts = await this.extractor.extract(userMessage, assistantMessage);
+        if (facts.length === 0) {
+          logger.debug("对话无需记忆，跳过存储");
+          return;
+        }
+        for (const fact of facts) {
+          await this.addMemory(
+            fact.content,
+            MemoryType.SEMANTIC,
+            fact.importance,
+            { category: fact.category, tags: fact.tags }
+          );
+        }
+        logger.info(`从对话中提取了 ${facts.length} 条知识点`);
+        return;
+      } catch (error: any) {
+        logger.warn(`知识提取失败，降级为原始对话存储: ${error.message}`);
+      }
+    }
+
+    // fallback: 无 extractor 或提取失败时存原始对话
     const conversationText = `User: ${userMessage}\nAssistant: ${assistantMessage}`;
     await this.addMemory(
       conversationText,
       MemoryType.EPISODIC,
       importance,
-      { userMessage, assistantMessage, conversationType: 'dialogue' }
+      { conversationType: 'dialogue' }
     );
   }
 
@@ -71,12 +95,13 @@ export class MemoryService implements IMemoryService {
 
     if (memories.length === 0) return "";
 
-    let summary = "# 相关记忆\n\n";
+    let summary = "# 关于用户的记忆\n\n";
     let currentTokens = 0;
 
     for (const memory of memories) {
       const timeAgo = this.formatTimeAgo(memory.metadata.timestamp);
-      const memoryText = `- [${memory.type}] (${timeAgo}) ${memory.content}\n`;
+      const label = memory.metadata.category ?? memory.type;
+      const memoryText = `- (${label}, ${timeAgo}) ${memory.content}\n`;
       const tokens = memoryText.length / 4;
 
       if (currentTokens + tokens > maxTokens) break;

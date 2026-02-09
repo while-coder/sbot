@@ -1,5 +1,10 @@
 import Database from "better-sqlite3";
 import { Memory, MemoryType, MemoryMetadata } from "./types";
+import { LoggerService } from "../LoggerService";
+
+const logger = LoggerService.getLogger("MemoryDatabase.ts");
+
+const CURRENT_SCHEMA_VERSION = 1;
 
 /**
  * 记忆数据库类
@@ -14,43 +19,37 @@ export class MemoryDatabase {
     this.initTables();
   }
 
-  private initTables(): void {
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS memories (
-        id TEXT PRIMARY KEY,
-        type TEXT NOT NULL,
-        content TEXT NOT NULL,
-        embedding TEXT NOT NULL,
-        metadata TEXT NOT NULL,
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(type);
-      CREATE INDEX IF NOT EXISTS idx_memories_created_at ON memories(created_at);
-      CREATE INDEX IF NOT EXISTS idx_memories_user_id ON memories(json_extract(metadata, '$.userId'));
-    `);
-  }
+  // ===== 公开方法 =====
 
   insertMemory(memory: Memory): void {
+    const { userId, importance, accessCount, lastAccessed, sessionId, category, tags, timestamp, ...rest } = memory.metadata;
+
     const stmt = this.db.prepare(`
-      INSERT INTO memories (id, type, content, embedding, metadata, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO memories (id, type, content, embedding, user_id, importance, access_count,
+        last_accessed, session_id, category, tags, metadata, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
       memory.id,
       memory.type,
       memory.content,
-      JSON.stringify(memory.embedding),
-      JSON.stringify(memory.metadata),
-      memory.metadata.timestamp,
-      memory.metadata.timestamp
+      this.embeddingToBlob(memory.embedding),
+      userId,
+      importance,
+      accessCount,
+      lastAccessed,
+      sessionId ?? null,
+      category ?? null,
+      tags ? JSON.stringify(tags) : null,
+      Object.keys(rest).length > 0 ? JSON.stringify(rest) : null,
+      timestamp,
+      timestamp
     );
   }
 
   getAllMemories(userId: string): Memory[] {
-    const stmt = this.db.prepare(`SELECT * FROM memories WHERE json_extract(metadata, '$.userId') = ?`);
+    const stmt = this.db.prepare(`SELECT * FROM memories WHERE user_id = ?`);
     const rows = stmt.all(userId) as any[];
     return rows.map(row => this.rowToMemory(row));
   }
@@ -79,17 +78,11 @@ export class MemoryDatabase {
   }
 
   updateMemoryAccess(memoryId: string): void {
-    const stmt = this.db.prepare(`SELECT * FROM memories WHERE id = ?`);
-    const row = stmt.get(memoryId) as any;
-    if (!row) return;
-
-    const metadata: MemoryMetadata = JSON.parse(row.metadata);
     const now = Date.now();
-    metadata.accessCount += 1;
-    metadata.lastAccessed = now;
-
-    const update = this.db.prepare(`UPDATE memories SET metadata = ?, updated_at = ? WHERE id = ?`);
-    update.run(JSON.stringify(metadata), now, memoryId);
+    const stmt = this.db.prepare(
+      `UPDATE memories SET access_count = access_count + 1, last_accessed = ?, updated_at = ? WHERE id = ?`
+    );
+    stmt.run(now, now, memoryId);
   }
 
   deleteMemory(id: string): void {
@@ -107,8 +100,8 @@ export class MemoryDatabase {
     const stmt = this.db.prepare(`
       DELETE FROM memories
       WHERE created_at < ?
-      AND json_extract(metadata, '$.importance') < ?
-      AND json_extract(metadata, '$.accessCount') < ?
+      AND importance < ?
+      AND access_count < ?
     `);
 
     const result = stmt.run(cutoffTime, minImportance, minAccessCount);
@@ -119,12 +112,143 @@ export class MemoryDatabase {
     this.db.close();
   }
 
+  // ===== 私有方法 =====
+
+  private initTables(): void {
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS memory_schema_version (
+        version INTEGER NOT NULL
+      );
+    `);
+
+    const versionRow = this.db.prepare(
+      `SELECT version FROM memory_schema_version LIMIT 1`
+    ).get() as { version: number } | undefined;
+
+    const currentVersion = versionRow?.version ?? 0;
+
+    if (currentVersion < 1) {
+      this.migrateToV1();
+    }
+  }
+
+  private migrateToV1(): void {
+    this.db.exec('BEGIN TRANSACTION');
+    try {
+      // 创建新表
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS memories (
+          id TEXT PRIMARY KEY,
+          type TEXT NOT NULL,
+          content TEXT NOT NULL,
+          embedding BLOB NOT NULL,
+          user_id TEXT NOT NULL,
+          importance REAL NOT NULL DEFAULT 0.5,
+          access_count INTEGER NOT NULL DEFAULT 0,
+          last_accessed INTEGER NOT NULL,
+          session_id TEXT,
+          category TEXT,
+          tags TEXT,
+          metadata TEXT,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+      `);
+
+      // 检查是否存在旧表（通过检查列结构判断）
+      const tableInfo = this.db.prepare(`PRAGMA table_info(memories)`).all() as any[];
+      const hasUserIdColumn = tableInfo.some((col: any) => col.name === 'user_id');
+
+      if (!hasUserIdColumn && tableInfo.length > 0) {
+        // 旧表存在，需要迁移
+        logger.info("检测到旧版记忆表，开始迁移到 v1...");
+
+        // 重命名旧表
+        this.db.exec(`ALTER TABLE memories RENAME TO memories_old`);
+
+        // 创建新表
+        this.db.exec(`
+          CREATE TABLE memories (
+            id TEXT PRIMARY KEY,
+            type TEXT NOT NULL,
+            content TEXT NOT NULL,
+            embedding BLOB NOT NULL,
+            user_id TEXT NOT NULL,
+            importance REAL NOT NULL DEFAULT 0.5,
+            access_count INTEGER NOT NULL DEFAULT 0,
+            last_accessed INTEGER NOT NULL,
+            session_id TEXT,
+            category TEXT,
+            tags TEXT,
+            metadata TEXT,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+          );
+        `);
+
+        // 迁移数据
+        const rows = this.db.prepare(`SELECT * FROM memories_old`).all() as any[];
+        const insertStmt = this.db.prepare(`
+          INSERT INTO memories (id, type, content, embedding, user_id, importance, access_count,
+            last_accessed, session_id, category, tags, metadata, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+
+        for (const row of rows) {
+          const metadata: MemoryMetadata = JSON.parse(row.metadata);
+          const embedding: number[] = JSON.parse(row.embedding);
+
+          insertStmt.run(
+            row.id,
+            row.type,
+            row.content,
+            this.embeddingToBlob(embedding),
+            metadata.userId ?? '',
+            metadata.importance ?? 0.5,
+            metadata.accessCount ?? 0,
+            metadata.lastAccessed ?? row.updated_at,
+            metadata.sessionId ?? null,
+            metadata.category ?? null,
+            metadata.tags ? JSON.stringify(metadata.tags) : null,
+            row.metadata,
+            row.created_at,
+            row.updated_at
+          );
+        }
+
+        logger.info(`迁移完成，共迁移 ${rows.length} 条记忆`);
+
+        // 删除旧表
+        this.db.exec(`DROP TABLE memories_old`);
+      }
+
+      // 创建索引
+      this.db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_v2_user_id ON memories(user_id);
+        CREATE INDEX IF NOT EXISTS idx_v2_prune ON memories(created_at, importance, access_count);
+        CREATE INDEX IF NOT EXISTS idx_v2_user_type ON memories(user_id, type);
+        CREATE INDEX IF NOT EXISTS idx_v2_user_category ON memories(user_id, category);
+      `);
+
+      // 更新版本
+      this.db.exec(`DELETE FROM memory_schema_version`);
+      this.db.exec(`INSERT INTO memory_schema_version (version) VALUES (${CURRENT_SCHEMA_VERSION})`);
+
+      this.db.exec('COMMIT');
+      logger.info(`记忆数据库 schema 版本已更新至 v${CURRENT_SCHEMA_VERSION}`);
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+  }
+
   private searchSimilar(
     queryEmbedding: number[],
     limit: number = 10,
     type?: MemoryType,
     minImportance: number = 0,
-    userId?: string
+    userId?: string,
+    minSimilarity: number = 0.3
   ): Array<{ memory: Memory; distance: number; score: number }> {
     let query = `SELECT * FROM memories WHERE 1=1`;
     const params: any[] = [];
@@ -135,12 +259,12 @@ export class MemoryDatabase {
     }
 
     if (userId) {
-      query += ` AND json_extract(metadata, '$.userId') = ?`;
+      query += ` AND user_id = ?`;
       params.push(userId);
     }
 
     if (minImportance > 0) {
-      query += ` AND json_extract(metadata, '$.importance') >= ?`;
+      query += ` AND importance >= ?`;
       params.push(minImportance);
     }
 
@@ -149,12 +273,12 @@ export class MemoryDatabase {
 
     const results = rows.map(row => {
       const memory = this.rowToMemory(row);
-      const distance = this.cosineSimilarity(queryEmbedding, memory.embedding);
-      const score = 1 - distance;
-      return { memory, distance, score };
+      const score = this.cosineSimilarity(queryEmbedding, memory.embedding);
+      return { memory, distance: 1 - score, score };
     });
 
     return results
+      .filter(r => r.score >= minSimilarity)
       .sort((a, b) => b.score - a.score)
       .slice(0, limit);
   }
@@ -174,17 +298,39 @@ export class MemoryDatabase {
       normB += b[i] * b[i];
     }
 
-    const similarity = dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-    return (1 - similarity) / 2;
+    const denominator = Math.sqrt(normA) * Math.sqrt(normB);
+    if (denominator === 0) return 0;
+    return dotProduct / denominator;
+  }
+
+  private embeddingToBlob(embedding: number[]): Buffer {
+    const float32 = new Float32Array(embedding);
+    return Buffer.from(float32.buffer);
+  }
+
+  private blobToEmbedding(blob: Buffer): number[] {
+    const float32 = new Float32Array(blob.buffer, blob.byteOffset, blob.byteLength / 4);
+    return Array.from(float32);
   }
 
   private rowToMemory(row: any): Memory {
+    const extraMetadata = row.metadata ? JSON.parse(row.metadata) : {};
     return {
       id: row.id,
       type: row.type as MemoryType,
       content: row.content,
-      embedding: JSON.parse(row.embedding),
-      metadata: JSON.parse(row.metadata)
+      embedding: this.blobToEmbedding(row.embedding),
+      metadata: {
+        timestamp: row.created_at,
+        userId: row.user_id,
+        sessionId: row.session_id ?? undefined,
+        importance: row.importance,
+        accessCount: row.access_count,
+        lastAccessed: row.last_accessed,
+        tags: row.tags ? JSON.parse(row.tags) : undefined,
+        category: row.category ?? undefined,
+        ...extraMetadata
+      }
     };
   }
 }
