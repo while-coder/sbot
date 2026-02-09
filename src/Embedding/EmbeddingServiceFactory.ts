@@ -28,12 +28,10 @@ export class EmbeddingServiceFactory {
   static async getEmbeddingService(embeddingName: string): Promise<IEmbeddingService> {
     // 从缓存中获取
     if (this.cache.has(embeddingName)) {
-      logger.debug(`使用缓存的 embedding 服务: ${embeddingName}`);
       return this.cache.get(embeddingName)!;
     }
 
     // 创建新实例
-    logger.debug(`创建新的 embedding 服务: ${embeddingName}`);
     const service = await this.createEmbeddingService(embeddingName);
 
     // 缓存
@@ -63,14 +61,12 @@ export class EmbeddingServiceFactory {
     for (const [embeddingName, service] of this.cache.entries()) {
       try {
         await service.cleanup();
-        logger.debug(`已释放 embedding 服务: ${embeddingName}`);
       } catch (error: any) {
         logger.warn(`释放 embedding 服务失败 (${embeddingName}): ${error.message}`);
       }
     }
 
     this.cache.clear();
-    logger.debug("已清除所有 embedding 服务缓存");
   }
 
   /**

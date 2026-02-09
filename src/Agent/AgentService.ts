@@ -338,7 +338,6 @@ export class AgentService {
             if (this.memoryService && aiResponse) {
                 try {
                     await this.memoryService.memorizeConversation(query, aiResponse);
-                    logger.debug(`对话已保存到长期记忆`);
                 } catch (error: any) {
                     logger.warn(`保存对话记忆失败: ${error.message}`);
                 }

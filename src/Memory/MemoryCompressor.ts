@@ -137,7 +137,6 @@ export class MemoryCompressor {
       }
     }
 
-    logger.debug(`找到 ${groups.length} 个可压缩的记忆组`);
     return groups;
   }
 
@@ -177,7 +176,6 @@ export class MemoryCompressor {
       groups.push(currentGroup);
     }
 
-    logger.debug(`按时间窗口（${timeWindowMs}ms）分组，找到 ${groups.length} 组`);
     return groups;
   }
 

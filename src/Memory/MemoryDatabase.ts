@@ -61,7 +61,6 @@ export class MemoryDatabase {
       memory.metadata.timestamp
     );
 
-    logger.debug(`插入记忆: ${memory.id}, 类型: ${memory.type}`);
   }
 
   /**
@@ -305,7 +304,6 @@ export class MemoryDatabase {
   deleteMemory(id: string): void {
     const stmt = this.db.prepare(`DELETE FROM memories WHERE id = ?`);
     stmt.run(id);
-    logger.debug(`删除记忆: ${id}`);
   }
 
   /**
@@ -409,7 +407,6 @@ export class MemoryDatabase {
    */
   close(): void {
     this.db.close();
-    logger.debug("记忆数据库连接已关闭");
   }
 
   /**

@@ -167,7 +167,6 @@ export class MemoryService implements IMemoryService {
       };
 
       this.db.insertMemory(memory);
-      logger.debug(`添加记忆成功 - ID: ${memory.id}, 类型: ${type}, 重要性: ${finalImportance.toFixed(2)}`);
 
       return memory.id;
     } catch (error: any) {
@@ -193,7 +192,6 @@ export class MemoryService implements IMemoryService {
 
       const rankedMemories = this.rerankMemories(results.map(r => r.memory));
 
-      logger.debug(`检索到 ${rankedMemories.length} 条相关记忆`);
       return rankedMemories.slice(0, limit);
     } catch (error: any) {
       logger.error(`检索记忆失败: ${error.message}`);
@@ -226,7 +224,6 @@ export class MemoryService implements IMemoryService {
     if (this.importanceEvaluator) {
       try {
         const evaluation = await this.importanceEvaluator.evaluate(content, context);
-        logger.debug(`LLM 评估重要性: ${evaluation.score.toFixed(2)} - ${evaluation.reasoning}`);
         return evaluation.score;
       } catch (error: any) {
         logger.warn(`LLM 评估失败，使用启发式方法: ${error.message}`);

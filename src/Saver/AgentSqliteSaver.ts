@@ -133,7 +133,6 @@ export class AgentSqliteSaver implements IAgentSaverService {
                 // @ts-ignore - SqliteSaver 可能有 db 属性用于访问底层数据库
                 if (this.saver.db && typeof this.saver.db.close === 'function') {
                     await this.saver.db.close();
-                    logger.debug(`用户 ${this.dbPath} 的 SqliteSaver 数据库连接已关闭`);
                 }
             } catch (error: any) {
                 logger.warn(`用户 ${this.dbPath} 释放 SqliteSaver 资源时出错: ${error.message}`);

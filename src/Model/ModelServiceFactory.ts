@@ -28,12 +28,10 @@ export class ModelServiceFactory {
   static async getModelService(modelName: string): Promise<IModelService> {
     // 从缓存中获取
     if (this.cache.has(modelName)) {
-      logger.debug(`使用缓存的模型服务: ${modelName}`);
       return this.cache.get(modelName)!;
     }
 
     // 创建新实例
-    logger.debug(`创建新的模型服务: ${modelName}`);
     const service = await this.createModelService(modelName);
 
     // 缓存
@@ -68,14 +66,12 @@ export class ModelServiceFactory {
     for (const [modelName, service] of this.cache.entries()) {
       try {
         await service.cleanup();
-        logger.debug(`已释放模型服务: ${modelName}`);
       } catch (error: any) {
         logger.warn(`释放模型服务失败 (${modelName}): ${error.message}`);
       }
     }
 
     this.cache.clear();
-    logger.debug("已清除所有模型服务缓存");
   }
 
   /**
