@@ -137,10 +137,7 @@ export class AgentService {
         // 注入长期记忆
         if (this.memoryService) {
             // 获取用户最新消息（用于记忆检索）
-            const lastHumanMessage = state.messages
-                .slice()
-                .reverse()
-                .find(m => m instanceof HumanMessage);
+            const lastHumanMessage = state.messages.slice().reverse().find(m => m instanceof HumanMessage);
             if (lastHumanMessage) {
                 try {
                     const memorySummary = await this.memoryService.getMemorySummary(
@@ -149,11 +146,8 @@ export class AgentService {
                     );
 
                     if (memorySummary) {
-                        systemMessages.push({
-                            role: "system",
-                            content: memorySummary
-                        });
-                        logger.debug(`已注入长期记忆上下文到提示词中`);
+                        logger.info(`用户 ${this.threadId} 的记忆摘要已注入 : ${memorySummary}`);
+                        systemMessages.push({role: "system",content: memorySummary});
                     }
                 } catch (error: any) {
                     logger.warn(`获取记忆摘要失败: ${error.message}`);

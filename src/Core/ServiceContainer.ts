@@ -88,7 +88,6 @@ export class ServiceContainer {
       lifecycle: resolvedLifecycle,
     });
 
-    logger.debug(`注册服务: ${tokenToString(token)} (${resolvedLifecycle})`);
     return this;
   }
 
@@ -192,7 +191,6 @@ export class ServiceContainer {
       }
     }, lifecycle);
 
-    logger.debug(`注册服务（自定义参数）: ${tokenToString(token)} (${lifecycle})`);
     return this;
   }
 
@@ -224,7 +222,6 @@ export class ServiceContainer {
         const lifecycle = getLifecycle(token) ?? Lifecycle.Transient;
         this.register(token, { useClass: token as Constructor<T> }, lifecycle);
         registration = this.registrations.get(token);
-        logger.debug(`自动注册装饰器类: ${tokenToString(token)} (${lifecycle})`);
       }
     }
 
@@ -283,20 +280,15 @@ export class ServiceContainer {
   reset(): void {
     this.registrations.clear();
     this.disposables = [];
-    logger.debug("容器已重置");
   }
 
   /**
    * 销毁容器，调用所有单例的 dispose 方法
    */
   async dispose(): Promise<void> {
-    logger.info("正在销毁容器...");
-
-    // 调用所有标记了 @dispose() 的方法
     for (const { instance, method } of this.disposables) {
       try {
         await instance[method]();
-        logger.debug(`已销毁: ${instance.constructor?.name || "unknown"}`);
       } catch (error: any) {
         logger.error(`销毁服务失败: ${error.message}`);
       }
@@ -308,8 +300,6 @@ export class ServiceContainer {
     for (const registration of this.registrations.values()) {
       registration.instance = undefined;
     }
-
-    logger.info("容器已销毁");
   }
 
   /**
@@ -506,7 +496,6 @@ export class ServiceContainer {
 
     const initMethod = getInitMethod(instance.constructor);
     if (initMethod && typeof instance[initMethod] === "function") {
-      logger.debug(`调用初始化方法: ${instance.constructor.name}.${String(initMethod)}()`);
       await instance[initMethod]();
     }
   }
