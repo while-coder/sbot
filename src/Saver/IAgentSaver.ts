@@ -26,6 +26,27 @@ export interface IAgentSaver {
     getMessages(threadId: string): Promise<BaseMessage[]>;
 
     /**
+     * 准备历史记录用于 stream
+     * 如果历史记录超过限制，返回截断后的历史消息并清理 saver
+     * 否则返回空数组（使用 saver 中的历史）
+     * @param threadId 线程ID
+     */
+    prepareHistory(threadId: string): Promise<BaseMessage[]>;
+
+    /**
+     * 智能截断消息历史，确保不会破坏 tool_calls 和 ToolMessage 的配对
+     * @param messages 原始消息数组
+     * @param maxCount 最大保留数量
+     * @returns 截断后的消息数组
+     */
+    truncateMessages(messages: BaseMessage[], maxCount: number): BaseMessage[];
+
+    /**
+     * 最大历史消息数
+     */
+    maxHistoryMessages: number;
+
+    /**
      * 释放资源（如数据库连接）
      */
     dispose(): Promise<void>;

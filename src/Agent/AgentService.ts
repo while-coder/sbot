@@ -12,7 +12,7 @@ import { createFileSystemTools } from '../Tools/FileSystem'
 import { createSkillTools } from "../Tools/Skills";
 import { createCommandTools } from '../Tools/Command';
 import { MemoryService } from "../Memory/MemoryService";
-import { IAgentSaver } from "./IAgentSaver";
+import { IAgentSaver } from "../Saver";
 
 
 const logger = LoggerService.getLogger("AgentService.ts");
@@ -72,16 +72,15 @@ export class AgentService {
     private threadId: string;
     tools: any[] = [];
     disabledAutoApproveTools: Set<string> = new Set<string>();
-    private agentSaver: IAgentSaver;
+    private agentSaver?: IAgentSaver;
     private modelService?: IModelService;
     private skillService?: SkillService;
-    private maxHistoryMessages: number = 10; // 最大历史消息数
     private memoryService?: MemoryService;
 
 
     constructor(
         @inject("UserId") userId: string,
-        @inject(IAgentSaver) agentSaver: IAgentSaver,
+        @inject(IAgentSaver, { optional: true }) agentSaver?: IAgentSaver,
         @inject(IModelService, { optional: true }) modelService?: IModelService,
         @inject(SkillService, { optional: true }) skillService?: SkillService,
         @inject(MemoryService, { optional: true }) memoryService?: MemoryService,
@@ -106,31 +105,18 @@ export class AgentService {
      * 清除当前线程的所有历史记录
      */
     async clearSaver() {
-        await this.agentSaver.clearThread(this.threadId);
+        await this.agentSaver?.clearThread(this.threadId);
         logger.info(`清除用户 ${this.threadId} 的所有历史记录`);
     }
     /**
      * 释放资源
      */
-    async disposeSaver() {
-        await this.agentSaver.dispose();
-    }
-    /**
-     * 释放资源
-     */
     async dispose() {
-        await this.disposeSaver();
+        await this.agentSaver?.dispose();
 
         if (this.memoryService) {
             this.memoryService.dispose();
         }
-    }
-
-    /**
-     * 获取记忆服务实例（供外部使用）
-     */
-    getMemoryService(): MemoryService | undefined {
-        return this.memoryService;
     }
 
     /**
@@ -142,16 +128,6 @@ export class AgentService {
             return 0;
         }
         return this.memoryService.clearAllMemories();
-    }
-
-    /**
-     * 获取记忆统计信息
-     */
-    getMemoryStatistics() {
-        if (!this.memoryService) {
-            return null;
-        }
-        return this.memoryService.getStatistics();
     }
 
     /**
@@ -173,8 +149,7 @@ export class AgentService {
 
         // 添加 skill 工具（如果 skillService 可用）
         if (this.skillService) {
-            const stats = this.skillService.getStatistics();
-            const skillTools = createSkillTools(stats.skillsDir);
+            const skillTools = createSkillTools();
             this.tools.push(...skillTools);
         }
 
@@ -287,17 +262,10 @@ export class AgentService {
             }
         }
 
-        // 限制历史消息数量，只保留最近的消息
-        let historyMessages = state.messages;
-        if (historyMessages.length > this.maxHistoryMessages) {
-            // 智能截断：确保消息对的完整性
-            historyMessages = this.truncateMessages(historyMessages, this.maxHistoryMessages);
-        }
-
         // 所有提示词
         const messages = [
             ...systemMessages,
-            ...historyMessages,
+            ...state.messages,
         ];
 
         // 使用流式调用收集完整响应
@@ -431,7 +399,7 @@ export class AgentService {
             .addEdge("tools", "agent");
 
         // 编译图，使用 AgentSaver 提供的 checkpointer
-        const checkpointer = await this.agentSaver.getCheckpointer();
+        const checkpointer = await this.agentSaver?.getCheckpointer();
         return workflow.compile({
             checkpointer: checkpointer
         });
@@ -451,7 +419,7 @@ export class AgentService {
             const humanMessage = new HumanMessage(query);
 
             // 检查是否需要清理历史记录
-            const historyMessages = await this.prepareHistoryForStream();
+            const historyMessages = await this.agentSaver?.prepareHistory(this.threadId) ?? [];
 
             // 准备要传递的消息
             // 如果已经清理过历史，使用清理后的消息；否则只传递当前消息
@@ -512,91 +480,6 @@ export class AgentService {
             // 确保释放资源
             await this.dispose();
         }
-    }
-
-    /**
-     * 准备历史记录用于 stream
-     * 如果历史记录超过限制，返回截断后的历史消息并清理 saver
-     * 否则返回空数组（使用 saver 中的历史）
-     */
-    private async prepareHistoryForStream(): Promise<BaseMessage[]> {
-        try {
-            // 获取历史消息
-            const allMessages = await this.agentSaver.getMessages(this.threadId);
-
-            // 如果超过最大限制，需要清理
-            if (allMessages.length > this.maxHistoryMessages) {
-                // 智能截断：确保消息对的完整性
-                const recentMessages = this.truncateMessages(allMessages, this.maxHistoryMessages);
-
-                // 删除旧的 thread（清理数据库）
-                await this.agentSaver.clearThread(this.threadId);
-
-                logger.info(`用户 ${this.threadId} 历史消息数 ${allMessages.length} 超过限制 ${this.maxHistoryMessages}，开始清理多余的消息...`);
-
-                // 返回截断后的历史消息，让 graph.stream 重新初始化
-                return recentMessages;
-            }
-
-            // 历史未超限，返回空数组，使用 saver 中的历史
-            return [];
-
-        } catch (error: any) {
-            logger.warn(`用户 ${this.threadId} 检查历史记录时出错: ${error.message}`);
-            return [];
-        }
-    }
-
-    /**
-     * 智能截断消息历史，确保不会破坏 tool_calls 和 ToolMessage 的配对
-     * @param messages 原始消息数组
-     * @param maxCount 最大保留数量
-     * @returns 截断后的消息数组
-     */
-    private truncateMessages(messages: BaseMessage[], maxCount: number): BaseMessage[] {
-        if (messages.length <= maxCount) {
-            return messages;
-        }
-
-        // 从目标位置开始向前查找合适的截断点
-        let startIndex = messages.length - maxCount;
-
-        // 向前搜索，找到一个不会破坏消息对的位置
-        for (let i = startIndex; i >= 0 && i < messages.length; i++) {
-            const msg = messages[i];
-
-            // 如果这是一个 ToolMessage，需要检查它前面是否有对应的 AI message with tool_calls
-            if (msg instanceof ToolMessage) {
-                // 继续向后找，直到找到一个非 ToolMessage 的位置
-                continue;
-            }
-
-            // 如果这是一个 AI message with tool_calls，需要确保后续的 ToolMessage 都被包含
-            if ((msg instanceof AIMessage || msg instanceof AIMessageChunk) && msg.tool_calls && msg.tool_calls.length > 0) {
-                // 检查后续有多少个 ToolMessage
-                let toolMessageCount = 0;
-                for (let j = i + 1; j < messages.length; j++) {
-                    if (messages[j] instanceof ToolMessage) {
-                        toolMessageCount++;
-                    } else {
-                        break;
-                    }
-                }
-
-                // 如果从这里开始能包含所有的 tool messages，这是一个好的截断点
-                if (i + toolMessageCount < messages.length) {
-                    startIndex = i;
-                    break;
-                }
-            } else {
-                // 这是一个普通消息（HumanMessage 或没有 tool_calls 的 AIMessage）
-                // 这是一个安全的截断点
-                startIndex = i;
-                break;
-            }
-        }
-
-        return messages.slice(startIndex);
     }
 
     /**

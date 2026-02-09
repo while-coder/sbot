@@ -17,26 +17,26 @@ const execAsync = promisify(exec);
 
 /**
  * 创建读取 skill 文件的工具
- * @param skillsDir skills 目录路径
  */
-export function createReadSkillFileTool(skillsDir: string): StructuredToolInterface {
+export function createReadSkillFileTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'read_skill_file',
         description: '读取 skill 目录下的文件内容。用于读取 SKILL.md、scripts/、references/、assets/ 等目录下的文件。',
         schema: z.object({
+            skillsDir: z.string().describe('skills 目录的绝对路径'),
             skillName: z.string().describe('skill 名称（kebab-case 格式）'),
             filePath: z.string().describe('skill 目录内的相对路径，例如："SKILL.md"、"scripts/init.py"、"references/api.md"')
         }) as any,
-        func: async ({ skillName, filePath }: any): Promise<MCPToolResult> => {
+        func: async ({ skillsDir, skillName, filePath }: any): Promise<MCPToolResult> => {
             try {
-                // 构建完整路径
-                const fullPath = path.join(skillsDir, skillName, filePath);
+                const skillDir = path.join(skillsDir, skillName);
+                const fullPath = path.join(skillDir, filePath);
 
-                // 安全检查：确保路径在 skills 目录内
+                // 安全检查：确保路径在 skill 目录内
                 const normalizedPath = path.normalize(fullPath);
-                const normalizedSkillsDir = path.normalize(skillsDir);
-                if (!normalizedPath.startsWith(normalizedSkillsDir)) {
-                    return createErrorResult('安全错误：不允许访问 skills 目录之外的文件');
+                const normalizedSkillDir = path.normalize(skillDir);
+                if (!normalizedPath.startsWith(normalizedSkillDir)) {
+                    return createErrorResult('安全错误：不允许访问 skill 目录之外的文件');
                 }
 
                 // 检查文件是否存在
@@ -67,28 +67,27 @@ export function createReadSkillFileTool(skillsDir: string): StructuredToolInterf
 
 /**
  * 创建执行 skill 脚本的工具
- * @param skillsDir skills 目录路径
  */
-export function createExecuteSkillScriptTool(skillsDir: string): StructuredToolInterface {
+export function createExecuteSkillScriptTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'execute_skill_script',
         description: '执行 skill 目录下的脚本文件（支持 Python、Shell、Node.js 等）。脚本会在 skill 目录下执行。',
         schema: z.object({
+            skillsDir: z.string().describe('skills 目录的绝对路径'),
             skillName: z.string().describe('skill 名称（kebab-case 格式）'),
             scriptPath: z.string().describe('脚本文件的相对路径，例如："scripts/process.py"、"scripts/build.sh"'),
             args: z.array(z.string()).optional().describe('传递给脚本的参数列表')
         }) as any,
-        func: async ({ skillName, scriptPath, args = [] }: any): Promise<MCPToolResult> => {
+        func: async ({ skillsDir, skillName, scriptPath, args = [] }: any): Promise<MCPToolResult> => {
             try {
-                // 构建完整路径
-                const fullPath = path.join(skillsDir, skillName, scriptPath);
                 const skillDir = path.join(skillsDir, skillName);
+                const fullPath = path.join(skillDir, scriptPath);
 
-                // 安全检查：确保路径在 skills 目录内
+                // 安全检查：确保路径在 skill 目录内
                 const normalizedPath = path.normalize(fullPath);
-                const normalizedSkillsDir = path.normalize(skillsDir);
-                if (!normalizedPath.startsWith(normalizedSkillsDir)) {
-                    return createErrorResult('安全错误：不允许执行 skills 目录之外的脚本');
+                const normalizedSkillDir = path.normalize(skillDir);
+                if (!normalizedPath.startsWith(normalizedSkillDir)) {
+                    return createErrorResult('安全错误：不允许执行 skill 目录之外的脚本');
                 }
 
                 // 检查脚本是否存在
@@ -163,26 +162,26 @@ export function createExecuteSkillScriptTool(skillsDir: string): StructuredToolI
 
 /**
  * 创建列出 skill 目录结构的工具
- * @param skillsDir skills 目录路径
  */
-export function createListSkillFilesTool(skillsDir: string): StructuredToolInterface {
+export function createListSkillFilesTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'list_skill_files',
         description: '列出指定 skill 目录下的所有文件和子目录结构。用于了解 skill 包含哪些文件和资源。',
         schema: z.object({
+            skillsDir: z.string().describe('skills 目录的绝对路径'),
             skillName: z.string().describe('skill 名称（kebab-case 格式）'),
             subPath: z.string().optional().describe('可选的子路径，例如："scripts"、"references"')
         }) as any,
-        func: async ({ skillName, subPath = '' }: any): Promise<MCPToolResult> => {
+        func: async ({ skillsDir, skillName, subPath = '' }: any): Promise<MCPToolResult> => {
             try {
-                // 构建完整路径
-                const fullPath = path.join(skillsDir, skillName, subPath);
+                const skillDir = path.join(skillsDir, skillName);
+                const fullPath = path.join(skillDir, subPath);
 
                 // 安全检查
                 const normalizedPath = path.normalize(fullPath);
-                const normalizedSkillsDir = path.normalize(skillsDir);
-                if (!normalizedPath.startsWith(normalizedSkillsDir)) {
-                    return createErrorResult('安全错误：不允许访问 skills 目录之外的文件');
+                const normalizedSkillDir = path.normalize(skillDir);
+                if (!normalizedPath.startsWith(normalizedSkillDir)) {
+                    return createErrorResult('安全错误：不允许访问 skill 目录之外的文件');
                 }
 
                 // 检查目录是否存在
@@ -235,16 +234,11 @@ export function createListSkillFilesTool(skillsDir: string): StructuredToolInter
 
 /**
  * 创建所有 skill 相关工具
- * @param skillsDir skills 目录路径
  */
-export function createSkillTools(skillsDir?: string): StructuredToolInterface[] {
-    if (skillsDir) {
-        return [
-            createReadSkillFileTool(skillsDir),
-            createExecuteSkillScriptTool(skillsDir),
-            createListSkillFilesTool(skillsDir)
-        ];
-    } else {
-        return []
-    }
+export function createSkillTools(): StructuredToolInterface[] {
+    return [
+        createReadSkillFileTool(),
+        createExecuteSkillScriptTool(),
+        createListSkillFilesTool()
+    ];
 }
