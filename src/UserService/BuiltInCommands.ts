@@ -1,6 +1,6 @@
 import { Command as CommanderCommand } from "commander";
 import { CommandBase, Command, Arg, Option, Parsers } from "./CommandBase";
-import { IAgentSaver, AgentSqliteSaver } from "../Agent";
+import { IAgentSaverService, AgentSqliteSaver } from "../Agent";
 import { ServiceContainer } from "../Core";
 
 /**
@@ -16,7 +16,7 @@ export class ClearCommand extends CommandBase {
         }
 
         // 创建 AgentSaver 实例来清除历史记录
-        const agentSaver: IAgentSaver = new AgentSqliteSaver(userService.userId);
+        const agentSaver: IAgentSaverService = new AgentSqliteSaver(userService.userId);
         await agentSaver.clearThread(userService.userId);
         await agentSaver.dispose();
 

@@ -12,7 +12,7 @@ import { createFileSystemTools } from '../Tools/FileSystem'
 import { createSkillTools } from "../Tools/Skills";
 import { createCommandTools } from '../Tools/Command';
 import { MemoryService } from "../Memory/MemoryService";
-import { IAgentSaver } from "../Saver";
+import { IAgentSaverService } from "../Saver";
 
 
 const logger = LoggerService.getLogger("AgentService.ts");
@@ -72,7 +72,7 @@ export class AgentService {
     private threadId: string;
     tools: any[] = [];
     disabledAutoApproveTools: Set<string> = new Set<string>();
-    private agentSaver?: IAgentSaver;
+    private agentSaver?: IAgentSaverService;
     private modelService?: IModelService;
     private skillService?: ISkillService;
     private memoryService?: MemoryService;
@@ -80,7 +80,7 @@ export class AgentService {
 
     constructor(
         @inject("UserId") userId: string,
-        @inject(IAgentSaver, { optional: true }) agentSaver?: IAgentSaver,
+        @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
         @inject(IModelService, { optional: true }) modelService?: IModelService,
         @inject(ISkillService, { optional: true }) skillService?: ISkillService,
         @inject(MemoryService, { optional: true }) memoryService?: MemoryService,
@@ -99,34 +99,12 @@ export class AgentService {
             logger.info(`用户 ${userId} 的技能服务已启用，加载了 ${this.skillService.getAllSkills().length} 个技能`);
         }
     }
-
-    /**
-     * 清除当前线程的所有历史记录
-     */
-    async clearSaver() {
-        await this.agentSaver?.clearThread(this.threadId);
-        logger.info(`清除用户 ${this.threadId} 的所有历史记录`);
-    }
     /**
      * 释放资源
      */
     async dispose() {
         await this.agentSaver?.dispose();
-
-        if (this.memoryService) {
-            this.memoryService.dispose();
-        }
-    }
-
-    /**
-     * 清空当前用户的所有长期记忆
-     */
-    async clearMemories(): Promise<number> {
-        if (!this.memoryService) {
-            logger.warn(`用户 ${this.threadId} 未启用记忆服务`);
-            return 0;
-        }
-        return this.memoryService.clearAllMemories();
+        await this.memoryService?.dispose()
     }
 
     /**

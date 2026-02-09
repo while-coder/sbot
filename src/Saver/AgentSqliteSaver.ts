@@ -1,7 +1,7 @@
 import { BaseCheckpointSaver } from "@langchain/langgraph-checkpoint";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import { AIMessage, AIMessageChunk, BaseMessage, ToolMessage } from "langchain";
-import { IAgentSaver } from "./IAgentSaver";
+import { IAgentSaverService } from "./IAgentSaverServiceService";
 import { config } from "../Config";
 import { LoggerService } from "../LoggerService";
 import { inject, transient } from "../Core";
@@ -13,7 +13,7 @@ const logger = LoggerService.getLogger("AgentSqliteSaver.ts");
  * 使用 SQLite 数据库持久化对话历史
  */
 @transient()
-export class AgentSqliteSaver implements IAgentSaver {
+export class AgentSqliteSaver implements IAgentSaverService {
     private saver: SqliteSaver | undefined;
     private userId: string;
     maxHistoryMessages: number = 10;

@@ -5,7 +5,7 @@ import { BaseMessage } from "langchain";
  * Agent Saver 接口
  * 提供对话历史的持久化存储和检索功能
  */
-export interface IAgentSaver {
+export interface IAgentSaverService {
     /**
      * 获取 LangGraph 的 CheckpointSaver 实例
      * 用于在 LangGraph 编译时作为 checkpointer
@@ -53,6 +53,6 @@ export interface IAgentSaver {
 }
 
 /**
- * IAgentSaver 的依赖注入标识符
+ * IAgentSaverService 的依赖注入标识符
  */
-export const IAgentSaver = Symbol.for("IAgentSaver");
+export const IAgentSaverService = Symbol.for("IAgentSaverService");

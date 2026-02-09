@@ -1,2 +1,2 @@
-export * from "./IAgentSaver";
+export * from "./IAgentSaverService";
 export * from "./AgentSqliteSaver";
