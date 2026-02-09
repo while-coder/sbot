@@ -28,7 +28,7 @@ async function main() {
         logger.error("=========================启动失败=========================")
         if (e instanceof Error) {
             logger.error(`错误信息: ${e.message}`)
-            logger.error(`配置文件路径: ${config.getConfigPath("settings.toml")}`)
+            logger.error(`配置文件路径: ${config.getConfigPath("settings.json")}`)
             logger.error("请检查配置文件并填写正确的配置信息后重新启动")
         } else {
             logger.error("未知错误:", e)

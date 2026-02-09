@@ -7,7 +7,7 @@ import { CommandBase, CommandContext } from "./CommandBase";
 import { getBuiltInCommands } from "./BuiltInCommands";
 import { config } from "../Config";
 import { IModelService, ModelServiceFactory } from "../Model";
-import { IMemoryService, ImportanceEvaluator, MemoryCompressor, MemoryService } from "../Memory";
+import { IMemoryService, MemoryEvaluator, MemoryCompressor, MemoryService } from "../Memory";
 import { IEmbeddingService, EmbeddingServiceFactory } from "../Embedding";
 import { ServiceContainer } from "../Core";
 import { ISkillService, SkillService } from "../Skills";
@@ -59,17 +59,24 @@ export abstract class UserServiceBase {
                     // 创建 DI 容器并注册服务
                     const container = new ServiceContainer();
 
-                    // 可选：注册记忆相关依赖（如果有配置则启用）
-                    if (config.getEmbeddingName()) {
-                        // 重要性评估器 & 记忆压缩器（使用模型服务）
-                        const modelForMemory = await ModelServiceFactory.getModelService(config.getModelName());
-                        container.registerInstance(ImportanceEvaluator, new ImportanceEvaluator(modelForMemory));
-                        container.registerInstance(MemoryCompressor, new MemoryCompressor(modelForMemory));
+                    // 可选：注册记忆相关依赖（需要 memory.embedding 配置才启用）
+                    const memoryConfig = config.settings.memory;
+                    if (memoryConfig?.enabled && memoryConfig?.embedding) {
+                        // 重要性评估器（可选）
+                        if (memoryConfig.evaluator) {
+                            const evaluatorModel = await ModelServiceFactory.getModelService(memoryConfig.evaluator);
+                            container.registerInstance(MemoryEvaluator, new MemoryEvaluator(evaluatorModel));
+                        }
 
-                        // 记忆服务配置
-                        // Embedding 服务（从配置读取，使用静态方法）
-                        container.registerInstance(IEmbeddingService, await EmbeddingServiceFactory.getEmbeddingService(config.getEmbeddingName()));
-                        container.registerWithArgs(IMemoryService, MemoryService, this.userId, config.getConfigPath(`memory/${this.userId}.db`), 90);
+                        // 记忆压缩器（可选）
+                        if (memoryConfig.compressor) {
+                            const compressorModel = await ModelServiceFactory.getModelService(memoryConfig.compressor);
+                            container.registerInstance(MemoryCompressor, new MemoryCompressor(compressorModel));
+                        }
+
+                        // Embedding 服务
+                        container.registerInstance(IEmbeddingService, await EmbeddingServiceFactory.getEmbeddingService(memoryConfig.embedding));
+                        container.registerWithArgs(IMemoryService, MemoryService, this.userId, config.getConfigPath(`memory/${this.userId}.sqlite`), memoryConfig.maxAgeDays);
                     }
 
                     // 技能服务
@@ -172,8 +179,9 @@ export abstract class UserServiceBase {
             ...errors,
             ...outputs,
             commandResult
-        ].filter(Boolean).join('\n');
+        ].join('\n');
 
+        logger.info("----------- " + allContent)
         // 如果有内容，统一调用一次 onAgentMessage 发送
         if (allContent) {
             await this.onAgentMessage({

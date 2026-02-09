@@ -33,8 +33,6 @@ export class LarkChatProvider {
   header: any|undefined;
   elements: any[] = [];
   tools: Record<string, ProviderToolMessage> = {};
-  lastSendTime = 0;
-  sendIndex = 0;
 
   async init(chatId: string, query: string) {
     const resp: any = await larkService.sendMarkdownMessage(chatId, `${query}\n思考中... / Thinking...`);
@@ -102,6 +100,8 @@ ${escapedResponse}`;
         }
         toolCall.response = response;
       }
+    } else if (message.type === MessageChunkType.COMMAND) {
+      this.messages.push({ type: ProviderMessageType.TEXT, content: message.content || "" });
     }
     await this.updateMessage()
   }
@@ -163,12 +163,7 @@ ${escapedResponse}`;
   }
   async updateCardMessage() {
     try {
-      const index = ++this.sendIndex;
-      while (Util.NowDate - this.lastSendTime < 200) {
-        await Util.sleep(50);
-      }
-      if (index === this.sendIndex && this.messageId) {
-        this.lastSendTime = Util.NowDate
+      if (this.messageId) {
         await larkService.updateCardMessage(this.messageId, this.elements, this.header);
       }
     } catch (e: any) {

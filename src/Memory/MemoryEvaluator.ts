@@ -2,7 +2,7 @@ import { inject, transient } from "../Core";
 import { IModelService, MODEL_NAME, ModelServiceFactory } from "../Model";
 import { LoggerService } from "../LoggerService";
 
-const logger = LoggerService.getLogger("ImportanceEvaluator.ts");
+const logger = LoggerService.getLogger("MemoryEvaluator.ts");
 
 /**
  * 评估结果
@@ -20,11 +20,11 @@ export interface ImportanceEvaluation {
  *
  * @example
  * ```ts
- * const evaluator = new ImportanceEvaluator("gpt-4", modelFactory);
+ * const evaluator = new MemoryEvaluator("gpt-4", modelFactory);
  * const result = await evaluator.evaluate("some text");
  * ```
  */
-export class ImportanceEvaluator {
+export class MemoryEvaluator {
   constructor(private modelService: IModelService) {}
 
   /**

@@ -1,7 +1,7 @@
 import os from "os";
 import path from "path";
 import fs from "fs";
-import * as toml from "@iarna/toml";
+
 
 export interface LarkConfig {
   appId?: string;
@@ -109,11 +109,13 @@ export interface MemoryConfig {
   enabled?: boolean;           // 是否启用长期记忆功能
   autoCleanup?: boolean;       // 是否自动清理过期记忆
   maxAgeDays?: number;         // 记忆最大保留天数
+  embedding?: string;          // 记忆使用的 embedding 名称（对应 embeddings 中的 key）
+  evaluator?: string;          // 重要性评估器使用的模型名称（对应 models 中的 key）
+  compressor?: string;         // 记忆压缩器使用的模型名称（对应 models 中的 key）
 }
 
 export interface Settings {
   model?: string; // 当前使用的模型名称（对应 models 中的 key）
-  embedding?: string; // 当前使用的 embedding 名称（对应 embeddings 中的 key）
   lark?: LarkConfig;
   models?: Record<string, ModelConfig>; // 多个模型配置
   embeddings?: Record<string, EmbeddingConfig>; // 多个 embedding 配置
@@ -148,10 +150,6 @@ class Config {
     return this._settings.model || "";
   }
 
-  getEmbeddingName(): string {
-    return this._settings.embedding || "";
-  }
-
   /**
    * 根据名称获取模型配置
    * @param name 模型名称（对应 settings.models 中的 key），不传则使用当前选中的模型
@@ -176,36 +174,24 @@ class Config {
 
   /**
    * 根据名称获取 embedding 配置
-   * @param name embedding 名称（对应 settings.embeddings 中的 key），不传则使用当前选中的 embedding
+   * @param name embedding 名称（对应 settings.embeddings 中的 key）
    * @returns embedding 配置，如果未配置则返回 undefined
    */
-  getEmbedding(name?: string): EmbeddingConfig | undefined {
+  getEmbedding(name: string): EmbeddingConfig | undefined {
     if (!this._settings.embeddings) return undefined;
-
-    const embeddingName = name ?? this._settings.embedding;
-    if (!embeddingName || typeof embeddingName !== 'string') return undefined;
-
-    return this._settings.embeddings[embeddingName.trim()];
-  }
-
-  /**
-   * 获取当前使用的 embedding 配置
-   * @returns 当前 embedding 配置，如果未配置则返回 undefined
-   */
-  getCurrentEmbedding(): EmbeddingConfig | undefined {
-    return this.getEmbedding();
+    return this._settings.embeddings[name.trim()];
   }
 
   /**
    * 加载配置文件
    */
   private loadSettings(): void {
-    const settingsPath = this.getConfigPath("settings.toml");
+    const settingsPath = this.getConfigPath("settings.json");
 
     try {
       if (fs.existsSync(settingsPath)) {
         const content = fs.readFileSync(settingsPath, "utf-8");
-        this._settings = toml.parse(content);
+        this._settings = JSON.parse(content);
       } else {
         // 创建默认配置文件
         this.createDefaultSettings(settingsPath);
@@ -216,15 +202,15 @@ class Config {
   }
 
   /**
-   * 获取 MCP 服务器配置（每次都实时读取 mcp.toml 文件）
+   * 获取 MCP 服务器配置（每次都实时读取 mcp.json 文件）
    */
   getMcpServers(): MCPServers {
-    const mcpConfigPath = this.getConfigPath("mcp.toml");
+    const mcpConfigPath = this.getConfigPath("mcp.json");
 
     try {
       if (fs.existsSync(mcpConfigPath)) {
         const content = fs.readFileSync(mcpConfigPath, "utf-8");
-        const parsed = toml.parse(content);
+        const parsed = JSON.parse(content);
         // 支持 mcpServers 或直接的服务器配置
         return (parsed.mcpServers || parsed) as MCPServers;
       }
@@ -255,172 +241,145 @@ class Config {
   }
 
   /**
-   * 获取默认配置内容模板
+   * 获取默认配置
    */
-  private getDefaultSettingsTemplate(): string {
-    return `# SBot 配置文件
-
-# 当前使用的模型名称（对应下面 [models.xxx] 中的名称）
-model = "openai-gpt4"
-
-# 当前使用的 embedding 名称（对应下面 [embeddings.xxx] 中的名称）
-embedding = "openai-ada"
-
-[lark]
-# Lark (飞书) 应用配置
-# 用于工具返回的图片自动上传到飞书
-# 请填写您的 Lark 应用 App ID 和 App Secret
-# 获取方式：https://open.feishu.cn/app
-appId = ""
-appSecret = ""
-# tenantToken = ""  # 可选：手动指定租户 token（通常不需要，SDK 会自动管理）
-
-# 长期记忆配置
-[memory]
-enabled = true           # 是否启用长期记忆功能
-autoCleanup = true       # 是否自动清理过期记忆
-maxAgeDays = 90          # 记忆最大保留天数
-
-# 多模型配置 - 可以配置多个模型，通过上面的 model 字段切换使用哪个
-[models.openai-gpt4]
-provider = "openai"
-apiKey = "your-api-key"
-baseURL = "https://api.openai.com/v1"
-model = "gpt-4"
-
-[models.claude]
-provider = "anthropic"
-apiKey = "your-api-key"
-baseURL = "https://api.anthropic.com"
-model = "claude-3-opus-20240229"
-
-[models.azure]
-provider = "azure"
-apiKey = "your-api-key"
-baseURL = "https://your-resource.openai.azure.com"
-model = "gpt-4"
-
-# 多 Embedding 配置 - 可以配置多个 embedding 服务，通过上面的 embedding 字段切换使用哪个
-[embeddings.openai-ada]
-provider = "openai"
-apiKey = "your-api-key"
-baseURL = "https://api.openai.com/v1"
-model = "text-embedding-ada-002"
-
-[embeddings.openai-3-small]
-provider = "openai"
-apiKey = "your-api-key"
-baseURL = "https://api.openai.com/v1"
-model = "text-embedding-3-small"
-
-[embeddings.openai-3-large]
-provider = "openai"
-apiKey = "your-api-key"
-baseURL = "https://api.openai.com/v1"
-model = "text-embedding-3-large"
-
-[embeddings.azure-ada]
-provider = "azure"
-apiKey = "your-api-key"
-baseURL = "https://your-resource.openai.azure.com"
-model = "text-embedding-ada-002"
-`;
+  private getDefaultSettings(): Settings {
+    return {
+      model: "openai-gpt4",
+      lark: {
+        appId: "",
+        appSecret: ""
+      },
+      memory: {
+        enabled: true,
+        autoCleanup: true,
+        maxAgeDays: 90,
+        embedding: "openai-ada",
+        evaluator: "openai-gpt4",
+        compressor: "openai-gpt4"
+      },
+      models: {
+        "openai-gpt4": {
+          provider: "openai",
+          apiKey: "your-api-key",
+          baseURL: "https://api.openai.com/v1",
+          model: "gpt-4"
+        },
+        "claude": {
+          provider: "anthropic",
+          apiKey: "your-api-key",
+          baseURL: "https://api.anthropic.com",
+          model: "claude-3-opus-20240229"
+        },
+        "azure": {
+          provider: "azure",
+          apiKey: "your-api-key",
+          baseURL: "https://your-resource.openai.azure.com",
+          model: "gpt-4"
+        }
+      },
+      embeddings: {
+        "openai-ada": {
+          provider: "openai",
+          apiKey: "your-api-key",
+          baseURL: "https://api.openai.com/v1",
+          model: "text-embedding-ada-002"
+        },
+        "openai-3-small": {
+          provider: "openai",
+          apiKey: "your-api-key",
+          baseURL: "https://api.openai.com/v1",
+          model: "text-embedding-3-small"
+        },
+        "openai-3-large": {
+          provider: "openai",
+          apiKey: "your-api-key",
+          baseURL: "https://api.openai.com/v1",
+          model: "text-embedding-3-large"
+        },
+        "azure-ada": {
+          provider: "azure",
+          apiKey: "your-api-key",
+          baseURL: "https://your-resource.openai.azure.com",
+          model: "text-embedding-ada-002"
+        }
+      }
+    };
   }
 
   /**
-   * 每次启动时生成示例配置文件 settings.toml.example
+   * 每次启动时生成示例配置文件 settings.json.example
    */
   private createExampleSettings(): void {
-    const examplePath = this.getConfigPath("settings.toml.example");
-    const defaultSettings = this.getDefaultSettingsTemplate();
+    const examplePath = this.getConfigPath("settings.json.example");
 
     try {
-      fs.writeFileSync(examplePath, defaultSettings, "utf-8");
+      fs.writeFileSync(examplePath, JSON.stringify(this.getDefaultSettings(), null, 2), "utf-8");
     } catch (error) {
       // 忽略错误
     }
   }
 
   /**
-   * 每次启动时生成 MCP 配置示例文件 mcp.toml.example
+   * 每次启动时生成 MCP 配置示例文件 mcp.json.example
    */
   private createExampleMcpConfig(): void {
-    const examplePath = this.getConfigPath("mcp.toml.example");
-    const defaultMcpConfig = this.getDefaultMcpConfigTemplate();
+    const examplePath = this.getConfigPath("mcp.json.example");
 
     try {
-      fs.writeFileSync(examplePath, defaultMcpConfig, "utf-8");
+      fs.writeFileSync(examplePath, JSON.stringify(this.getDefaultMcpConfig(), null, 2), "utf-8");
     } catch (error) {
       // 忽略错误
     }
   }
 
   /**
-   * 获取默认 MCP 配置内容模板（TOML 格式）
+   * 获取默认 MCP 配置
    */
-  private getDefaultMcpConfigTemplate(): string {
-    return `# SBot MCP 服务器配置文件
-# 支持 stdio 和 http 两种传输方式
-
-# ========================================
-# Stdio 传输示例 - 本地进程
-# ========================================
-
-# 简单的 Python MCP 服务器
-[mcpServers.python-server]
-command = "python"
-args = ["-m", "your_mcp_module"]
-disabledAutoApproveTools = []
-
-# 完整配置的 Node.js MCP 服务器
-[mcpServers.local-node-server]
-transport = "stdio"
-command = "node"
-args = ["path/to/your/mcp-server.js"]
-cwd = "/path/to/working/directory"
-stderr = "inherit"
-defaultToolTimeout = 30000
-disabledAutoApproveTools = ["dangerous_tool"]
-
-# 环境变量配置
-[mcpServers.local-node-server.env]
-API_KEY = "your-api-key-here"
-NODE_ENV = "production"
-
-# 进程重启配置
-[mcpServers.local-node-server.restart]
-enabled = true
-maxAttempts = 3
-delayMs = 1000
-
-# ========================================
-# HTTP 传输示例 - 远程服务器
-# ========================================
-
-[mcpServers.remote-http-server]
-transport = "http"
-url = "https://mcp-server.example.com"
-automaticSSEFallback = true
-defaultToolTimeout = 60000
-disabledAutoApproveTools = []
-
-# HTTP 请求头（用于身份验证）
-[mcpServers.remote-http-server.headers]
-Authorization = "Bearer your-token"
-X-Custom-Header = "custom-value"
-
-# 自动重连配置
-[mcpServers.remote-http-server.reconnect]
-enabled = true
-maxAttempts = 5
-delayMs = 2000
-
-# 输出处理配置
-[mcpServers.remote-http-server.outputHandling]
-text = "content"
-image = "artifact"
-resource = "artifact"
-`;
+  private getDefaultMcpConfig(): { mcpServers: MCPServers } {
+    return {
+      mcpServers: {
+        "python-server": {
+          command: "python",
+          args: ["-m", "your_mcp_module"],
+          disabledAutoApproveTools: []
+        },
+        "local-node-server": {
+          transport: "stdio",
+          command: "node",
+          args: ["path/to/your/mcp-server.js"],
+          cwd: "/path/to/working/directory",
+          stderr: "inherit",
+          defaultToolTimeout: 30000,
+          disabledAutoApproveTools: ["dangerous_tool"],
+          env: {
+            "API_KEY": "your-api-key-here",
+            "NODE_ENV": "production"
+          },
+          restart: {
+            enabled: true,
+            maxAttempts: 3,
+            delayMs: 1000
+          }
+        },
+        "remote-http-server": {
+          transport: "http",
+          url: "https://mcp-server.example.com",
+          automaticSSEFallback: true,
+          defaultToolTimeout: 60000,
+          disabledAutoApproveTools: [],
+          headers: {
+            "Authorization": "Bearer your-token",
+            "X-Custom-Header": "custom-value"
+          },
+          reconnect: {
+            enabled: true,
+            maxAttempts: 5,
+            delayMs: 2000
+          }
+        }
+      }
+    };
   }
 
 
@@ -428,14 +387,20 @@ resource = "artifact"
    * 创建默认配置文件
    */
   private createDefaultSettings(settingsPath: string): void {
-    const defaultSettings = this.getDefaultSettingsTemplate();
-
     try {
-      fs.writeFileSync(settingsPath, defaultSettings, "utf-8");
-      this._settings = toml.parse(defaultSettings);
+      this._settings = this.getDefaultSettings();
+      fs.writeFileSync(settingsPath, JSON.stringify(this._settings, null, 2), "utf-8");
     } catch (error) {
       // 忽略错误
     }
+  }
+
+  /**
+   * 保存当前配置到 settings.json
+   */
+  saveSettings(): void {
+    const settingsPath = this.getConfigPath("settings.json");
+    fs.writeFileSync(settingsPath, JSON.stringify(this._settings, null, 2), "utf-8");
   }
 
   /**
@@ -453,7 +418,7 @@ resource = "artifact"
    *
    * @example
    * // 获取文件路径，自动创建父目录
-   * config.getConfigPath("settings.toml")  // ~/.sbot/settings.toml
+   * config.getConfigPath("settings.json")  // ~/.sbot/settings.json
    * config.getConfigPath("logs/app.log")   // ~/.sbot/logs/app.log (自动创建 logs 目录)
    *
    * // 获取目录路径，自动创建该目录

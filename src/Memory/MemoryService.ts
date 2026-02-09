@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from "uuid";
 import { inject, init } from "../Core";
 import { MemoryDatabase } from "./MemoryDatabase";
 import { Memory, MemoryType } from "./types";
-import { ImportanceEvaluator } from "./ImportanceEvaluator";
+import { MemoryEvaluator } from "./MemoryEvaluator";
 import { MemoryCompressor, MergeStrategy } from "./MemoryCompressor";
 import { IMemoryService } from "./index";
 import { IEmbeddingService } from "../Embedding";
@@ -23,7 +23,7 @@ export class MemoryService implements IMemoryService {
     dbPath: string,
     maxMemoryAgeDays: number | undefined,
     @inject(IEmbeddingService) private embeddings: IEmbeddingService,
-    @inject(ImportanceEvaluator, { optional: true }) private importanceEvaluator?: ImportanceEvaluator,
+    @inject(MemoryEvaluator, { optional: true }) private importanceEvaluator?: MemoryEvaluator,
     @inject(MemoryCompressor, { optional: true }) private compressor?: MemoryCompressor,
   ) {
     this.userId = userId;

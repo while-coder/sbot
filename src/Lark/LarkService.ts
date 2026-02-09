@@ -17,6 +17,9 @@ const ExpireTime = HourMilliseconds * 24 * 3;
 
 class LarkService {
   private checkTime = 0;
+  // 速率限制：1000 次/分钟、50 次/秒，固定间隔 65ms
+  private lastCallTime = 0;
+  private readonly callInterval = 65; // ms
   private larkConfig: { appId: string, appSecret: string} | undefined;
   private larkClient!: Lark.Client;
   private larkWsClient!: Lark.WSClient;
@@ -110,6 +113,13 @@ class LarkService {
   }
 
   async updateCardMessage(messageId: string, elements: any[], header:any|undefined = undefined) {
+    if (elements.length === 0) return;
+
+    while ((Date.now() - this.lastCallTime) < this.callInterval) {
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    this.lastCallTime = Date.now();
+
     const content = {
       schema: "2.0",
       config: {

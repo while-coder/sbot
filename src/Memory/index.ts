@@ -3,5 +3,5 @@
  */
 export { IMemoryService } from "./IMemoryService";
 export { MemoryService } from "./MemoryService";
-export { ImportanceEvaluator, ImportanceEvaluation } from "./ImportanceEvaluator";
+export { MemoryEvaluator, ImportanceEvaluation } from "./MemoryEvaluator";
 export { MemoryCompressor, MergeStrategy, CompressionResult } from "./MemoryCompressor";
