@@ -144,8 +144,9 @@ export class AgentService {
                         lastHumanMessage.content as string,
                         500 // 最大 token 数
                     );
-
+                    
                     if (memorySummary) {
+                        logger.info(`用户 ${this.threadId} 的记忆摘要已注入: ${memorySummary}`);
                         systemMessages.push({role: "system",content: memorySummary});
                     }
                 } catch (error: any) {

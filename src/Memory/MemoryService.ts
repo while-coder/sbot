@@ -182,12 +182,17 @@ export class MemoryService implements IMemoryService {
     try {
       const embedding = await this.embeddings.embedQuery(content);
 
-      // 去重：如果已存在高度相似的记忆，更新而非重复插入
+      // 去重/更新：检查是否已存在高度相似的记忆
       const duplicate = this.db.findDuplicate(embedding, this.userId, 0.85);
       if (duplicate) {
-        this.db.updateMemoryAccess(duplicate.memory.id);
-        logger.debug(`记忆去重: 与已有记忆相似度 ${duplicate.score.toFixed(2)}，跳过存储`);
-        return duplicate.memory.id;
+        if (duplicate.memory.content === content) {
+          // 内容完全相同 → 真正的重复，跳过
+          this.db.updateMemoryAccess(duplicate.memory.id);
+          return duplicate.memory.id;
+        }
+        // 内容不同但语义相似 → 同一知识点更新，替换旧记忆
+        this.db.deleteMemory(duplicate.memory.id);
+        logger.debug(`记忆更新: "${duplicate.memory.content}" → "${content}"`);
       }
 
       const finalImportance = importance ?? await this.evaluateImportance(content);
