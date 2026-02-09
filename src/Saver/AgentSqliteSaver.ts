@@ -14,9 +14,7 @@ export class AgentSqliteSaver implements IAgentSaverService {
     private saver: SqliteSaver | undefined;
     private maxHistoryMessages: number = 10;
 
-    constructor(
-        private dbPath: string) {
-        logger.info(`AgentSqliteSaver 初始化 - 数据库: ${this.dbPath}`);
+    constructor(private dbPath: string) {
         this.saver = SqliteSaver.fromConnString(this.dbPath);
     }
 
@@ -33,11 +31,8 @@ export class AgentSqliteSaver implements IAgentSaverService {
     async clearThread(threadId: string): Promise<void> {
         try {
             await this.saver?.deleteThread(threadId);
-            logger.info(`线程 ${threadId} 历史记录已清除`);
         } catch (error: any) {
-            // checkpoints 表在首次写入前不存在，此时无需清理
             if (error.message?.includes('no such table')) {
-                logger.debug(`线程 ${threadId} 无历史记录，跳过清除`);
                 return;
             }
             throw error;
@@ -55,12 +50,10 @@ export class AgentSqliteSaver implements IAgentSaverService {
                 const channelValues = currentState.channel_values as any;
 
                 if (channelValues.messages && Array.isArray(channelValues.messages)) {
-                    logger.info(`线程 ${threadId} 获取到 ${channelValues.messages.length} 条历史消息`);
                     return channelValues.messages;
                 }
             }
 
-            logger.info(`线程 ${threadId} 无历史消息`);
             return [];
         } catch (error: any) {
             logger.warn(`获取线程 ${threadId} 历史消息失败: ${error.message}`);
@@ -82,12 +75,10 @@ export class AgentSqliteSaver implements IAgentSaverService {
 
                 await this.clearThread(threadId);
 
-                logger.info(`线程 ${threadId} 历史消息 ${allMessages.length} 条超过限制 ${this.maxHistoryMessages}，已截断为 ${recentMessages.length} 条`);
-
+                logger.warn(`线程 ${threadId} 历史消息 ${allMessages.length} 条超限，截断为 ${recentMessages.length} 条`);
                 return recentMessages;
             }
 
-            logger.debug(`线程 ${threadId} 历史消息 ${allMessages.length} 条，未超限制，无需截断`);
             return [];
         } catch (error: any) {
             logger.error(`线程 ${threadId} 准备历史记录失败: ${error.message}`);
@@ -145,9 +136,8 @@ export class AgentSqliteSaver implements IAgentSaverService {
                 if (this.saver.db && typeof this.saver.db.close === 'function') {
                     await this.saver.db.close();
                 }
-                logger.info(`AgentSqliteSaver 已释放 - 数据库: ${this.dbPath}`);
             } catch (error: any) {
-                logger.error(`AgentSqliteSaver 释放资源失败 (${this.dbPath}): ${error.message}`);
+                logger.error(`AgentSqliteSaver 释放失败: ${error.message}`);
             } finally {
                 this.saver = undefined;
             }
