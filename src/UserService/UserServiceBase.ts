@@ -103,12 +103,9 @@ export abstract class UserServiceBase {
                         // 使用 Supervisor 模式
                         logger.info(`${this.userId} 使用 Supervisor 模式，包含 ${agentConfigs.length} 个 Agent`);
 
-                        const supervisorService = new SupervisorService(
-                            this.userId,
-                            this.userId,
-                            agentConfigs,
-                            container
-                        );
+                        // 使用 registerWithArgs 注册 SupervisorService，传递动态参数
+                        container.registerWithArgs(SupervisorService, this.userId, this.userId, agentConfigs);
+                        const supervisorService = await container.resolve(SupervisorService);
 
                         await supervisorService.stream(
                             query,

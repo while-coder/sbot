@@ -8,7 +8,8 @@ import { IAgentSaverService } from '../Saver/index.js';
 import { IModelService } from '../Model/index.js';
 import { ISkillService } from '../Skills/index.js';
 import { IMemoryService } from '../Memory/index.js';
-import { ServiceContainer } from '../Core/index.js';
+import { IAgentToolService } from '../AgentTool/index.js';
+import { inject, ServiceContainer } from '../Core/index.js';
 import { LoggerService } from '../LoggerService.js';
 
 const logger = LoggerService.getLogger("SupervisorService.ts");
@@ -30,23 +31,36 @@ export type OnPlanCreatedCallback = (plan: ExecutionPlan) => Promise<void>;
 /**
  * Supervisor Agent 服务
  * 实现多 Agent 协同和任务规划功能
+ *
+ * 注意：此服务使用混合注入模式：
+ * - 共享服务通过依赖注入获取
+ * - 动态参数（userId, threadId, agentConfigs）通过构造函数参数传递
  */
 export class SupervisorService {
   private userId: string;
   private threadId: string;
   private agentConfigs: AgentConfig[];
-  private container: ServiceContainer;
+  private modelService: IModelService;
+  private agentSaver: IAgentSaverService;
+  private skillService?: ISkillService;
+  private memoryService?: IMemoryService;
 
   constructor(
     userId: string,
     threadId: string,
     agentConfigs: AgentConfig[],
-    container: ServiceContainer
+    @inject(IModelService) modelService: IModelService,
+    @inject(IAgentSaverService) agentSaver: IAgentSaverService,
+    @inject(ISkillService, { optional: true }) skillService?: ISkillService,
+    @inject(IMemoryService, { optional: true }) memoryService?: IMemoryService
   ) {
     this.userId = userId;
     this.threadId = threadId;
     this.agentConfigs = agentConfigs;
-    this.container = container;
+    this.modelService = modelService;
+    this.agentSaver = agentSaver;
+    this.skillService = skillService;
+    this.memoryService = memoryService;
 
     logger.info(`SupervisorService 初始化 - 用户: ${userId}, 线程: ${threadId}, Agent数量: ${agentConfigs.length}`);
   }
@@ -71,43 +85,36 @@ export class SupervisorService {
       logger.info(`Sub-Agent ${agentConfig.type}: 开始执行任务 ${currentTask.id}`);
 
       try {
-        // 获取共享的服务
-        const modelService = await this.container.resolve(IModelService);
-        const agentSaver = await this.container.resolve(IAgentSaverService) as IAgentSaverService;
+        // 为这个 Sub-Agent 创建独立的 ServiceContainer
+        const subContainer = new ServiceContainer();
 
-        // 尝试获取可选服务（如果不存在则为 undefined）
-        let skillService: ISkillService | undefined;
-        let memoryService: IMemoryService | undefined;
+        // 注册共享服务（复用父级服务）
+        subContainer.registerInstance(IModelService, this.modelService);
+        subContainer.registerInstance(IAgentSaverService, this.agentSaver);
 
-        try {
-          skillService = await this.container.resolve(ISkillService);
-        } catch {
-          // 忽略，服务不存在
+        // 注册可选服务（如果存在）
+        if (this.skillService) {
+          subContainer.registerInstance(ISkillService, this.skillService);
+        }
+        if (this.memoryService) {
+          subContainer.registerInstance(IMemoryService, this.memoryService);
         }
 
-        try {
-          memoryService = await this.container.resolve(IMemoryService);
-        } catch {
-          // 忽略，服务不存在
-        }
-
-        // 为这个 Sub-Agent 创建独立的工具服务
+        // 为这个 Sub-Agent 创建独立的工具服务并注册
         const filteredToolService = new FilteredAgentToolService(
           agentConfig.tools,
-          skillService,
-          memoryService
+          this.skillService,
+          this.memoryService
         );
+        subContainer.registerInstance(IAgentToolService, filteredToolService);
 
-        // 创建 AgentService 实例
-        const agentService = new AgentService(
+        // 使用 ServiceContainer 创建 AgentService 实例
+        subContainer.registerWithArgs(
+          AgentService,
           this.userId,
-          `${this.threadId}_${agentConfig.type}_${currentTask.id}`,
-          modelService,
-          agentSaver,
-          skillService,
-          memoryService,
-          filteredToolService
+          `${this.threadId}_${agentConfig.type}_${currentTask.id}`
         );
+        const agentService = await subContainer.resolve(AgentService);
 
         // 构建任务特定的 prompt
         const taskPrompt = agentConfig.systemPrompt
@@ -179,17 +186,13 @@ export class SupervisorService {
   ) {
     const workflow = new StateGraph(SupervisorAnnotation);
 
-    // 获取 ModelService
-    const modelService = await this.container.resolve(IModelService);
+    // 添加主要节点，直接使用注入的 modelService
+    workflow.addNode("plan", (state) => planNode(state, this.modelService));
 
-    // 添加主要节点
-    workflow.addNode("plan", (state) => planNode(state, modelService));
+    // supervisor 节点只用于路由
+    workflow.addNode("supervisor", () => ({}));
 
-    // supervisor 节点需要返回更新对象，而不是直接返回字符串
-    // 我们将路由逻辑移到 addConditionalEdges 的回调中
-    workflow.addNode("supervisor", () => ({})); // 空节点，只用于路由
-
-    workflow.addNode("aggregator", (state) => aggregatorNode(state, modelService));
+    workflow.addNode("aggregator", (state) => aggregatorNode(state, this.modelService));
 
     // 为每个 Agent 类型创建节点
     for (const agentConfig of this.agentConfigs) {
@@ -222,7 +225,7 @@ export class SupervisorService {
       workflow.addNode(nodeName, wrappedNodeFunc);
     }
 
-    // 添加边 (注意：addEdge 的类型定义可能很严格，我们使用 as any 来绕过类型检查)
+    // 添加边
     (workflow as any).addEdge(START, "plan");
     (workflow as any).addEdge("plan", "supervisor");
 
@@ -248,9 +251,8 @@ export class SupervisorService {
 
     (workflow as any).addEdge("aggregator", END);
 
-    // 编译图
-    const agentSaver = await this.container.resolve(IAgentSaverService) as IAgentSaverService;
-    const checkpointer = await agentSaver.getCheckpointer();
+    // 编译图，使用注入的 agentSaver
+    const checkpointer = await this.agentSaver.getCheckpointer();
 
     logger.info("SupervisorService: 图编译完成");
 
@@ -311,7 +313,6 @@ export class SupervisorService {
           // 检查任务状态变化
           if (output.currentTask && onTaskStatusChange) {
             const currentTask = output.currentTask as SubTask;
-            // 这里简化处理，实际应该跟踪旧状态
             await onTaskStatusChange(currentTask, TaskStatus.IN_PROGRESS, currentTask.status);
           }
 
