@@ -67,7 +67,7 @@ export class MemoryCompressor {
       });
 
       const compressedMemory: Memory = {
-        id: `compressed_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id: `compressed_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
         type: this.determineMemoryType(memories),
         content: compressedContent,
         embedding: newEmbedding,
