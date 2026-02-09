@@ -1,26 +1,56 @@
 import { Command as CommanderCommand } from "commander";
 import { CommandBase, Command, Arg, Option, Parsers } from "./CommandBase";
 import { IAgentSaverService, AgentSqliteSaver } from "../Agent";
+import { IMemoryService, MemoryService } from "../Memory";
+import { IEmbeddingService, EmbeddingServiceFactory } from "../Embedding";
 import { config } from "../Config";
 
 /**
- * /clear 命令 - 清空消息队列
+ * /clear 命令 - 清除历史记录或长期记忆
+ *
+ * 使用示例:
+ * /clear history   - 清除对话历史
+ * /clear memory    - 清除长期记忆
  */
-@Command('clear', '清空消息队列')
+@Command('clear', '清除历史记录或长期记忆')
 export class ClearCommand extends CommandBase {
+    @Arg('type', {
+        description: '清除类型: history(历史记录) 或 memory(长期记忆)',
+        parser: Parsers.enum(['history', 'memory'] as const)
+    })
+    type!: 'history' | 'memory';
+
     async execute(): Promise<string> {
-        // 通过 _context 访问 userService
         const userService = this._context.userService;
         if (!userService) {
-            return '❌ 无法访问用户服务';
+            return '无法访问用户服务';
         }
 
-        // 创建 AgentSaver 实例来清除历史记录
-        const agentSaver: IAgentSaverService = new AgentSqliteSaver(config.getConfigPath(`saver/${userService.userId}.sqlite`));
-        await agentSaver.clearThread(userService.userId);
-        await agentSaver.dispose();
+        const userId = userService.userId;
 
-        return `✅ 清除用户 ${userService.userId} 的所有历史记录`;
+        if (this.type === 'history') {
+            const agentSaver: IAgentSaverService = new AgentSqliteSaver(config.getConfigPath(`saver/${userId}.sqlite`));
+            await agentSaver.clearThread(userId);
+            await agentSaver.dispose();
+            return `已清除用户 ${userId} 的对话历史`;
+        }
+
+        // memory
+        const memoryConfig = config.settings.memory;
+        if (!memoryConfig?.enabled || !memoryConfig?.embedding) {
+            return '记忆功能未启用';
+        }
+
+        const embeddingService = await EmbeddingServiceFactory.getEmbeddingService(memoryConfig.embedding);
+        const memoryService = new MemoryService(
+            userId,
+            config.getConfigPath(`memory/${userId}.sqlite`),
+            memoryConfig.maxAgeDays,
+            embeddingService,
+        );
+        const count = await memoryService.clearAll();
+        await memoryService.dispose();
+        return `已清除用户 ${userId} 的 ${count} 条长期记忆`;
     }
 }
 

@@ -154,6 +154,15 @@ export class MemoryService implements IMemoryService {
   }
 
   /**
+   * 清除用户的所有记忆
+   */
+  async clearAll(): Promise<number> {
+    const count = this.db.clearAllMemories(this.userId);
+    logger.info(`已清除用户 ${this.userId} 的 ${count} 条记忆`);
+    return count;
+  }
+
+  /**
    * 释放资源
    */
   async dispose(): Promise<void> {
@@ -172,6 +181,15 @@ export class MemoryService implements IMemoryService {
   ): Promise<string> {
     try {
       const embedding = await this.embeddings.embedQuery(content);
+
+      // 去重：如果已存在高度相似的记忆，更新而非重复插入
+      const duplicate = this.db.findDuplicate(embedding, this.userId, 0.85);
+      if (duplicate) {
+        this.db.updateMemoryAccess(duplicate.memory.id);
+        logger.debug(`记忆去重: 与已有记忆相似度 ${duplicate.score.toFixed(2)}，跳过存储`);
+        return duplicate.memory.id;
+      }
+
       const finalImportance = importance ?? await this.evaluateImportance(content);
 
       const memory: Memory = {

@@ -18,6 +18,12 @@ export interface IMemoryService {
     compressMemories(): Promise<number>;
 
     /**
+     * 清除用户的所有记忆
+     * @returns 删除的记忆条数
+     */
+    clearAll(): Promise<number>;
+
+    /**
      * 释放资源
      */
     dispose(): Promise<void>;

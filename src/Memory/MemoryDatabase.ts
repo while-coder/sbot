@@ -48,6 +48,12 @@ export class MemoryDatabase {
     );
   }
 
+  clearAllMemories(userId: string): number {
+    const stmt = this.db.prepare(`DELETE FROM memories WHERE user_id = ?`);
+    const result = stmt.run(userId);
+    return result.changes;
+  }
+
   getAllMemories(userId: string): Memory[] {
     const stmt = this.db.prepare(`SELECT * FROM memories WHERE user_id = ?`);
     const rows = stmt.all(userId) as any[];
@@ -83,6 +89,21 @@ export class MemoryDatabase {
       `UPDATE memories SET access_count = access_count + 1, last_accessed = ?, updated_at = ? WHERE id = ?`
     );
     stmt.run(now, now, memoryId);
+  }
+
+  /**
+   * 查找重复记忆（cosine similarity >= threshold）
+   * 返回最相似的一条，未找到返回 undefined
+   */
+  findDuplicate(
+    queryEmbedding: number[],
+    userId: string,
+    threshold: number = 0.85
+  ): { memory: Memory; score: number } | undefined {
+    const results = this.searchSimilar(queryEmbedding, 1, undefined, 0, userId, threshold);
+    return results.length > 0
+      ? { memory: results[0].memory, score: results[0].score }
+      : undefined;
   }
 
   deleteMemory(id: string): void {
