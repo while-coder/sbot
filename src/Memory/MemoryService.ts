@@ -253,7 +253,8 @@ export class MemoryService implements IMemoryService {
   private async cleanupOldMemories(): Promise<number> {
     const maxAgeMs = this.maxMemoryAgeDays * 24 * 3600 * 1000;
     const deletedCount = this.db.pruneMemories(maxAgeMs, 0.3, 2);
-    logger.info(`清理了 ${deletedCount} 条过期记忆（超过 ${this.maxMemoryAgeDays} 天）`);
+    if (deletedCount > 0)
+      logger.info(`清理了 ${deletedCount} 条过期记忆（超过 ${this.maxMemoryAgeDays} 天）`);
     return deletedCount;
   }
 
