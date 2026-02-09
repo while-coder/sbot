@@ -6,3 +6,4 @@ export { MemoryService } from "./MemoryService";
 export { MemoryEvaluator, ImportanceEvaluation } from "./MemoryEvaluator";
 export { MemoryCompressor, MergeStrategy, CompressionResult } from "./MemoryCompressor";
 export { MemoryExtractor, ExtractedFact, FactCategory } from "./MemoryExtractor";
+export { MemoryIndexEntry, MemoryDetail } from "./types";

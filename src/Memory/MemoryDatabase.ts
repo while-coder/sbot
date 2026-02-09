@@ -60,6 +60,20 @@ export class MemoryDatabase {
     return rows.map(row => this.rowToMemory(row));
   }
 
+  getMemoriesByIds(ids: string[], userId?: string): Memory[] {
+    if (ids.length === 0) return [];
+    const placeholders = ids.map(() => '?').join(',');
+    let query = `SELECT * FROM memories WHERE id IN (${placeholders})`;
+    const params: any[] = [...ids];
+    if (userId) {
+      query += ` AND user_id = ?`;
+      params.push(userId);
+    }
+    const stmt = this.db.prepare(query);
+    const rows = stmt.all(...params) as any[];
+    return rows.map(row => this.rowToMemory(row));
+  }
+
   searchWithTimeDecay(
     queryEmbedding: number[],
     currentTime: number,

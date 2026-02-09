@@ -52,3 +52,27 @@ export interface MemorySearchResult {
   score: number;                // 相关性得分
   distance?: number;            // 向量距离
 }
+
+/**
+ * 记忆目录条目（紧凑格式，用于注入 prompt）
+ */
+export interface MemoryIndexEntry {
+  id: string;
+  label: string;                // 截断内容 (~30字)
+  category?: string;            // fact/preference/decision/instruction/context
+  timeAgo: string;              // 如 "2天前"
+  importance: number;           // 0-1
+}
+
+/**
+ * 记忆详情（完整内容，由 recall_memory tool 返回）
+ */
+export interface MemoryDetail {
+  id: string;
+  content: string;              // 完整记忆内容
+  type: string;                 // MemoryType
+  category?: string;
+  tags?: string[];
+  timeAgo: string;
+  importance: number;
+}

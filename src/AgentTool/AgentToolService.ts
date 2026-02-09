@@ -3,9 +3,11 @@ import { MultiServerMCPClient } from "@langchain/mcp-adapters";
 import { config } from "../Config";
 import { LoggerService } from "../LoggerService";
 import { ISkillService } from "../Skills";
+import { IMemoryService } from "../Memory";
 import { createFileSystemTools } from "../Tools/FileSystem";
 import { createSkillTools } from "../Tools/Skills";
 import { createCommandTools } from "../Tools/Command";
+import { createMemoryTools } from "../Tools/Memory";
 import { IAgentToolService } from "./IAgentToolService";
 import { inject } from "../Core";
 
@@ -22,6 +24,7 @@ export class AgentToolService implements IAgentToolService {
 
     constructor(
         @inject(ISkillService, { optional: true }) private skillService?: ISkillService,
+        @inject(IMemoryService, { optional: true }) private memoryService?: IMemoryService,
     ) {}
 
     /**
@@ -42,6 +45,11 @@ export class AgentToolService implements IAgentToolService {
         // skill 工具
         if (this.skillService) {
             this.tools.push(...createSkillTools());
+        }
+
+        // 记忆工具
+        if (this.memoryService) {
+            this.tools.push(...createMemoryTools(this.memoryService));
         }
 
         // 内置 MCP 服务器

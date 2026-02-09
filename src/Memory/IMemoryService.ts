@@ -1,3 +1,5 @@
+import { MemoryIndexEntry, MemoryDetail } from "./types";
+
 /**
  * 记忆服务接口
  */
@@ -6,6 +8,16 @@ export interface IMemoryService {
      * 获取记忆摘要（用于注入到 prompt）
      */
     getMemorySummary(query: string, maxTokens?: number): Promise<string>;
+
+    /**
+     * 获取紧凑记忆目录（用于注入到 prompt，配合 recall_memory tool 使用）
+     */
+    getMemoryIndex(query: string, limit?: number): Promise<MemoryIndexEntry[]>;
+
+    /**
+     * 按 ID 获取记忆详情（由 recall_memory tool 调用）
+     */
+    getMemoryDetails(memoryIds: string[]): Promise<MemoryDetail[]>;
 
     /**
      * 对话历史记忆化

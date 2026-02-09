@@ -126,34 +126,40 @@ export class AgentService {
         }
         const tools = await this.toolService?.getTools() ?? [];
 
-        // 绑定工具到模型
-        this.modelService.bindTools(tools);
-
         // 构建基础系统提示词
         const systemMessages = [
             { role: "system", content: `你是一个有用的AI助手。` },
         ];
 
-        // 注入长期记忆
+        // 注入记忆目录
         if (this.memoryService) {
-            // 获取用户最新消息（用于记忆检索）
             const lastHumanMessage = state.messages.slice().reverse().find(m => m instanceof HumanMessage);
             if (lastHumanMessage) {
                 try {
-                    const memorySummary = await this.memoryService.getMemorySummary(
+                    const memoryIndex = await this.memoryService.getMemoryIndex(
                         lastHumanMessage.content as string,
-                        500 // 最大 token 数
+                        10
                     );
-                    
-                    if (memorySummary) {
-                        logger.info(`用户 ${this.threadId} 的记忆摘要已注入: ${memorySummary}`);
-                        systemMessages.push({role: "system",content: memorySummary});
+
+                    if (memoryIndex.length > 0) {
+                        let indexText = "# 记忆目录\n\n";
+                        indexText += "以下是关于用户的记忆条目。在回复用户之前，你应该先使用 recall_memory 工具获取相关记忆的完整内容，以便给出更准确的回答。\n\n";
+                        for (const entry of memoryIndex) {
+                            const cat = entry.category ?? 'memory';
+                            indexText += `- [${entry.id}] (${cat}, ${entry.timeAgo}) ${entry.label}\n`;
+                        }
+                        indexText += "\n请根据用户问题，主动调用 recall_memory 工具查询相关记忆。";
+                        console.log(indexText)
+                        systemMessages.push({ role: "system", content: indexText });
                     }
                 } catch (error: any) {
-                    logger.warn(`获取记忆摘要失败: ${error.message}`);
+                    logger.warn(`获取记忆目录失败: ${error.message}`);
                 }
             }
         }
+
+        // 绑定工具到模型
+        this.modelService.bindTools(tools);
 
         // 构建 skills 系统提示词
         if (this.skillService) {

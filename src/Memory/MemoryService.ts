@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { inject, init } from "../Core";
 import { MemoryDatabase } from "./MemoryDatabase";
-import { Memory, MemoryType } from "./types";
+import { Memory, MemoryType, MemoryIndexEntry, MemoryDetail } from "./types";
 import { MemoryEvaluator } from "./MemoryEvaluator";
 import { MemoryCompressor, MergeStrategy } from "./MemoryCompressor";
 import { MemoryExtractor } from "./MemoryExtractor";
@@ -110,6 +110,39 @@ export class MemoryService implements IMemoryService {
     }
 
     return summary;
+  }
+
+  /**
+   * 获取紧凑记忆目录（用于注入到 prompt）
+   */
+  async getMemoryIndex(query: string, limit: number = 10): Promise<MemoryIndexEntry[]> {
+    const memories = await this.retrieveRelevantMemories(query, limit);
+    return memories.map(memory => ({
+      id: memory.id,
+      label: this.truncateContent(memory.content, 30),
+      category: memory.metadata.category,
+      timeAgo: this.formatTimeAgo(memory.metadata.timestamp),
+      importance: memory.metadata.importance,
+    }));
+  }
+
+  /**
+   * 按 ID 获取记忆详情
+   */
+  async getMemoryDetails(memoryIds: string[]): Promise<MemoryDetail[]> {
+    const memories = this.db.getMemoriesByIds(memoryIds, this.userId);
+    for (const memory of memories) {
+      this.db.updateMemoryAccess(memory.id);
+    }
+    return memories.map(memory => ({
+      id: memory.id,
+      content: memory.content,
+      type: memory.type,
+      category: memory.metadata.category,
+      tags: memory.metadata.tags,
+      timeAgo: this.formatTimeAgo(memory.metadata.timestamp),
+      importance: memory.metadata.importance,
+    }));
   }
 
   /**
@@ -303,6 +336,15 @@ export class MemoryService implements IMemoryService {
     if (deletedCount > 0)
       logger.info(`清理了 ${deletedCount} 条过期记忆（超过 ${this.maxMemoryAgeDays} 天）`);
     return deletedCount;
+  }
+
+  /**
+   * 截断内容用于目录标签
+   */
+  private truncateContent(content: string, maxLength: number): string {
+    const cleaned = content.replace(/\s+/g, ' ').trim();
+    if (cleaned.length <= maxLength) return cleaned;
+    return cleaned.substring(0, maxLength) + '...';
   }
 
   /**
