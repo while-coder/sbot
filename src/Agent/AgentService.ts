@@ -11,7 +11,7 @@ import { MCPToolResult, normalizeToMCPResult } from '../Tools/ToolsConfig'
 import { createFileSystemTools } from '../Tools/FileSystem'
 import { createSkillTools } from "../Tools/Skills";
 import { createCommandTools } from '../Tools/Command';
-import { MemoryService } from "../Memory/MemoryService";
+import { IMemoryService } from "../Memory";
 import { IAgentSaverService } from "../Saver";
 
 
@@ -75,7 +75,7 @@ export class AgentService {
     private agentSaver?: IAgentSaverService;
     private modelService?: IModelService;
     private skillService?: ISkillService;
-    private memoryService?: MemoryService;
+    private memoryService?: IMemoryService;
 
 
     constructor(
@@ -83,7 +83,7 @@ export class AgentService {
         @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
         @inject(IModelService, { optional: true }) modelService?: IModelService,
         @inject(ISkillService, { optional: true }) skillService?: ISkillService,
-        @inject(MemoryService, { optional: true }) memoryService?: MemoryService,
+        @inject(IMemoryService, { optional: true }) memoryService?: IMemoryService,
     ) {
         this.threadId = userId;
         this.agentSaver = agentSaver;
