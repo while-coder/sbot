@@ -62,7 +62,6 @@ export type ConvertImagesCallback = (result: MCPToolResult) => Promise<MCPToolRe
  * 使用 LangGraph 的 StateGraph 构建的 Agent 服务
  * 提供更灵活的工作流控制和状态管理
  */
-@transient()
 export class AgentService {
     private userId: string;
     private threadId: string;
