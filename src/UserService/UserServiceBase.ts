@@ -78,7 +78,7 @@ export abstract class UserServiceBase {
 
                         // Embedding 服务
                         container.registerInstance(IEmbeddingService, await EmbeddingServiceFactory.getEmbeddingService(memoryConfig.embedding));
-                        container.registerWithArgs(IMemoryService, MemoryService, this.userId, config.getConfigPath(`memory/${this.userId}.sqlite`), memoryConfig.maxAgeDays);
+                        container.registerWithArgs(IMemoryService, MemoryService, this.userId, memoryConfig.maxAgeDays);
                     }
 
                     // 技能服务
@@ -88,13 +88,13 @@ export abstract class UserServiceBase {
                     container.registerInstance(IModelService, await ModelServiceFactory.getModelService(config.getModelName()));
 
                     // Agent Saver 服务（使用 AgentSqliteSaver 实现）
-                    container.registerWithArgs(IAgentSaverService, AgentSqliteSaver, config.getConfigPath(`saver/${this.userId}.sqlite`));
+                    container.registerWithArgs(IAgentSaverService, AgentSqliteSaver, config.getUserSaverPath(this.userId));
 
                     // Agent 工具服务
                     container.registerSingleton(IAgentToolService, AgentToolService);
 
                     // 注册 AgentService（使用自定义参数）
-                    container.registerWithArgs(AgentService, this.userId);
+                    container.registerWithArgs(AgentService, this.userId, this.userId);
 
                     // 解析 AgentService（自动注入所有已注册的依赖，未注册的 optional 依赖为 undefined）
                     const agentService = await container.resolve(AgentService);

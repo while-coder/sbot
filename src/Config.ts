@@ -440,6 +440,12 @@ class Config {
     return fullPath;
   }
 
+  getUserSaverPath(userId: string) {
+    return this.getConfigPath(`users/${userId}/saver.sqlite`)
+  }
+  getUserMemoryPath(userId: string) {
+    return this.getConfigPath(`users/${userId}/memory.sqlite`)
+  }
   /**
    * 验证所有配置是否完整
    * @throws 如果配置不完整则抛出错误

@@ -44,7 +44,6 @@ export class ClearCommand extends CommandBase {
         const embeddingService = await EmbeddingServiceFactory.getEmbeddingService(memoryConfig.embedding);
         const memoryService = new MemoryService(
             userId,
-            config.getConfigPath(`memory/${userId}.sqlite`),
             memoryConfig.maxAgeDays,
             embeddingService,
         );

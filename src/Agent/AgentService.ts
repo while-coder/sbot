@@ -64,25 +64,28 @@ export type ConvertImagesCallback = (result: MCPToolResult) => Promise<MCPToolRe
  */
 @transient()
 export class AgentService {
+    private userId: string;
     private threadId: string;
     private agentSaver?: IAgentSaverService;
-    private modelService?: IModelService;
+    private modelService!: IModelService;
     private skillService?: ISkillService;
     private memoryService?: IMemoryService;
     private toolService?: IAgentToolService;
 
 
     constructor(
-        @inject("UserId") userId: string,
+        userId: string,
+        threadId: string,
+        @inject(IModelService) modelService: IModelService,
         @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
-        @inject(IModelService, { optional: true }) modelService?: IModelService,
         @inject(ISkillService, { optional: true }) skillService?: ISkillService,
         @inject(IMemoryService, { optional: true }) memoryService?: IMemoryService,
         @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
     ) {
-        this.threadId = userId;
-        this.agentSaver = agentSaver;
+        this.userId = userId;
+        this.threadId = threadId;
         this.modelService = modelService;
+        this.agentSaver = agentSaver;
         this.skillService = skillService;
         this.memoryService = memoryService;
         this.toolService = toolService;
@@ -121,9 +124,6 @@ export class AgentService {
      * 调用模型节点
      */
     private async callModelNode(state: typeof MessagesAnnotation.State, onStreamMessage?: OnStreamMessageCallback) {
-        if (!this.modelService) {
-            throw new Error("模型服务未初始化");
-        }
         const tools = await this.toolService?.getTools() ?? [];
 
         // 构建基础系统提示词
@@ -238,7 +238,7 @@ export class AgentService {
                     throw new Error(`用户拒绝调用工具`);
                 }
                 // 执行工具
-                logger.info(`用户 ${this.threadId} 执行工具 ${tool.name} 参数: ${JSON.stringify(toolCall.args)}`);
+                logger.info(`用户 ${this.userId} 执行工具 ${tool.name} 参数: ${JSON.stringify(toolCall.args)}`);
                 const result = await tool.invoke(toolCall.args);
 
                 // 标准化为 MCP 格式（自动检测和转换各种格式）
@@ -249,7 +249,7 @@ export class AgentService {
                     try {
                         mcpResult = await convertImages(mcpResult);
                     } catch (error: any) {
-                        logger.error(`用户 ${this.threadId} 图片转换失败: ${error.message}`);
+                        logger.error(`用户 ${this.userId} 图片转换失败: ${error.message}`);
                         // 图片转换失败不影响工具执行结果，保留原始内容
                     }
                 }
@@ -378,7 +378,7 @@ export class AgentService {
                 content: (message.content as string).trim()
             };
         } else {
-            logger.warn(`用户 ${this.threadId} 未知AI消息类型 : ${message.constructor.name}`);
+            logger.warn(`用户 ${this.userId} 未知AI消息类型 : ${message.constructor.name}`);
         }
         return null;
     }

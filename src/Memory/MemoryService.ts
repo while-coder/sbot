@@ -8,6 +8,7 @@ import { MemoryExtractor } from "./MemoryExtractor";
 import { IMemoryService } from "./index";
 import { IEmbeddingService } from "../Embedding";
 import { LoggerService } from "../LoggerService";
+import { config } from "../Config";
 
 const logger = LoggerService.getLogger("MemoryService.ts");
 
@@ -21,16 +22,15 @@ export class MemoryService implements IMemoryService {
   private maxMemoryAgeDays: number;
   constructor(
     private userId: string,
-    dbPath: string,
     maxMemoryAgeDays: number | undefined,
     @inject(IEmbeddingService) private embeddings: IEmbeddingService,
-    @inject(MemoryEvaluator, { optional: true }) private importanceEvaluator?: MemoryEvaluator,
+    @inject(MemoryEvaluator, { optional: true }) private evaluator?: MemoryEvaluator,
     @inject(MemoryCompressor, { optional: true }) private compressor?: MemoryCompressor,
     @inject(MemoryExtractor, { optional: true }) private extractor?: MemoryExtractor,
   ) {
     this.userId = userId;
     this.sessionId = uuidv4();
-    this.db = new MemoryDatabase(dbPath);
+    this.db = new MemoryDatabase(config.getUserMemoryPath(userId));
     this.maxMemoryAgeDays = maxMemoryAgeDays ?? 90;
 
     logger.info(`记忆服务已创建 - 用户: ${this.userId}, 会话: ${this.sessionId}`);
@@ -301,9 +301,9 @@ export class MemoryService implements IMemoryService {
    * 评估记忆重要性（优先 LLM，fallback 启发式）
    */
   private async evaluateImportance(content: string, context?: string): Promise<number> {
-    if (this.importanceEvaluator) {
+    if (this.evaluator) {
       try {
-        const evaluation = await this.importanceEvaluator.evaluate(content, context);
+        const evaluation = await this.evaluator.evaluate(content, context);
         return evaluation.score;
       } catch (error: any) {
         logger.warn(`LLM 评估失败，使用启发式方法: ${error.message}`);
