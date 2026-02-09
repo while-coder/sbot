@@ -1,8 +1,8 @@
 import { AIMessage, HumanMessage } from "langchain";
 import { END } from '@langchain/langgraph';
 import { SupervisorAnnotation, TaskStatus, SubTask, ExecutionPlan, AgentConfig } from './SupervisorAnnotation.js';
-import { IModelService } from "../Model/index.js";
-import { LoggerService } from "../LoggerService.js";
+import { IModelService } from "../../Model/index.js";
+import { LoggerService } from "../../LoggerService.js";
 import { v4 as uuidv4 } from 'uuid';
 
 const logger = LoggerService.getLogger("SupervisorNodes.ts");

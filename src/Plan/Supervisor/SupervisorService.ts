@@ -2,15 +2,15 @@ import { HumanMessage, AIMessage, AIMessageChunk, BaseMessage } from "langchain"
 import { StateGraph, START, END } from '@langchain/langgraph';
 import { SupervisorAnnotation, AgentConfig, SubTask, TaskStatus, ExecutionPlan } from './SupervisorAnnotation.js';
 import { planNode, supervisorNode, aggregatorNode } from './SupervisorNodes.js';
-import { AgentService, OnMessageCallback, OnStreamMessageCallback, ExecuteToolCallback, ConvertImagesCallback, MessageChunkType, AgentMessage } from '../Agent/AgentService.js';
-import { FilteredAgentToolService } from '../AgentTool/FilteredAgentToolService.js';
-import { IAgentSaverService } from '../Saver/index.js';
-import { IModelService } from '../Model/index.js';
-import { ISkillService } from '../Skills/index.js';
-import { IMemoryService } from '../Memory/index.js';
-import { IAgentToolService } from '../AgentTool/index.js';
-import { inject, ServiceContainer } from '../Core/index.js';
-import { LoggerService } from '../LoggerService.js';
+import { AgentService, OnMessageCallback, OnStreamMessageCallback, ExecuteToolCallback, ConvertImagesCallback, MessageChunkType, AgentMessage } from '../../Agent/AgentService.js';
+import { FilteredAgentToolService } from '../../AgentTool/FilteredAgentToolService.js';
+import { IAgentSaverService } from '../../Saver/index.js';
+import { IModelService } from '../../Model/index.js';
+import { ISkillService } from '../../Skills/index.js';
+import { IMemoryService } from '../../Memory/index.js';
+import { IAgentToolService } from '../../AgentTool/index.js';
+import { inject, ServiceContainer } from '../../Core/index.js';
+import { LoggerService } from '../../LoggerService.js';
 
 const logger = LoggerService.getLogger("SupervisorService.ts");
 
