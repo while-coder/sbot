@@ -1,18 +1,13 @@
 import { HumanMessage, AIMessage, ToolMessage, BaseMessage, AIMessageChunk } from "langchain";
-import { Util } from "weimingcommons";
-import { MultiServerMCPClient } from "@langchain/mcp-adapters";
 import {StateGraph, END, START, MessagesAnnotation} from '@langchain/langgraph';
-import {config} from "../Config";
 import {LoggerService} from "../LoggerService";
 import { transient, inject } from "../Core";
 import { IModelService } from "../Model";
 import { ISkillService } from "../Skills";
 import { MCPToolResult, normalizeToMCPResult } from '../Tools/ToolsConfig'
-import { createFileSystemTools } from '../Tools/FileSystem'
-import { createSkillTools } from "../Tools/Skills";
-import { createCommandTools } from '../Tools/Command';
 import { IMemoryService } from "../Memory";
 import { IAgentSaverService } from "../Saver";
+import { IAgentToolService } from "../AgentTool";
 
 
 const logger = LoggerService.getLogger("AgentService.ts");
@@ -70,12 +65,11 @@ export type ConvertImagesCallback = (result: MCPToolResult) => Promise<MCPToolRe
 @transient()
 export class AgentService {
     private threadId: string;
-    tools: any[] = [];
-    disabledAutoApproveTools: Set<string> = new Set<string>();
     private agentSaver?: IAgentSaverService;
     private modelService?: IModelService;
     private skillService?: ISkillService;
     private memoryService?: IMemoryService;
+    private toolService?: IAgentToolService;
 
 
     constructor(
@@ -84,12 +78,14 @@ export class AgentService {
         @inject(IModelService, { optional: true }) modelService?: IModelService,
         @inject(ISkillService, { optional: true }) skillService?: ISkillService,
         @inject(IMemoryService, { optional: true }) memoryService?: IMemoryService,
+        @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
     ) {
         this.threadId = userId;
         this.agentSaver = agentSaver;
         this.modelService = modelService;
         this.skillService = skillService;
         this.memoryService = memoryService;
+        this.toolService = toolService;
 
         if (this.memoryService) {
             logger.info(`用户 ${userId} 的长期记忆服务已启用`);
@@ -107,73 +103,6 @@ export class AgentService {
         await this.memoryService?.dispose()
     }
 
-    /**
-     * 初始化工具
-     */
-    private async createTools() {
-        if (this.tools.length > 0) return this.tools;
-
-        this.disabledAutoApproveTools = new Set<string>()
-        this.tools = []
-
-        // 添加文件系统工具
-        const fileSystemTools = createFileSystemTools({ maxFileSize: 10 * 1024 * 1024 });
-        this.tools.push(...fileSystemTools);
-
-        // 添加命令执行工具
-        const commandTools = createCommandTools();
-        this.tools.push(...commandTools);
-
-        // 添加 skill 工具（如果 skillService 可用）
-        if (this.skillService) {
-            const skillTools = createSkillTools();
-            this.tools.push(...skillTools);
-        }
-
-        await this.addMcpServers(config.getBuiltinMcpServers())
-        // 从 mcp.json 自动加载 MCP 服务器配置
-        const mcpServers = config.getMcpServers();
-        if (mcpServers) {
-            await this.addMcpServers(mcpServers);
-        }
-
-        return this.tools;
-    }
-
-    /**
-     * 添加 MCP 服务器工具
-     */
-    private async addMcpServers(mcpServers: any) {
-        if (Object.keys(mcpServers).length == 0) return
-
-        // 收集所有被禁用的工具名称
-        const disabledTools = new Set<string>();
-
-        for (let key in mcpServers) {
-            if (mcpServers[key]?.disabledAutoApproveTools != null) {
-                mcpServers[key].disabledAutoApproveTools.forEach((tool: string) => {
-                    this.disabledAutoApproveTools.add(tool);
-                });
-            }
-
-            // 收集 disabled 列表中的工具
-            if (mcpServers[key]?.disabled != null) {
-                mcpServers[key].disabled.forEach((tool: string) => {
-                    disabledTools.add(tool);
-                });
-            }
-        }
-
-        const mcpClient = new MultiServerMCPClient({ mcpServers });
-        let tools = await mcpClient.getTools()
-
-        for (let tool of tools) {
-            // 排除掉 disabled 中包含的工具和已存在的工具
-            if (!disabledTools.has(tool.name) && this.tools.findIndex(x => x.name == tool.name) < 0) {
-                this.tools.push(tool)
-            }
-        }
-    }
     /**
      * 判断是否应该继续执行
      */
@@ -195,7 +124,7 @@ export class AgentService {
         if (!this.modelService) {
             throw new Error("模型服务未初始化");
         }
-        const tools = await this.createTools();
+        const tools = await this.toolService?.getTools() ?? [];
 
         // 绑定工具到模型
         this.modelService.bindTools(tools);
@@ -274,81 +203,58 @@ export class AgentService {
     private async callToolsNode(state: typeof MessagesAnnotation.State, executeTool?: ExecuteToolCallback, convertImages?: ConvertImagesCallback) {
         const messages = state.messages;
         const lastMessage = messages[messages.length - 1] as AIMessage;
-        
+
         // 获取工具调用
         const toolCalls = lastMessage.tool_calls || [];
         if (toolCalls.length === 0) {
             return { messages: [] };
         }
         // 获取可用工具
-        const tools = await this.createTools();
+        const tools = await this.toolService?.getTools() ?? [];
         const toolMap = new Map(tools.map(t => [t.name, t]));
 
         // 执行所有工具调用
         const toolMessages: ToolMessage[] = [];
         for (const toolCall of toolCalls) {
-            const tool = toolMap.get(toolCall.name);
-            if (!tool) {
-                // 工具不存在
-                toolMessages.push(
-                    new ToolMessage({
-                        tool_call_id: toolCall.id || "",
-                        content: `Error: Tool '${toolCall.name}' not found`,
-                        status: "error"
-                    })
-                );
-                continue;
-            }
             try {
+                const tool = toolMap.get(toolCall.name);
+                if (!tool) {
+                    throw new Error(`工具不存在`);
+                }
                 let ok = true;
-                if (executeTool && this.disabledAutoApproveTools.has(tool.name)) {
+                if (executeTool && this.toolService?.isDisabledAutoApprove(tool.name)) {
                     ok = await executeTool(toolCall);
                 }
-                if (ok) {
-                    // 执行工具
-                    logger.info(`用户 ${this.threadId} 执行工具 ${tool.name} 参数: ${JSON.stringify(toolCall.args)}`);
-                    const result = await tool.invoke(toolCall.args);
-
-                    // 标准化为 MCP 格式（自动检测和转换各种格式）
-                    let mcpResult = normalizeToMCPResult(result);
-
-                    // 如果提供了图片转换回调，转换内容中的图片
-                    if (convertImages) {
-                        try {
-                            mcpResult = await convertImages(mcpResult);
-                        } catch (error: any) {
-                            logger.error(`用户 ${this.threadId} 图片转换失败: ${error.message}`);
-                            // 图片转换失败不影响工具执行结果，保留原始内容
-                        }
-                    }
-
-                    // 将 MCP 格式序列化为 JSON 字符串
-                    const content = JSON.stringify(mcpResult);
-
-                    toolMessages.push(
-                        new ToolMessage({
-                            tool_call_id: toolCall.id || "",
-                            content: content,
-                            status: "success"
-                        })
-                    );
-                } else {
-                    toolMessages.push(
-                        new ToolMessage({
-                            tool_call_id: toolCall.id || "",
-                            content: "<font color='red'>用户拒绝调用</font>",
-                            status: "error"
-                        })
-                    );
+                if (!ok) {
+                    throw new Error(`用户拒绝调用工具`);
                 }
+                // 执行工具
+                logger.info(`用户 ${this.threadId} 执行工具 ${tool.name} 参数: ${JSON.stringify(toolCall.args)}`);
+                const result = await tool.invoke(toolCall.args);
+
+                // 标准化为 MCP 格式（自动检测和转换各种格式）
+                let mcpResult = normalizeToMCPResult(result);
+
+                // 如果提供了图片转换回调，转换内容中的图片
+                if (convertImages) {
+                    try {
+                        mcpResult = await convertImages(mcpResult);
+                    } catch (error: any) {
+                        logger.error(`用户 ${this.threadId} 图片转换失败: ${error.message}`);
+                        // 图片转换失败不影响工具执行结果，保留原始内容
+                    }
+                }
+
+                // 将 MCP 格式序列化为 JSON 字符串
+                const content = JSON.stringify(mcpResult);
+
+                toolMessages.push(
+                    new ToolMessage({tool_call_id: toolCall.id || "", content: content, status: "success" })
+                );
             } catch (error: any) {
                 // 工具执行失败
                 toolMessages.push(
-                    new ToolMessage({
-                        tool_call_id: toolCall.id || "",
-                        content: `<font color='red'>Error executing tool: ${error.message}</font>`,
-                        status: "error"
-                    })
+                    new ToolMessage({tool_call_id: toolCall.id || "", content: `Execute Tool ${toolCall.name} Error: ${error.message}`, status: "error" })
                 );
             }
         }
@@ -358,19 +264,14 @@ export class AgentService {
 
     /**
      * 使用 LangGraph 创建 Agent 图
-     * @param onStreamMessage 流式消息回调，通过闭包传递给 callModelNode，避免实例属性冲突
-     * @param executeTool 工具执行回调，通过闭包传递给 callToolsNode
-     * @param convertImages 图片转换回调，通过闭包传递给 callToolsNode
      */
     private async createGraph(onStreamMessage?: OnStreamMessageCallback, executeTool?: ExecuteToolCallback, convertImages?: ConvertImagesCallback) {
         // 初始化工具
-        await this.createTools();
+        await this.toolService?.getTools();
         // 创建状态图，使用闭包传递回调
         const workflow = new StateGraph(MessagesAnnotation)
-            // 添加节点 - 使用闭包绑定回调
             .addNode("agent", (state) => this.callModelNode(state, onStreamMessage))
             .addNode("tools", (state) => this.callToolsNode(state, executeTool, convertImages))
-            // 添加边
             .addEdge(START, "agent")
             .addConditionalEdges("agent", this.agentNext.bind(this))
             .addEdge("tools", "agent");
@@ -384,11 +285,6 @@ export class AgentService {
 
     /**
      * 流式处理用户查询
-     * @param query 用户查询
-     * @param onMessage 消息回调
-     * @param onStreamMessage 流式消息回调
-     * @param executeTool 工具执行回调
-     * @param convertImages 图片转换回调（可选）
      */
     async stream(query: string, onMessage: OnMessageCallback, onStreamMessage?: OnStreamMessageCallback, executeTool?: ExecuteToolCallback, convertImages?: ConvertImagesCallback): Promise<void> {
         try {
@@ -407,7 +303,6 @@ export class AgentService {
             // 为本次调用创建独立的图，通过闭包传递回调
             const graph = await this.createGraph(onStreamMessage, executeTool, convertImages);
             // 流式执行图 - 使用 updates 模式，每次只返回该步骤的更新
-            // 使用 userId 作为 thread_id
             const stream = await graph.stream(
                 { messages: inputMessages },
                 { streamMode: "updates", configurable: { thread_id: this.threadId } }
@@ -418,23 +313,16 @@ export class AgentService {
 
             // 处理流式输出
             for await (const update of stream) {
-                // update 是一个对象，键是节点名称，值是该节点的输出
-                // 例如: { agent: { messages: [...] } } 或 { tools: { messages: [...] } }
                 for (const [, nodeOutput] of Object.entries(update)) {
-                    // 获取该节点输出的消息
                     const messages = (nodeOutput as any).messages || [];
 
-                    // 处理每条新消息
                     for (const message of messages) {
-                        // 跳过人类消息
                         if (message instanceof HumanMessage) continue;
 
-                        // 收集 AI 响应
                         if (message instanceof AIMessage || message instanceof AIMessageChunk) {
                             aiResponse += message.content || "";
                         }
 
-                        // 转换为回调格式
                         const messageChunk = this.convertToMessageChunk(message);
                         if (messageChunk) {
                             await onMessage(messageChunk!)
@@ -464,7 +352,6 @@ export class AgentService {
      */
     private convertToMessageChunk(message: BaseMessage): AgentMessage | null {
         if (message instanceof AIMessage || message instanceof AIMessageChunk) {
-            // 转换工具调用格式
             const toolCalls: AgentToolCall[] = (message.tool_calls || []).map(tc => ({
                 id: tc.id || "",
                 name: tc.name,

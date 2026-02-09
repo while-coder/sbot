@@ -1,5 +1,5 @@
 import { Util } from "weimingcommons";
-import { AgentService, AgentMessage, AgentToolCall, MessageChunkType, IAgentSaverService, AgentSqliteSaver } from "../Agent";
+import { AgentService, AgentMessage, AgentToolCall, MessageChunkType, IAgentSaverService, AgentSqliteSaver, IAgentToolService, AgentToolService } from "../Agent";
 import { LoggerService } from "../LoggerService";
 import { MCPToolResult } from "../Tools/ToolsConfig";
 import { Command } from "commander";
@@ -84,6 +84,9 @@ export abstract class UserServiceBase {
 
                     // Agent Saver 服务（使用 AgentSqliteSaver 实现）
                     container.registerWithArgs(IAgentSaverService, AgentSqliteSaver, config.getConfigPath(`saver/${this.userId}.sqlite`));
+
+                    // Agent 工具服务
+                    container.registerSingleton(IAgentToolService, AgentToolService);
 
                     // 注册 AgentService（使用自定义参数）
                     container.registerWithArgs(AgentService, this.userId);
