@@ -2,17 +2,17 @@ import { HumanMessage, AIMessage, ToolMessage, BaseMessage, AIMessageChunk } fro
 import { Util } from "weimingcommons";
 import { MultiServerMCPClient } from "@langchain/mcp-adapters";
 import {StateGraph, END, START, MessagesAnnotation} from '@langchain/langgraph';
-import {SqliteSaver} from "@langchain/langgraph-checkpoint-sqlite";
-import {config, ModelConfig} from "../Config";
+import {config} from "../Config";
 import {LoggerService} from "../LoggerService";
 import { transient, inject } from "../Core";
 import { IModelService } from "../Model";
-import { Skill, SkillService } from "../Skills";
+import { SkillService } from "../Skills";
 import { MCPToolResult, normalizeToMCPResult } from '../Tools/ToolsConfig'
 import { createFileSystemTools } from '../Tools/FileSystem'
 import { createSkillTools } from "../Tools/Skills";
 import { createCommandTools } from '../Tools/Command';
 import { MemoryService } from "../Memory/MemoryService";
+import { IAgentSaver } from "./IAgentSaver";
 
 
 const logger = LoggerService.getLogger("AgentService.ts");
@@ -72,7 +72,7 @@ export class AgentService {
     private threadId: string;
     tools: any[] = [];
     disabledAutoApproveTools: Set<string> = new Set<string>();
-    saver:SqliteSaver|undefined;
+    private agentSaver: IAgentSaver;
     private modelService?: IModelService;
     private skillService?: SkillService;
     private maxHistoryMessages: number = 10; // 最大历史消息数
@@ -81,11 +81,13 @@ export class AgentService {
 
     constructor(
         @inject("UserId") userId: string,
+        @inject(IAgentSaver) agentSaver: IAgentSaver,
         @inject(IModelService, { optional: true }) modelService?: IModelService,
         @inject(SkillService, { optional: true }) skillService?: SkillService,
         @inject(MemoryService, { optional: true }) memoryService?: MemoryService,
     ) {
         this.threadId = userId;
+        this.agentSaver = agentSaver;
         this.modelService = modelService;
         this.skillService = skillService;
         this.memoryService = memoryService;
@@ -104,28 +106,14 @@ export class AgentService {
      * 清除当前线程的所有历史记录
      */
     async clearSaver() {
-        const saver = await this.createSaver()
-        await saver.deleteThread(this.threadId)
-        await this.disposeSaver();
-        logger.info(`清除用户 ${this.threadId} 的所有历史记录`)
+        await this.agentSaver.clearThread(this.threadId);
+        logger.info(`清除用户 ${this.threadId} 的所有历史记录`);
     }
     /**
      * 释放资源
      */
     async disposeSaver() {
-        if (this.saver) {
-            try {
-                // SqliteSaver 通常会有 end() 或类似方法来关闭数据库连接
-                // @ts-ignore - SqliteSaver 可能有 db 属性用于访问底层数据库
-                if (this.saver.db && typeof this.saver.db.close === 'function') {
-                    await this.saver.db.close();
-                }
-            } catch (error: any) {
-                logger.warn(`用户 ${this.threadId} 释放saver 资源时出错: ${error.message}`);
-            } finally {
-                this.saver = undefined;
-            }
-        }
+        await this.agentSaver.dispose();
     }
     /**
      * 释放资源
@@ -423,14 +411,6 @@ export class AgentService {
         return { messages: toolMessages };
     }
 
-    private async createSaver():Promise<SqliteSaver> {
-        if (this.saver != null) return this.saver;
-        // 使用 SQLite 数据库作为 checkpoint 存储
-        const dbPath = config.getConfigPath(`saver/${this.threadId}.sqlite`);
-        // 初始化 SqliteSaver (无需手动调用 setup，会自动初始化)
-        this.saver = SqliteSaver.fromConnString(dbPath);
-        return this.saver;
-    }
     /**
      * 使用 LangGraph 创建 Agent 图
      * @param onStreamMessage 流式消息回调，通过闭包传递给 callModelNode，避免实例属性冲突
@@ -450,10 +430,10 @@ export class AgentService {
             .addConditionalEdges("agent", this.agentNext.bind(this))
             .addEdge("tools", "agent");
 
-        // 编译图，使用 SqliteSaver
-        const saver = await this.createSaver()
+        // 编译图，使用 AgentSaver 提供的 checkpointer
+        const checkpointer = await this.agentSaver.getCheckpointer();
         return workflow.compile({
-            checkpointer: saver
+            checkpointer: checkpointer
         });
     }
 
@@ -541,31 +521,21 @@ export class AgentService {
      */
     private async prepareHistoryForStream(): Promise<BaseMessage[]> {
         try {
-            const saver = await this.createSaver();
+            // 获取历史消息
+            const allMessages = await this.agentSaver.getMessages(this.threadId);
 
-            // 获取当前状态
-            const currentState = await saver.get({ configurable: { thread_id: this.threadId } });
+            // 如果超过最大限制，需要清理
+            if (allMessages.length > this.maxHistoryMessages) {
+                // 智能截断：确保消息对的完整性
+                const recentMessages = this.truncateMessages(allMessages, this.maxHistoryMessages);
 
-            if (currentState?.channel_values) {
-                const channelValues = currentState.channel_values as any;
+                // 删除旧的 thread（清理数据库）
+                await this.agentSaver.clearThread(this.threadId);
 
-                if (channelValues.messages && Array.isArray(channelValues.messages)) {
-                    const allMessages = channelValues.messages;
+                logger.info(`用户 ${this.threadId} 历史消息数 ${allMessages.length} 超过限制 ${this.maxHistoryMessages}，开始清理多余的消息...`);
 
-                    // 如果超过最大限制，需要清理
-                    if (allMessages.length > this.maxHistoryMessages) {
-                        // 智能截断：确保消息对的完整性
-                        const recentMessages = this.truncateMessages(allMessages, this.maxHistoryMessages);
-
-                        // 删除旧的 thread（清理数据库）
-                        await saver.deleteThread(this.threadId);
-
-                        logger.info(`用户 ${this.threadId} 历史消息数 ${allMessages.length} 超过限制 ${this.maxHistoryMessages}，开始清理多余的消息...`);
-
-                        // 返回截断后的历史消息，让 graph.stream 重新初始化
-                        return recentMessages;
-                    }
-                }
+                // 返回截断后的历史消息，让 graph.stream 重新初始化
+                return recentMessages;
             }
 
             // 历史未超限，返回空数组，使用 saver 中的历史
