@@ -350,6 +350,11 @@ export class ServiceContainer {
     const injectTokens = getInjectTokens(target);
     const optionalParams = getOptionalParams(target);
 
+    // 无反射元数据（类未使用装饰器）时，直接传入 providedArgs
+    if (paramTypes.length === 0 && injectTokens.size === 0 && providedArgs && providedArgs.length > 0) {
+      return new target(...providedArgs);
+    }
+
     // 用于跟踪已使用的 providedArgs
     const usedArgIndices = new Set<number>();
 

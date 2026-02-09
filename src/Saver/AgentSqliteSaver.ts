@@ -14,7 +14,8 @@ export class AgentSqliteSaver implements IAgentSaverService {
     private saver: SqliteSaver | undefined;
     private maxHistoryMessages: number = 10;
 
-    constructor(private dbPath: string) {
+    constructor(
+        private dbPath: string) {
         logger.info(`AgentSqliteSaver 初始化 - 数据库: ${this.dbPath}`);
         this.saver = SqliteSaver.fromConnString(this.dbPath);
     }
