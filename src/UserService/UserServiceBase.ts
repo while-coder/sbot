@@ -1,5 +1,6 @@
 import { Util } from "weimingcommons";
 import { AgentService, AgentMessage, AgentToolCall, MessageChunkType, IAgentSaverService, AgentSqliteSaver, IAgentToolService, AgentToolService } from "../Agent";
+import { SupervisorService, AgentConfig } from "../Plan/index.js";
 import { LoggerService } from "../LoggerService";
 import { MCPToolResult } from "../Tools/ToolsConfig";
 import { Command } from "commander";
@@ -93,18 +94,48 @@ export abstract class UserServiceBase {
                     // Agent 工具服务
                     container.registerSingleton(IAgentToolService, AgentToolService);
 
-                    // 注册 AgentService（使用自定义参数）
-                    container.registerWithArgs(AgentService, this.userId, this.userId);
+                    // 检查是否启用 Supervisor 模式
+                    const supervisorConfig = (config.settings as any).supervisor;
+                    const supervisorEnabled = supervisorConfig?.enabled ?? false;
+                    const agentConfigs: AgentConfig[] = supervisorConfig?.agents ?? [];
 
-                    // 解析 AgentService（自动注入所有已注册的依赖，未注册的 optional 依赖为 undefined）
-                    const agentService = await container.resolve(AgentService);
-                    await agentService.stream(
-                        query,
-                        this.onAgentMessage.bind(this),
-                        this.onAgentStreamMessage.bind(this),
-                        this.executeAgentTool.bind(this),
-                        this.convertImages.bind(this)
-                    );
+                    if (supervisorEnabled && agentConfigs.length > 0) {
+                        // 使用 Supervisor 模式
+                        logger.info(`${this.userId} 使用 Supervisor 模式，包含 ${agentConfigs.length} 个 Agent`);
+
+                        const supervisorService = new SupervisorService(
+                            this.userId,
+                            this.userId,
+                            agentConfigs,
+                            container
+                        );
+
+                        await supervisorService.stream(
+                            query,
+                            this.onAgentMessage.bind(this),
+                            this.onAgentStreamMessage.bind(this),
+                            undefined, // onTaskStatusChange - 暂时不使用
+                            undefined, // onPlanCreated - 暂时不使用
+                            this.executeAgentTool.bind(this),
+                            this.convertImages.bind(this)
+                        );
+                    } else {
+                        // 使用现有单 Agent 模式（向后兼容）
+                        logger.info(`${this.userId} 使用单 Agent 模式`);
+
+                        // 注册 AgentService（使用自定义参数）
+                        container.registerWithArgs(AgentService, this.userId, this.userId);
+
+                        // 解析 AgentService（自动注入所有已注册的依赖，未注册的 optional 依赖为 undefined）
+                        const agentService = await container.resolve(AgentService);
+                        await agentService.stream(
+                            query,
+                            this.onAgentMessage.bind(this),
+                            this.onAgentStreamMessage.bind(this),
+                            this.executeAgentTool.bind(this),
+                            this.convertImages.bind(this)
+                        );
+                    }
                 }
                 logger.info(`${this.userId} ${messageType}处理完成: ${query}`);
             } catch (e: any) {
