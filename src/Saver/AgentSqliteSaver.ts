@@ -12,7 +12,7 @@ const logger = LoggerService.getLogger("AgentSqliteSaver.ts");
  */
 export class AgentSqliteSaver implements IAgentSaverService {
     private saver: SqliteSaver | undefined;
-    private maxHistoryMessages: number = 10;
+    private maxTokens: number = 8000;
 
     constructor(private dbPath: string) {
         this.saver = SqliteSaver.fromConnString(this.dbPath);
@@ -63,19 +63,20 @@ export class AgentSqliteSaver implements IAgentSaverService {
 
     /**
      * 准备历史记录用于 stream
-     * 如果历史记录超过限制，返回截断后的历史消息并清理 saver
+     * 如果历史 token 超限，返回截断后的历史消息并清理 saver
      * 否则返回空数组（使用 saver 中的历史）
      */
     async prepareHistory(threadId: string): Promise<BaseMessage[]> {
         try {
             const allMessages = await this.getMessages(threadId);
+            const totalTokens = this.estimateTotalTokens(allMessages);
 
-            if (allMessages.length > this.maxHistoryMessages) {
-                const recentMessages = this.truncateMessages(allMessages, this.maxHistoryMessages);
+            if (totalTokens > this.maxTokens) {
+                const recentMessages = this.truncateMessages(allMessages, this.maxTokens);
 
                 await this.clearThread(threadId);
 
-                logger.warn(`线程 ${threadId} 历史消息 ${allMessages.length} 条超限，截断为 ${recentMessages.length} 条`);
+                logger.warn(`线程 ${threadId} 历史约 ${totalTokens} tokens 超限(${this.maxTokens})，截断为 ${recentMessages.length} 条消息`);
                 return recentMessages;
             }
 
@@ -87,43 +88,92 @@ export class AgentSqliteSaver implements IAgentSaverService {
     }
 
     /**
-     * 智能截断消息历史，确保不会破坏 tool_calls 和 ToolMessage 的配对
+     * 基于 token 限制截断消息，从末尾向前保留，确保不破坏 tool_calls 配对
      */
-    truncateMessages(messages: BaseMessage[], maxCount: number): BaseMessage[] {
-        if (messages.length <= maxCount) {
-            return messages;
-        }
+    truncateMessages(messages: BaseMessage[], maxTokens: number): BaseMessage[] {
+        let tokenCount = 0;
+        let startIndex = messages.length;
 
-        let startIndex = messages.length - maxCount;
-
-        for (let i = startIndex; i >= 0 && i < messages.length; i++) {
-            const msg = messages[i];
-
-            if (msg instanceof ToolMessage) {
-                continue;
-            }
-
-            if ((msg instanceof AIMessage || msg instanceof AIMessageChunk) && msg.tool_calls && msg.tool_calls.length > 0) {
-                let toolMessageCount = 0;
-                for (let j = i + 1; j < messages.length; j++) {
-                    if (messages[j] instanceof ToolMessage) {
-                        toolMessageCount++;
-                    } else {
-                        break;
-                    }
-                }
-
-                if (i + toolMessageCount < messages.length) {
-                    startIndex = i;
-                    break;
-                }
-            } else {
-                startIndex = i;
+        // 从末尾向前累加 token
+        for (let i = messages.length - 1; i >= 0; i--) {
+            const msgTokens = this.estimateMessageTokens(messages[i]);
+            if (tokenCount + msgTokens > maxTokens) {
                 break;
             }
+            tokenCount += msgTokens;
+            startIndex = i;
         }
 
+        // 调整截断点，确保不破坏 tool_calls 和 ToolMessage 的配对
+        startIndex = this.adjustStartIndex(messages, startIndex);
+
         return messages.slice(startIndex);
+    }
+
+    /**
+     * 调整截断起始位置，确保不切断 tool_calls → ToolMessage 配对
+     * 如果起始位置落在 ToolMessage 上或落在带 tool_calls 的 AI 消息的 ToolMessage 序列中间，
+     * 则向前找到完整配对的起点，或向后跳过整个配对
+     */
+    private adjustStartIndex(messages: BaseMessage[], startIndex: number): number {
+        if (startIndex >= messages.length) return startIndex;
+
+        const msg = messages[startIndex];
+
+        // 如果起始位置是 ToolMessage，向后跳过直到非 ToolMessage
+        if (msg instanceof ToolMessage) {
+            for (let i = startIndex; i < messages.length; i++) {
+                if (!(messages[i] instanceof ToolMessage)) {
+                    return i;
+                }
+            }
+            return messages.length;
+        }
+
+        // 如果起始位置是带 tool_calls 的 AI 消息，确保其后续 ToolMessage 都被包含
+        if ((msg instanceof AIMessage || msg instanceof AIMessageChunk) && msg.tool_calls?.length) {
+            // 检查后续 ToolMessage 是否都在范围内（已经是从 startIndex 开始，所以一定包含）
+            // 这种情况是安全的，不需要调整
+            return startIndex;
+        }
+
+        return startIndex;
+    }
+
+    private estimateMessageTokens(message: BaseMessage): number {
+        const content = message.content;
+        let textLength = 0;
+
+        if (typeof content === 'string') {
+            textLength = content.length;
+        } else if (Array.isArray(content)) {
+            for (const part of content as any[]) {
+                if (typeof part === 'string') {
+                    textLength += part.length;
+                } else if (part && typeof part === 'object' && 'text' in part) {
+                    textLength += part.text?.length ?? 0;
+                }
+            }
+        }
+
+        // tool_calls 也占 token
+        if ((message instanceof AIMessage || message instanceof AIMessageChunk) && message.tool_calls?.length) {
+            for (const tc of message.tool_calls) {
+                textLength += (tc.name?.length ?? 0) + JSON.stringify(tc.args ?? {}).length;
+            }
+        }
+
+        // 粗略估算：中文 ~1.5 token/字，英文 ~0.25 token/字，取平均 ~0.75 token/字
+        // 加上消息头开销（role 等约 4 token）
+        return Math.ceil(textLength * 0.75) + 4;
+    }
+
+    private estimateTotalTokens(messages: BaseMessage[]): number {
+        let total = 0;
+        for (const msg of messages) {
+            total += this.estimateMessageTokens(msg);
+        }
+        return total;
     }
 
     /**

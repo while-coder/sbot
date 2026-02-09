@@ -34,12 +34,12 @@ export interface IAgentSaverService {
     prepareHistory(threadId: string): Promise<BaseMessage[]>;
 
     /**
-     * 智能截断消息历史，确保不会破坏 tool_calls 和 ToolMessage 的配对
+     * 基于 token 限制截断消息历史，确保不会破坏 tool_calls 和 ToolMessage 的配对
      * @param messages 原始消息数组
-     * @param maxCount 最大保留数量
+     * @param maxTokens 最大 token 数
      * @returns 截断后的消息数组
      */
-    truncateMessages(messages: BaseMessage[], maxCount: number): BaseMessage[];
+    truncateMessages(messages: BaseMessage[], maxTokens: number): BaseMessage[];
 
     /**
      * 释放资源（如数据库连接）
