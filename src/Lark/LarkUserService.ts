@@ -1,11 +1,10 @@
 import {Util} from "weimingcommons";
-import {LarkChatProvider, type ProviderToolMessage, ProviderMessageType} from "./LarkChatProvider";
-import {type AgentMessage, MessageChunkType, AgentToolCall} from "../Agent/AgentService";
+import {LarkChatProvider} from "./LarkChatProvider";
+import {type AgentMessage, AgentToolCall} from "../Agent/AgentService";
 import {LoggerService} from "../LoggerService";
 import {UserServiceBase} from "../UserService/UserServiceBase";
 import {larkService} from "./LarkService";
 import { MCPToolResult } from "../Tools/ToolsConfig";
-import { CommandBase, Command } from "../UserService/CommandBase";
 
 const logger = LoggerService.getLogger('LarkUserService.ts');
 

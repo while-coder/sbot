@@ -1,7 +1,7 @@
 import { HumanMessage, AIMessage, ToolMessage, BaseMessage, AIMessageChunk } from "langchain";
 import {StateGraph, END, START, MessagesAnnotation} from '@langchain/langgraph';
 import {LoggerService} from "../LoggerService";
-import { transient, inject } from "../Core";
+import { inject } from "../Core";
 import { IModelService } from "../Model";
 import { ISkillService } from "../Skills";
 import { MCPToolResult, normalizeToMCPResult } from '../Tools/ToolsConfig'
@@ -16,6 +16,11 @@ export enum MessageChunkType {
     AI = "ai",
     TOOL = "tool",
     COMMAND = "command",
+}
+
+export enum GraphNodeType {
+    AGENT = "agent",
+    TOOLS = "tools",
 }
 
 export type AgentToolCall = {
@@ -108,13 +113,13 @@ export class AgentService {
     /**
      * 判断是否应该继续执行
      */
-    private agentNext(state: typeof MessagesAnnotation.State): "tools" | typeof END {
+    private agentNext(state: typeof MessagesAnnotation.State): GraphNodeType.TOOLS | typeof END {
         const messages = state.messages;
         const lastMessage = messages[messages.length - 1] as AIMessage;
 
         // 如果 LLM 调用了工具，则路由到 tools 节点
         if (lastMessage.tool_calls && lastMessage.tool_calls.length > 0) {
-            return "tools";
+            return GraphNodeType.TOOLS;
         }
         // 否则结束
         return END;
@@ -278,11 +283,11 @@ export class AgentService {
         await this.toolService?.getTools();
         // 创建状态图，使用闭包传递回调
         const workflow = new StateGraph(MessagesAnnotation)
-            .addNode("agent", (state) => this.callModelNode(state, onStreamMessage))
-            .addNode("tools", (state) => this.callToolsNode(state, executeTool, convertImages))
-            .addEdge(START, "agent")
-            .addConditionalEdges("agent", this.agentNext.bind(this))
-            .addEdge("tools", "agent");
+            .addNode(GraphNodeType.AGENT, (state) => this.callModelNode(state, onStreamMessage))
+            .addNode(GraphNodeType.TOOLS, (state) => this.callToolsNode(state, executeTool, convertImages))
+            .addEdge(START, GraphNodeType.AGENT)
+            .addConditionalEdges(GraphNodeType.AGENT, this.agentNext.bind(this))
+            .addEdge(GraphNodeType.TOOLS, GraphNodeType.AGENT);
 
         // 编译图，使用 AgentSaver 提供的 checkpointer
         const checkpointer = await this.agentSaver?.getCheckpointer();

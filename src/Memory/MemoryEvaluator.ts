@@ -1,5 +1,4 @@
-import { inject, transient } from "../Core";
-import { IModelService, MODEL_NAME, ModelServiceFactory } from "../Model";
+import { IModelService } from "../Model";
 import { LoggerService } from "../LoggerService";
 
 const logger = LoggerService.getLogger("MemoryEvaluator.ts");

@@ -1,8 +1,8 @@
 import { Command as CommanderCommand } from "commander";
 import { CommandBase, Command, Arg, Option, Parsers } from "./CommandBase";
 import { IAgentSaverService, AgentSqliteSaver } from "../Agent";
-import { IMemoryService, MemoryService } from "../Memory";
-import { IEmbeddingService, EmbeddingServiceFactory } from "../Embedding";
+import { MemoryService } from "../Memory";
+import { EmbeddingServiceFactory } from "../Embedding";
 import { config } from "../Config";
 
 /**
