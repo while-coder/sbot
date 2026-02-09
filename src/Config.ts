@@ -114,12 +114,33 @@ export interface MemoryConfig {
   compressor?: string;         // 记忆压缩器使用的模型名称（对应 models 中的 key）
 }
 
+/**
+ * Plan Agent 配置
+ */
+export interface PlanAgentConfig {
+  id: string;                  // Agent 实例 ID
+  type: string;                // Agent 类型（如 coder, researcher, analyst 等）
+  skillName?: string;          // 关联的 Skill 名称（可选）
+  tools: string[];             // 可用工具列表，["*"] 表示所有工具
+  systemPrompt?: string;       // 自定义系统提示词
+}
+
+/**
+ * Plan 模式配置
+ */
+export interface PlanConfig {
+  mode?: "single" | "supervisor" | "react";  // 运行模式
+  maxIterations?: number;                     // ReAct 模式最大迭代次数
+  agents?: PlanAgentConfig[];                 // Agent 配置列表
+}
+
 export interface Settings {
   model?: string; // 当前使用的模型名称（对应 models 中的 key）
   lark?: LarkConfig;
   models?: Record<string, ModelConfig>; // 多个模型配置
   embeddings?: Record<string, EmbeddingConfig>; // 多个 embedding 配置
   memory?: MemoryConfig; // 长期记忆配置
+  plan?: PlanConfig; // Plan 模式配置
 }
 
 class Config {
@@ -303,6 +324,24 @@ class Config {
           baseURL: "https://your-resource.openai.azure.com",
           model: "text-embedding-ada-002"
         }
+      },
+      plan: {
+        mode: "single",
+        maxIterations: 5,
+        agents: [
+          {
+            id: "coder-1",
+            type: "coder",
+            tools: ["read_file", "write_file", "execute_command"],
+            systemPrompt: "你是一个开发专家，擅长编写高质量代码"
+          },
+          {
+            id: "researcher-1",
+            type: "researcher",
+            tools: ["web_search", "read_url"],
+            systemPrompt: "你是一个研究专家，擅长搜索和分析信息"
+          }
+        ]
       }
     };
   }
