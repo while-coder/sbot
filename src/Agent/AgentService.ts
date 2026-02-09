@@ -129,34 +129,35 @@ export class AgentService {
         // 绑定工具到模型
         this.modelService.bindTools(tools);
 
-        // 获取用户最新消息（用于记忆检索）
-        const lastHumanMessage = state.messages
-            .slice()
-            .reverse()
-            .find(m => m instanceof HumanMessage);
-
         // 构建基础系统提示词
         const systemMessages = [
             { role: "system", content: `你是一个有用的AI助手。` },
         ];
 
         // 注入长期记忆
-        if (this.memoryService && lastHumanMessage) {
-            try {
-                const memorySummary = await this.memoryService.getMemorySummary(
-                    lastHumanMessage.content as string,
-                    500 // 最大 token 数
-                );
+        if (this.memoryService) {
+            // 获取用户最新消息（用于记忆检索）
+            const lastHumanMessage = state.messages
+                .slice()
+                .reverse()
+                .find(m => m instanceof HumanMessage);
+            if (lastHumanMessage) {
+                try {
+                    const memorySummary = await this.memoryService.getMemorySummary(
+                        lastHumanMessage.content as string,
+                        500 // 最大 token 数
+                    );
 
-                if (memorySummary) {
-                    systemMessages.push({
-                        role: "system",
-                        content: memorySummary
-                    });
-                    logger.debug(`已注入长期记忆上下文到提示词中`);
+                    if (memorySummary) {
+                        systemMessages.push({
+                            role: "system",
+                            content: memorySummary
+                        });
+                        logger.debug(`已注入长期记忆上下文到提示词中`);
+                    }
+                } catch (error: any) {
+                    logger.warn(`获取记忆摘要失败: ${error.message}`);
                 }
-            } catch (error: any) {
-                logger.warn(`获取记忆摘要失败: ${error.message}`);
             }
         }
 
@@ -178,6 +179,14 @@ export class AgentService {
         const stream = await this.modelService.stream(messages);
 
         let response:AIMessageChunk|undefined
+        const emitStream = async () => {
+            if (!onStreamMessage || !response) return;
+            const messageChunk = this.convertToMessageChunk(response);
+            if (messageChunk) {
+                await onStreamMessage(messageChunk);
+            }
+        };
+        let lastStreamCallTime = 0;
         // 收集所有流式片段
         for await (const chunk of stream) {
             if (response == undefined) {
@@ -185,14 +194,14 @@ export class AgentService {
             } else {
                 response = response.concat(chunk)
             }
-            if (onStreamMessage) {
-                // 转换为回调格式
-                const messageChunk = this.convertToMessageChunk(response);
-                if (messageChunk) {
-                    await onStreamMessage(messageChunk!)
-                }
+            const now = Date.now();
+            if (now - lastStreamCallTime >= 200) {
+                lastStreamCallTime = now;
+                await emitStream();
             }
         }
+        // 流结束后发送最终状态，确保最后的数据不丢失
+        await emitStream();
         // 返回新的状态，LangGraph 会自动合并消息
         return { messages: [response] };
     }
