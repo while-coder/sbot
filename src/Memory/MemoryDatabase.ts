@@ -62,9 +62,12 @@ export class MemoryDatabase {
 
   getMemoriesByIds(ids: string[], userId?: string): Memory[] {
     if (ids.length === 0) return [];
-    const placeholders = ids.map(() => '?').join(',');
-    let query = `SELECT * FROM memories WHERE id IN (${placeholders})`;
-    const params: any[] = [...ids];
+
+    // 支持短 ID 前缀匹配
+    const conditions = ids.map(id => id.length < 36 ? `id LIKE ?` : `id = ?`);
+    const params: any[] = ids.map(id => id.length < 36 ? `${id}%` : id);
+
+    let query = `SELECT * FROM memories WHERE (${conditions.join(' OR ')})`;
     if (userId) {
       query += ` AND user_id = ?`;
       params.push(userId);

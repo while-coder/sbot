@@ -118,7 +118,7 @@ export class MemoryService implements IMemoryService {
   async getMemoryIndex(query: string, limit: number = 10): Promise<MemoryIndexEntry[]> {
     const memories = await this.retrieveRelevantMemories(query, limit);
     return memories.map(memory => ({
-      id: memory.id,
+      id: memory.id.substring(0, 8),
       label: this.truncateContent(memory.content, 30),
       category: memory.metadata.category,
       timeAgo: this.formatTimeAgo(memory.metadata.timestamp),
