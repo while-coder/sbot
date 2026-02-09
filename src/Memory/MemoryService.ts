@@ -4,20 +4,11 @@ import { MemoryDatabase } from "./MemoryDatabase";
 import { Memory, MemoryType } from "./types";
 import { ImportanceEvaluator } from "./ImportanceEvaluator";
 import { MemoryCompressor, MergeStrategy } from "./MemoryCompressor";
-import { IMemoryService, MEMORY_SERVICE_CONFIG } from "./index";
+import { IMemoryService } from "./index";
 import { IEmbeddingService } from "../Embedding";
 import { LoggerService } from "../LoggerService";
 
 const logger = LoggerService.getLogger("MemoryService.ts");
-
-/**
- * 记忆服务配置
- */
-export interface MemoryServiceConfig {
-  userId: string;
-  dbPath: string;
-  maxMemoryAgeDays?: number;
-}
 
 /**
  * 记忆服务
@@ -25,20 +16,20 @@ export interface MemoryServiceConfig {
  */
 export class MemoryService implements IMemoryService {
   private db: MemoryDatabase;
-  private userId: string;
   private sessionId: string;
   private maxMemoryAgeDays: number;
-
   constructor(
-    @inject(MEMORY_SERVICE_CONFIG) config: MemoryServiceConfig,
+    private userId: string,
+    dbPath: string,
+    maxMemoryAgeDays: number | undefined,
     @inject(IEmbeddingService) private embeddings: IEmbeddingService,
     @inject(ImportanceEvaluator, { optional: true }) private importanceEvaluator?: ImportanceEvaluator,
     @inject(MemoryCompressor, { optional: true }) private compressor?: MemoryCompressor,
   ) {
-    this.userId = config.userId;
+    this.userId = userId;
     this.sessionId = uuidv4();
-    this.db = new MemoryDatabase(config.dbPath);
-    this.maxMemoryAgeDays = config.maxMemoryAgeDays ?? 90;
+    this.db = new MemoryDatabase(dbPath);
+    this.maxMemoryAgeDays = maxMemoryAgeDays ?? 90;
 
     logger.info(`记忆服务已创建 - 用户: ${this.userId}, 会话: ${this.sessionId}`);
   }

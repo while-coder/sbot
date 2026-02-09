@@ -7,7 +7,7 @@ import { CommandBase, CommandContext } from "./CommandBase";
 import { getBuiltInCommands } from "./BuiltInCommands";
 import { config } from "../Config";
 import { IModelService, ModelServiceFactory } from "../Model";
-import { IMemoryService, ImportanceEvaluator, MemoryCompressor, MEMORY_SERVICE_CONFIG, MemoryService } from "../Memory";
+import { IMemoryService, ImportanceEvaluator, MemoryCompressor, MemoryService } from "../Memory";
 import { IEmbeddingService, EmbeddingServiceFactory } from "../Embedding";
 import { ServiceContainer } from "../Core";
 import { ISkillService, SkillService } from "../Skills";
@@ -67,14 +67,9 @@ export abstract class UserServiceBase {
                         container.registerInstance(MemoryCompressor, new MemoryCompressor(modelForMemory));
 
                         // 记忆服务配置
-                        container.registerInstance(MEMORY_SERVICE_CONFIG, {
-                            userId: this.userId,
-                            dbPath: config.getConfigPath(`memory/${this.userId}.db`),
-                            maxMemoryAgeDays: config.settings.memory?.maxAgeDays ?? 90
-                        });
                         // Embedding 服务（从配置读取，使用静态方法）
                         container.registerInstance(IEmbeddingService, await EmbeddingServiceFactory.getEmbeddingService(config.getEmbeddingName()));
-                        container.registerSingleton(IMemoryService, MemoryService);
+                        container.registerWithArgs(IMemoryService, MemoryService, this.userId, config.getConfigPath(`memory/${this.userId}.db`), 90);
                     }
 
                     // 技能服务
