@@ -183,7 +183,6 @@ export abstract class UserServiceBase {
             commandResult
         ].join('\n');
 
-        logger.info("----------- " + allContent)
         // 如果有内容，统一调用一次 onAgentMessage 发送
         if (allContent) {
             await this.onAgentMessage({

@@ -70,7 +70,6 @@ export class MemoryService implements IMemoryService {
             { category: fact.category, tags: fact.tags }
           );
         }
-        logger.info(`从对话中提取了 ${facts.length} 条知识点`);
         return;
       } catch (error: any) {
         logger.warn(`知识提取失败，降级为原始对话存储: ${error.message}`);
