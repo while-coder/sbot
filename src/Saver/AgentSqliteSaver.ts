@@ -1,10 +1,8 @@
 import { BaseCheckpointSaver } from "@langchain/langgraph-checkpoint";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import { AIMessage, AIMessageChunk, BaseMessage, ToolMessage } from "langchain";
-import { IAgentSaverService } from "./IAgentSaverServiceService";
-import { config } from "../Config";
+import { IAgentSaverService } from "./IAgentSaverService";
 import { LoggerService } from "../LoggerService";
-import { inject, transient } from "../Core";
 
 const logger = LoggerService.getLogger("AgentSqliteSaver.ts");
 
@@ -12,47 +10,27 @@ const logger = LoggerService.getLogger("AgentSqliteSaver.ts");
  * 基于 SQLite 的 Agent Saver 实现
  * 使用 SQLite 数据库持久化对话历史
  */
-@transient()
 export class AgentSqliteSaver implements IAgentSaverService {
     private saver: SqliteSaver | undefined;
-    private userId: string;
-    maxHistoryMessages: number = 10;
+    private maxHistoryMessages: number = 10;
 
-    constructor(@inject("UserId") userId: string) {
-        this.userId = userId;
-    }
-
-    /**
-     * 获取或创建 SqliteSaver 实例
-     */
-    private async createSaver(): Promise<SqliteSaver> {
-        if (this.saver != null) return this.saver;
-
-        // 使用 SQLite 数据库作为 checkpoint 存储
-        const dbPath = config.getConfigPath(`saver/${this.userId}.sqlite`);
-
-        // 初始化 SqliteSaver (无需手动调用 setup，会自动初始化)
-        this.saver = SqliteSaver.fromConnString(dbPath);
-
-        logger.debug(`用户 ${this.userId} 的 SqliteSaver 已创建: ${dbPath}`);
-
-        return this.saver;
+    constructor(private dbPath: string) {
+        this.saver = SqliteSaver.fromConnString(this.dbPath);
     }
 
     /**
      * 获取 LangGraph 的 CheckpointSaver 实例
      */
     async getCheckpointer(): Promise<BaseCheckpointSaver> {
-        return await this.createSaver();
+        return this.saver!;
     }
 
     /**
      * 清除指定线程的所有历史记录
      */
     async clearThread(threadId: string): Promise<void> {
-        const saver = await this.createSaver();
-        await saver.deleteThread(threadId);
-        logger.info(`用户 ${this.userId} 的线程 ${threadId} 历史记录已清除`);
+        await this.saver?.deleteThread(threadId);
+        logger.info(`线程 ${threadId} 历史记录已清除`);
     }
 
     /**
@@ -60,10 +38,8 @@ export class AgentSqliteSaver implements IAgentSaverService {
      */
     async getMessages(threadId: string): Promise<BaseMessage[]> {
         try {
-            const saver = await this.createSaver();
-
             // 获取当前状态
-            const currentState = await saver.get({ configurable: { thread_id: threadId } });
+            const currentState = await this.saver?.get({ configurable: { thread_id: threadId } });
 
             if (currentState?.channel_values) {
                 const channelValues = currentState.channel_values as any;
@@ -75,7 +51,7 @@ export class AgentSqliteSaver implements IAgentSaverService {
 
             return [];
         } catch (error: any) {
-            logger.warn(`用户 ${this.userId} 获取线程 ${threadId} 历史消息失败: ${error.message}`);
+            logger.warn(`获取线程 ${threadId} 历史消息失败: ${error.message}`);
             return [];
         }
     }
@@ -94,14 +70,14 @@ export class AgentSqliteSaver implements IAgentSaverService {
 
                 await this.clearThread(threadId);
 
-                logger.info(`用户 ${this.userId} 历史消息数 ${allMessages.length} 超过限制 ${this.maxHistoryMessages}，开始清理多余的消息...`);
+                logger.info(`用户 ${this.dbPath} 历史消息数 ${allMessages.length} 超过限制 ${this.maxHistoryMessages}，开始清理多余的消息...`);
 
                 return recentMessages;
             }
 
             return [];
         } catch (error: any) {
-            logger.warn(`用户 ${this.userId} 检查历史记录时出错: ${error.message}`);
+            logger.warn(`用户 ${this.dbPath} 检查历史记录时出错: ${error.message}`);
             return [];
         }
     }
@@ -152,14 +128,15 @@ export class AgentSqliteSaver implements IAgentSaverService {
     async dispose(): Promise<void> {
         if (this.saver) {
             try {
+                
                 // SqliteSaver 通常会有 end() 或类似方法来关闭数据库连接
                 // @ts-ignore - SqliteSaver 可能有 db 属性用于访问底层数据库
                 if (this.saver.db && typeof this.saver.db.close === 'function') {
                     await this.saver.db.close();
-                    logger.debug(`用户 ${this.userId} 的 SqliteSaver 数据库连接已关闭`);
+                    logger.debug(`用户 ${this.dbPath} 的 SqliteSaver 数据库连接已关闭`);
                 }
             } catch (error: any) {
-                logger.warn(`用户 ${this.userId} 释放 SqliteSaver 资源时出错: ${error.message}`);
+                logger.warn(`用户 ${this.dbPath} 释放 SqliteSaver 资源时出错: ${error.message}`);
             } finally {
                 this.saver = undefined;
             }

@@ -42,11 +42,6 @@ export interface IAgentSaverService {
     truncateMessages(messages: BaseMessage[], maxCount: number): BaseMessage[];
 
     /**
-     * 最大历史消息数
-     */
-    maxHistoryMessages: number;
-
-    /**
      * 释放资源（如数据库连接）
      */
     dispose(): Promise<void>;

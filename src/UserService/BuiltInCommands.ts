@@ -1,7 +1,7 @@
 import { Command as CommanderCommand } from "commander";
 import { CommandBase, Command, Arg, Option, Parsers } from "./CommandBase";
 import { IAgentSaverService, AgentSqliteSaver } from "../Agent";
-import { ServiceContainer } from "../Core";
+import { config } from "../Config";
 
 /**
  * /clear 命令 - 清空消息队列
@@ -16,7 +16,7 @@ export class ClearCommand extends CommandBase {
         }
 
         // 创建 AgentSaver 实例来清除历史记录
-        const agentSaver: IAgentSaverService = new AgentSqliteSaver(userService.userId);
+        const agentSaver: IAgentSaverService = new AgentSqliteSaver(config.getConfigPath(`saver/${userService.userId}.sqlite`));
         await agentSaver.clearThread(userService.userId);
         await agentSaver.dispose();
 

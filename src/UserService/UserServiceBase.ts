@@ -83,7 +83,7 @@ export abstract class UserServiceBase {
                     container.registerInstance(IModelService, await ModelServiceFactory.getModelService(config.getModelName()));
 
                     // Agent Saver 服务（使用 AgentSqliteSaver 实现）
-                    container.registerWithArgs(IAgentSaverService, AgentSqliteSaver, this.userId);
+                    container.registerWithArgs(IAgentSaverService, AgentSqliteSaver, config.getConfigPath(`saver/${this.userId}.sqlite`));
 
                     // 注册 AgentService（使用自定义参数）
                     container.registerWithArgs(AgentService, this.userId);
