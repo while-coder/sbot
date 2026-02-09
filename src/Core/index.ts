@@ -27,7 +27,7 @@
  */
 
 // 容器
-export { Container, globalContainer } from "./Container";
+export { ServiceContainer, globalContainer } from "./ServiceContainer";
 
 // 装饰器
 export { transient, singleton, inject, init, dispose } from "./decorators";

@@ -1,7 +1,7 @@
 import { Command as CommanderCommand } from "commander";
 import { CommandBase, Command, Arg, Option, Parsers } from "./CommandBase";
 import { IAgentSaver, AgentSqliteSaver } from "../Agent";
-import { Container } from "../Core";
+import { ServiceContainer } from "../Core";
 
 /**
  * /clear 命令 - 清空消息队列

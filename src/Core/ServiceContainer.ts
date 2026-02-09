@@ -20,7 +20,7 @@ import {
 } from "./decorators";
 import { LoggerService } from "../LoggerService";
 
-const logger = LoggerService.getLogger("Container");
+const logger = LoggerService.getLogger("ServiceContainer");
 
 /**
  * 将 InjectionToken 转为可读字符串（用于日志和错误信息）
@@ -55,7 +55,7 @@ function tokenToString(token: InjectionToken): string {
  * const db = await container.resolve(DatabaseService);
  * ```
  */
-export class Container {
+export class ServiceContainer {
   private registrations = new Map<InjectionToken, Registration>();
   private resolutionStack = new Set<InjectionToken>(); // 循环依赖检测
   private disposables: Array<{ instance: any; method: string | symbol }> = [];
@@ -371,8 +371,8 @@ export class Container {
       const isOptional = optionalParams.has(i);
       const hasValidToken = token && token !== Object && token !== undefined;
 
-      // 特殊处理：如果注入的是 Container 本身，返回当前容器实例
-      if (hasValidToken && token === Container) {
+      // 特殊处理：如果注入的是 ServiceContainer 本身，返回当前容器实例
+      if (hasValidToken && token === ServiceContainer) {
         args.push(this);
         continue;
       }
@@ -552,4 +552,4 @@ export class Container {
 /**
  * 全局容器实例
  */
-export const globalContainer = new Container();
+export const globalServiceContainer = new ServiceContainer();

@@ -9,7 +9,7 @@ import { config } from "../Config";
 import { IModelService, ModelServiceFactory } from "../Model";
 import { ImportanceEvaluator, MEMORY_SERVICE_CONFIG, MemoryCompressor, MemoryService } from "../Memory";
 import { IEmbeddingService, EmbeddingServiceFactory } from "../Embedding";
-import { Container } from "../Core";
+import { ServiceContainer } from "../Core";
 import { ISkillService, SkillService } from "../Skills";
 
 const logger = LoggerService.getLogger('UserServiceBase.ts');
@@ -57,7 +57,7 @@ export abstract class UserServiceBase {
                     await this.processCommand(query.substring(1), args);
                 } else {
                     // 创建 DI 容器并注册服务
-                    const container = new Container();
+                    const container = new ServiceContainer();
 
                     // 可选：注册记忆相关依赖（如果有配置则启用）
                     if (config.getEmbeddingName()) {
