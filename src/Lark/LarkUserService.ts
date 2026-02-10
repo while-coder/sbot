@@ -1,10 +1,10 @@
 import {Util} from "weimingcommons";
 import {LarkChatProvider} from "./LarkChatProvider";
-import {type AgentMessage, AgentToolCall} from "../Agent/AgentService";
+import { AgentMessage, AgentToolCall } from "scorpio.ai";
 import {LoggerService} from "../LoggerService";
 import {UserServiceBase} from "../UserService/UserServiceBase";
 import {larkService} from "./LarkService";
-import { MCPToolResult } from "../Tools/ToolsConfig";
+import { MCPToolResult } from "scorpio.ai";
 
 const logger = LoggerService.getLogger('LarkUserService.ts');
 

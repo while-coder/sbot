@@ -1,17 +1,23 @@
 import { Util } from "weimingcommons";
-import { AgentService, AgentMessage, AgentToolCall, MessageChunkType, IAgentSaverService, AgentSqliteSaver, IAgentToolService, AgentToolService } from "../Agent";
+import {
+    AgentService, AgentMessage, AgentToolCall, MessageChunkType,
+    IAgentSaverService, AgentSqliteSaver, IAgentToolService, AgentToolService,
+    IModelService, ModelServiceFactory,
+    IMemoryService, MemoryEvaluator, MemoryCompressor, MemoryExtractor, MemoryService,
+    IEmbeddingService, EmbeddingServiceFactory,
+    ServiceContainer,
+    ISkillService, SkillService,
+    ICommand,
+    CommandContext,
+    parseCommandLine,
+    registerCommand,
+    MCPToolResult,
+} from "scorpio.ai";
 import { SupervisorService, ReActService, AgentConfig } from "../Plan/index.js";
 import { LoggerService } from "../LoggerService";
-import { MCPToolResult } from "../Tools/ToolsConfig";
 import { Command } from "commander";
-import { CommandBase, CommandContext } from "./CommandBase";
 import { getBuiltInCommands } from "./BuiltInCommands";
 import { config } from "../Config";
-import { IModelService, ModelServiceFactory } from "../Model";
-import { IMemoryService, MemoryEvaluator, MemoryCompressor, MemoryExtractor, MemoryService } from "../Memory";
-import { IEmbeddingService, EmbeddingServiceFactory } from "../Embedding";
-import { ServiceContainer } from "../Core";
-import { ISkillService, SkillService } from "../Skills";
 
 const logger = LoggerService.getLogger('UserServiceBase.ts');
 
@@ -78,18 +84,31 @@ export abstract class UserServiceBase {
                         }
 
                         // Embedding 服务
-                        container.registerInstance(IEmbeddingService, await EmbeddingServiceFactory.getEmbeddingService(memoryConfig.embedding));
-                        container.registerWithArgs(IMemoryService, MemoryService, this.userId, memoryConfig.maxAgeDays);
+                        const embeddingService = await EmbeddingServiceFactory.getEmbeddingService(memoryConfig.embedding);
+                        container.registerInstance(IEmbeddingService, embeddingService);
+
+                        // Memory 服务
+                        const memoryDbPath = config.getConfigPath(`memory/${this.userId}.sqlite`);
+                        const memoryService = new MemoryService(this.userId, memoryDbPath, embeddingService);
+                        if (memoryConfig.maxAgeDays) {
+                            memoryService.setMaxMemoryAgeDays(memoryConfig.maxAgeDays);
+                        }
+                        container.registerInstance(IMemoryService, memoryService);
                     }
 
                     // 技能服务
-                    container.registerInstance(ISkillService, new SkillService(config.getConfigPath("skills")));
+                    const skillsPath = config.getConfigPath("skills");
+                    container.registerInstance(ISkillService, new SkillService([skillsPath]));
 
                     // 模型服务（使用静态方法）
-                    container.registerInstance(IModelService, await ModelServiceFactory.getModelService(config.getModelName()));
+                    const modelName = config.getModelName();
+                    const modelService = await ModelServiceFactory.getModelService(modelName);
+                    container.registerInstance(IModelService, modelService);
 
                     // Agent Saver 服务（使用 AgentSqliteSaver 实现）
-                    container.registerWithArgs(IAgentSaverService, AgentSqliteSaver, config.getUserSaverPath(this.userId));
+                    const saverPath = config.getUserSaverPath(this.userId);
+                    const agentSaver = new AgentSqliteSaver(saverPath);
+                    container.registerInstance(IAgentSaverService, agentSaver);
 
                     // Agent 工具服务
                     container.registerSingleton(IAgentToolService, AgentToolService);
@@ -179,7 +198,7 @@ export abstract class UserServiceBase {
 
         // 创建命令上下文（带结果回调）
         const context: CommandContext = {
-            userService: this,
+            context: this,
             args,
             // 结果回调：在命令执行后自动调用
             onResult: (result: string) => {
@@ -188,17 +207,17 @@ export abstract class UserServiceBase {
         };
 
         // 收集所有命令
-        const allCommands: CommandBase[] = [
+        const allCommands: ICommand[] = [
             ...getBuiltInCommands(program),
         ];
 
         // 注册所有命令（会自动设置 action 执行逻辑）
         for (const cmd of allCommands) {
-            CommandBase.register(cmd, program, context);
+            registerCommand(cmd, program, context);
         }
 
         // 解析命令行
-        const argv = this.parseCommandLine(query);
+        const argv = parseCommandLine(query);
 
         try {
             // 直接让 Commander 解析并执行命令
@@ -231,40 +250,6 @@ export abstract class UserServiceBase {
                 content: allContent
             });
         }
-    }
-
-
-    private parseCommandLine(commandLine: string): string[] {
-        // 简单的命令行解析，支持引号
-        const args: string[] = [];
-        let current = '';
-        let inQuote = false;
-        let quoteChar = '';
-
-        for (let i = 0; i < commandLine.length; i++) {
-            const char = commandLine[i];
-
-            if ((char === '"' || char === "'") && !inQuote) {
-                inQuote = true;
-                quoteChar = char;
-            } else if (char === quoteChar && inQuote) {
-                inQuote = false;
-                quoteChar = '';
-            } else if (char === ' ' && !inQuote) {
-                if (current) {
-                    args.push(current);
-                    current = '';
-                }
-            } else {
-                current += char;
-            }
-        }
-
-        if (current) {
-            args.push(current);
-        }
-
-        return args;
     }
 
     abstract startProcessMessage(query: string, args: any): Promise<void>;

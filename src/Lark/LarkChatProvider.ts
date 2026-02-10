@@ -1,6 +1,6 @@
 import { larkService } from "./LarkService.js";
 import { LoggerService } from "../LoggerService.js";
-import { AgentMessage, MessageChunkType } from "../Agent/AgentService.js";
+import { AgentMessage, MessageChunkType } from "scorpio.ai";
 
 const logger = LoggerService.getLogger("LarkChatProvider.ts");
 

@@ -1,8 +1,5 @@
 import { StructuredToolInterface } from "@langchain/core/tools";
-import { IAgentToolService } from "./IAgentToolService.js";
-import { AgentToolService } from "./AgentToolService.js";
-import { ISkillService } from "../Skills/index.js";
-import { IMemoryService } from "../Memory/index.js";
+import { IAgentToolService, AgentToolService, ISkillService, IMemoryService } from "scorpio.ai";
 import { LoggerService } from "../LoggerService.js";
 
 const logger = LoggerService.getLogger("FilteredAgentToolService.ts");
@@ -23,7 +20,13 @@ export class FilteredAgentToolService implements IAgentToolService {
   ) {
     this.allowedTools = new Set(allowedTools);
     this.allowAll = this.allowedTools.has("*");
-    this.baseToolService = new AgentToolService(skillService, memoryService);
+    this.baseToolService = new AgentToolService();
+
+    if (skillService || memoryService) {
+      // 注册工具工厂
+      // 注意：这里需要手动添加工具，因为 AgentToolService 在 scorpio.ai 中是基础实现
+      logger.warn("FilteredAgentToolService: skillService 和 memoryService 需要通过 registerToolFactory 注册");
+    }
 
     if (this.allowAll) {
       logger.info("FilteredAgentToolService: 允许所有工具");

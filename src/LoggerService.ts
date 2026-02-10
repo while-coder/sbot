@@ -1,6 +1,7 @@
 import path from "path";
 import log4js from "log4js";
-import {config} from "./Config";
+import { ILogger, ILoggerService, GlobalLoggerService } from "scorpio.ai";
+import { config } from "./Config";
 
 // 确保日志目录存在并获取路径
 const logsDir = config.getConfigPath("logs", true);
@@ -38,7 +39,43 @@ log4js.configure({
 });
 
 /**
- * LoggerService - 日志服务类
+ * Log4js Logger 包装器，实现 ILogger 接口
+ */
+class Log4jsLoggerAdapter implements ILogger {
+    constructor(private logger: log4js.Logger) {}
+
+    debug(message: string, ...args: any[]): void {
+        this.logger.debug(message, ...args);
+    }
+
+    info(message: string, ...args: any[]): void {
+        this.logger.info(message, ...args);
+    }
+
+    warn(message: string, ...args: any[]): void {
+        this.logger.warn(message, ...args);
+    }
+
+    error(message: string, ...args: any[]): void {
+        this.logger.error(message, ...args);
+    }
+}
+
+/**
+ * Log4js LoggerService 实现
+ */
+class Log4jsLoggerService extends ILoggerService {
+    getLogger(name: string): ILogger {
+        const log4jsLogger = log4js.getLogger(name);
+        return new Log4jsLoggerAdapter(log4jsLogger);
+    }
+}
+
+// 配置全局 LoggerService
+GlobalLoggerService.setLoggerService(new Log4jsLoggerService());
+
+/**
+ * LoggerService - 日志服务类（向后兼容的静态方法）
  */
 export class LoggerService {
     /**
@@ -46,8 +83,8 @@ export class LoggerService {
      * @param name logger 名称
      * @returns logger 实例
      */
-    static getLogger(name: string): log4js.Logger {
-        return log4js.getLogger(name);
+    static getLogger(name: string): ILogger {
+        return GlobalLoggerService.getLogger(name)!;
     }
 }
 

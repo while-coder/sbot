@@ -3,14 +3,9 @@ import { StateGraph, START, END } from '@langchain/langgraph';
 import { ReActAnnotation, ReActState, ReActStepType } from './ReActAnnotation.js';
 import { thinkNode, routerNode, observeNode, reflectNode } from './ReActNodes.js';
 import { AgentConfig } from '../Supervisor/SupervisorAnnotation.js';
-import { AgentService, OnMessageCallback, OnStreamMessageCallback, ExecuteToolCallback, ConvertImagesCallback, MessageChunkType, AgentMessage } from '../../Agent/AgentService.js';
-import { FilteredAgentToolService } from '../../AgentTool/FilteredAgentToolService.js';
-import { IAgentSaverService } from '../../Saver/index.js';
-import { IModelService } from '../../Model/index.js';
-import { ISkillService } from '../../Skills/index.js';
-import { IMemoryService } from '../../Memory/index.js';
-import { IAgentToolService } from '../../AgentTool/index.js';
-import { inject, ServiceContainer } from '../../Core/index.js';
+import { AgentService, OnMessageCallback, OnStreamMessageCallback, ExecuteToolCallback, ConvertImagesCallback, MessageChunkType, AgentMessage } from 'scorpio.ai';
+import { FilteredAgentToolService } from '../FilteredAgentToolService.js';
+import { IAgentSaverService, IModelService, ISkillService, IMemoryService, IAgentToolService, inject, ServiceContainer } from 'scorpio.ai';
 import { LoggerService } from '../../LoggerService.js';
 
 const logger = LoggerService.getLogger("ReActService.ts");

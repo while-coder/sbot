@@ -6,7 +6,7 @@ import {Op} from "sequelize";
 import {config} from "../Config";
 import {LoggerService} from "../LoggerService";
 import fs from 'fs';
-import { MCPToolResult, MCPContentType } from "../Tools/ToolsConfig";
+import { MCPToolResult, MCPContentType } from "scorpio.ai";
 
 const logger = LoggerService.getLogger("LarkService.ts");
 

@@ -1,8 +1,6 @@
 import { Command as CommanderCommand } from "commander";
-import { CommandBase, Command, Arg, Option, Parsers } from "./CommandBase";
-import { IAgentSaverService, AgentSqliteSaver } from "../Agent";
-import { MemoryService } from "../Memory";
-import { EmbeddingServiceFactory } from "../Embedding";
+import { Command, Arg, Option, Parsers, CommandContext, ICommand } from "scorpio.ai"
+import { IAgentSaverService, AgentSqliteSaver, MemoryService, EmbeddingServiceFactory } from "scorpio.ai";
 import { config } from "../Config";
 
 /**
@@ -13,7 +11,8 @@ import { config } from "../Config";
  * /clear memory    - 清除长期记忆
  */
 @Command('clear', '清除历史记录或长期记忆')
-export class ClearCommand extends CommandBase {
+export class ClearCommand implements ICommand {
+    _context!: CommandContext;
     @Arg('type', {
         description: '清除类型: history(历史记录) 或 memory(长期记忆)',
         parser: Parsers.enum(['history', 'memory'] as const)
@@ -21,7 +20,7 @@ export class ClearCommand extends CommandBase {
     type!: 'history' | 'memory';
 
     async execute(): Promise<string> {
-        const userService = this._context.userService;
+        const userService = this._context.context;
         if (!userService) {
             return '无法访问用户服务';
         }
@@ -42,11 +41,15 @@ export class ClearCommand extends CommandBase {
         }
 
         const embeddingService = await EmbeddingServiceFactory.getEmbeddingService(memoryConfig.embedding);
+        const memoryDbPath = config.getConfigPath(`memory/${userId}.sqlite`);
         const memoryService = new MemoryService(
             userId,
-            memoryConfig.maxAgeDays,
+            memoryDbPath,
             embeddingService,
         );
+        if (memoryConfig.maxAgeDays) {
+            memoryService.setMaxMemoryAgeDays(memoryConfig.maxAgeDays);
+        }
         const count = await memoryService.clearAll();
         await memoryService.dispose();
         return `已清除用户 ${userId} 的 ${count} 条长期记忆`;
@@ -65,7 +68,8 @@ export class ClearCommand extends CommandBase {
  * /test "hello" 42 -v -c 5 -m release --tags "a,b,c"
  */
 @Command('test', '测试命令 - 验证所有装饰器功能')
-export class TestCommand extends CommandBase {
+export class TestCommand implements ICommand {
+    _context!: CommandContext;
     // 必需的字符串参数
     @Arg('message', { description: '消息内容' })
     message!: string;
@@ -140,7 +144,7 @@ export class TestCommand extends CommandBase {
             `  color (--no-color): ${this.color}`,
             '',
             '👤 上下文:',
-            `  userId: ${this.userId}`,
+            `  userId: ${this._context.context?.userId || 'unknown'}`,
             '',
         ];
 
@@ -163,7 +167,7 @@ export class TestCommand extends CommandBase {
 /**
  * 获取所有内置命令
  */
-export function getBuiltInCommands(program: CommanderCommand): CommandBase[] {
+export function getBuiltInCommands(program: CommanderCommand): ICommand[] {
     return [
         new ClearCommand(),
         new TestCommand(),

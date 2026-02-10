@@ -1,7 +1,7 @@
 import { AIMessage, HumanMessage } from "langchain";
 import { END } from '@langchain/langgraph';
 import { SupervisorAnnotation, TaskStatus, SubTask, ExecutionPlan, AgentConfig } from './SupervisorAnnotation.js';
-import { IModelService } from "../../Model/index.js";
+import { IModelService } from "scorpio.ai";
 import { LoggerService } from "../../LoggerService.js";
 import { v4 as uuidv4 } from 'uuid';
 
