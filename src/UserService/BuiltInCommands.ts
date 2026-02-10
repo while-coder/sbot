@@ -28,31 +28,28 @@ export class ClearCommand implements ICommand {
         const userId = userService.userId;
 
         if (this.type === 'history') {
-            const agentSaver: IAgentSaverService = new AgentSqliteSaver(config.getConfigPath(`saver/${userId}.sqlite`));
+            const agentSaver: IAgentSaverService = new AgentSqliteSaver(config.getUserSaverPath(userId));
             await agentSaver.clearThread(userId);
             await agentSaver.dispose();
             return `已清除用户 ${userId} 的对话历史`;
+        } else if (this.type === 'memory') {
+            // memory
+            const memoryConfig = config.settings.memory;
+            if (!memoryConfig?.enabled || !memoryConfig?.embedding) {
+                return '记忆功能未启用';
+            }
+            const embeddingService = await EmbeddingServiceFactory.getEmbeddingService(memoryConfig.embedding);
+            const memoryService = new MemoryService(
+                userId,
+                config.getUserMemoryPath(userId),
+                embeddingService,
+            );
+            const count = await memoryService.clearAll();
+            await memoryService.dispose();
+            return `已清除用户 ${userId} 的 ${count} 条长期记忆`;
+        } else {
+            return `未知的清除类型: ${this.type}`;
         }
-
-        // memory
-        const memoryConfig = config.settings.memory;
-        if (!memoryConfig?.enabled || !memoryConfig?.embedding) {
-            return '记忆功能未启用';
-        }
-
-        const embeddingService = await EmbeddingServiceFactory.getEmbeddingService(memoryConfig.embedding);
-        const memoryDbPath = config.getConfigPath(`memory/${userId}.sqlite`);
-        const memoryService = new MemoryService(
-            userId,
-            memoryDbPath,
-            embeddingService,
-        );
-        if (memoryConfig.maxAgeDays) {
-            memoryService.setMaxMemoryAgeDays(memoryConfig.maxAgeDays);
-        }
-        const count = await memoryService.clearAll();
-        await memoryService.dispose();
-        return `已清除用户 ${userId} 的 ${count} 条长期记忆`;
     }
 }
 

@@ -9,9 +9,11 @@ import {
     ISkillService, SkillService,
     ICommand,
     CommandContext,
-    parseCommandLine,
-    registerCommand,
+    CommandRegistry,
     MCPToolResult,
+    IMemoryExtractor,
+    IMemoryEvaluator,
+    IMemoryCompressor,
 } from "scorpio.ai";
 import { SupervisorService, ReActService, AgentConfig } from "../Plan/index.js";
 import { LoggerService } from "../LoggerService";
@@ -63,108 +65,7 @@ export abstract class UserServiceBase {
                 if (query.startsWith('/')) {
                     await this.processCommand(query.substring(1), args);
                 } else {
-                    // 创建 DI 容器并注册服务
-                    const container = new ServiceContainer();
-
-                    // 可选：注册记忆相关依赖（需要 memory.embedding 配置才启用）
-                    const memoryConfig = config.settings.memory;
-                    if (memoryConfig?.enabled && memoryConfig?.embedding) {
-                        // 重要性评估器（可选）
-                        if (memoryConfig.evaluator) {
-                            const evaluatorModel = await ModelServiceFactory.getModelService(memoryConfig.evaluator);
-                            container.registerInstance(MemoryEvaluator, new MemoryEvaluator(evaluatorModel));
-                            // 复用 evaluator 模型作为知识提取器
-                            container.registerInstance(MemoryExtractor, new MemoryExtractor(evaluatorModel));
-                        }
-
-                        // 记忆压缩器（可选）
-                        if (memoryConfig.compressor) {
-                            const compressorModel = await ModelServiceFactory.getModelService(memoryConfig.compressor);
-                            container.registerInstance(MemoryCompressor, new MemoryCompressor(compressorModel));
-                        }
-
-                        // Embedding 服务
-                        const embeddingService = await EmbeddingServiceFactory.getEmbeddingService(memoryConfig.embedding);
-                        container.registerInstance(IEmbeddingService, embeddingService);
-
-                        // Memory 服务
-                        const memoryDbPath = config.getConfigPath(`memory/${this.userId}.sqlite`);
-                        const memoryService = new MemoryService(this.userId, memoryDbPath, embeddingService);
-                        if (memoryConfig.maxAgeDays) {
-                            memoryService.setMaxMemoryAgeDays(memoryConfig.maxAgeDays);
-                        }
-                        container.registerInstance(IMemoryService, memoryService);
-                    }
-
-                    // 技能服务
-                    const skillsPath = config.getConfigPath("skills");
-                    container.registerInstance(ISkillService, new SkillService([skillsPath]));
-
-                    // 模型服务（使用静态方法）
-                    const modelName = config.getModelName();
-                    const modelService = await ModelServiceFactory.getModelService(modelName);
-                    container.registerInstance(IModelService, modelService);
-
-                    // Agent Saver 服务（使用 AgentSqliteSaver 实现）
-                    const saverPath = config.getUserSaverPath(this.userId);
-                    const agentSaver = new AgentSqliteSaver(saverPath);
-                    container.registerInstance(IAgentSaverService, agentSaver);
-
-                    // Agent 工具服务
-                    container.registerSingleton(IAgentToolService, AgentToolService);
-
-                    // 读取 Plan 配置
-                    const planConfig = config.settings.plan || {};
-                    const planMode = planConfig.mode || "single"; // single | supervisor | react
-                    const agentConfigs: AgentConfig[] = (planConfig.agents || []) as AgentConfig[];
-                    const maxIterations = planConfig.maxIterations || 5;
-
-                    // 根据配置选择模式
-                    if (planMode === "supervisor" && agentConfigs.length > 0) {
-                        // Supervisor 模式：预先规划所有任务，按依赖顺序执行
-                        logger.info(`${this.userId} 使用 Supervisor 模式，包含 ${agentConfigs.length} 个 Agent`);
-
-                        container.registerWithArgs(SupervisorService, this.userId, this.userId, agentConfigs);
-                        const supervisorService = await container.resolve(SupervisorService);
-
-                        await supervisorService.stream(
-                            query,
-                            this.onAgentMessage.bind(this),
-                            this.onAgentStreamMessage.bind(this),
-                            undefined, // onTaskStatusChange
-                            undefined, // onPlanCreated
-                            this.executeAgentTool.bind(this),
-                            this.convertImages.bind(this)
-                        );
-                    } else if (planMode === "react" && agentConfigs.length > 0) {
-                        // ReAct 模式：思考 → 行动 → 观察，迭代决策
-                        logger.info(`${this.userId} 使用 ReAct 模式，包含 ${agentConfigs.length} 个 Agent，最大迭代 ${maxIterations} 次`);
-
-                        container.registerWithArgs(ReActService, this.userId, this.userId, agentConfigs, maxIterations);
-                        const reactService = await container.resolve(ReActService);
-
-                        await reactService.stream(
-                            query,
-                            this.onAgentMessage.bind(this),
-                            this.onAgentStreamMessage.bind(this),
-                            this.executeAgentTool.bind(this),
-                            this.convertImages.bind(this)
-                        );
-                    } else {
-                        // 单 Agent 模式（默认，向后兼容）
-                        logger.info(`${this.userId} 使用单 Agent 模式`);
-
-                        container.registerWithArgs(AgentService, this.userId, this.userId);
-                        const agentService = await container.resolve(AgentService);
-
-                        await agentService.stream(
-                            query,
-                            this.onAgentMessage.bind(this),
-                            this.onAgentStreamMessage.bind(this),
-                            this.executeAgentTool.bind(this),
-                            this.convertImages.bind(this)
-                        );
-                    }
+                    await this.processAIMessage(query, args)
                 }
                 logger.info(`${this.userId} ${messageType}处理完成: ${query}`);
             } catch (e: any) {
@@ -213,11 +114,11 @@ export abstract class UserServiceBase {
 
         // 注册所有命令（会自动设置 action 执行逻辑）
         for (const cmd of allCommands) {
-            registerCommand(cmd, program, context);
+            CommandRegistry.register(cmd, program, context);
         }
 
         // 解析命令行
-        const argv = parseCommandLine(query);
+        const argv = CommandRegistry.parse(query);
 
         try {
             // 直接让 Commander 解析并执行命令
@@ -249,6 +150,124 @@ export abstract class UserServiceBase {
                 type: MessageChunkType.COMMAND,
                 content: allContent
             });
+        }
+    }
+    private async processAIMessage(query: string, args: any) {
+        // 创建 DI 容器并注册服务
+        const container = new ServiceContainer();
+
+        // 可选：注册记忆相关依赖（需要 memory.embedding 配置才启用）
+        const memoryConfig = config.settings.memory;
+        if (memoryConfig?.enabled && memoryConfig?.embedding) {
+            // 重要性评估器（可选）
+            if (memoryConfig.evaluator) {
+                container.registerWithArgs(IMemoryEvaluator, MemoryEvaluator, {
+                    [IModelService]: await ModelServiceFactory.getModelService(memoryConfig.evaluator),
+                });
+            }
+
+            // 知识提取器（可选）
+            if (memoryConfig.extractor) {
+                container.registerWithArgs(IMemoryExtractor, MemoryExtractor, {
+                    [IModelService]: await ModelServiceFactory.getModelService(memoryConfig.extractor),
+                });
+            }
+
+            // 记忆压缩器（可选）
+            if (memoryConfig.compressor) {
+                container.registerWithArgs(IMemoryCompressor, MemoryCompressor, {
+                    [IModelService]: await ModelServiceFactory.getModelService(memoryConfig.compressor)
+                });
+            }
+            // Memory 服务
+            container.registerWithArgs(IMemoryService, MemoryService, {
+                [IEmbeddingService]: await EmbeddingServiceFactory.getEmbeddingService(memoryConfig.embedding),
+                "UserId": this.userId,
+                "DBPath": config.getUserMemoryPath(this.userId),
+                "MaxMemoryAgeDays": memoryConfig.maxAgeDays
+            });
+        }
+
+        // 技能服务
+        container.registerWithArgs(ISkillService, SkillService, {
+            SkillsDirs: [config.getConfigPath("skills")]
+        });
+
+        // 模型服务（使用静态方法）
+        const modelService = await ModelServiceFactory.getModelService(config.getModelName());
+        container.registerInstance(IModelService, modelService);
+
+        // Agent Saver 服务（使用 AgentSqliteSaver 实现）
+        container.registerWithArgs(IAgentSaverService, AgentSqliteSaver, {
+            DBPath: config.getUserSaverPath(this.userId)
+        });
+
+        // Agent 工具服务
+        container.registerSingleton(IAgentToolService, AgentToolService);
+
+        // 读取 Plan 配置
+        const planConfig = config.settings.plan || {};
+        const planMode = planConfig.mode || "single"; // single | supervisor | react
+        const agentConfigs: AgentConfig[] = (planConfig.agents || []) as AgentConfig[];
+        const maxIterations = planConfig.maxIterations || 5;
+
+        // 根据配置选择模式
+        if (planMode === "supervisor" && agentConfigs.length > 0) {
+            // Supervisor 模式：预先规划所有任务，按依赖顺序执行
+            logger.info(`${this.userId} 使用 Supervisor 模式，包含 ${agentConfigs.length} 个 Agent`);
+
+            container.registerWithArgs(SupervisorService, {
+                userId: this.userId,
+                threadId: this.userId,
+                agentConfigs,
+            });
+            const supervisorService = await container.resolve(SupervisorService);
+
+            await supervisorService.stream(
+                query,
+                this.onAgentMessage.bind(this),
+                this.onAgentStreamMessage.bind(this),
+                undefined, // onTaskStatusChange
+                undefined, // onPlanCreated
+                this.executeAgentTool.bind(this),
+                this.convertImages.bind(this)
+            );
+        } else if (planMode === "react" && agentConfigs.length > 0) {
+            // ReAct 模式：思考 → 行动 → 观察，迭代决策
+            logger.info(`${this.userId} 使用 ReAct 模式，包含 ${agentConfigs.length} 个 Agent，最大迭代 ${maxIterations} 次`);
+
+            container.registerWithArgs(ReActService, {
+                userId: this.userId,
+                threadId: this.userId,
+                agentConfigs,
+                maxIterations,
+            });
+            const reactService = await container.resolve(ReActService);
+
+            await reactService.stream(
+                query,
+                this.onAgentMessage.bind(this),
+                this.onAgentStreamMessage.bind(this),
+                this.executeAgentTool.bind(this),
+                this.convertImages.bind(this)
+            );
+        } else {
+            // 单 Agent 模式（默认，向后兼容）
+            logger.info(`${this.userId} 使用单 Agent 模式`);
+
+            container.registerWithArgs(AgentService, {
+                userId: this.userId,
+                threadId: this.userId,
+            });
+            const agentService = await container.resolve(AgentService);
+
+            await agentService.stream(
+                query,
+                this.onAgentMessage.bind(this),
+                this.onAgentStreamMessage.bind(this),
+                this.executeAgentTool.bind(this),
+                this.convertImages.bind(this)
+            );
         }
     }
 

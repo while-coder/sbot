@@ -111,6 +111,7 @@ export interface MemoryConfig {
   maxAgeDays?: number;         // 记忆最大保留天数
   embedding?: string;          // 记忆使用的 embedding 名称（对应 embeddings 中的 key）
   evaluator?: string;          // 重要性评估器使用的模型名称（对应 models 中的 key）
+  extractor?: string;          // 知识提取器使用的模型名称（对应 models 中的 key）
   compressor?: string;         // 记忆压缩器使用的模型名称（对应 models 中的 key）
 }
 
@@ -277,6 +278,7 @@ class Config {
         maxAgeDays: 90,
         embedding: "openai-ada",
         evaluator: "openai-gpt4",
+        extractor: "openai-gpt4",
         compressor: "openai-gpt4"
       },
       models: {

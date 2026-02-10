@@ -64,7 +64,7 @@ class Log4jsLoggerAdapter implements ILogger {
 /**
  * Log4js LoggerService 实现
  */
-class Log4jsLoggerService extends ILoggerService {
+class Log4jsLoggerService implements ILoggerService {
     getLogger(name: string): ILogger {
         const log4jsLogger = log4js.getLogger(name);
         return new Log4jsLoggerAdapter(log4jsLogger);
@@ -84,7 +84,7 @@ export class LoggerService {
      * @returns logger 实例
      */
     static getLogger(name: string): ILogger {
-        return GlobalLoggerService.getLogger(name)!;
+        return log4js.getLogger(name)!;
     }
 }
 
