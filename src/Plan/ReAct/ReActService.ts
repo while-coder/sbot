@@ -91,11 +91,10 @@ export class ReActService {
         subContainer.registerInstance(IAgentToolService, filteredToolService);
 
         // 使用 ServiceContainer 创建 AgentService
-        subContainer.registerWithArgs(
-          AgentService,
-          this.userId,
-          `${this.threadId}_react_${agentConfig.type}_${currentStep.id}`
-        );
+        subContainer.registerWithArgs(AgentService, {
+          userId: this.userId,
+          threadId: `${this.threadId}_react_${agentConfig.type}_${currentStep.id}`
+        });
         const agentService = await subContainer.resolve(AgentService);
 
         // 构建任务 prompt

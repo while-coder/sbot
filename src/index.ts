@@ -3,6 +3,7 @@ import {LoggerService, log4js} from "./LoggerService";
 import {config} from "./Config";
 import {database} from "./Database";
 import {larkService} from "./Lark/LarkService";
+import { ModelServiceFactory, EmbeddingServiceFactory } from "scorpio.ai";
 
 const logger = LoggerService.getLogger('index.ts');
 logger.info("=========================开始启动=========================")
@@ -13,6 +14,16 @@ async function main() {
         process.on('uncaughtException', function(err, origin) {
             logger.error(`未捕获的异常:${err?.stack}\n${origin}`)
         })
+
+        // 设置配置解析器（必须在使用 Factory 之前）
+        logger.info("正在设置配置解析器...")
+        ModelServiceFactory.setConfigResolver({
+            getModel: (name: string) => config.getModel(name)
+        });
+        EmbeddingServiceFactory.setConfigResolver({
+            getEmbedding: (name: string) => config.getEmbedding(name)
+        });
+        logger.info("配置解析器设置完成")
 
         // 验证配置
         logger.info("正在验证配置...")

@@ -104,11 +104,10 @@ export class SupervisorService {
         subContainer.registerInstance(IAgentToolService, filteredToolService);
 
         // 使用 ServiceContainer 创建 AgentService 实例
-        subContainer.registerWithArgs(
-          AgentService,
-          this.userId,
-          `${this.threadId}_${agentConfig.type}_${currentTask.id}`
-        );
+        subContainer.registerWithArgs(AgentService, {
+          userId: this.userId,
+          threadId: `${this.threadId}_${agentConfig.type}_${currentTask.id}`
+        });
         const agentService = await subContainer.resolve(AgentService);
 
         // 构建任务特定的 prompt

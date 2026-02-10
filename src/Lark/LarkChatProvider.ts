@@ -53,13 +53,8 @@ export class LarkChatProvider {
 调用:${message.name}参数:
 ${JSON.stringify(message.args, null, 2)}`;
         if (message.result) {
-          // 截断过长的工具响应内容（飞书消息有长度限制）
-          const MAX_TOOL_RESPONSE_LENGTH = 128;
-          let response = String(message.response);
-          if (response.length > MAX_TOOL_RESPONSE_LENGTH) {
-            response = response.substring(0, MAX_TOOL_RESPONSE_LENGTH) +
-                       `\n\n...\n[内容过长，已截断。原始长度: ${response.length} 字符]`;
-          }
+          // 显示完整的工具响应内容
+          const response = String(message.response);
           const escapedResponse = response.replace(/`/g, '\\`');
           content += `
 返回值:

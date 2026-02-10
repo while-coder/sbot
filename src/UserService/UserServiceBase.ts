@@ -188,6 +188,9 @@ export abstract class UserServiceBase {
             });
         }
 
+        // 日志服务（注册全局实例，AgentService 会自动使用）
+        // GlobalLoggerService 已在 LoggerService.ts 中配置，这里不需要额外注册
+
         // 技能服务
         container.registerWithArgs(ISkillService, SkillService, {
             SkillsDirs: [config.getConfigPath("skills")]
