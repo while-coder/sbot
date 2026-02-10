@@ -13,5 +13,8 @@
     "emitDecoratorMetadata": true,
     "moduleResolution": "node"
   },
-  "include": ["src"]
+  "include": ["src"],
+  "references": [
+    { "path": "../scorpio.ai" }
+  ]
 }
