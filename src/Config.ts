@@ -21,6 +21,15 @@ export interface MemoryConfig {
 }
 
 /**
+ * Plan 运行模式
+ */
+export enum PlanMode {
+  Single = "single",           // 单 Agent 模式
+  Supervisor = "supervisor",   // Supervisor 模式：预先规划任务，按依赖顺序执行
+  ReAct = "react",             // ReAct 模式：思考 -> 行动 -> 观察，迭代决策
+}
+
+/**
  * Plan Agent 配置
  */
 export interface PlanAgentConfig {
@@ -32,12 +41,34 @@ export interface PlanAgentConfig {
 }
 
 /**
+ * Single 模式配置（无额外 Agent）
+ */
+export interface SinglePlanConfig {
+}
+
+/**
+ * Supervisor 模式配置
+ */
+export interface SupervisorPlanConfig {
+  agents: PlanAgentConfig[];   // Agent 配置列表
+}
+
+/**
+ * ReAct 模式配置
+ */
+export interface ReActPlanConfig {
+  maxIterations?: number;      // 最大迭代次数，默认 5
+  agents: PlanAgentConfig[];   // Agent 配置列表
+}
+
+/**
  * Plan 模式配置
  */
 export interface PlanConfig {
-  mode?: "single" | "supervisor" | "react";  // 运行模式
-  maxIterations?: number;                     // ReAct 模式最大迭代次数
-  agents?: PlanAgentConfig[];                 // Agent 配置列表
+  mode?: PlanMode;                             // 运行模式
+  single?: SinglePlanConfig;                   // Single 模式配置
+  supervisor?: SupervisorPlanConfig;           // Supervisor 模式配置
+  react?: ReActPlanConfig;                     // ReAct 模式配置
 }
 
 export interface Settings {
@@ -241,22 +272,41 @@ class Config {
         }
       },
       plan: {
-        mode: "single",
-        maxIterations: 5,
-        agents: [
-          {
-            id: "coder-1",
-            type: "coder",
-            tools: ["read_file", "write_file", "execute_command"],
-            systemPrompt: "你是一个开发专家，擅长编写高质量代码"
-          },
-          {
-            id: "researcher-1",
-            type: "researcher",
-            tools: ["web_search", "read_url"],
-            systemPrompt: "你是一个研究专家，擅长搜索和分析信息"
-          }
-        ]
+        mode: PlanMode.Single,
+        single: {},
+        supervisor: {
+          agents: [
+            {
+              id: "coder-1",
+              type: "coder",
+              tools: ["read_file", "write_file", "execute_command"],
+              systemPrompt: "你是一个开发专家，擅长编写高质量代码"
+            },
+            {
+              id: "researcher-1",
+              type: "researcher",
+              tools: ["web_search", "read_url"],
+              systemPrompt: "你是一个研究专家，擅长搜索和分析信息"
+            }
+          ]
+        },
+        react: {
+          maxIterations: 5,
+          agents: [
+            {
+              id: "coder-1",
+              type: "coder",
+              tools: ["read_file", "write_file", "execute_command"],
+              systemPrompt: "你是一个开发专家，擅长编写高质量代码"
+            },
+            {
+              id: "researcher-1",
+              type: "researcher",
+              tools: ["web_search", "read_url"],
+              systemPrompt: "你是一个研究专家，擅长搜索和分析信息"
+            }
+          ]
+        }
       }
     };
   }

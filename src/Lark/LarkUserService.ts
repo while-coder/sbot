@@ -17,7 +17,7 @@ import {
 import { SupervisorService, ReActService, AgentConfig } from "../Plan/index.js";
 import { LoggerService } from "../LoggerService";
 import { getBuiltInCommands } from "../UserService/BuiltInCommands";
-import { config } from "../Config";
+import { config, PlanMode } from "../Config";
 
 const logger = LoggerService.getLogger('LarkUserService.ts');
 
@@ -102,68 +102,81 @@ export class LarkUserService extends LarkUserServiceBase {
 
         // 读取 Plan 配置
         const planConfig = config.settings.plan || {};
-        const planMode = planConfig.mode || "single"; // single | supervisor | react
-        const agentConfigs: AgentConfig[] = (planConfig.agents || []) as AgentConfig[];
-        const maxIterations = planConfig.maxIterations || 5;
+        const planMode = planConfig.mode || PlanMode.Single;
 
         // 根据配置选择模式
-        if (planMode === "supervisor" && agentConfigs.length > 0) {
-            // Supervisor 模式：预先规划所有任务，按依赖顺序执行
-            logger.info(`${this.userId} 使用 Supervisor 模式，包含 ${agentConfigs.length} 个 Agent`);
+        if (planMode === PlanMode.Supervisor) {
+            const supervisorConfig = planConfig.supervisor;
+            const agentConfigs: AgentConfig[] = (supervisorConfig?.agents || []) as AgentConfig[];
+            if (agentConfigs.length === 0) {
+                logger.warn(`${this.userId} Supervisor 模式未配置 Agent，降级为 Single 模式`);
+            } else {
+                // Supervisor 模式：预先规划所有任务，按依赖顺序执行
+                logger.info(`${this.userId} 使用 Supervisor 模式，包含 ${agentConfigs.length} 个 Agent`);
 
-            container.registerWithArgs(SupervisorService, {
-                userId: this.userId,
-                threadId: this.userId,
-                agentConfigs,
-            });
-            const supervisorService = await container.resolve(SupervisorService);
+                container.registerWithArgs(SupervisorService, {
+                    userId: this.userId,
+                    threadId: this.userId,
+                    agentConfigs,
+                });
+                const supervisorService = await container.resolve(SupervisorService);
 
-            await supervisorService.stream(
-                query,
-                this.onAgentMessage.bind(this),
-                this.onAgentStreamMessage.bind(this),
-                undefined, // onTaskStatusChange
-                undefined, // onPlanCreated
-                this.executeAgentTool.bind(this),
-                this.convertImages.bind(this)
-            );
-        } else if (planMode === "react" && agentConfigs.length > 0) {
-            // ReAct 模式：思考 -> 行动 -> 观察，迭代决策
-            logger.info(`${this.userId} 使用 ReAct 模式，包含 ${agentConfigs.length} 个 Agent，最大迭代 ${maxIterations} 次`);
+                await supervisorService.stream(
+                    query,
+                    this.onAgentMessage.bind(this),
+                    this.onAgentStreamMessage.bind(this),
+                    undefined, // onTaskStatusChange
+                    undefined, // onPlanCreated
+                    this.executeAgentTool.bind(this),
+                    this.convertImages.bind(this)
+                );
+                return;
+            }
+        } else if (planMode === PlanMode.ReAct) {
+            const reactConfig = planConfig.react;
+            const agentConfigs: AgentConfig[] = (reactConfig?.agents || []) as AgentConfig[];
+            const maxIterations = reactConfig?.maxIterations || 5;
+            if (agentConfigs.length === 0) {
+                logger.warn(`${this.userId} ReAct 模式未配置 Agent，降级为 Single 模式`);
+            } else {
+                // ReAct 模式：思考 -> 行动 -> 观察，迭代决策
+                logger.info(`${this.userId} 使用 ReAct 模式，包含 ${agentConfigs.length} 个 Agent，最大迭代 ${maxIterations} 次`);
 
-            container.registerWithArgs(ReActService, {
-                userId: this.userId,
-                threadId: this.userId,
-                agentConfigs,
-                maxIterations,
-            });
-            const reactService = await container.resolve(ReActService);
+                container.registerWithArgs(ReActService, {
+                    userId: this.userId,
+                    threadId: this.userId,
+                    agentConfigs,
+                    maxIterations,
+                });
+                const reactService = await container.resolve(ReActService);
 
-            await reactService.stream(
-                query,
-                this.onAgentMessage.bind(this),
-                this.onAgentStreamMessage.bind(this),
-                this.executeAgentTool.bind(this),
-                this.convertImages.bind(this)
-            );
-        } else {
-            // 单 Agent 模式（默认，向后兼容）
-            logger.info(`${this.userId} 使用单 Agent 模式`);
-
-            container.registerWithArgs(AgentService, {
-                userId: this.userId,
-                threadId: this.userId,
-            });
-            const agentService = await container.resolve(AgentService);
-
-            await agentService.stream(
-                query,
-                this.onAgentMessage.bind(this),
-                this.onAgentStreamMessage.bind(this),
-                this.executeAgentTool.bind(this),
-                this.convertImages.bind(this)
-            );
+                await reactService.stream(
+                    query,
+                    this.onAgentMessage.bind(this),
+                    this.onAgentStreamMessage.bind(this),
+                    this.executeAgentTool.bind(this),
+                    this.convertImages.bind(this)
+                );
+                return;
+            }
         }
+
+        // 单 Agent 模式（默认，或多 Agent 模式降级）
+        logger.info(`${this.userId} 使用单 Agent 模式`);
+
+        container.registerWithArgs(AgentService, {
+            userId: this.userId,
+            threadId: this.userId,
+        });
+        const agentService = await container.resolve(AgentService);
+
+        await agentService.stream(
+            query,
+            this.onAgentMessage.bind(this),
+            this.onAgentStreamMessage.bind(this),
+            this.executeAgentTool.bind(this),
+            this.convertImages.bind(this)
+        );
     }
 
     // ===== 图片转换功能 =====
