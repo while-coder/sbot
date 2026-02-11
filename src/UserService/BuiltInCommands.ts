@@ -1,4 +1,3 @@
-import { Command as CommanderCommand } from "commander";
 import { Command, Arg, Option, Parsers, CommandContext, ICommand } from "scorpio.ai"
 import { IAgentSaverService, AgentSqliteSaver, MemoryService, EmbeddingServiceFactory } from "scorpio.ai";
 import { config } from "../Config";
@@ -38,7 +37,9 @@ export class ClearCommand implements ICommand {
             if (!memoryConfig?.enabled || !memoryConfig?.embedding) {
                 return '记忆功能未启用';
             }
-            const embeddingService = await EmbeddingServiceFactory.getEmbeddingService(memoryConfig.embedding);
+            const embeddingConfig = config.getEmbedding(memoryConfig.embedding);
+            if (!embeddingConfig) return `Embedding 配置 "${memoryConfig.embedding}" 不存在`;
+            const embeddingService = await EmbeddingServiceFactory.getEmbeddingService(embeddingConfig as any);
             const memoryService = new MemoryService(
                 userId,
                 config.getUserMemoryPath(userId),
@@ -164,7 +165,7 @@ export class TestCommand implements ICommand {
 /**
  * 获取所有内置命令
  */
-export function getBuiltInCommands(program: CommanderCommand): ICommand[] {
+export function getBuiltInCommands(): ICommand[] {
     return [
         new ClearCommand(),
         new TestCommand(),
