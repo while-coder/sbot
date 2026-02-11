@@ -1,32 +1,28 @@
 import { StructuredToolInterface } from "@langchain/core/tools";
-import { IAgentToolService, AgentToolService, ISkillService, IMemoryService } from "scorpio.ai";
+import { IAgentToolService } from "scorpio.ai";
 import { LoggerService } from "../LoggerService.js";
 
 const logger = LoggerService.getLogger("FilteredAgentToolService.ts");
 
 /**
  * 过滤工具服务
- * 为特定 Agent 提供受限的工具集
+ * 包装父级 IAgentToolService，为特定 Sub-Agent 提供受限的工具集
+ * 
+ * 注意：skillService 和 memoryService 的工具由 AgentService.callModelNode() 内部处理，
+ * 无需在此注册。只需通过 subContainer.registerInstance 注入即可。
  */
 export class FilteredAgentToolService implements IAgentToolService {
-  private baseToolService: AgentToolService;
+  private parentToolService: IAgentToolService;
   private allowedTools: Set<string>;
   private allowAll: boolean;
 
   constructor(
     allowedTools: string[],
-    skillService?: ISkillService,
-    memoryService?: IMemoryService
+    parentToolService: IAgentToolService
   ) {
     this.allowedTools = new Set(allowedTools);
     this.allowAll = this.allowedTools.has("*");
-    this.baseToolService = new AgentToolService();
-
-    if (skillService || memoryService) {
-      // 注册工具工厂
-      // 注意：这里需要手动添加工具，因为 AgentToolService 在 scorpio.ai 中是基础实现
-      logger.warn("FilteredAgentToolService: skillService 和 memoryService 需要通过 registerToolFactory 注册");
-    }
+    this.parentToolService = parentToolService;
 
     if (this.allowAll) {
       logger.info("FilteredAgentToolService: 允许所有工具");
@@ -39,7 +35,7 @@ export class FilteredAgentToolService implements IAgentToolService {
    * 获取过滤后的工具列表
    */
   async getTools(): Promise<StructuredToolInterface[]> {
-    const allTools = await this.baseToolService.getTools();
+    const allTools = await this.parentToolService.getTools();
 
     // 如果允许所有工具，直接返回
     if (this.allowAll) {
@@ -62,6 +58,6 @@ export class FilteredAgentToolService implements IAgentToolService {
     if (!this.allowAll && !this.allowedTools.has(toolName)) {
       return false;
     }
-    return this.baseToolService.isDisabledAutoApprove(toolName);
+    return this.parentToolService.isDisabledAutoApprove(toolName);
   }
 }

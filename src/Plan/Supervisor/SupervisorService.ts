@@ -5,6 +5,7 @@ import { planNode, supervisorNode, aggregatorNode } from './SupervisorNodes.js';
 import { AgentService, OnMessageCallback, OnStreamMessageCallback, ExecuteToolCallback, ConvertImagesCallback, MessageChunkType, AgentMessage } from 'scorpio.ai';
 import { FilteredAgentToolService } from '../FilteredAgentToolService.js';
 import { IAgentSaverService, IModelService, ISkillService, IMemoryService, IAgentToolService, inject, ServiceContainer } from 'scorpio.ai';
+import { SharedAgentSaver } from '../SharedAgentSaver.js';
 import { LoggerService } from '../../LoggerService.js';
 
 const logger = LoggerService.getLogger("SupervisorService.ts");
@@ -37,6 +38,7 @@ export class SupervisorService {
   private agentConfigs: AgentConfig[];
   private modelService: IModelService;
   private agentSaver: IAgentSaverService;
+  private toolService?: IAgentToolService;
   private skillService?: ISkillService;
   private memoryService?: IMemoryService;
 
@@ -46,6 +48,7 @@ export class SupervisorService {
     @inject("agentConfigs") agentConfigs: AgentConfig[],
     @inject(IModelService) modelService: IModelService,
     @inject(IAgentSaverService) agentSaver: IAgentSaverService,
+    @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
     @inject(ISkillService, { optional: true }) skillService?: ISkillService,
     @inject(IMemoryService, { optional: true }) memoryService?: IMemoryService
   ) {
@@ -54,6 +57,7 @@ export class SupervisorService {
     this.agentConfigs = agentConfigs;
     this.modelService = modelService;
     this.agentSaver = agentSaver;
+    this.toolService = toolService;
     this.skillService = skillService;
     this.memoryService = memoryService;
 
@@ -85,7 +89,8 @@ export class SupervisorService {
 
         // 注册共享服务（复用父级服务）
         subContainer.registerInstance(IModelService, this.modelService);
-        subContainer.registerInstance(IAgentSaverService, this.agentSaver);
+        // 使用 SharedAgentSaver 包装，防止子 Agent dispose 关闭共享数据库连接
+        subContainer.registerInstance(IAgentSaverService, new SharedAgentSaver(this.agentSaver));
 
         // 注册可选服务（如果存在）
         if (this.skillService) {
@@ -95,13 +100,14 @@ export class SupervisorService {
           subContainer.registerInstance(IMemoryService, this.memoryService);
         }
 
-        // 为这个 Sub-Agent 创建独立的工具服务并注册
-        const filteredToolService = new FilteredAgentToolService(
-          agentConfig.tools,
-          this.skillService,
-          this.memoryService
-        );
-        subContainer.registerInstance(IAgentToolService, filteredToolService);
+        // 为这个 Sub-Agent 创建过滤工具服务（基于父级工具服务过滤）
+        if (this.toolService) {
+          const filteredToolService = new FilteredAgentToolService(
+            agentConfig.tools,
+            this.toolService
+          );
+          subContainer.registerInstance(IAgentToolService, filteredToolService);
+        }
 
         // 使用 ServiceContainer 创建 AgentService 实例
         subContainer.registerWithArgs(AgentService, {
@@ -280,10 +286,18 @@ export class SupervisorService {
         taskHistory: []
       };
 
+      // 计算 recursionLimit：Plan(1) + 每个任务经过 Supervisor+Agent(2) + 最终 Supervisor+Aggregator(2)，额外预留缓冲
+      const maxTasks = this.agentConfigs.length * 5; // 预估最大任务数
+      const recursionLimit = maxTasks * 2 + 10;
+
       // 流式执行
       const stream = await graph.stream(
         initialState,
-        { streamMode: "updates", configurable: { thread_id: this.threadId } }
+        {
+          streamMode: "updates",
+          recursionLimit,
+          configurable: { thread_id: this.threadId }
+        }
       );
 
       let lastPlan: ExecutionPlan | null = null;

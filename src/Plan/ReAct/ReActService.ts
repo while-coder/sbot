@@ -6,6 +6,7 @@ import { AgentConfig } from '../Supervisor/SupervisorAnnotation.js';
 import { AgentService, OnMessageCallback, OnStreamMessageCallback, ExecuteToolCallback, ConvertImagesCallback, MessageChunkType, AgentMessage } from 'scorpio.ai';
 import { FilteredAgentToolService } from '../FilteredAgentToolService.js';
 import { IAgentSaverService, IModelService, ISkillService, IMemoryService, IAgentToolService, inject, ServiceContainer } from 'scorpio.ai';
+import { SharedAgentSaver } from '../SharedAgentSaver.js';
 import { LoggerService } from '../../LoggerService.js';
 
 const logger = LoggerService.getLogger("ReActService.ts");
@@ -22,6 +23,7 @@ export class ReActService {
   private agentConfigs: AgentConfig[];
   private modelService: IModelService;
   private agentSaver: IAgentSaverService;
+  private toolService?: IAgentToolService;
   private skillService?: ISkillService;
   private memoryService?: IMemoryService;
   private maxIterations: number;
@@ -32,6 +34,7 @@ export class ReActService {
     @inject("agentConfigs") agentConfigs: AgentConfig[],
     @inject(IModelService) modelService: IModelService,
     @inject(IAgentSaverService) agentSaver: IAgentSaverService,
+    @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
     @inject(ISkillService, { optional: true }) skillService?: ISkillService,
     @inject(IMemoryService, { optional: true }) memoryService?: IMemoryService,
     @inject("maxIterations", { optional: true }) maxIterations?: number
@@ -41,6 +44,7 @@ export class ReActService {
     this.agentConfigs = agentConfigs;
     this.modelService = modelService;
     this.agentSaver = agentSaver;
+    this.toolService = toolService;
     this.skillService = skillService;
     this.memoryService = memoryService;
     this.maxIterations = maxIterations ?? 5;
@@ -73,7 +77,8 @@ export class ReActService {
 
         // 注册共享服务
         subContainer.registerInstance(IModelService, this.modelService);
-        subContainer.registerInstance(IAgentSaverService, this.agentSaver);
+        // 使用 SharedAgentSaver 包装，防止子 Agent dispose 关闭共享数据库连接
+        subContainer.registerInstance(IAgentSaverService, new SharedAgentSaver(this.agentSaver));
 
         if (this.skillService) {
           subContainer.registerInstance(ISkillService, this.skillService);
@@ -82,13 +87,14 @@ export class ReActService {
           subContainer.registerInstance(IMemoryService, this.memoryService);
         }
 
-        // 为这个 Sub-Agent 创建独立的工具服务
-        const filteredToolService = new FilteredAgentToolService(
-          agentConfig.tools,
-          this.skillService,
-          this.memoryService
-        );
-        subContainer.registerInstance(IAgentToolService, filteredToolService);
+        // 为这个 Sub-Agent 创建过滤工具服务（基于父级工具服务过滤）
+        if (this.toolService) {
+          const filteredToolService = new FilteredAgentToolService(
+            agentConfig.tools,
+            this.toolService
+          );
+          subContainer.registerInstance(IAgentToolService, filteredToolService);
+        }
 
         // 使用 ServiceContainer 创建 AgentService
         subContainer.registerWithArgs(AgentService, {
@@ -237,10 +243,18 @@ export class ReActService {
         agentConfigs: this.agentConfigs
       };
 
+      // 计算 recursionLimit：每次迭代经过 Think → Router → Agent 共 3 个节点，
+      // 最终路径 Think → Router → Reflect 再加 3 个节点，额外预留缓冲
+      const recursionLimit = this.maxIterations * 4 + 10;
+
       // 流式执行
       const stream = await graph.stream(
         initialState,
-        { streamMode: "updates", configurable: { thread_id: this.threadId } }
+        {
+          streamMode: "updates",
+          recursionLimit,
+          configurable: { thread_id: this.threadId }
+        }
       );
 
       // 处理流式输出

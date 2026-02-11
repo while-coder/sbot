@@ -140,18 +140,40 @@ ${thinkPrompt}`;
 
     // 如果需要行动，创建行动步骤
     if (decision.needsAction && decision.nextAction) {
+      // 验证 agentType 是否有效
+      const availableAgentTypes = state.agentConfigs.map((a: any) => a.type as string);
+      let agentType: string | undefined = decision.nextAction.agentType;
+
+      if (!agentType || !availableAgentTypes.includes(agentType)) {
+        logger.warn(`THINK 节点：LLM 返回的 agentType "${agentType}" 无效，可用类型: [${availableAgentTypes.join(', ')}]`);
+        // 尝试模糊匹配（如 "coder" 匹配 "code"，"researcher" 匹配 "research"）
+        const fuzzyMatch = availableAgentTypes.find((t: string) =>
+          t.startsWith(agentType!) || agentType!.startsWith(t)
+        );
+        if (fuzzyMatch) {
+          logger.info(`THINK 节点：模糊匹配到 agentType "${fuzzyMatch}"`);
+          agentType = fuzzyMatch;
+        } else if (availableAgentTypes.length > 0) {
+          agentType = availableAgentTypes[0];
+          logger.info(`THINK 节点：使用默认 agentType "${agentType}"`);
+        } else {
+          logger.error("THINK 节点：没有可用的 Agent 类型");
+          agentType = undefined;
+        }
+      }
+
       const actionStep: ReActStep = {
         id: uuidv4(),
         type: ReActStepType.ACTION,
         content: decision.nextAction.description,
-        agentType: decision.nextAction.agentType,
+        agentType: agentType,
         timestamp: Date.now()
       };
 
       reactState.steps.push(actionStep);
       reactState.currentStep = actionStep;
 
-      logger.info(`THINK 节点：规划行动 - ${decision.nextAction.description} (${decision.nextAction.agentType})`);
+      logger.info(`THINK 节点：规划行动 - ${decision.nextAction.description} (${agentType})`);
     } else {
       reactState.currentStep = null;
     }
@@ -190,8 +212,19 @@ export function routerNode(state: typeof ReActAnnotation.State): string {
   // 如果有当前步骤（ACTION），路由到对应的 Agent
   if (reactState.currentStep && reactState.currentStep.type === ReActStepType.ACTION) {
     const agentType = reactState.currentStep.agentType;
+    if (!agentType) {
+      logger.warn("ROUTER 节点：ACTION 步骤缺少 agentType，回退到思考节点");
+      return ReActNodeName.Think;
+    }
+    const nodeName = agentNodeName(agentType);
+    // 验证目标节点是否存在于已注册的 Agent 中
+    const availableAgentTypes = state.agentConfigs.map((a: any) => a.type);
+    if (!availableAgentTypes.includes(agentType)) {
+      logger.warn(`ROUTER 节点：未知的 agentType "${agentType}"，可用类型: [${availableAgentTypes.join(', ')}]，回退到思考节点`);
+      return ReActNodeName.Think;
+    }
     logger.info(`ROUTER 节点：路由到 Agent ${agentType}`);
-    return agentNodeName(agentType!);
+    return nodeName;
   }
 
   // 默认继续思考
