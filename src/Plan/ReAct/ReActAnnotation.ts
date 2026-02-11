@@ -11,6 +11,22 @@ export enum ReActStepType {
 }
 
 /**
+ * ReAct 图节点名称
+ */
+export enum ReActNodeName {
+  Think = "think",
+  Router = "router",
+  Reflect = "reflect",
+}
+
+/**
+ * 根据 Agent 类型生成节点名称
+ */
+export function agentNodeName(agentType: string): string {
+  return `agent_${agentType}`;
+}
+
+/**
  * ReAct 步骤
  */
 export interface ReActStep {

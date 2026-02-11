@@ -1,6 +1,6 @@
 import { AIMessage, HumanMessage } from "langchain";
 import { END } from '@langchain/langgraph';
-import { ReActAnnotation, ReActStepType, ReActStep, ReActState } from './ReActAnnotation.js';
+import { ReActAnnotation, ReActStepType, ReActStep, ReActState, ReActNodeName, agentNodeName } from './ReActAnnotation.js';
 import { IModelService } from "scorpio.ai";
 import { LoggerService } from "../../LoggerService.js";
 import { v4 as uuidv4 } from 'uuid';
@@ -184,19 +184,19 @@ export function routerNode(state: typeof ReActAnnotation.State): string {
   // 如果已完成，进入反思节点
   if (reactState.isComplete) {
     logger.info("ROUTER 节点：任务完成，进入反思节点");
-    return "reflect";
+    return ReActNodeName.Reflect;
   }
 
   // 如果有当前步骤（ACTION），路由到对应的 Agent
   if (reactState.currentStep && reactState.currentStep.type === ReActStepType.ACTION) {
     const agentType = reactState.currentStep.agentType;
     logger.info(`ROUTER 节点：路由到 Agent ${agentType}`);
-    return `agent_${agentType}`;
+    return agentNodeName(agentType!);
   }
 
   // 默认继续思考
   logger.info("ROUTER 节点：继续思考");
-  return "think";
+  return ReActNodeName.Think;
 }
 
 /**

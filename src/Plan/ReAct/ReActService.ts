@@ -1,6 +1,6 @@
 import { HumanMessage, AIMessage, AIMessageChunk, BaseMessage } from "langchain";
 import { StateGraph, START, END } from '@langchain/langgraph';
-import { ReActAnnotation, ReActState, ReActStepType } from './ReActAnnotation.js';
+import { ReActAnnotation, ReActState, ReActStepType, ReActNodeName, agentNodeName } from './ReActAnnotation.js';
 import { thinkNode, routerNode, observeNode, reflectNode } from './ReActNodes.js';
 import { AgentConfig } from '../Supervisor/SupervisorAnnotation.js';
 import { AgentService, OnMessageCallback, OnStreamMessageCallback, ExecuteToolCallback, ConvertImagesCallback, MessageChunkType, AgentMessage } from 'scorpio.ai';
@@ -154,13 +154,13 @@ export class ReActService {
     const workflow = new StateGraph(ReActAnnotation);
 
     // 添加核心节点
-    workflow.addNode("think", (state) => thinkNode(state, this.modelService));
-    workflow.addNode("router", () => ({})); // 空节点，只用于路由
-    workflow.addNode("reflect", (state) => reflectNode(state, this.modelService));
+    workflow.addNode(ReActNodeName.Think, (state) => thinkNode(state, this.modelService));
+    workflow.addNode(ReActNodeName.Router, () => ({})); // 空节点，只用于路由
+    workflow.addNode(ReActNodeName.Reflect, (state) => reflectNode(state, this.modelService));
 
     // 为每个 Agent 类型创建节点
     for (const agentConfig of this.agentConfigs) {
-      const nodeName = `agent_${agentConfig.type}`;
+      const nodeName = agentNodeName(agentConfig.type);
       const nodeFunc = await this.createSubAgentNode(
         agentConfig,
         onStreamMessage,
@@ -171,31 +171,31 @@ export class ReActService {
     }
 
     // 添加边
-    (workflow as any).addEdge(START, "think");
-    (workflow as any).addEdge("think", "router");
+    (workflow as any).addEdge(START, ReActNodeName.Think);
+    (workflow as any).addEdge(ReActNodeName.Think, ReActNodeName.Router);
 
     // 构建条件路由映射
     const routingMap: Record<string, string> = {
-      think: "think",
-      reflect: "reflect",
+      [ReActNodeName.Think]: ReActNodeName.Think,
+      [ReActNodeName.Reflect]: ReActNodeName.Reflect,
       END: END as any
     };
 
     // 添加每个 Agent 类型到路由映射
     for (const agentConfig of this.agentConfigs) {
-      const nodeName = `agent_${agentConfig.type}`;
+      const nodeName = agentNodeName(agentConfig.type);
       routingMap[nodeName] = nodeName;
     }
 
     // 条件路由
-    (workflow as any).addConditionalEdges("router", routerNode, routingMap);
+    (workflow as any).addConditionalEdges(ReActNodeName.Router, routerNode, routingMap);
 
-    // 所有 Sub-Agent 完成后返回 router 继续循环
+    // 所有 Sub-Agent 完成后返回 think 继续循环
     for (const agentConfig of this.agentConfigs) {
-      (workflow as any).addEdge(`agent_${agentConfig.type}`, "think");
+      (workflow as any).addEdge(agentNodeName(agentConfig.type), ReActNodeName.Think);
     }
 
-    (workflow as any).addEdge("reflect", END);
+    (workflow as any).addEdge(ReActNodeName.Reflect, END);
 
     // 编译图
     const checkpointer = await this.agentSaver.getCheckpointer();
