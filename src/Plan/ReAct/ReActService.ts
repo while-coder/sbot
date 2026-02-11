@@ -27,14 +27,14 @@ export class ReActService {
   private maxIterations: number;
 
   constructor(
-    userId: string,
-    threadId: string,
-    agentConfigs: AgentConfig[],
+    @inject("userId") userId: string,
+    @inject("threadId") threadId: string,
+    @inject("agentConfigs") agentConfigs: AgentConfig[],
     @inject(IModelService) modelService: IModelService,
     @inject(IAgentSaverService) agentSaver: IAgentSaverService,
     @inject(ISkillService, { optional: true }) skillService?: ISkillService,
     @inject(IMemoryService, { optional: true }) memoryService?: IMemoryService,
-    maxIterations: number = 5
+    @inject("maxIterations", { optional: true }) maxIterations?: number
   ) {
     this.userId = userId;
     this.threadId = threadId;
@@ -43,7 +43,7 @@ export class ReActService {
     this.agentSaver = agentSaver;
     this.skillService = skillService;
     this.memoryService = memoryService;
-    this.maxIterations = maxIterations;
+    this.maxIterations = maxIterations ?? 5;
 
     logger.info(`ReActService 初始化 - 用户: ${userId}, 线程: ${threadId}, Agent数量: ${agentConfigs.length}, 最大迭代: ${maxIterations}`);
   }

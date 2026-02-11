@@ -41,9 +41,9 @@ export class SupervisorService {
   private memoryService?: IMemoryService;
 
   constructor(
-    userId: string,
-    threadId: string,
-    agentConfigs: AgentConfig[],
+    @inject("userId") userId: string,
+    @inject("threadId") threadId: string,
+    @inject("agentConfigs") agentConfigs: AgentConfig[],
     @inject(IModelService) modelService: IModelService,
     @inject(IAgentSaverService) agentSaver: IAgentSaverService,
     @inject(ISkillService, { optional: true }) skillService?: ISkillService,
