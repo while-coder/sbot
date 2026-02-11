@@ -1,6 +1,6 @@
 import { AIMessage, HumanMessage } from "langchain";
 import { END } from '@langchain/langgraph';
-import { ReActAnnotation, ReActStepType, ReActStep, ReActState, ReActNodeName, agentNodeName } from './ReActAnnotation.js';
+import { ReActAnnotation, ReActNode, ReActStep, ReActState, agentNodeName } from './ReActAnnotation.js';
 import { IModelService } from "scorpio.ai";
 import { LoggerService } from "../../LoggerService.js";
 import { v4 as uuidv4 } from 'uuid';
@@ -15,16 +15,20 @@ function formatStepHistory(steps: ReActStep[]): string {
 
   return steps.map((step, index) => {
     const prefix = `步骤 ${index + 1} [${step.type}]`;
-    if (step.type === ReActStepType.THOUGHT) {
-      return `${prefix} 思考: ${step.content}`;
-    } else if (step.type === ReActStepType.ACTION) {
-      return `${prefix} 行动: ${step.content} (使用 ${step.agentType} Agent)`;
-    } else if (step.type === ReActStepType.OBSERVATION) {
-      return `${prefix} 观察: ${step.content}`;
-    } else if (step.type === ReActStepType.REFLECTION) {
-      return `${prefix} 反思: ${step.content}`;
+    switch (step.type) {
+      case ReActNode.Think:
+        return `${prefix} 思考: ${step.content}`;
+      case ReActNode.Action:
+        return `${prefix} 行动: ${step.content} (使用 ${step.agentType} Agent)`;
+      case ReActNode.Observe:
+        return `${prefix} 观察: ${step.content}`;
+      case ReActNode.Reflect:
+        return `${prefix} 反思: ${step.content}`;
+      case ReActNode.WaitForUser:
+        return `${prefix} 等待用户: ${step.content}`;
+      default:
+        return `${prefix}: ${step.content}`;
     }
-    return `${prefix}: ${step.content}`;
   }).join('\n');
 }
 
@@ -39,6 +43,25 @@ export async function thinkNode(
   if (!reactState) {
     logger.error("THINK: ReAct 状态为空");
     return {};
+  }
+
+  // 如果是从等待用户确认恢复的，记录用户回复
+  if (reactState.waitingForUser) {
+    const lastHumanMsg = state.messages
+      .slice()
+      .reverse()
+      .find(m => m._getType() === 'human');
+
+    if (lastHumanMsg) {
+      const userReply: ReActStep = {
+        id: uuidv4(),
+        type: ReActNode.Observe,
+        content: `用户回复: ${lastHumanMsg.content as string}`,
+        timestamp: Date.now()
+      };
+      reactState.steps.push(userReply);
+    }
+    reactState.waitingForUser = false;
   }
 
   // 检查是否达到最大迭代次数
@@ -56,13 +79,13 @@ export async function thinkNode(
 
   const userQuery = lastHumanMessage ? (lastHumanMessage.content as string) : reactState.goal;
 
-  // 构建可用 Agent 类型描述
-  const agentTypesDesc = state.agentConfigs
-    .map((a: any) => `- ${a.type}: ${a.systemPrompt || a.skillName || '通用任务'}`)
+  // 构建可用 Agent 描述
+  const agentsDesc = state.agentConfigs
+    .map((a: any) => `- ${a.id}: ${a.desc || a.systemPrompt || '通用任务'}`)
     .join('\n');
 
-  // 可用类型列表（用于 JSON 示例）
-  const agentTypesList = state.agentConfigs.map((a: any) => a.type).join('/');
+  // 可用 Agent ID 列表（用于 JSON 示例）
+  const agentIdList = state.agentConfigs.map((a: any) => a.id).join('/');
 
   // 构建步骤历史
   const stepHistory = formatStepHistory(reactState.steps);
@@ -74,8 +97,8 @@ export async function thinkNode(
 
 **用户原始请求**: ${userQuery}
 
-**可用的 Agent 类型**:
-${agentTypesDesc}
+**可用的 Agent**:
+${agentsDesc}
 
 **已执行的步骤历史**:
 ${stepHistory}
@@ -88,23 +111,29 @@ ${stepHistory}
 
 {
   "thought": "你的推理过程和分析",
-  "needsAction": true/false,
-  "isComplete": true/false,
+  "decision": "action/wait_for_user/complete",
   "nextAction": {
     "description": "需要 Agent 使用工具完成的具体任务描述",
-    "agentType": "${agentTypesList}",
+    "agentId": "${agentIdList}",
     "reason": "为什么选择这个 Agent"
-  }
+  },
+  "waitMessage": "需要用户确认或提供信息的问题"
 }
 
+decision 说明：
+- "action": 需要 Agent 执行操作，必须提供 nextAction
+- "wait_for_user": 需要用户确认或补充信息才能继续，必须提供 waitMessage
+- "complete": 目标已完成
+
 规则：
-1. 如果目标已经完成，设置 isComplete = true, needsAction = false
-2. 如果需要执行新的行动，设置 needsAction = true，并提供 nextAction
-3. agentType 必须是上面列出的可用 Agent 类型之一，不要使用未列出的类型
-4. 每个 Agent 都有自己的工具可以自主执行任务，nextAction.description 应描述最终要达成的目标，而非操作步骤
-5. 每次只规划一个行动，不要一次性规划多个步骤
-6. 基于历史步骤的结果进行决策，如果之前的行动已完成目标则设置 isComplete = true
-7. 如果一个行动的观察结果表明任务已经完成，不要重复执行相同行动`;
+1. 如果目标已经完成，设置 decision = "complete"
+2. 如果需要执行操作，设置 decision = "action"，并提供 nextAction
+3. 如果需要用户确认操作结果或补充信息，设置 decision = "wait_for_user"，并提供 waitMessage
+4. agentId 必须是上面列出的可用 Agent ID 之一，不要使用未列出的 ID
+5. 每个 Agent 都有自己的工具可以自主执行任务，nextAction.description 应描述最终要达成的目标，而非操作步骤
+6. 每次只规划一个行动，不要一次性规划多个步骤
+7. 基于历史步骤的结果进行决策，如果之前的行动已完成目标则设置 decision = "complete"
+8. 如果一个行动的观察结果表明任务已经完成，不要重复执行相同行动`;
 
   try {
     const fullPrompt = `系统提示：你是一个 ReAct 规划助手，只返回有效的 JSON 格式，不要包含其他文本。
@@ -127,7 +156,7 @@ ${thinkPrompt}`;
     // 创建思考步骤
     const thinkStep: ReActStep = {
       id: uuidv4(),
-      type: ReActStepType.THOUGHT,
+      type: ReActNode.Think,
       content: decision.thought,
       timestamp: Date.now()
     };
@@ -135,48 +164,71 @@ ${thinkPrompt}`;
     reactState.steps.push(thinkStep);
     reactState.currentIteration += 1;
 
-    // 更新完成状态
-    if (decision.isComplete) {
+    // 根据决策类型处理
+    const decisionType = decision.decision || (decision.isComplete ? 'complete' : decision.needsAction ? 'action' : 'complete');
+
+    if (decisionType === 'complete') {
+      // 任务完成
       reactState.isComplete = true;
-    }
+      reactState.currentStep = null;
+      logger.info(`THINK [${reactState.currentIteration}/${reactState.maxIterations}]: 任务完成`);
 
-    // 如果需要行动，创建行动步骤
-    if (decision.needsAction && decision.nextAction) {
-      // 验证 agentType 是否有效
-      const availableAgentTypes = state.agentConfigs.map((a: any) => a.type as string);
-      let agentType: string | undefined = decision.nextAction.agentType;
+    } else if (decisionType === 'wait_for_user') {
+      // 等待用户确认
+      reactState.waitingForUser = true;
+      reactState.currentStep = null;
 
-      if (!agentType || !availableAgentTypes.includes(agentType)) {
-        logger.warn(`THINK: agentType "${agentType}" 无效，可用: [${availableAgentTypes.join(', ')}]`);
-        // 尝试模糊匹配（如 "coder" 匹配 "code"，"researcher" 匹配 "research"）
-        const fuzzyMatch = availableAgentTypes.find((t: string) =>
-          t.startsWith(agentType!) || agentType!.startsWith(t)
+      const waitStep: ReActStep = {
+        id: uuidv4(),
+        type: ReActNode.WaitForUser,
+        content: decision.waitMessage || decision.thought,
+        timestamp: Date.now()
+      };
+      reactState.steps.push(waitStep);
+
+      logger.info(`THINK [${reactState.currentIteration}/${reactState.maxIterations}]: 等待用户确认`);
+
+      return {
+        reactState,
+        messages: [new AIMessage(decision.waitMessage || decision.thought)]
+      };
+
+    } else if (decisionType === 'action' && decision.nextAction) {
+      // 执行行动
+      const availableAgentIds = state.agentConfigs.map((a: any) => a.id as string);
+      let agentId: string | undefined = decision.nextAction.agentId || decision.nextAction.agentType;
+
+      if (!agentId || !availableAgentIds.includes(agentId)) {
+        logger.warn(`THINK: agentId "${agentId}" 无效，可用: [${availableAgentIds.join(', ')}]`);
+        const fuzzyMatch = availableAgentIds.find((id: string) =>
+          id.startsWith(agentId!) || agentId!.startsWith(id)
         );
         if (fuzzyMatch) {
-          agentType = fuzzyMatch;
-        } else if (availableAgentTypes.length > 0) {
-          agentType = availableAgentTypes[0];
+          agentId = fuzzyMatch;
+        } else if (availableAgentIds.length > 0) {
+          agentId = availableAgentIds[0];
         } else {
-          logger.error("THINK: 没有可用的 Agent 类型");
-          agentType = undefined;
+          logger.error("THINK: 没有可用的 Agent");
+          agentId = undefined;
         }
       }
 
       const actionStep: ReActStep = {
         id: uuidv4(),
-        type: ReActStepType.ACTION,
+        type: ReActNode.Action,
         content: decision.nextAction.description,
-        agentType: agentType,
+        agentType: agentId,
         timestamp: Date.now()
       };
 
       reactState.steps.push(actionStep);
       reactState.currentStep = actionStep;
 
-      logger.info(`THINK [${reactState.currentIteration}/${reactState.maxIterations}]: → ${agentType} | ${decision.nextAction.description.substring(0, 80)}`);
+      logger.info(`THINK [${reactState.currentIteration}/${reactState.maxIterations}]: → ${agentId} | ${decision.nextAction.description.substring(0, 80)}`);
+
     } else {
       reactState.currentStep = null;
-      logger.info(`THINK [${reactState.currentIteration}/${reactState.maxIterations}]: ${decision.isComplete ? '任务完成' : '无需行动'}`);
+      logger.info(`THINK [${reactState.currentIteration}/${reactState.maxIterations}]: 无需行动`);
     }
 
     return {
@@ -194,40 +246,44 @@ ${thinkPrompt}`;
 }
 
 /**
- * ROUTER 节点：路由到下一个节点
+ * Think 节点的条件路由函数
+ * 根据 Think 的决策结果路由到下一个节点
  */
-export function routerNode(state: typeof ReActAnnotation.State): string {
+export function routeAfterThink(state: typeof ReActAnnotation.State): string {
   const reactState = state.reactState;
 
   if (!reactState) {
-    logger.error("ROUTER: ReAct 状态为空");
+    logger.error("ROUTE: ReAct 状态为空");
     return END;
   }
 
-  // 如果已完成，进入反思节点
-  if (reactState.isComplete) {
-    return ReActNodeName.Reflect;
+  // 等待用户确认 → 结束当前执行，等用户下次消息恢复
+  if (reactState.waitingForUser) {
+    return END;
   }
 
-  // 如果有当前步骤（ACTION），路由到对应的 Agent
-  if (reactState.currentStep && reactState.currentStep.type === ReActStepType.ACTION) {
-    const agentType = reactState.currentStep.agentType;
-    if (!agentType) {
-      logger.warn("ROUTER: ACTION 步骤缺少 agentType，回退到 Think");
-      return ReActNodeName.Think;
+  // 任务完成 → 反思总结
+  if (reactState.isComplete) {
+    return ReActNode.Reflect;
+  }
+
+  // 有 Action 步骤 → 路由到对应 Agent
+  if (reactState.currentStep && reactState.currentStep.type === ReActNode.Action) {
+    const agentId = reactState.currentStep.agentType;
+    if (!agentId) {
+      logger.warn("ROUTE: Action 步骤缺少 agentId，回退到 Think");
+      return ReActNode.Think;
     }
-    const nodeName = agentNodeName(agentType);
-    // 验证目标节点是否存在于已注册的 Agent 中
-    const availableAgentTypes = state.agentConfigs.map((a: any) => a.type);
-    if (!availableAgentTypes.includes(agentType)) {
-      logger.warn(`ROUTER: 未知 agentType "${agentType}"，回退到 Think`);
-      return ReActNodeName.Think;
+    const availableAgentIds = state.agentConfigs.map((a: any) => a.id);
+    if (!availableAgentIds.includes(agentId)) {
+      logger.warn(`ROUTE: 未知 agentId "${agentId}"，回退到 Think`);
+      return ReActNode.Think;
     }
-    return nodeName;
+    return agentNodeName(agentId);
   }
 
   // 默认继续思考
-  return ReActNodeName.Think;
+  return ReActNode.Think;
 }
 
 /**
@@ -256,7 +312,7 @@ export async function observeNode(
 
   const observeStep: ReActStep = {
     id: uuidv4(),
-    type: ReActStepType.OBSERVATION,
+    type: ReActNode.Observe,
     content: observeContent,
     timestamp: Date.now()
   };
@@ -283,10 +339,8 @@ export async function reflectNode(
     return {};
   }
 
-  // 构建步骤历史
   const stepHistory = formatStepHistory(reactState.steps);
 
-  // 构建反思提示词
   const reflectPrompt = `请基于以下执行过程，生成最终总结：
 
 **目标**: ${reactState.goal}
@@ -300,17 +354,12 @@ ${stepHistory}
 3. 是否完全达成目标`;
 
   try {
-    const fullPrompt = `系统提示：你是一个结果总结助手。
-
-${reflectPrompt}`;
-
-    const response = await modelService.invoke(fullPrompt);
+    const response = await modelService.invoke(`系统提示：你是一个结果总结助手。\n\n${reflectPrompt}`);
     const reflection = response.content as string;
 
-    // 创建反思步骤
     const reflectStep: ReActStep = {
       id: uuidv4(),
-      type: ReActStepType.REFLECTION,
+      type: ReActNode.Reflect,
       content: reflection,
       timestamp: Date.now()
     };

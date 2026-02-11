@@ -33,9 +33,9 @@ export enum PlanMode {
  * Plan Agent 配置
  */
 export interface PlanAgentConfig {
-  id: string;                  // Agent 实例 ID
-  type: string;                // Agent 类型（如 coder, researcher, analyst 等）
-  skillName?: string;          // 关联的 Skill 名称（可选）
+  id: string;                  // Agent 唯一标识，同时用作节点名称
+  desc?: string;               // Agent 描述（用于 LLM 规划时的参考）
+  skills?: string[];           // 关联的 Skill 名称列表（可选）
   tools: string[];             // 可用工具列表，["*"] 表示所有工具
   systemPrompt?: string;       // 自定义系统提示词
 }
@@ -277,14 +277,14 @@ class Config {
         supervisor: {
           agents: [
             {
-              id: "coder-1",
-              type: "coder",
+              id: "coder",
+              desc: "开发专家，擅长编写高质量代码",
               tools: ["read_file", "write_file", "execute_command"],
               systemPrompt: "你是一个开发专家，擅长编写高质量代码"
             },
             {
-              id: "researcher-1",
-              type: "researcher",
+              id: "researcher",
+              desc: "研究专家，擅长搜索和分析信息",
               tools: ["web_search", "read_url"],
               systemPrompt: "你是一个研究专家，擅长搜索和分析信息"
             }
@@ -294,14 +294,14 @@ class Config {
           maxIterations: 5,
           agents: [
             {
-              id: "coder-1",
-              type: "coder",
+              id: "coder",
+              desc: "开发专家，擅长编写高质量代码",
               tools: ["read_file", "write_file", "execute_command"],
               systemPrompt: "你是一个开发专家，擅长编写高质量代码"
             },
             {
-              id: "researcher-1",
-              type: "researcher",
+              id: "researcher",
+              desc: "研究专家，擅长搜索和分析信息",
               tools: ["web_search", "read_url"],
               systemPrompt: "你是一个研究专家，擅长搜索和分析信息"
             }

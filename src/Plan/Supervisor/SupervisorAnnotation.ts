@@ -17,7 +17,7 @@ export enum TaskStatus {
 export interface SubTask {
   id: string;                 // 任务唯一标识
   description: string;        // 任务描述
-  agentType: string;          // 负责的 Agent 类型（如 "coder", "researcher"）
+  agentId: string;            // 负责的 Agent ID
   dependencies: string[];     // 依赖的任务 ID
   status: TaskStatus;         // 任务状态
   result?: string;            // 任务结果
@@ -41,9 +41,9 @@ export interface ExecutionPlan {
  * Agent 配置定义
  */
 export interface AgentConfig {
-  id: string;                 // Agent 实例 ID
-  type: string;               // Agent 类型
-  skillName?: string;         // 关联的 Skill 名称
+  id: string;                 // Agent 唯一标识，同时用作节点名称
+  desc?: string;              // Agent 描述
+  skills?: string[];          // 关联的 Skill 名称列表
   tools: string[];            // 可用工具列表
   systemPrompt?: string;      // 自定义系统提示词
 }

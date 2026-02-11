@@ -13,7 +13,7 @@ const logger = LoggerService.getLogger("SupervisorNodes.ts");
 export function formatPlan(plan: ExecutionPlan): string {
   let output = `**目标**: ${plan.goal}\n\n**子任务**:\n`;
   plan.tasks.forEach((task, index) => {
-    output += `${index + 1}. [${task.agentType}] ${task.description}\n`;
+    output += `${index + 1}. [${task.agentId}] ${task.description}\n`;
     if (task.dependencies.length > 0) {
       output += `   依赖: ${task.dependencies.join(', ')}\n`;
     }
@@ -41,24 +41,24 @@ export async function planNode(
 
   const userQuery = lastHumanMessage.content as string;
 
-  // 构建可用 Agent 类型描述
-  const agentTypesDesc = state.agentConfigs
-    .map(a => `- ${a.type}: ${a.systemPrompt || a.skillName || '通用任务'}`)
+  // 构建可用 Agent 描述
+  const agentsDesc = state.agentConfigs
+    .map(a => `- ${a.id}: ${a.desc || a.systemPrompt || '通用任务'}`)
     .join('\n');
 
-  // 可用类型列表
-  const agentTypeNames = state.agentConfigs.map(a => a.type);
+  // 可用 Agent ID 列表
+  const agentIds = state.agentConfigs.map(a => a.id);
 
-  // 构建 JSON 示例中的任务（使用实际的 Agent 类型）
-  const exampleTasks = agentTypeNames.slice(0, 2).map((type, i) => 
-    `    {\n      "id": "task-${i + 1}",\n      "description": "任务详细描述",\n      "agentType": "${type}",\n      "dependencies": [${i > 0 ? '"task-1"' : ''}]\n    }`
+  // 构建 JSON 示例中的任务（使用实际的 Agent ID）
+  const exampleTasks = agentIds.slice(0, 2).map((id, i) => 
+    `    {\n      "id": "task-${i + 1}",\n      "description": "任务详细描述",\n      "agentId": "${id}",\n      "dependencies": [${i > 0 ? '"task-1"' : ''}]\n    }`
   ).join(',\n');
 
   // 构建规划提示词
   const planningPrompt = `你是一个任务规划专家。请分析用户的请求，将其分解为多个可执行的子任务。
 
-可用的 Agent 类型：
-${agentTypesDesc}
+可用的 Agent：
+${agentsDesc}
 
 用户请求：
 ${userQuery}
@@ -77,7 +77,7 @@ ${exampleTasks}
 }
 
 注意：
-- agentType 必须是以下类型之一: ${agentTypeNames.join(', ')}
+- agentId 必须是以下 Agent 之一: ${agentIds.join(', ')}
 - dependencies 中的任务 ID 必须是已存在的任务
 - 任务 ID 使用 "task-1", "task-2" 这样的格式
 - 每个 Agent 都有工具可以自主执行任务，任务描述应说明最终目标而非操作步骤`;
@@ -112,7 +112,7 @@ ${planningPrompt}`;
       tasks: planData.tasks.map((t: any) => ({
         id: t.id,
         description: t.description,
-        agentType: t.agentType,
+        agentId: t.agentId || t.agentType,
         dependencies: t.dependencies || [],
         status: TaskStatus.PENDING,
         assignedAgent: undefined,
@@ -192,10 +192,10 @@ export function supervisorNode(
 
   // 更新任务状态为执行中
   nextTask.status = TaskStatus.IN_PROGRESS;
-  logger.info(`SUPERVISOR 节点：调度任务 ${nextTask.id} 到 Agent ${nextTask.agentType}`);
+  logger.info(`SUPERVISOR 节点：调度任务 ${nextTask.id} 到 Agent ${nextTask.agentId}`);
 
-  // 返回目标 Agent 类型（LangGraph 会路由到对应的子图）
-  return `agent_${nextTask.agentType}`;
+  // 返回目标 Agent 节点名称
+  return `agent_${nextTask.agentId}`;
 }
 
 /**

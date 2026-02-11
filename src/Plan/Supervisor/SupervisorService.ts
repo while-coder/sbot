@@ -77,11 +77,11 @@ export class SupervisorService {
     return async (state: typeof SupervisorAnnotation.State) => {
       const currentTask = state.currentTask;
       if (!currentTask) {
-        logger.warn(`Sub-Agent ${agentConfig.type}: 当前任务为空`);
+        logger.warn(`Sub-Agent ${agentConfig.id}: 当前任务为空`);
         return {};
       }
 
-      logger.info(`Sub-Agent ${agentConfig.type}: 开始执行任务 ${currentTask.id}`);
+      logger.info(`Sub-Agent ${agentConfig.id}: 开始执行任务 ${currentTask.id}`);
 
       try {
         // 为这个 Sub-Agent 创建独立的 ServiceContainer
@@ -112,7 +112,7 @@ export class SupervisorService {
         // 使用 ServiceContainer 创建 AgentService 实例
         subContainer.registerWithArgs(AgentService, {
           userId: this.userId,
-          threadId: `${this.threadId}_${agentConfig.type}_${currentTask.id}`
+          threadId: `${this.threadId}_${agentConfig.id}_${currentTask.id}`
         });
         const agentService = await subContainer.resolve(AgentService);
 
@@ -149,7 +149,7 @@ export class SupervisorService {
         currentTask.result = taskResult || "任务完成";
         currentTask.assignedAgent = agentConfig.id;
 
-        logger.info(`Sub-Agent ${agentConfig.type}: 任务 ${currentTask.id} 执行完成`);
+        logger.info(`Sub-Agent ${agentConfig.id}: 任务 ${currentTask.id} 执行完成`);
 
         return {
           currentTask: currentTask,
@@ -157,11 +157,11 @@ export class SupervisorService {
           taskHistory: [{
             taskId: currentTask.id,
             timestamp: Date.now(),
-            event: `Task ${currentTask.id} completed by ${agentConfig.type}`
+            event: `Task ${currentTask.id} completed by ${agentConfig.id}`
           }]
         };
       } catch (error: any) {
-        logger.error(`Sub-Agent ${agentConfig.type}: 任务 ${currentTask.id} 执行失败 - ${error.message}`);
+        logger.error(`Sub-Agent ${agentConfig.id}: 任务 ${currentTask.id} 执行失败 - ${error.message}`);
 
         // 更新任务状态为失败
         currentTask.status = TaskStatus.FAILED;
@@ -198,9 +198,9 @@ export class SupervisorService {
 
     workflow.addNode("aggregator", (state) => aggregatorNode(state, this.modelService));
 
-    // 为每个 Agent 类型创建节点
+    // 为每个 Agent 创建节点
     for (const agentConfig of this.agentConfigs) {
-      const nodeName = `agent_${agentConfig.type}`;
+      const nodeName = `agent_${agentConfig.id}`;
       const nodeFunc = await this.createSubAgentNode(
         agentConfig,
         onStreamMessage,
@@ -213,7 +213,7 @@ export class SupervisorService {
         // 从 plan 中找到当前应该执行的任务
         if (state.plan) {
           const taskForThisAgent = state.plan.tasks.find(
-            t => t.status === TaskStatus.IN_PROGRESS && t.agentType === agentConfig.type
+            t => t.status === TaskStatus.IN_PROGRESS && t.agentId === agentConfig.id
           );
 
           if (taskForThisAgent) {
@@ -239,18 +239,18 @@ export class SupervisorService {
       END: END as any
     };
 
-    // 添加每个 Agent 类型到路由映射
+    // 添加每个 Agent 到路由映射
     for (const agentConfig of this.agentConfigs) {
-      const nodeName = `agent_${agentConfig.type}`;
+      const nodeName = `agent_${agentConfig.id}`;
       routingMap[nodeName] = nodeName;
     }
 
-    // 条件路由：supervisor 根据任务类型路由到不同 Agent
+    // 条件路由：supervisor 根据任务路由到不同 Agent
     (workflow as any).addConditionalEdges("supervisor", supervisorNode, routingMap);
 
     // 所有 Sub-Agent 完成后返回 supervisor
     for (const agentConfig of this.agentConfigs) {
-      (workflow as any).addEdge(`agent_${agentConfig.type}`, "supervisor");
+      (workflow as any).addEdge(`agent_${agentConfig.id}`, "supervisor");
     }
 
     (workflow as any).addEdge("aggregator", END);

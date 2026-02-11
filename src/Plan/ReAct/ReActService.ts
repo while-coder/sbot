@@ -1,7 +1,7 @@
 import { HumanMessage, AIMessage, AIMessageChunk, BaseMessage } from "langchain";
 import { StateGraph, START, END } from '@langchain/langgraph';
-import { ReActAnnotation, ReActState, ReActStepType, ReActNodeName, agentNodeName } from './ReActAnnotation.js';
-import { thinkNode, routerNode, observeNode, reflectNode } from './ReActNodes.js';
+import { ReActAnnotation, ReActState, ReActNode, agentNodeName } from './ReActAnnotation.js';
+import { thinkNode, routeAfterThink, observeNode, reflectNode } from './ReActNodes.js';
 import { AgentConfig } from '../Supervisor/SupervisorAnnotation.js';
 import { AgentService, OnMessageCallback, OnStreamMessageCallback, ExecuteToolCallback, ConvertImagesCallback, MessageChunkType, AgentMessage } from 'scorpio.ai';
 import { FilteredAgentToolService } from '../FilteredAgentToolService.js';
@@ -15,7 +15,8 @@ const logger = LoggerService.getLogger("ReActService.ts");
  * ReAct Agent 服务
  * 实现 ReAct (Reasoning and Acting) 模式的多 Agent 协同
  *
- * ReAct 循环：Think → Act → Observe → (Think → Act → Observe)* → Reflect
+ * ReAct 循环：Think → Agent → Observe → Think → ... → Reflect
+ * 支持 WaitForUser：Think 可决定暂停等用户确认，下次消息自动恢复
  */
 export class ReActService {
   private userId: string;
@@ -62,7 +63,7 @@ export class ReActService {
     return async (state: typeof ReActAnnotation.State) => {
       const reactState = state.reactState;
       if (!reactState || !reactState.currentStep) {
-        logger.warn(`Sub-Agent ${agentConfig.type}: 当前步骤为空`);
+        logger.warn(`Sub-Agent ${agentConfig.id}: 当前步骤为空`);
         return {};
       }
 
@@ -72,9 +73,7 @@ export class ReActService {
         // 为这个 Sub-Agent 创建独立的 ServiceContainer
         const subContainer = new ServiceContainer();
 
-        // 注册共享服务
         subContainer.registerInstance(IModelService, this.modelService);
-        // 使用 SharedAgentSaver 包装，防止子 Agent dispose 关闭共享数据库连接
         subContainer.registerInstance(IAgentSaverService, new SharedAgentSaver(this.agentSaver));
 
         if (this.skillService) {
@@ -83,8 +82,6 @@ export class ReActService {
         if (this.memoryService) {
           subContainer.registerInstance(IMemoryService, this.memoryService);
         }
-
-        // 为这个 Sub-Agent 创建过滤工具服务（基于父级工具服务过滤）
         if (this.toolService) {
           const filteredToolService = new FilteredAgentToolService(
             agentConfig.tools,
@@ -93,14 +90,12 @@ export class ReActService {
           subContainer.registerInstance(IAgentToolService, filteredToolService);
         }
 
-        // 使用 ServiceContainer 创建 AgentService
         subContainer.registerWithArgs(AgentService, {
           userId: this.userId,
-          threadId: `${this.threadId}_react_${agentConfig.type}_${currentStep.id}`
+          threadId: `${this.threadId}_react_${agentConfig.id}_${currentStep.id}`
         });
         const agentService = await subContainer.resolve(AgentService);
 
-        // 构建任务 prompt - 明确告知 agent 应自主使用工具完成任务
         const taskPrompt = [
           agentConfig.systemPrompt || '',
           '',
@@ -109,11 +104,9 @@ export class ReActService {
           `任务: ${currentStep.content}`,
         ].filter(Boolean).join('\n');
 
-        // 收集执行结果
         let actionResult = "";
         const messages: BaseMessage[] = [];
 
-        // 执行任务
         await agentService.stream(
           taskPrompt,
           async (message: AgentMessage) => {
@@ -127,9 +120,8 @@ export class ReActService {
           convertImages
         );
 
-        logger.info(`Sub-Agent ${agentConfig.type}: 步骤完成`);
+        logger.info(`Sub-Agent ${agentConfig.id}: 步骤完成`);
 
-        // 调用 observe 节点记录结果
         const observeResult = await observeNode(state, actionResult || "任务完成");
 
         return {
@@ -137,9 +129,8 @@ export class ReActService {
           messages: messages
         };
       } catch (error: any) {
-        logger.error(`Sub-Agent ${agentConfig.type}: 执行失败 - ${error.message}`);
+        logger.error(`Sub-Agent ${agentConfig.id}: 执行失败 - ${error.message}`);
 
-        // 记录失败结果
         const observeResult = await observeNode(state, `执行失败: ${error.message}`);
 
         return {
@@ -160,54 +151,61 @@ export class ReActService {
   ) {
     const workflow = new StateGraph(ReActAnnotation);
 
-    // 添加核心节点
-    workflow.addNode(ReActNodeName.Think, (state) => thinkNode(state, this.modelService));
-    workflow.addNode(ReActNodeName.Router, () => ({})); // 空节点，只用于路由
-    workflow.addNode(ReActNodeName.Reflect, (state) => reflectNode(state, this.modelService));
+    // 添加节点
+    workflow.addNode(ReActNode.Think, (state) => thinkNode(state, this.modelService));
+    workflow.addNode(ReActNode.Reflect, (state) => reflectNode(state, this.modelService));
 
-    // 为每个 Agent 类型创建节点
     for (const agentConfig of this.agentConfigs) {
-      const nodeName = agentNodeName(agentConfig.type);
+      const nodeName = agentNodeName(agentConfig.id);
       const nodeFunc = await this.createSubAgentNode(
-        agentConfig,
-        onStreamMessage,
-        executeTool,
-        convertImages
+        agentConfig, onStreamMessage, executeTool, convertImages
       );
       workflow.addNode(nodeName, nodeFunc);
     }
 
-    // 添加边
-    (workflow as any).addEdge(START, ReActNodeName.Think);
-    (workflow as any).addEdge(ReActNodeName.Think, ReActNodeName.Router);
+    // 边：START → Think
+    (workflow as any).addEdge(START, ReActNode.Think);
 
-    // 构建条件路由映射
+    // Think 的条件路由（直接从 Think 出发，不再需要 Router 空节点）
     const routingMap: Record<string, string> = {
-      [ReActNodeName.Think]: ReActNodeName.Think,
-      [ReActNodeName.Reflect]: ReActNodeName.Reflect,
-      END: END as any
+      [ReActNode.Think]: ReActNode.Think,
+      [ReActNode.Reflect]: ReActNode.Reflect,
+      END: END as any,
     };
-
-    // 添加每个 Agent 类型到路由映射
     for (const agentConfig of this.agentConfigs) {
-      const nodeName = agentNodeName(agentConfig.type);
+      const nodeName = agentNodeName(agentConfig.id);
       routingMap[nodeName] = nodeName;
     }
+    (workflow as any).addConditionalEdges(ReActNode.Think, routeAfterThink, routingMap);
 
-    // 条件路由
-    (workflow as any).addConditionalEdges(ReActNodeName.Router, routerNode, routingMap);
-
-    // 所有 Sub-Agent 完成后返回 think 继续循环
+    // Agent → Think（循环）
     for (const agentConfig of this.agentConfigs) {
-      (workflow as any).addEdge(agentNodeName(agentConfig.type), ReActNodeName.Think);
+      (workflow as any).addEdge(agentNodeName(agentConfig.id), ReActNode.Think);
     }
 
-    (workflow as any).addEdge(ReActNodeName.Reflect, END);
+    // Reflect → END
+    (workflow as any).addEdge(ReActNode.Reflect, END);
 
-    // 编译图
     const checkpointer = await this.agentSaver.getCheckpointer();
-
     return workflow.compile({ checkpointer });
+  }
+
+  /**
+   * 检查是否有等待用户确认的中断状态
+   */
+  private async getExistingState(): Promise<ReActState | null> {
+    try {
+      const checkpointer = await this.agentSaver.getCheckpointer();
+      const config = { configurable: { thread_id: this.threadId } };
+      const checkpoint = await checkpointer.get(config);
+      if (checkpoint?.channel_values) {
+        const values = checkpoint.channel_values as any;
+        return values.reactState || null;
+      }
+    } catch {
+      // 没有已有状态，正常
+    }
+    return null;
   }
 
   /**
@@ -221,36 +219,42 @@ export class ReActService {
     convertImages?: ConvertImagesCallback
   ): Promise<void> {
     try {
-      const agentTypes = this.agentConfigs.map(a => a.type).join(', ');
-      logger.info(`ReAct 开始 | 用户: ${this.userId} | Agents: [${agentTypes}] | 最大迭代: ${this.maxIterations} | 查询: ${query.substring(0, 80)}`);
-
-      // 创建图
       const graph = await this.createGraph(onStreamMessage, executeTool, convertImages);
 
-      // 初始化 ReAct 状态
-      const initialReActState: ReActState = {
-        goal: query,
-        currentStep: null,
-        steps: [],
-        isComplete: false,
-        maxIterations: this.maxIterations,
-        currentIteration: 0
-      };
+      // 检查是否从 waitForUser 恢复
+      const existingState = await this.getExistingState();
+      const isResuming = existingState?.waitingForUser === true;
 
-      // 初始化状态
-      const initialState = {
-        messages: [new HumanMessage(query)],
-        reactState: initialReActState,
-        agentConfigs: this.agentConfigs
-      };
+      let inputState: any;
+      if (isResuming) {
+        // 恢复模式：只发送用户的新消息，让 checkpointer 恢复其余状态
+        logger.info(`ReAct 恢复 | 用户: ${this.userId} | 用户回复: ${query.substring(0, 80)}`);
+        inputState = {
+          messages: [new HumanMessage(query)],
+        };
+      } else {
+        // 新任务模式
+      const agentIds = this.agentConfigs.map(a => a.id).join(', ');
+      logger.info(`ReAct 开始 | 用户: ${this.userId} | Agents: [${agentIds}] | 最大迭代: ${this.maxIterations} | 查询: ${query.substring(0, 80)}`);
+        inputState = {
+          messages: [new HumanMessage(query)],
+          reactState: {
+            goal: query,
+            currentStep: null,
+            steps: [],
+            isComplete: false,
+            waitingForUser: false,
+            maxIterations: this.maxIterations,
+            currentIteration: 0
+          } as ReActState,
+          agentConfigs: this.agentConfigs
+        };
+      }
 
-      // 计算 recursionLimit：每次迭代经过 Think → Router → Agent 共 3 个节点，
-      // 最终路径 Think → Router → Reflect 再加 3 个节点，额外预留缓冲
       const recursionLimit = this.maxIterations * 4 + 10;
 
-      // 流式执行
       const stream = await graph.stream(
-        initialState,
+        inputState,
         {
           streamMode: "updates",
           recursionLimit,
@@ -258,16 +262,13 @@ export class ReActService {
         }
       );
 
-      // 处理流式输出
       for await (const update of stream) {
         for (const [_nodeName, nodeOutput] of Object.entries(update)) {
           const output = nodeOutput as any;
           const messages = output.messages || [];
 
-          // 转发消息
           for (const message of messages) {
             if (message instanceof HumanMessage) continue;
-
             const messageChunk = this.convertToMessageChunk(message);
             if (messageChunk) {
               await onMessage(messageChunk);
