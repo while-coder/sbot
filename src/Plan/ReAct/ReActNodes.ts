@@ -63,6 +63,9 @@ export async function thinkNode(
     .map((a: any) => `- ${a.type}: ${a.systemPrompt || a.skillName || '通用任务'}`)
     .join('\n');
 
+  // 可用类型列表（用于 JSON 示例）
+  const agentTypesList = state.agentConfigs.map((a: any) => a.type).join('/');
+
   // 构建步骤历史
   const stepHistory = formatStepHistory(reactState.steps);
 
@@ -90,8 +93,8 @@ ${stepHistory}
   "needsAction": true/false,
   "isComplete": true/false,
   "nextAction": {
-    "description": "需要执行的具体行动描述",
-    "agentType": "coder/researcher/general",
+    "description": "需要 Agent 使用工具完成的具体任务描述",
+    "agentType": "${agentTypesList}",
     "reason": "为什么选择这个 Agent"
   }
 }
@@ -99,9 +102,11 @@ ${stepHistory}
 规则：
 1. 如果目标已经完成，设置 isComplete = true, needsAction = false
 2. 如果需要执行新的行动，设置 needsAction = true，并提供 nextAction
-3. 如果遇到问题或信息不足，在 thought 中说明，并决定下一步行动
-4. 每次只规划一个行动，不要一次性规划多个步骤
-5. 基于历史步骤的结果进行决策`;
+3. agentType 必须是上面列出的可用 Agent 类型之一，不要使用未列出的类型
+4. 每个 Agent 都有自己的工具可以自主执行任务，nextAction.description 应描述最终要达成的目标，而非操作步骤
+5. 每次只规划一个行动，不要一次性规划多个步骤
+6. 基于历史步骤的结果进行决策，如果之前的行动已完成目标则设置 isComplete = true
+7. 如果一个行动的观察结果表明任务已经完成，不要重复执行相同行动`;
 
   try {
     const fullPrompt = `系统提示：你是一个 ReAct 规划助手，只返回有效的 JSON 格式，不要包含其他文本。
@@ -252,11 +257,16 @@ export async function observeNode(
     reactState.currentStep.result = actionResult;
   }
 
-  // 创建观察步骤
+  // 创建观察步骤（限制内容长度避免 prompt 膨胀）
+  const maxObserveLength = 1000;
+  const observeContent = actionResult.length > maxObserveLength
+    ? actionResult.substring(0, maxObserveLength) + '...(结果已截断)'
+    : actionResult;
+
   const observeStep: ReActStep = {
     id: uuidv4(),
     type: ReActStepType.OBSERVATION,
-    content: actionResult,
+    content: observeContent,
     timestamp: Date.now()
   };
 
@@ -265,7 +275,7 @@ export async function observeNode(
 
   return {
     reactState,
-    messages: [new AIMessage(`👀 **观察**: ${actionResult.substring(0, 200)}${actionResult.length > 200 ? '...' : ''}`)]
+    messages: [new AIMessage(`👀 **观察**: ${observeContent.substring(0, 500)}${observeContent.length > 500 ? '...' : ''}`)]
   };
 }
 

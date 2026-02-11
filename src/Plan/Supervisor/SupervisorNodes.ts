@@ -46,6 +46,14 @@ export async function planNode(
     .map(a => `- ${a.type}: ${a.systemPrompt || a.skillName || '通用任务'}`)
     .join('\n');
 
+  // 可用类型列表
+  const agentTypeNames = state.agentConfigs.map(a => a.type);
+
+  // 构建 JSON 示例中的任务（使用实际的 Agent 类型）
+  const exampleTasks = agentTypeNames.slice(0, 2).map((type, i) => 
+    `    {\n      "id": "task-${i + 1}",\n      "description": "任务详细描述",\n      "agentType": "${type}",\n      "dependencies": [${i > 0 ? '"task-1"' : ''}]\n    }`
+  ).join(',\n');
+
   // 构建规划提示词
   const planningPrompt = `你是一个任务规划专家。请分析用户的请求，将其分解为多个可执行的子任务。
 
@@ -64,25 +72,15 @@ ${userQuery}
 {
   "goal": "总体目标描述",
   "tasks": [
-    {
-      "id": "task-1",
-      "description": "任务详细描述",
-      "agentType": "coder",
-      "dependencies": []
-    },
-    {
-      "id": "task-2",
-      "description": "任务详细描述",
-      "agentType": "researcher",
-      "dependencies": ["task-1"]
-    }
+${exampleTasks}
   ]
 }
 
 注意：
-- agentType 必须是可用 Agent 类型之一
+- agentType 必须是以下类型之一: ${agentTypeNames.join(', ')}
 - dependencies 中的任务 ID 必须是已存在的任务
-- 任务 ID 使用 "task-1", "task-2" 这样的格式`;
+- 任务 ID 使用 "task-1", "task-2" 这样的格式
+- 每个 Agent 都有工具可以自主执行任务，任务描述应说明最终目标而非操作步骤`;
 
   try {
     logger.info("PLAN 节点：开始生成执行计划");

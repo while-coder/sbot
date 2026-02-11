@@ -103,10 +103,14 @@ export class ReActService {
         });
         const agentService = await subContainer.resolve(AgentService);
 
-        // 构建任务 prompt
-        const taskPrompt = agentConfig.systemPrompt
-          ? `${agentConfig.systemPrompt}\n\n当前任务: ${currentStep.content}`
-          : `当前任务: ${currentStep.content}`;
+        // 构建任务 prompt - 明确告知 agent 应自主使用工具完成任务
+        const taskPrompt = [
+          agentConfig.systemPrompt || '',
+          '',
+          `你需要使用可用的工具来完成以下任务，直接执行操作并返回结果，不要只给出建议或步骤说明。`,
+          '',
+          `任务: ${currentStep.content}`,
+        ].filter(Boolean).join('\n');
 
         // 收集执行结果
         let actionResult = "";
