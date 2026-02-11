@@ -37,18 +37,16 @@ export async function thinkNode(
 ) {
   const reactState = state.reactState;
   if (!reactState) {
-    logger.error("THINK 节点：ReAct 状态为空");
+    logger.error("THINK: ReAct 状态为空");
     return {};
   }
 
   // 检查是否达到最大迭代次数
   if (reactState.currentIteration >= reactState.maxIterations) {
-    logger.warn(`THINK 节点：已达到最大迭代次数 ${reactState.maxIterations}`);
+    logger.warn(`THINK: 已达最大迭代次数 ${reactState.maxIterations}，强制完成`);
     reactState.isComplete = true;
     return { reactState };
   }
-
-  logger.info(`THINK 节点：开始推理 (迭代 ${reactState.currentIteration + 1}/${reactState.maxIterations})`);
 
   // 查找最后一条人类消息
   const lastHumanMessage = state.messages
@@ -140,7 +138,6 @@ ${thinkPrompt}`;
     // 更新完成状态
     if (decision.isComplete) {
       reactState.isComplete = true;
-      logger.info("THINK 节点：任务已完成");
     }
 
     // 如果需要行动，创建行动步骤
@@ -150,19 +147,17 @@ ${thinkPrompt}`;
       let agentType: string | undefined = decision.nextAction.agentType;
 
       if (!agentType || !availableAgentTypes.includes(agentType)) {
-        logger.warn(`THINK 节点：LLM 返回的 agentType "${agentType}" 无效，可用类型: [${availableAgentTypes.join(', ')}]`);
+        logger.warn(`THINK: agentType "${agentType}" 无效，可用: [${availableAgentTypes.join(', ')}]`);
         // 尝试模糊匹配（如 "coder" 匹配 "code"，"researcher" 匹配 "research"）
         const fuzzyMatch = availableAgentTypes.find((t: string) =>
           t.startsWith(agentType!) || agentType!.startsWith(t)
         );
         if (fuzzyMatch) {
-          logger.info(`THINK 节点：模糊匹配到 agentType "${fuzzyMatch}"`);
           agentType = fuzzyMatch;
         } else if (availableAgentTypes.length > 0) {
           agentType = availableAgentTypes[0];
-          logger.info(`THINK 节点：使用默认 agentType "${agentType}"`);
         } else {
-          logger.error("THINK 节点：没有可用的 Agent 类型");
+          logger.error("THINK: 没有可用的 Agent 类型");
           agentType = undefined;
         }
       }
@@ -178,9 +173,10 @@ ${thinkPrompt}`;
       reactState.steps.push(actionStep);
       reactState.currentStep = actionStep;
 
-      logger.info(`THINK 节点：规划行动 - ${decision.nextAction.description} (${agentType})`);
+      logger.info(`THINK [${reactState.currentIteration}/${reactState.maxIterations}]: → ${agentType} | ${decision.nextAction.description.substring(0, 80)}`);
     } else {
       reactState.currentStep = null;
+      logger.info(`THINK [${reactState.currentIteration}/${reactState.maxIterations}]: ${decision.isComplete ? '任务完成' : '无需行动'}`);
     }
 
     return {
@@ -188,7 +184,7 @@ ${thinkPrompt}`;
       messages: [new AIMessage(`🤔 **思考**: ${decision.thought}`)]
     };
   } catch (error: any) {
-    logger.error(`THINK 节点：推理失败 - ${error.message}`);
+    logger.error(`THINK: 推理失败 - ${error.message}`);
     reactState.isComplete = true;
     return {
       reactState,
@@ -204,13 +200,12 @@ export function routerNode(state: typeof ReActAnnotation.State): string {
   const reactState = state.reactState;
 
   if (!reactState) {
-    logger.error("ROUTER 节点：ReAct 状态为空");
+    logger.error("ROUTER: ReAct 状态为空");
     return END;
   }
 
   // 如果已完成，进入反思节点
   if (reactState.isComplete) {
-    logger.info("ROUTER 节点：任务完成，进入反思节点");
     return ReActNodeName.Reflect;
   }
 
@@ -218,22 +213,20 @@ export function routerNode(state: typeof ReActAnnotation.State): string {
   if (reactState.currentStep && reactState.currentStep.type === ReActStepType.ACTION) {
     const agentType = reactState.currentStep.agentType;
     if (!agentType) {
-      logger.warn("ROUTER 节点：ACTION 步骤缺少 agentType，回退到思考节点");
+      logger.warn("ROUTER: ACTION 步骤缺少 agentType，回退到 Think");
       return ReActNodeName.Think;
     }
     const nodeName = agentNodeName(agentType);
     // 验证目标节点是否存在于已注册的 Agent 中
     const availableAgentTypes = state.agentConfigs.map((a: any) => a.type);
     if (!availableAgentTypes.includes(agentType)) {
-      logger.warn(`ROUTER 节点：未知的 agentType "${agentType}"，可用类型: [${availableAgentTypes.join(', ')}]，回退到思考节点`);
+      logger.warn(`ROUTER: 未知 agentType "${agentType}"，回退到 Think`);
       return ReActNodeName.Think;
     }
-    logger.info(`ROUTER 节点：路由到 Agent ${agentType}`);
     return nodeName;
   }
 
   // 默认继续思考
-  logger.info("ROUTER 节点：继续思考");
   return ReActNodeName.Think;
 }
 
@@ -246,11 +239,9 @@ export async function observeNode(
 ) {
   const reactState = state.reactState;
   if (!reactState) {
-    logger.error("OBSERVE 节点：ReAct 状态为空");
+    logger.error("OBSERVE: ReAct 状态为空");
     return {};
   }
-
-  logger.info("OBSERVE 节点：记录观察结果");
 
   // 更新当前步骤的结果
   if (reactState.currentStep) {
@@ -288,11 +279,9 @@ export async function reflectNode(
 ) {
   const reactState = state.reactState;
   if (!reactState) {
-    logger.error("REFLECT 节点：ReAct 状态为空");
+    logger.error("REFLECT: ReAct 状态为空");
     return {};
   }
-
-  logger.info("REFLECT 节点：开始最终反思");
 
   // 构建步骤历史
   const stepHistory = formatStepHistory(reactState.steps);
@@ -328,14 +317,12 @@ ${reflectPrompt}`;
 
     reactState.steps.push(reflectStep);
 
-    logger.info("REFLECT 节点：反思完成");
-
     return {
       reactState,
       messages: [new AIMessage(`✨ **总结**:\n\n${reflection}`)]
     };
   } catch (error: any) {
-    logger.error(`REFLECT 节点：反思失败 - ${error.message}`);
+    logger.error(`REFLECT: 反思失败 - ${error.message}`);
     return {
       messages: [new AIMessage(`任务执行完成，但生成总结时出错：${error.message}`)]
     };

@@ -48,8 +48,6 @@ export class ReActService {
     this.skillService = skillService;
     this.memoryService = memoryService;
     this.maxIterations = maxIterations ?? 5;
-
-    logger.info(`ReActService 初始化 - 用户: ${userId}, 线程: ${threadId}, Agent数量: ${agentConfigs.length}, 最大迭代: ${maxIterations}`);
   }
 
   /**
@@ -64,12 +62,11 @@ export class ReActService {
     return async (state: typeof ReActAnnotation.State) => {
       const reactState = state.reactState;
       if (!reactState || !reactState.currentStep) {
-        logger.warn(`ReAct Sub-Agent ${agentConfig.type}: 当前步骤为空`);
+        logger.warn(`Sub-Agent ${agentConfig.type}: 当前步骤为空`);
         return {};
       }
 
       const currentStep = reactState.currentStep;
-      logger.info(`ReAct Sub-Agent ${agentConfig.type}: 开始执行步骤 ${currentStep.id}`);
 
       try {
         // 为这个 Sub-Agent 创建独立的 ServiceContainer
@@ -130,7 +127,7 @@ export class ReActService {
           convertImages
         );
 
-        logger.info(`ReAct Sub-Agent ${agentConfig.type}: 步骤 ${currentStep.id} 执行完成`);
+        logger.info(`Sub-Agent ${agentConfig.type}: 步骤完成`);
 
         // 调用 observe 节点记录结果
         const observeResult = await observeNode(state, actionResult || "任务完成");
@@ -140,7 +137,7 @@ export class ReActService {
           messages: messages
         };
       } catch (error: any) {
-        logger.error(`ReAct Sub-Agent ${agentConfig.type}: 步骤 ${currentStep.id} 执行失败 - ${error.message}`);
+        logger.error(`Sub-Agent ${agentConfig.type}: 执行失败 - ${error.message}`);
 
         // 记录失败结果
         const observeResult = await observeNode(state, `执行失败: ${error.message}`);
@@ -209,7 +206,6 @@ export class ReActService {
 
     // 编译图
     const checkpointer = await this.agentSaver.getCheckpointer();
-    logger.info("ReActService: 图编译完成");
 
     return workflow.compile({ checkpointer });
   }
@@ -225,7 +221,8 @@ export class ReActService {
     convertImages?: ConvertImagesCallback
   ): Promise<void> {
     try {
-      logger.info(`ReActService: 开始处理查询 - ${query}`);
+      const agentTypes = this.agentConfigs.map(a => a.type).join(', ');
+      logger.info(`ReAct 开始 | 用户: ${this.userId} | Agents: [${agentTypes}] | 最大迭代: ${this.maxIterations} | 查询: ${query.substring(0, 80)}`);
 
       // 创建图
       const graph = await this.createGraph(onStreamMessage, executeTool, convertImages);
@@ -263,9 +260,7 @@ export class ReActService {
 
       // 处理流式输出
       for await (const update of stream) {
-        for (const [nodeName, nodeOutput] of Object.entries(update)) {
-          logger.info(`ReActService: 节点 ${nodeName} 输出`);
-
+        for (const [_nodeName, nodeOutput] of Object.entries(update)) {
           const output = nodeOutput as any;
           const messages = output.messages || [];
 
@@ -281,9 +276,9 @@ export class ReActService {
         }
       }
 
-      logger.info("ReActService: 执行完成");
+      logger.info("ReAct 完成");
     } catch (error: any) {
-      logger.error(`ReActService: 执行失败 - ${error.message}`, error.stack);
+      logger.error(`ReAct 失败 - ${error.message}`);
       throw error;
     }
   }
@@ -306,6 +301,6 @@ export class ReActService {
    * 释放资源
    */
   async dispose() {
-    logger.info("ReActService: 释放资源");
+    // ReActService 不持有需要释放的资源，agentSaver 由上层管理
   }
 }
