@@ -3,6 +3,7 @@ import {LoggerService, log4js} from "./LoggerService";
 import {config} from "./Config";
 import {database} from "./Database";
 import {startLarkService} from "./Lark/LarkServiceInit";
+import {httpServer} from "./HttpServer";
 const logger = LoggerService.getLogger('index.ts');
 logger.info("=========================开始启动=========================")
 
@@ -21,6 +22,7 @@ async function main() {
         await database.init()
 
         await startLarkService()
+        await httpServer.start()
 
         logger.info("=========================启动成功=========================")
     } catch (e) {

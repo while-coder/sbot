@@ -1,6 +1,5 @@
 import "reflect-metadata";
-import { Util } from "weimingcommons";
-import { LarkUserServiceBase } from "winning.ai";
+import { LarkUserServiceBase, larkService } from "winning.ai";
 import {
     AgentService, 
     IAgentSaverService, AgentSqliteSaver, IAgentToolService, AgentToolService,
@@ -19,8 +18,6 @@ import { SupervisorService, ReActService, AgentConfig } from "../Plan/index.js";
 import { LoggerService } from "../LoggerService";
 import { getBuiltInCommands } from "../UserService/BuiltInCommands";
 import { config } from "../Config";
-import fs from 'fs';
-import * as Lark from "@larksuiteoapi/node-sdk";
 
 const logger = LoggerService.getLogger('LarkUserService.ts');
 
@@ -35,23 +32,8 @@ export class LarkUserService extends LarkUserServiceBase {
         return user;
     }
 
-    // 图片上传相关
-    private larkClient: Lark.Client | undefined;
-    private tenantAccessToken: string = '';
-    private tokenExpireTime: number = 0;
-
     constructor(userId: string) {
         super(userId);
-    }
-
-    private getLarkClient(): Lark.Client {
-        if (!this.larkClient) {
-            this.larkClient = new Lark.Client({
-                appId: config.settings.lark!.appId!,
-                appSecret: config.settings.lark!.appSecret!,
-            });
-        }
-        return this.larkClient;
     }
 
     protected async getAllCommands(): Promise<ICommand[]> {
@@ -69,7 +51,7 @@ export class LarkUserService extends LarkUserServiceBase {
             const evaluatorModelConfig = memoryConfig.evaluator ? config.getModel(memoryConfig.evaluator) : undefined;
             if (evaluatorModelConfig) {
                 container.registerWithArgs(IMemoryEvaluator, MemoryEvaluator, {
-                    [IModelService]: await ModelServiceFactory.getModelService(evaluatorModelConfig as any),
+                    [IModelService]: await ModelServiceFactory.getModelService(evaluatorModelConfig),
                 });
             }
 
@@ -77,7 +59,7 @@ export class LarkUserService extends LarkUserServiceBase {
             const extractorModelConfig = memoryConfig.extractor ? config.getModel(memoryConfig.extractor) : undefined;
             if (extractorModelConfig) {
                 container.registerWithArgs(IMemoryExtractor, MemoryExtractor, {
-                    [IModelService]: await ModelServiceFactory.getModelService(extractorModelConfig as any),
+                    [IModelService]: await ModelServiceFactory.getModelService(extractorModelConfig),
                 });
             }
 
@@ -85,14 +67,14 @@ export class LarkUserService extends LarkUserServiceBase {
             const compressorModelConfig = memoryConfig.compressor ? config.getModel(memoryConfig.compressor) : undefined;
             if (compressorModelConfig) {
                 container.registerWithArgs(IMemoryCompressor, MemoryCompressor, {
-                    [IModelService]: await ModelServiceFactory.getModelService(compressorModelConfig as any)
+                    [IModelService]: await ModelServiceFactory.getModelService(compressorModelConfig)
                 });
             }
             // Memory 服务
             const embeddingConfig = config.getEmbedding(memoryConfig.embedding);
             if (!embeddingConfig) throw new Error(`Embedding 配置 "${memoryConfig.embedding}" 不存在`);
             container.registerWithArgs(IMemoryService, MemoryService, {
-                [IEmbeddingService]: await EmbeddingServiceFactory.getEmbeddingService(embeddingConfig as any),
+                [IEmbeddingService]: await EmbeddingServiceFactory.getEmbeddingService(embeddingConfig),
                 "UserId": this.userId,
                 "DBPath": config.getUserMemoryPath(this.userId),
                 "MaxMemoryAgeDays": memoryConfig.maxAgeDays
@@ -107,7 +89,7 @@ export class LarkUserService extends LarkUserServiceBase {
         // 模型服务
         const mainModelConfig = config.getModel(config.getModelName());
         if (!mainModelConfig) throw new Error(`模型配置 "${config.getModelName()}" 不存在`);
-        const modelService = await ModelServiceFactory.getModelService(mainModelConfig as any);
+        const modelService = await ModelServiceFactory.getModelService(mainModelConfig);
         container.registerInstance(IModelService, modelService);
 
         // Agent Saver 服务（使用 AgentSqliteSaver 实现）
@@ -184,86 +166,7 @@ export class LarkUserService extends LarkUserServiceBase {
         }
     }
 
-    // ===== 图片上传与转换功能（sbot 特有） =====
-
-    /**
-     * 获取 tenant_access_token
-     */
-    private async getTenantAccessToken(): Promise<string> {
-        if (this.tenantAccessToken && Util.NowDate < this.tokenExpireTime) {
-            return this.tenantAccessToken;
-        }
-
-        try {
-            const client = this.getLarkClient();
-            const response = await client.auth.tenantAccessToken.internal({
-                data: {
-                    app_id: config.settings.lark!.appId!,
-                    app_secret: config.settings.lark!.appSecret!,
-                },
-            }) as any;
-
-            if (response.code !== 0) {
-                throw new Error(`获取 tenant_access_token 失败: ${response.msg}`);
-            }
-
-            this.tenantAccessToken = response.tenant_access_token;
-            this.tokenExpireTime = Util.NowDate + (response.expire - 300) * 1000;
-
-            logger.info(`成功获取 tenant_access_token，过期时间: ${new Date(this.tokenExpireTime).toISOString()}`);
-            return this.tenantAccessToken;
-        } catch (error: any) {
-            logger.error(`获取 tenant_access_token 失败: ${error.message}`);
-            throw error;
-        }
-    }
-
-    /**
-     * 上传图片到飞书并获取图片 key
-     */
-    async uploadImageToLark(imagePath: string): Promise<string> {
-        let imageBuffer: Buffer;
-
-        try {
-            if (imagePath.startsWith('data:image/')) {
-                logger.info(`正在解析 base64 图片数据`);
-                const base64Data = imagePath.split(',')[1];
-                if (!base64Data) {
-                    throw new Error('无效的 base64 图片数据格式');
-                }
-                imageBuffer = Buffer.from(base64Data, 'base64');
-            } else {
-                if (!fs.existsSync(imagePath)) {
-                    throw new Error(`图片文件不存在: ${imagePath}`);
-                }
-                imageBuffer = fs.readFileSync(imagePath);
-            }
-
-            logger.info(`正在上传图片到飞书 (${imageBuffer.length} bytes)`);
-
-            const token = await this.getTenantAccessToken();
-            const client = this.getLarkClient();
-
-            const response = await client.im.v1.image.create({
-                data: {
-                    image_type: 'message',
-                    image: imageBuffer,
-                },
-            }, Lark.withTenantToken(token)) as any;
-
-            if (!response || !response.image_key) {
-                throw new Error(`飞书返回错误: ${response?.msg || '未知错误'}`);
-            }
-
-            const imageKey = response.image_key;
-            logger.info(`图片上传成功，image_key: ${imageKey}`);
-
-            return imageKey;
-        } catch (error: any) {
-            logger.error(`上传图片到飞书失败: ${error.message}\n${error.stack}`);
-            throw error;
-        }
-    }
+    // ===== 图片转换功能 =====
 
     /**
      * 转换 MCP 格式结果中的图片为飞书图片格式
@@ -295,7 +198,7 @@ export class LarkUserService extends LarkUserServiceBase {
                             continue;
                         }
 
-                        const imageKey = await this.uploadImageToLark(imageData);
+                        const imageKey = await larkService.uploadImageToLark(imageData);
                         convertedResult.content.push({
                             type: MCPContentType.Text,
                             text: `![](${imageKey})`

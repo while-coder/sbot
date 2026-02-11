@@ -1,108 +1,13 @@
 import os from "os";
 import path from "path";
 import fs from "fs";
+import { ModelConfig, ModelProvider, EmbeddingConfig, EmbeddingProvider, MCPServerConfig, MCPServers } from "scorpio.ai";
 
 
 export interface LarkConfig {
   appId?: string;
   appSecret?: string;
   tenantToken?: string; // 可选的手动配置的租户 token
-}
-
-export interface ModelConfig {
-  provider?: string;
-  apiKey?: string;
-  baseURL?: string;
-  model?: string;
-  temperature?: number;
-}
-
-export interface EmbeddingConfig {
-  provider?: string;
-  apiKey?: string;
-  baseURL?: string;
-  model?: string;
-}
-
-/**
- * MCP 服务器配置
- * 支持 stdio、http 两种传输方式
- */
-export interface MCPServerConfig {
-  // === 通用配置 ===
-  /** 传输类型（可选，会根据配置结构自动推断） */
-  transport?: "stdio" | "http";
-  /** 传输类型别名（与 transport 相同，用于兼容） */
-  type?: "stdio" | "http";
-
-  // === Stdio 传输配置 ===
-  /** 要运行的可执行文件（如 node、npx、python 等）- stdio 必需 */
-  command?: string;
-  /** 传递给可执行文件的命令行参数 */
-  args?: string[];
-  /** 环境变量 */
-  env?: Record<string, string>;
-  /** 进程编码方式 */
-  encoding?: string;
-  /** 工作目录 */
-  cwd?: string;
-  /** stderr 处理方式（默认：inherit） */
-  stderr?: "overlapped" | "pipe" | "ignore" | "inherit";
-  /** 进程重启配置 */
-  restart?: {
-    /** 是否启用自动重启 */
-    enabled?: boolean;
-    /** 最大重启次数 */
-    maxAttempts?: number;
-    /** 重启延迟（毫秒） */
-    delayMs?: number;
-  };
-
-  // === HTTP 传输配置 ===
-  /** 服务器 URL - http 必需 */
-  url?: string;
-  /** 请求头（用于身份验证等）- http 可用 */
-  headers?: Record<string, string>;
-  /** OAuth 认证提供者（推荐用于身份验证，自动处理 token 刷新和 401 重试）- http 可用 */
-  authProvider?: any; // OAuthClientProvider 类型
-  /** 重新连接配置 - http 可用 */
-  reconnect?: {
-    /** 是否启用自动重连 */
-    enabled?: boolean;
-    /** 最大重连次数 */
-    maxAttempts?: number;
-    /** 重连延迟（毫秒） */
-    delayMs?: number;
-  };
-  /** 是否自动回退到 SSE（当 Streamable HTTP 不可用时）- 默认：true */
-  automaticSSEFallback?: boolean;
-
-  // === 工具配置 ===
-  /** 禁用自动批准的工具列表（需要用户确认） */
-  disabledAutoApproveTools?: string[];
-  /** 禁用的工具列表（这些工具将不会被加载） */
-  disabled?: string[];
-  /** 工具执行的默认超时时间（毫秒） */
-  defaultToolTimeout?: number;
-
-  // === 输出处理 ===
-  /**
-   * 工具输出的处理方式
-   * - "content": 所有输出放入 ToolMessage.content
-   * - "artifact": 所有输出放入 ToolMessage.artifact
-   * - 对象: 为每种内容类型单独指定
-   */
-  outputHandling?: "artifact" | "content" | {
-    audio?: "artifact" | "content";
-    image?: "artifact" | "content";
-    resource?: "artifact" | "content";
-    resource_link?: "artifact" | "content";
-    text?: "artifact" | "content";
-  };
-}
-
-export interface MCPServers {
-  [serverName: string]: MCPServerConfig;
 }
 
 export interface MemoryConfig {
@@ -244,6 +149,14 @@ class Config {
   }
 
   /**
+   * 保存 MCP 服务器配置到 mcp.json
+   */
+  saveMcpServers(mcpServers: MCPServers): void {
+    const mcpConfigPath = this.getConfigPath("mcp.json");
+    fs.writeFileSync(mcpConfigPath, JSON.stringify({ mcpServers }, null, 2), "utf-8");
+  }
+
+  /**
    * 获取内置的 MCP 服务器配置
    * @returns 内置的 MCP 服务器配置对象
    */
@@ -283,19 +196,19 @@ class Config {
       },
       models: {
         "openai-gpt4": {
-          provider: "openai",
+          provider: ModelProvider.OpenAI,
           apiKey: "your-api-key",
           baseURL: "https://api.openai.com/v1",
           model: "gpt-4"
         },
         "claude": {
-          provider: "anthropic",
+          provider: "anthropic" as any,
           apiKey: "your-api-key",
           baseURL: "https://api.anthropic.com",
           model: "claude-3-opus-20240229"
         },
         "azure": {
-          provider: "azure",
+          provider: "azure" as any,
           apiKey: "your-api-key",
           baseURL: "https://your-resource.openai.azure.com",
           model: "gpt-4"
@@ -303,25 +216,25 @@ class Config {
       },
       embeddings: {
         "openai-ada": {
-          provider: "openai",
+          provider: EmbeddingProvider.OpenAI,
           apiKey: "your-api-key",
           baseURL: "https://api.openai.com/v1",
           model: "text-embedding-ada-002"
         },
         "openai-3-small": {
-          provider: "openai",
+          provider: EmbeddingProvider.OpenAI,
           apiKey: "your-api-key",
           baseURL: "https://api.openai.com/v1",
           model: "text-embedding-3-small"
         },
         "openai-3-large": {
-          provider: "openai",
+          provider: EmbeddingProvider.OpenAI,
           apiKey: "your-api-key",
           baseURL: "https://api.openai.com/v1",
           model: "text-embedding-3-large"
         },
         "azure-ada": {
-          provider: "azure",
+          provider: "azure" as any,
           apiKey: "your-api-key",
           baseURL: "https://your-resource.openai.azure.com",
           model: "text-embedding-ada-002"

@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SBot 设置</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f6fa; color: #333; display: flex; height: 100vh; }
+
+/* ===== 主布局 ===== */
+.app-container { display: flex; width: 100%; height: 100%; flex-direction: column; }
+
+/* 顶栏 */
+.topbar { background: #1e293b; color: #e2e8f0; padding: 0 24px; display: flex; align-items: center; height: 52px; gap: 16px; flex-shrink: 0; }
+.topbar-title { font-size: 18px; font-weight: 600; }
+.topbar-actions { margin-left: auto; display: flex; gap: 8px; }
+
+/* 主体 */
+.main-body { flex: 1; display: flex; overflow: hidden; }
+
+/* 左侧导航 */
+.sidebar { width: 180px; background: #1e293b; display: flex; flex-direction: column; flex-shrink: 0; padding-top: 8px; border-right: 1px solid #334155; }
+.sidebar-item { padding: 12px 24px; cursor: pointer; font-size: 14px; color: #94a3b8; transition: all .15s; user-select: none; border-left: 3px solid transparent; }
+.sidebar-item:hover { color: #e2e8f0; background: rgba(255,255,255,.04); }
+.sidebar-item.active { color: #fff; background: rgba(59,130,246,.12); border-left-color: #3b82f6; font-weight: 500; }
+
+/* 右侧内容区 */
+.page-content { display: none; flex: 1; overflow: hidden; flex-direction: column; }
+.page-content.active { display: flex; }
+.content { flex: 1; overflow-y: auto; padding: 24px; }
+
+/* 页面工具栏 */
+.page-toolbar { padding: 16px 24px; display: flex; align-items: center; gap: 8px; background: #fff; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; }
+
+/* ===== 按钮 ===== */
+.btn { padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; transition: all .15s; display: inline-flex; align-items: center; gap: 4px; }
+.btn-primary { background: #3b82f6; color: #fff; }
+.btn-primary:hover { background: #2563eb; }
+.btn-danger { background: #ef4444; color: #fff; }
+.btn-danger:hover { background: #dc2626; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.btn-outline { background: transparent; border: 1px solid #475569; color: #e2e8f0; }
+.btn-outline:hover { border-color: #3b82f6; color: #3b82f6; }
+.btn-success { background: #22c55e; color: #fff; }
+.btn-success:hover { background: #16a34a; }
+.btn-outline-dark { background: transparent; border: 1px solid #cbd5e1; color: #475569; }
+.btn-outline-dark:hover { border-color: #3b82f6; color: #3b82f6; }
+
+/* ===== 表格 ===== */
+table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.08); margin-bottom: 24px; }
+th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+th { background: #f8fafc; font-weight: 600; color: #475569; position: sticky; top: 0; }
+td { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+tr:hover td { background: #f8fafc; }
+tr.active-row td { background: #eff6ff; }
+
+/* ===== 弹窗 ===== */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 100; justify-content: center; align-items: center; }
+.modal-overlay.show { display: flex; }
+.modal { background: #fff; border-radius: 12px; width: 560px; max-height: 85vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,.15); }
+.modal-header { padding: 16px 20px; border-bottom: 1px solid #e2e8f0; font-size: 16px; font-weight: 600; display: flex; align-items: center; }
+.modal-header .close { margin-left: auto; cursor: pointer; font-size: 20px; color: #94a3b8; line-height: 1; }
+.modal-header .close:hover { color: #333; }
+.modal-body { padding: 20px; overflow-y: auto; flex: 1; }
+.modal-footer { padding: 12px 20px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 8px; }
+
+/* ===== 表单 ===== */
+.form-group { margin-bottom: 14px; }
+.form-group label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 4px; color: #475569; }
+.form-group input, .form-group textarea, .form-group select { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; font-family: inherit; transition: border .15s; }
+.form-group input:focus, .form-group textarea:focus, .form-group select:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.1); }
+.form-group textarea { resize: vertical; min-height: 80px; }
+
+/* ===== 卡片 ===== */
+.card { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.08); padding: 20px; margin-bottom: 16px; }
+.card-title { font-size: 15px; font-weight: 600; margin-bottom: 16px; color: #1e293b; display: flex; align-items: center; gap: 8px; }
+.card-title .badge { font-size: 11px; background: #dbeafe; color: #2563eb; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+
+/* ===== 内联表单 ===== */
+.inline-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.inline-form .full-width { grid-column: 1 / -1; }
+
+/* ===== 开关 ===== */
+.switch-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; }
+.switch-row label { font-size: 13px; color: #475569; }
+.switch { position: relative; width: 40px; height: 22px; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch .slider { position: absolute; cursor: pointer; inset: 0; background: #cbd5e1; border-radius: 22px; transition: .2s; }
+.switch .slider::before { content: ''; position: absolute; height: 16px; width: 16px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: .2s; }
+.switch input:checked + .slider { background: #3b82f6; }
+.switch input:checked + .slider::before { transform: translateX(18px); }
+
+/* ===== Toast ===== */
+.toast { position: fixed; top: 20px; right: 20px; padding: 12px 20px; border-radius: 8px; color: #fff; font-size: 14px; z-index: 200; opacity: 0; transition: opacity .3s; pointer-events: none; }
+.toast.show { opacity: 1; }
+.toast.success { background: #22c55e; }
+.toast.error { background: #ef4444; }
+</style>
+</head>
+<body>
+
+<div class="app-container">
+    <div class="topbar">
+        <div class="topbar-title">SBot 设置</div>
+        <div class="topbar-actions">
+            <button class="btn btn-outline btn-sm" onclick="reloadConfig()">重载配置</button>
+        </div>
+    </div>
+    <div class="main-body">
+        <!-- 左侧导航 -->
+        <div class="sidebar">
+            <div class="sidebar-item active" data-page="page-general">基本设置</div>
+            <div class="sidebar-item" data-page="page-models">模型管理</div>
+            <div class="sidebar-item" data-page="page-embeddings">Embedding</div>
+            <div class="sidebar-item" data-page="page-memory">记忆设置</div>
+            <div class="sidebar-item" data-page="page-mcp">MCP 服务</div>
+        </div>
+
+        <!-- ===== 基本设置 ===== -->
+        <div class="page-content active" id="page-general">
+            <div class="page-toolbar">
+                <button class="btn btn-primary btn-sm" onclick="saveGeneralSettings()">保存</button>
+            </div>
+            <div class="content">
+                <div class="card">
+                    <div class="card-title">Lark 应用</div>
+                    <div class="inline-form">
+                        <div class="form-group"><label>App ID</label><input type="text" id="larkAppId"></div>
+                        <div class="form-group"><label>App Secret</label><input type="password" id="larkAppSecret"></div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">默认模型</div>
+                    <div class="form-group"><label>当前使用的模型名称</label><select id="currentModel"></select></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== 模型管理 ===== -->
+        <div class="page-content" id="page-models">
+            <div class="page-toolbar">
+                <button class="btn btn-outline-dark btn-sm" onclick="loadSettings()">刷新</button>
+                <button class="btn btn-primary btn-sm" onclick="showModelModal()">+ 添加模型</button>
+            </div>
+            <div class="content">
+                <table>
+                    <thead><tr><th>名称</th><th>Provider</th><th>Base URL</th><th>Model</th><th>操作</th></tr></thead>
+                    <tbody id="modelsTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ===== Embedding 管理 ===== -->
+        <div class="page-content" id="page-embeddings">
+            <div class="page-toolbar">
+                <button class="btn btn-outline-dark btn-sm" onclick="loadSettings()">刷新</button>
+                <button class="btn btn-primary btn-sm" onclick="showEmbeddingModal()">+ 添加 Embedding</button>
+            </div>
+            <div class="content">
+                <table>
+                    <thead><tr><th>名称</th><th>Provider</th><th>Base URL</th><th>Model</th><th>操作</th></tr></thead>
+                    <tbody id="embeddingsTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ===== 记忆设置 ===== -->
+        <div class="page-content" id="page-memory">
+            <div class="page-toolbar">
+                <button class="btn btn-primary btn-sm" onclick="saveMemorySettings()">保存</button>
+            </div>
+            <div class="content">
+                <div class="card">
+                    <div class="card-title">长期记忆</div>
+                    <div class="switch-row"><label>启用长期记忆</label><label class="switch"><input type="checkbox" id="memoryEnabled"><span class="slider"></span></label></div>
+                    <div class="inline-form" style="margin-top:12px">
+                        <div class="form-group"><label>最大保留天数</label><input type="number" id="memoryMaxAgeDays" placeholder="90"></div>
+                        <div class="form-group"><label>Embedding 模型</label><select id="memoryEmbedding"></select></div>
+                        <div class="form-group"><label>评估器模型</label><select id="memoryEvaluator"><option value="">不使用</option></select></div>
+                        <div class="form-group"><label>提取器模型</label><select id="memoryExtractor"><option value="">不使用</option></select></div>
+                        <div class="form-group"><label>压缩器模型</label><select id="memoryCompressor"><option value="">不使用</option></select></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== MCP 服务 ===== -->
+        <div class="page-content" id="page-mcp">
+            <div class="page-toolbar">
+                <button class="btn btn-outline-dark btn-sm" onclick="loadMcp()">刷新</button>
+                <button class="btn btn-primary btn-sm" onclick="showMcpModal()">+ 添加 MCP</button>
+            </div>
+            <div class="content">
+                <table>
+                    <thead><tr><th>名称</th><th>类型</th><th>地址/命令</th><th>操作</th></tr></thead>
+                    <tbody id="mcpTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== 模型弹窗 ===== -->
+<div class="modal-overlay" id="modelModal">
+    <div class="modal">
+        <div class="modal-header"><span id="modelModalTitle">添加模型</span><span class="close" onclick="closeModelModal()">&times;</span></div>
+        <div class="modal-body">
+            <div class="form-group"><label>名称 (唯一标识) *</label><input type="text" id="modelName" placeholder="如 openai-gpt4"></div>
+            <div class="form-group"><label>Provider</label>
+                <select id="modelProvider"><option value="openai">openai</option></select>
+            </div>
+            <div class="form-group"><label>Base URL</label><input type="text" id="modelBaseURL" placeholder="https://api.openai.com/v1"></div>
+            <div class="form-group"><label>API Key</label><input type="password" id="modelApiKey" placeholder="sk-..."></div>
+            <div class="form-group"><label>Model</label><input type="text" id="modelModel" placeholder="gpt-4"></div>
+            <div class="form-group"><label>Temperature</label><input type="number" id="modelTemperature" step="0.1" placeholder="0.7"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline-dark" onclick="closeModelModal()">取消</button>
+            <button class="btn btn-primary" onclick="saveModel()">保存</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== Embedding 弹窗 ===== -->
+<div class="modal-overlay" id="embeddingModal">
+    <div class="modal">
+        <div class="modal-header"><span id="embeddingModalTitle">添加 Embedding</span><span class="close" onclick="closeEmbeddingModal()">&times;</span></div>
+        <div class="modal-body">
+            <div class="form-group"><label>名称 (唯一标识) *</label><input type="text" id="embeddingName" placeholder="如 openai-ada"></div>
+            <div class="form-group"><label>Provider</label>
+                <select id="embeddingProvider"><option value="openai">openai</option></select>
+            </div>
+            <div class="form-group"><label>Base URL</label><input type="text" id="embeddingBaseURL" placeholder="https://api.openai.com/v1"></div>
+            <div class="form-group"><label>API Key</label><input type="password" id="embeddingApiKey" placeholder="sk-..."></div>
+            <div class="form-group"><label>Model</label><input type="text" id="embeddingModel" placeholder="text-embedding-ada-002"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline-dark" onclick="closeEmbeddingModal()">取消</button>
+            <button class="btn btn-primary" onclick="saveEmbedding()">保存</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== MCP 弹窗 ===== -->
+<div class="modal-overlay" id="mcpModal">
+    <div class="modal">
+        <div class="modal-header"><span id="mcpModalTitle">添加 MCP 服务</span><span class="close" onclick="closeMcpModal()">&times;</span></div>
+        <div class="modal-body">
+            <div class="form-group"><label>名称 (唯一标识) *</label><input type="text" id="mcpName" placeholder="如 my-mcp-server"></div>
+            <div class="form-group"><label>配置 (JSON)</label><textarea id="mcpConfig" rows="14" placeholder='{"command":"npx","args":["@playwright/mcp@latest"]}'></textarea></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline-dark" onclick="closeMcpModal()">取消</button>
+            <button class="btn btn-primary" onclick="saveMcp()">保存</button>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = window.location.origin;
+let settings = {};
+let mcpServers = {};
+
+// ===== Toast =====
+function showToast(msg, type = 'success') {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = 'toast show ' + type;
+    setTimeout(() => el.className = 'toast', 2500);
+}
+function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// ===== API =====
+async function apiFetch(path, method = 'GET', body = undefined) {
+    const opts = { method, headers: { 'Content-Type': 'application/json' } };
+    if (body !== undefined) opts.body = JSON.stringify(body);
+    const res = await fetch(API + path, opts);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message || '请求失败');
+    return data;
+}
+
+// ===== 加载数据 =====
+async function loadSettings() {
+    try {
+        const res = await apiFetch('/api/settings');
+        settings = res.data || {};
+        renderAll();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function loadMcp() {
+    try {
+        const res = await apiFetch('/api/mcp');
+        mcpServers = res.data || {};
+        renderMcpTable();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+function renderAll() {
+    renderGeneralPage();
+    renderModelsTable();
+    renderEmbeddingsTable();
+    renderMemoryPage();
+}
+
+// ===== 基本设置 =====
+function renderGeneralPage() {
+    document.getElementById('larkAppId').value = settings.lark?.appId || '';
+    document.getElementById('larkAppSecret').value = settings.lark?.appSecret || '';
+    // 填充模型下拉
+    const sel = document.getElementById('currentModel');
+    const models = settings.models || {};
+    sel.innerHTML = Object.keys(models).map(k =>
+        '<option value="' + esc(k) + '"' + (k === settings.model ? ' selected' : '') + '>' + esc(k) + '</option>'
+    ).join('');
+}
+
+async function saveGeneralSettings() {
+    try {
+        settings.lark = settings.lark || {};
+        settings.lark.appId = document.getElementById('larkAppId').value;
+        settings.lark.appSecret = document.getElementById('larkAppSecret').value;
+        settings.model = document.getElementById('currentModel').value;
+        await apiFetch('/api/settings', 'PUT', settings);
+        showToast('保存成功');
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+// ===== 模型管理 =====
+let editingModelName = null;
+
+function renderModelsTable() {
+    const models = settings.models || {};
+    const tbody = document.getElementById('modelsTableBody');
+    const entries = Object.entries(models);
+    if (entries.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:40px">暂无模型</td></tr>';
+        return;
+    }
+    tbody.innerHTML = entries.map(([name, m]) => {
+        const isActive = name === settings.model;
+        return '<tr class="' + (isActive ? 'active-row' : '') + '">' +
+            '<td>' + esc(name) + (isActive ? ' <span style="color:#22c55e;font-size:11px">(当前)</span>' : '') + '</td>' +
+            '<td>' + esc(m.provider) + '</td>' +
+            '<td>' + esc(m.baseURL) + '</td>' +
+            '<td>' + esc(m.model) + '</td>' +
+            '<td>' +
+                '<button class="btn btn-outline-dark btn-sm" onclick="editModel(\'' + esc(name) + '\')">编辑</button> ' +
+                '<button class="btn btn-danger btn-sm" onclick="deleteModel(\'' + esc(name) + '\')">删除</button>' +
+            '</td></tr>';
+    }).join('');
+}
+
+function showModelModal(name) {
+    editingModelName = name || null;
+    const m = name ? (settings.models || {})[name] : {};
+    document.getElementById('modelModalTitle').textContent = name ? '编辑模型' : '添加模型';
+    document.getElementById('modelName').value = name || '';
+    document.getElementById('modelName').readOnly = !!name;
+    document.getElementById('modelProvider').value = m.provider || 'openai';
+    document.getElementById('modelBaseURL').value = m.baseURL || '';
+    document.getElementById('modelApiKey').value = m.apiKey || '';
+    document.getElementById('modelModel').value = m.model || '';
+    document.getElementById('modelTemperature').value = m.temperature ?? '';
+    document.getElementById('modelModal').classList.add('show');
+}
+function editModel(name) { showModelModal(name); }
+function closeModelModal() { document.getElementById('modelModal').classList.remove('show'); }
+
+async function saveModel() {
+    try {
+        const name = document.getElementById('modelName').value.trim();
+        if (!name) { showToast('名称不能为空', 'error'); return; }
+        settings.models = settings.models || {};
+        const temp = document.getElementById('modelTemperature').value;
+        settings.models[name] = {
+            provider: document.getElementById('modelProvider').value,
+            baseURL: document.getElementById('modelBaseURL').value,
+            apiKey: document.getElementById('modelApiKey').value,
+            model: document.getElementById('modelModel').value,
+        };
+        if (temp !== '') settings.models[name].temperature = parseFloat(temp);
+        await apiFetch('/api/settings', 'PUT', settings);
+        closeModelModal();
+        showToast('保存成功');
+        renderAll();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function deleteModel(name) {
+    if (!confirm('确定要删除模型 "' + name + '" 吗？')) return;
+    try {
+        delete settings.models[name];
+        if (settings.model === name) settings.model = '';
+        await apiFetch('/api/settings', 'PUT', settings);
+        showToast('删除成功');
+        renderAll();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+// ===== Embedding 管理 =====
+let editingEmbeddingName = null;
+
+function renderEmbeddingsTable() {
+    const embeddings = settings.embeddings || {};
+    const tbody = document.getElementById('embeddingsTableBody');
+    const entries = Object.entries(embeddings);
+    if (entries.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:40px">暂无 Embedding</td></tr>';
+        return;
+    }
+    tbody.innerHTML = entries.map(([name, m]) =>
+        '<tr>' +
+        '<td>' + esc(name) + '</td>' +
+        '<td>' + esc(m.provider) + '</td>' +
+        '<td>' + esc(m.baseURL) + '</td>' +
+        '<td>' + esc(m.model) + '</td>' +
+        '<td>' +
+            '<button class="btn btn-outline-dark btn-sm" onclick="editEmbedding(\'' + esc(name) + '\')">编辑</button> ' +
+            '<button class="btn btn-danger btn-sm" onclick="deleteEmbedding(\'' + esc(name) + '\')">删除</button>' +
+        '</td></tr>'
+    ).join('');
+    // 更新记忆页的 embedding 下拉
+    renderMemorySelects();
+}
+
+function showEmbeddingModal(name) {
+    editingEmbeddingName = name || null;
+    const m = name ? (settings.embeddings || {})[name] : {};
+    document.getElementById('embeddingModalTitle').textContent = name ? '编辑 Embedding' : '添加 Embedding';
+    document.getElementById('embeddingName').value = name || '';
+    document.getElementById('embeddingName').readOnly = !!name;
+    document.getElementById('embeddingProvider').value = m.provider || 'openai';
+    document.getElementById('embeddingBaseURL').value = m.baseURL || '';
+    document.getElementById('embeddingApiKey').value = m.apiKey || '';
+    document.getElementById('embeddingModel').value = m.model || '';
+    document.getElementById('embeddingModal').classList.add('show');
+}
+function editEmbedding(name) { showEmbeddingModal(name); }
+function closeEmbeddingModal() { document.getElementById('embeddingModal').classList.remove('show'); }
+
+async function saveEmbedding() {
+    try {
+        const name = document.getElementById('embeddingName').value.trim();
+        if (!name) { showToast('名称不能为空', 'error'); return; }
+        settings.embeddings = settings.embeddings || {};
+        settings.embeddings[name] = {
+            provider: document.getElementById('embeddingProvider').value,
+            baseURL: document.getElementById('embeddingBaseURL').value,
+            apiKey: document.getElementById('embeddingApiKey').value,
+            model: document.getElementById('embeddingModel').value,
+        };
+        await apiFetch('/api/settings', 'PUT', settings);
+        closeEmbeddingModal();
+        showToast('保存成功');
+        renderAll();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function deleteEmbedding(name) {
+    if (!confirm('确定要删除 Embedding "' + name + '" 吗？')) return;
+    try {
+        delete settings.embeddings[name];
+        await apiFetch('/api/settings', 'PUT', settings);
+        showToast('删除成功');
+        renderAll();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+// ===== 记忆设置 =====
+function renderMemoryPage() {
+    const mem = settings.memory || {};
+    document.getElementById('memoryEnabled').checked = !!mem.enabled;
+    document.getElementById('memoryMaxAgeDays').value = mem.maxAgeDays ?? 90;
+    renderMemorySelects();
+}
+
+function renderMemorySelects() {
+    const mem = settings.memory || {};
+    const models = Object.keys(settings.models || {});
+    const embeddings = Object.keys(settings.embeddings || {});
+
+    fillSelect('memoryEmbedding', embeddings, mem.embedding, false);
+    fillSelect('memoryEvaluator', models, mem.evaluator, true);
+    fillSelect('memoryExtractor', models, mem.extractor, true);
+    fillSelect('memoryCompressor', models, mem.compressor, true);
+}
+
+function fillSelect(id, options, current, allowEmpty) {
+    const sel = document.getElementById(id);
+    let html = allowEmpty ? '<option value="">不使用</option>' : '';
+    html += options.map(o => '<option value="' + esc(o) + '"' + (o === current ? ' selected' : '') + '>' + esc(o) + '</option>').join('');
+    sel.innerHTML = html;
+}
+
+async function saveMemorySettings() {
+    try {
+        settings.memory = settings.memory || {};
+        settings.memory.enabled = document.getElementById('memoryEnabled').checked;
+        settings.memory.maxAgeDays = parseInt(document.getElementById('memoryMaxAgeDays').value) || 90;
+        settings.memory.embedding = document.getElementById('memoryEmbedding').value || undefined;
+        settings.memory.evaluator = document.getElementById('memoryEvaluator').value || undefined;
+        settings.memory.extractor = document.getElementById('memoryExtractor').value || undefined;
+        settings.memory.compressor = document.getElementById('memoryCompressor').value || undefined;
+        await apiFetch('/api/settings', 'PUT', settings);
+        showToast('保存成功');
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+// ===== MCP 管理 =====
+let editingMcpName = null;
+
+function renderMcpTable() {
+    const tbody = document.getElementById('mcpTableBody');
+    const entries = Object.entries(mcpServers);
+    if (entries.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:40px">暂无 MCP 服务</td></tr>';
+        return;
+    }
+    tbody.innerHTML = entries.map(([name, cfg]) => {
+        const type = cfg.url ? 'http' : 'stdio';
+        const addr = cfg.url || [cfg.command, ...(cfg.args || [])].join(' ');
+        return '<tr>' +
+            '<td>' + esc(name) + '</td>' +
+            '<td>' + type + '</td>' +
+            '<td>' + esc(addr) + '</td>' +
+            '<td>' +
+                '<button class="btn btn-outline-dark btn-sm" onclick="editMcp(\'' + esc(name) + '\')">编辑</button> ' +
+                '<button class="btn btn-danger btn-sm" onclick="deleteMcp(\'' + esc(name) + '\')">删除</button>' +
+            '</td></tr>';
+    }).join('');
+}
+
+function showMcpModal(name) {
+    editingMcpName = name || null;
+    document.getElementById('mcpModalTitle').textContent = name ? '编辑 MCP 服务' : '添加 MCP 服务';
+    document.getElementById('mcpName').value = name || '';
+    document.getElementById('mcpName').readOnly = !!name;
+    document.getElementById('mcpConfig').value = name ? JSON.stringify(mcpServers[name], null, 2) : '';
+    document.getElementById('mcpModal').classList.add('show');
+}
+function editMcp(name) { showMcpModal(name); }
+function closeMcpModal() { document.getElementById('mcpModal').classList.remove('show'); }
+
+async function saveMcp() {
+    try {
+        const name = document.getElementById('mcpName').value.trim();
+        if (!name) { showToast('名称不能为空', 'error'); return; }
+        let cfg;
+        try { cfg = JSON.parse(document.getElementById('mcpConfig').value); }
+        catch { showToast('JSON 格式错误', 'error'); return; }
+        mcpServers[name] = cfg;
+        await apiFetch('/api/mcp', 'PUT', mcpServers);
+        closeMcpModal();
+        showToast('保存成功');
+        renderMcpTable();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function deleteMcp(name) {
+    if (!confirm('确定要删除 MCP "' + name + '" 吗？')) return;
+    try {
+        delete mcpServers[name];
+        await apiFetch('/api/mcp', 'PUT', mcpServers);
+        showToast('删除成功');
+        renderMcpTable();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+// ===== 重载配置 =====
+async function reloadConfig() {
+    try {
+        await apiFetch('/api/reload', 'POST');
+        showToast('配置已重载');
+        await loadSettings();
+        await loadMcp();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+// ===== 导航切换 =====
+document.querySelectorAll('.sidebar-item[data-page]').forEach(el => {
+    el.addEventListener('click', () => {
+        const target = el.dataset.page;
+        document.querySelectorAll('.sidebar-item[data-page]').forEach(t => t.classList.toggle('active', t === el));
+        document.querySelectorAll('.page-content').forEach(p => p.classList.toggle('active', p.id === target));
+        if (target === 'page-mcp') loadMcp();
+    });
+});
+
+// ===== 初始化 =====
+(async function init() {
+    await loadSettings();
+    await loadMcp();
+})();
+</script>
+</body>
+</html>

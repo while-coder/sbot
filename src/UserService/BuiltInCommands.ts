@@ -39,7 +39,7 @@ export class ClearCommand implements ICommand {
             }
             const embeddingConfig = config.getEmbedding(memoryConfig.embedding);
             if (!embeddingConfig) return `Embedding 配置 "${memoryConfig.embedding}" 不存在`;
-            const embeddingService = await EmbeddingServiceFactory.getEmbeddingService(embeddingConfig as any);
+            const embeddingService = await EmbeddingServiceFactory.getEmbeddingService(embeddingConfig);
             const memoryService = new MemoryService(
                 userId,
                 config.getUserMemoryPath(userId),
