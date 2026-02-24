@@ -217,8 +217,8 @@ export class LarkUserService extends LarkUserServiceBase {
 
                         const imageKey = await larkService.uploadImageToLark(imageData);
                         convertedResult.content.push({
-                            type: MCPContentType.Text,
-                            text: `![](${imageKey})`
+                            type: MCPContentType.CustomImageUrl,
+                            text: imageKey
                         });
                         logger.info(`已转换图片内容到飞书格式`);
                     } catch (error: any) {
