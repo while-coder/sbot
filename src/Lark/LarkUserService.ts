@@ -11,6 +11,10 @@ import {
     IMemoryExtractor,
     IMemoryEvaluator,
     IMemoryCompressor,
+    T_UserId,
+    T_MaxMemoryAgeDays,
+    T_MemoryMode,
+    T_SkillsDirs,
 } from "scorpio.ai";
 import { LoggerService } from "../LoggerService";
 import { getBuiltInCommands } from "../UserService/BuiltInCommands";
@@ -72,16 +76,17 @@ export class LarkUserService extends LarkUserServiceBase {
             const embeddingConfig = config.getEmbedding(memoryConfig.embedding);
             if (!embeddingConfig) throw new Error(`Embedding 配置 "${memoryConfig.embedding}" 不存在`);
             container.registerWithArgs(IMemoryService, MemoryService, {
-                "UserId": this.userId,
+                [T_UserId]: this.userId,
                 [IEmbeddingService]: await EmbeddingServiceFactory.getEmbeddingService(embeddingConfig),
                 [IMemoryDatabase]: new MemoryDatabase(config.getUserMemoryPath(this.userId)),
-                "MaxMemoryAgeDays": memoryConfig.maxAgeDays
+                [T_MaxMemoryAgeDays]: memoryConfig.maxAgeDays,
+                [T_MemoryMode]: memoryConfig.mode,
             });
         }
 
         // 技能服务
         container.registerWithArgs(ISkillService, SkillService, {
-            SkillsDirs: [config.getConfigPath("skills")]
+            [T_SkillsDirs]: [config.getConfigPath("skills")]
         });
 
         // Agent Saver 服务（使用 AgentSqliteSaver 实现）
