@@ -99,6 +99,17 @@ export class LarkUserService extends LarkUserServiceBase {
         // Agent 工具服务
         container.registerSingleton(IAgentToolService, AgentToolService);
 
+        // 加载 MCP 服务器配置
+        const agentToolService = await container.resolve<AgentToolService>(IAgentToolService);
+        const mcpServers = config.getMcpServers();
+        if (Object.keys(mcpServers).length > 0) {
+            await agentToolService.addMcpServers(mcpServers);
+        }
+        const builtinMcpServers = config.getBuiltinMcpServers();
+        if (Object.keys(builtinMcpServers).length > 0) {
+            await agentToolService.addMcpServers(builtinMcpServers);
+        }
+
         // 读取 Plan 配置
         const planConfig = config.settings.plan || {};
         const planMode = planConfig.mode || PlanMode.Single;

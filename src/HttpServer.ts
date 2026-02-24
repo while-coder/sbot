@@ -1,6 +1,7 @@
 import express from 'express';
 import http from 'http';
 import path from 'path';
+import { MultiServerMCPClient } from "@langchain/mcp-adapters";
 import { config } from './Config';
 import { LoggerService } from './LoggerService';
 import { LarkUserService } from './Lark/LarkUserService';
@@ -66,6 +67,27 @@ class HttpServer {
                 const mcpServers = req.body;
                 config.saveMcpServers(mcpServers);
                 res.json({ success: true, data: config.getMcpServers() });
+            } catch (e: any) {
+                res.status(500).json({ success: false, message: e.message });
+            }
+        });
+
+        // 查询 MCP 工具列表
+        app.post('/api/mcp/tools', async (req, res) => {
+            try {
+                const { name, config: mcpConfig } = req.body;
+                if (!name || !mcpConfig) {
+                    res.status(400).json({ success: false, message: '缺少 name 或 config 参数' });
+                    return;
+                }
+                const mcpClient = new MultiServerMCPClient({ mcpServers: { [name]: mcpConfig } });
+                const tools = await mcpClient.getTools();
+                const result = tools.map(t => ({
+                    name: t.name,
+                    description: t.description,
+                    parameters: t.schema,
+                }));
+                res.json({ success: true, data: result });
             } catch (e: any) {
                 res.status(500).json({ success: false, message: e.message });
             }

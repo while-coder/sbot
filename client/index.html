@@ -105,6 +105,55 @@ tr.active-row td { background: #eff6ff; }
 .mode-panel { display: none; }
 .mode-panel.active { display: block; }
 .hint { font-size: 12px; color: #94a3b8; margin-bottom: 12px; }
+
+/* ===== MCP Tools 列表 ===== */
+.tools-loading { text-align: center; color: #94a3b8; padding: 40px 0; font-size: 14px; }
+.tools-error { text-align: center; color: #ef4444; padding: 40px 20px; font-size: 13px; }
+.tools-list { list-style: none; margin: 0; padding: 0; }
+.tools-list li { padding: 12px 20px; border-bottom: 1px solid #f1f5f9; }
+.tools-list li:last-child { border-bottom: none; }
+.tools-list li:hover { background: #f8fafc; }
+.tool-name { font-size: 13px; font-weight: 600; color: #1e293b; font-family: 'Consolas','Monaco',monospace; cursor: pointer; user-select: none; }
+.tool-name::before { content: '\25B6'; font-size: 9px; margin-right: 6px; color: #94a3b8; display: inline-block; transition: transform .15s; }
+.tool-name.expanded::before { transform: rotate(90deg); }
+.tool-desc { font-size: 12px; color: #64748b; margin-top: 3px; line-height: 1.5; }
+.tools-count { font-size: 12px; color: #94a3b8; font-weight: 400; margin-left: 8px; }
+.tool-params { display: none; margin-top: 8px; border-left: 2px solid #e2e8f0; padding-left: 12px; }
+.tool-params.show { display: block; }
+.tool-param { padding: 5px 0; font-size: 12px; line-height: 1.5; }
+.tool-param + .tool-param { border-top: 1px solid #f8fafc; }
+.param-name { font-family: 'Consolas','Monaco',monospace; font-weight: 600; color: #1e293b; }
+.param-type { color: #8b5cf6; font-size: 11px; margin-left: 4px; }
+.param-required { color: #ef4444; font-size: 10px; font-weight: 600; margin-left: 4px; }
+.param-desc { color: #64748b; margin-top: 1px; }
+.param-enum { color: #0891b2; font-size: 11px; font-family: 'Consolas','Monaco',monospace; }
+.param-default { color: #94a3b8; font-size: 11px; }
+.tool-no-params { font-size: 12px; color: #94a3b8; font-style: italic; padding: 4px 0; }
+.tool-header { display: flex; align-items: center; gap: 8px; }
+.tool-header .tool-name { flex: 1; }
+.tool-switches { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.tool-switch { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #64748b; }
+.tool-switch-label { user-select: none; white-space: nowrap; }
+.toggle { position: relative; width: 32px; height: 18px; flex-shrink: 0; }
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-slider { position: absolute; inset: 0; background: #cbd5e1; border-radius: 9px; cursor: pointer; transition: background .2s; }
+.toggle-slider::before { content: ''; position: absolute; left: 2px; top: 2px; width: 14px; height: 14px; background: #fff; border-radius: 50%; transition: transform .2s; }
+.toggle input:checked + .toggle-slider { background: #3b82f6; }
+.toggle input:checked + .toggle-slider::before { transform: translateX(14px); }
+.form-section { margin-top: 16px; padding-top: 12px; border-top: 1px solid #f1f5f9; }
+.form-section-title { font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 10px; }
+.list-editor { margin-bottom: 14px; }
+.list-editor-label { font-size: 13px; font-weight: 500; color: #475569; margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between; }
+.list-editor-items { display: flex; flex-direction: column; gap: 4px; }
+.list-editor-row { display: flex; gap: 4px; align-items: center; }
+.list-editor-row input { flex: 1; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 12px; }
+.list-editor-row button { padding: 4px 8px; font-size: 11px; background: #fee2e2; color: #dc2626; border: none; border-radius: 4px; cursor: pointer; }
+.kv-editor { margin-bottom: 14px; }
+.kv-editor-label { font-size: 13px; font-weight: 500; color: #475569; margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between; }
+.kv-editor-items { display: flex; flex-direction: column; gap: 4px; }
+.kv-editor-row { display: flex; gap: 4px; align-items: center; }
+.kv-editor-row input { flex: 1; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 12px; }
+.kv-editor-row button { padding: 4px 8px; font-size: 11px; background: #fee2e2; color: #dc2626; border: none; border-radius: 4px; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -301,11 +350,54 @@ tr.active-row td { background: #eff6ff; }
         <div class="modal-header"><span id="mcpModalTitle">添加 MCP 服务</span><span class="close" onclick="closeMcpModal()">&times;</span></div>
         <div class="modal-body">
             <div class="form-group"><label>名称 (唯一标识) *</label><input type="text" id="mcpName" placeholder="如 my-mcp-server"></div>
-            <div class="form-group"><label>配置 (JSON)</label><textarea id="mcpConfig" rows="14" placeholder='{"command":"npx","args":["@playwright/mcp@latest"]}'></textarea></div>
+            <div class="form-group">
+                <label>传输类型 *</label>
+                <select id="mcpType" onchange="onMcpTypeChange()">
+                    <option value="http">HTTP / SSE</option>
+                    <option value="stdio">Stdio (本地进程)</option>
+                </select>
+            </div>
+
+            <!-- HTTP 字段 -->
+            <div id="mcpFieldsHttp">
+                <div class="form-group"><label>URL *</label><input type="text" id="mcpUrl" placeholder="http://example.com/mcp"></div>
+                <div id="mcpHeadersEditor"></div>
+            </div>
+
+            <!-- Stdio 字段 -->
+            <div id="mcpFieldsStdio" style="display:none">
+                <div class="form-group"><label>Command *</label><input type="text" id="mcpCommand" placeholder="npx"></div>
+                <div id="mcpArgsEditor"></div>
+                <div id="mcpEnvEditor"></div>
+                <div class="form-group"><label>Cwd</label><input type="text" id="mcpCwd" placeholder="工作目录（可选）"></div>
+            </div>
+
+            <!-- 公共字段 -->
+            <div class="form-section">
+                <div class="form-section-title">高级设置</div>
+                <div class="form-group"><label>Tool 超时 (ms)</label><input type="number" id="mcpToolTimeout" placeholder="如 60000"><div class="hint">可选，默认不限</div></div>
+                <div id="mcpDisabledEditor"></div>
+                <div id="mcpDisabledAutoApproveEditor"></div>
+            </div>
         </div>
         <div class="modal-footer">
             <button class="btn btn-outline-dark" onclick="closeMcpModal()">取消</button>
             <button class="btn btn-primary" onclick="saveMcp()">保存</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== MCP Tools 弹窗 ===== -->
+<div class="modal-overlay" id="mcpToolsModal">
+    <div class="modal" style="width:640px">
+        <div class="modal-header">
+            <span id="mcpToolsModalTitle">MCP Tools</span>
+            <span class="close" onclick="closeMcpToolsModal()">&times;</span>
+        </div>
+        <div class="modal-body" id="mcpToolsBody" style="padding:0">
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline-dark" onclick="closeMcpToolsModal()">关闭</button>
         </div>
     </div>
 </div>
@@ -459,7 +551,6 @@ function showModelModal(name) {
     const m = name ? (settings.models || {})[name] : {};
     document.getElementById('modelModalTitle').textContent = name ? '编辑模型' : '添加模型';
     document.getElementById('modelName').value = name || '';
-    document.getElementById('modelName').readOnly = !!name;
     document.getElementById('modelProvider').value = m.provider || 'openai';
     document.getElementById('modelBaseURL').value = m.baseURL || '';
     document.getElementById('modelApiKey').value = m.apiKey || '';
@@ -475,6 +566,10 @@ async function saveModel() {
         const name = document.getElementById('modelName').value.trim();
         if (!name) { showToast('名称不能为空', 'error'); return; }
         settings.models = settings.models || {};
+        if (editingModelName && editingModelName !== name) {
+            delete settings.models[editingModelName];
+            if (settings.model === editingModelName) settings.model = name;
+        }
         const temp = document.getElementById('modelTemperature').value;
         settings.models[name] = {
             provider: document.getElementById('modelProvider').value,
@@ -532,7 +627,6 @@ function showEmbeddingModal(name) {
     const m = name ? (settings.embeddings || {})[name] : {};
     document.getElementById('embeddingModalTitle').textContent = name ? '编辑 Embedding' : '添加 Embedding';
     document.getElementById('embeddingName').value = name || '';
-    document.getElementById('embeddingName').readOnly = !!name;
     document.getElementById('embeddingProvider').value = m.provider || 'openai';
     document.getElementById('embeddingBaseURL').value = m.baseURL || '';
     document.getElementById('embeddingApiKey').value = m.apiKey || '';
@@ -547,6 +641,9 @@ async function saveEmbedding() {
         const name = document.getElementById('embeddingName').value.trim();
         if (!name) { showToast('名称不能为空', 'error'); return; }
         settings.embeddings = settings.embeddings || {};
+        if (editingEmbeddingName && editingEmbeddingName !== name) {
+            delete settings.embeddings[editingEmbeddingName];
+        }
         settings.embeddings[name] = {
             provider: document.getElementById('embeddingProvider').value,
             baseURL: document.getElementById('embeddingBaseURL').value,
@@ -612,6 +709,7 @@ async function saveMemorySettings() {
 
 // ===== MCP 管理 =====
 let editingMcpName = null;
+let viewingMcpName = null;
 
 function renderMcpTable() {
     const tbody = document.getElementById('mcpTableBody');
@@ -621,25 +719,113 @@ function renderMcpTable() {
         return;
     }
     tbody.innerHTML = entries.map(([name, cfg]) => {
-        const type = cfg.url ? 'http' : 'stdio';
-        const addr = cfg.url || [cfg.command, ...(cfg.args || [])].join(' ');
+        const type = cfg.url ? 'http' : (cfg.command ? 'stdio' : cfg.type || '-');
+        const addr = cfg.url || (cfg.command ? [cfg.command, ...(cfg.args || [])].join(' ') : '-');
         return '<tr>' +
             '<td>' + esc(name) + '</td>' +
-            '<td>' + type + '</td>' +
+            '<td>' + esc(type) + '</td>' +
             '<td>' + esc(addr) + '</td>' +
             '<td>' +
+                '<button class="btn btn-outline-dark btn-sm" onclick="viewMcpTools(\'' + esc(name) + '\')">查看</button> ' +
                 '<button class="btn btn-outline-dark btn-sm" onclick="editMcp(\'' + esc(name) + '\')">编辑</button> ' +
                 '<button class="btn btn-danger btn-sm" onclick="deleteMcp(\'' + esc(name) + '\')">删除</button>' +
             '</td></tr>';
     }).join('');
 }
 
+// ===== List Editor =====
+function renderListEditor(containerId, label, items, placeholder) {
+    const c = document.getElementById(containerId);
+    let html = '<div class="list-editor"><div class="list-editor-label"><span>' + esc(label) + '</span>' +
+        '<button class="btn btn-outline-dark btn-sm" onclick="listEditorAdd(\'' + containerId + '\',\'' + esc(placeholder) + '\')">+</button></div>' +
+        '<div class="list-editor-items" id="' + containerId + '_items">';
+    (items || []).forEach((v, i) => {
+        html += '<div class="list-editor-row"><input type="text" value="' + esc(v) + '" placeholder="' + esc(placeholder) + '">' +
+            '<button onclick="this.parentElement.remove()">x</button></div>';
+    });
+    html += '</div></div>';
+    c.innerHTML = html;
+}
+function listEditorAdd(containerId, placeholder) {
+    const items = document.getElementById(containerId + '_items');
+    const row = document.createElement('div');
+    row.className = 'list-editor-row';
+    row.innerHTML = '<input type="text" placeholder="' + esc(placeholder) + '"><button onclick="this.parentElement.remove()">x</button>';
+    items.appendChild(row);
+}
+function listEditorGetValues(containerId) {
+    const items = document.getElementById(containerId + '_items');
+    if (!items) return [];
+    return Array.from(items.querySelectorAll('input')).map(i => i.value.trim()).filter(Boolean);
+}
+
+// ===== KV Editor =====
+function renderKvEditor(containerId, label, obj, keyPh, valPh) {
+    const c = document.getElementById(containerId);
+    let html = '<div class="kv-editor"><div class="kv-editor-label"><span>' + esc(label) + '</span>' +
+        '<button class="btn btn-outline-dark btn-sm" onclick="kvEditorAdd(\'' + containerId + '\',\'' + esc(keyPh) + '\',\'' + esc(valPh) + '\')">+</button></div>' +
+        '<div class="kv-editor-items" id="' + containerId + '_items">';
+    Object.entries(obj || {}).forEach(([k, v]) => {
+        html += '<div class="kv-editor-row"><input type="text" value="' + esc(k) + '" placeholder="' + esc(keyPh) + '">' +
+            '<input type="text" value="' + esc(String(v)) + '" placeholder="' + esc(valPh) + '">' +
+            '<button onclick="this.parentElement.remove()">x</button></div>';
+    });
+    html += '</div></div>';
+    c.innerHTML = html;
+}
+function kvEditorAdd(containerId, keyPh, valPh) {
+    const items = document.getElementById(containerId + '_items');
+    const row = document.createElement('div');
+    row.className = 'kv-editor-row';
+    row.innerHTML = '<input type="text" placeholder="' + esc(keyPh) + '"><input type="text" placeholder="' + esc(valPh) + '"><button onclick="this.parentElement.remove()">x</button>';
+    items.appendChild(row);
+}
+function kvEditorGetValues(containerId) {
+    const items = document.getElementById(containerId + '_items');
+    if (!items) return {};
+    const result = {};
+    items.querySelectorAll('.kv-editor-row').forEach(row => {
+        const inputs = row.querySelectorAll('input');
+        const k = inputs[0].value.trim();
+        const v = inputs[1].value.trim();
+        if (k) result[k] = v;
+    });
+    return result;
+}
+
+// ===== MCP Modal =====
+function onMcpTypeChange() {
+    const isStdio = document.getElementById('mcpType').value === 'stdio';
+    document.getElementById('mcpFieldsHttp').style.display = isStdio ? 'none' : '';
+    document.getElementById('mcpFieldsStdio').style.display = isStdio ? '' : 'none';
+}
+
 function showMcpModal(name) {
     editingMcpName = name || null;
     document.getElementById('mcpModalTitle').textContent = name ? '编辑 MCP 服务' : '添加 MCP 服务';
     document.getElementById('mcpName').value = name || '';
-    document.getElementById('mcpName').readOnly = !!name;
-    document.getElementById('mcpConfig').value = name ? JSON.stringify(mcpServers[name], null, 2) : '';
+
+    const cfg = name ? (mcpServers[name] || {}) : {};
+    const isStdio = !!cfg.command || cfg.type === 'stdio' || cfg.transport === 'stdio';
+
+    document.getElementById('mcpType').value = isStdio ? 'stdio' : 'http';
+    onMcpTypeChange();
+
+    // HTTP
+    document.getElementById('mcpUrl').value = cfg.url || '';
+    renderKvEditor('mcpHeadersEditor', 'Headers', cfg.headers, 'Key', 'Value');
+
+    // Stdio
+    document.getElementById('mcpCommand').value = cfg.command || '';
+    renderListEditor('mcpArgsEditor', 'Args', Array.isArray(cfg.args) ? cfg.args : [], '参数');
+    renderKvEditor('mcpEnvEditor', 'Env 环境变量', cfg.env, '变量名', '值');
+    document.getElementById('mcpCwd').value = cfg.cwd || '';
+
+    // Common
+    document.getElementById('mcpToolTimeout').value = cfg.defaultToolTimeout || '';
+    renderListEditor('mcpDisabledEditor', '禁用的工具', Array.isArray(cfg.disabled) ? cfg.disabled : [], '工具名称');
+    renderListEditor('mcpDisabledAutoApproveEditor', '需确认的工具', Array.isArray(cfg.disabledAutoApproveTools) ? cfg.disabledAutoApproveTools : [], '工具名称');
+
     document.getElementById('mcpModal').classList.add('show');
 }
 function editMcp(name) { showMcpModal(name); }
@@ -649,9 +835,40 @@ async function saveMcp() {
     try {
         const name = document.getElementById('mcpName').value.trim();
         if (!name) { showToast('名称不能为空', 'error'); return; }
-        let cfg;
-        try { cfg = JSON.parse(document.getElementById('mcpConfig').value); }
-        catch { showToast('JSON 格式错误', 'error'); return; }
+
+        const type = document.getElementById('mcpType').value;
+        const cfg = {};
+
+        if (type === 'stdio') {
+            const command = document.getElementById('mcpCommand').value.trim();
+            if (!command) { showToast('Command 不能为空', 'error'); return; }
+            cfg.command = command;
+            cfg.args = listEditorGetValues('mcpArgsEditor');
+            const env = kvEditorGetValues('mcpEnvEditor');
+            if (Object.keys(env).length > 0) cfg.env = env;
+            const cwd = document.getElementById('mcpCwd').value.trim();
+            if (cwd) cfg.cwd = cwd;
+        } else {
+            const url = document.getElementById('mcpUrl').value.trim();
+            if (!url) { showToast('URL 不能为空', 'error'); return; }
+            cfg.type = 'http';
+            cfg.url = url;
+            const headers = kvEditorGetValues('mcpHeadersEditor');
+            if (Object.keys(headers).length > 0) cfg.headers = headers;
+        }
+
+        // Common
+        const timeout = document.getElementById('mcpToolTimeout').value.trim();
+        if (timeout) cfg.defaultToolTimeout = parseInt(timeout);
+        const disabled = listEditorGetValues('mcpDisabledEditor');
+        if (disabled.length > 0) cfg.disabled = disabled;
+        const disabledAuto = listEditorGetValues('mcpDisabledAutoApproveEditor');
+        if (disabledAuto.length > 0) cfg.disabledAutoApproveTools = disabledAuto;
+
+        // 如果名称变更，删除旧条目
+        if (editingMcpName && editingMcpName !== name) {
+            delete mcpServers[editingMcpName];
+        }
         mcpServers[name] = cfg;
         await apiFetch('/api/mcp', 'PUT', mcpServers);
         closeMcpModal();
@@ -669,6 +886,130 @@ async function deleteMcp(name) {
         renderMcpTable();
     } catch (e) { showToast(e.message, 'error'); }
 }
+
+// ===== MCP Tools 查看 =====
+async function viewMcpTools(name) {
+    const cfg = mcpServers[name];
+    if (!cfg) { showToast('MCP 配置不存在', 'error'); return; }
+    viewingMcpName = name;
+    document.getElementById('mcpToolsModalTitle').innerHTML = esc(name) + '<span class="tools-count"></span>';
+    document.getElementById('mcpToolsBody').innerHTML = '<div class="tools-loading">连接中，正在获取工具列表...</div>';
+    document.getElementById('mcpToolsModal').classList.add('show');
+    try {
+        const res = await apiFetch('/api/mcp/tools', 'POST', { name, config: cfg });
+        const tools = res.data || [];
+        document.querySelector('#mcpToolsModalTitle .tools-count').textContent = '(' + tools.length + ' 个工具)';
+        if (tools.length === 0) {
+            document.getElementById('mcpToolsBody').innerHTML = '<div class="tools-loading">该 MCP 服务没有可用的工具</div>';
+            return;
+        }
+        const disabledSet = new Set(Array.isArray(cfg.disabled) ? cfg.disabled : []);
+        const disabledAutoSet = new Set(Array.isArray(cfg.disabledAutoApproveTools) ? cfg.disabledAutoApproveTools : []);
+        document.getElementById('mcpToolsBody').innerHTML = '<ul class="tools-list">' +
+            tools.map((t, i) =>
+                '<li>' +
+                '<div class="tool-header">' +
+                    '<div class="tool-name" onclick="toggleToolParams(this)">' + esc(t.name) + '</div>' +
+                    '<div class="tool-switches">' +
+                        '<div class="tool-switch">' +
+                            '<span class="tool-switch-label">启用</span>' +
+                            '<label class="toggle"><input type="checkbox" ' +
+                                (!disabledSet.has(t.name) ? 'checked ' : '') +
+                                'onchange="toggleToolDisabled(\'' + esc(t.name) + '\', this.checked)">' +
+                                '<span class="toggle-slider"></span></label>' +
+                        '</div>' +
+                        '<div class="tool-switch">' +
+                            '<span class="tool-switch-label">自动批准</span>' +
+                            '<label class="toggle"><input type="checkbox" ' +
+                                (!disabledAutoSet.has(t.name) ? 'checked ' : '') +
+                                'onchange="toggleToolAutoApprove(\'' + esc(t.name) + '\', this.checked)">' +
+                                '<span class="toggle-slider"></span></label>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>' +
+                (t.description ? '<div class="tool-desc">' + esc(t.description) + '</div>' : '') +
+                '<div class="tool-params" id="toolParams_' + i + '">' + renderToolParams(t.parameters) + '</div>' +
+                '</li>'
+            ).join('') + '</ul>';
+    } catch (e) {
+        document.getElementById('mcpToolsBody').innerHTML = '<div class="tools-error">获取失败: ' + esc(e.message) + '</div>';
+    }
+}
+
+async function toggleToolDisabled(toolName, enabled) {
+    const cfg = mcpServers[viewingMcpName];
+    if (!cfg) return;
+    if (!Array.isArray(cfg.disabled)) cfg.disabled = [];
+    if (enabled) {
+        cfg.disabled = cfg.disabled.filter(n => n !== toolName);
+    } else {
+        if (!cfg.disabled.includes(toolName)) cfg.disabled.push(toolName);
+    }
+    if (cfg.disabled.length === 0) delete cfg.disabled;
+    await apiFetch('/api/mcp', 'PUT', mcpServers);
+}
+
+async function toggleToolAutoApprove(toolName, autoApprove) {
+    const cfg = mcpServers[viewingMcpName];
+    if (!cfg) return;
+    if (!Array.isArray(cfg.disabledAutoApproveTools)) cfg.disabledAutoApproveTools = [];
+    if (autoApprove) {
+        cfg.disabledAutoApproveTools = cfg.disabledAutoApproveTools.filter(n => n !== toolName);
+    } else {
+        if (!cfg.disabledAutoApproveTools.includes(toolName)) cfg.disabledAutoApproveTools.push(toolName);
+    }
+    if (cfg.disabledAutoApproveTools.length === 0) delete cfg.disabledAutoApproveTools;
+    await apiFetch('/api/mcp', 'PUT', mcpServers);
+}
+
+function toggleToolParams(el) {
+    el.classList.toggle('expanded');
+    const li = el.closest('li');
+    const params = li ? li.querySelector('.tool-params') : null;
+    if (params) params.classList.toggle('show');
+}
+
+function renderToolParams(schema) {
+    if (!schema || !schema.properties || Object.keys(schema.properties).length === 0) {
+        return '<div class="tool-no-params">无参数</div>';
+    }
+    const required = new Set(schema.required || []);
+    return Object.entries(schema.properties).map(([name, prop]) => {
+        let html = '<div class="tool-param">';
+        html += '<div><span class="param-name">' + esc(name) + '</span>';
+        html += '<span class="param-type">' + esc(formatParamType(prop)) + '</span>';
+        if (required.has(name)) html += '<span class="param-required">*必填</span>';
+        html += '</div>';
+        if (prop.description) html += '<div class="param-desc">' + esc(prop.description) + '</div>';
+        if (prop.enum) html += '<div class="param-enum">可选值: ' + prop.enum.map(v => esc(String(v))).join(' | ') + '</div>';
+        if (prop.default !== undefined) html += '<div class="param-default">默认值: ' + esc(String(prop.default)) + '</div>';
+        if (prop.type === 'object' && prop.properties) {
+            html += '<div style="margin-left:12px;margin-top:4px;border-left:2px solid #f1f5f9;padding-left:10px">' + renderToolParams(prop) + '</div>';
+        }
+        if (prop.type === 'array' && prop.items) {
+            html += '<div class="param-desc">元素类型: ' + esc(formatParamType(prop.items)) + '</div>';
+            if (prop.items.type === 'object' && prop.items.properties) {
+                html += '<div style="margin-left:12px;margin-top:4px;border-left:2px solid #f1f5f9;padding-left:10px">' + renderToolParams(prop.items) + '</div>';
+            }
+        }
+        html += '</div>';
+        return html;
+    }).join('');
+}
+
+function formatParamType(prop) {
+    if (!prop) return 'any';
+    if (prop.type === 'array') {
+        if (prop.items) return formatParamType(prop.items) + '[]';
+        return 'array';
+    }
+    if (prop.type) return prop.type;
+    if (prop.anyOf) return prop.anyOf.map(s => s.type || 'any').join(' | ');
+    if (prop.oneOf) return prop.oneOf.map(s => s.type || 'any').join(' | ');
+    return 'any';
+}
+
+function closeMcpToolsModal() { document.getElementById('mcpToolsModal').classList.remove('show'); }
 
 // ===== Plan Agent 管理 (per-mode) =====
 let editingAgentMode = '';
