@@ -9,7 +9,6 @@ import {
     ServiceContainer,
     ISkillService, SkillService,
     ICommand,
-    MCPToolResult, MCPContentType,
     IMemoryExtractor,
     IMemoryEvaluator,
     IMemoryCompressor,
@@ -74,8 +73,8 @@ export class LarkUserService extends LarkUserServiceBase {
             const embeddingConfig = config.getEmbedding(memoryConfig.embedding);
             if (!embeddingConfig) throw new Error(`Embedding 配置 "${memoryConfig.embedding}" 不存在`);
             container.registerWithArgs(IMemoryService, MemoryService, {
-                [IEmbeddingService]: await EmbeddingServiceFactory.getEmbeddingService(embeddingConfig),
                 "UserId": this.userId,
+                [IEmbeddingService]: await EmbeddingServiceFactory.getEmbeddingService(embeddingConfig),
                 [IMemoryDatabase]: new MemoryDatabase(config.getUserMemoryPath(this.userId)),
                 "MaxMemoryAgeDays": memoryConfig.maxAgeDays
             });
@@ -167,7 +166,6 @@ export class LarkUserService extends LarkUserServiceBase {
         logger.info(`${this.userId} 使用单 Agent 模式`);
 
         container.registerWithArgs(AgentService, {
-            userId: this.userId,
             threadId: this.userId,
         });
         const agentService = await container.resolve(AgentService);
@@ -181,59 +179,5 @@ export class LarkUserService extends LarkUserServiceBase {
                 convertImages: this.convertImages.bind(this),
             }
         );
-    }
-
-    // ===== 图片转换功能 =====
-
-    /**
-     * 转换 MCP 格式结果中的图片为飞书图片格式
-     */
-    async convertImages(result: MCPToolResult): Promise<MCPToolResult> {
-        try {
-            const convertedResult: MCPToolResult = {
-                content: [],
-                isError: result.isError,
-            };
-
-            for (const contentItem of result.content) {
-                if (contentItem.type === MCPContentType.Image || contentItem.type === MCPContentType.ImageUrl) {
-                    try {
-                        let imageData: string;
-                        if (contentItem.type === MCPContentType.Image) {
-                            imageData = contentItem.data;
-                        } else {
-                            const urlField = contentItem.url || contentItem.image_url;
-                            if (!urlField) {
-                                throw new Error('图片 URL 字段为空');
-                            }
-                            imageData = typeof urlField === 'string' ? urlField : urlField.url;
-                        }
-
-                        if (imageData.startsWith('http://') || imageData.startsWith('https://')) {
-                            logger.info(`跳过 HTTP/HTTPS 图片 URL: ${imageData}`);
-                            convertedResult.content.push(contentItem);
-                            continue;
-                        }
-
-                        const imageKey = await larkService.uploadImageToLark(imageData);
-                        convertedResult.content.push({
-                            type: MCPContentType.CustomImageUrl,
-                            text: imageKey
-                        });
-                        logger.info(`已转换图片内容到飞书格式`);
-                    } catch (error: any) {
-                        logger.error(`转换图片失败: ${error.message}`);
-                        convertedResult.content.push(contentItem);
-                    }
-                } else {
-                    convertedResult.content.push(contentItem);
-                }
-            }
-
-            return convertedResult;
-        } catch (error: any) {
-            logger.error(`MCP 图片转换过程出错: ${error.message}`);
-            return result;
-        }
     }
 }

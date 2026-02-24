@@ -18,6 +18,10 @@ export class SharedAgentSaver implements IAgentSaverService {
         return this.inner.getCheckpointer();
     }
 
+    getThreadIds(): Promise<string[]> {
+        return this.inner.getThreadIds();
+    }
+
     clearThread(threadId: string): Promise<void> {
         return this.inner.clearThread(threadId);
     }
