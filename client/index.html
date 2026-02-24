@@ -97,15 +97,32 @@ tr.active-row td { background: #eff6ff; }
 .toast.success { background: #22c55e; }
 .toast.error { background: #ef4444; }
 
-/* ===== 历史消息 ===== */
-.msg-list { display: flex; flex-direction: column; gap: 10px; }
-.msg-item { display: flex; gap: 10px; align-items: flex-start; }
-.msg-item .msg-role { flex-shrink: 0; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; margin-top: 3px; white-space: nowrap; }
-.msg-item.human .msg-role { background: #dbeafe; color: #1d4ed8; }
-.msg-item.ai .msg-role { background: #dcfce7; color: #15803d; }
-.msg-item.tool .msg-role { background: #fef9c3; color: #a16207; }
-.msg-item.system .msg-role { background: #f3e8ff; color: #7e22ce; }
-.msg-item .msg-content { flex: 1; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; font-size: 13px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+/* ===== 历史消息气泡 ===== */
+.history-messages { display: flex; flex-direction: column; gap: 12px; }
+.msg-row { display: flex; flex-direction: column; gap: 4px; }
+.msg-row.human { align-items: flex-end; }
+.msg-row.ai { align-items: flex-start; }
+.msg-ts { font-size: 11px; color: #94a3b8; }
+.msg-bubble { max-width: 80%; padding: 12px 16px; border-radius: 12px; font-size: 13px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+.msg-bubble .msg-role { font-size: 11px; font-weight: 600; margin-bottom: 4px; opacity: .7; text-transform: uppercase; }
+.msg-bubble.human { background: #3b82f6; color: #fff; border-bottom-right-radius: 4px; }
+.msg-bubble.ai { background: #fff; color: #333; border: 1px solid #e2e8f0; border-bottom-left-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+.msg-bubble.ai .msg-role { color: #64748b; }
+.msg-bubble.tool { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; border-radius: 8px; font-family: 'Consolas','Monaco',monospace; font-size: 12px; max-height: 200px; overflow-y: auto; }
+.msg-bubble.tool .msg-role { color: #15803d; opacity: 1; }
+.msg-tool-calls { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 14px; font-size: 12px; font-family: 'Consolas','Monaco',monospace; max-width: 80%; }
+.msg-tool-calls .msg-role { font-size: 11px; font-weight: 600; margin-bottom: 8px; color: #b45309; opacity: 1; }
+.tool-call-item { margin-bottom: 8px; border: 1px solid #fde68a; border-radius: 6px; overflow: hidden; }
+.tool-call-item:last-child { margin-bottom: 0; }
+.tool-call-header { display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: rgba(180,83,9,.06); cursor: pointer; user-select: none; }
+.tool-call-header::before { content: '\25B6'; font-size: 8px; color: #b45309; transition: transform .15s; display: inline-block; }
+.tool-call-header.expanded::before { transform: rotate(90deg); }
+.tool-call-name { font-weight: 600; color: #92400e; }
+.tool-call-detail { display: none; }
+.tool-call-detail.show { display: block; }
+.tool-call-args { padding: 8px 10px; background: rgba(180,83,9,.03); border-top: 1px dashed #fde68a; white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto; }
+.tool-call-result { padding: 8px 10px; background: #f0fdf4; color: #166534; border-top: 1px solid #bbf7d0; white-space: pre-wrap; word-break: break-all; max-height: 400px; overflow-y: auto; }
+.tool-call-result-label { font-size: 10px; font-weight: 600; color: #15803d; margin-bottom: 2px; text-transform: uppercase; }
 
 /* ===== Plan mode tabs ===== */
 .mode-tabs { display: flex; gap: 0; border-bottom: 2px solid #e2e8f0; margin-bottom: 14px; }
@@ -299,7 +316,7 @@ tr.active-row td { background: #eff6ff; }
                 <button class="btn btn-danger btn-sm" style="margin-left:auto" onclick="clearHistory()">清除历史</button>
             </div>
             <div class="content">
-                <div id="historyMessages" class="msg-list"></div>
+                <div id="historyMessages" class="history-messages"></div>
             </div>
         </div>
 
@@ -1368,15 +1385,76 @@ function renderHistoryMessages(messages) {
         container.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:60px">暂无历史记录</div>';
         return;
     }
-    const roleLabel = { human: '用户', ai: 'AI', tool: '工具', system: '系统' };
-    container.innerHTML = messages.map(m => {
-        const role = m.role || 'unknown';
-        const label = roleLabel[role] || role;
-        return '<div class="msg-item ' + esc(role) + '">' +
-            '<span class="msg-role">' + esc(label) + '</span>' +
-            '<div class="msg-content">' + esc(m.content) + '</div>' +
+    // 建立 tool_call_id → tool message 映射
+    const toolResultMap = {};
+    for (const m of messages) {
+        if (m.role === 'tool' && m.tool_call_id) {
+            toolResultMap[m.tool_call_id] = m;
+        }
+    }
+    const parts = [];
+    for (const m of messages) {
+        // tool 消息内嵌在对应 AI 消息的 tool_call 里，不单独渲染
+        if (m.role === 'tool' && m.tool_call_id) continue;
+        parts.push(renderOneMessage(m, toolResultMap));
+    }
+    container.innerHTML = parts.join('');
+    container.scrollTop = container.scrollHeight;
+}
+
+function fmtTs(ts) {
+    if (!ts) return '';
+    try { return new Date(ts).toLocaleString(); } catch { return ''; }
+}
+
+function renderOneMessage(m, toolResultMap) {
+    const role = m.role || 'unknown';
+    const ts = m.timestamp ? '<div class="msg-ts">' + esc(fmtTs(m.timestamp)) + '</div>' : '';
+    if (role === 'human') {
+        return '<div class="msg-row human">' + ts +
+            '<div class="msg-bubble human"><div class="msg-role">用户</div>' + esc(m.content) + '</div>' +
             '</div>';
-    }).join('');
+    }
+    if (role === 'ai') {
+        let inner = '';
+        if (m.content) {
+            inner += '<div class="msg-bubble ai"><div class="msg-role">AI</div>' + esc(m.content) + '</div>';
+        }
+        if (m.tool_calls && m.tool_calls.length > 0) {
+            const callsHtml = m.tool_calls.map(tc => {
+                const result = toolResultMap[tc.id];
+                let item = '<div class="tool-call-item">' +
+                    '<div class="tool-call-header" onclick="toggleToolCall(this)">' +
+                    '<span class="tool-call-name">' + esc(tc.name) + '</span></div>' +
+                    '<div class="tool-call-detail">' +
+                    '<div class="tool-call-args">' + esc(JSON.stringify(tc.args, null, 2)) + '</div>';
+                if (result) {
+                    item += '<div class="tool-call-result">' +
+                        '<div class="tool-call-result-label">返回结果</div>' +
+                        esc(result.content) + '</div>';
+                }
+                item += '</div></div>';
+                return item;
+            }).join('');
+            inner += '<div class="msg-tool-calls"><div class="msg-role">Tool Calls (' + m.tool_calls.length + ')</div>' + callsHtml + '</div>';
+        }
+        return '<div class="msg-row ai">' + ts + inner + '</div>';
+    }
+    if (role === 'tool') {
+        const name = m.name ? ' · ' + m.name : '';
+        return '<div class="msg-row ai">' +
+            '<div class="msg-bubble tool"><div class="msg-role">Tool' + esc(name) + '</div>' + esc(m.content) + '</div>' +
+            '</div>';
+    }
+    // system / unknown
+    return '<div class="msg-row ai">' + ts +
+        '<div class="msg-bubble ai"><div class="msg-role">' + esc(role) + '</div>' + esc(m.content) + '</div>' +
+        '</div>';
+}
+
+function toggleToolCall(header) {
+    header.classList.toggle('expanded');
+    header.nextElementSibling.classList.toggle('show');
 }
 
 async function clearHistory() {

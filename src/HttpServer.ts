@@ -84,12 +84,41 @@ class HttpServer {
         app.get('/api/users/:userId/history', api(async req => {
             const userId = req.params.userId as string;
             const saver = new AgentSqliteSaver(config.getUserSaverPath(userId));
+
+            // 遍历所有 checkpoint，记录每条消息（按 id）首次出现时的时间戳
+            const msgTimestamps = new Map<string, string>();
+            try {
+                const innerSaver = (saver as any).saver;
+                const checkpoints: any[] = [];
+                for await (const tuple of innerSaver.list({ configurable: { thread_id: userId } })) {
+                    checkpoints.push(tuple);
+                }
+                // list 返回最新在前，翻转后按时间正序处理
+                checkpoints.reverse();
+                for (const tuple of checkpoints) {
+                    const ts: string = tuple.checkpoint?.ts;
+                    const msgs: any[] = tuple.checkpoint?.channel_values?.messages ?? [];
+                    for (const m of msgs) {
+                        if (m.id && !msgTimestamps.has(m.id)) {
+                            msgTimestamps.set(m.id, ts);
+                        }
+                    }
+                }
+            } catch { /* 获取时间戳失败不影响主流程 */ }
+
             const messages = await saver.getMessages(userId);
             await saver.dispose();
-            return messages.map(m => ({
-                role: (m as any)._getType?.() ?? 'unknown',
-                content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
-            }));
+            return messages.map(m => {
+                const mm = m as any;
+                const role = mm._getType?.() ?? 'unknown';
+                const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+                const result: any = { role, content };
+                if (mm.id) result.timestamp = msgTimestamps.get(mm.id);
+                if (mm.tool_calls?.length) result.tool_calls = mm.tool_calls;
+                if (mm.tool_call_id) result.tool_call_id = mm.tool_call_id;
+                if (mm.name) result.name = mm.name;
+                return result;
+            });
         }));
 
         app.delete('/api/users/:userId/history', api(async req => {
