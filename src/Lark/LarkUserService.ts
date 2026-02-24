@@ -12,6 +12,7 @@ import {
     IMemoryExtractor,
     IMemoryEvaluator,
     IMemoryCompressor,
+    T_ThreadId,
 } from "scorpio.ai";
 import { SupervisorService, ReActService, AgentConfig } from "../Plan/index.js";
 import { LoggerService } from "../LoggerService";
@@ -177,7 +178,7 @@ export class LarkUserService extends LarkUserServiceBase {
         logger.info(`${this.userId} 使用单 Agent 模式`);
 
         container.registerWithArgs(AgentService, {
-            threadId: this.userId,
+            [T_ThreadId]: this.userId,
         });
         const agentService = await container.resolve(AgentService);
 
