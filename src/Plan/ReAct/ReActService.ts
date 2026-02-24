@@ -3,7 +3,7 @@ import { StateGraph, START, END } from '@langchain/langgraph';
 import { ReActAnnotation, ReActState, ReActNode, agentNodeName } from './ReActAnnotation.js';
 import { thinkNode, routeAfterThink, observeNode, reflectNode } from './ReActNodes.js';
 import { AgentConfig } from '../Supervisor/SupervisorAnnotation.js';
-import { AgentService, OnMessageCallback, OnStreamMessageCallback, ExecuteToolCallback, ConvertImagesCallback, MessageChunkType, AgentMessage } from 'scorpio.ai';
+import { AgentService, IAgentCallback, MessageChunkType, AgentMessage } from 'scorpio.ai';
 import { FilteredAgentToolService } from '../FilteredAgentToolService.js';
 import { IAgentSaverService, IModelService, ISkillService, IMemoryService, IAgentToolService, inject, ServiceContainer } from 'scorpio.ai';
 import { SharedAgentSaver } from '../SharedAgentSaver.js';
@@ -56,9 +56,7 @@ export class ReActService {
    */
   private async createSubAgentNode(
     agentConfig: AgentConfig,
-    onStreamMessage?: OnStreamMessageCallback,
-    executeTool?: ExecuteToolCallback,
-    convertImages?: ConvertImagesCallback
+    callback?: Omit<IAgentCallback, 'onMessage'>
   ) {
     return async (state: typeof ReActAnnotation.State) => {
       const reactState = state.reactState;
@@ -109,15 +107,15 @@ export class ReActService {
 
         await agentService.stream(
           taskPrompt,
-          async (message: AgentMessage) => {
-            if (message.type === MessageChunkType.AI && message.content) {
-              actionResult += message.content;
-              messages.push(new AIMessage(message.content));
-            }
-          },
-          onStreamMessage,
-          executeTool,
-          convertImages
+          {
+            onMessage: async (message: AgentMessage) => {
+              if (message.type === MessageChunkType.AI && message.content) {
+                actionResult += message.content;
+                messages.push(new AIMessage(message.content));
+              }
+            },
+            ...callback,
+          }
         );
 
         logger.info(`Sub-Agent ${agentConfig.id}: 步骤完成`);
@@ -145,9 +143,7 @@ export class ReActService {
    * 创建 ReAct 图
    */
   private async createGraph(
-    onStreamMessage?: OnStreamMessageCallback,
-    executeTool?: ExecuteToolCallback,
-    convertImages?: ConvertImagesCallback
+    callback?: Omit<IAgentCallback, 'onMessage'>
   ) {
     const workflow = new StateGraph(ReActAnnotation);
 
@@ -158,7 +154,7 @@ export class ReActService {
     for (const agentConfig of this.agentConfigs) {
       const nodeName = agentNodeName(agentConfig.id);
       const nodeFunc = await this.createSubAgentNode(
-        agentConfig, onStreamMessage, executeTool, convertImages
+        agentConfig, callback
       );
       workflow.addNode(nodeName, nodeFunc);
     }
@@ -213,13 +209,11 @@ export class ReActService {
    */
   async stream(
     query: string,
-    onMessage: OnMessageCallback,
-    onStreamMessage?: OnStreamMessageCallback,
-    executeTool?: ExecuteToolCallback,
-    convertImages?: ConvertImagesCallback
+    callback: IAgentCallback
   ): Promise<void> {
     try {
-      const graph = await this.createGraph(onStreamMessage, executeTool, convertImages);
+      const { onMessage, ...subCallback } = callback;
+      const graph = await this.createGraph(subCallback);
 
       // 检查是否从 waitForUser 恢复
       const existingState = await this.getExistingState();
@@ -271,7 +265,7 @@ export class ReActService {
             if (message instanceof HumanMessage) continue;
             const messageChunk = this.convertToMessageChunk(message);
             if (messageChunk) {
-              await onMessage(messageChunk);
+              await onMessage?.(messageChunk);
             }
           }
         }

@@ -13,9 +13,5 @@
     "emitDecoratorMetadata": true,
     "moduleResolution": "node"
   },
-  "include": ["src"],
-  "references": [
-    { "path": "../scorpio.ai" },
-    { "path": "E:/WMTools/winning.ai" }
-  ]
+  "include": ["src"]
 }

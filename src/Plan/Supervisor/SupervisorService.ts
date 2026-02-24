@@ -2,7 +2,7 @@ import { HumanMessage, AIMessage, AIMessageChunk, BaseMessage } from "langchain"
 import { StateGraph, START, END } from '@langchain/langgraph';
 import { SupervisorAnnotation, AgentConfig, SubTask, TaskStatus, ExecutionPlan } from './SupervisorAnnotation.js';
 import { planNode, supervisorNode, aggregatorNode } from './SupervisorNodes.js';
-import { AgentService, OnMessageCallback, OnStreamMessageCallback, ExecuteToolCallback, ConvertImagesCallback, MessageChunkType, AgentMessage } from 'scorpio.ai';
+import { AgentService, IAgentCallback, MessageChunkType, AgentMessage } from 'scorpio.ai';
 import { FilteredAgentToolService } from '../FilteredAgentToolService.js';
 import { IAgentSaverService, IModelService, ISkillService, IMemoryService, IAgentToolService, inject, ServiceContainer } from 'scorpio.ai';
 import { SharedAgentSaver } from '../SharedAgentSaver.js';
@@ -70,9 +70,7 @@ export class SupervisorService {
    */
   private async createSubAgentNode(
     agentConfig: AgentConfig,
-    onStreamMessage?: OnStreamMessageCallback,
-    executeTool?: ExecuteToolCallback,
-    convertImages?: ConvertImagesCallback
+    callback?: Omit<IAgentCallback, 'onMessage'>
   ) {
     return async (state: typeof SupervisorAnnotation.State) => {
       const currentTask = state.currentTask;
@@ -132,16 +130,16 @@ export class SupervisorService {
         // 执行任务
         await agentService.stream(
           taskPrompt,
-          async (message: AgentMessage) => {
-            // 收集 AI 响应
-            if (message.type === MessageChunkType.AI && message.content) {
-              taskResult += message.content;
-              messages.push(new AIMessage(message.content));
-            }
-          },
-          onStreamMessage,
-          executeTool,
-          convertImages
+          {
+            onMessage: async (message: AgentMessage) => {
+              // 收集 AI 响应
+              if (message.type === MessageChunkType.AI && message.content) {
+                taskResult += message.content;
+                messages.push(new AIMessage(message.content));
+              }
+            },
+            ...callback,
+          }
         );
 
         // 更新任务结果
@@ -184,9 +182,7 @@ export class SupervisorService {
    * 创建 Supervisor 图
    */
   private async createGraph(
-    onStreamMessage?: OnStreamMessageCallback,
-    executeTool?: ExecuteToolCallback,
-    convertImages?: ConvertImagesCallback
+    callback?: Omit<IAgentCallback, 'onMessage'>
   ) {
     const workflow = new StateGraph(SupervisorAnnotation);
 
@@ -203,9 +199,7 @@ export class SupervisorService {
       const nodeName = `agent_${agentConfig.id}`;
       const nodeFunc = await this.createSubAgentNode(
         agentConfig,
-        onStreamMessage,
-        executeTool,
-        convertImages
+        callback
       );
 
       // 包装节点函数，添加 currentTask 设置逻辑
@@ -268,18 +262,16 @@ export class SupervisorService {
    */
   async stream(
     query: string,
-    onMessage: OnMessageCallback,
-    onStreamMessage?: OnStreamMessageCallback,
+    callback: IAgentCallback,
     onTaskStatusChange?: OnTaskStatusChangeCallback,
     onPlanCreated?: OnPlanCreatedCallback,
-    executeTool?: ExecuteToolCallback,
-    convertImages?: ConvertImagesCallback
   ): Promise<void> {
     try {
       logger.info(`SupervisorService: 开始处理查询 - ${query}`);
 
+      const { onMessage, ...subCallback } = callback;
       // 创建图
-      const graph = await this.createGraph(onStreamMessage, executeTool, convertImages);
+      const graph = await this.createGraph(subCallback);
 
       // 初始化状态
       const initialState = {
@@ -334,7 +326,7 @@ export class SupervisorService {
 
             const messageChunk = this.convertToMessageChunk(message);
             if (messageChunk) {
-              await onMessage(messageChunk);
+              await onMessage?.(messageChunk);
             }
           }
         }

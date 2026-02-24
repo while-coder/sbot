@@ -1,10 +1,10 @@
 import "reflect-metadata";
 import { LarkUserServiceBase, larkService } from "winning.ai";
 import {
-    AgentService, 
+    AgentService,
     IAgentSaverService, AgentSqliteSaver, IAgentToolService, AgentToolService,
     IModelService, ModelServiceFactory,
-    IMemoryService, MemoryEvaluator, MemoryCompressor, MemoryExtractor, MemoryService,
+    IMemoryService, IMemoryDatabase, MemoryDatabase, MemoryEvaluator, MemoryCompressor, MemoryExtractor, MemoryService,
     IEmbeddingService, EmbeddingServiceFactory,
     ServiceContainer,
     ISkillService, SkillService,
@@ -76,7 +76,7 @@ export class LarkUserService extends LarkUserServiceBase {
             container.registerWithArgs(IMemoryService, MemoryService, {
                 [IEmbeddingService]: await EmbeddingServiceFactory.getEmbeddingService(embeddingConfig),
                 "UserId": this.userId,
-                "DBPath": config.getUserMemoryPath(this.userId),
+                [IMemoryDatabase]: new MemoryDatabase(config.getUserMemoryPath(this.userId)),
                 "MaxMemoryAgeDays": memoryConfig.maxAgeDays
             });
         }
@@ -123,12 +123,12 @@ export class LarkUserService extends LarkUserServiceBase {
 
                 await supervisorService.stream(
                     query,
-                    this.onAgentMessage.bind(this),
-                    this.onAgentStreamMessage.bind(this),
-                    undefined, // onTaskStatusChange
-                    undefined, // onPlanCreated
-                    this.executeAgentTool.bind(this),
-                    this.convertImages.bind(this)
+                    {
+                        onMessage: this.onAgentMessage.bind(this),
+                        onStreamMessage: this.onAgentStreamMessage.bind(this),
+                        executeTool: this.executeAgentTool.bind(this),
+                        convertImages: this.convertImages.bind(this),
+                    }
                 );
                 return;
             }
@@ -152,10 +152,12 @@ export class LarkUserService extends LarkUserServiceBase {
 
                 await reactService.stream(
                     query,
-                    this.onAgentMessage.bind(this),
-                    this.onAgentStreamMessage.bind(this),
-                    this.executeAgentTool.bind(this),
-                    this.convertImages.bind(this)
+                    {
+                        onMessage: this.onAgentMessage.bind(this),
+                        onStreamMessage: this.onAgentStreamMessage.bind(this),
+                        executeTool: this.executeAgentTool.bind(this),
+                        convertImages: this.convertImages.bind(this),
+                    }
                 );
                 return;
             }
@@ -172,10 +174,12 @@ export class LarkUserService extends LarkUserServiceBase {
 
         await agentService.stream(
             query,
-            this.onAgentMessage.bind(this),
-            this.onAgentStreamMessage.bind(this),
-            this.executeAgentTool.bind(this),
-            this.convertImages.bind(this)
+            {
+                onMessage: this.onAgentMessage.bind(this),
+                onStreamMessage: this.onAgentStreamMessage.bind(this),
+                executeTool: this.executeAgentTool.bind(this),
+                convertImages: this.convertImages.bind(this),
+            }
         );
     }
 
