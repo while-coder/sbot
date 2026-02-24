@@ -13,6 +13,7 @@ import {
     IMemoryEvaluator,
     IMemoryCompressor,
     T_ThreadId,
+    T_SystemPrompt,
 } from "scorpio.ai";
 import { SupervisorService, ReActService, AgentConfig } from "../Plan/index.js";
 import { LoggerService } from "../LoggerService";
@@ -177,8 +178,15 @@ export class LarkUserService extends LarkUserServiceBase {
         // 单 Agent 模式（默认，或多 Agent 模式降级）
         logger.info(`${this.userId} 使用单 Agent 模式`);
 
+        // 系统提示词
+        let systemPrompt = config.settings.systemPrompt ?? "你是一个有用的AI助手";
+        if (this.userInfo) {
+            systemPrompt += `\n用户user_id:${this.userInfo.user_id}\n用户open_id:${this.userInfo.open_id}\n用户union_id:${this.userInfo.union_id}\n用户姓名:${this.userInfo.name}\n用户邮箱:${this.userInfo.email}`;
+        }
+
         container.registerWithArgs(AgentService, {
             [T_ThreadId]: this.userId,
+            [T_SystemPrompt]: systemPrompt,
         });
         const agentService = await container.resolve(AgentService);
 

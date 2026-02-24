@@ -1,23 +1,12 @@
 import os from "os";
 import path from "path";
 import fs from "fs";
-import { ModelConfig, ModelProvider, EmbeddingConfig, EmbeddingProvider, MCPServerConfig, MCPServers } from "scorpio.ai";
+import { ModelConfig, ModelProvider, EmbeddingConfig, EmbeddingProvider, MCPServerConfig, MCPServers, MemoryConfig } from "scorpio.ai";
 
 
 export interface LarkConfig {
   appId?: string;
   appSecret?: string;
-  tenantToken?: string; // 可选的手动配置的租户 token
-}
-
-export interface MemoryConfig {
-  enabled?: boolean;           // 是否启用长期记忆功能
-  autoCleanup?: boolean;       // 是否自动清理过期记忆
-  maxAgeDays?: number;         // 记忆最大保留天数
-  embedding?: string;          // 记忆使用的 embedding 名称（对应 embeddings 中的 key）
-  evaluator?: string;          // 重要性评估器使用的模型名称（对应 models 中的 key）
-  extractor?: string;          // 知识提取器使用的模型名称（对应 models 中的 key）
-  compressor?: string;         // 记忆压缩器使用的模型名称（对应 models 中的 key）
 }
 
 /**
@@ -73,6 +62,7 @@ export interface PlanConfig {
 
 export interface Settings {
   model?: string; // 当前使用的模型名称（对应 models 中的 key）
+  systemPrompt?: string; // 系统提示词
   lark?: LarkConfig;
   models?: Record<string, ModelConfig>; // 多个模型配置
   embeddings?: Record<string, EmbeddingConfig>; // 多个 embedding 配置
