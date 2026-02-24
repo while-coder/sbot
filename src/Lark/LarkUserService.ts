@@ -1,7 +1,6 @@
 import "reflect-metadata";
 import { LarkUserServiceBase, larkService } from "winning.ai";
 import {
-    AgentService,
     IAgentSaverService, AgentSqliteSaver, IAgentToolService, AgentToolService,
     IModelService, ModelServiceFactory,
     IMemoryService, IMemoryDatabase, MemoryDatabase, MemoryEvaluator, MemoryCompressor, MemoryExtractor, MemoryService,
@@ -12,13 +11,11 @@ import {
     IMemoryExtractor,
     IMemoryEvaluator,
     IMemoryCompressor,
-    T_ThreadId,
-    T_SystemPrompt,
 } from "scorpio.ai";
-import { SupervisorService, ReActService, AgentConfig } from "../Plan/index.js";
 import { LoggerService } from "../LoggerService";
 import { getBuiltInCommands } from "../UserService/BuiltInCommands";
-import { config, PlanMode } from "../Config";
+import { config, SingleAgentEntry } from "../Config";
+import { AgentFactory } from "../AgentFactory";
 
 const logger = LoggerService.getLogger('LarkUserService.ts');
 
@@ -87,12 +84,6 @@ export class LarkUserService extends LarkUserServiceBase {
             SkillsDirs: [config.getConfigPath("skills")]
         });
 
-        // 模型服务
-        const mainModelConfig = config.getModel(config.getModelName());
-        if (!mainModelConfig) throw new Error(`模型配置 "${config.getModelName()}" 不存在`);
-        const modelService = await ModelServiceFactory.getModelService(mainModelConfig);
-        container.registerInstance(IModelService, modelService);
-
         // Agent Saver 服务（使用 AgentSqliteSaver 实现）
         container.registerWithArgs(IAgentSaverService, AgentSqliteSaver, {
             DBPath: config.getUserSaverPath(this.userId)
@@ -112,92 +103,21 @@ export class LarkUserService extends LarkUserServiceBase {
             await agentToolService.addMcpServers(builtinMcpServers);
         }
 
-        // 读取 Plan 配置
-        const planConfig = config.settings.plan || {};
-        const planMode = planConfig.mode || PlanMode.Single;
+        // 读取 Agent 配置
+        const agentName = config.settings.agent || "default";
+        const agentEntry = config.settings.agents?.[agentName]
+            ?? { type: "single" as const } satisfies SingleAgentEntry;
 
-        // 根据配置选择模式
-        if (planMode === PlanMode.Supervisor) {
-            const supervisorConfig = planConfig.supervisor;
-            const agentConfigs: AgentConfig[] = (supervisorConfig?.agents || []) as AgentConfig[];
-            if (agentConfigs.length === 0) {
-                logger.warn(`${this.userId} Supervisor 模式未配置 Agent，降级为 Single 模式`);
-            } else {
-                // Supervisor 模式：预先规划所有任务，按依赖顺序执行
-                logger.info(`${this.userId} 使用 Supervisor 模式，包含 ${agentConfigs.length} 个 Agent`);
+        logger.info(`${this.userId} 使用 Agent [${agentName}] (${agentEntry.type})`);
 
-                container.registerWithArgs(SupervisorService, {
-                    userId: this.userId,
-                    threadId: this.userId,
-                    agentConfigs,
-                });
-                const supervisorService = await container.resolve(SupervisorService);
+        // 通过 AgentFactory 创建 Agent 服务
+        const agent = await AgentFactory.create(container, agentEntry, this.userId, this.userInfo);
 
-                await supervisorService.stream(
-                    query,
-                    {
-                        onMessage: this.onAgentMessage.bind(this),
-                        onStreamMessage: this.onAgentStreamMessage.bind(this),
-                        executeTool: this.executeAgentTool.bind(this),
-                        convertImages: this.convertImages.bind(this),
-                    }
-                );
-                return;
-            }
-        } else if (planMode === PlanMode.ReAct) {
-            const reactConfig = planConfig.react;
-            const agentConfigs: AgentConfig[] = (reactConfig?.agents || []) as AgentConfig[];
-            const maxIterations = reactConfig?.maxIterations || 5;
-            if (agentConfigs.length === 0) {
-                logger.warn(`${this.userId} ReAct 模式未配置 Agent，降级为 Single 模式`);
-            } else {
-                // ReAct 模式：思考 -> 行动 -> 观察，迭代决策
-                logger.info(`${this.userId} 使用 ReAct 模式，包含 ${agentConfigs.length} 个 Agent，最大迭代 ${maxIterations} 次`);
-
-                container.registerWithArgs(ReActService, {
-                    userId: this.userId,
-                    threadId: this.userId,
-                    agentConfigs,
-                    maxIterations,
-                });
-                const reactService = await container.resolve(ReActService);
-
-                await reactService.stream(
-                    query,
-                    {
-                        onMessage: this.onAgentMessage.bind(this),
-                        onStreamMessage: this.onAgentStreamMessage.bind(this),
-                        executeTool: this.executeAgentTool.bind(this),
-                        convertImages: this.convertImages.bind(this),
-                    }
-                );
-                return;
-            }
-        }
-
-        // 单 Agent 模式（默认，或多 Agent 模式降级）
-        logger.info(`${this.userId} 使用单 Agent 模式`);
-
-        // 系统提示词
-        let systemPrompt = config.settings.systemPrompt ?? "你是一个有用的AI助手";
-        if (this.userInfo) {
-            systemPrompt += `\n用户user_id:${this.userInfo.user_id}\n用户open_id:${this.userInfo.open_id}\n用户union_id:${this.userInfo.union_id}\n用户姓名:${this.userInfo.name}\n用户邮箱:${this.userInfo.email}`;
-        }
-
-        container.registerWithArgs(AgentService, {
-            [T_ThreadId]: this.userId,
-            [T_SystemPrompt]: systemPrompt,
+        await agent.stream(query, {
+            onMessage: this.onAgentMessage.bind(this),
+            onStreamMessage: this.onAgentStreamMessage.bind(this),
+            executeTool: this.executeAgentTool.bind(this),
+            convertImages: this.convertImages.bind(this),
         });
-        const agentService = await container.resolve(AgentService);
-
-        await agentService.stream(
-            query,
-            {
-                onMessage: this.onAgentMessage.bind(this),
-                onStreamMessage: this.onAgentStreamMessage.bind(this),
-                executeTool: this.executeAgentTool.bind(this),
-                convertImages: this.convertImages.bind(this),
-            }
-        );
     }
 }

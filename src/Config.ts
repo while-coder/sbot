@@ -10,64 +10,75 @@ export interface LarkConfig {
 }
 
 /**
- * Plan 运行模式
+ * Agent 运行模式
  */
-export enum PlanMode {
+export enum AgentMode {
   Single = "single",           // 单 Agent 模式
   Supervisor = "supervisor",   // Supervisor 模式：预先规划任务，按依赖顺序执行
   ReAct = "react",             // ReAct 模式：思考 -> 行动 -> 观察，迭代决策
 }
 
 /**
- * Plan Agent 配置
+ * 节点模型配置（用于 ReAct 的 think/reflect 节点）
  */
-export interface PlanAgentConfig {
+export interface AgentNodeConfig {
+  model?: string;              // 使用的模型名称（对应 models 中的 key）
+  systemPrompt?: string;       // 系统提示词
+}
+
+/**
+ * 子 Agent 配置（用于 ReAct/Supervisor 的子 Agent）
+ */
+export interface SubAgentConfig {
   id: string;                  // Agent 唯一标识，同时用作节点名称
   desc?: string;               // Agent 描述（用于 LLM 规划时的参考）
-  skills?: string[];           // 关联的 Skill 名称列表（可选）
+  model?: string;              // 使用的模型名称（对应 models 中的 key）
   tools: string[];             // 可用工具列表，["*"] 表示所有工具
   systemPrompt?: string;       // 自定义系统提示词
 }
 
 /**
- * Single 模式配置（无额外 Agent）
+ * Single 模式 Agent 配置
  */
-export interface SinglePlanConfig {
+export interface SingleAgentEntry {
+  type: "single";
+  model?: string;              // 使用的模型名称（对应 models 中的 key），不填则使用全局 model
+  systemPrompt?: string;       // 系统提示词
 }
 
 /**
- * Supervisor 模式配置
+ * Supervisor 模式 Agent 配置
  */
-export interface SupervisorPlanConfig {
-  agents: PlanAgentConfig[];   // Agent 配置列表
+export interface SupervisorAgentEntry {
+  type: "supervisor";
+  model?: string;              // Supervisor 使用的模型名称
+  systemPrompt?: string;       // Supervisor 系统提示词
+  agents: SubAgentConfig[];    // 子 Agent 配置列表
 }
 
 /**
- * ReAct 模式配置
+ * ReAct 模式 Agent 配置
  */
-export interface ReActPlanConfig {
+export interface ReactAgentEntry {
+  type: "react";
   maxIterations?: number;      // 最大迭代次数，默认 5
-  agents: PlanAgentConfig[];   // Agent 配置列表
+  think?: AgentNodeConfig;     // Think 节点配置
+  reflect?: AgentNodeConfig;   // Reflect 节点配置
+  agents: SubAgentConfig[];    // 子 Agent 配置列表
 }
 
 /**
- * Plan 模式配置
+ * Agent 配置条目（联合类型）
  */
-export interface PlanConfig {
-  mode?: PlanMode;                             // 运行模式
-  single?: SinglePlanConfig;                   // Single 模式配置
-  supervisor?: SupervisorPlanConfig;           // Supervisor 模式配置
-  react?: ReActPlanConfig;                     // ReAct 模式配置
-}
+export type AgentEntry = SingleAgentEntry | SupervisorAgentEntry | ReactAgentEntry;
 
 export interface Settings {
-  model?: string; // 当前使用的模型名称（对应 models 中的 key）
-  systemPrompt?: string; // 系统提示词
+  agent?: string;              // 当前使用的 Agent 名称（对应 agents 中的 key）
   lark?: LarkConfig;
-  models?: Record<string, ModelConfig>; // 多个模型配置
-  embeddings?: Record<string, EmbeddingConfig>; // 多个 embedding 配置
-  memory?: MemoryConfig; // 长期记忆配置
-  plan?: PlanConfig; // Plan 模式配置
+  models?: Record<string, ModelConfig>;
+  embeddings?: Record<string, EmbeddingConfig>;
+  memory?: MemoryConfig;
+  agents?: Record<string, AgentEntry>;
 }
 
 class Config {
@@ -94,30 +105,14 @@ class Config {
     return this._settings;
   }
 
-  getModelName(): string {
-    return this._settings.model || "";
-  }
-
   /**
    * 根据名称获取模型配置
-   * @param name 模型名称（对应 settings.models 中的 key），不传则使用当前选中的模型
+   * @param name 模型名称（对应 settings.models 中的 key）
    * @returns 模型配置，如果未配置则返回 undefined
    */
   getModel(name?: string): ModelConfig | undefined {
-    if (!this._settings.models) return undefined;
-
-    const modelName = name ?? this._settings.model;
-    if (!modelName || typeof modelName !== 'string') return undefined;
-
-    return this._settings.models[modelName.trim()];
-  }
-
-  /**
-   * 获取当前使用的模型配置
-   * @returns 当前模型配置，如果未配置则返回 undefined
-   */
-  getCurrentModel(): ModelConfig | undefined {
-    return this.getModel();
+    if (!this._settings.models || !name) return undefined;
+    return this._settings.models[name.trim()];
   }
 
   /**
@@ -201,7 +196,7 @@ class Config {
    */
   private getDefaultSettings(): Settings {
     return {
-      model: "openai-gpt4",
+      agent: "default",
       lark: {
         appId: "",
         appSecret: ""
@@ -261,37 +256,35 @@ class Config {
           model: "text-embedding-ada-002"
         }
       },
-      plan: {
-        mode: PlanMode.Single,
-        single: {},
-        supervisor: {
-          agents: [
-            {
-              id: "coder",
-              desc: "开发专家，擅长编写高质量代码",
-              tools: ["read_file", "write_file", "execute_command"],
-              systemPrompt: "你是一个开发专家，擅长编写高质量代码"
-            },
-            {
-              id: "researcher",
-              desc: "研究专家，擅长搜索和分析信息",
-              tools: ["web_search", "read_url"],
-              systemPrompt: "你是一个研究专家，擅长搜索和分析信息"
-            }
-          ]
+      agents: {
+        "default": {
+          type: "single",
+          model: "openai-gpt4",
+          systemPrompt: "你是一个有用的AI助手"
         },
-        react: {
+        "react-example": {
+          type: "react",
           maxIterations: 5,
+          think: {
+            model: "openai-gpt4",
+            systemPrompt: ""
+          },
+          reflect: {
+            model: "openai-gpt4",
+            systemPrompt: ""
+          },
           agents: [
             {
               id: "coder",
               desc: "开发专家，擅长编写高质量代码",
+              model: "openai-gpt4",
               tools: ["read_file", "write_file", "execute_command"],
               systemPrompt: "你是一个开发专家，擅长编写高质量代码"
             },
             {
               id: "researcher",
               desc: "研究专家，擅长搜索和分析信息",
+              model: "openai-gpt4",
               tools: ["web_search", "read_url"],
               systemPrompt: "你是一个研究专家，擅长搜索和分析信息"
             }
@@ -463,37 +456,8 @@ class Config {
     }
 
     // 验证模型配置
-    // 检查 model 字段类型和值
-    if (!this._settings.model || typeof this._settings.model !== 'string' || this._settings.model.trim() === "") {
-      errors.push("缺少 model 配置项，请在配置文件顶部指定当前使用的模型名称（如: model = \"openai-gpt4\"）");
-    }
-
-    // 检查是否有模型配置
     if (!this._settings.models || Object.keys(this._settings.models).length === 0) {
       errors.push("缺少模型配置 [models]，请在配置文件中添加至少一个模型配置");
-    } else if (this._settings.model && typeof this._settings.model === 'string' && this._settings.model.trim() !== "") {
-      // 验证指定的模型是否存在
-      const currentModelName = this._settings.model.trim();
-      const currentModel = this._settings.models[currentModelName];
-
-      if (!currentModel) {
-        errors.push(`指定的模型 "${currentModelName}" 不存在，请在 [models.${currentModelName}] 中配置或修改 model 字段`);
-      } else {
-        // 验证当前模型的配置是否完整
-        const { apiKey, baseURL, model } = currentModel;
-
-        if (!apiKey || apiKey.trim() === "") {
-          errors.push(`模型 "${currentModelName}" 缺少 apiKey，请在 [models.${currentModelName}] 中填写 apiKey`);
-        }
-
-        if (!baseURL || baseURL.trim() === "") {
-          errors.push(`模型 "${currentModelName}" 缺少 baseURL，请在 [models.${currentModelName}] 中填写 baseURL`);
-        }
-
-        if (!model || model.trim() === "") {
-          errors.push(`模型 "${currentModelName}" 缺少 model，请在 [models.${currentModelName}] 中填写 model`);
-        }
-      }
     }
 
     // 如果有错误，抛出异常
