@@ -18,7 +18,7 @@ import {
 } from "scorpio.ai";
 import { LoggerService } from "../LoggerService";
 import { getBuiltInCommands } from "../UserService/BuiltInCommands";
-import { config, SingleAgentEntry } from "../Config";
+import { config } from "../Config";
 import { AgentFactory } from "../AgentFactory";
 
 const logger = LoggerService.getLogger('LarkUserService.ts');
@@ -109,9 +109,10 @@ export class LarkUserService extends LarkUserServiceBase {
         }
 
         // 读取 Agent 配置
-        const agentName = config.settings.agent || "default";
-        const agentEntry = config.settings.agents?.[agentName]
-            ?? { type: "single" as const } satisfies SingleAgentEntry;
+        const agentName = config.settings.agent;
+        if (!agentName) throw new Error("未配置 agent，请在 settings.json 中设置 agent 字段");
+        const agentEntry = config.settings.agents?.[agentName];
+        if (!agentEntry) throw new Error(`Agent 配置 "${agentName}" 不存在，请检查 settings.json 中的 agents 配置`);
 
         logger.info(`${this.userId} 使用 Agent [${agentName}] (${agentEntry.type})`);
 

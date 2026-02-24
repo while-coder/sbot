@@ -97,6 +97,16 @@ tr.active-row td { background: #eff6ff; }
 .toast.success { background: #22c55e; }
 .toast.error { background: #ef4444; }
 
+/* ===== 历史消息 ===== */
+.msg-list { display: flex; flex-direction: column; gap: 10px; }
+.msg-item { display: flex; gap: 10px; align-items: flex-start; }
+.msg-item .msg-role { flex-shrink: 0; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; margin-top: 3px; white-space: nowrap; }
+.msg-item.human .msg-role { background: #dbeafe; color: #1d4ed8; }
+.msg-item.ai .msg-role { background: #dcfce7; color: #15803d; }
+.msg-item.tool .msg-role { background: #fef9c3; color: #a16207; }
+.msg-item.system .msg-role { background: #f3e8ff; color: #7e22ce; }
+.msg-item .msg-content { flex: 1; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; font-size: 13px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+
 /* ===== Plan mode tabs ===== */
 .mode-tabs { display: flex; gap: 0; border-bottom: 2px solid #e2e8f0; margin-bottom: 14px; }
 .mode-tab { padding: 8px 18px; cursor: pointer; font-size: 13px; color: #64748b; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all .15s; user-select: none; }
@@ -169,10 +179,13 @@ tr.active-row td { background: #eff6ff; }
         <!-- 左侧导航 -->
         <div class="sidebar">
             <div class="sidebar-item active" data-page="page-general">基本设置</div>
+            <div class="sidebar-item" data-page="page-agents">Agents</div>
             <div class="sidebar-item" data-page="page-models">模型管理</div>
             <div class="sidebar-item" data-page="page-embeddings">Embedding</div>
             <div class="sidebar-item" data-page="page-memory">记忆设置</div>
             <div class="sidebar-item" data-page="page-mcp">MCP 服务</div>
+            <div class="sidebar-item" data-page="page-history">历史记录</div>
+            <div class="sidebar-item" data-page="page-user-memory">长期记忆</div>
         </div>
 
         <!-- ===== 基本设置 ===== -->
@@ -189,53 +202,23 @@ tr.active-row td { background: #eff6ff; }
                     </div>
                 </div>
                 <div class="card">
-                    <div class="card-title">默认模型</div>
-                    <div class="form-group"><label>当前使用的模型名称</label><select id="currentModel"></select></div>
+                    <div class="card-title">当前 Agent</div>
+                    <div class="form-group"><label>使用的 Agent（在 Agents 页面管理）</label><select id="currentAgent"></select></div>
                 </div>
-                <div class="card">
-                    <div class="card-title">Plan 模式</div>
-                    <div class="form-group">
-                        <label>运行模式</label>
-                        <select id="planMode" onchange="onPlanModeChange()">
-                            <option value="single">Single (单 Agent)</option>
-                            <option value="supervisor">Supervisor (任务规划)</option>
-                            <option value="react">ReAct (迭代决策)</option>
-                        </select>
-                    </div>
-                    <div class="mode-tabs">
-                        <div class="mode-tab" data-mode-tab="single">Single</div>
-                        <div class="mode-tab" data-mode-tab="supervisor">Supervisor</div>
-                        <div class="mode-tab" data-mode-tab="react">ReAct</div>
-                    </div>
-                    <!-- Single -->
-                    <div class="mode-panel" id="panel-single">
-                        <div class="hint">单 Agent 模式，无需配置额外 Agent。</div>
-                    </div>
-                    <!-- Supervisor -->
-                    <div class="mode-panel" id="panel-supervisor">
-                        <div class="hint">Supervisor 模式：预先规划所有任务，分配给多个 Agent 按依赖顺序执行。</div>
-                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-                            <label style="font-size:13px;font-weight:500;color:#475569">Agent 列表</label>
-                            <button class="btn btn-outline-dark btn-sm" onclick="addPlanAgent('supervisor')">+ 添加</button>
-                        </div>
-                        <table><thead><tr><th>ID</th><th>类型</th><th>Skill</th><th>工具</th><th>操作</th></tr></thead>
-                        <tbody id="supervisorAgentsBody"></tbody></table>
-                    </div>
-                    <!-- ReAct -->
-                    <div class="mode-panel" id="panel-react">
-                        <div class="hint">ReAct 模式：思考 -> 行动 -> 观察，迭代决策。</div>
-                        <div class="form-group" style="max-width:200px">
-                            <label>最大迭代次数</label>
-                            <input type="number" id="reactMaxIterations" placeholder="5" min="1" max="50">
-                        </div>
-                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-                            <label style="font-size:13px;font-weight:500;color:#475569">Agent 列表</label>
-                            <button class="btn btn-outline-dark btn-sm" onclick="addPlanAgent('react')">+ 添加</button>
-                        </div>
-                        <table><thead><tr><th>ID</th><th>类型</th><th>Skill</th><th>工具</th><th>操作</th></tr></thead>
-                        <tbody id="reactAgentsBody"></tbody></table>
-                    </div>
-                </div>
+            </div>
+        </div>
+
+        <!-- ===== Agents 管理 ===== -->
+        <div class="page-content" id="page-agents">
+            <div class="page-toolbar">
+                <button class="btn btn-outline-dark btn-sm" onclick="loadSettings()">刷新</button>
+                <button class="btn btn-primary btn-sm" onclick="showAgentModal()">+ 添加 Agent</button>
+            </div>
+            <div class="content">
+                <table>
+                    <thead><tr><th>名称</th><th>类型</th><th>模型</th><th>描述</th><th>操作</th></tr></thead>
+                    <tbody id="agentsTableBody"></tbody>
+                </table>
             </div>
         </div>
 
@@ -277,6 +260,13 @@ tr.active-row td { background: #eff6ff; }
                     <div class="card-title">长期记忆</div>
                     <div class="switch-row"><label>启用长期记忆</label><label class="switch"><input type="checkbox" id="memoryEnabled"><span class="slider"></span></label></div>
                     <div class="inline-form" style="margin-top:12px">
+                        <div class="form-group"><label>记忆模式</label>
+                            <select id="memoryMode">
+                                <option value="human_and_ai">human_and_ai（记忆用户与 AI 消息）</option>
+                                <option value="human_only">human_only（仅记忆用户消息）</option>
+                                <option value="read_only">read_only（只读，不写入新记忆）</option>
+                            </select>
+                        </div>
                         <div class="form-group"><label>最大保留天数</label><input type="number" id="memoryMaxAgeDays" placeholder="90"></div>
                         <div class="form-group"><label>Embedding 模型</label><select id="memoryEmbedding"></select></div>
                         <div class="form-group"><label>评估器模型</label><select id="memoryEvaluator"><option value="">不使用</option></select></div>
@@ -300,6 +290,34 @@ tr.active-row td { background: #eff6ff; }
                 </table>
             </div>
         </div>
+
+        <!-- ===== 历史记录 ===== -->
+        <div class="page-content" id="page-history">
+            <div class="page-toolbar">
+                <select id="historyUserSelect" style="width:220px" onchange="loadHistory()"></select>
+                <button class="btn btn-outline-dark btn-sm" onclick="loadHistoryUsers()">刷新</button>
+                <button class="btn btn-danger btn-sm" style="margin-left:auto" onclick="clearHistory()">清除历史</button>
+            </div>
+            <div class="content">
+                <div id="historyMessages" class="msg-list"></div>
+            </div>
+        </div>
+
+        <!-- ===== 长期记忆 ===== -->
+        <div class="page-content" id="page-user-memory">
+            <div class="page-toolbar">
+                <select id="memoryUserSelect" style="width:220px" onchange="loadUserMemory()"></select>
+                <button class="btn btn-outline-dark btn-sm" onclick="loadMemoryUsers()">刷新</button>
+                <button class="btn btn-danger btn-sm" style="margin-left:auto" onclick="clearAllMemory()">清除全部</button>
+            </div>
+            <div class="content">
+                <table>
+                    <thead><tr><th>内容</th><th>重要性</th><th>时间</th><th>标签</th><th>操作</th></tr></thead>
+                    <tbody id="userMemoryTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
     </div>
 </div>
 
@@ -402,20 +420,77 @@ tr.active-row td { background: #eff6ff; }
     </div>
 </div>
 
-<!-- ===== Plan Agent 弹窗 ===== -->
-<div class="modal-overlay" id="planAgentModal">
+<!-- ===== Agent 编辑弹窗 ===== -->
+<div class="modal-overlay" id="agentModal">
     <div class="modal">
-        <div class="modal-header"><span id="planAgentModalTitle">添加 Agent</span><span class="close" onclick="closePlanAgentModal()">&times;</span></div>
+        <div class="modal-header"><span id="agentModalTitle">添加 Agent</span><span class="close" onclick="closeAgentModal()">&times;</span></div>
         <div class="modal-body">
-            <div class="form-group"><label>ID (唯一标识) *</label><input type="text" id="planAgentId" placeholder="如 coder-1"></div>
-            <div class="form-group"><label>类型 *</label><input type="text" id="planAgentType" placeholder="如 coder, researcher, analyst"></div>
-            <div class="form-group"><label>Skill 名称</label><input type="text" id="planAgentSkill" placeholder="可选，关联的 Skill 名称"></div>
-            <div class="form-group"><label>工具列表</label><input type="text" id="planAgentTools" placeholder='逗号分隔，如 read_file,write_file 或 * 表示全部'></div>
-            <div class="form-group"><label>系统提示词</label><textarea id="planAgentPrompt" rows="4" placeholder="自定义系统提示词（可选）"></textarea></div>
+            <div class="form-group"><label>名称 (唯一标识) *</label><input type="text" id="agentName" placeholder="如 default, my-agent"></div>
+            <div class="form-group">
+                <label>类型 *</label>
+                <select id="agentType" onchange="onAgentTypeChange()">
+                    <option value="single">Single (单 Agent)</option>
+                    <option value="supervisor">Supervisor (任务规划)</option>
+                    <option value="react">ReAct (迭代决策)</option>
+                </select>
+            </div>
+
+            <!-- Single 类型字段 -->
+            <div id="agentFieldsSingle">
+                <div class="form-group"><label>模型</label><select id="agentModelSingle"></select></div>
+                <div class="form-group"><label>系统提示词</label><textarea id="agentSystemPromptSingle" rows="3" placeholder="可选"></textarea></div>
+            </div>
+
+            <!-- Supervisor 类型字段 -->
+            <div id="agentFieldsSupervisor" style="display:none">
+                <div class="form-group"><label>Supervisor 模型</label><select id="agentModelSupervisor"></select></div>
+                <div class="form-group"><label>Supervisor 系统提示词</label><textarea id="agentSystemPromptSupervisor" rows="3" placeholder="可选"></textarea></div>
+                <div class="form-section">
+                    <div class="form-section-title">子 Agents <button class="btn btn-outline-dark btn-sm" onclick="addSubAgent('supervisor')" style="margin-left:8px">+ 添加</button></div>
+                    <div id="supervisorSubAgentsContainer"></div>
+                </div>
+            </div>
+
+            <!-- ReAct 类型字段 -->
+            <div id="agentFieldsReact" style="display:none">
+                <div class="form-group"><label>最大迭代次数</label><input type="number" id="agentMaxIterations" placeholder="5" min="1" max="50"></div>
+                <div class="form-section">
+                    <div class="form-section-title">Think 节点</div>
+                    <div class="form-group"><label>Think 模型</label><select id="agentThinkModel"></select></div>
+                    <div class="form-group"><label>Think 系统提示词</label><textarea id="agentThinkPrompt" rows="2" placeholder="可选"></textarea></div>
+                </div>
+                <div class="form-section">
+                    <div class="form-section-title">Reflect 节点</div>
+                    <div class="form-group"><label>Reflect 模型</label><select id="agentReflectModel"></select></div>
+                    <div class="form-group"><label>Reflect 系统提示词</label><textarea id="agentReflectPrompt" rows="2" placeholder="可选"></textarea></div>
+                </div>
+                <div class="form-section">
+                    <div class="form-section-title">子 Agents <button class="btn btn-outline-dark btn-sm" onclick="addSubAgent('react')" style="margin-left:8px">+ 添加</button></div>
+                    <div id="reactSubAgentsContainer"></div>
+                </div>
+            </div>
         </div>
         <div class="modal-footer">
-            <button class="btn btn-outline-dark" onclick="closePlanAgentModal()">取消</button>
-            <button class="btn btn-primary" onclick="savePlanAgent()">保存</button>
+            <button class="btn btn-outline-dark" onclick="closeAgentModal()">取消</button>
+            <button class="btn btn-primary" onclick="saveAgent()">保存</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== 子 Agent 编辑弹窗 ===== -->
+<div class="modal-overlay" id="subAgentModal">
+    <div class="modal">
+        <div class="modal-header"><span id="subAgentModalTitle">添加子 Agent</span><span class="close" onclick="closeSubAgentModal()">&times;</span></div>
+        <div class="modal-body">
+            <div class="form-group"><label>ID (唯一标识) *</label><input type="text" id="subAgentId" placeholder="如 coder, researcher"></div>
+            <div class="form-group"><label>描述</label><input type="text" id="subAgentDesc" placeholder="Agent 描述，用于 LLM 规划"></div>
+            <div class="form-group"><label>模型</label><select id="subAgentModel"></select></div>
+            <div class="form-group"><label>工具列表</label><input type="text" id="subAgentTools" placeholder='逗号分隔，如 read_file,write_file 或 * 表示全部'></div>
+            <div class="form-group"><label>系统提示词</label><textarea id="subAgentPrompt" rows="3" placeholder="可选"></textarea></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline-dark" onclick="closeSubAgentModal()">取消</button>
+            <button class="btn btn-primary" onclick="saveSubAgent()">保存</button>
         </div>
     </div>
 </div>
@@ -465,6 +540,7 @@ async function loadMcp() {
 
 function renderAll() {
     renderGeneralPage();
+    renderAgentsTable();
     renderModelsTable();
     renderEmbeddingsTable();
     renderMemoryPage();
@@ -474,48 +550,22 @@ function renderAll() {
 function renderGeneralPage() {
     document.getElementById('larkAppId').value = settings.lark?.appId || '';
     document.getElementById('larkAppSecret').value = settings.lark?.appSecret || '';
-    // 填充模型下拉
-    const sel = document.getElementById('currentModel');
-    const models = settings.models || {};
-    sel.innerHTML = Object.keys(models).map(k =>
-        '<option value="' + esc(k) + '"' + (k === settings.model ? ' selected' : '') + '>' + esc(k) + '</option>'
+    // 填充 agent 下拉
+    const selAgent = document.getElementById('currentAgent');
+    const agents = settings.agents || {};
+    selAgent.innerHTML = Object.keys(agents).map(k =>
+        '<option value="' + esc(k) + '"' + (k === settings.agent ? ' selected' : '') + '>' + esc(k) + '</option>'
     ).join('');
-    // Plan 设置
-    const plan = settings.plan || {};
-    document.getElementById('planMode').value = plan.mode || 'single';
-    document.getElementById('reactMaxIterations').value = (plan.react || {}).maxIterations ?? 5;
-    renderModeAgentsTable('supervisor');
-    renderModeAgentsTable('react');
-    onPlanModeChange();
 }
 
-function onPlanModeChange() {
-    const mode = document.getElementById('planMode').value;
-    // 高亮对应 tab
-    document.querySelectorAll('[data-mode-tab]').forEach(t => t.classList.toggle('active', t.dataset.modeTab === mode));
-    document.querySelectorAll('.mode-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + mode));
-}
-
-// mode tabs 点击
-document.querySelectorAll('[data-mode-tab]').forEach(el => {
-    el.addEventListener('click', () => {
-        const mode = el.dataset.modeTab;
-        document.getElementById('planMode').value = mode;
-        onPlanModeChange();
-    });
-});
+// 已移除旧的 Plan 模式相关代码
 
 async function saveGeneralSettings() {
     try {
         settings.lark = settings.lark || {};
         settings.lark.appId = document.getElementById('larkAppId').value;
         settings.lark.appSecret = document.getElementById('larkAppSecret').value;
-        settings.model = document.getElementById('currentModel').value;
-        // Plan 设置
-        settings.plan = settings.plan || {};
-        settings.plan.mode = document.getElementById('planMode').value;
-        settings.plan.react = settings.plan.react || { agents: [] };
-        settings.plan.react.maxIterations = parseInt(document.getElementById('reactMaxIterations').value) || 5;
+        settings.agent = document.getElementById('currentAgent').value;
         await apiFetch('/api/settings', 'PUT', settings);
         showToast('保存成功');
     } catch (e) { showToast(e.message, 'error'); }
@@ -533,9 +583,8 @@ function renderModelsTable() {
         return;
     }
     tbody.innerHTML = entries.map(([name, m]) => {
-        const isActive = name === settings.model;
-        return '<tr class="' + (isActive ? 'active-row' : '') + '">' +
-            '<td>' + esc(name) + (isActive ? ' <span style="color:#22c55e;font-size:11px">(当前)</span>' : '') + '</td>' +
+        return '<tr>' +
+            '<td>' + esc(name) + '</td>' +
             '<td>' + esc(m.provider) + '</td>' +
             '<td>' + esc(m.baseURL) + '</td>' +
             '<td>' + esc(m.model) + '</td>' +
@@ -568,7 +617,6 @@ async function saveModel() {
         settings.models = settings.models || {};
         if (editingModelName && editingModelName !== name) {
             delete settings.models[editingModelName];
-            if (settings.model === editingModelName) settings.model = name;
         }
         const temp = document.getElementById('modelTemperature').value;
         settings.models[name] = {
@@ -589,7 +637,6 @@ async function deleteModel(name) {
     if (!confirm('确定要删除模型 "' + name + '" 吗？')) return;
     try {
         delete settings.models[name];
-        if (settings.model === name) settings.model = '';
         await apiFetch('/api/settings', 'PUT', settings);
         showToast('删除成功');
         renderAll();
@@ -671,6 +718,7 @@ async function deleteEmbedding(name) {
 function renderMemoryPage() {
     const mem = settings.memory || {};
     document.getElementById('memoryEnabled').checked = !!mem.enabled;
+    document.getElementById('memoryMode').value = mem.mode || 'human_and_ai';
     document.getElementById('memoryMaxAgeDays').value = mem.maxAgeDays ?? 90;
     renderMemorySelects();
 }
@@ -697,6 +745,7 @@ async function saveMemorySettings() {
     try {
         settings.memory = settings.memory || {};
         settings.memory.enabled = document.getElementById('memoryEnabled').checked;
+        settings.memory.mode = document.getElementById('memoryMode').value || undefined;
         settings.memory.maxAgeDays = parseInt(document.getElementById('memoryMaxAgeDays').value) || 90;
         settings.memory.embedding = document.getElementById('memoryEmbedding').value || undefined;
         settings.memory.evaluator = document.getElementById('memoryEvaluator').value || undefined;
@@ -1013,114 +1062,272 @@ function closeMcpToolsModal() { document.getElementById('mcpToolsModal').classLi
 
 // ===== Plan Agent 管理 (per-mode) =====
 let editingAgentMode = '';
-let editingAgentIndex = -1;
+// ===== Agents 管理 =====
+let editingAgentName = null;
+let editingSubAgentParentType = null; // 'supervisor' or 'react'
+let editingSubAgentIndex = -1;
+let tempSubAgents = []; // 临时存储子 agents
 
-function getModeAgents(mode) {
-    const plan = settings.plan || {};
-    const modeConfig = plan[mode] || {};
-    return modeConfig.agents || [];
-}
-
-function setModeAgents(mode, agents) {
-    settings.plan = settings.plan || {};
-    if (mode === 'single') {
-        settings.plan.single = settings.plan.single || {};
-    } else if (mode === 'supervisor') {
-        settings.plan.supervisor = settings.plan.supervisor || { agents: [] };
-        settings.plan.supervisor.agents = agents;
-    } else if (mode === 'react') {
-        settings.plan.react = settings.plan.react || { maxIterations: 5, agents: [] };
-        settings.plan.react.agents = agents;
-    }
-}
-
-function renderModeAgentsTable(mode) {
-    const agents = getModeAgents(mode);
-    const tbody = document.getElementById(mode + 'AgentsBody');
-    if (!tbody) return;
-    if (agents.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:20px">暂无 Agent</td></tr>';
+function renderAgentsTable() {
+    const agents = settings.agents || {};
+    const tbody = document.getElementById('agentsTableBody');
+    const entries = Object.entries(agents);
+    if (entries.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:40px">暂无 Agent</td></tr>';
         return;
     }
-    tbody.innerHTML = agents.map((a, i) =>
-        '<tr>' +
-        '<td>' + esc(a.id) + '</td>' +
-        '<td>' + esc(a.type) + '</td>' +
-        '<td>' + esc(a.skillName || '-') + '</td>' +
-        '<td>' + esc(Array.isArray(a.tools) ? a.tools.join(', ') : '') + '</td>' +
-        '<td>' +
-            '<button class="btn btn-outline-dark btn-sm" onclick="editPlanAgent(\'' + mode + '\',' + i + ')">编辑</button> ' +
-            '<button class="btn btn-danger btn-sm" onclick="deletePlanAgent(\'' + mode + '\',' + i + ')">删除</button>' +
-        '</td></tr>'
+    tbody.innerHTML = entries.map(([name, agent]) => {
+        const isActive = name === settings.agent;
+        const typeLabels = { single: 'Single', supervisor: 'Supervisor', react: 'ReAct' };
+        const typeLabel = typeLabels[agent.type] || agent.type;
+        const model = agent.model || '-';
+        const desc = agent.systemPrompt ? (agent.systemPrompt.substring(0, 30) + '...') : '-';
+        return '<tr class="' + (isActive ? 'active-row' : '') + '">' +
+            '<td>' + esc(name) + (isActive ? ' <span style="color:#22c55e;font-size:11px">(当前)</span>' : '') + '</td>' +
+            '<td>' + esc(typeLabel) + '</td>' +
+            '<td>' + esc(model) + '</td>' +
+            '<td>' + esc(desc) + '</td>' +
+            '<td>' +
+                '<button class="btn btn-outline-dark btn-sm" onclick="editAgent(\'' + esc(name) + '\')">编辑</button> ' +
+                '<button class="btn btn-danger btn-sm" onclick="deleteAgent(\'' + esc(name) + '\')">删除</button>' +
+            '</td></tr>';
+    }).join('');
+}
+
+function showAgentModal() {
+    editingAgentName = null;
+    tempSubAgents = [];
+    document.getElementById('agentModalTitle').textContent = '添加 Agent';
+    document.getElementById('agentName').value = '';
+    document.getElementById('agentType').value = 'single';
+    fillModelSelects();
+    clearAgentFields();
+    onAgentTypeChange();
+    document.getElementById('agentModal').classList.add('show');
+}
+
+function editAgent(name) {
+    const agent = settings.agents[name];
+    if (!agent) return;
+    editingAgentName = name;
+    document.getElementById('agentModalTitle').textContent = '编辑 Agent';
+    document.getElementById('agentName').value = name;
+    document.getElementById('agentName').disabled = true;
+    document.getElementById('agentType').value = agent.type;
+    fillModelSelects();
+
+    if (agent.type === 'single') {
+        document.getElementById('agentModelSingle').value = agent.model || '';
+        document.getElementById('agentSystemPromptSingle').value = agent.systemPrompt || '';
+    } else if (agent.type === 'supervisor') {
+        document.getElementById('agentModelSupervisor').value = agent.model || '';
+        document.getElementById('agentSystemPromptSupervisor').value = agent.systemPrompt || '';
+        tempSubAgents = agent.agents || [];
+    } else if (agent.type === 'react') {
+        document.getElementById('agentMaxIterations').value = agent.maxIterations || 5;
+        document.getElementById('agentThinkModel').value = agent.think?.model || '';
+        document.getElementById('agentThinkPrompt').value = agent.think?.systemPrompt || '';
+        document.getElementById('agentReflectModel').value = agent.reflect?.model || '';
+        document.getElementById('agentReflectPrompt').value = agent.reflect?.systemPrompt || '';
+        tempSubAgents = agent.agents || [];
+    }
+
+    onAgentTypeChange();
+    renderSubAgents(agent.type);
+    document.getElementById('agentModal').classList.add('show');
+}
+
+function closeAgentModal() {
+    document.getElementById('agentModal').classList.remove('show');
+    document.getElementById('agentName').disabled = false;
+    tempSubAgents = [];
+}
+
+function fillModelSelects() {
+    const models = settings.models || {};
+    const options = Object.keys(models).map(k =>
+        '<option value="' + esc(k) + '">' + esc(k) + '</option>'
+    ).join('');
+    document.getElementById('agentModelSingle').innerHTML = options;
+    document.getElementById('agentModelSupervisor').innerHTML = options;
+    document.getElementById('agentThinkModel').innerHTML = options;
+    document.getElementById('agentReflectModel').innerHTML = options;
+    document.getElementById('subAgentModel').innerHTML = options;
+}
+
+function clearAgentFields() {
+    document.getElementById('agentModelSingle').value = '';
+    document.getElementById('agentSystemPromptSingle').value = '';
+    document.getElementById('agentModelSupervisor').value = '';
+    document.getElementById('agentSystemPromptSupervisor').value = '';
+    document.getElementById('agentMaxIterations').value = '5';
+    document.getElementById('agentThinkModel').value = '';
+    document.getElementById('agentThinkPrompt').value = '';
+    document.getElementById('agentReflectModel').value = '';
+    document.getElementById('agentReflectPrompt').value = '';
+}
+
+function onAgentTypeChange() {
+    const type = document.getElementById('agentType').value;
+    document.getElementById('agentFieldsSingle').style.display = type === 'single' ? 'block' : 'none';
+    document.getElementById('agentFieldsSupervisor').style.display = type === 'supervisor' ? 'block' : 'none';
+    document.getElementById('agentFieldsReact').style.display = type === 'react' ? 'block' : 'none';
+}
+
+async function saveAgent() {
+    try {
+        const name = document.getElementById('agentName').value.trim();
+        const type = document.getElementById('agentType').value;
+        if (!name) { showToast('名称不能为空', 'error'); return; }
+
+        let agentConfig = { type };
+
+        if (type === 'single') {
+            const model = document.getElementById('agentModelSingle').value.trim();
+            const systemPrompt = document.getElementById('agentSystemPromptSingle').value.trim();
+            if (model) agentConfig.model = model;
+            if (systemPrompt) agentConfig.systemPrompt = systemPrompt;
+        } else if (type === 'supervisor') {
+            const model = document.getElementById('agentModelSupervisor').value.trim();
+            const systemPrompt = document.getElementById('agentSystemPromptSupervisor').value.trim();
+            if (model) agentConfig.model = model;
+            if (systemPrompt) agentConfig.systemPrompt = systemPrompt;
+            agentConfig.agents = tempSubAgents;
+        } else if (type === 'react') {
+            const maxIterations = parseInt(document.getElementById('agentMaxIterations').value) || 5;
+            agentConfig.maxIterations = maxIterations;
+
+            const thinkModel = document.getElementById('agentThinkModel').value.trim();
+            const thinkPrompt = document.getElementById('agentThinkPrompt').value.trim();
+            if (thinkModel || thinkPrompt) {
+                agentConfig.think = {};
+                if (thinkModel) agentConfig.think.model = thinkModel;
+                if (thinkPrompt) agentConfig.think.systemPrompt = thinkPrompt;
+            }
+
+            const reflectModel = document.getElementById('agentReflectModel').value.trim();
+            const reflectPrompt = document.getElementById('agentReflectPrompt').value.trim();
+            if (reflectModel || reflectPrompt) {
+                agentConfig.reflect = {};
+                if (reflectModel) agentConfig.reflect.model = reflectModel;
+                if (reflectPrompt) agentConfig.reflect.systemPrompt = reflectPrompt;
+            }
+
+            agentConfig.agents = tempSubAgents;
+        }
+
+        settings.agents = settings.agents || {};
+        settings.agents[name] = agentConfig;
+
+        await apiFetch('/api/settings', 'PUT', settings);
+        closeAgentModal();
+        showToast('保存成功');
+        renderAgentsTable();
+        renderGeneralPage();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function deleteAgent(name) {
+    if (!confirm('确定要删除 Agent "' + name + '" 吗？')) return;
+    try {
+        delete settings.agents[name];
+        if (settings.agent === name) {
+            settings.agent = Object.keys(settings.agents)[0] || '';
+        }
+        await apiFetch('/api/settings', 'PUT', settings);
+        showToast('删除成功');
+        renderAgentsTable();
+        renderGeneralPage();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+// ===== 子 Agent 管理 =====
+function renderSubAgents(parentType) {
+    const containerId = parentType === 'supervisor' ? 'supervisorSubAgentsContainer' : 'reactSubAgentsContainer';
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    if (tempSubAgents.length === 0) {
+        container.innerHTML = '<div style="color:#94a3b8;font-size:12px;padding:8px">暂无子 Agent</div>';
+        return;
+    }
+
+    container.innerHTML = tempSubAgents.map((agent, i) =>
+        '<div style="padding:8px;margin-bottom:8px;border:1px solid #e2e8f0;border-radius:4px;background:#f8fafc">' +
+            '<div style="display:flex;align-items:center;justify-content:space-between">' +
+                '<div style="font-size:13px;font-weight:500">' + esc(agent.id) + '</div>' +
+                '<div>' +
+                    '<button class="btn btn-outline-dark btn-sm" onclick="editSubAgent(\'' + parentType + '\',' + i + ')">编辑</button> ' +
+                    '<button class="btn btn-danger btn-sm" onclick="deleteSubAgent(' + i + ')">删除</button>' +
+                '</div>' +
+            '</div>' +
+            '<div style="font-size:11px;color:#64748b;margin-top:4px">' + esc(agent.desc || '-') + '</div>' +
+        '</div>'
     ).join('');
 }
 
-function addPlanAgent(mode) {
-    editingAgentMode = mode;
-    editingAgentIndex = -1;
-    document.getElementById('planAgentModalTitle').textContent = '添加 Agent (' + mode + ')';
-    document.getElementById('planAgentId').value = '';
-    document.getElementById('planAgentType').value = '';
-    document.getElementById('planAgentSkill').value = '';
-    document.getElementById('planAgentTools').value = '*';
-    document.getElementById('planAgentPrompt').value = '';
-    document.getElementById('planAgentModal').classList.add('show');
+function addSubAgent(parentType) {
+    editingSubAgentParentType = parentType;
+    editingSubAgentIndex = -1;
+    document.getElementById('subAgentModalTitle').textContent = '添加子 Agent';
+    document.getElementById('subAgentId').value = '';
+    document.getElementById('subAgentDesc').value = '';
+    document.getElementById('subAgentModel').value = '';
+    document.getElementById('subAgentTools').value = '*';
+    document.getElementById('subAgentPrompt').value = '';
+    document.getElementById('subAgentModal').classList.add('show');
 }
 
-function editPlanAgent(mode, index) {
-    const agents = getModeAgents(mode);
-    const a = agents[index];
-    if (!a) return;
-    editingAgentMode = mode;
-    editingAgentIndex = index;
-    document.getElementById('planAgentModalTitle').textContent = '编辑 Agent (' + mode + ')';
-    document.getElementById('planAgentId').value = a.id || '';
-    document.getElementById('planAgentType').value = a.type || '';
-    document.getElementById('planAgentSkill').value = a.skillName || '';
-    document.getElementById('planAgentTools').value = Array.isArray(a.tools) ? a.tools.join(', ') : '';
-    document.getElementById('planAgentPrompt').value = a.systemPrompt || '';
-    document.getElementById('planAgentModal').classList.add('show');
+function editSubAgent(parentType, index) {
+    const agent = tempSubAgents[index];
+    if (!agent) return;
+    editingSubAgentParentType = parentType;
+    editingSubAgentIndex = index;
+    document.getElementById('subAgentModalTitle').textContent = '编辑子 Agent';
+    document.getElementById('subAgentId').value = agent.id || '';
+    document.getElementById('subAgentDesc').value = agent.desc || '';
+    document.getElementById('subAgentModel').value = agent.model || '';
+    document.getElementById('subAgentTools').value = Array.isArray(agent.tools) ? agent.tools.join(', ') : '*';
+    document.getElementById('subAgentPrompt').value = agent.systemPrompt || '';
+    document.getElementById('subAgentModal').classList.add('show');
 }
 
-function closePlanAgentModal() { document.getElementById('planAgentModal').classList.remove('show'); }
-
-async function savePlanAgent() {
-    try {
-        const id = document.getElementById('planAgentId').value.trim();
-        const type = document.getElementById('planAgentType').value.trim();
-        if (!id || !type) { showToast('ID 和类型不能为空', 'error'); return; }
-        const toolsStr = document.getElementById('planAgentTools').value.trim();
-        const tools = toolsStr ? toolsStr.split(/[,，]\s*/).map(t => t.trim()).filter(Boolean) : ['*'];
-        const skillName = document.getElementById('planAgentSkill').value.trim() || undefined;
-        const systemPrompt = document.getElementById('planAgentPrompt').value.trim() || undefined;
-
-        const agents = getModeAgents(editingAgentMode).slice();
-        const agent = { id, type, tools, skillName, systemPrompt };
-
-        if (editingAgentIndex >= 0) {
-            agents[editingAgentIndex] = agent;
-        } else {
-            agents.push(agent);
-        }
-        setModeAgents(editingAgentMode, agents);
-
-        await apiFetch('/api/settings', 'PUT', settings);
-        closePlanAgentModal();
-        showToast('保存成功');
-        renderModeAgentsTable(editingAgentMode);
-    } catch (e) { showToast(e.message, 'error'); }
+function closeSubAgentModal() {
+    document.getElementById('subAgentModal').classList.remove('show');
 }
 
-async function deletePlanAgent(mode, index) {
-    if (!confirm('确定要删除此 Agent 吗？')) return;
-    try {
-        const agents = getModeAgents(mode).slice();
-        agents.splice(index, 1);
-        setModeAgents(mode, agents);
-        await apiFetch('/api/settings', 'PUT', settings);
-        showToast('删除成功');
-        renderModeAgentsTable(mode);
-    } catch (e) { showToast(e.message, 'error'); }
+function saveSubAgent() {
+    const id = document.getElementById('subAgentId').value.trim();
+    if (!id) { showToast('ID 不能为空', 'error'); return; }
+
+    const desc = document.getElementById('subAgentDesc').value.trim();
+    const model = document.getElementById('subAgentModel').value.trim();
+    const toolsStr = document.getElementById('subAgentTools').value.trim();
+    const tools = toolsStr ? toolsStr.split(/[,，]\s*/).map(t => t.trim()).filter(Boolean) : ['*'];
+    const systemPrompt = document.getElementById('subAgentPrompt').value.trim();
+
+    const subAgent = { id, tools };
+    if (desc) subAgent.desc = desc;
+    if (model) subAgent.model = model;
+    if (systemPrompt) subAgent.systemPrompt = systemPrompt;
+
+    if (editingSubAgentIndex >= 0) {
+        tempSubAgents[editingSubAgentIndex] = subAgent;
+    } else {
+        tempSubAgents.push(subAgent);
+    }
+
+    renderSubAgents(editingSubAgentParentType);
+    closeSubAgentModal();
+    showToast('子 Agent 已更新');
+}
+
+function deleteSubAgent(index) {
+    if (!confirm('确定要删除此子 Agent 吗？')) return;
+    tempSubAgents.splice(index, 1);
+    const type = document.getElementById('agentType').value;
+    renderSubAgents(type);
+    showToast('子 Agent 已删除');
 }
 
 // ===== 重载配置 =====
@@ -1133,6 +1340,114 @@ async function reloadConfig() {
     } catch (e) { showToast(e.message, 'error'); }
 }
 
+// ===== 历史记录管理 =====
+async function loadHistoryUsers() {
+    try {
+        const res = await apiFetch('/api/users');
+        const users = res.data || [];
+        const sel = document.getElementById('historyUserSelect');
+        sel.innerHTML = users.length === 0
+            ? '<option value="">暂无用户</option>'
+            : users.map(u => '<option value="' + esc(u) + '">' + esc(u) + '</option>').join('');
+        if (users.length > 0) await loadHistory();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function loadHistory() {
+    const userId = document.getElementById('historyUserSelect').value;
+    if (!userId) return;
+    try {
+        const res = await apiFetch('/api/users/' + encodeURIComponent(userId) + '/history');
+        renderHistoryMessages(res.data || []);
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+function renderHistoryMessages(messages) {
+    const container = document.getElementById('historyMessages');
+    if (messages.length === 0) {
+        container.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:60px">暂无历史记录</div>';
+        return;
+    }
+    const roleLabel = { human: '用户', ai: 'AI', tool: '工具', system: '系统' };
+    container.innerHTML = messages.map(m => {
+        const role = m.role || 'unknown';
+        const label = roleLabel[role] || role;
+        return '<div class="msg-item ' + esc(role) + '">' +
+            '<span class="msg-role">' + esc(label) + '</span>' +
+            '<div class="msg-content">' + esc(m.content) + '</div>' +
+            '</div>';
+    }).join('');
+}
+
+async function clearHistory() {
+    const userId = document.getElementById('historyUserSelect').value;
+    if (!userId || !confirm('确定要清除 ' + userId + ' 的所有历史记录吗？')) return;
+    try {
+        await apiFetch('/api/users/' + encodeURIComponent(userId) + '/history', 'DELETE');
+        showToast('历史已清除');
+        renderHistoryMessages([]);
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+// ===== 长期记忆管理 =====
+async function loadMemoryUsers() {
+    try {
+        const res = await apiFetch('/api/users');
+        const users = res.data || [];
+        const sel = document.getElementById('memoryUserSelect');
+        sel.innerHTML = users.length === 0
+            ? '<option value="">暂无用户</option>'
+            : users.map(u => '<option value="' + esc(u) + '">' + esc(u) + '</option>').join('');
+        if (users.length > 0) await loadUserMemory();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function loadUserMemory() {
+    const userId = document.getElementById('memoryUserSelect').value;
+    if (!userId) return;
+    try {
+        const res = await apiFetch('/api/users/' + encodeURIComponent(userId) + '/memory');
+        renderMemoryTable(userId, res.data || []);
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+function renderMemoryTable(userId, memories) {
+    const tbody = document.getElementById('userMemoryTableBody');
+    if (memories.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:40px">暂无记忆</td></tr>';
+        return;
+    }
+    tbody.innerHTML = memories.map(m => {
+        const date = m.timestamp ? new Date(m.timestamp).toLocaleString() : '-';
+        const tags = (m.tags || []).join(', ');
+        return '<tr>' +
+            '<td style="max-width:420px;white-space:normal;word-break:break-word">' + esc(m.content) + '</td>' +
+            '<td>' + (m.importance != null ? m.importance.toFixed(2) : '-') + '</td>' +
+            '<td style="white-space:nowrap">' + esc(date) + '</td>' +
+            '<td>' + esc(tags) + '</td>' +
+            '<td><button class="btn btn-danger btn-sm" onclick="deleteMemory(\'' + esc(userId) + '\',\'' + esc(m.id) + '\')">删除</button></td>' +
+            '</tr>';
+    }).join('');
+}
+
+async function deleteMemory(userId, memoryId) {
+    try {
+        await apiFetch('/api/users/' + encodeURIComponent(userId) + '/memory/' + encodeURIComponent(memoryId), 'DELETE');
+        showToast('删除成功');
+        await loadUserMemory();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function clearAllMemory() {
+    const userId = document.getElementById('memoryUserSelect').value;
+    if (!userId || !confirm('确定要清除 ' + userId + ' 的所有记忆吗？')) return;
+    try {
+        await apiFetch('/api/users/' + encodeURIComponent(userId) + '/memory', 'DELETE');
+        showToast('已清除所有记忆');
+        renderMemoryTable(userId, []);
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
 // ===== 导航切换 =====
 document.querySelectorAll('.sidebar-item[data-page]').forEach(el => {
     el.addEventListener('click', () => {
@@ -1140,6 +1455,8 @@ document.querySelectorAll('.sidebar-item[data-page]').forEach(el => {
         document.querySelectorAll('.sidebar-item[data-page]').forEach(t => t.classList.toggle('active', t === el));
         document.querySelectorAll('.page-content').forEach(p => p.classList.toggle('active', p.id === target));
         if (target === 'page-mcp') loadMcp();
+        if (target === 'page-history') loadHistoryUsers();
+        if (target === 'page-user-memory') loadMemoryUsers();
     });
 });
 

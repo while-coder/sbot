@@ -1,7 +1,7 @@
 import {
     AgentService,
     IAgentCallback, IModelService, ModelServiceFactory,
-    ServiceContainer, T_ThreadId, T_SystemPrompt,
+    ServiceContainer, T_ThreadId, T_SystemPrompts,
 } from "scorpio.ai";
 import { SupervisorService, ReActService, AgentConfig } from "./Plan/index.js";
 import { config, AgentEntry, AgentMode, SingleAgentEntry, SupervisorAgentEntry, ReactAgentEntry } from "./Config";
@@ -62,12 +62,12 @@ export class AgentFactory {
     /**
      * 构建 systemPrompt，追加用户信息
      */
-    private static buildSystemPrompt(systemPrompt: string | undefined, userInfo?: any): string {
+    private static buildSystemPrompt(systemPrompt: string | undefined, userInfo?: any): string[] {
         let prompt = systemPrompt ?? "你是一个有用的AI助手";
         if (userInfo) {
             prompt += `\n用户user_id:${userInfo.user_id}\n用户open_id:${userInfo.open_id}\n用户union_id:${userInfo.union_id}\n用户姓名:${userInfo.name}\n用户邮箱:${userInfo.email}`;
         }
-        return prompt;
+        return [prompt];
     }
 
     /**
@@ -87,7 +87,7 @@ export class AgentFactory {
 
         container.registerWithArgs(AgentService, {
             [T_ThreadId]: userId,
-            [T_SystemPrompt]: systemPrompt,
+            [T_SystemPrompts]: systemPrompt,
         });
         return container.resolve(AgentService);
     }

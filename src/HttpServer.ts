@@ -1,12 +1,26 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import http from 'http';
 import path from 'path';
+import fs from 'fs';
 import { MultiServerMCPClient } from "@langchain/mcp-adapters";
+import { AgentSqliteSaver, MemoryDatabase } from "scorpio.ai";
 import { config } from './Config';
 import { LoggerService } from './LoggerService';
 import { LarkUserService } from './Lark/LarkUserService';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
+
+/** 统一异常包装：捕获异常并返回标准 JSON 响应 */
+function api(fn: (req: Request, res: Response) => any) {
+    return async (req: Request, res: Response) => {
+        try {
+            const result = await fn(req, res);
+            if (result !== undefined) res.json({ success: true, data: result });
+        } catch (e: any) {
+            res.status(e.status ?? 500).json({ success: false, message: e.message });
+        }
+    };
+}
 
 class HttpServer {
     async start() {
@@ -27,85 +41,101 @@ class HttpServer {
         // 静态文件
         app.use('/client', express.static(path.resolve(__dirname, '../client')));
 
-        // ===== Settings API =====
+        // ===== Settings =====
+        app.get('/api/settings', api(() => config.settings));
 
-        // 获取完整 settings
-        app.get('/api/settings', (_req, res) => {
-            try {
-                res.json({ success: true, data: config.settings });
-            } catch (e: any) {
-                res.status(500).json({ success: false, message: e.message });
+        app.put('/api/settings', api(req => {
+            Object.assign(config.settings, req.body);
+            config.saveSettings();
+            return config.settings;
+        }));
+
+        // ===== MCP =====
+        app.get('/api/mcp', api(() => config.getMcpServers()));
+
+        app.put('/api/mcp', api(req => {
+            config.saveMcpServers(req.body);
+            return config.getMcpServers();
+        }));
+
+        app.post('/api/mcp/tools', api(async req => {
+            const { name, config: mcpConfig } = req.body;
+            if (!name || !mcpConfig) {
+                const e: any = new Error('缺少 name 或 config 参数');
+                e.status = 400;
+                throw e;
             }
-        });
+            const mcpClient = new MultiServerMCPClient({ mcpServers: { [name]: mcpConfig } });
+            const tools = await mcpClient.getTools();
+            return tools.map(t => ({ name: t.name, description: t.description, parameters: t.schema }));
+        }));
 
-        // 更新完整 settings
-        app.put('/api/settings', (req, res) => {
-            try {
-                const newSettings = req.body;
-                Object.assign(config.settings, newSettings);
-                config.saveSettings();
-                res.json({ success: true, data: config.settings });
-            } catch (e: any) {
-                res.status(500).json({ success: false, message: e.message });
-            }
-        });
+        // ===== 用户列表 =====
+        app.get('/api/users', api(() => {
+            const usersDir = config.getConfigPath('users', true);
+            return fs.existsSync(usersDir)
+                ? fs.readdirSync(usersDir, { withFileTypes: true })
+                    .filter(d => d.isDirectory())
+                    .map(d => d.name)
+                : [];
+        }));
 
-        // ===== MCP API =====
+        // ===== 历史记录 =====
+        app.get('/api/users/:userId/history', api(async req => {
+            const userId = req.params.userId as string;
+            const saver = new AgentSqliteSaver(config.getUserSaverPath(userId));
+            const messages = await saver.getMessages(userId);
+            await saver.dispose();
+            return messages.map(m => ({
+                role: (m as any)._getType?.() ?? 'unknown',
+                content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+            }));
+        }));
 
-        // 获取 MCP 配置
-        app.get('/api/mcp', (_req, res) => {
-            try {
-                res.json({ success: true, data: config.getMcpServers() });
-            } catch (e: any) {
-                res.status(500).json({ success: false, message: e.message });
-            }
-        });
+        app.delete('/api/users/:userId/history', api(async req => {
+            const userId = req.params.userId as string;
+            const saver = new AgentSqliteSaver(config.getUserSaverPath(userId));
+            await saver.clearThread(userId);
+            await saver.dispose();
+            LarkUserService.allUsers.delete(userId);
+        }));
 
-        // 更新 MCP 配置
-        app.put('/api/mcp', (req, res) => {
-            try {
-                const mcpServers = req.body;
-                config.saveMcpServers(mcpServers);
-                res.json({ success: true, data: config.getMcpServers() });
-            } catch (e: any) {
-                res.status(500).json({ success: false, message: e.message });
-            }
-        });
+        // ===== 长期记忆 =====
+        app.get('/api/users/:userId/memory', api(req => {
+            const userId = req.params.userId as string;
+            const db = new MemoryDatabase(config.getUserMemoryPath(userId));
+            return db.getAllMemories(userId).map(m => ({
+                id: m.id,
+                content: m.content,
+                importance: m.metadata.importance,
+                timestamp: m.metadata.timestamp,
+                lastAccessed: m.metadata.lastAccessed,
+                accessCount: m.metadata.accessCount,
+                tags: m.metadata.tags,
+                category: m.metadata.category,
+            }));
+        }));
 
-        // 查询 MCP 工具列表
-        app.post('/api/mcp/tools', async (req, res) => {
-            try {
-                const { name, config: mcpConfig } = req.body;
-                if (!name || !mcpConfig) {
-                    res.status(400).json({ success: false, message: '缺少 name 或 config 参数' });
-                    return;
-                }
-                const mcpClient = new MultiServerMCPClient({ mcpServers: { [name]: mcpConfig } });
-                const tools = await mcpClient.getTools();
-                const result = tools.map(t => ({
-                    name: t.name,
-                    description: t.description,
-                    parameters: t.schema,
-                }));
-                res.json({ success: true, data: result });
-            } catch (e: any) {
-                res.status(500).json({ success: false, message: e.message });
-            }
-        });
+        app.delete('/api/users/:userId/memory/:memoryId', api(req => {
+            const userId = req.params.userId as string;
+            const memoryId = req.params.memoryId as string;
+            const db = new MemoryDatabase(config.getUserMemoryPath(userId));
+            db.deleteMemory(memoryId);
+        }));
 
-        // ===== 操作 API =====
+        app.delete('/api/users/:userId/memory', api(req => {
+            const userId = req.params.userId as string;
+            const db = new MemoryDatabase(config.getUserMemoryPath(userId));
+            const count = db.clearAllMemories(userId);
+            return { count };
+        }));
 
-        // 重载配置
-        app.post('/api/reload', (_req, res) => {
-            try {
-                config.reloadSettings();
-                // 清除所有用户缓存，使新配置生效
-                LarkUserService.allUsers.clear();
-                res.json({ success: true, message: '配置已重载' });
-            } catch (e: any) {
-                res.status(500).json({ success: false, message: e.message });
-            }
-        });
+        // ===== 操作 =====
+        app.post('/api/reload', api(() => {
+            config.reloadSettings();
+            LarkUserService.allUsers.clear();
+            return { message: '配置已重载' };
+        }));
 
         http.createServer(app).listen(port, () => {
             logger.info(`HTTP 服务启动成功: http://127.0.0.1:${port}`);
