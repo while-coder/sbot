@@ -1,6 +1,6 @@
 import { HumanMessage, AIMessage, AIMessageChunk, BaseMessage } from "langchain";
 import { Annotation, MessagesAnnotation, StateGraph, START, END } from '@langchain/langgraph';
-import { AgentConfig } from '../Supervisor/SupervisorAnnotation.js';
+import { AgentConfig, AgentNodeConfig } from '../../Config.js';
 import {
   AgentService, IAgentCallback, MessageChunkType, AgentMessage,
   IModelService, ISkillService, IMemoryService,
@@ -93,6 +93,10 @@ export class ReActService {
   private skillService?: ISkillService;
   private memoryService?: IMemoryService;
   private maxIterations: number;
+  private thinkConfig?: AgentNodeConfig;
+  private reflectConfig?: AgentNodeConfig;
+  private reflectModelService?: IModelService;
+  private agentModelServices?: Map<string, IModelService>;
 
   constructor(
     @inject("userId") userId: string,
@@ -102,7 +106,11 @@ export class ReActService {
     @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
     @inject(ISkillService, { optional: true }) skillService?: ISkillService,
     @inject(IMemoryService, { optional: true }) memoryService?: IMemoryService,
-    @inject("maxIterations", { optional: true }) maxIterations?: number
+    @inject("maxIterations", { optional: true }) maxIterations?: number,
+    @inject("thinkConfig", { optional: true }) thinkConfig?: AgentNodeConfig,
+    @inject("reflectConfig", { optional: true }) reflectConfig?: AgentNodeConfig,
+    @inject("reflectModelService", { optional: true }) reflectModelService?: IModelService,
+    @inject("agentModelServices", { optional: true }) agentModelServices?: Map<string, IModelService>
   ) {
     this.userId = userId;
     this.threadId = threadId;
@@ -112,6 +120,10 @@ export class ReActService {
     this.skillService = skillService;
     this.memoryService = memoryService;
     this.maxIterations = maxIterations ?? 5;
+    this.thinkConfig = thinkConfig;
+    this.reflectConfig = reflectConfig;
+    this.reflectModelService = reflectModelService;
+    this.agentModelServices = agentModelServices;
   }
 
   // ── Helpers ─────────────────────────────────────────────────
@@ -175,8 +187,12 @@ export class ReActService {
     const agentsDesc = state.agentConfigs.map((a: any) => `- ${a.id}: ${a.desc || a.systemPrompt || '通用任务'}`).join('\n');
     const agentIdList = state.agentConfigs.map((a: any) => a.id).join('/');
 
-    const prompt = `系统提示：你是一个 ReAct 规划助手，只返回有效的 JSON 格式，不要包含其他文本。
+    const thinkSystem = this.thinkConfig?.systemPrompt
+      ? `${this.thinkConfig.systemPrompt}\n\n`
+      : '';
 
+    const prompt = `系统提示：你是一个 ReAct 规划助手，只返回有效的 JSON 格式，不要包含其他文本。
+${thinkSystem}
 你是一个 ReAct (Reasoning and Acting) 规划专家。请分析当前情况并决定下一步行动。
 
 **总体目标**: ${reactState.goal}
@@ -331,7 +347,11 @@ decision 说明：
       return {};
     }
 
-    const prompt = `系统提示：你是一个结果总结助手。
+    const reflectSystem = this.reflectConfig?.systemPrompt
+      ? `${this.reflectConfig.systemPrompt}\n\n`
+      : '';
+
+    const prompt = `系统提示：${reflectSystem}你是一个结果总结助手。
 
 请基于以下执行过程，生成最终总结：
 
@@ -346,7 +366,8 @@ ${this.formatStepHistory(reactState.steps)}
 3. 是否完全达成目标`;
 
     try {
-      const response = await this.modelService.invoke(prompt);
+      const modelService = this.reflectModelService ?? this.modelService;
+      const response = await modelService.invoke(prompt);
       const reflection = response.content as string;
       reactState.steps.push(this.makeStep(ReActNode.Reflect, reflection));
       return { reactState, messages: [new AIMessage(`✨ **总结**:\n\n${reflection}`)] };
@@ -370,7 +391,8 @@ ${this.formatStepHistory(reactState.steps)}
 
       try {
         const subContainer = new ServiceContainer();
-        subContainer.registerInstance(IModelService, this.modelService);
+        const subModelService = this.agentModelServices?.get(agentConfig.id) ?? this.modelService;
+        subContainer.registerInstance(IModelService, subModelService);
         if (this.skillService)  subContainer.registerInstance(ISkillService, this.skillService);
         if (this.memoryService) subContainer.registerInstance(IMemoryService, new ReadOnlyMemoryService(this.memoryService));
         if (this.toolService) {
