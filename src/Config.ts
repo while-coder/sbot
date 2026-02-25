@@ -171,6 +171,10 @@ class Config {
     const mcpConfigPath = this.getConfigPath("mcp.json");
     fs.writeFileSync(mcpConfigPath, JSON.stringify({ mcpServers }, null, 2), "utf-8");
   }
+  saveAgentMcpServers(agentName: string, mcpServers: MCPServers): void {
+    const mcpConfigPath = this.getConfigPath(`agents/${agentName}/mcp.json`);
+    fs.writeFileSync(mcpConfigPath, JSON.stringify({ mcpServers }, null, 2), "utf-8");
+  }
 
   /**
    * 获取内置的 MCP 服务器配置
@@ -429,6 +433,22 @@ class Config {
 
   getSkillsPath() {
     return this.getConfigPath("skills", true)
+  }
+  getAgentSkillsPath(agentName: string) {
+    return this.getConfigPath(`agents/${agentName}/skills`, true)
+  }
+  getAgentMcpServers(agentName: string): MCPServers {
+    const mcpConfigPath = this.getConfigPath(`agents/${agentName}/mcp.json`);
+    try {
+      if (fs.existsSync(mcpConfigPath)) {
+        const content = fs.readFileSync(mcpConfigPath, "utf-8");
+        const parsed = JSON.parse(content);
+        return (parsed.mcpServers || parsed) as MCPServers;
+      }
+    } catch (error) {
+      // 读取失败时返回空对象
+    }
+    return {};
   }
   getUserSaverPath(userId: string) {
     return this.getConfigPath(`users/${userId}/saver.sqlite`)

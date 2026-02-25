@@ -28,6 +28,11 @@ export class AgentRunner {
         callbacks: IAgentCallback,
         userInfo?: any,
     ): Promise<void> {
+        const agentName = config.settings.agent;
+        if (!agentName) throw new Error("未配置 agent，请在 settings.json 中设置 agent 字段");
+        const agentEntry = config.settings.agents?.[agentName];
+        if (!agentEntry) throw new Error(`Agent 配置 "${agentName}" 不存在，请检查 settings.json 中的 agents 配置`);
+
         const container = new ServiceContainer();
 
         const memoryConfig = config.settings.memory;
@@ -62,7 +67,7 @@ export class AgentRunner {
         }
 
         container.registerWithArgs(ISkillService, SkillService, {
-            [T_SkillsDirs]: [config.getSkillsPath()],
+            [T_SkillsDirs]: [config.getSkillsPath(), config.getAgentSkillsPath(agentName)],
         });
 
         container.registerWithArgs(IAgentSaverService, AgentSqliteSaver, {
@@ -76,11 +81,8 @@ export class AgentRunner {
         if (Object.keys(mcpServers).length > 0) await agentToolService.addMcpServers(mcpServers);
         const builtinMcpServers = config.getBuiltinMcpServers();
         if (Object.keys(builtinMcpServers).length > 0) await agentToolService.addMcpServers(builtinMcpServers);
-
-        const agentName = config.settings.agent;
-        if (!agentName) throw new Error("未配置 agent，请在 settings.json 中设置 agent 字段");
-        const agentEntry = config.settings.agents?.[agentName];
-        if (!agentEntry) throw new Error(`Agent 配置 "${agentName}" 不存在，请检查 settings.json 中的 agents 配置`);
+        const agentMcpServers = config.getAgentMcpServers(agentName);
+        if (Object.keys(agentMcpServers).length > 0) await agentToolService.addMcpServers(agentMcpServers);
 
         logger.info(`${userId} 使用 Agent [${agentName}] (${agentEntry.type})`);
 

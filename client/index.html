@@ -211,6 +211,7 @@ tr.active-row td { background: #eff6ff; }
             <div class="sidebar-item" data-page="page-embeddings">Embedding</div>
             <div class="sidebar-item" data-page="page-memory">记忆设置</div>
             <div class="sidebar-item" data-page="page-mcp">MCP 服务</div>
+            <div class="sidebar-item" data-page="page-skills">Skills</div>
             <div class="sidebar-item" data-page="page-history">历史记录</div>
             <div class="sidebar-item" data-page="page-user-memory">长期记忆</div>
         </div>
@@ -304,6 +305,25 @@ tr.active-row td { background: #eff6ff; }
             </div>
         </div>
 
+        <!-- ===== Agent MCP 配置 ===== -->
+        <div class="page-content" id="page-agent-mcp">
+            <div class="page-toolbar">
+                <button class="btn btn-outline-dark btn-sm" onclick="closeAgentMcpPage()">← 返回</button>
+                <span id="agentMcpTitle" style="font-weight:600;margin-left:12px;color:#1e293b"></span>
+                <button class="btn btn-outline-dark btn-sm" style="margin-left:8px" onclick="loadAgentMcp()">刷新</button>
+                <button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="showMcpModal()">+ 添加 MCP</button>
+            </div>
+            <div class="content">
+                <div style="margin-bottom:16px;padding:10px 14px;background:#f1f5f9;border-radius:6px;font-size:13px;color:#475569">
+                    技能目录：<code id="agentSkillsPathText" style="font-family:monospace;background:#e2e8f0;padding:2px 6px;border-radius:3px"></code>
+                </div>
+                <table>
+                    <thead><tr><th>名称</th><th>类型</th><th>地址/命令</th><th>操作</th></tr></thead>
+                    <tbody id="agentMcpTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
         <!-- ===== MCP 服务 ===== -->
         <div class="page-content" id="page-mcp">
             <div class="page-toolbar">
@@ -314,6 +334,42 @@ tr.active-row td { background: #eff6ff; }
                 <table>
                     <thead><tr><th>名称</th><th>类型</th><th>地址/命令</th><th>操作</th></tr></thead>
                     <tbody id="mcpTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ===== Skills 管理 ===== -->
+        <div class="page-content" id="page-skills">
+            <div class="page-toolbar">
+                <button class="btn btn-outline-dark btn-sm" onclick="loadGlobalSkills()">刷新</button>
+                <button class="btn btn-primary btn-sm" onclick="showSkillModal()">+ 添加 Skill</button>
+            </div>
+            <div class="content">
+                <div style="margin-bottom:16px;padding:10px 14px;background:#f1f5f9;border-radius:6px;font-size:13px;color:#475569">
+                    技能目录：<code style="font-family:monospace;background:#e2e8f0;padding:2px 6px;border-radius:3px">~/.sbot/skills/</code>
+                </div>
+                <table>
+                    <thead><tr><th>名称</th><th>描述</th><th>操作</th></tr></thead>
+                    <tbody id="skillsTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ===== Agent Skills 管理 ===== -->
+        <div class="page-content" id="page-agent-skills">
+            <div class="page-toolbar">
+                <button class="btn btn-outline-dark btn-sm" onclick="closeAgentSkillsPage()">← 返回</button>
+                <span id="agentSkillsTitle" style="font-weight:600;margin-left:12px;color:#1e293b"></span>
+                <button class="btn btn-outline-dark btn-sm" style="margin-left:8px" onclick="loadSkills()">刷新</button>
+                <button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="showSkillModal()">+ 添加 Skill</button>
+            </div>
+            <div class="content">
+                <div style="margin-bottom:16px;padding:10px 14px;background:#f1f5f9;border-radius:6px;font-size:13px;color:#475569">
+                    技能目录：<code id="agentSkillsPathDisplay" style="font-family:monospace;background:#e2e8f0;padding:2px 6px;border-radius:3px"></code>
+                </div>
+                <table>
+                    <thead><tr><th>名称</th><th>描述</th><th>操作</th></tr></thead>
+                    <tbody id="agentSkillsTableBody"></tbody>
                 </table>
             </div>
         </div>
@@ -522,6 +578,24 @@ tr.active-row td { background: #eff6ff; }
         <div class="modal-footer">
             <button class="btn btn-outline-dark" onclick="closeSubAgentModal()">取消</button>
             <button class="btn btn-primary" onclick="saveSubAgent()">保存</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== Skill 编辑弹窗 ===== -->
+<div class="modal-overlay" id="skillModal">
+    <div class="modal" style="width:640px">
+        <div class="modal-header"><span id="skillModalTitle">添加 Skill</span><span class="close" onclick="closeSkillModal()">&times;</span></div>
+        <div class="modal-body">
+            <div class="form-group"><label>名称 (kebab-case) *</label><input type="text" id="skillNameInput" placeholder="如 my-skill"></div>
+            <div class="form-group">
+                <label>SKILL.md 内容 *</label>
+                <textarea id="skillContent" rows="18" style="font-family:'Consolas','Monaco',monospace;font-size:12px;line-height:1.5" placeholder="---&#10;name: my-skill&#10;description: &quot;技能描述&quot;&#10;---&#10;&#10;技能详细说明..."></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline-dark" onclick="closeSkillModal()">取消</button>
+            <button class="btn btn-primary" onclick="saveSkill()">保存</button>
         </div>
     </div>
 </div>
@@ -790,6 +864,56 @@ async function saveMemorySettings() {
 // ===== MCP 管理 =====
 let editingMcpName = null;
 let viewingMcpName = null;
+let agentMcpServers = {};
+let currentAgentMcpName = null;
+function _mcpServers() { return currentAgentMcpName ? agentMcpServers : mcpServers; }
+function _mcpEndpoint() { return currentAgentMcpName ? `/api/agents/${currentAgentMcpName}/mcp` : '/api/mcp'; }
+function _mcpRenderTable() { if (currentAgentMcpName) renderAgentMcpTable(); else renderMcpTable(); }
+
+// ===== Agent MCP 页面 =====
+async function openAgentMcpPage(agentName) {
+    currentAgentMcpName = agentName;
+    document.getElementById('agentMcpTitle').textContent = 'Agent: ' + agentName + ' — MCP 配置';
+    document.getElementById('agentSkillsPathText').textContent = '~/.sbot/agents/' + agentName + '/skills/';
+    document.querySelectorAll('.sidebar-item[data-page]').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.page-content').forEach(p => p.classList.toggle('active', p.id === 'page-agent-mcp'));
+    await loadAgentMcp();
+}
+function closeAgentMcpPage() {
+    currentAgentMcpName = null;
+    document.querySelectorAll('.sidebar-item[data-page]').forEach(t => t.classList.toggle('active', t.dataset.page === 'page-agents'));
+    document.querySelectorAll('.page-content').forEach(p => p.classList.toggle('active', p.id === 'page-agents'));
+}
+async function loadAgentMcp() {
+    try {
+        const res = await apiFetch('/api/agents/' + encodeURIComponent(currentAgentMcpName) + '/mcp');
+        agentMcpServers = res.data || {};
+    } catch (e) {
+        agentMcpServers = {};
+    }
+    renderAgentMcpTable();
+}
+function renderAgentMcpTable() {
+    const tbody = document.getElementById('agentMcpTableBody');
+    const entries = Object.entries(agentMcpServers);
+    if (entries.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:40px">暂无 MCP 服务</td></tr>';
+        return;
+    }
+    tbody.innerHTML = entries.map(([name, cfg]) => {
+        const type = cfg.url ? 'http' : (cfg.command ? 'stdio' : cfg.type || '-');
+        const addr = cfg.url || (cfg.command ? [cfg.command, ...(cfg.args || [])].join(' ') : '-');
+        return '<tr>' +
+            '<td>' + esc(name) + '</td>' +
+            '<td>' + esc(type) + '</td>' +
+            '<td>' + esc(addr) + '</td>' +
+            '<td>' +
+                '<button class="btn btn-outline-dark btn-sm" onclick="viewMcpTools(\'' + esc(name) + '\')">查看</button> ' +
+                '<button class="btn btn-outline-dark btn-sm" onclick="editMcp(\'' + esc(name) + '\')">编辑</button> ' +
+                '<button class="btn btn-danger btn-sm" onclick="deleteMcp(\'' + esc(name) + '\')">删除</button>' +
+            '</td></tr>';
+    }).join('');
+}
 
 function renderMcpTable() {
     const tbody = document.getElementById('mcpTableBody');
@@ -885,7 +1009,7 @@ function showMcpModal(name) {
     document.getElementById('mcpModalTitle').textContent = name ? '编辑 MCP 服务' : '添加 MCP 服务';
     document.getElementById('mcpName').value = name || '';
 
-    const cfg = name ? (mcpServers[name] || {}) : {};
+    const cfg = name ? (_mcpServers()[name] || {}) : {};
     const isStdio = !!cfg.command || cfg.type === 'stdio' || cfg.transport === 'stdio';
 
     document.getElementById('mcpType').value = isStdio ? 'stdio' : 'http';
@@ -947,29 +1071,29 @@ async function saveMcp() {
 
         // 如果名称变更，删除旧条目
         if (editingMcpName && editingMcpName !== name) {
-            delete mcpServers[editingMcpName];
+            delete _mcpServers()[editingMcpName];
         }
-        mcpServers[name] = cfg;
-        await apiFetch('/api/mcp', 'PUT', mcpServers);
+        _mcpServers()[name] = cfg;
+        await apiFetch(_mcpEndpoint(), 'PUT', _mcpServers());
         closeMcpModal();
         showToast('保存成功');
-        renderMcpTable();
+        _mcpRenderTable();
     } catch (e) { showToast(e.message, 'error'); }
 }
 
 async function deleteMcp(name) {
     if (!confirm('确定要删除 MCP "' + name + '" 吗？')) return;
     try {
-        delete mcpServers[name];
-        await apiFetch('/api/mcp', 'PUT', mcpServers);
+        delete _mcpServers()[name];
+        await apiFetch(_mcpEndpoint(), 'PUT', _mcpServers());
         showToast('删除成功');
-        renderMcpTable();
+        _mcpRenderTable();
     } catch (e) { showToast(e.message, 'error'); }
 }
 
 // ===== MCP Tools 查看 =====
 async function viewMcpTools(name) {
-    const cfg = mcpServers[name];
+    const cfg = _mcpServers()[name];
     if (!cfg) { showToast('MCP 配置不存在', 'error'); return; }
     viewingMcpName = name;
     document.getElementById('mcpToolsModalTitle').innerHTML = esc(name) + '<span class="tools-count"></span>';
@@ -1017,7 +1141,7 @@ async function viewMcpTools(name) {
 }
 
 async function toggleToolDisabled(toolName, enabled) {
-    const cfg = mcpServers[viewingMcpName];
+    const cfg = _mcpServers()[viewingMcpName];
     if (!cfg) return;
     if (!Array.isArray(cfg.disabled)) cfg.disabled = [];
     if (enabled) {
@@ -1026,11 +1150,11 @@ async function toggleToolDisabled(toolName, enabled) {
         if (!cfg.disabled.includes(toolName)) cfg.disabled.push(toolName);
     }
     if (cfg.disabled.length === 0) delete cfg.disabled;
-    await apiFetch('/api/mcp', 'PUT', mcpServers);
+    await apiFetch(_mcpEndpoint(), 'PUT', _mcpServers());
 }
 
 async function toggleToolAutoApprove(toolName, autoApprove) {
-    const cfg = mcpServers[viewingMcpName];
+    const cfg = _mcpServers()[viewingMcpName];
     if (!cfg) return;
     if (!Array.isArray(cfg.disabledAutoApproveTools)) cfg.disabledAutoApproveTools = [];
     if (autoApprove) {
@@ -1039,7 +1163,7 @@ async function toggleToolAutoApprove(toolName, autoApprove) {
         if (!cfg.disabledAutoApproveTools.includes(toolName)) cfg.disabledAutoApproveTools.push(toolName);
     }
     if (cfg.disabledAutoApproveTools.length === 0) delete cfg.disabledAutoApproveTools;
-    await apiFetch('/api/mcp', 'PUT', mcpServers);
+    await apiFetch(_mcpEndpoint(), 'PUT', _mcpServers());
 }
 
 function toggleToolParams(el) {
@@ -1119,6 +1243,8 @@ function renderAgentsTable() {
             '<td>' + esc(model) + '</td>' +
             '<td>' + esc(desc) + '</td>' +
             '<td>' +
+                '<button class="btn btn-outline-dark btn-sm" onclick="openAgentMcpPage(\'' + esc(name) + '\')">MCP配置</button> ' +
+                '<button class="btn btn-outline-dark btn-sm" onclick="openAgentSkillsPage(\'' + esc(name) + '\')">Skills配置</button> ' +
                 '<button class="btn btn-outline-dark btn-sm" onclick="editAgent(\'' + esc(name) + '\')">编辑</button> ' +
                 '<button class="btn btn-danger btn-sm" onclick="deleteAgent(\'' + esc(name) + '\')">删除</button>' +
             '</td></tr>';
@@ -1359,6 +1485,103 @@ function deleteSubAgent(index) {
     const type = document.getElementById('agentType').value;
     renderSubAgents(type);
     showToast('子 Agent 已删除');
+}
+
+// ===== Skills 管理 =====
+let currentSkillsAgent = null; // null = 全局 skills, string = agent name
+let editingSkillOldName = null;
+
+function _skillsEndpoint() { return currentSkillsAgent ? '/api/agents/' + encodeURIComponent(currentSkillsAgent) + '/skills' : '/api/skills'; }
+
+async function loadSkills() {
+    try {
+        const res = await apiFetch(_skillsEndpoint());
+        const tbodyId = currentSkillsAgent ? 'agentSkillsTableBody' : 'skillsTableBody';
+        renderSkillsTable(res.data || [], tbodyId);
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function loadGlobalSkills() {
+    currentSkillsAgent = null;
+    await loadSkills();
+}
+
+function renderSkillsTable(skills, tbodyId) {
+    const tbody = document.getElementById(tbodyId);
+    if (skills.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#94a3b8;padding:40px">暂无 Skill</td></tr>';
+        return;
+    }
+    tbody.innerHTML = skills.map(s =>
+        '<tr>' +
+        '<td style="font-family:Consolas,Monaco,monospace">' + esc(s.name) + '</td>' +
+        '<td>' + esc(s.description || '-') + '</td>' +
+        '<td>' +
+            '<button class="btn btn-outline-dark btn-sm" onclick="editSkill(\'' + esc(s.name) + '\')">编辑</button> ' +
+            '<button class="btn btn-danger btn-sm" onclick="deleteSkillItem(\'' + esc(s.name) + '\')">删除</button>' +
+        '</td></tr>'
+    ).join('');
+}
+
+function showSkillModal(name) {
+    editingSkillOldName = name || null;
+    document.getElementById('skillModalTitle').textContent = name ? '编辑 Skill' : '添加 Skill';
+    document.getElementById('skillNameInput').value = name || '';
+    document.getElementById('skillNameInput').disabled = !!name;
+    document.getElementById('skillContent').value = '';
+    if (name) {
+        apiFetch(_skillsEndpoint() + '/' + encodeURIComponent(name))
+            .then(res => { document.getElementById('skillContent').value = res.data.content; })
+            .catch(e => showToast(e.message, 'error'));
+    } else {
+        document.getElementById('skillContent').value = '---\nname: \ndescription: \"\"\n---\n\n';
+    }
+    document.getElementById('skillModal').classList.add('show');
+}
+
+function editSkill(name) { showSkillModal(name); }
+
+function closeSkillModal() {
+    document.getElementById('skillModal').classList.remove('show');
+    document.getElementById('skillNameInput').disabled = false;
+}
+
+async function saveSkill() {
+    try {
+        const name = document.getElementById('skillNameInput').value.trim();
+        const content = document.getElementById('skillContent').value;
+        if (!name) { showToast('名称不能为空', 'error'); return; }
+        if (!content.trim()) { showToast('内容不能为空', 'error'); return; }
+        await apiFetch(_skillsEndpoint() + '/' + encodeURIComponent(name), 'PUT', { content });
+        closeSkillModal();
+        showToast('保存成功');
+        await loadSkills();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function deleteSkillItem(name) {
+    if (!confirm('确定要删除 Skill "' + name + '" 吗？此操作将删除整个 Skill 目录！')) return;
+    try {
+        await apiFetch(_skillsEndpoint() + '/' + encodeURIComponent(name), 'DELETE');
+        showToast('删除成功');
+        await loadSkills();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+// ===== Agent Skills 页面 =====
+async function openAgentSkillsPage(agentName) {
+    currentSkillsAgent = agentName;
+    document.getElementById('agentSkillsTitle').textContent = 'Agent: ' + agentName + ' — Skills 配置';
+    document.getElementById('agentSkillsPathDisplay').textContent = '~/.sbot/agents/' + agentName + '/skills/';
+    document.querySelectorAll('.sidebar-item[data-page]').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.page-content').forEach(p => p.classList.toggle('active', p.id === 'page-agent-skills'));
+    await loadSkills();
+}
+
+function closeAgentSkillsPage() {
+    currentSkillsAgent = null;
+    document.querySelectorAll('.sidebar-item[data-page]').forEach(t => t.classList.toggle('active', t.dataset.page === 'page-agents'));
+    document.querySelectorAll('.page-content').forEach(p => p.classList.toggle('active', p.id === 'page-agents'));
 }
 
 // ===== 重载配置 =====
@@ -1664,9 +1887,11 @@ async function clearAllMemory() {
 document.querySelectorAll('.sidebar-item[data-page]').forEach(el => {
     el.addEventListener('click', () => {
         const target = el.dataset.page;
+        currentAgentMcpName = null;
         document.querySelectorAll('.sidebar-item[data-page]').forEach(t => t.classList.toggle('active', t === el));
         document.querySelectorAll('.page-content').forEach(p => p.classList.toggle('active', p.id === target));
         if (target === 'page-mcp') loadMcp();
+        if (target === 'page-skills') loadGlobalSkills();
         if (target === 'page-history') loadHistoryUsers();
         if (target === 'page-user-memory') loadMemoryUsers();
     });
