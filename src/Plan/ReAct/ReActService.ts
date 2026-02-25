@@ -91,7 +91,6 @@ class ReadOnlyMemoryService implements IMemoryService {
 export class ReActService {
   private userId: string;
   private agentRefs: AgentRef[];
-  private container: ServiceContainer;
   private memoryService?: IMemoryService;
   private maxIterations: number;
   private thinkConfig?: AgentNodeConfig;
@@ -100,7 +99,6 @@ export class ReActService {
   constructor(
     @inject("userId") userId: string,
     @inject("agentRefs") agentRefs: AgentRef[],
-    @inject("container") container: ServiceContainer,
     @inject(IMemoryService, { optional: true }) memoryService?: IMemoryService,
     @inject("maxIterations", { optional: true }) maxIterations?: number,
     @inject("thinkConfig", { optional: true }) thinkConfig?: AgentNodeConfig,
@@ -108,7 +106,6 @@ export class ReActService {
   ) {
     this.userId = userId;
     this.agentRefs = agentRefs;
-    this.container = container;
     this.memoryService = memoryService;
     this.maxIterations = maxIterations ?? 5;
     this.thinkConfig = thinkConfig;
