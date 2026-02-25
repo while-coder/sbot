@@ -1,32 +1,14 @@
 import "reflect-metadata";
 import { UserServiceBase } from "winning.ai";
 import {
-    IAgentSaverService, AgentSqliteSaver, IAgentToolService, AgentToolService,
-    IModelService, ModelServiceFactory,
-    IMemoryService, IMemoryDatabase, MemoryDatabase, MemoryEvaluator, MemoryCompressor, MemoryExtractor, MemoryService,
-    IEmbeddingService, EmbeddingServiceFactory,
-    ServiceContainer,
-    ISkillService, SkillService,
-    IMemoryExtractor,
-    IMemoryEvaluator,
-    IMemoryCompressor,
-    T_UserId,
-    T_MaxMemoryAgeDays,
-    T_MemoryMode,
-    T_SkillsDirs,
-    T_DBPath,
     AgentMessage,
     AgentToolCall,
     MCPToolResult,
     ICommand,
 } from "scorpio.ai";
 import { Response } from "express";
-import { LoggerService } from "../LoggerService";
 import { getBuiltInCommands } from "../UserService/BuiltInCommands";
-import { config } from "../Config";
-import { AgentFactory } from "../AgentFactory";
-
-const logger = LoggerService.getLogger('WebUserService.ts');
+import { AgentRunner } from "../AgentRunner";
 
 export type WebChatEvent =
     | { type: "stream"; content: string }
@@ -107,67 +89,7 @@ export class WebUserService extends UserServiceBase {
     // ===== AI 消息处理 =====
 
     protected async processAIMessage(query: string, _args: any): Promise<void> {
-        // 创建 DI 容器并注册服务
-        const container = new ServiceContainer();
-
-        // 可选：注册记忆相关依赖（需要 memory.embedding 配置才启用）
-        const memoryConfig = config.settings.memory;
-        if (memoryConfig?.enabled && memoryConfig?.embedding) {
-            const evaluatorModelConfig = memoryConfig.evaluator ? config.getModel(memoryConfig.evaluator) : undefined;
-            if (evaluatorModelConfig) {
-                container.registerWithArgs(IMemoryEvaluator, MemoryEvaluator, {
-                    [IModelService]: await ModelServiceFactory.getModelService(evaluatorModelConfig),
-                });
-            }
-            const extractorModelConfig = memoryConfig.extractor ? config.getModel(memoryConfig.extractor) : undefined;
-            if (extractorModelConfig) {
-                container.registerWithArgs(IMemoryExtractor, MemoryExtractor, {
-                    [IModelService]: await ModelServiceFactory.getModelService(extractorModelConfig),
-                });
-            }
-            const compressorModelConfig = memoryConfig.compressor ? config.getModel(memoryConfig.compressor) : undefined;
-            if (compressorModelConfig) {
-                container.registerWithArgs(IMemoryCompressor, MemoryCompressor, {
-                    [IModelService]: await ModelServiceFactory.getModelService(compressorModelConfig),
-                });
-            }
-            const embeddingConfig = config.getEmbedding(memoryConfig.embedding);
-            if (!embeddingConfig) throw new Error(`Embedding 配置 "${memoryConfig.embedding}" 不存在`);
-            container.registerWithArgs(IMemoryService, MemoryService, {
-                [T_UserId]: this.userId,
-                [IEmbeddingService]: await EmbeddingServiceFactory.getEmbeddingService(embeddingConfig),
-                [IMemoryDatabase]: new MemoryDatabase(config.getUserMemoryPath(this.userId)),
-                [T_MaxMemoryAgeDays]: memoryConfig.maxAgeDays,
-                [T_MemoryMode]: memoryConfig.mode,
-            });
-        }
-
-        container.registerWithArgs(ISkillService, SkillService, {
-            [T_SkillsDirs]: [config.getSkillsPath()],
-        });
-
-        container.registerWithArgs(IAgentSaverService, AgentSqliteSaver, {
-            [T_DBPath]: config.getUserSaverPath(this.userId),
-        });
-
-        container.registerSingleton(IAgentToolService, AgentToolService);
-
-        const agentToolService = await container.resolve<AgentToolService>(IAgentToolService);
-        const mcpServers = config.getMcpServers();
-        if (Object.keys(mcpServers).length > 0) await agentToolService.addMcpServers(mcpServers);
-        const builtinMcpServers = config.getBuiltinMcpServers();
-        if (Object.keys(builtinMcpServers).length > 0) await agentToolService.addMcpServers(builtinMcpServers);
-
-        const agentName = config.settings.agent;
-        if (!agentName) throw new Error("未配置 agent，请在 settings.json 中设置 agent 字段");
-        const agentEntry = config.settings.agents?.[agentName];
-        if (!agentEntry) throw new Error(`Agent 配置 "${agentName}" 不存在，请检查 settings.json 中的 agents 配置`);
-
-        logger.info(`WebUser ${this.userId} 使用 Agent [${agentName}] (${agentEntry.type})`);
-
-        const agent = await AgentFactory.create(container, agentEntry, this.userId);
-
-        await agent.stream(query, {
+        await AgentRunner.run(this.userId, query, {
             onMessage: this.onAgentMessage.bind(this),
             onStreamMessage: this.onAgentStreamMessage.bind(this),
             executeTool: this.executeAgentTool.bind(this),
