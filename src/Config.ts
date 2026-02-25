@@ -39,7 +39,7 @@ export interface AgentRef {
 export interface BaseAgentEntry {
   type: AgentMode;
   mcp?: string[];              // Agent 专属 MCP 服务器名称列表（对应 mcp.json 中的 key）
-  skills?: string[];           // Agent 专属 Skills 目录列表
+  skills?: string[];           // 全局 Skills 过滤列表（skill 名称），不填则加载所有全局 Skills
 }
 
 /**
@@ -171,24 +171,6 @@ class Config {
     fs.writeFileSync(mcpConfigPath, JSON.stringify({ mcpServers }, null, 2), "utf-8");
   }
 
-  /**
-   * 获取内置的 MCP 服务器配置
-   * @returns 内置的 MCP 服务器配置对象
-   */
-  getBuiltinMcpServers(): MCPServers {
-    return {
-      // "playwright": {
-      //   command: "npx",
-      //   args: ["@playwright/mcp@latest"],
-      //   disabledAutoApproveTools: []
-      // },
-      // "windows-mcp": {
-      //   command: "uvx",
-      //   args: ["windows-mcp"],
-      //   disabledAutoApproveTools: []
-      // }
-    };
-  }
 
   /**
    * 获取默认配置

@@ -3,10 +3,11 @@ import {
     IAgentCallback, IModelService, ModelServiceFactory,
     IAgentToolService, AgentToolService,
     ISkillService, SkillService,
-    ServiceContainer, T_ThreadId, T_SystemPrompts, T_SkillsDirs,
+    ServiceContainer, T_ThreadId, T_SystemPrompts, T_SkillsDirs, T_SkillDirs,
 } from "scorpio.ai";
+import path from "path";
 import { ReActService } from "./Plan/index.js";
-import { config, AgentEntry, AgentMode, SingleAgentEntry, ReactAgentEntry } from "./Config";
+import { config, AgentMode, SingleAgentEntry, ReactAgentEntry } from "./Config";
 import { LoggerService } from "./LoggerService";
 
 const logger = LoggerService.getLogger("AgentFactory.ts");
@@ -24,44 +25,40 @@ export class AgentFactory {
     /**
      * 根据 AgentEntry 创建 Agent 服务
      * @param container DI 容器（已注册 memory 等公共服务）
-     * @param agentEntry Agent 配置条目
      * @param userId 用户 ID
-     * @param agentName Agent 名称（用于加载 Agent 专属 skill/mcp，子 Agent 调用时可不传）
+     * @param agentName Agent 名称（对应 config.settings.agents 中的 key）
      * @param userInfo 用户信息（可选，用于追加到 systemPrompt）
      */
     static async create(
+        agentName: string,
         container: ServiceContainer,
-        agentEntry: AgentEntry,
         userId: string,
-        agentName?: string,
         userInfo?: any,
     ): Promise<StreamableAgent> {
-        if (agentName && !container.isRegistered(ISkillService)) {
-            const skillsDirs = [
-                config.getSkillsPath(),
-                config.getAgentSkillsPath(agentName),
-                ...(agentEntry.skills ?? []),
-            ];
-            container.registerWithArgs(ISkillService, SkillService, {
-                [T_SkillsDirs]: skillsDirs,
-            });
+        const agentEntry = config.settings.agents?.[agentName];
+        if (!agentEntry) throw new Error(`Agent 配置 "${agentName}" 不存在`);
+        if (!container.isRegistered(ISkillService)) {
+            const args: Record<symbol, any> = {
+                [T_SkillsDirs]: [config.getAgentSkillsPath(agentName)],
+            };
+            if (agentEntry.skills && agentEntry.skills.length > 0) {
+                args[T_SkillDirs] = agentEntry.skills.map(name => path.join(config.getSkillsPath(), name));
+            }
+            container.registerWithArgs(ISkillService, SkillService, args);
         }
 
         if (!container.isRegistered(IAgentToolService)) {
             container.registerSingleton(IAgentToolService, AgentToolService);
             const toolService = await container.resolve<AgentToolService>(IAgentToolService);
             const mcpServers = config.getMcpServers();
-            if (Object.keys(mcpServers).length > 0) await toolService.addMcpServers(mcpServers);
-            const builtinMcpServers = config.getBuiltinMcpServers();
-            if (Object.keys(builtinMcpServers).length > 0) await toolService.addMcpServers(builtinMcpServers);
-            if (agentName) {
-                const entryMcp = Object.fromEntries(
-                    (agentEntry.mcp ?? []).map(name => [name, mcpServers[name]]).filter(([, v]) => v)
+            if (agentEntry.mcp && agentEntry.mcp.length > 0) {
+                const filteredMcp = Object.fromEntries(
+                    agentEntry.mcp.map(name => [name, mcpServers[name]]).filter(([, v]) => v)
                 );
-                if (Object.keys(entryMcp).length > 0) await toolService.addMcpServers(entryMcp);
-                const agentMcpServers = config.getAgentMcpServers(agentName);
-                if (Object.keys(agentMcpServers).length > 0) await toolService.addMcpServers(agentMcpServers);
+                await toolService.addMcpServers(filteredMcp);
             }
+            const agentMcpServers = config.getAgentMcpServers(agentName);
+            await toolService.addMcpServers(agentMcpServers);
         }
 
         const agentType = agentEntry.type || AgentMode.Single;

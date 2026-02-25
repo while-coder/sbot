@@ -374,15 +374,12 @@ ${this.formatStepHistory(reactState.steps)}
       }
 
       const currentStep = reactState.currentStep;
-      const agentEntry = config.settings.agents?.[agentName];
-      if (!agentEntry) throw new Error(`Sub-Agent "${agentName}" 配置不存在`);
-
       try {
         const subContainer = new ServiceContainer();
         if (this.memoryService) subContainer.registerInstance(IMemoryService, new ReadOnlyMemoryService(this.memoryService));
         const { AgentFactory } = await import('../../AgentFactory.js');
         const subUserId = `${this.userId}_react_${agentName}_${currentStep.id}`;
-        const agentService = await AgentFactory.create(subContainer, agentEntry, subUserId);
+        const agentService = await AgentFactory.create(agentName, subContainer, subUserId);
 
         const taskPrompt = `你需要使用可用的工具来完成以下任务，直接执行操作并返回结果，不要只给出建议或步骤说明。\n\n任务: ${currentStep.content}`;
 
