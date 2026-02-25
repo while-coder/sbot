@@ -65,7 +65,7 @@ export class AgentFactory {
 
         switch (agentType) {
             case AgentMode.ReAct:
-                return this.createReAct(container, agentEntry as ReactAgentEntry, userId);
+                return this.createReAct(container, agentEntry as ReactAgentEntry, userId, userInfo);
 
             case AgentMode.Single:
             default:
@@ -89,11 +89,15 @@ export class AgentFactory {
      * 构建 systemPrompt，追加用户信息
      */
     private static buildSystemPrompt(systemPrompt: string | undefined, userInfo?: any): string[] {
-        let prompt = systemPrompt ?? "你是一个有用的AI助手";
+        const prompts: string[] = [systemPrompt ?? "你是一个有用的AI助手"];
         if (userInfo) {
-            prompt += `\n用户user_id:${userInfo.user_id}\n用户open_id:${userInfo.open_id}\n用户union_id:${userInfo.union_id}\n用户姓名:${userInfo.name}\n用户邮箱:${userInfo.email}`;
+            prompts.push(`用户user_id:${userInfo.user_id}
+用户open_id:${userInfo.open_id}
+用户union_id:${userInfo.union_id}
+用户姓名:${userInfo.name}
+用户邮箱:${userInfo.email}`);
         }
-        return [prompt];
+        return prompts;
     }
 
     /**
@@ -109,11 +113,11 @@ export class AgentFactory {
 
         await this.registerModel(container, entry.model);
 
-        const systemPrompt = this.buildSystemPrompt(entry.systemPrompt, userInfo);
+        const systemPrompts = this.buildSystemPrompt(entry.systemPrompt, userInfo);
 
         container.registerWithArgs(AgentService, {
             [T_ThreadId]: userId,
-            [T_SystemPrompts]: systemPrompt,
+            [T_SystemPrompts]: systemPrompts,
         });
         return container.resolve(AgentService);
     }
@@ -125,6 +129,7 @@ export class AgentFactory {
         container: ServiceContainer,
         entry: ReactAgentEntry,
         userId: string,
+        userInfo?: any,
     ): Promise<StreamableAgent> {
         const agentRefs = entry.agents || [];
         if (agentRefs.length === 0) {
@@ -135,6 +140,7 @@ export class AgentFactory {
 
         logger.info(`${userId} 创建 ReAct 模式，包含 ${agentRefs.length} 个 Agent，最大迭代 ${maxIterations} 次`);
 
+        const systemPrompts = this.buildSystemPrompt(entry.systemPrompt, userInfo);
         container.registerWithArgs(ReActService, {
             userId,
             agentRefs,
@@ -142,7 +148,8 @@ export class AgentFactory {
             thinkConfig: entry.think,
             reflectConfig: entry.reflect,
             container,
-            [T_SystemPrompts]: entry.systemPrompt ? [entry.systemPrompt] : undefined,
+            userInfo,
+            [T_SystemPrompts]: systemPrompts,
         });
         return container.resolve(ReActService);
     }

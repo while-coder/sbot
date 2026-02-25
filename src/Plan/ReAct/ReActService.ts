@@ -3,7 +3,7 @@ import { Annotation, MessagesAnnotation, StateGraph, START, END } from '@langcha
 import { AgentNodeConfig, AgentRef, config } from '../../Config.js';
 import {
   IAgentCallback, MessageChunkType, AgentMessage,
-  IMemoryService, IAgentToolService, ISkillService,
+  IMemoryService, 
   inject, ServiceContainer, ModelServiceFactory, T_SystemPrompts,
 } from 'scorpio.ai';
 import { LoggerService } from '../../LoggerService.js';
@@ -96,6 +96,7 @@ export class ReActService {
   private thinkConfig?: AgentNodeConfig;
   private reflectConfig?: AgentNodeConfig;
   private systemPrompts?: string[];
+  private userInfo?: any;
 
   constructor(
     @inject("userId") userId: string,
@@ -105,6 +106,7 @@ export class ReActService {
     @inject("thinkConfig", { optional: true }) thinkConfig?: AgentNodeConfig,
     @inject("reflectConfig", { optional: true }) reflectConfig?: AgentNodeConfig,
     @inject(T_SystemPrompts, { optional: true }) systemPrompts?: string[],
+    @inject("userInfo", { optional: true }) userInfo?: any,
   ) {
     this.userId = userId;
     this.agentRefs = agentRefs;
@@ -113,6 +115,7 @@ export class ReActService {
     this.thinkConfig = thinkConfig;
     this.reflectConfig = reflectConfig;
     this.systemPrompts = systemPrompts;
+    this.userInfo = userInfo;
   }
 
   // ── Helpers ─────────────────────────────────────────────────
@@ -379,7 +382,7 @@ ${this.formatStepHistory(reactState.steps)}
         if (this.memoryService) subContainer.registerInstance(IMemoryService, new ReadOnlyMemoryService(this.memoryService));
         const { AgentFactory } = await import('../../AgentFactory.js');
         const subUserId = `${this.userId}_react_${agentName}_${currentStep.id}`;
-        const agentService = await AgentFactory.create(agentName, subContainer, subUserId);
+        const agentService = await AgentFactory.create(agentName, subContainer, subUserId, this.userInfo);
 
         const taskPrompt = `你需要使用可用的工具来完成以下任务，直接执行操作并返回结果，不要只给出建议或步骤说明。\n\n任务: ${currentStep.content}`;
 
