@@ -132,42 +132,18 @@ export class AgentFactory {
 
         const maxIterations = entry.maxIterations || 5;
         const thinkModel = entry.think?.model;
-        const reflectModel = entry.reflect?.model;
 
-        logger.info(`${userId} 创建 ReAct 模式，包含 ${agentConfigs.length} 个 Agent，最大迭代 ${maxIterations} 次，think=${thinkModel || '(default)'}，reflect=${reflectModel || thinkModel || '(default)'}`);
+        logger.info(`${userId} 创建 ReAct 模式，包含 ${agentConfigs.length} 个 Agent，最大迭代 ${maxIterations} 次，think=${thinkModel || '(default)'}`);
 
         // think 节点主模型
         await this.registerModel(container, thinkModel);
 
-        // reflect 节点独立模型（仅当与 think 不同时创建）
-        let reflectModelService: IModelService | undefined;
-        if (reflectModel && reflectModel !== thinkModel) {
-            const reflectModelConfig = config.getModel(reflectModel);
-            if (reflectModelConfig) {
-                reflectModelService = await ModelServiceFactory.getModelService(reflectModelConfig);
-            }
-        }
-
-        // 为有独立模型配置的子 Agent 预创建 ModelService
-        const agentModelServices = new Map<string, IModelService>();
-        for (const agentConfig of agentConfigs) {
-            if (agentConfig.model && agentConfig.model !== thinkModel) {
-                const subModelConfig = config.getModel(agentConfig.model);
-                if (subModelConfig) {
-                    agentModelServices.set(agentConfig.id, await ModelServiceFactory.getModelService(subModelConfig));
-                }
-            }
-        }
-
         container.registerWithArgs(ReActService, {
             userId,
-            threadId: userId,
             agentConfigs,
             maxIterations,
             thinkConfig: entry.think,
             reflectConfig: entry.reflect,
-            reflectModelService,
-            agentModelServices: agentModelServices.size > 0 ? agentModelServices : undefined,
         });
         return container.resolve(ReActService);
     }

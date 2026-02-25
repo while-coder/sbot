@@ -1,10 +1,10 @@
 import { HumanMessage, AIMessage, AIMessageChunk, BaseMessage } from "langchain";
 import { Annotation, MessagesAnnotation, StateGraph, START, END } from '@langchain/langgraph';
-import { AgentConfig, AgentNodeConfig } from '../../Config.js';
+import { AgentConfig, AgentNodeConfig, config } from '../../Config.js';
 import {
   AgentService, IAgentCallback, MessageChunkType, AgentMessage,
   IModelService, ISkillService, IMemoryService,
-  IAgentToolService, inject, ServiceContainer, T_ThreadId,
+  IAgentToolService, inject, ServiceContainer, T_ThreadId, ModelServiceFactory,
 } from 'scorpio.ai';
 import { FilteredAgentToolService } from '../FilteredAgentToolService.js';
 import { LoggerService } from '../../LoggerService.js';
@@ -86,7 +86,6 @@ class ReadOnlyMemoryService implements IMemoryService {
  */
 export class ReActService {
   private userId: string;
-  private threadId: string;
   private agentConfigs: AgentConfig[];
   private modelService: IModelService;
   private toolService?: IAgentToolService;
@@ -95,12 +94,9 @@ export class ReActService {
   private maxIterations: number;
   private thinkConfig?: AgentNodeConfig;
   private reflectConfig?: AgentNodeConfig;
-  private reflectModelService?: IModelService;
-  private agentModelServices?: Map<string, IModelService>;
 
   constructor(
     @inject("userId") userId: string,
-    @inject("threadId") threadId: string,
     @inject("agentConfigs") agentConfigs: AgentConfig[],
     @inject(IModelService) modelService: IModelService,
     @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
@@ -109,11 +105,8 @@ export class ReActService {
     @inject("maxIterations", { optional: true }) maxIterations?: number,
     @inject("thinkConfig", { optional: true }) thinkConfig?: AgentNodeConfig,
     @inject("reflectConfig", { optional: true }) reflectConfig?: AgentNodeConfig,
-    @inject("reflectModelService", { optional: true }) reflectModelService?: IModelService,
-    @inject("agentModelServices", { optional: true }) agentModelServices?: Map<string, IModelService>
   ) {
     this.userId = userId;
-    this.threadId = threadId;
     this.agentConfigs = agentConfigs;
     this.modelService = modelService;
     this.toolService = toolService;
@@ -122,8 +115,6 @@ export class ReActService {
     this.maxIterations = maxIterations ?? 5;
     this.thinkConfig = thinkConfig;
     this.reflectConfig = reflectConfig;
-    this.reflectModelService = reflectModelService;
-    this.agentModelServices = agentModelServices;
   }
 
   // ── Helpers ─────────────────────────────────────────────────
@@ -366,7 +357,9 @@ ${this.formatStepHistory(reactState.steps)}
 3. 是否完全达成目标`;
 
     try {
-      const modelService = this.reflectModelService ?? this.modelService;
+      const modelService = this.reflectConfig?.model
+        ? await ModelServiceFactory.getModelService(config.getModel(this.reflectConfig.model)!)
+        : this.modelService;
       const response = await modelService.invoke(prompt);
       const reflection = response.content as string;
       reactState.steps.push(this.makeStep(ReActNode.Reflect, reflection));
@@ -391,7 +384,9 @@ ${this.formatStepHistory(reactState.steps)}
 
       try {
         const subContainer = new ServiceContainer();
-        const subModelService = this.agentModelServices?.get(agentConfig.id) ?? this.modelService;
+        const subModelService = agentConfig.model
+          ? await ModelServiceFactory.getModelService(config.getModel(agentConfig.model)!)
+          : this.modelService;
         subContainer.registerInstance(IModelService, subModelService);
         if (this.skillService)  subContainer.registerInstance(ISkillService, this.skillService);
         if (this.memoryService) subContainer.registerInstance(IMemoryService, new ReadOnlyMemoryService(this.memoryService));
@@ -400,7 +395,7 @@ ${this.formatStepHistory(reactState.steps)}
             new FilteredAgentToolService(agentConfig.tools, this.toolService));
         }
         subContainer.registerWithArgs(AgentService, {
-          [T_ThreadId]: `${this.threadId}_react_${agentConfig.id}_${currentStep.id}`
+          [T_ThreadId]: `${this.userId}_react_${agentConfig.id}_${currentStep.id}`
         });
         const agentService = await subContainer.resolve(AgentService);
 
@@ -486,7 +481,7 @@ ${this.formatStepHistory(reactState.steps)}
         {
           streamMode: "updates",
           recursionLimit: this.maxIterations * 4 + 10,
-          configurable: { thread_id: this.threadId },
+          configurable: { thread_id: this.userId },
         }
       );
 
