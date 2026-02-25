@@ -54,6 +54,10 @@ export const ReActAnnotation = Annotation.Root({
     reducer: (prev, next) => next ?? prev,
     default: () => [],
   }),
+  callback: Annotation<IAgentCallback | null>({
+    reducer: (prev, next) => next ?? prev,
+    default: () => null,
+  }),
 });
 
 type GraphState = typeof ReActAnnotation.State;
@@ -160,7 +164,8 @@ export class ReActService {
    * 当决策为 wait_for_user 时，直接 await callback.askUser()，
    * graph stream 在此暂停等待用户回答，无需中断重启。
    */
-  private async thinkNode(state: GraphState, callback?: IAgentCallback) {
+  private async thinkNode(state: GraphState) {
+    const callback = state.callback ?? undefined;
     const reactState = state.reactState;
     if (!reactState) {
       logger.error("THINK: ReAct 状态为空");
@@ -372,8 +377,9 @@ ${this.formatStepHistory(reactState.steps)}
 
   // ── Graph ────────────────────────────────────────────────────
 
-  private async createSubAgentNode(agentConfig: AgentConfig, callback?: Omit<IAgentCallback, 'onMessage'>) {
+  private async createSubAgentNode(agentConfig: AgentConfig) {
     return async (state: GraphState) => {
+      const { onMessage: _, ...subCallback } = state.callback ?? {};
       const reactState = state.reactState;
       if (!reactState?.currentStep) {
         logger.warn(`Sub-Agent ${agentConfig.id}: 当前步骤为空`);
@@ -411,7 +417,7 @@ ${this.formatStepHistory(reactState.steps)}
               messages.push(new AIMessage(message.content));
             }
           },
-          ...callback,
+          ...subCallback,
         });
 
         logger.info(`Sub-Agent ${agentConfig.id}: 步骤完成`);
@@ -426,16 +432,14 @@ ${this.formatStepHistory(reactState.steps)}
     };
   }
 
-  private async createGraph(callback: IAgentCallback) {
-    // thinkNode 需要完整 callback（含 askUser），sub-agent 不需要 onMessage
-    const { onMessage, ...subCallback } = callback;
+  private async createGraph() {
     const workflow = new StateGraph(ReActAnnotation);
 
-    workflow.addNode(ReActNode.Think, (state) => this.thinkNode(state, callback));
+    workflow.addNode(ReActNode.Think, (state) => this.thinkNode(state));
     workflow.addNode(ReActNode.Reflect, (state) => this.reflectNode(state));
 
     for (const agentConfig of this.agentConfigs) {
-      workflow.addNode(agentNodeName(agentConfig.id), await this.createSubAgentNode(agentConfig, subCallback));
+      workflow.addNode(agentNodeName(agentConfig.id), await this.createSubAgentNode(agentConfig));
     }
 
     (workflow as any).addEdge(START, ReActNode.Think);
@@ -460,7 +464,7 @@ ${this.formatStepHistory(reactState.steps)}
 
   async stream(query: string, callback: IAgentCallback): Promise<void> {
     try {
-      const graph = await this.createGraph(callback);
+      const graph = await this.createGraph();
 
       const agentIds = this.agentConfigs.map(a => a.id).join(', ');
       logger.info(`ReAct 开始 | 用户: ${this.userId} | Agents: [${agentIds}] | 最大迭代: ${this.maxIterations} | 查询: ${query.substring(0, 80)}`);
@@ -477,6 +481,7 @@ ${this.formatStepHistory(reactState.steps)}
             currentIteration: 0,
           } as ReActState,
           agentConfigs: this.agentConfigs,
+          callback,
         },
         {
           streamMode: "updates",
