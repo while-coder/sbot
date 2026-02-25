@@ -3,8 +3,8 @@ import {
     IAgentCallback, IModelService, ModelServiceFactory,
     ServiceContainer, T_ThreadId, T_SystemPrompts,
 } from "scorpio.ai";
-import { SupervisorService, ReActService, AgentConfig } from "./Plan/index.js";
-import { config, AgentEntry, AgentMode, SingleAgentEntry, SupervisorAgentEntry, ReactAgentEntry } from "./Config";
+import { SupervisorService, ReActService } from "./Plan/index.js";
+import { config, AgentEntry, AgentMode, AgentConfig, SingleAgentEntry, SupervisorAgentEntry, ReactAgentEntry } from "./Config";
 import { LoggerService } from "./LoggerService";
 
 const logger = LoggerService.getLogger("AgentFactory.ts");

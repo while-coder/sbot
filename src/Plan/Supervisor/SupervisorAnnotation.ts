@@ -1,4 +1,6 @@
 import { Annotation, MessagesAnnotation } from '@langchain/langgraph';
+import { AgentConfig } from '../../Config.js';
+export type { AgentConfig };
 
 /**
  * 任务状态枚举
@@ -35,17 +37,6 @@ export interface ExecutionPlan {
   approved: boolean;          // 用户是否已审批
   createdAt: number;          // 创建时间戳
   updatedAt: number;          // 更新时间戳
-}
-
-/**
- * Agent 配置定义
- */
-export interface AgentConfig {
-  id: string;                 // Agent 唯一标识，同时用作节点名称
-  desc?: string;              // Agent 描述
-  skills?: string[];          // 关联的 Skill 名称列表
-  tools: string[];            // 可用工具列表
-  systemPrompt?: string;      // 自定义系统提示词
 }
 
 /**

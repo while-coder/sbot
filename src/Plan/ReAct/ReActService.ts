@@ -3,11 +3,10 @@ import { Annotation, MessagesAnnotation, StateGraph, START, END } from '@langcha
 import { AgentConfig } from '../Supervisor/SupervisorAnnotation.js';
 import {
   AgentService, IAgentCallback, MessageChunkType, AgentMessage,
-  IAgentSaverService, IModelService, ISkillService, IMemoryService,
+  IModelService, ISkillService, IMemoryService,
   IAgentToolService, inject, ServiceContainer, T_ThreadId,
 } from 'scorpio.ai';
 import { FilteredAgentToolService } from '../FilteredAgentToolService.js';
-import { SharedAgentSaver } from '../SharedAgentSaver.js';
 import { LoggerService } from '../../LoggerService.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -59,6 +58,22 @@ export const ReActAnnotation = Annotation.Root({
 
 type GraphState = typeof ReActAnnotation.State;
 
+// ── ReadOnlyMemoryService ─────────────────────────────────────
+
+/**
+ * 只读记忆包装器：sub-agent 可读取上下文记忆，但不写入。
+ * 写入由 ReActService 在 Reflect 完成后统一处理。
+ */
+class ReadOnlyMemoryService implements IMemoryService {
+  constructor(private readonly inner: IMemoryService) {}
+  getSystemMessage(query: string, limit?: number) { return this.inner.getSystemMessage(query, limit); }
+  getTools() { return this.inner.getTools(); }
+  async memorizeConversation() {}   // no-op
+  async compressMemories() { return 0; }
+  async clearAll() { return 0; }
+  async dispose() {}
+}
+
 // ── ReActService ──────────────────────────────────────────────
 
 /**
@@ -74,7 +89,6 @@ export class ReActService {
   private threadId: string;
   private agentConfigs: AgentConfig[];
   private modelService: IModelService;
-  private agentSaver: IAgentSaverService;
   private toolService?: IAgentToolService;
   private skillService?: ISkillService;
   private memoryService?: IMemoryService;
@@ -85,7 +99,6 @@ export class ReActService {
     @inject("threadId") threadId: string,
     @inject("agentConfigs") agentConfigs: AgentConfig[],
     @inject(IModelService) modelService: IModelService,
-    @inject(IAgentSaverService) agentSaver: IAgentSaverService,
     @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
     @inject(ISkillService, { optional: true }) skillService?: ISkillService,
     @inject(IMemoryService, { optional: true }) memoryService?: IMemoryService,
@@ -95,7 +108,6 @@ export class ReActService {
     this.threadId = threadId;
     this.agentConfigs = agentConfigs;
     this.modelService = modelService;
-    this.agentSaver = agentSaver;
     this.toolService = toolService;
     this.skillService = skillService;
     this.memoryService = memoryService;
@@ -359,9 +371,8 @@ ${this.formatStepHistory(reactState.steps)}
       try {
         const subContainer = new ServiceContainer();
         subContainer.registerInstance(IModelService, this.modelService);
-        subContainer.registerInstance(IAgentSaverService, new SharedAgentSaver(this.agentSaver));
         if (this.skillService)  subContainer.registerInstance(ISkillService, this.skillService);
-        if (this.memoryService) subContainer.registerInstance(IMemoryService, this.memoryService);
+        if (this.memoryService) subContainer.registerInstance(IMemoryService, new ReadOnlyMemoryService(this.memoryService));
         if (this.toolService) {
           subContainer.registerInstance(IAgentToolService,
             new FilteredAgentToolService(agentConfig.tools, this.toolService));
@@ -425,8 +436,7 @@ ${this.formatStepHistory(reactState.steps)}
     }
     (workflow as any).addEdge(ReActNode.Reflect, END);
 
-    const checkpointer = await this.agentSaver.getCheckpointer();
-    return workflow.compile({ checkpointer });
+    return workflow.compile({});
   }
 
   // ── Public API ───────────────────────────────────────────────
@@ -459,13 +469,34 @@ ${this.formatStepHistory(reactState.steps)}
       );
 
       const { onMessage } = callback;
+      let reflectResult = "";
+
       for await (const update of graphStream) {
+        // 收集 Reflect 节点的最终输出，用于写入记忆
+        const reflectOutput = (update as any)[ReActNode.Reflect];
+        if (reflectOutput) {
+          for (const m of reflectOutput.messages ?? []) {
+            if ((m instanceof AIMessage || m instanceof AIMessageChunk) && m.content) {
+              reflectResult += m.content as string;
+            }
+          }
+        }
+
         for (const nodeOutput of Object.values(update)) {
           for (const message of (nodeOutput as any).messages ?? []) {
             if (message instanceof HumanMessage) continue;
             const chunk = this.convertToMessageChunk(message);
             if (chunk) await onMessage?.(chunk);
           }
+        }
+      }
+
+      // 只将最终 Reflect 结果写入记忆，中间状态不写入
+      if (this.memoryService && reflectResult) {
+        try {
+          await this.memoryService.memorizeConversation(query, reflectResult);
+        } catch (error: any) {
+          logger.warn(`保存记忆失败: ${error.message}`);
         }
       }
 

@@ -19,23 +19,24 @@ export enum AgentMode {
 }
 
 /**
- * 节点模型配置（用于 ReAct 的 think/reflect 节点）
+ * Agent 配置（子 Agent / 编排节点通用）
+ * - 用于配置文件中的子 Agent（ReAct / Supervisor）
+ * - 也作为运行时 AgentConfig 的规范类型
  */
-export interface AgentNodeConfig {
+export interface AgentConfig {
+  id: string;                  // Agent 唯一标识，同时用作节点名称
+  desc?: string;               // Agent 描述（用于 LLM 规划时参考）
   model?: string;              // 使用的模型名称（对应 models 中的 key）
+  skills?: string[];           // 关联的 Skill 名称列表
+  tools: string[];             // 可用工具列表，["*"] 表示所有工具
   systemPrompt?: string;       // 系统提示词
 }
 
 /**
- * 子 Agent 配置（用于 ReAct/Supervisor 的子 Agent）
+ * 编排节点配置（用于 ReAct 的 think/reflect 节点）
+ * 与 AgentConfig 结构一致，去掉 id 和 tools（编排节点不执行工具）。
  */
-export interface SubAgentConfig {
-  id: string;                  // Agent 唯一标识，同时用作节点名称
-  desc?: string;               // Agent 描述（用于 LLM 规划时的参考）
-  model?: string;              // 使用的模型名称（对应 models 中的 key）
-  tools: string[];             // 可用工具列表，["*"] 表示所有工具
-  systemPrompt?: string;       // 自定义系统提示词
-}
+export type AgentNodeConfig = Omit<AgentConfig, 'id' | 'desc' | 'tools'>;
 
 /**
  * Single 模式 Agent 配置
@@ -53,7 +54,7 @@ export interface SupervisorAgentEntry {
   type: "supervisor";
   model?: string;              // Supervisor 使用的模型名称
   systemPrompt?: string;       // Supervisor 系统提示词
-  agents: SubAgentConfig[];    // 子 Agent 配置列表
+  agents: AgentConfig[];    // 子 Agent 配置列表
 }
 
 /**
@@ -64,7 +65,7 @@ export interface ReactAgentEntry {
   maxIterations?: number;      // 最大迭代次数，默认 5
   think?: AgentNodeConfig;     // Think 节点配置
   reflect?: AgentNodeConfig;   // Reflect 节点配置
-  agents: SubAgentConfig[];    // 子 Agent 配置列表
+  agents: AgentConfig[];    // 子 Agent 配置列表
 }
 
 /**
