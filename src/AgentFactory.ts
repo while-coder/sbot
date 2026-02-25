@@ -106,17 +106,13 @@ export class AgentFactory {
 
         logger.info(`${userId} 创建 ReAct 模式，包含 ${agentRefs.length} 个 Agent，最大迭代 ${maxIterations} 次`);
 
-        const agentCreator = async (agentEntry: AgentEntry, subContainer: ServiceContainer, subUserId: string) => {
-            return AgentFactory.create(subContainer, agentEntry, subUserId);
-        };
-
         container.registerWithArgs(ReActService, {
             userId,
             agentRefs,
             maxIterations,
             thinkConfig: entry.think,
             reflectConfig: entry.reflect,
-            agentCreator,
+            container,
         });
         return container.resolve(ReActService);
     }

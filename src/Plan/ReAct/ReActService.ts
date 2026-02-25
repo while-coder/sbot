@@ -1,10 +1,10 @@
 import { HumanMessage, AIMessage, AIMessageChunk, BaseMessage } from "langchain";
 import { Annotation, MessagesAnnotation, StateGraph, START, END } from '@langchain/langgraph';
-import { AgentEntry, AgentNodeConfig, AgentRef, config } from '../../Config.js';
+import { AgentNodeConfig, AgentRef, config } from '../../Config.js';
 import {
   IAgentCallback, MessageChunkType, AgentMessage,
-  ISkillService, IMemoryService,
-  IAgentToolService, inject, ServiceContainer, ModelServiceFactory,
+  IMemoryService, IAgentToolService, ISkillService,
+  inject, ServiceContainer, ModelServiceFactory,
 } from 'scorpio.ai';
 import { LoggerService } from '../../LoggerService.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -61,10 +61,6 @@ export const ReActAnnotation = Annotation.Root({
 
 type GraphState = typeof ReActAnnotation.State;
 
-// ── StreamableAgent ───────────────────────────────────────────
-
-type StreamableAgent = { stream(query: string, callback: IAgentCallback): Promise<void> };
-type AgentCreator = (agentEntry: AgentEntry, subContainer: ServiceContainer, subUserId: string) => Promise<StreamableAgent>;
 
 // ── ReadOnlyMemoryService ─────────────────────────────────────
 
@@ -95,9 +91,7 @@ class ReadOnlyMemoryService implements IMemoryService {
 export class ReActService {
   private userId: string;
   private agentRefs: AgentRef[];
-  private agentCreator: AgentCreator;
-  private toolService?: IAgentToolService;
-  private skillService?: ISkillService;
+  private container: ServiceContainer;
   private memoryService?: IMemoryService;
   private maxIterations: number;
   private thinkConfig?: AgentNodeConfig;
@@ -106,9 +100,7 @@ export class ReActService {
   constructor(
     @inject("userId") userId: string,
     @inject("agentRefs") agentRefs: AgentRef[],
-    @inject("agentCreator") agentCreator: AgentCreator,
-    @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
-    @inject(ISkillService, { optional: true }) skillService?: ISkillService,
+    @inject("container") container: ServiceContainer,
     @inject(IMemoryService, { optional: true }) memoryService?: IMemoryService,
     @inject("maxIterations", { optional: true }) maxIterations?: number,
     @inject("thinkConfig", { optional: true }) thinkConfig?: AgentNodeConfig,
@@ -116,9 +108,7 @@ export class ReActService {
   ) {
     this.userId = userId;
     this.agentRefs = agentRefs;
-    this.agentCreator = agentCreator;
-    this.toolService = toolService;
-    this.skillService = skillService;
+    this.container = container;
     this.memoryService = memoryService;
     this.maxIterations = maxIterations ?? 5;
     this.thinkConfig = thinkConfig;
@@ -389,12 +379,10 @@ ${this.formatStepHistory(reactState.steps)}
 
       try {
         const subContainer = new ServiceContainer();
-        if (this.skillService)  subContainer.registerInstance(ISkillService, this.skillService);
         if (this.memoryService) subContainer.registerInstance(IMemoryService, new ReadOnlyMemoryService(this.memoryService));
-        if (this.toolService)   subContainer.registerInstance(IAgentToolService, this.toolService);
-
+        const { AgentFactory } = await import('../../AgentFactory.js');
         const subUserId = `${this.userId}_react_${agentName}_${currentStep.id}`;
-        const agentService = await this.agentCreator(agentEntry, subContainer, subUserId);
+        const agentService = await AgentFactory.create(subContainer, agentEntry, subUserId);
 
         const taskPrompt = `你需要使用可用的工具来完成以下任务，直接执行操作并返回结果，不要只给出建议或步骤说明。\n\n任务: ${currentStep.content}`;
 
