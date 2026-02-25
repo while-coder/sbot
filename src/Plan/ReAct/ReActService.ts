@@ -1,10 +1,10 @@
-import { HumanMessage, AIMessage, AIMessageChunk, BaseMessage } from "langchain";
+import { HumanMessage, AIMessage, AIMessageChunk, BaseMessage, SystemMessage } from "langchain";
 import { Annotation, MessagesAnnotation, StateGraph, START, END } from '@langchain/langgraph';
 import { AgentNodeConfig, AgentRef, config } from '../../Config.js';
 import {
   IAgentCallback, MessageChunkType, AgentMessage,
   IMemoryService, IAgentToolService, ISkillService,
-  inject, ServiceContainer, ModelServiceFactory,
+  inject, ServiceContainer, ModelServiceFactory, T_SystemPrompts,
 } from 'scorpio.ai';
 import { LoggerService } from '../../LoggerService.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -95,6 +95,7 @@ export class ReActService {
   private maxIterations: number;
   private thinkConfig?: AgentNodeConfig;
   private reflectConfig?: AgentNodeConfig;
+  private systemPrompts?: string[];
 
   constructor(
     @inject("userId") userId: string,
@@ -103,6 +104,7 @@ export class ReActService {
     @inject("maxIterations", { optional: true }) maxIterations?: number,
     @inject("thinkConfig", { optional: true }) thinkConfig?: AgentNodeConfig,
     @inject("reflectConfig", { optional: true }) reflectConfig?: AgentNodeConfig,
+    @inject(T_SystemPrompts, { optional: true }) systemPrompts?: string[],
   ) {
     this.userId = userId;
     this.agentRefs = agentRefs;
@@ -110,6 +112,7 @@ export class ReActService {
     this.maxIterations = maxIterations ?? 5;
     this.thinkConfig = thinkConfig;
     this.reflectConfig = reflectConfig;
+    this.systemPrompts = systemPrompts;
   }
 
   // ── Helpers ─────────────────────────────────────────────────
@@ -445,7 +448,10 @@ ${this.formatStepHistory(reactState.steps)}
 
       const graphStream = await graph.stream(
         {
-          messages: [new HumanMessage(query)],
+          messages: [
+            ...(this.systemPrompts ?? []).map(p => new SystemMessage(p)),
+            new HumanMessage(query),
+          ],
           reactState: {
             goal: query,
             currentStep: null,

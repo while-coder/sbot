@@ -38,6 +38,7 @@ export interface AgentRef {
  */
 export interface BaseAgentEntry {
   type: AgentMode;
+  systemPrompt?: string;       // 系统提示词
   mcp?: string[];              // Agent 专属 MCP 服务器名称列表（对应 mcp.json 中的 key）
   skills?: string[];           // 全局 Skills 过滤列表（skill 名称），不填则加载所有全局 Skills
 }
@@ -48,7 +49,6 @@ export interface BaseAgentEntry {
 export interface SingleAgentEntry extends BaseAgentEntry {
   type: AgentMode.Single;
   model?: string;              // 使用的模型名称（对应 models 中的 key），不填则使用全局 model
-  systemPrompt?: string;       // 系统提示词
 }
 
 /**

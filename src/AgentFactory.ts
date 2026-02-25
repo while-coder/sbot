@@ -142,6 +142,7 @@ export class AgentFactory {
             thinkConfig: entry.think,
             reflectConfig: entry.reflect,
             container,
+            [T_SystemPrompts]: entry.systemPrompt ? [entry.systemPrompt] : undefined,
         });
         return container.resolve(ReActService);
     }
