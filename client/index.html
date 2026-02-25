@@ -124,6 +124,16 @@ tr.active-row td { background: #eff6ff; }
 .tool-call-result { padding: 8px 10px; background: #f0fdf4; color: #166534; border-top: 1px solid #bbf7d0; white-space: pre-wrap; word-break: break-all; max-height: 400px; overflow-y: auto; }
 .tool-call-result-label { font-size: 10px; font-weight: 600; color: #15803d; margin-bottom: 2px; text-transform: uppercase; }
 
+/* ===== 聊天输入栏 ===== */
+.chat-input-bar { padding: 12px 16px; background: #fff; border-top: 1px solid #e2e8f0; display: flex; gap: 8px; align-items: flex-end; flex-shrink: 0; }
+.chat-input-bar textarea { flex: 1; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; font-family: inherit; resize: none; min-height: 38px; max-height: 160px; overflow-y: auto; line-height: 1.5; transition: border .15s; }
+.chat-input-bar textarea:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.1); }
+.chat-input-bar textarea:disabled { background: #f8fafc; color: #94a3b8; }
+.chat-input-bar .btn-send { padding: 8px 18px; height: 38px; flex-shrink: 0; }
+.msg-bubble.streaming { border-color: #93c5fd; }
+.msg-bubble.streaming::after { content: '▋'; display: inline-block; animation: blink .8s step-end infinite; margin-left: 2px; }
+@keyframes blink { 50% { opacity: 0; } }
+
 /* ===== Plan mode tabs ===== */
 .mode-tabs { display: flex; gap: 0; border-bottom: 2px solid #e2e8f0; margin-bottom: 14px; }
 .mode-tab { padding: 8px 18px; cursor: pointer; font-size: 13px; color: #64748b; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all .15s; user-select: none; }
@@ -317,6 +327,10 @@ tr.active-row td { background: #eff6ff; }
             </div>
             <div class="content">
                 <div id="historyMessages" class="history-messages"></div>
+            </div>
+            <div class="chat-input-bar">
+                <textarea id="chatInput" placeholder="输入消息，Enter 发送，Shift+Enter 换行…" rows="1"></textarea>
+                <button class="btn btn-primary btn-send" id="chatSendBtn" onclick="sendChatMessage()">发送</button>
             </div>
         </div>
 
@@ -1358,6 +1372,8 @@ async function reloadConfig() {
 }
 
 // ===== 历史记录管理 =====
+let _lastHistoryUserId = null;
+
 async function loadHistoryUsers() {
     try {
         const res = await apiFetch('/api/users');
@@ -1366,6 +1382,10 @@ async function loadHistoryUsers() {
         sel.innerHTML = users.length === 0
             ? '<option value="">暂无用户</option>'
             : users.map(u => '<option value="' + esc(u) + '">' + esc(u) + '</option>').join('');
+        // 恢复上次选中的用户
+        if (_lastHistoryUserId && users.includes(_lastHistoryUserId)) {
+            sel.value = _lastHistoryUserId;
+        }
         if (users.length > 0) await loadHistory();
     } catch (e) { showToast(e.message, 'error'); }
 }
@@ -1373,6 +1393,7 @@ async function loadHistoryUsers() {
 async function loadHistory() {
     const userId = document.getElementById('historyUserSelect').value;
     if (!userId) return;
+    _lastHistoryUserId = userId;
     try {
         const res = await apiFetch('/api/users/' + encodeURIComponent(userId) + '/history');
         renderHistoryMessages(res.data || []);
@@ -1465,6 +1486,119 @@ async function clearHistory() {
         showToast('历史已清除');
         renderHistoryMessages([]);
     } catch (e) { showToast(e.message, 'error'); }
+}
+
+// ===== 聊天输入 =====
+(function () {
+    // Enter 发送，Shift+Enter 换行，自动高度
+    document.addEventListener('DOMContentLoaded', () => {
+        const ta = document.getElementById('chatInput');
+        if (!ta) return;
+        ta.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendChatMessage();
+            }
+        });
+        ta.addEventListener('input', () => {
+            ta.style.height = 'auto';
+            ta.style.height = Math.min(ta.scrollHeight, 160) + 'px';
+        });
+    });
+})();
+
+let _chatSending = false;
+
+async function sendChatMessage() {
+    if (_chatSending) return;
+    const userId = document.getElementById('historyUserSelect').value;
+    const ta = document.getElementById('chatInput');
+    const btn = document.getElementById('chatSendBtn');
+    const query = ta.value.trim();
+    if (!userId || !query) return;
+
+    _chatSending = true;
+    ta.disabled = true;
+    btn.disabled = true;
+
+    ta.value = '';
+    ta.style.height = 'auto';
+
+    // 立即显示用户消息
+    const container = document.getElementById('historyMessages');
+    const userRow = document.createElement('div');
+    userRow.className = 'msg-row human';
+    userRow.innerHTML = '<div class="msg-ts">' + esc(fmtTs(new Date().toISOString())) + '</div>' +
+        '<div class="msg-bubble human"><div class="msg-role">用户</div>' + esc(query) + '</div>';
+    container.appendChild(userRow);
+
+    // AI 占位气泡（流式更新）
+    const aiRow = document.createElement('div');
+    aiRow.className = 'msg-row ai';
+    const aiBubble = document.createElement('div');
+    aiBubble.className = 'msg-bubble ai streaming';
+    aiBubble.innerHTML = '<div class="msg-role">AI</div><span style="color:#94a3b8">队列中…</span>';
+    aiRow.appendChild(aiBubble);
+    container.appendChild(aiRow);
+    container.scrollTop = container.scrollHeight;
+
+    let streamContent = '';
+
+    try {
+        const response = await fetch(API + '/api/users/' + encodeURIComponent(userId) + '/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query }),
+        });
+        if (!response.ok) throw new Error('请求失败: ' + response.status);
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            const lines = buf.split('\n');
+            buf = lines.pop();
+            for (const line of lines) {
+                if (!line.startsWith('data: ')) continue;
+                let evt;
+                try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+                if (evt.type === 'stream') {
+                    streamContent = evt.content;
+                    aiBubble.innerHTML = '<div class="msg-role">AI</div>' + esc(streamContent).replace(/\n/g, '<br>');
+                    container.scrollTop = container.scrollHeight;
+                } else if (evt.type === 'tool_call') {
+                    const toolTag = document.createElement('div');
+                    toolTag.className = 'msg-tool-calls';
+                    toolTag.innerHTML = '<div class="msg-role">Tool Call</div>' +
+                        '<div class="tool-call-item"><div class="tool-call-header expanded" onclick="toggleToolCall(this)">' +
+                        '<span class="tool-call-name">' + esc(evt.name) + '</span></div>' +
+                        '<div class="tool-call-detail show"><div class="tool-call-args">' +
+                        esc(JSON.stringify(evt.args, null, 2)) + '</div></div></div>';
+                    aiRow.appendChild(toolTag);
+                    container.scrollTop = container.scrollHeight;
+                } else if (evt.type === 'done') {
+                    aiBubble.classList.remove('streaming');
+                    // 刷新完整历史（含时间戳）
+                    await loadHistory();
+                } else if (evt.type === 'error') {
+                    aiBubble.classList.remove('streaming');
+                    aiBubble.innerHTML += '<br><span style="color:#ef4444">错误: ' + esc(evt.message) + '</span>';
+                }
+            }
+        }
+    } catch (e) {
+        aiBubble.classList.remove('streaming');
+        aiBubble.innerHTML += '<br><span style="color:#ef4444">错误: ' + esc(e.message) + '</span>';
+    } finally {
+        _chatSending = false;
+        ta.disabled = false;
+        btn.disabled = false;
+        ta.focus();
+    }
 }
 
 // ===== 长期记忆管理 =====

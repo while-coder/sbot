@@ -7,6 +7,7 @@ import { AgentSqliteSaver, MemoryDatabase } from "scorpio.ai";
 import { config } from './Config';
 import { LoggerService } from './LoggerService';
 import { LarkUserService } from './Lark/LarkUserService';
+import { WebUserService } from './Web/WebUserService';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
 
@@ -127,6 +128,7 @@ class HttpServer {
             await saver.clearThread(userId);
             await saver.dispose();
             LarkUserService.allUsers.delete(userId);
+            WebUserService.allUsers.delete(userId);
         }));
 
         // ===== 长期记忆 =====
@@ -159,10 +161,23 @@ class HttpServer {
             return { count };
         }));
 
+        // ===== Web 聊天（SSE 流式）=====
+        app.post('/api/users/:userId/chat', (req, res) => {
+            const userId = req.params.userId as string;
+            const { query } = req.body;
+            if (!query?.trim()) {
+                res.status(400).json({ success: false, message: '消息不能为空' });
+                return;
+            }
+            const service = WebUserService.getUser(userId);
+            WebUserService.sendSSE(res, emit => service.onReceiveWebMessage(query.trim(), emit));
+        });
+
         // ===== 操作 =====
         app.post('/api/reload', api(() => {
             config.reloadSettings();
             LarkUserService.allUsers.clear();
+            WebUserService.allUsers.clear();
             return { message: '配置已重载' };
         }));
 

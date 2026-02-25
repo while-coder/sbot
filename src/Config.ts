@@ -178,16 +178,16 @@ class Config {
    */
   getBuiltinMcpServers(): MCPServers {
     return {
-      "playwright": {
-        command: "npx",
-        args: ["@playwright/mcp@latest"],
-        disabledAutoApproveTools: []
-      },
-      "windows-mcp": {
-        command: "uvx",
-        args: ["windows-mcp"],
-        disabledAutoApproveTools: []
-      }
+      // "playwright": {
+      //   command: "npx",
+      //   args: ["@playwright/mcp@latest"],
+      //   disabledAutoApproveTools: []
+      // },
+      // "windows-mcp": {
+      //   command: "uvx",
+      //   args: ["windows-mcp"],
+      //   disabledAutoApproveTools: []
+      // }
     };
   }
 
