@@ -87,7 +87,7 @@ export class LarkUserService extends LarkUserServiceBase {
 
         // 技能服务
         container.registerWithArgs(ISkillService, SkillService, {
-            [T_SkillsDirs]: [config.getConfigPath("skills")]
+            [T_SkillsDirs]: [config.getSkillsPath()]
         });
 
         // Agent Saver 服务（使用 AgentSqliteSaver 实现）

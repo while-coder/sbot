@@ -143,7 +143,7 @@ export class WebUserService extends UserServiceBase {
         }
 
         container.registerWithArgs(ISkillService, SkillService, {
-            [T_SkillsDirs]: [config.getConfigPath("skills")],
+            [T_SkillsDirs]: [config.getSkillsPath()],
         });
 
         container.registerWithArgs(IAgentSaverService, AgentSqliteSaver, {

@@ -427,11 +427,17 @@ class Config {
     return fullPath;
   }
 
+  getSkillsPath() {
+    return this.getConfigPath("skills", true)
+  }
   getUserSaverPath(userId: string) {
     return this.getConfigPath(`users/${userId}/saver.sqlite`)
   }
   getUserMemoryPath(userId: string) {
     return this.getConfigPath(`users/${userId}/memory.sqlite`)
+  }
+  getUserSkillsPath(userId: string) {
+    return this.getConfigPath(`users/${userId}/skills`, true)
   }
   /**
    * 验证所有配置是否完整
