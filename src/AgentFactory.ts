@@ -4,7 +4,7 @@ import {
     ServiceContainer, T_ThreadId, T_SystemPrompts,
 } from "scorpio.ai";
 import { ReActService } from "./Plan/index.js";
-import { config, AgentEntry, AgentMode, AgentConfig, SingleAgentEntry, ReactAgentEntry } from "./Config";
+import { config, AgentEntry, AgentMode, SingleAgentEntry, ReactAgentEntry } from "./Config";
 import { LoggerService } from "./LoggerService";
 
 const logger = LoggerService.getLogger("AgentFactory.ts");
@@ -97,21 +97,26 @@ export class AgentFactory {
         entry: ReactAgentEntry,
         userId: string,
     ): Promise<StreamableAgent> {
-        const agentConfigs: AgentConfig[] = entry.agents || [];
-        if (agentConfigs.length === 0) {
+        const agentRefs = entry.agents || [];
+        if (agentRefs.length === 0) {
             throw new Error("ReAct 模式未配置子 Agent");
         }
 
         const maxIterations = entry.maxIterations || 5;
 
-        logger.info(`${userId} 创建 ReAct 模式，包含 ${agentConfigs.length} 个 Agent，最大迭代 ${maxIterations} 次`);
+        logger.info(`${userId} 创建 ReAct 模式，包含 ${agentRefs.length} 个 Agent，最大迭代 ${maxIterations} 次`);
+
+        const agentCreator = async (agentEntry: AgentEntry, subContainer: ServiceContainer, subUserId: string) => {
+            return AgentFactory.create(subContainer, agentEntry, subUserId);
+        };
 
         container.registerWithArgs(ReActService, {
             userId,
-            agentConfigs,
+            agentRefs,
             maxIterations,
             thinkConfig: entry.think,
             reflectConfig: entry.reflect,
+            agentCreator,
         });
         return container.resolve(ReActService);
     }

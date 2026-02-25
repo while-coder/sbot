@@ -344,13 +344,11 @@
                     <div class="form-section-title">Think 节点</div>
                     <div class="form-group"><label>Think 模型</label><select id="agentThinkModel"></select></div>
                     <div class="form-group"><label>Think Skills</label><input type="text" id="agentThinkSkills" placeholder='逗号分隔，如 skill1,skill2'></div>
-                    <div class="form-group"><label>Think 系统提示词</label><textarea id="agentThinkPrompt" rows="2" placeholder="可选"></textarea></div>
                 </div>
                 <div class="form-section">
                     <div class="form-section-title">Reflect 节点</div>
                     <div class="form-group"><label>Reflect 模型</label><select id="agentReflectModel"></select></div>
                     <div class="form-group"><label>Reflect Skills</label><input type="text" id="agentReflectSkills" placeholder='逗号分隔，如 skill1,skill2'></div>
-                    <div class="form-group"><label>Reflect 系统提示词</label><textarea id="agentReflectPrompt" rows="2" placeholder="可选"></textarea></div>
                 </div>
                 <div class="form-section">
                     <div class="form-section-title">子 Agents <button class="btn btn-outline-dark btn-sm" onclick="addSubAgent('react')" style="margin-left:8px">+ 添加</button></div>
@@ -367,15 +365,11 @@
 
 <!-- ===== 子 Agent 编辑弹窗 ===== -->
 <div class="modal-overlay" id="subAgentModal">
-    <div class="modal">
+    <div class="modal" style="width:400px">
         <div class="modal-header"><span id="subAgentModalTitle">添加子 Agent</span><span class="close" onclick="closeSubAgentModal()">&times;</span></div>
         <div class="modal-body">
-            <div class="form-group"><label>ID (唯一标识) *</label><input type="text" id="subAgentId" placeholder="如 coder, researcher"></div>
-            <div class="form-group"><label>描述</label><input type="text" id="subAgentDesc" placeholder="Agent 描述，用于 LLM 规划"></div>
-            <div class="form-group"><label>模型</label><select id="subAgentModel"></select></div>
-            <div class="form-group"><label>工具列表</label><input type="text" id="subAgentTools" placeholder='逗号分隔，如 read_file,write_file 或 * 表示全部'></div>
-            <div class="form-group"><label>Skills</label><input type="text" id="subAgentSkills" placeholder='逗号分隔，如 skill1,skill2'></div>
-            <div class="form-group"><label>系统提示词</label><textarea id="subAgentPrompt" rows="3" placeholder="可选"></textarea></div>
+            <div class="form-group"><label>Agent *</label><select id="subAgentRef"></select></div>
+            <div class="form-group"><label>描述 *</label><input type="text" id="subAgentDesc" placeholder="Agent 描述，用于 LLM 规划时参考"></div>
         </div>
         <div class="modal-footer">
             <button class="btn btn-outline-dark" onclick="closeSubAgentModal()">取消</button>

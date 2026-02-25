@@ -638,6 +638,7 @@ function renderAgentsTable() {
                 '<button class="btn btn-outline-dark btn-sm" onclick="openAgentMcpPage(\'' + esc(name) + '\')">MCP配置</button> ' +
                 '<button class="btn btn-outline-dark btn-sm" onclick="openAgentSkillsPage(\'' + esc(name) + '\')">Skills配置</button> ' +
                 '<button class="btn btn-outline-dark btn-sm" onclick="editAgent(\'' + esc(name) + '\')">编辑</button> ' +
+                '<button class="btn btn-outline-dark btn-sm" onclick="copyAgent(\'' + esc(name) + '\')">复制</button> ' +
                 '<button class="btn btn-danger btn-sm" onclick="deleteAgent(\'' + esc(name) + '\')">删除</button>' +
             '</td></tr>';
     }).join('');
@@ -670,7 +671,6 @@ function editAgent(name) {
     editingAgentName = name;
     document.getElementById('agentModalTitle').textContent = '编辑 Agent';
     document.getElementById('agentName').value = name;
-    document.getElementById('agentName').disabled = true;
     document.getElementById('agentType').value = agent.type;
     fillModelSelects();
 
@@ -681,11 +681,9 @@ function editAgent(name) {
         document.getElementById('agentMaxIterations').value = agent.maxIterations || 5;
         document.getElementById('agentThinkModel').value = agent.think?.model || '';
         document.getElementById('agentThinkSkills').value = Array.isArray(agent.think?.skills) ? agent.think.skills.join(', ') : '';
-        document.getElementById('agentThinkPrompt').value = agent.think?.systemPrompt || '';
         document.getElementById('agentReflectModel').value = agent.reflect?.model || '';
         document.getElementById('agentReflectSkills').value = Array.isArray(agent.reflect?.skills) ? agent.reflect.skills.join(', ') : '';
-        document.getElementById('agentReflectPrompt').value = agent.reflect?.systemPrompt || '';
-        tempSubAgents = agent.agents || [];
+        tempSubAgents = Array.isArray(agent.agents) ? agent.agents : [];
     }
 
     onAgentTypeChange();
@@ -695,7 +693,6 @@ function editAgent(name) {
 
 function closeAgentModal() {
     document.getElementById('agentModal').classList.remove('show');
-    document.getElementById('agentName').disabled = false;
     tempSubAgents = [];
 }
 
@@ -707,7 +704,15 @@ function fillModelSelects() {
     document.getElementById('agentModelSingle').innerHTML = options;
     document.getElementById('agentThinkModel').innerHTML = options;
     document.getElementById('agentReflectModel').innerHTML = options;
-    document.getElementById('subAgentModel').innerHTML = options;
+}
+
+function fillSubAgentSelect(excludeName) {
+    const agents = settings.agents || {};
+    const options = Object.keys(agents)
+        .filter(k => k !== excludeName)
+        .map(k => '<option value="' + esc(k) + '">' + esc(k) + ' (' + esc(agents[k].type) + ')</option>')
+        .join('');
+    document.getElementById('subAgentRef').innerHTML = options || '<option value="">暂无可用 Agent</option>';
 }
 
 function clearAgentFields() {
@@ -716,10 +721,8 @@ function clearAgentFields() {
     document.getElementById('agentMaxIterations').value = '5';
     document.getElementById('agentThinkModel').value = '';
     document.getElementById('agentThinkSkills').value = '';
-    document.getElementById('agentThinkPrompt').value = '';
     document.getElementById('agentReflectModel').value = '';
     document.getElementById('agentReflectSkills').value = '';
-    document.getElementById('agentReflectPrompt').value = '';
 }
 
 function onAgentTypeChange() {
@@ -748,29 +751,29 @@ async function saveAgent() {
             const thinkModel = document.getElementById('agentThinkModel').value.trim();
             const thinkSkillsStr = document.getElementById('agentThinkSkills').value.trim();
             const thinkSkills = thinkSkillsStr ? thinkSkillsStr.split(/[,，]\s*/).map(s => s.trim()).filter(Boolean) : [];
-            const thinkPrompt = document.getElementById('agentThinkPrompt').value.trim();
-            if (thinkModel || thinkSkills.length > 0 || thinkPrompt) {
+            if (thinkModel || thinkSkills.length > 0) {
                 agentConfig.think = {};
                 if (thinkModel) agentConfig.think.model = thinkModel;
                 if (thinkSkills.length > 0) agentConfig.think.skills = thinkSkills;
-                if (thinkPrompt) agentConfig.think.systemPrompt = thinkPrompt;
             }
 
             const reflectModel = document.getElementById('agentReflectModel').value.trim();
             const reflectSkillsStr = document.getElementById('agentReflectSkills').value.trim();
             const reflectSkills = reflectSkillsStr ? reflectSkillsStr.split(/[,，]\s*/).map(s => s.trim()).filter(Boolean) : [];
-            const reflectPrompt = document.getElementById('agentReflectPrompt').value.trim();
-            if (reflectModel || reflectSkills.length > 0 || reflectPrompt) {
+            if (reflectModel || reflectSkills.length > 0) {
                 agentConfig.reflect = {};
                 if (reflectModel) agentConfig.reflect.model = reflectModel;
                 if (reflectSkills.length > 0) agentConfig.reflect.skills = reflectSkills;
-                if (reflectPrompt) agentConfig.reflect.systemPrompt = reflectPrompt;
             }
 
             agentConfig.agents = tempSubAgents;
         }
 
         settings.agents = settings.agents || {};
+        if (editingAgentName && editingAgentName !== name) {
+            delete settings.agents[editingAgentName];
+            if (settings.agent === editingAgentName) settings.agent = name;
+        }
         settings.agents[name] = agentConfig;
 
         await apiFetch('/api/settings', 'PUT', settings);
@@ -778,6 +781,21 @@ async function saveAgent() {
         showToast('保存成功');
         renderAgentsTable();
         renderGeneralPage();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function copyAgent(name) {
+    const agent = settings.agents[name];
+    if (!agent) return;
+    const agents = settings.agents;
+    let newName = name + '-copy';
+    let i = 2;
+    while (agents[newName]) newName = name + '-copy' + (i++);
+    try {
+        agents[newName] = JSON.parse(JSON.stringify(agent));
+        await apiFetch('/api/settings', 'PUT', settings);
+        showToast('已复制为 ' + newName);
+        renderAgentsTable();
     } catch (e) { showToast(e.message, 'error'); }
 }
 
@@ -797,8 +815,7 @@ async function deleteAgent(name) {
 
 // ===== 子 Agent 管理 =====
 function renderSubAgents(parentType) {
-    const containerId = 'reactSubAgentsContainer';
-    const container = document.getElementById(containerId);
+    const container = document.getElementById('reactSubAgentsContainer');
     if (!container) return;
 
     if (tempSubAgents.length === 0) {
@@ -806,45 +823,43 @@ function renderSubAgents(parentType) {
         return;
     }
 
-    container.innerHTML = tempSubAgents.map((agent, i) =>
-        '<div style="padding:8px;margin-bottom:8px;border:1px solid #e2e8f0;border-radius:4px;background:#f8fafc">' +
+    container.innerHTML = tempSubAgents.map((ref, i) => {
+        const entry = (settings.agents || {})[ref.name];
+        const typeLabel = entry ? ' (' + esc(entry.type) + ')' : '';
+        return '<div style="padding:8px;margin-bottom:8px;border:1px solid #e2e8f0;border-radius:4px;background:#f8fafc">' +
             '<div style="display:flex;align-items:center;justify-content:space-between">' +
-                '<div style="font-size:13px;font-weight:500">' + esc(agent.id) + '</div>' +
+                '<div style="font-size:13px;font-weight:500">' + esc(ref.name) + '<span style="font-weight:400;color:#64748b">' + typeLabel + '</span></div>' +
                 '<div>' +
                     '<button class="btn btn-outline-dark btn-sm" onclick="editSubAgent(\'' + parentType + '\',' + i + ')">编辑</button> ' +
                     '<button class="btn btn-danger btn-sm" onclick="deleteSubAgent(' + i + ')">删除</button>' +
                 '</div>' +
             '</div>' +
-            '<div style="font-size:11px;color:#64748b;margin-top:4px">' + esc(agent.desc || '-') + '</div>' +
-        '</div>'
-    ).join('');
+            '<div style="font-size:11px;color:#64748b;margin-top:4px">' + esc(ref.desc || '') + '</div>' +
+        '</div>';
+    }).join('');
 }
 
 function addSubAgent(parentType) {
     editingSubAgentParentType = parentType;
     editingSubAgentIndex = -1;
     document.getElementById('subAgentModalTitle').textContent = '添加子 Agent';
-    document.getElementById('subAgentId').value = '';
+    const currentName = document.getElementById('agentName').value;
+    fillSubAgentSelect(currentName);
+    document.getElementById('subAgentRef').value = '';
     document.getElementById('subAgentDesc').value = '';
-    document.getElementById('subAgentModel').value = '';
-    document.getElementById('subAgentTools').value = '*';
-    document.getElementById('subAgentSkills').value = '';
-    document.getElementById('subAgentPrompt').value = '';
     document.getElementById('subAgentModal').classList.add('show');
 }
 
 function editSubAgent(parentType, index) {
-    const agent = tempSubAgents[index];
-    if (!agent) return;
+    const ref = tempSubAgents[index];
+    if (!ref) return;
     editingSubAgentParentType = parentType;
     editingSubAgentIndex = index;
     document.getElementById('subAgentModalTitle').textContent = '编辑子 Agent';
-    document.getElementById('subAgentId').value = agent.id || '';
-    document.getElementById('subAgentDesc').value = agent.desc || '';
-    document.getElementById('subAgentModel').value = agent.model || '';
-    document.getElementById('subAgentTools').value = Array.isArray(agent.tools) ? agent.tools.join(', ') : '*';
-    document.getElementById('subAgentSkills').value = Array.isArray(agent.skills) ? agent.skills.join(', ') : '';
-    document.getElementById('subAgentPrompt').value = agent.systemPrompt || '';
+    const currentName = document.getElementById('agentName').value;
+    fillSubAgentSelect(currentName);
+    document.getElementById('subAgentRef').value = ref.name;
+    document.getElementById('subAgentDesc').value = ref.desc || '';
     document.getElementById('subAgentModal').classList.add('show');
 }
 
@@ -853,27 +868,16 @@ function closeSubAgentModal() {
 }
 
 function saveSubAgent() {
-    const id = document.getElementById('subAgentId').value.trim();
-    if (!id) { showToast('ID 不能为空', 'error'); return; }
-
+    const name = document.getElementById('subAgentRef').value;
     const desc = document.getElementById('subAgentDesc').value.trim();
-    const model = document.getElementById('subAgentModel').value.trim();
-    const toolsStr = document.getElementById('subAgentTools').value.trim();
-    const tools = toolsStr ? toolsStr.split(/[,，]\s*/).map(t => t.trim()).filter(Boolean) : ['*'];
-    const skillsStr = document.getElementById('subAgentSkills').value.trim();
-    const skills = skillsStr ? skillsStr.split(/[,，]\s*/).map(s => s.trim()).filter(Boolean) : [];
-    const systemPrompt = document.getElementById('subAgentPrompt').value.trim();
+    if (!name) { showToast('请选择一个 Agent', 'error'); return; }
+    if (!desc) { showToast('描述不能为空', 'error'); return; }
 
-    const subAgent = { id, tools };
-    if (desc) subAgent.desc = desc;
-    if (model) subAgent.model = model;
-    if (skills.length > 0) subAgent.skills = skills;
-    if (systemPrompt) subAgent.systemPrompt = systemPrompt;
-
+    const ref = { name, desc };
     if (editingSubAgentIndex >= 0) {
-        tempSubAgents[editingSubAgentIndex] = subAgent;
+        tempSubAgents[editingSubAgentIndex] = ref;
     } else {
-        tempSubAgents.push(subAgent);
+        tempSubAgents.push(ref);
     }
 
     renderSubAgents(editingSubAgentParentType);

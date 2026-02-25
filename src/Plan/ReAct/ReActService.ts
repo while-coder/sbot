@@ -1,12 +1,11 @@
 import { HumanMessage, AIMessage, AIMessageChunk, BaseMessage } from "langchain";
 import { Annotation, MessagesAnnotation, StateGraph, START, END } from '@langchain/langgraph';
-import { AgentConfig, AgentNodeConfig, config } from '../../Config.js';
+import { AgentEntry, AgentNodeConfig, AgentRef, config } from '../../Config.js';
 import {
-  AgentService, IAgentCallback, MessageChunkType, AgentMessage,
-  IModelService, ISkillService, IMemoryService,
-  IAgentToolService, inject, ServiceContainer, T_ThreadId, ModelServiceFactory,
+  IAgentCallback, MessageChunkType, AgentMessage,
+  ISkillService, IMemoryService,
+  IAgentToolService, inject, ServiceContainer, ModelServiceFactory,
 } from 'scorpio.ai';
-import { FilteredAgentToolService } from '../FilteredAgentToolService.js';
 import { LoggerService } from '../../LoggerService.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -50,7 +49,7 @@ export const ReActAnnotation = Annotation.Root({
     reducer: (prev, next) => next ?? prev,
     default: () => null,
   }),
-  agentConfigs: Annotation<any[]>({
+  agentInfos: Annotation<{ id: string; desc: string }[]>({
     reducer: (prev, next) => next ?? prev,
     default: () => [],
   }),
@@ -61,6 +60,11 @@ export const ReActAnnotation = Annotation.Root({
 });
 
 type GraphState = typeof ReActAnnotation.State;
+
+// ── StreamableAgent ───────────────────────────────────────────
+
+type StreamableAgent = { stream(query: string, callback: IAgentCallback): Promise<void> };
+type AgentCreator = (agentEntry: AgentEntry, subContainer: ServiceContainer, subUserId: string) => Promise<StreamableAgent>;
 
 // ── ReadOnlyMemoryService ─────────────────────────────────────
 
@@ -90,7 +94,8 @@ class ReadOnlyMemoryService implements IMemoryService {
  */
 export class ReActService {
   private userId: string;
-  private agentConfigs: AgentConfig[];
+  private agentRefs: AgentRef[];
+  private agentCreator: AgentCreator;
   private toolService?: IAgentToolService;
   private skillService?: ISkillService;
   private memoryService?: IMemoryService;
@@ -100,7 +105,8 @@ export class ReActService {
 
   constructor(
     @inject("userId") userId: string,
-    @inject("agentConfigs") agentConfigs: AgentConfig[],
+    @inject("agentRefs") agentRefs: AgentRef[],
+    @inject("agentCreator") agentCreator: AgentCreator,
     @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
     @inject(ISkillService, { optional: true }) skillService?: ISkillService,
     @inject(IMemoryService, { optional: true }) memoryService?: IMemoryService,
@@ -109,7 +115,8 @@ export class ReActService {
     @inject("reflectConfig", { optional: true }) reflectConfig?: AgentNodeConfig,
   ) {
     this.userId = userId;
-    this.agentConfigs = agentConfigs;
+    this.agentRefs = agentRefs;
+    this.agentCreator = agentCreator;
     this.toolService = toolService;
     this.skillService = skillService;
     this.memoryService = memoryService;
@@ -177,15 +184,11 @@ export class ReActService {
 
     const lastHuman = [...state.messages].reverse().find(m => m instanceof HumanMessage);
     const userQuery = lastHuman ? (lastHuman.content as string) : reactState.goal;
-    const agentsDesc = state.agentConfigs.map((a: any) => `- ${a.id}: ${a.desc || a.systemPrompt || '通用任务'}`).join('\n');
-    const agentIdList = state.agentConfigs.map((a: any) => a.id).join('/');
-
-    const thinkSystem = this.thinkConfig?.systemPrompt
-      ? `${this.thinkConfig.systemPrompt}\n\n`
-      : '';
+    const agentsDesc = state.agentInfos.map(a => `- ${a.id}: ${a.desc}`).join('\n');
+    const agentIdList = state.agentInfos.map(a => a.id).join('/');
 
     const prompt = `系统提示：你是一个 ReAct 规划助手，只返回有效的 JSON 格式，不要包含其他文本。
-${thinkSystem}
+
 你是一个 ReAct (Reasoning and Acting) 规划专家。请分析当前情况并决定下一步行动。
 
 **总体目标**: ${reactState.goal}
@@ -266,7 +269,7 @@ decision 说明：
         reactState.currentStep = null;
 
       } else if (decisionType === 'action' && decision.nextAction) {
-        const available = state.agentConfigs.map((a: any) => a.id as string);
+        const available = state.agentInfos.map(a => a.id);
         const agentId = this.resolveAgentId(decision.nextAction.agentId ?? decision.nextAction.agentType, available);
         const actionStep = this.makeStep(ReActNode.Action, decision.nextAction.description, agentId);
         reactState.steps.push(actionStep);
@@ -301,7 +304,7 @@ decision 说明：
         logger.warn("ROUTE: Action 步骤缺少 agentId，回退到 Think");
         return ReActNode.Think;
       }
-      const available = state.agentConfigs.map((a: any) => a.id);
+      const available = state.agentInfos.map(a => a.id);
       if (!available.includes(agentId)) {
         logger.warn(`ROUTE: 未知 agentId "${agentId}"，回退到 Think`);
         return ReActNode.Think;
@@ -342,11 +345,7 @@ decision 说明：
       return {};
     }
 
-    const reflectSystem = this.reflectConfig?.systemPrompt
-      ? `${this.reflectConfig.systemPrompt}\n\n`
-      : '';
-
-    const prompt = `系统提示：${reflectSystem}你是一个结果总结助手。
+    const prompt = `你是一个结果总结助手。
 
 请基于以下执行过程，生成最终总结：
 
@@ -375,34 +374,29 @@ ${this.formatStepHistory(reactState.steps)}
 
   // ── Graph ────────────────────────────────────────────────────
 
-  private async createSubAgentNode(agentConfig: AgentConfig) {
+  private async createSubAgentNode(agentName: string) {
     return async (state: GraphState) => {
       const { onMessage: _, ...subCallback } = state.callback ?? {};
       const reactState = state.reactState;
       if (!reactState?.currentStep) {
-        logger.warn(`Sub-Agent ${agentConfig.id}: 当前步骤为空`);
+        logger.warn(`Sub-Agent ${agentName}: 当前步骤为空`);
         return {};
       }
 
       const currentStep = reactState.currentStep;
+      const agentEntry = config.settings.agents?.[agentName];
+      if (!agentEntry) throw new Error(`Sub-Agent "${agentName}" 配置不存在`);
 
       try {
         const subContainer = new ServiceContainer();
-        if (!agentConfig.model) throw new Error(`Sub-Agent ${agentConfig.id} 未配置 model`);
-        const subModelService = await ModelServiceFactory.getModelService(config.getModel(agentConfig.model)!);
-        subContainer.registerInstance(IModelService, subModelService);
         if (this.skillService)  subContainer.registerInstance(ISkillService, this.skillService);
         if (this.memoryService) subContainer.registerInstance(IMemoryService, new ReadOnlyMemoryService(this.memoryService));
-        if (this.toolService) {
-          subContainer.registerInstance(IAgentToolService,
-            new FilteredAgentToolService(agentConfig.tools, this.toolService));
-        }
-        subContainer.registerWithArgs(AgentService, {
-          [T_ThreadId]: `${this.userId}_react_${agentConfig.id}_${currentStep.id}`
-        });
-        const agentService = await subContainer.resolve(AgentService);
+        if (this.toolService)   subContainer.registerInstance(IAgentToolService, this.toolService);
 
-        const taskPrompt = `${agentConfig.systemPrompt ? agentConfig.systemPrompt + '\n\n' : ''}你需要使用可用的工具来完成以下任务，直接执行操作并返回结果，不要只给出建议或步骤说明。\n\n任务: ${currentStep.content}`;
+        const subUserId = `${this.userId}_react_${agentName}_${currentStep.id}`;
+        const agentService = await this.agentCreator(agentEntry, subContainer, subUserId);
+
+        const taskPrompt = `你需要使用可用的工具来完成以下任务，直接执行操作并返回结果，不要只给出建议或步骤说明。\n\n任务: ${currentStep.content}`;
 
         let actionResult = "";
         const messages: BaseMessage[] = [];
@@ -417,12 +411,12 @@ ${this.formatStepHistory(reactState.steps)}
           ...subCallback,
         });
 
-        logger.info(`Sub-Agent ${agentConfig.id}: 步骤完成`);
+        logger.info(`Sub-Agent ${agentName}: 步骤完成`);
         const observeResult = await this.observeNode(state, actionResult || "任务完成");
         return { ...observeResult, messages };
 
       } catch (error: any) {
-        logger.error(`Sub-Agent ${agentConfig.id}: 执行失败 - ${error.message}`);
+        logger.error(`Sub-Agent ${agentName}: 执行失败 - ${error.message}`);
         const observeResult = await this.observeNode(state, `执行失败: ${error.message}`);
         return { ...observeResult, messages: [new AIMessage(`⚠️ 执行失败: ${error.message}`)] };
       }
@@ -435,8 +429,8 @@ ${this.formatStepHistory(reactState.steps)}
     workflow.addNode(ReActNode.Think, (state) => this.thinkNode(state));
     workflow.addNode(ReActNode.Reflect, (state) => this.reflectNode(state));
 
-    for (const agentConfig of this.agentConfigs) {
-      workflow.addNode(agentNodeName(agentConfig.id), await this.createSubAgentNode(agentConfig));
+    for (const ref of this.agentRefs) {
+      workflow.addNode(agentNodeName(ref.name), await this.createSubAgentNode(ref.name));
     }
 
     (workflow as any).addEdge(START, ReActNode.Think);
@@ -445,12 +439,12 @@ ${this.formatStepHistory(reactState.steps)}
       [ReActNode.Think]: ReActNode.Think,
       [ReActNode.Reflect]: ReActNode.Reflect,
       END: END as any,
-      ...Object.fromEntries(this.agentConfigs.map(a => [agentNodeName(a.id), agentNodeName(a.id)])),
+      ...Object.fromEntries(this.agentRefs.map(r => [agentNodeName(r.name), agentNodeName(r.name)])),
     };
     (workflow as any).addConditionalEdges(ReActNode.Think, (s: GraphState) => this.routeAfterThink(s), routingMap);
 
-    for (const agentConfig of this.agentConfigs) {
-      (workflow as any).addEdge(agentNodeName(agentConfig.id), ReActNode.Think);
+    for (const ref of this.agentRefs) {
+      (workflow as any).addEdge(agentNodeName(ref.name), ReActNode.Think);
     }
     (workflow as any).addEdge(ReActNode.Reflect, END);
 
@@ -463,8 +457,9 @@ ${this.formatStepHistory(reactState.steps)}
     try {
       const graph = await this.createGraph();
 
-      const agentIds = this.agentConfigs.map(a => a.id).join(', ');
-      logger.info(`ReAct 开始 | 用户: ${this.userId} | Agents: [${agentIds}] | 最大迭代: ${this.maxIterations} | 查询: ${query.substring(0, 80)}`);
+      const agentInfos = this.agentRefs.map(ref => ({ id: ref.name, desc: ref.desc }));
+
+      logger.info(`ReAct 开始 | 用户: ${this.userId} | Agents: [${this.agentRefs.map(r => r.name).join(', ')}] | 最大迭代: ${this.maxIterations} | 查询: ${query.substring(0, 80)}`);
 
       const graphStream = await graph.stream(
         {
@@ -477,7 +472,7 @@ ${this.formatStepHistory(reactState.steps)}
             maxIterations: this.maxIterations,
             currentIteration: 0,
           } as ReActState,
-          agentConfigs: this.agentConfigs,
+          agentInfos,
           callback,
         },
         {

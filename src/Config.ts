@@ -18,22 +18,20 @@ export enum AgentMode {
 }
 
 /**
- * Agent 配置（子 Agent / 编排节点通用）
+ * 编排节点配置（用于 ReAct 的 think/reflect 节点）
  */
-export interface AgentConfig {
-  id: string;                  // Agent 唯一标识，同时用作节点名称
-  desc?: string;               // Agent 描述（用于 LLM 规划时参考）
+export interface AgentNodeConfig {
   model?: string;              // 使用的模型名称（对应 models 中的 key）
   skills?: string[];           // 关联的 Skill 名称列表
-  tools: string[];             // 可用工具列表，["*"] 表示所有工具
-  systemPrompt?: string;       // 系统提示词
 }
 
 /**
- * 编排节点配置（用于 ReAct 的 think/reflect 节点）
- * 与 AgentConfig 结构一致，去掉 id 和 tools（编排节点不执行工具）。
+ * 子 Agent 引用（用于 ReactAgentEntry.agents）
  */
-export type AgentNodeConfig = Omit<AgentConfig, 'id' | 'desc' | 'tools'>;
+export interface AgentRef {
+  name: string;                // 引用的 Agent 名称（对应 agents 中的 key）
+  desc: string;                // Agent 描述，用于 LLM 规划时参考
+}
 
 /**
  * Single 模式 Agent 配置
@@ -52,7 +50,7 @@ export interface ReactAgentEntry {
   maxIterations?: number;      // 最大迭代次数，默认 5
   think?: AgentNodeConfig;     // Think 节点配置
   reflect?: AgentNodeConfig;   // Reflect 节点配置
-  agents: AgentConfig[];    // 子 Agent 配置列表
+  agents: AgentRef[];       // 子 Agent 引用列表
 }
 
 /**
@@ -254,32 +252,24 @@ class Config {
           model: "openai-gpt4",
           systemPrompt: "你是一个有用的AI助手"
         },
+        "coder": {
+          type: "single",
+          model: "openai-gpt4",
+          systemPrompt: "你是一个开发专家，擅长编写高质量代码"
+        },
+        "researcher": {
+          type: "single",
+          model: "openai-gpt4",
+          systemPrompt: "你是一个研究专家，擅长搜索和分析信息"
+        },
         "react-example": {
           type: "react",
           maxIterations: 5,
-          think: {
-            model: "openai-gpt4",
-            systemPrompt: ""
-          },
-          reflect: {
-            model: "openai-gpt4",
-            systemPrompt: ""
-          },
+          think: { model: "openai-gpt4" },
+          reflect: { model: "openai-gpt4" },
           agents: [
-            {
-              id: "coder",
-              desc: "开发专家，擅长编写高质量代码",
-              model: "openai-gpt4",
-              tools: ["read_file", "write_file", "execute_command"],
-              systemPrompt: "你是一个开发专家，擅长编写高质量代码"
-            },
-            {
-              id: "researcher",
-              desc: "研究专家，擅长搜索和分析信息",
-              model: "openai-gpt4",
-              tools: ["web_search", "read_url"],
-              systemPrompt: "你是一个研究专家，擅长搜索和分析信息"
-            }
+            { name: "coder", desc: "开发专家，擅长编写高质量代码" },
+            { name: "researcher", desc: "研究专家，擅长搜索和分析信息" }
           ]
         }
       }
