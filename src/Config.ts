@@ -13,15 +13,12 @@ export interface LarkConfig {
  * Agent 运行模式
  */
 export enum AgentMode {
-  Single = "single",           // 单 Agent 模式
-  Supervisor = "supervisor",   // Supervisor 模式：预先规划任务，按依赖顺序执行
-  ReAct = "react",             // ReAct 模式：思考 -> 行动 -> 观察，迭代决策
+  Single = "single",   // 单 Agent 模式
+  ReAct = "react",     // ReAct 模式：思考 -> 行动 -> 观察，迭代决策
 }
 
 /**
  * Agent 配置（子 Agent / 编排节点通用）
- * - 用于配置文件中的子 Agent（ReAct / Supervisor）
- * - 也作为运行时 AgentConfig 的规范类型
  */
 export interface AgentConfig {
   id: string;                  // Agent 唯一标识，同时用作节点名称
@@ -48,16 +45,6 @@ export interface SingleAgentEntry {
 }
 
 /**
- * Supervisor 模式 Agent 配置
- */
-export interface SupervisorAgentEntry {
-  type: "supervisor";
-  model?: string;              // Supervisor 使用的模型名称
-  systemPrompt?: string;       // Supervisor 系统提示词
-  agents: AgentConfig[];    // 子 Agent 配置列表
-}
-
-/**
  * ReAct 模式 Agent 配置
  */
 export interface ReactAgentEntry {
@@ -71,7 +58,7 @@ export interface ReactAgentEntry {
 /**
  * Agent 配置条目（联合类型）
  */
-export type AgentEntry = SingleAgentEntry | SupervisorAgentEntry | ReactAgentEntry;
+export type AgentEntry = SingleAgentEntry | ReactAgentEntry;
 
 export interface Settings {
   agent?: string;              // 当前使用的 Agent 名称（对应 agents 中的 key）

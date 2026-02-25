@@ -50,12 +50,6 @@ function renderAll() {
 function renderGeneralPage() {
     document.getElementById('larkAppId').value = settings.lark?.appId || '';
     document.getElementById('larkAppSecret').value = settings.lark?.appSecret || '';
-    // 填充 agent 下拉
-    const selAgent = document.getElementById('currentAgent');
-    const agents = settings.agents || {};
-    selAgent.innerHTML = Object.keys(agents).map(k =>
-        '<option value="' + esc(k) + '"' + (k === settings.agent ? ' selected' : '') + '>' + esc(k) + '</option>'
-    ).join('');
 }
 
 // 已移除旧的 Plan 模式相关代码
@@ -65,7 +59,6 @@ async function saveGeneralSettings() {
         settings.lark = settings.lark || {};
         settings.lark.appId = document.getElementById('larkAppId').value;
         settings.lark.appSecret = document.getElementById('larkAppSecret').value;
-        settings.agent = document.getElementById('currentAgent').value;
         await apiFetch('/api/settings', 'PUT', settings);
         showToast('保存成功');
     } catch (e) { showToast(e.message, 'error'); }
@@ -614,7 +607,7 @@ function closeMcpToolsModal() { document.getElementById('mcpToolsModal').classLi
 let editingAgentMode = '';
 // ===== Agents 管理 =====
 let editingAgentName = null;
-let editingSubAgentParentType = null; // 'supervisor' or 'react'
+let editingSubAgentParentType = null;
 let editingSubAgentIndex = -1;
 let tempSubAgents = []; // 临时存储子 agents
 
@@ -628,22 +621,35 @@ function renderAgentsTable() {
     }
     tbody.innerHTML = entries.map(([name, agent]) => {
         const isActive = name === settings.agent;
-        const typeLabels = { single: 'Single', supervisor: 'Supervisor', react: 'ReAct' };
+        const typeLabels = { single: 'Single', react: 'ReAct' };
         const typeLabel = typeLabels[agent.type] || agent.type;
         const model = agent.model || '-';
         const desc = agent.systemPrompt ? (agent.systemPrompt.substring(0, 30) + '...') : '-';
+        const activateBtn = isActive
+            ? '<button class="btn btn-sm" style="background:#dcfce7;color:#16a34a;border:1px solid #bbf7d0;cursor:default">✓ 已激活</button> '
+            : '<button class="btn btn-outline-dark btn-sm" onclick="activateAgent(\'' + esc(name) + '\')">激活</button> ';
         return '<tr class="' + (isActive ? 'active-row' : '') + '">' +
-            '<td>' + esc(name) + (isActive ? ' <span style="color:#22c55e;font-size:11px">(当前)</span>' : '') + '</td>' +
+            '<td>' + esc(name) + '</td>' +
             '<td>' + esc(typeLabel) + '</td>' +
             '<td>' + esc(model) + '</td>' +
             '<td>' + esc(desc) + '</td>' +
             '<td>' +
+                activateBtn +
                 '<button class="btn btn-outline-dark btn-sm" onclick="openAgentMcpPage(\'' + esc(name) + '\')">MCP配置</button> ' +
                 '<button class="btn btn-outline-dark btn-sm" onclick="openAgentSkillsPage(\'' + esc(name) + '\')">Skills配置</button> ' +
                 '<button class="btn btn-outline-dark btn-sm" onclick="editAgent(\'' + esc(name) + '\')">编辑</button> ' +
                 '<button class="btn btn-danger btn-sm" onclick="deleteAgent(\'' + esc(name) + '\')">删除</button>' +
             '</td></tr>';
     }).join('');
+}
+
+async function activateAgent(name) {
+    try {
+        settings.agent = name;
+        await apiFetch('/api/settings', 'PUT', settings);
+        renderAgentsTable();
+        showToast('已激活 ' + name);
+    } catch (e) { showToast(e.message, 'error'); }
 }
 
 function showAgentModal() {
@@ -671,10 +677,6 @@ function editAgent(name) {
     if (agent.type === 'single') {
         document.getElementById('agentModelSingle').value = agent.model || '';
         document.getElementById('agentSystemPromptSingle').value = agent.systemPrompt || '';
-    } else if (agent.type === 'supervisor') {
-        document.getElementById('agentModelSupervisor').value = agent.model || '';
-        document.getElementById('agentSystemPromptSupervisor').value = agent.systemPrompt || '';
-        tempSubAgents = agent.agents || [];
     } else if (agent.type === 'react') {
         document.getElementById('agentMaxIterations').value = agent.maxIterations || 5;
         document.getElementById('agentThinkModel').value = agent.think?.model || '';
@@ -703,7 +705,6 @@ function fillModelSelects() {
         '<option value="' + esc(k) + '">' + esc(k) + '</option>'
     ).join('');
     document.getElementById('agentModelSingle').innerHTML = options;
-    document.getElementById('agentModelSupervisor').innerHTML = options;
     document.getElementById('agentThinkModel').innerHTML = options;
     document.getElementById('agentReflectModel').innerHTML = options;
     document.getElementById('subAgentModel').innerHTML = options;
@@ -712,8 +713,6 @@ function fillModelSelects() {
 function clearAgentFields() {
     document.getElementById('agentModelSingle').value = '';
     document.getElementById('agentSystemPromptSingle').value = '';
-    document.getElementById('agentModelSupervisor').value = '';
-    document.getElementById('agentSystemPromptSupervisor').value = '';
     document.getElementById('agentMaxIterations').value = '5';
     document.getElementById('agentThinkModel').value = '';
     document.getElementById('agentThinkSkills').value = '';
@@ -726,7 +725,6 @@ function clearAgentFields() {
 function onAgentTypeChange() {
     const type = document.getElementById('agentType').value;
     document.getElementById('agentFieldsSingle').style.display = type === 'single' ? 'block' : 'none';
-    document.getElementById('agentFieldsSupervisor').style.display = type === 'supervisor' ? 'block' : 'none';
     document.getElementById('agentFieldsReact').style.display = type === 'react' ? 'block' : 'none';
 }
 
@@ -743,12 +741,6 @@ async function saveAgent() {
             const systemPrompt = document.getElementById('agentSystemPromptSingle').value.trim();
             if (model) agentConfig.model = model;
             if (systemPrompt) agentConfig.systemPrompt = systemPrompt;
-        } else if (type === 'supervisor') {
-            const model = document.getElementById('agentModelSupervisor').value.trim();
-            const systemPrompt = document.getElementById('agentSystemPromptSupervisor').value.trim();
-            if (model) agentConfig.model = model;
-            if (systemPrompt) agentConfig.systemPrompt = systemPrompt;
-            agentConfig.agents = tempSubAgents;
         } else if (type === 'react') {
             const maxIterations = parseInt(document.getElementById('agentMaxIterations').value) || 5;
             agentConfig.maxIterations = maxIterations;
@@ -805,7 +797,7 @@ async function deleteAgent(name) {
 
 // ===== 子 Agent 管理 =====
 function renderSubAgents(parentType) {
-    const containerId = parentType === 'supervisor' ? 'supervisorSubAgentsContainer' : 'reactSubAgentsContainer';
+    const containerId = 'reactSubAgentsContainer';
     const container = document.getElementById(containerId);
     if (!container) return;
 

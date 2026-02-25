@@ -42,10 +42,7 @@
                         <div class="form-group"><label>App Secret</label><input type="password" id="larkAppSecret"></div>
                     </div>
                 </div>
-                <div class="card">
-                    <div class="card-title">当前 Agent</div>
-                    <div class="form-group"><label>使用的 Agent（在 Agents 页面管理）</label><select id="currentAgent"></select></div>
-                </div>
+
             </div>
         </div>
 
@@ -330,7 +327,6 @@
                 <label>类型 *</label>
                 <select id="agentType" onchange="onAgentTypeChange()">
                     <option value="single">Single (单 Agent)</option>
-                    <option value="supervisor">Supervisor (任务规划)</option>
                     <option value="react">ReAct (迭代决策)</option>
                 </select>
             </div>
@@ -339,16 +335,6 @@
             <div id="agentFieldsSingle">
                 <div class="form-group"><label>模型</label><select id="agentModelSingle"></select></div>
                 <div class="form-group"><label>系统提示词</label><textarea id="agentSystemPromptSingle" rows="3" placeholder="可选"></textarea></div>
-            </div>
-
-            <!-- Supervisor 类型字段 -->
-            <div id="agentFieldsSupervisor" style="display:none">
-                <div class="form-group"><label>Supervisor 模型</label><select id="agentModelSupervisor"></select></div>
-                <div class="form-group"><label>Supervisor 系统提示词</label><textarea id="agentSystemPromptSupervisor" rows="3" placeholder="可选"></textarea></div>
-                <div class="form-section">
-                    <div class="form-section-title">子 Agents <button class="btn btn-outline-dark btn-sm" onclick="addSubAgent('supervisor')" style="margin-left:8px">+ 添加</button></div>
-                    <div id="supervisorSubAgentsContainer"></div>
-                </div>
             </div>
 
             <!-- ReAct 类型字段 -->

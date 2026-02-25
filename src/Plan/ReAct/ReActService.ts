@@ -91,7 +91,6 @@ class ReadOnlyMemoryService implements IMemoryService {
 export class ReActService {
   private userId: string;
   private agentConfigs: AgentConfig[];
-  private modelService: IModelService;
   private toolService?: IAgentToolService;
   private skillService?: ISkillService;
   private memoryService?: IMemoryService;
@@ -102,7 +101,6 @@ export class ReActService {
   constructor(
     @inject("userId") userId: string,
     @inject("agentConfigs") agentConfigs: AgentConfig[],
-    @inject(IModelService) modelService: IModelService,
     @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
     @inject(ISkillService, { optional: true }) skillService?: ISkillService,
     @inject(IMemoryService, { optional: true }) memoryService?: IMemoryService,
@@ -112,7 +110,6 @@ export class ReActService {
   ) {
     this.userId = userId;
     this.agentConfigs = agentConfigs;
-    this.modelService = modelService;
     this.toolService = toolService;
     this.skillService = skillService;
     this.memoryService = memoryService;
@@ -233,7 +230,9 @@ decision 说明：
 8. 观察结果表明任务完成时，不要重复执行相同行动`;
 
     try {
-      const response = await this.modelService.invoke(prompt);
+      if (!this.thinkConfig?.model) throw new Error('ReAct think 节点未配置 model');
+      const thinkModelService = await ModelServiceFactory.getModelService(config.getModel(this.thinkConfig.model)!);
+      const response = await thinkModelService.invoke(prompt);
       const decision = this.parseJsonResponse(response.content as string);
 
       reactState.steps.push(this.makeStep(ReActNode.Think, decision.thought));
@@ -362,9 +361,8 @@ ${this.formatStepHistory(reactState.steps)}
 3. 是否完全达成目标`;
 
     try {
-      const modelService = this.reflectConfig?.model
-        ? await ModelServiceFactory.getModelService(config.getModel(this.reflectConfig.model)!)
-        : this.modelService;
+      if (!this.reflectConfig?.model) throw new Error('ReAct reflect 节点未配置 model');
+      const modelService = await ModelServiceFactory.getModelService(config.getModel(this.reflectConfig.model)!);
       const response = await modelService.invoke(prompt);
       const reflection = response.content as string;
       reactState.steps.push(this.makeStep(ReActNode.Reflect, reflection));
@@ -390,9 +388,8 @@ ${this.formatStepHistory(reactState.steps)}
 
       try {
         const subContainer = new ServiceContainer();
-        const subModelService = agentConfig.model
-          ? await ModelServiceFactory.getModelService(config.getModel(agentConfig.model)!)
-          : this.modelService;
+        if (!agentConfig.model) throw new Error(`Sub-Agent ${agentConfig.id} 未配置 model`);
+        const subModelService = await ModelServiceFactory.getModelService(config.getModel(agentConfig.model)!);
         subContainer.registerInstance(IModelService, subModelService);
         if (this.skillService)  subContainer.registerInstance(ISkillService, this.skillService);
         if (this.memoryService) subContainer.registerInstance(IMemoryService, new ReadOnlyMemoryService(this.memoryService));

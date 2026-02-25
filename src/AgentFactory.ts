@@ -3,8 +3,8 @@ import {
     IAgentCallback, IModelService, ModelServiceFactory,
     ServiceContainer, T_ThreadId, T_SystemPrompts,
 } from "scorpio.ai";
-import { SupervisorService, ReActService } from "./Plan/index.js";
-import { config, AgentEntry, AgentMode, AgentConfig, SingleAgentEntry, SupervisorAgentEntry, ReactAgentEntry } from "./Config";
+import { ReActService } from "./Plan/index.js";
+import { config, AgentEntry, AgentMode, AgentConfig, SingleAgentEntry, ReactAgentEntry } from "./Config";
 import { LoggerService } from "./LoggerService";
 
 const logger = LoggerService.getLogger("AgentFactory.ts");
@@ -35,9 +35,6 @@ export class AgentFactory {
         const agentType = agentEntry.type || AgentMode.Single;
 
         switch (agentType) {
-            case AgentMode.Supervisor:
-                return this.createSupervisor(container, agentEntry as SupervisorAgentEntry, userId);
-
             case AgentMode.ReAct:
                 return this.createReAct(container, agentEntry as ReactAgentEntry, userId);
 
@@ -93,31 +90,6 @@ export class AgentFactory {
     }
 
     /**
-     * 创建 Supervisor Agent
-     */
-    private static async createSupervisor(
-        container: ServiceContainer,
-        entry: SupervisorAgentEntry,
-        userId: string,
-    ): Promise<StreamableAgent> {
-        const agentConfigs: AgentConfig[] = entry.agents || [];
-        if (agentConfigs.length === 0) {
-            throw new Error("Supervisor 模式未配置子 Agent");
-        }
-
-        logger.info(`${userId} 创建 Supervisor 模式，包含 ${agentConfigs.length} 个 Agent，model=${entry.model || '(default)'}`);
-
-        await this.registerModel(container, entry.model);
-
-        container.registerWithArgs(SupervisorService, {
-            userId,
-            threadId: userId,
-            agentConfigs,
-        });
-        return container.resolve(SupervisorService);
-    }
-
-    /**
      * 创建 ReAct Agent
      */
     private static async createReAct(
@@ -131,12 +103,8 @@ export class AgentFactory {
         }
 
         const maxIterations = entry.maxIterations || 5;
-        const thinkModel = entry.think?.model;
 
-        logger.info(`${userId} 创建 ReAct 模式，包含 ${agentConfigs.length} 个 Agent，最大迭代 ${maxIterations} 次，think=${thinkModel || '(default)'}`);
-
-        // think 节点主模型
-        await this.registerModel(container, thinkModel);
+        logger.info(`${userId} 创建 ReAct 模式，包含 ${agentConfigs.length} 个 Agent，最大迭代 ${maxIterations} 次`);
 
         container.registerWithArgs(ReActService, {
             userId,
