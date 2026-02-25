@@ -1,17 +1,15 @@
 import {
-    IAgentSaverService, AgentSqliteSaver, IAgentToolService, AgentToolService,
     IModelService, ModelServiceFactory,
     IMemoryService, IMemoryDatabase, MemoryDatabase, MemoryEvaluator, MemoryCompressor, MemoryExtractor, MemoryService,
     IEmbeddingService, EmbeddingServiceFactory,
+    IAgentSaverService, AgentSqliteSaver,
     ServiceContainer,
-    ISkillService, SkillService,
     IMemoryExtractor,
     IMemoryEvaluator,
     IMemoryCompressor,
     T_UserId,
     T_MaxMemoryAgeDays,
     T_MemoryMode,
-    T_SkillsDirs,
     T_DBPath,
     IAgentCallback,
 } from "scorpio.ai";
@@ -66,27 +64,13 @@ export class AgentRunner {
             });
         }
 
-        container.registerWithArgs(ISkillService, SkillService, {
-            [T_SkillsDirs]: [config.getSkillsPath(), config.getAgentSkillsPath(agentName)],
-        });
-
         container.registerWithArgs(IAgentSaverService, AgentSqliteSaver, {
             [T_DBPath]: config.getUserSaverPath(userId),
         });
 
-        container.registerSingleton(IAgentToolService, AgentToolService);
-
-        const agentToolService = await container.resolve<AgentToolService>(IAgentToolService);
-        const mcpServers = config.getMcpServers();
-        if (Object.keys(mcpServers).length > 0) await agentToolService.addMcpServers(mcpServers);
-        const builtinMcpServers = config.getBuiltinMcpServers();
-        if (Object.keys(builtinMcpServers).length > 0) await agentToolService.addMcpServers(builtinMcpServers);
-        const agentMcpServers = config.getAgentMcpServers(agentName);
-        if (Object.keys(agentMcpServers).length > 0) await agentToolService.addMcpServers(agentMcpServers);
-
         logger.info(`${userId} 使用 Agent [${agentName}] (${agentEntry.type})`);
 
-        const agent = await AgentFactory.create(container, agentEntry, userId, userInfo);
+        const agent = await AgentFactory.create(container, agentEntry, userId, agentName, userInfo);
         await agent.stream(query, callbacks);
     }
 }

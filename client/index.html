@@ -330,13 +330,11 @@
                     <option value="react">ReAct (迭代决策)</option>
                 </select>
             </div>
-
             <!-- Single 类型字段 -->
             <div id="agentFieldsSingle">
                 <div class="form-group"><label>模型</label><select id="agentModelSingle"></select></div>
                 <div class="form-group"><label>系统提示词</label><textarea id="agentSystemPromptSingle" rows="3" placeholder="可选"></textarea></div>
             </div>
-
             <!-- ReAct 类型字段 -->
             <div id="agentFieldsReact" style="display:none">
                 <div class="form-group"><label>最大迭代次数</label><input type="number" id="agentMaxIterations" placeholder="5" min="1" max="50"></div>
@@ -354,6 +352,16 @@
                     <div class="form-section-title">子 Agents <button class="btn btn-outline-dark btn-sm" onclick="addSubAgent('react')" style="margin-left:8px">+ 添加</button></div>
                     <div id="reactSubAgentsContainer"></div>
                 </div>
+            </div>
+            <!-- MCP -->
+            <div class="form-section">
+                <div class="form-section-title">MCP</div>
+                <div id="mcpNamesContainer"></div>
+            </div>
+            <!-- Skills -->
+            <div class="form-section">
+                <div class="form-section-title">Skills</div>
+                <div id="skillsDirsContainer"></div>
             </div>
         </div>
         <div class="modal-footer">

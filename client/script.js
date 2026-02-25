@@ -1,6 +1,7 @@
 const API = window.location.origin;
 let settings = {};
 let mcpServers = {};
+let globalSkills = [];
 
 // ===== Toast =====
 function showToast(msg, type = 'success') {
@@ -331,7 +332,7 @@ function renderListEditor(containerId, label, items, placeholder) {
     let html = '<div class="list-editor"><div class="list-editor-label"><span>' + esc(label) + '</span>' +
         '<button class="btn btn-outline-dark btn-sm" onclick="listEditorAdd(\'' + containerId + '\',\'' + esc(placeholder) + '\')">+</button></div>' +
         '<div class="list-editor-items" id="' + containerId + '_items">';
-    (items || []).forEach((v, i) => {
+    (items || []).forEach((v) => {
         html += '<div class="list-editor-row"><input type="text" value="' + esc(v) + '" placeholder="' + esc(placeholder) + '">' +
             '<button onclick="this.parentElement.remove()">x</button></div>';
     });
@@ -610,6 +611,8 @@ let editingAgentName = null;
 let editingSubAgentParentType = null;
 let editingSubAgentIndex = -1;
 let tempSubAgents = []; // 临时存储子 agents
+let tempMcpNames = [];  // 临时存储 MCP 服务器名称
+let tempSkillsDirs = []; // 临时存储 Skills 目录
 
 function renderAgentsTable() {
     const agents = settings.agents || {};
@@ -626,7 +629,7 @@ function renderAgentsTable() {
         const model = agent.model || '-';
         const desc = agent.systemPrompt ? (agent.systemPrompt.substring(0, 30) + '...') : '-';
         const activateBtn = isActive
-            ? '<button class="btn btn-sm" style="background:#dcfce7;color:#16a34a;border:1px solid #bbf7d0;cursor:default">✓ 已激活</button> '
+            ? '<button class="btn btn-sm" style="background:#dcfce7;color:#16a34a;border:1px solid #bbf7d0;cursor:default">激活</button> '
             : '<button class="btn btn-outline-dark btn-sm" onclick="activateAgent(\'' + esc(name) + '\')">激活</button> ';
         return '<tr class="' + (isActive ? 'active-row' : '') + '">' +
             '<td>' + esc(name) + '</td>' +
@@ -653,9 +656,51 @@ async function activateAgent(name) {
     } catch (e) { showToast(e.message, 'error'); }
 }
 
+
+function renderMcpCheckboxes() {
+    const container = document.getElementById('mcpNamesContainer');
+    if (!container) return;
+    const keys = Object.keys(mcpServers);
+    if (keys.length === 0) {
+        container.innerHTML = '<div style="color:#94a3b8;font-size:12px;padding:4px">暂无全局 MCP 服务器</div>';
+        return;
+    }
+    container.innerHTML = keys.map(name =>
+        '<label class="check-item"><input type="checkbox"' +
+        (tempMcpNames.includes(name) ? ' checked' : '') +
+        ' onchange="toggleMcpName(\'' + esc(name) + '\', this.checked)"><span>' + esc(name) + '</span></label>'
+    ).join('');
+}
+
+function toggleMcpName(name, checked) {
+    if (checked) { if (!tempMcpNames.includes(name)) tempMcpNames.push(name); }
+    else { tempMcpNames = tempMcpNames.filter(n => n !== name); }
+}
+
+function renderSkillsCheckboxes() {
+    const container = document.getElementById('skillsDirsContainer');
+    if (!container) return;
+    if (globalSkills.length === 0) {
+        container.innerHTML = '<div style="color:#94a3b8;font-size:12px;padding:4px">暂无全局 Skills</div>';
+        return;
+    }
+    container.innerHTML = globalSkills.map(s =>
+        '<label class="check-item"><input type="checkbox"' +
+        (tempSkillsDirs.includes(s.name) ? ' checked' : '') +
+        ' onchange="toggleSkillName(\'' + esc(s.name) + '\', this.checked)"><span>' + esc(s.name) + '</span></label>'
+    ).join('');
+}
+
+function toggleSkillName(name, checked) {
+    if (checked) { if (!tempSkillsDirs.includes(name)) tempSkillsDirs.push(name); }
+    else { tempSkillsDirs = tempSkillsDirs.filter(n => n !== name); }
+}
+
 function showAgentModal() {
     editingAgentName = null;
     tempSubAgents = [];
+    tempMcpNames = [];
+    tempSkillsDirs = [];
     document.getElementById('agentModalTitle').textContent = '添加 Agent';
     document.getElementById('agentName').value = '';
     document.getElementById('agentType').value = 'single';
@@ -686,14 +731,21 @@ function editAgent(name) {
         tempSubAgents = Array.isArray(agent.agents) ? agent.agents : [];
     }
 
+    tempMcpNames = Array.isArray(agent.mcp) ? [...agent.mcp] : [];
+    tempSkillsDirs = Array.isArray(agent.skills) ? [...agent.skills] : [];
+
     onAgentTypeChange();
     renderSubAgents(agent.type);
+    renderMcpCheckboxes();
+    renderSkillsCheckboxes();
     document.getElementById('agentModal').classList.add('show');
 }
 
 function closeAgentModal() {
     document.getElementById('agentModal').classList.remove('show');
     tempSubAgents = [];
+    tempMcpNames = [];
+    tempSkillsDirs = [];
 }
 
 function fillModelSelects() {
@@ -723,6 +775,10 @@ function clearAgentFields() {
     document.getElementById('agentThinkSkills').value = '';
     document.getElementById('agentReflectModel').value = '';
     document.getElementById('agentReflectSkills').value = '';
+    tempMcpNames = [];
+    tempSkillsDirs = [];
+    renderMcpCheckboxes();
+    renderSkillsCheckboxes();
 }
 
 function onAgentTypeChange() {
@@ -738,6 +794,7 @@ async function saveAgent() {
         if (!name) { showToast('名称不能为空', 'error'); return; }
 
         let agentConfig = { type };
+
 
         if (type === 'single') {
             const model = document.getElementById('agentModelSingle').value.trim();
@@ -768,6 +825,9 @@ async function saveAgent() {
 
             agentConfig.agents = tempSubAgents;
         }
+
+        if (tempMcpNames.length > 0) agentConfig.mcp = [...tempMcpNames];
+        if (tempSkillsDirs.length > 0) agentConfig.skills = [...tempSkillsDirs];
 
         settings.agents = settings.agents || {};
         if (editingAgentName && editingAgentName !== name) {
@@ -902,8 +962,10 @@ function _skillsEndpoint() { return currentSkillsAgent ? '/api/agents/' + encode
 async function loadSkills() {
     try {
         const res = await apiFetch(_skillsEndpoint());
+        const data = res.data || [];
+        if (!currentSkillsAgent) globalSkills = data;
         const tbodyId = currentSkillsAgent ? 'agentSkillsTableBody' : 'skillsTableBody';
-        renderSkillsTable(res.data || [], tbodyId);
+        renderSkillsTable(data, tbodyId);
     } catch (e) { showToast(e.message, 'error'); }
 }
 
@@ -1307,4 +1369,5 @@ document.querySelectorAll('.sidebar-item[data-page]').forEach(el => {
 (async function init() {
     await loadSettings();
     await loadMcp();
+    try { const r = await apiFetch('/api/skills'); globalSkills = r.data || []; } catch (e) {}
 })();

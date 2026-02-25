@@ -34,10 +34,19 @@ export interface AgentRef {
 }
 
 /**
+ * Agent 基础配置（所有模式共用）
+ */
+export interface BaseAgentEntry {
+  type: AgentMode;
+  mcp?: string[];              // Agent 专属 MCP 服务器名称列表（对应 mcp.json 中的 key）
+  skills?: string[];           // Agent 专属 Skills 目录列表
+}
+
+/**
  * Single 模式 Agent 配置
  */
-export interface SingleAgentEntry {
-  type: "single";
+export interface SingleAgentEntry extends BaseAgentEntry {
+  type: AgentMode.Single;
   model?: string;              // 使用的模型名称（对应 models 中的 key），不填则使用全局 model
   systemPrompt?: string;       // 系统提示词
 }
@@ -45,12 +54,12 @@ export interface SingleAgentEntry {
 /**
  * ReAct 模式 Agent 配置
  */
-export interface ReactAgentEntry {
-  type: "react";
+export interface ReactAgentEntry extends BaseAgentEntry {
+  type: AgentMode.ReAct;
   maxIterations?: number;      // 最大迭代次数，默认 5
   think?: AgentNodeConfig;     // Think 节点配置
   reflect?: AgentNodeConfig;   // Reflect 节点配置
-  agents: AgentRef[];       // 子 Agent 引用列表
+  agents: AgentRef[];          // 子 Agent 引用列表
 }
 
 /**
@@ -248,22 +257,22 @@ class Config {
       },
       agents: {
         "default": {
-          type: "single",
+          type: AgentMode.Single,
           model: "openai-gpt4",
           systemPrompt: "你是一个有用的AI助手"
         },
         "coder": {
-          type: "single",
+          type: AgentMode.Single,
           model: "openai-gpt4",
           systemPrompt: "你是一个开发专家，擅长编写高质量代码"
         },
         "researcher": {
-          type: "single",
+          type: AgentMode.Single,
           model: "openai-gpt4",
           systemPrompt: "你是一个研究专家，擅长搜索和分析信息"
         },
         "react-example": {
-          type: "react",
+          type: AgentMode.ReAct,
           maxIterations: 5,
           think: { model: "openai-gpt4" },
           reflect: { model: "openai-gpt4" },
@@ -433,9 +442,6 @@ class Config {
   }
   getUserMemoryPath(userId: string) {
     return this.getConfigPath(`users/${userId}/memory.sqlite`)
-  }
-  getUserSkillsPath(userId: string) {
-    return this.getConfigPath(`users/${userId}/skills`, true)
   }
   /**
    * 验证所有配置是否完整

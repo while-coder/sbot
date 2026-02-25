@@ -1,7 +1,9 @@
 import {
     AgentService,
     IAgentCallback, IModelService, ModelServiceFactory,
-    ServiceContainer, T_ThreadId, T_SystemPrompts,
+    IAgentToolService, AgentToolService,
+    ISkillService, SkillService,
+    ServiceContainer, T_ThreadId, T_SystemPrompts, T_SkillsDirs,
 } from "scorpio.ai";
 import { ReActService } from "./Plan/index.js";
 import { config, AgentEntry, AgentMode, SingleAgentEntry, ReactAgentEntry } from "./Config";
@@ -21,17 +23,47 @@ export class AgentFactory {
 
     /**
      * 根据 AgentEntry 创建 Agent 服务
-     * @param container 已注册公共服务（saver、tool、skill、memory）的 DI 容器
+     * @param container DI 容器（已注册 memory 等公共服务）
      * @param agentEntry Agent 配置条目
      * @param userId 用户 ID
+     * @param agentName Agent 名称（用于加载 Agent 专属 skill/mcp，子 Agent 调用时可不传）
      * @param userInfo 用户信息（可选，用于追加到 systemPrompt）
      */
     static async create(
         container: ServiceContainer,
         agentEntry: AgentEntry,
         userId: string,
+        agentName?: string,
         userInfo?: any,
     ): Promise<StreamableAgent> {
+        if (agentName && !container.isRegistered(ISkillService)) {
+            const skillsDirs = [
+                config.getSkillsPath(),
+                config.getAgentSkillsPath(agentName),
+                ...(agentEntry.skills ?? []),
+            ];
+            container.registerWithArgs(ISkillService, SkillService, {
+                [T_SkillsDirs]: skillsDirs,
+            });
+        }
+
+        if (!container.isRegistered(IAgentToolService)) {
+            container.registerSingleton(IAgentToolService, AgentToolService);
+            const toolService = await container.resolve<AgentToolService>(IAgentToolService);
+            const mcpServers = config.getMcpServers();
+            if (Object.keys(mcpServers).length > 0) await toolService.addMcpServers(mcpServers);
+            const builtinMcpServers = config.getBuiltinMcpServers();
+            if (Object.keys(builtinMcpServers).length > 0) await toolService.addMcpServers(builtinMcpServers);
+            if (agentName) {
+                const entryMcp = Object.fromEntries(
+                    (agentEntry.mcp ?? []).map(name => [name, mcpServers[name]]).filter(([, v]) => v)
+                );
+                if (Object.keys(entryMcp).length > 0) await toolService.addMcpServers(entryMcp);
+                const agentMcpServers = config.getAgentMcpServers(agentName);
+                if (Object.keys(agentMcpServers).length > 0) await toolService.addMcpServers(agentMcpServers);
+            }
+        }
+
         const agentType = agentEntry.type || AgentMode.Single;
 
         switch (agentType) {
