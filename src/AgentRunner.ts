@@ -73,6 +73,10 @@ export class AgentRunner {
         logger.info(`${userId} 使用 Agent [${agentName}] (${agentEntry.type})`);
 
         const agent = await AgentFactory.create(agentName, container, userInfo);
-        await agent.stream(query, callbacks);
+        try {
+            await agent.stream(query, callbacks);
+        } finally {
+            await agent.dispose();
+        }
     }
 }

@@ -382,7 +382,4 @@ ${agentsDesc}
     }
   }
 
-  override async dispose() {
-    return super.dispose();
-  }
 }

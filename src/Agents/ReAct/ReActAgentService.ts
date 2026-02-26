@@ -377,12 +377,12 @@ ${this.formatStepHistory(reactState.steps)}
       }
 
       const currentStep = reactState.currentStep;
+      const subContainer = new ServiceContainer();
+      if (this.memoryService) subContainer.registerInstance(IMemoryService, new ReadOnlyMemoryService(this.memoryService));
+      const { AgentFactory } = await import('../../AgentFactory.js');
+      let agentService: Awaited<ReturnType<typeof AgentFactory.create>> | null = null;
       try {
-        const subContainer = new ServiceContainer();
-        if (this.memoryService) subContainer.registerInstance(IMemoryService, new ReadOnlyMemoryService(this.memoryService));
-        const { AgentFactory } = await import('../../AgentFactory.js');
-        const agentService = await AgentFactory.create(agentName, subContainer, this.userInfo);
-
+        agentService = await AgentFactory.create(agentName, subContainer, this.userInfo);
         const taskPrompt = `你需要使用可用的工具来完成以下任务，直接执行操作并返回结果，不要只给出建议或步骤说明。\n\n任务: ${currentStep.content}`;
 
         let actionResult = "";
@@ -406,6 +406,8 @@ ${this.formatStepHistory(reactState.steps)}
         logger.error(`Sub-Agent ${agentName}: 执行失败 - ${error.message}`);
         const observeResult = await this.observeNode(state, `执行失败: ${error.message}`);
         return { ...observeResult, messages: [new AIMessage(`⚠️ 执行失败: ${error.message}`)] };
+      } finally {
+        await agentService?.dispose();
       }
     };
   }
@@ -515,7 +517,4 @@ ${this.formatStepHistory(reactState.steps)}
     }
   }
 
-  override async dispose() {
-    return super.dispose();
-  }
 }
