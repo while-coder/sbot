@@ -497,11 +497,13 @@ async function viewMcpTools(name) {
         }
         const disabledSet = new Set(Array.isArray(cfg.disabled) ? cfg.disabled : []);
         const disabledAutoSet = new Set(Array.isArray(cfg.disabledAutoApproveTools) ? cfg.disabledAutoApproveTools : []);
+        const isAgentMcp = !!currentAgentMcpName;
         document.getElementById('mcpToolsBody').innerHTML = '<ul class="tools-list">' +
             tools.map((t, i) =>
                 '<li>' +
                 '<div class="tool-header">' +
                     '<div class="tool-name" onclick="toggleToolParams(this)">' + esc(t.name) + '</div>' +
+                    (isAgentMcp ? (
                     '<div class="tool-switches">' +
                         '<div class="tool-switch">' +
                             '<span class="tool-switch-label">启用</span>' +
@@ -517,7 +519,8 @@ async function viewMcpTools(name) {
                                 'onchange="toggleToolAutoApprove(\'' + esc(t.name) + '\', this.checked)">' +
                                 '<span class="toggle-slider"></span></label>' +
                         '</div>' +
-                    '</div>' +
+                    '</div>'
+                    ) : '') +
                 '</div>' +
                 (t.description ? '<div class="tool-desc">' + esc(t.description) + '</div>' : '') +
                 '<div class="tool-params" id="toolParams_' + i + '">' + renderToolParams(t.parameters) + '</div>' +

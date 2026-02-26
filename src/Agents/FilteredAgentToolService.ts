@@ -34,8 +34,8 @@ export class FilteredAgentToolService implements IAgentToolService {
   /**
    * 获取过滤后的工具列表
    */
-  async getTools(): Promise<StructuredToolInterface[]> {
-    const allTools = await this.parentToolService.getTools();
+  async getAllTools(): Promise<StructuredToolInterface[]> {
+    const allTools = await this.parentToolService.getAllTools();
 
     // 如果允许所有工具，直接返回
     if (this.allowAll) {
@@ -48,6 +48,16 @@ export class FilteredAgentToolService implements IAgentToolService {
     logger.info(`FilteredAgentToolService: 过滤后工具数量 ${filteredTools.length}/${allTools.length}`);
 
     return filteredTools;
+  }
+
+  async getToolsFrom(providerNames: string[]): Promise<StructuredToolInterface[]> {
+    const tools = await this.parentToolService.getToolsFrom(providerNames);
+    if (this.allowAll) return tools;
+    return tools.filter(tool => this.allowedTools.has(tool.name));
+  }
+
+  getProviderNames(): string[] {
+    return this.parentToolService.getProviderNames();
   }
 
   /**

@@ -43,15 +43,15 @@ export class AgentFactory {
         if (!container.isRegistered(IAgentToolService)) {
             container.registerSingleton(IAgentToolService, AgentToolService);
             const toolService = await container.resolve<AgentToolService>(IAgentToolService);
-            const mcpServers = config.getMcpServers();
+            const mcpServers = config.getGlobalMcpServers();
             if (agentEntry.mcp && agentEntry.mcp.length > 0) {
                 const filteredMcp = Object.fromEntries(
                     agentEntry.mcp.map(name => [name, mcpServers[name]]).filter(([, v]) => v)
                 );
-                await toolService.addMcpServers(filteredMcp);
+                toolService.registerMcpServers(filteredMcp);
             }
             const agentMcpServers = config.getAgentMcpServers(agentName);
-            await toolService.addMcpServers(agentMcpServers);
+            toolService.registerMcpServers(agentMcpServers);
         }
 
         const agentType = agentEntry.type || AgentMode.Single;

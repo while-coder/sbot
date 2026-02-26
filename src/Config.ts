@@ -171,7 +171,7 @@ class Config {
   /**
    * 获取 MCP 服务器配置（每次都实时读取 mcp.json 文件）
    */
-  getMcpServers(): MCPServers {
+  getGlobalMcpServers(): MCPServers {
     const mcpConfigPath = this.getConfigPath("mcp.json");
 
     try {

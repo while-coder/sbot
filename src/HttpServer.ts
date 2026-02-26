@@ -96,11 +96,11 @@ class HttpServer {
         }));
 
         // ===== MCP =====
-        app.get('/api/mcp', api(() => config.getMcpServers()));
+        app.get('/api/mcp', api(() => config.getGlobalMcpServers()));
 
         app.put('/api/mcp', api(req => {
             config.saveMcpServers(req.body);
-            return config.getMcpServers();
+            return config.getGlobalMcpServers();
         }));
 
         app.post('/api/mcp/tools', api(async req => {
