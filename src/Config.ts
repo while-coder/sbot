@@ -13,8 +13,9 @@ export interface LarkConfig {
  * Agent 运行模式
  */
 export enum AgentMode {
-  Single = "single",   // 单 Agent 模式
-  ReAct = "react",     // ReAct 模式：思考 -> 行动 -> 观察，迭代决策
+  Single     = "single",      // 单 Agent 模式
+  ReAct      = "react",       // ReAct 模式：思考 -> 行动 -> 观察，迭代决策
+  Supervisor = "supervisor",  // Supervisor 模式：主管调度多个 Worker Agent
 }
 
 /**
@@ -63,9 +64,19 @@ export interface ReactAgentEntry extends BaseAgentEntry {
 }
 
 /**
+ * Supervisor 模式 Agent 配置
+ */
+export interface SupervisorAgentEntry extends BaseAgentEntry {
+  type: AgentMode.Supervisor;
+  maxRounds?: number;          // 最大调度轮次，默认 10
+  supervisor?: AgentNodeConfig; // Supervisor 节点配置
+  agents: AgentRef[];          // Worker Agent 引用列表
+}
+
+/**
  * Agent 配置条目（联合类型）
  */
-export type AgentEntry = SingleAgentEntry | ReactAgentEntry;
+export type AgentEntry = SingleAgentEntry | ReactAgentEntry | SupervisorAgentEntry;
 
 export interface Settings {
   agent?: string;              // 当前使用的 Agent 名称（对应 agents 中的 key）

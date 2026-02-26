@@ -6,8 +6,8 @@ import {
     ServiceContainer, T_SystemPrompts, T_SkillsDirs, T_SkillDirs,
 } from "scorpio.ai";
 import path from "path";
-import { ReActAgentService } from "./Plan/index.js";
-import { config, AgentMode, SingleAgentEntry, ReactAgentEntry } from "./Config";
+import { ReActAgentService, SupervisorAgentService } from "./Plan/index.js";
+import { config, AgentMode, SingleAgentEntry, ReactAgentEntry, SupervisorAgentEntry } from "./Config";
 
 
 /**
@@ -60,6 +60,9 @@ export class AgentFactory {
             case AgentMode.ReAct:
                 return this.createReAct(container, agentEntry as ReactAgentEntry, userInfo);
 
+            case AgentMode.Supervisor:
+                return this.createSupervisor(container, agentEntry as SupervisorAgentEntry, userInfo);
+
             case AgentMode.Single:
             default:
                 return this.createSingle(container, agentEntry as SingleAgentEntry, userInfo);
@@ -100,6 +103,31 @@ export class AgentFactory {
             [T_SystemPrompts]: systemPrompts,
         });
         return container.resolve(SingleAgentService);
+    }
+
+    /**
+     * 创建 Supervisor Agent
+     */
+    private static async createSupervisor(
+        container: ServiceContainer,
+        entry: SupervisorAgentEntry,
+        userInfo?: any,
+    ): Promise<AgentServiceBase> {
+        const agentRefs = entry.agents || [];
+        if (agentRefs.length === 0) {
+            throw new Error("Supervisor 模式未配置 Worker Agent");
+        }
+
+        const maxRounds = entry.maxRounds || 10;
+        const systemPrompts = this.buildSystemPrompt(entry.systemPrompt, userInfo);
+        container.registerWithArgs(SupervisorAgentService, {
+            agentRefs,
+            maxRounds,
+            supervisorConfig: entry.supervisor,
+            userInfo,
+            [T_SystemPrompts]: systemPrompts,
+        });
+        return container.resolve(SupervisorAgentService);
     }
 
     /**
