@@ -5,7 +5,7 @@ import {
   AgentServiceBase,
   IAgentCallback, MessageChunkType, AgentMessage,
   IMemoryService, IAgentSaverService,
-  inject, ServiceContainer, ModelServiceFactory, T_SystemPrompts,
+  inject, ServiceContainer, T_SystemPrompts,
 } from 'scorpio.ai';
 import { LoggerService } from '../../LoggerService.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -56,10 +56,6 @@ export const ReActAnnotation = Annotation.Root({
     reducer: (prev, next) => next ?? prev,
     default: () => null,
   }),
-  agentInfos: Annotation<{ id: string; desc: string }[]>({
-    reducer: (prev, next) => next ?? prev,
-    default: () => [],
-  }),
   callback: Annotation<IAgentCallback | null>({
     reducer: (prev, next) => next ?? prev,
     default: () => null,
@@ -101,6 +97,8 @@ export class ReActAgentService extends AgentServiceBase {
   private thinkConfig?: AgentNodeConfig;
   private reflectConfig?: AgentNodeConfig;
   private userInfo?: any;
+  private systemMessages: SystemMessage[];
+  private agentInfos: { id: string; desc: string }[];
 
   constructor(
     @inject("agentRefs") agentRefs: AgentRef[],
@@ -118,6 +116,8 @@ export class ReActAgentService extends AgentServiceBase {
     this.thinkConfig = thinkConfig;
     this.reflectConfig = reflectConfig;
     this.userInfo = userInfo;
+    this.systemMessages = (systemPrompts ?? []).map(p => new SystemMessage(p));
+    this.agentInfos = agentRefs.map(ref => ({ id: ref.name, desc: ref.desc }));
   }
 
   // ── Helpers ─────────────────────────────────────────────────
@@ -179,8 +179,8 @@ export class ReActAgentService extends AgentServiceBase {
 
     const lastHuman = [...state.messages].reverse().find(m => m instanceof HumanMessage);
     const userQuery = lastHuman ? (lastHuman.content as string) : reactState.goal;
-    const agentsDesc = state.agentInfos.map(a => `- ${a.id}: ${a.desc}`).join('\n');
-    const agentIdList = state.agentInfos.map(a => a.id).join('/');
+    const agentsDesc = this.agentInfos.map(a => `- ${a.id}: ${a.desc}`).join('\n');
+    const agentIdList = this.agentInfos.map(a => a.id).join('/');
 
     const prompt = `系统提示：你是一个 ReAct 规划助手，只返回有效的 JSON 格式，不要包含其他文本。
 
@@ -230,8 +230,8 @@ decision 说明：
     try {
       if (!this.thinkConfig?.model) throw new Error('ReAct think 节点未配置 model');
       logger.info(`THINK: 推理开始`);
-      const thinkModelService = await ModelServiceFactory.getModelService(config.getModel(this.thinkConfig.model)!);
-      const response = await thinkModelService.invoke(prompt);
+      const thinkModelService = (await config.getModelService(this.thinkConfig.model, true))!;
+      const response = await thinkModelService.invoke([new SystemMessage(prompt), ...this.systemMessages, ...state.messages]);
       const decision = this.parseJsonResponse(response.content as string);
 
       reactState.steps.push(this.makeStep(ReActNode.Think, decision.thought));
@@ -265,7 +265,7 @@ decision 说明：
         reactState.currentStep = null;
 
       } else if (decisionType === ReActDecision.Action && decision.nextAction) {
-        const available = state.agentInfos.map(a => a.id);
+        const available = this.agentInfos.map(a => a.id);
         const agentId = this.resolveAgentId(decision.nextAction.agentId ?? decision.nextAction.agentType, available);
         const actionStep = this.makeStep(ReActNode.Action, decision.nextAction.description, agentId);
         reactState.steps.push(actionStep);
@@ -300,7 +300,7 @@ decision 说明：
         logger.warn("ROUTE: Action 步骤缺少 agentId，回退到 Think");
         return ReActNode.Think;
       }
-      const available = state.agentInfos.map(a => a.id);
+      const available = this.agentInfos.map(a => a.id);
       if (!available.includes(agentId)) {
         logger.warn(`ROUTE: 未知 agentId "${agentId}"，回退到 Think`);
         return ReActNode.Think;
@@ -357,8 +357,8 @@ ${this.formatStepHistory(reactState.steps)}
 
     try {
       if (!this.reflectConfig?.model) throw new Error('ReAct reflect 节点未配置 model');
-      const modelService = await ModelServiceFactory.getModelService(config.getModel(this.reflectConfig.model)!);
-      const response = await modelService.invoke(prompt);
+      const reflectModelService = (await config.getModelService(this.reflectConfig.model, true))!;
+      const response = await reflectModelService.invoke([new SystemMessage(prompt), ...this.systemMessages, ...state.messages]);
       const reflection = response.content as string;
       reactState.steps.push(this.makeStep(ReActNode.Reflect, reflection));
       return { reactState, messages: [new AIMessage(`✨ **总结**:\n\n${reflection}`)] };
@@ -447,16 +447,11 @@ ${this.formatStepHistory(reactState.steps)}
     try {
       const graph = await this.createGraph();
 
-      const agentInfos = this.agentRefs.map(ref => ({ id: ref.name, desc: ref.desc }));
-
       logger.info(`ReAct 开始 | 用户: ${this.agentSaver?.threadId} | Agents: [${this.agentRefs.map(r => r.name).join(', ')}] | 最大迭代: ${this.maxIterations} | 查询: ${query.substring(0, 80)}`);
 
       const graphStream = await graph.stream(
         {
-          messages: [
-            ...(this.systemPrompts ?? []).map(p => new SystemMessage(p)),
-            new HumanMessage(query),
-          ],
+          messages: [new HumanMessage(query)],
           reactState: {
             goal: query,
             currentStep: null,
@@ -465,7 +460,6 @@ ${this.formatStepHistory(reactState.steps)}
             maxIterations: this.maxIterations,
             currentIteration: 0,
           } as ReActState,
-          agentInfos,
           callback,
         },
         {
