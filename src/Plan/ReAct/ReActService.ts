@@ -21,6 +21,12 @@ export enum ReActNode {
   WaitForUser = "wait_for_user",
 }
 
+export enum ReActDecision {
+  Action = "action",
+  WaitForUser = "wait_for_user",
+  Complete = "complete",
+}
+
 export function agentNodeName(agentId: string): string {
   return `agent_${agentId}`;
 }
@@ -204,7 +210,7 @@ ${this.formatStepHistory(reactState.steps)}
 
 {
   "thought": "你的推理过程和分析",
-  "decision": "action/wait_for_user/complete",
+  "decision": "${ReActDecision.Action}/${ReActDecision.WaitForUser}/${ReActDecision.Complete}",
   "nextAction": {
     "description": "需要 Agent 使用工具完成的具体任务描述",
     "agentId": "${agentIdList}",
@@ -214,22 +220,23 @@ ${this.formatStepHistory(reactState.steps)}
 }
 
 decision 说明：
-- "action": 需要 Agent 执行操作，必须提供 nextAction
-- "wait_for_user": 需要用户确认或补充信息才能继续，必须提供 waitMessage
-- "complete": 目标已完成
+- "${ReActDecision.Action}": 需要 Agent 执行操作，必须提供 nextAction
+- "${ReActDecision.WaitForUser}": 需要用户确认或补充信息才能继续，必须提供 waitMessage
+- "${ReActDecision.Complete}": 目标已完成
 
 规则：
-1. 目标已完成 → decision = "complete"
-2. 需要执行操作 → decision = "action"，提供 nextAction
-3. 需要用户确认 → decision = "wait_for_user"，提供 waitMessage
+1. 目标已完成 → decision = "${ReActDecision.Complete}"
+2. 需要执行操作 → decision = "${ReActDecision.Action}"，提供 nextAction
+3. 需要用户确认 → decision = "${ReActDecision.WaitForUser}"，提供 waitMessage
 4. agentId 必须是上面列出的可用 Agent ID 之一
 5. nextAction.description 描述最终目标，而非操作步骤
 6. 每次只规划一个行动
-7. 基于历史结果决策，行动已完成则 decision = "complete"
+7. 基于历史结果决策，行动已完成则 decision = "${ReActDecision.Complete}"
 8. 观察结果表明任务完成时，不要重复执行相同行动`;
 
     try {
       if (!this.thinkConfig?.model) throw new Error('ReAct think 节点未配置 model');
+      logger.info(`THINK: 推理开始`);
       const thinkModelService = await ModelServiceFactory.getModelService(config.getModel(this.thinkConfig.model)!);
       const response = await thinkModelService.invoke(prompt);
       const decision = this.parseJsonResponse(response.content as string);
@@ -237,17 +244,17 @@ decision 说明：
       reactState.steps.push(this.makeStep(ReActNode.Think, decision.thought));
       reactState.currentIteration += 1;
 
-      const decisionType: string = decision.decision
-        ?? (decision.isComplete ? 'complete' : decision.needsAction ? 'action' : 'complete');
+      const decisionType: ReActDecision = decision.decision
+        ?? (decision.isComplete ? ReActDecision.Complete : decision.needsAction ? ReActDecision.Action : ReActDecision.Complete);
 
       const iter = `[${reactState.currentIteration}/${reactState.maxIterations}]`;
 
-      if (decisionType === 'complete') {
+      if (decisionType === ReActDecision.Complete) {
         reactState.isComplete = true;
         reactState.currentStep = null;
         logger.info(`THINK ${iter}: 任务完成`);
 
-      } else if (decisionType === 'wait_for_user') {
+      } else if (decisionType === ReActDecision.WaitForUser) {
         const waitMsg = decision.waitMessage || decision.thought;
         reactState.steps.push(this.makeStep(ReActNode.WaitForUser, waitMsg));
         logger.info(`THINK ${iter}: 等待用户`);
@@ -264,7 +271,7 @@ decision 说明：
         }
         reactState.currentStep = null;
 
-      } else if (decisionType === 'action' && decision.nextAction) {
+      } else if (decisionType === ReActDecision.Action && decision.nextAction) {
         const available = state.agentInfos.map(a => a.id);
         const agentId = this.resolveAgentId(decision.nextAction.agentId ?? decision.nextAction.agentType, available);
         const actionStep = this.makeStep(ReActNode.Action, decision.nextAction.description, agentId);
