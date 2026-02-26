@@ -3,11 +3,12 @@ import {
     IModelService,
     IAgentToolService, AgentToolService,
     ISkillService, SkillService,
-    ServiceContainer, T_SystemPrompts, T_SkillsDirs, T_SkillDirs,
+    ServiceContainer, T_SystemPrompts,
 } from "scorpio.ai";
-import path from "path";
 import { ReActAgentService, SupervisorAgentService } from "./Agents/index.js";
 import { config, AgentMode, SingleAgentEntry, ReactAgentEntry, SupervisorAgentEntry } from "./Config";
+import { globalAgentToolService } from "./GlobalAgentToolService";
+import { globalSkillService } from "./GlobalSkillService";
 
 
 /**
@@ -31,24 +32,24 @@ export class AgentFactory {
         const agentEntry = config.settings.agents?.[agentName];
         if (!agentEntry) throw new Error(`Agent 配置 "${agentName}" 不存在`);
         if (!container.isRegistered(ISkillService)) {
-            const args: Record<symbol, any> = {
-                [T_SkillsDirs]: [config.getAgentSkillsPath(agentName)],
-            };
+            container.registerSingleton(ISkillService, SkillService);
+            const skillService = await container.resolve<SkillService>(ISkillService);
             if (agentEntry.skills && agentEntry.skills.length > 0) {
-                args[T_SkillDirs] = agentEntry.skills.map(name => path.join(config.getSkillsPath(), name));
+                const allGlobalSkills = globalSkillService.getAllSkills();
+                for (const name of agentEntry.skills) {
+                    const skill = allGlobalSkills.find(s => s.name === name);
+                    if (skill) skillService.registerSingleSkillDir(skill.path);
+                }
             }
-            container.registerWithArgs(ISkillService, SkillService, args);
+            skillService.registerSkillsDir(config.getAgentSkillsPath(agentName));
         }
 
         if (!container.isRegistered(IAgentToolService)) {
             container.registerSingleton(IAgentToolService, AgentToolService);
             const toolService = await container.resolve<AgentToolService>(IAgentToolService);
-            const mcpServers = config.getGlobalMcpServers();
             if (agentEntry.mcp && agentEntry.mcp.length > 0) {
-                const filteredMcp = Object.fromEntries(
-                    agentEntry.mcp.map(name => [name, mcpServers[name]]).filter(([, v]) => v)
-                );
-                toolService.registerMcpServers(filteredMcp);
+                const mcpNames = [...agentEntry.mcp];
+                toolService.registerToolFactory('__global_mcp__', () => globalAgentToolService.getToolsFrom(mcpNames));
             }
             const agentMcpServers = config.getAgentMcpServers(agentName);
             toolService.registerMcpServers(agentMcpServers);
