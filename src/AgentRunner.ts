@@ -13,6 +13,7 @@ import {
     T_DBPath,
     T_ThreadId,
     IAgentCallback,
+    ILoggerService,
 } from "scorpio.ai";
 import { config } from "./Config";
 import { AgentFactory } from "./AgentFactory";
@@ -34,6 +35,7 @@ export class AgentRunner {
 
         const container = new ServiceContainer();
         container.registerInstance(T_ThreadId, userId);
+        container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
 
         const memoryConfig = config.settings.memory;
         if (memoryConfig?.enabled && memoryConfig?.embedding) {

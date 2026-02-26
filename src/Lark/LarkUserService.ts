@@ -28,6 +28,7 @@ export class LarkUserService extends LarkUserServiceBase {
             onMessage: this.onAgentMessage.bind(this),
             onStreamMessage: this.onAgentStreamMessage.bind(this),
             executeTool: this.executeAgentTool.bind(this),
+            askUser: this.askUser.bind(this),
             convertImages: this.convertImages.bind(this),
         }, this.userInfo);
     }
