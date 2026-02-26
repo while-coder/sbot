@@ -196,12 +196,20 @@ class HttpServer {
         // ===== Agent Skills =====
         app.get('/api/agents/:name/skills', api(req => {
             const agentName = req.params.name as string;
+            const agent = (config.settings as any).agents?.[agentName];
+            const agentSkillNames: string[] = (agent?.skills as string[]) || [];
             const normalizedBuiltinDir = path.normalize(BUILTIN_SKILLS_DIR);
-            const builtins = globalSkillService.getAllSkills()
-                .filter(s => path.normalize(s.path).startsWith(normalizedBuiltinDir))
-                .map(s => ({ name: s.name, description: s.description }));
+            const allGlobalSkills = globalSkillService.getAllSkills();
+            const globals = agentSkillNames
+                .map(name => allGlobalSkills.find(s => s.name === name))
+                .filter((s): s is NonNullable<typeof s> => !!s)
+                .map(s => ({
+                    name: s.name,
+                    description: s.description,
+                    isBuiltin: path.normalize(s.path).startsWith(normalizedBuiltinDir),
+                }));
             return {
-                builtins,
+                globals,
                 skills: listSkills(config.getAgentSkillsPath(agentName)),
             };
         }));

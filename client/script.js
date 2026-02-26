@@ -993,11 +993,18 @@ function _skillsEndpoint() { return currentSkillsAgent ? '/api/agents/' + encode
 async function loadSkills() {
     try {
         const res = await apiFetch(_skillsEndpoint());
-        skillBuiltins = res.data?.builtins || [];
         const skills = res.data?.skills || [];
-        if (!currentSkillsAgent) globalSkills = skills;
+        let globals;
+        if (!currentSkillsAgent) {
+            const builtins = res.data?.builtins || [];
+            skillBuiltins = builtins;
+            globalSkills = skills;
+            globals = builtins.map(s => ({ ...s, isBuiltin: true }));
+        } else {
+            globals = res.data?.globals || [];
+        }
         const tbodyId = currentSkillsAgent ? 'agentSkillsTableBody' : 'skillsTableBody';
-        renderSkillsTable(skills, tbodyId);
+        renderSkillsTable(skills, globals, tbodyId);
     } catch (e) { showToast(e.message, 'error'); }
 }
 
@@ -1006,20 +1013,20 @@ async function loadGlobalSkills() {
     await loadSkills();
 }
 
-function renderSkillsTable(skills, tbodyId) {
+function renderSkillsTable(skills, globals, tbodyId) {
     const tbody = document.getElementById(tbodyId);
-    const builtins = skillBuiltins;
-    if (builtins.length === 0 && skills.length === 0) {
+    if (globals.length === 0 && skills.length === 0) {
         tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#94a3b8;padding:40px">暂无 Skill</td></tr>';
         return;
     }
-    const builtinRows = builtins.map(s =>
-        '<tr>' +
-        '<td style="font-family:Consolas,Monaco,monospace">' + esc(s.name) + ' <span style="color:#64748b;font-size:11px">(内置)</span></td>' +
-        '<td>' + esc(s.description || '-') + '</td>' +
-        '<td>-</td>' +
-        '</tr>'
-    ).join('');
+    const globalRows = globals.map(s => {
+        const badge = s.isBuiltin !== false ? '内置' : '全局';
+        return '<tr>' +
+            '<td style="font-family:Consolas,Monaco,monospace">' + esc(s.name) + ' <span style="color:#64748b;font-size:11px">(' + badge + ')</span></td>' +
+            '<td>' + esc(s.description || '-') + '</td>' +
+            '<td>-</td>' +
+            '</tr>';
+    }).join('');
     const skillRows = skills.map(s =>
         '<tr>' +
         '<td style="font-family:Consolas,Monaco,monospace">' + esc(s.name) + '</td>' +
@@ -1029,7 +1036,7 @@ function renderSkillsTable(skills, tbodyId) {
             '<button class="btn btn-danger btn-sm" onclick="deleteSkillItem(\'' + esc(s.name) + '\')">删除</button>' +
         '</td></tr>'
     ).join('');
-    tbody.innerHTML = builtinRows + skillRows;
+    tbody.innerHTML = globalRows + skillRows;
 }
 
 function showSkillModal(name) {
@@ -1442,5 +1449,9 @@ document.querySelectorAll('.sidebar-item[data-page]').forEach(el => {
 (async function init() {
     await loadSettings();
     await loadMcp();
-    try { const r = await apiFetch('/api/skills'); globalSkills = r.data || []; } catch (e) {}
+    try {
+        const r = await apiFetch('/api/skills');
+        skillBuiltins = r.data?.builtins || [];
+        globalSkills = r.data?.skills || [];
+    } catch (e) {}
 })();
