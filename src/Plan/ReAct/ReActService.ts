@@ -518,16 +518,8 @@ ${this.formatStepHistory(reactState.steps)}
       // 将 query 和最终总结保存到 saver（对话历史）
       if (this.saverService && reflectResult) {
         try {
-          const checkpointer = await this.saverService.getCheckpointer();
-          const saveWorkflow = new StateGraph(MessagesAnnotation)
-            .addNode("save", () => ({}))
-            .addEdge(START, "save")
-            .addEdge("save", END);
-          const saveGraph = saveWorkflow.compile({ checkpointer });
-          await saveGraph.invoke(
-            { messages: [new HumanMessage(query), new AIMessage(reflectResult)] },
-            { configurable: { thread_id: this.userId } },
-          );
+          await this.saverService.pushMessage(new HumanMessage(query));
+          await this.saverService.pushMessage(new AIMessage(reflectResult));
         } catch (error: any) {
           logger.warn(`保存对话到 saver 失败: ${error.message}`);
         }

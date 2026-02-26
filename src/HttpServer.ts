@@ -3,7 +3,7 @@ import http from 'http';
 import path from 'path';
 import fs from 'fs';
 import { MultiServerMCPClient } from "@langchain/mcp-adapters";
-import { AgentSqliteSaver, MemoryDatabase } from "scorpio.ai";
+import { AgentSqliteSaver, MemorySqliteDatabase } from "scorpio.ai";
 import { config } from './Config';
 import { LoggerService } from './LoggerService';
 import { LarkUserService } from './Lark/LarkUserService';
@@ -161,37 +161,14 @@ class HttpServer {
         // ===== 历史记录 =====
         app.get('/api/users/:userId/history', api(async req => {
             const userId = req.params.userId as string;
-            const saver = new AgentSqliteSaver(config.getUserSaverPath(userId));
-
-            // 遍历所有 checkpoint，记录每条消息（按 id）首次出现时的时间戳
-            const msgTimestamps = new Map<string, string>();
-            try {
-                const innerSaver = (saver as any).saver;
-                const checkpoints: any[] = [];
-                for await (const tuple of innerSaver.list({ configurable: { thread_id: userId } })) {
-                    checkpoints.push(tuple);
-                }
-                // list 返回最新在前，翻转后按时间正序处理
-                checkpoints.reverse();
-                for (const tuple of checkpoints) {
-                    const ts: string = tuple.checkpoint?.ts;
-                    const msgs: any[] = tuple.checkpoint?.channel_values?.messages ?? [];
-                    for (const m of msgs) {
-                        if (m.id && !msgTimestamps.has(m.id)) {
-                            msgTimestamps.set(m.id, ts);
-                        }
-                    }
-                }
-            } catch { /* 获取时间戳失败不影响主流程 */ }
-
-            const messages = await saver.getMessages(userId);
+            const saver = new AgentSqliteSaver(userId, config.getUserSaverPath(userId));
+            const messages = await saver.getAllMessages();
             await saver.dispose();
             return messages.map(m => {
                 const mm = m as any;
                 const role = mm._getType?.() ?? 'unknown';
                 const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
                 const result: any = { role, content };
-                if (mm.id) result.timestamp = msgTimestamps.get(mm.id);
                 if (mm.tool_calls?.length) result.tool_calls = mm.tool_calls;
                 if (mm.tool_call_id) result.tool_call_id = mm.tool_call_id;
                 if (mm.name) result.name = mm.name;
@@ -201,18 +178,18 @@ class HttpServer {
 
         app.delete('/api/users/:userId/history', api(async req => {
             const userId = req.params.userId as string;
-            const saver = new AgentSqliteSaver(config.getUserSaverPath(userId));
-            await saver.clearThread(userId);
+            const saver = new AgentSqliteSaver(userId, config.getUserSaverPath(userId));
+            await saver.clearMessages();
             await saver.dispose();
             LarkUserService.allUsers.delete(userId);
             WebUserService.allUsers.delete(userId);
         }));
 
         // ===== 长期记忆 =====
-        app.get('/api/users/:userId/memory', api(req => {
+        app.get('/api/users/:userId/memory', api(async req => {
             const userId = req.params.userId as string;
-            const db = new MemoryDatabase(config.getUserMemoryPath(userId));
-            return db.getAllMemories(userId).map(m => ({
+            const db = new MemorySqliteDatabase(userId, config.getUserMemoryPath(userId));
+            return (await db.getAllMemories()).map(m => ({
                 id: m.id,
                 content: m.content,
                 importance: m.metadata.importance,
@@ -224,17 +201,17 @@ class HttpServer {
             }));
         }));
 
-        app.delete('/api/users/:userId/memory/:memoryId', api(req => {
+        app.delete('/api/users/:userId/memory/:memoryId', api(async req => {
             const userId = req.params.userId as string;
             const memoryId = req.params.memoryId as string;
-            const db = new MemoryDatabase(config.getUserMemoryPath(userId));
+            const db = new MemorySqliteDatabase(userId, config.getUserMemoryPath(userId));
             db.deleteMemory(memoryId);
         }));
 
-        app.delete('/api/users/:userId/memory', api(req => {
+        app.delete('/api/users/:userId/memory', api(async req => {
             const userId = req.params.userId as string;
-            const db = new MemoryDatabase(config.getUserMemoryPath(userId));
-            const count = db.clearAllMemories(userId);
+            const db = new MemorySqliteDatabase(userId, config.getUserMemoryPath(userId));
+            const count = await db.clearMemories();
             return { count };
         }));
 

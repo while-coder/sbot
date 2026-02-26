@@ -1,41 +1,40 @@
-import { BaseCheckpointSaver } from "@langchain/langgraph-checkpoint";
 import { BaseMessage } from "langchain";
 import { IAgentSaverService } from "scorpio.ai";
 
 /**
  * 共享 AgentSaver 包装器
- * 
+ *
  * 当多个 Sub-Agent 共享同一个 AgentSaver 实例时，使用此包装器
  * 可以防止 Sub-Agent 在完成后 dispose 关闭共享的数据库连接。
- * 
+ *
  * 所有操作委托给内部 saver，但 dispose() 是空操作。
  * 只有持有原始 saver 的所有者才应负责关闭连接。
  */
 export class SharedAgentSaver implements IAgentSaverService {
     constructor(private inner: IAgentSaverService) {}
 
-    getCheckpointer(): Promise<BaseCheckpointSaver> {
-        return this.inner.getCheckpointer();
+    get threadId(): string {
+        return this.inner.threadId;
     }
 
-    getThreadIds(): Promise<string[]> {
-        return this.inner.getThreadIds();
+    getAllThreadIds(): Promise<string[]> {
+        return this.inner.getAllThreadIds();
     }
 
-    clearThread(threadId: string): Promise<void> {
-        return this.inner.clearThread(threadId);
+    getAllMessages(): Promise<BaseMessage[]> {
+        return this.inner.getAllMessages();
     }
 
-    getMessages(threadId: string): Promise<BaseMessage[]> {
-        return this.inner.getMessages(threadId);
+    getMessages(maxTokens: number): Promise<BaseMessage[]> {
+        return this.inner.getMessages(maxTokens);
     }
 
-    prepareHistory(threadId: string): Promise<BaseMessage[]> {
-        return this.inner.prepareHistory(threadId);
+    pushMessage(message: BaseMessage): Promise<void> {
+        return this.inner.pushMessage(message);
     }
 
-    truncateMessages(messages: BaseMessage[], maxTokens: number): BaseMessage[] {
-        return this.inner.truncateMessages(messages, maxTokens);
+    clearMessages(): Promise<void> {
+        return this.inner.clearMessages();
     }
 
     /**

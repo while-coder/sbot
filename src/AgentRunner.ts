@@ -1,6 +1,6 @@
 import {
     IModelService, ModelServiceFactory,
-    IMemoryService, IMemoryDatabase, MemoryDatabase, MemoryEvaluator, MemoryCompressor, MemoryExtractor, MemoryService,
+    IMemoryService, IMemoryDatabase, MemorySqliteDatabase, MemoryEvaluator, MemoryCompressor, MemoryExtractor, MemoryService,
     IEmbeddingService, EmbeddingServiceFactory,
     IAgentSaverService, AgentSqliteSaver,
     ServiceContainer,
@@ -11,6 +11,7 @@ import {
     T_MaxMemoryAgeDays,
     T_MemoryMode,
     T_DBPath,
+    T_ThreadId,
     IAgentCallback,
 } from "scorpio.ai";
 import { config } from "./Config";
@@ -56,15 +57,15 @@ export class AgentRunner {
             const embeddingConfig = config.getEmbedding(memoryConfig.embedding);
             if (!embeddingConfig) throw new Error(`Embedding 配置 "${memoryConfig.embedding}" 不存在`);
             container.registerWithArgs(IMemoryService, MemoryService, {
-                [T_UserId]: userId,
+                [IMemoryDatabase]: new MemorySqliteDatabase(userId, config.getUserMemoryPath(userId)),
                 [IEmbeddingService]: await EmbeddingServiceFactory.getEmbeddingService(embeddingConfig),
-                [IMemoryDatabase]: new MemoryDatabase(config.getUserMemoryPath(userId)),
                 [T_MaxMemoryAgeDays]: memoryConfig.maxAgeDays,
                 [T_MemoryMode]: memoryConfig.mode,
             });
         }
 
         container.registerWithArgs(IAgentSaverService, AgentSqliteSaver, {
+            [T_ThreadId]: userId,
             [T_DBPath]: config.getUserSaverPath(userId),
         });
 

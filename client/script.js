@@ -1199,21 +1199,58 @@ async function clearHistory() {
 })();
 
 let _chatSending = false;
+const _chatQueue = []; // { query: string }
+
+function _chatQueueRender() {
+    const el = document.getElementById('chatQueue');
+    if (!el) return;
+    if (_chatQueue.length === 0) { el.style.display = 'none'; return; }
+    el.style.display = 'flex';
+    el.innerHTML = '<div class="chat-queue-label">待发送（' + _chatQueue.length + '）</div>' +
+        _chatQueue.map((item, i) =>
+            '<div class="chat-queue-item">' +
+            '<span class="chat-queue-text">' + esc(item.query) + '</span>' +
+            '<button class="chat-queue-del" onclick="chatQueueRemove(' + i + ')" title="移除">×</button>' +
+            '</div>'
+        ).join('');
+}
+
+function chatQueueRemove(idx) {
+    _chatQueue.splice(idx, 1);
+    _chatQueueRender();
+}
 
 async function sendChatMessage() {
-    if (_chatSending) return;
     const userId = document.getElementById('historyUserSelect').value;
     const ta = document.getElementById('chatInput');
-    const btn = document.getElementById('chatSendBtn');
     const query = ta.value.trim();
     if (!userId || !query) return;
 
-    _chatSending = true;
-    ta.disabled = true;
-    btn.disabled = true;
-
     ta.value = '';
     ta.style.height = 'auto';
+    ta.focus();
+
+    if (_chatSending) {
+        _chatQueue.push({ query });
+        _chatQueueRender();
+        return;
+    }
+
+    await _sendOneChatMessage(userId, query);
+    await _drainChatQueue();
+}
+
+async function _drainChatQueue() {
+    while (_chatQueue.length > 0) {
+        const item = _chatQueue.shift();
+        _chatQueueRender();
+        const userId = document.getElementById('historyUserSelect').value;
+        await _sendOneChatMessage(userId, item.query);
+    }
+}
+
+async function _sendOneChatMessage(userId, query) {
+    _chatSending = true;
 
     // 立即显示用户消息
     const container = document.getElementById('historyMessages');
@@ -1228,12 +1265,10 @@ async function sendChatMessage() {
     aiRow.className = 'msg-row ai';
     const aiBubble = document.createElement('div');
     aiBubble.className = 'msg-bubble ai streaming';
-    aiBubble.innerHTML = '<div class="msg-role">AI</div><span style="color:#94a3b8">队列中…</span>';
+    aiBubble.innerHTML = '<div class="msg-role">AI</div><span style="color:#94a3b8">思考中…</span>';
     aiRow.appendChild(aiBubble);
     container.appendChild(aiRow);
     container.scrollTop = container.scrollHeight;
-
-    let streamContent = '';
 
     try {
         const response = await fetch(API + '/api/users/' + encodeURIComponent(userId) + '/chat', {
@@ -1246,6 +1281,7 @@ async function sendChatMessage() {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buf = '';
+        let streamContent = '';
 
         while (true) {
             const { done, value } = await reader.read();
@@ -1273,7 +1309,6 @@ async function sendChatMessage() {
                     container.scrollTop = container.scrollHeight;
                 } else if (evt.type === 'done') {
                     aiBubble.classList.remove('streaming');
-                    // 刷新完整历史（含时间戳）
                     await loadHistory();
                 } else if (evt.type === 'error') {
                     aiBubble.classList.remove('streaming');
@@ -1286,9 +1321,6 @@ async function sendChatMessage() {
         aiBubble.innerHTML += '<br><span style="color:#ef4444">错误: ' + esc(e.message) + '</span>';
     } finally {
         _chatSending = false;
-        ta.disabled = false;
-        btn.disabled = false;
-        ta.focus();
     }
 }
 

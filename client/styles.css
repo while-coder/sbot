@@ -125,6 +125,14 @@ tr.active-row td { background: #eff6ff; }
 .chat-input-bar textarea { flex: 1; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; font-family: inherit; resize: none; min-height: 38px; max-height: 160px; overflow-y: auto; line-height: 1.5; transition: border .15s; }
 .chat-input-bar textarea:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.1); }
 .chat-input-bar textarea:disabled { background: #f8fafc; color: #94a3b8; }
+
+/* ===== 消息队列 ===== */
+.chat-queue { display: none; flex-direction: column; gap: 4px; padding: 6px 16px 4px; background: #f8fafc; border-top: 1px solid #e2e8f0; }
+.chat-queue-label { font-size: 11px; color: #94a3b8; font-weight: 500; margin-bottom: 2px; }
+.chat-queue-item { display: flex; align-items: center; gap: 6px; padding: 4px 8px; background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; }
+.chat-queue-text { flex: 1; font-size: 12px; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-queue-del { flex-shrink: 0; width: 18px; height: 18px; border: none; background: none; color: #94a3b8; cursor: pointer; padding: 0; font-size: 14px; line-height: 1; border-radius: 3px; display: flex; align-items: center; justify-content: center; }
+.chat-queue-del:hover { background: #fee2e2; color: #ef4444; }
 .chat-input-bar .btn-send { padding: 8px 18px; height: 38px; flex-shrink: 0; }
 .msg-bubble.streaming { border-color: #93c5fd; }
 .msg-bubble.streaming::after { content: '▋'; display: inline-block; animation: blink .8s step-end infinite; margin-left: 2px; }

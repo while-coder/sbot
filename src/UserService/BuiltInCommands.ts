@@ -1,5 +1,5 @@
 import { Command, Arg, Option, Parsers, CommandContext, ICommand } from "scorpio.ai"
-import { IAgentSaverService, AgentSqliteSaver, MemoryDatabase } from "scorpio.ai";
+import { IAgentSaverService, AgentSqliteSaver, MemorySqliteDatabase } from "scorpio.ai";
 import { config } from "../Config";
 
 /**
@@ -27,13 +27,13 @@ export class ClearCommand implements ICommand {
         const userId = userService.userId;
 
         if (this.type === 'history') {
-            const agentSaver: IAgentSaverService = new AgentSqliteSaver(config.getUserSaverPath(userId));
-            await agentSaver.clearThread(userId);
+            const agentSaver: IAgentSaverService = new AgentSqliteSaver(userId, config.getUserSaverPath(userId));
+            await agentSaver.clearMessages();
             await agentSaver.dispose();
             return `已清除用户 ${userId} 的对话历史`;
         } else if (this.type === 'memory') {
-            const memoryDb = new MemoryDatabase(config.getUserMemoryPath(userId));
-            const count = memoryDb.clearAllMemories(userId);
+            const memoryDb = new MemorySqliteDatabase(userId, config.getUserMemoryPath(userId));
+            const count = await memoryDb.clearMemories();
             await memoryDb.dispose();
             return `已清除用户 ${userId} 的 ${count} 条长期记忆`;
         } else {
