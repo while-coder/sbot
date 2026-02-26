@@ -329,6 +329,7 @@
                 <select id="agentType" onchange="onAgentTypeChange()">
                     <option value="single">Single (单 Agent)</option>
                     <option value="react">ReAct (迭代决策)</option>
+                    <option value="supervisor">Supervisor (主管调度)</option>
                 </select>
             </div>
             <!-- Single 类型字段 -->
@@ -350,6 +351,18 @@
                 <div class="form-section">
                     <div class="form-section-title">子 Agents <button class="btn btn-outline-dark btn-sm" onclick="addSubAgent('react')" style="margin-left:8px">+ 添加</button></div>
                     <div id="reactSubAgentsContainer"></div>
+                </div>
+            </div>
+            <!-- Supervisor 类型字段 -->
+            <div id="agentFieldsSupervisor" style="display:none">
+                <div class="form-group"><label>最大调度轮次</label><input type="number" id="agentMaxRounds" placeholder="10" min="1" max="50"></div>
+                <div class="form-section">
+                    <div class="form-section-title">Supervisor 节点</div>
+                    <div class="form-group"><label>Supervisor 模型</label><select id="agentSupervisorModel"></select></div>
+                </div>
+                <div class="form-section">
+                    <div class="form-section-title">Worker Agents <button class="btn btn-outline-dark btn-sm" onclick="addSubAgent('supervisor')" style="margin-left:8px">+ 添加</button></div>
+                    <div id="supervisorSubAgentsContainer"></div>
                 </div>
             </div>
             <!-- MCP -->

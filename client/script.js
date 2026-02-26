@@ -624,7 +624,7 @@ function renderAgentsTable() {
     }
     tbody.innerHTML = entries.map(([name, agent]) => {
         const isActive = name === settings.agent;
-        const typeLabels = { single: 'Single', react: 'ReAct' };
+        const typeLabels = { single: 'Single', react: 'ReAct', supervisor: 'Supervisor' };
         const typeLabel = typeLabels[agent.type] || agent.type;
         const model = agent.model || '-';
         const desc = agent.systemPrompt ? (agent.systemPrompt.substring(0, 30) + '...') : '-';
@@ -727,6 +727,10 @@ function editAgent(name) {
         document.getElementById('agentThinkModel').value = agent.think?.model || '';
         document.getElementById('agentReflectModel').value = agent.reflect?.model || '';
         tempSubAgents = Array.isArray(agent.agents) ? agent.agents : [];
+    } else if (agent.type === 'supervisor') {
+        document.getElementById('agentMaxRounds').value = agent.maxRounds || 10;
+        document.getElementById('agentSupervisorModel').value = agent.supervisor?.model || '';
+        tempSubAgents = Array.isArray(agent.agents) ? agent.agents : [];
     }
 
     tempMcpNames = Array.isArray(agent.mcp) ? [...agent.mcp] : [];
@@ -754,6 +758,7 @@ function fillModelSelects() {
     document.getElementById('agentModelSingle').innerHTML = options;
     document.getElementById('agentThinkModel').innerHTML = options;
     document.getElementById('agentReflectModel').innerHTML = options;
+    document.getElementById('agentSupervisorModel').innerHTML = options;
 }
 
 function fillSubAgentSelect(excludeName) {
@@ -771,6 +776,8 @@ function clearAgentFields() {
     document.getElementById('agentMaxIterations').value = '5';
     document.getElementById('agentThinkModel').value = '';
     document.getElementById('agentReflectModel').value = '';
+    document.getElementById('agentMaxRounds').value = '10';
+    document.getElementById('agentSupervisorModel').value = '';
     tempMcpNames = [];
     tempSkillsDirs = [];
     renderMcpCheckboxes();
@@ -781,6 +788,7 @@ function onAgentTypeChange() {
     const type = document.getElementById('agentType').value;
     document.getElementById('agentFieldsSingle').style.display = type === 'single' ? 'block' : 'none';
     document.getElementById('agentFieldsReact').style.display = type === 'react' ? 'block' : 'none';
+    document.getElementById('agentFieldsSupervisor').style.display = type === 'supervisor' ? 'block' : 'none';
 }
 
 async function saveAgent() {
@@ -806,6 +814,14 @@ async function saveAgent() {
 
             const reflectModel = document.getElementById('agentReflectModel').value.trim();
             if (reflectModel) agentConfig.reflect = { model: reflectModel };
+
+            agentConfig.agents = tempSubAgents;
+        } else if (type === 'supervisor') {
+            const maxRounds = parseInt(document.getElementById('agentMaxRounds').value) || 10;
+            agentConfig.maxRounds = maxRounds;
+
+            const supervisorModel = document.getElementById('agentSupervisorModel').value.trim();
+            if (supervisorModel) agentConfig.supervisor = { model: supervisorModel };
 
             agentConfig.agents = tempSubAgents;
         }
@@ -859,7 +875,8 @@ async function deleteAgent(name) {
 
 // ===== 子 Agent 管理 =====
 function renderSubAgents(parentType) {
-    const container = document.getElementById('reactSubAgentsContainer');
+    const containerId = parentType === 'supervisor' ? 'supervisorSubAgentsContainer' : 'reactSubAgentsContainer';
+    const container = document.getElementById(containerId);
     if (!container) return;
 
     if (tempSubAgents.length === 0) {

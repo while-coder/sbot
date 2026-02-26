@@ -6,7 +6,7 @@ import {
     ServiceContainer, T_SystemPrompts, T_SkillsDirs, T_SkillDirs,
 } from "scorpio.ai";
 import path from "path";
-import { ReActAgentService, SupervisorAgentService } from "./Plan/index.js";
+import { ReActAgentService, SupervisorAgentService } from "./Agents/index.js";
 import { config, AgentMode, SingleAgentEntry, ReactAgentEntry, SupervisorAgentEntry } from "./Config";
 
 
