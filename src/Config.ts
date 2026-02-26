@@ -1,7 +1,8 @@
 import os from "os";
 import path from "path";
 import fs from "fs";
-import { ModelConfig, ModelProvider, EmbeddingConfig, EmbeddingProvider, MCPServerConfig, MCPServers, MemoryConfig, IModelService, IEmbeddingService, ModelServiceFactory, EmbeddingServiceFactory } from "scorpio.ai";
+import { ModelConfig, ModelProvider, EmbeddingConfig, EmbeddingProvider, MCPServerConfig, MCPServers, MemoryConfig, IModelService, IEmbeddingService, ModelServiceFactory, EmbeddingServiceFactory, type AgentSubNode } from "scorpio.ai";
+export type { AgentSubNode } from "scorpio.ai";
 
 
 export interface LarkConfig {
@@ -24,14 +25,6 @@ export enum AgentMode {
 export interface AgentNodeConfig {
   model?: string;              // 使用的模型名称（对应 models 中的 key）
   skills?: string[];           // 关联的 Skill 名称列表
-}
-
-/**
- * 子 Agent 引用（用于 ReactAgentEntry.agents）
- */
-export interface AgentRef {
-  name: string;                // 引用的 Agent 名称（对应 agents 中的 key）
-  desc: string;                // Agent 描述，用于 LLM 规划时参考
 }
 
 /**
@@ -60,7 +53,7 @@ export interface ReactAgentEntry extends BaseAgentEntry {
   maxIterations?: number;      // 最大迭代次数，默认 5
   think?: AgentNodeConfig;     // Think 节点配置
   reflect?: AgentNodeConfig;   // Reflect 节点配置
-  agents: AgentRef[];          // 子 Agent 引用列表
+  agents: AgentSubNode[];          // 子 Agent 引用列表
 }
 
 /**
@@ -70,7 +63,7 @@ export interface SupervisorAgentEntry extends BaseAgentEntry {
   type: AgentMode.Supervisor;
   maxRounds?: number;          // 最大调度轮次，默认 10
   supervisor?: AgentNodeConfig; // Supervisor 节点配置
-  agents: AgentRef[];          // Worker Agent 引用列表
+  agents: AgentSubNode[];          // Worker Agent 引用列表
 }
 
 /**

@@ -4,8 +4,10 @@ import {
     IAgentToolService, AgentToolService,
     ISkillService, SkillService,
     ServiceContainer, T_SystemPrompts,
+    ReActAgentService, T_AgentSubNodes, T_MaxIterations, T_CreateAgent, T_ThinkModelService, T_ReflectModelService,
+    SupervisorAgentService, T_SupervisorSubNodes, T_SupervisorMaxRounds, T_SupervisorModelService,
+    type CreateAgentFn,
 } from "scorpio.ai";
-import { ReActAgentService, SupervisorAgentService } from "./Agents/index.js";
 import { config, AgentMode, SingleAgentEntry, ReactAgentEntry, SupervisorAgentEntry } from "./Config";
 import { globalAgentToolService } from "./GlobalAgentToolService";
 import { globalSkillService } from "./GlobalSkillService";
@@ -118,14 +120,23 @@ export class AgentFactory {
         if (agentRefs.length === 0) {
             throw new Error("Supervisor 模式未配置 Worker Agent");
         }
+        if (!entry.supervisor?.model) {
+            throw new Error("Supervisor 模式 supervisor 节点未配置 model");
+        }
 
         const maxRounds = entry.maxRounds || 10;
         const systemPrompts = this.buildSystemPrompt(entry.systemPrompt, userInfo);
+
+        const createAgentFn: CreateAgentFn = (name, subContainer) =>
+            AgentFactory.create(name, subContainer, userInfo);
+
+        const supervisorModelService = await config.getModelService(entry.supervisor.model, true);
+
         container.registerWithArgs(SupervisorAgentService, {
-            agentRefs,
-            maxRounds,
-            supervisorConfig: entry.supervisor,
-            userInfo,
+            [T_SupervisorSubNodes]: agentRefs,
+            [T_CreateAgent]: createAgentFn,
+            [T_SupervisorModelService]: supervisorModelService,
+            [T_SupervisorMaxRounds]: maxRounds,
             [T_SystemPrompts]: systemPrompts,
         });
         return container.resolve(SupervisorAgentService);
@@ -139,20 +150,32 @@ export class AgentFactory {
         entry: ReactAgentEntry,
         userInfo?: any,
     ): Promise<AgentServiceBase> {
-        const agentRefs = entry.agents || [];
-        if (agentRefs.length === 0) {
+        const agentSubNodes = entry.agents || [];
+        if (agentSubNodes.length === 0) {
             throw new Error("ReAct 模式未配置子 Agent");
+        }
+        if (!entry.think?.model) {
+            throw new Error("ReAct 模式 think 节点未配置 model");
+        }
+        if (!entry.reflect?.model) {
+            throw new Error("ReAct 模式 reflect 节点未配置 model");
         }
 
         const maxIterations = entry.maxIterations || 5;
-
         const systemPrompts = this.buildSystemPrompt(entry.systemPrompt, userInfo);
+
+        const createAgentFn: CreateAgentFn = (name, subContainer) =>
+            AgentFactory.create(name, subContainer, userInfo);
+
+        const thinkModelService = await config.getModelService(entry.think.model, true);
+        const reflectModelService = await config.getModelService(entry.reflect.model, true);
+
         container.registerWithArgs(ReActAgentService, {
-            agentRefs,
-            maxIterations,
-            thinkConfig: entry.think,
-            reflectConfig: entry.reflect,
-            userInfo,
+            [T_AgentSubNodes]: agentSubNodes,
+            [T_CreateAgent]: createAgentFn,
+            [T_ThinkModelService]: thinkModelService,
+            [T_ReflectModelService]: reflectModelService,
+            [T_MaxIterations]: maxIterations,
             [T_SystemPrompts]: systemPrompts,
         });
         return container.resolve(ReActAgentService);
