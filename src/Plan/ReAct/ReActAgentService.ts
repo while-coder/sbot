@@ -250,7 +250,7 @@ decision 说明：
       } else if (decisionType === ReActDecision.WaitForUser) {
         const waitMsg = decision.waitMessage || decision.thought;
         reactState.steps.push(this.makeStep(ReActNode.WaitForUser, waitMsg));
-        logger.info(`THINK ${iter}: 等待用户`);
+        logger.info(`THINK ${iter}: 等待用户确认: ${waitMsg}`);
 
         if (callback?.askUser) {
           // 同 executeTool：在节点内 await，stream 暂停，不中断对话

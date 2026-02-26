@@ -725,9 +725,7 @@ function editAgent(name) {
     } else if (agent.type === 'react') {
         document.getElementById('agentMaxIterations').value = agent.maxIterations || 5;
         document.getElementById('agentThinkModel').value = agent.think?.model || '';
-        document.getElementById('agentThinkSkills').value = Array.isArray(agent.think?.skills) ? agent.think.skills.join(', ') : '';
         document.getElementById('agentReflectModel').value = agent.reflect?.model || '';
-        document.getElementById('agentReflectSkills').value = Array.isArray(agent.reflect?.skills) ? agent.reflect.skills.join(', ') : '';
         tempSubAgents = Array.isArray(agent.agents) ? agent.agents : [];
     }
 
@@ -772,9 +770,7 @@ function clearAgentFields() {
     document.getElementById('agentSystemPromptSingle').value = '';
     document.getElementById('agentMaxIterations').value = '5';
     document.getElementById('agentThinkModel').value = '';
-    document.getElementById('agentThinkSkills').value = '';
     document.getElementById('agentReflectModel').value = '';
-    document.getElementById('agentReflectSkills').value = '';
     tempMcpNames = [];
     tempSkillsDirs = [];
     renderMcpCheckboxes();
@@ -806,22 +802,10 @@ async function saveAgent() {
             agentConfig.maxIterations = maxIterations;
 
             const thinkModel = document.getElementById('agentThinkModel').value.trim();
-            const thinkSkillsStr = document.getElementById('agentThinkSkills').value.trim();
-            const thinkSkills = thinkSkillsStr ? thinkSkillsStr.split(/[,，]\s*/).map(s => s.trim()).filter(Boolean) : [];
-            if (thinkModel || thinkSkills.length > 0) {
-                agentConfig.think = {};
-                if (thinkModel) agentConfig.think.model = thinkModel;
-                if (thinkSkills.length > 0) agentConfig.think.skills = thinkSkills;
-            }
+            if (thinkModel) agentConfig.think = { model: thinkModel };
 
             const reflectModel = document.getElementById('agentReflectModel').value.trim();
-            const reflectSkillsStr = document.getElementById('agentReflectSkills').value.trim();
-            const reflectSkills = reflectSkillsStr ? reflectSkillsStr.split(/[,，]\s*/).map(s => s.trim()).filter(Boolean) : [];
-            if (reflectModel || reflectSkills.length > 0) {
-                agentConfig.reflect = {};
-                if (reflectModel) agentConfig.reflect.model = reflectModel;
-                if (reflectSkills.length > 0) agentConfig.reflect.skills = reflectSkills;
-            }
+            if (reflectModel) agentConfig.reflect = { model: reflectModel };
 
             agentConfig.agents = tempSubAgents;
         }

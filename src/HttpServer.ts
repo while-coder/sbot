@@ -240,7 +240,6 @@ class HttpServer {
 
         http.createServer(app).listen(port, () => {
             logger.info(`HTTP 服务启动成功: http://127.0.0.1:${port}`);
-            logger.info(`管理页面: http://127.0.0.1:${port}/client/`);
         });
     }
 }
