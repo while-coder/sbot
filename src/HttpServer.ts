@@ -6,6 +6,7 @@ import { AgentSqliteSaver, MemorySqliteDatabase, MCPServers } from "scorpio.ai";
 import { MultiServerMCPClient } from '@langchain/mcp-adapters';
 import { config } from './Config';
 import { globalAgentToolService, refreshGlobalAgentToolService, BuiltinProvider } from './GlobalAgentToolService';
+import { globalSkillService, refreshGlobalSkillService, BUILTIN_SKILLS_DIR } from './GlobalSkillService';
 import { LoggerService } from './LoggerService';
 import { LarkUserService } from './Lark/LarkUserService';
 import { WebUserService } from './Web/WebUserService';
@@ -164,20 +165,46 @@ class HttpServer {
         }));
 
         // ===== Skills =====
-        app.get('/api/skills', api(() => listSkills(config.getSkillsPath())));
+        app.get('/api/skills', api(() => {
+            const normalizedBuiltinDir = path.normalize(BUILTIN_SKILLS_DIR);
+            const allSkills = globalSkillService.getAllSkills();
+            const builtins = allSkills
+                .filter(s => path.normalize(s.path).startsWith(normalizedBuiltinDir))
+                .map(s => ({ name: s.name, description: s.description }));
+            const skills = allSkills
+                .filter(s => !path.normalize(s.path).startsWith(normalizedBuiltinDir))
+                .map(s => ({ name: s.name, description: s.description }));
+            return { builtins, skills };
+        }));
 
         app.get('/api/skills/:name', api(req => getSkill(config.getSkillsPath(), req.params.name as string)));
 
         app.put('/api/skills/:name', api(req => {
             const name = req.params.name as string;
             if (!req.body.content) { const e: any = new Error('缺少 content'); e.status = 400; throw e; }
-            return saveSkill(config.getSkillsPath(), name, req.body.content);
+            const result = saveSkill(config.getSkillsPath(), name, req.body.content);
+            refreshGlobalSkillService();
+            return result;
         }));
 
-        app.delete('/api/skills/:name', api(req => deleteSkill(config.getSkillsPath(), req.params.name as string)));
+        app.delete('/api/skills/:name', api(req => {
+            const result = deleteSkill(config.getSkillsPath(), req.params.name as string);
+            refreshGlobalSkillService();
+            return result;
+        }));
 
         // ===== Agent Skills =====
-        app.get('/api/agents/:name/skills', api(req => listSkills(config.getAgentSkillsPath(req.params.name as string))));
+        app.get('/api/agents/:name/skills', api(req => {
+            const agentName = req.params.name as string;
+            const normalizedBuiltinDir = path.normalize(BUILTIN_SKILLS_DIR);
+            const builtins = globalSkillService.getAllSkills()
+                .filter(s => path.normalize(s.path).startsWith(normalizedBuiltinDir))
+                .map(s => ({ name: s.name, description: s.description }));
+            return {
+                builtins,
+                skills: listSkills(config.getAgentSkillsPath(agentName)),
+            };
+        }));
 
         app.get('/api/agents/:name/skills/:skillName', api(req =>
             getSkill(config.getAgentSkillsPath(req.params.name as string), req.params.skillName as string)));

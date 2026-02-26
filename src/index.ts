@@ -5,6 +5,7 @@ import {database} from "./Database";
 import {startLarkService} from "./Lark/LarkServiceInit";
 import {httpServer} from "./HttpServer";
 import {initGlobalAgentToolService} from "./GlobalAgentToolService";
+import {initGlobalSkillService} from "./GlobalSkillService";
 const logger = LoggerService.getLogger('index.ts');
 logger.info("=========================开始启动=========================")
 
@@ -23,6 +24,7 @@ async function main() {
         await database.init()
 
         initGlobalAgentToolService()
+        initGlobalSkillService()
         await startLarkService()
         await httpServer.start()
 

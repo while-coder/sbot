@@ -3,6 +3,7 @@ let settings = {};
 let mcpServers = {};
 let mcpBuiltins = [];
 let globalSkills = [];
+let skillBuiltins = [];
 
 // ===== Toast =====
 function showToast(msg, type = 'success') {
@@ -693,15 +694,21 @@ function toggleMcpName(name, checked) {
 function renderSkillsCheckboxes() {
     const container = document.getElementById('skillsDirsContainer');
     if (!container) return;
-    if (globalSkills.length === 0) {
+    if (skillBuiltins.length === 0 && globalSkills.length === 0) {
         container.innerHTML = '<div style="color:#94a3b8;font-size:12px;padding:4px">暂无全局 Skills</div>';
         return;
     }
-    container.innerHTML = '<div class="check-row">' + globalSkills.map(s =>
+    const builtinItems = skillBuiltins.map(s =>
+        '<label class="check-item"><input type="checkbox"' +
+        (tempSkillsDirs.includes(s.name) ? ' checked' : '') +
+        ' onchange="toggleSkillName(\'' + esc(s.name) + '\', this.checked)"><span>' + esc(s.name) + ' <span style="color:#64748b;font-size:11px">(内置)</span></span></label>'
+    ).join('');
+    const skillItems = globalSkills.map(s =>
         '<label class="check-item"><input type="checkbox"' +
         (tempSkillsDirs.includes(s.name) ? ' checked' : '') +
         ' onchange="toggleSkillName(\'' + esc(s.name) + '\', this.checked)"><span>' + esc(s.name) + '</span></label>'
-    ).join('') + '</div>';
+    ).join('');
+    container.innerHTML = '<div class="check-row">' + builtinItems + skillItems + '</div>';
 }
 
 function toggleSkillName(name, checked) {
@@ -986,10 +993,11 @@ function _skillsEndpoint() { return currentSkillsAgent ? '/api/agents/' + encode
 async function loadSkills() {
     try {
         const res = await apiFetch(_skillsEndpoint());
-        const data = res.data || [];
-        if (!currentSkillsAgent) globalSkills = data;
+        skillBuiltins = res.data?.builtins || [];
+        const skills = res.data?.skills || [];
+        if (!currentSkillsAgent) globalSkills = skills;
         const tbodyId = currentSkillsAgent ? 'agentSkillsTableBody' : 'skillsTableBody';
-        renderSkillsTable(data, tbodyId);
+        renderSkillsTable(skills, tbodyId);
     } catch (e) { showToast(e.message, 'error'); }
 }
 
@@ -1000,11 +1008,19 @@ async function loadGlobalSkills() {
 
 function renderSkillsTable(skills, tbodyId) {
     const tbody = document.getElementById(tbodyId);
-    if (skills.length === 0) {
+    const builtins = skillBuiltins;
+    if (builtins.length === 0 && skills.length === 0) {
         tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#94a3b8;padding:40px">暂无 Skill</td></tr>';
         return;
     }
-    tbody.innerHTML = skills.map(s =>
+    const builtinRows = builtins.map(s =>
+        '<tr>' +
+        '<td style="font-family:Consolas,Monaco,monospace">' + esc(s.name) + ' <span style="color:#64748b;font-size:11px">(内置)</span></td>' +
+        '<td>' + esc(s.description || '-') + '</td>' +
+        '<td>-</td>' +
+        '</tr>'
+    ).join('');
+    const skillRows = skills.map(s =>
         '<tr>' +
         '<td style="font-family:Consolas,Monaco,monospace">' + esc(s.name) + '</td>' +
         '<td>' + esc(s.description || '-') + '</td>' +
@@ -1013,6 +1029,7 @@ function renderSkillsTable(skills, tbodyId) {
             '<button class="btn btn-danger btn-sm" onclick="deleteSkillItem(\'' + esc(s.name) + '\')">删除</button>' +
         '</td></tr>'
     ).join('');
+    tbody.innerHTML = builtinRows + skillRows;
 }
 
 function showSkillModal(name) {

@@ -151,7 +151,6 @@ export class AgentFactory {
             maxIterations,
             thinkConfig: entry.think,
             reflectConfig: entry.reflect,
-            container,
             userInfo,
             [T_SystemPrompts]: systemPrompts,
         });
