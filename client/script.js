@@ -263,7 +263,6 @@ function _mcpRenderTable() { if (currentAgentMcpName) renderAgentMcpTable(); els
 async function openAgentMcpPage(agentName) {
     currentAgentMcpName = agentName;
     document.getElementById('agentMcpTitle').textContent = 'Agent: ' + agentName + ' — MCP 配置';
-    document.getElementById('agentSkillsPathText').textContent = '~/.sbot/agents/' + agentName + '/skills/';
     document.querySelectorAll('.sidebar-item[data-page]').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.page-content').forEach(p => p.classList.toggle('active', p.id === 'page-agent-mcp'));
     await loadAgentMcp();
@@ -665,11 +664,11 @@ function renderMcpCheckboxes() {
         container.innerHTML = '<div style="color:#94a3b8;font-size:12px;padding:4px">暂无全局 MCP 服务器</div>';
         return;
     }
-    container.innerHTML = keys.map(name =>
+    container.innerHTML = '<div class="check-row">' + keys.map(name =>
         '<label class="check-item"><input type="checkbox"' +
         (tempMcpNames.includes(name) ? ' checked' : '') +
         ' onchange="toggleMcpName(\'' + esc(name) + '\', this.checked)"><span>' + esc(name) + '</span></label>'
-    ).join('');
+    ).join('') + '</div>';
 }
 
 function toggleMcpName(name, checked) {
@@ -684,11 +683,11 @@ function renderSkillsCheckboxes() {
         container.innerHTML = '<div style="color:#94a3b8;font-size:12px;padding:4px">暂无全局 Skills</div>';
         return;
     }
-    container.innerHTML = globalSkills.map(s =>
+    container.innerHTML = '<div class="check-row">' + globalSkills.map(s =>
         '<label class="check-item"><input type="checkbox"' +
         (tempSkillsDirs.includes(s.name) ? ' checked' : '') +
         ' onchange="toggleSkillName(\'' + esc(s.name) + '\', this.checked)"><span>' + esc(s.name) + '</span></label>'
-    ).join('');
+    ).join('') + '</div>';
 }
 
 function toggleSkillName(name, checked) {
@@ -723,11 +722,13 @@ function editAgent(name) {
         document.getElementById('agentModelSingle').value = agent.model || '';
         document.getElementById('agentSystemPromptSingle').value = agent.systemPrompt || '';
     } else if (agent.type === 'react') {
+        document.getElementById('agentSystemPromptReact').value = agent.systemPrompt || '';
         document.getElementById('agentMaxIterations').value = agent.maxIterations || 5;
         document.getElementById('agentThinkModel').value = agent.think?.model || '';
         document.getElementById('agentReflectModel').value = agent.reflect?.model || '';
         tempSubAgents = Array.isArray(agent.agents) ? agent.agents : [];
     } else if (agent.type === 'supervisor') {
+        document.getElementById('agentSystemPromptSupervisor').value = agent.systemPrompt || '';
         document.getElementById('agentMaxRounds').value = agent.maxRounds || 10;
         document.getElementById('agentSupervisorModel').value = agent.supervisor?.model || '';
         tempSubAgents = Array.isArray(agent.agents) ? agent.agents : [];
@@ -773,6 +774,8 @@ function fillSubAgentSelect(excludeName) {
 function clearAgentFields() {
     document.getElementById('agentModelSingle').value = '';
     document.getElementById('agentSystemPromptSingle').value = '';
+    document.getElementById('agentSystemPromptReact').value = '';
+    document.getElementById('agentSystemPromptSupervisor').value = '';
     document.getElementById('agentMaxIterations').value = '5';
     document.getElementById('agentThinkModel').value = '';
     document.getElementById('agentReflectModel').value = '';
@@ -806,6 +809,9 @@ async function saveAgent() {
             if (model) agentConfig.model = model;
             if (systemPrompt) agentConfig.systemPrompt = systemPrompt;
         } else if (type === 'react') {
+            const systemPrompt = document.getElementById('agentSystemPromptReact').value.trim();
+            if (systemPrompt) agentConfig.systemPrompt = systemPrompt;
+
             const maxIterations = parseInt(document.getElementById('agentMaxIterations').value) || 5;
             agentConfig.maxIterations = maxIterations;
 
@@ -817,6 +823,9 @@ async function saveAgent() {
 
             agentConfig.agents = tempSubAgents;
         } else if (type === 'supervisor') {
+            const systemPrompt = document.getElementById('agentSystemPromptSupervisor').value.trim();
+            if (systemPrompt) agentConfig.systemPrompt = systemPrompt;
+
             const maxRounds = parseInt(document.getElementById('agentMaxRounds').value) || 10;
             agentConfig.maxRounds = maxRounds;
 

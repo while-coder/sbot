@@ -57,9 +57,11 @@ tr.active-row td { background: #eff6ff; }
 .modal-header .close:hover { color: #333; }
 .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
 .modal-footer { padding: 12px 20px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 8px; }
-.check-item { display:flex; align-items:center; gap:8px; padding:5px 4px; font-size:13px; cursor:pointer; border-radius:4px; }
-.check-item:hover { background:#f8fafc; }
-.check-item input[type=checkbox] { flex-shrink:0; cursor:pointer; }
+.check-row { display:flex; flex-wrap:wrap; gap:4px; padding:2px 0; }
+.check-item { display:inline-flex; align-items:center; gap:5px; padding:3px 10px; font-size:12px; cursor:pointer; border-radius:20px; border:1px solid #e2e8f0; background:#f8fafc; color:#64748b; transition:all .15s; user-select:none; }
+.check-item:hover { border-color:#93c5fd; background:#eff6ff; color:#2563eb; }
+.check-item:has(input:checked) { background:#dbeafe; border-color:#3b82f6; color:#1d4ed8; font-weight:500; }
+.check-item input[type=checkbox] { width:12px; height:12px; flex-shrink:0; cursor:pointer; accent-color:#3b82f6; }
 
 /* ===== 表单 ===== */
 .form-group { margin-bottom: 14px; }
