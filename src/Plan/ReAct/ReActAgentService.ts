@@ -2,14 +2,15 @@ import { HumanMessage, AIMessage, AIMessageChunk, BaseMessage, SystemMessage } f
 import { Annotation, MessagesAnnotation, StateGraph, START, END } from '@langchain/langgraph';
 import { AgentNodeConfig, AgentRef, config } from '../../Config.js';
 import {
+  AgentServiceBase,
   IAgentCallback, MessageChunkType, AgentMessage,
   IMemoryService, IAgentSaverService,
-  inject, ServiceContainer, ModelServiceFactory, T_SystemPrompts,
+  inject, ServiceContainer, ModelServiceFactory, T_SystemPrompts, T_ThreadId,
 } from 'scorpio.ai';
 import { LoggerService } from '../../LoggerService.js';
 import { v4 as uuidv4 } from 'uuid';
 
-const logger = LoggerService.getLogger("ReActService.ts");
+const logger = LoggerService.getLogger("ReActAgentService");
 
 // ── Types & Annotation ────────────────────────────────────────
 
@@ -72,7 +73,7 @@ type GraphState = typeof ReActAnnotation.State;
 
 /**
  * 只读记忆包装器：sub-agent 可读取上下文记忆，但不写入。
- * 写入由 ReActService 在 Reflect 完成后统一处理。
+ * 写入由 ReActAgentService 在 Reflect 完成后统一处理。
  */
 class ReadOnlyMemoryService implements IMemoryService {
   constructor(private readonly inner: IMemoryService) {}
@@ -84,7 +85,7 @@ class ReadOnlyMemoryService implements IMemoryService {
   async dispose() {}
 }
 
-// ── ReActService ──────────────────────────────────────────────
+// ── ReActAgentService ─────────────────────────────────────────
 
 /**
  * ReAct Agent 服务，实现 Reasoning and Acting 模式的多 Agent 协同。
@@ -94,36 +95,31 @@ class ReadOnlyMemoryService implements IMemoryService {
  * WaitForUser：Think 决定需要用户输入时，调用 callback.askUser() 等待回答，
  * graph stream 在此暂停（同 executeTool 模式），不中断整个对话。
  */
-export class ReActService {
+export class ReActAgentService extends AgentServiceBase {
   private userId: string;
   private agentRefs: AgentRef[];
-  private memoryService?: IMemoryService;
-  private saverService?: IAgentSaverService;
   private maxIterations: number;
   private thinkConfig?: AgentNodeConfig;
   private reflectConfig?: AgentNodeConfig;
-  private systemPrompts?: string[];
   private userInfo?: any;
 
   constructor(
-    @inject("userId") userId: string,
+    @inject(T_ThreadId) userId: string,
     @inject("agentRefs") agentRefs: AgentRef[],
     @inject(IMemoryService, { optional: true }) memoryService?: IMemoryService,
-    @inject(IAgentSaverService, { optional: true }) saverService?: IAgentSaverService,
+    @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
     @inject("maxIterations", { optional: true }) maxIterations?: number,
     @inject("thinkConfig", { optional: true }) thinkConfig?: AgentNodeConfig,
     @inject("reflectConfig", { optional: true }) reflectConfig?: AgentNodeConfig,
     @inject(T_SystemPrompts, { optional: true }) systemPrompts?: string[],
     @inject("userInfo", { optional: true }) userInfo?: any,
   ) {
+    super(null as any, systemPrompts, undefined, agentSaver, undefined, memoryService);
     this.userId = userId;
     this.agentRefs = agentRefs;
-    this.memoryService = memoryService;
-    this.saverService = saverService;
     this.maxIterations = maxIterations ?? 5;
     this.thinkConfig = thinkConfig;
     this.reflectConfig = reflectConfig;
-    this.systemPrompts = systemPrompts;
     this.userInfo = userInfo;
   }
 
@@ -391,8 +387,7 @@ ${this.formatStepHistory(reactState.steps)}
         const subContainer = new ServiceContainer();
         if (this.memoryService) subContainer.registerInstance(IMemoryService, new ReadOnlyMemoryService(this.memoryService));
         const { AgentFactory } = await import('../../AgentFactory.js');
-        const subUserId = `${this.userId}_react_${agentName}_${currentStep.id}`;
-        const agentService = await AgentFactory.create(agentName, subContainer, subUserId, this.userInfo);
+        const agentService = await AgentFactory.create(agentName, subContainer, this.userInfo);
 
         const taskPrompt = `你需要使用可用的工具来完成以下任务，直接执行操作并返回结果，不要只给出建议或步骤说明。\n\n任务: ${currentStep.content}`;
 
@@ -516,10 +511,10 @@ ${this.formatStepHistory(reactState.steps)}
       }
 
       // 将 query 和最终总结保存到 saver（对话历史）
-      if (this.saverService && reflectResult) {
+      if (this.agentSaver && reflectResult) {
         try {
-          await this.saverService.pushMessage(new HumanMessage(query));
-          await this.saverService.pushMessage(new AIMessage(reflectResult));
+          await this.agentSaver.pushMessage(new HumanMessage(query));
+          await this.agentSaver.pushMessage(new AIMessage(reflectResult));
         } catch (error: any) {
           logger.warn(`保存对话到 saver 失败: ${error.message}`);
         }
@@ -532,12 +527,7 @@ ${this.formatStepHistory(reactState.steps)}
     }
   }
 
-  private convertToMessageChunk(message: BaseMessage): AgentMessage | null {
-    if (message instanceof AIMessage || message instanceof AIMessageChunk) {
-      return { type: MessageChunkType.AI, content: message.content as string, tool_calls: [] };
-    }
-    return null;
+  override async dispose() {
+    return super.dispose();
   }
-
-  async dispose() {}
 }

@@ -64,14 +64,14 @@ export class AgentRunner {
             });
         }
 
+        container.registerInstance(T_ThreadId, userId);
         container.registerWithArgs(IAgentSaverService, AgentSqliteSaver, {
-            [T_ThreadId]: userId,
             [T_DBPath]: config.getUserSaverPath(userId),
         });
 
         logger.info(`${userId} 使用 Agent [${agentName}] (${agentEntry.type})`);
 
-        const agent = await AgentFactory.create(agentName, container, userId, userInfo);
+        const agent = await AgentFactory.create(agentName, container, userInfo);
         await agent.stream(query, callbacks);
     }
 }

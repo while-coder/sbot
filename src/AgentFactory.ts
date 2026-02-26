@@ -1,20 +1,14 @@
 import {
-    AgentService,
-    IAgentCallback, IModelService, ModelServiceFactory,
+    AgentServiceBase, SingleAgentService,
+    IModelService, ModelServiceFactory,
     IAgentToolService, AgentToolService,
     ISkillService, SkillService,
-    ServiceContainer, T_ThreadId, T_SystemPrompts, T_SkillsDirs, T_SkillDirs,
+    ServiceContainer, T_SystemPrompts, T_SkillsDirs, T_SkillDirs,
 } from "scorpio.ai";
 import path from "path";
-import { ReActService } from "./Plan/index.js";
+import { ReActAgentService } from "./Plan/index.js";
 import { config, AgentMode, SingleAgentEntry, ReactAgentEntry } from "./Config";
-import { LoggerService } from "./LoggerService";
 
-const logger = LoggerService.getLogger("AgentFactory.ts");
-
-export interface StreamableAgent {
-    stream(query: string, callback: IAgentCallback): Promise<void>;
-}
 
 /**
  * Agent 工厂
@@ -32,9 +26,8 @@ export class AgentFactory {
     static async create(
         agentName: string,
         container: ServiceContainer,
-        userId: string,
         userInfo?: any,
-    ): Promise<StreamableAgent> {
+    ): Promise<AgentServiceBase> {
         const agentEntry = config.settings.agents?.[agentName];
         if (!agentEntry) throw new Error(`Agent 配置 "${agentName}" 不存在`);
         if (!container.isRegistered(ISkillService)) {
@@ -65,26 +58,17 @@ export class AgentFactory {
 
         switch (agentType) {
             case AgentMode.ReAct:
-                return this.createReAct(container, agentEntry as ReactAgentEntry, userId, userInfo);
+                return this.createReAct(container, agentEntry as ReactAgentEntry, userInfo);
 
             case AgentMode.Single:
             default:
-                return this.createSingle(container, agentEntry as SingleAgentEntry, userId, userInfo);
+                return this.createSingle(container, agentEntry as SingleAgentEntry, userInfo);
         }
     }
 
     /**
      * 注册模型服务到容器
      */
-    private static async registerModel(container: ServiceContainer, modelName?: string): Promise<void> {
-        const modelConfig = config.getModel(modelName);
-        if (!modelConfig) {
-            throw new Error(`模型配置 "${modelName}" 不存在`);
-        }
-        const modelService = await ModelServiceFactory.getModelService(modelConfig);
-        container.registerInstance(IModelService, modelService);
-    }
-
     /**
      * 构建 systemPrompt，追加用户信息
      */
@@ -106,20 +90,18 @@ export class AgentFactory {
     private static async createSingle(
         container: ServiceContainer,
         entry: SingleAgentEntry,
-        userId: string,
         userInfo?: any,
-    ): Promise<StreamableAgent> {
-        logger.info(`${userId} 创建单 Agent 模式，model=${entry.model || '(default)'}`);
-
-        await this.registerModel(container, entry.model);
+    ): Promise<AgentServiceBase> {
+        const modelConfig = config.getModel(entry.model);
+        if (!modelConfig) throw new Error(`模型配置 "${entry.model}" 不存在`);
+        container.registerInstance(IModelService, await ModelServiceFactory.getModelService(modelConfig));
 
         const systemPrompts = this.buildSystemPrompt(entry.systemPrompt, userInfo);
 
-        container.registerWithArgs(AgentService, {
-            [T_ThreadId]: userId,
+        container.registerWithArgs(SingleAgentService, {
             [T_SystemPrompts]: systemPrompts,
         });
-        return container.resolve(AgentService);
+        return container.resolve(SingleAgentService);
     }
 
     /**
@@ -128,9 +110,8 @@ export class AgentFactory {
     private static async createReAct(
         container: ServiceContainer,
         entry: ReactAgentEntry,
-        userId: string,
         userInfo?: any,
-    ): Promise<StreamableAgent> {
+    ): Promise<AgentServiceBase> {
         const agentRefs = entry.agents || [];
         if (agentRefs.length === 0) {
             throw new Error("ReAct 模式未配置子 Agent");
@@ -138,11 +119,8 @@ export class AgentFactory {
 
         const maxIterations = entry.maxIterations || 5;
 
-        logger.info(`${userId} 创建 ReAct 模式，包含 ${agentRefs.length} 个 Agent，最大迭代 ${maxIterations} 次`);
-
         const systemPrompts = this.buildSystemPrompt(entry.systemPrompt, userInfo);
-        container.registerWithArgs(ReActService, {
-            userId,
+        container.registerWithArgs(ReActAgentService, {
             agentRefs,
             maxIterations,
             thinkConfig: entry.think,
@@ -151,6 +129,6 @@ export class AgentFactory {
             userInfo,
             [T_SystemPrompts]: systemPrompts,
         });
-        return container.resolve(ReActService);
+        return container.resolve(ReActAgentService);
     }
 }
