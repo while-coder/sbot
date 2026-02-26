@@ -227,7 +227,6 @@ decision 说明：
 
     try {
       if (!this.thinkConfig?.model) throw new Error('ReAct think 节点未配置 model');
-      logger.info(`THINK: 推理开始`);
       const thinkModelService = (await config.getModelService(this.thinkConfig.model, true))!;
       const response = await thinkModelService.invoke([new SystemMessage(prompt), ...this.systemMessages, ...state.messages]);
       const decision = this.parseJsonResponse(response.content as string);
@@ -238,7 +237,7 @@ decision 说明：
       const decisionType: ReActDecision = decision.decision
         ?? (decision.isComplete ? ReActDecision.Complete : decision.needsAction ? ReActDecision.Action : ReActDecision.Complete);
 
-      const iter = `[${reactState.currentIteration}/${reactState.maxIterations}]`;
+      const iter = `[${reactState.currentIteration}/${reactState.maxIterations}](${decision.thought})`;
 
       if (decisionType === ReActDecision.Complete) {
         reactState.isComplete = true;
@@ -485,7 +484,9 @@ ${this.formatStepHistory(reactState.steps)}
           for (const message of (nodeOutput as any).messages ?? []) {
             if (message instanceof HumanMessage) continue;
             const chunk = this.convertToMessageChunk(message);
-            if (chunk) await onMessage?.(chunk);
+            if (chunk) {
+              await onMessage?.(chunk);
+            }
           }
         }
       }
@@ -508,8 +509,6 @@ ${this.formatStepHistory(reactState.steps)}
           logger.warn(`保存对话到 saver 失败: ${error.message}`);
         }
       }
-
-      logger.info("ReAct 完成");
     } catch (error: any) {
       logger.error(`ReAct 失败 - ${error.message}`);
       throw error;
