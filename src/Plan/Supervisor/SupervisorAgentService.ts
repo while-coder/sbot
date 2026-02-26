@@ -75,7 +75,6 @@ export class SupervisorAgentService extends AgentServiceBase {
   private maxRounds: number;
   private supervisorConfig?: AgentNodeConfig;
   private userInfo?: any;
-  private systemMessages: SystemMessage[];
   private agentInfos: { id: string; desc: string }[];
 
   constructor(
@@ -92,7 +91,6 @@ export class SupervisorAgentService extends AgentServiceBase {
     this.maxRounds = maxRounds ?? 10;
     this.supervisorConfig = supervisorConfig;
     this.userInfo = userInfo;
-    this.systemMessages = (systemPrompts ?? []).map(p => new SystemMessage(p));
     this.agentInfos = agentRefs.map(ref => ({ id: ref.name, desc: ref.desc }));
   }
 

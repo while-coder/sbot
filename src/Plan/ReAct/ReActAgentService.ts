@@ -97,7 +97,6 @@ export class ReActAgentService extends AgentServiceBase {
   private thinkConfig?: AgentNodeConfig;
   private reflectConfig?: AgentNodeConfig;
   private userInfo?: any;
-  private systemMessages: SystemMessage[];
   private agentInfos: { id: string; desc: string }[];
 
   constructor(
@@ -116,7 +115,6 @@ export class ReActAgentService extends AgentServiceBase {
     this.thinkConfig = thinkConfig;
     this.reflectConfig = reflectConfig;
     this.userInfo = userInfo;
-    this.systemMessages = (systemPrompts ?? []).map(p => new SystemMessage(p));
     this.agentInfos = agentRefs.map(ref => ({ id: ref.name, desc: ref.desc }));
   }
 
