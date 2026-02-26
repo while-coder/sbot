@@ -3,6 +3,7 @@ import http from 'http';
 import path from 'path';
 import fs from 'fs';
 import { AgentSqliteSaver, MemorySqliteDatabase, MCPServers } from "scorpio.ai";
+import { MultiServerMCPClient } from '@langchain/mcp-adapters';
 import { config } from './Config';
 import { globalAgentToolService, refreshGlobalAgentToolService, BuiltinProvider } from './GlobalAgentToolService';
 import { LoggerService } from './LoggerService';
@@ -123,12 +124,43 @@ class HttpServer {
         }));
 
         // ===== Agent MCP =====
-        app.get('/api/agents/:name/mcp', api(req => config.getAgentMcpServers(req.params.name as string)));
+        app.get('/api/agents/:name/mcp', api(req => {
+            const agentName = req.params.name as string;
+            const agent = (config.settings as any).agents?.[agentName];
+            return {
+                globals: (agent?.mcp as string[]) || [],
+                servers: config.getAgentMcpServers(agentName),
+            };
+        }));
 
         app.put('/api/agents/:name/mcp', api(req => {
-            const name = req.params.name as string;
-            config.saveAgentMcpServers(name, req.body);
-            return config.getAgentMcpServers(name);
+            const agentName = req.params.name as string;
+            config.saveAgentMcpServers(agentName, req.body);
+            const agent = (config.settings as any).agents?.[agentName];
+            return {
+                globals: (agent?.mcp as string[]) || [],
+                servers: config.getAgentMcpServers(agentName),
+            };
+        }));
+
+        app.post('/api/agents/:agentName/mcp/tools', api(async req => {
+            const { name } = req.body;
+            const agentName = req.params.agentName as string;
+            if (!name) {
+                const e: any = new Error('缺少 name 参数');
+                e.status = 400;
+                throw e;
+            }
+            const servers = config.getAgentMcpServers(agentName);
+            const cfg = servers[name];
+            if (!cfg) {
+                const e: any = new Error(`Agent MCP "${name}" 不存在`);
+                e.status = 404;
+                throw e;
+            }
+            const client = new MultiServerMCPClient({ mcpServers: { [name]: cfg } });
+            const tools = await client.getTools();
+            return tools.map(t => ({ name: t.name, description: t.description, parameters: t.schema }));
         }));
 
         // ===== Skills =====

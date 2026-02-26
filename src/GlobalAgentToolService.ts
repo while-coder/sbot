@@ -4,8 +4,8 @@ import { createCommandTools } from "./Tools/Command/index.js";
 import { createFileSystemTools } from "./Tools/FileSystem/index.js";
 
 export enum BuiltinProvider {
-    Command = 'command',
-    FileSystem = 'filesystem',
+    Command = 'builtin_command',
+    FileSystem = 'builtin_filesystem',
 }
 
 export const globalAgentToolService = new AgentToolService();

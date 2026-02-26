@@ -256,6 +256,7 @@ async function saveMemorySettings() {
 let editingMcpName = null;
 let viewingMcpName = null;
 let agentMcpServers = {};
+let agentMcpGlobals = [];
 let currentAgentMcpName = null;
 function _mcpServers() { return currentAgentMcpName ? agentMcpServers : mcpServers; }
 function _mcpEndpoint() { return currentAgentMcpName ? `/api/agents/${currentAgentMcpName}/mcp` : '/api/mcp'; }
@@ -277,8 +278,10 @@ function closeAgentMcpPage() {
 async function loadAgentMcp() {
     try {
         const res = await apiFetch('/api/agents/' + encodeURIComponent(currentAgentMcpName) + '/mcp');
-        agentMcpServers = res.data || {};
+        agentMcpGlobals = res.data?.globals || [];
+        agentMcpServers = res.data?.servers || {};
     } catch (e) {
+        agentMcpGlobals = [];
         agentMcpServers = {};
     }
     renderAgentMcpTable();
@@ -286,11 +289,24 @@ async function loadAgentMcp() {
 function renderAgentMcpTable() {
     const tbody = document.getElementById('agentMcpTableBody');
     const entries = Object.entries(agentMcpServers);
-    if (entries.length === 0) {
+    if (agentMcpGlobals.length === 0 && entries.length === 0) {
         tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:40px">暂无 MCP 服务</td></tr>';
         return;
     }
-    tbody.innerHTML = entries.map(([name, cfg]) => {
+    const globalRows = agentMcpGlobals.map(name => {
+        const isBuiltin = mcpBuiltins.includes(name);
+        const globalCfg = mcpServers[name];
+        const badge = isBuiltin ? '内置' : '全局';
+        const type = isBuiltin ? '内置' : (globalCfg?.url ? 'http' : (globalCfg?.command ? 'stdio' : '全局'));
+        const addr = isBuiltin ? '-' : (globalCfg?.url || (globalCfg?.command ? [globalCfg.command, ...(globalCfg.args || [])].join(' ') : '-'));
+        return '<tr>' +
+            '<td>' + esc(name) + ' <span style="color:#64748b;font-size:11px">(' + badge + ')</span></td>' +
+            '<td>' + esc(type) + '</td>' +
+            '<td>' + esc(addr) + '</td>' +
+            '<td><button class="btn btn-outline-dark btn-sm" onclick="viewMcpTools(\'' + esc(name) + '\')">查看</button></td>' +
+        '</tr>';
+    }).join('');
+    const serverRows = entries.map(([name, cfg]) => {
         const type = cfg.url ? 'http' : (cfg.command ? 'stdio' : cfg.type || '-');
         const addr = cfg.url || (cfg.command ? [cfg.command, ...(cfg.args || [])].join(' ') : '-');
         return '<tr>' +
@@ -303,6 +319,7 @@ function renderAgentMcpTable() {
                 '<button class="btn btn-danger btn-sm" onclick="deleteMcp(\'' + esc(name) + '\')">删除</button>' +
             '</td></tr>';
     }).join('');
+    tbody.innerHTML = globalRows + serverRows;
 }
 
 function renderMcpTable() {
@@ -486,14 +503,18 @@ async function deleteMcp(name) {
 // ===== MCP Tools 查看 =====
 async function viewMcpTools(name) {
     const isBuiltin = mcpBuiltins.includes(name);
+    const isAgentGlobal = agentMcpGlobals.includes(name);
     const cfg = _mcpServers()[name];
-    if (!isBuiltin && !cfg) { showToast('MCP 配置不存在', 'error'); return; }
+    if (!isBuiltin && !isAgentGlobal && !cfg) { showToast('MCP 配置不存在', 'error'); return; }
     viewingMcpName = name;
     document.getElementById('mcpToolsModalTitle').innerHTML = esc(name) + '<span class="tools-count"></span>';
     document.getElementById('mcpToolsBody').innerHTML = '<div class="tools-loading">连接中，正在获取工具列表...</div>';
     document.getElementById('mcpToolsModal').classList.add('show');
     try {
-        const res = await apiFetch('/api/mcp/tools', 'POST', { name });
+        const toolsEndpoint = (currentAgentMcpName && cfg)
+            ? `/api/agents/${encodeURIComponent(currentAgentMcpName)}/mcp/tools`
+            : '/api/mcp/tools';
+        const res = await apiFetch(toolsEndpoint, 'POST', { name });
         const tools = res.data || [];
         document.querySelector('#mcpToolsModalTitle .tools-count').textContent = '(' + tools.length + ' 个工具)';
         if (tools.length === 0) {
@@ -501,7 +522,7 @@ async function viewMcpTools(name) {
             return;
         }
         const disabledAutoSet = new Set(Array.isArray(cfg?.disabledAutoApproveTools) ? cfg.disabledAutoApproveTools : []);
-        const isAgentMcp = !!currentAgentMcpName;
+        const isAgentMcp = !!currentAgentMcpName && !!cfg; // 只对 agent 私有服务显示自动批准开关
         document.getElementById('mcpToolsBody').innerHTML = '<ul class="tools-list">' +
             tools.map((t, i) =>
                 '<li>' +
@@ -647,15 +668,21 @@ function renderMcpCheckboxes() {
     const container = document.getElementById('mcpNamesContainer');
     if (!container) return;
     const keys = Object.keys(mcpServers);
-    if (keys.length === 0) {
+    if (mcpBuiltins.length === 0 && keys.length === 0) {
         container.innerHTML = '<div style="color:#94a3b8;font-size:12px;padding:4px">暂无全局 MCP 服务器</div>';
         return;
     }
-    container.innerHTML = '<div class="check-row">' + keys.map(name =>
+    const builtinItems = mcpBuiltins.map(name =>
+        '<label class="check-item"><input type="checkbox"' +
+        (tempMcpNames.includes(name) ? ' checked' : '') +
+        ' onchange="toggleMcpName(\'' + esc(name) + '\', this.checked)"><span>' + esc(name) + ' <span style="color:#64748b;font-size:11px">(内置)</span></span></label>'
+    ).join('');
+    const serverItems = keys.map(name =>
         '<label class="check-item"><input type="checkbox"' +
         (tempMcpNames.includes(name) ? ' checked' : '') +
         ' onchange="toggleMcpName(\'' + esc(name) + '\', this.checked)"><span>' + esc(name) + '</span></label>'
-    ).join('') + '</div>';
+    ).join('');
+    container.innerHTML = '<div class="check-row">' + builtinItems + serverItems + '</div>';
 }
 
 function toggleMcpName(name, checked) {
