@@ -1,7 +1,7 @@
 import os from "os";
 import path from "path";
 import fs from "fs";
-import { ModelConfig, ModelProvider, EmbeddingConfig, EmbeddingProvider, MCPServerConfig, MCPServers, MemoryConfig } from "scorpio.ai";
+import { ModelConfig, ModelProvider, EmbeddingConfig, EmbeddingProvider, MCPServerConfig, MCPServers, MemoryConfig, IModelService, IEmbeddingService, ModelServiceFactory, EmbeddingServiceFactory } from "scorpio.ai";
 
 
 export interface LarkConfig {
@@ -118,6 +118,24 @@ class Config {
   getEmbedding(name: string): EmbeddingConfig | undefined {
     if (!this._settings.embeddings) return undefined;
     return this._settings.embeddings[name.trim()];
+  }
+
+  async getModelService(name: string | undefined, throwError = false): Promise<IModelService | undefined> {
+    const modelConfig = this.getModel(name);
+    if (!modelConfig) {
+      if (throwError) throw new Error(`模型配置 "${name}" 不存在`);
+      return undefined;
+    }
+    return ModelServiceFactory.getModelService(modelConfig);
+  }
+
+  async getEmbeddingService(name: string, throwError = false): Promise<IEmbeddingService | undefined> {
+    const embeddingConfig = this.getEmbedding(name);
+    if (!embeddingConfig) {
+      if (throwError) throw new Error(`Embedding 配置 "${name}" 不存在`);
+      return undefined;
+    }
+    return EmbeddingServiceFactory.getEmbeddingService(embeddingConfig);
   }
 
   /**

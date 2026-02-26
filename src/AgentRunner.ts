@@ -1,7 +1,7 @@
 import {
-    IModelService, ModelServiceFactory,
+    IModelService,
     IMemoryService, IMemoryDatabase, MemorySqliteDatabase, MemoryEvaluator, MemoryCompressor, MemoryExtractor, MemoryService,
-    IEmbeddingService, EmbeddingServiceFactory,
+    IEmbeddingService,
     IAgentSaverService, AgentSqliteSaver,
     ServiceContainer,
     IMemoryExtractor,
@@ -33,38 +33,39 @@ export class AgentRunner {
         if (!agentEntry) throw new Error(`Agent 配置 "${agentName}" 不存在，请检查 settings.json 中的 agents 配置`);
 
         const container = new ServiceContainer();
+        container.registerInstance(T_ThreadId, userId);
 
         const memoryConfig = config.settings.memory;
         if (memoryConfig?.enabled && memoryConfig?.embedding) {
-            const evaluatorModelConfig = memoryConfig.evaluator ? config.getModel(memoryConfig.evaluator) : undefined;
-            if (evaluatorModelConfig) {
+            const evaluatorModel = await config.getModelService(memoryConfig.evaluator);
+            if (evaluatorModel) {
                 container.registerWithArgs(IMemoryEvaluator, MemoryEvaluator, {
-                    [IModelService]: await ModelServiceFactory.getModelService(evaluatorModelConfig),
+                    [IModelService]: evaluatorModel,
                 });
             }
-            const extractorModelConfig = memoryConfig.extractor ? config.getModel(memoryConfig.extractor) : undefined;
-            if (extractorModelConfig) {
+            const extractorModel = await config.getModelService(memoryConfig.extractor);
+            if (extractorModel) {
                 container.registerWithArgs(IMemoryExtractor, MemoryExtractor, {
-                    [IModelService]: await ModelServiceFactory.getModelService(extractorModelConfig),
+                    [IModelService]: extractorModel,
                 });
             }
-            const compressorModelConfig = memoryConfig.compressor ? config.getModel(memoryConfig.compressor) : undefined;
-            if (compressorModelConfig) {
+            const compressorModel = await config.getModelService(memoryConfig.compressor);
+            if (compressorModel) {
                 container.registerWithArgs(IMemoryCompressor, MemoryCompressor, {
-                    [IModelService]: await ModelServiceFactory.getModelService(compressorModelConfig),
+                    [IModelService]: compressorModel,
                 });
             }
-            const embeddingConfig = config.getEmbedding(memoryConfig.embedding);
-            if (!embeddingConfig) throw new Error(`Embedding 配置 "${memoryConfig.embedding}" 不存在`);
+            container.registerWithArgs(IMemoryDatabase, MemorySqliteDatabase, {
+                [T_DBPath]: config.getUserMemoryPath(userId),
+            });
+            
             container.registerWithArgs(IMemoryService, MemoryService, {
-                [IMemoryDatabase]: new MemorySqliteDatabase(userId, config.getUserMemoryPath(userId)),
-                [IEmbeddingService]: await EmbeddingServiceFactory.getEmbeddingService(embeddingConfig),
+                [IEmbeddingService]: await config.getEmbeddingService(memoryConfig.embedding, true),
                 [T_MaxMemoryAgeDays]: memoryConfig.maxAgeDays,
                 [T_MemoryMode]: memoryConfig.mode,
             });
         }
 
-        container.registerInstance(T_ThreadId, userId);
         container.registerWithArgs(IAgentSaverService, AgentSqliteSaver, {
             [T_DBPath]: config.getUserSaverPath(userId),
         });

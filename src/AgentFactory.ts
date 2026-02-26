@@ -1,6 +1,6 @@
 import {
     AgentServiceBase, SingleAgentService,
-    IModelService, ModelServiceFactory,
+    IModelService,
     IAgentToolService, AgentToolService,
     ISkillService, SkillService,
     ServiceContainer, T_SystemPrompts, T_SkillsDirs, T_SkillDirs,
@@ -92,9 +92,7 @@ export class AgentFactory {
         entry: SingleAgentEntry,
         userInfo?: any,
     ): Promise<AgentServiceBase> {
-        const modelConfig = config.getModel(entry.model);
-        if (!modelConfig) throw new Error(`模型配置 "${entry.model}" 不存在`);
-        container.registerInstance(IModelService, await ModelServiceFactory.getModelService(modelConfig));
+        container.registerInstance(IModelService, await config.getModelService(entry.model, true));
 
         const systemPrompts = this.buildSystemPrompt(entry.systemPrompt, userInfo);
 

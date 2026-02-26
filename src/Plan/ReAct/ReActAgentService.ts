@@ -5,7 +5,7 @@ import {
   AgentServiceBase,
   IAgentCallback, MessageChunkType, AgentMessage,
   IMemoryService, IAgentSaverService,
-  inject, ServiceContainer, ModelServiceFactory, T_SystemPrompts, T_ThreadId,
+  inject, ServiceContainer, ModelServiceFactory, T_SystemPrompts,
 } from 'scorpio.ai';
 import { LoggerService } from '../../LoggerService.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -96,7 +96,6 @@ class ReadOnlyMemoryService implements IMemoryService {
  * graph stream 在此暂停（同 executeTool 模式），不中断整个对话。
  */
 export class ReActAgentService extends AgentServiceBase {
-  private userId: string;
   private agentRefs: AgentRef[];
   private maxIterations: number;
   private thinkConfig?: AgentNodeConfig;
@@ -104,7 +103,6 @@ export class ReActAgentService extends AgentServiceBase {
   private userInfo?: any;
 
   constructor(
-    @inject(T_ThreadId) userId: string,
     @inject("agentRefs") agentRefs: AgentRef[],
     @inject(IMemoryService, { optional: true }) memoryService?: IMemoryService,
     @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
@@ -115,7 +113,6 @@ export class ReActAgentService extends AgentServiceBase {
     @inject("userInfo", { optional: true }) userInfo?: any,
   ) {
     super(null as any, systemPrompts, undefined, agentSaver, undefined, memoryService);
-    this.userId = userId;
     this.agentRefs = agentRefs;
     this.maxIterations = maxIterations ?? 5;
     this.thinkConfig = thinkConfig;
@@ -452,7 +449,7 @@ ${this.formatStepHistory(reactState.steps)}
 
       const agentInfos = this.agentRefs.map(ref => ({ id: ref.name, desc: ref.desc }));
 
-      logger.info(`ReAct 开始 | 用户: ${this.userId} | Agents: [${this.agentRefs.map(r => r.name).join(', ')}] | 最大迭代: ${this.maxIterations} | 查询: ${query.substring(0, 80)}`);
+      logger.info(`ReAct 开始 | 用户: ${this.agentSaver?.threadId} | Agents: [${this.agentRefs.map(r => r.name).join(', ')}] | 最大迭代: ${this.maxIterations} | 查询: ${query.substring(0, 80)}`);
 
       const graphStream = await graph.stream(
         {
@@ -474,7 +471,7 @@ ${this.formatStepHistory(reactState.steps)}
         {
           streamMode: "updates",
           recursionLimit: this.maxIterations * 4 + 10,
-          configurable: { thread_id: this.userId },
+
         }
       );
 
