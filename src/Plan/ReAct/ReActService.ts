@@ -3,7 +3,7 @@ import { Annotation, MessagesAnnotation, StateGraph, START, END } from '@langcha
 import { AgentNodeConfig, AgentRef, config } from '../../Config.js';
 import {
   IAgentCallback, MessageChunkType, AgentMessage,
-  IMemoryService, 
+  IMemoryService, IAgentSaverService,
   inject, ServiceContainer, ModelServiceFactory, T_SystemPrompts,
 } from 'scorpio.ai';
 import { LoggerService } from '../../LoggerService.js';
@@ -92,6 +92,7 @@ export class ReActService {
   private userId: string;
   private agentRefs: AgentRef[];
   private memoryService?: IMemoryService;
+  private saverService?: IAgentSaverService;
   private maxIterations: number;
   private thinkConfig?: AgentNodeConfig;
   private reflectConfig?: AgentNodeConfig;
@@ -102,6 +103,7 @@ export class ReActService {
     @inject("userId") userId: string,
     @inject("agentRefs") agentRefs: AgentRef[],
     @inject(IMemoryService, { optional: true }) memoryService?: IMemoryService,
+    @inject(IAgentSaverService, { optional: true }) saverService?: IAgentSaverService,
     @inject("maxIterations", { optional: true }) maxIterations?: number,
     @inject("thinkConfig", { optional: true }) thinkConfig?: AgentNodeConfig,
     @inject("reflectConfig", { optional: true }) reflectConfig?: AgentNodeConfig,
@@ -111,6 +113,7 @@ export class ReActService {
     this.userId = userId;
     this.agentRefs = agentRefs;
     this.memoryService = memoryService;
+    this.saverService = saverService;
     this.maxIterations = maxIterations ?? 5;
     this.thinkConfig = thinkConfig;
     this.reflectConfig = reflectConfig;
@@ -502,6 +505,24 @@ ${this.formatStepHistory(reactState.steps)}
           await this.memoryService.memorizeConversation(query, reflectResult);
         } catch (error: any) {
           logger.warn(`保存记忆失败: ${error.message}`);
+        }
+      }
+
+      // 将 query 和最终总结保存到 saver（对话历史）
+      if (this.saverService && reflectResult) {
+        try {
+          const checkpointer = await this.saverService.getCheckpointer();
+          const saveWorkflow = new StateGraph(MessagesAnnotation)
+            .addNode("save", () => ({}))
+            .addEdge(START, "save")
+            .addEdge("save", END);
+          const saveGraph = saveWorkflow.compile({ checkpointer });
+          await saveGraph.invoke(
+            { messages: [new HumanMessage(query), new AIMessage(reflectResult)] },
+            { configurable: { thread_id: this.userId } },
+          );
+        } catch (error: any) {
+          logger.warn(`保存对话到 saver 失败: ${error.message}`);
         }
       }
 
