@@ -1,6 +1,7 @@
 const API = window.location.origin;
 let settings = {};
 let mcpServers = {};
+let mcpBuiltins = [];
 let globalSkills = [];
 
 // ===== Toast =====
@@ -34,7 +35,8 @@ async function loadSettings() {
 async function loadMcp() {
     try {
         const res = await apiFetch('/api/mcp');
-        mcpServers = res.data || {};
+        mcpBuiltins = res.data?.builtins || [];
+        mcpServers = res.data?.servers || {};
         renderMcpTable();
     } catch (e) { showToast(e.message, 'error'); }
 }
@@ -306,11 +308,19 @@ function renderAgentMcpTable() {
 function renderMcpTable() {
     const tbody = document.getElementById('mcpTableBody');
     const entries = Object.entries(mcpServers);
+    const builtinRows = mcpBuiltins.map(name =>
+        '<tr>' +
+            '<td>' + esc(name) + '</td>' +
+            '<td>内置</td>' +
+            '<td>-</td>' +
+            '<td><button class="btn btn-outline-dark btn-sm" onclick="viewMcpTools(\'' + esc(name) + '\')">查看</button></td>' +
+        '</tr>'
+    ).join('');
     if (entries.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:40px">暂无 MCP 服务</td></tr>';
+        tbody.innerHTML = builtinRows;
         return;
     }
-    tbody.innerHTML = entries.map(([name, cfg]) => {
+    tbody.innerHTML = builtinRows + entries.map(([name, cfg]) => {
         const type = cfg.url ? 'http' : (cfg.command ? 'stdio' : cfg.type || '-');
         const addr = cfg.url || (cfg.command ? [cfg.command, ...(cfg.args || [])].join(' ') : '-');
         return '<tr>' +
@@ -415,8 +425,6 @@ function showMcpModal(name) {
 
     // Common
     document.getElementById('mcpToolTimeout').value = cfg.defaultToolTimeout || '';
-    renderListEditor('mcpDisabledEditor', '禁用的工具', Array.isArray(cfg.disabled) ? cfg.disabled : [], '工具名称');
-    renderListEditor('mcpDisabledAutoApproveEditor', '需确认的工具', Array.isArray(cfg.disabledAutoApproveTools) ? cfg.disabledAutoApproveTools : [], '工具名称');
 
     document.getElementById('mcpModal').classList.add('show');
 }
@@ -452,10 +460,6 @@ async function saveMcp() {
         // Common
         const timeout = document.getElementById('mcpToolTimeout').value.trim();
         if (timeout) cfg.defaultToolTimeout = parseInt(timeout);
-        const disabled = listEditorGetValues('mcpDisabledEditor');
-        if (disabled.length > 0) cfg.disabled = disabled;
-        const disabledAuto = listEditorGetValues('mcpDisabledAutoApproveEditor');
-        if (disabledAuto.length > 0) cfg.disabledAutoApproveTools = disabledAuto;
 
         // 如果名称变更，删除旧条目
         if (editingMcpName && editingMcpName !== name) {
@@ -481,22 +485,22 @@ async function deleteMcp(name) {
 
 // ===== MCP Tools 查看 =====
 async function viewMcpTools(name) {
+    const isBuiltin = mcpBuiltins.includes(name);
     const cfg = _mcpServers()[name];
-    if (!cfg) { showToast('MCP 配置不存在', 'error'); return; }
+    if (!isBuiltin && !cfg) { showToast('MCP 配置不存在', 'error'); return; }
     viewingMcpName = name;
     document.getElementById('mcpToolsModalTitle').innerHTML = esc(name) + '<span class="tools-count"></span>';
     document.getElementById('mcpToolsBody').innerHTML = '<div class="tools-loading">连接中，正在获取工具列表...</div>';
     document.getElementById('mcpToolsModal').classList.add('show');
     try {
-        const res = await apiFetch('/api/mcp/tools', 'POST', { name, config: cfg });
+        const res = await apiFetch('/api/mcp/tools', 'POST', { name });
         const tools = res.data || [];
         document.querySelector('#mcpToolsModalTitle .tools-count').textContent = '(' + tools.length + ' 个工具)';
         if (tools.length === 0) {
             document.getElementById('mcpToolsBody').innerHTML = '<div class="tools-loading">该 MCP 服务没有可用的工具</div>';
             return;
         }
-        const disabledSet = new Set(Array.isArray(cfg.disabled) ? cfg.disabled : []);
-        const disabledAutoSet = new Set(Array.isArray(cfg.disabledAutoApproveTools) ? cfg.disabledAutoApproveTools : []);
+        const disabledAutoSet = new Set(Array.isArray(cfg?.disabledAutoApproveTools) ? cfg.disabledAutoApproveTools : []);
         const isAgentMcp = !!currentAgentMcpName;
         document.getElementById('mcpToolsBody').innerHTML = '<ul class="tools-list">' +
             tools.map((t, i) =>
@@ -505,13 +509,6 @@ async function viewMcpTools(name) {
                     '<div class="tool-name" onclick="toggleToolParams(this)">' + esc(t.name) + '</div>' +
                     (isAgentMcp ? (
                     '<div class="tool-switches">' +
-                        '<div class="tool-switch">' +
-                            '<span class="tool-switch-label">启用</span>' +
-                            '<label class="toggle"><input type="checkbox" ' +
-                                (!disabledSet.has(t.name) ? 'checked ' : '') +
-                                'onchange="toggleToolDisabled(\'' + esc(t.name) + '\', this.checked)">' +
-                                '<span class="toggle-slider"></span></label>' +
-                        '</div>' +
                         '<div class="tool-switch">' +
                             '<span class="tool-switch-label">自动批准</span>' +
                             '<label class="toggle"><input type="checkbox" ' +
@@ -529,19 +526,6 @@ async function viewMcpTools(name) {
     } catch (e) {
         document.getElementById('mcpToolsBody').innerHTML = '<div class="tools-error">获取失败: ' + esc(e.message) + '</div>';
     }
-}
-
-async function toggleToolDisabled(toolName, enabled) {
-    const cfg = _mcpServers()[viewingMcpName];
-    if (!cfg) return;
-    if (!Array.isArray(cfg.disabled)) cfg.disabled = [];
-    if (enabled) {
-        cfg.disabled = cfg.disabled.filter(n => n !== toolName);
-    } else {
-        if (!cfg.disabled.includes(toolName)) cfg.disabled.push(toolName);
-    }
-    if (cfg.disabled.length === 0) delete cfg.disabled;
-    await apiFetch(_mcpEndpoint(), 'PUT', _mcpServers());
 }
 
 async function toggleToolAutoApprove(toolName, autoApprove) {

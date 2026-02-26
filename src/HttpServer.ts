@@ -2,9 +2,9 @@ import express, { Request, Response } from 'express';
 import http from 'http';
 import path from 'path';
 import fs from 'fs';
-import { MultiServerMCPClient } from "@langchain/mcp-adapters";
-import { AgentSqliteSaver, MemorySqliteDatabase } from "scorpio.ai";
+import { AgentSqliteSaver, MemorySqliteDatabase, MCPServers } from "scorpio.ai";
 import { config } from './Config';
+import { globalAgentToolService, refreshGlobalAgentToolService, BuiltinProvider } from './GlobalAgentToolService';
 import { LoggerService } from './LoggerService';
 import { LarkUserService } from './Lark/LarkUserService';
 import { WebUserService } from './Web/WebUserService';
@@ -96,22 +96,29 @@ class HttpServer {
         }));
 
         // ===== MCP =====
-        app.get('/api/mcp', api(() => config.getGlobalMcpServers()));
+        app.get('/api/mcp', api(() => ({
+            builtins: Object.values(BuiltinProvider),
+            servers: config.getGlobalMcpServers(),
+        })));
 
         app.put('/api/mcp', api(req => {
-            config.saveMcpServers(req.body);
-            return config.getGlobalMcpServers();
+            const builtinSet = new Set<string>(Object.values(BuiltinProvider));
+            const servers = Object.fromEntries(
+                Object.entries(req.body).filter(([name]) => !builtinSet.has(name))
+            ) as MCPServers;
+            config.saveMcpServers(servers);
+            refreshGlobalAgentToolService();
+            return { builtins: Object.values(BuiltinProvider), servers: config.getGlobalMcpServers() };
         }));
 
         app.post('/api/mcp/tools', api(async req => {
-            const { name, config: mcpConfig } = req.body;
-            if (!name || !mcpConfig) {
-                const e: any = new Error('缺少 name 或 config 参数');
+            const { name } = req.body;
+            if (!name) {
+                const e: any = new Error('缺少 name 参数');
                 e.status = 400;
                 throw e;
             }
-            const mcpClient = new MultiServerMCPClient({ mcpServers: { [name]: mcpConfig } });
-            const tools = await mcpClient.getTools();
+            const tools = await globalAgentToolService.getToolsFrom([name]);
             return tools.map(t => ({ name: t.name, description: t.description, parameters: t.schema }));
         }));
 
