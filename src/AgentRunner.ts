@@ -1,7 +1,5 @@
 import {
-    IAgentSaverService, AgentSqliteSaver,
     ServiceContainer,
-    T_DBPath,
     T_ThreadId,
     IAgentCallback,
     ILoggerService,
@@ -27,10 +25,6 @@ export class AgentRunner {
         const container = new ServiceContainer();
         container.registerInstance(T_ThreadId, userId);
         container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
-
-        container.registerWithArgs(IAgentSaverService, AgentSqliteSaver, {
-            [T_DBPath]: config.getUserSaverPath(userId),
-        });
 
         logger.info(`${userId} 使用 Agent [${agentName}] (${agentEntry.type})`);
 

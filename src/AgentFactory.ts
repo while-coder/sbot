@@ -4,6 +4,7 @@ import {
     IMemoryService, IMemoryDatabase, MemorySqliteDatabase, MemoryEvaluator, MemoryCompressor, MemoryExtractor, MemoryService,
     IEmbeddingService,
     IMemoryExtractor, IMemoryEvaluator, IMemoryCompressor,
+    IAgentSaverService, AgentSqliteSaver,
     T_MaxMemoryAgeDays, T_MemoryMode, T_DBPath,
     IAgentToolService, AgentToolService,
     ISkillService, SkillService,
@@ -37,61 +38,11 @@ export class AgentFactory {
     ): Promise<AgentServiceBase> {
         const agentEntry = config.settings.agents?.[agentName];
         if (!agentEntry) throw new Error(`Agent 配置 "${agentName}" 不存在`);
-        if (!container.isRegistered(ISkillService)) {
-            container.registerSingleton(ISkillService, SkillService);
-            const skillService = await container.resolve<SkillService>(ISkillService);
-            if (agentEntry.skills && agentEntry.skills.length > 0) {
-                const allGlobalSkills = globalSkillService.getAllSkills();
-                for (const name of agentEntry.skills) {
-                    const skill = allGlobalSkills.find(s => s.name === name);
-                    if (skill) skillService.registerSingleSkillDir(skill.path);
-                }
-            }
-            skillService.registerSkillsDir(config.getAgentSkillsPath(agentName));
-        }
 
-        if (!container.isRegistered(IMemoryService)) {
-            const memoryConfig = config.getMemory(agentEntry.memory);
-            if (memoryConfig?.embedding) {
-                const evaluatorModel = await config.getModelService(memoryConfig.evaluator);
-                if (evaluatorModel) {
-                    container.registerWithArgs(IMemoryEvaluator, MemoryEvaluator, {
-                        [IModelService]: evaluatorModel,
-                    });
-                }
-                const extractorModel = await config.getModelService(memoryConfig.extractor);
-                if (extractorModel) {
-                    container.registerWithArgs(IMemoryExtractor, MemoryExtractor, {
-                        [IModelService]: extractorModel,
-                    });
-                }
-                const compressorModel = await config.getModelService(memoryConfig.compressor);
-                if (compressorModel) {
-                    container.registerWithArgs(IMemoryCompressor, MemoryCompressor, {
-                        [IModelService]: compressorModel,
-                    });
-                }
-                container.registerWithArgs(IMemoryDatabase, MemorySqliteDatabase, {
-                    [T_DBPath]: config.getMemoryPath(agentEntry.memory!),
-                });
-                container.registerWithArgs(IMemoryService, MemoryService, {
-                    [IEmbeddingService]: await config.getEmbeddingService(memoryConfig.embedding, true),
-                    [T_MaxMemoryAgeDays]: memoryConfig.maxAgeDays,
-                    [T_MemoryMode]: memoryConfig.mode,
-                });
-            }
-        }
-
-        if (!container.isRegistered(IAgentToolService)) {
-            container.registerSingleton(IAgentToolService, AgentToolService);
-            const toolService = await container.resolve<AgentToolService>(IAgentToolService);
-            if (agentEntry.mcp && agentEntry.mcp.length > 0) {
-                const mcpNames = [...agentEntry.mcp];
-                toolService.registerToolFactory('__global_mcp__', () => globalAgentToolService.getToolsFrom(mcpNames));
-            }
-            const agentMcpServers = config.getAgentMcpServers(agentName);
-            toolService.registerMcpServers(agentMcpServers);
-        }
+        await this.registerMemoryService(container, agentEntry.memory);
+        await this.registerSaverService(container, agentEntry.saver);
+        await this.registerSkillService(container, agentName, agentEntry.skills);
+        await this.registerToolService(container, agentName, agentEntry.mcp);
 
         const agentType = agentEntry.type || AgentMode.Single;
 
@@ -108,9 +59,86 @@ export class AgentFactory {
         }
     }
 
-    /**
-     * 注册模型服务到容器
-     */
+    private static async registerMemoryService(
+        container: ServiceContainer,
+        memoryName?: string,
+    ): Promise<void> {
+        if (container.isRegistered(IMemoryService)) return;
+        const memoryConfig = config.getMemory(memoryName);
+        if (!memoryConfig?.embedding) return;
+
+        const evaluatorModel = await config.getModelService(memoryConfig.evaluator);
+        if (evaluatorModel) {
+            container.registerWithArgs(IMemoryEvaluator, MemoryEvaluator, {
+                [IModelService]: evaluatorModel,
+            });
+        }
+        const extractorModel = await config.getModelService(memoryConfig.extractor);
+        if (extractorModel) {
+            container.registerWithArgs(IMemoryExtractor, MemoryExtractor, {
+                [IModelService]: extractorModel,
+            });
+        }
+        const compressorModel = await config.getModelService(memoryConfig.compressor);
+        if (compressorModel) {
+            container.registerWithArgs(IMemoryCompressor, MemoryCompressor, {
+                [IModelService]: compressorModel,
+            });
+        }
+        container.registerWithArgs(IMemoryDatabase, MemorySqliteDatabase, {
+            [T_DBPath]: config.getMemoryPath(memoryName!),
+        });
+        container.registerWithArgs(IMemoryService, MemoryService, {
+            [IEmbeddingService]: await config.getEmbeddingService(memoryConfig.embedding, true),
+            [T_MaxMemoryAgeDays]: memoryConfig.maxAgeDays,
+            [T_MemoryMode]: memoryConfig.mode,
+        });
+    }
+
+    private static async registerSaverService(
+        container: ServiceContainer,
+        saverName?: string,
+    ): Promise<void> {
+        if (container.isRegistered(IAgentSaverService)) return;
+        const saverConfig = config.getSaver(saverName);
+        if (saverConfig === undefined) return;
+
+        container.registerWithArgs(IAgentSaverService, AgentSqliteSaver, {
+            [T_DBPath]: config.getSaverPath(saverName!),
+        });
+    }
+    private static async registerSkillService(
+        container: ServiceContainer,
+        agentName: string,
+        skills?: string[],
+    ): Promise<void> {
+        if (container.isRegistered(ISkillService)) return;
+        container.registerSingleton(ISkillService, SkillService);
+        const skillService = await container.resolve<SkillService>(ISkillService);
+        if (skills && skills.length > 0) {
+            const allGlobalSkills = globalSkillService.getAllSkills();
+            for (const name of skills) {
+                const skill = allGlobalSkills.find(s => s.name === name);
+                if (skill) skillService.registerSingleSkillDir(skill.path);
+            }
+        }
+        skillService.registerSkillsDir(config.getAgentSkillsPath(agentName));
+    }
+    private static async registerToolService(
+        container: ServiceContainer,
+        agentName: string,
+        mcp?: string[],
+    ): Promise<void> {
+        if (container.isRegistered(IAgentToolService)) return;
+        container.registerSingleton(IAgentToolService, AgentToolService);
+        const toolService = await container.resolve<AgentToolService>(IAgentToolService);
+        if (mcp && mcp.length > 0) {
+            const mcpNames = [...mcp];
+            toolService.registerToolFactory('__global_mcp__', () => globalAgentToolService.getToolsFrom(mcpNames));
+        }
+        toolService.registerMcpServers(config.getAgentMcpServers(agentName));
+    }
+
     /**
      * 构建 systemPrompt，追加用户信息
      */

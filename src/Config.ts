@@ -10,6 +10,10 @@ export interface LarkConfig {
   appSecret?: string;
 }
 
+export interface SaverConfig {
+  // 预留扩展字段（如 type、connectionString 等）
+}
+
 export interface MemoryConfig {
   mode?: MemoryMode;           // 记忆模式
   autoCleanup?: boolean;       // 是否自动清理过期记忆
@@ -46,6 +50,7 @@ export interface BaseAgentEntry {
   mcp?: string[];              // Agent 专属 MCP 服务器名称列表（对应 mcp.json 中的 key）
   skills?: string[];           // 全局 Skills 过滤列表（skill 名称），不填则加载所有全局 Skills
   memory?: string;             // 使用的记忆配置名称（对应 memories 中的 key），不填则不启用记忆
+  saver?: string;              // 使用的 Saver 配置名称（对应 savers 中的 key），不填则不持久化
 }
 
 /**
@@ -87,6 +92,7 @@ export interface Settings {
   lark?: LarkConfig;
   models?: Record<string, ModelConfig>;
   embeddings?: Record<string, EmbeddingConfig>;
+  savers?: Record<string, SaverConfig>;
   memories?: Record<string, MemoryConfig>;
   agents?: Record<string, AgentEntry>;
 }
@@ -133,6 +139,11 @@ class Config {
   getEmbedding(name: string): EmbeddingConfig | undefined {
     if (!this._settings.embeddings) return undefined;
     return this._settings.embeddings[name.trim()];
+  }
+
+  getSaver(name?: string): SaverConfig | undefined {
+    if (!this._settings.savers || !name) return undefined;
+    return this._settings.savers[name.trim()];
   }
 
   getMemory(name?: string): MemoryConfig | undefined {
@@ -219,6 +230,9 @@ class Config {
       lark: {
         appId: "",
         appSecret: ""
+      },
+      savers: {
+        "default": {}
       },
       memories: {
         "default": {
@@ -458,8 +472,8 @@ class Config {
     }
     return {};
   }
-  getUserSaverPath(userId: string) {
-    return this.getConfigPath(`users/${userId}/saver.sqlite`)
+  getSaverPath(saverName: string) {
+    return this.getConfigPath(`savers/${saverName}.sqlite`)
   }
   getMemoryPath(memoryName: string) {
     return this.getConfigPath(`memories/${memoryName}.sqlite`)
