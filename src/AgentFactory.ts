@@ -44,18 +44,19 @@ export class AgentFactory {
         await this.registerSkillService(container, agentName, agentEntry.skills);
         await this.registerToolService(container, agentName, agentEntry.mcp);
 
+        const systemPrompts = this.buildSystemPrompt(agentEntry.systemPrompt, userInfo);
         const agentType = agentEntry.type || AgentMode.Single;
 
         switch (agentType) {
             case AgentMode.ReAct:
-                return this.createReAct(container, agentEntry as ReactAgentEntry, userInfo);
+                return this.createReAct(container, agentEntry as ReactAgentEntry, userInfo, systemPrompts);
 
             case AgentMode.Supervisor:
-                return this.createSupervisor(container, agentEntry as SupervisorAgentEntry, userInfo);
+                return this.createSupervisor(container, agentEntry as SupervisorAgentEntry, userInfo, systemPrompts);
 
             case AgentMode.Single:
             default:
-                return this.createSingle(container, agentEntry as SingleAgentEntry, userInfo);
+                return this.createSingle(container, agentEntry as SingleAgentEntry, systemPrompts);
         }
     }
 
@@ -160,11 +161,9 @@ export class AgentFactory {
     private static async createSingle(
         container: ServiceContainer,
         entry: SingleAgentEntry,
-        userInfo?: any,
+        systemPrompts: string[],
     ): Promise<AgentServiceBase> {
         container.registerInstance(IModelService, await config.getModelService(entry.model, true));
-
-        const systemPrompts = this.buildSystemPrompt(entry.systemPrompt, userInfo);
 
         container.registerWithArgs(SingleAgentService, {
             [T_SystemPrompts]: systemPrompts,
@@ -178,7 +177,8 @@ export class AgentFactory {
     private static async createSupervisor(
         container: ServiceContainer,
         entry: SupervisorAgentEntry,
-        userInfo?: any,
+        userInfo: any,
+        systemPrompts: string[],
     ): Promise<AgentServiceBase> {
         const agentRefs = entry.agents || [];
         if (agentRefs.length === 0) {
@@ -189,7 +189,6 @@ export class AgentFactory {
         }
 
         const maxRounds = entry.maxRounds || 10;
-        const systemPrompts = this.buildSystemPrompt(entry.systemPrompt, userInfo);
 
         const createAgentFn: CreateAgentFn = (name, subContainer) =>
             AgentFactory.create(name, subContainer, userInfo);
@@ -212,7 +211,8 @@ export class AgentFactory {
     private static async createReAct(
         container: ServiceContainer,
         entry: ReactAgentEntry,
-        userInfo?: any,
+        userInfo: any,
+        systemPrompts: string[],
     ): Promise<AgentServiceBase> {
         const agentSubNodes = entry.agents || [];
         if (agentSubNodes.length === 0) {
@@ -226,7 +226,6 @@ export class AgentFactory {
         }
 
         const maxIterations = entry.maxIterations || 5;
-        const systemPrompts = this.buildSystemPrompt(entry.systemPrompt, userInfo);
 
         const createAgentFn: CreateAgentFn = (name, subContainer) =>
             AgentFactory.create(name, subContainer, userInfo);
