@@ -26,8 +26,7 @@
             <div class="sidebar-item" data-page="page-savers">会话存储</div>
             <div class="sidebar-item" data-page="page-mcp">MCP 服务</div>
             <div class="sidebar-item" data-page="page-skills">Skills</div>
-            <div class="sidebar-item" data-page="page-history">历史记录</div>
-            <div class="sidebar-item" data-page="page-user-memory">长期记忆</div>
+            <div class="sidebar-item" data-page="page-chat">聊天</div>
         </div>
 
         <!-- ===== 基本设置 ===== -->
@@ -183,15 +182,15 @@
             </div>
         </div>
 
-        <!-- ===== 历史记录 ===== -->
-        <div class="page-content" id="page-history">
+        <!-- ===== 聊天 ===== -->
+        <div class="page-content" id="page-chat">
             <div class="page-toolbar">
-                <select id="historyUserSelect" style="width:220px" onchange="loadHistory()"></select>
-                <button class="btn btn-outline-dark btn-sm" onclick="loadHistoryUsers()">刷新</button>
-                <button class="btn btn-danger btn-sm" style="margin-left:auto" onclick="clearHistory()">清除历史</button>
+                <span id="chatAgentLabel" style="color:#64748b;font-size:13px"></span>
+                <button class="btn btn-outline-dark btn-sm" style="margin-left:auto" onclick="loadChatHistory()">刷新</button>
+                <button class="btn btn-danger btn-sm" onclick="clearChatHistory()">清除历史</button>
             </div>
             <div class="content">
-                <div id="historyMessages" class="history-messages"></div>
+                <div id="chatMessages" class="history-messages"></div>
             </div>
             <div id="chatQueue" class="chat-queue"></div>
             <div class="chat-input-bar">
@@ -200,17 +199,31 @@
             </div>
         </div>
 
-        <!-- ===== 长期记忆 ===== -->
-        <div class="page-content" id="page-user-memory">
+        <!-- ===== 会话存储查看 ===== -->
+        <div class="page-content" id="page-saver-view">
             <div class="page-toolbar">
-                <select id="memoryUserSelect" style="width:220px" onchange="loadUserMemory()"></select>
-                <button class="btn btn-outline-dark btn-sm" onclick="loadMemoryUsers()">刷新</button>
-                <button class="btn btn-danger btn-sm" style="margin-left:auto" onclick="clearAllMemory()">清除全部</button>
+                <button class="btn btn-outline-dark btn-sm" onclick="closeSaverViewPage()">← 返回</button>
+                <span id="saverViewTitle" style="font-weight:600;margin-left:12px;color:#1e293b"></span>
+                <button class="btn btn-outline-dark btn-sm" style="margin-left:16px" onclick="loadSaverViewHistory()">刷新</button>
+                <button class="btn btn-danger btn-sm" style="margin-left:auto" onclick="clearSaverViewHistory()">清除历史</button>
+            </div>
+            <div class="content">
+                <div id="saverViewMessages" class="history-messages"></div>
+            </div>
+        </div>
+
+        <!-- ===== 记忆配置查看 ===== -->
+        <div class="page-content" id="page-memory-view">
+            <div class="page-toolbar">
+                <button class="btn btn-outline-dark btn-sm" onclick="closeMemoryViewPage()">← 返回</button>
+                <span id="memoryViewTitle" style="font-weight:600;margin-left:12px;color:#1e293b"></span>
+                <button class="btn btn-outline-dark btn-sm" style="margin-left:16px" onclick="loadMemoryViewData()">刷新</button>
+                <button class="btn btn-danger btn-sm" style="margin-left:auto" onclick="clearAllMemoryView()">清除全部</button>
             </div>
             <div class="content">
                 <table>
                     <thead><tr><th>内容</th><th>重要性</th><th>时间</th><th>标签</th><th>操作</th></tr></thead>
-                    <tbody id="userMemoryTableBody"></tbody>
+                    <tbody id="memoryViewTableBody"></tbody>
                 </table>
             </div>
         </div>

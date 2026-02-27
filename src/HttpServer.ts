@@ -225,22 +225,12 @@ class HttpServer {
         app.delete('/api/agents/:name/skills/:skillName', api(req =>
             deleteSkill(config.getAgentSkillsPath(req.params.name as string), req.params.skillName as string)));
 
-        // ===== 用户列表 =====
-        app.get('/api/users', api(() => {
-            const usersDir = config.getConfigPath('users', true);
-            return fs.existsSync(usersDir)
-                ? fs.readdirSync(usersDir, { withFileTypes: true })
-                    .filter(d => d.isDirectory())
-                    .map(d => d.name)
-                : [];
-        }));
 
-        // ===== 历史记录 =====
-        app.get('/api/users/:userId/history', api(async req => {
-            const userId = req.params.userId as string;
-            const saverPath = config.getActiveSaverPath();
-            if (!saverPath) return [];
-            const saver = new AgentSqliteSaver(userId, saverPath);
+        // ===== Named Saver History =====
+        app.get('/api/savers/:saverName/history', api(async req => {
+            const saverName = req.params.saverName as string;
+            const saverPath = config.getSaverPath(saverName);
+            const saver = new AgentSqliteSaver(saverName, saverPath);
             const messages = await saver.getAllMessages();
             await saver.dispose();
             return messages.map(m => {
@@ -255,23 +245,19 @@ class HttpServer {
             });
         }));
 
-        app.delete('/api/users/:userId/history', api(async req => {
-            const userId = req.params.userId as string;
-            const saverPath = config.getActiveSaverPath();
-            if (!saverPath) return;
-            const saver = new AgentSqliteSaver(userId, saverPath);
+        app.delete('/api/savers/:saverName/history', api(async req => {
+            const saverName = req.params.saverName as string;
+            const saverPath = config.getSaverPath(saverName);
+            const saver = new AgentSqliteSaver(saverName, saverPath);
             await saver.clearMessages();
             await saver.dispose();
-            LarkUserService.allUsers.delete(userId);
-            WebUserService.allUsers.delete(userId);
         }));
 
-        // ===== 长期记忆 =====
-        app.get('/api/users/:userId/memory', api(async req => {
-            const userId = req.params.userId as string;
-            const memoryPath = config.getActiveMemoryPath();
-            if (!memoryPath) return [];
-            const db = new MemorySqliteDatabase(userId, memoryPath);
+        // ===== Named Memory =====
+        app.get('/api/memories/:memoryName', api(async req => {
+            const memoryName = req.params.memoryName as string;
+            const memoryPath = config.getMemoryPath(memoryName);
+            const db = new MemorySqliteDatabase(memoryName, memoryPath);
             return (await db.getAllMemories()).map(m => ({
                 id: m.id,
                 content: m.content,
@@ -284,20 +270,18 @@ class HttpServer {
             }));
         }));
 
-        app.delete('/api/users/:userId/memory/:memoryId', api(async req => {
-            const userId = req.params.userId as string;
+        app.delete('/api/memories/:memoryName/:memoryId', api(async req => {
+            const memoryName = req.params.memoryName as string;
             const memoryId = req.params.memoryId as string;
-            const memoryPath = config.getActiveMemoryPath();
-            if (!memoryPath) return;
-            const db = new MemorySqliteDatabase(userId, memoryPath);
+            const memoryPath = config.getMemoryPath(memoryName);
+            const db = new MemorySqliteDatabase(memoryName, memoryPath);
             db.deleteMemory(memoryId);
         }));
 
-        app.delete('/api/users/:userId/memory', api(async req => {
-            const userId = req.params.userId as string;
-            const memoryPath = config.getActiveMemoryPath();
-            if (!memoryPath) return { count: 0 };
-            const db = new MemorySqliteDatabase(userId, memoryPath);
+        app.delete('/api/memories/:memoryName', api(async req => {
+            const memoryName = req.params.memoryName as string;
+            const memoryPath = config.getMemoryPath(memoryName);
+            const db = new MemorySqliteDatabase(memoryName, memoryPath);
             const count = await db.clearMemories();
             return { count };
         }));

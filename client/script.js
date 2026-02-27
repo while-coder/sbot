@@ -237,6 +237,7 @@ function renderMemoriesTable() {
         '<td>' + esc(m.embedding || '-') + '</td>' +
         '<td>' + (m.maxAgeDays ?? '-') + '</td>' +
         '<td>' +
+            '<button class="btn btn-outline-dark btn-sm" onclick="openMemoryViewPage(\'' + esc(name) + '\')">查看</button> ' +
             '<button class="btn btn-outline-dark btn-sm" onclick="editMemoryConfig(\'' + esc(name) + '\')">编辑</button> ' +
             '<button class="btn btn-danger btn-sm" onclick="deleteMemoryConfig(\'' + esc(name) + '\')">删除</button>' +
         '</td></tr>'
@@ -312,6 +313,7 @@ function renderSaversTable() {
         '<tr>' +
         '<td>' + esc(name) + '</td>' +
         '<td>' +
+            '<button class="btn btn-outline-dark btn-sm" onclick="openSaverViewPage(\'' + esc(name) + '\')">查看</button> ' +
             '<button class="btn btn-danger btn-sm" onclick="deleteSaverConfig(\'' + esc(name) + '\')">删除</button>' +
         '</td></tr>'
     ).join('');
@@ -1216,37 +1218,40 @@ async function reloadConfig() {
     } catch (e) { showToast(e.message, 'error'); }
 }
 
-// ===== 历史记录管理 =====
-let _lastHistoryUserId = null;
+// ===== 聊天页管理 =====
+function _getChatSaverName() {
+    return settings.agents?.[settings.agent]?.saver || null;
+}
 
-async function loadHistoryUsers() {
+async function loadChatHistory() {
+    const agentName = settings.agent || '';
+    const saverName = _getChatSaverName();
+    const label = agentName
+        ? 'Agent: ' + agentName + (saverName ? ' · 存储: ' + saverName : ' · (未配置存储)')
+        : '(未选择 Agent)';
+    document.getElementById('chatAgentLabel').textContent = label;
+    if (!saverName) {
+        renderHistoryMessages([], 'chatMessages');
+        return;
+    }
     try {
-        const res = await apiFetch('/api/users');
-        const users = res.data || [];
-        const sel = document.getElementById('historyUserSelect');
-        sel.innerHTML = users.length === 0
-            ? '<option value="">暂无用户</option>'
-            : users.map(u => '<option value="' + esc(u) + '">' + esc(u) + '</option>').join('');
-        // 恢复上次选中的用户
-        if (_lastHistoryUserId && users.includes(_lastHistoryUserId)) {
-            sel.value = _lastHistoryUserId;
-        }
-        if (users.length > 0) await loadHistory();
+        const res = await apiFetch('/api/savers/' + encodeURIComponent(saverName) + '/history');
+        renderHistoryMessages(res.data || [], 'chatMessages');
     } catch (e) { showToast(e.message, 'error'); }
 }
 
-async function loadHistory() {
-    const userId = document.getElementById('historyUserSelect').value;
-    if (!userId) return;
-    _lastHistoryUserId = userId;
+async function clearChatHistory() {
+    const saverName = _getChatSaverName();
+    if (!saverName || !confirm('确定要清除 ' + saverName + ' 的所有历史记录吗？')) return;
     try {
-        const res = await apiFetch('/api/users/' + encodeURIComponent(userId) + '/history');
-        renderHistoryMessages(res.data || []);
+        await apiFetch('/api/savers/' + encodeURIComponent(saverName) + '/history', 'DELETE');
+        showToast('历史已清除');
+        renderHistoryMessages([], 'chatMessages');
     } catch (e) { showToast(e.message, 'error'); }
 }
 
-function renderHistoryMessages(messages) {
-    const container = document.getElementById('historyMessages');
+function renderHistoryMessages(messages, containerId = 'chatMessages') {
+    const container = document.getElementById(containerId);
     if (messages.length === 0) {
         container.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:60px">暂无历史记录</div>';
         return;
@@ -1323,15 +1328,6 @@ function toggleToolCall(header) {
     header.nextElementSibling.classList.toggle('show');
 }
 
-async function clearHistory() {
-    const userId = document.getElementById('historyUserSelect').value;
-    if (!userId || !confirm('确定要清除 ' + userId + ' 的所有历史记录吗？')) return;
-    try {
-        await apiFetch('/api/users/' + encodeURIComponent(userId) + '/history', 'DELETE');
-        showToast('历史已清除');
-        renderHistoryMessages([]);
-    } catch (e) { showToast(e.message, 'error'); }
-}
 
 // ===== 聊天输入 =====
 (function () {
@@ -1375,10 +1371,11 @@ function chatQueueRemove(idx) {
 }
 
 async function sendChatMessage() {
-    const userId = document.getElementById('historyUserSelect').value;
+    const saverName = _getChatSaverName();
+    if (!saverName) { showToast('当前 Agent 未配置会话存储', 'error'); return; }
     const ta = document.getElementById('chatInput');
     const query = ta.value.trim();
-    if (!userId || !query) return;
+    if (!query) return;
 
     ta.value = '';
     ta.style.height = 'auto';
@@ -1390,7 +1387,7 @@ async function sendChatMessage() {
         return;
     }
 
-    await _sendOneChatMessage(userId, query);
+    await _sendOneChatMessage(saverName, query);
     await _drainChatQueue();
 }
 
@@ -1398,8 +1395,9 @@ async function _drainChatQueue() {
     while (_chatQueue.length > 0) {
         const item = _chatQueue.shift();
         _chatQueueRender();
-        const userId = document.getElementById('historyUserSelect').value;
-        await _sendOneChatMessage(userId, item.query);
+        const saverName = _getChatSaverName();
+        if (!saverName) break;
+        await _sendOneChatMessage(saverName, item.query);
     }
 }
 
@@ -1407,7 +1405,7 @@ async function _sendOneChatMessage(userId, query) {
     _chatSending = true;
 
     // 立即显示用户消息
-    const container = document.getElementById('historyMessages');
+    const container = document.getElementById('chatMessages');
     const userRow = document.createElement('div');
     userRow.className = 'msg-row human';
     userRow.innerHTML = '<div class="msg-ts">' + esc(fmtTs(new Date().toISOString())) + '</div>' +
@@ -1463,7 +1461,7 @@ async function _sendOneChatMessage(userId, query) {
                     container.scrollTop = container.scrollHeight;
                 } else if (evt.type === 'done') {
                     aiBubble.classList.remove('streaming');
-                    await loadHistory();
+                    await loadChatHistory();
                 } else if (evt.type === 'error') {
                     aiBubble.classList.remove('streaming');
                     aiBubble.innerHTML += '<br><span style="color:#ef4444">错误: ' + esc(evt.message) + '</span>';
@@ -1478,30 +1476,67 @@ async function _sendOneChatMessage(userId, query) {
     }
 }
 
-// ===== 长期记忆管理 =====
-async function loadMemoryUsers() {
+// ===== 会话存储查看页 =====
+let _saverViewName = null;
+
+async function openSaverViewPage(saverName) {
+    _saverViewName = saverName;
+    document.getElementById('saverViewTitle').textContent = '存储: ' + saverName;
+    document.querySelectorAll('.sidebar-item[data-page]').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.page-content').forEach(p => p.classList.toggle('active', p.id === 'page-saver-view'));
+    await loadSaverViewHistory();
+}
+
+function closeSaverViewPage() {
+    _saverViewName = null;
+    document.querySelectorAll('.sidebar-item[data-page]').forEach(t => t.classList.toggle('active', t.dataset.page === 'page-savers'));
+    document.querySelectorAll('.page-content').forEach(p => p.classList.toggle('active', p.id === 'page-savers'));
+}
+
+async function loadSaverViewHistory() {
+    if (!_saverViewName) return;
     try {
-        const res = await apiFetch('/api/users');
-        const users = res.data || [];
-        const sel = document.getElementById('memoryUserSelect');
-        sel.innerHTML = users.length === 0
-            ? '<option value="">暂无用户</option>'
-            : users.map(u => '<option value="' + esc(u) + '">' + esc(u) + '</option>').join('');
-        if (users.length > 0) await loadUserMemory();
+        const res = await apiFetch('/api/savers/' + encodeURIComponent(_saverViewName) + '/history');
+        renderHistoryMessages(res.data || [], 'saverViewMessages');
     } catch (e) { showToast(e.message, 'error'); }
 }
 
-async function loadUserMemory() {
-    const userId = document.getElementById('memoryUserSelect').value;
-    if (!userId) return;
+async function clearSaverViewHistory() {
+    if (!_saverViewName || !confirm('确定要清除 ' + _saverViewName + ' 的所有历史记录吗？')) return;
     try {
-        const res = await apiFetch('/api/users/' + encodeURIComponent(userId) + '/memory');
-        renderMemoryTable(userId, res.data || []);
+        await apiFetch('/api/savers/' + encodeURIComponent(_saverViewName) + '/history', 'DELETE');
+        showToast('历史已清除');
+        renderHistoryMessages([], 'saverViewMessages');
     } catch (e) { showToast(e.message, 'error'); }
 }
 
-function renderMemoryTable(userId, memories) {
-    const tbody = document.getElementById('userMemoryTableBody');
+// ===== 记忆配置查看页 =====
+let _memoryViewName = null;
+
+async function openMemoryViewPage(memoryName) {
+    _memoryViewName = memoryName;
+    document.getElementById('memoryViewTitle').textContent = '记忆: ' + memoryName;
+    document.querySelectorAll('.sidebar-item[data-page]').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.page-content').forEach(p => p.classList.toggle('active', p.id === 'page-memory-view'));
+    await loadMemoryViewData();
+}
+
+function closeMemoryViewPage() {
+    _memoryViewName = null;
+    document.querySelectorAll('.sidebar-item[data-page]').forEach(t => t.classList.toggle('active', t.dataset.page === 'page-memories'));
+    document.querySelectorAll('.page-content').forEach(p => p.classList.toggle('active', p.id === 'page-memories'));
+}
+
+async function loadMemoryViewData() {
+    if (!_memoryViewName) return;
+    try {
+        const res = await apiFetch('/api/memories/' + encodeURIComponent(_memoryViewName));
+        renderMemoryViewTable(res.data || []);
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+function renderMemoryViewTable(memories) {
+    const tbody = document.getElementById('memoryViewTableBody');
     if (memories.length === 0) {
         tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:40px">暂无记忆</td></tr>';
         return;
@@ -1514,26 +1549,26 @@ function renderMemoryTable(userId, memories) {
             '<td>' + (m.importance != null ? m.importance.toFixed(2) : '-') + '</td>' +
             '<td style="white-space:nowrap">' + esc(date) + '</td>' +
             '<td>' + esc(tags) + '</td>' +
-            '<td><button class="btn btn-danger btn-sm" onclick="deleteMemory(\'' + esc(userId) + '\',\'' + esc(m.id) + '\')">删除</button></td>' +
+            '<td><button class="btn btn-danger btn-sm" onclick="deleteMemoryViewItem(\'' + esc(m.id) + '\')">删除</button></td>' +
             '</tr>';
     }).join('');
 }
 
-async function deleteMemory(userId, memoryId) {
+async function deleteMemoryViewItem(memoryId) {
+    if (!_memoryViewName) return;
     try {
-        await apiFetch('/api/users/' + encodeURIComponent(userId) + '/memory/' + encodeURIComponent(memoryId), 'DELETE');
+        await apiFetch('/api/memories/' + encodeURIComponent(_memoryViewName) + '/' + encodeURIComponent(memoryId), 'DELETE');
         showToast('删除成功');
-        await loadUserMemory();
+        await loadMemoryViewData();
     } catch (e) { showToast(e.message, 'error'); }
 }
 
-async function clearAllMemory() {
-    const userId = document.getElementById('memoryUserSelect').value;
-    if (!userId || !confirm('确定要清除 ' + userId + ' 的所有记忆吗？')) return;
+async function clearAllMemoryView() {
+    if (!_memoryViewName || !confirm('确定要清除 ' + _memoryViewName + ' 的所有记忆吗？')) return;
     try {
-        await apiFetch('/api/users/' + encodeURIComponent(userId) + '/memory', 'DELETE');
+        await apiFetch('/api/memories/' + encodeURIComponent(_memoryViewName), 'DELETE');
         showToast('已清除所有记忆');
-        renderMemoryTable(userId, []);
+        renderMemoryViewTable([]);
     } catch (e) { showToast(e.message, 'error'); }
 }
 
@@ -1546,8 +1581,7 @@ document.querySelectorAll('.sidebar-item[data-page]').forEach(el => {
         document.querySelectorAll('.page-content').forEach(p => p.classList.toggle('active', p.id === target));
         if (target === 'page-mcp') loadMcp();
         if (target === 'page-skills') loadGlobalSkills();
-        if (target === 'page-history') loadHistoryUsers();
-        if (target === 'page-user-memory') loadMemoryUsers();
+        if (target === 'page-chat') loadChatHistory();
         if (target === 'page-memories' || target === 'page-savers') loadSettings();
     });
 });
