@@ -24,7 +24,7 @@ export class LarkUserService extends LarkUserServiceBase {
     }
 
     protected async processAIMessage(query: string, _args: any): Promise<void> {
-        await AgentRunner.run(this.userId, query, {
+        await AgentRunner.run(query, {
             onMessage: this.onAgentMessage.bind(this),
             onStreamMessage: this.onAgentStreamMessage.bind(this),
             executeTool: this.executeAgentTool.bind(this),

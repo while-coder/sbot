@@ -1,6 +1,5 @@
 import {
     ServiceContainer,
-    T_ThreadId,
     IAgentCallback,
     ILoggerService,
 } from "scorpio.ai";
@@ -12,7 +11,6 @@ const logger = LoggerService.getLogger('AgentRunner.ts');
 
 export class AgentRunner {
     static async run(
-        userId: string,
         query: string,
         callbacks: IAgentCallback,
         userInfo?: any,
@@ -22,13 +20,21 @@ export class AgentRunner {
         const agentEntry = config.settings.agents?.[agentName];
         if (!agentEntry) throw new Error(`Agent 配置 "${agentName}" 不存在，请检查 settings.json 中的 agents 配置`);
 
+        const extraPrompts: string[] = [];
+        if (userInfo) {
+            extraPrompts.push(`用户user_id:${userInfo.user_id}
+用户open_id:${userInfo.open_id}
+用户union_id:${userInfo.union_id}
+用户姓名:${userInfo.name}
+用户邮箱:${userInfo.email}`);
+        }
+
         const container = new ServiceContainer();
-        container.registerInstance(T_ThreadId, userId);
         container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
 
-        logger.info(`${userId} 使用 Agent [${agentName}] (${agentEntry.type})`);
+        logger.info(`使用 Agent [${agentName}] (${agentEntry.type})`);
 
-        const agent = await AgentFactory.create(agentName, container, userInfo);
+        const agent = await AgentFactory.create(agentName, container, extraPrompts);
         try {
             await agent.stream(query, callbacks);
         } finally {

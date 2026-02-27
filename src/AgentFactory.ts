@@ -25,17 +25,10 @@ import { globalSkillService } from "./GlobalSkillService";
  */
 export class AgentFactory {
 
-    /**
-     * 根据 AgentEntry 创建 Agent 服务
-     * @param container DI 容器（已注册 memory 等公共服务）
-     * @param userId 用户 ID
-     * @param agentName Agent 名称（对应 config.settings.agents 中的 key）
-     * @param userInfo 用户信息（可选，用于追加到 systemPrompt）
-     */
     static async create(
         agentName: string,
         container: ServiceContainer,
-        userInfo?: any,
+        extraPrompts?: string[],
     ): Promise<AgentServiceBase> {
         const agentEntry = config.settings.agents?.[agentName];
         if (!agentEntry) throw new Error(`Agent 配置 "${agentName}" 不存在`);
@@ -45,15 +38,17 @@ export class AgentFactory {
         await this.registerSkillService(container, agentName, agentEntry.skills);
         await this.registerToolService(container, agentName, agentEntry.mcp);
 
-        const systemPrompts = this.buildSystemPrompt(agentEntry.systemPrompt, userInfo);
+        const systemPrompts = [agentEntry.systemPrompt ?? "你是一个有用的AI助手", ...(extraPrompts ?? [])];
+        const createAgentFn: CreateAgentFn = (name, subContainer) =>
+            AgentFactory.create(name, subContainer, extraPrompts);
         const agentType = agentEntry.type || AgentMode.Single;
 
         switch (agentType) {
             case AgentMode.ReAct:
-                return this.createReAct(container, agentEntry as ReactAgentEntry, userInfo, systemPrompts);
+                return this.createReAct(container, agentEntry as ReactAgentEntry, systemPrompts, createAgentFn);
 
             case AgentMode.Supervisor:
-                return this.createSupervisor(container, agentEntry as SupervisorAgentEntry, userInfo, systemPrompts);
+                return this.createSupervisor(container, agentEntry as SupervisorAgentEntry, systemPrompts, createAgentFn);
 
             case AgentMode.Single:
             default:
@@ -149,21 +144,6 @@ export class AgentFactory {
     }
 
     /**
-     * 构建 systemPrompt，追加用户信息
-     */
-    private static buildSystemPrompt(systemPrompt: string | undefined, userInfo?: any): string[] {
-        const prompts: string[] = [systemPrompt ?? "你是一个有用的AI助手"];
-        if (userInfo) {
-            prompts.push(`用户user_id:${userInfo.user_id}
-用户open_id:${userInfo.open_id}
-用户union_id:${userInfo.union_id}
-用户姓名:${userInfo.name}
-用户邮箱:${userInfo.email}`);
-        }
-        return prompts;
-    }
-
-    /**
      * 创建 Single Agent
      */
     private static async createSingle(
@@ -185,8 +165,8 @@ export class AgentFactory {
     private static async createSupervisor(
         container: ServiceContainer,
         entry: SupervisorAgentEntry,
-        userInfo: any,
         systemPrompts: string[],
+        createAgentFn: CreateAgentFn,
     ): Promise<AgentServiceBase> {
         const agentRefs = entry.agents || [];
         if (agentRefs.length === 0) {
@@ -197,9 +177,6 @@ export class AgentFactory {
         }
 
         const maxRounds = entry.maxRounds || 10;
-
-        const createAgentFn: CreateAgentFn = (name, subContainer) =>
-            AgentFactory.create(name, subContainer, userInfo);
 
         const supervisorModelService = await config.getModelService(entry.supervisor.model, true);
 
@@ -219,8 +196,8 @@ export class AgentFactory {
     private static async createReAct(
         container: ServiceContainer,
         entry: ReactAgentEntry,
-        userInfo: any,
         systemPrompts: string[],
+        createAgentFn: CreateAgentFn,
     ): Promise<AgentServiceBase> {
         const agentSubNodes = entry.agents || [];
         if (agentSubNodes.length === 0) {
@@ -234,9 +211,6 @@ export class AgentFactory {
         }
 
         const maxIterations = entry.maxIterations || 5;
-
-        const createAgentFn: CreateAgentFn = (name, subContainer) =>
-            AgentFactory.create(name, subContainer, userInfo);
 
         const thinkModelService = await config.getModelService(entry.think.model, true);
         const reflectModelService = await config.getModelService(entry.reflect.model, true);
