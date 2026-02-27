@@ -1,6 +1,10 @@
 import {
     AgentServiceBase, SingleAgentService,
     IModelService,
+    IMemoryService, IMemoryDatabase, MemorySqliteDatabase, MemoryEvaluator, MemoryCompressor, MemoryExtractor, MemoryService,
+    IEmbeddingService,
+    IMemoryExtractor, IMemoryEvaluator, IMemoryCompressor,
+    T_MaxMemoryAgeDays, T_MemoryMode, T_DBPath,
     IAgentToolService, AgentToolService,
     ISkillService, SkillService,
     ServiceContainer, T_SystemPrompts,
@@ -44,6 +48,38 @@ export class AgentFactory {
                 }
             }
             skillService.registerSkillsDir(config.getAgentSkillsPath(agentName));
+        }
+
+        if (!container.isRegistered(IMemoryService)) {
+            const memoryConfig = config.getMemory(agentEntry.memory);
+            if (memoryConfig?.embedding) {
+                const evaluatorModel = await config.getModelService(memoryConfig.evaluator);
+                if (evaluatorModel) {
+                    container.registerWithArgs(IMemoryEvaluator, MemoryEvaluator, {
+                        [IModelService]: evaluatorModel,
+                    });
+                }
+                const extractorModel = await config.getModelService(memoryConfig.extractor);
+                if (extractorModel) {
+                    container.registerWithArgs(IMemoryExtractor, MemoryExtractor, {
+                        [IModelService]: extractorModel,
+                    });
+                }
+                const compressorModel = await config.getModelService(memoryConfig.compressor);
+                if (compressorModel) {
+                    container.registerWithArgs(IMemoryCompressor, MemoryCompressor, {
+                        [IModelService]: compressorModel,
+                    });
+                }
+                container.registerWithArgs(IMemoryDatabase, MemorySqliteDatabase, {
+                    [T_DBPath]: config.getMemoryPath(agentEntry.memory!),
+                });
+                container.registerWithArgs(IMemoryService, MemoryService, {
+                    [IEmbeddingService]: await config.getEmbeddingService(memoryConfig.embedding, true),
+                    [T_MaxMemoryAgeDays]: memoryConfig.maxAgeDays,
+                    [T_MemoryMode]: memoryConfig.mode,
+                });
+            }
         }
 
         if (!container.isRegistered(IAgentToolService)) {

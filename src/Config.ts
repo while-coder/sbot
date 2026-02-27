@@ -1,13 +1,23 @@
 import os from "os";
 import path from "path";
 import fs from "fs";
-import { ModelConfig, ModelProvider, EmbeddingConfig, EmbeddingProvider, MCPServerConfig, MCPServers, MemoryConfig, IModelService, IEmbeddingService, ModelServiceFactory, EmbeddingServiceFactory, type AgentSubNode } from "scorpio.ai";
+import { ModelConfig, ModelProvider, EmbeddingConfig, EmbeddingProvider, MCPServerConfig, MCPServers, MemoryMode, IModelService, IEmbeddingService, ModelServiceFactory, EmbeddingServiceFactory, type AgentSubNode } from "scorpio.ai";
 export type { AgentSubNode } from "scorpio.ai";
 
 
 export interface LarkConfig {
   appId?: string;
   appSecret?: string;
+}
+
+export interface MemoryConfig {
+  mode?: MemoryMode;           // 记忆模式
+  autoCleanup?: boolean;       // 是否自动清理过期记忆
+  maxAgeDays?: number;         // 记忆最大保留天数
+  embedding?: string;          // 记忆使用的 embedding 名称（对应 embeddings 中的 key）
+  evaluator?: string;          // 重要性评估器使用的模型名称（对应 models 中的 key）
+  extractor?: string;          // 知识提取器使用的模型名称（对应 models 中的 key）
+  compressor?: string;         // 记忆压缩器使用的模型名称（对应 models 中的 key）
 }
 
 /**
@@ -35,6 +45,7 @@ export interface BaseAgentEntry {
   systemPrompt?: string;       // 系统提示词
   mcp?: string[];              // Agent 专属 MCP 服务器名称列表（对应 mcp.json 中的 key）
   skills?: string[];           // 全局 Skills 过滤列表（skill 名称），不填则加载所有全局 Skills
+  memory?: string;             // 使用的记忆配置名称（对应 memories 中的 key），不填则不启用记忆
 }
 
 /**
@@ -76,7 +87,7 @@ export interface Settings {
   lark?: LarkConfig;
   models?: Record<string, ModelConfig>;
   embeddings?: Record<string, EmbeddingConfig>;
-  memory?: MemoryConfig;
+  memories?: Record<string, MemoryConfig>;
   agents?: Record<string, AgentEntry>;
 }
 
@@ -122,6 +133,11 @@ class Config {
   getEmbedding(name: string): EmbeddingConfig | undefined {
     if (!this._settings.embeddings) return undefined;
     return this._settings.embeddings[name.trim()];
+  }
+
+  getMemory(name?: string): MemoryConfig | undefined {
+    if (!this._settings.memories || !name) return undefined;
+    return this._settings.memories[name.trim()];
   }
 
   async getModelService(name: string | undefined, throwError = false): Promise<IModelService | undefined> {
@@ -204,14 +220,15 @@ class Config {
         appId: "",
         appSecret: ""
       },
-      memory: {
-        enabled: true,
-        autoCleanup: true,
-        maxAgeDays: 90,
-        embedding: "openai-ada",
-        evaluator: "openai-gpt4",
-        extractor: "openai-gpt4",
-        compressor: "openai-gpt4"
+      memories: {
+        "default": {
+          autoCleanup: true,
+          maxAgeDays: 90,
+          embedding: "openai-ada",
+          evaluator: "openai-gpt4",
+          extractor: "openai-gpt4",
+          compressor: "openai-gpt4"
+        }
       },
       models: {
         "openai-gpt4": {
@@ -444,8 +461,8 @@ class Config {
   getUserSaverPath(userId: string) {
     return this.getConfigPath(`users/${userId}/saver.sqlite`)
   }
-  getUserMemoryPath(userId: string) {
-    return this.getConfigPath(`users/${userId}/memory.sqlite`)
+  getMemoryPath(memoryName: string) {
+    return this.getConfigPath(`memories/${memoryName}.sqlite`)
   }
   /**
    * 验证所有配置是否完整

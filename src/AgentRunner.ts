@@ -1,15 +1,6 @@
 import {
-    IModelService,
-    IMemoryService, IMemoryDatabase, MemorySqliteDatabase, MemoryEvaluator, MemoryCompressor, MemoryExtractor, MemoryService,
-    IEmbeddingService,
     IAgentSaverService, AgentSqliteSaver,
     ServiceContainer,
-    IMemoryExtractor,
-    IMemoryEvaluator,
-    IMemoryCompressor,
-    T_UserId,
-    T_MaxMemoryAgeDays,
-    T_MemoryMode,
     T_DBPath,
     T_ThreadId,
     IAgentCallback,
@@ -36,37 +27,6 @@ export class AgentRunner {
         const container = new ServiceContainer();
         container.registerInstance(T_ThreadId, userId);
         container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
-
-        const memoryConfig = config.settings.memory;
-        if (memoryConfig?.enabled && memoryConfig?.embedding) {
-            const evaluatorModel = await config.getModelService(memoryConfig.evaluator);
-            if (evaluatorModel) {
-                container.registerWithArgs(IMemoryEvaluator, MemoryEvaluator, {
-                    [IModelService]: evaluatorModel,
-                });
-            }
-            const extractorModel = await config.getModelService(memoryConfig.extractor);
-            if (extractorModel) {
-                container.registerWithArgs(IMemoryExtractor, MemoryExtractor, {
-                    [IModelService]: extractorModel,
-                });
-            }
-            const compressorModel = await config.getModelService(memoryConfig.compressor);
-            if (compressorModel) {
-                container.registerWithArgs(IMemoryCompressor, MemoryCompressor, {
-                    [IModelService]: compressorModel,
-                });
-            }
-            container.registerWithArgs(IMemoryDatabase, MemorySqliteDatabase, {
-                [T_DBPath]: config.getUserMemoryPath(userId),
-            });
-            
-            container.registerWithArgs(IMemoryService, MemoryService, {
-                [IEmbeddingService]: await config.getEmbeddingService(memoryConfig.embedding, true),
-                [T_MaxMemoryAgeDays]: memoryConfig.maxAgeDays,
-                [T_MemoryMode]: memoryConfig.mode,
-            });
-        }
 
         container.registerWithArgs(IAgentSaverService, AgentSqliteSaver, {
             [T_DBPath]: config.getUserSaverPath(userId),
