@@ -473,10 +473,18 @@ class Config {
     return {};
   }
   getSaverPath(saverName: string) {
-    return this.getConfigPath(`savers/${saverName}.sqlite`)
+    return this.getConfigPath(`savers/${saverName}/saver.sqlite`)
   }
   getMemoryPath(memoryName: string) {
-    return this.getConfigPath(`memories/${memoryName}.sqlite`)
+    return this.getConfigPath(`memories/${memoryName}/memory.sqlite`)
+  }
+  getActiveSaverPath(): string | undefined {
+    const saverName = this._settings.agent ? this._settings.agents?.[this._settings.agent]?.saver : undefined;
+    return saverName ? this.getSaverPath(saverName) : undefined;
+  }
+  getActiveMemoryPath(): string | undefined {
+    const memoryName = this._settings.agent ? this._settings.agents?.[this._settings.agent]?.memory : undefined;
+    return memoryName ? this.getMemoryPath(memoryName) : undefined;
   }
   /**
    * 验证所有配置是否完整

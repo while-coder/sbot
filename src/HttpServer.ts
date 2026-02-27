@@ -238,7 +238,9 @@ class HttpServer {
         // ===== 历史记录 =====
         app.get('/api/users/:userId/history', api(async req => {
             const userId = req.params.userId as string;
-            const saver = new AgentSqliteSaver(userId, config.getUserSaverPath(userId));
+            const saverPath = config.getActiveSaverPath();
+            if (!saverPath) return [];
+            const saver = new AgentSqliteSaver(userId, saverPath);
             const messages = await saver.getAllMessages();
             await saver.dispose();
             return messages.map(m => {
@@ -255,7 +257,9 @@ class HttpServer {
 
         app.delete('/api/users/:userId/history', api(async req => {
             const userId = req.params.userId as string;
-            const saver = new AgentSqliteSaver(userId, config.getUserSaverPath(userId));
+            const saverPath = config.getActiveSaverPath();
+            if (!saverPath) return;
+            const saver = new AgentSqliteSaver(userId, saverPath);
             await saver.clearMessages();
             await saver.dispose();
             LarkUserService.allUsers.delete(userId);
@@ -265,7 +269,9 @@ class HttpServer {
         // ===== 长期记忆 =====
         app.get('/api/users/:userId/memory', api(async req => {
             const userId = req.params.userId as string;
-            const db = new MemorySqliteDatabase(userId, config.getUserMemoryPath(userId));
+            const memoryPath = config.getActiveMemoryPath();
+            if (!memoryPath) return [];
+            const db = new MemorySqliteDatabase(userId, memoryPath);
             return (await db.getAllMemories()).map(m => ({
                 id: m.id,
                 content: m.content,
@@ -281,13 +287,17 @@ class HttpServer {
         app.delete('/api/users/:userId/memory/:memoryId', api(async req => {
             const userId = req.params.userId as string;
             const memoryId = req.params.memoryId as string;
-            const db = new MemorySqliteDatabase(userId, config.getUserMemoryPath(userId));
+            const memoryPath = config.getActiveMemoryPath();
+            if (!memoryPath) return;
+            const db = new MemorySqliteDatabase(userId, memoryPath);
             db.deleteMemory(memoryId);
         }));
 
         app.delete('/api/users/:userId/memory', api(async req => {
             const userId = req.params.userId as string;
-            const db = new MemorySqliteDatabase(userId, config.getUserMemoryPath(userId));
+            const memoryPath = config.getActiveMemoryPath();
+            if (!memoryPath) return { count: 0 };
+            const db = new MemorySqliteDatabase(userId, memoryPath);
             const count = await db.clearMemories();
             return { count };
         }));

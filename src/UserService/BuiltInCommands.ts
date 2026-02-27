@@ -1,46 +1,4 @@
 import { Command, Arg, Option, Parsers, CommandContext, ICommand } from "scorpio.ai"
-import { IAgentSaverService, AgentSqliteSaver, MemorySqliteDatabase } from "scorpio.ai";
-import { config } from "../Config";
-
-/**
- * /clear 命令 - 清除历史记录或长期记忆
- *
- * 使用示例:
- * /clear history   - 清除对话历史
- * /clear memory    - 清除长期记忆
- */
-@Command('clear', '清除历史记录或长期记忆')
-export class ClearCommand implements ICommand {
-    _context!: CommandContext;
-    @Arg('type', {
-        description: '清除类型: history(历史记录) 或 memory(长期记忆)',
-        parser: Parsers.enum(['history', 'memory'] as const)
-    })
-    type!: 'history' | 'memory';
-
-    async execute(): Promise<string> {
-        const userService = this._context.context;
-        if (!userService) {
-            return '无法访问用户服务';
-        }
-
-        const userId = userService.userId;
-
-        if (this.type === 'history') {
-            const agentSaver: IAgentSaverService = new AgentSqliteSaver(userId, config.getUserSaverPath(userId));
-            await agentSaver.clearMessages();
-            await agentSaver.dispose();
-            return `已清除用户 ${userId} 的对话历史`;
-        } else if (this.type === 'memory') {
-            const memoryDb = new MemorySqliteDatabase(userId, config.getUserMemoryPath(userId));
-            const count = await memoryDb.clearMemories();
-            await memoryDb.dispose();
-            return `已清除用户 ${userId} 的 ${count} 条长期记忆`;
-        } else {
-            return `未知的清除类型: ${this.type}`;
-        }
-    }
-}
 
 /**
  * /test 命令 - 测试所有装饰器功能
@@ -155,7 +113,6 @@ export class TestCommand implements ICommand {
  */
 export function getBuiltInCommands(): ICommand[] {
     return [
-        new ClearCommand(),
         new TestCommand(),
     ];
 }

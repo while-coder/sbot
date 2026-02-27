@@ -22,7 +22,8 @@
             <div class="sidebar-item" data-page="page-agents">Agents</div>
             <div class="sidebar-item" data-page="page-models">模型管理</div>
             <div class="sidebar-item" data-page="page-embeddings">Embedding</div>
-            <div class="sidebar-item" data-page="page-memory">记忆设置</div>
+            <div class="sidebar-item" data-page="page-memories">记忆配置</div>
+            <div class="sidebar-item" data-page="page-savers">会话存储</div>
             <div class="sidebar-item" data-page="page-mcp">MCP 服务</div>
             <div class="sidebar-item" data-page="page-skills">Skills</div>
             <div class="sidebar-item" data-page="page-history">历史记录</div>
@@ -88,30 +89,31 @@
             </div>
         </div>
 
-        <!-- ===== 记忆设置 ===== -->
-        <div class="page-content" id="page-memory">
+        <!-- ===== 记忆配置 ===== -->
+        <div class="page-content" id="page-memories">
             <div class="page-toolbar">
-                <button class="btn btn-primary btn-sm" onclick="saveMemorySettings()">保存</button>
+                <button class="btn btn-outline-dark btn-sm" onclick="loadSettings()">刷新</button>
+                <button class="btn btn-primary btn-sm" onclick="showMemoryModal()">+ 添加记忆配置</button>
             </div>
             <div class="content">
-                <div class="card">
-                    <div class="card-title">长期记忆</div>
-                    <div class="switch-row"><label>启用长期记忆</label><label class="switch"><input type="checkbox" id="memoryEnabled"><span class="slider"></span></label></div>
-                    <div class="inline-form" style="margin-top:12px">
-                        <div class="form-group"><label>记忆模式</label>
-                            <select id="memoryMode">
-                                <option value="human_and_ai">human_and_ai（记忆用户与 AI 消息）</option>
-                                <option value="human_only">human_only（仅记忆用户消息）</option>
-                                <option value="read_only">read_only（只读，不写入新记忆）</option>
-                            </select>
-                        </div>
-                        <div class="form-group"><label>最大保留天数</label><input type="number" id="memoryMaxAgeDays" placeholder="90"></div>
-                        <div class="form-group"><label>Embedding 模型</label><select id="memoryEmbedding"></select></div>
-                        <div class="form-group"><label>评估器模型</label><select id="memoryEvaluator"><option value="">不使用</option></select></div>
-                        <div class="form-group"><label>提取器模型</label><select id="memoryExtractor"><option value="">不使用</option></select></div>
-                        <div class="form-group"><label>压缩器模型</label><select id="memoryCompressor"><option value="">不使用</option></select></div>
-                    </div>
-                </div>
+                <table>
+                    <thead><tr><th>名称</th><th>模式</th><th>Embedding</th><th>最大天数</th><th>操作</th></tr></thead>
+                    <tbody id="memoriesTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ===== 会话存储 ===== -->
+        <div class="page-content" id="page-savers">
+            <div class="page-toolbar">
+                <button class="btn btn-outline-dark btn-sm" onclick="loadSettings()">刷新</button>
+                <button class="btn btn-primary btn-sm" onclick="showSaverModal()">+ 添加存储配置</button>
+            </div>
+            <div class="content">
+                <table>
+                    <thead><tr><th>名称</th><th>操作</th></tr></thead>
+                    <tbody id="saversTableBody"></tbody>
+                </table>
             </div>
         </div>
 
@@ -313,6 +315,46 @@
     </div>
 </div>
 
+<!-- ===== 记忆配置弹窗 ===== -->
+<div class="modal-overlay" id="memoryModal">
+    <div class="modal">
+        <div class="modal-header"><span id="memoryModalTitle">添加记忆配置</span><span class="close" onclick="closeMemoryModal()">&times;</span></div>
+        <div class="modal-body">
+            <div class="form-group"><label>名称 (唯一标识) *</label><input type="text" id="memoryConfigName" placeholder="如 default"></div>
+            <div class="form-group"><label>记忆模式</label>
+                <select id="memoryConfigMode">
+                    <option value="human_and_ai">human_and_ai（记忆用户与 AI 消息）</option>
+                    <option value="human_only">human_only（仅记忆用户消息）</option>
+                    <option value="read_only">read_only（只读，不写入新记忆）</option>
+                </select>
+            </div>
+            <div class="form-group"><label>最大保留天数</label><input type="number" id="memoryConfigMaxAgeDays" placeholder="90"></div>
+            <div class="form-group"><label>Embedding 模型 *</label><select id="memoryConfigEmbedding"></select></div>
+            <div class="form-group"><label>评估器模型</label><select id="memoryConfigEvaluator"><option value="">不使用</option></select></div>
+            <div class="form-group"><label>提取器模型</label><select id="memoryConfigExtractor"><option value="">不使用</option></select></div>
+            <div class="form-group"><label>压缩器模型</label><select id="memoryConfigCompressor"><option value="">不使用</option></select></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline-dark" onclick="closeMemoryModal()">取消</button>
+            <button class="btn btn-primary" onclick="saveMemoryConfig()">保存</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== 会话存储弹窗 ===== -->
+<div class="modal-overlay" id="saverModal">
+    <div class="modal" style="width:400px">
+        <div class="modal-header"><span id="saverModalTitle">添加存储配置</span><span class="close" onclick="closeSaverModal()">&times;</span></div>
+        <div class="modal-body">
+            <div class="form-group"><label>名称 (唯一标识) *</label><input type="text" id="saverConfigName" placeholder="如 default"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline-dark" onclick="closeSaverModal()">取消</button>
+            <button class="btn btn-primary" onclick="saveSaverConfig()">保存</button>
+        </div>
+    </div>
+</div>
+
 <!-- ===== Agent 编辑弹窗 ===== -->
 <div class="modal-overlay" id="agentModal">
     <div class="modal">
@@ -361,6 +403,12 @@
                     <div class="form-section-title">Worker Agents <button class="btn btn-outline-dark btn-sm" onclick="addSubAgent('supervisor')" style="margin-left:8px">+ 添加</button></div>
                     <div id="supervisorSubAgentsContainer"></div>
                 </div>
+            </div>
+            <!-- 记忆 & 存储 -->
+            <div class="form-section">
+                <div class="form-section-title">记忆 & 存储</div>
+                <div class="form-group"><label>记忆配置</label><select id="agentMemory"><option value="">不使用</option></select></div>
+                <div class="form-group"><label>会话存储</label><select id="agentSaver"><option value="">不使用</option></select></div>
             </div>
             <!-- MCP -->
             <div class="form-section">

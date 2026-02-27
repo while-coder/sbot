@@ -47,7 +47,8 @@ function renderAll() {
     renderAgentsTable();
     renderModelsTable();
     renderEmbeddingsTable();
-    renderMemoryPage();
+    renderMemoriesTable();
+    renderSaversTable();
 }
 
 // ===== 基本设置 =====
@@ -162,8 +163,6 @@ function renderEmbeddingsTable() {
             '<button class="btn btn-danger btn-sm" onclick="deleteEmbedding(\'' + esc(name) + '\')">删除</button>' +
         '</td></tr>'
     ).join('');
-    // 更新记忆页的 embedding 下拉
-    renderMemorySelects();
 }
 
 function showEmbeddingModal(name) {
@@ -211,45 +210,140 @@ async function deleteEmbedding(name) {
     } catch (e) { showToast(e.message, 'error'); }
 }
 
-// ===== 记忆设置 =====
-function renderMemoryPage() {
-    const mem = settings.memory || {};
-    document.getElementById('memoryEnabled').checked = !!mem.enabled;
-    document.getElementById('memoryMode').value = mem.mode || 'human_and_ai';
-    document.getElementById('memoryMaxAgeDays').value = mem.maxAgeDays ?? 90;
-    renderMemorySelects();
-}
-
-function renderMemorySelects() {
-    const mem = settings.memory || {};
-    const models = Object.keys(settings.models || {});
-    const embeddings = Object.keys(settings.embeddings || {});
-
-    fillSelect('memoryEmbedding', embeddings, mem.embedding, false);
-    fillSelect('memoryEvaluator', models, mem.evaluator, true);
-    fillSelect('memoryExtractor', models, mem.extractor, true);
-    fillSelect('memoryCompressor', models, mem.compressor, true);
-}
-
+// ===== 工具函数 =====
 function fillSelect(id, options, current, allowEmpty) {
     const sel = document.getElementById(id);
+    if (!sel) return;
     let html = allowEmpty ? '<option value="">不使用</option>' : '';
     html += options.map(o => '<option value="' + esc(o) + '"' + (o === current ? ' selected' : '') + '>' + esc(o) + '</option>').join('');
     sel.innerHTML = html;
 }
 
-async function saveMemorySettings() {
+// ===== 记忆配置管理 =====
+let editingMemoryConfigName = null;
+
+function renderMemoriesTable() {
+    const memories = settings.memories || {};
+    const tbody = document.getElementById('memoriesTableBody');
+    const entries = Object.entries(memories);
+    if (entries.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:40px">暂无记忆配置</td></tr>';
+        return;
+    }
+    tbody.innerHTML = entries.map(([name, m]) =>
+        '<tr>' +
+        '<td>' + esc(name) + '</td>' +
+        '<td>' + esc(m.mode || 'human_and_ai') + '</td>' +
+        '<td>' + esc(m.embedding || '-') + '</td>' +
+        '<td>' + (m.maxAgeDays ?? '-') + '</td>' +
+        '<td>' +
+            '<button class="btn btn-outline-dark btn-sm" onclick="editMemoryConfig(\'' + esc(name) + '\')">编辑</button> ' +
+            '<button class="btn btn-danger btn-sm" onclick="deleteMemoryConfig(\'' + esc(name) + '\')">删除</button>' +
+        '</td></tr>'
+    ).join('');
+}
+
+function showMemoryModal(name) {
+    editingMemoryConfigName = name || null;
+    const m = name ? (settings.memories || {})[name] : {};
+    document.getElementById('memoryModalTitle').textContent = name ? '编辑记忆配置' : '添加记忆配置';
+    document.getElementById('memoryConfigName').value = name || '';
+    document.getElementById('memoryConfigName').disabled = !!name;
+    document.getElementById('memoryConfigMode').value = m.mode || 'human_and_ai';
+    document.getElementById('memoryConfigMaxAgeDays').value = m.maxAgeDays ?? '';
+    const embeddings = Object.keys(settings.embeddings || {});
+    const models = Object.keys(settings.models || {});
+    fillSelect('memoryConfigEmbedding', embeddings, m.embedding, false);
+    fillSelect('memoryConfigEvaluator', models, m.evaluator, true);
+    fillSelect('memoryConfigExtractor', models, m.extractor, true);
+    fillSelect('memoryConfigCompressor', models, m.compressor, true);
+    document.getElementById('memoryModal').classList.add('show');
+}
+function editMemoryConfig(name) { showMemoryModal(name); }
+function closeMemoryModal() {
+    document.getElementById('memoryModal').classList.remove('show');
+    document.getElementById('memoryConfigName').disabled = false;
+}
+
+async function saveMemoryConfig() {
     try {
-        settings.memory = settings.memory || {};
-        settings.memory.enabled = document.getElementById('memoryEnabled').checked;
-        settings.memory.mode = document.getElementById('memoryMode').value || undefined;
-        settings.memory.maxAgeDays = parseInt(document.getElementById('memoryMaxAgeDays').value) || 90;
-        settings.memory.embedding = document.getElementById('memoryEmbedding').value || undefined;
-        settings.memory.evaluator = document.getElementById('memoryEvaluator').value || undefined;
-        settings.memory.extractor = document.getElementById('memoryExtractor').value || undefined;
-        settings.memory.compressor = document.getElementById('memoryCompressor').value || undefined;
+        const name = document.getElementById('memoryConfigName').value.trim();
+        if (!name) { showToast('名称不能为空', 'error'); return; }
+        const embedding = document.getElementById('memoryConfigEmbedding').value;
+        if (!embedding) { showToast('Embedding 模型不能为空', 'error'); return; }
+        settings.memories = settings.memories || {};
+        settings.memories[name] = {
+            mode: document.getElementById('memoryConfigMode').value || undefined,
+            maxAgeDays: parseInt(document.getElementById('memoryConfigMaxAgeDays').value) || undefined,
+            embedding,
+            evaluator: document.getElementById('memoryConfigEvaluator').value || undefined,
+            extractor: document.getElementById('memoryConfigExtractor').value || undefined,
+            compressor: document.getElementById('memoryConfigCompressor').value || undefined,
+        };
         await apiFetch('/api/settings', 'PUT', settings);
+        closeMemoryModal();
         showToast('保存成功');
+        renderAll();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function deleteMemoryConfig(name) {
+    if (!confirm('确定要删除记忆配置 "' + name + '" 吗？')) return;
+    try {
+        delete settings.memories[name];
+        await apiFetch('/api/settings', 'PUT', settings);
+        showToast('删除成功');
+        renderAll();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+// ===== 会话存储管理 =====
+let editingSaverConfigName = null;
+
+function renderSaversTable() {
+    const savers = settings.savers || {};
+    const tbody = document.getElementById('saversTableBody');
+    const entries = Object.entries(savers);
+    if (entries.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;color:#94a3b8;padding:40px">暂无存储配置</td></tr>';
+        return;
+    }
+    tbody.innerHTML = entries.map(([name]) =>
+        '<tr>' +
+        '<td>' + esc(name) + '</td>' +
+        '<td>' +
+            '<button class="btn btn-danger btn-sm" onclick="deleteSaverConfig(\'' + esc(name) + '\')">删除</button>' +
+        '</td></tr>'
+    ).join('');
+}
+
+function showSaverModal() {
+    document.getElementById('saverModalTitle').textContent = '添加存储配置';
+    document.getElementById('saverConfigName').value = '';
+    document.getElementById('saverModal').classList.add('show');
+}
+function closeSaverModal() { document.getElementById('saverModal').classList.remove('show'); }
+
+async function saveSaverConfig() {
+    try {
+        const name = document.getElementById('saverConfigName').value.trim();
+        if (!name) { showToast('名称不能为空', 'error'); return; }
+        settings.savers = settings.savers || {};
+        settings.savers[name] = {};
+        await apiFetch('/api/settings', 'PUT', settings);
+        closeSaverModal();
+        showToast('保存成功');
+        renderAll();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function deleteSaverConfig(name) {
+    if (!confirm('确定要删除存储配置 "' + name + '" 吗？')) return;
+    try {
+        delete settings.savers[name];
+        await apiFetch('/api/settings', 'PUT', settings);
+        showToast('删除成功');
+        renderAll();
     } catch (e) { showToast(e.message, 'error'); }
 }
 
@@ -758,6 +852,9 @@ function editAgent(name) {
     tempMcpNames = Array.isArray(agent.mcp) ? [...agent.mcp] : [];
     tempSkillsDirs = Array.isArray(agent.skills) ? [...agent.skills] : [];
 
+    fillSelect('agentMemory', Object.keys(settings.memories || {}), agent.memory, true);
+    fillSelect('agentSaver', Object.keys(settings.savers || {}), agent.saver, true);
+
     onAgentTypeChange();
     renderSubAgents(agent.type);
     renderMcpCheckboxes();
@@ -781,6 +878,11 @@ function fillModelSelects() {
     document.getElementById('agentThinkModel').innerHTML = options;
     document.getElementById('agentReflectModel').innerHTML = options;
     document.getElementById('agentSupervisorModel').innerHTML = options;
+
+    const memoryNames = Object.keys(settings.memories || {});
+    fillSelect('agentMemory', memoryNames, null, true);
+    const saverNames = Object.keys(settings.savers || {});
+    fillSelect('agentSaver', saverNames, null, true);
 }
 
 function fillSubAgentSelect(excludeName) {
@@ -856,6 +958,10 @@ async function saveAgent() {
             agentConfig.agents = tempSubAgents;
         }
 
+        const memory = document.getElementById('agentMemory').value;
+        if (memory) agentConfig.memory = memory;
+        const saver = document.getElementById('agentSaver').value;
+        if (saver) agentConfig.saver = saver;
         if (tempMcpNames.length > 0) agentConfig.mcp = [...tempMcpNames];
         if (tempSkillsDirs.length > 0) agentConfig.skills = [...tempSkillsDirs];
 
@@ -1442,6 +1548,7 @@ document.querySelectorAll('.sidebar-item[data-page]').forEach(el => {
         if (target === 'page-skills') loadGlobalSkills();
         if (target === 'page-history') loadHistoryUsers();
         if (target === 'page-user-memory') loadMemoryUsers();
+        if (target === 'page-memories' || target === 'page-savers') loadSettings();
     });
 });
 
