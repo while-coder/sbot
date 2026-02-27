@@ -10,7 +10,7 @@ import {
     ISkillService, SkillService,
     ServiceContainer, T_SystemPrompts,
     ReActAgentService, T_AgentSubNodes, T_MaxIterations, T_CreateAgent, T_ThinkAgentName, T_ReflectModelService, T_ObserveModelService,
-    SupervisorAgentService, T_SupervisorSubNodes, T_SupervisorMaxRounds, T_SupervisorModelService,
+    SupervisorAgentService, T_SupervisorSubNodes, T_SupervisorMaxRounds, T_SupervisorAgentName, T_FinalizeModelService,
     type CreateAgentFn,
     T_ThreadId,
 } from "scorpio.ai";
@@ -35,20 +35,21 @@ export class AgentFactory {
 
         await this.registerMemoryService(container, agentEntry.memory);
         await this.registerSaverService(container, agentEntry.saver);
-        await this.registerSkillService(container, agentName, agentEntry.skills);
-        await this.registerToolService(container, agentName, agentEntry.mcp);
+        const { systemPrompt, mcp, skills } = agentEntry as SingleAgentEntry;
+        await this.registerSkillService(container, agentName, skills);
+        await this.registerToolService(container, agentName, mcp);
 
-        const systemPrompts = [agentEntry.systemPrompt ?? "你是一个有用的AI助手", ...(extraPrompts ?? [])];
+        const systemPrompts = [systemPrompt ?? "你是一个有用的AI助手", ...(extraPrompts ?? [])];
         const createAgentFn: CreateAgentFn = (name, subContainer) =>
             AgentFactory.create(name, subContainer, extraPrompts);
         const agentType = agentEntry.type || AgentMode.Single;
 
         switch (agentType) {
             case AgentMode.ReAct:
-                return this.createReAct(container, agentEntry as ReactAgentEntry, systemPrompts, createAgentFn);
+                return this.createReAct(container, agentEntry as ReactAgentEntry, createAgentFn);
 
             case AgentMode.Supervisor:
-                return this.createSupervisor(container, agentEntry as SupervisorAgentEntry, systemPrompts, createAgentFn);
+                return this.createSupervisor(container, agentEntry as SupervisorAgentEntry, createAgentFn);
 
             case AgentMode.Single:
             default:
@@ -165,27 +166,28 @@ export class AgentFactory {
     private static async createSupervisor(
         container: ServiceContainer,
         entry: SupervisorAgentEntry,
-        systemPrompts: string[],
         createAgentFn: CreateAgentFn,
     ): Promise<AgentServiceBase> {
         const agentRefs = entry.agents || [];
         if (agentRefs.length === 0) {
             throw new Error("Supervisor 模式未配置 Worker Agent");
         }
-        if (!entry.supervisor?.model) {
-            throw new Error("Supervisor 模式 supervisor 节点未配置 model");
+        if (!entry.supervisor) {
+            throw new Error("Supervisor 模式未配置 supervisor agentName");
+        }
+        if (!entry.finalize) {
+            throw new Error("Supervisor 模式未配置 finalize modelName");
         }
 
         const maxRounds = entry.maxRounds || 10;
-
-        const supervisorModelService = await config.getModelService(entry.supervisor.model, true);
+        const finalizeModelService = await config.getModelService(entry.finalize, true);
 
         container.registerWithArgs(SupervisorAgentService, {
             [T_SupervisorSubNodes]: agentRefs,
             [T_CreateAgent]: createAgentFn,
-            [T_SupervisorModelService]: supervisorModelService,
+            [T_SupervisorAgentName]: entry.supervisor,
+            [T_FinalizeModelService]: finalizeModelService,
             [T_SupervisorMaxRounds]: maxRounds,
-            [T_SystemPrompts]: systemPrompts,
         });
         return container.resolve(SupervisorAgentService);
     }
@@ -196,7 +198,6 @@ export class AgentFactory {
     private static async createReAct(
         container: ServiceContainer,
         entry: ReactAgentEntry,
-        systemPrompts: string[],
         createAgentFn: CreateAgentFn,
     ): Promise<AgentServiceBase> {
         const agentSubNodes = entry.agents || [];
@@ -225,7 +226,6 @@ export class AgentFactory {
             [T_ReflectModelService]: reflectModelService,
             [T_ObserveModelService]: observeModelService,
             [T_MaxIterations]: maxIterations,
-            [T_SystemPrompts]: systemPrompts,
         });
         return container.resolve(ReActAgentService);
     }

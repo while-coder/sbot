@@ -46,9 +46,6 @@ export interface AgentNodeConfig {
  */
 export interface BaseAgentEntry {
   type: AgentMode;
-  systemPrompt?: string;       // 系统提示词
-  mcp?: string[];              // Agent 专属 MCP 服务器名称列表（对应 mcp.json 中的 key）
-  skills?: string[];           // 全局 Skills 过滤列表（skill 名称），不填则加载所有全局 Skills
   memory?: string;             // 使用的记忆配置名称（对应 memories 中的 key），不填则不启用记忆
   saver?: string;              // 使用的 Saver 配置名称（对应 savers 中的 key），不填则不持久化
 }
@@ -59,6 +56,9 @@ export interface BaseAgentEntry {
 export interface SingleAgentEntry extends BaseAgentEntry {
   type: AgentMode.Single;
   model?: string;              // 使用的模型名称（对应 models 中的 key），不填则使用全局 model
+  systemPrompt?: string;       // 系统提示词
+  mcp?: string[];              // Agent 专属 MCP 服务器名称列表（对应 mcp.json 中的 key）
+  skills?: string[];           // 全局 Skills 过滤列表（skill 名称），不填则加载所有全局 Skills
 }
 
 /**
@@ -79,8 +79,9 @@ export interface ReactAgentEntry extends BaseAgentEntry {
 export interface SupervisorAgentEntry extends BaseAgentEntry {
   type: AgentMode.Supervisor;
   maxRounds?: number;          // 最大调度轮次，默认 10
-  supervisor?: AgentNodeConfig; // Supervisor 节点配置
-  agents: AgentSubNode[];          // Worker Agent 引用列表
+  supervisor?: string;         // Supervisor 节点使用的 Agent 名称（对应 agents 中的 key）
+  finalize?: string;           // Finalize 节点使用的模型名称（对应 models 中的 key）
+  agents: AgentSubNode[];      // Worker Agent 引用列表
 }
 
 /**
