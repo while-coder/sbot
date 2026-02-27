@@ -9,7 +9,7 @@ import {
     IAgentToolService, AgentToolService,
     ISkillService, SkillService,
     ServiceContainer, T_SystemPrompts,
-    ReActAgentService, T_AgentSubNodes, T_MaxIterations, T_CreateAgent, T_ThinkModelService, T_ReflectModelService,
+    ReActAgentService, T_AgentSubNodes, T_MaxIterations, T_CreateAgent, T_ThinkAgentName, T_ReflectModelService, T_ObserveModelService,
     SupervisorAgentService, T_SupervisorSubNodes, T_SupervisorMaxRounds, T_SupervisorModelService,
     type CreateAgentFn,
     T_ThreadId,
@@ -203,23 +203,27 @@ export class AgentFactory {
         if (agentSubNodes.length === 0) {
             throw new Error("ReAct 模式未配置子 Agent");
         }
-        if (!entry.think?.model) {
-            throw new Error("ReAct 模式 think 节点未配置 model");
+        if (!entry.think) {
+            throw new Error("ReAct 模式未配置 think agentName");
         }
-        if (!entry.reflect?.model) {
-            throw new Error("ReAct 模式 reflect 节点未配置 model");
+        if (!entry.reflect) {
+            throw new Error("ReAct 模式未配置 reflect modelName");
+        }
+        if (!entry.observe) {
+            throw new Error("ReAct 模式未配置 observe modelName");
         }
 
         const maxIterations = entry.maxIterations || 5;
 
-        const thinkModelService = await config.getModelService(entry.think.model, true);
-        const reflectModelService = await config.getModelService(entry.reflect.model, true);
+        const reflectModelService = await config.getModelService(entry.reflect, true);
+        const observeModelService = await config.getModelService(entry.observe, true);
 
         container.registerWithArgs(ReActAgentService, {
             [T_AgentSubNodes]: agentSubNodes,
             [T_CreateAgent]: createAgentFn,
-            [T_ThinkModelService]: thinkModelService,
+            [T_ThinkAgentName]: entry.think,
             [T_ReflectModelService]: reflectModelService,
+            [T_ObserveModelService]: observeModelService,
             [T_MaxIterations]: maxIterations,
             [T_SystemPrompts]: systemPrompts,
         });

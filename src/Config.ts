@@ -67,9 +67,10 @@ export interface SingleAgentEntry extends BaseAgentEntry {
 export interface ReactAgentEntry extends BaseAgentEntry {
   type: AgentMode.ReAct;
   maxIterations?: number;      // 最大迭代次数，默认 5
-  think?: AgentNodeConfig;     // Think 节点配置
-  reflect?: AgentNodeConfig;   // Reflect 节点配置
-  agents: AgentSubNode[];          // 子 Agent 引用列表
+  think?: string;              // Think 节点使用的 Agent 名称（对应 agents 中的 key）
+  reflect?: string;            // Reflect 节点使用的模型名称（对应 models 中的 key）
+  observe?: string;            // Observe 节点使用的模型名称（对应 models 中的 key）
+  agents: AgentSubNode[];      // 子 Agent 引用列表
 }
 
 /**
@@ -309,8 +310,9 @@ class Config {
         "react-example": {
           type: AgentMode.ReAct,
           maxIterations: 5,
-          think: { model: "openai-gpt4" },
-          reflect: { model: "openai-gpt4" },
+          think: "coder",
+          reflect: "openai-gpt4",
+          observe: "openai-gpt4",
           agents: [
             { name: "coder", desc: "开发专家，擅长编写高质量代码" },
             { name: "researcher", desc: "研究专家，擅长搜索和分析信息" }
