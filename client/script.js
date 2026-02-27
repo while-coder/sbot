@@ -838,6 +838,10 @@ function editAgent(name) {
     if (agent.type === 'single') {
         document.getElementById('agentModelSingle').value = agent.model || '';
         document.getElementById('agentSystemPromptSingle').value = agent.systemPrompt || '';
+        tempMcpNames = Array.isArray(agent.mcp) ? [...agent.mcp] : [];
+        tempSkillsDirs = Array.isArray(agent.skills) ? [...agent.skills] : [];
+        renderMcpCheckboxes();
+        renderSkillsCheckboxes();
     } else if (agent.type === 'react') {
         document.getElementById('agentMaxIterations').value = agent.maxIterations || 5;
         document.getElementById('agentThinkAgent').value = agent.think || '';
@@ -851,16 +855,11 @@ function editAgent(name) {
         tempSubAgents = Array.isArray(agent.agents) ? agent.agents : [];
     }
 
-    tempMcpNames = Array.isArray(agent.mcp) ? [...agent.mcp] : [];
-    tempSkillsDirs = Array.isArray(agent.skills) ? [...agent.skills] : [];
-
     fillSelect('agentMemory', Object.keys(settings.memories || {}), agent.memory, true);
     fillSelect('agentSaver', Object.keys(settings.savers || {}), agent.saver, true);
 
     onAgentTypeChange();
     renderSubAgents(agent.type);
-    renderMcpCheckboxes();
-    renderSkillsCheckboxes();
     document.getElementById('agentModal').classList.add('show');
 }
 
