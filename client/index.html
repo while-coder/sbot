@@ -386,18 +386,31 @@
             <div id="agentFieldsSingle">
                 <div class="form-group"><label>模型</label><select id="agentModelSingle"></select></div>
                 <div class="form-group"><label>系统提示词</label><textarea id="agentSystemPromptSingle" rows="3" placeholder="可选"></textarea></div>
+                <!-- MCP -->
+                <div class="form-section">
+                    <div class="form-section-title">MCP</div>
+                    <div id="mcpNamesContainer"></div>
+                </div>
+                <!-- Skills -->
+                <div class="form-section">
+                    <div class="form-section-title">Skills</div>
+                    <div id="skillsDirsContainer"></div>
+                </div>
             </div>
             <!-- ReAct 类型字段 -->
             <div id="agentFieldsReact" style="display:none">
-                <div class="form-group"><label>系统提示词</label><textarea id="agentSystemPromptReact" rows="3" placeholder="可选"></textarea></div>
                 <div class="form-group"><label>最大迭代次数</label><input type="number" id="agentMaxIterations" placeholder="5" min="1" max="50"></div>
                 <div class="form-section">
                     <div class="form-section-title">Think 节点</div>
-                    <div class="form-group"><label>Think 模型</label><select id="agentThinkModel"></select></div>
+                    <div class="form-group"><label>Think Agent</label><select id="agentThinkAgent"></select></div>
                 </div>
                 <div class="form-section">
                     <div class="form-section-title">Reflect 节点</div>
                     <div class="form-group"><label>Reflect 模型</label><select id="agentReflectModel"></select></div>
+                </div>
+                <div class="form-section">
+                    <div class="form-section-title">Observe 节点</div>
+                    <div class="form-group"><label>Observe 模型</label><select id="agentObserveModel"></select></div>
                 </div>
                 <div class="form-section">
                     <div class="form-section-title">子 Agents <button class="btn btn-outline-dark btn-sm" onclick="addSubAgent('react')" style="margin-left:8px">+ 添加</button></div>
@@ -406,11 +419,14 @@
             </div>
             <!-- Supervisor 类型字段 -->
             <div id="agentFieldsSupervisor" style="display:none">
-                <div class="form-group"><label>系统提示词</label><textarea id="agentSystemPromptSupervisor" rows="3" placeholder="可选"></textarea></div>
                 <div class="form-group"><label>最大调度轮次</label><input type="number" id="agentMaxRounds" placeholder="10" min="1" max="50"></div>
                 <div class="form-section">
                     <div class="form-section-title">Supervisor 节点</div>
-                    <div class="form-group"><label>Supervisor 模型</label><select id="agentSupervisorModel"></select></div>
+                    <div class="form-group"><label>Supervisor Agent</label><select id="agentSupervisorAgent"></select></div>
+                </div>
+                <div class="form-section">
+                    <div class="form-section-title">Finalize 节点</div>
+                    <div class="form-group"><label>Finalize 模型</label><select id="agentFinalizeModel"></select></div>
                 </div>
                 <div class="form-section">
                     <div class="form-section-title">Worker Agents <button class="btn btn-outline-dark btn-sm" onclick="addSubAgent('supervisor')" style="margin-left:8px">+ 添加</button></div>
@@ -422,16 +438,6 @@
                 <div class="form-section-title">记忆 & 存储</div>
                 <div class="form-group"><label>记忆配置</label><select id="agentMemory"><option value="">不使用</option></select></div>
                 <div class="form-group"><label>会话存储</label><select id="agentSaver"><option value="">不使用</option></select></div>
-            </div>
-            <!-- MCP -->
-            <div class="form-section">
-                <div class="form-section-title">MCP</div>
-                <div id="mcpNamesContainer"></div>
-            </div>
-            <!-- Skills -->
-            <div class="form-section">
-                <div class="form-section-title">Skills</div>
-                <div id="skillsDirsContainer"></div>
             </div>
         </div>
         <div class="modal-footer">

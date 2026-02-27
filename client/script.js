@@ -839,15 +839,15 @@ function editAgent(name) {
         document.getElementById('agentModelSingle').value = agent.model || '';
         document.getElementById('agentSystemPromptSingle').value = agent.systemPrompt || '';
     } else if (agent.type === 'react') {
-        document.getElementById('agentSystemPromptReact').value = agent.systemPrompt || '';
         document.getElementById('agentMaxIterations').value = agent.maxIterations || 5;
-        document.getElementById('agentThinkModel').value = agent.think?.model || '';
-        document.getElementById('agentReflectModel').value = agent.reflect?.model || '';
+        document.getElementById('agentThinkAgent').value = agent.think || '';
+        document.getElementById('agentReflectModel').value = agent.reflect || '';
+        document.getElementById('agentObserveModel').value = agent.observe || '';
         tempSubAgents = Array.isArray(agent.agents) ? agent.agents : [];
     } else if (agent.type === 'supervisor') {
-        document.getElementById('agentSystemPromptSupervisor').value = agent.systemPrompt || '';
         document.getElementById('agentMaxRounds').value = agent.maxRounds || 10;
-        document.getElementById('agentSupervisorModel').value = agent.supervisor?.model || '';
+        document.getElementById('agentSupervisorAgent').value = agent.supervisor || '';
+        document.getElementById('agentFinalizeModel').value = agent.finalize || '';
         tempSubAgents = Array.isArray(agent.agents) ? agent.agents : [];
     }
 
@@ -873,13 +873,19 @@ function closeAgentModal() {
 
 function fillModelSelects() {
     const models = settings.models || {};
-    const options = Object.keys(models).map(k =>
+    const modelOptions = Object.keys(models).map(k =>
         '<option value="' + esc(k) + '">' + esc(k) + '</option>'
     ).join('');
-    document.getElementById('agentModelSingle').innerHTML = options;
-    document.getElementById('agentThinkModel').innerHTML = options;
-    document.getElementById('agentReflectModel').innerHTML = options;
-    document.getElementById('agentSupervisorModel').innerHTML = options;
+    document.getElementById('agentModelSingle').innerHTML = modelOptions;
+    document.getElementById('agentReflectModel').innerHTML = modelOptions;
+    document.getElementById('agentObserveModel').innerHTML = modelOptions;
+    document.getElementById('agentFinalizeModel').innerHTML = modelOptions;
+
+    const agentOptions = Object.keys(settings.agents || {}).map(k =>
+        '<option value="' + esc(k) + '">' + esc(k) + '</option>'
+    ).join('');
+    document.getElementById('agentThinkAgent').innerHTML = agentOptions;
+    document.getElementById('agentSupervisorAgent').innerHTML = agentOptions;
 
     const memoryNames = Object.keys(settings.memories || {});
     fillSelect('agentMemory', memoryNames, null, true);
@@ -899,13 +905,13 @@ function fillSubAgentSelect(excludeName) {
 function clearAgentFields() {
     document.getElementById('agentModelSingle').value = '';
     document.getElementById('agentSystemPromptSingle').value = '';
-    document.getElementById('agentSystemPromptReact').value = '';
-    document.getElementById('agentSystemPromptSupervisor').value = '';
     document.getElementById('agentMaxIterations').value = '5';
-    document.getElementById('agentThinkModel').value = '';
+    document.getElementById('agentThinkAgent').value = '';
     document.getElementById('agentReflectModel').value = '';
+    document.getElementById('agentObserveModel').value = '';
     document.getElementById('agentMaxRounds').value = '10';
-    document.getElementById('agentSupervisorModel').value = '';
+    document.getElementById('agentSupervisorAgent').value = '';
+    document.getElementById('agentFinalizeModel').value = '';
     tempMcpNames = [];
     tempSkillsDirs = [];
     renderMcpCheckboxes();
@@ -934,28 +940,28 @@ async function saveAgent() {
             if (model) agentConfig.model = model;
             if (systemPrompt) agentConfig.systemPrompt = systemPrompt;
         } else if (type === 'react') {
-            const systemPrompt = document.getElementById('agentSystemPromptReact').value.trim();
-            if (systemPrompt) agentConfig.systemPrompt = systemPrompt;
-
             const maxIterations = parseInt(document.getElementById('agentMaxIterations').value) || 5;
             agentConfig.maxIterations = maxIterations;
 
-            const thinkModel = document.getElementById('agentThinkModel').value.trim();
-            if (thinkModel) agentConfig.think = { model: thinkModel };
+            const thinkAgent = document.getElementById('agentThinkAgent').value.trim();
+            if (thinkAgent) agentConfig.think = thinkAgent;
 
             const reflectModel = document.getElementById('agentReflectModel').value.trim();
-            if (reflectModel) agentConfig.reflect = { model: reflectModel };
+            if (reflectModel) agentConfig.reflect = reflectModel;
+
+            const observeModel = document.getElementById('agentObserveModel').value.trim();
+            if (observeModel) agentConfig.observe = observeModel;
 
             agentConfig.agents = tempSubAgents;
         } else if (type === 'supervisor') {
-            const systemPrompt = document.getElementById('agentSystemPromptSupervisor').value.trim();
-            if (systemPrompt) agentConfig.systemPrompt = systemPrompt;
-
             const maxRounds = parseInt(document.getElementById('agentMaxRounds').value) || 10;
             agentConfig.maxRounds = maxRounds;
 
-            const supervisorModel = document.getElementById('agentSupervisorModel').value.trim();
-            if (supervisorModel) agentConfig.supervisor = { model: supervisorModel };
+            const supervisorAgent = document.getElementById('agentSupervisorAgent').value.trim();
+            if (supervisorAgent) agentConfig.supervisor = supervisorAgent;
+
+            const finalizeModel = document.getElementById('agentFinalizeModel').value.trim();
+            if (finalizeModel) agentConfig.finalize = finalizeModel;
 
             agentConfig.agents = tempSubAgents;
         }
@@ -964,8 +970,10 @@ async function saveAgent() {
         if (memory) agentConfig.memory = memory;
         const saver = document.getElementById('agentSaver').value;
         if (saver) agentConfig.saver = saver;
-        if (tempMcpNames.length > 0) agentConfig.mcp = [...tempMcpNames];
-        if (tempSkillsDirs.length > 0) agentConfig.skills = [...tempSkillsDirs];
+        if (type === 'single') {
+            if (tempMcpNames.length > 0) agentConfig.mcp = [...tempMcpNames];
+            if (tempSkillsDirs.length > 0) agentConfig.skills = [...tempSkillsDirs];
+        }
 
         settings.agents = settings.agents || {};
         if (editingAgentName && editingAgentName !== name) {
