@@ -9,7 +9,8 @@
   "scripts": {
     "clean": "rimraf dist",
     "build": "npm run clean && tsc --build && node scripts/postbuild.js",
-    "build:watch": "tsc --build --watch"
+    "build:watch": "tsc --build --watch",
+    "build:website": "npm run build --prefix website"
   },
   "dependencies": {
     "@iarna/toml": "^2.2.5",

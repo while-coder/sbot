@@ -1345,13 +1345,30 @@ function _getChatSaverName() {
     return settings.agents?.[settings.agent]?.saver || null;
 }
 
+function _refreshChatAgentSelect() {
+    const sel = document.getElementById('chatAgentSelect');
+    if (!sel) return;
+    const agents = Object.keys(settings.agents || {});
+    const current = settings.agent || '';
+    sel.innerHTML = agents.length
+        ? agents.map(n => '<option value="' + esc(n) + '"' + (n === current ? ' selected' : '') + '>' + esc(n) + '</option>').join('')
+        : '<option value="">(无 Agent)</option>';
+}
+
+async function switchChatAgent(name) {
+    if (!name || name === settings.agent) return;
+    try {
+        settings.agent = name;
+        await apiFetch('/api/settings', 'PUT', settings);
+        await loadChatHistory();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
 async function loadChatHistory() {
-    const agentName = settings.agent || '';
+    _refreshChatAgentSelect();
     const saverName = _getChatSaverName();
-    const label = agentName
-        ? 'Agent: ' + agentName + (saverName ? ' · 存储: ' + saverName : ' · (未配置存储)')
-        : '(未选择 Agent)';
-    document.getElementById('chatAgentLabel').textContent = label;
+    const saverLabel = document.getElementById('chatSaverLabel');
+    if (saverLabel) saverLabel.textContent = saverName ? '存储: ' + saverName : '(未配置存储)';
     if (!saverName) {
         renderHistoryMessages([], 'chatMessages');
         return;
