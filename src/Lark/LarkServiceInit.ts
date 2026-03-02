@@ -1,8 +1,8 @@
-import { larkService } from "winning.ai";
+import { larkService, LarkActionArgs, LarkMessageArgs } from "winning.ai";
 import { database } from "../Database";
 import { Util } from "weimingcommons";
 import { Op } from "sequelize";
-import { LarkUserService } from "./LarkUserService";
+import { userService } from "../UserService/UserService";
 import { LoggerService } from "../LoggerService";
 import { config } from "../Config";
 
@@ -34,10 +34,13 @@ export async function startLarkService() {
     await larkService.start({
         appId: config.settings.lark!.appId!,
         appSecret: config.settings.lark!.appSecret!,
-        getUserService: async (userId: string) => {
-            return LarkUserService.getUserAgentService(userId);
-        },
         filterEvent,
+        onRecevieMessage: async (_userId: string, userInfo: any, args: LarkMessageArgs, query: string) => {
+            await userService.onReceiveLarkMessage(args, userInfo, query);
+        },
+        onTriggerAction: async (_userId: string, _userInfo: any, args: LarkActionArgs) => {
+            await userService.lark.onTriggerAction(args.chat_id, args.code, args.data, args.form_value);
+        },
     });
     logger.info("Lark 服务启动成功");
 }
