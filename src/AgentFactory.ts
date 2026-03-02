@@ -9,10 +9,11 @@ import {
     IAgentToolService, AgentToolService,
     ISkillService, SkillService,
     ServiceContainer, T_SystemPrompts,
-    ReActAgentService, T_AgentSubNodes, T_MaxIterations, T_CreateAgent, T_ThinkAgentName, T_ReflectModelService, T_ObserveModelService,
+    ReActAgentService, T_AgentSubNodes, T_MaxIterations, T_CreateAgent, T_ThinkAgentName, T_ReflectModelService,
     SupervisorAgentService, T_SupervisorSubNodes, T_SupervisorMaxRounds, T_SupervisorAgentName, T_FinalizeModelService,
     type CreateAgentFn,
     T_ThreadId,
+    T_SummaryModelService,
 } from "scorpio.ai";
 import { config, AgentMode, SingleAgentEntry, ReactAgentEntry, SupervisorAgentEntry } from "./Config";
 import { globalAgentToolService } from "./GlobalAgentToolService";
@@ -177,17 +178,22 @@ export class AgentFactory {
         if (!entry.supervisor) {
             throw new Error("Supervisor 模式未配置 supervisor agentName");
         }
+        if (!entry.summarizer) {
+            throw new Error("ReAct 模式未配置 summarizer modelName");
+        }
         if (!entry.finalize) {
             throw new Error("Supervisor 模式未配置 finalize modelName");
         }
 
         const maxRounds = entry.maxRounds || 10;
         const finalizeModelService = await config.getModelService(entry.finalize, true);
+        const summarizerModelService = await config.getModelService(entry.summarizer, true);
 
         container.registerWithArgs(SupervisorAgentService, {
             [T_SupervisorSubNodes]: agentRefs,
             [T_CreateAgent]: createAgentFn,
             [T_SupervisorAgentName]: entry.supervisor,
+            [T_SummaryModelService]: summarizerModelService,
             [T_FinalizeModelService]: finalizeModelService,
             [T_SupervisorMaxRounds]: maxRounds,
         });
@@ -209,24 +215,24 @@ export class AgentFactory {
         if (!entry.think) {
             throw new Error("ReAct 模式未配置 think agentName");
         }
+        if (!entry.summarizer) {
+            throw new Error("ReAct 模式未配置 summarizer modelName");
+        }
         if (!entry.reflect) {
             throw new Error("ReAct 模式未配置 reflect modelName");
-        }
-        if (!entry.observe) {
-            throw new Error("ReAct 模式未配置 observe modelName");
         }
 
         const maxIterations = entry.maxIterations || 5;
 
         const reflectModelService = await config.getModelService(entry.reflect, true);
-        const observeModelService = await config.getModelService(entry.observe, true);
+        const summarizerModelService = await config.getModelService(entry.summarizer, true);
 
         container.registerWithArgs(ReActAgentService, {
             [T_AgentSubNodes]: agentSubNodes,
             [T_CreateAgent]: createAgentFn,
             [T_ThinkAgentName]: entry.think,
+            [T_SummaryModelService]: summarizerModelService,
             [T_ReflectModelService]: reflectModelService,
-            [T_ObserveModelService]: observeModelService,
             [T_MaxIterations]: maxIterations,
         });
         return container.resolve(ReActAgentService);

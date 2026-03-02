@@ -68,8 +68,8 @@ export interface ReactAgentEntry extends BaseAgentEntry {
   type: AgentMode.ReAct;
   maxIterations?: number;      // 最大迭代次数，默认 5
   think?: string;              // Think 节点使用的 Agent 名称（对应 agents 中的 key）
+  summarizer?: string;         // Summarizer 节点使用的模型名称（对应 models 中的 key）
   reflect?: string;            // Reflect 节点使用的模型名称（对应 models 中的 key）
-  observe?: string;            // Observe 节点使用的模型名称（对应 models 中的 key）
   agents: AgentSubNode[];      // 子 Agent 引用列表
 }
 
@@ -80,6 +80,7 @@ export interface SupervisorAgentEntry extends BaseAgentEntry {
   type: AgentMode.Supervisor;
   maxRounds?: number;          // 最大调度轮次，默认 10
   supervisor?: string;         // Supervisor 节点使用的 Agent 名称（对应 agents 中的 key）
+  summarizer?: string;         // Summarizer 节点使用的模型名称（对应 models 中的 key）
   finalize?: string;           // Finalize 节点使用的模型名称（对应 models 中的 key）
   agents: AgentSubNode[];      // Worker Agent 引用列表
 }
@@ -313,7 +314,7 @@ class Config {
           maxIterations: 5,
           think: "coder",
           reflect: "openai-gpt4",
-          observe: "openai-gpt4",
+          summarizer: "openai-gpt4",
           agents: [
             { name: "coder", desc: "开发专家，擅长编写高质量代码" },
             { name: "researcher", desc: "研究专家，擅长搜索和分析信息" }
