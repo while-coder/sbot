@@ -82,7 +82,7 @@ function api(fn: (req: Request, res: Response) => any) {
 
 class HttpServer {
     async start() {
-        const port = parseInt(process.env.HTTP_PORT ?? '5400');
+        const port = parseInt(process.env.HTTP_PORT ?? '5500');
         const app = express();
         app.use(express.json());
 
