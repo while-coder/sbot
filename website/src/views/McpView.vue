@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
@@ -145,19 +145,136 @@ async function remove(name: string) {
 const showToolsModal = ref(false)
 const toolsTitle = ref('')
 const toolsList = ref<McpTool[]>([])
+const toolsLoading = ref(false)
+const expandedTools = reactive(new Set<number>())
+
+function toggleTool(i: number) {
+  if (expandedTools.has(i)) expandedTools.delete(i)
+  else expandedTools.add(i)
+}
 
 async function viewTools(name: string) {
+  toolsTitle.value = name
+  toolsList.value = []
+  toolsLoading.value = true
+  expandedTools.clear()
+  showToolsModal.value = true
   try {
     const url = isAgentMode.value
       ? `/api/agents/${encodeURIComponent(agentName.value!)}/mcp/tools`
       : '/api/mcp/tools'
     const res = await apiFetch(url, 'POST', { name })
-    toolsTitle.value = `MCP Tools: ${name}`
     toolsList.value = res.data || []
-    showToolsModal.value = true
   } catch (e: any) {
     show(e.message, 'error')
+    showToolsModal.value = false
+  } finally {
+    toolsLoading.value = false
   }
+}
+
+// ── Schema rendering (ported from clientbackup) ──
+function esc(s: string): string {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+function formatParamType(s: any): string {
+  if (!s) return 'any'
+  if (Array.isArray(s.type)) {
+    const nonNull = s.type.filter((t: string) => t !== 'null')
+    const base = nonNull.length === 1 ? nonNull[0] : nonNull.join(' | ')
+    return s.type.includes('null') ? base + '?' : base
+  }
+  if (s.const !== undefined) return JSON.stringify(s.const)
+  if (s.enum) return s.enum.map((v: any) => JSON.stringify(v)).join(' | ')
+  if (s.type === 'array') {
+    if (s.prefixItems) return '[' + s.prefixItems.map(formatParamType).join(', ') + ']'
+    if (s.items) return formatParamType(s.items) + '[]'
+    return 'any[]'
+  }
+  if (s.type === 'object') {
+    if (s.additionalProperties && typeof s.additionalProperties === 'object')
+      return 'Record<string, ' + formatParamType(s.additionalProperties) + '>'
+    return 'object'
+  }
+  if (s.anyOf || s.oneOf) {
+    const variants = (s.anyOf || s.oneOf)
+    const nonNull = variants.filter((v: any) => v.type !== 'null')
+    const base = (nonNull.length ? nonNull : variants).map(formatParamType).join(' | ')
+    return variants.some((v: any) => v.type === 'null') ? base + '?' : base
+  }
+  if (s.allOf) return s.allOf.map(formatParamType).join(' & ')
+  if (s.$ref) { const p = s.$ref.split('/'); return p[p.length - 1] }
+  if (s.type) return s.type
+  return 'any'
+}
+
+function renderSchemaChildren(s: any): string {
+  if (!s) return ''
+  const nest = (inner: string) => `<div style="margin-left:14px;margin-top:4px;border-left:2px solid #f1f5f9;padding-left:10px">${inner}</div>`
+  if ((s.type === 'object' || !s.type) && s.properties) {
+    const req = new Set(s.required || [])
+    return nest(Object.entries(s.properties).map(([k, v]) => renderParamRow(k, v, req.has(k) && (v as any).default === undefined)).join(''))
+  }
+  if (s.type === 'object' && s.additionalProperties && typeof s.additionalProperties === 'object') {
+    return `<div class="param-desc">值类型: ${esc(formatParamType(s.additionalProperties))}</div>` + renderSchemaChildren(s.additionalProperties)
+  }
+  if (s.type === 'array') {
+    if (s.prefixItems) return nest(s.prefixItems.map((item: any, i: number) => renderParamRow(`[${i}]`, item, false)).join(''))
+    if (s.items) return `<div class="param-desc">元素类型: ${esc(formatParamType(s.items))}</div>` +
+      (s.items.properties || s.items.anyOf || s.items.allOf ? nest(renderSchemaChildren(s.items)) : '')
+  }
+  if (s.anyOf || s.oneOf) {
+    const variants = (s.anyOf || s.oneOf).filter((v: any) => v.type !== 'null')
+    return variants.map((v: any, i: number) => {
+      const label = variants.length > 1 ? `<div class="param-desc" style="font-weight:600;margin-top:4px">联合类型 ${i + 1}: ${esc(formatParamType(v))}</div>` : ''
+      return label + renderSchemaChildren(v)
+    }).join('')
+  }
+  if (s.allOf) return s.allOf.map(renderSchemaChildren).join('')
+  return ''
+}
+
+function renderParamRow(name: string, prop: any, isRequired: boolean): string {
+  let html = '<div class="tool-param">'
+  html += `<div><span class="param-name">${esc(name)}</span>`
+  html += `<span class="param-type">${esc(formatParamType(prop))}</span>`
+  if (isRequired) html += '<span class="param-required">*必填</span>'
+  html += '</div>'
+  if (prop.description) html += `<div class="param-desc">${esc(prop.description)}</div>`
+  if (prop.const !== undefined) html += `<div class="param-enum">固定值: ${esc(JSON.stringify(prop.const))}</div>`
+  if (prop.enum) html += `<div class="param-enum">可选值: ${prop.enum.map((v: any) => esc(JSON.stringify(v))).join(' | ')}</div>`
+  if (prop.default !== undefined) html += `<div class="param-default">默认值: ${esc(JSON.stringify(prop.default))}</div>`
+  html += renderSchemaChildren(prop)
+  html += '</div>'
+  return html
+}
+
+function renderToolParams(schema: any): string {
+  if (!schema) return '<div class="tool-no-params">无参数</div>'
+  if (schema.allOf) return schema.allOf.map(renderToolParams).join('') || '<div class="tool-no-params">无参数</div>'
+  if (schema.anyOf || schema.oneOf) {
+    const variants = (schema.anyOf || schema.oneOf).filter((v: any) => v.type !== 'null')
+    if (variants.length === 1) return renderToolParams(variants[0])
+    return variants.map((v: any, i: number) =>
+      `<div class="param-desc" style="font-weight:600">联合类型 ${i + 1}:</div>` + renderToolParams(v)
+    ).join('')
+  }
+  if (schema.type === 'array') {
+    if (schema.prefixItems) return schema.prefixItems.map((item: any, i: number) => renderParamRow(`[${i}]`, item, false)).join('')
+    if (schema.items) return renderParamRow('items', schema.items, false)
+    return '<div class="tool-no-params">any[]</div>'
+  }
+  if (schema.properties && Object.keys(schema.properties).length > 0) {
+    const required = new Set(schema.required || [])
+    return Object.entries(schema.properties).map(([n, p]) =>
+      renderParamRow(n, p, required.has(n) && (p as any).default === undefined)
+    ).join('')
+  }
+  if (schema.type === 'object' && schema.additionalProperties) {
+    return `<div class="tool-param"><span class="param-type">${esc(formatParamType(schema))}</span></div>`
+  }
+  return '<div class="tool-no-params">无参数</div>'
 }
 
 function serverAddr(s: McpEntry) {
@@ -308,23 +425,21 @@ onMounted(load)
     <div v-if="showToolsModal" class="modal-overlay" @click.self="showToolsModal = false">
       <div class="modal-box wide">
         <div class="modal-header">
-          <h3>{{ toolsTitle }}</h3>
+          <h3>{{ toolsTitle }}<span v-if="!toolsLoading" class="tools-count">({{ toolsList.length }} 个工具)</span></h3>
           <button class="modal-close" @click="showToolsModal = false">&times;</button>
         </div>
         <div class="modal-body" style="padding:0">
-          <div v-if="toolsList.length === 0" style="padding:40px;text-align:center;color:#94a3b8">暂无工具</div>
-          <div v-for="tool in toolsList" :key="tool.name" style="border-bottom:1px solid #e2e8f0;padding:12px 16px">
-            <div style="font-family:monospace;font-weight:600;color:#6366f1;font-size:13px">{{ tool.name }}</div>
-            <div v-if="tool.description" style="font-size:12px;color:#475569;margin-top:4px">{{ tool.description }}</div>
-            <div v-if="tool.inputSchema?.properties" style="margin-top:8px">
-              <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:4px;text-transform:uppercase">参数</div>
-              <div v-for="(prop, pName) in tool.inputSchema.properties" :key="pName" style="font-size:12px;padding:3px 0;display:flex;gap:8px">
-                <span style="font-family:monospace;color:#374151;font-weight:500">{{ pName }}</span>
-                <span v-if="(tool.inputSchema?.required || []).includes(pName)" style="color:#ef4444;font-size:10px;font-weight:600">必填</span>
-                <span style="color:#64748b">{{ (prop as any).description || (prop as any).type || '' }}</span>
+          <div v-if="toolsLoading" class="tools-loading">连接中，正在获取工具列表…</div>
+          <div v-else-if="toolsList.length === 0" class="tools-loading">该 MCP 服务没有可用的工具</div>
+          <ul v-else class="tools-list">
+            <li v-for="(tool, i) in toolsList" :key="tool.name">
+              <div class="tool-header">
+                <div class="tool-name" :class="{ expanded: expandedTools.has(i) }" @click="toggleTool(i)">{{ tool.name }}</div>
               </div>
-            </div>
-          </div>
+              <div v-if="tool.description" class="tool-desc">{{ tool.description }}</div>
+              <div class="tool-params" :class="{ show: expandedTools.has(i) }" v-html="renderToolParams((tool as any).parameters)"></div>
+            </li>
+          </ul>
         </div>
         <div class="modal-footer">
           <button class="btn-outline" @click="showToolsModal = false">关闭</button>

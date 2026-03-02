@@ -347,6 +347,31 @@ table tr:hover td { background: #f8fafc; }
 .section-disabled { opacity: 0.4; pointer-events: none; user-select: none; }
 .section-disabled * { pointer-events: none; }
 
+/* MCP Tools Viewer */
+.tools-loading { text-align:center; color:#94a3b8; padding:40px 0; font-size:14px; }
+.tools-count { font-size:12px; color:#94a3b8; font-weight:400; margin-left:8px; }
+.tools-list { list-style:none; margin:0; padding:0; }
+.tools-list li { padding:12px 20px; border-bottom:1px solid #f1f5f9; }
+.tools-list li:last-child { border-bottom:none; }
+.tools-list li:hover { background:#f8fafc; }
+.tool-header { display:flex; align-items:center; gap:8px; }
+.tool-header .tool-name { flex:1; }
+.tool-name { font-size:13px; font-weight:600; color:#1e293b; font-family:'Consolas','Monaco',monospace; cursor:pointer; user-select:none; }
+.tool-name::before { content:'\25B6'; font-size:9px; margin-right:6px; color:#94a3b8; display:inline-block; transition:transform .15s; }
+.tool-name.expanded::before { transform:rotate(90deg); }
+.tool-desc { font-size:12px; color:#64748b; margin-top:3px; line-height:1.5; }
+.tool-params { display:none; margin-top:8px; border-left:2px solid #e2e8f0; padding-left:12px; }
+.tool-params.show { display:block; }
+.tool-param { padding:5px 0; font-size:12px; line-height:1.5; }
+.tool-param + .tool-param { border-top:1px solid #f8fafc; }
+.param-name { font-family:'Consolas','Monaco',monospace; font-weight:600; color:#1e293b; }
+.param-type { color:#8b5cf6; font-size:11px; margin-left:4px; }
+.param-required { color:#ef4444; font-size:10px; font-weight:600; margin-left:4px; }
+.param-desc { color:#64748b; margin-top:1px; }
+.param-enum { color:#0891b2; font-size:11px; font-family:'Consolas','Monaco',monospace; }
+.param-default { color:#94a3b8; font-size:11px; }
+.tool-no-params { font-size:12px; color:#94a3b8; font-style:italic; padding:4px 0; }
+
 /* Toast */
 .toast {
   position: fixed;
