@@ -148,7 +148,10 @@ const toolsList = ref<McpTool[]>([])
 
 async function viewTools(name: string) {
   try {
-    const res = await apiFetch(`/api/mcp/tools?server=${encodeURIComponent(name)}`)
+    const url = isAgentMode.value
+      ? `/api/agents/${encodeURIComponent(agentName.value!)}/mcp/tools`
+      : '/api/mcp/tools'
+    const res = await apiFetch(url, 'POST', { name })
     toolsTitle.value = `MCP Tools: ${name}`
     toolsList.value = res.data || []
     showToolsModal.value = true
@@ -180,18 +183,27 @@ onMounted(load)
       <button class="btn-primary btn-sm" style="margin-left:auto" @click="openAdd">+ 添加 MCP</button>
     </div>
     <div class="page-content">
-      <!-- Builtins -->
-      <template v-if="!isAgentMode && builtins.length > 0">
-        <div style="margin-bottom:12px;font-size:12px;color:#64748b">
-          内置 MCP 服务器：{{ builtins.join(', ') }}
-        </div>
-      </template>
       <table>
         <thead>
           <tr><th>名称</th><th>类型</th><th>地址/命令</th><th>操作</th></tr>
         </thead>
         <tbody>
-          <tr v-if="Object.keys(servers).length === 0">
+          <!-- Builtin rows -->
+          <tr v-for="b in builtins" :key="'builtin:' + b">
+            <td style="font-family:monospace">
+              {{ b }}
+              <span style="margin-left:6px;background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">内置</span>
+            </td>
+            <td>builtin</td>
+            <td style="color:#94a3b8">—</td>
+            <td>
+              <div class="ops-cell">
+                <button class="btn-outline btn-sm" @click="viewTools(b)">查看工具</button>
+              </div>
+            </td>
+          </tr>
+          <!-- User-defined servers -->
+          <tr v-if="builtins.length === 0 && Object.keys(servers).length === 0">
             <td colspan="4" style="text-align:center;color:#94a3b8;padding:40px">暂无 MCP 配置</td>
           </tr>
           <tr v-for="(s, name) in servers" :key="name">
@@ -200,7 +212,7 @@ onMounted(load)
             <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ serverAddr(s) }}</td>
             <td>
               <div class="ops-cell">
-                <button v-if="!isAgentMode" class="btn-outline btn-sm" @click="viewTools(name as string)">查看工具</button>
+                <button class="btn-outline btn-sm" @click="viewTools(name as string)">查看工具</button>
                 <button class="btn-outline btn-sm" @click="openEdit(name as string)">编辑</button>
                 <button class="btn-danger btn-sm" @click="remove(name as string)">删除</button>
               </div>

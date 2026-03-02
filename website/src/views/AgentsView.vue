@@ -267,10 +267,14 @@ function subAgentSelectOptions() {
             <td>{{ a.saver || '-' }}</td>
             <td>
               <div class="ops-cell">
-                <button v-if="store.settings.agent !== name" class="btn-outline btn-sm" @click="activateAgent(name as string)">激活</button>
+                <button
+                  class="btn-outline btn-sm"
+                  :disabled="store.settings.agent === name"
+                  @click="activateAgent(name as string)"
+                >激活</button>
                 <button class="btn-outline btn-sm" @click="openEdit(name as string)">编辑</button>
-                <button class="btn-outline btn-sm" @click="router.push(`/mcp/agent/${name}`)">MCP</button>
-                <button class="btn-outline btn-sm" @click="router.push(`/agents/${name}/skills`)">Skills</button>
+                <button class="btn-outline btn-sm" :disabled="a.type !== 'single'" @click="router.push(`/mcp/agent/${name}`)">MCP</button>
+                <button class="btn-outline btn-sm" :disabled="a.type !== 'single'" @click="router.push(`/agents/${name}/skills`)">Skills</button>
                 <button class="btn-outline btn-sm" @click="copyAgent(name as string)">复制</button>
                 <button class="btn-danger btn-sm" @click="removeAgent(name as string)">删除</button>
               </div>
@@ -301,7 +305,25 @@ function subAgentSelectOptions() {
             </select>
           </div>
 
-          <!-- Single fields -->
+          <!-- Memory & Saver (all types) -->
+          <div class="form-section">
+            <div class="form-group">
+              <label>记忆配置</label>
+              <select v-model="form.memory">
+                <option value="">不使用</option>
+                <option v-for="m in memoryOptions" :key="m" :value="m">{{ m }}</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>会话存储</label>
+              <select v-model="form.saver">
+                <option value="">不使用</option>
+                <option v-for="s in saverOptions" :key="s" :value="s">{{ s }}</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Single-only fields -->
           <template v-if="form.type === 'single'">
             <div class="form-group">
               <label>模型</label>
@@ -313,34 +335,6 @@ function subAgentSelectOptions() {
             <div class="form-group">
               <label>系统提示词</label>
               <textarea v-model="form.systemPrompt" rows="3" placeholder="可选" />
-            </div>
-            <div class="form-section">
-              <div class="form-section-title">MCP</div>
-              <div v-if="mcpOptions.length === 0" style="color:#94a3b8;font-size:12px;padding:4px">暂无全局 MCP 服务器</div>
-              <div class="check-row">
-                <label v-for="m in mcpOptions" :key="m" class="check-item">
-                  <input
-                    type="checkbox"
-                    :checked="form.selectedMcp.includes(m)"
-                    @change="toggleMcp(m, ($event.target as HTMLInputElement).checked)"
-                  />
-                  <span>{{ m }}</span>
-                </label>
-              </div>
-            </div>
-            <div class="form-section">
-              <div class="form-section-title">Skills</div>
-              <div v-if="skillOptions.length === 0" style="color:#94a3b8;font-size:12px;padding:4px">暂无全局 Skills</div>
-              <div class="check-row">
-                <label v-for="s in skillOptions" :key="s" class="check-item">
-                  <input
-                    type="checkbox"
-                    :checked="form.selectedSkills.includes(s)"
-                    @change="toggleSkill(s, ($event.target as HTMLInputElement).checked)"
-                  />
-                  <span>{{ s }}</span>
-                </label>
-              </div>
             </div>
           </template>
 
@@ -454,24 +448,38 @@ function subAgentSelectOptions() {
             </div>
           </template>
 
-          <!-- Memory & Saver (all types) -->
-          <div class="form-section">
-            <div class="form-section-title">记忆 & 存储</div>
-            <div class="form-group">
-              <label>记忆配置</label>
-              <select v-model="form.memory">
-                <option value="">不使用</option>
-                <option v-for="m in memoryOptions" :key="m" :value="m">{{ m }}</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>会话存储</label>
-              <select v-model="form.saver">
-                <option value="">不使用</option>
-                <option v-for="s in saverOptions" :key="s" :value="s">{{ s }}</option>
-              </select>
+          <!-- MCP：仅 single 类型显示 -->
+          <div v-if="form.type === 'single'" class="form-section">
+            <div class="form-section-title">MCP</div>
+            <div v-if="mcpOptions.length === 0" style="color:#94a3b8;font-size:12px;padding:4px">暂无全局 MCP 服务器</div>
+            <div class="check-row">
+              <label v-for="m in mcpOptions" :key="m" class="check-item">
+                <input
+                  type="checkbox"
+                  :checked="form.selectedMcp.includes(m)"
+                  @change="toggleMcp(m, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ m }}</span>
+              </label>
             </div>
           </div>
+
+          <!-- Skills：仅 single 类型显示 -->
+          <div v-if="form.type === 'single'" class="form-section">
+            <div class="form-section-title">Skills</div>
+            <div v-if="skillOptions.length === 0" style="color:#94a3b8;font-size:12px;padding:4px">暂无全局 Skills</div>
+            <div class="check-row">
+              <label v-for="s in skillOptions" :key="s" class="check-item">
+                <input
+                  type="checkbox"
+                  :checked="form.selectedSkills.includes(s)"
+                  @change="toggleSkill(s, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ s }}</span>
+              </label>
+            </div>
+          </div>
+
         </div>
         <div class="modal-footer">
           <button class="btn-outline" @click="showModal = false">取消</button>

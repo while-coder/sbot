@@ -344,6 +344,8 @@ table tr:hover td { background: #f8fafc; }
 }
 .check-item:hover { background: #e2e8f0; }
 .check-item input[type=checkbox] { cursor: pointer; }
+.section-disabled { opacity: 0.4; pointer-events: none; user-select: none; }
+.section-disabled * { pointer-events: none; }
 
 /* Toast */
 .toast {
