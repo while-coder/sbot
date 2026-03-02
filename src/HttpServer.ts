@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import http from 'http';
 import path from 'path';
 import fs from 'fs';
+import { z } from 'zod';
 import { AgentSqliteSaver, MemorySqliteDatabase, MCPServers } from "scorpio.ai";
 import { AgentFileSaver } from "scorpio.ai/dist/Saver";
 import { MultiServerMCPClient } from '@langchain/mcp-adapters';
@@ -13,6 +14,18 @@ import { userService } from './UserService/UserService';
 import { WebUserService } from './UserService/WebUserService';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
+
+/**
+ * 将工具的 schema 统一转换为 JSON Schema 纯对象。
+ * DynamicStructuredTool 的 schema 是活的 Zod 对象（有 .parse 方法），
+ * 外部 MCP 工具的 schema 已是普通 JSON Schema，直接返回即可。
+ */
+function toJsonSchema(schema: any): any {
+    if (schema && typeof schema.parse === 'function') {
+        return z.toJSONSchema(schema);
+    }
+    return schema;
+}
 
 // ===== Skills 辅助函数 =====
 function listSkills(skillsDir: string) {
@@ -122,7 +135,7 @@ class HttpServer {
                 throw e;
             }
             const tools = await globalAgentToolService.getToolsFrom([name]);
-            return tools.map(t => ({ name: t.name, description: t.description, parameters: t.schema }));
+            return tools.map(t => ({ name: t.name, description: t.description, parameters: toJsonSchema(t.schema) }));
         }));
 
         // ===== Agent MCP =====
@@ -162,7 +175,7 @@ class HttpServer {
             }
             const client = new MultiServerMCPClient({ mcpServers: { [name]: cfg } });
             const tools = await client.getTools();
-            return tools.map(t => ({ name: t.name, description: t.description, parameters: t.schema }));
+            return tools.map(t => ({ name: t.name, description: t.description, parameters: toJsonSchema(t.schema) }));
         }));
 
         // ===== Skills =====

@@ -684,44 +684,128 @@ function toggleToolParams(el) {
     if (params) params.classList.toggle('show');
 }
 
-function renderToolParams(schema) {
-    if (!schema || !schema.properties || Object.keys(schema.properties).length === 0) {
-        return '<div class="tool-no-params">无参数</div>';
+// 格式化任意 JSON Schema 节点为可读类型字符串
+function formatParamType(s) {
+    if (!s) return 'any';
+    // type 为数组，如 ["string","null"]
+    if (Array.isArray(s.type)) {
+        const nonNull = s.type.filter(t => t !== 'null');
+        const base = nonNull.length === 1 ? nonNull[0] : nonNull.join(' | ');
+        return s.type.includes('null') ? base + '?' : base;
     }
-    const required = new Set(schema.required || []);
-    return Object.entries(schema.properties).map(([name, prop]) => {
-        let html = '<div class="tool-param">';
-        html += '<div><span class="param-name">' + esc(name) + '</span>';
-        html += '<span class="param-type">' + esc(formatParamType(prop)) + '</span>';
-        if (required.has(name)) html += '<span class="param-required">*必填</span>';
-        html += '</div>';
-        if (prop.description) html += '<div class="param-desc">' + esc(prop.description) + '</div>';
-        if (prop.enum) html += '<div class="param-enum">可选值: ' + prop.enum.map(v => esc(String(v))).join(' | ') + '</div>';
-        if (prop.default !== undefined) html += '<div class="param-default">默认值: ' + esc(String(prop.default)) + '</div>';
-        if (prop.type === 'object' && prop.properties) {
-            html += '<div style="margin-left:12px;margin-top:4px;border-left:2px solid #f1f5f9;padding-left:10px">' + renderToolParams(prop) + '</div>';
-        }
-        if (prop.type === 'array' && prop.items) {
-            html += '<div class="param-desc">元素类型: ' + esc(formatParamType(prop.items)) + '</div>';
-            if (prop.items.type === 'object' && prop.items.properties) {
-                html += '<div style="margin-left:12px;margin-top:4px;border-left:2px solid #f1f5f9;padding-left:10px">' + renderToolParams(prop.items) + '</div>';
-            }
-        }
-        html += '</div>';
-        return html;
-    }).join('');
+    // const 字面量
+    if (s.const !== undefined) return JSON.stringify(s.const);
+    // enum 字面量联合
+    if (s.enum) return s.enum.map(v => JSON.stringify(v)).join(' | ');
+    // array / tuple
+    if (s.type === 'array') {
+        if (s.prefixItems) return '[' + s.prefixItems.map(formatParamType).join(', ') + ']';
+        if (s.items) return formatParamType(s.items) + '[]';
+        return 'any[]';
+    }
+    // object / Record
+    if (s.type === 'object') {
+        if (s.additionalProperties && typeof s.additionalProperties === 'object')
+            return 'Record<string, ' + formatParamType(s.additionalProperties) + '>';
+        return 'object';
+    }
+    // anyOf / oneOf（过滤掉 null 分支使 optional 更清晰）
+    if (s.anyOf || s.oneOf) {
+        const variants = (s.anyOf || s.oneOf);
+        const nonNull = variants.filter(v => v.type !== 'null');
+        const base = (nonNull.length ? nonNull : variants).map(formatParamType).join(' | ');
+        return variants.some(v => v.type === 'null') ? base + '?' : base;
+    }
+    // allOf（交叉类型）
+    if (s.allOf) return s.allOf.map(formatParamType).join(' & ');
+    // $ref
+    if (s.$ref) { const p = s.$ref.split('/'); return p[p.length - 1]; }
+    if (s.type) return s.type;
+    return 'any';
 }
 
-function formatParamType(prop) {
-    if (!prop) return 'any';
-    if (prop.type === 'array') {
-        if (prop.items) return formatParamType(prop.items) + '[]';
-        return 'array';
+// 渲染单个参数行（含嵌套展开）
+function renderParamRow(name, prop, isRequired) {
+    let html = '<div class="tool-param">';
+    html += '<div><span class="param-name">' + esc(name) + '</span>';
+    html += '<span class="param-type">' + esc(formatParamType(prop)) + '</span>';
+    if (isRequired) html += '<span class="param-required">*必填</span>';
+    html += '</div>';
+    if (prop.description) html += '<div class="param-desc">' + esc(prop.description) + '</div>';
+    if (prop.const !== undefined) html += '<div class="param-enum">固定值: ' + esc(JSON.stringify(prop.const)) + '</div>';
+    if (prop.enum) html += '<div class="param-enum">可选值: ' + prop.enum.map(v => esc(JSON.stringify(v))).join(' | ') + '</div>';
+    if (prop.default !== undefined) html += '<div class="param-default">默认值: ' + esc(JSON.stringify(prop.default)) + '</div>';
+    html += renderSchemaChildren(prop);
+    html += '</div>';
+    return html;
+}
+
+// 渲染 schema 子结构（object 属性、array 元素、union 分支等）
+function renderSchemaChildren(s) {
+    if (!s) return '';
+    const nest = (inner) => '<div style="margin-left:14px;margin-top:4px;border-left:2px solid #f1f5f9;padding-left:10px">' + inner + '</div>';
+    // object with properties
+    if ((s.type === 'object' || !s.type) && s.properties) {
+        const req = new Set(s.required || []);
+        return nest(Object.entries(s.properties).map(([k, v]) => renderParamRow(k, v, req.has(k) && v.default === undefined)).join(''));
     }
-    if (prop.type) return prop.type;
-    if (prop.anyOf) return prop.anyOf.map(s => s.type || 'any').join(' | ');
-    if (prop.oneOf) return prop.oneOf.map(s => s.type || 'any').join(' | ');
-    return 'any';
+    // Record<string, T>
+    if (s.type === 'object' && s.additionalProperties && typeof s.additionalProperties === 'object') {
+        return '<div class="param-desc">值类型: ' + esc(formatParamType(s.additionalProperties)) + '</div>' +
+            renderSchemaChildren(s.additionalProperties);
+    }
+    // array / tuple
+    if (s.type === 'array') {
+        if (s.prefixItems) {
+            return nest(s.prefixItems.map((item, i) => renderParamRow('[' + i + ']', item, false)).join(''));
+        }
+        if (s.items) {
+            return '<div class="param-desc">元素类型: ' + esc(formatParamType(s.items)) + '</div>' +
+                (s.items.properties || s.items.anyOf || s.items.allOf ? nest(renderSchemaChildren(s.items)) : '');
+        }
+    }
+    // anyOf / oneOf — 过滤 null 分支，展开有 properties 的分支
+    if (s.anyOf || s.oneOf) {
+        const variants = (s.anyOf || s.oneOf).filter(v => v.type !== 'null');
+        return variants.map((v, i) => {
+            const label = variants.length > 1 ? '<div class="param-desc" style="font-weight:600;margin-top:4px">联合类型 ' + (i + 1) + ': ' + esc(formatParamType(v)) + '</div>' : '';
+            return label + renderSchemaChildren(v);
+        }).join('');
+    }
+    // allOf（合并对象）
+    if (s.allOf) return s.allOf.map(renderSchemaChildren).join('');
+    return '';
+}
+
+// 入口：渲染整个工具参数 schema
+function renderToolParams(schema) {
+    if (!schema) return '<div class="tool-no-params">无参数</div>';
+    // allOf 根级别
+    if (schema.allOf) return schema.allOf.map(renderToolParams).join('') || '<div class="tool-no-params">无参数</div>';
+    // anyOf / oneOf 根级别
+    if (schema.anyOf || schema.oneOf) {
+        const variants = (schema.anyOf || schema.oneOf).filter(v => v.type !== 'null');
+        if (variants.length === 1) return renderToolParams(variants[0]);
+        return variants.map((v, i) =>
+            '<div class="param-desc" style="font-weight:600">联合类型 ' + (i + 1) + ':</div>' + renderToolParams(v)
+        ).join('');
+    }
+    // array 根级别
+    if (schema.type === 'array') {
+        if (schema.prefixItems) return schema.prefixItems.map((item, i) => renderParamRow('[' + i + ']', item, false)).join('');
+        if (schema.items) return renderParamRow('items', schema.items, false);
+        return '<div class="tool-no-params">any[]</div>';
+    }
+    // object with properties（标准情况）
+    if (schema.properties && Object.keys(schema.properties).length > 0) {
+        const required = new Set(schema.required || []);
+        return Object.entries(schema.properties).map(([name, prop]) => renderParamRow(name, prop, required.has(name) && prop.default === undefined)).join('');
+    }
+    // Record
+    if (schema.type === 'object' && schema.additionalProperties) {
+        return '<div class="tool-param"><span class="param-type">' + esc(formatParamType(schema)) + '</span></div>';
+    }
+    return '<div class="tool-no-params">无参数</div>';
 }
 
 function closeMcpToolsModal() { document.getElementById('mcpToolsModal').classList.remove('show'); }
