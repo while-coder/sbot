@@ -3,8 +3,9 @@ import http from 'http';
 import path from 'path';
 import fs from 'fs';
 import { AgentSqliteSaver, MemorySqliteDatabase, MCPServers } from "scorpio.ai";
+import { AgentFileSaver } from "scorpio.ai/dist/Saver";
 import { MultiServerMCPClient } from '@langchain/mcp-adapters';
-import { config } from './Config';
+import { config, SaverType } from './Config';
 import { globalAgentToolService, refreshGlobalAgentToolService, BuiltinProvider } from './GlobalAgentToolService';
 import { globalSkillService, refreshGlobalSkillService, BUILTIN_SKILLS_DIR } from './GlobalSkillService';
 import { LoggerService } from './LoggerService';
@@ -229,8 +230,10 @@ class HttpServer {
         // ===== Named Saver History =====
         app.get('/api/savers/:saverName/history', api(async req => {
             const saverName = req.params.saverName as string;
-            const saverPath = config.getSaverPath(saverName);
-            const saver = new AgentSqliteSaver(saverName, saverPath);
+            const saverConfig = config.getSaver(saverName);
+            const saver = saverConfig?.type === SaverType.File
+                ? new AgentFileSaver(saverName, config.getSaverDir(saverName))
+                : new AgentSqliteSaver(saverName, config.getSaverPath(saverName));
             const messages = await saver.getAllMessages();
             await saver.dispose();
             return messages.map(m => {
@@ -247,8 +250,10 @@ class HttpServer {
 
         app.delete('/api/savers/:saverName/history', api(async req => {
             const saverName = req.params.saverName as string;
-            const saverPath = config.getSaverPath(saverName);
-            const saver = new AgentSqliteSaver(saverName, saverPath);
+            const saverConfig = config.getSaver(saverName);
+            const saver = saverConfig?.type === SaverType.File
+                ? new AgentFileSaver(saverName, config.getSaverDir(saverName))
+                : new AgentSqliteSaver(saverName, config.getSaverPath(saverName));
             await saver.clearMessages();
             await saver.dispose();
         }));

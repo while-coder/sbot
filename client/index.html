@@ -110,7 +110,7 @@
             </div>
             <div class="content">
                 <table>
-                    <thead><tr><th>名称</th><th>操作</th></tr></thead>
+                    <thead><tr><th>名称</th><th>类型</th><th>操作</th></tr></thead>
                     <tbody id="saversTableBody"></tbody>
                 </table>
             </div>
@@ -360,6 +360,12 @@
         <div class="modal-header"><span id="saverModalTitle">添加存储配置</span><span class="close" onclick="closeSaverModal()">&times;</span></div>
         <div class="modal-body">
             <div class="form-group"><label>名称 (唯一标识) *</label><input type="text" id="saverConfigName" placeholder="如 default"></div>
+            <div class="form-group"><label>存储类型</label>
+                <select id="saverConfigType">
+                    <option value="sqlite">SQLite</option>
+                    <option value="file">File</option>
+                </select>
+            </div>
         </div>
         <div class="modal-footer">
             <button class="btn btn-outline-dark" onclick="closeSaverModal()">取消</button>
@@ -409,8 +415,8 @@
                     <div class="form-group"><label>Reflect 模型</label><select id="agentReflectModel"></select></div>
                 </div>
                 <div class="form-section">
-                    <div class="form-section-title">Observe 节点</div>
-                    <div class="form-group"><label>Observe 模型</label><select id="agentObserveModel"></select></div>
+                    <div class="form-section-title">Summarizer 节点</div>
+                    <div class="form-group"><label>Summarizer 模型</label><select id="agentObserveModel"></select></div>
                 </div>
                 <div class="form-section">
                     <div class="form-section-title">子 Agents <button class="btn btn-outline-dark btn-sm" onclick="addSubAgent('react')" style="margin-left:8px">+ 添加</button></div>
@@ -423,6 +429,10 @@
                 <div class="form-section">
                     <div class="form-section-title">Supervisor 节点</div>
                     <div class="form-group"><label>Supervisor Agent</label><select id="agentSupervisorAgent"></select></div>
+                </div>
+                <div class="form-section">
+                    <div class="form-section-title">Summarizer 节点</div>
+                    <div class="form-group"><label>Summarizer 模型</label><select id="agentSummarizerModelSupervisor"></select></div>
                 </div>
                 <div class="form-section">
                     <div class="form-section-title">Finalize 节点</div>

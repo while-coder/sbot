@@ -309,29 +309,47 @@ function renderSaversTable() {
         tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;color:#94a3b8;padding:40px">暂无存储配置</td></tr>';
         return;
     }
-    tbody.innerHTML = entries.map(([name]) =>
+    tbody.innerHTML = entries.map(([name, cfg]) =>
         '<tr>' +
         '<td>' + esc(name) + '</td>' +
+        '<td>' + esc(cfg.type || 'sqlite') + '</td>' +
         '<td>' +
             '<button class="btn btn-outline-dark btn-sm" onclick="openSaverViewPage(\'' + esc(name) + '\')">查看</button> ' +
+            '<button class="btn btn-outline-dark btn-sm" onclick="editSaverConfig(\'' + esc(name) + '\')">编辑</button> ' +
             '<button class="btn btn-danger btn-sm" onclick="deleteSaverConfig(\'' + esc(name) + '\')">删除</button>' +
         '</td></tr>'
     ).join('');
 }
 
 function showSaverModal() {
+    editingSaverConfigName = null;
     document.getElementById('saverModalTitle').textContent = '添加存储配置';
     document.getElementById('saverConfigName').value = '';
+    document.getElementById('saverConfigName').disabled = false;
+    document.getElementById('saverConfigType').value = 'sqlite';
     document.getElementById('saverModal').classList.add('show');
 }
-function closeSaverModal() { document.getElementById('saverModal').classList.remove('show'); }
+function editSaverConfig(name) {
+    editingSaverConfigName = name;
+    const cfg = settings.savers?.[name] || {};
+    document.getElementById('saverModalTitle').textContent = '编辑存储配置';
+    document.getElementById('saverConfigName').value = name;
+    document.getElementById('saverConfigName').disabled = true;
+    document.getElementById('saverConfigType').value = cfg.type || 'sqlite';
+    document.getElementById('saverModal').classList.add('show');
+}
+function closeSaverModal() {
+    document.getElementById('saverConfigName').disabled = false;
+    document.getElementById('saverModal').classList.remove('show');
+}
 
 async function saveSaverConfig() {
     try {
-        const name = document.getElementById('saverConfigName').value.trim();
+        const name = editingSaverConfigName || document.getElementById('saverConfigName').value.trim();
         if (!name) { showToast('名称不能为空', 'error'); return; }
+        const type = document.getElementById('saverConfigType').value;
         settings.savers = settings.savers || {};
-        settings.savers[name] = {};
+        settings.savers[name] = { type };
         await apiFetch('/api/settings', 'PUT', settings);
         closeSaverModal();
         showToast('保存成功');
@@ -735,6 +753,13 @@ function renderAgentsTable() {
         const activateBtn = isActive
             ? '<button class="btn btn-sm" style="background:#dcfce7;color:#16a34a;border:1px solid #bbf7d0;cursor:default">激活</button> '
             : '<button class="btn btn-outline-dark btn-sm" onclick="activateAgent(\'' + esc(name) + '\')">激活</button> ';
+        const isSimple = agent.type === 'single' || !agent.type;
+        const mcpBtn = isSimple
+            ? '<button class="btn btn-outline-dark btn-sm" onclick="openAgentMcpPage(\'' + esc(name) + '\')">MCP配置</button> '
+            : '<button class="btn btn-outline-dark btn-sm" disabled title="ReAct/Supervisor 模式不支持 Agent 级 MCP 配置">MCP配置</button> ';
+        const skillsBtn = isSimple
+            ? '<button class="btn btn-outline-dark btn-sm" onclick="openAgentSkillsPage(\'' + esc(name) + '\')">Skills配置</button> '
+            : '<button class="btn btn-outline-dark btn-sm" disabled title="ReAct/Supervisor 模式不支持 Agent 级 Skills 配置">Skills配置</button> ';
         return '<tr class="' + (isActive ? 'active-row' : '') + '">' +
             '<td>' + esc(name) + '</td>' +
             '<td>' + esc(typeLabel) + '</td>' +
@@ -742,8 +767,8 @@ function renderAgentsTable() {
             '<td>' + esc(desc) + '</td>' +
             '<td>' +
                 activateBtn +
-                '<button class="btn btn-outline-dark btn-sm" onclick="openAgentMcpPage(\'' + esc(name) + '\')">MCP配置</button> ' +
-                '<button class="btn btn-outline-dark btn-sm" onclick="openAgentSkillsPage(\'' + esc(name) + '\')">Skills配置</button> ' +
+                mcpBtn +
+                skillsBtn +
                 '<button class="btn btn-outline-dark btn-sm" onclick="editAgent(\'' + esc(name) + '\')">编辑</button> ' +
                 '<button class="btn btn-outline-dark btn-sm" onclick="copyAgent(\'' + esc(name) + '\')">复制</button> ' +
                 '<button class="btn btn-danger btn-sm" onclick="deleteAgent(\'' + esc(name) + '\')">删除</button>' +
@@ -846,11 +871,12 @@ function editAgent(name) {
         document.getElementById('agentMaxIterations').value = agent.maxIterations || 5;
         document.getElementById('agentThinkAgent').value = agent.think || '';
         document.getElementById('agentReflectModel').value = agent.reflect || '';
-        document.getElementById('agentObserveModel').value = agent.observe || '';
+        document.getElementById('agentObserveModel').value = agent.summarizer || '';
         tempSubAgents = Array.isArray(agent.agents) ? agent.agents : [];
     } else if (agent.type === 'supervisor') {
         document.getElementById('agentMaxRounds').value = agent.maxRounds || 10;
         document.getElementById('agentSupervisorAgent').value = agent.supervisor || '';
+        document.getElementById('agentSummarizerModelSupervisor').value = agent.summarizer || '';
         document.getElementById('agentFinalizeModel').value = agent.finalize || '';
         tempSubAgents = Array.isArray(agent.agents) ? agent.agents : [];
     }
@@ -878,6 +904,7 @@ function fillModelSelects() {
     document.getElementById('agentModelSingle').innerHTML = modelOptions;
     document.getElementById('agentReflectModel').innerHTML = modelOptions;
     document.getElementById('agentObserveModel').innerHTML = modelOptions;
+    document.getElementById('agentSummarizerModelSupervisor').innerHTML = modelOptions;
     document.getElementById('agentFinalizeModel').innerHTML = modelOptions;
 
     const agentOptions = Object.keys(settings.agents || {}).map(k =>
@@ -910,6 +937,7 @@ function clearAgentFields() {
     document.getElementById('agentObserveModel').value = '';
     document.getElementById('agentMaxRounds').value = '10';
     document.getElementById('agentSupervisorAgent').value = '';
+    document.getElementById('agentSummarizerModelSupervisor').value = '';
     document.getElementById('agentFinalizeModel').value = '';
     tempMcpNames = [];
     tempSkillsDirs = [];
@@ -949,7 +977,7 @@ async function saveAgent() {
             if (reflectModel) agentConfig.reflect = reflectModel;
 
             const observeModel = document.getElementById('agentObserveModel').value.trim();
-            if (observeModel) agentConfig.observe = observeModel;
+            if (observeModel) agentConfig.summarizer = observeModel;
 
             agentConfig.agents = tempSubAgents;
         } else if (type === 'supervisor') {
@@ -958,6 +986,9 @@ async function saveAgent() {
 
             const supervisorAgent = document.getElementById('agentSupervisorAgent').value.trim();
             if (supervisorAgent) agentConfig.supervisor = supervisorAgent;
+
+            const summarizerModelSupervisor = document.getElementById('agentSummarizerModelSupervisor').value.trim();
+            if (summarizerModelSupervisor) agentConfig.summarizer = summarizerModelSupervisor;
 
             const finalizeModel = document.getElementById('agentFinalizeModel').value.trim();
             if (finalizeModel) agentConfig.finalize = finalizeModel;

@@ -5,6 +5,9 @@ import {
     IEmbeddingService,
     IMemoryExtractor, IMemoryEvaluator, IMemoryCompressor,
     IAgentSaverService, AgentSqliteSaver, AgentMemorySaver,
+} from "scorpio.ai";
+import { AgentFileSaver } from "scorpio.ai/dist/Saver";
+import {
     T_MaxMemoryAgeDays, T_MemoryMode, T_DBPath,
     IAgentToolService, AgentToolService,
     ISkillService, SkillService,
@@ -15,7 +18,7 @@ import {
     T_ThreadId,
     T_SummaryModelService,
 } from "scorpio.ai";
-import { config, AgentMode, SingleAgentEntry, ReactAgentEntry, SupervisorAgentEntry } from "./Config";
+import { config, AgentMode, SaverType, SingleAgentEntry, ReactAgentEntry, SupervisorAgentEntry } from "./Config";
 import { globalAgentToolService } from "./GlobalAgentToolService";
 import { globalSkillService } from "./GlobalSkillService";
 
@@ -110,10 +113,17 @@ export class AgentFactory {
             return;
         }
 
-        container.registerWithArgs(IAgentSaverService, AgentSqliteSaver, {
-            [T_ThreadId]: saverName,
-            [T_DBPath]: config.getSaverPath(saverName!),
-        });
+        if (saverConfig.type === SaverType.File) {
+            container.registerWithArgs(IAgentSaverService, AgentFileSaver, {
+                [T_ThreadId]: saverName,
+                [T_DBPath]: config.getSaverDir(saverName!),
+            });
+        } else {
+            container.registerWithArgs(IAgentSaverService, AgentSqliteSaver, {
+                [T_ThreadId]: saverName,
+                [T_DBPath]: config.getSaverPath(saverName!),
+            });
+        }
     }
     private static async registerSkillService(
         container: ServiceContainer,

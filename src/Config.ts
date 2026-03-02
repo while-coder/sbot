@@ -10,8 +10,13 @@ export interface LarkConfig {
   appSecret?: string;
 }
 
+export enum SaverType {
+  File   = "file",
+  Sqlite = "sqlite",
+}
+
 export interface SaverConfig {
-  // 预留扩展字段（如 type、connectionString 等）
+  type?: SaverType;            // 存储类型：file | sqlite
 }
 
 export interface MemoryConfig {
@@ -235,7 +240,9 @@ class Config {
         appSecret: ""
       },
       savers: {
-        "default": {}
+        "default": {
+          type: SaverType.Sqlite
+        }
       },
       memories: {
         "default": {
@@ -478,6 +485,9 @@ class Config {
   }
   getSaverPath(saverName: string) {
     return this.getConfigPath(`savers/${saverName}/saver.sqlite`)
+  }
+  getSaverDir(saverName: string) {
+    return this.getConfigPath(`savers/${saverName}/messages`, true)
   }
   getMemoryPath(memoryName: string) {
     return this.getConfigPath(`memories/${memoryName}/memory.sqlite`)
