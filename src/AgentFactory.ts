@@ -39,7 +39,9 @@ export class AgentFactory {
         await this.registerSkillService(container, agentName, skills);
         await this.registerToolService(container, agentName, mcp);
 
-        const systemPrompts = [systemPrompt ?? "你是一个有用的AI助手", ...(extraPrompts ?? [])];
+        const systemPrompts = [...(extraPrompts ?? [])];
+        if (systemPrompt)
+            systemPrompts.push(systemPrompt);
         const createAgentFn: CreateAgentFn = (name, subContainer) =>
             AgentFactory.create(name, subContainer, extraPrompts);
         const agentType = agentEntry.type || AgentMode.Single;
