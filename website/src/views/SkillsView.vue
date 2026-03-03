@@ -76,7 +76,7 @@ interface HubSkillResult {
   description: string
   version: string
   sourceUrl: string
-  provider: 'clawhub' | 'skillssh'
+  provider: 'clawhub' | 'skillssh' | 'skillsmp'
 }
 
 const showHub = ref(false)
@@ -252,6 +252,8 @@ onMounted(load)
                     <td>
                       <span v-if="s.provider === 'clawhub'"
                         style="background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">ClawHub</span>
+                      <span v-else-if="s.provider === 'skillsmp'"
+                        style="background:#fef9c3;color:#a16207;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">SkillsMP</span>
                       <span v-else
                         style="background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">Skills.sh</span>
                     </td>
@@ -283,6 +285,8 @@ onMounted(load)
               <span style="font-family:monospace;font-size:15px;font-weight:600;color:#1e293b">{{ selected.name || selected.id }}</span>
               <span v-if="selected.provider === 'clawhub'"
                 style="background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">ClawHub</span>
+              <span v-else-if="selected.provider === 'skillsmp'"
+                style="background:#fef9c3;color:#a16207;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">SkillsMP</span>
               <span v-else
                 style="background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">Skills.sh</span>
             </div>

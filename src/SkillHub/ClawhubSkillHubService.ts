@@ -1,6 +1,7 @@
 import { URL } from 'url';
 import { httpGetJson, httpGetText, requireHttpUrl } from './types';
 import { normalizeBundle, writeSkillToDisk, mapToHubResults, type Bundle } from './bundle';
+import { SkillHubProvider } from './types';
 import type { ISkillHubService, HubSkillResult, HubInstallResult, InstallSkillOptions } from './types';
 
 const BASE_URL = 'https://clawhub.ai';
@@ -23,30 +24,35 @@ export class ClawhubSkillHubService implements ISkillHubService {
       }
     }
 
-    return mapToHubResults(items, 'clawhub').map(r => ({
+    return mapToHubResults(items, SkillHubProvider.Clawhub).map(r => ({
       ...r,
       sourceUrl: `${BASE_URL}/${r.id}`,
     }));
   }
 
-  async installSkill(skill: HubSkillResult, targetDir: string, options: InstallSkillOptions = {}): Promise<HubInstallResult> {
-    const bundleUrl = skill.sourceUrl;
-    requireHttpUrl(bundleUrl);
+  /** 从 HubSkillResult 安装（委托给 installSkillWithUrl） */
+  async installSkill(skill: HubSkillResult, targetDir: string, options?: InstallSkillOptions): Promise<HubInstallResult> {
+    return this.installSkillWithUrl(skill.sourceUrl, targetDir, options);
+  }
 
-    const u = new URL(bundleUrl);
+  /** 主要安装入口：直接从 URL 安装 */
+  async installSkillWithUrl(url: string, targetDir: string, options: InstallSkillOptions = {}): Promise<HubInstallResult> {
+    requireHttpUrl(url);
+
+    const u = new URL(url);
     if (!u.hostname.includes('clawhub.ai')) {
-      throw new Error(`ClawhubSkillHubService 仅支持 clawhub.ai URL，收到: ${bundleUrl}`);
+      throw new Error(`ClawhubSkillHubService 仅支持 clawhub.ai URL，收到: ${url}`);
     }
 
     const parts = u.pathname.split('/').filter(Boolean);
     const slug = parts[parts.length - 1] ?? '';
-    if (!slug) throw new Error(`无法从 URL 中提取 slug: ${bundleUrl}`);
+    if (!slug) throw new Error(`无法从 URL 中提取 slug: ${url}`);
 
     const { version = '', overwrite = false } = options;
     const { bundle, sourceUrl } = await this._fetch(slug, version);
-    bundle.id = skill.id;
+    bundle.id = slug;
     const skillPath = writeSkillToDisk(bundle, targetDir, overwrite);
-    return { id: skill.id, name: bundle.name, path: skillPath, sourceUrl };
+    return { id: slug, name: bundle.name, path: skillPath, sourceUrl };
   }
 
   private async _fetch(slug: string, version: string): Promise<{ bundle: Bundle; sourceUrl: string }> {

@@ -1,5 +1,7 @@
+import { URL } from 'url';
 import { httpGetJson, httpGetText } from './types';
 import { normalizeBundle, writeSkillToDisk, type Bundle } from './bundle';
+import { SkillHubProvider } from './types';
 import type { ISkillHubService, HubSkillResult, HubInstallResult, InstallSkillOptions } from './types';
 
 const BASE_URL = 'https://skills.sh';
@@ -20,18 +22,29 @@ export class SkillsShSkillHubService implements ISkillHubService {
         id: String(item.id),
         name: String(item.name),
         description: item.source ? `来自 ${item.source}` : '',
-        version: item.installs != null ? `${item.installs} installs` : '',
+        version: '',
         sourceUrl: `${BASE_URL}/${item.id}`,
-        provider: 'skillssh' as const,
+        provider: SkillHubProvider.SkillsSh,
       }));
   }
 
-  async installSkill(skill: HubSkillResult, targetDir: string, options: InstallSkillOptions = {}): Promise<HubInstallResult> {
+  /** 从 HubSkillResult 安装（委托给 installSkillWithUrl） */
+  async installSkill(skill: HubSkillResult, targetDir: string, options?: InstallSkillOptions): Promise<HubInstallResult> {
+    return this.installSkillWithUrl(skill.sourceUrl, targetDir, options);
+  }
+
+  /** 主要安装入口：直接从 URL 安装 */
+  async installSkillWithUrl(url: string, targetDir: string, options: InstallSkillOptions = {}): Promise<HubInstallResult> {
+    const u = new URL(url);
+    const parts = u.pathname.split('/').filter(Boolean);
+    if (parts.length < 3) throw new Error(`skills.sh URL 格式应为 /owner/repo/skill，收到: ${u.pathname}`);
+    const id = parts.slice(0, 3).join('/');
+
     const { version = '', overwrite = false } = options;
-    const { bundle, sourceUrl } = await this._fetch(skill.id, version);
-    bundle.id = skill.id;
+    const { bundle, sourceUrl } = await this._fetch(id, version);
+    bundle.id = id;
     const skillPath = writeSkillToDisk(bundle, targetDir, overwrite);
-    return { id: skill.id, name: bundle.name, path: skillPath, sourceUrl };
+    return { id, name: bundle.name, path: skillPath, sourceUrl };
   }
 
   private async _fetch(id: string, version: string): Promise<{ bundle: Bundle; sourceUrl: string }> {
