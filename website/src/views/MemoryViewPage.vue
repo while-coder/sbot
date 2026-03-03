@@ -55,7 +55,7 @@ async function confirmAdd() {
   if (!addContent.value.trim()) { show('内容不能为空', 'error'); return }
   try {
     const res = await apiFetch(`/api/memories/${encodeURIComponent(memName)}/add`, 'POST', { content: addContent.value.trim() })
-    show(`已添加 ${res.ids?.length ?? 0} 条记忆`)
+    show(`已添加 ${res.data?.ids?.length ?? 0} 条记忆`)
     showAddModal.value = false
     await load()
   } catch (e: any) {
@@ -68,7 +68,7 @@ async function compress() {
   compressing.value = true
   try {
     const res = await apiFetch(`/api/memories/${encodeURIComponent(memName)}/compress`, 'POST')
-    show(`压缩完成，共压缩 ${res.count} 组记忆`)
+    show(`压缩完成，共压缩 ${res.data?.count ?? 0} 组记忆`)
     await load()
   } catch (e: any) {
     show(e.message, 'error')

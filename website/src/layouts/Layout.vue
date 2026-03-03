@@ -468,6 +468,26 @@ table tr:hover td { background: #fafaf9; }
 .msg-bubble.ai { background: #f5f4f2; color: #1c1c1c; border-bottom-left-radius: 3px; }
 .msg-bubble.tool { background: #fefce8; color: #713f12; font-family: monospace; font-size: 12px; }
 .msg-bubble.streaming { opacity: 0.85; }
+.md-content { white-space: normal; line-height: 1.65; }
+.md-content p { margin: 0 0 8px; }
+.md-content p:last-child { margin-bottom: 0; }
+.md-content h1, .md-content h2, .md-content h3, .md-content h4 { margin: 10px 0 5px; font-weight: 700; line-height: 1.3; }
+.md-content h1 { font-size: 1.2em; }
+.md-content h2 { font-size: 1.1em; }
+.md-content h3 { font-size: 1em; }
+.md-content ul, .md-content ol { margin: 0 0 8px; padding-left: 20px; }
+.md-content li { margin-bottom: 2px; }
+.md-content pre { background: rgba(0,0,0,0.06); border-radius: 5px; padding: 8px 10px; overflow-x: auto; margin: 6px 0; }
+.md-content code { font-family: 'Consolas','Monaco',monospace; font-size: 12px; background: rgba(0,0,0,0.06); padding: 1px 4px; border-radius: 3px; }
+.md-content pre code { background: none; padding: 0; font-size: 11px; }
+.md-content blockquote { border-left: 3px solid #d6d4d0; margin: 6px 0; padding: 3px 10px; color: #6b6b6b; }
+.md-content strong { font-weight: 700; }
+.md-content em { font-style: italic; }
+.md-content a { color: inherit; text-decoration: underline; }
+.md-content hr { border: none; border-top: 1px solid #e8e6e3; margin: 10px 0; }
+.md-content table { margin: 6px 0; font-size: 12px; }
+.md-content table th, .md-content table td { padding: 4px 8px; border: 1px solid #e8e6e3; }
+.md-content table th { background: #f5f4f2; font-weight: 600; }
 .msg-role {
   font-size: 10px;
   font-weight: 700;

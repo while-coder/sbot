@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick } from 'vue'
+import { marked } from 'marked'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
@@ -237,6 +238,10 @@ function toggleToolCall(el: HTMLElement) {
   if (detail) detail.classList.toggle('show')
 }
 
+function renderMd(content: string): string {
+  return marked.parse(content) as string
+}
+
 
 onMounted(refreshAgentAndHistory)
 </script>
@@ -279,7 +284,7 @@ onMounted(refreshAgentAndHistory)
               <div v-if="msg.timestamp" class="msg-ts">{{ fmtTs(msg.timestamp) }}</div>
               <div v-if="msg.content" class="msg-bubble ai">
                 <div class="msg-role">AI</div>
-                {{ msg.content }}
+                <div class="md-content" v-html="renderMd(msg.content)" />
               </div>
               <div v-if="msg.tool_calls && msg.tool_calls.length > 0" class="msg-tool-calls">
                 <div class="msg-role">Tool Calls ({{ msg.tool_calls.length }})</div>
@@ -319,7 +324,7 @@ onMounted(refreshAgentAndHistory)
         <div v-if="isStreaming" class="msg-row ai">
           <div class="msg-bubble ai streaming">
             <div class="msg-role">AI</div>
-            <span v-if="streamingContent">{{ streamingContent }}</span>
+            <div v-if="streamingContent" class="md-content" v-html="renderMd(streamingContent)" />
             <span v-else style="color:#94a3b8">思考中…</span>
           </div>
           <div v-for="(tc, i) in streamingToolCalls" :key="i" class="msg-tool-calls">

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { marked } from 'marked'
 import type { ChatMessage, ToolCall } from '@/types'
 
 defineProps<{ messages: ChatMessage[] }>()
@@ -14,6 +15,9 @@ function toggleToolCall(el: HTMLElement) {
   if (detail) detail.classList.toggle('show')
 }
 
+function renderMd(content: string): string {
+  return marked.parse(content) as string
+}
 </script>
 
 <template>
@@ -39,7 +43,7 @@ function toggleToolCall(el: HTMLElement) {
             <div v-if="msg.timestamp" class="msg-ts">{{ fmtTs(msg.timestamp) }}</div>
             <div v-if="msg.content" class="msg-bubble ai">
               <div class="msg-role">AI</div>
-              {{ msg.content }}
+              <div class="md-content" v-html="renderMd(msg.content)" />
             </div>
             <div v-if="msg.tool_calls && msg.tool_calls.length > 0" class="msg-tool-calls">
               <div class="msg-role">Tool Calls ({{ msg.tool_calls.length }})</div>

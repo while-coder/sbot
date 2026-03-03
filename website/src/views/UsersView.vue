@@ -51,7 +51,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div>
+  <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
     <div class="page-toolbar">
       <span class="page-toolbar-title">用户管理</span>
       <button class="btn-outline btn-sm" @click="load">刷新</button>

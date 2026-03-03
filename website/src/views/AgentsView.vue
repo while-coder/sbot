@@ -253,7 +253,7 @@ function subAgentSelectOptions() {
 </script>
 
 <template>
-  <div>
+  <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
     <div class="page-toolbar">
       <button class="btn-outline btn-sm" @click="refresh">刷新</button>
       <button class="btn-primary btn-sm" @click="openAdd">+ 添加 Agent</button>
