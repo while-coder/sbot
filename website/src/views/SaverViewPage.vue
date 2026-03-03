@@ -27,7 +27,7 @@ async function clear() {
   try {
     await apiFetch(`/api/savers/${encodeURIComponent(saverName)}/history`, 'DELETE')
     show('历史已清除')
-    messages.value = []
+    await load()
   } catch (e: any) {
     show(e.message, 'error')
   }

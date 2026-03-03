@@ -119,5 +119,5 @@ export interface MemoryItem {
   content: string
   importance?: number
   timestamp?: string
-  tags?: string[]
+  category?: string
 }

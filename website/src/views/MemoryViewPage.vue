@@ -56,7 +56,7 @@ onMounted(load)
     <div class="page-content">
       <table>
         <thead>
-          <tr><th>内容</th><th>重要性</th><th>时间</th><th>标签</th><th>操作</th></tr>
+          <tr><th>内容</th><th>重要性</th><th>时间</th><th>类型</th><th>操作</th></tr>
         </thead>
         <tbody>
           <tr v-if="memories.length === 0">
@@ -66,7 +66,7 @@ onMounted(load)
             <td style="max-width:420px;white-space:normal;word-break:break-word">{{ m.content }}</td>
             <td>{{ m.importance != null ? m.importance.toFixed(2) : '-' }}</td>
             <td style="white-space:nowrap">{{ m.timestamp ? new Date(m.timestamp).toLocaleString() : '-' }}</td>
-            <td>{{ (m.tags || []).join(', ') || '-' }}</td>
+            <td>{{ m.category || '-' }}</td>
             <td>
               <button class="btn-danger btn-sm" @click="remove(m.id)">删除</button>
             </td>

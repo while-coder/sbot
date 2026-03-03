@@ -92,7 +92,7 @@ function api(fn: (req: Request, res: Response) => any) {
     return async (req: Request, res: Response) => {
         try {
             const result = await fn(req, res);
-            if (result !== undefined) res.json({ success: true, data: result });
+            if (!res.headersSent) res.json({ success: true, data: result ?? null });
         } catch (e: any) {
             res.status(e.status ?? 500).json({ success: false, message: e.message });
         }
@@ -111,6 +111,7 @@ class HttpServer {
             res.header('Access-Control-Allow-Credentials', 'true');
             res.header('Access-Control-Allow-Headers', 'Content-Type,Content-Length,Authorization,Accept,X-Requested-With');
             res.header('Access-Control-Allow-Methods', 'PUT,POST,GET,DELETE,OPTIONS');
+            res.header('Access-Control-Max-Age', '86400');
             if (_req.method === 'OPTIONS') { res.sendStatus(200); return; }
             next();
         });

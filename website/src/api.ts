@@ -1,15 +1,14 @@
+import axios from 'axios'
+
+const http = axios.create({ baseURL: process.env.NODE_ENV === 'development' ? 'http://127.0.0.1:5500' : '' })
+
 export async function apiFetch(path: string, method = 'GET', body?: unknown): Promise<any> {
-  const options: RequestInit = {
-    method,
-    headers: { 'Content-Type': 'application/json' },
+  try {
+    console.log(`[API] ${method} ${path}`, body)
+    const res = await http({ url: path, method, data: body })
+    return res.data
+  } catch (e: any) {
+    const msg = e.response?.data?.message || e.response?.data?.error || e.message
+    throw new Error(msg)
   }
-  if (body !== undefined) {
-    options.body = JSON.stringify(body)
-  }
-  const res = await fetch(path, options)
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) {
-    throw new Error(data?.message || data?.error || `HTTP ${res.status}`)
-  }
-  return data
 }
