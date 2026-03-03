@@ -80,6 +80,7 @@ interface HubSkillResult {
 }
 
 const showHub = ref(false)
+const hubTab = ref<'url' | 'search'>('search')
 const hubQuery = ref('')
 const hubResults = ref<HubSkillResult[]>([])
 const hubSearching = ref(false)
@@ -110,6 +111,7 @@ async function installByUrl() {
 }
 
 function openAdd() {
+  hubTab.value = 'search'
   hubQuery.value = ''
   hubResults.value = []
   hubSearched.value = false
@@ -247,73 +249,88 @@ onMounted(load)
           <h3>Skill Hub</h3>
           <button class="modal-close" @click="showHub = false">&times;</button>
         </div>
+        <!-- Tabs -->
+        <div style="display:flex;border-bottom:1px solid #e2e8f0;flex-shrink:0;padding:0 20px">
+          <button
+            v-for="tab in ([{key:'url',label:'URL 安装'},{key:'search',label:'搜索'}] as const)"
+            :key="tab.key"
+            @click="hubTab = tab.key"
+            style="padding:10px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px"
+            :style="hubTab === tab.key ? 'color:#4f46e5;border-bottom-color:#4f46e5' : 'color:#64748b'"
+          >{{ tab.label }}</button>
+        </div>
         <div class="modal-body" style="flex:1;overflow:hidden;display:flex;flex-direction:column">
-          <!-- Direct URL install -->
-          <div style="display:flex;gap:8px;margin-bottom:8px;flex-shrink:0;align-items:center">
-            <input
-              v-model="hubUrlInput"
-              placeholder="直接输入 URL 安装（如 https://skills.sh/owner/repo/skill）"
-              style="flex:1"
-              @keydown.enter="installByUrl"
-            />
-            <label style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap;cursor:pointer">
-              <input type="checkbox" v-model="hubUrlOverwrite" style="margin:0" /> 覆盖
-            </label>
-            <button class="btn-primary" :disabled="hubUrlInstalling || !hubUrlInput.trim()" @click="installByUrl">
-              {{ hubUrlInstalling ? '安装中...' : '安装' }}
-            </button>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-shrink:0">
-            <div style="flex:1;height:1px;background:#e2e8f0"></div>
-            <span style="font-size:11px;color:#94a3b8">或搜索</span>
-            <div style="flex:1;height:1px;background:#e2e8f0"></div>
-          </div>
-          <!-- Search bar -->
-          <div style="display:flex;gap:8px;margin-bottom:16px;flex-shrink:0">
-            <input
-              v-model="hubQuery"
-              placeholder="搜索 Skill（如 code-review、web-scraper）"
-              style="flex:1"
-              @keydown="hubKeydown"
-            />
-            <button class="btn-primary" :disabled="hubSearching || !hubQuery.trim()" @click="hubSearch">
-              {{ hubSearching ? '搜索中...' : '搜索' }}
-            </button>
-          </div>
-
-          <!-- Results area (scrollable) -->
-          <div style="flex:1;overflow-y:auto;min-height:0">
-            <div v-if="hubSearching" style="text-align:center;color:#94a3b8;padding:40px">搜索中...</div>
-            <template v-else-if="hubSearched">
-              <div v-if="hubResults.length === 0" style="text-align:center;color:#94a3b8;padding:40px">未找到相关 Skill</div>
-              <table v-else style="width:100%">
-                <thead>
-                  <tr><th>名称</th><th>描述</th><th>版本</th><th>来源</th><th>操作</th></tr>
-                </thead>
-                <tbody>
-                  <tr v-for="s in hubResults" :key="s.provider + ':' + s.id">
-                    <td style="font-family:monospace;white-space:nowrap">{{ s.name || s.id }}</td>
-                    <td style="color:#475569;font-size:13px">{{ s.description || '-' }}</td>
-                    <td style="font-size:12px;color:#94a3b8;white-space:nowrap">{{ s.version || '-' }}</td>
-                    <td>
-                      <span v-if="s.provider === 'clawhub'"
-                        style="background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">ClawHub</span>
-                      <span v-else-if="s.provider === 'skillsmp'"
-                        style="background:#fef9c3;color:#a16207;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">SkillsMP</span>
-                      <span v-else
-                        style="background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">Skills.sh</span>
-                    </td>
-                    <td style="white-space:nowrap;width:70px">
-                      <button class="btn-primary btn-sm" @click="openInstall(s)">安装</button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </template>
-            <div v-else style="text-align:center;color:#94a3b8;padding:60px;font-size:13px">
-              输入关键词搜索 Skill Hub
+          <!-- Tab: URL install -->
+          <template v-if="hubTab === 'url'">
+            <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
+              <input
+                v-model="hubUrlInput"
+                placeholder="输入 URL 安装（如 https://skills.sh/owner/repo/skill）"
+                style="flex:1"
+                @keydown.enter="installByUrl"
+              />
+              <button class="btn-primary" :disabled="hubUrlInstalling || !hubUrlInput.trim()" @click="installByUrl">
+                {{ hubUrlInstalling ? '安装中...' : '安装' }}
+              </button>
             </div>
-          </div>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+              <input type="checkbox" v-model="hubUrlOverwrite" /> 覆盖已存在的同名 Skill
+            </label>
+            <div style="margin-top:16px;padding:12px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;color:#64748b;line-height:1.7">
+              支持格式：<br>
+              <code style="font-family:monospace">https://skills.sh/{owner}/{repo}/{skill}</code><br>
+              <code style="font-family:monospace">https://clawhub.ai/{slug}</code><br>
+              <code style="font-family:monospace">https://skillsmp.com/skills/{slug}</code>
+            </div>
+          </template>
+
+          <!-- Tab: Search -->
+          <template v-else>
+            <div style="display:flex;gap:8px;margin-bottom:16px;flex-shrink:0">
+              <input
+                v-model="hubQuery"
+                placeholder="搜索 Skill（如 code-review、web-scraper）"
+                style="flex:1"
+                @keydown="hubKeydown"
+              />
+              <button class="btn-primary" :disabled="hubSearching || !hubQuery.trim()" @click="hubSearch">
+                {{ hubSearching ? '搜索中...' : '搜索' }}
+              </button>
+            </div>
+            <!-- Results area (scrollable) -->
+            <div style="flex:1;overflow-y:auto;min-height:0">
+              <div v-if="hubSearching" style="text-align:center;color:#94a3b8;padding:40px">搜索中...</div>
+              <template v-else-if="hubSearched">
+                <div v-if="hubResults.length === 0" style="text-align:center;color:#94a3b8;padding:40px">未找到相关 Skill</div>
+                <table v-else style="width:100%">
+                  <thead>
+                    <tr><th>名称</th><th>描述</th><th>版本</th><th>来源</th><th>操作</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="s in hubResults" :key="s.provider + ':' + s.id">
+                      <td style="font-family:monospace;white-space:nowrap">{{ s.name || s.id }}</td>
+                      <td style="color:#475569;font-size:13px">{{ s.description || '-' }}</td>
+                      <td style="font-size:12px;color:#94a3b8;white-space:nowrap">{{ s.version || '-' }}</td>
+                      <td>
+                        <span v-if="s.provider === 'clawhub'"
+                          style="background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">ClawHub</span>
+                        <span v-else-if="s.provider === 'skillsmp'"
+                          style="background:#fef9c3;color:#a16207;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">SkillsMP</span>
+                        <span v-else
+                          style="background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">Skills.sh</span>
+                      </td>
+                      <td style="white-space:nowrap;width:70px">
+                        <button class="btn-primary btn-sm" @click="openInstall(s)">安装</button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </template>
+              <div v-else style="text-align:center;color:#94a3b8;padding:60px;font-size:13px">
+                输入关键词搜索 Skill Hub
+              </div>
+            </div>
+          </template>
         </div>
       </div>
     </div>
