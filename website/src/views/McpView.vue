@@ -17,6 +17,11 @@ const isAgentMode = computed(() => !!agentName.value)
 const servers = ref<Record<string, McpEntry>>({})
 const builtins = ref<string[]>([])
 
+// Agent-mode globals: selected global/builtin MCP names + their resolved info
+const agentGlobals = ref<string[]>([])
+interface GlobalInfo extends McpEntry { isBuiltin: boolean }
+const agentGlobalMap = ref<Record<string, GlobalInfo>>({})
+
 function apiBase() {
   return isAgentMode.value
     ? `/api/agents/${encodeURIComponent(agentName.value!)}/mcp`
@@ -31,9 +36,52 @@ async function load() {
       builtins.value = res.data?.builtins || []
       store.mcpServers = servers.value
       store.mcpBuiltins = builtins.value
+    } else {
+      // Resolve selected globals against the global MCP registry
+      const selectedGlobals: string[] = res.data?.globals || []
+      agentGlobals.value = selectedGlobals
+      if (selectedGlobals.length > 0) {
+        try {
+          const globalRes = await apiFetch('/api/mcp')
+          const allBuiltins: string[] = globalRes.data?.builtins || []
+          const allServers: Record<string, McpEntry> = globalRes.data?.servers || {}
+          const map: Record<string, GlobalInfo> = {}
+          for (const name of selectedGlobals) {
+            if (allBuiltins.includes(name)) {
+              map[name] = { type: 'builtin', isBuiltin: true }
+            } else if (allServers[name]) {
+              map[name] = { ...allServers[name], isBuiltin: false }
+            } else {
+              map[name] = { type: 'unknown', isBuiltin: false }
+            }
+          }
+          agentGlobalMap.value = map
+        } catch {
+          agentGlobalMap.value = {}
+        }
+      } else {
+        agentGlobalMap.value = {}
+      }
     }
   } catch (e: any) {
     show(e.message, 'error')
+  }
+}
+
+async function viewGlobalTools(name: string) {
+  toolsTitle.value = name
+  toolsList.value = []
+  toolsLoading.value = true
+  expandedTools.clear()
+  showToolsModal.value = true
+  try {
+    const res = await apiFetch('/api/mcp/tools', 'POST', { name })
+    toolsList.value = res.data || []
+  } catch (e: any) {
+    show(e.message, 'error')
+    showToolsModal.value = false
+  } finally {
+    toolsLoading.value = false
   }
 }
 
@@ -305,7 +353,7 @@ onMounted(load)
           <tr><th>名称</th><th>类型</th><th>地址/命令</th><th>操作</th></tr>
         </thead>
         <tbody>
-          <!-- Builtin rows -->
+          <!-- Builtin rows (global mode only) -->
           <tr v-for="b in builtins" :key="'builtin:' + b">
             <td style="font-family:monospace">
               {{ b }}
@@ -319,8 +367,29 @@ onMounted(load)
               </div>
             </td>
           </tr>
-          <!-- User-defined servers -->
-          <tr v-if="builtins.length === 0 && Object.keys(servers).length === 0">
+          <!-- Selected global/builtin MCPs (agent mode only) -->
+          <template v-if="isAgentMode">
+            <tr v-for="name in agentGlobals" :key="'global:' + name">
+              <td style="font-family:monospace">
+                {{ name }}
+                <span v-if="agentGlobalMap[name]?.isBuiltin"
+                  style="margin-left:6px;background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">内置</span>
+                <span v-else
+                  style="margin-left:6px;background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">全局</span>
+              </td>
+              <td>{{ agentGlobalMap[name]?.type || '-' }}</td>
+              <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#94a3b8">
+                {{ agentGlobalMap[name]?.isBuiltin ? '—' : serverAddr(agentGlobalMap[name] as McpEntry) }}
+              </td>
+              <td>
+                <div class="ops-cell">
+                  <button class="btn-outline btn-sm" @click="viewGlobalTools(name)">查看工具</button>
+                </div>
+              </td>
+            </tr>
+          </template>
+          <!-- Empty state -->
+          <tr v-if="builtins.length === 0 && agentGlobals.length === 0 && Object.keys(servers).length === 0">
             <td colspan="4" style="text-align:center;color:#94a3b8;padding:40px">暂无 MCP 配置</td>
           </tr>
           <tr v-for="(s, name) in servers" :key="name">

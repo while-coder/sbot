@@ -283,7 +283,6 @@ class HttpServer {
                 timestamp: m.metadata.timestamp,
                 lastAccessed: m.metadata.lastAccessed,
                 accessCount: m.metadata.accessCount,
-                tags: m.metadata.tags,
                 category: m.metadata.category,
             }));
         }));

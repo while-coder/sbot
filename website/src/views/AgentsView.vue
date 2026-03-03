@@ -85,8 +85,18 @@ function openEdit(name: string) {
 
 async function save() {
   if (!form.value.name.trim()) { show('名称不能为空', 'error'); return }
+  const { type } = form.value
+  if (type === 'react') {
+    if (!form.value.think) { show('ReAct 模式：Think Agent 不能为空', 'error'); return }
+    if (!form.value.reflect) { show('ReAct 模式：Reflect 模型不能为空', 'error'); return }
+    if (!form.value.summarizer) { show('ReAct 模式：Summarizer 模型不能为空', 'error'); return }
+  } else if (type === 'supervisor') {
+    if (!form.value.supervisor) { show('Supervisor 模式：Supervisor Agent 不能为空', 'error'); return }
+    if (!form.value.summarizer) { show('Supervisor 模式：Summarizer 模型不能为空', 'error'); return }
+    if (!form.value.finalize) { show('Supervisor 模式：Finalize 模型不能为空', 'error'); return }
+  }
   try {
-    const { name, type } = form.value
+    const { name } = form.value
     const config: Agent = { type }
 
     if (type === 'single') {
@@ -96,15 +106,15 @@ async function save() {
       if (form.value.selectedSkills.length > 0) config.skills = form.value.selectedSkills
     } else if (type === 'react') {
       config.maxIterations = form.value.maxIterations
-      if (form.value.think) config.think = form.value.think
-      if (form.value.reflect) config.reflect = form.value.reflect
-      if (form.value.summarizer) config.summarizer = form.value.summarizer
+      config.think = form.value.think
+      config.reflect = form.value.reflect
+      config.summarizer = form.value.summarizer
       config.agents = tempSubAgents.value
     } else if (type === 'supervisor') {
       config.maxRounds = form.value.maxRounds
-      if (form.value.supervisor) config.supervisor = form.value.supervisor
-      if (form.value.summarizer) config.summarizer = form.value.summarizer
-      if (form.value.finalize) config.finalize = form.value.finalize
+      config.supervisor = form.value.supervisor
+      config.summarizer = form.value.summarizer
+      config.finalize = form.value.finalize
       config.agents = tempSubAgents.value
     }
 
@@ -347,9 +357,9 @@ function subAgentSelectOptions() {
             <div class="form-section">
               <div class="form-section-title">Think 节点</div>
               <div class="form-group">
-                <label>Think Agent</label>
+                <label>Think Agent *</label>
                 <select v-model="form.think">
-                  <option value="">不使用</option>
+                  <option value="">请选择</option>
                   <option v-for="a in agentOptions" :key="a" :value="a">{{ a }}</option>
                 </select>
               </div>
@@ -357,9 +367,9 @@ function subAgentSelectOptions() {
             <div class="form-section">
               <div class="form-section-title">Reflect 节点</div>
               <div class="form-group">
-                <label>Reflect 模型</label>
+                <label>Reflect 模型 *</label>
                 <select v-model="form.reflect">
-                  <option value="">不使用</option>
+                  <option value="">请选择</option>
                   <option v-for="m in modelOptions" :key="m" :value="m">{{ m }}</option>
                 </select>
               </div>
@@ -367,9 +377,9 @@ function subAgentSelectOptions() {
             <div class="form-section">
               <div class="form-section-title">Summarizer 节点</div>
               <div class="form-group">
-                <label>Summarizer 模型</label>
+                <label>Summarizer 模型 *</label>
                 <select v-model="form.summarizer">
-                  <option value="">不使用</option>
+                  <option value="">请选择</option>
                   <option v-for="m in modelOptions" :key="m" :value="m">{{ m }}</option>
                 </select>
               </div>
@@ -402,9 +412,9 @@ function subAgentSelectOptions() {
             <div class="form-section">
               <div class="form-section-title">Supervisor 节点</div>
               <div class="form-group">
-                <label>Supervisor Agent</label>
+                <label>Supervisor Agent *</label>
                 <select v-model="form.supervisor">
-                  <option value="">不使用</option>
+                  <option value="">请选择</option>
                   <option v-for="a in agentOptions" :key="a" :value="a">{{ a }}</option>
                 </select>
               </div>
@@ -412,9 +422,9 @@ function subAgentSelectOptions() {
             <div class="form-section">
               <div class="form-section-title">Summarizer 节点</div>
               <div class="form-group">
-                <label>Summarizer 模型</label>
+                <label>Summarizer 模型 *</label>
                 <select v-model="form.summarizer">
-                  <option value="">不使用</option>
+                  <option value="">请选择</option>
                   <option v-for="m in modelOptions" :key="m" :value="m">{{ m }}</option>
                 </select>
               </div>
@@ -422,9 +432,9 @@ function subAgentSelectOptions() {
             <div class="form-section">
               <div class="form-section-title">Finalize 节点</div>
               <div class="form-group">
-                <label>Finalize 模型</label>
+                <label>Finalize 模型 *</label>
                 <select v-model="form.finalize">
-                  <option value="">不使用</option>
+                  <option value="">请选择</option>
                   <option v-for="m in modelOptions" :key="m" :value="m">{{ m }}</option>
                 </select>
               </div>

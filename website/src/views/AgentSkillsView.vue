@@ -99,7 +99,10 @@ onMounted(load)
           <tr v-for="s in globals" :key="'g-' + s.name">
             <td style="font-family:monospace">
               {{ s.name }}
-              <span style="color:#64748b;font-size:11px">({{ (s as any).isBuiltin !== false ? '内置' : '全局' }})</span>
+              <span v-if="(s as any).isBuiltin !== false"
+                style="margin-left:6px;background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">内置</span>
+              <span v-else
+                style="margin-left:6px;background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">全局</span>
             </td>
             <td>{{ s.description || '-' }}</td>
             <td>-</td>

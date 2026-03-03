@@ -92,7 +92,7 @@ onMounted(load)
           <tr v-for="s in builtins" :key="'b-' + s.name">
             <td style="font-family:monospace">
               {{ s.name }}
-              <span style="color:#64748b;font-size:11px">(内置)</span>
+              <span style="margin-left:6px;background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">内置</span>
             </td>
             <td>{{ s.description || '-' }}</td>
             <td>-</td>
