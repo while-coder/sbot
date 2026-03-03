@@ -14,11 +14,12 @@ export class AgentRunner {
         query: string,
         callbacks: IAgentCallback,
         userInfo?: any,
+        agentName?: string,
     ): Promise<void> {
-        const agentName = config.settings.agent;
-        if (!agentName) throw new Error("未配置 agent，请在 settings.json 中设置 agent 字段");
-        const agentEntry = config.settings.agents?.[agentName];
-        if (!agentEntry) throw new Error(`Agent 配置 "${agentName}" 不存在，请检查 settings.json 中的 agents 配置`);
+        const resolvedAgentName = agentName || config.settings.agent;
+        if (!resolvedAgentName) throw new Error("未配置 agent，请在 settings.json 中设置 agent 字段");
+        const agentEntry = config.settings.agents?.[resolvedAgentName];
+        if (!agentEntry) throw new Error(`Agent 配置 "${resolvedAgentName}" 不存在，请检查 settings.json 中的 agents 配置`);
 
         const extraPrompts: string[] = [];
         if (userInfo) {
@@ -32,9 +33,9 @@ export class AgentRunner {
         const container = new ServiceContainer();
         container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
 
-        logger.info(`使用 Agent [${agentName}] (${agentEntry.type})`);
+        logger.info(`使用 Agent [${resolvedAgentName}] (${agentEntry.type})`);
 
-        const agent = await AgentFactory.create(agentName, container, extraPrompts);
+        const agent = await AgentFactory.create(resolvedAgentName, container, extraPrompts);
         try {
             await agent.stream(query, callbacks);
         } finally {

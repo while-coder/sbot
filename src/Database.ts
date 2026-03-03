@@ -5,10 +5,29 @@ import { LoggerService } from "./LoggerService";
 
 const logger = LoggerService.getLogger("Database.ts");
 const DBVersionName = "db_version";
-const DBVersion = '0.0.1'
+const DBVersion = '0.0.2'
 export type MessageRow = {
   id: string;
   expireTime: number;
+};
+
+export enum TimerType {
+  Daily    = 'daily',
+  Weekly   = 'weekly',
+  Monthly  = 'monthly',
+  Interval = 'interval',
+}
+
+export type TimerRow = {
+  id: number;
+  name: string;
+  type: TimerType;
+  config: string;      // JSON: daily={time:"09:00"} weekly={dayOfWeek:1,time:"09:00"} monthly={dayOfMonth:1,time:"09:00"} interval={minutes:30}
+  message: string;     // 消息文本
+  agentName: string | null;  // 可选 agent 名称
+  userId: number | null;     // user 表 ID
+  enabled: boolean;
+  lastRun: number | null;    // 上次执行时间戳
 };
 
 export type StateRow = {
@@ -36,6 +55,7 @@ class Database {
   public message!: ModelStatic<any>;
   public state!: ModelStatic<any>;
   public user!: ModelStatic<any>;
+  public timer!: ModelStatic<any>;
 
   async init() {
     this.running = false;
@@ -156,6 +176,70 @@ class Database {
       },
     );
 
+    this.timer = sequelize.define(
+      "timer",
+      {
+        id: {
+          type: DataTypes.INTEGER,
+          primaryKey: true,
+          autoIncrement: true,
+          comment: "自增ID",
+        },
+        name: {
+          type: DataTypes.STRING(255),
+          allowNull: false,
+          defaultValue: "",
+          comment: "计时器名称",
+        },
+        type: {
+          type: DataTypes.STRING(32),
+          allowNull: false,
+          comment: "类型: daily|weekly|monthly|interval",
+        },
+        config: {
+          type: DataTypes.TEXT,
+          allowNull: false,
+          defaultValue: "{}",
+          comment: "配置 JSON",
+        },
+        message: {
+          type: DataTypes.TEXT,
+          allowNull: false,
+          defaultValue: "",
+          comment: "发送的文字消息",
+        },
+        agentName: {
+          type: DataTypes.STRING(255),
+          allowNull: true,
+          defaultValue: null,
+          comment: "可选 Agent 名称",
+        },
+        userId: {
+          type: DataTypes.INTEGER,
+          allowNull: true,
+          defaultValue: null,
+          comment: "user 表 ID",
+        },
+        enabled: {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: true,
+          comment: "是否启用",
+        },
+        lastRun: {
+          type: DataTypes.BIGINT,
+          allowNull: true,
+          defaultValue: null,
+          comment: "上次执行时间戳",
+        },
+      },
+      {
+        tableName: "timer",
+        timestamps: false,
+        comment: "计时器表",
+      },
+    );
+
     await this.sync();
   }
 
@@ -191,6 +275,7 @@ class Database {
 
       await this.message.sync({ alter });
       await this.user.sync({ alter });
+      await this.timer.sync({ alter });
 
       await this.state.update({ value: DBVersion }, { where: { key: DBVersionName } });
       logger.info("刷新数据库结构完成");

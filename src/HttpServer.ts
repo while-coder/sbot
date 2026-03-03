@@ -14,6 +14,7 @@ import { LoggerService } from './LoggerService';
 import { database } from './Database';
 import { userService } from './UserService/UserService';
 import { WebUserService } from './UserService/WebUserService';
+import { timerService } from './TimerService';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
 
@@ -347,6 +348,58 @@ class HttpServer {
             const svc = await AgentFactory.createMemoryService(req.params.memoryName as string);
             const count = await svc.compressMemories();
             return { count };
+        }));
+
+        // ===== Timers =====
+        app.get('/api/timers', api(async () => {
+            return await database.findAll(database.timer);
+        }));
+
+        app.post('/api/timers', api(async req => {
+            const { name, type, config: cfg, message, agentName, userId, enabled } = req.body;
+            if (!name) { const e: any = new Error('name 不能为空'); e.status = 400; throw e; }
+            if (!['daily', 'weekly', 'monthly', 'interval'].includes(type)) {
+                const e: any = new Error('type 必须为 daily | weekly | monthly | interval'); e.status = 400; throw e;
+            }
+            if (!message) { const e: any = new Error('message 不能为空'); e.status = 400; throw e; }
+            const row = await database.create(database.timer, {
+                name,
+                type,
+                config: typeof cfg === 'string' ? cfg : JSON.stringify(cfg ?? {}),
+                message,
+                agentName: agentName ?? null,
+                userId: userId ?? null,
+                enabled: enabled !== false,
+                lastRun: null,
+            });
+            await timerService.reload((row as any).id);
+            return row;
+        }));
+
+        app.put('/api/timers/:id', api(async req => {
+            const id = parseInt(req.params.id as string, 10);
+            if (isNaN(id)) { const e: any = new Error('无效的 id'); e.status = 400; throw e; }
+            const { name, type, config: cfg, message, agentName, userId, enabled } = req.body;
+            if (type && !['daily', 'weekly', 'monthly', 'interval'].includes(type)) {
+                const e: any = new Error('type 必须为 daily | weekly | monthly | interval'); e.status = 400; throw e;
+            }
+            const updates: any = {};
+            if (name !== undefined) updates.name = name;
+            if (type !== undefined) updates.type = type;
+            if (cfg !== undefined) updates.config = typeof cfg === 'string' ? cfg : JSON.stringify(cfg);
+            if (message !== undefined) updates.message = message;
+            if (agentName !== undefined) updates.agentName = agentName;
+            if (userId !== undefined) updates.userId = userId;
+            if (enabled !== undefined) updates.enabled = enabled;
+            await database.update(database.timer, updates, { where: { id } });
+            await timerService.reload(id);
+        }));
+
+        app.delete('/api/timers/:id', api(async req => {
+            const id = parseInt(req.params.id as string, 10);
+            if (isNaN(id)) { const e: any = new Error('无效的 id'); e.status = 400; throw e; }
+            timerService.cancel(id);
+            await database.destroy(database.timer, { where: { id } });
         }));
 
         // ===== Users =====

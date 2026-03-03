@@ -15,7 +15,7 @@ export class UserService extends UserServiceBase {
 
     constructor() {
         super();
-        this.lark = new LarkUserService(this);
+        this.lark = new LarkUserService();
         this.web = new WebUserService();
     }
 
