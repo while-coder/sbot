@@ -1,27 +1,30 @@
 import { URL } from 'url';
 import { httpGetJson, httpGetText, requireHttpUrl } from './types';
-import { normalizeBundle, writeSkillToDisk, mapToHubResults, type Bundle } from './bundle';
+import { normalizeBundle, writeSkillToDisk, type Bundle } from './bundle';
 import type { ISkillHubService, HubSkillResult, HubInstallResult, InstallSkillOptions } from './types';
+
+const BASE_URL = 'https://skills.sh';
 
 /**
  * skills.sh 实现
  *
+ * 搜索 API：`https://skills.sh/api/search?q=...&limit=...`
  * 安装 URL 格式：`https://skills.sh/{owner}/{repo}/{skill}`
  */
 export class SkillsShSkillHubService implements ISkillHubService {
   async searchSkills(query: string, limit = 20): Promise<HubSkillResult[]> {
-    const data = await httpGetJson<any>('https://skills.sh/api/v1/search', { q: query, limit: String(limit) });
-
-    let items: any[] = [];
-    if (Array.isArray(data)) {
-      items = data;
-    } else if (data && typeof data === 'object') {
-      for (const key of ['items', 'skills', 'results', 'data']) {
-        if (Array.isArray(data[key])) { items = data[key]; break; }
-      }
-    }
-
-    return mapToHubResults(items);
+    const data = await httpGetJson<any>(`${BASE_URL}/api/search`, { q: query, limit: String(limit) });
+    const items: any[] = Array.isArray(data?.skills) ? data.skills : [];
+    return items
+      .filter(item => item?.id && item?.name)
+      .map(item => ({
+        slug: String(item.id),
+        name: String(item.name),
+        description: item.source ? `来自 ${item.source}` : '',
+        version: item.installs != null ? `${item.installs} installs` : '',
+        sourceUrl: `${BASE_URL}/${item.id}`,
+        provider: 'skillssh' as const,
+      }));
   }
 
   async installSkill(bundleUrl: string, targetDir: string, options: InstallSkillOptions = {}): Promise<HubInstallResult> {
@@ -45,18 +48,11 @@ export class SkillsShSkillHubService implements ISkillHubService {
   private async _fetch(
     owner: string, repo: string, skill: string, version: string,
   ): Promise<{ bundle: Bundle; sourceUrl: string }> {
-    const sourceUrl = `https://skills.sh/${owner}/${repo}/${skill}`;
+    const sourceUrl = `${BASE_URL}/${owner}/${repo}/${skill}`;
     const params: Record<string, string> = {};
     if (version) params.version = version;
 
-    // Try JSON API first
-    try {
-      const data = await httpGetJson<any>(`https://skills.sh/api/v1/skills/${owner}/${repo}/${skill}`, params);
-      return { bundle: normalizeBundle(data), sourceUrl };
-    } catch { /* fall through */ }
-
-    // Fallback: direct SKILL.md
-    const content = await httpGetText(`https://skills.sh/${owner}/${repo}/${skill}/SKILL.md`, params);
+    const content = await httpGetText(`${BASE_URL}/${owner}/${repo}/${skill}/SKILL.md`, params);
     return { bundle: normalizeBundle({ name: skill, files: { 'SKILL.md': content } }), sourceUrl };
   }
 }

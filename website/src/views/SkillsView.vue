@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 import type { SkillItem } from '@/types'
 
+const router = useRouter()
 const { show } = useToast()
 
 const skills = ref<SkillItem[]>([])
@@ -79,6 +81,7 @@ onMounted(load)
   <div>
     <div class="page-toolbar">
       <button class="btn-outline btn-sm" @click="load">刷新</button>
+      <button class="btn-outline btn-sm" @click="router.push('/skills/hub')">Skill Hub</button>
       <button class="btn-primary btn-sm" @click="openAdd">+ 添加 Skill</button>
     </div>
     <div class="page-content">

@@ -1,35 +1,32 @@
-import { URL } from 'url';
-
 import { ClawhubSkillHubService } from './ClawhubSkillHubService';
 import { SkillsShSkillHubService } from './SkillsShSkillHubService';
-import { requireHttpUrl } from './types';
-import type { ISkillHubService, HubSkillResult, HubInstallResult, InstallSkillOptions } from './types';
+import type { HubSkillResult, HubInstallResult, InstallSkillOptions, SkillHubProvider } from './types';
 
 const _clawhub = new ClawhubSkillHubService();
 const _skillsSh = new SkillsShSkillHubService();
 
 /**
- * SkillHubService — 根据 URL 自动路由到对应实现
- *
- * 支持：
- * - `https://clawhub.ai/{slug}`
- * - `https://skills.sh/{owner}/{repo}/{skill}`
+ * SkillHubService — 聚合 clawhub.ai 和 skills.sh
  */
-export class SkillHubService implements ISkillHubService {
-  /** 搜索 ClawHub 上的 Skills（默认搜索来源） */
+export class SkillHubService {
+  /** 并发搜索 ClawHub 和 skills.sh，合并返回结果 */
   async searchSkills(query: string, limit = 20): Promise<HubSkillResult[]> {
-    return _clawhub.searchSkills(query, limit);
+    const results = await Promise.allSettled([
+      _clawhub.searchSkills(query, limit),
+      _skillsSh.searchSkills(query, limit),
+    ]);
+    return results
+      .filter((r): r is PromiseFulfilledResult<HubSkillResult[]> => r.status === 'fulfilled')
+      .flatMap(r => r.value);
   }
 
-  async installSkill(bundleUrl: string, targetDir: string, options: InstallSkillOptions = {}): Promise<HubInstallResult> {
-    requireHttpUrl(bundleUrl);
-    return this._resolve(bundleUrl).installSkill(bundleUrl, targetDir, options);
-  }
-
-  private _resolve(bundleUrl: string): ISkillHubService {
-    const host = new URL(bundleUrl).hostname;
-    if (host.includes('clawhub.ai')) return _clawhub;
-    if (['skills.sh', 'www.skills.sh'].includes(host)) return _skillsSh;
-    throw new Error(`不支持的 URL。仅支持 clawhub.ai 和 skills.sh，收到: ${bundleUrl}`);
+  async installSkill(
+    provider: SkillHubProvider,
+    bundleUrl: string,
+    targetDir: string,
+    options?: InstallSkillOptions,
+  ): Promise<HubInstallResult> {
+    const impl = provider === 'clawhub' ? _clawhub : _skillsSh;
+    return impl.installSkill(bundleUrl, targetDir, options);
   }
 }

@@ -9,6 +9,7 @@ import { MultiServerMCPClient } from '@langchain/mcp-adapters';
 import { config, SaverType } from './Config';
 import { globalAgentToolService, refreshGlobalAgentToolService, BuiltinProvider } from './GlobalAgentToolService';
 import { globalSkillService, refreshGlobalSkillService, BUILTIN_SKILLS_DIR } from './GlobalSkillService';
+import { SkillHubService } from './SkillHub';
 import { LoggerService } from './LoggerService';
 import { userService } from './UserService/UserService';
 import { WebUserService } from './UserService/WebUserService';
@@ -206,6 +207,25 @@ class HttpServer {
 
         app.delete('/api/skills/:name', api(req => {
             const result = deleteSkill(config.getSkillsPath(), req.params.name as string);
+            refreshGlobalSkillService();
+            return result;
+        }));
+
+        // ===== Skill Hub =====
+        const skillHubService = new SkillHubService();
+
+        app.get('/api/skill-hub/search', api(async req => {
+            const q = (req.query.q as string) || '';
+            if (!q.trim()) return [];
+            const limit = Math.min(Number(req.query.limit) || 20, 50);
+            return skillHubService.searchSkills(q, limit);
+        }));
+
+        app.post('/api/skill-hub/install', api(async req => {
+            const { provider, bundleUrl, overwrite = false } = req.body;
+            if (!provider) { const e: any = new Error('缺少 provider'); e.status = 400; throw e; }
+            if (!bundleUrl) { const e: any = new Error('缺少 bundleUrl'); e.status = 400; throw e; }
+            const result = await skillHubService.installSkill(provider, bundleUrl, config.getSkillsPath(), { overwrite });
             refreshGlobalSkillService();
             return result;
         }));

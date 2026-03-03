@@ -23,7 +23,10 @@ export class ClawhubSkillHubService implements ISkillHubService {
       }
     }
 
-    return mapToHubResults(items);
+    return mapToHubResults(items, 'clawhub').map(r => ({
+      ...r,
+      sourceUrl: `${BASE_URL}/${r.slug}`,
+    }));
   }
 
   async installSkill(bundleUrl: string, targetDir: string, options: InstallSkillOptions = {}): Promise<HubInstallResult> {

@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import type { HubSkillResult } from './types';
+import type { HubSkillResult, SkillHubProvider } from './types';
 
 export interface Bundle {
   name: string;
@@ -56,7 +56,7 @@ export function writeSkillToDisk(bundle: Bundle, targetDir: string, overwrite: b
   return skillDir;
 }
 
-export function mapToHubResults(items: any[]): HubSkillResult[] {
+export function mapToHubResults(items: any[], provider: SkillHubProvider): HubSkillResult[] {
   return items
     .filter(item => item && typeof item === 'object')
     .map(item => ({
@@ -65,6 +65,7 @@ export function mapToHubResults(items: any[]): HubSkillResult[] {
       description: String(item.description ?? item.summary ?? ''),
       version: String(item.version ?? ''),
       sourceUrl: String(item.url ?? ''),
+      provider,
     }))
     .filter(r => r.slug);
 }

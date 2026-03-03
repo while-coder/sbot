@@ -3,12 +3,15 @@ import { URLSearchParams } from 'url';
 
 // ── Public Types ───────────────────────────────────────────────
 
+export type SkillHubProvider = 'clawhub' | 'skillssh';
+
 export interface HubSkillResult {
   slug: string;
   name: string;
   description: string;
   version: string;
   sourceUrl: string;
+  provider: SkillHubProvider;
 }
 
 export interface HubInstallResult {
