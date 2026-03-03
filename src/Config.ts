@@ -493,38 +493,6 @@ class Config {
     return this.getConfigPath(`memories/${memoryName}/memory.sqlite`)
   }
 
-  /**
-   * 验证所有配置是否完整
-   * @throws 如果配置不完整则抛出错误
-   */
-  validateConfig(): void {
-    const errors: string[] = [];
-
-    // 验证 Lark 配置
-    if (!this._settings.lark) {
-      errors.push("缺少 Lark 配置 [lark]，请在配置文件中添加 Lark 应用配置");
-    } else {
-      const { appId, appSecret } = this._settings.lark;
-
-      if (!appId || appId.trim() === "") {
-        errors.push("Lark 配置缺少 appId，请在配置文件 [lark] 区间中填写 appId");
-      }
-
-      if (!appSecret || appSecret.trim() === "") {
-        errors.push("Lark 配置缺少 appSecret，请在配置文件 [lark] 区间中填写 appSecret");
-      }
-    }
-
-    // 验证模型配置
-    if (!this._settings.models || Object.keys(this._settings.models).length === 0) {
-      errors.push("缺少模型配置 [models]，请在配置文件中添加至少一个模型配置");
-    }
-
-    // 如果有错误，抛出异常
-    if (errors.length > 0) {
-      throw new Error(errors.join("\n"));
-    }
-  }
 }
 
 export const config = new Config();

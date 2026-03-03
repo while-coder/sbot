@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { apiFetch } from '@/api'
+import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 
 type TimerType = 'daily' | 'weekly' | 'monthly' | 'interval'
@@ -25,12 +26,21 @@ interface TimerConfig {
   minutes?: number
 }
 
+interface UserRow {
+  id: number
+  userid: string
+  username: string
+}
+
 const { show } = useToast()
 const timers = ref<TimerRow[]>([])
+const users = ref<UserRow[]>([])
 const loading = ref(false)
 const showModal = ref(false)
 const editingId = ref<number | null>(null)
 const saving = ref(false)
+
+const agentNames = computed(() => Object.keys(store.settings.agents ?? {}))
 
 const form = ref({
   name: '',
@@ -52,8 +62,12 @@ const dayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '�
 async function load() {
   loading.value = true
   try {
-    const res = await apiFetch('/api/timers')
-    timers.value = res.data || []
+    const [timersRes, usersRes] = await Promise.all([
+      apiFetch('/api/timers'),
+      apiFetch('/api/users'),
+    ])
+    timers.value = timersRes.data || []
+    users.value = usersRes.data || []
   } catch (e: any) {
     show(e.message, 'error')
   } finally {
@@ -63,6 +77,56 @@ async function load() {
 
 function parseConfig(row: TimerRow): TimerConfig {
   try { return JSON.parse(row.config) } catch { return {} }
+}
+
+function calcNextRun(row: TimerRow): string {
+  if (!row.enabled) return '-'
+  const cfg = parseConfig(row)
+  const now = new Date()
+
+  if (row.type === 'interval') {
+    const mins = cfg.minutes ?? 30
+    const cur = now.getMinutes()
+    const nextMin = (Math.floor(cur / mins) + 1) * mins
+    const next = new Date(now)
+    next.setSeconds(0, 0)
+    if (nextMin >= 60) {
+      next.setHours(next.getHours() + 1)
+      next.setMinutes(0)
+    } else {
+      next.setMinutes(nextMin)
+    }
+    return next.toLocaleString('zh-CN')
+  }
+
+  const hour = cfg.hour ?? 0
+  const minute = cfg.minute ?? 0
+
+  if (row.type === 'daily') {
+    const next = new Date(now)
+    next.setHours(hour, minute, 0, 0)
+    if (next <= now) next.setDate(next.getDate() + 1)
+    return next.toLocaleString('zh-CN')
+  }
+
+  if (row.type === 'weekly') {
+    const dow = cfg.dayOfWeek ?? 1
+    const next = new Date(now)
+    next.setHours(hour, minute, 0, 0)
+    const diff = (dow - now.getDay() + 7) % 7
+    next.setDate(next.getDate() + diff)
+    if (next <= now) next.setDate(next.getDate() + 7)
+    return next.toLocaleString('zh-CN')
+  }
+
+  if (row.type === 'monthly') {
+    const dom = cfg.dayOfMonth ?? 1
+    const next = new Date(now.getFullYear(), now.getMonth(), dom, hour, minute, 0)
+    if (next <= now) next.setMonth(next.getMonth() + 1)
+    return next.toLocaleString('zh-CN')
+  }
+
+  return '-'
 }
 
 function formatSchedule(row: TimerRow): string {
@@ -81,13 +145,17 @@ function formatLastRun(ts: number | null): string {
   return new Date(ts).toLocaleString('zh-CN')
 }
 
+function userLabel(u: UserRow): string {
+  return u.username ? `${u.username} (${u.userid})` : u.userid
+}
+
 function openAdd() {
   editingId.value = null
   form.value = {
     name: '',
     type: 'daily',
     message: '',
-    agentName: '',
+    agentName: agentNames.value[0] ?? '',
     userId: '',
     enabled: true,
     hour: 8,
@@ -106,7 +174,7 @@ function openEdit(row: TimerRow) {
     name: row.name,
     type: row.type,
     message: row.message,
-    agentName: row.agentName ?? '',
+    agentName: row.agentName ?? agentNames.value[0] ?? '',
     userId: row.userId ?? '',
     enabled: row.enabled,
     hour: cfg.hour ?? 8,
@@ -129,6 +197,7 @@ function buildConfig(): TimerConfig {
 async function save() {
   if (!form.value.name.trim()) { show('名称不能为空', 'error'); return }
   if (!form.value.message.trim()) { show('消息不能为空', 'error'); return }
+  if (!form.value.agentName) { show('请选择 Agent', 'error'); return }
   saving.value = true
   try {
     const body: any = {
@@ -136,7 +205,7 @@ async function save() {
       type: form.value.type,
       config: JSON.stringify(buildConfig()),
       message: form.value.message.trim(),
-      agentName: form.value.agentName.trim() || null,
+      agentName: form.value.agentName,
       userId: form.value.userId !== '' ? Number(form.value.userId) : null,
       enabled: form.value.enabled,
     }
@@ -203,18 +272,19 @@ onMounted(load)
             <th>计划</th>
             <th>消息</th>
             <th>Agent</th>
-            <th>用户ID</th>
+            <th>用户</th>
             <th>上次运行</th>
+            <th>下次执行</th>
             <th>状态</th>
             <th>操作</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="10" style="text-align:center;color:#9b9b9b;padding:40px">加载中...</td>
+            <td colspan="11" style="text-align:center;color:#9b9b9b;padding:40px">加载中...</td>
           </tr>
           <tr v-else-if="timers.length === 0">
-            <td colspan="10" style="text-align:center;color:#9b9b9b;padding:40px">暂无计时器</td>
+            <td colspan="11" style="text-align:center;color:#9b9b9b;padding:40px">暂无计时器</td>
           </tr>
           <tr v-for="t in timers" :key="t.id">
             <td style="font-family:monospace;color:#9b9b9b">{{ t.id }}</td>
@@ -227,8 +297,11 @@ onMounted(load)
             <td style="white-space:nowrap">{{ formatSchedule(t) }}</td>
             <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#6b6b6b">{{ t.message }}</td>
             <td style="font-family:monospace;font-size:12px">{{ t.agentName || '-' }}</td>
-            <td style="font-family:monospace">{{ t.userId ?? '-' }}</td>
+            <td style="font-size:12px">
+              {{ t.userId != null ? (users.find(u => u.id === t.userId)?.username || users.find(u => u.id === t.userId)?.userid || t.userId) : '-' }}
+            </td>
             <td style="font-size:12px;color:#9b9b9b;white-space:nowrap">{{ formatLastRun(t.lastRun) }}</td>
+            <td style="font-size:12px;color:#6b6b6b;white-space:nowrap">{{ calcNextRun(t) }}</td>
             <td>
               <span
                 style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer"
@@ -307,17 +380,19 @@ onMounted(load)
             <textarea v-model="form.message" rows="3" placeholder="触发时发送给 Agent 的消息" />
           </div>
           <div class="form-group">
-            <label>Agent 名称（可选）</label>
-            <input v-model="form.agentName" placeholder="留空使用默认 Agent" />
+            <label>Agent</label>
+            <select v-model="form.agentName">
+              <option v-for="name in agentNames" :key="name" :value="name">{{ name }}</option>
+            </select>
           </div>
           <div class="form-group">
-            <label>用户 ID（可选，user 表 id 字段）</label>
-            <input type="number" v-model="form.userId" placeholder="留空则不关联用户" />
+            <label>用户（可选）</label>
+            <select v-model="form.userId">
+              <option value="">不关联用户</option>
+              <option v-for="u in users" :key="u.id" :value="u.id">{{ userLabel(u) }}</option>
+            </select>
           </div>
-          <div class="form-group" style="flex-direction:row;align-items:center;gap:8px">
-            <input type="checkbox" id="timer-enabled" v-model="form.enabled" style="width:auto" />
-            <label for="timer-enabled" style="cursor:pointer">启用</label>
-          </div>
+
         </div>
         <div class="modal-footer">
           <button class="btn-outline" @click="showModal = false">取消</button>

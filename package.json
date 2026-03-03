@@ -13,6 +13,7 @@
     "client": "npm --prefix website run dev"
   },
   "dependencies": {
+    "@langchain/core": "^1.1.28",
     "@langchain/mcp-adapters": "^1.1.2",
     "axios": "^1.13.4",
     "cron": "^4.4.0",

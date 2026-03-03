@@ -30,6 +30,11 @@ async function filterEvent(eventId: string): Promise<boolean> {
     return true;
 }
 
+export function hasLarkConfig(): boolean {
+    const lark = config.settings.lark;
+    return !!(lark?.appId?.trim() && lark?.appSecret?.trim());
+}
+
 export async function startLarkService() {
     await larkService.start({
         appId: config.settings.lark!.appId!,
@@ -51,4 +56,14 @@ export async function startLarkService() {
         },
     });
     logger.info("Lark 服务启动成功");
+}
+
+export async function restartLarkService() {
+    if (!hasLarkConfig()) {
+        larkService.stop();
+        logger.info("Lark 配置未填写，跳过启动");
+        return;
+    }
+    await startLarkService();
+    logger.info("Lark 服务重启成功");
 }

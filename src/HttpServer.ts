@@ -15,6 +15,7 @@ import { database } from './Database';
 import { userService } from './UserService/UserService';
 import { WebUserService } from './UserService/WebUserService';
 import { timerService } from './TimerService';
+import { restartLarkService } from './Lark/LarkServiceInit';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
 
@@ -114,9 +115,13 @@ class HttpServer {
         // ===== Settings =====
         app.get('/api/settings', api(() => config.settings));
 
-        app.put('/api/settings', api(req => {
+        app.put('/api/settings', api(async req => {
+            const prevLark = JSON.stringify(config.settings.lark ?? {});
             Object.assign(config.settings, req.body);
             config.saveSettings();
+            if (JSON.stringify(config.settings.lark ?? {}) !== prevLark) {
+                await restartLarkService();
+            }
             return config.settings;
         }));
 
@@ -362,12 +367,13 @@ class HttpServer {
                 const e: any = new Error('type 必须为 daily | weekly | monthly | interval'); e.status = 400; throw e;
             }
             if (!message) { const e: any = new Error('message 不能为空'); e.status = 400; throw e; }
+            if (!agentName?.trim()) { const e: any = new Error('agentName 不能为空'); e.status = 400; throw e; }
             const row = await database.create(database.timer, {
                 name,
                 type,
                 config: typeof cfg === 'string' ? cfg : JSON.stringify(cfg ?? {}),
                 message,
-                agentName: agentName ?? null,
+                agentName: agentName.trim(),
                 userId: userId ?? null,
                 enabled: enabled !== false,
                 lastRun: null,
@@ -383,12 +389,13 @@ class HttpServer {
             if (type && !['daily', 'weekly', 'monthly', 'interval'].includes(type)) {
                 const e: any = new Error('type 必须为 daily | weekly | monthly | interval'); e.status = 400; throw e;
             }
+            if (agentName !== undefined && !agentName?.trim()) { const e: any = new Error('agentName 不能为空'); e.status = 400; throw e; }
             const updates: any = {};
             if (name !== undefined) updates.name = name;
             if (type !== undefined) updates.type = type;
             if (cfg !== undefined) updates.config = typeof cfg === 'string' ? cfg : JSON.stringify(cfg);
             if (message !== undefined) updates.message = message;
-            if (agentName !== undefined) updates.agentName = agentName;
+            if (agentName !== undefined) updates.agentName = agentName.trim();
             if (userId !== undefined) updates.userId = userId;
             if (enabled !== undefined) updates.enabled = enabled;
             await database.update(database.timer, updates, { where: { id } });

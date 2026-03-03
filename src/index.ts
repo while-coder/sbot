@@ -2,7 +2,7 @@
 import {LoggerService, log4js} from "./LoggerService";
 import {config} from "./Config";
 import {database} from "./Database";
-import {startLarkService} from "./Lark/LarkServiceInit";
+import {startLarkService, hasLarkConfig} from "./Lark/LarkServiceInit";
 import {httpServer} from "./HttpServer";
 import {initGlobalAgentToolService} from "./GlobalAgentToolService";
 import {initGlobalSkillService} from "./GlobalSkillService";
@@ -17,16 +17,10 @@ async function main() {
             logger.error(`未捕获的异常:${err?.stack}\n${origin}`)
         })
 
-        // 验证配置
-        logger.info("正在验证配置...")
-        config.validateConfig()
-        logger.info("配置验证完成")
-
         await database.init()
-
         initGlobalAgentToolService()
         initGlobalSkillService()
-        await startLarkService()
+        if (hasLarkConfig()) await startLarkService()
         await httpServer.start()
         await timerService.start()
 
