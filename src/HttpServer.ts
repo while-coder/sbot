@@ -229,6 +229,14 @@ class HttpServer {
             return result;
         }));
 
+        app.post('/api/skill-hub/install-url', api(async req => {
+            const { url, overwrite = false }: { url: string; overwrite: boolean } = req.body;
+            if (!url?.trim()) { const e: any = new Error('缺少 url'); e.status = 400; throw e; }
+            const result = await skillHubService.installSkillWithUrl(url.trim(), config.getSkillsPath(), { overwrite });
+            refreshGlobalSkillService();
+            return result;
+        }));
+
         // ===== Agent Skills =====
         app.get('/api/agents/:name/skills', api(req => {
             const agentName = req.params.name as string;

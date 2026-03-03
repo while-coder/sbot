@@ -335,7 +335,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div>
+  <div style="display:flex;flex-direction:column;height:100%;overflow:hidden">
     <div class="page-toolbar">
       <template v-if="isAgentMode">
         <button class="btn-outline btn-sm" @click="router.push('/agents')">← 返回</button>

@@ -85,10 +85,36 @@ const hubResults = ref<HubSkillResult[]>([])
 const hubSearching = ref(false)
 const hubSearched = ref(false)
 
+// Direct URL install
+const hubUrlInput = ref('')
+const hubUrlInstalling = ref(false)
+const hubUrlOverwrite = ref(false)
+
+async function installByUrl() {
+  const url = hubUrlInput.value.trim()
+  if (!url) return
+  hubUrlInstalling.value = true
+  try {
+    const res = await apiFetch('/api/skill-hub/install-url', 'POST', {
+      url,
+      overwrite: hubUrlOverwrite.value,
+    })
+    show(`已安装：${res.data?.name ?? url}`)
+    hubUrlInput.value = ''
+    await load()
+  } catch (e: any) {
+    show(e.message, 'error')
+  } finally {
+    hubUrlInstalling.value = false
+  }
+}
+
 function openAdd() {
   hubQuery.value = ''
   hubResults.value = []
   hubSearched.value = false
+  hubUrlInput.value = ''
+  hubUrlOverwrite.value = false
   showHub.value = true
 }
 
@@ -146,7 +172,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div>
+  <div style="display:flex;flex-direction:column;height:100%;overflow:hidden">
     <div class="page-toolbar">
       <button class="btn-outline btn-sm" @click="load">刷新</button>
       <button class="btn-primary btn-sm" @click="openAdd">+ 添加 Skill</button>
@@ -222,6 +248,26 @@ onMounted(load)
           <button class="modal-close" @click="showHub = false">&times;</button>
         </div>
         <div class="modal-body" style="flex:1;overflow:hidden;display:flex;flex-direction:column">
+          <!-- Direct URL install -->
+          <div style="display:flex;gap:8px;margin-bottom:8px;flex-shrink:0;align-items:center">
+            <input
+              v-model="hubUrlInput"
+              placeholder="直接输入 URL 安装（如 https://skills.sh/owner/repo/skill）"
+              style="flex:1"
+              @keydown.enter="installByUrl"
+            />
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap;cursor:pointer">
+              <input type="checkbox" v-model="hubUrlOverwrite" style="margin:0" /> 覆盖
+            </label>
+            <button class="btn-primary" :disabled="hubUrlInstalling || !hubUrlInput.trim()" @click="installByUrl">
+              {{ hubUrlInstalling ? '安装中...' : '安装' }}
+            </button>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-shrink:0">
+            <div style="flex:1;height:1px;background:#e2e8f0"></div>
+            <span style="font-size:11px;color:#94a3b8">或搜索</span>
+            <div style="flex:1;height:1px;background:#e2e8f0"></div>
+          </div>
           <!-- Search bar -->
           <div style="display:flex;gap:8px;margin-bottom:16px;flex-shrink:0">
             <input
