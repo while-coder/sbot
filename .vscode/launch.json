@@ -7,7 +7,7 @@
       "request": "launch",
       "program": "${workspaceFolder}/dist/index.js",
       "cwd": "${workspaceFolder}/src",
-      "preLaunchTask": "npm: build",
+      "preLaunchTask": "npm: debug",
       "outFiles": ["${workspaceFolder}/dist/**/*.js"],
       "sourceMaps": true,
       "console": "internalConsole",

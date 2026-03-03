@@ -45,14 +45,17 @@ function listSkills(skillsDir: string) {
         });
 }
 
-function getSkill(skillsDir: string, name: string) {
-    const skillMdPath = path.join(skillsDir, name, 'SKILL.md');
-    if (!fs.existsSync(skillMdPath)) {
-        const e: any = new Error(`Skill "${name}" 不存在`);
-        e.status = 404;
-        throw e;
+function getSkill(skillsDir: string, name: string, fallbackDirs: string[] = []) {
+    const dirs = [skillsDir, ...fallbackDirs];
+    for (const dir of dirs) {
+        const skillMdPath = path.join(dir, name, 'SKILL.md');
+        if (fs.existsSync(skillMdPath)) {
+            return { name, content: fs.readFileSync(skillMdPath, 'utf-8') };
+        }
     }
-    return { name, content: fs.readFileSync(skillMdPath, 'utf-8') };
+    const e: any = new Error(`Skill "${name}" 不存在`);
+    e.status = 404;
+    throw e;
 }
 
 function saveSkill(skillsDir: string, name: string, content: string) {
@@ -191,7 +194,7 @@ class HttpServer {
             return { builtins, skills };
         }));
 
-        app.get('/api/skills/:name', api(req => getSkill(config.getSkillsPath(), req.params.name as string)));
+        app.get('/api/skills/:name', api(req => getSkill(config.getSkillsPath(), req.params.name as string, [BUILTIN_SKILLS_DIR])));
 
         app.put('/api/skills/:name', api(req => {
             const name = req.params.name as string;
