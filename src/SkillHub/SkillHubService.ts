@@ -1,7 +1,8 @@
 import { URL } from 'url';
-import { requireHttpUrl } from './bundle';
+
 import { ClawhubSkillHubService } from './ClawhubSkillHubService';
 import { SkillsShSkillHubService } from './SkillsShSkillHubService';
+import { requireHttpUrl } from './types';
 import type { ISkillHubService, HubSkillResult, HubInstallResult, InstallSkillOptions } from './types';
 
 const _clawhub = new ClawhubSkillHubService();

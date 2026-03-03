@@ -1,19 +1,11 @@
 import fs from 'fs';
 import path from 'path';
-import { URL } from 'url';
 import type { HubSkillResult } from './types';
 
 export interface Bundle {
   name: string;
   content: string;
   files: Record<string, string>;
-}
-
-export function extractNameFromFrontmatter(content: string): string {
-  const match = content.match(/^---\s*\n([\s\S]*?)\n---/);
-  if (!match) return '';
-  const nameMatch = match[1].match(/^name\s*:\s*(.+)$/m);
-  return nameMatch ? nameMatch[1].trim().replace(/^['"]|['"]$/g, '') : '';
 }
 
 export function normalizeBundle(payload: any): Bundle {
@@ -26,7 +18,11 @@ export function normalizeBundle(payload: any): Bundle {
   if (!content) throw new Error('Hub bundle missing SKILL.md content');
 
   let name: string = typeof data.name === 'string' ? data.name.trim() : '';
-  if (!name) name = extractNameFromFrontmatter(content);
+  if (!name) {
+    const match = content.match(/^---\s*\n([\s\S]*?)\n---/);
+    const nameMatch = match?.[1].match(/^name\s*:\s*(.+)$/m);
+    name = nameMatch ? nameMatch[1].trim().replace(/^['"]|['"]$/g, '') : '';
+  }
   if (!name) throw new Error('Hub bundle missing skill name');
 
   const files: Record<string, string> = {};
@@ -71,13 +67,4 @@ export function mapToHubResults(items: any[]): HubSkillResult[] {
       sourceUrl: String(item.url ?? ''),
     }))
     .filter(r => r.slug);
-}
-
-export function requireHttpUrl(bundleUrl: string): void {
-  try {
-    const u = new URL(bundleUrl);
-    if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new Error();
-  } catch {
-    throw new Error('bundleUrl must be a valid http(s) URL');
-  }
 }

@@ -1,6 +1,6 @@
 import { URL } from 'url';
-import { httpGetJson, httpGetText } from './http';
-import { normalizeBundle, writeSkillToDisk, mapToHubResults, requireHttpUrl, type Bundle } from './bundle';
+import { httpGetJson, httpGetText, requireHttpUrl } from './types';
+import { normalizeBundle, writeSkillToDisk, mapToHubResults, type Bundle } from './bundle';
 import type { ISkillHubService, HubSkillResult, HubInstallResult, InstallSkillOptions } from './types';
 
 /**
