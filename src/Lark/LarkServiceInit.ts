@@ -35,7 +35,15 @@ export async function startLarkService() {
         appId: config.settings.lark!.appId!,
         appSecret: config.settings.lark!.appSecret!,
         filterEvent,
-        onRecevieMessage: async (_userId: string, userInfo: any, args: LarkMessageArgs, query: string) => {
+        onRecevieMessage: async (userId: string, userInfo: any, args: LarkMessageArgs, query: string) => {
+            if (userId) {
+                await database.create(database.user, {
+                    userid: userId,
+                    username: userInfo?.name ?? "",
+                    userinfo: JSON.stringify(userInfo ?? {}),
+                    usertype: "lark",
+                });
+            }
             await userService.onReceiveLarkMessage(args, userInfo, query);
         },
         onTriggerAction: async (_userId: string, _userInfo: any, args: LarkActionArgs) => {

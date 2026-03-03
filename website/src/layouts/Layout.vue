@@ -9,16 +9,37 @@ const router = useRouter()
 const route = useRoute()
 const { show } = useToast()
 
-const menuItems = [
-  { label: '基本设置', key: '/settings' },
-  { label: '聊天', key: '/chat' },
-  { label: 'Agent 管理', key: '/agents' },
-  { label: '模型管理', key: '/models' },
-  { label: 'Embedding 管理', key: '/embeddings' },
-  { label: '会话存储', key: '/savers' },
-  { label: '记忆配置', key: '/memories' },
-  { label: 'MCP 服务', key: '/mcp' },
-  { label: 'Skills 管理', key: '/skills' },
+const menuGroups = [
+  {
+    group: '基础',
+    items: [
+      { label: '聊天', key: '/chat' },
+      { label: '基本设置', key: '/settings' },
+    ],
+  },
+  {
+    group: '模型',
+    items: [
+      { label: '模型管理', key: '/models' },
+      { label: 'Embedding 管理', key: '/embeddings' },
+    ],
+  },
+  {
+    group: 'Agent',
+    items: [
+      { label: 'Agent 管理', key: '/agents' },
+      { label: '会话存储', key: '/savers' },
+      { label: '记忆配置', key: '/memories' },
+      { label: 'MCP 服务', key: '/mcp' },
+      { label: 'Skills 管理', key: '/skills' },
+    ],
+  },
+  {
+    group: '管理',
+    items: [
+      { label: '用户管理', key: '/users' },
+    ],
+  },
 ]
 
 const activeKey = computed(() => {
@@ -71,15 +92,18 @@ init()
     </div>
     <div class="app-body">
       <div class="sidebar">
-        <div
-          v-for="item in menuItems"
-          :key="item.key"
-          class="sidebar-item"
-          :class="{ active: activeKey === item.key }"
-          @click="router.push(item.key)"
-        >
-          {{ item.label }}
-        </div>
+        <template v-for="group in menuGroups" :key="group.group">
+          <div class="sidebar-group-label">{{ group.group }}</div>
+          <div
+            v-for="item in group.items"
+            :key="item.key"
+            class="sidebar-item"
+            :class="{ active: activeKey === item.key }"
+            @click="router.push(item.key)"
+          >
+            {{ item.label }}
+          </div>
+        </template>
       </div>
       <div class="main-content">
         <RouterView />
@@ -131,6 +155,20 @@ body {
   padding: 8px;
   flex-shrink: 0;
   overflow-y: auto;
+}
+.sidebar-group-label {
+  padding: 16px 8px 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #3d3d3d;
+  user-select: none;
+  border-top: 1px solid #e8e6e3;
+  margin-top: 4px;
+}
+.sidebar-group-label:first-of-type {
+  padding-top: 6px;
+  border-top: none;
+  margin-top: 0;
 }
 .sidebar-item {
   padding: 8px 12px;

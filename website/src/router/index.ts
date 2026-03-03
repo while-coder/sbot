@@ -1,7 +1,7 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 
 const routes = [
-  { path: '/', redirect: '/settings' },
+  { path: '/', redirect: '/chat' },
   { path: '/settings', component: () => import('@/views/SettingsView.vue') },
   { path: '/chat', component: () => import('@/views/ChatView.vue') },
   { path: '/agents', component: () => import('@/views/AgentsView.vue') },
@@ -15,6 +15,7 @@ const routes = [
   { path: '/mcp', component: () => import('@/views/McpView.vue') },
   { path: '/mcp/agent/:agentName', component: () => import('@/views/McpView.vue') },
   { path: '/skills', component: () => import('@/views/SkillsView.vue') },
+  { path: '/users', component: () => import('@/views/UsersView.vue') },
 ]
 
 export default createRouter({

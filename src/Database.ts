@@ -16,6 +16,13 @@ export type StateRow = {
   value: string;
 };
 
+export type UserRow = {
+  id: number;
+  userid: string;
+  username: string;
+  userinfo: string;
+  usertype: string;
+};
 
 class Database {
   private running = false;
@@ -28,6 +35,7 @@ class Database {
 
   public message!: ModelStatic<any>;
   public state!: ModelStatic<any>;
+  public user!: ModelStatic<any>;
 
   async init() {
     this.running = false;
@@ -107,6 +115,47 @@ class Database {
       },
     );
 
+    this.user = sequelize.define(
+      "user",
+      {
+        id: {
+          type: DataTypes.INTEGER,
+          primaryKey: true,
+          autoIncrement: true,
+          comment: "自增ID",
+        },
+        userid: {
+          type: DataTypes.STRING(255),
+          allowNull: false,
+          defaultValue: "",
+          comment: "用户ID",
+        },
+        username: {
+          type: DataTypes.STRING(255),
+          allowNull: false,
+          defaultValue: "",
+          comment: "用户名",
+        },
+        userinfo: {
+          type: DataTypes.TEXT,
+          allowNull: false,
+          defaultValue: "",
+          comment: "用户信息JSON",
+        },
+        usertype: {
+          type: DataTypes.STRING(64),
+          allowNull: false,
+          defaultValue: "",
+          comment: "用户类型",
+        },
+      },
+      {
+        tableName: "user",
+        timestamps: false,
+        comment: "用户表",
+      },
+    );
+
     await this.sync();
   }
 
@@ -141,6 +190,7 @@ class Database {
       logger.info(`开始刷新数据库结构 alter:${alter} ${data.value} -> ${DBVersion}`);
 
       await this.message.sync({ alter });
+      await this.user.sync({ alter });
 
       await this.state.update({ value: DBVersion }, { where: { key: DBVersionName } });
       logger.info("刷新数据库结构完成");

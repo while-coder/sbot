@@ -11,10 +11,25 @@ import { globalAgentToolService, refreshGlobalAgentToolService, BuiltinProvider 
 import { globalSkillService, refreshGlobalSkillService, BUILTIN_SKILLS_DIR } from './GlobalSkillService';
 import { SkillHubService, type HubSkillResult } from './SkillHub';
 import { LoggerService } from './LoggerService';
+import { database } from './Database';
 import { userService } from './UserService/UserService';
 import { WebUserService } from './UserService/WebUserService';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
+
+// ===== Saver 缓存（避免每次请求重新打开 SQLite）=====
+const saverCache = new Map<string, AgentSqliteSaver | AgentFileSaver>();
+
+function getOrCreateSaver(saverName: string): AgentSqliteSaver | AgentFileSaver {
+    if (!saverCache.has(saverName)) {
+        const saverConfig = config.getSaver(saverName);
+        const saver = saverConfig?.type === SaverType.File
+            ? new AgentFileSaver(saverName, config.getSaverDir(saverName))
+            : new AgentSqliteSaver(saverName, config.getSaverPath(saverName));
+        saverCache.set(saverName, saver);
+    }
+    return saverCache.get(saverName)!;
+}
 
 /**
  * 将工具的 schema 统一转换为 JSON Schema 纯对象。
@@ -237,6 +252,21 @@ class HttpServer {
             return result;
         }));
 
+        // ===== Agent Skill Hub =====
+        app.post('/api/agents/:agentName/skill-hub/install', api(async req => {
+            const agentName = req.params.agentName as string;
+            const { skill, overwrite = false }: { skill: HubSkillResult; overwrite: boolean } = req.body;
+            if (!skill?.id) { const e: any = new Error('缺少 skill'); e.status = 400; throw e; }
+            return await skillHubService.installSkill(skill, config.getAgentSkillsPath(agentName), { overwrite });
+        }));
+
+        app.post('/api/agents/:agentName/skill-hub/install-url', api(async req => {
+            const agentName = req.params.agentName as string;
+            const { url, overwrite = false }: { url: string; overwrite: boolean } = req.body;
+            if (!url?.trim()) { const e: any = new Error('缺少 url'); e.status = 400; throw e; }
+            return await skillHubService.installSkillWithUrl(url.trim(), config.getAgentSkillsPath(agentName), { overwrite });
+        }));
+
         // ===== Agent Skills =====
         app.get('/api/agents/:name/skills', api(req => {
             const agentName = req.params.name as string;
@@ -273,12 +303,8 @@ class HttpServer {
         // ===== Named Saver History =====
         app.get('/api/savers/:saverName/history', api(async req => {
             const saverName = req.params.saverName as string;
-            const saverConfig = config.getSaver(saverName);
-            const saver = saverConfig?.type === SaverType.File
-                ? new AgentFileSaver(saverName, config.getSaverDir(saverName))
-                : new AgentSqliteSaver(saverName, config.getSaverPath(saverName));
+            const saver = getOrCreateSaver(saverName);
             const messages = await saver.getAllMessages();
-            await saver.dispose();
             return messages.map(m => {
                 const mm = m as any;
                 const role = mm._getType?.() ?? 'unknown';
@@ -293,12 +319,8 @@ class HttpServer {
 
         app.delete('/api/savers/:saverName/history', api(async req => {
             const saverName = req.params.saverName as string;
-            const saverConfig = config.getSaver(saverName);
-            const saver = saverConfig?.type === SaverType.File
-                ? new AgentFileSaver(saverName, config.getSaverDir(saverName))
-                : new AgentSqliteSaver(saverName, config.getSaverPath(saverName));
+            const saver = getOrCreateSaver(saverName);
             await saver.clearMessages();
-            await saver.dispose();
         }));
 
         // ===== Named Memory =====
@@ -333,14 +355,38 @@ class HttpServer {
             return { count };
         }));
 
+        // ===== Users =====
+        app.get('/api/users', api(async () => {
+            return await database.findAll(database.user);
+        }));
+
+        app.delete('/api/users/:id', api(async req => {
+            const id = parseInt(req.params.id as string, 10);
+            if (isNaN(id)) { const e: any = new Error('无效的 id'); e.status = 400; throw e; }
+            await database.destroy(database.user, { where: { id } });
+        }));
+
         // ===== Web 聊天（SSE 流式）=====
         app.post('/api/users/:userId/chat', (req, res) => {
-            const { query } = req.body;
-            if (!query?.trim()) {
+            const { query, attachments } = req.body as {
+                query?: string;
+                attachments?: { name: string; type: string; dataUrl?: string; content?: string }[];
+            };
+            let enriched = query?.trim() || '';
+            if (attachments?.length) {
+                for (const att of attachments) {
+                    if (att.type?.startsWith('image/') && att.dataUrl) {
+                        enriched += `\n\n[图片附件: ${att.name}]\n${att.dataUrl}`;
+                    } else if (att.content != null) {
+                        enriched += `\n\n[文件附件: ${att.name}]\n\`\`\`\n${att.content}\n\`\`\``;
+                    }
+                }
+            }
+            if (!enriched) {
                 res.status(400).json({ success: false, message: '消息不能为空' });
                 return;
             }
-            WebUserService.sendSSE(res, emit => userService.onReceiveWebMessage(query.trim(), emit));
+            WebUserService.sendSSE(res, emit => userService.onReceiveWebMessage(enriched, emit));
         });
 
         // ===== 操作 =====

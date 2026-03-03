@@ -5,6 +5,13 @@ import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 import type { ChatMessage, ToolCall } from '@/types'
 
+interface Attachment {
+  name: string
+  type: string
+  dataUrl?: string
+  content?: string
+}
+
 const { show } = useToast()
 
 // ── Reactive state ──
@@ -14,6 +21,8 @@ const chatSending = ref(false)
 const chatQueue = ref<string[]>([])
 const saverLabel = ref('')
 const messagesEl = ref<HTMLElement | null>(null)
+const attachments = ref<Attachment[]>([])
+const fileInputEl = ref<HTMLInputElement | null>(null)
 
 // streaming state
 const streamingContent = ref('')
@@ -62,7 +71,7 @@ async function clearHistory() {
   try {
     await apiFetch(`/api/savers/${encodeURIComponent(saver)}/history`, 'DELETE')
     show('历史已清除')
-    messages.value = []
+    await refreshAgentAndHistory()
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -72,6 +81,43 @@ function scrollToBottom() {
   if (messagesEl.value) {
     messagesEl.value.scrollTop = messagesEl.value.scrollHeight
   }
+}
+
+// ── Attachments ──
+function pickFile() {
+  fileInputEl.value?.click()
+}
+
+async function onFileChange(e: Event) {
+  const files = (e.target as HTMLInputElement).files
+  if (!files) return
+  for (const file of Array.from(files)) {
+    if (attachments.value.find(a => a.name === file.name)) continue
+    const att = await readFile(file)
+    attachments.value.push(att)
+  }
+  ;(e.target as HTMLInputElement).value = ''
+}
+
+function readFile(file: File): Promise<Attachment> {
+  return new Promise((resolve) => {
+    const reader = new FileReader()
+    if (file.type.startsWith('image/')) {
+      reader.onload = () => resolve({ name: file.name, type: file.type, dataUrl: reader.result as string })
+      reader.readAsDataURL(file)
+    } else {
+      reader.onload = () => resolve({ name: file.name, type: file.type, content: reader.result as string })
+      reader.readAsText(file)
+    }
+  })
+}
+
+function removeAttachment(idx: number) {
+  attachments.value.splice(idx, 1)
+}
+
+function isImage(att: Attachment) {
+  return att.type.startsWith('image/')
 }
 
 // ── Chat input ──
@@ -85,21 +131,22 @@ function onKeydown(e: KeyboardEvent) {
 function autoResize(e: Event) {
   const el = e.target as HTMLTextAreaElement
   el.style.height = 'auto'
-  el.style.height = Math.min(el.scrollHeight, 160) + 'px'
+  el.style.height = Math.min(el.scrollHeight, 200) + 'px'
 }
 
 async function send() {
   const saver = getChatSaverName()
   if (!saver) { show('当前 Agent 未配置会话存储', 'error'); return }
   const query = chatInput.value.trim()
-  if (!query) return
+  if (!query && attachments.value.length === 0) return
   chatInput.value = ''
+  const atts = attachments.value.splice(0)
 
   if (chatSending.value) {
     chatQueue.value.push(query)
     return
   }
-  await sendOne(saver, query)
+  await sendOne(saver, query, atts)
   await drainQueue()
 }
 
@@ -108,20 +155,24 @@ async function drainQueue() {
     const q = chatQueue.value.shift()!
     const saver = getChatSaverName()
     if (!saver) break
-    await sendOne(saver, q)
+    await sendOne(saver, q, [])
   }
 }
 
-async function sendOne(userId: string, query: string) {
+async function sendOne(userId: string, query: string, atts: Attachment[]) {
   chatSending.value = true
   isStreaming.value = true
   streamingContent.value = ''
   streamingToolCalls.value = []
 
-  // Append user message immediately
+  // Append user message immediately (show original query + attachment names)
+  const displayContent = [
+    query,
+    ...atts.map(a => `[附件: ${a.name}]`),
+  ].filter(Boolean).join('\n')
   messages.value.push({
     role: 'human',
-    content: query,
+    content: displayContent,
     timestamp: new Date().toISOString(),
   })
   await nextTick()
@@ -131,7 +182,7 @@ async function sendOne(userId: string, query: string) {
     const response = await fetch(`/api/users/${encodeURIComponent(userId)}/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query }),
+      body: JSON.stringify({ query, attachments: atts.length ? atts : undefined }),
     })
     if (!response.ok) throw new Error(`请求失败: ${response.status}`)
 
@@ -297,14 +348,36 @@ onMounted(refreshAgentAndHistory)
 
     <!-- Input bar -->
     <div class="chat-input-bar">
-      <textarea
-        v-model="chatInput"
-        placeholder="输入消息，Enter 发送，Shift+Enter 换行…"
-        rows="1"
-        @keydown="onKeydown"
-        @input="autoResize"
-      />
-      <button class="btn-primary" :disabled="chatSending" @click="send">发送</button>
+      <input ref="fileInputEl" type="file" multiple style="display:none" @change="onFileChange" />
+      <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+        <!-- Attachment chips -->
+        <div v-if="attachments.length > 0" style="display:flex;flex-wrap:wrap;gap:6px">
+          <div
+            v-for="(att, i) in attachments"
+            :key="att.name"
+            style="display:flex;align-items:center;gap:4px;padding:2px 8px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:12px;font-size:12px;color:#475569;max-width:200px"
+          >
+            <img v-if="isImage(att) && att.dataUrl" :src="att.dataUrl"
+              style="width:18px;height:18px;object-fit:cover;border-radius:2px;flex-shrink:0" />
+            <span v-else style="font-size:13px;flex-shrink:0">📄</span>
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ att.name }}</span>
+            <button @click="removeAttachment(i)"
+              style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:14px;padding:0;line-height:1;flex-shrink:0">×</button>
+          </div>
+        </div>
+        <textarea
+          v-model="chatInput"
+          placeholder="输入消息，Enter 发送，Shift+Enter 换行…"
+          rows="3"
+          @keydown="onKeydown"
+          @input="autoResize"
+          style="resize:none"
+        />
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;align-self:flex-end">
+        <button class="btn-outline btn-sm" @click="pickFile" title="添加附件">附件</button>
+        <button class="btn-primary" :disabled="chatSending" @click="send">发送</button>
+      </div>
     </div>
   </div>
 </template>
