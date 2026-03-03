@@ -6,7 +6,7 @@ import { URLSearchParams } from 'url';
 export type SkillHubProvider = 'clawhub' | 'skillssh';
 
 export interface HubSkillResult {
-  slug: string;
+  id: string;
   name: string;
   description: string;
   version: string;
@@ -15,6 +15,8 @@ export interface HubSkillResult {
 }
 
 export interface HubInstallResult {
+  /** Hub ID（来自 HubSkillResult.id） */
+  id: string;
   /** Skill 名称（来自 SKILL.md frontmatter） */
   name: string;
   /** 写入磁盘后的 skill 目录绝对路径 */
@@ -44,7 +46,7 @@ export interface ISkillHubService {
    * @param targetDir  安装目标父目录
    * @param options    可选配置（version / overwrite）
    */
-  installSkill(bundleUrl: string, targetDir: string, options?: InstallSkillOptions): Promise<HubInstallResult>;
+  installSkill(skill: HubSkillResult, targetDir: string, options?: InstallSkillOptions): Promise<HubInstallResult>;
 }
 
 // ── HTTP Utilities ─────────────────────────────────────────────

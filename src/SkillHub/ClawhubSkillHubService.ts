@@ -25,11 +25,12 @@ export class ClawhubSkillHubService implements ISkillHubService {
 
     return mapToHubResults(items, 'clawhub').map(r => ({
       ...r,
-      sourceUrl: `${BASE_URL}/${r.slug}`,
+      sourceUrl: `${BASE_URL}/${r.id}`,
     }));
   }
 
-  async installSkill(bundleUrl: string, targetDir: string, options: InstallSkillOptions = {}): Promise<HubInstallResult> {
+  async installSkill(skill: HubSkillResult, targetDir: string, options: InstallSkillOptions = {}): Promise<HubInstallResult> {
+    const bundleUrl = skill.sourceUrl;
     requireHttpUrl(bundleUrl);
 
     const u = new URL(bundleUrl);
@@ -43,8 +44,9 @@ export class ClawhubSkillHubService implements ISkillHubService {
 
     const { version = '', overwrite = false } = options;
     const { bundle, sourceUrl } = await this._fetch(slug, version);
+    bundle.id = skill.id;
     const skillPath = writeSkillToDisk(bundle, targetDir, overwrite);
-    return { name: bundle.name, path: skillPath, sourceUrl };
+    return { id: skill.id, name: bundle.name, path: skillPath, sourceUrl };
   }
 
   private async _fetch(slug: string, version: string): Promise<{ bundle: Bundle; sourceUrl: string }> {

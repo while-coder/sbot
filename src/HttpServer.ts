@@ -9,7 +9,7 @@ import { MultiServerMCPClient } from '@langchain/mcp-adapters';
 import { config, SaverType } from './Config';
 import { globalAgentToolService, refreshGlobalAgentToolService, BuiltinProvider } from './GlobalAgentToolService';
 import { globalSkillService, refreshGlobalSkillService, BUILTIN_SKILLS_DIR } from './GlobalSkillService';
-import { SkillHubService } from './SkillHub';
+import { SkillHubService, type HubSkillResult } from './SkillHub';
 import { LoggerService } from './LoggerService';
 import { userService } from './UserService/UserService';
 import { WebUserService } from './UserService/WebUserService';
@@ -222,10 +222,9 @@ class HttpServer {
         }));
 
         app.post('/api/skill-hub/install', api(async req => {
-            const { provider, bundleUrl, overwrite = false } = req.body;
-            if (!provider) { const e: any = new Error('缺少 provider'); e.status = 400; throw e; }
-            if (!bundleUrl) { const e: any = new Error('缺少 bundleUrl'); e.status = 400; throw e; }
-            const result = await skillHubService.installSkill(provider, bundleUrl, config.getSkillsPath(), { overwrite });
+            const { skill, overwrite = false }: { skill: HubSkillResult; overwrite: boolean } = req.body;
+            if (!skill?.id) { const e: any = new Error('缺少 skill'); e.status = 400; throw e; }
+            const result = await skillHubService.installSkill(skill, config.getSkillsPath(), { overwrite });
             refreshGlobalSkillService();
             return result;
         }));

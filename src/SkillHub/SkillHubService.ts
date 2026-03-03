@@ -1,6 +1,6 @@
 import { ClawhubSkillHubService } from './ClawhubSkillHubService';
 import { SkillsShSkillHubService } from './SkillsShSkillHubService';
-import type { HubSkillResult, HubInstallResult, InstallSkillOptions, SkillHubProvider } from './types';
+import type { HubSkillResult, HubInstallResult, InstallSkillOptions } from './types';
 
 const _clawhub = new ClawhubSkillHubService();
 const _skillsSh = new SkillsShSkillHubService();
@@ -21,12 +21,11 @@ export class SkillHubService {
   }
 
   async installSkill(
-    provider: SkillHubProvider,
-    bundleUrl: string,
+    skill: HubSkillResult,
     targetDir: string,
     options?: InstallSkillOptions,
   ): Promise<HubInstallResult> {
-    const impl = provider === 'clawhub' ? _clawhub : _skillsSh;
-    return impl.installSkill(bundleUrl, targetDir, options);
+    const impl = skill.provider === 'clawhub' ? _clawhub : _skillsSh;
+    return impl.installSkill(skill, targetDir, options);
   }
 }

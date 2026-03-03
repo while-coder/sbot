@@ -1,5 +1,4 @@
-import { URL } from 'url';
-import { httpGetJson, httpGetText, requireHttpUrl } from './types';
+import { httpGetJson, httpGetText } from './types';
 import { normalizeBundle, writeSkillToDisk, type Bundle } from './bundle';
 import type { ISkillHubService, HubSkillResult, HubInstallResult, InstallSkillOptions } from './types';
 
@@ -9,7 +8,7 @@ const BASE_URL = 'https://skills.sh';
  * skills.sh 实现
  *
  * 搜索 API：`https://skills.sh/api/search?q=...&limit=...`
- * 安装 URL 格式：`https://skills.sh/{owner}/{repo}/{skill}`
+ * skill.id 格式：`{owner}/{repo}/{skill}`
  */
 export class SkillsShSkillHubService implements ISkillHubService {
   async searchSkills(query: string, limit = 20): Promise<HubSkillResult[]> {
@@ -18,7 +17,7 @@ export class SkillsShSkillHubService implements ISkillHubService {
     return items
       .filter(item => item?.id && item?.name)
       .map(item => ({
-        slug: String(item.id),
+        id: String(item.id),
         name: String(item.name),
         description: item.source ? `来自 ${item.source}` : '',
         version: item.installs != null ? `${item.installs} installs` : '',
@@ -27,32 +26,21 @@ export class SkillsShSkillHubService implements ISkillHubService {
       }));
   }
 
-  async installSkill(bundleUrl: string, targetDir: string, options: InstallSkillOptions = {}): Promise<HubInstallResult> {
-    requireHttpUrl(bundleUrl);
-
-    const u = new URL(bundleUrl);
-    if (u.hostname !== 'skills.sh' && u.hostname !== 'www.skills.sh') {
-      throw new Error(`SkillsShSkillHubService 仅支持 skills.sh URL，收到: ${bundleUrl}`);
-    }
-
-    const parts = u.pathname.split('/').filter(Boolean);
-    if (parts.length < 3) throw new Error(`skills.sh URL 格式应为 /owner/repo/skill，收到: ${u.pathname}`);
-    const [owner, repo, skill] = parts;
-
+  async installSkill(skill: HubSkillResult, targetDir: string, options: InstallSkillOptions = {}): Promise<HubInstallResult> {
     const { version = '', overwrite = false } = options;
-    const { bundle, sourceUrl } = await this._fetch(owner, repo, skill, version);
+    const { bundle, sourceUrl } = await this._fetch(skill.id, version);
+    bundle.id = skill.id;
     const skillPath = writeSkillToDisk(bundle, targetDir, overwrite);
-    return { name: bundle.name, path: skillPath, sourceUrl };
+    return { id: skill.id, name: bundle.name, path: skillPath, sourceUrl };
   }
 
-  private async _fetch(
-    owner: string, repo: string, skill: string, version: string,
-  ): Promise<{ bundle: Bundle; sourceUrl: string }> {
-    const sourceUrl = `${BASE_URL}/${owner}/${repo}/${skill}`;
+  private async _fetch(id: string, version: string): Promise<{ bundle: Bundle; sourceUrl: string }> {
+    const sourceUrl = `${BASE_URL}/${id}`;
     const params: Record<string, string> = {};
     if (version) params.version = version;
 
-    const content = await httpGetText(`${BASE_URL}/${owner}/${repo}/${skill}/SKILL.md`, params);
-    return { bundle: normalizeBundle({ name: skill, files: { 'SKILL.md': content } }), sourceUrl };
+    const content = await httpGetText(`${BASE_URL}/${id}/SKILL.md`, params);
+    const name = id.split('/').pop() ?? id;
+    return { bundle: normalizeBundle({ name, files: { 'SKILL.md': content } }), sourceUrl };
   }
 }

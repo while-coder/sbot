@@ -3,6 +3,7 @@ import path from 'path';
 import type { HubSkillResult, SkillHubProvider } from './types';
 
 export interface Bundle {
+  id: string;
   name: string;
   content: string;
   files: Record<string, string>;
@@ -31,15 +32,16 @@ export function normalizeBundle(payload: any): Bundle {
     if (typeof fileContent === 'string') files[rel] = fileContent;
   }
 
-  return { name, content, files };
+  return { id: '', name, content, files };
 }
 
 export function writeSkillToDisk(bundle: Bundle, targetDir: string, overwrite: boolean): string {
-  const skillDir = path.join(targetDir, bundle.name);
+  const dirName = bundle.id || bundle.name;
+  const skillDir = path.join(targetDir, dirName);
 
   if (fs.existsSync(skillDir)) {
     if (!overwrite) {
-      throw new Error(`Skill '${bundle.name}' already exists at ${skillDir}. Use overwrite: true to replace it.`);
+      throw new Error(`Skill '${dirName}' already exists at ${skillDir}. Use overwrite: true to replace it.`);
     }
     fs.rmSync(skillDir, { recursive: true, force: true });
   }
@@ -60,12 +62,12 @@ export function mapToHubResults(items: any[], provider: SkillHubProvider): HubSk
   return items
     .filter(item => item && typeof item === 'object')
     .map(item => ({
-      slug: String(item.slug ?? item.name ?? ''),
+      id: String(item.slug ?? item.name ?? ''),
       name: String(item.name ?? item.displayName ?? item.slug ?? ''),
       description: String(item.description ?? item.summary ?? ''),
       version: String(item.version ?? ''),
       sourceUrl: String(item.url ?? ''),
       provider,
     }))
-    .filter(r => r.slug);
+    .filter(r => r.id);
 }
