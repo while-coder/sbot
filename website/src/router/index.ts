@@ -16,6 +16,7 @@ const routes = [
   { path: '/mcp/agent/:agentName', component: () => import('@/views/McpView.vue') },
   { path: '/skills', component: () => import('@/views/SkillsView.vue') },
   { path: '/users', component: () => import('@/views/UsersView.vue') },
+  { path: '/timers', component: () => import('@/views/TimerView.vue') },
 ]
 
 export default createRouter({

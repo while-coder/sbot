@@ -20,24 +20,25 @@ const menuGroups = [
   {
     group: '模型',
     items: [
-      { label: '模型管理', key: '/models' },
-      { label: 'Embedding 管理', key: '/embeddings' },
+      { label: '语言模型', key: '/models' },
+      { label: '向量模型', key: '/embeddings' },
     ],
   },
   {
-    group: 'Agent',
+    group: '智能体',
     items: [
-      { label: 'Agent 管理', key: '/agents' },
+      { label: '智能体管理', key: '/agents' },
       { label: '会话存储', key: '/savers' },
       { label: '记忆配置', key: '/memories' },
-      { label: 'MCP 服务', key: '/mcp' },
-      { label: 'Skills 管理', key: '/skills' },
+      { label: '工具管理', key: '/mcp' },
+      { label: '技能管理', key: '/skills' },
     ],
   },
   {
     group: '管理',
     items: [
       { label: '用户管理', key: '/users' },
+      { label: '计时器管理', key: '/timers' },
     ],
   },
 ]
