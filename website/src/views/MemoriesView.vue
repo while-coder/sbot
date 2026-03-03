@@ -44,12 +44,12 @@ function openEdit(name: string) {
 async function save() {
   if (!form.value.name.trim()) { show('名称不能为空', 'error'); return }
   if (!form.value.embedding) { show('请选择 Embedding 模型', 'error'); return }
+  if (!form.value.evaluator) { show('请选择评估器模型', 'error'); return }
+  if (!form.value.extractor) { show('请选择提取器模型', 'error'); return }
   try {
     const { name, ...config } = form.value
-    const clean: MemoryConfig = { mode: config.mode, embedding: config.embedding }
+    const clean: MemoryConfig = { mode: config.mode, embedding: config.embedding, evaluator: config.evaluator, extractor: config.extractor }
     if (config.maxAgeDays) clean.maxAgeDays = config.maxAgeDays
-    if (config.evaluator) clean.evaluator = config.evaluator
-    if (config.extractor) clean.extractor = config.extractor
     if (config.compressor) clean.compressor = config.compressor
     if (!store.settings.memories) store.settings.memories = {}
     if (editingName.value && editingName.value !== name) {
@@ -147,16 +147,16 @@ async function refresh() {
             </select>
           </div>
           <div class="form-group">
-            <label>评估器模型</label>
+            <label>评估器模型 *</label>
             <select v-model="form.evaluator">
-              <option value="">不使用</option>
+              <option value="" disabled>请选择</option>
               <option v-for="m in modelOptions" :key="m" :value="m">{{ m }}</option>
             </select>
           </div>
           <div class="form-group">
-            <label>提取器模型</label>
+            <label>提取器模型 *</label>
             <select v-model="form.extractor">
-              <option value="">不使用</option>
+              <option value="" disabled>请选择</option>
               <option v-for="m in modelOptions" :key="m" :value="m">{{ m }}</option>
             </select>
           </div>

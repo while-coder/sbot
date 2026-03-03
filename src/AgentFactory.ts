@@ -1,7 +1,7 @@
 import {
     AgentServiceBase, SingleAgentService,
     IModelService,
-    IMemoryService, IMemoryDatabase, MemorySqliteDatabase, MemoryEvaluator, MemoryCompressor, MemoryExtractor, MemoryService, MemoryNoneService,
+    IMemoryService, IMemoryDatabase, MemorySqliteDatabase, MemoryEvaluator, MemoryCompressor, MemoryExtractor, MemoryService, MemoryNoneService, ReadOnlyMemoryService, MemoryMode,
     IEmbeddingService,
     IMemoryExtractor, IMemoryEvaluator, IMemoryCompressor,
     IAgentSaverService, AgentSqliteSaver, AgentMemorySaver,
@@ -63,6 +63,18 @@ export class AgentFactory {
         }
     }
 
+    static async createMemoryService(memoryName: string): Promise<IMemoryService> {
+        const container = new ServiceContainer();
+        await this.registerMemoryService(container, memoryName);
+        return container.resolve<IMemoryService>(IMemoryService);
+    }
+
+    static async createSaverService(saverName: string): Promise<IAgentSaverService> {
+        const container = new ServiceContainer();
+        await this.registerSaverService(container, saverName);
+        return container.resolve<IAgentSaverService>(IAgentSaverService);
+    }
+
     private static async registerMemoryService(
         container: ServiceContainer,
         memoryName?: string,
@@ -101,6 +113,11 @@ export class AgentFactory {
             [T_MaxMemoryAgeDays]: memoryConfig.maxAgeDays,
             [T_MemoryMode]: memoryConfig.mode,
         });
+
+        if (memoryConfig.mode === MemoryMode.READ_ONLY) {
+            const inner = await container.resolve<IMemoryService>(IMemoryService);
+            container.registerInstance(IMemoryService, new ReadOnlyMemoryService(inner));
+        }
     }
     private static async registerSaverService(
         container: ServiceContainer,

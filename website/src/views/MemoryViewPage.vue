@@ -12,6 +12,10 @@ const { show } = useToast()
 const memName = route.params.memName as string
 const memories = ref<MemoryItem[]>([])
 
+const showAddModal = ref(false)
+const addContent = ref('')
+const compressing = ref(false)
+
 async function load() {
   try {
     const res = await apiFetch(`/api/memories/${encodeURIComponent(memName)}`)
@@ -42,6 +46,37 @@ async function clearAll() {
   }
 }
 
+function openAdd() {
+  addContent.value = ''
+  showAddModal.value = true
+}
+
+async function confirmAdd() {
+  if (!addContent.value.trim()) { show('内容不能为空', 'error'); return }
+  try {
+    const res = await apiFetch(`/api/memories/${encodeURIComponent(memName)}/add`, 'POST', { content: addContent.value.trim() })
+    show(`已添加 ${res.ids?.length ?? 0} 条记忆`)
+    showAddModal.value = false
+    await load()
+  } catch (e: any) {
+    show(e.message, 'error')
+  }
+}
+
+async function compress() {
+  if (!confirm(`确定要压缩 ${memName} 的记忆吗？`)) return
+  compressing.value = true
+  try {
+    const res = await apiFetch(`/api/memories/${encodeURIComponent(memName)}/compress`, 'POST')
+    show(`压缩完成，共压缩 ${res.count} 组记忆`)
+    await load()
+  } catch (e: any) {
+    show(e.message, 'error')
+  } finally {
+    compressing.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -51,6 +86,8 @@ onMounted(load)
       <button class="btn-outline btn-sm" @click="router.push('/memories')">← 返回</button>
       <span class="page-toolbar-title" style="margin-left:12px">记忆: {{ memName }}</span>
       <button class="btn-outline btn-sm" style="margin-left:16px" @click="load">刷新</button>
+      <button class="btn-primary btn-sm" style="margin-left:16px" @click="openAdd">+ 添加记忆</button>
+      <button class="btn-outline btn-sm" style="margin-left:8px" :disabled="compressing" @click="compress">{{ compressing ? '压缩中...' : '压缩记忆' }}</button>
       <button class="btn-danger btn-sm" style="margin-left:auto" @click="clearAll">清除全部</button>
     </div>
     <div class="page-content">
@@ -73,6 +110,25 @@ onMounted(load)
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <div v-if="showAddModal" class="modal-overlay" @click.self="showAddModal = false">
+      <div class="modal-box">
+        <div class="modal-header">
+          <h3>添加记忆</h3>
+          <button class="modal-close" @click="showAddModal = false">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>内容</label>
+            <textarea v-model="addContent" rows="6" placeholder="输入要直接添加的记忆内容..." style="width:100%;resize:vertical" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-outline" @click="showAddModal = false">取消</button>
+          <button class="btn-primary" @click="confirmAdd">添加</button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
