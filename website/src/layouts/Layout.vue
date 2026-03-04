@@ -566,7 +566,29 @@ table tr:hover td { background: #fafaf9; }
 .msg-row { display: flex; flex-direction: column; gap: 4px; max-width: 85%; }
 .msg-row.human { align-self: flex-end; align-items: flex-end; }
 .msg-row.ai { align-self: flex-start; align-items: flex-start; max-width: 90%; }
-.msg-ts { font-size: 11px; color: #9b9b9b; }
+.msg-time {
+  font-size: 10px;
+  margin-top: 5px;
+  text-align: right;
+  opacity: 0.5;
+}
+.msg-bubble.human .msg-time { color: #fff; }
+.msg-bubble.ai    .msg-time { color: #3d3d3d; }
+.msg-date-sep {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0 8px;
+  color: #b0aead;
+  font-size: 12px;
+}
+.msg-date-sep::before,
+.msg-date-sep::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #ebe9e6;
+}
 .msg-bubble {
   padding: 10px 14px;
   border-radius: 10px;

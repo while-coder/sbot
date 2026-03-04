@@ -306,6 +306,8 @@ class HttpServer {
                 if (mm.tool_calls?.length) result.tool_calls = mm.tool_calls;
                 if (mm.tool_call_id) result.tool_call_id = mm.tool_call_id;
                 if (mm.name) result.name = mm.name;
+                const createdAt = mm.additional_kwargs?.created_at;
+                if (createdAt) result.timestamp = new Date(createdAt * 1000).toISOString();
                 return result;
             });
         }));

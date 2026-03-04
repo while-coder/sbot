@@ -229,7 +229,15 @@ async function sendOne(userId: string, query: string, atts: Attachment[]) {
 
 function fmtTs(ts?: string) {
   if (!ts) return ''
-  try { return new Date(ts).toLocaleString() } catch { return '' }
+  try {
+    const d = new Date(ts)
+    const now = new Date()
+    const pad = (n: number) => n.toString().padStart(2, '0')
+    const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`
+    if (d.toDateString() === now.toDateString()) return time
+    if (d.getFullYear() === now.getFullYear()) return `${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${time}`
+    return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${time}`
+  } catch { return '' }
 }
 
 function toggleToolCall(el: HTMLElement) {
@@ -280,17 +288,17 @@ onMounted(refreshAgentAndHistory)
         <template v-for="(msg, idx) in messages" :key="idx">
           <template v-if="!(msg.role === 'tool' && msg.tool_call_id)">
             <div v-if="msg.role === 'human'" class="msg-row human">
-              <div v-if="msg.timestamp" class="msg-ts">{{ fmtTs(msg.timestamp) }}</div>
               <div class="msg-bubble human">
                 <div class="msg-role">用户</div>
                 {{ msg.content }}
+                <div v-if="msg.timestamp" class="msg-time">{{ fmtTs(msg.timestamp) }}</div>
               </div>
             </div>
             <div v-else-if="msg.role === 'ai'" class="msg-row ai">
-              <div v-if="msg.timestamp" class="msg-ts">{{ fmtTs(msg.timestamp) }}</div>
               <div v-if="msg.content" class="msg-bubble ai">
                 <div class="msg-role">AI</div>
                 <div class="md-content" v-html="renderMd(msg.content)" />
+                <div v-if="msg.timestamp" class="msg-time">{{ fmtTs(msg.timestamp) }}</div>
               </div>
               <div v-if="msg.tool_calls && msg.tool_calls.length > 0" class="msg-tool-calls">
                 <div class="msg-role">Tool Calls ({{ msg.tool_calls.length }})</div>
@@ -317,10 +325,10 @@ onMounted(refreshAgentAndHistory)
               </div>
             </div>
             <div v-else class="msg-row ai">
-              <div v-if="msg.timestamp" class="msg-ts">{{ fmtTs(msg.timestamp) }}</div>
               <div class="msg-bubble ai">
                 <div class="msg-role">{{ msg.role }}</div>
                 {{ msg.content }}
+                <div v-if="msg.timestamp" class="msg-time">{{ fmtTs(msg.timestamp) }}</div>
               </div>
             </div>
           </template>
