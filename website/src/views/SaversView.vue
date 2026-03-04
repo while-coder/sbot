@@ -1,19 +1,20 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 import type { SaverConfig } from '@/types'
+import SaverViewModal from './SaverViewModal.vue'
 
 const { show } = useToast()
-const router = useRouter()
 
 const savers = computed(() => store.settings.savers || {})
 
-const showModal = ref(false)
+const showModal  = ref(false)
 const editingName = ref<string | null>(null)
 const form = ref<{ name: string } & SaverConfig>({ name: '', type: 'sqlite' })
+
+const saverViewModal = ref<InstanceType<typeof SaverViewModal>>()
 
 function openAdd() {
   editingName.value = null
@@ -86,7 +87,7 @@ async function refresh() {
             <td>{{ s.type || '-' }}</td>
             <td>
               <div class="ops-cell">
-                <button class="btn-outline btn-sm" @click="router.push(`/savers/${name}/view`)">查看</button>
+                <button class="btn-outline btn-sm" @click="saverViewModal?.open(name as string)">查看</button>
                 <button class="btn-outline btn-sm" @click="openEdit(name as string)">编辑</button>
                 <button class="btn-danger btn-sm" @click="remove(name as string)">删除</button>
               </div>
@@ -96,6 +97,7 @@ async function refresh() {
       </table>
     </div>
 
+    <!-- Edit/Add modal -->
     <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
       <div class="modal-box" style="width:400px">
         <div class="modal-header">
@@ -121,5 +123,7 @@ async function refresh() {
         </div>
       </div>
     </div>
+
+    <SaverViewModal ref="saverViewModal" />
   </div>
 </template>

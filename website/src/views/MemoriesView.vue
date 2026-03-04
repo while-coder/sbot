@@ -1,24 +1,25 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 import type { MemoryConfig } from '@/types'
+import MemoryViewModal from './MemoryViewModal.vue'
 
 const { show } = useToast()
-const router = useRouter()
 
-const memories = computed(() => store.settings.memories || {})
+const memories        = computed(() => store.settings.memories || {})
 const embeddingOptions = computed(() => Object.keys(store.settings.embeddings || {}))
-const modelOptions = computed(() => Object.keys(store.settings.models || {}))
+const modelOptions     = computed(() => Object.keys(store.settings.models || {}))
 
-const showModal = ref(false)
+const showModal   = ref(false)
 const editingName = ref<string | null>(null)
 const form = ref<{ name: string } & MemoryConfig>({
   name: '', mode: 'human_and_ai', maxAgeDays: undefined,
   embedding: '', evaluator: '', extractor: '', compressor: '',
 })
+
+const memoryViewModal = ref<InstanceType<typeof MemoryViewModal>>()
 
 function openAdd() {
   editingName.value = null
@@ -42,10 +43,10 @@ function openEdit(name: string) {
 }
 
 async function save() {
-  if (!form.value.name.trim()) { show('名称不能为空', 'error'); return }
-  if (!form.value.embedding) { show('请选择 Embedding 模型', 'error'); return }
-  if (!form.value.evaluator) { show('请选择评估器模型', 'error'); return }
-  if (!form.value.extractor) { show('请选择提取器模型', 'error'); return }
+  if (!form.value.name.trim())  { show('名称不能为空',        'error'); return }
+  if (!form.value.embedding)    { show('请选择 Embedding 模型', 'error'); return }
+  if (!form.value.evaluator)    { show('请选择评估器模型',      'error'); return }
+  if (!form.value.extractor)    { show('请选择提取器模型',      'error'); return }
   try {
     const { name, ...config } = form.value
     const clean: MemoryConfig = { mode: config.mode, embedding: config.embedding, evaluator: config.evaluator, extractor: config.extractor }
@@ -107,7 +108,7 @@ async function refresh() {
             <td>{{ m.maxAgeDays ?? '-' }}</td>
             <td>
               <div class="ops-cell">
-                <button class="btn-outline btn-sm" @click="router.push(`/memories/${name}/view`)">查看</button>
+                <button class="btn-outline btn-sm" @click="memoryViewModal?.open(name as string)">查看</button>
                 <button class="btn-outline btn-sm" @click="openEdit(name as string)">编辑</button>
                 <button class="btn-danger btn-sm" @click="remove(name as string)">删除</button>
               </div>
@@ -117,6 +118,7 @@ async function refresh() {
       </table>
     </div>
 
+    <!-- Edit/Add modal -->
     <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
       <div class="modal-box">
         <div class="modal-header">
@@ -174,5 +176,7 @@ async function refresh() {
         </div>
       </div>
     </div>
+
+    <MemoryViewModal ref="memoryViewModal" />
   </div>
 </template>

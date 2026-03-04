@@ -10,14 +10,16 @@ const { show } = useToast()
 const models = computed(() => store.settings.models || {})
 
 // Modal state
-const showModal = ref(false)
+const showModal   = ref(false)
 const editingName = ref<string | null>(null)
+const showApiKey  = ref(false)
 const form = ref<{ name: string } & Model>({
   name: '', provider: 'openai', baseURL: '', apiKey: '', model: '', temperature: undefined,
 })
 
 function openAdd() {
   editingName.value = null
+  showApiKey.value  = false
   form.value = { name: '', provider: 'openai', baseURL: '', apiKey: '', model: '', temperature: undefined }
   showModal.value = true
 }
@@ -25,6 +27,7 @@ function openAdd() {
 function openEdit(name: string) {
   const m = models.value[name]
   editingName.value = name
+  showApiKey.value  = false
   form.value = {
     name,
     provider: m.provider || 'openai',
@@ -130,7 +133,12 @@ async function refresh() {
           </div>
           <div class="form-group">
             <label>API Key</label>
-            <input v-model="form.apiKey" type="password" placeholder="sk-..." />
+            <div class="apikey-field">
+              <input v-model="form.apiKey" :type="showApiKey ? 'text' : 'password'" placeholder="sk-..." />
+              <button type="button" class="apikey-toggle" @click="showApiKey = !showApiKey" :title="showApiKey ? '隐藏' : '显示'">
+                {{ showApiKey ? '隐藏' : '显示' }}
+              </button>
+            </div>
           </div>
           <div class="form-group">
             <label>Model</label>
@@ -149,3 +157,29 @@ async function refresh() {
     </div>
   </div>
 </template>
+
+<style scoped>
+.apikey-field {
+  display: flex;
+  gap: 0;
+}
+.apikey-field input {
+  flex: 1;
+  border-radius: 6px 0 0 6px;
+  border-right: none;
+}
+.apikey-toggle {
+  padding: 0 12px;
+  font-size: 12px;
+  background: #f4f3f1;
+  border: 1px solid #d1d0ce;
+  border-radius: 0 6px 6px 0;
+  cursor: pointer;
+  color: #555;
+  white-space: nowrap;
+  transition: background .15s;
+}
+.apikey-toggle:hover {
+  background: #eceae6;
+}
+</style>

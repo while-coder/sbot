@@ -5,6 +5,8 @@ import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 import AgentModal from './AgentModal.vue'
+import SaverViewModal from './SaverViewModal.vue'
+import MemoryViewModal from './MemoryViewModal.vue'
 
 const { show } = useToast()
 const router = useRouter()
@@ -20,8 +22,10 @@ function closeDropdown() {
   dropdownOpen.value = null
 }
 
-// ── Modal ref ──
-const agentModal = ref<InstanceType<typeof AgentModal>>()
+// ── Modal refs ──
+const agentModal      = ref<InstanceType<typeof AgentModal>>()
+const saverViewModal  = ref<InstanceType<typeof SaverViewModal>>()
+const memoryViewModal = ref<InstanceType<typeof MemoryViewModal>>()
 
 async function copyAgent(name: string) {
   const agent = agents.value[name]
@@ -87,11 +91,11 @@ async function refresh() {
     <div class="page-content">
       <table>
         <thead>
-          <tr><th>名称</th><th>类型</th><th>模型</th><th>存储</th><th>操作</th></tr>
+          <tr><th>名称</th><th>类型</th><th>模型</th><th>存储</th><th>记忆</th><th>操作</th></tr>
         </thead>
         <tbody>
           <tr v-if="Object.keys(agents).length === 0">
-            <td colspan="5" style="text-align:center;color:#94a3b8;padding:40px">暂无 Agent</td>
+            <td colspan="6" style="text-align:center;color:#94a3b8;padding:40px">暂无 Agent</td>
           </tr>
           <tr v-for="(a, name) in agents" :key="name">
             <td>
@@ -100,7 +104,14 @@ async function refresh() {
             </td>
             <td>{{ a.type }}</td>
             <td>{{ a.model || '-' }}</td>
-            <td>{{ a.saver || '-' }}</td>
+            <td>
+              <button v-if="a.saver" class="table-link-btn" @click.stop="saverViewModal?.open(a.saver!)">{{ a.saver }}</button>
+              <span v-else style="color:#c0bdb8">-</span>
+            </td>
+            <td>
+              <button v-if="a.memory" class="table-link-btn" @click.stop="memoryViewModal?.open(a.memory!)">{{ a.memory }}</button>
+              <span v-else style="color:#c0bdb8">-</span>
+            </td>
             <td>
               <div class="ops-cell">
                 <button
@@ -126,5 +137,7 @@ async function refresh() {
     </div>
 
     <AgentModal ref="agentModal" />
+    <SaverViewModal ref="saverViewModal" />
+    <MemoryViewModal ref="memoryViewModal" />
   </div>
 </template>

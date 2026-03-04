@@ -5,6 +5,8 @@ import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 import type { ChatMessage, ToolCall } from '@/types'
+import SaverViewModal from './SaverViewModal.vue'
+import MemoryViewModal from './MemoryViewModal.vue'
 
 interface Attachment {
   name: string
@@ -20,10 +22,12 @@ const messages = ref<ChatMessage[]>([])
 const chatInput = ref('')
 const chatSending = ref(false)
 const chatQueue = ref<string[]>([])
-const saverLabel = ref('')
 const messagesEl = ref<HTMLElement | null>(null)
 const attachments = ref<Attachment[]>([])
 const fileInputEl = ref<HTMLInputElement | null>(null)
+
+const saverViewModal  = ref<InstanceType<typeof SaverViewModal>>()
+const memoryViewModal = ref<InstanceType<typeof MemoryViewModal>>()
 
 // streaming state
 const streamingContent = ref('')
@@ -35,15 +39,11 @@ const currentAgent = computed({
   get: () => store.settings.agent || '',
   set: (v) => { store.settings.agent = v },
 })
-
-function getChatSaverName() {
-  const agent = store.settings.agents?.[store.settings.agent || '']
-  return agent?.saver || null
-}
+const chatSaverName  = computed(() => store.settings.agents?.[store.settings.agent || '']?.saver  || null)
+const chatMemoryName = computed(() => store.settings.agents?.[store.settings.agent || '']?.memory || null)
 
 async function refreshAgentAndHistory() {
-  const saver = getChatSaverName()
-  saverLabel.value = saver ? `存储: ${saver}` : '(未配置存储)'
+  const saver = chatSaverName.value
   if (!saver) { messages.value = []; return }
   try {
     const res = await apiFetch(`/api/savers/${encodeURIComponent(saver)}/history`)
@@ -67,7 +67,7 @@ async function switchAgent(name: string) {
 }
 
 async function clearHistory() {
-  const saver = getChatSaverName()
+  const saver = chatSaverName.value
   if (!saver || !confirm(`确定要清除 ${saver} 的所有历史记录吗？`)) return
   try {
     await apiFetch(`/api/savers/${encodeURIComponent(saver)}/history`, 'DELETE')
@@ -136,7 +136,7 @@ function autoResize(e: Event) {
 }
 
 async function send() {
-  const saver = getChatSaverName()
+  const saver = chatSaverName.value
   if (!saver) { show('当前 Agent 未配置会话存储', 'error'); return }
   const query = chatInput.value.trim()
   if (!query && attachments.value.length === 0) return
@@ -154,7 +154,7 @@ async function send() {
 async function drainQueue() {
   while (chatQueue.value.length > 0) {
     const q = chatQueue.value.shift()!
-    const saver = getChatSaverName()
+    const saver = chatSaverName.value
     if (!saver) break
     await sendOne(saver, q, [])
   }
@@ -259,7 +259,13 @@ onMounted(refreshAgentAndHistory)
         <option v-if="agentNames.length === 0" value="">(无 Agent)</option>
         <option v-for="name in agentNames" :key="name" :value="name">{{ name }}</option>
       </select>
-      <span style="color:#94a3b8;font-size:12px">{{ saverLabel }}</span>
+      <button v-if="chatSaverName" class="chat-info-chip" @click="saverViewModal?.open(chatSaverName!)">
+        存储: {{ chatSaverName }}
+      </button>
+      <span v-else style="color:#c4c4c0;font-size:12px">未配置存储</span>
+      <button v-if="chatMemoryName" class="chat-info-chip" @click="memoryViewModal?.open(chatMemoryName!)">
+        记忆: {{ chatMemoryName }}
+      </button>
       <button class="btn-outline btn-sm" style="margin-left:auto" @click="refreshAgentAndHistory">刷新</button>
       <button class="btn-danger btn-sm" @click="clearHistory">清除历史</button>
     </div>
@@ -384,5 +390,8 @@ onMounted(refreshAgentAndHistory)
         <button class="btn-primary" :disabled="chatSending" @click="send">发送</button>
       </div>
     </div>
+
+    <SaverViewModal ref="saverViewModal" />
+    <MemoryViewModal ref="memoryViewModal" />
   </div>
 </template>

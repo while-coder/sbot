@@ -200,6 +200,39 @@ body {
   flex-wrap: wrap;
   flex-shrink: 0;
 }
+.table-link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 13px;
+  font-family: monospace;
+  color: #4f46e5;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  transition: text-decoration-color .15s, color .15s;
+}
+.table-link-btn:hover {
+  color: #3730a3;
+  text-decoration-color: #3730a3;
+}
+.chat-info-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  padding: 3px 10px;
+  background: #f4f3f1;
+  border: 1px solid #e8e6e3;
+  border-radius: 12px;
+  color: #555;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+  white-space: nowrap;
+}
+.chat-info-chip:hover {
+  background: #eceae6;
+  border-color: #ccc;
+}
 .page-toolbar-title {
   font-weight: 600;
   font-size: 14px;
@@ -376,6 +409,7 @@ table tr:hover td { background: #fafaf9; }
   box-shadow: 0 8px 40px rgba(0,0,0,0.1);
 }
 .modal-box.wide { width: 660px; }
+.modal-box.xl   { width: min(92vw, 1040px); }
 .modal-header {
   display: flex;
   align-items: center;
@@ -385,6 +419,14 @@ table tr:hover td { background: #fafaf9; }
   flex-shrink: 0;
 }
 .modal-header h3 { font-size: 15px; font-weight: 600; color: #1c1c1c; }
+.modal-header-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid #e8e6e3;
+  flex-shrink: 0;
+}
 .modal-close {
   background: none;
   border: none;
