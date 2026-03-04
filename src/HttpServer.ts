@@ -13,7 +13,7 @@ import { LoggerService } from './LoggerService';
 import { database } from './Database';
 import { userService } from './UserService/UserService';
 import { WebUserService } from './UserService/WebUserService';
-import { timerService } from './TimeService/TimerService';
+import { schedulerService } from './SchedulerService/SchedulerService';
 import { restartLarkService } from './Lark/LarkServiceInit';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
@@ -414,7 +414,7 @@ class HttpServer {
                 enabled: enabled !== false,
                 lastRun: null,
             });
-            await timerService.reload((row as any).id);
+            await schedulerService.reload((row as any).id);
             return row;
         }));
 
@@ -437,13 +437,13 @@ class HttpServer {
             if (userId !== undefined) updates.userId = userId;
             if (enabled !== undefined) updates.enabled = enabled;
             await database.update(database.timer, updates, { where: { id } });
-            await timerService.reload(id);
+            await schedulerService.reload(id);
         }));
 
         app.delete('/api/timers/:id', api(async req => {
             const id = parseInt(req.params.id as string, 10);
             if (isNaN(id)) { const e: any = new Error('无效的 id'); e.status = 400; throw e; }
-            timerService.cancel(id);
+            schedulerService.cancel(id);
             await database.destroy(database.timer, { where: { id } });
         }));
 

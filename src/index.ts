@@ -6,7 +6,7 @@ import {startLarkService, hasLarkConfig} from "./Lark/LarkServiceInit";
 import {httpServer} from "./HttpServer";
 import {initGlobalAgentToolService} from "./GlobalAgentToolService";
 import {initGlobalSkillService} from "./GlobalSkillService";
-import {timerService} from "./TimeService/TimerService";
+import {schedulerService} from "./SchedulerService/SchedulerService";
 const logger = LoggerService.getLogger('index.ts');
 logger.info("=========================开始启动=========================")
 
@@ -22,7 +22,7 @@ async function main() {
         initGlobalSkillService()
         if (hasLarkConfig()) await startLarkService()
         await httpServer.start()
-        await timerService.start()
+        await schedulerService.start()
 
         logger.info("=========================启动成功=========================")
     } catch (e) {

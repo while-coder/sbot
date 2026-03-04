@@ -5,7 +5,7 @@ import { userService } from "../UserService/UserService";
 import { LoggerService } from "../LoggerService";
 import { globalLarkService } from "../Lark/LarkServiceInit";
 
-const logger = LoggerService.getLogger("TimerService.ts");
+const logger = LoggerService.getLogger("SchedulerService.ts");
 
 /**
  * 将计时器配置转换为 cron 表达式
@@ -55,21 +55,21 @@ function toCronExpression(type: TimerType, cfg: any): string {
 }
 
 /**
- * 执行计时器动作：通过 onReceiveLarkMessage 走完整 Agent 管线
+ * 执行调度任务：通过 onReceiveLarkMessage 走完整 Agent 管线
  */
-async function executeTimer(timerId: number): Promise<void> {
+async function executeScheduler(timerId: number): Promise<void> {
     const timer = await database.findByPk<TimerRow>(database.timer, timerId);
     if (!timer?.enabled) return;
     if (!globalLarkService) return
 
     if (!timer.userId) {
-        logger.warn(`计时器 [${timer.id}:${timer.name}] 未配置 userId，跳过`);
+        logger.warn(`调度任务 [${timer.id}:${timer.name}] 未配置 userId，跳过`);
         return;
     }
 
     const userRow = await database.findByPk<UserRow>(database.user, timer.userId);
     if (!userRow) {
-        logger.warn(`计时器 [${timer.id}:${timer.name}] userId=${timer.userId} 在 user 表中不存在，跳过`);
+        logger.warn(`调度任务 [${timer.id}:${timer.name}] userId=${timer.userId} 在 user 表中不存在，跳过`);
         return;
     }
 
@@ -88,15 +88,15 @@ async function executeTimer(timerId: number): Promise<void> {
 
     try {
         await userService.onReceiveLarkMessage(args, userInfo, timer.message);
-        logger.info(`计时器 [${timer.id}:${timer.name}] 已触发，用户 ${userRow.userid}`);
+        logger.info(`调度任务 [${timer.id}:${timer.name}] 已触发，用户 ${userRow.userid}`);
     } catch (e: any) {
-        logger.error(`计时器 [${timer.id}:${timer.name}] 执行失败: ${e?.message ?? e}`);
+        logger.error(`调度任务 [${timer.id}:${timer.name}] 执行失败: ${e?.message ?? e}`);
     }
 
     await database.update(database.timer, { lastRun: Date.now() }, { where: { id: timer.id } });
 }
 
-class TimerService {
+class SchedulerService {
     private jobs = new Map<number, CronJob>();
 
     async start(): Promise<void> {
@@ -104,10 +104,10 @@ class TimerService {
         for (const timer of timers) {
             this.schedule(timer);
         }
-        logger.info(`计时器服务启动，已加载 ${timers.length} 个计时器`);
+        logger.info(`调度服务启动，已加载 ${timers.length} 个调度任务`);
     }
 
-    /** 调度单个计时器 */
+    /** 调度单个任务 */
     schedule(timer: TimerRow): void {
         this.cancel(timer.id);
 
@@ -118,22 +118,22 @@ class TimerService {
         try {
             cronExpr = toCronExpression(timer.type, cfg);
         } catch (e: any) {
-            logger.error(`计时器 [${timer.id}:${timer.name}] 表达式生成失败: ${e?.message}`);
+            logger.error(`调度任务 [${timer.id}:${timer.name}] 表达式生成失败: ${e?.message}`);
             return;
         }
 
         const job = CronJob.from({
             cronTime: cronExpr,
-            onTick: () => executeTimer(timer.id),
+            onTick: () => executeScheduler(timer.id),
             start: true,
             waitForCompletion: true,
         });
 
         this.jobs.set(timer.id, job);
-        logger.info(`计时器 [${timer.id}:${timer.name}] 已调度 (${cronExpr})，下次执行: ${job.nextDate().toISO()}`);
+        logger.info(`调度任务 [${timer.id}:${timer.name}] 已调度 (${cronExpr})，下次执行: ${job.nextDate().toISO()}`);
     }
 
-    /** 取消某个计时器的调度 */
+    /** 取消某个任务的调度 */
     cancel(timerId: number): void {
         const job = this.jobs.get(timerId);
         if (job) {
@@ -151,8 +151,8 @@ class TimerService {
 
     stop(): void {
         for (const id of this.jobs.keys()) this.cancel(id);
-        logger.info("计时器服务已停止");
+        logger.info("调度服务已停止");
     }
 }
 
-export const timerService = new TimerService();
+export const schedulerService = new SchedulerService();
