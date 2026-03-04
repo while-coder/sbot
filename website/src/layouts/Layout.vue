@@ -262,6 +262,43 @@ body {
   padding-top: 12px;
   border-top: 1px solid #e8e6e3;
 }
+.form-details {
+  margin-top: 12px;
+  border: 1px solid #e8e6e3;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.form-details-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #3b3a38;
+  cursor: pointer;
+  user-select: none;
+  background: #fafaf9;
+  list-style: none;
+}
+.form-details-summary::-webkit-details-marker { display: none; }
+.form-details-summary::before { content: '▶'; font-size: 10px; color: #9b9b9b; transition: transform .15s; }
+details[open] > .form-details-summary::before { transform: rotate(90deg); }
+.form-details-badge {
+  margin-left: 4px;
+  background: #3b82f6;
+  color: #fff;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 0 6px;
+  min-width: 18px;
+  text-align: center;
+}
+.form-details-body {
+  padding: 12px;
+  border-top: 1px solid #e8e6e3;
+}
 .form-section-title {
   font-size: 13px;
   font-weight: 600;
@@ -384,6 +421,37 @@ table tr:hover td { background: #fafaf9; }
 }
 .check-item:hover { background: #ebe9e6; }
 .check-item input[type=checkbox] { cursor: pointer; }
+.tag-select-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 28px; }
+.tag-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: #e8e6e3;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #3b3a38;
+}
+.tag-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  color: #888;
+  padding: 0 1px;
+}
+.tag-remove:hover { color: #e53e3e; }
+.tag-add-select {
+  font-size: 12px;
+  padding: 2px 6px;
+  border: 1px dashed #bbb;
+  border-radius: 4px;
+  background: #fafaf9;
+  color: #555;
+  cursor: pointer;
+  height: 24px;
+}
 .section-disabled { opacity: 0.4; pointer-events: none; user-select: none; }
 .section-disabled * { pointer-events: none; }
 
@@ -578,4 +646,41 @@ table tr:hover td { background: #fafaf9; }
 }
 .chat-queue-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #3d3d3d; }
 .chat-queue-del { background: none; border: none; cursor: pointer; color: #9b9b9b; font-size: 16px; padding: 0; line-height: 1; }
+
+/* Row dropdown */
+.row-dropdown {
+  position: relative;
+  display: inline-block;
+}
+.row-dropdown-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 200;
+  background: #fff;
+  border: 1px solid #e8e6e3;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.12);
+  min-width: 90px;
+  padding: 4px 0;
+}
+.row-dropdown-menu button {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  border-radius: 0;
+  text-align: left;
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  color: #3d3d3d;
+}
+.row-dropdown-menu button:hover:not(:disabled) {
+  background: #f5f4f2;
+}
+.row-dropdown-menu button:disabled {
+  color: #b0b0b0;
+  cursor: default;
+}
 </style>
