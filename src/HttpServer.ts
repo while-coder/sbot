@@ -3,8 +3,7 @@ import http from 'http';
 import path from 'path';
 import fs from 'fs';
 import { z } from 'zod';
-import { MCPServers } from "scorpio.ai";
-import { MultiServerMCPClient } from '@langchain/mcp-adapters';
+import { MCPServers, AgentToolService } from "scorpio.ai";
 import { config } from './Config';
 import { AgentFactory } from './AgentFactory';
 import { globalAgentToolService, refreshGlobalAgentToolService, BuiltinProvider } from './GlobalAgentToolService';
@@ -181,14 +180,14 @@ class HttpServer {
                 throw e;
             }
             const servers = config.getAgentMcpServers(agentName);
-            const cfg = servers[name];
-            if (!cfg) {
+            if (!servers[name]) {
                 const e: any = new Error(`Agent MCP "${name}" 不存在`);
                 e.status = 404;
                 throw e;
             }
-            const client = new MultiServerMCPClient({ mcpServers: { [name]: cfg } });
-            const tools = await client.getTools();
+            const toolService = new AgentToolService();
+            toolService.registerMcpServers(servers);
+            const tools = await toolService.getToolsFrom([name]);
             return tools.map(t => ({ name: t.name, description: t.description, parameters: toJsonSchema(t.schema) }));
         }));
 

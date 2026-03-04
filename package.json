@@ -14,7 +14,6 @@
   },
   "dependencies": {
     "@langchain/core": "^1.1.28",
-    "@langchain/mcp-adapters": "^1.1.2",
     "axios": "^1.13.4",
     "cron": "^4.4.0",
     "express": "^5.2.1",
@@ -23,7 +22,6 @@
     "scorpio.ai": "file:../WMTools/scorpio.ai",
     "sequelize": "^6.37.7",
     "sqlite3": "^5.1.7",
-    "weimingcommons": "^0.0.55",
     "winning.ai": "file:../WMTools/winning.ai"
   },
   "devDependencies": {
