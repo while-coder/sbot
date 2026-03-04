@@ -6,7 +6,7 @@ import {startLarkService, hasLarkConfig} from "./Lark/LarkServiceInit";
 import {httpServer} from "./HttpServer";
 import {initGlobalAgentToolService} from "./GlobalAgentToolService";
 import {initGlobalSkillService} from "./GlobalSkillService";
-import {timerService} from "./TimerService";
+import {timerService} from "./TimeService/TimerService";
 const logger = LoggerService.getLogger('index.ts');
 logger.info("=========================开始启动=========================")
 

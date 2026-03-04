@@ -13,7 +13,7 @@ import { LoggerService } from './LoggerService';
 import { database } from './Database';
 import { userService } from './UserService/UserService';
 import { WebUserService } from './UserService/WebUserService';
-import { timerService } from './TimerService';
+import { timerService } from './TimeService/TimerService';
 import { restartLarkService } from './Lark/LarkServiceInit';
 
 const logger = LoggerService.getLogger('HttpServer.ts');

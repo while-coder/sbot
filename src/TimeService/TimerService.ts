@@ -1,9 +1,9 @@
 import { CronJob } from "cron";
 import { LarkMessageArgs, LarkReceiveIdType } from "winning.ai";
-import { database, TimerRow, TimerType, UserRow } from "./Database";
-import { userService } from "./UserService/UserService";
-import { LoggerService } from "./LoggerService";
-import { globalLarkService } from "./Lark/LarkServiceInit";
+import { database, TimerRow, TimerType, UserRow } from "../Database";
+import { userService } from "../UserService/UserService";
+import { LoggerService } from "../LoggerService";
+import { globalLarkService } from "../Lark/LarkServiceInit";
 
 const logger = LoggerService.getLogger("TimerService.ts");
 
