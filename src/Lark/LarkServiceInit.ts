@@ -1,6 +1,6 @@
-import { larkService, LarkActionArgs, LarkMessageArgs } from "winning.ai";
+import { LarkService, LarkActionArgs, LarkMessageArgs, LarkUserIdType } from "winning.ai";
 import { database } from "../Database";
-import { Util } from "weimingcommons";
+import { NowDate } from "../Utils";
 import { Op } from "sequelize";
 import { userService } from "../UserService/UserService";
 import { LoggerService } from "../LoggerService";
@@ -15,7 +15,7 @@ const ExpireTime = HourMilliseconds * 24 * 3;
 let checkTime = 0;
 
 async function clearExpiredMessage() {
-    const now = Util.NowDate;
+    const now = NowDate();
     if (now < checkTime) return;
     checkTime = now + CheckInterval;
     await database.destroy(database.message, {
@@ -26,7 +26,7 @@ async function clearExpiredMessage() {
 async function filterEvent(eventId: string): Promise<boolean> {
     await clearExpiredMessage();
     if ((await database.count(database.message, { where: { id: eventId } })) > 0) return false;
-    await database.create(database.message, { id: eventId, expireTime: Util.NowDate + ExpireTime });
+    await database.create(database.message, { id: eventId, expireTime: NowDate() + ExpireTime });
     return true;
 }
 
@@ -35,10 +35,13 @@ export function hasLarkConfig(): boolean {
     return !!(lark?.appId?.trim() && lark?.appSecret?.trim());
 }
 
+export let globalLarkService:LarkService|undefined;
 export async function startLarkService() {
-    await larkService.start({
+    if (!hasLarkConfig()) return false
+    globalLarkService = new LarkService({
         appId: config.settings.lark!.appId!,
         appSecret: config.settings.lark!.appSecret!,
+        userIdType: LarkUserIdType.UnionId,
         filterEvent,
         onRecevieMessage: async (userId: string, userInfo: any, args: LarkMessageArgs, query: string) => {
             if (userId) {
@@ -54,13 +57,15 @@ export async function startLarkService() {
         onTriggerAction: async (_userId: string, _userInfo: any, args: LarkActionArgs) => {
             await userService.lark.onTriggerAction(args.chat_id, args.code, args.data, args.form_value);
         },
-    });
+    })
+    await globalLarkService.registerEventDispatcher()
     logger.info("Lark 服务启动成功");
 }
 
 export async function restartLarkService() {
     if (!hasLarkConfig()) {
-        larkService.stop();
+        globalLarkService?.dispose();
+        globalLarkService = undefined
         logger.info("Lark 配置未填写，跳过启动");
         return;
     }

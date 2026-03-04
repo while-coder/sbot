@@ -1,23 +1,36 @@
 import { CronJob } from "cron";
-import { LarkMessageArgs } from "winning.ai";
+import { LarkMessageArgs, LarkReceiveIdType } from "winning.ai";
 import { database, TimerRow, TimerType, UserRow } from "./Database";
 import { userService } from "./UserService/UserService";
 import { LoggerService } from "./LoggerService";
+import { globalLarkService } from "./Lark/LarkServiceInit";
 
 const logger = LoggerService.getLogger("TimerService.ts");
 
 /**
  * 将计时器配置转换为 cron 表达式
  *
- * daily:   { time: "09:00" }              → "0 9 * * *"
- * weekly:  { dayOfWeek: 1, time: "09:00" }→ "0 9 * * 1"  (0=周日, 1=周一 ...)
- * monthly: { dayOfMonth: 1, time: "09:00"}→ "0 9 1 * *"
- * interval:{ minutes: 30 }               → "* /30 * * * *"  (每30分钟)
+ * daily:   { time: "09:00" }               → "0 9 * * *"
+ * weekly:  { dayOfWeek: 1, time: "09:00" } → "0 9 * * 1"  (0=周日, 1=周一 ...)
+ * monthly: { dayOfMonth: 1, time: "09:00" }→ "0 9 1 * *"
+ * interval:{ minutes: 30 }                 → "* /30 * * * *"  (1-59分钟)
+ * hourly:  { minute?: 0 }                  → "0 * * * *"  (每小时指定分钟)
+ * cron:    { expr: "0 9 * * *" }           → 直接使用自定义表达式
  */
 function toCronExpression(type: TimerType, cfg: any): string {
     if (type === TimerType.Interval) {
-        const minutes = Math.max(1, Math.floor(cfg.minutes ?? 1));
+        const minutes = Math.min(59, Math.max(1, Math.floor(cfg.minutes ?? 1)));
         return `*/${minutes} * * * *`;
+    }
+
+    if (type === TimerType.Hourly) {
+        const minute = Math.min(59, Math.max(0, Math.floor(cfg.minute ?? 0)));
+        return `${minute} * * * *`;
+    }
+
+    if (type === TimerType.Cron) {
+        if (!cfg.expr) throw new Error("cron 类型缺少 expr 字段");
+        return cfg.expr as string;
     }
 
     const [hStr, mStr] = (cfg.time ?? "09:00").split(":");
@@ -47,6 +60,7 @@ function toCronExpression(type: TimerType, cfg: any): string {
 async function executeTimer(timerId: number): Promise<void> {
     const timer = await database.findByPk<TimerRow>(database.timer, timerId);
     if (!timer?.enabled) return;
+    if (!globalLarkService) return
 
     if (!timer.userId) {
         logger.warn(`计时器 [${timer.id}:${timer.name}] 未配置 userId，跳过`);
@@ -63,11 +77,12 @@ async function executeTimer(timerId: number): Promise<void> {
     try { userInfo = JSON.parse(userRow.userinfo || "{}"); } catch { /**/ }
 
     const args: LarkMessageArgs & { agentName?: string } = {
-        chat_type: "p2p",
+        larkService: globalLarkService,
+        chat_type: "",
         chat_id: "",
         message_id: "",
         root_id: "",
-        userId: userRow.userid,
+        chatInfo: { receiveId: userRow.userid, receiveIdType: LarkReceiveIdType.UserId },
         ...(timer.agentName ? { agentName: timer.agentName } : {}),
     };
 

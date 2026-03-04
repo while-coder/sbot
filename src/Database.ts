@@ -1,5 +1,5 @@
 import { DataTypes, type FindOptions, type ModelStatic, type UpdateOptions, Sequelize } from "sequelize";
-import { Util } from "weimingcommons";
+import { sleep } from "./Utils";
 import { config } from "./Config";
 import { LoggerService } from "./LoggerService";
 
@@ -16,6 +16,8 @@ export enum TimerType {
   Weekly   = 'weekly',
   Monthly  = 'monthly',
   Interval = 'interval',
+  Hourly   = 'hourly',   // config: { minute?: number }  默认整点
+  Cron     = 'cron',     // config: { expr: "0 9 * * *" } 自定义表达式
 }
 
 export type TimerRow = {
@@ -254,7 +256,7 @@ class Database {
   private async wait() {
     if (this.dbConfig?.type === "sqlite") {
       while (this.running) {
-        await Util.sleep(1);
+        await sleep(1);
       }
       this.running = true;
     }

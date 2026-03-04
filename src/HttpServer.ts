@@ -356,18 +356,53 @@ class HttpServer {
         }));
 
         // ===== Timers =====
+        const VALID_TIMER_TYPES = ['daily', 'weekly', 'monthly', 'interval', 'hourly', 'cron'];
+
+        function validateTimerConfig(type: string, rawCfg: any): string | null {
+            const cfg = typeof rawCfg === 'string' ? (() => { try { return JSON.parse(rawCfg); } catch { return {}; } })() : (rawCfg ?? {});
+            if (type === 'interval') {
+                const m = Number(cfg.minutes);
+                if (!Number.isInteger(m) || m < 1 || m > 59) return 'interval.minutes 必须为 1–59 的整数';
+            }
+            if (type === 'hourly') {
+                const m = Number(cfg.minute ?? 0);
+                if (!Number.isInteger(m) || m < 0 || m > 59) return 'hourly.minute 必须为 0–59 的整数';
+            }
+            if (['daily', 'weekly', 'monthly'].includes(type)) {
+                const h = Number(cfg.hour ?? 0), m = Number(cfg.minute ?? 0);
+                if (!Number.isInteger(h) || h < 0 || h > 23) return 'config.hour 必须为 0–23 的整数';
+                if (!Number.isInteger(m) || m < 0 || m > 59) return 'config.minute 必须为 0–59 的整数';
+            }
+            if (type === 'weekly') {
+                const d = Number(cfg.dayOfWeek ?? 1);
+                if (!Number.isInteger(d) || d < 0 || d > 6) return 'weekly.dayOfWeek 必须为 0–6';
+            }
+            if (type === 'monthly') {
+                const d = Number(cfg.dayOfMonth ?? 1);
+                if (!Number.isInteger(d) || d < 1 || d > 31) return 'monthly.dayOfMonth 必须为 1–31';
+            }
+            if (type === 'cron') {
+                if (!cfg.expr?.trim()) return 'cron.expr 不能为空';
+            }
+            return null;
+        }
+
+        function throwBad(msg: string): never {
+            const e: any = new Error(msg); e.status = 400; throw e;
+        }
+
         app.get('/api/timers', api(async () => {
             return await database.findAll(database.timer);
         }));
 
         app.post('/api/timers', api(async req => {
             const { name, type, config: cfg, message, agentName, userId, enabled } = req.body;
-            if (!name) { const e: any = new Error('name 不能为空'); e.status = 400; throw e; }
-            if (!['daily', 'weekly', 'monthly', 'interval'].includes(type)) {
-                const e: any = new Error('type 必须为 daily | weekly | monthly | interval'); e.status = 400; throw e;
-            }
-            if (!message) { const e: any = new Error('message 不能为空'); e.status = 400; throw e; }
-            if (!agentName?.trim()) { const e: any = new Error('agentName 不能为空'); e.status = 400; throw e; }
+            if (!name) throwBad('name 不能为空');
+            if (!VALID_TIMER_TYPES.includes(type)) throwBad(`type 必须为 ${VALID_TIMER_TYPES.join(' | ')}`);
+            if (!message) throwBad('message 不能为空');
+            if (!agentName?.trim()) throwBad('agentName 不能为空');
+            const cfgErr = validateTimerConfig(type, cfg);
+            if (cfgErr) throwBad(cfgErr);
             const row = await database.create(database.timer, {
                 name,
                 type,
@@ -384,12 +419,14 @@ class HttpServer {
 
         app.put('/api/timers/:id', api(async req => {
             const id = parseInt(req.params.id as string, 10);
-            if (isNaN(id)) { const e: any = new Error('无效的 id'); e.status = 400; throw e; }
+            if (isNaN(id)) throwBad('无效的 id');
             const { name, type, config: cfg, message, agentName, userId, enabled } = req.body;
-            if (type && !['daily', 'weekly', 'monthly', 'interval'].includes(type)) {
-                const e: any = new Error('type 必须为 daily | weekly | monthly | interval'); e.status = 400; throw e;
+            if (type && !VALID_TIMER_TYPES.includes(type)) throwBad(`type 必须为 ${VALID_TIMER_TYPES.join(' | ')}`);
+            if (agentName !== undefined && !agentName?.trim()) throwBad('agentName 不能为空');
+            if (type && cfg !== undefined) {
+                const cfgErr = validateTimerConfig(type, cfg);
+                if (cfgErr) throwBad(cfgErr);
             }
-            if (agentName !== undefined && !agentName?.trim()) { const e: any = new Error('agentName 不能为空'); e.status = 400; throw e; }
             const updates: any = {};
             if (name !== undefined) updates.name = name;
             if (type !== undefined) updates.type = type;

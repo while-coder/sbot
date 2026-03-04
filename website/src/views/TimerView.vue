@@ -4,7 +4,7 @@ import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 
-type TimerType = 'daily' | 'weekly' | 'monthly' | 'interval'
+type TimerType = 'daily' | 'weekly' | 'monthly' | 'interval' | 'hourly' | 'cron'
 
 interface TimerRow {
   id: number
@@ -55,6 +55,7 @@ const form = ref({
   dayOfWeek: 1,
   dayOfMonth: 1,
   minutes: 30,
+  cronExpr: '',
 })
 
 const dayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
@@ -99,6 +100,17 @@ function calcNextRun(row: TimerRow): string {
     return next.toLocaleString('zh-CN')
   }
 
+  if (row.type === 'hourly') {
+    const minute = cfg.minute ?? 0
+    const next = new Date(now)
+    next.setSeconds(0, 0)
+    next.setMinutes(minute)
+    if (next <= now) next.setHours(next.getHours() + 1)
+    return next.toLocaleString('zh-CN')
+  }
+
+  if (row.type === 'cron') return '-'
+
   const hour = cfg.hour ?? 0
   const minute = cfg.minute ?? 0
 
@@ -137,6 +149,8 @@ function formatSchedule(row: TimerRow): string {
   if (row.type === 'weekly') return `每周${dayNames[cfg.dayOfWeek ?? 1]} ${t}`
   if (row.type === 'monthly') return `每月${cfg.dayOfMonth ?? 1}日 ${t}`
   if (row.type === 'interval') return `每 ${cfg.minutes ?? 30} 分钟`
+  if (row.type === 'hourly') return `每小时 :${pad(cfg.minute ?? 0)}`
+  if (row.type === 'cron') return cfg.expr ?? '-'
   return '-'
 }
 
@@ -163,6 +177,7 @@ function openAdd() {
     dayOfWeek: 1,
     dayOfMonth: 1,
     minutes: 30,
+    cronExpr: '',
   }
   showModal.value = true
 }
@@ -182,22 +197,44 @@ function openEdit(row: TimerRow) {
     dayOfWeek: cfg.dayOfWeek ?? 1,
     dayOfMonth: cfg.dayOfMonth ?? 1,
     minutes: cfg.minutes ?? 30,
+    cronExpr: cfg.expr ?? '',
   }
   showModal.value = true
 }
 
-function buildConfig(): TimerConfig {
-  const { type, hour, minute, dayOfWeek, dayOfMonth, minutes } = form.value
+function buildConfig(): object {
+  const { type, hour, minute, dayOfWeek, dayOfMonth, minutes, cronExpr } = form.value
   if (type === 'daily') return { hour, minute }
   if (type === 'weekly') return { hour, minute, dayOfWeek }
   if (type === 'monthly') return { hour, minute, dayOfMonth }
-  return { minutes }
+  if (type === 'interval') return { minutes }
+  if (type === 'hourly') return { minute }
+  if (type === 'cron') return { expr: cronExpr.trim() }
+  return {}
 }
 
 async function save() {
   if (!form.value.name.trim()) { show('名称不能为空', 'error'); return }
   if (!form.value.message.trim()) { show('消息不能为空', 'error'); return }
   if (!form.value.agentName) { show('请选择 Agent', 'error'); return }
+  const { type, hour, minute, dayOfWeek, dayOfMonth, minutes, cronExpr } = form.value
+  if (type === 'interval') {
+    if (!Number.isInteger(minutes) || minutes < 1 || minutes > 59) { show('间隔分钟数必须为 1–59 的整数', 'error'); return }
+  }
+  if (['daily', 'weekly', 'monthly'].includes(type)) {
+    if (!Number.isInteger(hour) || hour < 0 || hour > 23) { show('小时必须为 0–23 的整数', 'error'); return }
+    if (!Number.isInteger(minute) || minute < 0 || minute > 59) { show('分钟必须为 0–59 的整数', 'error'); return }
+  }
+  if (type === 'hourly') {
+    if (!Number.isInteger(minute) || minute < 0 || minute > 59) { show('触发分钟必须为 0–59 的整数', 'error'); return }
+  }
+  if (type === 'weekly') {
+    if (!Number.isInteger(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6) { show('星期几必须为 0–6', 'error'); return }
+  }
+  if (type === 'monthly') {
+    if (!Number.isInteger(dayOfMonth) || dayOfMonth < 1 || dayOfMonth > 31) { show('日期必须为 1–31 的整数', 'error'); return }
+  }
+  if (type === 'cron' && !cronExpr.trim()) { show('请填写 Cron 表达式', 'error'); return }
   saving.value = true
   try {
     const body: any = {
@@ -250,6 +287,8 @@ const typeLabel: Record<TimerType, string> = {
   weekly: '每周',
   monthly: '每月',
   interval: '循环',
+  hourly: '每小时',
+  cron: '自定义',
 }
 
 onMounted(load)
@@ -337,12 +376,14 @@ onMounted(load)
               <option value="daily">每天定时</option>
               <option value="weekly">每周定时</option>
               <option value="monthly">每月定时</option>
-              <option value="interval">按分钟循环</option>
+              <option value="interval">按分钟循环 (1–59分钟)</option>
+              <option value="hourly">每小时</option>
+              <option value="cron">自定义 Cron</option>
             </select>
           </div>
 
           <!-- daily / weekly / monthly: hour + minute -->
-          <template v-if="form.type !== 'interval'">
+          <template v-if="['daily','weekly','monthly'].includes(form.type)">
             <div class="inline-form">
               <div class="form-group">
                 <label>小时 (0–23)</label>
@@ -371,8 +412,20 @@ onMounted(load)
 
           <!-- interval: minutes -->
           <div v-if="form.type === 'interval'" class="form-group">
-            <label>间隔分钟数</label>
-            <input type="number" v-model.number="form.minutes" min="1" max="1440" />
+            <label>间隔分钟数 (1–59)</label>
+            <input type="number" v-model.number="form.minutes" min="1" max="59" />
+          </div>
+
+          <!-- hourly: trigger minute -->
+          <div v-if="form.type === 'hourly'" class="form-group">
+            <label>触发分钟 (0–59)</label>
+            <input type="number" v-model.number="form.minute" min="0" max="59" />
+          </div>
+
+          <!-- cron: custom expression -->
+          <div v-if="form.type === 'cron'" class="form-group">
+            <label>Cron 表达式</label>
+            <input v-model="form.cronExpr" placeholder="例: 0 9 * * 1-5" />
           </div>
 
           <div class="form-group">
