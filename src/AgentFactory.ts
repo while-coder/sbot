@@ -113,11 +113,6 @@ export class AgentFactory {
             [T_MaxMemoryAgeDays]: memoryConfig.maxAgeDays,
             [T_MemoryMode]: memoryConfig.mode,
         });
-
-        if (memoryConfig.mode === MemoryMode.READ_ONLY) {
-            const inner = await container.resolve<IMemoryService>(IMemoryService);
-            container.registerInstance(IMemoryService, new ReadOnlyMemoryService(inner));
-        }
     }
     private static async registerSaverService(
         container: ServiceContainer,

@@ -14,6 +14,7 @@ const compressing = ref(false)
 
 const showAddModal = ref(false)
 const addContent   = ref('')
+const adding       = ref(false)
 
 async function load() {
   loading.value = true
@@ -55,6 +56,7 @@ function openAdd() {
 
 async function confirmAdd() {
   if (!addContent.value.trim()) { show('内容不能为空', 'error'); return }
+  adding.value = true
   try {
     const res = await apiFetch(`/api/memories/${encodeURIComponent(memName.value)}/add`, 'POST', { content: addContent.value.trim() })
     show(`已添加 ${res.data?.ids?.length ?? 0} 条记忆`)
@@ -62,6 +64,8 @@ async function confirmAdd() {
     await load()
   } catch (e: any) {
     show(e.message, 'error')
+  } finally {
+    adding.value = false
   }
 }
 
@@ -162,8 +166,11 @@ defineExpose({ open })
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn-outline" @click="showAddModal = false">取消</button>
-        <button class="btn-primary" @click="confirmAdd">添加</button>
+        <button class="btn-outline" :disabled="adding" @click="showAddModal = false">取消</button>
+        <button class="btn-primary" :disabled="adding" @click="confirmAdd">
+          <span v-if="adding" class="btn-spinner" />
+          {{ adding ? '添加中…' : '添加' }}
+        </button>
       </div>
     </div>
   </div>
@@ -245,5 +252,19 @@ defineExpose({ open })
   font-size: 11px;
   padding: 2px 7px;
   border-radius: 4px;
+}
+.btn-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255,255,255,0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: btn-spin 0.6s linear infinite;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+@keyframes btn-spin {
+  to { transform: rotate(360deg); }
 }
 </style>

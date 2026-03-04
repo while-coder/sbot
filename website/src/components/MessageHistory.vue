@@ -70,18 +70,22 @@ function renderMd(content: string): string {
           <!-- Human message -->
           <div v-if="msg.role === 'human'" class="msg-row human">
             <div class="msg-bubble human">
-              <div class="msg-role">用户</div>
+              <div class="msg-role-bar">
+                <span class="msg-role">用户</span>
+                <span v-if="msg.timestamp" class="msg-time">{{ fmtTs(msg.timestamp) }}</span>
+              </div>
               {{ msg.content }}
-              <div v-if="msg.timestamp" class="msg-time">{{ fmtTs(msg.timestamp) }}</div>
             </div>
           </div>
 
           <!-- AI message -->
           <div v-else-if="msg.role === 'ai'" class="msg-row ai">
             <div v-if="msg.content" class="msg-bubble ai">
-              <div class="msg-role">AI</div>
+              <div class="msg-role-bar">
+                <span class="msg-role">AI</span>
+                <span v-if="msg.timestamp" class="msg-time">{{ fmtTs(msg.timestamp) }}</span>
+              </div>
               <div class="md-content" v-html="renderMd(msg.content)" />
-              <div v-if="msg.timestamp" class="msg-time">{{ fmtTs(msg.timestamp) }}</div>
             </div>
             <div v-if="msg.tool_calls && msg.tool_calls.length > 0" class="msg-tool-calls">
               <div class="msg-role">Tool Calls ({{ msg.tool_calls.length }})</div>
@@ -105,7 +109,9 @@ function renderMd(content: string): string {
           <!-- Tool message (standalone, no tool_call_id) -->
           <div v-else-if="msg.role === 'tool'" class="msg-row ai">
             <div class="msg-bubble tool">
-              <div class="msg-role">Tool{{ msg.name ? ` · ${msg.name}` : '' }}</div>
+              <div class="msg-role-bar">
+                <span class="msg-role">Tool{{ msg.name ? ` · ${msg.name}` : '' }}</span>
+              </div>
               {{ msg.content }}
             </div>
           </div>
@@ -113,9 +119,11 @@ function renderMd(content: string): string {
           <!-- System/other -->
           <div v-else class="msg-row ai">
             <div class="msg-bubble ai">
-              <div class="msg-role">{{ msg.role }}</div>
+              <div class="msg-role-bar">
+                <span class="msg-role">{{ msg.role }}</span>
+                <span v-if="msg.timestamp" class="msg-time">{{ fmtTs(msg.timestamp) }}</span>
+              </div>
               {{ msg.content }}
-              <div v-if="msg.timestamp" class="msg-time">{{ fmtTs(msg.timestamp) }}</div>
             </div>
           </div>
         </template>

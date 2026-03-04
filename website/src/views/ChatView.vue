@@ -289,16 +289,20 @@ onMounted(refreshAgentAndHistory)
           <template v-if="!(msg.role === 'tool' && msg.tool_call_id)">
             <div v-if="msg.role === 'human'" class="msg-row human">
               <div class="msg-bubble human">
-                <div class="msg-role">用户</div>
+                <div class="msg-role-bar">
+                  <span class="msg-role">用户</span>
+                  <span v-if="msg.timestamp" class="msg-time">{{ fmtTs(msg.timestamp) }}</span>
+                </div>
                 {{ msg.content }}
-                <div v-if="msg.timestamp" class="msg-time">{{ fmtTs(msg.timestamp) }}</div>
               </div>
             </div>
             <div v-else-if="msg.role === 'ai'" class="msg-row ai">
               <div v-if="msg.content" class="msg-bubble ai">
-                <div class="msg-role">AI</div>
+                <div class="msg-role-bar">
+                  <span class="msg-role">AI</span>
+                  <span v-if="msg.timestamp" class="msg-time">{{ fmtTs(msg.timestamp) }}</span>
+                </div>
                 <div class="md-content" v-html="renderMd(msg.content)" />
-                <div v-if="msg.timestamp" class="msg-time">{{ fmtTs(msg.timestamp) }}</div>
               </div>
               <div v-if="msg.tool_calls && msg.tool_calls.length > 0" class="msg-tool-calls">
                 <div class="msg-role">Tool Calls ({{ msg.tool_calls.length }})</div>
@@ -320,15 +324,19 @@ onMounted(refreshAgentAndHistory)
             </div>
             <div v-else-if="msg.role === 'tool'" class="msg-row ai">
               <div class="msg-bubble tool">
-                <div class="msg-role">Tool{{ msg.name ? ` · ${msg.name}` : '' }}</div>
+                <div class="msg-role-bar">
+                  <span class="msg-role">Tool{{ msg.name ? ` · ${msg.name}` : '' }}</span>
+                </div>
                 {{ msg.content }}
               </div>
             </div>
             <div v-else class="msg-row ai">
               <div class="msg-bubble ai">
-                <div class="msg-role">{{ msg.role }}</div>
+                <div class="msg-role-bar">
+                  <span class="msg-role">{{ msg.role }}</span>
+                  <span v-if="msg.timestamp" class="msg-time">{{ fmtTs(msg.timestamp) }}</span>
+                </div>
                 {{ msg.content }}
-                <div v-if="msg.timestamp" class="msg-time">{{ fmtTs(msg.timestamp) }}</div>
               </div>
             </div>
           </template>
@@ -337,7 +345,7 @@ onMounted(refreshAgentAndHistory)
         <!-- Streaming AI response -->
         <div v-if="isStreaming" class="msg-row ai">
           <div class="msg-bubble ai streaming">
-            <div class="msg-role">AI</div>
+            <div class="msg-role-bar"><span class="msg-role">AI</span></div>
             <div v-if="streamingContent" class="md-content" v-html="renderMd(streamingContent)" />
             <span v-else style="color:#94a3b8">思考中…</span>
           </div>

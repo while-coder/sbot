@@ -566,10 +566,14 @@ table tr:hover td { background: #fafaf9; }
 .msg-row { display: flex; flex-direction: column; gap: 4px; max-width: 85%; }
 .msg-row.human { align-self: flex-end; align-items: flex-end; }
 .msg-row.ai { align-self: flex-start; align-items: flex-start; max-width: 90%; }
+.msg-role-bar {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 4px;
+}
 .msg-time {
   font-size: 10px;
-  margin-top: 5px;
-  text-align: right;
   opacity: 0.5;
 }
 .msg-bubble.human .msg-time { color: #fff; }
@@ -624,7 +628,6 @@ table tr:hover td { background: #fafaf9; }
 .msg-role {
   font-size: 10px;
   font-weight: 700;
-  margin-bottom: 4px;
   opacity: 0.6;
   text-transform: uppercase;
   letter-spacing: 0.08em;
