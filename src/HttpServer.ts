@@ -107,6 +107,7 @@ class HttpServer {
 
         // 静态文件
         app.use('/client', express.static(path.resolve(__dirname, '../client')));
+        app.use('/assets', express.static(path.resolve(__dirname, '../assets')));
 
         // 根路径重定向到 /client
         app.get('/', (_req, res) => res.redirect('/client/'));

@@ -14,6 +14,7 @@ export enum BuiltinProvider {
     ChromeDevTools = 'builtin_chrome-devtools-mcp',
     Markitdown = 'builtin_markitdown',
     DesktopCommander = 'builtin_desktop-commander',
+    Chart = 'builtin_mcp-server-chart',
 }
 
 export const globalAgentToolService = new AgentToolService();
@@ -46,6 +47,12 @@ export function initGlobalAgentToolService() {
             "command": "npx",
             "args": ["-y", "@wonderwhy-er/desktop-commander@latest"],
             "description": "桌面操作与终端",
+        },
+        [BuiltinProvider.Chart]: {
+            "type": "stdio",
+            "command": "npx",
+            "args": ["-y", "@antv/mcp-server-chart@latest"],
+            "description": "图表生成",
         },
     })
     globalAgentToolService.registerMcpServers(config.getGlobalMcpServers());
