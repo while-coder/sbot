@@ -5,7 +5,7 @@
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
-import { database, TimerType, TimerRow } from '../../Database';
+import { database, SchedulerType, SchedulerRow } from '../../Database';
 import { schedulerService } from '../../SchedulerService/SchedulerService';
 import { LoggerService } from '../../LoggerService';
 
@@ -25,7 +25,7 @@ export function createSchedulerListTool(): StructuredToolInterface {
         func: async ({ enabled }: any): Promise<MCPToolResult> => {
             try {
                 const options = enabled !== undefined ? { where: { enabled } } : undefined;
-                const timers = await database.findAll<TimerRow>(database.timer, options);
+                const timers = await database.findAll<SchedulerRow>(database.scheduler, options);
                 return createSuccessResult(createTextContent(JSON.stringify(timers, null, 2)));
             } catch (e: any) {
                 logger.error(`scheduler_list 失败: ${e.message}`);
@@ -62,9 +62,9 @@ export function createSchedulerCreateTool(): StructuredToolInterface {
                 if (!message?.trim())   return createErrorResult('message 不能为空');
                 if (!agentName?.trim()) return createErrorResult('agentName 不能为空');
 
-                const row = await database.create<TimerRow>(database.timer, {
+                const row = await database.create<SchedulerRow>(database.scheduler, {
                     name:      name.trim(),
-                    type:      TimerType.Cron,
+                    type:      SchedulerType.Cron,
                     config:    JSON.stringify({ expr: expr.trim() }),
                     message:   message.trim(),
                     agentName: agentName.trim(),
@@ -95,10 +95,10 @@ export function createSchedulerDeleteTool(): StructuredToolInterface {
         }) as any,
         func: async ({ id }: any): Promise<MCPToolResult> => {
             try {
-                const existing = await database.findByPk<TimerRow>(database.timer, id);
+                const existing = await database.findByPk<SchedulerRow>(database.scheduler, id);
                 if (!existing) return createErrorResult(`调度任务 id=${id} 不存在`);
                 schedulerService.cancel(id);
-                await database.destroy(database.timer, { where: { id } });
+                await database.destroy(database.scheduler, { where: { id } });
                 return createSuccessResult(createTextContent(`调度任务 id=${id}（${existing.name}）已删除`));
             } catch (e: any) {
                 logger.error(`scheduler_delete 失败: ${e.message}`);

@@ -185,7 +185,7 @@ onMounted(load)
       </div>
       <table>
         <thead>
-          <tr><th>名称</th><th>描述</th><th>操作</th></tr>
+          <tr><th>名称</th><th>描述</th><th style="width:140px;white-space:nowrap">操作</th></tr>
         </thead>
         <tbody>
           <tr v-if="builtins.length === 0 && skills.length === 0">
@@ -197,7 +197,7 @@ onMounted(load)
               <span style="margin-left:6px;background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">内置</span>
             </td>
             <td>{{ s.description || '-' }}</td>
-            <td>
+            <td style="white-space:nowrap">
               <div class="ops-cell">
                 <button class="btn-outline btn-sm" @click="openView(s.name, '内置')">查看</button>
               </div>
@@ -206,7 +206,7 @@ onMounted(load)
           <tr v-for="s in skills" :key="s.name">
             <td style="font-family:monospace">{{ s.name }}</td>
             <td>{{ s.description || '-' }}</td>
-            <td>
+            <td style="white-space:nowrap">
               <div class="ops-cell">
                 <button class="btn-outline btn-sm" @click="openView(s.name)">查看</button>
                 <button class="btn-danger btn-sm" @click="remove(s.name)">删除</button>

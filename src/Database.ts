@@ -11,7 +11,7 @@ export type MessageRow = {
   expireTime: number;
 };
 
-export enum TimerType {
+export enum SchedulerType {
   Daily    = 'daily',
   Weekly   = 'weekly',
   Monthly  = 'monthly',
@@ -20,10 +20,10 @@ export enum TimerType {
   Cron     = 'cron',     // config: { expr: "0 9 * * *" } 自定义表达式
 }
 
-export type TimerRow = {
+export type SchedulerRow = {
   id: number;
   name: string;
-  type: TimerType;
+  type: SchedulerType;
   config: string;      // JSON: daily={time:"09:00"} weekly={dayOfWeek:1,time:"09:00"} monthly={dayOfMonth:1,time:"09:00"} interval={minutes:30}
   message: string;     // 消息文本
   agentName: string | null;  // 可选 agent 名称
@@ -57,7 +57,7 @@ class Database {
   public message!: ModelStatic<any>;
   public state!: ModelStatic<any>;
   public user!: ModelStatic<any>;
-  public timer!: ModelStatic<any>;
+  public scheduler!: ModelStatic<any>;
 
   async init() {
     this.running = false;
@@ -178,8 +178,8 @@ class Database {
       },
     );
 
-    this.timer = sequelize.define(
-      "timer",
+    this.scheduler = sequelize.define(
+      "scheduler",
       {
         id: {
           type: DataTypes.INTEGER,
@@ -236,7 +236,7 @@ class Database {
         },
       },
       {
-        tableName: "timer",
+        tableName: "scheduler",
         timestamps: false,
         comment: "计时器表",
       },
@@ -277,7 +277,7 @@ class Database {
 
       await this.message.sync({ alter });
       await this.user.sync({ alter });
-      await this.timer.sync({ alter });
+      await this.scheduler.sync({ alter });
 
       await this.state.update({ value: DBVersion }, { where: { key: DBVersionName } });
       logger.info("刷新数据库结构完成");

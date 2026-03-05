@@ -125,7 +125,7 @@ class HttpServer {
         }));
 
         // ===== Agent Rename =====
-        app.post('/api/agents/:name/rename', api(req => {
+        app.post('/api/agents/:name/rename', api(async req => {
             const oldName = req.params.name as string;
             const { name: newName } = req.body as { name: string };
             if (!newName?.trim()) throwBad('新名称不能为空');
@@ -153,6 +153,10 @@ class HttpServer {
             }
 
             config.saveSettings();
+
+            // 同步 scheduler 表中的 agentName
+            await database.update(database.scheduler, { agentName: newName }, { where: { agentName: oldName } });
+
             return config.settings;
         }));
 
@@ -458,7 +462,7 @@ class HttpServer {
         }
 
         app.get('/api/timers', api(async () => {
-            return await database.findAll(database.timer);
+            return await database.findAll(database.scheduler);
         }));
 
         app.post('/api/timers', api(async req => {
@@ -469,7 +473,7 @@ class HttpServer {
             if (!agentName?.trim()) throwBad('agentName 不能为空');
             const cfgErr = validateTimerConfig(type, cfg);
             if (cfgErr) throwBad(cfgErr);
-            const row = await database.create(database.timer, {
+            const row = await database.create(database.scheduler, {
                 name,
                 type,
                 config: typeof cfg === 'string' ? cfg : JSON.stringify(cfg ?? {}),
@@ -501,7 +505,7 @@ class HttpServer {
             if (agentName !== undefined) updates.agentName = agentName.trim();
             if (userId !== undefined) updates.userId = userId;
             if (enabled !== undefined) updates.enabled = enabled;
-            await database.update(database.timer, updates, { where: { id } });
+            await database.update(database.scheduler, updates, { where: { id } });
             await schedulerService.reload(id);
         }));
 
@@ -509,7 +513,7 @@ class HttpServer {
             const id = parseInt(req.params.id as string, 10);
             if (isNaN(id)) { const e: any = new Error('无效的 id'); e.status = 400; throw e; }
             schedulerService.cancel(id);
-            await database.destroy(database.timer, { where: { id } });
+            await database.destroy(database.scheduler, { where: { id } });
         }));
 
         // ===== Users =====

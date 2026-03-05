@@ -45,12 +45,19 @@ export async function startLarkService() {
         filterEvent,
         onRecevieMessage: async (userId: string, userInfo: any, args: LarkMessageArgs, query: string) => {
             if (userId) {
-                await database.create(database.user, {
-                    userid: userId,
-                    username: userInfo?.name ?? "",
-                    userinfo: JSON.stringify(userInfo ?? {}),
-                    usertype: "lark",
+                const [, created] = await database.findOrCreate(database.user, {
+                    where: { userid: userId, usertype: "lark" },
+                    defaults: {
+                        username: userInfo?.name ?? "",
+                        userinfo: JSON.stringify(userInfo ?? {}),
+                    },
                 });
+                if (!created) {
+                    await database.update(database.user,
+                        { username: userInfo?.name ?? "", userinfo: JSON.stringify(userInfo ?? {}) },
+                        { where: { userid: userId, usertype: "lark" } },
+                    );
+                }
             }
             await userService.onReceiveLarkMessage(args, userInfo, query);
         },

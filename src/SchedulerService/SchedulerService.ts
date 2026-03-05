@@ -1,6 +1,6 @@
 import { CronJob } from "cron";
 import { LarkMessageArgs, LarkReceiveIdType } from "winning.ai";
-import { database, TimerRow, TimerType, UserRow } from "../Database";
+import { database, SchedulerRow, SchedulerType, UserRow } from "../Database";
 import { userService } from "../UserService/UserService";
 import { LoggerService } from "../LoggerService";
 import { globalLarkService } from "../Lark/LarkServiceInit";
@@ -17,18 +17,18 @@ const logger = LoggerService.getLogger("SchedulerService.ts");
  * hourly:  { minute?: 0 }                  → "0 * * * *"  (每小时指定分钟)
  * cron:    { expr: "0 9 * * *" }           → 直接使用自定义表达式
  */
-function toCronExpression(type: TimerType, cfg: any): string {
-    if (type === TimerType.Interval) {
+function toCronExpression(type: SchedulerType, cfg: any): string {
+    if (type === SchedulerType.Interval) {
         const minutes = Math.min(59, Math.max(1, Math.floor(cfg.minutes ?? 1)));
         return `*/${minutes} * * * *`;
     }
 
-    if (type === TimerType.Hourly) {
+    if (type === SchedulerType.Hourly) {
         const minute = Math.min(59, Math.max(0, Math.floor(cfg.minute ?? 0)));
         return `${minute} * * * *`;
     }
 
-    if (type === TimerType.Cron) {
+    if (type === SchedulerType.Cron) {
         if (!cfg.expr) throw new Error("cron 类型缺少 expr 字段");
         return cfg.expr as string;
     }
@@ -37,16 +37,16 @@ function toCronExpression(type: TimerType, cfg: any): string {
     const h = parseInt(hStr, 10) || 0;
     const m = parseInt(mStr, 10) || 0;
 
-    if (type === TimerType.Daily) {
+    if (type === SchedulerType.Daily) {
         return `${m} ${h} * * *`;
     }
 
-    if (type === TimerType.Weekly) {
+    if (type === SchedulerType.Weekly) {
         const dow = cfg.dayOfWeek ?? 1; // 0=周日, 1=周一 ...
         return `${m} ${h} * * ${dow}`;
     }
 
-    if (type === TimerType.Monthly) {
+    if (type === SchedulerType.Monthly) {
         const dom = cfg.dayOfMonth ?? 1; // 1-31
         return `${m} ${h} ${dom} * *`;
     }
@@ -58,7 +58,7 @@ function toCronExpression(type: TimerType, cfg: any): string {
  * 执行调度任务：通过 onReceiveLarkMessage 走完整 Agent 管线
  */
 async function executeScheduler(timerId: number): Promise<void> {
-    const timer = await database.findByPk<TimerRow>(database.timer, timerId);
+    const timer = await database.findByPk<SchedulerRow>(database.scheduler, timerId);
     if (!timer?.enabled) return;
     if (!globalLarkService) return
 
@@ -93,14 +93,14 @@ async function executeScheduler(timerId: number): Promise<void> {
         logger.error(`调度任务 [${timer.id}:${timer.name}] 执行失败: ${e?.message ?? e}`);
     }
 
-    await database.update(database.timer, { lastRun: Date.now() }, { where: { id: timer.id } });
+    await database.update(database.scheduler, { lastRun: Date.now() }, { where: { id: timer.id } });
 }
 
 class SchedulerService {
     private jobs = new Map<number, CronJob>();
 
     async start(): Promise<void> {
-        const timers = await database.findAll<TimerRow>(database.timer, { where: { enabled: true } });
+        const timers = await database.findAll<SchedulerRow>(database.scheduler, { where: { enabled: true } });
         for (const timer of timers) {
             this.schedule(timer);
         }
@@ -108,7 +108,7 @@ class SchedulerService {
     }
 
     /** 调度单个任务 */
-    schedule(timer: TimerRow): void {
+    schedule(timer: SchedulerRow): void {
         this.cancel(timer.id);
 
         let cfg: any = {};
@@ -145,7 +145,7 @@ class SchedulerService {
     /** 重新从 DB 加载并重新调度（外部增删改后调用） */
     async reload(timerId: number): Promise<void> {
         this.cancel(timerId);
-        const timer = await database.findByPk<TimerRow>(database.timer, timerId);
+        const timer = await database.findByPk<SchedulerRow>(database.scheduler, timerId);
         if (timer?.enabled) this.schedule(timer);
     }
 
