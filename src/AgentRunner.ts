@@ -26,13 +26,13 @@ export class AgentRunner {
         const now = new Date();
         const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
         const assetsDir = path.resolve(__dirname, '../assets');
-        const port = process.env.HTTP_PORT ?? '5500';
+        const httpUrl = config.getHttpUrl();
         const extraPrompts: string[] = [
             `当前时间：${now.toLocaleString('zh-CN', { timeZone: timezone, hour12: false })}
 时区：${timezone}
 操作系统：${os.type()} ${os.release()} (${os.platform()})
 系统语言：${process.env.LANG || Intl.DateTimeFormat().resolvedOptions().locale || 'zh-CN'}
-生成供用户查看或下载的文件时，将文件保存至 ${assetsDir}，并以 http://localhost:${port}/assets/<文件名> 形式提供访问地址。`,
+生成供用户查看或下载的文件时，将文件保存至 ${assetsDir}，并以 ${httpUrl}/assets/<文件名> 形式提供访问地址。`,
         ];
         if (userInfo) {
             extraPrompts.push(`用户user_id:${userInfo.user_id}

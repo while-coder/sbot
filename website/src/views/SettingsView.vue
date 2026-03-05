@@ -6,16 +6,19 @@ import { useToast } from '@/composables/useToast'
 
 const { show } = useToast()
 
+const httpUrl = ref('')
 const larkAppId = ref('')
 const larkAppSecret = ref('')
 
-watch(() => store.settings.lark, (lark) => {
-  larkAppId.value = lark?.appId || ''
-  larkAppSecret.value = lark?.appSecret || ''
-}, { immediate: true })
+watch(() => store.settings, (s) => {
+  httpUrl.value = s.httpUrl || ''
+  larkAppId.value = s.lark?.appId || ''
+  larkAppSecret.value = s.lark?.appSecret || ''
+}, { immediate: true, deep: true })
 
 async function save() {
   try {
+    store.settings.httpUrl = httpUrl.value.trim() || undefined
     if (!store.settings.lark) store.settings.lark = {}
     store.settings.lark.appId = larkAppId.value
     store.settings.lark.appSecret = larkAppSecret.value
@@ -33,6 +36,15 @@ async function save() {
       <button class="btn-primary btn-sm" @click="save">保存</button>
     </div>
     <div class="page-content">
+      <div class="card">
+        <div class="card-title">服务</div>
+        <div class="inline-form">
+          <div class="form-group">
+            <label>HTTP URL</label>
+            <input v-model="httpUrl" type="text" placeholder="http://localhost:5500" />
+          </div>
+        </div>
+      </div>
       <div class="card">
         <div class="card-title">Lark 应用</div>
         <div class="inline-form">

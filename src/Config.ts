@@ -4,6 +4,7 @@ import fs from "fs";
 import { ModelConfig, ModelProvider, EmbeddingConfig, EmbeddingProvider, MCPServerConfig, MCPServers, MemoryMode, IModelService, IEmbeddingService, ModelServiceFactory, EmbeddingServiceFactory, type AgentSubNode } from "scorpio.ai";
 export type { AgentSubNode } from "scorpio.ai";
 
+export const DEFAULT_PORT = 5500;
 
 export interface LarkConfig {
   appId?: string;
@@ -97,6 +98,7 @@ export type AgentEntry = SingleAgentEntry | ReactAgentEntry | SupervisorAgentEnt
 
 export interface Settings {
   agent?: string;              // 当前使用的 Agent 名称（对应 agents 中的 key）
+  httpUrl?: string;            // HTTP 服务对外访问的根 URL，默认 http://localhost:5500
   lark?: LarkConfig;
   models?: Record<string, ModelConfig>;
   embeddings?: Record<string, EmbeddingConfig>;
@@ -462,6 +464,10 @@ class Config {
     }
 
     return fullPath;
+  }
+
+  getHttpUrl(): string {
+    return (this._settings.httpUrl ?? `http://localhost:${DEFAULT_PORT}`).replace(/\/$/, '');
   }
 
   getSkillsPath() {

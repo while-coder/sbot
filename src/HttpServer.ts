@@ -5,7 +5,7 @@ import fs from 'fs';
 import { z } from 'zod';
 import { WebSocketServer } from 'ws';
 import { MCPServers, AgentToolService } from "scorpio.ai";
-import { config } from './Config';
+import { config, DEFAULT_PORT } from './Config';
 import { AgentFactory } from './AgentFactory';
 import { globalAgentToolService, refreshGlobalAgentToolService, BuiltinProvider } from './GlobalAgentToolService';
 import { globalSkillService, refreshGlobalSkillService, BUILTIN_SKILLS_DIR } from './GlobalSkillService';
@@ -90,7 +90,7 @@ function api(fn: (req: Request, res: Response) => any) {
 
 class HttpServer {
     async start() {
-        const port = parseInt(process.env.HTTP_PORT ?? '5500');
+        const port = DEFAULT_PORT;
         const app = express();
         app.use(express.json());
 
