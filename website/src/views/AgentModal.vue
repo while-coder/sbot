@@ -116,11 +116,13 @@ async function save() {
     if (form.value.saver)  config.saver  = form.value.saver
 
     if (!store.settings.agents) store.settings.agents = {}
-    if (editingName.value && editingName.value !== name) {
-      delete store.settings.agents[editingName.value]
-      if (store.settings.agent === editingName.value) store.settings.agent = name
+    const oldName = editingName.value
+    if (oldName && oldName !== name) {
+      // 改名：由服务端统一同步所有引用
+      const res = await apiFetch(`/api/agents/${encodeURIComponent(oldName)}/rename`, 'POST', { name })
+      Object.assign(store.settings, res.data)
     }
-    store.settings.agents[name] = config
+    store.settings.agents![name] = config
     await apiFetch('/api/settings', 'PUT', store.settings)
     show('保存成功')
     showModal.value = false
@@ -201,13 +203,13 @@ defineExpose({ open })
   <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
     <div class="modal-box wide" style="max-height:90vh">
       <div class="modal-header">
-        <h3>{{ editingName ? '编辑 Agent' : '添加 Agent' }}</h3>
+        <h3>{{ editingName ? '编辑智能体' : '添加智能体' }}</h3>
         <button class="modal-close" @click="showModal = false">&times;</button>
       </div>
       <div class="modal-body">
         <div class="form-group">
           <label>名称 (唯一标识) *</label>
-          <input v-model="form.name" :disabled="!!editingName" placeholder="如 default, my-agent" />
+          <input v-model="form.name" placeholder="如 default, my-agent" />
         </div>
         <div class="form-group">
           <label>类型 *</label>

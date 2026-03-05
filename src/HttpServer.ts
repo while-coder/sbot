@@ -124,6 +124,70 @@ class HttpServer {
             return config.settings;
         }));
 
+        // ===== Agent Rename =====
+        app.post('/api/agents/:name/rename', api(req => {
+            const oldName = req.params.name as string;
+            const { name: newName } = req.body as { name: string };
+            if (!newName?.trim()) throwBad('新名称不能为空');
+            if (oldName === newName) return config.settings;
+            const agents = config.settings.agents;
+            if (!agents?.[oldName]) throwBad(`Agent "${oldName}" 不存在`);
+            if (agents[newName])    throwBad(`Agent "${newName}" 已存在`);
+
+            // 重命名 key
+            agents[newName] = agents[oldName];
+            delete agents[oldName];
+
+            // 同步 settings.agent
+            if (config.settings.agent === oldName) config.settings.agent = newName;
+
+            // 同步其他 agent 中的引用
+            for (const a of Object.values(agents) as any[]) {
+                if (typeof a.think === 'string'      && a.think === oldName)      a.think = newName;
+                if (typeof a.supervisor === 'string' && a.supervisor === oldName) a.supervisor = newName;
+                if (Array.isArray(a.agents)) {
+                    for (const sub of a.agents) {
+                        if (sub.name === oldName) sub.name = newName;
+                    }
+                }
+            }
+
+            config.saveSettings();
+            return config.settings;
+        }));
+
+        // ===== MCP Rename =====
+        app.post('/api/mcp/:name/rename', api(req => {
+            const oldName = req.params.name as string;
+            const { name: newName } = req.body as { name: string };
+            if (!newName?.trim()) throwBad('新名称不能为空');
+            if (oldName === newName) return { builtins: Object.values(BuiltinProvider), servers: config.getGlobalMcpServers() };
+
+            const servers = config.getGlobalMcpServers();
+            if (!servers[oldName]) throwBad(`MCP "${oldName}" 不存在`);
+            if (servers[newName])  throwBad(`MCP "${newName}" 已存在`);
+
+            // 重命名 key
+            servers[newName] = servers[oldName];
+            delete servers[oldName];
+            config.saveMcpServers(servers);
+
+            // 同步所有 agent 的 mcp 数组
+            const agents = config.settings.agents;
+            if (agents) {
+                for (const a of Object.values(agents) as any[]) {
+                    if (Array.isArray(a.mcp)) {
+                        const idx = a.mcp.indexOf(oldName);
+                        if (idx !== -1) a.mcp[idx] = newName;
+                    }
+                }
+                config.saveSettings();
+            }
+
+            refreshGlobalAgentToolService();
+            return { builtins: Object.values(BuiltinProvider), servers: config.getGlobalMcpServers() };
+        }));
+
         // ===== MCP =====
         app.get('/api/mcp', api(() => ({
             builtins: Object.values(BuiltinProvider),
@@ -132,8 +196,9 @@ class HttpServer {
 
         app.put('/api/mcp', api(req => {
             const builtinSet = new Set<string>(Object.values(BuiltinProvider));
+            const body = (req.body.servers ?? req.body) as Record<string, unknown>;
             const servers = Object.fromEntries(
-                Object.entries(req.body).filter(([name]) => !builtinSet.has(name))
+                Object.entries(body).filter(([name]) => !builtinSet.has(name))
             ) as MCPServers;
             config.saveMcpServers(servers);
             refreshGlobalAgentToolService();
