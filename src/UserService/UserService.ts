@@ -3,7 +3,7 @@ import { LarkMessageArgs, UserServiceBase } from "winning.ai";
 import { AgentMessage, AgentToolCall, ICommand } from "scorpio.ai";
 import { getBuiltInCommands } from "./BuiltInCommands";
 import { LarkUserService } from "./LarkUserService";
-import { WebUserService, WebEmitFn } from "./WebUserService";
+import { WebUserService } from "./WebUserService";
 
 enum Context { Lark = 'lark', Web = 'web' }
 
@@ -24,10 +24,10 @@ export class UserService extends UserServiceBase {
         if (!query?.trim()) return;
         await this.onReceiveMessage(query, { ...args, userInfo });
     }
-    async onReceiveWebMessage(query: string, emitFn: WebEmitFn): Promise<void> {
+    async onReceiveWebMessage(query: string): Promise<void> {
         if (!query?.trim()) return;
         return new Promise<void>((resolve) => {
-            this.onReceiveMessage(query, { emitFn }, resolve);
+            this.onReceiveMessage(query, { webContext: true }, resolve);
         });
     }
 
@@ -36,7 +36,7 @@ export class UserService extends UserServiceBase {
     }
 
     async startProcessMessage(query: string, args: any): Promise<string> {
-        this.currentContext = args?.emitFn ? Context.Web : Context.Lark;
+        this.currentContext = args?.webContext ? Context.Web : Context.Lark;
         return this.currentContext === Context.Lark
             ? await this.lark.startProcessMessage(query, args)
             : await this.web.startProcessMessage(query, args);

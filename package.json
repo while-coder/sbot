@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@langchain/core": "^1.1.28",
+    "@types/ws": "^8.18.1",
     "axios": "^1.13.4",
     "cron": "^4.4.0",
     "express": "^5.2.1",
@@ -22,7 +23,8 @@
     "scorpio.ai": "file:../WMTools/scorpio.ai",
     "sequelize": "^6.37.7",
     "sqlite3": "^5.1.7",
-    "winning.ai": "file:../WMTools/winning.ai"
+    "winning.ai": "file:../WMTools/winning.ai",
+    "ws": "^8.19.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",

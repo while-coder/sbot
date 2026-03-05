@@ -1,6 +1,6 @@
 import "reflect-metadata";
 import { AgentMessage, AgentToolCall, MCPToolResult } from "scorpio.ai";
-import { Response } from "express";
+import { WebSocket } from "ws";
 import { AgentRunner } from "../AgentRunner";
 
 export type WebChatEvent =
@@ -10,22 +10,25 @@ export type WebChatEvent =
     | { type: "done" }
     | { type: "error"; message: string };
 
-export type WebEmitFn = (event: WebChatEvent) => void;
-type EmitFn = WebEmitFn;
-
 export class WebUserService {
-    private currentEmit?: EmitFn;
+    private clients = new Set<WebSocket>();
+
+    registerWs(ws: WebSocket): void {
+        this.clients.add(ws);
+    }
+
+    unregisterWs(ws: WebSocket): void {
+        this.clients.delete(ws);
+    }
 
     // ===== Called by UserService =====
 
-    async startProcessMessage(_query: string, args: any): Promise<string> {
-        this.currentEmit = args.emitFn;
+    async startProcessMessage(_query: string, _args: any): Promise<string> {
         return '';
     }
 
     async onMessageProcessed(): Promise<void> {
         this.emit({ type: 'done' });
-        this.currentEmit = undefined;
     }
 
     async processMessageError(e: any): Promise<void> {
@@ -64,17 +67,9 @@ export class WebUserService {
     }
 
     private emit(event: WebChatEvent) {
-        this.currentEmit?.(event);
-    }
-
-    static sendSSE(res: Response, run: (emit: EmitFn) => Promise<void>): void {
-        res.setHeader("Content-Type", "text/event-stream");
-        res.setHeader("Cache-Control", "no-cache");
-        res.setHeader("Connection", "keep-alive");
-        res.flushHeaders();
-        const write: EmitFn = (event) => {
-            res.write(`data: ${JSON.stringify(event)}\n\n`);
-        };
-        run(write).finally(() => res.end());
+        const msg = JSON.stringify(event);
+        for (const ws of this.clients) {
+            if (ws.readyState === WebSocket.OPEN) ws.send(msg);
+        }
     }
 }

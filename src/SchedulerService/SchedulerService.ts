@@ -49,7 +49,7 @@ async function executeScheduler(timerId: number): Promise<void> {
             logger.warn(`调度任务 [${timer.id}:${timer.name}] userId=${timer.userId} 在 user 表中不存在，降级为 Web 模式`);
         }
         try {
-            await userService.onReceiveWebMessage(timer.message, () => { /* 调度触发，无需推送 */ });
+            await userService.onReceiveWebMessage(timer.message);
             logger.info(`调度任务 [${timer.id}:${timer.name}] 已触发（Web）`);
         } catch (e: any) {
             logger.error(`调度任务 [${timer.id}:${timer.name}] 执行失败: ${e?.message ?? e}`);

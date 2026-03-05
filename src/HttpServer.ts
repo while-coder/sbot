@@ -3,6 +3,7 @@ import http from 'http';
 import path from 'path';
 import fs from 'fs';
 import { z } from 'zod';
+import { WebSocketServer } from 'ws';
 import { MCPServers, AgentToolService } from "scorpio.ai";
 import { config } from './Config';
 import { AgentFactory } from './AgentFactory';
@@ -12,7 +13,6 @@ import { SkillHubService, type HubSkillResult } from './SkillHub';
 import { LoggerService } from './LoggerService';
 import { database } from './Database';
 import { userService } from './UserService/UserService';
-import { WebUserService } from './UserService/WebUserService';
 import { schedulerService } from './SchedulerService/SchedulerService';
 import { restartLarkService } from './Lark/LarkServiceInit';
 
@@ -487,36 +487,43 @@ class HttpServer {
             await database.destroy(database.user, { where: { id } });
         }));
 
-        // ===== Web 聊天（SSE 流式）=====
-        app.post('/api/users/:userId/chat', (req, res) => {
-            const { query, attachments } = req.body as {
-                query?: string;
-                attachments?: { name: string; type: string; dataUrl?: string; content?: string }[];
-            };
-            let enriched = query?.trim() || '';
-            if (attachments?.length) {
-                for (const att of attachments) {
-                    if (att.type?.startsWith('image/') && att.dataUrl) {
-                        enriched += `\n\n[图片附件: ${att.name}]\n${att.dataUrl}`;
-                    } else if (att.content != null) {
-                        enriched += `\n\n[文件附件: ${att.name}]\n\`\`\`\n${att.content}\n\`\`\``;
-                    }
-                }
-            }
-            if (!enriched) {
-                res.status(400).json({ success: false, message: '消息不能为空' });
-                return;
-            }
-            WebUserService.sendSSE(res, emit => userService.onReceiveWebMessage(enriched, emit));
-        });
-
         // ===== 操作 =====
         app.post('/api/reload', api(() => {
             config.reloadSettings();
             return { message: '配置已重载' };
         }));
 
-        http.createServer(app).listen(port, () => {
+        // ===== HTTP + WebSocket 服务 =====
+        const server = http.createServer(app);
+
+        const wss = new WebSocketServer({ server, path: '/ws/chat' });
+        wss.on('connection', (ws) => {
+            userService.web.registerWs(ws);
+            ws.on('message', (data) => {
+                try {
+                    const msg = JSON.parse(data.toString()) as {
+                        type: string;
+                        query?: string;
+                        attachments?: { name: string; type: string; dataUrl?: string; content?: string }[];
+                    };
+                    if (msg.type !== 'message') return;
+                    let enriched = msg.query?.trim() || '';
+                    if (msg.attachments?.length) {
+                        for (const att of msg.attachments) {
+                            if (att.type?.startsWith('image/') && att.dataUrl) {
+                                enriched += `\n\n[图片附件: ${att.name}]\n${att.dataUrl}`;
+                            } else if (att.content != null) {
+                                enriched += `\n\n[文件附件: ${att.name}]\n\`\`\`\n${att.content}\n\`\`\``;
+                            }
+                        }
+                    }
+                    if (enriched) userService.onReceiveWebMessage(enriched);
+                } catch { /* ignore malformed messages */ }
+            });
+            ws.on('close', () => userService.web.unregisterWs(ws));
+        });
+
+        server.listen(port, () => {
             logger.info(`HTTP 服务启动成功: http://127.0.0.1:${port}`);
         });
     }

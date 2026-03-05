@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { marked } from 'marked'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
@@ -41,6 +41,61 @@ const currentAgent = computed({
 })
 const chatSaverName  = computed(() => store.settings.agents?.[store.settings.agent || '']?.saver  || null)
 const chatMemoryName = computed(() => store.settings.agents?.[store.settings.agent || '']?.memory || null)
+
+// ── WebSocket ──
+let ws: WebSocket | null = null
+let doneResolve: (() => void) | null = null
+let doneReject: ((e: Error) => void) | null = null
+
+function getWsUrl(): string {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${proto}//${location.host}/ws/chat`
+}
+
+function bindWsHandlers(socket: WebSocket) {
+  socket.onmessage = async (event: MessageEvent) => {
+    let evt: any
+    try { evt = JSON.parse(event.data as string) } catch { return }
+
+    if (evt.type === 'stream') {
+      streamingContent.value = evt.content
+      await nextTick()
+      scrollToBottom()
+    } else if (evt.type === 'tool_call') {
+      streamingToolCalls.value.push({ name: evt.name, args: evt.args })
+      await nextTick()
+      scrollToBottom()
+    } else if (evt.type === 'done') {
+      isStreaming.value = false
+      await refreshAgentAndHistory()
+      doneResolve?.()
+      doneResolve = null
+      doneReject = null
+    } else if (evt.type === 'error') {
+      isStreaming.value = false
+      show(evt.message, 'error')
+      doneReject?.(new Error(evt.message))
+      doneResolve = null
+      doneReject = null
+    }
+  }
+  socket.onclose = () => { if (ws === socket) ws = null }
+  socket.onerror = () => {
+    show('WebSocket 连接错误', 'error')
+    doneReject?.(new Error('WebSocket 连接错误'))
+    doneResolve = null
+    doneReject = null
+  }
+}
+
+function ensureWs(): Promise<void> {
+  if (ws?.readyState === WebSocket.OPEN) return Promise.resolve()
+  return new Promise<void>((resolve, reject) => {
+    const socket = new WebSocket(getWsUrl())
+    socket.onopen = () => { ws = socket; bindWsHandlers(socket); resolve() }
+    socket.onerror = () => reject(new Error('WebSocket 连接失败'))
+  })
+}
 
 async function refreshAgentAndHistory() {
   const saver = chatSaverName.value
@@ -147,20 +202,18 @@ async function send() {
     chatQueue.value.push(query)
     return
   }
-  await sendOne(saver, query, atts)
+  await sendOne(query, atts)
   await drainQueue()
 }
 
 async function drainQueue() {
   while (chatQueue.value.length > 0) {
     const q = chatQueue.value.shift()!
-    const saver = chatSaverName.value
-    if (!saver) break
-    await sendOne(saver, q, [])
+    await sendOne(q, [])
   }
 }
 
-async function sendOne(userId: string, query: string, atts: Attachment[]) {
+async function sendOne(query: string, atts: Attachment[]) {
   chatSending.value = true
   isStreaming.value = true
   streamingContent.value = ''
@@ -180,45 +233,13 @@ async function sendOne(userId: string, query: string, atts: Attachment[]) {
   scrollToBottom()
 
   try {
-    const response = await fetch(`/api/users/${encodeURIComponent(userId)}/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, attachments: atts.length ? atts : undefined }),
+    await ensureWs()
+    const donePromise = new Promise<void>((resolve, reject) => {
+      doneResolve = resolve
+      doneReject = reject
     })
-    if (!response.ok) throw new Error(`请求失败: ${response.status}`)
-
-    const reader = response.body!.getReader()
-    const decoder = new TextDecoder()
-    let buf = ''
-
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buf += decoder.decode(value, { stream: true })
-      const lines = buf.split('\n')
-      buf = lines.pop()!
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue
-        let evt: any
-        try { evt = JSON.parse(line.slice(6)) } catch { continue }
-
-        if (evt.type === 'stream') {
-          streamingContent.value = evt.content
-          await nextTick()
-          scrollToBottom()
-        } else if (evt.type === 'tool_call') {
-          streamingToolCalls.value.push({ name: evt.name, args: evt.args })
-          await nextTick()
-          scrollToBottom()
-        } else if (evt.type === 'done') {
-          isStreaming.value = false
-          await refreshAgentAndHistory()
-        } else if (evt.type === 'error') {
-          isStreaming.value = false
-          show(evt.message, 'error')
-        }
-      }
-    }
+    ws!.send(JSON.stringify({ type: 'message', query, attachments: atts.length ? atts : undefined }))
+    await donePromise
   } catch (e: any) {
     isStreaming.value = false
     show(e.message, 'error')
@@ -252,6 +273,11 @@ function renderMd(content: string): string {
 
 
 onMounted(refreshAgentAndHistory)
+
+onUnmounted(() => {
+  ws?.close()
+  ws = null
+})
 </script>
 
 <template>
