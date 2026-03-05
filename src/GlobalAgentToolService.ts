@@ -3,11 +3,13 @@ import { config } from "./Config.js";
 import { createCommandTools } from "./Tools/Command/index.js";
 import { createFileSystemTools } from "./Tools/FileSystem/index.js";
 import { createSchedulerTools } from "./Tools/Scheduler/index.js";
+import { createFetchTools } from "./Tools/Fetch/index.js";
 
 export enum BuiltinProvider {
     Command = 'builtin_command',
     FileSystem = 'builtin_filesystem',
     Scheduler = 'builtin_scheduler',
+    Fetch = 'builtin_fetch',
     Playwright = 'builtin_playwright',
     ChromeDevTools = 'builtin_chrome-devtools-mcp',
     Markitdown = 'builtin_markitdown',
@@ -20,6 +22,7 @@ export function initGlobalAgentToolService() {
     globalAgentToolService.registerToolFactory(BuiltinProvider.Command, async () => createCommandTools(), '命令执行');
     globalAgentToolService.registerToolFactory(BuiltinProvider.FileSystem, async () => createFileSystemTools(), '文件系统操作');
     globalAgentToolService.registerToolFactory(BuiltinProvider.Scheduler, async () => createSchedulerTools(), '定时任务管理');
+    globalAgentToolService.registerToolFactory(BuiltinProvider.Fetch, async () => createFetchTools(), 'URL 抓取');
     globalAgentToolService.registerMcpServers({
         [BuiltinProvider.Playwright]: {
             "command": "npx.cmd",
