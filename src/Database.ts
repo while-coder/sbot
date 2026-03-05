@@ -5,28 +5,18 @@ import { LoggerService } from "./LoggerService";
 
 const logger = LoggerService.getLogger("Database.ts");
 const DBVersionName = "db_version";
-const DBVersion = '0.0.2'
+const DBVersion = '0.0.3'
 export type MessageRow = {
   id: string;
   expireTime: number;
 };
 
-export enum SchedulerType {
-  Daily    = 'daily',
-  Weekly   = 'weekly',
-  Monthly  = 'monthly',
-  Interval = 'interval',
-  Hourly   = 'hourly',   // config: { minute?: number }  默认整点
-  Cron     = 'cron',     // config: { expr: "0 9 * * *" } 自定义表达式
-}
-
 export type SchedulerRow = {
   id: number;
   name: string;
-  type: SchedulerType;
-  config: string;      // JSON: daily={time:"09:00"} weekly={dayOfWeek:1,time:"09:00"} monthly={dayOfMonth:1,time:"09:00"} interval={minutes:30}
+  expr: string;        // cron 表达式，如 "0 9 * * *"
   message: string;     // 消息文本
-  agentName: string | null;  // 可选 agent 名称
+  agentName: string;         // agent 名称
   userId: number | null;     // user 表 ID
   enabled: boolean;
   lastRun: number | null;    // 上次执行时间戳
@@ -193,16 +183,11 @@ class Database {
           defaultValue: "",
           comment: "计时器名称",
         },
-        type: {
-          type: DataTypes.STRING(32),
-          allowNull: false,
-          comment: "类型: daily|weekly|monthly|interval",
-        },
-        config: {
+        expr: {
           type: DataTypes.TEXT,
           allowNull: false,
-          defaultValue: "{}",
-          comment: "配置 JSON",
+          defaultValue: "",
+          comment: "cron 表达式",
         },
         message: {
           type: DataTypes.TEXT,
@@ -212,9 +197,9 @@ class Database {
         },
         agentName: {
           type: DataTypes.STRING(255),
-          allowNull: true,
-          defaultValue: null,
-          comment: "可选 Agent 名称",
+          allowNull: false,
+          defaultValue: "",
+          comment: "Agent 名称",
         },
         userId: {
           type: DataTypes.INTEGER,

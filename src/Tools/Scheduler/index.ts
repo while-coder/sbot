@@ -5,7 +5,7 @@
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
-import { database, SchedulerType, SchedulerRow } from '../../Database';
+import { database, SchedulerRow } from '../../Database';
 import { schedulerService } from '../../SchedulerService/SchedulerService';
 import { LoggerService } from '../../LoggerService';
 
@@ -18,7 +18,7 @@ const logger = LoggerService.getLogger('Tools/Scheduler/index.ts');
 export function createSchedulerListTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'scheduler_list',
-        description: '查询所有调度任务列表，可按启用状态筛选。返回每条记录的 id、name、type、config、message、agentName、userId、enabled、lastRun。',
+        description: '查询所有调度任务列表，可按启用状态筛选。返回每条记录的 id、name、expr、message、agentName、userId、enabled、lastRun。',
         schema: z.object({
             enabled: z.boolean().optional().describe('可选：true 只返回已启用，false 只返回已禁用，不传则返回全部'),
         }) as any,
@@ -64,8 +64,7 @@ export function createSchedulerCreateTool(): StructuredToolInterface {
 
                 const row = await database.create<SchedulerRow>(database.scheduler, {
                     name:      name.trim(),
-                    type:      SchedulerType.Cron,
-                    config:    JSON.stringify({ expr: expr.trim() }),
+                    expr:      expr.trim(),
                     message:   message.trim(),
                     agentName: agentName.trim(),
                     userId:    userId ?? null,

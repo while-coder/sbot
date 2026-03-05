@@ -1,58 +1,11 @@
 import { CronJob } from "cron";
 import { LarkMessageArgs, LarkReceiveIdType } from "winning.ai";
-import { database, SchedulerRow, SchedulerType, UserRow } from "../Database";
+import { database, SchedulerRow, UserRow } from "../Database";
 import { userService } from "../UserService/UserService";
 import { LoggerService } from "../LoggerService";
 import { globalLarkService } from "../Lark/LarkServiceInit";
 
 const logger = LoggerService.getLogger("SchedulerService.ts");
-
-/**
- * 将计时器配置转换为 cron 表达式
- *
- * daily:   { time: "09:00" }               → "0 9 * * *"
- * weekly:  { dayOfWeek: 1, time: "09:00" } → "0 9 * * 1"  (0=周日, 1=周一 ...)
- * monthly: { dayOfMonth: 1, time: "09:00" }→ "0 9 1 * *"
- * interval:{ minutes: 30 }                 → "* /30 * * * *"  (1-59分钟)
- * hourly:  { minute?: 0 }                  → "0 * * * *"  (每小时指定分钟)
- * cron:    { expr: "0 9 * * *" }           → 直接使用自定义表达式
- */
-function toCronExpression(type: SchedulerType, cfg: any): string {
-    if (type === SchedulerType.Interval) {
-        const minutes = Math.min(59, Math.max(1, Math.floor(cfg.minutes ?? 1)));
-        return `*/${minutes} * * * *`;
-    }
-
-    if (type === SchedulerType.Hourly) {
-        const minute = Math.min(59, Math.max(0, Math.floor(cfg.minute ?? 0)));
-        return `${minute} * * * *`;
-    }
-
-    if (type === SchedulerType.Cron) {
-        if (!cfg.expr) throw new Error("cron 类型缺少 expr 字段");
-        return cfg.expr as string;
-    }
-
-    const [hStr, mStr] = (cfg.time ?? "09:00").split(":");
-    const h = parseInt(hStr, 10) || 0;
-    const m = parseInt(mStr, 10) || 0;
-
-    if (type === SchedulerType.Daily) {
-        return `${m} ${h} * * *`;
-    }
-
-    if (type === SchedulerType.Weekly) {
-        const dow = cfg.dayOfWeek ?? 1; // 0=周日, 1=周一 ...
-        return `${m} ${h} * * ${dow}`;
-    }
-
-    if (type === SchedulerType.Monthly) {
-        const dom = cfg.dayOfMonth ?? 1; // 1-31
-        return `${m} ${h} ${dom} * *`;
-    }
-
-    throw new Error(`未知计时器类型: ${type}`);
-}
 
 /**
  * 执行调度任务：通过 onReceiveLarkMessage 走完整 Agent 管线
@@ -111,26 +64,23 @@ class SchedulerService {
     schedule(timer: SchedulerRow): void {
         this.cancel(timer.id);
 
-        let cfg: any = {};
-        try { cfg = JSON.parse(timer.config || "{}"); } catch { /**/ }
-
-        let cronExpr: string;
-        try {
-            cronExpr = toCronExpression(timer.type, cfg);
-        } catch (e: any) {
-            logger.error(`调度任务 [${timer.id}:${timer.name}] 表达式生成失败: ${e?.message}`);
+        if (!timer.expr?.trim()) {
+            logger.error(`调度任务 [${timer.id}:${timer.name}] cron 表达式为空，跳过`);
             return;
         }
 
-        const job = CronJob.from({
-            cronTime: cronExpr,
-            onTick: () => executeScheduler(timer.id),
-            start: true,
-            waitForCompletion: true,
-        });
-
-        this.jobs.set(timer.id, job);
-        logger.info(`调度任务 [${timer.id}:${timer.name}] 已调度 (${cronExpr})，下次执行: ${job.nextDate().toISO()}`);
+        try {
+            const job = CronJob.from({
+                cronTime: timer.expr,
+                onTick: () => executeScheduler(timer.id),
+                start: true,
+                waitForCompletion: true,
+            });
+            this.jobs.set(timer.id, job);
+            logger.info(`调度任务 [${timer.id}:${timer.name}] 已调度 (${timer.expr})，下次执行: ${job.nextDate().toISO()}`);
+        } catch (e: any) {
+            logger.error(`调度任务 [${timer.id}:${timer.name}] 调度失败: ${e?.message}`);
+        }
     }
 
     /** 取消某个任务的调度 */

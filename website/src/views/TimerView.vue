@@ -4,26 +4,15 @@ import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 
-type TimerType = 'daily' | 'weekly' | 'monthly' | 'interval' | 'hourly' | 'cron'
-
-interface TimerRow {
+interface SchedulerRow {
   id: number
   name: string
-  type: TimerType
-  config: string
+  expr: string
   message: string
-  agentName: string | null
+  agentName: string
   userId: number | null
   enabled: boolean
   lastRun: number | null
-}
-
-interface TimerConfig {
-  hour?: number
-  minute?: number
-  dayOfWeek?: number
-  dayOfMonth?: number
-  minutes?: number
 }
 
 interface UserRow {
@@ -32,8 +21,12 @@ interface UserRow {
   username: string
 }
 
+type UIType = 'daily' | 'weekly' | 'monthly' | 'interval' | 'hourly' | 'custom'
+
+const DAY_NAMES = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+
 const { show } = useToast()
-const timers = ref<TimerRow[]>([])
+const timers = ref<SchedulerRow[]>([])
 const users = ref<UserRow[]>([])
 const loading = ref(false)
 const showModal = ref(false)
@@ -43,22 +36,71 @@ const saving = ref(false)
 const agentNames = computed(() => Object.keys(store.settings.agents ?? {}))
 
 const form = ref({
-  name: '',
-  type: 'daily' as TimerType,
-  message: '',
-  agentName: '',
-  userId: '' as string | number,
-  enabled: true,
-  // config fields
-  hour: 8,
-  minute: 0,
-  dayOfWeek: 1,
+  name:       '',
+  uiType:     'daily' as UIType,
+  hour:       9,
+  minute:     0,
+  dayOfWeek:  1,
   dayOfMonth: 1,
-  minutes: 30,
-  cronExpr: '',
+  minutes:    30,
+  customExpr: '',
+  message:    '',
+  agentName:  '',
+  userId:     '' as string | number,
+  enabled:    true,
 })
 
-const dayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+// 从 form 中生成 cron 表达式
+const builtExpr = computed((): string => {
+  const { uiType, hour, minute, dayOfWeek, dayOfMonth, minutes, customExpr } = form.value
+  const h = hour, m = minute
+  if (uiType === 'daily')    return `${m} ${h} * * *`
+  if (uiType === 'weekly')   return `${m} ${h} * * ${dayOfWeek}`
+  if (uiType === 'monthly')  return `${m} ${h} ${dayOfMonth} * *`
+  if (uiType === 'interval') return `*/${minutes} * * * *`
+  if (uiType === 'hourly')   return `${minute} * * * *`
+  return customExpr.trim()
+})
+
+// 从 cron 表达式反推 UIType
+function detectUIType(expr: string): UIType {
+  const p = expr.trim().split(/\s+/)
+  if (p.length !== 5) return 'custom'
+  const [m, h, dom, mon, dow] = p
+  if (/^\*\/\d+$/.test(m) && h === '*' && dom === '*' && mon === '*' && dow === '*') return 'interval'
+  if (/^\d+$/.test(m)     && h === '*' && dom === '*' && mon === '*' && dow === '*') return 'hourly'
+  if (/^\d+$/.test(m) && /^\d+$/.test(h) && dom === '*' && mon === '*' && /^\d$/.test(dow)) return 'weekly'
+  if (/^\d+$/.test(m) && /^\d+$/.test(h) && /^\d+$/.test(dom) && mon === '*' && dow === '*') return 'monthly'
+  if (/^\d+$/.test(m) && /^\d+$/.test(h) && dom === '*' && mon === '*' && dow === '*') return 'daily'
+  return 'custom'
+}
+
+// 解析 cron 表达式填入 form 的各字段
+function parseExpr(expr: string) {
+  const uiType = detectUIType(expr)
+  const p = expr.trim().split(/\s+/)
+  const base = { uiType, hour: 9, minute: 0, dayOfWeek: 1, dayOfMonth: 1, minutes: 30, customExpr: expr }
+  if (uiType === 'custom')   return base
+  if (uiType === 'interval') return { ...base, minutes: parseInt(p[0].slice(2)) }
+  if (uiType === 'hourly')   return { ...base, minute: parseInt(p[0]) }
+  if (uiType === 'daily')    return { ...base, hour: parseInt(p[1]), minute: parseInt(p[0]) }
+  if (uiType === 'weekly')   return { ...base, hour: parseInt(p[1]), minute: parseInt(p[0]), dayOfWeek: parseInt(p[4]) }
+  if (uiType === 'monthly')  return { ...base, hour: parseInt(p[1]), minute: parseInt(p[0]), dayOfMonth: parseInt(p[2]) }
+  return base
+}
+
+// 人性化描述（列表展示用）
+function describeExpr(expr: string): string {
+  const uiType = detectUIType(expr)
+  const p = expr.trim().split(/\s+/)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  if (uiType === 'interval') return `每 ${p[0].slice(2)} 分钟`
+  if (uiType === 'hourly')   return `每小时 :${pad(parseInt(p[0]))}`
+  if (uiType === 'daily')    return `每天 ${pad(parseInt(p[1]))}:${pad(parseInt(p[0]))}`
+  if (uiType === 'weekly')   return `每${DAY_NAMES[parseInt(p[4])]} ${pad(parseInt(p[1]))}:${pad(parseInt(p[0]))}`
+  if (uiType === 'monthly')  return `每月${p[2]}日 ${pad(parseInt(p[1]))}:${pad(parseInt(p[0]))}`
+  return expr
+}
 
 async function load() {
   loading.value = true
@@ -76,84 +118,6 @@ async function load() {
   }
 }
 
-function parseConfig(row: TimerRow): TimerConfig {
-  try { return JSON.parse(row.config) } catch { return {} }
-}
-
-function calcNextRun(row: TimerRow): string {
-  if (!row.enabled) return '-'
-  const cfg = parseConfig(row)
-  const now = new Date()
-
-  if (row.type === 'interval') {
-    const mins = cfg.minutes ?? 30
-    const cur = now.getMinutes()
-    const nextMin = (Math.floor(cur / mins) + 1) * mins
-    const next = new Date(now)
-    next.setSeconds(0, 0)
-    if (nextMin >= 60) {
-      next.setHours(next.getHours() + 1)
-      next.setMinutes(0)
-    } else {
-      next.setMinutes(nextMin)
-    }
-    return next.toLocaleString('zh-CN')
-  }
-
-  if (row.type === 'hourly') {
-    const minute = cfg.minute ?? 0
-    const next = new Date(now)
-    next.setSeconds(0, 0)
-    next.setMinutes(minute)
-    if (next <= now) next.setHours(next.getHours() + 1)
-    return next.toLocaleString('zh-CN')
-  }
-
-  if (row.type === 'cron') return '-'
-
-  const hour = cfg.hour ?? 0
-  const minute = cfg.minute ?? 0
-
-  if (row.type === 'daily') {
-    const next = new Date(now)
-    next.setHours(hour, minute, 0, 0)
-    if (next <= now) next.setDate(next.getDate() + 1)
-    return next.toLocaleString('zh-CN')
-  }
-
-  if (row.type === 'weekly') {
-    const dow = cfg.dayOfWeek ?? 1
-    const next = new Date(now)
-    next.setHours(hour, minute, 0, 0)
-    const diff = (dow - now.getDay() + 7) % 7
-    next.setDate(next.getDate() + diff)
-    if (next <= now) next.setDate(next.getDate() + 7)
-    return next.toLocaleString('zh-CN')
-  }
-
-  if (row.type === 'monthly') {
-    const dom = cfg.dayOfMonth ?? 1
-    const next = new Date(now.getFullYear(), now.getMonth(), dom, hour, minute, 0)
-    if (next <= now) next.setMonth(next.getMonth() + 1)
-    return next.toLocaleString('zh-CN')
-  }
-
-  return '-'
-}
-
-function formatSchedule(row: TimerRow): string {
-  const cfg = parseConfig(row)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  const t = `${pad(cfg.hour ?? 0)}:${pad(cfg.minute ?? 0)}`
-  if (row.type === 'daily') return `每天 ${t}`
-  if (row.type === 'weekly') return `每周${dayNames[cfg.dayOfWeek ?? 1]} ${t}`
-  if (row.type === 'monthly') return `每月${cfg.dayOfMonth ?? 1}日 ${t}`
-  if (row.type === 'interval') return `每 ${cfg.minutes ?? 30} 分钟`
-  if (row.type === 'hourly') return `每小时 :${pad(cfg.minute ?? 0)}`
-  if (row.type === 'cron') return cfg.expr ?? '-'
-  return '-'
-}
-
 function formatLastRun(ts: number | null): string {
   if (!ts) return '未运行'
   return new Date(ts).toLocaleString('zh-CN')
@@ -165,86 +129,46 @@ function userLabel(u: UserRow): string {
 
 function openAdd() {
   editingId.value = null
+  const parsed = parseExpr('9 0 * * *')
   form.value = {
-    name: '',
-    type: 'daily',
-    message: '',
+    ...parsed,
+    name:      '',
+    message:   '',
     agentName: agentNames.value[0] ?? '',
-    userId: '',
-    enabled: true,
-    hour: 8,
-    minute: 0,
-    dayOfWeek: 1,
-    dayOfMonth: 1,
-    minutes: 30,
-    cronExpr: '',
+    userId:    '',
+    enabled:   true,
   }
   showModal.value = true
 }
 
-function openEdit(row: TimerRow) {
+function openEdit(row: SchedulerRow) {
   editingId.value = row.id
-  const cfg = parseConfig(row)
+  const parsed = parseExpr(row.expr)
   form.value = {
-    name: row.name,
-    type: row.type,
-    message: row.message,
-    agentName: row.agentName ?? agentNames.value[0] ?? '',
-    userId: row.userId ?? '',
-    enabled: row.enabled,
-    hour: cfg.hour ?? 8,
-    minute: cfg.minute ?? 0,
-    dayOfWeek: cfg.dayOfWeek ?? 1,
-    dayOfMonth: cfg.dayOfMonth ?? 1,
-    minutes: cfg.minutes ?? 30,
-    cronExpr: cfg.expr ?? '',
+    ...parsed,
+    name:      row.name,
+    message:   row.message,
+    agentName: row.agentName || agentNames.value[0] || '',
+    userId:    row.userId ?? '',
+    enabled:   row.enabled,
   }
   showModal.value = true
-}
-
-function buildConfig(): object {
-  const { type, hour, minute, dayOfWeek, dayOfMonth, minutes, cronExpr } = form.value
-  if (type === 'daily') return { hour, minute }
-  if (type === 'weekly') return { hour, minute, dayOfWeek }
-  if (type === 'monthly') return { hour, minute, dayOfMonth }
-  if (type === 'interval') return { minutes }
-  if (type === 'hourly') return { minute }
-  if (type === 'cron') return { expr: cronExpr.trim() }
-  return {}
 }
 
 async function save() {
-  if (!form.value.name.trim()) { show('名称不能为空', 'error'); return }
+  if (!form.value.name.trim())    { show('名称不能为空', 'error'); return }
+  if (!builtExpr.value.trim())    { show('Cron 表达式不能为空', 'error'); return }
   if (!form.value.message.trim()) { show('消息不能为空', 'error'); return }
-  if (!form.value.agentName) { show('请选择 Agent', 'error'); return }
-  const { type, hour, minute, dayOfWeek, dayOfMonth, minutes, cronExpr } = form.value
-  if (type === 'interval') {
-    if (!Number.isInteger(minutes) || minutes < 1 || minutes > 59) { show('间隔分钟数必须为 1–59 的整数', 'error'); return }
-  }
-  if (['daily', 'weekly', 'monthly'].includes(type)) {
-    if (!Number.isInteger(hour) || hour < 0 || hour > 23) { show('小时必须为 0–23 的整数', 'error'); return }
-    if (!Number.isInteger(minute) || minute < 0 || minute > 59) { show('分钟必须为 0–59 的整数', 'error'); return }
-  }
-  if (type === 'hourly') {
-    if (!Number.isInteger(minute) || minute < 0 || minute > 59) { show('触发分钟必须为 0–59 的整数', 'error'); return }
-  }
-  if (type === 'weekly') {
-    if (!Number.isInteger(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6) { show('星期几必须为 0–6', 'error'); return }
-  }
-  if (type === 'monthly') {
-    if (!Number.isInteger(dayOfMonth) || dayOfMonth < 1 || dayOfMonth > 31) { show('日期必须为 1–31 的整数', 'error'); return }
-  }
-  if (type === 'cron' && !cronExpr.trim()) { show('请填写 Cron 表达式', 'error'); return }
+  if (!form.value.agentName)      { show('请选择 Agent', 'error'); return }
   saving.value = true
   try {
     const body: any = {
-      name: form.value.name.trim(),
-      type: form.value.type,
-      config: JSON.stringify(buildConfig()),
-      message: form.value.message.trim(),
+      name:      form.value.name.trim(),
+      expr:      builtExpr.value,
+      message:   form.value.message.trim(),
       agentName: form.value.agentName,
-      userId: form.value.userId !== '' ? Number(form.value.userId) : null,
-      enabled: form.value.enabled,
+      userId:    form.value.userId !== '' ? Number(form.value.userId) : null,
+      enabled:   form.value.enabled,
     }
     if (editingId.value !== null) {
       await apiFetch(`/api/timers/${editingId.value}`, 'PUT', body)
@@ -262,7 +186,7 @@ async function save() {
   }
 }
 
-async function toggleEnabled(row: TimerRow) {
+async function toggleEnabled(row: SchedulerRow) {
   try {
     await apiFetch(`/api/timers/${row.id}`, 'PUT', { enabled: !row.enabled })
     row.enabled = !row.enabled
@@ -271,7 +195,7 @@ async function toggleEnabled(row: TimerRow) {
   }
 }
 
-async function remove(row: TimerRow) {
+async function remove(row: SchedulerRow) {
   if (!confirm(`确定要删除计时器 "${row.name}" 吗？`)) return
   try {
     await apiFetch(`/api/timers/${row.id}`, 'DELETE')
@@ -280,15 +204,6 @@ async function remove(row: TimerRow) {
   } catch (e: any) {
     show(e.message, 'error')
   }
-}
-
-const typeLabel: Record<TimerType, string> = {
-  daily: '每天',
-  weekly: '每周',
-  monthly: '每月',
-  interval: '循环',
-  hourly: '每小时',
-  cron: '自定义',
 }
 
 onMounted(load)
@@ -307,40 +222,35 @@ onMounted(load)
           <tr>
             <th>ID</th>
             <th>名称</th>
-            <th>类型</th>
             <th>计划</th>
             <th>消息</th>
             <th>Agent</th>
             <th>用户</th>
             <th>上次运行</th>
-            <th>下次执行</th>
             <th>状态</th>
             <th>操作</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="11" style="text-align:center;color:#9b9b9b;padding:40px">加载中...</td>
+            <td colspan="9" style="text-align:center;color:#9b9b9b;padding:40px">加载中...</td>
           </tr>
           <tr v-else-if="timers.length === 0">
-            <td colspan="11" style="text-align:center;color:#9b9b9b;padding:40px">暂无计时器</td>
+            <td colspan="9" style="text-align:center;color:#9b9b9b;padding:40px">暂无计时器</td>
           </tr>
           <tr v-for="t in timers" :key="t.id">
             <td style="font-family:monospace;color:#9b9b9b">{{ t.id }}</td>
             <td style="font-weight:500">{{ t.name }}</td>
             <td>
-              <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#f5f4f2;color:#6b6b6b">
-                {{ typeLabel[t.type] }}
-              </span>
+              <div style="font-size:13px">{{ describeExpr(t.expr) }}</div>
+              <div style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ t.expr }}</div>
             </td>
-            <td style="white-space:nowrap">{{ formatSchedule(t) }}</td>
             <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#6b6b6b">{{ t.message }}</td>
             <td style="font-family:monospace;font-size:12px">{{ t.agentName || '-' }}</td>
             <td style="font-size:12px">
               {{ t.userId != null ? (users.find(u => u.id === t.userId)?.username || users.find(u => u.id === t.userId)?.userid || t.userId) : '-' }}
             </td>
             <td style="font-size:12px;color:#9b9b9b;white-space:nowrap">{{ formatLastRun(t.lastRun) }}</td>
-            <td style="font-size:12px;color:#6b6b6b;white-space:nowrap">{{ calcNextRun(t) }}</td>
             <td>
               <span
                 style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer"
@@ -370,62 +280,67 @@ onMounted(load)
             <label>名称</label>
             <input v-model="form.name" placeholder="计时器名称" />
           </div>
+
+          <!-- 类型选择 -->
           <div class="form-group">
             <label>类型</label>
-            <select v-model="form.type">
+            <select v-model="form.uiType">
               <option value="daily">每天定时</option>
               <option value="weekly">每周定时</option>
               <option value="monthly">每月定时</option>
-              <option value="interval">按分钟循环 (1–59分钟)</option>
+              <option value="interval">按分钟循环 (1–59 分钟)</option>
               <option value="hourly">每小时</option>
-              <option value="cron">自定义 Cron</option>
+              <option value="custom">自定义 Cron</option>
             </select>
           </div>
 
-          <!-- daily / weekly / monthly: hour + minute -->
-          <template v-if="['daily','weekly','monthly'].includes(form.type)">
-            <div class="inline-form">
-              <div class="form-group">
-                <label>小时 (0–23)</label>
-                <input type="number" v-model.number="form.hour" min="0" max="23" />
-              </div>
-              <div class="form-group">
-                <label>分钟 (0–59)</label>
-                <input type="number" v-model.number="form.minute" min="0" max="59" />
-              </div>
+          <!-- daily / weekly / monthly: 时间 -->
+          <div v-if="['daily','weekly','monthly'].includes(form.uiType)" class="inline-form">
+            <div class="form-group">
+              <label>小时 (0–23)</label>
+              <input type="number" v-model.number="form.hour" min="0" max="23" />
             </div>
-          </template>
+            <div class="form-group">
+              <label>分钟 (0–59)</label>
+              <input type="number" v-model.number="form.minute" min="0" max="59" />
+            </div>
+          </div>
 
-          <!-- weekly: day of week -->
-          <div v-if="form.type === 'weekly'" class="form-group">
+          <!-- weekly: 星期几 -->
+          <div v-if="form.uiType === 'weekly'" class="form-group">
             <label>星期几</label>
             <select v-model.number="form.dayOfWeek">
-              <option v-for="(d, i) in dayNames" :key="i" :value="i">{{ d }}</option>
+              <option v-for="(d, i) in DAY_NAMES" :key="i" :value="i">{{ d }}</option>
             </select>
           </div>
 
-          <!-- monthly: day of month -->
-          <div v-if="form.type === 'monthly'" class="form-group">
+          <!-- monthly: 几号 -->
+          <div v-if="form.uiType === 'monthly'" class="form-group">
             <label>日期 (1–31)</label>
             <input type="number" v-model.number="form.dayOfMonth" min="1" max="31" />
           </div>
 
-          <!-- interval: minutes -->
-          <div v-if="form.type === 'interval'" class="form-group">
+          <!-- interval: 间隔分钟 -->
+          <div v-if="form.uiType === 'interval'" class="form-group">
             <label>间隔分钟数 (1–59)</label>
             <input type="number" v-model.number="form.minutes" min="1" max="59" />
           </div>
 
-          <!-- hourly: trigger minute -->
-          <div v-if="form.type === 'hourly'" class="form-group">
+          <!-- hourly: 触发分钟 -->
+          <div v-if="form.uiType === 'hourly'" class="form-group">
             <label>触发分钟 (0–59)</label>
             <input type="number" v-model.number="form.minute" min="0" max="59" />
           </div>
 
-          <!-- cron: custom expression -->
-          <div v-if="form.type === 'cron'" class="form-group">
+          <!-- custom: 直接输入 -->
+          <div v-if="form.uiType === 'custom'" class="form-group">
             <label>Cron 表达式</label>
-            <input v-model="form.cronExpr" placeholder="例: 0 9 * * 1-5" />
+            <input v-model="form.customExpr" placeholder="例: 0 9 * * 1-5" style="font-family:monospace" />
+          </div>
+
+          <!-- cron 预览 -->
+          <div v-if="form.uiType !== 'custom' && builtExpr" style="margin-bottom:12px;padding:6px 10px;background:#f5f4f2;border-radius:4px;font-family:monospace;font-size:12px;color:#6b6b6b">
+            {{ builtExpr }}
           </div>
 
           <div class="form-group">
@@ -445,7 +360,6 @@ onMounted(load)
               <option v-for="u in users" :key="u.id" :value="u.id">{{ userLabel(u) }}</option>
             </select>
           </div>
-
         </div>
         <div class="modal-footer">
           <button class="btn-outline" @click="showModal = false">取消</button>
