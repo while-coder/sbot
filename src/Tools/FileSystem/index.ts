@@ -5,7 +5,10 @@
  */
 
 import fs from 'fs';
+import fsAsync from 'fs/promises';
 import path from 'path';
+import { randomBytes } from 'crypto';
+import { createTwoFilesPatch } from 'diff';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import { LoggerService } from '../../LoggerService';
@@ -14,1016 +17,692 @@ import { FileSystemToolsConfig } from './config';
 
 const logger = LoggerService.getLogger('Tools/FileSystem/index.ts');
 
-// 配置类型已移到 config.ts
 export type { FileSystemToolsConfig } from './config';
 
-/**
- * 验证路径是否为绝对路径
- */
-function validatePath(filePath: string): { valid: boolean; error?: string; absolutePath?: string } {
-    // 检查是否为绝对路径
-    if (!path.isAbsolute(filePath)) {
-        return {
-            valid: false,
-            error: `路径必须是绝对路径: ${filePath}`
-        };
-    }
+// ── Utility Functions ──────────────────────────────────────────────────────────
 
-    const absolutePath = path.normalize(filePath);
-
-    return {
-        valid: true,
-        absolutePath
-    };
+export function formatSize(bytes: number): string {
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    if (bytes === 0) return '0 B';
+    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+    return i === 0 ? `${bytes} B` : `${(bytes / Math.pow(1024, i)).toFixed(2)} ${units[i]}`;
 }
 
-/**
- * 创建读取文件内容的工具
- */
+function normalizeLineEndings(text: string): string {
+    return text.replace(/\r\n/g, '\n');
+}
+
+/** 将通配符模式转为正则 */
+function globToRegex(pattern: string): RegExp {
+    return new RegExp('^' + pattern.replace(/\./g, '\\.').replace(/\*/g, '.*').replace(/\?/g, '.') + '$', 'i');
+}
+
+/** 路径验证：非绝对路径时抛出异常 */
+function resolvePath(p: string): string {
+    if (!path.isAbsolute(p)) throw new Error(`路径必须是绝对路径: ${p}`);
+    return path.normalize(p);
+}
+
+/** 验证并返回已存在文件的绝对路径和 stat，不满足时抛出 */
+function checkFile(filePath: string): { abs: string; stat: fs.Stats } {
+    const abs = resolvePath(filePath);
+    if (!fs.existsSync(abs)) throw new Error(`文件不存在: ${abs}`);
+    const stat = fs.statSync(abs);
+    if (!stat.isFile()) throw new Error(`路径不是文件: ${abs}`);
+    return { abs, stat };
+}
+
+/** 验证并返回已存在目录的绝对路径，不满足时抛出 */
+function checkDir(dirPath: string): string {
+    const abs = resolvePath(dirPath);
+    if (!fs.existsSync(abs)) throw new Error(`目录不存在: ${abs}`);
+    if (!fs.statSync(abs).isDirectory()) throw new Error(`路径不是目录: ${abs}`);
+    return abs;
+}
+
+/** 原子写入：先写临时文件再 rename，失败时清理临时文件 */
+async function writeAtomic(filePath: string, content: string, encoding: BufferEncoding): Promise<void> {
+    const tmp = `${filePath}.${randomBytes(16).toString('hex')}.tmp`;
+    try {
+        await fsAsync.writeFile(tmp, content, encoding);
+        await fsAsync.rename(tmp, filePath);
+    } catch (e) {
+        try { await fsAsync.unlink(tmp); } catch { /* ignore */ }
+        throw e;
+    }
+}
+
+/** 内存高效的 tail：从文件末尾读取 N 行（1KB 分块）*/
+async function tailFile(filePath: string, numLines: number): Promise<string> {
+    const CHUNK = 1024;
+    const stats = await fsAsync.stat(filePath);
+    if (stats.size === 0) return '';
+    const fh = await fsAsync.open(filePath, 'r');
+    try {
+        const lines: string[] = [];
+        let position = stats.size;
+        const buf = Buffer.alloc(CHUNK);
+        let linesFound = 0;
+        let remaining = '';
+        while (position > 0 && linesFound < numLines) {
+            const size = Math.min(CHUNK, position);
+            position -= size;
+            const { bytesRead } = await fh.read(buf, 0, size, position);
+            if (!bytesRead) break;
+            // 先 normalize 再拼接 remaining，避免 chunk 内部出现 \r\n 未处理
+            const chunk = normalizeLineEndings(buf.slice(0, bytesRead).toString('utf-8')) + remaining;
+            const parts = chunk.split('\n');
+            if (position > 0) remaining = parts.shift()!;
+            for (let i = parts.length - 1; i >= 0 && linesFound < numLines; i--) {
+                lines.unshift(parts[i]);
+                linesFound++;
+            }
+        }
+        return lines.join('\n');
+    } finally {
+        await fh.close();
+    }
+}
+
+/** 内存高效的 head：从文件头读取 N 行 */
+async function headFile(filePath: string, numLines: number): Promise<string> {
+    const fh = await fsAsync.open(filePath, 'r');
+    try {
+        const lines: string[] = [];
+        let buffer = '';
+        let offset = 0;
+        const chunk = Buffer.alloc(1024);
+        while (lines.length < numLines) {
+            const { bytesRead } = await fh.read(chunk, 0, chunk.length, offset);
+            if (bytesRead === 0) break;
+            offset += bytesRead;
+            // normalize 后再拼接，避免跨 chunk 的 \r\n 在拼完后被遗漏
+            buffer += normalizeLineEndings(chunk.subarray(0, bytesRead).toString('utf-8'));
+            const nl = buffer.lastIndexOf('\n');
+            if (nl !== -1) {
+                const complete = buffer.slice(0, nl).split('\n');
+                buffer = buffer.slice(nl + 1);
+                for (const line of complete) {
+                    lines.push(line);
+                    if (lines.length >= numLines) break;
+                }
+            }
+        }
+        if (buffer.length > 0 && lines.length < numLines) lines.push(buffer);
+        return lines.join('\n');
+    } finally {
+        await fh.close();
+    }
+}
+
+interface FileEdit { oldText: string; newText: string; useRegex?: boolean; regexFlags?: string; }
+
+/** 按 oldText→newText 对文件做多处修改，支持模糊空白匹配和正则替换，返回 unified diff */
+async function applyFileEdits(filePath: string, edits: FileEdit[], dryRun = false): Promise<string> {
+    const content = normalizeLineEndings(await fsAsync.readFile(filePath, 'utf-8'));
+    let modified = content;
+    for (const edit of edits) {
+        const newN = normalizeLineEndings(edit.newText);
+        if (edit.useRegex) {
+            const regex = new RegExp(edit.oldText, edit.regexFlags ?? 'g');
+            if (!modified.match(regex)) throw new Error(`正则表达式无匹配: ${edit.oldText}`);
+            modified = modified.replace(regex, newN);
+            continue;
+        }
+        const oldN = normalizeLineEndings(edit.oldText);
+        if (modified.includes(oldN)) {
+            modified = modified.replace(oldN, newN);
+            continue;
+        }
+        // 按行模糊匹配（忽略行首尾空白）
+        const oldLines = oldN.split('\n');
+        const contentLines = modified.split('\n');
+        let matched = false;
+        for (let i = 0; i <= contentLines.length - oldLines.length; i++) {
+            if (!oldLines.every((ol, j) => ol.trim() === contentLines[i + j].trim())) continue;
+            const origIndent = contentLines[i].match(/^\s*/)?.[0] ?? '';
+            const newLines = newN.split('\n').map((line, j) => {
+                if (j === 0) return origIndent + line.trimStart();
+                const oldIndent = oldLines[j]?.match(/^\s*/)?.[0] ?? '';
+                const ni = line.match(/^\s*/)?.[0] ?? '';
+                if (oldIndent && ni) {
+                    return origIndent + ' '.repeat(Math.max(0, ni.length - oldIndent.length)) + line.trimStart();
+                }
+                return line;
+            });
+            contentLines.splice(i, oldLines.length, ...newLines);
+            modified = contentLines.join('\n');
+            matched = true;
+            break;
+        }
+        if (!matched) throw new Error(`找不到匹配的文本:\n${edit.oldText}`);
+    }
+    const diff = createTwoFilesPatch(filePath, filePath, content, modified, 'original', 'modified');
+    let ticks = 3;
+    while (diff.includes('`'.repeat(ticks))) ticks++;
+    const formatted = `${'`'.repeat(ticks)}diff\n${diff}${'`'.repeat(ticks)}\n\n`;
+    if (!dryRun) await writeAtomic(filePath, modified, 'utf-8');
+    return formatted;
+}
+
+// ── Tools ──────────────────────────────────────────────────────────────────────
+
+/** 读取文件内容（支持 head/tail 大文件截取）*/
 export function createReadFileTool(config: FileSystemToolsConfig = { maxFileSize: 10 * 1024 * 1024 }): StructuredToolInterface {
     const maxSize = config.maxFileSize;
-
     return new DynamicStructuredTool({
         name: 'read_file',
-        description: '读取本地文件的完整内容。支持文本文件（如 .txt, .md, .json, .js, .ts 等）。注意：路径必须是绝对路径。',
+        description: '读取本地文件的内容。支持 head/tail 参数截取大文件的前 N 行或后 N 行，避免超出大小限制。路径必须是绝对路径。',
         schema: z.object({
-            filePath: z.string().describe('要读取的文件的绝对路径（必须是绝对路径，如 /path/to/file.txt）'),
-            encoding: z.enum(['utf8', 'utf-8', 'ascii', 'base64']).optional().default('utf8').describe('文件编码格式，默认为 utf8')
+            filePath: z.string().describe('要读取的文件的绝对路径'),
+            encoding: z.enum(['utf8', 'utf-8', 'ascii', 'base64']).optional().default('utf8').describe('文件编码，默认 utf8'),
+            head: z.number().int().positive().optional().describe('只读取前 N 行（大文件截取）'),
+            tail: z.number().int().positive().optional().describe('只读取后 N 行（大文件截取）'),
         }) as any,
-        func: async ({ filePath, encoding = 'utf8' }: any): Promise<MCPToolResult> => {
+        func: async ({ filePath, encoding = 'utf8', head, tail }: any): Promise<MCPToolResult> => {
             try {
-                const validation = validatePath(filePath);
-                if (!validation.valid) {
-                    return createErrorResult(validation.error!);
-                }
-
-                const absolutePath = validation.absolutePath!;
-
-                // 检查文件是否存在
-                if (!fs.existsSync(absolutePath)) {
-                    return createErrorResult(`文件不存在: ${absolutePath}`);
-                }
-
-                // 检查是否为文件
-                const stat = fs.statSync(absolutePath);
-                if (!stat.isFile()) {
-                    return createErrorResult(`路径不是文件: ${absolutePath}`);
-                }
-
-                // 检查文件大小
+                const { abs, stat } = checkFile(filePath);
+                if (head) return createSuccessResult(createTextContent(await headFile(abs, head)));
+                if (tail) return createSuccessResult(createTextContent(await tailFile(abs, tail)));
                 if (stat.size > maxSize) {
-                    return createErrorResult(`文件过大: ${(stat.size / 1024 / 1024).toFixed(2)}MB (限制: ${(maxSize / 1024 / 1024).toFixed(2)}MB)`);
+                    return createErrorResult(`文件过大: ${formatSize(stat.size)}（限制: ${formatSize(maxSize)}），可使用 head/tail 参数截取`);
                 }
-
-                // 读取文件内容
-                const content = fs.readFileSync(absolutePath, encoding as BufferEncoding);
-
-                return createSuccessResult(
-                    createTextContent(content.toString())
-                );
-
-            } catch (error: any) {
-                logger.error(`Error reading file ${filePath}: ${error.message}`);
-                return createErrorResult(error.message);
+                return createSuccessResult(createTextContent(fs.readFileSync(abs, encoding as BufferEncoding).toString()));
+            } catch (e: any) {
+                logger.error(`read_file ${filePath}: ${e.message}`);
+                return createErrorResult(e.message);
             }
         }
     });
 }
 
-/**
- * 创建读取文件指定行的工具
- */
+/** 读取文件指定行范围 */
 export function createReadFileLinesTool(config: FileSystemToolsConfig = { maxFileSize: 10 * 1024 * 1024 }): StructuredToolInterface {
     const maxSize = config.maxFileSize;
-
     return new DynamicStructuredTool({
         name: 'read_file_lines',
-        description: '读取文件的指定行范围。适合读取大文件的部分内容。行号从 1 开始计数。注意：路径必须是绝对路径。',
+        description: '读取文件的指定行范围。行号从 1 开始。路径必须是绝对路径。',
         schema: z.object({
-            filePath: z.string().describe('要读取的文件的绝对路径'),
+            filePath: z.string().describe('文件的绝对路径'),
             startLine: z.number().min(1).describe('起始行号（从 1 开始）'),
-            endLine: z.number().min(1).optional().describe('结束行号（可选，不指定则读取到文件末尾）'),
-            encoding: z.enum(['utf8', 'utf-8', 'ascii']).optional().default('utf8').describe('文件编码格式')
+            endLine: z.number().min(1).optional().describe('结束行号（可选，不指定则读到末尾）'),
+            encoding: z.enum(['utf8', 'utf-8', 'ascii']).optional().default('utf8').describe('文件编码'),
         }) as any,
         func: async ({ filePath, startLine, endLine, encoding = 'utf8' }: any): Promise<MCPToolResult> => {
             try {
-                const validation = validatePath(filePath);
-                if (!validation.valid) {
-                    return createErrorResult(validation.error!);
-                }
-
-                const absolutePath = validation.absolutePath!;
-
-                if (!fs.existsSync(absolutePath)) {
-                    return createErrorResult(`文件不存在: ${absolutePath}`);
-                }
-
-                const stat = fs.statSync(absolutePath);
-                if (!stat.isFile()) {
-                    return createErrorResult(`路径不是文件: ${absolutePath}`);
-                }
-
-                if (stat.size > maxSize) {
-                    return createErrorResult(`文件过大: ${(stat.size / 1024 / 1024).toFixed(2)}MB`);
-                }
-
-                const content = fs.readFileSync(absolutePath, encoding as BufferEncoding);
-                const lines = content.toString().split('\n');
-
-                const actualEndLine = endLine || lines.length;
-
-                if (startLine > lines.length) {
-                    return createErrorResult(`起始行号 ${startLine} 超出文件总行数 ${lines.length}`);
-                }
-
-                const selectedLines = lines.slice(startLine - 1, actualEndLine);
-
-                return createSuccessResult(
-                    createTextContent(selectedLines.join('\n'))
-                );
-
-            } catch (error: any) {
-                logger.error(`Error reading file lines ${filePath}: ${error.message}`);
-                return createErrorResult(error.message);
+                const { abs, stat } = checkFile(filePath);
+                if (stat.size > maxSize) return createErrorResult(`文件过大: ${formatSize(stat.size)}`);
+                const lines = fs.readFileSync(abs, encoding as BufferEncoding).toString().split('\n');
+                if (startLine > lines.length) return createErrorResult(`起始行号 ${startLine} 超出文件总行数 ${lines.length}`);
+                return createSuccessResult(createTextContent(lines.slice(startLine - 1, endLine ?? lines.length).join('\n')));
+            } catch (e: any) {
+                logger.error(`read_file_lines ${filePath}: ${e.message}`);
+                return createErrorResult(e.message);
             }
         }
     });
 }
 
-/**
- * 创建写入文件内容的工具
- */
+/** 读取媒体文件（图片/音频）为 base64 */
+export function createReadMediaFileTool(): StructuredToolInterface {
+    return new DynamicStructuredTool({
+        name: 'read_media_file',
+        description: '读取图片、音频等二进制文件，以 base64 格式返回内容。路径必须是绝对路径。',
+        schema: z.object({
+            filePath: z.string().describe('媒体文件的绝对路径'),
+        }) as any,
+        func: async ({ filePath }: any): Promise<MCPToolResult> => {
+            try {
+                const { abs, stat } = checkFile(filePath);
+                const base64 = (await fsAsync.readFile(abs)).toString('base64');
+                const ext = path.extname(abs).toLowerCase().slice(1);
+                return createSuccessResult(createTextContent(JSON.stringify({ filePath: abs, size: formatSize(stat.size), ext, base64 })));
+            } catch (e: any) {
+                logger.error(`read_media_file ${filePath}: ${e.message}`);
+                return createErrorResult(e.message);
+            }
+        }
+    });
+}
+
+/** 写入文件（原子替换，防止竞态条件）*/
 export function createWriteFileTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'write_file',
-        description: '写入内容到本地文件。如果文件不存在会自动创建，如果文件已存在会覆盖原有内容。注意：路径必须是绝对路径。',
+        description: '写入内容到文件。文件不存在时自动创建；使用原子替换（temp+rename）保证写入安全。路径必须是绝对路径。',
         schema: z.object({
             filePath: z.string().describe('要写入的文件的绝对路径'),
             content: z.string().describe('要写入的文件内容'),
-            encoding: z.enum(['utf8', 'utf-8', 'ascii']).optional().default('utf8').describe('文件编码格式，默认为 utf8'),
-            createDirs: z.boolean().optional().default(true).describe('如果目录不存在，是否自动创建目录，默认为 true')
+            encoding: z.enum(['utf8', 'utf-8', 'ascii']).optional().default('utf8').describe('文件编码，默认 utf8'),
+            createDirs: z.boolean().optional().default(true).describe('目录不存在时是否自动创建，默认 true'),
         }) as any,
         func: async ({ filePath, content, encoding = 'utf8', createDirs = true }: any): Promise<MCPToolResult> => {
             try {
-                const validation = validatePath(filePath);
-                if (!validation.valid) {
-                    return createErrorResult(validation.error!);
-                }
-
-                const absolutePath = validation.absolutePath!;
-
-                // 确保目录存在
-                const dirPath = path.dirname(absolutePath);
-                if (createDirs && !fs.existsSync(dirPath)) {
-                    fs.mkdirSync(dirPath, { recursive: true });
-                }
-
-                // 写入文件
-                fs.writeFileSync(absolutePath, content, encoding as BufferEncoding);
-
-                return createSuccessResult(
-                    createTextContent(`文件写入成功: ${absolutePath}`)
-                );
-
-            } catch (error: any) {
-                logger.error(`Error writing file ${filePath}: ${error.message}`);
-                return createErrorResult(error.message);
+                const abs = resolvePath(filePath);
+                const dir = path.dirname(abs);
+                if (createDirs && !fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+                await writeAtomic(abs, content, encoding as BufferEncoding);
+                return createSuccessResult(createTextContent(`文件写入成功: ${abs}`));
+            } catch (e: any) {
+                logger.error(`write_file ${filePath}: ${e.message}`);
+                return createErrorResult(e.message);
             }
         }
     });
 }
 
-/**
- * 创建追加内容到文件的工具
- */
+/** 精确文本编辑（支持多处替换 + 模糊空白匹配 + 正则 + unified diff 输出）*/
+export function createEditFileTool(): StructuredToolInterface {
+    return new DynamicStructuredTool({
+        name: 'edit_file',
+        description: '对文件进行精确的文本替换编辑。支持多处修改、正则替换（useRegex）、模糊空白匹配、dry-run 预览，返回 unified diff。路径必须是绝对路径。',
+        schema: z.object({
+            filePath: z.string().describe('要编辑的文件的绝对路径'),
+            edits: z.array(z.object({
+                oldText: z.string().describe('要替换的原始文本；useRegex=true 时为正则表达式模式'),
+                newText: z.string().describe('替换后的新文本'),
+                useRegex: z.boolean().optional().default(false).describe('将 oldText 作为正则表达式，默认 false'),
+                regexFlags: z.string().optional().default('g').describe('正则标志，默认 g（全局替换），仅 useRegex=true 时生效'),
+            })).describe('编辑操作列表，按顺序依次应用'),
+            dryRun: z.boolean().optional().default(false).describe('仅预览 diff，不实际写入文件，默认 false'),
+        }) as any,
+        func: async ({ filePath, edits, dryRun = false }: any): Promise<MCPToolResult> => {
+            try {
+                const { abs } = checkFile(filePath);
+                return createSuccessResult(createTextContent(await applyFileEdits(abs, edits, dryRun)));
+            } catch (e: any) {
+                logger.error(`edit_file ${filePath}: ${e.message}`);
+                return createErrorResult(e.message);
+            }
+        }
+    });
+}
+
+/** 追加内容到文件末尾 */
 export function createAppendFileTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'append_file',
-        description: '追加内容到文件末尾。如果文件不存在会自动创建。注意：路径必须是绝对路径。',
+        description: '追加内容到文件末尾。文件不存在时自动创建。路径必须是绝对路径。',
         schema: z.object({
-            filePath: z.string().describe('要追加内容的文件的绝对路径'),
+            filePath: z.string().describe('要追加的文件的绝对路径'),
             content: z.string().describe('要追加的内容'),
-            encoding: z.enum(['utf8', 'utf-8', 'ascii']).optional().default('utf8').describe('文件编码格式'),
-            newLine: z.boolean().optional().default(true).describe('是否在追加内容前添加换行符，默认为 true')
+            encoding: z.enum(['utf8', 'utf-8', 'ascii']).optional().default('utf8').describe('文件编码'),
+            newLine: z.boolean().optional().default(true).describe('追加前是否自动添加换行符，默认 true'),
         }) as any,
         func: async ({ filePath, content, encoding = 'utf8', newLine = true }: any): Promise<MCPToolResult> => {
             try {
-                const validation = validatePath(filePath);
-                if (!validation.valid) {
-                    return createErrorResult(validation.error!);
-                }
-
-                const absolutePath = validation.absolutePath!;
-
-                // 确保目录存在
-                const dirPath = path.dirname(absolutePath);
-                if (!fs.existsSync(dirPath)) {
-                    fs.mkdirSync(dirPath, { recursive: true });
-                }
-
-                // 如果文件存在且需要换行，先添加换行符
-                const contentToAppend = (fs.existsSync(absolutePath) && newLine)
-                    ? '\n' + content
-                    : content;
-
-                fs.appendFileSync(absolutePath, contentToAppend, encoding as BufferEncoding);
-
-                return createSuccessResult(
-                    createTextContent(`内容追加成功: ${absolutePath}`)
-                );
-
-            } catch (error: any) {
-                logger.error(`Error appending to file ${filePath}: ${error.message}`);
-                return createErrorResult(error.message);
+                const abs = resolvePath(filePath);
+                const dir = path.dirname(abs);
+                if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+                const toAppend = (fs.existsSync(abs) && newLine) ? '\n' + content : content;
+                fs.appendFileSync(abs, toAppend, encoding as BufferEncoding);
+                return createSuccessResult(createTextContent(`内容追加成功: ${abs}`));
+            } catch (e: any) {
+                logger.error(`append_file ${filePath}: ${e.message}`);
+                return createErrorResult(e.message);
             }
         }
     });
 }
 
-/**
- * 创建替换文件内容的工具
- */
-export function createReplaceInFileTool(config: FileSystemToolsConfig = { maxFileSize: 10 * 1024 * 1024 }): StructuredToolInterface {
-    const maxSize = config.maxFileSize;
-
-    return new DynamicStructuredTool({
-        name: 'replace_in_file',
-        description: '替换文件中的文本内容。支持字符串替换和正则表达式替换。注意：路径必须是绝对路径。',
-        schema: z.object({
-            filePath: z.string().describe('要替换内容的文件的绝对路径'),
-            searchText: z.string().describe('要搜索的文本或正则表达式模式'),
-            replaceText: z.string().describe('替换后的文本'),
-            useRegex: z.boolean().optional().default(false).describe('是否使用正则表达式，默认为 false'),
-            regexFlags: z.string().optional().default('g').describe('正则表达式标志（如 g, i, m），默认为 g（全局替换）'),
-            encoding: z.enum(['utf8', 'utf-8', 'ascii']).optional().default('utf8').describe('文件编码格式')
-        }) as any,
-        func: async ({ filePath, searchText, replaceText, useRegex = false, regexFlags = 'g', encoding = 'utf8' }: any): Promise<MCPToolResult> => {
-            try {
-                const validation = validatePath(filePath);
-                if (!validation.valid) {
-                    return createErrorResult(validation.error!);
-                }
-
-                const absolutePath = validation.absolutePath!;
-
-                if (!fs.existsSync(absolutePath)) {
-                    return createErrorResult(`文件不存在: ${absolutePath}`);
-                }
-
-                const stat = fs.statSync(absolutePath);
-                if (!stat.isFile()) {
-                    return createErrorResult(`路径不是文件: ${absolutePath}`);
-                }
-
-                if (stat.size > maxSize) {
-                    return createErrorResult(`文件过大: ${(stat.size / 1024 / 1024).toFixed(2)}MB`);
-                }
-
-                let content = fs.readFileSync(absolutePath, encoding as BufferEncoding).toString();
-                let replacedContent: string;
-                let matchCount = 0;
-
-                if (useRegex) {
-                    const regex = new RegExp(searchText, regexFlags);
-                    const matches = content.match(regex);
-                    matchCount = matches ? matches.length : 0;
-                    replacedContent = content.replace(regex, replaceText);
-                } else {
-                    // 计算匹配次数
-                    const parts = content.split(searchText);
-                    matchCount = parts.length - 1;
-                    replacedContent = content.split(searchText).join(replaceText);
-                }
-
-                if (matchCount === 0) {
-                    return createErrorResult(`未找到匹配的文本: ${searchText}`);
-                }
-
-                fs.writeFileSync(absolutePath, replacedContent, encoding as BufferEncoding);
-
-                return createSuccessResult(
-                    createTextContent(`文件替换成功，匹配 ${matchCount} 处`)
-                );
-
-            } catch (error: any) {
-                logger.error(`Error replacing in file ${filePath}: ${error.message}`);
-                return createErrorResult(error.message);
-            }
-        }
-    });
-}
-
-/**
- * 创建在文件中搜索内容的工具
- */
+/** 在文件中搜索内容 */
 export function createSearchInFileTool(config: FileSystemToolsConfig = { maxFileSize: 10 * 1024 * 1024 }): StructuredToolInterface {
     const maxSize = config.maxFileSize;
-
     return new DynamicStructuredTool({
         name: 'search_in_file',
-        description: '在文件中搜索文本或正则表达式，返回匹配的行号和内容。注意：路径必须是绝对路径。',
+        description: '在文件中搜索文本，返回匹配的行号和内容。路径必须是绝对路径。',
         schema: z.object({
-            filePath: z.string().describe('要搜索的文件的绝对路径'),
-            searchText: z.string().describe('要搜索的文本或正则表达式模式'),
+            filePath: z.string().describe('文件的绝对路径'),
+            searchText: z.string().describe('要搜索的文本或正则表达式'),
             useRegex: z.boolean().optional().default(false).describe('是否使用正则表达式'),
-            caseSensitive: z.boolean().optional().default(true).describe('是否区分大小写，默认为 true'),
-            maxResults: z.number().optional().default(100).describe('最大返回结果数，默认为 100'),
-            encoding: z.enum(['utf8', 'utf-8', 'ascii']).optional().default('utf8').describe('文件编码格式')
+            caseSensitive: z.boolean().optional().default(true).describe('是否区分大小写，默认 true'),
+            maxResults: z.number().optional().default(100).describe('最大返回结果数，默认 100'),
+            encoding: z.enum(['utf8', 'utf-8', 'ascii']).optional().default('utf8').describe('文件编码'),
         }) as any,
         func: async ({ filePath, searchText, useRegex = false, caseSensitive = true, maxResults = 100, encoding = 'utf8' }: any): Promise<MCPToolResult> => {
             try {
-                const validation = validatePath(filePath);
-                if (!validation.valid) {
-                    return createErrorResult(validation.error!);
-                }
-
-                const absolutePath = validation.absolutePath!;
-
-                if (!fs.existsSync(absolutePath)) {
-                    return createErrorResult(`文件不存在: ${absolutePath}`);
-                }
-
-                const stat = fs.statSync(absolutePath);
-                if (!stat.isFile()) {
-                    return createErrorResult(`路径不是文件: ${absolutePath}`);
-                }
-
-                if (stat.size > maxSize) {
-                    return createErrorResult(`文件过大: ${(stat.size / 1024 / 1024).toFixed(2)}MB`);
-                }
-
-                const content = fs.readFileSync(absolutePath, encoding as BufferEncoding).toString();
-                const lines = content.split('\n');
+                const { abs, stat } = checkFile(filePath);
+                if (stat.size > maxSize) return createErrorResult(`文件过大: ${formatSize(stat.size)}`);
+                const lines = fs.readFileSync(abs, encoding as BufferEncoding).toString().split('\n');
+                const regex = useRegex ? new RegExp(searchText, caseSensitive ? 'g' : 'gi') : null;
                 const matches: Array<{ line: number; content: string; matchPositions: number[] }> = [];
-
                 for (let i = 0; i < lines.length && matches.length < maxResults; i++) {
                     const line = lines[i];
-                    let isMatch = false;
-                    const matchPositions: number[] = [];
-
-                    if (useRegex) {
-                        const flags = caseSensitive ? 'g' : 'gi';
-                        const regex = new RegExp(searchText, flags);
-                        let match;
-                        while ((match = regex.exec(line)) !== null) {
-                            isMatch = true;
-                            matchPositions.push(match.index);
-                        }
+                    const positions: number[] = [];
+                    if (regex) {
+                        regex.lastIndex = 0;
+                        let m;
+                        while ((m = regex.exec(line)) !== null) positions.push(m.index);
                     } else {
                         const searchIn = caseSensitive ? line : line.toLowerCase();
                         const searchFor = caseSensitive ? searchText : searchText.toLowerCase();
                         let pos = 0;
-                        while ((pos = searchIn.indexOf(searchFor, pos)) !== -1) {
-                            isMatch = true;
-                            matchPositions.push(pos);
-                            pos += searchFor.length;
-                        }
+                        while ((pos = searchIn.indexOf(searchFor, pos)) !== -1) { positions.push(pos); pos += searchFor.length; }
                     }
-
-                    if (isMatch) {
-                        matches.push({
-                            line: i + 1,
-                            content: line,
-                            matchPositions
-                        });
-                    }
+                    if (positions.length > 0) matches.push({ line: i + 1, content: line, matchPositions: positions });
                 }
-
-                return createSuccessResult(
-                    createTextContent(JSON.stringify(matches, null, 2))
-                );
-
-            } catch (error: any) {
-                logger.error(`Error searching in file ${filePath}: ${error.message}`);
-                return createErrorResult(error.message);
+                return createSuccessResult(createTextContent(JSON.stringify(matches, null, 2)));
+            } catch (e: any) {
+                logger.error(`search_in_file ${filePath}: ${e.message}`);
+                return createErrorResult(e.message);
             }
         }
     });
 }
 
-/**
- * 创建搜索文件的工具（根据文件名）
- */
+/** 按文件名模式搜索文件 */
 export function createSearchFilesTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'search_files',
-        description: '根据文件名模式搜索文件。支持通配符匹配（* 和 ?）。注意：搜索路径必须是绝对路径。',
+        description: '按文件名模式搜索文件，支持通配符（* 和 ?）。搜索路径必须是绝对路径。',
         schema: z.object({
-            searchPath: z.string().describe('要搜索的目录的绝对路径'),
-            pattern: z.string().describe('文件名匹配模式（支持 * 和 ? 通配符，如 *.js, test?.txt）'),
-            recursive: z.boolean().optional().default(true).describe('是否递归搜索子目录，默认为 true'),
-            maxResults: z.number().optional().default(100).describe('最大返回结果数，默认为 100'),
-            includeHidden: z.boolean().optional().default(false).describe('是否包含隐藏文件')
+            searchPath: z.string().describe('搜索目录的绝对路径'),
+            pattern: z.string().describe('文件名匹配模式（如 *.js, test?.txt）'),
+            recursive: z.boolean().optional().default(true).describe('是否递归搜索子目录，默认 true'),
+            maxResults: z.number().optional().default(100).describe('最大返回数，默认 100'),
+            includeHidden: z.boolean().optional().default(false).describe('是否包含隐藏文件'),
         }) as any,
         func: async ({ searchPath, pattern, recursive = true, maxResults = 100, includeHidden = false }: any): Promise<MCPToolResult> => {
             try {
-                const validation = validatePath(searchPath);
-                if (!validation.valid) {
-                    return createErrorResult(validation.error!);
-                }
-
-                const absolutePath = validation.absolutePath!;
-
-                if (!fs.existsSync(absolutePath)) {
-                    return createErrorResult(`目录不存在: ${absolutePath}`);
-                }
-
-                const stat = fs.statSync(absolutePath);
-                if (!stat.isDirectory()) {
-                    return createErrorResult(`路径不是目录: ${absolutePath}`);
-                }
-
-                // 将通配符模式转换为正则表达式
-                const regexPattern = pattern
-                    .replace(/\./g, '\\.')
-                    .replace(/\*/g, '.*')
-                    .replace(/\?/g, '.');
-                const regex = new RegExp(`^${regexPattern}$`, 'i');
-
-                const results: Array<{ path: string; name: string; size: number; modified: Date }> = [];
-
-                function searchDirectory(dirPath: string) {
+                const abs = checkDir(searchPath);
+                const regex = globToRegex(pattern);
+                const results: Array<{ path: string; name: string; size: number; sizeFormatted: string; modified: Date }> = [];
+                function walk(dir: string) {
                     if (results.length >= maxResults) return;
-
                     try {
-                        const entries = fs.readdirSync(dirPath, { withFileTypes: true });
-
-                        for (const entry of entries) {
+                        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
                             if (results.length >= maxResults) break;
-
-                            // 跳过隐藏文件
                             if (!includeHidden && entry.name.startsWith('.')) continue;
-
-                            const fullPath = path.join(dirPath, entry.name);
-
+                            const full = path.join(dir, entry.name);
                             if (entry.isFile() && regex.test(entry.name)) {
-                                const stat = fs.statSync(fullPath);
-                                results.push({
-                                    path: fullPath,
-                                    name: entry.name,
-                                    size: stat.size,
-                                    modified: stat.mtime
-                                });
+                                const s = fs.statSync(full);
+                                results.push({ path: full, name: entry.name, size: s.size, sizeFormatted: formatSize(s.size), modified: s.mtime });
                             }
-
-                            if (recursive && entry.isDirectory()) {
-                                searchDirectory(fullPath);
-                            }
+                            if (recursive && entry.isDirectory()) walk(full);
                         }
-                    } catch (error: any) {
-                        // 忽略权限错误等，继续搜索其他目录
-                        logger.warn(`Cannot access directory ${dirPath}: ${error.message}`);
-                    }
+                    } catch (e: any) { logger.warn(`Cannot access ${dir}: ${e.message}`); }
                 }
-
-                searchDirectory(absolutePath);
-
-                return createSuccessResult(
-                    createTextContent(JSON.stringify(results, null, 2))
-                );
-
-            } catch (error: any) {
-                logger.error(`Error searching files in ${searchPath}: ${error.message}`);
-                return createErrorResult(error.message);
+                walk(abs);
+                return createSuccessResult(createTextContent(JSON.stringify(results, null, 2)));
+            } catch (e: any) {
+                logger.error(`search_files ${searchPath}: ${e.message}`);
+                return createErrorResult(e.message);
             }
         }
     });
 }
 
-/**
- * 创建根据内容搜索文件的工具（类似 grep -r）
- */
+/** grep 跨文件内容搜索 */
 export function createGrepFilesTool(config: FileSystemToolsConfig = { maxFileSize: 10 * 1024 * 1024 }): StructuredToolInterface {
     const maxSize = config.maxFileSize;
-
     return new DynamicStructuredTool({
         name: 'grep_files',
-        description: '在目录中搜索包含指定文本的文件（类似 grep -r）。注意：搜索路径必须是绝对路径。',
+        description: '在目录中搜索包含指定文本的文件（类似 grep -r）。搜索路径必须是绝对路径。',
         schema: z.object({
-            searchPath: z.string().describe('要搜索的目录的绝对路径'),
+            searchPath: z.string().describe('搜索目录的绝对路径'),
             searchText: z.string().describe('要搜索的文本或正则表达式'),
-            filePattern: z.string().optional().default('*').describe('文件名过滤模式（如 *.js, *.txt）'),
+            filePattern: z.string().optional().default('*').describe('文件名过滤模式（如 *.js）'),
             useRegex: z.boolean().optional().default(false).describe('是否使用正则表达式'),
             caseSensitive: z.boolean().optional().default(true).describe('是否区分大小写'),
-            recursive: z.boolean().optional().default(true).describe('是否递归搜索子目录'),
-            maxResults: z.number().optional().default(50).describe('最大返回文件数，默认为 50'),
-            includeHidden: z.boolean().optional().default(false).describe('是否包含隐藏文件')
+            recursive: z.boolean().optional().default(true).describe('是否递归搜索'),
+            maxResults: z.number().optional().default(50).describe('最大返回文件数，默认 50'),
+            includeHidden: z.boolean().optional().default(false).describe('是否包含隐藏文件'),
         }) as any,
         func: async ({ searchPath, searchText, filePattern = '*', useRegex = false, caseSensitive = true, recursive = true, maxResults = 50, includeHidden = false }: any): Promise<MCPToolResult> => {
             try {
-                const validation = validatePath(searchPath);
-                if (!validation.valid) {
-                    return createErrorResult(validation.error!);
-                }
-
-                const absolutePath = validation.absolutePath!;
-
-                if (!fs.existsSync(absolutePath)) {
-                    return createErrorResult(`目录不存在: ${absolutePath}`);
-                }
-
-                const stat = fs.statSync(absolutePath);
-                if (!stat.isDirectory()) {
-                    return createErrorResult(`路径不是目录: ${absolutePath}`);
-                }
-
-                // 文件名过滤器
-                const fileRegexPattern = filePattern
-                    .replace(/\./g, '\\.')
-                    .replace(/\*/g, '.*')
-                    .replace(/\?/g, '.');
-                const fileRegex = new RegExp(`^${fileRegexPattern}$`, 'i');
-
-                const results: Array<{
-                    path: string;
-                    name: string;
-                    matches: Array<{ line: number; content: string }>;
-                    totalMatches: number;
-                }> = [];
-
-                function searchInFile(filePath: string): Array<{ line: number; content: string }> {
+                const abs = checkDir(searchPath);
+                const fileRegex = globToRegex(filePattern);
+                // 提前构造搜索正则，避免在每行重复 new RegExp
+                const searchRegex = useRegex ? new RegExp(searchText, caseSensitive ? '' : 'i') : null;
+                const searchLower = caseSensitive ? searchText : searchText.toLowerCase();
+                const results: Array<{ path: string; name: string; matches: Array<{ line: number; content: string }>; totalMatches: number }> = [];
+                function searchInFile(fp: string): Array<{ line: number; content: string }> {
                     try {
-                        const stat = fs.statSync(filePath);
-                        if (stat.size > maxSize) return [];
-
-                        const content = fs.readFileSync(filePath, 'utf8');
-                        const lines = content.split('\n');
-                        const matches: Array<{ line: number; content: string }> = [];
-
-                        for (let i = 0; i < lines.length; i++) {
-                            const line = lines[i];
-                            let isMatch = false;
-
-                            if (useRegex) {
-                                const flags = caseSensitive ? '' : 'i';
-                                const regex = new RegExp(searchText, flags);
-                                isMatch = regex.test(line);
-                            } else {
-                                const searchIn = caseSensitive ? line : line.toLowerCase();
-                                const searchFor = caseSensitive ? searchText : searchText.toLowerCase();
-                                isMatch = searchIn.includes(searchFor);
-                            }
-
-                            if (isMatch) {
-                                matches.push({
-                                    line: i + 1,
-                                    content: line
-                                });
-                            }
-                        }
-
-                        return matches;
-                    } catch (error) {
-                        return [];
-                    }
+                        if (fs.statSync(fp).size > maxSize) return [];
+                        return fs.readFileSync(fp, 'utf8').split('\n').reduce((acc, line, i) => {
+                            const hit = searchRegex
+                                ? searchRegex.test(line)
+                                : (caseSensitive ? line : line.toLowerCase()).includes(searchLower);
+                            if (hit) acc.push({ line: i + 1, content: line });
+                            return acc;
+                        }, [] as Array<{ line: number; content: string }>);
+                    } catch { return []; }
                 }
-
-                function searchDirectory(dirPath: string) {
+                function walk(dir: string) {
                     if (results.length >= maxResults) return;
-
                     try {
-                        const entries = fs.readdirSync(dirPath, { withFileTypes: true });
-
-                        for (const entry of entries) {
+                        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
                             if (results.length >= maxResults) break;
-
                             if (!includeHidden && entry.name.startsWith('.')) continue;
-
-                            const fullPath = path.join(dirPath, entry.name);
-
+                            const full = path.join(dir, entry.name);
                             if (entry.isFile() && fileRegex.test(entry.name)) {
-                                const matches = searchInFile(fullPath);
-                                if (matches.length > 0) {
-                                    results.push({
-                                        path: fullPath,
-                                        name: entry.name,
-                                        matches: matches.slice(0, 10), // 每个文件最多返回 10 个匹配
-                                        totalMatches: matches.length
-                                    });
-                                }
+                                const m = searchInFile(full);
+                                if (m.length > 0) results.push({ path: full, name: entry.name, matches: m.slice(0, 10), totalMatches: m.length });
                             }
-
-                            if (recursive && entry.isDirectory()) {
-                                searchDirectory(fullPath);
-                            }
+                            if (recursive && entry.isDirectory()) walk(full);
                         }
-                    } catch (error: any) {
-                        logger.warn(`Cannot access directory ${dirPath}: ${error.message}`);
-                    }
+                    } catch (e: any) { logger.warn(`Cannot access ${dir}: ${e.message}`); }
                 }
-
-                searchDirectory(absolutePath);
-
-                return createSuccessResult(
-                    createTextContent(JSON.stringify(results, null, 2))
-                );
-
-            } catch (error: any) {
-                logger.error(`Error grepping files in ${searchPath}: ${error.message}`);
-                return createErrorResult(error.message);
+                walk(abs);
+                return createSuccessResult(createTextContent(JSON.stringify(results, null, 2)));
+            } catch (e: any) {
+                logger.error(`grep_files ${searchPath}: ${e.message}`);
+                return createErrorResult(e.message);
             }
         }
     });
 }
 
-/**
- * 创建列出目录内容的工具
- */
+/** 列出目录内容（含文件大小）*/
 export function createListDirectoryTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'list_directory',
-        description: '列出目录下的文件和子目录。可以递归列出所有子目录内容。注意：路径必须是绝对路径。',
+        description: '列出目录下的文件和子目录，包含文件大小信息。可递归列出子目录。路径必须是绝对路径。',
         schema: z.object({
-            dirPath: z.string().describe('要列出的目录的绝对路径'),
-            recursive: z.boolean().optional().default(false).describe('是否递归列出子目录，默认为 false'),
-            includeHidden: z.boolean().optional().default(false).describe('是否包含隐藏文件（以 . 开头），默认为 false')
+            dirPath: z.string().describe('目录的绝对路径'),
+            recursive: z.boolean().optional().default(false).describe('是否递归列出子目录，默认 false'),
+            includeHidden: z.boolean().optional().default(false).describe('是否包含隐藏文件，默认 false'),
         }) as any,
         func: async ({ dirPath, recursive = false, includeHidden = false }: any): Promise<MCPToolResult> => {
             try {
-                const validation = validatePath(dirPath);
-                if (!validation.valid) {
-                    return createErrorResult(validation.error!);
-                }
-
-                const absolutePath = validation.absolutePath!;
-
-                if (!fs.existsSync(absolutePath)) {
-                    return createErrorResult(`目录不存在: ${absolutePath}`);
-                }
-
-                const stat = fs.statSync(absolutePath);
-                if (!stat.isDirectory()) {
-                    return createErrorResult(`路径不是目录: ${absolutePath}`);
-                }
-
-                // 递归读取目录结构
-                const readDirectory = (currentPath: string): any[] => {
-                    const items: any[] = [];
-                    const entries = fs.readdirSync(currentPath, { withFileTypes: true });
-
-                    entries.forEach((entry) => {
-                        // 过滤隐藏文件
-                        if (!includeHidden && entry.name.startsWith('.')) {
-                            return;
-                        }
-
-                        const fullPath = path.join(currentPath, entry.name);
-
-                        if (entry.isDirectory()) {
-                            const item: any = {
-                                name: entry.name,
-                                type: 'directory',
-                                path: fullPath
-                            };
-
-                            if (recursive) {
-                                item.children = readDirectory(fullPath);
+                const abs = checkDir(dirPath);
+                function read(cur: string): any[] {
+                    return fs.readdirSync(cur, { withFileTypes: true })
+                        .filter(e => includeHidden || !e.name.startsWith('.'))
+                        .map(e => {
+                            const full = path.join(cur, e.name);
+                            if (e.isDirectory()) {
+                                const item: any = { name: e.name, type: 'directory', path: full };
+                                if (recursive) item.children = read(full);
+                                return item;
                             }
-
-                            items.push(item);
-                        } else {
-                            const fileStat = fs.statSync(fullPath);
-                            items.push({
-                                name: entry.name,
-                                type: 'file',
-                                path: fullPath,
-                                size: fileStat.size,
-                                modified: fileStat.mtime
-                            });
-                        }
-                    });
-
-                    return items;
-                };
-
-                const items = readDirectory(absolutePath);
-
-                return createSuccessResult(
-                    createTextContent(JSON.stringify(items, null, 2))
-                );
-
-            } catch (error: any) {
-                logger.error(`Error listing directory ${dirPath}: ${error.message}`);
-                return createErrorResult(error.message);
+                            const s = fs.statSync(full);
+                            return { name: e.name, type: 'file', path: full, size: s.size, sizeFormatted: formatSize(s.size), modified: s.mtime };
+                        });
+                }
+                return createSuccessResult(createTextContent(JSON.stringify(read(abs), null, 2)));
+            } catch (e: any) {
+                logger.error(`list_directory ${dirPath}: ${e.message}`);
+                return createErrorResult(e.message);
             }
         }
     });
 }
 
-/**
- * 创建删除文件的工具
- */
+/** 删除文件 */
 export function createDeleteFileTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'delete_file',
-        description: '删除指定的文件。注意：此操作不可逆！路径必须是绝对路径。',
-        schema: z.object({
-            filePath: z.string().describe('要删除的文件的绝对路径')
-        }) as any,
+        description: '删除指定文件。此操作不可逆！路径必须是绝对路径。',
+        schema: z.object({ filePath: z.string().describe('要删除的文件的绝对路径') }) as any,
         func: async ({ filePath }: any): Promise<MCPToolResult> => {
             try {
-                const validation = validatePath(filePath);
-                if (!validation.valid) {
-                    return createErrorResult(validation.error!);
-                }
-
-                const absolutePath = validation.absolutePath!;
-
-                if (!fs.existsSync(absolutePath)) {
-                    return createErrorResult(`文件不存在: ${absolutePath}`);
-                }
-
-                const stat = fs.statSync(absolutePath);
-                if (!stat.isFile()) {
-                    return createErrorResult(`路径不是文件: ${absolutePath}`);
-                }
-
-                fs.unlinkSync(absolutePath);
-
-                return createSuccessResult(
-                    createTextContent(`文件删除成功: ${absolutePath}`)
-                );
-
-            } catch (error: any) {
-                logger.error(`Error deleting file ${filePath}: ${error.message}`);
-                return createErrorResult(error.message);
+                const { abs } = checkFile(filePath);
+                fs.unlinkSync(abs);
+                return createSuccessResult(createTextContent(`文件删除成功: ${abs}`));
+            } catch (e: any) {
+                logger.error(`delete_file ${filePath}: ${e.message}`);
+                return createErrorResult(e.message);
             }
         }
     });
 }
 
-/**
- * 创建检查文件/目录是否存在的工具
- */
+/** 检查文件/目录是否存在（含权限信息）*/
 export function createFileExistsTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'file_exists',
-        description: '检查文件或目录是否存在，并返回详细信息（类型、大小、修改时间等）。注意：路径必须是绝对路径。',
-        schema: z.object({
-            filePath: z.string().describe('要检查的文件或目录的绝对路径')
-        }) as any,
+        description: '检查文件或目录是否存在，返回类型、大小、时间戳、权限等详细信息。路径必须是绝对路径。',
+        schema: z.object({ filePath: z.string().describe('要检查的文件或目录的绝对路径') }) as any,
         func: async ({ filePath }: any): Promise<MCPToolResult> => {
             try {
-                const validation = validatePath(filePath);
-                if (!validation.valid) {
-                    return createErrorResult(validation.error!);
+                const abs = resolvePath(filePath);
+                if (!fs.existsSync(abs)) {
+                    return createSuccessResult(createTextContent(JSON.stringify({ exists: false, filePath: abs }, null, 2)));
                 }
-
-                const absolutePath = validation.absolutePath!;
-
-                if (!fs.existsSync(absolutePath)) {
-                    return createSuccessResult(
-                        createTextContent(JSON.stringify({ exists: false, filePath: absolutePath }, null, 2))
-                    );
-                }
-
-                const stat = fs.statSync(absolutePath);
-                const fileType = stat.isFile() ? 'file' : stat.isDirectory() ? 'directory' : 'other';
-                const fileInfo = {
+                const s = fs.statSync(abs);
+                return createSuccessResult(createTextContent(JSON.stringify({
                     exists: true,
-                    filePath: absolutePath,
-                    type: fileType,
-                    size: stat.size,
-                    created: stat.birthtime,
-                    modified: stat.mtime,
-                    accessed: stat.atime
-                };
-
-                return createSuccessResult(
-                    createTextContent(JSON.stringify(fileInfo, null, 2))
-                );
-
-            } catch (error: any) {
-                logger.error(`Error checking file ${filePath}: ${error.message}`);
-                return createErrorResult(error.message);
+                    filePath: abs,
+                    type: s.isFile() ? 'file' : s.isDirectory() ? 'directory' : 'other',
+                    size: s.size,
+                    sizeFormatted: formatSize(s.size),
+                    permissions: s.mode.toString(8).slice(-3),
+                    created: s.birthtime,
+                    modified: s.mtime,
+                    accessed: s.atime,
+                }, null, 2)));
+            } catch (e: any) {
+                logger.error(`file_exists ${filePath}: ${e.message}`);
+                return createErrorResult(e.message);
             }
         }
     });
 }
 
-/**
- * 创建目录的工具
- */
+/** 创建目录 */
 export function createDirectoryTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'create_directory',
-        description: '创建新目录。如果父目录不存在会自动创建。注意：路径必须是绝对路径。',
+        description: '创建新目录，自动创建缺失的父目录。路径必须是绝对路径。',
         schema: z.object({
             dirPath: z.string().describe('要创建的目录的绝对路径'),
-            recursive: z.boolean().optional().default(true).describe('是否递归创建父目录，默认为 true')
+            recursive: z.boolean().optional().default(true).describe('是否递归创建父目录，默认 true'),
         }) as any,
         func: async ({ dirPath, recursive = true }: any): Promise<MCPToolResult> => {
             try {
-                const validation = validatePath(dirPath);
-                if (!validation.valid) {
-                    return createErrorResult(validation.error!);
-                }
-
-                const absolutePath = validation.absolutePath!;
-
-                if (fs.existsSync(absolutePath)) {
-                    return createErrorResult(`目录已存在: ${absolutePath}`);
-                }
-
-                fs.mkdirSync(absolutePath, { recursive });
-
-                return createSuccessResult(
-                    createTextContent(`目录创建成功: ${absolutePath}`)
-                );
-
-            } catch (error: any) {
-                logger.error(`Error creating directory ${dirPath}: ${error.message}`);
-                return createErrorResult(error.message);
+                const abs = resolvePath(dirPath);
+                if (fs.existsSync(abs)) return createErrorResult(`目录已存在: ${abs}`);
+                fs.mkdirSync(abs, { recursive });
+                return createSuccessResult(createTextContent(`目录创建成功: ${abs}`));
+            } catch (e: any) {
+                logger.error(`create_directory ${dirPath}: ${e.message}`);
+                return createErrorResult(e.message);
             }
         }
     });
 }
 
-/**
- * 删除目录的工具
- */
+/** 删除目录 */
 export function createDeleteDirectoryTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'delete_directory',
-        description: '删除目录及其所有内容。注意：此操作不可逆！路径必须是绝对路径。',
+        description: '删除目录及其所有内容。此操作不可逆！路径必须是绝对路径。',
         schema: z.object({
             dirPath: z.string().describe('要删除的目录的绝对路径'),
-            recursive: z.boolean().optional().default(true).describe('是否递归删除所有内容，默认为 true')
+            recursive: z.boolean().optional().default(true).describe('是否递归删除，默认 true'),
         }) as any,
         func: async ({ dirPath, recursive = true }: any): Promise<MCPToolResult> => {
             try {
-                const validation = validatePath(dirPath);
-                if (!validation.valid) {
-                    return createErrorResult(validation.error!);
-                }
-
-                const absolutePath = validation.absolutePath!;
-
-                if (!fs.existsSync(absolutePath)) {
-                    return createErrorResult(`目录不存在: ${absolutePath}`);
-                }
-
-                const stat = fs.statSync(absolutePath);
-                if (!stat.isDirectory()) {
-                    return createErrorResult(`路径不是目录: ${absolutePath}`);
-                }
-
-                fs.rmSync(absolutePath, { recursive, force: true });
-
-                return createSuccessResult(
-                    createTextContent(`目录删除成功: ${absolutePath}`)
-                );
-
-            } catch (error: any) {
-                logger.error(`Error deleting directory ${dirPath}: ${error.message}`);
-                return createErrorResult(error.message);
+                const abs = checkDir(dirPath);
+                fs.rmSync(abs, { recursive, force: true });
+                return createSuccessResult(createTextContent(`目录删除成功: ${abs}`));
+            } catch (e: any) {
+                logger.error(`delete_directory ${dirPath}: ${e.message}`);
+                return createErrorResult(e.message);
             }
         }
     });
 }
 
-/**
- * 移动/重命名文件或目录的工具
- */
+/** 移动/重命名文件或目录 */
 export function createMoveFileTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'move_file',
-        description: '移动或重命名文件/目录。注意：源路径和目标路径都必须是绝对路径。',
+        description: '移动或重命名文件/目录。源路径和目标路径都必须是绝对路径。',
         schema: z.object({
             sourcePath: z.string().describe('源文件或目录的绝对路径'),
             destPath: z.string().describe('目标路径的绝对路径'),
-            overwrite: z.boolean().optional().default(false).describe('如果目标已存在是否覆盖，默认为 false')
+            overwrite: z.boolean().optional().default(false).describe('目标已存在时是否覆盖，默认 false'),
         }) as any,
         func: async ({ sourcePath, destPath, overwrite = false }: any): Promise<MCPToolResult> => {
             try {
-                const sourceValidation = validatePath(sourcePath);
-                if (!sourceValidation.valid) {
-                    return createErrorResult(`源路径: ${sourceValidation.error}`);
-                }
-
-                const destValidation = validatePath(destPath);
-                if (!destValidation.valid) {
-                    return createErrorResult(`目标路径: ${destValidation.error}`);
-                }
-
-                const absoluteSource = sourceValidation.absolutePath!;
-                const absoluteDest = destValidation.absolutePath!;
-
-                if (!fs.existsSync(absoluteSource)) {
-                    return createErrorResult(`源路径不存在: ${absoluteSource}`);
-                }
-
-                if (fs.existsSync(absoluteDest) && !overwrite) {
-                    return createErrorResult(`目标路径已存在: ${absoluteDest}。设置 overwrite=true 以覆盖。`);
-                }
-
-                // 确保目标目录存在
-                const destDir = path.dirname(absoluteDest);
-                if (!fs.existsSync(destDir)) {
-                    fs.mkdirSync(destDir, { recursive: true });
-                }
-
-                fs.renameSync(absoluteSource, absoluteDest);
-
-                return createSuccessResult(
-                    createTextContent(`移动成功: ${absoluteSource} -> ${absoluteDest}`)
-                );
-
-            } catch (error: any) {
-                logger.error(`Error moving ${sourcePath} to ${destPath}: ${error.message}`);
-                return createErrorResult(error.message);
+                const src = resolvePath(sourcePath);
+                const dst = resolvePath(destPath);
+                if (!fs.existsSync(src)) throw new Error(`源路径不存在: ${src}`);
+                if (fs.existsSync(dst) && !overwrite) return createErrorResult(`目标路径已存在: ${dst}（设置 overwrite=true 可覆盖）`);
+                const destDir = path.dirname(dst);
+                if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+                fs.renameSync(src, dst);
+                return createSuccessResult(createTextContent(`移动成功: ${src} -> ${dst}`));
+            } catch (e: any) {
+                logger.error(`move_file ${sourcePath} -> ${destPath}: ${e.message}`);
+                return createErrorResult(e.message);
             }
         }
     });
 }
 
-/**
- * 复制文件的工具
- */
+/** 复制文件 */
 export function createCopyFileTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'copy_file',
-        description: '复制文件。注意：源路径和目标路径都必须是绝对路径。',
+        description: '复制文件。源路径和目标路径都必须是绝对路径。',
         schema: z.object({
             sourcePath: z.string().describe('源文件的绝对路径'),
             destPath: z.string().describe('目标文件的绝对路径'),
-            overwrite: z.boolean().optional().default(false).describe('如果目标已存在是否覆盖，默认为 false')
+            overwrite: z.boolean().optional().default(false).describe('目标已存在时是否覆盖，默认 false'),
         }) as any,
         func: async ({ sourcePath, destPath, overwrite = false }: any): Promise<MCPToolResult> => {
             try {
-                const sourceValidation = validatePath(sourcePath);
-                if (!sourceValidation.valid) {
-                    return createErrorResult(`源路径: ${sourceValidation.error}`);
-                }
-
-                const destValidation = validatePath(destPath);
-                if (!destValidation.valid) {
-                    return createErrorResult(`目标路径: ${destValidation.error}`);
-                }
-
-                const absoluteSource = sourceValidation.absolutePath!;
-                const absoluteDest = destValidation.absolutePath!;
-
-                if (!fs.existsSync(absoluteSource)) {
-                    return createErrorResult(`源文件不存在: ${absoluteSource}`);
-                }
-
-                const stat = fs.statSync(absoluteSource);
-                if (!stat.isFile()) {
-                    return createErrorResult(`源路径不是文件: ${absoluteSource}`);
-                }
-
-                if (fs.existsSync(absoluteDest) && !overwrite) {
-                    return createErrorResult(`目标文件已存在: ${absoluteDest}。设置 overwrite=true 以覆盖。`);
-                }
-
-                // 确保目标目录存在
-                const destDir = path.dirname(absoluteDest);
-                if (!fs.existsSync(destDir)) {
-                    fs.mkdirSync(destDir, { recursive: true });
-                }
-
-                fs.copyFileSync(absoluteSource, absoluteDest);
-
-                return createSuccessResult(
-                    createTextContent(`复制成功: ${absoluteSource} -> ${absoluteDest}`)
-                );
-
-            } catch (error: any) {
-                logger.error(`Error copying ${sourcePath} to ${destPath}: ${error.message}`);
-                return createErrorResult(error.message);
+                const { abs: src } = checkFile(sourcePath);
+                const dst = resolvePath(destPath);
+                if (fs.existsSync(dst) && !overwrite) return createErrorResult(`目标文件已存在: ${dst}（设置 overwrite=true 可覆盖）`);
+                const destDir = path.dirname(dst);
+                if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+                fs.copyFileSync(src, dst);
+                return createSuccessResult(createTextContent(`复制成功: ${src} -> ${dst}`));
+            } catch (e: any) {
+                logger.error(`copy_file ${sourcePath} -> ${destPath}: ${e.message}`);
+                return createErrorResult(e.message);
             }
         }
     });
 }
 
-/**
- * 创建所有文件系统工具
- * @param config 文件系统工具配置
- */
+/** 创建所有文件系统工具 */
 export function createFileSystemTools(config: FileSystemToolsConfig = { maxFileSize: 10 * 1024 * 1024 }): StructuredToolInterface[] {
     return [
-        // 基础读写
+        // 读取
         createReadFileTool(config),
         createReadFileLinesTool(config),
+        createReadMediaFileTool(),
+        // 写入/编辑
         createWriteFileTool(),
+        createEditFileTool(),
         createAppendFileTool(),
-
-        // 搜索和替换
-        createReplaceInFileTool(config),
+        // 搜索
         createSearchInFileTool(config),
         createSearchFilesTool(),
         createGrepFilesTool(config),
-
-        // 目录操作
+        // 目录
         createListDirectoryTool(),
         createDirectoryTool(),
         createDeleteDirectoryTool(),
-
         // 文件操作
         createDeleteFileTool(),
         createMoveFileTool(),
         createCopyFileTool(),
-        createFileExistsTool()
+        createFileExistsTool(),
     ];
 }
