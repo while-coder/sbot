@@ -1,10 +1,10 @@
 import { reactive } from 'vue'
-import type { Settings, McpEntry, SkillItem } from './types'
+import type { Settings, McpEntry, McpBuiltin, SkillItem } from './types'
 
 export const store = reactive<{
   settings: Settings
   mcpServers: Record<string, McpEntry>
-  mcpBuiltins: string[]
+  mcpBuiltins: McpBuiltin[]
   globalSkills: SkillItem[]
   skillBuiltins: SkillItem[]
 }>({

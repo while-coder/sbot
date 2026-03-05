@@ -17,41 +17,33 @@ export enum BuiltinProvider {
 export const globalAgentToolService = new AgentToolService();
 
 export function initGlobalAgentToolService() {
-    globalAgentToolService.registerToolFactory(BuiltinProvider.Command, async () => createCommandTools());
-    globalAgentToolService.registerToolFactory(BuiltinProvider.FileSystem, async () => createFileSystemTools());
-    globalAgentToolService.registerToolFactory(BuiltinProvider.Scheduler, async () => createSchedulerTools());
+    globalAgentToolService.registerToolFactory(BuiltinProvider.Command, async () => createCommandTools(), '命令执行');
+    globalAgentToolService.registerToolFactory(BuiltinProvider.FileSystem, async () => createFileSystemTools(), '文件系统操作');
+    globalAgentToolService.registerToolFactory(BuiltinProvider.Scheduler, async () => createSchedulerTools(), '定时任务管理');
     globalAgentToolService.registerMcpServers({
         [BuiltinProvider.Playwright]: {
             "command": "npx.cmd",
-            "args": [
-                "@playwright/mcp@latest"
-            ]
+            "args": ["@playwright/mcp@latest"],
+            "description": "Playwright 浏览器自动化",
         },
         [BuiltinProvider.ChromeDevTools]: {
             "type": "stdio",
             "command": "npx",
-            "args": [
-                "--registry",
-                "https://registry.npmjs.org",
-                "chrome-devtools-mcp@0.18.1"
-            ]
+            "args": ["-y", "chrome-devtools-mcp@latest"],
+            "description": "Chrome DevTools 调试",
         },
         [BuiltinProvider.Markitdown]: {
             "type": "stdio",
             "command": "uvx",
-            "args": [
-                "markitdown-mcp@0.0.1a4"
-            ]
+            "args": ["markitdown-mcp@0.0.1a4"],
+            "description": "文档转 Markdown",
         },
         [BuiltinProvider.DesktopCommander]: {
             "type": "stdio",
             "command": "npx",
-            "args": [
-                "--registry",
-                "https://registry.npmjs.org",
-                "@wonderwhy-er/desktop-commander@0.2.38"
-            ]
-        }
+            "args": ["-y", "@wonderwhy-er/desktop-commander@latest"],
+            "description": "桌面操作与终端",
+        },
     })
     globalAgentToolService.registerMcpServers(config.getGlobalMcpServers());
 }

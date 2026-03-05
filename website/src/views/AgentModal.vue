@@ -13,7 +13,7 @@ const modelOptions  = computed(() => Object.keys(store.settings.models   || {}))
 const memoryOptions = computed(() => Object.keys(store.settings.memories || {}))
 const saverOptions  = computed(() => Object.keys(store.settings.savers   || {}))
 const agentOptions  = computed(() => Object.keys(store.settings.agents   || {}))
-const mcpOptions    = computed(() => [...store.mcpBuiltins, ...Object.keys(store.mcpServers)])
+const mcpOptions    = computed(() => [...store.mcpBuiltins.map(b => b.name), ...Object.keys(store.mcpServers)])
 const skillOptions  = computed(() => [
   ...store.skillBuiltins.map(s => s.name),
   ...store.globalSkills.map(s => s.name),

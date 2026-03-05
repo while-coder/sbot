@@ -35,6 +35,11 @@ export interface SubAgentRef {
   desc: string
 }
 
+export interface McpBuiltin {
+  name: string
+  description?: string
+}
+
 export interface McpEntry {
   type: string
   url?: string

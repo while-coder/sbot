@@ -165,7 +165,7 @@ class HttpServer {
             const oldName = req.params.name as string;
             const { name: newName } = req.body as { name: string };
             if (!newName?.trim()) throwBad('新名称不能为空');
-            if (oldName === newName) return { builtins: Object.values(BuiltinProvider), servers: config.getGlobalMcpServers() };
+            if (oldName === newName) return { builtins: Object.values(BuiltinProvider).map(n => ({ name: n, description: globalAgentToolService.getProviderDescription(n) })), servers: config.getGlobalMcpServers() };
 
             const servers = config.getGlobalMcpServers();
             if (!servers[oldName]) throwBad(`MCP "${oldName}" 不存在`);
@@ -189,12 +189,12 @@ class HttpServer {
             }
 
             refreshGlobalAgentToolService();
-            return { builtins: Object.values(BuiltinProvider), servers: config.getGlobalMcpServers() };
+            return { builtins: Object.values(BuiltinProvider).map(n => ({ name: n, description: globalAgentToolService.getProviderDescription(n) })), servers: config.getGlobalMcpServers() };
         }));
 
         // ===== MCP =====
         app.get('/api/mcp', api(() => ({
-            builtins: Object.values(BuiltinProvider),
+            builtins: Object.values(BuiltinProvider).map(n => ({ name: n, description: globalAgentToolService.getProviderDescription(n) })),
             servers: config.getGlobalMcpServers(),
         })));
 
@@ -206,7 +206,7 @@ class HttpServer {
             ) as MCPServers;
             config.saveMcpServers(servers);
             refreshGlobalAgentToolService();
-            return { builtins: Object.values(BuiltinProvider), servers: config.getGlobalMcpServers() };
+            return { builtins: Object.values(BuiltinProvider).map(n => ({ name: n, description: globalAgentToolService.getProviderDescription(n) })), servers: config.getGlobalMcpServers() };
         }));
 
         app.post('/api/mcp/tools', api(async req => {

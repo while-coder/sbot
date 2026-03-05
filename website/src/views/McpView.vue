@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
-import type { McpEntry, McpTool } from '@/types'
+import type { McpEntry, McpBuiltin, McpTool } from '@/types'
 
 const route = useRoute()
 const router = useRouter()
@@ -15,7 +15,7 @@ const agentName = computed(() => route.params.agentName as string | undefined)
 const isAgentMode = computed(() => !!agentName.value)
 
 const servers = ref<Record<string, McpEntry>>({})
-const builtins = ref<string[]>([])
+const builtins = ref<McpBuiltin[]>([])
 
 // Agent-mode globals: selected global/builtin MCP names + their resolved info
 const agentGlobals = ref<string[]>([])
@@ -43,11 +43,11 @@ async function load() {
       if (selectedGlobals.length > 0) {
         try {
           const globalRes = await apiFetch('/api/mcp')
-          const allBuiltins: string[] = globalRes.data?.builtins || []
+          const allBuiltins: McpBuiltin[] = globalRes.data?.builtins || []
           const allServers: Record<string, McpEntry> = globalRes.data?.servers || {}
           const map: Record<string, GlobalInfo> = {}
           for (const name of selectedGlobals) {
-            if (allBuiltins.includes(name)) {
+            if (allBuiltins.some(b => b.name === name)) {
               map[name] = { type: 'builtin', isBuiltin: true }
             } else if (allServers[name]) {
               map[name] = { ...allServers[name], isBuiltin: false }
@@ -353,20 +353,21 @@ onMounted(load)
     <div class="page-content">
       <table>
         <thead>
-          <tr><th>名称</th><th>类型</th><th>地址/命令</th><th>操作</th></tr>
+          <tr><th>名称</th><th>描述</th><th>类型</th><th>地址/命令</th><th>操作</th></tr>
         </thead>
         <tbody>
           <!-- Builtin rows (global mode only) -->
-          <tr v-for="b in builtins" :key="'builtin:' + b">
+          <tr v-for="b in builtins" :key="'builtin:' + b.name">
             <td style="font-family:monospace">
-              {{ b }}
+              {{ b.name }}
               <span style="margin-left:6px;background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">内置</span>
             </td>
+            <td style="color:#64748b;font-size:12px">{{ b.description || '—' }}</td>
             <td>builtin</td>
             <td style="color:#94a3b8">—</td>
             <td>
               <div class="ops-cell">
-                <button class="btn-outline btn-sm" @click="viewTools(b)">查看工具</button>
+                <button class="btn-outline btn-sm" @click="viewTools(b.name)">查看工具</button>
               </div>
             </td>
           </tr>
@@ -380,6 +381,7 @@ onMounted(load)
                 <span v-else
                   style="margin-left:6px;background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">全局</span>
               </td>
+              <td style="color:#94a3b8;font-size:12px">—</td>
               <td>{{ agentGlobalMap[name]?.type || '-' }}</td>
               <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#94a3b8">
                 {{ agentGlobalMap[name]?.isBuiltin ? '—' : serverAddr(agentGlobalMap[name] as McpEntry) }}
@@ -393,10 +395,11 @@ onMounted(load)
           </template>
           <!-- Empty state -->
           <tr v-if="builtins.length === 0 && agentGlobals.length === 0 && Object.keys(servers).length === 0">
-            <td colspan="4" style="text-align:center;color:#94a3b8;padding:40px">暂无 MCP 配置</td>
+            <td colspan="5" style="text-align:center;color:#94a3b8;padding:40px">暂无 MCP 配置</td>
           </tr>
           <tr v-for="(s, name) in servers" :key="name">
             <td style="font-family:monospace">{{ name }}</td>
+            <td style="color:#64748b;font-size:12px">{{ (s as any).description || '—' }}</td>
             <td>{{ s.type }}</td>
             <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ serverAddr(s) }}</td>
             <td>
