@@ -42,8 +42,12 @@ async function save() {
   try {
     const { name, ...config } = form.value
     if (!store.settings.embeddings) store.settings.embeddings = {}
-    if (editingName.value && editingName.value !== name) {
-      delete store.settings.embeddings[editingName.value]
+    const oldName = editingName.value
+    if (oldName && oldName !== name) {
+      delete store.settings.embeddings[oldName]
+      for (const mem of Object.values(store.settings.memories || {})) {
+        if (mem.embedding === oldName) mem.embedding = name
+      }
     }
     store.settings.embeddings[name] = config
     await apiFetch('/api/settings', 'PUT', store.settings)
@@ -115,7 +119,7 @@ async function refresh() {
         <div class="modal-body">
           <div class="form-group">
             <label>名称 (唯一标识) *</label>
-            <input v-model="form.name" :disabled="!!editingName" placeholder="如 openai-ada" />
+            <input v-model="form.name" placeholder="如 openai-ada" />
           </div>
           <div class="form-group">
             <label>Provider</label>

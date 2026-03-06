@@ -93,9 +93,9 @@ async function save() {
     const { name } = form.value
     const config: Agent = { type }
 
+    if (form.value.systemPrompt) config.systemPrompt = form.value.systemPrompt
     if (type === 'single') {
       if (form.value.model)               config.model        = form.value.model
-      if (form.value.systemPrompt)        config.systemPrompt = form.value.systemPrompt
       if (form.value.selectedMcp.length)  config.mcp          = form.value.selectedMcp
       if (form.value.selectedSkills.length) config.skills     = form.value.selectedSkills
     } else if (type === 'react') {
@@ -221,7 +221,7 @@ defineExpose({ open })
         </div>
 
         <!-- Memory & Saver (all types) -->
-        <div class="form-section">
+        <div class="form-nodes-grid">
           <div class="form-group">
             <label>记忆配置</label>
             <select v-model="form.memory">
@@ -238,6 +238,12 @@ defineExpose({ open })
           </div>
         </div>
 
+        <!-- 系统提示词（所有类型） -->
+        <div class="form-group">
+          <label>系统提示词</label>
+          <textarea v-model="form.systemPrompt" rows="3" placeholder="可选" />
+        </div>
+
         <!-- Single-only fields -->
         <template v-if="form.type === 'single'">
           <div class="form-group">
@@ -247,46 +253,38 @@ defineExpose({ open })
               <option v-for="m in modelOptions" :key="m" :value="m">{{ m }}</option>
             </select>
           </div>
-          <div class="form-group">
-            <label>系统提示词</label>
-            <textarea v-model="form.systemPrompt" rows="3" placeholder="可选" />
-          </div>
         </template>
 
         <!-- ReAct fields -->
         <template v-else-if="form.type === 'react'">
-          <div class="form-group">
-            <label>最大迭代次数</label>
-            <input v-model.number="form.maxIterations" type="number" min="1" max="50" placeholder="5" />
-          </div>
           <div class="form-section">
-            <div class="form-section-title">Think 节点</div>
-            <div class="form-group">
-              <label>Think Agent *</label>
-              <select v-model="form.think">
-                <option value="">请选择</option>
-                <option v-for="a in agentOptions" :key="a" :value="a">{{ a }}</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-section">
-            <div class="form-section-title">Reflect 节点</div>
-            <div class="form-group">
-              <label>Reflect 模型 *</label>
-              <select v-model="form.reflect">
-                <option value="">请选择</option>
-                <option v-for="m in modelOptions" :key="m" :value="m">{{ m }}</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-section">
-            <div class="form-section-title">Summarizer 节点</div>
-            <div class="form-group">
-              <label>Summarizer 模型 *</label>
-              <select v-model="form.summarizer">
-                <option value="">请选择</option>
-                <option v-for="m in modelOptions" :key="m" :value="m">{{ m }}</option>
-              </select>
+            <div class="form-section-title">节点配置</div>
+            <div class="form-nodes-grid">
+              <div class="form-group">
+                <label>最大迭代次数</label>
+                <input v-model.number="form.maxIterations" type="number" min="1" max="50" placeholder="5" />
+              </div>
+              <div class="form-group">
+                <label>Think Agent *</label>
+                <select v-model="form.think">
+                  <option value="">请选择</option>
+                  <option v-for="a in agentOptions" :key="a" :value="a">{{ a }}</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Reflect 模型 *</label>
+                <select v-model="form.reflect">
+                  <option value="">请选择</option>
+                  <option v-for="m in modelOptions" :key="m" :value="m">{{ m }}</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Summarizer 模型 *</label>
+                <select v-model="form.summarizer">
+                  <option value="">请选择</option>
+                  <option v-for="m in modelOptions" :key="m" :value="m">{{ m }}</option>
+                </select>
+              </div>
             </div>
           </div>
           <div class="form-section">
@@ -310,38 +308,34 @@ defineExpose({ open })
 
         <!-- Supervisor fields -->
         <template v-else-if="form.type === 'supervisor'">
-          <div class="form-group">
-            <label>最大调度轮次</label>
-            <input v-model.number="form.maxRounds" type="number" min="1" max="50" placeholder="10" />
-          </div>
           <div class="form-section">
-            <div class="form-section-title">Supervisor 节点</div>
-            <div class="form-group">
-              <label>Supervisor Agent *</label>
-              <select v-model="form.supervisor">
-                <option value="">请选择</option>
-                <option v-for="a in agentOptions" :key="a" :value="a">{{ a }}</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-section">
-            <div class="form-section-title">Summarizer 节点</div>
-            <div class="form-group">
-              <label>Summarizer 模型 *</label>
-              <select v-model="form.summarizer">
-                <option value="">请选择</option>
-                <option v-for="m in modelOptions" :key="m" :value="m">{{ m }}</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-section">
-            <div class="form-section-title">Finalize 节点</div>
-            <div class="form-group">
-              <label>Finalize 模型 *</label>
-              <select v-model="form.finalize">
-                <option value="">请选择</option>
-                <option v-for="m in modelOptions" :key="m" :value="m">{{ m }}</option>
-              </select>
+            <div class="form-section-title">节点配置</div>
+            <div class="form-nodes-grid">
+              <div class="form-group">
+                <label>最大调度轮次</label>
+                <input v-model.number="form.maxRounds" type="number" min="1" max="50" placeholder="10" />
+              </div>
+              <div class="form-group">
+                <label>Supervisor Agent *</label>
+                <select v-model="form.supervisor">
+                  <option value="">请选择</option>
+                  <option v-for="a in agentOptions" :key="a" :value="a">{{ a }}</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Summarizer 模型 *</label>
+                <select v-model="form.summarizer">
+                  <option value="">请选择</option>
+                  <option v-for="m in modelOptions" :key="m" :value="m">{{ m }}</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Finalize 模型 *</label>
+                <select v-model="form.finalize">
+                  <option value="">请选择</option>
+                  <option v-for="m in modelOptions" :key="m" :value="m">{{ m }}</option>
+                </select>
+              </div>
             </div>
           </div>
           <div class="form-section">
@@ -432,3 +426,11 @@ defineExpose({ open })
     </div>
   </div>
 </template>
+
+<style scoped>
+.form-nodes-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0 16px;
+}
+</style>

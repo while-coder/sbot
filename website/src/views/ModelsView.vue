@@ -44,8 +44,20 @@ async function save() {
   try {
     const { name, ...config } = form.value
     if (!store.settings.models) store.settings.models = {}
-    if (editingName.value && editingName.value !== name) {
-      delete store.settings.models[editingName.value]
+    const oldName = editingName.value
+    if (oldName && oldName !== name) {
+      delete store.settings.models[oldName]
+      for (const agent of Object.values(store.settings.agents || {})) {
+        if (agent.model      === oldName) agent.model      = name
+        if (agent.reflect    === oldName) agent.reflect    = name
+        if (agent.summarizer === oldName) agent.summarizer = name
+        if (agent.finalize   === oldName) agent.finalize   = name
+      }
+      for (const mem of Object.values(store.settings.memories || {})) {
+        if (mem.evaluator  === oldName) mem.evaluator  = name
+        if (mem.extractor  === oldName) mem.extractor  = name
+        if (mem.compressor === oldName) mem.compressor = name
+      }
     }
     store.settings.models[name] = config
     if (config.temperature === undefined || config.temperature === null) delete config.temperature
@@ -119,7 +131,7 @@ async function refresh() {
         <div class="modal-body">
           <div class="form-group">
             <label>名称 (唯一标识) *</label>
-            <input v-model="form.name" :disabled="!!editingName" placeholder="如 openai-gpt4" />
+            <input v-model="form.name" placeholder="如 openai-gpt4" />
           </div>
           <div class="form-group">
             <label>Provider</label>

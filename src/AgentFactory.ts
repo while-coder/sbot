@@ -39,13 +39,13 @@ export class AgentFactory {
 
         await this.registerMemoryService(container, agentEntry.memory);
         await this.registerSaverService(container, agentEntry.saver);
-        const { systemPrompt, mcp, skills } = agentEntry as SingleAgentEntry;
+        const { mcp, skills } = agentEntry as SingleAgentEntry;
         await this.registerSkillService(container, agentName, skills);
         await this.registerToolService(container, agentName, mcp);
 
         const systemPrompts = [...(extraPrompts ?? [])];
-        if (systemPrompt)
-            systemPrompts.push(systemPrompt);
+        if (agentEntry.systemPrompt)
+            systemPrompts.push(agentEntry.systemPrompt);
         const createAgentFn: CreateAgentFn = (name, subContainer) =>
             AgentFactory.create(name, subContainer, extraPrompts);
         const agentType = agentEntry.type || AgentMode.Single;
