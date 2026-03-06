@@ -32,6 +32,7 @@ export class AgentFactory {
     static async create(
         agentName: string,
         container: ServiceContainer,
+        first: boolean,
         extraPrompts?: string[],
     ): Promise<AgentServiceBase> {
         const agentEntry = config.settings.agents?.[agentName];
@@ -44,10 +45,10 @@ export class AgentFactory {
         await this.registerToolService(container, agentName, mcp);
 
         const systemPrompts = [...(extraPrompts ?? [])];
-        if (agentEntry.systemPrompt)
+        if (first && agentEntry.systemPrompt)
             systemPrompts.push(agentEntry.systemPrompt);
         const createAgentFn: CreateAgentFn = (name, subContainer) =>
-            AgentFactory.create(name, subContainer, extraPrompts);
+            AgentFactory.create(name, subContainer, false, systemPrompts);
         const agentType = agentEntry.type || AgentMode.Single;
 
         switch (agentType) {

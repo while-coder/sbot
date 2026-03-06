@@ -49,7 +49,7 @@ export class AgentRunner {
 
         logger.info(`使用 Agent [${resolvedAgentName}] (${agentEntry.type})`);
 
-        const agent = await AgentFactory.create(resolvedAgentName, container, extraPrompts);
+        const agent = await AgentFactory.create(resolvedAgentName, container, true, extraPrompts);
         try {
             await agent.stream(query, callbacks);
         } finally {
