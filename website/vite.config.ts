@@ -23,7 +23,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: '../client',
+    outDir: '../webui',
     emptyOutDir: true,
   },
 })

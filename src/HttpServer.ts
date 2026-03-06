@@ -106,11 +106,11 @@ class HttpServer {
         });
 
         // 静态文件
-        app.use('/client', express.static(path.resolve(__dirname, '../client')));
+        app.use('/webui', express.static(path.resolve(__dirname, '../webui')));
         app.use('/assets', express.static(path.resolve(__dirname, '../assets')));
 
-        // 根路径重定向到 /client
-        app.get('/', (_req, res) => res.redirect('/client/'));
+        // 根路径重定向到 /webui
+        app.get('/', (_req, res) => res.redirect('/webui/'));
 
         // ===== Settings =====
         app.get('/api/settings', api(() => config.settings));

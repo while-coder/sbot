@@ -5,6 +5,7 @@
 /.claude
 /node_modules
 /website/node_modules
+/webui
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
