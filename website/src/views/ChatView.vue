@@ -374,97 +374,95 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
-    <!-- Toolbar -->
-    <div class="page-toolbar">
-      <template v-if="activeSessionId">
-        <!-- Name (static) -->
-        <span class="toolbar-session-name">{{ sessions[activeSessionId]?.name || (activeSessionId as string).slice(0, 8) + '…' }}</span>
+  <div style="height:100%;display:flex;overflow:hidden">
 
-        <!-- Agent -->
-        <label class="toolbar-label">Agent</label>
-        <select
-          class="toolbar-select-sm"
-          :value="effectiveAgent"
-          @change="saveSession({ agent: ($event.target as HTMLSelectElement).value })"
+    <!-- Session sidebar (left, full height) -->
+    <div style="width:180px;border-right:1px solid #e8e6e3;display:flex;flex-direction:column;overflow:hidden;flex-shrink:0">
+      <div style="padding:6px 8px;border-bottom:1px solid #e8e6e3;flex-shrink:0">
+        <button class="btn-outline btn-sm" style="width:100%" @click="newSessionModal?.open()">+ 新建会话</button>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:4px">
+        <div
+          v-for="(s, id) in sessions"
+          :key="id"
+          class="session-item"
+          :class="{ active: activeSessionId === id }"
+          @click="switchSession(id as string)"
         >
-          <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }}</option>
-        </select>
-
-        <!-- Saver -->
-        <label class="toolbar-label">存储</label>
-        <select
-          class="toolbar-select-sm"
-          :value="effectiveSaver || ''"
-          @change="saveSession({ saver: ($event.target as HTMLSelectElement).value })"
-        >
-          <option v-for="s in saverOptions" :key="s.id" :value="s.id">{{ s.label }}</option>
-        </select>
-        <button v-if="effectiveSaver" class="chat-info-chip" @click="saverViewModal?.open(effectiveSaver!, 'session_' + activeSessionId)">查看</button>
-
-        <!-- Memory -->
-        <label class="toolbar-label">记忆</label>
-        <select
-          class="toolbar-select-sm"
-          :value="effectiveMemory || ''"
-          @change="saveSession({ memory: ($event.target as HTMLSelectElement).value || undefined })"
-        >
-          <option value="">(不使用)</option>
-          <option v-for="m in memoryOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-        </select>
-        <button v-if="effectiveMemory" class="chat-info-chip" @click="memoryViewModal?.open(effectiveMemory!)">查看</button>
-      </template>
-      <span v-else style="font-size:13px;color:#94a3b8">请选择或新建会话</span>
-      <button class="btn-outline btn-sm" style="margin-left:auto" @click="refreshHistory">刷新</button>
-      <button class="btn-danger btn-sm" :disabled="!effectiveSaver" @click="clearHistory">清除历史</button>
+          <div style="display:flex;align-items:center;gap:4px">
+            <div style="flex:1;min-width:0">
+              <input
+                v-if="editingSessionId === id"
+                ref="sessionNameInputEl"
+                v-model="editingSessionName"
+                class="session-name-input"
+                @click.stop
+                @blur="commitEditSessionName"
+                @keydown.enter.stop="commitEditSessionName"
+                @keydown.escape.stop="editingSessionId = null"
+              />
+              <div
+                v-else
+                class="session-item-name"
+                @dblclick.stop="startEditSessionName(id as string)"
+                title="双击编辑名称"
+              >{{ s.name || (id as string).slice(0, 8) + '…' }}</div>
+            </div>
+            <button
+              class="session-del-btn"
+              @click.stop="deleteSession(id as string)"
+              title="删除会话"
+            >×</button>
+          </div>
+        </div>
+        <div v-if="Object.keys(sessions).length === 0" style="text-align:center;color:#94a3b8;padding:20px 8px;font-size:12px">
+          暂无会话<br>点击上方新建
+        </div>
+      </div>
     </div>
 
-    <!-- Body: session sidebar + chat area -->
-    <div style="flex:1;display:flex;overflow:hidden">
+    <!-- Right panel: toolbar + chat -->
+    <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
 
-      <!-- Session sidebar -->
-      <div style="width:180px;border-right:1px solid #e8e6e3;display:flex;flex-direction:column;overflow:hidden;flex-shrink:0">
-        <div style="padding:6px 8px;border-bottom:1px solid #e8e6e3;flex-shrink:0">
-          <button class="btn-outline btn-sm" style="width:100%" @click="newSessionModal?.open()">+ 新建会话</button>
-        </div>
-        <div style="flex:1;overflow-y:auto;padding:4px">
-          <div
-            v-for="(s, id) in sessions"
-            :key="id"
-            class="session-item"
-            :class="{ active: activeSessionId === id }"
-            @click="switchSession(id as string)"
+      <!-- Toolbar -->
+      <div class="page-toolbar">
+        <template v-if="activeSessionId">
+          <!-- Agent -->
+          <label class="toolbar-label">Agent</label>
+          <select
+            class="toolbar-select-sm"
+            :value="effectiveAgent"
+            @change="saveSession({ agent: ($event.target as HTMLSelectElement).value })"
           >
-            <div style="display:flex;align-items:center;gap:4px">
-              <div style="flex:1;min-width:0">
-                <input
-                  v-if="editingSessionId === id"
-                  ref="sessionNameInputEl"
-                  v-model="editingSessionName"
-                  class="session-name-input"
-                  @click.stop
-                  @blur="commitEditSessionName"
-                  @keydown.enter.stop="commitEditSessionName"
-                  @keydown.escape.stop="editingSessionId = null"
-                />
-                <div
-                  v-else
-                  class="session-item-name"
-                  @dblclick.stop="startEditSessionName(id as string)"
-                  title="双击编辑名称"
-                >{{ s.name || (id as string).slice(0, 8) + '…' }}</div>
-              </div>
-              <button
-                class="session-del-btn"
-                @click.stop="deleteSession(id as string)"
-                title="删除会话"
-              >×</button>
-            </div>
-          </div>
-          <div v-if="Object.keys(sessions).length === 0" style="text-align:center;color:#94a3b8;padding:20px 8px;font-size:12px">
-            暂无会话<br>点击上方新建
-          </div>
-        </div>
+            <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }}</option>
+          </select>
+
+          <!-- Saver -->
+          <label class="toolbar-label">存储</label>
+          <select
+            class="toolbar-select-sm"
+            :value="effectiveSaver || ''"
+            @change="saveSession({ saver: ($event.target as HTMLSelectElement).value })"
+          >
+            <option v-for="s in saverOptions" :key="s.id" :value="s.id">{{ s.label }}</option>
+          </select>
+          <button v-if="effectiveSaver" class="chat-info-chip" @click="saverViewModal?.open(effectiveSaver!, 'session_' + activeSessionId)">查看</button>
+
+          <!-- Memory -->
+          <label class="toolbar-label">记忆</label>
+          <select
+            class="toolbar-select-sm"
+            :value="effectiveMemory || ''"
+            @change="saveSession({ memory: ($event.target as HTMLSelectElement).value || undefined })"
+          >
+            <option value="">(不使用)</option>
+            <option v-for="m in memoryOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
+          </select>
+          <button v-if="effectiveMemory" class="chat-info-chip" @click="memoryViewModal?.open(effectiveMemory!)">查看</button>
+        </template>
+        <span v-else style="font-size:13px;color:#94a3b8">请选择或新建会话</span>
+        <button class="btn-outline btn-sm" style="margin-left:auto" @click="refreshHistory">刷新</button>
+        <button class="btn-danger btn-sm" :disabled="!effectiveSaver" @click="clearHistory">清除历史</button>
       </div>
 
       <!-- Chat area -->
@@ -643,15 +641,6 @@ onUnmounted(() => {
 }
 .session-item:hover .session-del-btn { color: #94a3b8; }
 .session-del-btn:hover { color: #ef4444 !important; }
-.toolbar-session-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: #1c1c1c;
-  white-space: nowrap;
-  max-width: 160px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 .session-name-input {
   width: 100%;
   font-size: 13px;
