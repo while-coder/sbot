@@ -541,7 +541,6 @@ class HttpServer {
                 timestamp: m.metadata.timestamp,
                 lastAccessed: m.metadata.lastAccessed,
                 accessCount: m.metadata.accessCount,
-                category: m.metadata.category,
             }));
         }));
 

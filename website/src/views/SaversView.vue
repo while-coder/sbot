@@ -20,6 +20,7 @@ const saverViewModal = ref<InstanceType<typeof SaverViewModal>>()
 const expandedSavers  = ref<Record<string, boolean>>({})
 const saverThreadsMap = ref<Record<string, string[]>>({})
 const saverLoading    = ref<Record<string, boolean>>({})
+const threadClearing  = ref<Record<string, boolean>>({})
 
 async function toggleExpand(id: string) {
   expandedSavers.value[id] = !expandedSavers.value[id]
@@ -79,10 +80,43 @@ async function remove(id: string) {
   }
 }
 
+async function clearThread(saverId: string, thread: string) {
+  if (!confirm(`确定要清理 "${thread}" 的历史记录吗？`)) return
+  const key = `${saverId}::${thread}`
+  threadClearing.value[key] = true
+  try {
+    await apiFetch(`/api/savers/${encodeURIComponent(saverId)}/threads/${encodeURIComponent(thread)}/history`, 'DELETE')
+    show('清理成功')
+    // 从列表中移除该 thread
+    const list = saverThreadsMap.value[saverId]
+    if (list) saverThreadsMap.value[saverId] = list.filter(t => t !== thread)
+  } catch (e: any) {
+    show(e.message, 'error')
+  } finally {
+    threadClearing.value[key] = false
+  }
+}
+
+async function refreshThreads(ids: string[]) {
+  await Promise.all(ids.map(async id => {
+    saverLoading.value[id] = true
+    try {
+      const res = await apiFetch(`/api/savers/${encodeURIComponent(id)}/threads`)
+      saverThreadsMap.value[id] = res.data || []
+    } catch (e: any) {
+      show(e.message, 'error')
+    } finally {
+      saverLoading.value[id] = false
+    }
+  }))
+}
+
 async function refresh() {
   try {
     const res = await apiFetch('/api/settings')
     Object.assign(store.settings, res.data)
+    const expandedIds = Object.keys(expandedSavers.value).filter(id => expandedSavers.value[id])
+    if (expandedIds.length > 0) await refreshThreads(expandedIds)
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -134,6 +168,7 @@ async function refresh() {
                 <td colspan="2" class="thread-id-cell">{{ thread }}</td>
                 <td>
                   <button class="btn-outline btn-sm" @click="saverViewModal?.open(id as string, thread)">查看</button>
+                  <button class="btn-danger btn-sm" :disabled="threadClearing[`${id}::${thread}`]" @click="clearThread(id as string, thread)">清理</button>
                 </td>
               </tr>
             </template>

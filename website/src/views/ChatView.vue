@@ -219,16 +219,6 @@ async function clearHistory() {
   }
 }
 
-async function clearMemory() {
-  const memory = effectiveMemory.value
-  if (!memory || !confirm('确定要清除该记忆配置的全部记忆吗？')) return
-  try {
-    await apiFetch(`/api/memories/${encodeURIComponent(memory)}`, 'DELETE')
-    show('记忆已清除')
-  } catch (e: any) {
-    show(e.message, 'error')
-  }
-}
 
 function scrollToBottom() {
   if (messagesEl.value) {
@@ -461,7 +451,6 @@ onUnmounted(() => {
             <option v-for="s in saverOptions" :key="s.id" :value="s.id">{{ s.label }}</option>
           </select>
           <button v-if="effectiveSaver" class="chat-info-chip" @click="saverViewModal?.open(effectiveSaver!, 'session_' + activeSessionId)">查看</button>
-          <button v-if="effectiveSaver" class="chat-info-chip chip-danger" @click="clearHistory">清理</button>
 
           <!-- Memory -->
           <label class="toolbar-label">记忆</label>
@@ -474,7 +463,6 @@ onUnmounted(() => {
             <option v-for="m in memoryOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
           </select>
           <button v-if="effectiveMemory" class="chat-info-chip" @click="memoryViewModal?.open(effectiveMemory!)">查看</button>
-          <button v-if="effectiveMemory" class="chat-info-chip chip-danger" @click="clearMemory">清理</button>
         </template>
         <span v-else style="font-size:13px;color:#94a3b8">请选择或新建会话</span>
         <button class="btn-outline btn-sm" style="margin-left:auto" @click="refreshHistory">刷新</button>

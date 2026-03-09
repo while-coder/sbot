@@ -123,8 +123,9 @@ defineExpose({ open })
             <tr>
               <th class="col-content">内容</th>
               <th class="col-score">重要性</th>
-              <th class="col-time">时间</th>
-              <th class="col-type">类型</th>
+              <th class="col-time">创建时间</th>
+              <th class="col-access">访问次数</th>
+              <th class="col-time">最后访问</th>
               <th class="col-ops">操作</th>
             </tr>
           </thead>
@@ -138,10 +139,8 @@ defineExpose({ open })
                 <span class="importance-val">{{ m.importance != null ? m.importance.toFixed(2) : '-' }}</span>
               </td>
               <td class="col-time">{{ m.timestamp ? new Date(m.timestamp).toLocaleString() : '-' }}</td>
-              <td class="col-type">
-                <span v-if="m.category" class="category-tag">{{ m.category }}</span>
-                <span v-else style="color:#c0bdb8">-</span>
-              </td>
+              <td class="col-access">{{ m.accessCount ?? '-' }}</td>
+              <td class="col-time">{{ m.lastAccessed ? new Date(m.lastAccessed).toLocaleString() : '-' }}</td>
               <td class="col-ops">
                 <button class="btn-danger btn-sm" @click="remove(m.id)">删除</button>
               </td>
@@ -221,7 +220,7 @@ defineExpose({ open })
 .col-content { width: auto; white-space: normal; word-break: break-word; line-height: 1.5; }
 .col-score   { width: 110px; white-space: nowrap; }
 .col-time    { width: 148px; white-space: nowrap; color: #6b6b6b; font-size: 12px; }
-.col-type    { width: 90px; }
+.col-access  { width: 70px; text-align: center; color: #6b6b6b; font-size: 12px; white-space: nowrap; }
 .col-ops     { width: 80px; text-align: center; white-space: nowrap; }
 
 .importance-bar {
@@ -244,14 +243,6 @@ defineExpose({ open })
   font-size: 12px;
   color: #555;
   vertical-align: middle;
-}
-.category-tag {
-  display: inline-block;
-  background: #eef2ff;
-  color: #4f46e5;
-  font-size: 11px;
-  padding: 2px 7px;
-  border-radius: 4px;
 }
 .btn-spinner {
   display: inline-block;

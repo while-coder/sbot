@@ -148,6 +148,7 @@ export interface MemoryItem {
   id: string
   content: string
   importance?: number
-  timestamp?: string
-  category?: string
+  timestamp?: number
+  accessCount?: number
+  lastAccessed?: number
 }
