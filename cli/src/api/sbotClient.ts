@@ -1,23 +1,7 @@
-export interface AgentConfig {
-  name: string;
-  [key: string]: unknown;
-}
-
-export interface SaverConfig {
-  name: string;
-  [key: string]: unknown;
-}
-
-export interface MemoryConfig {
-  name: string;
-  [key: string]: unknown;
-}
-
 export interface SbotSettings {
-  agents: AgentConfig[];
-  savers: SaverConfig[];
-  memories: MemoryConfig[];
-  sessions: Array<{ name: string; [key: string]: unknown }>;
+  agents?: Record<string, { name?: string }>;
+  savers?: Record<string, { name?: string }>;
+  memories?: Record<string, { name?: string }>;
 }
 
 export interface ChatEvent {
@@ -45,7 +29,8 @@ export class SbotClient {
   async fetchSettings(): Promise<SbotSettings> {
     const res = await fetch(`${this.baseUrl}/api/settings`);
     if (!res.ok) throw new Error(`Failed to fetch settings: ${res.status}`);
-    return res.json() as Promise<SbotSettings>;
+    const json = await res.json() as { success: boolean; data: SbotSettings };
+    return json.data;
   }
 
   async *chatStream(

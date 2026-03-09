@@ -18,7 +18,7 @@ interface AppProps {
 export const App: React.FC<AppProps> = ({ client, config }) => {
   const { exit } = useApp();
   const { history, streamingContent, streamingState, submitQuery, cancelRequest, clearHistory } =
-    useChat(client, config.agentName, config.saverName, config.memoryName);
+    useChat(client, config.agentId, config.saverId, config.memoryId);
 
   const isIdle = streamingState === StreamingState.Idle;
 

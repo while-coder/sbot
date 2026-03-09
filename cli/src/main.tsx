@@ -42,7 +42,7 @@ function Boot() {
       // 3. Fetch settings for wizard
       try {
         const settings = await client.fetchSettings();
-        if (settings.agents.length === 0) {
+        if (Object.keys(settings.agents ?? {}).length === 0) {
           setState({ phase: 'error', message: 'No agents configured in sbot. Add an agent first.' });
           return;
         }
@@ -55,11 +55,11 @@ function Boot() {
   }, []);
 
   const handleWizardComplete = (
-    agentName: string,
-    saverName: string,
-    memoryName: string | null,
+    agentId: string, agentName: string,
+    saverId: string, saverName: string,
+    memoryId: string | null, memoryName: string | null,
   ) => {
-    const cfg: LocalConfig = { agentName, saverName, memoryName };
+    const cfg: LocalConfig = { agentId, agentName, saverId, saverName, memoryId, memoryName };
     writeLocalConfig(cfg);
     setState({ phase: 'chat', config: cfg });
   };

@@ -6,14 +6,23 @@ import type { SbotSettings } from '../../api/sbotClient.js';
 
 type WizardStep = 'agent' | 'saver' | 'memory';
 
+interface NamedItem {
+  id: string;
+  name: string;
+}
+
 interface SetupWizardProps {
   settings: SbotSettings;
-  onComplete: (agentName: string, saverName: string, memoryName: string | null) => void;
+  onComplete: (
+    agentId: string, agentName: string,
+    saverId: string, saverName: string,
+    memoryId: string | null, memoryName: string | null,
+  ) => void;
 }
 
 interface SelectListProps {
   title: string;
-  items: string[];
+  items: NamedItem[];
   selectedIndex: number;
 }
 
@@ -22,8 +31,8 @@ const SelectList: React.FC<SelectListProps> = ({ title, items, selectedIndex }) 
     <Text bold color={theme.text.accent}>{title}</Text>
     <Box flexDirection="column" marginTop={1}>
       {items.map((item, i) => (
-        <Text key={item} color={i === selectedIndex ? theme.status.info : theme.text.primary}>
-          {i === selectedIndex ? '▶ ' : '  '}{item}
+        <Text key={item.id} color={i === selectedIndex ? theme.status.info : theme.text.primary}>
+          {i === selectedIndex ? '▶ ' : '  '}{item.name}
         </Text>
       ))}
     </Box>
@@ -31,9 +40,12 @@ const SelectList: React.FC<SelectListProps> = ({ title, items, selectedIndex }) 
 );
 
 export const SetupWizard: React.FC<SetupWizardProps> = ({ settings, onComplete }) => {
-  const agentNames = settings.agents.map((a) => a.name);
-  const saverNames = settings.savers.map((s) => s.name);
-  const memoryNames = ['(none)', ...settings.memories.map((m) => m.name)];
+  const agentItems: NamedItem[] = Object.entries(settings.agents ?? {}).map(([id, a]) => ({ id, name: a.name ?? id }));
+  const saverItems: NamedItem[] = Object.entries(settings.savers ?? {}).map(([id, s]) => ({ id, name: s.name ?? id }));
+  const memoryItems: NamedItem[] = [
+    { id: '', name: '(none)' },
+    ...Object.entries(settings.memories ?? {}).map(([id, m]) => ({ id, name: m.name ?? id })),
+  ];
 
   const [step, setStep] = useState<WizardStep>('agent');
   const [agentIdx, setAgentIdx] = useState(0);
@@ -43,9 +55,9 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ settings, onComplete }
   const handleKeypress = useCallback(
     (key: Key) => {
       const lists: Record<WizardStep, { len: number; idx: number; setIdx: (i: number) => void }> = {
-        agent:  { len: agentNames.length,  idx: agentIdx,  setIdx: setAgentIdx },
-        saver:  { len: saverNames.length,  idx: saverIdx,  setIdx: setSaverIdx },
-        memory: { len: memoryNames.length, idx: memoryIdx, setIdx: setMemoryIdx },
+        agent:  { len: agentItems.length,  idx: agentIdx,  setIdx: setAgentIdx },
+        saver:  { len: saverItems.length,  idx: saverIdx,  setIdx: setSaverIdx },
+        memory: { len: memoryItems.length, idx: memoryIdx, setIdx: setMemoryIdx },
       };
       const cur = lists[step];
 
@@ -57,22 +69,22 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ settings, onComplete }
         if (step === 'agent') setStep('saver');
         else if (step === 'saver') setStep('memory');
         else {
-          const agent = agentNames[agentIdx] ?? '';
-          const saver = saverNames[saverIdx] ?? '';
-          const memory = memoryIdx === 0 ? null : (memoryNames[memoryIdx] ?? null);
-          onComplete(agent, saver, memory);
+          const agent = agentItems[agentIdx] ?? { id: '', name: '' };
+          const saver = saverItems[saverIdx] ?? { id: '', name: '' };
+          const memory = memoryIdx === 0 ? null : (memoryItems[memoryIdx] ?? null);
+          onComplete(agent.id, agent.name, saver.id, saver.name, memory?.id ?? null, memory?.name ?? null);
         }
       }
     },
-    [step, agentIdx, saverIdx, memoryIdx, agentNames, saverNames, memoryNames, onComplete],
+    [step, agentIdx, saverIdx, memoryIdx, agentItems, saverItems, memoryItems, onComplete],
   );
 
   useKeypress(handleKeypress, { isActive: true });
 
-  const steps: Record<WizardStep, { title: string; items: string[]; idx: number }> = {
-    agent:  { title: 'Step 1/3 — Select Agent',  items: agentNames,  idx: agentIdx },
-    saver:  { title: 'Step 2/3 — Select Saver',  items: saverNames,  idx: saverIdx },
-    memory: { title: 'Step 3/3 — Select Memory', items: memoryNames, idx: memoryIdx },
+  const steps: Record<WizardStep, { title: string; items: NamedItem[]; idx: number }> = {
+    agent:  { title: 'Step 1/3 — Select Agent',  items: agentItems,  idx: agentIdx },
+    saver:  { title: 'Step 2/3 — Select Saver',  items: saverItems,  idx: saverIdx },
+    memory: { title: 'Step 3/3 — Select Memory', items: memoryItems, idx: memoryIdx },
   };
   const cur = steps[step];
 
