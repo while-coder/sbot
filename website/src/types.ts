@@ -1,4 +1,5 @@
 export interface Model {
+  name?: string
   provider?: string
   baseURL?: string
   apiKey?: string
@@ -8,6 +9,7 @@ export interface Model {
 }
 
 export interface Embedding {
+  name?: string
   provider?: string
   baseURL?: string
   apiKey?: string
@@ -16,6 +18,7 @@ export interface Embedding {
 }
 
 export interface MemoryConfig {
+  name?: string
   mode?: string
   maxAgeDays?: number
   embedding?: string
@@ -26,6 +29,7 @@ export interface MemoryConfig {
 }
 
 export interface SaverConfig {
+  name?: string
   type?: string
   [key: string]: unknown
 }
@@ -53,6 +57,7 @@ export interface McpEntry {
 }
 
 export interface Agent {
+  name?: string
   type: string
   // single
   model?: string
@@ -105,7 +110,6 @@ export interface Settings {
   savers?: Record<string, SaverConfig>
   sessions?: Record<string, SessionConfig>
   channels?: Record<string, ChannelConfig>
-  lark?: { appId?: string; appSecret?: string }
   [key: string]: unknown
 }
 

@@ -115,13 +115,16 @@ class HttpServer {
         // ===== Settings =====
         app.get('/api/settings', api(() => config.settings));
 
-        app.put('/api/settings', api(async req => {
-            const prevChannels = JSON.stringify(config.settings.channels ?? {});
+        app.put('/api/settings', api(req => {
             Object.assign(config.settings, req.body);
             config.saveSettings();
-            if (JSON.stringify(config.settings.channels ?? {}) !== prevChannels) {
-                await channelManager.reload();
-            }
+            return config.settings;
+        }));
+
+        app.put('/api/settings/channels', api(async req => {
+            config.settings.channels = req.body;
+            config.saveSettings();
+            await channelManager.reload();
             return config.settings;
         }));
 

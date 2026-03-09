@@ -48,7 +48,7 @@ async function save() {
     if (!store.settings.channels) store.settings.channels = {}
     const id = editingId.value ?? crypto.randomUUID()
     store.settings.channels[id] = config
-    await apiFetch('/api/settings', 'PUT', store.settings)
+    await apiFetch('/api/settings/channels', 'PUT', store.settings.channels)
     show('保存成功')
     showModal.value = false
   } catch (e: any) {
@@ -61,7 +61,7 @@ async function remove(id: string) {
   if (!confirm(`确定要删除频道 "${label}" 吗？`)) return
   try {
     delete store.settings.channels![id]
-    await apiFetch('/api/settings', 'PUT', store.settings)
+    await apiFetch('/api/settings/channels', 'PUT', store.settings.channels ?? {})
     show('删除成功')
   } catch (e: any) {
     show(e.message, 'error')

@@ -11,18 +11,34 @@ export enum SaverType {
   Sqlite = "sqlite",
 }
 
+/**
+ * ModelConfig 的命名扩展（key 为 UUID）
+ */
+export interface NamedModelConfig extends ModelConfig {
+  name?: string;               // 显示名称（可选，便于识别）
+}
+
+/**
+ * EmbeddingConfig 的命名扩展（key 为 UUID）
+ */
+export interface NamedEmbeddingConfig extends EmbeddingConfig {
+  name?: string;               // 显示名称（可选，便于识别）
+}
+
 export interface SaverConfig {
+  name?: string;               // 显示名称（可选，便于识别）
   type?: SaverType;            // 存储类型：file | sqlite
 }
 
 export interface MemoryConfig {
+  name?: string;               // 显示名称（可选，便于识别）
   mode?: MemoryMode;           // 记忆模式
   autoCleanup?: boolean;       // 是否自动清理过期记忆
   maxAgeDays?: number;         // 记忆最大保留天数
-  embedding?: string;          // 记忆使用的 embedding 名称（对应 embeddings 中的 key）
-  evaluator?: string;          // 重要性评估器使用的模型名称（对应 models 中的 key）
-  extractor?: string;          // 知识提取器使用的模型名称（对应 models 中的 key）
-  compressor?: string;         // 记忆压缩器使用的模型名称（对应 models 中的 key）
+  embedding?: string;          // 记忆使用的 embedding UUID（对应 embeddings 中的 key）
+  evaluator?: string;          // 重要性评估器使用的模型 UUID（对应 models 中的 key）
+  extractor?: string;          // 知识提取器使用的模型 UUID（对应 models 中的 key）
+  compressor?: string;         // 记忆压缩器使用的模型 UUID（对应 models 中的 key）
 }
 
 /**
@@ -38,7 +54,7 @@ export enum AgentMode {
  * 编排节点配置（用于 ReAct 的 think/reflect 节点）
  */
 export interface AgentNodeConfig {
-  model?: string;              // 使用的模型名称（对应 models 中的 key）
+  model?: string;              // 使用的模型 UUID（对应 models 中的 key）
   skills?: string[];           // 关联的 Skill 名称列表
 }
 
@@ -46,10 +62,11 @@ export interface AgentNodeConfig {
  * Agent 基础配置（所有模式共用）
  */
 export interface BaseAgentEntry {
+  name?: string;               // 显示名称（可选，便于识别）
   type: AgentMode;
   systemPrompt?: string;       // 系统提示词（single 模式直接使用；react/supervisor 模式注入所有子 Agent）
-  memory?: string;             // 使用的记忆配置名称（对应 memories 中的 key），不填则不启用记忆
-  saver?: string;              // 使用的 Saver 配置名称（对应 savers 中的 key），不填则不持久化
+  memory?: string;             // 使用的记忆配置 UUID（对应 memories 中的 key），不填则不启用记忆
+  saver?: string;              // 使用的 Saver 配置 UUID（对应 savers 中的 key），不填则不持久化
 }
 
 /**
@@ -57,7 +74,7 @@ export interface BaseAgentEntry {
  */
 export interface SingleAgentEntry extends BaseAgentEntry {
   type: AgentMode.Single;
-  model?: string;              // 使用的模型名称（对应 models 中的 key），不填则使用全局 model
+  model?: string;              // 使用的模型 UUID（对应 models 中的 key），不填则使用全局 model
   mcp?: string[];              // Agent 专属 MCP 服务器名称列表（对应 mcp.json 中的 key）
   skills?: string[];           // 全局 Skills 过滤列表（skill 名称），不填则加载所有全局 Skills
 }
@@ -68,10 +85,10 @@ export interface SingleAgentEntry extends BaseAgentEntry {
 export interface ReactAgentEntry extends BaseAgentEntry {
   type: AgentMode.ReAct;
   maxIterations?: number;      // 最大迭代次数，默认 5
-  think?: string;              // Think 节点使用的 Agent 名称（对应 agents 中的 key）
-  summarizer?: string;         // Summarizer 节点使用的模型名称（对应 models 中的 key）
-  reflect?: string;            // Reflect 节点使用的模型名称（对应 models 中的 key）
-  agents: AgentSubNode[];      // 子 Agent 引用列表
+  think?: string;              // Think 节点使用的 Agent UUID（对应 agents 中的 key）
+  summarizer?: string;         // Summarizer 节点使用的模型 UUID（对应 models 中的 key）
+  reflect?: string;            // Reflect 节点使用的模型 UUID（对应 models 中的 key）
+  agents: AgentSubNode[];      // 子 Agent 引用列表（name 字段为 agent UUID）
 }
 
 /**
@@ -80,10 +97,10 @@ export interface ReactAgentEntry extends BaseAgentEntry {
 export interface SupervisorAgentEntry extends BaseAgentEntry {
   type: AgentMode.Supervisor;
   maxRounds?: number;          // 最大调度轮次，默认 10
-  supervisor?: string;         // Supervisor 节点使用的 Agent 名称（对应 agents 中的 key）
-  summarizer?: string;         // Summarizer 节点使用的模型名称（对应 models 中的 key）
-  finalize?: string;           // Finalize 节点使用的模型名称（对应 models 中的 key）
-  agents: AgentSubNode[];      // Worker Agent 引用列表
+  supervisor?: string;         // Supervisor 节点使用的 Agent UUID（对应 agents 中的 key）
+  summarizer?: string;         // Summarizer 节点使用的模型 UUID（对应 models 中的 key）
+  finalize?: string;           // Finalize 节点使用的模型 UUID（对应 models 中的 key）
+  agents: AgentSubNode[];      // Worker Agent 引用列表（name 字段为 agent UUID）
 }
 
 /**
@@ -96,9 +113,9 @@ export type AgentEntry = SingleAgentEntry | ReactAgentEntry | SupervisorAgentEnt
  */
 export interface SessionConfig {
   name?: string;               // 显示名称（可选，便于识别）
-  agent: string;               // 使用的 Agent 名称（对应 agents 中的 key）
-  saver: string;               // 使用的 Saver 配置名称（对应 savers 中的 key）
-  memory?: string;             // 使用的记忆配置名称（对应 memories 中的 key）
+  agent: string;               // 使用的 Agent UUID（对应 agents 中的 key）
+  saver: string;               // 使用的 Saver 配置 UUID（对应 savers 中的 key）
+  memory?: string;             // 使用的记忆配置 UUID（对应 memories 中的 key）
 }
 
 export enum ChannelType {
@@ -113,16 +130,16 @@ export interface ChannelConfig {
   type: ChannelType;           // 频道类型
   appId?: string;              // Lark App ID
   appSecret?: string;          // Lark App Secret
-  agent: string;               // 该频道使用的 Agent 名称（对应 agents 中的 key）
-  saver: string;               // 使用的 Saver 配置名称（对应 savers 中的 key）
-  memory?: string;             // 使用的记忆配置名称（对应 memories 中的 key）
+  agent: string;               // 该频道使用的 Agent UUID（对应 agents 中的 key）
+  saver: string;               // 使用的 Saver 配置 UUID（对应 savers 中的 key）
+  memory?: string;             // 使用的记忆配置 UUID（对应 memories 中的 key）
 }
 
 export interface Settings {
-  agent?: string;              // 当前使用的 Agent 名称（对应 agents 中的 key）
+  agent?: string;              // 当前使用的 Agent UUID（对应 agents 中的 key）
   httpUrl?: string;            // HTTP 服务对外访问的根 URL，默认 http://localhost:5500
-  models?: Record<string, ModelConfig>;
-  embeddings?: Record<string, EmbeddingConfig>;
+  models?: Record<string, NamedModelConfig>;
+  embeddings?: Record<string, NamedEmbeddingConfig>;
   savers?: Record<string, SaverConfig>;
   memories?: Record<string, MemoryConfig>;
   agents?: Record<string, AgentEntry>;
@@ -265,99 +282,67 @@ class Config {
 
 
   /**
-   * 获取默认配置
+   * 获取默认配置（所有 Record key 均为 UUID）
    */
   private getDefaultSettings(): Settings {
+    // 示例 UUID（实际使用时由前端 crypto.randomUUID() 生成）
+    const M1 = "10000000-0000-0000-0000-000000000001"; // openai-gpt4
+    const M2 = "10000000-0000-0000-0000-000000000002"; // claude
+    const M3 = "10000000-0000-0000-0000-000000000003"; // azure
+    const E1 = "20000000-0000-0000-0000-000000000001"; // openai-ada
+    const E2 = "20000000-0000-0000-0000-000000000002"; // openai-3-small
+    const E3 = "20000000-0000-0000-0000-000000000003"; // openai-3-large
+    const E4 = "20000000-0000-0000-0000-000000000004"; // azure-ada
+    const S1 = "30000000-0000-0000-0000-000000000001"; // default saver
+    const ME1 = "40000000-0000-0000-0000-000000000001"; // default memory
+    const A1  = "50000000-0000-0000-0000-000000000001"; // default agent
+    const A2  = "50000000-0000-0000-0000-000000000002"; // coder
+    const A3  = "50000000-0000-0000-0000-000000000003"; // researcher
+    const A4  = "50000000-0000-0000-0000-000000000004"; // react-example
+
     return {
-      agent: "default",
+      agent: A1,
       savers: {
-        "default": {
-          type: SaverType.Sqlite
-        }
+        [S1]: { name: "default", type: SaverType.Sqlite }
       },
       memories: {
-        "default": {
+        [ME1]: {
+          name: "default",
           autoCleanup: true,
           maxAgeDays: 90,
-          embedding: "openai-ada",
-          evaluator: "openai-gpt4",
-          extractor: "openai-gpt4",
-          compressor: "openai-gpt4"
+          embedding: E1,
+          evaluator: M1,
+          extractor: M1,
+          compressor: M1,
         }
       },
       models: {
-        "openai-gpt4": {
-          provider: ModelProvider.OpenAI,
-          apiKey: "your-api-key",
-          baseURL: "https://api.openai.com/v1",
-          model: "gpt-4"
-        },
-        "claude": {
-          provider: "anthropic" as any,
-          apiKey: "your-api-key",
-          baseURL: "https://api.anthropic.com",
-          model: "claude-3-opus-20240229"
-        },
-        "azure": {
-          provider: "azure" as any,
-          apiKey: "your-api-key",
-          baseURL: "https://your-resource.openai.azure.com",
-          model: "gpt-4"
-        }
+        [M1]: { name: "openai-gpt4",  provider: ModelProvider.OpenAI,     apiKey: "your-api-key", baseURL: "https://api.openai.com/v1",                model: "gpt-4" },
+        [M2]: { name: "claude",        provider: "anthropic" as any,        apiKey: "your-api-key", baseURL: "https://api.anthropic.com",                model: "claude-3-opus-20240229" },
+        [M3]: { name: "azure",         provider: "azure" as any,            apiKey: "your-api-key", baseURL: "https://your-resource.openai.azure.com",  model: "gpt-4" },
       },
       embeddings: {
-        "openai-ada": {
-          provider: EmbeddingProvider.OpenAI,
-          apiKey: "your-api-key",
-          baseURL: "https://api.openai.com/v1",
-          model: "text-embedding-ada-002"
-        },
-        "openai-3-small": {
-          provider: EmbeddingProvider.OpenAI,
-          apiKey: "your-api-key",
-          baseURL: "https://api.openai.com/v1",
-          model: "text-embedding-3-small"
-        },
-        "openai-3-large": {
-          provider: EmbeddingProvider.OpenAI,
-          apiKey: "your-api-key",
-          baseURL: "https://api.openai.com/v1",
-          model: "text-embedding-3-large"
-        },
-        "azure-ada": {
-          provider: "azure" as any,
-          apiKey: "your-api-key",
-          baseURL: "https://your-resource.openai.azure.com",
-          model: "text-embedding-ada-002"
-        }
+        [E1]: { name: "openai-ada",    provider: EmbeddingProvider.OpenAI, apiKey: "your-api-key", baseURL: "https://api.openai.com/v1",               model: "text-embedding-ada-002" },
+        [E2]: { name: "openai-3-small",provider: EmbeddingProvider.OpenAI, apiKey: "your-api-key", baseURL: "https://api.openai.com/v1",               model: "text-embedding-3-small" },
+        [E3]: { name: "openai-3-large",provider: EmbeddingProvider.OpenAI, apiKey: "your-api-key", baseURL: "https://api.openai.com/v1",               model: "text-embedding-3-large" },
+        [E4]: { name: "azure-ada",     provider: "azure" as any,            apiKey: "your-api-key", baseURL: "https://your-resource.openai.azure.com", model: "text-embedding-ada-002" },
       },
       agents: {
-        "default": {
-          type: AgentMode.Single,
-          model: "openai-gpt4",
-          systemPrompt: "你是一个有用的AI助手"
-        },
-        "coder": {
-          type: AgentMode.Single,
-          model: "openai-gpt4",
-          systemPrompt: "你是一个开发专家，擅长编写高质量代码"
-        },
-        "researcher": {
-          type: AgentMode.Single,
-          model: "openai-gpt4",
-          systemPrompt: "你是一个研究专家，擅长搜索和分析信息"
-        },
-        "react-example": {
+        [A1]: { name: "default",       type: AgentMode.Single, model: M1, systemPrompt: "你是一个有用的AI助手" },
+        [A2]: { name: "coder",         type: AgentMode.Single, model: M1, systemPrompt: "你是一个开发专家，擅长编写高质量代码" },
+        [A3]: { name: "researcher",    type: AgentMode.Single, model: M1, systemPrompt: "你是一个研究专家，擅长搜索和分析信息" },
+        [A4]: {
+          name: "react-example",
           type: AgentMode.ReAct,
           maxIterations: 5,
-          think: "coder",
-          reflect: "openai-gpt4",
-          summarizer: "openai-gpt4",
+          think: A2,
+          reflect: M1,
+          summarizer: M1,
           agents: [
-            { name: "coder", desc: "开发专家，擅长编写高质量代码" },
-            { name: "researcher", desc: "研究专家，擅长搜索和分析信息" }
-          ]
-        }
+            { name: A2, desc: "开发专家，擅长编写高质量代码" },
+            { name: A3, desc: "研究专家，擅长搜索和分析信息" },
+          ],
+        },
       }
     };
   }
