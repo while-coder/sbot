@@ -48,34 +48,17 @@ export class SbotClient {
     return res.json() as Promise<SbotSettings>;
   }
 
-  async createSession(
-    name: string,
-    agentName: string,
-    saverName: string,
-    memoryName: string | null,
-  ): Promise<void> {
-    const body: Record<string, unknown> = { name, agentName, saverName };
-    if (memoryName !== null) body.memoryName = memoryName;
-    const res = await fetch(`${this.baseUrl}/api/settings/sessions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`Failed to create session: ${res.status} ${text}`);
-    }
-  }
-
   async *chatStream(
     query: string,
-    sessionId: string,
+    agentId: string,
+    saveId: string,
+    memoryId: string | null,
     signal: AbortSignal,
   ): AsyncGenerator<ChatEvent> {
     const res = await fetch(`${this.baseUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, sessionId }),
+      body: JSON.stringify({ query, agentId, saveId, memoryId }),
       signal,
     });
     if (!res.ok) throw new Error(`Chat request failed: ${res.status}`);

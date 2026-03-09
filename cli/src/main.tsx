@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { render, Box, Text } from 'ink';
 import Spinner from 'ink-spinner';
-import { v4 as uuidv4 } from 'uuid';
 import { readLocalConfig, writeLocalConfig, type LocalConfig } from './config/localConfig.js';
 import { SbotClient, type SbotSettings } from './api/sbotClient.js';
 import { KeypressProvider } from './ui/contexts/KeypressContext.js';
@@ -55,20 +54,14 @@ function Boot() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleWizardComplete = async (
+  const handleWizardComplete = (
     agentName: string,
     saverName: string,
     memoryName: string | null,
   ) => {
-    const sessionId = `cli-${uuidv4()}`;
-    try {
-      await client.createSession(sessionId, agentName, saverName, memoryName);
-      const cfg: LocalConfig = { sessionId, baseUrl: BASE_URL, agentName, saverName, memoryName };
-      writeLocalConfig(cfg);
-      setState({ phase: 'chat', config: cfg });
-    } catch (err) {
-      setState({ phase: 'error', message: (err as Error).message });
-    }
+    const cfg: LocalConfig = { agentName, saverName, memoryName };
+    writeLocalConfig(cfg);
+    setState({ phase: 'chat', config: cfg });
   };
 
   if (state.phase === 'loading') {
@@ -93,7 +86,7 @@ function Boot() {
     return (
       <SetupWizard
         settings={state.settings}
-        onComplete={(a, s, m) => { void handleWizardComplete(a, s, m); }}
+        onComplete={handleWizardComplete}
       />
     );
   }

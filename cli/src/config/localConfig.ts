@@ -2,8 +2,6 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 export interface LocalConfig {
-  sessionId: string;
-  baseUrl: string;
   agentName: string;
   saverName: string;
   memoryName: string | null;

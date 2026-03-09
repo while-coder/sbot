@@ -18,7 +18,7 @@ interface AppProps {
 export const App: React.FC<AppProps> = ({ client, config }) => {
   const { exit } = useApp();
   const { history, streamingContent, streamingState, submitQuery, cancelRequest, clearHistory } =
-    useChat(client, config.sessionId);
+    useChat(client, config.agentName, config.saverName, config.memoryName);
 
   const isIdle = streamingState === StreamingState.Idle;
 
@@ -55,10 +55,8 @@ export const App: React.FC<AppProps> = ({ client, config }) => {
   return (
     <Box flexDirection="column" height="100%">
       <Header
-        sessionId={config.sessionId}
         agentName={config.agentName}
         saverName={config.saverName}
-        baseUrl={config.baseUrl}
       />
       <MessageList
         history={history}
