@@ -156,15 +156,20 @@ async function refresh() {
                 <td></td>
                 <td colspan="5" class="thread-sub-cell">加载中...</td>
               </tr>
-              <tr v-else-if="(memoryThreadsMap[id as string] || []).length === 0" class="thread-sub-row">
-                <td></td>
-                <td colspan="5" class="thread-sub-cell empty">暂无记忆记录</td>
-              </tr>
+              <template v-if="(memoryThreadsMap[id as string] || []).length === 0">
+                <tr class="thread-sub-row">
+                  <td></td>
+                  <td colspan="4" class="thread-id-cell">{{ id }}</td>
+                  <td>
+                    <button class="btn-outline btn-sm" @click="memoryViewModal?.open(id as string)">查看</button>
+                  </td>
+                </tr>
+              </template>
               <tr v-for="thread in memoryThreadsMap[id as string] || []" :key="thread" class="thread-sub-row">
                 <td></td>
                 <td colspan="4" class="thread-id-cell">{{ thread }}</td>
                 <td>
-                  <button class="btn-outline btn-sm" @click="memoryViewModal?.open(thread)">查看</button>
+                  <button class="btn-outline btn-sm" @click="memoryViewModal?.open(id as string)">查看</button>
                 </td>
               </tr>
             </template>

@@ -275,6 +275,30 @@ class HttpServer {
             await channelManager.reload();
         }));
 
+        // ===== Settings / Sessions =====
+        app.post('/api/settings/sessions', api(req => {
+            const id = randomUUID();
+            if (!config.settings.sessions) config.settings.sessions = {};
+            config.settings.sessions[id] = req.body;
+            config.saveSettings();
+            return { id };
+        }));
+
+        app.put('/api/settings/sessions/:id', api(req => {
+            const id = req.params.id as string;
+            if (!config.settings.sessions?.[id]) throwBad(`会话 "${id}" 不存在`);
+            config.settings.sessions[id] = req.body;
+            config.saveSettings();
+            return config.settings;
+        }));
+
+        app.delete('/api/settings/sessions/:id', api(req => {
+            const id = req.params.id as string;
+            if (config.settings.sessions) delete config.settings.sessions[id];
+            config.saveSettings();
+            return config.settings;
+        }));
+
         // ===== MCP =====
         app.get('/api/mcp', api(() => ({
             builtins: Object.values(BuiltinProvider).map(n => ({ name: n, description: globalAgentToolService.getProviderDescription(n) })),
@@ -631,9 +655,6 @@ class HttpServer {
                         type: string;
                         query?: string;
                         sessionId?: string;
-                        agentId?: string;
-                        saverId?: string;
-                        memoryId?: string;
                         attachments?: { name: string; type: string; dataUrl?: string; content?: string }[];
                     };
                     if (msg.type !== 'message') return;
@@ -647,7 +668,7 @@ class HttpServer {
                             }
                         }
                     }
-                    if (enriched) userService.onReceiveWebMessage(enriched, msg.sessionId ?? '', msg.agentId, msg.saverId, msg.memoryId);
+                    if (enriched) userService.onReceiveWebMessage(enriched, msg.sessionId ?? '');
                 } catch { /* ignore malformed messages */ }
             });
             ws.on('close', () => userService.web.unregisterWs(ws));

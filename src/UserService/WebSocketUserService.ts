@@ -66,18 +66,9 @@ export class WebSocketUserService {
             convertImages: async (r: MCPToolResult) => r,
         };
         const sessionId = args?.sessionId as string;
-        if (sessionId) {
-            const session = config.getSession(sessionId);
-            if (!session) throw new Error(`会话 "${sessionId}" 不存在`);
-            await AgentRunner.run(query, callbacks, session.agent, session.saver, `session_${sessionId}`, undefined, session.memory);
-        } else {
-            const agentId  = args?.agentId  as string;
-            const saverId  = args?.saverId  as string;
-            const memoryId = args?.memoryId as string | undefined;
-            if (!agentId) throw new Error('未指定 agent');
-            if (!saverId) throw new Error('未指定 saver');
-            await AgentRunner.run(query, callbacks, agentId, saverId, 'web', undefined, memoryId);
-        }
+        const session = sessionId ? config.getSession(sessionId) : undefined;
+        if (!session) throw new Error(`会话 "${sessionId}" 不存在`);
+        await AgentRunner.run(query, callbacks, session.agent, session.saver, `session_${sessionId}`, undefined, session.memory);
     }
 
     private emit(event: WebChatEvent) {
