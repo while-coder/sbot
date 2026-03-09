@@ -6,11 +6,6 @@ export type { AgentSubNode } from "scorpio.ai";
 
 export const DEFAULT_PORT = 5500;
 
-export interface LarkConfig {
-  appId?: string;
-  appSecret?: string;
-}
-
 export enum SaverType {
   File   = "file",
   Sqlite = "sqlite",
@@ -126,7 +121,6 @@ export interface ChannelConfig {
 export interface Settings {
   agent?: string;              // 当前使用的 Agent 名称（对应 agents 中的 key）
   httpUrl?: string;            // HTTP 服务对外访问的根 URL，默认 http://localhost:5500
-  lark?: LarkConfig;
   models?: Record<string, ModelConfig>;
   embeddings?: Record<string, EmbeddingConfig>;
   savers?: Record<string, SaverConfig>;
@@ -276,10 +270,6 @@ class Config {
   private getDefaultSettings(): Settings {
     return {
       agent: "default",
-      lark: {
-        appId: "",
-        appSecret: ""
-      },
       savers: {
         "default": {
           type: SaverType.Sqlite

@@ -3,7 +3,8 @@ import { LarkMessageArgs, LarkReceiveIdType } from "winning.ai";
 import { database, SchedulerRow, UserRow } from "../Database";
 import { userService } from "../UserService/UserService";
 import { LoggerService } from "../LoggerService";
-import { globalLarkService } from "../Lark/LarkServiceInit";
+import { LarkService } from "winning.ai";
+import { channelManager } from "../ChannelManager";
 
 const logger = LoggerService.getLogger("SchedulerService.ts");
 
@@ -23,13 +24,17 @@ async function executeScheduler(timerId: number): Promise<void> {
         ? await database.findByPk<UserRow>(database.user, timer.userId)
         : null;
 
-    if (userRow && globalLarkService) {
+    const larkService = userRow?.channel
+        ? channelManager.getService(userRow.channel) as LarkService | undefined
+        : undefined;
+
+    if (userRow && larkService) {
         // 有 Lark 用户 → 走 Lark 通道回复
         let userInfo: any = {};
         try { userInfo = JSON.parse(userRow.userinfo || "{}"); } catch { /**/ }
 
         const args: LarkMessageArgs & { agentName?: string } = {
-            larkService: globalLarkService,
+            larkService,
             chat_type: "",
             chat_id: "",
             message_id: "",
@@ -38,7 +43,7 @@ async function executeScheduler(timerId: number): Promise<void> {
             ...(agentName ? { agentName } : {}),
         };
         try {
-            await userService.onReceiveLarkMessage(args, userInfo, timer.message);
+            await userService.onReceiveLarkMessage(args, userInfo, timer.message, userRow.channel);
             logger.info(`调度任务 [${timer.id}:${timer.name}] 已触发（Lark），用户 ${userRow.userid}`);
         } catch (e: any) {
             logger.error(`调度任务 [${timer.id}:${timer.name}] 执行失败: ${e?.message ?? e}`);
@@ -49,7 +54,7 @@ async function executeScheduler(timerId: number): Promise<void> {
             logger.warn(`调度任务 [${timer.id}:${timer.name}] userId=${timer.userId} 在 user 表中不存在，降级为 Web 模式`);
         }
         try {
-            await userService.onReceiveWebMessage(timer.message);
+            await userService.onReceiveWebMessage(timer.message, '');
             logger.info(`调度任务 [${timer.id}:${timer.name}] 已触发（Web）`);
         } catch (e: any) {
             logger.error(`调度任务 [${timer.id}:${timer.name}] 执行失败: ${e?.message ?? e}`);

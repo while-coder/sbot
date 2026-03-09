@@ -2,7 +2,7 @@
 import {LoggerService, log4js} from "./LoggerService";
 import {config} from "./Config";
 import {database} from "./Database";
-import {startLarkService, hasLarkConfig} from "./Lark/LarkServiceInit";
+import { channelManager } from "./ChannelManager";
 import {httpServer} from "./HttpServer";
 import {initGlobalAgentToolService} from "./GlobalAgentToolService";
 import {initGlobalSkillService} from "./GlobalSkillService";
@@ -20,7 +20,7 @@ async function main() {
         await database.init()
         initGlobalAgentToolService()
         initGlobalSkillService()
-        if (hasLarkConfig()) await startLarkService()
+        await channelManager.init()
         await httpServer.start()
         await schedulerService.start()
 

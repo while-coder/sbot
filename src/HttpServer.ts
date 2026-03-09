@@ -14,7 +14,7 @@ import { LoggerService } from './LoggerService';
 import { database } from './Database';
 import { userService } from './UserService/UserService';
 import { schedulerService } from './SchedulerService/SchedulerService';
-import { restartLarkService } from './Lark/LarkServiceInit';
+import { channelManager } from './ChannelManager';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
 
@@ -116,11 +116,11 @@ class HttpServer {
         app.get('/api/settings', api(() => config.settings));
 
         app.put('/api/settings', api(async req => {
-            const prevLark = JSON.stringify(config.settings.lark ?? {});
+            const prevChannels = JSON.stringify(config.settings.channels ?? {});
             Object.assign(config.settings, req.body);
             config.saveSettings();
-            if (JSON.stringify(config.settings.lark ?? {}) !== prevLark) {
-                await restartLarkService();
+            if (JSON.stringify(config.settings.channels ?? {}) !== prevChannels) {
+                await channelManager.reload();
             }
             return config.settings;
         }));
