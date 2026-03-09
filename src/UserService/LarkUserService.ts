@@ -1,8 +1,8 @@
 import "reflect-metadata";
 import { LarkUserServiceBase, LarkMessageArgs } from "winning.ai";
 import { ICommand } from "scorpio.ai";
-import { AgentRunner } from "../AgentRunner";
-import { config } from "../Config";
+import { AgentRunner } from "../Agent/AgentRunner";
+import { config } from "../Core/Config";
 
 export class LarkUserService extends LarkUserServiceBase {
     protected async getAllCommands(): Promise<ICommand[]> { return []; }

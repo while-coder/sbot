@@ -1,9 +1,9 @@
 import { AgentToolService } from "scorpio.ai";
-import { config } from "./Config.js";
-import { createCommandTools } from "./Tools/Command/index.js";
-import { createFileSystemTools } from "./Tools/FileSystem/index.js";
-import { createSchedulerTools } from "./Tools/Scheduler/index.js";
-import { createFetchTools } from "./Tools/Fetch/index.js";
+import { config } from "../Core/Config.js";
+import { createCommandTools } from "../Tools/Command/index.js";
+import { createFileSystemTools } from "../Tools/FileSystem/index.js";
+import { createSchedulerTools } from "../Tools/Scheduler/index.js";
+import { createFetchTools } from "../Tools/Fetch/index.js";
 
 export enum BuiltinProvider {
     Command = 'builtin_command',

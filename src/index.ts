@@ -1,12 +1,12 @@
 // 第一行必须导入 logger 配置，确保 log4js 在所有模块加载前初始化
-import {LoggerService, log4js} from "./LoggerService";
-import {config} from "./Config";
-import {database} from "./Database";
-import { channelManager } from "./ChannelManager";
-import {httpServer} from "./HttpServer";
-import {initGlobalAgentToolService} from "./GlobalAgentToolService";
-import {initGlobalSkillService} from "./GlobalSkillService";
-import {schedulerService} from "./SchedulerService/SchedulerService";
+import {LoggerService, log4js} from "./Core/LoggerService";
+import {config} from "./Core/Config";
+import {database} from "./Core/Database";
+import { channelManager } from "./Channel/ChannelManager";
+import {httpServer} from "./Server/HttpServer";
+import {initGlobalAgentToolService} from "./Agent/GlobalAgentToolService";
+import {initGlobalSkillService} from "./Agent/GlobalSkillService";
+import {schedulerService} from "./Scheduler/SchedulerService";
 const logger = LoggerService.getLogger('index.ts');
 logger.info("=========================开始启动=========================")
 

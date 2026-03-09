@@ -1,10 +1,10 @@
 import { LarkService, LarkActionArgs, LarkMessageArgs, LarkUserIdType } from "winning.ai";
-import { database } from "./Database";
-import { NowDate } from "./Utils";
+import { database } from "../Core/Database";
+import { NowDate } from "../Core/Utils";
 import { Op } from "sequelize";
-import { userService } from "./UserService/UserService";
-import { LoggerService } from "./LoggerService";
-import { config, ChannelType, ChannelConfig } from "./Config";
+import { userService } from "../UserService/UserService";
+import { LoggerService } from "../Core/LoggerService";
+import { config, ChannelType, ChannelConfig } from "../Core/Config";
 
 const logger = LoggerService.getLogger("ChannelManager.ts");
 

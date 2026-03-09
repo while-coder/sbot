@@ -3,20 +3,20 @@ import { LarkMessageArgs, UserServiceBase } from "winning.ai";
 import { AgentMessage, AgentToolCall, ICommand } from "scorpio.ai";
 import { getBuiltInCommands } from "./BuiltInCommands";
 import { LarkUserService } from "./LarkUserService";
-import { WebUserService } from "./WebUserService";
+import { WebSocketUserService } from "./WebSocketUserService";
 
 enum Context { Lark = 'lark', Web = 'web' }
 
 export class UserService extends UserServiceBase {
     readonly lark: LarkUserService;
-    readonly web: WebUserService;
+    readonly web: WebSocketUserService;
 
     private currentContext: Context | undefined;
 
     constructor() {
         super();
         this.lark = new LarkUserService();
-        this.web = new WebUserService();
+        this.web = new WebSocketUserService();
     }
 
     // 重定向到共享队列（UserService），而非本地队列

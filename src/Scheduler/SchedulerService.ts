@@ -1,10 +1,10 @@
 import { CronJob } from "cron";
 import { LarkMessageArgs, LarkReceiveIdType } from "winning.ai";
-import { database, SchedulerRow, UserRow } from "../Database";
+import { database, SchedulerRow, UserRow } from "../Core/Database";
 import { userService } from "../UserService/UserService";
-import { LoggerService } from "../LoggerService";
+import { LoggerService } from "../Core/LoggerService";
 import { LarkService } from "winning.ai";
-import { channelManager } from "../ChannelManager";
+import { channelManager } from "../Channel/ChannelManager";
 
 const logger = LoggerService.getLogger("SchedulerService.ts");
 

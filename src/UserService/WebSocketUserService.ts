@@ -1,7 +1,7 @@
 import "reflect-metadata";
 import { AgentMessage, AgentToolCall, MCPToolResult } from "scorpio.ai";
 import { WebSocket } from "ws";
-import { AgentRunner } from "../AgentRunner";
+import { AgentRunner } from "../Agent/AgentRunner";
 
 export type WebChatEvent =
     | { type: "stream"; content: string }
@@ -10,7 +10,7 @@ export type WebChatEvent =
     | { type: "done" }
     | { type: "error"; message: string };
 
-export class WebUserService {
+export class WebSocketUserService {
     private clients = new Set<WebSocket>();
 
     registerWs(ws: WebSocket): void {
@@ -58,7 +58,7 @@ export class WebUserService {
     }
 
     async processAIMessage(query: string, args: any): Promise<void> {
-        const { config } = await import('../Config');
+        const { config } = await import('../Core/Config');
         const session = config.getSession(args?.sessionId);
         await AgentRunner.run(query, {
             onMessage: this.onAgentMessage.bind(this),

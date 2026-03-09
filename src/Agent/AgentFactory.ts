@@ -18,7 +18,7 @@ import {
     T_ThreadId,
     T_SummaryModelService,
 } from "scorpio.ai";
-import { config, AgentMode, SaverType, SingleAgentEntry, ReactAgentEntry, SupervisorAgentEntry } from "./Config";
+import { config, AgentMode, SaverType, SingleAgentEntry, ReactAgentEntry, SupervisorAgentEntry } from "../Core/Config";
 import { globalAgentToolService } from "./GlobalAgentToolService";
 import { globalSkillService } from "./GlobalSkillService";
 

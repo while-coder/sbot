@@ -5,16 +5,16 @@ import fs from 'fs';
 import { z } from 'zod';
 import { WebSocketServer } from 'ws';
 import { MCPServers, AgentToolService } from "scorpio.ai";
-import { config, DEFAULT_PORT } from './Config';
-import { AgentFactory } from './AgentFactory';
-import { globalAgentToolService, refreshGlobalAgentToolService, BuiltinProvider } from './GlobalAgentToolService';
-import { globalSkillService, refreshGlobalSkillService, BUILTIN_SKILLS_DIR } from './GlobalSkillService';
-import { SkillHubService, type HubSkillResult } from './SkillHub';
-import { LoggerService } from './LoggerService';
-import { database } from './Database';
-import { userService } from './UserService/UserService';
-import { schedulerService } from './SchedulerService/SchedulerService';
-import { channelManager } from './ChannelManager';
+import { config, DEFAULT_PORT } from '../Core/Config';
+import { AgentFactory } from '../Agent/AgentFactory';
+import { globalAgentToolService, refreshGlobalAgentToolService, BuiltinProvider } from '../Agent/GlobalAgentToolService';
+import { globalSkillService, refreshGlobalSkillService, BUILTIN_SKILLS_DIR } from '../Agent/GlobalSkillService';
+import { SkillHubService, type HubSkillResult } from '../SkillHub';
+import { LoggerService } from '../Core/LoggerService';
+import { database } from '../Core/Database';
+import { userService } from '../UserService/UserService';
+import { schedulerService } from '../Scheduler/SchedulerService';
+import { channelManager } from '../Channel/ChannelManager';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
 

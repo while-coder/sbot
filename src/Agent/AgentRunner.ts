@@ -5,9 +5,9 @@ import {
     IAgentCallback,
     ILoggerService,
 } from "scorpio.ai";
-import { config } from "./Config";
+import { config } from "../Core/Config";
 import { AgentFactory } from "./AgentFactory";
-import { LoggerService } from "./LoggerService";
+import { LoggerService } from "../Core/LoggerService";
 
 const logger = LoggerService.getLogger('AgentRunner.ts');
 
@@ -27,7 +27,7 @@ export class AgentRunner {
 
         const now = new Date();
         const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        const assetsDir = path.resolve(__dirname, '../assets');
+        const assetsDir = path.resolve(__dirname, '../../assets');
         const scriptsDir = config.getConfigPath('scripts', true);
         const httpUrl = config.getHttpUrl();
         const extraPrompts: string[] = [

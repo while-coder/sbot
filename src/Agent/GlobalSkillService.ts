@@ -1,13 +1,13 @@
 import path from 'path';
 import { SkillService } from "scorpio.ai";
-import { config } from "./Config.js";
+import { config } from "../Core/Config.js";
 
 export const globalSkillService = new SkillService();
 
 /**
  * 内置 Skills 目录（项目自带）
  */
-export const BUILTIN_SKILLS_DIR = path.join(__dirname, '../skills');
+export const BUILTIN_SKILLS_DIR = path.join(__dirname, '../../skills');
 
 export function initGlobalSkillService() {
     globalSkillService.registerSkillsDir(BUILTIN_SKILLS_DIR);
