@@ -11,7 +11,7 @@ import { randomBytes } from 'crypto';
 import { createTwoFilesPatch } from 'diff';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
-import { LoggerService } from '../../LoggerService';
+import { LoggerService } from '../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
 import { FileSystemToolsConfig } from './config';
 

@@ -41,16 +41,10 @@ async function save() {
   if (!form.value.name.trim()) { show('名称不能为空', 'error'); return }
   try {
     const { name, ...config } = form.value
-    if (!store.settings.embeddings) store.settings.embeddings = {}
     const oldName = editingName.value
-    if (oldName && oldName !== name) {
-      delete store.settings.embeddings[oldName]
-      for (const mem of Object.values(store.settings.memories || {})) {
-        if (mem.embedding === oldName) mem.embedding = name
-      }
-    }
-    store.settings.embeddings[name] = config
-    await apiFetch('/api/settings', 'PUT', store.settings)
+    const body = oldName && oldName !== name ? { ...config, oldName } : config
+    const res = await apiFetch(`/api/settings/embeddings/${encodeURIComponent(name)}`, 'PUT', body)
+    Object.assign(store.settings, res.data)
     show('保存成功')
     showModal.value = false
   } catch (e: any) {
@@ -61,8 +55,8 @@ async function save() {
 async function remove(name: string) {
   if (!confirm(`确定要删除 Embedding "${name}" 吗？`)) return
   try {
-    delete store.settings.embeddings![name]
-    await apiFetch('/api/settings', 'PUT', store.settings)
+    const res = await apiFetch(`/api/settings/embeddings/${encodeURIComponent(name)}`, 'DELETE')
+    Object.assign(store.settings, res.data)
     show('删除成功')
   } catch (e: any) {
     show(e.message, 'error')

@@ -18,11 +18,11 @@ watch(() => store.settings, (s) => {
 
 async function save() {
   try {
-    store.settings.httpUrl = httpUrl.value.trim() || undefined
-    if (!store.settings.lark) store.settings.lark = {}
-    store.settings.lark.appId = larkAppId.value
-    store.settings.lark.appSecret = larkAppSecret.value
-    await apiFetch('/api/settings', 'PUT', store.settings)
+    const res = await apiFetch('/api/settings/general', 'PUT', {
+      httpUrl: httpUrl.value.trim() || undefined,
+      lark: { appId: larkAppId.value, appSecret: larkAppSecret.value },
+    })
+    Object.assign(store.settings, res.data)
     show('保存成功')
   } catch (e: any) {
     show(e.message, 'error')

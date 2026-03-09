@@ -5,9 +5,9 @@
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
-import { database, SchedulerRow } from '../../Database';
-import { schedulerService } from '../../SchedulerService/SchedulerService';
-import { LoggerService } from '../../LoggerService';
+import { database, SchedulerRow } from '../../Core/Database';
+import { schedulerService } from '../../Scheduler/SchedulerService';
+import { LoggerService } from '../../Core/LoggerService';
 
 const logger = LoggerService.getLogger('Tools/Scheduler/index.ts');
 

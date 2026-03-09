@@ -52,12 +52,10 @@ async function save() {
     const clean: MemoryConfig = { mode: config.mode, embedding: config.embedding, evaluator: config.evaluator, extractor: config.extractor }
     if (config.maxAgeDays) clean.maxAgeDays = config.maxAgeDays
     if (config.compressor) clean.compressor = config.compressor
-    if (!store.settings.memories) store.settings.memories = {}
-    if (editingName.value && editingName.value !== name) {
-      delete store.settings.memories[editingName.value]
-    }
-    store.settings.memories[name] = clean
-    await apiFetch('/api/settings', 'PUT', store.settings)
+    const oldName = editingName.value
+    const body = oldName && oldName !== name ? { ...clean, oldName } : clean
+    const res = await apiFetch(`/api/settings/memories/${encodeURIComponent(name)}`, 'PUT', body)
+    Object.assign(store.settings, res.data)
     show('保存成功')
     showModal.value = false
   } catch (e: any) {
@@ -68,8 +66,8 @@ async function save() {
 async function remove(name: string) {
   if (!confirm(`确定要删除记忆配置 "${name}" 吗？`)) return
   try {
-    delete store.settings.memories![name]
-    await apiFetch('/api/settings', 'PUT', store.settings)
+    const res = await apiFetch(`/api/settings/memories/${encodeURIComponent(name)}`, 'DELETE')
+    Object.assign(store.settings, res.data)
     show('删除成功')
   } catch (e: any) {
     show(e.message, 'error')

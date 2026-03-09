@@ -1,7 +1,7 @@
 import os from "os";
 import path from "path";
 import fs from "fs";
-import { ModelConfig, ModelProvider, EmbeddingConfig, EmbeddingProvider, MCPServerConfig, MCPServers, MemoryMode, IModelService, IEmbeddingService, ModelServiceFactory, EmbeddingServiceFactory, type AgentSubNode } from "scorpio.ai";
+import { ModelConfig, ModelProvider, EmbeddingConfig, EmbeddingProvider, MCPServers, MemoryMode, IModelService, IEmbeddingService, ModelServiceFactory, EmbeddingServiceFactory, type AgentSubNode } from "scorpio.ai";
 export type { AgentSubNode } from "scorpio.ai";
 
 export const DEFAULT_PORT = 5500;
@@ -279,78 +279,54 @@ class Config {
 
 
   /**
-   * 获取默认配置（所有 Record key 均为 UUID）
-   */
-  private getDefaultSettings(): Settings {
-    // 示例 UUID（实际使用时由前端 crypto.randomUUID() 生成）
-    const M1 = "10000000-0000-0000-0000-000000000001"; // openai-gpt4
-    const M2 = "10000000-0000-0000-0000-000000000002"; // claude
-    const M3 = "10000000-0000-0000-0000-000000000003"; // azure
-    const E1 = "20000000-0000-0000-0000-000000000001"; // openai-ada
-    const E2 = "20000000-0000-0000-0000-000000000002"; // openai-3-small
-    const E3 = "20000000-0000-0000-0000-000000000003"; // openai-3-large
-    const E4 = "20000000-0000-0000-0000-000000000004"; // azure-ada
-    const S1 = "30000000-0000-0000-0000-000000000001"; // default saver
-    const ME1 = "40000000-0000-0000-0000-000000000001"; // default memory
-    const A1  = "50000000-0000-0000-0000-000000000001"; // default agent
-    const A2  = "50000000-0000-0000-0000-000000000002"; // coder
-    const A3  = "50000000-0000-0000-0000-000000000003"; // researcher
-    const A4  = "50000000-0000-0000-0000-000000000004"; // react-example
-
-    return {
-      savers: {
-        [S1]: { name: "default", type: SaverType.Sqlite }
-      },
-      memories: {
-        [ME1]: {
-          name: "default",
-          autoCleanup: true,
-          maxAgeDays: 90,
-          embedding: E1,
-          evaluator: M1,
-          extractor: M1,
-          compressor: M1,
-        }
-      },
-      models: {
-        [M1]: { name: "openai-gpt4",  provider: ModelProvider.OpenAI,     apiKey: "your-api-key", baseURL: "https://api.openai.com/v1",                model: "gpt-4" },
-        [M2]: { name: "claude",        provider: "anthropic" as any,        apiKey: "your-api-key", baseURL: "https://api.anthropic.com",                model: "claude-3-opus-20240229" },
-        [M3]: { name: "azure",         provider: "azure" as any,            apiKey: "your-api-key", baseURL: "https://your-resource.openai.azure.com",  model: "gpt-4" },
-      },
-      embeddings: {
-        [E1]: { name: "openai-ada",    provider: EmbeddingProvider.OpenAI, apiKey: "your-api-key", baseURL: "https://api.openai.com/v1",               model: "text-embedding-ada-002" },
-        [E2]: { name: "openai-3-small",provider: EmbeddingProvider.OpenAI, apiKey: "your-api-key", baseURL: "https://api.openai.com/v1",               model: "text-embedding-3-small" },
-        [E3]: { name: "openai-3-large",provider: EmbeddingProvider.OpenAI, apiKey: "your-api-key", baseURL: "https://api.openai.com/v1",               model: "text-embedding-3-large" },
-        [E4]: { name: "azure-ada",     provider: "azure" as any,            apiKey: "your-api-key", baseURL: "https://your-resource.openai.azure.com", model: "text-embedding-ada-002" },
-      },
-      agents: {
-        [A1]: { name: "default",       type: AgentMode.Single, model: M1, systemPrompt: "你是一个有用的AI助手" },
-        [A2]: { name: "coder",         type: AgentMode.Single, model: M1, systemPrompt: "你是一个开发专家，擅长编写高质量代码" },
-        [A3]: { name: "researcher",    type: AgentMode.Single, model: M1, systemPrompt: "你是一个研究专家，擅长搜索和分析信息" },
-        [A4]: {
-          name: "react-example",
-          type: AgentMode.ReAct,
-          maxIterations: 5,
-          think: A2,
-          reflect: M1,
-          summarizer: M1,
-          agents: [
-            { name: A2, desc: "开发专家，擅长编写高质量代码" },
-            { name: A3, desc: "研究专家，擅长搜索和分析信息" },
-          ],
-        },
-      }
-    };
-  }
-
-  /**
    * 每次启动时生成示例配置文件 settings.json.example
    */
   private createExampleSettings(): void {
     const examplePath = this.getConfigPath("settings.json.example");
 
+    const M1 = "10000000-0000-0000-0000-000000000001";
+    const M2 = "10000000-0000-0000-0000-000000000002";
+    const M3 = "10000000-0000-0000-0000-000000000003";
+    const E1 = "20000000-0000-0000-0000-000000000001";
+    const E2 = "20000000-0000-0000-0000-000000000002";
+    const E3 = "20000000-0000-0000-0000-000000000003";
+    const E4 = "20000000-0000-0000-0000-000000000004";
+    const S1 = "30000000-0000-0000-0000-000000000001";
+    const ME1 = "40000000-0000-0000-0000-000000000001";
+    const A1  = "50000000-0000-0000-0000-000000000001";
+    const A2  = "50000000-0000-0000-0000-000000000002";
+    const A3  = "50000000-0000-0000-0000-000000000003";
+    const A4  = "50000000-0000-0000-0000-000000000004";
+
+    const example: Settings = {
+      savers: {
+        [S1]: { name: "default", type: SaverType.Sqlite },
+      },
+      memories: {
+        [ME1]: { name: "default", autoCleanup: true, maxAgeDays: 90, embedding: E1, evaluator: M1, extractor: M1, compressor: M1 },
+      },
+      models: {
+        [M1]: { name: "openai-gpt4",   provider: ModelProvider.OpenAI,     apiKey: "your-api-key", baseURL: "https://api.openai.com/v1",               model: "gpt-4" },
+        [M2]: { name: "claude",         provider: "anthropic" as any,        apiKey: "your-api-key", baseURL: "https://api.anthropic.com",               model: "claude-3-opus-20240229" },
+        [M3]: { name: "azure",          provider: "azure" as any,            apiKey: "your-api-key", baseURL: "https://your-resource.openai.azure.com",  model: "gpt-4" },
+      },
+      embeddings: {
+        [E1]: { name: "openai-ada",     provider: EmbeddingProvider.OpenAI, apiKey: "your-api-key", baseURL: "https://api.openai.com/v1",               model: "text-embedding-ada-002" },
+        [E2]: { name: "openai-3-small", provider: EmbeddingProvider.OpenAI, apiKey: "your-api-key", baseURL: "https://api.openai.com/v1",               model: "text-embedding-3-small" },
+        [E3]: { name: "openai-3-large", provider: EmbeddingProvider.OpenAI, apiKey: "your-api-key", baseURL: "https://api.openai.com/v1",               model: "text-embedding-3-large" },
+        [E4]: { name: "azure-ada",      provider: "azure" as any,            apiKey: "your-api-key", baseURL: "https://your-resource.openai.azure.com", model: "text-embedding-ada-002" },
+      },
+      agents: {
+        [A1]: { name: "default",      type: AgentMode.Single, model: M1, systemPrompt: "你是一个有用的AI助手" },
+        [A2]: { name: "coder",        type: AgentMode.Single, model: M1, systemPrompt: "你是一个开发专家，擅长编写高质量代码" },
+        [A3]: { name: "researcher",   type: AgentMode.Single, model: M1, systemPrompt: "你是一个研究专家，擅长搜索和分析信息" },
+        [A4]: { name: "react-example", type: AgentMode.ReAct, maxIterations: 5, think: A2, reflect: M1, summarizer: M1,
+                agents: [{ name: A2, desc: "开发专家，擅长编写高质量代码" }, { name: A3, desc: "研究专家，擅长搜索和分析信息" }] },
+      },
+    };
+
     try {
-      fs.writeFileSync(examplePath, JSON.stringify(this.getDefaultSettings(), null, 2), "utf-8");
+      fs.writeFileSync(examplePath, JSON.stringify(example, null, 2), "utf-8");
     } catch (error) {
       // 忽略错误
     }
@@ -424,7 +400,7 @@ class Config {
    */
   private createDefaultSettings(settingsPath: string): void {
     try {
-      this._settings = this.getDefaultSettings();
+      this._settings = {};
       fs.writeFileSync(settingsPath, JSON.stringify(this._settings, null, 2), "utf-8");
     } catch (error) {
       // 忽略错误

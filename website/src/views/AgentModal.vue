@@ -105,15 +105,14 @@ async function save() {
       config.agents     = tempSubAgents.value
     }
 
-    if (!store.settings.agents) store.settings.agents = {}
     const oldName = editingName.value
     if (oldName && oldName !== name) {
       // 改名：由服务端统一同步所有引用
-      const res = await apiFetch(`/api/agents/${encodeURIComponent(oldName)}/rename`, 'POST', { name })
-      Object.assign(store.settings, res.data)
+      const renameRes = await apiFetch(`/api/agents/${encodeURIComponent(oldName)}/rename`, 'POST', { name })
+      Object.assign(store.settings, renameRes.data)
     }
-    store.settings.agents![name] = config
-    await apiFetch('/api/settings', 'PUT', store.settings)
+    const res = await apiFetch(`/api/settings/agents/${encodeURIComponent(name)}`, 'PUT', config)
+    Object.assign(store.settings, res.data)
     show('保存成功')
     showModal.value = false
     emit('saved')

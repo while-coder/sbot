@@ -33,12 +33,10 @@ async function save() {
   if (!form.value.name.trim()) { show('名称不能为空', 'error'); return }
   try {
     const { name, ...config } = form.value
-    if (!store.settings.savers) store.settings.savers = {}
-    if (editingName.value && editingName.value !== name) {
-      delete store.settings.savers[editingName.value]
-    }
-    store.settings.savers[name] = config
-    await apiFetch('/api/settings', 'PUT', store.settings)
+    const oldName = editingName.value
+    const body = oldName && oldName !== name ? { ...config, oldName } : config
+    const res = await apiFetch(`/api/settings/savers/${encodeURIComponent(name)}`, 'PUT', body)
+    Object.assign(store.settings, res.data)
     show('保存成功')
     showModal.value = false
   } catch (e: any) {
@@ -49,8 +47,8 @@ async function save() {
 async function remove(name: string) {
   if (!confirm(`确定要删除存储配置 "${name}" 吗？`)) return
   try {
-    delete store.settings.savers![name]
-    await apiFetch('/api/settings', 'PUT', store.settings)
+    const res = await apiFetch(`/api/settings/savers/${encodeURIComponent(name)}`, 'DELETE')
+    Object.assign(store.settings, res.data)
     show('删除成功')
   } catch (e: any) {
     show(e.message, 'error')

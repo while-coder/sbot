@@ -43,25 +43,11 @@ async function save() {
   if (!form.value.name.trim()) { show('名称不能为空', 'error'); return }
   try {
     const { name, ...config } = form.value
-    if (!store.settings.models) store.settings.models = {}
-    const oldName = editingName.value
-    if (oldName && oldName !== name) {
-      delete store.settings.models[oldName]
-      for (const agent of Object.values(store.settings.agents || {})) {
-        if (agent.model      === oldName) agent.model      = name
-        if (agent.reflect    === oldName) agent.reflect    = name
-        if (agent.summarizer === oldName) agent.summarizer = name
-        if (agent.finalize   === oldName) agent.finalize   = name
-      }
-      for (const mem of Object.values(store.settings.memories || {})) {
-        if (mem.evaluator  === oldName) mem.evaluator  = name
-        if (mem.extractor  === oldName) mem.extractor  = name
-        if (mem.compressor === oldName) mem.compressor = name
-      }
-    }
-    store.settings.models[name] = config
     if (config.temperature === undefined || config.temperature === null) delete config.temperature
-    await apiFetch('/api/settings', 'PUT', store.settings)
+    const oldName = editingName.value
+    const body = oldName && oldName !== name ? { ...config, oldName } : config
+    const res = await apiFetch(`/api/settings/models/${encodeURIComponent(name)}`, 'PUT', body)
+    Object.assign(store.settings, res.data)
     show('保存成功')
     showModal.value = false
   } catch (e: any) {
@@ -72,8 +58,8 @@ async function save() {
 async function remove(name: string) {
   if (!confirm(`确定要删除模型 "${name}" 吗？`)) return
   try {
-    delete store.settings.models![name]
-    await apiFetch('/api/settings', 'PUT', store.settings)
+    const res = await apiFetch(`/api/settings/models/${encodeURIComponent(name)}`, 'DELETE')
+    Object.assign(store.settings, res.data)
     show('删除成功')
   } catch (e: any) {
     show(e.message, 'error')

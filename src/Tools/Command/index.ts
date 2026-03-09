@@ -10,7 +10,7 @@ import { exec, execSync } from 'child_process';
 import { promisify } from 'util';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
-import { LoggerService } from '../../LoggerService';
+import { LoggerService } from '../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
 
 const logger = LoggerService.getLogger('Tools/Command/index.ts');

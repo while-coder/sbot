@@ -10,7 +10,7 @@ import TurndownService from 'turndown';
 import robotsParser from 'robots-parser';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
-import { LoggerService } from '../../LoggerService';
+import { LoggerService } from '../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
 import { FetchToolsConfig } from './config';
 

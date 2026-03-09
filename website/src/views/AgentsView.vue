@@ -30,8 +30,8 @@ async function copyAgent(name: string) {
   let i = 2
   while (store.settings.agents![newName]) newName = name + '-copy' + (i++)
   try {
-    store.settings.agents![newName] = JSON.parse(JSON.stringify(agent))
-    await apiFetch('/api/settings', 'PUT', store.settings)
+    const res = await apiFetch(`/api/settings/agents/${encodeURIComponent(newName)}`, 'PUT', JSON.parse(JSON.stringify(agent)))
+    Object.assign(store.settings, res.data)
     show(`已复制为 ${newName}`)
   } catch (e: any) {
     show(e.message, 'error')
@@ -41,8 +41,8 @@ async function copyAgent(name: string) {
 async function removeAgent(name: string) {
   if (!confirm(`确定要删除 Agent "${name}" 吗？`)) return
   try {
-    delete store.settings.agents![name]
-    await apiFetch('/api/settings', 'PUT', store.settings)
+    const res = await apiFetch(`/api/settings/agents/${encodeURIComponent(name)}`, 'DELETE')
+    Object.assign(store.settings, res.data)
     show('删除成功')
   } catch (e: any) {
     show(e.message, 'error')
