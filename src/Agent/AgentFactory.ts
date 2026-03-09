@@ -1,24 +1,19 @@
 import {
     AgentServiceBase, SingleAgentService,
     IModelService,
-    IMemoryService, IMemoryDatabase, MemorySqliteDatabase, MemoryEvaluator, MemoryCompressor, MemoryExtractor, MemoryService, MemoryNoneService, ReadOnlyMemoryService, MemoryMode,
-    IEmbeddingService,
-    IMemoryExtractor, IMemoryEvaluator, IMemoryCompressor,
-    IAgentSaverService, AgentSqliteSaver, AgentMemorySaver,
+    IMemoryService, MemoryNoneService,
+    IAgentSaverService, AgentMemorySaver,
 } from "scorpio.ai";
-import { AgentFileSaver } from "scorpio.ai/dist/Saver";
 import {
-    T_MaxMemoryAgeDays, T_MemoryMode, T_DBPath,
     IAgentToolService, AgentToolService,
     ISkillService, SkillService,
     ServiceContainer, T_SystemPrompts,
     ReActAgentService, T_AgentSubNodes, T_MaxIterations, T_CreateAgent, T_ThinkAgentName, T_ReflectModelService,
     SupervisorAgentService, T_SupervisorSubNodes, T_SupervisorMaxRounds, T_SupervisorAgentName, T_FinalizeModelService,
     type CreateAgentFn,
-    T_ThreadId,
     T_SummaryModelService,
 } from "scorpio.ai";
-import { config, AgentMode, SaverType, SingleAgentEntry, ReactAgentEntry, SupervisorAgentEntry } from "../Core/Config";
+import { config, AgentMode, SingleAgentEntry, ReactAgentEntry, SupervisorAgentEntry } from "../Core/Config";
 import { globalAgentToolService } from "./GlobalAgentToolService";
 import { globalSkillService } from "./GlobalSkillService";
 
@@ -34,14 +29,12 @@ export class AgentFactory {
         container: ServiceContainer,
         first: boolean,
         extraPrompts?: string[],
-        memoryName?: string,
-        saverName?: string,
     ): Promise<AgentServiceBase> {
         const agentEntry = config.settings.agents?.[agentName];
         if (!agentEntry) throw new Error(`Agent 配置 "${agentName}" 不存在`);
 
-        await this.registerMemoryService(container, memoryName);
-        await this.registerSaverService(container, saverName);
+        if (!container.isRegistered(IMemoryService))    container.registerSingleton(IMemoryService, MemoryNoneService);
+        if (!container.isRegistered(IAgentSaverService)) container.registerSingleton(IAgentSaverService, AgentMemorySaver);
         const { mcp, skills } = agentEntry as SingleAgentEntry;
         await this.registerSkillService(container, agentName, skills);
         await this.registerToolService(container, agentName, mcp);
@@ -66,80 +59,6 @@ export class AgentFactory {
         }
     }
 
-    static async createMemoryService(memoryName: string): Promise<IMemoryService> {
-        const container = new ServiceContainer();
-        await this.registerMemoryService(container, memoryName);
-        return container.resolve<IMemoryService>(IMemoryService);
-    }
-
-    static async createSaverService(saverName: string): Promise<IAgentSaverService> {
-        const container = new ServiceContainer();
-        await this.registerSaverService(container, saverName);
-        return container.resolve<IAgentSaverService>(IAgentSaverService);
-    }
-
-    private static async registerMemoryService(
-        container: ServiceContainer,
-        memoryName?: string,
-    ): Promise<void> {
-        if (container.isRegistered(IMemoryService)) return;
-        const memoryConfig = config.getMemory(memoryName);
-        if (!memoryConfig?.embedding) {
-            container.registerSingleton(IMemoryService, MemoryNoneService);
-            return;
-        }
-
-        const evaluatorModel = await config.getModelService(memoryConfig.evaluator);
-        if (evaluatorModel) {
-            container.registerWithArgs(IMemoryEvaluator, MemoryEvaluator, {
-                [IModelService]: evaluatorModel,
-            });
-        }
-        const extractorModel = await config.getModelService(memoryConfig.extractor);
-        if (extractorModel) {
-            container.registerWithArgs(IMemoryExtractor, MemoryExtractor, {
-                [IModelService]: extractorModel,
-            });
-        }
-        const compressorModel = await config.getModelService(memoryConfig.compressor);
-        if (compressorModel) {
-            container.registerWithArgs(IMemoryCompressor, MemoryCompressor, {
-                [IModelService]: compressorModel,
-            });
-        }
-        container.registerWithArgs(IMemoryDatabase, MemorySqliteDatabase, {
-            [T_ThreadId]: memoryName,
-            [T_DBPath]: config.getMemoryPath(memoryName!),
-        });
-        container.registerWithArgs(IMemoryService, MemoryService, {
-            [IEmbeddingService]: await config.getEmbeddingService(memoryConfig.embedding, true),
-            [T_MaxMemoryAgeDays]: memoryConfig.maxAgeDays,
-            [T_MemoryMode]: memoryConfig.mode,
-        });
-    }
-    private static async registerSaverService(
-        container: ServiceContainer,
-        saverName?: string,
-    ): Promise<void> {
-        if (container.isRegistered(IAgentSaverService)) return;
-        const saverConfig = config.getSaver(saverName);
-        if (saverConfig === undefined) {
-            container.registerSingleton(IAgentSaverService, AgentMemorySaver);
-            return;
-        }
-
-        if (saverConfig.type === SaverType.File) {
-            container.registerWithArgs(IAgentSaverService, AgentFileSaver, {
-                [T_ThreadId]: saverName,
-                [T_DBPath]: config.getSaverDir(saverName!),
-            });
-        } else {
-            container.registerWithArgs(IAgentSaverService, AgentSqliteSaver, {
-                [T_ThreadId]: saverName,
-                [T_DBPath]: config.getSaverPath(saverName!),
-            });
-        }
-    }
     private static async registerSkillService(
         container: ServiceContainer,
         agentName: string,

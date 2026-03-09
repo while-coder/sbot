@@ -4,8 +4,16 @@ import {
     ServiceContainer,
     IAgentCallback,
     ILoggerService,
+    IMemoryService, IMemoryDatabase, MemorySqliteDatabase,
+    MemoryEvaluator, MemoryCompressor, MemoryExtractor, MemoryService, MemoryNoneService,
+    IEmbeddingService,
+    IMemoryExtractor, IMemoryEvaluator, IMemoryCompressor,
+    IAgentSaverService, AgentSqliteSaver, AgentMemorySaver,
+    T_MaxMemoryAgeDays, T_MemoryMode, T_DBPath, T_ThreadId,
+    IModelService,
 } from "scorpio.ai";
-import { config } from "../Core/Config";
+import { AgentFileSaver } from "scorpio.ai/dist/Saver";
+import { config, SaverType } from "../Core/Config";
 import { AgentFactory } from "./AgentFactory";
 import { LoggerService } from "../Core/LoggerService";
 
@@ -48,14 +56,92 @@ export class AgentRunner {
 
         const container = new ServiceContainer();
         container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
+        await AgentRunner.registerMemoryService(container, memoryName);
+        await AgentRunner.registerSaverService(container, saverName);
 
         logger.info(`使用 Agent [${resolvedAgentName}] (${agentEntry.type})`);
 
-        const agent = await AgentFactory.create(resolvedAgentName, container, true, extraPrompts, memoryName, saverName);
+        const agent = await AgentFactory.create(resolvedAgentName, container, true, extraPrompts);
         try {
             await agent.stream(query, callbacks);
         } finally {
             await agent.dispose();
+        }
+    }
+
+    static async createMemoryService(memoryName: string): Promise<IMemoryService> {
+        const container = new ServiceContainer();
+        await AgentRunner.registerMemoryService(container, memoryName);
+        return container.resolve<IMemoryService>(IMemoryService);
+    }
+
+    static async createSaverService(saverName: string): Promise<IAgentSaverService> {
+        const container = new ServiceContainer();
+        await AgentRunner.registerSaverService(container, saverName);
+        return container.resolve<IAgentSaverService>(IAgentSaverService);
+    }
+
+    private static async registerMemoryService(
+        container: ServiceContainer,
+        memoryName?: string,
+    ): Promise<void> {
+        if (container.isRegistered(IMemoryService)) return;
+        const memoryConfig = config.getMemory(memoryName);
+        if (!memoryConfig?.embedding) {
+            container.registerSingleton(IMemoryService, MemoryNoneService);
+            return;
+        }
+
+        const evaluatorModel = await config.getModelService(memoryConfig.evaluator);
+        if (evaluatorModel) {
+            container.registerWithArgs(IMemoryEvaluator, MemoryEvaluator, {
+                [IModelService]: evaluatorModel,
+            });
+        }
+        const extractorModel = await config.getModelService(memoryConfig.extractor);
+        if (extractorModel) {
+            container.registerWithArgs(IMemoryExtractor, MemoryExtractor, {
+                [IModelService]: extractorModel,
+            });
+        }
+        const compressorModel = await config.getModelService(memoryConfig.compressor);
+        if (compressorModel) {
+            container.registerWithArgs(IMemoryCompressor, MemoryCompressor, {
+                [IModelService]: compressorModel,
+            });
+        }
+        container.registerWithArgs(IMemoryDatabase, MemorySqliteDatabase, {
+            [T_ThreadId]: memoryName,
+            [T_DBPath]: config.getMemoryPath(memoryName!),
+        });
+        container.registerWithArgs(IMemoryService, MemoryService, {
+            [IEmbeddingService]: await config.getEmbeddingService(memoryConfig.embedding, true),
+            [T_MaxMemoryAgeDays]: memoryConfig.maxAgeDays,
+            [T_MemoryMode]: memoryConfig.mode,
+        });
+    }
+
+    private static async registerSaverService(
+        container: ServiceContainer,
+        saverName?: string,
+    ): Promise<void> {
+        if (container.isRegistered(IAgentSaverService)) return;
+        const saverConfig = config.getSaver(saverName);
+        if (saverConfig === undefined) {
+            container.registerSingleton(IAgentSaverService, AgentMemorySaver);
+            return;
+        }
+
+        if (saverConfig.type === SaverType.File) {
+            container.registerWithArgs(IAgentSaverService, AgentFileSaver, {
+                [T_ThreadId]: saverName,
+                [T_DBPath]: config.getSaverDir(saverName!),
+            });
+        } else {
+            container.registerWithArgs(IAgentSaverService, AgentSqliteSaver, {
+                [T_ThreadId]: saverName,
+                [T_DBPath]: config.getSaverPath(saverName!),
+            });
         }
     }
 }

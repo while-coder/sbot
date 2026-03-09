@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { WebSocketServer } from 'ws';
 import { MCPServers, AgentToolService } from "scorpio.ai";
 import { config, DEFAULT_PORT } from '../Core/Config';
-import { AgentFactory } from '../Agent/AgentFactory';
+import { AgentRunner } from '../Agent/AgentRunner';
 import { globalAgentToolService, refreshGlobalAgentToolService, BuiltinProvider } from '../Agent/GlobalAgentToolService';
 import { globalSkillService, refreshGlobalSkillService, BUILTIN_SKILLS_DIR } from '../Agent/GlobalSkillService';
 import { SkillHubService, type HubSkillResult } from '../SkillHub';
@@ -386,7 +386,7 @@ class HttpServer {
 
         // ===== Named Saver History =====
         app.get('/api/savers/:saverName/history', api(async req => {
-            const saver = await AgentFactory.createSaverService(req.params.saverName as string);
+            const saver = await AgentRunner.createSaverService(req.params.saverName as string);
             const messages = await saver.getAllMessages();
             return messages.map(m => {
                 const mm = m as any;
@@ -403,13 +403,13 @@ class HttpServer {
         }));
 
         app.delete('/api/savers/:saverName/history', api(async req => {
-            const saver = await AgentFactory.createSaverService(req.params.saverName as string);
+            const saver = await AgentRunner.createSaverService(req.params.saverName as string);
             await saver.clearMessages();
         }));
 
         // ===== Named Memory =====
         app.get('/api/memories/:memoryName', api(async req => {
-            const svc = await AgentFactory.createMemoryService(req.params.memoryName as string);
+            const svc = await AgentRunner.createMemoryService(req.params.memoryName as string);
             return (await svc.getAllMemories()).map(m => ({
                 id: m.id,
                 content: m.content,
@@ -422,12 +422,12 @@ class HttpServer {
         }));
 
         app.delete('/api/memories/:memoryName/:memoryId', api(async req => {
-            const svc = await AgentFactory.createMemoryService(req.params.memoryName as string);
+            const svc = await AgentRunner.createMemoryService(req.params.memoryName as string);
             await svc.deleteMemory(req.params.memoryId as string);
         }));
 
         app.delete('/api/memories/:memoryName', api(async req => {
-            const svc = await AgentFactory.createMemoryService(req.params.memoryName as string);
+            const svc = await AgentRunner.createMemoryService(req.params.memoryName as string);
             const count = await svc.clearAll();
             return { count };
         }));
@@ -435,13 +435,13 @@ class HttpServer {
         app.post('/api/memories/:memoryName/add', api(async req => {
             const { content } = req.body as { content?: string };
             if (!content?.trim()) { const e: any = new Error('content 不能为空'); e.status = 400; throw e; }
-            const svc = await AgentFactory.createMemoryService(req.params.memoryName as string);
+            const svc = await AgentRunner.createMemoryService(req.params.memoryName as string);
             const ids = await svc.addMemoryDirect(content.trim());
             return { ids };
         }));
 
         app.post('/api/memories/:memoryName/compress', api(async req => {
-            const svc = await AgentFactory.createMemoryService(req.params.memoryName as string);
+            const svc = await AgentRunner.createMemoryService(req.params.memoryName as string);
             const count = await svc.compressMemories();
             return { count };
         }));
