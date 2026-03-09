@@ -45,10 +45,16 @@ async function save() {
     if (form.value.appSecret.trim()) config.appSecret = form.value.appSecret.trim()
     if (form.value.memory) config.memory = form.value.memory
 
-    if (!store.settings.channels) store.settings.channels = {}
-    const id = editingId.value ?? crypto.randomUUID()
-    store.settings.channels[id] = config
-    await apiFetch('/api/settings/channels', 'PUT', store.settings.channels)
+    if (editingId.value) {
+      await apiFetch(`/api/settings/channels/${editingId.value}`, 'PUT', config)
+    } else {
+      const res = await apiFetch('/api/settings/channels', 'POST', config)
+      const id = res.data?.id
+      if (id) {
+        if (!store.settings.channels) store.settings.channels = {}
+        store.settings.channels[id] = config
+      }
+    }
     show('保存成功')
     showModal.value = false
   } catch (e: any) {
@@ -60,8 +66,7 @@ async function remove(id: string) {
   const label = channels.value[id]?.name || id
   if (!confirm(`确定要删除频道 "${label}" 吗？`)) return
   try {
-    delete store.settings.channels![id]
-    await apiFetch('/api/settings/channels', 'PUT', store.settings.channels ?? {})
+    await apiFetch(`/api/settings/channels/${id}`, 'DELETE')
     show('删除成功')
   } catch (e: any) {
     show(e.message, 'error')

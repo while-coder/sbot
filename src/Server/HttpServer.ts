@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import http from 'http';
 import path from 'path';
 import fs from 'fs';
+import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { WebSocketServer } from 'ws';
 import { MCPServers, AgentToolService } from "scorpio.ai";
@@ -121,11 +122,30 @@ class HttpServer {
             return config.settings;
         }));
 
-        app.put('/api/settings/channels', api(async req => {
-            config.settings.channels = req.body;
+        app.post('/api/settings/channels', api(async req => {
+            const id = randomUUID();
+            if (!config.settings.channels) config.settings.channels = {};
+            config.settings.channels[id] = req.body;
             config.saveSettings();
             await channelManager.reload();
-            return config.settings;
+            return { id, ...req.body };
+        }));
+
+        app.put('/api/settings/channels/:id', api(async req => {
+            const id = req.params.id as string;
+            if (!config.settings.channels?.[id]) throwBad(`频道 "${id}" 不存在`);
+            config.settings.channels[id] = req.body;
+            config.saveSettings();
+            await channelManager.reload();
+            return { id, ...req.body };
+        }));
+
+        app.delete('/api/settings/channels/:id', api(async req => {
+            const id = req.params.id as string;
+            if (!config.settings.channels?.[id]) throwBad(`频道 "${id}" 不存在`);
+            delete config.settings.channels[id];
+            config.saveSettings();
+            await channelManager.reload();
         }));
 
         // ===== Agent Rename =====
@@ -141,9 +161,6 @@ class HttpServer {
             // 重命名 key
             agents[newName] = agents[oldName];
             delete agents[oldName];
-
-            // 同步 settings.agent
-            if (config.settings.agent === oldName) config.settings.agent = newName;
 
             // 同步其他 agent 中的引用
             for (const a of Object.values(agents) as any[]) {

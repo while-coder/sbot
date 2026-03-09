@@ -10,8 +10,6 @@ const { show } = useToast()
 
 const agents      = computed(() => store.settings.agents || {})
 const modelOptions  = computed(() => Object.keys(store.settings.models   || {}))
-const memoryOptions = computed(() => Object.keys(store.settings.memories || {}))
-const saverOptions  = computed(() => Object.keys(store.settings.savers   || {}))
 const agentOptions  = computed(() => Object.keys(store.settings.agents   || {}))
 const mcpOptions    = computed(() => [...store.mcpBuiltins.map(b => b.name), ...Object.keys(store.mcpServers)])
 const skillOptions  = computed(() => [
@@ -36,8 +34,6 @@ const form = ref({
   maxRounds: 10,
   supervisor: '',
   finalize: '',
-  memory: '',
-  saver: '',
 })
 const tempSubAgents = ref<SubAgentRef[]>([])
 
@@ -59,8 +55,6 @@ function open(name?: string) {
       maxRounds: a.maxRounds || 10,
       supervisor: a.supervisor || '',
       finalize: a.finalize || '',
-      memory: a.memory || '',
-      saver: a.saver || '',
     }
     tempSubAgents.value = Array.isArray(a.agents) ? [...a.agents] : []
   } else {
@@ -71,7 +65,6 @@ function open(name?: string) {
       selectedMcp: [], selectedSkills: [],
       maxIterations: 5, think: '', reflect: '', summarizer: '',
       maxRounds: 10, supervisor: '', finalize: '',
-      memory: '', saver: '',
     }
   }
   showModal.value = true
@@ -111,9 +104,6 @@ async function save() {
       config.finalize   = form.value.finalize
       config.agents     = tempSubAgents.value
     }
-
-    if (form.value.memory) config.memory = form.value.memory
-    if (form.value.saver)  config.saver  = form.value.saver
 
     if (!store.settings.agents) store.settings.agents = {}
     const oldName = editingName.value
@@ -218,24 +208,6 @@ defineExpose({ open })
             <option value="react">ReAct (迭代决策)</option>
             <option value="supervisor">Supervisor (主管调度)</option>
           </select>
-        </div>
-
-        <!-- Memory & Saver (all types) -->
-        <div class="form-nodes-grid">
-          <div class="form-group">
-            <label>记忆配置</label>
-            <select v-model="form.memory">
-              <option value="">不使用</option>
-              <option v-for="m in memoryOptions" :key="m" :value="m">{{ m }}</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>会话存储</label>
-            <select v-model="form.saver">
-              <option value="">不使用</option>
-              <option v-for="s in saverOptions" :key="s" :value="s">{{ s }}</option>
-            </select>
-          </div>
         </div>
 
         <!-- 系统提示词（所有类型） -->

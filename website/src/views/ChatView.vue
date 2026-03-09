@@ -39,21 +39,12 @@ const activeSessionId = ref<string | null>(null)
 const sessions = computed(() => store.settings.sessions || {})
 
 const agentNames = computed(() => Object.keys(store.settings.agents || {}))
-const currentAgent = computed({
-  get: () => store.settings.agent || '',
-  set: (v) => { store.settings.agent = v },
-})
+const currentAgent = ref('')
 
-// Effective agent/saver/memory: session overrides global agent settings
-const effectiveAgent  = computed(() => activeSessionId.value ? sessions.value[activeSessionId.value]?.agent  : (currentAgent.value || ''))
-const effectiveSaver  = computed(() => {
-  if (activeSessionId.value) return sessions.value[activeSessionId.value]?.saver || null
-  return store.settings.agents?.[currentAgent.value]?.saver || null
-})
-const effectiveMemory = computed(() => {
-  if (activeSessionId.value) return sessions.value[activeSessionId.value]?.memory || null
-  return store.settings.agents?.[currentAgent.value]?.memory || null
-})
+// Effective agent/saver/memory: session overrides current agent selection
+const effectiveAgent  = computed(() => activeSessionId.value ? sessions.value[activeSessionId.value]?.agent : currentAgent.value)
+const effectiveSaver  = computed(() => activeSessionId.value ? (sessions.value[activeSessionId.value]?.saver || null) : null)
+const effectiveMemory = computed(() => activeSessionId.value ? (sessions.value[activeSessionId.value]?.memory || null) : null)
 
 // ── WebSocket ──
 let ws: WebSocket | null = null
@@ -129,16 +120,11 @@ async function selectSession(id: string | null) {
   await refreshHistory()
 }
 
-async function switchAgent(name: string) {
+function switchAgent(name: string) {
   if (!name || name === currentAgent.value) return
-  try {
-    currentAgent.value = name
-    await apiFetch('/api/settings', 'PUT', store.settings)
-    activeSessionId.value = null
-    await refreshHistory()
-  } catch (e: any) {
-    show(e.message, 'error')
-  }
+  currentAgent.value = name
+  activeSessionId.value = null
+  refreshHistory()
 }
 
 async function clearHistory() {
@@ -261,6 +247,7 @@ async function sendOne(query: string, atts: Attachment[]) {
       type: 'message',
       query,
       sessionId: activeSessionId.value ?? undefined,
+      agentName: activeSessionId.value ? undefined : (currentAgent.value || undefined),
       attachments: atts.length ? atts : undefined,
     }))
     await donePromise

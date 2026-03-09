@@ -20,8 +20,8 @@ export class AgentRunner {
         saverName?: string,
         memoryName?: string,
     ): Promise<void> {
-        const resolvedAgentName = agentName || config.settings.agent;
-        if (!resolvedAgentName) throw new Error("未配置 agent，请在 settings.json 中设置 agent 字段");
+        const resolvedAgentName = agentName;
+        if (!resolvedAgentName) throw new Error("未指定 agent");
         const agentEntry = config.settings.agents?.[resolvedAgentName];
         if (!agentEntry) throw new Error(`Agent 配置 "${resolvedAgentName}" 不存在，请检查 settings.json 中的 agents 配置`);
 
@@ -51,7 +51,7 @@ export class AgentRunner {
 
         logger.info(`使用 Agent [${resolvedAgentName}] (${agentEntry.type})`);
 
-        const agent = await AgentFactory.create(resolvedAgentName, container, true, extraPrompts, memoryName ?? agentEntry.memory, saverName ?? agentEntry.saver);
+        const agent = await AgentFactory.create(resolvedAgentName, container, true, extraPrompts, memoryName, saverName);
         try {
             await agent.stream(query, callbacks);
         } finally {

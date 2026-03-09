@@ -65,8 +65,6 @@ export interface BaseAgentEntry {
   name?: string;               // 显示名称（可选，便于识别）
   type: AgentMode;
   systemPrompt?: string;       // 系统提示词（single 模式直接使用；react/supervisor 模式注入所有子 Agent）
-  memory?: string;             // 使用的记忆配置 UUID（对应 memories 中的 key），不填则不启用记忆
-  saver?: string;              // 使用的 Saver 配置 UUID（对应 savers 中的 key），不填则不持久化
 }
 
 /**
@@ -136,7 +134,6 @@ export interface ChannelConfig {
 }
 
 export interface Settings {
-  agent?: string;              // 当前使用的 Agent UUID（对应 agents 中的 key）
   httpUrl?: string;            // HTTP 服务对外访问的根 URL，默认 http://localhost:5500
   models?: Record<string, NamedModelConfig>;
   embeddings?: Record<string, NamedEmbeddingConfig>;
@@ -301,7 +298,6 @@ class Config {
     const A4  = "50000000-0000-0000-0000-000000000004"; // react-example
 
     return {
-      agent: A1,
       savers: {
         [S1]: { name: "default", type: SaverType.Sqlite }
       },

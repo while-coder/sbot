@@ -101,7 +101,6 @@ export interface ChannelConfig {
 }
 
 export interface Settings {
-  agent?: string
   httpUrl?: string
   agents?: Record<string, Agent>
   models?: Record<string, Model>

@@ -2,6 +2,7 @@ import "reflect-metadata";
 import { AgentMessage, AgentToolCall, MCPToolResult } from "scorpio.ai";
 import { WebSocket } from "ws";
 import { AgentRunner } from "../Agent/AgentRunner";
+import { config } from '../Core/Config';
 
 export type WebChatEvent =
     | { type: "stream"; content: string }
@@ -58,14 +59,14 @@ export class WebSocketUserService {
     }
 
     async processAIMessage(query: string, args: any): Promise<void> {
-        const { config } = await import('../Core/Config');
         const session = config.getSession(args?.sessionId);
+        if (!session) throw new Error(`会话 "${args?.sessionId}" 不存在`);
         await AgentRunner.run(query, {
             onMessage: this.onAgentMessage.bind(this),
             onStreamMessage: this.onAgentStreamMessage.bind(this),
             executeTool: this.executeAgentTool.bind(this),
             convertImages: async (r: MCPToolResult) => r,
-        }, undefined, session?.agent, session?.saver, session?.memory);
+        }, undefined, session.agent, session.saver, session.memory);
     }
 
     private emit(event: WebChatEvent) {
