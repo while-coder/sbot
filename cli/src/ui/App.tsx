@@ -55,8 +55,8 @@ export const App: React.FC<AppProps> = ({ client, config }) => {
   return (
     <Box flexDirection="column" height="100%">
       <Header
-        agentName={config.agentName}
-        saverName={config.saverName}
+        agentId={config.agentId}
+        saverId={config.saverId}
       />
       <MessageList
         history={history}

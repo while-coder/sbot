@@ -55,11 +55,11 @@ function Boot() {
   }, []);
 
   const handleWizardComplete = (
-    agentId: string, agentName: string,
-    saverId: string, saverName: string,
-    memoryId: string | null, memoryName: string | null,
+    agentId: string,
+    saverId: string,
+    memoryId: string | null,
   ) => {
-    const cfg: LocalConfig = { agentId, agentName, saverId, saverName, memoryId, memoryName };
+    const cfg: LocalConfig = { agentId, saverId, memoryId };
     writeLocalConfig(cfg);
     setState({ phase: 'chat', config: cfg });
   };

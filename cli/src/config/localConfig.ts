@@ -3,11 +3,8 @@ import { join } from 'node:path';
 
 export interface LocalConfig {
   agentId: string;
-  agentName: string;
   saverId: string;
-  saverName: string;
   memoryId: string | null;
-  memoryName: string | null;
 }
 
 const CONFIG_DIR = '.sbot';
