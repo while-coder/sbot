@@ -642,6 +642,34 @@ class HttpServer {
             return { message: '配置已重载' };
         }));
 
+        // ===== HTTP Chat (SSE) =====
+        app.post('/api/chat', async (req, res) => {
+            const { query, sessionId, attachments } = req.body as {
+                query?: string;
+                sessionId?: string;
+                attachments?: { name: string; type: string; dataUrl?: string; content?: string }[];
+            };
+            let enriched = query?.trim() || '';
+            if (attachments?.length) {
+                for (const att of attachments) {
+                    if (att.type?.startsWith('image/') && att.dataUrl) {
+                        enriched += `\n\n[图片附件: ${att.name}]\n${att.dataUrl}`;
+                    } else if (att.content != null) {
+                        enriched += `\n\n[文件附件: ${att.name}]\n\`\`\`\n${att.content}\n\`\`\``;
+                    }
+                }
+            }
+            if (!enriched) { res.status(400).json({ error: '消息内容不能为空' }); return; }
+            userService.http.setResponse(res);
+            req.on('close', () => userService.http.clearResponse());
+            try {
+                await userService.onReceiveHttpMessage(enriched, sessionId ?? '');
+            } finally {
+                userService.http.clearResponse();
+                res.end();
+            }
+        });
+
         // ===== HTTP + WebSocket 服务 =====
         const server = http.createServer(app);
 
