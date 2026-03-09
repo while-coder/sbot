@@ -24,12 +24,12 @@ function openAdd() {
   showModal.value = true
 }
 
-function openEdit(name: string) {
-  const m = models.value[name]
-  editingName.value = name
+function openEdit(id: string) {
+  const m = models.value[id]
+  editingName.value = id
   showApiKey.value  = false
   form.value = {
-    name,
+    name: (m as any).name || '',
     provider: m.provider || 'openai',
     baseURL: m.baseURL || '',
     apiKey: m.apiKey || '',
@@ -42,11 +42,12 @@ function openEdit(name: string) {
 async function save() {
   if (!form.value.name.trim()) { show('名称不能为空', 'error'); return }
   try {
-    const { name, ...config } = form.value
-    if (config.temperature === undefined || config.temperature === null) delete config.temperature
-    const oldName = editingName.value
-    const body = oldName && oldName !== name ? { ...config, oldName } : config
-    const res = await apiFetch(`/api/settings/models/${encodeURIComponent(name)}`, 'PUT', body)
+    const body: any = { ...form.value }
+    if (body.temperature === undefined || body.temperature === null) delete body.temperature
+    const id = editingName.value
+    const res = id
+      ? await apiFetch(`/api/settings/models/${encodeURIComponent(id)}`, 'PUT', body)
+      : await apiFetch('/api/settings/models', 'POST', body)
     Object.assign(store.settings, res.data)
     show('保存成功')
     showModal.value = false
@@ -55,10 +56,12 @@ async function save() {
   }
 }
 
-async function remove(name: string) {
-  if (!confirm(`确定要删除模型 "${name}" 吗？`)) return
+async function remove(id: string) {
+  const m = models.value[id]
+  const label = (m as any).name || id
+  if (!confirm(`确定要删除模型 "${label}" 吗？`)) return
   try {
-    const res = await apiFetch(`/api/settings/models/${encodeURIComponent(name)}`, 'DELETE')
+    const res = await apiFetch(`/api/settings/models/${encodeURIComponent(id)}`, 'DELETE')
     Object.assign(store.settings, res.data)
     show('删除成功')
   } catch (e: any) {
@@ -91,15 +94,15 @@ async function refresh() {
           <tr v-if="Object.keys(models).length === 0">
             <td colspan="5" style="text-align:center;color:#94a3b8;padding:40px">暂无模型</td>
           </tr>
-          <tr v-for="(m, name) in models" :key="name">
-            <td style="font-family:monospace">{{ name }}</td>
+          <tr v-for="(m, id) in models" :key="id">
+            <td>{{ (m as any).name || id }}</td>
             <td>{{ m.provider || '-' }}</td>
             <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.baseURL || '-' }}</td>
             <td>{{ m.model || '-' }}</td>
             <td>
               <div class="ops-cell">
-                <button class="btn-outline btn-sm" @click="openEdit(name as string)">编辑</button>
-                <button class="btn-danger btn-sm" @click="remove(name as string)">删除</button>
+                <button class="btn-outline btn-sm" @click="openEdit(id as string)">编辑</button>
+                <button class="btn-danger btn-sm" @click="remove(id as string)">删除</button>
               </div>
             </td>
           </tr>
@@ -111,12 +114,12 @@ async function refresh() {
     <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
       <div class="modal-box">
         <div class="modal-header">
-          <h3>{{ editingName ? '编辑模型' : '添加模型' }}</h3>
+          <h3>{{ editingName !== null ? '编辑模型' : '添加模型' }}</h3>
           <button class="modal-close" @click="showModal = false">&times;</button>
         </div>
         <div class="modal-body">
           <div class="form-group">
-            <label>名称 (唯一标识) *</label>
+            <label>名称 *</label>
             <input v-model="form.name" placeholder="如 openai-gpt4" />
           </div>
           <div class="form-group">

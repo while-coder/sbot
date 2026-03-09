@@ -15,6 +15,6 @@ export class LarkUserService extends LarkUserServiceBase {
             executeTool: this.executeAgentTool.bind(this),
             askUser: this.askUser.bind(this),
             convertImages: this.convertImages.bind(this),
-        }, args?.userInfo, channel.agent, channel.saver, channel.memory);
+        }, channel.agent, channel.saver, `channel_${args?.channelId}`, args?.userInfo, channel.memory);
     }
 }

@@ -8,9 +8,13 @@ import MemoryViewModal from './MemoryViewModal.vue'
 
 const { show } = useToast()
 
-const memories        = computed(() => store.settings.memories || {})
-const embeddingOptions = computed(() => Object.keys(store.settings.embeddings || {}))
-const modelOptions     = computed(() => Object.keys(store.settings.models || {}))
+const memories         = computed(() => store.settings.memories || {})
+const embeddingOptions = computed(() =>
+  Object.entries(store.settings.embeddings || {}).map(([id, e]) => ({ id, label: (e as any).name || id }))
+)
+const modelOptions = computed(() =>
+  Object.entries(store.settings.models || {}).map(([id, m]) => ({ id, label: (m as any).name || id }))
+)
 
 const showModal   = ref(false)
 const editingName = ref<string | null>(null)
@@ -27,11 +31,11 @@ function openAdd() {
   showModal.value = true
 }
 
-function openEdit(name: string) {
-  const m = memories.value[name]
-  editingName.value = name
+function openEdit(id: string) {
+  const m = memories.value[id]
+  editingName.value = id
   form.value = {
-    name,
+    name: (m as any).name || '',
     mode: m.mode || 'human_and_ai',
     maxAgeDays: m.maxAgeDays,
     embedding: m.embedding || '',
@@ -49,12 +53,19 @@ async function save() {
   if (!form.value.extractor)    { show('请选择提取器模型',      'error'); return }
   try {
     const { name, ...config } = form.value
-    const clean: MemoryConfig = { mode: config.mode, embedding: config.embedding, evaluator: config.evaluator, extractor: config.extractor }
-    if (config.maxAgeDays) clean.maxAgeDays = config.maxAgeDays
-    if (config.compressor) clean.compressor = config.compressor
-    const oldName = editingName.value
-    const body = oldName && oldName !== name ? { ...clean, oldName } : clean
-    const res = await apiFetch(`/api/settings/memories/${encodeURIComponent(name)}`, 'PUT', body)
+    const body: MemoryConfig & { name: string } = {
+      name,
+      mode: config.mode,
+      embedding: config.embedding,
+      evaluator: config.evaluator,
+      extractor: config.extractor,
+    }
+    if (config.maxAgeDays) body.maxAgeDays = config.maxAgeDays
+    if (config.compressor) body.compressor = config.compressor
+    const id = editingName.value
+    const res = id
+      ? await apiFetch(`/api/settings/memories/${encodeURIComponent(id)}`, 'PUT', body)
+      : await apiFetch('/api/settings/memories', 'POST', body)
     Object.assign(store.settings, res.data)
     show('保存成功')
     showModal.value = false
@@ -63,10 +74,12 @@ async function save() {
   }
 }
 
-async function remove(name: string) {
-  if (!confirm(`确定要删除记忆配置 "${name}" 吗？`)) return
+async function remove(id: string) {
+  const m = memories.value[id]
+  const label = (m as any).name || id
+  if (!confirm(`确定要删除记忆配置 "${label}" 吗？`)) return
   try {
-    const res = await apiFetch(`/api/settings/memories/${encodeURIComponent(name)}`, 'DELETE')
+    const res = await apiFetch(`/api/settings/memories/${encodeURIComponent(id)}`, 'DELETE')
     Object.assign(store.settings, res.data)
     show('删除成功')
   } catch (e: any) {
@@ -99,16 +112,16 @@ async function refresh() {
           <tr v-if="Object.keys(memories).length === 0">
             <td colspan="5" style="text-align:center;color:#94a3b8;padding:40px">暂无记忆配置</td>
           </tr>
-          <tr v-for="(m, name) in memories" :key="name">
-            <td style="font-family:monospace">{{ name }}</td>
+          <tr v-for="(m, id) in memories" :key="id">
+            <td>{{ (m as any).name || id }}</td>
             <td>{{ m.mode || '-' }}</td>
-            <td>{{ m.embedding || '-' }}</td>
+            <td>{{ embeddingOptions.find(e => e.id === m.embedding)?.label || m.embedding || '-' }}</td>
             <td>{{ m.maxAgeDays ?? '-' }}</td>
             <td>
               <div class="ops-cell">
-                <button class="btn-outline btn-sm" @click="memoryViewModal?.open(name as string)">查看</button>
-                <button class="btn-outline btn-sm" @click="openEdit(name as string)">编辑</button>
-                <button class="btn-danger btn-sm" @click="remove(name as string)">删除</button>
+                <button class="btn-outline btn-sm" @click="memoryViewModal?.open(id as string)">查看</button>
+                <button class="btn-outline btn-sm" @click="openEdit(id as string)">编辑</button>
+                <button class="btn-danger btn-sm" @click="remove(id as string)">删除</button>
               </div>
             </td>
           </tr>
@@ -120,13 +133,13 @@ async function refresh() {
     <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
       <div class="modal-box">
         <div class="modal-header">
-          <h3>{{ editingName ? '编辑记忆配置' : '添加记忆配置' }}</h3>
+          <h3>{{ editingName !== null ? '编辑记忆配置' : '添加记忆配置' }}</h3>
           <button class="modal-close" @click="showModal = false">&times;</button>
         </div>
         <div class="modal-body">
           <div class="form-group">
-            <label>名称 (唯一标识) *</label>
-            <input v-model="form.name" :disabled="!!editingName" placeholder="如 default" />
+            <label>名称 *</label>
+            <input v-model="form.name" placeholder="如 default" />
           </div>
           <div class="form-group">
             <label>记忆模式</label>
@@ -143,28 +156,28 @@ async function refresh() {
           <div class="form-group">
             <label>Embedding 模型 *</label>
             <select v-model="form.embedding">
-              <option v-for="e in embeddingOptions" :key="e" :value="e">{{ e }}</option>
+              <option v-for="e in embeddingOptions" :key="e.id" :value="e.id">{{ e.label }}</option>
             </select>
           </div>
           <div class="form-group">
             <label>评估器模型 *</label>
             <select v-model="form.evaluator">
               <option value="" disabled>请选择</option>
-              <option v-for="m in modelOptions" :key="m" :value="m">{{ m }}</option>
+              <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
             </select>
           </div>
           <div class="form-group">
             <label>提取器模型 *</label>
             <select v-model="form.extractor">
               <option value="" disabled>请选择</option>
-              <option v-for="m in modelOptions" :key="m" :value="m">{{ m }}</option>
+              <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
             </select>
           </div>
           <div class="form-group">
             <label>压缩器模型</label>
             <select v-model="form.compressor">
               <option value="">不使用</option>
-              <option v-for="m in modelOptions" :key="m" :value="m">{{ m }}</option>
+              <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
             </select>
           </div>
         </div>

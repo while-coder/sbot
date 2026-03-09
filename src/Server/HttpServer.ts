@@ -126,25 +126,19 @@ class HttpServer {
         }));
 
         // ===== Settings / Models =====
-        app.put('/api/settings/models/:name', api(req => {
-            const name = req.params.name as string;
-            const { oldName, ...modelConfig } = req.body;
+        app.post('/api/settings/models', api(req => {
             if (!config.settings.models) config.settings.models = {};
-            if (oldName && oldName !== name) {
-                delete config.settings.models[oldName];
-                for (const a of Object.values(config.settings.agents ?? {}) as any[]) {
-                    if (a.model      === oldName) a.model      = name;
-                    if (a.reflect    === oldName) a.reflect    = name;
-                    if (a.summarizer === oldName) a.summarizer = name;
-                    if (a.finalize   === oldName) a.finalize   = name;
-                }
-                for (const m of Object.values(config.settings.memories ?? {}) as any[]) {
-                    if (m.evaluator  === oldName) m.evaluator  = name;
-                    if (m.extractor  === oldName) m.extractor  = name;
-                    if (m.compressor === oldName) m.compressor = name;
-                }
-            }
-            config.settings.models[name] = modelConfig;
+            let id = randomUUID();
+            while (config.settings.models[id]) id = randomUUID();
+            config.settings.models[id] = req.body;
+            config.saveSettings();
+            return config.settings;
+        }));
+
+        app.put('/api/settings/models/:id', api(req => {
+            const id = req.params.id as string;
+            if (!config.settings.models?.[id]) throwBad(`模型 "${id}" 不存在`);
+            config.settings.models![id] = req.body;
             config.saveSettings();
             return config.settings;
         }));
@@ -157,60 +151,76 @@ class HttpServer {
         }));
 
         // ===== Settings / Embeddings =====
-        app.put('/api/settings/embeddings/:name', api(req => {
-            const name = req.params.name as string;
-            const { oldName, ...embeddingConfig } = req.body;
+        app.post('/api/settings/embeddings', api(req => {
             if (!config.settings.embeddings) config.settings.embeddings = {};
-            if (oldName && oldName !== name) {
-                delete config.settings.embeddings[oldName];
-                for (const m of Object.values(config.settings.memories ?? {}) as any[]) {
-                    if (m.embedding === oldName) m.embedding = name;
-                }
-            }
-            config.settings.embeddings[name] = embeddingConfig;
+            let id = randomUUID();
+            while (config.settings.embeddings[id]) id = randomUUID();
+            config.settings.embeddings[id] = req.body;
             config.saveSettings();
             return config.settings;
         }));
 
-        app.delete('/api/settings/embeddings/:name', api(req => {
-            const name = req.params.name as string;
-            if (config.settings.embeddings) delete config.settings.embeddings[name];
+        app.put('/api/settings/embeddings/:id', api(req => {
+            const id = req.params.id as string;
+            if (!config.settings.embeddings?.[id]) throwBad(`Embedding "${id}" 不存在`);
+            config.settings.embeddings![id] = req.body;
+            config.saveSettings();
+            return config.settings;
+        }));
+
+        app.delete('/api/settings/embeddings/:id', api(req => {
+            const id = req.params.id as string;
+            if (config.settings.embeddings) delete config.settings.embeddings[id];
             config.saveSettings();
             return config.settings;
         }));
 
         // ===== Settings / Savers =====
-        app.put('/api/settings/savers/:name', api(req => {
-            const name = req.params.name as string;
-            const { oldName, ...saverConfig } = req.body;
+        app.post('/api/settings/savers', api(req => {
             if (!config.settings.savers) config.settings.savers = {};
-            if (oldName && oldName !== name) delete config.settings.savers[oldName];
-            config.settings.savers[name] = saverConfig;
+            let id = randomUUID();
+            while (config.settings.savers[id]) id = randomUUID();
+            config.settings.savers[id] = req.body;
             config.saveSettings();
             return config.settings;
         }));
 
-        app.delete('/api/settings/savers/:name', api(req => {
-            const name = req.params.name as string;
-            if (config.settings.savers) delete config.settings.savers[name];
+        app.put('/api/settings/savers/:id', api(req => {
+            const id = req.params.id as string;
+            if (!config.settings.savers?.[id]) throwBad(`存储配置 "${id}" 不存在`);
+            config.settings.savers![id] = req.body;
+            config.saveSettings();
+            return config.settings;
+        }));
+
+        app.delete('/api/settings/savers/:id', api(req => {
+            const id = req.params.id as string;
+            if (config.settings.savers) delete config.settings.savers[id];
             config.saveSettings();
             return config.settings;
         }));
 
         // ===== Settings / Memories =====
-        app.put('/api/settings/memories/:name', api(req => {
-            const name = req.params.name as string;
-            const { oldName, ...memoryConfig } = req.body;
+        app.post('/api/settings/memories', api(req => {
             if (!config.settings.memories) config.settings.memories = {};
-            if (oldName && oldName !== name) delete config.settings.memories[oldName];
-            config.settings.memories[name] = memoryConfig;
+            let id = randomUUID();
+            while (config.settings.memories[id]) id = randomUUID();
+            config.settings.memories[id] = req.body;
             config.saveSettings();
             return config.settings;
         }));
 
-        app.delete('/api/settings/memories/:name', api(req => {
-            const name = req.params.name as string;
-            if (config.settings.memories) delete config.settings.memories[name];
+        app.put('/api/settings/memories/:id', api(req => {
+            const id = req.params.id as string;
+            if (!config.settings.memories?.[id]) throwBad(`记忆配置 "${id}" 不存在`);
+            config.settings.memories![id] = req.body;
+            config.saveSettings();
+            return config.settings;
+        }));
+
+        app.delete('/api/settings/memories/:id', api(req => {
+            const id = req.params.id as string;
+            if (config.settings.memories) delete config.settings.memories[id];
             config.saveSettings();
             return config.settings;
         }));

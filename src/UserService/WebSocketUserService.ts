@@ -66,7 +66,7 @@ export class WebSocketUserService {
             onStreamMessage: this.onAgentStreamMessage.bind(this),
             executeTool: this.executeAgentTool.bind(this),
             convertImages: async (r: MCPToolResult) => r,
-        }, undefined, session.agent, session.saver, session.memory);
+        }, session.agent, session.saver, `session_${args?.sessionId}`, undefined, session.memory);
     }
 
     private emit(event: WebChatEvent) {

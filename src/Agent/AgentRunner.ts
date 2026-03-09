@@ -23,15 +23,17 @@ export class AgentRunner {
     static async run(
         query: string,
         callbacks: IAgentCallback,
+        agentName: string,
+        saverName: string,
+        saverThreadId: string,
         userInfo?: any,
-        agentName?: string,
-        saverName?: string,
         memoryName?: string,
     ): Promise<void> {
-        const resolvedAgentName = agentName;
-        if (!resolvedAgentName) throw new Error("未指定 agent");
-        const agentEntry = config.settings.agents?.[resolvedAgentName];
-        if (!agentEntry) throw new Error(`Agent 配置 "${resolvedAgentName}" 不存在，请检查 settings.json 中的 agents 配置`);
+        if (!agentName.trim())      throw new Error("未指定 agent");
+        if (!saverName.trim())      throw new Error("未指定 saver");
+        if (!saverThreadId.trim())  throw new Error("未指定 saverThreadId");
+        const agentEntry = config.settings.agents?.[agentName];
+        if (!agentEntry) throw new Error(`Agent 配置 "${agentName}" 不存在，请检查 settings.json 中的 agents 配置`);
 
         const now = new Date();
         const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -57,11 +59,11 @@ export class AgentRunner {
         const container = new ServiceContainer();
         container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
         await AgentRunner.registerMemoryService(container, memoryName);
-        await AgentRunner.registerSaverService(container, saverName);
+        await AgentRunner.registerSaverService(container, saverName, saverThreadId);
 
-        logger.info(`使用 Agent [${resolvedAgentName}] (${agentEntry.type})`);
+        logger.info(`使用 Agent [${agentName}] (${agentEntry.type})`);
 
-        const agent = await AgentFactory.create(resolvedAgentName, container, true, extraPrompts);
+        const agent = await AgentFactory.create(agentName, container, true, extraPrompts);
         try {
             await agent.stream(query, callbacks);
         } finally {
@@ -124,6 +126,7 @@ export class AgentRunner {
     private static async registerSaverService(
         container: ServiceContainer,
         saverName?: string,
+        threadId?: string,
     ): Promise<void> {
         if (container.isRegistered(IAgentSaverService)) return;
         const saverConfig = config.getSaver(saverName);
@@ -132,14 +135,15 @@ export class AgentRunner {
             return;
         }
 
+        const tid = threadId ?? saverName;
         if (saverConfig.type === SaverType.File) {
             container.registerWithArgs(IAgentSaverService, AgentFileSaver, {
-                [T_ThreadId]: saverName,
+                [T_ThreadId]: tid,
                 [T_DBPath]: config.getSaverDir(saverName!),
             });
         } else {
             container.registerWithArgs(IAgentSaverService, AgentSqliteSaver, {
-                [T_ThreadId]: saverName,
+                [T_ThreadId]: tid,
                 [T_DBPath]: config.getSaverPath(saverName!),
             });
         }

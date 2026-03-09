@@ -22,20 +22,21 @@ function openAdd() {
   showModal.value = true
 }
 
-function openEdit(name: string) {
-  const s = savers.value[name]
-  editingName.value = name
-  form.value = { name, type: s.type || 'sqlite' }
+function openEdit(id: string) {
+  const s = savers.value[id]
+  editingName.value = id
+  form.value = { name: (s as any).name || '', type: s.type || 'sqlite' }
   showModal.value = true
 }
 
 async function save() {
   if (!form.value.name.trim()) { show('名称不能为空', 'error'); return }
   try {
-    const { name, ...config } = form.value
-    const oldName = editingName.value
-    const body = oldName && oldName !== name ? { ...config, oldName } : config
-    const res = await apiFetch(`/api/settings/savers/${encodeURIComponent(name)}`, 'PUT', body)
+    const body = { ...form.value }
+    const id = editingName.value
+    const res = id
+      ? await apiFetch(`/api/settings/savers/${encodeURIComponent(id)}`, 'PUT', body)
+      : await apiFetch('/api/settings/savers', 'POST', body)
     Object.assign(store.settings, res.data)
     show('保存成功')
     showModal.value = false
@@ -44,10 +45,12 @@ async function save() {
   }
 }
 
-async function remove(name: string) {
-  if (!confirm(`确定要删除存储配置 "${name}" 吗？`)) return
+async function remove(id: string) {
+  const s = savers.value[id]
+  const label = (s as any).name || id
+  if (!confirm(`确定要删除存储配置 "${label}" 吗？`)) return
   try {
-    const res = await apiFetch(`/api/settings/savers/${encodeURIComponent(name)}`, 'DELETE')
+    const res = await apiFetch(`/api/settings/savers/${encodeURIComponent(id)}`, 'DELETE')
     Object.assign(store.settings, res.data)
     show('删除成功')
   } catch (e: any) {
@@ -80,14 +83,14 @@ async function refresh() {
           <tr v-if="Object.keys(savers).length === 0">
             <td colspan="3" style="text-align:center;color:#94a3b8;padding:40px">暂无存储配置</td>
           </tr>
-          <tr v-for="(s, name) in savers" :key="name">
-            <td style="font-family:monospace">{{ name }}</td>
+          <tr v-for="(s, id) in savers" :key="id">
+            <td>{{ (s as any).name || id }}</td>
             <td>{{ s.type || '-' }}</td>
             <td>
               <div class="ops-cell">
-                <button class="btn-outline btn-sm" @click="saverViewModal?.open(name as string)">查看</button>
-                <button class="btn-outline btn-sm" @click="openEdit(name as string)">编辑</button>
-                <button class="btn-danger btn-sm" @click="remove(name as string)">删除</button>
+                <button class="btn-outline btn-sm" @click="saverViewModal?.open(id as string)">查看</button>
+                <button class="btn-outline btn-sm" @click="openEdit(id as string)">编辑</button>
+                <button class="btn-danger btn-sm" @click="remove(id as string)">删除</button>
               </div>
             </td>
           </tr>
@@ -99,13 +102,13 @@ async function refresh() {
     <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
       <div class="modal-box" style="width:400px">
         <div class="modal-header">
-          <h3>{{ editingName ? '编辑存储配置' : '添加存储配置' }}</h3>
+          <h3>{{ editingName !== null ? '编辑存储配置' : '添加存储配置' }}</h3>
           <button class="modal-close" @click="showModal = false">&times;</button>
         </div>
         <div class="modal-body">
           <div class="form-group">
-            <label>名称 (唯一标识) *</label>
-            <input v-model="form.name" :disabled="!!editingName" placeholder="如 default" />
+            <label>名称 *</label>
+            <input v-model="form.name" placeholder="如 default" />
           </div>
           <div class="form-group">
             <label>存储类型</label>
