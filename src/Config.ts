@@ -96,6 +96,33 @@ export interface SupervisorAgentEntry extends BaseAgentEntry {
  */
 export type AgentEntry = SingleAgentEntry | ReactAgentEntry | SupervisorAgentEntry;
 
+/**
+ * 会话配置（覆盖全局 agent/saver/memory 等设置）
+ */
+export interface SessionConfig {
+  name?: string;               // 显示名称（可选，便于识别）
+  agent: string;               // 使用的 Agent 名称（对应 agents 中的 key）
+  saver: string;               // 使用的 Saver 配置名称（对应 savers 中的 key）
+  memory?: string;             // 使用的记忆配置名称（对应 memories 中的 key）
+}
+
+export enum ChannelType {
+  Lark = "lark",
+}
+
+/**
+ * 频道配置（不同接入渠道的个性化设置）
+ */
+export interface ChannelConfig {
+  name?: string;               // 显示名称（可选，便于识别）
+  type: ChannelType;           // 频道类型
+  appId?: string;              // Lark App ID
+  appSecret?: string;          // Lark App Secret
+  agent: string;               // 该频道使用的 Agent 名称（对应 agents 中的 key）
+  saver: string;               // 使用的 Saver 配置名称（对应 savers 中的 key）
+  memory?: string;             // 使用的记忆配置名称（对应 memories 中的 key）
+}
+
 export interface Settings {
   agent?: string;              // 当前使用的 Agent 名称（对应 agents 中的 key）
   httpUrl?: string;            // HTTP 服务对外访问的根 URL，默认 http://localhost:5500
@@ -105,6 +132,8 @@ export interface Settings {
   savers?: Record<string, SaverConfig>;
   memories?: Record<string, MemoryConfig>;
   agents?: Record<string, AgentEntry>;
+  sessions?: Record<string, SessionConfig>;
+  channels?: Record<string, ChannelConfig>;
 }
 
 class Config {
@@ -159,6 +188,16 @@ class Config {
   getMemory(name?: string): MemoryConfig | undefined {
     if (!this._settings.memories || !name) return undefined;
     return this._settings.memories[name.trim()];
+  }
+
+  getSession(name?: string): SessionConfig | undefined {
+    if (!this._settings.sessions || !name) return undefined;
+    return this._settings.sessions[name.trim()];
+  }
+
+  getChannel(name?: string): ChannelConfig | undefined {
+    if (!this._settings.channels || !name) return undefined;
+    return this._settings.channels[name.trim()];
   }
 
   async getModelService(name: string | undefined, throwError = false): Promise<IModelService | undefined> {

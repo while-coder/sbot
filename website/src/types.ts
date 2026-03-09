@@ -76,6 +76,25 @@ export interface Agent {
   [key: string]: unknown
 }
 
+export interface SessionConfig {
+  name?: string
+  agent: string
+  saver: string
+  memory?: string
+  [key: string]: unknown
+}
+
+export interface ChannelConfig {
+  name?: string
+  type: string
+  appId?: string
+  appSecret?: string
+  agent: string
+  saver: string
+  memory?: string
+  [key: string]: unknown
+}
+
 export interface Settings {
   agent?: string
   httpUrl?: string
@@ -84,6 +103,8 @@ export interface Settings {
   embeddings?: Record<string, Embedding>
   memories?: Record<string, MemoryConfig>
   savers?: Record<string, SaverConfig>
+  sessions?: Record<string, SessionConfig>
+  channels?: Record<string, ChannelConfig>
   lark?: { appId?: string; appSecret?: string }
   [key: string]: unknown
 }

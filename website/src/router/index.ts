@@ -15,6 +15,7 @@ const routes = [
   { path: '/skills', component: () => import('@/views/SkillsView.vue') },
   { path: '/users', component: () => import('@/views/UsersView.vue') },
   { path: '/timers', component: () => import('@/views/TimerView.vue') },
+  { path: '/channels', component: () => import('@/views/ChannelsView.vue') },
 ]
 
 export default createRouter({

@@ -57,13 +57,15 @@ export class WebUserService {
         return '';
     }
 
-    async processAIMessage(query: string, _args: any): Promise<void> {
+    async processAIMessage(query: string, args: any): Promise<void> {
+        const { config } = await import('../Config');
+        const session = config.getSession(args?.sessionId);
         await AgentRunner.run(query, {
             onMessage: this.onAgentMessage.bind(this),
             onStreamMessage: this.onAgentStreamMessage.bind(this),
             executeTool: this.executeAgentTool.bind(this),
             convertImages: async (r: MCPToolResult) => r,
-        });
+        }, undefined, session?.agent, session?.saver, session?.memory);
     }
 
     private emit(event: WebChatEvent) {

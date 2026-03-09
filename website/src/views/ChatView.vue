@@ -34,13 +34,26 @@ const streamingContent = ref('')
 const streamingToolCalls = ref<{ name: string; args: unknown }[]>([])
 const isStreaming = ref(false)
 
+// ── Session sidebar ──
+const activeSessionId = ref<string | null>(null)
+const sessions = computed(() => store.settings.sessions || {})
+
 const agentNames = computed(() => Object.keys(store.settings.agents || {}))
 const currentAgent = computed({
   get: () => store.settings.agent || '',
   set: (v) => { store.settings.agent = v },
 })
-const chatSaverName  = computed(() => store.settings.agents?.[store.settings.agent || '']?.saver  || null)
-const chatMemoryName = computed(() => store.settings.agents?.[store.settings.agent || '']?.memory || null)
+
+// Effective agent/saver/memory: session overrides global agent settings
+const effectiveAgent  = computed(() => activeSessionId.value ? sessions.value[activeSessionId.value]?.agent  : (currentAgent.value || ''))
+const effectiveSaver  = computed(() => {
+  if (activeSessionId.value) return sessions.value[activeSessionId.value]?.saver || null
+  return store.settings.agents?.[currentAgent.value]?.saver || null
+})
+const effectiveMemory = computed(() => {
+  if (activeSessionId.value) return sessions.value[activeSessionId.value]?.memory || null
+  return store.settings.agents?.[currentAgent.value]?.memory || null
+})
 
 // ── WebSocket ──
 let ws: WebSocket | null = null
@@ -67,7 +80,7 @@ function bindWsHandlers(socket: WebSocket) {
       scrollToBottom()
     } else if (evt.type === 'done') {
       isStreaming.value = false
-      await refreshAgentAndHistory()
+      await refreshHistory()
       doneResolve?.()
       doneResolve = null
       doneReject = null
@@ -97,8 +110,8 @@ function ensureWs(): Promise<void> {
   })
 }
 
-async function refreshAgentAndHistory() {
-  const saver = chatSaverName.value
+async function refreshHistory() {
+  const saver = effectiveSaver.value
   if (!saver) { messages.value = []; return }
   try {
     const res = await apiFetch(`/api/savers/${encodeURIComponent(saver)}/history`)
@@ -110,24 +123,31 @@ async function refreshAgentAndHistory() {
   }
 }
 
+async function selectSession(id: string | null) {
+  if (activeSessionId.value === id) return
+  activeSessionId.value = id
+  await refreshHistory()
+}
+
 async function switchAgent(name: string) {
   if (!name || name === currentAgent.value) return
   try {
     currentAgent.value = name
     await apiFetch('/api/settings', 'PUT', store.settings)
-    await refreshAgentAndHistory()
+    activeSessionId.value = null
+    await refreshHistory()
   } catch (e: any) {
     show(e.message, 'error')
   }
 }
 
 async function clearHistory() {
-  const saver = chatSaverName.value
-  if (!saver || !confirm(`确定要清除 ${saver} 的所有历史记录吗？`)) return
+  const saver = effectiveSaver.value
+  if (!saver || !confirm(`确定要清除存储 "${saver}" 的所有历史记录吗？`)) return
   try {
     await apiFetch(`/api/savers/${encodeURIComponent(saver)}/history`, 'DELETE')
     show('历史已清除')
-    await refreshAgentAndHistory()
+    await refreshHistory()
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -191,8 +211,8 @@ function autoResize(e: Event) {
 }
 
 async function send() {
-  const saver = chatSaverName.value
-  if (!saver) { show('当前 Agent 未配置会话存储', 'error'); return }
+  const saver = effectiveSaver.value
+  if (!saver) { show('未配置会话存储', 'error'); return }
   const query = chatInput.value.trim()
   if (!query && attachments.value.length === 0) return
   chatInput.value = ''
@@ -219,7 +239,6 @@ async function sendOne(query: string, atts: Attachment[]) {
   streamingContent.value = ''
   streamingToolCalls.value = []
 
-  // Append user message immediately (show original query + attachment names)
   const displayContent = [
     query,
     ...atts.map(a => `[附件: ${a.name}]`),
@@ -238,7 +257,12 @@ async function sendOne(query: string, atts: Attachment[]) {
       doneResolve = resolve
       doneReject = reject
     })
-    ws!.send(JSON.stringify({ type: 'message', query, attachments: atts.length ? atts : undefined }))
+    ws!.send(JSON.stringify({
+      type: 'message',
+      query,
+      sessionId: activeSessionId.value ?? undefined,
+      attachments: atts.length ? atts : undefined,
+    }))
     await donePromise
   } catch (e: any) {
     isStreaming.value = false
@@ -272,7 +296,7 @@ function renderMd(content: string): string {
 }
 
 
-onMounted(refreshAgentAndHistory)
+onMounted(refreshHistory)
 
 onUnmounted(() => {
   ws?.close()
@@ -281,155 +305,192 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div style="height:100%;display:flex;flex-direction:column">
+  <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
     <!-- Toolbar -->
     <div class="page-toolbar">
-      <label style="color:#64748b;font-size:13px;margin:0">Agent:</label>
-      <select
-        :value="currentAgent"
-        @change="switchAgent(($event.target as HTMLSelectElement).value)"
-        style="font-size:13px;padding:3px 8px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;color:#1e293b;cursor:pointer"
-      >
-        <option v-if="agentNames.length === 0" value="">(无 Agent)</option>
-        <option v-for="name in agentNames" :key="name" :value="name">{{ name }}</option>
-      </select>
-      <button v-if="chatSaverName" class="chat-info-chip" @click="saverViewModal?.open(chatSaverName!)">
-        存储: {{ chatSaverName }}
+      <template v-if="!activeSessionId">
+        <label style="color:#64748b;font-size:13px;margin:0">Agent:</label>
+        <select
+          :value="currentAgent"
+          @change="switchAgent(($event.target as HTMLSelectElement).value)"
+          style="font-size:13px;padding:3px 8px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;color:#1e293b;cursor:pointer"
+        >
+          <option v-if="agentNames.length === 0" value="">(无 Agent)</option>
+          <option v-for="name in agentNames" :key="name" :value="name">{{ name }}</option>
+        </select>
+      </template>
+      <template v-else>
+        <span style="font-size:13px;font-weight:600;color:#1c1c1c">{{ sessions[activeSessionId]?.name || (activeSessionId as string).slice(0, 8) + '…' }}</span>
+        <span style="font-size:12px;color:#9b9b9b;font-family:monospace">{{ effectiveAgent }}</span>
+      </template>
+      <button v-if="effectiveSaver" class="chat-info-chip" @click="saverViewModal?.open(effectiveSaver!)">
+        存储: {{ effectiveSaver }}
       </button>
       <span v-else style="color:#c4c4c0;font-size:12px">未配置存储</span>
-      <button v-if="chatMemoryName" class="chat-info-chip" @click="memoryViewModal?.open(chatMemoryName!)">
-        记忆: {{ chatMemoryName }}
+      <button v-if="effectiveMemory" class="chat-info-chip" @click="memoryViewModal?.open(effectiveMemory!)">
+        记忆: {{ effectiveMemory }}
       </button>
-      <button class="btn-outline btn-sm" style="margin-left:auto" @click="refreshAgentAndHistory">刷新</button>
+      <button class="btn-outline btn-sm" style="margin-left:auto" @click="refreshHistory">刷新</button>
       <button class="btn-danger btn-sm" @click="clearHistory">清除历史</button>
     </div>
 
-    <!-- Message list -->
-    <div ref="messagesEl" style="flex:1;overflow-y:auto">
-      <div class="history-messages">
-        <template v-if="messages.length === 0 && !isStreaming">
-          <div style="text-align:center;color:#94a3b8;padding:60px">暂无历史记录</div>
-        </template>
+    <!-- Body: session sidebar + chat area -->
+    <div style="flex:1;display:flex;overflow:hidden">
 
-        <template v-for="(msg, idx) in messages" :key="idx">
-          <template v-if="!(msg.role === 'tool' && msg.tool_call_id)">
-            <div v-if="msg.role === 'human'" class="msg-row human">
-              <div class="msg-bubble human">
-                <div class="msg-role-bar">
-                  <span class="msg-role">用户</span>
-                  <span v-if="msg.timestamp" class="msg-time">{{ fmtTs(msg.timestamp) }}</span>
-                </div>
-                {{ msg.content }}
-              </div>
-            </div>
-            <div v-else-if="msg.role === 'ai'" class="msg-row ai">
-              <div v-if="msg.content" class="msg-bubble ai">
-                <div class="msg-role-bar">
-                  <span class="msg-role">AI</span>
-                  <span v-if="msg.timestamp" class="msg-time">{{ fmtTs(msg.timestamp) }}</span>
-                </div>
-                <div class="md-content" v-html="renderMd(msg.content)" />
-              </div>
-              <div v-if="msg.tool_calls && msg.tool_calls.length > 0" class="msg-tool-calls">
-                <div class="msg-role">Tool Calls ({{ msg.tool_calls.length }})</div>
-                <div v-for="tc in msg.tool_calls" :key="(tc as ToolCall).id" class="tool-call-item">
-                  <div class="tool-call-header" @click="toggleToolCall($event.currentTarget as HTMLElement)">
-                    <span class="tool-call-name">{{ (tc as ToolCall).name }}</span>
-                  </div>
-                  <div class="tool-call-detail">
-                    <div class="tool-call-args">{{ JSON.stringify((tc as ToolCall).args, null, 2) }}</div>
-                    <template v-for="m2 in messages" :key="'r' + (m2.tool_call_id || '')">
-                      <div v-if="m2.role === 'tool' && m2.tool_call_id === (tc as ToolCall).id" class="tool-call-result">
-                        <div class="tool-call-result-label">返回结果</div>
-                        {{ m2.content }}
-                      </div>
-                    </template>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div v-else-if="msg.role === 'tool'" class="msg-row ai">
-              <div class="msg-bubble tool">
-                <div class="msg-role-bar">
-                  <span class="msg-role">Tool{{ msg.name ? ` · ${msg.name}` : '' }}</span>
-                </div>
-                {{ msg.content }}
-              </div>
-            </div>
-            <div v-else class="msg-row ai">
-              <div class="msg-bubble ai">
-                <div class="msg-role-bar">
-                  <span class="msg-role">{{ msg.role }}</span>
-                  <span v-if="msg.timestamp" class="msg-time">{{ fmtTs(msg.timestamp) }}</span>
-                </div>
-                {{ msg.content }}
-              </div>
-            </div>
-          </template>
-        </template>
-
-        <!-- Streaming AI response -->
-        <div v-if="isStreaming" class="msg-row ai">
-          <div class="msg-bubble ai streaming">
-            <div class="msg-role-bar"><span class="msg-role">AI</span></div>
-            <div v-if="streamingContent" class="md-content" v-html="renderMd(streamingContent)" />
-            <span v-else style="color:#94a3b8">思考中…</span>
-          </div>
-          <div v-for="(tc, i) in streamingToolCalls" :key="i" class="msg-tool-calls">
-            <div class="msg-role">Tool Call</div>
-            <div class="tool-call-item">
-              <div class="tool-call-header expanded" @click="toggleToolCall($event.currentTarget as HTMLElement)">
-                <span class="tool-call-name">{{ tc.name }}</span>
-              </div>
-              <div class="tool-call-detail show">
-                <div class="tool-call-args">{{ JSON.stringify(tc.args, null, 2) }}</div>
-              </div>
-            </div>
-          </div>
+      <!-- Session sidebar -->
+      <div style="width:180px;border-right:1px solid #e8e6e3;display:flex;flex-direction:column;overflow:hidden;flex-shrink:0">
+        <div style="padding:8px 10px;font-size:11px;font-weight:700;color:#9b9b9b;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid #e8e6e3;flex-shrink:0">
+          Sessions
         </div>
-      </div>
-    </div>
-
-    <!-- Queue -->
-    <div v-if="chatQueue.length > 0" class="chat-queue" style="display:flex">
-      <div class="chat-queue-label">待发送（{{ chatQueue.length }}）</div>
-      <div v-for="(q, i) in chatQueue" :key="i" class="chat-queue-item">
-        <span class="chat-queue-text">{{ q }}</span>
-        <button class="chat-queue-del" @click="chatQueue.splice(i, 1)">×</button>
-      </div>
-    </div>
-
-    <!-- Input bar -->
-    <div class="chat-input-bar">
-      <input ref="fileInputEl" type="file" multiple style="display:none" @change="onFileChange" />
-      <div style="flex:1;display:flex;flex-direction:column;gap:6px">
-        <!-- Attachment chips -->
-        <div v-if="attachments.length > 0" style="display:flex;flex-wrap:wrap;gap:6px">
+        <div style="flex:1;overflow-y:auto;padding:4px">
           <div
-            v-for="(att, i) in attachments"
-            :key="att.name"
-            style="display:flex;align-items:center;gap:4px;padding:2px 8px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:12px;font-size:12px;color:#475569;max-width:200px"
+            class="session-item"
+            :class="{ active: activeSessionId === null }"
+            @click="selectSession(null)"
           >
-            <img v-if="isImage(att) && att.dataUrl" :src="att.dataUrl"
-              style="width:18px;height:18px;object-fit:cover;border-radius:2px;flex-shrink:0" />
-            <span v-else style="font-size:13px;flex-shrink:0">📄</span>
-            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ att.name }}</span>
-            <button @click="removeAttachment(i)"
-              style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:14px;padding:0;line-height:1;flex-shrink:0">×</button>
+            <div class="session-item-name">默认</div>
+            <div class="session-item-sub">{{ currentAgent || '未选择' }}</div>
+          </div>
+          <div
+            v-for="(s, id) in sessions"
+            :key="id"
+            class="session-item"
+            :class="{ active: activeSessionId === id }"
+            @click="selectSession(id as string)"
+          >
+            <div class="session-item-name">{{ s.name || (id as string).slice(0, 8) + '…' }}</div>
+            <div class="session-item-sub">{{ s.agent }}</div>
           </div>
         </div>
-        <textarea
-          v-model="chatInput"
-          placeholder="输入消息，Enter 发送，Shift+Enter 换行…"
-          rows="3"
-          @keydown="onKeydown"
-          @input="autoResize"
-          style="resize:none"
-        />
       </div>
-      <div style="display:flex;flex-direction:column;gap:6px;align-self:flex-end">
-        <button class="btn-outline btn-sm" @click="pickFile" title="添加附件">附件</button>
-        <button class="btn-primary" :disabled="chatSending" @click="send">发送</button>
+
+      <!-- Chat area -->
+      <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+        <div ref="messagesEl" style="flex:1;overflow-y:auto">
+          <div class="history-messages">
+            <template v-if="messages.length === 0 && !isStreaming">
+              <div style="text-align:center;color:#94a3b8;padding:60px">暂无历史记录</div>
+            </template>
+
+            <template v-for="(msg, idx) in messages" :key="idx">
+              <template v-if="!(msg.role === 'tool' && msg.tool_call_id)">
+                <div v-if="msg.role === 'human'" class="msg-row human">
+                  <div class="msg-bubble human">
+                    <div class="msg-role-bar">
+                      <span class="msg-role">用户</span>
+                      <span v-if="msg.timestamp" class="msg-time">{{ fmtTs(msg.timestamp) }}</span>
+                    </div>
+                    {{ msg.content }}
+                  </div>
+                </div>
+                <div v-else-if="msg.role === 'ai'" class="msg-row ai">
+                  <div v-if="msg.content" class="msg-bubble ai">
+                    <div class="msg-role-bar">
+                      <span class="msg-role">AI</span>
+                      <span v-if="msg.timestamp" class="msg-time">{{ fmtTs(msg.timestamp) }}</span>
+                    </div>
+                    <div class="md-content" v-html="renderMd(msg.content)" />
+                  </div>
+                  <div v-if="msg.tool_calls && msg.tool_calls.length > 0" class="msg-tool-calls">
+                    <div class="msg-role">Tool Calls ({{ msg.tool_calls.length }})</div>
+                    <div v-for="tc in msg.tool_calls" :key="(tc as ToolCall).id" class="tool-call-item">
+                      <div class="tool-call-header" @click="toggleToolCall($event.currentTarget as HTMLElement)">
+                        <span class="tool-call-name">{{ (tc as ToolCall).name }}</span>
+                      </div>
+                      <div class="tool-call-detail">
+                        <div class="tool-call-args">{{ JSON.stringify((tc as ToolCall).args, null, 2) }}</div>
+                        <template v-for="m2 in messages" :key="'r' + (m2.tool_call_id || '')">
+                          <div v-if="m2.role === 'tool' && m2.tool_call_id === (tc as ToolCall).id" class="tool-call-result">
+                            <div class="tool-call-result-label">返回结果</div>
+                            {{ m2.content }}
+                          </div>
+                        </template>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div v-else-if="msg.role === 'tool'" class="msg-row ai">
+                  <div class="msg-bubble tool">
+                    <div class="msg-role-bar">
+                      <span class="msg-role">Tool{{ msg.name ? ` · ${msg.name}` : '' }}</span>
+                    </div>
+                    {{ msg.content }}
+                  </div>
+                </div>
+                <div v-else class="msg-row ai">
+                  <div class="msg-bubble ai">
+                    <div class="msg-role-bar">
+                      <span class="msg-role">{{ msg.role }}</span>
+                      <span v-if="msg.timestamp" class="msg-time">{{ fmtTs(msg.timestamp) }}</span>
+                    </div>
+                    {{ msg.content }}
+                  </div>
+                </div>
+              </template>
+            </template>
+
+            <div v-if="isStreaming" class="msg-row ai">
+              <div class="msg-bubble ai streaming">
+                <div class="msg-role-bar"><span class="msg-role">AI</span></div>
+                <div v-if="streamingContent" class="md-content" v-html="renderMd(streamingContent)" />
+                <span v-else style="color:#94a3b8">思考中…</span>
+              </div>
+              <div v-for="(tc, i) in streamingToolCalls" :key="i" class="msg-tool-calls">
+                <div class="msg-role">Tool Call</div>
+                <div class="tool-call-item">
+                  <div class="tool-call-header expanded" @click="toggleToolCall($event.currentTarget as HTMLElement)">
+                    <span class="tool-call-name">{{ tc.name }}</span>
+                  </div>
+                  <div class="tool-call-detail show">
+                    <div class="tool-call-args">{{ JSON.stringify(tc.args, null, 2) }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Queue -->
+        <div v-if="chatQueue.length > 0" class="chat-queue" style="display:flex">
+          <div class="chat-queue-label">待发送（{{ chatQueue.length }}）</div>
+          <div v-for="(q, i) in chatQueue" :key="i" class="chat-queue-item">
+            <span class="chat-queue-text">{{ q }}</span>
+            <button class="chat-queue-del" @click="chatQueue.splice(i, 1)">×</button>
+          </div>
+        </div>
+
+        <!-- Input bar -->
+        <div class="chat-input-bar">
+          <input ref="fileInputEl" type="file" multiple style="display:none" @change="onFileChange" />
+          <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+            <div v-if="attachments.length > 0" style="display:flex;flex-wrap:wrap;gap:6px">
+              <div
+                v-for="(att, i) in attachments"
+                :key="att.name"
+                style="display:flex;align-items:center;gap:4px;padding:2px 8px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:12px;font-size:12px;color:#475569;max-width:200px"
+              >
+                <img v-if="isImage(att) && att.dataUrl" :src="att.dataUrl"
+                  style="width:18px;height:18px;object-fit:cover;border-radius:2px;flex-shrink:0" />
+                <span v-else style="font-size:13px;flex-shrink:0">📄</span>
+                <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ att.name }}</span>
+                <button @click="removeAttachment(i)"
+                  style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:14px;padding:0;line-height:1;flex-shrink:0">×</button>
+              </div>
+            </div>
+            <textarea
+              v-model="chatInput"
+              placeholder="输入消息，Enter 发送，Shift+Enter 换行…"
+              rows="3"
+              @keydown="onKeydown"
+              @input="autoResize"
+              style="resize:none"
+            />
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;align-self:flex-end">
+            <button class="btn-outline btn-sm" @click="pickFile" title="添加附件">附件</button>
+            <button class="btn-primary" :disabled="chatSending" @click="send">发送</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -437,3 +498,32 @@ onUnmounted(() => {
     <MemoryViewModal ref="memoryViewModal" />
   </div>
 </template>
+
+<style scoped>
+.session-item {
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background .12s;
+  margin-bottom: 2px;
+}
+.session-item:hover { background: #f5f4f2; }
+.session-item.active { background: #f0efed; }
+.session-item-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1c1c1c;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.session-item-sub {
+  font-size: 11px;
+  color: #9b9b9b;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: monospace;
+}
+</style>

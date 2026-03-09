@@ -505,6 +505,7 @@ class HttpServer {
                     const msg = JSON.parse(data.toString()) as {
                         type: string;
                         query?: string;
+                        sessionId?: string;
                         attachments?: { name: string; type: string; dataUrl?: string; content?: string }[];
                     };
                     if (msg.type !== 'message') return;
@@ -518,7 +519,7 @@ class HttpServer {
                             }
                         }
                     }
-                    if (enriched) userService.onReceiveWebMessage(enriched);
+                    if (enriched) userService.onReceiveWebMessage(enriched, msg.sessionId ?? '');
                 } catch { /* ignore malformed messages */ }
             });
             ws.on('close', () => userService.web.unregisterWs(ws));

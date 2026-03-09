@@ -5,7 +5,7 @@ import { LoggerService } from "./LoggerService";
 
 const logger = LoggerService.getLogger("Database.ts");
 const DBVersionName = "db_version";
-const DBVersion = '0.0.3'
+const DBVersion = '0.0.4'
 export type MessageRow = {
   id: string;
   expireTime: number;
@@ -32,7 +32,7 @@ export type UserRow = {
   userid: string;
   username: string;
   userinfo: string;
-  usertype: string;
+  channel: string;
 };
 
 class Database {
@@ -154,11 +154,11 @@ class Database {
           defaultValue: "",
           comment: "用户信息JSON",
         },
-        usertype: {
+        channel: {
           type: DataTypes.STRING(64),
           allowNull: false,
           defaultValue: "",
-          comment: "用户类型",
+          comment: "频道唯一ID",
         },
       },
       {

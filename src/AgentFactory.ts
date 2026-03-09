@@ -34,12 +34,14 @@ export class AgentFactory {
         container: ServiceContainer,
         first: boolean,
         extraPrompts?: string[],
+        memoryName?: string,
+        saverName?: string,
     ): Promise<AgentServiceBase> {
         const agentEntry = config.settings.agents?.[agentName];
         if (!agentEntry) throw new Error(`Agent 配置 "${agentName}" 不存在`);
 
-        await this.registerMemoryService(container, agentEntry.memory);
-        await this.registerSaverService(container, agentEntry.saver);
+        await this.registerMemoryService(container, memoryName);
+        await this.registerSaverService(container, saverName);
         const { mcp, skills } = agentEntry as SingleAgentEntry;
         await this.registerSkillService(container, agentName, skills);
         await this.registerToolService(container, agentName, mcp);

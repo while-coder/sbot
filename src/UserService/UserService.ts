@@ -20,14 +20,14 @@ export class UserService extends UserServiceBase {
     }
 
     // 重定向到共享队列（UserService），而非本地队列
-    async onReceiveLarkMessage(args: LarkMessageArgs, userInfo: any, query: string) {
+    async onReceiveLarkMessage(args: LarkMessageArgs, userInfo: any, query: string, channelId: string) {
         if (!query?.trim()) return;
-        await this.onReceiveMessage(query, { ...args, userInfo });
+        await this.onReceiveMessage(query, { ...args, userInfo, channelId });
     }
-    async onReceiveWebMessage(query: string): Promise<void> {
+    async onReceiveWebMessage(query: string, sessionId: string): Promise<void> {
         if (!query?.trim()) return;
         return new Promise<void>((resolve) => {
-            this.onReceiveMessage(query, { webContext: true }, resolve);
+            this.onReceiveMessage(query, { webContext: true, sessionId }, resolve);
         });
     }
 
