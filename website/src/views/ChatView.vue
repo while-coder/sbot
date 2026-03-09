@@ -30,11 +30,11 @@ const fileInputEl = ref<HTMLInputElement | null>(null)
 const saverViewModal  = ref<InstanceType<typeof SaverViewModal>>()
 const memoryViewModal = ref<InstanceType<typeof MemoryViewModal>>()
 const newSessionModal = ref<InstanceType<typeof NewSessionModal>>()
-const nameInputEl     = ref<HTMLInputElement | null>(null)
+const sessionNameInputEl = ref<HTMLInputElement | null>(null)
 
-// ── Toolbar inline edit ──
-const editingName  = ref(false)
-const editNameValue = ref('')
+// ── Sidebar inline name edit ──
+const editingSessionId   = ref<string | null>(null)
+const editingSessionName = ref('')
 
 // streaming state
 const streamingContent = ref('')
@@ -91,34 +91,40 @@ function onSessionCreated(id: string) {
   refreshHistory()
 }
 
-async function saveSession(patch: Record<string, any>) {
-  if (!activeSessionId.value) return
+async function saveSession(patch: Record<string, any>, id?: string) {
+  const targetId = id ?? activeSessionId.value
+  if (!targetId) return
   try {
-    const current = { ...sessions.value[activeSessionId.value] }
+    const current = { ...sessions.value[targetId] }
     const updated = { ...current, ...patch }
     if (updated.memory === '' || updated.memory === undefined) delete updated.memory
-    await apiFetch(`/api/settings/sessions/${encodeURIComponent(activeSessionId.value)}`, 'PUT', updated)
-    Object.assign(store.settings.sessions![activeSessionId.value], patch)
-    if ((patch.memory === '' || patch.memory === undefined) && store.settings.sessions![activeSessionId.value].memory !== undefined) {
-      delete store.settings.sessions![activeSessionId.value].memory
+    await apiFetch(`/api/settings/sessions/${encodeURIComponent(targetId)}`, 'PUT', updated)
+    Object.assign(store.settings.sessions![targetId], patch)
+    if ((patch.memory === '' || patch.memory === undefined) && store.settings.sessions![targetId].memory !== undefined) {
+      delete store.settings.sessions![targetId].memory
     }
-    if ('saver' in patch) refreshHistory()
+    if ('saver' in patch && targetId === activeSessionId.value) refreshHistory()
   } catch (e: any) {
     show(e.message, 'error')
   }
 }
 
-function startEditName() {
-  editNameValue.value = sessions.value[activeSessionId.value!]?.name || ''
-  editingName.value = true
-  nextTick(() => nameInputEl.value?.focus())
+function startEditSessionName(id: string) {
+  editingSessionId.value = id
+  editingSessionName.value = sessions.value[id]?.name || ''
+  nextTick(() => sessionNameInputEl.value?.focus())
 }
 
-async function commitEditName() {
-  editingName.value = false
-  const val = editNameValue.value.trim()
+async function commitEditSessionName() {
+  const id = editingSessionId.value
+  editingSessionId.value = null
+  if (!id) return
+  const val = editingSessionName.value.trim()
   if (!val) return
+  const prev = activeSessionId.value
+  activeSessionId.value = id
   await saveSession({ name: val })
+  activeSessionId.value = prev
 }
 
 // ── WebSocket ──
@@ -372,22 +378,8 @@ onUnmounted(() => {
     <!-- Toolbar -->
     <div class="page-toolbar">
       <template v-if="activeSessionId">
-        <!-- Name -->
-        <input
-          v-if="editingName"
-          ref="nameInputEl"
-          v-model="editNameValue"
-          class="toolbar-name-input"
-          @blur="commitEditName"
-          @keydown.enter="commitEditName"
-          @keydown.escape="editingName = false"
-        />
-        <span
-          v-else
-          class="toolbar-session-name"
-          title="点击编辑名称"
-          @click="startEditName"
-        >{{ sessions[activeSessionId]?.name || (activeSessionId as string).slice(0, 8) + '…' }}</span>
+        <!-- Name (static) -->
+        <span class="toolbar-session-name">{{ sessions[activeSessionId]?.name || (activeSessionId as string).slice(0, 8) + '…' }}</span>
 
         <!-- Agent -->
         <label class="toolbar-label">Agent</label>
@@ -445,8 +437,22 @@ onUnmounted(() => {
           >
             <div style="display:flex;align-items:center;gap:4px">
               <div style="flex:1;min-width:0">
-                <div class="session-item-name">{{ s.name || (id as string).slice(0, 8) + '…' }}</div>
-                <div class="session-item-sub">{{ agentOptions.find(a => a.id === s.agent)?.label || s.agent }}</div>
+                <input
+                  v-if="editingSessionId === id"
+                  ref="sessionNameInputEl"
+                  v-model="editingSessionName"
+                  class="session-name-input"
+                  @click.stop
+                  @blur="commitEditSessionName"
+                  @keydown.enter.stop="commitEditSessionName"
+                  @keydown.escape.stop="editingSessionId = null"
+                />
+                <div
+                  v-else
+                  class="session-item-name"
+                  @dblclick.stop="startEditSessionName(id as string)"
+                  title="双击编辑名称"
+                >{{ s.name || (id as string).slice(0, 8) + '…' }}</div>
               </div>
               <button
                 class="session-del-btn"
@@ -641,26 +647,22 @@ onUnmounted(() => {
   font-size: 13px;
   font-weight: 600;
   color: #1c1c1c;
-  cursor: text;
-  padding: 2px 4px;
-  border-radius: 4px;
-  border: 1px solid transparent;
   white-space: nowrap;
   max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.toolbar-session-name:hover { border-color: #d6d4d0; background: #fafaf9; }
-.toolbar-name-input {
+.session-name-input {
+  width: 100%;
   font-size: 13px;
-  font-weight: 600;
-  padding: 2px 6px;
+  font-weight: 500;
+  padding: 1px 4px;
   border: 1px solid #1c1c1c;
   border-radius: 4px;
   outline: none;
-  width: 140px;
   font-family: inherit;
   color: #1c1c1c;
+  background: #fff;
 }
 .toolbar-label {
   font-size: 12px;
