@@ -644,9 +644,12 @@ class HttpServer {
 
         // ===== HTTP Chat (SSE) =====
         app.post('/api/chat', async (req, res) => {
-            const { query, sessionId, attachments } = req.body as {
+            const { query, agentId, saveId, memoryId, workPath, attachments } = req.body as {
                 query?: string;
-                sessionId?: string;
+                agentId?: string;
+                saveId?: string;
+                memoryId?: string;
+                workPath?: string;
                 attachments?: { name: string; type: string; dataUrl?: string; content?: string }[];
             };
             let enriched = query?.trim() || '';
@@ -663,7 +666,7 @@ class HttpServer {
             userService.http.setResponse(res);
             req.on('close', () => userService.http.clearResponse());
             try {
-                await userService.onReceiveHttpMessage(enriched, sessionId ?? '');
+                await userService.onReceiveHttpMessage(enriched, agentId ?? '', saveId ?? '', memoryId ?? '', workPath ?? '');
             } finally {
                 userService.http.clearResponse();
                 res.end();
