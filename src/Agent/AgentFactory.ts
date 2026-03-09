@@ -25,19 +25,18 @@ import { globalSkillService } from "./GlobalSkillService";
 export class AgentFactory {
 
     static async create(
-        agentName: string,
+        agentId: string,
         container: ServiceContainer,
         first: boolean,
         extraPrompts?: string[],
     ): Promise<AgentServiceBase> {
-        const agentEntry = config.settings.agents?.[agentName];
-        if (!agentEntry) throw new Error(`Agent 配置 "${agentName}" 不存在`);
+        const agentEntry = config.getAgent(agentId);
 
         if (!container.isRegistered(IMemoryService))    container.registerSingleton(IMemoryService, MemoryNoneService);
         if (!container.isRegistered(IAgentSaverService)) container.registerSingleton(IAgentSaverService, AgentMemorySaver);
         const { mcp, skills } = agentEntry as SingleAgentEntry;
-        await this.registerSkillService(container, agentName, skills);
-        await this.registerToolService(container, agentName, mcp);
+        await this.registerSkillService(container, agentId, skills);
+        await this.registerToolService(container, agentId, mcp);
 
         const systemPrompts = [...(extraPrompts ?? [])];
         if (first && agentEntry.systemPrompt)

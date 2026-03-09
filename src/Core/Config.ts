@@ -173,9 +173,9 @@ class Config {
    * @param name 模型名称（对应 settings.models 中的 key）
    * @returns 模型配置，如果未配置则返回 undefined
    */
-  getModel(name?: string): ModelConfig | undefined {
-    if (!this._settings.models || !name) return undefined;
-    return this._settings.models[name.trim()];
+  getModel(id: string): ModelConfig | undefined {
+    if (!this._settings.models) return undefined;
+    return this._settings.models[id.trim()];
   }
 
   /**
@@ -183,35 +183,45 @@ class Config {
    * @param name embedding 名称（对应 settings.embeddings 中的 key）
    * @returns embedding 配置，如果未配置则返回 undefined
    */
-  getEmbedding(name: string): EmbeddingConfig | undefined {
+  getEmbedding(id: string): EmbeddingConfig | undefined {
     if (!this._settings.embeddings) return undefined;
-    return this._settings.embeddings[name.trim()];
+    return this._settings.embeddings[id.trim()];
   }
 
-  getSaver(name?: string): SaverConfig | undefined {
-    if (!this._settings.savers || !name) return undefined;
-    return this._settings.savers[name.trim()];
+  getAgent(id: string): AgentEntry {
+    const entry = this._settings.agents?.[id.trim()];
+    if (!entry) throw new Error(`Agent 配置 "${id}" 不存在`);
+    return entry;
   }
 
-  getMemory(name?: string): MemoryConfig | undefined {
-    if (!this._settings.memories || !name) return undefined;
-    return this._settings.memories[name.trim()];
+  getSaver(id: string): SaverConfig | undefined {
+    if (!this._settings.savers) return undefined;
+    return this._settings.savers[id.trim()];
   }
 
-  getSession(name?: string): SessionConfig | undefined {
-    if (!this._settings.sessions || !name) return undefined;
-    return this._settings.sessions[name.trim()];
+  getMemory(id: string): MemoryConfig | undefined {
+    if (!this._settings.memories) return undefined;
+    return this._settings.memories[id.trim()];
   }
 
-  getChannel(name?: string): ChannelConfig | undefined {
-    if (!this._settings.channels || !name) return undefined;
-    return this._settings.channels[name.trim()];
+  getSession(id: string): SessionConfig | undefined {
+    if (!this._settings.sessions) return undefined;
+    return this._settings.sessions[id.trim()];
   }
 
-  async getModelService(name: string | undefined, throwError = false): Promise<IModelService | undefined> {
-    const modelConfig = this.getModel(name);
+  getChannel(id: string): ChannelConfig | undefined {
+    if (!this._settings.channels) return undefined;
+    return this._settings.channels[id.trim()];
+  }
+
+  async getModelService(id: string | undefined, throwError = false): Promise<IModelService | undefined> {
+    if (!id) {
+      if (throwError) throw new Error(`模型配置 "${id}" 不存在`);
+      return undefined;
+    }
+    const modelConfig = this.getModel(id);
     if (!modelConfig) {
-      if (throwError) throw new Error(`模型配置 "${name}" 不存在`);
+      if (throwError) throw new Error(`模型配置 "${id}" 不存在`);
       return undefined;
     }
     return ModelServiceFactory.getModelService(modelConfig);
