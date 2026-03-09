@@ -7,20 +7,15 @@ import { useToast } from '@/composables/useToast'
 const { show } = useToast()
 
 const httpUrl = ref('')
-const larkAppId = ref('')
-const larkAppSecret = ref('')
 
 watch(() => store.settings, (s) => {
   httpUrl.value = s.httpUrl || ''
-  larkAppId.value = s.lark?.appId || ''
-  larkAppSecret.value = s.lark?.appSecret || ''
 }, { immediate: true, deep: true })
 
 async function save() {
   try {
     const res = await apiFetch('/api/settings/general', 'PUT', {
       httpUrl: httpUrl.value.trim() || undefined,
-      lark: { appId: larkAppId.value, appSecret: larkAppSecret.value },
     })
     Object.assign(store.settings, res.data)
     show('保存成功')
@@ -42,19 +37,6 @@ async function save() {
           <div class="form-group">
             <label>HTTP URL</label>
             <input v-model="httpUrl" type="text" placeholder="http://localhost:5500" />
-          </div>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-title">Lark 应用</div>
-        <div class="inline-form">
-          <div class="form-group">
-            <label>App ID</label>
-            <input v-model="larkAppId" type="text" placeholder="cli_xxx" />
-          </div>
-          <div class="form-group">
-            <label>App Secret</label>
-            <input v-model="larkAppSecret" type="password" placeholder="secret" />
           </div>
         </div>
       </div>

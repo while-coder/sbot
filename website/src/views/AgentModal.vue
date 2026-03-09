@@ -9,8 +9,12 @@ const emit = defineEmits<{ saved: [] }>()
 const { show } = useToast()
 
 const agents      = computed(() => store.settings.agents || {})
-const modelOptions  = computed(() => Object.keys(store.settings.models   || {}))
-const agentOptions  = computed(() => Object.keys(store.settings.agents   || {}))
+const modelOptions  = computed(() =>
+  Object.entries(store.settings.models || {}).map(([id, m]) => ({ id, label: (m as any).name || id }))
+)
+const agentOptions  = computed(() =>
+  Object.entries(store.settings.agents || {}).map(([id, a]) => ({ id, label: (a as any).name || id }))
+)
 const mcpOptions    = computed(() => [...store.mcpBuiltins.map(b => b.name), ...Object.keys(store.mcpServers)])
 const skillOptions  = computed(() => [
   ...store.skillBuiltins.map(s => s.name),
@@ -19,7 +23,7 @@ const skillOptions  = computed(() => [
 
 // ── Main modal ──
 const showModal  = ref(false)
-const editingName = ref<string | null>(null)
+const editingId  = ref<string | null>(null)
 const form = ref({
   name: '',
   type: 'single',
@@ -37,12 +41,12 @@ const form = ref({
 })
 const tempSubAgents = ref<SubAgentRef[]>([])
 
-function open(name?: string) {
-  if (name) {
-    const a = agents.value[name]
-    editingName.value = name
+function open(id?: string) {
+  if (id) {
+    const a = agents.value[id]
+    editingId.value = id
     form.value = {
-      name,
+      name: (a as any).name || '',
       type: a.type || 'single',
       model: a.model || '',
       systemPrompt: a.systemPrompt || '',
@@ -58,7 +62,7 @@ function open(name?: string) {
     }
     tempSubAgents.value = Array.isArray(a.agents) ? [...a.agents] : []
   } else {
-    editingName.value = null
+    editingId.value = null
     tempSubAgents.value = []
     form.value = {
       name: '', type: 'single', model: '', systemPrompt: '',
@@ -83,7 +87,6 @@ async function save() {
     if (!form.value.finalize)   { show('Supervisor 模式：Finalize 模型不能为空',     'error'); return }
   }
   try {
-    const { name } = form.value
     const config: Agent = { type }
 
     if (form.value.systemPrompt) config.systemPrompt = form.value.systemPrompt
@@ -105,13 +108,11 @@ async function save() {
       config.agents     = tempSubAgents.value
     }
 
-    const oldName = editingName.value
-    if (oldName && oldName !== name) {
-      // 改名：由服务端统一同步所有引用
-      const renameRes = await apiFetch(`/api/agents/${encodeURIComponent(oldName)}/rename`, 'POST', { name })
-      Object.assign(store.settings, renameRes.data)
-    }
-    const res = await apiFetch(`/api/settings/agents/${encodeURIComponent(name)}`, 'PUT', config)
+    if (form.value.name.trim()) (config as any).name = form.value.name.trim()
+    const id = editingId.value
+    const res = id
+      ? await apiFetch(`/api/settings/agents/${encodeURIComponent(id)}`, 'PUT', config)
+      : await apiFetch('/api/settings/agents', 'POST', config)
     Object.assign(store.settings, res.data)
     show('保存成功')
     showModal.value = false
@@ -181,7 +182,7 @@ function deleteSubAgent(idx: number) {
 }
 
 function subAgentSelectOptions() {
-  return agentOptions.value.filter(n => n !== subAgentExclude.value)
+  return agentOptions.value.filter(a => a.id !== subAgentExclude.value)
 }
 
 defineExpose({ open })
@@ -192,7 +193,7 @@ defineExpose({ open })
   <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
     <div class="modal-box wide" style="max-height:90vh">
       <div class="modal-header">
-        <h3>{{ editingName ? '编辑智能体' : '添加智能体' }}</h3>
+        <h3>{{ editingId ? '编辑智能体' : '添加智能体' }}</h3>
         <button class="modal-close" @click="showModal = false">&times;</button>
       </div>
       <div class="modal-body">
@@ -221,7 +222,7 @@ defineExpose({ open })
             <label>模型</label>
             <select v-model="form.model">
               <option value="">不使用</option>
-              <option v-for="m in modelOptions" :key="m" :value="m">{{ m }}</option>
+              <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
             </select>
           </div>
         </template>
@@ -239,21 +240,21 @@ defineExpose({ open })
                 <label>Think Agent *</label>
                 <select v-model="form.think">
                   <option value="">请选择</option>
-                  <option v-for="a in agentOptions" :key="a" :value="a">{{ a }}</option>
+                  <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }}</option>
                 </select>
               </div>
               <div class="form-group">
                 <label>Reflect 模型 *</label>
                 <select v-model="form.reflect">
                   <option value="">请选择</option>
-                  <option v-for="m in modelOptions" :key="m" :value="m">{{ m }}</option>
+                  <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
                 </select>
               </div>
               <div class="form-group">
                 <label>Summarizer 模型 *</label>
                 <select v-model="form.summarizer">
                   <option value="">请选择</option>
-                  <option v-for="m in modelOptions" :key="m" :value="m">{{ m }}</option>
+                  <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
                 </select>
               </div>
             </div>
@@ -290,21 +291,21 @@ defineExpose({ open })
                 <label>Supervisor Agent *</label>
                 <select v-model="form.supervisor">
                   <option value="">请选择</option>
-                  <option v-for="a in agentOptions" :key="a" :value="a">{{ a }}</option>
+                  <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }}</option>
                 </select>
               </div>
               <div class="form-group">
                 <label>Summarizer 模型 *</label>
                 <select v-model="form.summarizer">
                   <option value="">请选择</option>
-                  <option v-for="m in modelOptions" :key="m" :value="m">{{ m }}</option>
+                  <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
                 </select>
               </div>
               <div class="form-group">
                 <label>Finalize 模型 *</label>
                 <select v-model="form.finalize">
                   <option value="">请选择</option>
-                  <option v-for="m in modelOptions" :key="m" :value="m">{{ m }}</option>
+                  <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
                 </select>
               </div>
             </div>
@@ -382,7 +383,7 @@ defineExpose({ open })
           <label>Agent *</label>
           <select v-model="subForm.name">
             <option value="">请选择</option>
-            <option v-for="a in subAgentSelectOptions()" :key="a" :value="a">{{ a }}</option>
+            <option v-for="a in subAgentSelectOptions()" :key="a.id" :value="a.id">{{ a.label }}</option>
           </select>
         </div>
         <div class="form-group">

@@ -8,7 +8,7 @@ interface UserRow {
   userid: string
   username: string
   userinfo: string
-  usertype: string
+  channel: string
 }
 
 const { show } = useToast()
@@ -63,7 +63,7 @@ onMounted(load)
             <th>ID</th>
             <th>用户ID</th>
             <th>用户名</th>
-            <th>类型</th>
+            <th>频道</th>
             <th>操作</th>
           </tr>
         </thead>
@@ -78,7 +78,7 @@ onMounted(load)
             <td style="font-family:monospace;color:#9b9b9b">{{ u.id }}</td>
             <td style="font-family:monospace">{{ u.userid }}</td>
             <td>{{ u.username || '-' }}</td>
-            <td>{{ u.usertype || '-' }}</td>
+            <td style="font-family:monospace;font-size:12px;color:#6b6b6b">{{ u.channel || '-' }}</td>
             <td>
               <div class="ops-cell">
                 <button class="btn-outline btn-sm" @click="viewUser = u">查看</button>
@@ -110,8 +110,8 @@ onMounted(load)
             <input :value="viewUser.username" disabled />
           </div>
           <div class="form-group">
-            <label>类型</label>
-            <input :value="viewUser.usertype" disabled />
+            <label>频道</label>
+            <input :value="viewUser.channel" disabled />
           </div>
           <div class="form-group">
             <label>用户信息</label>

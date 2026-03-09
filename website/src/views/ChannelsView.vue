@@ -4,13 +4,16 @@ import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 import type { ChannelConfig } from '@/types'
+import SaverViewModal from './SaverViewModal.vue'
 
 const { show } = useToast()
 
 const channels = computed(() => store.settings.channels || {})
-const agentNames = computed(() => Object.keys(store.settings.agents || {}))
-const saverNames = computed(() => Object.keys(store.settings.savers || {}))
-const memoryNames = computed(() => Object.keys(store.settings.memories || {}))
+const agentOptions  = computed(() => Object.entries(store.settings.agents   || {}).map(([id, a]) => ({ id, label: (a as any).name  || id })))
+const saverOptions  = computed(() => Object.entries(store.settings.savers   || {}).map(([id, s]) => ({ id, label: (s as any).name  || id })))
+const memoryOptions = computed(() => Object.entries(store.settings.memories  || {}).map(([id, m]) => ({ id, label: (m as any).name  || id })))
+
+const saverViewModal = ref<InstanceType<typeof SaverViewModal>>()
 
 const showModal = ref(false)
 const editingId = ref<string | null>(null)
@@ -102,9 +105,14 @@ async function refresh() {
             <td>{{ c.name || '-' }}</td>
             <td style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ id }}</td>
             <td>{{ c.type || '-' }}</td>
-            <td style="font-family:monospace">{{ c.agent || '-' }}</td>
-            <td style="font-family:monospace">{{ c.saver || '-' }}</td>
-            <td style="font-family:monospace">{{ c.memory || '-' }}</td>
+            <td>{{ agentOptions.find(a => a.id === c.agent)?.label || c.agent || '-' }}</td>
+            <td>
+              <button v-if="c.saver" class="table-link-btn" @click="saverViewModal?.open(c.saver, 'lark_' + id)">
+                {{ saverOptions.find(s => s.id === c.saver)?.label || c.saver }}
+              </button>
+              <span v-else>-</span>
+            </td>
+            <td>{{ c.memory ? (memoryOptions.find(m => m.id === c.memory)?.label || c.memory) : '-' }}</td>
             <td>
               <div class="ops-cell">
                 <button class="btn-outline btn-sm" @click="openEdit(id as string)">编辑</button>
@@ -149,21 +157,21 @@ async function refresh() {
             <label>Agent *</label>
             <select v-model="form.agent">
               <option value="" disabled>请选择 Agent</option>
-              <option v-for="a in agentNames" :key="a" :value="a">{{ a }}</option>
+              <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }}</option>
             </select>
           </div>
           <div class="form-group">
             <label>存储配置 *</label>
             <select v-model="form.saver">
               <option value="" disabled>请选择存储配置</option>
-              <option v-for="s in saverNames" :key="s" :value="s">{{ s }}</option>
+              <option v-for="s in saverOptions" :key="s.id" :value="s.id">{{ s.label }}</option>
             </select>
           </div>
           <div class="form-group">
             <label>记忆配置</label>
             <select v-model="form.memory">
               <option value="">不启用记忆</option>
-              <option v-for="m in memoryNames" :key="m" :value="m">{{ m }}</option>
+              <option v-for="m in memoryOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
             </select>
           </div>
         </div>
@@ -173,5 +181,7 @@ async function refresh() {
         </div>
       </div>
     </div>
+
+    <SaverViewModal ref="saverViewModal" />
   </div>
 </template>

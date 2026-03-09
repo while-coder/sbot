@@ -10,11 +10,32 @@ const { show } = useToast()
 
 const savers = computed(() => store.settings.savers || {})
 
-const showModal  = ref(false)
+const showModal   = ref(false)
 const editingName = ref<string | null>(null)
 const form = ref<{ name: string } & SaverConfig>({ name: '', type: 'sqlite' })
 
 const saverViewModal = ref<InstanceType<typeof SaverViewModal>>()
+
+// Expand state
+const expandedSavers  = ref<Record<string, boolean>>({})
+const saverThreadsMap = ref<Record<string, string[]>>({})
+const saverLoading    = ref<Record<string, boolean>>({})
+
+async function toggleExpand(id: string) {
+  expandedSavers.value[id] = !expandedSavers.value[id]
+  if (!expandedSavers.value[id]) return
+  if (id in saverThreadsMap.value || saverLoading.value[id]) return
+  saverLoading.value[id] = true
+  try {
+    const res = await apiFetch(`/api/savers/${encodeURIComponent(id)}/threads`)
+    saverThreadsMap.value[id] = res.data || []
+  } catch (e: any) {
+    show(e.message, 'error')
+    saverThreadsMap.value[id] = []
+  } finally {
+    saverLoading.value[id] = false
+  }
+}
 
 function openAdd() {
   editingName.value = null
@@ -77,23 +98,46 @@ async function refresh() {
     <div class="page-content">
       <table>
         <thead>
-          <tr><th>名称</th><th>类型</th><th>操作</th></tr>
+          <tr><th style="width:32px"></th><th>名称</th><th>类型</th><th>操作</th></tr>
         </thead>
         <tbody>
           <tr v-if="Object.keys(savers).length === 0">
-            <td colspan="3" style="text-align:center;color:#94a3b8;padding:40px">暂无存储配置</td>
+            <td colspan="4" style="text-align:center;color:#94a3b8;padding:40px">暂无存储配置</td>
           </tr>
-          <tr v-for="(s, id) in savers" :key="id">
-            <td>{{ (s as any).name || id }}</td>
-            <td>{{ s.type || '-' }}</td>
-            <td>
-              <div class="ops-cell">
-                <button class="btn-outline btn-sm" @click="saverViewModal?.open(id as string)">查看</button>
-                <button class="btn-outline btn-sm" @click="openEdit(id as string)">编辑</button>
-                <button class="btn-danger btn-sm" @click="remove(id as string)">删除</button>
-              </div>
-            </td>
-          </tr>
+          <template v-for="(s, id) in savers" :key="id">
+            <tr>
+              <td>
+                <button class="expand-btn" @click="toggleExpand(id as string)">
+                  {{ expandedSavers[id as string] ? '▼' : '▶' }}
+                </button>
+              </td>
+              <td>{{ (s as any).name || id }}</td>
+              <td>{{ s.type || '-' }}</td>
+              <td>
+                <div class="ops-cell">
+                  <button class="btn-outline btn-sm" @click="openEdit(id as string)">编辑</button>
+                  <button class="btn-danger btn-sm" @click="remove(id as string)">删除</button>
+                </div>
+              </td>
+            </tr>
+            <template v-if="expandedSavers[id as string]">
+              <tr v-if="saverLoading[id as string]" class="thread-sub-row">
+                <td></td>
+                <td colspan="3" class="thread-sub-cell">加载中...</td>
+              </tr>
+              <tr v-else-if="(saverThreadsMap[id as string] || []).length === 0" class="thread-sub-row">
+                <td></td>
+                <td colspan="3" class="thread-sub-cell empty">暂无会话记录</td>
+              </tr>
+              <tr v-for="thread in saverThreadsMap[id as string] || []" :key="thread" class="thread-sub-row">
+                <td></td>
+                <td colspan="2" class="thread-id-cell">{{ thread }}</td>
+                <td>
+                  <button class="btn-outline btn-sm" @click="saverViewModal?.open(id as string, thread)">查看</button>
+                </td>
+              </tr>
+            </template>
+          </template>
         </tbody>
       </table>
     </div>
@@ -128,3 +172,36 @@ async function refresh() {
     <SaverViewModal ref="saverViewModal" />
   </div>
 </template>
+
+<style scoped>
+.expand-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 10px;
+  color: #9b9b9b;
+  padding: 2px 6px;
+  width: 28px;
+  text-align: center;
+  line-height: 1;
+}
+.expand-btn:hover { color: #1c1c1c; }
+.thread-sub-row td {
+  background: #fafaf9;
+  border-bottom: 1px solid #f0efed;
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+.thread-sub-cell {
+  padding: 5px 12px;
+  font-size: 12px;
+  color: #94a3b8;
+  font-style: italic;
+}
+.thread-id-cell {
+  font-family: monospace;
+  font-size: 12px;
+  color: #3d3d3d;
+  padding: 5px 12px;
+}
+</style>

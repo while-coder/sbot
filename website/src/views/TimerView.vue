@@ -33,7 +33,9 @@ const showModal = ref(false)
 const editingId = ref<number | null>(null)
 const saving = ref(false)
 
-const agentNames = computed(() => Object.keys(store.settings.agents ?? {}))
+const agentOptions = computed(() =>
+  Object.entries(store.settings.agents ?? {}).map(([id, a]) => ({ id, label: (a as any).name || id }))
+)
 
 const form = ref({
   name:       '',
@@ -134,7 +136,7 @@ function openAdd() {
     ...parsed,
     name:      '',
     message:   '',
-    agentName: agentNames.value[0] ?? '',
+    agentName: agentOptions.value[0]?.id ?? '',
     userId:    '',
     enabled:   true,
   }
@@ -148,7 +150,7 @@ function openEdit(row: SchedulerRow) {
     ...parsed,
     name:      row.name,
     message:   row.message,
-    agentName: row.agentName || agentNames.value[0] || '',
+    agentName: row.agentName || agentOptions.value[0]?.id || '',
     userId:    row.userId ?? '',
     enabled:   row.enabled,
   }
@@ -350,7 +352,7 @@ onMounted(load)
           <div class="form-group">
             <label>Agent</label>
             <select v-model="form.agentName">
-              <option v-for="name in agentNames" :key="name" :value="name">{{ name }}</option>
+              <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }}</option>
             </select>
           </div>
           <div class="form-group">

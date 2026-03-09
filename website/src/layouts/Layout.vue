@@ -15,6 +15,7 @@ const menuGroups = [
     items: [
       { label: '聊天', key: '/chat' },
       { label: '基本设置', key: '/settings' },
+      { label: '频道管理', key: '/channels' },
     ],
   },
   {
@@ -32,7 +33,6 @@ const menuGroups = [
       { label: '记忆配置', key: '/memories' },
       { label: '工具管理', key: '/mcp' },
       { label: '技能管理', key: '/skills' },
-      { label: '频道管理', key: '/channels' },
     ],
   },
   {

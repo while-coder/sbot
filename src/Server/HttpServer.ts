@@ -226,17 +226,25 @@ class HttpServer {
         }));
 
         // ===== Settings / Agents =====
-        app.put('/api/settings/agents/:name', api(req => {
-            const name = req.params.name as string;
+        app.post('/api/settings/agents', api(req => {
+            const id = randomUUID();
             if (!config.settings.agents) config.settings.agents = {};
-            config.settings.agents[name] = req.body;
+            config.settings.agents[id] = req.body;
             config.saveSettings();
             return config.settings;
         }));
 
-        app.delete('/api/settings/agents/:name', api(req => {
-            const name = req.params.name as string;
-            if (config.settings.agents) delete config.settings.agents[name];
+        app.put('/api/settings/agents/:id', api(req => {
+            const id = req.params.id as string;
+            if (!config.settings.agents) config.settings.agents = {};
+            config.settings.agents[id] = req.body;
+            config.saveSettings();
+            return config.settings;
+        }));
+
+        app.delete('/api/settings/agents/:id', api(req => {
+            const id = req.params.id as string;
+            if (config.settings.agents) delete config.settings.agents[id];
             config.saveSettings();
             return config.settings;
         }));
@@ -265,71 +273,6 @@ class HttpServer {
             delete config.settings.channels[id];
             config.saveSettings();
             await channelManager.reload();
-        }));
-
-        // ===== Agent Rename =====
-        app.post('/api/agents/:name/rename', api(async req => {
-            const oldName = req.params.name as string;
-            const { name: newName } = req.body as { name: string };
-            if (!newName?.trim()) throwBad('新名称不能为空');
-            if (oldName === newName) return config.settings;
-            const agents = config.settings.agents;
-            if (!agents?.[oldName]) throwBad(`Agent "${oldName}" 不存在`);
-            if (agents[newName])    throwBad(`Agent "${newName}" 已存在`);
-
-            // 重命名 key
-            agents[newName] = agents[oldName];
-            delete agents[oldName];
-
-            // 同步其他 agent 中的引用
-            for (const a of Object.values(agents) as any[]) {
-                if (typeof a.think === 'string'      && a.think === oldName)      a.think = newName;
-                if (typeof a.supervisor === 'string' && a.supervisor === oldName) a.supervisor = newName;
-                if (Array.isArray(a.agents)) {
-                    for (const sub of a.agents) {
-                        if (sub.name === oldName) sub.name = newName;
-                    }
-                }
-            }
-
-            config.saveSettings();
-
-            // 同步 scheduler 表中的 agentName
-            await database.update(database.scheduler, { agentName: newName }, { where: { agentName: oldName } });
-
-            return config.settings;
-        }));
-
-        // ===== MCP Rename =====
-        app.post('/api/mcp/:name/rename', api(req => {
-            const oldName = req.params.name as string;
-            const { name: newName } = req.body as { name: string };
-            if (!newName?.trim()) throwBad('新名称不能为空');
-            if (oldName === newName) return { builtins: Object.values(BuiltinProvider).map(n => ({ name: n, description: globalAgentToolService.getProviderDescription(n) })), servers: config.getGlobalMcpServers() };
-
-            const servers = config.getGlobalMcpServers();
-            if (!servers[oldName]) throwBad(`MCP "${oldName}" 不存在`);
-            if (servers[newName])  throwBad(`MCP "${newName}" 已存在`);
-
-            // 重命名 key
-            servers[newName] = servers[oldName];
-            delete servers[oldName];
-            config.saveMcpServers(servers);
-
-            // 同步所有 agent 的 mcp 数组
-            const agents = config.settings.agents;
-            if (agents) {
-                for (const a of Object.values(agents) as any[]) {
-                    if (Array.isArray(a.mcp)) {
-                        const idx = a.mcp.indexOf(oldName);
-                        if (idx !== -1) a.mcp[idx] = newName;
-                    }
-                }
-                config.saveSettings();
-            }
-
-            refreshGlobalAgentToolService();
-            return { builtins: Object.values(BuiltinProvider).map(n => ({ name: n, description: globalAgentToolService.getProviderDescription(n) })), servers: config.getGlobalMcpServers() };
         }));
 
         // ===== MCP =====
@@ -503,6 +446,44 @@ class HttpServer {
             deleteSkill(config.getAgentSkillsPath(req.params.name as string), req.params.skillName as string)));
 
 
+        // ===== Named Saver Threads =====
+        app.get('/api/savers/:saverId/threads', api(async req => {
+            const saver = await AgentRunner.createSaverService(req.params.saverId as string);
+            const ids = await saver.getAllThreadIds();
+            await saver.dispose();
+            return ids;
+        }));
+
+        app.get('/api/savers/:saverId/threads/:threadId/history', api(async req => {
+            const saver = await AgentRunner.createSaverService(
+                req.params.saverId as string,
+                req.params.threadId as string,
+            );
+            const messages = await saver.getAllMessages();
+            await saver.dispose();
+            return messages.map(m => {
+                const mm = m as any;
+                const role = mm._getType?.() ?? 'unknown';
+                const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+                const result: any = { role, content };
+                if (mm.tool_calls?.length) result.tool_calls = mm.tool_calls;
+                if (mm.tool_call_id) result.tool_call_id = mm.tool_call_id;
+                if (mm.name) result.name = mm.name;
+                const createdAt = mm.additional_kwargs?.created_at;
+                if (createdAt) result.timestamp = new Date(createdAt * 1000).toISOString();
+                return result;
+            });
+        }));
+
+        app.delete('/api/savers/:saverId/threads/:threadId/history', api(async req => {
+            const saver = await AgentRunner.createSaverService(
+                req.params.saverId as string,
+                req.params.threadId as string,
+            );
+            await saver.clearMessages();
+            await saver.dispose();
+        }));
+
         // ===== Named Saver History =====
         app.get('/api/savers/:saverName/history', api(async req => {
             const saver = await AgentRunner.createSaverService(req.params.saverName as string);
@@ -563,6 +544,11 @@ class HttpServer {
             const svc = await AgentRunner.createMemoryService(req.params.memoryName as string);
             const count = await svc.compressMemories();
             return { count };
+        }));
+
+        app.get('/api/memories/:memoryId/threads', api(async req => {
+            const db = await AgentRunner.createMemoryDatabase(req.params.memoryId as string);
+            return await db.getAllThreadIds();
         }));
 
         // ===== Timers =====
@@ -645,6 +631,9 @@ class HttpServer {
                         type: string;
                         query?: string;
                         sessionId?: string;
+                        agentId?: string;
+                        saverId?: string;
+                        memoryId?: string;
                         attachments?: { name: string; type: string; dataUrl?: string; content?: string }[];
                     };
                     if (msg.type !== 'message') return;
@@ -658,7 +647,7 @@ class HttpServer {
                             }
                         }
                     }
-                    if (enriched) userService.onReceiveWebMessage(enriched, msg.sessionId ?? '');
+                    if (enriched) userService.onReceiveWebMessage(enriched, msg.sessionId ?? '', msg.agentId, msg.saverId, msg.memoryId);
                 } catch { /* ignore malformed messages */ }
             });
             ws.on('close', () => userService.web.unregisterWs(ws));

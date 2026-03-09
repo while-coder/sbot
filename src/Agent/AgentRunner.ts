@@ -73,9 +73,24 @@ export class AgentRunner {
         return container.resolve<IMemoryService>(IMemoryService);
     }
 
-    static async createSaverService(saverId: string): Promise<IAgentSaverService> {
+    static async createMemoryDatabase(memoryId: string): Promise<IMemoryDatabase> {
+        const memoryConfig = config.getMemory(memoryId);
+        if (!memoryConfig) {
+            const e: any = new Error(`记忆配置 "${memoryId}" 不存在`);
+            e.status = 404;
+            throw e;
+        }
         const container = new ServiceContainer();
-        await AgentRunner.registerSaverService(container, saverId);
+        container.registerWithArgs(IMemoryDatabase, MemorySqliteDatabase, {
+            [T_ThreadId]: memoryId,
+            [T_DBPath]: config.getMemoryPath(memoryId),
+        });
+        return container.resolve<IMemoryDatabase>(IMemoryDatabase);
+    }
+
+    static async createSaverService(saverId: string, threadId?: string): Promise<IAgentSaverService> {
+        const container = new ServiceContainer();
+        await AgentRunner.registerSaverService(container, saverId, threadId);
         return container.resolve<IAgentSaverService>(IAgentSaverService);
     }
 

@@ -24,10 +24,10 @@ export class UserService extends UserServiceBase {
         if (!query?.trim()) return;
         await this.onReceiveMessage(query, { ...args, userInfo, channelId });
     }
-    async onReceiveWebMessage(query: string, sessionId: string): Promise<void> {
+    async onReceiveWebMessage(query: string, sessionId: string, agentId?: string, saverId?: string, memoryId?: string): Promise<void> {
         if (!query?.trim()) return;
         return new Promise<void>((resolve) => {
-            this.onReceiveMessage(query, { webContext: true, sessionId }, resolve);
+            this.onReceiveMessage(query, { webContext: true, sessionId, agentId, saverId, memoryId }, resolve);
         });
     }
 

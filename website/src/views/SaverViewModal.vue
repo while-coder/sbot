@@ -8,14 +8,19 @@ import type { ChatMessage } from '@/types'
 const { show } = useToast()
 
 const visible    = ref(false)
-const saverName  = ref('')
+const saverId    = ref('')
+const threadId   = ref('')
 const messages   = ref<ChatMessage[]>([])
 const loading    = ref(false)
+
+function historyUrl() {
+  return `/api/savers/${encodeURIComponent(saverId.value)}/threads/${encodeURIComponent(threadId.value)}/history`
+}
 
 async function load() {
   loading.value = true
   try {
-    const res = await apiFetch(`/api/savers/${encodeURIComponent(saverName.value)}/history`)
+    const res = await apiFetch(historyUrl())
     messages.value = res.data || []
   } catch (e: any) {
     show(e.message, 'error')
@@ -25,9 +30,9 @@ async function load() {
 }
 
 async function clear() {
-  if (!confirm(`确定要清除 ${saverName.value} 的所有历史记录吗？`)) return
+  if (!confirm(`确定要清除该 Thread 的所有历史记录吗？`)) return
   try {
-    await apiFetch(`/api/savers/${encodeURIComponent(saverName.value)}/history`, 'DELETE')
+    await apiFetch(historyUrl(), 'DELETE')
     show('历史已清除')
     await load()
   } catch (e: any) {
@@ -35,10 +40,11 @@ async function clear() {
   }
 }
 
-function open(name: string) {
-  saverName.value = name
-  messages.value  = []
-  visible.value   = true
+function open(saver: string, thread: string) {
+  saverId.value  = saver
+  threadId.value = thread
+  messages.value = []
+  visible.value  = true
   load()
 }
 
@@ -51,7 +57,7 @@ defineExpose({ open })
       <div class="modal-header">
         <div style="display:flex;align-items:center;gap:10px">
           <h3>会话历史</h3>
-          <span class="saver-name-badge">{{ saverName }}</span>
+          <span class="saver-name-badge">{{ threadId }}</span>
           <span v-if="!loading" class="saver-count-badge">{{ messages.length }} 条</span>
         </div>
         <button class="modal-close" @click="visible = false">&times;</button>

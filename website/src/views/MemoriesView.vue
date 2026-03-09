@@ -25,6 +25,27 @@ const form = ref<{ name: string } & MemoryConfig>({
 
 const memoryViewModal = ref<InstanceType<typeof MemoryViewModal>>()
 
+// Expand state
+const expandedMemories  = ref<Record<string, boolean>>({})
+const memoryThreadsMap  = ref<Record<string, string[]>>({})
+const memoryLoading     = ref<Record<string, boolean>>({})
+
+async function toggleExpand(id: string) {
+  expandedMemories.value[id] = !expandedMemories.value[id]
+  if (!expandedMemories.value[id]) return
+  if (id in memoryThreadsMap.value || memoryLoading.value[id]) return
+  memoryLoading.value[id] = true
+  try {
+    const res = await apiFetch(`/api/memories/${encodeURIComponent(id)}/threads`)
+    memoryThreadsMap.value[id] = res.data || []
+  } catch (e: any) {
+    show(e.message, 'error')
+    memoryThreadsMap.value[id] = []
+  } finally {
+    memoryLoading.value[id] = false
+  }
+}
+
 function openAdd() {
   editingName.value = null
   form.value = { name: '', mode: 'human_and_ai', maxAgeDays: undefined, embedding: '', evaluator: '', extractor: '', compressor: '' }
@@ -106,25 +127,48 @@ async function refresh() {
     <div class="page-content">
       <table>
         <thead>
-          <tr><th>名称</th><th>模式</th><th>Embedding</th><th>最大天数</th><th>操作</th></tr>
+          <tr><th style="width:32px"></th><th>名称</th><th>模式</th><th>Embedding</th><th>最大天数</th><th>操作</th></tr>
         </thead>
         <tbody>
           <tr v-if="Object.keys(memories).length === 0">
-            <td colspan="5" style="text-align:center;color:#94a3b8;padding:40px">暂无记忆配置</td>
+            <td colspan="6" style="text-align:center;color:#94a3b8;padding:40px">暂无记忆配置</td>
           </tr>
-          <tr v-for="(m, id) in memories" :key="id">
-            <td>{{ (m as any).name || id }}</td>
-            <td>{{ m.mode || '-' }}</td>
-            <td>{{ embeddingOptions.find(e => e.id === m.embedding)?.label || m.embedding || '-' }}</td>
-            <td>{{ m.maxAgeDays ?? '-' }}</td>
-            <td>
-              <div class="ops-cell">
-                <button class="btn-outline btn-sm" @click="memoryViewModal?.open(id as string)">查看</button>
-                <button class="btn-outline btn-sm" @click="openEdit(id as string)">编辑</button>
-                <button class="btn-danger btn-sm" @click="remove(id as string)">删除</button>
-              </div>
-            </td>
-          </tr>
+          <template v-for="(m, id) in memories" :key="id">
+            <tr>
+              <td>
+                <button class="expand-btn" @click="toggleExpand(id as string)">
+                  {{ expandedMemories[id as string] ? '▼' : '▶' }}
+                </button>
+              </td>
+              <td>{{ (m as any).name || id }}</td>
+              <td>{{ m.mode || '-' }}</td>
+              <td>{{ embeddingOptions.find(e => e.id === m.embedding)?.label || m.embedding || '-' }}</td>
+              <td>{{ m.maxAgeDays ?? '-' }}</td>
+              <td>
+                <div class="ops-cell">
+                  <button class="btn-outline btn-sm" @click="openEdit(id as string)">编辑</button>
+                  <button class="btn-danger btn-sm" @click="remove(id as string)">删除</button>
+                </div>
+              </td>
+            </tr>
+            <template v-if="expandedMemories[id as string]">
+              <tr v-if="memoryLoading[id as string]" class="thread-sub-row">
+                <td></td>
+                <td colspan="5" class="thread-sub-cell">加载中...</td>
+              </tr>
+              <tr v-else-if="(memoryThreadsMap[id as string] || []).length === 0" class="thread-sub-row">
+                <td></td>
+                <td colspan="5" class="thread-sub-cell empty">暂无记忆记录</td>
+              </tr>
+              <tr v-for="thread in memoryThreadsMap[id as string] || []" :key="thread" class="thread-sub-row">
+                <td></td>
+                <td colspan="4" class="thread-id-cell">{{ thread }}</td>
+                <td>
+                  <button class="btn-outline btn-sm" @click="memoryViewModal?.open(thread)">查看</button>
+                </td>
+              </tr>
+            </template>
+          </template>
         </tbody>
       </table>
     </div>
@@ -191,3 +235,36 @@ async function refresh() {
     <MemoryViewModal ref="memoryViewModal" />
   </div>
 </template>
+
+<style scoped>
+.expand-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 10px;
+  color: #9b9b9b;
+  padding: 2px 6px;
+  width: 28px;
+  text-align: center;
+  line-height: 1;
+}
+.expand-btn:hover { color: #1c1c1c; }
+.thread-sub-row td {
+  background: #fafaf9;
+  border-bottom: 1px solid #f0efed;
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+.thread-sub-cell {
+  padding: 5px 12px;
+  font-size: 12px;
+  color: #94a3b8;
+  font-style: italic;
+}
+.thread-id-cell {
+  font-family: monospace;
+  font-size: 12px;
+  color: #3d3d3d;
+  padding: 5px 12px;
+}
+</style>

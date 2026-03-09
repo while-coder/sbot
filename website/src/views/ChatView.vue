@@ -38,13 +38,24 @@ const isStreaming = ref(false)
 const activeSessionId = ref<string | null>(null)
 const sessions = computed(() => store.settings.sessions || {})
 
-const agentNames = computed(() => Object.keys(store.settings.agents || {}))
-const currentAgent = ref('')
+const agentOptions  = computed(() =>
+  Object.entries(store.settings.agents   || {}).map(([id, a]) => ({ id, label: (a as any).name || id }))
+)
+const saverOptions  = computed(() =>
+  Object.entries(store.settings.savers   || {}).map(([id, s]) => ({ id, label: (s as any).name || id }))
+)
+const memoryOptions = computed(() =>
+  Object.entries(store.settings.memories || {}).map(([id, m]) => ({ id, label: (m as any).name || id }))
+)
 
-// Effective agent/saver/memory: session overrides current agent selection
-const effectiveAgent  = computed(() => activeSessionId.value ? sessions.value[activeSessionId.value]?.agent : currentAgent.value)
-const effectiveSaver  = computed(() => activeSessionId.value ? (sessions.value[activeSessionId.value]?.saver || null) : null)
-const effectiveMemory = computed(() => activeSessionId.value ? (sessions.value[activeSessionId.value]?.memory || null) : null)
+const currentAgent  = ref('')
+const currentSaver  = ref('')
+const currentMemory = ref('')
+
+// Effective agent/saver/memory: session overrides free selections
+const effectiveAgent  = computed(() => activeSessionId.value ? sessions.value[activeSessionId.value]?.agent  : currentAgent.value)
+const effectiveSaver  = computed(() => activeSessionId.value ? (sessions.value[activeSessionId.value]?.saver  || null) : (currentSaver.value  || null))
+const effectiveMemory = computed(() => activeSessionId.value ? (sessions.value[activeSessionId.value]?.memory || null) : (currentMemory.value || null))
 
 // ── WebSocket ──
 let ws: WebSocket | null = null
@@ -101,11 +112,16 @@ function ensureWs(): Promise<void> {
   })
 }
 
+function saverThreadUrl(saver: string) {
+  const thread = activeSessionId.value ? `session_${activeSessionId.value}` : 'web'
+  return `/api/savers/${encodeURIComponent(saver)}/threads/${encodeURIComponent(thread)}/history`
+}
+
 async function refreshHistory() {
   const saver = effectiveSaver.value
   if (!saver) { messages.value = []; return }
   try {
-    const res = await apiFetch(`/api/savers/${encodeURIComponent(saver)}/history`)
+    const res = await apiFetch(saverThreadUrl(saver))
     messages.value = res.data || []
     await nextTick()
     scrollToBottom()
@@ -120,18 +136,23 @@ async function selectSession(id: string | null) {
   await refreshHistory()
 }
 
-function switchAgent(name: string) {
-  if (!name || name === currentAgent.value) return
-  currentAgent.value = name
+function switchAgent(id: string) {
+  currentAgent.value = id
+  activeSessionId.value = null
+  refreshHistory()
+}
+
+function switchSaver(id: string) {
+  currentSaver.value = id
   activeSessionId.value = null
   refreshHistory()
 }
 
 async function clearHistory() {
   const saver = effectiveSaver.value
-  if (!saver || !confirm(`确定要清除存储 "${saver}" 的所有历史记录吗？`)) return
+  if (!saver || !confirm('确定要清除当前会话的历史记录吗？')) return
   try {
-    await apiFetch(`/api/savers/${encodeURIComponent(saver)}/history`, 'DELETE')
+    await apiFetch(saverThreadUrl(saver), 'DELETE')
     show('历史已清除')
     await refreshHistory()
   } catch (e: any) {
@@ -246,8 +267,10 @@ async function sendOne(query: string, atts: Attachment[]) {
     ws!.send(JSON.stringify({
       type: 'message',
       query,
-      sessionId: activeSessionId.value ?? undefined,
-      agentName: activeSessionId.value ? undefined : (currentAgent.value || undefined),
+      sessionId:  activeSessionId.value || undefined,
+      agentId:   !activeSessionId.value ? (currentAgent.value  || undefined) : undefined,
+      saverId:   !activeSessionId.value ? (currentSaver.value  || undefined) : undefined,
+      memoryId:  !activeSessionId.value ? (currentMemory.value || undefined) : undefined,
       attachments: atts.length ? atts : undefined,
     }))
     await donePromise
@@ -296,29 +319,36 @@ onUnmounted(() => {
     <!-- Toolbar -->
     <div class="page-toolbar">
       <template v-if="!activeSessionId">
-        <label style="color:#64748b;font-size:13px;margin:0">Agent:</label>
-        <select
-          :value="currentAgent"
-          @change="switchAgent(($event.target as HTMLSelectElement).value)"
-          style="font-size:13px;padding:3px 8px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;color:#1e293b;cursor:pointer"
-        >
-          <option v-if="agentNames.length === 0" value="">(无 Agent)</option>
-          <option v-for="name in agentNames" :key="name" :value="name">{{ name }}</option>
+        <label class="toolbar-label">Agent</label>
+        <select class="toolbar-select" :value="currentAgent" @change="switchAgent(($event.target as HTMLSelectElement).value)">
+          <option value="">(未选择)</option>
+          <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }}</option>
         </select>
+        <label class="toolbar-label">存储</label>
+        <select class="toolbar-select" :value="currentSaver" @change="switchSaver(($event.target as HTMLSelectElement).value)">
+          <option value="">(未选择)</option>
+          <option v-for="s in saverOptions" :key="s.id" :value="s.id">{{ s.label }}</option>
+        </select>
+        <button v-if="currentSaver" class="btn-outline btn-sm" @click="saverViewModal?.open(currentSaver, 'web')">查看</button>
+        <label class="toolbar-label">记忆</label>
+        <select class="toolbar-select" v-model="currentMemory">
+          <option value="">(不使用)</option>
+          <option v-for="m in memoryOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
+        </select>
+        <button v-if="currentMemory" class="btn-outline btn-sm" @click="memoryViewModal?.open(currentMemory)">查看</button>
       </template>
       <template v-else>
         <span style="font-size:13px;font-weight:600;color:#1c1c1c">{{ sessions[activeSessionId]?.name || (activeSessionId as string).slice(0, 8) + '…' }}</span>
-        <span style="font-size:12px;color:#9b9b9b;font-family:monospace">{{ effectiveAgent }}</span>
+        <span style="font-size:12px;color:#9b9b9b">{{ agentOptions.find(a => a.id === effectiveAgent)?.label || effectiveAgent }}</span>
+        <button v-if="effectiveSaver" class="chat-info-chip" @click="saverViewModal?.open(effectiveSaver!, 'session_' + activeSessionId)">
+          存储: {{ saverOptions.find(s => s.id === effectiveSaver)?.label || effectiveSaver }}
+        </button>
+        <button v-if="effectiveMemory" class="chat-info-chip" @click="memoryViewModal?.open(effectiveMemory!)">
+          记忆: {{ memoryOptions.find(m => m.id === effectiveMemory)?.label || effectiveMemory }}
+        </button>
       </template>
-      <button v-if="effectiveSaver" class="chat-info-chip" @click="saverViewModal?.open(effectiveSaver!)">
-        存储: {{ effectiveSaver }}
-      </button>
-      <span v-else style="color:#c4c4c0;font-size:12px">未配置存储</span>
-      <button v-if="effectiveMemory" class="chat-info-chip" @click="memoryViewModal?.open(effectiveMemory!)">
-        记忆: {{ effectiveMemory }}
-      </button>
       <button class="btn-outline btn-sm" style="margin-left:auto" @click="refreshHistory">刷新</button>
-      <button class="btn-danger btn-sm" @click="clearHistory">清除历史</button>
+      <button class="btn-danger btn-sm" :disabled="!effectiveSaver" @click="clearHistory">清除历史</button>
     </div>
 
     <!-- Body: session sidebar + chat area -->
@@ -487,6 +517,22 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.toolbar-label {
+  color: #64748b;
+  font-size: 13px;
+  margin: 0;
+  white-space: nowrap;
+}
+.toolbar-select {
+  font-size: 13px;
+  padding: 3px 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fff;
+  color: #1e293b;
+  cursor: pointer;
+  max-width: 140px;
+}
 .session-item {
   padding: 8px 10px;
   border-radius: 6px;

@@ -161,15 +161,8 @@ async function save() {
     }
     if (toolTimeout) config.toolTimeout = parseInt(toolTimeout)
 
-    const oldName = editingName.value
-    if (oldName && oldName !== name) {
-      // 改名：服务端同步所有 agent 的 mcp 引用
-      const res = await apiFetch(`/api/mcp/${encodeURIComponent(oldName)}/rename`, 'POST', { name })
-      servers.value = res.data?.servers || {}
-      store.mcpServers = servers.value
-    }
-
-    const newServers = { ...servers.value, [name]: config }
+    const key = editingName.value ?? name
+    const newServers = { ...servers.value, [key]: config }
     await apiFetch(apiBase(), 'PUT', { servers: newServers })
     show('保存成功')
     showModal.value = false
@@ -424,7 +417,7 @@ onMounted(load)
         <div class="modal-body">
           <div class="form-group">
             <label>名称 (唯一标识) *</label>
-            <input v-model="form.name" placeholder="如 my-mcp-server" />
+            <input v-model="form.name" placeholder="如 my-mcp-server" :disabled="!!editingName" />
           </div>
           <div class="form-group">
             <label>传输类型 *</label>

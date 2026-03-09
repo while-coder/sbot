@@ -10,6 +10,7 @@ const { show } = useToast()
 const router = useRouter()
 
 const agents = computed(() => store.settings.agents || {})
+const modelName = (id: string) => (store.settings.models?.[id] as any)?.name || id
 
 // ── Row dropdown ──
 const dropdownOpen = ref<string | null>(null)
@@ -23,25 +24,25 @@ function closeDropdown() {
 // ── Modal refs ──
 const agentModal = ref<InstanceType<typeof AgentModal>>()
 
-async function copyAgent(name: string) {
-  const agent = agents.value[name]
+async function copyAgent(id: string) {
+  const agent = agents.value[id]
   if (!agent) return
-  let newName = name + '-copy'
-  let i = 2
-  while (store.settings.agents![newName]) newName = name + '-copy' + (i++)
   try {
-    const res = await apiFetch(`/api/settings/agents/${encodeURIComponent(newName)}`, 'PUT', JSON.parse(JSON.stringify(agent)))
+    const copy = JSON.parse(JSON.stringify(agent))
+    if (copy.name) copy.name = copy.name + '-copy'
+    const res = await apiFetch('/api/settings/agents', 'POST', copy)
     Object.assign(store.settings, res.data)
-    show(`已复制为 ${newName}`)
+    show('已复制')
   } catch (e: any) {
     show(e.message, 'error')
   }
 }
 
-async function removeAgent(name: string) {
-  if (!confirm(`确定要删除 Agent "${name}" 吗？`)) return
+async function removeAgent(id: string) {
+  const label = (agents.value[id] as any)?.name || id
+  if (!confirm(`确定要删除 Agent "${label}" 吗？`)) return
   try {
-    const res = await apiFetch(`/api/settings/agents/${encodeURIComponent(name)}`, 'DELETE')
+    const res = await apiFetch(`/api/settings/agents/${encodeURIComponent(id)}`, 'DELETE')
     Object.assign(store.settings, res.data)
     show('删除成功')
   } catch (e: any) {
@@ -80,22 +81,22 @@ async function refresh() {
           <tr v-if="Object.keys(agents).length === 0">
             <td colspan="4" style="text-align:center;color:#94a3b8;padding:40px">暂无 Agent</td>
           </tr>
-          <tr v-for="(a, name) in agents" :key="name">
-            <td><span style="font-family:monospace;font-weight:500">{{ name }}</span></td>
+          <tr v-for="(a, id) in agents" :key="id">
+            <td><span style="font-weight:500">{{ (a as any).name || id }}</span></td>
             <td>{{ a.type }}</td>
-            <td>{{ a.model || '-' }}</td>
+            <td>{{ a.model ? modelName(a.model) : '-' }}</td>
             <td>
               <div class="ops-cell">
-                <button class="btn-outline btn-sm" @click="agentModal?.open(name as string)">编辑</button>
+                <button class="btn-outline btn-sm" @click="agentModal?.open(id as string)">编辑</button>
                 <div class="row-dropdown">
-                  <button class="btn-outline btn-sm" @click.stop="toggleDropdown(name as string)">···</button>
-                  <div v-if="dropdownOpen === name" class="row-dropdown-menu">
-                    <button :disabled="a.type !== 'single'" @click="router.push(`/mcp/agent/${name}`); closeDropdown()">MCP</button>
-                    <button :disabled="a.type !== 'single'" @click="router.push(`/agents/${name}/skills`); closeDropdown()">Skills</button>
-                    <button @click="copyAgent(name as string); closeDropdown()">复制</button>
+                  <button class="btn-outline btn-sm" @click.stop="toggleDropdown(id as string)">···</button>
+                  <div v-if="dropdownOpen === id" class="row-dropdown-menu">
+                    <button :disabled="a.type !== 'single'" @click="router.push(`/mcp/agent/${id}`); closeDropdown()">MCP</button>
+                    <button :disabled="a.type !== 'single'" @click="router.push(`/agents/${id}/skills`); closeDropdown()">Skills</button>
+                    <button @click="copyAgent(id as string); closeDropdown()">复制</button>
                   </div>
                 </div>
-                <button class="btn-danger btn-sm" @click="removeAgent(name as string)">删除</button>
+                <button class="btn-danger btn-sm" @click="removeAgent(id as string)">删除</button>
               </div>
             </td>
           </tr>
