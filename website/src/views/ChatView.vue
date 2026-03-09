@@ -30,6 +30,11 @@ const fileInputEl = ref<HTMLInputElement | null>(null)
 const saverViewModal  = ref<InstanceType<typeof SaverViewModal>>()
 const memoryViewModal = ref<InstanceType<typeof MemoryViewModal>>()
 const newSessionModal = ref<InstanceType<typeof NewSessionModal>>()
+const nameInputEl     = ref<HTMLInputElement | null>(null)
+
+// ── Toolbar inline edit ──
+const editingName  = ref(false)
+const editNameValue = ref('')
 
 // streaming state
 const streamingContent = ref('')
@@ -84,6 +89,36 @@ function onSessionCreated(id: string) {
   activeSessionId.value = id
   messages.value = []
   refreshHistory()
+}
+
+async function saveSession(patch: Record<string, any>) {
+  if (!activeSessionId.value) return
+  try {
+    const current = { ...sessions.value[activeSessionId.value] }
+    const updated = { ...current, ...patch }
+    if (updated.memory === '' || updated.memory === undefined) delete updated.memory
+    await apiFetch(`/api/settings/sessions/${encodeURIComponent(activeSessionId.value)}`, 'PUT', updated)
+    Object.assign(store.settings.sessions![activeSessionId.value], patch)
+    if ((patch.memory === '' || patch.memory === undefined) && store.settings.sessions![activeSessionId.value].memory !== undefined) {
+      delete store.settings.sessions![activeSessionId.value].memory
+    }
+    if ('saver' in patch) refreshHistory()
+  } catch (e: any) {
+    show(e.message, 'error')
+  }
+}
+
+function startEditName() {
+  editNameValue.value = sessions.value[activeSessionId.value!]?.name || ''
+  editingName.value = true
+  nextTick(() => nameInputEl.value?.focus())
+}
+
+async function commitEditName() {
+  editingName.value = false
+  const val = editNameValue.value.trim()
+  if (!val) return
+  await saveSession({ name: val })
 }
 
 // ── WebSocket ──
@@ -337,14 +372,55 @@ onUnmounted(() => {
     <!-- Toolbar -->
     <div class="page-toolbar">
       <template v-if="activeSessionId">
-        <span style="font-size:13px;font-weight:600;color:#1c1c1c">{{ sessions[activeSessionId]?.name || (activeSessionId as string).slice(0, 8) + '…' }}</span>
-        <span style="font-size:12px;color:#9b9b9b">{{ agentOptions.find(a => a.id === effectiveAgent)?.label || effectiveAgent }}</span>
-        <button v-if="effectiveSaver" class="chat-info-chip" @click="saverViewModal?.open(effectiveSaver!, 'session_' + activeSessionId)">
-          存储: {{ saverOptions.find(s => s.id === effectiveSaver)?.label || effectiveSaver }}
-        </button>
-        <button v-if="effectiveMemory" class="chat-info-chip" @click="memoryViewModal?.open(effectiveMemory!)">
-          记忆: {{ memoryOptions.find(m => m.id === effectiveMemory)?.label || effectiveMemory }}
-        </button>
+        <!-- Name -->
+        <input
+          v-if="editingName"
+          ref="nameInputEl"
+          v-model="editNameValue"
+          class="toolbar-name-input"
+          @blur="commitEditName"
+          @keydown.enter="commitEditName"
+          @keydown.escape="editingName = false"
+        />
+        <span
+          v-else
+          class="toolbar-session-name"
+          title="点击编辑名称"
+          @click="startEditName"
+        >{{ sessions[activeSessionId]?.name || (activeSessionId as string).slice(0, 8) + '…' }}</span>
+
+        <!-- Agent -->
+        <label class="toolbar-label">Agent</label>
+        <select
+          class="toolbar-select-sm"
+          :value="effectiveAgent"
+          @change="saveSession({ agent: ($event.target as HTMLSelectElement).value })"
+        >
+          <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }}</option>
+        </select>
+
+        <!-- Saver -->
+        <label class="toolbar-label">存储</label>
+        <select
+          class="toolbar-select-sm"
+          :value="effectiveSaver || ''"
+          @change="saveSession({ saver: ($event.target as HTMLSelectElement).value })"
+        >
+          <option v-for="s in saverOptions" :key="s.id" :value="s.id">{{ s.label }}</option>
+        </select>
+        <button v-if="effectiveSaver" class="chat-info-chip" @click="saverViewModal?.open(effectiveSaver!, 'session_' + activeSessionId)">查看</button>
+
+        <!-- Memory -->
+        <label class="toolbar-label">记忆</label>
+        <select
+          class="toolbar-select-sm"
+          :value="effectiveMemory || ''"
+          @change="saveSession({ memory: ($event.target as HTMLSelectElement).value || undefined })"
+        >
+          <option value="">(不使用)</option>
+          <option v-for="m in memoryOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
+        </select>
+        <button v-if="effectiveMemory" class="chat-info-chip" @click="memoryViewModal?.open(effectiveMemory!)">查看</button>
       </template>
       <span v-else style="font-size:13px;color:#94a3b8">请选择或新建会话</span>
       <button class="btn-outline btn-sm" style="margin-left:auto" @click="refreshHistory">刷新</button>
@@ -561,4 +637,45 @@ onUnmounted(() => {
 }
 .session-item:hover .session-del-btn { color: #94a3b8; }
 .session-del-btn:hover { color: #ef4444 !important; }
+.toolbar-session-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1c1c1c;
+  cursor: text;
+  padding: 2px 4px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.toolbar-session-name:hover { border-color: #d6d4d0; background: #fafaf9; }
+.toolbar-name-input {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border: 1px solid #1c1c1c;
+  border-radius: 4px;
+  outline: none;
+  width: 140px;
+  font-family: inherit;
+  color: #1c1c1c;
+}
+.toolbar-label {
+  font-size: 12px;
+  color: #9b9b9b;
+  white-space: nowrap;
+}
+.toolbar-select-sm {
+  font-size: 12px;
+  padding: 2px 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: 5px;
+  background: #fff;
+  color: #1e293b;
+  cursor: pointer;
+  max-width: 120px;
+}
+.toolbar-select-sm:focus { outline: none; border-color: #1c1c1c; }
 </style>
