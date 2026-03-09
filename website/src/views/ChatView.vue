@@ -72,6 +72,9 @@ async function deleteSession(id: string) {
   if (!confirm(`确定要删除会话 "${label}" 吗？`)) return
   try {
     await apiFetch(`/api/settings/sessions/${encodeURIComponent(id)}`, 'DELETE')
+    if (s?.saver) {
+      await apiFetch(`/api/savers/${encodeURIComponent(s.saver)}/threads/session_${encodeURIComponent(id)}/history`, 'DELETE').catch(() => {})
+    }
     if (store.settings.sessions) delete store.settings.sessions[id]
     if (activeSessionId.value === id) {
       const remaining = Object.keys(sessions.value)

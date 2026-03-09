@@ -66,10 +66,15 @@ async function save() {
 }
 
 async function remove(id: string) {
-  const label = channels.value[id]?.name || id
+  const c = channels.value[id]
+  const label = c?.name || id
   if (!confirm(`确定要删除频道 "${label}" 吗？`)) return
   try {
     await apiFetch(`/api/settings/channels/${id}`, 'DELETE')
+    if (c?.saver) {
+      await apiFetch(`/api/savers/${encodeURIComponent(c.saver)}/threads/lark_${encodeURIComponent(id)}/history`, 'DELETE').catch(() => {})
+    }
+    if (store.settings.channels) delete store.settings.channels[id]
     show('删除成功')
   } catch (e: any) {
     show(e.message, 'error')
