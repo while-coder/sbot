@@ -10,20 +10,7 @@
       "program": "${workspaceFolder}/src/main.tsx",
       "cwd": "${workspaceFolder}",
       "sourceMaps": true,
-      "console": "internalConsole",
-      "internalConsoleOptions": "openOnSessionStart"
-    },
-    {
-      "name": "Debug Compiled TS",
-      "type": "node",
-      "request": "launch",
-      "program": "${workspaceFolder}/dist/main.js",
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "npm: build",
-      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
-      "sourceMaps": true,
-      "console": "internalConsole",
-      "internalConsoleOptions": "openOnSessionStart"
+      "console": "integratedTerminal"
     }
   ]
 }
