@@ -108,7 +108,9 @@ class HttpServer {
 
         // 静态文件
         app.use('/webui', express.static(path.resolve(__dirname, '../../webui')));
-        app.use('/assets', express.static(path.resolve(__dirname, '../../assets')));
+        app.use('/assets', express.static(config.getConfigPath('assets', true)));
+
+        const uploadDir = config.getConfigPath('upload', true);
 
         // 根路径重定向到 /webui
         app.get('/', (_req, res) => res.redirect('/webui/'));
@@ -655,10 +657,16 @@ class HttpServer {
             let enriched = query?.trim() || '';
             if (attachments?.length) {
                 for (const att of attachments) {
-                    if (att.type?.startsWith('image/') && att.dataUrl) {
-                        enriched += `\n\n[图片附件: ${att.name}]\n${att.dataUrl}`;
+                    const label = att.type?.startsWith('image/') ? '图片附件' : '文件附件';
+                    const filePath = path.join(uploadDir, `${randomUUID()}-${att.name}`);
+                    if (att.dataUrl) {
+                        const base64 = att.dataUrl.replace(/^data:[^;]+;base64,/, '');
+                        fs.writeFileSync(filePath, Buffer.from(base64, 'base64'));
+                        enriched += `\n\n[${label}: ${att.name}]\n${filePath}`;
                     } else if (att.content != null) {
-                        enriched += `\n\n[文件附件: ${att.name}]\n\`\`\`\n${att.content}\n\`\`\``;
+                        const isText = !att.type || att.type.startsWith('text/') || att.type === 'application/json';
+                        fs.writeFileSync(filePath, isText ? att.content : Buffer.from(att.content, 'binary'));
+                        enriched += `\n\n[${label}: ${att.name}]\n${filePath}`;
                     }
                 }
             }
@@ -691,10 +699,16 @@ class HttpServer {
                     let enriched = msg.query?.trim() || '';
                     if (msg.attachments?.length) {
                         for (const att of msg.attachments) {
-                            if (att.type?.startsWith('image/') && att.dataUrl) {
-                                enriched += `\n\n[图片附件: ${att.name}]\n${att.dataUrl}`;
+                            const label = att.type?.startsWith('image/') ? '图片附件' : '文件附件';
+                            const filePath = path.join(uploadDir, `${randomUUID()}-${att.name}`);
+                            if (att.dataUrl) {
+                                const base64 = att.dataUrl.replace(/^data:[^;]+;base64,/, '');
+                                fs.writeFileSync(filePath, Buffer.from(base64, 'base64'));
+                                enriched += `\n\n[${label}: ${att.name}]\n${filePath}`;
                             } else if (att.content != null) {
-                                enriched += `\n\n[文件附件: ${att.name}]\n\`\`\`\n${att.content}\n\`\`\``;
+                                const isText = !att.type || att.type.startsWith('text/') || att.type === 'application/json';
+                                fs.writeFileSync(filePath, isText ? att.content : Buffer.from(att.content, 'binary'));
+                                enriched += `\n\n[${label}: ${att.name}]\n${filePath}`;
                             }
                         }
                     }

@@ -11,11 +11,17 @@ const { show } = useToast()
 
 const menuGroups = [
   {
-    group: '基础',
+    group: '聊天',
     items: [
       { label: '聊天', key: '/chat' },
-      { label: '基本设置', key: '/settings' },
+      { label: '目录', key: '/directory' },
       { label: '频道管理', key: '/channels' },
+    ],
+  },
+  {
+    group: '基础',
+    items: [
+      { label: '基本设置', key: '/settings' },
     ],
   },
   {

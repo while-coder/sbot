@@ -242,15 +242,23 @@ async function onFileChange(e: Event) {
   ;(e.target as HTMLInputElement).value = ''
 }
 
+function isTextMime(type: string) {
+  return type.startsWith('text/') ||
+    type === 'application/json' ||
+    type === 'application/xml' ||
+    type === 'application/javascript' ||
+    type === 'application/xhtml+xml'
+}
+
 function readFile(file: File): Promise<Attachment> {
   return new Promise((resolve) => {
     const reader = new FileReader()
-    if (file.type.startsWith('image/')) {
-      reader.onload = () => resolve({ name: file.name, type: file.type, dataUrl: reader.result as string })
-      reader.readAsDataURL(file)
-    } else {
+    if (isTextMime(file.type)) {
       reader.onload = () => resolve({ name: file.name, type: file.type, content: reader.result as string })
       reader.readAsText(file)
+    } else {
+      reader.onload = () => resolve({ name: file.name, type: file.type, dataUrl: reader.result as string })
+      reader.readAsDataURL(file)
     }
   })
 }

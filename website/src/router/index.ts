@@ -16,6 +16,7 @@ const routes = [
   { path: '/users', component: () => import('@/views/UsersView.vue') },
   { path: '/timers', component: () => import('@/views/TimerView.vue') },
   { path: '/channels', component: () => import('@/views/ChannelsView.vue') },
+  { path: '/directory', component: () => import('@/views/DirectoryView.vue') },
 ]
 
 export default createRouter({

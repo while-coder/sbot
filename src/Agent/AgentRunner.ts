@@ -1,5 +1,4 @@
 import os from 'os';
-import path from 'path';
 import {
     ServiceContainer,
     IAgentCallback,
@@ -35,7 +34,7 @@ export class AgentRunner {
 
         const now = new Date();
         const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        const assetsDir = path.resolve(__dirname, '../../assets');
+        const assetsDir = config.getConfigPath('assets', true);
         const scriptsDir = config.getConfigPath('scripts', true);
         const httpUrl = config.getHttpUrl();
         const extraPrompts: string[] = [
