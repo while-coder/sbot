@@ -66,7 +66,7 @@ export class HttpUserService {
         const saveId = args?.saveId as string;
         const memoryId = args?.memoryId as string;
         const workPath = (args?.workPath as string)?.replace(/[:/\\]/g, '_');
-        await AgentRunner.run(query, callbacks, agentId, saveId, workPath, undefined, memoryId);
+        await AgentRunner.run(query, callbacks, agentId, saveId, `dir_${workPath}`, undefined, memoryId);
     }
 
     private emit(event: WebChatEvent) {

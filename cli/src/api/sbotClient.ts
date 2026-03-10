@@ -1,3 +1,5 @@
+import nodeHttp from 'node:http';
+import readline from 'node:readline';
 import axios, { type AxiosInstance } from 'axios';
 
 export interface SbotSettings {
@@ -47,42 +49,43 @@ export class SbotClient {
     signal: AbortSignal,
   ): AsyncGenerator<ChatEvent> {
     const workPath = process.cwd();
-    const res = await fetch(`${this.baseUrl}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, agentId, saveId, memoryId, workPath }),
-      signal,
+    const body = JSON.stringify({ query, agentId, saveId, memoryId, workPath });
+    const url = new URL(`${this.baseUrl}/api/chat`);
+
+    const res = await new Promise<nodeHttp.IncomingMessage>((resolve, reject) => {
+      const req = nodeHttp.request(
+        {
+          hostname: url.hostname,
+          port: parseInt(url.port) || 80,
+          path: url.pathname,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(body),
+          },
+        },
+        resolve,
+      );
+      req.on('error', reject);
+      signal.addEventListener('abort', () => req.destroy(new Error('AbortError')), { once: true });
+      req.write(body);
+      req.end();
     });
-    if (!res.ok) throw new Error(`Chat request failed: ${res.status}`);
-    if (!res.body) throw new Error('No response body');
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
+    if (res.statusCode !== 200) {
+      throw new Error(`Chat request failed: ${res.statusCode}`);
+    }
 
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-
-        const parts = buffer.split('\n\n');
-        buffer = parts.pop() ?? '';
-
-        for (const part of parts) {
-          const dataLine = part.split('\n').find((l) => l.startsWith('data: '));
-          if (!dataLine) continue;
-          try {
-            const event = JSON.parse(dataLine.slice(6)) as ChatEvent;
-            yield event;
-            if (event.type === 'done') return;
-          } catch {
-            // skip malformed JSON
-          }
-        }
+    const rl = readline.createInterface({ input: res, crlfDelay: Infinity });
+    for await (const line of rl) {
+      if (!line.startsWith('data: ')) continue;
+      try {
+        const event = JSON.parse(line.slice(6)) as ChatEvent;
+        yield event;
+        if (event.type === 'done') return;
+      } catch {
+        // skip malformed JSON
       }
-    } finally {
-      reader.releaseLock();
     }
   }
 }
