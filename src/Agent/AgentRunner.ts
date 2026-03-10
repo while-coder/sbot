@@ -27,6 +27,7 @@ export class AgentRunner {
         saverThreadId: string,
         userInfo?: any,
         memoryId?: string,
+        workPath?: string,
     ): Promise<void> {
         if (!agentId.trim())        throw new Error("未指定 agent");
         if (!saverId.trim())        throw new Error("未指定 saver");
@@ -45,6 +46,9 @@ export class AgentRunner {
 生成供用户查看或下载的文件时，将文件保存至 ${assetsDir}，并以 ${httpUrl}/assets/<文件名> 形式提供访问地址。
 临时脚本文件存放至 ${scriptsDir}。`,
         ];
+        if (workPath) {
+            extraPrompts.push(`工作目录：${workPath}`);
+        }
         if (userInfo) {
             extraPrompts.push(`用户user_id:${userInfo.user_id}
 用户open_id:${userInfo.open_id}

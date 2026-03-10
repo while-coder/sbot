@@ -3,25 +3,32 @@ import { AgentMessage, AgentToolCall, MCPToolResult } from "scorpio.ai";
 import { Response } from "express";
 import { AgentRunner } from "../Agent/AgentRunner";
 import { WebChatEvent } from "./WebSocketUserService";
+import { LoggerService } from "../Core/LoggerService";
+
+const logger = LoggerService.getLogger('HttpUserService');
 
 export class HttpUserService {
     private activeRes: Response | null = null;
 
-    setResponse(res: Response): void {
+    private setResponse(res: Response): void {
         this.activeRes = res;
         res.setHeader('Content-Type', 'text/event-stream');
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Connection', 'keep-alive');
         res.flushHeaders();
+        res.on('close', () => {
+            if (this.activeRes === res) this.clearResponse();
+        });
     }
 
-    clearResponse(): void {
+    private clearResponse(): void {
         this.activeRes = null;
     }
 
     // ===== Called by UserService =====
 
-    async startProcessMessage(_query: string, _args: any): Promise<string> {
+    async startProcessMessage(_query: string, args: any): Promise<string> {
+        if (args?.res) this.setResponse(args.res);
         return '';
     }
 
@@ -66,10 +73,11 @@ export class HttpUserService {
         const saveId = args?.saveId as string;
         const memoryId = args?.memoryId as string;
         const workPath = (args?.workPath as string)?.replace(/[:/\\]/g, '_');
-        await AgentRunner.run(query, callbacks, agentId, saveId, `dir_${workPath}`, undefined, memoryId);
+        await AgentRunner.run(query, callbacks, agentId, saveId, `dir_${workPath}`, undefined, memoryId, args?.workPath as string);
     }
 
     private emit(event: WebChatEvent) {
+        logger.info(`emit : ${JSON.stringify(event)}`);
         if (!this.activeRes) return;
         this.activeRes.write(`data: ${JSON.stringify(event)}\n\n`);
     }

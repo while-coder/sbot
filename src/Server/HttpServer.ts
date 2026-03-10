@@ -671,12 +671,9 @@ class HttpServer {
                 }
             }
             if (!enriched) { res.status(400).json({ error: '消息内容不能为空' }); return; }
-            userService.http.setResponse(res);
-            req.on('close', () => userService.http.clearResponse());
             try {
-                await userService.onReceiveHttpMessage(enriched, agentId ?? '', saveId ?? '', memoryId ?? '', workPath ?? '');
+                await userService.onReceiveHttpMessage(enriched, agentId ?? '', saveId ?? '', memoryId ?? '', workPath ?? '', res);
             } finally {
-                userService.http.clearResponse();
                 res.end();
             }
         });
@@ -686,7 +683,6 @@ class HttpServer {
 
         const wss = new WebSocketServer({ server, path: '/ws/chat' });
         wss.on('connection', (ws) => {
-            userService.web.registerWs(ws);
             ws.on('message', (data) => {
                 try {
                     const msg = JSON.parse(data.toString()) as {
@@ -712,10 +708,9 @@ class HttpServer {
                             }
                         }
                     }
-                    if (enriched) userService.onReceiveWebMessage(enriched, msg.sessionId ?? '');
+                    if (enriched) userService.onReceiveWebMessage(enriched, msg.sessionId ?? '', ws);
                 } catch { /* ignore malformed messages */ }
             });
-            ws.on('close', () => userService.web.unregisterWs(ws));
         });
 
         server.listen(port, () => {

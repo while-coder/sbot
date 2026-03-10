@@ -64,6 +64,8 @@ export function useChat(
             };
             setHistory((prev) => [...prev, toolMsg]);
           } else if (event.type === 'message') {
+            accumulated = '';
+            setStreamingContent('');
             const content = (event.content as string) ?? '';
             if (content) {
               const msg: HistoryItem = {

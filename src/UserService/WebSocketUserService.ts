@@ -12,28 +12,36 @@ export type WebChatEvent =
     | { type: "error"; message: string };
 
 export class WebSocketUserService {
-    private clients = new Set<WebSocket>();
+    private activeWs: WebSocket | null = null;
 
-    registerWs(ws: WebSocket): void {
-        this.clients.add(ws);
+    private setWs(ws: WebSocket): void {
+        this.activeWs = ws;
+        if (ws) {
+            ws.on('close', () => {
+                if (this.activeWs === ws) this.clearWs();
+            });
+        }
     }
 
-    unregisterWs(ws: WebSocket): void {
-        this.clients.delete(ws);
+    private clearWs(): void {
+        this.activeWs = null;
     }
 
     // ===== Called by UserService =====
 
-    async startProcessMessage(_query: string, _args: any): Promise<string> {
+    async startProcessMessage(_query: string, args: any): Promise<string> {
+        if (args?.ws) this.setWs(args.ws);
         return '';
     }
 
     async onMessageProcessed(): Promise<void> {
         this.emit({ type: 'done' });
+        this.clearWs();
     }
 
     async processMessageError(e: any): Promise<void> {
         this.emit({ type: 'error', message: e.message });
+        this.clearWs();
     }
 
     async onAgentMessage(message: AgentMessage): Promise<void> {
@@ -72,9 +80,9 @@ export class WebSocketUserService {
     }
 
     private emit(event: WebChatEvent) {
-        const msg = JSON.stringify(event);
-        for (const ws of this.clients) {
-            if (ws.readyState === WebSocket.OPEN) ws.send(msg);
+        if (!this.activeWs) return;
+        if (this.activeWs.readyState === WebSocket.OPEN) {
+            this.activeWs.send(JSON.stringify(event));
         }
     }
 }
