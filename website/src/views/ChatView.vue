@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { marked } from 'marked'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 import type { ChatMessage, ToolCall } from '@/types'
+import { useChatSocket } from '@/composables/useChatSocket'
 import SaverViewModal from './SaverViewModal.vue'
 import MemoryViewModal from './MemoryViewModal.vue'
 import NewSessionModal from './NewSessionModal.vue'
@@ -131,59 +132,59 @@ async function commitEditSessionName() {
 }
 
 // ── WebSocket ──
-let ws: WebSocket | null = null
+const chatSocket = useChatSocket()
 let doneResolve: (() => void) | null = null
 let doneReject: ((e: Error) => void) | null = null
 
-function getWsUrl(): string {
-  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
-  return `${proto}//${location.host}/ws/chat`
-}
-
-function bindWsHandlers(socket: WebSocket) {
-  socket.onmessage = async (event: MessageEvent) => {
-    let evt: any
-    try { evt = JSON.parse(event.data as string) } catch { return }
-
-    if (evt.type === 'stream') {
-      streamingContent.value = evt.content
-      await nextTick()
-      scrollToBottom()
-    } else if (evt.type === 'tool_call') {
-      streamingToolCalls.value.push({ name: evt.name, args: evt.args })
-      await nextTick()
-      scrollToBottom()
-    } else if (evt.type === 'done') {
-      isStreaming.value = false
-      await refreshHistory()
-      doneResolve?.()
-      doneResolve = null
-      doneReject = null
-    } else if (evt.type === 'error') {
-      isStreaming.value = false
-      show(evt.message, 'error')
-      doneReject?.(new Error(evt.message))
-      doneResolve = null
-      doneReject = null
-    }
-  }
-  socket.onclose = () => { if (ws === socket) ws = null }
-  socket.onerror = () => {
-    show('WebSocket 连接错误', 'error')
-    doneReject?.(new Error('WebSocket 连接错误'))
+async function handleWsMessage(evt: any) {
+  if (evt.type === 'stream') {
+    streamingContent.value = evt.content
+    await nextTick()
+    scrollToBottom()
+  } else if (evt.type === 'message') {
+    messages.value.push({
+      role: evt.role,
+      content: evt.content,
+      tool_calls: evt.tool_calls,
+      timestamp: new Date().toISOString(),
+    })
+    streamingContent.value = ''
+    streamingToolCalls.value = []
+    await nextTick()
+    scrollToBottom()
+  } else if (evt.type === 'tool_call') {
+    messages.value.push({
+      role: 'ai',
+      tool_calls: [{ id: `tc-${Date.now()}`, name: evt.name, args: evt.args }],
+      timestamp: new Date().toISOString(),
+    })
+    streamingToolCalls.value.push({ name: evt.name, args: evt.args })
+    await nextTick()
+    scrollToBottom()
+  } else if (evt.type === 'done') {
+    isStreaming.value = false
+    await refreshHistory()
+    doneResolve?.()
+    doneResolve = null
+    doneReject = null
+  } else if (evt.type === 'error') {
+    isStreaming.value = false
+    show(evt.message, 'error')
+    doneReject?.(new Error(evt.message))
     doneResolve = null
     doneReject = null
   }
 }
 
-function ensureWs(): Promise<void> {
-  if (ws?.readyState === WebSocket.OPEN) return Promise.resolve()
-  return new Promise<void>((resolve, reject) => {
-    const socket = new WebSocket(getWsUrl())
-    socket.onopen = () => { ws = socket; bindWsHandlers(socket); resolve() }
-    socket.onerror = () => reject(new Error('WebSocket 连接失败'))
-  })
-}
+watch(chatSocket.connected, (val, oldVal) => {
+  if (!val && oldVal && doneReject) {
+    show('WebSocket 连接断开，正在重连…', 'error')
+    isStreaming.value = false
+    doneReject(new Error('WebSocket 连接断开'))
+    doneResolve = null
+    doneReject = null
+  }
+})
 
 function saverThreadUrl(saver: string): string | null {
   if (!activeSessionId.value) return null
@@ -328,17 +329,17 @@ async function sendOne(query: string, atts: Attachment[]) {
   scrollToBottom()
 
   try {
-    await ensureWs()
+    await chatSocket.waitForOpen()
     const donePromise = new Promise<void>((resolve, reject) => {
       doneResolve = resolve
       doneReject = reject
     })
-    ws!.send(JSON.stringify({
+    chatSocket.send({
       type: 'message',
       query,
       sessionId: activeSessionId.value!,
       attachments: atts.length ? atts : undefined,
-    }))
+    })
     await donePromise
   } catch (e: any) {
     isStreaming.value = false
@@ -372,6 +373,7 @@ function renderMd(content: string): string {
 }
 
 onMounted(() => {
+  chatSocket.onMessage(handleWsMessage)
   const ids = Object.keys(sessions.value)
   if (ids.length > 0 && !activeSessionId.value) {
     activeSessionId.value = ids[0]
@@ -380,8 +382,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  ws?.close()
-  ws = null
+  chatSocket.offMessage(handleWsMessage)
 })
 </script>
 

@@ -77,7 +77,6 @@ export class HttpUserService {
     }
 
     private emit(event: WebChatEvent) {
-        logger.info(`emit : ${JSON.stringify(event)}`);
         if (!this.activeRes) return;
         this.activeRes.write(`data: ${JSON.stringify(event)}\n\n`);
     }

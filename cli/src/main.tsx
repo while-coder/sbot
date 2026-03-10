@@ -15,7 +15,7 @@ const BASE_URL = 'http://127.0.0.1:5500';
 type BootState =
   | { phase: 'loading' }
   | { phase: 'setup'; settings: SbotSettings }
-  | { phase: 'chat'; config: LocalConfig }
+  | { phase: 'chat'; config: LocalConfig; agentName: string; saverName: string }
   | { phase: 'error'; message: string };
 
 function Boot() {
@@ -25,31 +25,31 @@ function Boot() {
   // Run boot sequence on mount
   React.useEffect(() => {
     void (async () => {
-      // 1. Check for existing local config
-      const existing = readLocalConfig();
-      if (existing) {
-        setState({ phase: 'chat', config: existing });
-        return;
-      }
-
-      // 2. Check if sbot is online
-      const online = await client.isOnline();
-      if (!online) {
+      // 1. Fetch settings (also serves as online check)
+      let settings: SbotSettings;
+      try {
+        settings = await client.fetchSettings();
+      } catch {
         setState({ phase: 'error', message: `Cannot reach sbot at ${BASE_URL}. Is it running?` });
         return;
       }
 
-      // 3. Fetch settings for wizard
-      try {
-        const settings = await client.fetchSettings();
-        if (Object.keys(settings.agents ?? {}).length === 0) {
-          setState({ phase: 'error', message: 'No agents configured in sbot. Add an agent first.' });
-          return;
-        }
-        setState({ phase: 'setup', settings });
-      } catch (err) {
-        setState({ phase: 'error', message: (err as Error).message });
+      if (Object.keys(settings.agents ?? {}).length === 0) {
+        setState({ phase: 'error', message: 'No agents configured in sbot. Add an agent first.' });
+        return;
       }
+
+      // 2. Use existing local config if present
+      const existing = readLocalConfig();
+      if (existing) {
+        const agentName = settings.agents?.[existing.agentId]?.name ?? existing.agentId;
+        const saverName = settings.savers?.[existing.saverId]?.name ?? existing.saverId;
+        setState({ phase: 'chat', config: existing, agentName, saverName });
+        return;
+      }
+
+      // 3. Show setup wizard
+      setState({ phase: 'setup', settings });
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -58,10 +58,12 @@ function Boot() {
     agentId: string,
     saverId: string,
     memoryId: string | null,
+    agentName: string,
+    saverName: string,
   ) => {
     const cfg: LocalConfig = { agentId, saverId, memoryId };
     writeLocalConfig(cfg);
-    setState({ phase: 'chat', config: cfg });
+    setState({ phase: 'chat', config: cfg, agentName, saverName });
   };
 
   if (state.phase === 'loading') {
@@ -92,7 +94,7 @@ function Boot() {
   }
 
   // phase === 'chat'
-  return <App client={client} config={state.config} />;
+  return <App client={client} config={state.config} agentName={state.agentName} saverName={state.saverName} />;
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────────

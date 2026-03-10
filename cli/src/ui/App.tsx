@@ -13,9 +13,11 @@ import { InputPrompt } from './components/InputPrompt.js';
 interface AppProps {
   client: SbotClient;
   config: LocalConfig;
+  agentName: string;
+  saverName: string;
 }
 
-export const App: React.FC<AppProps> = ({ client, config }) => {
+export const App: React.FC<AppProps> = ({ client, config, agentName, saverName }) => {
   const { exit } = useApp();
   const { history, streamingContent, streamingState, submitQuery, cancelRequest, clearHistory } =
     useChat(client, config.agentId, config.saverId, config.memoryId);
@@ -55,8 +57,8 @@ export const App: React.FC<AppProps> = ({ client, config }) => {
   return (
     <Box flexDirection="column" height="100%">
       <Header
-        agentId={config.agentId}
-        saverId={config.saverId}
+        agentName={agentName}
+        saverName={saverName}
       />
       <MessageList
         history={history}

@@ -13,7 +13,7 @@ interface NamedItem {
 
 interface SetupWizardProps {
   settings: SbotSettings;
-  onComplete: (agentId: string, saverId: string, memoryId: string | null) => void;
+  onComplete: (agentId: string, saverId: string, memoryId: string | null, agentName: string, saverName: string) => void;
 }
 
 interface SelectListProps {
@@ -68,7 +68,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ settings, onComplete }
           const agent = agentItems[agentIdx] ?? { id: '', name: '' };
           const saver = saverItems[saverIdx] ?? { id: '', name: '' };
           const memory = memoryIdx === 0 ? null : (memoryItems[memoryIdx] ?? null);
-          onComplete(agent.id, saver.id, memory?.id ?? null);
+          onComplete(agent.id, saver.id, memory?.id ?? null, agent.name, saver.name);
         }
       }
     },
