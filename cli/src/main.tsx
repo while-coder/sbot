@@ -2,13 +2,13 @@ import React, { useState, useMemo } from 'react';
 import { render, Box, Text } from 'ink';
 import Spinner from 'ink-spinner';
 import { readLocalConfig, writeLocalConfig, type LocalConfig } from './config/localConfig.js';
-import { SbotClient, type SbotSettings } from './api/sbotClient.js';
+import { SbotClient, getServerBaseUrl, type SbotSettings } from './api/sbotClient.js';
 import { KeypressProvider } from './ui/contexts/KeypressContext.js';
 import { SetupWizard } from './ui/components/SetupWizard.js';
 import { App } from './ui/App.js';
 import { theme } from './ui/colors.js';
 
-const BASE_URL = 'http://127.0.0.1:5500';
+const BASE_URL = getServerBaseUrl();
 
 // ── Root bootstrap component ──────────────────────────────────────────────────
 

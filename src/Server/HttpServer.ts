@@ -6,7 +6,7 @@ import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { WebSocketServer } from 'ws';
 import { MCPServers, AgentToolService } from "scorpio.ai";
-import { config, DEFAULT_PORT } from '../Core/Config';
+import { config } from '../Core/Config';
 import { AgentRunner } from '../Agent/AgentRunner';
 import { globalAgentToolService, refreshGlobalAgentToolService, BuiltinProvider } from '../Agent/GlobalAgentToolService';
 import { globalSkillService, refreshGlobalSkillService, BUILTIN_SKILLS_DIR } from '../Agent/GlobalSkillService';
@@ -91,7 +91,7 @@ function api(fn: (req: Request, res: Response) => any) {
 
 class HttpServer {
     async start() {
-        const port = DEFAULT_PORT;
+        const port = config.getHttpPort();
         const app = express();
         app.use(express.json());
 
@@ -120,7 +120,8 @@ class HttpServer {
 
         // ===== Settings / General =====
         app.put('/api/settings/general', api(req => {
-            const { httpUrl, lark } = req.body;
+            const { httpPort, httpUrl, lark } = req.body;
+            if (httpPort !== undefined) config.settings.httpPort = httpPort || undefined;
             if (httpUrl !== undefined) config.settings.httpUrl = httpUrl || undefined;
             if (lark !== undefined) (config.settings as any).lark = lark;
             config.saveSettings();

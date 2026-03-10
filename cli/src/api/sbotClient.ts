@@ -1,6 +1,25 @@
 import nodeHttp from 'node:http';
 import readline from 'node:readline';
+import { readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
 import axios, { type AxiosInstance } from 'axios';
+
+const DEFAULT_PORT = 5500;
+
+export function getServerBaseUrl(): string {
+  try {
+    const settingsPath = join(homedir(), '.sbot', 'settings.json');
+    if (existsSync(settingsPath)) {
+      const settings = JSON.parse(readFileSync(settingsPath, 'utf-8'));
+      const port: number = settings.httpPort ?? DEFAULT_PORT;
+      return `http://localhost:${port}`;
+    }
+  } catch {
+    // 读取失败时使用默认端口
+  }
+  return `http://localhost:${DEFAULT_PORT}`;
+}
 
 export interface SbotSettings {
   agents?: Record<string, { name?: string }>;
