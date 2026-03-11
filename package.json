@@ -3,7 +3,7 @@
   "private": true,
   "packageManager": "pnpm@10.30.3",
   "scripts": {
-    "build": "pnpm -r run build",
+    "build": "pnpm -r run build && pnpm --filter sbot-website run build",
     "debug:sbot": "pnpm --filter sbot run debug",
     "debug:cli": "pnpm --filter sbot-cli run debug",
     "debug:website": "pnpm --filter sbot-website run debug",
