@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { LarkUserServiceBase } from "lark";
+import { LarkUserServiceBase } from "channel.lark";
 import { ICommand } from "scorpio.ai";
 import { AgentRunner } from "../Agent/AgentRunner";
 import { config } from "../Core/Config";

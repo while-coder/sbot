@@ -1,4 +1,4 @@
-import { LarkService, LarkActionArgs, LarkMessageArgs, LarkUserIdType } from "lark";
+import { LarkService, LarkActionArgs, LarkMessageArgs, LarkUserIdType } from "channel.lark";
 import { database } from "../Core/Database";
 import { NowDate } from "scorpio.ai";
 import { Op } from "sequelize";

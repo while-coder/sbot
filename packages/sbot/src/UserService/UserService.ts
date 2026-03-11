@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { LarkMessageArgs } from "lark";
+import { LarkMessageArgs } from "channel.lark";
 import { AgentMessage, AgentToolCall, ICommand, UserServiceBase } from "scorpio.ai";
 import { getBuiltInCommands } from "./BuiltInCommands";
 import { LarkUserService } from "./LarkUserService";
