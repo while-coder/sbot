@@ -75,4 +75,13 @@ for (const [pkgName, pkgDir] of Object.entries(localPackages)) {
   console.log(`${pkgName}: ${srcDir} -> ${targetDir}`);
 }
 
+// 复制 prompts 目录到 dist/
+const promptsSrc = path.join(rootDir, 'src', 'prompts');
+const promptsDst = path.join(distDir, 'prompts');
+if (fs.existsSync(promptsSrc)) {
+  if (fs.existsSync(promptsDst)) fs.rmSync(promptsDst, { recursive: true });
+  fs.cpSync(promptsSrc, promptsDst, { recursive: true });
+  console.log(`prompts: ${promptsSrc} -> ${promptsDst}`);
+}
+
 console.log('postbuild: done');

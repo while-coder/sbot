@@ -4,12 +4,22 @@ import { createCommandTools } from "../Tools/Command/index.js";
 import { createFileSystemTools } from "../Tools/FileSystem/index.js";
 import { createSchedulerTools } from "../Tools/Scheduler/index.js";
 import { createFetchTools } from "../Tools/Fetch/index.js";
+import { createBashTools } from "../Tools/Bash/index.js";
+import { createFileOpsTools } from "../Tools/FileOps/index.js";
+import { createWebTools } from "../Tools/Web/index.js";
+import { createOrchestrationTools } from "../Tools/Orchestration/index.js";
+import { createLspTools } from "../Tools/LSP/index.js";
 
 export enum BuiltinProvider {
     Command = 'builtin_command',
     FileSystem = 'builtin_filesystem',
     Scheduler = 'builtin_scheduler',
     Fetch = 'builtin_fetch',
+    Bash = 'builtin_bash',
+    FileOps = 'builtin_fileops',
+    Web = 'builtin_web',
+    Orchestration = 'builtin_orchestration',
+    LSP = 'builtin_lsp',
     Playwright = 'builtin_playwright',
     ChromeDevTools = 'builtin_chrome-devtools-mcp',
     Markitdown = 'builtin_markitdown'
@@ -22,6 +32,11 @@ export function initGlobalAgentToolService() {
     globalAgentToolService.registerToolFactory(BuiltinProvider.FileSystem, async () => createFileSystemTools(), '文件系统操作');
     globalAgentToolService.registerToolFactory(BuiltinProvider.Scheduler, async () => createSchedulerTools(), '定时任务管理');
     globalAgentToolService.registerToolFactory(BuiltinProvider.Fetch, async () => createFetchTools(), 'URL 抓取');
+    globalAgentToolService.registerToolFactory(BuiltinProvider.Bash, async () => createBashTools(), 'Bash 命令执行');
+    globalAgentToolService.registerToolFactory(BuiltinProvider.FileOps, async () => createFileOpsTools(), '文件操作（CC 风格）');
+    globalAgentToolService.registerToolFactory(BuiltinProvider.Web, async () => createWebTools(), 'Web 搜索与抓取');
+    globalAgentToolService.registerToolFactory(BuiltinProvider.Orchestration, async () => createOrchestrationTools(), '编排工具');
+    globalAgentToolService.registerToolFactory(BuiltinProvider.LSP, async () => createLspTools(), 'LSP 代码智能');
     globalAgentToolService.registerMcpServers({
         [BuiltinProvider.Playwright]: {
             "command": "npx.cmd",
