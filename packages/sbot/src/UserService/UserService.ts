@@ -1,6 +1,6 @@
 import "reflect-metadata";
-import { LarkMessageArgs, UserServiceBase } from "winning.ai";
-import { AgentMessage, AgentToolCall, ICommand } from "scorpio.ai";
+import { LarkMessageArgs } from "lark";
+import { AgentMessage, AgentToolCall, ICommand, UserServiceBase } from "scorpio.ai";
 import { getBuiltInCommands } from "./BuiltInCommands";
 import { LarkUserService } from "./LarkUserService";
 import { WebSocketUserService } from "./WebSocketUserService";

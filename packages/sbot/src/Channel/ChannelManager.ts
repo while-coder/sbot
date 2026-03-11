@@ -1,6 +1,6 @@
-import { LarkService, LarkActionArgs, LarkMessageArgs, LarkUserIdType } from "winning.ai";
+import { LarkService, LarkActionArgs, LarkMessageArgs, LarkUserIdType } from "lark";
 import { database } from "../Core/Database";
-import { NowDate } from "../Core/Utils";
+import { NowDate } from "scorpio.ai";
 import { Op } from "sequelize";
 import { userService } from "../UserService/UserService";
 import { LoggerService } from "../Core/LoggerService";

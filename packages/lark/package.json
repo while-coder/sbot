@@ -1,7 +1,7 @@
 {
-  "name": "winning.ai",
+  "name": "lark",
   "version": "0.0.1",
-  "description": "Winning AI - Core AI infrastructure library",
+  "description": "Lark/Feishu SDK integration",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -10,9 +10,7 @@
   },
   "dependencies": {
     "@larksuiteoapi/node-sdk": "^1.58.0",
-    "commander": "^14.0.3",
-    "log4js": "^6.9.1",
-    "scorpio.ai": "file:../scorpio.ai"
+    "scorpio.ai": "workspace:*"
   },
   "files": [
     "dist/**/*.js",

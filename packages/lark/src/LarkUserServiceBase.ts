@@ -1,7 +1,6 @@
-import {Util} from "../Util";
 import {LarkChatProvider} from "./LarkChatProvider";
-import { AgentMessage, AgentToolCall, MCPContentType, MCPToolResult } from "scorpio.ai";
-import {UserServiceBase} from "../User/UserServiceBase";
+import { AgentMessage, AgentToolCall, MCPContentType, MCPToolResult, NowDate, sleep } from "scorpio.ai";
+import { UserServiceBase } from "scorpio.ai";
 import { GlobalLoggerService } from "scorpio.ai";
 import { LarkService, LarkReceiveIdType } from "./LarkService";
 
@@ -78,11 +77,11 @@ export abstract class LarkUserServiceBase extends UserServiceBase {
     try {
       // 从 config 中获取 toolTimeout 配置，默认 30 秒
       let timeout = 30 * 1000
-      let end = Util.NowDate + timeout
+      let end = NowDate() + timeout
       let lastSend = 0
       while (this.toolCall.status == ToolCallStatus.Wait) {
-        if (Util.NowDate - lastSend > 300) {
-          lastSend = Util.NowDate;
+        if (NowDate() - lastSend > 300) {
+          lastSend = NowDate();
           await this.provider?.insertElement(undefined, {
                 "tag": "button",
                 "text": {
@@ -111,7 +110,7 @@ export abstract class LarkUserServiceBase extends UserServiceBase {
                 "tag": "button",
                 "text": {
                   "tag": "plain_text",
-                  "content": `拒绝:${toolCall.name}(${Math.floor((end - Util.NowDate) / 1000)}秒)`
+                  "content": `拒绝:${toolCall.name}(${Math.floor((end - NowDate()) / 1000)}秒)`
                 },
                 "type": "danger_filled",
                 "width": "fill",
@@ -132,8 +131,8 @@ export abstract class LarkUserServiceBase extends UserServiceBase {
                 "element_id": "toolCallCancel"
               })
         }
-        await Util.sleep(10)
-        if (Util.NowDate > end) {
+        await sleep(10)
+        if (NowDate() > end) {
           this.toolCall.status = ToolCallStatus.Cancel
           break
         }
@@ -150,7 +149,7 @@ export abstract class LarkUserServiceBase extends UserServiceBase {
     this.askUserState.status = ToolCallStatus.Wait;
     this.askUserState.answer = '';
     const timeout = 5 * 60 * 1000;
-    const end = Util.NowDate + timeout;
+    const end = NowDate() + timeout;
 
     try {
       await this.provider?.insertElement(undefined,
@@ -177,8 +176,8 @@ export abstract class LarkUserServiceBase extends UserServiceBase {
       );
 
       while (this.askUserState.status === ToolCallStatus.Wait) {
-        await Util.sleep(10);
-        if (Util.NowDate > end) {
+        await sleep(10);
+        if (NowDate() > end) {
           this.askUserState.status = ToolCallStatus.Cancel;
           break;
         }

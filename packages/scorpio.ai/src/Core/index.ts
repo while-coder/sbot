@@ -9,3 +9,6 @@ export { ServiceContainer, globalServiceContainer, transient, singleton, inject,
 
 // 通用 Token
 export { T_ThreadId, T_UserId, T_SystemPrompts, T_DBPath, T_DBUrl, T_SkillsDirs, T_SkillDirs, T_MaxMemoryAgeDays, T_MemoryMode } from "./tokens";
+
+// 工具函数
+export { NowDate, sleep, parseJson } from "./utils";

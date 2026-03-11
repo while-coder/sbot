@@ -1,7 +1,7 @@
 import { LarkService, LarkReceiveIdType } from "./LarkService";
 import { AgentMessage, MessageChunkType, MCPToolResult, MCPContentType, isMCPToolResult } from "scorpio.ai";
 import { GlobalLoggerService } from "scorpio.ai";
-import { Util } from "../Util";
+import { parseJson } from "scorpio.ai";
 
 const getLogger = () => GlobalLoggerService.getLogger("LarkChatProvider.ts");
 
@@ -63,7 +63,7 @@ export class LarkChatProvider {
 ${JSON.stringify(message.args, null, 2)}`;
         if (message.result) {
           let escapedResponse = ''
-          const response = Util.parseJson<MCPToolResult>(message.response!, undefined);
+          const response = parseJson<MCPToolResult>(message.response!, undefined);
           if (isMCPToolResult(response)) {
             const parts: string[] = [];
             for (const c of response.content) {

@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { LarkUserServiceBase } from "winning.ai";
+import { LarkUserServiceBase } from "lark";
 import { ICommand } from "scorpio.ai";
 import { AgentRunner } from "../Agent/AgentRunner";
 import { config } from "../Core/Config";

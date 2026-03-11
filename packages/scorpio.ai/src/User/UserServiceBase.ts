@@ -1,12 +1,7 @@
 import { Command as CommanderCommand } from "commander";
-import {
-    AgentMessage, AgentToolCall,
-    CommandContext,
-    CommandRegistry,
-    ICommand,
-    MessageChunkType,
-} from "scorpio.ai";
-import { GlobalLoggerService, ILogger } from "scorpio.ai";
+import { AgentMessage, AgentToolCall, MessageChunkType } from "../Agents";
+import { CommandContext, CommandRegistry, ICommand } from "../Command";
+import { GlobalLoggerService, ILogger } from "../Logger";
 
 interface MessageQueueItem {
   query: string;

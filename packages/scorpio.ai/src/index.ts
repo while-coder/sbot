@@ -55,6 +55,9 @@ export {
   T_SkillDirs,
   T_MaxMemoryAgeDays,
   T_MemoryMode,
+  NowDate,
+  sleep,
+  parseJson,
 } from "./Core";
 
 // ========================================
@@ -104,7 +107,6 @@ export {
   IMemoryCompressor,
 
   // 实现类
-  MemoryNoneService,
   ReadOnlyMemoryService,
   MemoryService,
   MemoryExtractor,
@@ -265,3 +267,8 @@ export {
   // 全局单例
   GlobalLoggerService,
 } from "./Logger";
+
+// ========================================
+// User - 用户服务基类
+// ========================================
+export { UserServiceBase } from "./User";

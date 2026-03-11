@@ -1,5 +1,5 @@
 import * as Lark from "@larksuiteoapi/node-sdk";
-import {Util} from "../Util";
+import { NowDate, parseJson } from "scorpio.ai";
 import {LarkActionArgs, LarkMessageArgs} from "./LarkUserServiceBase";
 import { GlobalLoggerService } from "scorpio.ai";
 import fs from 'fs';
@@ -156,7 +156,7 @@ export class LarkService {
    * 获取 tenant_access_token
    */
   protected async getTenantAccessToken(): Promise<string> {
-    if (this.tenantAccessToken && Util.NowDate < this.tokenExpireTime) {
+    if (this.tenantAccessToken && NowDate() < this.tokenExpireTime) {
       return this.tenantAccessToken;
     }
     try {
@@ -172,7 +172,7 @@ export class LarkService {
       }
 
       this.tenantAccessToken = response.tenant_access_token;
-      this.tokenExpireTime = Util.NowDate + (response.expire - 300) * 1000;
+      this.tokenExpireTime = NowDate() + (response.expire - 300) * 1000;
       return this.tenantAccessToken;
     } catch (error: any) {
       getLogger()?.error(`获取 tenant_access_token 失败: ${error.message}`);
@@ -266,7 +266,7 @@ export class LarkService {
 
           if (message_type !== "text") return;
 
-          const msg = Util.parseJson(content, { text: "" }) as any;
+          const msg = parseJson(content, { text: "" }) as any;
           let query = String(msg.text ?? "").trim();
 
           if (query.indexOf("@_all") >= 0) return;

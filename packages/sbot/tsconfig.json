@@ -15,7 +15,7 @@
   },
   "include": ["src"],
   "references": [
-    { "path": "../WMTools/scorpio.ai" },
-    { "path": "../WMTools/winning.ai" }
+    { "path": "../scorpio.ai" },
+    { "path": "../lark" }
   ]
 }

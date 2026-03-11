@@ -10,7 +10,6 @@ export { IMemoryEvaluator } from "./Evaluator/IMemoryEvaluator";
 export { IMemoryCompressor } from "./Compressor/IMemoryCompressor";
 
 // ===== 实现类 =====
-export { MemoryNoneService } from "./Service/MemoryNoneService";
 export { ReadOnlyMemoryService } from "./Service/ReadOnlyMemoryService";
 export { MemoryService } from "./Service/MemoryService";
 export { MemoryExtractor } from "./Extractor/MemoryExtractor";
