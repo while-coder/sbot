@@ -97,6 +97,8 @@ for (const [k, v] of Object.entries(selfPkg.bin || {})) {
   publishBin[k] = toPublishPath(v);
 }
 
+const isRelease = outputDir === 'dist';
+
 const distPkg = {
   name: selfPkg.name,
   version: selfPkg.version,
@@ -105,30 +107,32 @@ const distPkg = {
   bin: publishBin,
   engines: selfPkg.engines || { node: '>=18' },
   dependencies: sortedDeps,
-  bundledDependencies: Object.keys(localPackages),
+  ...(isRelease ? { bundledDependencies: Object.keys(localPackages) } : {}),
 };
 fs.writeFileSync(path.join(distDir, 'package.json'), JSON.stringify(distPkg, null, 2));
-console.log(`dist/package.json: ${Object.keys(sortedDeps).length} external dependencies`);
+console.log(`${outputDir}/package.json: ${Object.keys(sortedDeps).length} external dependencies`);
 
-// 复制本地包的编译产物到 dist/node_modules/<pkgName>/
-for (const [pkgName, pkgDir] of Object.entries(localPackages)) {
-  const pkg = JSON.parse(fs.readFileSync(path.join(pkgDir, 'package.json'), 'utf-8'));
-  const mainField = pkg.main || 'dist/index.js';
-  const srcDir = path.join(pkgDir, path.dirname(mainField));
+// release 模式：复制本地包的编译产物到 node_modules/<pkgName>/
+if (isRelease) {
+  for (const [pkgName, pkgDir] of Object.entries(localPackages)) {
+    const pkg = JSON.parse(fs.readFileSync(path.join(pkgDir, 'package.json'), 'utf-8'));
+    const mainField = pkg.main || 'dist/index.js';
+    const srcDir = path.join(pkgDir, path.dirname(mainField));
 
-  const targetDir = path.join(distDir, 'node_modules', pkgName);
-  if (fs.existsSync(targetDir)) fs.rmSync(targetDir, { recursive: true });
-  fs.mkdirSync(targetDir, { recursive: true });
-  fs.cpSync(srcDir, targetDir, { recursive: true });
+    const targetDir = path.join(distDir, 'node_modules', pkgName);
+    if (fs.existsSync(targetDir)) fs.rmSync(targetDir, { recursive: true });
+    fs.mkdirSync(targetDir, { recursive: true });
+    fs.cpSync(srcDir, targetDir, { recursive: true });
 
-  // 生成 package.json 供 require 使用
-  const miniPkg = { name: pkgName, version: pkg.version || '0.0.1', main: './index.js' };
-  fs.writeFileSync(path.join(targetDir, 'package.json'), JSON.stringify(miniPkg, null, 2));
-  console.log(`${pkgName}: ${srcDir} -> ${targetDir}`);
+    // 生成 package.json 供 require 使用
+    const miniPkg = { name: pkgName, version: pkg.version || '0.0.1', main: './index.js' };
+    fs.writeFileSync(path.join(targetDir, 'package.json'), JSON.stringify(miniPkg, null, 2));
+    console.log(`${pkgName}: ${srcDir} -> ${targetDir}`);
+  }
 }
 
 // 复制 skills/ 到 dist/skills/
-const skillsSrc = path.join(monorepoRoot, 'skills');
+const skillsSrc = path.join(rootDir, 'skills');
 const skillsDst = path.join(distDir, 'skills');
 if (fs.existsSync(skillsSrc)) {
   if (fs.existsSync(skillsDst)) fs.rmSync(skillsDst, { recursive: true });
