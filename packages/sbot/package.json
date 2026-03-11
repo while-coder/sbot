@@ -23,31 +23,24 @@
   },
   "dependencies": {
     "@langchain/core": "catalog:",
-    "@mozilla/readability": "^0.6.0",
     "axios": "catalog:",
+    "channel.lark": "workspace:*",
     "cron": "^4.4.0",
     "diff": "^8.0.3",
     "express": "^5.2.1",
-    "jsdom": "^28.1.0",
     "log4js": "^6.9.1",
-    "multer": "^2.1.1",
     "reflect-metadata": "catalog:",
-    "robots-parser": "^3.0.1",
     "scorpio.ai": "workspace:*",
     "sequelize": "^6.37.7",
     "sqlite3": "^5.1.7",
-    "turndown": "^7.2.2",
-    "channel.lark": "workspace:*",
-    "ws": "^8.19.0"
+    "ws": "^8.19.0",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/diff": "^7.0.2",
     "@types/express": "^5.0.6",
-    "@types/jsdom": "^28.0.0",
     "@types/node": "catalog:",
-    "@types/turndown": "^5.0.6",
     "@types/ws": "^8.18.1",
-    "@types/multer": "^2.1.0",
     "rimraf": "catalog:",
     "typescript": "catalog:"
   }
