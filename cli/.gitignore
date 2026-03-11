@@ -1,7 +1,0 @@
-node_modules/
-dist/
-.sbot/
-.env
-.env.*
-*.log
-.DS_Store
