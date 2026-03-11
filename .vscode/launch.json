@@ -18,16 +18,11 @@
     },
     {
       "type": "node",
-      "request": "attach",
-      "name": "Attach to sbot",
-      "port": 9229,
-      "sourceMaps": true,
-      "outFiles": [
-        "${workspaceFolder}/packages/sbot/dist/**/*.js",
-        "${workspaceFolder}/packages/scorpio.ai/dist/**/*.js",
-        "${workspaceFolder}/packages/channel.lark/dist/**/*.js"
-      ],
-      "cwd": "${workspaceFolder}/packages/sbot",
+      "request": "launch",
+      "name": "Launch cli",
+      "runtimeExecutable": "${workspaceFolder}/packages/cli/node_modules/.bin/tsx",
+      "args": ["${workspaceFolder}/packages/cli/src/main.tsx"],
+      "cwd": "${workspaceFolder}/packages/cli",
       "skipFiles": ["<node_internals>/**"]
     }
   ]

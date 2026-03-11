@@ -4,7 +4,7 @@
     {
       "label": "build:sbot",
       "type": "shell",
-      "command": "pnpm run debug",
+      "command": "pnpm run build",
       "options": {
         "cwd": "${workspaceFolder}/packages/sbot"
       },
@@ -31,29 +31,6 @@
         "panel": "shared"
       },
       "problemMatcher": "$tsc"
-    },
-    {
-      "label": "watch:sbot",
-      "type": "shell",
-      "command": "pnpm run watch",
-      "options": {
-        "cwd": "${workspaceFolder}/packages/sbot"
-      },
-      "group": "build",
-      "isBackground": true,
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated"
-      },
-      "problemMatcher": {
-        "owner": "typescript",
-        "pattern": "$tsc",
-        "background": {
-          "activeOnStart": true,
-          "beginsPattern": "Starting compilation",
-          "endsPattern": "Watching for file changes"
-        }
-      }
     }
   ]
 }

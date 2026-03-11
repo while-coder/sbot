@@ -13,10 +13,9 @@
     "dist"
   ],
   "scripts": {
-    "dev": "tsx src/main.tsx",
-    "build": "tsc",
-    "clean": "rimraf dist",
-    "prepublishOnly": "pnpm run clean && pnpm run build"
+    "debug": "tsx src/main.tsx",
+    "build": "rimraf dist && tsc",
+    "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
     "axios": "catalog:",
@@ -24,12 +23,12 @@
     "ink": "^5.1.0",
     "ink-spinner": "^5.0.0",
     "react": "^18.3.1",
-    "uuid": "^10.0.0"
+    "uuid": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
+    "@types/node": "catalog:",
     "@types/react": "^18.3.0",
-    "@types/uuid": "^10.0.0",
+    "@types/uuid": "catalog:",
     "rimraf": "catalog:",
     "tsx": "^4.19.0",
     "typescript": "catalog:"

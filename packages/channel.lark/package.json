@@ -5,8 +5,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "clean": "rimraf --glob \"dist/*\"",
-    "build": "npm run clean && tsc -b --force"
+    "debug": "pnpm --filter scorpio.ai run debug && tsc -b",
+    "build": "pnpm --filter scorpio.ai run build && rimraf --glob \"dist/*\" && tsc -b --force"
   },
   "dependencies": {
     "@larksuiteoapi/node-sdk": "^1.58.0",

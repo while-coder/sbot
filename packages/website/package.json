@@ -3,9 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "debug": "vite",
+    "build": "vite build"
   },
   "dependencies": {
     "axios": "catalog:",
@@ -14,7 +13,7 @@
     "vue-router": "^4.5.0"
   },
   "devDependencies": {
-    "@types/node": "^25.3.3",
+    "@types/node": "catalog:",
     "@vitejs/plugin-vue": "^5.2.1",
     "typescript": "catalog:",
     "vite": "^6.0.11",
