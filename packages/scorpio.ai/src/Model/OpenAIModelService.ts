@@ -2,6 +2,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import { AIMessage, AIMessageChunk } from "langchain";
 import { BaseMessageLike } from "@langchain/core/messages";
 import { IterableReadableStream } from "@langchain/core/utils/stream";
+import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { IModelService } from "./IModelService";
 import { ModelConfig } from "./types";
 
@@ -45,5 +46,9 @@ export class OpenAIModelService implements IModelService {
 
   stream(messages: string | BaseMessageLike[]): Promise<IterableReadableStream<AIMessageChunk>> {
     return this.model!.stream(messages);
+  }
+
+  getModel(): BaseChatModel {
+    return this.model!;
   }
 }

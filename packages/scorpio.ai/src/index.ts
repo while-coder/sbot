@@ -206,7 +206,7 @@ export {
   T_AgentSubNodes,
   T_MaxIterations,
   T_CreateAgent,
-  T_ThinkAgentName,
+  T_ThinkModelService,
   T_ReflectModelService,
   T_SummaryModelService,
 

@@ -7,7 +7,7 @@ import {
     IAgentToolService, AgentToolService,
     ISkillService, SkillService,
     ServiceContainer, T_SystemPrompts,
-    ReActAgentService, T_AgentSubNodes, T_MaxIterations, T_CreateAgent, T_ThinkAgentName, T_ReflectModelService,
+    ReActAgentService, T_AgentSubNodes, T_MaxIterations, T_CreateAgent, T_ThinkModelService, T_ReflectModelService,
     SupervisorAgentService, T_SupervisorSubNodes, T_SupervisorMaxRounds, T_SupervisorAgentName, T_FinalizeModelService,
     type CreateAgentFn,
     T_SummaryModelService,
@@ -155,7 +155,7 @@ export class AgentFactory {
             throw new Error("ReAct 模式未配置子 Agent");
         }
         if (!entry.think) {
-            throw new Error("ReAct 模式未配置 think agentName");
+            throw new Error("ReAct 模式未配置 think modelName");
         }
         if (!entry.summarizer) {
             throw new Error("ReAct 模式未配置 summarizer modelName");
@@ -166,13 +166,14 @@ export class AgentFactory {
 
         const maxIterations = entry.maxIterations || 5;
 
+        const thinkModelService = await config.getModelService(entry.think, true);
         const reflectModelService = await config.getModelService(entry.reflect, true);
         const summarizerModelService = await config.getModelService(entry.summarizer, true);
 
         container.registerWithArgs(ReActAgentService, {
             [T_AgentSubNodes]: agentSubNodes,
             [T_CreateAgent]: createAgentFn,
-            [T_ThinkAgentName]: entry.think,
+            [T_ThinkModelService]: thinkModelService,
             [T_SummaryModelService]: summarizerModelService,
             [T_ReflectModelService]: reflectModelService,
             [T_MaxIterations]: maxIterations,

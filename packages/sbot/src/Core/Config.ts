@@ -83,7 +83,7 @@ export interface SingleAgentEntry extends BaseAgentEntry {
 export interface ReactAgentEntry extends BaseAgentEntry {
   type: AgentMode.ReAct;
   maxIterations?: number;      // 最大迭代次数，默认 5
-  think?: string;              // Think 节点使用的 Agent UUID（对应 agents 中的 key）
+  think?: string;              // Think 节点使用的模型 UUID（对应 models 中的 key）
   summarizer?: string;         // Summarizer 节点使用的模型 UUID（对应 models 中的 key）
   reflect?: string;            // Reflect 节点使用的模型 UUID（对应 models 中的 key）
   agents: AgentSubNode[];      // 子 Agent 引用列表（name 字段为 agent UUID）
@@ -331,7 +331,7 @@ class Config {
         [A1]: { name: "default",      type: AgentMode.Single, model: M1, systemPrompt: "你是一个有用的AI助手" },
         [A2]: { name: "coder",        type: AgentMode.Single, model: M1, systemPrompt: "你是一个开发专家，擅长编写高质量代码" },
         [A3]: { name: "researcher",   type: AgentMode.Single, model: M1, systemPrompt: "你是一个研究专家，擅长搜索和分析信息" },
-        [A4]: { name: "react-example", type: AgentMode.ReAct, maxIterations: 5, think: A2, reflect: M1, summarizer: M1,
+        [A4]: { name: "react-example", type: AgentMode.ReAct, maxIterations: 5, think: M1, reflect: M1, summarizer: M1,
                 agents: [{ name: A2, desc: "开发专家，擅长编写高质量代码" }, { name: A3, desc: "研究专家，擅长搜索和分析信息" }] },
       },
     };

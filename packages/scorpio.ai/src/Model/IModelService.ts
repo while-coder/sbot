@@ -3,6 +3,7 @@ import { BaseMessageLike } from "@langchain/core/messages";
 import { IterableReadableStream } from "@langchain/core/utils/stream";
 import { Runnable } from "@langchain/core/runnables";
 import { BaseLanguageModelInput, BaseLanguageModelCallOptions } from "@langchain/core/language_models/base";
+import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { InteropZodType } from "@langchain/core/utils/types";
 import { SerializableSchema } from "@langchain/core/utils/standard_schema";
 
@@ -30,6 +31,11 @@ export interface IModelService {
    * 流式调用（如果已绑定工具，则使用绑定后的模型）
    */
   stream(messages: string | BaseMessageLike[]): Promise<IterableReadableStream<AIMessageChunk>>;
+
+  /**
+   * 返回底层 BaseChatModel 实例，供 LangChain createAgent 等原生 API 使用
+   */
+  getModel(): BaseChatModel;
 
   /**
    * 清理资源 — 释放模型实例占用的资源
