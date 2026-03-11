@@ -2,9 +2,9 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "build:sbot",
+      "label": "debug:sbot",
       "type": "shell",
-      "command": "pnpm run build",
+      "command": "pnpm run debug:build",
       "options": {
         "cwd": "${workspaceFolder}/packages/sbot"
       },
@@ -12,6 +12,20 @@
         "kind": "build",
         "isDefault": true
       },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": "$tsc"
+    },
+    {
+      "label": "build:sbot",
+      "type": "shell",
+      "command": "pnpm run build",
+      "options": {
+        "cwd": "${workspaceFolder}/packages/sbot"
+      },
+      "group": "build",
       "presentation": {
         "reveal": "always",
         "panel": "shared"

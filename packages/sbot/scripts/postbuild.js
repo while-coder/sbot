@@ -1,7 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const distDir = path.resolve(__dirname, '../dist');
+const outputDir = process.argv[2] || 'dist';
+const distDir = path.resolve(__dirname, '..', outputDir);
 const rootDir = path.resolve(__dirname, '..');
 const monorepoRoot = path.resolve(rootDir, '../..');
 
