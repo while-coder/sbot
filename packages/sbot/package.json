@@ -5,9 +5,9 @@
   "engines": {
     "node": ">=18"
   },
-  "main": "dist/index.js",
+  "main": "dist/dist/index.js",
   "bin": {
-    "sbot": "./dist/index.js"
+    "sbot": "./dist/dist/index.js"
   },
   "files": [
     "dist"
@@ -17,7 +17,7 @@
     "access": "public"
   },
   "scripts": {
-    "debug": "pnpm --filter scorpio.ai --filter channel.lark run debug && rimraf dist && tsc && node scripts/postbuild.js && node dist/index.js",
+    "debug": "pnpm --filter scorpio.ai --filter channel.lark run debug && rimraf dist && tsc && node scripts/postbuild.js && node dist/dist/index.js",
     "build": "pnpm --filter scorpio.ai --filter channel.lark run build && rimraf dist && tsc && node scripts/postbuild.js",
     "prepublishOnly": "pnpm run build"
   },

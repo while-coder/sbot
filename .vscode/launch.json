@@ -5,11 +5,11 @@
       "type": "node",
       "request": "launch",
       "name": "Launch sbot",
-      "program": "${workspaceFolder}/packages/sbot/dist/index.js",
+      "program": "${workspaceFolder}/packages/sbot/dist/dist/index.js",
       "preLaunchTask": "build:sbot",
       "sourceMaps": true,
       "outFiles": [
-        "${workspaceFolder}/packages/sbot/dist/**/*.js",
+        "${workspaceFolder}/packages/sbot/dist/dist/**/*.js",
         "${workspaceFolder}/packages/scorpio.ai/dist/**/*.js",
         "${workspaceFolder}/packages/channel.lark/dist/**/*.js"
       ],

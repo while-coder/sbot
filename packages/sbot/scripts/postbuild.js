@@ -88,17 +88,19 @@ for (const key of Object.keys(allDeps).sort()) {
 }
 
 // 生成 dist/package.json（用于 pnpm publish 和 Docker 部署）
-// bin 路径去掉 dist/ 前缀，因为发布时以 dist/ 为根
+// 发布根为 dist/，编译产物在 dist/dist/，因此路径去掉首段 "dist/" 前缀
+const toPublishPath = (p) => p.replace(/^\.?\/?dist\//, '');
+
 const publishBin = {};
 for (const [k, v] of Object.entries(selfPkg.bin || {})) {
-  publishBin[k] = path.basename(v);
+  publishBin[k] = toPublishPath(v);
 }
 
 const distPkg = {
   name: selfPkg.name,
   version: selfPkg.version,
   description: selfPkg.description || '',
-  main: 'index.js',
+  main: toPublishPath(selfPkg.main || 'dist/dist/index.js'),
   bin: publishBin,
   engines: selfPkg.engines || { node: '>=18' },
   dependencies: sortedDeps,
@@ -121,6 +123,15 @@ for (const [pkgName, pkgDir] of Object.entries(localPackages)) {
   const miniPkg = { name: pkgName, version: pkg.version || '0.0.1', main: './index.js' };
   fs.writeFileSync(path.join(targetDir, 'package.json'), JSON.stringify(miniPkg, null, 2));
   console.log(`${pkgName}: ${srcDir} -> ${targetDir}`);
+}
+
+// 复制 skills/ 到 dist/skills/
+const skillsSrc = path.join(monorepoRoot, 'skills');
+const skillsDst = path.join(distDir, 'skills');
+if (fs.existsSync(skillsSrc)) {
+  if (fs.existsSync(skillsDst)) fs.rmSync(skillsDst, { recursive: true });
+  fs.cpSync(skillsSrc, skillsDst, { recursive: true });
+  console.log(`skills: ${skillsSrc} -> ${skillsDst}`);
 }
 
 // 复制 src/prompts/ 到 dist/prompts/
