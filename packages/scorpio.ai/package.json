@@ -17,11 +17,9 @@
     "pg": "^8.19.0",
     "commander": "^14.0.3",
     "js-yaml": "^4.1.1",
-    "reflect-metadata": "^0.2.2",
-    "uuid": "^13.0.0"
-  },
-  "peerDependencies": {
-    "@langchain/core": "^1.1.28"
+    "reflect-metadata": "catalog:",
+    "uuid": "^13.0.0",
+    "@langchain/core": "catalog:"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
@@ -32,10 +30,5 @@
     "rimraf": "catalog:",
     "typescript": "catalog:"
   },
-  "files": [
-    "dist/**/*.js",
-    "dist/**/*.d.ts",
-    "README.md"
-  ],
-  "private": false
+  "private": true
 }

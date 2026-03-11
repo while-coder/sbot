@@ -13,23 +13,22 @@
     "client": "npm --prefix website run dev"
   },
   "dependencies": {
-    "@langchain/core": "^1.1.28",
+    "@langchain/core": "catalog:",
     "@mozilla/readability": "^0.6.0",
-    "@types/multer": "^2.1.0",
-    "axios": "^1.13.4",
+    "axios": "catalog:",
     "cron": "^4.4.0",
     "diff": "^8.0.3",
     "express": "^5.2.1",
     "jsdom": "^28.1.0",
     "log4js": "^6.9.1",
     "multer": "^2.1.1",
-    "reflect-metadata": "^0.2.2",
+    "reflect-metadata": "catalog:",
     "robots-parser": "^3.0.1",
     "scorpio.ai": "workspace:*",
     "sequelize": "^6.37.7",
     "sqlite3": "^5.1.7",
     "turndown": "^7.2.2",
-    "lark": "workspace:*",
+    "channel.lark": "workspace:*",
     "ws": "^8.19.0"
   },
   "devDependencies": {
@@ -39,6 +38,7 @@
     "@types/node": "^25.2.1",
     "@types/turndown": "^5.0.6",
     "@types/ws": "^8.18.1",
+    "@types/multer": "^2.1.0",
     "rimraf": "catalog:",
     "typescript": "catalog:"
   },

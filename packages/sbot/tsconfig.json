@@ -16,6 +16,6 @@
   "include": ["src"],
   "references": [
     { "path": "../scorpio.ai" },
-    { "path": "../lark" }
+    { "path": "../channel.lark" }
   ]
 }

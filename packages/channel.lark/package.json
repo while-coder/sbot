@@ -1,5 +1,5 @@
 {
-  "name": "lark",
+  "name": "channel.lark",
   "version": "0.0.1",
   "description": "Lark/Feishu SDK integration",
   "main": "dist/index.js",
@@ -12,11 +12,7 @@
     "@larksuiteoapi/node-sdk": "^1.58.0",
     "scorpio.ai": "workspace:*"
   },
-  "files": [
-    "dist/**/*.js",
-    "dist/**/*.d.ts"
-  ],
-  "private": false,
+  "private": true,
   "devDependencies": {
     "rimraf": "catalog:"
   }

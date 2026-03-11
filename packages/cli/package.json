@@ -18,7 +18,7 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
-    "axios": "^1.13.6",
+    "axios": "catalog:",
     "chalk": "^5.3.0",
     "ink": "^5.1.0",
     "ink-spinner": "^5.0.0",
