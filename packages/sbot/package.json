@@ -1,6 +1,6 @@
 {
   "name": "sbot",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Self-hosted AI agent server",
   "engines": {
     "node": ">=18"

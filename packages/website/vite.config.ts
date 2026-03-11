@@ -23,7 +23,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: '../webui',
+    outDir: '../sbot/webui',
     emptyOutDir: true,
   },
 })
