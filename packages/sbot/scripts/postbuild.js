@@ -104,6 +104,7 @@ const distPkg = {
   bin: publishBin,
   engines: selfPkg.engines || { node: '>=18' },
   dependencies: sortedDeps,
+  bundledDependencies: Object.keys(localPackages),
 };
 fs.writeFileSync(path.join(distDir, 'package.json'), JSON.stringify(distPkg, null, 2));
 console.log(`dist/package.json: ${Object.keys(sortedDeps).length} external dependencies`);
@@ -134,8 +135,8 @@ if (fs.existsSync(skillsSrc)) {
   console.log(`skills: ${skillsSrc} -> ${skillsDst}`);
 }
 
-// 复制 src/prompts/ 到 dist/prompts/
-const promptsSrc = path.join(rootDir, 'src', 'prompts');
+// 复制 prompts/ 到 dist/prompts/
+const promptsSrc = path.join(rootDir, 'prompts');
 const promptsDst = path.join(distDir, 'prompts');
 if (fs.existsSync(promptsSrc)) {
   if (fs.existsSync(promptsDst)) fs.rmSync(promptsDst, { recursive: true });
