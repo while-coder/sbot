@@ -1,5 +1,6 @@
 import { IModelService } from "./IModelService";
 import { OpenAIModelService } from "./OpenAIModelService";
+import { OllamaModelService } from "./OllamaModelService";
 import { ModelConfig, ModelProvider } from "./types";
 
 /**
@@ -20,10 +21,16 @@ export class ModelServiceFactory {
    */
   static async getModelService(config: ModelConfig): Promise<IModelService> {
     switch (config.provider) {
-      case ModelProvider.OpenAI:
+      case ModelProvider.OpenAI: {
         const service = new OpenAIModelService(config);
         await service.initialize();
         return service;
+      }
+      case ModelProvider.Ollama: {
+        const service = new OllamaModelService(config);
+        await service.initialize();
+        return service;
+      }
       default:
         throw new Error(`不支持的模型提供者: ${config.provider}`);
     }

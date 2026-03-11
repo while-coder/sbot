@@ -3,6 +3,7 @@
  */
 export enum ModelProvider {
   OpenAI = "openai",
+  Ollama = "ollama",
 }
 
 /**

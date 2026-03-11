@@ -8,6 +8,7 @@ export { IModelService } from "./IModelService";
 
 // ===== 实现类 =====
 export { OpenAIModelService } from "./OpenAIModelService";
+export { OllamaModelService } from "./OllamaModelService";
 
 // ===== 工厂和配置 =====
 export { ModelServiceFactory } from "./ModelServiceFactory";
