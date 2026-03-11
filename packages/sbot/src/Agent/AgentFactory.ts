@@ -1,7 +1,6 @@
 import {
     AgentServiceBase, SingleAgentService,
     IModelService,
-    IMemoryService, MemoryNoneService,
     IAgentSaverService, AgentMemorySaver,
 } from "scorpio.ai";
 import {
@@ -32,7 +31,7 @@ export class AgentFactory {
     ): Promise<AgentServiceBase> {
         const agentEntry = config.getAgent(agentId);
 
-        if (!container.isRegistered(IMemoryService))    container.registerSingleton(IMemoryService, MemoryNoneService);
+
         if (!container.isRegistered(IAgentSaverService)) container.registerSingleton(IAgentSaverService, AgentMemorySaver);
         const { mcp, skills } = agentEntry as SingleAgentEntry;
         await this.registerSkillService(container, agentId, skills);

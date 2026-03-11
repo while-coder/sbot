@@ -1,0 +1,34 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Launch sbot",
+      "program": "${workspaceFolder}/packages/sbot/dist/index.js",
+      "preLaunchTask": "build:sbot",
+      "sourceMaps": true,
+      "outFiles": [
+        "${workspaceFolder}/packages/sbot/dist/**/*.js",
+        "${workspaceFolder}/packages/scorpio.ai/dist/**/*.js",
+        "${workspaceFolder}/packages/channel.lark/dist/**/*.js"
+      ],
+      "cwd": "${workspaceFolder}/packages/sbot",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "type": "node",
+      "request": "attach",
+      "name": "Attach to sbot",
+      "port": 9229,
+      "sourceMaps": true,
+      "outFiles": [
+        "${workspaceFolder}/packages/sbot/dist/**/*.js",
+        "${workspaceFolder}/packages/scorpio.ai/dist/**/*.js",
+        "${workspaceFolder}/packages/channel.lark/dist/**/*.js"
+      ],
+      "cwd": "${workspaceFolder}/packages/sbot",
+      "skipFiles": ["<node_internals>/**"]
+    }
+  ]
+}

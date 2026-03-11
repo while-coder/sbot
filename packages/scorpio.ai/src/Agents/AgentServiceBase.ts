@@ -60,6 +60,11 @@ export interface IAgentCallback {
      * 转换工具返回内容中的图片链接
      */
     convertImages?(result: MCPToolResult): Promise<MCPToolResult>;
+
+    /**
+     * 向用户提问并等待回答
+     */
+    askUser?(question: string): Promise<string>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

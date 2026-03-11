@@ -4,7 +4,7 @@ import {
     IAgentCallback,
     ILoggerService,
     IMemoryService, IMemoryDatabase, MemorySqliteDatabase,
-    MemoryEvaluator, MemoryCompressor, MemoryExtractor, MemoryService, MemoryNoneService,
+    MemoryEvaluator, MemoryCompressor, MemoryExtractor, MemoryService,
     IEmbeddingService,
     IMemoryExtractor, IMemoryEvaluator, IMemoryCompressor,
     IAgentSaverService, AgentSqliteSaver, 

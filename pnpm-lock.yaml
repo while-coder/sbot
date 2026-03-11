@@ -26,6 +26,19 @@ importers:
 
   .: {}
 
+  packages/channel.lark:
+    dependencies:
+      '@larksuiteoapi/node-sdk':
+        specifier: ^1.58.0
+        version: 1.59.0
+      scorpio.ai:
+        specifier: workspace:*
+        version: link:../scorpio.ai
+    devDependencies:
+      rimraf:
+        specifier: 'catalog:'
+        version: 6.1.3
+
   packages/cli:
     dependencies:
       axios:
@@ -66,19 +79,6 @@ importers:
         specifier: 'catalog:'
         version: 5.9.3
 
-  packages/lark:
-    dependencies:
-      '@larksuiteoapi/node-sdk':
-        specifier: ^1.58.0
-        version: 1.59.0
-      scorpio.ai:
-        specifier: workspace:*
-        version: link:../scorpio.ai
-    devDependencies:
-      rimraf:
-        specifier: 'catalog:'
-        version: 6.1.3
-
   packages/sbot:
     dependencies:
       '@langchain/core':
@@ -87,12 +87,12 @@ importers:
       '@mozilla/readability':
         specifier: ^0.6.0
         version: 0.6.0
-      '@types/multer':
-        specifier: ^2.1.0
-        version: 2.1.0
       axios:
         specifier: 'catalog:'
         version: 1.13.6
+      channel.lark:
+        specifier: workspace:*
+        version: link:../channel.lark
       cron:
         specifier: ^4.4.0
         version: 4.4.0
@@ -105,9 +105,6 @@ importers:
       jsdom:
         specifier: ^28.1.0
         version: 28.1.0
-      lark:
-        specifier: workspace:*
-        version: link:../lark
       log4js:
         specifier: ^6.9.1
         version: 6.9.1
@@ -145,6 +142,9 @@ importers:
       '@types/jsdom':
         specifier: ^28.0.0
         version: 28.0.0
+      '@types/multer':
+        specifier: ^2.1.0
+        version: 2.1.0
       '@types/node':
         specifier: ^25.2.1
         version: 25.4.0
@@ -160,6 +160,7 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 5.9.3
+    publishDirectory: dist
 
   packages/scorpio.ai:
     dependencies:

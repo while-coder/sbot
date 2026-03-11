@@ -1,16 +1,28 @@
 {
   "name": "sbot",
   "version": "1.0.0",
-  "description": "",
+  "description": "Self-hosted AI agent server",
+  "engines": {
+    "node": ">=18"
+  },
   "main": "dist/index.js",
   "bin": {
     "sbot": "./dist/index.js"
   },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "directory": "dist",
+    "access": "public"
+  },
   "scripts": {
     "clean": "rimraf dist",
-    "debug": "npm run clean && tsc --build && node scripts/postbuild.js",
-    "build": "npm run clean && tsc --build && node scripts/postbuild.js && npm --prefix website run build",
-    "client": "npm --prefix website run dev"
+    "debug": "pnpm run clean && tsc --build && node scripts/postbuild.js",
+    "build": "pnpm run clean && tsc --build && node scripts/postbuild.js",
+    "watch": "tsc --build --watch",
+    "website": "pnpm --filter sbot-website run dev",
+    "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
     "@langchain/core": "catalog:",
@@ -41,6 +53,5 @@
     "@types/multer": "^2.1.0",
     "rimraf": "catalog:",
     "typescript": "catalog:"
-  },
-  "private": true
+  }
 }

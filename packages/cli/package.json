@@ -15,7 +15,8 @@
   "scripts": {
     "dev": "tsx src/main.tsx",
     "build": "tsc",
-    "clean": "rimraf dist"
+    "clean": "rimraf dist",
+    "prepublishOnly": "pnpm run clean && pnpm run build"
   },
   "dependencies": {
     "axios": "catalog:",

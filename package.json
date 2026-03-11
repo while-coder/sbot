@@ -4,7 +4,9 @@
   "packageManager": "pnpm@10.30.3",
   "scripts": {
     "build": "pnpm -r run build",
-    "dev": "pnpm --filter sbot run debug"
+    "dev": "pnpm --filter sbot run debug",
+    "publish:sbot": "pnpm --filter sbot publish",
+    "publish:cli": "pnpm --filter sbot-cli publish"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
