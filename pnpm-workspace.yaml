@@ -10,3 +10,4 @@ catalog:
   uuid: "^13.0.0"
   "@types/node": "^25.3.3"
   "@types/uuid": "^11.0.0"
+  "zod": "^4.3.6"
