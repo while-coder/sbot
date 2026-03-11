@@ -9,7 +9,7 @@
     "build": "rimraf --glob \"dist/*\" && tsc -b --force"
   },
   "dependencies": {
-    "@langchain/ollama": "^0.2.3",
+    "@langchain/ollama": "^1.2.6",
     "zod": "^3.23.8",
     "@langchain/openai": "^1.2.12",
     "@langchain/mcp-adapters": "^1.1.3",
