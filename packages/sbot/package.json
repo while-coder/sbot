@@ -25,11 +25,11 @@
     "multer": "^2.1.1",
     "reflect-metadata": "^0.2.2",
     "robots-parser": "^3.0.1",
-    "scorpio.ai": "file:../../../WMTools/scorpio.ai",
+    "scorpio.ai": "file:../WMTools/scorpio.ai",
     "sequelize": "^6.37.7",
     "sqlite3": "^5.1.7",
     "turndown": "^7.2.2",
-    "winning.ai": "file:../../../WMTools/winning.ai",
+    "winning.ai": "file:../WMTools/winning.ai",
     "ws": "^8.19.0"
   },
   "devDependencies": {

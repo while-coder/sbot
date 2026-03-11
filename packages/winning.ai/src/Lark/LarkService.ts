@@ -1,0 +1,317 @@
+import * as Lark from "@larksuiteoapi/node-sdk";
+import {Util} from "../Util";
+import {LarkActionArgs, LarkMessageArgs} from "./LarkUserServiceBase";
+import { GlobalLoggerService } from "scorpio.ai";
+import fs from 'fs';
+
+const getLogger = () => GlobalLoggerService.getLogger("LarkService.ts");
+
+/** 消息接收 ID 类型（涵盖所有飞书支持的类型） */
+export enum LarkReceiveIdType {
+  OpenId   = 'open_id',
+  UnionId  = 'union_id',
+  UserId   = 'user_id',
+  Email    = 'email',
+  ChatId   = 'chat_id',
+}
+/** 用户身份 ID 类型（LarkReceiveIdType 的子集，不含 email / chat_id） */
+export enum LarkUserIdType {
+  OpenId  = 'open_id',
+  UnionId = 'union_id',
+  UserId  = 'user_id',
+}
+
+export interface LarkServiceOptions {
+  appId: string;
+  appSecret: string;
+  userIdType: LarkUserIdType;
+  filterEvent: (eventId: string) => Promise<boolean>;
+  onRecevieMessage: (userId: string, userInfo:any, args: LarkMessageArgs, query: string) => Promise<void>;
+  onTriggerAction: (userId: string, userInfo: any, args: LarkActionArgs) => Promise<void>;
+}
+
+
+export class LarkService {
+  // 速率限制：1000 次/分钟、50 次/秒，固定间隔 65ms
+  private lastCallTime = 0;
+  private readonly callInterval = 65; // ms
+  private larkConfig: { appId: string, appSecret: string};
+  private larkClient: Lark.Client;
+  private larkWsClient: Lark.WSClient;
+  private filterEvent: (eventId: string) => Promise<boolean>;
+  private onRecevieMessage: (userId: string, userInfo:any, args: LarkMessageArgs, query: string) => Promise<void>;
+  private onTriggerAction: (userId: string, userInfo: any, args: LarkActionArgs) => Promise<void>;
+  private userIdType: LarkUserIdType;
+  private tenantAccessToken: string = '';
+  private tokenExpireTime: number = 0;
+
+  get idType(): LarkUserIdType { return this.userIdType; }
+
+  constructor(options: LarkServiceOptions) {
+    this.onRecevieMessage = options.onRecevieMessage;
+    this.onTriggerAction = options.onTriggerAction;
+    this.filterEvent = options.filterEvent;
+    this.userIdType = options.userIdType;
+    this.larkConfig = { appId: options.appId, appSecret: options.appSecret };
+    this.larkClient = new Lark.Client(this.larkConfig);
+    this.larkWsClient = new Lark.WSClient(this.larkConfig);
+  }
+
+  dispose() {
+    try { this.larkWsClient?.close(); } catch (_) {}
+    this.tenantAccessToken = '';
+    this.tokenExpireTime = 0;
+  }
+
+  async sendMessage(receiveIdType: LarkReceiveIdType, receiveId: string, msgType: string, content: string) {
+    try {
+      const response = await this.larkClient.im.message.create({
+        params: { receive_id_type: receiveIdType as any },
+        data: { receive_id: receiveId, msg_type: msgType, content },
+      });
+      if (response.code !== 0) {
+        throw new Error(`发送消息失败 / Failed to send message: ${response.msg}`);
+      }
+      return response.data;
+    } catch (error) {
+      getLogger()?.error("发送消息出错 / Error sending message:", error);
+    }
+  }
+  async sendMarkdownMessage(receiveIdType: LarkReceiveIdType, receiveId: string, text: string, header: any | undefined = undefined) {
+    return await this.sendMessage(receiveIdType, receiveId, "interactive", this.buildMarkdownContent(text, header));
+  }
+
+  async replyMessage(message_id: string, msg_type: string, reply_in_thread: boolean, content: string) {
+    try {
+      const response = await this.larkClient.im.message.reply({
+        path: { message_id },
+        data: { msg_type, reply_in_thread, content },
+      });
+      if (response.code !== 0) {
+        throw new Error(`发送消息失败 / Failed to send message: ${response.msg}`);
+      }
+      return response.data;
+    } catch (error) {
+      getLogger()?.error("发送消息出错 / Error sending message:", error);
+    }
+  }
+  async replayMarkdownMessage(message_id: string, text: string, header:any|undefined = undefined) {
+    return await this.replyMessage(message_id, "interactive", false, this.buildMarkdownContent(text, header));
+  }
+
+  private buildMarkdownContent(text: string, header: any|undefined): string {
+    const content = {
+      schema: "2.0",
+      config: {
+        update_multi: true,
+        streaming_mode: false,
+      },
+      header,
+      body: {
+        direction: "vertical",
+        padding: "12px 12px 12px 12px",
+        elements: [
+          {
+            tag: "markdown",
+            content: text,
+            text_align: "left",
+            text_size: "normal",
+            margin: "0px 0px 0px 0px",
+          },
+        ],
+      },
+    };
+    return JSON.stringify(content);
+  }
+
+
+  async updateCardMessage(messageId: string, elements: any[], header:any|undefined = undefined) {
+    if (elements.length === 0) return;
+
+    while ((Date.now() - this.lastCallTime) < this.callInterval) {
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    this.lastCallTime = Date.now();
+
+    const content = {
+      schema: "2.0",
+      config: {
+        update_multi: true,
+        streaming_mode: false,
+      },
+      header,
+      body: {
+        direction: "vertical",
+        padding: "12px 12px 12px 12px",
+        elements: elements,
+      },
+    };
+    return await this.larkClient.im.message.patch({
+      path: {message_id: messageId},
+      data: {content: JSON.stringify(content)},
+    });
+  }
+
+  /**
+   * 获取 tenant_access_token
+   */
+  protected async getTenantAccessToken(): Promise<string> {
+    if (this.tenantAccessToken && Util.NowDate < this.tokenExpireTime) {
+      return this.tenantAccessToken;
+    }
+    try {
+      const response = await this.larkClient.auth.tenantAccessToken.internal({
+        data: {
+          app_id: this.larkConfig!.appId,
+          app_secret: this.larkConfig!.appSecret,
+        },
+      }) as any;
+
+      if (response.code !== 0) {
+        throw new Error(`获取 tenant_access_token 失败: ${response.msg}`);
+      }
+
+      this.tenantAccessToken = response.tenant_access_token;
+      this.tokenExpireTime = Util.NowDate + (response.expire - 300) * 1000;
+      return this.tenantAccessToken;
+    } catch (error: any) {
+      getLogger()?.error(`获取 tenant_access_token 失败: ${error.message}`);
+      throw error;
+    }
+  }
+
+
+  /**
+   * 上传图片到飞书并获取图片 key
+   * 支持 base64 data URI 和本地文件路径
+   * @param imagePath 图片文件路径（支持本地路径或 base64 data URI）
+   * @returns 飞书图片 key (img_xxx)
+   */
+  async uploadImageToLark(imagePath: string): Promise<string> {
+    let imageBuffer: Buffer;
+    try {
+      if (imagePath.startsWith('data:image/')) {
+        const base64Data = imagePath.split(',')[1];
+        if (!base64Data) {
+          throw new Error('无效的 base64 图片数据格式');
+        }
+        imageBuffer = Buffer.from(base64Data, 'base64');
+      } else {
+        if (!fs.existsSync(imagePath)) {
+          throw new Error(`图片文件不存在: ${imagePath}`);
+        }
+        imageBuffer = fs.readFileSync(imagePath);
+      }
+
+      const token = await this.getTenantAccessToken();
+      const response = await this.larkClient.im.v1.image.create({
+        data: {
+          image_type: 'message',
+          image: imageBuffer,
+        },
+      }, Lark.withTenantToken(token)) as any;
+
+      if (!response || !response.image_key) {
+        throw new Error(`飞书返回错误: ${response?.msg || '未知错误'}`);
+      }
+
+      return response.image_key;
+    } catch (error: any) {
+      getLogger()?.error(`上传图片到飞书失败: ${error.message}\n${error.stack}`);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取用户信息
+   * @param userId 用户ID
+   * @param userIdType 用户ID类型，默认使用实例配置的类型
+   */
+  async getUserInfo(userId: string, userIdType?: LarkUserIdType) {
+    try {
+      const idType = (userIdType || this.userIdType) as LarkUserIdType;
+      const response = await this.larkClient.contact.user.get({
+        path: { user_id: userId },
+        params: { user_id_type: idType },
+      });
+      if (response.code !== 0) {
+        throw new Error(`获取用户信息失败: ${response.msg}`);
+      }
+      return response.data?.user;
+    } catch (error: any) {
+      getLogger()?.error(`获取用户信息出错: ${error.message}`);
+    }
+  }
+
+  async registerEventDispatcher() {
+    const eventDispatcher = new Lark.EventDispatcher({}).register({
+      "im.message.receive_v1": async (data: any) => {
+        try {
+          const {
+            event_id,
+            message: { 
+              chat_type,
+              chat_id,
+              message_type,
+              message_id,
+              parent_id,
+              root_id,
+              content,
+              mentions
+            },
+            sender: {
+              sender_id,
+            },
+          } = data;
+
+          if (message_type !== "text") return;
+
+          const msg = Util.parseJson(content, { text: "" }) as any;
+          let query = String(msg.text ?? "").trim();
+
+          if (query.indexOf("@_all") >= 0) return;
+
+          if (mentions != null) {
+            for (const mention of mentions) {
+              query = query.replace(mention.key, "");
+            }
+          }
+
+          if (!await this.filterEvent(event_id)) return;
+
+          const userId = sender_id[this.userIdType];
+          const userInfo = await this.getUserInfo(userId);
+          await this.onRecevieMessage(userId, userInfo, { larkService: this, chat_type, chat_id, message_id, root_id }, query.trim())
+        } catch (e: any) {
+          getLogger()?.error(`Receive message error: ${e.stack}`);
+        }
+      },
+
+      "card.action.trigger": async (data: any) => {
+        try {
+          const {
+            event_id,
+            action: { form_value, value },
+            operator,
+            context: {
+              open_chat_id,
+            }
+          } = data;
+          if (!await this.filterEvent(event_id)) return;
+
+          const userId = operator[this.userIdType];
+          const userInfo = await this.getUserInfo(userId);
+          await this.onTriggerAction(userId, userInfo, { chat_id: open_chat_id, code: value.code, data: value.data, form_value })
+        } catch (e: any) {
+          getLogger()?.error(`Card Action error: ${e.stack}`);
+        }
+      },
+      "application.bot.menu_v6": async (_data: any) => {
+      },
+    });
+    await this.larkWsClient.start({ eventDispatcher }).catch((e) => {
+      getLogger()?.error(`registerEventDispatcher catch error: ${e}`);
+    });
+  }
+}
+
