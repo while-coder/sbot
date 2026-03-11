@@ -82,7 +82,14 @@ async function refresh() {
             <td colspan="4" style="text-align:center;color:#94a3b8;padding:40px">暂无 Agent</td>
           </tr>
           <tr v-for="(a, id) in agents" :key="id">
-            <td><span style="font-weight:500">{{ (a as any).name || id }}</span></td>
+            <td>
+              <span
+                style="font-weight:500;color:#1c1c1c;cursor:pointer;text-decoration:underline;text-decoration-color:transparent;transition:text-decoration-color .15s,color .15s"
+                @mouseenter="($event.target as HTMLElement).style.textDecorationColor='#6b6b6b'"
+                @mouseleave="($event.target as HTMLElement).style.textDecorationColor='transparent'"
+                @click="router.push(`/agents/${id}`)"
+              >{{ (a as any).name || id }}</span>
+            </td>
             <td>{{ a.type }}</td>
             <td>{{ a.model ? modelName(a.model) : '-' }}</td>
             <td>

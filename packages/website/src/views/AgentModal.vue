@@ -15,11 +15,35 @@ const modelOptions  = computed(() =>
 const agentOptions  = computed(() =>
   Object.entries(store.settings.agents || {}).map(([id, a]) => ({ id, label: (a as any).name || id }))
 )
-const mcpOptions    = computed(() => [...store.mcpBuiltins.map(b => b.name), ...Object.keys(store.mcpServers)])
-const skillOptions  = computed(() => [
-  ...store.skillBuiltins.map(s => s.name),
-  ...store.globalSkills.map(s => s.name),
+// MCP options with metadata
+const mcpOptionsWithMeta = computed(() => [
+  ...store.mcpBuiltins.map(b => ({ name: b.name, isBuiltin: true, desc: b.description || '' })),
+  ...Object.keys(store.mcpServers).map(k => ({ name: k, isBuiltin: false, desc: store.mcpServers[k].type || '' })),
 ])
+const skillOptionsWithMeta = computed(() => [
+  ...store.skillBuiltins.map(s => ({ name: s.name, isBuiltin: true, desc: s.description || '' })),
+  ...store.globalSkills.map(s => ({ name: s.name, isBuiltin: false, desc: s.description || '' })),
+])
+
+// Search filters & collapse state
+const mcpSearch     = ref('')
+const skillSearch   = ref('')
+const mcpExpanded   = ref(false)
+const skillExpanded = ref(false)
+
+const filteredMcpOptions = computed(() => {
+  const q = mcpSearch.value.trim().toLowerCase()
+  if (!q) return mcpOptionsWithMeta.value
+  return mcpOptionsWithMeta.value.filter(m => m.name.toLowerCase().includes(q))
+})
+const filteredSkillOptions = computed(() => {
+  const q = skillSearch.value.trim().toLowerCase()
+  if (!q) return skillOptionsWithMeta.value
+  return skillOptionsWithMeta.value.filter(s =>
+    s.name.toLowerCase().includes(q) || s.desc.toLowerCase().includes(q)
+  )
+})
+
 
 // ── Main modal ──
 const showModal  = ref(false)
@@ -71,6 +95,10 @@ function open(id?: string) {
       maxRounds: 10, supervisor: '', finalize: '',
     }
   }
+  mcpSearch.value = ''
+  skillSearch.value = ''
+  mcpExpanded.value = false
+  skillExpanded.value = false
   showModal.value = true
 }
 
@@ -120,23 +148,6 @@ async function save() {
   } catch (e: any) {
     show(e.message, 'error')
   }
-}
-
-function addMcp(e: Event) {
-  const name = (e.target as HTMLSelectElement).value
-  if (name && !form.value.selectedMcp.includes(name)) form.value.selectedMcp.push(name)
-  ;(e.target as HTMLSelectElement).value = ''
-}
-function removeMcp(name: string) {
-  form.value.selectedMcp = form.value.selectedMcp.filter(n => n !== name)
-}
-function addSkill(e: Event) {
-  const name = (e.target as HTMLSelectElement).value
-  if (name && !form.value.selectedSkills.includes(name)) form.value.selectedSkills.push(name)
-  ;(e.target as HTMLSelectElement).value = ''
-}
-function removeSkill(name: string) {
-  form.value.selectedSkills = form.value.selectedSkills.filter(n => n !== name)
 }
 
 // ── Sub-agent modal ──
@@ -329,39 +340,85 @@ defineExpose({ open })
           </div>
         </template>
 
-        <!-- MCP & Skills：仅 single 类型显示，折叠面板 -->
-        <details v-if="form.type === 'single'" class="form-details">
-          <summary class="form-details-summary">
-            MCP / Skills
-            <span v-if="form.selectedMcp.length + form.selectedSkills.length > 0" class="form-details-badge">
-              {{ form.selectedMcp.length + form.selectedSkills.length }}
-            </span>
-          </summary>
-          <div class="form-details-body">
-            <div class="form-section-title" style="margin-top:0">MCP</div>
-            <div class="tag-select-row">
-              <span v-for="m in form.selectedMcp" :key="m" class="tag-item">
-                {{ m }}<button type="button" class="tag-remove" @click="removeMcp(m)">&times;</button>
-              </span>
-              <select v-if="mcpOptions.filter(m => !form.selectedMcp.includes(m)).length > 0" class="tag-add-select" @change="addMcp">
-                <option value="">+ 添加 MCP</option>
-                <option v-for="m in mcpOptions.filter(m => !form.selectedMcp.includes(m))" :key="m" :value="m">{{ m }}</option>
-              </select>
-              <span v-else-if="mcpOptions.length === 0" style="color:#94a3b8;font-size:12px">暂无全局 MCP 服务器</span>
+        <!-- MCP & Skills：仅 single 类型显示 -->
+        <template v-if="form.type === 'single'">
+          <!-- MCP 折叠面板 -->
+          <div class="form-section" style="margin-top:16px">
+            <div
+              class="form-section-title"
+              style="cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px;margin-top:0"
+              @click="mcpExpanded = !mcpExpanded"
+            >
+              <span style="font-size:10px;color:#9b9b9b;transition:transform .15s;display:inline-block"
+                :style="mcpExpanded ? 'transform:rotate(90deg)' : ''">▶</span>
+              MCP 工具
+              <span v-if="form.selectedMcp.length" class="form-details-badge">{{ form.selectedMcp.length }}</span>
             </div>
-            <div class="form-section-title">Skills</div>
-            <div class="tag-select-row">
-              <span v-for="s in form.selectedSkills" :key="s" class="tag-item">
-                {{ s }}<button type="button" class="tag-remove" @click="removeSkill(s)">&times;</button>
-              </span>
-              <select v-if="skillOptions.filter(s => !form.selectedSkills.includes(s)).length > 0" class="tag-add-select" @change="addSkill">
-                <option value="">+ 添加 Skill</option>
-                <option v-for="s in skillOptions.filter(s => !form.selectedSkills.includes(s))" :key="s" :value="s">{{ s }}</option>
-              </select>
-              <span v-else-if="skillOptions.length === 0" style="color:#94a3b8;font-size:12px">暂无全局 Skills</span>
-            </div>
+            <template v-if="mcpExpanded">
+              <div v-if="mcpOptionsWithMeta.length === 0" style="color:#94a3b8;font-size:12px;padding:6px 0">暂无可用 MCP 服务器</div>
+              <template v-else>
+                <input
+                  v-model="mcpSearch"
+                  placeholder="搜索 MCP..."
+                  style="width:100%;margin-bottom:6px;padding:5px 8px;border:1px solid #e8e6e3;border-radius:5px;font-size:12px;outline:none"
+                />
+                <div style="border:1px solid #e8e6e3;border-radius:6px;overflow:hidden;max-height:160px;overflow-y:auto">
+                  <div v-if="filteredMcpOptions.length === 0" style="padding:12px;text-align:center;color:#9b9b9b;font-size:12px">无匹配结果</div>
+                  <label
+                    v-for="m in filteredMcpOptions"
+                    :key="m.name"
+                    style="display:flex;align-items:center;gap:8px;padding:6px 10px;cursor:pointer;border-bottom:1px solid #f5f4f2;font-size:12px"
+                    :style="form.selectedMcp.includes(m.name) ? 'background:#f0f9ff' : ''"
+                  >
+                    <input type="checkbox" :value="m.name" v-model="form.selectedMcp" style="cursor:pointer;flex-shrink:0" />
+                    <span style="font-family:monospace;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.name }}</span>
+                    <span v-if="m.isBuiltin" style="flex-shrink:0;background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 5px;border-radius:8px;font-weight:600">内置</span>
+                    <span v-else style="flex-shrink:0;background:#f5f4f2;color:#6b6b6b;font-size:10px;padding:1px 5px;border-radius:8px;font-weight:600">{{ m.desc || '自定义' }}</span>
+                  </label>
+                </div>
+              </template>
+            </template>
           </div>
-        </details>
+
+          <!-- Skills 折叠面板 -->
+          <div class="form-section">
+            <div
+              class="form-section-title"
+              style="cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px"
+              @click="skillExpanded = !skillExpanded"
+            >
+              <span style="font-size:10px;color:#9b9b9b;transition:transform .15s;display:inline-block"
+                :style="skillExpanded ? 'transform:rotate(90deg)' : ''">▶</span>
+              Skills
+              <span v-if="form.selectedSkills.length" class="form-details-badge">{{ form.selectedSkills.length }}</span>
+            </div>
+            <template v-if="skillExpanded">
+              <div v-if="skillOptionsWithMeta.length === 0" style="color:#94a3b8;font-size:12px;padding:6px 0">暂无可用 Skill</div>
+              <template v-else>
+                <input
+                  v-model="skillSearch"
+                  placeholder="搜索 Skill..."
+                  style="width:100%;margin-bottom:6px;padding:5px 8px;border:1px solid #e8e6e3;border-radius:5px;font-size:12px;outline:none"
+                />
+                <div style="border:1px solid #e8e6e3;border-radius:6px;overflow:hidden;max-height:160px;overflow-y:auto">
+                  <div v-if="filteredSkillOptions.length === 0" style="padding:12px;text-align:center;color:#9b9b9b;font-size:12px">无匹配结果</div>
+                  <label
+                    v-for="s in filteredSkillOptions"
+                    :key="s.name"
+                    style="display:flex;align-items:center;gap:8px;padding:6px 10px;cursor:pointer;border-bottom:1px solid #f5f4f2;font-size:12px"
+                    :style="form.selectedSkills.includes(s.name) ? 'background:#f0fdf4' : ''"
+                  >
+                    <input type="checkbox" :value="s.name" v-model="form.selectedSkills" style="cursor:pointer;flex-shrink:0" />
+                    <span style="font-family:monospace;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.name }}</span>
+                    <span v-if="s.desc" style="flex-shrink:0;color:#6b6b6b;font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.desc }}</span>
+                    <span v-if="s.isBuiltin" style="flex-shrink:0;background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 5px;border-radius:8px;font-weight:600">内置</span>
+                    <span v-else style="flex-shrink:0;background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 5px;border-radius:8px;font-weight:600">全局</span>
+                  </label>
+                </div>
+              </template>
+            </template>
+          </div>
+        </template>
 
       </div>
       <div class="modal-footer">

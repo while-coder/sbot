@@ -14,13 +14,15 @@ const showModal   = ref(false)
 const editingName = ref<string | null>(null)
 const showApiKey  = ref(false)
 const form = ref<{ name: string } & Model>({
-  name: '', provider: 'openai', baseURL: '', apiKey: '', model: '', temperature: undefined,
+  name: '', provider: 'openai', baseURL: '', apiKey: '', model: '', temperature: undefined, maxTokens: undefined,
 })
+
+const isOllama = computed(() => form.value.provider === 'ollama')
 
 function openAdd() {
   editingName.value = null
   showApiKey.value  = false
-  form.value = { name: '', provider: 'openai', baseURL: '', apiKey: '', model: '', temperature: undefined }
+  form.value = { name: '', provider: 'openai', baseURL: '', apiKey: '', model: '', temperature: undefined, maxTokens: undefined }
   showModal.value = true
 }
 
@@ -35,6 +37,7 @@ function openEdit(id: string) {
     apiKey: m.apiKey || '',
     model: m.model || '',
     temperature: m.temperature,
+    maxTokens: m.maxTokens,
   }
   showModal.value = true
 }
@@ -44,6 +47,7 @@ async function save() {
   try {
     const body: any = { ...form.value }
     if (body.temperature === undefined || body.temperature === null) delete body.temperature
+    if (body.maxTokens === undefined || body.maxTokens === null) delete body.maxTokens
     const id = editingName.value
     const res = id
       ? await apiFetch(`/api/settings/models/${encodeURIComponent(id)}`, 'PUT', body)
@@ -126,13 +130,14 @@ async function refresh() {
             <label>Provider</label>
             <select v-model="form.provider">
               <option value="openai">openai</option>
+              <option value="ollama">ollama</option>
             </select>
           </div>
           <div class="form-group">
             <label>Base URL</label>
-            <input v-model="form.baseURL" placeholder="https://api.openai.com/v1" />
+            <input v-model="form.baseURL" :placeholder="isOllama ? 'http://localhost:11434' : 'https://api.openai.com/v1'" />
           </div>
-          <div class="form-group">
+          <div v-if="!isOllama" class="form-group">
             <label>API Key</label>
             <div class="apikey-field">
               <input v-model="form.apiKey" :type="showApiKey ? 'text' : 'password'" placeholder="sk-..." />
@@ -143,11 +148,15 @@ async function refresh() {
           </div>
           <div class="form-group">
             <label>Model</label>
-            <input v-model="form.model" placeholder="gpt-4" />
+            <input v-model="form.model" :placeholder="isOllama ? 'llama3' : 'gpt-4'" />
           </div>
           <div class="form-group">
             <label>Temperature</label>
             <input v-model.number="form.temperature" type="number" step="0.1" placeholder="0.7" />
+          </div>
+          <div class="form-group">
+            <label>Max Tokens</label>
+            <input v-model.number="form.maxTokens" type="number" step="1" placeholder="不限制" />
           </div>
         </div>
         <div class="modal-footer">

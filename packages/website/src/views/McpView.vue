@@ -22,6 +22,25 @@ const agentGlobals = ref<string[]>([])
 interface GlobalInfo extends McpEntry { isBuiltin: boolean }
 const agentGlobalMap = ref<Record<string, GlobalInfo>>({})
 
+// Agent mode: tab + global selection state
+const activeTab     = ref<'globals' | 'servers'>('globals')
+const selectedGlobals = ref<string[]>([])
+const globalSearch  = ref('')
+const globalsChanged = computed(() => {
+  const a = [...selectedGlobals.value].sort().join(',')
+  const b = [...agentGlobals.value].sort().join(',')
+  return a !== b
+})
+const allGlobalMcps = computed(() => [
+  ...store.mcpBuiltins.map(b => ({ name: b.name, isBuiltin: true, desc: b.description || '' })),
+  ...Object.keys(store.mcpServers).map(k => ({ name: k, isBuiltin: false, desc: store.mcpServers[k].type || '' })),
+])
+const filteredGlobalMcps = computed(() => {
+  const q = globalSearch.value.trim().toLowerCase()
+  if (!q) return allGlobalMcps.value
+  return allGlobalMcps.value.filter(m => m.name.toLowerCase().includes(q) || m.desc.toLowerCase().includes(q))
+})
+
 function apiBase() {
   return isAgentMode.value
     ? `/api/agents/${encodeURIComponent(agentName.value!)}/mcp`
@@ -38,31 +57,46 @@ async function load() {
       store.mcpBuiltins = builtins.value
     } else {
       // Resolve selected globals against the global MCP registry
-      const selectedGlobals: string[] = res.data?.globals || []
-      agentGlobals.value = selectedGlobals
-      if (selectedGlobals.length > 0) {
-        try {
-          const globalRes = await apiFetch('/api/mcp')
-          const allBuiltins: McpBuiltin[] = globalRes.data?.builtins || []
-          const allServers: Record<string, McpEntry> = globalRes.data?.servers || {}
-          const map: Record<string, GlobalInfo> = {}
-          for (const name of selectedGlobals) {
-            if (allBuiltins.some(b => b.name === name)) {
-              map[name] = { type: 'builtin', isBuiltin: true }
-            } else if (allServers[name]) {
-              map[name] = { ...allServers[name], isBuiltin: false }
-            } else {
-              map[name] = { type: 'unknown', isBuiltin: false }
-            }
+      const globalsFromApi: string[] = res.data?.globals || []
+      agentGlobals.value = globalsFromApi
+      selectedGlobals.value = [...globalsFromApi]
+      try {
+        const globalRes = await apiFetch('/api/mcp')
+        const allBuiltins: McpBuiltin[] = globalRes.data?.builtins || []
+        const allServers: Record<string, McpEntry> = globalRes.data?.servers || {}
+        store.mcpBuiltins = allBuiltins
+        store.mcpServers = allServers
+        const map: Record<string, GlobalInfo> = {}
+        for (const name of globalsFromApi) {
+          if (allBuiltins.some(b => b.name === name)) {
+            map[name] = { type: 'builtin', isBuiltin: true }
+          } else if (allServers[name]) {
+            map[name] = { ...allServers[name], isBuiltin: false }
+          } else {
+            map[name] = { type: 'unknown', isBuiltin: false }
           }
-          agentGlobalMap.value = map
-        } catch {
-          agentGlobalMap.value = {}
         }
-      } else {
+        agentGlobalMap.value = map
+      } catch {
         agentGlobalMap.value = {}
       }
     }
+  } catch (e: any) {
+    show(e.message, 'error')
+  }
+}
+
+async function saveGlobals() {
+  try {
+    const existing = (store.settings.agents || {})[agentName.value!] || {}
+    const res = await apiFetch(
+      `/api/settings/agents/${encodeURIComponent(agentName.value!)}`,
+      'PUT',
+      { ...existing, mcp: selectedGlobals.value }
+    )
+    Object.assign(store.settings, res.data)
+    agentGlobals.value = [...selectedGlobals.value]
+    show('保存成功')
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -332,6 +366,7 @@ onMounted(load)
 
 <template>
   <div style="display:flex;flex-direction:column;height:100%;overflow:hidden">
+    <!-- Toolbar -->
     <div class="page-toolbar">
       <template v-if="isAgentMode">
         <button class="btn-outline btn-sm" @click="router.push('/agents')">← 返回</button>
@@ -340,71 +375,136 @@ onMounted(load)
       </template>
       <template v-else>
         <button class="btn-outline btn-sm" @click="load">刷新</button>
+        <button class="btn-primary btn-sm" style="margin-left:auto" @click="openAdd">+ 添加 MCP</button>
       </template>
-      <button class="btn-primary btn-sm" style="margin-left:auto" @click="openAdd">+ 添加 MCP</button>
     </div>
+
+    <!-- Agent mode: tab bar -->
+    <div v-if="isAgentMode" style="display:flex;border-bottom:1px solid #e8e6e3;background:#fff;padding:0 20px;flex-shrink:0">
+      <button
+        v-for="tab in [
+          { key: 'globals', label: `全局工具`, count: selectedGlobals.length },
+          { key: 'servers', label: `专属服务`, count: Object.keys(servers).length },
+        ]"
+        :key="tab.key"
+        @click="activeTab = tab.key as any"
+        style="padding:11px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s"
+        :style="activeTab === tab.key ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
+      >
+        {{ tab.label }}
+        <span style="margin-left:4px;font-size:11px;padding:0 5px;border-radius:10px;font-weight:600"
+          :style="activeTab === tab.key ? 'background:#1c1c1c;color:#fff' : 'background:#f0efed;color:#6b6b6b'"
+        >{{ tab.count }}</span>
+      </button>
+    </div>
+
     <div class="page-content">
-      <table>
-        <thead>
-          <tr><th>名称</th><th>描述</th><th>类型</th><th>地址/命令</th><th>操作</th></tr>
-        </thead>
-        <tbody>
-          <!-- Builtin rows (global mode only) -->
-          <tr v-for="b in builtins" :key="'builtin:' + b.name">
-            <td style="font-family:monospace">
-              {{ b.name }}
-              <span style="margin-left:6px;background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">内置</span>
-            </td>
-            <td style="color:#64748b;font-size:12px">{{ b.description || '—' }}</td>
-            <td>builtin</td>
-            <td style="color:#94a3b8">—</td>
-            <td>
-              <div class="ops-cell">
-                <button class="btn-outline btn-sm" @click="viewTools(b.name)">查看工具</button>
-              </div>
-            </td>
-          </tr>
-          <!-- Selected global/builtin MCPs (agent mode only) -->
-          <template v-if="isAgentMode">
-            <tr v-for="name in agentGlobals" :key="'global:' + name">
-              <td style="font-family:monospace">
-                {{ name }}
-                <span v-if="agentGlobalMap[name]?.isBuiltin"
-                  style="margin-left:6px;background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">内置</span>
-                <span v-else
-                  style="margin-left:6px;background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">全局</span>
-              </td>
-              <td style="color:#94a3b8;font-size:12px">—</td>
-              <td>{{ agentGlobalMap[name]?.type || '-' }}</td>
-              <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#94a3b8">
-                {{ agentGlobalMap[name]?.isBuiltin ? '—' : serverAddr(agentGlobalMap[name] as McpEntry) }}
-              </td>
+      <!-- ── Agent mode: Global MCP tab ── -->
+      <template v-if="isAgentMode && activeTab === 'globals'">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <input
+            v-model="globalSearch"
+            placeholder="搜索 MCP 名称或类型..."
+            style="flex:1;padding:6px 10px;border:1px solid #e8e6e3;border-radius:6px;font-size:12px;outline:none"
+          />
+          <button
+            class="btn-primary btn-sm"
+            :disabled="!globalsChanged"
+            @click="saveGlobals"
+          >保存</button>
+          <span v-if="globalsChanged" style="font-size:12px;color:#f59e0b;white-space:nowrap">● 有未保存的更改</span>
+        </div>
+        <div v-if="allGlobalMcps.length === 0" style="text-align:center;color:#94a3b8;padding:40px">暂无全局 MCP 服务器</div>
+        <div v-else style="border:1px solid #e8e6e3;border-radius:6px;overflow:hidden">
+          <div v-if="filteredGlobalMcps.length === 0" style="padding:20px;text-align:center;color:#9b9b9b;font-size:13px">无匹配结果</div>
+          <label
+            v-for="m in filteredGlobalMcps"
+            :key="m.name"
+            style="display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;border-bottom:1px solid #f5f4f2;font-size:13px"
+            :style="selectedGlobals.includes(m.name) ? 'background:#fafaf9' : ''"
+          >
+            <input type="checkbox" :value="m.name" v-model="selectedGlobals" style="cursor:pointer;flex-shrink:0;width:14px;height:14px" />
+            <span style="font-family:monospace;font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.name }}</span>
+            <span v-if="m.isBuiltin" style="flex-shrink:0;background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600">内置</span>
+            <span v-else style="flex-shrink:0;background:#f5f4f2;color:#6b6b6b;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600">{{ m.desc || '自定义' }}</span>
+            <button
+              v-if="selectedGlobals.includes(m.name)"
+              class="btn-outline btn-sm"
+              style="flex-shrink:0;padding:2px 8px;font-size:11px"
+              @click.prevent="viewGlobalTools(m.name)"
+            >查看工具</button>
+          </label>
+        </div>
+      </template>
+
+      <!-- ── Agent mode: Dedicated servers tab ── -->
+      <template v-else-if="isAgentMode && activeTab === 'servers'">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+          <button class="btn-primary btn-sm" @click="openAdd">+ 添加 MCP</button>
+        </div>
+        <div v-if="Object.keys(servers).length === 0" style="text-align:center;color:#94a3b8;padding:40px">暂无专属 MCP 服务</div>
+        <table v-else>
+          <thead>
+            <tr><th>名称</th><th>描述</th><th>类型</th><th>地址/命令</th><th>操作</th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="(s, name) in servers" :key="name">
+              <td style="font-family:monospace">{{ name }}</td>
+              <td style="color:#64748b;font-size:12px">{{ (s as any).description || '—' }}</td>
+              <td>{{ s.type }}</td>
+              <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ serverAddr(s) }}</td>
               <td>
                 <div class="ops-cell">
-                  <button class="btn-outline btn-sm" @click="viewGlobalTools(name)">查看工具</button>
+                  <button class="btn-outline btn-sm" @click="viewTools(name as string)">查看工具</button>
+                  <button class="btn-outline btn-sm" @click="openEdit(name as string)">编辑</button>
+                  <button class="btn-danger btn-sm" @click="remove(name as string)">删除</button>
                 </div>
               </td>
             </tr>
-          </template>
-          <!-- Empty state -->
-          <tr v-if="builtins.length === 0 && agentGlobals.length === 0 && Object.keys(servers).length === 0">
-            <td colspan="5" style="text-align:center;color:#94a3b8;padding:40px">暂无 MCP 配置</td>
-          </tr>
-          <tr v-for="(s, name) in servers" :key="name">
-            <td style="font-family:monospace">{{ name }}</td>
-            <td style="color:#64748b;font-size:12px">{{ (s as any).description || '—' }}</td>
-            <td>{{ s.type }}</td>
-            <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ serverAddr(s) }}</td>
-            <td>
-              <div class="ops-cell">
-                <button class="btn-outline btn-sm" @click="viewTools(name as string)">查看工具</button>
-                <button class="btn-outline btn-sm" @click="openEdit(name as string)">编辑</button>
-                <button class="btn-danger btn-sm" @click="remove(name as string)">删除</button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      </template>
+
+      <!-- ── Global mode: original table ── -->
+      <template v-else-if="!isAgentMode">
+        <table>
+          <thead>
+            <tr><th>名称</th><th>描述</th><th>类型</th><th>地址/命令</th><th>操作</th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="b in builtins" :key="'builtin:' + b.name">
+              <td style="font-family:monospace">
+                {{ b.name }}
+                <span style="margin-left:6px;background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">内置</span>
+              </td>
+              <td style="color:#64748b;font-size:12px">{{ b.description || '—' }}</td>
+              <td>builtin</td>
+              <td style="color:#94a3b8">—</td>
+              <td>
+                <div class="ops-cell">
+                  <button class="btn-outline btn-sm" @click="viewTools(b.name)">查看工具</button>
+                </div>
+              </td>
+            </tr>
+            <tr v-if="builtins.length === 0 && Object.keys(servers).length === 0">
+              <td colspan="5" style="text-align:center;color:#94a3b8;padding:40px">暂无 MCP 配置</td>
+            </tr>
+            <tr v-for="(s, name) in servers" :key="name">
+              <td style="font-family:monospace">{{ name }}</td>
+              <td style="color:#64748b;font-size:12px">{{ (s as any).description || '—' }}</td>
+              <td>{{ s.type }}</td>
+              <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ serverAddr(s) }}</td>
+              <td>
+                <div class="ops-cell">
+                  <button class="btn-outline btn-sm" @click="viewTools(name as string)">查看工具</button>
+                  <button class="btn-outline btn-sm" @click="openEdit(name as string)">编辑</button>
+                  <button class="btn-danger btn-sm" @click="remove(name as string)">删除</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </template>
     </div>
 
     <!-- MCP Edit Modal -->

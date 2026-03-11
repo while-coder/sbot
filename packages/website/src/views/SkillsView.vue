@@ -10,6 +10,28 @@ const { show } = useToast()
 const skills = ref<SkillItem[]>([])
 const builtins = ref<SkillItem[]>([])
 
+// ── Search & tab filter ──
+const searchQuery = ref('')
+const activeTab = ref<'all' | 'builtin' | 'installed'>('all')
+
+const filteredBuiltins = computed(() => {
+  if (activeTab.value === 'installed') return []
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return builtins.value
+  return builtins.value.filter(s =>
+    s.name.toLowerCase().includes(q) || (s.description || '').toLowerCase().includes(q)
+  )
+})
+
+const filteredSkills = computed(() => {
+  if (activeTab.value === 'builtin') return []
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return skills.value
+  return skills.value.filter(s =>
+    s.name.toLowerCase().includes(q) || (s.description || '').toLowerCase().includes(q)
+  )
+})
+
 async function load() {
   try {
     const res = await apiFetch('/api/skills')
@@ -179,6 +201,33 @@ onMounted(load)
       <button class="btn-outline btn-sm" @click="load">刷新</button>
       <button class="btn-primary btn-sm" @click="openAdd">+ 添加 Skill</button>
     </div>
+    <!-- Tab bar + search -->
+    <div style="display:flex;align-items:center;padding:0 20px;border-bottom:1px solid #e8e6e3;background:#fff;gap:0;flex-shrink:0">
+      <button
+        v-for="tab in ([
+          { key: 'all',       label: '全部',   count: builtins.length + skills.length },
+          { key: 'builtin',   label: '内置',   count: builtins.length },
+          { key: 'installed', label: '已安装', count: skills.length },
+        ] as const)"
+        :key="tab.key"
+        @click="activeTab = tab.key"
+        style="padding:10px 14px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s"
+        :style="activeTab === tab.key ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
+      >
+        {{ tab.label }}
+        <span style="margin-left:4px;font-size:11px;padding:0 5px;border-radius:10px;font-weight:600"
+          :style="activeTab === tab.key ? 'background:#1c1c1c;color:#fff' : 'background:#f0efed;color:#6b6b6b'"
+        >{{ tab.count }}</span>
+      </button>
+      <div style="flex:1" />
+      <input
+        v-model="searchQuery"
+        placeholder="搜索技能名称或描述..."
+        style="width:220px;padding:5px 10px;border:1px solid #e8e6e3;border-radius:6px;font-size:12px;color:#1c1c1c;outline:none;background:#fafaf9"
+        @focus="($event.target as HTMLInputElement).style.borderColor='#1c1c1c'"
+        @blur="($event.target as HTMLInputElement).style.borderColor='#e8e6e3'"
+      />
+    </div>
     <div class="page-content">
       <div style="margin-bottom:16px;padding:10px 14px;background:#f1f5f9;border-radius:6px;font-size:13px;color:#475569">
         技能目录：<code style="font-family:monospace;background:#e2e8f0;padding:2px 6px;border-radius:3px">~/.sbot/skills/</code>
@@ -188,10 +237,12 @@ onMounted(load)
           <tr><th>名称</th><th>描述</th><th style="width:140px;white-space:nowrap">操作</th></tr>
         </thead>
         <tbody>
-          <tr v-if="builtins.length === 0 && skills.length === 0">
-            <td colspan="3" style="text-align:center;color:#94a3b8;padding:40px">暂无 Skill</td>
+          <tr v-if="filteredBuiltins.length === 0 && filteredSkills.length === 0">
+            <td colspan="3" style="text-align:center;color:#94a3b8;padding:40px">
+              {{ searchQuery.trim() ? '未找到匹配的 Skill' : '暂无 Skill' }}
+            </td>
           </tr>
-          <tr v-for="s in builtins" :key="'b-' + s.name">
+          <tr v-for="s in filteredBuiltins" :key="'b-' + s.name">
             <td style="font-family:monospace">
               {{ s.name }}
               <span style="margin-left:6px;background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">内置</span>
@@ -203,7 +254,7 @@ onMounted(load)
               </div>
             </td>
           </tr>
-          <tr v-for="s in skills" :key="s.name">
+          <tr v-for="s in filteredSkills" :key="s.name">
             <td style="font-family:monospace">{{ s.name }}</td>
             <td>{{ s.description || '-' }}</td>
             <td style="white-space:nowrap">

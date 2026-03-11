@@ -5,6 +5,7 @@ export interface Model {
   apiKey?: string
   model?: string
   temperature?: number
+  maxTokens?: number
   [key: string]: unknown
 }
 

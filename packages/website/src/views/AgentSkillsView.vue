@@ -13,6 +13,8 @@ const agentName = route.params.agentName as string
 const skills = ref<SkillItem[]>([])
 const globals = ref<SkillItem[]>([])
 
+const activeTab = ref<'globals' | 'skills'>('skills')
+
 function apiBase() {
   return `/api/agents/${encodeURIComponent(agentName)}/skills`
 }
@@ -74,13 +76,24 @@ const showEdit = ref(false)
 const editName = ref('')
 const editContent = ref('')
 const editSaving = ref(false)
+const editIsGlobal = ref(false)
 
-async function openEdit(name: string) {
+function editApiUrl(name: string) {
+  return editIsGlobal.value
+    ? `/api/skills/${encodeURIComponent(name)}`
+    : `${apiBase()}/${encodeURIComponent(name)}`
+}
+
+async function openEdit(name: string, isGlobal = false) {
   editName.value = name
+  editIsGlobal.value = isGlobal
   editContent.value = ''
   showEdit.value = true
   try {
-    const res = await apiFetch(`${apiBase()}/${encodeURIComponent(name)}`)
+    const url = isGlobal
+      ? `/api/skills/${encodeURIComponent(name)}`
+      : `${apiBase()}/${encodeURIComponent(name)}`
+    const res = await apiFetch(url)
     editContent.value = res.data?.content || SKILL_TEMPLATE
   } catch (e: any) {
     show(e.message, 'error')
@@ -94,7 +107,7 @@ async function saveSkill() {
   if (!editContent.value.trim()) { show('内容不能为空', 'error'); return }
   editSaving.value = true
   try {
-    await apiFetch(`${apiBase()}/${encodeURIComponent(name)}`, 'PUT', { content: editContent.value })
+    await apiFetch(editApiUrl(name), 'PUT', { content: editContent.value })
     show('保存成功')
     showEdit.value = false
     await load()
@@ -226,49 +239,86 @@ onMounted(load)
       <button class="btn-outline btn-sm" @click="router.push('/agents')">← 返回</button>
       <span class="page-toolbar-title" style="margin-left:12px">Agent: {{ agentName }} — Skills 配置</span>
       <button class="btn-outline btn-sm" style="margin-left:8px" @click="load">刷新</button>
-      <button class="btn-primary btn-sm" style="margin-left:auto" @click="openAdd">+ 添加 Skill</button>
     </div>
+
+    <!-- Tab bar -->
+    <div style="display:flex;border-bottom:1px solid #e8e6e3;background:#fff;padding:0 20px;flex-shrink:0">
+      <button
+        v-for="tab in [
+          { key: 'globals', label: '全局技能', count: globals.length },
+          { key: 'skills',  label: '专属技能', count: skills.length },
+        ]"
+        :key="tab.key"
+        @click="activeTab = tab.key as any"
+        style="padding:11px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s"
+        :style="activeTab === tab.key ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
+      >
+        {{ tab.label }}
+        <span style="margin-left:4px;font-size:11px;padding:0 5px;border-radius:10px;font-weight:600"
+          :style="activeTab === tab.key ? 'background:#1c1c1c;color:#fff' : 'background:#f0efed;color:#6b6b6b'"
+        >{{ tab.count }}</span>
+      </button>
+    </div>
+
     <div class="page-content">
-      <div style="margin-bottom:16px;padding:10px 14px;background:#f1f5f9;border-radius:6px;font-size:13px;color:#475569">
-        技能目录：<code style="font-family:monospace;background:#e2e8f0;padding:2px 6px;border-radius:3px">~/.sbot/agents/{{ agentName }}/skills/</code>
-      </div>
-      <table>
-        <thead>
-          <tr><th>名称</th><th>描述</th><th>操作</th></tr>
-        </thead>
-        <tbody>
-          <tr v-if="globals.length === 0 && skills.length === 0">
-            <td colspan="3" style="text-align:center;color:#94a3b8;padding:40px">暂无 Skill</td>
-          </tr>
-          <tr v-for="s in globals" :key="'g-' + s.name">
-            <td style="font-family:monospace">
-              {{ s.name }}
-              <span v-if="(s as any).isBuiltin !== false"
-                style="margin-left:6px;background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">内置</span>
-              <span v-else
-                style="margin-left:6px;background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">全局</span>
-            </td>
-            <td>{{ s.description || '-' }}</td>
-            <td>
-              <div class="ops-cell">
-                <button class="btn-outline btn-sm"
-                  @click="openView(s.name, (s as any).isBuiltin !== false ? '内置' : '全局')">查看</button>
-              </div>
-            </td>
-          </tr>
-          <tr v-for="s in skills" :key="s.name">
-            <td style="font-family:monospace">{{ s.name }}</td>
-            <td>{{ s.description || '-' }}</td>
-            <td>
-              <div class="ops-cell">
-                <button class="btn-outline btn-sm" @click="openView(s.name)">查看</button>
-                <button class="btn-outline btn-sm" @click="openEdit(s.name)">编辑</button>
-                <button class="btn-danger btn-sm" @click="remove(s.name)">删除</button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <!-- Global skills tab -->
+      <template v-if="activeTab === 'globals'">
+        <div v-if="globals.length === 0" style="text-align:center;color:#94a3b8;padding:40px">暂无全局 Skill</div>
+        <table v-else>
+          <thead>
+            <tr><th>名称</th><th>描述</th><th>操作</th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="s in globals" :key="'g-' + s.name">
+              <td style="font-family:monospace">
+                {{ s.name }}
+                <span v-if="(s as any).isBuiltin !== false"
+                  style="margin-left:6px;background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">内置</span>
+                <span v-else
+                  style="margin-left:6px;background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">全局</span>
+              </td>
+              <td>{{ s.description || '-' }}</td>
+              <td>
+                <div class="ops-cell">
+                  <button class="btn-outline btn-sm"
+                    @click="openView(s.name, (s as any).isBuiltin !== false ? '内置' : '全局')">查看</button>
+                  <button v-if="(s as any).isBuiltin === false" class="btn-outline btn-sm"
+                    @click="openEdit(s.name, true)">编辑</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </template>
+
+      <!-- Agent-specific skills tab -->
+      <template v-else-if="activeTab === 'skills'">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+          <button class="btn-primary btn-sm" @click="openAdd">+ 添加 Skill</button>
+        </div>
+        <div style="margin-bottom:12px;padding:10px 14px;background:#f1f5f9;border-radius:6px;font-size:13px;color:#475569">
+          技能目录：<code style="font-family:monospace;background:#e2e8f0;padding:2px 6px;border-radius:3px">~/.sbot/agents/{{ agentName }}/skills/</code>
+        </div>
+        <div v-if="skills.length === 0" style="text-align:center;color:#94a3b8;padding:40px">暂无专属 Skill</div>
+        <table v-else>
+          <thead>
+            <tr><th>名称</th><th>描述</th><th>操作</th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="s in skills" :key="s.name">
+              <td style="font-family:monospace">{{ s.name }}</td>
+              <td>{{ s.description || '-' }}</td>
+              <td>
+                <div class="ops-cell">
+                  <button class="btn-outline btn-sm" @click="openView(s.name)">查看</button>
+                  <button class="btn-outline btn-sm" @click="openEdit(s.name)">编辑</button>
+                  <button class="btn-danger btn-sm" @click="remove(s.name)">删除</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </template>
     </div>
 
     <!-- View modal -->

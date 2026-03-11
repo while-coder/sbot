@@ -5,6 +5,7 @@ const routes = [
   { path: '/settings', component: () => import('@/views/SettingsView.vue') },
   { path: '/chat', component: () => import('@/views/ChatView.vue') },
   { path: '/agents', component: () => import('@/views/AgentsView.vue') },
+  { path: '/agents/:agentName', component: () => import('@/views/AgentDetailView.vue') },
   { path: '/agents/:agentName/skills', component: () => import('@/views/AgentSkillsView.vue') },
   { path: '/models', component: () => import('@/views/ModelsView.vue') },
   { path: '/embeddings', component: () => import('@/views/EmbeddingsView.vue') },
