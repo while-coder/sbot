@@ -1,8 +1,8 @@
 import path from 'path';
-import { SkillService } from "scorpio.ai";
+import { GlobalLoggerService, SkillService } from "scorpio.ai";
 import { config } from "../Core/Config.js";
 
-export const globalSkillService = new SkillService();
+export const globalSkillService = new SkillService(GlobalLoggerService.getLoggerService());
 
 /**
  * 内置 Skills 目录（项目自带）

@@ -5,7 +5,7 @@ import fs from 'fs';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { WebSocketServer } from 'ws';
-import { MCPServers, AgentToolService } from "scorpio.ai";
+import { MCPServers, AgentToolService, SkillService } from "scorpio.ai";
 import { config } from '../Core/Config';
 import { AgentRunner } from '../Agent/AgentRunner';
 import { globalAgentToolService, refreshGlobalAgentToolService, BuiltinProvider } from '../Agent/GlobalAgentToolService';
@@ -36,32 +36,22 @@ function toJsonSchema(schema: any): any {
 // ===== Skills 辅助函数 =====
 function listSkills(skillsDir: string) {
     if (!fs.existsSync(skillsDir)) return [];
-    return fs.readdirSync(skillsDir, { withFileTypes: true })
-        .filter(d => d.isDirectory())
-        .filter(d => fs.existsSync(path.join(skillsDir, d.name, 'SKILL.md')))
-        .map(d => {
-            const content = fs.readFileSync(path.join(skillsDir, d.name, 'SKILL.md'), 'utf-8');
-            let description = '';
-            const match = content.match(/^---\s*\n([\s\S]*?)\n---/);
-            if (match) {
-                const descMatch = match[1].match(/description:\s*"?([^"\n]+)"?\s*$/m);
-                if (descMatch) description = descMatch[1].trim();
-            }
-            return { name: d.name, description };
-        });
+    const svc = new SkillService();
+    svc.registerSkillsDir(skillsDir);
+    return svc.getAllSkills().map(s => ({ name: s.name, description: s.description }));
 }
 
 function getSkill(skillsDir: string, name: string, fallbackDirs: string[] = []) {
-    const dirs = [skillsDir, ...fallbackDirs];
-    for (const dir of dirs) {
-        const skillMdPath = path.join(dir, name, 'SKILL.md');
-        if (fs.existsSync(skillMdPath)) {
-            return { name, content: fs.readFileSync(skillMdPath, 'utf-8') };
-        }
+    const dirs = [skillsDir, ...fallbackDirs].filter(d => fs.existsSync(d));
+    const svc = new SkillService();
+    dirs.forEach(d => svc.registerSkillsDir(d));
+    const skill = svc.getAllSkills().find(s => s.name === name);
+    if (!skill) {
+        const e: any = new Error(`Skill "${name}" 不存在`);
+        e.status = 404;
+        throw e;
     }
-    const e: any = new Error(`Skill "${name}" 不存在`);
-    e.status = 404;
-    throw e;
+    return { name, content: fs.readFileSync(path.join(skill.path, 'SKILL.md'), 'utf-8') };
 }
 
 function saveSkill(skillsDir: string, name: string, content: string) {

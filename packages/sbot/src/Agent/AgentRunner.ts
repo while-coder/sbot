@@ -39,22 +39,26 @@ export class AgentRunner {
         const scriptsDir = config.getConfigPath('scripts', true);
         const httpUrl = config.getHttpUrl();
         const extraPrompts: string[] = [
-            `当前时间：${now.toLocaleString('zh-CN', { timeZone: timezone, hour12: false })}
-时区：${timezone}
-操作系统：${os.type()} ${os.release()} (${os.platform()})
-系统语言：${process.env.LANG || Intl.DateTimeFormat().resolvedOptions().locale || 'zh-CN'}
-生成供用户查看或下载的文件时，将文件保存至 ${assetsDir}，并以 ${httpUrl}/assets/<文件名> 形式提供访问地址。
-临时脚本文件存放至 ${scriptsDir}。`,
+            `## Environment
+- **Current time:** ${now.toLocaleString(undefined, { timeZone: timezone, hour12: false })}
+- **Timezone:** ${timezone}
+- **OS:** ${os.type()} ${os.release()} (${os.platform()})
+- **System locale:** ${process.env.LANG || Intl.DateTimeFormat().resolvedOptions().locale}
+
+## File Paths
+- **Assets directory:** ${assetsDir} — when generating files for the user to view or download, save here and serve via \`${httpUrl}/assets/<filename>\`
+- **Scripts directory:** ${scriptsDir} — store temporary scripts here`,
         ];
         if (workPath) {
-            extraPrompts.push(`工作目录：${workPath}`);
+            extraPrompts.push(`- **Working Directory**: ${workPath}`);
         }
         if (userInfo) {
-            extraPrompts.push(`用户user_id:${userInfo.user_id}
-用户open_id:${userInfo.open_id}
-用户union_id:${userInfo.union_id}
-用户姓名:${userInfo.name}
-用户邮箱:${userInfo.email}`);
+            extraPrompts.push(`## Current User
+- **ID:** ${userInfo.user_id}
+- **Open ID:** ${userInfo.open_id}
+- **Union ID:** ${userInfo.union_id}
+- **Name:** ${userInfo.name}
+- **Email:** ${userInfo.email}`);
         }
 
         const container = new ServiceContainer();

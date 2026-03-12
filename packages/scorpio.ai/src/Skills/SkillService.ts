@@ -76,7 +76,10 @@ export class SkillService implements ISkillService {
     // 收集所有 skill 目录
     const allSkillDirs: string[] = [...this.singleSkillDirs];
     for (const dir of this.skillsDirs) {
-      if (!fs.existsSync(dir)) continue;
+      if (!fs.existsSync(dir)) {
+        this.logger?.warn(`技能目录不存在 ${dir}`);
+        continue;
+      }
       try {
         for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
           if (entry.isDirectory()) allSkillDirs.push(path.join(dir, entry.name));
@@ -89,8 +92,17 @@ export class SkillService implements ISkillService {
     // 逐个加载
     for (const skillDir of allSkillDirs) {
       try {
-        const skill = isValidSkillDirectory(skillDir) ? parseSkill(skillDir) : null;
-        if (skill) this._skills.push(skill);
+        if (!isValidSkillDirectory(skillDir)) {
+          this.logger?.warn(`技能目录无效: ${skillDir}`);
+          continue
+        }
+        const skill = parseSkill(skillDir);
+        if (!skill) {
+          this.logger?.warn(`技能目录解析失败: ${skillDir}`);
+          continue;
+        }
+        this.logger?.info(`Loaded skill: ${skill.name}`);
+        this._skills.push(skill);
       } catch (e: any) {
         this.logger?.error(`加载 skill 失败 ${skillDir}: ${e.message}`);
       }

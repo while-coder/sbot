@@ -112,54 +112,6 @@ async function openView(name: string, badge = '') {
   }
 }
 
-// ── Edit modal ────────────────────────────────────────────────────
-const SKILL_TEMPLATE = `---\ndescription: ""\n---\n\n`
-
-const showEdit = ref(false)
-const editName = ref('')
-const editContent = ref('')
-const editSaving = ref(false)
-const editIsGlobal = ref(false)
-
-function editApiUrl(name: string) {
-  return editIsGlobal.value
-    ? `/api/skills/${encodeURIComponent(name)}`
-    : `${apiBase()}/${encodeURIComponent(name)}`
-}
-
-async function openEdit(name: string, isGlobal = false) {
-  editName.value = name
-  editIsGlobal.value = isGlobal
-  editContent.value = ''
-  showEdit.value = true
-  try {
-    const url = isGlobal
-      ? `/api/skills/${encodeURIComponent(name)}`
-      : `${apiBase()}/${encodeURIComponent(name)}`
-    const res = await apiFetch(url)
-    editContent.value = res.data?.content || SKILL_TEMPLATE
-  } catch (e: any) {
-    show(e.message, 'error')
-    showEdit.value = false
-  }
-}
-
-async function saveSkill() {
-  const name = editName.value.trim()
-  if (!name) { show('Skill 名称不能为空', 'error'); return }
-  if (!editContent.value.trim()) { show('内容不能为空', 'error'); return }
-  editSaving.value = true
-  try {
-    await apiFetch(editApiUrl(name), 'PUT', { content: editContent.value })
-    show('保存成功')
-    showEdit.value = false
-    await load()
-  } catch (e: any) {
-    show(e.message, 'error')
-  } finally {
-    editSaving.value = false
-  }
-}
 
 // ── Skill Hub modal ───────────────────────────────────────────────
 interface HubSkillResult {
@@ -362,7 +314,6 @@ onMounted(load)
               <td>
                 <div class="ops-cell">
                   <button class="btn-outline btn-sm" @click="openView(s.name)">查看</button>
-                  <button class="btn-outline btn-sm" @click="openEdit(s.name)">编辑</button>
                   <button class="btn-danger btn-sm" @click="remove(s.name)">删除</button>
                 </div>
               </td>
@@ -393,36 +344,6 @@ onMounted(load)
         </div>
         <div class="modal-footer">
           <button class="btn-outline" @click="showModal = false">关闭</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Edit modal -->
-    <div v-if="showEdit" class="modal-overlay" @click.self="showEdit = false">
-      <div class="modal-box wide">
-        <div class="modal-header">
-          <h3>编辑 Skill</h3>
-          <button class="modal-close" @click="showEdit = false">&times;</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label>Skill 名称</label>
-            <input :value="editName" disabled />
-          </div>
-          <div class="form-group">
-            <label>SKILL.md 内容 *</label>
-            <textarea
-              v-model="editContent"
-              rows="20"
-              style="font-family:Consolas,Monaco,monospace;font-size:12px;line-height:1.6"
-            />
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-outline" @click="showEdit = false">取消</button>
-          <button class="btn-primary" :disabled="editSaving" @click="saveSkill">
-            {{ editSaving ? '保存中...' : '保存' }}
-          </button>
         </div>
       </div>
     </div>

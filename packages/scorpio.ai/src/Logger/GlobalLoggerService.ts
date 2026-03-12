@@ -9,6 +9,9 @@ class LoggerService {
   setLoggerService(service: ILoggerService): void {
     this.loggerService = service;
   }
+  getLoggerService() {
+    return this.loggerService;
+  }
 
   getLogger(name: string): ILogger | undefined {
     return this.loggerService?.getLogger(name)
