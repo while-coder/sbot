@@ -111,9 +111,9 @@ export interface ChannelConfig {
   memory?: string;             // 使用的记忆配置 UUID（对应 memories 中的 key）
 }
 
-export interface DirectoryConfig {
-  [key: string]: unknown;
-}
+// 配置内容（agent/saver/memory）保存在对应目录的 .sbot/settings.json，
+// 全局 settings.directories 只做路径注册，value 保留为空对象
+export interface DirectoryConfig {}
 
 export interface Settings {
   httpPort?: number;           // HTTP 服务监听端口，默认 5500

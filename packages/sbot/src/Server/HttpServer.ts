@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import http from 'http';
 import path from 'path';
 import fs from 'fs';
+import { execFile, exec } from 'child_process';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { WebSocketServer } from 'ws';
@@ -304,6 +305,101 @@ class HttpServer {
             config.saveSettings();
             return config.settings;
         }));
+
+        // ===== Directories =====
+        // GET  /api/directories?dir=<path>  读取目录本地配置，同时返回路径是否存在
+        app.get('/api/directories', api(req => {
+            const dir = req.query.dir as string;
+            if (!dir) throwBad('dir 不能为空');
+            const exists = fs.existsSync(dir) && fs.statSync(dir).isDirectory();
+            if (!exists) return { exists: false, config: null };
+            const configPath = path.join(dir, '.sbot', 'settings.json');
+            if (!fs.existsSync(configPath)) return { exists: true, config: null };
+            try {
+                return { exists: true, config: JSON.parse(fs.readFileSync(configPath, 'utf-8')) };
+            } catch {
+                return { exists: true, config: null };
+            }
+        }));
+
+        // POST /api/directories  注册目录 + 写入本地配置
+        app.post('/api/directories', api(req => {
+            const { path: dirPath, agent, saver, memory } = req.body;
+            if (!dirPath) throwBad('path 不能为空');
+            if (!fs.existsSync(dirPath) || !fs.statSync(dirPath).isDirectory())
+                throwBad(`路径不存在或不是目录：${dirPath}`);
+            const sbotDir = path.join(dirPath, '.sbot');
+            if (!fs.existsSync(sbotDir)) fs.mkdirSync(sbotDir, { recursive: true });
+            const localCfg: Record<string, string> = {};
+            if (agent) localCfg.agent = agent;
+            if (saver) localCfg.saver = saver;
+            if (memory) localCfg.memory = memory;
+            fs.writeFileSync(path.join(sbotDir, 'settings.json'), JSON.stringify(localCfg, null, 2), 'utf-8');
+            if (!config.settings.directories) config.settings.directories = {};
+            config.settings.directories[dirPath] = {};
+            config.saveSettings();
+            return { path: dirPath };
+        }));
+
+        // PUT  /api/directories  更新目录本地配置（不改动全局 settings）
+        app.put('/api/directories', api(req => {
+            const { path: dirPath, agent, saver, memory } = req.body;
+            if (!dirPath) throwBad('path 不能为空');
+            if (!config.settings.directories?.[dirPath]) throwBad(`目录 "${dirPath}" 未注册`);
+            const sbotDir = path.join(dirPath, '.sbot');
+            if (!fs.existsSync(sbotDir)) fs.mkdirSync(sbotDir, { recursive: true });
+            const localCfg: Record<string, string> = {};
+            if (agent) localCfg.agent = agent;
+            if (saver) localCfg.saver = saver;
+            if (memory) localCfg.memory = memory;
+            fs.writeFileSync(path.join(sbotDir, 'settings.json'), JSON.stringify(localCfg, null, 2), 'utf-8');
+            return { path: dirPath };
+        }));
+
+        // DELETE /api/directories?path=<path>  注销目录（不删除本地文件）
+        app.delete('/api/directories', api(req => {
+            const dirPath = req.query.path as string;
+            if (!dirPath) throwBad('path 不能为空');
+            if (config.settings.directories) delete config.settings.directories[dirPath];
+            config.saveSettings();
+            return {};
+        }));
+
+        // ===== Dialog =====
+        // GET /api/dialog/directory  调用宿主机原生目录选择框，返回完整路径
+        app.get('/api/dialog/directory', api(() => new Promise<{ path: string | null }>((resolve, reject) => {
+            if (process.platform === 'win32') {
+                const script = [
+                    '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8',
+                    'Add-Type -AssemblyName System.Windows.Forms',
+                    '$owner = New-Object System.Windows.Forms.Form',
+                    '$owner.TopMost = $true',
+                    '$owner.Size = New-Object System.Drawing.Size(0,0)',
+                    '$d = New-Object System.Windows.Forms.FolderBrowserDialog',
+                    '$d.Description = "请选择目录"',
+                    '$d.ShowNewFolderButton = $true',
+                    'if ($d.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $d.SelectedPath }',
+                    '$owner.Dispose()',
+                ].join('; ');
+                execFile('powershell', ['-NoProfile', '-NonInteractive', '-Command', script],
+                    { timeout: 120000, encoding: 'utf8' },
+                    (err, stdout) => {
+                        if (err && !stdout.trim()) { reject(Object.assign(new Error(err.message), { status: 500 })); return; }
+                        resolve({ path: stdout.trim() || null });
+                    }
+                );
+            } else if (process.platform === 'darwin') {
+                exec(
+                    `osascript -e 'set f to choose folder with prompt "请选择目录"' -e 'POSIX path of f'`,
+                    { timeout: 120000 },
+                    (err, stdout) => { resolve({ path: err ? null : stdout.trim().replace(/\/$/, '') || null }); }
+                );
+            } else {
+                exec('zenity --file-selection --directory --title="请选择目录"', { timeout: 120000 },
+                    (err, stdout) => { resolve({ path: err ? null : stdout.trim() || null }); }
+                );
+            }
+        })));
 
         // ===== MCP =====
         app.get('/api/mcp', api(() => ({
