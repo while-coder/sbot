@@ -313,13 +313,7 @@ class HttpServer {
             if (!dir) throwBad('dir 不能为空');
             const exists = fs.existsSync(dir) && fs.statSync(dir).isDirectory();
             if (!exists) return { exists: false, config: null };
-            const configPath = path.join(dir, '.sbot', 'settings.json');
-            if (!fs.existsSync(configPath)) return { exists: true, config: null };
-            try {
-                return { exists: true, config: JSON.parse(fs.readFileSync(configPath, 'utf-8')) };
-            } catch {
-                return { exists: true, config: null };
-            }
+            return { exists: true, config: config.getDirectoryConfig(dir) };
         }));
 
         // POST /api/directories  注册目录 + 写入本地配置
@@ -328,13 +322,7 @@ class HttpServer {
             if (!dirPath) throwBad('path 不能为空');
             if (!fs.existsSync(dirPath) || !fs.statSync(dirPath).isDirectory())
                 throwBad(`路径不存在或不是目录：${dirPath}`);
-            const sbotDir = path.join(dirPath, '.sbot');
-            if (!fs.existsSync(sbotDir)) fs.mkdirSync(sbotDir, { recursive: true });
-            const localCfg: Record<string, string> = {};
-            if (agent) localCfg.agent = agent;
-            if (saver) localCfg.saver = saver;
-            if (memory) localCfg.memory = memory;
-            fs.writeFileSync(path.join(sbotDir, 'settings.json'), JSON.stringify(localCfg, null, 2), 'utf-8');
+            config.saveDirectoryConfig(dirPath, { agent: agent || undefined, saver: saver || undefined, memory: memory || undefined });
             if (!config.settings.directories) config.settings.directories = {};
             config.settings.directories[dirPath] = {};
             config.saveSettings();
@@ -346,13 +334,7 @@ class HttpServer {
             const { path: dirPath, agent, saver, memory } = req.body;
             if (!dirPath) throwBad('path 不能为空');
             if (!config.settings.directories?.[dirPath]) throwBad(`目录 "${dirPath}" 未注册`);
-            const sbotDir = path.join(dirPath, '.sbot');
-            if (!fs.existsSync(sbotDir)) fs.mkdirSync(sbotDir, { recursive: true });
-            const localCfg: Record<string, string> = {};
-            if (agent) localCfg.agent = agent;
-            if (saver) localCfg.saver = saver;
-            if (memory) localCfg.memory = memory;
-            fs.writeFileSync(path.join(sbotDir, 'settings.json'), JSON.stringify(localCfg, null, 2), 'utf-8');
+            config.saveDirectoryConfig(dirPath, { agent: agent || undefined, saver: saver || undefined, memory: memory || undefined });
             return { path: dirPath };
         }));
 
@@ -770,11 +752,9 @@ class HttpServer {
 
         // ===== HTTP Chat (SSE) =====
         app.post('/api/chat', async (req, res) => {
-            const { query, agentId, saveId, memoryId, workPath, attachments } = req.body as {
+            const { query, sessionId, workPath, attachments } = req.body as {
                 query?: string;
-                agentId?: string;
-                saveId?: string;
-                memoryId?: string;
+                sessionId?: string;
                 workPath?: string;
                 attachments?: { name: string; type: string; dataUrl?: string; content?: string }[];
             };
@@ -796,7 +776,7 @@ class HttpServer {
             }
             if (!enriched) { res.status(400).json({ error: '消息内容不能为空' }); return; }
             try {
-                await userService.onReceiveHttpMessage(enriched, agentId ?? '', saveId ?? '', memoryId ?? '', workPath ?? '', res);
+                await userService.onReceiveHttpMessage(enriched, res, sessionId, workPath);
             } finally {
                 res.end();
             }

@@ -34,10 +34,10 @@ export class UserService extends UserServiceBase {
         });
     }
 
-    async onReceiveHttpMessage(query: string, agentId: string, saveId: string, memoryId: string, workPath: string, res: any): Promise<void> {
+    async onReceiveHttpMessage(query: string, res: any, sessionId?: string, workPath?: string): Promise<void> {
         if (!query?.trim()) return;
         return new Promise<void>((resolve) => {
-            this.onReceiveMessage(query, { httpContext: true, agentId, saveId, memoryId, workPath, res }, resolve);
+            this.onReceiveMessage(query, { httpContext: true, sessionId, workPath, res }, resolve);
         });
     }
 

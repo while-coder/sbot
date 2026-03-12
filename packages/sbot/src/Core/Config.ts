@@ -500,6 +500,13 @@ class Config {
     }
   }
 
+  /** 写入目录本地配置到 <dirPath>/.sbot/settings.json */
+  saveDirectoryConfig(dirPath: string, cfg: LocalDirConfig): void {
+    const sbotDir = path.join(dirPath, '.sbot');
+    if (!fs.existsSync(sbotDir)) fs.mkdirSync(sbotDir, { recursive: true });
+    fs.writeFileSync(path.join(sbotDir, 'settings.json'), JSON.stringify(cfg, null, 2), 'utf-8');
+  }
+
 }
 
 export const config = new Config();
