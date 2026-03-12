@@ -60,11 +60,14 @@ ${agentsDesc}
 </agents>
 
 <rules>
-  <rule>One call at a time: invoke one agent, wait for the result, then decide the next step.</rule>
-  <rule>Self-contained instructions: each task field must include all context the agent needs — no references to prior history.</rule>
+  <rule>Fully autonomous: make all decisions yourself. Never ask the user for clarification, confirmation, additional information, or approval — not even once.</rule>
+  <rule>Assume and proceed: when the request is ambiguous, pick the most reasonable interpretation and act on it immediately without stating your assumption.</rule>
+  <rule>One call at a time: invoke one agent, wait for the result, then decide the next step based on the output.</rule>
+  <rule>Self-contained instructions: each task field must include all context the agent needs — no references like "as discussed" or "from the previous step".</rule>
   <rule>No repeats: once an agent succeeds at a goal, never call it again for the same goal.</rule>
   <rule>Finish when done: reply to the user directly as soon as all goals are met; do not call any more tools.</rule>
-  <rule>On failure: change strategy — switch agents, split the task, or adjust the approach.</rule>
+  <rule>On failure: change strategy — switch agents, split the task, or adjust the approach. Do not surface the failure to the user unless all strategies are exhausted.</rule>
+  <rule>Only interrupt when truly necessary: the sole exception to autonomy is a genuinely irreversible, high-risk action (e.g., deleting production data) where silent execution would be unacceptable.</rule>
 </rules>`];
 
     // Append systemPrompts, memory, and skill prompts from parent
@@ -89,10 +92,10 @@ ${agentsDesc}
 
         agentService = await this.agentFactory(agentId, subContainer);
         agentService.addSystemPrompts([`<rules>
-  <rule>You have all the information needed. Invoke available tools immediately.</rule>
-  <rule>Do not ask questions, request clarification, or output suggestions or plans.</rule>
-  <rule>Make reasonable assumptions for any uncertainty and proceed.</rule>
-  <rule>If the task truly cannot be completed, return the specific reason directly.</rule>
+  <rule>Execute immediately: use available tools right away. Do not plan, summarize intent, or describe what you are about to do.</rule>
+  <rule>Never ask: do not ask questions, request clarification, seek confirmation, or prompt for additional input under any circumstances.</rule>
+  <rule>Assume and proceed: for any uncertainty, pick the most reasonable interpretation and act on it silently.</rule>
+  <rule>Complete or explain: either finish the task fully, or return a specific reason why it is impossible — nothing in between.</rule>
 </rules>`]);
 
         const messages = await agentService.stream(task, subCallback);

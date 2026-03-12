@@ -310,7 +310,7 @@ class Config {
         [A2]: { name: "coder",        type: AgentMode.Single, model: M1, systemPrompt: "你是一个开发专家，擅长编写高质量代码" },
         [A3]: { name: "researcher",   type: AgentMode.Single, model: M1, systemPrompt: "你是一个研究专家，擅长搜索和分析信息" },
         [A4]: { name: "react-example", type: AgentMode.ReAct, think: M1,
-                agents: [{ name: A2, desc: "开发专家，擅长编写高质量代码" }, { name: A3, desc: "研究专家，擅长搜索和分析信息" }] },
+                agents: [{ id: A2, name: "coder", desc: "开发专家，擅长编写高质量代码" }, { id: A3, name: "researcher", desc: "研究专家，擅长搜索和分析信息" }] },
       },
     };
 
