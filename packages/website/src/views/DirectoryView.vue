@@ -1,20 +1,28 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import { marked } from 'marked'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 import { useChatSocket } from '@/composables/useChatSocket'
-import type { ChatMessage, ToolCall } from '@/types'
+import type { ChatMessage } from '@/types'
 import DirectoryModal from './DirectoryModal.vue'
 import SaverViewModal from './SaverViewModal.vue'
+import ChatPanel from '@/components/ChatPanel.vue'
 
 type LocalDirCfg = { agent?: string; saver?: string; memory?: string }
+
+interface Attachment {
+  name: string
+  type: string
+  dataUrl?: string
+  content?: string
+}
 
 const { show } = useToast()
 const { send: wsSend, onMessage: wsOnMessage, offMessage: wsOffMessage, waitForOpen } = useChatSocket()
 const directoryModal = ref<InstanceType<typeof DirectoryModal>>()
 const saverViewModal  = ref<InstanceType<typeof SaverViewModal>>()
+const chatPanelRef = ref<InstanceType<typeof ChatPanel>>()
 
 // ── 无效路径 ──────────────────────────────────────────────
 const invalidDirs = ref<string[]>([])
@@ -122,7 +130,6 @@ async function saveConfig(patch: Partial<LocalDirCfg>) {
 // ── 历史记录 ──────────────────────────────────────────────
 function historyUrl(): string | null {
   if (!activeDir.value || !activeCfg.value?.saver) return null
-  // thread ID = 目录路径（HTTP chat 用 workPath 作为会话标识）
   return `/api/savers/${encodeURIComponent(activeCfg.value.saver)}/threads/${encodeURIComponent(activeDir.value)}/history`
 }
 
@@ -133,7 +140,7 @@ async function refreshHistory() {
     const res = await apiFetch(url)
     messages.value = res.data || []
     await nextTick()
-    scrollToBottom()
+    chatPanelRef.value?.scrollToBottom()
   } catch { messages.value = [] }
 }
 
@@ -151,84 +158,36 @@ async function clearHistory() {
 
 // ── Chat state ────────────────────────────────────────────
 const messages        = ref<ChatMessage[]>([])
-const chatInput       = ref('')
 const chatSending     = ref(false)
 const isStreaming     = ref(false)
 const streamingContent   = ref('')
 const streamingToolCalls = ref<{ name: string; args: unknown }[]>([])
-const messagesEl      = ref<HTMLElement | null>(null)
 
-function isAtBottom(): boolean {
-  if (!messagesEl.value) return true
-  const el = messagesEl.value
-  return el.scrollHeight - el.scrollTop - el.clientHeight < 60
-}
-
-function scrollToBottom(force = false) {
-  if (messagesEl.value && (force || isAtBottom())) {
-    messagesEl.value.scrollTop = messagesEl.value.scrollHeight
-  }
-}
-
-function renderMd(content: string): string {
-  return marked.parse(content) as string
-}
-
-function fmtTs(ts?: string) {
-  if (!ts) return ''
-  try {
-    const d = new Date(ts)
-    const now = new Date()
-    const pad = (n: number) => n.toString().padStart(2, '0')
-    const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`
-    if (d.toDateString() === now.toDateString()) return time
-    if (d.getFullYear() === now.getFullYear()) return `${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${time}`
-    return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${time}`
-  } catch { return '' }
-}
-
-function toggleToolCall(el: HTMLElement) {
-  el.classList.toggle('expanded')
-  const detail = el.nextElementSibling as HTMLElement
-  if (detail) detail.classList.toggle('show')
-}
-
-function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
-}
-
-function autoResize(e: Event) {
-  const el = e.target as HTMLTextAreaElement
-  el.style.height = 'auto'
-  el.style.height = Math.min(el.scrollHeight, 200) + 'px'
-}
-
-async function send() {
+async function onPanelSend(query: string, atts: Attachment[]) {
   if (!activeDir.value)         { show('请先选择目录', 'error'); return }
   if (!activeCfg.value?.agent)  { show('请先配置 Agent', 'error'); return }
   if (!activeCfg.value?.saver)  { show('请先配置存储', 'error'); return }
-  const query = chatInput.value.trim()
-  if (!query) return
-  chatInput.value = ''
-  await sendOne(query)
+  if (!query && atts.length === 0) return
+  await sendOne(query, atts)
 }
 
-async function sendOne(query: string) {
+async function sendOne(query: string, atts: Attachment[]) {
   chatSending.value = true
   isStreaming.value = true
   streamingContent.value = ''
   streamingToolCalls.value = []
 
-  messages.value.push({ role: 'human', content: query, timestamp: new Date().toISOString() })
+  const displayContent = [query, ...atts.map(a => `[附件: ${a.name}]`)].filter(Boolean).join('\n')
+  messages.value.push({ role: 'human', content: displayContent, timestamp: new Date().toISOString() })
   await nextTick()
-  scrollToBottom(true)
+  chatPanelRef.value?.scrollToBottom(true)
 
   try {
     await waitForOpen()
     wsSend({
-      type: 'message',
       query,
       workPath: activeDir.value!,
+      attachments: atts.length ? atts : undefined,
     })
   } catch (e: any) {
     show(e.message, 'error')
@@ -241,7 +200,6 @@ async function handleWsEvent(evt: any) {
   if (evt.workPath && evt.workPath !== activeDir.value) return
   if (evt.type === 'stream') {
     streamingContent.value = evt.content
-    await nextTick(); scrollToBottom()
   } else if (evt.type === 'message') {
     messages.value.push({
       role: evt.role, content: evt.content,
@@ -250,7 +208,6 @@ async function handleWsEvent(evt: any) {
     })
     streamingContent.value = ''
     streamingToolCalls.value = []
-    await nextTick(); scrollToBottom()
   } else if (evt.type === 'tool_call') {
     messages.value.push({
       role: 'ai',
@@ -258,7 +215,6 @@ async function handleWsEvent(evt: any) {
       timestamp: new Date().toISOString(),
     })
     streamingToolCalls.value.push({ name: evt.name, args: evt.args })
-    await nextTick(); scrollToBottom()
   } else if (evt.type === 'done') {
     isStreaming.value = false
     chatSending.value = false
@@ -333,7 +289,7 @@ onUnmounted(() => { wsOffMessage(handleWsEvent) })
       <!-- 右侧聊天面板 -->
       <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
 
-        <!-- 工具栏（与 ChatView 保持一致） -->
+        <!-- 工具栏 -->
         <div class="page-toolbar">
           <template v-if="activeDir && activeCfg !== null && !loadingCfg">
             <span class="page-toolbar-title" :title="activeDir">{{ dirDisplayName(activeDir) }}</span>
@@ -398,114 +354,19 @@ onUnmounted(() => { wsOffMessage(handleWsEvent) })
           请从左侧选择目录，或点击「新增目录」
         </div>
 
-        <!-- 聊天区域 -->
-        <template v-else>
-          <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
-
-            <!-- 消息列表 -->
-            <div ref="messagesEl" style="flex:1;overflow-y:auto">
-              <div class="history-messages">
-                <template v-if="messages.length === 0 && !isStreaming">
-                  <div style="text-align:center;color:#94a3b8;padding:60px">
-                    <template v-if="!activeCfg?.agent || !activeCfg?.saver">
-                      请先在工具栏配置 Agent 和存储
-                    </template>
-                    <template v-else>
-                      暂无对话历史，发送消息开始对话
-                    </template>
-                  </div>
-                </template>
-
-                <template v-for="(msg, idx) in messages" :key="idx">
-                  <template v-if="msg.role !== 'tool'">
-                    <div v-if="msg.role === 'human'" class="msg-row human">
-                      <div class="msg-bubble human">
-                        <div class="msg-role-bar">
-                          <span class="msg-role">用户</span>
-                          <span v-if="msg.timestamp" class="msg-time">{{ fmtTs(msg.timestamp) }}</span>
-                        </div>
-                        {{ msg.content }}
-                      </div>
-                    </div>
-                    <div v-else-if="msg.role === 'ai'" class="msg-row ai">
-                      <div v-if="msg.content" class="msg-bubble ai">
-                        <div class="msg-role-bar">
-                          <span class="msg-role">AI</span>
-                          <span v-if="msg.timestamp" class="msg-time">{{ fmtTs(msg.timestamp) }}</span>
-                        </div>
-                        <div class="md-content" v-html="renderMd(msg.content)" />
-                      </div>
-                      <div v-if="msg.tool_calls && msg.tool_calls.length > 0" class="msg-tool-calls">
-                        <div class="msg-role">Tool Calls ({{ msg.tool_calls.length }})</div>
-                        <div v-for="tc in msg.tool_calls" :key="(tc as ToolCall).id" class="tool-call-item">
-                          <div class="tool-call-header" @click="toggleToolCall($event.currentTarget as HTMLElement)">
-                            <span class="tool-call-name">{{ (tc as ToolCall).name }}</span>
-                          </div>
-                          <div class="tool-call-detail">
-                            <div class="tool-call-args">{{ JSON.stringify((tc as ToolCall).args, null, 2) }}</div>
-                            <template v-for="m2 in messages" :key="'r' + (m2.tool_call_id || '')">
-                              <div v-if="m2.role === 'tool' && m2.tool_call_id === (tc as ToolCall).id" class="tool-call-result">
-                                <div class="tool-call-result-label">返回结果</div>
-                                {{ m2.content }}
-                              </div>
-                            </template>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div v-else class="msg-row ai">
-                      <div class="msg-bubble ai">
-                        <div class="msg-role-bar">
-                          <span class="msg-role">{{ msg.role }}</span>
-                          <span v-if="msg.timestamp" class="msg-time">{{ fmtTs(msg.timestamp) }}</span>
-                        </div>
-                        {{ msg.content }}
-                      </div>
-                    </div>
-                  </template>
-                </template>
-
-                <!-- 流式输出 -->
-                <div v-if="isStreaming" class="msg-row ai">
-                  <div class="msg-bubble ai streaming">
-                    <div class="msg-role-bar"><span class="msg-role">AI</span></div>
-                    <div v-if="streamingContent" class="md-content" v-html="renderMd(streamingContent)" />
-                    <span v-else style="color:#94a3b8">思考中…</span>
-                  </div>
-                  <div v-for="(tc, i) in streamingToolCalls" :key="i" class="msg-tool-calls">
-                    <div class="msg-role">Tool Call</div>
-                    <div class="tool-call-item">
-                      <div class="tool-call-header expanded" @click="toggleToolCall($event.currentTarget as HTMLElement)">
-                        <span class="tool-call-name">{{ tc.name }}</span>
-                      </div>
-                      <div class="tool-call-detail show">
-                        <div class="tool-call-args">{{ JSON.stringify(tc.args, null, 2) }}</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 输入栏 -->
-            <div class="chat-input-bar">
-              <div style="flex:1">
-                <textarea
-                  v-model="chatInput"
-                  placeholder="输入消息，Enter 发送，Shift+Enter 换行…"
-                  rows="3"
-                  @keydown="onKeydown"
-                  @input="autoResize"
-                  style="resize:none;width:100%"
-                />
-              </div>
-              <div style="display:flex;flex-direction:column;gap:6px;align-self:flex-end">
-                <button class="btn-primary" :disabled="chatSending" @click="send">发送</button>
-              </div>
-            </div>
-
-          </div>
-        </template>
+        <!-- 聊天面板 -->
+        <ChatPanel
+          v-else
+          ref="chatPanelRef"
+          :messages="messages"
+          :is-streaming="isStreaming"
+          :streaming-content="streamingContent"
+          :streaming-tool-calls="streamingToolCalls"
+          :chat-sending="chatSending"
+          :empty-text="!activeCfg?.agent || !activeCfg?.saver ? '请先在工具栏配置 Agent 和存储' : '暂无对话历史，发送消息开始对话'"
+          :show-attachments="true"
+          @send="onPanelSend"
+        />
 
       </div>
     </div>
@@ -591,68 +452,4 @@ onUnmounted(() => { wsOffMessage(handleWsEvent) })
 }
 .dir-item:hover .dir-del-btn { color: #94a3b8; }
 .dir-del-btn:hover { color: #ef4444 !important; }
-
-/* ── 工具栏（与 ChatView 一致） ── */
-.toolbar-label {
-  font-size: 12px;
-  color: #9b9b9b;
-  white-space: nowrap;
-}
-.toolbar-select-sm {
-  font-size: 12px;
-  padding: 2px 6px;
-  border: 1px solid #e2e8f0;
-  border-radius: 5px;
-  background: #fff;
-  color: #1e293b;
-  cursor: pointer;
-  max-width: 120px;
-}
-.toolbar-select-sm:focus { outline: none; border-color: #1c1c1c; }
-
-/* ── 消息区域（与 ChatView 一致） ── */
-.history-messages { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
-.msg-row { display: flex; }
-.msg-row.human { justify-content: flex-end; }
-.msg-row.ai    { justify-content: flex-start; flex-direction: column; gap: 6px; }
-.msg-bubble {
-  max-width: 72%;
-  padding: 10px 14px;
-  border-radius: 12px;
-  font-size: 14px;
-  line-height: 1.6;
-  word-break: break-word;
-}
-.msg-bubble.human { background: #1c1c1c; color: #fff; border-bottom-right-radius: 4px; }
-.msg-bubble.ai    { background: #f5f4f2; color: #1c1c1c; border-bottom-left-radius: 4px; }
-.msg-bubble.streaming { opacity: .85; }
-.msg-role-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-.msg-role  { font-size: 11px; font-weight: 600; opacity: .6; }
-.msg-time  { font-size: 11px; opacity: .45; }
-.msg-tool-calls {
-  max-width: 72%;
-  background: #fafaf9;
-  border: 1px solid #e8e6e3;
-  border-radius: 8px;
-  padding: 8px 12px;
-  font-size: 12px;
-}
-.tool-call-item  { margin-top: 6px; }
-.tool-call-header {
-  display: flex; align-items: center; gap: 6px;
-  cursor: pointer; padding: 4px 0;
-}
-.tool-call-header::before { content: '▶'; font-size: 10px; color: #9b9b9b; transition: transform .15s; }
-.tool-call-header.expanded::before { transform: rotate(90deg); }
-.tool-call-name  { font-weight: 600; color: #374151; }
-.tool-call-detail { display: none; }
-.tool-call-detail.show { display: block; }
-.tool-call-args  {
-  font-family: monospace; font-size: 11px; color: #6b7280;
-  background: #f8f7f5; border-radius: 4px;
-  padding: 6px 8px; white-space: pre-wrap; word-break: break-all;
-  max-height: 200px; overflow-y: auto;
-}
-.tool-call-result { margin-top: 6px; }
-.tool-call-result-label { font-weight: 600; color: #374151; font-size: 11px; margin-bottom: 3px; }
 </style>

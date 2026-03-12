@@ -34,6 +34,34 @@ function toJsonSchema(schema: any): any {
     return schema;
 }
 
+// ===== 附件处理 =====
+type AttachmentInput = { name: string; type: string; dataUrl?: string; content?: string };
+
+function xmlAttr(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function processAttachments(query: string, attachments: AttachmentInput[] | undefined, uploadDir: string): string {
+    if (!attachments?.length) return query;
+    const parts: string[] = [];
+    for (const att of attachments) {
+        const filePath = path.join(uploadDir, `${randomUUID()}-${att.name}`);
+        if (att.dataUrl) {
+            const base64 = att.dataUrl.replace(/^data:[^;]+;base64,/, '');
+            fs.writeFileSync(filePath, Buffer.from(base64, 'base64'));
+        } else if (att.content != null) {
+            const isText = !att.type || att.type.startsWith('text/') || att.type === 'application/json';
+            fs.writeFileSync(filePath, isText ? att.content : Buffer.from(att.content, 'binary'));
+        } else {
+            continue;
+        }
+        parts.push(`  <attachment name="${xmlAttr(att.name)}" type="${xmlAttr(att.type)}" path="${xmlAttr(filePath)}" />`);
+    }
+    if (parts.length === 0) return query;
+    const xml = `<attachments>\n${parts.join('\n')}\n</attachments>`;
+    return query ? `${query}\n\n${xml}` : xml;
+}
+
 // ===== Skills 辅助函数 =====
 function listSkills(skillsDir: string) {
     if (!fs.existsSync(skillsDir)) return [];
@@ -766,22 +794,7 @@ class HttpServer {
                 workPath?: string;
                 attachments?: { name: string; type: string; dataUrl?: string; content?: string }[];
             };
-            let enriched = query?.trim() || '';
-            if (attachments?.length) {
-                for (const att of attachments) {
-                    const label = att.type?.startsWith('image/') ? '图片附件' : '文件附件';
-                    const filePath = path.join(uploadDir, `${randomUUID()}-${att.name}`);
-                    if (att.dataUrl) {
-                        const base64 = att.dataUrl.replace(/^data:[^;]+;base64,/, '');
-                        fs.writeFileSync(filePath, Buffer.from(base64, 'base64'));
-                        enriched += `\n\n[${label}: ${att.name}]\n${filePath}`;
-                    } else if (att.content != null) {
-                        const isText = !att.type || att.type.startsWith('text/') || att.type === 'application/json';
-                        fs.writeFileSync(filePath, isText ? att.content : Buffer.from(att.content, 'binary'));
-                        enriched += `\n\n[${label}: ${att.name}]\n${filePath}`;
-                    }
-                }
-            }
+            const enriched = processAttachments(query?.trim() || '', attachments, uploadDir);
             if (!enriched) { res.status(400).json({ error: '消息内容不能为空' }); return; }
             try {
                 await userService.onReceiveHttpMessage(enriched, res, sessionId, workPath);
@@ -798,29 +811,12 @@ class HttpServer {
             ws.on('message', (data) => {
                 try {
                     const msg = JSON.parse(data.toString()) as {
-                        type: string;
                         query?: string;
                         sessionId?: string;
                         workPath?: string;
                         attachments?: { name: string; type: string; dataUrl?: string; content?: string }[];
                     };
-                    if (msg.type !== 'message') return;
-                    let enriched = msg.query?.trim() || '';
-                    if (msg.attachments?.length) {
-                        for (const att of msg.attachments) {
-                            const label = att.type?.startsWith('image/') ? '图片附件' : '文件附件';
-                            const filePath = path.join(uploadDir, `${randomUUID()}-${att.name}`);
-                            if (att.dataUrl) {
-                                const base64 = att.dataUrl.replace(/^data:[^;]+;base64,/, '');
-                                fs.writeFileSync(filePath, Buffer.from(base64, 'base64'));
-                                enriched += `\n\n[${label}: ${att.name}]\n${filePath}`;
-                            } else if (att.content != null) {
-                                const isText = !att.type || att.type.startsWith('text/') || att.type === 'application/json';
-                                fs.writeFileSync(filePath, isText ? att.content : Buffer.from(att.content, 'binary'));
-                                enriched += `\n\n[${label}: ${att.name}]\n${filePath}`;
-                            }
-                        }
-                    }
+                    const enriched = processAttachments(msg.query?.trim() || '', msg.attachments, uploadDir);
                     if (enriched) userService.onReceiveWebMessage(enriched, ws, msg.sessionId, msg.workPath);
                 } catch { /* ignore malformed messages */ }
             });
