@@ -13,6 +13,9 @@ export type WebChatEvent =
 
 export class WebSocketUserService {
     private activeWs: WebSocket | null = null;
+    // 用于标识当前请求归属，回传给前端以便过滤
+    private activeSessionId: string | undefined;
+    private activeWorkPath: string | undefined;
 
     private setWs(ws: WebSocket): void {
         this.activeWs = ws;
@@ -27,6 +30,11 @@ export class WebSocketUserService {
         this.activeWs = null;
     }
 
+    private clearContext(): void {
+        this.activeSessionId = undefined;
+        this.activeWorkPath = undefined;
+    }
+
     // ===== Called by UserService =====
 
     async startProcessMessage(_query: string, args: any): Promise<string> {
@@ -36,11 +44,13 @@ export class WebSocketUserService {
 
     async onMessageProcessed(): Promise<void> {
         this.emit({ type: 'done' });
+        this.clearContext();
         this.clearWs();
     }
 
     async processMessageError(e: any): Promise<void> {
         this.emit({ type: 'error', message: e.message });
+        this.clearContext();
         this.clearWs();
     }
 
@@ -74,16 +84,30 @@ export class WebSocketUserService {
             executeTool: this.executeAgentTool.bind(this),
             convertImages: async (r: MCPToolResult) => r,
         };
-        const sessionId = args?.sessionId as string;
-        const session = sessionId ? config.getSession(sessionId) : undefined;
-        if (!session) throw new Error(`会话 "${sessionId}" 不存在`);
-        await AgentRunner.run(query, callbacks, session.agent, session.saver, `session_${sessionId}`, undefined, session.memory);
+        if (args?.workPath) {
+            // 目录模式：从 workPath/.sbot/settings.json 读取 agent/saver/memory
+            this.activeWorkPath = args.workPath;
+            const localCfg = config.getDirectoryConfig(args.workPath);
+            if (!localCfg || !localCfg.agent) throw new Error(`目录 "${args.workPath}"  未配置 agent`);
+            const workPath = args.workPath?.replace(/[:/\\]/g, '_');
+            await AgentRunner.run(query, callbacks, localCfg.agent, localCfg.saver ?? '', `dir_${workPath}`, undefined, localCfg.memory, args.workPath);
+        } else {
+            // 会话模式：通过 sessionId 查找全局会话配置
+            const sessionId = args?.sessionId as string;
+            this.activeSessionId = sessionId;
+            const session = sessionId ? config.getSession(sessionId) : undefined;
+            if (!session) throw new Error(`会话 "${sessionId}" 不存在`);
+            await AgentRunner.run(query, callbacks, session.agent, session.saver, `session_${sessionId}`, undefined, session.memory);
+        }
     }
 
     private emit(event: WebChatEvent) {
         if (!this.activeWs) return;
         if (this.activeWs.readyState === WebSocket.OPEN) {
-            this.activeWs.send(JSON.stringify(event));
+            const ctx: any = {};
+            if (this.activeSessionId) ctx.sessionId = this.activeSessionId;
+            if (this.activeWorkPath)  ctx.workPath  = this.activeWorkPath;
+            this.activeWs.send(JSON.stringify({ ...event, ...ctx }));
         }
     }
 }

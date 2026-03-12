@@ -115,6 +115,13 @@ export interface ChannelConfig {
 // 全局 settings.directories 只做路径注册，value 保留为空对象
 export interface DirectoryConfig {}
 
+/** 目录本地配置（存储于 <dir>/.sbot/settings.json） */
+export interface LocalDirConfig {
+  agent?:  string;
+  saver?:  string;
+  memory?: string;
+}
+
 export interface Settings {
   httpPort?: number;           // HTTP 服务监听端口，默认 5500
   httpUrl?: string;            // HTTP 服务对外访问的根 URL，默认 http://localhost:5500
@@ -481,6 +488,16 @@ class Config {
   }
   getMemoryPath(memoryName: string) {
     return this.getConfigPath(`memories/${memoryName}/memory.sqlite`)
+  }
+
+  /** 读取目录本地配置；路径不存在或解析失败时返回 null */
+  getDirectoryConfig(dirPath: string): LocalDirConfig | null {
+    try {
+      const cfgPath = path.join(dirPath, '.sbot', 'settings.json');
+      return JSON.parse(fs.readFileSync(cfgPath, 'utf-8')) as LocalDirConfig;
+    } catch {
+      return null;
+    }
   }
 
 }

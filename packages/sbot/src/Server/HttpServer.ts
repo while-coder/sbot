@@ -813,6 +813,7 @@ class HttpServer {
                         type: string;
                         query?: string;
                         sessionId?: string;
+                        workPath?: string;
                         attachments?: { name: string; type: string; dataUrl?: string; content?: string }[];
                     };
                     if (msg.type !== 'message') return;
@@ -832,7 +833,7 @@ class HttpServer {
                             }
                         }
                     }
-                    if (enriched) userService.onReceiveWebMessage(enriched, msg.sessionId ?? '', ws);
+                    if (enriched) userService.onReceiveWebMessage(enriched, ws, msg.sessionId, msg.workPath);
                 } catch { /* ignore malformed messages */ }
             });
         });
