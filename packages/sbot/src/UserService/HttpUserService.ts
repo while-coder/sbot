@@ -1,12 +1,8 @@
 import "reflect-metadata";
-import { AgentMessage, AgentToolCall, MCPToolResult } from "scorpio.ai";
 import { Response } from "express";
-import { AgentRunner } from "../Agent/AgentRunner";
-import { config } from '../Core/Config';
-import { ContextType } from '../Core/Database';
-import { WebChatEvent } from "./WebSocketUserService";
+import { BaseWebUserService, WebChatEvent } from "./BaseWebUserService";
 
-export class HttpUserService {
+export class HttpUserService extends BaseWebUserService {
     private activeRes: Response | null = null;
 
     private setResponse(res: Response): void {
@@ -39,52 +35,7 @@ export class HttpUserService {
         this.emit({ type: 'error', message: e.message });
     }
 
-    async onAgentMessage(message: AgentMessage): Promise<void> {
-        this.emit({
-            type: 'message',
-            role: message.type,
-            content: message.content,
-            tool_calls: message.tool_calls,
-        });
-    }
-
-    async onAgentStreamMessage(message: AgentMessage): Promise<void> {
-        this.emit({ type: 'stream', content: message.content ?? '' });
-    }
-
-    async executeAgentTool(toolCall: AgentToolCall): Promise<boolean> {
-        this.emit({ type: 'tool_call', name: toolCall.name, args: toolCall.args });
-        return true;
-    }
-
-    async askUser(_question: string): Promise<string> {
-        return '';
-    }
-
-    async processAIMessage(query: string, args: any): Promise<void> {
-        const callbacks = {
-            onMessage: this.onAgentMessage.bind(this),
-            onStreamMessage: this.onAgentStreamMessage.bind(this),
-            executeTool: this.executeAgentTool.bind(this),
-            convertImages: async (r: MCPToolResult) => r,
-        };
-        const workPath = args?.workPath as string | undefined;
-        if (workPath) {
-            // 目录模式：从 workPath/.sbot/settings.json 读取 agent/saver/memory
-            const localCfg = config.getDirectoryConfig(workPath);
-            if (!localCfg || !localCfg.agent) throw new Error(`目录 "${workPath}" 未配置 agent`);
-            const safeWp = workPath.replace(/[:/\\]/g, '_');
-            await AgentRunner.run(query, callbacks, localCfg.agent, localCfg.saver ?? '', `dir_${safeWp}`, ContextType.Directory, localCfg.memory, undefined, workPath);
-        } else {
-            // 会话模式：通过 sessionId 查找全局会话配置
-            const sessionId = args?.sessionId as string;
-            const session = sessionId ? config.getSession(sessionId) : undefined;
-            if (!session) throw new Error(`会话 "${sessionId}" 不存在`);
-            await AgentRunner.run(query, callbacks, session.agent, session.saver, `session_${sessionId}`, ContextType.Session, session.memory);
-        }
-    }
-
-    private emit(event: WebChatEvent) {
+    protected emit(event: WebChatEvent): void {
         if (!this.activeRes) return;
         this.activeRes.write(`data: ${JSON.stringify(event)}\n\n`);
     }

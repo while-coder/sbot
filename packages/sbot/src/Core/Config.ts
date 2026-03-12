@@ -117,8 +117,8 @@ export interface DirectoryConfig {}
 
 /** 目录本地配置（存储于 <dir>/.sbot/settings.json） */
 export interface LocalDirConfig {
-  agent?:  string;
-  saver?:  string;
+  agent:   string;
+  saver:   string;
   memory?: string;
 }
 

@@ -35,16 +35,10 @@ interface ToolCallState {
   status: ToolCallStatus;
 }
 
-interface AskUserState {
-  status: ToolCallStatus;
-  answer: string;
-}
-
 export abstract class LarkUserServiceBase extends UserServiceBase {
   provider: LarkChatProvider | undefined;
   larkService!: LarkService;
   toolCall: ToolCallState = { id: undefined, status: ToolCallStatus.None };
-  askUserState: AskUserState = { status: ToolCallStatus.None, answer: '' };
 
   // 实现基类的抽象方法
   async startProcessMessage(query: string, args: any): Promise<string> {
@@ -145,51 +139,6 @@ export abstract class LarkUserServiceBase extends UserServiceBase {
       this.toolCall.status = ToolCallStatus.None
     }
   }
-  async askUser(question: string): Promise<string> {
-    this.askUserState.status = ToolCallStatus.Wait;
-    this.askUserState.answer = '';
-    const timeout = 5 * 60 * 1000;
-    const end = NowDate() + timeout;
-
-    try {
-      await this.provider?.insertElement(undefined,
-        {
-          tag: "markdown",
-          content: question,
-          element_id: "askUserQuestion",
-        },
-        {
-          tag: "input",
-          name: "answer",
-          placeholder: { tag: "plain_text", content: "请输入..." },
-          element_id: "askUserInput",
-        },
-        {
-          tag: "button",
-          text: { tag: "plain_text", content: "确定" },
-          type: "primary_filled",
-          width: "fill",
-          size: "medium",
-          behaviors: [{ type: "callback", value: { code: "AskUser", data: {} } }],
-          element_id: "askUserConfirm",
-        },
-      );
-
-      while (this.askUserState.status === ToolCallStatus.Wait) {
-        await sleep(10);
-        if (NowDate() > end) {
-          this.askUserState.status = ToolCallStatus.Cancel;
-          break;
-        }
-      }
-
-      await this.provider?.deleteElement("askUserQuestion", "askUserInput", "askUserConfirm");
-      return this.askUserState.answer;
-    } finally {
-      this.askUserState.status = ToolCallStatus.None;
-      this.askUserState.answer = '';
-    }
-  }
   /**
    * 转换 MCP 格式结果中的图片为飞书图片格式
    */
@@ -246,12 +195,6 @@ export abstract class LarkUserServiceBase extends UserServiceBase {
       if (data.id === this.toolCall.id) {
         this.toolCall.status = data.ok ? ToolCallStatus.Ok : ToolCallStatus.Cancel;
       }
-      return;
-    }
-
-    if (code === "AskUser") {
-      this.askUserState.answer = _formValue?.answer ?? '';
-      this.askUserState.status = ToolCallStatus.Ok;
       return;
     }
 

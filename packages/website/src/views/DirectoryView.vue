@@ -130,7 +130,8 @@ async function saveConfig(patch: Partial<LocalDirCfg>) {
 // ── 历史记录 ──────────────────────────────────────────────
 function historyUrl(): string | null {
   if (!activeDir.value || !activeCfg.value?.saver) return null
-  return `/api/savers/${encodeURIComponent(activeCfg.value.saver)}/threads/${encodeURIComponent(activeDir.value)}/history`
+  const threadId = `dir_${activeDir.value.replace(/[:/\\]/g, '_')}`
+  return `/api/savers/${encodeURIComponent(activeCfg.value.saver)}/threads/${encodeURIComponent(threadId)}/history`
 }
 
 async function refreshHistory() {

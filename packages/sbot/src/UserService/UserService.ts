@@ -84,11 +84,6 @@ export class UserService extends UserServiceBase {
         return await this.web.executeAgentTool(toolCall);
     }
 
-    async askUser(question: string): Promise<string> {
-        if (this.currentContext === Context.Lark) return await this.lark.askUser(question);
-        if (this.currentContext === Context.Http) return await this.http.askUser(question);
-        return await this.web.askUser(question);
-    }
 
     async processAIMessage(query: string, args: any): Promise<void> {
         if (this.currentContext === Context.Lark) await this.lark.processAIMessage(query, args);

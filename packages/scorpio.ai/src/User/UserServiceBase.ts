@@ -128,5 +128,4 @@ export abstract class UserServiceBase {
     abstract onAgentMessage(message: AgentMessage): Promise<void>;
     abstract onAgentStreamMessage(message: AgentMessage): Promise<void>;
     abstract executeAgentTool(toolCall: AgentToolCall): Promise<boolean>;
-    abstract askUser(question: string): Promise<string>;
 }
