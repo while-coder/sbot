@@ -36,6 +36,7 @@ export interface SaverConfig {
 }
 
 export interface SubAgentRef {
+  id: string
   name: string
   desc: string
 }
@@ -66,15 +67,7 @@ export interface Agent {
   mcp?: string[]
   skills?: string[]
   // react
-  maxIterations?: number
   think?: string
-  reflect?: string
-  summarizer?: string
-  // supervisor
-  maxRounds?: number
-  supervisor?: string
-  finalize?: string
-  // shared for react/supervisor
   agents?: SubAgentRef[]
   // memory & saver (all types)
   memory?: string

@@ -8,10 +8,9 @@ import {
     ISkillService, SkillService,
     ServiceContainer, T_SystemPrompts,
     ReActAgentService, T_AgentSubNodes, T_CreateAgent, T_ThinkModelService,
-    SupervisorAgentService, T_SupervisorSubNodes, T_SupervisorMaxRounds, T_SupervisorAgentName, T_FinalizeModelService, T_SummaryModelService,
     type CreateAgentFn,
 } from "scorpio.ai";
-import { config, AgentMode, SingleAgentEntry, ReactAgentEntry, SupervisorAgentEntry } from "../Core/Config";
+import { config, AgentMode, SingleAgentEntry, ReactAgentEntry } from "../Core/Config";
 import { globalAgentToolService } from "./GlobalAgentToolService";
 import { globalSkillService } from "./GlobalSkillService";
 
@@ -30,7 +29,6 @@ export class AgentFactory {
     ): Promise<AgentServiceBase> {
         const agentEntry = config.getAgent(agentId);
 
-
         if (!container.isRegistered(IAgentSaverService)) container.registerSingleton(IAgentSaverService, AgentMemorySaver);
         const { mcp, skills } = agentEntry as SingleAgentEntry;
         await this.registerSkillService(container, agentId, skills);
@@ -46,9 +44,6 @@ export class AgentFactory {
         switch (agentType) {
             case AgentMode.ReAct:
                 return this.createReAct(container, agentEntry as ReactAgentEntry, createAgentFn);
-
-            case AgentMode.Supervisor:
-                return this.createSupervisor(container, agentEntry as SupervisorAgentEntry, createAgentFn);
 
             case AgentMode.Single:
             default:
@@ -73,6 +68,7 @@ export class AgentFactory {
         }
         skillService.registerSkillsDir(config.getAgentSkillsPath(agentName));
     }
+
     private static async registerToolService(
         container: ServiceContainer,
         agentName: string,
@@ -102,43 +98,6 @@ export class AgentFactory {
             [T_SystemPrompts]: systemPrompts,
         });
         return container.resolve(SingleAgentService);
-    }
-
-    /**
-     * 创建 Supervisor Agent
-     */
-    private static async createSupervisor(
-        container: ServiceContainer,
-        entry: SupervisorAgentEntry,
-        createAgentFn: CreateAgentFn,
-    ): Promise<AgentServiceBase> {
-        const agentRefs = entry.agents || [];
-        if (agentRefs.length === 0) {
-            throw new Error("Supervisor 模式未配置 Worker Agent");
-        }
-        if (!entry.supervisor) {
-            throw new Error("Supervisor 模式未配置 supervisor agentName");
-        }
-        if (!entry.summarizer) {
-            throw new Error("Supervisor 模式未配置 summarizer modelName");
-        }
-        if (!entry.finalize) {
-            throw new Error("Supervisor 模式未配置 finalize modelName");
-        }
-
-        const maxRounds = entry.maxRounds || 10;
-        const finalizeModelService = await config.getModelService(entry.finalize, true);
-        const summarizerModelService = await config.getModelService(entry.summarizer, true);
-
-        container.registerWithArgs(SupervisorAgentService, {
-            [T_SupervisorSubNodes]: agentRefs,
-            [T_CreateAgent]: createAgentFn,
-            [T_SupervisorAgentName]: entry.supervisor,
-            [T_SummaryModelService]: summarizerModelService,
-            [T_FinalizeModelService]: finalizeModelService,
-            [T_SupervisorMaxRounds]: maxRounds,
-        });
-        return container.resolve(SupervisorAgentService);
     }
 
     /**

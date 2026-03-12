@@ -5,7 +5,7 @@ import { createSuccessResult, createTextContent, MCPToolResult } from "./types";
 // ── Types ───────────────────────────────────────────────────────────────────
 
 export interface TaskToolParams {
-  agentName: string;
+  agentId: string;
   task: string;
 }
 
@@ -13,10 +13,10 @@ export type RunTaskFn = (params: TaskToolParams) => Promise<string>;
 
 // ── Factory ─────────────────────────────────────────────────────────────────
 
-export function createTaskTool(agentNames: string[], runFn: RunTaskFn): DynamicStructuredTool {
+export function createTaskTool(agentIds: string[], runFn: RunTaskFn): DynamicStructuredTool {
   const schema = z.object({
-    agentName: z.enum(agentNames as [string, ...string[]])
-      .describe("Name of the sub-agent to invoke"),
+    agentId: z.enum(agentIds as [string, ...string[]])
+      .describe("ID of the sub-agent to invoke"),
     task: z.string()
       .describe("Complete, self-contained task instruction with all necessary context and constraints"),
   });
@@ -26,7 +26,7 @@ export function createTaskTool(agentNames: string[], runFn: RunTaskFn): DynamicS
     description: "Dispatch a task to a specialized sub-agent and return its result.",
     schema: schema as any,
     func: async (params: any): Promise<MCPToolResult> => {
-      const result = await runFn(params as TaskToolParams);
+      const result = await runFn(params);
       return createSuccessResult(createTextContent(result));
     },
   });

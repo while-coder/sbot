@@ -67,6 +67,7 @@ export interface IAgentCallback {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface AgentSubNode {
+  id: string;
   name: string;
   desc: string;
 }

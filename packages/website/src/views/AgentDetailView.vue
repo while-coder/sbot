@@ -329,20 +329,8 @@ onMounted(refresh)
               <table style="margin:0">
                 <tbody>
                   <tr>
-                    <td style="width:160px;color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:8px 12px">最大迭代次数</td>
-                    <td style="padding:8px 12px">{{ agent.maxIterations ?? 5 }}</td>
-                  </tr>
-                  <tr>
-                    <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:8px 12px">Think Agent</td>
-                    <td style="font-family:monospace;padding:8px 12px">{{ agent.think || '-' }}</td>
-                  </tr>
-                  <tr>
-                    <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:8px 12px">Reflect 模型</td>
-                    <td style="padding:8px 12px">{{ agent.reflect ? modelName(agent.reflect as string) : '-' }}</td>
-                  </tr>
-                  <tr>
-                    <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:8px 12px">Summarizer 模型</td>
-                    <td style="padding:8px 12px">{{ agent.summarizer ? modelName(agent.summarizer as string) : '-' }}</td>
+                    <td style="width:160px;color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:8px 12px">Think 模型</td>
+                    <td style="padding:8px 12px">{{ agent.think ? modelName(agent.think as string) : '-' }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -356,39 +344,6 @@ onMounted(refresh)
             </div>
           </template>
 
-          <!-- Supervisor -->
-          <template v-else-if="agent.type === 'supervisor'">
-            <div class="card">
-              <div class="card-title">Supervisor 配置</div>
-              <table style="margin:0">
-                <tbody>
-                  <tr>
-                    <td style="width:160px;color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:8px 12px">最大调度轮次</td>
-                    <td style="padding:8px 12px">{{ agent.maxRounds ?? 10 }}</td>
-                  </tr>
-                  <tr>
-                    <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:8px 12px">Supervisor Agent</td>
-                    <td style="font-family:monospace;padding:8px 12px">{{ agent.supervisor || '-' }}</td>
-                  </tr>
-                  <tr>
-                    <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:8px 12px">Summarizer 模型</td>
-                    <td style="padding:8px 12px">{{ agent.summarizer ? modelName(agent.summarizer as string) : '-' }}</td>
-                  </tr>
-                  <tr>
-                    <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:8px 12px">Finalize 模型</td>
-                    <td style="padding:8px 12px">{{ agent.finalize ? modelName(agent.finalize as string) : '-' }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div v-if="(agent.agents as any[] | undefined)?.length" class="card">
-              <div class="card-title">Worker Agents</div>
-              <div v-for="a in (agent.agents as any[])" :key="a.name" class="sub-agent-item">
-                <div class="sub-agent-item-header"><span class="sub-agent-item-name">{{ a.name }}</span></div>
-                <div class="sub-agent-item-desc">{{ a.desc }}</div>
-              </div>
-            </div>
-          </template>
         </template>
       </template>
 

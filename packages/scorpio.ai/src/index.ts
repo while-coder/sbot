@@ -200,20 +200,11 @@ export {
   // 服务类
   SingleAgentService,
   ReActAgentService,
-  SupervisorAgentService,
 
-  // ReAct Token
+  // Token
   T_AgentSubNodes,
   T_CreateAgent,
   T_ThinkModelService,
-
-  T_SummaryModelService,
-
-  // Supervisor Token
-  T_SupervisorSubNodes,
-  T_SupervisorMaxRounds,
-  T_SupervisorAgentName,
-  T_FinalizeModelService,
 
   // 类型定义
   MessageChunkType,
@@ -226,7 +217,6 @@ export {
 export type {
   AgentSubNode,
   CreateAgentFn,
-  SupervisorState,
 } from "./Agents";
 
 // ========================================

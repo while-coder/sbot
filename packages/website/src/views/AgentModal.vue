@@ -25,10 +25,6 @@ const form = ref({
   model: '',
   systemPrompt: '',
   think: '',
-  summarizer: '',
-  maxRounds: 10,
-  supervisor: '',
-  finalize: '',
 })
 const tempSubAgents = ref<SubAgentRef[]>([])
 
@@ -42,10 +38,6 @@ function open(id?: string) {
       model: a.model || '',
       systemPrompt: a.systemPrompt || '',
       think: a.think || '',
-      summarizer: a.summarizer || '',
-      maxRounds: a.maxRounds || 10,
-      supervisor: a.supervisor || '',
-      finalize: a.finalize || '',
     }
     tempSubAgents.value = Array.isArray(a.agents) ? [...a.agents] : []
   } else {
@@ -53,8 +45,7 @@ function open(id?: string) {
     tempSubAgents.value = []
     form.value = {
       name: '', type: 'single', model: '', systemPrompt: '',
-      think: '', summarizer: '',
-      maxRounds: 10, supervisor: '', finalize: '',
+      think: '',
     }
   }
   showModal.value = true
@@ -65,10 +56,6 @@ async function save() {
   const { type } = form.value
   if (type === 'react') {
     if (!form.value.think) { show('ReAct 模式：Think 模型不能为空', 'error'); return }
-  } else if (type === 'supervisor') {
-    if (!form.value.supervisor) { show('Supervisor 模式：Supervisor Agent 不能为空', 'error'); return }
-    if (!form.value.summarizer) { show('Supervisor 模式：Summarizer 模型不能为空',   'error'); return }
-    if (!form.value.finalize)   { show('Supervisor 模式：Finalize 模型不能为空',     'error'); return }
   }
   try {
     const config: Agent = { type }
@@ -83,12 +70,10 @@ async function save() {
     } else if (type === 'react') {
       config.think  = form.value.think
       config.agents = tempSubAgents.value
-    } else if (type === 'supervisor') {
-      config.maxRounds  = form.value.maxRounds
-      config.supervisor = form.value.supervisor
-      config.summarizer = form.value.summarizer
-      config.finalize   = form.value.finalize
-      config.agents     = tempSubAgents.value
+      // 保留在专属页面配置的 mcp 和 skills
+      const existingReact = editingId.value ? agents.value[editingId.value] : null
+      if (Array.isArray(existingReact?.mcp)    && existingReact.mcp.length)    config.mcp    = existingReact.mcp
+      if (Array.isArray(existingReact?.skills) && existingReact.skills.length) config.skills = existingReact.skills
     }
 
     if (form.value.name.trim()) (config as any).name = form.value.name.trim()
@@ -109,14 +94,14 @@ async function save() {
 const showSubModal   = ref(false)
 const subModalTitle  = ref('')
 const editingSubIdx  = ref(-1)
-const subForm        = ref({ name: '', desc: '' })
+const subForm        = ref({ id: '', name: '', desc: '' })
 const subAgentExclude = ref('')
 
 function addSubAgent() {
   editingSubIdx.value   = -1
   subModalTitle.value   = '添加子 Agent'
   subAgentExclude.value = form.value.name
-  subForm.value         = { name: '', desc: '' }
+  subForm.value         = { id: '', name: '', desc: '' }
   showSubModal.value    = true
 }
 
@@ -129,9 +114,10 @@ function editSubAgent(idx: number) {
 }
 
 function saveSubAgent() {
-  if (!subForm.value.name)           { show('请选择一个 Agent', 'error'); return }
+  if (!subForm.value.id)             { show('请选择一个 Agent', 'error'); return }
+  if (!subForm.value.name.trim())    { show('名称不能为空',     'error'); return }
   if (!subForm.value.desc.trim())    { show('描述不能为空',     'error'); return }
-  const ref: SubAgentRef = { name: subForm.value.name, desc: subForm.value.desc.trim() }
+  const ref: SubAgentRef = { id: subForm.value.id, name: subForm.value.name.trim(), desc: subForm.value.desc.trim() }
   if (editingSubIdx.value >= 0) {
     tempSubAgents.value[editingSubIdx.value] = ref
   } else {
@@ -172,7 +158,6 @@ defineExpose({ open })
           <select v-model="form.type">
             <option value="single">Single (单 Agent)</option>
             <option value="react">ReAct (迭代决策)</option>
-            <option value="supervisor">Supervisor (主管调度)</option>
           </select>
         </div>
 
@@ -224,56 +209,6 @@ defineExpose({ open })
           </div>
         </template>
 
-        <!-- Supervisor fields -->
-        <template v-else-if="form.type === 'supervisor'">
-          <div class="form-section">
-            <div class="form-section-title">节点配置</div>
-            <div class="form-nodes-grid">
-              <div class="form-group">
-                <label>最大调度轮次</label>
-                <input v-model.number="form.maxRounds" type="number" min="1" max="50" placeholder="10" />
-              </div>
-              <div class="form-group">
-                <label>Supervisor Agent *</label>
-                <select v-model="form.supervisor">
-                  <option value="">请选择</option>
-                  <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }}</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label>Summarizer 模型 *</label>
-                <select v-model="form.summarizer">
-                  <option value="">请选择</option>
-                  <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label>Finalize 模型 *</label>
-                <select v-model="form.finalize">
-                  <option value="">请选择</option>
-                  <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-                </select>
-              </div>
-            </div>
-          </div>
-          <div class="form-section">
-            <div class="form-section-title">
-              Worker Agents
-              <button class="btn-outline btn-sm" @click="addSubAgent">+ 添加</button>
-            </div>
-            <div v-for="(ref, i) in tempSubAgents" :key="i" class="sub-agent-item">
-              <div class="sub-agent-item-header">
-                <span class="sub-agent-item-name">{{ ref.name }}</span>
-                <div class="ops-cell">
-                  <button class="btn-outline btn-sm" @click="editSubAgent(i)">编辑</button>
-                  <button class="btn-danger btn-sm" @click="deleteSubAgent(i)">删除</button>
-                </div>
-              </div>
-              <div class="sub-agent-item-desc">{{ ref.desc }}</div>
-            </div>
-            <div v-if="tempSubAgents.length === 0" style="color:#94a3b8;font-size:12px;padding:4px">暂无子 Agent</div>
-          </div>
-        </template>
 
       </div>
       <div class="modal-footer">
@@ -293,10 +228,14 @@ defineExpose({ open })
       <div class="modal-body">
         <div class="form-group">
           <label>Agent *</label>
-          <select v-model="subForm.name">
+          <select v-model="subForm.id">
             <option value="">请选择</option>
             <option v-for="a in subAgentSelectOptions()" :key="a.id" :value="a.id">{{ a.label }}</option>
           </select>
+        </div>
+        <div class="form-group">
+          <label>名称 *</label>
+          <input v-model="subForm.name" placeholder="LLM 调用时使用的标识名" />
         </div>
         <div class="form-group">
           <label>描述 *</label>
@@ -311,10 +250,3 @@ defineExpose({ open })
   </div>
 </template>
 
-<style scoped>
-.form-nodes-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0 16px;
-}
-</style>

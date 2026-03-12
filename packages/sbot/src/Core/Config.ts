@@ -45,17 +45,8 @@ export interface MemoryConfig {
  * Agent 运行模式
  */
 export enum AgentMode {
-  Single     = "single",      // 单 Agent 模式
-  ReAct      = "react",       // ReAct 模式：思考 -> 行动 -> 观察，迭代决策
-  Supervisor = "supervisor",  // Supervisor 模式：主管调度多个 Worker Agent
-}
-
-/**
- * 编排节点配置（用于 ReAct 的 think/reflect 节点）
- */
-export interface AgentNodeConfig {
-  model?: string;              // 使用的模型 UUID（对应 models 中的 key）
-  skills?: string[];           // 关联的 Skill 名称列表
+  Single = "single",  // 单 Agent 模式
+  ReAct  = "react",   // ReAct 模式：思考 -> 行动 -> 观察，迭代决策
 }
 
 /**
@@ -64,7 +55,7 @@ export interface AgentNodeConfig {
 export interface BaseAgentEntry {
   name?: string;               // 显示名称（可选，便于识别）
   type: AgentMode;
-  systemPrompt?: string;       // 系统提示词（single 模式直接使用；react/supervisor 模式注入所有子 Agent）
+  systemPrompt?: string;       // 系统提示词（single 模式直接使用；react 模式注入所有子 Agent）
 }
 
 /**
@@ -83,25 +74,15 @@ export interface SingleAgentEntry extends BaseAgentEntry {
 export interface ReactAgentEntry extends BaseAgentEntry {
   type: AgentMode.ReAct;
   think?: string;              // Think 节点使用的模型 UUID（对应 models 中的 key）
+  mcp?: string[];              // MCP 服务列表（对应全局 mcp 中的 key）
+  skills?: string[];           // Skill 目录列表（对应全局 skills 中的 key）
   agents: AgentSubNode[];      // 子 Agent 引用列表（name 字段为 agent UUID）
-}
-
-/**
- * Supervisor 模式 Agent 配置
- */
-export interface SupervisorAgentEntry extends BaseAgentEntry {
-  type: AgentMode.Supervisor;
-  maxRounds?: number;          // 最大调度轮次，默认 10
-  supervisor?: string;         // Supervisor 节点使用的 Agent UUID（对应 agents 中的 key）
-  summarizer?: string;         // Summarizer 节点使用的模型 UUID（对应 models 中的 key）
-  finalize?: string;           // Finalize 节点使用的模型 UUID（对应 models 中的 key）
-  agents: AgentSubNode[];      // Worker Agent 引用列表（name 字段为 agent UUID）
 }
 
 /**
  * Agent 配置条目（联合类型）
  */
-export type AgentEntry = SingleAgentEntry | ReactAgentEntry | SupervisorAgentEntry;
+export type AgentEntry = SingleAgentEntry | ReactAgentEntry;
 
 /**
  * 会话配置（覆盖全局 agent/saver/memory 等设置）
