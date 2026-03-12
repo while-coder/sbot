@@ -15,7 +15,7 @@ const logger = LoggerService.getLogger("SchedulerService.ts");
  */
 async function executeScheduler(timerId: number): Promise<void> {
     const timer = await database.findByPk<SchedulerRow>(database.scheduler, timerId);
-    if (!timer?.enabled) return;
+    if (!timer) return;
 
     const agentName = timer.agentName || undefined;
 
@@ -68,7 +68,7 @@ class SchedulerService {
     private jobs = new Map<number, CronJob>();
 
     async start(): Promise<void> {
-        const timers = await database.findAll<SchedulerRow>(database.scheduler, { where: { enabled: true } });
+        const timers = await database.findAll<SchedulerRow>(database.scheduler);
         for (const timer of timers) {
             this.schedule(timer);
         }
@@ -111,7 +111,7 @@ class SchedulerService {
     async reload(timerId: number): Promise<void> {
         this.cancel(timerId);
         const timer = await database.findByPk<SchedulerRow>(database.scheduler, timerId);
-        if (timer?.enabled) this.schedule(timer);
+        if (timer) this.schedule(timer);
     }
 
     stop(): void {

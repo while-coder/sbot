@@ -18,14 +18,11 @@ const logger = LoggerService.getLogger('Tools/Scheduler/index.ts');
 export function createSchedulerListTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'scheduler_list',
-        description: '查询所有调度任务列表，可按启用状态筛选。返回每条记录的 id、name、expr、message、agentName、userId、enabled、lastRun。',
-        schema: z.object({
-            enabled: z.boolean().optional().describe('可选：true 只返回已启用，false 只返回已禁用，不传则返回全部'),
-        }) as any,
-        func: async ({ enabled }: any): Promise<MCPToolResult> => {
+        description: '查询所有调度任务列表。返回每条记录的 id、name、expr、message、agentName、userId、lastRun。',
+        schema: z.object({}) as any,
+        func: async (): Promise<MCPToolResult> => {
             try {
-                const options = enabled !== undefined ? { where: { enabled } } : undefined;
-                const timers = await database.findAll<SchedulerRow>(database.scheduler, options);
+                const timers = await database.findAll<SchedulerRow>(database.scheduler);
                 return createSuccessResult(createTextContent(JSON.stringify(timers, null, 2)));
             } catch (e: any) {
                 logger.error(`scheduler_list 失败: ${e.message}`);
@@ -68,7 +65,6 @@ export function createSchedulerCreateTool(): StructuredToolInterface {
                     message:   message.trim(),
                     agentName: agentName.trim(),
                     userId:    userId ?? null,
-                    enabled:   true,
                     lastRun:   null,
                 });
                 await schedulerService.reload((row as any).id);

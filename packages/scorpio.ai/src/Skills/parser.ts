@@ -42,35 +42,12 @@ export function parseSkill(skillDir: string): Skill | null {
         // 解析 YAML
         const metadata = yaml.load(frontmatterText) as SkillMetadata;
 
-        // 验证必需字段
-        if (!metadata.name || !metadata.description) {
-            return null;
-        }
-
-        // 验证 name 格式（应为 kebab-case）
-        if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(metadata.name)) {
-            return null;
-        }
-
-        // 验证 name 长度
-        if (metadata.name.length > 64) {
-            return null;
-        }
-
-        // 验证 description 长度
-        if (metadata.description.length > 1024) {
-            return null;
-        }
-
-        // 验证 description 不包含 < 或 >
-        if (metadata.description.includes('<') || metadata.description.includes('>')) {
-            return null;
-        }
+        const name = metadata.name ?? path.basename(skillDir)
 
         // 构造 Skill 对象
         const skill: Skill = {
-            name: metadata.name,
-            description: metadata.description,
+            name: name,
+            description: metadata.description ?? name,
             license: metadata.license,
             path: skillDir
         };

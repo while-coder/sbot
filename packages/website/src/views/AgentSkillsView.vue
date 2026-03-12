@@ -281,10 +281,10 @@ onMounted(load)
             :style="selectedSkills.includes(s.name) ? 'background:#fafaf9' : ''"
           >
             <input type="checkbox" :value="s.name" v-model="selectedSkills" style="cursor:pointer;flex-shrink:0;width:14px;height:14px" />
-            <span style="font-family:monospace;font-weight:500;width:200px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.name }}</span>
-            <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:#64748b">{{ s.description || '-' }}</span>
             <span v-if="s.isBuiltin" style="flex-shrink:0;background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600">内置</span>
             <span v-else style="flex-shrink:0;background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600">全局</span>
+            <span style="font-family:monospace;font-weight:500;width:200px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.name }}</span>
+            <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:#64748b">{{ s.description || '-' }}</span>
             <button
               class="btn-outline btn-sm"
               style="flex-shrink:0;padding:2px 8px;font-size:11px"
@@ -334,9 +334,9 @@ onMounted(load)
           <div v-if="viewLoading" style="text-align:center;color:#94a3b8;padding:40px">加载中...</div>
           <template v-else>
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+              <span v-if="viewBadge === '内置'" style="background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600">内置</span>
+              <span v-else-if="viewBadge === '全局'" style="background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600">全局</span>
               <span style="font-family:monospace;font-size:15px;font-weight:600;color:#1e293b">{{ viewName }}</span>
-              <span v-if="viewBadge === '内置'" style="background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">内置</span>
-              <span v-else-if="viewBadge === '全局'" style="background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">全局</span>
             </div>
             <div v-if="viewParsed.description" style="margin-bottom:12px;font-size:13px;color:#475569">{{ viewParsed.description }}</div>
             <pre style="margin:0;padding:14px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;font-family:Consolas,Monaco,monospace;font-size:12px;line-height:1.6;overflow:auto;max-height:460px;white-space:pre-wrap;word-break:break-word;color:#1e293b">{{ viewParsed.body }}</pre>

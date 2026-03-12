@@ -246,8 +246,7 @@ onMounted(load)
           </tr>
           <tr v-for="s in filteredBuiltins" :key="'b-' + s.name">
             <td style="font-family:monospace">
-              {{ s.name }}
-              <span style="margin-left:6px;background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">内置</span>
+              <span style="background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;margin-right:6px">内置</span>{{ s.name }}
             </td>
             <td>{{ s.description || '-' }}</td>
             <td style="white-space:nowrap">
@@ -281,9 +280,9 @@ onMounted(load)
           <div v-if="viewLoading" style="text-align:center;color:#94a3b8;padding:40px">加载中...</div>
           <template v-else>
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+              <span v-if="viewBadge === '内置'" style="background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600">内置</span>
+              <span v-else-if="viewBadge === '全局'" style="background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600">全局</span>
               <span style="font-family:monospace;font-size:15px;font-weight:600;color:#1e293b">{{ viewName }}</span>
-              <span v-if="viewBadge === '内置'" style="background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">内置</span>
-              <span v-else-if="viewBadge === '全局'" style="background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">全局</span>
             </div>
             <div v-if="viewParsed.description" style="margin-bottom:12px;font-size:13px;color:#475569">{{ viewParsed.description }}</div>
             <pre style="margin:0;padding:14px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;font-family:Consolas,Monaco,monospace;font-size:12px;line-height:1.6;overflow:auto;max-height:460px;white-space:pre-wrap;word-break:break-word;color:#1e293b">{{ viewParsed.body }}</pre>

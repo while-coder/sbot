@@ -5,7 +5,7 @@ import { LoggerService } from "./LoggerService";
 
 const logger = LoggerService.getLogger("Database.ts");
 const DBVersionName = "db_version";
-const DBVersion = '0.0.4'
+const DBVersion = '0.0.5'
 export type MessageRow = {
   id: string;
   expireTime: number;
@@ -18,7 +18,6 @@ export type SchedulerRow = {
   message: string;     // 消息文本
   agentName: string;         // agent 名称
   userId: number | null;     // user 表 ID
-  enabled: boolean;
   lastRun: number | null;    // 上次执行时间戳
 };
 
@@ -206,12 +205,6 @@ class Database {
           allowNull: true,
           defaultValue: null,
           comment: "user 表 ID",
-        },
-        enabled: {
-          type: DataTypes.BOOLEAN,
-          allowNull: false,
-          defaultValue: true,
-          comment: "是否启用",
         },
         lastRun: {
           type: DataTypes.BIGINT,

@@ -424,9 +424,9 @@ onMounted(load)
             :style="selectedGlobals.includes(m.name) ? 'background:#fafaf9' : ''"
           >
             <input type="checkbox" :value="m.name" v-model="selectedGlobals" style="cursor:pointer;flex-shrink:0;width:14px;height:14px" />
-            <span style="font-family:monospace;font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.name }}</span>
             <span v-if="m.isBuiltin" style="flex-shrink:0;background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600">内置</span>
             <span v-else style="flex-shrink:0;background:#f5f4f2;color:#6b6b6b;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600">{{ m.desc || '自定义' }}</span>
+            <span style="font-family:monospace;font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.name }}</span>
             <button
               class="btn-outline btn-sm"
               style="flex-shrink:0;padding:2px 8px;font-size:11px"
@@ -473,8 +473,7 @@ onMounted(load)
           <tbody>
             <tr v-for="b in builtins" :key="'builtin:' + b.name">
               <td style="font-family:monospace">
-                {{ b.name }}
-                <span style="margin-left:6px;background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">内置</span>
+                <span style="background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;margin-right:6px">内置</span>{{ b.name }}
               </td>
               <td style="color:#64748b;font-size:12px">{{ b.description || '—' }}</td>
               <td>builtin</td>
