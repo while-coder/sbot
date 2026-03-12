@@ -217,7 +217,7 @@ export class SingleAgentService extends AgentServiceBase {
             .addEdge(START, GraphNodeType.AGENT)
             .addConditionalEdges(GraphNodeType.AGENT, this.agentNext.bind(this))
             .addEdge(GraphNodeType.TOOLS, GraphNodeType.AGENT);
-        this.logger?.debug(`system message: ${systemMessage?.content}`)
+        // this.logger?.debug(`system message: ${systemMessage?.content}`)
         const graphStream = graph.stream(
             { messages: historyMessages ?? [humanMessage], callback, systemMessage, tools },
         );
