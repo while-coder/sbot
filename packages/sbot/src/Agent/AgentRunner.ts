@@ -51,6 +51,8 @@ export class AgentRunner {
         ];
         if (workPath) {
             extraPrompts.push(`- **Working Directory**: ${workPath}`);
+        } else {
+            extraPrompts.push(`- **Working Directory**: ${assetsDir}/${saverThreadId}`);
         }
         if (userInfo) {
             extraPrompts.push(`## Current User

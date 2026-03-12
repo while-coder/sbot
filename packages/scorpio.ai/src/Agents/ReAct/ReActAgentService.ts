@@ -82,7 +82,7 @@ ${agentsDesc}
     if (!callback) return [];
     const { onMessage: _, ...subCallback } = callback;
 
-    const runFn: RunTaskFn = async ({ agentId, task }) => {
+    const runFn: RunTaskFn = async ({ agentId, task, systemPrompt }) => {
       let agentService: AgentServiceBase | null = null;
       try {
         const subContainer = new ServiceContainer();
@@ -91,12 +91,16 @@ ${agentsDesc}
         if (this.loggerService) subContainer.registerInstance(ILoggerService, this.loggerService);
 
         agentService = await this.agentFactory(agentId, subContainer);
-        agentService.addSystemPrompts([`<rules>
+
+        const extraPrompts: string[] = [];
+        if (systemPrompt?.trim()) extraPrompts.push(systemPrompt.trim());
+        extraPrompts.push(`<rules>
   <rule>Execute immediately: use available tools right away. Do not plan, summarize intent, or describe what you are about to do.</rule>
   <rule>Never ask: do not ask questions, request clarification, seek confirmation, or prompt for additional input under any circumstances.</rule>
   <rule>Assume and proceed: for any uncertainty, pick the most reasonable interpretation and act on it silently.</rule>
   <rule>Complete or explain: either finish the task fully, or return a specific reason why it is impossible — nothing in between.</rule>
-</rules>`]);
+</rules>`);
+        agentService.addSystemPrompts(extraPrompts);
 
         const messages = await agentService.stream(task, subCallback);
         const finalMsg = [...messages].reverse().find(
