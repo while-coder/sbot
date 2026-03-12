@@ -232,7 +232,7 @@ onMounted(load)
   <div style="display:flex;flex-direction:column;height:100%;overflow:hidden">
     <div class="page-toolbar">
       <button class="btn-outline btn-sm" @click="router.push('/agents')">← 返回</button>
-      <span class="page-toolbar-title" style="margin-left:12px">Agent: {{ agentName }} — Skills 配置</span>
+      <span class="page-toolbar-title" style="margin-left:12px">Agent: {{ (store.settings.agents?.[agentName] as any)?.name || agentName }} — Skills 配置</span>
       <button class="btn-outline btn-sm" style="margin-left:8px" @click="load">刷新</button>
     </div>
 

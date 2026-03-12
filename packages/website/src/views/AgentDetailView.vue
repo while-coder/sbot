@@ -337,9 +337,24 @@ onMounted(refresh)
             </div>
             <div v-if="(agent.agents as any[] | undefined)?.length" class="card">
               <div class="card-title">子 Agents</div>
-              <div v-for="a in (agent.agents as any[])" :key="a.name" class="sub-agent-item">
+              <div v-for="a in (agent.agents as any[])" :key="a.id" class="sub-agent-item">
                 <div class="sub-agent-item-header"><span class="sub-agent-item-name">{{ a.name }}</span></div>
                 <div class="sub-agent-item-desc">{{ a.desc }}</div>
+              </div>
+            </div>
+            <div v-if="agentMcpList.length || (agent.skills as string[] | undefined)?.length" class="card">
+              <div class="card-title">工具 & 技能</div>
+              <div v-if="agentMcpList.length" style="margin-bottom:12px">
+                <div style="font-size:12px;font-weight:600;color:#6b6b6b;margin-bottom:6px">MCP 工具</div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px">
+                  <span v-for="m in agentMcpList" :key="m" class="tag-item">{{ m }}</span>
+                </div>
+              </div>
+              <div v-if="(agent.skills as string[] | undefined)?.length">
+                <div style="font-size:12px;font-weight:600;color:#6b6b6b;margin-bottom:6px">Skills</div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px">
+                  <span v-for="s in (agent.skills as string[])" :key="s" class="tag-item">{{ s }}</span>
+                </div>
               </div>
             </div>
           </template>

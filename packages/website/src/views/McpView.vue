@@ -370,7 +370,7 @@ onMounted(load)
     <div class="page-toolbar">
       <template v-if="isAgentMode">
         <button class="btn-outline btn-sm" @click="router.push('/agents')">← 返回</button>
-        <span class="page-toolbar-title" style="margin-left:12px">Agent: {{ agentName }} — MCP 配置</span>
+        <span class="page-toolbar-title" style="margin-left:12px">Agent: {{ (store.settings.agents?.[agentName!] as any)?.name || agentName }} — MCP 配置</span>
         <button class="btn-outline btn-sm" style="margin-left:8px" @click="load">刷新</button>
       </template>
       <template v-else>

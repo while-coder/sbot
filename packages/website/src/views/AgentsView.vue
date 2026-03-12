@@ -86,8 +86,8 @@ async function refresh() {
             <td>
               <div class="ops-cell">
                 <button class="btn-outline btn-sm" @click="agentModal?.open(id as string)">编辑</button>
-                <button class="btn-outline btn-sm" :disabled="a.type !== 'single'" @click="router.push(`/agent/mcp/${id}`)">MCP</button>
-                <button class="btn-outline btn-sm" :disabled="a.type !== 'single'" @click="router.push(`/agent/skills/${id}`)">Skills</button>
+                <button class="btn-outline btn-sm" @click="router.push(`/agent/mcp/${id}`)">MCP</button>
+                <button class="btn-outline btn-sm" @click="router.push(`/agent/skills/${id}`)">Skills</button>
                 <button class="btn-outline btn-sm" @click="copyAgent(id as string)">复制</button>
                 <button class="btn-danger btn-sm" @click="removeAgent(id as string)">删除</button>
               </div>

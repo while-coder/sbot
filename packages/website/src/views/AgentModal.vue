@@ -200,7 +200,8 @@ defineExpose({ open })
             </div>
             <div v-for="(ref, i) in tempSubAgents" :key="i" class="sub-agent-item">
               <div class="sub-agent-item-header">
-                <span class="sub-agent-item-name">{{ ref.name }}</span>
+                <span class="sub-agent-item-name">{{ (agents[ref.id] as any)?.name || ref.id }}</span>
+                <span style="font-size:11px;color:#94a3b8;margin-left:6px">{{ ref.name }}</span>
                 <div class="ops-cell">
                   <button class="btn-outline btn-sm" @click="editSubAgent(i)">编辑</button>
                   <button class="btn-danger btn-sm" @click="deleteSubAgent(i)">删除</button>
