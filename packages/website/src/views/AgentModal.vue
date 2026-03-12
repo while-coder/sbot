@@ -134,7 +134,10 @@ function deleteSubAgent(idx: number) {
 }
 
 function subAgentSelectOptions() {
-  return agentOptions.value.filter(a => a.id !== subAgentExclude.value)
+  return agentOptions.value.filter(a =>
+    a.id !== subAgentExclude.value &&
+    (agents.value[a.id] as any)?.type === 'single'
+  )
 }
 
 defineExpose({ open })

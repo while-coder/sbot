@@ -5,7 +5,7 @@ import { IMemoryService, ReadOnlyMemoryService } from "../../Memory";
 import { IAgentSaverService } from "../../Saver";
 import { ILoggerService } from "../../Logger";
 import { IModelService } from "../../Model";
-import { IAgentCallback, AgentSubNode, CreateAgentFn, T_CreateAgent } from "../AgentServiceBase";
+import { type AgentServiceBase, IAgentCallback, AgentSubNode, CreateAgentFn, T_CreateAgent } from "../AgentServiceBase";
 import { T_SystemPrompts } from "../../Core";
 import { ISkillService } from "../../Skills";
 import { IAgentToolService } from "../../AgentTool";
@@ -80,14 +80,14 @@ ${agentsDesc}
     const { onMessage: _, ...subCallback } = callback;
 
     const runFn: RunTaskFn = async ({ agentId, task }) => {
-      let agentService: SingleAgentService | null = null;
+      let agentService: AgentServiceBase | null = null;
       try {
         const subContainer = new ServiceContainer();
         subContainer.registerSingleton(IAgentSaverService, AgentMemorySaver);
         if (this.memoryService) subContainer.registerInstance(IMemoryService, new ReadOnlyMemoryService(this.memoryService));
         if (this.loggerService) subContainer.registerInstance(ILoggerService, this.loggerService);
 
-        agentService = await this.agentFactory(agentId, subContainer) as SingleAgentService;
+        agentService = await this.agentFactory(agentId, subContainer);
         agentService.addSystemPrompts([`<rules>
   <rule>You have all the information needed. Invoke available tools immediately.</rule>
   <rule>Do not ask questions, request clarification, or output suggestions or plans.</rule>
