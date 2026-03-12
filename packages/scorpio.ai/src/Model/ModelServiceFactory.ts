@@ -1,12 +1,14 @@
 import { IModelService } from "./IModelService";
 import { OpenAIModelService } from "./OpenAIModelService";
 import { OllamaModelService } from "./OllamaModelService";
+import { AnthropicModelService } from "./AnthropicModelService";
 import { ModelConfig, ModelProvider } from "./types";
 
 /**
  * 模型服务工厂
  *
  * 根据 ModelConfig 创建对应的 ModelService 实例。
+ * 未知提供者默认回退到 OpenAI 兼容模式（适用于 Azure、Groq、Mistral、DeepSeek 等兼容 API）。
  *
  * @example
  * ```ts
@@ -21,8 +23,8 @@ export class ModelServiceFactory {
    */
   static async getModelService(config: ModelConfig): Promise<IModelService> {
     switch (config.provider) {
-      case ModelProvider.OpenAI: {
-        const service = new OpenAIModelService(config);
+      case ModelProvider.Anthropic: {
+        const service = new AnthropicModelService(config);
         await service.initialize();
         return service;
       }
@@ -31,8 +33,12 @@ export class ModelServiceFactory {
         await service.initialize();
         return service;
       }
-      default:
-        throw new Error(`不支持的模型提供者: ${config.provider}`);
+      // OpenAI, Azure, Groq, Mistral, DeepSeek, and any OpenAI-compatible provider
+      default: {
+        const service = new OpenAIModelService(config);
+        await service.initialize();
+        return service;
+      }
     }
   }
 }

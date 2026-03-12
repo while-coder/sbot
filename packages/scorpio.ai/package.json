@@ -9,19 +9,20 @@
     "build": "rimraf --glob \"dist/*\" && tsc -b --force"
   },
   "dependencies": {
-    "@langchain/ollama": "^1.2.6",
-    "zod": "catalog:",
-    "@langchain/openai": "^1.2.12",
+    "@langchain/anthropic": "^1.3.23",
+    "@langchain/core": "catalog:",
     "@langchain/mcp-adapters": "^1.1.3",
+    "@langchain/ollama": "^1.2.6",
+    "@langchain/openai": "^1.2.12",
     "@langchain/textsplitters": "^1.0.1",
-    "langchain": "^1.2.29",
     "better-sqlite3": "^12.6.2",
-    "pg": "^8.19.0",
     "commander": "^14.0.3",
     "js-yaml": "^4.1.1",
+    "langchain": "^1.2.29",
+    "pg": "^8.19.0",
     "reflect-metadata": "catalog:",
     "uuid": "catalog:",
-    "@langchain/core": "catalog:"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",

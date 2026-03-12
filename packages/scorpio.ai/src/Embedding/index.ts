@@ -8,6 +8,7 @@ export { IEmbeddingService } from "./IEmbeddingService";
 
 // ===== 实现类 =====
 export { OpenAIEmbeddingService } from "./OpenAIEmbeddingService";
+export { OllamaEmbeddingService } from "./OllamaEmbeddingService";
 
 // ===== 工厂和配置 =====
 export { EmbeddingServiceFactory } from "./EmbeddingServiceFactory";

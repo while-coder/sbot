@@ -3,14 +3,18 @@
  */
 export enum EmbeddingProvider {
   OpenAI = "openai",
+  Ollama = "ollama",
 }
 
 /**
  * Embedding 配置接口
  */
 export interface EmbeddingConfig {
-  provider?: EmbeddingProvider;
+  provider?: EmbeddingProvider | string;
   apiKey?: string;
   baseURL?: string;
   model?: string;
+  // Azure OpenAI specific
+  azureDeployment?: string;
+  azureApiVersion?: string;
 }
