@@ -14,6 +14,8 @@ const builtins = ref<SkillItem[]>([])
 const searchQuery = ref('')
 const activeTab = ref<'all' | 'builtin' | 'installed'>('all')
 
+const installedNames = computed(() => new Set(skills.value.map(s => s.name)))
+
 const filteredBuiltins = computed(() => {
   if (activeTab.value === 'installed') return []
   const q = searchQuery.value.trim().toLowerCase()
@@ -353,14 +355,21 @@ onMounted(load)
               <div v-if="hubSearching" style="text-align:center;color:#94a3b8;padding:40px">搜索中...</div>
               <template v-else-if="hubSearched">
                 <div v-if="hubResults.length === 0" style="text-align:center;color:#94a3b8;padding:40px">未找到相关 Skill</div>
-                <table v-else style="width:100%">
+                <table v-else style="width:100%;table-layout:fixed">
+                  <colgroup>
+                    <col style="width:200px" />
+                    <col />
+                    <col style="width:80px" />
+                    <col style="width:90px" />
+                    <col style="width:70px" />
+                  </colgroup>
                   <thead>
                     <tr><th>名称</th><th>描述</th><th>版本</th><th>来源</th><th>操作</th></tr>
                   </thead>
                   <tbody>
                     <tr v-for="s in hubResults" :key="s.provider + ':' + s.id">
-                      <td style="font-family:monospace;white-space:nowrap">{{ s.name || s.id }}</td>
-                      <td style="color:#475569;font-size:13px">{{ s.description || '-' }}</td>
+                      <td style="font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.name || s.id }}</td>
+                      <td style="color:#475569;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.description || '-' }}</td>
                       <td style="font-size:12px;color:#94a3b8;white-space:nowrap">{{ s.version || '-' }}</td>
                       <td>
                         <span v-if="s.provider === 'clawhub'"
@@ -370,8 +379,10 @@ onMounted(load)
                         <span v-else
                           style="background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">Skills.sh</span>
                       </td>
-                      <td style="white-space:nowrap;width:70px">
-                        <button class="btn-primary btn-sm" @click="openInstall(s)">安装</button>
+                      <td>
+                        <span v-if="installedNames.has(s.name || s.id)"
+                          style="background:#dcfce7;color:#16a34a;font-size:10px;padding:2px 8px;border-radius:6px;font-weight:600">已安装</span>
+                        <button v-else class="btn-primary btn-sm" @click="openInstall(s)">安装</button>
                       </td>
                     </tr>
                   </tbody>

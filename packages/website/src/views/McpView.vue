@@ -428,7 +428,6 @@ onMounted(load)
             <span v-if="m.isBuiltin" style="flex-shrink:0;background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600">内置</span>
             <span v-else style="flex-shrink:0;background:#f5f4f2;color:#6b6b6b;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600">{{ m.desc || '自定义' }}</span>
             <button
-              v-if="selectedGlobals.includes(m.name)"
               class="btn-outline btn-sm"
               style="flex-shrink:0;padding:2px 8px;font-size:11px"
               @click.prevent="viewGlobalTools(m.name)"

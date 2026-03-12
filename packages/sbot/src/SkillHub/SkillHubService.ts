@@ -17,8 +17,8 @@ export class SkillHubService {
   async searchSkills(query: string, limit = 20): Promise<HubSkillResult[]> {
     const results = await Promise.allSettled([
       _clawhub.searchSkills(query, limit),
-      _skillsSh.searchSkills(query, limit),
-      _skillsmp.searchSkills(query, limit),
+      // _skillsSh.searchSkills(query, limit),
+      // _skillsmp.searchSkills(query, limit),
     ]);
     return results
       .filter((r): r is PromiseFulfilledResult<HubSkillResult[]> => r.status === 'fulfilled')

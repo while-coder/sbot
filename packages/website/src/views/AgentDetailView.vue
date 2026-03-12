@@ -479,12 +479,12 @@ onMounted(refresh)
       <template v-else-if="activeTab === 'mcp'">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
           <div style="font-size:13px;color:#475569">此 Agent 已启用以下 MCP 工具服务器</div>
-          <button class="btn-outline btn-sm" @click="router.push(`/mcp/agent/${agentName}`)">管理工具 →</button>
+          <button class="btn-outline btn-sm" @click="router.push(`/agent/mcp/${agentName}`)">管理工具 →</button>
         </div>
         <div v-if="agentMcpList.length === 0" style="text-align:center;color:#94a3b8;padding:40px">
           尚未配置任何 MCP 工具
           <div style="margin-top:10px">
-            <button class="btn-outline btn-sm" @click="router.push(`/mcp/agent/${agentName}`)">前往配置</button>
+            <button class="btn-outline btn-sm" @click="router.push(`/agent/mcp/${agentName}`)">前往配置</button>
           </div>
         </div>
         <table v-else>

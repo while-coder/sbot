@@ -12,15 +12,6 @@ const router = useRouter()
 const agents = computed(() => store.settings.agents || {})
 const modelName = (id: string) => (store.settings.models?.[id] as any)?.name || id
 
-// ── Row dropdown ──
-const dropdownOpen = ref<string | null>(null)
-function toggleDropdown(name: string) {
-  dropdownOpen.value = dropdownOpen.value === name ? null : name
-}
-function closeDropdown() {
-  dropdownOpen.value = null
-}
-
 // ── Modal refs ──
 const agentModal = ref<InstanceType<typeof AgentModal>>()
 
@@ -67,7 +58,7 @@ async function refresh() {
 </script>
 
 <template>
-  <div style="height:100%;display:flex;flex-direction:column;overflow:hidden" @click="closeDropdown">
+  <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
     <div class="page-toolbar">
       <button class="btn-outline btn-sm" @click="refresh">刷新</button>
       <button class="btn-primary btn-sm" @click="agentModal?.open()">+ 添加 Agent</button>
@@ -95,14 +86,9 @@ async function refresh() {
             <td>
               <div class="ops-cell">
                 <button class="btn-outline btn-sm" @click="agentModal?.open(id as string)">编辑</button>
-                <div class="row-dropdown">
-                  <button class="btn-outline btn-sm" @click.stop="toggleDropdown(id as string)">···</button>
-                  <div v-if="dropdownOpen === id" class="row-dropdown-menu">
-                    <button :disabled="a.type !== 'single'" @click="router.push(`/mcp/agent/${id}`); closeDropdown()">MCP</button>
-                    <button :disabled="a.type !== 'single'" @click="router.push(`/agents/${id}/skills`); closeDropdown()">Skills</button>
-                    <button @click="copyAgent(id as string); closeDropdown()">复制</button>
-                  </div>
-                </div>
+                <button class="btn-outline btn-sm" :disabled="a.type !== 'single'" @click="router.push(`/agent/mcp/${id}`)">MCP</button>
+                <button class="btn-outline btn-sm" :disabled="a.type !== 'single'" @click="router.push(`/agent/skills/${id}`)">Skills</button>
+                <button class="btn-outline btn-sm" @click="copyAgent(id as string)">复制</button>
                 <button class="btn-danger btn-sm" @click="removeAgent(id as string)">删除</button>
               </div>
             </td>

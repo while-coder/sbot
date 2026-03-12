@@ -45,7 +45,7 @@ const menuGroups = [
     group: '管理',
     items: [
       { label: '用户管理', key: '/users' },
-      { label: '计时器管理', key: '/timers' },
+      { label: '计时器管理', key: '/scheduler' },
     ],
   },
 ]
@@ -53,7 +53,7 @@ const menuGroups = [
 const activeKey = computed(() => {
   const p = route.path
   if (p.startsWith('/agents/')) return '/agents'
-  if (p.startsWith('/mcp/agent/')) return '/mcp'
+  if (p.startsWith('/agent/mcp/')) return '/mcp'
   if (p.startsWith('/savers/') && p.endsWith('/view')) return '/savers'
   if (p.startsWith('/memories/') && p.endsWith('/view')) return '/memories'
   return p

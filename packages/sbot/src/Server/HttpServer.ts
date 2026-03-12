@@ -106,6 +106,19 @@ class HttpServer {
             next();
         });
 
+        // 请求日志（SSE 等不走 api() wrapper 的路由）
+        app.use('/api', (req, res, next) => {
+            const start = Date.now();
+            res.on('finish', () => {
+                if (res.statusCode >= 400) {
+                    logger.warn(`${req.method} ${req.path} ${res.statusCode} ${Date.now() - start}ms`);
+                } else {
+                    logger.info(`${req.method} ${req.path} ${res.statusCode} ${Date.now() - start}ms`);
+                }
+            });
+            next();
+        });
+
         // 静态文件
         app.use('/webui', express.static(path.resolve(__dirname, '../../webui')));
         app.use('/assets', express.static(config.getConfigPath('assets', true)));
@@ -342,7 +355,8 @@ class HttpServer {
 
         app.put('/api/agents/:name/mcp', api(req => {
             const agentName = req.params.name as string;
-            config.saveAgentMcpServers(agentName, req.body);
+            const servers = (req.body.servers ?? req.body) as MCPServers;
+            config.saveAgentMcpServers(agentName, servers);
             const agent = (config.settings as any).agents?.[agentName];
             return {
                 globals: (agent?.mcp as string[]) || [],
@@ -642,6 +656,8 @@ class HttpServer {
         // ===== 操作 =====
         app.post('/api/reload', api(() => {
             config.reloadSettings();
+            refreshGlobalSkillService();
+            refreshGlobalAgentToolService();
             return { message: '配置已重载' };
         }));
 

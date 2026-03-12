@@ -15,35 +15,6 @@ const modelOptions  = computed(() =>
 const agentOptions  = computed(() =>
   Object.entries(store.settings.agents || {}).map(([id, a]) => ({ id, label: (a as any).name || id }))
 )
-// MCP options with metadata
-const mcpOptionsWithMeta = computed(() => [
-  ...store.mcpBuiltins.map(b => ({ name: b.name, isBuiltin: true, desc: b.description || '' })),
-  ...Object.keys(store.mcpServers).map(k => ({ name: k, isBuiltin: false, desc: store.mcpServers[k].type || '' })),
-])
-const skillOptionsWithMeta = computed(() => [
-  ...store.skillBuiltins.map(s => ({ name: s.name, isBuiltin: true, desc: s.description || '' })),
-  ...store.globalSkills.map(s => ({ name: s.name, isBuiltin: false, desc: s.description || '' })),
-])
-
-// Search filters & collapse state
-const mcpSearch     = ref('')
-const skillSearch   = ref('')
-const mcpExpanded   = ref(false)
-const skillExpanded = ref(false)
-
-const filteredMcpOptions = computed(() => {
-  const q = mcpSearch.value.trim().toLowerCase()
-  if (!q) return mcpOptionsWithMeta.value
-  return mcpOptionsWithMeta.value.filter(m => m.name.toLowerCase().includes(q))
-})
-const filteredSkillOptions = computed(() => {
-  const q = skillSearch.value.trim().toLowerCase()
-  if (!q) return skillOptionsWithMeta.value
-  return skillOptionsWithMeta.value.filter(s =>
-    s.name.toLowerCase().includes(q) || s.desc.toLowerCase().includes(q)
-  )
-})
-
 
 // ── Main modal ──
 const showModal  = ref(false)
@@ -53,8 +24,6 @@ const form = ref({
   type: 'single',
   model: '',
   systemPrompt: '',
-  selectedMcp: [] as string[],
-  selectedSkills: [] as string[],
   maxIterations: 5,
   think: '',
   reflect: '',
@@ -74,8 +43,6 @@ function open(id?: string) {
       type: a.type || 'single',
       model: a.model || '',
       systemPrompt: a.systemPrompt || '',
-      selectedMcp: Array.isArray(a.mcp) ? [...a.mcp] : [],
-      selectedSkills: Array.isArray(a.skills) ? [...a.skills] : [],
       maxIterations: a.maxIterations || 5,
       think: a.think || '',
       reflect: a.reflect || '',
@@ -90,15 +57,10 @@ function open(id?: string) {
     tempSubAgents.value = []
     form.value = {
       name: '', type: 'single', model: '', systemPrompt: '',
-      selectedMcp: [], selectedSkills: [],
       maxIterations: 5, think: '', reflect: '', summarizer: '',
       maxRounds: 10, supervisor: '', finalize: '',
     }
   }
-  mcpSearch.value = ''
-  skillSearch.value = ''
-  mcpExpanded.value = false
-  skillExpanded.value = false
   showModal.value = true
 }
 
@@ -119,9 +81,11 @@ async function save() {
 
     if (form.value.systemPrompt) config.systemPrompt = form.value.systemPrompt
     if (type === 'single') {
-      if (form.value.model)               config.model        = form.value.model
-      if (form.value.selectedMcp.length)  config.mcp          = form.value.selectedMcp
-      if (form.value.selectedSkills.length) config.skills     = form.value.selectedSkills
+      if (form.value.model) config.model = form.value.model
+      // 保留在专属页面配置的 mcp 和 skills
+      const existing = editingId.value ? agents.value[editingId.value] : null
+      if (Array.isArray(existing?.mcp)    && existing.mcp.length)    config.mcp    = existing.mcp
+      if (Array.isArray(existing?.skills) && existing.skills.length) config.skills = existing.skills
     } else if (type === 'react') {
       config.maxIterations = form.value.maxIterations
       config.think         = form.value.think
@@ -337,86 +301,6 @@ defineExpose({ open })
               <div class="sub-agent-item-desc">{{ ref.desc }}</div>
             </div>
             <div v-if="tempSubAgents.length === 0" style="color:#94a3b8;font-size:12px;padding:4px">暂无子 Agent</div>
-          </div>
-        </template>
-
-        <!-- MCP & Skills：仅 single 类型显示 -->
-        <template v-if="form.type === 'single'">
-          <!-- MCP 折叠面板 -->
-          <div class="form-section" style="margin-top:16px">
-            <div
-              class="form-section-title"
-              style="cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px;margin-top:0"
-              @click="mcpExpanded = !mcpExpanded"
-            >
-              <span style="font-size:10px;color:#9b9b9b;transition:transform .15s;display:inline-block"
-                :style="mcpExpanded ? 'transform:rotate(90deg)' : ''">▶</span>
-              MCP 工具
-              <span v-if="form.selectedMcp.length" class="form-details-badge">{{ form.selectedMcp.length }}</span>
-            </div>
-            <template v-if="mcpExpanded">
-              <div v-if="mcpOptionsWithMeta.length === 0" style="color:#94a3b8;font-size:12px;padding:6px 0">暂无可用 MCP 服务器</div>
-              <template v-else>
-                <input
-                  v-model="mcpSearch"
-                  placeholder="搜索 MCP..."
-                  style="width:100%;margin-bottom:6px;padding:5px 8px;border:1px solid #e8e6e3;border-radius:5px;font-size:12px;outline:none"
-                />
-                <div style="border:1px solid #e8e6e3;border-radius:6px;overflow:hidden;max-height:160px;overflow-y:auto">
-                  <div v-if="filteredMcpOptions.length === 0" style="padding:12px;text-align:center;color:#9b9b9b;font-size:12px">无匹配结果</div>
-                  <label
-                    v-for="m in filteredMcpOptions"
-                    :key="m.name"
-                    style="display:flex;align-items:center;gap:8px;padding:6px 10px;cursor:pointer;border-bottom:1px solid #f5f4f2;font-size:12px"
-                    :style="form.selectedMcp.includes(m.name) ? 'background:#f0f9ff' : ''"
-                  >
-                    <input type="checkbox" :value="m.name" v-model="form.selectedMcp" style="cursor:pointer;flex-shrink:0" />
-                    <span style="font-family:monospace;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.name }}</span>
-                    <span v-if="m.isBuiltin" style="flex-shrink:0;background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 5px;border-radius:8px;font-weight:600">内置</span>
-                    <span v-else style="flex-shrink:0;background:#f5f4f2;color:#6b6b6b;font-size:10px;padding:1px 5px;border-radius:8px;font-weight:600">{{ m.desc || '自定义' }}</span>
-                  </label>
-                </div>
-              </template>
-            </template>
-          </div>
-
-          <!-- Skills 折叠面板 -->
-          <div class="form-section">
-            <div
-              class="form-section-title"
-              style="cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px"
-              @click="skillExpanded = !skillExpanded"
-            >
-              <span style="font-size:10px;color:#9b9b9b;transition:transform .15s;display:inline-block"
-                :style="skillExpanded ? 'transform:rotate(90deg)' : ''">▶</span>
-              Skills
-              <span v-if="form.selectedSkills.length" class="form-details-badge">{{ form.selectedSkills.length }}</span>
-            </div>
-            <template v-if="skillExpanded">
-              <div v-if="skillOptionsWithMeta.length === 0" style="color:#94a3b8;font-size:12px;padding:6px 0">暂无可用 Skill</div>
-              <template v-else>
-                <input
-                  v-model="skillSearch"
-                  placeholder="搜索 Skill..."
-                  style="width:100%;margin-bottom:6px;padding:5px 8px;border:1px solid #e8e6e3;border-radius:5px;font-size:12px;outline:none"
-                />
-                <div style="border:1px solid #e8e6e3;border-radius:6px;overflow:hidden;max-height:160px;overflow-y:auto">
-                  <div v-if="filteredSkillOptions.length === 0" style="padding:12px;text-align:center;color:#9b9b9b;font-size:12px">无匹配结果</div>
-                  <label
-                    v-for="s in filteredSkillOptions"
-                    :key="s.name"
-                    style="display:flex;align-items:center;gap:8px;padding:6px 10px;cursor:pointer;border-bottom:1px solid #f5f4f2;font-size:12px"
-                    :style="form.selectedSkills.includes(s.name) ? 'background:#f0fdf4' : ''"
-                  >
-                    <input type="checkbox" :value="s.name" v-model="form.selectedSkills" style="cursor:pointer;flex-shrink:0" />
-                    <span style="font-family:monospace;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.name }}</span>
-                    <span v-if="s.desc" style="flex-shrink:0;color:#6b6b6b;font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.desc }}</span>
-                    <span v-if="s.isBuiltin" style="flex-shrink:0;background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 5px;border-radius:8px;font-weight:600">内置</span>
-                    <span v-else style="flex-shrink:0;background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 5px;border-radius:8px;font-weight:600">全局</span>
-                  </label>
-                </div>
-              </template>
-            </template>
           </div>
         </template>
 

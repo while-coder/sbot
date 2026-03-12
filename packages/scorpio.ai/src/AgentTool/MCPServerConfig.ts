@@ -30,6 +30,8 @@ import type { Connection } from "@langchain/mcp-adapters";
  * - outputHandling: 工具输出的处理方式（"content" | "artifact" | 对象）
  */
 export type MCPServerConfig = Connection & {
+    /** 服务器名称 - 扩展字段 */
+    name?: string;
     /** 禁用自动批准的工具列表（需要用户确认） - 扩展字段 */
     disabledAutoApproveTools?: string[];
     /** Provider 描述 - 扩展字段 */

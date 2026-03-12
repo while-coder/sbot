@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { apiFetch } from '@/api'
+import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 import type { SkillItem } from '@/types'
 
@@ -11,9 +12,28 @@ const { show } = useToast()
 
 const agentName = route.params.agentName as string
 const skills = ref<SkillItem[]>([])
-const globals = ref<SkillItem[]>([])
 
-const activeTab = ref<'globals' | 'skills'>('skills')
+const activeTab = ref<'globals' | 'skills'>('globals')
+
+// ── Global skills selection (mirrors McpView globals tab) ──
+const agentSkillNames = ref<string[]>([])
+const selectedSkills = ref<string[]>([])
+const skillSearch = ref('')
+
+const skillsChanged = computed(() => {
+  const a = [...selectedSkills.value].sort().join(',')
+  const b = [...agentSkillNames.value].sort().join(',')
+  return a !== b
+})
+const allGlobalSkills = computed(() => [
+  ...store.skillBuiltins.map(s => ({ name: s.name, description: s.description, isBuiltin: true })),
+  ...store.globalSkills.map(s => ({ name: s.name, description: s.description, isBuiltin: false })),
+])
+const filteredGlobalSkills = computed(() => {
+  const q = skillSearch.value.trim().toLowerCase()
+  if (!q) return allGlobalSkills.value
+  return allGlobalSkills.value.filter(s => s.name.toLowerCase().includes(q) || (s.description || '').toLowerCase().includes(q))
+})
 
 function apiBase() {
   return `/api/agents/${encodeURIComponent(agentName)}/skills`
@@ -21,9 +41,32 @@ function apiBase() {
 
 async function load() {
   try {
-    const res = await apiFetch(apiBase())
-    skills.value = res.data?.skills || []
-    globals.value = res.data?.globals || []
+    const [agentRes, skillsRes] = await Promise.all([
+      apiFetch(apiBase()),
+      apiFetch('/api/skills'),
+    ])
+    skills.value = agentRes.data?.skills || []
+    const selectedFromApi: string[] = (agentRes.data?.globals || []).map((g: any) => g.name)
+    agentSkillNames.value = selectedFromApi
+    selectedSkills.value = [...selectedFromApi]
+    store.skillBuiltins = skillsRes.data?.builtins || []
+    store.globalSkills = skillsRes.data?.skills || []
+  } catch (e: any) {
+    show(e.message, 'error')
+  }
+}
+
+async function saveGlobalSkills() {
+  try {
+    const existing = (store.settings.agents || {})[agentName] || {}
+    const res = await apiFetch(
+      `/api/settings/agents/${encodeURIComponent(agentName)}`,
+      'PUT',
+      { ...existing, skills: selectedSkills.value }
+    )
+    Object.assign(store.settings, res.data)
+    agentSkillNames.value = [...selectedSkills.value]
+    show('保存成功')
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -245,7 +288,7 @@ onMounted(load)
     <div style="display:flex;border-bottom:1px solid #e8e6e3;background:#fff;padding:0 20px;flex-shrink:0">
       <button
         v-for="tab in [
-          { key: 'globals', label: '全局技能', count: globals.length },
+          { key: 'globals', label: '全局技能', count: selectedSkills.length },
           { key: 'skills',  label: '专属技能', count: skills.length },
         ]"
         :key="tab.key"
@@ -263,32 +306,40 @@ onMounted(load)
     <div class="page-content">
       <!-- Global skills tab -->
       <template v-if="activeTab === 'globals'">
-        <div v-if="globals.length === 0" style="text-align:center;color:#94a3b8;padding:40px">暂无全局 Skill</div>
-        <table v-else>
-          <thead>
-            <tr><th>名称</th><th>描述</th><th>操作</th></tr>
-          </thead>
-          <tbody>
-            <tr v-for="s in globals" :key="'g-' + s.name">
-              <td style="font-family:monospace">
-                {{ s.name }}
-                <span v-if="(s as any).isBuiltin !== false"
-                  style="margin-left:6px;background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">内置</span>
-                <span v-else
-                  style="margin-left:6px;background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">全局</span>
-              </td>
-              <td>{{ s.description || '-' }}</td>
-              <td>
-                <div class="ops-cell">
-                  <button class="btn-outline btn-sm"
-                    @click="openView(s.name, (s as any).isBuiltin !== false ? '内置' : '全局')">查看</button>
-                  <button v-if="(s as any).isBuiltin === false" class="btn-outline btn-sm"
-                    @click="openEdit(s.name, true)">编辑</button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <input
+            v-model="skillSearch"
+            placeholder="搜索 Skill 名称或描述..."
+            style="flex:1;padding:6px 10px;border:1px solid #e8e6e3;border-radius:6px;font-size:12px;outline:none"
+          />
+          <button
+            class="btn-primary btn-sm"
+            :disabled="!skillsChanged"
+            @click="saveGlobalSkills"
+          >保存</button>
+          <span v-if="skillsChanged" style="font-size:12px;color:#f59e0b;white-space:nowrap">● 有未保存的更改</span>
+        </div>
+        <div v-if="allGlobalSkills.length === 0" style="text-align:center;color:#94a3b8;padding:40px">暂无全局 Skill</div>
+        <div v-else style="border:1px solid #e8e6e3;border-radius:6px;overflow:hidden">
+          <div v-if="filteredGlobalSkills.length === 0" style="padding:20px;text-align:center;color:#9b9b9b;font-size:13px">无匹配结果</div>
+          <label
+            v-for="s in filteredGlobalSkills"
+            :key="s.name"
+            style="display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;border-bottom:1px solid #f5f4f2;font-size:13px"
+            :style="selectedSkills.includes(s.name) ? 'background:#fafaf9' : ''"
+          >
+            <input type="checkbox" :value="s.name" v-model="selectedSkills" style="cursor:pointer;flex-shrink:0;width:14px;height:14px" />
+            <span style="font-family:monospace;font-weight:500;width:200px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.name }}</span>
+            <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:#64748b">{{ s.description || '-' }}</span>
+            <span v-if="s.isBuiltin" style="flex-shrink:0;background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600">内置</span>
+            <span v-else style="flex-shrink:0;background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600">全局</span>
+            <button
+              class="btn-outline btn-sm"
+              style="flex-shrink:0;padding:2px 8px;font-size:11px"
+              @click.prevent="openView(s.name, s.isBuiltin ? '内置' : '全局')"
+            >查看</button>
+          </label>
+        </div>
       </template>
 
       <!-- Agent-specific skills tab -->
@@ -412,14 +463,21 @@ onMounted(load)
               <div v-if="hubSearching" style="text-align:center;color:#94a3b8;padding:40px">搜索中...</div>
               <template v-else-if="hubSearched">
                 <div v-if="hubResults.length === 0" style="text-align:center;color:#94a3b8;padding:40px">未找到相关 Skill</div>
-                <table v-else style="width:100%">
+                <table v-else style="width:100%;table-layout:fixed">
+                  <colgroup>
+                    <col style="width:200px" />
+                    <col />
+                    <col style="width:80px" />
+                    <col style="width:90px" />
+                    <col style="width:70px" />
+                  </colgroup>
                   <thead>
                     <tr><th>名称</th><th>描述</th><th>版本</th><th>来源</th><th>操作</th></tr>
                   </thead>
                   <tbody>
                     <tr v-for="s in hubResults" :key="s.provider + ':' + s.id">
-                      <td style="font-family:monospace;white-space:nowrap">{{ s.name || s.id }}</td>
-                      <td style="color:#475569;font-size:13px">{{ s.description || '-' }}</td>
+                      <td style="font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.name || s.id }}</td>
+                      <td style="color:#475569;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.description || '-' }}</td>
                       <td style="font-size:12px;color:#94a3b8;white-space:nowrap">{{ s.version || '-' }}</td>
                       <td>
                         <span v-if="s.provider === 'clawhub'"
@@ -429,7 +487,7 @@ onMounted(load)
                         <span v-else
                           style="background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">Skills.sh</span>
                       </td>
-                      <td style="white-space:nowrap;width:70px">
+                      <td>
                         <button class="btn-primary btn-sm" @click="openInstall(s)">安装</button>
                       </td>
                     </tr>
