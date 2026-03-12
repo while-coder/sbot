@@ -111,6 +111,10 @@ export interface ChannelConfig {
   memory?: string;             // 使用的记忆配置 UUID（对应 memories 中的 key）
 }
 
+export interface DirectoryConfig {
+  [key: string]: unknown;
+}
+
 export interface Settings {
   httpPort?: number;           // HTTP 服务监听端口，默认 5500
   httpUrl?: string;            // HTTP 服务对外访问的根 URL，默认 http://localhost:5500
@@ -121,6 +125,7 @@ export interface Settings {
   agents?: Record<string, AgentEntry>;
   sessions?: Record<string, SessionConfig>;
   channels?: Record<string, ChannelConfig>;
+  directories?: Record<string, DirectoryConfig>;
 }
 
 class Config {

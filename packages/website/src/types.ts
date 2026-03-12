@@ -94,6 +94,10 @@ export interface ChannelConfig {
   [key: string]: unknown
 }
 
+export interface DirectoryConfig {
+  [key: string]: unknown
+}
+
 export interface Settings {
   httpPort?: number
   httpUrl?: string
@@ -104,6 +108,7 @@ export interface Settings {
   savers?: Record<string, SaverConfig>
   sessions?: Record<string, SessionConfig>
   channels?: Record<string, ChannelConfig>
+  directories?: Record<string, DirectoryConfig>
   [key: string]: unknown
 }
 
@@ -146,4 +151,10 @@ export interface MemoryItem {
   timestamp?: number
   accessCount?: number
   lastAccessed?: number
+}
+
+export interface LocalConfig {
+  agentId: string
+  saverId: string
+  memoryId: string | null
 }

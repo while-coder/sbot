@@ -379,6 +379,7 @@ function renderMd(content: string): string {
   return marked.parse(content) as string
 }
 
+
 onMounted(() => {
   chatSocket.onMessage(handleWsMessage)
   const ids = Object.keys(sessions.value)
