@@ -1,24 +1,21 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
-// DirectoryConfig 是空接口（全局注册用），目录本地文件的实际结构用此类型
+
 type LocalDirCfg = { agent?: string; saver?: string; memory?: string }
 
 const { show } = useToast()
-const _win = window as any
 
 const emit = defineEmits<{ saved: [path: string, cfg: LocalDirCfg] }>()
 
 const showModal = ref(false)
-const saving   = ref(false)
-const reading  = ref(false)
-const browsing = ref(false)
+const saving    = ref(false)
+const reading   = ref(false)
 
 // editingPath: 非空表示编辑模式，空表示新建模式
 const editingPath = ref('')
-const browsedName = ref('')   // showDirectoryPicker 返回的目录名（仅供参考）
 const form = ref({ path: '', agent: '', saver: '', memory: '' })
 
 const agentOptions  = computed(() =>
@@ -33,9 +30,8 @@ const memoryOptions = computed(() =>
 
 function open(path = '', cfg?: LocalDirCfg) {
   editingPath.value = path
-  browsedName.value = ''
   form.value = {
-    path:   path,
+    path,
     agent:  cfg?.agent  || '',
     saver:  cfg?.saver  || '',
     memory: cfg?.memory || '',
@@ -43,35 +39,97 @@ function open(path = '', cfg?: LocalDirCfg) {
   showModal.value = true
 }
 
-// 系统目录选择器（浏览器 File System Access API）
-// 只能获取目录名，无法获得完整路径，但可直接读取本地 .sbot/settings.json 自动填充配置
-async function browse() {
-  if (!_win.showDirectoryPicker) { show('当前浏览器不支持目录选择', 'error'); return }
-  browsing.value = true
+// ── 目录浏览器 ──────────────────────────────────────────
+const pickerOpen    = ref(false)
+const pickerLoading = ref(false)
+const pickerPath    = ref('')               // 当前浏览路径
+const pickerParent  = ref<string | null>(null)
+const pickerItems   = ref<string[]>([])
+const pickerCreating  = ref(false)
+const pickerNewName   = ref('')
+const newNameInput    = ref<HTMLInputElement | null>(null)
+const pickerQuickDirs = ref<{ label: string; path: string }[]>([])
+
+function itemLabel(p: string): string {
+  // Windows 驱动器根：C:\ → 直接显示
+  if (/^[A-Za-z]:[/\\]?$/.test(p)) return p.replace(/[/\\]$/, '') + '\\'
+  const trimmed = p.replace(/[/\\]+$/, '')
+  return trimmed.split(/[/\\]/).filter(Boolean).pop() || p
+}
+
+async function navigatePicker(dir: string): Promise<boolean> {
+  pickerCreating.value = false
+  pickerNewName.value  = ''
+  pickerLoading.value  = true
   try {
-    const handle = await _win.showDirectoryPicker({ mode: 'read' }) as FileSystemDirectoryHandle
-    browsedName.value = handle.name
-    if (!form.value.path.trim()) form.value.path = handle.name
-    try {
-      const sbotDir = await handle.getDirectoryHandle('.sbot')
-      const fileHandle = await sbotDir.getFileHandle('settings.json')
-      const file = await fileHandle.getFile()
-      const cfg = JSON.parse(await file.text()) as any
+    const q = dir ? `?dir=${encodeURIComponent(dir)}` : ''
+    const res = await apiFetch(`/api/fs/list${q}`)
+    pickerPath.value   = res.data.path
+    pickerParent.value = res.data.parent
+    pickerItems.value  = res.data.items
+    return true
+  } catch (e: any) {
+    if (dir) show(e.message, 'error')
+    return false
+  } finally {
+    pickerLoading.value = false
+  }
+}
+
+function startCreate() {
+  pickerCreating.value = true
+  pickerNewName.value  = ''
+  nextTick(() => newNameInput.value?.focus())
+}
+
+function cancelCreate() {
+  pickerCreating.value = false
+  pickerNewName.value  = ''
+}
+
+async function confirmCreate() {
+  const name = pickerNewName.value.trim()
+  if (!name) return
+  try {
+    const res = await apiFetch('/api/fs/mkdir', 'POST', { path: `${pickerPath.value}/${name}` })
+    await navigatePicker(res.data.path)
+  } catch (e: any) {
+    show(e.message, 'error')
+  }
+}
+
+async function openPicker() {
+  pickerPath.value      = ''
+  pickerParent.value    = null
+  pickerItems.value     = []
+  pickerQuickDirs.value = []
+  pickerOpen.value      = true
+  // 并行：加载快速目录 + 导航到起始路径
+  apiFetch('/api/fs/quickdirs').then(r => { pickerQuickDirs.value = r.data ?? [] }).catch(() => {})
+  const startDir = form.value.path.trim()
+  if (startDir && await navigatePicker(startDir)) return
+  await navigatePicker('')
+}
+
+async function confirmPicker() {
+  const selected = pickerPath.value
+  if (!selected) return
+  pickerOpen.value = false
+  form.value.path = selected
+  // 自动静默读取本地配置
+  try {
+    const res = await apiFetch(`/api/directories?dir=${encodeURIComponent(selected)}`)
+    const cfg = res.data?.config as LocalDirCfg | null
+    if (cfg) {
       form.value.agent  = cfg.agent  || ''
       form.value.saver  = cfg.saver  || ''
       form.value.memory = cfg.memory || ''
       show('已读取配置')
-    } catch {
-      // 目录下无 .sbot/settings.json，仅填入目录名
     }
-  } catch (e: any) {
-    if (e.name !== 'AbortError') show(e.message, 'error')
-  } finally {
-    browsing.value = false
-  }
+  } catch { /* 无配置文件，忽略 */ }
 }
 
-// 从目录的 .sbot/settings.json 读取 DirectoryConfig
+// ── 手动读取配置 ─────────────────────────────────────────
 async function readLocalConfig() {
   const dir = form.value.path.trim()
   if (!dir) { show('请先输入目录路径', 'error'); return }
@@ -105,7 +163,6 @@ async function save() {
     await apiFetch('/api/directories', isEdit ? 'PUT' : 'POST', body)
     const cfg: LocalDirCfg = { agent: form.value.agent, saver: form.value.saver }
     if (form.value.memory) cfg.memory = form.value.memory
-    // 更新 store（全局 settings.directories 只记空值，本地配置由后端写入文件）
     if (!store.settings.directories) store.settings.directories = {}
     store.settings.directories[dir] = {}
     showModal.value = false
@@ -121,6 +178,7 @@ defineExpose({ open })
 </script>
 
 <template>
+  <!-- 主 Modal -->
   <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
     <div class="modal-box">
       <div class="modal-header">
@@ -138,15 +196,14 @@ defineExpose({ open })
               placeholder="本地目录完整路径，如 D:/Work/myproject"
               style="flex:1"
             />
-            <button class="btn-outline btn-sm" :disabled="browsing || !!editingPath" @click="browse">
-              {{ browsing ? '选择中…' : '浏览…' }}
+            <button class="btn-outline btn-sm" :disabled="!!editingPath" @click="openPicker">
+              浏览…
             </button>
             <button class="btn-outline btn-sm" :disabled="reading" @click="readLocalConfig">
               {{ reading ? '读取中…' : '读取配置' }}
             </button>
           </div>
-          <span v-if="browsedName" class="hint">已选择目录：{{ browsedName }}（浏览器限制无法获取完整路径，请在上方确认）</span>
-          <span v-else class="hint">「浏览」打开系统选择框自动填充配置；「读取配置」从输入路径读取</span>
+          <span class="hint">「浏览」打开目录选择器并自动填充完整路径；「读取配置」从输入路径读取</span>
         </div>
         <div class="form-group">
           <label>Agent *</label>
@@ -176,4 +233,202 @@ defineExpose({ open })
       </div>
     </div>
   </div>
+
+  <!-- 目录浏览器（叠在主 Modal 上方） -->
+  <div v-if="pickerOpen" class="modal-overlay picker-overlay" @click.self="pickerOpen = false">
+    <div class="modal-box picker-box">
+      <div class="modal-header">
+        <h3>选择目录</h3>
+        <button class="modal-close" @click="pickerOpen = false">&times;</button>
+      </div>
+
+      <!-- 当前路径 -->
+      <div class="picker-path-bar">
+        {{ pickerPath || '我的电脑' }}
+      </div>
+
+      <!-- 快速跳转 -->
+      <div v-if="pickerQuickDirs.length" class="picker-quickdirs">
+        <button
+          v-for="d in pickerQuickDirs"
+          :key="d.path"
+          class="picker-quickdir-chip"
+          :class="{ active: pickerPath === d.path }"
+          @click="navigatePicker(d.path)"
+        >{{ d.label }}</button>
+      </div>
+
+      <!-- 目录列表 -->
+      <div class="picker-list">
+        <div v-if="pickerLoading" class="picker-empty">加载中…</div>
+        <template v-else>
+          <div
+            v-if="pickerParent !== null"
+            class="picker-item picker-up"
+            @click="navigatePicker(pickerParent!)"
+          >
+            ↑ 上级目录
+          </div>
+          <!-- 新建文件夹输入行 -->
+          <div v-if="pickerCreating" class="picker-create-row">
+            <span class="picker-icon">▶</span>
+            <input
+              ref="newNameInput"
+              v-model="pickerNewName"
+              class="picker-create-input"
+              placeholder="新文件夹名称"
+              @keydown.enter="confirmCreate"
+              @keydown.escape="cancelCreate"
+            />
+            <button class="picker-create-btn" title="确认" @click="confirmCreate">✓</button>
+            <button class="picker-create-btn picker-create-cancel" title="取消" @click="cancelCreate">✕</button>
+          </div>
+          <div v-if="pickerItems.length === 0 && !pickerCreating" class="picker-empty">（无子目录）</div>
+          <div
+            v-for="item in pickerItems"
+            :key="item"
+            class="picker-item"
+            @click="navigatePicker(item)"
+          >
+            <span class="picker-icon">▶</span>{{ itemLabel(item) }}
+          </div>
+        </template>
+      </div>
+
+      <div class="modal-footer">
+        <button
+          class="btn-outline btn-sm"
+          style="margin-right:auto"
+          :disabled="!pickerPath || pickerCreating"
+          @click="startCreate"
+        >+ 新建文件夹</button>
+        <button class="btn-outline" @click="pickerOpen = false">取消</button>
+        <button class="btn-primary" :disabled="!pickerPath" @click="confirmPicker">
+          选择此目录
+        </button>
+      </div>
+    </div>
+  </div>
 </template>
+
+<style scoped>
+.picker-overlay { z-index: 1001; }
+
+.picker-box {
+  width: 480px;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.picker-path-bar {
+  padding: 7px 14px;
+  background: #f8f7f5;
+  border-bottom: 1px solid #e8e6e3;
+  font-family: monospace;
+  font-size: 12px;
+  color: #3d3d3d;
+  word-break: break-all;
+  flex-shrink: 0;
+}
+
+.picker-list {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 180px;
+}
+
+.picker-empty {
+  text-align: center;
+  padding: 40px;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.picker-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  border-bottom: 1px solid #f5f4f2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.picker-item:hover { background: #f5f4f2; }
+
+.picker-up {
+  color: #6b7280;
+  font-size: 12px;
+  border-bottom: 1px solid #e8e6e3;
+}
+
+.picker-icon {
+  color: #f59e0b;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.picker-quickdirs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 6px 12px;
+  border-bottom: 1px solid #e8e6e3;
+  background: #fafaf9;
+  flex-shrink: 0;
+}
+
+.picker-quickdir-chip {
+  padding: 2px 10px;
+  font-size: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+  color: #374151;
+  line-height: 20px;
+  transition: background .1s, border-color .1s;
+}
+.picker-quickdir-chip:hover { background: #f0efed; border-color: #9ca3af; }
+.picker-quickdir-chip.active { background: #ede9fe; border-color: #a78bfa; color: #5b21b6; }
+
+.picker-create-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-bottom: 1px solid #e8e6e3;
+  background: #fafaf9;
+}
+
+.picker-create-input {
+  flex: 1;
+  height: 26px;
+  padding: 0 6px;
+  font-size: 13px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  outline: none;
+}
+.picker-create-input:focus { border-color: #6366f1; }
+
+.picker-create-btn {
+  background: none;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  width: 26px;
+  height: 26px;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #374151;
+}
+.picker-create-btn:hover { background: #f5f4f2; }
+.picker-create-cancel { color: #9b9b9b; }
+</style>

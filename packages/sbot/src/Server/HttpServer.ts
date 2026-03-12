@@ -2,7 +2,7 @@ import express, { Request, Response } from 'express';
 import http from 'http';
 import path from 'path';
 import fs from 'fs';
-import { execFile, exec } from 'child_process';
+import os from 'os';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { WebSocketServer } from 'ws';
@@ -365,41 +365,64 @@ class HttpServer {
             return {};
         }));
 
-        // ===== Dialog =====
-        // GET /api/dialog/directory  调用宿主机原生目录选择框，返回完整路径
-        app.get('/api/dialog/directory', api(() => new Promise<{ path: string | null }>((resolve, reject) => {
-            if (process.platform === 'win32') {
-                const script = [
-                    '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8',
-                    'Add-Type -AssemblyName System.Windows.Forms',
-                    '$owner = New-Object System.Windows.Forms.Form',
-                    '$owner.TopMost = $true',
-                    '$owner.Size = New-Object System.Drawing.Size(0,0)',
-                    '$d = New-Object System.Windows.Forms.FolderBrowserDialog',
-                    '$d.Description = "请选择目录"',
-                    '$d.ShowNewFolderButton = $true',
-                    'if ($d.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $d.SelectedPath }',
-                    '$owner.Dispose()',
-                ].join('; ');
-                execFile('powershell', ['-NoProfile', '-NonInteractive', '-Command', script],
-                    { timeout: 120000, encoding: 'utf8' },
-                    (err, stdout) => {
-                        if (err && !stdout.trim()) { reject(Object.assign(new Error(err.message), { status: 500 })); return; }
-                        resolve({ path: stdout.trim() || null });
-                    }
-                );
-            } else if (process.platform === 'darwin') {
-                exec(
-                    `osascript -e 'set f to choose folder with prompt "请选择目录"' -e 'POSIX path of f'`,
-                    { timeout: 120000 },
-                    (err, stdout) => { resolve({ path: err ? null : stdout.trim().replace(/\/$/, '') || null }); }
-                );
-            } else {
-                exec('zenity --file-selection --directory --title="请选择目录"', { timeout: 120000 },
-                    (err, stdout) => { resolve({ path: err ? null : stdout.trim() || null }); }
-                );
+        // ===== Filesystem =====
+        // GET /api/fs/list?dir=<path>  列出目录下的子目录（无参数时 Win 返回驱动器列表，其他返回 homedir）
+        app.get('/api/fs/list', api(req => {
+            const dir = (req.query.dir as string) ?? '';
+
+            // Windows 根节点：枚举驱动器
+            if (!dir && process.platform === 'win32') {
+                const items: string[] = [];
+                for (let c = 65; c <= 90; c++) {
+                    const d = String.fromCharCode(c) + ':\\';
+                    try { if (fs.statSync(d).isDirectory()) items.push(d); } catch { /* 不存在跳过 */ }
+                }
+                return { path: '', parent: null, items };
             }
-        })));
+
+            const target = path.resolve(dir || os.homedir());
+            if (!fs.existsSync(target) || !fs.statSync(target).isDirectory()) throwBad(`路径不存在：${target}`);
+
+            // 父目录：若 dirname === self 说明已到根（Win 驱动器根 / Unix /）
+            const up = path.dirname(target);
+            const parent: string | null = (up === target)
+                ? (process.platform === 'win32' ? '' : null)
+                : up;
+
+            let entries: fs.Dirent[] = [];
+            try { entries = fs.readdirSync(target, { withFileTypes: true }); } catch { /* 无权限时返回空 */ }
+
+            const items = entries
+                .filter(e => e.isDirectory())
+                .map(e => path.join(target, e.name))
+                .sort((a, b) => a.localeCompare(b));
+
+            return { path: target, parent, items };
+        }));
+
+        // GET /api/fs/quickdirs  返回常用目录列表（主目录 / 桌面 / 文档 / 下载）
+        app.get('/api/fs/quickdirs', api(() => {
+            const home = os.homedir();
+            const candidates = [
+                { label: '主目录', path: home },
+                { label: '桌面',   path: path.join(home, 'Desktop') },
+                { label: '文档',   path: path.join(home, 'Documents') },
+                { label: '下载',   path: path.join(home, 'Downloads') },
+            ];
+            return candidates.filter(d => {
+                try { return fs.statSync(d.path).isDirectory(); } catch { return false; }
+            });
+        }));
+
+        // POST /api/fs/mkdir  在当前目录下新建文件夹
+        app.post('/api/fs/mkdir', api(req => {
+            const { path: dirPath } = req.body;
+            if (!dirPath?.trim()) throwBad('path 不能为空');
+            const target = path.resolve(dirPath.trim());
+            if (fs.existsSync(target)) throwBad(`已存在：${target}`);
+            fs.mkdirSync(target, { recursive: true });
+            return { path: target };
+        }));
 
         // ===== MCP =====
         app.get('/api/mcp', api(() => ({
