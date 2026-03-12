@@ -38,29 +38,30 @@ export class AgentRunner {
         const assetsDir = config.getConfigPath('assets', true);
         const scriptsDir = config.getConfigPath('scripts', true);
         const httpUrl = config.getHttpUrl();
-        const extraPrompts: string[] = [
-            `## Environment
-- **Current time:** ${now.toLocaleString(undefined, { timeZone: timezone, hour12: false })}
-- **Timezone:** ${timezone}
-- **OS:** ${os.type()} ${os.release()} (${os.platform()})
-- **System locale:** ${process.env.LANG || Intl.DateTimeFormat().resolvedOptions().locale}
-
-## File Paths
-- **Assets directory:** ${assetsDir} — when generating files for the user to view or download, save here and serve via \`${httpUrl}/assets/<filename>\`
-- **Scripts directory:** ${scriptsDir} — store temporary scripts here`,
-        ];
-        if (workPath) {
-            extraPrompts.push(`- **Working Directory**: ${workPath}`);
-        } else {
-            extraPrompts.push(`- **Working Directory**: ${assetsDir}/${saverThreadId}`);
+        if (!workPath) {
+            workPath = `${assetsDir}/${saverThreadId}`;
         }
+        const extraPrompts: string[] = [
+            `<environment>
+  <current-time>${now.toLocaleString(undefined, { timeZone: timezone, hour12: false })}</current-time>
+  <timezone>${timezone}</timezone>
+  <os>${os.type()} ${os.release()} (${os.platform()})</os>
+  <locale>${process.env.LANG || Intl.DateTimeFormat().resolvedOptions().locale}</locale>
+  <paths>
+    <assets dir="${assetsDir}" url="${httpUrl}/assets/&lt;filename&gt;">IMPORTANT: This is the ONLY way to deliver files to users. Whenever you generate, export, or produce any file intended for the user (images, documents, archives, reports, etc.), you MUST save it to this directory and share the URL above. Never send raw file content inline, never use any other path or method.</assets>
+    <scripts dir="${scriptsDir}">Store temporary scripts here</scripts>
+    <working-directory dir="${workPath}">All file operations (create, write, delete, move) must stay within this directory. Never access, modify, or delete files outside it.</working-directory>
+  </paths>
+</environment>`,
+        ];
         if (userInfo) {
-            extraPrompts.push(`## Current User
-- **ID:** ${userInfo.user_id}
-- **Open ID:** ${userInfo.open_id}
-- **Union ID:** ${userInfo.union_id}
-- **Name:** ${userInfo.name}
-- **Email:** ${userInfo.email}`);
+            extraPrompts.push(`<current-user>
+  <id>${userInfo.user_id}</id>
+  <open-id>${userInfo.open_id}</open-id>
+  <union-id>${userInfo.union_id}</union-id>
+  <name>${userInfo.name}</name>
+  <email>${userInfo.email}</email>
+</current-user>`);
         }
 
         const container = new ServiceContainer();

@@ -159,7 +159,8 @@ export class SingleAgentService extends AgentServiceBase {
                     throw new Error(`用户拒绝调用工具`);
                 }
                 // 执行工具
-                this.logger?.info(`执行工具 ${tool.name} 参数: ${JSON.stringify(toolCall.args)}`);
+                const argsStr = JSON.stringify(toolCall.args);
+                this.logger?.info(`执行工具 ${tool.name} 参数: ${argsStr.length > 200 ? argsStr.slice(0, 200) + '…' : argsStr}`);
                 const result = await tool.invoke(toolCall.args);
 
                 // 标准化为 MCP 格式（自动检测和转换各种格式）
@@ -216,7 +217,7 @@ export class SingleAgentService extends AgentServiceBase {
             .addEdge(START, GraphNodeType.AGENT)
             .addConditionalEdges(GraphNodeType.AGENT, this.agentNext.bind(this))
             .addEdge(GraphNodeType.TOOLS, GraphNodeType.AGENT);
-
+        this.logger?.debug(`system message: ${systemMessage?.content}`)
         const graphStream = graph.stream(
             { messages: historyMessages ?? [humanMessage], callback, systemMessage, tools },
         );

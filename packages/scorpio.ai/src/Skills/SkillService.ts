@@ -122,30 +122,29 @@ export class SkillService implements ISkillService {
       .map(s => `  <skill name="${s.name}" path="${s.path}">${s.description}</skill>`)
       .join("\n");
 
-    return `<skills>
+    return `<skill-instructions>
+  <skills>
 ${items}
-</skills>
-
-When a user request matches any skill above, you MUST use it immediately.
-
-Matching: match by keywords, task type, or file type in the user's request.
-
-Workflow:
-1. Inform the user: "I'll use the '{skill-name}' skill for this task"
-2. Call \`list_skill_files\` to inspect the skill directory structure
-3. Call \`read_skill_file\` to read SKILL.md
-4. Follow the instructions in SKILL.md strictly
-5. Use \`read_skill_file\` / \`execute_skill_script\` for any referenced files or scripts
-
-Available tools:
-- \`read_skill_file\` — read any file in the skill directory
-- \`list_skill_files\` — list the skill directory tree
-- \`execute_skill_script\` — run a script (.py, .sh, .js, .ts)
-
-Constraints:
-- Always read SKILL.md before performing any skill-related action
-- SKILL.md instructions are authoritative — follow them completely
-- Proactively identify and use matching skills without waiting for explicit user requests`;
+  </skills>
+  <matching>Match skills by keywords, task type, or file type in the user's request. When a match is found, use the skill immediately without waiting for explicit user confirmation.</matching>
+  <workflow>
+    <step order="1">Inform the user: "I'll use the '{skill-name}' skill for this task"</step>
+    <step order="2">Call list_skill_files to inspect the skill directory structure</step>
+    <step order="3">Call read_skill_file to read SKILL.md</step>
+    <step order="4">Follow the instructions in SKILL.md strictly and completely</step>
+    <step order="5">Use read_skill_file or execute_skill_script for any files or scripts referenced in SKILL.md</step>
+  </workflow>
+  <tools>
+    <tool name="read_skill_file">Read any file inside the skill directory</tool>
+    <tool name="list_skill_files">List the full directory tree of a skill</tool>
+    <tool name="execute_skill_script">Run a script file (.py, .sh, .js, .ts) inside the skill directory</tool>
+  </tools>
+  <constraints>
+    <constraint>Always read SKILL.md before performing any skill-related action</constraint>
+    <constraint>SKILL.md instructions are authoritative — follow them completely, do not skip or reinterpret steps</constraint>
+    <constraint>Proactively identify and use matching skills without waiting for explicit user requests</constraint>
+  </constraints>
+</skill-instructions>`;
   }
 
   /**
