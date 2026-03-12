@@ -5,7 +5,7 @@ import { LoggerService } from "./LoggerService";
 
 const logger = LoggerService.getLogger("Database.ts");
 const DBVersionName = "db_version";
-const DBVersion = '0.0.8'
+const DBVersion = '0.0.9'
 export type MessageRow = {
   id: string;
   expireTime: number;
@@ -40,6 +40,7 @@ export type UserRow = {
   username: string;
   userinfo: string;
   channel: string;
+  userIdType: string | null;  // LarkReceiveIdType value, e.g. 'union_id' / 'open_id'
 };
 
 class Database {
@@ -166,6 +167,12 @@ class Database {
           allowNull: false,
           defaultValue: "",
           comment: "频道唯一ID",
+        },
+        userIdType: {
+          type: DataTypes.STRING(32),
+          allowNull: true,
+          defaultValue: null,
+          comment: "Lark 用户 ID 类型，如 union_id / open_id",
         },
       },
       {

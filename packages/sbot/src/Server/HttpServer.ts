@@ -688,7 +688,11 @@ class HttpServer {
         }
 
         app.get('/api/timers', api(async () => {
-            return await database.findAll(database.scheduler);
+            const rows = await database.findAll(database.scheduler);
+            return (rows as any[]).map(r => ({
+                ...(r.toJSON ? r.toJSON() : r),
+                nextRun: schedulerService.nextDate((r as any).id),
+            }));
         }));
 
         app.post('/api/timers', api(async req => {

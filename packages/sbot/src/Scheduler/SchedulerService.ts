@@ -1,6 +1,6 @@
 import { CronJob } from "cron";
 import { LarkMessageArgs, LarkReceiveIdType } from "channel.lark";
-import { database, SchedulerRow, UserRow } from "../Core/Database";
+import { database, SchedulerRow, UserRow, ContextType } from "../Core/Database";
 import { userService } from "../UserService/UserService";
 import { LoggerService } from "../Core/LoggerService";
 import { LarkService } from "channel.lark";
@@ -8,59 +8,54 @@ import { channelManager } from "../Channel/ChannelManager";
 
 const logger = LoggerService.getLogger("SchedulerService.ts");
 
-/**
- * 执行调度任务：
- * - userId 有效且用户存在 → onReceiveLarkMessage（回复到 Lark）
- * - userId 未设置或用户不存在 → onReceiveWebMessage（仅走 Agent 管线，不回复 Lark）
- */
 async function executeScheduler(timerId: number): Promise<void> {
     const timer = await database.findByPk<SchedulerRow>(database.scheduler, timerId);
     if (!timer) return;
 
-    // 尝试通过 userId 找到对应的 Lark 用户
-    const userRow = timer.userId
-        ? await database.findByPk<UserRow>(database.user, timer.userId)
-        : null;
+    const tag = `[${timer.id}:${timer.name}]`;
+    const isChannel = timer.type === ContextType.Channel
+        || (timer.type == null && timer.userId != null);
 
-    const larkService = userRow?.channel
-        ? channelManager.getService(userRow.channel) as LarkService | undefined
-        : undefined;
+    try {
+        if (isChannel) {
+            // Channel mode: deliver via Lark
+            const userRow = timer.userId
+                ? await database.findByPk<UserRow>(database.user, timer.userId)
+                : null;
+            const larkService = userRow?.channel
+                ? channelManager.getService(userRow.channel) as LarkService | undefined
+                : undefined;
 
-    if (userRow && larkService) {
-        // 有 Lark 用户 → 走 Lark 通道回复
-        let userInfo: any = {};
-        try { userInfo = JSON.parse(userRow.userinfo || "{}"); } catch { /**/ }
+            if (!userRow || !larkService) {
+                logger.error(`Scheduler task ${tag} channel mode: userId=${timer.userId} not found or has no Lark service`);
+                return;
+            }
 
-        const args: LarkMessageArgs = {
-            larkService,
-            chat_type: "",
-            chat_id: "",
-            message_id: "",
-            root_id: "",
-            chatInfo: { receiveId: userRow.userid, receiveIdType: LarkReceiveIdType.UserId },
-        };
-        try {
+            let userInfo: any = {};
+            try { userInfo = JSON.parse(userRow.userinfo || "{}"); } catch { /**/ }
+
+            const args: LarkMessageArgs = {
+                larkService,
+                chat_type: "",
+                chat_id: "",
+                message_id: "",
+                root_id: "",
+                chatInfo: { receiveId: userRow.userid, receiveIdType: (userRow.userIdType ?? LarkReceiveIdType.UnionId) as LarkReceiveIdType },
+            };
             await userService.onReceiveLarkMessage(args, userInfo, timer.message, userRow.channel);
-            logger.info(`调度任务 [${timer.id}:${timer.name}] 已触发（Lark），用户 ${userRow.userid}`);
-        } catch (e: any) {
-            logger.error(`调度任务 [${timer.id}:${timer.name}] 执行失败: ${e?.message ?? e}`);
-        }
-    } else {
-        // 无 Lark 用户 → 走 HTTP 通道（无推送，仅执行 Agent）
-        if (timer.userId) {
-            logger.warn(`调度任务 [${timer.id}:${timer.name}] userId=${timer.userId} 在 user 表中不存在，降级为 HTTP 模式`);
-        }
-        try {
+            logger.info(`Scheduler task ${tag} fired (channel), user ${userRow.userid}`);
+        } else {
+            // Session / directory mode: deliver via HTTP pipeline
             await userService.onReceiveHttpMessage(
                 timer.message,
                 null,
                 timer.sessionId ?? undefined,
                 timer.workPath ?? undefined,
             );
-            logger.info(`调度任务 [${timer.id}:${timer.name}] 已触发（HTTP）`);
-        } catch (e: any) {
-            logger.error(`调度任务 [${timer.id}:${timer.name}] 执行失败: ${e?.message ?? e}`);
+            logger.info(`Scheduler task ${tag} fired (http), sessionId=${timer.sessionId ?? '-'} workPath=${timer.workPath ?? '-'}`);
         }
+    } catch (e: any) {
+        logger.error(`Scheduler task ${tag} failed: ${e?.message ?? e}`);
     }
 
     await database.update(database.scheduler, { lastRun: Date.now() }, { where: { id: timer.id } });
@@ -98,6 +93,13 @@ class SchedulerService {
         } catch (e: any) {
             logger.error(`调度任务 [${timer.id}:${timer.name}] 调度失败: ${e?.message}`);
         }
+    }
+
+    /** Returns the next scheduled timestamp (ms) for a timer, or null if not scheduled */
+    nextDate(timerId: number): number | null {
+        const job = this.jobs.get(timerId);
+        if (!job) return null;
+        try { return job.nextDate().toMillis(); } catch { return null; }
     }
 
     /** 取消某个任务的调度 */

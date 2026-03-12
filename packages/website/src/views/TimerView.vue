@@ -8,11 +8,13 @@ interface SchedulerRow {
   id: number
   name: string
   expr: string
+  type: string | null
   message: string
-  agentName: string
   userId: number | null
-  enabled: boolean
+  sessionId: string | null
+  workPath: string | null
   lastRun: number | null
+  nextRun: number | null
 }
 
 interface UserRow {
@@ -22,6 +24,7 @@ interface UserRow {
 }
 
 type UIType = 'daily' | 'weekly' | 'monthly' | 'interval' | 'hourly' | 'custom'
+type RoutingType = 'channel' | 'session' | 'directory'
 
 const DAY_NAMES = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 
@@ -33,26 +36,32 @@ const showModal = ref(false)
 const editingId = ref<number | null>(null)
 const saving = ref(false)
 
-const agentOptions = computed(() =>
-  Object.entries(store.settings.agents ?? {}).map(([id, a]) => ({ id, label: (a as any).name || id }))
+const sessionOptions = computed(() =>
+  Object.keys(store.settings.sessions ?? {})
+)
+
+const directoryOptions = computed(() =>
+  Object.keys(store.settings.directories ?? {})
 )
 
 const form = ref({
-  name:       '',
-  uiType:     'daily' as UIType,
-  hour:       9,
-  minute:     0,
-  dayOfWeek:  1,
-  dayOfMonth: 1,
-  minutes:    30,
-  customExpr: '',
-  message:    '',
-  agentName:  '',
-  userId:     '' as string | number,
-  enabled:    true,
+  name:         '',
+  uiType:       'daily' as UIType,
+  hour:         9,
+  minute:       0,
+  dayOfWeek:    1,
+  dayOfMonth:   1,
+  minutes:      30,
+  customExpr:   '',
+  message:      '',
+  routingType:  'channel' as RoutingType,
+  userId:       '' as string | number,
+  sessionId:    '',
+  workPath:     '',
 })
 
-// 从 form 中生成 cron 表达式
+// ── Cron helpers ─────────────────────────────────────────────────────────────
+
 const builtExpr = computed((): string => {
   const { uiType, hour, minute, dayOfWeek, dayOfMonth, minutes, customExpr } = form.value
   const h = hour, m = minute
@@ -64,7 +73,6 @@ const builtExpr = computed((): string => {
   return customExpr.trim()
 })
 
-// 从 cron 表达式反推 UIType
 function detectUIType(expr: string): UIType {
   const p = expr.trim().split(/\s+/)
   if (p.length !== 5) return 'custom'
@@ -77,7 +85,6 @@ function detectUIType(expr: string): UIType {
   return 'custom'
 }
 
-// 解析 cron 表达式填入 form 的各字段
 function parseExpr(expr: string) {
   const uiType = detectUIType(expr)
   const p = expr.trim().split(/\s+/)
@@ -91,7 +98,6 @@ function parseExpr(expr: string) {
   return base
 }
 
-// 人性化描述（列表展示用）
 function describeExpr(expr: string): string {
   const uiType = detectUIType(expr)
   const p = expr.trim().split(/\s+/)
@@ -103,6 +109,33 @@ function describeExpr(expr: string): string {
   if (uiType === 'monthly')  return `每月${p[2]}日 ${pad(parseInt(p[1]))}:${pad(parseInt(p[0]))}`
   return expr
 }
+
+// ── Routing helpers ───────────────────────────────────────────────────────────
+
+function routingTypeOf(row: SchedulerRow): RoutingType {
+  if (row.type === 'channel' || (row.type == null && row.userId != null)) return 'channel'
+  if (row.type === 'session' || (row.type == null && row.sessionId != null)) return 'session'
+  return 'directory'
+}
+
+function routingLabel(row: SchedulerRow): string {
+  const rt = routingTypeOf(row)
+  if (rt === 'channel') {
+    if (row.userId == null) return '-'
+    const u = users.value.find(u => u.id === row.userId)
+    return u ? (u.username || u.userid) : String(row.userId)
+  }
+  if (rt === 'session') return row.sessionId ?? '-'
+  return row.workPath ? row.workPath.split(/[\\/]/).slice(-2).join('/') : '-'
+}
+
+const ROUTING_BADGE: Record<RoutingType, { bg: string; color: string; label: string }> = {
+  channel:   { bg: '#dbeafe', color: '#1d4ed8', label: 'channel' },
+  session:   { bg: '#fef9c3', color: '#854d0e', label: 'session' },
+  directory: { bg: '#dcfce7', color: '#15803d', label: 'directory' },
+}
+
+// ── Data loading ──────────────────────────────────────────────────────────────
 
 async function load() {
   loading.value = true
@@ -125,20 +158,28 @@ function formatLastRun(ts: number | null): string {
   return new Date(ts).toLocaleString('zh-CN')
 }
 
+function formatNextRun(ts: number | null): string {
+  if (!ts) return '-'
+  return new Date(ts).toLocaleString('zh-CN')
+}
+
 function userLabel(u: UserRow): string {
   return u.username ? `${u.username} (${u.userid})` : u.userid
 }
 
+// ── Modal open/close ──────────────────────────────────────────────────────────
+
 function openAdd() {
   editingId.value = null
-  const parsed = parseExpr('9 0 * * *')
+  const parsed = parseExpr('0 9 * * *')
   form.value = {
     ...parsed,
-    name:      '',
-    message:   '',
-    agentName: agentOptions.value[0]?.id ?? '',
-    userId:    '',
-    enabled:   true,
+    name:        '',
+    message:     '',
+    routingType: 'channel',
+    userId:      '',
+    sessionId:   sessionOptions.value[0] ?? '',
+    workPath:    '',
   }
   showModal.value = true
 }
@@ -146,31 +187,41 @@ function openAdd() {
 function openEdit(row: SchedulerRow) {
   editingId.value = row.id
   const parsed = parseExpr(row.expr)
+  const rt = routingTypeOf(row)
   form.value = {
     ...parsed,
-    name:      row.name,
-    message:   row.message,
-    agentName: row.agentName || agentOptions.value[0]?.id || '',
-    userId:    row.userId ?? '',
-    enabled:   row.enabled,
+    name:        row.name,
+    message:     row.message,
+    routingType: rt,
+    userId:      row.userId ?? '',
+    sessionId:   row.sessionId ?? '',
+    workPath:    row.workPath ?? '',
   }
   showModal.value = true
 }
+
+// ── Save ──────────────────────────────────────────────────────────────────────
 
 async function save() {
   if (!form.value.name.trim())    { show('名称不能为空', 'error'); return }
   if (!builtExpr.value.trim())    { show('Cron 表达式不能为空', 'error'); return }
   if (!form.value.message.trim()) { show('消息不能为空', 'error'); return }
-  if (!form.value.agentName)      { show('请选择 Agent', 'error'); return }
+
+  const rt = form.value.routingType
+  if (rt === 'channel' && form.value.userId === '') { show('请选择 Lark 用户', 'error'); return }
+  if (rt === 'session' && !form.value.sessionId)    { show('请选择会话', 'error'); return }
+  if (rt === 'directory' && !form.value.workPath.trim()) { show('请输入工作目录路径', 'error'); return }
+
   saving.value = true
   try {
     const body: any = {
       name:      form.value.name.trim(),
       expr:      builtExpr.value,
       message:   form.value.message.trim(),
-      agentName: form.value.agentName,
-      userId:    form.value.userId !== '' ? Number(form.value.userId) : null,
-      enabled:   form.value.enabled,
+      type:      rt,
+      userId:    rt === 'channel' && form.value.userId !== '' ? Number(form.value.userId) : null,
+      sessionId: rt === 'session' ? form.value.sessionId : null,
+      workPath:  rt === 'directory' ? form.value.workPath.trim() : null,
     }
     if (editingId.value !== null) {
       await apiFetch(`/api/timers/${editingId.value}`, 'PUT', body)
@@ -185,15 +236,6 @@ async function save() {
     show(e.message, 'error')
   } finally {
     saving.value = false
-  }
-}
-
-async function toggleEnabled(row: SchedulerRow) {
-  try {
-    await apiFetch(`/api/timers/${row.id}`, 'PUT', { enabled: !row.enabled })
-    row.enabled = !row.enabled
-  } catch (e: any) {
-    show(e.message, 'error')
   }
 }
 
@@ -226,10 +268,10 @@ onMounted(load)
             <th>名称</th>
             <th>计划</th>
             <th>消息</th>
-            <th>Agent</th>
-            <th>用户</th>
+            <th>类型</th>
+            <th>路由目标</th>
             <th>上次运行</th>
-            <th>状态</th>
+            <th>下次运行</th>
             <th>操作</th>
           </tr>
         </thead>
@@ -247,19 +289,16 @@ onMounted(load)
               <div style="font-size:13px">{{ describeExpr(t.expr) }}</div>
               <div style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ t.expr }}</div>
             </td>
-            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#6b6b6b">{{ t.message }}</td>
-            <td style="font-family:monospace;font-size:12px">{{ t.agentName || '-' }}</td>
-            <td style="font-size:12px">
-              {{ t.userId != null ? (users.find(u => u.id === t.userId)?.username || users.find(u => u.id === t.userId)?.userid || t.userId) : '-' }}
-            </td>
-            <td style="font-size:12px;color:#9b9b9b;white-space:nowrap">{{ formatLastRun(t.lastRun) }}</td>
+            <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#6b6b6b">{{ t.message }}</td>
             <td>
               <span
-                style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer"
-                :style="t.enabled ? 'background:#dcfce7;color:#16a34a' : 'background:#f5f4f2;color:#9b9b9b'"
-                @click="toggleEnabled(t)"
-              >{{ t.enabled ? '启用' : '停用' }}</span>
+                style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;font-family:monospace"
+                :style="{ background: ROUTING_BADGE[routingTypeOf(t)].bg, color: ROUTING_BADGE[routingTypeOf(t)].color }"
+              >{{ ROUTING_BADGE[routingTypeOf(t)].label }}</span>
             </td>
+            <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ routingLabel(t) }}</td>
+            <td style="font-size:12px;color:#9b9b9b;white-space:nowrap">{{ formatLastRun(t.lastRun) }}</td>
+            <td style="font-size:12px;color:#9b9b9b;white-space:nowrap">{{ formatNextRun(t.nextRun) }}</td>
             <td>
               <div class="ops-cell">
                 <button class="btn-outline btn-sm" @click="openEdit(t)">编辑</button>
@@ -283,9 +322,9 @@ onMounted(load)
             <input v-model="form.name" placeholder="计时器名称" />
           </div>
 
-          <!-- 类型选择 -->
+          <!-- 触发类型 -->
           <div class="form-group">
-            <label>类型</label>
+            <label>触发频率</label>
             <select v-model="form.uiType">
               <option value="daily">每天定时</option>
               <option value="weekly">每周定时</option>
@@ -349,18 +388,44 @@ onMounted(load)
             <label>消息内容</label>
             <textarea v-model="form.message" rows="3" placeholder="触发时发送给 Agent 的消息" />
           </div>
+
+          <!-- 路由类型 -->
           <div class="form-group">
-            <label>Agent</label>
-            <select v-model="form.agentName">
-              <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }}</option>
+            <label>路由类型</label>
+            <select v-model="form.routingType">
+              <option value="channel">Lark 频道 (channel)</option>
+              <option value="session">HTTP 会话 (session)</option>
+              <option value="directory">目录模式 (directory)</option>
             </select>
           </div>
-          <div class="form-group">
-            <label>用户（可选）</label>
+
+          <!-- channel: Lark 用户 -->
+          <div v-if="form.routingType === 'channel'" class="form-group">
+            <label>Lark 用户</label>
             <select v-model="form.userId">
-              <option value="">不关联用户</option>
+              <option value="">请选择用户</option>
               <option v-for="u in users" :key="u.id" :value="u.id">{{ userLabel(u) }}</option>
             </select>
+          </div>
+
+          <!-- session: 会话 -->
+          <div v-if="form.routingType === 'session'" class="form-group">
+            <label>会话 ID</label>
+            <select v-if="sessionOptions.length" v-model="form.sessionId">
+              <option value="">请选择会话</option>
+              <option v-for="s in sessionOptions" :key="s" :value="s">{{ s }}</option>
+            </select>
+            <input v-else v-model="form.sessionId" placeholder="session ID" />
+          </div>
+
+          <!-- directory: 工作目录 -->
+          <div v-if="form.routingType === 'directory'" class="form-group">
+            <label>工作目录</label>
+            <select v-if="directoryOptions.length" v-model="form.workPath">
+              <option value="">请选择目录</option>
+              <option v-for="d in directoryOptions" :key="d" :value="d">{{ d }}</option>
+            </select>
+            <input v-else v-model="form.workPath" placeholder="/path/to/directory" style="font-family:monospace" />
           </div>
         </div>
         <div class="modal-footer">

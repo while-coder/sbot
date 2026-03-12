@@ -138,23 +138,25 @@ export class ChannelManager {
             logger.warn(`Lark 频道 [${channel.name || channelId}] 缺少 appId 或 appSecret，跳过`);
             return undefined;
         }
+        const userIdType = LarkUserIdType.UnionId
         const service = new LarkService({
             appId: channel.appId,
             appSecret: channel.appSecret,
-            userIdType: LarkUserIdType.UnionId,
+            userIdType: userIdType,
             filterEvent,
             onRecevieMessage: async (userId: string, userInfo: any, args: LarkMessageArgs, query: string) => {
                 if (userId) {
                     const [dbUser, created] = await database.findOrCreate(database.user, {
                         where: { userid: userId, channel: channelId },
                         defaults: {
-                            username: userInfo?.name ?? "",
-                            userinfo: JSON.stringify(userInfo ?? {}),
+                            username:   userInfo?.name ?? "",
+                            userinfo:   JSON.stringify(userInfo ?? {}),
+                            userIdType: userIdType,
                         },
                     });
                     if (!created) {
                         await database.update(database.user,
-                            { username: userInfo?.name ?? "", userinfo: JSON.stringify(userInfo ?? {}) },
+                            { username: userInfo?.name ?? "", userinfo: JSON.stringify(userInfo ?? {}), userIdType: userIdType },
                             { where: { userid: userId, channel: channelId } },
                         );
                     }
