@@ -682,25 +682,25 @@ class HttpServer {
             return await db.getAllThreadIds();
         }));
 
-        // ===== Timers =====
+        // ===== Schedulers =====
         function throwBad(msg: string): never {
             const e: any = new Error(msg); e.status = 400; throw e;
         }
 
-        app.get('/api/timers', api(async () => {
-            const rows = await database.findAll(database.scheduler);
-            return (rows as any[]).map(r => ({
-                ...(r.toJSON ? r.toJSON() : r),
-                nextRun: schedulerService.nextDate((r as any).id),
+        app.get('/api/schedulers', api(async () => {
+            const schedulers = await database.findAll(database.scheduler);
+            return (schedulers as any[]).map(s => ({
+                ...(s.toJSON ? s.toJSON() : s),
+                nextRun: schedulerService.nextDate((s as any).id),
             }));
         }));
 
-        app.post('/api/timers', api(async req => {
-            const { name, expr, message, type, userId, sessionId, workPath } = req.body;
+        app.post('/api/schedulers', api(async req => {
+            const { name, expr, message, type, userId, sessionId, workPath, maxRuns } = req.body;
             if (!name?.trim()) throwBad('name 不能为空');
             if (!expr?.trim()) throwBad('expr 不能为空');
             if (!message?.trim()) throwBad('message 不能为空');
-            const row = await database.create(database.scheduler, {
+            const scheduler = await database.create(database.scheduler, {
                 name: name.trim(),
                 expr: expr.trim(),
                 type: type ?? null,
@@ -709,15 +709,17 @@ class HttpServer {
                 sessionId: sessionId ?? null,
                 workPath: workPath ?? null,
                 lastRun: null,
+                runCount: 0,
+                maxRuns: maxRuns ?? 0,
             });
-            await schedulerService.reload((row as any).id);
-            return row;
+            await schedulerService.reload((scheduler as any).id);
+            return scheduler;
         }));
 
-        app.put('/api/timers/:id', api(async req => {
+        app.put('/api/schedulers/:id', api(async req => {
             const id = parseInt(req.params.id as string, 10);
             if (isNaN(id)) throwBad('无效的 id');
-            const { name, expr, message, type, userId, sessionId, workPath } = req.body;
+            const { name, expr, message, type, userId, sessionId, workPath, maxRuns } = req.body;
             const updates: any = {};
             if (name !== undefined)      updates.name      = name;
             if (expr !== undefined)      updates.expr      = expr;
@@ -726,11 +728,12 @@ class HttpServer {
             if (userId !== undefined)    updates.userId    = userId;
             if (sessionId !== undefined) updates.sessionId = sessionId;
             if (workPath !== undefined)  updates.workPath  = workPath;
+            if (maxRuns !== undefined)   updates.maxRuns   = maxRuns;
             await database.update(database.scheduler, updates, { where: { id } });
             await schedulerService.reload(id);
         }));
 
-        app.delete('/api/timers/:id', api(async req => {
+        app.delete('/api/schedulers/:id', api(async req => {
             const id = parseInt(req.params.id as string, 10);
             if (isNaN(id)) throwBad('无效的 id');
             await schedulerService.delete(id);

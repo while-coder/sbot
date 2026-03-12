@@ -144,7 +144,7 @@ async function load() {
   loading.value = true
   try {
     const [timersRes, usersRes] = await Promise.all([
-      apiFetch('/api/timers'),
+      apiFetch('/api/schedulers'),
       apiFetch('/api/users'),
     ])
     timers.value = timersRes.data || []
@@ -230,10 +230,10 @@ async function save() {
       maxRuns:   form.value.maxRuns ?? 0,
     }
     if (editingId.value !== null) {
-      await apiFetch(`/api/timers/${editingId.value}`, 'PUT', body)
+      await apiFetch(`/api/schedulers/${editingId.value}`, 'PUT', body)
       show('保存成功')
     } else {
-      await apiFetch('/api/timers', 'POST', body)
+      await apiFetch('/api/schedulers', 'POST', body)
       show('创建成功')
     }
     showModal.value = false
@@ -248,7 +248,7 @@ async function save() {
 async function remove(row: SchedulerRow) {
   if (!confirm(`确定要删除计时器 "${row.name}" 吗？`)) return
   try {
-    await apiFetch(`/api/timers/${row.id}`, 'DELETE')
+    await apiFetch(`/api/schedulers/${row.id}`, 'DELETE')
     show('删除成功')
     await load()
   } catch (e: any) {
