@@ -3,6 +3,7 @@ import { LarkUserServiceBase } from "channel.lark";
 import { ICommand } from "scorpio.ai";
 import { AgentRunner } from "../Agent/AgentRunner";
 import { config } from "../Core/Config";
+import { ContextType } from "../Core/Database";
 
 export class LarkUserService extends LarkUserServiceBase {
     protected async getAllCommands(): Promise<ICommand[]> { return []; }
@@ -15,6 +16,6 @@ export class LarkUserService extends LarkUserServiceBase {
             onStreamMessage: this.onAgentStreamMessage.bind(this),
             executeTool: this.executeAgentTool.bind(this),
             convertImages: this.convertImages.bind(this),
-        }, channel.agent, channel.saver, `lark_${channelId}`, args?.userInfo, channel.memory, undefined, 'channel');
+        }, channel.agent, channel.saver, `lark_${channelId}`, ContextType.Channel, channel.memory, args?.userInfo);
     }
 }

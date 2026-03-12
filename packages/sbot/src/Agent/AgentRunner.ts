@@ -13,6 +13,7 @@ import {
 } from "scorpio.ai";
 import { AgentFileSaver } from "scorpio.ai/dist/Saver";
 import { config, SaverType } from "../Core/Config";
+import { ContextType } from "../Core/Database";
 import { AgentFactory } from "./AgentFactory";
 import { LoggerService } from "../Core/LoggerService";
 
@@ -25,10 +26,10 @@ export class AgentRunner {
         agentId: string,
         saverId: string,
         saverThreadId: string,
-        userInfo?: any,
+        contextType: ContextType,
         memoryId?: string,
+        userInfo?: any,
         workPath?: string,
-        contextType?: string,
     ): Promise<void> {
         if (!agentId.trim())        throw new Error("未指定 agent");
         if (!saverId.trim())        throw new Error("未指定 saver");
@@ -42,12 +43,19 @@ export class AgentRunner {
         if (!workPath) {
             workPath = `${assetsDir}/${saverThreadId}`;
         }
+        // 在 session 模式下，从 saverThreadId 中还原出原始 sessionId，供调度工具使用
+        const schedulerSessionId = (contextType === ContextType.Session && saverThreadId.startsWith('session_'))
+            ? saverThreadId.slice('session_'.length)
+            : null;
+
         const extraPrompts: string[] = [
             `<environment>
   <current-time>${now.toLocaleString(undefined, { timeZone: timezone, hour12: false })}</current-time>
   <timezone>${timezone}</timezone>
   <os>${os.type()} ${os.release()} (${os.platform()})</os>
-  <locale>${process.env.LANG || Intl.DateTimeFormat().resolvedOptions().locale}</locale>${contextType ? `\n  <conversation-type>${contextType}</conversation-type>` : ''}
+  <locale>${process.env.LANG || Intl.DateTimeFormat().resolvedOptions().locale}</locale>
+  <conversation-type>${contextType}</conversation-type>
+  <scheduler-session-id>${schedulerSessionId ?? ''}</scheduler-session-id>
   <paths>
     <assets dir="${assetsDir}" url="${httpUrl}/assets/&lt;filename&gt;">IMPORTANT: This is the ONLY way to deliver files to users. Whenever you generate, export, or produce any file intended for the user (images, documents, archives, reports, etc.), you MUST save it to this directory and share the URL above. Never send raw file content inline, never use any other path or method.</assets>
     <scripts dir="${scriptsDir}">Store temporary scripts here</scripts>
@@ -57,6 +65,7 @@ export class AgentRunner {
         ];
         if (userInfo) {
             extraPrompts.push(`<current-user>
+  <db-id>${userInfo.dbUserId ?? ''}</db-id>       
   <id>${userInfo.user_id}</id>
   <open-id>${userInfo.open_id}</open-id>
   <union-id>${userInfo.union_id}</union-id>
