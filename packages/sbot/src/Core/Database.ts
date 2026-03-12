@@ -11,16 +11,22 @@ export type MessageRow = {
   expireTime: number;
 };
 
+export enum SchedulerType {
+  Channel   = "channel",    // Lark 频道模式（userId 关联用户）
+  Session   = "session",    // 会话模式（sessionId）
+  Directory = "directory",  // 目录模式（workPath）
+}
+
 export type SchedulerRow = {
   id: number;
   name: string;
-  expr: string;              // cron 表达式，如 "0 9 * * *"
-  type: string | null;       // 任务类型标识（自定义字符串，如 "lark" | "session" | "directory"）
-  message: string;           // 消息文本
-  userId: number | null;     // user 表 ID（Lark 模式：关联用户）
-  sessionId: string | null;  // 会话 ID（会话模式）
-  workPath: string | null;   // 工作目录路径（目录模式）
-  lastRun: number | null;    // 上次执行时间戳
+  expr: string;                    // cron 表达式，如 "0 9 * * *"
+  type: SchedulerType | null;      // 任务类型
+  message: string;                 // 消息文本
+  userId: number | null;           // user 表 ID（channel 模式：关联用户）
+  sessionId: string | null;        // 会话 ID（session 模式）
+  workPath: string | null;         // 工作目录路径（directory 模式）
+  lastRun: number | null;          // 上次执行时间戳
 };
 
 export type StateRow = {

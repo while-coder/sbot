@@ -28,6 +28,7 @@ export class AgentRunner {
         userInfo?: any,
         memoryId?: string,
         workPath?: string,
+        contextType?: string,
     ): Promise<void> {
         if (!agentId.trim())        throw new Error("未指定 agent");
         if (!saverId.trim())        throw new Error("未指定 saver");
@@ -46,7 +47,7 @@ export class AgentRunner {
   <current-time>${now.toLocaleString(undefined, { timeZone: timezone, hour12: false })}</current-time>
   <timezone>${timezone}</timezone>
   <os>${os.type()} ${os.release()} (${os.platform()})</os>
-  <locale>${process.env.LANG || Intl.DateTimeFormat().resolvedOptions().locale}</locale>
+  <locale>${process.env.LANG || Intl.DateTimeFormat().resolvedOptions().locale}</locale>${contextType ? `\n  <conversation-type>${contextType}</conversation-type>` : ''}
   <paths>
     <assets dir="${assetsDir}" url="${httpUrl}/assets/&lt;filename&gt;">IMPORTANT: This is the ONLY way to deliver files to users. Whenever you generate, export, or produce any file intended for the user (images, documents, archives, reports, etc.), you MUST save it to this directory and share the URL above. Never send raw file content inline, never use any other path or method.</assets>
     <scripts dir="${scriptsDir}">Store temporary scripts here</scripts>

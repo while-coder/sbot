@@ -5,7 +5,7 @@
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
-import { database, SchedulerRow } from '../../Core/Database';
+import { database, SchedulerRow, SchedulerType } from '../../Core/Database';
 import { schedulerService } from '../../Scheduler/SchedulerService';
 import { LoggerService } from '../../Core/LoggerService';
 
@@ -48,7 +48,7 @@ export function createSchedulerCreateTool(): StructuredToolInterface {
         schema: z.object({
             name:      z.string().describe('任务名称'),
             expr:      z.string().describe('cron 表达式，5 段格式：分 时 日 月 周'),
-            type:      z.string().optional().describe('任务类型标识（自定义字符串，如 "lark" | "session" | "directory"）'),
+            type:      z.enum(Object.values(SchedulerType) as [string, ...string[]]).optional().describe(`任务类型：${Object.values(SchedulerType).join(' | ')}`),
             message:   z.string().describe('触发时发送给用户的消息文本'),
             userId:    z.number().optional().describe('Lark 用户的数据库 ID，对应 userInfo.dbUserId（user 表自增 id）；设置后任务通过 Lark 通道回复该用户'),
             sessionId: z.string().optional().describe('会话 ID；userId 未设置时使用此字段通过 HTTP 通道触发指定会话'),
