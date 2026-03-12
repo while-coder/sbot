@@ -1,5 +1,5 @@
 /**
- * 调度工具集
+ * Scheduler tools
  */
 
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
@@ -18,15 +18,18 @@ const logger = LoggerService.getLogger('Tools/Scheduler/index.ts');
 export function createSchedulerListTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'scheduler_list',
-        description: '查询所有调度任务列表，返回每条记录的 id、name、expr、type、message、userId、sessionId、workPath、lastRun。创建或删除任务前可先调用此工具确认是否已存在同名任务，以及获取待删除任务的 id。',
-        schema: z.object({}) as any,
-        func: async (): Promise<MCPToolResult> => {
+        description: 'List scheduled tasks (id, name, expr, type, message, userId, sessionId, workPath, lastRun). Call before create/delete to check for duplicates or find a task id. Optionally filter by type.',
+        schema: z.object({
+            type: z.enum(Object.values(ContextType) as [string, ...string[]]).optional().describe('Filter by type: channel | session | directory. Omit to return all.'),
+        }) as any,
+        func: async ({ type }: any): Promise<MCPToolResult> => {
             try {
-                const timers = await database.findAll<SchedulerRow>(database.scheduler);
+                const options = type ? { where: { type } } : undefined;
+                const timers = await database.findAll<SchedulerRow>(database.scheduler, options);
                 return createSuccessResult(createTextContent(JSON.stringify(timers, null, 2)));
             } catch (e: any) {
-                logger.error(`scheduler_list 失败: ${e.message}`);
-                return createErrorResult(`查询调度任务失败: ${e.message}`);
+                logger.error(`scheduler_list failed: ${e.message}`);
+                return createErrorResult(`Failed to list scheduled tasks: ${e.message}`);
             }
         },
     });
@@ -39,36 +42,28 @@ export function createSchedulerListTool(): StructuredToolInterface {
 export function createSchedulerCreateTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'scheduler_create',
-        description: `创建调度任务，使用 5 段 cron 表达式（分 时 日 月 周）指定触发时间，时区与服务器一致。
+        description: `Create a scheduled task with a 5-field cron expression (minute hour day month weekday, server timezone).
 
-常用 cron 示例：
-- 每天 09:00        → "0 9 * * *"
-- 每周一 09:00      → "0 9 * * 1"
-- 每月 1 日 09:00   → "0 9 1 * *"
-- 每隔 30 分钟      → "*/30 * * * *"
-- 每小时整点        → "0 * * * *"
+Cron examples: daily 09:00="0 9 * * *"  every Monday="0 9 * * 1"  every 30min="*/30 * * * *"
 
-【路由配置——根据当前 conversation-type 三选一，其余路由字段留 null】
-① conversation-type=channel（Lark 频道）
-   → type="channel"，userId 填 <current-user> 中 <db-id> 的整数值
-② conversation-type=session（HTTP 会话）
-   → type="session"，sessionId 填 <environment> 中 <scheduler-session-id> 的值
-③ conversation-type=directory（目录模式）
-   → type="directory"，workPath 填 <environment><paths><working-directory> 的 dir 属性值`,
+Routing — set exactly one field based on conversation-type, leave others null:
+  channel   → userId    = <current-user><db-id>
+  session   → sessionId = <environment><scheduler-session-id>
+  directory → workPath  = <environment><paths><working-directory dir="...">`,
         schema: z.object({
-            name:      z.string().describe('任务名称'),
-            expr:      z.string().describe('cron 表达式，5 段格式：分 时 日 月 周'),
-            type:      z.enum(Object.values(ContextType) as [string, ...string[]]).optional().describe(`路由类型，与路由字段严格对应：channel（配合 userId）| session（配合 sessionId）| directory（配合 workPath）`),
-            message:   z.string().describe('触发时发送给用户的消息文本'),
-            userId:    z.number().optional().describe('【仅 channel 模式】Lark 用户的数据库 ID，取自系统上下文 <current-user><db-id>，其他模式留 null'),
-            sessionId: z.string().optional().describe('【仅 session 模式】会话 ID，取自系统上下文 <environment><scheduler-session-id>，其他模式留 null'),
-            workPath:  z.string().optional().describe('【仅 directory 模式】工作目录绝对路径，取自系统上下文 <environment><paths><working-directory dir="..."> 的 dir 值，其他模式留 null'),
+            name:      z.string().describe('Task name'),
+            expr:      z.string().describe('5-field cron: minute hour day month weekday'),
+            type:      z.enum(Object.values(ContextType) as [string, ...string[]]).optional().describe('channel | session | directory — must match the routing field'),
+            message:   z.string().describe('Message to send when the task fires'),
+            userId:    z.number().optional().describe('channel only: integer from <current-user><db-id>'),
+            sessionId: z.string().optional().describe('session only: value from <environment><scheduler-session-id>'),
+            workPath:  z.string().optional().describe('directory only: dir attribute of <environment><paths><working-directory>'),
         }) as any,
         func: async ({ name, expr, type, message, userId, sessionId, workPath }: any): Promise<MCPToolResult> => {
             try {
-                if (!name?.trim())    return createErrorResult('name 不能为空');
-                if (!expr?.trim())    return createErrorResult('expr 不能为空');
-                if (!message?.trim()) return createErrorResult('message 不能为空');
+                if (!name?.trim())    return createErrorResult('name is required');
+                if (!expr?.trim())    return createErrorResult('expr is required');
+                if (!message?.trim()) return createErrorResult('message is required');
 
                 const row = await database.create<SchedulerRow>(database.scheduler, {
                     name:      name.trim(),
@@ -81,10 +76,10 @@ export function createSchedulerCreateTool(): StructuredToolInterface {
                     lastRun:   null,
                 });
                 await schedulerService.reload((row as any).id);
-                return createSuccessResult(createTextContent(`调度任务已创建:\n${JSON.stringify(row, null, 2)}`));
+                return createSuccessResult(createTextContent(`Scheduled task created:\n${JSON.stringify(row, null, 2)}`));
             } catch (e: any) {
-                logger.error(`scheduler_create 失败: ${e.message}`);
-                return createErrorResult(`创建调度任务失败: ${e.message}`);
+                logger.error(`scheduler_create failed: ${e.message}`);
+                return createErrorResult(`Failed to create scheduled task: ${e.message}`);
             }
         },
     });
@@ -97,27 +92,27 @@ export function createSchedulerCreateTool(): StructuredToolInterface {
 export function createSchedulerDeleteTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'scheduler_delete',
-        description: '删除并取消指定调度任务。如不确定任务 id，请先调用 scheduler_list 查询后再传入。',
+        description: 'Delete and cancel a scheduled task by id. Use scheduler_list first if you need to find the id.',
         schema: z.object({
-            id: z.number().describe('要删除的任务 id，可通过 scheduler_list 获取'),
+            id: z.number().describe('Task id (from scheduler_list)'),
         }) as any,
         func: async ({ id }: any): Promise<MCPToolResult> => {
             try {
                 const existing = await database.findByPk<SchedulerRow>(database.scheduler, id);
-                if (!existing) return createErrorResult(`调度任务 id=${id} 不存在`);
+                if (!existing) return createErrorResult(`Scheduled task id=${id} not found`);
                 schedulerService.cancel(id);
                 await database.destroy(database.scheduler, { where: { id } });
-                return createSuccessResult(createTextContent(`调度任务 id=${id}（${existing.name}）已删除`));
+                return createSuccessResult(createTextContent(`Scheduled task id=${id} (${existing.name}) deleted`));
             } catch (e: any) {
-                logger.error(`scheduler_delete 失败: ${e.message}`);
-                return createErrorResult(`删除调度任务失败: ${e.message}`);
+                logger.error(`scheduler_delete failed: ${e.message}`);
+                return createErrorResult(`Failed to delete scheduled task: ${e.message}`);
             }
         },
     });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 工具集合
+// Tool set
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function createSchedulerTools(): StructuredToolInterface[] {
