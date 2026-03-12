@@ -733,8 +733,7 @@ class HttpServer {
         app.delete('/api/timers/:id', api(async req => {
             const id = parseInt(req.params.id as string, 10);
             if (isNaN(id)) throwBad('无效的 id');
-            schedulerService.cancel(id);
-            await database.destroy(database.scheduler, { where: { id } });
+            await schedulerService.delete(id);
         }));
 
         // ===== Users =====

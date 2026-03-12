@@ -5,7 +5,7 @@ import { LoggerService } from "./LoggerService";
 
 const logger = LoggerService.getLogger("Database.ts");
 const DBVersionName = "db_version";
-const DBVersion = '0.0.9'
+const DBVersion = '0.0.10'
 export type MessageRow = {
   id: string;
   expireTime: number;
@@ -27,6 +27,8 @@ export type SchedulerRow = {
   sessionId: string | null;        // 会话 ID（session 模式）
   workPath: string | null;         // 工作目录路径（directory 模式）
   lastRun: number | null;          // 上次执行时间戳
+  runCount: number;                // 已执行次数
+  maxRuns: number;                 // 最大执行次数（0 表示不限制）
 };
 
 export type StateRow = {
@@ -238,6 +240,18 @@ class Database {
           allowNull: true,
           defaultValue: null,
           comment: "上次执行时间戳",
+        },
+        runCount: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
+          comment: "已执行次数",
+        },
+        maxRuns: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
+          comment: "最大执行次数（0 表示不限制）",
         },
       },
       {

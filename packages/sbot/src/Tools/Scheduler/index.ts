@@ -18,7 +18,7 @@ const logger = LoggerService.getLogger('Tools/Scheduler/index.ts');
 export function createSchedulerListTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'scheduler_list',
-        description: 'List scheduled tasks (id, name, expr, type, message, userId, sessionId, workPath, lastRun). Call before create/delete to check for duplicates or find a task id. Optionally filter by type.',
+        description: 'List scheduled tasks (id, name, expr, type, message, userId, sessionId, workPath, lastRun, runCount, maxRuns). Call before create/delete to check for duplicates or find a task id. Optionally filter by type.',
         schema: z.object({
             type: z.enum(Object.values(ContextType) as [string, ...string[]]).optional().describe('Filter by type: channel | session | directory. Omit to return all.'),
         }) as any,
@@ -58,8 +58,9 @@ Routing — set exactly one field based on conversation-type, leave others null:
             userId:    z.number().optional().describe('channel only: integer from <current-user><db-id>'),
             sessionId: z.string().optional().describe('session only: value from <environment><scheduler-session-id>'),
             workPath:  z.string().optional().describe('directory only: dir attribute of <environment><paths><working-directory>'),
+            maxRuns:   z.number().optional().describe('Max number of executions (0 or omit = unlimited). Task stops automatically after reaching this count.'),
         }) as any,
-        func: async ({ name, expr, type, message, userId, sessionId, workPath }: any): Promise<MCPToolResult> => {
+        func: async ({ name, expr, type, message, userId, sessionId, workPath, maxRuns }: any): Promise<MCPToolResult> => {
             try {
                 if (!name?.trim())    return createErrorResult('name is required');
                 if (!expr?.trim())    return createErrorResult('expr is required');
@@ -74,6 +75,8 @@ Routing — set exactly one field based on conversation-type, leave others null:
                     sessionId: sessionId ?? null,
                     workPath:  workPath ?? null,
                     lastRun:   null,
+                    runCount:  0,
+                    maxRuns:   maxRuns ?? 0,
                 });
                 await schedulerService.reload((row as any).id);
                 return createSuccessResult(createTextContent(`Scheduled task created:\n${JSON.stringify(row, null, 2)}`));
@@ -100,8 +103,7 @@ export function createSchedulerDeleteTool(): StructuredToolInterface {
             try {
                 const existing = await database.findByPk<SchedulerRow>(database.scheduler, id);
                 if (!existing) return createErrorResult(`Scheduled task id=${id} not found`);
-                schedulerService.cancel(id);
-                await database.destroy(database.scheduler, { where: { id } });
+                await schedulerService.delete(id);
                 return createSuccessResult(createTextContent(`Scheduled task id=${id} (${existing.name}) deleted`));
             } catch (e: any) {
                 logger.error(`scheduler_delete failed: ${e.message}`);

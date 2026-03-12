@@ -15,6 +15,8 @@ interface SchedulerRow {
   workPath: string | null
   lastRun: number | null
   nextRun: number | null
+  runCount: number
+  maxRuns: number
 }
 
 interface UserRow {
@@ -58,6 +60,7 @@ const form = ref({
   userId:       '' as string | number,
   sessionId:    '',
   workPath:     '',
+  maxRuns:      0,
 })
 
 // ── Cron helpers ─────────────────────────────────────────────────────────────
@@ -180,6 +183,7 @@ function openAdd() {
     userId:      '',
     sessionId:   sessionOptions.value[0] ?? '',
     workPath:    '',
+    maxRuns:     0,
   }
   showModal.value = true
 }
@@ -196,6 +200,7 @@ function openEdit(row: SchedulerRow) {
     userId:      row.userId ?? '',
     sessionId:   row.sessionId ?? '',
     workPath:    row.workPath ?? '',
+    maxRuns:     row.maxRuns ?? 0,
   }
   showModal.value = true
 }
@@ -222,6 +227,7 @@ async function save() {
       userId:    rt === 'channel' && form.value.userId !== '' ? Number(form.value.userId) : null,
       sessionId: rt === 'session' ? form.value.sessionId : null,
       workPath:  rt === 'directory' ? form.value.workPath.trim() : null,
+      maxRuns:   form.value.maxRuns ?? 0,
     }
     if (editingId.value !== null) {
       await apiFetch(`/api/timers/${editingId.value}`, 'PUT', body)
@@ -270,6 +276,7 @@ onMounted(load)
             <th>消息</th>
             <th>类型</th>
             <th>路由目标</th>
+            <th>执行次数</th>
             <th>上次运行</th>
             <th>下次运行</th>
             <th>操作</th>
@@ -277,10 +284,10 @@ onMounted(load)
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="9" style="text-align:center;color:#9b9b9b;padding:40px">加载中...</td>
+            <td colspan="10" style="text-align:center;color:#9b9b9b;padding:40px">加载中...</td>
           </tr>
           <tr v-else-if="timers.length === 0">
-            <td colspan="9" style="text-align:center;color:#9b9b9b;padding:40px">暂无计时器</td>
+            <td colspan="10" style="text-align:center;color:#9b9b9b;padding:40px">暂无计时器</td>
           </tr>
           <tr v-for="t in timers" :key="t.id">
             <td style="font-family:monospace;color:#9b9b9b">{{ t.id }}</td>
@@ -297,6 +304,7 @@ onMounted(load)
               >{{ ROUTING_BADGE[routingTypeOf(t)].label }}</span>
             </td>
             <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ routingLabel(t) }}</td>
+            <td style="font-size:12px;font-family:monospace;color:#9b9b9b;white-space:nowrap">{{ t.runCount }}{{ t.maxRuns > 0 ? ` / ${t.maxRuns}` : '' }}</td>
             <td style="font-size:12px;color:#9b9b9b;white-space:nowrap">{{ formatLastRun(t.lastRun) }}</td>
             <td style="font-size:12px;color:#9b9b9b;white-space:nowrap">{{ formatNextRun(t.nextRun) }}</td>
             <td>
@@ -426,6 +434,12 @@ onMounted(load)
               <option v-for="d in directoryOptions" :key="d" :value="d">{{ d }}</option>
             </select>
             <input v-else v-model="form.workPath" placeholder="/path/to/directory" style="font-family:monospace" />
+          </div>
+
+          <!-- 最大执行次数 -->
+          <div class="form-group">
+            <label>最大执行次数（0 不限制）</label>
+            <input type="number" v-model.number="form.maxRuns" min="0" />
           </div>
         </div>
         <div class="modal-footer">

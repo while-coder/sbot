@@ -8,26 +8,26 @@ import { channelManager } from "../Channel/ChannelManager";
 
 const logger = LoggerService.getLogger("SchedulerService.ts");
 
-async function executeScheduler(timerId: number): Promise<void> {
-    const timer = await database.findByPk<SchedulerRow>(database.scheduler, timerId);
-    if (!timer) return;
+async function executeScheduler(schedulerId: number): Promise<void> {
+    const scheduler = await database.findByPk<SchedulerRow>(database.scheduler, schedulerId);
+    if (!scheduler) return;
 
-    const tag = `[${timer.id}:${timer.name}]`;
-    const isChannel = timer.type === ContextType.Channel
-        || (timer.type == null && timer.userId != null);
+    const tag = `[${scheduler.id}:${scheduler.name}]`;
+    const isChannel = scheduler.type === ContextType.Channel
+        || (scheduler.type == null && scheduler.userId != null);
 
     try {
         if (isChannel) {
             // Channel mode: deliver via Lark
-            const userRow = timer.userId
-                ? await database.findByPk<UserRow>(database.user, timer.userId)
+            const userRow = scheduler.userId
+                ? await database.findByPk<UserRow>(database.user, scheduler.userId)
                 : null;
             const larkService = userRow?.channel
                 ? channelManager.getService(userRow.channel) as LarkService | undefined
                 : undefined;
 
             if (!userRow || !larkService) {
-                logger.error(`Scheduler task ${tag} channel mode: userId=${timer.userId} not found or has no Lark service`);
+                logger.error(`Scheduler task ${tag} channel mode: userId=${scheduler.userId} not found or has no Lark service`);
                 return;
             }
 
@@ -42,85 +42,101 @@ async function executeScheduler(timerId: number): Promise<void> {
                 root_id: "",
                 chatInfo: { receiveId: userRow.userid, receiveIdType: (userRow.userIdType ?? LarkReceiveIdType.UnionId) as LarkReceiveIdType },
             };
-            await userService.onReceiveLarkMessage(args, userInfo, timer.message, userRow.channel);
+            await userService.onReceiveLarkMessage(args, userInfo, scheduler.message, userRow.channel);
             logger.info(`Scheduler task ${tag} fired (channel), user ${userRow.userid}`);
         } else {
             // Session / directory mode: deliver via HTTP pipeline
             await userService.onReceiveHttpMessage(
-                timer.message,
+                scheduler.message,
                 null,
-                timer.sessionId ?? undefined,
-                timer.workPath ?? undefined,
+                scheduler.sessionId ?? undefined,
+                scheduler.workPath ?? undefined,
             );
-            logger.info(`Scheduler task ${tag} fired (http), sessionId=${timer.sessionId ?? '-'} workPath=${timer.workPath ?? '-'}`);
+            logger.info(`Scheduler task ${tag} fired (http), sessionId=${scheduler.sessionId ?? '-'} workPath=${scheduler.workPath ?? '-'}`);
         }
     } catch (e: any) {
         logger.error(`Scheduler task ${tag} failed: ${e?.message ?? e}`);
     }
 
-    await database.update(database.scheduler, { lastRun: Date.now() }, { where: { id: timer.id } });
+    const newRunCount = (scheduler.runCount ?? 0) + 1;
+    await database.update(database.scheduler, { lastRun: Date.now(), runCount: newRunCount }, { where: { id: scheduler.id } });
+
+    if (scheduler.maxRuns > 0 && newRunCount >= scheduler.maxRuns) {
+        logger.info(`Scheduler task ${tag} reached maxRuns (${scheduler.maxRuns}), deleting`);
+        await schedulerService.delete(scheduler.id);
+    }
 }
 
 class SchedulerService {
     private jobs = new Map<number, CronJob>();
 
     async start(): Promise<void> {
-        const timers = await database.findAll<SchedulerRow>(database.scheduler);
-        for (const timer of timers) {
-            this.schedule(timer);
+        const schedulers = await database.findAll<SchedulerRow>(database.scheduler);
+        let loaded = 0;
+        for (const scheduler of schedulers) {
+            if (await this.schedule(scheduler)) loaded++;
         }
-        logger.info(`调度服务启动，已加载 ${timers.length} 个调度任务`);
+        logger.info(`调度服务启动，已加载 ${loaded} 个调度任务`);
     }
 
-    /** 调度单个任务 */
-    schedule(timer: SchedulerRow): void {
-        this.cancel(timer.id);
+    /** 调度单个任务，返回 true 表示成功调度 */
+    private async schedule(scheduler: SchedulerRow): Promise<boolean> {
+        this.cancel(scheduler.id);
 
-        if (!timer.expr?.trim()) {
-            logger.error(`调度任务 [${timer.id}:${timer.name}] cron 表达式为空，跳过`);
-            return;
+        if (!scheduler.expr?.trim()) {
+            logger.error(`调度任务 [${scheduler.id}:${scheduler.name}] cron 表达式为空，跳过`);
+            return false;
+        }
+
+        if (scheduler.maxRuns > 0 && (scheduler.runCount ?? 0) >= scheduler.maxRuns) {
+            logger.info(`调度任务 [${scheduler.id}:${scheduler.name}] 已达最大执行次数，清理`);
+            await database.destroy(database.scheduler, { where: { id: scheduler.id } });
+            return false;
         }
 
         try {
             const job = CronJob.from({
-                cronTime: timer.expr,
-                onTick: () => executeScheduler(timer.id),
+                cronTime: scheduler.expr,
+                onTick: () => executeScheduler(scheduler.id),
                 start: true,
                 waitForCompletion: true,
             });
-            this.jobs.set(timer.id, job);
-            logger.info(`调度任务 [${timer.id}:${timer.name}] 已调度 (${timer.expr})，下次执行: ${job.nextDate().toISO()}`);
+            this.jobs.set(scheduler.id, job);
+            logger.info(`调度任务 [${scheduler.id}:${scheduler.name}] 已调度 (${scheduler.expr})，下次执行: ${job.nextDate().toISO()}`);
+            return true;
         } catch (e: any) {
-            logger.error(`调度任务 [${timer.id}:${timer.name}] 调度失败: ${e?.message}`);
+            logger.error(`调度任务 [${scheduler.id}:${scheduler.name}] 调度失败: ${e?.message}`);
+            return false;
         }
     }
 
-    /** Returns the next scheduled timestamp (ms) for a timer, or null if not scheduled */
-    nextDate(timerId: number): number | null {
-        const job = this.jobs.get(timerId);
+    /** Returns the next scheduled timestamp (ms) for a scheduler, or null if not scheduled */
+    nextDate(schedulerId: number): number | null {
+        const job = this.jobs.get(schedulerId);
         if (!job) return null;
         try { return job.nextDate().toMillis(); } catch { return null; }
     }
 
-    /** 取消某个任务的调度 */
-    cancel(timerId: number): void {
-        const job = this.jobs.get(timerId);
+    /** 停止并移除 cron job（不操作数据库） */
+    private cancel(schedulerId: number): void {
+        const job = this.jobs.get(schedulerId);
         if (job) {
             job.stop();
-            this.jobs.delete(timerId);
+            this.jobs.delete(schedulerId);
         }
     }
 
-    /** 重新从 DB 加载并重新调度（外部增删改后调用） */
-    async reload(timerId: number): Promise<void> {
-        this.cancel(timerId);
-        const timer = await database.findByPk<SchedulerRow>(database.scheduler, timerId);
-        if (timer) this.schedule(timer);
+    /** 取消调度并从数据库删除 */
+    async delete(schedulerId: number): Promise<void> {
+        this.cancel(schedulerId);
+        await database.destroy(database.scheduler, { where: { id: schedulerId } });
     }
 
-    stop(): void {
-        for (const id of this.jobs.keys()) this.cancel(id);
-        logger.info("调度服务已停止");
+    /** 重新从 DB 加载并重新调度（外部增删改后调用） */
+    async reload(schedulerId: number): Promise<void> {
+        const scheduler = await database.findByPk<SchedulerRow>(database.scheduler, schedulerId);
+        if (scheduler) await this.schedule(scheduler);
+        else this.cancel(schedulerId);
     }
 }
 
