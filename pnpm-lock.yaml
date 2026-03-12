@@ -47,6 +47,9 @@ importers:
         specifier: workspace:*
         version: link:../scorpio.ai
     devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.4.0
       rimraf:
         specifier: 'catalog:'
         version: 6.1.3
