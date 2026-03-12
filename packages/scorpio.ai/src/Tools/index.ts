@@ -21,6 +21,12 @@ export {
 } from './types';
 
 export {
+    createTaskTool,
+    type TaskToolParams,
+    type RunTaskFn,
+} from './TaskTool';
+
+export {
     createAskTool,
     type AskToolParams,
     type AskQuestion,

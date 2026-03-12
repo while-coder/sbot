@@ -101,7 +101,6 @@ export class SkillService implements ISkillService {
           this.logger?.warn(`技能目录解析失败: ${skillDir}`);
           continue;
         }
-        this.logger?.info(`Loaded skill: ${skill.name}`);
         this._skills.push(skill);
       } catch (e: any) {
         this.logger?.error(`加载 skill 失败 ${skillDir}: ${e.message}`);

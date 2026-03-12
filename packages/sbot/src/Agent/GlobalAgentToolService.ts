@@ -1,4 +1,4 @@
-import { AgentToolService } from "scorpio.ai";
+import { AgentToolService, GlobalLoggerService } from "scorpio.ai";
 import { config } from "../Core/Config.js";
 import { createCommandTools } from "../Tools/Command/index.js";
 import { createFileSystemTools } from "../Tools/FileSystem/index.js";
@@ -14,7 +14,7 @@ export enum BuiltinProvider {
     Markitdown = 'builtin_markitdown'
 }
 
-export const globalAgentToolService = new AgentToolService();
+export const globalAgentToolService = new AgentToolService(GlobalLoggerService.getLoggerService());
 
 export function initGlobalAgentToolService() {
     globalAgentToolService.registerToolFactory(BuiltinProvider.Command, async () => createCommandTools(), '命令执行');

@@ -59,7 +59,7 @@ export class SingleAgentService extends AgentServiceBase {
     /**
      * 构建本轮 system message（基础 + 记忆 + skill 合并为单条）
      */
-    private async buildSystemMessage(query: string): Promise<SystemMessage | null> {
+    protected async buildSystemMessage(query: string): Promise<SystemMessage | null> {
         const parts: string[] = this.systemMessages.map(m => m.content as string);
         if (this.memoryService) {
             const memoryMessage = await this.memoryService.getSystemMessage(query, 10);
@@ -75,7 +75,7 @@ export class SingleAgentService extends AgentServiceBase {
     /**
      * 构建本轮所有可用工具（toolService + 记忆 + skill）
      */
-    private async buildTools(): Promise<StructuredToolInterface[]> {
+    protected async buildTools(): Promise<StructuredToolInterface[]> {
         const tools: StructuredToolInterface[] = await this.toolService?.getAllTools() ?? [];
         if (this.skillService) tools.push(...this.skillService.getTools());
         return tools;

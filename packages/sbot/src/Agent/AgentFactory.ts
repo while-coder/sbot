@@ -7,10 +7,9 @@ import {
     IAgentToolService, AgentToolService,
     ISkillService, SkillService,
     ServiceContainer, T_SystemPrompts,
-    ReActAgentService, T_AgentSubNodes, T_MaxIterations, T_CreateAgent, T_ThinkModelService, T_ReflectModelService,
-    SupervisorAgentService, T_SupervisorSubNodes, T_SupervisorMaxRounds, T_SupervisorAgentName, T_FinalizeModelService,
+    ReActAgentService, T_AgentSubNodes, T_CreateAgent, T_ThinkModelService,
+    SupervisorAgentService, T_SupervisorSubNodes, T_SupervisorMaxRounds, T_SupervisorAgentName, T_FinalizeModelService, T_SummaryModelService,
     type CreateAgentFn,
-    T_SummaryModelService,
 } from "scorpio.ai";
 import { config, AgentMode, SingleAgentEntry, ReactAgentEntry, SupervisorAgentEntry } from "../Core/Config";
 import { globalAgentToolService } from "./GlobalAgentToolService";
@@ -121,7 +120,7 @@ export class AgentFactory {
             throw new Error("Supervisor 模式未配置 supervisor agentName");
         }
         if (!entry.summarizer) {
-            throw new Error("ReAct 模式未配置 summarizer modelName");
+            throw new Error("Supervisor 模式未配置 summarizer modelName");
         }
         if (!entry.finalize) {
             throw new Error("Supervisor 模式未配置 finalize modelName");
@@ -157,26 +156,12 @@ export class AgentFactory {
         if (!entry.think) {
             throw new Error("ReAct 模式未配置 think modelName");
         }
-        if (!entry.summarizer) {
-            throw new Error("ReAct 模式未配置 summarizer modelName");
-        }
-        if (!entry.reflect) {
-            throw new Error("ReAct 模式未配置 reflect modelName");
-        }
-
-        const maxIterations = entry.maxIterations || 5;
-
         const thinkModelService = await config.getModelService(entry.think, true);
-        const reflectModelService = await config.getModelService(entry.reflect, true);
-        const summarizerModelService = await config.getModelService(entry.summarizer, true);
 
         container.registerWithArgs(ReActAgentService, {
             [T_AgentSubNodes]: agentSubNodes,
             [T_CreateAgent]: createAgentFn,
             [T_ThinkModelService]: thinkModelService,
-            [T_SummaryModelService]: summarizerModelService,
-            [T_ReflectModelService]: reflectModelService,
-            [T_MaxIterations]: maxIterations,
         });
         return container.resolve(ReActAgentService);
     }

@@ -24,9 +24,7 @@ const form = ref({
   type: 'single',
   model: '',
   systemPrompt: '',
-  maxIterations: 5,
   think: '',
-  reflect: '',
   summarizer: '',
   maxRounds: 10,
   supervisor: '',
@@ -43,9 +41,7 @@ function open(id?: string) {
       type: a.type || 'single',
       model: a.model || '',
       systemPrompt: a.systemPrompt || '',
-      maxIterations: a.maxIterations || 5,
       think: a.think || '',
-      reflect: a.reflect || '',
       summarizer: a.summarizer || '',
       maxRounds: a.maxRounds || 10,
       supervisor: a.supervisor || '',
@@ -57,7 +53,7 @@ function open(id?: string) {
     tempSubAgents.value = []
     form.value = {
       name: '', type: 'single', model: '', systemPrompt: '',
-      maxIterations: 5, think: '', reflect: '', summarizer: '',
+      think: '', summarizer: '',
       maxRounds: 10, supervisor: '', finalize: '',
     }
   }
@@ -68,9 +64,7 @@ async function save() {
   if (!form.value.name.trim()) { show('名称不能为空', 'error'); return }
   const { type } = form.value
   if (type === 'react') {
-    if (!form.value.think)      { show('ReAct 模式：Think Agent 不能为空',     'error'); return }
-    if (!form.value.reflect)    { show('ReAct 模式：Reflect 模型不能为空',      'error'); return }
-    if (!form.value.summarizer) { show('ReAct 模式：Summarizer 模型不能为空',   'error'); return }
+    if (!form.value.think) { show('ReAct 模式：Think 模型不能为空', 'error'); return }
   } else if (type === 'supervisor') {
     if (!form.value.supervisor) { show('Supervisor 模式：Supervisor Agent 不能为空', 'error'); return }
     if (!form.value.summarizer) { show('Supervisor 模式：Summarizer 模型不能为空',   'error'); return }
@@ -87,11 +81,8 @@ async function save() {
       if (Array.isArray(existing?.mcp)    && existing.mcp.length)    config.mcp    = existing.mcp
       if (Array.isArray(existing?.skills) && existing.skills.length) config.skills = existing.skills
     } else if (type === 'react') {
-      config.maxIterations = form.value.maxIterations
-      config.think         = form.value.think
-      config.reflect       = form.value.reflect
-      config.summarizer    = form.value.summarizer
-      config.agents        = tempSubAgents.value
+      config.think  = form.value.think
+      config.agents = tempSubAgents.value
     } else if (type === 'supervisor') {
       config.maxRounds  = form.value.maxRounds
       config.supervisor = form.value.supervisor
@@ -206,32 +197,12 @@ defineExpose({ open })
         <template v-else-if="form.type === 'react'">
           <div class="form-section">
             <div class="form-section-title">节点配置</div>
-            <div class="form-nodes-grid">
-              <div class="form-group">
-                <label>最大迭代次数</label>
-                <input v-model.number="form.maxIterations" type="number" min="1" max="50" placeholder="5" />
-              </div>
-              <div class="form-group">
-                <label>Think Agent *</label>
-                <select v-model="form.think">
-                  <option value="">请选择</option>
-                  <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }}</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label>Reflect 模型 *</label>
-                <select v-model="form.reflect">
-                  <option value="">请选择</option>
-                  <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label>Summarizer 模型 *</label>
-                <select v-model="form.summarizer">
-                  <option value="">请选择</option>
-                  <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-                </select>
-              </div>
+            <div class="form-group">
+              <label>Think 模型 *</label>
+              <select v-model="form.think">
+                <option value="">请选择</option>
+                <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
+              </select>
             </div>
           </div>
           <div class="form-section">
