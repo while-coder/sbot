@@ -146,6 +146,7 @@ async function handleWsMessage(evt: any) {
       role: evt.role,
       content: evt.content,
       tool_calls: evt.tool_calls,
+      tool_call_id: evt.tool_call_id,
       timestamp: new Date().toISOString(),
     })
     streamingContent.value = ''
@@ -155,7 +156,7 @@ async function handleWsMessage(evt: any) {
   } else if (evt.type === 'tool_call') {
     messages.value.push({
       role: 'ai',
-      tool_calls: [{ id: `tc-${Date.now()}`, name: evt.name, args: evt.args }],
+      tool_calls: [{ id: evt.id ?? `tc-${Date.now()}`, name: evt.name, args: evt.args }],
       timestamp: new Date().toISOString(),
     })
     streamingToolCalls.value.push({ name: evt.name, args: evt.args })
@@ -221,8 +222,14 @@ async function clearHistory() {
 }
 
 
-function scrollToBottom() {
-  if (messagesEl.value) {
+function isAtBottom(): boolean {
+  if (!messagesEl.value) return true
+  const el = messagesEl.value
+  return el.scrollHeight - el.scrollTop - el.clientHeight < 60
+}
+
+function scrollToBottom(force = false) {
+  if (messagesEl.value && (force || isAtBottom())) {
     messagesEl.value.scrollTop = messagesEl.value.scrollHeight
   }
 }
@@ -326,7 +333,7 @@ async function sendOne(query: string, atts: Attachment[]) {
     timestamp: new Date().toISOString(),
   })
   await nextTick()
-  scrollToBottom()
+  scrollToBottom(true)
 
   try {
     await chatSocket.waitForOpen()
@@ -487,7 +494,7 @@ onUnmounted(() => {
             </template>
 
             <template v-for="(msg, idx) in messages" :key="idx">
-              <template v-if="!(msg.role === 'tool' && msg.tool_call_id)">
+              <template v-if="msg.role !== 'tool'">
                 <div v-if="msg.role === 'human'" class="msg-row human">
                   <div class="msg-bubble human">
                     <div class="msg-role-bar">
@@ -521,14 +528,6 @@ onUnmounted(() => {
                         </template>
                       </div>
                     </div>
-                  </div>
-                </div>
-                <div v-else-if="msg.role === 'tool'" class="msg-row ai">
-                  <div class="msg-bubble tool">
-                    <div class="msg-role-bar">
-                      <span class="msg-role">Tool{{ msg.name ? ` · ${msg.name}` : '' }}</span>
-                    </div>
-                    {{ msg.content }}
                   </div>
                 </div>
                 <div v-else class="msg-row ai">

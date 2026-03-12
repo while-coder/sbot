@@ -38,7 +38,7 @@ export class AgentFactory {
         if (first && agentEntry.systemPrompt)
             systemPrompts.push(agentEntry.systemPrompt);
         const createAgentFn: CreateAgentFn = (name, subContainer) =>
-            AgentFactory.create(name, subContainer, false, systemPrompts);
+            AgentFactory.create(name, subContainer, false, extraPrompts);
         const agentType = agentEntry.type || AgentMode.Single;
 
         switch (agentType) {

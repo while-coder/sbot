@@ -6,8 +6,8 @@ import { config } from '../Core/Config';
 
 export type WebChatEvent =
     | { type: "stream"; content: string }
-    | { type: "message"; role: string; content?: string; tool_calls?: any[] }
-    | { type: "tool_call"; name: string; args: Record<string, any> }
+    | { type: "message"; role: string; content?: string; tool_calls?: any[]; tool_call_id?: string }
+    | { type: "tool_call"; id?: string; name: string; args: Record<string, any> }
     | { type: "done" }
     | { type: "error"; message: string };
 
@@ -50,6 +50,7 @@ export class WebSocketUserService {
             role: message.type,
             content: message.content,
             tool_calls: message.tool_calls,
+            tool_call_id: message.tool_call_id,
         });
     }
 
@@ -58,7 +59,7 @@ export class WebSocketUserService {
     }
 
     async executeAgentTool(toolCall: AgentToolCall): Promise<boolean> {
-        this.emit({ type: 'tool_call', name: toolCall.name, args: toolCall.args });
+        this.emit({ type: 'tool_call', id: toolCall.id, name: toolCall.name, args: toolCall.args });
         return true;
     }
 
