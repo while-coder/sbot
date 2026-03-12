@@ -692,17 +692,18 @@ class HttpServer {
         }));
 
         app.post('/api/timers', api(async req => {
-            const { name, expr, message, agentName, userId } = req.body;
+            const { name, expr, message, type, userId, sessionId, workPath } = req.body;
             if (!name?.trim()) throwBad('name 不能为空');
             if (!expr?.trim()) throwBad('expr 不能为空');
             if (!message?.trim()) throwBad('message 不能为空');
-            if (!agentName?.trim()) throwBad('agentName 不能为空');
             const row = await database.create(database.scheduler, {
                 name: name.trim(),
                 expr: expr.trim(),
+                type: type ?? null,
                 message: message.trim(),
-                agentName: agentName.trim(),
                 userId: userId ?? null,
+                sessionId: sessionId ?? null,
+                workPath: workPath ?? null,
                 lastRun: null,
             });
             await schedulerService.reload((row as any).id);
@@ -712,14 +713,15 @@ class HttpServer {
         app.put('/api/timers/:id', api(async req => {
             const id = parseInt(req.params.id as string, 10);
             if (isNaN(id)) throwBad('无效的 id');
-            const { name, expr, message, agentName, userId } = req.body;
-            if (agentName !== undefined && !agentName?.trim()) throwBad('agentName 不能为空');
+            const { name, expr, message, type, userId, sessionId, workPath } = req.body;
             const updates: any = {};
             if (name !== undefined)      updates.name      = name;
             if (expr !== undefined)      updates.expr      = expr;
             if (message !== undefined)   updates.message   = message;
-            if (agentName !== undefined) updates.agentName = agentName.trim();
+            if (type !== undefined)      updates.type      = type;
             if (userId !== undefined)    updates.userId    = userId;
+            if (sessionId !== undefined) updates.sessionId = sessionId;
+            if (workPath !== undefined)  updates.workPath  = workPath;
             await database.update(database.scheduler, updates, { where: { id } });
             await schedulerService.reload(id);
         }));

@@ -5,7 +5,7 @@ import { LoggerService } from "./LoggerService";
 
 const logger = LoggerService.getLogger("Database.ts");
 const DBVersionName = "db_version";
-const DBVersion = '0.0.5'
+const DBVersion = '0.0.8'
 export type MessageRow = {
   id: string;
   expireTime: number;
@@ -14,10 +14,12 @@ export type MessageRow = {
 export type SchedulerRow = {
   id: number;
   name: string;
-  expr: string;        // cron 表达式，如 "0 9 * * *"
-  message: string;     // 消息文本
-  agentName: string;         // agent 名称
-  userId: number | null;     // user 表 ID
+  expr: string;              // cron 表达式，如 "0 9 * * *"
+  type: string | null;       // 任务类型标识（自定义字符串，如 "lark" | "session" | "directory"）
+  message: string;           // 消息文本
+  userId: number | null;     // user 表 ID（Lark 模式：关联用户）
+  sessionId: string | null;  // 会话 ID（会话模式）
+  workPath: string | null;   // 工作目录路径（目录模式）
   lastRun: number | null;    // 上次执行时间戳
 };
 
@@ -182,6 +184,12 @@ class Database {
           defaultValue: "",
           comment: "计时器名称",
         },
+        type: {
+          type: DataTypes.STRING(64),
+          allowNull: true,
+          defaultValue: null,
+          comment: "任务类型标识",
+        },
         expr: {
           type: DataTypes.TEXT,
           allowNull: false,
@@ -194,17 +202,23 @@ class Database {
           defaultValue: "",
           comment: "发送的文字消息",
         },
-        agentName: {
-          type: DataTypes.STRING(255),
-          allowNull: false,
-          defaultValue: "",
-          comment: "Agent 名称",
-        },
         userId: {
           type: DataTypes.INTEGER,
           allowNull: true,
           defaultValue: null,
           comment: "user 表 ID",
+        },
+        sessionId: {
+          type: DataTypes.STRING(255),
+          allowNull: true,
+          defaultValue: null,
+          comment: "会话 ID",
+        },
+        workPath: {
+          type: DataTypes.TEXT,
+          allowNull: true,
+          defaultValue: null,
+          comment: "工作目录路径",
         },
         lastRun: {
           type: DataTypes.BIGINT,

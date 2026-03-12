@@ -17,8 +17,6 @@ async function executeScheduler(timerId: number): Promise<void> {
     const timer = await database.findByPk<SchedulerRow>(database.scheduler, timerId);
     if (!timer) return;
 
-    const agentName = timer.agentName || undefined;
-
     // 尝试通过 userId 找到对应的 Lark 用户
     const userRow = timer.userId
         ? await database.findByPk<UserRow>(database.user, timer.userId)
@@ -33,14 +31,13 @@ async function executeScheduler(timerId: number): Promise<void> {
         let userInfo: any = {};
         try { userInfo = JSON.parse(userRow.userinfo || "{}"); } catch { /**/ }
 
-        const args: LarkMessageArgs & { agentName?: string } = {
+        const args: LarkMessageArgs = {
             larkService,
             chat_type: "",
             chat_id: "",
             message_id: "",
             root_id: "",
             chatInfo: { receiveId: userRow.userid, receiveIdType: LarkReceiveIdType.UserId },
-            ...(agentName ? { agentName } : {}),
         };
         try {
             await userService.onReceiveLarkMessage(args, userInfo, timer.message, userRow.channel);
@@ -49,13 +46,18 @@ async function executeScheduler(timerId: number): Promise<void> {
             logger.error(`调度任务 [${timer.id}:${timer.name}] 执行失败: ${e?.message ?? e}`);
         }
     } else {
-        // 无 Lark 用户 → 走 Web 通道（无实际推送，仅执行 Agent）
+        // 无 Lark 用户 → 走 HTTP 通道（无推送，仅执行 Agent）
         if (timer.userId) {
-            logger.warn(`调度任务 [${timer.id}:${timer.name}] userId=${timer.userId} 在 user 表中不存在，降级为 Web 模式`);
+            logger.warn(`调度任务 [${timer.id}:${timer.name}] userId=${timer.userId} 在 user 表中不存在，降级为 HTTP 模式`);
         }
         try {
-            await userService.onReceiveWebMessage(timer.message, '', null);
-            logger.info(`调度任务 [${timer.id}:${timer.name}] 已触发（Web）`);
+            await userService.onReceiveHttpMessage(
+                timer.message,
+                null,
+                timer.sessionId ?? undefined,
+                timer.workPath ?? undefined,
+            );
+            logger.info(`调度任务 [${timer.id}:${timer.name}] 已触发（HTTP）`);
         } catch (e: any) {
             logger.error(`调度任务 [${timer.id}:${timer.name}] 执行失败: ${e?.message ?? e}`);
         }

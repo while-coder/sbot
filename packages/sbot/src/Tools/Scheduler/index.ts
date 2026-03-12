@@ -18,7 +18,7 @@ const logger = LoggerService.getLogger('Tools/Scheduler/index.ts');
 export function createSchedulerListTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'scheduler_list',
-        description: '查询所有调度任务列表。返回每条记录的 id、name、expr、message、agentName、userId、lastRun。',
+        description: '查询所有调度任务列表。返回每条记录的 id、name、expr、type、message、userId、sessionId、workPath、lastRun。',
         schema: z.object({}) as any,
         func: async (): Promise<MCPToolResult> => {
             try {
@@ -48,23 +48,26 @@ export function createSchedulerCreateTool(): StructuredToolInterface {
         schema: z.object({
             name:      z.string().describe('任务名称'),
             expr:      z.string().describe('cron 表达式，5 段格式：分 时 日 月 周'),
+            type:      z.string().optional().describe('任务类型标识（自定义字符串，如 "lark" | "session" | "directory"）'),
             message:   z.string().describe('触发时发送给用户的消息文本'),
-            agentName: z.string().describe('处理消息的 Agent 名称'),
-            userId:    z.number().optional().describe('指定用户的数据库 ID（user 表 id 字段）'),
+            userId:    z.number().optional().describe('Lark 用户的数据库 ID，对应 userInfo.dbUserId（user 表自增 id）；设置后任务通过 Lark 通道回复该用户'),
+            sessionId: z.string().optional().describe('会话 ID；userId 未设置时使用此字段通过 HTTP 通道触发指定会话'),
+            workPath:  z.string().optional().describe('工作目录路径；userId 未设置时使用此字段通过 HTTP 通道触发目录模式'),
         }) as any,
-        func: async ({ name, expr, message, agentName, userId }: any): Promise<MCPToolResult> => {
+        func: async ({ name, expr, type, message, userId, sessionId, workPath }: any): Promise<MCPToolResult> => {
             try {
-                if (!name?.trim())      return createErrorResult('name 不能为空');
-                if (!expr?.trim())      return createErrorResult('expr 不能为空');
-                if (!message?.trim())   return createErrorResult('message 不能为空');
-                if (!agentName?.trim()) return createErrorResult('agentName 不能为空');
+                if (!name?.trim())    return createErrorResult('name 不能为空');
+                if (!expr?.trim())    return createErrorResult('expr 不能为空');
+                if (!message?.trim()) return createErrorResult('message 不能为空');
 
                 const row = await database.create<SchedulerRow>(database.scheduler, {
                     name:      name.trim(),
                     expr:      expr.trim(),
+                    type:      type ?? null,
                     message:   message.trim(),
-                    agentName: agentName.trim(),
                     userId:    userId ?? null,
+                    sessionId: sessionId ?? null,
+                    workPath:  workPath ?? null,
                     lastRun:   null,
                 });
                 await schedulerService.reload((row as any).id);

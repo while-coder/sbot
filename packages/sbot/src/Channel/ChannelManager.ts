@@ -145,7 +145,7 @@ export class ChannelManager {
             filterEvent,
             onRecevieMessage: async (userId: string, userInfo: any, args: LarkMessageArgs, query: string) => {
                 if (userId) {
-                    const [, created] = await database.findOrCreate(database.user, {
+                    const [dbUser, created] = await database.findOrCreate(database.user, {
                         where: { userid: userId, channel: channelId },
                         defaults: {
                             username: userInfo?.name ?? "",
@@ -158,6 +158,7 @@ export class ChannelManager {
                             { where: { userid: userId, channel: channelId } },
                         );
                     }
+                    userInfo = { ...(userInfo ?? {}), dbUserId: (dbUser as any).id };
                 }
                 await userService.onReceiveLarkMessage(args, userInfo, query, channelId);
             },
