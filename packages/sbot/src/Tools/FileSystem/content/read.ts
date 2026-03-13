@@ -82,7 +82,8 @@ export function createReadTool(): StructuredToolInterface {
 - Use tail to efficiently read the last N lines (mutually exclusive with offset/limit).
 - Returns "Did you mean?" suggestions when the file is not found.
 - Automatically detects and rejects binary files; use read_binary_file for binary files.
-- Use ls to list directory contents instead of reading a directory path.`,
+- Use ls to list directory contents instead of reading a directory path.
+- For targeted reading, use grep/search first to locate the target line number, then use offset+limit to read only the relevant section.`,
         schema: z.object({
             filePath: z.string().describe('Absolute path to the file'),
             offset: z.number().int().min(1).optional().describe('Line number to start reading from (1-indexed), default 1'),
