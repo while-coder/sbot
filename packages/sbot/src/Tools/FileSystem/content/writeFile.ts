@@ -12,7 +12,9 @@ const logger = LoggerService.getLogger('Tools/FileSystem/content/writeFile.ts');
 export function createWriteFileTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'write_file',
-        description: '写入内容到文件。文件不存在时自动创建；使用原子替换（temp+rename）保证写入安全。路径必须是绝对路径。',
+        description: `Writes content to a file. Creates the file if it does not exist. Parent directories are created automatically by default.
+Uses atomic write (temp + rename) to prevent data corruption. Path must be absolute.
+Prefer edit_file for modifying existing files to avoid overwriting the entire content.`,
         schema: z.object({
             filePath: z.string().describe('要写入的文件的绝对路径'),
             content: z.string().describe('要写入的文件内容'),

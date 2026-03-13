@@ -11,7 +11,7 @@ const logger = LoggerService.getLogger('Tools/FileSystem/operations/createDirect
 export function createDirectoryTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'create_directory',
-        description: 'Create a new directory, automatically creating missing parent directories. Path must be absolute.',
+        description: `Creates a new directory, automatically creating missing parent directories. Path must be absolute.`,
         schema: z.object({
             dirPath: z.string().describe('Absolute path of the directory to create'),
             recursive: z.boolean().optional().default(true).describe('Whether to create parent directories recursively, default true'),

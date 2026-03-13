@@ -14,7 +14,8 @@ export function createGrepFilesTool(config: FileSystemToolsConfig = { maxFileSiz
     const maxSize = config.maxFileSize;
     return new DynamicStructuredTool({
         name: 'grep_files',
-        description: '在目录中搜索包含指定文本的文件（类似 grep -r）。搜索路径必须是绝对路径。',
+        description: `Searches for files containing specific text across a directory (like grep -r). Returns matching files with line numbers and content. Supports regex, file pattern filtering, and case-insensitive search. Path must be absolute.
+Use search_files to find files by name pattern instead of content.`,
         schema: z.object({
             searchPath: z.string().describe('搜索目录的绝对路径'),
             searchText: z.string().describe('要搜索的文本或正则表达式'),

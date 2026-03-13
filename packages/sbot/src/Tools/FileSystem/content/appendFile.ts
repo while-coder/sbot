@@ -12,7 +12,7 @@ const logger = LoggerService.getLogger('Tools/FileSystem/content/appendFile.ts')
 export function createAppendFileTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'append_file',
-        description: 'Append content to the end of a file. Creates the file if it does not exist. Path must be absolute.',
+        description: `Appends content to the end of a file. Creates the file if it does not exist. Path must be absolute.`,
         schema: z.object({
             filePath: z.string().describe('Absolute path of the file to append to'),
             content: z.string().describe('Content to append'),

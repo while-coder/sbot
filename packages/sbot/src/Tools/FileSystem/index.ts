@@ -22,12 +22,12 @@ export { createGrepFilesTool } from './content/grepFiles';
 
 // 文件系统操作
 export { createSearchFilesTool } from './operations/searchFiles';
-export { createListDirectoryTool } from './operations/listDirectory';
+export { createLsTool } from './operations/ls';
 export { createDeleteFileTool } from './operations/deleteFile';
 export { createFileExistsTool } from './operations/fileExists';
 export { createDirectoryTool } from './operations/createDirectory';
 export { createDeleteDirectoryTool } from './operations/deleteDirectory';
-export { createMoveFileTool } from './operations/moveFile';
+export { createMvTool } from './operations/mv';
 export { createCopyFileTool } from './operations/copyFile';
 
 import { createReadFileTool } from './content/readFile';
@@ -39,12 +39,12 @@ import { createAppendFileTool } from './content/appendFile';
 import { createSearchInFileTool } from './content/searchInFile';
 import { createGrepFilesTool } from './content/grepFiles';
 import { createSearchFilesTool } from './operations/searchFiles';
-import { createListDirectoryTool } from './operations/listDirectory';
+import { createLsTool } from './operations/ls';
 import { createDeleteFileTool } from './operations/deleteFile';
 import { createFileExistsTool } from './operations/fileExists';
 import { createDirectoryTool } from './operations/createDirectory';
 import { createDeleteDirectoryTool } from './operations/deleteDirectory';
-import { createMoveFileTool } from './operations/moveFile';
+import { createMvTool } from './operations/mv';
 import { createCopyFileTool } from './operations/copyFile';
 
 /** 创建所有文件系统工具 */
@@ -61,11 +61,11 @@ export function createFileSystemTools(config: FileSystemToolsConfig = { maxFileS
         createGrepFilesTool(config),
         // 文件系统操作
         createSearchFilesTool(),
-        createListDirectoryTool(),
+        createLsTool(),
         createDirectoryTool(),
         createDeleteDirectoryTool(),
         createDeleteFileTool(),
-        createMoveFileTool(),
+        createMvTool(),
         createCopyFileTool(),
         createFileExistsTool(),
     ];

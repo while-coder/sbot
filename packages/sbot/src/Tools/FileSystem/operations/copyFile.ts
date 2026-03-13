@@ -12,7 +12,7 @@ const logger = LoggerService.getLogger('Tools/FileSystem/operations/copyFile.ts'
 export function createCopyFileTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'copy_file',
-        description: 'Copy a file. Both source and destination paths must be absolute.',
+        description: `Copies a file. Both source and destination paths must be absolute. Parent directories of the destination are created automatically.`,
         schema: z.object({
             sourcePath: z.string().describe('Absolute path of the source file'),
             destPath: z.string().describe('Absolute path of the destination file'),

@@ -11,7 +11,7 @@ const logger = LoggerService.getLogger('Tools/FileSystem/operations/deleteFile.t
 export function createDeleteFileTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'delete_file',
-        description: '删除指定文件。此操作不可逆！路径必须是绝对路径。',
+        description: `Deletes a file. This operation is irreversible. Path must be absolute.`,
         schema: z.object({ filePath: z.string().describe('要删除的文件的绝对路径') }) as any,
         func: async ({ filePath }: any): Promise<MCPToolResult> => {
             try {

@@ -11,7 +11,7 @@ const logger = LoggerService.getLogger('Tools/FileSystem/operations/deleteDirect
 export function createDeleteDirectoryTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'delete_directory',
-        description: 'Delete a directory and all its contents. This operation is irreversible! Path must be absolute.',
+        description: `Deletes a directory and all its contents. This operation is irreversible. Path must be absolute.`,
         schema: z.object({
             dirPath: z.string().describe('Absolute path of the directory to delete'),
             recursive: z.boolean().optional().default(true).describe('Whether to delete recursively, default true'),

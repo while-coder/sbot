@@ -73,7 +73,8 @@ export function createReadFileTool(config: FileSystemToolsConfig = { maxFileSize
     const maxSize = config.maxFileSize;
     return new DynamicStructuredTool({
         name: 'read_file',
-        description: '读取本地文件的内容。支持 head/tail 参数截取大文件的前 N 行或后 N 行，避免超出大小限制。路径必须是绝对路径。',
+        description: `Reads the content of a local file. Path must be absolute.
+Use the head or tail parameters to read only the first or last N lines of large files, avoiding size limit errors.`,
         schema: z.object({
             filePath: z.string().describe('要读取的文件的绝对路径'),
             encoding: z.enum(['utf8', 'utf-8', 'ascii', 'base64']).optional().default('utf8').describe('文件编码，默认 utf8'),

@@ -13,7 +13,8 @@ export function createReadFileLinesTool(config: FileSystemToolsConfig = { maxFil
     const maxSize = config.maxFileSize;
     return new DynamicStructuredTool({
         name: 'read_file_lines',
-        description: '读取文件的指定行范围。行号从 1 开始。路径必须是绝对路径。',
+        description: `Reads a specific range of lines from a file. Line numbers start at 1. Path must be absolute.
+Prefer this over read_file when you already know which lines you need.`,
         schema: z.object({
             filePath: z.string().describe('文件的绝对路径'),
             startLine: z.number().min(1).describe('起始行号（从 1 开始）'),

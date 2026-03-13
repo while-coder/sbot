@@ -60,7 +60,8 @@ async function applyFileEdits(filePath: string, edits: FileEdit[], dryRun = fals
 export function createEditFileTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'edit_file',
-        description: '对文件进行精确的文本替换编辑。支持多处修改、正则替换（useRegex）、模糊空白匹配、dry-run 预览，返回 unified diff。路径必须是绝对路径。',
+        description: `Performs precise text replacement edits on a file. Supports multiple replacements, regex substitution (useRegex), fuzzy whitespace matching, and dry-run preview. Returns a unified diff of all changes. Path must be absolute.
+Always prefer this over write_file when modifying existing files.`,
         schema: z.object({
             filePath: z.string().describe('要编辑的文件的绝对路径'),
             edits: z.array(z.object({

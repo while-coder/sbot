@@ -13,7 +13,8 @@ export function createSearchInFileTool(config: FileSystemToolsConfig = { maxFile
     const maxSize = config.maxFileSize;
     return new DynamicStructuredTool({
         name: 'search_in_file',
-        description: '在文件中搜索文本，返回匹配的行号和内容。路径必须是绝对路径。',
+        description: `Searches for text within a single file and returns matching line numbers and content. Supports regex and case-insensitive search. Path must be absolute.
+Use grep_files to search across multiple files in a directory.`,
         schema: z.object({
             filePath: z.string().describe('文件的绝对路径'),
             searchText: z.string().describe('要搜索的文本或正则表达式'),

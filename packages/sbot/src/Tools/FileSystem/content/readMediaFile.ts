@@ -12,7 +12,7 @@ const logger = LoggerService.getLogger('Tools/FileSystem/content/readMediaFile.t
 export function createReadMediaFileTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'read_media_file',
-        description: '读取图片、音频等二进制文件，以 base64 格式返回内容。路径必须是绝对路径。',
+        description: `Reads a binary file (image, audio, etc.) and returns its content as base64. Path must be absolute.`,
         schema: z.object({
             filePath: z.string().describe('媒体文件的绝对路径'),
         }) as any,

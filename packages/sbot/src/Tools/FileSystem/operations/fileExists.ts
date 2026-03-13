@@ -11,7 +11,7 @@ const logger = LoggerService.getLogger('Tools/FileSystem/operations/fileExists.t
 export function createFileExistsTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'file_exists',
-        description: '检查文件或目录是否存在，返回类型、大小、时间戳、权限等详细信息。路径必须是绝对路径。',
+        description: `Checks whether a file or directory exists. Returns type (file/directory), size, timestamps, and permissions. Path must be absolute.`,
         schema: z.object({ filePath: z.string().describe('要检查的文件或目录的绝对路径') }) as any,
         func: async ({ filePath }: any): Promise<MCPToolResult> => {
             try {

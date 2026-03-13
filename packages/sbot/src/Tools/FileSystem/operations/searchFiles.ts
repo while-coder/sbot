@@ -12,7 +12,8 @@ const logger = LoggerService.getLogger('Tools/FileSystem/operations/searchFiles.
 export function createSearchFilesTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'search_files',
-        description: '按文件名模式搜索文件，支持通配符（* 和 ?）。搜索路径必须是绝对路径。',
+        description: `Searches for files by name pattern using wildcards (* and ?). Returns file paths with size and modification time. Path must be absolute.
+Use grep_files to search by file content instead of name.`,
         schema: z.object({
             searchPath: z.string().describe('搜索目录的绝对路径'),
             pattern: z.string().describe('文件名匹配模式（如 *.js, test?.txt）'),
