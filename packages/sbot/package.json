@@ -18,9 +18,9 @@
     "access": "public"
   },
   "scripts": {
-    "debug:build": "pnpm --filter scorpio.ai --filter channel.lark run debug && rimraf debug && tsc -p tsconfig.debug.json && node scripts/postbuild.js debug",
+    "debug:build": "pnpm --filter channel.lark run build && rimraf debug && tsc -p tsconfig.debug.json && node scripts/postbuild.js debug",
     "debug": "pnpm run debug:build",
-    "build": "pnpm --filter sbot-website --filter scorpio.ai --filter channel.lark run build && rimraf dist && tsc && node scripts/postbuild.js",
+    "build": "pnpm --filter sbot-website --filter channel.lark run build && rimraf dist && tsc && node scripts/postbuild.js",
     "prepublishOnly": "pnpm run build"
   },
   "dependencies": {

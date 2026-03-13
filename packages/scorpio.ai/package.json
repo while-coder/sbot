@@ -5,7 +5,6 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "debug": "tsc -b",
     "build": "rimraf --glob \"dist/*\" && tsc -b --force"
   },
   "dependencies": {
