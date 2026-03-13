@@ -89,10 +89,10 @@ async function runCommand(command: string, cwd: string, timeout: number, label: 
 // ─────────────────────────────────────────────────────────────────────────────
 
 const scriptFileSchema = z.object({
-    scriptPath: z.string().describe('脚本文件的绝对路径'),
-    workingDir: z.string().describe('工作目录绝对路径'),
-    args:       z.array(z.string()).optional().describe('传递给脚本的参数列表'),
-    timeout:    z.number().optional().default(60000).describe('超时时间（毫秒），默认 60000'),
+    scriptPath: z.string().describe('Absolute path to the script file to execute'),
+    workingDir: z.string().describe('Absolute path of the working directory for the script'),
+    args:       z.array(z.string()).optional().describe('Command-line arguments to pass to the script'),
+    timeout:    z.number().optional().default(60000).describe('Timeout in milliseconds, default 60000 (60 s)'),
 });
 
 interface ScriptFileToolOptions {
@@ -132,10 +132,10 @@ function createScriptFileTool({ name, description, interpreter, preArgs }: Scrip
 // ─────────────────────────────────────────────────────────────────────────────
 
 const scriptCodeSchema = z.object({
-    code:       z.string().describe('脚本代码内容字符串，会写入临时文件后执行'),
-    workingDir: z.string().describe('工作目录绝对路径'),
-    args:       z.array(z.string()).optional().describe('传递给脚本的参数列表'),
-    timeout:    z.number().optional().default(60000).describe('超时时间（毫秒），默认 60000'),
+    code:       z.string().describe('Script source code to execute; written to a temp file automatically'),
+    workingDir: z.string().describe('Absolute path of the working directory for the script'),
+    args:       z.array(z.string()).optional().describe('Command-line arguments to pass to the script'),
+    timeout:    z.number().optional().default(60000).describe('Timeout in milliseconds, default 60000 (60 s)'),
 });
 
 interface ScriptCodeToolOptions {
@@ -178,129 +178,84 @@ function createScriptCodeTool({ name, description, interpreter, preArgs, ext }: 
 export function createPythonScriptTool(): StructuredToolInterface | null {
     return createScriptFileTool({
         name:        'execute_python_script',
-        description: '执行 Python 脚本文件（.py）。传入脚本文件的绝对路径（scriptPath）。',
+        description: 'Runs an existing Python script file (.py) by absolute path. Use this when the script is already on disk. Use execute_python_code to run an inline code snippet without creating a file first.',
         interpreter: 'python',
     });
 }
 export function createPythonCodeTool(): StructuredToolInterface | null {
     return createScriptCodeTool({
         name:        'execute_python_code',
-        description: '执行 Python 代码片段。传入 Python 代码字符串（code），会写入临时文件后执行。',
+        description: 'Runs a Python code snippet (string) by writing it to a temp file and executing it. Use this for inline scripts or quick calculations. Use execute_python_script when the script already exists on disk.',
         interpreter: 'python',
         ext:         '.py',
     });
 }
 
-export function createShellScriptTool(): StructuredToolInterface | null {
-    return createScriptFileTool({
-        name:        'execute_shell_script',
-        description: '执行 Shell/Bash 脚本文件（.sh）。传入脚本文件的绝对路径（scriptPath）。',
-        interpreter: 'bash',
-    });
-}
-export function createShellCodeTool(): StructuredToolInterface | null {
-    return createScriptCodeTool({
-        name:        'execute_shell_code',
-        description: '执行 Shell/Bash 代码片段。传入 Shell 代码字符串（code），会写入临时文件后执行。',
-        interpreter: 'bash',
-        ext:         '.sh',
-    });
+interface PsInterpreter {
+    interpreter: string;
+    preArgs?:    string;
+    /** 语法说明，注入 description 供 LLM 感知版本差异 */
+    syntaxNote:  string;
 }
 
-export function createNodeScriptTool(): StructuredToolInterface | null {
-    return createScriptFileTool({
-        name:        'execute_node_script',
-        description: '执行 Node.js 脚本文件（.js）。传入脚本文件的绝对路径（scriptPath）。',
-        interpreter: 'node',
-    });
-}
-export function createNodeCodeTool(): StructuredToolInterface | null {
-    return createScriptCodeTool({
-        name:        'execute_node_code',
-        description: '执行 Node.js 代码片段。传入 JavaScript 代码字符串（code），会写入临时文件后执行。',
-        interpreter: 'node',
-        ext:         '.js',
-    });
-}
-
-export function createRubyScriptTool(): StructuredToolInterface | null {
-    return createScriptFileTool({
-        name:        'execute_ruby_script',
-        description: '执行 Ruby 脚本文件（.rb）。传入脚本文件的绝对路径（scriptPath）。',
-        interpreter: 'ruby',
-    });
-}
-export function createRubyCodeTool(): StructuredToolInterface | null {
-    return createScriptCodeTool({
-        name:        'execute_ruby_code',
-        description: '执行 Ruby 代码片段。传入 Ruby 代码字符串（code），会写入临时文件后执行。',
-        interpreter: 'ruby',
-        ext:         '.rb',
-    });
-}
-
-export function createPerlScriptTool(): StructuredToolInterface | null {
-    return createScriptFileTool({
-        name:        'execute_perl_script',
-        description: '执行 Perl 脚本文件（.pl）。传入脚本文件的绝对路径（scriptPath）。',
-        interpreter: 'perl',
-    });
-}
-export function createPerlCodeTool(): StructuredToolInterface | null {
-    return createScriptCodeTool({
-        name:        'execute_perl_code',
-        description: '执行 Perl 代码片段。传入 Perl 代码字符串（code），会写入临时文件后执行。',
-        interpreter: 'perl',
-        ext:         '.pl',
-    });
-}
-
-export function createPhpScriptTool(): StructuredToolInterface | null {
-    return createScriptFileTool({
-        name:        'execute_php_script',
-        description: '执行 PHP 脚本文件（.php）。传入脚本文件的绝对路径（scriptPath）。',
-        interpreter: 'php',
-    });
-}
-export function createPhpCodeTool(): StructuredToolInterface | null {
-    return createScriptCodeTool({
-        name:        'execute_php_code',
-        description: '执行 PHP 代码片段。传入 PHP 代码字符串（code），会写入临时文件后执行。',
-        interpreter: 'php',
-        ext:         '.php',
-    });
-}
-
-export function createPowerShellScriptTool(): StructuredToolInterface | null {
-    return createScriptFileTool({
-        name:        'execute_powershell_script',
-        description: '执行 Windows PowerShell 脚本文件（.ps1）。传入脚本文件的绝对路径（scriptPath）。',
+/** 选择可用的 PowerShell 解释器：优先 pwsh，回退到 powershell */
+function resolvePsInterpreter(): PsInterpreter | null {
+    if (isCommandAvailable('pwsh')) return {
+        interpreter: 'pwsh',
+        syntaxNote:  'PowerShell Core (pwsh) — cross-platform, PS 7+ syntax (e.g. ternary operator, null coalescing, foreach-object -Parallel)',
+    };
+    if (isCommandAvailable('powershell')) return {
         interpreter: 'powershell',
         preArgs:     '-ExecutionPolicy Bypass -File',
+        syntaxNote:  'Windows PowerShell (powershell.exe) — Windows-only, PS 5.1 syntax; avoid PS 7+ features like ternary operator (?:) or null coalescing (??=)',
+    };
+    return null;
+}
+
+export function createPsScriptTool(): StructuredToolInterface | null {
+    const ps = resolvePsInterpreter();
+    if (!ps) return null;
+    return new DynamicStructuredTool({
+        name:        'execute_ps_script',
+        description: `Runs an existing PowerShell script file (.ps1) by absolute path. Currently using: ${ps.syntaxNote}. Use execute_ps_code to run an inline snippet instead.`,
+        schema: scriptFileSchema as any,
+        func: async ({ scriptPath, args = [], workingDir, timeout = 60000 }: any): Promise<MCPToolResult> => {
+            const pv = validatePath(scriptPath);
+            if (!pv.valid) return createErrorResult(pv.error!);
+            const absScript = pv.absolutePath!;
+            if (!fs.existsSync(absScript))        return createErrorResult(`脚本不存在: ${absScript}`);
+            if (!fs.statSync(absScript).isFile()) return createErrorResult(`路径不是文件: ${absScript}`);
+            const { cwd, error: cwdError } = resolveWorkingDir(workingDir, workingDir);
+            if (cwdError) return createErrorResult(cwdError);
+            const argStr  = args.length ? ' ' + args.join(' ') : '';
+            const preStr  = ps.preArgs ? ` ${ps.preArgs}` : '';
+            const command = `${ps.interpreter}${preStr} "${absScript}"${argStr}`;
+            return runCommand(command, cwd!, timeout, 'execute_ps_script');
+        },
     });
 }
-export function createPowerShellCodeTool(): StructuredToolInterface | null {
-    return createScriptCodeTool({
-        name:        'execute_powershell_code',
-        description: '执行 Windows PowerShell 代码片段。传入代码字符串（code），会写入临时文件后执行。',
-        interpreter: 'powershell',
-        preArgs:     '-ExecutionPolicy Bypass -File',
-        ext:         '.ps1',
-    });
-}
-export function createPwshScriptTool(): StructuredToolInterface | null {
-    return createScriptFileTool({
-        name:        'execute_pwsh_script',
-        description: '执行 PowerShell Core (pwsh) 脚本文件（.ps1）。传入脚本文件的绝对路径（scriptPath）。',
-        interpreter: 'pwsh',
-    });
-}
-export function createPwshCodeTool(): StructuredToolInterface | null {
-    return createScriptCodeTool({
-        name:        'execute_pwsh_code',
-        description: '执行 PowerShell Core (pwsh) 代码片段。传入代码字符串（code），会写入临时文件后执行。',
-        interpreter: 'pwsh',
-        ext:         '.ps1',
+
+export function createPsCodeTool(): StructuredToolInterface | null {
+    const ps = resolvePsInterpreter();
+    if (!ps) return null;
+    return new DynamicStructuredTool({
+        name:        'execute_ps_code',
+        description: `Runs a PowerShell code snippet (string) by writing it to a temp .ps1 file and executing it. Currently using: ${ps.syntaxNote}. Use execute_ps_script when the script already exists on disk.`,
+        schema: scriptCodeSchema as any,
+        func: async ({ code, args = [], workingDir, timeout = 60000 }: any): Promise<MCPToolResult> => {
+            const tmpFile = path.join(os.tmpdir(), `sbot_script_${Date.now()}.ps1`);
+            fs.writeFileSync(tmpFile, code, 'utf-8');
+            try {
+                const { cwd, error: cwdError } = resolveWorkingDir(workingDir, workingDir);
+                if (cwdError) return createErrorResult(cwdError);
+                const argStr  = args.length ? ' ' + args.join(' ') : '';
+                const preStr  = ps.preArgs ? ` ${ps.preArgs}` : '';
+                const command = `${ps.interpreter}${preStr} "${tmpFile}"${argStr}`;
+                return await runCommand(command, cwd!, timeout, 'execute_ps_code');
+            } finally {
+                try { fs.unlinkSync(tmpFile); } catch { /* ignore */ }
+            }
+        },
     });
 }
 
@@ -314,11 +269,22 @@ export function createPwshCodeTool(): StructuredToolInterface | null {
 export function createExecuteCommandTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'execute_command',
-        description: '执行命令行命令（如 ls, git status, npm install 等）。注意：命令会在当前工作目录下执行。',
+        description: `Executes a shell command or multi-line shell script in a given working directory. Returns stdout and stderr separately. Default timeout 60 s.
+
+Supports all forms:
+- Single command: "git status"
+- Chained commands: "npm install && npm run build"
+- Multi-line script: "for f in *.log; do rm \\"$f\\"; done"
+
+IMPORTANT: Do NOT use this tool for file operations — use the dedicated file tools instead:
+- Read/write files: use read / write / edit
+- Search file content: use grep
+- Find files by name: use glob
+- List directory tree: use ls`,
         schema: z.object({
-            command:    z.string().describe('要执行的命令（完整的命令字符串，如 "ls -la", "git status"）'),
-            workingDir: z.string().describe('工作目录绝对路径'),
-            timeout:    z.number().optional().default(60000).describe('超时时间（毫秒），默认为 60000（60秒）'),
+            command:    z.string().describe('Command or multi-line shell script to run, e.g. "git status", "npm install && npm run build", or a newline-separated script'),
+            workingDir: z.string().describe('Absolute path of the working directory'),
+            timeout:    z.number().optional().default(60000).describe('Timeout in milliseconds, default 60000 (60 s)'),
         }) as any,
         func: async ({ command, workingDir, timeout = 60000 }: any): Promise<MCPToolResult> => {
             const { cwd, error } = resolveWorkingDir(workingDir, workingDir);
@@ -340,19 +306,7 @@ export function createCommandTools(): StructuredToolInterface[] {
         createExecuteCommandTool(),
         createPythonScriptTool(),
         createPythonCodeTool(),
-        createShellScriptTool(),
-        createShellCodeTool(),
-        createNodeScriptTool(),
-        createNodeCodeTool(),
-        createRubyScriptTool(),
-        createRubyCodeTool(),
-        createPerlScriptTool(),
-        createPerlCodeTool(),
-        createPhpScriptTool(),
-        createPhpCodeTool(),
-        createPowerShellScriptTool(),
-        createPowerShellCodeTool(),
-        createPwshScriptTool(),
-        createPwshCodeTool(),
+        createPsScriptTool(),
+        createPsCodeTool(),
     ].filter((t): t is StructuredToolInterface => t !== null);
 }
