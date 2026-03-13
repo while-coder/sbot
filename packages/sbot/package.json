@@ -1,5 +1,5 @@
 {
-  "name": "sbot",
+  "name": "@while/sbot",
   "version": "0.0.1",
   "description": "Self-hosted AI agent server",
   "engines": {
