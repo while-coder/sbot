@@ -28,7 +28,7 @@ All paths must be absolute.`,
 
                     if (fs.existsSync(abs)) {
                         if (parents) continue;
-                        return createErrorResult(`目录已存在: ${abs}`);
+                        return createErrorResult(`Directory already exists: ${abs}`);
                     }
 
                     fs.mkdirSync(abs, { recursive: parents });
@@ -36,7 +36,7 @@ All paths must be absolute.`,
                 }
 
                 return createSuccessResult(createTextContent(
-                    results.length > 0 ? `已创建:\n${results.join('\n')}` : '无目录被创建'
+                    results.length > 0 ? `Created:\n${results.join('\n')}` : 'No directories created'
                 ));
             } catch (e: any) {
                 logger.error(`mkdir: ${e.message}`);

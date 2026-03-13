@@ -17,12 +17,12 @@ export function createReadBinaryFileTool(): StructuredToolInterface {
         name: 'read_binary_file',
         description: `Reads a binary file (image, audio, PDF, etc.) and returns its content as base64. Maximum file size ${MAX_SIZE_LABEL}. Use this for non-text files. Use read for text files (source code, config, markdown, etc.). Path must be absolute.`,
         schema: z.object({
-            filePath: z.string().describe('二进制文件的绝对路径'),
+            filePath: z.string().describe('Absolute path of the binary file'),
         }) as any,
         func: async ({ filePath }: any): Promise<MCPToolResult> => {
             try {
                 const { abs, stat } = checkFile(filePath);
-                if (stat.size > MAX_SIZE) return createErrorResult(`文件过大: ${formatSize(stat.size)}，上限 ${MAX_SIZE_LABEL}`);
+                if (stat.size > MAX_SIZE) return createErrorResult(`File too large: ${formatSize(stat.size)}, maximum is ${MAX_SIZE_LABEL}`);
                 const base64 = (await fsAsync.readFile(abs)).toString('base64');
                 const ext = path.extname(abs).toLowerCase().slice(1);
                 return createSuccessResult(createTextContent(JSON.stringify({ filePath: abs, size: formatSize(stat.size), ext, base64 })));

@@ -5,13 +5,13 @@ import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/
 import { z } from 'zod';
 import { LoggerService } from '../../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
-import { FileSystemToolsConfig } from '../config';
 import { checkDir, globToRegex } from '../utils';
 
 const logger = LoggerService.getLogger('Tools/FileSystem/content/grep.ts');
 
 const MAX_LINE_LENGTH = 2000;
 const DEFAULT_MAX_MATCHES = 100;
+const MAX_FILE_SIZE = 1 * 1024 * 1024; // 1MB - skip large files in Node.js fallback
 
 // ─── 默认跳过目录（等同于常见 .gitignore 规则）─────────────────────────────
 const EXCLUDE_DIRS = new Set([
@@ -191,19 +191,18 @@ function formatResults(results: FileMatches[], reachedLimit: boolean, maxMatches
 // ─── Tool 定义 ────────────────────────────────────────────────────────────────
 
 /** 跨文件内容搜索（ripgrep 优先 + Node.js fallback；跳过构建目录；按修改时间排序）*/
-export function createGrepFilesTool(config: FileSystemToolsConfig = { maxFileSize: 10 * 1024 * 1024 }): StructuredToolInterface {
-    const maxFileSize = config.maxFileSize;
+export function createGrepFilesTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
-        name: 'grep_files',
+        name: 'grep',
         description: `Searches for text or regex across files in a directory (always recursive). Automatically skips node_modules, .git, dist, build, and other common build/vendor directories. Results sorted by most recently modified file. Uses ripgrep when available, falls back to Node.js. Paths must be absolute.
 Use glob to find files by name or path pattern instead of content.`,
         schema: z.object({
-            path: z.string().describe('搜索目录的绝对路径'),
-            pattern: z.string().describe('要搜索的文本；useRegex=true 时为正则表达式'),
-            glob: z.string().optional().describe('文件名过滤模式（如 *.ts），默认所有文件'),
-            useRegex: z.boolean().optional().default(false).describe('将 pattern 作为正则表达式，默认 false（字面量搜索）'),
-            includeHidden: z.boolean().optional().default(false).describe('是否包含隐藏文件（.开头），默认 false'),
-            maxMatches: z.number().optional().default(DEFAULT_MAX_MATCHES).describe('最大匹配行数（跨所有文件合计），默认 100'),
+            path: z.string().describe('Absolute path of the directory to search'),
+            pattern: z.string().describe('Text to search for; treated as a regex when useRegex=true'),
+            glob: z.string().optional().describe('File name filter pattern (e.g. *.ts), default all files'),
+            useRegex: z.boolean().optional().default(false).describe('Treat pattern as a regex, default false (literal search)'),
+            includeHidden: z.boolean().optional().default(false).describe('Include hidden files (starting with .), default false'),
+            maxMatches: z.number().optional().default(DEFAULT_MAX_MATCHES).describe('Maximum number of matching lines across all files, default 100'),
         }) as any,
         func: async ({ path: searchPath, pattern, glob, useRegex = false, includeHidden = false, maxMatches = DEFAULT_MAX_MATCHES }: any): Promise<MCPToolResult> => {
             try {
@@ -214,7 +213,7 @@ Use glob to find files by name or path pattern instead of content.`,
                     result = await searchWithRg(abs, pattern, useRegex, includeHidden, glob, maxMatches);
                 } else {
                     const fileRegex = globToRegex(glob ?? '*');
-                    result = searchWithNodeJs(abs, pattern, fileRegex, useRegex, includeHidden, maxFileSize, maxMatches);
+                    result = searchWithNodeJs(abs, pattern, fileRegex, useRegex, includeHidden, MAX_FILE_SIZE, maxMatches);
                 }
 
                 if (result.results.length === 0) return createSuccessResult(createTextContent('No matches found'));

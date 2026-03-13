@@ -5,9 +5,7 @@
  */
 
 import { type StructuredToolInterface } from '@langchain/core/tools';
-import { FileSystemToolsConfig } from './config';
 
-export type { FileSystemToolsConfig } from './config';
 export { formatSize } from './utils';
 
 // 文件内容操作
@@ -38,14 +36,14 @@ import { createMvTool } from './operations/mv';
 import { createCpTool } from './operations/cp';
 
 /** 创建所有文件系统工具 */
-export function createFileSystemTools(config: FileSystemToolsConfig = { maxFileSize: 10 * 1024 * 1024 }): StructuredToolInterface[] {
+export function createFileSystemTools(): StructuredToolInterface[] {
     return [
         // 文件内容操作
         createReadTool(),
         createReadBinaryFileTool(),
         createWriteTool(),
         createEditFileTool(),
-        createGrepFilesTool(config),
+        createGrepFilesTool(),
         // 文件系统操作
         createGlobTool(),
         createLsTool(),

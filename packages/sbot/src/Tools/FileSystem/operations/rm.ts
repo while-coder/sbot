@@ -29,13 +29,13 @@ All paths must be absolute.`,
 
                     if (!fs.existsSync(abs)) {
                         if (force) continue;
-                        return createErrorResult(`路径不存在: ${abs}`);
+                        return createErrorResult(`Path does not exist: ${abs}`);
                     }
 
                     const isDir = fs.statSync(abs).isDirectory();
 
                     if (isDir && !recursive) {
-                        return createErrorResult(`${abs} 是目录，删除目录需设置 recursive=true`);
+                        return createErrorResult(`${abs} is a directory. Set recursive=true to delete directories`);
                     }
 
                     fs.rmSync(abs, { recursive, force });
@@ -43,7 +43,7 @@ All paths must be absolute.`,
                 }
 
                 return createSuccessResult(createTextContent(
-                    results.length > 0 ? `已删除:\n${results.join('\n')}` : '无文件被删除'
+                    results.length > 0 ? `Removed:\n${results.join('\n')}` : 'No files removed'
                 ));
             } catch (e: any) {
                 logger.error(`rm: ${e.message}`);

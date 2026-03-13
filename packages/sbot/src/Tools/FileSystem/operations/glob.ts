@@ -119,12 +119,11 @@ export function createGlobTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'glob',
         description: `Finds files matching a glob pattern (e.g. **/*.ts, src/**/*.test.js). Returns absolute paths sorted by most recently modified. Automatically skips node_modules, .git, dist, build, and other common build/vendor directories. Uses ripgrep when available. Path must be absolute.
-Use grep_files to search by file content instead of name.
 Use grep_files to search by file content instead of name.`,
         schema: z.object({
-            pattern: z.string().describe('Glob 模式，如 **/*.ts、src/**/*.test.js、*.json'),
-            path: z.string().describe('搜索目录的绝对路径'),
-            includeHidden: z.boolean().optional().default(false).describe('是否包含隐藏文件，默认 false'),
+            pattern: z.string().describe('Glob pattern, e.g. **/*.ts, src/**/*.test.js, *.json'),
+            path: z.string().describe('Absolute path of the directory to search'),
+            includeHidden: z.boolean().optional().default(false).describe('Include hidden files, default false'),
         }) as any,
         func: async ({ pattern, path: searchPath, includeHidden = false }: any): Promise<MCPToolResult> => {
             try {

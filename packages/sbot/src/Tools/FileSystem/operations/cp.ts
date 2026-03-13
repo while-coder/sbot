@@ -29,9 +29,9 @@ Parent directories of dest are created automatically. All paths must be absolute
                 const dst = resolvePath(dest);
 
                 for (const src of srcs) {
-                    if (!fs.existsSync(src)) throw new Error(`源路径不存在: ${src}`);
+                    if (!fs.existsSync(src)) throw new Error(`Source path does not exist: ${src}`);
                     if (fs.statSync(src).isDirectory() && !recursive) {
-                        return createErrorResult(`${src} 是目录，复制目录需设置 recursive=true`);
+                        return createErrorResult(`${src} is a directory. Set recursive=true to copy directories`);
                     }
                 }
 
@@ -39,7 +39,7 @@ Parent directories of dest are created automatically. All paths must be absolute
                 const dstIsDir = dstExists && fs.statSync(dst).isDirectory();
 
                 if (srcs.length > 1 && !dstIsDir) {
-                    return createErrorResult(`多个源文件时，目标必须是已存在的目录: ${dst}`);
+                    return createErrorResult(`When multiple sources are given, dest must be an existing directory: ${dst}`);
                 }
 
                 const results: string[] = [];
@@ -48,7 +48,7 @@ Parent directories of dest are created automatically. All paths must be absolute
                     const finalDst = dstIsDir ? path.join(dst, path.basename(src)) : dst;
 
                     if (fs.existsSync(finalDst) && noClobber) {
-                        results.push(`跳过 (目标已存在): ${finalDst}`);
+                        results.push(`Skipped (destination already exists): ${finalDst}`);
                         continue;
                     }
 

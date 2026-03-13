@@ -218,7 +218,7 @@ const REPLACERS: Replacer[] = [
 ];
 
 function replaceContent(content: string, oldText: string, newText: string, replaceAll = false): string {
-    if (oldText === newText) throw new Error('oldText 与 newText 相同，无需修改');
+    if (oldText === newText) throw new Error('oldText and newText are identical, no changes needed');
     let notFound = true;
     for (const replacer of REPLACERS) {
         for (const search of replacer(content, oldText)) {
@@ -227,12 +227,12 @@ function replaceContent(content: string, oldText: string, newText: string, repla
             notFound = false;
             if (replaceAll) return content.replaceAll(search, newText);
             const lastIdx = content.lastIndexOf(search);
-            if (idx !== lastIdx) continue; // 多处匹配 → 尝试下一个 replacer
+            if (idx !== lastIdx) continue; // multiple matches → try next replacer
             return content.substring(0, idx) + newText + content.substring(idx + search.length);
         }
     }
-    if (notFound) throw new Error(`找不到匹配的文本:\n${oldText}`);
-    throw new Error('找到多处相同文本，请提供更多上下文使匹配唯一，或使用 replaceAll: true');
+    if (notFound) throw new Error(`No matching text found:\n${oldText}`);
+    throw new Error('Found multiple identical matches. Provide more context to make it unique, or use replaceAll: true');
 }
 
 // ─── Diff 辅助 ────────────────────────────────────────────────────────────────
@@ -275,7 +275,7 @@ export async function applyFileEdits(filePath: string, edits: FileEdit[]): Promi
         const newN = normalizeLineEndings(edit.newText);
         if (edit.useRegex) {
             const regex = new RegExp(edit.oldText, edit.regexFlags ?? 'g');
-            if (!modified.match(regex)) throw new Error(`正则表达式无匹配: ${edit.oldText}`);
+            if (!modified.match(regex)) throw new Error(`Regex pattern did not match: ${edit.oldText}`);
             modified = modified.replace(regex, () => newN);
         } else {
             modified = replaceContent(modified, normalizeLineEndings(edit.oldText), newN, edit.replaceAll ?? false);
@@ -299,19 +299,19 @@ export async function applyFileEdits(filePath: string, edits: FileEdit[]): Promi
  */
 export function createEditFileTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
-        name: 'edit_file',
+        name: 'edit',
         description: `Performs precise text replacement edits on one or more files. Each edit can target a different file via its own filePath, or all edits share the top-level filePath. Supports 9-level fuzzy matching (whitespace/indentation/escape/context-aware), regex, replaceAll, and dry-run preview. Returns a unified diff per file. Paths must be absolute.
 Always prefer this over write_file when modifying existing files.`,
         schema: z.object({
-            filePath: z.string().optional().describe('所有 edit 共用的默认文件路径；edit 自身的 filePath 优先级更高'),
+            filePath: z.string().optional().describe('Default file path shared by all edits; each edit\'s own filePath takes precedence'),
             edits: z.array(z.object({
-                filePath: z.string().optional().describe('该 edit 的目标文件路径，不填则使用顶层 filePath'),
-                oldText: z.string().describe('要替换的原始文本；useRegex=true 时为正则表达式模式'),
-                newText: z.string().describe('替换后的新文本'),
-                useRegex: z.boolean().optional().default(false).describe('将 oldText 作为正则表达式，默认 false'),
-                regexFlags: z.string().optional().default('g').describe('正则标志，默认 g，仅 useRegex=true 时生效'),
-                replaceAll: z.boolean().optional().default(false).describe('替换文件内所有匹配项，默认 false（默认只替换唯一匹配，多处相同时报错）'),
-            })).min(1).describe('编辑操作列表，按顺序依次应用'),
+                filePath: z.string().optional().describe('Target file path for this edit; falls back to the top-level filePath if omitted'),
+                oldText: z.string().describe('Text to replace; treated as a regex pattern when useRegex=true'),
+                newText: z.string().describe('Replacement text'),
+                useRegex: z.boolean().optional().default(false).describe('Treat oldText as a regex pattern, default false'),
+                regexFlags: z.string().optional().default('g').describe('Regex flags, default g, only applies when useRegex=true'),
+                replaceAll: z.boolean().optional().default(false).describe('Replace all matches in the file, default false (errors on multiple identical matches)'),
+            })).min(1).describe('List of edit operations, applied in order'),
         }) as any,
         func: async ({ filePath: defaultPath, edits }: any): Promise<MCPToolResult> => {
             try {
@@ -320,7 +320,7 @@ Always prefer this over write_file when modifying existing files.`,
                 const byFile = new Map<string, FileEdit[]>();
                 for (const edit of edits) {
                     const rawPath = edit.filePath ?? defaultPath;
-                    if (!rawPath) throw new Error('每个 edit 必须指定 filePath，或在顶层设置默认 filePath');
+                    if (!rawPath) throw new Error('Each edit must specify a filePath, or set a default filePath at the top level');
                     const { abs } = checkFile(rawPath);
                     if (!byFile.has(abs)) { byFile.set(abs, []); fileOrder.push(abs); }
                     const { filePath: _fp, ...rest } = edit;
