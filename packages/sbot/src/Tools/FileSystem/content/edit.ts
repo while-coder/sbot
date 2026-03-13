@@ -8,7 +8,7 @@ import { checkFile, normalizeLineEndings, writeAtomic } from '../utils';
 
 const logger = LoggerService.getLogger('Tools/FileSystem/content/edit.ts');
 
-interface FileEdit { oldText: string; newText: string; useRegex?: boolean; regexFlags?: string; replaceAll?: boolean; }
+export interface FileEdit { oldText: string; newText: string; useRegex?: boolean; regexFlags?: string; replaceAll?: boolean; }
 
 // ─── Replace engine（来源：opencode/cline，9 级渐进 fallback）─────────────────
 
@@ -266,7 +266,7 @@ function trimDiff(diff: string): string {
 
 // ─── 核心逻辑 ─────────────────────────────────────────────────────────────────
 
-async function applyFileEdits(filePath: string, edits: FileEdit[], dryRun = false): Promise<string> {
+export async function applyFileEdits(filePath: string, edits: FileEdit[]): Promise<string> {
     const raw = await fsAsync.readFile(filePath, 'utf-8');
     const ending = detectLineEnding(raw);
     const original = normalizeLineEndings(raw);
@@ -276,47 +276,63 @@ async function applyFileEdits(filePath: string, edits: FileEdit[], dryRun = fals
         if (edit.useRegex) {
             const regex = new RegExp(edit.oldText, edit.regexFlags ?? 'g');
             if (!modified.match(regex)) throw new Error(`正则表达式无匹配: ${edit.oldText}`);
-            modified = modified.replace(regex, newN);
+            modified = modified.replace(regex, () => newN);
         } else {
             modified = replaceContent(modified, normalizeLineEndings(edit.oldText), newN, edit.replaceAll ?? false);
         }
     }
+    const output = ending === '\r\n' ? modified.replaceAll('\n', '\r\n') : modified;
+    await writeAtomic(filePath, output, 'utf-8');
     const diff = trimDiff(createTwoFilesPatch(filePath, filePath, original, modified, 'original', 'modified'));
     let ticks = 3;
     while (diff.includes('`'.repeat(ticks))) ticks++;
-    const formatted = `${'`'.repeat(ticks)}diff\n${diff}${'`'.repeat(ticks)}\n\n`;
-    if (!dryRun) {
-        const output = ending === '\r\n' ? modified.replaceAll('\n', '\r\n') : modified;
-        await writeAtomic(filePath, output, 'utf-8');
-    }
-    return formatted;
+    return `${'`'.repeat(ticks)}diff\n${diff}${'`'.repeat(ticks)}\n\n`;
 }
 
 // ─── Tool 定义 ────────────────────────────────────────────────────────────────
 
-/** 精确文本编辑（9 级渐进匹配 + 批量替换 + 正则 + 行尾保留 + unified diff 输出）*/
+/** 精确文本编辑（9 级渐进匹配 + 多文件 + 批量替换 + 正则 + 行尾保留 + unified diff 输出）
+ *
+ * filePath 解析规则：edit.filePath > 顶层 filePath。
+ * - 单文件多编辑：只设顶层 filePath，各 edit 无需重复。
+ * - 多文件编辑：各 edit 设各自 filePath，顶层 filePath 可省略。
+ */
 export function createEditFileTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'edit_file',
-        description: `Performs precise text replacement edits on a file. Supports multiple replacements, regex substitution (useRegex), 9-level fuzzy matching (whitespace/indentation/escape/context-aware), replaceAll, and dry-run preview. Returns a unified diff of all changes. Path must be absolute.
+        description: `Performs precise text replacement edits on one or more files. Each edit can target a different file via its own filePath, or all edits share the top-level filePath. Supports 9-level fuzzy matching (whitespace/indentation/escape/context-aware), regex, replaceAll, and dry-run preview. Returns a unified diff per file. Paths must be absolute.
 Always prefer this over write_file when modifying existing files.`,
         schema: z.object({
-            filePath: z.string().describe('要编辑的文件的绝对路径'),
+            filePath: z.string().optional().describe('所有 edit 共用的默认文件路径；edit 自身的 filePath 优先级更高'),
             edits: z.array(z.object({
+                filePath: z.string().optional().describe('该 edit 的目标文件路径，不填则使用顶层 filePath'),
                 oldText: z.string().describe('要替换的原始文本；useRegex=true 时为正则表达式模式'),
                 newText: z.string().describe('替换后的新文本'),
                 useRegex: z.boolean().optional().default(false).describe('将 oldText 作为正则表达式，默认 false'),
                 regexFlags: z.string().optional().default('g').describe('正则标志，默认 g，仅 useRegex=true 时生效'),
                 replaceAll: z.boolean().optional().default(false).describe('替换文件内所有匹配项，默认 false（默认只替换唯一匹配，多处相同时报错）'),
-            })).describe('编辑操作列表，按顺序依次应用'),
-            dryRun: z.boolean().optional().default(false).describe('仅预览 diff，不实际写入文件，默认 false'),
+            })).min(1).describe('编辑操作列表，按顺序依次应用'),
         }) as any,
-        func: async ({ filePath, edits, dryRun = false }: any): Promise<MCPToolResult> => {
+        func: async ({ filePath: defaultPath, edits }: any): Promise<MCPToolResult> => {
             try {
-                const { abs } = checkFile(filePath);
-                return createSuccessResult(createTextContent(await applyFileEdits(abs, edits, dryRun)));
+                // 按文件分组，保持原始顺序
+                const fileOrder: string[] = [];
+                const byFile = new Map<string, FileEdit[]>();
+                for (const edit of edits) {
+                    const rawPath = edit.filePath ?? defaultPath;
+                    if (!rawPath) throw new Error('每个 edit 必须指定 filePath，或在顶层设置默认 filePath');
+                    const { abs } = checkFile(rawPath);
+                    if (!byFile.has(abs)) { byFile.set(abs, []); fileOrder.push(abs); }
+                    const { filePath: _fp, ...rest } = edit;
+                    byFile.get(abs)!.push(rest as FileEdit);
+                }
+                const diffs: string[] = [];
+                for (const fp of fileOrder) {
+                    diffs.push(await applyFileEdits(fp, byFile.get(fp)!));
+                }
+                return createSuccessResult(createTextContent(diffs.join('')));
             } catch (e: any) {
-                logger.error(`edit_file ${filePath}: ${e.message}`);
+                logger.error(`edit_file: ${e.message}`);
                 return createErrorResult(e.message);
             }
         }
