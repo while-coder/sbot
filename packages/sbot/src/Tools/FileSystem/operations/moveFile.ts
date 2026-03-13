@@ -2,21 +2,21 @@ import fs from 'fs';
 import path from 'path';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
-import { LoggerService } from '../../Core/LoggerService';
+import { LoggerService } from '../../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
-import { resolvePath } from './utils';
+import { resolvePath } from '../utils';
 
-const logger = LoggerService.getLogger('Tools/FileSystem/moveFile.ts');
+const logger = LoggerService.getLogger('Tools/FileSystem/operations/moveFile.ts');
 
-/** 移动/重命名文件或目录 */
+/** Move or rename a file or directory */
 export function createMoveFileTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'move_file',
-        description: '移动或重命名文件/目录。源路径和目标路径都必须是绝对路径。',
+        description: 'Move or rename a file/directory. Both source and destination paths must be absolute.',
         schema: z.object({
-            sourcePath: z.string().describe('源文件或目录的绝对路径'),
-            destPath: z.string().describe('目标路径的绝对路径'),
-            overwrite: z.boolean().optional().default(false).describe('目标已存在时是否覆盖，默认 false'),
+            sourcePath: z.string().describe('Absolute path of the source file or directory'),
+            destPath: z.string().describe('Absolute path of the destination'),
+            overwrite: z.boolean().optional().default(false).describe('Whether to overwrite if destination exists, default false'),
         }) as any,
         func: async ({ sourcePath, destPath, overwrite = false }: any): Promise<MCPToolResult> => {
             try {

@@ -2,11 +2,11 @@ import fs from 'fs';
 import path from 'path';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
-import { LoggerService } from '../../Core/LoggerService';
+import { LoggerService } from '../../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
-import { resolvePath, writeAtomic } from './utils';
+import { resolvePath, writeAtomic } from '../utils';
 
-const logger = LoggerService.getLogger('Tools/FileSystem/writeFile.ts');
+const logger = LoggerService.getLogger('Tools/FileSystem/content/writeFile.ts');
 
 /** 写入文件（原子替换，防止竞态条件）*/
 export function createWriteFileTool(): StructuredToolInterface {

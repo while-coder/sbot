@@ -2,12 +2,12 @@ import fs from 'fs';
 import path from 'path';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
-import { LoggerService } from '../../Core/LoggerService';
+import { LoggerService } from '../../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
-import { FileSystemToolsConfig } from './config';
-import { checkDir, globToRegex } from './utils';
+import { FileSystemToolsConfig } from '../config';
+import { checkDir, globToRegex } from '../utils';
 
-const logger = LoggerService.getLogger('Tools/FileSystem/grepFiles.ts');
+const logger = LoggerService.getLogger('Tools/FileSystem/content/grepFiles.ts');
 
 /** grep 跨文件内容搜索 */
 export function createGrepFilesTool(config: FileSystemToolsConfig = { maxFileSize: 10 * 1024 * 1024 }): StructuredToolInterface {

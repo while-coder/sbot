@@ -1,20 +1,20 @@
 import fs from 'fs';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
-import { LoggerService } from '../../Core/LoggerService';
+import { LoggerService } from '../../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
-import { resolvePath } from './utils';
+import { resolvePath } from '../utils';
 
-const logger = LoggerService.getLogger('Tools/FileSystem/createDirectory.ts');
+const logger = LoggerService.getLogger('Tools/FileSystem/operations/createDirectory.ts');
 
-/** 创建目录 */
+/** Create a directory */
 export function createDirectoryTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'create_directory',
-        description: '创建新目录，自动创建缺失的父目录。路径必须是绝对路径。',
+        description: 'Create a new directory, automatically creating missing parent directories. Path must be absolute.',
         schema: z.object({
-            dirPath: z.string().describe('要创建的目录的绝对路径'),
-            recursive: z.boolean().optional().default(true).describe('是否递归创建父目录，默认 true'),
+            dirPath: z.string().describe('Absolute path of the directory to create'),
+            recursive: z.boolean().optional().default(true).describe('Whether to create parent directories recursively, default true'),
         }) as any,
         func: async ({ dirPath, recursive = true }: any): Promise<MCPToolResult> => {
             try {

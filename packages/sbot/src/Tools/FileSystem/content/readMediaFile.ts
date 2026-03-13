@@ -2,11 +2,11 @@ import fsAsync from 'fs/promises';
 import path from 'path';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
-import { LoggerService } from '../../Core/LoggerService';
+import { LoggerService } from '../../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
-import { checkFile, formatSize } from './utils';
+import { checkFile, formatSize } from '../utils';
 
-const logger = LoggerService.getLogger('Tools/FileSystem/readMediaFile.ts');
+const logger = LoggerService.getLogger('Tools/FileSystem/content/readMediaFile.ts');
 
 /** 读取媒体文件（图片/音频）为 base64 */
 export function createReadMediaFileTool(): StructuredToolInterface {

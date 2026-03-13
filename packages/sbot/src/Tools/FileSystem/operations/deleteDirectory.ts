@@ -1,20 +1,20 @@
 import fs from 'fs';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
-import { LoggerService } from '../../Core/LoggerService';
+import { LoggerService } from '../../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
-import { checkDir } from './utils';
+import { checkDir } from '../utils';
 
-const logger = LoggerService.getLogger('Tools/FileSystem/deleteDirectory.ts');
+const logger = LoggerService.getLogger('Tools/FileSystem/operations/deleteDirectory.ts');
 
-/** 删除目录 */
+/** Delete a directory */
 export function createDeleteDirectoryTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'delete_directory',
-        description: '删除目录及其所有内容。此操作不可逆！路径必须是绝对路径。',
+        description: 'Delete a directory and all its contents. This operation is irreversible! Path must be absolute.',
         schema: z.object({
-            dirPath: z.string().describe('要删除的目录的绝对路径'),
-            recursive: z.boolean().optional().default(true).describe('是否递归删除，默认 true'),
+            dirPath: z.string().describe('Absolute path of the directory to delete'),
+            recursive: z.boolean().optional().default(true).describe('Whether to delete recursively, default true'),
         }) as any,
         func: async ({ dirPath, recursive = true }: any): Promise<MCPToolResult> => {
             try {

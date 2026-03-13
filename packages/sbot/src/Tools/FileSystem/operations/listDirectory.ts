@@ -2,11 +2,11 @@ import fs from 'fs';
 import path from 'path';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
-import { LoggerService } from '../../Core/LoggerService';
+import { LoggerService } from '../../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
-import { checkDir, formatSize } from './utils';
+import { checkDir, formatSize } from '../utils';
 
-const logger = LoggerService.getLogger('Tools/FileSystem/listDirectory.ts');
+const logger = LoggerService.getLogger('Tools/FileSystem/operations/listDirectory.ts');
 
 /** 列出目录内容（含文件大小）*/
 export function createListDirectoryTool(): StructuredToolInterface {

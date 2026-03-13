@@ -1,11 +1,11 @@
 import fs from 'fs';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
-import { LoggerService } from '../../Core/LoggerService';
+import { LoggerService } from '../../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
-import { checkFile } from './utils';
+import { checkFile } from '../utils';
 
-const logger = LoggerService.getLogger('Tools/FileSystem/deleteFile.ts');
+const logger = LoggerService.getLogger('Tools/FileSystem/operations/deleteFile.ts');
 
 /** 删除文件 */
 export function createDeleteFileTool(): StructuredToolInterface {

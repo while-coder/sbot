@@ -10,60 +10,60 @@ import { FileSystemToolsConfig } from './config';
 export type { FileSystemToolsConfig } from './config';
 export { formatSize } from './utils';
 
-export { createReadFileTool } from './readFile';
-export { createReadFileLinesTool } from './readFileLines';
-export { createReadMediaFileTool } from './readMediaFile';
-export { createWriteFileTool } from './writeFile';
-export { createEditFileTool } from './editFile';
-export { createAppendFileTool } from './appendFile';
-export { createSearchInFileTool } from './searchInFile';
-export { createSearchFilesTool } from './searchFiles';
-export { createGrepFilesTool } from './grepFiles';
-export { createListDirectoryTool } from './listDirectory';
-export { createDeleteFileTool } from './deleteFile';
-export { createFileExistsTool } from './fileExists';
-export { createDirectoryTool } from './createDirectory';
-export { createDeleteDirectoryTool } from './deleteDirectory';
-export { createMoveFileTool } from './moveFile';
-export { createCopyFileTool } from './copyFile';
+// 文件内容操作
+export { createReadFileTool } from './content/readFile';
+export { createReadFileLinesTool } from './content/readFileLines';
+export { createReadMediaFileTool } from './content/readMediaFile';
+export { createWriteFileTool } from './content/writeFile';
+export { createEditFileTool } from './content/editFile';
+export { createAppendFileTool } from './content/appendFile';
+export { createSearchInFileTool } from './content/searchInFile';
+export { createGrepFilesTool } from './content/grepFiles';
 
-import { createReadFileTool } from './readFile';
-import { createReadFileLinesTool } from './readFileLines';
-import { createReadMediaFileTool } from './readMediaFile';
-import { createWriteFileTool } from './writeFile';
-import { createEditFileTool } from './editFile';
-import { createAppendFileTool } from './appendFile';
-import { createSearchInFileTool } from './searchInFile';
-import { createSearchFilesTool } from './searchFiles';
-import { createGrepFilesTool } from './grepFiles';
-import { createListDirectoryTool } from './listDirectory';
-import { createDeleteFileTool } from './deleteFile';
-import { createFileExistsTool } from './fileExists';
-import { createDirectoryTool } from './createDirectory';
-import { createDeleteDirectoryTool } from './deleteDirectory';
-import { createMoveFileTool } from './moveFile';
-import { createCopyFileTool } from './copyFile';
+// 文件系统操作
+export { createSearchFilesTool } from './operations/searchFiles';
+export { createListDirectoryTool } from './operations/listDirectory';
+export { createDeleteFileTool } from './operations/deleteFile';
+export { createFileExistsTool } from './operations/fileExists';
+export { createDirectoryTool } from './operations/createDirectory';
+export { createDeleteDirectoryTool } from './operations/deleteDirectory';
+export { createMoveFileTool } from './operations/moveFile';
+export { createCopyFileTool } from './operations/copyFile';
+
+import { createReadFileTool } from './content/readFile';
+import { createReadFileLinesTool } from './content/readFileLines';
+import { createReadMediaFileTool } from './content/readMediaFile';
+import { createWriteFileTool } from './content/writeFile';
+import { createEditFileTool } from './content/editFile';
+import { createAppendFileTool } from './content/appendFile';
+import { createSearchInFileTool } from './content/searchInFile';
+import { createGrepFilesTool } from './content/grepFiles';
+import { createSearchFilesTool } from './operations/searchFiles';
+import { createListDirectoryTool } from './operations/listDirectory';
+import { createDeleteFileTool } from './operations/deleteFile';
+import { createFileExistsTool } from './operations/fileExists';
+import { createDirectoryTool } from './operations/createDirectory';
+import { createDeleteDirectoryTool } from './operations/deleteDirectory';
+import { createMoveFileTool } from './operations/moveFile';
+import { createCopyFileTool } from './operations/copyFile';
 
 /** 创建所有文件系统工具 */
 export function createFileSystemTools(config: FileSystemToolsConfig = { maxFileSize: 10 * 1024 * 1024 }): StructuredToolInterface[] {
     return [
-        // 读取
+        // 文件内容操作
         createReadFileTool(config),
         createReadFileLinesTool(config),
         createReadMediaFileTool(),
-        // 写入/编辑
         createWriteFileTool(),
         createEditFileTool(),
         createAppendFileTool(),
-        // 搜索
         createSearchInFileTool(config),
-        createSearchFilesTool(),
         createGrepFilesTool(config),
-        // 目录
+        // 文件系统操作
+        createSearchFilesTool(),
         createListDirectoryTool(),
         createDirectoryTool(),
         createDeleteDirectoryTool(),
-        // 文件操作
         createDeleteFileTool(),
         createMoveFileTool(),
         createCopyFileTool(),

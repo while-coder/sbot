@@ -2,21 +2,21 @@ import fs from 'fs';
 import path from 'path';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
-import { LoggerService } from '../../Core/LoggerService';
+import { LoggerService } from '../../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
-import { checkFile, resolvePath } from './utils';
+import { checkFile, resolvePath } from '../utils';
 
-const logger = LoggerService.getLogger('Tools/FileSystem/copyFile.ts');
+const logger = LoggerService.getLogger('Tools/FileSystem/operations/copyFile.ts');
 
-/** 复制文件 */
+/** Copy a file */
 export function createCopyFileTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'copy_file',
-        description: '复制文件。源路径和目标路径都必须是绝对路径。',
+        description: 'Copy a file. Both source and destination paths must be absolute.',
         schema: z.object({
-            sourcePath: z.string().describe('源文件的绝对路径'),
-            destPath: z.string().describe('目标文件的绝对路径'),
-            overwrite: z.boolean().optional().default(false).describe('目标已存在时是否覆盖，默认 false'),
+            sourcePath: z.string().describe('Absolute path of the source file'),
+            destPath: z.string().describe('Absolute path of the destination file'),
+            overwrite: z.boolean().optional().default(false).describe('Whether to overwrite if destination exists, default false'),
         }) as any,
         func: async ({ sourcePath, destPath, overwrite = false }: any): Promise<MCPToolResult> => {
             try {

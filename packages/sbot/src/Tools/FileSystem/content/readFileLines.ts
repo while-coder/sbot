@@ -1,12 +1,12 @@
 import fs from 'fs';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
-import { LoggerService } from '../../Core/LoggerService';
+import { LoggerService } from '../../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
-import { FileSystemToolsConfig } from './config';
-import { checkFile, formatSize } from './utils';
+import { FileSystemToolsConfig } from '../config';
+import { checkFile, formatSize } from '../utils';
 
-const logger = LoggerService.getLogger('Tools/FileSystem/readFileLines.ts');
+const logger = LoggerService.getLogger('Tools/FileSystem/content/readFileLines.ts');
 
 /** 读取文件指定行范围 */
 export function createReadFileLinesTool(config: FileSystemToolsConfig = { maxFileSize: 10 * 1024 * 1024 }): StructuredToolInterface {

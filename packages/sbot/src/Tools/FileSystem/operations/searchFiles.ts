@@ -2,11 +2,11 @@ import fs from 'fs';
 import path from 'path';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
-import { LoggerService } from '../../Core/LoggerService';
+import { LoggerService } from '../../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
-import { checkDir, globToRegex, formatSize } from './utils';
+import { checkDir, globToRegex, formatSize } from '../utils';
 
-const logger = LoggerService.getLogger('Tools/FileSystem/searchFiles.ts');
+const logger = LoggerService.getLogger('Tools/FileSystem/operations/searchFiles.ts');
 
 /** 按文件名模式搜索文件 */
 export function createSearchFilesTool(): StructuredToolInterface {
