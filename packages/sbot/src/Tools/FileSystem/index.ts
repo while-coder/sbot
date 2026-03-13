@@ -23,12 +23,11 @@ export { createGrepFilesTool } from './content/grepFiles';
 // 文件系统操作
 export { createSearchFilesTool } from './operations/searchFiles';
 export { createLsTool } from './operations/ls';
-export { createDeleteFileTool } from './operations/deleteFile';
+export { createRmTool } from './operations/rm';
 export { createFileExistsTool } from './operations/fileExists';
-export { createDirectoryTool } from './operations/createDirectory';
-export { createDeleteDirectoryTool } from './operations/deleteDirectory';
+export { createMkdirTool } from './operations/mkdir';
 export { createMvTool } from './operations/mv';
-export { createCopyFileTool } from './operations/copyFile';
+export { createCpTool } from './operations/cp';
 
 import { createReadFileTool } from './content/readFile';
 import { createReadFileLinesTool } from './content/readFileLines';
@@ -40,12 +39,11 @@ import { createSearchInFileTool } from './content/searchInFile';
 import { createGrepFilesTool } from './content/grepFiles';
 import { createSearchFilesTool } from './operations/searchFiles';
 import { createLsTool } from './operations/ls';
-import { createDeleteFileTool } from './operations/deleteFile';
+import { createRmTool } from './operations/rm';
 import { createFileExistsTool } from './operations/fileExists';
-import { createDirectoryTool } from './operations/createDirectory';
-import { createDeleteDirectoryTool } from './operations/deleteDirectory';
+import { createMkdirTool } from './operations/mkdir';
 import { createMvTool } from './operations/mv';
-import { createCopyFileTool } from './operations/copyFile';
+import { createCpTool } from './operations/cp';
 
 /** 创建所有文件系统工具 */
 export function createFileSystemTools(config: FileSystemToolsConfig = { maxFileSize: 10 * 1024 * 1024 }): StructuredToolInterface[] {
@@ -62,11 +60,10 @@ export function createFileSystemTools(config: FileSystemToolsConfig = { maxFileS
         // 文件系统操作
         createSearchFilesTool(),
         createLsTool(),
-        createDirectoryTool(),
-        createDeleteDirectoryTool(),
-        createDeleteFileTool(),
+        createMkdirTool(),
+        createRmTool(),
         createMvTool(),
-        createCopyFileTool(),
+        createCpTool(),
         createFileExistsTool(),
     ];
 }
