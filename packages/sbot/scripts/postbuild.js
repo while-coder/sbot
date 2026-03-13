@@ -149,4 +149,16 @@ if (fs.existsSync(promptsSrc)) {
   console.log(`prompts: ${promptsSrc} -> ${promptsDst}`);
 }
 
+// 复制 website/dist 到 dist/webui/
+const webuitSrc = workspaceMap['sbot-website'] ? path.join(workspaceMap['sbot-website'], 'dist') : null;
+const webuiDst = path.join(distDir, 'webui');
+if (webuitSrc && fs.existsSync(webuitSrc)) {
+  if (fs.existsSync(webuiDst)) fs.rmSync(webuiDst, { recursive: true });
+  fs.cpSync(webuitSrc, webuiDst, { recursive: true });
+  console.log(`webui: ${webuitSrc} -> ${webuiDst}`);
+} else {
+  console.error(`webui: ${webuitSrc ?? 'sbot-website not found'} not found, run "pnpm --filter sbot-website run build" first`);
+  process.exit(1);
+}
+
 console.log('postbuild: done');
