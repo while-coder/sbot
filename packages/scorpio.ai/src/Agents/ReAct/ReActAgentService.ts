@@ -120,7 +120,6 @@ ${agentsDesc}
   }
 
   override async stream(query: string, callback: IAgentCallback): Promise<BaseMessage[]> {
-    this.logger?.info(`ReAct 开始 | 用户: ${this.saverService.threadId} | Agents: [${this.agentSubNodes.map(r => r.id).join(', ')}] | 查询: ${query.substring(0, 80)}`);
     this._streamCallback = callback;
     try {
       return await super.stream(query, callback);
