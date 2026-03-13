@@ -194,7 +194,7 @@ function formatResults(results: FileMatches[], reachedLimit: boolean, maxMatches
 export function createGrepFilesTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'grep',
-        description: `Searches for text or regex across files in a directory (always recursive). Automatically skips node_modules, .git, dist, build, and other common build/vendor directories. Results sorted by most recently modified file. Uses ripgrep when available, falls back to Node.js. Paths must be absolute.
+        description: `Searches for text or regex across files in a directory (always recursive). Returns matching file paths with line numbers and matched line content, sorted by most recently modified. Automatically skips node_modules, .git, dist, build, and other common build/vendor directories. Uses ripgrep when available, falls back to Node.js. Paths must be absolute.
 Use glob to find files by name or path pattern instead of content.`,
         schema: z.object({
             path: z.string().describe('Absolute path of the directory to search'),

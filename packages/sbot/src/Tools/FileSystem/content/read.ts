@@ -77,12 +77,12 @@ async function tailLines(filepath: string, numLines: number): Promise<string[]> 
 export function createReadTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'read',
-        description: `Reads a file and returns its content with line numbers (N: content), default ${DEFAULT_LIMIT} lines per call. Path must be absolute.
+        description: `Reads a text file and returns its content with line numbers in the format "line_number: line_content". Default ${DEFAULT_LIMIT} lines per call, capped at ${MAX_BYTES_LABEL} of output. Path must be absolute.
 - Use offset + limit to paginate through large files.
-- Use tail to efficiently read the last N lines (cannot be used with offset/limit).
-- Returns "Did you mean?" suggestions if the file is not found.
-- Automatically detects and rejects binary files.
-- Use ls to list directory contents instead.`,
+- Use tail to efficiently read the last N lines (mutually exclusive with offset/limit).
+- Returns "Did you mean?" suggestions when the file is not found.
+- Automatically detects and rejects binary files; use read_binary_file for binary files.
+- Use ls to list directory contents instead of reading a directory path.`,
         schema: z.object({
             filePath: z.string().describe('Absolute path to the file'),
             offset: z.number().int().min(1).optional().describe('Line number to start reading from (1-indexed), default 1'),

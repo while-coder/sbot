@@ -14,10 +14,10 @@ const logger = LoggerService.getLogger('Tools/FileSystem/content/write.ts');
 export function createWriteTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'write',
-        description: `Writes a file to the local filesystem. Creates the file and parent directories if they do not exist. Uses atomic write (temp + rename) to prevent data corruption. Returns a unified diff of the changes.
-- This tool will overwrite the existing file if there is one at the provided path.
-- If this is an existing file, you MUST use the read_file tool first to read the file's contents.
-- ALWAYS prefer the edit_file tool for modifying existing files. Only use write for new files or full rewrites.
+        description: `Writes content to a file on the local filesystem. Creates the file and any missing parent directories automatically. Uses atomic write (temp + rename) to prevent data corruption. Returns a unified diff when overwriting an existing file, or a confirmation message when creating a new file.
+- Overwrites the existing file if one already exists at the provided path.
+- If overwriting an existing file, you MUST call read first to retrieve its current contents.
+- ALWAYS prefer edit over write when modifying existing files. Only use write for new files or complete full-file rewrites.
 Path must be absolute.`,
         schema: z.object({
             filePath: z.string().describe('Absolute path of the file to write'),

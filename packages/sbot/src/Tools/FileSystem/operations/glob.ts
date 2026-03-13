@@ -118,8 +118,8 @@ function searchWithNodeJs(dir: string, pattern: string, includeHidden: boolean):
 export function createGlobTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'glob',
-        description: `Finds files matching a glob pattern (e.g. **/*.ts, src/**/*.test.js). Returns absolute paths sorted by most recently modified. Automatically skips node_modules, .git, dist, build, and other common build/vendor directories. Uses ripgrep when available. Path must be absolute.
-Use grep_files to search by file content instead of name.`,
+        description: `Finds files matching a glob pattern (e.g. **/*.ts, src/**/*.test.js, *.json). Returns absolute paths sorted by most recently modified. Automatically skips node_modules, .git, dist, build, and other common build/vendor directories. Uses ripgrep when available, falls back to Node.js. Path must be absolute.
+Use grep to search by file content instead of name.`,
         schema: z.object({
             pattern: z.string().describe('Glob pattern, e.g. **/*.ts, src/**/*.test.js, *.json'),
             path: z.string().describe('Absolute path of the directory to search'),

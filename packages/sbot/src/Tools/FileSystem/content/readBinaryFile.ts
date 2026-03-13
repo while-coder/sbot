@@ -15,7 +15,7 @@ const MAX_SIZE_LABEL = '100KB';
 export function createReadBinaryFileTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'read_binary_file',
-        description: `Reads a binary file (image, audio, PDF, etc.) and returns its content as base64. Maximum file size ${MAX_SIZE_LABEL}. Use this for non-text files. Use read for text files (source code, config, markdown, etc.). Path must be absolute.`,
+        description: `Reads a binary file (image, audio, PDF, font, etc.) and returns its raw content as a base64-encoded string along with file size and extension. Maximum file size ${MAX_SIZE_LABEL}. Use for non-text files; use read for text files (source code, config, markdown, etc.). Path must be absolute.`,
         schema: z.object({
             filePath: z.string().describe('Absolute path of the binary file'),
         }) as any,

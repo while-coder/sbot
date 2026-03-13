@@ -300,14 +300,14 @@ export async function applyFileEdits(filePath: string, edits: FileEdit[]): Promi
 export function createEditFileTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'edit',
-        description: `Performs precise text replacement edits on one or more files. Each edit can target a different file via its own filePath, or all edits share the top-level filePath. Supports 9-level fuzzy matching (whitespace/indentation/escape/context-aware), regex, replaceAll, and dry-run preview. Returns a unified diff per file. Paths must be absolute.
-Always prefer this over write_file when modifying existing files.`,
+        description: `Performs precise text replacement edits on one or more files. Each edit replaces oldText with newText. When an exact match is not found, automatically falls back through 9 fuzzy strategies (line trim, block anchor, whitespace normalization, indentation flex, escape normalization, boundary trim, context-aware) so minor formatting differences don't block the edit. Supports regex mode, replaceAll, and multi-file batching in a single call. Returns a unified diff per modified file. Paths must be absolute.
+Always prefer edit over write when modifying existing files.`,
         schema: z.object({
             filePath: z.string().optional().describe('Default file path shared by all edits; each edit\'s own filePath takes precedence'),
             edits: z.array(z.object({
                 filePath: z.string().optional().describe('Target file path for this edit; falls back to the top-level filePath if omitted'),
                 oldText: z.string().describe('Text to replace; treated as a regex pattern when useRegex=true'),
-                newText: z.string().describe('Replacement text'),
+                newText: z.string().describe('Replacement text; use empty string to delete the matched text'),
                 useRegex: z.boolean().optional().default(false).describe('Treat oldText as a regex pattern, default false'),
                 regexFlags: z.string().optional().default('g').describe('Regex flags, default g, only applies when useRegex=true'),
                 replaceAll: z.boolean().optional().default(false).describe('Replace all matches in the file, default false (errors on multiple identical matches)'),
