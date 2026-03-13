@@ -7,6 +7,9 @@
     "debug:sbot": "pnpm --filter @qingfeng346/sbot run debug",
     "debug:cli": "pnpm --filter sbot-cli run debug",
     "debug:website": "pnpm --filter sbot-website run debug",
+    "build:sbot": "pnpm --filter @qingfeng346/sbot run build",
+    "link:sbot": "pnpm --filter @qingfeng346/sbot run build && npm link packages/sbot/dist",
+    "unlink:sbot": "npm unlink -g @qingfeng346/sbot",
     "publish:sbot": "pnpm --filter @qingfeng346/sbot publish --no-git-checks --access public",
     "publish:cli": "pnpm --filter sbot-cli publish --no-git-checks"
   },
