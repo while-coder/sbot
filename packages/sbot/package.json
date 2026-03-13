@@ -1,7 +1,7 @@
 {
   "name": "@qingfeng346/sbot",
-  "version": "0.0.1",
-  "description": "Self-hosted AI agent server",
+  "version": "0.0.2",
+  "description": "Self-hosted AI agent server. Open-source alternative to OpenAI, Claude, and Gemini interfaces. Run LLM agents locally with MCP tool support, memory, multi-channel integrations (Lark/Feishu), and a built-in web UI.",
   "engines": {
     "node": ">=18"
   },
