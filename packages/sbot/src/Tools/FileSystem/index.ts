@@ -14,7 +14,7 @@ export { formatSize } from './utils';
 export { createReadFileTool } from './content/readFile';
 export { createReadFileLinesTool } from './content/readFileLines';
 export { createReadMediaFileTool } from './content/readMediaFile';
-export { createWriteFileTool } from './content/writeFile';
+export { createWriteTool } from './content/write';
 export { createEditFileTool } from './content/editFile';
 export { createAppendFileTool } from './content/appendFile';
 export { createSearchInFileTool } from './content/searchInFile';
@@ -32,7 +32,7 @@ export { createCpTool } from './operations/cp';
 import { createReadFileTool } from './content/readFile';
 import { createReadFileLinesTool } from './content/readFileLines';
 import { createReadMediaFileTool } from './content/readMediaFile';
-import { createWriteFileTool } from './content/writeFile';
+import { createWriteTool } from './content/write';
 import { createEditFileTool } from './content/editFile';
 import { createAppendFileTool } from './content/appendFile';
 import { createSearchInFileTool } from './content/searchInFile';
@@ -52,7 +52,7 @@ export function createFileSystemTools(config: FileSystemToolsConfig = { maxFileS
         createReadFileTool(config),
         createReadFileLinesTool(config),
         createReadMediaFileTool(),
-        createWriteFileTool(),
+        createWriteTool(),
         createEditFileTool(),
         createAppendFileTool(),
         createSearchInFileTool(config),
