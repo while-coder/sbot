@@ -41,14 +41,12 @@ function searchWithRg(
     dir: string,
     pattern: string,
     useRegex: boolean,
-    caseSensitive: boolean,
     includeHidden: boolean,
     fileGlob: string | undefined,
     maxMatches: number,
 ): Promise<SearchResult> {
     return new Promise((resolve, reject) => {
         const args = ['--json', '--glob=!.git/*'];
-        if (!caseSensitive) args.push('--ignore-case');
         if (!useRegex) args.push('--fixed-strings');
         if (includeHidden) args.push('--hidden');
         if (fileGlob) args.push(`--glob=${fileGlob}`);
@@ -114,13 +112,12 @@ function searchWithNodeJs(
     pattern: string,
     fileRegex: RegExp,
     useRegex: boolean,
-    caseSensitive: boolean,
     includeHidden: boolean,
     maxFileSize: number,
     maxMatches: number,
 ): SearchResult {
-    const searchRegex = useRegex ? new RegExp(pattern, caseSensitive ? '' : 'i') : null;
-    const searchLower = caseSensitive ? pattern : pattern.toLowerCase();
+    const searchRegex = useRegex ? new RegExp(pattern) : null;
+    const searchLower = pattern;
 
     const allFiles: Array<{ path: string; mtime: number }> = [];
     function walk(d: string) {
@@ -156,7 +153,7 @@ function searchWithNodeJs(
                 const line = lines[i];
                 const hit = searchRegex
                     ? searchRegex.test(line)
-                    : (caseSensitive ? line : line.toLowerCase()).includes(searchLower);
+                    : line.includes(searchLower);
                 if (!hit) continue;
                 const text = line.length > MAX_LINE_LENGTH ? line.slice(0, MAX_LINE_LENGTH) + '...' : line;
                 fileMatches.push({ lineNum: i + 1, text });
@@ -201,24 +198,23 @@ export function createGrepFilesTool(config: FileSystemToolsConfig = { maxFileSiz
         description: `Searches for text or regex across files in a directory (always recursive). Automatically skips node_modules, .git, dist, build, and other common build/vendor directories. Results sorted by most recently modified file. Uses ripgrep when available, falls back to Node.js. Paths must be absolute.
 Use search_files to find files by name pattern instead of content.`,
         schema: z.object({
-            searchPath: z.string().describe('搜索目录的绝对路径'),
-            searchText: z.string().describe('要搜索的文本；useRegex=true 时为正则表达式'),
-            filePattern: z.string().optional().describe('文件名过滤模式（如 *.ts），默认所有文件'),
-            useRegex: z.boolean().optional().default(false).describe('将 searchText 作为正则表达式，默认 false（字面量搜索）'),
-            caseSensitive: z.boolean().optional().default(true).describe('是否区分大小写，默认 true'),
+            path: z.string().describe('搜索目录的绝对路径'),
+            pattern: z.string().describe('要搜索的文本；useRegex=true 时为正则表达式'),
+            glob: z.string().optional().describe('文件名过滤模式（如 *.ts），默认所有文件'),
+            useRegex: z.boolean().optional().default(false).describe('将 pattern 作为正则表达式，默认 false（字面量搜索）'),
             includeHidden: z.boolean().optional().default(false).describe('是否包含隐藏文件（.开头），默认 false'),
             maxMatches: z.number().optional().default(DEFAULT_MAX_MATCHES).describe('最大匹配行数（跨所有文件合计），默认 100'),
         }) as any,
-        func: async ({ searchPath, searchText, filePattern, useRegex = false, caseSensitive = true, includeHidden = false, maxMatches = DEFAULT_MAX_MATCHES }: any): Promise<MCPToolResult> => {
+        func: async ({ path: searchPath, pattern, glob, useRegex = false, includeHidden = false, maxMatches = DEFAULT_MAX_MATCHES }: any): Promise<MCPToolResult> => {
             try {
                 const abs = checkDir(searchPath);
                 let result: SearchResult;
 
                 if (await checkRg()) {
-                    result = await searchWithRg(abs, searchText, useRegex, caseSensitive, includeHidden, filePattern, maxMatches);
+                    result = await searchWithRg(abs, pattern, useRegex, includeHidden, glob, maxMatches);
                 } else {
-                    const fileRegex = globToRegex(filePattern ?? '*');
-                    result = searchWithNodeJs(abs, searchText, fileRegex, useRegex, caseSensitive, includeHidden, maxFileSize, maxMatches);
+                    const fileRegex = globToRegex(glob ?? '*');
+                    result = searchWithNodeJs(abs, pattern, fileRegex, useRegex, includeHidden, maxFileSize, maxMatches);
                 }
 
                 if (result.results.length === 0) return createSuccessResult(createTextContent('No matches found'));

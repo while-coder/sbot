@@ -17,7 +17,7 @@ export { createWriteTool } from './content/write';
 export { createEditFileTool } from './content/edit';
 export { createAppendFileTool } from './content/appendFile';
 export { createSearchInFileTool } from './content/searchInFile';
-export { createGrepFilesTool } from './content/grepFiles';
+export { createGrepFilesTool } from './content/grep';
 
 // 文件系统操作
 export { createSearchFilesTool } from './operations/searchFiles';
@@ -34,7 +34,7 @@ import { createWriteTool } from './content/write';
 import { createEditFileTool } from './content/edit';
 import { createAppendFileTool } from './content/appendFile';
 import { createSearchInFileTool } from './content/searchInFile';
-import { createGrepFilesTool } from './content/grepFiles';
+import { createGrepFilesTool } from './content/grep';
 import { createSearchFilesTool } from './operations/searchFiles';
 import { createLsTool } from './operations/ls';
 import { createRmTool } from './operations/rm';
