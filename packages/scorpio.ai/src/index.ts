@@ -138,6 +138,7 @@ export {
 
   // 实现类
   AgentMemorySaver,
+  AgentFileSaver,
   AgentSqliteSaver,
   AgentPostgresSaver,
 } from "./Saver";

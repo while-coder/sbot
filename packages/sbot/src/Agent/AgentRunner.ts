@@ -7,11 +7,10 @@ import {
     MemoryEvaluator, MemoryCompressor, MemoryExtractor, MemoryService,
     IEmbeddingService,
     IMemoryExtractor, IMemoryEvaluator, IMemoryCompressor,
-    IAgentSaverService, AgentSqliteSaver, 
+    IAgentSaverService, AgentFileSaver, AgentSqliteSaver,
     T_MaxMemoryAgeDays, T_MemoryMode, T_DBPath, T_ThreadId,
     IModelService,
 } from "scorpio.ai";
-import { AgentFileSaver } from "scorpio.ai/dist/Saver";
 import { config, SaverType } from "../Core/Config";
 import { ContextType } from "../Core/Database";
 import { AgentFactory } from "./AgentFactory";
