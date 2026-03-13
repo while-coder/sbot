@@ -1,0 +1,40 @@
+import fs from 'fs';
+import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
+import { z } from 'zod';
+import { LoggerService } from '../../Core/LoggerService';
+import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
+import { resolvePath, formatSize } from './utils';
+
+const logger = LoggerService.getLogger('Tools/FileSystem/fileExists.ts');
+
+/** 检查文件/目录是否存在（含权限信息）*/
+export function createFileExistsTool(): StructuredToolInterface {
+    return new DynamicStructuredTool({
+        name: 'file_exists',
+        description: '检查文件或目录是否存在，返回类型、大小、时间戳、权限等详细信息。路径必须是绝对路径。',
+        schema: z.object({ filePath: z.string().describe('要检查的文件或目录的绝对路径') }) as any,
+        func: async ({ filePath }: any): Promise<MCPToolResult> => {
+            try {
+                const abs = resolvePath(filePath);
+                if (!fs.existsSync(abs)) {
+                    return createSuccessResult(createTextContent(JSON.stringify({ exists: false, filePath: abs }, null, 2)));
+                }
+                const s = fs.statSync(abs);
+                return createSuccessResult(createTextContent(JSON.stringify({
+                    exists: true,
+                    filePath: abs,
+                    type: s.isFile() ? 'file' : s.isDirectory() ? 'directory' : 'other',
+                    size: s.size,
+                    sizeFormatted: formatSize(s.size),
+                    permissions: s.mode.toString(8).slice(-3),
+                    created: s.birthtime,
+                    modified: s.mtime,
+                    accessed: s.atime,
+                }, null, 2)));
+            } catch (e: any) {
+                logger.error(`file_exists ${filePath}: ${e.message}`);
+                return createErrorResult(e.message);
+            }
+        }
+    });
+}
