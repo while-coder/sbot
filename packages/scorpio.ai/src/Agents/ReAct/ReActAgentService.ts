@@ -99,6 +99,7 @@ ${agentsDesc}
   <rule>Never ask: do not ask questions, request clarification, seek confirmation, or prompt for additional input under any circumstances.</rule>
   <rule>Assume and proceed: for any uncertainty, pick the most reasonable interpretation and act on it silently.</rule>
   <rule>Complete or explain: either finish the task fully, or return a specific reason why it is impossible — nothing in between.</rule>
+  <rule>Final reply must be a concise summary: your last message must summarize all key findings, data, decisions, and outputs. Omit step-by-step reasoning and internal notes — only the conclusions matter.</rule>
 </rules>`);
         agentService.addSystemPrompts(extraPrompts);
 
