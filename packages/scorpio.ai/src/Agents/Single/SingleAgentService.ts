@@ -69,7 +69,8 @@ export class SingleAgentService extends AgentServiceBase {
             const skillMessage = await this.skillService.getSystemMessage();
             if (skillMessage) parts.push(skillMessage);
         }
-        return parts.length > 0 ? new SystemMessage(parts.join("\n\n")) : null;
+        parts.push(`Current goal: ${query}`);
+        return new SystemMessage(parts.join("\n\n"));
     }
 
     /**
@@ -90,10 +91,20 @@ export class SingleAgentService extends AgentServiceBase {
 
         // 每次调用都从 saver 重新取（含 token 截断），防止多轮工具调用后 state.messages 超限
         const historyMessages = await this.saverService.getMessages(MAX_HISTORY_TOKENS);
+        if (!historyMessages || historyMessages.length === 0) {
+            throw new Error('historyMessages 为空，无法调用模型');
+        }
         const messages = [
             ...(state.systemMessage ? [state.systemMessage] : []),
-            ...(historyMessages ?? state.messages),
+            ...historyMessages,
         ];
+
+        // this.logger?.debug(`tools count : ${state.tools.length} messages:${messages.length} historyMessages:${historyMessages.length}`)
+        // for (const msg of messages) {
+        //     const role = msg.constructor.name;
+        //     const contentStr = (typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)).replace(/\r?\n/g, ' ');
+        //     this.logger?.debug(`  [${role}] ${contentStr.length > 100 ? contentStr.slice(0, 100) + '…' : contentStr}`);
+        // }
 
         // 使用流式调用收集完整响应
         const stream = await model.stream(messages);
@@ -133,7 +144,10 @@ export class SingleAgentService extends AgentServiceBase {
      */
     private async callToolsNode(state: SingleAgentState) {
         const callback = state.callback ?? undefined;
-        const messages = state.messages;
+        const messages = await this.saverService.getMessages(MAX_HISTORY_TOKENS);
+        if (!messages || messages.length === 0) {
+            throw new Error('historyMessages 为空，无法执行工具');
+        }
         const lastMessage = messages[messages.length - 1] as AIMessage;
 
         // 获取工具调用
@@ -160,11 +174,14 @@ export class SingleAgentService extends AgentServiceBase {
                 }
                 // 执行工具
                 const argsStr = JSON.stringify(toolCall.args);
-                this.logger?.info(`执行工具 ${tool.name} 参数: ${argsStr.length > 200 ? argsStr.slice(0, 200) + '…' : argsStr}`);
                 const result = await tool.invoke(toolCall.args);
 
                 // 标准化为 MCP 格式（自动检测和转换各种格式）
                 let mcpResult = normalizeToMCPResult(result);
+                const resultStr = JSON.stringify(mcpResult);
+                this.logger?.info(
+                    `执行工具 ${tool.name}\n  参数: ${argsStr.length > 100 ? argsStr.slice(0, 100) + '…' : argsStr}\n  结果: ${resultStr.length > 100 ? resultStr.slice(0, 100) + '…' : resultStr}`
+                );
 
                 // 如果提供了图片转换回调，转换内容中的图片
                 if (callback?.convertImages) {
@@ -205,8 +222,7 @@ export class SingleAgentService extends AgentServiceBase {
         // 将本次用户消息压入历史
         await this.saverService.pushMessage(humanMessage);
 
-        const [historyMessages, systemMessage, tools] = await Promise.all([
-            this.saverService.getMessages(MAX_HISTORY_TOKENS),
+        const [systemMessage, tools] = await Promise.all([
             this.buildSystemMessage(query),
             this.buildTools(),
         ]);
@@ -217,9 +233,8 @@ export class SingleAgentService extends AgentServiceBase {
             .addEdge(START, GraphNodeType.AGENT)
             .addConditionalEdges(GraphNodeType.AGENT, this.agentNext.bind(this))
             .addEdge(GraphNodeType.TOOLS, GraphNodeType.AGENT);
-        // this.logger?.debug(`system message: ${systemMessage?.content}`)
         const graphStream = graph.stream(
-            { messages: historyMessages ?? [humanMessage], callback, systemMessage, tools },
+            { messages: [], callback, systemMessage, tools },
         );
 
         // 收集 AI 响应（供记忆服务按 MemoryMode 决定是否使用）

@@ -59,7 +59,7 @@ function processAttachments(query: string, attachments: AttachmentInput[] | unde
     }
     if (parts.length === 0) return query;
     const xml = `<attachments>\n${parts.join('\n')}\n</attachments>`;
-    return query ? `${query}\n\n${xml}` : xml;
+    return query ? `${query}\n${xml}` : xml;
 }
 
 // ===== Skills 辅助函数 =====

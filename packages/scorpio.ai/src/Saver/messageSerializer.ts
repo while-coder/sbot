@@ -117,5 +117,10 @@ export function applyTokenLimit(messages: BaseMessage[], maxTokens: number): Bas
         startIndex++;
     }
 
+    // 保证至少返回最后 1 条消息
+    if (startIndex >= messages.length) {
+        startIndex = messages.length - 1;
+    }
+
     return messages.slice(startIndex);
 }

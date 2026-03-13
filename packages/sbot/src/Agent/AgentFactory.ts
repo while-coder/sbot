@@ -30,7 +30,7 @@ export class AgentFactory {
         const agentEntry = config.getAgent(agentId);
 
         if (!container.isRegistered(IAgentSaverService)) container.registerSingleton(IAgentSaverService, AgentMemorySaver);
-        const { mcp, skills } = agentEntry as SingleAgentEntry;
+        const { mcp, skills } = agentEntry;
         await this.registerSkillService(container, agentId, skills);
         await this.registerToolService(container, agentId, mcp);
 
@@ -56,7 +56,6 @@ export class AgentFactory {
         agentName: string,
         skills?: string[],
     ): Promise<void> {
-        if (container.isRegistered(ISkillService)) return;
         container.registerSingleton(ISkillService, SkillService);
         const skillService = await container.resolve<SkillService>(ISkillService);
         if (skills && skills.length > 0) {
@@ -74,7 +73,6 @@ export class AgentFactory {
         agentName: string,
         mcp?: string[],
     ): Promise<void> {
-        if (container.isRegistered(IAgentToolService)) return;
         container.registerSingleton(IAgentToolService, AgentToolService);
         const toolService = await container.resolve<AgentToolService>(IAgentToolService);
         if (mcp && mcp.length > 0) {
@@ -93,7 +91,6 @@ export class AgentFactory {
         systemPrompts: string[],
     ): Promise<AgentServiceBase> {
         container.registerInstance(IModelService, await config.getModelService(entry.model, true));
-
         container.registerWithArgs(SingleAgentService, {
             [T_SystemPrompts]: systemPrompts,
         });
@@ -116,7 +113,6 @@ export class AgentFactory {
             throw new Error("ReAct 模式未配置 think modelName");
         }
         const thinkModelService = await config.getModelService(entry.think, true);
-
         container.registerWithArgs(ReActAgentService, {
             [T_AgentSubNodes]: agentSubNodes,
             [T_CreateAgent]: createAgentFn,
