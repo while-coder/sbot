@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 // 第一行必须导入 logger 配置，确保 log4js 在所有模块加载前初始化
 import {LoggerService, log4js} from "./Core/LoggerService";
 import {config} from "./Core/Config";
