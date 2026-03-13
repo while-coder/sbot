@@ -12,33 +12,27 @@ export { formatSize } from './utils';
 
 // 文件内容操作
 export { createReadTool } from './content/read';
-export { createReadMediaFileTool } from './content/readMediaFile';
+export { createReadBinaryFileTool } from './content/readBinaryFile';
 export { createWriteTool } from './content/write';
 export { createEditFileTool } from './content/edit';
-export { createAppendFileTool } from './content/appendFile';
-export { createSearchInFileTool } from './content/searchInFile';
 export { createGrepFilesTool } from './content/grep';
 
 // 文件系统操作
-export { createSearchFilesTool } from './operations/searchFiles';
+export { createGlobTool } from './operations/glob';
 export { createLsTool } from './operations/ls';
 export { createRmTool } from './operations/rm';
-export { createFileExistsTool } from './operations/fileExists';
 export { createMkdirTool } from './operations/mkdir';
 export { createMvTool } from './operations/mv';
 export { createCpTool } from './operations/cp';
 
 import { createReadTool } from './content/read';
-import { createReadMediaFileTool } from './content/readMediaFile';
+import { createReadBinaryFileTool } from './content/readBinaryFile';
 import { createWriteTool } from './content/write';
 import { createEditFileTool } from './content/edit';
-import { createAppendFileTool } from './content/appendFile';
-import { createSearchInFileTool } from './content/searchInFile';
 import { createGrepFilesTool } from './content/grep';
-import { createSearchFilesTool } from './operations/searchFiles';
+import { createGlobTool } from './operations/glob';
 import { createLsTool } from './operations/ls';
 import { createRmTool } from './operations/rm';
-import { createFileExistsTool } from './operations/fileExists';
 import { createMkdirTool } from './operations/mkdir';
 import { createMvTool } from './operations/mv';
 import { createCpTool } from './operations/cp';
@@ -48,19 +42,16 @@ export function createFileSystemTools(config: FileSystemToolsConfig = { maxFileS
     return [
         // 文件内容操作
         createReadTool(),
-        createReadMediaFileTool(),
+        createReadBinaryFileTool(),
         createWriteTool(),
         createEditFileTool(),
-        createAppendFileTool(),
-        createSearchInFileTool(config),
         createGrepFilesTool(config),
         // 文件系统操作
-        createSearchFilesTool(),
+        createGlobTool(),
         createLsTool(),
         createMkdirTool(),
         createRmTool(),
         createMvTool(),
         createCpTool(),
-        createFileExistsTool(),
     ];
 }

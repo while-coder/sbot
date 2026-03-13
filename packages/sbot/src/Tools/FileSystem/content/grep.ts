@@ -196,7 +196,7 @@ export function createGrepFilesTool(config: FileSystemToolsConfig = { maxFileSiz
     return new DynamicStructuredTool({
         name: 'grep_files',
         description: `Searches for text or regex across files in a directory (always recursive). Automatically skips node_modules, .git, dist, build, and other common build/vendor directories. Results sorted by most recently modified file. Uses ripgrep when available, falls back to Node.js. Paths must be absolute.
-Use search_files to find files by name pattern instead of content.`,
+Use glob to find files by name or path pattern instead of content.`,
         schema: z.object({
             path: z.string().describe('搜索目录的绝对路径'),
             pattern: z.string().describe('要搜索的文本；useRegex=true 时为正则表达式'),

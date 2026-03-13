@@ -23,7 +23,7 @@ export function createLsTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'ls',
         description: `Lists files and directories in a given path as a tree. The path must be absolute. Automatically ignores common build/dependency directories (node_modules, .git, dist, build, etc.). You can optionally provide additional glob patterns to ignore.
-You should generally prefer the grep_files or search_files tools if you know which directories to search.`,
+You should generally prefer the grep_files or glob tools if you know which directories to search.`,
         schema: z.object({
             dirPath: z.string().describe('Absolute path of the directory to list'),
             ignore: z.array(z.string()).optional().describe('Additional directory/file names to ignore'),
