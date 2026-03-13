@@ -11,7 +11,7 @@ export type { FileSystemToolsConfig } from './config';
 export { formatSize } from './utils';
 
 // 文件内容操作
-export { createReadFileTool } from './content/readFile';
+export { createReadTool } from './content/read';
 export { createReadFileLinesTool } from './content/readFileLines';
 export { createReadMediaFileTool } from './content/readMediaFile';
 export { createWriteTool } from './content/write';
@@ -29,7 +29,7 @@ export { createMkdirTool } from './operations/mkdir';
 export { createMvTool } from './operations/mv';
 export { createCpTool } from './operations/cp';
 
-import { createReadFileTool } from './content/readFile';
+import { createReadTool } from './content/read';
 import { createReadFileLinesTool } from './content/readFileLines';
 import { createReadMediaFileTool } from './content/readMediaFile';
 import { createWriteTool } from './content/write';
@@ -49,7 +49,7 @@ import { createCpTool } from './operations/cp';
 export function createFileSystemTools(config: FileSystemToolsConfig = { maxFileSize: 10 * 1024 * 1024 }): StructuredToolInterface[] {
     return [
         // 文件内容操作
-        createReadFileTool(config),
+        createReadTool(),
         createReadFileLinesTool(config),
         createReadMediaFileTool(),
         createWriteTool(),
