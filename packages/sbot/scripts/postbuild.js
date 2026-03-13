@@ -161,4 +161,16 @@ if (webuitSrc && fs.existsSync(webuitSrc)) {
   process.exit(1);
 }
 
+// 复制 README 到 dist/（供 npm 包页面展示）
+const readmeSrc = path.join(monorepoRoot, 'README.md');
+const readmeZhSrc = path.join(monorepoRoot, 'README.zh.md');
+const readmeDst = path.join(distDir, 'README.md');
+if (fs.existsSync(readmeSrc)) {
+  fs.copyFileSync(readmeSrc, readmeDst);
+  console.log(`readme: ${readmeSrc} -> ${readmeDst}`);
+} else if (fs.existsSync(readmeZhSrc)) {
+  fs.copyFileSync(readmeZhSrc, readmeDst);
+  console.log(`readme: ${readmeZhSrc} -> ${readmeDst}`);
+}
+
 console.log('postbuild: done');
