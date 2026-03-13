@@ -12,10 +12,9 @@ export { formatSize } from './utils';
 
 // 文件内容操作
 export { createReadTool } from './content/read';
-export { createReadFileLinesTool } from './content/readFileLines';
 export { createReadMediaFileTool } from './content/readMediaFile';
 export { createWriteTool } from './content/write';
-export { createEditFileTool } from './content/editFile';
+export { createEditFileTool } from './content/edit';
 export { createAppendFileTool } from './content/appendFile';
 export { createSearchInFileTool } from './content/searchInFile';
 export { createGrepFilesTool } from './content/grepFiles';
@@ -30,10 +29,9 @@ export { createMvTool } from './operations/mv';
 export { createCpTool } from './operations/cp';
 
 import { createReadTool } from './content/read';
-import { createReadFileLinesTool } from './content/readFileLines';
 import { createReadMediaFileTool } from './content/readMediaFile';
 import { createWriteTool } from './content/write';
-import { createEditFileTool } from './content/editFile';
+import { createEditFileTool } from './content/edit';
 import { createAppendFileTool } from './content/appendFile';
 import { createSearchInFileTool } from './content/searchInFile';
 import { createGrepFilesTool } from './content/grepFiles';
@@ -50,7 +48,6 @@ export function createFileSystemTools(config: FileSystemToolsConfig = { maxFileS
     return [
         // 文件内容操作
         createReadTool(),
-        createReadFileLinesTool(config),
         createReadMediaFileTool(),
         createWriteTool(),
         createEditFileTool(),
