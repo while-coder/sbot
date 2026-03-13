@@ -457,6 +457,11 @@ class Config {
     return this._settings.httpPort ?? DEFAULT_PORT;
   }
 
+  setHttpPort(port: number): void {
+    this._settings.httpPort = port;
+    this.saveSettings();
+  }
+
   getHttpUrl(): string {
     return (this._settings.httpUrl ?? `http://localhost:${this.getHttpPort()}`).replace(/\/$/, '');
   }

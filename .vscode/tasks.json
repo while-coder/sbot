@@ -4,7 +4,7 @@
     {
       "label": "debug:sbot",
       "type": "shell",
-      "command": "pnpm run debug:build",
+      "command": "pnpm run debug",
       "options": {
         "cwd": "${workspaceFolder}/packages/sbot"
       },
@@ -12,34 +12,6 @@
         "kind": "build",
         "isDefault": true
       },
-      "presentation": {
-        "reveal": "always",
-        "panel": "shared"
-      },
-      "problemMatcher": "$tsc"
-    },
-    {
-      "label": "build:sbot",
-      "type": "shell",
-      "command": "pnpm run build",
-      "options": {
-        "cwd": "${workspaceFolder}/packages/sbot"
-      },
-      "group": "build",
-      "presentation": {
-        "reveal": "always",
-        "panel": "shared"
-      },
-      "problemMatcher": "$tsc"
-    },
-    {
-      "label": "build:all",
-      "type": "shell",
-      "command": "pnpm run build",
-      "options": {
-        "cwd": "${workspaceFolder}"
-      },
-      "group": "build",
       "presentation": {
         "reveal": "always",
         "panel": "shared"

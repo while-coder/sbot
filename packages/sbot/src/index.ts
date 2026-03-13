@@ -11,6 +11,23 @@ import {schedulerService} from "./Scheduler/SchedulerService";
 const logger = LoggerService.getLogger('index.ts');
 logger.info("=========================开始启动=========================")
 
+// 解析 --port 参数（支持 --port 3000 和 --port=3000 两种格式）
+const argv = (process.argv as unknown as string[]).slice(2);
+for (let i = 0; i < argv.length; i++) {
+    const m = argv[i].match(/^--port(?:=(\d+))?$/);
+    if (m) {
+        const raw = m[1] ?? argv[i + 1];
+        const port = Number(raw);
+        if (Number.isInteger(port) && port > 0 && port < 65536) {
+            config.setHttpPort(port);
+            logger.info(`端口已更新为 ${port} 并保存到 settings.json`);
+        } else {
+            logger.warn(`--port 参数无效: ${raw}`);
+        }
+        break;
+    }
+}
+
 async function main() {
     try {
         //监听未捕获的异常
