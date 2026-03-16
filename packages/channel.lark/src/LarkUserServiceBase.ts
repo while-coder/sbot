@@ -19,8 +19,6 @@ export interface LarkMessageArgs {
   chat_id: string;
   root_id: string;
   message_id: string;
-  /** 主动发送场景（如计时器），传入 chat_id 直接发送消息 */
-  chatInfo?: { chatId: string };
 }
 
 export interface LarkActionArgs {
@@ -42,11 +40,11 @@ export abstract class LarkUserServiceBase extends UserServiceBase {
 
   // 实现基类的抽象方法
   async startProcessMessage(query: string, args: any): Promise<string> {
-    const { larkService, chat_type, chat_id, root_id, message_id, chatInfo } = args as LarkMessageArgs;
+    const { larkService, chat_type, chat_id, root_id, message_id } = args as LarkMessageArgs;
     this.larkService = larkService;
-    if (chatInfo) {
-      this.provider = await new LarkChatProvider(larkService).initChat(LarkReceiveIdType.ChatId, chatInfo.chatId, query);
-      return `会话ID:${chatInfo.chatId}`;
+    if (!message_id) {
+      this.provider = await new LarkChatProvider(larkService).initChat(LarkReceiveIdType.ChatId, chat_id, query);
+      return `会话ID:${chat_id}`;
     }
     this.provider = await new LarkChatProvider(larkService).initReplay(message_id);
     return `会话ID:${chat_id},话题:${root_id},消息ID:${message_id}`

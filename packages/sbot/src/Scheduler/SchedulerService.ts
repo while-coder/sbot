@@ -37,7 +37,6 @@ async function executeScheduler(schedulerId: number): Promise<void> {
                 chat_id: sessionRow.sessionId,
                 message_id: "",
                 root_id: "",
-                chatInfo: { chatId: sessionRow.sessionId },
             };
             await userService.onReceiveLarkMessage(args, {}, scheduler.message, sessionRow.channel);
             logger.info(`Scheduler task ${tag} fired (channel), session ${sessionRow.sessionId}`);
