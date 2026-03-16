@@ -338,7 +338,7 @@ onMounted(refresh)
             <div v-if="(agent.agents as any[] | undefined)?.length" class="card">
               <div class="card-title">子 Agents</div>
               <div v-for="a in (agent.agents as any[])" :key="a.id" class="sub-agent-item">
-                <div class="sub-agent-item-header"><span class="sub-agent-item-name">{{ a.name }}</span></div>
+                <div class="sub-agent-item-header"><span class="sub-agent-item-name">{{ a.id }}</span></div>
                 <div class="sub-agent-item-desc">{{ a.desc }}</div>
               </div>
             </div>

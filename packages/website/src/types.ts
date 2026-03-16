@@ -37,7 +37,6 @@ export interface SaverConfig {
 
 export interface SubAgentRef {
   id: string
-  name: string
   desc: string
 }
 

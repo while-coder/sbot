@@ -51,7 +51,7 @@ export class ReActAgentService extends SingleAgentService {
 
   protected override async buildSystemMessage(query: string): Promise<SystemMessage | null> {
     const agentsDesc = this.agentSubNodes.map(a =>
-      `  <agent id="${a.id}" name="${a.name}">${a.desc}</agent>`
+      `  <agent id="${a.id}">${a.desc}</agent>`
     ).join('\n');
     const parts: string[] = [`You are a ReAct orchestration expert. Break down the user's request and dispatch sub-tasks to specialized agents using the \`task\` tool.
 

@@ -94,14 +94,14 @@ async function save() {
 const showSubModal   = ref(false)
 const subModalTitle  = ref('')
 const editingSubIdx  = ref(-1)
-const subForm        = ref({ id: '', name: '', desc: '' })
+const subForm        = ref({ id: '', desc: '' })
 const subAgentExclude = ref('')
 
 function addSubAgent() {
   editingSubIdx.value   = -1
   subModalTitle.value   = '添加子 Agent'
   subAgentExclude.value = form.value.name
-  subForm.value         = { id: '', name: '', desc: '' }
+  subForm.value         = { id: '', desc: '' }
   showSubModal.value    = true
 }
 
@@ -115,9 +115,8 @@ function editSubAgent(idx: number) {
 
 function saveSubAgent() {
   if (!subForm.value.id)             { show('请选择一个 Agent', 'error'); return }
-  if (!subForm.value.name.trim())    { show('名称不能为空',     'error'); return }
   if (!subForm.value.desc.trim())    { show('描述不能为空',     'error'); return }
-  const ref: SubAgentRef = { id: subForm.value.id, name: subForm.value.name.trim(), desc: subForm.value.desc.trim() }
+  const ref: SubAgentRef = { id: subForm.value.id, desc: subForm.value.desc.trim() }
   if (editingSubIdx.value >= 0) {
     tempSubAgents.value[editingSubIdx.value] = ref
   } else {
@@ -202,7 +201,6 @@ defineExpose({ open })
               <div class="sub-agent-item-header">
                 <div style="display:flex;align-items:center;gap:8px;min-width:0">
                   <span class="sub-agent-item-name">{{ (agents[ref.id] as any)?.name || ref.id }}</span>
-                  <span style="font-size:10px;color:#64748b;background:#f1f5f9;padding:1px 7px;border-radius:10px;font-family:monospace;flex-shrink:0">{{ ref.name }}</span>
                 </div>
                 <div class="ops-cell">
                   <button class="btn-outline btn-sm" @click="editSubAgent(i)">编辑</button>
@@ -238,10 +236,6 @@ defineExpose({ open })
             <option value="">请选择</option>
             <option v-for="a in subAgentSelectOptions()" :key="a.id" :value="a.id">{{ a.label }}</option>
           </select>
-        </div>
-        <div class="form-group">
-          <label>名称 *</label>
-          <input v-model="subForm.name" placeholder="LLM 调用时使用的标识名" />
         </div>
         <div class="form-group">
           <label>描述 *</label>
