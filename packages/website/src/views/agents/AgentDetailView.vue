@@ -398,17 +398,12 @@ onMounted(refresh)
             </tr>
             <tr v-for="s in globals" :key="'g-' + s.name">
               <td style="font-family:monospace">
-                {{ s.name }}
-                <span v-if="(s as any).isBuiltin !== false"
-                  style="margin-left:6px;background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">内置</span>
-                <span v-else
-                  style="margin-left:6px;background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">全局</span>
+                <span :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;margin-right:6px;${sourceBadgeStyle(s.source)}`">{{ s.source }}</span>{{ s.name }}
               </td>
               <td>{{ s.description || '-' }}</td>
               <td>
                 <div class="ops-cell">
-                  <button class="btn-outline btn-sm"
-                    @click="openView(s.name, (s as any).isBuiltin !== false ? '内置' : '全局')">查看</button>
+                  <button class="btn-outline btn-sm" @click="openView(s.name, s.source)">查看</button>
                 </div>
               </td>
             </tr>
@@ -417,7 +412,7 @@ onMounted(refresh)
               <td>{{ s.description || '-' }}</td>
               <td>
                 <div class="ops-cell">
-                  <button class="btn-outline btn-sm" @click="openView(s.name)">查看</button>
+                  <button class="btn-outline btn-sm" @click="openView(s.name, '专属技能')">查看</button>
                   <button class="btn-danger btn-sm" @click="removeSkill(s.name)">删除</button>
                 </div>
               </td>
@@ -475,8 +470,7 @@ onMounted(refresh)
           <template v-else>
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
               <span style="font-family:monospace;font-size:15px;font-weight:600;color:#1e293b">{{ viewName }}</span>
-              <span v-if="viewBadge === '内置'" style="background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">内置</span>
-              <span v-else-if="viewBadge === '全局'" style="background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">全局</span>
+              <span v-if="viewBadge" :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(viewBadge)}`">{{ viewBadge }}</span>
             </div>
             <div v-if="viewParsed.description" style="margin-bottom:12px;font-size:13px;color:#475569">{{ viewParsed.description }}</div>
             <pre style="margin:0;padding:14px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;font-family:Consolas,Monaco,monospace;font-size:12px;line-height:1.6;overflow:auto;max-height:460px;white-space:pre-wrap;word-break:break-word;color:#1e293b">{{ viewParsed.body }}</pre>
