@@ -26,8 +26,8 @@ export interface LarkServiceOptions {
   appSecret: string;
   userIdType: LarkUserIdType;
   filterEvent: (eventId: string) => Promise<boolean>;
-  onRecevieMessage: (userId: string, userInfo:any, args: LarkMessageArgs, query: string) => Promise<void>;
-  onTriggerAction: (userId: string, userInfo: any, args: LarkActionArgs) => Promise<void>;
+  onRecevieMessage: (userId: string, userInfo:any, chatInfo: any, args: LarkMessageArgs, query: string) => Promise<void>;
+  onTriggerAction: (userId: string, userInfo: any, chatInfo: any, args: LarkActionArgs) => Promise<void>;
 }
 
 
@@ -39,8 +39,8 @@ export class LarkService {
   private larkClient: Lark.Client;
   private larkWsClient: Lark.WSClient;
   private filterEvent: (eventId: string) => Promise<boolean>;
-  private onRecevieMessage: (userId: string, userInfo:any, args: LarkMessageArgs, query: string) => Promise<void>;
-  private onTriggerAction: (userId: string, userInfo: any, args: LarkActionArgs) => Promise<void>;
+  private onRecevieMessage: (userId: string, userInfo:any, chatInfo: any, args: LarkMessageArgs, query: string) => Promise<void>;
+  private onTriggerAction: (userId: string, userInfo: any, chatInfo: any, args: LarkActionArgs) => Promise<void>;
   private userIdType: LarkUserIdType;
   private tenantAccessToken: string = '';
   private tokenExpireTime: number = 0;
@@ -226,6 +226,7 @@ export class LarkService {
    * 获取用户信息
    * @param userId 用户ID
    * @param userIdType 用户ID类型，默认使用实例配置的类型
+   * https://open.feishu.cn/document/server-docs/contact-v3/user/get
    */
   async getUserInfo(userId: string, userIdType?: LarkUserIdType) {
     try {
@@ -240,6 +241,26 @@ export class LarkService {
       return response.data?.user;
     } catch (error: any) {
       getLogger()?.error(`获取用户信息出错: ${error.message}`);
+    }
+  }
+
+  /**
+   * 获取群组信息
+   * @param chatId 群组 ID
+   * https://open.feishu.cn/document/server-docs/group/chat/get-2
+   */
+  async getChatInfo(chatId: string) {
+    try {
+      const response = await this.larkClient.im.v1.chat.get({
+        path: { chat_id: chatId },
+        params: { user_id_type: "open_id" }
+      });
+      if (response.code !== 0) {
+        throw new Error(`获取群组信息失败: ${response.msg}`);
+      }
+      return response.data;
+    } catch (error: any) {
+      getLogger()?.error(`获取群组信息出错: ${error.message}`);
     }
   }
 
@@ -280,8 +301,11 @@ export class LarkService {
           if (!await this.filterEvent(event_id)) return;
 
           const userId = sender_id[this.userIdType];
-          const userInfo = await this.getUserInfo(userId);
-          await this.onRecevieMessage(userId, userInfo, { larkService: this, chat_type, chat_id, message_id, root_id }, query.trim())
+          const [userInfo, chatInfo] = await Promise.all([
+            this.getUserInfo(userId),
+            this.getChatInfo(chat_id),
+          ]);
+          await this.onRecevieMessage(userId, userInfo, chatInfo, { larkService: this, chat_type, chat_id, message_id, root_id }, query.trim())
         } catch (e: any) {
           getLogger()?.error(`Receive message error: ${e.stack}`);
         }
@@ -300,8 +324,11 @@ export class LarkService {
           if (!await this.filterEvent(event_id)) return;
 
           const userId = operator[this.userIdType];
-          const userInfo = await this.getUserInfo(userId);
-          await this.onTriggerAction(userId, userInfo, { chat_id: open_chat_id, code: value.code, data: value.data, form_value })
+          const [userInfo, chatInfo] = await Promise.all([
+            this.getUserInfo(userId),
+            this.getChatInfo(open_chat_id),
+          ]);
+          await this.onTriggerAction(userId, userInfo, chatInfo, { chat_id: open_chat_id, code: value.code, data: value.data, form_value })
         } catch (e: any) {
           getLogger()?.error(`Card Action error: ${e.stack}`);
         }

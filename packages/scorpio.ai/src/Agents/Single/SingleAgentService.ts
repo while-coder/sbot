@@ -69,7 +69,6 @@ export class SingleAgentService extends AgentServiceBase {
             const skillMessage = await this.skillService.getSystemMessage();
             if (skillMessage) parts.push(skillMessage);
         }
-        parts.push(`Current goal: ${query}`);
         return new SystemMessage(parts.join("\n\n"));
     }
 
@@ -233,6 +232,7 @@ export class SingleAgentService extends AgentServiceBase {
             .addEdge(START, GraphNodeType.AGENT)
             .addConditionalEdges(GraphNodeType.AGENT, this.agentNext.bind(this))
             .addEdge(GraphNodeType.TOOLS, GraphNodeType.AGENT);
+        // this.logger?.info(`开始执行 Agent ${query}  system: ${systemMessage?.content}`);
         const graphStream = graph.stream(
             { messages: [], callback, systemMessage, tools },
         );

@@ -144,7 +144,7 @@ export class ChannelManager {
             appSecret: channel.appSecret,
             userIdType: userIdType,
             filterEvent,
-            onRecevieMessage: async (userId: string, userInfo: any, args: LarkMessageArgs, query: string) => {
+            onRecevieMessage: async (userId: string, userInfo: any, chatInfo: any, args: LarkMessageArgs, query: string) => {
                 const [dbUser, created] = await database.findOrCreate(database.channelUser, {
                     where: { userid: userId, channel: channelId },
                     defaults: {
@@ -161,14 +161,20 @@ export class ChannelManager {
                 }
                 const dbUserId: number = (dbUser as any).id;
 
-                const [dbSession] = await database.findOrCreate<ChannelSessionRow>(database.channelSession, {
+                const [dbSession, sessionCreated] = await database.findOrCreate<ChannelSessionRow>(database.channelSession, {
                     where: { channel: channelId, sessionId: args.chat_id },
-                    defaults: { agentId: "", memoryId: null },
+                    defaults: { name: chatInfo?.name ?? "", agentId: "", memoryId: null },
                 });
+                if (!sessionCreated && chatInfo) {
+                    await database.update(database.channelSession,
+                        { name: chatInfo?.name ?? "" },
+                        { where: { channel: channelId, sessionId: args.chat_id } },
+                    );
+                }
                 const dbSessionId: number = (dbSession as any).id;
                 await userService.onReceiveLarkMessage(query, args, userInfo ?? {}, channelId, dbSessionId, dbUserId);
             },
-            onTriggerAction: async (_userId: string, _userInfo: any, args: LarkActionArgs) => {
+            onTriggerAction: async (_userId: string, _userInfo: any, _chatInfo: any, args: LarkActionArgs) => {
                 await userService.lark.onTriggerAction(args.chat_id, args.code, args.data, args.form_value);
             },
         });

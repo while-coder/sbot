@@ -42,7 +42,7 @@ export class ReActAgentService extends SingleAgentService {
     @inject(ISkillService, { optional: true }) skillService?: ISkillService,
     @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
   ) {
-    super(thinkModelService, systemPrompts ?? [], loggerService, agentSaver, skillService, memoryService, toolService);
+    super(thinkModelService, systemPrompts, loggerService, agentSaver, skillService, memoryService, toolService);
     this.agentSubNodes = agentSubNodes;
     this.agentFactory = agentFactory;
   }

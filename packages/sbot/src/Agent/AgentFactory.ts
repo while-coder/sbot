@@ -13,6 +13,7 @@ import {
 import { config, AgentMode, SingleAgentEntry, ReactAgentEntry } from "../Core/Config";
 import { globalAgentToolService } from "./GlobalAgentToolService";
 import { globalSkillService } from "./GlobalSkillService";
+import { getLogger } from "log4js";
 
 
 /**
@@ -25,7 +26,7 @@ export class AgentFactory {
         agentId: string,
         container: ServiceContainer,
         first: boolean,
-        extraPrompts?: string[],
+        extraPrompts: string[],
     ): Promise<AgentServiceBase> {
         const agentEntry = config.getAgent(agentId);
 
@@ -34,16 +35,17 @@ export class AgentFactory {
         await this.registerSkillService(container, agentId, skills);
         await this.registerToolService(container, agentId, mcp);
 
-        const systemPrompts = [...(extraPrompts ?? [])];
+        const systemPrompts = [...extraPrompts];
         if (first && agentEntry.systemPrompt)
             systemPrompts.push(agentEntry.systemPrompt);
+
         const createAgentFn: CreateAgentFn = (name, subContainer) =>
             AgentFactory.create(name, subContainer, false, extraPrompts);
         const agentType = agentEntry.type || AgentMode.Single;
 
         switch (agentType) {
             case AgentMode.ReAct:
-                return this.createReAct(container, agentEntry as ReactAgentEntry, createAgentFn);
+                return this.createReAct(container, agentEntry as ReactAgentEntry, systemPrompts, createAgentFn);
 
             case AgentMode.Single:
             default:
@@ -103,6 +105,7 @@ export class AgentFactory {
     private static async createReAct(
         container: ServiceContainer,
         entry: ReactAgentEntry,
+        systemPrompts: string[],
         createAgentFn: CreateAgentFn,
     ): Promise<AgentServiceBase> {
         const agentSubNodes = entry.agents || [];
@@ -117,6 +120,7 @@ export class AgentFactory {
             [T_AgentSubNodes]: agentSubNodes,
             [T_CreateAgent]: createAgentFn,
             [T_ThinkModelService]: thinkModelService,
+            [T_SystemPrompts]: systemPrompts,
         });
         return container.resolve(ReActAgentService);
     }
