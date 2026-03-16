@@ -779,8 +779,10 @@ class HttpServer {
         }));
 
         // ===== Channel Sessions =====
-        app.get('/api/channel-sessions', api(async () => {
-            return await database.findAll(database.channelSession);
+        app.get('/api/channel-sessions', api(async req => {
+            const channel = req.query.channel as string | undefined
+            const where = channel ? { channel } : undefined
+            return await database.findAll(database.channelSession, { where })
         }));
 
         app.delete('/api/channel-sessions/:id', api(async req => {
