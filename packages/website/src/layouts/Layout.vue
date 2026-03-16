@@ -53,8 +53,7 @@ const menuGroups = [
 const activeKey = computed(() => {
   const p = route.path
   if (p.startsWith('/agents/')) return '/agents'
-  if (p.startsWith('/agent/mcp/')) return '/mcp'
-  if (p.startsWith('/savers/') && p.endsWith('/view')) return '/savers'
+if (p.startsWith('/savers/') && p.endsWith('/view')) return '/savers'
   if (p.startsWith('/memories/') && p.endsWith('/view')) return '/memories'
   return p
 })
