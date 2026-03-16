@@ -6,6 +6,15 @@ import { useToast } from '@/composables/useToast'
 import type { ChannelConfig } from '@/types'
 import SaverViewModal from './SaverViewModal.vue'
 
+interface ChannelSessionRow {
+  id: number
+  channel: string
+  sessionId: string
+  agentId: string
+  saverId: string
+  memoryId: string | null
+}
+
 const { show } = useToast()
 
 const channels = computed(() => store.settings.channels || {})
@@ -15,11 +24,58 @@ const memoryOptions = computed(() => Object.entries(store.settings.memories  || 
 
 const saverViewModal = ref<InstanceType<typeof SaverViewModal>>()
 
+const expandedChannels = ref<Record<string, boolean>>({})
+const sessionMap       = ref<Record<string, ChannelSessionRow[]>>({})
+const channelLoading   = ref<Record<string, boolean>>({})
+const viewSession      = ref<ChannelSessionRow | null>(null)
+
 const showModal = ref(false)
 const editingId = ref<string | null>(null)
 const form = ref<{ name: string; type: string; appId: string; appSecret: string; agent: string; saver: string; memory: string }>({
   name: '', type: 'lark', appId: '', appSecret: '', agent: '', saver: '', memory: '',
 })
+
+async function toggleExpand(id: string) {
+  expandedChannels.value[id] = !expandedChannels.value[id]
+  if (!expandedChannels.value[id]) return
+  if (id in sessionMap.value || channelLoading.value[id]) return
+  channelLoading.value[id] = true
+  try {
+    const res = await apiFetch(`/api/channel-sessions?channel=${encodeURIComponent(id)}`)
+    sessionMap.value[id] = res.data || []
+  } catch (e: any) {
+    show(e.message, 'error')
+    sessionMap.value[id] = []
+  } finally {
+    channelLoading.value[id] = false
+  }
+}
+
+async function refreshSessions(ids: string[]) {
+  await Promise.all(ids.map(async id => {
+    channelLoading.value[id] = true
+    try {
+      const res = await apiFetch(`/api/channel-sessions?channel=${encodeURIComponent(id)}`)
+      sessionMap.value[id] = res.data || []
+    } catch (e: any) {
+      show(e.message, 'error')
+    } finally {
+      channelLoading.value[id] = false
+    }
+  }))
+}
+
+async function removeSession(channelId: string, session: ChannelSessionRow) {
+  if (!confirm(`确定要删除会话 "${session.sessionId}" 吗？`)) return
+  try {
+    await apiFetch(`/api/channel-sessions/${session.id}`, 'DELETE')
+    const list = sessionMap.value[channelId]
+    if (list) sessionMap.value[channelId] = list.filter(s => s.id !== session.id)
+    show('删除成功')
+  } catch (e: any) {
+    show(e.message, 'error')
+  }
+}
 
 function openAdd() {
   editingId.value = null
@@ -85,6 +141,8 @@ async function refresh() {
   try {
     const res = await apiFetch('/api/settings')
     Object.assign(store.settings, res.data)
+    const expandedIds = Object.keys(expandedChannels.value).filter(id => expandedChannels.value[id])
+    if (expandedIds.length > 0) await refreshSessions(expandedIds)
   } catch (e: any) {
     show(e.message, 'error')
   }
