@@ -167,7 +167,7 @@ export class ChannelManager {
                 });
                 if (!sessionCreated && chatInfo) {
                     await database.update(database.channelSession,
-                        { name: chatInfo?.name ?? "" },
+                        { name: `${chatInfo?.chat_mode}_${chatInfo?.name}` },
                         { where: { channel: channelId, sessionId: args.chat_id } },
                     );
                 }

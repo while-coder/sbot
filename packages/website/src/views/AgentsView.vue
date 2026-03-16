@@ -5,6 +5,8 @@ import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 import AgentModal from './AgentModal.vue'
+import AgentMcpModal from './AgentMcpModal.vue'
+import AgentSkillsModal from './AgentSkillsModal.vue'
 
 const { show } = useToast()
 const router = useRouter()
@@ -13,7 +15,9 @@ const agents = computed(() => store.settings.agents || {})
 const modelName = (id: string) => (store.settings.models?.[id] as any)?.name || id
 
 // ── Modal refs ──
-const agentModal = ref<InstanceType<typeof AgentModal>>()
+const agentModal      = ref<InstanceType<typeof AgentModal>>()
+const agentMcpModal   = ref<InstanceType<typeof AgentMcpModal>>()
+const agentSkillsModal = ref<InstanceType<typeof AgentSkillsModal>>()
 
 async function copyAgent(id: string) {
   const agent = agents.value[id]
@@ -86,8 +90,8 @@ async function refresh() {
             <td>
               <div class="ops-cell">
                 <button class="btn-outline btn-sm" @click="agentModal?.open(id as string)">编辑</button>
-                <button class="btn-outline btn-sm" @click="router.push(`/agent/mcp/${id}`)">MCP</button>
-                <button class="btn-outline btn-sm" @click="router.push(`/agent/skills/${id}`)">Skills</button>
+                <button class="btn-outline btn-sm" @click="agentMcpModal?.open(id as string)">MCP</button>
+                <button class="btn-outline btn-sm" @click="agentSkillsModal?.open(id as string)">Skills</button>
                 <button class="btn-outline btn-sm" @click="copyAgent(id as string)">复制</button>
                 <button class="btn-danger btn-sm" @click="removeAgent(id as string)">删除</button>
               </div>
@@ -98,5 +102,7 @@ async function refresh() {
     </div>
 
     <AgentModal ref="agentModal" />
+    <AgentMcpModal ref="agentMcpModal" />
+    <AgentSkillsModal ref="agentSkillsModal" />
   </div>
 </template>
