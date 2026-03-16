@@ -22,7 +22,6 @@ export interface Model {
   model?: string
   temperature?: number
   maxTokens?: number
-  [key: string]: unknown
 }
 
 export interface Embedding {
@@ -31,7 +30,6 @@ export interface Embedding {
   baseURL?: string
   apiKey?: string
   model?: string
-  [key: string]: unknown
 }
 
 export interface MemoryConfig {
@@ -43,13 +41,11 @@ export interface MemoryConfig {
   evaluator?: string
   extractor?: string
   compressor?: string
-  [key: string]: unknown
 }
 
 export interface SaverConfig {
   name?: string
   type?: SaverType | string
-  [key: string]: unknown
 }
 
 export interface SubAgentRef {
@@ -88,7 +84,6 @@ export interface Agent {
   // memory & saver (all types)
   memory?: string
   saver?: string
-  [key: string]: unknown
 }
 
 export interface SessionConfig {
@@ -96,7 +91,6 @@ export interface SessionConfig {
   agent: string
   saver: string
   memory?: string
-  [key: string]: unknown
 }
 
 export interface ChannelConfig {
@@ -107,7 +101,6 @@ export interface ChannelConfig {
   agent: string
   saver: string
   memory?: string
-  [key: string]: unknown
 }
 
 export interface DirectoryConfig {}
@@ -123,5 +116,4 @@ export interface Settings {
   sessions?: Record<string, SessionConfig>
   channels?: Record<string, ChannelConfig>
   directories?: Record<string, DirectoryConfig>
-  [key: string]: unknown
 }
