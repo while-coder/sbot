@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
@@ -44,8 +44,8 @@ const menuGroups = [
   {
     group: '管理',
     items: [
-      { label: '用户管理', key: '/users' },
       { label: '计时器管理', key: '/scheduler' },
+      { label: '关于', key: '/about' },
     ],
   },
 ]
@@ -73,19 +73,45 @@ async function reloadConfig() {
   }
 }
 
+const hasUpdate = ref(false)
+
+function compareSemver(a: string, b: string): number {
+  const pa = a.replace(/^v/, '').split('.').map(Number)
+  const pb = b.replace(/^v/, '').split('.').map(Number)
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] ?? 0) < (pb[i] ?? 0)) return -1
+    if ((pa[i] ?? 0) > (pb[i] ?? 0)) return 1
+  }
+  return 0
+}
+
+async function checkUpdate(currentVersion: string) {
+  try {
+    const res = await fetch('https://api.github.com/repos/while-coder/sbot/releases/latest', {
+      headers: { Accept: 'application/vnd.github+json' },
+    })
+    if (!res.ok) return
+    const data = await res.json()
+    const latest = (data.tag_name as string) || ''
+    if (latest && compareSemver(currentVersion, latest) < 0) hasUpdate.value = true
+  } catch {}
+}
+
 // Initial load
 async function init() {
   try {
-    const [settingsRes, mcpRes, skillRes] = await Promise.all([
+    const [settingsRes, mcpRes, skillRes, aboutRes] = await Promise.all([
       apiFetch('/api/settings'),
       apiFetch('/api/mcp'),
       apiFetch('/api/skills'),
+      apiFetch('/api/about'),
     ])
     Object.assign(store.settings, settingsRes.data)
     store.mcpServers = mcpRes.data?.servers || {}
     store.mcpBuiltins = mcpRes.data?.builtins || []
     store.skillBuiltins = skillRes.data?.builtins || []
     store.globalSkills = skillRes.data?.skills || []
+    if (aboutRes.data?.version) checkUpdate(aboutRes.data.version)
   } catch (_) {}
 }
 
@@ -110,6 +136,7 @@ init()
             @click="router.push(item.key)"
           >
             {{ item.label }}
+            <span v-if="item.key === '/about' && hasUpdate" class="update-dot"></span>
           </div>
         </template>
       </div>
@@ -186,6 +213,17 @@ body {
   transition: background 0.12s, color 0.12s;
   border-radius: 6px;
   user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.update-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ef4444;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 .sidebar-item:hover { background: #f5f4f2; color: #1c1c1c; }
 .sidebar-item.active { background: #fafaf9; color: #1c1c1c; font-weight: 600; }

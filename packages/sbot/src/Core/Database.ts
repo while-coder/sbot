@@ -50,7 +50,6 @@ export type ChannelSessionRow = {
   channel: string;   // 频道唯一ID
   sessionId: string;    // Lark chat_id
   agentId: string;   // Agent UUID
-  saverId: string;   // Saver UUID
   memoryId: string | null;  // Memory UUID
 };
 
@@ -220,12 +219,6 @@ class Database {
           allowNull: false,
           defaultValue: "",
           comment: "Agent UUID",
-        },
-        saverId: {
-          type: DataTypes.STRING(255),
-          allowNull: false,
-          defaultValue: "",
-          comment: "Saver UUID",
         },
         memoryId: {
           type: DataTypes.STRING(255),

@@ -54,7 +54,7 @@ export abstract class BaseWebUserService {
             const sessionId = args?.sessionId as string;
             const session = sessionId ? config.getSession(sessionId) : undefined;
             if (!session) throw new Error(`会话 "${sessionId}" 不存在`);
-            await AgentRunner.run(query, callbacks, session.agent, session.saver, `session_${sessionId}`, ContextType.Session, session.memory);
+            await AgentRunner.run(query, callbacks, session.agent, session.saver, `session_${sessionId}`, ContextType.Session, session.memory, undefined);
         }
     }
 }

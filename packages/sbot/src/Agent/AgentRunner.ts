@@ -26,8 +26,8 @@ export class AgentRunner {
         saverId: string,
         saverThreadId: string,
         contextType: ContextType,
-        memoryId?: string,
-        userInfo?: any,
+        memoryId: string | undefined,
+        extraInfo: string | undefined,
         workPath?: string,
     ): Promise<void> {
         if (!agentId.trim())        throw new Error("未指定 agent");
@@ -60,18 +60,8 @@ export class AgentRunner {
     <scripts dir="${scriptsDir}">Store temporary scripts here</scripts>
     <working-directory dir="${workPath}">All file operations (create, write, delete, move) must stay within this directory. Never access, modify, or delete files outside it.</working-directory>
   </paths>
-</environment>`,
+${extraInfo ?? ''}</environment>`,
         ];
-        if (userInfo) {
-            extraPrompts.push(`<current-user>
-  <db-id>${userInfo.dbUserId ?? ''}</db-id>       
-  <id>${userInfo.user_id}</id>
-  <open-id>${userInfo.open_id}</open-id>
-  <union-id>${userInfo.union_id}</union-id>
-  <name>${userInfo.name}</name>
-  <email>${userInfo.email}</email>
-</current-user>`);
-        }
 
         const container = new ServiceContainer();
         container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });

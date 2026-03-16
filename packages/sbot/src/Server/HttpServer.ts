@@ -147,6 +147,12 @@ class HttpServer {
         // 根路径重定向到 /webui
         app.get('/', (_req, res) => res.redirect('/webui/'));
 
+        // ===== About =====
+        app.get('/api/about', api(() => {
+            const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '../../package.json'), 'utf8'));
+            return { version: pkg.version, name: pkg.name, description: pkg.description };
+        }));
+
         // ===== Settings =====
         app.get('/api/settings', api(() => config.settings));
 
@@ -768,8 +774,10 @@ class HttpServer {
         }));
 
         // ===== Users =====
-        app.get('/api/users', api(async () => {
-            return await database.findAll(database.channelUser);
+        app.get('/api/users', api(async req => {
+            const channel = req.query.channel as string | undefined;
+            const where = channel ? { channel } : undefined;
+            return await database.findAll(database.channelUser, { where });
         }));
 
         app.delete('/api/users/:id', api(async req => {

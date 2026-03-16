@@ -11,8 +11,15 @@ interface ChannelSessionRow {
   channel: string
   sessionId: string
   agentId: string
-  saverId: string
   memoryId: string | null
+}
+
+interface UserRow {
+  id: number
+  userid: string
+  username: string
+  userinfo: string
+  channel: string
 }
 
 const { show } = useToast()
@@ -26,8 +33,10 @@ const saverViewModal = ref<InstanceType<typeof SaverViewModal>>()
 
 const expandedChannels = ref<Record<string, boolean>>({})
 const sessionMap       = ref<Record<string, ChannelSessionRow[]>>({})
+const userMap          = ref<Record<string, UserRow[]>>({})
 const channelLoading   = ref<Record<string, boolean>>({})
 const viewSession      = ref<ChannelSessionRow | null>(null)
+const viewUser         = ref<UserRow | null>(null)
 
 const showModal = ref(false)
 const editingId = ref<string | null>(null)
@@ -35,34 +44,33 @@ const form = ref<{ name: string; type: string; appId: string; appSecret: string;
   name: '', type: 'lark', appId: '', appSecret: '', agent: '', saver: '', memory: '',
 })
 
-async function toggleExpand(id: string) {
-  expandedChannels.value[id] = !expandedChannels.value[id]
-  if (!expandedChannels.value[id]) return
-  if (id in sessionMap.value || channelLoading.value[id]) return
+async function loadChannelData(id: string) {
   channelLoading.value[id] = true
   try {
-    const res = await apiFetch(`/api/channel-sessions?channel=${encodeURIComponent(id)}`)
-    sessionMap.value[id] = res.data || []
+    const [sessRes, userRes] = await Promise.all([
+      apiFetch(`/api/channel-sessions?channel=${encodeURIComponent(id)}`),
+      apiFetch(`/api/users?channel=${encodeURIComponent(id)}`),
+    ])
+    sessionMap.value[id] = sessRes.data || []
+    userMap.value[id]    = userRes.data || []
   } catch (e: any) {
     show(e.message, 'error')
     sessionMap.value[id] = []
+    userMap.value[id]    = []
   } finally {
     channelLoading.value[id] = false
   }
 }
 
+async function toggleExpand(id: string) {
+  expandedChannels.value[id] = !expandedChannels.value[id]
+  if (!expandedChannels.value[id]) return
+  if ((id in sessionMap.value) || channelLoading.value[id]) return
+  await loadChannelData(id)
+}
+
 async function refreshSessions(ids: string[]) {
-  await Promise.all(ids.map(async id => {
-    channelLoading.value[id] = true
-    try {
-      const res = await apiFetch(`/api/channel-sessions?channel=${encodeURIComponent(id)}`)
-      sessionMap.value[id] = res.data || []
-    } catch (e: any) {
-      show(e.message, 'error')
-    } finally {
-      channelLoading.value[id] = false
-    }
-  }))
+  await Promise.all(ids.map(id => loadChannelData(id)))
 }
 
 async function removeSession(channelId: string, session: ChannelSessionRow) {
@@ -75,6 +83,22 @@ async function removeSession(channelId: string, session: ChannelSessionRow) {
   } catch (e: any) {
     show(e.message, 'error')
   }
+}
+
+async function removeUser(channelId: string, user: UserRow) {
+  if (!confirm(`确定要删除用户 "${user.username || user.userid}" 吗？`)) return
+  try {
+    await apiFetch(`/api/users/${user.id}`, 'DELETE')
+    const list = userMap.value[channelId]
+    if (list) userMap.value[channelId] = list.filter(u => u.id !== user.id)
+    show('删除成功')
+  } catch (e: any) {
+    show(e.message, 'error')
+  }
+}
+
+function formatUserInfo(raw: string) {
+  try { return JSON.stringify(JSON.parse(raw), null, 2) } catch { return raw }
 }
 
 function openAdd() {
@@ -185,28 +209,57 @@ async function refresh() {
               </td>
             </tr>
             <template v-if="expandedChannels[id as string]">
+              <!-- Sessions section -->
+              <tr class="section-label-row">
+                <td></td>
+                <td colspan="7" class="section-label-cell">会话</td>
+              </tr>
               <tr v-if="channelLoading[id as string]" class="session-sub-row">
                 <td></td>
                 <td colspan="7" class="session-sub-cell">加载中...</td>
               </tr>
-              <tr v-else-if="(sessionMap[id as string] || []).length === 0" class="session-sub-row">
+              <template v-else>
+                <tr v-if="(sessionMap[id as string] || []).length === 0" class="session-sub-row">
+                  <td></td>
+                  <td colspan="7" class="session-sub-cell">暂无会话记录</td>
+                </tr>
+                <tr v-for="s in sessionMap[id as string] || []" :key="s.id" class="session-sub-row">
+                  <td></td>
+                  <td colspan="4" class="session-id-cell">{{ s.sessionId }}</td>
+                  <td style="font-family:monospace;font-size:12px;color:#6b6b6b">{{ s.agentId || '-' }}</td>
+                  <td style="font-family:monospace;font-size:12px;color:#6b6b6b">{{ s.memoryId || '-' }}</td>
+                  <td>
+                    <div class="ops-cell">
+                      <button v-if="c.saver" class="btn-outline btn-sm" @click="saverViewModal?.open(c.saver, 'lark_' + (id as string) + '_' + s.sessionId)">历史记录</button>
+                      <button class="btn-outline btn-sm" @click="viewSession = s">查看</button>
+                      <button class="btn-danger btn-sm" @click="removeSession(id as string, s)">删除</button>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+              <!-- Users section -->
+              <tr class="section-label-row">
                 <td></td>
-                <td colspan="7" class="session-sub-cell">暂无会话记录</td>
+                <td colspan="7" class="section-label-cell">用户</td>
               </tr>
-              <tr v-for="s in sessionMap[id as string] || []" :key="s.id" class="session-sub-row">
-                <td></td>
-                <td colspan="3" class="session-id-cell">{{ s.sessionId }}</td>
-                <td style="font-family:monospace;font-size:12px;color:#6b6b6b">{{ s.agentId || '-' }}</td>
-                <td style="font-family:monospace;font-size:12px;color:#6b6b6b">{{ s.saverId || '-' }}</td>
-                <td style="font-family:monospace;font-size:12px;color:#6b6b6b">{{ s.memoryId || '-' }}</td>
-                <td>
-                  <div class="ops-cell">
-                    <button v-if="c.saver" class="btn-outline btn-sm" @click="saverViewModal?.open(c.saver, 'lark_' + (id as string) + '_' + s.sessionId)">历史记录</button>
-                    <button class="btn-outline btn-sm" @click="viewSession = s">查看</button>
-                    <button class="btn-danger btn-sm" @click="removeSession(id as string, s)">删除</button>
-                  </div>
-                </td>
-              </tr>
+              <template v-if="!channelLoading[id as string]">
+                <tr v-if="(userMap[id as string] || []).length === 0" class="session-sub-row">
+                  <td></td>
+                  <td colspan="7" class="session-sub-cell">暂无用户数据</td>
+                </tr>
+                <tr v-for="u in userMap[id as string] || []" :key="u.id" class="session-sub-row">
+                  <td></td>
+                  <td colspan="2" class="session-id-cell">{{ u.userid }}</td>
+                  <td colspan="2" style="font-size:12px;color:#3d3d3d">{{ u.username || '-' }}</td>
+                  <td colspan="2"></td>
+                  <td>
+                    <div class="ops-cell">
+                      <button class="btn-outline btn-sm" @click="viewUser = u">查看</button>
+                      <button class="btn-danger btn-sm" @click="removeUser(id as string, u)">删除</button>
+                    </div>
+                  </td>
+                </tr>
+              </template>
             </template>
           </template>
         </tbody>
@@ -295,16 +348,46 @@ async function refresh() {
             <input :value="viewSession.agentId" disabled />
           </div>
           <div class="form-group">
-            <label>Saver ID</label>
-            <input :value="viewSession.saverId" disabled />
-          </div>
-          <div class="form-group">
             <label>Memory ID</label>
             <input :value="viewSession.memoryId ?? ''" disabled />
           </div>
         </div>
         <div class="modal-footer">
           <button class="btn-outline" @click="viewSession = null">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="viewUser" class="modal-overlay" @click.self="viewUser = null">
+      <div class="modal-box wide">
+        <div class="modal-header">
+          <h3>用户详情 — {{ viewUser.username || viewUser.userid }}</h3>
+          <button class="modal-close" @click="viewUser = null">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>ID</label>
+            <input :value="viewUser.id" disabled />
+          </div>
+          <div class="form-group">
+            <label>用户ID</label>
+            <input :value="viewUser.userid" disabled />
+          </div>
+          <div class="form-group">
+            <label>用户名</label>
+            <input :value="viewUser.username" disabled />
+          </div>
+          <div class="form-group">
+            <label>频道</label>
+            <input :value="viewUser.channel" disabled />
+          </div>
+          <div class="form-group">
+            <label>用户信息</label>
+            <textarea :value="formatUserInfo(viewUser.userinfo)" disabled rows="16" style="font-family:monospace;font-size:12px" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-outline" @click="viewUser = null">关闭</button>
         </div>
       </div>
     </div>
@@ -331,6 +414,20 @@ async function refresh() {
   border-bottom: 1px solid #f0efed;
   padding-top: 5px;
   padding-bottom: 5px;
+}
+.section-label-row td {
+  background: #f5f4f2;
+  border-bottom: 1px solid #e8e6e3;
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+.section-label-cell {
+  padding: 3px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #8a8a8a;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 .session-sub-cell {
   padding: 5px 12px;

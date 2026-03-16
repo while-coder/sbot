@@ -23,9 +23,9 @@ export class UserService extends UserServiceBase {
     }
 
     // 重定向到共享队列（UserService），而非本地队列
-    async onReceiveLarkMessage(args: LarkMessageArgs, userInfo: any, query: string, channelId: string) {
+    async onReceiveLarkMessage(query: string, args: LarkMessageArgs, userInfo: any, channelId: string, dbSessionId?: number, dbUserId?: number) {
         if (!query?.trim()) return;
-        await this.onReceiveMessage(query, { ...args, userInfo, channelId });
+        await this.onReceiveMessage(query, { ...args, userInfo, channelId, dbSessionId, dbUserId });
     }
     async onReceiveWebMessage(query: string, ws: any, sessionId?: string, workPath?: string): Promise<void> {
         if (!query?.trim()) return;

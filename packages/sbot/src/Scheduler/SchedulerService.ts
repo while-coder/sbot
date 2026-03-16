@@ -38,7 +38,7 @@ async function executeScheduler(schedulerId: number): Promise<void> {
                 message_id: "",
                 root_id: "",
             };
-            await userService.onReceiveLarkMessage(args, {}, scheduler.message, sessionRow.channel);
+            await userService.onReceiveLarkMessage(scheduler.message, args, {}, sessionRow.channel);
             logger.info(`Scheduler task ${tag} fired (channel), session ${sessionRow.sessionId}`);
         } else {
             // Session / directory mode: deliver via HTTP pipeline

@@ -18,6 +18,7 @@ const routes = [
   { path: '/scheduler', component: () => import('@/views/SchedulerView.vue') },
   { path: '/channels', component: () => import('@/views/ChannelsView.vue') },
   { path: '/directory', component: () => import('@/views/DirectoryView.vue') },
+  { path: '/about', component: () => import('@/views/AboutView.vue') },
 ]
 
 export default createRouter({

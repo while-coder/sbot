@@ -159,14 +159,14 @@ export class ChannelManager {
                         { where: { userid: userId, channel: channelId } },
                     );
                 }
-                userInfo = { ...(userInfo ?? {}), dbUserId: (dbUser as any).id };
+                const dbUserId: number = (dbUser as any).id;
 
                 const [dbSession] = await database.findOrCreate<ChannelSessionRow>(database.channelSession, {
                     where: { channel: channelId, sessionId: args.chat_id },
-                    defaults: { agentId: "", saverId: "", memoryId: null },
+                    defaults: { agentId: "", memoryId: null },
                 });
-                userInfo = { ...userInfo, dbSessionId: dbSession.id };
-                await userService.onReceiveLarkMessage(args, userInfo, query, channelId);
+                const dbSessionId: number = (dbSession as any).id;
+                await userService.onReceiveLarkMessage(query, args, userInfo ?? {}, channelId, dbSessionId, dbUserId);
             },
             onTriggerAction: async (_userId: string, _userInfo: any, args: LarkActionArgs) => {
                 await userService.lark.onTriggerAction(args.chat_id, args.code, args.data, args.form_value);
