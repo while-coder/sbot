@@ -788,6 +788,13 @@ class HttpServer {
             return await database.findAll(database.channelSession, { where })
         }));
 
+        app.put('/api/channel-sessions/:id', api(async req => {
+            const id = parseInt(req.params.id as string, 10);
+            if (isNaN(id)) { const e: any = new Error('无效的 id'); e.status = 400; throw e; }
+            const { name, agentId, memoryId } = req.body;
+            await database.update(database.channelSession, { name, agentId, memoryId }, { where: { id } });
+        }));
+
         app.delete('/api/channel-sessions/:id', api(async req => {
             const id = parseInt(req.params.id as string, 10);
             if (isNaN(id)) { const e: any = new Error('无效的 id'); e.status = 400; throw e; }

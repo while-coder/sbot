@@ -10,6 +10,7 @@ interface ChannelSessionRow {
   id: number
   channel: string
   sessionId: string
+  name: string
   agentId: string
   memoryId: string | null
 }
@@ -35,8 +36,36 @@ const expandedChannels = ref<Record<string, boolean>>({})
 const sessionMap       = ref<Record<string, ChannelSessionRow[]>>({})
 const userMap          = ref<Record<string, UserRow[]>>({})
 const channelLoading   = ref<Record<string, boolean>>({})
-const viewSession      = ref<ChannelSessionRow | null>(null)
 const viewUser         = ref<UserRow | null>(null)
+
+const editingSession   = ref<ChannelSessionRow | null>(null)
+const sessionForm      = ref<{ name: string; agentId: string; memoryId: string }>({ name: '', agentId: '', memoryId: '' })
+
+function openEditSession(s: ChannelSessionRow) {
+  editingSession.value = s
+  sessionForm.value = { name: s.name || '', agentId: s.agentId || '', memoryId: s.memoryId || '' }
+}
+
+async function saveSession() {
+  const s = editingSession.value
+  if (!s) return
+  try {
+    await apiFetch(`/api/channel-sessions/${s.id}`, 'PUT', {
+      name: sessionForm.value.name.trim(),
+      agentId: sessionForm.value.agentId,
+      memoryId: sessionForm.value.memoryId || null,
+    })
+    Object.assign(s, {
+      name: sessionForm.value.name.trim(),
+      agentId: sessionForm.value.agentId,
+      memoryId: sessionForm.value.memoryId || null,
+    })
+    show('保存成功')
+    editingSession.value = null
+  } catch (e: any) {
+    show(e.message, 'error')
+  }
+}
 
 const showModal = ref(false)
 const editingId = ref<string | null>(null)
@@ -225,13 +254,14 @@ async function refresh() {
                 </tr>
                 <tr v-for="s in sessionMap[id as string] || []" :key="s.id" class="session-sub-row">
                   <td></td>
-                  <td colspan="4" class="session-id-cell">{{ s.sessionId }}</td>
-                  <td style="font-family:monospace;font-size:12px;color:#6b6b6b">{{ s.agentId || '-' }}</td>
+                  <td colspan="2" class="session-id-cell">{{ s.name || s.sessionId }}</td>
+                  <td colspan="2" style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ s.sessionId }}</td>
+                  <td style="font-family:monospace;font-size:12px;color:#6b6b6b">{{ agentOptions.find(a => a.id === s.agentId)?.label || s.agentId || '-' }}</td>
                   <td style="font-family:monospace;font-size:12px;color:#6b6b6b">{{ s.memoryId || '-' }}</td>
                   <td>
                     <div class="ops-cell">
                       <button v-if="c.saver" class="btn-outline btn-sm" @click="saverViewModal?.open(c.saver, 'lark_' + (id as string) + '_' + s.sessionId)">历史记录</button>
-                      <button class="btn-outline btn-sm" @click="viewSession = s">查看</button>
+                      <button class="btn-outline btn-sm" @click="openEditSession(s)">编辑</button>
                       <button class="btn-danger btn-sm" @click="removeSession(id as string, s)">删除</button>
                     </div>
                   </td>
@@ -324,36 +354,39 @@ async function refresh() {
       </div>
     </div>
 
-    <div v-if="viewSession" class="modal-overlay" @click.self="viewSession = null">
-      <div class="modal-box wide">
+    <div v-if="editingSession" class="modal-overlay" @click.self="editingSession = null">
+      <div class="modal-box" style="width:440px">
         <div class="modal-header">
-          <h3>会话详情 — {{ viewSession.sessionId }}</h3>
-          <button class="modal-close" @click="viewSession = null">&times;</button>
+          <h3>编辑会话 — {{ editingSession.sessionId }}</h3>
+          <button class="modal-close" @click="editingSession = null">&times;</button>
         </div>
         <div class="modal-body">
           <div class="form-group">
-            <label>ID</label>
-            <input :value="viewSession.id" disabled />
+            <label>Session ID</label>
+            <input :value="editingSession.sessionId" disabled style="font-family:monospace;font-size:11px" />
           </div>
           <div class="form-group">
-            <label>频道</label>
-            <input :value="viewSession.channel" disabled />
+            <label>名称</label>
+            <input v-model="sessionForm.name" placeholder="会话名称" />
           </div>
           <div class="form-group">
-            <label>Session ID (chat_id)</label>
-            <input :value="viewSession.sessionId" disabled />
+            <label>Agent</label>
+            <select v-model="sessionForm.agentId">
+              <option value="">不指定</option>
+              <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }}</option>
+            </select>
           </div>
           <div class="form-group">
-            <label>Agent ID</label>
-            <input :value="viewSession.agentId" disabled />
-          </div>
-          <div class="form-group">
-            <label>Memory ID</label>
-            <input :value="viewSession.memoryId ?? ''" disabled />
+            <label>记忆配置</label>
+            <select v-model="sessionForm.memoryId">
+              <option value="">不启用记忆</option>
+              <option v-for="m in memoryOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
+            </select>
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn-outline" @click="viewSession = null">关闭</button>
+          <button class="btn-outline" @click="editingSession = null">取消</button>
+          <button class="btn-primary" @click="saveSession">保存</button>
         </div>
       </div>
     </div>
