@@ -3,8 +3,8 @@ import path from "path";
 import fs from "fs";
 import { ModelConfig, ModelProvider, EmbeddingConfig, EmbeddingProvider, MCPServers, MemoryMode, IModelService, IEmbeddingService, ModelServiceFactory, EmbeddingServiceFactory, type AgentSubNode } from "scorpio.ai";
 export type { AgentSubNode } from "scorpio.ai";
-import { DEFAULT_PORT, SaverType } from "sbot.commons";
-export { DEFAULT_PORT, SaverType } from "sbot.commons";
+import { DEFAULT_PORT, SaverType, AgentMode, ChannelType } from "sbot.commons";
+export { DEFAULT_PORT, SaverType, AgentMode, ChannelType } from "sbot.commons";
 
 /**
  * ModelConfig 的命名扩展（key 为 UUID）
@@ -34,14 +34,6 @@ export interface MemoryConfig {
   evaluator?: string;          // 重要性评估器使用的模型 UUID（对应 models 中的 key）
   extractor?: string;          // 知识提取器使用的模型 UUID（对应 models 中的 key）
   compressor?: string;         // 记忆压缩器使用的模型 UUID（对应 models 中的 key）
-}
-
-/**
- * Agent 运行模式
- */
-export enum AgentMode {
-  Single = "single",  // 单 Agent 模式
-  ReAct  = "react",   // ReAct 模式：思考 -> 行动 -> 观察，迭代决策
 }
 
 /**
@@ -87,10 +79,6 @@ export interface SessionConfig {
   agent: string;               // 使用的 Agent UUID（对应 agents 中的 key）
   saver: string;               // 使用的 Saver 配置 UUID（对应 savers 中的 key）
   memory?: string;             // 使用的记忆配置 UUID（对应 memories 中的 key）
-}
-
-export enum ChannelType {
-  Lark = "lark",
 }
 
 /**
