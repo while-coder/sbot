@@ -82,7 +82,7 @@ ${agentsDesc}
     if (!callback) return [];
     const { onMessage: _, ...subCallback } = callback;
 
-    const runFn: RunTaskFn = async ({ agentId, task, systemPrompt }) => {
+    const runFn: RunTaskFn = async ({ agentId, goal, task, systemPrompt }) => {
       let agentService: AgentServiceBase | null = null;
       try {
         const subContainer = new ServiceContainer();
@@ -93,6 +93,7 @@ ${agentsDesc}
         agentService = await this.agentFactory(agentId, subContainer);
 
         const extraPrompts: string[] = [];
+        if (goal?.trim()) extraPrompts.push(`<goal>${goal.trim()}</goal>`);
         if (systemPrompt?.trim()) extraPrompts.push(systemPrompt.trim());
         extraPrompts.push(`<rules>
   <rule>Execute immediately: use available tools right away. Do not plan, summarize intent, or describe what you are about to do.</rule>
