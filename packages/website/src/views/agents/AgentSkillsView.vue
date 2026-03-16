@@ -10,6 +10,24 @@ const route = useRoute()
 const router = useRouter()
 const { show } = useToast()
 
+const SOURCE_COLORS = [
+  { bg: '#e0e7ff', color: '#4f46e5' },
+  { bg: '#dcfce7', color: '#16a34a' },
+  { bg: '#fef9c3', color: '#a16207' },
+  { bg: '#fce7f3', color: '#be185d' },
+  { bg: '#e0f2fe', color: '#0369a1' },
+  { bg: '#fff7ed', color: '#c2410c' },
+  { bg: '#f3e8ff', color: '#7c3aed' },
+  { bg: '#ecfeff', color: '#0e7490' },
+]
+function sourceBadgeStyle(source: string | undefined) {
+  if (!source) return 'background:#f0efed;color:#6b6b6b'
+  let hash = 0
+  for (const c of source) hash = (hash * 31 + c.charCodeAt(0)) & 0xffff
+  const { bg, color } = SOURCE_COLORS[hash % SOURCE_COLORS.length]
+  return `background:${bg};color:${color}`
+}
+
 const agentName = route.params.agentName as string
 const skills = ref<SkillItem[]>([])
 
@@ -25,10 +43,7 @@ const skillsChanged = computed(() => {
   const b = [...agentSkillNames.value].sort().join(',')
   return a !== b
 })
-const allGlobalSkills = computed(() => [
-  ...store.skillBuiltins.map(s => ({ name: s.name, description: s.description, isBuiltin: true })),
-  ...store.globalSkills.map(s => ({ name: s.name, description: s.description, isBuiltin: false })),
-])
+const allGlobalSkills = computed(() => store.allSkills)
 const filteredGlobalSkills = computed(() => {
   const q = skillSearch.value.trim().toLowerCase()
   if (!q) return allGlobalSkills.value
@@ -50,8 +65,7 @@ async function load() {
     agentSkillNames.value = selectedFromApi
     selectedSkills.value = [...selectedFromApi]
     const allSkills = skillsRes.data || []
-    store.skillBuiltins = allSkills.filter((s: any) => s.source === '内置')
-    store.globalSkills = allSkills.filter((s: any) => s.source !== '内置')
+    store.allSkills = allSkills
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -98,7 +112,7 @@ async function openView(name: string, badge = '') {
   viewContent.value = ''
   viewLoading.value = true
   showModal.value = true
-  const isGlobal = badge === '内置' || badge === '全局'
+  const isGlobal = badge !== '专属技能'
   const url = isGlobal
     ? `/api/skills/${encodeURIComponent(name)}`
     : `${apiBase()}/${encodeURIComponent(name)}`
@@ -282,14 +296,13 @@ onMounted(load)
             :style="selectedSkills.includes(s.name) ? 'background:#fafaf9' : ''"
           >
             <input type="checkbox" :value="s.name" v-model="selectedSkills" style="cursor:pointer;flex-shrink:0;width:14px;height:14px" />
-            <span v-if="s.isBuiltin" style="flex-shrink:0;background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600">内置</span>
-            <span v-else style="flex-shrink:0;background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600">全局</span>
+            <span :style="`flex-shrink:0;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(s.source)}`">{{ s.source }}</span>
             <span style="font-family:monospace;font-weight:500;width:200px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.name }}</span>
             <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:#64748b">{{ s.description || '-' }}</span>
             <button
               class="btn-outline btn-sm"
               style="flex-shrink:0;padding:2px 8px;font-size:11px"
-              @click.prevent="openView(s.name, s.isBuiltin ? '内置' : '全局')"
+              @click.prevent="openView(s.name, s.source)"
             >查看</button>
           </label>
         </div>
@@ -314,7 +327,7 @@ onMounted(load)
               <td>{{ s.description || '-' }}</td>
               <td>
                 <div class="ops-cell">
-                  <button class="btn-outline btn-sm" @click="openView(s.name)">查看</button>
+                  <button class="btn-outline btn-sm" @click="openView(s.name, '专属技能')">查看</button>
                   <button class="btn-danger btn-sm" @click="remove(s.name)">删除</button>
                 </div>
               </td>
@@ -335,8 +348,7 @@ onMounted(load)
           <div v-if="viewLoading" style="text-align:center;color:#94a3b8;padding:40px">加载中...</div>
           <template v-else>
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-              <span v-if="viewBadge === '内置'" style="background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600">内置</span>
-              <span v-else-if="viewBadge === '全局'" style="background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600">全局</span>
+              <span v-if="viewBadge" :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(viewBadge)}`">{{ viewBadge }}</span>
               <span style="font-family:monospace;font-size:15px;font-weight:600;color:#1e293b">{{ viewName }}</span>
             </div>
             <div v-if="viewParsed.description" style="margin-bottom:12px;font-size:13px;color:#475569">{{ viewParsed.description }}</div>

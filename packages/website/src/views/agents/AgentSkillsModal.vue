@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
@@ -42,10 +42,7 @@ const skillsChanged = computed(() => {
   const b = [...agentSkillNames.value].sort().join(',')
   return a !== b
 })
-const allGlobalSkills = computed(() => [
-  ...store.skillBuiltins,
-  ...store.globalSkills,
-])
+const allGlobalSkills = computed(() => store.allSkills)
 const sources = computed(() => {
   const seen = new Set<string>()
   for (const s of allGlobalSkills.value) if (s.source) seen.add(s.source)
@@ -75,8 +72,7 @@ async function load() {
     agentSkillNames.value  = selectedFromApi
     selectedSkills.value   = [...selectedFromApi]
     const allSkills = skillsRes.data || []
-    store.skillBuiltins    = allSkills.filter((s: any) => s.source === '内置')
-    store.globalSkills     = allSkills.filter((s: any) => s.source !== '内置')
+    store.allSkills = allSkills
   } catch (e: any) {
     show(e.message, 'error')
   }

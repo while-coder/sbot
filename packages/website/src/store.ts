@@ -5,12 +5,10 @@ export const store = reactive<{
   settings: Settings
   mcpServers: Record<string, McpEntry>
   mcpBuiltins: McpBuiltin[]
-  globalSkills: SkillItem[]
-  skillBuiltins: SkillItem[]
+  allSkills: SkillItem[]
 }>({
   settings: {},
   mcpServers: {},
   mcpBuiltins: [],
-  globalSkills: [],
-  skillBuiltins: [],
+  allSkills: [],
 })

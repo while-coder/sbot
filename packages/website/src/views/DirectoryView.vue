@@ -5,8 +5,8 @@ import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 import { useChatSocket } from '@/composables/useChatSocket'
 import type { ChatMessage } from '@/types'
-import DirectoryModal from './DirectoryModal.vue'
-import SaverViewModal from './SaverViewModal.vue'
+import DirectoryModal from './modals/DirectoryModal.vue'
+import SaverViewModal from './modals/SaverViewModal.vue'
 import ChatPanel from '@/components/ChatPanel.vue'
 
 type LocalDirCfg = { agent?: string; saver?: string; memory?: string }

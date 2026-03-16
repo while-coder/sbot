@@ -54,8 +54,7 @@ async function refresh() {
     store.mcpBuiltins = mcpRes.data?.builtins || []
     const skillRes = await apiFetch('/api/skills')
     const allSkills = skillRes.data || []
-    store.skillBuiltins = allSkills.filter((s: any) => s.source === '内置')
-    store.globalSkills = allSkills.filter((s: any) => s.source !== '内置')
+    store.allSkills = allSkills
   } catch (e: any) {
     show(e.message, 'error')
   }

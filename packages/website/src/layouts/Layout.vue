@@ -110,8 +110,7 @@ async function init() {
     store.mcpServers = mcpRes.data?.servers || {}
     store.mcpBuiltins = mcpRes.data?.builtins || []
     const allSkillsData = skillRes.data || []
-    store.skillBuiltins = allSkillsData.filter((s: any) => s.source === '内置')
-    store.globalSkills = allSkillsData.filter((s: any) => s.source !== '内置')
+    store.allSkills = allSkillsData
     if (aboutRes.data?.version) checkUpdate(aboutRes.data.version)
   } catch (_) {}
 }

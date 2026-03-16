@@ -4,7 +4,7 @@ import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 import type { ChannelConfig } from '@/types'
-import SaverViewModal from './SaverViewModal.vue'
+import SaverViewModal from './modals/SaverViewModal.vue'
 
 interface ChannelSessionRow {
   id: number

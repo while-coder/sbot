@@ -4,7 +4,7 @@ import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 import type { MemoryConfig } from '@/types'
-import MemoryViewModal from './MemoryViewModal.vue'
+import MemoryViewModal from './modals/MemoryViewModal.vue'
 
 const { show } = useToast()
 

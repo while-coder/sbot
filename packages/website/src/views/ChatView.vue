@@ -5,9 +5,9 @@ import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 import type { ChatMessage } from '@/types'
 import { useChatSocket } from '@/composables/useChatSocket'
-import SaverViewModal from './SaverViewModal.vue'
-import MemoryViewModal from './MemoryViewModal.vue'
-import NewSessionModal from './NewSessionModal.vue'
+import SaverViewModal from './modals/SaverViewModal.vue'
+import MemoryViewModal from './modals/MemoryViewModal.vue'
+import NewSessionModal from './modals/NewSessionModal.vue'
 import ChatPanel from '@/components/ChatPanel.vue'
 
 interface Attachment {

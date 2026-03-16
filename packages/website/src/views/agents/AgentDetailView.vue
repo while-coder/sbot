@@ -11,6 +11,24 @@ const route = useRoute()
 const router = useRouter()
 const { show } = useToast()
 
+const SOURCE_COLORS = [
+  { bg: '#e0e7ff', color: '#4f46e5' },
+  { bg: '#dcfce7', color: '#16a34a' },
+  { bg: '#fef9c3', color: '#a16207' },
+  { bg: '#fce7f3', color: '#be185d' },
+  { bg: '#e0f2fe', color: '#0369a1' },
+  { bg: '#fff7ed', color: '#c2410c' },
+  { bg: '#f3e8ff', color: '#7c3aed' },
+  { bg: '#ecfeff', color: '#0e7490' },
+]
+function sourceBadgeStyle(source: string | undefined) {
+  if (!source) return 'background:#f0efed;color:#6b6b6b'
+  let hash = 0
+  for (const c of source) hash = (hash * 31 + c.charCodeAt(0)) & 0xffff
+  const { bg, color } = SOURCE_COLORS[hash % SOURCE_COLORS.length]
+  return `background:${bg};color:${color}`
+}
+
 const agentName = route.params.agentName as string
 const activeTab = ref<'config' | 'skills' | 'mcp'>('config')
 
@@ -67,7 +85,7 @@ async function openView(name: string, badge = '') {
   viewContent.value = ''
   viewLoading.value = true
   showViewModal.value = true
-  const isGlobal = badge === '内置' || badge === '全局'
+  const isGlobal = badge !== '专属技能'
   const url = isGlobal
     ? `/api/skills/${encodeURIComponent(name)}`
     : `${skillApiBase()}/${encodeURIComponent(name)}`
@@ -218,8 +236,7 @@ async function refresh() {
     store.mcpServers = mcpRes.data?.servers || {}
     store.mcpBuiltins = mcpRes.data?.builtins || []
     const allSkills = skillRes.data || []
-    store.skillBuiltins = allSkills.filter((s: any) => s.source === '内置')
-    store.globalSkills = allSkills.filter((s: any) => s.source !== '内置')
+    store.allSkills = allSkills
     await loadSkills()
   } catch (e: any) {
     show(e.message, 'error')

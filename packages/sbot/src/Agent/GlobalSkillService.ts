@@ -16,7 +16,7 @@ export const globalSkillService = new SkillService(GlobalLoggerService.getLogger
 export function getSkillsDirsMap(): Record<string, string> {
     return {
         '内置': path.join(__dirname, '../../skills'),
-        '.agents': path.join(os.homedir(), '.agents/skills'),
+        'Agents': path.join(os.homedir(), '.agents/skills'),
         'Claude Code': path.join(os.homedir(), '.claude/skills'),
         '全局': config.getSkillsPath(),
     };

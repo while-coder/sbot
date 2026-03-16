@@ -54,8 +54,7 @@ async function load() {
   try {
     const res = await apiFetch('/api/skills')
     allSkills.value = res.data || []
-    store.skillBuiltins = allSkills.value.filter(s => s.source === '内置')
-    store.globalSkills = allSkills.value.filter(s => s.source !== '内置')
+    store.allSkills = allSkills.value
   } catch (e: any) {
     show(e.message, 'error')
   }
