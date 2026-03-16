@@ -10,7 +10,7 @@ interface SchedulerRow {
   expr: string
   type: string | null
   message: string
-  userId: number | null
+  channelSessionId: number | null
   sessionId: string | null
   workPath: string | null
   lastRun: number | null
@@ -19,10 +19,10 @@ interface SchedulerRow {
   maxRuns: number
 }
 
-interface UserRow {
+interface ChannelSessionRow {
   id: number
-  userid: string
-  username: string
+  channel: string
+  sessionId: string
 }
 
 type UIType = 'daily' | 'weekly' | 'monthly' | 'interval' | 'hourly' | 'custom'
@@ -32,7 +32,7 @@ const DAY_NAMES = ['周日', '周一', '周二', '周三', '周四', '周五', '
 
 const { show } = useToast()
 const timers = ref<SchedulerRow[]>([])
-const users = ref<UserRow[]>([])
+const channelSessions = ref<ChannelSessionRow[]>([])
 const loading = ref(false)
 const showModal = ref(false)
 const editingId = ref<number | null>(null)
@@ -56,8 +56,8 @@ const form = ref({
   minutes:      30,
   customExpr:   '',
   message:      '',
-  routingType:  'channel' as RoutingType,
-  userId:       '' as string | number,
+  routingType:         'channel' as RoutingType,
+  channelSessionId:    '' as string | number,
   sessionId:    '',
   workPath:     '',
   maxRuns:      0,
@@ -116,7 +116,7 @@ function describeExpr(expr: string): string {
 // ── Routing helpers ───────────────────────────────────────────────────────────
 
 function routingTypeOf(row: SchedulerRow): RoutingType {
-  if (row.type === 'channel' || (row.type == null && row.userId != null)) return 'channel'
+  if (row.type === 'channel' || (row.type == null && row.channelSessionId != null)) return 'channel'
   if (row.type === 'session' || (row.type == null && row.sessionId != null)) return 'session'
   return 'directory'
 }
@@ -124,9 +124,9 @@ function routingTypeOf(row: SchedulerRow): RoutingType {
 function routingLabel(row: SchedulerRow): string {
   const rt = routingTypeOf(row)
   if (rt === 'channel') {
-    if (row.userId == null) return '-'
-    const u = users.value.find(u => u.id === row.userId)
-    return u ? (u.username || u.userid) : String(row.userId)
+    if (row.channelSessionId == null) return '-'
+    const s = channelSessions.value.find(s => s.id === row.channelSessionId)
+    return s ? s.sessionId : String(row.channelSessionId)
   }
   if (rt === 'session') return row.sessionId ?? '-'
   return row.workPath ? row.workPath.split(/[\\/]/).slice(-2).join('/') : '-'
@@ -143,12 +143,12 @@ const ROUTING_BADGE: Record<RoutingType, { bg: string; color: string; label: str
 async function load() {
   loading.value = true
   try {
-    const [timersRes, usersRes] = await Promise.all([
+    const [timersRes, sessionsRes] = await Promise.all([
       apiFetch('/api/schedulers'),
-      apiFetch('/api/users'),
+      apiFetch('/api/channel-sessions'),
     ])
     timers.value = timersRes.data || []
-    users.value = usersRes.data || []
+    channelSessions.value = sessionsRes.data || []
   } catch (e: any) {
     show(e.message, 'error')
   } finally {
@@ -166,8 +166,8 @@ function formatNextRun(ts: number | null): string {
   return new Date(ts).toLocaleString('zh-CN')
 }
 
-function userLabel(u: UserRow): string {
-  return u.username ? `${u.username} (${u.userid})` : u.userid
+function sessionLabel(s: ChannelSessionRow): string {
+  return s.sessionId ? `${s.sessionId} (${s.channel})` : String(s.id)
 }
 
 // ── Modal open/close ──────────────────────────────────────────────────────────
@@ -177,13 +177,13 @@ function openAdd() {
   const parsed = parseExpr('0 9 * * *')
   form.value = {
     ...parsed,
-    name:        '',
-    message:     '',
-    routingType: 'channel',
-    userId:      '',
-    sessionId:   sessionOptions.value[0] ?? '',
-    workPath:    '',
-    maxRuns:     0,
+    name:             '',
+    message:          '',
+    routingType:      'channel',
+    channelSessionId: '',
+    sessionId:        sessionOptions.value[0] ?? '',
+    workPath:         '',
+    maxRuns:          0,
   }
   showModal.value = true
 }
@@ -197,7 +197,7 @@ function openEdit(row: SchedulerRow) {
     name:        row.name,
     message:     row.message,
     routingType: rt,
-    userId:      row.userId ?? '',
+    channelSessionId: row.channelSessionId ?? '',
     sessionId:   row.sessionId ?? '',
     workPath:    row.workPath ?? '',
     maxRuns:     row.maxRuns ?? 0,
@@ -213,7 +213,7 @@ async function save() {
   if (!form.value.message.trim()) { show('消息不能为空', 'error'); return }
 
   const rt = form.value.routingType
-  if (rt === 'channel' && form.value.userId === '') { show('请选择 Lark 用户', 'error'); return }
+  if (rt === 'channel' && form.value.channelSessionId === '') { show('请选择频道会话', 'error'); return }
   if (rt === 'session' && !form.value.sessionId)    { show('请选择会话', 'error'); return }
   if (rt === 'directory' && !form.value.workPath.trim()) { show('请输入工作目录路径', 'error'); return }
 
@@ -224,7 +224,7 @@ async function save() {
       expr:      builtExpr.value,
       message:   form.value.message.trim(),
       type:      rt,
-      userId:    rt === 'channel' && form.value.userId !== '' ? Number(form.value.userId) : null,
+      channelSessionId: rt === 'channel' && form.value.channelSessionId !== '' ? Number(form.value.channelSessionId) : null,
       sessionId: rt === 'session' ? form.value.sessionId : null,
       workPath:  rt === 'directory' ? form.value.workPath.trim() : null,
       maxRuns:   form.value.maxRuns ?? 0,
@@ -407,12 +407,12 @@ onMounted(load)
             </select>
           </div>
 
-          <!-- channel: Lark 用户 -->
+          <!-- channel: 频道会话 -->
           <div v-if="form.routingType === 'channel'" class="form-group">
-            <label>Lark 用户</label>
-            <select v-model="form.userId">
-              <option value="">请选择用户</option>
-              <option v-for="u in users" :key="u.id" :value="u.id">{{ userLabel(u) }}</option>
+            <label>频道会话</label>
+            <select v-model="form.channelSessionId">
+              <option value="">请选择会话</option>
+              <option v-for="s in channelSessions" :key="s.id" :value="s.id">{{ sessionLabel(s) }}</option>
             </select>
           </div>
 

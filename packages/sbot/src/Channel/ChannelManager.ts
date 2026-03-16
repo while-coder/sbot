@@ -1,5 +1,5 @@
 import { LarkService, LarkActionArgs, LarkMessageArgs, LarkUserIdType } from "channel.lark";
-import { database } from "../Core/Database";
+import { database, type ChannelSessionRow } from "../Core/Database";
 import { NowDate } from "scorpio.ai";
 import { Op } from "sequelize";
 import { userService } from "../UserService/UserService";
@@ -145,23 +145,27 @@ export class ChannelManager {
             userIdType: userIdType,
             filterEvent,
             onRecevieMessage: async (userId: string, userInfo: any, args: LarkMessageArgs, query: string) => {
-                if (userId) {
-                    const [dbUser, created] = await database.findOrCreate(database.user, {
-                        where: { userid: userId, channel: channelId },
-                        defaults: {
-                            username:   userInfo?.name ?? "",
-                            userinfo:   JSON.stringify(userInfo ?? {}),
-                            userIdType: userIdType,
-                        },
-                    });
-                    if (!created) {
-                        await database.update(database.user,
-                            { username: userInfo?.name ?? "", userinfo: JSON.stringify(userInfo ?? {}), userIdType: userIdType },
-                            { where: { userid: userId, channel: channelId } },
-                        );
-                    }
-                    userInfo = { ...(userInfo ?? {}), dbUserId: (dbUser as any).id };
+                const [dbUser, created] = await database.findOrCreate(database.channelUser, {
+                    where: { userid: userId, channel: channelId },
+                    defaults: {
+                        username:   userInfo?.name ?? "",
+                        userinfo:   JSON.stringify(userInfo ?? {}),
+                        userIdType: userIdType,
+                    },
+                });
+                if (!created) {
+                    await database.update(database.channelUser,
+                        { username: userInfo?.name ?? "", userinfo: JSON.stringify(userInfo ?? {}), userIdType: userIdType },
+                        { where: { userid: userId, channel: channelId } },
+                    );
                 }
+                userInfo = { ...(userInfo ?? {}), dbUserId: (dbUser as any).id };
+
+                const [dbSession] = await database.findOrCreate<ChannelSessionRow>(database.channelSession, {
+                    where: { channel: channelId, sessionId: args.chat_id },
+                    defaults: { agentId: "", saverId: "", memoryId: null },
+                });
+                userInfo = { ...userInfo, dbSessionId: dbSession.id };
                 await userService.onReceiveLarkMessage(args, userInfo, query, channelId);
             },
             onTriggerAction: async (_userId: string, _userInfo: any, args: LarkActionArgs) => {

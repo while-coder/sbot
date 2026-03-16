@@ -45,6 +45,7 @@ const menuGroups = [
     group: '管理',
     items: [
       { label: '用户管理', key: '/users' },
+      { label: '频道会话', key: '/channel-sessions' },
       { label: '计时器管理', key: '/scheduler' },
     ],
   },

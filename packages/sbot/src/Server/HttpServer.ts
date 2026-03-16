@@ -724,7 +724,7 @@ class HttpServer {
         }));
 
         app.post('/api/schedulers', api(async req => {
-            const { name, expr, message, type, userId, sessionId, workPath, maxRuns } = req.body;
+            const { name, expr, message, type, channelSessionId, sessionId, workPath, maxRuns } = req.body;
             if (!name?.trim()) throwBad('name 不能为空');
             if (!expr?.trim()) throwBad('expr 不能为空');
             if (!message?.trim()) throwBad('message 不能为空');
@@ -733,7 +733,7 @@ class HttpServer {
                 expr: expr.trim(),
                 type: type ?? null,
                 message: message.trim(),
-                userId: userId ?? null,
+                channelSessionId: channelSessionId ?? null,
                 sessionId: sessionId ?? null,
                 workPath: workPath ?? null,
                 lastRun: null,
@@ -747,14 +747,14 @@ class HttpServer {
         app.put('/api/schedulers/:id', api(async req => {
             const id = parseInt(req.params.id as string, 10);
             if (isNaN(id)) throwBad('无效的 id');
-            const { name, expr, message, type, userId, sessionId, workPath, maxRuns } = req.body;
+            const { name, expr, message, type, channelSessionId, sessionId, workPath, maxRuns } = req.body;
             const updates: any = {};
-            if (name !== undefined)      updates.name      = name;
-            if (expr !== undefined)      updates.expr      = expr;
-            if (message !== undefined)   updates.message   = message;
-            if (type !== undefined)      updates.type      = type;
-            if (userId !== undefined)    updates.userId    = userId;
-            if (sessionId !== undefined) updates.sessionId = sessionId;
+            if (name !== undefined)             updates.name             = name;
+            if (expr !== undefined)             updates.expr             = expr;
+            if (message !== undefined)          updates.message          = message;
+            if (type !== undefined)             updates.type             = type;
+            if (channelSessionId !== undefined) updates.channelSessionId = channelSessionId;
+            if (sessionId !== undefined)        updates.sessionId        = sessionId;
             if (workPath !== undefined)  updates.workPath  = workPath;
             if (maxRuns !== undefined)   updates.maxRuns   = maxRuns;
             await database.update(database.scheduler, updates, { where: { id } });
@@ -769,13 +769,24 @@ class HttpServer {
 
         // ===== Users =====
         app.get('/api/users', api(async () => {
-            return await database.findAll(database.user);
+            return await database.findAll(database.channelUser);
         }));
 
         app.delete('/api/users/:id', api(async req => {
             const id = parseInt(req.params.id as string, 10);
             if (isNaN(id)) { const e: any = new Error('无效的 id'); e.status = 400; throw e; }
-            await database.destroy(database.user, { where: { id } });
+            await database.destroy(database.channelUser, { where: { id } });
+        }));
+
+        // ===== Channel Sessions =====
+        app.get('/api/channel-sessions', api(async () => {
+            return await database.findAll(database.channelSession);
+        }));
+
+        app.delete('/api/channel-sessions/:id', api(async req => {
+            const id = parseInt(req.params.id as string, 10);
+            if (isNaN(id)) { const e: any = new Error('无效的 id'); e.status = 400; throw e; }
+            await database.destroy(database.channelSession, { where: { id } });
         }));
 
         // ===== 操作 =====

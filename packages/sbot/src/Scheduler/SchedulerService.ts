@@ -1,6 +1,6 @@
 import { CronJob } from "cron";
-import { LarkMessageArgs, LarkReceiveIdType } from "channel.lark";
-import { database, SchedulerRow, UserRow, ContextType } from "../Core/Database";
+import { LarkMessageArgs } from "channel.lark";
+import { database, SchedulerRow, ChannelSessionRow, ContextType } from "../Core/Database";
 import { userService } from "../UserService/UserService";
 import { LoggerService } from "../Core/LoggerService";
 import { LarkService } from "channel.lark";
@@ -14,36 +14,33 @@ async function executeScheduler(schedulerId: number): Promise<void> {
 
     const tag = `[${scheduler.id}:${scheduler.name}]`;
     const isChannel = scheduler.type === ContextType.Channel
-        || (scheduler.type == null && scheduler.userId != null);
+        || (scheduler.type == null && scheduler.channelSessionId != null);
 
     try {
         if (isChannel) {
-            // Channel mode: deliver via Lark
-            const userRow = scheduler.userId
-                ? await database.findByPk<UserRow>(database.user, scheduler.userId)
+            // Channel mode: deliver via Lark chat_id
+            const sessionRow = scheduler.channelSessionId
+                ? await database.findByPk<ChannelSessionRow>(database.channelSession, scheduler.channelSessionId)
                 : null;
-            const larkService = userRow?.channel
-                ? channelManager.getService(userRow.channel) as LarkService | undefined
+            const larkService = sessionRow?.channel
+                ? channelManager.getService(sessionRow.channel) as LarkService | undefined
                 : undefined;
 
-            if (!userRow || !larkService) {
-                logger.error(`Scheduler task ${tag} channel mode: userId=${scheduler.userId} not found or has no Lark service`);
+            if (!sessionRow || !larkService) {
+                logger.error(`Scheduler task ${tag} channel mode: channelSessionId=${scheduler.channelSessionId} not found or has no Lark service`);
                 return;
             }
-
-            let userInfo: any = {};
-            try { userInfo = JSON.parse(userRow.userinfo || "{}"); } catch { /**/ }
 
             const args: LarkMessageArgs = {
                 larkService,
                 chat_type: "",
-                chat_id: "",
+                chat_id: sessionRow.sessionId,
                 message_id: "",
                 root_id: "",
-                chatInfo: { receiveId: userRow.userid, receiveIdType: (userRow.userIdType ?? LarkReceiveIdType.UnionId) as LarkReceiveIdType },
+                chatInfo: { chatId: sessionRow.sessionId },
             };
-            await userService.onReceiveLarkMessage(args, userInfo, scheduler.message, userRow.channel);
-            logger.info(`Scheduler task ${tag} fired (channel), user ${userRow.userid}`);
+            await userService.onReceiveLarkMessage(args, {}, scheduler.message, sessionRow.channel);
+            logger.info(`Scheduler task ${tag} fired (channel), session ${sessionRow.sessionId}`);
         } else {
             // Session / directory mode: deliver via HTTP pipeline
             await userService.onReceiveHttpMessage(

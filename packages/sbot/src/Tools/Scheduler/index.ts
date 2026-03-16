@@ -18,7 +18,7 @@ const logger = LoggerService.getLogger('Tools/Scheduler/index.ts');
 export function createSchedulerListTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'scheduler_list',
-        description: 'List scheduled tasks (id, name, expr, type, message, userId, sessionId, workPath, lastRun, runCount, maxRuns). Call before create/delete to check for duplicates or find a task id. Optionally filter by type.',
+        description: 'List scheduled tasks (id, name, expr, type, message, channelSessionId, sessionId, workPath, lastRun, runCount, maxRuns). Call before create/delete to check for duplicates or find a task id. Optionally filter by type.',
         schema: z.object({
             type: z.enum(Object.values(ContextType) as [string, ...string[]]).optional().describe('Filter by type: channel | session | directory. Omit to return all.'),
         }) as any,
@@ -46,33 +46,33 @@ export function createSchedulerCreateTool(): StructuredToolInterface {
 
 Cron examples: daily 09:00="0 9 * * *"  every Monday="0 9 * * 1"  every 30min="*/30 * * * *"
 
-Routing — set type AND exactly one of userId/sessionId/workPath, leave the other two null:
-  type="channel"   + userId    = integer from <current-user><db-id>
-  type="session"   + sessionId = string from <environment><scheduler-session-id>
-  type="directory" + workPath  = string from <environment><paths><working-directory dir="...">`,
+Routing — set type AND exactly one of channelSessionId/sessionId/workPath, leave the other two null:
+  type="channel"   + channelSessionId = integer from channel_session.id
+  type="session"   + sessionId        = string from <environment><scheduler-session-id>
+  type="directory" + workPath         = string from <environment><paths><working-directory dir="...">`,
         schema: z.object({
-            name:      z.string().describe('Task name'),
-            expr:      z.string().describe('5-field cron: minute hour day month weekday'),
-            type:      z.enum(Object.values(ContextType) as [string, ...string[]]).describe('"channel"(set userId) | "session"(set sessionId) | "directory"(set workPath)'),
-            message:   z.string().describe('Message to send when the task fires'),
-            userId:    z.number().int().optional().describe('type=channel: integer from <current-user><db-id>'),
-            sessionId: z.string().optional().describe('type=session: string from <environment><scheduler-session-id>'),
+            name:             z.string().describe('Task name'),
+            expr:             z.string().describe('5-field cron: minute hour day month weekday'),
+            type:             z.enum(Object.values(ContextType) as [string, ...string[]]).describe('"channel"(set channelSessionId) | "session"(set sessionId) | "directory"(set workPath)'),
+            message:          z.string().describe('Message to send when the task fires'),
+            channelSessionId: z.number().int().optional().describe('type=channel: integer channel_session.id'),
+            sessionId:        z.string().optional().describe('type=session: string from <environment><scheduler-session-id>'),
             workPath:  z.string().optional().describe('type=directory: string from <environment><paths><working-directory dir="...">'),
             maxRuns:   z.number().optional().describe('Max executions (0 or omit = unlimited)'),
         }) as any,
-        func: async ({ name, expr, type, message, userId, sessionId, workPath, maxRuns }: any): Promise<MCPToolResult> => {
+        func: async ({ name, expr, type, message, channelSessionId, sessionId, workPath, maxRuns }: any): Promise<MCPToolResult> => {
             try {
                 if (!name?.trim())    return createErrorResult('name is required');
                 if (!expr?.trim())    return createErrorResult('expr is required');
                 if (!message?.trim()) return createErrorResult('message is required');
 
                 const row = await database.create<SchedulerRow>(database.scheduler, {
-                    name:      name.trim(),
-                    expr:      expr.trim(),
-                    type:      type ?? null,
-                    message:   message.trim(),
-                    userId:    userId ?? null,
-                    sessionId: sessionId ?? null,
+                    name:             name.trim(),
+                    expr:             expr.trim(),
+                    type:             type ?? null,
+                    message:          message.trim(),
+                    channelSessionId: channelSessionId ?? null,
+                    sessionId:        sessionId ?? null,
                     workPath:  workPath ?? null,
                     lastRun:   null,
                     runCount:  0,

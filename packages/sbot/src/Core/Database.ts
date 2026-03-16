@@ -5,7 +5,7 @@ import { LoggerService } from "./LoggerService";
 
 const logger = LoggerService.getLogger("Database.ts");
 const DBVersionName = "db_version";
-const DBVersion = '0.0.10'
+const DBVersion = '0.0.12'
 export type MessageRow = {
   id: string;
   expireTime: number;
@@ -23,7 +23,7 @@ export type SchedulerRow = {
   expr: string;                    // cron 表达式，如 "0 9 * * *"
   type: ContextType | null;        // 任务类型
   message: string;                 // 消息文本
-  userId: number | null;           // user 表 ID（channel 模式：关联用户）
+  channelSessionId: number | null;  // channel_session 表 ID（channel 模式）
   sessionId: string | null;        // 会话 ID（session 模式）
   workPath: string | null;         // 工作目录路径（directory 模式）
   lastRun: number | null;          // 上次执行时间戳
@@ -36,13 +36,22 @@ export type StateRow = {
   value: string;
 };
 
-export type UserRow = {
+export type ChannelUserRow = {
   id: number;
   userid: string;
   username: string;
   userinfo: string;
   channel: string;
   userIdType: string | null;  // LarkReceiveIdType value, e.g. 'union_id' / 'open_id'
+};
+
+export type ChannelSessionRow = {
+  id: number;
+  channel: string;   // 频道唯一ID
+  sessionId: string;    // Lark chat_id
+  agentId: string;   // Agent UUID
+  saverId: string;   // Saver UUID
+  memoryId: string | null;  // Memory UUID
 };
 
 class Database {
@@ -56,7 +65,8 @@ class Database {
 
   public message!: ModelStatic<any>;
   public state!: ModelStatic<any>;
-  public user!: ModelStatic<any>;
+  public channelUser!: ModelStatic<any>;
+  public channelSession!: ModelStatic<any>;
   public scheduler!: ModelStatic<any>;
 
   async init() {
@@ -137,8 +147,8 @@ class Database {
       },
     );
 
-    this.user = sequelize.define(
-      "user",
+    this.channelUser = sequelize.define(
+      "channel_user",
       {
         id: {
           type: DataTypes.INTEGER,
@@ -178,9 +188,56 @@ class Database {
         },
       },
       {
-        tableName: "user",
+        tableName: "channel_user",
         timestamps: false,
         comment: "用户表",
+      },
+    );
+
+    this.channelSession = sequelize.define(
+      "channel_session",
+      {
+        id: {
+          type: DataTypes.INTEGER,
+          primaryKey: true,
+          autoIncrement: true,
+          comment: "自增ID",
+        },
+        channel: {
+          type: DataTypes.STRING(64),
+          allowNull: false,
+          defaultValue: "",
+          comment: "频道唯一ID",
+        },
+        sessionId: {
+          type: DataTypes.STRING(64),
+          allowNull: false,
+          defaultValue: "",
+          comment: "Lark chat_id",
+        },
+        agentId: {
+          type: DataTypes.STRING(255),
+          allowNull: false,
+          defaultValue: "",
+          comment: "Agent UUID",
+        },
+        saverId: {
+          type: DataTypes.STRING(255),
+          allowNull: false,
+          defaultValue: "",
+          comment: "Saver UUID",
+        },
+        memoryId: {
+          type: DataTypes.STRING(255),
+          allowNull: true,
+          defaultValue: null,
+          comment: "Memory UUID",
+        },
+      },
+      {
+        tableName: "channel_session",
+        timestamps: false,
+        comment: "频道会话表",
       },
     );
 
@@ -217,11 +274,11 @@ class Database {
           defaultValue: "",
           comment: "发送的文字消息",
         },
-        userId: {
+        channelSessionId: {
           type: DataTypes.INTEGER,
           allowNull: true,
           defaultValue: null,
-          comment: "user 表 ID",
+          comment: "channel_session 表 ID",
         },
         sessionId: {
           type: DataTypes.STRING(255),
@@ -295,7 +352,8 @@ class Database {
       logger.info(`开始刷新数据库结构 alter:${alter} ${data.value} -> ${DBVersion}`);
 
       await this.message.sync({ alter });
-      await this.user.sync({ alter });
+      await this.channelUser.sync({ alter });
+      await this.channelSession.sync({ alter });
       await this.scheduler.sync({ alter });
 
       await this.state.update({ value: DBVersion }, { where: { key: DBVersionName } });

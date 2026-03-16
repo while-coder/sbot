@@ -2,7 +2,7 @@ import {LarkChatProvider} from "./LarkChatProvider";
 import { AgentMessage, AgentToolCall, MCPContentType, MCPToolResult, NowDate, sleep } from "scorpio.ai";
 import { UserServiceBase } from "scorpio.ai";
 import { GlobalLoggerService } from "scorpio.ai";
-import { LarkService, LarkReceiveIdType } from "./LarkService";
+import { LarkReceiveIdType, LarkService } from "./LarkService";
 
 const getLogger = () => GlobalLoggerService.getLogger('LarkUserService.ts');
 
@@ -19,8 +19,8 @@ export interface LarkMessageArgs {
   chat_id: string;
   root_id: string;
   message_id: string;
-  /** 主动发送场景（如计时器），传入 user 表的 userid 代替 message_id */
-  chatInfo?: { receiveId: string, receiveIdType: LarkReceiveIdType };
+  /** 主动发送场景（如计时器），传入 chat_id 直接发送消息 */
+  chatInfo?: { chatId: string };
 }
 
 export interface LarkActionArgs {
@@ -45,8 +45,8 @@ export abstract class LarkUserServiceBase extends UserServiceBase {
     const { larkService, chat_type, chat_id, root_id, message_id, chatInfo } = args as LarkMessageArgs;
     this.larkService = larkService;
     if (chatInfo) {
-      this.provider = await new LarkChatProvider(larkService).initChat(chatInfo.receiveIdType, chatInfo.receiveId, query);
-      return `会话ID:${chatInfo.receiveId},会话类型:${chatInfo.receiveIdType}`;
+      this.provider = await new LarkChatProvider(larkService).initChat(LarkReceiveIdType.ChatId, chatInfo.chatId, query);
+      return `会话ID:${chatInfo.chatId}`;
     }
     this.provider = await new LarkChatProvider(larkService).initReplay(message_id);
     return `会话ID:${chat_id},话题:${root_id},消息ID:${message_id}`
