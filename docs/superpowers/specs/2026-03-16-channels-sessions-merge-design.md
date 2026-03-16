@@ -62,12 +62,30 @@ app.get('/api/channel-sessions', api(async req => {
 **展开后的会话子行**（跟随主行，与 SaversView `thread-sub-row` 样式一致）：
 
 ```
-(空) | Session ID (colspan 3) | Agent ID | Saver ID | Memory ID | 查看 / 删除
+列1(空) | 列2-4: Session ID (colspan=3，跨「名称/ID/类型」) | 列5: Agent ID | 列6: Saver ID | 列7: Memory ID | 列8: 查看/删除
 ```
 
 - 子行背景色 `#fafaf9`，字体 monospace，字号 12px
-- 加载中：显示"加载中..."占位行
-- 无会话：显示"暂无会话记录"占位行
+- 加载中：显示"加载中..."占位行（colspan="7"，跨列2-8）
+- 无会话：显示"暂无会话记录"占位行（colspan="7"，跨列2-8）
+- **注意**：原 `ChannelsView` 的空状态行 `colspan="7"` 在添加展开列后需改为 `colspan="8"`
+
+**`<style scoped>` 新增样式**（参照 SaversView 的 scoped 样式，`ChannelsView` 目前无 scoped 块，需新增）：
+
+```css
+.expand-btn {
+  background: none; border: none; cursor: pointer;
+  font-size: 10px; color: #9b9b9b;
+  padding: 2px 6px; width: 28px; text-align: center; line-height: 1;
+}
+.expand-btn:hover { color: #1c1c1c; }
+.session-sub-row td {
+  background: #fafaf9; border-bottom: 1px solid #f0efed;
+  padding-top: 5px; padding-bottom: 5px;
+}
+.session-sub-cell { padding: 5px 12px; font-size: 12px; color: #94a3b8; font-style: italic; }
+.session-id-cell  { font-family: monospace; font-size: 12px; color: #3d3d3d; padding: 5px 12px; }
+```
 
 #### 2.2 新增状态
 
@@ -92,25 +110,36 @@ const viewSession      = ref<ChannelSessionRow | null>(null)
 **`toggleExpand(id: string)`**
 1. 切换 `expandedChannels[id]`
 2. 折叠时直接返回
-3. 已缓存（`id in sessionMap`）时直接显示，不重复请求
-4. 否则调用 `GET /api/channel-sessions?channel={id}`，结果存入 `sessionMap[id]`
+3. 已缓存（`id in sessionMap`）**或正在加载**（`channelLoading[id]`）时直接返回，防止重复请求（与 SaversView 的 `id in saverThreadsMap.value || saverLoading.value[id]` 逻辑一致）
+4. 设置 `channelLoading[id] = true`，调用 `GET /api/channel-sessions?channel={id}`
+5. 成功：结果存入 `sessionMap[id]`
+6. 失败：调用 `show(e.message, 'error')`，再设置 `sessionMap[id] = []`（与 SaversView 顺序一致，填充缓存防止后续展开再次触发请求）
+7. `finally`：设置 `channelLoading[id] = false`
+
+**`refreshSessions(ids: string[])`**（新增辅助函数，参照 SaversView 的 `refreshThreads`）
+- 并发重新拉取指定 channel 列表的会话，成功则覆盖 `sessionMap[id]`
+- 每个 channel 独立 `try/catch`：失败时调用 `show(e.message, 'error')`，保留原有缓存（不写 `[]`，不影响其他 channel 的刷新）
+- `finally`：更新对应 channel 的 `channelLoading[id] = false`
 
 **`removeSession(channelId: string, session: ChannelSessionRow)`**
 1. `confirm` 确认
-2. 调用 `DELETE /api/channel-sessions/{session.id}`
-3. 成功后从 `sessionMap[channelId]` 中移除该条目
+2. `try/catch`：调用 `DELETE /api/channel-sessions/{session.id}`
+3. 成功：从 `sessionMap[channelId]` 中移除该条目，调用 `show('删除成功')`
+4. 失败：调用 `show(e.message, 'error')`
 
 **`refresh()`**（增强现有函数）
 - 刷新 `store.settings`（原有逻辑）
-- 同时对所有已展开的 channel 重新拉取会话（覆盖缓存）
+- 取所有 `expandedChannels[id] === true` 的 id 列表，调用 `refreshSessions(ids)` 覆盖缓存
 
 #### 2.4 会话详情弹窗
 
-从 `ChannelSessionsView` 原样迁移：
-- 点击子行「查看」按钮，设置 `viewSession`
+从 `ChannelSessionsView` 迁移，使用 `class="modal-box wide"`（660px）：
+- 点击子行「查看」按钮，设置 `viewSession`；遮罩层点击 `@click.self` 关闭
 - 弹窗标题：`会话详情 — {sessionId}`
-- 显示字段：ID、Session ID (chat_id)、Agent ID、Saver ID、Memory ID
+- 显示字段：ID、**频道**（channel）、Session ID (chat_id)、Agent ID、Saver ID、Memory ID
 - 全部 `disabled` 只读输入框
+- 底部「关闭」按钮（`btn-outline`），点击清空 `viewSession`
+- 注：保留「频道」字段，在上下文不明确时仍有参考价值
 
 ---
 
