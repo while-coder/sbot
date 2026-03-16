@@ -49,8 +49,9 @@ async function load() {
     const selectedFromApi: string[] = (agentRes.data?.globals || []).map((g: any) => g.name)
     agentSkillNames.value = selectedFromApi
     selectedSkills.value = [...selectedFromApi]
-    store.skillBuiltins = skillsRes.data?.builtins || []
-    store.globalSkills = skillsRes.data?.skills || []
+    const allSkills = skillsRes.data || []
+    store.skillBuiltins = allSkills.filter((s: any) => s.source === '内置')
+    store.globalSkills = allSkills.filter((s: any) => s.source !== '内置')
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -120,7 +121,7 @@ interface HubSkillResult {
   description: string
   version: string
   sourceUrl: string
-  provider: 'clawhub' | 'skillssh' | 'skillsmp'
+  provider: 'clawhub'
 }
 
 const showHub = ref(false)
@@ -401,12 +402,7 @@ onMounted(load)
                       <td style="color:#475569;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.description || '-' }}</td>
                       <td style="font-size:12px;color:#94a3b8;white-space:nowrap">{{ s.version || '-' }}</td>
                       <td>
-                        <span v-if="s.provider === 'clawhub'"
-                          style="background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">ClawHub</span>
-                        <span v-else-if="s.provider === 'skillsmp'"
-                          style="background:#fef9c3;color:#a16207;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">SkillsMP</span>
-                        <span v-else
-                          style="background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">Skills.sh</span>
+                        <span style="background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">ClawHub</span>
                       </td>
                       <td>
                         <button class="btn-primary btn-sm" @click="openInstall(s)">安装</button>
@@ -439,9 +435,7 @@ onMounted(load)
             </label>
             <div style="margin-top:16px;padding:12px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;color:#64748b;line-height:1.7">
               支持格式：<br>
-              <code style="font-family:monospace">https://skills.sh/{owner}/{repo}/{skill}</code><br>
-              <code style="font-family:monospace">https://clawhub.ai/{slug}</code><br>
-              <code style="font-family:monospace">https://skillsmp.com/skills/{slug}</code>
+              <code style="font-family:monospace">https://clawhub.ai/{slug}</code>
             </div>
           </template>
 
@@ -460,12 +454,7 @@ onMounted(load)
           <div style="margin-bottom:12px">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
               <span style="font-family:monospace;font-size:15px;font-weight:600;color:#1e293b">{{ selected.name || selected.id }}</span>
-              <span v-if="selected.provider === 'clawhub'"
-                style="background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">ClawHub</span>
-              <span v-else-if="selected.provider === 'skillsmp'"
-                style="background:#fef9c3;color:#a16207;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">SkillsMP</span>
-              <span v-else
-                style="background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">Skills.sh</span>
+              <span style="background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">ClawHub</span>
             </div>
             <div v-if="selected.description" style="font-size:13px;color:#475569">{{ selected.description }}</div>
           </div>

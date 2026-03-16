@@ -7,29 +7,45 @@ import type { SkillItem } from '@/types'
 
 const { show } = useToast()
 
-const skills = ref<SkillItem[]>([])
-const builtins = ref<SkillItem[]>([])
+const SOURCE_COLORS = [
+  { bg: '#e0e7ff', color: '#4f46e5' },
+  { bg: '#dcfce7', color: '#16a34a' },
+  { bg: '#fef9c3', color: '#a16207' },
+  { bg: '#fce7f3', color: '#be185d' },
+  { bg: '#e0f2fe', color: '#0369a1' },
+  { bg: '#fff7ed', color: '#c2410c' },
+  { bg: '#f3e8ff', color: '#7c3aed' },
+  { bg: '#ecfeff', color: '#0e7490' },
+]
+function sourceBadgeStyle(source: string | undefined) {
+  if (!source) return 'background:#f0efed;color:#6b6b6b'
+  let hash = 0
+  for (const c of source) hash = (hash * 31 + c.charCodeAt(0)) & 0xffff
+  const { bg, color } = SOURCE_COLORS[hash % SOURCE_COLORS.length]
+  return `background:${bg};color:${color}`
+}
+
+const allSkills = ref<SkillItem[]>([])
 
 // ── Search & tab filter ──
 const searchQuery = ref('')
-const activeTab = ref<'all' | 'builtin' | 'installed'>('all')
+const activeTab = ref('all')
 
-const installedNames = computed(() => new Set(skills.value.map(s => s.name)))
-
-const filteredBuiltins = computed(() => {
-  if (activeTab.value === 'installed') return []
-  const q = searchQuery.value.trim().toLowerCase()
-  if (!q) return builtins.value
-  return builtins.value.filter(s =>
-    s.name.toLowerCase().includes(q) || (s.description || '').toLowerCase().includes(q)
-  )
+const sources = computed(() => {
+  const seen = new Set<string>()
+  for (const s of allSkills.value) if (s.source) seen.add(s.source)
+  return Array.from(seen)
 })
 
+const installedNames = computed(() => new Set(allSkills.value.map(s => s.name)))
+
 const filteredSkills = computed(() => {
-  if (activeTab.value === 'builtin') return []
+  const list = activeTab.value === 'all'
+    ? allSkills.value
+    : allSkills.value.filter(s => s.source === activeTab.value)
   const q = searchQuery.value.trim().toLowerCase()
-  if (!q) return skills.value
-  return skills.value.filter(s =>
+  if (!q) return list
+  return list.filter(s =>
     s.name.toLowerCase().includes(q) || (s.description || '').toLowerCase().includes(q)
   )
 })
@@ -37,10 +53,9 @@ const filteredSkills = computed(() => {
 async function load() {
   try {
     const res = await apiFetch('/api/skills')
-    skills.value = res.data?.skills || []
-    builtins.value = res.data?.builtins || []
-    store.skillBuiltins = builtins.value
-    store.globalSkills = skills.value
+    allSkills.value = res.data || []
+    store.skillBuiltins = allSkills.value.filter(s => s.source === '内置')
+    store.globalSkills = allSkills.value.filter(s => s.source !== '内置')
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -100,7 +115,7 @@ interface HubSkillResult {
   description: string
   version: string
   sourceUrl: string
-  provider: 'clawhub' | 'skillssh' | 'skillsmp'
+  provider: 'clawhub'
 }
 
 const showHub = ref(false)
@@ -206,20 +221,27 @@ onMounted(load)
     <!-- Tab bar + search -->
     <div style="display:flex;align-items:center;padding:0 20px;border-bottom:1px solid #e8e6e3;background:#fff;gap:0;flex-shrink:0">
       <button
-        v-for="tab in ([
-          { key: 'all',       label: '全部',   count: builtins.length + skills.length },
-          { key: 'builtin',   label: '内置',   count: builtins.length },
-          { key: 'installed', label: '已安装', count: skills.length },
-        ] as const)"
-        :key="tab.key"
-        @click="activeTab = tab.key"
+        key="all"
+        @click="activeTab = 'all'"
         style="padding:10px 14px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s"
-        :style="activeTab === tab.key ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
+        :style="activeTab === 'all' ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
       >
-        {{ tab.label }}
+        全部
         <span style="margin-left:4px;font-size:11px;padding:0 5px;border-radius:10px;font-weight:600"
-          :style="activeTab === tab.key ? 'background:#1c1c1c;color:#fff' : 'background:#f0efed;color:#6b6b6b'"
-        >{{ tab.count }}</span>
+          :style="activeTab === 'all' ? 'background:#1c1c1c;color:#fff' : 'background:#f0efed;color:#6b6b6b'"
+        >{{ allSkills.length }}</span>
+      </button>
+      <button
+        v-for="src in sources"
+        :key="src"
+        @click="activeTab = src"
+        style="padding:10px 14px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s"
+        :style="activeTab === src ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
+      >
+        {{ src }}
+        <span style="margin-left:4px;font-size:11px;padding:0 5px;border-radius:10px;font-weight:600"
+          :style="activeTab === src ? 'background:#1c1c1c;color:#fff' : 'background:#f0efed;color:#6b6b6b'"
+        >{{ allSkills.filter(s => s.source === src).length }}</span>
       </button>
       <div style="flex:1" />
       <input
@@ -239,29 +261,20 @@ onMounted(load)
           <tr><th>名称</th><th>描述</th><th style="width:140px;white-space:nowrap">操作</th></tr>
         </thead>
         <tbody>
-          <tr v-if="filteredBuiltins.length === 0 && filteredSkills.length === 0">
+          <tr v-if="filteredSkills.length === 0">
             <td colspan="3" style="text-align:center;color:#94a3b8;padding:40px">
               {{ searchQuery.trim() ? '未找到匹配的 Skill' : '暂无 Skill' }}
             </td>
           </tr>
-          <tr v-for="s in filteredBuiltins" :key="'b-' + s.name">
-            <td style="font-family:monospace">
-              <span style="background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;margin-right:6px">内置</span>{{ s.name }}
-            </td>
-            <td>{{ s.description || '-' }}</td>
-            <td style="white-space:nowrap">
-              <div class="ops-cell">
-                <button class="btn-outline btn-sm" @click="openView(s.name, '内置')">查看</button>
-              </div>
-            </td>
-          </tr>
           <tr v-for="s in filteredSkills" :key="s.name">
-            <td style="font-family:monospace">{{ s.name }}</td>
+            <td style="font-family:monospace">
+              <span :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;margin-right:6px;${sourceBadgeStyle(s.source)}`">{{ s.source }}</span>{{ s.name }}
+            </td>
             <td>{{ s.description || '-' }}</td>
             <td style="white-space:nowrap">
               <div class="ops-cell">
-                <button class="btn-outline btn-sm" @click="openView(s.name)">查看</button>
-                <button class="btn-danger btn-sm" @click="remove(s.name)">删除</button>
+                <button class="btn-outline btn-sm" @click="openView(s.name, s.source)">查看</button>
+                <button v-if="s.source === '全局'" class="btn-danger btn-sm" @click="remove(s.name)">删除</button>
               </div>
             </td>
           </tr>
@@ -280,8 +293,7 @@ onMounted(load)
           <div v-if="viewLoading" style="text-align:center;color:#94a3b8;padding:40px">加载中...</div>
           <template v-else>
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-              <span v-if="viewBadge === '内置'" style="background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600">内置</span>
-              <span v-else-if="viewBadge === '全局'" style="background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600">全局</span>
+              <span v-if="viewBadge" :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(viewBadge)}`">{{ viewBadge }}</span>
               <span style="font-family:monospace;font-size:15px;font-weight:600;color:#1e293b">{{ viewName }}</span>
             </div>
             <div v-if="viewParsed.description" style="margin-bottom:12px;font-size:13px;color:#475569">{{ viewParsed.description }}</div>
@@ -330,9 +342,7 @@ onMounted(load)
             </label>
             <div style="margin-top:16px;padding:12px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;color:#64748b;line-height:1.7">
               支持格式：<br>
-              <code style="font-family:monospace">https://skills.sh/{owner}/{repo}/{skill}</code><br>
-              <code style="font-family:monospace">https://clawhub.ai/{slug}</code><br>
-              <code style="font-family:monospace">https://skillsmp.com/skills/{slug}</code>
+              <code style="font-family:monospace">https://clawhub.ai/{slug}</code>
             </div>
           </template>
 
@@ -371,12 +381,7 @@ onMounted(load)
                       <td style="color:#475569;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.description || '-' }}</td>
                       <td style="font-size:12px;color:#94a3b8;white-space:nowrap">{{ s.version || '-' }}</td>
                       <td>
-                        <span v-if="s.provider === 'clawhub'"
-                          style="background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">ClawHub</span>
-                        <span v-else-if="s.provider === 'skillsmp'"
-                          style="background:#fef9c3;color:#a16207;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">SkillsMP</span>
-                        <span v-else
-                          style="background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">Skills.sh</span>
+                        <span style="background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">ClawHub</span>
                       </td>
                       <td>
                         <span v-if="installedNames.has(s.name || s.id)"
@@ -407,12 +412,7 @@ onMounted(load)
           <div style="margin-bottom:12px">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
               <span style="font-family:monospace;font-size:15px;font-weight:600;color:#1e293b">{{ selected.name || selected.id }}</span>
-              <span v-if="selected.provider === 'clawhub'"
-                style="background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">ClawHub</span>
-              <span v-else-if="selected.provider === 'skillsmp'"
-                style="background:#fef9c3;color:#a16207;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">SkillsMP</span>
-              <span v-else
-                style="background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">Skills.sh</span>
+              <span style="background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">ClawHub</span>
             </div>
             <div v-if="selected.description" style="font-size:13px;color:#475569">{{ selected.description }}</div>
           </div>

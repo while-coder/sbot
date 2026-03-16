@@ -4,9 +4,7 @@ import { URLSearchParams } from 'url';
 // ── Public Types ───────────────────────────────────────────────
 
 export enum SkillHubProvider {
-  Clawhub  = 'clawhub',
-  SkillsSh = 'skillssh',
-  SkillsMp = 'skillsmp',
+  Clawhub = 'clawhub',
 }
 
 export interface HubSkillResult {

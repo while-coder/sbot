@@ -7,12 +7,30 @@ import type { SkillItem } from '@/types'
 
 const { show } = useToast()
 
+const SOURCE_COLORS = [
+  { bg: '#e0e7ff', color: '#4f46e5' },
+  { bg: '#dcfce7', color: '#16a34a' },
+  { bg: '#fef9c3', color: '#a16207' },
+  { bg: '#fce7f3', color: '#be185d' },
+  { bg: '#e0f2fe', color: '#0369a1' },
+  { bg: '#fff7ed', color: '#c2410c' },
+  { bg: '#f3e8ff', color: '#7c3aed' },
+  { bg: '#ecfeff', color: '#0e7490' },
+]
+function sourceBadgeStyle(source: string | undefined) {
+  if (!source) return 'background:#f0efed;color:#6b6b6b'
+  let hash = 0
+  for (const c of source) hash = (hash * 31 + c.charCodeAt(0)) & 0xffff
+  const { bg, color } = SOURCE_COLORS[hash % SOURCE_COLORS.length]
+  return `background:${bg};color:${color}`
+}
+
 const visible    = ref(false)
 const agentName  = ref('')
 const agentDisplayName = computed(() => (store.settings.agents?.[agentName.value] as any)?.name || agentName.value)
 
 const skills     = ref<SkillItem[]>([])
-const activeTab  = ref<'globals' | 'skills'>('globals')
+const activeTab  = ref('all')
 
 // ── Global skills ─────────────────────────────────────────────────
 const agentSkillNames  = ref<string[]>([])
@@ -25,13 +43,21 @@ const skillsChanged = computed(() => {
   return a !== b
 })
 const allGlobalSkills = computed(() => [
-  ...store.skillBuiltins.map(s => ({ name: s.name, description: s.description, isBuiltin: true })),
-  ...store.globalSkills.map(s => ({ name: s.name, description: s.description, isBuiltin: false })),
+  ...store.skillBuiltins,
+  ...store.globalSkills,
 ])
+const sources = computed(() => {
+  const seen = new Set<string>()
+  for (const s of allGlobalSkills.value) if (s.source) seen.add(s.source)
+  return Array.from(seen)
+})
 const filteredGlobalSkills = computed(() => {
+  const list = activeTab.value === 'all'
+    ? allGlobalSkills.value
+    : allGlobalSkills.value.filter(s => s.source === activeTab.value)
   const q = skillSearch.value.trim().toLowerCase()
-  if (!q) return allGlobalSkills.value
-  return allGlobalSkills.value.filter(s => s.name.toLowerCase().includes(q) || (s.description || '').toLowerCase().includes(q))
+  if (!q) return list
+  return list.filter(s => s.name.toLowerCase().includes(q) || (s.description || '').toLowerCase().includes(q))
 })
 
 function apiBase() {
@@ -48,8 +74,9 @@ async function load() {
     const selectedFromApi: string[] = (agentRes.data?.globals || []).map((g: any) => g.name)
     agentSkillNames.value  = selectedFromApi
     selectedSkills.value   = [...selectedFromApi]
-    store.skillBuiltins    = skillsRes.data?.builtins || []
-    store.globalSkills     = skillsRes.data?.skills   || []
+    const allSkills = skillsRes.data || []
+    store.skillBuiltins    = allSkills.filter((s: any) => s.source === '内置')
+    store.globalSkills     = allSkills.filter((s: any) => s.source !== '内置')
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -96,7 +123,7 @@ async function openView(name: string, badge = '') {
   viewContent.value = ''
   viewLoading.value = true
   showViewModal.value = true
-  const isGlobal = badge === '内置' || badge === '全局'
+  const isGlobal = badge !== '专属技能'
   const url = isGlobal
     ? `/api/skills/${encodeURIComponent(name)}`
     : `${apiBase()}/${encodeURIComponent(name)}`
@@ -125,7 +152,7 @@ async function remove(name: string) {
 // ── Skill Hub ────────────────────────────────────────────────────
 interface HubSkillResult {
   id: string; name: string; description: string; version: string
-  sourceUrl: string; provider: 'clawhub' | 'skillssh' | 'skillsmp'
+  sourceUrl: string; provider: 'clawhub'
 }
 const showHub        = ref(false)
 const hubTab         = ref<'url' | 'search'>('search')
@@ -201,7 +228,7 @@ function open(name: string) {
   skills.value        = []
   agentSkillNames.value = []
   selectedSkills.value  = []
-  activeTab.value     = 'globals'
+  activeTab.value     = 'all'
   skillSearch.value   = ''
   visible.value       = true
   load()
@@ -226,26 +253,43 @@ defineExpose({ open })
         <!-- Tab bar -->
         <div style="display:flex;border-bottom:1px solid #e8e6e3;background:#fff;padding:0 20px;flex-shrink:0">
           <button
-            v-for="tab in [
-              { key: 'globals', label: '全局技能', count: selectedSkills.length },
-              { key: 'skills',  label: '专属技能', count: skills.length },
-            ]"
-            :key="tab.key"
-            @click="activeTab = tab.key as any"
-            style="padding:11px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s"
-            :style="activeTab === tab.key ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
+            @click="activeTab = 'all'"
+            style="padding:11px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s"
+            :style="activeTab === 'all' ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
           >
-            {{ tab.label }}
+            全部
             <span style="margin-left:4px;font-size:11px;padding:0 5px;border-radius:10px;font-weight:600"
-              :style="activeTab === tab.key ? 'background:#1c1c1c;color:#fff' : 'background:#f0efed;color:#6b6b6b'"
-            >{{ tab.count }}</span>
+              :style="activeTab === 'all' ? 'background:#1c1c1c;color:#fff' : 'background:#f0efed;color:#6b6b6b'"
+            >{{ allGlobalSkills.length }}</span>
+          </button>
+          <button
+            v-for="src in sources"
+            :key="src"
+            @click="activeTab = src"
+            style="padding:11px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s"
+            :style="activeTab === src ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
+          >
+            {{ src }}
+            <span style="margin-left:4px;font-size:11px;padding:0 5px;border-radius:10px;font-weight:600"
+              :style="activeTab === src ? 'background:#1c1c1c;color:#fff' : 'background:#f0efed;color:#6b6b6b'"
+            >{{ allGlobalSkills.filter(s => s.source === src).length }}</span>
+          </button>
+          <button
+            @click="activeTab = '专属技能'"
+            style="padding:11px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s"
+            :style="activeTab === '专属技能' ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
+          >
+            专属技能
+            <span style="margin-left:4px;font-size:11px;padding:0 5px;border-radius:10px;font-weight:600"
+              :style="activeTab === '专属技能' ? 'background:#1c1c1c;color:#fff' : 'background:#f0efed;color:#6b6b6b'"
+            >{{ skills.length }}</span>
           </button>
         </div>
 
         <!-- Content -->
         <div style="flex:1;overflow:auto;padding:16px 20px">
           <!-- Global skills tab -->
-          <template v-if="activeTab === 'globals'">
+          <template v-if="activeTab !== '专属技能'">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
               <input v-model="skillSearch" placeholder="搜索 Skill 名称或描述..." style="flex:1;padding:6px 10px;border:1px solid #e8e6e3;border-radius:6px;font-size:12px;outline:none" />
               <button class="btn-primary btn-sm" :disabled="!skillsChanged" @click="saveGlobalSkills">保存</button>
@@ -260,17 +304,16 @@ defineExpose({ open })
                 :style="selectedSkills.includes(s.name) ? 'background:#fafaf9' : ''"
               >
                 <input type="checkbox" :value="s.name" v-model="selectedSkills" style="cursor:pointer;flex-shrink:0;width:14px;height:14px" />
-                <span v-if="s.isBuiltin" style="flex-shrink:0;background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600">内置</span>
-                <span v-else style="flex-shrink:0;background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600">全局</span>
+                <span :style="`flex-shrink:0;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(s.source)}`">{{ s.source }}</span>
                 <span style="font-family:monospace;font-weight:500;width:200px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.name }}</span>
                 <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:#64748b">{{ s.description || '-' }}</span>
-                <button class="btn-outline btn-sm" style="flex-shrink:0;padding:2px 8px;font-size:11px" @click.prevent="openView(s.name, s.isBuiltin ? '内置' : '全局')">查看</button>
+                <button class="btn-outline btn-sm" style="flex-shrink:0;padding:2px 8px;font-size:11px" @click.prevent="openView(s.name, s.source)">查看</button>
               </label>
             </div>
           </template>
 
           <!-- Agent-specific skills tab -->
-          <template v-else-if="activeTab === 'skills'">
+          <template v-else>
             <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
               <button class="btn-primary btn-sm" @click="openAdd">+ 添加 Skill</button>
             </div>
@@ -285,7 +328,7 @@ defineExpose({ open })
                   <td style="font-family:monospace">{{ s.name }}</td>
                   <td>{{ s.description || '-' }}</td>
                   <td><div class="ops-cell">
-                    <button class="btn-outline btn-sm" @click="openView(s.name)">查看</button>
+                    <button class="btn-outline btn-sm" @click="openView(s.name, '专属技能')">查看</button>
                     <button class="btn-danger btn-sm" @click="remove(s.name)">删除</button>
                   </div></td>
                 </tr>
@@ -304,8 +347,7 @@ defineExpose({ open })
           <div v-if="viewLoading" style="text-align:center;color:#94a3b8;padding:40px">加载中...</div>
           <template v-else>
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-              <span v-if="viewBadge === '内置'" style="background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600">内置</span>
-              <span v-else-if="viewBadge === '全局'" style="background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600">全局</span>
+              <span v-if="viewBadge" :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(viewBadge)}`">{{ viewBadge }}</span>
               <span style="font-family:monospace;font-size:15px;font-weight:600;color:#1e293b">{{ viewName }}</span>
             </div>
             <div v-if="viewParsed.description" style="margin-bottom:12px;font-size:13px;color:#475569">{{ viewParsed.description }}</div>
@@ -346,9 +388,7 @@ defineExpose({ open })
                       <td style="color:#475569;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.description || '-' }}</td>
                       <td style="font-size:12px;color:#94a3b8;white-space:nowrap">{{ s.version || '-' }}</td>
                       <td>
-                        <span v-if="s.provider==='clawhub'" style="background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">ClawHub</span>
-                        <span v-else-if="s.provider==='skillsmp'" style="background:#fef9c3;color:#a16207;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">SkillsMP</span>
-                        <span v-else style="background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">Skills.sh</span>
+                        <span style="background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">ClawHub</span>
                       </td>
                       <td><button class="btn-primary btn-sm" @click="openInstall(s)">安装</button></td>
                     </tr>
@@ -366,9 +406,7 @@ defineExpose({ open })
             <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" v-model="hubUrlOverwrite" /> 覆盖已存在的同名 Skill</label>
             <div style="margin-top:16px;padding:12px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;color:#64748b;line-height:1.7">
               支持格式：<br>
-              <code style="font-family:monospace">https://skills.sh/{owner}/{repo}/{skill}</code><br>
-              <code style="font-family:monospace">https://clawhub.ai/{slug}</code><br>
-              <code style="font-family:monospace">https://skillsmp.com/skills/{slug}</code>
+              <code style="font-family:monospace">https://clawhub.ai/{slug}</code>
             </div>
           </template>
         </div>
@@ -383,9 +421,7 @@ defineExpose({ open })
           <div style="margin-bottom:12px">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
               <span style="font-family:monospace;font-size:15px;font-weight:600;color:#1e293b">{{ selected.name || selected.id }}</span>
-              <span v-if="selected.provider==='clawhub'" style="background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">ClawHub</span>
-              <span v-else-if="selected.provider==='skillsmp'" style="background:#fef9c3;color:#a16207;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">SkillsMP</span>
-              <span v-else style="background:#dcfce7;color:#16a34a;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">Skills.sh</span>
+              <span style="background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">ClawHub</span>
             </div>
             <div v-if="selected.description" style="font-size:13px;color:#475569">{{ selected.description }}</div>
           </div>

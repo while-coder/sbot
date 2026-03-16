@@ -109,8 +109,9 @@ async function init() {
     Object.assign(store.settings, settingsRes.data)
     store.mcpServers = mcpRes.data?.servers || {}
     store.mcpBuiltins = mcpRes.data?.builtins || []
-    store.skillBuiltins = skillRes.data?.builtins || []
-    store.globalSkills = skillRes.data?.skills || []
+    const allSkillsData = skillRes.data || []
+    store.skillBuiltins = allSkillsData.filter((s: any) => s.source === '内置')
+    store.globalSkills = allSkillsData.filter((s: any) => s.source !== '内置')
     if (aboutRes.data?.version) checkUpdate(aboutRes.data.version)
   } catch (_) {}
 }

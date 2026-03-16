@@ -12,7 +12,7 @@ export interface SkillItem {
   name: string
   description?: string
   content?: string
-  isBuiltin?: boolean
+  source?: string
 }
 
 export interface ToolCall {

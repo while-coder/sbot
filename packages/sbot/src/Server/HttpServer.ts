@@ -10,7 +10,7 @@ import { MCPServers, AgentToolService, SkillService } from "scorpio.ai";
 import { config } from '../Core/Config';
 import { AgentRunner } from '../Agent/AgentRunner';
 import { globalAgentToolService, refreshGlobalAgentToolService, BuiltinProvider } from '../Agent/GlobalAgentToolService';
-import { globalSkillService, refreshGlobalSkillService, BUILTIN_SKILLS_DIR } from '../Agent/GlobalSkillService';
+import { globalSkillService, refreshGlobalSkillService, getSkillsDirsMap } from '../Agent/GlobalSkillService';
 import { SkillHubService, type HubSkillResult } from '../SkillHub';
 import { LoggerService } from '../Core/LoggerService';
 import { database } from '../Core/Database';
@@ -510,25 +510,31 @@ class HttpServer {
 
         // ===== Skills =====
         app.get('/api/skills', api(() => {
-            const normalizedBuiltinDir = path.normalize(BUILTIN_SKILLS_DIR);
             const allSkills = globalSkillService.getAllSkills();
-            const builtins = allSkills
-                .filter(s => path.normalize(s.path).startsWith(normalizedBuiltinDir))
-                .map(s => ({ name: s.name, description: s.description }));
-            const skills = allSkills
-                .filter(s => !path.normalize(s.path).startsWith(normalizedBuiltinDir))
-                .map(s => ({ name: s.name, description: s.description }));
-            return { builtins, skills };
+            const dirsMap = getSkillsDirsMap();
+            return allSkills.map(s => {
+                const normalizedPath = path.normalize(s.path);
+                let source = 'unknown';
+                for (const [name, dir] of Object.entries(dirsMap)) {
+                    if (normalizedPath.startsWith(path.normalize(dir))) {
+                        source = name;
+                        break;
+                    }
+                }
+                return { name: s.name, description: s.description, source };
+            });
         }));
 
-        app.get('/api/skills/:name', api(req => getSkill(config.getSkillsPath(), req.params.name as string, [BUILTIN_SKILLS_DIR])));
-
-        app.put('/api/skills/:name', api(req => {
+        app.get('/api/skills/:name', api(req => {
             const name = req.params.name as string;
-            if (!req.body.content) { const e: any = new Error('缺少 content'); e.status = 400; throw e; }
-            const result = saveSkill(config.getSkillsPath(), name, req.body.content);
-            refreshGlobalSkillService();
-            return result;
+            const skill = globalSkillService.getAllSkills().find(s => s.name === name);
+            if (!skill) {
+                const e: any = new Error(`Skill "${name}" 不存在`);
+                e.status = 404;
+                throw e;
+            }
+            const content = fs.readFileSync(path.join(skill.path, 'SKILL.md'), 'utf-8');
+            return { name, content };
         }));
 
         app.delete('/api/skills/:name', api(req => {
@@ -583,19 +589,25 @@ class HttpServer {
             const agentName = req.params.name as string;
             const agent = (config.settings as any).agents?.[agentName];
             const agentSkillNames: string[] = (agent?.skills as string[]) || [];
-            const normalizedBuiltinDir = path.normalize(BUILTIN_SKILLS_DIR);
+            const dirsMap = getSkillsDirsMap();
             const allGlobalSkills = globalSkillService.getAllSkills();
             const globals = agentSkillNames
                 .map(name => allGlobalSkills.find(s => s.name === name))
                 .filter((s): s is NonNullable<typeof s> => !!s)
-                .map(s => ({
-                    name: s.name,
-                    description: s.description,
-                    isBuiltin: path.normalize(s.path).startsWith(normalizedBuiltinDir),
-                }));
+                .map(s => {
+                    const normalizedPath = path.normalize(s.path);
+                    let source = 'unknown';
+                    for (const [sourceName, dir] of Object.entries(dirsMap)) {
+                        if (normalizedPath.startsWith(path.normalize(dir))) {
+                            source = sourceName;
+                            break;
+                        }
+                    }
+                    return { name: s.name, description: s.description, source };
+                });
             return {
                 globals,
-                skills: listSkills(config.getAgentSkillsPath(agentName)),
+                skills: listSkills(config.getAgentSkillsPath(agentName)).map(s => ({ ...s, source: 'agent' })),
             };
         }));
 
