@@ -1,0 +1,16 @@
+{
+  "name": "sbot.commons",
+  "version": "0.0.1",
+  "description": "Shared TypeScript interfaces and types for sbot packages",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "rimraf --glob \"dist/*\" && tsc -b --force"
+  },
+  "private": true,
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "rimraf": "catalog:",
+    "typescript": "catalog:"
+  }
+}

@@ -3,13 +3,8 @@ import path from "path";
 import fs from "fs";
 import { ModelConfig, ModelProvider, EmbeddingConfig, EmbeddingProvider, MCPServers, MemoryMode, IModelService, IEmbeddingService, ModelServiceFactory, EmbeddingServiceFactory, type AgentSubNode } from "scorpio.ai";
 export type { AgentSubNode } from "scorpio.ai";
-
-export const DEFAULT_PORT = 5500;
-
-export enum SaverType {
-  File   = "file",
-  Sqlite = "sqlite",
-}
+import { DEFAULT_PORT, SaverType } from "sbot.commons";
+export { DEFAULT_PORT, SaverType } from "sbot.commons";
 
 /**
  * ModelConfig 的命名扩展（key 为 UUID）

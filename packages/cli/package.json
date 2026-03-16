@@ -18,6 +18,7 @@
     "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
+    "sbot.commons": "workspace:*",
     "axios": "catalog:",
     "chalk": "^5.3.0",
     "ink": "^5.1.0",

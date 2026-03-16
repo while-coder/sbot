@@ -4,8 +4,9 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import axios, { type AxiosInstance } from 'axios';
+import { DEFAULT_PORT, type Settings, type ChatEvent } from 'sbot.commons';
 
-const DEFAULT_PORT = 5500;
+export { DEFAULT_PORT, type ChatEvent } from 'sbot.commons';
 
 export function getServerBaseUrl(): string {
   try {
@@ -22,19 +23,9 @@ export function getServerBaseUrl(): string {
 }
 
 export interface SbotSettings {
-  agents?: Record<string, { name?: string }>;
-  savers?: Record<string, { name?: string }>;
-  memories?: Record<string, { name?: string }>;
-}
-
-export interface ChatEvent {
-  type: 'stream' | 'message' | 'tool_call' | 'error' | 'done';
-  content?: string;
-  role?: string;
-  tool_calls?: unknown[];
-  name?: string;
-  args?: unknown;
-  message?: string;
+  agents?: Settings['agents'];
+  savers?: Settings['savers'];
+  memories?: Settings['memories'];
 }
 
 export class SbotClient {
