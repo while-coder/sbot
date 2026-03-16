@@ -158,31 +158,61 @@ async function refresh() {
     <div class="page-content">
       <table>
         <thead>
-          <tr><th>名称</th><th>ID</th><th>类型</th><th>Agent</th><th>存储</th><th>记忆</th><th>操作</th></tr>
+          <tr><th style="width:32px"></th><th>名称</th><th>ID</th><th>类型</th><th>Agent</th><th>存储</th><th>记忆</th><th>操作</th></tr>
         </thead>
         <tbody>
           <tr v-if="Object.keys(channels).length === 0">
-            <td colspan="7" style="text-align:center;color:#94a3b8;padding:40px">暂无频道配置</td>
+            <td colspan="8" style="text-align:center;color:#94a3b8;padding:40px">暂无频道配置</td>
           </tr>
-          <tr v-for="(c, id) in channels" :key="id">
-            <td>{{ c.name || '-' }}</td>
-            <td style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ id }}</td>
-            <td>{{ c.type || '-' }}</td>
-            <td>{{ agentOptions.find(a => a.id === c.agent)?.label || c.agent || '-' }}</td>
-            <td>
-              <button v-if="c.saver" class="table-link-btn" @click="saverViewModal?.open(c.saver, 'lark_' + id)">
-                {{ saverOptions.find(s => s.id === c.saver)?.label || c.saver }}
-              </button>
-              <span v-else>-</span>
-            </td>
-            <td>{{ c.memory ? (memoryOptions.find(m => m.id === c.memory)?.label || c.memory) : '-' }}</td>
-            <td>
-              <div class="ops-cell">
-                <button class="btn-outline btn-sm" @click="openEdit(id as string)">编辑</button>
-                <button class="btn-danger btn-sm" @click="remove(id as string)">删除</button>
-              </div>
-            </td>
-          </tr>
+          <template v-for="(c, id) in channels" :key="id">
+            <tr>
+              <td>
+                <button class="expand-btn" @click="toggleExpand(id as string)">
+                  {{ expandedChannels[id as string] ? '▼' : '▶' }}
+                </button>
+              </td>
+              <td>{{ c.name || '-' }}</td>
+              <td style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ id }}</td>
+              <td>{{ c.type || '-' }}</td>
+              <td>{{ agentOptions.find(a => a.id === c.agent)?.label || c.agent || '-' }}</td>
+              <td>
+                <button v-if="c.saver" class="table-link-btn" @click="saverViewModal?.open(c.saver, 'lark_' + id)">
+                  {{ saverOptions.find(s => s.id === c.saver)?.label || c.saver }}
+                </button>
+                <span v-else>-</span>
+              </td>
+              <td>{{ c.memory ? (memoryOptions.find(m => m.id === c.memory)?.label || c.memory) : '-' }}</td>
+              <td>
+                <div class="ops-cell">
+                  <button class="btn-outline btn-sm" @click="openEdit(id as string)">编辑</button>
+                  <button class="btn-danger btn-sm" @click="remove(id as string)">删除</button>
+                </div>
+              </td>
+            </tr>
+            <template v-if="expandedChannels[id as string]">
+              <tr v-if="channelLoading[id as string]" class="session-sub-row">
+                <td></td>
+                <td colspan="7" class="session-sub-cell">加载中...</td>
+              </tr>
+              <tr v-else-if="(sessionMap[id as string] || []).length === 0" class="session-sub-row">
+                <td></td>
+                <td colspan="7" class="session-sub-cell">暂无会话记录</td>
+              </tr>
+              <tr v-for="s in sessionMap[id as string] || []" :key="s.id" class="session-sub-row">
+                <td></td>
+                <td colspan="3" class="session-id-cell">{{ s.sessionId }}</td>
+                <td style="font-family:monospace;font-size:12px;color:#6b6b6b">{{ s.agentId || '-' }}</td>
+                <td style="font-family:monospace;font-size:12px;color:#6b6b6b">{{ s.saverId || '-' }}</td>
+                <td style="font-family:monospace;font-size:12px;color:#6b6b6b">{{ s.memoryId || '-' }}</td>
+                <td>
+                  <div class="ops-cell">
+                    <button class="btn-outline btn-sm" @click="viewSession = s">查看</button>
+                    <button class="btn-danger btn-sm" @click="removeSession(id as string, s)">删除</button>
+                  </div>
+                </td>
+              </tr>
+            </template>
+          </template>
         </tbody>
       </table>
     </div>
@@ -245,6 +275,77 @@ async function refresh() {
       </div>
     </div>
 
+    <div v-if="viewSession" class="modal-overlay" @click.self="viewSession = null">
+      <div class="modal-box wide">
+        <div class="modal-header">
+          <h3>会话详情 — {{ viewSession.sessionId }}</h3>
+          <button class="modal-close" @click="viewSession = null">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>ID</label>
+            <input :value="viewSession.id" disabled />
+          </div>
+          <div class="form-group">
+            <label>频道</label>
+            <input :value="viewSession.channel" disabled />
+          </div>
+          <div class="form-group">
+            <label>Session ID (chat_id)</label>
+            <input :value="viewSession.sessionId" disabled />
+          </div>
+          <div class="form-group">
+            <label>Agent ID</label>
+            <input :value="viewSession.agentId" disabled />
+          </div>
+          <div class="form-group">
+            <label>Saver ID</label>
+            <input :value="viewSession.saverId" disabled />
+          </div>
+          <div class="form-group">
+            <label>Memory ID</label>
+            <input :value="viewSession.memoryId ?? ''" disabled />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-outline" @click="viewSession = null">关闭</button>
+        </div>
+      </div>
+    </div>
+
     <SaverViewModal ref="saverViewModal" />
   </div>
 </template>
+
+<style scoped>
+.expand-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 10px;
+  color: #9b9b9b;
+  padding: 2px 6px;
+  width: 28px;
+  text-align: center;
+  line-height: 1;
+}
+.expand-btn:hover { color: #1c1c1c; }
+.session-sub-row td {
+  background: #fafaf9;
+  border-bottom: 1px solid #f0efed;
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+.session-sub-cell {
+  padding: 5px 12px;
+  font-size: 12px;
+  color: #94a3b8;
+  font-style: italic;
+}
+.session-id-cell {
+  font-family: monospace;
+  font-size: 12px;
+  color: #3d3d3d;
+  padding: 5px 12px;
+}
+</style>

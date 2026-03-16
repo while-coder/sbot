@@ -15,7 +15,6 @@ const routes = [
   { path: '/agent/mcp/:agentName', component: () => import('@/views/McpView.vue') },
   { path: '/skills', component: () => import('@/views/SkillsView.vue') },
   { path: '/users', component: () => import('@/views/UsersView.vue') },
-  { path: '/channel-sessions', component: () => import('@/views/ChannelSessionsView.vue') },
   { path: '/scheduler', component: () => import('@/views/SchedulerView.vue') },
   { path: '/channels', component: () => import('@/views/ChannelsView.vue') },
   { path: '/directory', component: () => import('@/views/DirectoryView.vue') },
