@@ -5,14 +5,14 @@ import { LoggerService } from "./LoggerService";
 
 const logger = LoggerService.getLogger("Database.ts");
 const DBVersionName = "db_version";
-const DBVersion = '0.0.12'
+const DBVersion: string = config.pkg.version;
 export type MessageRow = {
   id: string;
   expireTime: number;
 };
 
 export enum ContextType {
-  Channel   = "channel",    // Lark 频道模式（userId 关联用户）
+  Channel   = "channel",    // Lark 频道模式（channel_session）
   Session   = "session",    // 会话模式（sessionId）
   Directory = "directory",  // 目录模式（workPath）
 }
@@ -23,9 +23,7 @@ export type SchedulerRow = {
   expr: string;                    // cron 表达式，如 "0 9 * * *"
   type: ContextType | null;        // 任务类型
   message: string;                 // 消息文本
-  channelSessionId: number | null;  // channel_session 表 ID（channel 模式）
-  sessionId: string | null;        // 会话 ID（session 模式）
-  workPath: string | null;         // 工作目录路径（directory 模式）
+  targetId: string | null;         // channel_session.id (string) | sessionId | workPath（按 type 区分）
   lastRun: number | null;          // 上次执行时间戳
   runCount: number;                // 已执行次数
   maxRuns: number;                 // 最大执行次数（0 表示不限制）
@@ -267,23 +265,11 @@ class Database {
           defaultValue: "",
           comment: "发送的文字消息",
         },
-        channelSessionId: {
-          type: DataTypes.INTEGER,
-          allowNull: true,
-          defaultValue: null,
-          comment: "channel_session 表 ID",
-        },
-        sessionId: {
-          type: DataTypes.STRING(255),
-          allowNull: true,
-          defaultValue: null,
-          comment: "会话 ID",
-        },
-        workPath: {
+        targetId: {
           type: DataTypes.TEXT,
           allowNull: true,
           defaultValue: null,
-          comment: "工作目录路径",
+          comment: "目标 ID（channel_session.id | sessionId | workPath，按 type 区分）",
         },
         lastRun: {
           type: DataTypes.BIGINT,

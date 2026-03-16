@@ -121,8 +121,11 @@ export interface Settings {
 class Config {
   private _configDir: string;
   private _settings: Settings = {};
+  readonly pkg: { version: string; name: string; description: string };
 
   constructor() {
+    this.pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '../../package.json'), 'utf8'));
+
     // 获取用户目录
     const userHome = os.homedir();
     this._configDir = path.join(userHome, ".sbot");

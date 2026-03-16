@@ -149,8 +149,7 @@ class HttpServer {
 
         // ===== About =====
         app.get('/api/about', api(() => {
-            const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '../../package.json'), 'utf8'));
-            return { version: pkg.version, name: pkg.name, description: pkg.description };
+            return { version: config.pkg.version, name: config.pkg.name, description: config.pkg.description };
         }));
 
         // ===== Settings =====
@@ -730,7 +729,7 @@ class HttpServer {
         }));
 
         app.post('/api/schedulers', api(async req => {
-            const { name, expr, message, type, channelSessionId, sessionId, workPath, maxRuns } = req.body;
+            const { name, expr, message, type, targetId, maxRuns } = req.body;
             if (!name?.trim()) throwBad('name 不能为空');
             if (!expr?.trim()) throwBad('expr 不能为空');
             if (!message?.trim()) throwBad('message 不能为空');
@@ -739,9 +738,7 @@ class HttpServer {
                 expr: expr.trim(),
                 type: type ?? null,
                 message: message.trim(),
-                channelSessionId: channelSessionId ?? null,
-                sessionId: sessionId ?? null,
-                workPath: workPath ?? null,
+                targetId: targetId ?? null,
                 lastRun: null,
                 runCount: 0,
                 maxRuns: maxRuns ?? 0,
@@ -753,16 +750,14 @@ class HttpServer {
         app.put('/api/schedulers/:id', api(async req => {
             const id = parseInt(req.params.id as string, 10);
             if (isNaN(id)) throwBad('无效的 id');
-            const { name, expr, message, type, channelSessionId, sessionId, workPath, maxRuns } = req.body;
+            const { name, expr, message, type, targetId, maxRuns } = req.body;
             const updates: any = {};
-            if (name !== undefined)             updates.name             = name;
-            if (expr !== undefined)             updates.expr             = expr;
-            if (message !== undefined)          updates.message          = message;
-            if (type !== undefined)             updates.type             = type;
-            if (channelSessionId !== undefined) updates.channelSessionId = channelSessionId;
-            if (sessionId !== undefined)        updates.sessionId        = sessionId;
-            if (workPath !== undefined)  updates.workPath  = workPath;
-            if (maxRuns !== undefined)   updates.maxRuns   = maxRuns;
+            if (name !== undefined)     updates.name     = name;
+            if (expr !== undefined)     updates.expr     = expr;
+            if (message !== undefined)  updates.message  = message;
+            if (type !== undefined)     updates.type     = type;
+            if (targetId !== undefined) updates.targetId = targetId;
+            if (maxRuns !== undefined)  updates.maxRuns  = maxRuns;
             await database.update(database.scheduler, updates, { where: { id } });
             await schedulerService.reload(id);
         }));

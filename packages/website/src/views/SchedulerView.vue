@@ -10,9 +10,7 @@ interface SchedulerRow {
   expr: string
   type: string | null
   message: string
-  channelSessionId: number | null
-  sessionId: string | null
-  workPath: string | null
+  targetId: string | null
   lastRun: number | null
   nextRun: number | null
   runCount: number
@@ -56,10 +54,8 @@ const form = ref({
   minutes:      30,
   customExpr:   '',
   message:      '',
-  routingType:         'channel' as RoutingType,
-  channelSessionId:    '' as string | number,
-  sessionId:    '',
-  workPath:     '',
+  routingType:  'channel' as RoutingType,
+  targetId:     '',
   maxRuns:      0,
 })
 
@@ -116,20 +112,21 @@ function describeExpr(expr: string): string {
 // ── Routing helpers ───────────────────────────────────────────────────────────
 
 function routingTypeOf(row: SchedulerRow): RoutingType {
-  if (row.type === 'channel' || (row.type == null && row.channelSessionId != null)) return 'channel'
-  if (row.type === 'session' || (row.type == null && row.sessionId != null)) return 'session'
+  if (row.type === 'channel') return 'channel'
+  if (row.type === 'session') return 'session'
   return 'directory'
 }
 
 function routingLabel(row: SchedulerRow): string {
   const rt = routingTypeOf(row)
   if (rt === 'channel') {
-    if (row.channelSessionId == null) return '-'
-    const s = channelSessions.value.find(s => s.id === row.channelSessionId)
-    return s ? s.sessionId : String(row.channelSessionId)
+    if (row.targetId == null) return '-'
+    const id = parseInt(row.targetId)
+    const s = channelSessions.value.find(s => s.id === id)
+    return s ? s.sessionId : row.targetId
   }
-  if (rt === 'session') return row.sessionId ?? '-'
-  return row.workPath ? row.workPath.split(/[\\/]/).slice(-2).join('/') : '-'
+  if (rt === 'session') return row.targetId ?? '-'
+  return row.targetId ? row.targetId.split(/[\\/]/).slice(-2).join('/') : '-'
 }
 
 const ROUTING_BADGE: Record<RoutingType, { bg: string; color: string; label: string }> = {
@@ -177,13 +174,11 @@ function openAdd() {
   const parsed = parseExpr('0 9 * * *')
   form.value = {
     ...parsed,
-    name:             '',
-    message:          '',
-    routingType:      'channel',
-    channelSessionId: '',
-    sessionId:        sessionOptions.value[0] ?? '',
-    workPath:         '',
-    maxRuns:          0,
+    name:        '',
+    message:     '',
+    routingType: 'channel',
+    targetId:    '',
+    maxRuns:     0,
   }
   showModal.value = true
 }
@@ -197,9 +192,7 @@ function openEdit(row: SchedulerRow) {
     name:        row.name,
     message:     row.message,
     routingType: rt,
-    channelSessionId: row.channelSessionId ?? '',
-    sessionId:   row.sessionId ?? '',
-    workPath:    row.workPath ?? '',
+    targetId:    row.targetId ?? '',
     maxRuns:     row.maxRuns ?? 0,
   }
   showModal.value = true
@@ -213,21 +206,19 @@ async function save() {
   if (!form.value.message.trim()) { show('消息不能为空', 'error'); return }
 
   const rt = form.value.routingType
-  if (rt === 'channel' && form.value.channelSessionId === '') { show('请选择频道会话', 'error'); return }
-  if (rt === 'session' && !form.value.sessionId)    { show('请选择会话', 'error'); return }
-  if (rt === 'directory' && !form.value.workPath.trim()) { show('请输入工作目录路径', 'error'); return }
+  if (rt === 'channel' && !form.value.targetId)          { show('请选择频道会话', 'error'); return }
+  if (rt === 'session' && !form.value.targetId)          { show('请选择会话', 'error'); return }
+  if (rt === 'directory' && !form.value.targetId.trim()) { show('请输入工作目录路径', 'error'); return }
 
   saving.value = true
   try {
     const body: any = {
-      name:      form.value.name.trim(),
-      expr:      builtExpr.value,
-      message:   form.value.message.trim(),
-      type:      rt,
-      channelSessionId: rt === 'channel' && form.value.channelSessionId !== '' ? Number(form.value.channelSessionId) : null,
-      sessionId: rt === 'session' ? form.value.sessionId : null,
-      workPath:  rt === 'directory' ? form.value.workPath.trim() : null,
-      maxRuns:   form.value.maxRuns ?? 0,
+      name:     form.value.name.trim(),
+      expr:     builtExpr.value,
+      message:  form.value.message.trim(),
+      type:     rt,
+      targetId: form.value.targetId || null,
+      maxRuns:  form.value.maxRuns ?? 0,
     }
     if (editingId.value !== null) {
       await apiFetch(`/api/schedulers/${editingId.value}`, 'PUT', body)
@@ -410,30 +401,30 @@ onMounted(load)
           <!-- channel: 频道会话 -->
           <div v-if="form.routingType === 'channel'" class="form-group">
             <label>频道会话</label>
-            <select v-model="form.channelSessionId">
+            <select v-model="form.targetId">
               <option value="">请选择会话</option>
-              <option v-for="s in channelSessions" :key="s.id" :value="s.id">{{ sessionLabel(s) }}</option>
+              <option v-for="s in channelSessions" :key="s.id" :value="String(s.id)">{{ sessionLabel(s) }}</option>
             </select>
           </div>
 
           <!-- session: 会话 -->
           <div v-if="form.routingType === 'session'" class="form-group">
             <label>会话 ID</label>
-            <select v-if="sessionOptions.length" v-model="form.sessionId">
+            <select v-if="sessionOptions.length" v-model="form.targetId">
               <option value="">请选择会话</option>
               <option v-for="s in sessionOptions" :key="s" :value="s">{{ s }}</option>
             </select>
-            <input v-else v-model="form.sessionId" placeholder="session ID" />
+            <input v-else v-model="form.targetId" placeholder="session ID" />
           </div>
 
           <!-- directory: 工作目录 -->
           <div v-if="form.routingType === 'directory'" class="form-group">
             <label>工作目录</label>
-            <select v-if="directoryOptions.length" v-model="form.workPath">
+            <select v-if="directoryOptions.length" v-model="form.targetId">
               <option value="">请选择目录</option>
               <option v-for="d in directoryOptions" :key="d" :value="d">{{ d }}</option>
             </select>
-            <input v-else v-model="form.workPath" placeholder="/path/to/directory" style="font-family:monospace" />
+            <input v-else v-model="form.targetId" placeholder="/path/to/directory" style="font-family:monospace" />
           </div>
 
           <!-- 最大执行次数 -->

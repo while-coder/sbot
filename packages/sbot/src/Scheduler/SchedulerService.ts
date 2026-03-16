@@ -13,21 +13,20 @@ async function executeScheduler(schedulerId: number): Promise<void> {
     if (!scheduler) return;
 
     const tag = `[${scheduler.id}:${scheduler.name}]`;
-    const isChannel = scheduler.type === ContextType.Channel
-        || (scheduler.type == null && scheduler.channelSessionId != null);
+    const isChannel = scheduler.type === ContextType.Channel;
 
     try {
         if (isChannel) {
             // Channel mode: deliver via Lark chat_id
-            const sessionRow = scheduler.channelSessionId
-                ? await database.findByPk<ChannelSessionRow>(database.channelSession, scheduler.channelSessionId)
+            const sessionRow = scheduler.targetId
+                ? await database.findByPk<ChannelSessionRow>(database.channelSession, parseInt(scheduler.targetId))
                 : null;
             const larkService = sessionRow?.channel
                 ? channelManager.getService(sessionRow.channel) as LarkService | undefined
                 : undefined;
 
             if (!sessionRow || !larkService) {
-                logger.error(`Scheduler task ${tag} channel mode: channelSessionId=${scheduler.channelSessionId} not found or has no Lark service`);
+                logger.error(`Scheduler task ${tag} channel mode: targetId=${scheduler.targetId} not found or has no Lark service`);
                 return;
             }
 
@@ -42,13 +41,15 @@ async function executeScheduler(schedulerId: number): Promise<void> {
             logger.info(`Scheduler task ${tag} fired (channel), session ${sessionRow.sessionId}`);
         } else {
             // Session / directory mode: deliver via HTTP pipeline
+            const sessionId = scheduler.type === ContextType.Session    ? scheduler.targetId ?? undefined : undefined;
+            const workPath  = scheduler.type === ContextType.Directory  ? scheduler.targetId ?? undefined : undefined;
             await userService.onReceiveHttpMessage(
                 scheduler.message,
                 null,
-                scheduler.sessionId ?? undefined,
-                scheduler.workPath ?? undefined,
+                sessionId,
+                workPath,
             );
-            logger.info(`Scheduler task ${tag} fired (http), sessionId=${scheduler.sessionId ?? '-'} workPath=${scheduler.workPath ?? '-'}`);
+            logger.info(`Scheduler task ${tag} fired (http), sessionId=${sessionId ?? '-'} workPath=${workPath ?? '-'}`);
         }
     } catch (e: any) {
         logger.error(`Scheduler task ${tag} failed: ${e?.message ?? e}`);
