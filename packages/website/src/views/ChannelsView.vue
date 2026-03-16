@@ -175,12 +175,7 @@ async function refresh() {
               <td style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ id }}</td>
               <td>{{ c.type || '-' }}</td>
               <td>{{ agentOptions.find(a => a.id === c.agent)?.label || c.agent || '-' }}</td>
-              <td>
-                <button v-if="c.saver" class="table-link-btn" @click="saverViewModal?.open(c.saver, 'lark_' + id)">
-                  {{ saverOptions.find(s => s.id === c.saver)?.label || c.saver }}
-                </button>
-                <span v-else>-</span>
-              </td>
+              <td>{{ c.saver ? (saverOptions.find(s => s.id === c.saver)?.label || c.saver) : '-' }}</td>
               <td>{{ c.memory ? (memoryOptions.find(m => m.id === c.memory)?.label || c.memory) : '-' }}</td>
               <td>
                 <div class="ops-cell">
@@ -206,6 +201,7 @@ async function refresh() {
                 <td style="font-family:monospace;font-size:12px;color:#6b6b6b">{{ s.memoryId || '-' }}</td>
                 <td>
                   <div class="ops-cell">
+                    <button v-if="c.saver" class="btn-outline btn-sm" @click="saverViewModal?.open(c.saver, 'lark_' + (id as string) + '_' + s.sessionId)">历史记录</button>
                     <button class="btn-outline btn-sm" @click="viewSession = s">查看</button>
                     <button class="btn-danger btn-sm" @click="removeSession(id as string, s)">删除</button>
                   </div>
