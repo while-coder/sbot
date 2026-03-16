@@ -48,13 +48,15 @@ export abstract class BaseWebUserService {
             const localCfg = config.getDirectoryConfig(workPath);
             if (!localCfg) throw new Error(`目录 "${workPath}" 未配置 agent`);
             const saverThreadId = workPath.replace(/[:/\\]/g, '_');
-            await AgentRunner.run(query, callbacks, localCfg.agent, localCfg.saver, `dir_${saverThreadId}`, ContextType.Directory, localCfg.memory, undefined, workPath);
+            const extraInfo = `<scheduler-id>${workPath}</scheduler-id>`;
+            await AgentRunner.run(query, callbacks, localCfg.agent, localCfg.saver, `dir_${saverThreadId}`, ContextType.Directory, extraInfo, localCfg.memory, workPath);
         } else {
             // 会话模式：通过 sessionId 查找全局会话配置
             const sessionId = args?.sessionId as string;
             const session = sessionId ? config.getSession(sessionId) : undefined;
             if (!session) throw new Error(`会话 "${sessionId}" 不存在`);
-            await AgentRunner.run(query, callbacks, session.agent, session.saver, `session_${sessionId}`, ContextType.Session, session.memory, undefined);
+            const extraInfo = `<scheduler-id>${sessionId}</scheduler-id>`;
+            await AgentRunner.run(query, callbacks, session.agent, session.saver, `session_${sessionId}`, ContextType.Session, extraInfo, session.memory);
         }
     }
 }

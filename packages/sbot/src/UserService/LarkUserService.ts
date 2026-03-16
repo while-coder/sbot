@@ -14,31 +14,29 @@ export class LarkUserService extends LarkUserServiceBase {
         const { chat_id } = args as LarkMessageArgs;
 
         const userInfo = args?.userInfo;
-        const dbSessionId: number | undefined = args?.dbSessionId;
-        const dbUserId: number | undefined = args?.dbUserId;
+        const dbSessionId: number = args?.dbSessionId;
+        if (!dbSessionId) throw new Error('未指定 dbSessionId');
 
-        const dbSession = dbSessionId
-            ? await database.findByPk<ChannelSessionRow>(database.channelSession, dbSessionId)
-            : null;
+        const dbSession = await database.findByPk<ChannelSessionRow>(database.channelSession, dbSessionId);
 
         const agentId  = dbSession?.agentId  || channel.agent;
-        const memoryId = dbSession?.memoryId ?? channel.memory;
+        const memoryId = dbSession?.memoryId || channel.memory;
 
-        const extraInfo = userInfo ? `<current-user>
-  <db-id>${dbUserId ?? ''}</db-id>
-  <db-session-id>${dbSessionId ?? ''}</db-session-id>
+        const schedulerId = `<scheduler-id>${dbSessionId}</scheduler-id>`;
+        const extraInfo = userInfo ? `${schedulerId}
+<current-user>
   <id>${userInfo.user_id}</id>
   <open-id>${userInfo.open_id}</open-id>
   <union-id>${userInfo.union_id}</union-id>
   <name>${userInfo.name}</name>
   <email>${userInfo.email}</email>
-</current-user>` : undefined;
+</current-user>` : schedulerId;
 
         await AgentRunner.run(query, {
             onMessage: this.onAgentMessage.bind(this),
             onStreamMessage: this.onAgentStreamMessage.bind(this),
             executeTool: this.executeAgentTool.bind(this),
             convertImages: this.convertImages.bind(this),
-        }, agentId, channel.saver, `lark_${channelId}_${chat_id}`, ContextType.Channel, memoryId ?? undefined, extraInfo);
+        }, agentId, channel.saver, `lark_${channelId}_${chat_id}`, ContextType.Channel, extraInfo, memoryId);
     }
 }

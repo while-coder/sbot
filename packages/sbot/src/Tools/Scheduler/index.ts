@@ -47,9 +47,9 @@ export function createSchedulerCreateTool(): StructuredToolInterface {
 Cron examples: daily 09:00="0 9 * * *"  every Monday="0 9 * * 1"  every 30min="*/30 * * * *"
 
 Routing — set type AND exactly one of channelSessionId/sessionId/workPath, leave the other two null:
-  type="channel"   + channelSessionId = integer from <environment><current-user><db-session-id>
-  type="session"   + sessionId        = string from <environment><scheduler-session-id>
-  type="directory" + workPath         = string from <environment><paths><working-directory dir="...">`,
+  type="channel"   + channelSessionId = integer from <environment><scheduler-id>
+  type="session"   + sessionId        = string from <environment><scheduler-id>
+  type="directory" + workPath         = string from <environment><scheduler-id>`,
         schema: z.object({
             name:             z.string().describe('Task name'),
             expr:             z.string().describe('5-field cron: minute hour day month weekday'),
