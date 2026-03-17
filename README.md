@@ -16,8 +16,6 @@ npm install -g @qingfeng346/sbot
 sbot
 ```
 
-On first run, an interactive setup wizard generates a `settings.json` with sensible defaults.
-
 ---
 
 ## Features

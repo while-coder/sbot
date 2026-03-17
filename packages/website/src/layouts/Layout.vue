@@ -4,6 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { apiFetch } from '@/api'
 import { store, applyMcpList } from '@/store'
 import { useToast } from '@/composables/useToast'
+import { GITHUB_RELEASES_API } from '@/utils/constants'
 
 const router = useRouter()
 const route = useRoute()
@@ -85,7 +86,7 @@ function compareSemver(a: string, b: string): number {
 
 async function checkUpdate(currentVersion: string) {
   try {
-    const res = await fetch('https://api.github.com/repos/while-coder/sbot/releases/latest', {
+    const res = await fetch(GITHUB_RELEASES_API, {
       headers: { Accept: 'application/vnd.github+json' },
     })
     if (!res.ok) return
