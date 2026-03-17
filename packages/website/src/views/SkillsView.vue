@@ -4,26 +4,9 @@ import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 import type { SkillItem } from '@/types'
+import { sourceBadgeStyle, BADGE_CLAWHUB, BADGE_INSTALLED } from '@/utils/badges'
 
 const { show } = useToast()
-
-const SOURCE_COLORS = [
-  { bg: '#e0e7ff', color: '#4f46e5' },
-  { bg: '#dcfce7', color: '#16a34a' },
-  { bg: '#fef9c3', color: '#a16207' },
-  { bg: '#fce7f3', color: '#be185d' },
-  { bg: '#e0f2fe', color: '#0369a1' },
-  { bg: '#fff7ed', color: '#c2410c' },
-  { bg: '#f3e8ff', color: '#7c3aed' },
-  { bg: '#ecfeff', color: '#0e7490' },
-]
-function sourceBadgeStyle(source: string | undefined) {
-  if (!source) return 'background:#f0efed;color:#6b6b6b'
-  let hash = 0
-  for (const c of source) hash = (hash * 31 + c.charCodeAt(0)) & 0xffff
-  const { bg, color } = SOURCE_COLORS[hash % SOURCE_COLORS.length]
-  return `background:${bg};color:${color}`
-}
 
 const allSkills = ref<SkillItem[]>([])
 
@@ -380,11 +363,11 @@ onMounted(load)
                       <td style="color:#475569;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.description || '-' }}</td>
                       <td style="font-size:12px;color:#94a3b8;white-space:nowrap">{{ s.version || '-' }}</td>
                       <td>
-                        <span style="background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">ClawHub</span>
+                        <span :style="BADGE_CLAWHUB">ClawHub</span>
                       </td>
                       <td>
                         <span v-if="installedNames.has(s.name || s.id)"
-                          style="background:#dcfce7;color:#16a34a;font-size:10px;padding:2px 8px;border-radius:6px;font-weight:600">已安装</span>
+                          :style="BADGE_INSTALLED">已安装</span>
                         <button v-else class="btn-primary btn-sm" @click="openInstall(s)">安装</button>
                       </td>
                     </tr>
@@ -411,7 +394,7 @@ onMounted(load)
           <div style="margin-bottom:12px">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
               <span style="font-family:monospace;font-size:15px;font-weight:600;color:#1e293b">{{ selected.name || selected.id }}</span>
-              <span style="background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">ClawHub</span>
+              <span :style="BADGE_CLAWHUB">ClawHub</span>
             </div>
             <div v-if="selected.description" style="font-size:13px;color:#475569">{{ selected.description }}</div>
           </div>
