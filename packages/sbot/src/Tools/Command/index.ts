@@ -6,15 +6,19 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { exec, execSync } from 'child_process';
-import { promisify } from 'util';
+import { spawn, execSync, type ChildProcess } from 'child_process';
+import { setTimeout as sleep } from 'timers/promises';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import { LoggerService } from '../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
 
 const logger = LoggerService.getLogger('Tools/Command/index.ts');
-const execAsync = promisify(exec);
+
+const MAX_OUTPUT_BYTES = 10 * 1024 * 1024   // 10 MB，超出后截断而非抛异常
+const MAX_OUTPUT_LINES = 5_000               // 5000 行，超出后截断
+const SIGKILL_TIMEOUT_MS = 200               // SIGTERM 后等待 200ms 再 SIGKILL
+const SHELL_BLACKLIST = new Set(['fish', 'nu'])  // 不兼容脚本模式的 shell
 
 /**
  * 检查可执行文件是否存在于 PATH 中
@@ -26,6 +30,92 @@ function isCommandAvailable(interpreter: string): boolean {
     } catch {
         return false;
     }
+}
+
+/**
+ * 检测当前平台可用的 shell，结果缓存后复用。
+ * 黑名单（fish、nu）不支持脚本模式，自动跳过。
+ * Windows 优先级：SHELL 环境变量 → SBOT_BASH_PATH → Git Bash → COMSPEC/cmd.exe
+ * 其他平台：SHELL 环境变量 → /bin/bash
+ */
+let _shell: string | undefined;
+
+function resolveShell(): string {
+    if (_shell !== undefined) return _shell;
+
+    if (process.platform !== 'win32') {
+        const s = process.env.SHELL;
+        _shell = (s && !SHELL_BLACKLIST.has(path.basename(s))) ? s : '/bin/bash';
+        logger.info(`using shell: ${_shell}`);
+        return _shell;
+    }
+
+    // Windows：优先用用户指定的 shell（如 Git Bash / WSL）
+    const envShell = process.env.SHELL;
+    if (envShell && !SHELL_BLACKLIST.has(path.win32.basename(envShell))) {
+        _shell = envShell; logger.info(`using shell: ${_shell}`); return _shell;
+    }
+    if (process.env.SBOT_BASH_PATH) {
+        _shell = process.env.SBOT_BASH_PATH; logger.info(`using shell: ${_shell}`); return _shell;
+    }
+
+    // 自动查找 Git Bash：git.exe 通常在 C:\Program Files\Git\cmd\git.exe
+    // bash.exe 在                C:\Program Files\Git\bin\bash.exe
+    try {
+        const gitPath = execSync('where git', { stdio: 'pipe' }).toString().split('\n')[0].trim();
+        if (gitPath) {
+            const bashPath = path.join(gitPath, '..', '..', 'bin', 'bash.exe');
+            if (fs.existsSync(bashPath)) { _shell = bashPath; logger.info(`using shell: ${_shell}`); return _shell; }
+        }
+    } catch { /* git 未安装，继续兜底 */ }
+
+    _shell = process.env.COMSPEC || 'cmd.exe';
+    logger.info(`using shell: ${_shell}`);
+    return _shell;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 进程管理
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 彻底杀死进程及其子进程树。
+ * Windows：taskkill /f /t；其他平台：SIGTERM → 等待 → SIGKILL
+ */
+async function killTree(proc: ChildProcess, isExited: () => boolean): Promise<void> {
+    const pid = proc.pid;
+    if (!pid || isExited()) return;
+
+    if (process.platform === 'win32') {
+        await new Promise<void>((resolve) => {
+            const killer = spawn('taskkill', ['/pid', String(pid), '/f', '/t'], { stdio: 'ignore' });
+            killer.once('exit', () => resolve());
+            killer.once('error', () => resolve());
+        });
+        return;
+    }
+
+    try {
+        process.kill(-pid, 'SIGTERM');
+        await sleep(SIGKILL_TIMEOUT_MS);
+        if (!isExited()) process.kill(-pid, 'SIGKILL');
+    } catch {
+        proc.kill('SIGTERM');
+        await sleep(SIGKILL_TIMEOUT_MS);
+        if (!isExited()) proc.kill('SIGKILL');
+    }
+}
+
+/**
+ * 双维度截断输出：超过行数或字节数时附加截断提示，不抛异常。
+ */
+function truncateOutput(text: string): string {
+    const lines = text.split('\n');
+    if (lines.length > MAX_OUTPUT_LINES)
+        return lines.slice(0, MAX_OUTPUT_LINES).join('\n') + '\n\n[输出已截断]';
+    if (text.length > MAX_OUTPUT_BYTES)
+        return text.slice(0, MAX_OUTPUT_BYTES) + '\n\n[输出已截断]';
+    return text;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -59,29 +149,51 @@ function resolveWorkingDir(workingDir: string | undefined, fallback: string): { 
 }
 
 /**
- * 执行命令并构建统一返回结果
+ * 执行命令并构建统一返回结果。
+ * 使用 spawn + detached 进程组，超时后通过 killTree 彻底清理子进程树。
+ * 输出按行数和字节数双维度截断，不会因输出过大而抛异常。
  */
 async function runCommand(command: string, cwd: string, timeout: number, label: string): Promise<MCPToolResult> {
-    try {
-        const { stdout, stderr } = await execAsync(command, {
+    return new Promise<MCPToolResult>((resolve) => {
+        let stdout = '';
+        let stderr = '';
+        let timedOut = false;
+        let exited = false;
+
+        const proc = spawn(command, {
+            shell: resolveShell(),
             cwd,
             env: process.env,
-            timeout,
-            maxBuffer: 10 * 1024 * 1024,
+            stdio: ['ignore', 'pipe', 'pipe'],
+            detached: process.platform !== 'win32',
         });
 
-        const parts = [];
-        if (stdout.trim()) parts.push(createTextContent(stdout.trim()));
-        if (stderr.trim()) parts.push(createTextContent(`stderr:\n${stderr.trim()}`));
-        return createSuccessResult(...parts);
+        proc.stdout?.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
+        proc.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
 
-    } catch (error: any) {
-        logger.error(`Error executing ${label}: ${error.message}`);
-        const details = [createTextContent(`错误: ${error.message}`)];
-        if (error.stdout?.trim()) details.push(createTextContent(`stdout:\n${error.stdout.trim()}`));
-        if (error.stderr?.trim()) details.push(createTextContent(`stderr:\n${error.stderr.trim()}`));
-        return { content: details, isError: true };
-    }
+        const kill = () => killTree(proc, () => exited);
+
+        const timeoutTimer = setTimeout(() => { timedOut = true; void kill(); }, timeout);
+
+        proc.once('exit', () => {
+            exited = true;
+            clearTimeout(timeoutTimer);
+            const parts = [];
+            const outText = truncateOutput(stdout.trim());
+            const errText = truncateOutput(stderr.trim());
+            if (outText) parts.push(createTextContent(outText));
+            if (errText) parts.push(createTextContent(`stderr:\n${errText}`));
+            if (timedOut) parts.push(createTextContent(`命令执行超时 (${timeout} ms)`));
+            resolve(createSuccessResult(...parts));
+        });
+
+        proc.once('error', (error: Error) => {
+            exited = true;
+            clearTimeout(timeoutTimer);
+            logger.error(`Error executing ${label}: ${error.message}`);
+            resolve({ content: [createTextContent(`错误: ${error.message}`)], isError: true });
+        });
+    });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
