@@ -106,6 +106,7 @@ const distPkg = {
   ...(selfPkg.repository ? { repository: selfPkg.repository } : {}),
   ...(selfPkg.homepage ? { homepage: selfPkg.homepage } : {}),
   ...(selfPkg.bugs ? { bugs: selfPkg.bugs } : {}),
+  ...(selfPkg.license ? { license: selfPkg.license } : {}),
   main: toPublishPath(selfPkg.main || 'dist/dist/index.js'),
   bin: publishBin,
   engines: selfPkg.engines || { node: '>=18' },
@@ -162,6 +163,14 @@ if (webuitSrc && fs.existsSync(webuitSrc)) {
 } else {
   console.error(`webui: ${webuitSrc ?? 'sbot-website not found'} not found, run "pnpm --filter sbot-website run build" first`);
   process.exit(1);
+}
+
+// 复制 LICENSE 到 dist/
+const licenseSrc = path.join(monorepoRoot, 'LICENSE');
+const licenseDst = path.join(distDir, 'LICENSE');
+if (fs.existsSync(licenseSrc)) {
+  fs.copyFileSync(licenseSrc, licenseDst);
+  console.log(`license: ${licenseSrc} -> ${licenseDst}`);
 }
 
 // 复制 README 到 dist/（供 npm 包页面展示）
