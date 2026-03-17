@@ -10,7 +10,7 @@ import { inject } from "../Core";
  * 负责工具的加载和管理
  */
 export class AgentToolService implements IAgentToolService {
-    private loadingPromise?: Promise<void>;
+    private providerLoadingPromises: Map<string, Promise<void>> = new Map();
     private toolsMap: Map<string, StructuredToolInterface[]> = new Map();
     private toolProviders: Map<string, { factory: () => Promise<StructuredToolInterface[]>; description?: string }> = new Map();
     private logger;
@@ -28,11 +28,12 @@ export class AgentToolService implements IAgentToolService {
      */
     registerToolFactory(name: string, factory: () => Promise<StructuredToolInterface[]>, description?: string): void {
         this.toolProviders.set(name, { factory, description });
-        this.loadingPromise = undefined;
+        this.providerLoadingPromises.delete(name);
+        this.toolsMap.delete(name);        // Bug 2: 清除旧工具缓存，避免重新注册后残留旧数据
     }
 
     /**
-     * 注册 MCP 服务器工具（每个 server 包装为 provider，延迟到 getTools 时初始化）
+     * 注册 MCP 服务器工具（每个 server 包装为 provider，延迟到实际使用时初始化）
      * @param mcpServers MCP 服务器配置对象
      */
     registerMcpServers(mcpServers: MCPServers): void {
@@ -45,50 +46,45 @@ export class AgentToolService implements IAgentToolService {
                 },
                 description: cfg.description,
             });
+            this.providerLoadingPromises.delete(name);
+            this.toolsMap.delete(name);    // Bug 2: 清除旧工具缓存
         }
-        this.loadingPromise = undefined;
     }
 
     private addToolToProvider(providerName: string, tool: StructuredToolInterface) {
         const list = this.toolsMap.get(providerName) ?? [];
-        if (list.findIndex(x => x.name === tool.name) < 0) {
+        if (!list.some(x => x.name === tool.name)) {
             list.push(tool);
         }
         this.toolsMap.set(providerName, list);
     }
 
-    /**
-     * 获取所有可用工具（首次调用时加载，并发调用共享同一次加载）
-     */
-    async getAllTools(): Promise<StructuredToolInterface[]> {
-        if (!this.loadingPromise) {
-            this.loadingPromise = this.loadTools();
+    private ensureProviderLoaded(name: string): Promise<void> {
+        if (this.providerLoadingPromises.has(name)) {
+            return this.providerLoadingPromises.get(name)!;
         }
-        await this.loadingPromise;
-        return this.flattenTools();
-    }
+        const provider = this.toolProviders.get(name);
+        if (!provider) return Promise.resolve();
 
-    private async loadTools(): Promise<void> {
-        this.toolsMap.clear();
-
-        for (const [name, provider] of this.toolProviders) {
-            try {
-                const tools = await provider.factory();
-                for (const tool of tools) {
-                    this.addToolToProvider(name, tool);
-                }
-            } catch (error: any) {
-                this.logger?.error(`Failed to load tools from provider "${name}": ${error.message}`);
+        const promise = provider.factory().then(tools => {
+            for (const tool of tools) {
+                this.addToolToProvider(name, tool);
             }
-        }
+        }).catch((error: any) => {
+            this.providerLoadingPromises.delete(name); // Bug 1: 失败时清除缓存，允许下次重试
+            this.logger?.error(`Failed to load tools from provider "${name}": ${error.message}`);
+        });
+
+        this.providerLoadingPromises.set(name, promise);
+        return promise;
     }
 
     /**
-     * 按 provider 名称过滤，返回指定 provider 的工具集合
+     * 按 provider 名称按需加载，只加载用到的 provider
      * @param providerNames 要查询的 provider 名称列表
      */
     async getToolsFrom(providerNames: string[]): Promise<StructuredToolInterface[]> {
-        await this.getAllTools();
+        await Promise.all(providerNames.map(name => this.ensureProviderLoaded(name)));
         const nameSet = new Set(providerNames);
         const result: StructuredToolInterface[] = [];
         for (const [name, tools] of this.toolsMap) {
@@ -97,6 +93,16 @@ export class AgentToolService implements IAgentToolService {
             }
         }
         return result;
+    }
+
+    /**
+     * 获取所有可用工具（按需并发加载所有 provider）
+     */
+    async getAllTools(): Promise<StructuredToolInterface[]> {
+        await Promise.all(
+            Array.from(this.toolProviders.keys()).map(name => this.ensureProviderLoaded(name))
+        );
+        return this.flattenTools();
     }
 
     /**
@@ -114,7 +120,7 @@ export class AgentToolService implements IAgentToolService {
      * 重置工具加载状态（用于测试或重新加载）
      */
     reset(): void {
-        this.loadingPromise = undefined;
+        this.providerLoadingPromises.clear();
         this.toolsMap.clear();
         this.toolProviders.clear();
     }

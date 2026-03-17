@@ -43,7 +43,7 @@ export function initGlobalAgentToolService() {
             "description": "文档转 Markdown",
         },
         [BuiltinProvider.Exa]: {
-            "type": "sse",
+            "type": "http",
             "url": "https://mcp.exa.ai/mcp",
             "description": "Exa 网络搜索",
         },
