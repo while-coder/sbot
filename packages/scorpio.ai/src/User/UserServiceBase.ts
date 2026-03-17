@@ -1,5 +1,5 @@
 import { Command as CommanderCommand } from "commander";
-import { AgentMessage, AgentToolCall, MessageChunkType } from "../Agents";
+import { AgentMessage, AgentToolCall, MessageChunkType, ToolApproval } from "../Agents";
 import { CommandContext, CommandRegistry, ICommand } from "../Command";
 import { GlobalLoggerService, ILogger } from "../Logger";
 
@@ -127,5 +127,5 @@ export abstract class UserServiceBase {
     abstract processMessageError(e: any): Promise<void>;
     abstract onAgentMessage(message: AgentMessage): Promise<void>;
     abstract onAgentStreamMessage(message: AgentMessage): Promise<void>;
-    abstract executeAgentTool(toolCall: AgentToolCall): Promise<boolean>;
+    abstract executeAgentTool(toolCall: AgentToolCall): Promise<ToolApproval>;
 }

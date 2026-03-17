@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { AgentMessage, AgentToolCall } from "scorpio.ai";
+import { AgentMessage, AgentToolCall, ToolApproval } from "scorpio.ai";
 import { AgentRunner } from "../Agent/AgentRunner";
 import { config } from '../Core/Config';
 import { ContextType } from '../Core/Database';
@@ -29,9 +29,9 @@ export abstract class BaseWebUserService {
         this.emit({ type: 'stream', content: message.content ?? '' });
     }
 
-    async executeAgentTool(toolCall: AgentToolCall): Promise<boolean> {
+    async executeAgentTool(toolCall: AgentToolCall): Promise<ToolApproval> {
         this.emit({ type: 'tool_call', id: toolCall.id, name: toolCall.name, args: toolCall.args });
-        return true;
+        return ToolApproval.Allow;
     }
 
 

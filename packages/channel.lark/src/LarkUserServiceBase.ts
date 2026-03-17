@@ -1,5 +1,5 @@
 import {LarkChatProvider} from "./LarkChatProvider";
-import { AgentMessage, AgentToolCall, NowDate, sleep } from "scorpio.ai";
+import { AgentMessage, AgentToolCall, NowDate, sleep, ToolApproval } from "scorpio.ai";
 import { UserServiceBase } from "scorpio.ai";
 import { GlobalLoggerService } from "scorpio.ai";
 import { LarkReceiveIdType, LarkService } from "./LarkService";
@@ -9,8 +9,10 @@ const getLogger = () => GlobalLoggerService.getLogger('LarkUserService.ts');
 export enum ToolCallStatus {
   None = "none",
   Wait = "wait",
-  Ok = "ok",
-  Cancel = "cancel",
+  Allow = "allow",
+  AlwaysArgs = "alwaysArgs",
+  AlwaysTool = "alwaysTool",
+  Deny = "deny",
 }
 
 export interface LarkMessageArgs {
@@ -63,85 +65,60 @@ export abstract class LarkUserServiceBase extends UserServiceBase {
     this.provider!.resetStreamMessage();
     await this.provider?.addAIMessage(message)
   }
-  async executeAgentTool(toolCall: AgentToolCall): Promise<boolean> {
-    this.toolCall.id = toolCall.id
+  private buildButton(label: string, type: string, approval: ToolCallStatus, elementId: string): object {
+    return {
+      tag: "button",
+      text: { tag: "plain_text", content: label },
+      type,
+      width: "fill",
+      size: "medium",
+      behaviors: [{ type: "callback", value: { code: "ToolCall", data: { id: this.toolCall.id, approval } } }],
+      margin: "0px 0px 0px 0px",
+      element_id: elementId,
+    };
+  }
+
+  async executeAgentTool(toolCall: AgentToolCall): Promise<ToolApproval> {
+    this.toolCall.id = toolCall.id;
     this.toolCall.status = ToolCallStatus.Wait;
     try {
-      // 从 config 中获取 toolTimeout 配置，默认 30 秒
-      let timeout = 30 * 1000
-      let end = NowDate() + timeout
-      let lastSend = 0
-      while (this.toolCall.status == ToolCallStatus.Wait) {
+      const timeout = 30 * 1000;
+      const end = NowDate() + timeout;
+      let lastSend = 0;
+      while (this.toolCall.status === ToolCallStatus.Wait) {
         if (NowDate() - lastSend > 300) {
           lastSend = NowDate();
-          await this.provider?.insertElement(undefined, {
-                "tag": "button",
-                "text": {
-                  "tag": "plain_text",
-                  "content": `允许:${toolCall.name}`
-                },
-                "type": "primary_filled",
-                "width": "fill",
-                "size": "medium",
-                "behaviors": [
-                  {
-                    "type": "callback",
-                    "value": {
-                      code: "ToolCall",
-                      data: {
-                        id: this.toolCall.id,
-                        ok: true
-                      }
-                    }
-                  }
-                ],
-                "margin": "0px 0px 0px 0px",
-                "element_id": "toolCallOK"
-              },
-              {
-                "tag": "button",
-                "text": {
-                  "tag": "plain_text",
-                  "content": `拒绝:${toolCall.name}(${Math.floor((end - NowDate()) / 1000)}秒)`
-                },
-                "type": "danger_filled",
-                "width": "fill",
-                "size": "medium",
-                "behaviors": [
-                  {
-                    "type": "callback",
-                    "value": {
-                      code: "ToolCall",
-                      data: {
-                        id: this.toolCall.id,
-                        ok: false
-                      }
-                    }
-                  }
-                ],
-                "margin": "0px 0px 0px 0px",
-                "element_id": "toolCallCancel"
-              })
+          await this.provider?.insertElement(undefined,
+            this.buildButton(`允许 ${toolCall.name}`, "primary_filled", ToolCallStatus.Allow, "toolCallAllow"),
+            this.buildButton(`总是允许 ${toolCall.name} (相同参数)`, "primary", ToolCallStatus.AlwaysArgs, "toolCallAlwaysArgs"),
+            this.buildButton(`总是允许 ${toolCall.name} (所有参数)`, "primary", ToolCallStatus.AlwaysTool, "toolCallAlwaysTool"),
+            this.buildButton(`拒绝 (${Math.floor((end - NowDate()) / 1000)}秒)`, "danger_filled", ToolCallStatus.Deny, "toolCallDeny"),
+          );
         }
-        await sleep(10)
+        await sleep(10);
         if (NowDate() > end) {
-          this.toolCall.status = ToolCallStatus.Cancel
-          break
+          this.toolCall.status = ToolCallStatus.Deny;
+          break;
         }
       }
-      await this.provider?.deleteElement("toolCallOK", "toolCallCancel")
-      // @ts-ignore
-      return this.toolCall.status == ToolCallStatus.Ok
+      const status = this.toolCall.status as ToolCallStatus;
+      await this.provider?.deleteElement("toolCallAllow", "toolCallAlwaysArgs", "toolCallAlwaysTool", "toolCallDeny");
+      const statusToApproval: Partial<Record<ToolCallStatus, ToolApproval>> = {
+        [ToolCallStatus.Allow]: ToolApproval.Allow,
+        [ToolCallStatus.AlwaysArgs]: ToolApproval.AlwaysArgs,
+        [ToolCallStatus.AlwaysTool]: ToolApproval.AlwaysTool,
+      };
+      return statusToApproval[status] ?? ToolApproval.Deny;
     } finally {
-      this.toolCall.id = undefined
-      this.toolCall.status = ToolCallStatus.None
+      this.toolCall.id = undefined;
+      this.toolCall.status = ToolCallStatus.None;
     }
   }
   async onTriggerAction(_chatId: string, code: string, data: any, _formValue: any): Promise<any> {
     if (code === "ToolCall") {
       // 处理工具调用确认
       if (data.id === this.toolCall.id) {
-        this.toolCall.status = data.ok ? ToolCallStatus.Ok : ToolCallStatus.Cancel;
+        this.toolCall.status = data.approval as ToolCallStatus ?? ToolCallStatus.Deny;
       }
       return;
     }
