@@ -36,6 +36,7 @@
   "dependencies": {
     "@langchain/core": "catalog:",
     "axios": "catalog:",
+    "turndown": "^7.2.0",
     "sbot.commons": "workspace:*",
     "channel.lark": "workspace:*",
     "cron": "^4.4.0",
@@ -51,6 +52,7 @@
   },
   "devDependencies": {
     "@types/diff": "^7.0.2",
+    "@types/turndown": "^5.0.5",
     "@types/express": "^5.0.6",
     "@types/node": "catalog:",
     "@types/ws": "^8.18.1",

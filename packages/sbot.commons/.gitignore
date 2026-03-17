@@ -1,5 +1,6 @@
 /node_modules
 /dist
+/esm
 /.claude
 /package-lock.json
 /tsconfig.tsbuildinfo

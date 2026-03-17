@@ -4,8 +4,15 @@
   "description": "Shared TypeScript interfaces and types for sbot packages",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./esm/index.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
   "scripts": {
-    "build": "rimraf --glob \"dist/*\" && tsc -b --force"
+    "build": "rimraf --glob \"dist/*\" \"esm/*\" && tsc -b --force && tsc -p tsconfig.esm.json"
   },
   "private": true,
   "devDependencies": {
