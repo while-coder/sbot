@@ -25,6 +25,7 @@ export type SchedulerRow = {
   message: string;                 // 消息文本
   targetId: string | null;         // channel_session.id (string) | sessionId | workPath（按 type 区分）
   lastRun: number | null;          // 上次执行时间戳
+  nextRun: number | null;          // 下次预计执行时间戳
   runCount: number;                // 已执行次数
   maxRuns: number;                 // 最大执行次数（0 表示不限制）
 };
@@ -289,6 +290,12 @@ class Database {
           allowNull: false,
           defaultValue: 0,
           comment: "已执行次数",
+        },
+        nextRun: {
+          type: DataTypes.BIGINT,
+          allowNull: true,
+          defaultValue: null,
+          comment: "下次预计执行时间戳",
         },
         maxRuns: {
           type: DataTypes.INTEGER,

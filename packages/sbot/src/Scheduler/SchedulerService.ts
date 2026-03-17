@@ -56,11 +56,13 @@ async function executeScheduler(schedulerId: number): Promise<void> {
     }
 
     const newRunCount = (scheduler.runCount ?? 0) + 1;
-    await database.update(database.scheduler, { lastRun: Date.now(), runCount: newRunCount }, { where: { id: scheduler.id } });
 
     if (scheduler.maxRuns > 0 && newRunCount >= scheduler.maxRuns) {
         logger.info(`Scheduler task ${tag} reached maxRuns (${scheduler.maxRuns}), deleting`);
         await schedulerService.delete(scheduler.id);
+    } else {
+        const nextRun = schedulerService.nextDate(scheduler.id);
+        await database.update(database.scheduler, { lastRun: Date.now(), runCount: newRunCount, nextRun }, { where: { id: scheduler.id } });
     }
 }
 
@@ -70,10 +72,16 @@ class SchedulerService {
     async start(): Promise<void> {
         const schedulers = await database.findAll<SchedulerRow>(database.scheduler);
         let loaded = 0;
+        const now = Date.now();
         for (const scheduler of schedulers) {
-            if (await this.schedule(scheduler)) loaded++;
+            if (await this.schedule(scheduler)) {
+                loaded++;
+                if (scheduler.nextRun && scheduler.nextRun <= now) {
+                    logger.info(`调度任务 [${scheduler.id}:${scheduler.name}] 启动时检测到漏执行 (nextRun=${new Date(scheduler.nextRun).toISOString()})，立即补跑`);
+                    executeScheduler(scheduler.id);
+                }
+            }
         }
-        logger.info(`调度服务启动，已加载 ${loaded} 个调度任务`);
     }
 
     /** 调度单个任务，返回 true 表示成功调度 */
@@ -99,7 +107,9 @@ class SchedulerService {
                 waitForCompletion: true,
             });
             this.jobs.set(scheduler.id, job);
-            logger.info(`调度任务 [${scheduler.id}:${scheduler.name}] 已调度 (${scheduler.expr})，下次执行: ${job.nextDate().toISO()}`);
+            const nextRun = job.nextDate().toMillis();
+            await database.update(database.scheduler, { nextRun }, { where: { id: scheduler.id } });
+            logger.info(`调度任务 [${scheduler.id}:${scheduler.name}] 已启动 (${scheduler.expr})，下次执行: ${job.nextDate().toISO()}`);
             return true;
         } catch (e: any) {
             logger.error(`调度任务 [${scheduler.id}:${scheduler.name}] 调度失败: ${e?.message}`);
