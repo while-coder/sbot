@@ -8,6 +8,7 @@ import type { ChatMessage } from '@/types'
 import DirectoryModal from './modals/DirectoryModal.vue'
 import SaverViewModal from './modals/SaverViewModal.vue'
 import ChatPanel from '@/components/ChatPanel.vue'
+import { dirThreadId } from 'sbot.commons'
 
 type LocalDirCfg = { agent?: string; saver?: string; memory?: string }
 
@@ -130,7 +131,7 @@ async function saveConfig(patch: Partial<LocalDirCfg>) {
 // ── 历史记录 ──────────────────────────────────────────────
 function historyUrl(): string | null {
   if (!activeDir.value || !activeCfg.value?.saver) return null
-  const threadId = `dir_${activeDir.value.replace(/[:/\\]/g, '_')}`
+  const threadId = dirThreadId(activeDir.value)
   return `/api/savers/${encodeURIComponent(activeCfg.value.saver)}/threads/${encodeURIComponent(threadId)}/history`
 }
 

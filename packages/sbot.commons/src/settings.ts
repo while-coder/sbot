@@ -150,3 +150,21 @@ export interface Settings {
   channels?: Record<string, ChannelConfig>
   directories?: Record<string, DirectoryConfig>
 }
+
+// ── threadId 工厂函数 ──────────────────────────────────────────────────────────
+// 集中定义，供 sbot（后端）与 website（前端）共用，避免算法分散后不同步
+
+/** 目录模式 threadId：将路径中的非法字符（冒号、斜杠、反斜杠）替换为下划线 */
+export function dirThreadId(workPath: string): string {
+  return `dir_${workPath.replace(/[:/\\]/g, '_')}`
+}
+
+/** 会话模式 threadId */
+export function sessionThreadId(sessionId: string): string {
+  return `session_${sessionId}`
+}
+
+/** Lark 频道模式 threadId */
+export function larkThreadId(channelId: string, chatId: string): string {
+  return `lark_${channelId}_${chatId}`
+}

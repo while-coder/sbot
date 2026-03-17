@@ -9,6 +9,7 @@ import SaverViewModal from './modals/SaverViewModal.vue'
 import MemoryViewModal from './modals/MemoryViewModal.vue'
 import NewSessionModal from './modals/NewSessionModal.vue'
 import ChatPanel from '@/components/ChatPanel.vue'
+import { sessionThreadId } from 'sbot.commons'
 
 interface Attachment {
   name: string
@@ -71,7 +72,7 @@ async function deleteSession(id: string) {
   try {
     await apiFetch(`/api/settings/sessions/${encodeURIComponent(id)}`, 'DELETE')
     if (s?.saver) {
-      await apiFetch(`/api/savers/${encodeURIComponent(s.saver)}/threads/session_${encodeURIComponent(id)}/history`, 'DELETE').catch(() => {})
+      await apiFetch(`/api/savers/${encodeURIComponent(s.saver)}/threads/${encodeURIComponent(sessionThreadId(id))}/history`, 'DELETE').catch(() => {})
     }
     if (store.settings.sessions) delete store.settings.sessions[id]
     if (activeSessionId.value === id) {
@@ -181,7 +182,7 @@ watch(chatSocket.connected, (val, oldVal) => {
 
 function saverThreadUrl(saver: string): string | null {
   if (!activeSessionId.value) return null
-  return `/api/savers/${encodeURIComponent(saver)}/threads/session_${encodeURIComponent(activeSessionId.value)}/history`
+  return `/api/savers/${encodeURIComponent(saver)}/threads/${encodeURIComponent(sessionThreadId(activeSessionId.value))}/history`
 }
 
 async function refreshHistory() {
@@ -359,7 +360,7 @@ onUnmounted(() => {
           >
             <option v-for="s in saverOptions" :key="s.id" :value="s.id">{{ s.label }}</option>
           </select>
-          <button v-if="effectiveSaver" class="chat-info-chip" @click="saverViewModal?.open(effectiveSaver!, 'session_' + activeSessionId)">查看</button>
+          <button v-if="effectiveSaver" class="chat-info-chip" @click="saverViewModal?.open(effectiveSaver!, sessionThreadId(activeSessionId))">查看</button>
 
           <!-- Memory -->
           <label class="toolbar-label">记忆</label>

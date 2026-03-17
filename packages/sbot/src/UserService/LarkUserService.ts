@@ -5,6 +5,7 @@ import { AgentRunner } from "../Agent/AgentRunner";
 import { config } from "../Core/Config";
 import { ChannelSessionRow, ContextType, database } from "../Core/Database";
 import { buildExecuteTool } from "./buildExecuteTool";
+import { larkThreadId } from "sbot.commons";
 
 export class LarkUserService extends LarkUserServiceBase {
     protected async getAllCommands(): Promise<ICommand[]> { return []; }
@@ -33,7 +34,7 @@ export class LarkUserService extends LarkUserServiceBase {
   <email>${userInfo.email}</email>
 </current-user>` : schedulerId;
 
-        const threadId = `lark_${channelId}_${chat_id}`;
+        const threadId = larkThreadId(channelId, chat_id);
         await AgentRunner.run(query, {
             onMessage: this.onAgentMessage.bind(this),
             onStreamMessage: this.onAgentStreamMessage.bind(this),

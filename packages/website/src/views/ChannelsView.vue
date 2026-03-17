@@ -5,6 +5,7 @@ import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 import type { ChannelConfig } from '@/types'
 import SaverViewModal from './modals/SaverViewModal.vue'
+import { larkThreadId } from 'sbot.commons'
 
 interface ChannelSessionRow {
   id: number
@@ -261,7 +262,7 @@ async function refresh() {
                   <td style="font-family:monospace;font-size:12px;color:#6b6b6b">{{ s.memoryId || '-' }}</td>
                   <td>
                     <div class="ops-cell">
-                      <button v-if="c.saver" class="btn-outline btn-sm" @click="saverViewModal?.open(c.saver, 'lark_' + (id as string) + '_' + s.sessionId)">历史记录</button>
+                      <button v-if="c.saver" class="btn-outline btn-sm" @click="saverViewModal?.open(c.saver, larkThreadId(id as string, s.sessionId))">历史记录</button>
                       <button class="btn-outline btn-sm" @click="openEditSession(s)">编辑</button>
                       <button class="btn-danger btn-sm" @click="removeSession(id as string, s)">删除</button>
                     </div>

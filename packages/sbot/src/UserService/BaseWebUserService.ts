@@ -4,6 +4,7 @@ import { AgentRunner } from "../Agent/AgentRunner";
 import { config } from '../Core/Config';
 import { ContextType } from '../Core/Database';
 import { buildExecuteTool } from './buildExecuteTool';
+import { dirThreadId, sessionThreadId } from 'sbot.commons';
 
 export type WebChatEvent =
     | { type: "stream"; content: string }
@@ -42,7 +43,7 @@ export abstract class BaseWebUserService {
             // 目录模式：从 workPath/.sbot/settings.json 读取 agent/saver/memory
             const localCfg = config.getDirectoryConfig(workPath);
             if (!localCfg) throw new Error(`目录 "${workPath}" 未配置 agent`);
-            const threadId = `dir_${workPath.replace(/[:/\\]/g, '_')}`;
+            const threadId = dirThreadId(workPath);
             const extraInfo = `<scheduler-id>${workPath}</scheduler-id>`;
             await AgentRunner.run(query, {
                 onMessage: this.onAgentMessage.bind(this),
@@ -54,7 +55,7 @@ export abstract class BaseWebUserService {
             const sessionId = args?.sessionId as string;
             const session = sessionId ? config.getSession(sessionId) : undefined;
             if (!session) throw new Error(`会话 "${sessionId}" 不存在`);
-            const threadId = `session_${sessionId}`;
+            const threadId = sessionThreadId(sessionId);
             const extraInfo = `<scheduler-id>${sessionId}</scheduler-id>`;
             await AgentRunner.run(query, {
                 onMessage: this.onAgentMessage.bind(this),
