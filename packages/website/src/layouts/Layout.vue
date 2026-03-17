@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { apiFetch } from '@/api'
-import { store } from '@/store'
+import { store, applyMcpList } from '@/store'
 import { useToast } from '@/composables/useToast'
 
 const router = useRouter()
@@ -64,8 +64,7 @@ async function reloadConfig() {
     const res = await apiFetch('/api/settings')
     Object.assign(store.settings, res.data)
     const mcpRes = await apiFetch('/api/mcp')
-    store.mcpServers = mcpRes.data?.servers || {}
-    store.mcpBuiltins = mcpRes.data?.builtins || []
+    applyMcpList(mcpRes.data || [])
     show('配置已重载')
   } catch (e: any) {
     show(e.message, 'error')
@@ -106,8 +105,7 @@ async function init() {
       apiFetch('/api/about'),
     ])
     Object.assign(store.settings, settingsRes.data)
-    store.mcpServers = mcpRes.data?.servers || {}
-    store.mcpBuiltins = mcpRes.data?.builtins || []
+    applyMcpList(mcpRes.data || [])
     const allSkillsData = skillRes.data || []
     store.allSkills = allSkillsData
     if (aboutRes.data?.version) checkUpdate(aboutRes.data.version)

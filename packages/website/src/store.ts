@@ -1,14 +1,16 @@
 import { reactive } from 'vue'
-import type { Settings, McpEntry, McpBuiltin, SkillItem } from './types'
+import type { Settings, SkillItem, McpItem } from './types'
 
 export const store = reactive<{
   settings: Settings
-  mcpServers: Record<string, McpEntry>
-  mcpBuiltins: McpBuiltin[]
   allSkills: SkillItem[]
+  allMcps: McpItem[]
 }>({
   settings: {},
-  mcpServers: {},
-  mcpBuiltins: [],
   allSkills: [],
+  allMcps: [],
 })
+
+export function applyMcpList(list: McpItem[]) {
+  store.allMcps = list
+}

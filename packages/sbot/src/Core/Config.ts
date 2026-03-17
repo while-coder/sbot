@@ -132,7 +132,6 @@ class Config {
 
     // 每次启动都生成示例配置文件
     this.createExampleSettings();
-    this.createExampleMcpConfig();
 
     // 加载配置文件
     this.loadSettings();
@@ -319,64 +318,6 @@ class Config {
     }
   }
 
-  /**
-   * 每次启动时生成 MCP 配置示例文件 mcp.json.example
-   */
-  private createExampleMcpConfig(): void {
-    const examplePath = this.getConfigPath("mcp.json.example");
-
-    try {
-      fs.writeFileSync(examplePath, JSON.stringify(this.getDefaultMcpConfig(), null, 2), "utf-8");
-    } catch (error) {
-      // 忽略错误
-    }
-  }
-
-  /**
-   * 获取默认 MCP 配置
-   */
-  private getDefaultMcpConfig(): { mcpServers: MCPServers } {
-    return {
-      mcpServers: {
-        "python-server": {
-          command: "python",
-          args: ["-m", "your_mcp_module"],
-        },
-        "local-node-server": {
-          transport: "stdio",
-          command: "node",
-          args: ["path/to/your/mcp-server.js"],
-          cwd: "/path/to/working/directory",
-          stderr: "inherit",
-          defaultToolTimeout: 30000,
-          env: {
-            "API_KEY": "your-api-key-here",
-            "NODE_ENV": "production"
-          },
-          restart: {
-            enabled: true,
-            maxAttempts: 3,
-            delayMs: 1000
-          }
-        },
-        "remote-http-server": {
-          transport: "http",
-          url: "https://mcp-server.example.com",
-          automaticSSEFallback: true,
-          defaultToolTimeout: 60000,
-          headers: {
-            "Authorization": "Bearer your-token",
-            "X-Custom-Header": "custom-value"
-          },
-          reconnect: {
-            enabled: true,
-            maxAttempts: 5,
-            delayMs: 2000
-          }
-        }
-      }
-    };
-  }
 
 
   /**

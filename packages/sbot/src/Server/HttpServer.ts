@@ -6,7 +6,7 @@ import os from 'os';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { WebSocketServer } from 'ws';
-import { MCPServers, AgentToolService, SkillService } from "scorpio.ai";
+import { AgentToolService, SkillService } from "scorpio.ai";
 import { config } from '../Core/Config';
 import { AgentRunner } from '../Agent/AgentRunner';
 import { globalAgentToolService, refreshGlobalAgentToolService, BuiltinProvider } from '../Agent/GlobalAgentToolService';
@@ -440,20 +440,49 @@ class HttpServer {
         }));
 
         // ===== MCP =====
-        app.get('/api/mcp', api(() => ({
-            builtins: Object.values(BuiltinProvider).map(n => ({ name: n, description: globalAgentToolService.getProviderDescription(n) })),
-            servers: config.getGlobalMcpServers(),
-        })));
+        const listGlobalMcps = () => [
+            ...Object.values(BuiltinProvider).map(n => ({
+                id: n, name: n,
+                description: globalAgentToolService.getProviderDescription(n) || '',
+                source: '内置',
+            })),
+            ...Object.entries(config.getGlobalMcpServers()).map(([id, s]) => ({
+                ...s, id,
+                name: (s as any).name || id,
+                description: (s as any).description || '',
+                source: '全局',
+            })),
+        ];
 
-        app.put('/api/mcp', api(req => {
-            const builtinSet = new Set<string>(Object.values(BuiltinProvider));
-            const body = (req.body.servers ?? req.body) as Record<string, unknown>;
-            const servers = Object.fromEntries(
-                Object.entries(body).filter(([name]) => !builtinSet.has(name))
-            ) as MCPServers;
+        app.get('/api/mcp', api(listGlobalMcps));
+
+        app.post('/api/mcp', api(req => {
+            const servers = config.getGlobalMcpServers();
+            let id = randomUUID();
+            while (servers[id]) id = randomUUID();
+            servers[id] = req.body;
             config.saveMcpServers(servers);
             refreshGlobalAgentToolService();
-            return { builtins: Object.values(BuiltinProvider).map(n => ({ name: n, description: globalAgentToolService.getProviderDescription(n) })), servers: config.getGlobalMcpServers() };
+            return listGlobalMcps();
+        }));
+
+        app.put('/api/mcp/:id', api(req => {
+            const id = req.params.id as string;
+            const servers = config.getGlobalMcpServers();
+            if (!servers[id]) throwBad(`MCP "${id}" 不存在`);
+            servers[id] = req.body;
+            config.saveMcpServers(servers);
+            refreshGlobalAgentToolService();
+            return listGlobalMcps();
+        }));
+
+        app.delete('/api/mcp/:id', api(req => {
+            const id = req.params.id as string;
+            const servers = config.getGlobalMcpServers();
+            delete servers[id];
+            config.saveMcpServers(servers);
+            refreshGlobalAgentToolService();
+            return listGlobalMcps();
         }));
 
         app.post('/api/mcp/tools', api(async req => {
@@ -468,24 +497,53 @@ class HttpServer {
         }));
 
         // ===== Agent MCP =====
-        app.get('/api/agents/:name/mcp', api(req => {
-            const agentName = req.params.name as string;
+        const listAgentMcp = (agentName: string) => {
             const agent = (config.settings as any).agents?.[agentName];
-            return {
-                globals: (agent?.mcp as string[]) || [],
-                servers: config.getAgentMcpServers(agentName),
-            };
+            const globalIds: string[] = (agent?.mcp as string[]) || [];
+            const allGlobals = listGlobalMcps();
+            const globals = globalIds
+                .map(id => allGlobals.find(m => m.id === id))
+                .filter((m): m is NonNullable<typeof m> => !!m);
+            const servers = Object.entries(config.getAgentMcpServers(agentName)).map(([id, s]) => ({
+                ...s, id,
+                name: (s as any).name || id,
+                description: (s as any).description || '',
+                source: '专属',
+            }));
+            return { globals, servers };
+        };
+
+        app.get('/api/agents/:name/mcp', api(req => {
+            return listAgentMcp(req.params.name as string);
         }));
 
-        app.put('/api/agents/:name/mcp', api(req => {
+        app.post('/api/agents/:name/mcp', api(req => {
             const agentName = req.params.name as string;
-            const servers = (req.body.servers ?? req.body) as MCPServers;
+            const servers = config.getAgentMcpServers(agentName);
+            let id = randomUUID();
+            while (servers[id]) id = randomUUID();
+            servers[id] = req.body;
             config.saveAgentMcpServers(agentName, servers);
-            const agent = (config.settings as any).agents?.[agentName];
-            return {
-                globals: (agent?.mcp as string[]) || [],
-                servers: config.getAgentMcpServers(agentName),
-            };
+            return listAgentMcp(agentName);
+        }));
+
+        app.put('/api/agents/:name/mcp/:id', api(req => {
+            const agentName = req.params.name as string;
+            const id = req.params.id as string;
+            const servers = config.getAgentMcpServers(agentName);
+            if (!servers[id]) throwBad(`Agent MCP "${id}" 不存在`);
+            servers[id] = req.body;
+            config.saveAgentMcpServers(agentName, servers);
+            return listAgentMcp(agentName);
+        }));
+
+        app.delete('/api/agents/:name/mcp/:id', api(req => {
+            const agentName = req.params.name as string;
+            const id = req.params.id as string;
+            const servers = config.getAgentMcpServers(agentName);
+            delete servers[id];
+            config.saveAgentMcpServers(agentName, servers);
+            return listAgentMcp(agentName);
         }));
 
         app.post('/api/agents/:agentName/mcp/tools', api(async req => {

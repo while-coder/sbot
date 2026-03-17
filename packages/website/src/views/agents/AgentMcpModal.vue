@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, reactive } from 'vue'
 import { apiFetch } from '@/api'
-import { store } from '@/store'
+import { store, applyMcpList } from '@/store'
 import { useToast } from '@/composables/useToast'
 import type { McpEntry, McpTool } from '@/types'
-import { esc, formatParamType, renderSchemaChildren, renderParamRow, renderToolParams, serverAddr } from '@/utils/mcpSchema'
-import { BADGE_BUILTIN, BADGE_GLOBAL } from '@/utils/badges'
+import { renderToolParams, serverAddr } from '@/utils/mcpSchema'
+import { sourceBadgeStyle } from '@/utils/badges'
 
 const { show } = useToast()
 
@@ -15,23 +15,32 @@ const agentDisplayName = computed(() => (store.settings.agents?.[agentName.value
 
 const servers       = ref<Record<string, McpEntry>>({})
 const agentGlobals  = ref<string[]>([])
-const activeTab     = ref<'globals' | 'servers'>('globals')
+const activeTab     = ref('all')
 const selectedGlobals = ref<string[]>([])
-const globalSearch  = ref('')
+const mcpSearch     = ref('')
 
 const globalsChanged = computed(() => {
   const a = [...selectedGlobals.value].sort().join(',')
   const b = [...agentGlobals.value].sort().join(',')
   return a !== b
 })
-const allGlobalMcps = computed(() => [
-  ...store.mcpBuiltins.map(b => ({ name: b.name, isBuiltin: true, desc: b.description || '' })),
-  ...Object.keys(store.mcpServers).map(k => ({ name: k, isBuiltin: false, desc: store.mcpServers[k].type || '' })),
-])
+
+// ── Source tabs (mirrors AgentSkillsModal pattern) ────────────────
+const sources = computed(() => {
+  const seen = new Set<string>()
+  for (const m of store.allMcps) if (m.source) seen.add(m.source)
+  return Array.from(seen)
+})
+
 const filteredGlobalMcps = computed(() => {
-  const q = globalSearch.value.trim().toLowerCase()
-  if (!q) return allGlobalMcps.value
-  return allGlobalMcps.value.filter(m => m.name.toLowerCase().includes(q) || m.desc.toLowerCase().includes(q))
+  const list = activeTab.value === 'all'
+    ? store.allMcps
+    : store.allMcps.filter(m => m.source === activeTab.value)
+  const q = mcpSearch.value.trim().toLowerCase()
+  if (!q) return list
+  return list.filter(m =>
+    (m.name || '').toLowerCase().includes(q) || (m.description || '').toLowerCase().includes(q)
+  )
 })
 
 function apiBase() {
@@ -44,12 +53,12 @@ async function load() {
       apiFetch(apiBase()),
       apiFetch('/api/mcp'),
     ])
-    servers.value = res.data?.servers || {}
-    const globalsFromApi: string[] = res.data?.globals || []
+    const rawServers: any[] = res.data?.servers || []
+    servers.value = Object.fromEntries(rawServers.map(({ id, source: _s, ...rest }: any) => [id, rest]))
+    const globalsFromApi: string[] = (res.data?.globals || []).map((m: any) => m.id)
     agentGlobals.value = globalsFromApi
     selectedGlobals.value = [...globalsFromApi]
-    store.mcpBuiltins = globalRes.data?.builtins || []
-    store.mcpServers  = globalRes.data?.servers  || {}
+    applyMcpList(globalRes.data || [])
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -71,14 +80,14 @@ async function saveGlobals() {
   }
 }
 
-async function viewGlobalTools(name: string) {
-  toolsTitle.value = name
+async function viewGlobalTools(id: string) {
+  toolsTitle.value = store.allMcps.find(m => m.id === id)?.name || id
   toolsList.value = []
   toolsLoading.value = true
   expandedTools.clear()
   showToolsModal.value = true
   try {
-    const res = await apiFetch('/api/mcp/tools', 'POST', { name })
+    const res = await apiFetch('/api/mcp/tools', 'POST', { name: id })
     toolsList.value = res.data || []
   } catch (e: any) {
     show(e.message, 'error')
@@ -118,11 +127,11 @@ function openAdd() {
   syncFromForm()
   showModal.value = true
 }
-function openEdit(name: string) {
-  const s = servers.value[name]
-  editingName.value = name
+function openEdit(id: string) {
+  const s = servers.value[id]
+  editingName.value = id
   form.value = {
-    name, type: s.type || 'http', url: s.url || '',
+    name: (s as any).name || id, type: s.type || 'http', url: s.url || '',
     headers: { ...(s.headers || {}) }, command: s.command || '',
     args: [...(s.args || [])], env: { ...(s.env || {}) },
     cwd: s.cwd || '', toolTimeout: s.toolTimeout ? String(s.toolTimeout) : '',
@@ -136,7 +145,7 @@ async function save() {
   syncToForm()
   try {
     const { name, type, url, headers, command, args, env, cwd, toolTimeout, description } = form.value
-    const config: McpEntry = { type }
+    const config: McpEntry = { type, name: name.trim() } as any
     if (type === 'http') {
       if (!url.trim()) { show('URL 不能为空', 'error'); return }
       config.url = url.trim()
@@ -149,10 +158,12 @@ async function save() {
       if (cwd.trim()) config.cwd = cwd.trim()
     }
     if (toolTimeout) config.toolTimeout = parseInt(toolTimeout)
-    if (description.trim()) config.description = description.trim()
-    const key = editingName.value ?? name
-    const newServers = { ...servers.value, [key]: config }
-    await apiFetch(apiBase(), 'PUT', { servers: newServers })
+    if (description.trim()) (config as any).description = description.trim()
+    if (editingName.value) {
+      await apiFetch(`${apiBase()}/${encodeURIComponent(editingName.value)}`, 'PUT', config)
+    } else {
+      await apiFetch(apiBase(), 'POST', config)
+    }
     show('保存成功')
     showModal.value = false
     await load()
@@ -160,12 +171,11 @@ async function save() {
     show(e.message, 'error')
   }
 }
-async function remove(name: string) {
-  if (!confirm(`确定要删除 MCP "${name}" 吗？`)) return
+async function remove(id: string) {
+  const displayName = (servers.value[id] as any)?.name || id
+  if (!confirm(`确定要删除 MCP "${displayName}" 吗？`)) return
   try {
-    const newServers = { ...servers.value }
-    delete newServers[name]
-    await apiFetch(apiBase(), 'PUT', { servers: newServers })
+    await apiFetch(`${apiBase()}/${encodeURIComponent(id)}`, 'DELETE')
     show('删除成功')
     await load()
   } catch (e: any) {
@@ -184,14 +194,14 @@ function toggleTool(i: number) {
   if (expandedTools.has(i)) expandedTools.delete(i)
   else expandedTools.add(i)
 }
-async function viewTools(name: string) {
-  toolsTitle.value = name
+async function viewTools(id: string) {
+  toolsTitle.value = (servers.value[id] as any)?.name || id
   toolsList.value = []
   toolsLoading.value = true
   expandedTools.clear()
   showToolsModal.value = true
   try {
-    const res = await apiFetch(`/api/agents/${encodeURIComponent(agentName.value)}/mcp/tools`, 'POST', { name })
+    const res = await apiFetch(`/api/agents/${encodeURIComponent(agentName.value)}/mcp/tools`, 'POST', { name: id })
     toolsList.value = res.data || []
   } catch (e: any) {
     show(e.message, 'error')
@@ -203,13 +213,13 @@ async function viewTools(name: string) {
 
 // ── Public API ───────────────────────────────────────────────────
 function open(name: string) {
-  agentName.value     = name
-  servers.value       = {}
-  agentGlobals.value  = []
+  agentName.value       = name
+  servers.value         = {}
+  agentGlobals.value    = []
   selectedGlobals.value = []
-  activeTab.value     = 'globals'
-  globalSearch.value  = ''
-  visible.value       = true
+  activeTab.value       = 'all'
+  mcpSearch.value       = ''
+  visible.value         = true
   load()
 }
 
@@ -232,67 +242,90 @@ defineExpose({ open })
         <!-- Tab bar -->
         <div style="display:flex;border-bottom:1px solid #e8e6e3;background:#fff;padding:0 20px;flex-shrink:0">
           <button
-            v-for="tab in [
-              { key: 'globals', label: '全局工具',  count: selectedGlobals.length },
-              { key: 'servers', label: '专属服务',  count: Object.keys(servers).length },
-            ]"
-            :key="tab.key"
-            @click="activeTab = tab.key as any"
-            style="padding:11px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s"
-            :style="activeTab === tab.key ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
+            @click="activeTab = 'all'"
+            style="padding:11px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s"
+            :style="activeTab === 'all' ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
           >
-            {{ tab.label }}
+            全部
             <span style="margin-left:4px;font-size:11px;padding:0 5px;border-radius:10px;font-weight:600"
-              :style="activeTab === tab.key ? 'background:#1c1c1c;color:#fff' : 'background:#f0efed;color:#6b6b6b'"
-            >{{ tab.count }}</span>
+              :style="activeTab === 'all' ? 'background:#1c1c1c;color:#fff' : 'background:#f0efed;color:#6b6b6b'"
+            >{{ store.allMcps.length }}</span>
+          </button>
+          <button
+            v-for="src in sources"
+            :key="src"
+            @click="activeTab = src"
+            style="padding:11px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s"
+            :style="activeTab === src ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
+          >
+            {{ src }}
+            <span style="margin-left:4px;font-size:11px;padding:0 5px;border-radius:10px;font-weight:600"
+              :style="activeTab === src ? 'background:#1c1c1c;color:#fff' : 'background:#f0efed;color:#6b6b6b'"
+            >{{ store.allMcps.filter((m: { source?: string }) => m.source === src).length }}</span>
+          </button>
+          <button
+            @click="activeTab = '专属服务'"
+            style="padding:11px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s"
+            :style="activeTab === '专属服务' ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
+          >
+            专属服务
+            <span style="margin-left:4px;font-size:11px;padding:0 5px;border-radius:10px;font-weight:600"
+              :style="activeTab === '专属服务' ? 'background:#1c1c1c;color:#fff' : 'background:#f0efed;color:#6b6b6b'"
+            >{{ Object.keys(servers).length }}</span>
           </button>
         </div>
 
         <!-- Content -->
         <div style="flex:1;overflow:auto;padding:16px 20px">
-          <!-- Globals tab -->
-          <template v-if="activeTab === 'globals'">
+
+          <!-- Global MCPs tab -->
+          <template v-if="activeTab !== '专属服务'">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-              <input v-model="globalSearch" placeholder="搜索 MCP 名称或类型..." style="flex:1;padding:6px 10px;border:1px solid #e8e6e3;border-radius:6px;font-size:12px;outline:none" />
+              <input v-model="mcpSearch" placeholder="搜索 MCP 名称或描述..." style="flex:1;padding:6px 10px;border:1px solid #e8e6e3;border-radius:6px;font-size:12px;outline:none" />
               <button class="btn-primary btn-sm" :disabled="!globalsChanged" @click="saveGlobals">保存</button>
               <span v-if="globalsChanged" style="font-size:12px;color:#f59e0b;white-space:nowrap">● 有未保存的更改</span>
             </div>
-            <div v-if="allGlobalMcps.length === 0" style="text-align:center;color:#94a3b8;padding:40px">暂无全局 MCP 服务器</div>
+            <div v-if="store.allMcps.length === 0" style="text-align:center;color:#94a3b8;padding:40px">暂无全局 MCP 服务器</div>
             <div v-else style="border:1px solid #e8e6e3;border-radius:6px;overflow:hidden">
               <div v-if="filteredGlobalMcps.length === 0" style="padding:20px;text-align:center;color:#9b9b9b;font-size:13px">无匹配结果</div>
               <label
-                v-for="m in filteredGlobalMcps" :key="m.name"
+                v-for="m in filteredGlobalMcps" :key="m.id"
                 style="display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;border-bottom:1px solid #f5f4f2;font-size:13px"
-                :style="selectedGlobals.includes(m.name) ? 'background:#fafaf9' : ''"
+                :style="selectedGlobals.includes(m.id) ? 'background:#fafaf9' : ''"
               >
-                <input type="checkbox" :value="m.name" v-model="selectedGlobals" style="cursor:pointer;flex-shrink:0;width:14px;height:14px" />
-                <span v-if="m.isBuiltin" :style="`flex-shrink:0;${BADGE_BUILTIN}`">内置</span>
-                <span v-else :style="`flex-shrink:0;${BADGE_GLOBAL}`">{{ m.desc || '自定义' }}</span>
-                <span style="font-family:monospace;font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.name }}</span>
-                <button class="btn-outline btn-sm" style="flex-shrink:0;padding:2px 8px;font-size:11px" @click.prevent="viewGlobalTools(m.name)">查看</button>
+                <input type="checkbox" :value="m.id" v-model="selectedGlobals" style="cursor:pointer;flex-shrink:0;width:14px;height:14px" />
+                <span :style="`flex-shrink:0;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(m.source)}`">{{ m.source }}</span>
+                <span style="font-family:monospace;font-weight:500;width:200px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.name }}</span>
+                <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:#64748b">{{ m.description || '-' }}</span>
+                <button class="btn-outline btn-sm" style="flex-shrink:0;padding:2px 8px;font-size:11px" @click.prevent="viewGlobalTools(m.id)">查看</button>
               </label>
             </div>
           </template>
 
-          <!-- Servers tab -->
-          <template v-else-if="activeTab === 'servers'">
+          <!-- Private servers tab -->
+          <template v-else>
             <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
               <button class="btn-primary btn-sm" @click="openAdd">+ 添加 MCP</button>
             </div>
             <div v-if="Object.keys(servers).length === 0" style="text-align:center;color:#94a3b8;padding:40px">暂无专属 MCP 服务</div>
-            <table v-else>
-              <thead><tr><th>名称</th><th>描述</th><th>类型</th><th>地址/命令</th><th>操作</th></tr></thead>
+            <table v-else style="table-layout:fixed;width:100%">
+              <colgroup>
+                <col style="width:200px" />
+                <col />
+                <col style="width:220px" />
+                <col style="width:190px" />
+              </colgroup>
+              <thead><tr><th>名称</th><th>描述</th><th>地址/命令</th><th>操作</th></tr></thead>
               <tbody>
-                <tr v-for="(s, name) in servers" :key="name">
-                  <td style="font-family:monospace">{{ name }}</td>
-                  <td style="color:#64748b;font-size:12px">{{ (s as any).description || '—' }}</td>
-                  <td>{{ s.type }}</td>
-                  <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ serverAddr(s) }}</td>
-                  <td>
+                <tr v-for="(s, id) in servers" :key="id">
+                  <td style="font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ (s as any).name || id }}</td>
+                  <td style="color:#64748b;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ (s as any).description || '—' }}</td>
+                  <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#94a3b8;font-size:12px">{{ serverAddr(s) }}</td>
+                  <td style="white-space:nowrap">
                     <div class="ops-cell">
-                      <button class="btn-outline btn-sm" @click="viewTools(name as string)">查看</button>
-                      <button class="btn-outline btn-sm" @click="openEdit(name as string)">编辑</button>
-                      <button class="btn-danger btn-sm" @click="remove(name as string)">删除</button>
+                      <button class="btn-outline btn-sm" @click="viewTools(id as string)">查看</button>
+                      <button class="btn-outline btn-sm" @click="openEdit(id as string)">编辑</button>
+                      <button class="btn-danger btn-sm" @click="remove(id as string)">删除</button>
                     </div>
                   </td>
                 </tr>
@@ -311,7 +344,7 @@ defineExpose({ open })
           <button class="modal-close" @click="showModal = false">&times;</button>
         </div>
         <div class="modal-body">
-          <div class="form-group"><label>名称 (唯一标识) *</label><input v-model="form.name" placeholder="如 my-mcp-server" :disabled="!!editingName" /></div>
+          <div class="form-group"><label>名称 *</label><input v-model="form.name" placeholder="如 my-mcp-server" /></div>
           <div class="form-group"><label>传输类型 *</label><select v-model="form.type"><option value="http">HTTP / SSE</option><option value="stdio">Stdio (本地进程)</option></select></div>
           <template v-if="form.type === 'http'">
             <div class="form-group"><label>URL *</label><input v-model="form.url" placeholder="http://example.com/mcp" /></div>

@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { ref, computed, reactive } from 'vue'
 import { apiFetch } from '@/api'
-import { store } from '@/store'
+import { store, applyMcpList } from '@/store'
 import { useToast } from '@/composables/useToast'
 import AgentModal from './AgentModal.vue'
 import AgentMcpModal from './AgentMcpModal.vue'
 import AgentSkillsModal from './AgentSkillsModal.vue'
-import type { SkillItem, McpTool } from '@/types'
-import { sourceBadgeStyle, BADGE_PRIVATE, BADGE_CLAWHUB, BADGE_GLOBAL_PILL, BADGE_PRIVATE_PILL } from '@/utils/badges'
-import { renderToolParams } from '@/utils/mcpSchema'
+import type { SkillItem, McpItem, McpTool } from '@/types'
+import { sourceBadgeStyle, BADGE_PRIVATE } from '@/utils/badges'
+import { renderToolParams, serverAddr } from '@/utils/mcpSchema'
 
 const { show } = useToast()
 
@@ -24,33 +24,26 @@ const agentSkillsModal = ref<InstanceType<typeof AgentSkillsModal>>()
 const expandedIds   = ref<Set<string>>(new Set())
 const activeTabs    = ref<Record<string, 'config' | 'skills' | 'mcp'>>({})
 const skillsMap     = ref<Record<string, SkillItem[]>>({})
-const globalsMap    = ref<Record<string, SkillItem[]>>({})
-const mcpServersMap = ref<Record<string, Record<string, any>>>({})
+const mcpServersMap = ref<Record<string, McpItem[]>>({})
 
 function isExpanded(id: string) { return expandedIds.value.has(id) }
 function getTab(id: string): 'config' | 'skills' | 'mcp' { return activeTabs.value[id] ?? 'config' }
-function getSkills(id: string)     { return skillsMap.value[id]     ?? [] }
-function getGlobals(id: string)    { return globalsMap.value[id]    ?? [] }
-function getMcpServers(id: string) { return mcpServersMap.value[id] ?? {} }
-
-function getMcpList(id: string) {
-  const a = (store.settings.agents || {})[id]
-  return Array.isArray(a?.mcp) ? a.mcp : []
+function getSkills(id: string)  { return skillsMap.value[id]     ?? [] }
+function getGlobals(id: string) {
+  const ids = new Set<string>((store.settings.agents || {})[id]?.skills ?? [])
+  return store.allSkills.filter((s: SkillItem) => ids.has(s.name))
 }
+function getMcpServers(id: string) { return mcpServersMap.value[id] ?? [] }
 
-function getMcpInfo(name: string) {
-  const builtin = store.mcpBuiltins.find(b => b.name === name)
-  if (builtin) return { isBuiltin: true, description: builtin.description }
-  const server = store.mcpServers[name]
-  if (server) return { isBuiltin: false, type: server.type, description: undefined }
-  return null
+function getMcpGlobals(id: string) {
+  const ids = new Set<string>((store.settings.agents || {})[id]?.mcp ?? [])
+  return store.allMcps.filter((m: McpItem) => ids.has(m.id))
 }
 
 async function loadSkills(id: string) {
   try {
     const res = await apiFetch(`/api/agents/${encodeURIComponent(id)}/skills`)
-    skillsMap.value[id]  = res.data?.skills  || []
-    globalsMap.value[id] = res.data?.globals || []
+    skillsMap.value[id] = res.data?.skills || []
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -59,7 +52,7 @@ async function loadSkills(id: string) {
 async function loadMcp(id: string) {
   try {
     const res = await apiFetch(`/api/agents/${encodeURIComponent(id)}/mcp`)
-    mcpServersMap.value[id] = res.data?.servers || {}
+    mcpServersMap.value[id] = res.data?.servers || []
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -161,18 +154,19 @@ function toggleTool(i: number) {
   else expandedTools.add(i)
 }
 
-async function openMcpView(name: string, agentId: string) {
-  toolsTitle.value = name
-  toolsList.value  = []
+async function openMcpView(agentId: string, id: string, isPrivate: boolean) {
+  toolsTitle.value   = isPrivate
+    ? (getMcpServers(agentId).find(s => s.id === id)?.name || id)
+    : (store.allMcps.find((m: McpItem) => m.id === id)?.name || id)
+  toolsList.value    = []
   toolsLoading.value = true
   expandedTools.clear()
   showToolsModal.value = true
-  const isGlobal = !!store.mcpServers[name] || !!store.mcpBuiltins.find(b => b.name === name)
-  const url = isGlobal
-    ? '/api/mcp/tools'
-    : `/api/agents/${encodeURIComponent(agentId)}/mcp/tools`
+  const url = isPrivate
+    ? `/api/agents/${encodeURIComponent(agentId)}/mcp/tools`
+    : '/api/mcp/tools'
   try {
-    const res = await apiFetch(url, 'POST', { name })
+    const res = await apiFetch(url, 'POST', { name: id })
     toolsList.value = res.data || []
   } catch (e: any) {
     show(e.message, 'error')
@@ -187,8 +181,7 @@ async function refresh() {
     const res    = await apiFetch('/api/settings')
     Object.assign(store.settings, res.data)
     const mcpRes = await apiFetch('/api/mcp')
-    store.mcpServers  = mcpRes.data?.servers  || {}
-    store.mcpBuiltins = mcpRes.data?.builtins || []
+    applyMcpList(mcpRes.data || [])
     const skillRes = await apiFetch('/api/skills')
     store.allSkills = skillRes.data || []
     await Promise.all(
@@ -257,7 +250,7 @@ async function refresh() {
                     v-for="tab in [
                       { key: 'config', label: '配置' },
                       { key: 'skills', label: `技能 (${getSkills(id as string).length + getGlobals(id as string).length})` },
-                      { key: 'mcp',    label: `工具 (${getMcpList(id as string).length + Object.keys(getMcpServers(id as string)).length})` },
+                      { key: 'mcp',    label: `工具 (${getMcpGlobals(id as string).length + getMcpServers(id as string).length})` },
                     ]"
                     :key="tab.key"
                     @click="switchTab(id as string, tab.key as any)"
@@ -346,24 +339,27 @@ async function refresh() {
                         <button class="btn-outline btn-sm" @click="agentSkillsModal?.open(id as string)">前往配置</button>
                       </div>
                     </div>
-                    <table v-else>
+                    <table v-else style="table-layout:fixed;width:100%">
+                      <colgroup>
+                        <col /><col style="width:60px" /><col /><col style="width:70px" />
+                      </colgroup>
                       <thead>
-                        <tr><th>名称</th><th>来源</th><th>描述</th><th></th></tr>
+                        <tr><th>名称</th><th>来源</th><th>描述</th><th style="white-space:nowrap">操作</th></tr>
                       </thead>
                       <tbody>
                         <tr v-for="s in getGlobals(id as string)" :key="'g-' + s.name">
-                          <td style="font-family:monospace">{{ s.name }}</td>
+                          <td style="font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.name }}</td>
                           <td>
                             <span v-if="s.source" :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(s.source)}`">{{ s.source }}</span>
                           </td>
-                          <td style="color:#6b6b6b;font-size:13px">{{ s.description || '-' }}</td>
-                          <td><button class="btn-outline btn-sm" @click="openSkillView(id as string, s.name, false)">查看</button></td>
+                          <td style="color:#6b6b6b;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.description || '-' }}</td>
+                          <td style="white-space:nowrap"><button class="btn-outline btn-sm" @click="openSkillView(id as string, s.name, false)">查看</button></td>
                         </tr>
                         <tr v-for="s in getSkills(id as string)" :key="s.name">
-                          <td style="font-family:monospace">{{ s.name }}</td>
-                          <td><span :style="BADGE_PRIVATE">专属技能</span></td>
-                          <td style="color:#6b6b6b;font-size:13px">{{ s.description || '-' }}</td>
-                          <td><button class="btn-outline btn-sm" @click="openSkillView(id as string, s.name, true)">查看</button></td>
+                          <td style="font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.name }}</td>
+                          <td><span :style="BADGE_PRIVATE">专属</span></td>
+                          <td style="color:#6b6b6b;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.description || '-' }}</td>
+                          <td style="white-space:nowrap"><button class="btn-outline btn-sm" @click="openSkillView(id as string, s.name, true)">查看</button></td>
                         </tr>
                       </tbody>
                     </table>
@@ -375,27 +371,29 @@ async function refresh() {
                       <button class="btn-outline btn-sm" @click="agentMcpModal?.open(id as string)">管理工具</button>
                       <div style="font-size:13px;color:#475569">此 Agent 已启用以下 MCP 工具服务器</div>
                     </div>
-                    <table>
+                    <table style="table-layout:fixed;width:100%">
+                      <colgroup>
+                        <col /><col style="width:60px" /><col /><col style="width:180px" /><col style="width:70px" />
+                      </colgroup>
                       <thead>
-                        <tr><th>名称</th><th>来源</th><th>类型</th><th>描述</th><th></th></tr>
+                        <tr><th>名称</th><th>来源</th><th>描述</th><th>地址/命令</th><th style="white-space:nowrap">操作</th></tr>
                       </thead>
                       <tbody>
-                        <tr v-for="name in getMcpList(id as string)" :key="'g-' + name">
-                          <td style="font-family:monospace">{{ name }}</td>
+                        <tr v-for="s in getMcpGlobals(id as string)" :key="'g-' + s.id">
+                          <td style="font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.name }}</td>
                           <td>
-                            <span v-if="getMcpInfo(name)?.isBuiltin" :style="BADGE_CLAWHUB">内置</span>
-                            <span v-else :style="BADGE_GLOBAL_PILL">全局</span>
+                            <span v-if="s.source" :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(s.source)}`">{{ s.source }}</span>
                           </td>
-                          <td style="font-size:12px;color:#6b6b6b">{{ (getMcpInfo(name) as any)?.type || '-' }}</td>
-                          <td style="color:#6b6b6b;font-size:13px">{{ getMcpInfo(name)?.description || '-' }}</td>
-                          <td><button class="btn-outline btn-sm" @click="openMcpView(name, id as string)">查看</button></td>
+                          <td style="color:#6b6b6b;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.description || '-' }}</td>
+                          <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#94a3b8;font-size:12px">{{ serverAddr(s as any) }}</td>
+                          <td style="white-space:nowrap"><button class="btn-outline btn-sm" @click="openMcpView(id as string, s.id, false)">查看</button></td>
                         </tr>
-                        <tr v-for="(s, name) in getMcpServers(id as string)" :key="'s-' + name">
-                          <td style="font-family:monospace">{{ name }}</td>
-                          <td><span :style="BADGE_PRIVATE_PILL">专属</span></td>
-                          <td style="font-size:12px;color:#6b6b6b">{{ (s as any).type || '-' }}</td>
-                          <td style="color:#6b6b6b;font-size:13px">{{ (s as any).description || '-' }}</td>
-                          <td><button class="btn-outline btn-sm" @click="openMcpView(name as string, id as string)">查看</button></td>
+                        <tr v-for="s in getMcpServers(id as string)" :key="'s-' + s.id">
+                          <td style="font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.name }}</td>
+                          <td><span :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle('专属')}`">专属</span></td>
+                          <td style="color:#6b6b6b;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.description || '-' }}</td>
+                          <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px">{{ serverAddr(s as any) }}</td>
+                          <td style="white-space:nowrap"><button class="btn-outline btn-sm" @click="openMcpView(id as string, s.id, true)">查看</button></td>
                         </tr>
                       </tbody>
                     </table>

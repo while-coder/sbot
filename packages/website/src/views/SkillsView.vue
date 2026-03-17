@@ -238,9 +238,14 @@ onMounted(load)
       <div style="margin-bottom:16px;padding:10px 14px;background:#f1f5f9;border-radius:6px;font-size:13px;color:#475569">
         技能目录：<code style="font-family:monospace;background:#e2e8f0;padding:2px 6px;border-radius:3px">~/.sbot/skills/</code>
       </div>
-      <table>
+      <table style="table-layout:fixed;width:100%">
+        <colgroup>
+          <col style="width:240px" />
+          <col />
+          <col style="width:120px" />
+        </colgroup>
         <thead>
-          <tr><th>名称</th><th>描述</th><th style="width:140px;white-space:nowrap">操作</th></tr>
+          <tr><th>名称</th><th>描述</th><th>操作</th></tr>
         </thead>
         <tbody>
           <tr v-if="filteredSkills.length === 0">
@@ -249,10 +254,10 @@ onMounted(load)
             </td>
           </tr>
           <tr v-for="s in filteredSkills" :key="s.name">
-            <td style="font-family:monospace">
+            <td style="font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
               <span :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;margin-right:6px;${sourceBadgeStyle(s.source)}`">{{ s.source }}</span>{{ s.name }}
             </td>
-            <td>{{ s.description || '-' }}</td>
+            <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.description || '-' }}</td>
             <td style="white-space:nowrap">
               <div class="ops-cell">
                 <button class="btn-outline btn-sm" @click="openView(s.name, s.source)">查看</button>
