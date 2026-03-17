@@ -78,7 +78,7 @@ async function loadChannelData(id: string) {
   try {
     const [sessRes, userRes] = await Promise.all([
       apiFetch(`/api/channel-sessions?channel=${encodeURIComponent(id)}`),
-      apiFetch(`/api/users?channel=${encodeURIComponent(id)}`),
+      apiFetch(`/api/channel-users?channel=${encodeURIComponent(id)}`),
     ])
     sessionMap.value[id] = sessRes.data || []
     userMap.value[id]    = userRes.data || []
@@ -117,7 +117,7 @@ async function removeSession(channelId: string, session: ChannelSessionRow) {
 async function removeUser(channelId: string, user: UserRow) {
   if (!confirm(`确定要删除用户 "${user.username || user.userid}" 吗？`)) return
   try {
-    await apiFetch(`/api/users/${user.id}`, 'DELETE')
+    await apiFetch(`/api/channel-users/${user.id}`, 'DELETE')
     const list = userMap.value[channelId]
     if (list) userMap.value[channelId] = list.filter(u => u.id !== user.id)
     show('删除成功')

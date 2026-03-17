@@ -19,7 +19,7 @@ const viewUser = ref<UserRow | null>(null)
 async function load() {
   loading.value = true
   try {
-    const res = await apiFetch('/api/users')
+    const res = await apiFetch('/api/channel-users')
     users.value = res.data || []
   } catch (e: any) {
     show(e.message, 'error')
@@ -31,7 +31,7 @@ async function load() {
 async function remove(user: UserRow) {
   if (!confirm(`确定要删除用户 "${user.username || user.userid}" 吗？`)) return
   try {
-    await apiFetch(`/api/users/${user.id}`, 'DELETE')
+    await apiFetch(`/api/channel-users/${user.id}`, 'DELETE')
     show('删除成功')
     await load()
   } catch (e: any) {
