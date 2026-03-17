@@ -58,7 +58,7 @@ async function viewTools(id: string) {
   expandedTools.clear()
   showToolsModal.value = true
   try {
-    const res = await apiFetch('/api/mcp/tools', 'POST', { name: id })
+    const res = await apiFetch(`/api/mcp/${encodeURIComponent(id)}/tools`, 'GET')
     toolsList.value = res.data || []
   } catch (e: any) {
     show(e.message, 'error')

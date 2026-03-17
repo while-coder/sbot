@@ -163,10 +163,10 @@ async function openMcpView(agentId: string, id: string, isPrivate: boolean) {
   expandedTools.clear()
   showToolsModal.value = true
   const url = isPrivate
-    ? `/api/agents/${encodeURIComponent(agentId)}/mcp/tools`
-    : '/api/mcp/tools'
+    ? `/api/agents/${encodeURIComponent(agentId)}/mcp/${encodeURIComponent(id)}/tools`
+    : `/api/mcp/${encodeURIComponent(id)}/tools`
   try {
-    const res = await apiFetch(url, 'POST', { name: id })
+    const res = await apiFetch(url, 'GET')
     toolsList.value = res.data || []
   } catch (e: any) {
     show(e.message, 'error')
