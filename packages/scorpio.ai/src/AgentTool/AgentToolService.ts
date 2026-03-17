@@ -42,7 +42,6 @@ export class AgentToolService implements IAgentToolService {
         for (const [name, cfg] of Object.entries(mcpServers)) {
             this.toolProviders.set(name, {
                 factory: async () => {
-                    cfg.disabledAutoApproveTools?.forEach(t => this.addAutoApproveTools(t, '*'));
                     const client = new MultiServerMCPClient({ mcpServers: { [name]: cfg } });
                     return await client.getTools();
                 },

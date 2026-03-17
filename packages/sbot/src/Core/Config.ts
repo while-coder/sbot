@@ -341,7 +341,6 @@ class Config {
         "python-server": {
           command: "python",
           args: ["-m", "your_mcp_module"],
-          disabledAutoApproveTools: []
         },
         "local-node-server": {
           transport: "stdio",
@@ -350,7 +349,6 @@ class Config {
           cwd: "/path/to/working/directory",
           stderr: "inherit",
           defaultToolTimeout: 30000,
-          disabledAutoApproveTools: ["dangerous_tool"],
           env: {
             "API_KEY": "your-api-key-here",
             "NODE_ENV": "production"
@@ -366,7 +364,6 @@ class Config {
           url: "https://mcp-server.example.com",
           automaticSSEFallback: true,
           defaultToolTimeout: 60000,
-          disabledAutoApproveTools: [],
           headers: {
             "Authorization": "Bearer your-token",
             "X-Custom-Header": "custom-value"

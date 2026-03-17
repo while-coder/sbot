@@ -6,6 +6,7 @@ import { useToast } from '@/composables/useToast'
 import type { SkillItem } from '@/types'
 import { sourceBadgeStyle, BADGE_CLAWHUB } from '@/utils/badges'
 
+const emit = defineEmits<{ saved: [agentName: string] }>()
 const { show } = useToast()
 
 const visible    = ref(false)
@@ -72,6 +73,7 @@ async function saveGlobalSkills() {
     Object.assign(store.settings, res.data)
     agentSkillNames.value = [...selectedSkills.value]
     show('保存成功')
+    emit('saved', agentName.value)
   } catch (e: any) {
     show(e.message, 'error')
   }

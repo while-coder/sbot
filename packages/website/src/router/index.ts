@@ -13,7 +13,6 @@ const routes = [
   { path: '/embeddings', component: () => import('@/views/EmbeddingsView.vue') },
   // 智能体
   { path: '/agents', component: () => import('@/views/agents/AgentsView.vue') },
-  { path: '/agents/:agentName', component: () => import('@/views/agents/AgentDetailView.vue') },
   { path: '/savers', component: () => import('@/views/SaversView.vue') },
   { path: '/memories', component: () => import('@/views/MemoriesView.vue') },
   { path: '/mcp', component: () => import('@/views/McpView.vue') },

@@ -22,7 +22,6 @@ import type { Connection } from "@langchain/mcp-adapters";
  * - automaticSSEFallback: 是否自动回退到 SSE
  *
  * **工具配置：**
- * - disabledAutoApproveTools: 禁用自动批准的工具列表（需要用户确认）
  * - disabled: 禁用的工具列表（这些工具将不会被加载）
  * - defaultToolTimeout: 工具执行的默认超时时间（毫秒）
  *
@@ -32,8 +31,6 @@ import type { Connection } from "@langchain/mcp-adapters";
 export type MCPServerConfig = Connection & {
     /** 服务器名称 - 扩展字段 */
     name?: string;
-    /** 禁用自动批准的工具列表（需要用户确认） - 扩展字段 */
-    disabledAutoApproveTools?: string[];
     /** Provider 描述 - 扩展字段 */
     description?: string;
 };

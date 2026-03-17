@@ -96,7 +96,7 @@ const form = ref({
   headers: {} as Record<string, string>,
   command: '', args: [] as string[],
   env: {} as Record<string, string>,
-  cwd: '', toolTimeout: '',
+  cwd: '', toolTimeout: '', description: '',
 })
 const headerRows = ref<{ key: string; value: string }[]>([])
 const argsList   = ref<string[]>([])
@@ -114,7 +114,7 @@ function syncToForm() {
 }
 function openAdd() {
   editingName.value = null
-  form.value = { name: '', type: 'http', url: '', headers: {}, command: '', args: [], env: {}, cwd: '', toolTimeout: '' }
+  form.value = { name: '', type: 'http', url: '', headers: {}, command: '', args: [], env: {}, cwd: '', toolTimeout: '', description: '' }
   syncFromForm()
   showModal.value = true
 }
@@ -126,6 +126,7 @@ function openEdit(name: string) {
     headers: { ...(s.headers || {}) }, command: s.command || '',
     args: [...(s.args || [])], env: { ...(s.env || {}) },
     cwd: s.cwd || '', toolTimeout: s.toolTimeout ? String(s.toolTimeout) : '',
+    description: (s as any).description || '',
   }
   syncFromForm()
   showModal.value = true
@@ -134,7 +135,7 @@ async function save() {
   if (!form.value.name.trim()) { show('名称不能为空', 'error'); return }
   syncToForm()
   try {
-    const { name, type, url, headers, command, args, env, cwd, toolTimeout } = form.value
+    const { name, type, url, headers, command, args, env, cwd, toolTimeout, description } = form.value
     const config: McpEntry = { type }
     if (type === 'http') {
       if (!url.trim()) { show('URL 不能为空', 'error'); return }
@@ -148,6 +149,7 @@ async function save() {
       if (cwd.trim()) config.cwd = cwd.trim()
     }
     if (toolTimeout) config.toolTimeout = parseInt(toolTimeout)
+    if (description.trim()) config.description = description.trim()
     const key = editingName.value ?? name
     const newServers = { ...servers.value, [key]: config }
     await apiFetch(apiBase(), 'PUT', { servers: newServers })
@@ -267,7 +269,7 @@ defineExpose({ open })
                 <span v-if="m.isBuiltin" :style="`flex-shrink:0;${BADGE_BUILTIN}`">内置</span>
                 <span v-else :style="`flex-shrink:0;${BADGE_GLOBAL}`">{{ m.desc || '自定义' }}</span>
                 <span style="font-family:monospace;font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.name }}</span>
-                <button class="btn-outline btn-sm" style="flex-shrink:0;padding:2px 8px;font-size:11px" @click.prevent="viewGlobalTools(m.name)">查看工具</button>
+                <button class="btn-outline btn-sm" style="flex-shrink:0;padding:2px 8px;font-size:11px" @click.prevent="viewGlobalTools(m.name)">查看</button>
               </label>
             </div>
           </template>
@@ -288,7 +290,7 @@ defineExpose({ open })
                   <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ serverAddr(s) }}</td>
                   <td>
                     <div class="ops-cell">
-                      <button class="btn-outline btn-sm" @click="viewTools(name as string)">查看工具</button>
+                      <button class="btn-outline btn-sm" @click="viewTools(name as string)">查看</button>
                       <button class="btn-outline btn-sm" @click="openEdit(name as string)">编辑</button>
                       <button class="btn-danger btn-sm" @click="remove(name as string)">删除</button>
                     </div>
@@ -344,6 +346,7 @@ defineExpose({ open })
             </div>
             <div class="form-group"><label>Cwd</label><input v-model="form.cwd" placeholder="工作目录（可选）" /></div>
           </template>
+          <div class="form-group"><label>描述</label><input v-model="form.description" placeholder="服务描述（可选）" /></div>
           <div class="form-section">
             <div class="form-section-title">高级设置</div>
             <div class="form-group"><label>Tool 超时 (ms)</label><input v-model="form.toolTimeout" type="number" placeholder="如 60000" /></div>
