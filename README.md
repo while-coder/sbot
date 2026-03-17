@@ -1,6 +1,52 @@
-# sbot
+# sbot — Self-hosted AI Agent Server
 
-Self-hosted AI agent server with multi-channel support, persistent memory, and extensible tools.
+[![npm version](https://img.shields.io/npm/v/@qingfeng346/sbot)](https://www.npmjs.com/package/@qingfeng346/sbot)
+[![npm downloads](https://img.shields.io/npm/dm/@qingfeng346/sbot)](https://www.npmjs.com/package/@qingfeng346/sbot)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+**Open-source, self-hosted AI agent framework.** Run LLM-powered agents on your own server with persistent memory, multi-channel integrations, MCP tool support, and a built-in web UI — no vendor lock-in.
+
+> Alternative to: OpenClaw · BotSharp · Anything LLM · OpenAgents · LobeChat
+
+---
+
+## Quick Start
+
+```bash
+npm install -g @qingfeng346/sbot
+sbot
+```
+
+On first run, an interactive setup wizard generates a `settings.json` with sensible defaults.
+
+---
+
+## Why sbot?
+
+| Feature | sbot | Anything LLM | OpenClaw |
+|---|:---:|:---:|:---:|
+| Self-hosted | ✅ | ✅ | ✅ |
+| Multi-LLM provider | ✅ | ✅ | ✅ |
+| Persistent long-term memory | ✅ | ✅ | — |
+| Multi-agent orchestration (ReAct) | ✅ | — | — |
+| MCP (Model Context Protocol) | ✅ | — | — |
+| Lark / Feishu integration | ✅ | — | — |
+| Cron scheduler | ✅ | — | — |
+| Skills / prompt modules | ✅ | — | — |
+
+---
+
+## Features
+
+- **Multiple LLM providers** — OpenAI, Anthropic Claude, Azure OpenAI, Ollama, and any OpenAI-compatible API (Groq, Mistral, DeepSeek, etc.)
+- **Multi-agent orchestration** — ReAct mode: a thinking model decomposes tasks and dispatches to specialized sub-agents recursively
+- **Long-term memory** — Full extract → evaluate → compress pipeline with vector-embedding semantic search
+- **MCP support** — Connect external tool servers via stdio or HTTP/SSE transport
+- **Multiple channels** — Web UI, CLI, Lark/Feishu, REST API, WebSocket
+- **Built-in tools** — Shell execution, file system, Python/PowerShell inline execution, cron scheduler
+- **Skills** — Installable prompt modules for brainstorming, TDD, code review, multi-agent coordination, and more
+- **Flexible config** — Global, per-directory, and per-session overrides from a single `settings.json`
 
 ---
 
@@ -10,7 +56,7 @@ Self-hosted AI agent server with multi-channel support, persistent memory, and e
 - **Anthropic** — Claude series models
 - **Azure OpenAI** — Azure-hosted deployments
 - **Ollama** — Local models (no API key required)
-- **OpenAI-compatible APIs** — Groq, Mistral, DeepSeek, and any provider that exposes an OpenAI-compatible endpoint
+- **OpenAI-compatible APIs** — Groq, Mistral, DeepSeek, and any provider exposing an OpenAI-compatible endpoint
 
 Each model can be independently configured with its own API key, base URL, temperature, and token limits.
 
@@ -33,7 +79,7 @@ Long-term memory with a full extract → evaluate → compress pipeline:
 - **Extraction** — Automatically identifies salient facts from conversations
 - **Evaluation** — Scores memory importance on a 0–1 scale
 - **Compression** — Merges related memories to reduce redundancy
-- **Retrieval** — Semantic search via vector embeddings
+- **Retrieval** — Semantic search via vector embeddings (OpenAI, Azure, Ollama)
 - **Auto-cleanup** — Configurable age limit and automatic expiry
 
 Memory modes: read-only, human messages only, or full conversation.
@@ -103,7 +149,7 @@ Full MCP support for connecting external tool servers:
 
 ## Skills
 
-Skills are self-contained prompt modules that extend agent capabilities for specific domains or workflows. They can be:
+Skills are self-contained prompt modules that extend agent capabilities for specific domains or workflows:
 
 - Loaded from the global skills directory
 - Scoped to individual agents
@@ -124,16 +170,6 @@ Cron-based task scheduler with persistent storage:
 
 ---
 
-## Embeddings
-
-For memory semantic search, the following embedding providers are supported:
-
-- **OpenAI** — text-embedding-ada-002, text-embedding-3-small, text-embedding-3-large
-- **Azure OpenAI** — Azure-hosted embeddings
-- **Ollama** — Local embeddings
-
----
-
 ## Configuration
 
 All configuration lives in a single `settings.json` file. Supports three levels of override:
@@ -143,3 +179,19 @@ All configuration lives in a single `settings.json` file. Supports three levels 
 3. **Session** — per-session model, saver, and memory overrides via the web or CLI
 
 Auto-generated example configs are created on first run.
+
+---
+
+## Related Projects
+
+- [OpenClaw](https://github.com/search?q=openclaw) — similar self-hosted AI agent framework
+- [Anything LLM](https://github.com/Mintplex-Labs/anything-llm) — self-hosted LLM desktop/server app
+- [LobeChat](https://github.com/lobehub/lobe-chat) — open-source ChatGPT/Claude UI
+- [Open Interpreter](https://github.com/OpenInterpreter/open-interpreter) — LLM-powered code execution agent
+- [BotSharp](https://github.com/SciSharp/BotSharp) — open-source AI agent framework (.NET)
+
+---
+
+## Keywords
+
+`ai agent` `self-hosted` `llm server` `open source` `mcp` `model context protocol` `multi-agent` `react agent` `openai` `claude` `anthropic` `ollama` `chatbot` `lark` `feishu` `long-term memory` `vector search` `typescript` `node.js`

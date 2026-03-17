@@ -1,6 +1,52 @@
-# sbot
+# sbot — 自托管 AI Agent 服务
 
-自托管 AI Agent 服务，支持多渠道接入、长期记忆和可扩展工具。
+[![npm version](https://img.shields.io/npm/v/@qingfeng346/sbot)](https://www.npmjs.com/package/@qingfeng346/sbot)
+[![npm downloads](https://img.shields.io/npm/dm/@qingfeng346/sbot)](https://www.npmjs.com/package/@qingfeng346/sbot)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+**开源、自托管的 AI Agent 框架。** 在自己的服务器上运行 LLM 驱动的 Agent，支持持久化记忆、多渠道接入、MCP 工具协议和内置 Web UI —— 无供应商绑定。
+
+> 同类项目对比：OpenClaw · BotSharp · Anything LLM · OpenAgents · LobeChat
+
+---
+
+## 快速开始
+
+```bash
+npm install -g @qingfeng346/sbot
+sbot
+```
+
+首次运行时，交互式引导向导会自动生成合理的默认 `settings.json`。
+
+---
+
+## 为什么选择 sbot？
+
+| 功能 | sbot | Anything LLM | OpenClaw |
+|---|:---:|:---:|:---:|
+| 自托管 | ✅ | ✅ | ✅ |
+| 多 LLM 供应商 | ✅ | ✅ | ✅ |
+| 持久化长期记忆 | ✅ | ✅ | — |
+| 多 Agent 编排（ReAct）| ✅ | — | — |
+| MCP（模型上下文协议）| ✅ | — | — |
+| 飞书 / Lark 集成 | ✅ | — | — |
+| Cron 定时调度 | ✅ | — | — |
+| 技能 / Prompt 模块 | ✅ | — | — |
+
+---
+
+## 核心特性
+
+- **多 LLM 供应商** — OpenAI、Anthropic Claude、Azure OpenAI、Ollama，以及任何 OpenAI 兼容接口（Groq、Mistral、DeepSeek 等）
+- **多 Agent 编排** — ReAct 模式：思考模型拆解任务并分发给专项子 Agent，支持递归组合
+- **长期记忆** — 完整的提取 → 评估 → 压缩流水线，基于向量 Embedding 进行语义检索
+- **MCP 支持** — 通过 stdio 或 HTTP/SSE 接入外部工具服务器
+- **多渠道接入** — Web UI、CLI、飞书/Lark、REST API、WebSocket
+- **内置工具** — Shell 执行、文件系统、Python/PowerShell 内联执行、Cron 调度
+- **技能系统** — 可安装的 Prompt 模块，涵盖头脑风暴、TDD、代码审查、多 Agent 协作等
+- **灵活配置** — 单个 `settings.json`，支持全局、目录、会话三级覆盖
 
 ---
 
@@ -33,7 +79,7 @@
 - **提取** — 自动从对话中识别关键信息
 - **评估** — 对记忆重要性打分（0–1）
 - **压缩** — 合并相关记忆，减少冗余
-- **检索** — 基于向量 Embedding 的语义搜索
+- **检索** — 基于向量 Embedding 的语义搜索（支持 OpenAI、Azure、Ollama）
 - **自动清理** — 可配置保留天数，过期自动删除
 
 记忆模式：只读 / 仅存储用户消息 / 存储完整对话。
@@ -103,7 +149,7 @@ REST API 与 WebSocket 端点，供自定义客户端或程序化接入。
 
 ## 技能（Skills）
 
-技能是独立的 Prompt 模块，用于为 Agent 扩展特定领域的能力或工作流。支持：
+技能是独立的 Prompt 模块，用于为 Agent 扩展特定领域的能力或工作流：
 
 - 从全局技能目录加载
 - 限定为单个 Agent 专用
@@ -124,16 +170,6 @@ REST API 与 WebSocket 端点，供自定义客户端或程序化接入。
 
 ---
 
-## Embedding 支持
-
-为记忆语义检索提供向量 Embedding：
-
-- **OpenAI** — text-embedding-ada-002、text-embedding-3-small、text-embedding-3-large
-- **Azure OpenAI** — Azure 托管的 Embedding 服务
-- **Ollama** — 本地 Embedding，无需联网
-
----
-
 ## 配置
 
 所有配置集中在一个 `settings.json` 文件中，支持三级覆盖：
@@ -143,3 +179,19 @@ REST API 与 WebSocket 端点，供自定义客户端或程序化接入。
 3. **会话级** — 通过 Web 或 CLI 对单个会话指定不同的模型、Saver 和记忆配置
 
 首次启动时自动生成配置示例文件。
+
+---
+
+## 同类项目
+
+- [OpenClaw](https://github.com/search?q=openclaw) — 同类自托管 AI Agent 框架
+- [Anything LLM](https://github.com/Mintplex-Labs/anything-llm) — 自托管 LLM 桌面/服务端应用
+- [LobeChat](https://github.com/lobehub/lobe-chat) — 开源 ChatGPT/Claude UI
+- [Open Interpreter](https://github.com/OpenInterpreter/open-interpreter) — LLM 驱动的代码执行 Agent
+- [BotSharp](https://github.com/SciSharp/BotSharp) — 开源 AI Agent 框架（.NET）
+
+---
+
+## 关键词
+
+`AI Agent` `自托管` `大模型服务` `开源` `MCP` `模型上下文协议` `多智能体` `ReAct` `OpenAI` `Claude` `Ollama` `聊天机器人` `飞书` `Lark` `长期记忆` `向量检索` `TypeScript` `Node.js`
