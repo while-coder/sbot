@@ -2,9 +2,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { apiFetch } from '@/api'
 import { marked } from 'marked'
-import { GITHUB_REPO_URL, GITHUB_ISSUES_URL, GITHUB_RELEASES_API, GITHUB_README_URL } from '@/utils/constants'
+import { GITHUB_REPO_URL, GITHUB_ISSUES_URL, GITHUB_README_URL, fetchLatestRelease, compareSemver } from '@/utils/constants'
 
 const version = ref('')
+const releasenote = ref('')
 const readmeHtml = ref('')
 const loadingReadme = ref(true)
 const update = ref<{ tag: string; body: string; url: string } | null>(null)
@@ -12,28 +13,20 @@ const update = ref<{ tag: string; body: string; url: string } | null>(null)
 const updateBodyHtml = computed(() =>
   update.value?.body ? (marked.parse(update.value.body) as string) : ''
 )
-
-function compareSemver(a: string, b: string) {
-  const pa = a.replace(/^v/, '').split('.').map(Number)
-  const pb = b.replace(/^v/, '').split('.').map(Number)
-  for (let i = 0; i < 3; i++) {
-    if ((pa[i] ?? 0) < (pb[i] ?? 0)) return -1
-    if ((pa[i] ?? 0) > (pb[i] ?? 0)) return 1
-  }
-  return 0
-}
+const releasenoteHtml = computed(() =>
+  releasenote.value ? (marked.parse(releasenote.value) as string) : ''
+)
 
 onMounted(async () => {
   try {
     const res = await apiFetch('/api/about')
     version.value = res.data?.version || ''
+    releasenote.value = res.data?.releasenote || ''
   } catch {}
 
   const [readmeResult, releaseResult] = await Promise.allSettled([
     fetch(GITHUB_README_URL).then(r => r.text()),
-    fetch(GITHUB_RELEASES_API, {
-      headers: { Accept: 'application/vnd.github+json' },
-    }).then(r => r.json()),
+    fetchLatestRelease(),
   ])
 
   if (readmeResult.status === 'fulfilled') {
@@ -41,11 +34,11 @@ onMounted(async () => {
   }
   loadingReadme.value = false
 
-  if (releaseResult.status === 'fulfilled' && version.value) {
+  if (releaseResult.status === 'fulfilled' && releaseResult.value && version.value) {
     const data = releaseResult.value
-    const tag: string = data.tag_name || ''
+    const tag = data.tag_name || ''
     if (tag && compareSemver(version.value, tag) < 0) {
-      update.value = { tag, body: data.body || '', url: data.html_url || '' }
+      update.value = { tag, body: data.body, url: data.html_url }
     }
   }
 })
@@ -92,6 +85,12 @@ onMounted(async () => {
           </div>
         </div>
 
+        <!-- Release note -->
+        <div v-if="releasenoteHtml" class="releasenote-card" style="margin-bottom:20px">
+          <div class="card-title">本版本更新内容</div>
+          <div class="releasenote-body md-content" v-html="releasenoteHtml" />
+        </div>
+
         <!-- Update banner -->
         <div v-if="update" class="update-banner">
           <div class="update-banner-top">
@@ -135,6 +134,20 @@ onMounted(async () => {
   background: #1c1c1c;
   border-color: #1c1c1c;
   color: #fff;
+}
+
+/* Release note */
+.releasenote-card {
+  border: 1px solid #e8e6e3;
+  border-radius: 8px;
+  background: #fff;
+  padding: 14px 16px;
+}
+.releasenote-body {
+  font-size: 13px;
+  line-height: 1.75;
+  color: #3d3d3d;
+  margin-top: 10px;
 }
 
 /* Update banner */

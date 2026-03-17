@@ -121,7 +121,7 @@ export interface Settings {
 class Config {
   private _configDir: string;
   private _settings: Settings = {};
-  readonly pkg: { version: string; name: string; description: string };
+  readonly pkg: { version: string; name: string; description: string; releasenote: string };
 
   constructor() {
     this.pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '../../package.json'), 'utf8'));

@@ -185,7 +185,7 @@ class HttpServer {
     // ===== System =====
     private registerSystemRoutes(app: express.Application) {
         app.get('/api/about', api(() =>
-            ({ version: config.pkg.version, name: config.pkg.name, description: config.pkg.description })
+            ({ version: config.pkg.version, name: config.pkg.name, description: config.pkg.description, releasenote: config.pkg.releasenote || '' })
         ));
 
         app.post('/api/reload', api(() => {

@@ -4,7 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { apiFetch } from '@/api'
 import { store, applyMcpList } from '@/store'
 import { useToast } from '@/composables/useToast'
-import { GITHUB_RELEASES_API } from '@/utils/constants'
+import { fetchLatestRelease, compareSemver } from '@/utils/constants'
 
 const router = useRouter()
 const route = useRoute()
@@ -74,26 +74,12 @@ async function reloadConfig() {
 
 const hasUpdate = ref(false)
 
-function compareSemver(a: string, b: string): number {
-  const pa = a.replace(/^v/, '').split('.').map(Number)
-  const pb = b.replace(/^v/, '').split('.').map(Number)
-  for (let i = 0; i < 3; i++) {
-    if ((pa[i] ?? 0) < (pb[i] ?? 0)) return -1
-    if ((pa[i] ?? 0) > (pb[i] ?? 0)) return 1
-  }
-  return 0
-}
 
 async function checkUpdate(currentVersion: string) {
-  try {
-    const res = await fetch(GITHUB_RELEASES_API, {
-      headers: { Accept: 'application/vnd.github+json' },
-    })
-    if (!res.ok) return
-    const data = await res.json()
-    const latest = (data.tag_name as string) || ''
-    if (latest && compareSemver(currentVersion, latest) < 0) hasUpdate.value = true
-  } catch {}
+  const data = await fetchLatestRelease()
+  if (!data) return
+  const latest = (data.tag_name as string) || ''
+  if (latest && compareSemver(currentVersion, latest) < 0) hasUpdate.value = true
 }
 
 // Initial load
