@@ -1,6 +1,6 @@
 import "reflect-metadata";
 import { LarkMessageArgs } from "channel.lark";
-import { AgentMessage, AgentToolCall, ICommand, UserServiceBase } from "scorpio.ai";
+import { AgentMessage, AgentToolCall, ICommand, ToolApproval, UserServiceBase } from "scorpio.ai";
 import { getBuiltInCommands } from "./BuiltInCommands";
 import { LarkUserService } from "./LarkUserService";
 import { WebSocketUserService } from "./WebSocketUserService";
@@ -78,7 +78,7 @@ export class UserService extends UserServiceBase {
         else if (this.currentContext === Context.Http) await this.http.onAgentStreamMessage(message);
     }
 
-    async executeAgentTool(toolCall: AgentToolCall): Promise<boolean> {
+    async executeAgentTool(toolCall: AgentToolCall): Promise<ToolApproval> {
         if (this.currentContext === Context.Lark) return await this.lark.executeAgentTool(toolCall);
         if (this.currentContext === Context.Http) return await this.http.executeAgentTool(toolCall);
         return await this.web.executeAgentTool(toolCall);
