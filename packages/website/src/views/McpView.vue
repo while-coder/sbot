@@ -5,6 +5,8 @@ import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 import type { McpEntry, McpBuiltin, McpTool } from '@/types'
+import { esc, formatParamType, renderSchemaChildren, renderParamRow, renderToolParams, serverAddr } from '@/utils/mcpSchema'
+import { BADGE_BUILTIN, BADGE_GLOBAL } from '@/utils/badges'
 
 const route = useRoute()
 const router = useRouter()
@@ -251,115 +253,6 @@ async function viewTools(name: string) {
   }
 }
 
-// ── Schema rendering (ported from clientbackup) ──
-function esc(s: string): string {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
-
-function formatParamType(s: any): string {
-  if (!s) return 'any'
-  if (Array.isArray(s.type)) {
-    const nonNull = s.type.filter((t: string) => t !== 'null')
-    const base = nonNull.length === 1 ? nonNull[0] : nonNull.join(' | ')
-    return s.type.includes('null') ? base + '?' : base
-  }
-  if (s.const !== undefined) return JSON.stringify(s.const)
-  if (s.enum) return s.enum.map((v: any) => JSON.stringify(v)).join(' | ')
-  if (s.type === 'array') {
-    if (s.prefixItems) return '[' + s.prefixItems.map(formatParamType).join(', ') + ']'
-    if (s.items) return formatParamType(s.items) + '[]'
-    return 'any[]'
-  }
-  if (s.type === 'object') {
-    if (s.additionalProperties && typeof s.additionalProperties === 'object')
-      return 'Record<string, ' + formatParamType(s.additionalProperties) + '>'
-    return 'object'
-  }
-  if (s.anyOf || s.oneOf) {
-    const variants = (s.anyOf || s.oneOf)
-    const nonNull = variants.filter((v: any) => v.type !== 'null')
-    const base = (nonNull.length ? nonNull : variants).map(formatParamType).join(' | ')
-    return variants.some((v: any) => v.type === 'null') ? base + '?' : base
-  }
-  if (s.allOf) return s.allOf.map(formatParamType).join(' & ')
-  if (s.$ref) { const p = s.$ref.split('/'); return p[p.length - 1] }
-  if (s.type) return s.type
-  return 'any'
-}
-
-function renderSchemaChildren(s: any): string {
-  if (!s) return ''
-  const nest = (inner: string) => `<div style="margin-left:14px;margin-top:4px;border-left:2px solid #f1f5f9;padding-left:10px">${inner}</div>`
-  if ((s.type === 'object' || !s.type) && s.properties) {
-    const req = new Set(s.required || [])
-    return nest(Object.entries(s.properties).map(([k, v]) => renderParamRow(k, v, req.has(k) && (v as any).default === undefined)).join(''))
-  }
-  if (s.type === 'object' && s.additionalProperties && typeof s.additionalProperties === 'object') {
-    return `<div class="param-desc">值类型: ${esc(formatParamType(s.additionalProperties))}</div>` + renderSchemaChildren(s.additionalProperties)
-  }
-  if (s.type === 'array') {
-    if (s.prefixItems) return nest(s.prefixItems.map((item: any, i: number) => renderParamRow(`[${i}]`, item, false)).join(''))
-    if (s.items) return `<div class="param-desc">元素类型: ${esc(formatParamType(s.items))}</div>` +
-      (s.items.properties || s.items.anyOf || s.items.allOf ? nest(renderSchemaChildren(s.items)) : '')
-  }
-  if (s.anyOf || s.oneOf) {
-    const variants = (s.anyOf || s.oneOf).filter((v: any) => v.type !== 'null')
-    return variants.map((v: any, i: number) => {
-      const label = variants.length > 1 ? `<div class="param-desc" style="font-weight:600;margin-top:4px">联合类型 ${i + 1}: ${esc(formatParamType(v))}</div>` : ''
-      return label + renderSchemaChildren(v)
-    }).join('')
-  }
-  if (s.allOf) return s.allOf.map(renderSchemaChildren).join('')
-  return ''
-}
-
-function renderParamRow(name: string, prop: any, isRequired: boolean): string {
-  let html = '<div class="tool-param">'
-  html += `<div><span class="param-name">${esc(name)}</span>`
-  html += `<span class="param-type">${esc(formatParamType(prop))}</span>`
-  if (isRequired) html += '<span class="param-required">*必填</span>'
-  html += '</div>'
-  if (prop.description) html += `<div class="param-desc">${esc(prop.description)}</div>`
-  if (prop.const !== undefined) html += `<div class="param-enum">固定值: ${esc(JSON.stringify(prop.const))}</div>`
-  if (prop.enum) html += `<div class="param-enum">可选值: ${prop.enum.map((v: any) => esc(JSON.stringify(v))).join(' | ')}</div>`
-  if (prop.default !== undefined) html += `<div class="param-default">默认值: ${esc(JSON.stringify(prop.default))}</div>`
-  html += renderSchemaChildren(prop)
-  html += '</div>'
-  return html
-}
-
-function renderToolParams(schema: any): string {
-  if (!schema) return '<div class="tool-no-params">无参数</div>'
-  if (schema.allOf) return schema.allOf.map(renderToolParams).join('') || '<div class="tool-no-params">无参数</div>'
-  if (schema.anyOf || schema.oneOf) {
-    const variants = (schema.anyOf || schema.oneOf).filter((v: any) => v.type !== 'null')
-    if (variants.length === 1) return renderToolParams(variants[0])
-    return variants.map((v: any, i: number) =>
-      `<div class="param-desc" style="font-weight:600">联合类型 ${i + 1}:</div>` + renderToolParams(v)
-    ).join('')
-  }
-  if (schema.type === 'array') {
-    if (schema.prefixItems) return schema.prefixItems.map((item: any, i: number) => renderParamRow(`[${i}]`, item, false)).join('')
-    if (schema.items) return renderParamRow('items', schema.items, false)
-    return '<div class="tool-no-params">any[]</div>'
-  }
-  if (schema.properties && Object.keys(schema.properties).length > 0) {
-    const required = new Set(schema.required || [])
-    return Object.entries(schema.properties).map(([n, p]) =>
-      renderParamRow(n, p, required.has(n) && (p as any).default === undefined)
-    ).join('')
-  }
-  if (schema.type === 'object' && schema.additionalProperties) {
-    return `<div class="tool-param"><span class="param-type">${esc(formatParamType(schema))}</span></div>`
-  }
-  return '<div class="tool-no-params">无参数</div>'
-}
-
-function serverAddr(s: McpEntry) {
-  if (s.type === 'http') return s.url || '-'
-  if (s.type === 'stdio') return [s.command, ...(s.args || [])].join(' ')
-  return '-'
-}
 
 onMounted(load)
 </script>
@@ -424,8 +317,8 @@ onMounted(load)
             :style="selectedGlobals.includes(m.name) ? 'background:#fafaf9' : ''"
           >
             <input type="checkbox" :value="m.name" v-model="selectedGlobals" style="cursor:pointer;flex-shrink:0;width:14px;height:14px" />
-            <span v-if="m.isBuiltin" style="flex-shrink:0;background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600">内置</span>
-            <span v-else style="flex-shrink:0;background:#f5f4f2;color:#6b6b6b;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600">{{ m.desc || '自定义' }}</span>
+            <span v-if="m.isBuiltin" :style="`flex-shrink:0;${BADGE_BUILTIN}`">内置</span>
+            <span v-else :style="`flex-shrink:0;${BADGE_GLOBAL}`">{{ m.desc || '自定义' }}</span>
             <span style="font-family:monospace;font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.name }}</span>
             <button
               class="btn-outline btn-sm"
@@ -473,7 +366,7 @@ onMounted(load)
           <tbody>
             <tr v-for="b in builtins" :key="'builtin:' + b.name">
               <td style="font-family:monospace">
-                <span style="background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;margin-right:6px">内置</span>{{ b.name }}
+                <span :style="`${BADGE_BUILTIN};margin-right:6px`">内置</span>{{ b.name }}
               </td>
               <td style="color:#64748b;font-size:12px">{{ b.description || '—' }}</td>
               <td>builtin</td>
