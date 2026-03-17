@@ -1,10 +1,10 @@
 import os from "os";
 import path from "path";
 import fs from "fs";
-import { ModelConfig, ModelProvider, EmbeddingConfig, EmbeddingProvider, MCPServers, MemoryMode, IModelService, IEmbeddingService, ModelServiceFactory, EmbeddingServiceFactory, type AgentSubNode } from "scorpio.ai";
+import { ModelConfig, ModelProvider, EmbeddingConfig, EmbeddingProvider, MCPServers, IModelService, IEmbeddingService, ModelServiceFactory, EmbeddingServiceFactory, type AgentSubNode } from "scorpio.ai";
 export type { AgentSubNode } from "scorpio.ai";
-import { DEFAULT_PORT, SaverType, AgentMode, ChannelType } from "sbot.commons";
-export { DEFAULT_PORT, SaverType, AgentMode, ChannelType } from "sbot.commons";
+import { DEFAULT_PORT, SaverType, AgentMode, SaverConfig, MemoryConfig, SessionConfig, ChannelConfig, DirectoryConfig, LocalDirConfig } from "sbot.commons";
+export { DEFAULT_PORT, SaverType, AgentMode, ChannelType, SaverConfig, MemoryConfig, SessionConfig, ChannelConfig, DirectoryConfig, LocalDirConfig } from "sbot.commons";
 
 /**
  * ModelConfig 的命名扩展（key 为 UUID）
@@ -18,22 +18,6 @@ export interface NamedModelConfig extends ModelConfig {
  */
 export interface NamedEmbeddingConfig extends EmbeddingConfig {
   name?: string;               // 显示名称（可选，便于识别）
-}
-
-export interface SaverConfig {
-  name?: string;               // 显示名称（可选，便于识别）
-  type?: SaverType;            // 存储类型：file | sqlite
-}
-
-export interface MemoryConfig {
-  name?: string;               // 显示名称（可选，便于识别）
-  mode?: MemoryMode;           // 记忆模式
-  autoCleanup?: boolean;       // 是否自动清理过期记忆
-  maxAgeDays?: number;         // 记忆最大保留天数
-  embedding?: string;          // 记忆使用的 embedding UUID（对应 embeddings 中的 key）
-  evaluator?: string;          // 重要性评估器使用的模型 UUID（对应 models 中的 key）
-  extractor?: string;          // 知识提取器使用的模型 UUID（对应 models 中的 key）
-  compressor?: string;         // 记忆压缩器使用的模型 UUID（对应 models 中的 key）
 }
 
 /**
@@ -70,40 +54,6 @@ export interface ReactAgentEntry extends BaseAgentEntry {
  * Agent 配置条目（联合类型）
  */
 export type AgentEntry = SingleAgentEntry | ReactAgentEntry;
-
-/**
- * 会话配置（覆盖全局 agent/saver/memory 等设置）
- */
-export interface SessionConfig {
-  name?: string;               // 显示名称（可选，便于识别）
-  agent: string;               // 使用的 Agent UUID（对应 agents 中的 key）
-  saver: string;               // 使用的 Saver 配置 UUID（对应 savers 中的 key）
-  memory?: string;             // 使用的记忆配置 UUID（对应 memories 中的 key）
-}
-
-/**
- * 频道配置（不同接入渠道的个性化设置）
- */
-export interface ChannelConfig {
-  name?: string;               // 显示名称（可选，便于识别）
-  type: ChannelType;           // 频道类型
-  appId?: string;              // Lark App ID
-  appSecret?: string;          // Lark App Secret
-  agent: string;               // 该频道使用的 Agent UUID（对应 agents 中的 key）
-  saver: string;               // 使用的 Saver 配置 UUID（对应 savers 中的 key）
-  memory?: string;             // 使用的记忆配置 UUID（对应 memories 中的 key）
-}
-
-// 配置内容（agent/saver/memory）保存在对应目录的 .sbot/settings.json，
-// 全局 settings.directories 只做路径注册，value 保留为空对象
-export interface DirectoryConfig {}
-
-/** 目录本地配置（存储于 <dir>/.sbot/settings.json） */
-export interface LocalDirConfig {
-  agent:   string;
-  saver:   string;
-  memory?: string;
-}
 
 export interface Settings {
   httpPort?: number;           // HTTP 服务监听端口，默认 5500

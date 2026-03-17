@@ -220,16 +220,10 @@ export class SingleAgentService extends AgentServiceBase {
                 if (!tool) {
                     throw new Error(`工具不存在`);
                 }
-                const autoApprove = this.toolService?.isAutoApprove(toolCall) ?? false;
-                if (!autoApprove && callback?.executeTool) {
+                if (callback?.executeTool) {
                     const approval = await callback.executeTool(toolCall);
                     if (approval === ToolApproval.Deny) {
                         throw new Error(`用户拒绝调用工具`);
-                    }
-                    if (approval === ToolApproval.AlwaysArgs) {
-                        this.toolService?.addAutoApproveTools(toolCall.name, JSON.stringify(toolCall.args));
-                    } else if (approval === ToolApproval.AlwaysTool) {
-                        this.toolService?.addAutoApproveTools(toolCall.name, '*');
                     }
                 }
                 // 执行工具

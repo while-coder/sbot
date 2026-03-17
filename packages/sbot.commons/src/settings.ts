@@ -33,19 +33,29 @@ export interface Embedding {
 }
 
 export interface MemoryConfig {
+  /** 显示名称（可选，便于识别） */
   name?: string
+  /** 记忆模式 */
   mode?: string
+  /** 是否自动清理过期记忆 */
   autoCleanup?: boolean
+  /** 记忆最大保留天数 */
   maxAgeDays?: number
+  /** 记忆使用的 embedding UUID（对应 embeddings 中的 key） */
   embedding?: string
+  /** 重要性评估器使用的模型 UUID（对应 models 中的 key） */
   evaluator?: string
+  /** 知识提取器使用的模型 UUID（对应 models 中的 key） */
   extractor?: string
+  /** 记忆压缩器使用的模型 UUID（对应 models 中的 key） */
   compressor?: string
 }
 
 export interface SaverConfig {
+  /** 显示名称（可选，便于识别） */
   name?: string
-  type?: SaverType | string
+  /** 存储类型：file | sqlite */
+  type?: SaverType
 }
 
 export interface SubAgentRef {
@@ -87,23 +97,46 @@ export interface Agent {
 }
 
 export interface SessionConfig {
+  /** 显示名称（可选，便于识别） */
   name?: string
+  /** 使用的 Agent UUID（对应 agents 中的 key） */
   agent: string
+  /** 使用的 Saver 配置 UUID（对应 savers 中的 key） */
   saver: string
+  /** 使用的记忆配置 UUID（对应 memories 中的 key） */
   memory?: string
 }
 
 export interface ChannelConfig {
+  /** 显示名称（可选，便于识别） */
   name?: string
-  type: ChannelType | string
+  /** 频道类型 */
+  type: ChannelType
+  /** Lark App ID */
   appId?: string
+  /** Lark App Secret */
   appSecret?: string
+  /** 该频道使用的 Agent UUID（对应 agents 中的 key） */
   agent: string
+  /** 使用的 Saver 配置 UUID（对应 savers 中的 key） */
   saver: string
+  /** 使用的记忆配置 UUID（对应 memories 中的 key） */
   memory?: string
 }
 
+// 配置内容（agent/saver/memory）保存在对应目录的 .sbot/settings.json，
+// 全局 settings.directories 只做路径注册，value 保留为空对象
 export interface DirectoryConfig {}
+
+/** 目录本地配置（存储于 <dir>/.sbot/settings.json） */
+export interface LocalDirConfig {
+  /** 使用的 Agent UUID（对应 agents 中的 key） */
+  agent: string
+  /** 使用的 Saver 配置 UUID（对应 savers 中的 key） */
+  saver: string
+  /** 使用的记忆配置 UUID（对应 memories 中的 key） */
+  memory?: string
+}
 
 export interface Settings {
   httpPort?: number

@@ -1,6 +1,5 @@
 import { StructuredToolInterface } from "@langchain/core/tools";
 import { IAgentToolService } from "./IAgentToolService";
-import { AgentToolCall } from "../Agents";
 import { MultiServerMCPClient } from "@langchain/mcp-adapters";
 import { MCPServers } from "./MCPServerConfig";
 import { ILoggerService } from "../Logger";
@@ -13,7 +12,6 @@ import { inject } from "../Core";
 export class AgentToolService implements IAgentToolService {
     private loadingPromise?: Promise<void>;
     private toolsMap: Map<string, StructuredToolInterface[]> = new Map();
-    private autoApproveTools = new Map<string, Set<string>>();
     private toolProviders: Map<string, { factory: () => Promise<StructuredToolInterface[]>; description?: string }> = new Map();
     private logger;
 
@@ -51,16 +49,6 @@ export class AgentToolService implements IAgentToolService {
         this.loadingPromise = undefined;
     }
 
-    /**
-     * 添加需要人工审批的工具
-     * @param toolNames 工具名称数组
-     */
-    addAutoApproveTools(name: string, args: string): void {
-        const set = this.autoApproveTools.get(name) ?? new Set<string>();
-        set.add(args);
-        this.autoApproveTools.set(name, set);
-    }
-
     private addToolToProvider(providerName: string, tool: StructuredToolInterface) {
         const list = this.toolsMap.get(providerName) ?? [];
         if (list.findIndex(x => x.name === tool.name) < 0) {
@@ -82,7 +70,6 @@ export class AgentToolService implements IAgentToolService {
 
     private async loadTools(): Promise<void> {
         this.toolsMap.clear();
-        this.autoApproveTools.clear();
 
         for (const [name, provider] of this.toolProviders) {
             try {
@@ -124,22 +111,12 @@ export class AgentToolService implements IAgentToolService {
     }
 
     /**
-     * 判断工具是否需要人工审批
-     */
-    isAutoApprove(toolCall: AgentToolCall): boolean {
-        const set = this.autoApproveTools.get(toolCall.name);
-        if (!set) return false;
-        return set.has('*') || set.has(JSON.stringify(toolCall.args));
-    }
-
-    /**
      * 重置工具加载状态（用于测试或重新加载）
      */
     reset(): void {
         this.loadingPromise = undefined;
         this.toolsMap.clear();
         this.toolProviders.clear();
-        this.autoApproveTools.clear();
     }
 
     private flattenTools(): StructuredToolInterface[] {
