@@ -8,28 +8,11 @@ import AgentModal from './AgentModal.vue'
 import AgentMcpModal from './AgentMcpModal.vue'
 import AgentSkillsModal from './AgentSkillsModal.vue'
 import type { SkillItem } from '@/types'
+import { sourceBadgeStyle, BADGE_PRIVATE, BADGE_CLAWHUB, BADGE_GLOBAL_PILL, BADGE_PRIVATE_PILL } from '@/utils/badges'
 
 const route = useRoute()
 const router = useRouter()
 const { show } = useToast()
-
-const SOURCE_COLORS = [
-  { bg: '#e0e7ff', color: '#4f46e5' },
-  { bg: '#dcfce7', color: '#16a34a' },
-  { bg: '#fef9c3', color: '#a16207' },
-  { bg: '#fce7f3', color: '#be185d' },
-  { bg: '#e0f2fe', color: '#0369a1' },
-  { bg: '#fff7ed', color: '#c2410c' },
-  { bg: '#f3e8ff', color: '#7c3aed' },
-  { bg: '#ecfeff', color: '#0e7490' },
-]
-function sourceBadgeStyle(source: string | undefined) {
-  if (!source) return 'background:#f0efed;color:#6b6b6b'
-  let hash = 0
-  for (const c of source) hash = (hash * 31 + c.charCodeAt(0)) & 0xffff
-  const { bg, color } = SOURCE_COLORS[hash % SOURCE_COLORS.length]
-  return `background:${bg};color:${color}`
-}
 
 const agentName = route.params.agentName as string
 const activeTab = ref<'config' | 'skills' | 'mcp'>('config')
@@ -266,7 +249,7 @@ onMounted(refresh)
             <tr v-for="s in skills" :key="s.name">
               <td style="font-family:monospace">{{ s.name }}</td>
               <td>
-                <span style="background:#f0efed;color:#6b6b6b;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600">专属技能</span>
+                <span :style="BADGE_PRIVATE">专属技能</span>
               </td>
               <td style="color:#6b6b6b;font-size:13px">{{ s.description || '-' }}</td>
             </tr>
@@ -289,9 +272,9 @@ onMounted(refresh)
               <td style="font-family:monospace">{{ name }}</td>
               <td>
                 <span v-if="getMcpInfo(name)?.isBuiltin"
-                  style="background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">内置</span>
+                  :style="BADGE_CLAWHUB">内置</span>
                 <span v-else
-                  style="background:#f5f4f2;color:#6b6b6b;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">全局</span>
+                  :style="BADGE_GLOBAL_PILL">全局</span>
               </td>
               <td style="font-size:12px;color:#6b6b6b">{{ (getMcpInfo(name) as any)?.type || '-' }}</td>
               <td style="color:#6b6b6b;font-size:13px">{{ getMcpInfo(name)?.description || '-' }}</td>
@@ -299,7 +282,7 @@ onMounted(refresh)
             <tr v-for="(s, name) in agentMcpServers" :key="'s-' + name">
               <td style="font-family:monospace">{{ name }}</td>
               <td>
-                <span style="background:#f0efed;color:#6b6b6b;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">专属</span>
+                <span :style="BADGE_PRIVATE_PILL">专属</span>
               </td>
               <td style="font-size:12px;color:#6b6b6b">{{ (s as any).type || '-' }}</td>
               <td style="color:#6b6b6b;font-size:13px">{{ (s as any).description || '-' }}</td>
