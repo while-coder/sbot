@@ -187,7 +187,7 @@ export class LarkService {
    * @param imagePath 图片文件路径（支持本地路径或 base64 data URI）
    * @returns 飞书图片 key (img_xxx)
    */
-  async uploadImageToLark(imagePath: string): Promise<string> {
+  async uploadImage(imagePath: string): Promise<string> {
     let imageBuffer: Buffer;
     try {
       if (imagePath.startsWith('data:image/')) {
@@ -220,6 +220,94 @@ export class LarkService {
       getLogger()?.error(`上传图片到飞书失败: ${error.message}\n${error.stack}`);
       throw error;
     }
+  }
+
+  /**
+   * 上传文件到飞书并获取 file_key
+   * 支持本地文件路径或 Buffer
+   * @param file 文件路径或 Buffer
+   * @param fileName 文件名（含扩展名）
+   * @returns 飞书 file_key
+   * https://open.feishu.cn/document/server-docs/im-v1/file/create
+   */
+  async uploadFile(file: string | Buffer, fileName: string): Promise<string> {
+    let fileBuffer: Buffer;
+    try {
+      if (typeof file === 'string') {
+        if (!fs.existsSync(file)) {
+          throw new Error(`文件不存在: ${file}`);
+        }
+        fileBuffer = fs.readFileSync(file);
+      } else {
+        fileBuffer = file;
+      }
+
+      const token = await this.getTenantAccessToken();
+      const response = await this.larkClient.im.v1.file.create({
+        data: {
+          file_type: 'stream',
+          file_name: fileName,
+          file: fileBuffer,
+        },
+      }, Lark.withTenantToken(token)) as any;
+
+      if (!response?.data?.file_key) {
+        throw new Error(`飞书返回错误: ${response?.msg || '未知错误'}`);
+      }
+
+      return response.data.file_key;
+    } catch (error: any) {
+      getLogger()?.error(`上传文件到飞书失败: ${error.message}\n${error.stack}`);
+      throw error;
+    }
+  }
+
+  /**
+   * 下载飞书图片，流式写入本地文件
+   * @param imageKey 图片 key（img_xxx）
+   * @param savePath 保存到本地的文件路径
+   * https://open.feishu.cn/document/server-docs/im-v1/image/get
+   */
+  async downloadImage(imageKey: string, savePath: string): Promise<void> {
+    try {
+      const token = await this.getTenantAccessToken();
+      const response = await this.larkClient.im.v1.image.get({
+        path: { image_key: imageKey },
+      }, Lark.withTenantToken(token)) as any;
+      await this.streamToFile(response, savePath);
+    } catch (error: any) {
+      getLogger()?.error(`下载飞书图片失败: ${error.message}\n${error.stack}`);
+      throw error;
+    }
+  }
+
+  /**
+   * 下载飞书文件，流式写入本地文件
+   * @param fileKey 文件 key
+   * @param savePath 保存到本地的文件路径
+   * https://open.feishu.cn/document/server-docs/im-v1/file/get
+   */
+  async downloadFile(fileKey: string, savePath: string): Promise<void> {
+    try {
+      const token = await this.getTenantAccessToken();
+      const response = await this.larkClient.im.v1.file.get({
+        path: { file_key: fileKey },
+      }, Lark.withTenantToken(token)) as any;
+      await this.streamToFile(response, savePath);
+    } catch (error: any) {
+      getLogger()?.error(`下载飞书文件失败: ${error.message}\n${error.stack}`);
+      throw error;
+    }
+  }
+
+  private streamToFile(stream: NodeJS.ReadableStream, filePath: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const writer = fs.createWriteStream(filePath);
+      stream.pipe(writer);
+      writer.on('finish', resolve);
+      writer.on('error', reject);
+      stream.on('error', reject);
+    });
   }
 
   /**
