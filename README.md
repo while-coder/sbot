@@ -7,8 +7,6 @@
 
 **Open-source, self-hosted AI agent framework.** Run LLM-powered agents on your own server with persistent memory, multi-channel integrations, MCP tool support, and a built-in web UI — no vendor lock-in.
 
-> Alternative to: OpenClaw · BotSharp · Anything LLM · OpenAgents · LobeChat
-
 ---
 
 ## Quick Start
@@ -19,21 +17,6 @@ sbot
 ```
 
 On first run, an interactive setup wizard generates a `settings.json` with sensible defaults.
-
----
-
-## Why sbot?
-
-| Feature | sbot | Anything LLM | OpenClaw |
-|---|:---:|:---:|:---:|
-| Self-hosted | ✅ | ✅ | ✅ |
-| Multi-LLM provider | ✅ | ✅ | ✅ |
-| Persistent long-term memory | ✅ | ✅ | — |
-| Multi-agent orchestration (ReAct) | ✅ | — | — |
-| MCP (Model Context Protocol) | ✅ | — | — |
-| Lark / Feishu integration | ✅ | — | — |
-| Cron scheduler | ✅ | — | — |
-| Skills / prompt modules | ✅ | — | — |
 
 ---
 
@@ -179,16 +162,6 @@ All configuration lives in a single `settings.json` file. Supports three levels 
 3. **Session** — per-session model, saver, and memory overrides via the web or CLI
 
 Auto-generated example configs are created on first run.
-
----
-
-## Related Projects
-
-- [OpenClaw](https://github.com/search?q=openclaw) — similar self-hosted AI agent framework
-- [Anything LLM](https://github.com/Mintplex-Labs/anything-llm) — self-hosted LLM desktop/server app
-- [LobeChat](https://github.com/lobehub/lobe-chat) — open-source ChatGPT/Claude UI
-- [Open Interpreter](https://github.com/OpenInterpreter/open-interpreter) — LLM-powered code execution agent
-- [BotSharp](https://github.com/SciSharp/BotSharp) — open-source AI agent framework (.NET)
 
 ---
 

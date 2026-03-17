@@ -7,8 +7,6 @@
 
 **开源、自托管的 AI Agent 框架。** 在自己的服务器上运行 LLM 驱动的 Agent，支持持久化记忆、多渠道接入、MCP 工具协议和内置 Web UI —— 无供应商绑定。
 
-> 同类项目对比：OpenClaw · BotSharp · Anything LLM · OpenAgents · LobeChat
-
 ---
 
 ## 快速开始
@@ -19,21 +17,6 @@ sbot
 ```
 
 首次运行时，交互式引导向导会自动生成合理的默认 `settings.json`。
-
----
-
-## 为什么选择 sbot？
-
-| 功能 | sbot | Anything LLM | OpenClaw |
-|---|:---:|:---:|:---:|
-| 自托管 | ✅ | ✅ | ✅ |
-| 多 LLM 供应商 | ✅ | ✅ | ✅ |
-| 持久化长期记忆 | ✅ | ✅ | — |
-| 多 Agent 编排（ReAct）| ✅ | — | — |
-| MCP（模型上下文协议）| ✅ | — | — |
-| 飞书 / Lark 集成 | ✅ | — | — |
-| Cron 定时调度 | ✅ | — | — |
-| 技能 / Prompt 模块 | ✅ | — | — |
 
 ---
 
@@ -179,16 +162,6 @@ REST API 与 WebSocket 端点，供自定义客户端或程序化接入。
 3. **会话级** — 通过 Web 或 CLI 对单个会话指定不同的模型、Saver 和记忆配置
 
 首次启动时自动生成配置示例文件。
-
----
-
-## 同类项目
-
-- [OpenClaw](https://github.com/search?q=openclaw) — 同类自托管 AI Agent 框架
-- [Anything LLM](https://github.com/Mintplex-Labs/anything-llm) — 自托管 LLM 桌面/服务端应用
-- [LobeChat](https://github.com/lobehub/lobe-chat) — 开源 ChatGPT/Claude UI
-- [Open Interpreter](https://github.com/OpenInterpreter/open-interpreter) — LLM 驱动的代码执行 Agent
-- [BotSharp](https://github.com/SciSharp/BotSharp) — 开源 AI Agent 框架（.NET）
 
 ---
 
