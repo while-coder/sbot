@@ -255,8 +255,9 @@ async function refresh() {
                 <tr v-for="s in sessionMap[id as string] || []" :key="s.id" class="session-sub-row">
                   <td></td>
                   <td colspan="2" class="session-id-cell">{{ s.name || s.sessionId }}</td>
-                  <td colspan="2" style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ s.sessionId }}</td>
+                  <td style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ s.sessionId }}</td>
                   <td style="font-family:monospace;font-size:12px;color:#6b6b6b">{{ agentOptions.find(a => a.id === s.agentId)?.label || s.agentId || '-' }}</td>
+                  <td></td>
                   <td style="font-family:monospace;font-size:12px;color:#6b6b6b">{{ s.memoryId || '-' }}</td>
                   <td>
                     <div class="ops-cell">

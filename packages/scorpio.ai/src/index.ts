@@ -234,6 +234,16 @@ export {
   MCPContent,
   MCPToolResult,
 
+  // AskTool
+  createAskTool,
+  type AskToolParams,
+  type AskQuestion,
+  type AskResponse,
+  type AskUserFn,
+  type RadioQuestion,
+  type CheckboxQuestion,
+  type InputQuestion,
+
   // 工具函数
   createTextContent,
   createImageContent,

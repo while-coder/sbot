@@ -1,5 +1,5 @@
 import {LarkChatProvider} from "./LarkChatProvider";
-import { AgentMessage, AgentToolCall, NowDate, sleep, ToolApproval } from "scorpio.ai";
+import { AgentMessage, AgentToolCall, AskResponse, AskToolParams, NowDate, sleep, ToolApproval } from "scorpio.ai";
 import { UserServiceBase } from "scorpio.ai";
 import { GlobalLoggerService } from "scorpio.ai";
 import { LarkReceiveIdType, LarkService } from "./LarkService";
@@ -35,10 +35,18 @@ interface ToolCallState {
   status: ToolCallStatus;
 }
 
+interface AskState {
+  id: string | undefined;
+  status: 'wait' | 'done' | 'timeout';
+  questionMap: Record<string, string>; // form name → question label
+  response?: AskResponse;
+}
+
 export abstract class LarkUserServiceBase extends UserServiceBase {
   provider: LarkChatProvider | undefined;
   larkService!: LarkService;
   toolCall: ToolCallState = { id: undefined, status: ToolCallStatus.None };
+  private askState: AskState = { id: undefined, status: 'wait', questionMap: {} };
 
   // 实现基类的抽象方法
   async startProcessMessage(query: string, args: any): Promise<string> {
@@ -114,16 +122,92 @@ export abstract class LarkUserServiceBase extends UserServiceBase {
       this.toolCall.status = ToolCallStatus.None;
     }
   }
-  async onTriggerAction(_chatId: string, code: string, data: any, _formValue: any): Promise<any> {
+  async ask(params: AskToolParams): Promise<AskResponse> {
+    const askId = `ask_${Date.now()}`;
+    const questionMap: Record<string, string> = {};
+    const formElements: any[] = [];
+
+    for (let i = 0; i < params.questions.length; i++) {
+      const q = params.questions[i];
+      const name = `q_${i}`;
+      questionMap[name] = q.label;
+
+      if (q.type === 'radio') {
+        const options = q.options.map((o: string) => ({ text: { tag: 'plain_text', content: o }, value: o }));
+        if (q.allowCustom) options.push({ text: { tag: 'plain_text', content: '其他' }, value: '__custom__' });
+        formElements.push({
+          tag: 'select_static', name,
+          label: { tag: 'plain_text', content: q.label },
+          options,
+        });
+      } else if (q.type === 'checkbox') {
+        const options = q.options.map((o: string) => ({ text: { tag: 'plain_text', content: o }, value: o }));
+        if (q.allowCustom) options.push({ text: { tag: 'plain_text', content: '其他' }, value: '__custom__' });
+        formElements.push({
+          tag: 'multi_select_static', name,
+          label: { tag: 'plain_text', content: q.label },
+          options,
+        });
+      } else {
+        formElements.push({
+          tag: 'input', name,
+          label: { tag: 'plain_text', content: q.label },
+          placeholder: q.placeholder ? { tag: 'plain_text', content: q.placeholder } : undefined,
+        });
+      }
+    }
+
+    formElements.push({
+      tag: 'button',
+      text: { tag: 'plain_text', content: '提交' },
+      type: 'primary',
+      form_action_type: 'submit',
+      behaviors: [{ type: 'callback', value: { code: 'AskForm', data: { id: askId } } }],
+    });
+
+    this.askState = { id: askId, status: 'wait', questionMap };
+    await this.provider?.insertElement(undefined, {
+      tag: 'form',
+      element_id: 'askForm',
+      ...(params.title ? { header: { title: { tag: 'plain_text', content: params.title } } } : {}),
+      elements: formElements,
+    });
+
+    const end = NowDate() + 5 * 60 * 1000;
+    while (this.askState.status === 'wait') {
+      await sleep(10);
+      if (NowDate() > end) { this.askState.status = 'timeout'; break; }
+    }
+
+    await this.provider?.deleteElement('askForm');
+    const { status, response } = this.askState;
+    this.askState = { id: undefined, status: 'wait', questionMap: {} };
+
+    if (status !== 'done' || !response) throw new Error('用户未在规定时间内回答问题');
+    return response;
+  }
+
+  async onTriggerAction(_chatId: string, code: string, data: any, formValue: any): Promise<any> {
     if (code === "ToolCall") {
-      // 处理工具调用确认
       if (data.id === this.toolCall.id) {
         this.toolCall.status = data.approval as ToolCallStatus ?? ToolCallStatus.Deny;
       }
       return;
     }
 
-    // 可以扩展更多的卡片操作处理逻辑
+    if (code === "AskForm") {
+      if (data.id === this.askState.id) {
+        const response: AskResponse = {};
+        for (const [name, label] of Object.entries(this.askState.questionMap)) {
+          const val = formValue?.[name];
+          if (val !== undefined) response[label] = val;
+        }
+        this.askState.response = response;
+        this.askState.status = 'done';
+      }
+      return;
+    }
+
     getLogger()?.warn(`未处理的卡片操作: ${code}`);
   }
 

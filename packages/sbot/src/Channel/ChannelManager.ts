@@ -166,8 +166,9 @@ export class ChannelManager {
                     defaults: { name: chatInfo?.name ?? "", agentId: "", memoryId: null },
                 });
                 if (!sessionCreated && chatInfo) {
+                    let sessionName = chatInfo?.chat_mode == 'p2p' ? `p2p_${userId}` : `${chatInfo?.chat_mode}_${chatInfo?.name}`;
                     await database.update(database.channelSession,
-                        { name: `${chatInfo?.chat_mode}_${chatInfo?.name}` },
+                        { name: sessionName },
                         { where: { channel: channelId, sessionId: args.chat_id } },
                     );
                 }
