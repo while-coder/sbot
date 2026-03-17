@@ -3,7 +3,7 @@ import { ServiceContainer } from "../DI";
 import { IMemoryService } from "../Memory";
 import { IAgentSaverService, AgentMemorySaver } from "../Saver";
 import { ILoggerService, ILogger } from "../Logger";
-import { MCPToolResult } from '../Tools';
+
 
 export const MAX_HISTORY_TOKENS = 150_000;
 
@@ -66,11 +66,6 @@ export interface IAgentCallback {
      * @returns ToolApproval 枚举，表示执行意图
      */
     executeTool?(toolCall: AgentToolCall): Promise<ToolApproval>;
-
-    /**
-     * 转换工具返回内容中的图片链接
-     */
-    convertImages?(result: MCPToolResult): Promise<MCPToolResult>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

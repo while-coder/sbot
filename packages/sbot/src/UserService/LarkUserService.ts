@@ -36,7 +36,6 @@ export class LarkUserService extends LarkUserServiceBase {
             onMessage: this.onAgentMessage.bind(this),
             onStreamMessage: this.onAgentStreamMessage.bind(this),
             executeTool: this.executeAgentTool.bind(this),
-            convertImages: this.convertImages.bind(this),
         }, agentId, channel.saver, `lark_${channelId}_${chat_id}`, ContextType.Channel, extraInfo, memoryId);
     }
 }

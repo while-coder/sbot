@@ -11,7 +11,6 @@ export enum MCPContentType {
     Image = "image",
     Audio = "audio",
     ImageUrl = "image_url",  // OpenAI 格式支持
-    CustomImageUrl = "custom_image_url"
 }
 
 /**
@@ -52,17 +51,9 @@ export type MCPImageUrlContent = {
 );
 
 /**
- * 自定义图片 URL 内容
- */
-export type MCPCustomImageUrlContent = {
-    type: MCPContentType.CustomImageUrl;
-    url: string;
-};
-
-/**
  * MCP 内容块（联合类型）
  */
-export type MCPContent = MCPTextContent | MCPImageContent | MCPAudioContent | MCPImageUrlContent | MCPCustomImageUrlContent;
+export type MCPContent = MCPTextContent | MCPImageContent | MCPAudioContent | MCPImageUrlContent;
 
 /**
  * MCP 工具调用结果

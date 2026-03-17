@@ -1,5 +1,5 @@
 import {LarkChatProvider} from "./LarkChatProvider";
-import { AgentMessage, AgentToolCall, MCPContentType, MCPToolResult, NowDate, sleep } from "scorpio.ai";
+import { AgentMessage, AgentToolCall, NowDate, sleep } from "scorpio.ai";
 import { UserServiceBase } from "scorpio.ai";
 import { GlobalLoggerService } from "scorpio.ai";
 import { LarkReceiveIdType, LarkService } from "./LarkService";
@@ -136,56 +136,6 @@ export abstract class LarkUserServiceBase extends UserServiceBase {
       this.toolCall.id = undefined
       this.toolCall.status = ToolCallStatus.None
     }
-  }
-  /**
-   * 转换 MCP 格式结果中的图片为飞书图片格式
-   */
-  async convertImages(result: MCPToolResult): Promise<MCPToolResult> {
-    try {
-      const convertedResult: MCPToolResult = {
-        content: [],
-        isError: result.isError,
-      };
-
-      for (const item of result.content) {
-        if (item.type !== MCPContentType.Image && item.type !== MCPContentType.ImageUrl) {
-          convertedResult.content.push(item);
-          continue;
-        }
-
-        try {
-          const imageData = this.extractImageData(item);
-          if (imageData.startsWith('http://') || imageData.startsWith('https://')) {
-            convertedResult.content.push(item);
-            continue;
-          }
-
-          const imageKey = await this.larkService.uploadImageToLark(imageData);
-          convertedResult.content.push({
-            type: MCPContentType.CustomImageUrl,
-            url: imageKey
-          });
-        } catch (error: any) {
-          getLogger()?.error(`转换图片失败: ${error.message}`);
-          convertedResult.content.push(item);
-        }
-      }
-      return convertedResult;
-    } catch (error: any) {
-      getLogger()?.error(`MCP 图片转换过程出错: ${error.message}`);
-      return result;
-    }
-  }
-
-  private extractImageData(item: any): string {
-    if (item.type === MCPContentType.Image) {
-      return item.data;
-    }
-    const urlField = item.url || item.image_url;
-    if (!urlField) {
-      throw new Error('图片 URL 字段为空');
-    }
-    return typeof urlField === 'string' ? urlField : urlField.url;
   }
   async onTriggerAction(_chatId: string, code: string, data: any, _formValue: any): Promise<any> {
     if (code === "ToolCall") {

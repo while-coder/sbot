@@ -231,7 +231,6 @@ export {
   MCPImageContent,
   MCPAudioContent,
   MCPImageUrlContent,
-  MCPCustomImageUrlContent,
   MCPContent,
   MCPToolResult,
 

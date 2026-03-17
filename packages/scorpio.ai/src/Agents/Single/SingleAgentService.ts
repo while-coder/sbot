@@ -8,8 +8,12 @@ import { IMemoryService } from "../../Memory";
 import { IAgentSaverService } from "../../Saver";
 import { IAgentToolService } from "../../AgentTool";
 import { ILoggerService } from "../../Logger";
-import { normalizeToMCPResult } from '../../Tools';
+import { normalizeToMCPResult, MCPContentType, MCPToolResult } from '../../Tools';
 import { AgentServiceBase, GraphNodeType, ToolApproval, IAgentCallback, MAX_HISTORY_TOKENS } from "../AgentServiceBase";
+import * as fs from 'fs/promises';
+import * as os from 'os';
+import * as path from 'path';
+import { pathToFileURL } from 'url';
 
 export {
     MessageChunkType,
@@ -80,6 +84,57 @@ export class SingleAgentService extends AgentServiceBase {
         const tools: StructuredToolInterface[] = await this.toolService?.getAllTools() ?? [];
         if (this.skillService) tools.push(...this.skillService.getTools());
         return tools;
+    }
+
+    /**
+     * 将 MCPToolResult 中的 base64 图片保存为本地临时文件，返回 file:// URL
+     */
+    async convertImages(result: MCPToolResult): Promise<MCPToolResult> {
+        try {
+            const converted: MCPToolResult = { content: [], isError: result.isError };
+            for (const item of result.content) {
+                if (item.type !== MCPContentType.Image && item.type !== MCPContentType.ImageUrl) {
+                    converted.content.push(item);
+                    continue;
+                }
+                try {
+                    if (item.type === MCPContentType.Image) {
+                        const fileUrl = await this.saveBase64ToTmp(item.data, item.mimeType);
+                        converted.content.push({ type: MCPContentType.ImageUrl, url: fileUrl });
+                    } else {
+                        const raw = item.url ?? item.image_url!;
+                        const rawStr = typeof raw === 'string' ? raw : raw.url;
+                        if (rawStr.startsWith('data:')) {
+                            const fileUrl = await this.saveDataUrlToTmp(rawStr);
+                            converted.content.push({ type: MCPContentType.ImageUrl, url: fileUrl });
+                        } else {
+                            converted.content.push(item);
+                        }
+                    }
+                } catch (error: any) {
+                    this.logger?.error(`转换图片失败: ${error.message}`);
+                    converted.content.push(item);
+                }
+            }
+            return converted;
+        } catch (error: any) {
+            this.logger?.error(`图片转换过程出错: ${error.message}`);
+            return result;
+        }
+    }
+
+    private async saveBase64ToTmp(base64: string, mimeType: string): Promise<string> {
+        const ext = mimeType.split('/')[1]?.split(';')[0] ?? 'png';
+        const filename = `img_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+        const filePath = path.join(os.tmpdir(), filename);
+        await fs.writeFile(filePath, Buffer.from(base64, 'base64'));
+        return pathToFileURL(filePath).href;
+    }
+
+    private async saveDataUrlToTmp(dataUrl: string): Promise<string> {
+        const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+        if (!match) throw new Error('无效的 data URL 格式');
+        return this.saveBase64ToTmp(match[2], match[1]);
     }
 
     /**
@@ -188,13 +243,11 @@ export class SingleAgentService extends AgentServiceBase {
                     `执行工具 ${tool.name}\n  参数: ${truncate(argsStr, 150)}\n  结果: ${truncate(resultStr, 100)}`
                 );
 
-                // 如果提供了图片转换回调，转换内容中的图片
-                if (callback?.convertImages) {
-                    try {
-                        mcpResult = await callback.convertImages(mcpResult);
-                    } catch (error: any) {
-                        this.logger?.error(`图片转换失败: ${error.message}`);
-                    }
+                // 转换内容中的图片（base64 → 本地 tmp 文件）
+                try {
+                    mcpResult = await this.convertImages(mcpResult);
+                } catch (error: any) {
+                    this.logger?.error(`图片转换失败: ${error.message}`);
                 }
 
                 // 将 MCP 格式序列化为 JSON 字符串

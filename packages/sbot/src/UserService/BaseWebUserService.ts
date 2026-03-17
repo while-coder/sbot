@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { AgentMessage, AgentToolCall, MCPToolResult } from "scorpio.ai";
+import { AgentMessage, AgentToolCall } from "scorpio.ai";
 import { AgentRunner } from "../Agent/AgentRunner";
 import { config } from '../Core/Config';
 import { ContextType } from '../Core/Database';
@@ -40,7 +40,6 @@ export abstract class BaseWebUserService {
             onMessage: this.onAgentMessage.bind(this),
             onStreamMessage: this.onAgentStreamMessage.bind(this),
             executeTool: this.executeAgentTool.bind(this),
-            convertImages: async (r: MCPToolResult) => r,
         };
         const workPath = args?.workPath as string | undefined;
         if (workPath) {
