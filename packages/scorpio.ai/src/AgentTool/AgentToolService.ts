@@ -1,5 +1,6 @@
 import { StructuredToolInterface } from "@langchain/core/tools";
 import { IAgentToolService } from "./IAgentToolService";
+import { AgentToolCall } from "../Agents";
 import { MultiServerMCPClient } from "@langchain/mcp-adapters";
 import { MCPServers } from "./MCPServerConfig";
 import { ILoggerService } from "../Logger";
@@ -12,7 +13,7 @@ import { inject } from "../Core";
 export class AgentToolService implements IAgentToolService {
     private loadingPromise?: Promise<void>;
     private toolsMap: Map<string, StructuredToolInterface[]> = new Map();
-    private disabledAutoApproveTools = new Set<string>();
+    private autoApproveTools = new Map<string, Set<string>>();
     private toolProviders: Map<string, { factory: () => Promise<StructuredToolInterface[]>; description?: string }> = new Map();
     private logger;
 
@@ -41,7 +42,7 @@ export class AgentToolService implements IAgentToolService {
         for (const [name, cfg] of Object.entries(mcpServers)) {
             this.toolProviders.set(name, {
                 factory: async () => {
-                    cfg.disabledAutoApproveTools?.forEach(t => this.disabledAutoApproveTools.add(t));
+                    cfg.disabledAutoApproveTools?.forEach(t => this.addAutoApproveTools(t, '*'));
                     const client = new MultiServerMCPClient({ mcpServers: { [name]: cfg } });
                     return await client.getTools();
                 },
@@ -55,8 +56,10 @@ export class AgentToolService implements IAgentToolService {
      * 添加需要人工审批的工具
      * @param toolNames 工具名称数组
      */
-    addDisabledAutoApproveTools(toolNames: string[]): void {
-        toolNames.forEach(name => this.disabledAutoApproveTools.add(name));
+    addAutoApproveTools(name: string, args: string): void {
+        const set = this.autoApproveTools.get(name) ?? new Set<string>();
+        set.add(args);
+        this.autoApproveTools.set(name, set);
     }
 
     private addToolToProvider(providerName: string, tool: StructuredToolInterface) {
@@ -80,7 +83,7 @@ export class AgentToolService implements IAgentToolService {
 
     private async loadTools(): Promise<void> {
         this.toolsMap.clear();
-        this.disabledAutoApproveTools.clear();
+        this.autoApproveTools.clear();
 
         for (const [name, provider] of this.toolProviders) {
             try {
@@ -124,8 +127,10 @@ export class AgentToolService implements IAgentToolService {
     /**
      * 判断工具是否需要人工审批
      */
-    isDisabledAutoApprove(toolName: string): boolean {
-        return this.disabledAutoApproveTools.has(toolName);
+    isAutoApprove(toolCall: AgentToolCall): boolean {
+        const set = this.autoApproveTools.get(toolCall.name);
+        if (!set) return false;
+        return set.has('*') || set.has(JSON.stringify(toolCall.args));
     }
 
     /**
@@ -135,7 +140,7 @@ export class AgentToolService implements IAgentToolService {
         this.loadingPromise = undefined;
         this.toolsMap.clear();
         this.toolProviders.clear();
-        this.disabledAutoApproveTools.clear();
+        this.autoApproveTools.clear();
     }
 
     private flattenTools(): StructuredToolInterface[] {

@@ -58,6 +58,7 @@ export {
   NowDate,
   sleep,
   parseJson,
+  truncate,
 } from "./Core";
 
 // ========================================
@@ -182,7 +183,6 @@ export {
 export {
   // 接口 + Symbol Token
   IAgentToolService,
-
   // 实现类
   AgentToolService,
 
@@ -210,6 +210,7 @@ export {
   // 类型定义
   MessageChunkType,
   GraphNodeType,
+  ToolApproval,
   AgentToolCall,
   AgentMessage,
   IAgentCallback,

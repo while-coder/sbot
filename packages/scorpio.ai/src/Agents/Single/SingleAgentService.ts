@@ -1,7 +1,7 @@
 import { HumanMessage, AIMessage, ToolMessage, AIMessageChunk, BaseMessage, SystemMessage } from "langchain";
 import { StateGraph, START, END } from '../../Graph';
 import { type StructuredToolInterface } from "@langchain/core/tools";
-import { inject, T_SystemPrompts } from "../../Core";
+import { inject, T_SystemPrompts, truncate } from "../../Core";
 import { IModelService } from "../../Model";
 import { ISkillService } from "../../Skills";
 import { IMemoryService } from "../../Memory";
@@ -9,11 +9,12 @@ import { IAgentSaverService } from "../../Saver";
 import { IAgentToolService } from "../../AgentTool";
 import { ILoggerService } from "../../Logger";
 import { normalizeToMCPResult } from '../../Tools';
-import { AgentServiceBase, GraphNodeType, IAgentCallback, MAX_HISTORY_TOKENS } from "../AgentServiceBase";
+import { AgentServiceBase, GraphNodeType, ToolApproval, IAgentCallback, MAX_HISTORY_TOKENS } from "../AgentServiceBase";
 
 export {
     MessageChunkType,
     GraphNodeType,
+    ToolApproval,
     AgentToolCall,
     AgentMessage,
     IAgentCallback,
@@ -164,12 +165,17 @@ export class SingleAgentService extends AgentServiceBase {
                 if (!tool) {
                     throw new Error(`工具不存在`);
                 }
-                let ok = true;
-                if (callback?.executeTool && this.toolService?.isDisabledAutoApprove(tool.name)) {
-                    ok = await callback.executeTool(toolCall);
-                }
-                if (!ok) {
-                    throw new Error(`用户拒绝调用工具`);
+                const autoApprove = this.toolService?.isAutoApprove(toolCall) ?? false;
+                if (!autoApprove && callback?.executeTool) {
+                    const approval = await callback.executeTool(toolCall);
+                    if (approval === ToolApproval.Deny) {
+                        throw new Error(`用户拒绝调用工具`);
+                    }
+                    if (approval === ToolApproval.AlwaysArgs) {
+                        this.toolService?.addAutoApproveTools(toolCall.name, JSON.stringify(toolCall.args));
+                    } else if (approval === ToolApproval.AlwaysTool) {
+                        this.toolService?.addAutoApproveTools(toolCall.name, '*');
+                    }
                 }
                 // 执行工具
                 const argsStr = JSON.stringify(toolCall.args);
@@ -179,7 +185,7 @@ export class SingleAgentService extends AgentServiceBase {
                 let mcpResult = normalizeToMCPResult(result);
                 const resultStr = JSON.stringify(mcpResult);
                 this.logger?.info(
-                    `执行工具 ${tool.name}\n  参数: ${argsStr.length > 100 ? argsStr.slice(0, 100) + '…' : argsStr}\n  结果: ${resultStr.length > 100 ? resultStr.slice(0, 100) + '…' : resultStr}`
+                    `执行工具 ${tool.name}\n  参数: ${truncate(argsStr, 150)}\n  结果: ${truncate(resultStr, 100)}`
                 );
 
                 // 如果提供了图片转换回调，转换内容中的图片

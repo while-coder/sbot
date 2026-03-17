@@ -1,4 +1,5 @@
 import { StructuredToolInterface } from "@langchain/core/tools";
+import { AgentToolCall } from "../Agents";
 
 /**
  * Agent 工具服务接口
@@ -26,9 +27,16 @@ export interface IAgentToolService {
     getProviderDescription(name: string): string | undefined;
 
     /**
-     * 判断工具是否需要人工审批
+     * 判断工具是否自动审批（无需人工确认）
      */
-    isDisabledAutoApprove(toolName: string): boolean;
+    isAutoApprove(toolCall: AgentToolCall): boolean;
+
+    /**
+     * 将工具加入自动审批名单
+     * @param name 工具名称
+     * @param args '*' 表示所有参数，否则传 JSON.stringify(args)
+     */
+    addAutoApproveTools(name: string, args: string): void;
 }
 
 /**

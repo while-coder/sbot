@@ -22,6 +22,17 @@ export enum GraphNodeType {
     TOOLS = "tools",
 }
 
+export enum ToolApproval {
+    /** 拒绝本次执行 */
+    Deny = "deny",
+    /** 同意本次执行 */
+    Allow = "allow",
+    /** 一直同意（相同参数） */
+    AlwaysArgs = "alwaysArgs",
+    /** 一直同意（此工具所有参数） */
+    AlwaysTool = "alwaysTool",
+}
+
 export type AgentToolCall = {
     id?: string;
     name: string;
@@ -52,9 +63,9 @@ export interface IAgentCallback {
 
     /**
      * 工具执行前进行确认
-     * @returns true 表示允许执行，false 表示拒绝执行
+     * @returns ToolApproval 枚举，表示执行意图
      */
-    executeTool?(toolCall: AgentToolCall): Promise<boolean>;
+    executeTool?(toolCall: AgentToolCall): Promise<ToolApproval>;
 
     /**
      * 转换工具返回内容中的图片链接
