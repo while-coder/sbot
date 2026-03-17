@@ -889,6 +889,14 @@ class HttpServer {
 
     // ===== Chat =====
     private registerChatRoutes(app: express.Application, uploadDir: string) {
+        app.post('/api/tool-approval', (req, res) => {
+            const { id, approval } = req.body as { id?: string; approval?: string };
+            if (!id || !approval) { res.status(400).json({ error: 'id 和 approval 不能为空' }); return; }
+            userService.web.resolveToolApproval(id, approval as any);
+            userService.http.resolveToolApproval(id, approval as any);
+            res.json({ ok: true });
+        });
+
         app.post('/api/chat', async (req, res) => {
             const { query, sessionId, workPath, attachments } = req.body as {
                 query?: string;

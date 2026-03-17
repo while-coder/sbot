@@ -18,6 +18,7 @@ export class HttpUserService extends BaseWebUserService {
 
     private clearResponse(): void {
         this.activeRes = null;
+        this.clearPendingApprovals();
     }
 
     // ===== Called by UserService =====

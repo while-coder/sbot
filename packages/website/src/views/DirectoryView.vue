@@ -165,6 +165,16 @@ const isStreaming     = ref(false)
 const streamingContent   = ref('')
 const streamingToolCalls = ref<{ name: string; args: unknown }[]>([])
 
+// tool approval state
+const pendingToolCall = ref<{ id: string; name: string; args: Record<string, any> } | null>(null)
+
+function approveToolCall(approval: string) {
+  if (!pendingToolCall.value) return
+  const id = pendingToolCall.value.id
+  pendingToolCall.value = null
+  apiFetch('/api/tool-approval', 'POST', { id, approval }).catch(() => {})
+}
+
 async function onPanelSend(query: string, atts: Attachment[]) {
   if (!activeDir.value)         { show('请先选择目录', 'error'); return }
   if (!activeCfg.value?.agent)  { show('请先配置 Agent', 'error'); return }
@@ -211,20 +221,18 @@ async function handleWsEvent(evt: any) {
     streamingContent.value = ''
     streamingToolCalls.value = []
   } else if (evt.type === 'tool_call') {
-    messages.value.push({
-      role: 'ai',
-      tool_calls: [{ id: evt.id ?? `tc-${Date.now()}`, name: evt.name, args: evt.args }],
-      timestamp: new Date().toISOString(),
-    })
-    streamingToolCalls.value.push({ name: evt.name, args: evt.args })
+    const tcId = evt.id ?? `tc-${Date.now()}`
+    pendingToolCall.value = { id: tcId, name: evt.name, args: evt.args }
   } else if (evt.type === 'done') {
     isStreaming.value = false
     chatSending.value = false
+    pendingToolCall.value = null
     await refreshHistory()
   } else if (evt.type === 'error') {
     show(evt.message, 'error')
     isStreaming.value = false
     chatSending.value = false
+    pendingToolCall.value = null
   }
 }
 
@@ -356,19 +364,29 @@ onUnmounted(() => { wsOffMessage(handleWsEvent) })
           请从左侧选择目录，或点击「新增目录」
         </div>
 
-        <!-- 聊天面板 -->
-        <ChatPanel
-          v-else
-          ref="chatPanelRef"
-          :messages="messages"
-          :is-streaming="isStreaming"
-          :streaming-content="streamingContent"
-          :streaming-tool-calls="streamingToolCalls"
-          :chat-sending="chatSending"
-          :empty-text="!activeCfg?.agent || !activeCfg?.saver ? '请先在工具栏配置 Agent 和存储' : '暂无对话历史，发送消息开始对话'"
-          :show-attachments="true"
-          @send="onPanelSend"
-        />
+        <!-- Tool approval bar + 聊天面板 -->
+        <template v-else>
+          <div v-if="pendingToolCall" class="tool-approval-bar">
+            <span class="tool-approval-label">执行工具：<strong>{{ pendingToolCall.name }}</strong></span>
+            <div class="tool-approval-btns">
+              <button class="btn-primary btn-sm" @click="approveToolCall('allow')">允许</button>
+              <button class="btn-outline btn-sm" @click="approveToolCall('alwaysArgs')">总是允许（相同参数）</button>
+              <button class="btn-outline btn-sm" @click="approveToolCall('alwaysTool')">总是允许（所有参数）</button>
+              <button class="btn-danger btn-sm" @click="approveToolCall('deny')">拒绝</button>
+            </div>
+          </div>
+          <ChatPanel
+            ref="chatPanelRef"
+            :messages="messages"
+            :is-streaming="isStreaming"
+            :streaming-content="streamingContent"
+            :streaming-tool-calls="streamingToolCalls"
+            :chat-sending="chatSending"
+            :empty-text="!activeCfg?.agent || !activeCfg?.saver ? '请先在工具栏配置 Agent 和存储' : '暂无对话历史，发送消息开始对话'"
+            :show-attachments="true"
+            @send="onPanelSend"
+          />
+        </template>
 
       </div>
     </div>
@@ -454,4 +472,18 @@ onUnmounted(() => { wsOffMessage(handleWsEvent) })
 }
 .dir-item:hover .dir-del-btn { color: #94a3b8; }
 .dir-del-btn:hover { color: #ef4444 !important; }
+
+/* ── 工具审批条 ── */
+.tool-approval-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  background: #fffbeb;
+  border-bottom: 1px solid #fcd34d;
+  flex-shrink: 0;
+  font-size: 13px;
+}
+.tool-approval-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool-approval-btns  { display: flex; gap: 6px; flex-shrink: 0; }
 </style>

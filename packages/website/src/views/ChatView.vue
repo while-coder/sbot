@@ -40,6 +40,16 @@ const streamingContent = ref('')
 const streamingToolCalls = ref<{ name: string; args: unknown }[]>([])
 const isStreaming = ref(false)
 
+// tool approval state
+const pendingToolCall = ref<{ id: string; name: string; args: Record<string, any> } | null>(null)
+
+function approveToolCall(approval: string) {
+  if (!pendingToolCall.value) return
+  const id = pendingToolCall.value.id
+  pendingToolCall.value = null
+  apiFetch('/api/tool-approval', 'POST', { id, approval }).catch(() => {})
+}
+
 // ── Session sidebar ──
 const activeSessionId = ref<string | null>(null)
 const sessions = computed(() => store.settings.sessions || {})
@@ -149,20 +159,18 @@ async function handleWsMessage(evt: any) {
     streamingContent.value = ''
     streamingToolCalls.value = []
   } else if (evt.type === 'tool_call') {
-    messages.value.push({
-      role: 'ai',
-      tool_calls: [{ id: evt.id ?? `tc-${Date.now()}`, name: evt.name, args: evt.args }],
-      timestamp: new Date().toISOString(),
-    })
-    streamingToolCalls.value.push({ name: evt.name, args: evt.args })
+    const tcId = evt.id ?? `tc-${Date.now()}`
+    pendingToolCall.value = { id: tcId, name: evt.name, args: evt.args }
   } else if (evt.type === 'done') {
     isStreaming.value = false
+    pendingToolCall.value = null
     await refreshHistory()
     doneResolve?.()
     doneResolve = null
     doneReject = null
   } else if (evt.type === 'error') {
     isStreaming.value = false
+    pendingToolCall.value = null
     show(evt.message, 'error')
     doneReject?.(new Error(evt.message))
     doneResolve = null
@@ -379,6 +387,17 @@ onUnmounted(() => {
         <button class="btn-danger btn-sm" :disabled="!effectiveSaver" @click="clearHistory">清除历史</button>
       </div>
 
+      <!-- Tool approval bar -->
+      <div v-if="pendingToolCall" class="tool-approval-bar">
+        <span class="tool-approval-label">执行工具：<strong>{{ pendingToolCall.name }}</strong></span>
+        <div class="tool-approval-btns">
+          <button class="btn-primary btn-sm" @click="approveToolCall('allow')">允许</button>
+          <button class="btn-outline btn-sm" @click="approveToolCall('alwaysArgs')">总是允许（相同参数）</button>
+          <button class="btn-outline btn-sm" @click="approveToolCall('alwaysTool')">总是允许（所有参数）</button>
+          <button class="btn-danger btn-sm" @click="approveToolCall('deny')">拒绝</button>
+        </div>
+      </div>
+
       <ChatPanel
         ref="chatPanelRef"
         :messages="messages"
@@ -442,4 +461,16 @@ onUnmounted(() => {
   color: #1c1c1c;
   background: #fff;
 }
+.tool-approval-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  background: #fffbeb;
+  border-bottom: 1px solid #fcd34d;
+  flex-shrink: 0;
+  font-size: 13px;
+}
+.tool-approval-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool-approval-btns  { display: flex; gap: 6px; flex-shrink: 0; }
 </style>

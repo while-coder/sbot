@@ -19,6 +19,7 @@ export class WebSocketUserService extends BaseWebUserService {
 
     private clearWs(): void {
         this.activeWs = null;
+        this.clearPendingApprovals();
     }
 
     private clearContext(): void {

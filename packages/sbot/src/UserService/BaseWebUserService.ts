@@ -9,13 +9,20 @@ import { dirThreadId, sessionThreadId } from 'sbot.commons';
 export type WebChatEvent =
     | { type: "stream"; content: string }
     | { type: "message"; role: string; content?: string; tool_calls?: any[]; tool_call_id?: string }
-    | { type: "tool_call"; id?: string; name: string; args: Record<string, any> }
+    | { type: "tool_call"; id: string; name: string; args: Record<string, any> }
     | { type: "done" }
     | { type: "error"; message: string };
 
 export abstract class BaseWebUserService {
+    private pendingApprovals: Map<string, (approval: ToolApproval) => void> = new Map();
 
     protected abstract emit(event: WebChatEvent): void;
+
+    /** 连接断开时调用，拒绝所有挂起的工具审批 */
+    protected clearPendingApprovals(): void {
+        for (const resolve of this.pendingApprovals.values()) resolve(ToolApproval.Deny);
+        this.pendingApprovals.clear();
+    }
 
     async onAgentMessage(message: AgentMessage): Promise<void> {
         this.emit({
@@ -32,10 +39,24 @@ export abstract class BaseWebUserService {
     }
 
     async executeAgentTool(toolCall: AgentToolCall): Promise<ToolApproval> {
-        this.emit({ type: 'tool_call', id: toolCall.id, name: toolCall.name, args: toolCall.args });
-        return ToolApproval.Allow;
+        const id = toolCall.id ?? `tc-${Date.now()}`;
+        this.emit({ type: 'tool_call', id, name: toolCall.name, args: toolCall.args });
+        return new Promise<ToolApproval>((resolve) => {
+            const timer = setTimeout(() => {
+                this.pendingApprovals.delete(id);
+                resolve(ToolApproval.Deny);
+            }, 30_000);
+            this.pendingApprovals.set(id, (approval) => {
+                clearTimeout(timer);
+                this.pendingApprovals.delete(id);
+                resolve(approval);
+            });
+        });
     }
 
+    resolveToolApproval(id: string, approval: ToolApproval): void {
+        this.pendingApprovals.get(id)?.(approval);
+    }
 
     async processAIMessage(query: string, args: any): Promise<void> {
         const workPath = args?.workPath as string | undefined;
