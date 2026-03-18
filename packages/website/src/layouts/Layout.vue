@@ -40,6 +40,7 @@ const menuGroups = [
       { label: '记忆配置', key: '/memories' },
       { label: '工具管理', key: '/mcp' },
       { label: '技能管理', key: '/skills' },
+      { label: 'Prompt 管理', key: '/prompts' },
     ],
   },
   {

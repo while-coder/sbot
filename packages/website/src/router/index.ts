@@ -17,6 +17,7 @@ const routes = [
   { path: '/memories', component: () => import('@/views/MemoriesView.vue') },
   { path: '/mcp', component: () => import('@/views/McpView.vue') },
   { path: '/skills', component: () => import('@/views/SkillsView.vue') },
+  { path: '/prompts', component: () => import('@/views/PromptsView.vue') },
   // 管理
   { path: '/users', component: () => import('@/views/UsersView.vue') },
   { path: '/scheduler', component: () => import('@/views/SchedulerView.vue') },

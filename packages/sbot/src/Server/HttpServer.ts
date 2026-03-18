@@ -33,6 +33,40 @@ function throwBad(msg: string): never {
     const e: any = new Error(msg); e.status = 400; throw e;
 }
 
+// ===== Prompts =====
+const PROMPTS_DIR = path.resolve(__dirname, '../../prompts');
+
+type PromptNode = { name: string; type: 'file' | 'dir'; path: string; isOverride?: boolean; children?: PromptNode[] };
+
+function safePromptRelPath(relPath: string): string {
+    if (!relPath?.trim()) throwBad('path is required');
+    const normalized = path.normalize(relPath.trim()).replace(/\\/g, '/');
+    if (normalized.startsWith('..') || path.isAbsolute(normalized)) throwBad('Invalid path');
+    return normalized;
+}
+
+function buildPromptTree(dir: string, basePath = '', userBaseDir = ''): PromptNode[] {
+    if (!fs.existsSync(dir)) return [];
+    const entries = fs.readdirSync(dir, { withFileTypes: true })
+        .sort((a, b) => {
+            if (a.isDirectory() !== b.isDirectory()) return a.isDirectory() ? -1 : 1;
+            return a.name.localeCompare(b.name);
+        });
+    const result: PromptNode[] = [];
+    for (const entry of entries) {
+        const relPath = basePath ? `${basePath}/${entry.name}` : entry.name;
+        if (entry.isDirectory()) {
+            const children = buildPromptTree(path.join(dir, entry.name), relPath, userBaseDir);
+            const anyOverride = children.some(c => c.isOverride || c.children?.some(cc => cc.isOverride));
+            result.push({ name: entry.name, type: 'dir', path: relPath, isOverride: anyOverride, children });
+        } else if (entry.isFile()) {
+            const isOverride = userBaseDir ? fs.existsSync(path.join(userBaseDir, relPath)) : false;
+            result.push({ name: entry.name, type: 'file', path: relPath, isOverride });
+        }
+    }
+    return result;
+}
+
 // ===== 附件处理 =====
 type AttachmentInput = { name: string; type: string; dataUrl?: string; content?: string };
 
@@ -153,6 +187,7 @@ class HttpServer {
         this.registerMcpRoutes(app);
         this.registerSkillRoutes(app);
         this.registerSkillHubRoutes(app);
+        this.registerPromptRoutes(app);
         this.registerDataRoutes(app);
         this.registerSchedulerRoutes(app);
         this.registerUserRoutes(app);
@@ -700,6 +735,42 @@ class HttpServer {
             const { url, overwrite = false }: { url: string; overwrite: boolean } = req.body;
             if (!url?.trim()) { const e: any = new Error('Missing url'); e.status = 400; throw e; }
             return await this.skillHubService.installSkillWithUrl(url.trim(), config.getAgentSkillsPath(agentName), { overwrite });
+        }));
+    }
+
+    // ===== Prompts =====
+    private registerPromptRoutes(app: express.Application) {
+        app.get('/api/prompts/tree', api(() => {
+            const userBaseDir = config.getConfigPath('prompts', true);
+            return buildPromptTree(PROMPTS_DIR, '', userBaseDir);
+        }));
+
+        app.get('/api/prompts/content', api(req => {
+            const relPath = safePromptRelPath(req.query.path as string);
+            const userPath = config.getConfigPath(`prompts/${relPath}`);
+            const defaultPath = path.join(PROMPTS_DIR, relPath);
+            if (fs.existsSync(userPath)) {
+                return { path: relPath, content: fs.readFileSync(userPath, 'utf-8'), isOverride: true };
+            } else if (fs.existsSync(defaultPath)) {
+                return { path: relPath, content: fs.readFileSync(defaultPath, 'utf-8'), isOverride: false };
+            } else {
+                const e: any = new Error(`Prompt "${relPath}" not found`); e.status = 404; throw e;
+            }
+        }));
+
+        app.put('/api/prompts/content', api(req => {
+            const { path: relPath, content } = req.body;
+            const safe = safePromptRelPath(relPath);
+            const userPath = config.getConfigPath(`prompts/${safe}`);
+            fs.writeFileSync(userPath, content ?? '', 'utf-8');
+            return { path: safe };
+        }));
+
+        app.delete('/api/prompts/content', api(req => {
+            const relPath = safePromptRelPath(req.query.path as string);
+            const userPath = config.getConfigPath(`prompts/${relPath}`);
+            if (fs.existsSync(userPath)) fs.unlinkSync(userPath);
+            return { path: relPath };
         }));
     }
 
