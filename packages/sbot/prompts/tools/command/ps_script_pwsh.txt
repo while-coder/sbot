@@ -1,0 +1,1 @@
+Runs an existing PowerShell script file (.ps1) by absolute path. Using PowerShell Core (pwsh) — cross-platform, PS 7+ syntax (e.g. ternary operator, null coalescing, foreach-object -Parallel). Use execute_ps_code to run an inline snippet instead.

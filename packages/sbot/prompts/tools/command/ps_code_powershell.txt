@@ -1,0 +1,1 @@
+Runs a PowerShell code snippet (string) by writing it to a temp .ps1 file and executing it. Using Windows PowerShell (powershell.exe) — Windows-only, PS 5.1 syntax; avoid PS 7+ features like ternary operator (?:) or null coalescing (??=). Use execute_ps_script when the script already exists on disk.

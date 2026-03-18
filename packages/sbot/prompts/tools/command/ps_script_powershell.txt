@@ -1,0 +1,1 @@
+Runs an existing PowerShell script file (.ps1) by absolute path. Using Windows PowerShell (powershell.exe) — Windows-only, PS 5.1 syntax; avoid PS 7+ features like ternary operator (?:) or null coalescing (??=). Use execute_ps_code to run an inline snippet instead.

@@ -83,15 +83,15 @@ async function killTree(proc: ChildProcess, isExited: () => boolean): Promise<vo
 export function truncateOutput(text: string): string {
     const lines = text.split('\n');
     if (lines.length > MAX_OUTPUT_LINES)
-        return lines.slice(0, MAX_OUTPUT_LINES).join('\n') + '\n\n[输出已截断]';
+        return lines.slice(0, MAX_OUTPUT_LINES).join('\n') + '\n\n[output truncated]';
     if (text.length > MAX_OUTPUT_BYTES)
-        return text.slice(0, MAX_OUTPUT_BYTES) + '\n\n[输出已截断]';
+        return text.slice(0, MAX_OUTPUT_BYTES) + '\n\n[output truncated]';
     return text;
 }
 
 export function validatePath(filePath: string): { valid: boolean; error?: string; absolutePath?: string } {
     if (!path.isAbsolute(filePath)) {
-        return { valid: false, error: `路径必须是绝对路径: ${filePath}` };
+        return { valid: false, error: `Path must be absolute: ${filePath}` };
     }
     return { valid: true, absolutePath: path.normalize(filePath) };
 }
@@ -103,8 +103,8 @@ export function resolveWorkingDir(workingDir: string | undefined, fallback: stri
     if (!v.valid) return { error: v.error };
 
     const cwd = v.absolutePath!;
-    if (!fs.existsSync(cwd))             return { error: `工作目录不存在: ${cwd}` };
-    if (!fs.statSync(cwd).isDirectory()) return { error: `路径不是目录: ${cwd}` };
+    if (!fs.existsSync(cwd))             return { error: `Working directory not found: ${cwd}` };
+    if (!fs.statSync(cwd).isDirectory()) return { error: `Path is not a directory: ${cwd}` };
 
     return { cwd };
 }
@@ -138,7 +138,7 @@ export async function runCommand(command: string, cwd: string, timeout: number, 
             const outText = truncateOutput(stdout.trim());
             const errText = truncateOutput(stderr.trim());
             if (outText) parts.push(createTextContent(outText));
-            if (errText) parts.push(createTextContent(`stderr:\n${errText}`));
+            if (errText) parts.push(createTextContent(`错误输出:\n${errText}`));
             if (timedOut) parts.push(createTextContent(`命令执行超时 (${timeout} ms)`));
             resolve(createSuccessResult(...parts));
         });
@@ -169,19 +169,11 @@ export const scriptCodeSchema = z.object({
 export interface PsInterpreter {
     interpreter: string;
     preArgs?:    string;
-    syntaxNote:  string;
 }
 
 export function resolvePsInterpreter(): PsInterpreter | null {
-    if (isCommandAvailable('pwsh')) return {
-        interpreter: 'pwsh',
-        syntaxNote:  'PowerShell Core (pwsh) — cross-platform, PS 7+ syntax (e.g. ternary operator, null coalescing, foreach-object -Parallel)',
-    };
-    if (isCommandAvailable('powershell')) return {
-        interpreter: 'powershell',
-        preArgs:     '-ExecutionPolicy Bypass -File',
-        syntaxNote:  'Windows PowerShell (powershell.exe) — Windows-only, PS 5.1 syntax; avoid PS 7+ features like ternary operator (?:) or null coalescing (??=)',
-    };
+    if (isCommandAvailable('pwsh'))       return { interpreter: 'pwsh' };
+    if (isCommandAvailable('powershell')) return { interpreter: 'powershell', preArgs: '-ExecutionPolicy Bypass -File' };
     return null;
 }
 
@@ -216,8 +208,8 @@ export function createScriptFileTool({ name, description, interpreter, preArgs }
             if (!pv.valid) return createErrorResult(pv.error!);
 
             const absScript = pv.absolutePath!;
-            if (!fs.existsSync(absScript))        return createErrorResult(`脚本不存在: ${absScript}`);
-            if (!fs.statSync(absScript).isFile()) return createErrorResult(`路径不是文件: ${absScript}`);
+            if (!fs.existsSync(absScript))        return createErrorResult(`Script not found: ${absScript}`);
+            if (!fs.statSync(absScript).isFile()) return createErrorResult(`Path is not a file: ${absScript}`);
 
             const { cwd, error: cwdError } = resolveWorkingDir(workingDir, workingDir);
             if (cwdError) return createErrorResult(cwdError);

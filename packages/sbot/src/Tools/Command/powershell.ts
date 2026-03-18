@@ -11,14 +11,14 @@ export function createPsScriptTool(): StructuredToolInterface | null {
     if (!ps) return null;
     return new DynamicStructuredTool({
         name:        'execute_ps_script',
-        description: loadPrompt('tools/command/ps_script.txt', { syntaxNote: ps.syntaxNote }),
+        description: loadPrompt(`tools/command/ps_script_${ps.interpreter}.txt`),
         schema: scriptFileSchema as any,
         func: async ({ scriptPath, args = [], workingDir, timeout = 60000 }: any) => {
             const pv = validatePath(scriptPath);
             if (!pv.valid) return createErrorResult(pv.error!);
             const absScript = pv.absolutePath!;
-            if (!fs.existsSync(absScript))        return createErrorResult(`脚本不存在: ${absScript}`);
-            if (!fs.statSync(absScript).isFile()) return createErrorResult(`路径不是文件: ${absScript}`);
+            if (!fs.existsSync(absScript))        return createErrorResult(`Script not found: ${absScript}`);
+            if (!fs.statSync(absScript).isFile()) return createErrorResult(`Path is not a file: ${absScript}`);
             const { cwd, error: cwdError } = resolveWorkingDir(workingDir, workingDir);
             if (cwdError) return createErrorResult(cwdError);
             const argStr  = args.length ? ' ' + args.join(' ') : '';
@@ -34,7 +34,7 @@ export function createPsCodeTool(): StructuredToolInterface | null {
     if (!ps) return null;
     return new DynamicStructuredTool({
         name:        'execute_ps_code',
-        description: loadPrompt('tools/command/ps_code.txt', { syntaxNote: ps.syntaxNote }),
+        description: loadPrompt(`tools/command/ps_code_${ps.interpreter}.txt`),
         schema: scriptCodeSchema as any,
         func: async ({ code, args = [], workingDir, timeout = 60000 }: any) => {
             const tmpFile = path.join(os.tmpdir(), `sbot_script_${Date.now()}.ps1`);

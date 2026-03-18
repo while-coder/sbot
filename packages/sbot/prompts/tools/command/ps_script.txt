@@ -1,1 +1,0 @@
-Runs an existing PowerShell script file (.ps1) by absolute path. Currently using: {syntaxNote}. Use execute_ps_code to run an inline snippet instead.
