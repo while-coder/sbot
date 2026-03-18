@@ -18,39 +18,45 @@ export enum ToolCallStatus {
   Deny = "deny",
 }
 
-interface ToolCallState {
-  id: string | undefined;
+interface ToolCallEntry {
   status: ToolCallStatus;
 }
 
-interface AskState {
-  id: string | undefined;
-  status: "wait" | "done" | "timeout";
-  questionMap: Record<string, string>;
+export enum AskStatus {
+  Wait = "wait",
+  Done = "done",
+  Timeout = "timeout",
+}
+
+interface AskEntry {
+  status: AskStatus;
+  params: AskToolParams;
   response?: AskResponse;
 }
 
 export abstract class ChannelUserServiceBase extends UserServiceBase {
-  toolCall: ToolCallState = { id: undefined, status: ToolCallStatus.None };
-  private askState: AskState = { id: undefined, status: "wait", questionMap: {} };
+  private toolCallMap = new Map<string, ToolCallEntry>();
+  private askMap = new Map<string, AskEntry>();
 
   protected abstract sendApprovalUI(toolCall: AgentToolCall, remainSec: number): Promise<void>;
-  protected abstract clearApprovalUI(): Promise<void>;
-  protected abstract sendAskForm(
-    params: AskToolParams,
-    askId: string,
-    questionMap: Record<string, string>
-  ): Promise<void>;
-  protected abstract clearAskForm(): Promise<void>;
+  protected abstract clearApprovalUI(toolCallId: string): Promise<void>;
+  protected abstract sendAskForm(params: AskToolParams, askId: string): Promise<void>;
+  protected abstract clearAskForm(askId: string): Promise<void>;
+
+  protected resolveToolCall(id: string, approval: ToolCallStatus): void {
+    const entry = this.toolCallMap.get(id);
+    if (entry) entry.status = approval;
+  }
 
   async executeAgentTool(toolCall: AgentToolCall): Promise<ToolApproval> {
-    this.toolCall.id = toolCall.id;
-    this.toolCall.status = ToolCallStatus.Wait;
+    const id = toolCall.id ?? `tc-${Date.now()}`;
+    const entry: ToolCallEntry = { status: ToolCallStatus.Wait };
+    this.toolCallMap.set(id, entry);
     try {
       const timeout = 30 * 1000;
       const end = NowDate() + timeout;
       let lastSend = 0;
-      while (this.toolCall.status === ToolCallStatus.Wait) {
+      while (entry.status === ToolCallStatus.Wait) {
         if (NowDate() - lastSend > 300) {
           lastSend = NowDate();
           const remainSec = Math.floor((end - NowDate()) / 1000);
@@ -58,7 +64,7 @@ export abstract class ChannelUserServiceBase extends UserServiceBase {
         }
         await sleep(10);
         if (NowDate() > end) {
-          this.toolCall.status = ToolCallStatus.Deny;
+          entry.status = ToolCallStatus.Deny;
           break;
         }
       }
@@ -67,54 +73,50 @@ export abstract class ChannelUserServiceBase extends UserServiceBase {
         [ToolCallStatus.AlwaysArgs]: ToolApproval.AlwaysArgs,
         [ToolCallStatus.AlwaysTool]: ToolApproval.AlwaysTool,
       };
-      return statusToApproval[this.toolCall.status] ?? ToolApproval.Deny;
+      return statusToApproval[entry.status] ?? ToolApproval.Deny;
     } finally {
-      try { await this.clearApprovalUI(); } catch {}
-      this.toolCall.id = undefined;
-      this.toolCall.status = ToolCallStatus.None;
+      try { await this.clearApprovalUI(id); } catch {}
+      this.toolCallMap.delete(id);
     }
   }
 
   async ask(params: AskToolParams): Promise<AskResponse> {
     const askId = `ask_${Date.now()}`;
-    const questionMap: Record<string, string> = {};
-    for (let i = 0; i < params.questions.length; i++) {
-      questionMap[`q_${i}`] = params.questions[i].label;
-    }
-
-    this.askState = { id: askId, status: "wait", questionMap };
-    await this.sendAskForm(params, askId, questionMap);
+    const askState: AskEntry = { status: AskStatus.Wait, params };
+    this.askMap.set(askId, askState);
+    await this.sendAskForm(params, askId);
 
     const end = NowDate() + 5 * 60 * 1000;
-    while (this.askState.status === "wait") {
+    while (askState.status === AskStatus.Wait) {
       await sleep(10);
       if (NowDate() > end) {
-        this.askState.status = "timeout";
+        askState.status = AskStatus.Timeout;
         break;
       }
     }
 
-    const status = this.askState.status;
-    const response = this.askState.response;
+    const status = askState.status;
+    const response = askState.response;
     try {
-      await this.clearAskForm();
+      await this.clearAskForm(askId);
     } finally {
-      this.askState = { id: undefined, status: "wait", questionMap: {} };
+      this.askMap.delete(askId);
     }
 
-    if (status !== "done" || !response)
+    if (status !== AskStatus.Done || !response)
       throw new Error("User did not answer within the allotted time");
     return response;
   }
 
   protected resolveAskResponse(askId: string, answers: Record<string, string | string[] | undefined>): void {
-    if (askId !== this.askState.id) return;
+    const state = this.askMap.get(askId);
+    if (!state) return;
     const response: AskResponse = {};
-    for (const [key, label] of Object.entries(this.askState.questionMap)) {
-      const val = answers[key];
-      if (val !== undefined) response[label] = val;
+    for (let i = 0; i < state.params.questions.length; i++) {
+      const val = answers[`${i}`];
+      if (val !== undefined) response[state.params.questions[i].label] = val;
     }
-    this.askState.response = response;
-    this.askState.status = "done";
+    state.response = response;
+    state.status = AskStatus.Done;
   }
 }

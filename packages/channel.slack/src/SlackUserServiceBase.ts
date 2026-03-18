@@ -47,46 +47,42 @@ export abstract class SlackUserServiceBase extends ChannelUserServiceBase {
     await this.provider?.addAIMessage(message);
   }
 
-  private buildApprovalBlocks(toolName: string, remainSec: number): any[] {
+  private buildApprovalBlocks(toolCall: AgentToolCall, remainSec: number): any[] {
     const makeButton = (text: string, actionId: string, style?: string) => ({
       type: "button",
       text: { type: "plain_text", text },
       action_id: actionId,
-      value: JSON.stringify({ id: this.toolCall.id, approval: actionId }),
+      value: JSON.stringify({ id: toolCall.id, approval: actionId }),
       ...(style ? { style } : {}),
     });
     return [{
       type: "actions",
       block_id: "toolCallActions",
       elements: [
-        makeButton(`Allow ${toolName}`, ToolCallStatus.Allow, "primary"),
-        makeButton(`Always allow ${toolName} (same args)`, ToolCallStatus.AlwaysArgs),
-        makeButton(`Always allow ${toolName} (all args)`, ToolCallStatus.AlwaysTool),
+        makeButton(`Allow ${toolCall.name}`, ToolCallStatus.Allow, "primary"),
+        makeButton(`Always allow ${toolCall.name} (same args)`, ToolCallStatus.AlwaysArgs),
+        makeButton(`Always allow ${toolCall.name} (all args)`, ToolCallStatus.AlwaysTool),
         makeButton(`Deny (${remainSec}s)`, ToolCallStatus.Deny, "danger"),
       ],
     }];
   }
 
   protected async sendApprovalUI(toolCall: AgentToolCall, remainSec: number): Promise<void> {
-    await this.provider?.setApprovalBlocks(this.buildApprovalBlocks(toolCall.name, remainSec));
+    await this.provider?.setApprovalBlocks(this.buildApprovalBlocks(toolCall, remainSec));
   }
 
-  protected async clearApprovalUI(): Promise<void> {
+  protected async clearApprovalUI(_toolCallId: string): Promise<void> {
     await this.provider?.clearApprovalBlocks();
   }
 
-  protected async sendAskForm(
-    params: AskToolParams,
-    askId: string,
-    _questionMap: Record<string, string>
-  ): Promise<void> {
+  protected async sendAskForm(params: AskToolParams, askId: string): Promise<void> {
     const inputBlocks: any[] = [];
     if (params.title) {
       inputBlocks.push({ type: "section", text: { type: "mrkdwn", text: `*${params.title}*` } });
     }
     for (let i = 0; i < params.questions.length; i++) {
       const q = params.questions[i];
-      const blockId = `q_${i}`;
+      const blockId = `${i}`;
       if (q.type === "radio") {
         inputBlocks.push({
           type: "input", block_id: blockId,
@@ -131,7 +127,7 @@ export abstract class SlackUserServiceBase extends ChannelUserServiceBase {
     await this.provider?.setAskBlocks(inputBlocks);
   }
 
-  protected async clearAskForm(): Promise<void> {
+  protected async clearAskForm(_askId: string): Promise<void> {
     await this.provider?.clearAskBlocks();
   }
 
@@ -144,9 +140,7 @@ export abstract class SlackUserServiceBase extends ChannelUserServiceBase {
       actionId === ToolCallStatus.AlwaysTool ||
       actionId === ToolCallStatus.Deny
     ) {
-      if (value?.id === this.toolCall.id) {
-        this.toolCall.status = actionId as ToolCallStatus;
-      }
+      if (value?.id) this.resolveToolCall(value.id, actionId as ToolCallStatus);
       return;
     }
 

@@ -51,41 +51,38 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
     await this.provider?.addAIMessage(message);
   }
 
-  private buildButton(label: string, type: string, approval: ToolCallStatus, elementId: string): object {
+  private buildButton(label: string, type: string, approval: ToolCallStatus, elementId: string, toolCallId: string): object {
     return {
       tag: "button",
       text: { tag: "plain_text", content: label },
       type,
       width: "fill",
       size: "medium",
-      behaviors: [{ type: "callback", value: { code: "ToolCall", data: { id: this.toolCall.id, approval } } }],
+      behaviors: [{ type: "callback", value: { code: "ToolCall", data: { id: toolCallId, approval } } }],
       margin: "0px 0px 0px 0px",
       element_id: elementId,
     };
   }
 
   protected async sendApprovalUI(toolCall: AgentToolCall, remainSec: number): Promise<void> {
+    const id = toolCall.id ?? "";
     await this.provider?.insertElement(undefined,
-      this.buildButton(`Allow ${toolCall.name}`, "primary_filled", ToolCallStatus.Allow, "toolCallAllow"),
-      this.buildButton(`Always allow ${toolCall.name} (same args)`, "primary", ToolCallStatus.AlwaysArgs, "toolCallAlwaysArgs"),
-      this.buildButton(`Always allow ${toolCall.name} (all args)`, "primary", ToolCallStatus.AlwaysTool, "toolCallAlwaysTool"),
-      this.buildButton(`Deny (${remainSec}s)`, "danger_filled", ToolCallStatus.Deny, "toolCallDeny"),
+      this.buildButton(`Allow ${toolCall.name}`, "primary_filled", ToolCallStatus.Allow, "toolCallAllow", id),
+      this.buildButton(`Always allow ${toolCall.name} (same args)`, "primary", ToolCallStatus.AlwaysArgs, "toolCallAlwaysArgs", id),
+      this.buildButton(`Always allow ${toolCall.name} (all args)`, "primary", ToolCallStatus.AlwaysTool, "toolCallAlwaysTool", id),
+      this.buildButton(`Deny (${remainSec}s)`, "danger_filled", ToolCallStatus.Deny, "toolCallDeny", id),
     );
   }
 
-  protected async clearApprovalUI(): Promise<void> {
+  protected async clearApprovalUI(_toolCallId: string): Promise<void> {
     await this.provider?.deleteElement("toolCallAllow", "toolCallAlwaysArgs", "toolCallAlwaysTool", "toolCallDeny");
   }
 
-  protected async sendAskForm(
-    params: AskToolParams,
-    askId: string,
-    _questionMap: Record<string, string>
-  ): Promise<void> {
+  protected async sendAskForm(params: AskToolParams, askId: string): Promise<void> {
     const formElements: any[] = [];
     for (let i = 0; i < params.questions.length; i++) {
       const q = params.questions[i];
-      const name = `q_${i}`;
+      const name = `${i}`;
       if (q.type === 'radio') {
         const options = q.options.map((o: string) => ({ text: { tag: 'plain_text', content: o }, value: o }));
         if (q.allowCustom) options.push({ text: { tag: 'plain_text', content: 'Other' }, value: '__custom__' });
@@ -117,15 +114,13 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
     });
   }
 
-  protected async clearAskForm(): Promise<void> {
+  protected async clearAskForm(_askId: string): Promise<void> {
     await this.provider?.deleteElement('askForm');
   }
 
   async onTriggerAction(_chatId: string, code: string, data: any, formValue: any): Promise<any> {
     if (code === "ToolCall") {
-      if (data.id === this.toolCall.id) {
-        this.toolCall.status = data.approval as ToolCallStatus ?? ToolCallStatus.Deny;
-      }
+      this.resolveToolCall(data.id, data.approval as ToolCallStatus ?? ToolCallStatus.Deny);
       return;
     }
     if (code === "AskForm") {
