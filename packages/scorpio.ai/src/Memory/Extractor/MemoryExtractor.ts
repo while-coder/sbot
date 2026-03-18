@@ -14,8 +14,8 @@ const ExtractionSchema = z.object({
 });
 
 /**
- * LLM 驱动的对话知识提取器
- * 从对话中提取关键事实、偏好、决策等知识点
+ * LLM-driven conversation knowledge extractor
+ * Extracts key facts, preferences, decisions, and other knowledge points from conversations
  */
 export class MemoryExtractor implements IMemoryExtractor {
   private logger?: ILogger;
@@ -29,8 +29,8 @@ export class MemoryExtractor implements IMemoryExtractor {
   }
 
   /**
-   * 从对话中提取知识点
-   * @returns 提取的知识点数组，空数组表示无需记忆
+   * Extract knowledge points from a conversation
+   * @returns Array of extracted knowledge points, empty array if nothing worth remembering
    */
   async extract(userMessage: string, assistantMessage?: string[]): Promise<ExtractionResult[]> {
     try {
@@ -44,7 +44,7 @@ export class MemoryExtractor implements IMemoryExtractor {
       ]);
       return results;
     } catch (error: any) {
-      this.logger?.warn(`LLM 知识提取失败: ${error.message}`);
+      this.logger?.warn(`LLM knowledge extraction failed: ${error.message}`);
       return [];
     }
   }

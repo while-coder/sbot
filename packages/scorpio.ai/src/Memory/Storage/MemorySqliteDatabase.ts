@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import { inject, T_DBPath, T_ThreadId } from "../../Core";
 import { Memory } from "../types";
 import { IMemoryDatabase } from "./IMemoryDatabase";
+import { cosineSimilarity } from "../utils";
 
 export class MemorySqliteDatabase implements IMemoryDatabase {
     private db: Database.Database;
@@ -146,24 +147,13 @@ export class MemorySqliteDatabase implements IMemoryDatabase {
         return rows
             .map(row => {
                 const embedding: number[] = JSON.parse(row.embedding);
-                const score = this.dotCosine(queryEmbedding, normQ, embedding);
+                const score = cosineSimilarity(queryEmbedding, embedding, normQ);
                 if (score < minSimilarity) return null;
                 return { memory: this.rowToMemory(row, embedding), distance: 1 - score, score };
             })
             .filter((r): r is NonNullable<typeof r> => r !== null)
             .sort((a, b) => b.score - a.score)
             .slice(0, limit);
-    }
-
-    /** 计算余弦相似度，查询向量的模长由调用方预先提供以避免重复计算 */
-    private dotCosine(a: number[], normA: number, b: number[]): number {
-        let dotProduct = 0, normB = 0;
-        for (let i = 0; i < a.length; i++) {
-            dotProduct += a[i] * b[i];
-            normB += b[i] * b[i];
-        }
-        const denominator = normA * Math.sqrt(normB);
-        return denominator === 0 ? 0 : dotProduct / denominator;
     }
 
     private rowToMemory(row: any, embedding?: number[]): Memory {

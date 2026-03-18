@@ -1,14 +1,14 @@
-你是一个记忆整合专家。请将以下多条记忆整合为一条简洁但完整的记忆。
+You are a memory consolidation expert. Merge the following memories into a single concise but complete memory.
 
-整合策略：按主题整合这些记忆，将相关的信息归类。
+Strategy: consolidate by theme — group related information together.
 
-要整合的记忆：
+Memories to merge (each wrapped in a <memory> tag with index and timestamp):
 {memories}
 
-要求：
-1. 保留所有关键信息和重要细节
-2. 消除重复内容
-3. 使用简洁清晰的语言
-4. 保持事实准确性
-5. 不要添加原文中没有的信息
-6. 最终结果应该比原文更短，但信息密度更高
+Requirements:
+1. Retain all key information and important details
+2. Eliminate duplicate content
+3. Use clear, concise language
+4. Maintain factual accuracy
+5. Do not add information not present in the originals
+6. The result should be shorter than the combined originals but with higher information density

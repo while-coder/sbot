@@ -12,8 +12,8 @@ const EvaluationSchema = z.object({
 });
 
 /**
- * LLM 驱动的智能重要性评估器
- * 使用语言模型判断记忆的重要性
+ * LLM-driven importance evaluator
+ * Uses a language model to assess memory importance
  *
  * @example
  * ```ts
@@ -33,10 +33,7 @@ export class MemoryEvaluator implements IMemoryEvaluator {
   }
 
   /**
-   * 评估文本的重要性
-   * @param content 要评估的文本内容
-   * @param context 可选的上下文信息
-   * @returns 重要性评估结果
+   * Evaluate the importance of a piece of text
    */
   async evaluate(content: string): Promise<EvaluationResult> {
     try {
@@ -45,8 +42,8 @@ export class MemoryEvaluator implements IMemoryEvaluator {
         new HumanMessage(content),
       ]);
     } catch (error: any) {
-      this.logger?.warn(`LLM 重要性评估失败: ${error.message}`);
-      return { importance: 0.5, reasoning: "评估失败，使用默认值" };
+      this.logger?.warn(`LLM importance evaluation failed: ${error.message}`);
+      return { importance: 0.5, reasoning: "Evaluation failed, using default" };
     }
   }
 }

@@ -33,15 +33,15 @@ export class MemoryService implements IMemoryService {
   @init()
   async init(): Promise<void> {
     this.cleanupOldMemories().catch(err => {
-      this.logger?.error(`自动清理记忆失败: ${err.message}`);
+      this.logger?.error(`Auto memory cleanup failed: ${err.message}`);
     });
   }
 
-  // ── 读取 ──────────────────────────────────────────────────────────────────
+  // ── Read ───────────────────────────────────────────────────────────────────
 
   /**
-   * 获取 Memory 系统提示词
-   * 根据查询检索相关记忆，无记忆时返回 null
+   * Build a memory system message for the given query.
+   * Retrieves relevant memories; returns null if none found.
    */
   async getSystemMessage(query: string, limit: number = 10): Promise<string | null> {
     try {
@@ -53,7 +53,7 @@ export class MemoryService implements IMemoryService {
         .join("\n");
       return `<user-memories>\n${items}\n</user-memories>`;
     } catch (error: any) {
-      this.logger?.warn(`获取记忆系统提示词失败: ${error.message}`);
+      this.logger?.warn(`Failed to build memory system message: ${error.message}`);
       return null;
     }
   }
@@ -62,11 +62,11 @@ export class MemoryService implements IMemoryService {
     return this.db.getAllMemories();
   }
 
-  // ── 写入 ──────────────────────────────────────────────────────────────────
+  // ── Write ──────────────────────────────────────────────────────────────────
 
   /**
-   * 对话历史记忆化
-   * 有 extractor 时提取知识点，否则存原始对话
+   * Memorize a conversation turn.
+   * Uses the extractor to distill knowledge points when available.
    */
   async memorizeConversation(
     userMessage: string,
@@ -99,19 +99,19 @@ export class MemoryService implements IMemoryService {
     return ids;
   }
 
-  // ── 维护 ──────────────────────────────────────────────────────────────────
+  // ── Maintenance ────────────────────────────────────────────────────────────
 
   async deleteMemory(memoryId: string): Promise<void> {
     await this.db.deleteMemory(memoryId);
   }
 
   /**
-   * 压缩相似记忆
-   * @returns 压缩的记忆组数
+   * Compress similar memories
+   * @returns Number of compressed groups
    */
   async compressMemories(): Promise<number> {
     if (!this.compressor) {
-      this.logger?.warn("MemoryCompressor 未启用，跳过压缩");
+      this.logger?.warn("MemoryCompressor not enabled, skipping compression");
       return 0;
     }
 
@@ -133,30 +133,30 @@ export class MemoryService implements IMemoryService {
             await this.db.deleteMemory(id);
           }
           compressedCount++;
-          this.logger?.info(`压缩记忆组: ${result.summary}`);
+          this.logger?.info(`Compressed memory group: ${result.summary}`);
         }
       }
 
       return compressedCount;
     } catch (error: any) {
-      this.logger?.error(`压缩记忆失败: ${error.message}`);
+      this.logger?.error(`Memory compression failed: ${error.message}`);
       return 0;
     }
   }
 
   async clearAll(): Promise<number> {
     const count = await this.db.clearMemories();
-    this.logger?.info(`已清除 ${count} 条记忆`);
+    this.logger?.info(`Cleared ${count} memories`);
     return count;
   }
 
-  // ── 生命周期 ──────────────────────────────────────────────────────────────
+  // ── Lifecycle ──────────────────────────────────────────────────────────────
 
   async dispose(): Promise<void> {
     await this.db.dispose();
   }
 
-  // ── 私有方法 ──────────────────────────────────────────────────────────────
+  // ── Private ────────────────────────────────────────────────────────────────
 
   private async addMemory(
     content: string,
@@ -196,7 +196,7 @@ export class MemoryService implements IMemoryService {
 
       return this.rerankMemories(results.map(r => r.memory)).slice(0, limit);
     } catch (error: any) {
-      this.logger?.error(`检索记忆失败: ${error.message}`);
+      this.logger?.error(`Memory retrieval failed: ${error.message}`);
       return [];
     }
   }
@@ -219,7 +219,7 @@ export class MemoryService implements IMemoryService {
     const maxAgeMs = this.maxMemoryAgeDays * 24 * 3600 * 1000;
     const deletedCount = await this.db.pruneMemories(maxAgeMs, 0.3, 2);
     if (deletedCount > 0)
-      this.logger?.info(`清理了 ${deletedCount} 条过期记忆（超过 ${this.maxMemoryAgeDays} 天）`);
+      this.logger?.info(`Pruned ${deletedCount} expired memories (older than ${this.maxMemoryAgeDays} days)`);
   }
 
   private formatTimeAgo(timestamp: number): string {
