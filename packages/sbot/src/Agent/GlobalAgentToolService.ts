@@ -55,3 +55,12 @@ export function refreshGlobalAgentToolService() {
     globalAgentToolService.reset();
     initGlobalAgentToolService()
 }
+
+export async function refreshBuiltinTools() {
+    await globalAgentToolService.reloadProviders(
+        BuiltinProvider.Command,
+        BuiltinProvider.FileSystem,
+        BuiltinProvider.Scheduler,
+        BuiltinProvider.WebFetch,
+    );
+}

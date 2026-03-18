@@ -117,6 +117,18 @@ export class AgentToolService implements IAgentToolService {
     }
 
     /**
+     * 重新加载指定 provider 的工具（不影响其他 provider，不断开 MCP 连接）
+     */
+    async reloadProviders(...names: string[]): Promise<void> {
+        for (const name of names) {
+            if (!this.toolProviders.has(name)) continue;
+            this.providerLoadingPromises.delete(name);
+            this.toolsMap.delete(name);
+        }
+        await Promise.all(names.map(name => this.ensureProviderLoaded(name)));
+    }
+
+    /**
      * 重置工具加载状态（用于测试或重新加载）
      */
     reset(): void {

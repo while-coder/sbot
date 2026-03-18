@@ -9,7 +9,7 @@ import { WebSocketServer } from 'ws';
 import { AgentToolService, SkillService } from "scorpio.ai";
 import { config } from '../Core/Config';
 import { AgentRunner } from '../Agent/AgentRunner';
-import { globalAgentToolService, refreshGlobalAgentToolService, BuiltinProvider } from '../Agent/GlobalAgentToolService';
+import { globalAgentToolService, refreshGlobalAgentToolService, refreshBuiltinTools, BuiltinProvider } from '../Agent/GlobalAgentToolService';
 import { globalSkillService, refreshGlobalSkillService, getSkillsDirsMap } from '../Agent/GlobalSkillService';
 import { SkillHubService, type HubSkillResult } from '../SkillHub';
 import { LoggerService } from '../Core/LoggerService';
@@ -758,18 +758,20 @@ class HttpServer {
             }
         }));
 
-        app.put('/api/prompts/content', api(req => {
+        app.put('/api/prompts/content', api(async req => {
             const { path: relPath, content } = req.body;
             const safe = safePromptRelPath(relPath);
             const userPath = config.getConfigPath(`prompts/${safe}`);
             fs.writeFileSync(userPath, content ?? '', 'utf-8');
+            await refreshBuiltinTools();
             return { path: safe };
         }));
 
-        app.delete('/api/prompts/content', api(req => {
+        app.delete('/api/prompts/content', api(async req => {
             const relPath = safePromptRelPath(req.query.path as string);
             const userPath = config.getConfigPath(`prompts/${relPath}`);
             if (fs.existsSync(userPath)) fs.unlinkSync(userPath);
+            await refreshBuiltinTools();
             return { path: relPath };
         }));
     }
