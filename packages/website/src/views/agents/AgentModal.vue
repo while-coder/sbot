@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
+import { AgentMode } from '@/types'
 import type { Agent, SubAgentRef } from '@/types'
 
 const { t } = useI18n()
@@ -24,7 +25,7 @@ const showModal  = ref(false)
 const editingId  = ref<string | null>(null)
 const form = ref({
   name: '',
-  type: 'single',
+  type: AgentMode.Single as string,
   model: '',
   systemPrompt: '',
   think: '',
@@ -37,7 +38,7 @@ function open(id?: string) {
     editingId.value = id
     form.value = {
       name: (a as any).name || '',
-      type: a.type || 'single',
+      type: a.type || AgentMode.Single,
       model: a.model || '',
       systemPrompt: a.systemPrompt || '',
       think: a.think || '',
@@ -47,7 +48,7 @@ function open(id?: string) {
     editingId.value = null
     tempSubAgents.value = []
     form.value = {
-      name: '', type: 'single', model: '', systemPrompt: '',
+      name: '', type: AgentMode.Single, model: '', systemPrompt: '',
       think: '',
     }
   }
@@ -57,20 +58,22 @@ function open(id?: string) {
 async function save() {
   if (!form.value.name.trim()) { show(t('common.name_required'), 'error'); return }
   const { type } = form.value
-  if (type === 'react') {
+  if (type === AgentMode.Single) {
+    if (!form.value.model) { show(t('agents.error_model'), 'error'); return }
+  } else if (type === AgentMode.ReAct) {
     if (!form.value.think) { show('ReAct 模式：Think 模型不能为空', 'error'); return }
   }
   try {
     const config: Agent = { type }
 
     if (form.value.systemPrompt) config.systemPrompt = form.value.systemPrompt
-    if (type === 'single') {
+    if (type === AgentMode.Single) {
       if (form.value.model) config.model = form.value.model
       // 保留在专属页面配置的 mcp 和 skills
       const existing = editingId.value ? agents.value[editingId.value] : null
       if (Array.isArray(existing?.mcp)    && existing.mcp.length)    config.mcp    = existing.mcp
       if (Array.isArray(existing?.skills) && existing.skills.length) config.skills = existing.skills
-    } else if (type === 'react') {
+    } else if (type === AgentMode.ReAct) {
       config.think  = form.value.think
       config.agents = tempSubAgents.value
       // 保留在专属页面配置的 mcp 和 skills
@@ -161,8 +164,8 @@ defineExpose({ open })
         <div class="form-group">
           <label>{{ t('common.type') }} *</label>
           <select v-model="form.type">
-            <option value="single">{{ t('agents.type_single') }}</option>
-            <option value="react">{{ t('agents.type_react') }}</option>
+            <option :value="AgentMode.Single">{{ t('agents.type_single') }}</option>
+            <option :value="AgentMode.ReAct">{{ t('agents.type_react') }}</option>
           </select>
         </div>
 
@@ -173,18 +176,18 @@ defineExpose({ open })
         </div>
 
         <!-- Single-only fields -->
-        <template v-if="form.type === 'single'">
+        <template v-if="form.type === AgentMode.Single">
           <div class="form-group">
-            <label>{{ t('agents.model_col') }}</label>
+            <label>{{ t('agents.model_col') }} *</label>
             <select v-model="form.model">
-              <option value="">{{ t('common.not_use') }}</option>
+              <option value="">{{ t('common.select_placeholder') }}</option>
               <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
             </select>
           </div>
         </template>
 
         <!-- ReAct fields -->
-        <template v-else-if="form.type === 'react'">
+        <template v-else-if="form.type === AgentMode.ReAct">
           <div class="form-section">
             <div class="form-section-title">{{ t('agents.node_config') }}</div>
             <div class="form-group">

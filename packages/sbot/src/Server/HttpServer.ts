@@ -6,7 +6,7 @@ import os from 'os';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { WebSocket, WebSocketServer } from 'ws';
-import { AgentToolService, SkillService } from "scorpio.ai";
+import { AgentToolService, SkillService, ModelProvider } from "scorpio.ai";
 import { config } from '../Core/Config';
 import { AgentRunner } from '../Agent/AgentRunner';
 import { globalAgentToolService, refreshGlobalAgentToolService, refreshBuiltinTools, BuiltinProvider } from '../Agent/GlobalAgentToolService';
@@ -132,11 +132,14 @@ function deleteSkill(skillsDir: string, name: string) {
 /** 统一异常包装：捕获异常并返回标准 JSON 响应 */
 function api(fn: (req: Request, res: Response) => any) {
     return async (req: Request, res: Response) => {
+        const start = Date.now();
         try {
             const result = await fn(req, res);
             if (!res.headersSent) res.json({ success: true, data: result ?? null });
         } catch (e: any) {
-            res.status(e.status ?? 500).json({ success: false, message: e.message });
+            const status = e.status ?? 500;
+            res.status(status).json({ success: false, message: e.message });
+            logger.warn(`${req.method} ${req.path} ${status} ${Date.now() - start}ms — ${e.message}`);
         }
     };
 }
@@ -167,16 +170,6 @@ class HttpServer {
             next();
         });
 
-        // 请求日志
-        app.use('/api', (req, res, next) => {
-            const start = Date.now();
-            res.on('finish', () => {
-                if (res.statusCode >= 400) {
-                    logger.warn(`${req.method} ${req.path} ${res.statusCode} ${Date.now() - start}ms`);
-                }
-            });
-            next();
-        });
 
         // 静态文件
         app.use('/webui', express.static(path.resolve(__dirname, '../../webui')));
@@ -249,6 +242,30 @@ class HttpServer {
             if (lark !== undefined) (config.settings as any).lark = lark;
             config.saveSettings();
             return config.settings;
+        }));
+
+        // Fetch available models from a provider's baseURL
+        app.post('/api/models/available', api(async req => {
+            const { baseURL, apiKey, provider } = req.body as { baseURL?: string; apiKey?: string; provider?: string };
+            if (!baseURL) throwBad('baseURL is required');
+            const base = baseURL.replace(/\/$/, '');
+
+            if (provider === ModelProvider.Ollama) {
+                const res = await fetch(`${base}/api/tags`);
+                if (!res.ok) throwBad(`Ollama request failed: ${res.status}`);
+                const data: any = await res.json();
+                return (data.models as any[] || []).map((m: any) => m.name as string);
+            } else {
+                // OpenAI-compatible
+                const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+                const res = await fetch(`${base}/models`, { headers });
+                if (!res.ok) throwBad(`Models request failed: ${res.status}`);
+                const data: any = await res.json();
+                return (data.data as any[] || [])
+                    .sort((a: any, b: any) => (b.created ?? 0) - (a.created ?? 0))
+                    .map((m: any) => m.id as string);
+            }
         }));
 
         // Models

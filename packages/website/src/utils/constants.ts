@@ -25,7 +25,7 @@ export async function fetchLatestRelease(): Promise<{ tag_name: string; html_url
     const version: string = data.version || ''
     if (!version) return null
     const tag = version.startsWith('v') ? version : `v${version}`
-    return { tag_name: tag, html_url: `${GITHUB_RELEASES_URL}/tag/${tag}`, body: '' }
+    return { tag_name: tag, html_url: `${GITHUB_RELEASES_URL}/tag/${tag}`, body: data.releasenote || '' }
   } catch {
     return null
   }

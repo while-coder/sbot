@@ -161,9 +161,11 @@ if (webuitSrc && fs.existsSync(webuitSrc)) {
   if (fs.existsSync(webuiDst)) fs.rmSync(webuiDst, { recursive: true });
   fs.cpSync(webuitSrc, webuiDst, { recursive: true });
   console.log(`webui: ${webuitSrc} -> ${webuiDst}`);
-} else {
+} else if (isRelease) {
   console.error(`webui: ${webuitSrc ?? 'sbot-website not found'} not found, run "pnpm --filter sbot-website run build" first`);
   process.exit(1);
+} else {
+  console.warn(`webui: ${webuitSrc ?? 'sbot-website not found'} not found, skipping in debug mode`);
 }
 
 // 复制 LICENSE 到 dist/
