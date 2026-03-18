@@ -29,6 +29,7 @@
   },
   "scripts": {
     "build:deps": "pnpm --filter sbot.commons run build && pnpm --filter channel.lark run build",
+    "dev": "tsx src/index.ts",
     "debug": "pnpm run build:deps && rimraf debug && tsc -p tsconfig.debug.json && node scripts/postbuild.js debug",
     "build": "pnpm --filter sbot-website run build && pnpm run build:deps && rimraf dist && tsc && node scripts/postbuild.js",
     "prepublishOnly": "pnpm run build"
@@ -36,25 +37,26 @@
   "dependencies": {
     "@langchain/core": "catalog:",
     "axios": "catalog:",
-    "turndown": "^7.2.0",
-    "sbot.commons": "workspace:*",
     "channel.lark": "workspace:*",
+    "commander": "catalog:",
     "cron": "^4.4.0",
     "diff": "^8.0.3",
     "express": "^5.2.1",
     "log4js": "^6.9.1",
     "reflect-metadata": "catalog:",
+    "sbot.commons": "workspace:*",
     "scorpio.ai": "workspace:*",
     "sequelize": "^6.37.7",
     "sqlite3": "^5.1.7",
+    "turndown": "^7.2.0",
     "ws": "^8.19.0",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@types/diff": "^7.0.2",
-    "@types/turndown": "^5.0.5",
     "@types/express": "^5.0.6",
     "@types/node": "catalog:",
+    "@types/turndown": "^5.0.5",
     "@types/ws": "^8.18.1",
     "rimraf": "catalog:",
     "typescript": "catalog:"

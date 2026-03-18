@@ -111,6 +111,9 @@ importers:
       channel.lark:
         specifier: workspace:*
         version: link:../channel.lark
+      commander:
+        specifier: ^14.0.3
+        version: 14.0.3
       cron:
         specifier: ^4.4.0
         version: 4.4.0

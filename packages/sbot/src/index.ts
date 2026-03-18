@@ -8,27 +8,59 @@ import {httpServer} from "./Server/HttpServer";
 import {initGlobalAgentToolService} from "./Agent/GlobalAgentToolService";
 import {initGlobalSkillService} from "./Agent/GlobalSkillService";
 import {schedulerService} from "./Scheduler/SchedulerService";
-const logger = LoggerService.getLogger('index.ts');
-logger.info("=========================开始启动=========================")
+import { Command } from "commander";
+import path from "path";
 
-// 解析 --port 参数（支持 --port 3000 和 --port=3000 两种格式）
-const argv = (process.argv as unknown as string[]).slice(2);
-for (let i = 0; i < argv.length; i++) {
-    const m = argv[i].match(/^--port(?:=(\d+))?$/);
-    if (m) {
-        const raw = m[1] ?? argv[i + 1];
-        const port = Number(raw);
-        if (Number.isInteger(port) && port > 0 && port < 65536) {
-            config.setHttpPort(port);
-            logger.info(`端口已更新为 ${port} 并保存到 settings.json`);
-        } else {
-            logger.warn(`--port 参数无效: ${raw}`);
+const logger = LoggerService.getLogger('index.ts');
+
+const program = new Command();
+program
+    .name('sbot')
+    .description(config.pkg.description)
+    .version(config.pkg.version, '-v, --version');
+
+// 设置端口命令：修改并保存端口，不启动服务
+program
+    .command('port <port>')
+    .description('设置 HTTP 服务端口并保存')
+    .action((portStr: string) => {
+        const port = Number(portStr);
+        if (!Number.isInteger(port) || port <= 0 || port >= 65536) {
+            console.error(`端口无效: ${portStr}`);
+            process.exit(1);
         }
-        break;
-    }
-}
+        config.setHttpPort(port);
+        console.log(`端口已更新为 ${port}`);
+    });
+
+// 显示配置目录
+// program
+//     .command('config')
+//     .description('显示配置目录路径')
+//     .action(() => {
+//         const configDir = path.dirname(config.getConfigPath('settings.json'));
+//         console.log(configDir);
+//     });
+
+// 默认行为：启动服务
+program
+    .action(async (options: { port?: string }) => {
+        if (options.port) {
+            const port = Number(options.port);
+            if (Number.isInteger(port) && port > 0 && port < 65536) {
+                config.setHttpPort(port);
+                logger.info(`端口已更新为 ${port}`);
+            } else {
+                logger.warn(`--port 参数无效: ${options.port}`);
+            }
+        }
+        await main();
+    });
+
+program.parseAsync(process.argv);
 
 async function main() {
+    logger.info("=========================开始启动=========================")
     try {
         //监听未捕获的异常
         process.on('uncaughtException', function(err, origin) {
@@ -59,4 +91,3 @@ async function main() {
         })
     }
 }
-main().then(() => {})
