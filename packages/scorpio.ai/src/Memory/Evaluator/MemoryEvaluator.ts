@@ -3,22 +3,13 @@ import { SystemMessage, HumanMessage } from "langchain";
 import { IModelService } from "../../Model";
 import { ILoggerService, ILogger } from "../../Logger";
 import { inject } from "../../DI";
+import { T_EvaluatorSystemPrompt } from "../../Core";
 import { IMemoryEvaluator, EvaluationResult } from "./IMemoryEvaluator";
-import { MEMORY_SCORE_CRITERIA } from "../MemoryPrompts";
 
 const EvaluationSchema = z.object({
   importance: z.number().min(0).max(1).describe("Importance score between 0.0 and 1.0"),
   reasoning: z.string().describe("Brief justification for the score"),
 });
-
-const SYSTEM_PROMPT = `You are a memory importance evaluator. Given a piece of text, assess how valuable it is to store as a long-term memory.
-
-Consider:
-- Is this a lasting fact, preference, decision, or instruction — or just transient noise?
-- Would forgetting this cause problems in future conversations?
-- Is the information specific to the user/project, or generic common knowledge?
-
-${MEMORY_SCORE_CRITERIA}`;
 
 /**
  * LLM 驱动的智能重要性评估器
@@ -35,7 +26,8 @@ export class MemoryEvaluator implements IMemoryEvaluator {
 
   constructor(
     @inject(IModelService) private modelService: IModelService,
-    @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService
+    @inject(T_EvaluatorSystemPrompt) private systemPrompt: string,
+    @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
   ) {
     this.logger = loggerService?.getLogger("MemoryEvaluator");
   }
@@ -49,7 +41,7 @@ export class MemoryEvaluator implements IMemoryEvaluator {
   async evaluate(content: string): Promise<EvaluationResult> {
     try {
       return await this.modelService.withStructuredOutput<EvaluationResult>(EvaluationSchema).invoke([
-        new SystemMessage(SYSTEM_PROMPT),
+        new SystemMessage(this.systemPrompt),
         new HumanMessage(content),
       ]);
     } catch (error: any) {

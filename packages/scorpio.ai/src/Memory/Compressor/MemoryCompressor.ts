@@ -1,25 +1,27 @@
+import { z } from "zod";
+import { HumanMessage } from "langchain";
 import { IModelService } from "../../Model";
 import { Memory } from "../types";
 import { ILoggerService, ILogger } from "../../Logger";
 import { inject } from "../../DI";
-import { IMemoryCompressor, CompressionResult, MergeStrategy } from "./IMemoryCompressor";
+import { IMemoryCompressor, CompressionResult } from "./IMemoryCompressor";
+import { T_CompressorPromptTemplate } from "../../Core";
+
+const CompressionSchema = z.object({
+  content: z.string().describe("The compressed memory content"),
+});
 
 /**
  * 记忆压缩器
  * 使用 LLM 合并和压缩相似或相关的记忆
- *
- * @example
- * ```ts
- * const compressor = new MemoryCompressor("gpt-4", modelFactory);
- * const result = await compressor.compress(memories, MergeStrategy.CHRONOLOGICAL, embedFn);
- * ```
  */
 export class MemoryCompressor implements IMemoryCompressor {
   private logger?: ILogger;
 
   constructor(
     @inject(IModelService) private modelService: IModelService,
-    @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService
+    @inject(T_CompressorPromptTemplate) private promptTemplate: string,
+    @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
   ) {
     this.logger = loggerService?.getLogger("MemoryCompressor");
   }
@@ -29,7 +31,6 @@ export class MemoryCompressor implements IMemoryCompressor {
    */
   async compress(
     memories: Memory[],
-    strategy: MergeStrategy,
     generateEmbedding: (text: string) => Promise<number[]>
   ): Promise<CompressionResult | null> {
     if (memories.length < 2) {
@@ -38,8 +39,7 @@ export class MemoryCompressor implements IMemoryCompressor {
     }
 
     try {
-      const sortedMemories = this.sortMemoriesByStrategy(memories, strategy);
-      const compressedContent = await this.generateCompressedContent(sortedMemories, strategy);
+      const compressedContent = await this.generateCompressedContent(memories);
       const newEmbedding = await generateEmbedding(compressedContent);
 
       const avgImportance = memories.reduce((sum, m) => sum + m.metadata.importance, 0) / memories.length;
@@ -58,7 +58,6 @@ export class MemoryCompressor implements IMemoryCompressor {
           compressed: true,
           sourceCount: memories.length,
           originalTimestamps: memories.map(m => m.metadata.timestamp),
-          compressionStrategy: strategy
         }
       };
 
@@ -119,71 +118,15 @@ export class MemoryCompressor implements IMemoryCompressor {
 
   // ===== 私有方法 =====
 
-  private async generateCompressedContent(
-    memories: Memory[],
-    strategy: MergeStrategy
-  ): Promise<string> {
-    const prompt = this.buildCompressionPrompt(memories, strategy);
-    const response = await this.modelService.invoke(prompt);
-    return this.cleanCompressedContent(response.text);
-  }
-
-  private buildCompressionPrompt(memories: Memory[], strategy: MergeStrategy): string {
+  private async generateCompressedContent(memories: Memory[]): Promise<string> {
     const memoriesText = memories.map((m, i) =>
       `[${i + 1}] (${new Date(m.metadata.timestamp).toLocaleString()}) ${m.content}`
     ).join('\n\n');
-
-    let strategyInstruction = '';
-    switch (strategy) {
-      case MergeStrategy.CHRONOLOGICAL:
-        strategyInstruction = '按时间顺序整合这些记忆，保持事件的时间线';
-        break;
-      case MergeStrategy.THEMATIC:
-        strategyInstruction = '按主题整合这些记忆，将相关的信息归类';
-        break;
-      case MergeStrategy.IMPORTANCE:
-        strategyInstruction = '优先保留重要信息，简化次要细节';
-        break;
-    }
-
-    return `你是一个记忆整合专家。请将以下多条记忆整合为一条简洁但完整的记忆。
-
-整合策略：${strategyInstruction}
-
-要整合的记忆：
-${memoriesText}
-
-要求：
-1. 保留所有关键信息和重要细节
-2. 消除重复内容
-3. 使用简洁清晰的语言
-4. 保持事实准确性
-5. 不要添加原文中没有的信息
-6. 最终结果应该比原文更短，但信息密度更高
-
-请直接输出整合后的记忆内容，不要添加任何解释或注释：`;
-  }
-
-  private cleanCompressedContent(content: string): string {
-    return content
-      .replace(/^整合后的记忆[：:]\s*/i, '')
-      .replace(/^压缩结果[：:]\s*/i, '')
-      .replace(/^结果[：:]\s*/i, '')
-      .trim();
-  }
-
-  private sortMemoriesByStrategy(memories: Memory[], strategy: MergeStrategy): Memory[] {
-    const sorted = [...memories];
-    switch (strategy) {
-      case MergeStrategy.CHRONOLOGICAL:
-        return sorted.sort((a, b) => a.metadata.timestamp - b.metadata.timestamp);
-      case MergeStrategy.IMPORTANCE:
-        return sorted.sort((a, b) => b.metadata.importance - a.metadata.importance);
-      case MergeStrategy.THEMATIC:
-        return sorted;
-      default:
-        return sorted;
-    }
+    const prompt = this.promptTemplate.replace('{memories}', memoriesText);
+    const { content } = await this.modelService
+      .withStructuredOutput<{ content: string }>(CompressionSchema)
+      .invoke([new HumanMessage(prompt)]);
+    return content;
   }
 
   private calculateCosineSimilarity(a: number[], b: number[]): number {

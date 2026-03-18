@@ -9,9 +9,11 @@ import {
     IMemoryExtractor, IMemoryEvaluator, IMemoryCompressor,
     IAgentSaverService, AgentFileSaver, AgentSqliteSaver,
     T_MaxMemoryAgeDays, T_MemoryMode, T_DBPath, T_ThreadId,
+    T_ExtractorSystemPrompt, T_EvaluatorSystemPrompt, T_CompressorPromptTemplate,
     IModelService,
 } from "scorpio.ai";
 import { config, SaverType } from "../Core/Config";
+import { loadPrompt } from "../Core/PromptLoader";
 import { ContextType } from "../Core/Database";
 import { AgentFactory } from "./AgentFactory";
 import { LoggerService } from "../Core/LoggerService";
@@ -112,18 +114,21 @@ export class AgentRunner {
         if (evaluatorModel) {
             container.registerWithArgs(IMemoryEvaluator, MemoryEvaluator, {
                 [IModelService]: evaluatorModel,
+                [T_EvaluatorSystemPrompt]: loadPrompt('memory/evaluator.txt'),
             });
         }
         const extractorModel = await config.getModelService(memoryConfig.extractor);
         if (extractorModel) {
             container.registerWithArgs(IMemoryExtractor, MemoryExtractor, {
                 [IModelService]: extractorModel,
+                [T_ExtractorSystemPrompt]: loadPrompt('memory/extractor.txt'),
             });
         }
         const compressorModel = await config.getModelService(memoryConfig.compressor);
         if (compressorModel) {
             container.registerWithArgs(IMemoryCompressor, MemoryCompressor, {
                 [IModelService]: compressorModel,
+                [T_CompressorPromptTemplate]: loadPrompt('memory/compressor.txt'),
             });
         }
         container.registerWithArgs(IMemoryDatabase, MemorySqliteDatabase, {

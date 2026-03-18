@@ -33,4 +33,4 @@ export {
 // 从接口文件导出
 export { ExtractionResult } from "./Extractor/IMemoryExtractor";
 export { EvaluationResult } from "./Evaluator/IMemoryEvaluator";
-export { CompressionResult, MergeStrategy } from "./Compressor/IMemoryCompressor";
+export { CompressionResult } from "./Compressor/IMemoryCompressor";

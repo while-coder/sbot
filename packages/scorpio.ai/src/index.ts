@@ -55,6 +55,9 @@ export {
   T_SkillDirs,
   T_MaxMemoryAgeDays,
   T_MemoryMode,
+  T_ExtractorSystemPrompt,
+  T_EvaluatorSystemPrompt,
+  T_CompressorPromptTemplate,
   NowDate,
   sleep,
   parseJson,
@@ -127,7 +130,6 @@ export {
   ExtractionResult,
   EvaluationResult,
   CompressionResult,
-  MergeStrategy,
 } from "./Memory";
 
 // ========================================

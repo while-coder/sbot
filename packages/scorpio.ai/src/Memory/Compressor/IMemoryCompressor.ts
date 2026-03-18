@@ -11,15 +11,6 @@ export interface CompressionResult {
 }
 
 /**
- * 合并策略
- */
-export enum MergeStrategy {
-  CHRONOLOGICAL = "chronological",  // 按时间顺序
-  THEMATIC = "thematic",           // 按主题
-  IMPORTANCE = "importance"        // 按重要性
-}
-
-/**
  * 记忆压缩器接口
  * 负责合并和压缩相似或相关的记忆
  */
@@ -27,13 +18,11 @@ export interface IMemoryCompressor {
   /**
    * 压缩多个记忆为一个
    * @param memories 要压缩的记忆数组
-   * @param strategy 合并策略
    * @param generateEmbedding 生成向量嵌入的函数
    * @returns 压缩结果，如果无法压缩则返回 null
    */
   compress(
     memories: Memory[],
-    strategy: MergeStrategy,
     generateEmbedding: (text: string) => Promise<number[]>
   ): Promise<CompressionResult | null>;
 

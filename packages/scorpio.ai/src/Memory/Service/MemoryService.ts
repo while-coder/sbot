@@ -5,7 +5,7 @@ import { Memory, MemoryMode } from "../types";
 import { IMemoryService } from "./IMemoryService";
 import { IEmbeddingService } from "../../Embedding";
 import { ILoggerService, ILogger } from "../../Logger";
-import { IMemoryCompressor, MergeStrategy } from "../Compressor/IMemoryCompressor";
+import { IMemoryCompressor } from "../Compressor/IMemoryCompressor";
 import { IMemoryEvaluator } from "../Evaluator/IMemoryEvaluator";
 import { IMemoryExtractor } from "../Extractor/IMemoryExtractor";
 import { CharacterTextSplitter } from "@langchain/textsplitters";
@@ -125,7 +125,6 @@ export class MemoryService implements IMemoryService {
       for (const group of groups) {
         const result = await this.compressor.compress(
           group,
-          MergeStrategy.CHRONOLOGICAL,
           (text) => this.embeddings.embedQuery(text)
         );
         if (result) {

@@ -3,8 +3,8 @@ import { SystemMessage, HumanMessage } from "langchain";
 import { IModelService } from "../../Model";
 import { ILoggerService, ILogger } from "../../Logger";
 import { inject } from "../../DI";
+import { T_ExtractorSystemPrompt } from "../../Core";
 import { IMemoryExtractor, ExtractionResult } from "./IMemoryExtractor";
-import { MEMORY_SCORE_CRITERIA } from "../MemoryPrompts";
 
 const ExtractionSchema = z.object({
   results: z.array(z.object({
@@ -12,17 +12,6 @@ const ExtractionSchema = z.object({
     importance: z.number().min(0).max(1).describe("Importance score 0-1"),
   })).describe("Extracted knowledge points, empty array if nothing worth remembering"),
 });
-
-const SYSTEM_PROMPT = `You are a knowledge extraction expert. Distill conversations into discrete, long-term-worthy knowledge points.
-
-Guidelines:
-- Extract facts, preferences, decisions, instructions, and project context
-- Each point must be a self-contained statement — understandable without the original conversation
-- Merge closely related details into one point rather than splitting them
-- Skip greetings, pleasantries, transient questions, and anything easily re-derived
-- Return an empty array when nothing is worth remembering
-
-${MEMORY_SCORE_CRITERIA}`;
 
 /**
  * LLM 驱动的对话知识提取器
@@ -33,7 +22,8 @@ export class MemoryExtractor implements IMemoryExtractor {
 
   constructor(
     @inject(IModelService) private modelService: IModelService,
-    @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService
+    @inject(T_ExtractorSystemPrompt) private systemPrompt: string,
+    @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
   ) {
     this.logger = loggerService?.getLogger("MemoryExtractor");
   }
@@ -49,7 +39,7 @@ export class MemoryExtractor implements IMemoryExtractor {
         ? `<user>${userMessage}</user>\n${parts.map(m => `<assistant>${m}</assistant>`).join("\n")}`
         : `<user>${userMessage}</user>`;
       const { results } = await this.modelService.withStructuredOutput<{ results: ExtractionResult[] }>(ExtractionSchema).invoke([
-        new SystemMessage(SYSTEM_PROMPT),
+        new SystemMessage(this.systemPrompt),
         new HumanMessage(human),
       ]);
       return results;
