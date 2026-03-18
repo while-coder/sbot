@@ -12,6 +12,7 @@ export enum AgentMode {
 
 export enum ChannelType {
   Lark = "lark",
+  Slack = "slack",
 }
 
 export interface Model {
@@ -116,6 +117,10 @@ export interface ChannelConfig {
   appId?: string
   /** Lark App Secret */
   appSecret?: string
+  /** Slack Bot Token (xoxb-...) */
+  botToken?: string
+  /** Slack App-Level Token for Socket Mode (xapp-...) */
+  appToken?: string
   /** 该频道使用的 Agent UUID（对应 agents 中的 key） */
   agent: string
   /** 使用的 Saver 配置 UUID（对应 savers 中的 key） */
@@ -167,4 +172,9 @@ export function sessionThreadId(sessionId: string): string {
 /** Lark 频道模式 threadId */
 export function larkThreadId(channelId: string, chatId: string): string {
   return `lark_${channelId}_${chatId}`
+}
+
+/** Slack 频道模式 threadId */
+export function slackThreadId(channelId: string, slackChannel: string): string {
+  return `slack_${channelId}_${slackChannel}`
 }
