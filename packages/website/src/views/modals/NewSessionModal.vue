@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
+
+const { t } = useI18n()
 
 const { show } = useToast()
 
@@ -34,8 +37,8 @@ function autoName(): string {
 }
 
 async function create() {
-  if (!form.value.agent) { show('请选择 Agent', 'error'); return }
-  if (!form.value.saver) { show('请选择存储', 'error'); return }
+  if (!form.value.agent) { show(t('new_session.error_agent'), 'error'); return }
+  if (!form.value.saver) { show(t('new_session.error_saver'), 'error'); return }
   saving.value = true
   try {
     const body: any = { name: autoName(), agent: form.value.agent, saver: form.value.saver }
@@ -60,35 +63,35 @@ defineExpose({ open })
   <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
     <div class="modal-box">
       <div class="modal-header">
-        <h3>新建会话</h3>
+        <h3>{{ t('new_session.title') }}</h3>
         <button class="modal-close" @click="showModal = false">&times;</button>
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label>Agent *</label>
+          <label>{{ t('common.agent') }} *</label>
           <select v-model="form.agent">
-            <option value="" disabled>请选择</option>
+            <option value="" disabled>{{ t('common.select_placeholder') }}</option>
             <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }}</option>
           </select>
         </div>
         <div class="form-group">
-          <label>存储 *</label>
+          <label>{{ t('common.storage') }} *</label>
           <select v-model="form.saver">
-            <option value="" disabled>请选择</option>
+            <option value="" disabled>{{ t('common.select_placeholder') }}</option>
             <option v-for="s in saverOptions" :key="s.id" :value="s.id">{{ s.label }}</option>
           </select>
         </div>
         <div class="form-group">
-          <label>记忆</label>
+          <label>{{ t('common.memory') }}</label>
           <select v-model="form.memory">
-            <option value="">不使用</option>
+            <option value="">{{ t('common.not_use') }}</option>
             <option v-for="m in memoryOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
           </select>
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn-outline" @click="showModal = false">取消</button>
-        <button class="btn-primary" :disabled="saving" @click="create">创建</button>
+        <button class="btn-outline" @click="showModal = false">{{ t('common.cancel') }}</button>
+        <button class="btn-primary" :disabled="saving" @click="create">{{ t('common.create') }}</button>
       </div>
     </div>
   </div>

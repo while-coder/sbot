@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { ref, computed, reactive } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store, applyMcpList } from '@/store'
 import { useToast } from '@/composables/useToast'
 import type { McpEntry, McpTool } from '@/types'
 import { renderToolParams, serverAddr } from '@/utils/mcpSchema'
 import { sourceBadgeStyle } from '@/utils/badges'
+
+const { t } = useI18n()
 
 const { show } = useToast()
 
@@ -74,7 +77,7 @@ async function saveGlobals() {
     )
     Object.assign(store.settings, res.data)
     agentGlobals.value = [...selectedGlobals.value]
-    show('保存成功')
+    show(t('common.saved'))
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -141,17 +144,17 @@ function openEdit(id: string) {
   showModal.value = true
 }
 async function save() {
-  if (!form.value.name.trim()) { show('名称不能为空', 'error'); return }
+  if (!form.value.name.trim()) { show(t('common.name_required'), 'error'); return }
   syncToForm()
   try {
     const { name, type, url, headers, command, args, env, cwd, toolTimeout, description } = form.value
     const config: McpEntry = { type, name: name.trim() } as any
     if (type === 'http') {
-      if (!url.trim()) { show('URL 不能为空', 'error'); return }
+      if (!url.trim()) { show(t('mcp.error_url'), 'error'); return }
       config.url = url.trim()
       if (Object.keys(headers).length > 0) config.headers = headers
     } else {
-      if (!command.trim()) { show('Command 不能为空', 'error'); return }
+      if (!command.trim()) { show(t('mcp.error_command'), 'error'); return }
       config.command = command.trim()
       if (args.length > 0) config.args = args
       if (Object.keys(env).length > 0) config.env = env
@@ -164,7 +167,7 @@ async function save() {
     } else {
       await apiFetch(apiBase(), 'POST', config)
     }
-    show('保存成功')
+    show(t('common.saved'))
     showModal.value = false
     await load()
   } catch (e: any) {
@@ -173,10 +176,10 @@ async function save() {
 }
 async function remove(id: string) {
   const displayName = (servers.value[id] as any)?.name || id
-  if (!confirm(`确定要删除 MCP "${displayName}" 吗？`)) return
+  if (!window.confirm(t('mcp.confirm_delete', { name: displayName }))) return
   try {
     await apiFetch(`${apiBase()}/${encodeURIComponent(id)}`, 'DELETE')
-    show('删除成功')
+    show(t('common.deleted'))
     await load()
   } catch (e: any) {
     show(e.message, 'error')
@@ -232,9 +235,9 @@ defineExpose({ open })
     <div class="modal-overlay" @click.self="visible = false">
       <div class="modal-box" style="width:90vw;max-width:1100px;height:82vh;display:flex;flex-direction:column;overflow:hidden;padding:0">
         <div class="modal-header" style="padding:14px 20px;flex-shrink:0">
-          <h3>{{ agentDisplayName }} — MCP 配置</h3>
+          <h3>{{ agentDisplayName }} — {{ t('agents.mcp_title') }}</h3>
           <div style="display:flex;gap:8px;align-items:center">
-            <button class="btn-outline btn-sm" @click="load">刷新</button>
+            <button class="btn-outline btn-sm" @click="load">{{ t('common.refresh') }}</button>
             <button class="modal-close" @click="visible = false">&times;</button>
           </div>
         </div>
@@ -246,7 +249,7 @@ defineExpose({ open })
             style="padding:11px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s"
             :style="activeTab === 'all' ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
           >
-            全部
+            {{ t('common.all') }}
             <span style="margin-left:4px;font-size:11px;padding:0 5px;border-radius:10px;font-weight:600"
               :style="activeTab === 'all' ? 'background:#1c1c1c;color:#fff' : 'background:#f0efed;color:#6b6b6b'"
             >{{ store.allMcps.length }}</span>
@@ -264,13 +267,13 @@ defineExpose({ open })
             >{{ store.allMcps.filter((m: { source?: string }) => m.source === src).length }}</span>
           </button>
           <button
-            @click="activeTab = '专属服务'"
+            @click="activeTab = t('agents.mcp_exclusive_tab')"
             style="padding:11px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s"
-            :style="activeTab === '专属服务' ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
+            :style="activeTab === t('agents.mcp_exclusive_tab') ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
           >
-            专属服务
+            {{ t('agents.mcp_exclusive_tab') }}
             <span style="margin-left:4px;font-size:11px;padding:0 5px;border-radius:10px;font-weight:600"
-              :style="activeTab === '专属服务' ? 'background:#1c1c1c;color:#fff' : 'background:#f0efed;color:#6b6b6b'"
+              :style="activeTab === t('agents.mcp_exclusive_tab') ? 'background:#1c1c1c;color:#fff' : 'background:#f0efed;color:#6b6b6b'"
             >{{ Object.keys(servers).length }}</span>
           </button>
         </div>
@@ -279,15 +282,15 @@ defineExpose({ open })
         <div style="flex:1;overflow:auto;padding:16px 20px">
 
           <!-- Global MCPs tab -->
-          <template v-if="activeTab !== '专属服务'">
+          <template v-if="activeTab !== t('agents.mcp_exclusive_tab')">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-              <input v-model="mcpSearch" placeholder="搜索 MCP 名称或描述..." style="flex:1;padding:6px 10px;border:1px solid #e8e6e3;border-radius:6px;font-size:12px;outline:none" />
-              <button class="btn-primary btn-sm" :disabled="!globalsChanged" @click="saveGlobals">保存</button>
-              <span v-if="globalsChanged" style="font-size:12px;color:#f59e0b;white-space:nowrap">● 有未保存的更改</span>
+              <input v-model="mcpSearch" :placeholder="t('mcp.search_placeholder')" style="flex:1;padding:6px 10px;border:1px solid #e8e6e3;border-radius:6px;font-size:12px;outline:none" />
+              <button class="btn-primary btn-sm" :disabled="!globalsChanged" @click="saveGlobals">{{ t('common.save') }}</button>
+              <span v-if="globalsChanged" style="font-size:12px;color:#f59e0b;white-space:nowrap">{{ t('common.unsaved_changes') }}</span>
             </div>
-            <div v-if="store.allMcps.length === 0" style="text-align:center;color:#94a3b8;padding:40px">暂无全局 MCP 服务器</div>
+            <div v-if="store.allMcps.length === 0" style="text-align:center;color:#94a3b8;padding:40px">{{ t('mcp.no_global') }}</div>
             <div v-else style="border:1px solid #e8e6e3;border-radius:6px;overflow:hidden">
-              <div v-if="filteredGlobalMcps.length === 0" style="padding:20px;text-align:center;color:#9b9b9b;font-size:13px">无匹配结果</div>
+              <div v-if="filteredGlobalMcps.length === 0" style="padding:20px;text-align:center;color:#9b9b9b;font-size:13px">{{ t('mcp.no_match') }}</div>
               <label
                 v-for="m in filteredGlobalMcps" :key="m.id"
                 style="display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;border-bottom:1px solid #f5f4f2;font-size:13px"
@@ -297,7 +300,7 @@ defineExpose({ open })
                 <span :style="`flex-shrink:0;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(m.source)}`">{{ m.source }}</span>
                 <span style="font-family:monospace;font-weight:500;width:200px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.name }}</span>
                 <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:#64748b">{{ m.description || '-' }}</span>
-                <button class="btn-outline btn-sm" style="flex-shrink:0;padding:2px 8px;font-size:11px" @click.prevent="viewGlobalTools(m.id)">查看</button>
+                <button class="btn-outline btn-sm" style="flex-shrink:0;padding:2px 8px;font-size:11px" @click.prevent="viewGlobalTools(m.id)">{{ t('common.view') }}</button>
               </label>
             </div>
           </template>
@@ -305,9 +308,9 @@ defineExpose({ open })
           <!-- Private servers tab -->
           <template v-else>
             <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
-              <button class="btn-primary btn-sm" @click="openAdd">+ 添加 MCP</button>
+              <button class="btn-primary btn-sm" @click="openAdd">{{ t('mcp.add') }}</button>
             </div>
-            <div v-if="Object.keys(servers).length === 0" style="text-align:center;color:#94a3b8;padding:40px">暂无专属 MCP 服务</div>
+            <div v-if="Object.keys(servers).length === 0" style="text-align:center;color:#94a3b8;padding:40px">{{ t('mcp.no_exclusive') }}</div>
             <table v-else style="table-layout:fixed;width:100%">
               <colgroup>
                 <col style="width:200px" />
@@ -315,7 +318,7 @@ defineExpose({ open })
                 <col style="width:220px" />
                 <col style="width:190px" />
               </colgroup>
-              <thead><tr><th>名称</th><th>描述</th><th>地址/命令</th><th>操作</th></tr></thead>
+              <thead><tr><th>{{ t('common.name') }}</th><th>{{ t('common.description') }}</th><th>{{ t('mcp.address_col') }}</th><th>{{ t('common.ops') }}</th></tr></thead>
               <tbody>
                 <tr v-for="(s, id) in servers" :key="id">
                   <td style="font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ (s as any).name || id }}</td>
@@ -323,9 +326,9 @@ defineExpose({ open })
                   <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#94a3b8;font-size:12px">{{ serverAddr(s) }}</td>
                   <td style="white-space:nowrap">
                     <div class="ops-cell">
-                      <button class="btn-outline btn-sm" @click="viewTools(id as string)">查看</button>
-                      <button class="btn-outline btn-sm" @click="openEdit(id as string)">编辑</button>
-                      <button class="btn-danger btn-sm" @click="remove(id as string)">删除</button>
+                      <button class="btn-outline btn-sm" @click="viewTools(id as string)">{{ t('common.view') }}</button>
+                      <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
+                      <button class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
                     </div>
                   </td>
                 </tr>
@@ -340,16 +343,16 @@ defineExpose({ open })
     <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
       <div class="modal-box">
         <div class="modal-header">
-          <h3>{{ editingName ? '编辑 MCP 服务' : '添加 MCP 服务' }}</h3>
+          <h3>{{ editingName ? t('mcp.edit_title') : t('mcp.add_title') }}</h3>
           <button class="modal-close" @click="showModal = false">&times;</button>
         </div>
         <div class="modal-body">
-          <div class="form-group"><label>名称 *</label><input v-model="form.name" placeholder="如 my-mcp-server" /></div>
-          <div class="form-group"><label>传输类型 *</label><select v-model="form.type"><option value="http">HTTP / SSE</option><option value="stdio">Stdio (本地进程)</option></select></div>
+          <div class="form-group"><label>{{ t('common.name') }} *</label><input v-model="form.name" :placeholder="t('mcp.name_placeholder')" /></div>
+          <div class="form-group"><label>{{ t('mcp.transport_type') }} *</label><select v-model="form.type"><option value="http">{{ t('mcp.transport_http') }}</option><option value="stdio">{{ t('mcp.transport_stdio') }}</option></select></div>
           <template v-if="form.type === 'http'">
-            <div class="form-group"><label>URL *</label><input v-model="form.url" placeholder="http://example.com/mcp" /></div>
+            <div class="form-group"><label>{{ t('mcp.url_label') }} *</label><input v-model="form.url" placeholder="http://example.com/mcp" /></div>
             <div class="form-section">
-              <div class="form-section-title">Headers</div>
+              <div class="form-section-title">{{ t('mcp.headers_section') }}</div>
               <div v-for="(row, i) in headerRows" :key="i" style="display:flex;gap:8px;margin-bottom:6px">
                 <input v-model="row.key" placeholder="Key" style="flex:1;padding:4px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px" />
                 <input v-model="row.value" placeholder="Value" style="flex:2;padding:4px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px" />
@@ -359,17 +362,17 @@ defineExpose({ open })
             </div>
           </template>
           <template v-else>
-            <div class="form-group"><label>Command *</label><input v-model="form.command" placeholder="npx" /></div>
+            <div class="form-group"><label>{{ t('mcp.command_label') }} *</label><input v-model="form.command" :placeholder="t('mcp.command_placeholder')" /></div>
             <div class="form-section">
-              <div class="form-section-title">Args</div>
+              <div class="form-section-title">{{ t('mcp.args_section') }}</div>
               <div v-for="(_arg, i) in argsList" :key="i" style="display:flex;gap:8px;margin-bottom:6px">
-                <input v-model="argsList[i]" placeholder="参数" style="flex:1;padding:4px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px" />
+                <input v-model="argsList[i]" :placeholder="t('mcp.arg_placeholder')" style="flex:1;padding:4px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px" />
                 <button class="btn-danger btn-sm" @click="argsList.splice(i,1)">×</button>
               </div>
-              <button class="btn-outline btn-sm" @click="argsList.push('')">+ Arg</button>
+              <button class="btn-outline btn-sm" @click="argsList.push('')">{{ t('mcp.add_arg') }}</button>
             </div>
             <div class="form-section">
-              <div class="form-section-title">Env</div>
+              <div class="form-section-title">{{ t('mcp.env_section') }}</div>
               <div v-for="(row, i) in envRows" :key="i" style="display:flex;gap:8px;margin-bottom:6px">
                 <input v-model="row.key" placeholder="Key" style="flex:1;padding:4px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px" />
                 <input v-model="row.value" placeholder="Value" style="flex:2;padding:4px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px" />
@@ -377,17 +380,17 @@ defineExpose({ open })
               </div>
               <button class="btn-outline btn-sm" @click="envRows.push({key:'',value:''})">+ Env</button>
             </div>
-            <div class="form-group"><label>Cwd</label><input v-model="form.cwd" placeholder="工作目录（可选）" /></div>
+            <div class="form-group"><label>{{ t('mcp.cwd_label') }}</label><input v-model="form.cwd" :placeholder="t('mcp.cwd_placeholder')" /></div>
           </template>
-          <div class="form-group"><label>描述</label><input v-model="form.description" placeholder="服务描述（可选）" /></div>
+          <div class="form-group"><label>{{ t('common.description') }}</label><input v-model="form.description" placeholder="服务描述（可选）" /></div>
           <div class="form-section">
             <div class="form-section-title">高级设置</div>
-            <div class="form-group"><label>Tool 超时 (ms)</label><input v-model="form.toolTimeout" type="number" placeholder="如 60000" /></div>
+            <div class="form-group"><label>{{ t('mcp.tool_timeout') }}</label><input v-model="form.toolTimeout" type="number" :placeholder="t('mcp.timeout_placeholder')" /></div>
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn-outline" @click="showModal = false">取消</button>
-          <button class="btn-primary" @click="save">保存</button>
+          <button class="btn-outline" @click="showModal = false">{{ t('common.cancel') }}</button>
+          <button class="btn-primary" @click="save">{{ t('common.save') }}</button>
         </div>
       </div>
     </div>
@@ -400,8 +403,8 @@ defineExpose({ open })
           <button class="modal-close" @click="showToolsModal = false">&times;</button>
         </div>
         <div class="modal-body" style="padding:0">
-          <div v-if="toolsLoading" style="text-align:center;color:#94a3b8;padding:40px">连接中，正在获取工具列表…</div>
-          <div v-else-if="toolsList.length === 0" style="text-align:center;color:#94a3b8;padding:40px">该 MCP 服务没有可用的工具</div>
+          <div v-if="toolsLoading" style="text-align:center;color:#94a3b8;padding:40px">{{ t('mcp.connecting') }}</div>
+          <div v-else-if="toolsList.length === 0" style="text-align:center;color:#94a3b8;padding:40px">{{ t('mcp.no_tools') }}</div>
           <ul v-else class="tools-list">
             <li v-for="(tool, i) in toolsList" :key="tool.name">
               <div class="tool-header"><div class="tool-name" :class="{ expanded: expandedTools.has(i) }" @click="toggleTool(i)">{{ tool.name }}</div></div>
@@ -411,7 +414,7 @@ defineExpose({ open })
           </ul>
         </div>
         <div class="modal-footer">
-          <button class="btn-outline" @click="showToolsModal = false">关闭</button>
+          <button class="btn-outline" @click="showToolsModal = false">{{ t('common.close') }}</button>
         </div>
       </div>
     </div>

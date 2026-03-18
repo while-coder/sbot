@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { marked } from 'marked'
 import { GITHUB_REPO_URL, GITHUB_ISSUES_URL, GITHUB_README_URL, fetchLatestRelease, compareSemver } from '@/utils/constants'
+
+const { t } = useI18n()
 
 const version = ref('')
 const releasenote = ref('')
@@ -47,7 +50,7 @@ onMounted(async () => {
 <template>
   <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
     <div class="page-toolbar">
-      <span class="page-toolbar-title">关于</span>
+      <span class="page-toolbar-title">{{ t('about.title') }}</span>
       <span v-if="version" style="font-size:12px;color:#9b9b9b;font-family:monospace">v{{ version }}</span>
     </div>
     <div class="page-content">
@@ -55,39 +58,39 @@ onMounted(async () => {
 
         <!-- Project info -->
         <div class="card" style="margin-bottom:20px">
-          <div class="card-title">项目信息</div>
+          <div class="card-title">{{ t('about.project_info') }}</div>
           <table style="width:100%;font-size:13px">
             <tbody>
               <tr>
-                <td style="padding:8px 0;color:#6b6b6b;width:120px;border-bottom:1px solid #f0efed">版本</td>
+                <td style="padding:8px 0;color:#6b6b6b;width:120px;border-bottom:1px solid #f0efed">{{ t('about.version') }}</td>
                 <td style="padding:8px 0;font-family:monospace;border-bottom:1px solid #f0efed">{{ version || '—' }}</td>
               </tr>
               <tr>
-                <td style="padding:8px 0;color:#6b6b6b;border-bottom:1px solid #f0efed">开源地址</td>
+                <td style="padding:8px 0;color:#6b6b6b;border-bottom:1px solid #f0efed">{{ t('about.repository') }}</td>
                 <td style="padding:8px 0;border-bottom:1px solid #f0efed">
                   <a :href="GITHUB_REPO_URL" target="_blank" style="color:#4f46e5;text-decoration:none;font-family:monospace;font-size:12px">{{ GITHUB_REPO_URL.replace('https://', '') }}</a>
                 </td>
               </tr>
               <tr>
-                <td style="padding:8px 0;color:#6b6b6b">许可证</td>
+                <td style="padding:8px 0;color:#6b6b6b">{{ t('about.license') }}</td>
                 <td style="padding:8px 0">MIT</td>
               </tr>
             </tbody>
           </table>
           <div style="margin-top:14px;padding-top:14px;border-top:1px solid #f0efed;display:flex;align-items:center;justify-content:space-between">
-            <span style="font-size:12px;color:#9b9b9b">遇到问题或有建议？欢迎在 GitHub 提交 Issue</span>
+            <span style="font-size:12px;color:#9b9b9b">{{ t('about.feedback_hint') }}</span>
             <a :href="GITHUB_ISSUES_URL" target="_blank" class="feedback-btn">
               <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink:0">
                 <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
               </svg>
-              提交反馈
+              {{ t('about.feedback') }}
             </a>
           </div>
         </div>
 
         <!-- Release note -->
         <div v-if="releasenoteHtml" class="releasenote-card" style="margin-bottom:20px">
-          <div class="card-title">本版本更新内容</div>
+          <div class="card-title">{{ t('about.release_notes') }}</div>
           <div class="releasenote-body md-content" v-html="releasenoteHtml" />
         </div>
 
@@ -96,17 +99,17 @@ onMounted(async () => {
           <div class="update-banner-top">
             <div style="display:flex;align-items:center;gap:10px">
               <span class="update-tag">{{ update.tag }}</span>
-              <span style="font-size:13px;font-weight:600;color:#1c1c1c">有新版本可用</span>
+              <span style="font-size:13px;font-weight:600;color:#1c1c1c">{{ t('about.new_version') }}</span>
             </div>
-            <a :href="update.url" target="_blank" class="update-link">查看发布页 →</a>
+            <a :href="update.url" target="_blank" class="update-link">{{ t('about.view_release') }}</a>
           </div>
           <div v-if="updateBodyHtml" class="update-body md-content" v-html="updateBodyHtml" />
         </div>
 
         <!-- README -->
-        <div v-if="loadingReadme" class="readme-loading">加载中…</div>
+        <div v-if="loadingReadme" class="readme-loading">{{ t('about.loading') }}</div>
         <div v-else-if="readmeHtml" class="readme-wrap md-content" v-html="readmeHtml" />
-        <div v-else style="color:#9b9b9b;font-size:13px">无法加载内容，请检查网络连接。</div>
+        <div v-else style="color:#9b9b9b;font-size:13px">{{ t('about.load_error') }}</div>
 
       </div>
     </div>

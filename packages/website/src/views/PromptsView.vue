@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { useToast } from '@/composables/useToast'
 
+const { t } = useI18n()
 const { show } = useToast()
 
 // ── Tree ──────────────────────────────────────────────────────────
@@ -93,7 +95,7 @@ async function save() {
     await apiFetch('/api/prompts/content', 'PUT', { path: selectedPath.value, content: editContent.value })
     originalContent.value = editContent.value
     isOverride.value = true
-    show('Saved')
+    show(t('common.saved'))
     loadTree()
   } catch (e: any) {
     show(e.message, 'error')
@@ -110,7 +112,7 @@ async function reset() {
     editContent.value = res.data?.content ?? ''
     originalContent.value = editContent.value
     isOverride.value = false
-    show('Reset to default')
+    show(t('common.saved'))
     loadTree()
   } catch (e: any) {
     show(e.message, 'error')
@@ -124,7 +126,7 @@ onMounted(loadTree)
   <div class="prompts-layout">
     <!-- Left: file tree -->
     <div class="prompts-tree">
-      <div class="prompts-tree-header">Prompts</div>
+      <div class="prompts-tree-header">{{ t('prompts.header') }}</div>
       <div
         v-for="{ node, depth } in flatTree"
         :key="node.path"
@@ -139,7 +141,7 @@ onMounted(loadTree)
       >
         <span class="tree-icon">{{ node.type === 'dir' ? (collapsed.has(node.path) ? '▶' : '▼') : '·' }}</span>
         <span class="tree-name">{{ node.name }}</span>
-        <span v-if="node.isOverride" class="tree-custom-dot" :title="node.type === 'dir' ? 'Contains custom prompts' : 'Custom'"></span>
+        <span v-if="node.isOverride" class="tree-custom-dot" :title="node.type === 'dir' ? t('prompts.contains_custom') : t('prompts.custom_title')"></span>
       </div>
     </div>
 
@@ -148,15 +150,15 @@ onMounted(loadTree)
       <template v-if="selectedPath">
         <div class="prompts-editor-toolbar">
           <span class="prompts-file-path">{{ selectedPath }}</span>
-          <span v-if="isOverride" class="prompts-badge-custom">Custom</span>
-          <span v-else class="prompts-badge-default">Default</span>
+          <span v-if="isOverride" class="prompts-badge-custom">{{ t('prompts.badge_custom') }}</span>
+          <span v-else class="prompts-badge-default">{{ t('prompts.badge_default') }}</span>
           <span style="flex:1" />
-          <button class="btn-outline btn-sm" :disabled="!isOverride" @click="reset">Reset</button>
+          <button class="btn-outline btn-sm" :disabled="!isOverride" @click="reset">{{ t('prompts.reset') }}</button>
           <button class="btn-primary btn-sm" :disabled="saving || !isDirty" @click="save">
-            {{ saving ? 'Saving…' : 'Save' }}
+            {{ saving ? t('prompts.saving') : t('prompts.save') }}
           </button>
         </div>
-        <div v-if="loading" class="prompts-loading">Loading…</div>
+        <div v-if="loading" class="prompts-loading">{{ t('prompts.loading') }}</div>
         <div v-else class="prompts-editor-body">
           <div ref="highlightRef" class="prompts-highlight" aria-hidden="true" v-html="highlightedContent" />
           <textarea
@@ -168,7 +170,7 @@ onMounted(loadTree)
           />
         </div>
       </template>
-      <div v-else class="prompts-empty">Select a prompt file to edit</div>
+      <div v-else class="prompts-empty">{{ t('prompts.empty') }}</div>
     </div>
   </div>
 </template>

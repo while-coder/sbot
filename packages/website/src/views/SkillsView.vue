@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 import type { SkillItem } from '@/types'
 import { sourceBadgeStyle, BADGE_CLAWHUB, BADGE_INSTALLED } from '@/utils/badges'
 
+const { t } = useI18n()
 const { show } = useToast()
 
 const allSkills = ref<SkillItem[]>([])
@@ -80,10 +82,10 @@ async function openView(name: string, badge = '') {
 }
 
 async function remove(name: string) {
-  if (!confirm(`确定要删除 Skill "${name}" 吗？此操作将删除整个 Skill 目录！`)) return
+  if (!confirm(t('skills.confirm_delete', { name }))) return
   try {
     await apiFetch(`/api/skills/${encodeURIComponent(name)}`, 'DELETE')
-    show('删除成功')
+    show(t('common.deleted'))
     await load()
   } catch (e: any) {
     show(e.message, 'error')
@@ -197,8 +199,8 @@ onMounted(load)
 <template>
   <div style="display:flex;flex-direction:column;height:100%;overflow:hidden">
     <div class="page-toolbar">
-      <button class="btn-outline btn-sm" @click="load">刷新</button>
-      <button class="btn-primary btn-sm" @click="openAdd">+ 添加 Skill</button>
+      <button class="btn-outline btn-sm" @click="load">{{ t('common.refresh') }}</button>
+      <button class="btn-primary btn-sm" @click="openAdd">{{ t('skills.add') }}</button>
     </div>
     <!-- Tab bar + search -->
     <div style="display:flex;align-items:center;padding:0 20px;border-bottom:1px solid #e8e6e3;background:#fff;gap:0;flex-shrink:0">
@@ -208,7 +210,7 @@ onMounted(load)
         style="padding:10px 14px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s"
         :style="activeTab === 'all' ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
       >
-        全部
+        {{ t('common.all') }}
         <span style="margin-left:4px;font-size:11px;padding:0 5px;border-radius:10px;font-weight:600"
           :style="activeTab === 'all' ? 'background:#1c1c1c;color:#fff' : 'background:#f0efed;color:#6b6b6b'"
         >{{ allSkills.length }}</span>
@@ -228,7 +230,7 @@ onMounted(load)
       <div style="flex:1" />
       <input
         v-model="searchQuery"
-        placeholder="搜索技能名称或描述..."
+        :placeholder="t('skills.search_placeholder')"
         style="width:220px;padding:5px 10px;border:1px solid #e8e6e3;border-radius:6px;font-size:12px;color:#1c1c1c;outline:none;background:#fafaf9"
         @focus="($event.target as HTMLInputElement).style.borderColor='#1c1c1c'"
         @blur="($event.target as HTMLInputElement).style.borderColor='#e8e6e3'"
@@ -236,7 +238,7 @@ onMounted(load)
     </div>
     <div class="page-content">
       <div style="margin-bottom:16px;padding:10px 14px;background:#f1f5f9;border-radius:6px;font-size:13px;color:#475569">
-        技能目录：<code style="font-family:monospace;background:#e2e8f0;padding:2px 6px;border-radius:3px">~/.sbot/skills/</code>
+        {{ t('skills.skills_dir') }}<code style="font-family:monospace;background:#e2e8f0;padding:2px 6px;border-radius:3px">~/.sbot/skills/</code>
       </div>
       <table style="table-layout:fixed;width:100%">
         <colgroup>
@@ -245,12 +247,12 @@ onMounted(load)
           <col style="width:120px" />
         </colgroup>
         <thead>
-          <tr><th>名称</th><th>描述</th><th>操作</th></tr>
+          <tr><th>{{ t('common.name') }}</th><th>{{ t('common.description') }}</th><th>{{ t('common.ops') }}</th></tr>
         </thead>
         <tbody>
           <tr v-if="filteredSkills.length === 0">
             <td colspan="3" style="text-align:center;color:#94a3b8;padding:40px">
-              {{ searchQuery.trim() ? '未找到匹配的 Skill' : '暂无 Skill' }}
+              {{ searchQuery.trim() ? t('skills.no_match') : t('skills.empty') }}
             </td>
           </tr>
           <tr v-for="s in filteredSkills" :key="s.name">
@@ -260,8 +262,8 @@ onMounted(load)
             <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.description || '-' }}</td>
             <td style="white-space:nowrap">
               <div class="ops-cell">
-                <button class="btn-outline btn-sm" @click="openView(s.name, s.source)">查看</button>
-                <button v-if="s.source === '全局'" class="btn-danger btn-sm" @click="remove(s.name)">删除</button>
+                <button class="btn-outline btn-sm" @click="openView(s.name, s.source)">{{ t('common.view') }}</button>
+                <button v-if="s.source === '全局'" class="btn-danger btn-sm" @click="remove(s.name)">{{ t('common.delete') }}</button>
               </div>
             </td>
           </tr>
@@ -273,11 +275,11 @@ onMounted(load)
     <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
       <div class="modal-box wide">
         <div class="modal-header">
-          <h3>查看 Skill</h3>
+          <h3>{{ t('common.view') }} Skill</h3>
           <button class="modal-close" @click="showModal = false">&times;</button>
         </div>
         <div class="modal-body">
-          <div v-if="viewLoading" style="text-align:center;color:#94a3b8;padding:40px">加载中...</div>
+          <div v-if="viewLoading" style="text-align:center;color:#94a3b8;padding:40px">{{ t('common.loading') }}</div>
           <template v-else>
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
               <span v-if="viewBadge" :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(viewBadge)}`">{{ viewBadge }}</span>
@@ -288,7 +290,7 @@ onMounted(load)
           </template>
         </div>
         <div class="modal-footer">
-          <button class="btn-outline" @click="showModal = false">关闭</button>
+          <button class="btn-outline" @click="showModal = false">{{ t('common.close') }}</button>
         </div>
       </div>
     </div>
@@ -297,13 +299,13 @@ onMounted(load)
     <div v-if="showHub" class="modal-overlay" @click.self="showHub = false">
       <div class="modal-box wide" style="max-width:960px;width:90vw;display:flex;flex-direction:column;max-height:80vh">
         <div class="modal-header" style="flex-shrink:0">
-          <h3>Skill Hub</h3>
+          <h3>{{ t('skills.hub_title') }}</h3>
           <button class="modal-close" @click="showHub = false">&times;</button>
         </div>
         <!-- Tabs -->
         <div style="display:flex;border-bottom:1px solid #e2e8f0;flex-shrink:0;padding:0 20px">
           <button
-            v-for="tab in ([{key:'url',label:'URL 安装'},{key:'search',label:'搜索'}] as const)"
+            v-for="tab in ([{key:'url',label:t('skills.url_install_tab')},{key:'search',label:t('skills.search_tab')}] as const)"
             :key="tab.key"
             @click="hubTab = tab.key"
             style="padding:10px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px"
@@ -316,19 +318,19 @@ onMounted(load)
             <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
               <input
                 v-model="hubUrlInput"
-                placeholder="输入 URL 安装（如 https://skills.sh/owner/repo/skill）"
+                :placeholder="t('skills.url_placeholder')"
                 style="flex:1"
                 @keydown.enter="installByUrl"
               />
               <button class="btn-primary" :disabled="hubUrlInstalling || !hubUrlInput.trim()" @click="installByUrl">
-                {{ hubUrlInstalling ? '安装中...' : '安装' }}
+                {{ hubUrlInstalling ? t('common.loading') : '安装' }}
               </button>
             </div>
             <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
-              <input type="checkbox" v-model="hubUrlOverwrite" /> 覆盖已存在的同名 Skill
+              <input type="checkbox" v-model="hubUrlOverwrite" /> {{ t('skills.override') }}
             </label>
             <div style="margin-top:16px;padding:12px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;color:#64748b;line-height:1.7">
-              支持格式：<br>
+              {{ t('skills.support_formats') }}<br>
               <code style="font-family:monospace">https://clawhub.ai/{slug}</code>
             </div>
           </template>
@@ -338,19 +340,19 @@ onMounted(load)
             <div style="display:flex;gap:8px;margin-bottom:16px;flex-shrink:0">
               <input
                 v-model="hubQuery"
-                placeholder="搜索 Skill（如 code-review、web-scraper）"
+                :placeholder="t('skills.search_placeholder_hub')"
                 style="flex:1"
                 @keydown="hubKeydown"
               />
               <button class="btn-primary" :disabled="hubSearching || !hubQuery.trim()" @click="hubSearch">
-                {{ hubSearching ? '搜索中...' : '搜索' }}
+                {{ hubSearching ? t('skills.searching') : '搜索' }}
               </button>
             </div>
             <!-- Results area (scrollable) -->
             <div style="flex:1;overflow-y:auto;min-height:0">
-              <div v-if="hubSearching" style="text-align:center;color:#94a3b8;padding:40px">搜索中...</div>
+              <div v-if="hubSearching" style="text-align:center;color:#94a3b8;padding:40px">{{ t('skills.searching') }}</div>
               <template v-else-if="hubSearched">
-                <div v-if="hubResults.length === 0" style="text-align:center;color:#94a3b8;padding:40px">未找到相关 Skill</div>
+                <div v-if="hubResults.length === 0" style="text-align:center;color:#94a3b8;padding:40px">{{ t('skills.no_search_result') }}</div>
                 <table v-else style="width:100%;table-layout:fixed">
                   <colgroup>
                     <col style="width:200px" />
@@ -360,7 +362,7 @@ onMounted(load)
                     <col style="width:70px" />
                   </colgroup>
                   <thead>
-                    <tr><th>名称</th><th>描述</th><th>版本</th><th>来源</th><th>操作</th></tr>
+                    <tr><th>{{ t('common.name') }}</th><th>{{ t('common.description') }}</th><th>{{ t('skills.version_col') }}</th><th>{{ t('skills.source_col') }}</th><th>{{ t('common.ops') }}</th></tr>
                   </thead>
                   <tbody>
                     <tr v-for="s in hubResults" :key="s.provider + ':' + s.id">
@@ -372,8 +374,8 @@ onMounted(load)
                       </td>
                       <td>
                         <span v-if="installedNames.has(s.name || s.id)"
-                          :style="BADGE_INSTALLED">已安装</span>
-                        <button v-else class="btn-primary btn-sm" @click="openInstall(s)">安装</button>
+                          :style="BADGE_INSTALLED">{{ t('skills.installed_badge') }}</span>
+                        <button v-else class="btn-primary btn-sm" @click="openInstall(s)">{{ t('skills.install_title') }}</button>
                       </td>
                     </tr>
                   </tbody>
@@ -392,7 +394,7 @@ onMounted(load)
     <div v-if="showInstall && selected" class="modal-overlay" @click.self="showInstall = false">
       <div class="modal-box">
         <div class="modal-header">
-          <h3>安装 Skill</h3>
+          <h3>{{ t('skills.install_title') }}</h3>
           <button class="modal-close" @click="showInstall = false">&times;</button>
         </div>
         <div class="modal-body">
@@ -404,17 +406,17 @@ onMounted(load)
             <div v-if="selected.description" style="font-size:13px;color:#475569">{{ selected.description }}</div>
           </div>
           <div style="padding:10px 12px;background:#f1f5f9;border-radius:6px;font-size:13px;color:#475569;margin-bottom:12px">
-            安装到：<code style="font-family:monospace;background:#e2e8f0;padding:2px 6px;border-radius:3px">~/.sbot/skills/</code>
+            {{ t('skills.install_to') }}<code style="font-family:monospace;background:#e2e8f0;padding:2px 6px;border-radius:3px">~/.sbot/skills/</code>
           </div>
           <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
             <input type="checkbox" v-model="overwrite" />
-            覆盖已存在的同名 Skill
+            {{ t('skills.override') }}
           </label>
         </div>
         <div class="modal-footer">
-          <button class="btn-outline" @click="showInstall = false">取消</button>
+          <button class="btn-outline" @click="showInstall = false">{{ t('common.cancel') }}</button>
           <button class="btn-primary" :disabled="installing" @click="confirmInstall">
-            {{ installing ? '安装中...' : '确认安装' }}
+            {{ installing ? t('common.loading') : t('skills.confirm_install') }}
           </button>
         </div>
       </div>

@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { useToast } from '@/composables/useToast'
 import MessageHistory from '@/components/MessageHistory.vue'
 import type { ChatMessage } from '@/types'
 
+const { t } = useI18n()
 const { show } = useToast()
 
 const visible    = ref(false)
@@ -30,10 +32,10 @@ async function load() {
 }
 
 async function clear() {
-  if (!confirm(`确定要清除该 Thread 的所有历史记录吗？`)) return
+  if (!window.confirm(t('savers.clear_confirm'))) return
   try {
     await apiFetch(historyUrl(), 'DELETE')
-    show('历史已清除')
+    show(t('savers.history_cleared'))
     await load()
   } catch (e: any) {
     show(e.message, 'error')
@@ -56,21 +58,21 @@ defineExpose({ open })
     <div class="modal-box xl" style="height:86vh">
       <div class="modal-header">
         <div style="display:flex;align-items:center;gap:10px">
-          <h3>会话历史</h3>
+          <h3>{{ t('savers.history_title') }}</h3>
           <span class="saver-name-badge">{{ threadId }}</span>
-          <span v-if="!loading" class="saver-count-badge">{{ messages.length }} 条</span>
+          <span v-if="!loading" class="saver-count-badge">{{ t('savers.count', { count: messages.length }) }}</span>
         </div>
         <button class="modal-close" @click="visible = false">&times;</button>
       </div>
       <div class="modal-header-toolbar">
         <button class="btn-outline btn-sm" :disabled="loading" @click="load">
-          {{ loading ? '加载中...' : '刷新' }}
+          {{ loading ? t('common.loading') : t('common.refresh') }}
         </button>
-        <button class="btn-danger btn-sm" style="margin-left:auto" :disabled="messages.length === 0" @click="clear">清除历史</button>
+        <button class="btn-danger btn-sm" style="margin-left:auto" :disabled="messages.length === 0" @click="clear">{{ t('savers.clear_history') }}</button>
       </div>
       <div style="flex:1;overflow-y:auto">
-        <div v-if="loading" class="modal-loading">加载中...</div>
-        <div v-else-if="messages.length === 0" class="modal-empty">暂无历史记录</div>
+        <div v-if="loading" class="modal-loading">{{ t('common.loading') }}</div>
+        <div v-else-if="messages.length === 0" class="modal-empty">{{ t('savers.no_history') }}</div>
         <MessageHistory v-else :messages="messages" />
       </div>
     </div>

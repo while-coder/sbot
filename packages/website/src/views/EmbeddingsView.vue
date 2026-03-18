@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 import type { Embedding } from '@/types'
 
+const { t } = useI18n()
 const { show } = useToast()
 
 const embeddings = computed(() => store.settings.embeddings || {})
@@ -38,7 +40,7 @@ function openEdit(id: string) {
 }
 
 async function save() {
-  if (!form.value.name.trim()) { show('名称不能为空', 'error'); return }
+  if (!form.value.name.trim()) { show(t('common.name_required'), 'error'); return }
   try {
     const body = { ...form.value }
     const id = editingName.value
@@ -46,7 +48,7 @@ async function save() {
       ? await apiFetch(`/api/settings/embeddings/${encodeURIComponent(id)}`, 'PUT', body)
       : await apiFetch('/api/settings/embeddings', 'POST', body)
     Object.assign(store.settings, res.data)
-    show('保存成功')
+    show(t('common.saved'))
     showModal.value = false
   } catch (e: any) {
     show(e.message, 'error')
@@ -56,11 +58,11 @@ async function save() {
 async function remove(id: string) {
   const e = embeddings.value[id]
   const label = (e as any).name || id
-  if (!confirm(`确定要删除 Embedding "${label}" 吗？`)) return
+  if (!window.confirm(t('embeddings.confirm_delete', { name: label }))) return
   try {
     const res = await apiFetch(`/api/settings/embeddings/${encodeURIComponent(id)}`, 'DELETE')
     Object.assign(store.settings, res.data)
-    show('删除成功')
+    show(t('common.deleted'))
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -79,17 +81,17 @@ async function refresh() {
 <template>
   <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
     <div class="page-toolbar">
-      <button class="btn-outline btn-sm" @click="refresh">刷新</button>
-      <button class="btn-primary btn-sm" @click="openAdd">+ 添加 Embedding</button>
+      <button class="btn-outline btn-sm" @click="refresh">{{ t('common.refresh') }}</button>
+      <button class="btn-primary btn-sm" @click="openAdd">{{ t('embeddings.add') }}</button>
     </div>
     <div class="page-content">
       <table>
         <thead>
-          <tr><th>名称</th><th>Provider</th><th>Base URL</th><th>Model</th><th>操作</th></tr>
+          <tr><th>{{ t('common.name') }}</th><th>{{ t('common.provider') }}</th><th>{{ t('common.base_url') }}</th><th>{{ t('common.model') }}</th><th>{{ t('common.ops') }}</th></tr>
         </thead>
         <tbody>
           <tr v-if="Object.keys(embeddings).length === 0">
-            <td colspan="5" style="text-align:center;color:#94a3b8;padding:40px">暂无 Embedding 配置</td>
+            <td colspan="5" style="text-align:center;color:#94a3b8;padding:40px">{{ t('embeddings.empty') }}</td>
           </tr>
           <tr v-for="(emb, id) in embeddings" :key="id">
             <td>{{ (emb as any).name || id }}</td>
@@ -98,8 +100,8 @@ async function refresh() {
             <td>{{ emb.model || '-' }}</td>
             <td>
               <div class="ops-cell">
-                <button class="btn-outline btn-sm" @click="openEdit(id as string)">编辑</button>
-                <button class="btn-danger btn-sm" @click="remove(id as string)">删除</button>
+                <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
+                <button class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
               </div>
             </td>
           </tr>
@@ -110,41 +112,41 @@ async function refresh() {
     <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
       <div class="modal-box">
         <div class="modal-header">
-          <h3>{{ editingName !== null ? '编辑 Embedding' : '添加 Embedding' }}</h3>
+          <h3>{{ editingName !== null ? t('embeddings.edit_title') : t('embeddings.add_title') }}</h3>
           <button class="modal-close" @click="showModal = false">&times;</button>
         </div>
         <div class="modal-body">
           <div class="form-group">
-            <label>名称 *</label>
-            <input v-model="form.name" placeholder="如 openai-ada" />
+            <label>{{ t('common.name') }} *</label>
+            <input v-model="form.name" :placeholder="t('embeddings.name_placeholder')" />
           </div>
           <div class="form-group">
-            <label>Provider</label>
+            <label>{{ t('common.provider') }}</label>
             <select v-model="form.provider">
               <option value="openai">openai</option>
             </select>
           </div>
           <div class="form-group">
-            <label>Base URL</label>
+            <label>{{ t('common.base_url') }}</label>
             <input v-model="form.baseURL" placeholder="https://api.openai.com/v1" />
           </div>
           <div class="form-group">
-            <label>API Key</label>
+            <label>{{ t('common.api_key') }}</label>
             <div class="apikey-field">
               <input v-model="form.apiKey" :type="showApiKey ? 'text' : 'password'" placeholder="sk-..." />
-              <button type="button" class="apikey-toggle" @click="showApiKey = !showApiKey" :title="showApiKey ? '隐藏' : '显示'">
-                {{ showApiKey ? '隐藏' : '显示' }}
+              <button type="button" class="apikey-toggle" @click="showApiKey = !showApiKey" :title="showApiKey ? t('common.hide') : t('common.show')">
+                {{ showApiKey ? t('common.hide') : t('common.show') }}
               </button>
             </div>
           </div>
           <div class="form-group">
-            <label>Model</label>
+            <label>{{ t('common.model') }}</label>
             <input v-model="form.model" placeholder="text-embedding-ada-002" />
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn-outline" @click="showModal = false">取消</button>
-          <button class="btn-primary" @click="save">保存</button>
+          <button class="btn-outline" @click="showModal = false">{{ t('common.cancel') }}</button>
+          <button class="btn-primary" @click="save">{{ t('common.save') }}</button>
         </div>
       </div>
     </div>

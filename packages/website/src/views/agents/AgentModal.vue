@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 import type { Agent, SubAgentRef } from '@/types'
+
+const { t } = useI18n()
 
 const emit = defineEmits<{ saved: [] }>()
 const { show } = useToast()
@@ -52,7 +55,7 @@ function open(id?: string) {
 }
 
 async function save() {
-  if (!form.value.name.trim()) { show('名称不能为空', 'error'); return }
+  if (!form.value.name.trim()) { show(t('common.name_required'), 'error'); return }
   const { type } = form.value
   if (type === 'react') {
     if (!form.value.think) { show('ReAct 模式：Think 模型不能为空', 'error'); return }
@@ -82,7 +85,7 @@ async function save() {
       ? await apiFetch(`/api/settings/agents/${encodeURIComponent(id)}`, 'PUT', config)
       : await apiFetch('/api/settings/agents', 'POST', config)
     Object.assign(store.settings, res.data)
-    show('保存成功')
+    show(t('common.saved'))
     showModal.value = false
     emit('saved')
   } catch (e: any) {
@@ -99,7 +102,7 @@ const subAgentExclude = ref('')
 
 function addSubAgent() {
   editingSubIdx.value   = -1
-  subModalTitle.value   = '添加子 Agent'
+  subModalTitle.value   = t('agents.add_sub_title')
   subAgentExclude.value = form.value.name
   subForm.value         = { id: '', desc: '' }
   showSubModal.value    = true
@@ -107,15 +110,15 @@ function addSubAgent() {
 
 function editSubAgent(idx: number) {
   editingSubIdx.value   = idx
-  subModalTitle.value   = '编辑子 Agent'
+  subModalTitle.value   = t('agents.edit_sub_title')
   subAgentExclude.value = form.value.name
   subForm.value         = { ...tempSubAgents.value[idx] }
   showSubModal.value    = true
 }
 
 function saveSubAgent() {
-  if (!subForm.value.id)             { show('请选择一个 Agent', 'error'); return }
-  if (!subForm.value.desc.trim())    { show('描述不能为空',     'error'); return }
+  if (!subForm.value.id)             { show(t('agents.error_agent'), 'error'); return }
+  if (!subForm.value.desc.trim())    { show(t('agents.error_desc'),  'error'); return }
   const ref: SubAgentRef = { id: subForm.value.id, desc: subForm.value.desc.trim() }
   if (editingSubIdx.value >= 0) {
     tempSubAgents.value[editingSubIdx.value] = ref
@@ -123,13 +126,13 @@ function saveSubAgent() {
     tempSubAgents.value.push(ref)
   }
   showSubModal.value = false
-  show('子 Agent 已更新')
+  show(t('agents.sub_updated'))
 }
 
 function deleteSubAgent(idx: number) {
-  if (!confirm('确定要删除此子 Agent 吗？')) return
+  if (!window.confirm(t('agents.confirm_delete_sub'))) return
   tempSubAgents.value.splice(idx, 1)
-  show('子 Agent 已删除')
+  show(t('agents.sub_deleted'))
 }
 
 function subAgentSelectOptions() {
@@ -147,34 +150,34 @@ defineExpose({ open })
   <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
     <div class="modal-box wide" style="max-height:90vh">
       <div class="modal-header">
-        <h3>{{ editingId ? '编辑智能体' : '添加智能体' }}</h3>
+        <h3>{{ editingId ? t('agents.edit_title') : t('agents.add_title') }}</h3>
         <button class="modal-close" @click="showModal = false">&times;</button>
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label>名称 (唯一标识) *</label>
-          <input v-model="form.name" placeholder="如 default, my-agent" />
+          <label>{{ t('agents.name_id_label') }} *</label>
+          <input v-model="form.name" :placeholder="t('agents.name_placeholder')" />
         </div>
         <div class="form-group">
-          <label>类型 *</label>
+          <label>{{ t('common.type') }} *</label>
           <select v-model="form.type">
-            <option value="single">Single (单 Agent)</option>
-            <option value="react">ReAct (迭代决策)</option>
+            <option value="single">{{ t('agents.type_single') }}</option>
+            <option value="react">{{ t('agents.type_react') }}</option>
           </select>
         </div>
 
         <!-- 系统提示词（所有类型） -->
         <div class="form-group">
-          <label>系统提示词</label>
-          <textarea v-model="form.systemPrompt" rows="3" placeholder="可选" />
+          <label>{{ t('agents.system_prompt') }}</label>
+          <textarea v-model="form.systemPrompt" rows="3" :placeholder="t('agents.system_prompt_placeholder')" />
         </div>
 
         <!-- Single-only fields -->
         <template v-if="form.type === 'single'">
           <div class="form-group">
-            <label>模型</label>
+            <label>{{ t('agents.model_col') }}</label>
             <select v-model="form.model">
-              <option value="">不使用</option>
+              <option value="">{{ t('common.not_use') }}</option>
               <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
             </select>
           </div>
@@ -183,19 +186,19 @@ defineExpose({ open })
         <!-- ReAct fields -->
         <template v-else-if="form.type === 'react'">
           <div class="form-section">
-            <div class="form-section-title">节点配置</div>
+            <div class="form-section-title">{{ t('agents.node_config') }}</div>
             <div class="form-group">
-              <label>Think 模型 *</label>
+              <label>{{ t('agents.think_model') }} *</label>
               <select v-model="form.think">
-                <option value="">请选择</option>
+                <option value="">{{ t('common.select_placeholder') }}</option>
                 <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
               </select>
             </div>
           </div>
           <div class="form-section">
             <div class="form-section-title">
-              子 Agents
-              <button class="btn-outline btn-sm" @click="addSubAgent">+ 添加</button>
+              {{ t('agents.sub_agents') }}
+              <button class="btn-outline btn-sm" @click="addSubAgent">{{ t('agents.add_sub') }}</button>
             </div>
             <div v-for="(ref, i) in tempSubAgents" :key="i" class="sub-agent-item">
               <div class="sub-agent-item-header">
@@ -203,21 +206,21 @@ defineExpose({ open })
                   <span class="sub-agent-item-name">{{ (agents[ref.id] as any)?.name || ref.id }}</span>
                 </div>
                 <div class="ops-cell">
-                  <button class="btn-outline btn-sm" @click="editSubAgent(i)">编辑</button>
-                  <button class="btn-danger btn-sm" @click="deleteSubAgent(i)">删除</button>
+                  <button class="btn-outline btn-sm" @click="editSubAgent(i)">{{ t('common.edit') }}</button>
+                  <button class="btn-danger btn-sm" @click="deleteSubAgent(i)">{{ t('common.delete') }}</button>
                 </div>
               </div>
               <div class="sub-agent-item-desc">{{ ref.desc }}</div>
             </div>
-            <div v-if="tempSubAgents.length === 0" style="color:#94a3b8;font-size:12px;padding:4px">暂无子 Agent</div>
+            <div v-if="tempSubAgents.length === 0" style="color:#94a3b8;font-size:12px;padding:4px">{{ t('agents.no_sub') }}</div>
           </div>
         </template>
 
 
       </div>
       <div class="modal-footer">
-        <button class="btn-outline" @click="showModal = false">取消</button>
-        <button class="btn-primary" @click="save">保存</button>
+        <button class="btn-outline" @click="showModal = false">{{ t('common.cancel') }}</button>
+        <button class="btn-primary" @click="save">{{ t('common.save') }}</button>
       </div>
     </div>
   </div>
@@ -231,22 +234,21 @@ defineExpose({ open })
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label>Agent *</label>
+          <label>{{ t('agents.sub_agent_label') }} *</label>
           <select v-model="subForm.id">
-            <option value="">请选择</option>
+            <option value="">{{ t('common.select_placeholder') }}</option>
             <option v-for="a in subAgentSelectOptions()" :key="a.id" :value="a.id">{{ a.label }}</option>
           </select>
         </div>
         <div class="form-group">
-          <label>描述 *</label>
-          <input v-model="subForm.desc" placeholder="Agent 描述，用于 LLM 规划时参考" />
+          <label>{{ t('agents.sub_desc_label') }} *</label>
+          <input v-model="subForm.desc" :placeholder="t('agents.sub_desc_placeholder')" />
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn-outline" @click="showSubModal = false">取消</button>
-        <button class="btn-primary" @click="saveSubAgent">保存</button>
+        <button class="btn-outline" @click="showSubModal = false">{{ t('common.cancel') }}</button>
+        <button class="btn-primary" @click="saveSubAgent">{{ t('common.save') }}</button>
       </div>
     </div>
   </div>
 </template>
-

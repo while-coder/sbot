@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
@@ -9,6 +10,8 @@ import DirectoryModal from './modals/DirectoryModal.vue'
 import SaverViewModal from './modals/SaverViewModal.vue'
 import ChatPanel from '@/components/ChatPanel.vue'
 import { dirThreadId } from 'sbot.commons'
+
+const { t } = useI18n()
 
 type LocalDirCfg = { agent?: string; saver?: string; memory?: string }
 
@@ -96,12 +99,12 @@ async function selectDir(dirPath: string) {
 }
 
 async function deleteDir(dirPath: string) {
-  if (!confirm(`确定要移除目录 "${dirDisplayName(dirPath)}"？\n（只移除注册信息，不删除本地文件）`)) return
+  if (!window.confirm(t('directory.confirm_remove', { name: dirDisplayName(dirPath) }))) return
   try {
     await apiFetch(`/api/directories?path=${encodeURIComponent(dirPath)}`, 'DELETE')
     if (store.settings.directories) delete store.settings.directories[dirPath]
     if (activeDir.value === dirPath) { activeDir.value = null; activeCfg.value = null; messages.value = [] }
-    show('已移除')
+    show(t('directory.removed'))
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -244,21 +247,21 @@ onUnmounted(() => { wsOffMessage(handleWsEvent) })
 
     <!-- 顶部提示条 -->
     <div class="dir-banner">
-      <span class="dir-banner-label">目录管理</span>
+      <span class="dir-banner-label">{{ t('directory.title') }}</span>
       <span class="dir-banner-hint">
-        每个目录的配置（Agent / 存储 / 记忆）保存在该目录的 <code>.sbot/settings.json</code> 中
+        {{ t('directory.info') }}
       </span>
-      <button class="btn-primary btn-sm" @click="directoryModal?.open()">+ 新增目录</button>
+      <button class="btn-primary btn-sm" @click="directoryModal?.open()">{{ t('directory.add') }}</button>
     </div>
 
     <!-- 无效路径错误条 -->
     <div v-if="invalidDirs.length > 0" class="dir-invalid-bar">
       <span class="dir-invalid-icon">!</span>
       <div style="flex:1;min-width:0">
-        <div style="font-weight:600;margin-bottom:4px">以下目录在宿主机上不存在，请删除无效记录：</div>
+        <div style="font-weight:600;margin-bottom:4px">{{ t('directory.invalid_dirs') }}</div>
         <div v-for="d in invalidDirs" :key="d" class="dir-invalid-row">
           <span class="dir-invalid-path" :title="d">{{ d }}</span>
-          <button class="btn-danger btn-sm" @click="removeInvalidDir(d)">删除</button>
+          <button class="btn-danger btn-sm" @click="removeInvalidDir(d)">{{ t('common.delete') }}</button>
         </div>
       </div>
     </div>
@@ -269,12 +272,12 @@ onUnmounted(() => { wsOffMessage(handleWsEvent) })
       <!-- 左侧边栏 -->
       <div style="width:200px;border-right:1px solid #e8e6e3;display:flex;flex-direction:column;overflow:hidden;flex-shrink:0">
         <div style="padding:6px 8px;border-bottom:1px solid #e8e6e3;flex-shrink:0">
-          <button class="btn-outline btn-sm" style="width:100%" @click="directoryModal?.open()">+ 新增</button>
+          <button class="btn-outline btn-sm" style="width:100%" @click="directoryModal?.open()">{{ t('directory.add_short') }}</button>
         </div>
         <div style="flex:1;overflow-y:auto;padding:4px">
           <div v-if="Object.keys(directories).length === 0"
                style="text-align:center;color:#94a3b8;padding:20px 8px;font-size:12px">
-            暂无目录<br>点击上方新增
+            {{ t('directory.empty') }}<br>{{ t('directory.add_hint') }}
           </div>
           <div
             v-for="(_, dirPath) in directories"
@@ -290,7 +293,7 @@ onUnmounted(() => { wsOffMessage(handleWsEvent) })
                 </div>
                 <div class="dir-item-path" :title="dirPath as string">{{ dirPath }}</div>
               </div>
-              <button class="dir-del-btn" @click.stop="deleteDir(dirPath as string)" title="移除目录">×</button>
+              <button class="dir-del-btn" @click.stop="deleteDir(dirPath as string)" :title="t('common.delete')">×</button>
             </div>
           </div>
         </div>
@@ -305,40 +308,40 @@ onUnmounted(() => { wsOffMessage(handleWsEvent) })
             <span class="page-toolbar-title" :title="activeDir">{{ dirDisplayName(activeDir) }}</span>
 
             <!-- Agent -->
-            <label class="toolbar-label">Agent</label>
+            <label class="toolbar-label">{{ t('common.agent') }}</label>
             <select
               class="toolbar-select-sm"
               :value="activeCfg.agent || ''"
               @change="saveConfig({ agent: ($event.target as HTMLSelectElement).value })"
             >
-              <option value="" disabled>未配置</option>
+              <option value="" disabled>{{ t('common.select_placeholder') }}</option>
               <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }}</option>
             </select>
 
             <!-- Saver -->
-            <label class="toolbar-label">存储</label>
+            <label class="toolbar-label">{{ t('common.storage') }}</label>
             <select
               class="toolbar-select-sm"
               :value="activeCfg.saver || ''"
               @change="saveConfig({ saver: ($event.target as HTMLSelectElement).value })"
             >
-              <option value="" disabled>未配置</option>
+              <option value="" disabled>{{ t('common.select_placeholder') }}</option>
               <option v-for="s in saverOptions" :key="s.id" :value="s.id">{{ s.label }}</option>
             </select>
             <button
               v-if="activeCfg.saver"
               class="chat-info-chip"
               @click="saverViewModal?.open(activeCfg.saver!, activeDir!)"
-            >查看</button>
+            >{{ t('common.view') }}</button>
 
             <!-- Memory -->
-            <label class="toolbar-label">记忆</label>
+            <label class="toolbar-label">{{ t('common.memory') }}</label>
             <select
               class="toolbar-select-sm"
               :value="activeCfg.memory || ''"
               @change="saveConfig({ memory: ($event.target as HTMLSelectElement).value || undefined })"
             >
-              <option value="">(不使用)</option>
+              <option value="">{{ t('common.not_use') }}</option>
               <option v-for="m in memoryOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
             </select>
 
@@ -346,33 +349,33 @@ onUnmounted(() => { wsOffMessage(handleWsEvent) })
               class="btn-outline btn-sm"
               style="margin-left:auto"
               @click="directoryModal?.open(activeDir!, activeCfg ?? undefined)"
-            >编辑</button>
-            <button class="btn-outline btn-sm" @click="refreshHistory">刷新</button>
-            <button class="btn-danger btn-sm" :disabled="!activeCfg.saver" @click="clearHistory">清除历史</button>
+            >{{ t('common.edit') }}</button>
+            <button class="btn-outline btn-sm" @click="refreshHistory">{{ t('common.refresh') }}</button>
+            <button class="btn-danger btn-sm" :disabled="!activeCfg.saver" @click="clearHistory">{{ t('chat.clear_history') }}</button>
           </template>
 
           <template v-else-if="activeDir && loadingCfg">
-            <span style="font-size:13px;color:#94a3b8">读取配置中…</span>
+            <span style="font-size:13px;color:#94a3b8">{{ t('directory.reading') }}</span>
           </template>
 
-          <span v-else style="font-size:13px;color:#94a3b8">请从左侧选择目录</span>
+          <span v-else style="font-size:13px;color:#94a3b8">{{ t('directory.select_hint') }}</span>
         </div>
 
         <!-- 未选目录 -->
         <div v-if="!activeDir"
              style="flex:1;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:13px">
-          请从左侧选择目录，或点击「新增目录」
+          {{ t('directory.select_or_add') }}
         </div>
 
         <!-- Tool approval bar + 聊天面板 -->
         <template v-else>
           <div v-if="pendingToolCall" class="tool-approval-bar">
-            <span class="tool-approval-label">执行工具：<strong>{{ pendingToolCall.name }}</strong></span>
+            <span class="tool-approval-label">{{ t('chat.execute_tool') }}<strong>{{ pendingToolCall.name }}</strong></span>
             <div class="tool-approval-btns">
-              <button class="btn-primary btn-sm" @click="approveToolCall('allow')">允许</button>
-              <button class="btn-outline btn-sm" @click="approveToolCall('alwaysArgs')">总是允许（相同参数）</button>
-              <button class="btn-outline btn-sm" @click="approveToolCall('alwaysTool')">总是允许（所有参数）</button>
-              <button class="btn-danger btn-sm" @click="approveToolCall('deny')">拒绝</button>
+              <button class="btn-primary btn-sm" @click="approveToolCall('allow')">{{ t('chat.allow') }}</button>
+              <button class="btn-outline btn-sm" @click="approveToolCall('alwaysArgs')">{{ t('chat.always_allow_args') }}</button>
+              <button class="btn-outline btn-sm" @click="approveToolCall('alwaysTool')">{{ t('chat.always_allow_all') }}</button>
+              <button class="btn-danger btn-sm" @click="approveToolCall('deny')">{{ t('chat.deny') }}</button>
             </div>
           </div>
           <ChatPanel

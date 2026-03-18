@@ -1,10 +1,22 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
+import { i18n, saveLocale } from '@/i18n'
+
+const { t } = useI18n()
 
 const { show } = useToast()
+
+// ── Language ──────────────────────────────────────────────────────
+const locale = ref(i18n.global.locale.value)
+function changeLocale(lang: string) {
+  locale.value = lang
+  ;(i18n.global.locale as any).value = lang
+  saveLocale(lang)
+}
 
 const httpPort = ref<number | ''>('')
 const httpUrl = ref('')
@@ -30,7 +42,7 @@ async function save() {
       httpUrl: httpUrl.value.trim() || undefined,
     })
     Object.assign(store.settings, res.data)
-    show('保存成功')
+    show(t('common.saved'))
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -40,21 +52,33 @@ async function save() {
 <template>
   <div>
     <div v-if="portMismatch" class="port-mismatch-banner">
-      端口已变更，修改将在重启服务后生效
+      {{ t('settings.port_changed') }}
     </div>
     <div class="page-toolbar">
-      <button class="btn-primary btn-sm" @click="save">保存</button>
+      <button class="btn-primary btn-sm" @click="save">{{ t('common.save') }}</button>
     </div>
     <div class="page-content">
       <div class="card">
-        <div class="card-title">服务</div>
+        <div class="card-title">{{ t('settings.language') }}</div>
         <div class="inline-form">
           <div class="form-group">
-            <label>HTTP 端口</label>
+            <label>{{ t('settings.language') }}</label>
+            <select :value="locale" @change="changeLocale(($event.target as HTMLSelectElement).value)">
+              <option value="zh">{{ t('settings.lang_zh') }}</option>
+              <option value="en">{{ t('settings.lang_en') }}</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">{{ t('settings.service') }}</div>
+        <div class="inline-form">
+          <div class="form-group">
+            <label>{{ t('settings.http_port') }}</label>
             <input v-model.number="httpPort" type="number" placeholder="5500" min="1" max="65535" />
           </div>
           <div class="form-group">
-            <label>HTTP URL</label>
+            <label>{{ t('settings.http_url') }}</label>
             <input v-model="httpUrl" type="text" placeholder="http://localhost:5500" />
           </div>
         </div>

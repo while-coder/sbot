@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { marked } from 'marked'
 import type { ChatMessage, ToolCall } from '@/types'
+
+const { t } = useI18n()
 
 interface Attachment {
   name: string
@@ -22,7 +25,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   chatQueue: () => [],
   showAttachments: false,
-  emptyText: '暂无历史记录',
+  emptyText: '',
 })
 
 const emit = defineEmits<{
@@ -159,7 +162,7 @@ defineExpose({ scrollToBottom })
     <div ref="messagesEl" style="flex:1;overflow-y:auto">
       <div class="history-messages">
         <template v-if="messages.length === 0 && !isStreaming">
-          <div style="text-align:center;color:#94a3b8;padding:60px">{{ emptyText }}</div>
+          <div style="text-align:center;color:#94a3b8;padding:60px">{{ emptyText || t('chat.no_history') }}</div>
         </template>
 
         <template v-for="(msg, idx) in messages" :key="idx">
@@ -167,7 +170,7 @@ defineExpose({ scrollToBottom })
             <div v-if="msg.role === 'human'" class="msg-row human">
               <div class="msg-bubble human">
                 <div class="msg-role-bar">
-                  <span class="msg-role">用户</span>
+                  <span class="msg-role">{{ t('chat.role_user') }}</span>
                   <span v-if="msg.timestamp" class="msg-time">{{ fmtTs(msg.timestamp) }}</span>
                 </div>
                 {{ msg.content }}
@@ -176,13 +179,13 @@ defineExpose({ scrollToBottom })
             <div v-else-if="msg.role === 'ai'" class="msg-row ai">
               <div v-if="msg.content" class="msg-bubble ai">
                 <div class="msg-role-bar">
-                  <span class="msg-role">AI</span>
+                  <span class="msg-role">{{ t('chat.role_ai') }}</span>
                   <span v-if="msg.timestamp" class="msg-time">{{ fmtTs(msg.timestamp) }}</span>
                 </div>
                 <div class="md-content" v-html="renderMd(msg.content)" />
               </div>
               <div v-if="msg.tool_calls && msg.tool_calls.length > 0" class="msg-tool-calls">
-                <div class="msg-role">Tool Calls ({{ msg.tool_calls.length }})</div>
+                <div class="msg-role">{{ t('chat.tool_calls', { count: msg.tool_calls.length }) }}</div>
                 <div v-for="tc in msg.tool_calls" :key="(tc as ToolCall).id" class="tool-call-item">
                   <div class="tool-call-header" @click="toggleToolCall($event.currentTarget as HTMLElement)">
                     <span class="tool-call-name">{{ (tc as ToolCall).name }}</span>
@@ -191,7 +194,7 @@ defineExpose({ scrollToBottom })
                     <div class="tool-call-args">{{ JSON.stringify((tc as ToolCall).args, null, 2) }}</div>
                     <template v-for="m2 in messages" :key="'r' + (m2.tool_call_id || '')">
                       <div v-if="m2.role === 'tool' && m2.tool_call_id === (tc as ToolCall).id" class="tool-call-result">
-                        <div class="tool-call-result-label">返回结果</div>
+                        <div class="tool-call-result-label">{{ t('chat.tool_result') }}</div>
                         {{ m2.content }}
                       </div>
                     </template>
@@ -214,12 +217,12 @@ defineExpose({ scrollToBottom })
         <!-- Streaming -->
         <div v-if="isStreaming" class="msg-row ai">
           <div class="msg-bubble ai streaming">
-            <div class="msg-role-bar"><span class="msg-role">AI</span></div>
+            <div class="msg-role-bar"><span class="msg-role">{{ t('chat.role_ai') }}</span></div>
             <div v-if="streamingContent" class="md-content" v-html="renderMd(streamingContent)" />
-            <span v-else style="color:#94a3b8">思考中…</span>
+            <span v-else style="color:#94a3b8">{{ t('chat.thinking') }}</span>
           </div>
           <div v-for="(tc, i) in streamingToolCalls" :key="i" class="msg-tool-calls">
-            <div class="msg-role">Tool Call</div>
+            <div class="msg-role">{{ t('chat.tool_call') }}</div>
             <div class="tool-call-item">
               <div class="tool-call-header expanded" @click="toggleToolCall($event.currentTarget as HTMLElement)">
                 <span class="tool-call-name">{{ tc.name }}</span>
@@ -235,7 +238,7 @@ defineExpose({ scrollToBottom })
 
     <!-- Queue -->
     <div v-if="chatQueue && chatQueue.length > 0" class="chat-queue" style="display:flex">
-      <div class="chat-queue-label">待发送（{{ chatQueue.length }}）</div>
+      <div class="chat-queue-label">{{ t('chat.to_send', { count: chatQueue.length }) }}</div>
       <div v-for="(q, i) in chatQueue" :key="i" class="chat-queue-item">
         <span class="chat-queue-text">{{ q }}</span>
         <button class="chat-queue-del" @click="emit('removeFromQueue', i)">×</button>
@@ -262,7 +265,7 @@ defineExpose({ scrollToBottom })
         </div>
         <textarea
           v-model="chatInput"
-          placeholder="输入消息，Enter 发送，Shift+Enter 换行…"
+          :placeholder="t('chat.input_placeholder')"
           rows="3"
           @keydown="onKeydown"
           @input="autoResize"
@@ -270,8 +273,8 @@ defineExpose({ scrollToBottom })
         />
       </div>
       <div style="display:flex;flex-direction:column;gap:6px;align-self:flex-end">
-        <button v-if="showAttachments" class="btn-outline btn-sm" @click="pickFile" title="添加附件">附件</button>
-        <button class="btn-primary" :disabled="chatSending" @click="send">发送</button>
+        <button v-if="showAttachments" class="btn-outline btn-sm" @click="pickFile" :title="t('chat.add_attachment')">{{ t('chat.attachment') }}</button>
+        <button class="btn-primary" :disabled="chatSending" @click="send">{{ t('chat.send') }}</button>
       </div>
     </div>
 

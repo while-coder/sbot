@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 import type { Model } from '@/types'
 
+const { t } = useI18n()
 const { show } = useToast()
 
 const models = computed(() => store.settings.models || {})
@@ -43,7 +45,7 @@ function openEdit(id: string) {
 }
 
 async function save() {
-  if (!form.value.name.trim()) { show('名称不能为空', 'error'); return }
+  if (!form.value.name.trim()) { show(t('common.name_required'), 'error'); return }
   try {
     const body: any = { ...form.value }
     if (body.temperature === undefined || body.temperature === null) delete body.temperature
@@ -53,7 +55,7 @@ async function save() {
       ? await apiFetch(`/api/settings/models/${encodeURIComponent(id)}`, 'PUT', body)
       : await apiFetch('/api/settings/models', 'POST', body)
     Object.assign(store.settings, res.data)
-    show('保存成功')
+    show(t('common.saved'))
     showModal.value = false
   } catch (e: any) {
     show(e.message, 'error')
@@ -63,11 +65,11 @@ async function save() {
 async function remove(id: string) {
   const m = models.value[id]
   const label = (m as any).name || id
-  if (!confirm(`确定要删除模型 "${label}" 吗？`)) return
+  if (!window.confirm(t('models.confirm_delete', { name: label }))) return
   try {
     const res = await apiFetch(`/api/settings/models/${encodeURIComponent(id)}`, 'DELETE')
     Object.assign(store.settings, res.data)
-    show('删除成功')
+    show(t('common.deleted'))
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -86,17 +88,17 @@ async function refresh() {
 <template>
   <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
     <div class="page-toolbar">
-      <button class="btn-outline btn-sm" @click="refresh">刷新</button>
-      <button class="btn-primary btn-sm" @click="openAdd">+ 添加模型</button>
+      <button class="btn-outline btn-sm" @click="refresh">{{ t('common.refresh') }}</button>
+      <button class="btn-primary btn-sm" @click="openAdd">{{ t('models.add') }}</button>
     </div>
     <div class="page-content">
       <table>
         <thead>
-          <tr><th>名称</th><th>Provider</th><th>Base URL</th><th>Model</th><th>操作</th></tr>
+          <tr><th>{{ t('common.name') }}</th><th>{{ t('common.provider') }}</th><th>{{ t('common.base_url') }}</th><th>{{ t('models.model') }}</th><th>{{ t('common.ops') }}</th></tr>
         </thead>
         <tbody>
           <tr v-if="Object.keys(models).length === 0">
-            <td colspan="5" style="text-align:center;color:#94a3b8;padding:40px">暂无模型</td>
+            <td colspan="5" style="text-align:center;color:#94a3b8;padding:40px">{{ t('models.empty') }}</td>
           </tr>
           <tr v-for="(m, id) in models" :key="id">
             <td>{{ (m as any).name || id }}</td>
@@ -105,8 +107,8 @@ async function refresh() {
             <td>{{ m.model || '-' }}</td>
             <td>
               <div class="ops-cell">
-                <button class="btn-outline btn-sm" @click="openEdit(id as string)">编辑</button>
-                <button class="btn-danger btn-sm" @click="remove(id as string)">删除</button>
+                <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
+                <button class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
               </div>
             </td>
           </tr>
@@ -118,50 +120,50 @@ async function refresh() {
     <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
       <div class="modal-box">
         <div class="modal-header">
-          <h3>{{ editingName !== null ? '编辑模型' : '添加模型' }}</h3>
+          <h3>{{ editingName !== null ? t('models.edit_title') : t('models.add_title') }}</h3>
           <button class="modal-close" @click="showModal = false">&times;</button>
         </div>
         <div class="modal-body">
           <div class="form-group">
-            <label>名称 *</label>
-            <input v-model="form.name" placeholder="如 openai-gpt4" />
+            <label>{{ t('common.name') }} *</label>
+            <input v-model="form.name" :placeholder="t('models.name_placeholder')" />
           </div>
           <div class="form-group">
-            <label>Provider</label>
+            <label>{{ t('common.provider') }}</label>
             <select v-model="form.provider">
               <option value="openai">openai</option>
               <option value="ollama">ollama</option>
             </select>
           </div>
           <div class="form-group">
-            <label>Base URL</label>
+            <label>{{ t('common.base_url') }}</label>
             <input v-model="form.baseURL" :placeholder="isOllama ? 'http://localhost:11434' : 'https://api.openai.com/v1'" />
           </div>
           <div v-if="!isOllama" class="form-group">
-            <label>API Key</label>
+            <label>{{ t('common.api_key') }}</label>
             <div class="apikey-field">
               <input v-model="form.apiKey" :type="showApiKey ? 'text' : 'password'" placeholder="sk-..." />
-              <button type="button" class="apikey-toggle" @click="showApiKey = !showApiKey" :title="showApiKey ? '隐藏' : '显示'">
-                {{ showApiKey ? '隐藏' : '显示' }}
+              <button type="button" class="apikey-toggle" @click="showApiKey = !showApiKey" :title="showApiKey ? t('common.hide') : t('common.show')">
+                {{ showApiKey ? t('common.hide') : t('common.show') }}
               </button>
             </div>
           </div>
           <div class="form-group">
-            <label>Model</label>
+            <label>{{ t('models.model') }}</label>
             <input v-model="form.model" :placeholder="isOllama ? 'llama3' : 'gpt-4'" />
           </div>
           <div class="form-group">
-            <label>Temperature</label>
+            <label>{{ t('models.temperature') }}</label>
             <input v-model.number="form.temperature" type="number" step="0.1" placeholder="0.7" />
           </div>
           <div class="form-group">
-            <label>Max Tokens</label>
-            <input v-model.number="form.maxTokens" type="number" step="1" placeholder="不限制" />
+            <label>{{ t('models.max_tokens') }}</label>
+            <input v-model.number="form.maxTokens" type="number" step="1" :placeholder="t('models.no_limit')" />
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn-outline" @click="showModal = false">取消</button>
-          <button class="btn-primary" @click="save">保存</button>
+          <button class="btn-outline" @click="showModal = false">{{ t('common.cancel') }}</button>
+          <button class="btn-primary" @click="save">{{ t('common.save') }}</button>
         </div>
       </div>
     </div>

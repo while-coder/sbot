@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { useToast } from '@/composables/useToast'
+
+const { t } = useI18n()
 
 interface UserRow {
   id: number
@@ -29,10 +32,10 @@ async function load() {
 }
 
 async function remove(user: UserRow) {
-  if (!confirm(`确定要删除用户 "${user.username || user.userid}" 吗？`)) return
+  if (!window.confirm(t('users.confirm_delete', { name: user.username || user.userid }))) return
   try {
     await apiFetch(`/api/channel-users/${user.id}`, 'DELETE')
-    show('删除成功')
+    show(t('common.deleted'))
     await load()
   } catch (e: any) {
     show(e.message, 'error')
@@ -53,26 +56,26 @@ onMounted(load)
 <template>
   <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
     <div class="page-toolbar">
-      <span class="page-toolbar-title">用户管理</span>
-      <button class="btn-outline btn-sm" @click="load">刷新</button>
+      <span class="page-toolbar-title">{{ t('nav.app_title') }}</span>
+      <button class="btn-outline btn-sm" @click="load">{{ t('common.refresh') }}</button>
     </div>
     <div class="page-content">
       <table>
         <thead>
           <tr>
-            <th>ID</th>
-            <th>用户ID</th>
-            <th>用户名</th>
-            <th>频道</th>
-            <th>操作</th>
+            <th>{{ t('common.id') }}</th>
+            <th>{{ t('users.user_id_col') }}</th>
+            <th>{{ t('users.username_col') }}</th>
+            <th>{{ t('users.channel_col') }}</th>
+            <th>{{ t('common.ops') }}</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="5" style="text-align:center;color:#9b9b9b;padding:40px">加载中...</td>
+            <td colspan="5" style="text-align:center;color:#9b9b9b;padding:40px">{{ t('common.loading') }}</td>
           </tr>
           <tr v-else-if="users.length === 0">
-            <td colspan="5" style="text-align:center;color:#9b9b9b;padding:40px">暂无用户数据</td>
+            <td colspan="5" style="text-align:center;color:#9b9b9b;padding:40px">{{ t('users.empty') }}</td>
           </tr>
           <tr v-for="u in users" :key="u.id">
             <td style="font-family:monospace;color:#9b9b9b">{{ u.id }}</td>
@@ -81,8 +84,8 @@ onMounted(load)
             <td style="font-family:monospace;font-size:12px;color:#6b6b6b">{{ u.channel || '-' }}</td>
             <td>
               <div class="ops-cell">
-                <button class="btn-outline btn-sm" @click="viewUser = u">查看</button>
-                <button class="btn-danger btn-sm" @click="remove(u)">删除</button>
+                <button class="btn-outline btn-sm" @click="viewUser = u">{{ t('common.view') }}</button>
+                <button class="btn-danger btn-sm" @click="remove(u)">{{ t('common.delete') }}</button>
               </div>
             </td>
           </tr>
@@ -93,33 +96,33 @@ onMounted(load)
     <div v-if="viewUser" class="modal-overlay" @click.self="viewUser = null">
       <div class="modal-box wide">
         <div class="modal-header">
-          <h3>用户详情 — {{ viewUser.username || viewUser.userid }}</h3>
+          <h3>{{ t('users.detail_title', { name: viewUser.username || viewUser.userid }) }}</h3>
           <button class="modal-close" @click="viewUser = null">&times;</button>
         </div>
         <div class="modal-body">
           <div class="form-group">
-            <label>ID</label>
+            <label>{{ t('common.id') }}</label>
             <input :value="viewUser.id" disabled />
           </div>
           <div class="form-group">
-            <label>用户ID</label>
+            <label>{{ t('users.user_id') }}</label>
             <input :value="viewUser.userid" disabled />
           </div>
           <div class="form-group">
-            <label>用户名</label>
+            <label>{{ t('users.username') }}</label>
             <input :value="viewUser.username" disabled />
           </div>
           <div class="form-group">
-            <label>频道</label>
+            <label>{{ t('users.channel') }}</label>
             <input :value="viewUser.channel" disabled />
           </div>
           <div class="form-group">
-            <label>用户信息</label>
+            <label>{{ t('users.user_info') }}</label>
             <textarea :value="formatUserInfo(viewUser.userinfo)" disabled rows="16" style="font-family:monospace;font-size:12px" />
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn-outline" @click="viewUser = null">关闭</button>
+          <button class="btn-outline" @click="viewUser = null">{{ t('common.close') }}</button>
         </div>
       </div>
     </div>

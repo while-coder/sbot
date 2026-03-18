@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { marked } from 'marked'
 import type { ChatMessage, ToolCall } from '@/types'
+
+const { t } = useI18n()
 
 const props = defineProps<{ messages: ChatMessage[] }>()
 
@@ -23,10 +26,10 @@ function fmtDateSep(ts?: string) {
     const d = new Date(ts)
     const now = new Date()
     const pad = (n: number) => n.toString().padStart(2, '0')
-    if (d.toDateString() === now.toDateString()) return '今天'
+    if (d.toDateString() === now.toDateString()) return t('chat.date_today')
     const yesterday = new Date(now)
     yesterday.setDate(now.getDate() - 1)
-    if (d.toDateString() === yesterday.toDateString()) return '昨天'
+    if (d.toDateString() === yesterday.toDateString()) return t('chat.date_yesterday')
     if (d.getFullYear() === now.getFullYear())
       return `${pad(d.getMonth() + 1)}月${pad(d.getDate())}日`
     return `${d.getFullYear()}年${pad(d.getMonth() + 1)}月${pad(d.getDate())}日`
@@ -56,7 +59,7 @@ function renderMd(content: string): string {
 <template>
   <div class="history-messages">
     <template v-if="messages.length === 0">
-      <div style="text-align:center;color:#94a3b8;padding:60px">暂无历史记录</div>
+      <div style="text-align:center;color:#94a3b8;padding:60px">{{ t('chat.no_history') }}</div>
     </template>
     <template v-else>
       <template v-for="(msg, idx) in messages" :key="idx">
@@ -71,7 +74,7 @@ function renderMd(content: string): string {
           <div v-if="msg.role === 'human'" class="msg-row human">
             <div class="msg-bubble human">
               <div class="msg-role-bar">
-                <span class="msg-role">用户</span>
+                <span class="msg-role">{{ t('chat.role_user') }}</span>
                 <span v-if="msg.timestamp" class="msg-time">{{ fmtTs(msg.timestamp) }}</span>
               </div>
               {{ msg.content }}
@@ -82,13 +85,13 @@ function renderMd(content: string): string {
           <div v-else-if="msg.role === 'ai'" class="msg-row ai">
             <div v-if="msg.content" class="msg-bubble ai">
               <div class="msg-role-bar">
-                <span class="msg-role">AI</span>
+                <span class="msg-role">{{ t('chat.role_ai') }}</span>
                 <span v-if="msg.timestamp" class="msg-time">{{ fmtTs(msg.timestamp) }}</span>
               </div>
               <div class="md-content" v-html="renderMd(msg.content)" />
             </div>
             <div v-if="msg.tool_calls && msg.tool_calls.length > 0" class="msg-tool-calls">
-              <div class="msg-role">Tool Calls ({{ msg.tool_calls.length }})</div>
+              <div class="msg-role">{{ t('chat.tool_calls', { count: msg.tool_calls.length }) }}</div>
               <div v-for="tc in msg.tool_calls" :key="(tc as ToolCall).id" class="tool-call-item">
                 <div class="tool-call-header" @click="toggleToolCall($event.currentTarget as HTMLElement)">
                   <span class="tool-call-name">{{ (tc as ToolCall).name }}</span>
@@ -97,7 +100,7 @@ function renderMd(content: string): string {
                   <div class="tool-call-args">{{ JSON.stringify((tc as ToolCall).args, null, 2) }}</div>
                   <template v-for="m2 in messages" :key="'r' + (m2.tool_call_id || '')">
                     <div v-if="m2.role === 'tool' && m2.tool_call_id === (tc as ToolCall).id" class="tool-call-result">
-                      <div class="tool-call-result-label">返回结果</div>
+                      <div class="tool-call-result-label">{{ t('chat.tool_result') }}</div>
                       {{ m2.content }}
                     </div>
                   </template>

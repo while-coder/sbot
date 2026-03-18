@@ -1,56 +1,58 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store, applyMcpList } from '@/store'
 import { useToast } from '@/composables/useToast'
 import { fetchLatestRelease, compareSemver } from '@/utils/constants'
 
+const { t } = useI18n()
 const router = useRouter()
 const route = useRoute()
 const { show } = useToast()
 
-const menuGroups = [
+const menuGroups = computed(() => [
   {
-    group: '聊天',
+    group: t('nav.chat'),
     items: [
-      { label: '聊天', key: '/chat' },
-      { label: '目录', key: '/directory' },
-      { label: '频道管理', key: '/channels' },
+      { label: t('nav.chat'), key: '/chat' },
+      { label: t('nav.directory'), key: '/directory' },
+      { label: t('nav.channels'), key: '/channels' },
     ],
   },
   {
-    group: '基础',
+    group: t('nav.group_basics'),
     items: [
-      { label: '基本设置', key: '/settings' },
+      { label: t('nav.settings'), key: '/settings' },
     ],
   },
   {
-    group: '模型',
+    group: t('nav.group_models'),
     items: [
-      { label: '语言模型', key: '/models' },
-      { label: '向量模型', key: '/embeddings' },
+      { label: t('nav.models'), key: '/models' },
+      { label: t('nav.embeddings'), key: '/embeddings' },
     ],
   },
   {
-    group: '智能体',
+    group: t('nav.group_agents'),
     items: [
-      { label: '智能体管理', key: '/agents' },
-      { label: '会话存储', key: '/savers' },
-      { label: '记忆配置', key: '/memories' },
-      { label: '工具管理', key: '/mcp' },
-      { label: '技能管理', key: '/skills' },
-      { label: 'Prompt 管理', key: '/prompts' },
+      { label: t('nav.agents'), key: '/agents' },
+      { label: t('nav.savers'), key: '/savers' },
+      { label: t('nav.memories'), key: '/memories' },
+      { label: t('nav.mcp'), key: '/mcp' },
+      { label: t('nav.skills'), key: '/skills' },
+      { label: t('nav.prompts'), key: '/prompts' },
     ],
   },
   {
-    group: '管理',
+    group: t('nav.group_admin'),
     items: [
-      { label: '计时器管理', key: '/scheduler' },
-      { label: '关于', key: '/about' },
+      { label: t('nav.scheduler'), key: '/scheduler' },
+      { label: t('nav.about'), key: '/about' },
     ],
   },
-]
+])
 
 const activeKey = computed(() => {
   const p = route.path
@@ -67,7 +69,7 @@ async function reloadConfig() {
     Object.assign(store.settings, res.data)
     const mcpRes = await apiFetch('/api/mcp')
     applyMcpList(mcpRes.data || [])
-    show('配置已重载')
+    show(t('nav.reload_success'))
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -106,8 +108,8 @@ init()
 <template>
   <div class="app-layout">
     <div class="topbar">
-      <div class="topbar-title">SBot 设置</div>
-      <button class="btn-outline btn-sm" @click="reloadConfig">重载配置</button>
+      <div class="topbar-title">{{ t('nav.app_title') }}</div>
+      <button class="btn-outline btn-sm" @click="reloadConfig">{{ t('nav.reload') }}</button>
     </div>
     <div class="app-body">
       <div class="sidebar">

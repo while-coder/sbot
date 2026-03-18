@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
@@ -10,6 +11,8 @@ import MemoryViewModal from './modals/MemoryViewModal.vue'
 import NewSessionModal from './modals/NewSessionModal.vue'
 import ChatPanel from '@/components/ChatPanel.vue'
 import { sessionThreadId } from 'sbot.commons'
+
+const { t } = useI18n()
 
 interface Attachment {
   name: string
@@ -78,7 +81,7 @@ function switchSession(id: string) {
 async function deleteSession(id: string) {
   const s = sessions.value[id]
   const label = s?.name || (id as string).slice(0, 8) + '…'
-  if (!confirm(`确定要删除会话 "${label}" 吗？`)) return
+  if (!window.confirm(t('chat.confirm_delete_session', { name: label }))) return
   try {
     await apiFetch(`/api/settings/sessions/${encodeURIComponent(id)}`, 'DELETE')
     if (s?.saver) {
@@ -91,7 +94,7 @@ async function deleteSession(id: string) {
       messages.value = []
       await refreshHistory()
     }
-    show('会话已删除')
+    show(t('chat.session_deleted'))
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -180,9 +183,9 @@ async function handleWsMessage(evt: any) {
 
 watch(chatSocket.connected, (val, oldVal) => {
   if (!val && oldVal && doneReject) {
-    show('WebSocket 连接断开，正在重连…', 'error')
+    show(t('chat.ws_reconnecting'), 'error')
     isStreaming.value = false
-    doneReject(new Error('WebSocket 连接断开'))
+    doneReject(new Error(t('chat.ws_reconnecting')))
     doneResolve = null
     doneReject = null
   }
@@ -210,12 +213,12 @@ async function refreshHistory() {
 
 async function clearHistory() {
   const saver = effectiveSaver.value
-  if (!saver || !confirm('确定要清除当前会话的历史记录吗？')) return
+  if (!saver || !window.confirm(t('chat.confirm_clear_history'))) return
   const url = saverThreadUrl(saver)
   if (!url) return
   try {
     await apiFetch(url, 'DELETE')
-    show('历史已清除')
+    show(t('chat.history_cleared'))
     await refreshHistory()
   } catch (e: any) {
     show(e.message, 'error')
@@ -223,9 +226,9 @@ async function clearHistory() {
 }
 
 async function onPanelSend(query: string, atts: Attachment[]) {
-  if (!activeSessionId.value) { show('请先选择或新建会话', 'error'); return }
+  if (!activeSessionId.value) { show(t('chat.no_session'), 'error'); return }
   const saver = effectiveSaver.value
-  if (!saver) { show('未配置会话存储', 'error'); return }
+  if (!saver) { show(t('chat.no_saver'), 'error'); return }
   if (!query && atts.length === 0) return
 
   if (chatSending.value) {
@@ -301,7 +304,7 @@ onUnmounted(() => {
     <!-- Session sidebar (left, full height) -->
     <div style="width:180px;border-right:1px solid #e8e6e3;display:flex;flex-direction:column;overflow:hidden;flex-shrink:0">
       <div style="padding:6px 8px;border-bottom:1px solid #e8e6e3;flex-shrink:0">
-        <button class="btn-outline btn-sm" style="width:100%" @click="newSessionModal?.open()">+ 新建会话</button>
+        <button class="btn-outline btn-sm" style="width:100%" @click="newSessionModal?.open()">{{ t('chat.new_session') }}</button>
       </div>
       <div style="flex:1;overflow-y:auto;padding:4px">
         <div
@@ -338,7 +341,7 @@ onUnmounted(() => {
           </div>
         </div>
         <div v-if="Object.keys(sessions).length === 0" style="text-align:center;color:#94a3b8;padding:20px 8px;font-size:12px">
-          暂无会话<br>点击上方新建
+          {{ t('chat.empty') }}<br>{{ t('chat.create_hint') }}
         </div>
       </div>
     </div>
@@ -360,7 +363,7 @@ onUnmounted(() => {
           </select>
 
           <!-- Saver -->
-          <label class="toolbar-label">存储</label>
+          <label class="toolbar-label">{{ t('common.storage') }}</label>
           <select
             class="toolbar-select-sm"
             :value="effectiveSaver || ''"
@@ -368,33 +371,33 @@ onUnmounted(() => {
           >
             <option v-for="s in saverOptions" :key="s.id" :value="s.id">{{ s.label }}</option>
           </select>
-          <button v-if="effectiveSaver" class="chat-info-chip" @click="saverViewModal?.open(effectiveSaver!, sessionThreadId(activeSessionId))">查看</button>
+          <button v-if="effectiveSaver" class="chat-info-chip" @click="saverViewModal?.open(effectiveSaver!, sessionThreadId(activeSessionId))">{{ t('common.view') }}</button>
 
           <!-- Memory -->
-          <label class="toolbar-label">记忆</label>
+          <label class="toolbar-label">{{ t('common.memory') }}</label>
           <select
             class="toolbar-select-sm"
             :value="effectiveMemory || ''"
             @change="saveSession({ memory: ($event.target as HTMLSelectElement).value || undefined })"
           >
-            <option value="">(不使用)</option>
+            <option value="">{{ t('chat.not_in_use') }}</option>
             <option v-for="m in memoryOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
           </select>
-          <button v-if="effectiveMemory" class="chat-info-chip" @click="memoryViewModal?.open(effectiveMemory!)">查看</button>
+          <button v-if="effectiveMemory" class="chat-info-chip" @click="memoryViewModal?.open(effectiveMemory!)">{{ t('common.view') }}</button>
         </template>
-        <span v-else style="font-size:13px;color:#94a3b8">请选择或新建会话</span>
-        <button class="btn-outline btn-sm" style="margin-left:auto" @click="refreshHistory">刷新</button>
-        <button class="btn-danger btn-sm" :disabled="!effectiveSaver" @click="clearHistory">清除历史</button>
+        <span v-else style="font-size:13px;color:#94a3b8">{{ t('chat.select_or_create') }}</span>
+        <button class="btn-outline btn-sm" style="margin-left:auto" @click="refreshHistory">{{ t('common.refresh') }}</button>
+        <button class="btn-danger btn-sm" :disabled="!effectiveSaver" @click="clearHistory">{{ t('chat.clear_history') }}</button>
       </div>
 
       <!-- Tool approval bar -->
       <div v-if="pendingToolCall" class="tool-approval-bar">
-        <span class="tool-approval-label">执行工具：<strong>{{ pendingToolCall.name }}</strong></span>
+        <span class="tool-approval-label">{{ t('chat.execute_tool') }}<strong>{{ pendingToolCall.name }}</strong></span>
         <div class="tool-approval-btns">
-          <button class="btn-primary btn-sm" @click="approveToolCall('allow')">允许</button>
-          <button class="btn-outline btn-sm" @click="approveToolCall('alwaysArgs')">总是允许（相同参数）</button>
-          <button class="btn-outline btn-sm" @click="approveToolCall('alwaysTool')">总是允许（所有参数）</button>
-          <button class="btn-danger btn-sm" @click="approveToolCall('deny')">拒绝</button>
+          <button class="btn-primary btn-sm" @click="approveToolCall('allow')">{{ t('chat.allow') }}</button>
+          <button class="btn-outline btn-sm" @click="approveToolCall('alwaysArgs')">{{ t('chat.always_allow_args') }}</button>
+          <button class="btn-outline btn-sm" @click="approveToolCall('alwaysTool')">{{ t('chat.always_allow_all') }}</button>
+          <button class="btn-danger btn-sm" @click="approveToolCall('deny')">{{ t('chat.deny') }}</button>
         </div>
       </div>
 

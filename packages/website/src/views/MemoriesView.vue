@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 import type { MemoryConfig } from '@/types'
 import MemoryViewModal from './modals/MemoryViewModal.vue'
 
+const { t } = useI18n()
 const { show } = useToast()
 
 const memories         = computed(() => store.settings.memories || {})
@@ -68,10 +70,10 @@ function openEdit(id: string) {
 }
 
 async function save() {
-  if (!form.value.name.trim())  { show('名称不能为空',        'error'); return }
-  if (!form.value.embedding)    { show('请选择 Embedding 模型', 'error'); return }
-  if (!form.value.evaluator)    { show('请选择评估器模型',      'error'); return }
-  if (!form.value.extractor)    { show('请选择提取器模型',      'error'); return }
+  if (!form.value.name.trim())  { show(t('common.name_required'),        'error'); return }
+  if (!form.value.embedding)    { show(t('memories.error_embedding'), 'error'); return }
+  if (!form.value.evaluator)    { show(t('memories.error_evaluator'),      'error'); return }
+  if (!form.value.extractor)    { show(t('memories.error_extractor'),      'error'); return }
   try {
     const { name, ...config } = form.value
     const body: MemoryConfig & { name: string } = {
@@ -88,7 +90,7 @@ async function save() {
       ? await apiFetch(`/api/settings/memories/${encodeURIComponent(id)}`, 'PUT', body)
       : await apiFetch('/api/settings/memories', 'POST', body)
     Object.assign(store.settings, res.data)
-    show('保存成功')
+    show(t('common.saved'))
     showModal.value = false
   } catch (e: any) {
     show(e.message, 'error')
@@ -98,11 +100,11 @@ async function save() {
 async function remove(id: string) {
   const m = memories.value[id]
   const label = (m as any).name || id
-  if (!confirm(`确定要删除记忆配置 "${label}" 吗？`)) return
+  if (!window.confirm(t('memories.confirm_delete', { name: label }))) return
   try {
     const res = await apiFetch(`/api/settings/memories/${encodeURIComponent(id)}`, 'DELETE')
     Object.assign(store.settings, res.data)
-    show('删除成功')
+    show(t('common.deleted'))
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -121,17 +123,17 @@ async function refresh() {
 <template>
   <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
     <div class="page-toolbar">
-      <button class="btn-outline btn-sm" @click="refresh">刷新</button>
-      <button class="btn-primary btn-sm" @click="openAdd">+ 添加记忆配置</button>
+      <button class="btn-outline btn-sm" @click="refresh">{{ t('common.refresh') }}</button>
+      <button class="btn-primary btn-sm" @click="openAdd">{{ t('memories.add') }}</button>
     </div>
     <div class="page-content">
       <table>
         <thead>
-          <tr><th style="width:32px"></th><th>名称</th><th>模式</th><th>Embedding</th><th>最大天数</th><th>操作</th></tr>
+          <tr><th style="width:32px"></th><th>{{ t('common.name') }}</th><th>{{ t('memories.mode_col') }}</th><th>{{ t('memories.embedding_col') }}</th><th>{{ t('memories.max_days_col') }}</th><th>{{ t('common.ops') }}</th></tr>
         </thead>
         <tbody>
           <tr v-if="Object.keys(memories).length === 0">
-            <td colspan="6" style="text-align:center;color:#94a3b8;padding:40px">暂无记忆配置</td>
+            <td colspan="6" style="text-align:center;color:#94a3b8;padding:40px">{{ t('memories.empty') }}</td>
           </tr>
           <template v-for="(m, id) in memories" :key="id">
             <tr>
@@ -146,22 +148,22 @@ async function refresh() {
               <td>{{ m.maxAgeDays ?? '-' }}</td>
               <td>
                 <div class="ops-cell">
-                  <button class="btn-outline btn-sm" @click="openEdit(id as string)">编辑</button>
-                  <button class="btn-danger btn-sm" @click="remove(id as string)">删除</button>
+                  <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
+                  <button class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
                 </div>
               </td>
             </tr>
             <template v-if="expandedMemories[id as string]">
               <tr v-if="memoryLoading[id as string]" class="thread-sub-row">
                 <td></td>
-                <td colspan="5" class="thread-sub-cell">加载中...</td>
+                <td colspan="5" class="thread-sub-cell">{{ t('common.loading') }}</td>
               </tr>
               <template v-if="(memoryThreadsMap[id as string] || []).length === 0">
                 <tr class="thread-sub-row">
                   <td></td>
                   <td colspan="4" class="thread-id-cell">{{ id }}</td>
                   <td>
-                    <button class="btn-outline btn-sm" @click="memoryViewModal?.open(id as string)">查看</button>
+                    <button class="btn-outline btn-sm" @click="memoryViewModal?.open(id as string)">{{ t('common.view') }}</button>
                   </td>
                 </tr>
               </template>
@@ -169,7 +171,7 @@ async function refresh() {
                 <td></td>
                 <td colspan="4" class="thread-id-cell">{{ thread }}</td>
                 <td>
-                  <button class="btn-outline btn-sm" @click="memoryViewModal?.open(id as string)">查看</button>
+                  <button class="btn-outline btn-sm" @click="memoryViewModal?.open(id as string)">{{ t('common.view') }}</button>
                 </td>
               </tr>
             </template>
@@ -182,57 +184,57 @@ async function refresh() {
     <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
       <div class="modal-box">
         <div class="modal-header">
-          <h3>{{ editingName !== null ? '编辑记忆配置' : '添加记忆配置' }}</h3>
+          <h3>{{ editingName !== null ? t('memories.edit_title') : t('memories.add_title') }}</h3>
           <button class="modal-close" @click="showModal = false">&times;</button>
         </div>
         <div class="modal-body">
           <div class="form-group">
-            <label>名称 *</label>
-            <input v-model="form.name" placeholder="如 default" />
+            <label>{{ t('common.name') }} *</label>
+            <input v-model="form.name" :placeholder="t('memories.name_placeholder')" />
           </div>
           <div class="form-group">
-            <label>记忆模式</label>
+            <label>{{ t('memories.memory_mode') }}</label>
             <select v-model="form.mode">
-              <option value="human_and_ai">human_and_ai（记忆用户与 AI 消息）</option>
-              <option value="human_only">human_only（仅记忆用户消息）</option>
-              <option value="read_only">read_only（只读，不写入新记忆）</option>
+              <option value="human_and_ai">{{ t('memories.mode_human_and_ai') }}</option>
+              <option value="human_only">{{ t('memories.mode_human_only') }}</option>
+              <option value="read_only">{{ t('memories.mode_read_only') }}</option>
             </select>
           </div>
           <div class="form-group">
-            <label>最大保留天数</label>
+            <label>{{ t('memories.max_age_days') }}</label>
             <input v-model.number="form.maxAgeDays" type="number" placeholder="90" />
           </div>
           <div class="form-group">
-            <label>Embedding 模型 *</label>
+            <label>{{ t('memories.embedding_model') }} *</label>
             <select v-model="form.embedding">
               <option v-for="e in embeddingOptions" :key="e.id" :value="e.id">{{ e.label }}</option>
             </select>
           </div>
           <div class="form-group">
-            <label>评估器模型 *</label>
+            <label>{{ t('memories.evaluator_model') }} *</label>
             <select v-model="form.evaluator">
-              <option value="" disabled>请选择</option>
+              <option value="" disabled>{{ t('common.select_placeholder') }}</option>
               <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
             </select>
           </div>
           <div class="form-group">
-            <label>提取器模型 *</label>
+            <label>{{ t('memories.extractor_model') }} *</label>
             <select v-model="form.extractor">
-              <option value="" disabled>请选择</option>
+              <option value="" disabled>{{ t('common.select_placeholder') }}</option>
               <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
             </select>
           </div>
           <div class="form-group">
-            <label>压缩器模型</label>
+            <label>{{ t('memories.compressor_model') }}</label>
             <select v-model="form.compressor">
-              <option value="">不使用</option>
+              <option value="">{{ t('common.not_use') }}</option>
               <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
             </select>
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn-outline" @click="showModal = false">取消</button>
-          <button class="btn-primary" @click="save">保存</button>
+          <button class="btn-outline" @click="showModal = false">{{ t('common.cancel') }}</button>
+          <button class="btn-primary" @click="save">{{ t('common.save') }}</button>
         </div>
       </div>
     </div>

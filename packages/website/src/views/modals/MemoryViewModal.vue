@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { useToast } from '@/composables/useToast'
 import type { MemoryItem } from '@/types'
 
+const { t } = useI18n()
 const { show } = useToast()
 
 const visible     = ref(false)
@@ -31,7 +33,7 @@ async function load() {
 async function remove(id: string) {
   try {
     await apiFetch(`/api/memories/${encodeURIComponent(memName.value)}/${encodeURIComponent(id)}`, 'DELETE')
-    show('删除成功')
+    show(t('common.deleted'))
     await load()
   } catch (e: any) {
     show(e.message, 'error')
@@ -39,10 +41,9 @@ async function remove(id: string) {
 }
 
 async function clearAll() {
-  if (!confirm(`确定要清除 ${memName.value} 的所有记忆吗？`)) return
+  if (!window.confirm(t('memories.confirm_clear', { name: memName.value }))) return
   try {
     await apiFetch(`/api/memories/${encodeURIComponent(memName.value)}`, 'DELETE')
-    show('已清除所有记忆')
     memories.value = []
   } catch (e: any) {
     show(e.message, 'error')
@@ -59,7 +60,7 @@ async function confirmAdd() {
   adding.value = true
   try {
     const res = await apiFetch(`/api/memories/${encodeURIComponent(memName.value)}/add`, 'POST', { content: addContent.value.trim() })
-    show(`已添加 ${res.data?.ids?.length ?? 0} 条记忆`)
+    show(t('memories.added_count', { count: res.data?.ids?.length ?? 0 }))
     showAddModal.value = false
     await load()
   } catch (e: any) {
@@ -70,11 +71,11 @@ async function confirmAdd() {
 }
 
 async function compress() {
-  if (!confirm(`确定要压缩 ${memName.value} 的记忆吗？此操作会合并相似记忆。`)) return
+  if (!window.confirm(t('memories.confirm_compress', { name: memName.value }))) return
   compressing.value = true
   try {
     const res = await apiFetch(`/api/memories/${encodeURIComponent(memName.value)}/compress`, 'POST')
-    show(`压缩完成，共压缩 ${res.data?.count ?? 0} 组记忆`)
+    show(t('memories.compress_done', { count: res.data?.count ?? 0 }))
     await load()
   } catch (e: any) {
     show(e.message, 'error')
@@ -99,34 +100,34 @@ defineExpose({ open })
     <div class="modal-box xl" style="height:86vh">
       <div class="modal-header">
         <div style="display:flex;align-items:center;gap:10px">
-          <h3>记忆内容</h3>
+          <h3>{{ t('memories.content_title') }}</h3>
           <span class="mem-name-badge">{{ memName }}</span>
-          <span v-if="!loading" class="mem-count-badge">{{ memories.length }} 条</span>
+          <span v-if="!loading" class="mem-count-badge">{{ t('memories.count', { count: memories.length }) }}</span>
         </div>
         <button class="modal-close" @click="visible = false">&times;</button>
       </div>
       <div class="modal-header-toolbar">
         <button class="btn-outline btn-sm" :disabled="loading" @click="load">
-          {{ loading ? '加载中...' : '刷新' }}
+          {{ loading ? t('common.loading') : t('common.refresh') }}
         </button>
-        <button class="btn-primary btn-sm" @click="openAdd">+ 添加记忆</button>
+        <button class="btn-primary btn-sm" @click="openAdd">{{ t('memories.add_memory') }}</button>
         <button class="btn-outline btn-sm" :disabled="compressing || memories.length === 0" @click="compress">
-          {{ compressing ? '压缩中...' : '压缩记忆' }}
+          {{ compressing ? t('memories.compressing') : t('memories.compress') }}
         </button>
-        <button class="btn-danger btn-sm" style="margin-left:auto" :disabled="memories.length === 0" @click="clearAll">清除全部</button>
+        <button class="btn-danger btn-sm" style="margin-left:auto" :disabled="memories.length === 0" @click="clearAll">{{ t('memories.clear_all') }}</button>
       </div>
       <div style="flex:1;overflow-y:auto">
-        <div v-if="loading" class="modal-loading">加载中...</div>
-        <div v-else-if="memories.length === 0" class="modal-empty">暂无记忆数据</div>
+        <div v-if="loading" class="modal-loading">{{ t('common.loading') }}</div>
+        <div v-else-if="memories.length === 0" class="modal-empty">{{ t('memories.no_memories') }}</div>
         <table v-else class="mem-table">
           <thead>
             <tr>
-              <th class="col-content">内容</th>
-              <th class="col-score">重要性</th>
-              <th class="col-time">创建时间</th>
-              <th class="col-access">访问次数</th>
-              <th class="col-time">最后访问</th>
-              <th class="col-ops">操作</th>
+              <th class="col-content">{{ t('memories.content_col') }}</th>
+              <th class="col-score">{{ t('memories.importance_col') }}</th>
+              <th class="col-time">{{ t('memories.created_col') }}</th>
+              <th class="col-access">{{ t('memories.access_count_col') }}</th>
+              <th class="col-time">{{ t('memories.last_accessed_col') }}</th>
+              <th class="col-ops">{{ t('common.ops') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -142,7 +143,7 @@ defineExpose({ open })
               <td class="col-access">{{ m.accessCount ?? '-' }}</td>
               <td class="col-time">{{ m.lastAccessed ? new Date(m.lastAccessed).toLocaleString() : '-' }}</td>
               <td class="col-ops">
-                <button class="btn-danger btn-sm" @click="remove(m.id)">删除</button>
+                <button class="btn-danger btn-sm" @click="remove(m.id)">{{ t('common.delete') }}</button>
               </td>
             </tr>
           </tbody>
@@ -155,20 +156,20 @@ defineExpose({ open })
   <div v-if="showAddModal" class="modal-overlay" style="z-index:1100" @click.self="showAddModal = false">
     <div class="modal-box" style="width:480px">
       <div class="modal-header">
-        <h3>添加记忆</h3>
+        <h3>{{ t('memories.add_memory_title') }}</h3>
         <button class="modal-close" @click="showAddModal = false">&times;</button>
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label>内容</label>
-          <textarea v-model="addContent" rows="7" placeholder="输入要直接添加的记忆内容..." style="resize:vertical" />
+          <label>{{ t('memories.memory_content') }}</label>
+          <textarea v-model="addContent" rows="7" :placeholder="t('memories.memory_placeholder')" style="resize:vertical" />
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn-outline" :disabled="adding" @click="showAddModal = false">取消</button>
+        <button class="btn-outline" :disabled="adding" @click="showAddModal = false">{{ t('common.cancel') }}</button>
         <button class="btn-primary" :disabled="adding" @click="confirmAdd">
           <span v-if="adding" class="btn-spinner" />
-          {{ adding ? '添加中…' : '添加' }}
+          {{ adding ? t('memories.adding') : t('memories.add_btn') }}
         </button>
       </div>
     </div>

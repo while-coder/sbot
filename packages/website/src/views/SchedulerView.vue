@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
+
+const { t } = useI18n()
 
 interface SchedulerRow {
   id: number
@@ -25,8 +28,6 @@ interface ChannelSessionRow {
 
 type UIType = 'daily' | 'weekly' | 'monthly' | 'interval' | 'hourly' | 'custom'
 type RoutingType = 'channel' | 'session' | 'directory'
-
-const DAY_NAMES = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 
 const { show } = useToast()
 const timers = ref<SchedulerRow[]>([])
@@ -101,10 +102,10 @@ function describeExpr(expr: string): string {
   const uiType = detectUIType(expr)
   const p = expr.trim().split(/\s+/)
   const pad = (n: number) => String(n).padStart(2, '0')
-  if (uiType === 'interval') return `每 ${p[0].slice(2)} 分钟`
-  if (uiType === 'hourly')   return `每小时 :${pad(parseInt(p[0]))}`
-  if (uiType === 'daily')    return `每天 ${pad(parseInt(p[1]))}:${pad(parseInt(p[0]))}`
-  if (uiType === 'weekly')   return `每${DAY_NAMES[parseInt(p[4])]} ${pad(parseInt(p[1]))}:${pad(parseInt(p[0]))}`
+  if (uiType === 'interval') return t('scheduler.cron_every_n_minutes', { n: p[0].slice(2) })
+  if (uiType === 'hourly')   return t('scheduler.cron_hourly')
+  if (uiType === 'daily')    return t('scheduler.cron_daily', { hour: pad(parseInt(p[1])), minute: pad(parseInt(p[0])) })
+  if (uiType === 'weekly')   return t('scheduler.cron_weekly', { day: t(`scheduler.weekday_${p[4]}`), hour: pad(parseInt(p[1])), minute: pad(parseInt(p[0])) })
   if (uiType === 'monthly')  return `每月${p[2]}日 ${pad(parseInt(p[1]))}:${pad(parseInt(p[0]))}`
   return expr
 }
@@ -154,7 +155,7 @@ async function load() {
 }
 
 function formatLastRun(ts: number | null): string {
-  if (!ts) return '未运行'
+  if (!ts) return t('scheduler.not_run')
   return new Date(ts).toLocaleString('zh-CN')
 }
 
@@ -201,14 +202,14 @@ function openEdit(row: SchedulerRow) {
 // ── Save ──────────────────────────────────────────────────────────────────────
 
 async function save() {
-  if (!form.value.name.trim())    { show('名称不能为空', 'error'); return }
-  if (!builtExpr.value.trim())    { show('Cron 表达式不能为空', 'error'); return }
-  if (!form.value.message.trim()) { show('消息不能为空', 'error'); return }
+  if (!form.value.name.trim())    { show(t('common.name_required'), 'error'); return }
+  if (!builtExpr.value.trim())    { show(t('scheduler.error_cron'), 'error'); return }
+  if (!form.value.message.trim()) { show(t('scheduler.message_label') + ' ' + t('common.name_required'), 'error'); return }
 
   const rt = form.value.routingType
-  if (rt === 'channel' && !form.value.targetId)          { show('请选择频道会话', 'error'); return }
-  if (rt === 'session' && !form.value.targetId)          { show('请选择会话', 'error'); return }
-  if (rt === 'directory' && !form.value.targetId.trim()) { show('请输入工作目录路径', 'error'); return }
+  if (rt === 'channel' && !form.value.targetId)          { show(t('scheduler.error_session'), 'error'); return }
+  if (rt === 'session' && !form.value.targetId)          { show(t('scheduler.error_session_id'), 'error'); return }
+  if (rt === 'directory' && !form.value.targetId.trim()) { show(t('scheduler.error_work_dir'), 'error'); return }
 
   saving.value = true
   try {
@@ -222,10 +223,10 @@ async function save() {
     }
     if (editingId.value !== null) {
       await apiFetch(`/api/schedulers/${editingId.value}`, 'PUT', body)
-      show('保存成功')
+      show(t('common.saved'))
     } else {
       await apiFetch('/api/schedulers', 'POST', body)
-      show('创建成功')
+      show(t('common.created'))
     }
     showModal.value = false
     await load()
@@ -237,10 +238,10 @@ async function save() {
 }
 
 async function remove(row: SchedulerRow) {
-  if (!confirm(`确定要删除计时器 "${row.name}" 吗？`)) return
+  if (!confirm(t('scheduler.confirm_delete', { name: row.name }))) return
   try {
     await apiFetch(`/api/schedulers/${row.id}`, 'DELETE')
-    show('删除成功')
+    show(t('common.deleted'))
     await load()
   } catch (e: any) {
     show(e.message, 'error')
@@ -253,55 +254,55 @@ onMounted(load)
 <template>
   <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
     <div class="page-toolbar">
-      <span class="page-toolbar-title">计时器管理</span>
-      <button class="btn-outline btn-sm" @click="load">刷新</button>
-      <button class="btn-primary btn-sm" @click="openAdd">+ 添加计时器</button>
+      <span class="page-toolbar-title">{{ t('scheduler.title') }}</span>
+      <button class="btn-outline btn-sm" @click="load">{{ t('common.refresh') }}</button>
+      <button class="btn-primary btn-sm" @click="openAdd">{{ t('scheduler.add') }}</button>
     </div>
     <div class="page-content">
       <table>
         <thead>
           <tr>
-            <th>ID</th>
-            <th>名称</th>
-            <th>计划</th>
-            <th>消息</th>
-            <th>类型</th>
-            <th>路由目标</th>
-            <th>执行次数</th>
-            <th>上次运行</th>
-            <th>下次运行</th>
-            <th>操作</th>
+            <th>{{ t('common.id') }}</th>
+            <th>{{ t('scheduler.name_col') }}</th>
+            <th>{{ t('scheduler.schedule_col') }}</th>
+            <th>{{ t('scheduler.message_col') }}</th>
+            <th>{{ t('scheduler.type_col') }}</th>
+            <th>{{ t('scheduler.target_col') }}</th>
+            <th>{{ t('scheduler.run_count_col') }}</th>
+            <th>{{ t('scheduler.last_run_col') }}</th>
+            <th>{{ t('scheduler.next_run_col') }}</th>
+            <th>{{ t('common.ops') }}</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="10" style="text-align:center;color:#9b9b9b;padding:40px">加载中...</td>
+            <td colspan="10" style="text-align:center;color:#9b9b9b;padding:40px">{{ t('common.loading') }}</td>
           </tr>
           <tr v-else-if="timers.length === 0">
-            <td colspan="10" style="text-align:center;color:#9b9b9b;padding:40px">暂无计时器</td>
+            <td colspan="10" style="text-align:center;color:#9b9b9b;padding:40px">{{ t('scheduler.empty') }}</td>
           </tr>
-          <tr v-for="t in timers" :key="t.id">
-            <td style="font-family:monospace;color:#9b9b9b">{{ t.id }}</td>
-            <td style="font-weight:500">{{ t.name }}</td>
+          <tr v-for="t_ in timers" :key="t_.id">
+            <td style="font-family:monospace;color:#9b9b9b">{{ t_.id }}</td>
+            <td style="font-weight:500">{{ t_.name }}</td>
             <td>
-              <div style="font-size:13px">{{ describeExpr(t.expr) }}</div>
-              <div style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ t.expr }}</div>
+              <div style="font-size:13px">{{ describeExpr(t_.expr) }}</div>
+              <div style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ t_.expr }}</div>
             </td>
-            <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#6b6b6b">{{ t.message }}</td>
+            <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#6b6b6b">{{ t_.message }}</td>
             <td>
               <span
                 style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;font-family:monospace"
-                :style="{ background: ROUTING_BADGE[routingTypeOf(t)].bg, color: ROUTING_BADGE[routingTypeOf(t)].color }"
-              >{{ ROUTING_BADGE[routingTypeOf(t)].label }}</span>
+                :style="{ background: ROUTING_BADGE[routingTypeOf(t_)].bg, color: ROUTING_BADGE[routingTypeOf(t_)].color }"
+              >{{ ROUTING_BADGE[routingTypeOf(t_)].label }}</span>
             </td>
-            <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ routingLabel(t) }}</td>
-            <td style="font-size:12px;font-family:monospace;color:#9b9b9b;white-space:nowrap">{{ t.runCount }}{{ t.maxRuns > 0 ? ` / ${t.maxRuns}` : '' }}</td>
-            <td style="font-size:12px;color:#9b9b9b;white-space:nowrap">{{ formatLastRun(t.lastRun) }}</td>
-            <td style="font-size:12px;color:#9b9b9b;white-space:nowrap">{{ formatNextRun(t.nextRun) }}</td>
+            <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ routingLabel(t_) }}</td>
+            <td style="font-size:12px;font-family:monospace;color:#9b9b9b;white-space:nowrap">{{ t_.runCount }}{{ t_.maxRuns > 0 ? ` / ${t_.maxRuns}` : '' }}</td>
+            <td style="font-size:12px;color:#9b9b9b;white-space:nowrap">{{ formatLastRun(t_.lastRun) }}</td>
+            <td style="font-size:12px;color:#9b9b9b;white-space:nowrap">{{ formatNextRun(t_.nextRun) }}</td>
             <td>
               <div class="ops-cell">
-                <button class="btn-outline btn-sm" @click="openEdit(t)">编辑</button>
-                <button class="btn-danger btn-sm" @click="remove(t)">删除</button>
+                <button class="btn-outline btn-sm" @click="openEdit(t_)">{{ t('common.edit') }}</button>
+                <button class="btn-danger btn-sm" @click="remove(t_)">{{ t('common.delete') }}</button>
               </div>
             </td>
           </tr>
@@ -312,70 +313,70 @@ onMounted(load)
     <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
       <div class="modal-box">
         <div class="modal-header">
-          <h3>{{ editingId !== null ? '编辑计时器' : '添加计时器' }}</h3>
+          <h3>{{ editingId !== null ? t('scheduler.edit_title') : t('scheduler.add_title') }}</h3>
           <button class="modal-close" @click="showModal = false">&times;</button>
         </div>
         <div class="modal-body">
           <div class="form-group">
-            <label>名称</label>
-            <input v-model="form.name" placeholder="计时器名称" />
+            <label>{{ t('scheduler.name_label') }}</label>
+            <input v-model="form.name" :placeholder="t('scheduler.name_placeholder')" />
           </div>
 
           <!-- 触发类型 -->
           <div class="form-group">
-            <label>触发频率</label>
+            <label>{{ t('scheduler.frequency') }}</label>
             <select v-model="form.uiType">
-              <option value="daily">每天定时</option>
-              <option value="weekly">每周定时</option>
-              <option value="monthly">每月定时</option>
-              <option value="interval">按分钟循环 (1–59 分钟)</option>
-              <option value="hourly">每小时</option>
-              <option value="custom">自定义 Cron</option>
+              <option value="daily">{{ t('scheduler.freq_daily') }}</option>
+              <option value="weekly">{{ t('scheduler.freq_weekly') }}</option>
+              <option value="monthly">{{ t('scheduler.freq_monthly') }}</option>
+              <option value="interval">{{ t('scheduler.freq_interval') }}</option>
+              <option value="hourly">{{ t('scheduler.freq_hourly') }}</option>
+              <option value="custom">{{ t('scheduler.freq_custom') }}</option>
             </select>
           </div>
 
           <!-- daily / weekly / monthly: 时间 -->
           <div v-if="['daily','weekly','monthly'].includes(form.uiType)" class="inline-form">
             <div class="form-group">
-              <label>小时 (0–23)</label>
+              <label>{{ t('scheduler.hour_label') }}</label>
               <input type="number" v-model.number="form.hour" min="0" max="23" />
             </div>
             <div class="form-group">
-              <label>分钟 (0–59)</label>
+              <label>{{ t('scheduler.minute_label') }}</label>
               <input type="number" v-model.number="form.minute" min="0" max="59" />
             </div>
           </div>
 
           <!-- weekly: 星期几 -->
           <div v-if="form.uiType === 'weekly'" class="form-group">
-            <label>星期几</label>
+            <label>{{ t('scheduler.weekday_label') }}</label>
             <select v-model.number="form.dayOfWeek">
-              <option v-for="(d, i) in DAY_NAMES" :key="i" :value="i">{{ d }}</option>
+              <option v-for="i in 7" :key="i - 1" :value="i - 1">{{ t(`scheduler.weekday_${i - 1}`) }}</option>
             </select>
           </div>
 
           <!-- monthly: 几号 -->
           <div v-if="form.uiType === 'monthly'" class="form-group">
-            <label>日期 (1–31)</label>
+            <label>{{ t('scheduler.day_label') }}</label>
             <input type="number" v-model.number="form.dayOfMonth" min="1" max="31" />
           </div>
 
           <!-- interval: 间隔分钟 -->
           <div v-if="form.uiType === 'interval'" class="form-group">
-            <label>间隔分钟数 (1–59)</label>
+            <label>{{ t('scheduler.interval_label') }}</label>
             <input type="number" v-model.number="form.minutes" min="1" max="59" />
           </div>
 
           <!-- hourly: 触发分钟 -->
           <div v-if="form.uiType === 'hourly'" class="form-group">
-            <label>触发分钟 (0–59)</label>
+            <label>{{ t('scheduler.trigger_minute_label') }}</label>
             <input type="number" v-model.number="form.minute" min="0" max="59" />
           </div>
 
           <!-- custom: 直接输入 -->
           <div v-if="form.uiType === 'custom'" class="form-group">
-            <label>Cron 表达式</label>
-            <input v-model="form.customExpr" placeholder="例: 0 9 * * 1-5" style="font-family:monospace" />
+            <label>{{ t('scheduler.cron_label') }}</label>
+            <input v-model="form.customExpr" :placeholder="t('scheduler.cron_placeholder')" style="font-family:monospace" />
           </div>
 
           <!-- cron 预览 -->
@@ -384,34 +385,34 @@ onMounted(load)
           </div>
 
           <div class="form-group">
-            <label>消息内容</label>
-            <textarea v-model="form.message" rows="3" placeholder="触发时发送给 Agent 的消息" />
+            <label>{{ t('scheduler.message_label') }}</label>
+            <textarea v-model="form.message" rows="3" :placeholder="t('scheduler.message_placeholder')" />
           </div>
 
           <!-- 路由类型 -->
           <div class="form-group">
-            <label>路由类型</label>
+            <label>{{ t('scheduler.route_type') }}</label>
             <select v-model="form.routingType">
-              <option value="channel">Lark 频道 (channel)</option>
-              <option value="session">HTTP 会话 (session)</option>
-              <option value="directory">目录模式 (directory)</option>
+              <option value="channel">{{ t('scheduler.route_channel') }}</option>
+              <option value="session">{{ t('scheduler.route_session') }}</option>
+              <option value="directory">{{ t('scheduler.route_directory') }}</option>
             </select>
           </div>
 
           <!-- channel: 频道会话 -->
           <div v-if="form.routingType === 'channel'" class="form-group">
-            <label>频道会话</label>
+            <label>{{ t('scheduler.channel_session') }}</label>
             <select v-model="form.targetId">
-              <option value="">请选择会话</option>
+              <option value="">{{ t('scheduler.select_session') }}</option>
               <option v-for="s in channelSessions" :key="s.id" :value="String(s.id)">{{ sessionLabel(s) }}</option>
             </select>
           </div>
 
           <!-- session: 会话 -->
           <div v-if="form.routingType === 'session'" class="form-group">
-            <label>会话 ID</label>
+            <label>{{ t('scheduler.session_id') }}</label>
             <select v-if="sessionOptions.length" v-model="form.targetId">
-              <option value="">请选择会话</option>
+              <option value="">{{ t('scheduler.select_session') }}</option>
               <option v-for="s in sessionOptions" :key="s" :value="s">{{ s }}</option>
             </select>
             <input v-else v-model="form.targetId" placeholder="session ID" />
@@ -419,24 +420,24 @@ onMounted(load)
 
           <!-- directory: 工作目录 -->
           <div v-if="form.routingType === 'directory'" class="form-group">
-            <label>工作目录</label>
+            <label>{{ t('scheduler.work_dir') }}</label>
             <select v-if="directoryOptions.length" v-model="form.targetId">
-              <option value="">请选择目录</option>
+              <option value="">{{ t('common.select_placeholder') }}</option>
               <option v-for="d in directoryOptions" :key="d" :value="d">{{ d }}</option>
             </select>
-            <input v-else v-model="form.targetId" placeholder="/path/to/directory" style="font-family:monospace" />
+            <input v-else v-model="form.targetId" :placeholder="t('scheduler.work_dir_placeholder')" style="font-family:monospace" />
           </div>
 
           <!-- 最大执行次数 -->
           <div class="form-group">
-            <label>最大执行次数（0 不限制）</label>
+            <label>{{ t('scheduler.max_runs') }}</label>
             <input type="number" v-model.number="form.maxRuns" min="0" />
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn-outline" @click="showModal = false">取消</button>
+          <button class="btn-outline" @click="showModal = false">{{ t('common.cancel') }}</button>
           <button class="btn-primary" :disabled="saving" @click="save">
-            {{ saving ? '保存中...' : '保存' }}
+            {{ saving ? t('common.saving') : t('common.save') }}
           </button>
         </div>
       </div>

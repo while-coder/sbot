@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
+
+const { t } = useI18n()
 
 type LocalDirCfg = { agent?: string; saver?: string; memory?: string }
 
@@ -124,7 +127,7 @@ async function confirmPicker() {
       form.value.agent  = cfg.agent  || ''
       form.value.saver  = cfg.saver  || ''
       form.value.memory = cfg.memory || ''
-      show('已读取配置')
+      show(t('directory.config_read'))
     }
   } catch { /* 无配置文件，忽略 */ }
 }
@@ -132,17 +135,17 @@ async function confirmPicker() {
 // ── 手动读取配置 ─────────────────────────────────────────
 async function readLocalConfig() {
   const dir = form.value.path.trim()
-  if (!dir) { show('请先输入目录路径', 'error'); return }
+  if (!dir) { show(t('directory.error_no_path'), 'error'); return }
   reading.value = true
   try {
     const res = await apiFetch(`/api/directories?dir=${encodeURIComponent(dir)}`)
-    if (!res.data?.exists) { show('路径不存在或不是目录', 'error'); return }
+    if (!res.data?.exists) { show(t('directory.error_invalid'), 'error'); return }
     const cfg = res.data.config as LocalDirCfg | null
-    if (!cfg) { show('未找到 .sbot/settings.json', 'error'); return }
+    if (!cfg) { show(t('directory.error_no_settings'), 'error'); return }
     form.value.agent  = cfg.agent  || ''
     form.value.saver  = cfg.saver  || ''
     form.value.memory = cfg.memory || ''
-    show('配置读取成功')
+    show(t('directory.config_read_success'))
   } catch (e: any) {
     show(e.message, 'error')
   } finally {
@@ -152,9 +155,9 @@ async function readLocalConfig() {
 
 async function save() {
   const dir = form.value.path.trim()
-  if (!dir)              { show('请输入目录路径', 'error'); return }
-  if (!form.value.agent) { show('请选择 Agent', 'error'); return }
-  if (!form.value.saver) { show('请选择存储', 'error'); return }
+  if (!dir)              { show(t('directory.error_no_path'), 'error'); return }
+  if (!form.value.agent) { show(t('channels.select_agent'), 'error'); return }
+  if (!form.value.saver) { show(t('channels.select_saver'), 'error'); return }
   saving.value = true
   try {
     const body: any = { path: dir, agent: form.value.agent, saver: form.value.saver }
@@ -182,54 +185,54 @@ defineExpose({ open })
   <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
     <div class="modal-box">
       <div class="modal-header">
-        <h3>{{ editingPath ? '编辑目录' : '新增目录' }}</h3>
+        <h3>{{ editingPath ? t('directory.edit_title') : t('directory.add_title') }}</h3>
         <button class="modal-close" @click="showModal = false">&times;</button>
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label>目录路径 *</label>
+          <label>{{ t('directory.path_label') }} *</label>
           <div style="display:flex;gap:6px">
             <input
               v-model="form.path"
               type="text"
               :disabled="!!editingPath"
-              placeholder="本地目录完整路径，如 D:/Work/myproject"
+              :placeholder="t('directory.path_placeholder')"
               style="flex:1"
             />
             <button class="btn-outline btn-sm" :disabled="!!editingPath" @click="openPicker">
-              浏览…
+              {{ t('directory.browse') }}
             </button>
             <button class="btn-outline btn-sm" :disabled="reading" @click="readLocalConfig">
-              {{ reading ? '读取中…' : '读取配置' }}
+              {{ reading ? t('directory.reading_config') : t('directory.read_config') }}
             </button>
           </div>
-          <span class="hint">「浏览」打开目录选择器并自动填充完整路径；「读取配置」从输入路径读取</span>
+          <span class="hint">{{ t('directory.browse_hint') }}</span>
         </div>
         <div class="form-group">
-          <label>Agent *</label>
+          <label>{{ t('common.agent') }} *</label>
           <select v-model="form.agent">
-            <option value="" disabled>请选择</option>
+            <option value="" disabled>{{ t('common.select_placeholder') }}</option>
             <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }}</option>
           </select>
         </div>
         <div class="form-group">
-          <label>存储 *</label>
+          <label>{{ t('common.storage') }} *</label>
           <select v-model="form.saver">
-            <option value="" disabled>请选择</option>
+            <option value="" disabled>{{ t('common.select_placeholder') }}</option>
             <option v-for="s in saverOptions" :key="s.id" :value="s.id">{{ s.label }}</option>
           </select>
         </div>
         <div class="form-group">
-          <label>记忆</label>
+          <label>{{ t('common.memory') }}</label>
           <select v-model="form.memory">
-            <option value="">不使用</option>
+            <option value="">{{ t('common.not_use') }}</option>
             <option v-for="m in memoryOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
           </select>
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn-outline" @click="showModal = false">取消</button>
-        <button class="btn-primary" :disabled="saving" @click="save">保存</button>
+        <button class="btn-outline" @click="showModal = false">{{ t('common.cancel') }}</button>
+        <button class="btn-primary" :disabled="saving" @click="save">{{ t('common.save') }}</button>
       </div>
     </div>
   </div>
@@ -238,13 +241,13 @@ defineExpose({ open })
   <div v-if="pickerOpen" class="modal-overlay picker-overlay" @click.self="pickerOpen = false">
     <div class="modal-box picker-box">
       <div class="modal-header">
-        <h3>选择目录</h3>
+        <h3>{{ t('directory.select_dir_title') }}</h3>
         <button class="modal-close" @click="pickerOpen = false">&times;</button>
       </div>
 
       <!-- 当前路径 -->
       <div class="picker-path-bar">
-        {{ pickerPath || '我的电脑' }}
+        {{ pickerPath || t('directory.my_computer') }}
       </div>
 
       <!-- 快速跳转 -->
@@ -260,14 +263,14 @@ defineExpose({ open })
 
       <!-- 目录列表 -->
       <div class="picker-list">
-        <div v-if="pickerLoading" class="picker-empty">加载中…</div>
+        <div v-if="pickerLoading" class="picker-empty">{{ t('common.loading') }}</div>
         <template v-else>
           <div
             v-if="pickerParent !== null"
             class="picker-item picker-up"
             @click="navigatePicker(pickerParent!)"
           >
-            ↑ 上级目录
+            {{ t('directory.up_dir') }}
           </div>
           <!-- 新建文件夹输入行 -->
           <div v-if="pickerCreating" class="picker-create-row">
@@ -276,14 +279,14 @@ defineExpose({ open })
               ref="newNameInput"
               v-model="pickerNewName"
               class="picker-create-input"
-              placeholder="新文件夹名称"
+              :placeholder="t('directory.new_folder_placeholder')"
               @keydown.enter="confirmCreate"
               @keydown.escape="cancelCreate"
             />
-            <button class="picker-create-btn" title="确认" @click="confirmCreate">✓</button>
-            <button class="picker-create-btn picker-create-cancel" title="取消" @click="cancelCreate">✕</button>
+            <button class="picker-create-btn" :title="t('common.save')" @click="confirmCreate">✓</button>
+            <button class="picker-create-btn picker-create-cancel" :title="t('common.close')" @click="cancelCreate">✕</button>
           </div>
-          <div v-if="pickerItems.length === 0 && !pickerCreating" class="picker-empty">（无子目录）</div>
+          <div v-if="pickerItems.length === 0 && !pickerCreating" class="picker-empty">{{ t('directory.no_subdirs') }}</div>
           <div
             v-for="item in pickerItems"
             :key="item"
@@ -301,10 +304,10 @@ defineExpose({ open })
           style="margin-right:auto"
           :disabled="!pickerPath || pickerCreating"
           @click="startCreate"
-        >+ 新建文件夹</button>
-        <button class="btn-outline" @click="pickerOpen = false">取消</button>
+        >{{ t('directory.new_folder') }}</button>
+        <button class="btn-outline" @click="pickerOpen = false">{{ t('common.cancel') }}</button>
         <button class="btn-primary" :disabled="!pickerPath" @click="confirmPicker">
-          选择此目录
+          {{ t('directory.select_this') }}
         </button>
       </div>
     </div>
