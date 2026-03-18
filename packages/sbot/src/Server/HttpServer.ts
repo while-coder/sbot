@@ -5,7 +5,7 @@ import fs from 'fs';
 import os from 'os';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
-import { WebSocketServer } from 'ws';
+import { WebSocket, WebSocketServer } from 'ws';
 import { AgentToolService, SkillService } from "scorpio.ai";
 import { config } from '../Core/Config';
 import { AgentRunner } from '../Agent/AgentRunner';
@@ -143,6 +143,13 @@ function api(fn: (req: Request, res: Response) => any) {
 
 class HttpServer {
     private readonly skillHubService = new SkillHubService();
+    private readonly wsClients = new Set<WebSocket>();
+
+    broadcastToWs(data: string): void {
+        for (const ws of this.wsClients) {
+            if (ws.readyState === WebSocket.OPEN) ws.send(data);
+        }
+    }
 
     async start() {
         const port = config.getHttpPort();
@@ -196,6 +203,8 @@ class HttpServer {
 
         const wss = new WebSocketServer({ server, path: '/ws/chat' });
         wss.on('connection', (ws) => {
+            this.wsClients.add(ws);
+            ws.on('close', () => { this.wsClients.delete(ws); });
             ws.on('message', (data) => {
                 try {
                     const msg = JSON.parse(data.toString()) as {
@@ -205,7 +214,7 @@ class HttpServer {
                         attachments?: AttachmentInput[];
                     };
                     const enriched = processAttachments(msg.query?.trim() || '', msg.attachments, uploadDir);
-                    if (enriched) userService.onReceiveWebMessage(enriched, ws, msg.sessionId, msg.workPath);
+                    if (enriched) userService.onReceiveWebMessage(enriched, msg.sessionId, msg.workPath);
                 } catch { /* ignore malformed messages */ }
             });
         });

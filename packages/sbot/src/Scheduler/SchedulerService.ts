@@ -43,9 +43,8 @@ async function executeScheduler(schedulerId: number): Promise<void> {
             // Session / directory mode: deliver via HTTP pipeline
             const sessionId = scheduler.type === ContextType.Session    ? scheduler.targetId ?? undefined : undefined;
             const workPath  = scheduler.type === ContextType.Directory  ? scheduler.targetId ?? undefined : undefined;
-            await userService.onReceiveHttpMessage(
+            await userService.onReceiveWebMessage(
                 scheduler.message,
-                null,
                 sessionId,
                 workPath,
             );

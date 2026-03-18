@@ -1,24 +1,11 @@
 import "reflect-metadata";
-import { WebSocket } from "ws";
 import { WebChatEventType } from 'sbot.commons';
 import { BaseWebUserService, WebChatEvent } from "./BaseWebUserService";
+import { httpServer } from "../Server/HttpServer";
 
 export class WebSocketUserService extends BaseWebUserService {
-    private activeWs: WebSocket | null = null;
     private activeSessionId: string | undefined;
     private activeWorkPath: string | undefined;
-
-    private setWs(ws: WebSocket): void {
-        this.activeWs = ws;
-        ws.on('close', () => {
-            if (this.activeWs === ws) this.clearWs();
-        });
-    }
-
-    private clearWs(): void {
-        this.activeWs = null;
-        this.clearPendingApprovals();
-    }
 
     private clearContext(): void {
         this.activeSessionId = undefined;
@@ -27,36 +14,30 @@ export class WebSocketUserService extends BaseWebUserService {
 
     // ===== Called by UserService =====
 
-    async startProcessMessage(_query: string, args: any): Promise<string> {
-        if (args?.ws) this.setWs(args.ws);
+    async startProcessMessage(_query: string, _args: any): Promise<string> {
         return '';
     }
 
     async onMessageProcessed(): Promise<void> {
         this.emit({ type: WebChatEventType.Done });
         this.clearContext();
-        this.clearWs();
     }
 
     async processMessageError(e: any): Promise<void> {
         this.emit({ type: WebChatEventType.Error, message: e.message });
         this.clearContext();
-        this.clearWs();
     }
 
     async processAIMessage(query: string, args: any): Promise<void> {
-        if (args?.workPath) this.activeWorkPath = args.workPath;
-        else                this.activeSessionId = args?.sessionId;
+        this.activeWorkPath = args?.workPath;
+        this.activeSessionId = args?.sessionId;
         await super.processAIMessage(query, args);
     }
 
     protected emit(event: WebChatEvent): void {
-        if (!this.activeWs) return;
-        if (this.activeWs.readyState === WebSocket.OPEN) {
-            const ctx: any = {};
-            if (this.activeSessionId) ctx.sessionId = this.activeSessionId;
-            if (this.activeWorkPath)  ctx.workPath  = this.activeWorkPath;
-            this.activeWs.send(JSON.stringify({ ...event, ...ctx }));
-        }
+        const ctx: any = {};
+        if (this.activeSessionId) ctx.sessionId = this.activeSessionId;
+        if (this.activeWorkPath)  ctx.workPath  = this.activeWorkPath;
+        httpServer.broadcastToWs(JSON.stringify({ ...event, ...ctx }));
     }
 }

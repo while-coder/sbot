@@ -162,6 +162,7 @@ const chatSocket = useChatSocket()
 let doneResolve: (() => void) | null = null
 let doneReject: ((e: Error) => void) | null = null
 async function handleWsMessage(evt: WebChatEvent & { sessionId?: string }) {
+  console.log('handleWsMessage', evt, activeSessionId)
   if (evt.sessionId && evt.sessionId !== activeSessionId.value) return
   if (evt.type === WebChatEventType.Human) {
     isStreaming.value = true

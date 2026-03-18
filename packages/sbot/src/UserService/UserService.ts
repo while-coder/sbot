@@ -44,10 +44,10 @@ export class UserService extends UserServiceBase {
         await this.onReceiveMessage(query, { ...args, userInfo, channelId, dbSessionId, dbUserId });
     }
 
-    async onReceiveWebMessage(query: string, ws: any, sessionId?: string, workPath?: string): Promise<void> {
+    async onReceiveWebMessage(query: string, sessionId?: string, workPath?: string): Promise<void> {
         if (!query?.trim()) return;
         return new Promise<void>((resolve) => {
-            this.onReceiveMessage(query, { webContext: true, ws, sessionId, workPath }, resolve);
+            this.onReceiveMessage(query, { webContext: true, sessionId, workPath }, resolve);
         });
     }
 
