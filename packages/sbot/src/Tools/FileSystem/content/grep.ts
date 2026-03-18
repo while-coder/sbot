@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { LoggerService } from '../../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
 import { checkDir, globToRegex } from '../utils';
+import { loadPrompt } from '../../../Core/PromptLoader';
 
 const logger = LoggerService.getLogger('Tools/FileSystem/content/grep.ts');
 
@@ -194,9 +195,7 @@ function formatResults(results: FileMatches[], reachedLimit: boolean, maxMatches
 export function createGrepFilesTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'grep',
-        description: `Searches for text or regex across files in a directory (always recursive). Returns matching file paths with line numbers and matched line content, sorted by most recently modified. Automatically skips node_modules, .git, dist, build, and other common build/vendor directories. Uses ripgrep when available, falls back to Node.js. Paths must be absolute.
-Use grep BEFORE read when you need to find specific content — the returned line numbers can be passed directly to read's offset+limit for targeted, context-efficient reading.
-Use glob to find files by name or path pattern instead of content.`,
+        description: loadPrompt('tools/fs/grep.txt'),
         schema: z.object({
             path: z.string().describe('Absolute path of the directory to search'),
             pattern: z.string().describe('Text to search for; treated as a regex when useRegex=true'),

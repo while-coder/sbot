@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { LoggerService } from '../../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
 import { checkFile, formatSize } from '../utils';
+import { loadPrompt } from '../../../Core/PromptLoader';
 
 const logger = LoggerService.getLogger('Tools/FileSystem/content/readBinaryFile.ts');
 
@@ -15,7 +16,7 @@ const MAX_SIZE_LABEL = '100KB';
 export function createReadBinaryFileTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'read_binary_file',
-        description: `Reads a binary file (image, audio, PDF, font, etc.) and returns its raw content as a base64-encoded string along with file size and extension. Maximum file size ${MAX_SIZE_LABEL}. Use for non-text files; use read for text files (source code, config, markdown, etc.). Path must be absolute.`,
+        description: loadPrompt('tools/fs/read_binary_file.txt'),
         schema: z.object({
             filePath: z.string().describe('Absolute path of the binary file'),
         }) as any,

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { LoggerService } from '../../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
 import { resolvePath } from '../utils';
+import { loadPrompt } from '../../../Core/PromptLoader';
 
 const logger = LoggerService.getLogger('Tools/FileSystem/operations/mkdir.ts');
 
@@ -11,10 +12,7 @@ const logger = LoggerService.getLogger('Tools/FileSystem/operations/mkdir.ts');
 export function createMkdirTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'mkdir',
-        description: `Create directories, like bash mkdir. Supports multiple paths.
-- Without parents=true: errors if the directory already exists or if parent directories are missing.
-- parents=true (-p): creates all missing parent directories and silently succeeds if the directory already exists.
-All paths must be absolute.`,
+        description: loadPrompt('tools/fs/mkdir.txt'),
         schema: z.object({
             paths: z.array(z.string()).min(1).describe('One or more absolute directory paths to create'),
             parents: z.boolean().optional().default(false).describe('Create parent directories as needed, no error if exists (-p), default false'),

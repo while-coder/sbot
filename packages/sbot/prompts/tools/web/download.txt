@@ -1,0 +1,7 @@
+Download a file from a URL and save it to a local absolute path. Streams large files directly to disk without loading into memory. Automatically retries on network errors with exponential backoff. Parent directories are created automatically.
+
+Parameters:
+- url: Full URL starting with http:// or https://
+- savePath: Absolute path where the file will be saved
+- timeout: Optional timeout in seconds (default 300, max 600)
+- maxRetries: Optional number of retry attempts on failure (default 3)

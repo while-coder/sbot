@@ -1,0 +1,5 @@
+Writes content to a file on the local filesystem. Creates the file and any missing parent directories automatically. Uses atomic write (temp + rename) to prevent data corruption. Returns a unified diff when overwriting an existing file, or a confirmation message when creating a new file.
+- Overwrites the existing file if one already exists at the provided path.
+- If overwriting an existing file, you MUST call read first to retrieve its current contents.
+- ALWAYS prefer edit over write when modifying existing files. Only use write for new files or complete full-file rewrites.
+Path must be absolute.

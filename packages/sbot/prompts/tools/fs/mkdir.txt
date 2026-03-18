@@ -1,0 +1,4 @@
+Create directories, like bash mkdir. Supports multiple paths.
+- Without parents=true: errors if the directory already exists or if parent directories are missing.
+- parents=true (-p): creates all missing parent directories and silently succeeds if the directory already exists.
+All paths must be absolute.

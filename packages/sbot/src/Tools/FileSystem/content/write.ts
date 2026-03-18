@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { LoggerService } from '../../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
 import { resolvePath, writeAtomic, normalizeLineEndings } from '../utils';
+import { loadPrompt } from '../../../Core/PromptLoader';
 
 const logger = LoggerService.getLogger('Tools/FileSystem/content/write.ts');
 
@@ -14,11 +15,7 @@ const logger = LoggerService.getLogger('Tools/FileSystem/content/write.ts');
 export function createWriteTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'write',
-        description: `Writes content to a file on the local filesystem. Creates the file and any missing parent directories automatically. Uses atomic write (temp + rename) to prevent data corruption. Returns a unified diff when overwriting an existing file, or a confirmation message when creating a new file.
-- Overwrites the existing file if one already exists at the provided path.
-- If overwriting an existing file, you MUST call read first to retrieve its current contents.
-- ALWAYS prefer edit over write when modifying existing files. Only use write for new files or complete full-file rewrites.
-Path must be absolute.`,
+        description: loadPrompt('tools/fs/write.txt'),
         schema: z.object({
             filePath: z.string().describe('Absolute path of the file to write'),
             content: z.string().describe('Content to write to the file'),

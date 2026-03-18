@@ -1,0 +1,12 @@
+Executes a shell command or multi-line shell script in a given working directory. Returns stdout and stderr separately. Default timeout 60 s.
+
+Supports all forms:
+- Single command: "git status"
+- Chained commands: "npm install && npm run build"
+- Multi-line script: "for f in *.log; do rm \"$f\"; done"
+
+IMPORTANT: Do NOT use this tool for file operations — use the dedicated file tools instead:
+- Read/write files: use read / write / edit
+- Search file content: use grep
+- Find files by name: use glob
+- List directory tree: use ls

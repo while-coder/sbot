@@ -1,0 +1,8 @@
+Fetch and read content from a web URL. Supports HTML→Markdown conversion, plain-text extraction, or raw HTML output.
+
+Parameters:
+- url: Full URL starting with http:// or https://
+- format: "markdown" (default, HTML converted to Markdown) | "text" (HTML stripped to plain text) | "html" (raw HTML)
+- timeout: Optional timeout in seconds (max 120, default 30)
+
+Use this tool to retrieve documentation, articles, API references, or any web resource.

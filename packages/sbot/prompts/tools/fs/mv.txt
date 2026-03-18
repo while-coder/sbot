@@ -1,0 +1,4 @@
+Move or rename files and directories, like bash mv. Supports multiple sources.
+- mv [src] [dest]: if dest is an existing directory, src is moved into it; otherwise src is renamed to dest.
+- mv [src1] [src2] ... [destDir]: moves all sources into an existing directory.
+Parent directories of dest are created automatically. All paths must be absolute.

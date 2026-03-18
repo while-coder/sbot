@@ -1,0 +1,2 @@
+Finds files matching a glob pattern (e.g. **/*.ts, src/**/*.test.js, *.json). Returns absolute paths sorted by most recently modified. Automatically skips node_modules, .git, dist, build, and other common build/vendor directories. Uses ripgrep when available, falls back to Node.js. Path must be absolute.
+Use grep to search by file content instead of name.

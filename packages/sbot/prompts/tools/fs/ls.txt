@@ -1,0 +1,2 @@
+Lists files and directories under a given path as a tree (up to 100 files). The path must be absolute. Automatically ignores common build/dependency directories (node_modules, .git, dist, build, etc.). Pass additional names via ignore to exclude more directories or files.
+Prefer grep to search by file content, or glob to find files by name pattern when you know what you're looking for.

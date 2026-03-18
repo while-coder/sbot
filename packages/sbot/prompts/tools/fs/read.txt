@@ -1,0 +1,7 @@
+Reads a text file and returns its content with line numbers in the format "line_number: line_content". Default 2000 lines per call, capped at 50KB of output. Path must be absolute.
+IMPORTANT: Do NOT use read to search for content inside files. Use grep first to locate exact line numbers, then use offset+limit to read only the relevant section. Reading entire files to find content wastes context and is strongly discouraged.
+- offset + limit: read a specific line range (e.g. offset=50 limit=40 reads lines 50–89).
+- tail: efficiently read the last N lines (mutually exclusive with offset/limit).
+- Returns "Did you mean?" suggestions when the file is not found.
+- Automatically detects and rejects binary files; use read_binary_file for binary files.
+- Use ls to list directory contents instead of reading a directory path.

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { LoggerService } from '../../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
 import { resolvePath } from '../utils';
+import { loadPrompt } from '../../../Core/PromptLoader';
 
 const logger = LoggerService.getLogger('Tools/FileSystem/operations/rm.ts');
 
@@ -11,10 +12,7 @@ const logger = LoggerService.getLogger('Tools/FileSystem/operations/rm.ts');
 export function createRmTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'rm',
-        description: `Remove files and directories, like bash rm. Supports multiple paths.
-- Deleting a directory requires recursive=true (-r), otherwise returns an error.
-- force=true (-f) silently ignores nonexistent paths instead of erroring.
-All paths must be absolute.`,
+        description: loadPrompt('tools/fs/rm.txt'),
         schema: z.object({
             paths: z.array(z.string()).min(1).describe('One or more absolute paths to remove'),
             recursive: z.boolean().optional().default(false).describe('Remove directories and their contents recursively (-r), default false'),

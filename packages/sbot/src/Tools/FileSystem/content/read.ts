@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { LoggerService } from '../../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
 import { resolvePath, normalizeLineEndings } from '../utils';
+import { loadPrompt } from '../../../Core/PromptLoader';
 
 const logger = LoggerService.getLogger('Tools/FileSystem/content/read.ts');
 
@@ -77,13 +78,7 @@ async function tailLines(filepath: string, numLines: number): Promise<string[]> 
 export function createReadTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'read',
-        description: `Reads a text file and returns its content with line numbers in the format "line_number: line_content". Default ${DEFAULT_LIMIT} lines per call, capped at ${MAX_BYTES_LABEL} of output. Path must be absolute.
-IMPORTANT: Do NOT use read to search for content inside files. Use grep first to locate exact line numbers, then use offset+limit to read only the relevant section. Reading entire files to find content wastes context and is strongly discouraged.
-- offset + limit: read a specific line range (e.g. offset=50 limit=40 reads lines 50–89).
-- tail: efficiently read the last N lines (mutually exclusive with offset/limit).
-- Returns "Did you mean?" suggestions when the file is not found.
-- Automatically detects and rejects binary files; use read_binary_file for binary files.
-- Use ls to list directory contents instead of reading a directory path.`,
+        description: loadPrompt('tools/fs/read.txt'),
         schema: z.object({
             filePath: z.string().describe('Absolute path to the file'),
             offset: z.number().int().min(1).optional().describe('Line number to start reading from (1-indexed), default 1'),

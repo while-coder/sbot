@@ -1,0 +1,1 @@
+Runs a Python code snippet (string) by writing it to a temp file and executing it. Use this for inline scripts or quick calculations. Use execute_python_script when the script already exists on disk.

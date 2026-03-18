@@ -1,0 +1,4 @@
+Remove files and directories, like bash rm. Supports multiple paths.
+- Deleting a directory requires recursive=true (-r), otherwise returns an error.
+- force=true (-f) silently ignores nonexistent paths instead of erroring.
+All paths must be absolute.

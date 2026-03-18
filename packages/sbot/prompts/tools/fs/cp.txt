@@ -1,0 +1,5 @@
+Copy files and directories, like bash cp. Supports multiple sources.
+- cp [src] [dest]: if dest is an existing directory, src is copied into it; otherwise src is copied to dest.
+- cp [src1] [src2] ... [destDir]: copies all sources into an existing directory.
+- Copying a directory requires recursive=true (-r).
+Parent directories of dest are created automatically. All paths must be absolute.

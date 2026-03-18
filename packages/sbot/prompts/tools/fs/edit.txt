@@ -1,0 +1,2 @@
+Performs precise text replacement edits on one or more files. Each edit replaces oldText with newText. When an exact match is not found, automatically falls back through 9 fuzzy strategies (line trim, block anchor, whitespace normalization, indentation flex, escape normalization, boundary trim, context-aware) so minor formatting differences don't block the edit. Supports regex mode, replaceAll, and multi-file batching in a single call. Returns a unified diff per modified file. Paths must be absolute.
+Always prefer edit over write when modifying existing files.

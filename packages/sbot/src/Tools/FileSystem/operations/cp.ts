@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { LoggerService } from '../../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
 import { resolvePath } from '../utils';
+import { loadPrompt } from '../../../Core/PromptLoader';
 
 const logger = LoggerService.getLogger('Tools/FileSystem/operations/cp.ts');
 
@@ -12,11 +13,7 @@ const logger = LoggerService.getLogger('Tools/FileSystem/operations/cp.ts');
 export function createCpTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'cp',
-        description: `Copy files and directories, like bash cp. Supports multiple sources.
-- cp [src] [dest]: if dest is an existing directory, src is copied into it; otherwise src is copied to dest.
-- cp [src1] [src2] ... [destDir]: copies all sources into an existing directory.
-- Copying a directory requires recursive=true (-r).
-Parent directories of dest are created automatically. All paths must be absolute.`,
+        description: loadPrompt('tools/fs/cp.txt'),
         schema: z.object({
             sources: z.array(z.string()).min(1).describe('One or more absolute source paths'),
             dest: z.string().describe('Absolute destination path (directory or new name)'),

@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { LoggerService } from '../../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
 import { resolvePath } from '../utils';
+import { loadPrompt } from '../../../Core/PromptLoader';
 
 const logger = LoggerService.getLogger('Tools/FileSystem/operations/mv.ts');
 
@@ -26,10 +27,7 @@ function moveOne(src: string, dst: string): void {
 export function createMvTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'mv',
-        description: `Move or rename files and directories, like bash mv. Supports multiple sources.
-- mv [src] [dest]: if dest is an existing directory, src is moved into it; otherwise src is renamed to dest.
-- mv [src1] [src2] ... [destDir]: moves all sources into an existing directory.
-Parent directories of dest are created automatically. All paths must be absolute.`,
+        description: loadPrompt('tools/fs/mv.txt'),
         schema: z.object({
             sources: z.array(z.string()).min(1).describe('One or more absolute source paths'),
             dest: z.string().describe('Absolute destination path (directory or new name)'),

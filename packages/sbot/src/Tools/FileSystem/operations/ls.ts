@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { LoggerService } from '../../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
 import { checkDir } from '../utils';
+import { loadPrompt } from '../../../Core/PromptLoader';
 
 const logger = LoggerService.getLogger('Tools/FileSystem/operations/ls.ts');
 
@@ -22,8 +23,7 @@ const LIMIT = 100;
 export function createLsTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'ls',
-        description: `Lists files and directories under a given path as a tree (up to ${LIMIT} files). The path must be absolute. Automatically ignores common build/dependency directories (node_modules, .git, dist, build, etc.). Pass additional names via ignore to exclude more directories or files.
-Prefer grep to search by file content, or glob to find files by name pattern when you know what you're looking for.`,
+        description: loadPrompt('tools/fs/ls.txt'),
         schema: z.object({
             dirPath: z.string().describe('Absolute path of the directory to list'),
             ignore: z.array(z.string()).optional().describe('Additional directory/file names to ignore'),

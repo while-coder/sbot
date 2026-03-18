@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { LoggerService } from '../../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
 import { checkFile, normalizeLineEndings, writeAtomic } from '../utils';
+import { loadPrompt } from '../../../Core/PromptLoader';
 
 const logger = LoggerService.getLogger('Tools/FileSystem/content/edit.ts');
 
@@ -300,8 +301,7 @@ export async function applyFileEdits(filePath: string, edits: FileEdit[]): Promi
 export function createEditFileTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'edit',
-        description: `Performs precise text replacement edits on one or more files. Each edit replaces oldText with newText. When an exact match is not found, automatically falls back through 9 fuzzy strategies (line trim, block anchor, whitespace normalization, indentation flex, escape normalization, boundary trim, context-aware) so minor formatting differences don't block the edit. Supports regex mode, replaceAll, and multi-file batching in a single call. Returns a unified diff per modified file. Paths must be absolute.
-Always prefer edit over write when modifying existing files.`,
+        description: loadPrompt('tools/fs/edit.txt'),
         schema: z.object({
             filePath: z.string().optional().describe('Default file path shared by all edits; each edit\'s own filePath takes precedence'),
             edits: z.array(z.object({
