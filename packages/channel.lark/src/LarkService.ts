@@ -1,10 +1,8 @@
 import * as Lark from "@larksuiteoapi/node-sdk";
 import { NowDate, parseJson } from "scorpio.ai";
 import {LarkActionArgs, LarkMessageArgs} from "./LarkUserServiceBase";
-import { GlobalLoggerService } from "scorpio.ai";
+import { ILogger } from "scorpio.ai";
 import fs from 'fs';
-
-const getLogger = () => GlobalLoggerService.getLogger("LarkService.ts");
 
 /** 消息接收 ID 类型（涵盖所有飞书支持的类型） */
 export enum LarkReceiveIdType {
@@ -25,6 +23,7 @@ export interface LarkServiceOptions {
   appId: string;
   appSecret: string;
   userIdType: LarkUserIdType;
+  logger?: ILogger;
   filterEvent: (eventId: string) => Promise<boolean>;
   onRecevieMessage: (userId: string, userInfo:any, chatInfo: any, args: LarkMessageArgs, query: string) => Promise<void>;
   onTriggerAction: (userId: string, userInfo: any, chatInfo: any, args: LarkActionArgs) => Promise<void>;
@@ -38,6 +37,9 @@ export class LarkService {
   private larkConfig: { appId: string, appSecret: string};
   private larkClient: Lark.Client;
   private larkWsClient: Lark.WSClient;
+  private logger?: ILogger;
+  private larkLogger: any;
+  private loggerLevel: Lark.LoggerLevel;
   private filterEvent: (eventId: string) => Promise<boolean>;
   private onRecevieMessage: (userId: string, userInfo:any, chatInfo: any, args: LarkMessageArgs, query: string) => Promise<void>;
   private onTriggerAction: (userId: string, userInfo: any, chatInfo: any, args: LarkActionArgs) => Promise<void>;
@@ -52,9 +54,18 @@ export class LarkService {
     this.onTriggerAction = options.onTriggerAction;
     this.filterEvent = options.filterEvent;
     this.userIdType = options.userIdType;
+    this.logger = options.logger;
     this.larkConfig = { appId: options.appId, appSecret: options.appSecret };
-    this.larkClient = new Lark.Client(this.larkConfig);
-    this.larkWsClient = new Lark.WSClient(this.larkConfig);
+    this.loggerLevel = Lark.LoggerLevel.warn;
+    this.larkLogger = options.logger ? {
+      trace: (msg: string, ...args: any[]) => options.logger!.debug(msg, ...args),
+      debug: (msg: string, ...args: any[]) => options.logger!.debug(msg, ...args),
+      info:  (msg: string, ...args: any[]) => options.logger!.info(msg, ...args),
+      warn:  (msg: string, ...args: any[]) => options.logger!.warn(msg, ...args),
+      error: (msg: string, ...args: any[]) => options.logger!.error(msg, ...args),
+    } : undefined;
+    this.larkClient = new Lark.Client({ ...this.larkConfig, logger: this.larkLogger, loggerLevel: this.loggerLevel });
+    this.larkWsClient = new Lark.WSClient({ ...this.larkConfig, logger: this.larkLogger, loggerLevel: this.loggerLevel });
   }
 
   dispose() {
@@ -74,7 +85,7 @@ export class LarkService {
       }
       return response.data;
     } catch (error) {
-      getLogger()?.error("发送消息出错 / Error sending message:", error);
+      this.logger?.error("发送消息出错 / Error sending message:", error);
     }
   }
   async sendMarkdownMessage(receiveIdType: LarkReceiveIdType, receiveId: string, text: string, header: any | undefined = undefined) {
@@ -92,7 +103,7 @@ export class LarkService {
       }
       return response.data;
     } catch (error) {
-      getLogger()?.error("发送消息出错 / Error sending message:", error);
+      this.logger?.error("发送消息出错 / Error sending message:", error);
     }
   }
   async replayMarkdownMessage(message_id: string, text: string, header:any|undefined = undefined) {
@@ -175,7 +186,7 @@ export class LarkService {
       this.tokenExpireTime = NowDate() + (response.expire - 300) * 1000;
       return this.tenantAccessToken;
     } catch (error: any) {
-      getLogger()?.error(`获取 tenant_access_token 失败: ${error.message}`);
+      this.logger?.error(`获取 tenant_access_token 失败: ${error.message}`);
       throw error;
     }
   }
@@ -217,7 +228,7 @@ export class LarkService {
 
       return response.image_key;
     } catch (error: any) {
-      getLogger()?.error(`上传图片到飞书失败: ${error.message}\n${error.stack}`);
+      this.logger?.error(`上传图片到飞书失败: ${error.message}\n${error.stack}`);
       throw error;
     }
   }
@@ -257,7 +268,7 @@ export class LarkService {
 
       return response.data.file_key;
     } catch (error: any) {
-      getLogger()?.error(`上传文件到飞书失败: ${error.message}\n${error.stack}`);
+      this.logger?.error(`上传文件到飞书失败: ${error.message}\n${error.stack}`);
       throw error;
     }
   }
@@ -276,7 +287,7 @@ export class LarkService {
       }, Lark.withTenantToken(token)) as any;
       await this.streamToFile(response, savePath);
     } catch (error: any) {
-      getLogger()?.error(`下载飞书图片失败: ${error.message}\n${error.stack}`);
+      this.logger?.error(`下载飞书图片失败: ${error.message}\n${error.stack}`);
       throw error;
     }
   }
@@ -295,7 +306,7 @@ export class LarkService {
       }, Lark.withTenantToken(token)) as any;
       await this.streamToFile(response, savePath);
     } catch (error: any) {
-      getLogger()?.error(`下载飞书文件失败: ${error.message}\n${error.stack}`);
+      this.logger?.error(`下载飞书文件失败: ${error.message}\n${error.stack}`);
       throw error;
     }
   }
@@ -328,7 +339,7 @@ export class LarkService {
       }
       return response.data?.user;
     } catch (error: any) {
-      getLogger()?.error(`获取用户信息出错: ${error.message}`);
+      this.logger?.error(`获取用户信息出错: ${error.message}`);
     }
   }
 
@@ -348,12 +359,12 @@ export class LarkService {
       }
       return response.data;
     } catch (error: any) {
-      getLogger()?.error(`获取群组信息出错: ${error.message}`);
+      this.logger?.error(`获取群组信息出错: ${error.message}`);
     }
   }
 
   async registerEventDispatcher() {
-    const eventDispatcher = new Lark.EventDispatcher({}).register({
+    const eventDispatcher = new Lark.EventDispatcher({logger: this.larkLogger, loggerLevel: this.loggerLevel}).register({
       "im.message.receive_v1": async (data: any) => {
         try {
           const {
@@ -395,7 +406,7 @@ export class LarkService {
           ]);
           await this.onRecevieMessage(userId, userInfo, chatInfo, { larkService: this, chat_type, chat_id, message_id, root_id }, query.trim())
         } catch (e: any) {
-          getLogger()?.error(`Receive message error: ${e.stack}`);
+          this.logger?.error(`Receive message error: ${e.stack}`);
         }
       },
 
@@ -418,14 +429,14 @@ export class LarkService {
           ]);
           await this.onTriggerAction(userId, userInfo, chatInfo, { chat_id: open_chat_id, code: value.code, data: value.data, form_value })
         } catch (e: any) {
-          getLogger()?.error(`Card Action error: ${e.stack}`);
+          this.logger?.error(`Card Action error: ${e.stack}`);
         }
       },
       "application.bot.menu_v6": async (_data: any) => {
       },
     });
     await this.larkWsClient.start({ eventDispatcher }).catch((e) => {
-      getLogger()?.error(`registerEventDispatcher catch error: ${e}`);
+      this.logger?.error(`registerEventDispatcher catch error: ${e}`);
     });
   }
 }

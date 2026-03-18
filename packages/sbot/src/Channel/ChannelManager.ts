@@ -142,6 +142,7 @@ export class ChannelManager {
         const service = new LarkService({
             appId: channel.appId,
             appSecret: channel.appSecret,
+            logger: logger,
             userIdType: userIdType,
             filterEvent,
             onRecevieMessage: async (userId: string, userInfo: any, chatInfo: any, args: LarkMessageArgs, query: string) => {
