@@ -8,7 +8,7 @@
 export { ServiceContainer, globalServiceContainer, transient, singleton, inject, init, dispose, InjectionToken, Constructor, AbstractConstructor, Lifecycle, Provider, ClassProvider, FactoryProvider, ValueProvider } from "../DI";
 
 // 通用 Token
-export { T_ThreadId, T_UserId, T_SystemPrompts, T_DBPath, T_DBUrl, T_SkillsDirs, T_SkillDirs, T_MaxMemoryAgeDays, T_MemoryMode, T_ExtractorSystemPrompt, T_EvaluatorSystemPrompt, T_CompressorPromptTemplate, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc } from "./tokens";
+export { T_ThreadId, T_UserId, T_SystemPrompts, T_DBPath, T_DBUrl, T_SkillsDirs, T_SkillDirs, T_MaxMemoryAgeDays, T_MemoryMode, T_ExtractorSystemPrompt, T_EvaluatorSystemPrompt, T_CompressorPromptTemplate, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc, T_SkillSystemPromptTemplate, T_SkillToolReadDesc, T_SkillToolListDesc, T_SkillToolExecDesc, T_MemorySystemPromptTemplate } from "./tokens";
 
 // 工具函数
 export { NowDate, sleep, parseJson, truncate } from "./utils";

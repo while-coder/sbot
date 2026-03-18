@@ -2,8 +2,15 @@ import os from 'os';
 import path from 'path';
 import { GlobalLoggerService, SkillService } from "scorpio.ai";
 import { config } from "../Core/Config.js";
+import { loadPrompt } from "../Core/PromptLoader";
 
-export const globalSkillService = new SkillService(GlobalLoggerService.getLoggerService());
+export const globalSkillService = new SkillService(
+    loadPrompt('skills/system.txt'),
+    loadPrompt('skills/tool_read_skill_file.txt'),
+    loadPrompt('skills/tool_list_skill_files.txt'),
+    loadPrompt('skills/tool_execute_skill_script.txt'),
+    GlobalLoggerService.getLoggerService(),
+);
 
 
 /**

@@ -10,6 +10,7 @@ import {
     IAgentSaverService, AgentFileSaver, AgentSqliteSaver,
     T_MaxMemoryAgeDays, T_MemoryMode, T_DBPath, T_ThreadId,
     T_ExtractorSystemPrompt, T_EvaluatorSystemPrompt, T_CompressorPromptTemplate,
+    T_MemorySystemPromptTemplate,
     IModelService,
 } from "scorpio.ai";
 import { config, SaverType } from "../Core/Config";
@@ -139,6 +140,7 @@ export class AgentRunner {
             [IEmbeddingService]: await config.getEmbeddingService(memoryConfig.embedding, true),
             [T_MaxMemoryAgeDays]: memoryConfig.maxAgeDays,
             [T_MemoryMode]: memoryConfig.mode,
+            [T_MemorySystemPromptTemplate]: loadPrompt('memory/system.txt'),
         });
     }
 

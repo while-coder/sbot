@@ -1,0 +1,1 @@
+Execute a script in a skill directory (Python, Shell, Node.js, TypeScript). Runs with the skill directory as cwd. Use list_skill_files first to confirm the script path.

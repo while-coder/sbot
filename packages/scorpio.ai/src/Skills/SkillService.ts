@@ -2,7 +2,7 @@ import { Skill } from "./types";
 import { parseSkill, isValidSkillDirectory } from "./parser";
 import { ISkillService } from "./ISkillService";
 import { ILoggerService } from "../Logger";
-import { inject } from "../Core";
+import { inject, T_SkillSystemPromptTemplate, T_SkillToolReadDesc, T_SkillToolListDesc, T_SkillToolExecDesc } from "../Core";
 import { DynamicStructuredTool, type StructuredToolInterface } from "@langchain/core/tools";
 import { z } from "zod";
 import fs from "fs";
@@ -35,6 +35,10 @@ export class SkillService implements ISkillService {
   private logger;
 
   constructor(
+    @inject(T_SkillSystemPromptTemplate) private systemPromptTemplate: string,
+    @inject(T_SkillToolReadDesc) private toolReadDesc: string,
+    @inject(T_SkillToolListDesc) private toolListDesc: string,
+    @inject(T_SkillToolExecDesc) private toolExecDesc: string,
     @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
   ) {
     this.logger = loggerService?.getLogger("SkillService");
@@ -115,6 +119,7 @@ export class SkillService implements ISkillService {
    * 用于注入到 Agent 的系统消息中
    */
   async getSystemMessage(): Promise<string | null> {
+    if (!this.systemPromptTemplate) return null;
     const skills = this.getAllSkills();
     if (skills.length === 0) return null;
 
@@ -122,43 +127,21 @@ export class SkillService implements ISkillService {
       .map(s => `  <skill name="${s.name}" path="${s.path}">${s.description}</skill>`)
       .join("\n");
 
-    return `<skill-instructions>
-  <skills>
-${items}
-  </skills>
-  <matching>Match skills by keywords, task type, or file type in the user's request. When a match is found, use the skill immediately without waiting for explicit user confirmation.</matching>
-  <workflow>
-    <step order="1">Inform the user: "I'll use the '{skill-name}' skill for this task"</step>
-    <step order="2">Call list_skill_files to inspect the skill directory structure</step>
-    <step order="3">Call read_skill_file to read SKILL.md</step>
-    <step order="4">Follow the instructions in SKILL.md strictly and completely</step>
-    <step order="5">Use read_skill_file or execute_skill_script for any files or scripts referenced in SKILL.md</step>
-  </workflow>
-  <tools>
-    <tool name="read_skill_file">Read any file inside the skill directory</tool>
-    <tool name="list_skill_files">List the full directory tree of a skill</tool>
-    <tool name="execute_skill_script">Run a script file (.py, .sh, .js, .ts) inside the skill directory</tool>
-  </tools>
-  <constraints>
-    <constraint>Always read SKILL.md before performing any skill-related action</constraint>
-    <constraint>SKILL.md instructions are authoritative — follow them completely, do not skip or reinterpret steps</constraint>
-    <constraint>Proactively identify and use matching skills without waiting for explicit user requests</constraint>
-  </constraints>
-</skill-instructions>`;
+    return this.systemPromptTemplate.replace('{skills}', items);
   }
 
   /**
    * 获取 Skill 相关的工具
    */
   getTools(): StructuredToolInterface[] {
-    if (this.getAllSkills().length === 0) {
+    if (this.getAllSkills().length === 0 || !this.toolReadDesc) {
       return [];
     }
 
     // Read skill file tool
     const readSkillFileTool = new DynamicStructuredTool({
       name: "read_skill_file",
-      description: "Read a file from a skill directory (SKILL.md, scripts/, references/, assets/, etc.).",
+      description: this.toolReadDesc,
       schema: z.object({
         skillName: z.string().describe("Skill name (kebab-case)"),
         filePath: z.string().describe('Relative path within the skill directory, e.g. "SKILL.md", "scripts/init.py"')
@@ -199,7 +182,7 @@ ${items}
     // Execute skill script tool
     const executeSkillScriptTool = new DynamicStructuredTool({
       name: "execute_skill_script",
-      description: "Execute a script in a skill directory (Python, Shell, Node.js, TypeScript). Runs with the skill directory as cwd. Use list_skill_files first to confirm the script path.",
+      description: this.toolExecDesc!,
       schema: z.object({
         skillName: z.string().describe("Skill name (kebab-case)"),
         scriptPath: z.string().describe('Relative path to the script, e.g. "scripts/process.py". Confirm via list_skill_files first.'),
@@ -270,7 +253,7 @@ ${items}
     // List skill files tool
     const listSkillFilesTool = new DynamicStructuredTool({
       name: "list_skill_files",
-      description: "List the directory tree of a skill. Use to discover available files and resources.",
+      description: this.toolListDesc!,
       schema: z.object({
         skillName: z.string().describe("Skill name (kebab-case)"),
         subPath: z.string().optional().describe('Optional sub-path, e.g. "scripts", "references"')

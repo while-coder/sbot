@@ -1,0 +1,1 @@
+Read a file from a skill directory (SKILL.md, scripts/, references/, assets/, etc.).

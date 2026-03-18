@@ -9,6 +9,7 @@ import {
     ServiceContainer, T_SystemPrompts,
     ReActAgentService, T_AgentSubNodes, T_CreateAgent, T_ThinkModelService,
     T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc,
+    T_SkillSystemPromptTemplate, T_SkillToolReadDesc, T_SkillToolListDesc, T_SkillToolExecDesc,
     type CreateAgentFn,
 } from "scorpio.ai";
 import { config, AgentMode, SingleAgentEntry, ReactAgentEntry } from "../Core/Config";
@@ -60,7 +61,12 @@ export class AgentFactory {
         agentName: string,
         skills?: string[],
     ): Promise<void> {
-        container.registerSingleton(ISkillService, SkillService);
+        container.registerWithArgs(ISkillService, SkillService, {
+            [T_SkillSystemPromptTemplate]: loadPrompt('skills/system.txt'),
+            [T_SkillToolReadDesc]: loadPrompt('skills/tool_read_skill_file.txt'),
+            [T_SkillToolListDesc]: loadPrompt('skills/tool_list_skill_files.txt'),
+            [T_SkillToolExecDesc]: loadPrompt('skills/tool_execute_skill_script.txt'),
+        });
         const skillService = await container.resolve<SkillService>(ISkillService);
         if (skills && skills.length > 0) {
             const allGlobalSkills = globalSkillService.getAllSkills();

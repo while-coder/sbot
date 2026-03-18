@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import { inject, init, T_MaxMemoryAgeDays, T_MemoryMode } from "../../Core";
+import { inject, init, T_MaxMemoryAgeDays, T_MemoryMode, T_MemorySystemPromptTemplate } from "../../Core";
 import { IMemoryDatabase } from "../Storage/IMemoryDatabase";
 import { Memory, MemoryMode } from "../types";
 import { IMemoryService } from "./IMemoryService";
@@ -20,6 +20,7 @@ export class MemoryService implements IMemoryService {
     @inject(IEmbeddingService) private embeddings: IEmbeddingService,
     @inject(IMemoryEvaluator) private evaluator: IMemoryEvaluator,
     @inject(IMemoryExtractor) private extractor: IMemoryExtractor,
+    @inject(T_MemorySystemPromptTemplate) private systemPromptTemplate: string,
     @inject(T_MaxMemoryAgeDays, { optional: true }) maxMemoryAgeDays?: number,
     @inject(T_MemoryMode, { optional: true }) memoryMode?: MemoryMode,
     @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
@@ -51,7 +52,7 @@ export class MemoryService implements IMemoryService {
       const items = memories
         .map(m => `  <memory time="${this.formatTimeAgo(m.metadata.timestamp)}">${m.content}</memory>`)
         .join("\n");
-      return `<user-memories>\n${items}\n</user-memories>`;
+      return this.systemPromptTemplate.replace('{items}', items);
     } catch (error: any) {
       this.logger?.warn(`Failed to build memory system message: ${error.message}`);
       return null;

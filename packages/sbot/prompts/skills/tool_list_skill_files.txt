@@ -1,0 +1,1 @@
+List the directory tree of a skill. Use to discover available files and resources.
