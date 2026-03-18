@@ -4,5 +4,5 @@ export {
   SlackUserServiceBase,
   SlackMessageArgs,
   SlackActionArgs,
-  ToolCallStatus,
 } from './SlackUserServiceBase';
+export { ToolCallStatus } from 'channel.base';

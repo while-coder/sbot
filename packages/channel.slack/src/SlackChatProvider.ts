@@ -1,33 +1,10 @@
 import { SlackService } from "./SlackService";
-import {
-  AgentMessage,
-  GlobalLoggerService,
-  isMCPToolResult,
-  MCPContentType,
-  MCPToolResult,
-  MessageChunkType,
-  parseJson,
-} from "scorpio.ai";
+import { AgentMessage, GlobalLoggerService, MessageChunkType } from "scorpio.ai";
+import { parseMessages2Text, ProviderMessage, ProviderMessageType, ProviderTextMessage, ProviderToolMessage } from "channel.base";
 
 const getLogger = () => GlobalLoggerService.getLogger("SlackChatProvider.ts");
 
 const UPDATE_INTERVAL_MS = 300;
-
-enum ProviderMessageType {
-  TEXT = "text",
-  TOOL = "tool",
-}
-
-type ProviderTextMessage = { type: ProviderMessageType.TEXT; content: string };
-type ProviderToolMessage = {
-  type: ProviderMessageType.TOOL;
-  name: string;
-  args: Record<string, any>;
-  result?: boolean;
-  status?: string;
-  response?: string;
-};
-type ProviderMessage = ProviderTextMessage | ProviderToolMessage;
 
 export class SlackChatProvider {
   private channel: string = "";
@@ -48,50 +25,13 @@ export class SlackChatProvider {
     query?: string,
   ): Promise<this> {
     const initialText = query
-      ? `${query}\n思考中... / Thinking...`
-      : `开始处理...`;
+      ? `${query}\nThinking...`
+      : `Processing...`;
     const replyThreadTs = threadTs ?? incomingTs;
     const sent = await this.slackService.sendMessage(channel, initialText, replyThreadTs);
     this.channel = sent.channel;
     this.ts = sent.ts;
     return this;
-  }
-
-  private parseMessages2Text(messages: ProviderMessage[]): string {
-    const parts: string[] = [];
-    for (const msg of messages) {
-      if (msg.type === ProviderMessageType.TEXT) {
-        parts.push(msg.content);
-      } else {
-        let block = `\`\`\`\n调用: ${msg.name}\n参数:\n${JSON.stringify(msg.args, null, 2)}`;
-        if (msg.result) {
-          let escapedResponse = "";
-          const parsed = parseJson<MCPToolResult>(msg.response!, undefined);
-          if (isMCPToolResult(parsed)) {
-            const contentParts: string[] = [];
-            for (const c of parsed.content) {
-              if (c.type === MCPContentType.Text) {
-                contentParts.push(`------${c.type}------\n${c.text}`);
-              } else if (c.type === MCPContentType.Image) {
-                contentParts.push(`------${c.type}------\n[image:${c.mimeType}]`);
-              } else {
-                contentParts.push(`------${c.type}------\n${JSON.stringify(c)}`);
-              }
-            }
-            escapedResponse = contentParts.join("\n");
-          } else {
-            escapedResponse = String(parsed);
-          }
-          escapedResponse = escapedResponse.replace(/`/g, "\\`");
-          block += `\n返回值:\n${escapedResponse}`;
-        } else {
-          block += `\n执行中...`;
-        }
-        block += `\n\`\`\`\n---`;
-        parts.push(block);
-      }
-    }
-    return parts.join("\n\n");
   }
 
   async addAIMessage(message: AgentMessage): Promise<void> {
@@ -182,7 +122,7 @@ export class SlackChatProvider {
     if (this.streamMessage) {
       msgs = [...this.messages, this.streamMessage];
     }
-    const text = this.parseMessages2Text(msgs);
+    const text = parseMessages2Text(msgs);
     const blocks = this.buildBlocks(text);
     try {
       await this.slackService.updateMessage(this.channel, this.ts, text, blocks);

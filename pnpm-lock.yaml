@@ -41,11 +41,30 @@ importers:
 
   .: {}
 
+  packages/channel.base:
+    dependencies:
+      scorpio.ai:
+        specifier: workspace:*
+        version: link:../scorpio.ai
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.4.0
+      rimraf:
+        specifier: 'catalog:'
+        version: 6.1.3
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+
   packages/channel.lark:
     dependencies:
       '@larksuiteoapi/node-sdk':
         specifier: ^1.58.0
         version: 1.59.0
+      channel.base:
+        specifier: workspace:*
+        version: link:../channel.base
       scorpio.ai:
         specifier: workspace:*
         version: link:../scorpio.ai
@@ -65,6 +84,9 @@ importers:
       '@slack/bolt':
         specifier: ^4.4.0
         version: 4.6.0(@types/express@5.0.6)
+      channel.base:
+        specifier: workspace:*
+        version: link:../channel.base
       scorpio.ai:
         specifier: workspace:*
         version: link:../scorpio.ai

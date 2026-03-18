@@ -1,16 +1,8 @@
 import { SlackChatProvider } from "./SlackChatProvider";
-import {
-  AgentMessage,
-  AgentToolCall,
-  AskResponse,
-  AskToolParams,
-  NowDate,
-  sleep,
-  ToolApproval,
-  UserServiceBase,
-} from "scorpio.ai";
+import { AgentMessage, AgentToolCall, AskToolParams } from "scorpio.ai";
 import { GlobalLoggerService } from "scorpio.ai";
 import { SlackService } from "./SlackService";
+import { ChannelUserServiceBase, ToolCallStatus } from "channel.base";
 
 const getLogger = () => GlobalLoggerService.getLogger("SlackUserServiceBase.ts");
 
@@ -28,32 +20,9 @@ export interface SlackActionArgs {
   value?: any;
 }
 
-export enum ToolCallStatus {
-  None = "none",
-  Wait = "wait",
-  Allow = "allow",
-  AlwaysArgs = "alwaysArgs",
-  AlwaysTool = "alwaysTool",
-  Deny = "deny",
-}
-
-interface ToolCallState {
-  id: string | undefined;
-  status: ToolCallStatus;
-}
-
-interface AskState {
-  id: string | undefined;
-  status: "wait" | "done" | "timeout";
-  questionMap: Record<string, string>;
-  response?: AskResponse;
-}
-
-export abstract class SlackUserServiceBase extends UserServiceBase {
+export abstract class SlackUserServiceBase extends ChannelUserServiceBase {
   provider: SlackChatProvider | undefined;
   slackService!: SlackService;
-  toolCall: ToolCallState = { id: undefined, status: ToolCallStatus.None };
-  private askState: AskState = { id: undefined, status: "wait", questionMap: {} };
 
   async startProcessMessage(query: string, args: any): Promise<string> {
     const { slackService, channel, ts, threadTs } = args as SlackMessageArgs;
@@ -65,7 +34,7 @@ export abstract class SlackUserServiceBase extends UserServiceBase {
   async processMessageError(e: any): Promise<void> {
     getLogger()?.error(e.stack ?? e.message);
     if (this.provider) {
-      await this.provider.setMessage(`生成回复时出错: ${e.message}`);
+      await this.provider.setMessage(`Error generating reply: ${e.message}`);
     }
   }
 
@@ -86,150 +55,84 @@ export abstract class SlackUserServiceBase extends UserServiceBase {
       value: JSON.stringify({ id: this.toolCall.id, approval: actionId }),
       ...(style ? { style } : {}),
     });
-    return [
-      {
-        type: "actions",
-        block_id: "toolCallActions",
-        elements: [
-          makeButton(`允许 ${toolName}`, ToolCallStatus.Allow, "primary"),
-          makeButton(`总是允许 ${toolName} (相同参数)`, ToolCallStatus.AlwaysArgs),
-          makeButton(`总是允许 ${toolName} (所有参数)`, ToolCallStatus.AlwaysTool),
-          makeButton(`拒绝 (${remainSec}秒)`, ToolCallStatus.Deny, "danger"),
-        ],
-      },
-    ];
+    return [{
+      type: "actions",
+      block_id: "toolCallActions",
+      elements: [
+        makeButton(`Allow ${toolName}`, ToolCallStatus.Allow, "primary"),
+        makeButton(`Always allow ${toolName} (same args)`, ToolCallStatus.AlwaysArgs),
+        makeButton(`Always allow ${toolName} (all args)`, ToolCallStatus.AlwaysTool),
+        makeButton(`Deny (${remainSec}s)`, ToolCallStatus.Deny, "danger"),
+      ],
+    }];
   }
 
-  async executeAgentTool(toolCall: AgentToolCall): Promise<ToolApproval> {
-    this.toolCall.id = toolCall.id;
-    this.toolCall.status = ToolCallStatus.Wait;
-    try {
-      const timeout = 30 * 1000;
-      const end = NowDate() + timeout;
-      let lastSend = 0;
-      while (this.toolCall.status === ToolCallStatus.Wait) {
-        if (NowDate() - lastSend > 300) {
-          lastSend = NowDate();
-          const remainSec = Math.floor((end - NowDate()) / 1000);
-          await this.provider?.setApprovalBlocks(
-            this.buildApprovalBlocks(toolCall.name, remainSec),
-          );
-        }
-        await sleep(10);
-        if (NowDate() > end) {
-          this.toolCall.status = ToolCallStatus.Deny;
-          break;
-        }
-      }
-      await this.provider?.clearApprovalBlocks();
-      const statusToApproval: Partial<Record<ToolCallStatus, ToolApproval>> = {
-        [ToolCallStatus.Allow]: ToolApproval.Allow,
-        [ToolCallStatus.AlwaysArgs]: ToolApproval.AlwaysArgs,
-        [ToolCallStatus.AlwaysTool]: ToolApproval.AlwaysTool,
-      };
-      return statusToApproval[this.toolCall.status] ?? ToolApproval.Deny;
-    } finally {
-      this.toolCall.id = undefined;
-      this.toolCall.status = ToolCallStatus.None;
-    }
+  protected async sendApprovalUI(toolCall: AgentToolCall, remainSec: number): Promise<void> {
+    await this.provider?.setApprovalBlocks(this.buildApprovalBlocks(toolCall.name, remainSec));
   }
 
-  async ask(params: AskToolParams): Promise<AskResponse> {
-    const askId = `ask_${Date.now()}`;
-    const questionMap: Record<string, string> = {};
+  protected async clearApprovalUI(): Promise<void> {
+    await this.provider?.clearApprovalBlocks();
+  }
+
+  protected async sendAskForm(
+    params: AskToolParams,
+    askId: string,
+    _questionMap: Record<string, string>
+  ): Promise<void> {
     const inputBlocks: any[] = [];
-
     if (params.title) {
-      inputBlocks.push({
-        type: "section",
-        text: { type: "mrkdwn", text: `*${params.title}*` },
-      });
+      inputBlocks.push({ type: "section", text: { type: "mrkdwn", text: `*${params.title}*` } });
     }
-
     for (let i = 0; i < params.questions.length; i++) {
       const q = params.questions[i];
       const blockId = `q_${i}`;
-      questionMap[blockId] = q.label;
-
       if (q.type === "radio") {
         inputBlocks.push({
-          type: "input",
-          block_id: blockId,
+          type: "input", block_id: blockId,
           label: { type: "plain_text", text: q.label },
           element: {
-            type: "static_select",
-            action_id: blockId,
-            placeholder: { type: "plain_text", text: "选择..." },
-            options: q.options.map((o: string) => ({
-              text: { type: "plain_text", text: o },
-              value: o,
-            })),
+            type: "static_select", action_id: blockId,
+            placeholder: { type: "plain_text", text: "Select..." },
+            options: q.options.map((o: string) => ({ text: { type: "plain_text", text: o }, value: o })),
           },
         });
       } else if (q.type === "checkbox") {
         inputBlocks.push({
-          type: "input",
-          block_id: blockId,
+          type: "input", block_id: blockId,
           label: { type: "plain_text", text: q.label },
           element: {
-            type: "multi_static_select",
-            action_id: blockId,
-            placeholder: { type: "plain_text", text: "选择..." },
-            options: q.options.map((o: string) => ({
-              text: { type: "plain_text", text: o },
-              value: o,
-            })),
+            type: "multi_static_select", action_id: blockId,
+            placeholder: { type: "plain_text", text: "Select..." },
+            options: q.options.map((o: string) => ({ text: { type: "plain_text", text: o }, value: o })),
           },
         });
       } else {
         inputBlocks.push({
-          type: "input",
-          block_id: blockId,
+          type: "input", block_id: blockId,
           label: { type: "plain_text", text: q.label },
           element: {
-            type: "plain_text_input",
-            action_id: blockId,
-            ...(q.placeholder
-              ? { placeholder: { type: "plain_text", text: q.placeholder } }
-              : {}),
+            type: "plain_text_input", action_id: blockId,
+            ...(q.placeholder ? { placeholder: { type: "plain_text", text: q.placeholder } } : {}),
           },
         });
       }
     }
-
     inputBlocks.push({
-      type: "actions",
-      block_id: "askSubmit",
-      elements: [
-        {
-          type: "button",
-          text: { type: "plain_text", text: "提交" },
-          style: "primary",
-          action_id: `ask_submit_${askId}`,
-          value: JSON.stringify({ id: askId }),
-        },
-      ],
+      type: "actions", block_id: "askSubmit",
+      elements: [{
+        type: "button",
+        text: { type: "plain_text", text: "Submit" },
+        style: "primary",
+        action_id: `ask_submit_${askId}`,
+        value: JSON.stringify({ id: askId }),
+      }],
     });
-
-    this.askState = { id: askId, status: "wait", questionMap };
     await this.provider?.setAskBlocks(inputBlocks);
+  }
 
-    const end = NowDate() + 5 * 60 * 1000;
-    while (this.askState.status === "wait") {
-      await sleep(10);
-      if (NowDate() > end) {
-        this.askState.status = "timeout";
-        break;
-      }
-    }
-
+  protected async clearAskForm(): Promise<void> {
     await this.provider?.clearAskBlocks();
-    const { status, response } = this.askState;
-    this.askState = { id: undefined, status: "wait", questionMap: {} };
-
-    if (status !== "done" || !response)
-      throw new Error("User did not answer within the allotted time");
-    return response;
   }
 
   async onTriggerAction(args: SlackActionArgs): Promise<void> {
@@ -248,15 +151,8 @@ export abstract class SlackUserServiceBase extends UserServiceBase {
     }
 
     if (actionId.startsWith("ask_submit_")) {
-      if (value?.id !== this.askState.id) return;
-      if (value?.answers) {
-        const response: AskResponse = {};
-        for (const [blockId, label] of Object.entries(this.askState.questionMap)) {
-          const val = value.answers[blockId];
-          if (val !== undefined) response[label] = val;
-        }
-        this.askState.response = response;
-        this.askState.status = "done";
+      if (value?.id && value?.answers) {
+        this.resolveAskResponse(value.id, value.answers);
       }
       return;
     }
