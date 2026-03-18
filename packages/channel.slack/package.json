@@ -1,0 +1,20 @@
+{
+  "name": "channel.slack",
+  "version": "0.0.1",
+  "description": "Slack channel integration",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "pnpm --filter scorpio.ai run build && rimraf --glob \"dist/*\" && tsc -b --force"
+  },
+  "dependencies": {
+    "@slack/bolt": "^4.4.0",
+    "scorpio.ai": "workspace:*"
+  },
+  "private": true,
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "rimraf": "catalog:",
+    "typescript": "catalog:"
+  }
+}
