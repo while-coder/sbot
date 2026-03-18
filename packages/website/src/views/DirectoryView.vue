@@ -9,7 +9,7 @@ import type { ChatMessage } from '@/types'
 import DirectoryModal from './modals/DirectoryModal.vue'
 import SaverViewModal from './modals/SaverViewModal.vue'
 import ChatPanel from '@/components/ChatPanel.vue'
-import { dirThreadId, WebChatEventType } from 'sbot.commons'
+import { dirThreadId, WebChatEventType, MessageRole } from 'sbot.commons'
 import type { WebChatEvent } from 'sbot.commons'
 
 const { t } = useI18n()
@@ -189,9 +189,13 @@ async function onPanelSend(query: string, atts: Attachment[]) {
 
 async function sendOne(query: string, atts: Attachment[]) {
   chatSending.value = true
-  isStreaming.value = true
   streamingContent.value = ''
   streamingToolCalls.value = []
+
+  const displayContent = [query, ...atts.map(a => `[附件: ${a.name}]`)].filter(Boolean).join('\n')
+  messages.value.push({ role: MessageRole.Human, content: displayContent, timestamp: new Date().toISOString() })
+  await nextTick()
+  chatPanelRef.value?.scrollToBottom(true)
 
   try {
     await waitForOpen()
@@ -202,7 +206,6 @@ async function sendOne(query: string, atts: Attachment[]) {
     })
   } catch (e: any) {
     show(e.message, 'error')
-    isStreaming.value = false
     chatSending.value = false
   }
 }
@@ -210,9 +213,7 @@ async function sendOne(query: string, atts: Attachment[]) {
 async function handleWsEvent(evt: WebChatEvent & { workPath?: string }) {
   if (evt.workPath && evt.workPath !== activeDir.value) return
   if (evt.type === WebChatEventType.Human) {
-    messages.value.push({ role: 'human', content: evt.content, timestamp: new Date().toISOString() })
-    await nextTick()
-    chatPanelRef.value?.scrollToBottom(true)
+    isStreaming.value = true
   } else if (evt.type === WebChatEventType.Stream) {
     streamingContent.value = evt.content
   } else if (evt.type === WebChatEventType.Message) {

@@ -10,7 +10,7 @@ import SaverViewModal from './modals/SaverViewModal.vue'
 import MemoryViewModal from './modals/MemoryViewModal.vue'
 import NewSessionModal from './modals/NewSessionModal.vue'
 import ChatPanel from '@/components/ChatPanel.vue'
-import { sessionThreadId, WebChatEventType } from 'sbot.commons'
+import { sessionThreadId, WebChatEventType, MessageRole } from 'sbot.commons'
 import type { WebChatEvent } from 'sbot.commons'
 
 const { t } = useI18n()
@@ -165,13 +165,7 @@ let doneReject: ((e: Error) => void) | null = null
 async function handleWsMessage(evt: WebChatEvent & { sessionId?: string }) {
   if (evt.sessionId && evt.sessionId !== activeSessionId.value) return
   if (evt.type === WebChatEventType.Human) {
-    messages.value.push({
-      role: 'human',
-      content: evt.content,
-      timestamp: new Date().toISOString(),
-    })
-    await nextTick()
-    chatPanelRef.value?.scrollToBottom(true)
+    isStreaming.value = true
   } else if (evt.type === WebChatEventType.Stream) {
     streamingContent.value = evt.content
   } else if (evt.type === WebChatEventType.Message) {
@@ -262,9 +256,13 @@ async function onPanelSend(query: string, atts: Attachment[]) {
 
 async function sendOne(query: string, atts: Attachment[]) {
   chatSending.value = true
-  isStreaming.value = true
   streamingContent.value = ''
   streamingToolCalls.value = []
+
+  const displayContent = [query, ...atts.map(a => `[附件: ${a.name}]`)].filter(Boolean).join('\n')
+  messages.value.push({ role: MessageRole.Human, content: displayContent, timestamp: new Date().toISOString() })
+  await nextTick()
+  chatPanelRef.value?.scrollToBottom(true)
 
   try {
     await chatSocket.waitForOpen()

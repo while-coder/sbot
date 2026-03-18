@@ -36,8 +36,14 @@ export interface ToolCall {
   args: unknown
 }
 
+export enum MessageRole {
+  Human = 'human',
+  AI    = 'ai',
+  Tool  = 'tool',
+}
+
 export interface ChatMessage {
-  role: string
+  role: MessageRole | string
   content?: string
   timestamp?: string
   tool_calls?: ToolCall[]

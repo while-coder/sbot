@@ -2,6 +2,7 @@
 import { ref, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { marked } from 'marked'
+import { MessageRole } from '@/types'
 import type { ChatMessage, ToolCall } from '@/types'
 
 const { t } = useI18n()
@@ -163,8 +164,8 @@ defineExpose({ scrollToBottom })
         </template>
 
         <template v-for="(msg, idx) in messages" :key="idx">
-          <template v-if="msg.role !== 'tool'">
-            <div v-if="msg.role === 'human'" class="msg-row human">
+          <template v-if="msg.role !== MessageRole.Tool">
+            <div v-if="msg.role === MessageRole.Human" class="msg-row human">
               <div class="msg-bubble human">
                 <div class="msg-role-bar">
                   <span class="msg-role">{{ t('chat.role_user') }}</span>
@@ -173,7 +174,7 @@ defineExpose({ scrollToBottom })
                 {{ msg.content }}
               </div>
             </div>
-            <div v-else-if="msg.role === 'ai'" class="msg-row ai">
+            <div v-else-if="msg.role === MessageRole.AI" class="msg-row ai">
               <div v-if="msg.content" class="msg-bubble ai">
                 <div class="msg-role-bar">
                   <span class="msg-role">{{ t('chat.role_ai') }}</span>
@@ -190,7 +191,7 @@ defineExpose({ scrollToBottom })
                   <div class="tool-call-detail">
                     <div class="tool-call-args">{{ JSON.stringify((tc as ToolCall).args, null, 2) }}</div>
                     <template v-for="m2 in messages" :key="'r' + (m2.tool_call_id || '')">
-                      <div v-if="m2.role === 'tool' && m2.tool_call_id === (tc as ToolCall).id" class="tool-call-result">
+                      <div v-if="m2.role === MessageRole.Tool && m2.tool_call_id === (tc as ToolCall).id" class="tool-call-result">
                         <div class="tool-call-result-label">{{ t('chat.tool_result') }}</div>
                         {{ m2.content }}
                       </div>
