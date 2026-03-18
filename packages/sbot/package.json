@@ -28,7 +28,7 @@
     "access": "public"
   },
   "scripts": {
-    "build:deps": "pnpm --filter sbot.commons run build && pnpm --filter channel.lark run build",
+    "build:deps": "pnpm --filter sbot.commons run build && pnpm --filter channel.lark run build && pnpm --filter channel.slack run build",
     "dev": "tsx src/index.ts",
     "debug": "pnpm run build:deps && rimraf debug && tsc -p tsconfig.debug.json && node scripts/postbuild.js debug",
     "build": "pnpm --filter sbot-website run build && pnpm run build:deps && rimraf dist && tsc && node scripts/postbuild.js",
@@ -38,6 +38,7 @@
     "@langchain/core": "catalog:",
     "axios": "catalog:",
     "channel.lark": "workspace:*",
+    "channel.slack": "workspace:*",
     "commander": "catalog:",
     "cron": "^4.4.0",
     "diff": "^8.0.3",

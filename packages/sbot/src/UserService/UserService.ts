@@ -1,15 +1,18 @@
 import "reflect-metadata";
 import { LarkMessageArgs } from "channel.lark";
+import { SlackMessageArgs, SlackActionArgs } from "channel.slack";
 import { AgentMessage, AgentToolCall, ICommand, ToolApproval, UserServiceBase } from "scorpio.ai";
 import { getBuiltInCommands } from "./BuiltInCommands";
 import { LarkUserService } from "./LarkUserService";
+import { SlackUserService } from "./SlackUserService";
 import { WebSocketUserService } from "./WebSocketUserService";
 import { HttpUserService } from "./HttpUserService";
 
-enum Context { Lark = 'lark', Web = 'web', Http = 'http' }
+enum Context { Lark = 'lark', Slack = 'slack', Web = 'web', Http = 'http' }
 
 export class UserService extends UserServiceBase {
     readonly lark: LarkUserService;
+    readonly slack: SlackUserService;
     readonly web: WebSocketUserService;
     readonly http: HttpUserService;
 
@@ -18,6 +21,7 @@ export class UserService extends UserServiceBase {
     constructor() {
         super();
         this.lark = new LarkUserService();
+        this.slack = new SlackUserService();
         this.web = new WebSocketUserService();
         this.http = new HttpUserService();
     }
@@ -27,6 +31,19 @@ export class UserService extends UserServiceBase {
         if (!query?.trim()) return;
         await this.onReceiveMessage(query, { ...args, userInfo, channelId, dbSessionId, dbUserId });
     }
+
+    async onReceiveSlackMessage(
+        query: string,
+        args: SlackMessageArgs,
+        userInfo: any,
+        channelId: string,
+        dbSessionId?: number,
+        dbUserId?: number,
+    ): Promise<void> {
+        if (!query?.trim()) return;
+        await this.onReceiveMessage(query, { ...args, userInfo, channelId, dbSessionId, dbUserId });
+    }
+
     async onReceiveWebMessage(query: string, ws: any, sessionId?: string, workPath?: string): Promise<void> {
         if (!query?.trim()) return;
         return new Promise<void>((resolve) => {
@@ -48,7 +65,9 @@ export class UserService extends UserServiceBase {
     async startProcessMessage(query: string, args: any): Promise<string> {
         if (args?.webContext) this.currentContext = Context.Web;
         else if (args?.httpContext) this.currentContext = Context.Http;
+        else if (args?.slackService) this.currentContext = Context.Slack;
         else this.currentContext = Context.Lark;
+        if (this.currentContext === Context.Slack) return await this.slack.startProcessMessage(query, args);
         if (this.currentContext === Context.Lark) return await this.lark.startProcessMessage(query, args);
         if (this.currentContext === Context.Http) return await this.http.startProcessMessage(query, args);
         return await this.web.startProcessMessage(query, args);
@@ -57,29 +76,34 @@ export class UserService extends UserServiceBase {
     async onMessageProcessed(_query: string, _args: any): Promise<void> {
         if (this.currentContext === Context.Web) await this.web.onMessageProcessed();
         else if (this.currentContext === Context.Http) await this.http.onMessageProcessed();
+        else if (this.currentContext === Context.Slack) { /* no-op */ }
         this.currentContext = undefined;
     }
 
     async processMessageError(e: any): Promise<void> {
         if (this.currentContext === Context.Lark) await this.lark.processMessageError(e);
+        else if (this.currentContext === Context.Slack) await this.slack.processMessageError(e);
         else if (this.currentContext === Context.Web) await this.web.processMessageError(e);
         else if (this.currentContext === Context.Http) await this.http.processMessageError(e);
     }
 
     async onAgentMessage(message: AgentMessage): Promise<void> {
         if (this.currentContext === Context.Lark) await this.lark.onAgentMessage(message);
+        else if (this.currentContext === Context.Slack) await this.slack.onAgentMessage(message);
         else if (this.currentContext === Context.Web) await this.web.onAgentMessage(message);
         else if (this.currentContext === Context.Http) await this.http.onAgentMessage(message);
     }
 
     async onAgentStreamMessage(message: AgentMessage): Promise<void> {
         if (this.currentContext === Context.Lark) await this.lark.onAgentStreamMessage(message);
+        else if (this.currentContext === Context.Slack) await this.slack.onAgentStreamMessage(message);
         else if (this.currentContext === Context.Web) await this.web.onAgentStreamMessage(message);
         else if (this.currentContext === Context.Http) await this.http.onAgentStreamMessage(message);
     }
 
     async executeAgentTool(toolCall: AgentToolCall): Promise<ToolApproval> {
         if (this.currentContext === Context.Lark) return await this.lark.executeAgentTool(toolCall);
+        if (this.currentContext === Context.Slack) return await this.slack.executeAgentTool(toolCall);
         if (this.currentContext === Context.Http) return await this.http.executeAgentTool(toolCall);
         return await this.web.executeAgentTool(toolCall);
     }
@@ -87,6 +111,7 @@ export class UserService extends UserServiceBase {
 
     async processAIMessage(query: string, args: any): Promise<void> {
         if (this.currentContext === Context.Lark) await this.lark.processAIMessage(query, args);
+        else if (this.currentContext === Context.Slack) await this.slack.processAIMessage(query, args);
         else if (this.currentContext === Context.Http) await this.http.processAIMessage(query, args);
         else await this.web.processAIMessage(query, args);
     }

@@ -1,4 +1,5 @@
 import { LarkService, LarkActionArgs, LarkMessageArgs, LarkUserIdType } from "channel.lark";
+import { SlackService, SlackMessageArgs, SlackActionArgs } from "channel.slack";
 import { database, type ChannelSessionRow } from "../Core/Database";
 import { NowDate } from "scorpio.ai";
 import { Op } from "sequelize";
@@ -55,6 +56,7 @@ export class ChannelManager {
     constructor() {
         // 注册内置频道类型
         this.register(ChannelType.Lark, this.initLark.bind(this));
+        this.register(ChannelType.Slack, this.initSlack.bind(this));
     }
 
     /**
@@ -129,6 +131,59 @@ export class ChannelManager {
      */
     getService(channelId: string): IChannelService | undefined {
         return this.services.get(channelId);
+    }
+
+    // ── Lark 频道初始化 ───────────────────────────────────────────────────────
+
+    // ── Slack 频道初始化 ───────────────────────────────────────────────────────
+
+    private async initSlack(channelId: string, channel: ChannelConfig): Promise<IChannelService | undefined> {
+        if (!channel.botToken?.trim() || !channel.appToken?.trim()) {
+            logger.warn(`Slack channel [${channel.name || channelId}] missing botToken or appToken, skipping`);
+            return undefined;
+        }
+        const service = new SlackService({
+            botToken: channel.botToken,
+            appToken: channel.appToken,
+            logger: logger,
+            filterEvent,
+            onReceiveMessage: async (userId: string, userInfo: any, args: SlackMessageArgs, query: string) => {
+                const [dbUser, created] = await database.findOrCreate(database.channelUser, {
+                    where: { userid: userId, channel: channelId },
+                    defaults: {
+                        username:   userInfo?.real_name ?? userInfo?.name ?? "",
+                        userinfo:   JSON.stringify(userInfo ?? {}),
+                        userIdType: "slack_id",
+                    },
+                });
+                if (!created) {
+                    await database.update(database.channelUser,
+                        { username: userInfo?.real_name ?? userInfo?.name ?? "", userinfo: JSON.stringify(userInfo ?? {}) },
+                        { where: { userid: userId, channel: channelId } },
+                    );
+                }
+                const dbUserId: number = (dbUser as any).id;
+
+                const [dbSession, sessionCreated] = await database.findOrCreate<ChannelSessionRow>(database.channelSession, {
+                    where: { channel: channelId, sessionId: args.channel },
+                    defaults: { name: args.channel, agentId: "", memoryId: null },
+                });
+                if (!sessionCreated) {
+                    await database.update(database.channelSession,
+                        { name: args.channel },
+                        { where: { channel: channelId, sessionId: args.channel } },
+                    );
+                }
+                const dbSessionId: number = (dbSession as any).id;
+                await userService.onReceiveSlackMessage(query, args, userInfo ?? {}, channelId, dbSessionId, dbUserId);
+            },
+            onTriggerAction: async (_userId: string, args: SlackActionArgs) => {
+                await userService.slack.onTriggerAction(args);
+            },
+        });
+        await service.registerEventHandlers();
+        logger.info(`Slack channel [${channel.name || channelId}] started successfully`);
+        return service;
     }
 
     // ── Lark 频道初始化 ───────────────────────────────────────────────────────
