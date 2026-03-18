@@ -15,7 +15,7 @@ export type RunTaskFn = (params: TaskToolParams) => Promise<string>;
 
 // ── Factory ─────────────────────────────────────────────────────────────────
 
-export function createTaskTool(agentIds: string[], runFn: RunTaskFn): DynamicStructuredTool {
+export function createTaskTool(agentIds: string[], runFn: RunTaskFn, description: string): DynamicStructuredTool {
   const schema = z.object({
     agentId: z.enum(agentIds as [string, ...string[]])
       .describe("ID of the sub-agent to invoke"),
@@ -29,7 +29,7 @@ export function createTaskTool(agentIds: string[], runFn: RunTaskFn): DynamicStr
 
   return new DynamicStructuredTool({
     name: "task",
-    description: "Dispatch a task to a specialized sub-agent and return its result.",
+    description: description,
     schema: schema as any,
     func: async (params: any): Promise<MCPToolResult> => {
       const result = await runFn(params);

@@ -1,12 +1,11 @@
 import { SystemMessage, BaseMessage, AIMessage } from "langchain";
 import { type StructuredToolInterface } from "@langchain/core/tools";
-import { inject, ServiceContainer } from "../../Core";
+import { inject, ServiceContainer, T_SystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc } from "../../Core";
 import { IMemoryService, ReadOnlyMemoryService } from "../../Memory";
 import { IAgentSaverService } from "../../Saver";
 import { ILoggerService } from "../../Logger";
 import { IModelService } from "../../Model";
 import { type AgentServiceBase, IAgentCallback, AgentSubNode, CreateAgentFn, T_CreateAgent } from "../AgentServiceBase";
-import { T_SystemPrompts } from "../../Core";
 import { ISkillService } from "../../Skills";
 import { IAgentToolService } from "../../AgentTool";
 import { AgentMemorySaver } from "../../Saver/AgentMemorySaver";
@@ -35,6 +34,9 @@ export class ReActAgentService extends SingleAgentService {
     @inject(T_ThinkModelService) thinkModelService: IModelService,
     @inject(T_AgentSubNodes) agentSubNodes: AgentSubNode[],
     @inject(T_CreateAgent) agentFactory: CreateAgentFn,
+    @inject(T_ReactSystemPromptTemplate) private systemPromptTemplate: string,
+    @inject(T_ReactSubNodePrompt) private subNodePrompt: string,
+    @inject(T_ReactTaskToolDesc) private taskToolDesc: string,
     @inject(T_SystemPrompts, { optional: true }) systemPrompts?: string[],
     @inject(IMemoryService, { optional: true }) memoryService?: IMemoryService,
     @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
@@ -53,22 +55,7 @@ export class ReActAgentService extends SingleAgentService {
     const agentsDesc = this.agentSubNodes.map(a =>
       `  <agent id="${a.id}">${a.desc}</agent>`
     ).join('\n');
-    const parts: string[] = [`You are a ReAct orchestration expert. Break down the user's request and dispatch sub-tasks to specialized agents using the \`task\` tool.
-
-<agents>
-${agentsDesc}
-</agents>
-
-<rules>
-  <rule>Fully autonomous: make all decisions yourself. Never ask the user for clarification, confirmation, additional information, or approval — not even once.</rule>
-  <rule>Assume and proceed: when the request is ambiguous, pick the most reasonable interpretation and act on it immediately without stating your assumption.</rule>
-  <rule>One call at a time: invoke one agent, wait for the result, then decide the next step based on the output.</rule>
-  <rule>Self-contained instructions: each task field must include all context the agent needs — no references like "as discussed" or "from the previous step".</rule>
-  <rule>No repeats: once an agent succeeds at a goal, never call it again for the same goal.</rule>
-  <rule>Finish when done: reply to the user directly as soon as all goals are met; do not call any more tools.</rule>
-  <rule>On failure: change strategy — switch agents, split the task, or adjust the approach. Do not surface the failure to the user unless all strategies are exhausted.</rule>
-  <rule>Only interrupt when truly necessary: the sole exception to autonomy is a genuinely irreversible, high-risk action (e.g., deleting production data) where silent execution would be unacceptable.</rule>
-</rules>`];
+    const parts: string[] = [this.systemPromptTemplate.replace('{agents}', agentsDesc)];
 
     // Append systemPrompts, memory, and skill prompts from parent
     const parentMsg = await super.buildSystemMessage(query);
@@ -95,13 +82,7 @@ ${agentsDesc}
         const extraPrompts: string[] = [];
         if (goal?.trim()) extraPrompts.push(`<goal>${goal.trim()}</goal>`);
         if (systemPrompt?.trim()) extraPrompts.push(systemPrompt.trim());
-        extraPrompts.push(`<rules>
-  <rule>Execute immediately: use available tools right away. Do not plan, summarize intent, or describe what you are about to do.</rule>
-  <rule>Never ask: do not ask questions, request clarification, seek confirmation, or prompt for additional input under any circumstances.</rule>
-  <rule>Assume and proceed: for any uncertainty, pick the most reasonable interpretation and act on it silently.</rule>
-  <rule>Complete or explain: either finish the task fully, or return a specific reason why it is impossible — nothing in between.</rule>
-  <rule>Final reply must be a concise summary: your last message must summarize all key findings, data, decisions, and outputs. Omit step-by-step reasoning and internal notes — only the conclusions matter.</rule>
-</rules>`);
+        extraPrompts.push(this.subNodePrompt);
         agentService.addSystemPrompts(extraPrompts);
 
         const messages = await agentService.stream(task, subCallback);
@@ -118,7 +99,7 @@ ${agentsDesc}
 
     const agentIds = this.agentSubNodes.map(a => a.id);
     const parentTools = await super.buildTools();
-    return [createTaskTool(agentIds, runFn), ...parentTools];
+    return [createTaskTool(agentIds, runFn, this.taskToolDesc), ...parentTools];
   }
 
   override async stream(query: string, callback: IAgentCallback): Promise<BaseMessage[]> {

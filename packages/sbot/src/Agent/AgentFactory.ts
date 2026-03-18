@@ -8,9 +8,11 @@ import {
     ISkillService, SkillService,
     ServiceContainer, T_SystemPrompts,
     ReActAgentService, T_AgentSubNodes, T_CreateAgent, T_ThinkModelService,
+    T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc,
     type CreateAgentFn,
 } from "scorpio.ai";
 import { config, AgentMode, SingleAgentEntry, ReactAgentEntry } from "../Core/Config";
+import { loadPrompt } from "../Core/PromptLoader";
 import { globalAgentToolService } from "./GlobalAgentToolService";
 import { globalSkillService } from "./GlobalSkillService";
 import { getLogger } from "log4js";
@@ -121,6 +123,9 @@ export class AgentFactory {
             [T_CreateAgent]: createAgentFn,
             [T_ThinkModelService]: thinkModelService,
             [T_SystemPrompts]: systemPrompts,
+            [T_ReactSystemPromptTemplate]: loadPrompt('agent/react_system.txt'),
+            [T_ReactSubNodePrompt]: loadPrompt('agent/react_subnode.txt'),
+            [T_ReactTaskToolDesc]: loadPrompt('agent/react_task.txt'),
         });
         return container.resolve(ReActAgentService);
     }

@@ -1,0 +1,1 @@
+Dispatch a task to a specialized sub-agent and return its result.

@@ -15,3 +15,6 @@ export const T_MemoryMode                = Symbol("scorpio:T_MemoryMode");
 export const T_ExtractorSystemPrompt     = Symbol("scorpio:T_ExtractorSystemPrompt");
 export const T_EvaluatorSystemPrompt     = Symbol("scorpio:T_EvaluatorSystemPrompt");
 export const T_CompressorPromptTemplate  = Symbol("scorpio:T_CompressorPromptTemplate");
+export const T_ReactSystemPromptTemplate = Symbol("scorpio:T_ReactSystemPromptTemplate");
+export const T_ReactSubNodePrompt        = Symbol("scorpio:T_ReactSubNodePrompt");
+export const T_ReactTaskToolDesc         = Symbol("scorpio:T_ReactTaskToolDesc");
