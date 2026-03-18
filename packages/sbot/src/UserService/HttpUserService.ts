@@ -1,5 +1,6 @@
 import "reflect-metadata";
 import { Response } from "express";
+import { WebChatEventType } from 'sbot.commons';
 import { BaseWebUserService, WebChatEvent } from "./BaseWebUserService";
 
 export class HttpUserService extends BaseWebUserService {
@@ -29,11 +30,11 @@ export class HttpUserService extends BaseWebUserService {
     }
 
     async onMessageProcessed(): Promise<void> {
-        this.emit({ type: 'done' });
+        this.emit({ type: WebChatEventType.Done });
     }
 
     async processMessageError(e: any): Promise<void> {
-        this.emit({ type: 'error', message: e.message });
+        this.emit({ type: WebChatEventType.Error, message: e.message });
     }
 
     protected emit(event: WebChatEvent): void {

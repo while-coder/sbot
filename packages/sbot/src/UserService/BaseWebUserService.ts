@@ -4,14 +4,9 @@ import { AgentRunner } from "../Agent/AgentRunner";
 import { config } from '../Core/Config';
 import { ContextType } from '../Core/Database';
 import { buildExecuteTool } from './buildExecuteTool';
-import { dirThreadId, sessionThreadId } from 'sbot.commons';
+import { dirThreadId, sessionThreadId, WebChatEvent, WebChatEventType } from 'sbot.commons';
 
-export type WebChatEvent =
-    | { type: "stream"; content: string }
-    | { type: "message"; role: string; content?: string; tool_calls?: any[]; tool_call_id?: string }
-    | { type: "tool_call"; id: string; name: string; args: Record<string, any> }
-    | { type: "done" }
-    | { type: "error"; message: string };
+export { WebChatEvent, WebChatEventType } from 'sbot.commons';
 
 export abstract class BaseWebUserService {
     private pendingApprovals: Map<string, (approval: ToolApproval) => void> = new Map();
@@ -26,7 +21,7 @@ export abstract class BaseWebUserService {
 
     async onAgentMessage(message: AgentMessage): Promise<void> {
         this.emit({
-            type: 'message',
+            type: WebChatEventType.Message,
             role: message.type,
             content: message.content,
             tool_calls: message.tool_calls,
@@ -35,12 +30,12 @@ export abstract class BaseWebUserService {
     }
 
     async onAgentStreamMessage(message: AgentMessage): Promise<void> {
-        this.emit({ type: 'stream', content: message.content ?? '' });
+        this.emit({ type: WebChatEventType.Stream, content: message.content ?? '' });
     }
 
     async executeAgentTool(toolCall: AgentToolCall): Promise<ToolApproval> {
         const id = toolCall.id ?? `tc-${Date.now()}`;
-        this.emit({ type: 'tool_call', id, name: toolCall.name, args: toolCall.args });
+        this.emit({ type: WebChatEventType.ToolCall, id, name: toolCall.name, args: toolCall.args });
         return new Promise<ToolApproval>((resolve) => {
             const timer = setTimeout(() => {
                 this.pendingApprovals.delete(id);
@@ -59,6 +54,7 @@ export abstract class BaseWebUserService {
     }
 
     async processAIMessage(query: string, args: any): Promise<void> {
+        this.emit({ type: WebChatEventType.Human, content: query });
         const workPath = args?.workPath as string | undefined;
         if (workPath) {
             // 目录模式：从 workPath/.sbot/settings.json 读取 agent/saver/memory

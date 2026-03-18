@@ -49,7 +49,8 @@ export abstract class ChannelUserServiceBase extends UserServiceBase {
   }
 
   async executeAgentTool(toolCall: AgentToolCall): Promise<ToolApproval> {
-    const id = toolCall.id ?? `tc-${Date.now()}`;
+    let id = toolCall.id ?? `tc-${Date.now()}`;
+    while (this.toolCallMap.has(id)) id = `tc-${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const entry: ToolCallEntry = { status: ToolCallStatus.Wait };
     this.toolCallMap.set(id, entry);
     try {
@@ -81,7 +82,8 @@ export abstract class ChannelUserServiceBase extends UserServiceBase {
   }
 
   async ask(params: AskToolParams): Promise<AskResponse> {
-    const askId = `ask_${Date.now()}`;
+    let askId = `ask_${Date.now()}`;
+    while (this.askMap.has(askId)) askId = `ask_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const askState: AskEntry = { status: AskStatus.Wait, params };
     this.askMap.set(askId, askState);
     await this.sendAskForm(params, askId);

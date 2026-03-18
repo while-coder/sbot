@@ -19,18 +19,15 @@ const props = withDefaults(defineProps<{
   streamingContent: string
   streamingToolCalls: { name: string; args: unknown }[]
   chatSending: boolean
-  chatQueue?: string[]
   showAttachments?: boolean
   emptyText?: string
 }>(), {
-  chatQueue: () => [],
   showAttachments: false,
   emptyText: '',
 })
 
 const emit = defineEmits<{
   send: [query: string, attachments: Attachment[]]
-  removeFromQueue: [index: number]
 }>()
 
 const chatInput = ref('')
@@ -233,15 +230,6 @@ defineExpose({ scrollToBottom })
             </div>
           </div>
         </div>
-      </div>
-    </div>
-
-    <!-- Queue -->
-    <div v-if="chatQueue && chatQueue.length > 0" class="chat-queue" style="display:flex">
-      <div class="chat-queue-label">{{ t('chat.to_send', { count: chatQueue.length }) }}</div>
-      <div v-for="(q, i) in chatQueue" :key="i" class="chat-queue-item">
-        <span class="chat-queue-text">{{ q }}</span>
-        <button class="chat-queue-del" @click="emit('removeFromQueue', i)">×</button>
       </div>
     </div>
 

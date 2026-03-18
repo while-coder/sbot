@@ -9,7 +9,8 @@ import type { ChatMessage } from '@/types'
 import DirectoryModal from './modals/DirectoryModal.vue'
 import SaverViewModal from './modals/SaverViewModal.vue'
 import ChatPanel from '@/components/ChatPanel.vue'
-import { dirThreadId } from 'sbot.commons'
+import { dirThreadId, WebChatEventType } from 'sbot.commons'
+import type { WebChatEvent } from 'sbot.commons'
 
 const { t } = useI18n()
 
@@ -192,11 +193,6 @@ async function sendOne(query: string, atts: Attachment[]) {
   streamingContent.value = ''
   streamingToolCalls.value = []
 
-  const displayContent = [query, ...atts.map(a => `[附件: ${a.name}]`)].filter(Boolean).join('\n')
-  messages.value.push({ role: 'human', content: displayContent, timestamp: new Date().toISOString() })
-  await nextTick()
-  chatPanelRef.value?.scrollToBottom(true)
-
   try {
     await waitForOpen()
     wsSend({
@@ -211,11 +207,15 @@ async function sendOne(query: string, atts: Attachment[]) {
   }
 }
 
-async function handleWsEvent(evt: any) {
+async function handleWsEvent(evt: WebChatEvent & { workPath?: string }) {
   if (evt.workPath && evt.workPath !== activeDir.value) return
-  if (evt.type === 'stream') {
+  if (evt.type === WebChatEventType.Human) {
+    messages.value.push({ role: 'human', content: evt.content, timestamp: new Date().toISOString() })
+    await nextTick()
+    chatPanelRef.value?.scrollToBottom(true)
+  } else if (evt.type === WebChatEventType.Stream) {
     streamingContent.value = evt.content
-  } else if (evt.type === 'message') {
+  } else if (evt.type === WebChatEventType.Message) {
     messages.value.push({
       role: evt.role, content: evt.content,
       tool_calls: evt.tool_calls, tool_call_id: evt.tool_call_id,
@@ -223,15 +223,15 @@ async function handleWsEvent(evt: any) {
     })
     streamingContent.value = ''
     streamingToolCalls.value = []
-  } else if (evt.type === 'tool_call') {
+  } else if (evt.type === WebChatEventType.ToolCall) {
     const tcId = evt.id ?? `tc-${Date.now()}`
     pendingToolCall.value = { id: tcId, name: evt.name, args: evt.args }
-  } else if (evt.type === 'done') {
+  } else if (evt.type === WebChatEventType.Done) {
     isStreaming.value = false
     chatSending.value = false
     pendingToolCall.value = null
     await refreshHistory()
-  } else if (evt.type === 'error') {
+  } else if (evt.type === WebChatEventType.Error) {
     show(evt.message, 'error')
     isStreaming.value = false
     chatSending.value = false

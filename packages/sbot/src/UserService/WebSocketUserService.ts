@@ -1,9 +1,7 @@
 import "reflect-metadata";
 import { WebSocket } from "ws";
+import { WebChatEventType } from 'sbot.commons';
 import { BaseWebUserService, WebChatEvent } from "./BaseWebUserService";
-
-// Re-export for backward compatibility
-export type { WebChatEvent } from "./BaseWebUserService";
 
 export class WebSocketUserService extends BaseWebUserService {
     private activeWs: WebSocket | null = null;
@@ -35,13 +33,13 @@ export class WebSocketUserService extends BaseWebUserService {
     }
 
     async onMessageProcessed(): Promise<void> {
-        this.emit({ type: 'done' });
+        this.emit({ type: WebChatEventType.Done });
         this.clearContext();
         this.clearWs();
     }
 
     async processMessageError(e: any): Promise<void> {
-        this.emit({ type: 'error', message: e.message });
+        this.emit({ type: WebChatEventType.Error, message: e.message });
         this.clearContext();
         this.clearWs();
     }

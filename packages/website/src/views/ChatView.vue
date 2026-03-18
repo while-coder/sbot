@@ -10,7 +10,8 @@ import SaverViewModal from './modals/SaverViewModal.vue'
 import MemoryViewModal from './modals/MemoryViewModal.vue'
 import NewSessionModal from './modals/NewSessionModal.vue'
 import ChatPanel from '@/components/ChatPanel.vue'
-import { sessionThreadId } from 'sbot.commons'
+import { sessionThreadId, WebChatEventType } from 'sbot.commons'
+import type { WebChatEvent } from 'sbot.commons'
 
 const { t } = useI18n()
 
@@ -26,7 +27,6 @@ const { show } = useToast()
 // ── Reactive state ──
 const messages = ref<ChatMessage[]>([])
 const chatSending = ref(false)
-const chatQueue = ref<string[]>([])
 const chatPanelRef = ref<InstanceType<typeof ChatPanel>>()
 
 const saverViewModal  = ref<InstanceType<typeof SaverViewModal>>()
@@ -162,11 +162,19 @@ const chatSocket = useChatSocket()
 let doneResolve: (() => void) | null = null
 let doneReject: ((e: Error) => void) | null = null
 
-async function handleWsMessage(evt: any) {
+async function handleWsMessage(evt: WebChatEvent & { sessionId?: string }) {
   if (evt.sessionId && evt.sessionId !== activeSessionId.value) return
-  if (evt.type === 'stream') {
+  if (evt.type === WebChatEventType.Human) {
+    messages.value.push({
+      role: 'human',
+      content: evt.content,
+      timestamp: new Date().toISOString(),
+    })
+    await nextTick()
+    chatPanelRef.value?.scrollToBottom(true)
+  } else if (evt.type === WebChatEventType.Stream) {
     streamingContent.value = evt.content
-  } else if (evt.type === 'message') {
+  } else if (evt.type === WebChatEventType.Message) {
     messages.value.push({
       role: evt.role,
       content: evt.content,
@@ -176,11 +184,11 @@ async function handleWsMessage(evt: any) {
     })
     streamingContent.value = ''
     streamingToolCalls.value = []
-  } else if (evt.type === 'tool_call') {
+  } else if (evt.type === WebChatEventType.ToolCall) {
     const tcId = evt.id ?? `tc-${Date.now()}`
     pendingToolCall.value = { id: tcId, name: evt.name, args: evt.args }
     startDenyCountdown()
-  } else if (evt.type === 'done') {
+  } else if (evt.type === WebChatEventType.Done) {
     isStreaming.value = false
     stopDenyCountdown()
     pendingToolCall.value = null
@@ -188,7 +196,7 @@ async function handleWsMessage(evt: any) {
     doneResolve?.()
     doneResolve = null
     doneReject = null
-  } else if (evt.type === 'error') {
+  } else if (evt.type === WebChatEventType.Error) {
     isStreaming.value = false
     stopDenyCountdown()
     pendingToolCall.value = null
@@ -249,19 +257,7 @@ async function onPanelSend(query: string, atts: Attachment[]) {
   if (!saver) { show(t('chat.no_saver'), 'error'); return }
   if (!query && atts.length === 0) return
 
-  if (chatSending.value) {
-    chatQueue.value.push(query)
-    return
-  }
   await sendOne(query, atts)
-  await drainQueue()
-}
-
-async function drainQueue() {
-  while (chatQueue.value.length > 0) {
-    const q = chatQueue.value.shift()!
-    await sendOne(q, [])
-  }
 }
 
 async function sendOne(query: string, atts: Attachment[]) {
@@ -269,18 +265,6 @@ async function sendOne(query: string, atts: Attachment[]) {
   isStreaming.value = true
   streamingContent.value = ''
   streamingToolCalls.value = []
-
-  const displayContent = [
-    query,
-    ...atts.map(a => `[附件: ${a.name}]`),
-  ].filter(Boolean).join('\n')
-  messages.value.push({
-    role: 'human',
-    content: displayContent,
-    timestamp: new Date().toISOString(),
-  })
-  await nextTick()
-  chatPanelRef.value?.scrollToBottom(true)
 
   try {
     await chatSocket.waitForOpen()
@@ -426,10 +410,8 @@ onUnmounted(() => {
         :streaming-content="streamingContent"
         :streaming-tool-calls="streamingToolCalls"
         :chat-sending="chatSending"
-        :chat-queue="chatQueue"
         :show-attachments="true"
         @send="onPanelSend"
-        @remove-from-queue="chatQueue.splice($event, 1)"
       />
     </div>
 
