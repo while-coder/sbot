@@ -71,13 +71,13 @@ function listSkills(skillsDir: string) {
 
 function getSkill(skillsDir: string, name: string) {
     if (!fs.existsSync(skillsDir)) {
-        const e: any = new Error(`Skill "${name}" 不存在`); e.status = 404; throw e;
+        const e: any = new Error(`Skill "${name}" not found`); e.status = 404; throw e;
     }
     const svc = new SkillService();
     svc.registerSkillsDir(skillsDir);
     const skill = svc.getAllSkills().find(s => s.name === name);
     if (!skill) {
-        const e: any = new Error(`Skill "${name}" 不存在`); e.status = 404; throw e;
+        const e: any = new Error(`Skill "${name}" not found`); e.status = 404; throw e;
     }
     return { name, content: fs.readFileSync(path.join(skill.path, 'SKILL.md'), 'utf-8') };
 }
@@ -192,7 +192,7 @@ class HttpServer {
             config.reloadSettings();
             refreshGlobalSkillService();
             refreshGlobalAgentToolService();
-            return { message: '配置已重载' };
+            return { message: 'Config reloaded' };
         }));
     }
 
@@ -220,7 +220,7 @@ class HttpServer {
         }));
         app.put('/api/settings/models/:id', api(req => {
             const id = req.params.id as string;
-            if (!config.settings.models?.[id]) throwBad(`模型 "${id}" 不存在`);
+            if (!config.settings.models?.[id]) throwBad(`Model "${id}" not found`);
             config.settings.models![id] = req.body;
             config.saveSettings();
             return config.settings;
@@ -243,7 +243,7 @@ class HttpServer {
         }));
         app.put('/api/settings/embeddings/:id', api(req => {
             const id = req.params.id as string;
-            if (!config.settings.embeddings?.[id]) throwBad(`Embedding "${id}" 不存在`);
+            if (!config.settings.embeddings?.[id]) throwBad(`Embedding "${id}" not found`);
             config.settings.embeddings![id] = req.body;
             config.saveSettings();
             return config.settings;
@@ -266,7 +266,7 @@ class HttpServer {
         }));
         app.put('/api/settings/savers/:id', api(req => {
             const id = req.params.id as string;
-            if (!config.settings.savers?.[id]) throwBad(`存储配置 "${id}" 不存在`);
+            if (!config.settings.savers?.[id]) throwBad(`Saver config "${id}" not found`);
             config.settings.savers![id] = req.body;
             config.saveSettings();
             return config.settings;
@@ -289,7 +289,7 @@ class HttpServer {
         }));
         app.put('/api/settings/memories/:id', api(req => {
             const id = req.params.id as string;
-            if (!config.settings.memories?.[id]) throwBad(`记忆配置 "${id}" 不存在`);
+            if (!config.settings.memories?.[id]) throwBad(`Memory config "${id}" not found`);
             config.settings.memories![id] = req.body;
             config.saveSettings();
             return config.settings;
@@ -334,7 +334,7 @@ class HttpServer {
         }));
         app.put('/api/settings/channels/:id', api(async req => {
             const id = req.params.id as string;
-            if (!config.settings.channels?.[id]) throwBad(`频道 "${id}" 不存在`);
+            if (!config.settings.channels?.[id]) throwBad(`Channel "${id}" not found`);
             config.settings.channels[id] = req.body;
             config.saveSettings();
             await channelManager.reload();
@@ -342,7 +342,7 @@ class HttpServer {
         }));
         app.delete('/api/settings/channels/:id', api(async req => {
             const id = req.params.id as string;
-            if (!config.settings.channels?.[id]) throwBad(`频道 "${id}" 不存在`);
+            if (!config.settings.channels?.[id]) throwBad(`Channel "${id}" not found`);
             delete config.settings.channels[id];
             config.saveSettings();
             await channelManager.reload();
@@ -358,7 +358,7 @@ class HttpServer {
         }));
         app.put('/api/settings/sessions/:id', api(req => {
             const id = req.params.id as string;
-            if (!config.settings.sessions?.[id]) throwBad(`会话 "${id}" 不存在`);
+            if (!config.settings.sessions?.[id]) throwBad(`Session "${id}" not found`);
             config.settings.sessions[id] = req.body;
             config.saveSettings();
             return config.settings;
@@ -375,7 +375,7 @@ class HttpServer {
     private registerDirectoryRoutes(app: express.Application) {
         app.get('/api/directories', api(req => {
             const dir = req.query.dir as string;
-            if (!dir) throwBad('dir 不能为空');
+            if (!dir) throwBad('dir is required');
             const exists = fs.existsSync(dir) && fs.statSync(dir).isDirectory();
             if (!exists) return { exists: false, config: null };
             return { exists: true, config: config.getDirectoryConfig(dir) };
@@ -383,9 +383,9 @@ class HttpServer {
 
         app.post('/api/directories', api(req => {
             const { path: dirPath, agent, saver, memory } = req.body;
-            if (!dirPath) throwBad('path 不能为空');
+            if (!dirPath) throwBad('path is required');
             if (!fs.existsSync(dirPath) || !fs.statSync(dirPath).isDirectory())
-                throwBad(`路径不存在或不是目录：${dirPath}`);
+                throwBad(`Path does not exist or is not a directory: ${dirPath}`);
             config.saveDirectoryConfig(dirPath, { agent: agent || undefined, saver: saver || undefined, memory: memory || undefined });
             if (!config.settings.directories) config.settings.directories = {};
             config.settings.directories[dirPath] = {};
@@ -395,15 +395,15 @@ class HttpServer {
 
         app.put('/api/directories', api(req => {
             const { path: dirPath, agent, saver, memory } = req.body;
-            if (!dirPath) throwBad('path 不能为空');
-            if (!config.settings.directories?.[dirPath]) throwBad(`目录 "${dirPath}" 未注册`);
+            if (!dirPath) throwBad('path is required');
+            if (!config.settings.directories?.[dirPath]) throwBad(`Directory "${dirPath}" is not registered`);
             config.saveDirectoryConfig(dirPath, { agent: agent || undefined, saver: saver || undefined, memory: memory || undefined });
             return { path: dirPath };
         }));
 
         app.delete('/api/directories', api(req => {
             const dirPath = req.query.path as string;
-            if (!dirPath) throwBad('path 不能为空');
+            if (!dirPath) throwBad('path is required');
             if (config.settings.directories) delete config.settings.directories[dirPath];
             config.saveSettings();
             return {};
@@ -425,7 +425,7 @@ class HttpServer {
             }
 
             const target = path.resolve(dir || os.homedir());
-            if (!fs.existsSync(target) || !fs.statSync(target).isDirectory()) throwBad(`路径不存在：${target}`);
+            if (!fs.existsSync(target) || !fs.statSync(target).isDirectory()) throwBad(`Path does not exist: ${target}`);
 
             const up = path.dirname(target);
             const parent: string | null = (up === target)
@@ -458,9 +458,9 @@ class HttpServer {
 
         app.post('/api/fs/mkdir', api(req => {
             const { path: dirPath } = req.body;
-            if (!dirPath?.trim()) throwBad('path 不能为空');
+            if (!dirPath?.trim()) throwBad('path is required');
             const target = path.resolve(dirPath.trim());
-            if (fs.existsSync(target)) throwBad(`已存在：${target}`);
+            if (fs.existsSync(target)) throwBad(`Already exists: ${target}`);
             fs.mkdirSync(target, { recursive: true });
             return { path: target };
         }));
@@ -516,7 +516,7 @@ class HttpServer {
         app.put('/api/mcp/:id', api(req => {
             const id = req.params.id as string;
             const servers = config.getGlobalMcpServers();
-            if (!servers[id]) throwBad(`MCP "${id}" 不存在`);
+            if (!servers[id]) throwBad(`MCP "${id}" not found`);
             servers[id] = req.body;
             config.saveMcpServers(servers);
             refreshGlobalAgentToolService();
@@ -557,7 +557,7 @@ class HttpServer {
             const agentName = req.params.name as string;
             const id = req.params.id as string;
             const servers = config.getAgentMcpServers(agentName);
-            if (!servers[id]) throwBad(`Agent MCP "${id}" 不存在`);
+            if (!servers[id]) throwBad(`Agent MCP "${id}" not found`);
             servers[id] = req.body;
             config.saveAgentMcpServers(agentName, servers);
             return this.listAgentMcp(agentName);
@@ -577,7 +577,7 @@ class HttpServer {
             const id = req.params.id as string;
             const servers = config.getAgentMcpServers(agentName);
             if (!servers[id]) {
-                const e: any = new Error(`Agent MCP "${id}" 不存在`); e.status = 404; throw e;
+                const e: any = new Error(`Agent MCP "${id}" not found`); e.status = 404; throw e;
             }
             const toolService = new AgentToolService();
             toolService.registerMcpServers(servers);
@@ -609,7 +609,7 @@ class HttpServer {
             const name = req.params.name as string;
             const skill = globalSkillService.getAllSkills().find((s: any) => s.name === name);
             if (!skill) {
-                const e: any = new Error(`Skill "${name}" 不存在`); e.status = 404; throw e;
+                const e: any = new Error(`Skill "${name}" not found`); e.status = 404; throw e;
             }
             return { name, content: fs.readFileSync(path.join(skill.path, 'SKILL.md'), 'utf-8') };
         }));
@@ -652,7 +652,7 @@ class HttpServer {
         ));
 
         app.put('/api/agents/:name/skills/:skillName', api(req => {
-            if (!req.body.content) { const e: any = new Error('缺少 content'); e.status = 400; throw e; }
+            if (!req.body.content) { const e: any = new Error('Missing content'); e.status = 400; throw e; }
             return saveSkill(config.getAgentSkillsPath(req.params.name as string), req.params.skillName as string, req.body.content);
         }));
 
@@ -673,7 +673,7 @@ class HttpServer {
 
         app.post('/api/skill-hub/install', api(async req => {
             const { skill, overwrite = false }: { skill: HubSkillResult; overwrite: boolean } = req.body;
-            if (!skill?.id) { const e: any = new Error('缺少 skill'); e.status = 400; throw e; }
+            if (!skill?.id) { const e: any = new Error('Missing skill'); e.status = 400; throw e; }
             const result = await this.skillHubService.installSkill(skill, config.getSkillsPath(), { overwrite });
             refreshGlobalSkillService();
             return result;
@@ -681,7 +681,7 @@ class HttpServer {
 
         app.post('/api/skill-hub/install-url', api(async req => {
             const { url, overwrite = false }: { url: string; overwrite: boolean } = req.body;
-            if (!url?.trim()) { const e: any = new Error('缺少 url'); e.status = 400; throw e; }
+            if (!url?.trim()) { const e: any = new Error('Missing url'); e.status = 400; throw e; }
             const result = await this.skillHubService.installSkillWithUrl(url.trim(), config.getSkillsPath(), { overwrite });
             refreshGlobalSkillService();
             return result;
@@ -691,14 +691,14 @@ class HttpServer {
         app.post('/api/agents/:agentName/skill-hub/install', api(async req => {
             const agentName = req.params.agentName as string;
             const { skill, overwrite = false }: { skill: HubSkillResult; overwrite: boolean } = req.body;
-            if (!skill?.id) { const e: any = new Error('缺少 skill'); e.status = 400; throw e; }
+            if (!skill?.id) { const e: any = new Error('Missing skill'); e.status = 400; throw e; }
             return await this.skillHubService.installSkill(skill, config.getAgentSkillsPath(agentName), { overwrite });
         }));
 
         app.post('/api/agents/:agentName/skill-hub/install-url', api(async req => {
             const agentName = req.params.agentName as string;
             const { url, overwrite = false }: { url: string; overwrite: boolean } = req.body;
-            if (!url?.trim()) { const e: any = new Error('缺少 url'); e.status = 400; throw e; }
+            if (!url?.trim()) { const e: any = new Error('Missing url'); e.status = 400; throw e; }
             return await this.skillHubService.installSkillWithUrl(url.trim(), config.getAgentSkillsPath(agentName), { overwrite });
         }));
     }
@@ -773,7 +773,7 @@ class HttpServer {
 
         app.post('/api/memories/:memoryName/add', api(async req => {
             const { content } = req.body as { content?: string };
-            if (!content?.trim()) { const e: any = new Error('content 不能为空'); e.status = 400; throw e; }
+            if (!content?.trim()) { const e: any = new Error('content is required'); e.status = 400; throw e; }
             const svc = await AgentRunner.createMemoryService(req.params.memoryName as string);
             const ids = await svc.addMemoryDirect(content.trim());
             return { ids };
@@ -814,9 +814,9 @@ class HttpServer {
 
         app.post('/api/schedulers', api(async req => {
             const { name, expr, message, type, targetId, maxRuns } = req.body;
-            if (!name?.trim()) throwBad('name 不能为空');
-            if (!expr?.trim()) throwBad('expr 不能为空');
-            if (!message?.trim()) throwBad('message 不能为空');
+            if (!name?.trim()) throwBad('name is required');
+            if (!expr?.trim()) throwBad('expr is required');
+            if (!message?.trim()) throwBad('message is required');
             const scheduler = await database.create(database.scheduler, {
                 name: name.trim(),
                 expr: expr.trim(),
@@ -833,7 +833,7 @@ class HttpServer {
 
         app.put('/api/schedulers/:id', api(async req => {
             const id = parseInt(req.params.id as string, 10);
-            if (isNaN(id)) throwBad('无效的 id');
+            if (isNaN(id)) throwBad('Invalid id');
             const { name, expr, message, type, targetId, maxRuns } = req.body;
             const updates: any = {};
             if (name !== undefined)     updates.name     = name;
@@ -848,7 +848,7 @@ class HttpServer {
 
         app.delete('/api/schedulers/:id', api(async req => {
             const id = parseInt(req.params.id as string, 10);
-            if (isNaN(id)) throwBad('无效的 id');
+            if (isNaN(id)) throwBad('Invalid id');
             await schedulerService.delete(id);
         }));
     }
@@ -863,7 +863,7 @@ class HttpServer {
 
         app.delete('/api/channel-users/:id', api(async req => {
             const id = parseInt(req.params.id as string, 10);
-            if (isNaN(id)) { const e: any = new Error('无效的 id'); e.status = 400; throw e; }
+            if (isNaN(id)) { const e: any = new Error('Invalid id'); e.status = 400; throw e; }
             await database.destroy(database.channelUser, { where: { id } });
         }));
 
@@ -875,14 +875,14 @@ class HttpServer {
 
         app.put('/api/channel-sessions/:id', api(async req => {
             const id = parseInt(req.params.id as string, 10);
-            if (isNaN(id)) { const e: any = new Error('无效的 id'); e.status = 400; throw e; }
+            if (isNaN(id)) { const e: any = new Error('Invalid id'); e.status = 400; throw e; }
             const { name, agentId, memoryId } = req.body;
             await database.update(database.channelSession, { name, agentId, memoryId }, { where: { id } });
         }));
 
         app.delete('/api/channel-sessions/:id', api(async req => {
             const id = parseInt(req.params.id as string, 10);
-            if (isNaN(id)) { const e: any = new Error('无效的 id'); e.status = 400; throw e; }
+            if (isNaN(id)) { const e: any = new Error('Invalid id'); e.status = 400; throw e; }
             await database.destroy(database.channelSession, { where: { id } });
         }));
     }
@@ -891,7 +891,7 @@ class HttpServer {
     private registerChatRoutes(app: express.Application, uploadDir: string) {
         app.post('/api/tool-approval', (req, res) => {
             const { id, approval } = req.body as { id?: string; approval?: string };
-            if (!id || !approval) { res.status(400).json({ error: 'id 和 approval 不能为空' }); return; }
+            if (!id || !approval) { res.status(400).json({ error: 'id and approval are required' }); return; }
             userService.web.resolveToolApproval(id, approval as any);
             userService.http.resolveToolApproval(id, approval as any);
             res.json({ ok: true });
@@ -905,7 +905,7 @@ class HttpServer {
                 attachments?: AttachmentInput[];
             };
             const enriched = processAttachments(query?.trim() || '', attachments, uploadDir);
-            if (!enriched) { res.status(400).json({ error: '消息内容不能为空' }); return; }
+            if (!enriched) { res.status(400).json({ error: 'Message content is required' }); return; }
             try {
                 await userService.onReceiveHttpMessage(enriched, res, sessionId, workPath);
             } finally {
