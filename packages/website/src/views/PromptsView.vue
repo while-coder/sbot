@@ -50,6 +50,24 @@ const saving = ref(false)
 
 const isDirty = computed(() => editContent.value !== originalContent.value)
 
+const textareaRef = ref<HTMLTextAreaElement | null>(null)
+const highlightRef = ref<HTMLDivElement | null>(null)
+
+function syncScroll() {
+  if (textareaRef.value && highlightRef.value) {
+    highlightRef.value.scrollTop = textareaRef.value.scrollTop
+    highlightRef.value.scrollLeft = textareaRef.value.scrollLeft
+  }
+}
+
+const highlightedContent = computed(() => {
+  const escaped = editContent.value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+  return escaped.replace(/\{[^}]*\}/g, '<mark class="tpl-var">$&</mark>') + '\n'
+})
+
 async function selectFile(p: string) {
   if (selectedPath.value === p) return
   selectedPath.value = p
@@ -139,12 +157,16 @@ onMounted(loadTree)
           </button>
         </div>
         <div v-if="loading" class="prompts-loading">Loading…</div>
-        <textarea
-          v-else
-          v-model="editContent"
-          class="prompts-textarea"
-          spellcheck="false"
-        />
+        <div v-else class="prompts-editor-body">
+          <div ref="highlightRef" class="prompts-highlight" aria-hidden="true" v-html="highlightedContent" />
+          <textarea
+            ref="textareaRef"
+            v-model="editContent"
+            class="prompts-textarea"
+            spellcheck="false"
+            @scroll="syncScroll"
+          />
+        </div>
       </template>
       <div v-else class="prompts-empty">Select a prompt file to edit</div>
     </div>
@@ -248,18 +270,44 @@ onMounted(loadTree)
   color: #9b9b9b;
   font-size: 13px;
 }
-.prompts-textarea {
+.prompts-editor-body {
+  position: relative;
   flex: 1;
-  width: 100%;
+  overflow: hidden;
+}
+.prompts-highlight,
+.prompts-textarea {
+  position: absolute;
+  inset: 0;
   padding: 14px 16px;
-  border: none;
-  outline: none;
-  resize: none;
   font-family: 'Consolas', 'Monaco', monospace;
   font-size: 13px;
   line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  box-sizing: border-box;
+  margin: 0;
+}
+.prompts-highlight {
+  overflow: hidden;
+  pointer-events: none;
   color: #1c1c1c;
   background: #fff;
+}
+.prompts-textarea {
+  border: none;
+  outline: none;
+  resize: none;
+  overflow: auto;
+  color: transparent;
+  caret-color: #1c1c1c;
+  background: transparent;
+}
+:deep(.tpl-var) {
+  color: #c05c00;
+  background: #fff3e0;
+  border-radius: 3px;
+  font-style: normal;
 }
 .prompts-empty {
   flex: 1;

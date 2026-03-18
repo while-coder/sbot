@@ -98,7 +98,7 @@ function processAttachments(query: string, attachments: AttachmentInput[] | unde
 // ===== Skills 辅助函数 =====
 function listSkills(skillsDir: string) {
     if (!fs.existsSync(skillsDir)) return [];
-    const svc = new SkillService();
+    const svc = new SkillService("", "", "", "");
     svc.registerSkillsDir(skillsDir);
     return svc.getAllSkills().map(s => ({ name: s.name, description: s.description }));
 }
@@ -107,7 +107,7 @@ function getSkill(skillsDir: string, name: string) {
     if (!fs.existsSync(skillsDir)) {
         const e: any = new Error(`Skill "${name}" not found`); e.status = 404; throw e;
     }
-    const svc = new SkillService();
+    const svc = new SkillService("", "", "", "");
     svc.registerSkillsDir(skillsDir);
     const skill = svc.getAllSkills().find(s => s.name === name);
     if (!skill) {
@@ -166,8 +166,6 @@ class HttpServer {
             res.on('finish', () => {
                 if (res.statusCode >= 400) {
                     logger.warn(`${req.method} ${req.path} ${res.statusCode} ${Date.now() - start}ms`);
-                } else {
-                    logger.info(`${req.method} ${req.path} ${res.statusCode} ${Date.now() - start}ms`);
                 }
             });
             next();
