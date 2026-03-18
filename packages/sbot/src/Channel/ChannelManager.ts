@@ -135,7 +135,7 @@ export class ChannelManager {
 
     // ── Lark 频道初始化 ───────────────────────────────────────────────────────
 
-    // ── Slack 频道初始化 ───────────────────────────────────────────────────────
+    // ── Slack 频道初始化 ──────────────────────────────────────────────────────
 
     private async initSlack(channelId: string, channel: ChannelConfig): Promise<IChannelService | undefined> {
         if (!channel.botToken?.trim() || !channel.appToken?.trim()) {
@@ -178,6 +178,9 @@ export class ChannelManager {
                 await userService.onReceiveSlackMessage(query, args, userInfo ?? {}, channelId, dbSessionId, dbUserId);
             },
             onTriggerAction: async (_userId: string, args: SlackActionArgs) => {
+                // NOTE: userService.slack is a singleton; concurrent tool approvals from
+                // different users in the same workspace may collide. Acceptable for now,
+                // same as the Lark channel pattern.
                 await userService.slack.onTriggerAction(args);
             },
         });

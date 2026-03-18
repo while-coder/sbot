@@ -63,6 +63,7 @@ export abstract class SlackUserServiceBase extends UserServiceBase {
   }
 
   async processMessageError(e: any): Promise<void> {
+    getLogger()?.error(e.stack ?? e.message);
     if (this.provider) {
       await this.provider.setMessage(`生成回复时出错: ${e.message}`);
     }

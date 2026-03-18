@@ -175,6 +175,6 @@ export function larkThreadId(channelId: string, chatId: string): string {
 }
 
 /** Slack 频道模式 threadId */
-export function slackThreadId(channelId: string, slackChannel: string): string {
-  return `slack_${channelId}_${slackChannel}`
+export function slackThreadId(channelId: string, slackChannel: string, threadTs: string): string {
+  return `slack_${channelId}_${slackChannel}_${threadTs}`
 }

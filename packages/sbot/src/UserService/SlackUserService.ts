@@ -38,7 +38,7 @@ export class SlackUserService extends SlackUserServiceBase {
 </current-user>`
       : schedulerId;
 
-    const threadId = slackThreadId(channelId, slackChannel);
+    const threadId = slackThreadId(channelId, slackChannel, args.threadTs ?? args.ts);
     await AgentRunner.run(
       query,
       {
