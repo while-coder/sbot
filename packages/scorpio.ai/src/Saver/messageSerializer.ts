@@ -45,7 +45,7 @@ export function serializeMessage(message: BaseMessage): { type: MessageType; dat
             }),
         };
     }
-    throw new Error(`未知消息类型: ${name}`);
+    throw new Error(`Unknown message type: ${name}`);
 }
 
 export function deserializeMessage(type: MessageType, data: string): BaseMessage {

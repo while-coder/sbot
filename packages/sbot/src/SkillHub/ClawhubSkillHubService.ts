@@ -41,12 +41,12 @@ export class ClawhubSkillHubService implements ISkillHubService {
 
     const u = new URL(url);
     if (!u.hostname.includes('clawhub.ai')) {
-      throw new Error(`ClawhubSkillHubService 仅支持 clawhub.ai URL，收到: ${url}`);
+      throw new Error(`ClawhubSkillHubService only supports clawhub.ai URLs, received: ${url}`);
     }
 
     const parts = u.pathname.split('/').filter(Boolean);
     const slug = parts[parts.length - 1] ?? '';
-    if (!slug) throw new Error(`无法从 URL 中提取 slug: ${url}`);
+    if (!slug) throw new Error(`Unable to extract slug from URL: ${url}`);
 
     const { version = '', overwrite = false } = options;
     const { bundle, sourceUrl } = await this._fetch(slug, version);

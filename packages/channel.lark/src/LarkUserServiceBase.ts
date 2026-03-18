@@ -183,7 +183,7 @@ export abstract class LarkUserServiceBase extends UserServiceBase {
     const { status, response } = this.askState;
     this.askState = { id: undefined, status: 'wait', questionMap: {} };
 
-    if (status !== 'done' || !response) throw new Error('用户未在规定时间内回答问题');
+    if (status !== 'done' || !response) throw new Error('User did not answer within the allotted time');
     return response;
   }
 

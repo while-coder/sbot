@@ -30,9 +30,9 @@ export class AgentRunner {
         memoryId?: string,
         workPath?: string,
     ): Promise<void> {
-        if (!agentId.trim())        throw new Error("未指定 agent");
-        if (!saverId.trim())        throw new Error("未指定 saver");
-        if (!saverThreadId.trim())  throw new Error("未指定 saverThreadId");
+        if (!agentId.trim())        throw new Error("agent not specified");
+        if (!saverId.trim())        throw new Error("saver not specified");
+        if (!saverThreadId.trim())  throw new Error("saverThreadId not specified");
 
         const now = new Date();
         const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -81,7 +81,7 @@ export class AgentRunner {
     static async createMemoryDatabase(memoryId: string): Promise<IMemoryDatabase> {
         const memoryConfig = config.getMemory(memoryId);
         if (!memoryConfig) {
-            const e: any = new Error(`记忆配置 "${memoryId}" 不存在`);
+            const e: any = new Error(`Memory config "${memoryId}" not found`);
             e.status = 404;
             throw e;
         }

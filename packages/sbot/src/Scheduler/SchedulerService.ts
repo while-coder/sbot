@@ -77,7 +77,7 @@ class SchedulerService {
             if (await this.schedule(scheduler)) {
                 loaded++;
                 if (scheduler.nextRun && scheduler.nextRun <= now) {
-                    logger.info(`调度任务 [${scheduler.id}:${scheduler.name}] 启动时检测到漏执行 (nextRun=${new Date(scheduler.nextRun).toISOString()})，立即补跑`);
+                    logger.info(`Scheduler task [${scheduler.id}:${scheduler.name}] missed execution detected on startup (nextRun=${new Date(scheduler.nextRun).toISOString()}), running immediately`);
                     executeScheduler(scheduler.id);
                 }
             }
@@ -89,12 +89,12 @@ class SchedulerService {
         this.cancel(scheduler.id);
 
         if (!scheduler.expr?.trim()) {
-            logger.error(`调度任务 [${scheduler.id}:${scheduler.name}] cron 表达式为空，跳过`);
+            logger.error(`Scheduler task [${scheduler.id}:${scheduler.name}] cron expression is empty, skipping`);
             return false;
         }
 
         if (scheduler.maxRuns > 0 && (scheduler.runCount ?? 0) >= scheduler.maxRuns) {
-            logger.info(`调度任务 [${scheduler.id}:${scheduler.name}] 已达最大执行次数，清理`);
+            logger.info(`Scheduler task [${scheduler.id}:${scheduler.name}] reached max runs, cleaning up`);
             await database.destroy(database.scheduler, { where: { id: scheduler.id } });
             return false;
         }
@@ -109,10 +109,10 @@ class SchedulerService {
             this.jobs.set(scheduler.id, job);
             const nextRun = job.nextDate().toMillis();
             await database.update(database.scheduler, { nextRun }, { where: { id: scheduler.id } });
-            logger.info(`调度任务 [${scheduler.id}:${scheduler.name}] 已启动 (${scheduler.expr})，下次执行: ${job.nextDate().toISO()}`);
+            logger.info(`Scheduler task [${scheduler.id}:${scheduler.name}] started (${scheduler.expr}), next run: ${job.nextDate().toISO()}`);
             return true;
         } catch (e: any) {
-            logger.error(`调度任务 [${scheduler.id}:${scheduler.name}] 调度失败: ${e?.message}`);
+            logger.error(`Scheduler task [${scheduler.id}:${scheduler.name}] scheduling failed: ${e?.message}`);
             return false;
         }
     }

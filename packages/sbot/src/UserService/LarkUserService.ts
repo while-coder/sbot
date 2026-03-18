@@ -12,12 +12,12 @@ export class LarkUserService extends LarkUserServiceBase {
     async processAIMessage(query: string, args: any): Promise<void> {
         const channelId = args?.channelId as string;
         const channel = channelId ? config.getChannel(channelId) : undefined;
-        if (!channel) throw new Error(`频道 "${channelId}" 不存在`);
+        if (!channel) throw new Error(`Channel "${channelId}" not found`);
         const { chat_id } = args as LarkMessageArgs;
 
         const userInfo = args?.userInfo;
         const dbSessionId: number = args?.dbSessionId;
-        if (!dbSessionId) throw new Error('未指定 dbSessionId');
+        if (!dbSessionId) throw new Error('dbSessionId not specified');
 
         const dbSession = await database.findByPk<ChannelSessionRow>(database.channelSession, dbSessionId);
 

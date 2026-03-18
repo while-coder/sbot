@@ -105,7 +105,7 @@ export class ServiceContainer {
     if (typeof token === "function") {
       return this.register(token, { useClass: token as Constructor<T> }, Lifecycle.Singleton);
     }
-    throw new Error(`registerSingleton: 必须提供实现类`);
+    throw new Error(`registerSingleton: implementation class required`);
   }
 
   /**
@@ -202,7 +202,7 @@ export class ServiceContainer {
     } else {
       // 情况 2: token 是字符串或 Symbol
       if (!implOrArgsOrLifecycle || typeof implOrArgsOrLifecycle !== "function") {
-        throw new Error(`registerWithArgs: 当使用字符串或 Symbol 作为 token 时，必须提供实现类作为第二个参数`);
+        throw new Error(`registerWithArgs: when using a string or Symbol as token, an implementation class must be provided as the second argument`);
       }
       actualImpl = implOrArgsOrLifecycle as Constructor<T>;
 
@@ -245,7 +245,7 @@ export class ServiceContainer {
     // 1. 循环依赖检测
     if (this.resolutionStack.has(token)) {
       const chain = [...this.resolutionStack].map(tokenToString).join(" -> ");
-      throw new Error(`检测到循环依赖: ${chain} -> ${tokenToString(token)}`);
+      throw new Error(`Circular dependency detected: ${chain} -> ${tokenToString(token)}`);
     }
 
     // 2. 查找注册信息
@@ -263,12 +263,12 @@ export class ServiceContainer {
     if (!registration) {
       const tokenStr = tokenToString(token);
       const hint = typeof token === "function"
-        ? "请使用 @singleton() 或 @transient() 装饰器，或手动注册服务。"
-        : "请先使用 container.register() 注册服务。";
+        ? "Use @singleton() or @transient() decorators, or register the service manually."
+        : "Use container.register() to register the service first.";
       const chain = this.resolutionStack.size > 0
-        ? `\n依赖链: ${[...this.resolutionStack].map(tokenToString).join(" -> ")} -> ${tokenStr}`
+        ? `\nDependency chain: ${[...this.resolutionStack].map(tokenToString).join(" -> ")} -> ${tokenStr}`
         : "";
-      throw new Error(`服务未注册: ${tokenStr}。${hint}${chain}`);
+      throw new Error(`Service not registered: ${tokenStr}. ${hint}${chain}`);
     }
 
     // 4. 单例：返回缓存实例
@@ -329,7 +329,7 @@ export class ServiceContainer {
       try {
         await instance[method]();
       } catch (error: any) {
-        console.error(`销毁服务失败: ${error.message}`);
+        console.error(`Failed to dispose service: ${error.message}`);
       }
     }
 
@@ -366,7 +366,7 @@ export class ServiceContainer {
       // 类提供者：解析构造函数依赖并实例化
       instance = await this.constructInstance<T>(provider.useClass);
     } else {
-      throw new Error(`未知的 Provider 类型`);
+      throw new Error(`Unknown provider type`);
     }
 
     // 调用 @init() 标记的初始化方法
@@ -427,9 +427,9 @@ export class ServiceContainer {
           continue;
         }
         throw new Error(
-          `无法解析 ${target.name} 的第 ${i + 1} 个构造函数参数（索引 ${i}，类型: ${paramTypes[i]?.name || 'unknown'}）。` +
-          `请使用 @inject() 装饰器指定注入令牌，或确保参数类型是可注入的类，` +
-          `或在调用 registerWithArgs 时提供该参数的值。`
+          `Cannot resolve constructor parameter ${i + 1} (index ${i}, type: ${paramTypes[i]?.name || 'unknown'}) of ${target.name}. ` +
+          `Use @inject() to specify the injection token, ensure the parameter type is an injectable class, ` +
+          `or provide the value via registerWithArgs.`
         );
       }
 
@@ -450,7 +450,7 @@ export class ServiceContainer {
           args.push(await this.resolve(token));
         } catch (error: any) {
           throw new Error(
-            `解析 ${target.name} 的第 ${i + 1} 个构造函数参数失败（索引 ${i}，token: ${tokenToString(token)}）: ${error.message}`
+            `Failed to resolve constructor parameter ${i + 1} (index ${i}, token: ${tokenToString(token)}) of ${target.name}: ${error.message}`
           );
         }
       }
@@ -487,8 +487,8 @@ export class ServiceContainer {
    * 打印容器信息（调试用）
    */
   debug(): void {
-    console.log(`\n=== 依赖注入容器 ===`);
-    console.log(`已注册服务 (${this.registrations.size}):`);
+    console.log(`\n=== Dependency Injection Container ===`);
+    console.log(`Registered services (${this.registrations.size}):`);
 
     for (const [token, reg] of this.registrations.entries()) {
       const name = tokenToString(token);
@@ -501,7 +501,7 @@ export class ServiceContainer {
       console.log(`  ${name} [${reg.lifecycle}] (${providerType})${hasInstance}`);
     }
 
-    console.log(`\n可销毁实例 (${this.disposables.length}):`);
+    console.log(`\nDisposable instances (${this.disposables.length}):`);
     for (const { instance } of this.disposables) {
       console.log(`  • ${instance.constructor?.name || "unknown"}`);
     }

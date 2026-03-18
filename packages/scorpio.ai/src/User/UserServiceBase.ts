@@ -103,7 +103,7 @@ export abstract class UserServiceBase {
 
         if (commandResult == undefined && outputs.length === 0 && errors.length === 0) {
             const cmdName = argv[0] || '';
-            throw new Error(`未知命令: ${cmdName}\n输入 /help 查看可用命令`);
+            throw new Error(`Unknown command: ${cmdName}\nType /help to see available commands`);
         }
 
         const allContent = [

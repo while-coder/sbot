@@ -18,7 +18,7 @@ function connect(): void {
   socket = ws
   ws.onopen = () => {
     connected.value = true
-    console.log('[ChatSocket] 已连接')
+    console.log('[ChatSocket] Connected')
   }
   ws.onmessage = (e: MessageEvent) => {
     let evt: any
@@ -27,7 +27,7 @@ function connect(): void {
   }
   ws.onclose = () => {
     if (socket === ws) { socket = null; connected.value = false }
-    console.log('[ChatSocket] 断开，3 秒后重连')
+    console.log('[ChatSocket] Disconnected, reconnecting in 3 seconds')
     setTimeout(connect, 3000)
   }
   ws.onerror = () => { /* onclose 会在 onerror 后触发 */ }
@@ -43,7 +43,7 @@ function waitForOpen(timeout = 5000): Promise<void> {
   if (connected.value) return Promise.resolve()
   connect()
   return new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => { stop(); reject(new Error('WebSocket 连接失败')) }, timeout)
+    const timer = setTimeout(() => { stop(); reject(new Error('WebSocket connection timeout')) }, timeout)
     const stop = watch(connected, v => { if (v) { clearTimeout(timer); stop(); resolve() } })
   })
 }

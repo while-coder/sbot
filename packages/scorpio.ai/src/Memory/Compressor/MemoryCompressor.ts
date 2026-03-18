@@ -188,7 +188,7 @@ ${memoriesText}
 
   private calculateCosineSimilarity(a: number[], b: number[]): number {
     if (a.length !== b.length) {
-      throw new Error("向量维度不匹配");
+      throw new Error("Vector dimension mismatch");
     }
 
     let dotProduct = 0;

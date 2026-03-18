@@ -81,11 +81,11 @@ export class LarkService {
         data: { receive_id: receiveId, msg_type: msgType, content },
       });
       if (response.code !== 0) {
-        throw new Error(`发送消息失败 / Failed to send message: ${response.msg}`);
+        throw new Error(`Failed to send message: ${response.msg}`);
       }
       return response.data;
     } catch (error) {
-      this.logger?.error("发送消息出错 / Error sending message:", error);
+      this.logger?.error("Error sending message:", error);
     }
   }
   async sendMarkdownMessage(receiveIdType: LarkReceiveIdType, receiveId: string, text: string, header: any | undefined = undefined) {
@@ -99,11 +99,11 @@ export class LarkService {
         data: { msg_type, reply_in_thread, content },
       });
       if (response.code !== 0) {
-        throw new Error(`发送消息失败 / Failed to send message: ${response.msg}`);
+        throw new Error(`Failed to send message: ${response.msg}`);
       }
       return response.data;
     } catch (error) {
-      this.logger?.error("发送消息出错 / Error sending message:", error);
+      this.logger?.error("Error sending message:", error);
     }
   }
   async replayMarkdownMessage(message_id: string, text: string, header:any|undefined = undefined) {
@@ -179,14 +179,14 @@ export class LarkService {
       }) as any;
 
       if (response.code !== 0) {
-        throw new Error(`获取 tenant_access_token 失败: ${response.msg}`);
+        throw new Error(`Failed to get tenant_access_token: ${response.msg}`);
       }
 
       this.tenantAccessToken = response.tenant_access_token;
       this.tokenExpireTime = NowDate() + (response.expire - 300) * 1000;
       return this.tenantAccessToken;
     } catch (error: any) {
-      this.logger?.error(`获取 tenant_access_token 失败: ${error.message}`);
+      this.logger?.error(`Failed to get tenant_access_token: ${error.message}`);
       throw error;
     }
   }
@@ -204,12 +204,12 @@ export class LarkService {
       if (imagePath.startsWith('data:image/')) {
         const base64Data = imagePath.split(',')[1];
         if (!base64Data) {
-          throw new Error('无效的 base64 图片数据格式');
+          throw new Error('Invalid base64 image data format');
         }
         imageBuffer = Buffer.from(base64Data, 'base64');
       } else {
         if (!fs.existsSync(imagePath)) {
-          throw new Error(`图片文件不存在: ${imagePath}`);
+          throw new Error(`Image file not found: ${imagePath}`);
         }
         imageBuffer = fs.readFileSync(imagePath);
       }
@@ -223,12 +223,12 @@ export class LarkService {
       }, Lark.withTenantToken(token)) as any;
 
       if (!response || !response.image_key) {
-        throw new Error(`飞书返回错误: ${response?.msg || '未知错误'}`);
+        throw new Error(`Lark API error: ${response?.msg || 'unknown error'}`);
       }
 
       return response.image_key;
     } catch (error: any) {
-      this.logger?.error(`上传图片到飞书失败: ${error.message}\n${error.stack}`);
+      this.logger?.error(`Failed to upload image to Lark: ${error.message}\n${error.stack}`);
       throw error;
     }
   }
@@ -246,7 +246,7 @@ export class LarkService {
     try {
       if (typeof file === 'string') {
         if (!fs.existsSync(file)) {
-          throw new Error(`文件不存在: ${file}`);
+          throw new Error(`File not found: ${file}`);
         }
         fileBuffer = fs.readFileSync(file);
       } else {
@@ -263,12 +263,12 @@ export class LarkService {
       }, Lark.withTenantToken(token)) as any;
 
       if (!response?.data?.file_key) {
-        throw new Error(`飞书返回错误: ${response?.msg || '未知错误'}`);
+        throw new Error(`Lark API error: ${response?.msg || 'unknown error'}`);
       }
 
       return response.data.file_key;
     } catch (error: any) {
-      this.logger?.error(`上传文件到飞书失败: ${error.message}\n${error.stack}`);
+      this.logger?.error(`Failed to upload file to Lark: ${error.message}\n${error.stack}`);
       throw error;
     }
   }
@@ -287,7 +287,7 @@ export class LarkService {
       }, Lark.withTenantToken(token)) as any;
       await this.streamToFile(response, savePath);
     } catch (error: any) {
-      this.logger?.error(`下载飞书图片失败: ${error.message}\n${error.stack}`);
+      this.logger?.error(`Failed to download Lark image: ${error.message}\n${error.stack}`);
       throw error;
     }
   }
@@ -306,7 +306,7 @@ export class LarkService {
       }, Lark.withTenantToken(token)) as any;
       await this.streamToFile(response, savePath);
     } catch (error: any) {
-      this.logger?.error(`下载飞书文件失败: ${error.message}\n${error.stack}`);
+      this.logger?.error(`Failed to download Lark file: ${error.message}\n${error.stack}`);
       throw error;
     }
   }
@@ -335,11 +335,11 @@ export class LarkService {
         params: { user_id_type: idType },
       });
       if (response.code !== 0) {
-        throw new Error(`获取用户信息失败: ${response.msg}`);
+        throw new Error(`Failed to get user info: ${response.msg}`);
       }
       return response.data?.user;
     } catch (error: any) {
-      this.logger?.error(`获取用户信息出错: ${error.message}`);
+      this.logger?.error(`Error getting user info: ${error.message}`);
     }
   }
 
@@ -355,11 +355,11 @@ export class LarkService {
         params: { user_id_type: "open_id" }
       });
       if (response.code !== 0) {
-        throw new Error(`获取群组信息失败: ${response.msg}`);
+        throw new Error(`Failed to get chat info: ${response.msg}`);
       }
       return response.data;
     } catch (error: any) {
-      this.logger?.error(`获取群组信息出错: ${error.message}`);
+      this.logger?.error(`Error getting chat info: ${error.message}`);
     }
   }
 

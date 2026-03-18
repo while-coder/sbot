@@ -15,7 +15,7 @@ export class OpenAIEmbeddingService implements IEmbeddingService {
 
   async initialize(): Promise<void> {
     if (!this.config.apiKey) {
-      throw new Error("Embedding 配置缺少 apiKey");
+      throw new Error("Embedding config missing apiKey");
     }
 
     this.embeddings = new OpenAIEmbeddings({

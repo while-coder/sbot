@@ -21,24 +21,24 @@ export function globToRegex(pattern: string): RegExp {
 
 /** 路径验证：非绝对路径时抛出异常 */
 export function resolvePath(p: string): string {
-    if (!path.isAbsolute(p)) throw new Error(`路径必须是绝对路径: ${p}`);
+    if (!path.isAbsolute(p)) throw new Error(`Path must be absolute: ${p}`);
     return path.normalize(p);
 }
 
 /** 验证并返回已存在文件的绝对路径和 stat，不满足时抛出 */
 export function checkFile(filePath: string): { abs: string; stat: fs.Stats } {
     const abs = resolvePath(filePath);
-    if (!fs.existsSync(abs)) throw new Error(`文件不存在: ${abs}`);
+    if (!fs.existsSync(abs)) throw new Error(`File not found: ${abs}`);
     const stat = fs.statSync(abs);
-    if (!stat.isFile()) throw new Error(`路径不是文件: ${abs}`);
+    if (!stat.isFile()) throw new Error(`Path is not a file: ${abs}`);
     return { abs, stat };
 }
 
 /** 验证并返回已存在目录的绝对路径，不满足时抛出 */
 export function checkDir(dirPath: string): string {
     const abs = resolvePath(dirPath);
-    if (!fs.existsSync(abs)) throw new Error(`目录不存在: ${abs}`);
-    if (!fs.statSync(abs).isDirectory()) throw new Error(`路径不是目录: ${abs}`);
+    if (!fs.existsSync(abs)) throw new Error(`Directory not found: ${abs}`);
+    if (!fs.statSync(abs).isDirectory()) throw new Error(`Path is not a directory: ${abs}`);
     return abs;
 }
 

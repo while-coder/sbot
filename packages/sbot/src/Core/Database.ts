@@ -79,7 +79,7 @@ class Database {
       storage: dbStorage,
     };
 
-    logger.info(`数据库信息:${JSON.stringify(this.dbConfig)}`);
+    logger.info(`Database config: ${JSON.stringify(this.dbConfig)}`);
 
     const sequelize = new Sequelize({
       dialect: "sqlite",
@@ -342,7 +342,7 @@ class Database {
       });
 
       const alter = data.value !== DBVersion;
-      logger.info(`开始刷新数据库结构 alter:${alter} ${data.value} -> ${DBVersion}`);
+      logger.info(`Syncing database schema alter:${alter} ${data.value} -> ${DBVersion}`);
 
       await this.message.sync({ alter });
       await this.channelUser.sync({ alter });
@@ -350,7 +350,7 @@ class Database {
       await this.scheduler.sync({ alter });
 
       await this.state.update({ value: DBVersion }, { where: { key: DBVersionName } });
-      logger.info("刷新数据库结构完成");
+      logger.info("Database schema sync completed");
     } finally {
       this.running = false;
     }

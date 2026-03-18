@@ -133,7 +133,7 @@ export class SingleAgentService extends AgentServiceBase {
 
     private async saveDataUrlToTmp(dataUrl: string): Promise<string> {
         const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-        if (!match) throw new Error('无效的 data URL 格式');
+        if (!match) throw new Error('Invalid data URL format');
         return this.saveBase64ToTmp(match[2], match[1]);
     }
 
@@ -147,7 +147,7 @@ export class SingleAgentService extends AgentServiceBase {
         // 每次调用都从 saver 重新取（含 token 截断），防止多轮工具调用后 state.messages 超限
         const historyMessages = await this.saverService.getMessages(MAX_HISTORY_TOKENS);
         if (!historyMessages || historyMessages.length === 0) {
-            throw new Error('historyMessages 为空，无法调用模型');
+            throw new Error('historyMessages is empty, cannot call model');
         }
         const messages = [
             ...(state.systemMessage ? [state.systemMessage] : []),
@@ -201,7 +201,7 @@ export class SingleAgentService extends AgentServiceBase {
         const callback = state.callback ?? undefined;
         const messages = await this.saverService.getMessages(MAX_HISTORY_TOKENS);
         if (!messages || messages.length === 0) {
-            throw new Error('historyMessages 为空，无法执行工具');
+            throw new Error('historyMessages is empty, cannot execute tools');
         }
         const lastMessage = messages[messages.length - 1] as AIMessage;
 
@@ -218,12 +218,12 @@ export class SingleAgentService extends AgentServiceBase {
             try {
                 const tool = toolMap.get(toolCall.name);
                 if (!tool) {
-                    throw new Error(`工具不存在`);
+                    throw new Error(`Tool not found`);
                 }
                 if (callback?.executeTool) {
                     const approval = await callback.executeTool(toolCall);
                     if (approval === ToolApproval.Deny) {
-                        throw new Error(`用户拒绝调用工具`);
+                        throw new Error(`Tool call rejected by user`);
                     }
                 }
                 // 执行工具

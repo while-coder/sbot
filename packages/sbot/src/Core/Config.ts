@@ -116,7 +116,7 @@ class Config {
 
   getAgent(id: string): AgentEntry {
     const entry = this._settings.agents?.[id.trim()];
-    if (!entry) throw new Error(`Agent 配置 "${id}" 不存在`);
+    if (!entry) throw new Error(`Agent config "${id}" not found`);
     return entry;
   }
 
@@ -142,12 +142,12 @@ class Config {
 
   async getModelService(id: string | undefined, throwError = false): Promise<IModelService | undefined> {
     if (!id) {
-      if (throwError) throw new Error(`模型配置 "${id}" 不存在`);
+      if (throwError) throw new Error(`Model config "${id}" not found`);
       return undefined;
     }
     const modelConfig = this.getModel(id);
     if (!modelConfig) {
-      if (throwError) throw new Error(`模型配置 "${id}" 不存在`);
+      if (throwError) throw new Error(`Model config "${id}" not found`);
       return undefined;
     }
     return ModelServiceFactory.getModelService(modelConfig);
@@ -156,7 +156,7 @@ class Config {
   async getEmbeddingService(name: string, throwError = false): Promise<IEmbeddingService | undefined> {
     const embeddingConfig = this.getEmbedding(name);
     if (!embeddingConfig) {
-      if (throwError) throw new Error(`Embedding 配置 "${name}" 不存在`);
+      if (throwError) throw new Error(`Embedding config "${name}" not found`);
       return undefined;
     }
     return EmbeddingServiceFactory.getEmbeddingService(embeddingConfig);

@@ -63,7 +63,7 @@ export abstract class BaseWebUserService {
         if (workPath) {
             // 目录模式：从 workPath/.sbot/settings.json 读取 agent/saver/memory
             const localCfg = config.getDirectoryConfig(workPath);
-            if (!localCfg) throw new Error(`目录 "${workPath}" 未配置 agent`);
+            if (!localCfg) throw new Error(`Directory "${workPath}" has no agent configured`);
             const threadId = dirThreadId(workPath);
             const extraInfo = `<scheduler-id>${workPath}</scheduler-id>`;
             await AgentRunner.run(query, {
@@ -75,7 +75,7 @@ export abstract class BaseWebUserService {
             // 会话模式：通过 sessionId 查找全局会话配置
             const sessionId = args?.sessionId as string;
             const session = sessionId ? config.getSession(sessionId) : undefined;
-            if (!session) throw new Error(`会话 "${sessionId}" 不存在`);
+            if (!session) throw new Error(`Session "${sessionId}" not found`);
             const threadId = sessionThreadId(sessionId);
             const extraInfo = `<scheduler-id>${sessionId}</scheduler-id>`;
             await AgentRunner.run(query, {

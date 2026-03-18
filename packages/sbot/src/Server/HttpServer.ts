@@ -178,7 +178,7 @@ class HttpServer {
         });
 
         server.listen(port, () => {
-            logger.info(`HTTP 服务启动成功，可打开管理界面: http://127.0.0.1:${port}`);
+            logger.info(`HTTP server started, admin UI available at: http://127.0.0.1:${port}`);
         });
     }
 

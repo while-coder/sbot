@@ -110,10 +110,10 @@ export class AgentFactory {
     ): Promise<AgentServiceBase> {
         const agentSubNodes = entry.agents || [];
         if (agentSubNodes.length === 0) {
-            throw new Error("ReAct 模式未配置子 Agent");
+            throw new Error("ReAct mode: no sub-agents configured");
         }
         if (!entry.think) {
-            throw new Error("ReAct 模式未配置 think modelName");
+            throw new Error("ReAct mode: think modelName not configured");
         }
         const thinkModelService = await config.getModelService(entry.think, true);
         container.registerWithArgs(ReActAgentService, {

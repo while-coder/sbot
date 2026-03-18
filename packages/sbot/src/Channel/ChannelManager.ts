@@ -70,14 +70,14 @@ export class ChannelManager {
     async init(): Promise<void> {
         const channels = Object.entries(config.settings.channels || {}) as [string, ChannelConfig][];
         if (channels.length === 0) {
-            logger.info("无频道配置，跳过启动");
+            logger.info("No channel configuration, skipping startup");
             return;
         }
         let started = 0;
         for (const [channelId, channel] of channels) {
             const initializer = this.initializers.get(channel.type as ChannelType);
             if (!initializer) {
-                logger.warn(`未知频道类型 [${channel.type}]，跳过频道 [${channel.name || channelId}]`);
+                logger.warn(`Unknown channel type [${channel.type}], skipping channel [${channel.name || channelId}]`);
                 continue;
             }
             try {
@@ -87,10 +87,10 @@ export class ChannelManager {
                     started++;
                 }
             } catch (e) {
-                logger.error(`频道 [${channel.name || channelId}] 启动失败: ${e}`);
+                logger.error(`Channel [${channel.name || channelId}] failed to start: ${e}`);
             }
         }
-        logger.info(`ChannelManager 初始化完成，共启动 ${started} 个频道`);
+        logger.info(`ChannelManager initialized, started ${started} channel(s)`);
     }
 
     /**
@@ -100,9 +100,9 @@ export class ChannelManager {
         for (const [channelId, service] of this.services) {
             try {
                 service.dispose?.();
-                logger.info(`频道 [${channelId}] 已卸载`);
+                logger.info(`Channel [${channelId}] disposed`);
             } catch (e) {
-                logger.error(`卸载频道 [${channelId}] 失败: ${e}`);
+                logger.error(`Failed to dispose channel [${channelId}]: ${e}`);
             }
         }
         this.services.clear();
@@ -114,7 +114,7 @@ export class ChannelManager {
     async reload(): Promise<void> {
         await this.dispose();
         await this.init();
-        logger.info("ChannelManager 重载完成");
+        logger.info("ChannelManager reload completed");
     }
 
     /**
@@ -135,7 +135,7 @@ export class ChannelManager {
 
     private async initLark(channelId: string, channel: ChannelConfig): Promise<IChannelService | undefined> {
         if (!channel.appId?.trim() || !channel.appSecret?.trim()) {
-            logger.warn(`Lark 频道 [${channel.name || channelId}] 缺少 appId 或 appSecret，跳过`);
+            logger.warn(`Lark channel [${channel.name || channelId}] missing appId or appSecret, skipping`);
             return undefined;
         }
         const userIdType = LarkUserIdType.UnionId
@@ -181,7 +181,7 @@ export class ChannelManager {
             },
         });
         await service.registerEventDispatcher();
-        logger.info(`Lark 频道 [${channel.name || channelId}] 启动成功`);
+        logger.info(`Lark channel [${channel.name || channelId}] started successfully`);
         return service;
     }
 }
