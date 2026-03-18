@@ -161,11 +161,13 @@ async function commitEditSessionName() {
 const chatSocket = useChatSocket()
 let doneResolve: (() => void) | null = null
 let doneReject: ((e: Error) => void) | null = null
-
 async function handleWsMessage(evt: WebChatEvent & { sessionId?: string }) {
   if (evt.sessionId && evt.sessionId !== activeSessionId.value) return
   if (evt.type === WebChatEventType.Human) {
     isStreaming.value = true
+    messages.value.push({ role: MessageRole.Human, content: evt.content, timestamp: new Date().toISOString() })
+    await nextTick()
+    chatPanelRef.value?.scrollToBottom(true)
   } else if (evt.type === WebChatEventType.Stream) {
     streamingContent.value = evt.content
   } else if (evt.type === WebChatEventType.Message) {
@@ -186,7 +188,6 @@ async function handleWsMessage(evt: WebChatEvent & { sessionId?: string }) {
     isStreaming.value = false
     stopDenyCountdown()
     pendingToolCall.value = null
-    await refreshHistory()
     doneResolve?.()
     doneResolve = null
     doneReject = null
@@ -258,11 +259,6 @@ async function sendOne(query: string, atts: Attachment[]) {
   chatSending.value = true
   streamingContent.value = ''
   streamingToolCalls.value = []
-
-  const displayContent = [query, ...atts.map(a => `[附件: ${a.name}]`)].filter(Boolean).join('\n')
-  messages.value.push({ role: MessageRole.Human, content: displayContent, timestamp: new Date().toISOString() })
-  await nextTick()
-  chatPanelRef.value?.scrollToBottom(true)
 
   try {
     await chatSocket.waitForOpen()
