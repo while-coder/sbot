@@ -45,9 +45,24 @@ const isStreaming = ref(false)
 
 // tool approval state
 const pendingToolCall = ref<{ id: string; name: string; args: Record<string, any> } | null>(null)
+const denyCountdown = ref(30)
+let denyTimer: ReturnType<typeof setInterval> | null = null
+
+function startDenyCountdown() {
+  stopDenyCountdown()
+  denyCountdown.value = 30
+  denyTimer = setInterval(() => {
+    if (denyCountdown.value > 0) denyCountdown.value--
+  }, 1000)
+}
+
+function stopDenyCountdown() {
+  if (denyTimer !== null) { clearInterval(denyTimer); denyTimer = null }
+}
 
 function approveToolCall(approval: string) {
   if (!pendingToolCall.value) return
+  stopDenyCountdown()
   const id = pendingToolCall.value.id
   pendingToolCall.value = null
   apiFetch('/api/tool-approval', 'POST', { id, approval }).catch(() => {})
@@ -164,8 +179,10 @@ async function handleWsMessage(evt: any) {
   } else if (evt.type === 'tool_call') {
     const tcId = evt.id ?? `tc-${Date.now()}`
     pendingToolCall.value = { id: tcId, name: evt.name, args: evt.args }
+    startDenyCountdown()
   } else if (evt.type === 'done') {
     isStreaming.value = false
+    stopDenyCountdown()
     pendingToolCall.value = null
     await refreshHistory()
     doneResolve?.()
@@ -173,6 +190,7 @@ async function handleWsMessage(evt: any) {
     doneReject = null
   } else if (evt.type === 'error') {
     isStreaming.value = false
+    stopDenyCountdown()
     pendingToolCall.value = null
     show(evt.message, 'error')
     doneReject?.(new Error(evt.message))
@@ -397,7 +415,7 @@ onUnmounted(() => {
           <button class="btn-primary btn-sm" @click="approveToolCall('allow')">{{ t('chat.allow') }}</button>
           <button class="btn-outline btn-sm" @click="approveToolCall('alwaysArgs')">{{ t('chat.always_allow_args') }}</button>
           <button class="btn-outline btn-sm" @click="approveToolCall('alwaysTool')">{{ t('chat.always_allow_all') }}</button>
-          <button class="btn-danger btn-sm" @click="approveToolCall('deny')">{{ t('chat.deny') }}</button>
+          <button class="btn-danger btn-sm" @click="approveToolCall('deny')">{{ t('chat.deny') }} ({{ denyCountdown }}s)</button>
         </div>
       </div>
 
