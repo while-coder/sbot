@@ -28,7 +28,6 @@
     "access": "public"
   },
   "scripts": {
-    "dev": "tsx src/index.ts",
     "debug": "rimraf debug && tsc -p tsconfig.debug.json && node scripts/postbuild.js debug",
     "build": "rimraf dist && tsc && node scripts/postbuild.js",
     "prepublishOnly": "pnpm run build"

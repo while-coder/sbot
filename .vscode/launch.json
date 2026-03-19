@@ -10,8 +10,11 @@
       "sourceMaps": true,
       "outFiles": [
         "${workspaceFolder}/packages/sbot/debug/**/*.js",
+        "${workspaceFolder}/packages/sbot.commons/dist/**/*.js",
         "${workspaceFolder}/packages/scorpio.ai/dist/**/*.js",
-        "${workspaceFolder}/packages/channel.lark/dist/**/*.js"
+        "${workspaceFolder}/packages/channel.base/dist/**/*.js",
+        "${workspaceFolder}/packages/channel.lark/dist/**/*.js",
+        "${workspaceFolder}/packages/channel.slack/dist/**/*.js"
       ],
       "cwd": "${workspaceFolder}/packages/sbot",
       "skipFiles": ["<node_internals>/**"]
@@ -22,6 +25,7 @@
       "name": "Launch cli",
       "runtimeExecutable": "${workspaceFolder}/packages/cli/node_modules/.bin/tsx",
       "args": ["${workspaceFolder}/packages/cli/src/main.tsx"],
+      "preLaunchTask": "debug:cli",
       "cwd": "${workspaceFolder}/packages/cli",
       "skipFiles": ["<node_internals>/**"]
     }
