@@ -204,30 +204,34 @@ export class ChannelManager {
             userIdType: userIdType,
             filterEvent,
             onRecevieMessage: async (userId: string, userInfo: any, chatInfo: any, args: LarkMessageArgs, query: string) => {
+                const userName = userInfo?.name ?? ''
+                const userAvatar = userInfo?.avatar?.avatar_origin
                 const [dbUser, created] = await database.findOrCreate(database.channelUser, {
                     where: { userid: userId, channel: channelId },
                     defaults: {
-                        username:   userInfo?.name ?? "",
+                        username:   userName,
                         userinfo:   JSON.stringify(userInfo ?? {}),
                         userIdType: userIdType,
+                        avatar:     userAvatar,
                     },
                 });
                 if (!created) {
                     await database.update(database.channelUser,
-                        { username: userInfo?.name ?? "", userinfo: JSON.stringify(userInfo ?? {}), userIdType: userIdType },
+                        { username: userName, userinfo: JSON.stringify(userInfo ?? {}), userIdType: userIdType, avatar: userAvatar },
                         { where: { userid: userId, channel: channelId } },
                     );
                 }
                 const dbUserId: number = (dbUser as any).id;
 
+                const sessionName = chatInfo ? (chatInfo?.chat_mode == 'p2p' ? `p2p_${userId}` : `${chatInfo?.chat_mode}_${chatInfo?.name}`) : '';
+                const sessionAvatar = chatInfo?.avatar;
                 const [dbSession, sessionCreated] = await database.findOrCreate<ChannelSessionRow>(database.channelSession, {
                     where: { channel: channelId, sessionId: args.chat_id },
-                    defaults: { name: chatInfo?.name ?? "", agentId: "", memoryId: null },
+                    defaults: { name: sessionName, avatar: sessionAvatar, agentId: "", memoryId: null },
                 });
-                if (!sessionCreated && chatInfo) {
-                    let sessionName = chatInfo?.chat_mode == 'p2p' ? `p2p_${userId}` : `${chatInfo?.chat_mode}_${chatInfo?.name}`;
+                if (!sessionCreated) {
                     await database.update(database.channelSession,
-                        { name: sessionName },
+                        { name: sessionName, avatar: sessionAvatar },
                         { where: { channel: channelId, sessionId: args.chat_id } },
                     );
                 }

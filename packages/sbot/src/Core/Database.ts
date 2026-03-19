@@ -39,6 +39,7 @@ export type ChannelUserRow = {
   id: number;
   userid: string;
   username: string;
+  avatar: string;
   userinfo: string;
   channel: string;
   userIdType: string | null;  // LarkReceiveIdType value, e.g. 'union_id' / 'open_id'
@@ -49,6 +50,7 @@ export type ChannelSessionRow = {
   channel: string;   // 频道唯一ID
   sessionId: string;    // Lark chat_id
   name: string;      // 会话名称
+  avatar: string;    // 会话头像
   agentId: string;   // Agent UUID
   memoryId: string | null;  // Memory UUID
 };
@@ -179,6 +181,12 @@ class Database {
           defaultValue: "",
           comment: "频道唯一ID",
         },
+        avatar: {
+          type: DataTypes.STRING(512),
+          allowNull: false,
+          defaultValue: "",
+          comment: "用户头像URL",
+        },
         userIdType: {
           type: DataTypes.STRING(32),
           allowNull: true,
@@ -219,6 +227,12 @@ class Database {
           allowNull: false,
           defaultValue: "",
           comment: "会话名称",
+        },
+        avatar: {
+          type: DataTypes.STRING(512),
+          allowNull: false,
+          defaultValue: "",
+          comment: "会话头像URL",
         },
         agentId: {
           type: DataTypes.STRING(255),
