@@ -19,7 +19,8 @@ const form = ref<{ name: string } & Model>({
   name: '', provider: 'openai', baseURL: '', apiKey: '', model: '', temperature: undefined, maxTokens: undefined,
 })
 
-const isOllama = computed(() => form.value.provider === 'ollama')
+const isOllama     = computed(() => form.value.provider === 'ollama')
+const isAnthropic  = computed(() => form.value.provider === 'anthropic')
 
 // Model picker
 const showPicker    = ref(false)
@@ -188,17 +189,18 @@ async function refresh() {
             <label>{{ t('common.provider') }}</label>
             <select v-model="form.provider">
               <option value="openai">openai</option>
+              <option value="anthropic">anthropic</option>
               <option value="ollama">ollama</option>
             </select>
           </div>
           <div class="form-group">
             <label>{{ t('common.base_url') }}</label>
-            <input v-model="form.baseURL" :placeholder="isOllama ? 'http://localhost:11434' : 'https://api.openai.com/v1'" />
+            <input v-model="form.baseURL" :placeholder="isOllama ? 'http://localhost:11434' : isAnthropic ? 'https://api.anthropic.com' : 'https://api.openai.com/v1'" />
           </div>
           <div v-if="!isOllama" class="form-group">
             <label>{{ t('common.api_key') }}</label>
             <div class="apikey-field">
-              <input v-model="form.apiKey" :type="showApiKey ? 'text' : 'password'" placeholder="sk-..." />
+              <input v-model="form.apiKey" :type="showApiKey ? 'text' : 'password'" :placeholder="isAnthropic ? 'sk-ant-...' : 'sk-...'" />
               <button type="button" class="apikey-toggle" @click="showApiKey = !showApiKey" :title="showApiKey ? t('common.hide') : t('common.show')">
                 {{ showApiKey ? t('common.hide') : t('common.show') }}
               </button>
@@ -207,8 +209,8 @@ async function refresh() {
           <div class="form-group">
             <label>{{ t('models.model') }}</label>
             <div class="model-field">
-              <input v-model="form.model" :placeholder="isOllama ? 'llama3' : 'gpt-4'" />
-              <button type="button" class="model-pick-btn" @click="openPicker" :disabled="!form.baseURL">{{ t('models.pick') }}</button>
+              <input v-model="form.model" :placeholder="isOllama ? 'llama3' : isAnthropic ? 'claude-sonnet-4-6' : 'gpt-4'" />
+              <button type="button" class="model-pick-btn" @click="openPicker" :disabled="!isAnthropic && !form.baseURL">{{ t('models.pick') }}</button>
             </div>
           </div>
           <div class="form-group">

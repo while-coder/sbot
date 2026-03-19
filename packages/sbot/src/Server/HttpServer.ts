@@ -247,6 +247,20 @@ class HttpServer {
         // Fetch available models from a provider's baseURL
         app.post('/api/models/available', api(async req => {
             const { baseURL, apiKey, provider } = req.body as { baseURL?: string; apiKey?: string; provider?: string };
+
+            if (provider === ModelProvider.Anthropic) {
+                const base = (baseURL || 'https://api.anthropic.com').replace(/\/$/, '');
+                if (!apiKey) throwBad('apiKey is required for Anthropic');
+                const headers: Record<string, string> = {
+                    'x-api-key': apiKey,
+                    'anthropic-version': '2023-06-01',
+                };
+                const res = await fetch(`${base}/v1/models`, { headers });
+                if (!res.ok) throwBad(`Anthropic request failed: ${res.status}`);
+                const data: any = await res.json();
+                return (data.data as any[] || []).map((m: any) => m.id as string);
+            }
+
             if (!baseURL) throwBad('baseURL is required');
             const base = baseURL.replace(/\/$/, '');
 
