@@ -23,9 +23,14 @@
       "type": "node",
       "request": "launch",
       "name": "Launch cli",
-      "runtimeExecutable": "${workspaceFolder}/packages/cli/node_modules/.bin/tsx",
-      "args": ["${workspaceFolder}/packages/cli/src/main.tsx"],
+      "program": "${workspaceFolder}/packages/cli/debug/main.js",
       "preLaunchTask": "debug:cli",
+      "sourceMaps": true,
+      "outFiles": [
+        "${workspaceFolder}/packages/cli/debug/**/*.js",
+        "${workspaceFolder}/packages/sbot.commons/dist/**/*.js",
+        "${workspaceFolder}/packages/sbot.commons/esm/**/*.js"
+      ],
       "cwd": "${workspaceFolder}/packages/cli",
       "skipFiles": ["<node_internals>/**"]
     }

@@ -13,7 +13,7 @@
     "dist"
   ],
   "scripts": {
-    "debug": "tsx src/main.tsx",
+    "debug": "rimraf debug && tsc -p tsconfig.debug.json",
     "build": "rimraf dist && tsc",
     "prepublishOnly": "pnpm run build"
   },
