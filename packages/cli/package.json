@@ -13,8 +13,9 @@
     "dist"
   ],
   "scripts": {
+    "build:deps": "pnpm --filter scorpio.ai run build && pnpm --filter sbot.commons run build",
     "debug": "tsx src/main.tsx",
-    "build": "rimraf dist && tsc",
+    "build": "pnpm run build:deps && rimraf dist && tsc",
     "prepublishOnly": "pnpm run build"
   },
   "dependencies": {

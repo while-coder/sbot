@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "pnpm --filter scorpio.ai run build && pnpm --filter channel.base run build && rimraf --glob \"dist/*\" && tsc -b --force"
+    "build": "rimraf dist && tsc -b --force"
   },
   "dependencies": {
     "@slack/bolt": "^4.4.0",

@@ -4,9 +4,9 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import axios, { type AxiosInstance } from 'axios';
-import { DEFAULT_PORT, type Settings, type ChatEvent } from 'sbot.commons';
+import { DEFAULT_PORT, type Settings, type WebChatEvent } from 'sbot.commons';
 
-export { DEFAULT_PORT, type ChatEvent } from 'sbot.commons';
+export { DEFAULT_PORT, type WebChatEvent } from 'sbot.commons';
 
 export function getServerBaseUrl(): string {
   try {
@@ -57,7 +57,7 @@ export class SbotClient {
     saveId: string,
     memoryId: string | null,
     signal: AbortSignal,
-  ): AsyncGenerator<ChatEvent> {
+  ): AsyncGenerator<WebChatEvent> {
     const workPath = process.cwd();
     const body = JSON.stringify({ query, agentId, saveId, memoryId, workPath });
     const url = new URL(`${this.baseUrl}/api/chat`);
@@ -90,7 +90,7 @@ export class SbotClient {
     for await (const line of rl) {
       if (!line.startsWith('data: ')) continue;
       try {
-        const event = JSON.parse(line.slice(6)) as ChatEvent;
+        const event = JSON.parse(line.slice(6)) as WebChatEvent;
         yield event;
         if (event.type === 'done') return;
       } catch {

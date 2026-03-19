@@ -4,9 +4,9 @@
     {
       "label": "debug:sbot",
       "type": "shell",
-      "command": "pnpm run debug",
+      "command": "pnpm run debug:sbot",
       "options": {
-        "cwd": "${workspaceFolder}/packages/sbot"
+        "cwd": "${workspaceFolder}"
       },
       "group": {
         "kind": "build",
