@@ -58,6 +58,7 @@ export type AgentEntry = SingleAgentEntry | ReactAgentEntry;
 export interface Settings {
   httpPort?: number;           // HTTP 服务监听端口，默认 5500
   httpUrl?: string;            // HTTP 服务对外访问的根 URL，默认 http://localhost:5500
+  autoApproveTools?: string[]; // 全局自动批准的工具列表（无需用户确认）
   models?: Record<string, NamedModelConfig>;
   embeddings?: Record<string, NamedEmbeddingConfig>;
   savers?: Record<string, SaverConfig>;

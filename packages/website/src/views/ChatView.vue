@@ -4,13 +4,12 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
-import type { ChatMessage } from '@/types'
 import { useChatSocket } from '@/composables/useChatSocket'
 import SaverViewModal from './modals/SaverViewModal.vue'
 import MemoryViewModal from './modals/MemoryViewModal.vue'
 import NewSessionModal from './modals/NewSessionModal.vue'
-import ChatPanel from '@/components/ChatPanel.vue'
-import { sessionThreadId, WebChatEventType, MessageRole } from 'sbot.commons'
+import ChatArea from '@/components/ChatArea.vue'
+import { sessionThreadId } from 'sbot.commons'
 import type { WebChatEvent } from 'sbot.commons'
 
 const { t } = useI18n()
@@ -24,11 +23,8 @@ interface Attachment {
 
 const { show } = useToast()
 
-// ── Reactive state ──
-const messages = ref<ChatMessage[]>([])
-const chatSending = ref(false)
-const chatPanelRef = ref<InstanceType<typeof ChatPanel>>()
-
+// ── Refs ──
+const chatAreaRef     = ref<InstanceType<typeof ChatArea>>()
 const saverViewModal  = ref<InstanceType<typeof SaverViewModal>>()
 const memoryViewModal = ref<InstanceType<typeof MemoryViewModal>>()
 const newSessionModal = ref<InstanceType<typeof NewSessionModal>>()
@@ -37,36 +33,6 @@ const sessionNameInputEl = ref<HTMLInputElement | null>(null)
 // ── Sidebar inline name edit ──
 const editingSessionId   = ref<string | null>(null)
 const editingSessionName = ref('')
-
-// streaming state
-const streamingContent = ref('')
-const streamingToolCalls = ref<{ name: string; args: unknown }[]>([])
-const isStreaming = ref(false)
-
-// tool approval state
-const pendingToolCall = ref<{ id: string; name: string; args: Record<string, any> } | null>(null)
-const denyCountdown = ref(30)
-let denyTimer: ReturnType<typeof setInterval> | null = null
-
-function startDenyCountdown() {
-  stopDenyCountdown()
-  denyCountdown.value = 30
-  denyTimer = setInterval(() => {
-    if (denyCountdown.value > 0) denyCountdown.value--
-  }, 1000)
-}
-
-function stopDenyCountdown() {
-  if (denyTimer !== null) { clearInterval(denyTimer); denyTimer = null }
-}
-
-function approveToolCall(approval: string) {
-  if (!pendingToolCall.value) return
-  stopDenyCountdown()
-  const id = pendingToolCall.value.id
-  pendingToolCall.value = null
-  apiFetch('/api/tool-approval', 'POST', { id, approval }).catch(() => {})
-}
 
 // ── Session sidebar ──
 const activeSessionId = ref<string | null>(null)
@@ -86,11 +52,15 @@ const effectiveAgent  = computed(() => activeSessionId.value ? sessions.value[ac
 const effectiveSaver  = computed(() => activeSessionId.value ? (sessions.value[activeSessionId.value]?.saver  || null) : null)
 const effectiveMemory = computed(() => activeSessionId.value ? (sessions.value[activeSessionId.value]?.memory || null) : null)
 
+const historyUrl = computed<string | null>(() => {
+  const saver = effectiveSaver.value
+  if (!saver || !activeSessionId.value) return null
+  return `/api/savers/${encodeURIComponent(saver)}/threads/${encodeURIComponent(sessionThreadId(activeSessionId.value))}/history`
+})
+
 function switchSession(id: string) {
   if (activeSessionId.value === id) return
   activeSessionId.value = id
-  messages.value = []
-  refreshHistory()
 }
 
 async function deleteSession(id: string) {
@@ -106,8 +76,6 @@ async function deleteSession(id: string) {
     if (activeSessionId.value === id) {
       const remaining = Object.keys(sessions.value)
       activeSessionId.value = remaining.length > 0 ? remaining[0] : null
-      messages.value = []
-      await refreshHistory()
     }
     show(t('chat.session_deleted'))
   } catch (e: any) {
@@ -117,8 +85,6 @@ async function deleteSession(id: string) {
 
 function onSessionCreated(id: string) {
   activeSessionId.value = id
-  messages.value = []
-  refreshHistory()
 }
 
 async function saveSession(patch: Record<string, any>, id?: string) {
@@ -133,7 +99,6 @@ async function saveSession(patch: Record<string, any>, id?: string) {
     if ((patch.memory === '' || patch.memory === undefined) && store.settings.sessions![targetId].memory !== undefined) {
       delete store.settings.sessions![targetId].memory
     }
-    if ('saver' in patch && targetId === activeSessionId.value) refreshHistory()
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -161,106 +126,44 @@ async function commitEditSessionName() {
 const chatSocket = useChatSocket()
 let doneResolve: (() => void) | null = null
 let doneReject: ((e: Error) => void) | null = null
+
 async function handleWsMessage(evt: WebChatEvent & { sessionId?: string }) {
-  console.log('handleWsMessage', evt, activeSessionId)
   if (evt.sessionId && evt.sessionId !== activeSessionId.value) return
-  if (evt.type === WebChatEventType.Human) {
-    isStreaming.value = true
-    messages.value.push({ role: MessageRole.Human, content: evt.content, timestamp: new Date().toISOString() })
-    await nextTick()
-    chatPanelRef.value?.scrollToBottom(true)
-  } else if (evt.type === WebChatEventType.Stream) {
-    streamingContent.value = evt.content
-  } else if (evt.type === WebChatEventType.Message) {
-    messages.value.push({
-      role: evt.role,
-      content: evt.content,
-      tool_calls: evt.tool_calls,
-      tool_call_id: evt.tool_call_id,
-      timestamp: new Date().toISOString(),
-    })
-    streamingContent.value = ''
-    streamingToolCalls.value = []
-  } else if (evt.type === WebChatEventType.ToolCall) {
-    const tcId = evt.id ?? `tc-${Date.now()}`
-    pendingToolCall.value = { id: tcId, name: evt.name, args: evt.args }
-    startDenyCountdown()
-  } else if (evt.type === WebChatEventType.Done) {
-    isStreaming.value = false
-    stopDenyCountdown()
-    pendingToolCall.value = null
-    doneResolve?.()
-    doneResolve = null
-    doneReject = null
-  } else if (evt.type === WebChatEventType.Error) {
-    isStreaming.value = false
-    stopDenyCountdown()
-    pendingToolCall.value = null
-    show(evt.message, 'error')
-    doneReject?.(new Error(evt.message))
-    doneResolve = null
-    doneReject = null
-  }
+  await chatAreaRef.value?.handleWsEvent(evt)
 }
 
 watch(chatSocket.connected, (val, oldVal) => {
   if (!val && oldVal && doneReject) {
     show(t('chat.ws_reconnecting'), 'error')
-    isStreaming.value = false
+    chatAreaRef.value?.reset()
     doneReject(new Error(t('chat.ws_reconnecting')))
     doneResolve = null
     doneReject = null
   }
 })
 
-function saverThreadUrl(saver: string): string | null {
-  if (!activeSessionId.value) return null
-  return `/api/savers/${encodeURIComponent(saver)}/threads/${encodeURIComponent(sessionThreadId(activeSessionId.value))}/history`
+function onChatAreaDone() {
+  doneResolve?.()
+  doneResolve = null
+  doneReject = null
 }
 
-async function refreshHistory() {
-  const saver = effectiveSaver.value
-  if (!saver) { messages.value = []; return }
-  const url = saverThreadUrl(saver)
-  if (!url) { messages.value = []; return }
-  try {
-    const res = await apiFetch(url)
-    messages.value = res.data || []
-    await nextTick()
-    chatPanelRef.value?.scrollToBottom()
-  } catch (e: any) {
-    show(e.message, 'error')
-  }
-}
-
-async function clearHistory() {
-  const saver = effectiveSaver.value
-  if (!saver || !window.confirm(t('chat.confirm_clear_history'))) return
-  const url = saverThreadUrl(saver)
-  if (!url) return
-  try {
-    await apiFetch(url, 'DELETE')
-    show(t('chat.history_cleared'))
-    await refreshHistory()
-  } catch (e: any) {
-    show(e.message, 'error')
-  }
+function onChatAreaError(message: string) {
+  show(message, 'error')
+  doneReject?.(new Error(message))
+  doneResolve = null
+  doneReject = null
 }
 
 async function onPanelSend(query: string, atts: Attachment[]) {
   if (!activeSessionId.value) { show(t('chat.no_session'), 'error'); return }
-  const saver = effectiveSaver.value
-  if (!saver) { show(t('chat.no_saver'), 'error'); return }
+  if (!effectiveSaver.value) { show(t('chat.no_saver'), 'error'); return }
   if (!query && atts.length === 0) return
-
   await sendOne(query, atts)
 }
 
 async function sendOne(query: string, atts: Attachment[]) {
-  chatSending.value = true
-  streamingContent.value = ''
-  streamingToolCalls.value = []
-
+  chatAreaRef.value?.setSending(true)
   try {
     await chatSocket.waitForOpen()
     const donePromise = new Promise<void>((resolve, reject) => {
@@ -274,10 +177,10 @@ async function sendOne(query: string, atts: Attachment[]) {
     })
     await donePromise
   } catch (e: any) {
-    isStreaming.value = false
+    chatAreaRef.value?.reset()
     show(e.message, 'error')
   } finally {
-    chatSending.value = false
+    chatAreaRef.value?.setSending(false)
   }
 }
 
@@ -287,11 +190,11 @@ onMounted(() => {
   if (ids.length > 0 && !activeSessionId.value) {
     activeSessionId.value = ids[0]
   }
-  refreshHistory()
 })
 
 onUnmounted(() => {
   chatSocket.offMessage(handleWsMessage)
+  chatAreaRef.value?.cleanup()
 })
 </script>
 
@@ -383,30 +286,17 @@ onUnmounted(() => {
           <button v-if="effectiveMemory" class="chat-info-chip" @click="memoryViewModal?.open(effectiveMemory!)">{{ t('common.view') }}</button>
         </template>
         <span v-else style="font-size:13px;color:#94a3b8">{{ t('chat.select_or_create') }}</span>
-        <button class="btn-outline btn-sm" style="margin-left:auto" @click="refreshHistory">{{ t('common.refresh') }}</button>
-        <button class="btn-danger btn-sm" :disabled="!effectiveSaver" @click="clearHistory">{{ t('chat.clear_history') }}</button>
+        <button class="btn-outline btn-sm" style="margin-left:auto" @click="chatAreaRef?.refreshHistory()">{{ t('common.refresh') }}</button>
+        <button class="btn-danger btn-sm" :disabled="!effectiveSaver" @click="chatAreaRef?.clearHistory()">{{ t('chat.clear_history') }}</button>
       </div>
 
-      <!-- Tool approval bar -->
-      <div v-if="pendingToolCall" class="tool-approval-bar">
-        <span class="tool-approval-label">{{ t('chat.execute_tool') }}<strong>{{ pendingToolCall.name }}</strong></span>
-        <div class="tool-approval-btns">
-          <button class="btn-primary btn-sm" @click="approveToolCall('allow')">{{ t('chat.allow') }}</button>
-          <button class="btn-outline btn-sm" @click="approveToolCall('alwaysArgs')">{{ t('chat.always_allow_args') }}</button>
-          <button class="btn-outline btn-sm" @click="approveToolCall('alwaysTool')">{{ t('chat.always_allow_all') }}</button>
-          <button class="btn-danger btn-sm" @click="approveToolCall('deny')">{{ t('chat.deny') }} ({{ denyCountdown }}s)</button>
-        </div>
-      </div>
-
-      <ChatPanel
-        ref="chatPanelRef"
-        :messages="messages"
-        :is-streaming="isStreaming"
-        :streaming-content="streamingContent"
-        :streaming-tool-calls="streamingToolCalls"
-        :chat-sending="chatSending"
+      <ChatArea
+        ref="chatAreaRef"
+        :history-url="historyUrl"
         :show-attachments="true"
         @send="onPanelSend"
+        @done="onChatAreaDone"
+        @error="onChatAreaError"
       />
     </div>
 
@@ -459,16 +349,4 @@ onUnmounted(() => {
   color: #1c1c1c;
   background: #fff;
 }
-.tool-approval-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 16px;
-  background: #fffbeb;
-  border-bottom: 1px solid #fcd34d;
-  flex-shrink: 0;
-  font-size: 13px;
-}
-.tool-approval-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tool-approval-btns  { display: flex; gap: 6px; flex-shrink: 0; }
 </style>

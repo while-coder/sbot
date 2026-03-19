@@ -8,8 +8,8 @@ import { useChatSocket } from '@/composables/useChatSocket'
 import type { ChatMessage } from '@/types'
 import DirectoryModal from './modals/DirectoryModal.vue'
 import SaverViewModal from './modals/SaverViewModal.vue'
-import ChatPanel from '@/components/ChatPanel.vue'
-import { dirThreadId, WebChatEventType, MessageRole } from 'sbot.commons'
+import ChatArea from '@/components/ChatArea.vue'
+import { dirThreadId, MessageRole } from 'sbot.commons'
 import type { WebChatEvent } from 'sbot.commons'
 
 const { t } = useI18n()
@@ -27,7 +27,7 @@ const { show } = useToast()
 const { send: wsSend, onMessage: wsOnMessage, offMessage: wsOffMessage, waitForOpen } = useChatSocket()
 const directoryModal = ref<InstanceType<typeof DirectoryModal>>()
 const saverViewModal  = ref<InstanceType<typeof SaverViewModal>>()
-const chatPanelRef = ref<InstanceType<typeof ChatPanel>>()
+const chatAreaRef     = ref<InstanceType<typeof ChatArea>>()
 
 // ── 无效路径 ──────────────────────────────────────────────
 const invalidDirs = ref<string[]>([])
@@ -77,6 +77,11 @@ const memoryOptions = computed(() =>
   Object.entries(store.settings.memories || {}).map(([id, m]) => ({ id, label: (m as any).name || id }))
 )
 
+const historyUrl = computed<string | null>(() => {
+  if (!activeDir.value || !activeCfg.value?.saver) return null
+  return `/api/savers/${encodeURIComponent(activeCfg.value.saver)}/threads/${encodeURIComponent(dirThreadId(activeDir.value))}/history`
+})
+
 function dirDisplayName(p: string): string {
   return p.replace(/[/\\]+$/, '').split(/[/\\]/).filter(Boolean).pop() || p
 }
@@ -85,13 +90,11 @@ async function selectDir(dirPath: string) {
   if (activeDir.value === dirPath) return
   activeDir.value = dirPath
   activeCfg.value = null
-  messages.value  = []
-  streamingContent.value = ''
   loadingCfg.value = true
   try {
     const res = await apiFetch(`/api/directories?dir=${encodeURIComponent(dirPath)}`)
     activeCfg.value = (res.data?.config as LocalDirCfg | null) ?? {}
-    await refreshHistory()
+    // historyUrl computed 变化后 ChatArea 自动刷新历史
   } catch (e: any) {
     show(e.message, 'error')
   } finally {
@@ -104,7 +107,7 @@ async function deleteDir(dirPath: string) {
   try {
     await apiFetch(`/api/directories?path=${encodeURIComponent(dirPath)}`, 'DELETE')
     if (store.settings.directories) delete store.settings.directories[dirPath]
-    if (activeDir.value === dirPath) { activeDir.value = null; activeCfg.value = null; messages.value = [] }
+    if (activeDir.value === dirPath) { activeDir.value = null; activeCfg.value = null }
     show(t('directory.removed'))
   } catch (e: any) {
     show(e.message, 'error')
@@ -114,8 +117,7 @@ async function deleteDir(dirPath: string) {
 function onSaved(dirPath: string, cfg: LocalDirCfg) {
   activeCfg.value = cfg
   activeDir.value = dirPath
-  messages.value  = []
-  refreshHistory()
+  // historyUrl computed 变化后 ChatArea 自动刷新历史
 }
 
 // ── 保存目录配置（工具栏下拉切换）────────────────────────
@@ -126,59 +128,23 @@ async function saveConfig(patch: Partial<LocalDirCfg>) {
   try {
     await apiFetch('/api/directories', 'PUT', { path: activeDir.value, ...updated })
     Object.assign(activeCfg.value, patch)
-    if ('saver' in patch) { messages.value = []; await refreshHistory() }
+    // saver 变化时 historyUrl computed 变化，ChatArea 自动刷新
   } catch (e: any) {
     show(e.message, 'error')
   }
 }
 
-// ── 历史记录 ──────────────────────────────────────────────
-function historyUrl(): string | null {
-  if (!activeDir.value || !activeCfg.value?.saver) return null
-  const threadId = dirThreadId(activeDir.value)
-  return `/api/savers/${encodeURIComponent(activeCfg.value.saver)}/threads/${encodeURIComponent(threadId)}/history`
+// ── WebSocket 事件处理 ────────────────────────────────────
+async function handleWsEvent(evt: WebChatEvent & { workPath?: string }) {
+  if (evt.workPath && evt.workPath !== activeDir.value) return
+  await chatAreaRef.value?.handleWsEvent(evt)
 }
 
-async function refreshHistory() {
-  const url = historyUrl()
-  if (!url) { messages.value = []; return }
-  try {
-    const res = await apiFetch(url)
-    messages.value = res.data || []
-    await nextTick()
-    chatPanelRef.value?.scrollToBottom()
-  } catch { messages.value = [] }
+function onChatAreaDone() {
+  chatAreaRef.value?.refreshHistory()
 }
 
-async function clearHistory() {
-  const url = historyUrl()
-  if (!url || !confirm('确定要清除该目录的对话历史吗？')) return
-  try {
-    await apiFetch(url, 'DELETE')
-    show('历史已清除')
-    await refreshHistory()
-  } catch (e: any) {
-    show(e.message, 'error')
-  }
-}
-
-// ── Chat state ────────────────────────────────────────────
-const messages        = ref<ChatMessage[]>([])
-const chatSending     = ref(false)
-const isStreaming     = ref(false)
-const streamingContent   = ref('')
-const streamingToolCalls = ref<{ name: string; args: unknown }[]>([])
-
-// tool approval state
-const pendingToolCall = ref<{ id: string; name: string; args: Record<string, any> } | null>(null)
-
-function approveToolCall(approval: string) {
-  if (!pendingToolCall.value) return
-  const id = pendingToolCall.value.id
-  pendingToolCall.value = null
-  apiFetch('/api/tool-approval', 'POST', { id, approval }).catch(() => {})
-}
-
+// ── 发送消息 ──────────────────────────────────────────────
 async function onPanelSend(query: string, atts: Attachment[]) {
   if (!activeDir.value)         { show('请先选择目录', 'error'); return }
   if (!activeCfg.value?.agent)  { show('请先配置 Agent', 'error'); return }
@@ -188,14 +154,13 @@ async function onPanelSend(query: string, atts: Attachment[]) {
 }
 
 async function sendOne(query: string, atts: Attachment[]) {
-  chatSending.value = true
-  streamingContent.value = ''
-  streamingToolCalls.value = []
+  chatAreaRef.value?.setSending(true)
 
+  // 乐观推送人类消息（包含附件名称展示）
   const displayContent = [query, ...atts.map(a => `[附件: ${a.name}]`)].filter(Boolean).join('\n')
-  messages.value.push({ role: MessageRole.Human, content: displayContent, timestamp: new Date().toISOString() })
+  chatAreaRef.value?.pushMessage({ role: MessageRole.Human, content: displayContent, timestamp: new Date().toISOString() } as ChatMessage)
   await nextTick()
-  chatPanelRef.value?.scrollToBottom(true)
+  chatAreaRef.value?.scrollToBottom(true)
 
   try {
     await waitForOpen()
@@ -206,41 +171,11 @@ async function sendOne(query: string, atts: Attachment[]) {
     })
   } catch (e: any) {
     show(e.message, 'error')
-    chatSending.value = false
+    chatAreaRef.value?.setSending(false)
   }
 }
 
-async function handleWsEvent(evt: WebChatEvent & { workPath?: string }) {
-  if (evt.workPath && evt.workPath !== activeDir.value) return
-  if (evt.type === WebChatEventType.Human) {
-    isStreaming.value = true
-  } else if (evt.type === WebChatEventType.Stream) {
-    streamingContent.value = evt.content
-  } else if (evt.type === WebChatEventType.Message) {
-    messages.value.push({
-      role: evt.role, content: evt.content,
-      tool_calls: evt.tool_calls, tool_call_id: evt.tool_call_id,
-      timestamp: new Date().toISOString(),
-    })
-    streamingContent.value = ''
-    streamingToolCalls.value = []
-  } else if (evt.type === WebChatEventType.ToolCall) {
-    const tcId = evt.id ?? `tc-${Date.now()}`
-    pendingToolCall.value = { id: tcId, name: evt.name, args: evt.args }
-  } else if (evt.type === WebChatEventType.Done) {
-    isStreaming.value = false
-    chatSending.value = false
-    pendingToolCall.value = null
-    await refreshHistory()
-  } else if (evt.type === WebChatEventType.Error) {
-    show(evt.message, 'error')
-    isStreaming.value = false
-    chatSending.value = false
-    pendingToolCall.value = null
-  }
-}
-
-onUnmounted(() => { wsOffMessage(handleWsEvent) })
+onUnmounted(() => { wsOffMessage(handleWsEvent); chatAreaRef.value?.cleanup() })
 </script>
 
 <template>
@@ -351,8 +286,8 @@ onUnmounted(() => { wsOffMessage(handleWsEvent) })
               style="margin-left:auto"
               @click="directoryModal?.open(activeDir!, activeCfg ?? undefined)"
             >{{ t('common.edit') }}</button>
-            <button class="btn-outline btn-sm" @click="refreshHistory">{{ t('common.refresh') }}</button>
-            <button class="btn-danger btn-sm" :disabled="!activeCfg.saver" @click="clearHistory">{{ t('chat.clear_history') }}</button>
+            <button class="btn-outline btn-sm" @click="chatAreaRef?.refreshHistory()">{{ t('common.refresh') }}</button>
+            <button class="btn-danger btn-sm" :disabled="!activeCfg.saver" @click="chatAreaRef?.clearHistory()">{{ t('chat.clear_history') }}</button>
           </template>
 
           <template v-else-if="activeDir && loadingCfg">
@@ -368,27 +303,16 @@ onUnmounted(() => { wsOffMessage(handleWsEvent) })
           {{ t('directory.select_or_add') }}
         </div>
 
-        <!-- Tool approval bar + 聊天面板 -->
+        <!-- 聊天区域 -->
         <template v-else>
-          <div v-if="pendingToolCall" class="tool-approval-bar">
-            <span class="tool-approval-label">{{ t('chat.execute_tool') }}<strong>{{ pendingToolCall.name }}</strong></span>
-            <div class="tool-approval-btns">
-              <button class="btn-primary btn-sm" @click="approveToolCall('allow')">{{ t('chat.allow') }}</button>
-              <button class="btn-outline btn-sm" @click="approveToolCall('alwaysArgs')">{{ t('chat.always_allow_args') }}</button>
-              <button class="btn-outline btn-sm" @click="approveToolCall('alwaysTool')">{{ t('chat.always_allow_all') }}</button>
-              <button class="btn-danger btn-sm" @click="approveToolCall('deny')">{{ t('chat.deny') }}</button>
-            </div>
-          </div>
-          <ChatPanel
-            ref="chatPanelRef"
-            :messages="messages"
-            :is-streaming="isStreaming"
-            :streaming-content="streamingContent"
-            :streaming-tool-calls="streamingToolCalls"
-            :chat-sending="chatSending"
-            :empty-text="!activeCfg?.agent || !activeCfg?.saver ? '请先在工具栏配置 Agent 和存储' : '暂无对话历史，发送消息开始对话'"
+          <ChatArea
+            ref="chatAreaRef"
+            :history-url="historyUrl"
+            :handle-human-message="false"
             :show-attachments="true"
+            :empty-text="!activeCfg?.agent || !activeCfg?.saver ? '请先在工具栏配置 Agent 和存储' : '暂无对话历史，发送消息开始对话'"
             @send="onPanelSend"
+            @done="onChatAreaDone"
           />
         </template>
 
@@ -476,18 +400,4 @@ onUnmounted(() => { wsOffMessage(handleWsEvent) })
 }
 .dir-item:hover .dir-del-btn { color: #94a3b8; }
 .dir-del-btn:hover { color: #ef4444 !important; }
-
-/* ── 工具审批条 ── */
-.tool-approval-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 16px;
-  background: #fffbeb;
-  border-bottom: 1px solid #fcd34d;
-  flex-shrink: 0;
-  font-size: 13px;
-}
-.tool-approval-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tool-approval-btns  { display: flex; gap: 6px; flex-shrink: 0; }
 </style>

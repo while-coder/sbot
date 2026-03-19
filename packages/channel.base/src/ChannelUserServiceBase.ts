@@ -48,13 +48,17 @@ export abstract class ChannelUserServiceBase extends UserServiceBase {
     if (entry) entry.status = approval;
   }
 
+  protected getToolCallTimeout(): number {
+    return 300 * 1000;
+  }
+
   async executeAgentTool(toolCall: AgentToolCall): Promise<ToolApproval> {
     let id = toolCall.id ?? `tc-${Date.now()}`;
     while (this.toolCallMap.has(id)) id = `tc-${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const entry: ToolCallEntry = { status: ToolCallStatus.Wait };
     this.toolCallMap.set(id, entry);
     try {
-      const timeout = 30 * 1000;
+      const timeout = this.getToolCallTimeout();
       const end = NowDate() + timeout;
       let lastSend = 0;
       while (entry.status === ToolCallStatus.Wait) {

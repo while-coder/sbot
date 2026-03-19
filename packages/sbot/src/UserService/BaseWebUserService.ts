@@ -33,6 +33,10 @@ export abstract class BaseWebUserService {
         this.emit({ type: WebChatEventType.Stream, content: message.content ?? '' });
     }
 
+    protected getToolCallTimeout(): number {
+        return 300_000;
+    }
+
     async executeAgentTool(toolCall: AgentToolCall): Promise<ToolApproval> {
         const id = toolCall.id ?? `tc-${Date.now()}`;
         this.emit({ type: WebChatEventType.ToolCall, id, name: toolCall.name, args: toolCall.args });
@@ -40,7 +44,7 @@ export abstract class BaseWebUserService {
             const timer = setTimeout(() => {
                 this.pendingApprovals.delete(id);
                 resolve(ToolApproval.Deny);
-            }, 30_000);
+            }, this.getToolCallTimeout());
             this.pendingApprovals.set(id, (approval) => {
                 clearTimeout(timer);
                 this.pendingApprovals.delete(id);
