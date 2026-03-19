@@ -372,7 +372,7 @@ async function refresh() {
           </div>
           <div class="form-group">
             <label>{{ t('channels.session_name') }}</label>
-            <input v-model="sessionForm.name" :placeholder="t('channels.session_name')" />
+            <input :value="sessionForm.name" disabled />
           </div>
           <div class="form-group">
             <label>{{ t('common.agent') }}</label>

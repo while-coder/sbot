@@ -1,7 +1,7 @@
 {
   "name": "@qingfeng346/sbot",
-  "version": "0.0.4",
-  "releasenote": "",
+  "version": "0.0.5",
+  "releasenote": "- Added WebFetch tool and web search capability\n- Introduced tool execution permission management\n- Refactored prompts system with per-module splitting and on-demand loading\n- Fixed scheduler timer reliability issues\n- Added model selection and i18n support to the frontend\n- Improved chat page interactions\n- Persist Lark user avatars to the database",
   "description": "Self-hosted AI agent server. Open-source alternative to OpenAI, Claude, and Gemini interfaces. Run LLM agents locally with MCP tool support, memory, multi-channel integrations (Lark/Feishu), and a built-in web UI.",
   "license": "MIT",
   "repository": {
