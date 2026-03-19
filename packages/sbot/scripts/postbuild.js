@@ -45,11 +45,18 @@ for (const entry of fs.readdirSync(packagesRoot, { withFileTypes: true })) {
   if (pkg.name) workspaceMap[pkg.name] = path.join(packagesRoot, entry.name);
 }
 
-// 从 dependencies 中识别本地包（file: 或 workspace:*）
+// 从 dependencies 中识别本地包（file: 或 workspace:*），递归处理传递 workspace 依赖
 const localPackages = {}; // name -> 源码根目录
 const allDeps = {};
 
-for (const [name, version] of Object.entries(selfPkg.dependencies || {})) {
+const queue = Object.entries(selfPkg.dependencies || {});
+const visited = new Set();
+
+while (queue.length > 0) {
+  const [name, version] = queue.shift();
+  if (visited.has(name)) continue;
+  visited.add(name);
+
   if (typeof version !== 'string') continue;
   if (version.startsWith('file:')) {
     const relPath = version.slice('file:'.length);
@@ -66,10 +73,16 @@ for (const [name, version] of Object.entries(selfPkg.dependencies || {})) {
   }
 }
 
-// 收集本地包的 dependencies（排除同为本地包的条目）
+// 收集本地包的 dependencies（递归处理传递 workspace 依赖）
 const localNames = new Set(Object.keys(localPackages));
+const processedLocal = new Set();
 
-for (const [, pkgDir] of Object.entries(localPackages)) {
+let localQueue = Object.entries(localPackages);
+while (localQueue.length > 0) {
+  const [, pkgDir] = localQueue.shift();
+  if (processedLocal.has(pkgDir)) continue;
+  processedLocal.add(pkgDir);
+
   const pkgPath = path.join(pkgDir, 'package.json');
   if (!fs.existsSync(pkgPath)) {
     console.warn(`warning: ${pkgPath} not found, skipping`);
@@ -78,7 +91,17 @@ for (const [, pkgDir] of Object.entries(localPackages)) {
   const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
   for (const [name, version] of Object.entries(pkg.dependencies || {})) {
     if (localNames.has(name)) continue;
-    if (!allDeps[name]) allDeps[name] = resolveVersion(name, version);
+    if (typeof version === 'string' && version.startsWith('workspace:')) {
+      if (workspaceMap[name]) {
+        localPackages[name] = workspaceMap[name];
+        localNames.add(name);
+        localQueue.push([name, workspaceMap[name]]);
+      } else {
+        console.warn(`warning: transitive workspace package "${name}" not found in ${packagesRoot}`);
+      }
+    } else {
+      if (!allDeps[name]) allDeps[name] = resolveVersion(name, version);
+    }
   }
 }
 
