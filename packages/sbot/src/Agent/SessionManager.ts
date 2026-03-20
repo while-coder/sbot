@@ -1,4 +1,4 @@
-import { AgentToolCall, AskResponse, AskToolParams, ICancellationToken } from "scorpio.ai";
+import { AgentToolCall, AskQuestionType, AskResponse, AskToolParams, ICancellationToken } from "scorpio.ai";
 
 export enum SessionStatus {
     Thinking = 'thinking',
@@ -136,11 +136,22 @@ class SessionManager {
         return { id: threadId, promise };
     }
 
-    resolveAsk(threadId: string, answers: AskResponse): boolean {
+    resolveAsk(threadId: string, answers: Record<string, string | string[]>): boolean {
         const session = this.sessions.get(threadId);
         if (!session?.pendingAsk) return false;
         clearTimeout(session.pendingAsk.timer);
-        session.pendingAsk.resolve(answers);
+        const labeledAnswers: AskResponse = {};
+        const questions = session.pendingAsk.questions;
+        for (let i = 0; i < questions.length; i++) {
+            const q = questions[i];
+            const raw = answers[String(i)];
+            if (q.type === AskQuestionType.Toggle) {
+                labeledAnswers[q.label] = raw === 'true' ? 'true' : 'false';
+            } else if (raw !== undefined) {
+                labeledAnswers[q.label] = raw;
+            }
+        }
+        session.pendingAsk.resolve(labeledAnswers);
         delete session.pendingAsk;
         return true;
     }
