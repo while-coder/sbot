@@ -43,6 +43,29 @@ const isStreaming        = ref(false)
 const streamingContent   = ref('')
 const streamingToolCalls = ref<{ name: string; args: unknown }[]>([])
 
+// ── Ask 表单状态 ──────────────────────────────────────────
+type AskQuestion =
+  | { type: 'radio';    label: string; options: string[]; allowCustom?: boolean }
+  | { type: 'checkbox'; label: string; options: string[]; allowCustom?: boolean }
+  | { type: 'input';    label: string; placeholder?: string }
+
+const pendingAsk     = ref<{ id: string; title?: string; questions: AskQuestion[] } | null>(null)
+const askAnswers     = ref<Record<number, string | string[]>>({})
+
+function submitAsk() {
+  if (!pendingAsk.value) return
+  const answers: Record<string, string | string[]> = {}
+  pendingAsk.value.questions.forEach((_, i) => {
+    const val = askAnswers.value[i]
+    if (val !== undefined && val !== '' && !(Array.isArray(val) && val.length === 0))
+      answers[String(i)] = val
+  })
+  const id = pendingAsk.value.id
+  pendingAsk.value = null
+  askAnswers.value = {}
+  apiFetch('/api/ask-response', 'POST', { id, answers }).catch(() => {})
+}
+
 // ── 工具审批状态 ──────────────────────────────────────────
 const pendingToolCall = ref<{ id: string; name: string; args: Record<string, any> } | null>(null)
 const denyCountdown   = ref(300)
@@ -130,17 +153,22 @@ async function handleWsEvent(evt: WebChatEvent) {
     const tcId = evt.id ?? `tc-${Date.now()}`
     pendingToolCall.value = { id: tcId, name: evt.name, args: evt.args }
     startDenyCountdown()
+  } else if (evt.type === WebChatEventType.Ask) {
+    pendingAsk.value = { id: evt.id, title: evt.title, questions: evt.questions as AskQuestion[] }
+    askAnswers.value = {}
   } else if (evt.type === WebChatEventType.Done) {
     isStreaming.value = false
     chatSending.value = false
     stopDenyCountdown()
     pendingToolCall.value = null
+    pendingAsk.value = null
     emit('done')
   } else if (evt.type === WebChatEventType.Error) {
     isStreaming.value = false
     chatSending.value = false
     stopDenyCountdown()
     pendingToolCall.value = null
+    pendingAsk.value = null
     emit('error', evt.message)
   }
 }
@@ -171,10 +199,54 @@ function cleanup() {
   stopDenyCountdown()
 }
 
-defineExpose({ handleWsEvent, pushMessage, setSending, refreshHistory, clearHistory, scrollToBottom, reset, cleanup })
+/** 恢复后端 session 状态（切换 session 时调用） */
+function restoreSessionStatus(status: {
+  pendingTool?: { id?: string; name: string; args: Record<string, any> }
+  pendingAsk?: { id: string; title?: string; questions: AskQuestion[] }
+} | null) {
+  stopDenyCountdown()
+  pendingToolCall.value = null
+  pendingAsk.value = null
+  askAnswers.value = {}
+  if (!status) return
+  if (status.pendingTool) {
+    pendingToolCall.value = { id: status.pendingTool.id ?? '', name: status.pendingTool.name, args: status.pendingTool.args }
+    startDenyCountdown()
+  }
+  if (status.pendingAsk) {
+    pendingAsk.value = { id: status.pendingAsk.id, title: status.pendingAsk.title, questions: status.pendingAsk.questions }
+    askAnswers.value = {}
+  }
+}
+
+defineExpose({ handleWsEvent, pushMessage, setSending, refreshHistory, clearHistory, scrollToBottom, reset, cleanup, restoreSessionStatus })
 </script>
 
 <template>
+  <div v-if="pendingAsk" class="ask-form">
+    <div v-if="pendingAsk.title" class="ask-title">{{ pendingAsk.title }}</div>
+    <div v-for="(q, i) in pendingAsk.questions" :key="i" class="ask-question">
+      <div class="ask-label">{{ q.label }}</div>
+      <div v-if="q.type === 'radio'" class="ask-options">
+        <label v-for="opt in q.options" :key="opt" class="ask-option">
+          <input type="radio" :name="`ask_${pendingAsk.id}_${i}`" :value="opt" v-model="askAnswers[i]" />
+          {{ opt }}
+        </label>
+      </div>
+      <div v-else-if="q.type === 'checkbox'" class="ask-options">
+        <label v-for="opt in q.options" :key="opt" class="ask-option">
+          <input type="checkbox" :value="opt" v-model="(askAnswers[i] as string[])" />
+          {{ opt }}
+        </label>
+      </div>
+      <input v-else type="text" class="ask-input" v-model="(askAnswers[i] as string)"
+        :placeholder="(q as any).placeholder ?? ''" />
+    </div>
+    <div class="ask-footer">
+      <button class="btn-primary btn-sm" @click="submitAsk">{{ t('chat.ask_submit') }}</button>
+    </div>
+  </div>
+
   <div v-if="pendingToolCall" class="tool-approval-bar">
     <div class="tool-approval-top">
       <span class="tool-approval-label">{{ t('chat.execute_tool') }}<strong>{{ pendingToolCall.name }}</strong></span>
@@ -254,4 +326,34 @@ defineExpose({ handleWsEvent, pushMessage, setSending, refreshHistory, clearHist
   cursor: text;
   user-select: text;
 }
+
+/* ── Ask 表单 ──────────────────────────────────────────── */
+.ask-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #f0f9ff;
+  border-bottom: 1px solid #7dd3fc;
+  flex-shrink: 0;
+  font-size: 13px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.ask-title    { font-weight: 600; font-size: 14px; color: #0c4a6e; }
+.ask-question { display: flex; flex-direction: column; gap: 6px; }
+.ask-label    { font-weight: 500; color: #075985; }
+.ask-options  { display: flex; flex-direction: column; gap: 4px; }
+.ask-option   { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.ask-option input { cursor: pointer; }
+.ask-input {
+  padding: 5px 8px;
+  border: 1px solid #bae6fd;
+  border-radius: 4px;
+  font-size: 13px;
+  outline: none;
+  background: #fff;
+}
+.ask-input:focus { border-color: #38bdf8; }
+.ask-footer { display: flex; justify-content: flex-end; padding-top: 4px; }
 </style>

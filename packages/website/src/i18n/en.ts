@@ -88,6 +88,8 @@ export default {
     role_ai: 'AI',
     tool_calls: 'Tool Calls ({count})',
     tool_call: 'Tool Call',
+    ask_submit: 'Submit',
+    ask_timeout: 'Timed out',
     no_history: 'No history',
     date_today: 'Today',
     date_yesterday: 'Yesterday',

@@ -88,6 +88,8 @@ export default {
     role_ai: 'AI',
     tool_calls: 'Tool Calls ({count})',
     tool_call: 'Tool Call',
+    ask_submit: '提交',
+    ask_timeout: '已超时',
     no_history: '暂无历史记录',
     date_today: '今天',
     date_yesterday: '昨天',

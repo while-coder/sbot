@@ -1,22 +1,25 @@
 import "reflect-metadata";
-import { AgentMessage, AgentToolCall, ToolApproval } from "scorpio.ai";
+import { AgentMessage, AgentToolCall, AskResponse, AskToolParams, ToolApproval } from "scorpio.ai";
 import { AgentRunner } from "../Agent/AgentRunner";
 import { config } from '../Core/Config';
 import { ContextType } from '../Core/Database';
 import { buildExecuteTool } from './buildExecuteTool';
+import { askManager } from './AskManager';
 import { dirThreadId, sessionThreadId, WebChatEvent, WebChatEventType } from 'sbot.commons';
 
 export { WebChatEvent, WebChatEventType } from 'sbot.commons';
 
 export abstract class BaseWebUserService {
     private pendingApprovals: Map<string, (approval: ToolApproval) => void> = new Map();
+    protected activeThreadId?: string;
 
     protected abstract emit(event: WebChatEvent): void;
 
-    /** 连接断开时调用，拒绝所有挂起的工具审批 */
+    /** 连接断开时调用，拒绝所有挂起的审批和 ask */
     protected clearPendingApprovals(): void {
         for (const resolve of this.pendingApprovals.values()) resolve(ToolApproval.Deny);
         this.pendingApprovals.clear();
+        if (this.activeThreadId) askManager.rejectByThreadId(this.activeThreadId, 'Connection closed');
     }
 
     async onAgentMessage(message: AgentMessage): Promise<void> {
@@ -34,6 +37,10 @@ export abstract class BaseWebUserService {
     }
 
     protected getToolCallTimeout(): number {
+        return 300_000;
+    }
+
+    protected getAskTimeout(): number {
         return 300_000;
     }
 
@@ -57,14 +64,25 @@ export abstract class BaseWebUserService {
         this.pendingApprovals.get(id)?.(approval);
     }
 
+    async ask(params: AskToolParams): Promise<AskResponse> {
+        const threadId = this.activeThreadId ?? `unknown_${Date.now()}`;
+        const { id, promise } = askManager.open(threadId, params, this.getAskTimeout());
+        this.emit({ type: WebChatEventType.Ask, id, title: params.title, questions: params.questions as any });
+        return promise;
+    }
+
+    resolveAsk(id: string, answers: AskResponse): boolean {
+        return askManager.resolve(id, answers);
+    }
+
     async processAIMessage(query: string, args: any): Promise<void> {
         this.emit({ type: WebChatEventType.Human, content: query });
         const workPath = args?.workPath as string | undefined;
         if (workPath) {
-            // 目录模式：从 workPath/.sbot/settings.json 读取 agent/saver/memory
             const localCfg = config.getDirectoryConfig(workPath);
             if (!localCfg) throw new Error(`Directory "${workPath}" has no agent configured`);
             const threadId = dirThreadId(workPath);
+            this.activeThreadId = threadId;
             const extraInfo = `<scheduler-id>${workPath}</scheduler-id>`;
             await AgentRunner.run(query, {
                 onMessage: this.onAgentMessage.bind(this),
@@ -72,11 +90,11 @@ export abstract class BaseWebUserService {
                 executeTool: buildExecuteTool(threadId, this.executeAgentTool.bind(this)),
             }, localCfg.agent, localCfg.saver, threadId, ContextType.Directory, extraInfo, localCfg.memory, workPath);
         } else {
-            // 会话模式：通过 sessionId 查找全局会话配置
             const sessionId = args?.sessionId as string;
             const session = sessionId ? config.getSession(sessionId) : undefined;
             if (!session) throw new Error(`Session "${sessionId}" not found`);
             const threadId = sessionThreadId(sessionId);
+            this.activeThreadId = threadId;
             const extraInfo = `<scheduler-id>${sessionId}</scheduler-id>`;
             await AgentRunner.run(query, {
                 onMessage: this.onAgentMessage.bind(this),

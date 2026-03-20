@@ -66,6 +66,8 @@ export interface IAgentCallback {
      * @returns ToolApproval 枚举，表示执行意图
      */
     executeTool?(toolCall: AgentToolCall): Promise<ToolApproval>;
+
+
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

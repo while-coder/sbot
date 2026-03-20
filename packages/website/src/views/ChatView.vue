@@ -184,6 +184,18 @@ async function sendOne(query: string, atts: Attachment[]) {
   }
 }
 
+async function fetchAndRestoreSessionStatus(sessionId: string | null) {
+  if (!sessionId) { chatAreaRef.value?.restoreSessionStatus(null); return }
+  try {
+    const res = await apiFetch(`/api/session-status?sessionId=${encodeURIComponent(sessionId)}`)
+    chatAreaRef.value?.restoreSessionStatus(res.data ?? null)
+  } catch {
+    chatAreaRef.value?.restoreSessionStatus(null)
+  }
+}
+
+watch(activeSessionId, (id) => fetchAndRestoreSessionStatus(id))
+
 onMounted(() => {
   chatSocket.onMessage(handleWsMessage)
   const ids = Object.keys(sessions.value)

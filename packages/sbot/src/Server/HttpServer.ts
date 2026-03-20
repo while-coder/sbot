@@ -18,6 +18,7 @@ import { userService } from '../UserService/UserService';
 import { schedulerService } from '../Scheduler/SchedulerService';
 import { channelManager } from '../Channel/ChannelManager';
 import { sessionManager } from '../Agent/SessionManager';
+import { askManager } from '../UserService/AskManager';
 import { sessionThreadId, dirThreadId } from 'sbot.commons';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
@@ -1009,7 +1010,8 @@ class HttpServer {
             else if (workPath) threadId = dirThreadId(workPath);
             if (!threadId) { res.status(400).json({ error: 'sessionId or workPath required' }); return; }
             const info = sessionManager.getInfo(threadId);
-            res.json(info ?? null);
+            if (!info) { res.json(null); return; }
+            res.json({ ...info, pendingAsk: askManager.getByThreadId(threadId) ?? null });
         });
 
         app.post('/api/tool-approval', (req, res) => {
@@ -1017,6 +1019,14 @@ class HttpServer {
             if (!id || !approval) { res.status(400).json({ error: 'id and approval are required' }); return; }
             userService.web.resolveToolApproval(id, approval as any);
             userService.http.resolveToolApproval(id, approval as any);
+            res.json({ ok: true });
+        });
+
+        app.post('/api/ask-response', (req, res) => {
+            const { id, answers } = req.body as { id?: string; answers?: Record<string, any> };
+            if (!id || !answers) { res.status(400).json({ error: 'id and answers are required' }); return; }
+            const resolved = userService.web.resolveAsk(id, answers) || userService.http.resolveAsk(id, answers);
+            if (!resolved) { res.status(404).json({ error: 'Ask not found or already resolved' }); return; }
             res.json({ ok: true });
         });
 
