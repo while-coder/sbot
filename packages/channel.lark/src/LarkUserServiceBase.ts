@@ -1,5 +1,5 @@
 import { LarkChatProvider } from "./LarkChatProvider";
-import { AgentMessage, AgentToolCall, AskToolParams } from "scorpio.ai";
+import { AgentMessage, AgentToolCall, AskToolParams, AskQuestionType } from "scorpio.ai";
 import { GlobalLoggerService } from "scorpio.ai";
 import { LarkReceiveIdType, LarkService } from "./LarkService";
 import { ChannelUserServiceBase, ToolCallStatus } from "channel.base";
@@ -78,19 +78,21 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
     await this.provider?.deleteElement("toolCallAllow", "toolCallAlwaysArgs", "toolCallAlwaysTool", "toolCallDeny");
   }
 
-  protected async sendAskForm(params: AskToolParams, askId: string): Promise<void> {
+  protected async sendAskForm(params: AskToolParams, askId: string, remainSec: number): Promise<void> {
     const formElements: any[] = [];
     for (let i = 0; i < params.questions.length; i++) {
       const q = params.questions[i];
       const name = `${i}`;
-      if (q.type === 'radio') {
+      if (q.type === AskQuestionType.Radio) {
         const options = q.options.map((o: string) => ({ text: { tag: 'plain_text', content: o }, value: o }));
         if (q.allowCustom) options.push({ text: { tag: 'plain_text', content: 'Other' }, value: '__custom__' });
         formElements.push({ tag: 'select_static', name, label: { tag: 'plain_text', content: q.label }, options });
-      } else if (q.type === 'checkbox') {
+      } else if (q.type === AskQuestionType.Checkbox) {
         const options = q.options.map((o: string) => ({ text: { tag: 'plain_text', content: o }, value: o }));
         if (q.allowCustom) options.push({ text: { tag: 'plain_text', content: 'Other' }, value: '__custom__' });
         formElements.push({ tag: 'multi_select_static', name, label: { tag: 'plain_text', content: q.label }, options });
+      } else if (q.type === AskQuestionType.Toggle) {
+        formElements.push({ tag: 'toggle', name, label: { tag: 'plain_text', content: q.label }, default_value: q.default ?? false });
       } else {
         formElements.push({
           tag: 'input', name,
@@ -101,7 +103,7 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
     }
     formElements.push({
       tag: 'button',
-      text: { tag: 'plain_text', content: 'Submit' },
+      text: { tag: 'plain_text', content: `Submit (${remainSec}s)` },
       type: 'primary',
       form_action_type: 'submit',
       behaviors: [{ type: 'callback', value: { code: 'AskForm', data: { id: askId } } }],

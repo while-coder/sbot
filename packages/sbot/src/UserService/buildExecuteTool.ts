@@ -1,7 +1,10 @@
 import fs from "fs";
-import { AgentToolCall, ToolApproval } from "scorpio.ai";
+import { AgentToolCall, ToolApproval, ASK_TOOL_NAME, TASK_TOOL_NAME } from "scorpio.ai";
 import { config } from "../Core/Config";
 import { sessionManager, SessionStatus } from "../Agent/SessionManager";
+
+/** 内部工具名，直接放行无需用户确认 */
+const INTERNAL_TOOLS = new Set([ASK_TOOL_NAME, TASK_TOOL_NAME]);
 
 export function buildExecuteTool(
     threadId: string,
@@ -18,6 +21,7 @@ export function buildExecuteTool(
     };
 
     return async (toolCall: AgentToolCall) => {
+        if (INTERNAL_TOOLS.has(toolCall.name)) return ToolApproval.Allow;
         const approvedArgs = autoApproveTools[toolCall.name];
         if (approvedArgs && (approvedArgs.includes('*') || approvedArgs.includes(JSON.stringify(toolCall.args)))) {
             return ToolApproval.Allow;

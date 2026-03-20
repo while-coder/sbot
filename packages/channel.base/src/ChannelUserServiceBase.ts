@@ -1,6 +1,7 @@
 import {
   AgentMessage,
   AgentToolCall,
+  AskQuestionType,
   AskResponse,
   AskToolParams,
   NowDate,
@@ -40,7 +41,7 @@ export abstract class ChannelUserServiceBase extends UserServiceBase {
 
   protected abstract sendApprovalUI(toolCall: AgentToolCall, remainSec: number): Promise<void>;
   protected abstract clearApprovalUI(toolCallId: string): Promise<void>;
-  protected abstract sendAskForm(params: AskToolParams, askId: string): Promise<void>;
+  protected abstract sendAskForm(params: AskToolParams, askId: string, remainSec: number): Promise<void>;
   protected abstract clearAskForm(askId: string): Promise<void>;
 
   protected resolveToolCall(id: string, approval: ToolCallStatus): void {
@@ -93,37 +94,48 @@ export abstract class ChannelUserServiceBase extends UserServiceBase {
     while (this.askMap.has(askId)) askId = `ask_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const askState: AskEntry = { status: AskStatus.Wait, params };
     this.askMap.set(askId, askState);
-    await this.sendAskForm(params, askId);
-
-    const end = NowDate() + this.getAskTimeout();
-    while (askState.status === AskStatus.Wait) {
-      await sleep(10);
-      if (NowDate() > end) {
-        askState.status = AskStatus.Timeout;
-        break;
-      }
-    }
-
-    const status = askState.status;
-    const response = askState.response;
     try {
-      await this.clearAskForm(askId);
+      const end = NowDate() + this.getAskTimeout();
+      let lastSend = 0;
+      while (askState.status === AskStatus.Wait) {
+        if (NowDate() - lastSend > 300) {
+          lastSend = NowDate();
+          const remainSec = Math.floor((end - NowDate()) / 1000);
+          await this.sendAskForm(params, askId, remainSec);
+        }
+        await sleep(10);
+        if (NowDate() > end) {
+          askState.status = AskStatus.Timeout;
+          break;
+        }
+      }
     } finally {
+      try { await this.clearAskForm(askId); } catch {}
       this.askMap.delete(askId);
     }
+
+    const { status, response } = askState;
 
     if (status !== AskStatus.Done || !response)
       throw new Error("User did not answer within the allotted time");
     return response;
   }
 
-  protected resolveAskResponse(askId: string, answers: Record<string, string | string[] | undefined>): void {
+  protected resolveAskResponse(askId: string, answers: Record<string, string | string[] | boolean | undefined>): void {
     const state = this.askMap.get(askId);
     if (!state) return;
     const response: AskResponse = {};
     for (let i = 0; i < state.params.questions.length; i++) {
-      const val = answers[`${i}`];
-      if (val !== undefined) response[state.params.questions[i].label] = val;
+      const q = state.params.questions[i];
+      const raw = answers[`${i}`];
+      if (q.type === AskQuestionType.Toggle) {
+        // normalize: boolean (Lark), ["true"]/[] (Slack), "true"/"false" (Web)
+        if (typeof raw === 'boolean') response[q.label] = String(raw);
+        else if (Array.isArray(raw)) response[q.label] = raw.includes('true') ? 'true' : 'false';
+        else response[q.label] = raw === 'true' ? 'true' : 'false';
+      } else if (raw !== undefined) {
+        response[q.label] = raw as string | string[];
+      }
     }
     state.response = response;
     state.status = AskStatus.Done;

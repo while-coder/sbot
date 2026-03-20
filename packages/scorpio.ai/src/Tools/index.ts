@@ -21,12 +21,15 @@ export {
 
 export {
     createTaskTool,
+    TASK_TOOL_NAME,
     type TaskToolParams,
     type RunTaskFn,
 } from './TaskTool';
 
 export {
     createAskTool,
+    ASK_TOOL_NAME,
+    AskQuestionType,
     type AskToolParams,
     type AskQuestion,
     type AskResponse,
@@ -34,4 +37,5 @@ export {
     type RadioQuestion,
     type CheckboxQuestion,
     type InputQuestion,
+    type ToggleQuestion,
 } from './AskTool';

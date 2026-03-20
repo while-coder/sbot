@@ -89,6 +89,8 @@ export default {
     tool_calls: 'Tool Calls ({count})',
     tool_call: 'Tool Call',
     ask_submit: 'Submit',
+    ask_other: 'Other',
+    ask_other_placeholder: 'Type here...',
     ask_timeout: 'Timed out',
     no_history: 'No history',
     date_today: 'Today',

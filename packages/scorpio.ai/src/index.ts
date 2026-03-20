@@ -246,8 +246,16 @@ export {
   MCPContent,
   MCPToolResult,
 
+  // TaskTool
+  createTaskTool,
+  TASK_TOOL_NAME,
+  type TaskToolParams,
+  type RunTaskFn,
+
   // AskTool
   createAskTool,
+  ASK_TOOL_NAME,
+  AskQuestionType,
   type AskToolParams,
   type AskQuestion,
   type AskResponse,
@@ -255,6 +263,7 @@ export {
   type RadioQuestion,
   type CheckboxQuestion,
   type InputQuestion,
+  type ToggleQuestion,
 
   // 工具函数
   createTextContent,

@@ -188,7 +188,7 @@ async function fetchAndRestoreSessionStatus(sessionId: string | null) {
   if (!sessionId) { chatAreaRef.value?.restoreSessionStatus(null); return }
   try {
     const res = await apiFetch(`/api/session-status?sessionId=${encodeURIComponent(sessionId)}`)
-    chatAreaRef.value?.restoreSessionStatus(res.data ?? null)
+    chatAreaRef.value?.restoreSessionStatus(res ?? null)
   } catch {
     chatAreaRef.value?.restoreSessionStatus(null)
   }

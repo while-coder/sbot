@@ -10,13 +10,19 @@ export interface AskInfo {
     threadId: string;
     title?: string;
     questions: AskToolParams['questions'];
+    startedAt: Date;
+}
+
+export interface PendingToolInfo {
+    tool: AgentToolCall;
+    startedAt: Date;
 }
 
 export interface SessionInfo {
     threadId: string;
     startedAt: Date;
     status: SessionStatus;
-    pendingTool?: AgentToolCall;
+    pendingTool?: PendingToolInfo;
     pendingAsk?: AskInfo;
 }
 
@@ -36,7 +42,7 @@ interface SessionState {
     threadId: string;
     startedAt: Date;
     status: SessionStatus;
-    pendingTool?: AgentToolCall;
+    pendingTool?: PendingToolInfo;
     source: CancellationTokenSource;
     pendingAsk?: PendingAsk;
 }
@@ -84,7 +90,7 @@ class SessionManager {
         const session = this.sessions.get(threadId);
         if (!session) return;
         session.status = status;
-        session.pendingTool = pendingTool;
+        session.pendingTool = pendingTool ? { tool: pendingTool, startedAt: new Date() } : undefined;
     }
 
     getInfo(threadId: string): SessionInfo | undefined {
@@ -96,7 +102,7 @@ class SessionManager {
             status: s.status,
             pendingTool: s.pendingTool,
             pendingAsk: s.pendingAsk
-                ? { id: s.pendingAsk.id, threadId: s.pendingAsk.threadId, title: s.pendingAsk.title, questions: s.pendingAsk.questions }
+                ? { id: s.pendingAsk.id, threadId: s.pendingAsk.threadId, title: s.pendingAsk.title, questions: s.pendingAsk.questions, startedAt: s.pendingAsk.startedAt }
                 : undefined,
         };
     }
@@ -112,7 +118,7 @@ class SessionManager {
             status: s.status,
             pendingTool: s.pendingTool,
             pendingAsk: s.pendingAsk
-                ? { id: s.pendingAsk.id, threadId: s.pendingAsk.threadId, title: s.pendingAsk.title, questions: s.pendingAsk.questions }
+                ? { id: s.pendingAsk.id, threadId: s.pendingAsk.threadId, title: s.pendingAsk.title, questions: s.pendingAsk.questions, startedAt: s.pendingAsk.startedAt }
                 : undefined,
         }));
     }
@@ -126,7 +132,7 @@ class SessionManager {
             if (session) delete session.pendingAsk;
             reject(new Error('User did not answer within the allotted time'));
         }, timeoutMs);
-        if (session) session.pendingAsk = { id: threadId, threadId, title: params.title, questions: params.questions, resolve, reject, timer };
+        if (session) session.pendingAsk = { id: threadId, threadId, title: params.title, questions: params.questions, startedAt: new Date(), resolve, reject, timer };
         return { id: threadId, promise };
     }
 

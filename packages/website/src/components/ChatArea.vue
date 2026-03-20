@@ -48,21 +48,52 @@ type AskQuestion =
   | { type: 'radio';    label: string; options: string[]; allowCustom?: boolean }
   | { type: 'checkbox'; label: string; options: string[]; allowCustom?: boolean }
   | { type: 'input';    label: string; placeholder?: string }
+  | { type: 'toggle';   label: string; default?: boolean }
 
-const pendingAsk     = ref<{ id: string; title?: string; questions: AskQuestion[] } | null>(null)
-const askAnswers     = ref<Record<number, string | string[]>>({})
+const pendingAsk        = ref<{ id: string; title?: string; questions: AskQuestion[] } | null>(null)
+const askAnswers        = ref<Record<number, string | string[]>>({})
+const askToggleValues   = ref<Record<number, boolean>>({})
+const askCustomInputs   = ref<Record<number, string>>({})
+
+const CUSTOM_SENTINEL = '__custom__'
+
+function initAskAnswers(questions: AskQuestion[]) {
+  const init: Record<number, string | string[]> = {}
+  const toggleInit: Record<number, boolean> = {}
+  questions.forEach((q, i) => {
+    if (q.type === 'checkbox') init[i] = []
+    if (q.type === 'toggle') toggleInit[i] = q.default ?? false
+  })
+  askAnswers.value = init
+  askToggleValues.value = toggleInit
+  askCustomInputs.value = {}
+}
+const askCountdown    = ref(600)
 
 function submitAsk() {
   if (!pendingAsk.value) return
   const answers: Record<string, string | string[]> = {}
-  pendingAsk.value.questions.forEach((_, i) => {
-    const val = askAnswers.value[i]
-    if (val !== undefined && val !== '' && !(Array.isArray(val) && val.length === 0))
-      answers[String(i)] = val
+  pendingAsk.value.questions.forEach((q, i) => {
+    if (q.type === 'toggle') {
+      answers[String(i)] = String(askToggleValues.value[i] ?? false)
+      return
+    }
+    let val = askAnswers.value[i]
+    if (Array.isArray(val)) {
+      // checkbox: replace sentinel with custom text
+      val = val.flatMap(v => v === CUSTOM_SENTINEL ? (askCustomInputs.value[i] ? [askCustomInputs.value[i]] : []) : [v])
+      if (val.length > 0) answers[String(i)] = val
+    } else {
+      // radio / input: replace sentinel with custom text
+      if (val === CUSTOM_SENTINEL) val = askCustomInputs.value[i] ?? ''
+      if (val !== undefined && val !== '') answers[String(i)] = val
+    }
   })
   const id = pendingAsk.value.id
   pendingAsk.value = null
   askAnswers.value = {}
+  askToggleValues.value = {}
+  askCustomInputs.value = {}
   apiFetch('/api/ask-response', 'POST', { id, answers }).catch(() => {})
 }
 
@@ -82,9 +113,9 @@ function formatArgVal(v: unknown): string {
   return '{…}'
 }
 
-function startDenyCountdown() {
+function startDenyCountdown(initialSeconds = 300) {
   stopDenyCountdown()
-  denyCountdown.value = 300
+  denyCountdown.value = initialSeconds
   denyTimer = setInterval(() => {
     if (denyCountdown.value > 0) denyCountdown.value--
   }, 1000)
@@ -92,6 +123,20 @@ function startDenyCountdown() {
 
 function stopDenyCountdown() {
   if (denyTimer !== null) { clearInterval(denyTimer); denyTimer = null }
+}
+
+let askTimer: ReturnType<typeof setInterval> | null = null
+
+function startAskCountdown(initialSeconds = 600) {
+  stopAskCountdown()
+  askCountdown.value = initialSeconds
+  askTimer = setInterval(() => {
+    if (askCountdown.value > 0) askCountdown.value--
+  }, 1000)
+}
+
+function stopAskCountdown() {
+  if (askTimer !== null) { clearInterval(askTimer); askTimer = null }
 }
 
 function approveToolCall(approval: string) {
@@ -155,11 +200,13 @@ async function handleWsEvent(evt: WebChatEvent) {
     startDenyCountdown()
   } else if (evt.type === WebChatEventType.Ask) {
     pendingAsk.value = { id: evt.id, title: evt.title, questions: evt.questions as AskQuestion[] }
-    askAnswers.value = {}
+    initAskAnswers(evt.questions as AskQuestion[])
+    startAskCountdown()
   } else if (evt.type === WebChatEventType.Done) {
     isStreaming.value = false
     chatSending.value = false
     stopDenyCountdown()
+    stopAskCountdown()
     pendingToolCall.value = null
     pendingAsk.value = null
     emit('done')
@@ -167,6 +214,7 @@ async function handleWsEvent(evt: WebChatEvent) {
     isStreaming.value = false
     chatSending.value = false
     stopDenyCountdown()
+    stopAskCountdown()
     pendingToolCall.value = null
     pendingAsk.value = null
     emit('error', evt.message)
@@ -191,31 +239,45 @@ function reset() {
   isStreaming.value = false
   chatSending.value = false
   stopDenyCountdown()
+  stopAskCountdown()
   pendingToolCall.value = null
+  pendingAsk.value = null
 }
 
 /** 组件卸载时调用，清理定时器 */
 function cleanup() {
   stopDenyCountdown()
+  stopAskCountdown()
+}
+
+function remainSeconds(startedAt: string, totalSeconds: number): number {
+  const elapsed = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000)
+  return Math.max(0, totalSeconds - elapsed)
 }
 
 /** 恢复后端 session 状态（切换 session 时调用） */
 function restoreSessionStatus(status: {
-  pendingTool?: { id?: string; name: string; args: Record<string, any> }
-  pendingAsk?: { id: string; title?: string; questions: AskQuestion[] }
+  pendingTool?: { tool: { id?: string; name: string; args: Record<string, any> }; startedAt: string }
+  pendingAsk?: { id: string; title?: string; questions: AskQuestion[]; startedAt: string }
 } | null) {
   stopDenyCountdown()
+  stopAskCountdown()
   pendingToolCall.value = null
   pendingAsk.value = null
   askAnswers.value = {}
+  askToggleValues.value = {}
+  askCustomInputs.value = {}
   if (!status) return
   if (status.pendingTool) {
-    pendingToolCall.value = { id: status.pendingTool.id ?? '', name: status.pendingTool.name, args: status.pendingTool.args }
-    startDenyCountdown()
+    const { tool, startedAt } = status.pendingTool
+    pendingToolCall.value = { id: tool.id ?? '', name: tool.name, args: tool.args }
+    startDenyCountdown(remainSeconds(startedAt, 300))
   }
   if (status.pendingAsk) {
-    pendingAsk.value = { id: status.pendingAsk.id, title: status.pendingAsk.title, questions: status.pendingAsk.questions }
-    askAnswers.value = {}
+    const { startedAt, ...askInfo } = status.pendingAsk
+    pendingAsk.value = askInfo
+    initAskAnswers(askInfo.questions)
+    startAskCountdown(remainSeconds(startedAt, 600))
   }
 }
 
@@ -226,24 +288,44 @@ defineExpose({ handleWsEvent, pushMessage, setSending, refreshHistory, clearHist
   <div v-if="pendingAsk" class="ask-form">
     <div v-if="pendingAsk.title" class="ask-title">{{ pendingAsk.title }}</div>
     <div v-for="(q, i) in pendingAsk.questions" :key="i" class="ask-question">
-      <div class="ask-label">{{ q.label }}</div>
+      <div v-if="q.type !== 'toggle'" class="ask-label">{{ q.label }}</div>
       <div v-if="q.type === 'radio'" class="ask-options">
         <label v-for="opt in q.options" :key="opt" class="ask-option">
           <input type="radio" :name="`ask_${pendingAsk.id}_${i}`" :value="opt" v-model="askAnswers[i]" />
           {{ opt }}
         </label>
+        <template v-if="q.allowCustom">
+          <label class="ask-option">
+            <input type="radio" :name="`ask_${pendingAsk.id}_${i}`" :value="CUSTOM_SENTINEL" v-model="askAnswers[i]" />
+            {{ t('chat.ask_other') }}
+          </label>
+          <input v-if="askAnswers[i] === CUSTOM_SENTINEL" type="text" class="ask-input ask-custom-input"
+            v-model="askCustomInputs[i]" :placeholder="t('chat.ask_other_placeholder')" />
+        </template>
       </div>
       <div v-else-if="q.type === 'checkbox'" class="ask-options">
         <label v-for="opt in q.options" :key="opt" class="ask-option">
           <input type="checkbox" :value="opt" v-model="(askAnswers[i] as string[])" />
           {{ opt }}
         </label>
+        <template v-if="q.allowCustom">
+          <label class="ask-option">
+            <input type="checkbox" :value="CUSTOM_SENTINEL" v-model="(askAnswers[i] as string[])" />
+            {{ t('chat.ask_other') }}
+          </label>
+          <input v-if="(askAnswers[i] as string[]).includes(CUSTOM_SENTINEL)" type="text" class="ask-input ask-custom-input"
+            v-model="askCustomInputs[i]" :placeholder="t('chat.ask_other_placeholder')" />
+        </template>
       </div>
+      <label v-else-if="q.type === 'toggle'" class="ask-option ask-toggle">
+        <input type="checkbox" v-model="askToggleValues[i]" />
+        {{ q.label }}
+      </label>
       <input v-else type="text" class="ask-input" v-model="(askAnswers[i] as string)"
         :placeholder="(q as any).placeholder ?? ''" />
     </div>
     <div class="ask-footer">
-      <button class="btn-primary btn-sm" @click="submitAsk">{{ t('chat.ask_submit') }}</button>
+      <button class="btn-primary btn-sm" @click="submitAsk">{{ t('chat.ask_submit') }} ({{ askCountdown }}s)</button>
     </div>
   </div>
 
@@ -355,5 +437,7 @@ defineExpose({ handleWsEvent, pushMessage, setSending, refreshHistory, clearHist
   background: #fff;
 }
 .ask-input:focus { border-color: #38bdf8; }
+.ask-custom-input { margin-top: 4px; margin-left: 20px; }
+.ask-toggle { font-weight: 500; color: #075985; }
 .ask-footer { display: flex; justify-content: flex-end; padding-top: 4px; }
 </style>

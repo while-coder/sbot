@@ -1,5 +1,5 @@
 import { SlackChatProvider } from "./SlackChatProvider";
-import { AgentMessage, AgentToolCall, AskToolParams } from "scorpio.ai";
+import { AgentMessage, AgentToolCall, AskToolParams, AskQuestionType } from "scorpio.ai";
 import { GlobalLoggerService } from "scorpio.ai";
 import { SlackService } from "./SlackService";
 import { ChannelUserServiceBase, ToolCallStatus } from "channel.base";
@@ -75,7 +75,7 @@ export abstract class SlackUserServiceBase extends ChannelUserServiceBase {
     await this.provider?.clearApprovalBlocks();
   }
 
-  protected async sendAskForm(params: AskToolParams, askId: string): Promise<void> {
+  protected async sendAskForm(params: AskToolParams, askId: string, remainSec: number): Promise<void> {
     const inputBlocks: any[] = [];
     if (params.title) {
       inputBlocks.push({ type: "section", text: { type: "mrkdwn", text: `*${params.title}*` } });
@@ -83,7 +83,7 @@ export abstract class SlackUserServiceBase extends ChannelUserServiceBase {
     for (let i = 0; i < params.questions.length; i++) {
       const q = params.questions[i];
       const blockId = `${i}`;
-      if (q.type === "radio") {
+      if (q.type === AskQuestionType.Radio) {
         inputBlocks.push({
           type: "input", block_id: blockId,
           label: { type: "plain_text", text: q.label },
@@ -93,7 +93,7 @@ export abstract class SlackUserServiceBase extends ChannelUserServiceBase {
             options: q.options.map((o: string) => ({ text: { type: "plain_text", text: o }, value: o })),
           },
         });
-      } else if (q.type === "checkbox") {
+      } else if (q.type === AskQuestionType.Checkbox) {
         inputBlocks.push({
           type: "input", block_id: blockId,
           label: { type: "plain_text", text: q.label },
@@ -101,6 +101,16 @@ export abstract class SlackUserServiceBase extends ChannelUserServiceBase {
             type: "multi_static_select", action_id: blockId,
             placeholder: { type: "plain_text", text: "Select..." },
             options: q.options.map((o: string) => ({ text: { type: "plain_text", text: o }, value: o })),
+          },
+        });
+      } else if (q.type === AskQuestionType.Toggle) {
+        inputBlocks.push({
+          type: "input", block_id: blockId, optional: true,
+          label: { type: "plain_text", text: q.label },
+          element: {
+            type: "checkboxes", action_id: blockId,
+            options: [{ text: { type: "plain_text", text: q.label }, value: "true" }],
+            ...(q.default ? { initial_options: [{ text: { type: "plain_text", text: q.label }, value: "true" }] } : {}),
           },
         });
       } else {
@@ -118,7 +128,7 @@ export abstract class SlackUserServiceBase extends ChannelUserServiceBase {
       type: "actions", block_id: "askSubmit",
       elements: [{
         type: "button",
-        text: { type: "plain_text", text: "Submit" },
+        text: { type: "plain_text", text: `Submit (${remainSec}s)` },
         style: "primary",
         action_id: `ask_submit_${askId}`,
         value: JSON.stringify({ id: askId }),
