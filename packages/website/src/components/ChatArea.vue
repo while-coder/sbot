@@ -46,7 +46,18 @@ const streamingToolCalls = ref<{ name: string; args: unknown }[]>([])
 // ── 工具审批状态 ──────────────────────────────────────────
 const pendingToolCall = ref<{ id: string; name: string; args: Record<string, any> } | null>(null)
 const denyCountdown   = ref(300)
+const argsExpanded    = ref(false)
 let denyTimer: ReturnType<typeof setInterval> | null = null
+
+watch(pendingToolCall, () => { argsExpanded.value = false })
+
+function formatArgVal(v: unknown): string {
+  if (v === null || v === undefined) return 'null'
+  if (typeof v === 'string') return v.length > 80 ? v.slice(0, 80) + '…' : v
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v)
+  if (Array.isArray(v)) return `[${v.length} items]`
+  return '{…}'
+}
 
 function startDenyCountdown() {
   stopDenyCountdown()
@@ -165,12 +176,24 @@ defineExpose({ handleWsEvent, pushMessage, setSending, refreshHistory, clearHist
 
 <template>
   <div v-if="pendingToolCall" class="tool-approval-bar">
-    <span class="tool-approval-label">{{ t('chat.execute_tool') }}<strong>{{ pendingToolCall.name }}</strong></span>
-    <div class="tool-approval-btns">
-      <button class="btn-primary btn-sm" @click="approveToolCall('allow')">{{ t('chat.allow') }}</button>
-      <button class="btn-outline btn-sm" @click="approveToolCall('alwaysArgs')">{{ t('chat.always_allow_args') }}</button>
-      <button class="btn-outline btn-sm" @click="approveToolCall('alwaysTool')">{{ t('chat.always_allow_all') }}</button>
-      <button class="btn-danger btn-sm" @click="approveToolCall('deny')">{{ t('chat.deny') }} ({{ denyCountdown }}s)</button>
+    <div class="tool-approval-top">
+      <span class="tool-approval-label">{{ t('chat.execute_tool') }}<strong>{{ pendingToolCall.name }}</strong></span>
+      <div class="tool-approval-btns">
+        <button class="btn-primary btn-sm" @click="approveToolCall('allow')">{{ t('chat.allow') }}</button>
+        <button class="btn-outline btn-sm" @click="approveToolCall('alwaysArgs')">{{ t('chat.always_allow_args') }}</button>
+        <button class="btn-outline btn-sm" @click="approveToolCall('alwaysTool')">{{ t('chat.always_allow_all') }}</button>
+        <button class="btn-danger btn-sm" @click="approveToolCall('deny')">{{ t('chat.deny') }} ({{ denyCountdown }}s)</button>
+      </div>
+    </div>
+    <div v-if="Object.keys(pendingToolCall.args).length" class="tool-approval-args" @click="argsExpanded = !argsExpanded">
+      <span class="args-toggle">{{ argsExpanded ? '▾' : '▸' }}</span>
+      <template v-if="!argsExpanded">
+        <span v-for="[k, v] in Object.entries(pendingToolCall.args)" :key="k" class="args-kv">
+          <span class="args-key">{{ k }}:</span>
+          <span class="args-val">{{ formatArgVal(v) }}</span>
+        </span>
+      </template>
+      <pre v-else class="args-full" @click.stop>{{ JSON.stringify(pendingToolCall.args, null, 2) }}</pre>
     </div>
   </div>
   <ChatPanel
@@ -189,14 +212,46 @@ defineExpose({ handleWsEvent, pushMessage, setSending, refreshHistory, clearHist
 <style scoped>
 .tool-approval-bar {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  gap: 6px;
   padding: 8px 16px;
   background: #fffbeb;
   border-bottom: 1px solid #fcd34d;
   flex-shrink: 0;
   font-size: 13px;
 }
-.tool-approval-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool-approval-top   { display: flex; align-items: center; gap: 10px; }
+.tool-approval-label { flex: 1; min-width: 0; }
 .tool-approval-btns  { display: flex; gap: 6px; flex-shrink: 0; }
+.tool-approval-args {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  padding: 4px 8px;
+  background: #fef9c3;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.args-toggle { color: #92400e; flex-shrink: 0; }
+.args-kv     { display: inline-flex; gap: 3px; }
+.args-key    { color: #78350f; font-weight: 500; }
+.args-val    { color: #44403c; font-family: monospace; word-break: break-all; }
+.args-full   {
+  margin: 4px 0 0;
+  width: 100%;
+  padding: 6px 8px;
+  background: #fef3c7;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: monospace;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 200px;
+  overflow-y: auto;
+  cursor: text;
+  user-select: text;
+}
 </style>

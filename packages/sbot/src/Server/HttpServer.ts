@@ -17,6 +17,8 @@ import { database } from '../Core/Database';
 import { userService } from '../UserService/UserService';
 import { schedulerService } from '../Scheduler/SchedulerService';
 import { channelManager } from '../Channel/ChannelManager';
+import { sessionManager } from '../Agent/SessionManager';
+import { sessionThreadId, dirThreadId } from 'sbot.commons';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
 
@@ -1000,6 +1002,16 @@ class HttpServer {
 
     // ===== Chat =====
     private registerChatRoutes(app: express.Application, uploadDir: string) {
+        app.get('/api/session-status', (req, res) => {
+            const { sessionId, workPath } = req.query as { sessionId?: string; workPath?: string };
+            let threadId: string | undefined;
+            if (sessionId) threadId = sessionThreadId(sessionId);
+            else if (workPath) threadId = dirThreadId(workPath);
+            if (!threadId) { res.status(400).json({ error: 'sessionId or workPath required' }); return; }
+            const info = sessionManager.getInfo(threadId);
+            res.json(info ?? null);
+        });
+
         app.post('/api/tool-approval', (req, res) => {
             const { id, approval } = req.body as { id?: string; approval?: string };
             if (!id || !approval) { res.status(400).json({ error: 'id and approval are required' }); return; }

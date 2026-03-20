@@ -1,6 +1,7 @@
 import fs from "fs";
 import { AgentToolCall, ToolApproval } from "scorpio.ai";
 import { config } from "../Core/Config";
+import { sessionManager, SessionStatus } from "../Agent/SessionManager";
 
 export function buildExecuteTool(
     threadId: string,
@@ -21,7 +22,13 @@ export function buildExecuteTool(
         if (approvedArgs && (approvedArgs.includes('*') || approvedArgs.includes(JSON.stringify(toolCall.args)))) {
             return ToolApproval.Allow;
         }
-        const result = await executeAgentTool(toolCall);
+        sessionManager.setStatus(threadId, SessionStatus.WaitingApproval, toolCall);
+        let result: ToolApproval;
+        try {
+            result = await executeAgentTool(toolCall);
+        } finally {
+            sessionManager.setStatus(threadId, SessionStatus.Thinking);
+        }
         if (result === ToolApproval.AlwaysTool) {
             autoApproveTools[toolCall.name] = ['*'];
             saveSessionSettings();
@@ -31,6 +38,6 @@ export function buildExecuteTool(
             autoApproveTools[toolCall.name] = existing;
             saveSessionSettings();
         }
-        return result;
+        return result!;
     };
 }
