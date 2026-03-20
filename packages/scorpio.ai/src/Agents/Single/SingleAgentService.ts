@@ -244,15 +244,15 @@ export class SingleAgentService extends AgentServiceBase {
                         throw new Error(`Tool call rejected by user`);
                     }
                 }
-                // 执行工具
-                const argsStr = JSON.stringify(toolCall.args);
-                const result = await tool.invoke(toolCall.args);
+                // 执行工具（LLM 有时会将数组/对象参数 JSON 序列化成字符串，先做一次反解析）
+                const parsedArgs = SingleAgentService.parseStringArgs(toolCall.args);
+                const result = await tool.invoke(parsedArgs);
 
                 // 标准化为 MCP 格式（自动检测和转换各种格式）
                 let mcpResult = normalizeToMCPResult(result);
                 const resultStr = JSON.stringify(mcpResult);
                 this.logger?.info(
-                    `执行工具 ${tool.name}\n  参数: ${truncate(argsStr, 150)}\n  结果: ${truncate(resultStr, 100)}`
+                    `执行工具 ${tool.name}\n  参数: ${truncate(JSON.stringify(parsedArgs), 150)}\n  结果: ${truncate(resultStr, 100)}`
                 );
 
                 // 转换内容中的图片（base64 → 本地 tmp 文件）
@@ -276,6 +276,18 @@ export class SingleAgentService extends AgentServiceBase {
         }
 
         return { messages: toolMessages };
+    }
+
+    /** LLM 有时将数组/对象参数 JSON 序列化成字符串，此函数将顶层字符串值中的 JSON 反解析回来 */
+    private static parseStringArgs(args: Record<string, any>): Record<string, any> {
+        const result: Record<string, any> = {};
+        for (const [k, v] of Object.entries(args)) {
+            if (typeof v === 'string' && (v.startsWith('[') || v.startsWith('{'))) {
+                try { result[k] = JSON.parse(v); continue; } catch {}
+            }
+            result[k] = v;
+        }
+        return result;
     }
 
     private agentNext(state: { messages: BaseMessage[] }): GraphNodeType.TOOLS | typeof END {
