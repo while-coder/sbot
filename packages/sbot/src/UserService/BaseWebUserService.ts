@@ -4,14 +4,14 @@ import { AgentRunner } from "../Agent/AgentRunner";
 import { config } from '../Core/Config';
 import { ContextType } from '../Core/Database';
 import { buildExecuteTool } from './buildExecuteTool';
-import { askManager } from './AskManager';
+import { sessionManager } from '../Agent/SessionManager';
 import { dirThreadId, sessionThreadId, WebChatEvent, WebChatEventType } from 'sbot.commons';
 
 export { WebChatEvent, WebChatEventType } from 'sbot.commons';
 
 export abstract class BaseWebUserService {
     private pendingApprovals: Map<string, (approval: ToolApproval) => void> = new Map();
-    protected activeThreadId?: string;
+    private rejectActiveAsk?: () => void;
 
     protected abstract emit(event: WebChatEvent): void;
 
@@ -19,7 +19,8 @@ export abstract class BaseWebUserService {
     protected clearPendingApprovals(): void {
         for (const resolve of this.pendingApprovals.values()) resolve(ToolApproval.Deny);
         this.pendingApprovals.clear();
-        if (this.activeThreadId) askManager.rejectByThreadId(this.activeThreadId, 'Connection closed');
+        this.rejectActiveAsk?.();
+        this.rejectActiveAsk = undefined;
     }
 
     async onAgentMessage(message: AgentMessage): Promise<void> {
@@ -41,7 +42,7 @@ export abstract class BaseWebUserService {
     }
 
     protected getAskTimeout(): number {
-        return 300_000;
+        return 600_000;
     }
 
     async executeAgentTool(toolCall: AgentToolCall): Promise<ToolApproval> {
@@ -64,43 +65,49 @@ export abstract class BaseWebUserService {
         this.pendingApprovals.get(id)?.(approval);
     }
 
-    async ask(params: AskToolParams): Promise<AskResponse> {
-        const threadId = this.activeThreadId ?? `unknown_${Date.now()}`;
-        const { id, promise } = askManager.open(threadId, params, this.getAskTimeout());
-        this.emit({ type: WebChatEventType.Ask, id, title: params.title, questions: params.questions as any });
-        return promise;
-    }
-
-    resolveAsk(id: string, answers: AskResponse): boolean {
-        return askManager.resolve(id, answers);
+    resolveAsk(threadId: string, answers: AskResponse): boolean {
+        return sessionManager.resolveAsk(threadId, answers);
     }
 
     async processAIMessage(query: string, args: any): Promise<void> {
         this.emit({ type: WebChatEventType.Human, content: query });
+
         const workPath = args?.workPath as string | undefined;
+        let threadId: string, agentId: string, saverId: string, memoryId: string | undefined;
+        let contextType: ContextType, extraInfo: string;
+
         if (workPath) {
-            const localCfg = config.getDirectoryConfig(workPath);
-            if (!localCfg) throw new Error(`Directory "${workPath}" has no agent configured`);
-            const threadId = dirThreadId(workPath);
-            this.activeThreadId = threadId;
-            const extraInfo = `<scheduler-id>${workPath}</scheduler-id>`;
-            await AgentRunner.run(query, {
-                onMessage: this.onAgentMessage.bind(this),
-                onStreamMessage: this.onAgentStreamMessage.bind(this),
-                executeTool: buildExecuteTool(threadId, this.executeAgentTool.bind(this)),
-            }, localCfg.agent, localCfg.saver, threadId, ContextType.Directory, extraInfo, localCfg.memory, workPath);
+            const cfg = config.getDirectoryConfig(workPath);
+            if (!cfg) throw new Error(`Directory "${workPath}" has no agent configured`);
+            threadId = dirThreadId(workPath);
+            ({ agent: agentId, saver: saverId, memory: memoryId } = cfg);
+            contextType = ContextType.Directory;
+            extraInfo = `<scheduler-id>${workPath}</scheduler-id>`;
         } else {
             const sessionId = args?.sessionId as string;
             const session = sessionId ? config.getSession(sessionId) : undefined;
             if (!session) throw new Error(`Session "${sessionId}" not found`);
-            const threadId = sessionThreadId(sessionId);
-            this.activeThreadId = threadId;
-            const extraInfo = `<scheduler-id>${sessionId}</scheduler-id>`;
-            await AgentRunner.run(query, {
+            threadId = sessionThreadId(sessionId);
+            ({ agent: agentId, saver: saverId, memory: memoryId } = session);
+            contextType = ContextType.Session;
+            extraInfo = `<scheduler-id>${sessionId}</scheduler-id>`;
+        }
+
+        this.rejectActiveAsk = () => sessionManager.rejectAsk(threadId, 'Connection closed');
+        await AgentRunner.run({
+            query,
+            callbacks: {
                 onMessage: this.onAgentMessage.bind(this),
                 onStreamMessage: this.onAgentStreamMessage.bind(this),
                 executeTool: buildExecuteTool(threadId, this.executeAgentTool.bind(this)),
-            }, session.agent, session.saver, threadId, ContextType.Session, extraInfo, session.memory);
-        }
+            },
+            agentId, saverId, threadId, contextType, extraInfo, memoryId,
+            workPath,
+            askFn: async (params: AskToolParams) => {
+                const { promise } = sessionManager.openAsk(threadId, params, this.getAskTimeout());
+                this.emit({ type: WebChatEventType.Ask, id: threadId, title: params.title, questions: params.questions as any });
+                return promise;
+            },
+        });
     }
 }

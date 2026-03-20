@@ -52,14 +52,17 @@ export abstract class ChannelUserServiceBase extends UserServiceBase {
     return 300 * 1000;
   }
 
+  protected getAskTimeout(): number {
+    return 600 * 1000;
+  }
+
   async executeAgentTool(toolCall: AgentToolCall): Promise<ToolApproval> {
     let id = toolCall.id ?? `tc-${Date.now()}`;
     while (this.toolCallMap.has(id)) id = `tc-${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const entry: ToolCallEntry = { status: ToolCallStatus.Wait };
     this.toolCallMap.set(id, entry);
     try {
-      const timeout = this.getToolCallTimeout();
-      const end = NowDate() + timeout;
+      const end = NowDate() + this.getToolCallTimeout();
       let lastSend = 0;
       while (entry.status === ToolCallStatus.Wait) {
         if (NowDate() - lastSend > 300) {
@@ -92,7 +95,7 @@ export abstract class ChannelUserServiceBase extends UserServiceBase {
     this.askMap.set(askId, askState);
     await this.sendAskForm(params, askId);
 
-    const end = NowDate() + 5 * 60 * 1000;
+    const end = NowDate() + this.getAskTimeout();
     while (askState.status === AskStatus.Wait) {
       await sleep(10);
       if (NowDate() > end) {

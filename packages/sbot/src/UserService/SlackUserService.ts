@@ -39,19 +39,20 @@ export class SlackUserService extends SlackUserServiceBase {
       : schedulerId;
 
     const threadId = slackThreadId(channelId, slackChannel, args.threadTs ?? args.ts);
-    await AgentRunner.run(
+    await AgentRunner.run({
       query,
-      {
+      callbacks: {
         onMessage: this.onAgentMessage.bind(this),
         onStreamMessage: this.onAgentStreamMessage.bind(this),
         executeTool: buildExecuteTool(threadId, this.executeAgentTool.bind(this)),
       },
       agentId,
-      channel.saver,
+      saverId: channel.saver,
       threadId,
-      ContextType.Channel,
+      contextType: ContextType.Channel,
       extraInfo,
       memoryId,
-    );
+      askFn: this.ask.bind(this),
+    });
   }
 }

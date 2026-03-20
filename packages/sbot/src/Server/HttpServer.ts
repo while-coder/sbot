@@ -18,7 +18,6 @@ import { userService } from '../UserService/UserService';
 import { schedulerService } from '../Scheduler/SchedulerService';
 import { channelManager } from '../Channel/ChannelManager';
 import { sessionManager } from '../Agent/SessionManager';
-import { askManager } from '../UserService/AskManager';
 import { sessionThreadId, dirThreadId } from 'sbot.commons';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
@@ -1011,7 +1010,7 @@ class HttpServer {
             if (!threadId) { res.status(400).json({ error: 'sessionId or workPath required' }); return; }
             const info = sessionManager.getInfo(threadId);
             if (!info) { res.json(null); return; }
-            res.json({ ...info, pendingAsk: askManager.getByThreadId(threadId) ?? null });
+            res.json({ ...info, pendingAsk: info.pendingAsk ?? null });
         });
 
         app.post('/api/tool-approval', (req, res) => {

@@ -12,6 +12,7 @@ import {
     T_ExtractorSystemPrompt, T_EvaluatorSystemPrompt, T_CompressorPromptTemplate,
     T_MemorySystemPromptTemplate,
     IModelService,
+    type AskUserFn,
 } from "scorpio.ai";
 import { config, SaverType } from "../Core/Config";
 import { loadPrompt } from "../Core/PromptLoader";
@@ -22,30 +23,42 @@ import { sessionManager } from "./SessionManager";
 
 const logger = LoggerService.getLogger('AgentRunner.ts');
 
+export interface AgentRunOptions {
+    /** 用户输入的消息 */
+    query: string;
+    /** Agent 运行期间的消息回调（流式输出、工具调用确认等） */
+    callbacks: IAgentCallback;
+    /** 要运行的 Agent 配置 ID */
+    agentId: string;
+    /** 历史记录存储器配置 ID */
+    saverId: string;
+    /** 会话唯一标识，同时用作 saver threadId 和 session 管理 key */
+    threadId: string;
+    /** 会话上下文类型（Channel / Session / Directory） */
+    contextType: ContextType;
+    /** 注入 environment 块的额外信息（用户信息、scheduler-id 等） */
+    extraInfo: string;
+    /** 记忆服务配置 ID，不传则不启用记忆 */
+    memoryId?: string;
+    /** Agent 文件操作根目录，不传则默认为 assets/{threadId} */
+    workPath?: string;
+    /** 用户交互询问函数，由具体 UserService 实现并传入 */
+    askFn?: AskUserFn;
+}
+
 export class AgentRunner {
-    static async run(
-        query: string,
-        callbacks: IAgentCallback,
-        agentId: string,
-        saverId: string,
-        saverThreadId: string,
-        contextType: ContextType,
-        extraInfo: string,
-        memoryId?: string,
-        workPath?: string,
-    ): Promise<void> {
-        if (!agentId.trim())        throw new Error("agent not specified");
-        if (!saverId.trim())        throw new Error("saver not specified");
-        if (!saverThreadId.trim())  throw new Error("saverThreadId not specified");
+    static async run(options: AgentRunOptions): Promise<void> {
+        const { query, callbacks, agentId, saverId, threadId, contextType, extraInfo, memoryId, askFn } = options;
+        if (!agentId.trim())   throw new Error("agent not specified");
+        if (!saverId.trim())   throw new Error("saver not specified");
+        if (!threadId.trim())  throw new Error("threadId not specified");
 
         const now = new Date();
         const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
         const assetsDir = config.getConfigPath('assets', true);
         const scriptsDir = config.getConfigPath('scripts', true);
         const httpUrl = config.getHttpUrl();
-        if (!workPath) {
-            workPath = `${assetsDir}/${saverThreadId}`;
-        }
+        const workPath = options.workPath ?? `${assetsDir}/${threadId}`;
 
         const extraPrompts: string[] = [
             `<environment>
@@ -66,14 +79,14 @@ export class AgentRunner {
         const container = new ServiceContainer();
         container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
         await AgentRunner.registerMemoryService(container, memoryId);
-        await AgentRunner.registerSaverService(container, saverId, saverThreadId);
+        await AgentRunner.registerSaverService(container, saverId, threadId);
 
-        const agent = await AgentFactory.create(agentId, container, true, extraPrompts);
-        const cancellationToken = sessionManager.start(saverThreadId);
+        const agent = await AgentFactory.create({ agentId, container, extraPrompts, askFn });
+        const cancellationToken = sessionManager.start(threadId);
         try {
             await agent.stream(query, callbacks, cancellationToken);
         } finally {
-            sessionManager.end(saverThreadId);
+            sessionManager.end(threadId);
             await agent.dispose();
         }
     }

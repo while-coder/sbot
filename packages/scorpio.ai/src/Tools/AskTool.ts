@@ -67,10 +67,10 @@ const AskSchema = z.object({
 
 // ── Factory ─────────────────────────────────────────────────────────────────
 
-export function createAskTool(askFn: AskUserFn): DynamicStructuredTool {
+export function createAskTool(askFn: AskUserFn, description: string): DynamicStructuredTool {
   return new DynamicStructuredTool({
     name: "ask",
-    description: "Ask the user one or more structured questions. Use radio for single choice, checkbox for multiple choices, input for free text. Returns a map of label → answer.",
+    description,
     schema: AskSchema as any,
     func: async (params: any): Promise<MCPToolResult> => {
       const response = await askFn(params as AskToolParams);

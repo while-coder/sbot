@@ -35,10 +35,20 @@ export class LarkUserService extends LarkUserServiceBase {
 </current-user>` : schedulerId;
 
         const threadId = larkThreadId(channelId, chat_id);
-        await AgentRunner.run(query, {
-            onMessage: this.onAgentMessage.bind(this),
-            onStreamMessage: this.onAgentStreamMessage.bind(this),
-            executeTool: buildExecuteTool(threadId, this.executeAgentTool.bind(this)),
-        }, agentId, channel.saver, threadId, ContextType.Channel, extraInfo, memoryId);
+        await AgentRunner.run({
+            query,
+            callbacks: {
+                onMessage: this.onAgentMessage.bind(this),
+                onStreamMessage: this.onAgentStreamMessage.bind(this),
+                executeTool: buildExecuteTool(threadId, this.executeAgentTool.bind(this)),
+            },
+            agentId,
+            saverId: channel.saver,
+            threadId,
+            contextType: ContextType.Channel,
+            extraInfo,
+            memoryId,
+            askFn: this.ask.bind(this),
+        });
     }
 }

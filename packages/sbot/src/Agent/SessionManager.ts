@@ -1,8 +1,15 @@
-import { AgentToolCall, ICancellationToken } from "scorpio.ai";
+import { AgentToolCall, AskResponse, AskToolParams, ICancellationToken } from "scorpio.ai";
 
 export enum SessionStatus {
     Thinking = 'thinking',
     WaitingApproval = 'waiting_approval',
+}
+
+export interface AskInfo {
+    id: string;
+    threadId: string;
+    title?: string;
+    questions: AskToolParams['questions'];
 }
 
 export interface SessionInfo {
@@ -10,6 +17,7 @@ export interface SessionInfo {
     startedAt: Date;
     status: SessionStatus;
     pendingTool?: AgentToolCall;
+    pendingAsk?: AskInfo;
 }
 
 class CancellationTokenSource implements ICancellationToken {
@@ -18,8 +26,19 @@ class CancellationTokenSource implements ICancellationToken {
     cancel() { this._isCancelled = true; }
 }
 
-interface SessionState extends SessionInfo {
+interface PendingAsk extends AskInfo {
+    resolve: (answers: AskResponse) => void;
+    reject: (err: Error) => void;
+    timer: ReturnType<typeof setTimeout>;
+}
+
+interface SessionState {
+    threadId: string;
+    startedAt: Date;
+    status: SessionStatus;
+    pendingTool?: AgentToolCall;
     source: CancellationTokenSource;
+    pendingAsk?: PendingAsk;
 }
 
 class SessionManager {
@@ -45,6 +64,11 @@ class SessionManager {
 
     /** session 结束后移除（无论成功、取消还是报错）。 */
     end(threadId: string): void {
+        const session = this.sessions.get(threadId);
+        if (session?.pendingAsk) {
+            clearTimeout(session.pendingAsk.timer);
+            session.pendingAsk.reject(new Error('Session ended'));
+        }
         this.sessions.delete(threadId);
     }
 
@@ -66,7 +90,15 @@ class SessionManager {
     getInfo(threadId: string): SessionInfo | undefined {
         const s = this.sessions.get(threadId);
         if (!s) return undefined;
-        return { threadId: s.threadId, startedAt: s.startedAt, status: s.status, pendingTool: s.pendingTool };
+        return {
+            threadId: s.threadId,
+            startedAt: s.startedAt,
+            status: s.status,
+            pendingTool: s.pendingTool,
+            pendingAsk: s.pendingAsk
+                ? { id: s.pendingAsk.id, threadId: s.pendingAsk.threadId, title: s.pendingAsk.title, questions: s.pendingAsk.questions }
+                : undefined,
+        };
     }
 
     isRunning(threadId: string): boolean {
@@ -79,7 +111,40 @@ class SessionManager {
             startedAt: s.startedAt,
             status: s.status,
             pendingTool: s.pendingTool,
+            pendingAsk: s.pendingAsk
+                ? { id: s.pendingAsk.id, threadId: s.pendingAsk.threadId, title: s.pendingAsk.title, questions: s.pendingAsk.questions }
+                : undefined,
         }));
+    }
+
+    openAsk(threadId: string, params: AskToolParams, timeoutMs: number): { id: string; promise: Promise<AskResponse> } {
+        const session = this.sessions.get(threadId);
+        let resolve!: (answers: AskResponse) => void;
+        let reject!: (err: Error) => void;
+        const promise = new Promise<AskResponse>((res, rej) => { resolve = res; reject = rej; });
+        const timer = setTimeout(() => {
+            if (session) delete session.pendingAsk;
+            reject(new Error('User did not answer within the allotted time'));
+        }, timeoutMs);
+        if (session) session.pendingAsk = { id: threadId, threadId, title: params.title, questions: params.questions, resolve, reject, timer };
+        return { id: threadId, promise };
+    }
+
+    resolveAsk(threadId: string, answers: AskResponse): boolean {
+        const session = this.sessions.get(threadId);
+        if (!session?.pendingAsk) return false;
+        clearTimeout(session.pendingAsk.timer);
+        session.pendingAsk.resolve(answers);
+        delete session.pendingAsk;
+        return true;
+    }
+
+    rejectAsk(threadId: string, message: string): void {
+        const session = this.sessions.get(threadId);
+        if (!session?.pendingAsk) return;
+        clearTimeout(session.pendingAsk.timer);
+        session.pendingAsk.reject(new Error(message));
+        delete session.pendingAsk;
     }
 }
 
