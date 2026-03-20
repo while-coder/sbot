@@ -18,6 +18,7 @@ import { loadPrompt } from "../Core/PromptLoader";
 import { ContextType } from "../Core/Database";
 import { AgentFactory } from "./AgentFactory";
 import { LoggerService } from "../Core/LoggerService";
+import { sessionManager } from "./SessionManager";
 
 const logger = LoggerService.getLogger('AgentRunner.ts');
 
@@ -68,9 +69,11 @@ export class AgentRunner {
         await AgentRunner.registerSaverService(container, saverId, saverThreadId);
 
         const agent = await AgentFactory.create(agentId, container, true, extraPrompts);
+        const cancellationToken = sessionManager.start(saverThreadId);
         try {
-            await agent.stream(query, callbacks);
+            await agent.stream(query, callbacks, cancellationToken);
         } finally {
+            sessionManager.end(saverThreadId);
             await agent.dispose();
         }
     }

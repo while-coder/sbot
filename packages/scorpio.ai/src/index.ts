@@ -224,11 +224,13 @@ export {
   AgentToolCall,
   AgentMessage,
   IAgentCallback,
+  AgentCancelledError,
 } from "./Agents";
 
 export type {
   AgentSubNode,
   CreateAgentFn,
+  ICancellationToken,
 } from "./Agents";
 
 // ========================================
