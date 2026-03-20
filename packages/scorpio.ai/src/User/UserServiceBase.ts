@@ -1,7 +1,8 @@
 import { Command as CommanderCommand } from "commander";
-import { AgentMessage, AgentToolCall, MessageChunkType, ToolApproval } from "../Agents";
 import { CommandContext, CommandRegistry, ICommand, SaverContext } from "../Command";
 import { GlobalLoggerService, ILogger } from "../Logger";
+
+export enum MessageType { Command = 'command', AI = 'ai' }
 
 interface MessageQueueItem {
   query: string;
@@ -36,36 +37,29 @@ export abstract class UserServiceBase {
             const messageItem = this.messageQueue.shift()!;
             const { query, args } = messageItem;
 
-            // 每次处理消息时创建新的 agentService
-            let messagePrompt = await this.startProcessMessage(query, args);
-            const messageType = query.startsWith('/') ? '命令' : '消息';
+            const messageType = query.startsWith('/') ? MessageType.Command : MessageType.AI;
+            let messagePrompt = await this.startProcessMessage(query, args, messageType);
             try {
                 this.logger?.info(`开始处理${messageType}: ${query} (${messagePrompt})(剩余队列: ${this.messageQueue.length})`);
-                // 检查是否是命令（以 "/" 开头）
-                if (query.startsWith('/')) {
+                if (messageType === MessageType.Command) {
                     await this.processCommand(query.substring(1), args);
                 } else {
-                    await this.processAIMessage(query, args)
+                    await this.processAIMessage(query, args);
                 }
                 this.logger?.info(`${messageType}处理完成: ${query}`);
             } catch (e: any) {
                 this.logger?.error(`${messageType}处理出错: ${query} : ${e.message}\n${e.stack}`);
                 try {
-                    await this.processMessageError(e);
+                    await this.processMessageError(e, args, messageType);
                 } catch (errorHandlingError) {
                     // 忽略错误处理中的错误
                 }
             } finally {
-                await this.onMessageProcessed(query, args);
+                await this.onMessageProcessed(query, args, messageType);
                 messageItem.resolve?.();
             }
         }
         this.isProcessingQueue = false;
-    }
-
-    /** 子类可覆盖，返回当前消息对应的 saver 上下文（saverId + threadId）供命令使用 */
-    protected async resolveSaverContext(_args: any): Promise<SaverContext | undefined> {
-        return undefined;
     }
 
     private async processCommand(query: string, args: any): Promise<void> {
@@ -86,7 +80,6 @@ export abstract class UserServiceBase {
         const context: CommandContext = {
             context: this,
             args,
-            saverContext: await this.resolveSaverContext(args),
             onResult: (result: string) => {
                 commandResult = result;
             }
@@ -119,19 +112,16 @@ export abstract class UserServiceBase {
         ].join('\n');
 
         if (allContent) {
-            await this.onAgentMessage({type: MessageChunkType.COMMAND,content: allContent});
+            await this.onCommandOutput(allContent, args);
         }
     }
-
-    /** 每条消息处理完毕后（无论成功或失败）调用，子类可覆盖以做清理 */
-    protected async onMessageProcessed(_query: string, _args: any): Promise<void> {}
-
+    protected abstract startProcessMessage(query: string, args: any, messageType: MessageType): Promise<string>;
     protected abstract getAllCommands():Promise<ICommand[]>
     protected abstract processAIMessage(query: string, args: any): Promise<void>;
-
-    abstract startProcessMessage(query: string, args: any): Promise<string>;
-    abstract processMessageError(e: any): Promise<void>;
-    abstract onAgentMessage(message: AgentMessage): Promise<void>;
-    abstract onAgentStreamMessage(message: AgentMessage): Promise<void>;
-    abstract executeAgentTool(toolCall: AgentToolCall): Promise<ToolApproval>;
+    protected abstract onCommandOutput(content: string, args: any): Promise<void>;
+    
+    protected abstract processMessageError(e: any, args: any, messageType: MessageType): Promise<void>;
+    /** 每条消息处理完毕后（无论成功或失败）调用，子类可覆盖以做清理 */
+    protected async onMessageProcessed(_query: string, _args: any, _messageType: MessageType): Promise<void> {}
+    
 }

@@ -1,5 +1,6 @@
 import "reflect-metadata";
 import { Response } from "express";
+import { MessageType } from "scorpio.ai";
 import { WebChatEventType } from 'sbot.commons';
 import { BaseWebUserService, WebChatEvent } from "./BaseWebUserService";
 
@@ -24,16 +25,16 @@ export class HttpUserService extends BaseWebUserService {
 
     // ===== Called by UserService =====
 
-    async startProcessMessage(_query: string, args: any): Promise<string> {
+    async startProcessMessage(_query: string, args: any, _messageType: MessageType): Promise<string> {
         if (args?.res) this.setResponse(args.res);
         return '';
     }
 
-    async onMessageProcessed(): Promise<void> {
+    async onMessageProcessed(_args: any, _messageType: MessageType): Promise<void> {
         this.emit({ type: WebChatEventType.Done });
     }
 
-    async processMessageError(e: any): Promise<void> {
+    async processMessageError(e: any, _args: any, _messageType: MessageType): Promise<void> {
         this.emit({ type: WebChatEventType.Error, message: e.message });
     }
 

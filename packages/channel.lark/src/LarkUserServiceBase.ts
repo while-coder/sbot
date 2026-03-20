@@ -1,5 +1,5 @@
 import { LarkChatProvider } from "./LarkChatProvider";
-import { AgentMessage, AgentToolCall, AskToolParams, AskQuestionType } from "scorpio.ai";
+import { AgentMessage, AgentToolCall, AskToolParams, AskQuestionType, MessageType } from "scorpio.ai";
 import { GlobalLoggerService } from "scorpio.ai";
 import { LarkReceiveIdType, LarkService } from "./LarkService";
 import { ChannelUserServiceBase, ToolCallStatus } from "channel.base";
@@ -25,7 +25,7 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
   provider: LarkChatProvider | undefined;
   larkService!: LarkService;
 
-  async startProcessMessage(query: string, args: any): Promise<string> {
+  async startProcessMessage(query: string, args: any, _messageType: MessageType): Promise<string> {
     const { larkService, chat_id, root_id, message_id } = args as LarkMessageArgs;
     this.larkService = larkService;
     if (!message_id) {
@@ -36,7 +36,7 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
     return `Session:${chat_id},Topic:${root_id},MessageId:${message_id}`;
   }
 
-  async processMessageError(e: any): Promise<void> {
+  async processMessageError(e: any, _args: any, _messageType: MessageType): Promise<void> {
     if (this.provider) {
       await this.provider.setMessage(`Error generating reply: ${e.message}\n${e.stack}`);
     }

@@ -1,5 +1,5 @@
 import { SlackChatProvider } from "./SlackChatProvider";
-import { AgentMessage, AgentToolCall, AskToolParams, AskQuestionType } from "scorpio.ai";
+import { AgentMessage, AgentToolCall, AskToolParams, AskQuestionType, MessageType } from "scorpio.ai";
 import { GlobalLoggerService } from "scorpio.ai";
 import { SlackService } from "./SlackService";
 import { ChannelUserServiceBase, ToolCallStatus } from "channel.base";
@@ -24,14 +24,14 @@ export abstract class SlackUserServiceBase extends ChannelUserServiceBase {
   provider: SlackChatProvider | undefined;
   slackService!: SlackService;
 
-  async startProcessMessage(query: string, args: any): Promise<string> {
+  async startProcessMessage(query: string, args: any, _messageType: MessageType): Promise<string> {
     const { slackService, channel, ts, threadTs } = args as SlackMessageArgs;
     this.slackService = slackService;
     this.provider = await new SlackChatProvider(slackService).init(channel, ts, threadTs, query);
     return `Slack channel:${channel} ts:${ts}`;
   }
 
-  async processMessageError(e: any): Promise<void> {
+  async processMessageError(e: any, _args: any, _messageType: MessageType): Promise<void> {
     getLogger()?.error(e.stack ?? e.message);
     if (this.provider) {
       await this.provider.setMessage(`Error generating reply: ${e.message}`);

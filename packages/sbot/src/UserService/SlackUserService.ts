@@ -1,6 +1,5 @@
 import "reflect-metadata";
 import { SlackMessageArgs, SlackUserServiceBase } from "channel.slack";
-import { ICommand } from "scorpio.ai";
 import { AgentRunner } from "../Agent/AgentRunner";
 import { config } from "../Core/Config";
 import { ChannelSessionRow, ContextType, database } from "../Core/Database";
@@ -8,8 +7,6 @@ import { buildExecuteTool } from "./buildExecuteTool";
 import { slackThreadId } from "sbot.commons";
 
 export class SlackUserService extends SlackUserServiceBase {
-  protected async getAllCommands(): Promise<ICommand[]> { return []; }
-
   async processAIMessage(query: string, args: any): Promise<void> {
     const channelId = args?.channelId as string;
     const channel = channelId ? config.getChannel(channelId) : undefined;
@@ -38,7 +35,7 @@ export class SlackUserService extends SlackUserServiceBase {
 </current-user>`
       : schedulerId;
 
-    const threadId = slackThreadId(channelId, slackChannel, args.threadTs ?? args.ts);
+    const threadId = slackThreadId(channelId, slackChannel);
     await AgentRunner.run({
       query,
       callbacks: {

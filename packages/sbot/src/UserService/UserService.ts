@@ -1,7 +1,7 @@
 import "reflect-metadata";
 import { LarkMessageArgs } from "channel.lark";
-import { SlackMessageArgs, SlackActionArgs } from "channel.slack";
-import { AgentMessage, AgentToolCall, ICommand, SaverContext, ToolApproval, UserServiceBase } from "scorpio.ai";
+import { SlackMessageArgs } from "channel.slack";
+import { ICommand, MessageType, SaverContext, UserServiceBase } from "scorpio.ai";
 import { dirThreadId, larkThreadId, sessionThreadId, slackThreadId } from "sbot.commons";
 import { config } from "../Core/Config";
 import { getBuiltInCommands } from "./BuiltInCommands";
@@ -29,19 +29,12 @@ export class UserService extends UserServiceBase {
     }
 
     // 重定向到共享队列（UserService），而非本地队列
-    async onReceiveLarkMessage(query: string, args: LarkMessageArgs, userInfo: any, channelId: string, dbSessionId?: number, dbUserId?: number) {
+    async onReceiveLarkMessage(query: string, args: LarkMessageArgs, userInfo: any, channelId: string, dbSessionId?: number, dbUserId?: number): Promise<void> {
         if (!query?.trim()) return;
         await this.onReceiveMessage(query, { ...args, channelType: ChannelType.Lark, userInfo, channelId, dbSessionId, dbUserId });
     }
 
-    async onReceiveSlackMessage(
-        query: string,
-        args: SlackMessageArgs,
-        userInfo: any,
-        channelId: string,
-        dbSessionId?: number,
-        dbUserId?: number,
-    ): Promise<void> {
+    async onReceiveSlackMessage(query: string, args: SlackMessageArgs, userInfo: any, channelId: string, dbSessionId?: number, dbUserId?: number): Promise<void> {
         if (!query?.trim()) return;
         await this.onReceiveMessage(query, { ...args, channelType: ChannelType.Slack, userInfo, channelId, dbSessionId, dbUserId });
     }
@@ -64,76 +57,59 @@ export class UserService extends UserServiceBase {
         return getBuiltInCommands();
     }
 
-    protected override async resolveSaverContext(args: any): Promise<SaverContext | undefined> {
-        const workPath  = args?.workPath  as string | undefined;
-        const sessionId = args?.sessionId as string | undefined;
-        const channelId = args?.channelId as string | undefined;
-
-        if (workPath) {
-            const cfg = config.getDirectoryConfig(workPath);
-            if (!cfg?.saver) return undefined;
-            return { saverId: cfg.saver, threadId: dirThreadId(workPath) };
-        }
-        if (sessionId) {
-            const session = config.getSession(sessionId);
-            if (!session?.saver) return undefined;
-            return { saverId: session.saver, threadId: sessionThreadId(sessionId) };
-        }
-        if (channelId) {
-            const channel = config.getChannel(channelId);
+    protected async resolveSaverContext(args: any): Promise<SaverContext | undefined> {
+        const channelType = args?.channelType as ChannelType | undefined;
+        if (channelType === ChannelType.Lark) {
+            const channel = config.getChannel(args.channelId);
             if (!channel?.saver) return undefined;
-            if (args.channelType === ChannelType.Lark) {
-                return { saverId: channel.saver, threadId: larkThreadId(channelId, args.chat_id) };
-            } else {
-                return { saverId: channel.saver, threadId: slackThreadId(channelId, args.channel, args.threadTs ?? args.ts) };
-            }
+            return { saverId: channel.saver, threadId: larkThreadId(args.channelId, args.chat_id) };
+        }
+        if (channelType === ChannelType.Slack) {
+            const channel = config.getChannel(args.channelId);
+            if (!channel?.saver) return undefined;
+            return { saverId: channel.saver, threadId: slackThreadId(args.channelId, args.channel) };
+        }
+        if (args?.workPath) {
+            const cfg = config.getDirectoryConfig(args.workPath);
+            if (!cfg?.saver) return undefined;
+            return { saverId: cfg.saver, threadId: dirThreadId(args.workPath) };
+        }
+        if (args?.sessionId) {
+            const session = config.getSession(args.sessionId);
+            if (!session?.saver) return undefined;
+            return { saverId: session.saver, threadId: sessionThreadId(args.sessionId) };
         }
         return undefined;
     }
 
-    async startProcessMessage(query: string, args: any): Promise<string> {
+    protected async startProcessMessage(query: string, args: any, messageType: MessageType): Promise<string> {
         this.currentContext = args?.channelType ?? ChannelType.Lark;
-        if (this.currentContext === ChannelType.Slack) return await this.slack.startProcessMessage(query, args);
-        if (this.currentContext === ChannelType.Lark) return await this.lark.startProcessMessage(query, args);
-        if (this.currentContext === ChannelType.Http) return await this.http.startProcessMessage(query, args);
-        return await this.web.startProcessMessage(query, args);
+        if (this.currentContext === ChannelType.Slack) return await this.slack.startProcessMessage(query, args, messageType);
+        if (this.currentContext === ChannelType.Lark) return await this.lark.startProcessMessage(query, args, messageType);
+        if (this.currentContext === ChannelType.Http) return await this.http.startProcessMessage(query, args, messageType);
+        return await this.web.startProcessMessage(query, args, messageType);
     }
 
-    async onMessageProcessed(_query: string, _args: any): Promise<void> {
-        if (this.currentContext === ChannelType.Web) await this.web.onMessageProcessed();
-        else if (this.currentContext === ChannelType.Http) await this.http.onMessageProcessed();
-        else if (this.currentContext === ChannelType.Slack) { /* no-op */ }
+    protected async onMessageProcessed(_query: string, args: any, messageType: MessageType): Promise<void> {
+        if (this.currentContext === ChannelType.Web) await this.web.onMessageProcessed(args, messageType);
+        else if (this.currentContext === ChannelType.Http) await this.http.onMessageProcessed(args, messageType);
         this.currentContext = undefined;
     }
 
-    async processMessageError(e: any): Promise<void> {
-        if (this.currentContext === ChannelType.Lark) await this.lark.processMessageError(e);
-        else if (this.currentContext === ChannelType.Slack) await this.slack.processMessageError(e);
-        else if (this.currentContext === ChannelType.Web) await this.web.processMessageError(e);
-        else if (this.currentContext === ChannelType.Http) await this.http.processMessageError(e);
+    protected async processMessageError(e: any, args: any, messageType: MessageType): Promise<void> {
+        if (this.currentContext === ChannelType.Lark) await this.lark.processMessageError(e, args, messageType);
+        else if (this.currentContext === ChannelType.Slack) await this.slack.processMessageError(e, args, messageType);
+        else if (this.currentContext === ChannelType.Web) await this.web.processMessageError(e, args, messageType);
+        else if (this.currentContext === ChannelType.Http) await this.http.processMessageError(e, args, messageType);
     }
 
-    async onAgentMessage(message: AgentMessage): Promise<void> {
-        if (this.currentContext === ChannelType.Lark) await this.lark.onAgentMessage(message);
-        else if (this.currentContext === ChannelType.Slack) await this.slack.onAgentMessage(message);
-        else if (this.currentContext === ChannelType.Web) await this.web.onAgentMessage(message);
-        else if (this.currentContext === ChannelType.Http) await this.http.onAgentMessage(message);
+    protected async onCommandOutput(content: string, args: any): Promise<void> {
+        const channelType = args?.channelType ?? ChannelType.Lark;
+        if (channelType === ChannelType.Lark) await this.lark.onCommandOutput(content, args);
+        else if (channelType === ChannelType.Slack) await this.slack.onCommandOutput(content, args);
+        else if (channelType === ChannelType.Web) await this.web.onCommandOutput(content, args);
+        else if (channelType === ChannelType.Http) await this.http.onCommandOutput(content, args);
     }
-
-    async onAgentStreamMessage(message: AgentMessage): Promise<void> {
-        if (this.currentContext === ChannelType.Lark) await this.lark.onAgentStreamMessage(message);
-        else if (this.currentContext === ChannelType.Slack) await this.slack.onAgentStreamMessage(message);
-        else if (this.currentContext === ChannelType.Web) await this.web.onAgentStreamMessage(message);
-        else if (this.currentContext === ChannelType.Http) await this.http.onAgentStreamMessage(message);
-    }
-
-    async executeAgentTool(toolCall: AgentToolCall): Promise<ToolApproval> {
-        if (this.currentContext === ChannelType.Lark) return await this.lark.executeAgentTool(toolCall);
-        if (this.currentContext === ChannelType.Slack) return await this.slack.executeAgentTool(toolCall);
-        if (this.currentContext === ChannelType.Http) return await this.http.executeAgentTool(toolCall);
-        return await this.web.executeAgentTool(toolCall);
-    }
-
 
     async processAIMessage(query: string, args: any): Promise<void> {
         if (this.currentContext === ChannelType.Lark) await this.lark.processAIMessage(query, args);

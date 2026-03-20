@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { AgentMessage, AgentToolCall, AskResponse, AskToolParams, ToolApproval } from "scorpio.ai";
+import { AgentMessage, AgentToolCall, AskResponse, AskToolParams, MessageChunkType, MessageType, ToolApproval } from "scorpio.ai";
 import { AgentRunner } from "../Agent/AgentRunner";
 import { config } from '../Core/Config';
 import { ContextType } from '../Core/Database';
@@ -13,6 +13,12 @@ export abstract class BaseWebUserService {
     private pendingApprovals: Map<string, (approval: ToolApproval) => void> = new Map();
     private rejectActiveAsk?: () => void;
 
+    abstract startProcessMessage(query: string, args: any, messageType: MessageType): Promise<string>;
+    abstract onMessageProcessed(args: any, messageType: MessageType): Promise<void>;
+    abstract processMessageError(e: any, args: any, messageType: MessageType): Promise<void>;
+    async onCommandOutput(content: string, _args: any): Promise<void> {
+        return this.onAgentMessage({ type: MessageChunkType.COMMAND, content });
+    }
     protected abstract emit(event: WebChatEvent): void;
 
     /** 连接断开时调用，拒绝所有挂起的审批和 ask */

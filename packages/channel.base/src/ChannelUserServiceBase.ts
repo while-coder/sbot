@@ -4,10 +4,11 @@ import {
   AskQuestionType,
   AskResponse,
   AskToolParams,
+  MessageChunkType,
+  MessageType,
   NowDate,
   sleep,
   ToolApproval,
-  UserServiceBase,
 } from "scorpio.ai";
 
 export enum ToolCallStatus {
@@ -35,9 +36,18 @@ interface AskEntry {
   response?: AskResponse;
 }
 
-export abstract class ChannelUserServiceBase extends UserServiceBase {
+export abstract class ChannelUserServiceBase {
   private toolCallMap = new Map<string, ToolCallEntry>();
   private askMap = new Map<string, AskEntry>();
+
+  abstract startProcessMessage(query: string, args: any, messageType: MessageType): Promise<string>;
+  async onMessageProcessed(_args: any, _messageType: MessageType): Promise<void> {}
+  abstract processMessageError(e: any, args: any, messageType: MessageType): Promise<void>;
+  async onCommandOutput(content: string, _args: any): Promise<void> {
+    return this.onAgentMessage({ type: MessageChunkType.COMMAND, content });
+  }
+  abstract onAgentMessage(message: AgentMessage): Promise<void>;
+  abstract processAIMessage(query: string, args: any): Promise<void>;
 
   protected abstract sendApprovalUI(toolCall: AgentToolCall, remainSec: number): Promise<void>;
   protected abstract clearApprovalUI(toolCallId: string): Promise<void>;

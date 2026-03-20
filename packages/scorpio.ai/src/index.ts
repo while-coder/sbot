@@ -291,4 +291,4 @@ export {
 // ========================================
 // User - 用户服务基类
 // ========================================
-export { UserServiceBase } from "./User";
+export { UserServiceBase, MessageType } from "./User";

@@ -117,7 +117,7 @@ export class ClearCommand implements ICommand {
     _context!: CommandContext;
 
     async execute(): Promise<string> {
-        const saverContext = this._context.saverContext;
+        const saverContext = await this._context.context.resolveSaverContext(this._context.args);
         if (!saverContext) return '无法识别当前会话上下文，或当前会话未配置 saver';
 
         const saver = await AgentRunner.createSaverService(saverContext.saverId, saverContext.threadId);

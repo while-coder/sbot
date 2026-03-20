@@ -10,8 +10,6 @@ export interface SaverContext {
 export interface CommandContext {
     args: any;
     context: any;
-    /** 当前会话的 saver 上下文，由 UserService 提供；无法解析时为 undefined */
-    saverContext?: SaverContext;
     onResult?: (result: string) => void;  // 回调函数，用于返回结果
 }
 

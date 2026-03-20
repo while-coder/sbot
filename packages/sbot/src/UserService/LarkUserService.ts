@@ -1,6 +1,5 @@
 import "reflect-metadata";
 import { LarkMessageArgs, LarkUserServiceBase } from "channel.lark";
-import { ICommand } from "scorpio.ai";
 import { AgentRunner } from "../Agent/AgentRunner";
 import { config } from "../Core/Config";
 import { ChannelSessionRow, ContextType, database } from "../Core/Database";
@@ -8,7 +7,6 @@ import { buildExecuteTool } from "./buildExecuteTool";
 import { larkThreadId } from "sbot.commons";
 
 export class LarkUserService extends LarkUserServiceBase {
-    protected async getAllCommands(): Promise<ICommand[]> { return []; }
     async processAIMessage(query: string, args: any): Promise<void> {
         const channelId = args?.channelId as string;
         const channel = channelId ? config.getChannel(channelId) : undefined;

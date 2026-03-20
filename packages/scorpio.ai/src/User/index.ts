@@ -1,1 +1,1 @@
-export { UserServiceBase } from './UserServiceBase';
+export { UserServiceBase, MessageType } from './UserServiceBase';
