@@ -52,7 +52,7 @@ type AskQuestion =
   | { type: 'input';    label: string; placeholder?: string }
   | { type: 'toggle';   label: string; default?: boolean }
 
-const pendingAsk        = ref<{ id: string; title?: string; questions: AskQuestion[] } | null>(null)
+const pendingAsk        = ref<{ id: string; threadId: string; title?: string; questions: AskQuestion[] } | null>(null)
 const askAnswers        = ref<Record<number, string | string[]>>({})
 const askToggleValues   = ref<Record<number, boolean>>({})
 const askCustomInputs   = ref<Record<number, string>>({})
@@ -91,16 +91,16 @@ function submitAsk() {
       if (val !== undefined && val !== '') answers[String(i)] = val
     }
   })
-  const id = pendingAsk.value.id
+  const { id, threadId } = pendingAsk.value
   pendingAsk.value = null
   askAnswers.value = {}
   askToggleValues.value = {}
   askCustomInputs.value = {}
-  apiFetch('/api/ask-response', 'POST', { id, answers }).catch(() => {})
+  apiFetch('/api/ask-response', 'POST', { threadId, id, answers }).catch(() => {})
 }
 
 // ── 工具审批状态 ──────────────────────────────────────────
-const pendingToolCall = ref<{ id: string; name: string; args: Record<string, any> } | null>(null)
+const pendingToolCall = ref<{ id: string; threadId: string; name: string; args: Record<string, any> } | null>(null)
 const denyCountdown   = ref(300)
 const argsExpanded    = ref(false)
 let denyTimer: ReturnType<typeof setInterval> | null = null
@@ -144,9 +144,9 @@ function stopAskCountdown() {
 function approveToolCall(approval: string) {
   if (!pendingToolCall.value) return
   stopDenyCountdown()
-  const id = pendingToolCall.value.id
+  const { id, threadId } = pendingToolCall.value
   pendingToolCall.value = null
-  apiFetch('/api/tool-approval', 'POST', { id, approval }).catch(() => {})
+  apiFetch('/api/tool-approval', 'POST', { threadId, id, approval }).catch(() => {})
 }
 
 // ── 历史记录 ──────────────────────────────────────────────
@@ -197,11 +197,10 @@ async function handleWsEvent(evt: WebChatEvent) {
     streamingContent.value = ''
     streamingToolCalls.value = []
   } else if (evt.type === WebChatEventType.ToolCall) {
-    const tcId = evt.id ?? `tc-${Date.now()}`
-    pendingToolCall.value = { id: tcId, name: evt.name, args: evt.args }
+    pendingToolCall.value = { id: evt.id, threadId: evt.threadId, name: evt.name, args: evt.args }
     startDenyCountdown()
   } else if (evt.type === WebChatEventType.Ask) {
-    pendingAsk.value = { id: evt.id, title: evt.title, questions: evt.questions as AskQuestion[] }
+    pendingAsk.value = { id: evt.id, threadId: evt.threadId, title: evt.title, questions: evt.questions as AskQuestion[] }
     initAskAnswers(evt.questions as AskQuestion[])
     startAskCountdown()
   } else if (evt.type === WebChatEventType.Done) {
@@ -249,7 +248,7 @@ function reset() {
 async function cancelProcessing() {
   if (!props.cancelThreadId) return
   try {
-    await apiFetch('/api/cancel', 'POST', { id: props.cancelThreadId })
+    await apiFetch('/api/abort', 'POST', { id: props.cancelThreadId })
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -268,8 +267,9 @@ function remainSeconds(startedAt: string, totalSeconds: number): number {
 
 /** 恢复后端 session 状态（切换 session 时调用） */
 function restoreSessionStatus(status: {
+  threadId: string
   pendingTool?: { tool: { id?: string; name: string; args: Record<string, any> }; startedAt: string }
-  pendingAsk?: { id: string; title?: string; questions: AskQuestion[]; startedAt: string }
+  pendingAsk?: { id: string; threadId: string; title?: string; questions: AskQuestion[]; startedAt: string }
 } | null) {
   stopDenyCountdown()
   stopAskCountdown()
@@ -281,7 +281,7 @@ function restoreSessionStatus(status: {
   if (!status) return
   if (status.pendingTool) {
     const { tool, startedAt } = status.pendingTool
-    pendingToolCall.value = { id: tool.id ?? '', name: tool.name, args: tool.args }
+    pendingToolCall.value = { id: tool.id ?? '', threadId: status.threadId, name: tool.name, args: tool.args }
     startDenyCountdown(remainSeconds(startedAt, 300))
   }
   if (status.pendingAsk) {

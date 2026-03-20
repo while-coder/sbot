@@ -52,14 +52,13 @@ export abstract class BaseWebUserService {
     }
 
     async executeAgentTool(threadId: string, toolCall: AgentToolCall): Promise<ToolApproval> {
-        return new Promise<ToolApproval>((resolve) => {
-            const id = sessionManager.enterToolApproval(threadId, resolve, this.getToolCallTimeout());
-            this.emit({ type: WebChatEventType.ToolCall, id, name: toolCall.name, args: toolCall.args });
-        });
+        const { id, promise } = sessionManager.enterToolApproval(threadId, this.getToolCallTimeout());
+        this.emit({ type: WebChatEventType.ToolCall, id, threadId, name: toolCall.name, args: toolCall.args });
+        return promise;
     }
 
-    resolveToolApproval(threadId: string, id: string, approval: ToolApproval): void {
-        sessionManager.exitToolApproval(threadId, id, approval);
+    resolveToolApproval(threadId: string, id: string, approval: ToolApproval): boolean {
+        return sessionManager.exitToolApproval(threadId, id, approval);
     }
 
     resolveAsk(threadId: string, id: string, answers: AskResponse): boolean {
@@ -106,8 +105,8 @@ export abstract class BaseWebUserService {
                 agentId, saverId, threadId, contextType, extraInfo, memoryId,
                 workPath,
                 askFn: async (params: AskToolParams) => {
-                    const { promise } = sessionManager.enterAsk(threadId, params, this.getAskTimeout());
-                    this.emit({ type: WebChatEventType.Ask, id: threadId, title: params.title, questions: params.questions as any });
+                    const { id: askId, promise } = sessionManager.enterAsk(threadId, params, this.getAskTimeout());
+                    this.emit({ type: WebChatEventType.Ask, id: askId, threadId, title: params.title, questions: params.questions as any });
                     return promise;
                 },
             });

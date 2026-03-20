@@ -57,20 +57,21 @@ export abstract class ChannelUserServiceBase {
   }
 
   async executeAgentTool(toolCall: AgentToolCall): Promise<ToolApproval> {
-    let resolved: ToolApproval | undefined;
     const timeoutMs = this.getToolCallTimeout();
-    const id = sessionManager.enterToolApproval(this.threadId, (a) => { resolved = a; }, timeoutMs);
+    const { id, promise } = sessionManager.enterToolApproval(this.threadId, timeoutMs);
     const end = NowDate() + timeoutMs;
     try {
+      let done = false;
+      promise.finally(() => { done = true; });
       let lastSend = 0;
-      while (resolved === undefined) {
+      while (!done) {
         if (NowDate() - lastSend > 300) {
           lastSend = NowDate();
           await this.sendApprovalUI(toolCall, id, Math.floor((end - NowDate()) / 1000));
         }
         await sleep(10);
       }
-      return resolved;
+      return await promise;
     } finally {
       try { await this.clearApprovalUI(id); } catch {}
     }

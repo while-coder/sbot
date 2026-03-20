@@ -1016,8 +1016,8 @@ class HttpServer {
         app.post('/api/tool-approval', (req, res) => {
             const { threadId, id, approval } = req.body as { threadId?: string; id?: string; approval?: string };
             if (!threadId || !id || !approval) { res.status(400).json({ error: 'threadId, id and approval are required' }); return; }
-            userService.web.resolveToolApproval(threadId, id, approval as any);
-            userService.http.resolveToolApproval(threadId, id, approval as any);
+            const resolved = userService.web.resolveToolApproval(threadId, id, approval as any) || userService.http.resolveToolApproval(threadId, id, approval as any);
+            if (!resolved) { res.status(404).json({ error: 'Tool approval not found or already resolved' }); return; }
             res.json({ ok: true });
         });
 
@@ -1029,7 +1029,7 @@ class HttpServer {
             res.json({ ok: true });
         });
 
-        app.post('/api/cancel', (req, res) => {
+        app.post('/api/abort', (req, res) => {
             const { id } = req.body as { id?: string };
             if (!id) { res.status(400).json({ error: 'id required' }); return; }
             const cancelled = sessionManager.abort(id);

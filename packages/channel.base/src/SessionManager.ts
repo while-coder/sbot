@@ -33,8 +33,7 @@ class CancellationTokenSource implements ICancellationToken {
 }
 
 interface PendingAsk extends AskInfo {
-    resolve: (answers: AskResponse) => void;
-    reject: (err: Error) => void;
+    resolve: (result: AskResponse | string) => void;
     timer: ReturnType<typeof setTimeout>;
 }
 
@@ -76,7 +75,7 @@ class SessionManager {
         if (!session) return;
         for (const [, ask] of session.pendingAsks) {
             clearTimeout(ask.timer);
-            ask.reject(new Error('Session ended'));
+            ask.resolve('Session ended');
         }
         session.pendingAsks.clear();
         for (const [, entry] of session.pendingApprovals) {
@@ -87,14 +86,19 @@ class SessionManager {
         this.sessions.delete(threadId);
     }
 
-    enterToolApproval(threadId: string, resolve: (approval: ToolApproval) => void, timeoutMs: number): string {
+    enterToolApproval(threadId: string, timeoutMs: number): { id: string; promise: Promise<ToolApproval> } {
         const session = this.sessions.get(threadId);
-        if (!session) return '';
+        if (!session) return { id: '', promise: Promise.reject(new Error('Session not found')) };
         let id = `tc-${Date.now()}`;
         while (session.pendingApprovals.has(id)) id = `tc-${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-        const timer = setTimeout(() => this.exitToolApproval(threadId, id, ToolApproval.Deny), timeoutMs);
+        let resolve!: (approval: ToolApproval) => void;
+        const promise = new Promise<ToolApproval>((res) => { resolve = res; });
+        const timer = setTimeout(() => {
+            session.pendingApprovals.delete(id);
+            resolve(ToolApproval.Deny);
+        }, timeoutMs);
         session.pendingApprovals.set(id, { resolve, timer });
-        return id;
+        return { id, promise };
     }
 
     exitToolApproval(threadId: string, id: string, approval: ToolApproval): boolean {
@@ -170,14 +174,15 @@ class SessionManager {
         if (!session) return { id: '', promise: Promise.reject(new Error('Session not found')) };
         let id = `ask-${Date.now()}`;
         while (session.pendingAsks.has(id)) id = `ask-${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-        let resolve!: (answers: AskResponse) => void;
-        let reject!: (err: Error) => void;
-        const promise = new Promise<AskResponse>((res, rej) => { resolve = res; reject = rej; });
+        let resolve!: (result: AskResponse | string) => void;
+        const promise = new Promise<AskResponse>((res, rej) => {
+            resolve = (result) => typeof result === 'string' ? rej(new Error(result)) : res(result);
+        });
         const timer = setTimeout(() => {
             session.pendingAsks.delete(id);
-            reject(new Error('User did not answer within the allotted time'));
+            resolve('User did not answer within the allotted time');
         }, timeoutMs);
-        session.pendingAsks.set(id, { id, threadId, title: params.title, questions: params.questions, startedAt: new Date(), resolve, reject, timer });
+        session.pendingAsks.set(id, { id, threadId, title: params.title, questions: params.questions, startedAt: new Date(), resolve, timer });
         return { id, promise };
     }
 
@@ -189,7 +194,7 @@ class SessionManager {
         clearTimeout(ask.timer);
         session!.pendingAsks.delete(id);
         if (typeof result === 'string') {
-            ask.reject(new Error(result));
+            ask.resolve(result);
         } else {
             const labeledAnswers: AskResponse = {};
             for (let i = 0; i < ask.questions.length; i++) {
@@ -213,7 +218,7 @@ class SessionManager {
         if (!session) return;
         for (const [, ask] of session.pendingAsks) {
             clearTimeout(ask.timer);
-            ask.reject(new Error(message));
+            ask.resolve(message);
         }
         session.pendingAsks.clear();
     }
