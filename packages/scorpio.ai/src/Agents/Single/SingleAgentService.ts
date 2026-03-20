@@ -9,7 +9,7 @@ import { IAgentSaverService } from "../../Saver";
 import { IAgentToolService } from "../../AgentTool";
 import { ILoggerService } from "../../Logger";
 import { normalizeToMCPResult, MCPContentType, MCPToolResult } from '../../Tools';
-import { AgentServiceBase, GraphNodeType, ToolApproval, IAgentCallback, MAX_HISTORY_TOKENS } from "../AgentServiceBase";
+import { AgentServiceBase, GraphNodeType, ToolApproval, IAgentCallback, ICancellationToken, AgentCancelledError, MAX_HISTORY_TOKENS } from "../AgentServiceBase";
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
@@ -22,6 +22,8 @@ export {
     AgentToolCall,
     AgentMessage,
     IAgentCallback,
+    ICancellationToken,
+    AgentCancelledError,
 } from "../AgentServiceBase";
 
 type SingleAgentState = {
@@ -29,6 +31,7 @@ type SingleAgentState = {
     callback: IAgentCallback | null;
     systemMessage: SystemMessage | null;
     tools: StructuredToolInterface[];
+    cancellationToken: ICancellationToken | null;
 };
 
 /**
@@ -64,7 +67,7 @@ export class SingleAgentService extends AgentServiceBase {
     /**
      * 构建本轮 system message（基础 + 记忆 + skill 合并为单条）
      */
-    protected async buildSystemMessage(query: string): Promise<SystemMessage | null> {
+    protected async buildSystemMessage(query: string, _callback?: IAgentCallback, _cancellationToken?: ICancellationToken): Promise<SystemMessage | null> {
         const parts: string[] = this.systemMessages.map(m => m.content as string);
         if (this.memoryService) {
             const memoryMessage = await this.memoryService.getSystemMessage(query, 10);
@@ -80,7 +83,7 @@ export class SingleAgentService extends AgentServiceBase {
     /**
      * 构建本轮所有可用工具（toolService + 记忆 + skill）
      */
-    protected async buildTools(): Promise<StructuredToolInterface[]> {
+    protected async buildTools(_callback?: IAgentCallback, _cancellationToken?: ICancellationToken): Promise<StructuredToolInterface[]> {
         const tools: StructuredToolInterface[] = await this.toolService?.getAllTools() ?? [];
         if (this.skillService) tools.push(...this.skillService.getTools());
         return tools;
@@ -162,6 +165,7 @@ export class SingleAgentService extends AgentServiceBase {
         // }
 
         // 使用流式调用收集完整响应
+        if (state.cancellationToken?.isCancelled) throw new AgentCancelledError();
         const stream = await model.stream(messages);
 
         let accumulated: AIMessageChunk | undefined;
@@ -175,6 +179,8 @@ export class SingleAgentService extends AgentServiceBase {
         let lastStreamCallTime = 0;
         // 收集所有流式片段
         for await (const chunk of stream) {
+            // AIMessage 尚未写入 saver，此处 throw 不会破坏配对
+            if (state.cancellationToken?.isCancelled) throw new AgentCancelledError();
             accumulated = accumulated ? accumulated.concat(chunk) : chunk;
             const now = Date.now();
             if (now - lastStreamCallTime >= 200) {
@@ -214,7 +220,19 @@ export class SingleAgentService extends AgentServiceBase {
 
         // 执行所有工具调用
         const toolMessages: ToolMessage[] = [];
-        for (const toolCall of toolCalls) {
+        for (let i = 0; i < toolCalls.length; i++) {
+            const toolCall = toolCalls[i];
+            // 取消时补偿剩余 tool_calls 的 ToolMessage，保持与 AIMessage 的配对完整
+            if (state.cancellationToken?.isCancelled) {
+                for (let j = i; j < toolCalls.length; j++) {
+                    toolMessages.push(new ToolMessage({
+                        tool_call_id: toolCalls[j].id ?? "",
+                        content: "Cancelled",
+                        status: "error",
+                    }));
+                }
+                break;
+            }
             try {
                 const tool = toolMap.get(toolCall.name);
                 if (!tool) {
@@ -268,15 +286,15 @@ export class SingleAgentService extends AgentServiceBase {
     /**
      * 流式处理用户查询
      */
-    async stream(query: string, callback: IAgentCallback): Promise<BaseMessage[]> {
+    override async stream(query: string, callback: IAgentCallback, cancellationToken?: ICancellationToken): Promise<BaseMessage[]> {
         const humanMessage = new HumanMessage(query);
 
         // 将本次用户消息压入历史
         await this.saverService.pushMessage(humanMessage);
 
         const [systemMessage, tools] = await Promise.all([
-            this.buildSystemMessage(query),
-            this.buildTools(),
+            this.buildSystemMessage(query, callback, cancellationToken),
+            this.buildTools(callback, cancellationToken),
         ]);
 
         const graph = new StateGraph<SingleAgentState>()
@@ -287,7 +305,7 @@ export class SingleAgentService extends AgentServiceBase {
             .addEdge(GraphNodeType.TOOLS, GraphNodeType.AGENT);
         // this.logger?.info(`开始执行 Agent ${query}  system: ${systemMessage?.content}`);
         const graphStream = graph.stream(
-            { messages: [], callback, systemMessage, tools },
+            { messages: [], callback, systemMessage, tools, cancellationToken: cancellationToken ?? null },
         );
 
         // 收集 AI 响应（供记忆服务按 MemoryMode 决定是否使用）
@@ -319,6 +337,8 @@ export class SingleAgentService extends AgentServiceBase {
                     }
                 }
             }
+            // tools node 的补偿消息已全部写入 saver，配对完整后再抛出
+            if (cancellationToken?.isCancelled) throw new AgentCancelledError();
         }
 
         // 保存对话到长期记忆

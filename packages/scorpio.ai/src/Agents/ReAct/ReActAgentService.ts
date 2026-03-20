@@ -1,11 +1,11 @@
-import { SystemMessage, BaseMessage, AIMessage } from "langchain";
+import { SystemMessage, AIMessage } from "langchain";
 import { type StructuredToolInterface } from "@langchain/core/tools";
 import { inject, ServiceContainer, T_SystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc } from "../../Core";
 import { IMemoryService, ReadOnlyMemoryService } from "../../Memory";
 import { IAgentSaverService } from "../../Saver";
 import { ILoggerService } from "../../Logger";
 import { IModelService } from "../../Model";
-import { type AgentServiceBase, IAgentCallback, AgentSubNode, CreateAgentFn, T_CreateAgent } from "../AgentServiceBase";
+import { type AgentServiceBase, IAgentCallback, ICancellationToken, AgentSubNode, CreateAgentFn, T_CreateAgent } from "../AgentServiceBase";
 import { ISkillService } from "../../Skills";
 import { IAgentToolService } from "../../AgentTool";
 import { AgentMemorySaver } from "../../Saver/AgentMemorySaver";
@@ -28,7 +28,6 @@ export const T_ThinkModelService = Symbol("scorpio:T_ThinkModelService");
 export class ReActAgentService extends SingleAgentService {
   private agentSubNodes: AgentSubNode[];
   private agentFactory: CreateAgentFn;
-  private _streamCallback: IAgentCallback | null = null;
 
   constructor(
     @inject(T_ThinkModelService) thinkModelService: IModelService,
@@ -51,21 +50,20 @@ export class ReActAgentService extends SingleAgentService {
 
   // ── Overrides ────────────────────────────────────────────────
 
-  protected override async buildSystemMessage(query: string): Promise<SystemMessage | null> {
+  protected override async buildSystemMessage(query: string, callback?: IAgentCallback, cancellationToken?: ICancellationToken): Promise<SystemMessage | null> {
     const agentsDesc = this.agentSubNodes.map(a =>
       `  <agent id="${a.id}">${a.desc}</agent>`
     ).join('\n');
     const parts: string[] = [this.systemPromptTemplate.replace('{agents}', agentsDesc)];
 
     // Append systemPrompts, memory, and skill prompts from parent
-    const parentMsg = await super.buildSystemMessage(query);
+    const parentMsg = await super.buildSystemMessage(query, callback, cancellationToken);
     if (parentMsg) parts.push(parentMsg.content as string);
 
     return new SystemMessage(parts.join('\n\n'));
   }
 
-  protected override async buildTools(): Promise<StructuredToolInterface[]> {
-    const callback = this._streamCallback;
+  protected override async buildTools(callback?: IAgentCallback, cancellationToken?: ICancellationToken): Promise<StructuredToolInterface[]> {
     if (!callback) return [];
     const { onMessage: _, ...subCallback } = callback;
 
@@ -85,7 +83,7 @@ export class ReActAgentService extends SingleAgentService {
         extraPrompts.push(this.subNodePrompt);
         agentService.addSystemPrompts(extraPrompts);
 
-        const messages = await agentService.stream(task, subCallback);
+        const messages = await agentService.stream(task, subCallback, cancellationToken);
         const finalMsg = [...messages].reverse().find(
           m => m instanceof AIMessage && typeof m.content === 'string' && m.content
         );
@@ -98,17 +96,8 @@ export class ReActAgentService extends SingleAgentService {
     };
 
     const agentIds = this.agentSubNodes.map(a => a.id);
-    const parentTools = await super.buildTools();
+    const parentTools = await super.buildTools(callback, cancellationToken);
     return [createTaskTool(agentIds, runFn, this.taskToolDesc), ...parentTools];
-  }
-
-  override async stream(query: string, callback: IAgentCallback): Promise<BaseMessage[]> {
-    this._streamCallback = callback;
-    try {
-      return await super.stream(query, callback);
-    } finally {
-      this._streamCallback = null;
-    }
   }
 
   override async dispose(): Promise<void> {
