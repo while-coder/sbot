@@ -35,17 +35,17 @@ export class SlackUserService extends SlackUserServiceBase {
 </current-user>`
       : schedulerId;
 
-    const threadId = slackThreadId(channelId, slackChannel);
+    this.threadId = slackThreadId(channelId, slackChannel);
     await AgentRunner.run({
       query,
       callbacks: {
         onMessage: this.onAgentMessage.bind(this),
         onStreamMessage: this.onAgentStreamMessage.bind(this),
-        executeTool: buildExecuteTool(threadId, this.executeAgentTool.bind(this)),
+        executeTool: buildExecuteTool(this.threadId, this.executeAgentTool.bind(this)),
       },
       agentId,
       saverId: channel.saver,
-      threadId,
+      threadId: this.threadId,
       contextType: ContextType.Channel,
       extraInfo,
       memoryId,

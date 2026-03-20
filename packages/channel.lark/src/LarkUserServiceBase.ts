@@ -90,8 +90,7 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
     };
   }
 
-  protected async sendApprovalUI(toolCall: AgentToolCall, remainSec: number): Promise<void> {
-    const id = toolCall.id ?? "";
+  protected async sendApprovalUI(toolCall: AgentToolCall, id: string, remainSec: number): Promise<void> {
     await this.provider?.insertElement(undefined,
       this.buildButton(`Allow ${toolCall.name}`, "primary_filled", ToolCallStatus.Allow, "toolCallAllow", id),
       this.buildButton(`Always allow ${toolCall.name} (same args)`, "primary", ToolCallStatus.AlwaysArgs, "toolCallAlwaysArgs", id),

@@ -1,7 +1,6 @@
 import {
   AgentMessage,
   AgentToolCall,
-  AskQuestionType,
   AskResponse,
   AskToolParams,
   MessageChunkType,
@@ -10,6 +9,7 @@ import {
   sleep,
   ToolApproval,
 } from "scorpio.ai";
+import { sessionManager } from "./SessionManager";
 
 export enum ToolCallStatus {
   None = "none",
@@ -20,25 +20,9 @@ export enum ToolCallStatus {
   Deny = "deny",
 }
 
-interface ToolCallEntry {
-  status: ToolCallStatus;
-}
-
-export enum AskStatus {
-  Wait = "wait",
-  Done = "done",
-  Timeout = "timeout",
-}
-
-interface AskEntry {
-  status: AskStatus;
-  params: AskToolParams;
-  response?: AskResponse;
-}
-
 export abstract class ChannelUserServiceBase {
-  private toolCallMap = new Map<string, ToolCallEntry>();
-  private askMap = new Map<string, AskEntry>();
+  /** 由子类在 processAIMessage 开始时设置，供 executeAgentTool / ask 使用 */
+  protected threadId: string = '';
 
   abstract startProcessMessage(query: string, args: any, messageType: MessageType): Promise<string>;
   async onMessageProcessed(_args: any, _messageType: MessageType): Promise<void> {}
@@ -49,14 +33,19 @@ export abstract class ChannelUserServiceBase {
   abstract onAgentMessage(message: AgentMessage): Promise<void>;
   abstract processAIMessage(query: string, args: any): Promise<void>;
 
-  protected abstract sendApprovalUI(toolCall: AgentToolCall, remainSec: number): Promise<void>;
+  protected abstract sendApprovalUI(toolCall: AgentToolCall, id: string, remainSec: number): Promise<void>;
   protected abstract clearApprovalUI(toolCallId: string): Promise<void>;
   protected abstract sendAskForm(params: AskToolParams, askId: string, remainSec: number): Promise<void>;
   protected abstract clearAskForm(askId: string): Promise<void>;
 
-  protected resolveToolCall(id: string, approval: ToolCallStatus): void {
-    const entry = this.toolCallMap.get(id);
-    if (entry) entry.status = approval;
+  /** 将 ToolCallStatus 映射为 ToolApproval 并通过 sessionManager 解决 */
+  protected resolveToolCall(id: string, status: ToolCallStatus): void {
+    const statusToApproval: Partial<Record<ToolCallStatus, ToolApproval>> = {
+      [ToolCallStatus.Allow]: ToolApproval.Allow,
+      [ToolCallStatus.AlwaysArgs]: ToolApproval.AlwaysArgs,
+      [ToolCallStatus.AlwaysTool]: ToolApproval.AlwaysTool,
+    };
+    sessionManager.exitToolApproval(this.threadId, id, statusToApproval[status] ?? ToolApproval.Deny);
   }
 
   protected getToolCallTimeout(): number {
@@ -68,82 +57,38 @@ export abstract class ChannelUserServiceBase {
   }
 
   async executeAgentTool(toolCall: AgentToolCall): Promise<ToolApproval> {
-    let id = toolCall.id ?? `tc-${Date.now()}`;
-    while (this.toolCallMap.has(id)) id = `tc-${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    const entry: ToolCallEntry = { status: ToolCallStatus.Wait };
-    this.toolCallMap.set(id, entry);
+    let resolved: ToolApproval | undefined;
+    const timeoutMs = this.getToolCallTimeout();
+    const id = sessionManager.enterToolApproval(this.threadId, (a) => { resolved = a; }, timeoutMs);
+    const end = NowDate() + timeoutMs;
     try {
-      const end = NowDate() + this.getToolCallTimeout();
       let lastSend = 0;
-      while (entry.status === ToolCallStatus.Wait) {
+      while (resolved === undefined) {
         if (NowDate() - lastSend > 300) {
           lastSend = NowDate();
-          const remainSec = Math.floor((end - NowDate()) / 1000);
-          await this.sendApprovalUI(toolCall, remainSec);
+          await this.sendApprovalUI(toolCall, id, Math.floor((end - NowDate()) / 1000));
         }
         await sleep(10);
-        if (NowDate() > end) {
-          entry.status = ToolCallStatus.Deny;
-          break;
-        }
       }
-      const statusToApproval: Partial<Record<ToolCallStatus, ToolApproval>> = {
-        [ToolCallStatus.Allow]: ToolApproval.Allow,
-        [ToolCallStatus.AlwaysArgs]: ToolApproval.AlwaysArgs,
-        [ToolCallStatus.AlwaysTool]: ToolApproval.AlwaysTool,
-      };
-      return statusToApproval[entry.status] ?? ToolApproval.Deny;
+      return resolved;
     } finally {
       try { await this.clearApprovalUI(id); } catch {}
-      this.toolCallMap.delete(id);
     }
   }
 
   async ask(params: AskToolParams): Promise<AskResponse> {
-    let askId = `ask_${Date.now()}`;
-    while (this.askMap.has(askId)) askId = `ask_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    const askState: AskEntry = { status: AskStatus.Wait, params };
-    this.askMap.set(askId, askState);
+    const { id, promise } = sessionManager.enterAsk(this.threadId, params, this.getAskTimeout());
+    const end = NowDate() + this.getAskTimeout();
     try {
-      const end = NowDate() + this.getAskTimeout();
-      const remainSec = Math.floor((end - NowDate()) / 1000);
-      await this.sendAskForm(params, askId, remainSec);
-      while (askState.status === AskStatus.Wait) {
-        await sleep(10);
-        if (NowDate() > end) {
-          askState.status = AskStatus.Timeout;
-          break;
-        }
-      }
+      await this.sendAskForm(params, id, Math.floor((end - NowDate()) / 1000));
+      return await promise;
     } finally {
-      try { await this.clearAskForm(askId); } catch {}
-      this.askMap.delete(askId);
+      try { await this.clearAskForm(id); } catch {}
     }
-
-    const { status, response } = askState;
-
-    if (status !== AskStatus.Done || !response)
-      throw new Error("User did not answer within the allotted time");
-    return response;
   }
 
+  /** 薄包装：channel 子类调用此方法提交用户的 ask 表单回答 */
   protected resolveAskResponse(askId: string, answers: Record<string, string | string[] | boolean | undefined>): void {
-    const state = this.askMap.get(askId);
-    if (!state) return;
-    const response: AskResponse = {};
-    for (let i = 0; i < state.params.questions.length; i++) {
-      const q = state.params.questions[i];
-      const raw = answers[`${i}`];
-      if (q.type === AskQuestionType.Toggle) {
-        // normalize: boolean (Lark), ["true"]/[] (Slack), "true"/"false" (Web)
-        if (typeof raw === 'boolean') response[q.label] = String(raw);
-        else if (Array.isArray(raw)) response[q.label] = raw.includes('true') ? 'true' : 'false';
-        else response[q.label] = raw === 'true' ? 'true' : 'false';
-      } else if (raw !== undefined) {
-        response[q.label] = raw as string | string[];
-      }
-    }
-    state.response = response;
-    state.status = AskStatus.Done;
+    sessionManager.exitAsk(this.threadId, askId, answers);
   }
 }

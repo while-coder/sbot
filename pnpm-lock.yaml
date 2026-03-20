@@ -152,6 +152,9 @@ importers:
       axios:
         specifier: 'catalog:'
         version: 1.13.6
+      channel.base:
+        specifier: workspace:*
+        version: link:../channel.base
       channel.lark:
         specifier: workspace:*
         version: link:../channel.lark

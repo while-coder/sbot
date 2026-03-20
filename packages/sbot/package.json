@@ -35,6 +35,7 @@
   "dependencies": {
     "@langchain/core": "catalog:",
     "axios": "catalog:",
+    "channel.base": "workspace:*",
     "channel.lark": "workspace:*",
     "channel.slack": "workspace:*",
     "commander": "catalog:",

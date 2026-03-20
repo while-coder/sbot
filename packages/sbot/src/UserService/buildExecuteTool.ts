@@ -1,7 +1,7 @@
 import fs from "fs";
 import { AgentToolCall, ToolApproval, ASK_TOOL_NAME, TASK_TOOL_NAME } from "scorpio.ai";
 import { config } from "../Core/Config";
-import { sessionManager, SessionStatus } from "../Agent/SessionManager";
+import { sessionManager, SessionStatus } from "channel.base";
 
 /** 内部工具名，直接放行无需用户确认 */
 const INTERNAL_TOOLS = new Set([ASK_TOOL_NAME, TASK_TOOL_NAME]);

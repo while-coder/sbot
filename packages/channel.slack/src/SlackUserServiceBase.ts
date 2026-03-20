@@ -47,12 +47,12 @@ export abstract class SlackUserServiceBase extends ChannelUserServiceBase {
     await this.provider?.addAIMessage(message);
   }
 
-  private buildApprovalBlocks(toolCall: AgentToolCall, remainSec: number): any[] {
+  private buildApprovalBlocks(toolCall: AgentToolCall, id: string, remainSec: number): any[] {
     const makeButton = (text: string, actionId: string, style?: string) => ({
       type: "button",
       text: { type: "plain_text", text },
       action_id: actionId,
-      value: JSON.stringify({ id: toolCall.id, approval: actionId }),
+      value: JSON.stringify({ id, approval: actionId }),
       ...(style ? { style } : {}),
     });
     return [{
@@ -67,8 +67,8 @@ export abstract class SlackUserServiceBase extends ChannelUserServiceBase {
     }];
   }
 
-  protected async sendApprovalUI(toolCall: AgentToolCall, remainSec: number): Promise<void> {
-    await this.provider?.setApprovalBlocks(this.buildApprovalBlocks(toolCall, remainSec));
+  protected async sendApprovalUI(toolCall: AgentToolCall, id: string, remainSec: number): Promise<void> {
+    await this.provider?.setApprovalBlocks(this.buildApprovalBlocks(toolCall, id, remainSec));
   }
 
   protected async clearApprovalUI(_toolCallId: string): Promise<void> {

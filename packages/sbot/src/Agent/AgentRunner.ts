@@ -19,7 +19,7 @@ import { loadPrompt } from "../Core/PromptLoader";
 import { ContextType } from "../Core/Database";
 import { AgentFactory } from "./AgentFactory";
 import { LoggerService } from "../Core/LoggerService";
-import { sessionManager } from "./SessionManager";
+import { sessionManager } from "channel.base";
 
 const logger = LoggerService.getLogger('AgentRunner.ts');
 

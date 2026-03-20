@@ -4,7 +4,7 @@ import { AgentRunner } from "../Agent/AgentRunner";
 import { config } from '../Core/Config';
 import { ContextType } from '../Core/Database';
 import { buildExecuteTool } from './buildExecuteTool';
-import { sessionManager } from '../Agent/SessionManager';
+import { sessionManager } from 'channel.base';
 import { dirThreadId, sessionThreadId, WebChatEvent, WebChatEventType } from 'sbot.commons';
 
 export { WebChatEvent, WebChatEventType } from 'sbot.commons';
@@ -23,8 +23,8 @@ export abstract class BaseWebUserService {
     /** 连接断开时调用，拒绝所有挂起的审批和 ask */
     protected clearPendingApprovals(): void {
         for (const threadId of this.activeThreadIds) {
-            sessionManager.denyAllApprovals(threadId);
-            sessionManager.rejectAsk(threadId, 'Connection closed');
+            sessionManager.exitAllApprovals(threadId);
+            sessionManager.exitAllAsks(threadId, 'Connection closed');
         }
         this.activeThreadIds.clear();
     }
@@ -52,29 +52,22 @@ export abstract class BaseWebUserService {
     }
 
     async executeAgentTool(threadId: string, toolCall: AgentToolCall): Promise<ToolApproval> {
-        const id = toolCall.id ?? `tc-${Date.now()}`;
-        this.emit({ type: WebChatEventType.ToolCall, id, name: toolCall.name, args: toolCall.args });
         return new Promise<ToolApproval>((resolve) => {
-            const timer = setTimeout(() => {
-                sessionManager.resolveToolApproval(id, ToolApproval.Deny);
-            }, this.getToolCallTimeout());
-            sessionManager.registerToolApproval(threadId, id, (approval) => {
-                clearTimeout(timer);
-                resolve(approval);
-            });
+            const id = sessionManager.enterToolApproval(threadId, resolve, this.getToolCallTimeout());
+            this.emit({ type: WebChatEventType.ToolCall, id, name: toolCall.name, args: toolCall.args });
         });
     }
 
-    resolveToolApproval(id: string, approval: ToolApproval): void {
-        sessionManager.resolveToolApproval(id, approval);
+    resolveToolApproval(threadId: string, id: string, approval: ToolApproval): void {
+        sessionManager.exitToolApproval(threadId, id, approval);
     }
 
-    resolveAsk(threadId: string, answers: AskResponse): boolean {
-        return sessionManager.resolveAsk(threadId, answers);
+    resolveAsk(threadId: string, id: string, answers: AskResponse): boolean {
+        return sessionManager.exitAsk(threadId, id, answers);
     }
 
     cancel(threadId: string): boolean {
-        return sessionManager.cancel(threadId);
+        return sessionManager.abort(threadId);
     }
 
     async processAIMessage(query: string, args: any): Promise<void> {
@@ -113,7 +106,7 @@ export abstract class BaseWebUserService {
                 agentId, saverId, threadId, contextType, extraInfo, memoryId,
                 workPath,
                 askFn: async (params: AskToolParams) => {
-                    const { promise } = sessionManager.openAsk(threadId, params, this.getAskTimeout());
+                    const { promise } = sessionManager.enterAsk(threadId, params, this.getAskTimeout());
                     this.emit({ type: WebChatEventType.Ask, id: threadId, title: params.title, questions: params.questions as any });
                     return promise;
                 },

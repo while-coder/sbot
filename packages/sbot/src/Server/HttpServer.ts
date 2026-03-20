@@ -17,7 +17,7 @@ import { database } from '../Core/Database';
 import { userService } from '../UserService/UserService';
 import { schedulerService } from '../Scheduler/SchedulerService';
 import { channelManager } from '../Channel/ChannelManager';
-import { sessionManager } from '../Agent/SessionManager';
+import { sessionManager } from 'channel.base';
 import { sessionThreadId, dirThreadId } from 'sbot.commons';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
@@ -1014,17 +1014,17 @@ class HttpServer {
         });
 
         app.post('/api/tool-approval', (req, res) => {
-            const { id, approval } = req.body as { id?: string; approval?: string };
-            if (!id || !approval) { res.status(400).json({ error: 'id and approval are required' }); return; }
-            userService.web.resolveToolApproval(id, approval as any);
-            userService.http.resolveToolApproval(id, approval as any);
+            const { threadId, id, approval } = req.body as { threadId?: string; id?: string; approval?: string };
+            if (!threadId || !id || !approval) { res.status(400).json({ error: 'threadId, id and approval are required' }); return; }
+            userService.web.resolveToolApproval(threadId, id, approval as any);
+            userService.http.resolveToolApproval(threadId, id, approval as any);
             res.json({ ok: true });
         });
 
         app.post('/api/ask-response', (req, res) => {
-            const { id, answers } = req.body as { id?: string; answers?: Record<string, any> };
-            if (!id || !answers) { res.status(400).json({ error: 'id and answers are required' }); return; }
-            const resolved = userService.web.resolveAsk(id, answers) || userService.http.resolveAsk(id, answers);
+            const { threadId, id, answers } = req.body as { threadId?: string; id?: string; answers?: Record<string, any> };
+            if (!threadId || !id || !answers) { res.status(400).json({ error: 'threadId, id and answers are required' }); return; }
+            const resolved = userService.web.resolveAsk(threadId, id, answers) || userService.http.resolveAsk(threadId, id, answers);
             if (!resolved) { res.status(404).json({ error: 'Ask not found or already resolved' }); return; }
             res.json({ ok: true });
         });
@@ -1032,7 +1032,7 @@ class HttpServer {
         app.post('/api/cancel', (req, res) => {
             const { id } = req.body as { id?: string };
             if (!id) { res.status(400).json({ error: 'id required' }); return; }
-            const cancelled = sessionManager.cancel(id);
+            const cancelled = sessionManager.abort(id);
             if (!cancelled) { res.status(404).json({ error: 'No active session found' }); return; }
             res.json({ ok: true });
         });

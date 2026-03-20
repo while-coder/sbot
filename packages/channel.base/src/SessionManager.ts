@@ -38,19 +38,23 @@ interface PendingAsk extends AskInfo {
     timer: ReturnType<typeof setTimeout>;
 }
 
+interface PendingApproval {
+    resolve: (approval: ToolApproval) => void;
+    timer: ReturnType<typeof setTimeout>;
+}
+
 interface SessionState {
     threadId: string;
     startedAt: Date;
     status: SessionStatus;
     pendingTool?: PendingToolInfo;
     source: CancellationTokenSource;
-    pendingAsk?: PendingAsk;
-    pendingApprovals: Map<string, (approval: ToolApproval) => void>;
+    pendingAsks: Map<string, PendingAsk>;
+    pendingApprovals: Map<string, PendingApproval>;
 }
 
 class SessionManager {
     private sessions = new Map<string, SessionState>();
-    private approvalIndex = new Map<string, string>(); // toolCallId → threadId
 
     start(threadId: string): ICancellationToken {
         const existing = this.sessions.get(threadId);
@@ -61,6 +65,7 @@ class SessionManager {
             startedAt: new Date(),
             status: SessionStatus.Thinking,
             source,
+            pendingAsks: new Map(),
             pendingApprovals: new Map(),
         });
         return source;
@@ -69,48 +74,50 @@ class SessionManager {
     end(threadId: string): void {
         const session = this.sessions.get(threadId);
         if (!session) return;
-        if (session.pendingAsk) {
-            clearTimeout(session.pendingAsk.timer);
-            session.pendingAsk.reject(new Error('Session ended'));
+        for (const [, ask] of session.pendingAsks) {
+            clearTimeout(ask.timer);
+            ask.reject(new Error('Session ended'));
         }
-        for (const [id, resolve] of session.pendingApprovals) {
-            this.approvalIndex.delete(id);
-            resolve(ToolApproval.Deny);
+        session.pendingAsks.clear();
+        for (const [, entry] of session.pendingApprovals) {
+            clearTimeout(entry.timer);
+            entry.resolve(ToolApproval.Deny);
         }
         session.pendingApprovals.clear();
         this.sessions.delete(threadId);
     }
 
-    registerToolApproval(threadId: string, id: string, resolve: (approval: ToolApproval) => void): void {
+    enterToolApproval(threadId: string, resolve: (approval: ToolApproval) => void, timeoutMs: number): string {
         const session = this.sessions.get(threadId);
-        if (!session) return;
-        session.pendingApprovals.set(id, resolve);
-        this.approvalIndex.set(id, threadId);
+        if (!session) return '';
+        let id = `tc-${Date.now()}`;
+        while (session.pendingApprovals.has(id)) id = `tc-${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        const timer = setTimeout(() => this.exitToolApproval(threadId, id, ToolApproval.Deny), timeoutMs);
+        session.pendingApprovals.set(id, { resolve, timer });
+        return id;
     }
 
-    resolveToolApproval(id: string, approval: ToolApproval): boolean {
-        const threadId = this.approvalIndex.get(id);
-        if (!threadId) return false;
+    exitToolApproval(threadId: string, id: string, approval: ToolApproval): boolean {
         const session = this.sessions.get(threadId);
-        const resolve = session?.pendingApprovals.get(id);
-        if (!resolve) return false;
+        const entry = session?.pendingApprovals.get(id);
+        if (!entry) return false;
+        clearTimeout(entry.timer);
         session!.pendingApprovals.delete(id);
-        this.approvalIndex.delete(id);
-        resolve(approval);
+        entry.resolve(approval);
         return true;
     }
 
-    denyAllApprovals(threadId: string): void {
+    exitAllApprovals(threadId: string): void {
         const session = this.sessions.get(threadId);
         if (!session) return;
-        for (const [id, resolve] of session.pendingApprovals) {
-            this.approvalIndex.delete(id);
-            resolve(ToolApproval.Deny);
+        for (const [, entry] of session.pendingApprovals) {
+            clearTimeout(entry.timer);
+            entry.resolve(ToolApproval.Deny);
         }
         session.pendingApprovals.clear();
     }
 
-    cancel(threadId: string): boolean {
+    abort(threadId: string): boolean {
         const session = this.sessions.get(threadId);
         if (!session) return false;
         session.source.cancel();
@@ -127,13 +134,14 @@ class SessionManager {
     getInfo(threadId: string): SessionInfo | undefined {
         const s = this.sessions.get(threadId);
         if (!s) return undefined;
+        const firstAsk = s.pendingAsks.values().next().value as PendingAsk | undefined;
         return {
             threadId: s.threadId,
             startedAt: s.startedAt,
             status: s.status,
             pendingTool: s.pendingTool,
-            pendingAsk: s.pendingAsk
-                ? { id: s.pendingAsk.id, threadId: s.pendingAsk.threadId, title: s.pendingAsk.title, questions: s.pendingAsk.questions, startedAt: s.pendingAsk.startedAt }
+            pendingAsk: firstAsk
+                ? { id: firstAsk.id, threadId: firstAsk.threadId, title: firstAsk.title, questions: firstAsk.questions, startedAt: firstAsk.startedAt }
                 : undefined,
         };
     }
@@ -143,58 +151,71 @@ class SessionManager {
     }
 
     getAllInfo(): SessionInfo[] {
-        return [...this.sessions.values()].map(s => ({
-            threadId: s.threadId,
-            startedAt: s.startedAt,
-            status: s.status,
-            pendingTool: s.pendingTool,
-            pendingAsk: s.pendingAsk
-                ? { id: s.pendingAsk.id, threadId: s.pendingAsk.threadId, title: s.pendingAsk.title, questions: s.pendingAsk.questions, startedAt: s.pendingAsk.startedAt }
-                : undefined,
-        }));
+        return [...this.sessions.values()].map(s => {
+            const firstAsk = s.pendingAsks.values().next().value as PendingAsk | undefined;
+            return {
+                threadId: s.threadId,
+                startedAt: s.startedAt,
+                status: s.status,
+                pendingTool: s.pendingTool,
+                pendingAsk: firstAsk
+                    ? { id: firstAsk.id, threadId: firstAsk.threadId, title: firstAsk.title, questions: firstAsk.questions, startedAt: firstAsk.startedAt }
+                    : undefined,
+            };
+        });
     }
 
-    openAsk(threadId: string, params: AskToolParams, timeoutMs: number): { id: string; promise: Promise<AskResponse> } {
+    enterAsk(threadId: string, params: AskToolParams, timeoutMs: number): { id: string; promise: Promise<AskResponse> } {
         const session = this.sessions.get(threadId);
+        if (!session) return { id: '', promise: Promise.reject(new Error('Session not found')) };
+        let id = `ask-${Date.now()}`;
+        while (session.pendingAsks.has(id)) id = `ask-${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
         let resolve!: (answers: AskResponse) => void;
         let reject!: (err: Error) => void;
         const promise = new Promise<AskResponse>((res, rej) => { resolve = res; reject = rej; });
         const timer = setTimeout(() => {
-            if (session) delete session.pendingAsk;
+            session.pendingAsks.delete(id);
             reject(new Error('User did not answer within the allotted time'));
         }, timeoutMs);
-        if (session) session.pendingAsk = { id: threadId, threadId, title: params.title, questions: params.questions, startedAt: new Date(), resolve, reject, timer };
-        return { id: threadId, promise };
+        session.pendingAsks.set(id, { id, threadId, title: params.title, questions: params.questions, startedAt: new Date(), resolve, reject, timer });
+        return { id, promise };
     }
 
-    resolveAsk(threadId: string, answers: Record<string, string | string[] | boolean | undefined>): boolean {
+    /** 成功传 answers 对象，失败传错误消息字符串 */
+    exitAsk(threadId: string, id: string, result: Record<string, string | string[] | boolean | undefined> | string): boolean {
         const session = this.sessions.get(threadId);
-        if (!session?.pendingAsk) return false;
-        clearTimeout(session.pendingAsk.timer);
-        const labeledAnswers: AskResponse = {};
-        const questions = session.pendingAsk.questions;
-        for (let i = 0; i < questions.length; i++) {
-            const q = questions[i];
-            const raw = answers[String(i)];
-            if (q.type === AskQuestionType.Toggle) {
-                if (typeof raw === 'boolean') labeledAnswers[q.label] = String(raw);
-                else if (Array.isArray(raw)) labeledAnswers[q.label] = raw.includes('true') ? 'true' : 'false';
-                else labeledAnswers[q.label] = raw === 'true' ? 'true' : 'false';
-            } else if (raw !== undefined) {
-                labeledAnswers[q.label] = raw as string | string[];
+        const ask = session?.pendingAsks.get(id);
+        if (!ask) return false;
+        clearTimeout(ask.timer);
+        session!.pendingAsks.delete(id);
+        if (typeof result === 'string') {
+            ask.reject(new Error(result));
+        } else {
+            const labeledAnswers: AskResponse = {};
+            for (let i = 0; i < ask.questions.length; i++) {
+                const q = ask.questions[i];
+                const raw = result[String(i)];
+                if (q.type === AskQuestionType.Toggle) {
+                    if (typeof raw === 'boolean') labeledAnswers[q.label] = String(raw);
+                    else if (Array.isArray(raw)) labeledAnswers[q.label] = raw.includes('true') ? 'true' : 'false';
+                    else labeledAnswers[q.label] = raw === 'true' ? 'true' : 'false';
+                } else if (raw !== undefined) {
+                    labeledAnswers[q.label] = raw as string | string[];
+                }
             }
+            ask.resolve(labeledAnswers);
         }
-        session.pendingAsk.resolve(labeledAnswers);
-        delete session.pendingAsk;
         return true;
     }
 
-    rejectAsk(threadId: string, message: string): void {
+    exitAllAsks(threadId: string, message: string): void {
         const session = this.sessions.get(threadId);
-        if (!session?.pendingAsk) return;
-        clearTimeout(session.pendingAsk.timer);
-        session.pendingAsk.reject(new Error(message));
-        delete session.pendingAsk;
+        if (!session) return;
+        for (const [, ask] of session.pendingAsks) {
+            clearTimeout(ask.timer);
+            ask.reject(new Error(message));
+        }
+        session.pendingAsks.clear();
     }
 }
 
