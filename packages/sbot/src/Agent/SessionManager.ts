@@ -1,4 +1,4 @@
-import { AgentToolCall, AskQuestionType, AskResponse, AskToolParams, ICancellationToken } from "scorpio.ai";
+import { AgentToolCall, AskQuestionType, AskResponse, AskToolParams, ICancellationToken, ToolApproval } from "scorpio.ai";
 
 export enum SessionStatus {
     Thinking = 'thinking',
@@ -45,10 +45,12 @@ interface SessionState {
     pendingTool?: PendingToolInfo;
     source: CancellationTokenSource;
     pendingAsk?: PendingAsk;
+    pendingApprovals: Map<string, (approval: ToolApproval) => void>;
 }
 
 class SessionManager {
     private sessions = new Map<string, SessionState>();
+    private approvalIndex = new Map<string, string>(); // toolCallId → threadId
 
     /**
      * 注册一个新 session，返回其 CancellationToken。
@@ -64,6 +66,7 @@ class SessionManager {
             startedAt: new Date(),
             status: SessionStatus.Thinking,
             source,
+            pendingApprovals: new Map(),
         });
         return source;
     }
@@ -71,11 +74,46 @@ class SessionManager {
     /** session 结束后移除（无论成功、取消还是报错）。 */
     end(threadId: string): void {
         const session = this.sessions.get(threadId);
-        if (session?.pendingAsk) {
+        if (!session) return;
+        if (session.pendingAsk) {
             clearTimeout(session.pendingAsk.timer);
             session.pendingAsk.reject(new Error('Session ended'));
         }
+        for (const [id, resolve] of session.pendingApprovals) {
+            this.approvalIndex.delete(id);
+            resolve(ToolApproval.Deny);
+        }
+        session.pendingApprovals.clear();
         this.sessions.delete(threadId);
+    }
+
+    registerToolApproval(threadId: string, id: string, resolve: (approval: ToolApproval) => void): void {
+        const session = this.sessions.get(threadId);
+        if (!session) return;
+        session.pendingApprovals.set(id, resolve);
+        this.approvalIndex.set(id, threadId);
+    }
+
+    resolveToolApproval(id: string, approval: ToolApproval): boolean {
+        const threadId = this.approvalIndex.get(id);
+        if (!threadId) return false;
+        const session = this.sessions.get(threadId);
+        const resolve = session?.pendingApprovals.get(id);
+        if (!resolve) return false;
+        session!.pendingApprovals.delete(id);
+        this.approvalIndex.delete(id);
+        resolve(approval);
+        return true;
+    }
+
+    denyAllApprovals(threadId: string): void {
+        const session = this.sessions.get(threadId);
+        if (!session) return;
+        for (const [id, resolve] of session.pendingApprovals) {
+            this.approvalIndex.delete(id);
+            resolve(ToolApproval.Deny);
+        }
+        session.pendingApprovals.clear();
     }
 
     /** 取消指定 threadId 的 session，若不存在返回 false。 */

@@ -53,15 +53,17 @@ export class AgentRunner {
         if (!saverId.trim())   throw new Error("saver not specified");
         if (!threadId.trim())  throw new Error("threadId not specified");
 
-        const now = new Date();
-        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        const assetsDir = config.getConfigPath('assets', true);
-        const scriptsDir = config.getConfigPath('scripts', true);
-        const httpUrl = config.getHttpUrl();
-        const workPath = options.workPath ?? `${assetsDir}/${threadId}`;
+        const cancellationToken = sessionManager.start(threadId);
+        try {
+            const now = new Date();
+            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            const assetsDir = config.getConfigPath('assets', true);
+            const scriptsDir = config.getConfigPath('scripts', true);
+            const httpUrl = config.getHttpUrl();
+            const workPath = options.workPath ?? `${assetsDir}/${threadId}`;
 
-        const extraPrompts: string[] = [
-            `<environment>
+            const extraPrompts: string[] = [
+                `<environment>
   <current-time>${now.toLocaleString(undefined, { timeZone: timezone, hour12: false })}</current-time>
   <timezone>${timezone}</timezone>
   <os>${os.type()} ${os.release()} (${os.platform()})</os>
@@ -74,20 +76,21 @@ export class AgentRunner {
   </paths>
   ${extraInfo}
 </environment>`,
-        ];
+            ];
 
-        const container = new ServiceContainer();
-        container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
-        await AgentRunner.registerMemoryService(container, memoryId);
-        await AgentRunner.registerSaverService(container, saverId, threadId);
+            const container = new ServiceContainer();
+            container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
+            await AgentRunner.registerMemoryService(container, memoryId);
+            await AgentRunner.registerSaverService(container, saverId, threadId);
 
-        const agent = await AgentFactory.create({ agentId, container, extraPrompts, askFn });
-        const cancellationToken = sessionManager.start(threadId);
-        try {
-            await agent.stream(query, callbacks, cancellationToken);
+            const agent = await AgentFactory.create({ agentId, container, extraPrompts, askFn });
+            try {
+                await agent.stream(query, callbacks, cancellationToken);
+            } finally {
+                await agent.dispose();
+            }
         } finally {
             sessionManager.end(threadId);
-            await agent.dispose();
         }
     }
 

@@ -1029,6 +1029,17 @@ class HttpServer {
             res.json({ ok: true });
         });
 
+        app.post('/api/cancel', (req, res) => {
+            const { sessionId, workPath } = req.body as { sessionId?: string; workPath?: string };
+            let threadId: string | undefined;
+            if (sessionId) threadId = sessionThreadId(sessionId);
+            else if (workPath) threadId = dirThreadId(workPath);
+            if (!threadId) { res.status(400).json({ error: 'sessionId or workPath required' }); return; }
+            const cancelled = userService.web.cancel(threadId) || userService.http.cancel(threadId);
+            if (!cancelled) { res.status(404).json({ error: 'No active session found' }); return; }
+            res.json({ ok: true });
+        });
+
         app.post('/api/chat', async (req, res) => {
             const { query, sessionId, workPath, attachments } = req.body as {
                 query?: string;
