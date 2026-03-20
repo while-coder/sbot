@@ -5,8 +5,15 @@ import { config } from "../Core/Config";
 import { ChannelSessionRow, ContextType, database } from "../Core/Database";
 import { buildExecuteTool } from "./buildExecuteTool";
 import { larkThreadId } from "sbot.commons";
+import { sessionManager } from "../Agent/SessionManager";
 
 export class LarkUserService extends LarkUserServiceBase {
+    private currentThreadId: string = '';
+
+    protected onCancelAction(): void {
+        if (this.currentThreadId) sessionManager.cancel(this.currentThreadId);
+    }
+
     async processAIMessage(query: string, args: any): Promise<void> {
         const channelId = args?.channelId as string;
         const channel = channelId ? config.getChannel(channelId) : undefined;
@@ -32,17 +39,17 @@ export class LarkUserService extends LarkUserServiceBase {
   <email>${userInfo.email}</email>
 </current-user>` : schedulerId;
 
-        const threadId = larkThreadId(channelId, chat_id);
+        this.currentThreadId = larkThreadId(channelId, chat_id);
         await AgentRunner.run({
             query,
             callbacks: {
                 onMessage: this.onAgentMessage.bind(this),
                 onStreamMessage: this.onAgentStreamMessage.bind(this),
-                executeTool: buildExecuteTool(threadId, this.executeAgentTool.bind(this)),
+                executeTool: buildExecuteTool(this.currentThreadId, this.executeAgentTool.bind(this)),
             },
             agentId,
             saverId: channel.saver,
-            threadId,
+            threadId: this.currentThreadId,
             contextType: ContextType.Channel,
             extraInfo,
             memoryId,

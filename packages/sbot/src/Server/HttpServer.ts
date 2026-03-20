@@ -1032,7 +1032,7 @@ class HttpServer {
         app.post('/api/cancel', (req, res) => {
             const { id } = req.body as { id?: string };
             if (!id) { res.status(400).json({ error: 'id required' }); return; }
-            const cancelled = userService.web.cancel(id) || userService.http.cancel(id);
+            const cancelled = sessionManager.cancel(id);
             if (!cancelled) { res.status(404).json({ error: 'No active session found' }); return; }
             res.json({ ok: true });
         });

@@ -93,6 +93,7 @@ export class UserService extends UserServiceBase {
     protected async onMessageProcessed(_query: string, args: any, messageType: MessageType): Promise<void> {
         if (this.currentContext === ChannelType.Web) await this.web.onMessageProcessed(args, messageType);
         else if (this.currentContext === ChannelType.Http) await this.http.onMessageProcessed(args, messageType);
+        else if (this.currentContext === ChannelType.Lark) await this.lark.onMessageProcessed(args, messageType);
         this.currentContext = undefined;
     }
 
