@@ -92,6 +92,7 @@ export default {
     ask_other: 'Other',
     ask_other_placeholder: 'Type here...',
     ask_timeout: 'Timed out',
+    stop: 'Stop',
     no_history: 'No history',
     date_today: 'Today',
     date_yesterday: 'Yesterday',

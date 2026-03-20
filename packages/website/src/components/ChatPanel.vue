@@ -22,6 +22,7 @@ const props = withDefaults(defineProps<{
   chatSending: boolean
   showAttachments?: boolean
   emptyText?: string
+  onCancel?: () => void
 }>(), {
   showAttachments: false,
   emptyText: '',
@@ -263,7 +264,8 @@ defineExpose({ scrollToBottom })
       </div>
       <div style="display:flex;flex-direction:column;gap:6px;align-self:flex-end">
         <button v-if="showAttachments" class="btn-outline btn-sm" @click="pickFile" :title="t('chat.add_attachment')">{{ t('chat.attachment') }}</button>
-        <button class="btn-primary" :disabled="chatSending" @click="send">{{ t('chat.send') }}</button>
+        <button v-if="onCancel && isStreaming" class="btn-danger btn-sm stop-btn" @click="onCancel">■ {{ t('chat.stop') }}</button>
+        <button v-else class="btn-primary" :disabled="chatSending" @click="send">{{ t('chat.send') }}</button>
       </div>
     </div>
 

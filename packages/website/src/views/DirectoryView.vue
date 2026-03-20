@@ -311,6 +311,7 @@ onUnmounted(() => { wsOffMessage(handleWsEvent); chatAreaRef.value?.cleanup() })
             :handle-human-message="false"
             :show-attachments="true"
             :empty-text="!activeCfg?.agent || !activeCfg?.saver ? '请先在工具栏配置 Agent 和存储' : '暂无对话历史，发送消息开始对话'"
+            :cancel-thread-id="activeDir ? dirThreadId(activeDir) : undefined"
             @send="onPanelSend"
             @done="onChatAreaDone"
           />

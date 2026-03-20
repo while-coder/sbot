@@ -92,6 +92,7 @@ export default {
     ask_other: '其他',
     ask_other_placeholder: '请输入...',
     ask_timeout: '已超时',
+    stop: '中断',
     no_history: '暂无历史记录',
     date_today: '今天',
     date_yesterday: '昨天',

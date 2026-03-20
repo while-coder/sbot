@@ -306,6 +306,7 @@ onUnmounted(() => {
         ref="chatAreaRef"
         :history-url="historyUrl"
         :show-attachments="true"
+        :cancel-thread-id="activeSessionId ? sessionThreadId(activeSessionId) : undefined"
         @send="onPanelSend"
         @done="onChatAreaDone"
         @error="onChatAreaError"

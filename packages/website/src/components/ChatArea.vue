@@ -21,6 +21,8 @@ const props = withDefaults(defineProps<{
   showAttachments?: boolean
   /** 是否从 ws Human 事件推消息（ChatView=true；DirectoryView=false，由父组件乐观推送） */
   handleHumanMessage?: boolean
+  /** threadId，有值时显示中断按钮 */
+  cancelThreadId?: string
 }>(), {
   handleHumanMessage: true,
 })
@@ -244,6 +246,15 @@ function reset() {
   pendingAsk.value = null
 }
 
+async function cancelProcessing() {
+  if (!props.cancelThreadId) return
+  try {
+    await apiFetch('/api/cancel', 'POST', { id: props.cancelThreadId })
+  } catch (e: any) {
+    show(e.message, 'error')
+  }
+}
+
 /** 组件卸载时调用，清理定时器 */
 function cleanup() {
   stopDenyCountdown()
@@ -359,6 +370,7 @@ defineExpose({ handleWsEvent, pushMessage, setSending, refreshHistory, clearHist
     :chat-sending="chatSending"
     :empty-text="emptyText"
     :show-attachments="showAttachments"
+    :on-cancel="cancelThreadId && isStreaming ? cancelProcessing : undefined"
     @send="(q, a) => emit('send', q, a)"
   />
 </template>
