@@ -78,6 +78,28 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
     await this.provider?.deleteElement("toolCallAllow", "toolCallAlwaysArgs", "toolCallAlwaysTool", "toolCallDeny");
   }
 
+  private buildQuestionRow(label: string, inputElement: object): object {
+    return {
+      tag: 'column_set',
+      columns: [
+        {
+          tag: 'column',
+          width: 'weighted',
+          weight: 1,
+          vertical_align: 'top',
+          elements: [{ tag: 'markdown', content: label, text_align: 'left' }],
+        },
+        {
+          tag: 'column',
+          width: 'weighted',
+          weight: 1,
+          vertical_align: 'top',
+          elements: [inputElement],
+        },
+      ],
+    };
+  }
+
   protected async sendAskForm(params: AskToolParams, askId: string, remainSec: number): Promise<void> {
     const formElements: any[] = [];
     for (let i = 0; i < params.questions.length; i++) {
@@ -86,32 +108,75 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
       if (q.type === AskQuestionType.Radio) {
         const options = q.options.map((o: string) => ({ text: { tag: 'plain_text', content: o }, value: o }));
         if (q.allowCustom) options.push({ text: { tag: 'plain_text', content: 'Other' }, value: '__custom__' });
-        formElements.push({ tag: 'select_static', name, label: { tag: 'plain_text', content: q.label }, options });
+        formElements.push(this.buildQuestionRow(q.label, {
+          tag: 'select_static', name, options, required: true,
+          placeholder: { tag: 'plain_text', content: '请选择' },
+          type: 'default', width: 'default',
+        }));
       } else if (q.type === AskQuestionType.Checkbox) {
         const options = q.options.map((o: string) => ({ text: { tag: 'plain_text', content: o }, value: o }));
         if (q.allowCustom) options.push({ text: { tag: 'plain_text', content: 'Other' }, value: '__custom__' });
-        formElements.push({ tag: 'multi_select_static', name, label: { tag: 'plain_text', content: q.label }, options });
+        formElements.push(this.buildQuestionRow(q.label, {
+          tag: 'multi_select_static', name, options, required: true,
+          placeholder: { tag: 'plain_text', content: '请选择' },
+          width: 'default',
+        }));
       } else if (q.type === AskQuestionType.Toggle) {
-        formElements.push({ tag: 'toggle', name, label: { tag: 'plain_text', content: q.label }, default_value: q.default ?? false });
+        const toggleOptions = [
+          { text: { tag: 'plain_text', content: '是' }, value: 'true' },
+          { text: { tag: 'plain_text', content: '否' }, value: 'false' },
+        ];
+        formElements.push(this.buildQuestionRow(q.label, {
+          tag: 'select_static', name, options: toggleOptions, required: true,
+          placeholder: { tag: 'plain_text', content: '请选择' },
+          type: 'default', width: 'default',
+          initial_index: (q.default ?? false) ? 0 : 1,
+        }));
       } else {
-        formElements.push({
-          tag: 'input', name,
-          label: { tag: 'plain_text', content: q.label },
-          placeholder: q.placeholder ? { tag: 'plain_text', content: q.placeholder } : undefined,
-        });
+        formElements.push(this.buildQuestionRow(q.label, {
+          tag: 'input', name, width: 'default', required: true,
+          placeholder: q.placeholder ? { tag: 'plain_text', content: q.placeholder } : { tag: 'plain_text', content: '请输入' },
+        }));
       }
     }
     formElements.push({
-      tag: 'button',
-      text: { tag: 'plain_text', content: `Submit (${remainSec}s)` },
-      type: 'primary',
-      form_action_type: 'submit',
-      behaviors: [{ type: 'callback', value: { code: 'AskForm', data: { id: askId } } }],
+      tag: 'column_set',
+      columns: [
+        {
+          tag: 'column',
+          width: 'auto',
+          vertical_align: 'top',
+          elements: [{
+            tag: 'button',
+            name: 'submitBtn',
+            text: { tag: 'plain_text', content: `提交 (${remainSec}s)` },
+            type: 'primary',
+            width: 'default',
+            form_action_type: 'submit',
+            behaviors: [{ type: 'callback', value: { code: 'AskForm', data: { id: askId } } }],
+          }],
+        },
+        {
+          tag: 'column',
+          width: 'auto',
+          vertical_align: 'top',
+          elements: [{
+            tag: 'button',
+            name: 'cancelBtn',
+            text: { tag: 'plain_text', content: '取消' },
+            type: 'default',
+            width: 'default',
+            form_action_type: 'reset',
+          }],
+        },
+      ],
     });
     await this.provider?.insertElement(undefined, {
       tag: 'form',
       element_id: 'askForm',
-      ...(params.title ? { header: { title: { tag: 'plain_text', content: params.title } } } : {}),
+      name: 'askForm',
+      padding: '4px 0px 4px 0px',
+      margin: '0px 0px 0px 0px',
       elements: formElements,
     });
   }

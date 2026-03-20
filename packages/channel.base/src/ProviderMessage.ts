@@ -46,7 +46,7 @@ export function parseMessages2Text(messages: ProviderMessage[]): string {
           }
           escapedResponse = contentParts.join("\n");
         } else {
-          escapedResponse = String(parsed);
+          escapedResponse = parsed !== undefined ? String(parsed) : (msg.response || "");
         }
         escapedResponse = escapedResponse.replace(/`/g, "\\`");
         block += `\nResult:\n${escapedResponse}`;

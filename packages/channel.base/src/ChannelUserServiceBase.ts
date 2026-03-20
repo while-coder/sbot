@@ -106,13 +106,9 @@ export abstract class ChannelUserServiceBase {
     this.askMap.set(askId, askState);
     try {
       const end = NowDate() + this.getAskTimeout();
-      let lastSend = 0;
+      const remainSec = Math.floor((end - NowDate()) / 1000);
+      await this.sendAskForm(params, askId, remainSec);
       while (askState.status === AskStatus.Wait) {
-        if (NowDate() - lastSend > 300) {
-          lastSend = NowDate();
-          const remainSec = Math.floor((end - NowDate()) / 1000);
-          await this.sendAskForm(params, askId, remainSec);
-        }
         await sleep(10);
         if (NowDate() > end) {
           askState.status = AskStatus.Timeout;
