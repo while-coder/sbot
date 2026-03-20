@@ -1,6 +1,6 @@
 import { Command as CommanderCommand } from "commander";
 import { AgentMessage, AgentToolCall, MessageChunkType, ToolApproval } from "../Agents";
-import { CommandContext, CommandRegistry, ICommand } from "../Command";
+import { CommandContext, CommandRegistry, ICommand, SaverContext } from "../Command";
 import { GlobalLoggerService, ILogger } from "../Logger";
 
 interface MessageQueueItem {
@@ -63,6 +63,11 @@ export abstract class UserServiceBase {
         this.isProcessingQueue = false;
     }
 
+    /** 子类可覆盖，返回当前消息对应的 saver 上下文（saverId + threadId）供命令使用 */
+    protected async resolveSaverContext(_args: any): Promise<SaverContext | undefined> {
+        return undefined;
+    }
+
     private async processCommand(query: string, args: any): Promise<void> {
         const program = new CommanderCommand();
 
@@ -81,6 +86,7 @@ export abstract class UserServiceBase {
         const context: CommandContext = {
             context: this,
             args,
+            saverContext: await this.resolveSaverContext(args),
             onResult: (result: string) => {
                 commandResult = result;
             }

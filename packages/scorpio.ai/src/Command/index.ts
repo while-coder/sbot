@@ -8,7 +8,8 @@ export {
     Option,
     Parsers,
     ICommand,
-    CommandContext
+    CommandContext,
+    SaverContext,
 } from './CommandDecorators';
 
 export { CommandRegistry } from './CommandRegistry';

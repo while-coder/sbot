@@ -1,4 +1,5 @@
 import { Command, Arg, Option, Parsers, CommandContext, ICommand } from "scorpio.ai"
+import { AgentRunner } from "../Agent/AgentRunner"
 
 /**
  * /test 命令 - 测试所有装饰器功能
@@ -109,10 +110,32 @@ export class TestCommand implements ICommand {
 
 
 /**
+ * /clear 命令 - 清理当前会话的 saver 历史记录
+ */
+@Command('clear', '清理当前会话的历史记录')
+export class ClearCommand implements ICommand {
+    _context!: CommandContext;
+
+    async execute(): Promise<string> {
+        const saverContext = this._context.saverContext;
+        if (!saverContext) return '无法识别当前会话上下文，或当前会话未配置 saver';
+
+        const saver = await AgentRunner.createSaverService(saverContext.saverId, saverContext.threadId);
+        try {
+            await saver.clearMessages();
+            return '历史记录已清理';
+        } finally {
+            await saver.dispose();
+        }
+    }
+}
+
+/**
  * 获取所有内置命令
  */
 export function getBuiltInCommands(): ICommand[] {
     return [
         new TestCommand(),
+        new ClearCommand(),
     ];
 }

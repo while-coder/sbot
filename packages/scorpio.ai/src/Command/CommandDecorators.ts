@@ -1,9 +1,17 @@
+/** 命令可使用的会话 saver 上下文，由 UserService 在分发命令前解析 */
+export interface SaverContext {
+    saverId: string;
+    threadId: string;
+}
+
 /**
  * 命令执行上下文（内部使用）
  */
 export interface CommandContext {
     args: any;
     context: any;
+    /** 当前会话的 saver 上下文，由 UserService 提供；无法解析时为 undefined */
+    saverContext?: SaverContext;
     onResult?: (result: string) => void;  // 回调函数，用于返回结果
 }
 
