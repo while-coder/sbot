@@ -169,36 +169,13 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
       }
     }
     formElements.push({
-      tag: 'column_set',
-      columns: [
-        {
-          tag: 'column',
-          width: 'auto',
-          vertical_align: 'top',
-          elements: [{
-            tag: 'button',
-            name: 'submitBtn',
-            text: { tag: 'plain_text', content: `提交 (${remainSec}s)` },
-            type: 'primary',
-            width: 'default',
-            form_action_type: 'submit',
-            behaviors: [{ type: 'callback', value: { code: 'AskForm', data: { id: askId } } }],
-          }],
-        },
-        {
-          tag: 'column',
-          width: 'auto',
-          vertical_align: 'top',
-          elements: [{
-            tag: 'button',
-            name: 'cancelBtn',
-            text: { tag: 'plain_text', content: '取消' },
-            type: 'default',
-            width: 'default',
-            behaviors: [{ type: 'callback', value: { code: 'AskCancel', data: { id: askId } } }],
-          }],
-        },
-      ],
+      tag: 'button',
+      name: 'submitBtn',
+      text: { tag: 'plain_text', content: `提交 (${remainSec}s)` },
+      type: 'primary',
+      width: 'default',
+      form_action_type: 'submit',
+      behaviors: [{ type: 'callback', value: { code: 'AskForm', data: { id: askId } } }],
     });
     await this.provider?.insertElement(undefined, {
       tag: 'form',
@@ -221,10 +198,6 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
     }
     if (code === "AskForm") {
       this.resolveAskResponse(data.id, formValue ?? {});
-      return;
-    }
-    if (code === "AskCancel") {
-      this.rejectAskResponse(data.id);
       return;
     }
     if (code === "Abort") {
