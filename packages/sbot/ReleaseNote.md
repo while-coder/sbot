@@ -1,0 +1,7 @@
+- Added WebFetch tool and web search capability
+- Introduced tool execution permission management
+- Refactored prompts system with per-module splitting and on-demand loading
+- Fixed scheduler timer reliability issues
+- Added model selection and i18n support to the frontend
+- Improved chat page interactions
+- Persist Lark user avatars to the database

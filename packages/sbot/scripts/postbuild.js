@@ -34,6 +34,10 @@ function resolveVersion(name, version) {
 // 读取自身的 package.json
 const selfPkg = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf-8'));
 
+// 读取 ReleaseNote.md（位于 monorepo 根目录）
+const releaseNotePath = path.join(monorepoRoot, 'ReleaseNote.md');
+const releaseNote = fs.existsSync(releaseNotePath) ? fs.readFileSync(releaseNotePath, 'utf-8').trim() : '';
+
 // 扫描 monorepo packages/ 目录，建立 packageName -> dir 映射
 const packagesRoot = path.resolve(rootDir, '..');
 const workspaceMap = {}; // name -> dir
@@ -125,7 +129,7 @@ const isRelease = outputDir === 'dist';
 const distPkg = {
   name: selfPkg.name,
   version: selfPkg.version,
-  releasenote: selfPkg.releasenote || '',
+  releasenote: releaseNote,
   description: selfPkg.description || '',
   ...(selfPkg.repository ? { repository: selfPkg.repository } : {}),
   ...(selfPkg.homepage ? { homepage: selfPkg.homepage } : {}),
