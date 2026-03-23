@@ -81,7 +81,7 @@ const hasUpdate = ref(false)
 async function checkUpdate(currentVersion: string) {
   const data = await fetchLatestRelease()
   if (!data) return
-  const latest = (data.tag_name as string) || ''
+  const latest = data.tag || ''
   if (latest && compareSemver(currentVersion, latest) < 0) hasUpdate.value = true
 }
 
