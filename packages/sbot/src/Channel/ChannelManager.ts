@@ -1,4 +1,4 @@
-import { LarkService, LarkActionArgs, LarkMessageArgs, LarkUserIdType } from "channel.lark";
+import { LarkService, LarkReceiveIdType, LarkActionArgs, LarkMessageArgs, LarkUserIdType } from "channel.lark";
 import { SlackService, SlackMessageArgs, SlackActionArgs } from "channel.slack";
 import { database, type ChannelSessionRow } from "../Core/Database";
 import { NowDate } from "scorpio.ai";
@@ -6,6 +6,7 @@ import { Op } from "sequelize";
 import { userService } from "../UserService/UserService";
 import { LoggerService } from "../Core/LoggerService";
 import { config, ChannelType, ChannelConfig } from "../Core/Config";
+import { compareSemver, fetchLatestRelease } from "sbot.commons";
 
 const logger = LoggerService.getLogger("ChannelManager.ts");
 
@@ -28,6 +29,39 @@ async function filterEvent(eventId: string): Promise<boolean> {
     if ((await database.count(database.message, { where: { id: eventId } })) > 0) return false;
     await database.create(database.message, { id: eventId, expireTime: NowDate() + ExpireTime });
     return true;
+}
+
+// ── 更新检查 ──────────────────────────────────────────────────────────────────
+
+async function checkForUpdateOnLark(service: LarkService, chatId: string): Promise<void> {
+    const now = NowDate();
+    const checkUpdateTime = config.settings.checkUpdateTime ?? 0;
+    if (now < checkUpdateTime) return;
+
+    const latest = await fetchLatestRelease();
+    if (latest && compareSemver(config.pkg.version, latest.tag) < 0) {
+        const releasenoteSection = latest.releasenote ? `\n\n**更新内容：**\n${latest.releasenote}` : '';
+        const message = [
+            `## 🎉 发现新版本 ${latest.tag}`,
+            ``,
+            `当前版本：**v${config.pkg.version}**`,
+            `最新版本：**${latest.tag}**`,
+            ``,
+            `**更新命令：**`,
+            `\`\`\``,
+            `npm install -g @qingfeng346/sbot@latest`,
+            `\`\`\``,
+            ``,
+            `[查看发布说明](${latest.url})${releasenoteSection}`,
+        ].join('\n');
+        await service.sendMarkdownMessage(LarkReceiveIdType.ChatId, chatId, message);
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(0, 0, 0, 0);
+        config.setCheckUpdateTime(tomorrow.getTime());
+    } else {
+        config.setCheckUpdateTime(now + HourMilliseconds);
+    }
 }
 
 // ── 频道 Handler 接口 ─────────────────────────────────────────────────────────
@@ -195,7 +229,8 @@ export class ChannelManager {
             return undefined;
         }
         const userIdType = LarkUserIdType.UnionId
-        const service = new LarkService({
+        let service: LarkService
+        service = new LarkService({
             appId: channel.appId,
             appSecret: channel.appSecret,
             logger: logger,
@@ -233,6 +268,7 @@ export class ChannelManager {
                 }
                 const dbSessionId: number = (dbSession as any).id;
                 await userService.onReceiveLarkMessage(query, args, userInfo ?? {}, channelId, dbSessionId);
+                checkForUpdateOnLark(service, args.chat_id).catch(() => {});
             },
             onTriggerAction: async (_userId: string, _userInfo: any, _chatInfo: any, args: LarkActionArgs) => {
                 await userService.lark.onTriggerAction(args.chat_id, args.code, args.data, args.form_value);

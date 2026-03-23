@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { marked } from 'marked'
-import { GITHUB_REPO_URL, GITHUB_ISSUES_URL, GITHUB_README_URL, fetchLatestRelease, compareSemver } from '@/utils/constants'
+import { GITHUB_REPO_URL, GITHUB_ISSUES_URL, GITHUB_README_URL, fetchLatestRelease, compareSemver } from 'sbot.commons'
 
 const { t } = useI18n()
 
@@ -39,9 +39,9 @@ onMounted(async () => {
 
   if (releaseResult.status === 'fulfilled' && releaseResult.value && version.value) {
     const data = releaseResult.value
-    const tag = data.tag_name || ''
+    const tag = data.tag || ''
     if (tag && compareSemver(version.value, tag) < 0) {
-      update.value = { tag, body: data.body, url: data.html_url }
+      update.value = { tag, body: data.releasenote, url: data.url }
     }
   }
 })

@@ -5,7 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store, applyMcpList } from '@/store'
 import { useToast } from '@/composables/useToast'
-import { fetchLatestRelease, compareSemver } from '@/utils/constants'
+import { fetchLatestRelease, compareSemver } from 'sbot.commons'
 
 const { t } = useI18n()
 const router = useRouter()
