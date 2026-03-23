@@ -9,7 +9,7 @@ import { sessionManager } from "channel.base";
 
 export class LarkUserService extends LarkUserServiceBase {
 
-    protected onCancelAction(): void {
+    protected onAbortAction(): void {
         if (this.threadId) sessionManager.abort(this.threadId);
     }
 

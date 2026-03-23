@@ -30,26 +30,26 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
     this.larkService = larkService;
     if (!message_id) {
       this.provider = await new LarkChatProvider(larkService).initChat(LarkReceiveIdType.ChatId, chat_id, query);
-      await this.sendCancelButton();
+      await this.sendAbortButton();
       return `Session:${chat_id}`;
     }
     this.provider = await new LarkChatProvider(larkService).initReplay(message_id);
-    await this.sendCancelButton();
+    await this.sendAbortButton();
     return `Session:${chat_id},Topic:${root_id},MessageId:${message_id}`;
   }
 
   async onMessageProcessed(_args: any, _messageType: MessageType): Promise<void> {
-    await this.clearCancelButton();
+    await this.clearAbortButton();
   }
 
   async processMessageError(e: any, _args: any, _messageType: MessageType): Promise<void> {
-    await this.clearCancelButton();
+    await this.clearAbortButton();
     if (this.provider) {
       await this.provider.setMessage(`Error generating reply: ${e.message}\n${e.stack}`);
     }
   }
 
-  protected async sendCancelButton(): Promise<void> {
+  protected async sendAbortButton(): Promise<void> {
     await this.provider?.insertElement(undefined, {
       tag: "button",
       text: { tag: "plain_text", content: "■ 中断" },
@@ -60,17 +60,17 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
         title: { tag: "plain_text", content: "确认中断" },
         text: { tag: "plain_text", content: "确定要中断当前任务吗？" },
       },
-      behaviors: [{ type: "callback", value: { code: "Cancel" } }],
-      element_id: "cancelBtn",
+      behaviors: [{ type: "callback", value: { code: "Abort" } }],
+      element_id: "abortBtn",
     });
   }
 
-  protected async clearCancelButton(): Promise<void> {
-    await this.provider?.deleteElement("cancelBtn");
+  protected async clearAbortButton(): Promise<void> {
+    await this.provider?.deleteElement("abortBtn");
   }
 
   /** 子类可覆盖此方法以响应中断操作 */
-  protected onCancelAction(): void {}
+  protected onAbortAction(): void {}
 
   async onAgentStreamMessage(message: AgentMessage): Promise<void> {
     await this.provider?.setStreamMessage(message.content || "");
@@ -195,7 +195,7 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
             text: { tag: 'plain_text', content: '取消' },
             type: 'default',
             width: 'default',
-            form_action_type: 'reset',
+            behaviors: [{ type: 'callback', value: { code: 'AskCancel', data: { id: askId } } }],
           }],
         },
       ],
@@ -223,8 +223,12 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
       this.resolveAskResponse(data.id, formValue ?? {});
       return;
     }
-    if (code === "Cancel") {
-      this.onCancelAction();
+    if (code === "AskCancel") {
+      this.rejectAskResponse(data.id);
+      return;
+    }
+    if (code === "Abort") {
+      this.onAbortAction();
       return;
     }
     getLogger()?.warn(`Unhandled card action: ${code}`);

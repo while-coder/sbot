@@ -92,4 +92,9 @@ export abstract class ChannelUserServiceBase {
   protected resolveAskResponse(askId: string, answers: Record<string, string | string[] | boolean | undefined>): void {
     sessionManager.exitAsk(this.threadId, askId, answers);
   }
+
+  /** 薄包装：channel 子类调用此方法取消 ask（以错误拒绝 promise） */
+  protected rejectAskResponse(askId: string, reason = 'User cancelled'): void {
+    sessionManager.exitAsk(this.threadId, askId, reason);
+  }
 }
