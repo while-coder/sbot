@@ -15,6 +15,29 @@
       "problemMatcher": "$tsc"
     },
     {
+      "label": "start:website",
+      "type": "shell",
+      "command": "pnpm --filter sbot-website run debug",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "presentation": {
+        "reveal": "silent",
+        "panel": "dedicated",
+        "label": "website dev"
+      },
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "VITE",
+          "endsPattern": "Local:"
+        }
+      }
+    },
+    {
       "label": "debug:sbot",
       "type": "shell",
       "command": "pnpm run debug:sbot",
@@ -30,6 +53,11 @@
         "panel": "shared"
       },
       "problemMatcher": "$tsc"
+    },
+    {
+      "label": "launch:sbot",
+      "dependsOn": ["debug:sbot", "start:website"],
+      "dependsOrder": "sequence"
     }
   ]
 }

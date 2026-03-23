@@ -6,11 +6,12 @@
       "request": "launch",
       "name": "Launch sbot",
       "program": "${workspaceFolder}/packages/sbot/debug/index.js",
-      "preLaunchTask": "debug:sbot",
+      "preLaunchTask": "launch:sbot",
       "sourceMaps": true,
       "outFiles": [
         "${workspaceFolder}/packages/sbot/debug/**/*.js",
         "${workspaceFolder}/packages/sbot.commons/dist/**/*.js",
+        "${workspaceFolder}/packages/scorpio.di/dist/**/*.js",
         "${workspaceFolder}/packages/scorpio.ai/dist/**/*.js",
         "${workspaceFolder}/packages/channel.base/dist/**/*.js",
         "${workspaceFolder}/packages/channel.lark/dist/**/*.js",
