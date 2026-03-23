@@ -1,3 +1,4 @@
 <user-memories>
 {items}
 </user-memories>
+Refer to the above memories when relevant to personalise your responses.

@@ -2,7 +2,7 @@ import "reflect-metadata";
 import { LarkMessageArgs, LarkUserServiceBase } from "channel.lark";
 import { AgentRunner } from "../Agent/AgentRunner";
 import { config } from "../Core/Config";
-import { ChannelSessionRow, ContextType, database } from "../Core/Database";
+import { ChannelSessionRow, SchedulerType, database } from "../Core/Database";
 import { buildExecuteTool } from "./buildExecuteTool";
 import { larkThreadId } from "sbot.commons";
 import { sessionManager } from "channel.base";
@@ -28,15 +28,13 @@ export class LarkUserService extends LarkUserServiceBase {
         const agentId  = dbSession?.agentId  || channel.agent;
         const memoryId = dbSession?.memoryId || channel.memory;
 
-        const schedulerId = `<scheduler-id>${dbSessionId}</scheduler-id>`;
-        const extraInfo = userInfo ? `${schedulerId}
-<lark-user>
+        const extraInfo = userInfo ? `<lark-user>
   <name>${userInfo.name}</name>
   <email>${userInfo.email}</email>
   <user-id>${userInfo.user_id}</user-id>
   <open-id>${userInfo.open_id}</open-id>
   <union-id>${userInfo.union_id}</union-id>
-</lark-user>` : schedulerId;
+</lark-user>` : '';
 
         this.threadId = larkThreadId(channelId, chat_id);
         await AgentRunner.run({
@@ -49,7 +47,8 @@ export class LarkUserService extends LarkUserServiceBase {
             agentId,
             saverId: channel.saver,
             threadId: this.threadId,
-            contextType: ContextType.Channel,
+            schedulerType: SchedulerType.Channel,
+            schedulerId: String(dbSessionId),
             extraInfo,
             memoryId,
             askFn: this.ask.bind(this),

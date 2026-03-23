@@ -29,14 +29,14 @@ export class UserService extends UserServiceBase {
     }
 
     // 重定向到共享队列（UserService），而非本地队列
-    async onReceiveLarkMessage(query: string, args: LarkMessageArgs, userInfo: any, channelId: string, dbSessionId?: number, dbUserId?: number): Promise<void> {
+    async onReceiveLarkMessage(query: string, args: LarkMessageArgs, userInfo: any, channelId: string, dbSessionId?: number): Promise<void> {
         if (!query?.trim()) return;
-        await this.onReceiveMessage(query, { ...args, channelType: ChannelType.Lark, userInfo, channelId, dbSessionId, dbUserId });
+        await this.onReceiveMessage(query, { ...args, channelType: ChannelType.Lark, userInfo, channelId, dbSessionId });
     }
 
-    async onReceiveSlackMessage(query: string, args: SlackMessageArgs, userInfo: any, channelId: string, dbSessionId?: number, dbUserId?: number): Promise<void> {
+    async onReceiveSlackMessage(query: string, args: SlackMessageArgs, userInfo: any, channelId: string, dbSessionId?: number): Promise<void> {
         if (!query?.trim()) return;
-        await this.onReceiveMessage(query, { ...args, channelType: ChannelType.Slack, userInfo, channelId, dbSessionId, dbUserId });
+        await this.onReceiveMessage(query, { ...args, channelType: ChannelType.Slack, userInfo, channelId, dbSessionId });
     }
 
     async onReceiveWebMessage(query: string, sessionId?: string, workPath?: string): Promise<void> {

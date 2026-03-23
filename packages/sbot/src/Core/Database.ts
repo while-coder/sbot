@@ -11,7 +11,7 @@ export type MessageRow = {
   expireTime: number;
 };
 
-export enum ContextType {
+export enum SchedulerType {
   Channel   = "channel",    // Lark 频道模式（channel_session）
   Session   = "session",    // 会话模式（sessionId）
   Directory = "directory",  // 目录模式（workPath）
@@ -21,7 +21,7 @@ export type SchedulerRow = {
   id: number;
   name: string;
   expr: string;                    // cron 表达式，如 "0 9 * * *"
-  type: ContextType | null;        // 任务类型
+  type: SchedulerType | null;        // 任务类型
   message: string;                 // 消息文本
   targetId: string | null;         // channel_session.id (string) | sessionId | workPath（按 type 区分）
   lastRun: number | null;          // 上次执行时间戳

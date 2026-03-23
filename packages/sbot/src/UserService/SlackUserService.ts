@@ -2,7 +2,7 @@ import "reflect-metadata";
 import { SlackMessageArgs, SlackUserServiceBase } from "channel.slack";
 import { AgentRunner } from "../Agent/AgentRunner";
 import { config } from "../Core/Config";
-import { ChannelSessionRow, ContextType, database } from "../Core/Database";
+import { ChannelSessionRow, SchedulerType, database } from "../Core/Database";
 import { buildExecuteTool } from "./buildExecuteTool";
 import { slackThreadId } from "sbot.commons";
 
@@ -25,15 +25,13 @@ export class SlackUserService extends SlackUserServiceBase {
     const agentId  = dbSession?.agentId  || channel.agent;
     const memoryId = dbSession?.memoryId || channel.memory;
 
-    const schedulerId = `<scheduler-id>${dbSessionId}</scheduler-id>`;
     const extraInfo = userInfo
-      ? `${schedulerId}
-<current-user>
+      ? `<slack-user>
   <id>${userInfo.id}</id>
   <name>${userInfo.real_name ?? userInfo.name ?? ""}</name>
   <email>${userInfo.profile?.email ?? ""}</email>
-</current-user>`
-      : schedulerId;
+</slack-user>`
+      : '';
 
     this.threadId = slackThreadId(channelId, slackChannel);
     await AgentRunner.run({
@@ -46,7 +44,8 @@ export class SlackUserService extends SlackUserServiceBase {
       agentId,
       saverId: channel.saver,
       threadId: this.threadId,
-      contextType: ContextType.Channel,
+      schedulerType: SchedulerType.Channel,
+      schedulerId: String(dbSessionId),
       extraInfo,
       memoryId,
       askFn: this.ask.bind(this),

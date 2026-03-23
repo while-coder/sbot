@@ -1,7 +1,7 @@
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
-import { database, SchedulerRow, ContextType } from '../../Core/Database';
+import { database, SchedulerRow, SchedulerType } from '../../Core/Database';
 import { schedulerService } from '../../Scheduler/SchedulerService';
 import { LoggerService } from '../../Core/LoggerService';
 import { loadPrompt } from '../../Core/PromptLoader';
@@ -28,8 +28,8 @@ export function createSchedulerCreateTool(): StructuredToolInterface {
                 'One-shot (run exactly once): pin all fields + set maxRuns=1.\n' +
                 '  "0 30 14 25 3 *"  → Mar 25 at 14:30:00, once'
             ),
-            type:    z.enum(Object.values(ContextType) as [string, ...string[]]).describe('"channel" | "session" | "directory" — from <environment><conversation-type>'),
-            id:      z.string().describe('From <environment><scheduler-id>'),
+            type:    z.enum(Object.values(SchedulerType) as [string, ...string[]]).describe('"channel" | "session" | "directory" — from <environment><scheduler><scheduler-type>'),
+            id:      z.string().describe('from <environment><scheduler><scheduler-id>'),
             message: z.string().describe('Message to send when the task fires'),
             maxRuns: z.number().optional().describe('Max executions (0 or omit = unlimited)'),
         }) as any,

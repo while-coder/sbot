@@ -2,7 +2,7 @@ import "reflect-metadata";
 import { AgentMessage, AgentToolCall, AskResponse, AskToolParams, MessageChunkType, MessageType, ToolApproval } from "scorpio.ai";
 import { AgentRunner } from "../Agent/AgentRunner";
 import { config } from '../Core/Config';
-import { ContextType } from '../Core/Database';
+import { SchedulerType } from '../Core/Database';
 import { buildExecuteTool } from './buildExecuteTool';
 import { sessionManager } from 'channel.base';
 import { dirThreadId, sessionThreadId, WebChatEvent, WebChatEventType } from 'sbot.commons';
@@ -74,23 +74,25 @@ export abstract class BaseWebUserService {
 
         const workPath = args?.workPath as string | undefined;
         let threadId: string, agentId: string, saverId: string, memoryId: string | undefined;
-        let contextType: ContextType, extraInfo: string;
+        let schedulerType: SchedulerType, schedulerId: string, extraInfo: string;
 
         if (workPath) {
             const cfg = config.getDirectoryConfig(workPath);
             if (!cfg) throw new Error(`Directory "${workPath}" has no agent configured`);
             threadId = dirThreadId(workPath);
             ({ agent: agentId, saver: saverId, memory: memoryId } = cfg);
-            contextType = ContextType.Directory;
-            extraInfo = `<scheduler-id>${workPath}</scheduler-id>`;
+            schedulerType = SchedulerType.Directory;
+            schedulerId = workPath;
+            extraInfo = '';
         } else {
             const sessionId = args?.sessionId as string;
             const session = sessionId ? config.getSession(sessionId) : undefined;
             if (!session) throw new Error(`Session "${sessionId}" not found`);
             threadId = sessionThreadId(sessionId);
             ({ agent: agentId, saver: saverId, memory: memoryId } = session);
-            contextType = ContextType.Session;
-            extraInfo = `<scheduler-id>${sessionId}</scheduler-id>`;
+            schedulerType = SchedulerType.Session;
+            schedulerId = sessionId;
+            extraInfo = '';
         }
 
         this.activeThreadIds.add(threadId);
@@ -102,7 +104,7 @@ export abstract class BaseWebUserService {
                     onStreamMessage: this.onAgentStreamMessage.bind(this),
                     executeTool: buildExecuteTool(threadId, (tc) => this.executeAgentTool(threadId, tc)),
                 },
-                agentId, saverId, threadId, contextType, extraInfo, memoryId,
+                agentId, saverId, threadId, schedulerType, schedulerId, extraInfo, memoryId,
                 workPath,
                 askFn: async (params: AskToolParams) => {
                     const { id: askId, promise } = sessionManager.enterAsk(threadId, params, this.getAskTimeout());

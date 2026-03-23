@@ -1,6 +1,6 @@
 import { CronJob } from "cron";
 import { LarkMessageArgs } from "channel.lark";
-import { database, SchedulerRow, ChannelSessionRow, ContextType } from "../Core/Database";
+import { database, SchedulerRow, ChannelSessionRow, SchedulerType } from "../Core/Database";
 import { userService } from "../UserService/UserService";
 import { LoggerService } from "../Core/LoggerService";
 import { LarkService } from "channel.lark";
@@ -13,7 +13,7 @@ async function executeScheduler(schedulerId: number): Promise<void> {
     if (!scheduler) return;
 
     const tag = `[${scheduler.id}:${scheduler.name}]`;
-    const isChannel = scheduler.type === ContextType.Channel;
+    const isChannel = scheduler.type === SchedulerType.Channel;
 
     try {
         if (isChannel) {
@@ -41,8 +41,8 @@ async function executeScheduler(schedulerId: number): Promise<void> {
             logger.info(`Scheduler task ${tag} fired (channel), session ${sessionRow.sessionId}`);
         } else {
             // Session / directory mode: deliver via HTTP pipeline
-            const sessionId = scheduler.type === ContextType.Session    ? scheduler.targetId ?? undefined : undefined;
-            const workPath  = scheduler.type === ContextType.Directory  ? scheduler.targetId ?? undefined : undefined;
+            const sessionId = scheduler.type === SchedulerType.Session    ? scheduler.targetId ?? undefined : undefined;
+            const workPath  = scheduler.type === SchedulerType.Directory  ? scheduler.targetId ?? undefined : undefined;
             await userService.onReceiveWebMessage(
                 scheduler.message,
                 sessionId,

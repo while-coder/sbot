@@ -16,7 +16,7 @@ import {
 } from "scorpio.ai";
 import { config, SaverType } from "../Core/Config";
 import { loadPrompt } from "../Core/PromptLoader";
-import { ContextType } from "../Core/Database";
+import { SchedulerType } from "../Core/Database";
 import { AgentFactory } from "./AgentFactory";
 import { LoggerService } from "../Core/LoggerService";
 import { sessionManager } from "channel.base";
@@ -34,9 +34,7 @@ export interface AgentRunOptions {
     saverId: string;
     /** 会话唯一标识，同时用作 saver threadId 和 session 管理 key */
     threadId: string;
-    /** 会话上下文类型（Channel / Session / Directory） */
-    contextType: ContextType;
-    /** 注入 environment 块的额外信息（用户信息、scheduler-id 等） */
+    /** 注入 environment 块的额外信息（用户信息等特定渠道独有字段） */
     extraInfo: string;
     /** 记忆服务配置 ID，不传则不启用记忆 */
     memoryId?: string;
@@ -44,11 +42,16 @@ export interface AgentRunOptions {
     workPath?: string;
     /** 用户交互询问函数，由具体 UserService 实现并传入 */
     askFn?: AskUserFn;
+    // --- scheduler 独有字段 ---
+    /** 调度器类型（Channel / Session / Directory） */
+    schedulerType: SchedulerType;
+    /** 调度器实例 ID（channelSessionId / sessionId / workPath 等） */
+    schedulerId: string;
 }
 
 export class AgentRunner {
     static async run(options: AgentRunOptions): Promise<void> {
-        const { query, callbacks, agentId, saverId, threadId, contextType, extraInfo, memoryId, askFn } = options;
+        const { query, callbacks, agentId, saverId, threadId, schedulerType, schedulerId, extraInfo, memoryId, askFn } = options;
         if (!agentId.trim())   throw new Error("agent not specified");
         if (!saverId.trim())   throw new Error("saver not specified");
         if (!threadId.trim())  throw new Error("threadId not specified");
@@ -67,8 +70,10 @@ export class AgentRunner {
   <current-time>${now.toLocaleString(undefined, { timeZone: timezone, hour12: false })}</current-time>
   <timezone>${timezone}</timezone>
   <os>${os.type()} ${os.release()} (${os.platform()})</os>
-  <locale>${process.env.LANG || Intl.DateTimeFormat().resolvedOptions().locale}</locale>
-  <conversation-type>${contextType}</conversation-type>
+  <scheduler>
+    <scheduler-type>${schedulerType}</scheduler-type>
+    <scheduler-id>${schedulerId}</scheduler-id>
+  </scheduler>
   <paths>
     <assets dir="${assetsDir}" url="${httpUrl}/assets/&lt;filename&gt;">IMPORTANT: This is the ONLY way to deliver files to users. Whenever you generate, export, or produce any file intended for the user (images, documents, archives, reports, etc.), you MUST save it to this directory and share the URL above. Never send raw file content inline, never use any other path or method.</assets>
     <scripts dir="${scriptsDir}">Store temporary scripts here</scripts>

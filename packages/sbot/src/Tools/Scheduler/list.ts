@@ -1,7 +1,7 @@
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
-import { database, SchedulerRow, ContextType } from '../../Core/Database';
+import { database, SchedulerRow, SchedulerType } from '../../Core/Database';
 import { LoggerService } from '../../Core/LoggerService';
 import { loadPrompt } from '../../Core/PromptLoader';
 
@@ -12,7 +12,7 @@ export function createSchedulerListTool(): StructuredToolInterface {
         name: 'scheduler_list',
         description: loadPrompt('tools/scheduler/list.txt'),
         schema: z.object({
-            type: z.enum(Object.values(ContextType) as [string, ...string[]]).optional().describe('Filter by type: channel | session | directory. Omit to return all.'),
+            type: z.enum(Object.values(SchedulerType) as [string, ...string[]]).optional().describe('Filter by type: channel | session | directory. Omit to return all.'),
         }) as any,
         func: async ({ type }: any): Promise<MCPToolResult> => {
             try {

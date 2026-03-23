@@ -148,7 +148,7 @@ export class ChannelManager {
             logger: logger,
             filterEvent,
             onReceiveMessage: async (userId: string, userInfo: any, args: SlackMessageArgs, query: string) => {
-                const [dbUser, created] = await database.findOrCreate(database.channelUser, {
+                const [, created] = await database.findOrCreate(database.channelUser, {
                     where: { userid: userId, channel: channelId },
                     defaults: {
                         username:   userInfo?.real_name ?? userInfo?.name ?? "",
@@ -162,8 +162,6 @@ export class ChannelManager {
                         { where: { userid: userId, channel: channelId } },
                     );
                 }
-                const dbUserId: number = (dbUser as any).id;
-
                 const [dbSession, sessionCreated] = await database.findOrCreate<ChannelSessionRow>(database.channelSession, {
                     where: { channel: channelId, sessionId: args.channel },
                     defaults: { name: args.channel, agentId: "", memoryId: null },
@@ -175,7 +173,7 @@ export class ChannelManager {
                     );
                 }
                 const dbSessionId: number = (dbSession as any).id;
-                await userService.onReceiveSlackMessage(query, args, userInfo ?? {}, channelId, dbSessionId, dbUserId);
+                await userService.onReceiveSlackMessage(query, args, userInfo ?? {}, channelId, dbSessionId);
             },
             onTriggerAction: async (_userId: string, args: SlackActionArgs) => {
                 // NOTE: userService.slack is a singleton; concurrent tool approvals from
@@ -206,7 +204,7 @@ export class ChannelManager {
             onRecevieMessage: async (userId: string, userInfo: any, chatInfo: any, args: LarkMessageArgs, query: string) => {
                 const userName = userInfo?.name ?? ''
                 const userAvatar = userInfo?.avatar?.avatar_origin
-                const [dbUser, created] = await database.findOrCreate(database.channelUser, {
+                const [, created] = await database.findOrCreate(database.channelUser, {
                     where: { userid: userId, channel: channelId },
                     defaults: {
                         username:   userName,
@@ -221,8 +219,6 @@ export class ChannelManager {
                         { where: { userid: userId, channel: channelId } },
                     );
                 }
-                const dbUserId: number = (dbUser as any).id;
-
                 const sessionName = chatInfo ? (chatInfo?.chat_mode == 'p2p' ? `p2p_${userId}` : `${chatInfo?.chat_mode}_${chatInfo?.name}`) : '';
                 const sessionAvatar = chatInfo?.avatar || '';
                 const [dbSession, sessionCreated] = await database.findOrCreate<ChannelSessionRow>(database.channelSession, {
@@ -236,7 +232,7 @@ export class ChannelManager {
                     );
                 }
                 const dbSessionId: number = (dbSession as any).id;
-                await userService.onReceiveLarkMessage(query, args, userInfo ?? {}, channelId, dbSessionId, dbUserId);
+                await userService.onReceiveLarkMessage(query, args, userInfo ?? {}, channelId, dbSessionId);
             },
             onTriggerAction: async (_userId: string, _userInfo: any, _chatInfo: any, args: LarkActionArgs) => {
                 await userService.lark.onTriggerAction(args.chat_id, args.code, args.data, args.form_value);

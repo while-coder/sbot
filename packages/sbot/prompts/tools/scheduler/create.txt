@@ -1,16 +1,3 @@
-Create a scheduled task. type and id come from <environment>.
-
-expr is always a 6-field cron: <second> <minute> <hour> <day> <month> <weekday>
-Field values: * = any, */n = every n units, n = exact, n-m = range, n,m = list. Weekday: 0=Sun…6=Sat.
-
-Examples:
-  "0 0 9 * * *"     every day at 09:00:00
-  "0 30 18 * * 1-5" weekdays at 18:30:00
-  "0 0 */2 * * *"   every 2 hours
-  "0 */15 * * * *"  every 15 minutes
-  "0 0 9 1 * *"     1st of every month at 09:00:00
-  "*/30 * * * * *"  every 30 seconds
-  "0 */5 * * * *"   every 5 minutes
-
-One-shot (run exactly once): pin all date/time fields + set maxRuns=1 (without maxRuns=1 it repeats yearly).
-  "0 30 14 25 3 *"  → Mar 25 at 14:30:00, once
+Create a scheduled task.
+- type: from <environment><scheduler><scheduler-type>
+- id:   from <environment><scheduler><scheduler-id>
