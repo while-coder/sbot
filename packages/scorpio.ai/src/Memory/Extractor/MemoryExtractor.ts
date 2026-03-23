@@ -2,7 +2,7 @@ import { z } from "zod";
 import { SystemMessage, HumanMessage } from "langchain";
 import { IModelService } from "../../Model";
 import { ILoggerService, ILogger } from "../../Logger";
-import { inject } from "../../DI";
+import { inject } from "scorpio.di";
 import { T_ExtractorSystemPrompt } from "../../Core";
 import { IMemoryExtractor, ExtractionResult } from "./IMemoryExtractor";
 

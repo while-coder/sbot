@@ -40,7 +40,7 @@ export {
   ClassProvider,
   FactoryProvider,
   ValueProvider,
-} from "./DI";
+} from "scorpio.di";
 
 // ========================================
 // Core - 通用 Token

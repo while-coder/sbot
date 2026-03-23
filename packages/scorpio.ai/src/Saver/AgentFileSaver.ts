@@ -4,7 +4,7 @@ import { join } from "path";
 import { BaseMessage } from "langchain";
 import { IAgentSaverService } from "./IAgentSaverService";
 import { ILoggerService, ILogger } from "../Logger";
-import { inject } from "../DI";
+import { inject } from "scorpio.di";
 import { T_DBPath, T_ThreadId } from "../Core/tokens";
 import { MessageType, serializeMessage, deserializeMessage, applyTokenLimit } from "./messageSerializer";
 

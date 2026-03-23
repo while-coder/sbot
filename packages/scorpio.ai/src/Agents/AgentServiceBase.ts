@@ -1,5 +1,5 @@
 import { BaseMessage } from "langchain";
-import { ServiceContainer } from "../DI";
+import { ServiceContainer } from "scorpio.di";
 import { IMemoryService } from "../Memory";
 import { IAgentSaverService, AgentMemorySaver } from "../Saver";
 import { ILoggerService, ILogger } from "../Logger";

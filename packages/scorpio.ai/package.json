@@ -20,6 +20,7 @@
     "langchain": "^1.2.29",
     "pg": "^8.19.0",
     "reflect-metadata": "catalog:",
+    "scorpio.di": "workspace:*",
     "uuid": "catalog:",
     "zod": "catalog:"
   },

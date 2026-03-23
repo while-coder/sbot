@@ -1,0 +1,19 @@
+{
+  "name": "scorpio.di",
+  "version": "0.0.1",
+  "description": "Lightweight dependency injection container for TypeScript",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "rimraf dist && tsc -b --force"
+  },
+  "dependencies": {
+    "reflect-metadata": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "rimraf": "catalog:",
+    "typescript": "catalog:"
+  },
+  "private": true
+}

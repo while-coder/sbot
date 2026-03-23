@@ -5,7 +5,7 @@
  *
  * @example
  * ```ts
- * import { singleton, transient, inject, init, dispose, globalContainer } from "scorpio.ai/DI";
+ * import { singleton, transient, inject, init, dispose, globalServiceContainer } from "scorpio.di";
  *
  * @singleton()
  * class DatabaseService {

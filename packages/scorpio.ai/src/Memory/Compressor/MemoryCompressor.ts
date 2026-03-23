@@ -3,7 +3,7 @@ import { HumanMessage } from "langchain";
 import { IModelService } from "../../Model";
 import { Memory } from "../types";
 import { ILoggerService, ILogger } from "../../Logger";
-import { inject } from "../../DI";
+import { inject } from "scorpio.di";
 import { IMemoryCompressor, CompressionResult } from "./IMemoryCompressor";
 import { T_CompressorPromptTemplate } from "../../Core";
 import { cosineSimilarity } from "../utils";
