@@ -146,6 +146,7 @@ export interface LocalDirConfig {
 export interface Settings {
   httpPort?: number
   httpUrl?: string
+  autoApproveTools?: string[]
   agents?: Record<string, Agent>
   models?: Record<string, Model>
   embeddings?: Record<string, Embedding>

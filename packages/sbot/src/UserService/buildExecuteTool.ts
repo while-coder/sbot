@@ -22,6 +22,7 @@ export function buildExecuteTool(
 
     return async (toolCall: AgentToolCall) => {
         if (INTERNAL_TOOLS.has(toolCall.name)) return ToolApproval.Allow;
+        if (config.settings.autoApproveTools?.includes(toolCall.name)) return ToolApproval.Allow;
         const approvedArgs = autoApproveTools[toolCall.name];
         if (approvedArgs && (approvedArgs.includes('*') || approvedArgs.includes(JSON.stringify(toolCall.args)))) {
             return ToolApproval.Allow;

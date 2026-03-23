@@ -541,6 +541,15 @@ table tr:hover td { background: #fafaf9; }
 .tool-name { font-size:13px; font-weight:600; color:#1c1c1c; font-family:'Consolas','Monaco',monospace; cursor:pointer; user-select:none; }
 .tool-name::before { content:'\25B6'; font-size:9px; margin-right:6px; color:#9b9b9b; display:inline-block; transition:transform .15s; }
 .tool-name.expanded::before { transform:rotate(90deg); }
+.tools-approve-bar { display:flex; align-items:center; gap:10px; padding:8px 20px; border-bottom:1px solid #f0efed; background:#fafaf9; }
+.tools-approve-label { font-size:12px; color:#6b6b6b; flex:1; }
+.auto-approve-switch { display:flex; align-items:center; gap:6px; cursor:pointer; flex-shrink:0; }
+.auto-approve-switch input[type=checkbox] { display:none; }
+.switch-track { position:relative; display:inline-block; width:28px; height:16px; border-radius:8px; background:#d1d5db; transition:background .2s; flex-shrink:0; }
+.switch-track::after { content:''; position:absolute; top:2px; left:2px; width:12px; height:12px; border-radius:50%; background:#fff; transition:transform .2s; }
+.auto-approve-switch input:checked + .switch-track { background:#1c1c1c; }
+.auto-approve-switch input:checked + .switch-track::after { transform:translateX(12px); }
+.switch-label { font-size:11px; color:#9b9b9b; white-space:nowrap; }
 .tool-desc { font-size:12px; color:#6b6b6b; margin-top:3px; line-height:1.5; }
 .tool-params { display:none; margin-top:8px; border-left:2px solid #e8e6e3; padding-left:12px; }
 .tool-params.show { display:block; }

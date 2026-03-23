@@ -238,10 +238,11 @@ class HttpServer {
         app.get('/api/settings', api(() => config.settings));
 
         app.put('/api/settings/general', api(req => {
-            const { httpPort, httpUrl, lark } = req.body;
+            const { httpPort, httpUrl, lark, autoApproveTools } = req.body;
             if (httpPort !== undefined) config.settings.httpPort = httpPort || undefined;
             if (httpUrl !== undefined) config.settings.httpUrl = httpUrl || undefined;
             if (lark !== undefined) (config.settings as any).lark = lark;
+            if (autoApproveTools !== undefined) config.settings.autoApproveTools = autoApproveTools;
             config.saveSettings();
             return config.settings;
         }));
