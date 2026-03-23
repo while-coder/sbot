@@ -53,6 +53,7 @@ export type ChannelSessionRow = {
   avatar: string;    // 会话头像
   agentId: string;   // Agent UUID
   memoryId: string | null;  // Memory UUID
+  workPath: string | null;  // 工作目录路径
 };
 
 class Database {
@@ -245,6 +246,12 @@ class Database {
           allowNull: true,
           defaultValue: null,
           comment: "Memory UUID",
+        },
+        workPath: {
+          type: DataTypes.STRING(1024),
+          allowNull: true,
+          defaultValue: null,
+          comment: "工作目录路径",
         },
       },
       {

@@ -56,6 +56,10 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
       type: "danger",
       width: "default",
       size: "small",
+      confirm: {
+        title: { tag: "plain_text", content: "确认中断" },
+        text: { tag: "plain_text", content: "确定要中断当前任务吗？" },
+      },
       behaviors: [{ type: "callback", value: { code: "Cancel" } }],
       element_id: "cancelBtn",
     });

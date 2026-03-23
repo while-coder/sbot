@@ -15,14 +15,17 @@ interface ChannelSessionRow {
   channel: string
   sessionId: string
   name: string
+  avatar: string
   agentId: string
   memoryId: string | null
+  workPath: string | null
 }
 
 interface UserRow {
   id: number
   userid: string
   username: string
+  avatar: string
   userinfo: string
   channel: string
 }
@@ -258,8 +261,12 @@ async function refresh() {
                 </tr>
                 <tr v-for="s in sessionMap[id as string] || []" :key="s.id" class="session-sub-row">
                   <td></td>
-                  <td colspan="2" class="session-id-cell">{{ s.name || s.sessionId }}</td>
+                  <td class="session-id-cell">
+                    <img v-if="s.avatar" :src="s.avatar" class="session-avatar" />
+                    {{ s.name || s.sessionId }}
+                  </td>
                   <td style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ s.sessionId }}</td>
+                  <td></td>
                   <td style="font-family:monospace;font-size:12px;color:#6b6b6b">{{ agentOptions.find(a => a.id === s.agentId)?.label || s.agentId || '-' }}</td>
                   <td></td>
                   <td style="font-family:monospace;font-size:12px;color:#6b6b6b">{{ s.memoryId || '-' }}</td>
@@ -284,9 +291,12 @@ async function refresh() {
                 </tr>
                 <tr v-for="u in userMap[id as string] || []" :key="u.id" class="session-sub-row">
                   <td></td>
-                  <td colspan="2" class="session-id-cell">{{ u.userid }}</td>
-                  <td colspan="2" style="font-size:12px;color:#3d3d3d">{{ u.username || '-' }}</td>
-                  <td colspan="2"></td>
+                  <td class="session-id-cell">
+                    <img v-if="u.avatar" :src="u.avatar" class="session-avatar" />
+                    {{ u.username || '-' }}
+                  </td>
+                  <td style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ u.userid }}</td>
+                  <td colspan="4"></td>
                   <td>
                     <div class="ops-cell">
                       <button class="btn-outline btn-sm" @click="viewUser = u">{{ t('common.view') }}</button>
@@ -450,17 +460,18 @@ async function refresh() {
 .session-sub-row td {
   background: #fafaf9;
   border-bottom: 1px solid #f0efed;
-  padding-top: 5px;
-  padding-bottom: 5px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  vertical-align: middle;
 }
 .section-label-row td {
   background: #f5f4f2;
   border-bottom: 1px solid #e8e6e3;
-  padding-top: 3px;
-  padding-bottom: 3px;
+  padding-top: 4px;
+  padding-bottom: 4px;
 }
 .section-label-cell {
-  padding: 3px 12px;
+  padding: 4px 12px;
   font-size: 11px;
   font-weight: 600;
   color: #8a8a8a;
@@ -468,15 +479,25 @@ async function refresh() {
   letter-spacing: 0.05em;
 }
 .session-sub-cell {
-  padding: 5px 12px;
+  padding: 6px 12px;
   font-size: 12px;
   color: #94a3b8;
   font-style: italic;
 }
 .session-id-cell {
-  font-family: monospace;
-  font-size: 12px;
-  color: #3d3d3d;
-  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #2d2d2d;
+  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.session-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
 }
 </style>

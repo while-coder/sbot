@@ -224,10 +224,10 @@ export class ChannelManager {
                 const dbUserId: number = (dbUser as any).id;
 
                 const sessionName = chatInfo ? (chatInfo?.chat_mode == 'p2p' ? `p2p_${userId}` : `${chatInfo?.chat_mode}_${chatInfo?.name}`) : '';
-                const sessionAvatar = chatInfo?.avatar;
+                const sessionAvatar = chatInfo?.avatar || '';
                 const [dbSession, sessionCreated] = await database.findOrCreate<ChannelSessionRow>(database.channelSession, {
                     where: { channel: channelId, sessionId: args.chat_id },
-                    defaults: { name: sessionName, avatar: sessionAvatar, agentId: "", memoryId: null },
+                    defaults: { name: sessionName, avatar: sessionAvatar, agentId: "", memoryId: null, workPath: null },
                 });
                 if (!sessionCreated) {
                     await database.update(database.channelSession,
