@@ -191,6 +191,14 @@ if (webuitSrc && fs.existsSync(webuitSrc)) {
   console.warn(`webui: ${webuitSrc ?? 'sbot-website not found'} not found, skipping in debug mode`);
 }
 
+// 非 release 模式：将 webui 额外复制到 packages/sbot/wenui 供 debug 使用
+if (!isRelease && webuitSrc && fs.existsSync(webuitSrc)) {
+  const debugWebuiDst = path.join(rootDir, 'wenui');
+  if (fs.existsSync(debugWebuiDst)) fs.rmSync(debugWebuiDst, { recursive: true });
+  fs.cpSync(webuitSrc, debugWebuiDst, { recursive: true });
+  console.log(`webui (debug): ${webuitSrc} -> ${debugWebuiDst}`);
+}
+
 // 复制 LICENSE 到 dist/
 const licenseSrc = path.join(monorepoRoot, 'LICENSE');
 const licenseDst = path.join(distDir, 'LICENSE');
