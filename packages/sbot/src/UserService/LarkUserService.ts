@@ -30,13 +30,13 @@ export class LarkUserService extends LarkUserServiceBase {
 
         const schedulerId = `<scheduler-id>${dbSessionId}</scheduler-id>`;
         const extraInfo = userInfo ? `${schedulerId}
-<current-user>
-  <id>${userInfo.user_id}</id>
-  <open-id>${userInfo.open_id}</open-id>
-  <union-id>${userInfo.union_id}</union-id>
+<lark-user>
   <name>${userInfo.name}</name>
   <email>${userInfo.email}</email>
-</current-user>` : schedulerId;
+  <user-id>${userInfo.user_id}</user-id>
+  <open-id>${userInfo.open_id}</open-id>
+  <union-id>${userInfo.union_id}</union-id>
+</lark-user>` : schedulerId;
 
         this.threadId = larkThreadId(channelId, chat_id);
         await AgentRunner.run({

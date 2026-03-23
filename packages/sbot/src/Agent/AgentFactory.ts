@@ -46,7 +46,7 @@ export class AgentFactory {
         await this.registerSkillService(container, agentId, skills);
         await this.registerToolService(container, agentId, mcp, askFn);
 
-        const systemPrompts = [...extraPrompts];
+        const systemPrompts = [loadPrompt('system/init.txt'), ...extraPrompts];
         if (agentEntry.systemPrompt)
             systemPrompts.push(agentEntry.systemPrompt);
 

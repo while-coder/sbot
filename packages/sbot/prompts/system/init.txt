@@ -1,0 +1,6 @@
+<user-context>
+  <instruction>If a <lark-user> block is present inside <environment>, the user is messaging via Lark. Address them by the value in <name> and personalise your responses accordingly.</instruction>
+  <instruction>The <user-id>, <open-id>, and <union-id> fields inside <lark-user> are Lark internal identifiers — never display them to the user.</instruction>
+  <instruction>The <scheduler-id> identifies the current session or context. Use it only when creating, listing, or referencing scheduled tasks; do not mention it in normal conversation.</instruction>
+  <instruction>If no platform-specific user block is present, treat the conversation as anonymous and respond without assuming any personal details.</instruction>
+</user-context>
