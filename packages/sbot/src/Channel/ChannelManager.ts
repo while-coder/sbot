@@ -33,10 +33,13 @@ async function filterEvent(eventId: string): Promise<boolean> {
 
 // ── 更新检查 ──────────────────────────────────────────────────────────────────
 
-async function checkForUpdateOnLark(service: LarkService, chatId: string): Promise<void> {
+async function checkForUpdate(sendMessage: (msg: string) => Promise<void>): Promise<void> {
     const now = NowDate();
     const checkUpdateTime = config.settings.checkUpdateTime ?? 0;
     if (now < checkUpdateTime) return;
+
+    // 先更新时间，避免并发消息重复触发
+    config.setCheckUpdateTime(now + HourMilliseconds);
 
     const latest = await fetchLatestRelease();
     if (latest && compareSemver(config.pkg.version, latest.tag) < 0) {
@@ -54,13 +57,11 @@ async function checkForUpdateOnLark(service: LarkService, chatId: string): Promi
             ``,
             `[查看发布说明](${latest.url})${releasenoteSection}`,
         ].join('\n');
-        await service.sendMarkdownMessage(LarkReceiveIdType.ChatId, chatId, message);
+        await sendMessage(message);
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 1);
         tomorrow.setHours(0, 0, 0, 0);
         config.setCheckUpdateTime(tomorrow.getTime());
-    } else {
-        config.setCheckUpdateTime(now + HourMilliseconds);
     }
 }
 
@@ -208,6 +209,7 @@ export class ChannelManager {
                 }
                 const dbSessionId: number = (dbSession as any).id;
                 await userService.onReceiveSlackMessage(query, args, userInfo ?? {}, channelId, dbSessionId);
+                checkForUpdate(msg => service.sendMessage(args.channel, msg).then(() => {})).catch(() => {});
             },
             onTriggerAction: async (_userId: string, args: SlackActionArgs) => {
                 // NOTE: userService.slack is a singleton; concurrent tool approvals from
@@ -268,7 +270,7 @@ export class ChannelManager {
                 }
                 const dbSessionId: number = (dbSession as any).id;
                 await userService.onReceiveLarkMessage(query, args, userInfo ?? {}, channelId, dbSessionId);
-                checkForUpdateOnLark(service, args.chat_id).catch(() => {});
+                checkForUpdate(msg => service.sendMarkdownMessage(LarkReceiveIdType.ChatId, args.chat_id, msg).then(() => {})).catch(() => {});
             },
             onTriggerAction: async (_userId: string, _userInfo: any, _chatInfo: any, args: LarkActionArgs) => {
                 await userService.lark.onTriggerAction(args.chat_id, args.code, args.data, args.form_value);

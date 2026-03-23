@@ -6,6 +6,7 @@ import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 import type { ChannelConfig } from '@/types'
 import SaverViewModal from './modals/SaverViewModal.vue'
+import PathPickerModal from './modals/PathPickerModal.vue'
 import { larkThreadId } from 'sbot.commons'
 
 const { t } = useI18n()
@@ -38,19 +39,24 @@ const saverOptions  = computed(() => Object.entries(store.settings.savers   || {
 const memoryOptions = computed(() => Object.entries(store.settings.memories  || {}).map(([id, m]) => ({ id, label: (m as any).name  || id })))
 
 const saverViewModal = ref<InstanceType<typeof SaverViewModal>>()
+const pathPicker     = ref<InstanceType<typeof PathPickerModal>>()
 
-const expandedChannels = ref<Record<string, boolean>>({})
+const expandedChannels  = ref<Record<string, boolean>>({})
+const channelTabs       = ref<Record<string, 'sessions' | 'users'>>({})
+
+function getChannelTab(id: string): 'sessions' | 'users' { return channelTabs.value[id] ?? 'sessions' }
+function setChannelTab(id: string, tab: 'sessions' | 'users') { channelTabs.value[id] = tab }
 const sessionMap       = ref<Record<string, ChannelSessionRow[]>>({})
 const userMap          = ref<Record<string, UserRow[]>>({})
 const channelLoading   = ref<Record<string, boolean>>({})
 const viewUser         = ref<UserRow | null>(null)
 
 const editingSession   = ref<ChannelSessionRow | null>(null)
-const sessionForm      = ref<{ name: string; agentId: string; memoryId: string }>({ name: '', agentId: '', memoryId: '' })
+const sessionForm      = ref<{ name: string; agentId: string; memoryId: string; workPath: string }>({ name: '', agentId: '', memoryId: '', workPath: '' })
 
 function openEditSession(s: ChannelSessionRow) {
   editingSession.value = s
-  sessionForm.value = { name: s.name || '', agentId: s.agentId || '', memoryId: s.memoryId || '' }
+  sessionForm.value = { name: s.name || '', agentId: s.agentId || '', memoryId: s.memoryId || '', workPath: s.workPath || '' }
 }
 
 async function saveSession() {
@@ -61,11 +67,13 @@ async function saveSession() {
       name: sessionForm.value.name.trim(),
       agentId: sessionForm.value.agentId,
       memoryId: sessionForm.value.memoryId || null,
+      workPath: sessionForm.value.workPath.trim() || null,
     })
     Object.assign(s, {
       name: sessionForm.value.name.trim(),
       agentId: sessionForm.value.agentId,
       memoryId: sessionForm.value.memoryId || null,
+      workPath: sessionForm.value.workPath.trim() || null,
     })
     show(t('common.saved'))
     editingSession.value = null
@@ -244,68 +252,93 @@ async function refresh() {
                 </div>
               </td>
             </tr>
-            <template v-if="expandedChannels[id as string]">
-              <!-- Sessions section -->
-              <tr class="section-label-row">
-                <td></td>
-                <td colspan="7" class="section-label-cell">{{ t('channels.sessions') }}</td>
-              </tr>
-              <tr v-if="channelLoading[id as string]" class="session-sub-row">
-                <td></td>
-                <td colspan="7" class="session-sub-cell">{{ t('common.loading') }}</td>
-              </tr>
-              <template v-else>
-                <tr v-if="(sessionMap[id as string] || []).length === 0" class="session-sub-row">
-                  <td></td>
-                  <td colspan="7" class="session-sub-cell">{{ t('channels.no_sessions') }}</td>
-                </tr>
-                <tr v-for="s in sessionMap[id as string] || []" :key="s.id" class="session-sub-row">
-                  <td></td>
-                  <td class="session-id-cell">
-                    <img v-if="s.avatar" :src="s.avatar" class="session-avatar" />
-                    {{ s.name || s.sessionId }}
-                  </td>
-                  <td style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ s.sessionId }}</td>
-                  <td></td>
-                  <td style="font-family:monospace;font-size:12px;color:#6b6b6b">{{ agentOptions.find(a => a.id === s.agentId)?.label || s.agentId || '-' }}</td>
-                  <td></td>
-                  <td style="font-family:monospace;font-size:12px;color:#6b6b6b">{{ s.memoryId || '-' }}</td>
-                  <td>
-                    <div class="ops-cell">
-                      <button v-if="c.saver" class="btn-outline btn-sm" @click="saverViewModal?.open(c.saver, larkThreadId(id as string, s.sessionId))">{{ t('channels.history') }}</button>
-                      <button class="btn-outline btn-sm" @click="openEditSession(s)">{{ t('common.edit') }}</button>
-                      <button class="btn-danger btn-sm" @click="removeSession(id as string, s)">{{ t('common.delete') }}</button>
-                    </div>
-                  </td>
-                </tr>
-              </template>
-              <!-- Users section -->
-              <tr class="section-label-row">
-                <td></td>
-                <td colspan="7" class="section-label-cell">{{ t('channels.users') }}</td>
-              </tr>
-              <template v-if="!channelLoading[id as string]">
-                <tr v-if="(userMap[id as string] || []).length === 0" class="session-sub-row">
-                  <td></td>
-                  <td colspan="7" class="session-sub-cell">{{ t('channels.no_users') }}</td>
-                </tr>
-                <tr v-for="u in userMap[id as string] || []" :key="u.id" class="session-sub-row">
-                  <td></td>
-                  <td class="session-id-cell">
-                    <img v-if="u.avatar" :src="u.avatar" class="session-avatar" />
-                    {{ u.username || '-' }}
-                  </td>
-                  <td style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ u.userid }}</td>
-                  <td colspan="4"></td>
-                  <td>
-                    <div class="ops-cell">
-                      <button class="btn-outline btn-sm" @click="viewUser = u">{{ t('common.view') }}</button>
-                      <button class="btn-danger btn-sm" @click="removeUser(id as string, u)">{{ t('common.delete') }}</button>
-                    </div>
-                  </td>
-                </tr>
-              </template>
-            </template>
+            <!-- ── Detail row (expanded) ── -->
+            <tr v-if="expandedChannels[id as string]">
+              <td colspan="8" style="padding:0;border-bottom:2px solid #e2e8f0">
+                <!-- Tab bar -->
+                <div class="detail-tab-bar">
+                  <button
+                    v-for="tab in [
+                      { key: 'sessions', label: `${t('channels.sessions')} (${(sessionMap[id as string] || []).length})` },
+                      { key: 'users',    label: `${t('channels.users')} (${(userMap[id as string] || []).length})` },
+                    ]"
+                    :key="tab.key"
+                    class="detail-tab-btn"
+                    :class="{ active: getChannelTab(id as string) === tab.key }"
+                    @click="setChannelTab(id as string, tab.key as 'sessions' | 'users')"
+                  >{{ tab.label }}</button>
+                </div>
+                <!-- Tab content -->
+                <div class="detail-tab-content">
+                  <div v-if="channelLoading[id as string]" class="detail-empty">{{ t('common.loading') }}</div>
+                  <template v-else>
+                    <!-- Sessions tab -->
+                    <template v-if="getChannelTab(id as string) === 'sessions'">
+                      <div v-if="(sessionMap[id as string] || []).length === 0" class="detail-empty">{{ t('channels.no_sessions') }}</div>
+                      <table v-else class="detail-table">
+                        <thead>
+                          <tr>
+                            <th>{{ t('common.name') }}</th>
+                            <th>{{ t('common.id') }}</th>
+                            <th>{{ t('common.agent') }}</th>
+                            <th>{{ t('common.memory') }}</th>
+                            <th>{{ t('directory.path_label') }}</th>
+                            <th>{{ t('common.ops') }}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="s in sessionMap[id as string] || []" :key="s.id">
+                            <td class="session-id-cell">
+                              <img v-if="s.avatar" :src="s.avatar" class="session-avatar" />
+                              {{ s.name || s.sessionId }}
+                            </td>
+                            <td style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ s.sessionId }}</td>
+                            <td>{{ agentOptions.find(a => a.id === s.agentId)?.label || s.agentId || '-' }}</td>
+                            <td>{{ memoryOptions.find(m => m.id === s.memoryId)?.label || s.memoryId || '-' }}</td>
+                            <td style="font-family:monospace;font-size:11px;color:#6b7280;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" :title="s.workPath || ''">{{ s.workPath || '-' }}</td>
+                            <td>
+                              <div class="ops-cell">
+                                <button v-if="c.saver" class="btn-outline btn-sm" @click="saverViewModal?.open(c.saver, larkThreadId(id as string, s.sessionId))">{{ t('channels.history') }}</button>
+                                <button class="btn-outline btn-sm" @click="openEditSession(s)">{{ t('common.edit') }}</button>
+                                <button class="btn-danger btn-sm" @click="removeSession(id as string, s)">{{ t('common.delete') }}</button>
+                              </div>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </template>
+                    <!-- Users tab -->
+                    <template v-if="getChannelTab(id as string) === 'users'">
+                      <div v-if="(userMap[id as string] || []).length === 0" class="detail-empty">{{ t('channels.no_users') }}</div>
+                      <table v-else class="detail-table">
+                        <thead>
+                          <tr>
+                            <th>{{ t('common.name') }}</th>
+                            <th>{{ t('common.id') }}</th>
+                            <th>{{ t('common.ops') }}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="u in userMap[id as string] || []" :key="u.id">
+                            <td class="session-id-cell">
+                              <img v-if="u.avatar" :src="u.avatar" class="session-avatar" />
+                              {{ u.username || '-' }}
+                            </td>
+                            <td style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ u.userid }}</td>
+                            <td>
+                              <div class="ops-cell">
+                                <button class="btn-outline btn-sm" @click="viewUser = u">{{ t('common.view') }}</button>
+                                <button class="btn-danger btn-sm" @click="removeUser(id as string, u)">{{ t('common.delete') }}</button>
+                              </div>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </template>
+                  </template>
+                </div>
+              </td>
+            </tr>
           </template>
         </tbody>
       </table>
@@ -398,6 +431,13 @@ async function refresh() {
               <option v-for="m in memoryOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
             </select>
           </div>
+          <div class="form-group">
+            <label>{{ t('directory.path_label') }}</label>
+            <div style="display:flex;gap:6px">
+              <input v-model="sessionForm.workPath" type="text" :placeholder="t('directory.path_placeholder')" style="flex:1" />
+              <button class="btn-outline btn-sm" @click="pathPicker?.open(sessionForm.workPath)">{{ t('directory.browse') }}</button>
+            </div>
+          </div>
         </div>
         <div class="modal-footer">
           <button class="btn-outline" @click="editingSession = null">{{ t('common.cancel') }}</button>
@@ -441,6 +481,7 @@ async function refresh() {
     </div>
 
     <SaverViewModal ref="saverViewModal" />
+    <PathPickerModal ref="pathPicker" @confirm="p => sessionForm.workPath = p" />
   </div>
 </template>
 
@@ -457,33 +498,6 @@ async function refresh() {
   line-height: 1;
 }
 .expand-btn:hover { color: #1c1c1c; }
-.session-sub-row td {
-  background: #fafaf9;
-  border-bottom: 1px solid #f0efed;
-  padding-top: 6px;
-  padding-bottom: 6px;
-  vertical-align: middle;
-}
-.section-label-row td {
-  background: #f5f4f2;
-  border-bottom: 1px solid #e8e6e3;
-  padding-top: 4px;
-  padding-bottom: 4px;
-}
-.section-label-cell {
-  padding: 4px 12px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #8a8a8a;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-.session-sub-cell {
-  padding: 6px 12px;
-  font-size: 12px;
-  color: #94a3b8;
-  font-style: italic;
-}
 .session-id-cell {
   font-size: 13px;
   font-weight: 500;
@@ -500,4 +514,64 @@ async function refresh() {
   object-fit: cover;
   flex-shrink: 0;
 }
+/* ── Detail row ── */
+.detail-tab-bar {
+  display: flex;
+  border-bottom: 1px solid #e8e6e3;
+  background: #f0f4f8;
+  padding: 0 20px;
+}
+.detail-tab-btn {
+  padding: 9px 14px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color .15s;
+  color: #9b9b9b;
+}
+.detail-tab-btn:hover { color: #1c1c1c; }
+.detail-tab-btn.active { color: #1c1c1c; border-bottom-color: #1c1c1c; }
+.detail-tab-content {
+  padding: 12px 20px;
+  background: #f8fafc;
+  max-height: 400px;
+  overflow: auto;
+}
+.detail-empty {
+  text-align: center;
+  padding: 24px;
+  color: #94a3b8;
+  font-size: 13px;
+}
+.detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid #e8e6e3;
+}
+.detail-table th {
+  padding: 7px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  background: #f5f4f2;
+  border-bottom: 1px solid #e8e6e3;
+  text-align: left;
+}
+.detail-table td {
+  padding: 7px 12px;
+  font-size: 13px;
+  border-bottom: 1px solid #f0eeeb;
+  vertical-align: middle;
+}
+.detail-table tr:last-child td { border-bottom: none; }
+.detail-table tr:hover td { background: #fafaf9; }
 </style>

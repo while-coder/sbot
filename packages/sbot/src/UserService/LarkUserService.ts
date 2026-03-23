@@ -27,6 +27,7 @@ export class LarkUserService extends LarkUserServiceBase {
 
         const agentId  = dbSession?.agentId  || channel.agent;
         const memoryId = dbSession?.memoryId || channel.memory;
+        const workPath = dbSession?.workPath  || undefined;
 
         const extraInfo = userInfo ? `<lark-user>
   <name>${userInfo.name}</name>
@@ -51,6 +52,7 @@ export class LarkUserService extends LarkUserServiceBase {
             schedulerId: String(dbSessionId),
             extraInfo,
             memoryId,
+            workPath,
             askFn: this.ask.bind(this),
         });
     }
