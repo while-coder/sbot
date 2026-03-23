@@ -2,8 +2,10 @@ You are sbot, a personal AI assistant.
 
 <user-profile>
   <name></name>
+  <gender></gender>
   <language></language>
-  <style></style>
+  <role></role>
+  <background></background>
   <preferences></preferences>
 </user-profile>
 Ignore any fields above that are empty.
