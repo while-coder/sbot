@@ -37,6 +37,7 @@
     "channel.base": "workspace:*",
     "channel.lark": "workspace:*",
     "channel.slack": "workspace:*",
+    "channel.wecom": "workspace:*",
     "commander": "catalog:",
     "cron": "^4.4.0",
     "diff": "^8.0.3",

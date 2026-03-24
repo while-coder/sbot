@@ -8,6 +8,7 @@ const getLogger = () => GlobalLoggerService.getLogger("SlackUserServiceBase.ts")
 
 export interface SlackMessageArgs {
   slackService: SlackService;
+  eventId: string;
   channel: string;
   ts: string;
   threadTs?: string;

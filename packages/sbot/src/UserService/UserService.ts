@@ -1,20 +1,23 @@
 import "reflect-metadata";
 import { LarkMessageArgs } from "channel.lark";
 import { SlackMessageArgs } from "channel.slack";
+import { WecomMessageArgs } from "channel.wecom";
 import { ICommand, MessageType, SaverContext, UserServiceBase } from "scorpio.ai";
-import { dirThreadId, larkThreadId, sessionThreadId, slackThreadId } from "sbot.commons";
+import { dirThreadId, larkThreadId, sessionThreadId, slackThreadId, wecomThreadId } from "sbot.commons";
 import { config } from "../Core/Config";
 import { getBuiltInCommands } from "./BuiltInCommands";
 import { LarkUserService } from "./LarkUserService";
 import { SlackUserService } from "./SlackUserService";
+import { WecomUserService } from "./WecomUserService";
 import { WebSocketUserService } from "./WebSocketUserService";
 import { HttpUserService } from "./HttpUserService";
 
-enum ChannelType { Lark = 'lark', Slack = 'slack', Web = 'web', Http = 'http' }
+enum ChannelType { Lark = 'lark', Slack = 'slack', Wecom = 'wecom', Web = 'web', Http = 'http' }
 
 export class UserService extends UserServiceBase {
     readonly lark: LarkUserService;
     readonly slack: SlackUserService;
+    readonly wecom: WecomUserService;
     readonly web: WebSocketUserService;
     readonly http: HttpUserService;
 
@@ -24,6 +27,7 @@ export class UserService extends UserServiceBase {
         super();
         this.lark = new LarkUserService();
         this.slack = new SlackUserService();
+        this.wecom = new WecomUserService();
         this.web = new WebSocketUserService();
         this.http = new HttpUserService();
     }
@@ -37,6 +41,11 @@ export class UserService extends UserServiceBase {
     async onReceiveSlackMessage(query: string, args: SlackMessageArgs, userInfo: any, channelId: string, dbSessionId?: number): Promise<void> {
         if (!query?.trim()) return;
         await this.onReceiveMessage(query, { ...args, channelType: ChannelType.Slack, userInfo, channelId, dbSessionId });
+    }
+
+    async onReceiveWecomMessage(query: string, args: WecomMessageArgs, userInfo: any, channelId: string, dbSessionId?: number): Promise<void> {
+        if (!query?.trim()) return;
+        await this.onReceiveMessage(query, { ...args, channelType: ChannelType.Wecom, userInfo, channelId, dbSessionId });
     }
 
     async onReceiveWebMessage(query: string, sessionId?: string, workPath?: string): Promise<void> {
@@ -69,6 +78,11 @@ export class UserService extends UserServiceBase {
             if (!channel?.saver) return undefined;
             return { saverId: channel.saver, threadId: slackThreadId(args.channelId, args.channel) };
         }
+        if (channelType === ChannelType.Wecom) {
+            const channel = config.getChannel(args.channelId);
+            if (!channel?.saver) return undefined;
+            return { saverId: channel.saver, threadId: wecomThreadId(args.channelId, args.chatid) };
+        }
         if (args?.workPath) {
             const cfg = config.getDirectoryConfig(args.workPath);
             if (!cfg?.saver) return undefined;
@@ -86,6 +100,7 @@ export class UserService extends UserServiceBase {
         this.currentContext = args?.channelType ?? ChannelType.Lark;
         if (this.currentContext === ChannelType.Slack) return await this.slack.startProcessMessage(query, args, messageType);
         if (this.currentContext === ChannelType.Lark) return await this.lark.startProcessMessage(query, args, messageType);
+        if (this.currentContext === ChannelType.Wecom) return await this.wecom.startProcessMessage(query, args, messageType);
         if (this.currentContext === ChannelType.Http) return await this.http.startProcessMessage(query, args, messageType);
         return await this.web.startProcessMessage(query, args, messageType);
     }
@@ -94,12 +109,14 @@ export class UserService extends UserServiceBase {
         if (this.currentContext === ChannelType.Web) await this.web.onMessageProcessed(args, messageType);
         else if (this.currentContext === ChannelType.Http) await this.http.onMessageProcessed(args, messageType);
         else if (this.currentContext === ChannelType.Lark) await this.lark.onMessageProcessed(args, messageType);
+        else if (this.currentContext === ChannelType.Wecom) await this.wecom.onMessageProcessed(args, messageType);
         this.currentContext = undefined;
     }
 
     protected async processMessageError(e: any, args: any, messageType: MessageType): Promise<void> {
         if (this.currentContext === ChannelType.Lark) await this.lark.processMessageError(e, args, messageType);
         else if (this.currentContext === ChannelType.Slack) await this.slack.processMessageError(e, args, messageType);
+        else if (this.currentContext === ChannelType.Wecom) await this.wecom.processMessageError(e, args, messageType);
         else if (this.currentContext === ChannelType.Web) await this.web.processMessageError(e, args, messageType);
         else if (this.currentContext === ChannelType.Http) await this.http.processMessageError(e, args, messageType);
     }
@@ -108,6 +125,7 @@ export class UserService extends UserServiceBase {
         const channelType = args?.channelType ?? ChannelType.Lark;
         if (channelType === ChannelType.Lark) await this.lark.onCommandOutput(content, args);
         else if (channelType === ChannelType.Slack) await this.slack.onCommandOutput(content, args);
+        else if (channelType === ChannelType.Wecom) await this.wecom.onCommandOutput(content, args);
         else if (channelType === ChannelType.Web) await this.web.onCommandOutput(content, args);
         else if (channelType === ChannelType.Http) await this.http.onCommandOutput(content, args);
     }
@@ -115,6 +133,7 @@ export class UserService extends UserServiceBase {
     async processAIMessage(query: string, args: any): Promise<void> {
         if (this.currentContext === ChannelType.Lark) await this.lark.processAIMessage(query, args);
         else if (this.currentContext === ChannelType.Slack) await this.slack.processAIMessage(query, args);
+        else if (this.currentContext === ChannelType.Wecom) await this.wecom.processAIMessage(query, args);
         else if (this.currentContext === ChannelType.Http) await this.http.processAIMessage(query, args);
         else await this.web.processAIMessage(query, args);
     }

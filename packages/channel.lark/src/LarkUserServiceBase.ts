@@ -8,6 +8,7 @@ const getLogger = () => GlobalLoggerService.getLogger('LarkUserService.ts');
 
 export interface LarkMessageArgs {
   larkService: LarkService;
+  event_id: string;
   chat_type: string;
   chat_id: string;
   root_id: string;
@@ -15,6 +16,7 @@ export interface LarkMessageArgs {
 }
 
 export interface LarkActionArgs {
+  event_id: string;
   chat_id: string;
   code: string;
   data: any;

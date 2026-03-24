@@ -13,6 +13,7 @@ export enum AgentMode {
 export enum ChannelType {
   Lark = "lark",
   Slack = "slack",
+  Wecom = "wecom",
 }
 
 export interface Model {
@@ -121,6 +122,10 @@ export interface ChannelConfig {
   botToken?: string
   /** Slack App-Level Token for Socket Mode (xapp-...) */
   appToken?: string
+  /** WeCom AI Bot ID */
+  botId?: string
+  /** WeCom AI Bot Secret */
+  secret?: string
   /** 该频道使用的 Agent UUID（对应 agents 中的 key） */
   agent: string
   /** 使用的 Saver 配置 UUID（对应 savers 中的 key） */
@@ -178,4 +183,9 @@ export function larkThreadId(channelId: string, chatId: string): string {
 /** Slack 频道模式 threadId */
 export function slackThreadId(channelId: string, slackChannel: string): string {
   return `slack_${channelId}_${slackChannel}`
+}
+
+/** WeCom 频道模式 threadId */
+export function wecomThreadId(channelId: string, chatid: string): string {
+  return `wecom_${channelId}_${chatid}`
 }

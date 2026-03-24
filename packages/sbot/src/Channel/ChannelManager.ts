@@ -1,6 +1,7 @@
 import { LarkService, LarkReceiveIdType, LarkActionArgs, LarkMessageArgs, LarkUserIdType } from "channel.lark";
 import { SlackService, SlackMessageArgs, SlackActionArgs } from "channel.slack";
-import { database, type ChannelSessionRow } from "../Core/Database";
+import { WecomService, WecomMessageArgs, WecomActionArgs } from "channel.wecom";
+import { ChannelUserRow, database, type ChannelSessionRow } from "../Core/Database";
 import { NowDate } from "scorpio.ai";
 import { Op } from "sequelize";
 import { userService } from "../UserService/UserService";
@@ -17,17 +18,14 @@ const CheckInterval = HourMilliseconds;
 const ExpireTime = HourMilliseconds * 24 * 3;
 let checkTime = 0;
 
-async function clearExpiredMessage() {
-    const now = NowDate();
-    if (now < checkTime) return;
-    checkTime = now + CheckInterval;
-    await database.destroy(database.message, { where: { expireTime: { [Op.lt]: now } } });
-}
-
 async function filterEvent(eventId: string): Promise<boolean> {
-    await clearExpiredMessage();
+    const now = NowDate();
+    if (now >= checkTime) {
+        checkTime = now + CheckInterval;
+        await database.destroy(database.message, { where: { expireTime: { [Op.lt]: now } } });
+    }
     if ((await database.count(database.message, { where: { id: eventId } })) > 0) return false;
-    await database.create(database.message, { id: eventId, expireTime: NowDate() + ExpireTime });
+    await database.create(database.message, { id: eventId, expireTime: now + ExpireTime });
     return true;
 }
 
@@ -65,6 +63,44 @@ async function checkForUpdate(sendMessage: (msg: string) => Promise<void>): Prom
     }
 }
 
+// ── DB 辅助函数 ───────────────────────────────────────────────────────────────
+
+async function handleReceiveMessage(
+    channelId: string,
+    userId: string,
+    username: string,
+    userinfo: string,
+    sessionId: string,
+    sessionName: string,
+    processMessage: (dbSessionId: number) => Promise<void>,
+    sendUpdate: (msg: string) => Promise<void>,
+    userAvatar?: string,
+    sessionAvatar?: string,
+): Promise<void> {
+    const userData: Record<string, any> = { username, userinfo };
+    if (userAvatar !== undefined) userData.avatar = userAvatar;
+    const [, userCreated] = await database.findOrCreate<ChannelUserRow>(database.channelUser, {
+        where: { userid: userId, channel: channelId },
+        defaults: userData,
+    });
+    if (!userCreated) {
+        await database.update(database.channelUser, userData, { where: { channel: channelId, userid: userId } });
+    }
+
+    const sessionData: Record<string, any> = { name: sessionName };
+    if (sessionAvatar !== undefined) sessionData.avatar = sessionAvatar;
+    const [dbSession, sessionCreated] = await database.findOrCreate<ChannelSessionRow>(database.channelSession, {
+        where: { channel: channelId, sessionId },
+        defaults: { sessionData },
+    });
+    if (!sessionCreated) {
+        await database.update(database.channelSession, sessionData, { where: { channel: channelId, sessionId } });
+    }
+
+    await processMessage((dbSession as any).id);
+    checkForUpdate(sendUpdate).catch(() => {});
+}
+
 // ── 频道 Handler 接口 ─────────────────────────────────────────────────────────
 
 export interface IChannelService {
@@ -92,6 +128,7 @@ export class ChannelManager {
         // 注册内置频道类型
         this.register(ChannelType.Lark, this.initLark.bind(this));
         this.register(ChannelType.Slack, this.initSlack.bind(this));
+        this.register(ChannelType.Wecom, this.initWecom.bind(this));
     }
 
     /**
@@ -181,35 +218,15 @@ export class ChannelManager {
             botToken: channel.botToken,
             appToken: channel.appToken,
             logger: logger,
-            filterEvent,
             onReceiveMessage: async (userId: string, userInfo: any, args: SlackMessageArgs, query: string) => {
-                const [, created] = await database.findOrCreate(database.channelUser, {
-                    where: { userid: userId, channel: channelId },
-                    defaults: {
-                        username:   userInfo?.real_name ?? userInfo?.name ?? "",
-                        userinfo:   JSON.stringify(userInfo ?? {}),
-                        userIdType: "slack_id",
-                    },
-                });
-                if (!created) {
-                    await database.update(database.channelUser,
-                        { username: userInfo?.real_name ?? userInfo?.name ?? "", userinfo: JSON.stringify(userInfo ?? {}) },
-                        { where: { userid: userId, channel: channelId } },
-                    );
-                }
-                const [dbSession, sessionCreated] = await database.findOrCreate<ChannelSessionRow>(database.channelSession, {
-                    where: { channel: channelId, sessionId: args.channel },
-                    defaults: { name: args.channel, agentId: "", memoryId: null },
-                });
-                if (!sessionCreated) {
-                    await database.update(database.channelSession,
-                        { name: args.channel },
-                        { where: { channel: channelId, sessionId: args.channel } },
-                    );
-                }
-                const dbSessionId: number = (dbSession as any).id;
-                await userService.onReceiveSlackMessage(query, args, userInfo ?? {}, channelId, dbSessionId);
-                checkForUpdate(msg => service.sendMessage(args.channel, msg).then(() => {})).catch(() => {});
+                if (!await filterEvent(`slack_message_${args.eventId}`)) return;
+                await handleReceiveMessage(
+                    channelId, userId,
+                    userInfo?.real_name ?? userInfo?.name ?? "", JSON.stringify(userInfo ?? {}),
+                    args.channel, args.channel,
+                    dbSessionId => userService.onReceiveSlackMessage(query, args, userInfo ?? {}, channelId, dbSessionId),
+                    msg => service.sendMessage(args.channel, msg).then(() => {}),
+                );
             },
             onTriggerAction: async (_userId: string, args: SlackActionArgs) => {
                 // NOTE: userService.slack is a singleton; concurrent tool approvals from
@@ -230,54 +247,60 @@ export class ChannelManager {
             logger.warn(`Lark channel [${channel.name || channelId}] missing appId or appSecret, skipping`);
             return undefined;
         }
-        const userIdType = LarkUserIdType.UnionId
-        let service: LarkService
-        service = new LarkService({
+        const service = new LarkService({
             appId: channel.appId,
             appSecret: channel.appSecret,
             logger: logger,
-            userIdType: userIdType,
-            filterEvent,
+            userIdType: LarkUserIdType.UnionId,
             onRecevieMessage: async (userId: string, userInfo: any, chatInfo: any, args: LarkMessageArgs, query: string) => {
-                const userName = userInfo?.name ?? ''
-                const userAvatar = userInfo?.avatar?.avatar_origin
-                const [, created] = await database.findOrCreate(database.channelUser, {
-                    where: { userid: userId, channel: channelId },
-                    defaults: {
-                        username:   userName,
-                        userinfo:   JSON.stringify(userInfo ?? {}),
-                        userIdType: userIdType,
-                        avatar:     userAvatar,
-                    },
-                });
-                if (!created) {
-                    await database.update(database.channelUser,
-                        { username: userName, userinfo: JSON.stringify(userInfo ?? {}), userIdType: userIdType, avatar: userAvatar },
-                        { where: { userid: userId, channel: channelId } },
-                    );
-                }
+                if (!await filterEvent(`lark_message_${args.event_id}`)) return;
                 const sessionName = chatInfo ? (chatInfo?.chat_mode == 'p2p' ? `p2p_${userId}` : `${chatInfo?.chat_mode}_${chatInfo?.name}`) : '';
-                const sessionAvatar = chatInfo?.avatar || '';
-                const [dbSession, sessionCreated] = await database.findOrCreate<ChannelSessionRow>(database.channelSession, {
-                    where: { channel: channelId, sessionId: args.chat_id },
-                    defaults: { name: sessionName, avatar: sessionAvatar, agentId: "", memoryId: null, workPath: null },
-                });
-                if (!sessionCreated) {
-                    await database.update(database.channelSession,
-                        { name: sessionName, avatar: sessionAvatar },
-                        { where: { channel: channelId, sessionId: args.chat_id } },
-                    );
-                }
-                const dbSessionId: number = (dbSession as any).id;
-                await userService.onReceiveLarkMessage(query, args, userInfo ?? {}, channelId, dbSessionId);
-                checkForUpdate(msg => service.sendMarkdownMessage(LarkReceiveIdType.ChatId, args.chat_id, msg).then(() => {})).catch(() => {});
+                await handleReceiveMessage(
+                    channelId, userId,
+                    userInfo?.name ?? '', JSON.stringify(userInfo ?? {}),
+                    args.chat_id, sessionName,
+                    dbSessionId => userService.onReceiveLarkMessage(query, args, userInfo ?? {}, channelId, dbSessionId),
+                    msg => service.sendMarkdownMessage(LarkReceiveIdType.ChatId, args.chat_id, msg).then(() => {}),
+                    userInfo?.avatar?.avatar_origin, chatInfo?.avatar || '',
+                );
             },
             onTriggerAction: async (_userId: string, _userInfo: any, _chatInfo: any, args: LarkActionArgs) => {
+                if (!await filterEvent(`lark_action_${args.event_id}`)) return;
                 await userService.lark.onTriggerAction(args.chat_id, args.code, args.data, args.form_value);
             },
         });
         await service.registerEventDispatcher();
         logger.info(`Lark channel [${channel.name || channelId}] started successfully`);
+        return service;
+    }
+
+    // ── WeCom 频道初始化 ──────────────────────────────────────────────────────
+
+    private async initWecom(channelId: string, channel: ChannelConfig): Promise<IChannelService | undefined> {
+        if (!channel.botId?.trim() || !channel.secret?.trim()) {
+            logger.warn(`WeCom channel [${channel.name || channelId}] missing botId or secret, skipping`);
+            return undefined;
+        }
+        const service = new WecomService({
+            botId: channel.botId,
+            secret: channel.secret,
+            logger: logger,
+            filterEvent,
+            onReceiveMessage: async (userId: string, args: WecomMessageArgs, query: string) => {
+                await handleReceiveMessage(
+                    channelId, userId,
+                    userId, JSON.stringify({ userid: userId }),
+                    args.chatid, args.chatid,
+                    dbSessionId => userService.onReceiveWecomMessage(query, args, { userid: userId }, channelId, dbSessionId),
+                    msg => service.sendMessage(args.chatid, { msgtype: 'markdown', markdown: { content: msg } }).then(() => {}),
+                );
+            },
+            onTriggerAction: async (userId: string, args: WecomActionArgs) => {
+                await userService.wecom.onTriggerAction(userId, args);
+            },
+        });
+        service.connect();
+        logger.info(`WeCom channel [${channel.name || channelId}] started successfully`);
         return service;
     }
 }

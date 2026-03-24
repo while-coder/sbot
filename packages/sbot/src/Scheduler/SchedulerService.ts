@@ -32,6 +32,7 @@ async function executeScheduler(schedulerId: number): Promise<void> {
 
             const args: LarkMessageArgs = {
                 larkService,
+                event_id: "",
                 chat_type: "",
                 chat_id: sessionRow.sessionId,
                 message_id: "",

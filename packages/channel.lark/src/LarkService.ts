@@ -24,7 +24,6 @@ export interface LarkServiceOptions {
   appSecret: string;
   userIdType: LarkUserIdType;
   logger?: ILogger;
-  filterEvent: (eventId: string) => Promise<boolean>;
   onRecevieMessage: (userId: string, userInfo:any, chatInfo: any, args: LarkMessageArgs, query: string) => Promise<void>;
   onTriggerAction: (userId: string, userInfo: any, chatInfo: any, args: LarkActionArgs) => Promise<void>;
 }
@@ -40,7 +39,6 @@ export class LarkService {
   private logger?: ILogger;
   private larkLogger: any;
   private loggerLevel: Lark.LoggerLevel;
-  private filterEvent: (eventId: string) => Promise<boolean>;
   private onRecevieMessage: (userId: string, userInfo:any, chatInfo: any, args: LarkMessageArgs, query: string) => Promise<void>;
   private onTriggerAction: (userId: string, userInfo: any, chatInfo: any, args: LarkActionArgs) => Promise<void>;
   private userIdType: LarkUserIdType;
@@ -52,7 +50,6 @@ export class LarkService {
   constructor(options: LarkServiceOptions) {
     this.onRecevieMessage = options.onRecevieMessage;
     this.onTriggerAction = options.onTriggerAction;
-    this.filterEvent = options.filterEvent;
     this.userIdType = options.userIdType;
     this.logger = options.logger;
     this.larkConfig = { appId: options.appId, appSecret: options.appSecret };
@@ -397,14 +394,12 @@ export class LarkService {
             }
           }
 
-          if (!await this.filterEvent(event_id)) return;
-
           const userId = sender_id[this.userIdType];
           const [userInfo, chatInfo] = await Promise.all([
             this.getUserInfo(userId),
             this.getChatInfo(chat_id),
           ]);
-          await this.onRecevieMessage(userId, userInfo, chatInfo, { larkService: this, chat_type, chat_id, message_id, root_id }, query.trim())
+          await this.onRecevieMessage(userId, userInfo, chatInfo, { larkService: this, event_id, chat_type, chat_id, message_id, root_id }, query.trim())
         } catch (e: any) {
           this.logger?.error(`Receive message error: ${e.stack}`);
         }
@@ -420,14 +415,12 @@ export class LarkService {
               open_chat_id,
             }
           } = data;
-          if (!await this.filterEvent(event_id)) return;
-
           const userId = operator[this.userIdType];
           const [userInfo, chatInfo] = await Promise.all([
             this.getUserInfo(userId),
             this.getChatInfo(open_chat_id),
           ]);
-          await this.onTriggerAction(userId, userInfo, chatInfo, { chat_id: open_chat_id, code: value.code, data: value.data, form_value })
+          await this.onTriggerAction(userId, userInfo, chatInfo, { event_id, chat_id: open_chat_id, code: value.code, data: value.data, form_value })
         } catch (e: any) {
           this.logger?.error(`Card Action error: ${e.stack}`);
         }

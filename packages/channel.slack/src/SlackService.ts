@@ -6,7 +6,6 @@ export interface SlackServiceOptions {
   botToken: string;
   appToken: string;
   logger?: ILogger;
-  filterEvent: (eventId: string) => Promise<boolean>;
   onReceiveMessage: (
     userId: string,
     userInfo: any,
@@ -22,13 +21,11 @@ export interface SlackServiceOptions {
 export class SlackService {
   private app: App;
   private logger?: ILogger;
-  private filterEvent: (eventId: string) => Promise<boolean>;
   private onReceiveMessage: SlackServiceOptions["onReceiveMessage"];
   private onTriggerAction: SlackServiceOptions["onTriggerAction"];
 
   constructor(options: SlackServiceOptions) {
     this.logger = options.logger;
-    this.filterEvent = options.filterEvent;
     this.onReceiveMessage = options.onReceiveMessage;
     this.onTriggerAction = options.onTriggerAction;
 
@@ -89,9 +86,7 @@ export class SlackService {
         const msg = message as any;
         if (msg.subtype || msg.bot_id || !msg.text) return;
 
-        const eventId = msg.event_ts ?? msg.ts;
-        if (!await this.filterEvent(eventId)) return;
-
+        const eventId: string = msg.event_ts ?? msg.ts;
         const userId: string = msg.user;
         const channel: string = msg.channel;
         const threadTs: string | undefined = msg.thread_ts;
@@ -106,6 +101,7 @@ export class SlackService {
         const userInfo = await this.getUserInfo(userId);
         await this.onReceiveMessage(userId, userInfo, {
           slackService: this,
+          eventId,
           channel,
           ts,
           threadTs,

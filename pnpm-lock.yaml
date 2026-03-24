@@ -183,6 +183,9 @@ importers:
       channel.slack:
         specifier: workspace:*
         version: link:../channel.slack
+      channel.wecom:
+        specifier: workspace:*
+        version: link:../channel.wecom
       commander:
         specifier: 'catalog:'
         version: 14.0.3
