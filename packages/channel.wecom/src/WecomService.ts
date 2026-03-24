@@ -22,6 +22,7 @@ export interface WecomServiceOptions {
   botId: string;
   secret: string;
   logger?: ILogger;
+  filterEvent: (eventId: string) => Promise<boolean>;
   onReceiveMessage: (userId: string, args: WecomMessageArgs, query: string) => Promise<void>;
   onTriggerAction: (userId: string, args: WecomActionArgs) => Promise<void>;
 }
@@ -29,11 +30,13 @@ export interface WecomServiceOptions {
 export class WecomService {
   private wsClient: WSClient;
   private logger?: ILogger;
+  private filterEvent: WecomServiceOptions['filterEvent'];
   private onReceiveMessage: WecomServiceOptions['onReceiveMessage'];
   private onTriggerAction: WecomServiceOptions['onTriggerAction'];
 
   constructor(options: WecomServiceOptions) {
     this.logger = options.logger;
+    this.filterEvent = options.filterEvent;
     this.onReceiveMessage = options.onReceiveMessage;
     this.onTriggerAction = options.onTriggerAction;
 
@@ -97,6 +100,7 @@ export class WecomService {
 
     const userId = body.from.userid;
     const chatid = body.chatid ?? userId;
+    if (!await this.filterEvent(`wecom_message_${body.msgid}`)) return;
     await this.onReceiveMessage(userId, {
       wecomService: this,
       chatid,
@@ -113,6 +117,7 @@ export class WecomService {
 
     const userId = body.from.userid;
     const chatid = body.chatid ?? userId;
+    if (!await this.filterEvent(`wecom_message_${body.msgid}`)) return;
     await this.onReceiveMessage(userId, {
       wecomService: this,
       chatid,
@@ -125,12 +130,10 @@ export class WecomService {
   private async handleCardEvent(frame: WsFrame<EventMessageWith<TemplateCardEventData>>) {
     const body = frame.body! as any;
     const userId = body.from.userid;
-    // body.event.template_card_event
-    // body.event.template_card_event.event_key
-    // body.event.template_card_event.task_id
     const eventKey: string = body.event?.template_card_event?.event_key ?? '';
     const taskId: string = body.event?.template_card_event?.task_id ?? '';
     const chatid = body.chatid ?? userId;
+    if (!await this.filterEvent(`wecom_action_${body.msgid}`)) return;
     await this.onTriggerAction(userId, {
       chatid,
       eventKey,

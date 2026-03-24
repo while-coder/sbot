@@ -64,12 +64,11 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
             title: `工具调用: ${toolCall.name}`,
             desc: `参数: ${JSON.stringify(toolCall.args ?? {})}`,
           },
-          quote_area: {
-            title: `工具调用: ${toolCall.name}`,
-            quote_text: `参数: ${JSON.stringify(toolCall.args ?? {})}`,
-          },
+          // quote_area: {
+          //   title: `工具调用: ${toolCall.name}`,
+          //   quote_text: `参数: ${JSON.stringify(toolCall.args ?? {})}`,
+          // },
           task_id: `approval_${id}`,
-          // card_action: { type: 0, url: 'https://work.weixin.qq.com' },
           button_list: [
             { text: `允许 (${remainSec}s)`, style: 1, key: `Allow|${id}` },
             { text: `始终允许 (相同参数)`, style: 1, key: `AlwaysArgs|${id}` },

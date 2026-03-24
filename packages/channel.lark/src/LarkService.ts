@@ -24,6 +24,7 @@ export interface LarkServiceOptions {
   appSecret: string;
   userIdType: LarkUserIdType;
   logger?: ILogger;
+  filterEvent: (eventId: string) => Promise<boolean>;
   onRecevieMessage: (userId: string, userInfo:any, chatInfo: any, args: LarkMessageArgs, query: string) => Promise<void>;
   onTriggerAction: (userId: string, userInfo: any, chatInfo: any, args: LarkActionArgs) => Promise<void>;
 }
@@ -39,6 +40,7 @@ export class LarkService {
   private logger?: ILogger;
   private larkLogger: any;
   private loggerLevel: Lark.LoggerLevel;
+  private filterEvent: (eventId: string) => Promise<boolean>;
   private onRecevieMessage: (userId: string, userInfo:any, chatInfo: any, args: LarkMessageArgs, query: string) => Promise<void>;
   private onTriggerAction: (userId: string, userInfo: any, chatInfo: any, args: LarkActionArgs) => Promise<void>;
   private userIdType: LarkUserIdType;
@@ -50,6 +52,7 @@ export class LarkService {
   constructor(options: LarkServiceOptions) {
     this.onRecevieMessage = options.onRecevieMessage;
     this.onTriggerAction = options.onTriggerAction;
+    this.filterEvent = options.filterEvent;
     this.userIdType = options.userIdType;
     this.logger = options.logger;
     this.larkConfig = { appId: options.appId, appSecret: options.appSecret };
@@ -381,6 +384,8 @@ export class LarkService {
             },
           } = data;
 
+          if (!await this.filterEvent(`lark_message_${event_id}`)) return;
+
           if (message_type !== "text") return;
 
           const msg = parseJson(content, { text: "" }) as any;
@@ -393,6 +398,8 @@ export class LarkService {
               query = query.replace(mention.key, "");
             }
           }
+
+          
 
           const userId = sender_id[this.userIdType];
           const [userInfo, chatInfo] = await Promise.all([
@@ -415,6 +422,9 @@ export class LarkService {
               open_chat_id,
             }
           } = data;
+
+          if (!await this.filterEvent(`lark_action_${event_id}`)) return;
+          
           const userId = operator[this.userIdType];
           const [userInfo, chatInfo] = await Promise.all([
             this.getUserInfo(userId),

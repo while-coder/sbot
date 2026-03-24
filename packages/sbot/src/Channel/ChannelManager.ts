@@ -222,7 +222,6 @@ export class ChannelManager {
             appToken: channel.appToken,
             logger: logger,
             onReceiveMessage: async (userId: string, userInfo: any, args: SlackMessageArgs, query: string) => {
-                if (!await filterEvent(`slack_message_${args.eventId}`)) return;
                 await handleReceiveMessage({
                     channelId, userId,
                     userName: userInfo?.real_name ?? userInfo?.name ?? "",
@@ -234,9 +233,6 @@ export class ChannelManager {
                 });
             },
             onTriggerAction: async (_userId: string, args: SlackActionArgs) => {
-                // NOTE: userService.slack is a singleton; concurrent tool approvals from
-                // different users in the same workspace may collide. Acceptable for now,
-                // same as the Lark channel pattern.
                 await userService.slack.onTriggerAction(args);
             },
         });
@@ -258,7 +254,6 @@ export class ChannelManager {
             logger: logger,
             userIdType: LarkUserIdType.UnionId,
             onRecevieMessage: async (userId: string, userInfo: any, chatInfo: any, args: LarkMessageArgs, query: string) => {
-                if (args.event_id && !await filterEvent(`lark_message_${args.event_id}`)) return;
                 const sessionName = chatInfo ? (chatInfo?.chat_mode == 'p2p' ? `p2p_${userId}` : `${chatInfo?.chat_mode}_${chatInfo?.name}`) : '';
                 await handleReceiveMessage({
                     channelId,
@@ -274,7 +269,6 @@ export class ChannelManager {
                 });
             },
             onTriggerAction: async (_userId: string, _userInfo: any, _chatInfo: any, args: LarkActionArgs) => {
-                if (args.event_id && !await filterEvent(`lark_action_${args.event_id}`)) return;
                 await userService.lark.onTriggerAction(args.chat_id, args.code, args.data, args.form_value);
             },
         });
@@ -295,7 +289,6 @@ export class ChannelManager {
             secret: channel.secret,
             logger: logger,
             onReceiveMessage: async (userId: string, args: WecomMessageArgs, query: string) => {
-                if (args.msgid && !await filterEvent(`wecom_message_${args.msgid}`)) return;
                 await handleReceiveMessage({
                     channelId,
                     userId,
@@ -308,7 +301,6 @@ export class ChannelManager {
                 });
             },
             onTriggerAction: async (userId: string, args: WecomActionArgs) => {
-                if (args.msgid && !await filterEvent(`wecom_action_${args.msgid}`)) return;
                 await userService.wecom.onTriggerAction(userId, args);
             },
         });
