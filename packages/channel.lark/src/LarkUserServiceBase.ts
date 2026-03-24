@@ -32,11 +32,11 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
     this.larkService = larkService;
     if (!message_id) {
       this.provider = await new LarkChatProvider(larkService).initChat(LarkReceiveIdType.ChatId, chat_id, query);
-      await this.sendAbortButton();
+      await this.sendAbortButton(chat_id);
       return `Session:${chat_id}`;
     }
     this.provider = await new LarkChatProvider(larkService).initReplay(message_id);
-    await this.sendAbortButton();
+    await this.sendAbortButton(chat_id);
     return `Session:${chat_id},Topic:${root_id},MessageId:${message_id}`;
   }
 
@@ -51,7 +51,7 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
     }
   }
 
-  protected async sendAbortButton(): Promise<void> {
+  protected async sendAbortButton(chatId: string): Promise<void> {
     await this.provider?.insertElement(undefined, {
       tag: "button",
       text: { tag: "plain_text", content: "■ 中断" },
@@ -62,7 +62,7 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
         title: { tag: "plain_text", content: "确认中断" },
         text: { tag: "plain_text", content: "确定要中断当前任务吗？" },
       },
-      behaviors: [{ type: "callback", value: { code: "Abort" } }],
+      behaviors: [{ type: "callback", value: { code: "Abort", chat_id: chatId } }],
       element_id: "abortBtn",
     });
   }
@@ -72,7 +72,7 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
   }
 
   /** 子类可覆盖此方法以响应中断操作 */
-  protected onAbortAction(): void {}
+  protected onAbortAction(_chatId?: string): void {}
 
   async onAgentStreamMessage(message: AgentMessage): Promise<void> {
     await this.provider?.setStreamMessage(message.content || "");
@@ -203,7 +203,7 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
       return;
     }
     if (code === "Abort") {
-      this.onAbortAction();
+      this.onAbortAction(data?.chat_id);
       return;
     }
     getLogger()?.warn(`Unhandled card action: ${code}`);

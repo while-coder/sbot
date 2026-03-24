@@ -6,7 +6,6 @@ import {
   MessageChunkType,
   MessageType,
   NowDate,
-  sleep,
   ToolApproval,
 } from "scorpio.ai";
 import { sessionManager } from "./SessionManager";
@@ -61,16 +60,7 @@ export abstract class ChannelUserServiceBase {
     const { id, promise } = sessionManager.enterToolApproval(this.threadId, timeoutMs);
     const end = NowDate() + timeoutMs;
     try {
-      let done = false;
-      promise.finally(() => { done = true; });
-      let lastSend = 0;
-      while (!done) {
-        if (NowDate() - lastSend > 300) {
-          lastSend = NowDate();
-          await this.sendApprovalUI(toolCall, id, Math.floor((end - NowDate()) / 1000));
-        }
-        await sleep(10);
-      }
+      await this.sendApprovalUI(toolCall, id, Math.floor((end - NowDate()) / 1000));
       return await promise;
     } finally {
       try { await this.clearApprovalUI(id); } catch {}

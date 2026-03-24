@@ -9,7 +9,7 @@ import { sessionManager } from "channel.base";
 
 export class LarkUserService extends LarkUserServiceBase {
 
-    protected onAbortAction(): void {
+    protected onAbortAction(_chatId?: string): void {
         if (this.threadId) sessionManager.abort(this.threadId);
     }
 
@@ -37,17 +37,18 @@ export class LarkUserService extends LarkUserServiceBase {
   <union-id>${userInfo.union_id}</union-id>
 </lark-user>` : '';
 
-        this.threadId = larkThreadId(channelId, chat_id);
+        const threadId = larkThreadId(channelId, chat_id);
+        this.threadId = threadId;
         await AgentRunner.run({
             query,
             callbacks: {
                 onMessage: this.onAgentMessage.bind(this),
                 onStreamMessage: this.onAgentStreamMessage.bind(this),
-                executeTool: buildExecuteTool(this.threadId, this.executeAgentTool.bind(this)),
+                executeTool: buildExecuteTool(threadId, this.executeAgentTool.bind(this)),
             },
             agentId,
             saverId: channel.saver,
-            threadId: this.threadId,
+            threadId,
             schedulerType: SchedulerType.Channel,
             schedulerId: String(dbSessionId),
             extraInfo,
