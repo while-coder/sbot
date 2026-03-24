@@ -253,6 +253,7 @@ export class ChannelManager {
             appSecret: channel.appSecret,
             logger: logger,
             userIdType: LarkUserIdType.UnionId,
+            filterEvent,
             onRecevieMessage: async (userId: string, userInfo: any, chatInfo: any, args: LarkMessageArgs, query: string) => {
                 const sessionName = chatInfo ? (chatInfo?.chat_mode == 'p2p' ? `p2p_${userId}` : `${chatInfo?.chat_mode}_${chatInfo?.name}`) : '';
                 await handleReceiveMessage({
@@ -288,6 +289,7 @@ export class ChannelManager {
             botId: channel.botId,
             secret: channel.secret,
             logger: logger,
+            filterEvent,
             onReceiveMessage: async (userId: string, args: WecomMessageArgs, query: string) => {
                 await handleReceiveMessage({
                     channelId,
