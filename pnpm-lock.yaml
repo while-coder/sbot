@@ -101,6 +101,28 @@ importers:
         specifier: 'catalog:'
         version: 5.9.3
 
+  packages/channel.wecom:
+    dependencies:
+      '@wecom/aibot-node-sdk':
+        specifier: ^1.0.4
+        version: 1.0.4
+      channel.base:
+        specifier: workspace:*
+        version: link:../channel.base
+      scorpio.ai:
+        specifier: workspace:*
+        version: link:../scorpio.ai
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.4.0
+      rimraf:
+        specifier: 'catalog:'
+        version: 6.1.3
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+
   packages/cli:
     dependencies:
       axios:
@@ -1174,6 +1196,9 @@ packages:
 
   '@vue/shared@3.5.30':
     resolution: {integrity: sha512-YXgQ7JjaO18NeK2K9VTbDHaFy62WrObMa6XERNfNOkAhD1F1oDSf3ZJ7K6GqabZ0BvSDHajp8qfS5Sa2I9n8uQ==}
+
+  '@wecom/aibot-node-sdk@1.0.4':
+    resolution: {integrity: sha512-kZkrmlArq0NZyBvtOKw40m5nWTN1WlaA7XtqAo/1hn6N80P4c2mF99t3p1AMzj+dPo6OYvbsaelE8lbVWhkcBg==}
 
   abbrev@1.1.1:
     resolution: {integrity: sha512-nne9/IiQ/hzIhY6pdDnbBtz7DjPTKrY00P/zvPSm5pOFkl6xuGrGnXn/VtTNNfNtAfZ9/1RtehkszU9qcTii0Q==}
@@ -3455,6 +3480,16 @@ snapshots:
       vue: 3.5.30(typescript@5.9.3)
 
   '@vue/shared@3.5.30': {}
+
+  '@wecom/aibot-node-sdk@1.0.4':
+    dependencies:
+      axios: 1.13.6
+      eventemitter3: 5.0.4
+      ws: 8.19.0
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - utf-8-validate
 
   abbrev@1.1.1:
     optional: true

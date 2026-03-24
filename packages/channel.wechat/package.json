@@ -1,0 +1,21 @@
+{
+  "name": "channel.wecom",
+  "version": "0.0.1",
+  "description": "WeCom (企业微信) AI bot channel integration",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "rimraf dist && tsc -b --force"
+  },
+  "dependencies": {
+    "@wecom/aibot-node-sdk": "^1.0.4",
+    "channel.base": "workspace:*",
+    "scorpio.ai": "workspace:*"
+  },
+  "private": true,
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "rimraf": "catalog:",
+    "typescript": "catalog:"
+  }
+}
