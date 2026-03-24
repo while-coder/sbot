@@ -343,7 +343,7 @@ export class LarkService {
         if (element.tag === 'text') {
           paraTexts.push(element.text ?? '');
         } else if (element.tag === 'img') {
-          const filePath = path.join(os.tmpdir(), `lark_${messageId}_${element.image_key}`);
+          const filePath = path.join(os.tmpdir(), `lark_${element.image_key}`);
           await this.downloadMessageFile(messageId, element.image_key, 'image', filePath);
           paraTexts.push(`<attachment>${filePath}</attachment>`);
         } else {
@@ -353,6 +353,23 @@ export class LarkService {
       if (paraTexts.length > 0) textParts.push(paraTexts.join(''));
     }
     return textParts.join('\n');
+  }
+  private async extractImageContent(messageId: string, msg: any): Promise<string> {
+    const filePath = path.join(os.tmpdir(), `lark_${msg.image_key}`);
+    await this.downloadMessageFile(messageId, msg.image_key, 'image', filePath);
+    return `<attachment>${filePath}</attachment>`;
+  }
+
+  private async extractFileContent(messageId: string, msg: any): Promise<string> {
+    const file_name = msg.file_name ?? ''
+    const ext = path.extname(file_name);
+    const filePath = path.join(os.tmpdir(), `lark_${msg.file_key}${ext}`);
+    await this.downloadMessageFile(messageId, msg.file_key, 'file', filePath);
+    return `<attachment name="${file_name}">${filePath}</attachment>`;
+  }
+
+  private extractFolderContent(_messageId: string, msg: any): string {
+    return `[文件夹: ${msg.file_name ?? msg.file_key}]`;
   }
 
   private streamToFile(stream: NodeJS.ReadableStream, filePath: string): Promise<void> {
@@ -435,8 +452,12 @@ export class LarkService {
 
           if (message_type === "post") {
             query = await this.extractPostContent(message_id, msg);
-          } else if (message_type == "text") {
+          } else if (message_type === "text") {
             query = String(msg.text ?? "").trim();
+          } else if (message_type === 'image') {
+            query = await this.extractImageContent(message_id, msg);
+          } else if (message_type === 'file') {
+            query = await this.extractFileContent(message_id, msg);
           } else {
             this.logger?.error(`不支持的消息类型: ${message_type}`);
             return
