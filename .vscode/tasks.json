@@ -24,8 +24,7 @@
       "isBackground": true,
       "presentation": {
         "reveal": "silent",
-        "panel": "dedicated",
-        "label": "website dev"
+        "panel": "dedicated"
       },
       "problemMatcher": {
         "owner": "vite",
@@ -56,7 +55,7 @@
     },
     {
       "label": "launch:sbot",
-      "dependsOn": ["debug:sbot", "start:website"],
+      "dependsOn": ["debug:sbot"],
       "dependsOrder": "sequence"
     }
   ]

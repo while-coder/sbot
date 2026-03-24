@@ -15,7 +15,8 @@
         "${workspaceFolder}/packages/scorpio.ai/dist/**/*.js",
         "${workspaceFolder}/packages/channel.base/dist/**/*.js",
         "${workspaceFolder}/packages/channel.lark/dist/**/*.js",
-        "${workspaceFolder}/packages/channel.slack/dist/**/*.js"
+        "${workspaceFolder}/packages/channel.slack/dist/**/*.js",
+        "${workspaceFolder}/packages/channel.wecom/dist/**/*.js"
       ],
       "cwd": "${workspaceFolder}/packages/sbot",
       "skipFiles": ["<node_internals>/**"]

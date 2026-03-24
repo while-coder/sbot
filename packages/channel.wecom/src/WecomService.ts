@@ -13,7 +13,7 @@ export interface WecomMessageArgs {
 export interface WecomActionArgs {
   chatid: string;
   eventKey: string;
-  taskId?: string;
+  taskId: string;
   msgid: string;
   frame: WsFrame;
 }
@@ -123,10 +123,13 @@ export class WecomService {
   }
 
   private async handleCardEvent(frame: WsFrame<EventMessageWith<TemplateCardEventData>>) {
-    const body = frame.body!;
+    const body = frame.body! as any;
     const userId = body.from.userid;
-    const eventKey: string = body.event?.event_key ?? '';
-    const taskId: string | undefined = body.event?.task_id;
+    // body.event.template_card_event
+    // body.event.template_card_event.event_key
+    // body.event.template_card_event.task_id
+    const eventKey: string = body.event?.template_card_event?.event_key ?? '';
+    const taskId: string = body.event?.template_card_event?.task_id ?? '';
     const chatid = body.chatid ?? userId;
     await this.onTriggerAction(userId, {
       chatid,

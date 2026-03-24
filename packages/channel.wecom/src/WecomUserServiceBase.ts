@@ -23,14 +23,12 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
   protected provider: WecomChatProvider | undefined;
   wecomService!: WecomService;
   private _chatid = '';
-  private _approvalCardSent = false;
   private _currentAskQuestion: (RadioQuestion | CheckboxQuestion) | null = null;
 
   async startProcessMessage(_query: string, args: WecomMessageArgs, _messageType: MessageType): Promise<string> {
     const { wecomService, chatid, chattype } = args;
     this.wecomService = wecomService;
     this._chatid = chatid;
-    this._approvalCardSent = false;
     this._currentAskQuestion = null;
     this.provider = new WecomChatProvider(wecomService, chatid);
     return chattype === 'single' ? `Session:${chatid}` : `Session:group:${chatid}`;
@@ -56,8 +54,6 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
   // --- Tool Approval UI ---
 
   protected async sendApprovalUI(toolCall: AgentToolCall, id: string, remainSec: number): Promise<void> {
-    if (this._approvalCardSent) return;
-    this._approvalCardSent = true;
     try {
       await this.wecomService.sendMessage(this._chatid, {
         msgtype: 'template_card',
@@ -68,24 +64,34 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
             title: `工具调用: ${toolCall.name}`,
             desc: `参数: ${JSON.stringify(toolCall.args ?? {})}`,
           },
+          quote_area: {
+            title: `工具调用: ${toolCall.name}`,
+            quote_text: `参数: ${JSON.stringify(toolCall.args ?? {})}`,
+          },
           task_id: `approval_${id}`,
+          // card_action: { type: 0, url: 'https://work.weixin.qq.com' },
           button_list: [
-            { text: { type: 'plain_text', content: `允许 (${remainSec}s)` }, style: 1, key: `Allow|${id}` },
-            { text: { type: 'plain_text', content: `始终允许 (相同参数)` }, style: 1, key: `AlwaysArgs|${id}` },
-            { text: { type: 'plain_text', content: `始终允许 (所有参数)` }, style: 1, key: `AlwaysTool|${id}` },
-            { text: { type: 'plain_text', content: `拒绝` }, style: 2, key: `Deny|${id}` },
+            { text: `允许 (${remainSec}s)`, style: 1, key: `Allow|${id}` },
+            { text: `始终允许 (相同参数)`, style: 1, key: `AlwaysArgs|${id}` },
+            { text: `始终允许 (所有参数)`, style: 1, key: `AlwaysTool|${id}` },
+            { text: `拒绝`, style: 2, key: `Deny|${id}` },
           ],
+          // action_menu: {
+          //   desc: "操作类型",
+          //   action_list: [
+          //     { text: `始终允许 (相同参数)`, style: 1, key: `AlwaysArgs|${id}` },
+          //     { text: `始终允许 (所有参数)`, style: 1, key: `AlwaysTool|${id}` },
+          //     { text: `拒绝`, style: 2, key: `Deny|${id}` },
+          //   ]
+          // }
         },
       } as any);
     } catch (e: any) {
       getLogger()?.error(`sendApprovalUI error: ${e.message}`, e.stack);
-      this._approvalCardSent = false;
     }
   }
 
-  protected async clearApprovalUI(_toolCallId: string): Promise<void> {
-    this._approvalCardSent = false;
-  }
+  protected async clearApprovalUI(_toolCallId: string): Promise<void> {}
 
   // --- Ask Form ---
 
