@@ -14,7 +14,29 @@
 ```bash
 npm install -g @qingfeng346/sbot
 sbot
+# Open http://localhost:5500
 ```
+
+---
+
+## Usage
+
+### Web UI
+
+Open `http://localhost:5500` after starting sbot. Use the sidebar to:
+
+- **Models** — add LLM providers (API key, base URL, model name)
+- **Agents** — create agents, assign model/tools/skills
+- **Sessions** — create chat sessions bound to an agent
+- **Chat** — switch sessions, send messages, interrupt running tasks
+- **Channels** — configure Lark integrations
+- **Scheduler** — view and manage scheduled tasks
+
+### Configure Lark / Feishu
+
+1. Create a bot app in the [Feishu Developer Console](https://open.feishu.cn)
+2. Enable **Bot** capability and subscribe to **message.receive** events
+3. In Web UI → **Channels**, create a Lark channel and fill in **App ID** and **App Secret**
 
 ---
 
@@ -113,8 +135,15 @@ Terminal UI with interactive setup wizard and real-time streaming output.
 - Directory listing, create, remove, move, copy
 
 **Scheduler**
-- List, create, and delete scheduled tasks
-- Cron expression format
+- Standard 6-field cron expressions (`second minute hour day month weekday`), persisted across restarts
+- Tasks can target a channel user, a web session, or a working directory
+- Optional max run count with auto-cleanup
+- Manageable via the Web UI or by asking the agent directly
+
+**Ask**
+- Agents can pause mid-task and ask the user structured questions
+- Supported question types: single-select, multi-select, text input, toggle
+- Works across Web UI and Lark; the agent resumes automatically after the user responds
 
 ### MCP (Model Context Protocol)
 
@@ -137,17 +166,6 @@ Skills are self-contained prompt modules that extend agent capabilities for spec
 - Discovered and installed from remote skill hubs (Clawhub, skills.sh, and others)
 
 Bundled skills include workflows for brainstorming, planning, debugging, TDD, code review, multi-agent coordination, and more.
-
----
-
-## Scheduler
-
-Cron-based task scheduler with persistent storage:
-
-- Standard 5-field cron expressions
-- Survives server restarts (tasks resume automatically)
-- Optional maximum run count with auto-cleanup
-- Tasks can target a channel user, a web session, or a working directory
 
 ---
 
