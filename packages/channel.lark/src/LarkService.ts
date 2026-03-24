@@ -3,6 +3,8 @@ import { NowDate, parseJson } from "scorpio.ai";
 import {LarkActionArgs, LarkMessageArgs} from "./LarkUserServiceBase";
 import { ILogger } from "scorpio.ai";
 import fs from 'fs';
+import os from 'os';
+import path from 'path';
 
 /** 消息接收 ID 类型（涵盖所有飞书支持的类型） */
 export enum LarkReceiveIdType {
@@ -311,6 +313,48 @@ export class LarkService {
     }
   }
 
+  /**
+   * 下载消息内的图片资源（用于 post/image 消息中的 image_key）
+   * @param messageId 消息 ID
+   * @param imageKey 图片 key（来自消息内容）
+   * @param savePath 保存到本地的文件路径
+   * https://open.feishu.cn/document/server-docs/im-v1/message-content/get-2
+   */
+  async downloadMessageFile(messageId: string, fileKey: string, fileType: "image"| "file", savePath: string): Promise<void> {
+    try {
+      const token = await this.getTenantAccessToken();
+      const response = await this.larkClient.im.v1.messageResource.get({
+        path: { message_id: messageId, file_key: fileKey },
+        params: { type: fileType },
+      }, Lark.withTenantToken(token)) as any;
+      await response.writeFile(savePath);
+    } catch (error: any) {
+      this.logger?.error(`Failed to download message file: ${error.message}\n${error.stack}`);
+      throw error;
+    }
+  }
+
+  private async extractPostContent(messageId: string, msg: any): Promise<string> {
+    const paragraphs: any[][] = msg.content ?? [];
+    const textParts: string[] = [];
+    for (const paragraph of paragraphs) {
+      const paraTexts: string[] = [];
+      for (const element of paragraph) {
+        if (element.tag === 'text') {
+          paraTexts.push(element.text ?? '');
+        } else if (element.tag === 'img') {
+          const filePath = path.join(os.tmpdir(), `lark_${messageId}_${element.image_key}`);
+          await this.downloadMessageFile(messageId, element.image_key, 'image', filePath);
+          paraTexts.push(`<attachment>${filePath}</attachment>`);
+        } else {
+          throw new Error(`不支持的 message tag : ${element.tag}`);
+        }
+      }
+      if (paraTexts.length > 0) textParts.push(paraTexts.join(''));
+    }
+    return textParts.join('\n');
+  }
+
   private streamToFile(stream: NodeJS.ReadableStream, filePath: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const writer = fs.createWriteStream(filePath);
@@ -386,12 +430,17 @@ export class LarkService {
 
           if (!await this.filterEvent(`lark_message_${event_id}`)) return;
 
-          if (message_type !== "text") return;
-
           const msg = parseJson(content, { text: "" }) as any;
-          let query = String(msg.text ?? "").trim();
+          let query = "";
 
-          if (query.indexOf("@_all") >= 0) return;
+          if (message_type === "post") {
+            query = await this.extractPostContent(message_id, msg);
+          } else if (message_type == "text") {
+            query = String(msg.text ?? "").trim();
+          } else {
+            this.logger?.error(`不支持的消息类型: ${message_type}`);
+            return
+          }
 
           if (mentions != null) {
             for (const mention of mentions) {
@@ -399,14 +448,12 @@ export class LarkService {
             }
           }
 
-          
-
           const userId = sender_id[this.userIdType];
           const [userInfo, chatInfo] = await Promise.all([
             this.getUserInfo(userId),
             this.getChatInfo(chat_id),
           ]);
-          await this.onRecevieMessage(userId, userInfo, chatInfo, { larkService: this, event_id, chat_type, chat_id, message_id, root_id }, query.trim())
+          await this.onRecevieMessage(userId, userInfo, chatInfo, { larkService: this, event_id, chat_type, chat_id, message_id, root_id, message_type }, query.trim())
         } catch (e: any) {
           this.logger?.error(`Receive message error: ${e.stack}`);
         }

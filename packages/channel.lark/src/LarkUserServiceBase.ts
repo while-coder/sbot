@@ -13,6 +13,7 @@ export interface LarkMessageArgs {
   chat_id: string;
   root_id: string;
   message_id: string;
+  message_type?: string;
 }
 
 export interface LarkActionArgs {
