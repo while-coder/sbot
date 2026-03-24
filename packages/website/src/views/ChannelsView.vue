@@ -7,7 +7,7 @@ import { useToast } from '@/composables/useToast'
 import type { ChannelConfig } from '@/types'
 import SaverViewModal from './modals/SaverViewModal.vue'
 import PathPickerModal from './modals/PathPickerModal.vue'
-import { larkThreadId } from 'sbot.commons'
+import { larkThreadId, slackThreadId, wecomThreadId } from 'sbot.commons'
 
 const { t } = useI18n()
 
@@ -82,10 +82,16 @@ async function saveSession() {
   }
 }
 
+function threadId(channelId: string, c: any, sessionId: string): string {
+  if (c.type === 'slack') return slackThreadId(channelId, sessionId)
+  if (c.type === 'wecom') return wecomThreadId(channelId, sessionId)
+  return larkThreadId(channelId, sessionId)
+}
+
 const showModal = ref(false)
 const editingId = ref<string | null>(null)
-const form = ref<{ name: string; type: string; appId: string; appSecret: string; agent: string; saver: string; memory: string }>({
-  name: '', type: 'lark', appId: '', appSecret: '', agent: '', saver: '', memory: '',
+const form = ref<{ name: string; type: string; appId: string; appSecret: string; botToken: string; appToken: string; botId: string; secret: string; agent: string; saver: string; memory: string }>({
+  name: '', type: 'lark', appId: '', appSecret: '', botToken: '', appToken: '', botId: '', secret: '', agent: '', saver: '', memory: '',
 })
 
 async function loadChannelData(id: string) {
@@ -147,14 +153,14 @@ function formatUserInfo(raw: string) {
 
 function openAdd() {
   editingId.value = null
-  form.value = { name: '', type: 'lark', appId: '', appSecret: '', agent: '', saver: '', memory: '' }
+  form.value = { name: '', type: 'lark', appId: '', appSecret: '', botToken: '', appToken: '', botId: '', secret: '', agent: '', saver: '', memory: '' }
   showModal.value = true
 }
 
 function openEdit(id: string) {
   const c = channels.value[id]
   editingId.value = id
-  form.value = { name: c.name || '', type: c.type || 'lark', appId: c.appId || '', appSecret: c.appSecret || '', agent: c.agent, saver: c.saver, memory: c.memory || '' }
+  form.value = { name: c.name || '', type: c.type || 'lark', appId: c.appId || '', appSecret: c.appSecret || '', botToken: c.botToken || '', appToken: c.appToken || '', botId: c.botId || '', secret: c.secret || '', agent: c.agent, saver: c.saver, memory: c.memory || '' }
   showModal.value = true
 }
 
@@ -170,6 +176,10 @@ async function save() {
     if (form.value.name.trim()) config.name = form.value.name.trim()
     if (form.value.appId.trim()) config.appId = form.value.appId.trim()
     if (form.value.appSecret.trim()) config.appSecret = form.value.appSecret.trim()
+    if (form.value.botToken.trim()) config.botToken = form.value.botToken.trim()
+    if (form.value.appToken.trim()) config.appToken = form.value.appToken.trim()
+    if (form.value.botId.trim()) config.botId = form.value.botId.trim()
+    if (form.value.secret.trim()) config.secret = form.value.secret.trim()
     if (form.value.memory) config.memory = form.value.memory
 
     if (editingId.value) {
@@ -196,7 +206,7 @@ async function remove(id: string) {
   try {
     await apiFetch(`/api/settings/channels/${id}`, 'DELETE')
     if (c?.saver) {
-      await apiFetch(`/api/savers/${encodeURIComponent(c.saver)}/threads/lark_${encodeURIComponent(id)}/history`, 'DELETE').catch(() => {})
+      await apiFetch(`/api/savers/${encodeURIComponent(c.saver)}/threads/${c.type}_${encodeURIComponent(id)}/history`, 'DELETE').catch(() => {})
     }
     if (store.settings.channels) delete store.settings.channels[id]
     show(t('common.deleted'))
@@ -298,7 +308,7 @@ async function refresh() {
                             <td style="font-family:monospace;font-size:11px;color:#6b7280;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" :title="s.workPath || ''">{{ s.workPath || '-' }}</td>
                             <td>
                               <div class="ops-cell">
-                                <button v-if="c.saver" class="btn-outline btn-sm" @click="saverViewModal?.open(c.saver, larkThreadId(id as string, s.sessionId))">{{ t('channels.history') }}</button>
+                                <button v-if="c.saver" class="btn-outline btn-sm" @click="saverViewModal?.open(c.saver, threadId(id as string, c, s.sessionId))">{{ t('channels.history') }}</button>
                                 <button class="btn-outline btn-sm" @click="openEditSession(s)">{{ t('common.edit') }}</button>
                                 <button class="btn-danger btn-sm" @click="removeSession(id as string, s)">{{ t('common.delete') }}</button>
                               </div>
@@ -363,6 +373,7 @@ async function refresh() {
             <label>{{ t('channels.channel_type') }} *</label>
             <select v-model="form.type">
               <option value="lark">Lark</option>
+              <option value="wecom">WeCom</option>
             </select>
           </div>
           <div v-if="form.type === 'lark'" class="form-group">
@@ -372,6 +383,14 @@ async function refresh() {
           <div v-if="form.type === 'lark'" class="form-group">
             <label>{{ t('channels.app_secret') }}</label>
             <input v-model="form.appSecret" placeholder="Lark App Secret" type="password" />
+          </div>
+          <div v-if="form.type === 'wecom'" class="form-group">
+            <label>{{ t('channels.bot_id') }}</label>
+            <input v-model="form.botId" placeholder="WeCom Bot ID" />
+          </div>
+          <div v-if="form.type === 'wecom'" class="form-group">
+            <label>{{ t('channels.bot_secret') }}</label>
+            <input v-model="form.secret" placeholder="WeCom Bot Secret" type="password" />
           </div>
           <div class="form-group">
             <label>{{ t('common.agent') }} *</label>

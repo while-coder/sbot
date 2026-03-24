@@ -40,12 +40,12 @@ export class WecomService {
     this.wsClient = new WSClient({
       botId: options.botId,
       secret: options.secret,
-      logger: options.logger ? {
-        debug: (m: string, ...a: any[]) => options.logger!.debug(m, ...a),
-        info:  (m: string, ...a: any[]) => options.logger!.info(m, ...a),
-        warn:  (m: string, ...a: any[]) => options.logger!.warn(m, ...a),
-        error: (m: string, ...a: any[]) => options.logger!.error(m, ...a),
-      } : undefined,
+      logger: {
+        debug: (m: string, ...a: any[]) => options.logger?.debug(m, ...a),
+        info:  (m: string, ...a: any[]) => options.logger?.info(m, ...a),
+        warn:  (m: string, ...a: any[]) => options.logger?.warn(m, ...a),
+        error: (m: string, ...a: any[]) => options.logger?.error(m, ...a),
+      },
     });
   }
 

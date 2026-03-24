@@ -21,7 +21,6 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
   protected provider: WecomChatProvider | undefined;
   wecomService!: WecomService;
   protected _currentFrame!: WsFrame;
-
   private _lastCardEventFrame: WsFrame | null = null;
   private _approvalCardSent = false;
 
@@ -29,6 +28,7 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
     const { wecomService, chatid, chattype, frame } = args;
     this.wecomService = wecomService;
     this._currentFrame = frame;
+
     this._approvalCardSent = false;
     this._lastCardEventFrame = null;
     this.provider = new WecomChatProvider(wecomService, frame, chatid);
@@ -55,7 +55,7 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
   // --- Tool Approval UI ---
 
   protected async sendApprovalUI(toolCall: AgentToolCall, id: string, remainSec: number): Promise<void> {
-    if (this._approvalCardSent) return;
+    if (!this._currentFrame || this._approvalCardSent) return;
     this._approvalCardSent = true;
     try {
       await this.wecomService.replyTemplateCard(this._currentFrame, {
@@ -98,6 +98,7 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
   // --- Ask Form ---
 
   protected async sendAskForm(params: AskToolParams, askId: string, remainSec: number): Promise<void> {
+    if (!this._currentFrame) return;
     const q = params.questions[0];
     if (!q) return;
 

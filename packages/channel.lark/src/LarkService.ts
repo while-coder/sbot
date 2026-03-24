@@ -55,11 +55,11 @@ export class LarkService {
     this.larkConfig = { appId: options.appId, appSecret: options.appSecret };
     this.loggerLevel = Lark.LoggerLevel.warn;
     this.larkLogger = options.logger ? {
-      trace: (msg: string, ...args: any[]) => options.logger!.debug(msg, ...args),
-      debug: (msg: string, ...args: any[]) => options.logger!.debug(msg, ...args),
-      info:  (msg: string, ...args: any[]) => options.logger!.info(msg, ...args),
-      warn:  (msg: string, ...args: any[]) => options.logger!.warn(msg, ...args),
-      error: (msg: string, ...args: any[]) => options.logger!.error(msg, ...args),
+      trace: (msg: string, ...args: any[]) => options.logger?.debug(msg, ...args),
+      debug: (msg: string, ...args: any[]) => options.logger?.debug(msg, ...args),
+      info:  (msg: string, ...args: any[]) => options.logger?.info(msg, ...args),
+      warn:  (msg: string, ...args: any[]) => options.logger?.warn(msg, ...args),
+      error: (msg: string, ...args: any[]) => options.logger?.error(msg, ...args),
     } : undefined;
     this.larkClient = new Lark.Client({ ...this.larkConfig, logger: this.larkLogger, loggerLevel: this.loggerLevel });
     this.larkWsClient = new Lark.WSClient({ ...this.larkConfig, logger: this.larkLogger, loggerLevel: this.loggerLevel });
