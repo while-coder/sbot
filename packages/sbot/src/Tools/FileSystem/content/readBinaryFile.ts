@@ -26,7 +26,7 @@ export function createReadBinaryFileTool(): StructuredToolInterface {
                 if (stat.size > MAX_SIZE) return createErrorResult(`File too large: ${formatSize(stat.size)}, maximum is ${MAX_SIZE_LABEL}`);
                 const base64 = (await fsAsync.readFile(abs)).toString('base64');
                 const ext = path.extname(abs).toLowerCase().slice(1);
-                return createSuccessResult(createTextContent(JSON.stringify({ filePath: abs, size: formatSize(stat.size), ext, base64 })));
+                return createSuccessResult(createTextContent(JSON.stringify({ size: formatSize(stat.size), ext, base64 })));
             } catch (e: any) {
                 logger.error(`read_binary_file ${filePath}: ${e.message}`);
                 return createErrorResult(e.message);
