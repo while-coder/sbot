@@ -322,7 +322,7 @@ async function refresh() {
                         <div v-if="((a as any).agents as any[] | undefined)?.length" class="card">
                           <div class="card-title">{{ t('agents.sub_agents') }}</div>
                           <div v-for="sub in ((a as any).agents as any[])" :key="sub.id" class="sub-agent-item">
-                            <div class="sub-agent-item-header"><span class="sub-agent-item-name">{{ sub.id }}</span></div>
+                            <div class="sub-agent-item-header"><span class="sub-agent-item-name">{{ (agents[sub.id] as any)?.name || sub.id }}</span></div>
                             <div class="sub-agent-item-desc">{{ sub.desc }}</div>
                           </div>
                         </div>

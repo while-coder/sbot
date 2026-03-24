@@ -184,6 +184,7 @@ async function save() {
 
     if (editingId.value) {
       await apiFetch(`/api/settings/channels/${editingId.value}`, 'PUT', config)
+      if (store.settings.channels) Object.assign(store.settings.channels[editingId.value], config)
     } else {
       const res = await apiFetch('/api/settings/channels', 'POST', config)
       const id = res.data?.id
