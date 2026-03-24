@@ -17,6 +17,13 @@ sbot
 # Open http://localhost:5500
 ```
 
+If port 5500 is already in use, change it with:
+
+```bash
+sbot port 3000        # save port and exit
+sbot --port 3000      # save port and start
+```
+
 ---
 
 ## Usage

@@ -9,28 +9,32 @@ import {initGlobalAgentToolService} from "./Agent/GlobalAgentToolService";
 import {initGlobalSkillService} from "./Agent/GlobalSkillService";
 import {schedulerService} from "./Scheduler/SchedulerService";
 import { Command } from "commander";
-import path from "path";
 
 const logger = LoggerService.getLogger('index.ts');
+
+function applyPort(portStr: string, onInvalid: (msg: string) => void): void {
+    const port = Number(portStr);
+    if (!Number.isInteger(port) || port <= 0 || port >= 65536) {
+        onInvalid(`Invalid port: ${portStr}`);
+        return;
+    }
+    config.setHttpPort(port);
+}
 
 const program = new Command();
 program
     .name('sbot')
     .description(config.pkg.description)
-    .version(config.pkg.version, '-v, --version');
+    .version(config.pkg.version, '-v, --version')
+    .option('-p, --port <port>', 'HTTP server port');
 
 // 设置端口命令：修改并保存端口，不启动服务
 program
     .command('port <port>')
     .description('设置 HTTP 服务端口并保存')
     .action((portStr: string) => {
-        const port = Number(portStr);
-        if (!Number.isInteger(port) || port <= 0 || port >= 65536) {
-            console.error(`Invalid port: ${portStr}`);
-            process.exit(1);
-        }
-        config.setHttpPort(port);
-        console.log(`Port updated to ${port}`);
+        applyPort(portStr, msg => { console.error(msg); process.exit(1); });
+        console.log(`Port updated to ${portStr}`);
     });
 
 // 显示配置目录
@@ -46,13 +50,7 @@ program
 program
     .action(async (options: { port?: string }) => {
         if (options.port) {
-            const port = Number(options.port);
-            if (Number.isInteger(port) && port > 0 && port < 65536) {
-                config.setHttpPort(port);
-                logger.info(`Port updated to ${port}`);
-            } else {
-                logger.warn(`--port argument invalid: ${options.port}`);
-            }
+            applyPort(options.port, msg => logger.warn(msg));
         }
         await main();
     });
