@@ -87,11 +87,32 @@ const AskSchema = z.object({
 
 export const ASK_TOOL_NAME = "_ask";
 
-export function createAskTool(askFn: AskUserFn, description: string): DynamicStructuredTool {
+const typeSchemas: Record<AskQuestionType, z.ZodObject<any>> = {
+  [AskQuestionType.Radio]:    RadioSchema,
+  [AskQuestionType.Checkbox]: CheckboxSchema,
+  [AskQuestionType.Input]:    InputSchema,
+  [AskQuestionType.Toggle]:   ToggleSchema,
+};
+
+export function createAskTool(askFn: AskUserFn, description: string, supportedTypes?: AskQuestionType[]): DynamicStructuredTool {
+  let schema: z.ZodObject<any>;
+  if (supportedTypes) {
+    const schemas = supportedTypes.map(t => typeSchemas[t]);
+    const questionSchema = schemas.length === 1
+      ? schemas[0]
+      : z.discriminatedUnion("type", schemas as [any, any, ...any[]]);
+    schema = z.object({
+      title: z.string().optional().describe("Optional title for the question dialog"),
+      questions: z.array(questionSchema as any).min(1).describe("Array of questions to present to the user"),
+    });
+  } else {
+    schema = AskSchema;
+  }
+
   return new DynamicStructuredTool({
     name: ASK_TOOL_NAME,
     description,
-    schema: AskSchema as any,
+    schema: schema as any,
     func: async (params: any): Promise<MCPToolResult> => {
       const response = await askFn(params as AskToolParams);
       return createSuccessResult(createTextContent(JSON.stringify(response)));

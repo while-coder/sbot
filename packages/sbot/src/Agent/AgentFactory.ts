@@ -11,7 +11,7 @@ import {
     T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc,
     T_SkillSystemPromptTemplate, T_SkillToolReadDesc, T_SkillToolListDesc, T_SkillToolExecDesc,
     type CreateAgentFn,
-    createAskTool, type AskUserFn,
+    createAskTool, type AskUserFn, AskQuestionType,
 } from "scorpio.ai";
 import { config, AgentMode, SingleAgentEntry, ReactAgentEntry } from "../Core/Config";
 import { loadPrompt } from "../Core/PromptLoader";
@@ -29,6 +29,8 @@ export interface AgentCreateOptions {
     extraPrompts: string[];
     /** 用户交互询问函数，由具体 UserService 实现并传入 */
     askFn?: AskUserFn;
+    /** 限制 ask 工具支持的控件类型，不传则支持全部类型 */
+    askSupportedTypes?: AskQuestionType[];
 }
 
 /**
@@ -38,13 +40,13 @@ export interface AgentCreateOptions {
 export class AgentFactory {
 
     static async create(options: AgentCreateOptions): Promise<AgentServiceBase> {
-        const { agentId, container, extraPrompts, askFn } = options;
+        const { agentId, container, extraPrompts, askFn, askSupportedTypes } = options;
         const agentEntry = config.getAgent(agentId);
 
         if (!container.isRegistered(IAgentSaverService)) container.registerSingleton(IAgentSaverService, AgentMemorySaver);
         const { mcp, skills } = agentEntry;
         await this.registerSkillService(container, agentId, skills);
-        await this.registerToolService(container, agentId, mcp, askFn);
+        await this.registerToolService(container, agentId, mcp, askFn, askSupportedTypes);
 
         const systemPrompts = [loadPrompt('system/init.txt'), ...extraPrompts];
         if (agentEntry.systemPrompt)
@@ -91,6 +93,7 @@ export class AgentFactory {
         agentName: string,
         mcp?: string[],
         askFn?: AskUserFn,
+        askSupportedTypes?: AskQuestionType[],
     ): Promise<void> {
         container.registerSingleton(IAgentToolService, AgentToolService);
         const toolService = await container.resolve<AgentToolService>(IAgentToolService);
@@ -99,7 +102,7 @@ export class AgentFactory {
             toolService.registerToolFactory('__global_mcp__', () => globalAgentToolService.getToolsFrom(mcpNames));
         }
         if (askFn) {
-            toolService.registerToolFactory('__ask__', async () => [createAskTool(askFn, loadPrompt('tools/ask.txt'))]);
+            toolService.registerToolFactory('__ask__', async () => [createAskTool(askFn, loadPrompt('tools/ask.txt'), askSupportedTypes)]);
         }
         toolService.registerMcpServers(config.getAgentMcpServers(agentName));
     }

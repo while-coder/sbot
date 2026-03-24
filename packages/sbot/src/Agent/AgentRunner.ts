@@ -12,7 +12,7 @@ import {
     T_ExtractorSystemPrompt, T_EvaluatorSystemPrompt, T_CompressorPromptTemplate,
     T_MemorySystemPromptTemplate,
     IModelService,
-    type AskUserFn,
+    type AskUserFn, AskQuestionType,
 } from "scorpio.ai";
 import { config, SaverType } from "../Core/Config";
 import { loadPrompt } from "../Core/PromptLoader";
@@ -42,6 +42,8 @@ export interface AgentRunOptions {
     workPath?: string;
     /** 用户交互询问函数，由具体 UserService 实现并传入 */
     askFn?: AskUserFn;
+    /** 限制 ask 工具支持的控件类型，不传则支持全部类型 */
+    askSupportedTypes?: AskQuestionType[];
     // --- scheduler 独有字段 ---
     /** 调度器类型（Channel / Session / Directory） */
     schedulerType: SchedulerType;
@@ -51,7 +53,7 @@ export interface AgentRunOptions {
 
 export class AgentRunner {
     static async run(options: AgentRunOptions): Promise<void> {
-        const { query, callbacks, agentId, saverId, threadId, schedulerType, schedulerId, extraInfo, memoryId, askFn } = options;
+        const { query, callbacks, agentId, saverId, threadId, schedulerType, schedulerId, extraInfo, memoryId, askFn, askSupportedTypes } = options;
         if (!agentId.trim())   throw new Error("agent not specified");
         if (!saverId.trim())   throw new Error("saver not specified");
         if (!threadId.trim())  throw new Error("threadId not specified");
@@ -88,7 +90,7 @@ export class AgentRunner {
             await AgentRunner.registerMemoryService(container, memoryId);
             await AgentRunner.registerSaverService(container, saverId, threadId);
 
-            const agent = await AgentFactory.create({ agentId, container, extraPrompts, askFn });
+            const agent = await AgentFactory.create({ agentId, container, extraPrompts, askFn, askSupportedTypes });
             try {
                 await agent.stream(query, callbacks, cancellationToken);
             } finally {

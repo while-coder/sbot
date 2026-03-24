@@ -5,6 +5,8 @@ import {
   AgentToolCall,
   AskToolParams,
   AskQuestionType,
+  type RadioQuestion,
+  type CheckboxQuestion,
   MessageType,
   GlobalLoggerService,
 } from 'scorpio.ai';
@@ -23,6 +25,8 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
   protected _currentFrame!: WsFrame;
   private _lastCardEventFrame: WsFrame | null = null;
   private _approvalCardSent = false;
+  private _lastAskEventFrame: WsFrame | null = null;
+  private _currentAskQuestion: (RadioQuestion | CheckboxQuestion) | null = null;
 
   async startProcessMessage(_query: string, args: WecomMessageArgs, _messageType: MessageType): Promise<string> {
     const { wecomService, chatid, chattype, frame } = args;
@@ -31,6 +35,8 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
 
     this._approvalCardSent = false;
     this._lastCardEventFrame = null;
+    this._lastAskEventFrame = null;
+    this._currentAskQuestion = null;
     this.provider = new WecomChatProvider(wecomService, frame, chatid);
     return chattype === 'single' ? `Session:${chatid}` : `Session:group:${chatid}`;
   }
@@ -99,57 +105,48 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
 
   protected async sendAskForm(params: AskToolParams, askId: string, remainSec: number): Promise<void> {
     if (!this._currentFrame) return;
-    const q = params.questions[0];
+    const q = params.questions.find(
+      (q): q is RadioQuestion | CheckboxQuestion =>
+        q.type === AskQuestionType.Radio || q.type === AskQuestionType.Checkbox,
+    );
     if (!q) return;
 
+    this._currentAskQuestion = q;
+    const isMulti = q.type === AskQuestionType.Checkbox;
     try {
-      if (q.type === AskQuestionType.Input) {
-        // WeCom does not support text input in cards; send a markdown hint via stream
-        await this.wecomService.replyStream(
-          this._currentFrame,
-          `ask_hint_${askId}`,
-          `**${params.title ?? '需要您的输入'}**\n${q.label}\n请回复您的答案（${remainSec}s 内有效）`,
-          true,
-        );
-        return;
-      }
-
-      const options: string[] =
-        q.type === AskQuestionType.Toggle
-          ? ['是', '否']
-          : (q.options ?? []);
-
       await this.wecomService.replyTemplateCard(this._currentFrame, {
-        card_type: TemplateCardType.ButtonInteraction,
-        source: { desc: `${remainSec}s 内有效`, desc_color: 0 },
+        card_type: TemplateCardType.TextNotice,
         main_title: {
-          title: params.title ?? '请选择',
-          desc: q.label,
+          title: params.title ?? q.label,
+          desc: params.title ? q.label : undefined,
         },
         task_id: `ask_${askId}`,
-        button_list: options.map((opt: string) => ({
-          text: { type: 'plain_text', content: opt },
-          style: 1,
-          key: `Ask|${askId}|0|${opt}`,
-        })),
+        checkbox: {
+          question_key: 'q0',
+          mode: isMulti ? 1 : 0,
+          option_list: q.options.map((opt, i) => ({ id: `opt_${i}`, text: opt, is_checked: false })),
+        },
+        submit_button: { text: `提交 (${remainSec}s)`, key: `AskSubmit|${askId}` },
       } as any);
     } catch (e: any) {
       getLogger()?.error(`sendAskForm error: ${e.message}`, e.stack);
+      this._currentAskQuestion = null;
     }
   }
 
   protected async clearAskForm(_askId: string): Promise<void> {
-    if (!this._lastCardEventFrame) return;
+    this._currentAskQuestion = null;
+    if (!this._lastAskEventFrame) return;
     try {
-      await this.wecomService.updateTemplateCard(this._lastCardEventFrame, {
+      await this.wecomService.updateTemplateCard(this._lastAskEventFrame, {
         card_type: TemplateCardType.TextNotice,
-        main_title: { title: '已提交' },
-        task_id: 'ask_cleared',
+        main_title: { title: '已完成' },
+        task_id: `ask_cleared`,
       } as any);
     } catch (e: any) {
       getLogger()?.warn(`clearAskForm error: ${e.message}`);
     } finally {
-      this._lastCardEventFrame = null;
+      this._lastAskEventFrame = null;
     }
   }
 
@@ -175,13 +172,23 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
       return;
     }
 
-    if (code === 'Ask') {
+    if (code === 'AskSubmit') {
       const askId = parts[1];
-      const qIndex = parts[2];
-      const value = parts.slice(3).join('|');
-      if (!askId) { getLogger()?.warn(`Ask event missing askId: ${eventKey}`); return; }
-      this._lastCardEventFrame = frame;
-      this.resolveAskResponse(askId, { [qIndex]: value });
+      if (!askId) { getLogger()?.warn(`Ask event missing id: ${eventKey}`); return; }
+      this._lastAskEventFrame = frame;
+      const checkboxData = (frame.body as any)?.event?.checkbox_data;
+      const selectedItems: Array<{ id: string; is_checked: boolean }> = checkboxData?.selected_items ?? [];
+      const selectedIds = selectedItems.filter(item => item.is_checked).map(item => item.id);
+      const q = this._currentAskQuestion;
+      const answers: Record<string, string | string[]> = {};
+      if (q) {
+        const selectedTexts = selectedIds.map(id => {
+          const idx = parseInt(id.replace('opt_', ''), 10);
+          return q.options[idx] ?? id;
+        });
+        answers['0'] = q.type === AskQuestionType.Checkbox ? selectedTexts : (selectedTexts[0] ?? '');
+      }
+      this.resolveAskResponse(askId, answers);
       return;
     }
 

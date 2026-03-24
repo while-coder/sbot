@@ -6,6 +6,7 @@ import { ChannelSessionRow, SchedulerType, database } from "../Core/Database";
 import { buildExecuteTool } from "./buildExecuteTool";
 import { wecomThreadId } from "sbot.commons";
 import { sessionManager } from "channel.base";
+import { AskQuestionType } from "scorpio.ai";
 
 export class WecomUserService extends WecomUserServiceBase {
 
@@ -50,6 +51,7 @@ export class WecomUserService extends WecomUserServiceBase {
             memoryId,
             workPath,
             askFn: this.ask.bind(this),
+            askSupportedTypes: [AskQuestionType.Radio, AskQuestionType.Checkbox],
         });
     }
 }
