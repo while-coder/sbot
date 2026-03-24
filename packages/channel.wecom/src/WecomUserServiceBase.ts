@@ -22,22 +22,17 @@ const getLogger = () => GlobalLoggerService.getLogger('WecomUserServiceBase.ts')
 export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
   protected provider: WecomChatProvider | undefined;
   wecomService!: WecomService;
-  protected _currentFrame!: WsFrame;
-  private _lastCardEventFrame: WsFrame | null = null;
+  private _chatid = '';
   private _approvalCardSent = false;
-  private _lastAskEventFrame: WsFrame | null = null;
   private _currentAskQuestion: (RadioQuestion | CheckboxQuestion) | null = null;
 
   async startProcessMessage(_query: string, args: WecomMessageArgs, _messageType: MessageType): Promise<string> {
-    const { wecomService, chatid, chattype, frame } = args;
+    const { wecomService, chatid, chattype } = args;
     this.wecomService = wecomService;
-    this._currentFrame = frame;
-
+    this._chatid = chatid;
     this._approvalCardSent = false;
-    this._lastCardEventFrame = null;
-    this._lastAskEventFrame = null;
     this._currentAskQuestion = null;
-    this.provider = new WecomChatProvider(wecomService, frame, chatid);
+    this.provider = new WecomChatProvider(wecomService, chatid);
     return chattype === 'single' ? `Session:${chatid}` : `Session:group:${chatid}`;
   }
 
@@ -61,50 +56,40 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
   // --- Tool Approval UI ---
 
   protected async sendApprovalUI(toolCall: AgentToolCall, id: string, remainSec: number): Promise<void> {
-    if (!this._currentFrame || this._approvalCardSent) return;
+    if (this._approvalCardSent) return;
     this._approvalCardSent = true;
     try {
-      await this.wecomService.replyTemplateCard(this._currentFrame, {
-        card_type: TemplateCardType.ButtonInteraction,
-        source: { desc: '工具调用请求', desc_color: 0 },
-        main_title: {
-          title: `工具调用: ${toolCall.name}`,
-          desc: `参数: ${JSON.stringify(toolCall.args ?? {})}`,
+      await this.wecomService.sendMessage(this._chatid, {
+        msgtype: 'template_card',
+        template_card: {
+          card_type: TemplateCardType.ButtonInteraction,
+          source: { desc: '工具调用请求', desc_color: 0 },
+          main_title: {
+            title: `工具调用: ${toolCall.name}`,
+            desc: `参数: ${JSON.stringify(toolCall.args ?? {})}`,
+          },
+          task_id: `approval_${id}`,
+          button_list: [
+            { text: { type: 'plain_text', content: `允许 (${remainSec}s)` }, style: 1, key: `Allow|${id}` },
+            { text: { type: 'plain_text', content: `始终允许 (相同参数)` }, style: 1, key: `AlwaysArgs|${id}` },
+            { text: { type: 'plain_text', content: `始终允许 (所有参数)` }, style: 1, key: `AlwaysTool|${id}` },
+            { text: { type: 'plain_text', content: `拒绝` }, style: 2, key: `Deny|${id}` },
+          ],
         },
-        task_id: `approval_${id}`,
-        button_list: [
-          { text: { type: 'plain_text', content: `允许 (${remainSec}s)` }, style: 1, key: `Allow|${id}` },
-          { text: { type: 'plain_text', content: `始终允许 (相同参数)` }, style: 1, key: `AlwaysArgs|${id}` },
-          { text: { type: 'plain_text', content: `始终允许 (所有参数)` }, style: 1, key: `AlwaysTool|${id}` },
-          { text: { type: 'plain_text', content: `拒绝` }, style: 2, key: `Deny|${id}` },
-        ],
       } as any);
     } catch (e: any) {
       getLogger()?.error(`sendApprovalUI error: ${e.message}`, e.stack);
-      this._approvalCardSent = false; // allow retry on error
+      this._approvalCardSent = false;
     }
   }
 
   protected async clearApprovalUI(_toolCallId: string): Promise<void> {
     this._approvalCardSent = false;
-    if (!this._lastCardEventFrame) return;
-    try {
-      await this.wecomService.updateTemplateCard(this._lastCardEventFrame, {
-        card_type: TemplateCardType.TextNotice,
-        main_title: { title: '已处理工具调用' },
-        task_id: `cleared`,
-      } as any);
-    } catch (e: any) {
-      getLogger()?.warn(`clearApprovalUI error: ${e.message}`);
-    } finally {
-      this._lastCardEventFrame = null;
-    }
   }
 
   // --- Ask Form ---
 
   protected async sendAskForm(params: AskToolParams, askId: string, remainSec: number): Promise<void> {
-    if (!this._currentFrame) return;
     const q = params.questions.find(
       (q): q is RadioQuestion | CheckboxQuestion =>
         q.type === AskQuestionType.Radio || q.type === AskQuestionType.Checkbox,
@@ -114,19 +99,22 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
     this._currentAskQuestion = q;
     const isMulti = q.type === AskQuestionType.Checkbox;
     try {
-      await this.wecomService.replyTemplateCard(this._currentFrame, {
-        card_type: TemplateCardType.TextNotice,
-        main_title: {
-          title: params.title ?? q.label,
-          desc: params.title ? q.label : undefined,
+      await this.wecomService.sendMessage(this._chatid, {
+        msgtype: 'template_card',
+        template_card: {
+          card_type: TemplateCardType.TextNotice,
+          main_title: {
+            title: params.title ?? q.label,
+            desc: params.title ? q.label : undefined,
+          },
+          task_id: `ask_${askId}`,
+          checkbox: {
+            question_key: 'q0',
+            mode: isMulti ? 1 : 0,
+            option_list: q.options.map((opt, i) => ({ id: `opt_${i}`, text: opt, is_checked: false })),
+          },
+          submit_button: { text: `提交 (${remainSec}s)`, key: `AskSubmit|${askId}` },
         },
-        task_id: `ask_${askId}`,
-        checkbox: {
-          question_key: 'q0',
-          mode: isMulti ? 1 : 0,
-          option_list: q.options.map((opt, i) => ({ id: `opt_${i}`, text: opt, is_checked: false })),
-        },
-        submit_button: { text: `提交 (${remainSec}s)`, key: `AskSubmit|${askId}` },
       } as any);
     } catch (e: any) {
       getLogger()?.error(`sendAskForm error: ${e.message}`, e.stack);
@@ -136,18 +124,6 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
 
   protected async clearAskForm(_askId: string): Promise<void> {
     this._currentAskQuestion = null;
-    if (!this._lastAskEventFrame) return;
-    try {
-      await this.wecomService.updateTemplateCard(this._lastAskEventFrame, {
-        card_type: TemplateCardType.TextNotice,
-        main_title: { title: '已完成' },
-        task_id: `ask_cleared`,
-      } as any);
-    } catch (e: any) {
-      getLogger()?.warn(`clearAskForm error: ${e.message}`);
-    } finally {
-      this._lastAskEventFrame = null;
-    }
   }
 
   // --- Card Event Dispatch ---
@@ -167,7 +143,6 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
         AlwaysTool: ToolCallStatus.AlwaysTool,
         Deny: ToolCallStatus.Deny,
       };
-      this._lastCardEventFrame = frame;
       this.resolveToolCall(id, statusMap[code] ?? ToolCallStatus.Deny);
       return;
     }
@@ -175,7 +150,6 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
     if (code === 'AskSubmit') {
       const askId = parts[1];
       if (!askId) { getLogger()?.warn(`Ask event missing id: ${eventKey}`); return; }
-      this._lastAskEventFrame = frame;
       const checkboxData = (frame.body as any)?.event?.checkbox_data;
       const selectedItems: Array<{ id: string; is_checked: boolean }> = checkboxData?.selected_items ?? [];
       const selectedIds = selectedItems.filter(item => item.is_checked).map(item => item.id);

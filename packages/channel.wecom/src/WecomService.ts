@@ -1,5 +1,5 @@
 import { WSClient } from '@wecom/aibot-node-sdk';
-import type { WsFrame, TextMessage, VoiceMessage, TemplateCard, SendMsgBody, EventMessageWith, TemplateCardEventData } from '@wecom/aibot-node-sdk';
+import type { WsFrame, TextMessage, VoiceMessage, SendMsgBody, EventMessageWith, TemplateCardEventData } from '@wecom/aibot-node-sdk';
 import type { ILogger } from 'scorpio.ai';
 
 export interface WecomMessageArgs {
@@ -53,19 +53,7 @@ export class WecomService {
     try { this.wsClient.disconnect(); } catch (_) {}
   }
 
-  // --- Proxy methods used by WecomChatProvider and WecomUserServiceBase ---
-
-  replyStream(frame: WsFrame, streamId: string, content: string, finish = false) {
-    return this.wsClient.replyStream(frame, streamId, content, finish);
-  }
-
-  replyTemplateCard(frame: WsFrame, templateCard: TemplateCard) {
-    return this.wsClient.replyTemplateCard(frame, templateCard);
-  }
-
-  updateTemplateCard(frame: WsFrame, templateCard: TemplateCard) {
-    return this.wsClient.updateTemplateCard(frame, templateCard);
-  }
+  // --- Proxy methods ---
 
   sendMessage(chatid: string, body: SendMsgBody) {
     return this.wsClient.sendMessage(chatid, body);

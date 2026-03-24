@@ -39,7 +39,6 @@ export class WecomUserService extends WecomUserServiceBase {
             query,
             callbacks: {
                 onMessage: this.onAgentMessage.bind(this),
-                onStreamMessage: async (msg) => { await this.provider?.setStreamMessage(msg.content ?? ''); },
                 executeTool: buildExecuteTool(this.threadId, this.executeAgentTool.bind(this)),
             },
             agentId,
