@@ -31,7 +31,7 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
     this._currentFrame = frame;
     this._approvalCardSent = false;
     this._lastCardEventFrame = null;
-    this.provider = new WecomChatProvider(wecomService, frame);
+    this.provider = new WecomChatProvider(wecomService, frame, chatid);
     return chattype === 'single' ? `Session:${chatid}` : `Session:group:${chatid}`;
   }
 

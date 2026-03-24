@@ -13,9 +13,9 @@ const { t } = useI18n()
 
 interface ChannelSessionRow {
   id: number
-  channel: string
+  channelId: string
   sessionId: string
-  name: string
+  sessionName: string
   avatar: string
   agentId: string
   memoryId: string | null
@@ -24,11 +24,11 @@ interface ChannelSessionRow {
 
 interface UserRow {
   id: number
-  userid: string
-  username: string
+  userId: string
+  userName: string
   avatar: string
-  userinfo: string
-  channel: string
+  userInfo: string
+  channelId: string
 }
 
 const { show } = useToast()
@@ -56,7 +56,7 @@ const sessionForm      = ref<{ name: string; agentId: string; memoryId: string; 
 
 function openEditSession(s: ChannelSessionRow) {
   editingSession.value = s
-  sessionForm.value = { name: s.name || '', agentId: s.agentId || '', memoryId: s.memoryId || '', workPath: s.workPath || '' }
+  sessionForm.value = { name: s.sessionName || '', agentId: s.agentId || '', memoryId: s.memoryId || '', workPath: s.workPath || '' }
 }
 
 async function saveSession() {
@@ -64,13 +64,13 @@ async function saveSession() {
   if (!s) return
   try {
     await apiFetch(`/api/channel-sessions/${s.id}`, 'PUT', {
-      name: sessionForm.value.name.trim(),
+      sessionName: sessionForm.value.name.trim(),
       agentId: sessionForm.value.agentId,
       memoryId: sessionForm.value.memoryId || null,
       workPath: sessionForm.value.workPath.trim() || null,
     })
     Object.assign(s, {
-      name: sessionForm.value.name.trim(),
+      sessionName: sessionForm.value.name.trim(),
       agentId: sessionForm.value.agentId,
       memoryId: sessionForm.value.memoryId || null,
       workPath: sessionForm.value.workPath.trim() || null,
@@ -92,8 +92,8 @@ async function loadChannelData(id: string) {
   channelLoading.value[id] = true
   try {
     const [sessRes, userRes] = await Promise.all([
-      apiFetch(`/api/channel-sessions?channel=${encodeURIComponent(id)}`),
-      apiFetch(`/api/channel-users?channel=${encodeURIComponent(id)}`),
+      apiFetch(`/api/channel-sessions?channelId=${encodeURIComponent(id)}`),
+      apiFetch(`/api/channel-users?channelId=${encodeURIComponent(id)}`),
     ])
     sessionMap.value[id] = sessRes.data || []
     userMap.value[id]    = userRes.data || []
@@ -130,7 +130,7 @@ async function removeSession(channelId: string, session: ChannelSessionRow) {
 }
 
 async function removeUser(channelId: string, user: UserRow) {
-  if (!window.confirm(t('channels.confirm_delete_user', { name: user.username || user.userid }))) return
+  if (!window.confirm(t('channels.confirm_delete_user', { name: user.userName || user.userId }))) return
   try {
     await apiFetch(`/api/channel-users/${user.id}`, 'DELETE')
     const list = userMap.value[channelId]
@@ -290,7 +290,7 @@ async function refresh() {
                           <tr v-for="s in sessionMap[id as string] || []" :key="s.id">
                             <td class="session-id-cell">
                               <img v-if="s.avatar" :src="s.avatar" class="session-avatar" />
-                              {{ s.name || s.sessionId }}
+                              {{ s.sessionName || s.sessionId }}
                             </td>
                             <td style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ s.sessionId }}</td>
                             <td>{{ agentOptions.find(a => a.id === s.agentId)?.label || s.agentId || '-' }}</td>
@@ -322,9 +322,9 @@ async function refresh() {
                           <tr v-for="u in userMap[id as string] || []" :key="u.id">
                             <td class="session-id-cell">
                               <img v-if="u.avatar" :src="u.avatar" class="session-avatar" />
-                              {{ u.username || '-' }}
+                              {{ u.userName || '-' }}
                             </td>
-                            <td style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ u.userid }}</td>
+                            <td style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ u.userId }}</td>
                             <td>
                               <div class="ops-cell">
                                 <button class="btn-outline btn-sm" @click="viewUser = u">{{ t('common.view') }}</button>
@@ -449,7 +449,7 @@ async function refresh() {
     <div v-if="viewUser" class="modal-overlay" @click.self="viewUser = null">
       <div class="modal-box wide">
         <div class="modal-header">
-          <h3>{{ t('channels.user_detail_title', { name: viewUser.username || viewUser.userid }) }}</h3>
+          <h3>{{ t('channels.user_detail_title', { name: viewUser.userName || viewUser.userId }) }}</h3>
           <button class="modal-close" @click="viewUser = null">&times;</button>
         </div>
         <div class="modal-body">
@@ -459,19 +459,19 @@ async function refresh() {
           </div>
           <div class="form-group">
             <label>{{ t('channels.user_id') }}</label>
-            <input :value="viewUser.userid" disabled />
+            <input :value="viewUser.userId" disabled />
           </div>
           <div class="form-group">
             <label>{{ t('channels.username') }}</label>
-            <input :value="viewUser.username" disabled />
+            <input :value="viewUser.userName" disabled />
           </div>
           <div class="form-group">
             <label>{{ t('channels.channel') }}</label>
-            <input :value="viewUser.channel" disabled />
+            <input :value="viewUser.channelId" disabled />
           </div>
           <div class="form-group">
             <label>{{ t('channels.user_info') }}</label>
-            <textarea :value="formatUserInfo(viewUser.userinfo)" disabled rows="16" style="font-family:monospace;font-size:12px" />
+            <textarea :value="formatUserInfo(viewUser.userInfo)" disabled rows="16" style="font-family:monospace;font-size:12px" />
           </div>
         </div>
         <div class="modal-footer">

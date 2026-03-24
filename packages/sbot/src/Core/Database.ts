@@ -37,20 +37,19 @@ export type StateRow = {
 
 export type ChannelUserRow = {
   id: number;
-  channel: string;  // 频道唯一ID
-  userid: string;   // 用户唯一ID
-  username: string; // 用户名字
-  avatar: string;   // 用户头像
-  userinfo: string; // 用户信息
-  
+  channelId: string; // 频道唯一ID
+  userId: string;    // 用户唯一ID
+  userName: string;  // 用户名字
+  avatar: string;    // 用户头像
+  userInfo: string;  // 用户信息
 };
 
 export type ChannelSessionRow = {
   id: number;
-  channel: string;   // 频道唯一ID
-  sessionId: string; // 会话唯一ID
-  name: string;      // 会话名称
-  avatar: string;    // 会话头像
+  channelId: string;   // 频道唯一ID
+  sessionId: string;   // 会话唯一ID
+  sessionName: string; // 会话名称
+  avatar: string;      // 会话头像
   agentId: string | null;   // Agent UUID
   memoryId: string | null;  // Memory UUID
   workPath: string | null;  // 工作目录路径
@@ -158,35 +157,35 @@ class Database {
           autoIncrement: true,
           comment: "自增ID",
         },
-        userid: {
+        channelId: {
+          type: DataTypes.STRING(64),
+          allowNull: false,
+          defaultValue: "",
+          comment: "频道唯一ID",
+        },
+        userId: {
           type: DataTypes.STRING(255),
           allowNull: false,
           defaultValue: "",
           comment: "用户ID",
         },
-        username: {
+        userName: {
           type: DataTypes.STRING(255),
           allowNull: false,
           defaultValue: "",
           comment: "用户名",
-        },
-        userinfo: {
-          type: DataTypes.TEXT,
-          allowNull: false,
-          defaultValue: "",
-          comment: "用户信息JSON",
-        },
-        channel: {
-          type: DataTypes.STRING(64),
-          allowNull: false,
-          defaultValue: "",
-          comment: "频道唯一ID",
         },
         avatar: {
           type: DataTypes.STRING(512),
           allowNull: false,
           defaultValue: "",
           comment: "用户头像URL",
+        },
+        userInfo: {
+          type: DataTypes.TEXT,
+          allowNull: false,
+          defaultValue: "",
+          comment: "用户信息JSON",
         },
       },
       {
@@ -205,7 +204,7 @@ class Database {
           autoIncrement: true,
           comment: "自增ID",
         },
-        channel: {
+        channelId: {
           type: DataTypes.STRING(64),
           allowNull: false,
           defaultValue: "",
@@ -215,9 +214,9 @@ class Database {
           type: DataTypes.STRING(64),
           allowNull: false,
           defaultValue: "",
-          comment: "Lark chat_id",
+          comment: "会话唯一ID",
         },
-        name: {
+        sessionName: {
           type: DataTypes.STRING(255),
           allowNull: false,
           defaultValue: "",

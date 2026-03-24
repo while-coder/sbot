@@ -22,7 +22,7 @@ interface SchedulerRow {
 
 interface ChannelSessionRow {
   id: number
-  channel: string
+  channelId: string
   sessionId: string
 }
 
@@ -165,7 +165,7 @@ function formatNextRun(ts: number | null): string {
 }
 
 function sessionLabel(s: ChannelSessionRow): string {
-  return s.sessionId ? `${s.sessionId} (${s.channel})` : String(s.id)
+  return s.sessionId ? `${s.sessionId} (${s.channelId})` : String(s.id)
 }
 
 // ── Modal open/close ──────────────────────────────────────────────────────────

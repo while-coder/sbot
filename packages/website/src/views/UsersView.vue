@@ -8,10 +8,10 @@ const { t } = useI18n()
 
 interface UserRow {
   id: number
-  userid: string
-  username: string
-  userinfo: string
-  channel: string
+  userId: string
+  userName: string
+  userInfo: string
+  channelId: string
 }
 
 const { show } = useToast()
@@ -32,7 +32,7 @@ async function load() {
 }
 
 async function remove(user: UserRow) {
-  if (!window.confirm(t('users.confirm_delete', { name: user.username || user.userid }))) return
+  if (!window.confirm(t('users.confirm_delete', { name: user.userName || user.userId }))) return
   try {
     await apiFetch(`/api/channel-users/${user.id}`, 'DELETE')
     show(t('common.deleted'))
@@ -79,8 +79,8 @@ onMounted(load)
           </tr>
           <tr v-for="u in users" :key="u.id">
             <td style="font-family:monospace;color:#9b9b9b">{{ u.id }}</td>
-            <td style="font-family:monospace">{{ u.userid }}</td>
-            <td>{{ u.username || '-' }}</td>
+            <td style="font-family:monospace">{{ u.userId }}</td>
+            <td>{{ u.userName || '-' }}</td>
             <td style="font-family:monospace;font-size:12px;color:#6b6b6b">{{ u.channel || '-' }}</td>
             <td>
               <div class="ops-cell">
@@ -96,7 +96,7 @@ onMounted(load)
     <div v-if="viewUser" class="modal-overlay" @click.self="viewUser = null">
       <div class="modal-box wide">
         <div class="modal-header">
-          <h3>{{ t('users.detail_title', { name: viewUser.username || viewUser.userid }) }}</h3>
+          <h3>{{ t('users.detail_title', { name: viewUser.userName || viewUser.userId }) }}</h3>
           <button class="modal-close" @click="viewUser = null">&times;</button>
         </div>
         <div class="modal-body">
@@ -106,11 +106,11 @@ onMounted(load)
           </div>
           <div class="form-group">
             <label>{{ t('users.user_id') }}</label>
-            <input :value="viewUser.userid" disabled />
+            <input :value="viewUser.userId" disabled />
           </div>
           <div class="form-group">
             <label>{{ t('users.username') }}</label>
-            <input :value="viewUser.username" disabled />
+            <input :value="viewUser.userName" disabled />
           </div>
           <div class="form-group">
             <label>{{ t('users.channel') }}</label>
@@ -118,7 +118,7 @@ onMounted(load)
           </div>
           <div class="form-group">
             <label>{{ t('users.user_info') }}</label>
-            <textarea :value="formatUserInfo(viewUser.userinfo)" disabled rows="16" style="font-family:monospace;font-size:12px" />
+            <textarea :value="formatUserInfo(viewUser.userInfo)" disabled rows="16" style="font-family:monospace;font-size:12px" />
           </div>
         </div>
         <div class="modal-footer">

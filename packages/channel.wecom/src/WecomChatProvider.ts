@@ -21,7 +21,7 @@ export class WecomChatProvider {
   private tools: Record<string, ProviderToolMessage> = {};
   private finished = false;
 
-  constructor(private service: WecomService, private frame: WsFrame) {
+  constructor(private service: WecomService, private frame: WsFrame | null, private chatid?: string) {
     this.streamId = generateReqId('stream');
   }
 
@@ -70,7 +70,11 @@ export class WecomChatProvider {
     this.finished = true;
     const text = this.buildText();
     try {
-      await this.service.replyStream(this.frame, this.streamId, text, true);
+      if (this.frame) {
+        await this.service.replyStream(this.frame, this.streamId, text, true);
+      } else if (this.chatid) {
+        await this.service.sendMessage(this.chatid, { msgtype: 'markdown', markdown: { content: text } });
+      }
     } catch (e: any) {
       getLogger()?.error(`finish stream error: ${e.message}`, e.stack);
     }
@@ -82,7 +86,7 @@ export class WecomChatProvider {
   }
 
   private async updateStream(finish: boolean): Promise<void> {
-    if (this.finished) return;
+    if (this.finished || !this.frame) return;
     const text = this.buildText();
     try {
       await this.service.replyStream(this.frame, this.streamId, text, finish);

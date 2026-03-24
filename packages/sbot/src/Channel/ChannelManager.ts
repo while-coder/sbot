@@ -65,36 +65,39 @@ async function checkForUpdate(sendMessage: (msg: string) => Promise<void>): Prom
 
 // ── DB 辅助函数 ───────────────────────────────────────────────────────────────
 
-async function handleReceiveMessage(
-    channelId: string,
-    userId: string,
-    username: string,
-    userinfo: string,
-    sessionId: string,
-    sessionName: string,
-    processMessage: (dbSessionId: number) => Promise<void>,
-    sendUpdate: (msg: string) => Promise<void>,
-    userAvatar?: string,
-    sessionAvatar?: string,
-): Promise<void> {
-    const userData: Record<string, any> = { username, userinfo };
+interface ReceiveMessageContext {
+    channelId: string;
+    userId: string;
+    userName: string;
+    userInfo: string;
+    sessionId: string;
+    sessionName: string;
+    processMessage: (dbSessionId: number) => Promise<void>;
+    sendUpdate: (msg: string) => Promise<void>;
+    userAvatar?: string;
+    sessionAvatar?: string;
+}
+
+async function handleReceiveMessage(ctx: ReceiveMessageContext): Promise<void> {
+    const { channelId, userId, userName, userInfo, sessionId, sessionName, processMessage, sendUpdate, userAvatar, sessionAvatar } = ctx;
+    const userData: Record<string, any> = { userName, userInfo };
     if (userAvatar !== undefined) userData.avatar = userAvatar;
     const [, userCreated] = await database.findOrCreate<ChannelUserRow>(database.channelUser, {
-        where: { userid: userId, channel: channelId },
+        where: { userId, channelId },
         defaults: userData,
     });
     if (!userCreated) {
-        await database.update(database.channelUser, userData, { where: { channel: channelId, userid: userId } });
+        await database.update(database.channelUser, userData, { where: { channelId, userId } });
     }
 
-    const sessionData: Record<string, any> = { name: sessionName };
+    const sessionData: Record<string, any> = { sessionName };
     if (sessionAvatar !== undefined) sessionData.avatar = sessionAvatar;
     const [dbSession, sessionCreated] = await database.findOrCreate<ChannelSessionRow>(database.channelSession, {
-        where: { channel: channelId, sessionId },
-        defaults: { sessionData },
+        where: { channelId, sessionId },
+        defaults: { ...sessionData, agentId: null, memoryId: null },
     });
     if (!sessionCreated) {
-        await database.update(database.channelSession, sessionData, { where: { channel: channelId, sessionId } });
+        await database.update(database.channelSession, sessionData, { where: { channelId, sessionId } });
     }
 
     await processMessage((dbSession as any).id);
@@ -220,13 +223,15 @@ export class ChannelManager {
             logger: logger,
             onReceiveMessage: async (userId: string, userInfo: any, args: SlackMessageArgs, query: string) => {
                 if (!await filterEvent(`slack_message_${args.eventId}`)) return;
-                await handleReceiveMessage(
+                await handleReceiveMessage({
                     channelId, userId,
-                    userInfo?.real_name ?? userInfo?.name ?? "", JSON.stringify(userInfo ?? {}),
-                    args.channel, args.channel,
-                    dbSessionId => userService.onReceiveSlackMessage(query, args, userInfo ?? {}, channelId, dbSessionId),
-                    msg => service.sendMessage(args.channel, msg).then(() => {}),
-                );
+                    userName: userInfo?.real_name ?? userInfo?.name ?? "",
+                    userInfo: JSON.stringify(userInfo ?? {}),
+                    sessionId: args.channel,
+                    sessionName: args.channel,
+                    processMessage: (dbSessionId: number) => userService.onReceiveSlackMessage(query, args, userInfo ?? {}, channelId, dbSessionId),
+                    sendUpdate: (msg: string) => service.sendMessage(args.channel, msg).then(() => {}),
+                });
             },
             onTriggerAction: async (_userId: string, args: SlackActionArgs) => {
                 // NOTE: userService.slack is a singleton; concurrent tool approvals from
@@ -253,19 +258,23 @@ export class ChannelManager {
             logger: logger,
             userIdType: LarkUserIdType.UnionId,
             onRecevieMessage: async (userId: string, userInfo: any, chatInfo: any, args: LarkMessageArgs, query: string) => {
-                if (!await filterEvent(`lark_message_${args.event_id}`)) return;
+                if (args.event_id && !await filterEvent(`lark_message_${args.event_id}`)) return;
                 const sessionName = chatInfo ? (chatInfo?.chat_mode == 'p2p' ? `p2p_${userId}` : `${chatInfo?.chat_mode}_${chatInfo?.name}`) : '';
-                await handleReceiveMessage(
-                    channelId, userId,
-                    userInfo?.name ?? '', JSON.stringify(userInfo ?? {}),
-                    args.chat_id, sessionName,
-                    dbSessionId => userService.onReceiveLarkMessage(query, args, userInfo ?? {}, channelId, dbSessionId),
-                    msg => service.sendMarkdownMessage(LarkReceiveIdType.ChatId, args.chat_id, msg).then(() => {}),
-                    userInfo?.avatar?.avatar_origin, chatInfo?.avatar || '',
-                );
+                await handleReceiveMessage({
+                    channelId,
+                    userId,
+                    userName: userInfo?.name ?? '',
+                    userInfo: JSON.stringify(userInfo ?? {}),
+                    sessionId: args.chat_id,
+                    sessionName,
+                    processMessage: (dbSessionId: number) => userService.onReceiveLarkMessage(query, args, userInfo ?? {}, channelId, dbSessionId),
+                    sendUpdate: (msg: string) => service.sendMarkdownMessage(LarkReceiveIdType.ChatId, args.chat_id, msg).then(() => {}),
+                    userAvatar: userInfo?.avatar?.avatar_origin,
+                    sessionAvatar: chatInfo?.avatar || '',
+                });
             },
             onTriggerAction: async (_userId: string, _userInfo: any, _chatInfo: any, args: LarkActionArgs) => {
-                if (!await filterEvent(`lark_action_${args.event_id}`)) return;
+                if (args.event_id && !await filterEvent(`lark_action_${args.event_id}`)) return;
                 await userService.lark.onTriggerAction(args.chat_id, args.code, args.data, args.form_value);
             },
         });
@@ -285,17 +294,21 @@ export class ChannelManager {
             botId: channel.botId,
             secret: channel.secret,
             logger: logger,
-            filterEvent,
             onReceiveMessage: async (userId: string, args: WecomMessageArgs, query: string) => {
-                await handleReceiveMessage(
-                    channelId, userId,
-                    userId, JSON.stringify({ userid: userId }),
-                    args.chatid, args.chatid,
-                    dbSessionId => userService.onReceiveWecomMessage(query, args, { userid: userId }, channelId, dbSessionId),
-                    msg => service.sendMessage(args.chatid, { msgtype: 'markdown', markdown: { content: msg } }).then(() => {}),
-                );
+                if (args.msgid && !await filterEvent(`wecom_message_${args.msgid}`)) return;
+                await handleReceiveMessage({
+                    channelId,
+                    userId,
+                    userName: userId,
+                    userInfo: JSON.stringify({ userId: userId }),
+                    sessionId: args.chatid,
+                    sessionName: args.chatid,
+                    processMessage: (dbSessionId: number) => userService.onReceiveWecomMessage(query, args, { userId: userId }, channelId, dbSessionId),
+                    sendUpdate: (msg: string) => service.sendMessage(args.chatid, { msgtype: 'markdown', markdown: { content: msg } }).then(() => {}),
+                });
             },
             onTriggerAction: async (userId: string, args: WecomActionArgs) => {
+                if (args.msgid && !await filterEvent(`wecom_action_${args.msgid}`)) return;
                 await userService.wecom.onTriggerAction(userId, args);
             },
         });

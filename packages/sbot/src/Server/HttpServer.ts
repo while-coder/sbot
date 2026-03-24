@@ -970,8 +970,8 @@ class HttpServer {
     // ===== Users & Channel Sessions =====
     private registerUserRoutes(app: express.Application) {
         app.get('/api/channel-users', api(async req => {
-            const channel = req.query.channel as string | undefined;
-            const where = channel ? { channel } : undefined;
+            const channelId = req.query.channelId as string | undefined;
+            const where = channelId ? { channelId } : undefined;
             return await database.findAll(database.channelUser, { where });
         }));
 
@@ -982,16 +982,16 @@ class HttpServer {
         }));
 
         app.get('/api/channel-sessions', api(async req => {
-            const channel = req.query.channel as string | undefined;
-            const where = channel ? { channel } : undefined;
+            const channelId = req.query.channelId as string | undefined;
+            const where = channelId ? { channelId } : undefined;
             return await database.findAll(database.channelSession, { where });
         }));
 
         app.put('/api/channel-sessions/:id', api(async req => {
             const id = parseInt(req.params.id as string, 10);
             if (isNaN(id)) { const e: any = new Error('Invalid id'); e.status = 400; throw e; }
-            const { name, agentId, memoryId, workPath } = req.body;
-            await database.update(database.channelSession, { name, agentId, memoryId, workPath: workPath || null }, { where: { id } });
+            const { sessionName, agentId, memoryId, workPath } = req.body;
+            await database.update(database.channelSession, { sessionName, agentId, memoryId, workPath: workPath || null }, { where: { id } });
         }));
 
         app.delete('/api/channel-sessions/:id', api(async req => {

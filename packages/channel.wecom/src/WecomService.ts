@@ -6,6 +6,7 @@ export interface WecomMessageArgs {
   wecomService: WecomService;
   chatid: string;         // single: userid, group: chatid
   chattype: 'single' | 'group';
+  msgid: string;
   frame: WsFrame;
 }
 
@@ -13,6 +14,7 @@ export interface WecomActionArgs {
   chatid: string;
   eventKey: string;
   taskId?: string;
+  msgid: string;
   frame: WsFrame;
 }
 
@@ -20,8 +22,6 @@ export interface WecomServiceOptions {
   botId: string;
   secret: string;
   logger?: ILogger;
-  /** Return true to process, false to skip (dedup by msgid) */
-  filterEvent: (msgid: string) => Promise<boolean>;
   onReceiveMessage: (userId: string, args: WecomMessageArgs, query: string) => Promise<void>;
   onTriggerAction: (userId: string, args: WecomActionArgs) => Promise<void>;
 }
@@ -29,13 +29,11 @@ export interface WecomServiceOptions {
 export class WecomService {
   private wsClient: WSClient;
   private logger?: ILogger;
-  private filterEvent: WecomServiceOptions['filterEvent'];
   private onReceiveMessage: WecomServiceOptions['onReceiveMessage'];
   private onTriggerAction: WecomServiceOptions['onTriggerAction'];
 
   constructor(options: WecomServiceOptions) {
     this.logger = options.logger;
-    this.filterEvent = options.filterEvent;
     this.onReceiveMessage = options.onReceiveMessage;
     this.onTriggerAction = options.onTriggerAction;
 
@@ -106,8 +104,6 @@ export class WecomService {
 
   private async handleTextMessage(frame: WsFrame<TextMessage>) {
     const body = frame.body!;
-    if (!await this.filterEvent(body.msgid)) return;
-
     const query = body.text?.content?.trim() ?? '';
     if (!query) return;
 
@@ -117,14 +113,13 @@ export class WecomService {
       wecomService: this,
       chatid,
       chattype: body.chattype,
+      msgid: body.msgid,
       frame,
     }, query);
   }
 
   private async handleVoiceMessage(frame: WsFrame<VoiceMessage>) {
     const body = frame.body!;
-    if (!await this.filterEvent(body.msgid)) return;
-
     const query = body.voice?.content?.trim() ?? '';
     if (!query) return;
 
@@ -134,14 +129,13 @@ export class WecomService {
       wecomService: this,
       chatid,
       chattype: body.chattype,
+      msgid: body.msgid,
       frame,
     }, query);
   }
 
   private async handleCardEvent(frame: WsFrame<EventMessageWith<TemplateCardEventData>>) {
     const body = frame.body!;
-    if (!await this.filterEvent(body.msgid)) return;
-
     const userId = body.from.userid;
     const eventKey: string = body.event?.event_key ?? '';
     const taskId: string | undefined = body.event?.task_id;
@@ -150,6 +144,7 @@ export class WecomService {
       chatid,
       eventKey,
       taskId,
+      msgid: body.msgid,
       frame,
     });
   }
