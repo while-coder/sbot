@@ -72,7 +72,7 @@ Open `http://localhost:5500` after starting sbot. Use the sidebar to:
 - **Long-term memory** — Full extract → evaluate → compress pipeline with vector-embedding semantic search
 - **MCP support** — Connect external tool servers via stdio or HTTP/SSE transport
 - **Multiple channels** — Web UI, CLI, Lark/Feishu, REST API, WebSocket
-- **Built-in tools** — Shell execution, file system, Python/PowerShell inline execution, cron scheduler
+- **Built-in tools** — Shell execution, file system, archive operations, binary file read, Python/PowerShell inline execution, cron scheduler
 - **Skills** — Installable prompt modules for brainstorming, TDD, code review, multi-agent coordination, and more
 - **Flexible config** — Global, per-directory, and per-session overrides from a single `settings.json`
 
@@ -130,7 +130,7 @@ Four backends for storing conversation history:
 ## Channels
 
 ### Lark / Feishu
-Enterprise IM integration with event deduplication, interactive card support, and per-user context preservation.
+Enterprise IM integration with event deduplication, interactive card support, per-user context preservation, and file/image send and receive.
 
 ### Web UI
 Browser-based chat interface with real-time streaming, attachment upload, and agent/session switching.
@@ -158,6 +158,12 @@ Terminal UI with interactive setup wizard and real-time streaming output.
 - Search with regex (grep)
 - Find files by pattern (glob)
 - Directory listing, create, remove, move, copy
+- Read binary files
+
+**Archive**
+- Compress and extract archive files
+- List archive contents
+- Read files directly from within archives
 
 **Scheduler**
 - Standard 6-field cron expressions (`second minute hour day month weekday`), persisted across restarts
@@ -190,7 +196,7 @@ Skills are self-contained prompt modules that extend agent capabilities for spec
 - Scoped to individual agents
 - Discovered and installed from remote skill hubs (Clawhub, skills.sh, and others)
 
-Bundled skills include workflows for brainstorming, planning, debugging, TDD, code review, multi-agent coordination, and more.
+Bundled skills include workflows for brainstorming, planning, debugging, TDD, code review, multi-agent coordination, and more. A built-in `find-skills` skill lets agents discover available skills at runtime.
 
 ---
 
