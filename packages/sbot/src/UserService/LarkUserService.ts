@@ -7,6 +7,7 @@ import { buildExecuteTool } from "./buildExecuteTool";
 import { larkThreadId } from "sbot.commons";
 import { sessionManager } from "channel.base";
 import { AskQuestionType } from "scorpio.ai";
+import { createAskAgentTool } from "../Agent/AgentRunner";
 
 export class LarkUserService extends LarkUserServiceBase {
 
@@ -50,13 +51,11 @@ export class LarkUserService extends LarkUserServiceBase {
             agentId,
             saverId: channel.saver,
             threadId,
-            schedulerType: SchedulerType.Channel,
-            schedulerId: String(dbSessionId),
+            scheduler: { schedulerType: SchedulerType.Channel, schedulerId: String(dbSessionId) },
             extraInfo,
             memoryId,
             workPath,
-            askFn: this.ask.bind(this),
-            askSupportedTypes: [AskQuestionType.Radio, AskQuestionType.Checkbox, AskQuestionType.Input],
+            agentTools: [createAskAgentTool(this.ask.bind(this), [AskQuestionType.Radio, AskQuestionType.Checkbox, AskQuestionType.Input])],
         });
     }
 }

@@ -1,6 +1,6 @@
 import "reflect-metadata";
 import { SlackMessageArgs, SlackUserServiceBase } from "channel.slack";
-import { AgentRunner } from "../Agent/AgentRunner";
+import { AgentRunner, createAskAgentTool } from "../Agent/AgentRunner";
 import { config } from "../Core/Config";
 import { ChannelSessionRow, SchedulerType, database } from "../Core/Database";
 import { buildExecuteTool } from "./buildExecuteTool";
@@ -44,11 +44,10 @@ export class SlackUserService extends SlackUserServiceBase {
       agentId,
       saverId: channel.saver,
       threadId: this.threadId,
-      schedulerType: SchedulerType.Channel,
-      schedulerId: String(dbSessionId),
+      scheduler: { schedulerType: SchedulerType.Channel, schedulerId: String(dbSessionId) },
       extraInfo,
       memoryId,
-      askFn: this.ask.bind(this),
+      agentTools: [createAskAgentTool(this.ask.bind(this))],
     });
   }
 }

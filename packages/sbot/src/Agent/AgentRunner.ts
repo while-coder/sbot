@@ -12,16 +12,40 @@ import {
     T_ExtractorSystemPrompt, T_EvaluatorSystemPrompt, T_CompressorPromptTemplate,
     T_MemorySystemPromptTemplate,
     IModelService,
-    type AskUserFn, AskQuestionType,
+    createAskTool, type AskUserFn, AskQuestionType,
 } from "scorpio.ai";
-import { config, SaverType } from "../Core/Config";
 import { loadPrompt } from "../Core/PromptLoader";
+import { config, SaverType } from "../Core/Config";
 import { SchedulerType } from "../Core/Database";
 import { AgentFactory } from "./AgentFactory";
 import { LoggerService } from "../Core/LoggerService";
 import { sessionManager } from "channel.base";
 
 const logger = LoggerService.getLogger('AgentRunner.ts');
+
+/** 动态注册到 Agent 的工具描述 */
+export interface AgentTool {
+    /** 工具唯一标识，用于 registerToolFactory 的 key */
+    name: string;
+    /** 工具工厂函数，返回工具实例列表 */
+    factory: () => Promise<any[]> | any[];
+}
+
+/** 创建 ask 交互工具（封装 createAskTool + prompt 加载） */
+export function createAskAgentTool(askFn: AskUserFn, supportedTypes?: AskQuestionType[]): AgentTool {
+    return {
+        name: '__ask__',
+        factory: async () => [createAskTool(askFn, loadPrompt('tools/ask.txt'), supportedTypes)],
+    };
+}
+
+/** 调度器上下文，标识本次运行归属的调度器 */
+export interface AgentSchedulerContext {
+    /** 调度器类型（Channel / Session / Directory） */
+    schedulerType: SchedulerType;
+    /** 调度器实例 ID（channelSessionId / sessionId / workPath 等） */
+    schedulerId: string;
+}
 
 export interface AgentRunOptions {
     /** 用户输入的消息 */
@@ -40,20 +64,15 @@ export interface AgentRunOptions {
     memoryId?: string;
     /** Agent 文件操作根目录，不传则默认为 assets/{threadId} */
     workPath?: string;
-    /** 用户交互询问函数，由具体 UserService 实现并传入 */
-    askFn?: AskUserFn;
-    /** 限制 ask 工具支持的控件类型，不传则支持全部类型 */
-    askSupportedTypes?: AskQuestionType[];
-    // --- scheduler 独有字段 ---
-    /** 调度器类型（Channel / Session / Directory） */
-    schedulerType: SchedulerType;
-    /** 调度器实例 ID（channelSessionId / sessionId / workPath 等） */
-    schedulerId: string;
+    /** 动态注册到 Agent 的工具列表 */
+    agentTools?: AgentTool[];
+    /** 调度器上下文 */
+    scheduler: AgentSchedulerContext;
 }
 
 export class AgentRunner {
     static async run(options: AgentRunOptions): Promise<void> {
-        const { query, callbacks, agentId, saverId, threadId, schedulerType, schedulerId, extraInfo, memoryId, askFn, askSupportedTypes } = options;
+        const { query, callbacks, agentId, saverId, threadId, scheduler: { schedulerType, schedulerId }, extraInfo, memoryId, agentTools } = options;
         if (!agentId.trim())   throw new Error("agent not specified");
         if (!saverId.trim())   throw new Error("saver not specified");
         if (!threadId.trim())  throw new Error("threadId not specified");
@@ -95,7 +114,7 @@ export class AgentRunner {
             await AgentRunner.registerMemoryService(container, memoryId);
             await AgentRunner.registerSaverService(container, saverId, threadId);
 
-            const agent = await AgentFactory.create({ agentId, container, extraPrompts, askFn, askSupportedTypes });
+            const agent = await AgentFactory.create({ agentId, container, extraPrompts, agentTools });
             try {
                 await agent.stream(query, callbacks, cancellationToken);
             } finally {

@@ -11,8 +11,8 @@ import {
     T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc,
     T_SkillSystemPromptTemplate, T_SkillToolReadDesc, T_SkillToolListDesc, T_SkillToolExecDesc,
     type CreateAgentFn,
-    createAskTool, type AskUserFn, AskQuestionType,
 } from "scorpio.ai";
+import { type AgentTool } from "./AgentRunner";
 import { config, AgentMode, SingleAgentEntry, ReactAgentEntry } from "../Core/Config";
 import { loadPrompt } from "../Core/PromptLoader";
 import { globalAgentToolService } from "./GlobalAgentToolService";
@@ -27,10 +27,8 @@ export interface AgentCreateOptions {
     container: ServiceContainer;
     /** 注入到 system prompt 的额外上下文片段 */
     extraPrompts: string[];
-    /** 用户交互询问函数，由具体 UserService 实现并传入 */
-    askFn?: AskUserFn;
-    /** 限制 ask 工具支持的控件类型，不传则支持全部类型 */
-    askSupportedTypes?: AskQuestionType[];
+    /** 动态注册到 Agent 的工具列表 */
+    agentTools?: AgentTool[];
 }
 
 /**
@@ -40,20 +38,20 @@ export interface AgentCreateOptions {
 export class AgentFactory {
 
     static async create(options: AgentCreateOptions): Promise<AgentServiceBase> {
-        const { agentId, container, extraPrompts, askFn, askSupportedTypes } = options;
+        const { agentId, container, extraPrompts, agentTools } = options;
         const agentEntry = config.getAgent(agentId);
 
         if (!container.isRegistered(IAgentSaverService)) container.registerSingleton(IAgentSaverService, AgentMemorySaver);
         const { mcp, skills } = agentEntry;
         await this.registerSkillService(container, agentId, skills);
-        await this.registerToolService(container, agentId, mcp, askFn, askSupportedTypes);
+        await this.registerToolService(container, agentId, mcp, agentTools);
 
         const systemPrompts = [loadPrompt('system/init.txt'), ...extraPrompts];
         if (agentEntry.systemPrompt)
             systemPrompts.push(agentEntry.systemPrompt);
 
         const createAgentFn: CreateAgentFn = (name, subContainer) =>
-            AgentFactory.create({ agentId: name, container: subContainer, extraPrompts, askFn });
+            AgentFactory.create({ agentId: name, container: subContainer, extraPrompts, agentTools });
         const agentType = agentEntry.type || AgentMode.Single;
 
         switch (agentType) {
@@ -92,8 +90,7 @@ export class AgentFactory {
         container: ServiceContainer,
         agentName: string,
         mcp?: string[],
-        askFn?: AskUserFn,
-        askSupportedTypes?: AskQuestionType[],
+        agentTools?: AgentTool[],
     ): Promise<void> {
         container.registerSingleton(IAgentToolService, AgentToolService);
         const toolService = await container.resolve<AgentToolService>(IAgentToolService);
@@ -101,8 +98,10 @@ export class AgentFactory {
             const mcpNames = [...mcp];
             toolService.registerToolFactory('__global_mcp__', () => globalAgentToolService.getToolsFrom(mcpNames));
         }
-        if (askFn) {
-            toolService.registerToolFactory('__ask__', async () => [createAskTool(askFn, loadPrompt('tools/ask.txt'), askSupportedTypes)]);
+        if (agentTools) {
+            for (const tool of agentTools) {
+                toolService.registerToolFactory(tool.name, () => Promise.resolve(tool.factory()));
+            }
         }
         toolService.registerMcpServers(config.getAgentMcpServers(agentName));
     }
