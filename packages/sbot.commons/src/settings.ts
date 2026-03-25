@@ -11,9 +11,10 @@ export enum AgentMode {
 }
 
 export enum ChannelType {
-  Lark = "lark",
+  Lark  = "lark",
   Slack = "slack",
   Wecom = "wecom",
+  Web   = "web",
 }
 
 export interface Model {
@@ -112,8 +113,8 @@ export interface SessionConfig {
 export interface ChannelConfig {
   /** 显示名称（可选，便于识别） */
   name?: string
-  /** 频道类型 */
-  type: ChannelType
+  /** 频道类型（不含 web，web 频道通过 HTTP 接口直接接入） */
+  type: Exclude<ChannelType, ChannelType.Web>
   /** Lark App ID */
   appId?: string
   /** Lark App Secret */

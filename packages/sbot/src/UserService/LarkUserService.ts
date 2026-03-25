@@ -1,13 +1,12 @@
 import "reflect-metadata";
-import { LarkMessageArgs, LarkUserServiceBase } from "channel.lark";
-import { AgentRunner } from "../Agent/AgentRunner";
+import { LarkMessageArgs, LarkUserServiceBase, LarkReceiveIdType } from "channel.lark";
+import { AgentRunner, createAskAgentTool, createSendFileAgentTool } from "../Agent/AgentRunner";
 import { config } from "../Core/Config";
 import { ChannelSessionRow, SchedulerType, database } from "../Core/Database";
 import { buildExecuteTool } from "./buildExecuteTool";
-import { larkThreadId } from "sbot.commons";
+import { larkThreadId, ChannelType } from "sbot.commons";
 import { sessionManager } from "channel.base";
 import { AskQuestionType } from "scorpio.ai";
-import { createAskAgentTool } from "../Agent/AgentRunner";
 
 export class LarkUserService extends LarkUserServiceBase {
 
@@ -19,7 +18,7 @@ export class LarkUserService extends LarkUserServiceBase {
         const channelId = args?.channelId as string;
         const channel = channelId ? config.getChannel(channelId) : undefined;
         if (!channel) throw new Error(`Channel "${channelId}" not found`);
-        const { chat_id } = args as LarkMessageArgs;
+        const { chat_id, larkService } = args as LarkMessageArgs;
 
         const userInfo = args?.userInfo;
         const dbSessionId: number = args?.dbSessionId;
@@ -55,7 +54,12 @@ export class LarkUserService extends LarkUserServiceBase {
             extraInfo,
             memoryId,
             workPath,
-            agentTools: [createAskAgentTool(this.ask.bind(this), [AskQuestionType.Radio, AskQuestionType.Checkbox, AskQuestionType.Input])],
+            agentTools: [
+                createAskAgentTool(ChannelType.Lark, this.ask.bind(this), [AskQuestionType.Radio, AskQuestionType.Checkbox, AskQuestionType.Input]),
+                createSendFileAgentTool(ChannelType.Lark, async (filePath, fileName) => {
+                    await larkService.sendFileMessage(LarkReceiveIdType.ChatId, chat_id, filePath, fileName);
+                }),
+            ],
         });
     }
 }

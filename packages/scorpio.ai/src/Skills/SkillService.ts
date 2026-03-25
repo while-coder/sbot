@@ -18,6 +18,10 @@ import {
 
 const execAsync = promisify(exec);
 
+export const READ_SKILL_FILE_TOOL_NAME = 'read_skill_file';
+export const EXECUTE_SKILL_SCRIPT_TOOL_NAME = 'execute_skill_script';
+export const LIST_SKILL_FILES_TOOL_NAME = 'list_skill_files';
+
 /**
  * Skill 服务
  * 管理技能的加载、查询和访问
@@ -140,7 +144,7 @@ export class SkillService implements ISkillService {
 
     // Read skill file tool
     const readSkillFileTool = new DynamicStructuredTool({
-      name: "read_skill_file",
+      name: READ_SKILL_FILE_TOOL_NAME,
       description: this.toolReadDesc,
       schema: z.object({
         skillName: z.string().describe("Skill name (kebab-case)"),
@@ -181,7 +185,7 @@ export class SkillService implements ISkillService {
 
     // Execute skill script tool
     const executeSkillScriptTool = new DynamicStructuredTool({
-      name: "execute_skill_script",
+      name: EXECUTE_SKILL_SCRIPT_TOOL_NAME,
       description: this.toolExecDesc!,
       schema: z.object({
         skillName: z.string().describe("Skill name (kebab-case)"),
@@ -252,7 +256,7 @@ export class SkillService implements ISkillService {
 
     // List skill files tool
     const listSkillFilesTool = new DynamicStructuredTool({
-      name: "list_skill_files",
+      name: LIST_SKILL_FILES_TOOL_NAME,
       description: this.toolListDesc!,
       schema: z.object({
         skillName: z.string().describe("Skill name (kebab-case)"),

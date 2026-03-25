@@ -4,7 +4,7 @@ import { AgentRunner, createAskAgentTool } from "../Agent/AgentRunner";
 import { config } from "../Core/Config";
 import { ChannelSessionRow, SchedulerType, database } from "../Core/Database";
 import { buildExecuteTool } from "./buildExecuteTool";
-import { slackThreadId } from "sbot.commons";
+import { slackThreadId, ChannelType } from "sbot.commons";
 
 export class SlackUserService extends SlackUserServiceBase {
   async processAIMessage(query: string, args: any): Promise<void> {
@@ -47,7 +47,7 @@ export class SlackUserService extends SlackUserServiceBase {
       scheduler: { schedulerType: SchedulerType.Channel, schedulerId: String(dbSessionId) },
       extraInfo,
       memoryId,
-      agentTools: [createAskAgentTool(this.ask.bind(this))],
+      agentTools: [createAskAgentTool(ChannelType.Slack, this.ask.bind(this))],
     });
   }
 }

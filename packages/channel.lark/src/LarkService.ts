@@ -101,7 +101,7 @@ export class LarkService {
    * @param file 本地文件路径或 Buffer
    * @param fileName 文件名（含扩展名）
    */
-  async sendFileMessage(receiveIdType: LarkReceiveIdType, receiveId: string, file: string | Buffer, fileName: string) {
+  async sendFileMessage(receiveIdType: LarkReceiveIdType, receiveId: string, file: string | Buffer, fileName?: string) {
     const fileKey = await this.uploadFile(file, fileName);
     return await this.sendMessage(receiveIdType, receiveId, "file", JSON.stringify({ file_key: fileKey }));
   }
@@ -112,7 +112,7 @@ export class LarkService {
    * @param file 本地文件路径或 Buffer
    * @param fileName 文件名（含扩展名）
    */
-  async replyFileMessage(messageId: string, file: string | Buffer, fileName: string) {
+  async replyFileMessage(messageId: string, file: string | Buffer, fileName?: string) {
     const fileKey = await this.uploadFile(file, fileName);
     return await this.replyMessage(messageId, "file", false, JSON.stringify({ file_key: fileKey }));
   }
@@ -266,7 +266,7 @@ export class LarkService {
    * @returns 飞书 file_key
    * https://open.feishu.cn/document/server-docs/im-v1/file/create
    */
-  async uploadFile(file: string | Buffer, fileName: string): Promise<string> {
+  async uploadFile(file: string | Buffer, fileName?: string): Promise<string> {
     let fileBuffer: Buffer;
     try {
       if (typeof file === 'string') {
@@ -274,8 +274,10 @@ export class LarkService {
           throw new Error(`File not found: ${file}`);
         }
         fileBuffer = fs.readFileSync(file);
+        fileName ??= path.basename(file);
       } else {
         fileBuffer = file;
+        if (!fileName) throw new Error('fileName is required when file is a Buffer');
       }
 
       const token = await this.getTenantAccessToken();
@@ -287,11 +289,11 @@ export class LarkService {
         },
       }, Lark.withTenantToken(token)) as any;
 
-      if (!response?.data?.file_key) {
-        throw new Error(`Lark API error: ${response?.msg || 'unknown error'}`);
+      if (!response?.file_key) {
+        throw new Error(`Lark API error: ${JSON.stringify(response)}`);
       }
 
-      return response.data.file_key;
+      return response.file_key;
     } catch (error: any) {
       this.logger?.error(`Failed to upload file to Lark: ${error.message}\n${error.stack}`);
       throw error;

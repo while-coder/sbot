@@ -5,7 +5,7 @@ import { config } from '../Core/Config';
 import { SchedulerType } from '../Core/Database';
 import { buildExecuteTool } from './buildExecuteTool';
 import { sessionManager } from 'channel.base';
-import { dirThreadId, sessionThreadId, WebChatEvent, WebChatEventType } from 'sbot.commons';
+import { dirThreadId, sessionThreadId, WebChatEvent, WebChatEventType, ChannelType } from 'sbot.commons';
 
 export { WebChatEvent, WebChatEventType } from 'sbot.commons';
 
@@ -104,7 +104,7 @@ export abstract class BaseWebUserService {
                 },
                 agentId, saverId, threadId, scheduler, extraInfo, memoryId,
                 workPath,
-                agentTools: [createAskAgentTool(async (params: AskToolParams) => {
+                agentTools: [createAskAgentTool(ChannelType.Web, async (params: AskToolParams) => {
                     const { id: askId, promise } = sessionManager.enterAsk(threadId, params, this.getAskTimeout());
                     this.emit({ type: WebChatEventType.Ask, id: askId, threadId, title: params.title, questions: params.questions as any });
                     return promise;

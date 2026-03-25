@@ -1,4 +1,7 @@
 import os from 'os';
+import path from 'path';
+import { z } from 'zod';
+import { DynamicStructuredTool } from '@langchain/core/tools';
 import {
     ServiceContainer,
     IAgentCallback,
@@ -17,6 +20,7 @@ import {
 import { loadPrompt } from "../Core/PromptLoader";
 import { config, SaverType } from "../Core/Config";
 import { SchedulerType } from "../Core/Database";
+import { ChannelType } from "sbot.commons";
 import { AgentFactory } from "./AgentFactory";
 import { LoggerService } from "../Core/LoggerService";
 import { sessionManager } from "channel.base";
@@ -31,11 +35,38 @@ export interface AgentTool {
     factory: () => Promise<any[]> | any[];
 }
 
+/** 发送文件的函数签名，由具体渠道实现并传入 */
+export type SendFileFn = (filePath: string, fileName: string) => Promise<void>;
+
+export const SEND_FILE_TOOL_NAME = '_send_file';
+
+/** 创建 send_file 工具 */
+export function createSendFileAgentTool(channelType: ChannelType, sendFileFn: SendFileFn): AgentTool {
+    const description = loadPrompt(`channels/${channelType}/send_file.txt`);
+    return {
+        name: "__send_file__",
+        factory: () => [new DynamicStructuredTool({
+            name: SEND_FILE_TOOL_NAME,
+            description,
+            schema: z.object({
+                file_path: z.string().describe('要发送的本地文件路径'),
+                file_name: z.string().optional().describe('文件名（含扩展名），默认取文件路径的 basename'),
+            }),
+            func: async ({ file_path, file_name }) => {
+                const name = file_name ?? path.basename(file_path);
+                await sendFileFn(file_path, name);
+                return `文件 "${name}" 已发送`;
+            },
+        })],
+    };
+}
+
 /** 创建 ask 交互工具（封装 createAskTool + prompt 加载） */
-export function createAskAgentTool(askFn: AskUserFn, supportedTypes?: AskQuestionType[]): AgentTool {
+export function createAskAgentTool(channelType: ChannelType, askFn: AskUserFn, supportedTypes?: AskQuestionType[]): AgentTool {
+    const promptPath = `channels/${channelType}/ask.txt`;
     return {
         name: '__ask__',
-        factory: async () => [createAskTool(askFn, loadPrompt('tools/ask.txt'), supportedTypes)],
+        factory: async () => [createAskTool(askFn, loadPrompt(promptPath), supportedTypes)],
     };
 }
 

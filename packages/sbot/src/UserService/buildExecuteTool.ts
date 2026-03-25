@@ -1,10 +1,20 @@
 import fs from "fs";
-import { AgentToolCall, ToolApproval, ASK_TOOL_NAME, TASK_TOOL_NAME } from "scorpio.ai";
+import { AgentToolCall, ToolApproval, ASK_TOOL_NAME, TASK_TOOL_NAME, READ_SKILL_FILE_TOOL_NAME, EXECUTE_SKILL_SCRIPT_TOOL_NAME, LIST_SKILL_FILES_TOOL_NAME } from "scorpio.ai";
+import { SEND_FILE_TOOL_NAME } from "../Agent/AgentRunner";
 import { config } from "../Core/Config";
 import { sessionManager, SessionStatus } from "channel.base";
 
 /** 内部工具名，直接放行无需用户确认 */
-const INTERNAL_TOOLS = new Set([ASK_TOOL_NAME, TASK_TOOL_NAME]);
+const INTERNAL_TOOLS = new Set([
+    ASK_TOOL_NAME,
+    TASK_TOOL_NAME,
+    // SkillService 工具
+    READ_SKILL_FILE_TOOL_NAME,
+    EXECUTE_SKILL_SCRIPT_TOOL_NAME,
+    LIST_SKILL_FILES_TOOL_NAME,
+    // 渠道内置工具
+    SEND_FILE_TOOL_NAME,
+]);
 
 export function buildExecuteTool(
     threadId: string,

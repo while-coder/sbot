@@ -7,7 +7,7 @@
 export { ISkillService } from './ISkillService';
 
 // ===== 实现类 =====
-export { SkillService } from './SkillService';
+export { SkillService, READ_SKILL_FILE_TOOL_NAME, EXECUTE_SKILL_SCRIPT_TOOL_NAME, LIST_SKILL_FILES_TOOL_NAME } from './SkillService';
 
 // ===== 类型定义 =====
 export { Skill, SkillMetadata } from './types';

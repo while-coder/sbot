@@ -4,7 +4,7 @@ import { AgentRunner } from "../Agent/AgentRunner";
 import { config } from "../Core/Config";
 import { ChannelSessionRow, SchedulerType, database } from "../Core/Database";
 import { buildExecuteTool } from "./buildExecuteTool";
-import { wecomThreadId } from "sbot.commons";
+import { wecomThreadId, ChannelType } from "sbot.commons";
 import { sessionManager } from "channel.base";
 import { AskQuestionType } from "scorpio.ai";
 import { createAskAgentTool } from "../Agent/AgentRunner";
@@ -49,7 +49,7 @@ export class WecomUserService extends WecomUserServiceBase {
             extraInfo,
             memoryId,
             workPath,
-            agentTools: [createAskAgentTool(this.ask.bind(this), [AskQuestionType.Radio, AskQuestionType.Checkbox])],
+            agentTools: [createAskAgentTool(ChannelType.Wecom, this.ask.bind(this), [AskQuestionType.Radio, AskQuestionType.Checkbox])],
         });
     }
 }
