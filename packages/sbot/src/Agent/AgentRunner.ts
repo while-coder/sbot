@@ -49,13 +49,13 @@ export function createSendFileAgentTool(channelType: ChannelType, sendFileFn: Se
             name: SEND_FILE_TOOL_NAME,
             description,
             schema: z.object({
-                file_path: z.string().describe('要发送的本地文件路径'),
-                file_name: z.string().optional().describe('文件名（含扩展名），默认取文件路径的 basename'),
+                file_path: z.string().describe('Absolute path of the local file to send'),
+                file_name: z.string().optional().describe('File name with extension; defaults to the basename of file_path'),
             }),
             func: async ({ file_path, file_name }) => {
                 const name = file_name ?? path.basename(file_path);
                 await sendFileFn(file_path, name);
-                return `文件 "${name}" 已发送`;
+                return `File "${name}" sent successfully`;
             },
         })],
     };
