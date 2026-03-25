@@ -4,13 +4,15 @@ import { createCommandTools } from "../Tools/Command/index.js";
 import { createFileSystemTools } from "../Tools/FileSystem/index.js";
 import { createSchedulerTools } from "../Tools/Scheduler/index.js";
 import { createWebFetchTools } from "../Tools/Web/index.js";
+import { createArchiveTools } from '../Tools/Archive/index.js';
 
 export enum BuiltinProvider {
     Command = 'builtin_command',
     FileSystem = 'builtin_filesystem',
     Scheduler = 'builtin_scheduler',
     WebFetch = 'builtin_webfetch',
-    
+    Archive = 'builtin_archive',
+
     Playwright = 'builtin_playwright',
     ChromeDevTools = 'builtin_chrome-devtools-mcp',
     Markitdown = 'builtin_markitdown',
@@ -24,6 +26,7 @@ export function initGlobalAgentToolService() {
     globalAgentToolService.registerToolFactory(BuiltinProvider.FileSystem, async () => createFileSystemTools(), '文件系统操作');
     globalAgentToolService.registerToolFactory(BuiltinProvider.Scheduler, async () => createSchedulerTools(), '定时任务管理');
     globalAgentToolService.registerToolFactory(BuiltinProvider.WebFetch, async () => createWebFetchTools(), 'Web 内容抓取');
+    globalAgentToolService.registerToolFactory(BuiltinProvider.Archive, async () => createArchiveTools(), 'ZIP 压缩/解压');
     globalAgentToolService.registerMcpServers({
         [BuiltinProvider.Playwright]: {
             "command": "npx.cmd",
@@ -62,5 +65,6 @@ export async function refreshBuiltinTools() {
         BuiltinProvider.FileSystem,
         BuiltinProvider.Scheduler,
         BuiltinProvider.WebFetch,
+        BuiltinProvider.Archive,
     );
 }

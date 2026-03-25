@@ -1,0 +1,4 @@
+Extract a zip archive to a directory.
+- zipPath must be an absolute path to an existing .zip file.
+- outputDir must be an absolute path; it is created if it does not exist.
+- If overwrite=false (default), existing files in outputDir are not replaced.

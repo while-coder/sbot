@@ -1,0 +1,4 @@
+Read the text content of a single file inside a zip archive without extracting it.
+- zipPath must be an absolute path to an existing .zip file.
+- entryPath is the file path inside the zip (e.g. "src/main.ts").
+- encoding defaults to "utf-8". Use "base64" for binary files.

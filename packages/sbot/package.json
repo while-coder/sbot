@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "@langchain/core": "catalog:",
+    "adm-zip": "^0.5.16",
     "axios": "catalog:",
     "channel.base": "workspace:*",
     "channel.lark": "workspace:*",
@@ -53,6 +54,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@types/adm-zip": "^0.5.8",
     "@types/diff": "^7.0.2",
     "@types/express": "^5.0.6",
     "@types/node": "catalog:",

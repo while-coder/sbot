@@ -1,0 +1,5 @@
+Create a zip archive from one or more source files or directories.
+- All source paths must be absolute.
+- dest must be an absolute path ending in .zip.
+- If dest already exists and overwrite=false (default), returns an error.
+- Directories are added recursively.
