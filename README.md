@@ -11,6 +11,8 @@
 
 ## Quick Start
 
+### npm
+
 ```bash
 npm install -g @qingfeng346/sbot
 sbot
@@ -23,6 +25,22 @@ If port 5500 is already in use, change it with:
 sbot port 3000        # save port and exit
 sbot --port 3000      # save port and start
 ```
+
+---
+
+### Docker
+
+```bash
+docker pull qingfeng346/sbot
+docker run -d \
+  -p 5500:5500 \
+  -v ~/.sbot:/root/.sbot \
+  --name sbot \
+  qingfeng346/sbot
+# Open http://localhost:5500
+```
+
+Configuration and data are persisted in `~/.sbot` on the host.
 
 ---
 

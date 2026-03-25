@@ -11,6 +11,8 @@
 
 ## 快速开始
 
+### npm
+
 ```bash
 npm install -g @qingfeng346/sbot
 sbot
@@ -23,6 +25,22 @@ sbot
 sbot port 3000        # 保存端口并退出
 sbot --port 3000      # 保存端口并启动
 ```
+
+---
+
+### Docker
+
+```bash
+docker pull qingfeng346/sbot
+docker run -d \
+  -p 5500:5500 \
+  -v ~/.sbot:/root/.sbot \
+  --name sbot \
+  qingfeng346/sbot
+# 打开 http://localhost:5500
+```
+
+配置和数据持久化在宿主机的 `~/.sbot` 目录中。
 
 ---
 

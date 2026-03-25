@@ -1,14 +1,20 @@
 ### New Features
 
-- **Interrupt Support**: Agents can now be interrupted mid-execution; interrupt flow integrated into both Web and Lark channels
-- **Unified Ask Flow**: Standardized ask interaction handling; Lark now supports ask interactions with improved state machine logic
-- **Tool Auto-Approval**: Added support for configuring automatic tool execution approval
-- **CLI Mode**: New command-line interaction mode with `clear` command support
-- **Update Detection**: Added automatic version update detection
-- **User Avatars**: Persist Lark user avatars
-- **Improved Prompts**: Refined system prompt and scheduler tool instructions; refactored UserService and AgentRunner internals
+- **Archive Tools**: New built-in tools for archive file operations — compress, extract, list contents, and read files within archives
+- **Binary File Read Tool**: Added tool for reading binary files in agent workflows
+- **Lark File/Image Sending**: Lark channel now supports sending images and files to users
+- **Lark File/Image Receiving**: Lark channel now supports receiving images, files, and other media from users
+- **find-skills Skill**: Built-in skill for discovering available skills in the skills directory
+- **Docker Support**: Added containerized deployment support
+
+### Improvements
+
+- **Prompt Refinements**: Refined channel-specific prompts for ask and send-file interactions
+- **UserService Refactoring**: Unified and cleaned up user service across all channels
+- **AgentRunner**: Cleaned up internal agent execution flow and improved prompt handling
+- **Skills Directory**: Added directory-level description support for skills discovery
 
 ### Bug Fixes
 
-- Fixed tool argument parsing
-- Adjusted default tool execution timeout
+- Fixed channel registration issue
+- Fixed website client display
