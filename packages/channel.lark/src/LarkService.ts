@@ -94,6 +94,29 @@ export class LarkService {
     return await this.sendMessage(receiveIdType, receiveId, "interactive", this.buildMarkdownContent(text, header));
   }
 
+  /**
+   * 上传文件并发送文件消息
+   * @param receiveIdType 接收方 ID 类型
+   * @param receiveId 接收方 ID
+   * @param file 本地文件路径或 Buffer
+   * @param fileName 文件名（含扩展名）
+   */
+  async sendFileMessage(receiveIdType: LarkReceiveIdType, receiveId: string, file: string | Buffer, fileName: string) {
+    const fileKey = await this.uploadFile(file, fileName);
+    return await this.sendMessage(receiveIdType, receiveId, "file", JSON.stringify({ file_key: fileKey }));
+  }
+
+  /**
+   * 上传文件并回复文件消息
+   * @param messageId 被回复的消息 ID
+   * @param file 本地文件路径或 Buffer
+   * @param fileName 文件名（含扩展名）
+   */
+  async replyFileMessage(messageId: string, file: string | Buffer, fileName: string) {
+    const fileKey = await this.uploadFile(file, fileName);
+    return await this.replyMessage(messageId, "file", false, JSON.stringify({ file_key: fileKey }));
+  }
+
   async replyMessage(message_id: string, msg_type: string, reply_in_thread: boolean, content: string) {
     try {
       const response = await this.larkClient.im.message.reply({
@@ -276,44 +299,6 @@ export class LarkService {
   }
 
   /**
-   * 下载飞书图片，流式写入本地文件
-   * @param imageKey 图片 key（img_xxx）
-   * @param savePath 保存到本地的文件路径
-   * https://open.feishu.cn/document/server-docs/im-v1/image/get
-   */
-  async downloadImage(imageKey: string, savePath: string): Promise<void> {
-    try {
-      const token = await this.getTenantAccessToken();
-      const response = await this.larkClient.im.v1.image.get({
-        path: { image_key: imageKey },
-      }, Lark.withTenantToken(token)) as any;
-      await this.streamToFile(response, savePath);
-    } catch (error: any) {
-      this.logger?.error(`Failed to download Lark image: ${error.message}\n${error.stack}`);
-      throw error;
-    }
-  }
-
-  /**
-   * 下载飞书文件，流式写入本地文件
-   * @param fileKey 文件 key
-   * @param savePath 保存到本地的文件路径
-   * https://open.feishu.cn/document/server-docs/im-v1/file/get
-   */
-  async downloadFile(fileKey: string, savePath: string): Promise<void> {
-    try {
-      const token = await this.getTenantAccessToken();
-      const response = await this.larkClient.im.v1.file.get({
-        path: { file_key: fileKey },
-      }, Lark.withTenantToken(token)) as any;
-      await this.streamToFile(response, savePath);
-    } catch (error: any) {
-      this.logger?.error(`Failed to download Lark file: ${error.message}\n${error.stack}`);
-      throw error;
-    }
-  }
-
-  /**
    * 下载消息内的图片资源（用于 post/image 消息中的 image_key）
    * @param messageId 消息 ID
    * @param imageKey 图片 key（来自消息内容）
@@ -366,20 +351,6 @@ export class LarkService {
     const filePath = path.join(os.tmpdir(), `lark_${msg.file_key}${ext}`);
     await this.downloadMessageFile(messageId, msg.file_key, 'file', filePath);
     return `<attachment name="${file_name}">${filePath}</attachment>`;
-  }
-
-  private extractFolderContent(_messageId: string, msg: any): string {
-    return `[文件夹: ${msg.file_name ?? msg.file_key}]`;
-  }
-
-  private streamToFile(stream: NodeJS.ReadableStream, filePath: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const writer = fs.createWriteStream(filePath);
-      stream.pipe(writer);
-      writer.on('finish', resolve);
-      writer.on('error', reject);
-      stream.on('error', reject);
-    });
   }
 
   /**
