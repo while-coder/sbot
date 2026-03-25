@@ -1,4 +1,4 @@
-FROM node:24-alpine
+FROM node:24
 
 EXPOSE 5500
 VOLUME [ "/root/.sbot" ]
