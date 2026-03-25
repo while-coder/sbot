@@ -1,6 +1,6 @@
 {
   "name": "@qingfeng346/sbot",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "Self-hosted AI agent server. Open-source alternative to OpenAI, Claude, and Gemini interfaces. Run LLM agents locally with MCP tool support, memory, multi-channel integrations (Lark/Feishu), and a built-in web UI.",
   "license": "MIT",
   "repository": {
