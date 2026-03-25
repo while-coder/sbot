@@ -15,7 +15,11 @@
     "debug:website": "pnpm run build:deps && pnpm --filter sbot-website run debug",
 
     "debug:cli": "pnpm run build:deps && pnpm --filter sbot-cli run debug",
-    "publish:cli": "pnpm run build:deps && pnpm --filter sbot-cli publish --no-git-checks"
+    "publish:cli": "pnpm run build:deps && pnpm --filter sbot-cli publish --no-git-checks",
+
+    "docker:build": "pnpm run build && node packages/sbot/scripts/docker.js build",
+    "docker:save": "node packages/sbot/scripts/docker.js save",
+    "docker": "pnpm run docker:build && pnpm run docker:save"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
