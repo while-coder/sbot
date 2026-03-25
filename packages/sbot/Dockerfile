@@ -8,9 +8,13 @@ ENV EXEC_DOCKER=true
 
 WORKDIR /app
 
-COPY . .
+# 先拷贝安装脚本（让基础依赖层尽量可缓存）
+COPY install_base.sh ./
+RUN sed -i 's/\r$//' install_base.sh && chmod +x install_base.sh
+RUN ./install_base.sh
 
-WORKDIR /app/dist
+# 再拷贝源码（避免源码变更导致基础安装层缓存失效）
+COPY . .
 
 RUN npm install --omit=dev
 
