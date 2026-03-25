@@ -25,6 +25,7 @@ export function getSkillsDirsMap(): Record<string, string> {
         '内置': path.join(__dirname, '../../skills'),
         'Agents': path.join(os.homedir(), '.agents/skills'),
         'Claude Code': path.join(os.homedir(), '.claude/skills'),
+        'SkillHub': path.join(os.homedir(), 'skills'),
         '全局': config.getSkillsPath(),
     };
 }
