@@ -8,9 +8,7 @@ import { ChannelMessageMixin } from "./ChannelMessageMixin";
 
 export class WecomUserService extends ChannelMessageMixin(WecomUserServiceBase) {
 
-    protected supportsStreamMessages(): boolean {
-        return false;
-    }
+    protected async onAgentStreamMessage(_message: any): Promise<void> {}
 
     protected onAbortAction(): void {
         if (this.threadId) sessionManager.abort(this.threadId);

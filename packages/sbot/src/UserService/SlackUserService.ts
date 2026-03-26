@@ -22,7 +22,4 @@ export class SlackUserService extends ChannelMessageMixin(SlackUserServiceBase) 
     return [createAskAgentTool(ChannelType.Slack, this.ask.bind(this))];
   }
 
-  protected getWorkPath(_dbSession: any): string | undefined {
-    return undefined;
-  }
 }

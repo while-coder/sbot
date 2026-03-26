@@ -30,9 +30,7 @@ export function ChannelMessageMixin<TBase extends ChannelBase>(Base: TBase) {
                 query,
                 callbacks: {
                     onMessage: this.onAgentMessage.bind(this),
-                    ...(this.supportsStreamMessages() && this.onAgentStreamMessage
-                        ? { onStreamMessage: this.onAgentStreamMessage.bind(this) }
-                        : {}),
+                    onStreamMessage: this.onAgentStreamMessage.bind(this),
                     executeTool: buildExecuteTool(this.threadId, this.executeAgentTool.bind(this)),
                 },
                 agentId,
@@ -41,24 +39,15 @@ export function ChannelMessageMixin<TBase extends ChannelBase>(Base: TBase) {
                 scheduler: { schedulerType: SchedulerType.Channel, schedulerId: String(dbSessionId) },
                 extraInfo: this.buildExtraInfo(userInfo),
                 memoryId,
-                workPath: this.getWorkPath(dbSession),
+                workPath: dbSession?.workPath || undefined,
                 agentTools: this.buildAgentTools(args),
             });
         }
-
         protected abstract buildThreadId(channelId: string, args: any): string;
         protected abstract buildExtraInfo(userInfo: any): string;
         protected abstract buildAgentTools(args: any): any[];
-
-        protected onAgentStreamMessage?(message: any): Promise<void>;
-
-        /** Wecom overrides to false (no streaming) */
-        protected supportsStreamMessages(): boolean { return true; }
-
-        /** Override to return undefined for channels that don't support workPath */
-        protected getWorkPath(dbSession: any): string | undefined {
-            return dbSession?.workPath || undefined;
-        }
+        
+        protected async onAgentStreamMessage(_message: any): Promise<void> {}
     }
     return ChannelMessage;
 }
