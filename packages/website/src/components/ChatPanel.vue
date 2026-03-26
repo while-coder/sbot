@@ -129,6 +129,24 @@ function isImage(att: Attachment) {
   return att.type.startsWith('image/')
 }
 
+// ── Paste ──
+async function onPaste(e: ClipboardEvent) {
+  if (!props.showAttachments) return
+  const items = Array.from(e.clipboardData?.items ?? [])
+  const fileItems = items.filter(i => i.kind === 'file')
+  if (fileItems.length === 0) return
+  e.preventDefault()
+  for (const item of fileItems) {
+    const file = item.getAsFile()
+    if (!file) continue
+    const name = file.name && file.name !== 'image.png' ? file.name
+      : `paste-${Date.now()}.${file.type.split('/')[1] || 'bin'}`
+    const namedFile = new File([file], name, { type: file.type })
+    if (attachments.value.find(a => a.name === namedFile.name)) continue
+    attachments.value.push(await readFile(namedFile))
+  }
+}
+
 // ── Input ──
 function onKeydown(e: KeyboardEvent) {
   if (e.key === 'Enter' && !e.shiftKey) {
@@ -258,6 +276,7 @@ defineExpose({ scrollToBottom })
           :placeholder="t('chat.input_placeholder')"
           rows="3"
           @keydown="onKeydown"
+          @paste="onPaste"
           @input="autoResize"
           style="resize:none;width:100%"
         />

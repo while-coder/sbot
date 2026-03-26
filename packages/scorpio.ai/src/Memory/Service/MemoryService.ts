@@ -72,7 +72,6 @@ export class MemoryService implements IMemoryService {
     userMessage: string,
     assistantMessage?: string[],
   ): Promise<void> {
-    this.logger?.info(`------------------memoryMode ${this.memoryMode} - ${userMessage}`)
     if (this.memoryMode === MemoryMode.READ_ONLY) return;
 
     const includeAI = this.memoryMode === MemoryMode.HUMAN_AND_AI;
@@ -80,7 +79,6 @@ export class MemoryService implements IMemoryService {
     const facts = includeAI
       ? await this.extractor.extract(userMessage, assistantMessage)
       : await this.extractor.extract(userMessage);
-    this.logger?.info(`------------------fact ${facts.length}`)
     if (facts.length === 0) return;
     const embeddings = await this.embeddings.embedDocuments(facts.map(f => f.content));
     for (let i = 0; i < facts.length; i++) {
