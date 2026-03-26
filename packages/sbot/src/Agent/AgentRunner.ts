@@ -91,8 +91,8 @@ export interface AgentRunOptions {
     threadId: string;
     /** 注入 environment 块的额外信息（用户信息等特定渠道独有字段） */
     extraInfo: string;
-    /** 记忆服务配置 ID，不传则不启用记忆 */
-    memoryId?: string;
+    /** 记忆服务配置 ID 列表，不传则不启用记忆 */
+    memories?: string[];
     /** Agent 文件操作根目录，不传则默认为 assets/{threadId} */
     workPath?: string;
     /** 动态注册到 Agent 的工具列表 */
@@ -103,7 +103,7 @@ export interface AgentRunOptions {
 
 export class AgentRunner {
     static async run(options: AgentRunOptions): Promise<void> {
-        const { query, callbacks, agentId, saverId, threadId, scheduler: { schedulerType, schedulerId }, extraInfo, memoryId, agentTools } = options;
+        const { query, callbacks, agentId, saverId, threadId, scheduler: { schedulerType, schedulerId }, extraInfo, memories, agentTools } = options;
         if (!agentId.trim())   throw new Error("agent not specified");
         if (!saverId.trim())   throw new Error("saver not specified");
         if (!threadId.trim())  throw new Error("threadId not specified");
@@ -142,7 +142,7 @@ export class AgentRunner {
 
             const container = new ServiceContainer();
             container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
-            await AgentRunner.registerMemoryService(container, memoryId);
+            await AgentRunner.registerMemoryServices(container, memories ?? []);
             await AgentRunner.registerSaverService(container, saverId, threadId);
 
             const agent = await AgentFactory.create({ agentId, container, extraPrompts, agentTools });
@@ -157,9 +157,9 @@ export class AgentRunner {
     }
 
     static async createMemoryService(memoryId: string): Promise<IMemoryService> {
-        const container = new ServiceContainer();
-        await AgentRunner.registerMemoryService(container, memoryId);
-        return container.resolve<IMemoryService>(IMemoryService);
+        const service = await AgentRunner.buildMemoryService(memoryId);
+        if (!service) throw new Error(`Memory config "${memoryId}" not found or missing embedding`);
+        return service;
     }
 
     static async createMemoryDatabase(memoryId: string): Promise<IMemoryDatabase> {
@@ -183,46 +183,37 @@ export class AgentRunner {
         return container.resolve<IAgentSaverService>(IAgentSaverService);
     }
 
-    private static async registerMemoryService(
-        container: ServiceContainer,
-        memoryId?: string,
-    ): Promise<void> {
-        if (container.isRegistered(IMemoryService)) return
-        if (!memoryId) return
+    private static async buildMemoryService(memoryId: string): Promise<IMemoryService | null> {
         const memoryConfig = config.getMemory(memoryId);
-        if (!memoryConfig?.embedding) return
+        if (!memoryConfig?.embedding) return null;
 
-        const evaluatorModel = await config.getModelService(memoryConfig.evaluator);
-        if (evaluatorModel) {
-            container.registerWithArgs(IMemoryEvaluator, MemoryEvaluator, {
-                [IModelService]: evaluatorModel,
-                [T_EvaluatorSystemPrompt]: loadPrompt('memory/evaluator.txt'),
-            });
+        const [evaluatorModel, extractorModel, compressorModel, embedding] = await Promise.all([
+            config.getModelService(memoryConfig.evaluator),
+            config.getModelService(memoryConfig.extractor),
+            config.getModelService(memoryConfig.compressor),
+            config.getEmbeddingService(memoryConfig.embedding, true),
+        ]);
+
+        const sub = new ServiceContainer();
+        if (evaluatorModel) sub.registerWithArgs(IMemoryEvaluator, MemoryEvaluator, { [IModelService]: evaluatorModel, [T_EvaluatorSystemPrompt]: loadPrompt('memory/evaluator.txt') });
+        if (extractorModel) sub.registerWithArgs(IMemoryExtractor, MemoryExtractor, { [IModelService]: extractorModel, [T_ExtractorSystemPrompt]: loadPrompt('memory/extractor.txt') });
+        if (compressorModel) sub.registerWithArgs(IMemoryCompressor, MemoryCompressor, { [IModelService]: compressorModel, [T_CompressorPromptTemplate]: loadPrompt('memory/compressor.txt') });
+        sub.registerWithArgs(IMemoryDatabase, MemorySqliteDatabase, { [T_ThreadId]: memoryId, [T_DBPath]: config.getMemoryPath(memoryId) });
+        sub.registerWithArgs(IMemoryService, MemoryService, { [IEmbeddingService]: embedding, [T_MaxMemoryAgeDays]: memoryConfig.maxAgeDays, [T_MemoryMode]: memoryConfig.mode });
+
+        return sub.resolve<IMemoryService>(IMemoryService);
+    }
+
+    private static async registerMemoryServices(
+        container: ServiceContainer,
+        memories: string[],
+    ): Promise<void> {
+        const results = await Promise.all(memories.map(id => AgentRunner.buildMemoryService(id)));
+        const services = results.filter((s): s is IMemoryService => s !== null);
+        if (services.length > 0) {
+            container.registerInstance(IMemoryService, services);
+            container.registerInstance(T_MemorySystemPromptTemplate, loadPrompt('memory/system.txt'));
         }
-        const extractorModel = await config.getModelService(memoryConfig.extractor);
-        if (extractorModel) {
-            container.registerWithArgs(IMemoryExtractor, MemoryExtractor, {
-                [IModelService]: extractorModel,
-                [T_ExtractorSystemPrompt]: loadPrompt('memory/extractor.txt'),
-            });
-        }
-        const compressorModel = await config.getModelService(memoryConfig.compressor);
-        if (compressorModel) {
-            container.registerWithArgs(IMemoryCompressor, MemoryCompressor, {
-                [IModelService]: compressorModel,
-                [T_CompressorPromptTemplate]: loadPrompt('memory/compressor.txt'),
-            });
-        }
-        container.registerWithArgs(IMemoryDatabase, MemorySqliteDatabase, {
-            [T_ThreadId]: memoryId,
-            [T_DBPath]: config.getMemoryPath(memoryId),
-        });
-        container.registerWithArgs(IMemoryService, MemoryService, {
-            [IEmbeddingService]: await config.getEmbeddingService(memoryConfig.embedding, true),
-            [T_MaxMemoryAgeDays]: memoryConfig.maxAgeDays,
-            [T_MemoryMode]: memoryConfig.mode,
-        });
-        container.registerInstance(T_MemorySystemPromptTemplate, loadPrompt('memory/system.txt'));
     }
 
     private static async registerSaverService(

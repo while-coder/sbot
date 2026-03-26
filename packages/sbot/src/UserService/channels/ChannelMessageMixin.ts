@@ -21,9 +21,10 @@ export function ChannelMessageMixin<TBase extends ChannelBase>(Base: TBase) {
             const dbSession = await database.findByPk<ChannelSessionRow>(database.channelSession, dbSessionId);
 
             const agentId  = dbSession?.agentId  || channel.agent;
-            const memoryId = dbSession?.useChannelMemories
-                ? channel.memories[0]
-                : (parseMemories(dbSession?.memories)[0] ?? channel.memories[0]);
+            const sessionMemories = parseMemories(dbSession?.memories);
+            const memories = dbSession?.useChannelMemories
+                ? channel.memories
+                : (sessionMemories.length > 0 ? sessionMemories : channel.memories);
 
             this.threadId = this.buildThreadId(channelId, args);
             await AgentRunner.run({
@@ -38,7 +39,7 @@ export function ChannelMessageMixin<TBase extends ChannelBase>(Base: TBase) {
                 threadId: this.threadId,
                 scheduler: { schedulerType: SchedulerType.Channel, schedulerId: String(dbSessionId) },
                 extraInfo: this.buildExtraInfo(userInfo),
-                memoryId,
+                memories,
                 workPath: dbSession?.workPath || undefined,
                 agentTools: this.buildAgentTools(args),
             });

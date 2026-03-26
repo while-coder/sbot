@@ -67,14 +67,14 @@ export abstract class BaseWebUserService {
         this.emit({ type: WebChatEventType.Human, content: query });
 
         const workPath = args?.workPath as string | undefined;
-        let threadId: string, agentId: string, saverId: string, memoryId: string | undefined;
+        let threadId: string, agentId: string, saverId: string, memories: string[] | undefined;
         let scheduler: AgentSchedulerContext, extraInfo: string;
 
         if (workPath) {
             const cfg = config.getDirectoryConfig(workPath);
             if (!cfg) throw new Error(`Directory "${workPath}" has no agent configured`);
             threadId = dirThreadId(workPath);
-            agentId = cfg.agent; saverId = cfg.saver; memoryId = cfg.memories?.[0];
+            agentId = cfg.agent; saverId = cfg.saver; memories = cfg.memories;
             scheduler = { schedulerType: SchedulerType.Directory, schedulerId: workPath };
             extraInfo = '';
         } else {
@@ -82,7 +82,7 @@ export abstract class BaseWebUserService {
             const session = sessionId ? config.getSession(sessionId) : undefined;
             if (!session) throw new Error(`Session "${sessionId}" not found`);
             threadId = sessionThreadId(sessionId);
-            agentId = session.agent; saverId = session.saver; memoryId = session.memories?.[0];
+            agentId = session.agent; saverId = session.saver; memories = session.memories;
             scheduler = { schedulerType: SchedulerType.Session, schedulerId: sessionId };
             extraInfo = '';
         }
@@ -100,7 +100,7 @@ export abstract class BaseWebUserService {
                         return promise;
                     }),
                 },
-                agentId, saverId, threadId, scheduler, extraInfo, memoryId,
+                agentId, saverId, threadId, scheduler, extraInfo, memories,
                 workPath,
                 agentTools: [createAskAgentTool(ChannelType.Web, async (params: AskToolParams) => {
                     const { id: askId, promise } = sessionManager.enterAsk(threadId, params, this.getAskTimeout());
