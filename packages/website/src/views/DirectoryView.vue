@@ -9,7 +9,7 @@ import type { ChatMessage } from '@/types'
 import DirectoryModal from './modals/DirectoryModal.vue'
 import SaverViewModal from './modals/SaverViewModal.vue'
 import MemoryViewModal from './modals/MemoryViewModal.vue'
-import MultiCheckbox from '@/components/MultiCheckbox.vue'
+import MultiSelect from '@/components/MultiSelect.vue'
 import ChatArea from '@/components/ChatArea.vue'
 import { dirThreadId, MessageRole } from 'sbot.commons'
 import type { WebChatEvent } from 'sbot.commons'
@@ -274,7 +274,7 @@ onUnmounted(() => { wsOffMessage(handleWsEvent); chatAreaRef.value?.cleanup() })
 
             <!-- Memory -->
             <label class="toolbar-label">{{ t('common.memory') }}</label>
-            <MultiCheckbox
+            <MultiSelect
               :model-value="activeCfg.memories || []"
               :options="memoryOptions"
               compact

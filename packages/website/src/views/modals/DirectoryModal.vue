@@ -5,7 +5,7 @@ import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 import PathPickerModal from './PathPickerModal.vue'
-import MultiCheckbox from '@/components/MultiCheckbox.vue'
+import MultiSelect from '@/components/MultiSelect.vue'
 
 const { t } = useI18n()
 
@@ -156,7 +156,7 @@ defineExpose({ open })
         </div>
         <div class="form-group">
           <label>{{ t('common.memory') }}</label>
-          <MultiCheckbox v-model="form.memories" :options="memoryOptions" />
+          <MultiSelect v-model="form.memories" :options="memoryOptions" />
         </div>
       </div>
       <div class="modal-footer">

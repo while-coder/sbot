@@ -164,6 +164,7 @@ export default {
     confirm_delete_session: '确定要删除会话 "{name}" 吗?',
     confirm_delete_user: '确定要删除用户 "{name}" 吗?',
     confirm_delete: '确定要删除频道 "{name}" 吗?',
+    use_channel_agent: '使用渠道 Agent',
     use_channel_memories: '使用渠道记忆',
     use_channel_memories_hint: '启用后使用所属渠道配置的记忆',
   },

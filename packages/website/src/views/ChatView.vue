@@ -7,7 +7,7 @@ import { useToast } from '@/composables/useToast'
 import { useChatSocket } from '@/composables/useChatSocket'
 import SaverViewModal from './modals/SaverViewModal.vue'
 import MemoryViewModal from './modals/MemoryViewModal.vue'
-import MultiCheckbox from '@/components/MultiCheckbox.vue'
+import MultiSelect from '@/components/MultiSelect.vue'
 import NewSessionModal from './modals/NewSessionModal.vue'
 import ChatArea from '@/components/ChatArea.vue'
 import { sessionThreadId } from 'sbot.commons'
@@ -284,7 +284,7 @@ onUnmounted(() => {
 
           <!-- Memory -->
           <label class="toolbar-label">{{ t('common.memory') }}</label>
-          <MultiCheckbox
+          <MultiSelect
             :model-value="effectiveMemories"
             :options="memoryOptions"
             compact

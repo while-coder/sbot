@@ -7,7 +7,7 @@ import { useToast } from '@/composables/useToast'
 import type { ChannelConfig } from '@/types'
 import SaverViewModal from './modals/SaverViewModal.vue'
 import PathPickerModal from './modals/PathPickerModal.vue'
-import MultiCheckbox from '@/components/MultiCheckbox.vue'
+import MultiSelect from '@/components/MultiSelect.vue'
 import { larkThreadId, slackThreadId, wecomThreadId } from 'sbot.commons'
 
 const { t } = useI18n()
@@ -424,7 +424,7 @@ async function refresh() {
           </div>
           <div class="form-group">
             <label>{{ t('common.memory') }}</label>
-            <MultiCheckbox v-model="form.memories" :options="memoryOptions" />
+            <MultiSelect v-model="form.memories" :options="memoryOptions" />
           </div>
         </div>
         <div class="modal-footer">
@@ -452,7 +452,7 @@ async function refresh() {
           <div class="form-group">
             <label>{{ t('common.agent') }}</label>
             <select v-model="sessionForm.agentId">
-              <option value="">{{ t('common.not_use') }}</option>
+              <option value="">{{ t('channels.use_channel_agent') }}</option>
               <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }}</option>
             </select>
           </div>
@@ -462,9 +462,9 @@ async function refresh() {
               <span>{{ t('channels.use_channel_memories') }}</span>
             </label>
           </div>
-          <div v-if="!sessionForm.useChannelMemories" class="form-group">
+          <div class="form-group">
             <label>{{ t('common.memory') }}</label>
-            <MultiCheckbox v-model="sessionForm.memories" :options="memoryOptions" />
+            <MultiSelect v-model="sessionForm.memories" :options="memoryOptions" />
           </div>
           <div class="form-group">
             <label>{{ t('directory.path_label') }}</label>
