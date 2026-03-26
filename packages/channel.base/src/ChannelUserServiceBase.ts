@@ -44,7 +44,7 @@ export abstract class ChannelUserServiceBase {
       [ToolCallStatus.AlwaysArgs]: ToolApproval.AlwaysArgs,
       [ToolCallStatus.AlwaysTool]: ToolApproval.AlwaysTool,
     };
-    sessionManager.exitToolApproval(this.threadId, id, statusToApproval[status] ?? ToolApproval.Deny);
+    sessionManager.exitApproval(this.threadId, id, statusToApproval[status] ?? ToolApproval.Deny);
   }
 
   protected getToolCallTimeout(): number {
@@ -57,7 +57,7 @@ export abstract class ChannelUserServiceBase {
 
   async executeAgentTool(toolCall: AgentToolCall): Promise<ToolApproval> {
     const timeoutMs = this.getToolCallTimeout();
-    const { id, promise } = sessionManager.enterToolApproval(this.threadId, timeoutMs);
+    const { id, promise } = sessionManager.enterApproval(this.threadId, toolCall, timeoutMs);
     const end = NowDate() + timeoutMs;
     try {
       await this.sendApprovalUI(toolCall, id, Math.floor((end - NowDate()) / 1000));

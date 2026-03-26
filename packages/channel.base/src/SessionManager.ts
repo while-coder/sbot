@@ -3,17 +3,18 @@ import { AgentToolCall, AskQuestionType, AskResponse, AskToolParams, ICancellati
 export enum SessionStatus {
     Thinking = 'thinking',
     WaitingApproval = 'waiting_approval',
+    WaitingAsk = 'waiting_ask',
 }
 
 export interface AskInfo {
     id: string;
-    threadId: string;
     title?: string;
     questions: AskToolParams['questions'];
     startedAt: Date;
 }
 
-export interface PendingToolInfo {
+export interface ApprovalInfo {
+    id: string;
     tool: AgentToolCall;
     startedAt: Date;
 }
@@ -22,7 +23,7 @@ export interface SessionInfo {
     threadId: string;
     startedAt: Date;
     status: SessionStatus;
-    pendingTool?: PendingToolInfo;
+    pendingApproval?: ApprovalInfo;
     pendingAsk?: AskInfo;
 }
 
@@ -37,7 +38,7 @@ interface PendingAsk extends AskInfo {
     timer: ReturnType<typeof setTimeout>;
 }
 
-interface PendingApproval {
+interface PendingApproval extends ApprovalInfo {
     resolve: (approval: ToolApproval) => void;
     timer: ReturnType<typeof setTimeout>;
 }
@@ -46,7 +47,6 @@ interface SessionState {
     threadId: string;
     startedAt: Date;
     status: SessionStatus;
-    pendingTool?: PendingToolInfo;
     source: CancellationTokenSource;
     pendingAsks: Map<string, PendingAsk>;
     pendingApprovals: Map<string, PendingApproval>;
@@ -54,6 +54,12 @@ interface SessionState {
 
 class SessionManager {
     private sessions = new Map<string, SessionState>();
+
+    private _syncStatus(session: SessionState): void {
+        if (session.pendingApprovals.size > 0) session.status = SessionStatus.WaitingApproval;
+        else if (session.pendingAsks.size > 0) session.status = SessionStatus.WaitingAsk;
+        else session.status = SessionStatus.Thinking;
+    }
 
     start(threadId: string): ICancellationToken {
         const existing = this.sessions.get(threadId);
@@ -86,7 +92,7 @@ class SessionManager {
         this.sessions.delete(threadId);
     }
 
-    enterToolApproval(threadId: string, timeoutMs: number): { id: string; promise: Promise<ToolApproval> } {
+    enterApproval(threadId: string, toolCall: AgentToolCall, timeoutMs: number): { id: string; promise: Promise<ToolApproval> } {
         const session = this.sessions.get(threadId);
         if (!session) return { id: '', promise: Promise.reject(new Error('Session not found')) };
         let id = `tc-${Date.now()}`;
@@ -95,18 +101,21 @@ class SessionManager {
         const promise = new Promise<ToolApproval>((res) => { resolve = res; });
         const timer = setTimeout(() => {
             session.pendingApprovals.delete(id);
+            this._syncStatus(session);
             resolve(ToolApproval.Deny);
         }, timeoutMs);
-        session.pendingApprovals.set(id, { resolve, timer });
+        session.pendingApprovals.set(id, { id, tool: toolCall, startedAt: new Date(), resolve, timer });
+        this._syncStatus(session);
         return { id, promise };
     }
 
-    exitToolApproval(threadId: string, id: string, approval: ToolApproval): boolean {
+    exitApproval(threadId: string, id: string, approval: ToolApproval): boolean {
         const session = this.sessions.get(threadId);
         const entry = session?.pendingApprovals.get(id);
         if (!entry) return false;
         clearTimeout(entry.timer);
         session!.pendingApprovals.delete(id);
+        this._syncStatus(session!);
         entry.resolve(approval);
         return true;
     }
@@ -119,6 +128,7 @@ class SessionManager {
             entry.resolve(ToolApproval.Deny);
         }
         session.pendingApprovals.clear();
+        this._syncStatus(session);
     }
 
     abort(threadId: string): boolean {
@@ -128,25 +138,17 @@ class SessionManager {
         return true;
     }
 
-    setStatus(threadId: string, status: SessionStatus, pendingTool?: AgentToolCall): void {
-        const session = this.sessions.get(threadId);
-        if (!session) return;
-        session.status = status;
-        session.pendingTool = pendingTool ? { tool: pendingTool, startedAt: new Date() } : undefined;
-    }
-
     getInfo(threadId: string): SessionInfo | undefined {
         const s = this.sessions.get(threadId);
         if (!s) return undefined;
+        const firstApproval = s.pendingApprovals.values().next().value as PendingApproval | undefined;
         const firstAsk = s.pendingAsks.values().next().value as PendingAsk | undefined;
         return {
             threadId: s.threadId,
             startedAt: s.startedAt,
             status: s.status,
-            pendingTool: s.pendingTool,
-            pendingAsk: firstAsk
-                ? { id: firstAsk.id, threadId: firstAsk.threadId, title: firstAsk.title, questions: firstAsk.questions, startedAt: firstAsk.startedAt }
-                : undefined,
+            pendingApproval: firstApproval && { id: firstApproval.id, tool: firstApproval.tool, startedAt: firstApproval.startedAt },
+            pendingAsk: firstAsk && { id: firstAsk.id, title: firstAsk.title, questions: firstAsk.questions, startedAt: firstAsk.startedAt },
         };
     }
 
@@ -156,15 +158,14 @@ class SessionManager {
 
     getAllInfo(): SessionInfo[] {
         return [...this.sessions.values()].map(s => {
+            const firstApproval = s.pendingApprovals.values().next().value as PendingApproval | undefined;
             const firstAsk = s.pendingAsks.values().next().value as PendingAsk | undefined;
             return {
                 threadId: s.threadId,
                 startedAt: s.startedAt,
                 status: s.status,
-                pendingTool: s.pendingTool,
-                pendingAsk: firstAsk
-                    ? { id: firstAsk.id, threadId: firstAsk.threadId, title: firstAsk.title, questions: firstAsk.questions, startedAt: firstAsk.startedAt }
-                    : undefined,
+                pendingApproval: firstApproval && { id: firstApproval.id, tool: firstApproval.tool, startedAt: firstApproval.startedAt },
+                pendingAsk: firstAsk && { id: firstAsk.id, title: firstAsk.title, questions: firstAsk.questions, startedAt: firstAsk.startedAt },
             };
         });
     }
@@ -180,9 +181,11 @@ class SessionManager {
         });
         const timer = setTimeout(() => {
             session.pendingAsks.delete(id);
+            this._syncStatus(session);
             resolve('User did not answer within the allotted time');
         }, timeoutMs);
-        session.pendingAsks.set(id, { id, threadId, title: params.title, questions: params.questions, startedAt: new Date(), resolve, timer });
+        session.pendingAsks.set(id, { id, title: params.title, questions: params.questions, startedAt: new Date(), resolve, timer });
+        this._syncStatus(session);
         return { id, promise };
     }
 
@@ -193,6 +196,7 @@ class SessionManager {
         if (!ask) return false;
         clearTimeout(ask.timer);
         session!.pendingAsks.delete(id);
+        this._syncStatus(session!);
         if (typeof result === 'string') {
             ask.resolve(result);
         } else {
@@ -221,6 +225,7 @@ class SessionManager {
             ask.resolve(message);
         }
         session.pendingAsks.clear();
+        this._syncStatus(session);
     }
 }
 

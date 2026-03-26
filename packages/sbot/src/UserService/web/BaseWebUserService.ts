@@ -52,7 +52,7 @@ export abstract class BaseWebUserService {
     }
 
     async executeAgentTool(threadId: string, toolCall: AgentToolCall): Promise<ToolApproval> {
-        const { id, promise } = sessionManager.enterToolApproval(threadId, this.getToolCallTimeout());
+        const { id, promise } = sessionManager.enterApproval(threadId, toolCall, this.getToolCallTimeout());
         this.emit({ type: WebChatEventType.ToolCall, id, threadId, name: toolCall.name, args: toolCall.args });
         return promise;
     }

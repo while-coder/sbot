@@ -2,7 +2,6 @@ import fs from "fs";
 import { AgentToolCall, ToolApproval, ASK_TOOL_NAME, TASK_TOOL_NAME, READ_SKILL_FILE_TOOL_NAME, EXECUTE_SKILL_SCRIPT_TOOL_NAME, LIST_SKILL_FILES_TOOL_NAME } from "scorpio.ai";
 import { SEND_FILE_TOOL_NAME } from "../Agent/AgentRunner";
 import { config } from "../Core/Config";
-import { sessionManager, SessionStatus } from "channel.base";
 
 /** 内部工具名，直接放行无需用户确认 */
 const INTERNAL_TOOLS = new Set([
@@ -37,13 +36,8 @@ export function buildExecuteTool(
         if (approvedArgs && (approvedArgs.includes('*') || approvedArgs.includes(JSON.stringify(toolCall.args)))) {
             return ToolApproval.Allow;
         }
-        sessionManager.setStatus(threadId, SessionStatus.WaitingApproval, toolCall);
         let result: ToolApproval;
-        try {
-            result = await executeAgentTool(toolCall);
-        } finally {
-            sessionManager.setStatus(threadId, SessionStatus.Thinking);
-        }
+        result = await executeAgentTool(toolCall);
         if (result === ToolApproval.AlwaysTool) {
             autoApproveTools[toolCall.name] = ['*'];
             saveSessionSettings();
