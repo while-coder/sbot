@@ -17,7 +17,7 @@ const INTERNAL_TOOLS = new Set([
 
 export function buildExecuteTool(
     threadId: string,
-    executeAgentTool: (toolCall: AgentToolCall) => Promise<ToolApproval>
+    executeApproval: (toolCall: AgentToolCall) => Promise<ToolApproval>
 ): (toolCall: AgentToolCall) => Promise<ToolApproval> {
     const settingsPath = config.getConfigPath(`sessions/${threadId}/settings.json`);
     let sessionSettings: any = {};
@@ -37,7 +37,7 @@ export function buildExecuteTool(
             return ToolApproval.Allow;
         }
         let result: ToolApproval;
-        result = await executeAgentTool(toolCall);
+        result = await executeApproval(toolCall);
         if (result === ToolApproval.AlwaysTool) {
             autoApproveTools[toolCall.name] = ['*'];
             saveSessionSettings();

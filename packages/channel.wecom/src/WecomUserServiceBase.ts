@@ -53,7 +53,7 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
 
   // --- Tool Approval UI ---
 
-  protected async sendApprovalUI(toolCall: AgentToolCall, id: string, remainSec: number): Promise<void> {
+  protected async sendApproval(toolCall: AgentToolCall, id: string, remainSec: number): Promise<void> {
     try {
       await this.wecomService.sendMessage(this._chatid, {
         msgtype: 'template_card',
@@ -86,15 +86,15 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
         },
       } as any);
     } catch (e: any) {
-      getLogger()?.error(`sendApprovalUI error: ${e.message}`, e.stack);
+      getLogger()?.error(`sendApproval error: ${e.message}`, e.stack);
     }
   }
 
-  protected async clearApprovalUI(_toolCallId: string): Promise<void> {}
+  protected async clearApproval(_toolCallId: string): Promise<void> {}
 
   // --- Ask Form ---
 
-  protected async sendAskForm(params: AskToolParams, askId: string, remainSec: number): Promise<void> {
+  protected async sendAsk(params: AskToolParams, askId: string, remainSec: number): Promise<void> {
     const q = params.questions.find(
       (q): q is RadioQuestion | CheckboxQuestion =>
         q.type === AskQuestionType.Radio || q.type === AskQuestionType.Checkbox,
@@ -122,12 +122,12 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
         },
       } as any);
     } catch (e: any) {
-      getLogger()?.error(`sendAskForm error: ${e.message}`, e.stack);
+      getLogger()?.error(`sendAsk error: ${e.message}`, e.stack);
       this._currentAskQuestion = null;
     }
   }
 
-  protected async clearAskForm(_askId: string): Promise<void> {
+  protected async clearAsk(_askId: string): Promise<void> {
     this._currentAskQuestion = null;
   }
 
@@ -148,7 +148,7 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
         AlwaysTool: ToolCallStatus.AlwaysTool,
         Deny: ToolCallStatus.Deny,
       };
-      this.resolveToolCall(id, statusMap[code] ?? ToolCallStatus.Deny);
+      this.resolveApproval(id, statusMap[code] ?? ToolCallStatus.Deny);
       return;
     }
 
@@ -167,7 +167,7 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
         });
         answers['0'] = q.type === AskQuestionType.Checkbox ? selectedTexts : (selectedTexts[0] ?? '');
       }
-      this.resolveAskResponse(askId, answers);
+      this.resolveAsk(askId, answers);
       return;
     }
 

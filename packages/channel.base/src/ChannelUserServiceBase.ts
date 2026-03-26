@@ -20,7 +20,7 @@ export enum ToolCallStatus {
 }
 
 export abstract class ChannelUserServiceBase {
-  /** 由子类在 processAIMessage 开始时设置，供 executeAgentTool / ask 使用 */
+  /** 由子类在 processAIMessage 开始时设置，供 executeApproval / executeAsk 使用 */
   protected threadId: string = '';
 
   abstract startProcessMessage(query: string, args: any, messageType: MessageType): Promise<string>;
@@ -32,13 +32,12 @@ export abstract class ChannelUserServiceBase {
   abstract onAgentMessage(message: AgentMessage): Promise<void>;
   abstract processAIMessage(query: string, args: any): Promise<void>;
 
-  protected abstract sendApprovalUI(toolCall: AgentToolCall, id: string, remainSec: number): Promise<void>;
-  protected abstract clearApprovalUI(toolCallId: string): Promise<void>;
-  protected abstract sendAskForm(params: AskToolParams, askId: string, remainSec: number): Promise<void>;
-  protected abstract clearAskForm(askId: string): Promise<void>;
+  protected abstract sendApproval(toolCall: AgentToolCall, id: string, remainSec: number): Promise<void>;
+  protected abstract clearApproval(toolCallId: string): Promise<void>;
+  protected abstract sendAsk(params: AskToolParams, askId: string, remainSec: number): Promise<void>;
+  protected abstract clearAsk(askId: string): Promise<void>;
 
-  /** 将 ToolCallStatus 映射为 ToolApproval 并通过 sessionManager 解决 */
-  protected resolveToolCall(id: string, status: ToolCallStatus): void {
+  protected resolveApproval(id: string, status: ToolCallStatus): void {
     const statusToApproval: Partial<Record<ToolCallStatus, ToolApproval>> = {
       [ToolCallStatus.Allow]: ToolApproval.Allow,
       [ToolCallStatus.AlwaysArgs]: ToolApproval.AlwaysArgs,
@@ -47,7 +46,7 @@ export abstract class ChannelUserServiceBase {
     sessionManager.exitApproval(this.threadId, id, statusToApproval[status] ?? ToolApproval.Deny);
   }
 
-  protected getToolCallTimeout(): number {
+  protected getApprovalTimeout(): number {
     return 300 * 1000;
   }
 
@@ -55,36 +54,34 @@ export abstract class ChannelUserServiceBase {
     return 600 * 1000;
   }
 
-  async executeAgentTool(toolCall: AgentToolCall): Promise<ToolApproval> {
-    const timeoutMs = this.getToolCallTimeout();
+  async executeApproval(toolCall: AgentToolCall): Promise<ToolApproval> {
+    const timeoutMs = this.getApprovalTimeout();
     const { id, promise } = sessionManager.enterApproval(this.threadId, toolCall, timeoutMs);
     const end = NowDate() + timeoutMs;
     try {
-      await this.sendApprovalUI(toolCall, id, Math.floor((end - NowDate()) / 1000));
+      await this.sendApproval(toolCall, id, Math.floor((end - NowDate()) / 1000));
       return await promise;
     } finally {
-      try { await this.clearApprovalUI(id); } catch {}
+      try { await this.clearApproval(id); } catch {}
     }
   }
 
-  async ask(params: AskToolParams): Promise<AskResponse> {
+  async executeAsk(params: AskToolParams): Promise<AskResponse> {
     const { id, promise } = sessionManager.enterAsk(this.threadId, params, this.getAskTimeout());
     const end = NowDate() + this.getAskTimeout();
     try {
-      await this.sendAskForm(params, id, Math.floor((end - NowDate()) / 1000));
+      await this.sendAsk(params, id, Math.floor((end - NowDate()) / 1000));
       return await promise;
     } finally {
-      try { await this.clearAskForm(id); } catch {}
+      try { await this.clearAsk(id); } catch {}
     }
   }
 
-  /** 薄包装：channel 子类调用此方法提交用户的 ask 表单回答 */
-  protected resolveAskResponse(askId: string, answers: Record<string, string | string[] | boolean | undefined>): void {
+  protected resolveAsk(askId: string, answers: Record<string, string | string[] | boolean | undefined>): void {
     sessionManager.exitAsk(this.threadId, askId, answers);
   }
 
-  /** 薄包装：channel 子类调用此方法取消 ask（以错误拒绝 promise） */
-  protected rejectAskResponse(askId: string, reason = 'User cancelled'): void {
+  protected rejectAsk(askId: string, reason = 'User cancelled'): void {
     sessionManager.exitAsk(this.threadId, askId, reason);
   }
 }

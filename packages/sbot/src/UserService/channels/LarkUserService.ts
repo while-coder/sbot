@@ -30,7 +30,7 @@ export class LarkUserService extends ChannelMessageMixin(LarkUserServiceBase) {
     protected buildAgentTools(args: any): any[] {
         const { chat_id, larkService } = args as LarkMessageArgs;
         return [
-            createAskAgentTool(ChannelType.Lark, this.ask.bind(this), [AskQuestionType.Radio, AskQuestionType.Checkbox, AskQuestionType.Input]),
+            createAskAgentTool(ChannelType.Lark, this.executeAsk.bind(this), [AskQuestionType.Radio, AskQuestionType.Checkbox, AskQuestionType.Input]),
             createSendFileAgentTool(ChannelType.Lark, async (filePath, fileName) => {
                 await larkService.sendFileMessage(LarkReceiveIdType.ChatId, chat_id, filePath, fileName);
             }),

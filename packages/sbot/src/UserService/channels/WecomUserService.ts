@@ -26,6 +26,6 @@ export class WecomUserService extends ChannelMessageMixin(WecomUserServiceBase) 
     }
 
     protected buildAgentTools(_args: any): any[] {
-        return [createAskAgentTool(ChannelType.Wecom, this.ask.bind(this), [AskQuestionType.Radio, AskQuestionType.Checkbox])];
+        return [createAskAgentTool(ChannelType.Wecom, this.executeAsk.bind(this), [AskQuestionType.Radio, AskQuestionType.Checkbox])];
     }
 }

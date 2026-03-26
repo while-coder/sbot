@@ -43,7 +43,7 @@ export abstract class BaseWebUserService {
         this.emit({ type: WebChatEventType.Stream, content: message.content ?? '' });
     }
 
-    protected getToolCallTimeout(): number {
+    protected getApprovalTimeout(): number {
         return 300_000;
     }
 
@@ -51,14 +51,14 @@ export abstract class BaseWebUserService {
         return 600_000;
     }
 
-    async executeAgentTool(threadId: string, toolCall: AgentToolCall): Promise<ToolApproval> {
-        const { id, promise } = sessionManager.enterApproval(threadId, toolCall, this.getToolCallTimeout());
+    async executeApproval(threadId: string, toolCall: AgentToolCall): Promise<ToolApproval> {
+        const { id, promise } = sessionManager.enterApproval(threadId, toolCall, this.getApprovalTimeout());
         this.emit({ type: WebChatEventType.ToolCall, id, threadId, name: toolCall.name, args: toolCall.args });
         return promise;
     }
 
     resolveToolApproval(threadId: string, id: string, approval: ToolApproval): boolean {
-        return sessionManager.exitToolApproval(threadId, id, approval);
+        return sessionManager.exitApproval(threadId, id, approval);
     }
 
     resolveAsk(threadId: string, id: string, answers: AskResponse): boolean {
@@ -100,7 +100,7 @@ export abstract class BaseWebUserService {
                 callbacks: {
                     onMessage: this.onAgentMessage.bind(this),
                     onStreamMessage: this.onAgentStreamMessage.bind(this),
-                    executeTool: buildExecuteTool(threadId, (tc) => this.executeAgentTool(threadId, tc)),
+                    executeTool: buildExecuteTool(threadId, (tc) => this.executeApproval(threadId, tc)),
                 },
                 agentId, saverId, threadId, scheduler, extraInfo, memoryId,
                 workPath,

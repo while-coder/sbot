@@ -68,15 +68,15 @@ export abstract class SlackUserServiceBase extends ChannelUserServiceBase {
     }];
   }
 
-  protected async sendApprovalUI(toolCall: AgentToolCall, id: string, remainSec: number): Promise<void> {
+  protected async sendApproval(toolCall: AgentToolCall, id: string, remainSec: number): Promise<void> {
     await this.provider?.setApprovalBlocks(this.buildApprovalBlocks(toolCall, id, remainSec));
   }
 
-  protected async clearApprovalUI(_toolCallId: string): Promise<void> {
+  protected async clearApproval(_toolCallId: string): Promise<void> {
     await this.provider?.clearApprovalBlocks();
   }
 
-  protected async sendAskForm(params: AskToolParams, askId: string, remainSec: number): Promise<void> {
+  protected async sendAsk(params: AskToolParams, askId: string, remainSec: number): Promise<void> {
     const inputBlocks: any[] = [];
     if (params.title) {
       inputBlocks.push({ type: "section", text: { type: "mrkdwn", text: `*${params.title}*` } });
@@ -138,7 +138,7 @@ export abstract class SlackUserServiceBase extends ChannelUserServiceBase {
     await this.provider?.setAskBlocks(inputBlocks);
   }
 
-  protected async clearAskForm(_askId: string): Promise<void> {
+  protected async clearAsk(_askId: string): Promise<void> {
     await this.provider?.clearAskBlocks();
   }
 
@@ -151,13 +151,13 @@ export abstract class SlackUserServiceBase extends ChannelUserServiceBase {
       actionId === ToolCallStatus.AlwaysTool ||
       actionId === ToolCallStatus.Deny
     ) {
-      if (value?.id) this.resolveToolCall(value.id, actionId as ToolCallStatus);
+      if (value?.id) this.resolveApproval(value.id, actionId as ToolCallStatus);
       return;
     }
 
     if (actionId.startsWith("ask_submit_")) {
       if (value?.id && value?.answers) {
-        this.resolveAskResponse(value.id, value.answers);
+        this.resolveAsk(value.id, value.answers);
       }
       return;
     }

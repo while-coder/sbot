@@ -6,6 +6,17 @@ import { ChannelUserServiceBase, ToolCallStatus } from "channel.base";
 
 const getLogger = () => GlobalLoggerService.getLogger('LarkUserService.ts');
 
+const ACTION_TOOL_CALL = 'ToolCall';
+const ACTION_ASK_FORM = 'AskForm';
+const ACTION_ABORT = 'Abort';
+
+const EL_TOOL_CALL_ALLOW = 'toolCallAllow';
+const EL_TOOL_CALL_ALWAYS_ARGS = 'toolCallAlwaysArgs';
+const EL_TOOL_CALL_ALWAYS_TOOL = 'toolCallAlwaysTool';
+const EL_TOOL_CALL_DENY = 'toolCallDeny';
+const EL_ASK_FORM = 'askForm';
+const EL_ABORT_BTN = 'abortBtn';
+
 export interface LarkMessageArgs {
   larkService: LarkService;
   event_id: string;
@@ -63,13 +74,13 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
         title: { tag: "plain_text", content: "确认中断" },
         text: { tag: "plain_text", content: "确定要中断当前任务吗？" },
       },
-      behaviors: [{ type: "callback", value: { code: "Abort", chat_id: chatId } }],
-      element_id: "abortBtn",
+      behaviors: [{ type: "callback", value: { code: ACTION_ABORT, chat_id: chatId } }],
+      element_id: EL_ABORT_BTN,
     });
   }
 
   protected async clearAbortButton(): Promise<void> {
-    await this.provider?.deleteElement("abortBtn");
+    await this.provider?.deleteElement(EL_ABORT_BTN);
   }
 
   /** 子类可覆盖此方法以响应中断操作 */
@@ -91,23 +102,23 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
       type,
       width: "fill",
       size: "medium",
-      behaviors: [{ type: "callback", value: { code: "ToolCall", data: { id: toolCallId, approval } } }],
+      behaviors: [{ type: "callback", value: { code: ACTION_TOOL_CALL, data: { id: toolCallId, approval } } }],
       margin: "0px 0px 0px 0px",
       element_id: elementId,
     };
   }
 
-  protected async sendApprovalUI(toolCall: AgentToolCall, id: string, remainSec: number): Promise<void> {
+  protected async sendApproval(toolCall: AgentToolCall, id: string, remainSec: number): Promise<void> {
     await this.provider?.insertElement(undefined,
-      this.buildButton(`Allow ${toolCall.name}`, "primary_filled", ToolCallStatus.Allow, "toolCallAllow", id),
-      this.buildButton(`Always allow ${toolCall.name} (same args)`, "primary", ToolCallStatus.AlwaysArgs, "toolCallAlwaysArgs", id),
-      this.buildButton(`Always allow ${toolCall.name} (all args)`, "primary", ToolCallStatus.AlwaysTool, "toolCallAlwaysTool", id),
-      this.buildButton(`Deny (${remainSec}s)`, "danger_filled", ToolCallStatus.Deny, "toolCallDeny", id),
+      this.buildButton(`Allow ${toolCall.name}`, "primary_filled", ToolCallStatus.Allow, EL_TOOL_CALL_ALLOW, id),
+      this.buildButton(`Always allow ${toolCall.name} (same args)`, "primary", ToolCallStatus.AlwaysArgs, EL_TOOL_CALL_ALWAYS_ARGS, id),
+      this.buildButton(`Always allow ${toolCall.name} (all args)`, "primary", ToolCallStatus.AlwaysTool, EL_TOOL_CALL_ALWAYS_TOOL, id),
+      this.buildButton(`Deny (${remainSec}s)`, "danger_filled", ToolCallStatus.Deny, EL_TOOL_CALL_DENY, id),
     );
   }
 
-  protected async clearApprovalUI(_toolCallId: string): Promise<void> {
-    await this.provider?.deleteElement("toolCallAllow", "toolCallAlwaysArgs", "toolCallAlwaysTool", "toolCallDeny");
+  protected async clearApproval(_toolCallId: string): Promise<void> {
+    await this.provider?.deleteElement(EL_TOOL_CALL_ALLOW, EL_TOOL_CALL_ALWAYS_ARGS, EL_TOOL_CALL_ALWAYS_TOOL, EL_TOOL_CALL_DENY);
   }
 
   private buildQuestionRow(label: string, inputElement: object): object {
@@ -132,7 +143,7 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
     };
   }
 
-  protected async sendAskForm(params: AskToolParams, askId: string, remainSec: number): Promise<void> {
+  protected async sendAsk(params: AskToolParams, askId: string, remainSec: number): Promise<void> {
     const formElements: any[] = [];
     for (let i = 0; i < params.questions.length; i++) {
       const q = params.questions[i];
@@ -178,32 +189,32 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
       type: 'primary',
       width: 'default',
       form_action_type: 'submit',
-      behaviors: [{ type: 'callback', value: { code: 'AskForm', data: { id: askId } } }],
+      behaviors: [{ type: 'callback', value: { code: ACTION_ASK_FORM, data: { id: askId } } }],
     });
     await this.provider?.insertElement(undefined, {
       tag: 'form',
-      element_id: 'askForm',
-      name: 'askForm',
+      element_id: EL_ASK_FORM,
+      name: EL_ASK_FORM,
       padding: '4px 0px 4px 0px',
       margin: '0px 0px 0px 0px',
       elements: formElements,
     });
   }
 
-  protected async clearAskForm(_askId: string): Promise<void> {
-    await this.provider?.deleteElement('askForm');
+  protected async clearAsk(_askId: string): Promise<void> {
+    await this.provider?.deleteElement(EL_ASK_FORM);
   }
 
   async onTriggerAction(_chatId: string, code: string, data: any, formValue: any): Promise<any> {
-    if (code === "ToolCall") {
-      this.resolveToolCall(data.id, data.approval as ToolCallStatus ?? ToolCallStatus.Deny);
+    if (code === ACTION_TOOL_CALL) {
+      this.resolveApproval(data.id, data.approval as ToolCallStatus ?? ToolCallStatus.Deny);
       return;
     }
-    if (code === "AskForm") {
-      this.resolveAskResponse(data.id, formValue ?? {});
+    if (code === ACTION_ASK_FORM) {
+      this.resolveAsk(data.id, formValue ?? {});
       return;
     }
-    if (code === "Abort") {
+    if (code === ACTION_ABORT) {
       this.onAbortAction(data?.chat_id);
       return;
     }
