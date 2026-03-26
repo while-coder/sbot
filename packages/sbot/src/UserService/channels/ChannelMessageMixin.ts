@@ -1,9 +1,9 @@
 import "reflect-metadata";
 import { ChannelUserServiceBase } from "channel.base";
-import { AgentRunner } from "../Agent/AgentRunner";
-import { config } from "../Core/Config";
-import { ChannelSessionRow, SchedulerType, database, parseMemories } from "../Core/Database";
-import { buildExecuteTool } from "./buildExecuteTool";
+import { AgentRunner } from "../../Agent/AgentRunner";
+import { config } from "../../Core/Config";
+import { ChannelSessionRow, SchedulerType, database, parseMemories } from "../../Core/Database";
+import { buildExecuteTool } from "../buildExecuteTool";
 
 type ChannelBase = abstract new (...args: any[]) => ChannelUserServiceBase;
 
@@ -46,7 +46,7 @@ export function ChannelMessageMixin<TBase extends ChannelBase>(Base: TBase) {
         protected abstract buildThreadId(channelId: string, args: any): string;
         protected abstract buildExtraInfo(userInfo: any): string;
         protected abstract buildAgentTools(args: any): any[];
-        
+
         protected async onAgentStreamMessage(_message: any): Promise<void> {}
     }
     return ChannelMessage;

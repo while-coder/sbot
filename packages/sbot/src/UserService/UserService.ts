@@ -6,11 +6,11 @@ import { ICommand, MessageType, SaverContext, UserServiceBase } from "scorpio.ai
 import { dirThreadId, larkThreadId, sessionThreadId, slackThreadId, wecomThreadId } from "sbot.commons";
 import { config } from "../Core/Config";
 import { getBuiltInCommands } from "./BuiltInCommands";
-import { LarkUserService } from "./LarkUserService";
-import { SlackUserService } from "./SlackUserService";
-import { WecomUserService } from "./WecomUserService";
-import { WebSocketUserService } from "./WebSocketUserService";
-import { HttpUserService } from "./HttpUserService";
+import { LarkUserService } from "./channels/LarkUserService";
+import { SlackUserService } from "./channels/SlackUserService";
+import { WecomUserService } from "./channels/WecomUserService";
+import { WebSocketUserService } from "./web/WebSocketUserService";
+import { HttpUserService } from "./web/HttpUserService";
 
 enum ChannelType { Lark = 'lark', Slack = 'slack', Wecom = 'wecom', Web = 'web', Http = 'http' }
 

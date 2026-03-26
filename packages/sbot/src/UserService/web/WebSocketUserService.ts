@@ -2,7 +2,7 @@ import "reflect-metadata";
 import { MessageType } from "scorpio.ai";
 import { WebChatEventType } from 'sbot.commons';
 import { BaseWebUserService, WebChatEvent } from "./BaseWebUserService";
-import { httpServer } from "../Server/HttpServer";
+import { httpServer } from "../../Server/HttpServer";
 
 export class WebSocketUserService extends BaseWebUserService {
     private activeSessionId: string | undefined;

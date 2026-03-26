@@ -3,7 +3,7 @@ import { WecomMessageArgs, WecomUserServiceBase } from "channel.wecom";
 import { wecomThreadId, ChannelType } from "sbot.commons";
 import { sessionManager } from "channel.base";
 import { AskQuestionType } from "scorpio.ai";
-import { createAskAgentTool } from "../Agent/AgentRunner";
+import { createAskAgentTool } from "../../Agent/AgentRunner";
 import { ChannelMessageMixin } from "./ChannelMessageMixin";
 
 export class WecomUserService extends ChannelMessageMixin(WecomUserServiceBase) {

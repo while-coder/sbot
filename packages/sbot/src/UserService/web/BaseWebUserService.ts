@@ -1,9 +1,9 @@
 import "reflect-metadata";
 import { AgentMessage, AgentToolCall, AskResponse, AskToolParams, MessageChunkType, MessageType, ToolApproval } from "scorpio.ai";
-import { AgentRunner, AgentSchedulerContext, createAskAgentTool } from "../Agent/AgentRunner";
-import { config } from '../Core/Config';
-import { SchedulerType } from '../Core/Database';
-import { buildExecuteTool } from './buildExecuteTool';
+import { AgentRunner, AgentSchedulerContext, createAskAgentTool } from "../../Agent/AgentRunner";
+import { config } from '../../Core/Config';
+import { SchedulerType } from '../../Core/Database';
+import { buildExecuteTool } from '../buildExecuteTool';
 import { sessionManager } from 'channel.base';
 import { dirThreadId, sessionThreadId, WebChatEvent, WebChatEventType, ChannelType } from 'sbot.commons';
 

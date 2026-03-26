@@ -1,6 +1,6 @@
 import "reflect-metadata";
 import { SlackMessageArgs, SlackUserServiceBase } from "channel.slack";
-import { createAskAgentTool } from "../Agent/AgentRunner";
+import { createAskAgentTool } from "../../Agent/AgentRunner";
 import { slackThreadId, ChannelType } from "sbot.commons";
 import { ChannelMessageMixin } from "./ChannelMessageMixin";
 
@@ -21,5 +21,4 @@ export class SlackUserService extends ChannelMessageMixin(SlackUserServiceBase) 
   protected buildAgentTools(_args: any): any[] {
     return [createAskAgentTool(ChannelType.Slack, this.ask.bind(this))];
   }
-
 }

@@ -1,6 +1,6 @@
 import "reflect-metadata";
 import { LarkMessageArgs, LarkUserServiceBase, LarkReceiveIdType } from "channel.lark";
-import { createAskAgentTool, createSendFileAgentTool } from "../Agent/AgentRunner";
+import { createAskAgentTool, createSendFileAgentTool } from "../../Agent/AgentRunner";
 import { larkThreadId, ChannelType } from "sbot.commons";
 import { sessionManager } from "channel.base";
 import { AskQuestionType } from "scorpio.ai";
