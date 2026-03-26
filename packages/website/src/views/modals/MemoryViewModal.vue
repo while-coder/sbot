@@ -3,24 +3,25 @@ import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { useToast } from '@/composables/useToast'
-import type { MemoryItem } from '@/types'
+import type { MemoryItem, MemoryConfig } from '@/types'
 
 const { t } = useI18n()
 const { show } = useToast()
 
-const visible     = ref(false)
-const memName     = ref('')
-const threadId    = ref<string | undefined>(undefined)
-const memories    = ref<MemoryItem[]>([])
-const loading     = ref(false)
-const compressing = ref(false)
+const visible      = ref(false)
+const memoryId     = ref('')
+const memoryConfig = ref<Partial<MemoryConfig>>({})
+const threadId     = ref<string | undefined>(undefined)
+const memories     = ref<MemoryItem[]>([])
+const loading      = ref(false)
+const compressing  = ref(false)
 
 const showAddModal = ref(false)
 const addContent   = ref('')
 const adding       = ref(false)
 
 function memUrl(path = '') {
-  const base = `/api/memories/${encodeURIComponent(memName.value)}${path}`
+  const base = `/api/memories/${encodeURIComponent(memoryId.value)}${path}`
   return threadId.value ? `${base}?threadId=${encodeURIComponent(threadId.value)}` : base
 }
 
@@ -47,7 +48,7 @@ async function remove(id: string) {
 }
 
 async function clearAll() {
-  if (!window.confirm(t('memories.confirm_clear', { name: memName.value }))) return
+  if (!window.confirm(t('memories.confirm_clear', { name: memoryConfig.value.name || memoryId.value }))) return
   try {
     await apiFetch(memUrl(), 'DELETE')
     memories.value = []
@@ -62,7 +63,7 @@ function openAdd() {
 }
 
 async function confirmAdd() {
-  if (!addContent.value.trim()) { show('内容不能为空', 'error'); return }
+  if (!addContent.value.trim()) { show(t('memories.error_content'), 'error'); return }
   adding.value = true
   try {
     const res = await apiFetch(memUrl('/add'), 'POST', { content: addContent.value.trim() })
@@ -77,7 +78,7 @@ async function confirmAdd() {
 }
 
 async function compress() {
-  if (!window.confirm(t('memories.confirm_compress', { name: memName.value }))) return
+  if (!window.confirm(t('memories.confirm_compress', { name: memoryConfig.value.name || memoryId.value }))) return
   compressing.value = true
   try {
     const res = await apiFetch(memUrl('/compress'), 'POST')
@@ -90,11 +91,12 @@ async function compress() {
   }
 }
 
-function open(name: string, thread?: string) {
-  memName.value  = name
-  threadId.value = thread
-  memories.value = []
-  visible.value  = true
+function open(id: string, config: Partial<MemoryConfig>, thread?: string) {
+  memoryId.value     = id
+  memoryConfig.value = config
+  threadId.value     = thread
+  memories.value     = []
+  visible.value      = true
   load()
 }
 
@@ -108,7 +110,8 @@ defineExpose({ open })
       <div class="modal-header">
         <div style="display:flex;align-items:center;gap:10px">
           <h3>{{ t('memories.content_title') }}</h3>
-          <span class="mem-name-badge">{{ memName }}</span>
+          <span class="mem-name-badge">{{ memoryConfig.name || memoryId }}</span>
+          <span v-if="memoryConfig.share" class="mem-share-badge">{{ t('memories.share') }}</span>
           <span v-if="threadId" class="mem-thread-badge">{{ threadId }}</span>
           <span v-if="!loading" class="mem-count-badge">{{ t('memories.count', { count: memories.length }) }}</span>
         </div>
@@ -190,6 +193,13 @@ defineExpose({ open })
   font-family: monospace;
   background: #f0f0ee;
   color: #555;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.mem-share-badge {
+  font-size: 11px;
+  background: #f0fdf4;
+  color: #16a34a;
   padding: 2px 8px;
   border-radius: 4px;
 }

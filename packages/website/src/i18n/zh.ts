@@ -256,6 +256,7 @@ export default {
     add_memory_title: '添加记忆',
     memory_content: '内容',
     memory_placeholder: '输入要直接添加的记忆内容...',
+    error_content: '内容不能为空',
     adding: '添加中…',
     add_btn: '添加',
     confirm_clear: '确定要清除 {name} 的所有记忆吗?',

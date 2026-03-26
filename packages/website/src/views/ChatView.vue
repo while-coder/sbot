@@ -280,7 +280,7 @@ onUnmounted(() => {
           >
             <option v-for="s in saverOptions" :key="s.id" :value="s.id">{{ s.label }}</option>
           </select>
-          <button v-if="effectiveSaver" class="chat-info-chip" @click="saverViewModal?.open(effectiveSaver!, sessionThreadId(activeSessionId))">{{ t('common.view') }}</button>
+          <button v-if="effectiveSaver" class="chat-info-chip" @click="saverViewModal?.open(effectiveSaver!, saverOptions.find(s => s.id === effectiveSaver)?.label || effectiveSaver!, sessionThreadId(activeSessionId))">{{ t('common.view') }}</button>
 
           <!-- Memory -->
           <label class="toolbar-label">{{ t('common.memory') }}</label>
@@ -292,7 +292,7 @@ onUnmounted(() => {
             @update:model-value="saveSession({ memories: $event })"
           />
           <template v-for="mid in effectiveMemories" :key="mid">
-            <button class="chat-info-chip" @click="memoryViewModal?.open(mid)">{{ memoryOptions.find(m => m.id === mid)?.label || t('common.view') }}</button>
+            <button class="chat-info-chip" @click="memoryViewModal?.open(mid, store.settings.memories?.[mid] ?? {}, store.settings.memories?.[mid]?.share ? undefined : sessionThreadId(activeSessionId!))">{{ memoryOptions.find(m => m.id === mid)?.label || t('common.view') }}</button>
           </template>
         </template>
         <span v-else style="font-size:13px;color:#94a3b8">{{ t('chat.select_or_create') }}</span>

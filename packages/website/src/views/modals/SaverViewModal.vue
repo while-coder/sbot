@@ -11,6 +11,7 @@ const { show } = useToast()
 
 const visible    = ref(false)
 const saverId    = ref('')
+const saverName  = ref('')
 const threadId   = ref('')
 const messages   = ref<ChatMessage[]>([])
 const loading    = ref(false)
@@ -42,9 +43,10 @@ async function clear() {
   }
 }
 
-function open(saver: string, thread: string) {
-  saverId.value  = saver
-  threadId.value = thread
+function open(id: string, name: string, thread: string) {
+  saverId.value   = id
+  saverName.value = name
+  threadId.value  = thread
   messages.value = []
   visible.value  = true
   load()
@@ -59,7 +61,8 @@ defineExpose({ open })
       <div class="modal-header">
         <div style="display:flex;align-items:center;gap:10px">
           <h3>{{ t('savers.history_title') }}</h3>
-          <span class="saver-name-badge">{{ threadId }}</span>
+          <span class="saver-name-badge">{{ saverName }}</span>
+          <span class="saver-thread-badge">{{ threadId }}</span>
           <span v-if="!loading" class="saver-count-badge">{{ t('savers.count', { count: messages.length }) }}</span>
         </div>
         <button class="modal-close" @click="visible = false">&times;</button>
@@ -87,6 +90,18 @@ defineExpose({ open })
   color: #555;
   padding: 2px 8px;
   border-radius: 4px;
+}
+.saver-thread-badge {
+  font-size: 11px;
+  font-family: monospace;
+  background: #eef2ff;
+  color: #6366f1;
+  padding: 2px 8px;
+  border-radius: 4px;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .saver-count-badge {
   font-size: 12px;

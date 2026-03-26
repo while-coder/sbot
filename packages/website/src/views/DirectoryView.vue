@@ -269,7 +269,7 @@ onUnmounted(() => { wsOffMessage(handleWsEvent); chatAreaRef.value?.cleanup() })
             <button
               v-if="activeCfg.saver"
               class="chat-info-chip"
-              @click="saverViewModal?.open(activeCfg.saver!, activeDir!)"
+              @click="saverViewModal?.open(activeCfg!.saver!, saverOptions.find(s => s.id === activeCfg!.saver)?.label || activeCfg!.saver!, activeDir!)"
             >{{ t('common.view') }}</button>
 
             <!-- Memory -->
@@ -282,7 +282,7 @@ onUnmounted(() => { wsOffMessage(handleWsEvent); chatAreaRef.value?.cleanup() })
               @update:model-value="saveConfig({ memories: $event })"
             />
             <template v-for="mid in (activeCfg.memories || [])" :key="mid">
-              <button class="chat-info-chip" @click="memoryViewModal?.open(mid)">{{ memoryOptions.find(m => m.id === mid)?.label || t('common.view') }}</button>
+              <button class="chat-info-chip" @click="memoryViewModal?.open(mid, store.settings.memories?.[mid] ?? {}, store.settings.memories?.[mid]?.share ? undefined : dirThreadId(activeDir!))">{{ memoryOptions.find(m => m.id === mid)?.label || t('common.view') }}</button>
             </template>
 
             <button

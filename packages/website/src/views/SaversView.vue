@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
+import { SaverType } from '@/types'
 import type { SaverConfig } from '@/types'
 import SaverViewModal from './modals/SaverViewModal.vue'
 
@@ -14,7 +15,7 @@ const savers = computed(() => store.settings.savers || {})
 
 const showModal   = ref(false)
 const editingName = ref<string | null>(null)
-const form = ref<{ name: string } & SaverConfig>({ name: '', type: 'sqlite' })
+const form = ref<{ name: string } & SaverConfig>({ name: '', type: SaverType.Sqlite })
 
 const saverViewModal = ref<InstanceType<typeof SaverViewModal>>()
 
@@ -42,14 +43,14 @@ async function toggleExpand(id: string) {
 
 function openAdd() {
   editingName.value = null
-  form.value = { name: '', type: 'sqlite' }
+  form.value = { name: '', type: SaverType.Sqlite }
   showModal.value = true
 }
 
 function openEdit(id: string) {
   const s = savers.value[id]
   editingName.value = id
-  form.value = { name: (s as any).name || '', type: s.type || 'sqlite' }
+  form.value = { name: (s as any).name || '', type: s.type || SaverType.Sqlite }
   showModal.value = true
 }
 
@@ -169,7 +170,7 @@ async function refresh() {
                 <td></td>
                 <td colspan="2" class="thread-id-cell">{{ thread }}</td>
                 <td>
-                  <button class="btn-outline btn-sm" @click="saverViewModal?.open(id as string, thread)">{{ t('common.view') }}</button>
+                  <button class="btn-outline btn-sm" @click="saverViewModal?.open(id as string, (s as any).name || id as string, thread)">{{ t('common.view') }}</button>
                   <button class="btn-danger btn-sm" :disabled="threadClearing[`${id}::${thread}`]" @click="clearThread(id as string, thread)">{{ t('savers.cleanup') }}</button>
                 </td>
               </tr>

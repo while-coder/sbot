@@ -324,7 +324,7 @@ async function refresh() {
                             <td style="font-family:monospace;font-size:11px;color:#6b7280;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" :title="s.workPath || ''">{{ s.workPath || '-' }}</td>
                             <td>
                               <div class="ops-cell">
-                                <button v-if="c.saver" class="btn-outline btn-sm" @click="saverViewModal?.open(c.saver, threadId(id as string, c, s.sessionId))">{{ t('channels.history') }}</button>
+                                <button v-if="c.saver" class="btn-outline btn-sm" @click="saverViewModal?.open(c.saver, saverOptions.find(o => o.id === c.saver)?.label || c.saver, threadId(id as string, c, s.sessionId))">{{ t('channels.history') }}</button>
                                 <button class="btn-outline btn-sm" @click="openEditSession(s)">{{ t('common.edit') }}</button>
                                 <button class="btn-danger btn-sm" @click="removeSession(id as string, s)">{{ t('common.delete') }}</button>
                               </div>

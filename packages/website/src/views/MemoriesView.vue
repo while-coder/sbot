@@ -28,9 +28,9 @@ const form = ref<{ name: string } & MemoryConfig>({
 const memoryViewModal = ref<InstanceType<typeof MemoryViewModal>>()
 
 // Expand state
-const expandedMemories  = ref<Record<string, boolean>>({})
-const memoryThreadsMap  = ref<Record<string, string[]>>({})
-const memoryLoading     = ref<Record<string, boolean>>({})
+const expandedMemories = ref<Record<string, boolean>>({})
+const memoryThreadsMap = ref<Record<string, string[]>>({})
+const memoryLoading    = ref<Record<string, boolean>>({})
 
 async function toggleExpand(id: string) {
   expandedMemories.value[id] = !expandedMemories.value[id]
@@ -112,10 +112,26 @@ async function remove(id: string) {
   }
 }
 
+async function refreshThreads(ids: string[]) {
+  await Promise.all(ids.map(async id => {
+    memoryLoading.value[id] = true
+    try {
+      const res = await apiFetch(`/api/memories/${encodeURIComponent(id)}/threads`)
+      memoryThreadsMap.value[id] = res.data || []
+    } catch (e: any) {
+      show(e.message, 'error')
+    } finally {
+      memoryLoading.value[id] = false
+    }
+  }))
+}
+
 async function refresh() {
   try {
     const res = await apiFetch('/api/settings')
     Object.assign(store.settings, res.data)
+    const expandedIds = Object.keys(expandedMemories.value).filter(id => expandedMemories.value[id])
+    if (expandedIds.length > 0) await refreshThreads(expandedIds)
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -160,11 +176,19 @@ async function refresh() {
                 <td></td>
                 <td colspan="5" class="thread-sub-cell">{{ t('common.loading') }}</td>
               </tr>
-<tr v-for="thread in memoryThreadsMap[id as string] || []" :key="thread" class="thread-sub-row">
+              <!-- No threads: show the memory itself as a viewable row -->
+              <tr v-else-if="(memoryThreadsMap[id as string] || []).length === 0" class="thread-sub-row">
+                <td></td>
+                <td colspan="4" class="thread-id-cell">{{ id }}</td>
+                <td>
+                  <button class="btn-outline btn-sm" @click="memoryViewModal?.open(id as string, m)">{{ t('common.view') }}</button>
+                </td>
+              </tr>
+              <tr v-else v-for="thread in memoryThreadsMap[id as string]" :key="thread" class="thread-sub-row">
                 <td></td>
                 <td colspan="4" class="thread-id-cell">{{ thread }}</td>
                 <td>
-                  <button class="btn-outline btn-sm" @click="memoryViewModal?.open(id as string, thread)">{{ t('common.view') }}</button>
+                  <button class="btn-outline btn-sm" @click="memoryViewModal?.open(id as string, m, thread)">{{ t('common.view') }}</button>
                 </td>
               </tr>
             </template>

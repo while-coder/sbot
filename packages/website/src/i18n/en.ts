@@ -256,6 +256,7 @@ export default {
     add_memory_title: 'Add Memory',
     memory_content: 'Content',
     memory_placeholder: 'Enter memory content to add directly...',
+    error_content: 'Content is required',
     adding: 'Adding…',
     add_btn: 'Add',
     confirm_clear: 'Clear all memories for {name}?',
