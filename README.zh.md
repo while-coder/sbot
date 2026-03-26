@@ -156,7 +156,7 @@ docker run -d \
 | 企业微信 WeCom | Bot ID、Secret |
 
 **配置飞书 / Lark：**
-1. 在[飞书开放平台](https://open.feishu.cn)创建自建应用
+1. 在[飞书开放平台](https://open.feishu.cn)（国际版用 [Lark Developer Console](https://open.larksuite.com/)）创建自建应用
 2. 开启**机器人**能力，订阅 **message.receive** 事件
 3. 在 Web UI → **渠道** 中创建 Lark 渠道，填入 **App ID** 和 **App Secret**
 

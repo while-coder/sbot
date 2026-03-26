@@ -156,7 +156,7 @@ In **Channels → New**, select the type and fill in the credentials, then assig
 | WeCom | Bot ID, Secret |
 
 **Setting up Lark / Feishu:**
-1. Create a bot app in the [Feishu Developer Console](https://open.feishu.cn)
+1. Create a bot app in the [Feishu Developer Console](https://open.feishu.cn) (or [Lark Developer Console](https://open.larksuite.com/) for international)
 2. Enable **Bot** capability and subscribe to **message.receive** events
 3. In Web UI → **Channels**, create a Lark channel and fill in **App ID** and **App Secret**
 
