@@ -1,7 +1,7 @@
 import { HumanMessage, AIMessage, ToolMessage, AIMessageChunk, BaseMessage, SystemMessage } from "langchain";
 import { StateGraph, START, END } from '../../Graph';
 import { type StructuredToolInterface } from "@langchain/core/tools";
-import { inject, T_SystemPrompts, truncate } from "../../Core";
+import { inject, T_SystemPrompts, T_MemorySystemPromptTemplate, truncate } from "../../Core";
 import { IModelService } from "../../Model";
 import { ISkillService } from "../../Skills";
 import { IMemoryService } from "../../Memory";
@@ -43,6 +43,7 @@ export class SingleAgentService extends AgentServiceBase {
     protected skillService?: ISkillService;
     protected toolService?: IAgentToolService;
     protected systemMessages: SystemMessage[];
+    protected memorySystemPromptTemplate?: string;
 
     constructor(
         @inject(IModelService) modelService: IModelService,
@@ -50,14 +51,16 @@ export class SingleAgentService extends AgentServiceBase {
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
         @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
         @inject(ISkillService, { optional: true }) skillService?: ISkillService,
-        @inject(IMemoryService, { optional: true }) memoryService?: IMemoryService,
         @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
+        @inject(IMemoryService, { optional: true }) memoryServices?: IMemoryService[],
+        @inject(T_MemorySystemPromptTemplate, { optional: true }) memorySystemPromptTemplate?: string,
     ) {
-        super(loggerService, agentSaver, memoryService);
+        super(loggerService, agentSaver, memoryServices);
         this.modelService = modelService;
         this.skillService = skillService;
         this.toolService = toolService;
         this.systemMessages = (systemPrompts ?? []).map(p => new SystemMessage(p));
+        this.memorySystemPromptTemplate = memorySystemPromptTemplate;
     }
 
     override addSystemPrompts(prompts: string[]): void {
@@ -69,9 +72,16 @@ export class SingleAgentService extends AgentServiceBase {
      */
     protected async buildSystemMessage(query: string, _callback?: IAgentCallback, _cancellationToken?: ICancellationToken): Promise<SystemMessage | null> {
         const parts: string[] = this.systemMessages.map(m => m.content as string);
-        if (this.memoryService) {
-            const memoryMessage = await this.memoryService.getSystemMessage(query, 10);
-            if (memoryMessage) parts.push(memoryMessage);
+        if (this.memorySystemPromptTemplate) {
+            const memoryLimit = 10;
+            const allMemories = (await Promise.all(this.memoryServices.map(mem => mem.getMemories(query, memoryLimit))))
+                .flat()
+                .sort((a, b) => b.decayedScore - a.decayedScore)
+                .slice(0, memoryLimit);
+            if (allMemories.length > 0) {
+                const items = allMemories.map(({ memory: m }) => `  <memory time="${SingleAgentService.formatTimeAgo(m.metadata.timestamp)}">${m.content}</memory>`).join("\n");
+                parts.push(this.memorySystemPromptTemplate.replace('{items}', items));
+            }
         }
         if (this.skillService) {
             const skillMessage = await this.skillService.getSystemMessage();
@@ -354,14 +364,25 @@ export class SingleAgentService extends AgentServiceBase {
         }
 
         // 保存对话到长期记忆
-        if (this.memoryService) {
+        for (const mem of this.memoryServices) {
             try {
-                await this.memoryService.memorizeConversation(query, aiResponses.length > 0 ? aiResponses : undefined);
+                await mem.memorizeConversation(query, aiResponses.length > 0 ? aiResponses : undefined);
             } catch (error: any) {
                 this.logger?.warn(`保存对话记忆失败: ${error.message}`);
             }
         }
 
         return outputMessages;
+    }
+
+    private static formatTimeAgo(timestamp: number): string {
+        const diff = Date.now() - timestamp;
+        const minutes = Math.floor(diff / 60000);
+        const hours = Math.floor(diff / 3600000);
+        const days = Math.floor(diff / 86400000);
+        if (days > 0) return `${days}d ago`;
+        if (hours > 0) return `${hours}h ago`;
+        if (minutes > 0) return `${minutes}m ago`;
+        return "just now";
     }
 }

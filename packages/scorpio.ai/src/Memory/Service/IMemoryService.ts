@@ -1,4 +1,4 @@
-import { Memory } from "../types";
+import { Memory, MemoryResult } from "../types";
 
 /**
  * 记忆服务接口
@@ -8,10 +8,9 @@ export interface IMemoryService {
     // ── 读取 ──────────────────────────────────────────────────────────────────
 
     /**
-     * 获取 Memory 系统提示词
-     * 根据查询检索相关记忆，直接返回完整记忆内容；无记忆时返回 null
+     * 检索与查询相关的记忆，返回记忆内容列表；无记忆时返回空数组
      */
-    getSystemMessage(query: string, limit?: number): Promise<string | null>;
+    getMemories(query: string, limit?: number): Promise<MemoryResult[]>;
 
     /**
      * 获取所有记忆

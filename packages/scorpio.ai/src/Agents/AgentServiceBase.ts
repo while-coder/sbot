@@ -112,17 +112,17 @@ export class AgentCancelledError extends Error {
 export abstract class AgentServiceBase {
     abstract stream(query: string, callback: IAgentCallback, cancellationToken?: ICancellationToken): Promise<BaseMessage[]>;
     protected saverService: IAgentSaverService;
-    protected memoryService?: IMemoryService;
+    protected memoryServices: IMemoryService[];
     protected loggerService?: ILoggerService;
     protected logger?: ILogger;
 
     constructor(
         loggerService?: ILoggerService,
         agentSaver?: IAgentSaverService,
-        memoryService?: IMemoryService,
+        memoryServices?: IMemoryService[],
     ) {
         this.saverService = agentSaver ?? new AgentMemorySaver();
-        this.memoryService = memoryService;
+        this.memoryServices = memoryServices ?? [];
         this.loggerService = loggerService;
         this.logger = loggerService?.getLogger(this.constructor.name);
     }
@@ -145,7 +145,7 @@ export abstract class AgentServiceBase {
      */
     async dispose() {
         await this.saverService.dispose();
-        await this.memoryService?.dispose();
+        await Promise.all(this.memoryServices.map(m => m.dispose()));
     }
 
     /**

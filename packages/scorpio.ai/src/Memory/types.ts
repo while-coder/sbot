@@ -53,3 +53,11 @@ export interface MemorySearchResult {
   distance?: number;            // 向量距离
 }
 
+/**
+ * getMemories 返回结果
+ */
+export interface MemoryResult {
+  memory: Memory;
+  decayedScore: number;         // 综合得分（时间衰减 + 重要性 + 访问频次）
+}
+

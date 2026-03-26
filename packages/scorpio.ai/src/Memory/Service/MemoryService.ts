@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
-import { inject, init, T_MaxMemoryAgeDays, T_MemoryMode, T_MemorySystemPromptTemplate } from "../../Core";
+import { inject, init, T_MaxMemoryAgeDays, T_MemoryMode } from "../../Core";
+import { MemoryResult } from "../types";
 import { IMemoryDatabase } from "../Storage/IMemoryDatabase";
 import { Memory, MemoryMode } from "../types";
 import { IMemoryService } from "./IMemoryService";
@@ -20,7 +21,6 @@ export class MemoryService implements IMemoryService {
     @inject(IEmbeddingService) private embeddings: IEmbeddingService,
     @inject(IMemoryEvaluator) private evaluator: IMemoryEvaluator,
     @inject(IMemoryExtractor) private extractor: IMemoryExtractor,
-    @inject(T_MemorySystemPromptTemplate) private systemPromptTemplate: string,
     @inject(T_MaxMemoryAgeDays, { optional: true }) maxMemoryAgeDays?: number,
     @inject(T_MemoryMode, { optional: true }) memoryMode?: MemoryMode,
     @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
@@ -44,18 +44,17 @@ export class MemoryService implements IMemoryService {
    * Build a memory system message for the given query.
    * Retrieves relevant memories; returns null if none found.
    */
-  async getSystemMessage(query: string, limit: number = 10): Promise<string | null> {
+  async getMemories(query: string, limit: number = 10): Promise<MemoryResult[]> {
     try {
-      const memories = await this.retrieveRelevantMemories(query, limit);
-      if (memories.length === 0) return null;
-
-      const items = memories
-        .map(m => `  <memory time="${this.formatTimeAgo(m.metadata.timestamp)}">${m.content}</memory>`)
-        .join("\n");
-      return this.systemPromptTemplate.replace('{items}', items);
+      const queryEmbedding = await this.embeddings.embedQuery(query);
+      const results = await this.db.searchWithTimeDecay(queryEmbedding, Date.now(), 0.995, limit);
+      for (const result of results) {
+        await this.db.updateAccess(result.memory.id);
+      }
+      return results.map(r => ({ memory: r.memory, decayedScore: r.decayedScore }));
     } catch (error: any) {
-      this.logger?.warn(`Failed to build memory system message: ${error.message}`);
-      return null;
+      this.logger?.warn(`Failed to retrieve memories: ${error.message}`);
+      return [];
     }
   }
 
@@ -186,35 +185,6 @@ export class MemoryService implements IMemoryService {
     return memory.id;
   }
 
-  private async retrieveRelevantMemories(query: string, limit: number = 5): Promise<Memory[]> {
-    try {
-      const queryEmbedding = await this.embeddings.embedQuery(query);
-      const results = await this.db.searchWithTimeDecay(queryEmbedding, Date.now(), 0.995, limit * 2);
-
-      for (const result of results) {
-        await this.db.updateAccess(result.memory.id);
-      }
-
-      return this.rerankMemories(results.map(r => r.memory)).slice(0, limit);
-    } catch (error: any) {
-      this.logger?.error(`Memory retrieval failed: ${error.message}`);
-      return [];
-    }
-  }
-
-  private rerankMemories(memories: Memory[]): Memory[] {
-    const now = Date.now();
-    return memories
-      .map(memory => {
-        const hoursSinceCreation = (now - memory.metadata.timestamp) / 3600000;
-        const recencyScore = Math.pow(0.5, hoursSinceCreation / 24);
-        const accessScore = Math.log(memory.metadata.accessCount + 1) / 10;
-        const score = recencyScore * 0.3 + memory.metadata.importance * 0.4 + accessScore * 0.3;
-        return { memory, score };
-      })
-      .sort((a, b) => b.score - a.score)
-      .map(item => item.memory);
-  }
 
   private async cleanupOldMemories(): Promise<void> {
     const maxAgeMs = this.maxMemoryAgeDays * 24 * 3600 * 1000;
@@ -223,14 +193,4 @@ export class MemoryService implements IMemoryService {
       this.logger?.info(`Pruned ${deletedCount} expired memories (older than ${this.maxMemoryAgeDays} days)`);
   }
 
-  private formatTimeAgo(timestamp: number): string {
-    const diff = Date.now() - timestamp;
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
-    if (days > 0) return `${days}d ago`;
-    if (hours > 0) return `${hours}h ago`;
-    if (minutes > 0) return `${minutes}m ago`;
-    return "just now";
-  }
 }

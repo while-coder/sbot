@@ -1,6 +1,6 @@
 import { SystemMessage, AIMessage } from "langchain";
 import { type StructuredToolInterface } from "@langchain/core/tools";
-import { inject, ServiceContainer, T_SystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc } from "../../Core";
+import { inject, ServiceContainer, T_SystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc, T_MemorySystemPromptTemplate } from "../../Core";
 import { IMemoryService, ReadOnlyMemoryService } from "../../Memory";
 import { IAgentSaverService } from "../../Saver";
 import { ILoggerService } from "../../Logger";
@@ -37,13 +37,14 @@ export class ReActAgentService extends SingleAgentService {
     @inject(T_ReactSubNodePrompt) private subNodePrompt: string,
     @inject(T_ReactTaskToolDesc) private taskToolDesc: string,
     @inject(T_SystemPrompts, { optional: true }) systemPrompts?: string[],
-    @inject(IMemoryService, { optional: true }) memoryService?: IMemoryService,
     @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
     @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
     @inject(ISkillService, { optional: true }) skillService?: ISkillService,
     @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
+    @inject(IMemoryService, { optional: true }) memoryServices?: IMemoryService[],
+    @inject(T_MemorySystemPromptTemplate, { optional: true }) memorySystemPromptTemplate?: string,
   ) {
-    super(thinkModelService, systemPrompts, loggerService, agentSaver, skillService, memoryService, toolService);
+    super(thinkModelService, systemPrompts, loggerService, agentSaver, skillService, toolService, memoryServices, memorySystemPromptTemplate);
     this.agentSubNodes = agentSubNodes;
     this.agentFactory = agentFactory;
   }
@@ -72,7 +73,8 @@ export class ReActAgentService extends SingleAgentService {
       try {
         const subContainer = new ServiceContainer();
         subContainer.registerSingleton(IAgentSaverService, AgentMemorySaver);
-        if (this.memoryService) subContainer.registerInstance(IMemoryService, new ReadOnlyMemoryService(this.memoryService));
+        if (this.memoryServices.length > 0) subContainer.registerInstance(IMemoryService, new ReadOnlyMemoryService(this.memoryServices[0]));
+        if (this.memorySystemPromptTemplate) subContainer.registerInstance(T_MemorySystemPromptTemplate, this.memorySystemPromptTemplate);
         if (this.loggerService) subContainer.registerInstance(ILoggerService, this.loggerService);
 
         agentService = await this.agentFactory(agentId, subContainer);

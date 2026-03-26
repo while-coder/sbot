@@ -27,6 +27,7 @@ export {
   MemoryMetadata,
   MemoryRetrievalOptions,
   MemorySearchResult,
+  MemoryResult,
   MemoryMode
 } from "./types";
 

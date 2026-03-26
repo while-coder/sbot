@@ -1,5 +1,4 @@
-import { inject } from "../../Core";
-import { Memory } from "../types";
+import { Memory, MemoryResult } from "../types";
 import { IMemoryService } from "./IMemoryService";
 
 /**
@@ -13,7 +12,7 @@ export class ReadOnlyMemoryService implements IMemoryService {
 
     // ── 读取 ──────────────────────────────────────────────────────────────────
 
-    getSystemMessage(query: string, limit?: number): Promise<string | null> { return this.inner.getSystemMessage(query, limit); }
+    getMemories(query: string, limit?: number): Promise<MemoryResult[]> { return this.inner.getMemories(query, limit); }
 
     getAllMemories(): Promise<Memory[]> { return this.inner.getAllMemories(); }
 

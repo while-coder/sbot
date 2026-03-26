@@ -221,8 +221,8 @@ export class AgentRunner {
             [IEmbeddingService]: await config.getEmbeddingService(memoryConfig.embedding, true),
             [T_MaxMemoryAgeDays]: memoryConfig.maxAgeDays,
             [T_MemoryMode]: memoryConfig.mode,
-            [T_MemorySystemPromptTemplate]: loadPrompt('memory/system.txt'),
         });
+        container.registerInstance(T_MemorySystemPromptTemplate, loadPrompt('memory/system.txt'));
     }
 
     private static async registerSaverService(

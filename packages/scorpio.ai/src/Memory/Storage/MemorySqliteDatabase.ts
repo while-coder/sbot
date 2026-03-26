@@ -66,9 +66,16 @@ export class MemorySqliteDatabase implements IMemoryDatabase {
     ): Promise<Array<{ memory: Memory; distance: number; score: number; decayedScore: number }>> {
         return this.searchSimilar(queryEmbedding, limit * 2)
             .map(result => {
-                const hoursSinceCreation = (currentTime - result.memory.metadata.timestamp) / 3600000;
+                const { metadata } = result.memory;
+                const hoursSinceCreation = (currentTime - metadata.timestamp) / 3600000;
                 const timeDecay = Math.pow(decayFactor, hoursSinceCreation);
-                return { ...result, decayedScore: result.score * timeDecay };
+                const recencyScore = Math.pow(0.5, hoursSinceCreation / 24);
+                const accessScore = Math.log(metadata.accessCount + 1) / 10;
+                const decayedScore = result.score * timeDecay * 0.5
+                    + metadata.importance * 0.3
+                    + recencyScore * 0.1
+                    + accessScore * 0.1;
+                return { ...result, decayedScore };
             })
             .sort((a, b) => b.decayedScore - a.decayedScore)
             .slice(0, limit);
