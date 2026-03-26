@@ -262,6 +262,8 @@ export default {
     confirm_compress: 'Compress memories for {name}? This will merge similar memories.',
     added_count: 'Added {count} memories',
     compress_done: 'Compression complete, {count} groups compressed',
+    share: 'Share Memory',
+    share_hint: 'When enabled, all sessions share the same memory; when disabled, each session has its own memory (default)',
   },
   mcp: {
     add: '+ Add MCP',

@@ -10,6 +10,7 @@ const { show } = useToast()
 
 const visible     = ref(false)
 const memName     = ref('')
+const threadId    = ref<string | undefined>(undefined)
 const memories    = ref<MemoryItem[]>([])
 const loading     = ref(false)
 const compressing = ref(false)
@@ -18,10 +19,15 @@ const showAddModal = ref(false)
 const addContent   = ref('')
 const adding       = ref(false)
 
+function memUrl(path = '') {
+  const base = `/api/memories/${encodeURIComponent(memName.value)}${path}`
+  return threadId.value ? `${base}?threadId=${encodeURIComponent(threadId.value)}` : base
+}
+
 async function load() {
   loading.value = true
   try {
-    const res = await apiFetch(`/api/memories/${encodeURIComponent(memName.value)}`)
+    const res = await apiFetch(memUrl())
     memories.value = res.data || []
   } catch (e: any) {
     show(e.message, 'error')
@@ -32,7 +38,7 @@ async function load() {
 
 async function remove(id: string) {
   try {
-    await apiFetch(`/api/memories/${encodeURIComponent(memName.value)}/${encodeURIComponent(id)}`, 'DELETE')
+    await apiFetch(memUrl(`/${encodeURIComponent(id)}`), 'DELETE')
     show(t('common.deleted'))
     await load()
   } catch (e: any) {
@@ -43,7 +49,7 @@ async function remove(id: string) {
 async function clearAll() {
   if (!window.confirm(t('memories.confirm_clear', { name: memName.value }))) return
   try {
-    await apiFetch(`/api/memories/${encodeURIComponent(memName.value)}`, 'DELETE')
+    await apiFetch(memUrl(), 'DELETE')
     memories.value = []
   } catch (e: any) {
     show(e.message, 'error')
@@ -59,7 +65,7 @@ async function confirmAdd() {
   if (!addContent.value.trim()) { show('内容不能为空', 'error'); return }
   adding.value = true
   try {
-    const res = await apiFetch(`/api/memories/${encodeURIComponent(memName.value)}/add`, 'POST', { content: addContent.value.trim() })
+    const res = await apiFetch(memUrl('/add'), 'POST', { content: addContent.value.trim() })
     show(t('memories.added_count', { count: res.data?.ids?.length ?? 0 }))
     showAddModal.value = false
     await load()
@@ -74,7 +80,7 @@ async function compress() {
   if (!window.confirm(t('memories.confirm_compress', { name: memName.value }))) return
   compressing.value = true
   try {
-    const res = await apiFetch(`/api/memories/${encodeURIComponent(memName.value)}/compress`, 'POST')
+    const res = await apiFetch(memUrl('/compress'), 'POST')
     show(t('memories.compress_done', { count: res.data?.count ?? 0 }))
     await load()
   } catch (e: any) {
@@ -84,8 +90,9 @@ async function compress() {
   }
 }
 
-function open(name: string) {
+function open(name: string, thread?: string) {
   memName.value  = name
+  threadId.value = thread
   memories.value = []
   visible.value  = true
   load()
@@ -102,6 +109,7 @@ defineExpose({ open })
         <div style="display:flex;align-items:center;gap:10px">
           <h3>{{ t('memories.content_title') }}</h3>
           <span class="mem-name-badge">{{ memName }}</span>
+          <span v-if="threadId" class="mem-thread-badge">{{ threadId }}</span>
           <span v-if="!loading" class="mem-count-badge">{{ t('memories.count', { count: memories.length }) }}</span>
         </div>
         <button class="modal-close" @click="visible = false">&times;</button>
@@ -184,6 +192,18 @@ defineExpose({ open })
   color: #555;
   padding: 2px 8px;
   border-radius: 4px;
+}
+.mem-thread-badge {
+  font-size: 11px;
+  font-family: monospace;
+  background: #eef2ff;
+  color: #6366f1;
+  padding: 2px 8px;
+  border-radius: 4px;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .mem-count-badge {
   font-size: 12px;

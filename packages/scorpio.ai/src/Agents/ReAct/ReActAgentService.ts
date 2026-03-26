@@ -73,7 +73,7 @@ export class ReActAgentService extends SingleAgentService {
       try {
         const subContainer = new ServiceContainer();
         subContainer.registerSingleton(IAgentSaverService, AgentMemorySaver);
-        if (this.memoryServices.length > 0) subContainer.registerInstance(IMemoryService, new ReadOnlyMemoryService(this.memoryServices[0]));
+        if (this.memoryServices.length > 0) subContainer.registerInstance(IMemoryService, this.memoryServices.map(m => new ReadOnlyMemoryService(m)));
         if (this.memorySystemPromptTemplate) subContainer.registerInstance(T_MemorySystemPromptTemplate, this.memorySystemPromptTemplate);
         if (this.loggerService) subContainer.registerInstance(ILoggerService, this.loggerService);
 

@@ -262,6 +262,8 @@ export default {
     confirm_compress: '确定要压缩 {name} 的记忆吗?此操作会合并相似记忆。',
     added_count: '已添加 {count} 条记忆',
     compress_done: '压缩完成，共压缩 {count} 组记忆',
+    share: '共享记忆',
+    share_hint: '启用后所有会话共用同一份记忆；关闭时每个会话拥有独立记忆（默认）',
   },
   mcp: {
     add: '+ 添加 MCP',

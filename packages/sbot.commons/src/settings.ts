@@ -50,6 +50,8 @@ export interface MemoryConfig {
   extractor?: string
   /** 记忆压缩器使用的模型 UUID（对应 models 中的 key） */
   compressor?: string
+  /** 是否共享记忆（true = 所有 thread 共用同一份记忆；false = 每个 thread 独立，默认） */
+  share: boolean
 }
 
 export interface SaverConfig {

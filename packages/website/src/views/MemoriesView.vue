@@ -22,7 +22,7 @@ const showModal   = ref(false)
 const editingName = ref<string | null>(null)
 const form = ref<{ name: string } & MemoryConfig>({
   name: '', mode: 'human_and_ai', maxAgeDays: undefined,
-  embedding: '', evaluator: '', extractor: '', compressor: '',
+  embedding: '', evaluator: '', extractor: '', compressor: '', share: false,
 })
 
 const memoryViewModal = ref<InstanceType<typeof MemoryViewModal>>()
@@ -50,7 +50,7 @@ async function toggleExpand(id: string) {
 
 function openAdd() {
   editingName.value = null
-  form.value = { name: '', mode: 'human_and_ai', maxAgeDays: undefined, embedding: '', evaluator: '', extractor: '', compressor: '' }
+  form.value = { name: '', mode: 'human_and_ai', maxAgeDays: undefined, embedding: '', evaluator: '', extractor: '', compressor: '', share: false }
   showModal.value = true
 }
 
@@ -65,6 +65,7 @@ function openEdit(id: string) {
     evaluator: m.evaluator || '',
     extractor: m.extractor || '',
     compressor: m.compressor || '',
+    share: !!m.share,
   }
   showModal.value = true
 }
@@ -85,6 +86,7 @@ async function save() {
     }
     if (config.maxAgeDays) body.maxAgeDays = config.maxAgeDays
     if (config.compressor) body.compressor = config.compressor
+    if (config.share) body.share = true
     const id = editingName.value
     const res = id
       ? await apiFetch(`/api/settings/memories/${encodeURIComponent(id)}`, 'PUT', body)
@@ -158,20 +160,11 @@ async function refresh() {
                 <td></td>
                 <td colspan="5" class="thread-sub-cell">{{ t('common.loading') }}</td>
               </tr>
-              <template v-if="(memoryThreadsMap[id as string] || []).length === 0">
-                <tr class="thread-sub-row">
-                  <td></td>
-                  <td colspan="4" class="thread-id-cell">{{ id }}</td>
-                  <td>
-                    <button class="btn-outline btn-sm" @click="memoryViewModal?.open(id as string)">{{ t('common.view') }}</button>
-                  </td>
-                </tr>
-              </template>
-              <tr v-for="thread in memoryThreadsMap[id as string] || []" :key="thread" class="thread-sub-row">
+<tr v-for="thread in memoryThreadsMap[id as string] || []" :key="thread" class="thread-sub-row">
                 <td></td>
                 <td colspan="4" class="thread-id-cell">{{ thread }}</td>
                 <td>
-                  <button class="btn-outline btn-sm" @click="memoryViewModal?.open(id as string)">{{ t('common.view') }}</button>
+                  <button class="btn-outline btn-sm" @click="memoryViewModal?.open(id as string, thread)">{{ t('common.view') }}</button>
                 </td>
               </tr>
             </template>
@@ -230,6 +223,12 @@ async function refresh() {
               <option value="">{{ t('common.not_use') }}</option>
               <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
             </select>
+          </div>
+          <div class="form-group">
+            <label class="toggle-label">
+              <input type="checkbox" v-model="form.share" />
+              <span :title="t('memories.share_hint')">{{ t('memories.share') }}</span>
+            </label>
           </div>
         </div>
         <div class="modal-footer">

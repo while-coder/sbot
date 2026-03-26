@@ -874,7 +874,8 @@ class HttpServer {
 
         // ── Memories ──
         app.get('/api/memories/:memoryName', api(async req => {
-            const svc = await AgentRunner.createMemoryService(req.params.memoryName as string);
+            const threadId = req.query.threadId as string | undefined;
+            const svc = await AgentRunner.createMemoryService(req.params.memoryName as string, threadId);
             return (await svc.getAllMemories()).map(m => ({
                 id: m.id,
                 content: m.content,
@@ -888,24 +889,28 @@ class HttpServer {
         app.post('/api/memories/:memoryName/add', api(async req => {
             const { content } = req.body as { content?: string };
             if (!content?.trim()) { const e: any = new Error('content is required'); e.status = 400; throw e; }
-            const svc = await AgentRunner.createMemoryService(req.params.memoryName as string);
+            const threadId = req.query.threadId as string | undefined;
+            const svc = await AgentRunner.createMemoryService(req.params.memoryName as string, threadId);
             const ids = await svc.addMemoryDirect(content.trim());
             return { ids };
         }));
 
         app.post('/api/memories/:memoryName/compress', api(async req => {
-            const svc = await AgentRunner.createMemoryService(req.params.memoryName as string);
+            const threadId = req.query.threadId as string | undefined;
+            const svc = await AgentRunner.createMemoryService(req.params.memoryName as string, threadId);
             const count = await svc.compressMemories();
             return { count };
         }));
 
         app.delete('/api/memories/:memoryName/:memoryId', api(async req => {
-            const svc = await AgentRunner.createMemoryService(req.params.memoryName as string);
+            const threadId = req.query.threadId as string | undefined;
+            const svc = await AgentRunner.createMemoryService(req.params.memoryName as string, threadId);
             await svc.deleteMemory(req.params.memoryId as string);
         }));
 
         app.delete('/api/memories/:memoryName', api(async req => {
-            const svc = await AgentRunner.createMemoryService(req.params.memoryName as string);
+            const threadId = req.query.threadId as string | undefined;
+            const svc = await AgentRunner.createMemoryService(req.params.memoryName as string, threadId);
             const count = await svc.clearAll();
             return { count };
         }));

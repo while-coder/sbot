@@ -366,6 +366,7 @@ export class SingleAgentService extends AgentServiceBase {
         // 保存对话到长期记忆
         for (const mem of this.memoryServices) {
             try {
+                this.logger?.info(`---------------------------memory type: ${mem.constructor.name}`)
                 await mem.memorizeConversation(query, aiResponses.length > 0 ? aiResponses : undefined);
             } catch (error: any) {
                 this.logger?.warn(`保存对话记忆失败: ${error.message}`);
