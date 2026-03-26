@@ -443,6 +443,7 @@ export default {
     model_col: 'Model',
     memory_label: 'Memory',
     storage_label: 'Storage',
+    basic_info: 'Basic Info',
     system_prompt: 'System Prompt',
     react_config: 'ReAct Config',
     think_model: 'Think Model',

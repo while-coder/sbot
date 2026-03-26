@@ -270,7 +270,7 @@ async function refresh() {
                     <div v-if="!a" style="text-align:center;color:#94a3b8;padding:24px">{{ t('agents.not_found') }}</div>
                     <template v-else>
                       <div class="card">
-                        <div class="card-title">基本信息</div>
+                        <div class="card-title">{{ t('agents.basic_info') }}</div>
                         <table style="margin:0">
                           <tbody>
                             <tr>

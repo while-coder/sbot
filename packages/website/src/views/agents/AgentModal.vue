@@ -245,7 +245,7 @@ defineExpose({ open })
         </div>
         <div class="form-group">
           <label>{{ t('agents.sub_desc_label') }} *</label>
-          <input v-model="subForm.desc" :placeholder="t('agents.sub_desc_placeholder')" />
+          <textarea v-model="subForm.desc" :placeholder="t('agents.sub_desc_placeholder')" rows="3" style="resize:vertical" />
         </div>
       </div>
       <div class="modal-footer">

@@ -308,6 +308,7 @@ async function refresh() {
                             <th>{{ t('common.id') }}</th>
                             <th>{{ t('common.agent') }}</th>
                             <th>{{ t('common.memory') }}</th>
+                            <th>{{ t('channels.use_channel_memories') }}</th>
                             <th>{{ t('directory.path_label') }}</th>
                             <th>{{ t('common.ops') }}</th>
                           </tr>
@@ -321,6 +322,10 @@ async function refresh() {
                             <td style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ s.sessionId }}</td>
                             <td>{{ agentOptions.find(a => a.id === s.agentId)?.label || s.agentId || '-' }}</td>
                             <td>{{ s.memories?.length ? s.memories.map(id => memoryOptions.find(m => m.id === id)?.label || id).join(', ') : '-' }}</td>
+                            <td style="text-align:center">
+                              <span v-if="s.useChannelMemories" style="color:#16a34a;font-size:13px">✓</span>
+                              <span v-else style="color:#94a3b8">-</span>
+                            </td>
                             <td style="font-family:monospace;font-size:11px;color:#6b7280;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" :title="s.workPath || ''">{{ s.workPath || '-' }}</td>
                             <td>
                               <div class="ops-cell">

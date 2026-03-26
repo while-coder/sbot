@@ -443,6 +443,7 @@ export default {
     model_col: '模型',
     memory_label: '记忆',
     storage_label: '存储',
+    basic_info: '基本信息',
     system_prompt: '系统提示词',
     react_config: 'ReAct 配置',
     think_model: 'Think 模型',
