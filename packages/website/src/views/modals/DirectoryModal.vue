@@ -5,10 +5,11 @@ import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 import PathPickerModal from './PathPickerModal.vue'
+import MultiCheckbox from '@/components/MultiCheckbox.vue'
 
 const { t } = useI18n()
 
-type LocalDirCfg = { agent?: string; saver?: string; memory?: string }
+type LocalDirCfg = { agent?: string; saver?: string; memories?: string[] }
 
 const { show } = useToast()
 
@@ -20,7 +21,7 @@ const reading   = ref(false)
 
 // editingPath: 非空表示编辑模式，空表示新建模式
 const editingPath = ref('')
-const form = ref({ path: '', agent: '', saver: '', memory: '' })
+const form = ref({ path: '', agent: '', saver: '', memories: [] as string[] })
 
 const agentOptions  = computed(() =>
   Object.entries(store.settings.agents   || {}).map(([id, a]) => ({ id, label: (a as any).name || id }))
@@ -38,7 +39,7 @@ function open(path = '', cfg?: LocalDirCfg) {
     path,
     agent:  cfg?.agent  || '',
     saver:  cfg?.saver  || '',
-    memory: cfg?.memory || '',
+    memories: cfg?.memories || [],
   }
   showModal.value = true
 }
@@ -59,7 +60,7 @@ async function onPickerConfirm(selected: string) {
     if (cfg) {
       form.value.agent  = cfg.agent  || ''
       form.value.saver  = cfg.saver  || ''
-      form.value.memory = cfg.memory || ''
+      form.value.memories = cfg.memories || []
       show(t('directory.config_read'))
     }
   } catch { /* 无配置文件，忽略 */ }
@@ -77,7 +78,7 @@ async function readLocalConfig() {
     if (!cfg) { show(t('directory.error_no_settings'), 'error'); return }
     form.value.agent  = cfg.agent  || ''
     form.value.saver  = cfg.saver  || ''
-    form.value.memory = cfg.memory || ''
+    form.value.memory = cfg.memories?.[0] || ''
     show(t('directory.config_read_success'))
   } catch (e: any) {
     show(e.message, 'error')
@@ -93,12 +94,10 @@ async function save() {
   if (!form.value.saver) { show(t('channels.select_saver'), 'error'); return }
   saving.value = true
   try {
-    const body: any = { path: dir, agent: form.value.agent, saver: form.value.saver }
-    if (form.value.memory) body.memory = form.value.memory
+    const body: any = { path: dir, agent: form.value.agent, saver: form.value.saver, memories: form.value.memories }
     const isEdit = !!editingPath.value
     await apiFetch('/api/directories', isEdit ? 'PUT' : 'POST', body)
-    const cfg: LocalDirCfg = { agent: form.value.agent, saver: form.value.saver }
-    if (form.value.memory) cfg.memory = form.value.memory
+    const cfg: LocalDirCfg = { agent: form.value.agent, saver: form.value.saver, memories: form.value.memories }
     if (!store.settings.directories) store.settings.directories = {}
     store.settings.directories[dir] = {}
     showModal.value = false
@@ -157,10 +156,7 @@ defineExpose({ open })
         </div>
         <div class="form-group">
           <label>{{ t('common.memory') }}</label>
-          <select v-model="form.memory">
-            <option value="">{{ t('common.not_use') }}</option>
-            <option v-for="m in memoryOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-          </select>
+          <MultiCheckbox v-model="form.memories" :options="memoryOptions" />
         </div>
       </div>
       <div class="modal-footer">

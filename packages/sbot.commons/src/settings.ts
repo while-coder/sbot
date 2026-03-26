@@ -83,7 +83,7 @@ export interface McpEntry {
   [key: string]: unknown
 }
 
-export interface Agent {
+export interface AgentConfig {
   name?: string
   type: AgentMode | string
   // single
@@ -94,9 +94,6 @@ export interface Agent {
   // react
   think?: string
   agents?: SubAgentRef[]
-  // memory & saver (all types)
-  memory?: string
-  saver?: string
 }
 
 export interface SessionConfig {
@@ -106,8 +103,8 @@ export interface SessionConfig {
   agent: string
   /** 使用的 Saver 配置 UUID（对应 savers 中的 key） */
   saver: string
-  /** 使用的记忆配置 UUID（对应 memories 中的 key） */
-  memory?: string
+  /** 使用的记忆配置 UUID 列表（对应 memories 中的 key） */
+  memories: string[]
 }
 
 export interface ChannelConfig {
@@ -131,8 +128,8 @@ export interface ChannelConfig {
   agent: string
   /** 使用的 Saver 配置 UUID（对应 savers 中的 key） */
   saver: string
-  /** 使用的记忆配置 UUID（对应 memories 中的 key） */
-  memory?: string
+  /** 使用的记忆配置 UUID 列表（对应 memories 中的 key） */
+  memories: string[]
 }
 
 // 配置内容（agent/saver/memory）保存在对应目录的 .sbot/settings.json，
@@ -145,15 +142,15 @@ export interface LocalDirConfig {
   agent: string
   /** 使用的 Saver 配置 UUID（对应 savers 中的 key） */
   saver: string
-  /** 使用的记忆配置 UUID（对应 memories 中的 key） */
-  memory?: string
+  /** 使用的记忆配置 UUID 列表（对应 memories 中的 key） */
+  memories: string[]
 }
 
 export interface Settings {
   httpPort?: number
   httpUrl?: string
   autoApproveTools?: string[]
-  agents?: Record<string, Agent>
+  agents?: Record<string, AgentConfig>
   models?: Record<string, Model>
   embeddings?: Record<string, Embedding>
   memories?: Record<string, MemoryConfig>

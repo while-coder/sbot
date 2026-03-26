@@ -458,11 +458,11 @@ class HttpServer {
         }));
 
         app.post('/api/directories', api(req => {
-            const { path: dirPath, agent, saver, memory } = req.body;
+            const { path: dirPath, agent, saver, memories } = req.body;
             if (!dirPath) throwBad('path is required');
             if (!fs.existsSync(dirPath) || !fs.statSync(dirPath).isDirectory())
                 throwBad(`Path does not exist or is not a directory: ${dirPath}`);
-            config.saveDirectoryConfig(dirPath, { agent: agent || undefined, saver: saver || undefined, memory: memory || undefined });
+            config.saveDirectoryConfig(dirPath, { agent: agent || undefined, saver: saver || undefined, memories: memories || [] });
             if (!config.settings.directories) config.settings.directories = {};
             config.settings.directories[dirPath] = {};
             config.saveSettings();
@@ -470,10 +470,10 @@ class HttpServer {
         }));
 
         app.put('/api/directories', api(req => {
-            const { path: dirPath, agent, saver, memory } = req.body;
+            const { path: dirPath, agent, saver, memories } = req.body;
             if (!dirPath) throwBad('path is required');
             if (!config.settings.directories?.[dirPath]) throwBad(`Directory "${dirPath}" is not registered`);
-            config.saveDirectoryConfig(dirPath, { agent: agent || undefined, saver: saver || undefined, memory: memory || undefined });
+            config.saveDirectoryConfig(dirPath, { agent: agent || undefined, saver: saver || undefined, memories: memories || [] });
             return { path: dirPath };
         }));
 

@@ -80,7 +80,7 @@ export abstract class BaseWebUserService {
             const cfg = config.getDirectoryConfig(workPath);
             if (!cfg) throw new Error(`Directory "${workPath}" has no agent configured`);
             threadId = dirThreadId(workPath);
-            ({ agent: agentId, saver: saverId, memory: memoryId } = cfg);
+            agentId = cfg.agent; saverId = cfg.saver; memoryId = cfg.memories?.[0];
             scheduler = { schedulerType: SchedulerType.Directory, schedulerId: workPath };
             extraInfo = '';
         } else {
@@ -88,7 +88,7 @@ export abstract class BaseWebUserService {
             const session = sessionId ? config.getSession(sessionId) : undefined;
             if (!session) throw new Error(`Session "${sessionId}" not found`);
             threadId = sessionThreadId(sessionId);
-            ({ agent: agentId, saver: saverId, memory: memoryId } = session);
+            agentId = session.agent; saverId = session.saver; memoryId = session.memories?.[0];
             scheduler = { schedulerType: SchedulerType.Session, schedulerId: sessionId };
             extraInfo = '';
         }

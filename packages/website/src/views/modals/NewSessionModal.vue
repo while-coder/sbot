@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
+import MultiCheckbox from '@/components/MultiCheckbox.vue'
 
 const { t } = useI18n()
 
@@ -13,7 +14,7 @@ const emit = defineEmits<{ created: [sessionId: string] }>()
 
 const showModal = ref(false)
 const saving = ref(false)
-const form = ref({ agent: '', saver: '', memory: '' })
+const form = ref({ agent: '', saver: '', memories: [] as string[] })
 
 const agentOptions = computed(() =>
   Object.entries(store.settings.agents || {}).map(([id, a]) => ({ id, label: (a as any).name || id }))
@@ -26,7 +27,7 @@ const memoryOptions = computed(() =>
 )
 
 function open() {
-  form.value = { agent: '', saver: '', memory: '' }
+  form.value = { agent: '', saver: '', memories: [] }
   showModal.value = true
 }
 
@@ -41,8 +42,7 @@ async function create() {
   if (!form.value.saver) { show(t('new_session.error_saver'), 'error'); return }
   saving.value = true
   try {
-    const body: any = { name: autoName(), agent: form.value.agent, saver: form.value.saver }
-    if (form.value.memory) body.memory = form.value.memory
+    const body: any = { name: autoName(), agent: form.value.agent, saver: form.value.saver, memories: form.value.memories }
     const res = await apiFetch('/api/settings/sessions', 'POST', body)
     const id = res.data.id as string
     if (!store.settings.sessions) store.settings.sessions = {}
@@ -83,10 +83,7 @@ defineExpose({ open })
         </div>
         <div class="form-group">
           <label>{{ t('common.memory') }}</label>
-          <select v-model="form.memory">
-            <option value="">{{ t('common.not_use') }}</option>
-            <option v-for="m in memoryOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-          </select>
+          <MultiCheckbox v-model="form.memories" :options="memoryOptions" />
         </div>
       </div>
       <div class="modal-footer">

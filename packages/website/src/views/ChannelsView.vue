@@ -7,6 +7,7 @@ import { useToast } from '@/composables/useToast'
 import type { ChannelConfig } from '@/types'
 import SaverViewModal from './modals/SaverViewModal.vue'
 import PathPickerModal from './modals/PathPickerModal.vue'
+import MultiCheckbox from '@/components/MultiCheckbox.vue'
 import { larkThreadId, slackThreadId, wecomThreadId } from 'sbot.commons'
 
 const { t } = useI18n()
@@ -18,7 +19,7 @@ interface ChannelSessionRow {
   sessionName: string
   avatar: string
   agentId: string
-  memoryId: string | null
+  memories: string[] | null
   workPath: string | null
 }
 
@@ -52,11 +53,11 @@ const channelLoading   = ref<Record<string, boolean>>({})
 const viewUser         = ref<UserRow | null>(null)
 
 const editingSession   = ref<ChannelSessionRow | null>(null)
-const sessionForm      = ref<{ name: string; agentId: string; memoryId: string; workPath: string }>({ name: '', agentId: '', memoryId: '', workPath: '' })
+const sessionForm      = ref<{ name: string; agentId: string; memories: string[]; workPath: string }>({ name: '', agentId: '', memories: [], workPath: '' })
 
 function openEditSession(s: ChannelSessionRow) {
   editingSession.value = s
-  sessionForm.value = { name: s.sessionName || '', agentId: s.agentId || '', memoryId: s.memoryId || '', workPath: s.workPath || '' }
+  sessionForm.value = { name: s.sessionName || '', agentId: s.agentId || '', memories: s.memories || [], workPath: s.workPath || '' }
 }
 
 async function saveSession() {
@@ -66,13 +67,13 @@ async function saveSession() {
     await apiFetch(`/api/channel-sessions/${s.id}`, 'PUT', {
       sessionName: sessionForm.value.name.trim(),
       agentId: sessionForm.value.agentId,
-      memoryId: sessionForm.value.memoryId || null,
+      memories: sessionForm.value.memories,
       workPath: sessionForm.value.workPath.trim() || null,
     })
     Object.assign(s, {
       sessionName: sessionForm.value.name.trim(),
       agentId: sessionForm.value.agentId,
-      memoryId: sessionForm.value.memoryId || null,
+      memories: sessionForm.value.memories,
       workPath: sessionForm.value.workPath.trim() || null,
     })
     show(t('common.saved'))
@@ -90,8 +91,8 @@ function threadId(channelId: string, c: any, sessionId: string): string {
 
 const showModal = ref(false)
 const editingId = ref<string | null>(null)
-const form = ref<{ name: string; type: string; appId: string; appSecret: string; botToken: string; appToken: string; botId: string; secret: string; agent: string; saver: string; memory: string }>({
-  name: '', type: 'lark', appId: '', appSecret: '', botToken: '', appToken: '', botId: '', secret: '', agent: '', saver: '', memory: '',
+const form = ref<{ name: string; type: string; appId: string; appSecret: string; botToken: string; appToken: string; botId: string; secret: string; agent: string; saver: string; memories: string[] }>({
+  name: '', type: 'lark', appId: '', appSecret: '', botToken: '', appToken: '', botId: '', secret: '', agent: '', saver: '', memories: [],
 })
 
 async function loadChannelData(id: string) {
@@ -153,14 +154,14 @@ function formatUserInfo(raw: string) {
 
 function openAdd() {
   editingId.value = null
-  form.value = { name: '', type: 'lark', appId: '', appSecret: '', botToken: '', appToken: '', botId: '', secret: '', agent: '', saver: '', memory: '' }
+  form.value = { name: '', type: 'lark', appId: '', appSecret: '', botToken: '', appToken: '', botId: '', secret: '', agent: '', saver: '', memories: [] }
   showModal.value = true
 }
 
 function openEdit(id: string) {
   const c = channels.value[id]
   editingId.value = id
-  form.value = { name: c.name || '', type: c.type || 'lark', appId: c.appId || '', appSecret: c.appSecret || '', botToken: c.botToken || '', appToken: c.appToken || '', botId: c.botId || '', secret: c.secret || '', agent: c.agent, saver: c.saver, memory: c.memory || '' }
+  form.value = { name: c.name || '', type: c.type || 'lark', appId: c.appId || '', appSecret: c.appSecret || '', botToken: c.botToken || '', appToken: c.appToken || '', botId: c.botId || '', secret: c.secret || '', agent: c.agent, saver: c.saver, memories: c.memories || [] }
   showModal.value = true
 }
 
@@ -180,7 +181,7 @@ async function save() {
     if (form.value.appToken.trim()) config.appToken = form.value.appToken.trim()
     if (form.value.botId.trim()) config.botId = form.value.botId.trim()
     if (form.value.secret.trim()) config.secret = form.value.secret.trim()
-    if (form.value.memory) config.memory = form.value.memory
+    config.memories = form.value.memories
 
     if (editingId.value) {
       await apiFetch(`/api/settings/channels/${editingId.value}`, 'PUT', config)
@@ -255,7 +256,7 @@ async function refresh() {
               <td>{{ c.type || '-' }}</td>
               <td>{{ agentOptions.find(a => a.id === c.agent)?.label || c.agent || '-' }}</td>
               <td>{{ c.saver ? (saverOptions.find(s => s.id === c.saver)?.label || c.saver) : '-' }}</td>
-              <td>{{ c.memory ? (memoryOptions.find(m => m.id === c.memory)?.label || c.memory) : '-' }}</td>
+              <td>{{ c.memories?.length ? c.memories.map(id => memoryOptions.find(m => m.id === id)?.label || id).join(', ') : '-' }}</td>
               <td>
                 <div class="ops-cell">
                   <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
@@ -305,7 +306,7 @@ async function refresh() {
                             </td>
                             <td style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ s.sessionId }}</td>
                             <td>{{ agentOptions.find(a => a.id === s.agentId)?.label || s.agentId || '-' }}</td>
-                            <td>{{ memoryOptions.find(m => m.id === s.memoryId)?.label || s.memoryId || '-' }}</td>
+                            <td>{{ s.memories?.length ? s.memories.map(id => memoryOptions.find(m => m.id === id)?.label || id).join(', ') : '-' }}</td>
                             <td style="font-family:monospace;font-size:11px;color:#6b7280;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" :title="s.workPath || ''">{{ s.workPath || '-' }}</td>
                             <td>
                               <div class="ops-cell">
@@ -409,10 +410,7 @@ async function refresh() {
           </div>
           <div class="form-group">
             <label>{{ t('common.memory') }}</label>
-            <select v-model="form.memory">
-              <option value="">{{ t('channels.no_memory') }}</option>
-              <option v-for="m in memoryOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-            </select>
+            <MultiCheckbox v-model="form.memories" :options="memoryOptions" />
           </div>
         </div>
         <div class="modal-footer">
@@ -446,10 +444,7 @@ async function refresh() {
           </div>
           <div class="form-group">
             <label>{{ t('common.memory') }}</label>
-            <select v-model="sessionForm.memoryId">
-              <option value="">{{ t('channels.no_memory') }}</option>
-              <option v-for="m in memoryOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-            </select>
+            <MultiCheckbox v-model="sessionForm.memories" :options="memoryOptions" />
           </div>
           <div class="form-group">
             <label>{{ t('directory.path_label') }}</label>

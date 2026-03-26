@@ -289,10 +289,6 @@ async function refresh() {
                               <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.model_col') }}</td>
                               <td style="padding:7px 12px">{{ modelName(a.model) }}</td>
                             </tr>
-                            <tr v-if="(a as any).memory">
-                              <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.memory_label') }}</td>
-                              <td style="font-family:monospace;padding:7px 12px">{{ (a as any).memory }}</td>
-                            </tr>
                             <tr v-if="(a as any).saver">
                               <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.storage_label') }}</td>
                               <td style="font-family:monospace;padding:7px 12px">{{ (a as any).saver }}</td>

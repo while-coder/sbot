@@ -7,6 +7,7 @@ import { useToast } from '@/composables/useToast'
 import { useChatSocket } from '@/composables/useChatSocket'
 import SaverViewModal from './modals/SaverViewModal.vue'
 import MemoryViewModal from './modals/MemoryViewModal.vue'
+import MultiCheckbox from '@/components/MultiCheckbox.vue'
 import NewSessionModal from './modals/NewSessionModal.vue'
 import ChatArea from '@/components/ChatArea.vue'
 import { sessionThreadId } from 'sbot.commons'
@@ -50,7 +51,7 @@ const memoryOptions = computed(() =>
 
 const effectiveAgent  = computed(() => activeSessionId.value ? sessions.value[activeSessionId.value]?.agent  : undefined)
 const effectiveSaver  = computed(() => activeSessionId.value ? (sessions.value[activeSessionId.value]?.saver  || null) : null)
-const effectiveMemory = computed(() => activeSessionId.value ? (sessions.value[activeSessionId.value]?.memory || null) : null)
+const effectiveMemories = computed(() => activeSessionId.value ? (sessions.value[activeSessionId.value]?.memories || []) : [])
 
 const historyUrl = computed<string | null>(() => {
   const saver = effectiveSaver.value
@@ -93,12 +94,8 @@ async function saveSession(patch: Record<string, any>, id?: string) {
   try {
     const current = { ...sessions.value[targetId] }
     const updated = { ...current, ...patch }
-    if (updated.memory === '' || updated.memory === undefined) delete updated.memory
     await apiFetch(`/api/settings/sessions/${encodeURIComponent(targetId)}`, 'PUT', updated)
     Object.assign(store.settings.sessions![targetId], patch)
-    if ((patch.memory === '' || patch.memory === undefined) && store.settings.sessions![targetId].memory !== undefined) {
-      delete store.settings.sessions![targetId].memory
-    }
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -287,15 +284,16 @@ onUnmounted(() => {
 
           <!-- Memory -->
           <label class="toolbar-label">{{ t('common.memory') }}</label>
-          <select
-            class="toolbar-select-sm"
-            :value="effectiveMemory || ''"
-            @change="saveSession({ memory: ($event.target as HTMLSelectElement).value || undefined })"
-          >
-            <option value="">{{ t('chat.not_in_use') }}</option>
-            <option v-for="m in memoryOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-          </select>
-          <button v-if="effectiveMemory" class="chat-info-chip" @click="memoryViewModal?.open(effectiveMemory!)">{{ t('common.view') }}</button>
+          <MultiCheckbox
+            :model-value="effectiveMemories"
+            :options="memoryOptions"
+            compact
+            style="min-width:140px"
+            @update:model-value="saveSession({ memories: $event })"
+          />
+          <template v-for="mid in effectiveMemories" :key="mid">
+            <button class="chat-info-chip" @click="memoryViewModal?.open(mid)">{{ memoryOptions.find(m => m.id === mid)?.label || t('common.view') }}</button>
+          </template>
         </template>
         <span v-else style="font-size:13px;color:#94a3b8">{{ t('chat.select_or_create') }}</span>
         <button class="btn-outline btn-sm" style="margin-left:auto" @click="chatAreaRef?.refreshHistory()">{{ t('common.refresh') }}</button>

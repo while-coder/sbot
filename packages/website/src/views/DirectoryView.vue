@@ -8,13 +8,14 @@ import { useChatSocket } from '@/composables/useChatSocket'
 import type { ChatMessage } from '@/types'
 import DirectoryModal from './modals/DirectoryModal.vue'
 import SaverViewModal from './modals/SaverViewModal.vue'
+import MultiCheckbox from '@/components/MultiCheckbox.vue'
 import ChatArea from '@/components/ChatArea.vue'
 import { dirThreadId, MessageRole } from 'sbot.commons'
 import type { WebChatEvent } from 'sbot.commons'
 
 const { t } = useI18n()
 
-type LocalDirCfg = { agent?: string; saver?: string; memory?: string }
+type LocalDirCfg = { agent?: string; saver?: string; memories?: string[] }
 
 interface Attachment {
   name: string
@@ -124,7 +125,6 @@ function onSaved(dirPath: string, cfg: LocalDirCfg) {
 async function saveConfig(patch: Partial<LocalDirCfg>) {
   if (!activeDir.value || !activeCfg.value) return
   const updated: any = { ...activeCfg.value, ...patch }
-  if (!updated.memory) delete updated.memory
   try {
     await apiFetch('/api/directories', 'PUT', { path: activeDir.value, ...updated })
     Object.assign(activeCfg.value, patch)
@@ -272,14 +272,13 @@ onUnmounted(() => { wsOffMessage(handleWsEvent); chatAreaRef.value?.cleanup() })
 
             <!-- Memory -->
             <label class="toolbar-label">{{ t('common.memory') }}</label>
-            <select
-              class="toolbar-select-sm"
-              :value="activeCfg.memory || ''"
-              @change="saveConfig({ memory: ($event.target as HTMLSelectElement).value || undefined })"
-            >
-              <option value="">{{ t('common.not_use') }}</option>
-              <option v-for="m in memoryOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-            </select>
+            <MultiCheckbox
+              :model-value="activeCfg.memories || []"
+              :options="memoryOptions"
+              compact
+              style="min-width:140px"
+              @update:model-value="saveConfig({ memories: $event })"
+            />
 
             <button
               class="btn-outline btn-sm"

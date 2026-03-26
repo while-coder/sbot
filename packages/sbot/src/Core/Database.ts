@@ -50,9 +50,9 @@ export type ChannelSessionRow = {
   sessionId: string;   // 会话唯一ID
   sessionName: string; // 会话名称
   avatar: string;      // 会话头像
-  agentId: string | null;   // Agent UUID
-  memoryId: string | null;  // Memory UUID
-  workPath: string | null;  // 工作目录路径
+  agentId: string | null;       // Agent UUID
+  memories: string[] | null;    // Memory UUID 列表
+  workPath: string | null;      // 工作目录路径
 };
 
 class Database {
@@ -234,11 +234,28 @@ class Database {
           defaultValue: null,
           comment: "Agent UUID",
         },
-        memoryId: {
-          type: DataTypes.STRING(255),
+        memories: {
+          type: DataTypes.TEXT,
           allowNull: true,
           defaultValue: null,
-          comment: "Memory UUID",
+          comment: "Memory UUID 列表（JSON 数组）",
+          get() {
+            const raw: string | null = this.getDataValue("memories");
+            if (!raw) return null;
+            try {
+              const parsed = JSON.parse(raw);
+              // 新格式：JSON 数组
+              if (Array.isArray(parsed)) return parsed;
+              // 旧格式（理论上不会走到这里，JSON.parse 字符串会是 string 类型）
+              return [parsed];
+            } catch {
+              // 兼容旧数据：纯字符串 UUID
+              return [raw];
+            }
+          },
+          set(val: string[] | null) {
+            this.setDataValue("memories", val ? JSON.stringify(val) : null);
+          },
         },
         workPath: {
           type: DataTypes.STRING(1024),
