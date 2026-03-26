@@ -222,7 +222,7 @@ class HttpServer {
     // ===== System =====
     private registerSystemRoutes(app: express.Application) {
         app.get('/api/about', api(() =>
-            ({ version: config.pkg.version, name: config.pkg.name, description: config.pkg.description, releasenote: config.pkg.releasenote || '' })
+            ({ version: config.pkg.version, name: config.pkg.name, description: config.pkg.description, releasenoteEn: (config.pkg as any).releasenoteEn || '', releasenoteZh: (config.pkg as any).releasenoteZh || '' })
         ));
 
         app.post('/api/reload', api(() => {

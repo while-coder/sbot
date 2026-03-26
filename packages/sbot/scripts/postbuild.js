@@ -131,8 +131,8 @@ const isRelease = outputDir === 'dist';
 const distPkg = {
   name: selfPkg.name,
   version: selfPkg.version,
-  releasenote: releaseNote,
-  'releasenote.zh': releaseNoteZh,
+  releasenoteEn: releaseNote,
+  releasenoteZh: releaseNoteZh,
   description: selfPkg.description || '',
   ...(selfPkg.repository ? { repository: selfPkg.repository } : {}),
   ...(selfPkg.homepage ? { homepage: selfPkg.homepage } : {}),

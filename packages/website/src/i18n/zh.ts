@@ -426,6 +426,8 @@ export default {
     view_release: '查看发布页 →',
     version: '版本',
     repository: '开源地址',
+    npm: 'npm 包',
+    docker: 'Docker 镜像',
     license: '许可证',
     feedback: '提交反馈',
     feedback_hint: '遇到问题或有建议?欢迎在 GitHub 提交 Issue',

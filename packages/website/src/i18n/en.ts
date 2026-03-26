@@ -426,6 +426,8 @@ export default {
     view_release: 'View release →',
     version: 'Version',
     repository: 'Repository',
+    npm: 'npm',
+    docker: 'Docker',
     license: 'License',
     feedback: 'Submit Feedback',
     feedback_hint: 'Found a bug or have a suggestion? Submit an issue on GitHub',

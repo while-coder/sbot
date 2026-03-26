@@ -41,19 +41,20 @@ async function checkForUpdate(sendMessage: (msg: string) => Promise<void>): Prom
 
     const latest = await fetchLatestRelease();
     if (latest && compareSemver(config.pkg.version, latest.tag) < 0) {
-        const releasenoteSection = latest.releasenote ? `\n\n**更新内容：**\n${latest.releasenote}` : '';
+        const note = latest.releasenoteEn || latest.releasenoteZh;
+        const releasenoteSection = note ? `\n\n**What's new:**\n${note}` : '';
         const message = [
-            `## 🎉 发现新版本 ${latest.tag}`,
+            `## 🎉 New version available: ${latest.tag}`,
             ``,
-            `当前版本：**v${config.pkg.version}**`,
-            `最新版本：**${latest.tag}**`,
+            `Current version: **v${config.pkg.version}**`,
+            `Latest version: **${latest.tag}**`,
             ``,
-            `**更新命令：**`,
+            `**Update command:**`,
             `\`\`\``,
             `npm install -g @qingfeng346/sbot@latest`,
             `\`\`\``,
             ``,
-            `[查看发布说明](${latest.url})${releasenoteSection}`,
+            `[View release notes](${latest.url})${releasenoteSection}`,
         ].join('\n');
         await sendMessage(message);
         const tomorrow = new Date();

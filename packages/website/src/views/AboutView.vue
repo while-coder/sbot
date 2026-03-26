@@ -3,29 +3,34 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { marked } from 'marked'
-import { GITHUB_REPO_URL, GITHUB_ISSUES_URL, GITHUB_README_URL, GITHUB_README_ZH_URL, fetchLatestRelease, compareSemver } from 'sbot.commons'
+import { GITHUB_REPO_URL, GITHUB_ISSUES_URL, GITHUB_README_URL, GITHUB_README_ZH_URL, NPM_URL, DOCKER_URL, fetchLatestRelease, compareSemver } from 'sbot.commons'
 
 const { t, locale } = useI18n()
 
-const version = ref('')
-const releasenote = ref('')
+const currentVersion = ref('')
+const currentNoteEn = ref('')
+const currentNoteZh = ref('')
 const readmeHtml = ref('')
 const loadingReadme = ref(true)
-const update = ref<{ tag: string; body: string; url: string } | null>(null)
+const newRelease = ref<{ tag: string; releasenoteEn: string; releasenoteZh: string; url: string } | null>(null)
 
-const updateBodyHtml = computed(() =>
-  update.value?.body ? (marked.parse(update.value.body) as string) : ''
-)
-const releasenoteHtml = computed(() =>
-  releasenote.value ? (marked.parse(releasenote.value) as string) : ''
-)
+// 当前已安装版本的更新内容
+const currentNoteHtml = computed(() => {
+  const note = (locale.value === 'zh' ? currentNoteZh.value : currentNoteEn.value) || currentNoteEn.value
+  return note ? (marked.parse(note) as string) : ''
+})
+// 最新版本的更新内容
+const latestNoteHtml = computed(() => {
+  const note = (locale.value === 'zh' ? newRelease.value?.releasenoteZh : newRelease.value?.releasenoteEn) || newRelease.value?.releasenoteEn || ''
+  return note ? (marked.parse(note) as string) : ''
+})
 
 onMounted(async () => {
   try {
     const res = await apiFetch('/api/about')
-    version.value = res.data?.version || ''
-    const isZh = locale.value === 'zh'
-    releasenote.value = (isZh ? res.data?.['releasenote.zh'] : res.data?.releasenote) || res.data?.releasenote || ''
+    currentVersion.value = res.data?.version || ''
+    currentNoteEn.value = res.data?.releasenoteEn || ''
+    currentNoteZh.value = res.data?.releasenoteZh || ''
   } catch {}
 
   const readmeUrl = locale.value === 'zh' ? GITHUB_README_ZH_URL : GITHUB_README_URL
@@ -39,11 +44,11 @@ onMounted(async () => {
   }
   loadingReadme.value = false
 
-  if (releaseResult.status === 'fulfilled' && releaseResult.value && version.value) {
+  if (releaseResult.status === 'fulfilled' && releaseResult.value && currentVersion.value) {
     const data = releaseResult.value
     const tag = data.tag || ''
-    if (tag && compareSemver(version.value, tag) < 0) {
-      update.value = { tag, body: data.releasenote, url: data.url }
+    if (tag && compareSemver(currentVersion.value, tag) < 0) {
+      newRelease.value = { tag, releasenoteEn: data.releasenoteEn, releasenoteZh: data.releasenoteZh, url: data.url }
     }
   }
 })
@@ -53,7 +58,7 @@ onMounted(async () => {
   <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
     <div class="page-toolbar">
       <span class="page-toolbar-title">{{ t('about.title') }}</span>
-      <span v-if="version" style="font-size:12px;color:#9b9b9b;font-family:monospace">v{{ version }}</span>
+      <span v-if="currentVersion" style="font-size:12px;color:#9b9b9b;font-family:monospace">v{{ currentVersion }}</span>
     </div>
     <div class="page-content">
       <div style="max-width:760px">
@@ -65,12 +70,24 @@ onMounted(async () => {
             <tbody>
               <tr>
                 <td style="padding:8px 0;color:#6b6b6b;width:120px;border-bottom:1px solid #f0efed">{{ t('about.version') }}</td>
-                <td style="padding:8px 0;font-family:monospace;border-bottom:1px solid #f0efed">{{ version || '—' }}</td>
+                <td style="padding:8px 0;font-family:monospace;border-bottom:1px solid #f0efed">{{ currentVersion || '—' }}</td>
               </tr>
               <tr>
                 <td style="padding:8px 0;color:#6b6b6b;border-bottom:1px solid #f0efed">{{ t('about.repository') }}</td>
                 <td style="padding:8px 0;border-bottom:1px solid #f0efed">
                   <a :href="GITHUB_REPO_URL" target="_blank" style="color:#4f46e5;text-decoration:none;font-family:monospace;font-size:12px">{{ GITHUB_REPO_URL.replace('https://', '') }}</a>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0;color:#6b6b6b;border-bottom:1px solid #f0efed">{{ t('about.npm') }}</td>
+                <td style="padding:8px 0;border-bottom:1px solid #f0efed">
+                  <a :href="NPM_URL" target="_blank" style="color:#4f46e5;text-decoration:none;font-family:monospace;font-size:12px">{{ NPM_URL.replace('https://', '') }}</a>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0;color:#6b6b6b;border-bottom:1px solid #f0efed">{{ t('about.docker') }}</td>
+                <td style="padding:8px 0;border-bottom:1px solid #f0efed">
+                  <a :href="DOCKER_URL" target="_blank" style="color:#4f46e5;text-decoration:none;font-family:monospace;font-size:12px">{{ DOCKER_URL.replace('https://', '') }}</a>
                 </td>
               </tr>
               <tr>
@@ -91,21 +108,21 @@ onMounted(async () => {
         </div>
 
         <!-- Release note -->
-        <div v-if="releasenoteHtml" class="releasenote-card" style="margin-bottom:20px">
+        <div v-if="currentNoteHtml" class="releasenote-card" style="margin-bottom:20px">
           <div class="card-title">{{ t('about.release_notes') }}</div>
-          <div class="releasenote-body md-content" v-html="releasenoteHtml" />
+          <div class="releasenote-body md-content" v-html="currentNoteHtml" />
         </div>
 
         <!-- Update banner -->
-        <div v-if="update" class="update-banner">
-          <div class="update-banner-top">
+        <div v-if="newRelease" class="newRelease-banner">
+          <div class="newRelease-banner-top">
             <div style="display:flex;align-items:center;gap:10px">
-              <span class="update-tag">{{ update.tag }}</span>
+              <span class="newRelease-tag">{{ newRelease.tag }}</span>
               <span style="font-size:13px;font-weight:600;color:#1c1c1c">{{ t('about.new_version') }}</span>
             </div>
-            <a :href="update.url" target="_blank" class="update-link">{{ t('about.view_release') }}</a>
+            <a :href="newRelease.url" target="_blank" class="newRelease-link">{{ t('about.view_release') }}</a>
           </div>
-          <div v-if="updateBodyHtml" class="update-body md-content" v-html="updateBodyHtml" />
+          <div v-if="latestNoteHtml" class="newRelease-body md-content" v-html="latestNoteHtml" />
         </div>
 
         <!-- README -->
@@ -156,20 +173,20 @@ onMounted(async () => {
 }
 
 /* Update banner */
-.update-banner {
+.newRelease-banner {
   border: 1px solid #fbbf24;
   border-radius: 8px;
   background: #fffbeb;
   padding: 14px 16px;
   margin-bottom: 20px;
 }
-.update-banner-top {
+.newRelease-banner-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 10px;
 }
-.update-tag {
+.newRelease-tag {
   display: inline-block;
   padding: 2px 8px;
   background: #f59e0b;
@@ -179,13 +196,13 @@ onMounted(async () => {
   font-weight: 700;
   font-family: monospace;
 }
-.update-link {
+.newRelease-link {
   font-size: 12px;
   color: #4f46e5;
   text-decoration: none;
 }
-.update-link:hover { text-decoration: underline; }
-.update-body {
+.newRelease-link:hover { text-decoration: underline; }
+.newRelease-body {
   border-top: 1px solid #fde68a;
   padding-top: 10px;
   font-size: 13px;
