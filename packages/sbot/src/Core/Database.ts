@@ -61,10 +61,9 @@ export function parseMemories(raw: string | null | undefined): string[] {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed;
-    return [String(parsed)];
+    return Array.isArray(parsed) ? parsed : []
   } catch {
-    return [raw]; // 兼容旧的纯 UUID 字符串
+    return [];
   }
 }
 

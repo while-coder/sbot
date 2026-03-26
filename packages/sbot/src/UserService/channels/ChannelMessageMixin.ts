@@ -23,8 +23,8 @@ export function ChannelMessageMixin<TBase extends ChannelBase>(Base: TBase) {
             const agentId  = dbSession?.agentId  || channel.agent;
             const sessionMemories = parseMemories(dbSession?.memories);
             const memories = dbSession?.useChannelMemories
-                ? channel.memories
-                : (sessionMemories.length > 0 ? sessionMemories : channel.memories);
+                ? [...(channel.memories ?? []), ...sessionMemories]
+                : sessionMemories;
 
             this.threadId = this.buildThreadId(channelId, args);
             await AgentRunner.run({
