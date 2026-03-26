@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { AgentMessage, AgentToolCall, AskResponse, AskToolParams, MessageChunkType, MessageType, ToolApproval } from "scorpio.ai";
+import { AgentMessage, AskResponse, AskToolParams, MessageChunkType, MessageType, ToolApproval } from "scorpio.ai";
 import { AgentRunner, AgentSchedulerContext, createAskAgentTool } from "../../Agent/AgentRunner";
 import { config } from '../../Core/Config';
 import { SchedulerType } from '../../Core/Database';
@@ -51,12 +51,6 @@ export abstract class BaseWebUserService {
         return 600_000;
     }
 
-    async executeApproval(threadId: string, toolCall: AgentToolCall): Promise<ToolApproval> {
-        const { id, promise } = sessionManager.enterApproval(threadId, toolCall, this.getApprovalTimeout());
-        this.emit({ type: WebChatEventType.ToolCall, id, threadId, name: toolCall.name, args: toolCall.args });
-        return promise;
-    }
-
     resolveToolApproval(threadId: string, id: string, approval: ToolApproval): boolean {
         return sessionManager.exitApproval(threadId, id, approval);
     }
@@ -100,7 +94,11 @@ export abstract class BaseWebUserService {
                 callbacks: {
                     onMessage: this.onAgentMessage.bind(this),
                     onStreamMessage: this.onAgentStreamMessage.bind(this),
-                    executeTool: buildExecuteTool(threadId, (tc) => this.executeApproval(threadId, tc)),
+                    executeTool: buildExecuteTool(threadId, (tc) => {
+                        const { id, promise } = sessionManager.enterApproval(threadId, tc, this.getApprovalTimeout());
+                        this.emit({ type: WebChatEventType.ToolCall, id, threadId, name: tc.name, args: tc.args });
+                        return promise;
+                    }),
                 },
                 agentId, saverId, threadId, scheduler, extraInfo, memoryId,
                 workPath,
