@@ -24,7 +24,8 @@ onMounted(async () => {
   try {
     const res = await apiFetch('/api/about')
     version.value = res.data?.version || ''
-    releasenote.value = res.data?.releasenote || ''
+    const isZh = locale.value === 'zh'
+    releasenote.value = (isZh ? res.data?.['releasenote.zh'] : res.data?.releasenote) || res.data?.releasenote || ''
   } catch {}
 
   const readmeUrl = locale.value === 'zh' ? GITHUB_README_ZH_URL : GITHUB_README_URL

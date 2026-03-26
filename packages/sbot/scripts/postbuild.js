@@ -34,9 +34,11 @@ function resolveVersion(name, version) {
 // 读取自身的 package.json
 const selfPkg = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf-8'));
 
-// 读取 ReleaseNote.md（位于 monorepo 根目录）
-const releaseNotePath = path.join(monorepoRoot, 'ReleaseNote.md');
+// 读取 ReleaseNote.md / ReleaseNote.zh.md（位于 packages/sbot/）
+const releaseNotePath = path.join(rootDir, 'ReleaseNote.md');
+const releaseNoteZhPath = path.join(rootDir, 'ReleaseNote.zh.md');
 const releaseNote = fs.existsSync(releaseNotePath) ? fs.readFileSync(releaseNotePath, 'utf-8').trim() : '';
+const releaseNoteZh = fs.existsSync(releaseNoteZhPath) ? fs.readFileSync(releaseNoteZhPath, 'utf-8').trim() : '';
 
 // 扫描 monorepo packages/ 目录，建立 packageName -> dir 映射
 const packagesRoot = path.resolve(rootDir, '..');
@@ -130,6 +132,7 @@ const distPkg = {
   name: selfPkg.name,
   version: selfPkg.version,
   releasenote: releaseNote,
+  'releasenote.zh': releaseNoteZh,
   description: selfPkg.description || '',
   ...(selfPkg.repository ? { repository: selfPkg.repository } : {}),
   ...(selfPkg.homepage ? { homepage: selfPkg.homepage } : {}),
@@ -221,6 +224,15 @@ if (fs.existsSync(readmeSrc)) {
 } else if (fs.existsSync(readmeZhSrc)) {
   fs.copyFileSync(readmeZhSrc, readmeDst);
   console.log(`readme: ${readmeZhSrc} -> ${readmeDst}`);
+}
+
+// 复制 ReleaseNote* 到 dist/
+for (const name of ['ReleaseNote.md', 'ReleaseNote.zh.md']) {
+  const src = path.join(rootDir, name);
+  if (fs.existsSync(src)) {
+    fs.copyFileSync(src, path.join(distDir, name));
+    console.log(`${name}: ${src} -> ${distDir}`);
+  }
 }
 
 console.log('postbuild: done');
