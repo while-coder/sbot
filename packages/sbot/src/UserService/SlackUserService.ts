@@ -2,7 +2,7 @@ import "reflect-metadata";
 import { SlackMessageArgs, SlackUserServiceBase } from "channel.slack";
 import { AgentRunner, createAskAgentTool } from "../Agent/AgentRunner";
 import { config } from "../Core/Config";
-import { ChannelSessionRow, SchedulerType, database } from "../Core/Database";
+import { ChannelSessionRow, SchedulerType, database, parseMemories } from "../Core/Database";
 import { buildExecuteTool } from "./buildExecuteTool";
 import { slackThreadId, ChannelType } from "sbot.commons";
 
@@ -23,7 +23,7 @@ export class SlackUserService extends SlackUserServiceBase {
     );
 
     const agentId  = dbSession?.agentId  || channel.agent;
-    const memoryId = dbSession?.useChannelMemories ? channel.memories[0] : (dbSession?.memories?.[0] ?? channel.memories[0]);
+    const memoryId = dbSession?.useChannelMemories ? channel.memories[0] : (parseMemories(dbSession?.memories)[0] ?? channel.memories[0]);
 
     const extraInfo = userInfo
       ? `<slack-user>

@@ -2,7 +2,7 @@ import "reflect-metadata";
 import { WecomMessageArgs, WecomUserServiceBase } from "channel.wecom";
 import { AgentRunner } from "../Agent/AgentRunner";
 import { config } from "../Core/Config";
-import { ChannelSessionRow, SchedulerType, database } from "../Core/Database";
+import { ChannelSessionRow, SchedulerType, database, parseMemories } from "../Core/Database";
 import { buildExecuteTool } from "./buildExecuteTool";
 import { wecomThreadId, ChannelType } from "sbot.commons";
 import { sessionManager } from "channel.base";
@@ -28,7 +28,7 @@ export class WecomUserService extends WecomUserServiceBase {
         const dbSession = await database.findByPk<ChannelSessionRow>(database.channelSession, dbSessionId);
 
         const agentId  = dbSession?.agentId  || channel.agent;
-        const memoryId = dbSession?.useChannelMemories ? channel.memories[0] : (dbSession?.memories?.[0] ?? channel.memories[0]);
+        const memoryId = dbSession?.useChannelMemories ? channel.memories[0] : (parseMemories(dbSession?.memories)[0] ?? channel.memories[0]);
         const workPath = dbSession?.workPath  || undefined;
 
         const extraInfo = userInfo ? `<wecom-user>

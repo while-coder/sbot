@@ -64,18 +64,20 @@ function openEditSession(s: ChannelSessionRow) {
 async function saveSession() {
   const s = editingSession.value
   if (!s) return
+  const validIds = new Set(memoryOptions.value.map(m => m.id))
+  const memories = sessionForm.value.memories.filter(id => validIds.has(id))
   try {
     await apiFetch(`/api/channel-sessions/${s.id}`, 'PUT', {
       sessionName: sessionForm.value.name.trim(),
       agentId: sessionForm.value.agentId,
-      memories: sessionForm.value.memories,
+      memories,
       useChannelMemories: sessionForm.value.useChannelMemories,
       workPath: sessionForm.value.workPath.trim() || null,
     })
     Object.assign(s, {
       sessionName: sessionForm.value.name.trim(),
       agentId: sessionForm.value.agentId,
-      memories: sessionForm.value.memories,
+      memories,
       useChannelMemories: sessionForm.value.useChannelMemories,
       workPath: sessionForm.value.workPath.trim() || null,
     })
@@ -105,11 +107,15 @@ async function loadChannelData(id: string) {
       apiFetch(`/api/channel-sessions?channelId=${encodeURIComponent(id)}`),
       apiFetch(`/api/channel-users?channelId=${encodeURIComponent(id)}`),
     ])
-    sessionMap.value[id] = (sessRes.data || []).map((s: any) => ({
-      ...s,
-      memories: Array.isArray(s.memories) ? s.memories : s.memories ? [s.memories] : [],
-      useChannelMemories: !!s.useChannelMemories,
-    }))
+    sessionMap.value[id] = (sessRes.data || []).map((s: any) => {
+      let memories: string[] = []
+      if (Array.isArray(s.memories)) {
+        memories = s.memories
+      } else if (typeof s.memories === 'string' && s.memories) {
+        try { memories = JSON.parse(s.memories) } catch { memories = [s.memories] }
+      }
+      return { ...s, memories, useChannelMemories: !!s.useChannelMemories }
+    })
     userMap.value[id]    = userRes.data || []
   } catch (e: any) {
     show(e.message, 'error')
@@ -176,11 +182,12 @@ async function save() {
   if (!form.value.agent) { show(t('channels.select_agent'), 'error'); return }
   if (!form.value.saver) { show(t('channels.select_saver'), 'error'); return }
   try {
+    const validIds = new Set(memoryOptions.value.map(m => m.id))
     const config: ChannelConfig = {
       type: form.value.type,
       agent: form.value.agent,
       saver: form.value.saver,
-      memories: form.value.memories,
+      memories: form.value.memories.filter(id => validIds.has(id)),
     }
     if (form.value.name.trim()) config.name = form.value.name.trim()
     if (form.value.appId.trim()) config.appId = form.value.appId.trim()

@@ -2,7 +2,7 @@ import "reflect-metadata";
 import { LarkMessageArgs, LarkUserServiceBase, LarkReceiveIdType } from "channel.lark";
 import { AgentRunner, createAskAgentTool, createSendFileAgentTool } from "../Agent/AgentRunner";
 import { config } from "../Core/Config";
-import { ChannelSessionRow, SchedulerType, database } from "../Core/Database";
+import { ChannelSessionRow, SchedulerType, database, parseMemories } from "../Core/Database";
 import { buildExecuteTool } from "./buildExecuteTool";
 import { larkThreadId, ChannelType } from "sbot.commons";
 import { sessionManager } from "channel.base";
@@ -27,7 +27,7 @@ export class LarkUserService extends LarkUserServiceBase {
         const dbSession = await database.findByPk<ChannelSessionRow>(database.channelSession, dbSessionId);
 
         const agentId  = dbSession?.agentId  || channel.agent;
-        const memoryId = dbSession?.useChannelMemories ? channel.memories[0] : (dbSession?.memories?.[0] ?? channel.memories[0]);
+        const memoryId = dbSession?.useChannelMemories ? channel.memories[0] : (parseMemories(dbSession?.memories)[0] ?? channel.memories[0]);
         const workPath = dbSession?.workPath  || undefined;
 
         const extraInfo = userInfo ? `<lark-user>

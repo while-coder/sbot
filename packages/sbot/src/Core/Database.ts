@@ -51,10 +51,22 @@ export type ChannelSessionRow = {
   sessionName: string; // 会话名称
   avatar: string;      // 会话头像
   agentId: string | null;       // Agent UUID
-  memories: string[];           // Memory UUID 列表
+  memories: string | null;      // Memory UUID 列表（JSON 字符串，使用 parseMemories() 解析）
   useChannelMemories: boolean;  // 是否使用渠道级记忆
   workPath: string | null;      // 工作目录路径
 };
+
+/** 解析 DB 中存储的 memories 字段（JSON 字符串 → string[]） */
+export function parseMemories(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed;
+    return [String(parsed)];
+  } catch {
+    return [raw]; // 兼容旧的纯 UUID 字符串
+  }
+}
 
 class Database {
   private running = false;
@@ -239,24 +251,7 @@ class Database {
           type: DataTypes.TEXT,
           allowNull: true,
           defaultValue: null,
-          comment: "Memory UUID 列表（JSON 数组）",
-          get() {
-            const raw: string | null = this.getDataValue("memories");
-            if (!raw) return [];
-            try {
-              const parsed = JSON.parse(raw);
-              // 新格式：JSON 数组
-              if (Array.isArray(parsed)) return parsed;
-              // 旧格式（理论上不会走到这里，JSON.parse 字符串会是 string 类型）
-              return [parsed];
-            } catch {
-              // 兼容旧数据：纯字符串 UUID
-              return [raw];
-            }
-          },
-          set(val: string[] | null) {
-            this.setDataValue("memories", val ? JSON.stringify(val) : null);
-          },
+          comment: "Memory UUID 列表（JSON 字符串，读取时用 parseMemories() 解析）",
         },
         useChannelMemories: {
           type: DataTypes.BOOLEAN,
