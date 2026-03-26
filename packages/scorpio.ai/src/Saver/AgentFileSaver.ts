@@ -8,7 +8,11 @@ import { inject } from "scorpio.di";
 import { T_DBPath, T_ThreadId } from "../Core/tokens";
 import { MessageType, serializeMessage, deserializeMessage, applyTokenLimit } from "./messageSerializer";
 
-type ThreadRows = Array<{ type: string; data: string; created_at?: number }>;
+type ThreadRow = { type: string; data: string; created_at?: number };
+type ThreadRows = Array<ThreadRow>;
+interface ThreadFile {
+    messages: ThreadRows;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AgentFileSaver
@@ -46,7 +50,10 @@ export class AgentFileSaver implements IAgentSaverService {
         try {
             if (!existsSync(file)) return [];
             const content = await readFile(file, "utf-8");
-            return JSON.parse(content) as ThreadRows;
+            const parsed = JSON.parse(content);
+            // 兼容旧数据：直接是数组格式
+            if (Array.isArray(parsed)) return parsed as ThreadRows;
+            return (parsed as ThreadFile).messages ?? [];
         } catch (error: any) {
             this.logger?.warn(`读取线程文件失败: ${error.message}`);
             return [];
@@ -55,7 +62,8 @@ export class AgentFileSaver implements IAgentSaverService {
 
     private async writeRows(threadId: string, rows: ThreadRows): Promise<void> {
         await this.ensureDir();
-        await writeFile(this.threadFile(threadId), JSON.stringify(rows), "utf-8");
+        const file: ThreadFile = { messages: rows };
+        await writeFile(this.threadFile(threadId), JSON.stringify(file), "utf-8");
     }
 
     /**
