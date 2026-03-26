@@ -27,7 +27,7 @@ export class LarkUserService extends LarkUserServiceBase {
         const dbSession = await database.findByPk<ChannelSessionRow>(database.channelSession, dbSessionId);
 
         const agentId  = dbSession?.agentId  || channel.agent;
-        const memoryId = dbSession?.memories?.[0] || channel.memories[0];
+        const memoryId = dbSession?.useChannelMemories ? channel.memories[0] : (dbSession?.memories?.[0] ?? channel.memories[0]);
         const workPath = dbSession?.workPath  || undefined;
 
         const extraInfo = userInfo ? `<lark-user>

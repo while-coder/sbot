@@ -23,7 +23,7 @@ export class SlackUserService extends SlackUserServiceBase {
     );
 
     const agentId  = dbSession?.agentId  || channel.agent;
-    const memoryId = dbSession?.memories?.[0] || channel.memories[0];
+    const memoryId = dbSession?.useChannelMemories ? channel.memories[0] : (dbSession?.memories?.[0] ?? channel.memories[0]);
 
     const extraInfo = userInfo
       ? `<slack-user>

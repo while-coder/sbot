@@ -40,9 +40,7 @@ export interface MemoryConfig {
   name?: string
   /** 记忆模式 */
   mode?: string
-  /** 是否自动清理过期记忆 */
-  autoCleanup?: boolean
-  /** 记忆最大保留天数 */
+/** 记忆最大保留天数 */
   maxAgeDays?: number
   /** 记忆使用的 embedding UUID（对应 embeddings 中的 key） */
   embedding?: string

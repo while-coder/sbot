@@ -51,7 +51,8 @@ export type ChannelSessionRow = {
   sessionName: string; // 会话名称
   avatar: string;      // 会话头像
   agentId: string | null;       // Agent UUID
-  memories: string[] | null;    // Memory UUID 列表
+  memories: string[];           // Memory UUID 列表
+  useChannelMemories: boolean;  // 是否使用渠道级记忆
   workPath: string | null;      // 工作目录路径
 };
 
@@ -241,7 +242,7 @@ class Database {
           comment: "Memory UUID 列表（JSON 数组）",
           get() {
             const raw: string | null = this.getDataValue("memories");
-            if (!raw) return null;
+            if (!raw) return [];
             try {
               const parsed = JSON.parse(raw);
               // 新格式：JSON 数组
@@ -256,6 +257,12 @@ class Database {
           set(val: string[] | null) {
             this.setDataValue("memories", val ? JSON.stringify(val) : null);
           },
+        },
+        useChannelMemories: {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: false,
+          comment: "是否使用渠道级记忆",
         },
         workPath: {
           type: DataTypes.STRING(1024),

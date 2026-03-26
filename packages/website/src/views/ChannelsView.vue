@@ -19,7 +19,8 @@ interface ChannelSessionRow {
   sessionName: string
   avatar: string
   agentId: string
-  memories: string[] | null
+  memories: string[]
+  useChannelMemories: boolean
   workPath: string | null
 }
 
@@ -53,11 +54,11 @@ const channelLoading   = ref<Record<string, boolean>>({})
 const viewUser         = ref<UserRow | null>(null)
 
 const editingSession   = ref<ChannelSessionRow | null>(null)
-const sessionForm      = ref<{ name: string; agentId: string; memories: string[]; workPath: string }>({ name: '', agentId: '', memories: [], workPath: '' })
+const sessionForm      = ref<{ name: string; agentId: string; memories: string[]; useChannelMemories: boolean; workPath: string }>({ name: '', agentId: '', memories: [], useChannelMemories: false, workPath: '' })
 
 function openEditSession(s: ChannelSessionRow) {
   editingSession.value = s
-  sessionForm.value = { name: s.sessionName || '', agentId: s.agentId || '', memories: s.memories || [], workPath: s.workPath || '' }
+  sessionForm.value = { name: s.sessionName || '', agentId: s.agentId || '', memories: s.memories || [], useChannelMemories: !!s.useChannelMemories, workPath: s.workPath || '' }
 }
 
 async function saveSession() {
@@ -68,12 +69,14 @@ async function saveSession() {
       sessionName: sessionForm.value.name.trim(),
       agentId: sessionForm.value.agentId,
       memories: sessionForm.value.memories,
+      useChannelMemories: sessionForm.value.useChannelMemories,
       workPath: sessionForm.value.workPath.trim() || null,
     })
     Object.assign(s, {
       sessionName: sessionForm.value.name.trim(),
       agentId: sessionForm.value.agentId,
       memories: sessionForm.value.memories,
+      useChannelMemories: sessionForm.value.useChannelMemories,
       workPath: sessionForm.value.workPath.trim() || null,
     })
     show(t('common.saved'))
@@ -102,7 +105,11 @@ async function loadChannelData(id: string) {
       apiFetch(`/api/channel-sessions?channelId=${encodeURIComponent(id)}`),
       apiFetch(`/api/channel-users?channelId=${encodeURIComponent(id)}`),
     ])
-    sessionMap.value[id] = sessRes.data || []
+    sessionMap.value[id] = (sessRes.data || []).map((s: any) => ({
+      ...s,
+      memories: Array.isArray(s.memories) ? s.memories : s.memories ? [s.memories] : [],
+      useChannelMemories: !!s.useChannelMemories,
+    }))
     userMap.value[id]    = userRes.data || []
   } catch (e: any) {
     show(e.message, 'error')
@@ -173,6 +180,7 @@ async function save() {
       type: form.value.type,
       agent: form.value.agent,
       saver: form.value.saver,
+      memories: form.value.memories,
     }
     if (form.value.name.trim()) config.name = form.value.name.trim()
     if (form.value.appId.trim()) config.appId = form.value.appId.trim()
@@ -181,7 +189,6 @@ async function save() {
     if (form.value.appToken.trim()) config.appToken = form.value.appToken.trim()
     if (form.value.botId.trim()) config.botId = form.value.botId.trim()
     if (form.value.secret.trim()) config.secret = form.value.secret.trim()
-    config.memories = form.value.memories
 
     if (editingId.value) {
       await apiFetch(`/api/settings/channels/${editingId.value}`, 'PUT', config)
@@ -443,6 +450,12 @@ async function refresh() {
             </select>
           </div>
           <div class="form-group">
+            <label class="toggle-label">
+              <input type="checkbox" v-model="sessionForm.useChannelMemories" />
+              <span>{{ t('channels.use_channel_memories') }}</span>
+            </label>
+          </div>
+          <div v-if="!sessionForm.useChannelMemories" class="form-group">
             <label>{{ t('common.memory') }}</label>
             <MultiCheckbox v-model="sessionForm.memories" :options="memoryOptions" />
           </div>

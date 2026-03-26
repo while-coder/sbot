@@ -164,6 +164,8 @@ export default {
     confirm_delete_session: 'Delete session "{name}"?',
     confirm_delete_user: 'Delete user "{name}"?',
     confirm_delete: 'Delete channel "{name}"?',
+    use_channel_memories: 'Use channel memories',
+    use_channel_memories_hint: 'When enabled, use the memories configured on the channel',
   },
   settings: {
     http_port: 'HTTP Port',

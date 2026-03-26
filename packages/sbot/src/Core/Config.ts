@@ -241,7 +241,7 @@ class Config {
         [S1]: { name: "default", type: SaverType.Sqlite },
       },
       memories: {
-        [ME1]: { name: "default", autoCleanup: true, maxAgeDays: 90, embedding: E1, evaluator: M1, extractor: M1, compressor: M1 },
+        [ME1]: { name: "default", maxAgeDays: 90, embedding: E1, evaluator: M1, extractor: M1, compressor: M1 },
       },
       models: {
         [M1]: { name: "openai-gpt4",   provider: ModelProvider.OpenAI,     apiKey: "your-api-key", baseURL: "https://api.openai.com/v1",               model: "gpt-4" },

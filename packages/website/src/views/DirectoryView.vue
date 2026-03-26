@@ -8,6 +8,7 @@ import { useChatSocket } from '@/composables/useChatSocket'
 import type { ChatMessage } from '@/types'
 import DirectoryModal from './modals/DirectoryModal.vue'
 import SaverViewModal from './modals/SaverViewModal.vue'
+import MemoryViewModal from './modals/MemoryViewModal.vue'
 import MultiCheckbox from '@/components/MultiCheckbox.vue'
 import ChatArea from '@/components/ChatArea.vue'
 import { dirThreadId, MessageRole } from 'sbot.commons'
@@ -26,8 +27,9 @@ interface Attachment {
 
 const { show } = useToast()
 const { send: wsSend, onMessage: wsOnMessage, offMessage: wsOffMessage, waitForOpen } = useChatSocket()
-const directoryModal = ref<InstanceType<typeof DirectoryModal>>()
+const directoryModal  = ref<InstanceType<typeof DirectoryModal>>()
 const saverViewModal  = ref<InstanceType<typeof SaverViewModal>>()
+const memoryViewModal = ref<InstanceType<typeof MemoryViewModal>>()
 const chatAreaRef     = ref<InstanceType<typeof ChatArea>>()
 
 // ── 无效路径 ──────────────────────────────────────────────
@@ -279,6 +281,9 @@ onUnmounted(() => { wsOffMessage(handleWsEvent); chatAreaRef.value?.cleanup() })
               style="min-width:140px"
               @update:model-value="saveConfig({ memories: $event })"
             />
+            <template v-for="mid in (activeCfg.memories || [])" :key="mid">
+              <button class="chat-info-chip" @click="memoryViewModal?.open(mid)">{{ memoryOptions.find(m => m.id === mid)?.label || t('common.view') }}</button>
+            </template>
 
             <button
               class="btn-outline btn-sm"
@@ -321,6 +326,7 @@ onUnmounted(() => { wsOffMessage(handleWsEvent); chatAreaRef.value?.cleanup() })
 
     <DirectoryModal ref="directoryModal" @saved="onSaved" />
     <SaverViewModal ref="saverViewModal" />
+    <MemoryViewModal ref="memoryViewModal" />
   </div>
 </template>
 
