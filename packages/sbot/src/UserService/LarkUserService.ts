@@ -1,65 +1,39 @@
 import "reflect-metadata";
 import { LarkMessageArgs, LarkUserServiceBase, LarkReceiveIdType } from "channel.lark";
-import { AgentRunner, createAskAgentTool, createSendFileAgentTool } from "../Agent/AgentRunner";
-import { config } from "../Core/Config";
-import { ChannelSessionRow, SchedulerType, database, parseMemories } from "../Core/Database";
-import { buildExecuteTool } from "./buildExecuteTool";
+import { createAskAgentTool, createSendFileAgentTool } from "../Agent/AgentRunner";
 import { larkThreadId, ChannelType } from "sbot.commons";
 import { sessionManager } from "channel.base";
 import { AskQuestionType } from "scorpio.ai";
+import { ChannelMessageMixin } from "./ChannelMessageMixin";
 
-export class LarkUserService extends LarkUserServiceBase {
+export class LarkUserService extends ChannelMessageMixin(LarkUserServiceBase) {
 
     protected onAbortAction(_chatId?: string): void {
         if (this.threadId) sessionManager.abort(this.threadId);
     }
 
-    async processAIMessage(query: string, args: any): Promise<void> {
-        const channelId = args?.channelId as string;
-        const channel = channelId ? config.getChannel(channelId) : undefined;
-        if (!channel) throw new Error(`Channel "${channelId}" not found`);
-        const { chat_id, larkService } = args as LarkMessageArgs;
+    protected buildThreadId(channelId: string, args: any): string {
+        return larkThreadId(channelId, (args as LarkMessageArgs).chat_id);
+    }
 
-        const userInfo = args?.userInfo;
-        const dbSessionId: number = args?.dbSessionId;
-        if (!dbSessionId) throw new Error('dbSessionId not specified');
-
-        const dbSession = await database.findByPk<ChannelSessionRow>(database.channelSession, dbSessionId);
-
-        const agentId  = dbSession?.agentId  || channel.agent;
-        const memoryId = dbSession?.useChannelMemories ? channel.memories[0] : (parseMemories(dbSession?.memories)[0] ?? channel.memories[0]);
-        const workPath = dbSession?.workPath  || undefined;
-
-        const extraInfo = userInfo ? `<lark-user>
+    protected buildExtraInfo(userInfo: any): string {
+        if (!userInfo) return '';
+        return `<lark-user>
   <name>${userInfo.name}</name>
   <email>${userInfo.email}</email>
   <user-id>${userInfo.user_id}</user-id>
   <open-id>${userInfo.open_id}</open-id>
   <union-id>${userInfo.union_id}</union-id>
-</lark-user>` : '';
+</lark-user>`;
+    }
 
-        const threadId = larkThreadId(channelId, chat_id);
-        this.threadId = threadId;
-        await AgentRunner.run({
-            query,
-            callbacks: {
-                onMessage: this.onAgentMessage.bind(this),
-                onStreamMessage: this.onAgentStreamMessage.bind(this),
-                executeTool: buildExecuteTool(threadId, this.executeAgentTool.bind(this)),
-            },
-            agentId,
-            saverId: channel.saver,
-            threadId,
-            scheduler: { schedulerType: SchedulerType.Channel, schedulerId: String(dbSessionId) },
-            extraInfo,
-            memoryId,
-            workPath,
-            agentTools: [
-                createAskAgentTool(ChannelType.Lark, this.ask.bind(this), [AskQuestionType.Radio, AskQuestionType.Checkbox, AskQuestionType.Input]),
-                createSendFileAgentTool(ChannelType.Lark, async (filePath, fileName) => {
-                    await larkService.sendFileMessage(LarkReceiveIdType.ChatId, chat_id, filePath, fileName);
-                }),
-            ],
-        });
+    protected buildAgentTools(args: any): any[] {
+        const { chat_id, larkService } = args as LarkMessageArgs;
+        return [
+            createAskAgentTool(ChannelType.Lark, this.ask.bind(this), [AskQuestionType.Radio, AskQuestionType.Checkbox, AskQuestionType.Input]),
+            createSendFileAgentTool(ChannelType.Lark, async (filePath, fileName) => {
+                await larkService.sendFileMessage(LarkReceiveIdType.ChatId, chat_id, filePath, fileName);
+            }),
+        ];
     }
 }

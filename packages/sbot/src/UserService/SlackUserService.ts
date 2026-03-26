@@ -1,53 +1,28 @@
 import "reflect-metadata";
 import { SlackMessageArgs, SlackUserServiceBase } from "channel.slack";
-import { AgentRunner, createAskAgentTool } from "../Agent/AgentRunner";
-import { config } from "../Core/Config";
-import { ChannelSessionRow, SchedulerType, database, parseMemories } from "../Core/Database";
-import { buildExecuteTool } from "./buildExecuteTool";
+import { createAskAgentTool } from "../Agent/AgentRunner";
 import { slackThreadId, ChannelType } from "sbot.commons";
+import { ChannelMessageMixin } from "./ChannelMessageMixin";
 
-export class SlackUserService extends SlackUserServiceBase {
-  async processAIMessage(query: string, args: any): Promise<void> {
-    const channelId = args?.channelId as string;
-    const channel = channelId ? config.getChannel(channelId) : undefined;
-    if (!channel) throw new Error(`Channel "${channelId}" not found`);
+export class SlackUserService extends ChannelMessageMixin(SlackUserServiceBase) {
+  protected buildThreadId(channelId: string, args: any): string {
+    return slackThreadId(channelId, (args as SlackMessageArgs).channel);
+  }
 
-    const { channel: slackChannel } = args as SlackMessageArgs;
-    const userInfo = args?.userInfo;
-    const dbSessionId: number = args?.dbSessionId;
-    if (!dbSessionId) throw new Error("dbSessionId not specified");
-
-    const dbSession = await database.findByPk<ChannelSessionRow>(
-      database.channelSession,
-      dbSessionId,
-    );
-
-    const agentId  = dbSession?.agentId  || channel.agent;
-    const memoryId = dbSession?.useChannelMemories ? channel.memories[0] : (parseMemories(dbSession?.memories)[0] ?? channel.memories[0]);
-
-    const extraInfo = userInfo
-      ? `<slack-user>
+  protected buildExtraInfo(userInfo: any): string {
+    if (!userInfo) return '';
+    return `<slack-user>
   <id>${userInfo.id}</id>
   <name>${userInfo.real_name ?? userInfo.name ?? ""}</name>
   <email>${userInfo.profile?.email ?? ""}</email>
-</slack-user>`
-      : '';
+<\/slack-user>`;
+  }
 
-    this.threadId = slackThreadId(channelId, slackChannel);
-    await AgentRunner.run({
-      query,
-      callbacks: {
-        onMessage: this.onAgentMessage.bind(this),
-        onStreamMessage: this.onAgentStreamMessage.bind(this),
-        executeTool: buildExecuteTool(this.threadId, this.executeAgentTool.bind(this)),
-      },
-      agentId,
-      saverId: channel.saver,
-      threadId: this.threadId,
-      scheduler: { schedulerType: SchedulerType.Channel, schedulerId: String(dbSessionId) },
-      extraInfo,
-      memoryId,
-      agentTools: [createAskAgentTool(ChannelType.Slack, this.ask.bind(this))],
-    });
+  protected buildAgentTools(_args: any): any[] {
+    return [createAskAgentTool(ChannelType.Slack, this.ask.bind(this))];
+  }
+
+  protected getWorkPath(_dbSession: any): string | undefined {
+    return undefined;
   }
 }
