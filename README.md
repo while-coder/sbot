@@ -212,6 +212,129 @@ Auto-generated example configs are created on first run.
 
 ---
 
+## Usage Guide
+
+Open `http://localhost:5500` after starting sbot. Follow these steps:
+
+**1. Add a Model** — sidebar → **Models** → New
+
+Fill in provider, API key, base URL, and model name. Supported providers: OpenAI, Anthropic, Azure OpenAI, Ollama, and any OpenAI-compatible endpoint (Groq, Mistral, DeepSeek, etc.).
+
+---
+
+**2. Create a Saver** — sidebar → **Savers** → New
+
+Choose `sqlite` (recommended) or `file`. The saver controls how conversation history is persisted.
+
+---
+
+**3. Create an Agent** — sidebar → **Agents** → New
+
+Choose a mode:
+- **Single** — select a model, write a system prompt, optionally attach MCP tools and skills
+- **ReAct** — select a think model, then add sub-agents (each with an id and description for task dispatch)
+
+→ [MCP Tools](#mcp-tools) · [Skills](#skills)
+
+---
+
+**4. Start chatting** — choose your entry point
+
+- **Session** — sidebar → **Chat** → New Session, select agent + saver + memory
+- **Directory** — sidebar → **Directory**, register a local path, then configure agent/saver/memory for it
+- **Channel** (IM) — sidebar → **Channels** → New → [Channel Setup](#channel-setup)
+
+---
+
+**5. (Optional) Enable Memory** — sidebar → **Memories** → New
+
+Requires an embedding model first (sidebar → **Embeddings** → New). Then assign the memory to a session, directory, or channel.
+→ [Memory Options](#memory-options)
+
+---
+
+**6. (Optional) Add MCP Tools** — sidebar → **MCP** → New
+
+Add stdio or HTTP tool servers. Then open an agent and attach them under the MCP tab.
+→ [MCP Tools](#mcp-tools)
+
+---
+
+**7. (Optional) Manage Skills** — sidebar → **Skills**
+
+Install or remove prompt modules. Assign specific skills to an agent under the Skills tab, or leave unset to load all.
+→ [Skills](#skills)
+
+---
+
+**8. (Optional) Customize Prompts** — sidebar → **Prompts**
+
+Override any built-in prompt. Changes take effect immediately without restart.
+→ [Prompts](#prompts)
+
+---
+
+### Channel Setup
+
+In **Channels → New**, select the type and fill in the credentials, then assign agent + saver + memory. Every user/group chat is isolated automatically.
+
+| Type | Required fields |
+|------|----------------|
+| Lark / Feishu | App ID, App Secret |
+| Slack | Bot Token (`xoxb-...`), App Token (`xapp-...`) |
+| WeCom | Bot ID, Secret |
+
+---
+
+### Memory Options
+
+In **Memories → New**, configure the pipeline components:
+
+| Field | Description |
+|-------|-------------|
+| Mode | `read_only` / `human_only` (user messages) / `human_and_ai` (full conversation) |
+| Max age (days) | Auto-expire memories after N days |
+| Embedding | Embedding model for semantic search |
+| Evaluator | Scores memory importance (0–1) |
+| Extractor | Extracts key facts from conversation |
+| Compressor | Merges similar memories to reduce redundancy |
+| Shared | Off = per-thread memory; On = shared across all threads |
+
+---
+
+### MCP Tools
+
+In **MCP → New**, add a server:
+- **stdio** — command + args (e.g. `npx -y some-mcp-package`)
+- **http** — remote URL + optional headers
+
+Then open an agent → MCP tab to attach the servers you want it to use.
+
+---
+
+### Skills
+
+Skill files (Markdown) are stored in `~/.sbot/skills/`. You can install them from the Skills page or drop files manually.
+
+In an agent → Skills tab, select specific skills to load, or leave empty to load all. Built-in skills include: `brainstorming`, `planning`, `debugging`, `tdd`, `code-review`, `multi-agent`. Use the `find-skills` skill to discover and install from remote hubs (Clawhub, skills.sh).
+
+---
+
+### Prompts
+
+In **Prompts**, you can view and edit any built-in prompt. Saved overrides are stored in `~/.sbot/prompts/` and take precedence over the defaults.
+
+| Prompt | Purpose |
+|--------|---------|
+| `system/init.txt` | Prepended to all agents' system prompt |
+| `skills/system.txt` | Skills subsystem prompt template |
+| `agent/react_system.txt` | ReAct think node system prompt |
+| `agent/react_subnode.txt` | ReAct sub-agent task prompt template |
+
+Prompts support `{varName}` placeholders substituted at runtime.
+
+---
+
 ## Keywords
 
 `ai agent` `self-hosted` `llm server` `open source` `mcp` `model context protocol` `multi-agent` `react agent` `openai` `claude` `anthropic` `ollama` `chatbot` `lark` `feishu` `long-term memory` `vector search` `typescript` `node.js`

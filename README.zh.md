@@ -212,6 +212,129 @@ REST API 与 WebSocket 端点，供自定义客户端或程序化接入。
 
 ---
 
+## 使用指南
+
+启动后打开 `http://localhost:5500`，按以下步骤操作：
+
+**1. 添加模型** — 侧栏 → **模型** → 新建
+
+填写 provider、API Key、Base URL 和模型名。支持 OpenAI、Anthropic、Azure OpenAI、Ollama，以及任何兼容 OpenAI 的接口（Groq、Mistral、DeepSeek 等）。
+
+---
+
+**2. 创建 Saver** — 侧栏 → **存储** → 新建
+
+选择 `sqlite`（推荐）或 `file`，用于持久化对话历史。
+
+---
+
+**3. 创建 Agent** — 侧栏 → **Agent** → 新建
+
+选择运行模式：
+- **Single** — 选择模型，填写系统提示词，按需挂载 MCP 工具和技能
+- **ReAct** — 选择 Think 模型，添加子 Agent（每个子 Agent 需填写描述，供 Think 模型调度决策）
+
+→ [MCP 工具](#mcp-工具) · [Skills 技能](#skills-技能)
+
+---
+
+**4. 开始对话** — 选择接入方式
+
+- **会话** — 侧栏 → **聊天** → 新建会话，选择 Agent + Saver + Memory
+- **目录** — 侧栏 → **目录**，注册本地路径，配置 Agent / Saver / Memory
+- **渠道**（即时通讯）— 侧栏 → **渠道** → 新建 → [渠道配置](#渠道配置)
+
+---
+
+**5. （可选）开启 Memory** — 侧栏 → **记忆** → 新建
+
+需先创建 Embedding 模型（侧栏 → **向量模型** → 新建）。创建后将 Memory 分配给会话、目录或渠道。
+→ [Memory 选项](#memory-选项)
+
+---
+
+**6. （可选）添加 MCP 工具** — 侧栏 → **MCP** → 新建
+
+添加 stdio 或 HTTP 工具服务器，然后在 Agent 编辑页的 MCP 标签页中挂载。
+→ [MCP 工具](#mcp-工具)
+
+---
+
+**7. （可选）管理技能** — 侧栏 → **技能**
+
+安装或删除技能模块。在 Agent 编辑页的技能标签页中选择指定技能，不选则加载全部。
+→ [Skills 技能](#skills-技能)
+
+---
+
+**8. （可选）自定义提示词** — 侧栏 → **提示词**
+
+编辑任意内置提示词，保存后立即生效，无需重启。
+→ [提示词管理](#提示词管理)
+
+---
+
+### 渠道配置
+
+在 **渠道 → 新建** 中选择类型，填写凭据，再分配 Agent + Saver + Memory。每个用户/群聊的会话自动隔离。
+
+| 类型 | 必填字段 |
+|------|---------|
+| Lark / 飞书 | App ID、App Secret |
+| Slack | Bot Token（`xoxb-...`）、App Token（`xapp-...`）|
+| 企业微信 WeCom | Bot ID、Secret |
+
+---
+
+### Memory 选项
+
+在 **记忆 → 新建** 中配置流水线各角色：
+
+| 字段 | 说明 |
+|------|------|
+| 模式 | `read_only` 只读 / `human_only` 仅记用户消息 / `human_and_ai` 记录双方 |
+| 最大保留天数 | 到期自动清理 |
+| 向量模型 | 用于语义检索 |
+| 评估模型 | 评估记忆重要性（0–1 打分） |
+| 提取模型 | 从对话中提取关键事实 |
+| 压缩模型 | 合并相似记忆，减少冗余 |
+| 共享 | 关闭 = 每 thread 独立；开启 = 所有 thread 共享 |
+
+---
+
+### MCP 工具
+
+在 **MCP → 新建** 中添加工具服务器：
+- **stdio** — 填写命令和参数（如 `npx -y some-mcp-package`）
+- **http** — 填写远程 URL 和可选请求头
+
+然后打开 Agent 编辑页 → MCP 标签页挂载所需服务器。
+
+---
+
+### Skills 技能
+
+技能文件（Markdown 格式）存储在 `~/.sbot/skills/`，可在技能页面安装，也可手动放入文件夹。
+
+在 Agent 编辑页 → 技能标签页中选择要加载的技能，不选则全部加载。内置技能包括：`brainstorming`、`planning`、`debugging`、`tdd`、`code-review`、`multi-agent` 等。通过 `find-skills` 技能可搜索并安装来自 Clawhub、skills.sh 等远程平台的技能。
+
+---
+
+### 提示词管理
+
+在 **提示词** 页面可查看和编辑所有内置提示词，保存后存储在 `~/.sbot/prompts/` 并覆盖默认值。
+
+| 提示词 | 用途 |
+|--------|------|
+| `system/init.txt` | 所有 Agent 共享的前置系统提示 |
+| `skills/system.txt` | Skills 子系统提示模板 |
+| `agent/react_system.txt` | ReAct Think 节点系统提示 |
+| `agent/react_subnode.txt` | ReAct 子 Agent 任务提示模板 |
+
+提示词支持 `{varName}` 占位符，运行时自动替换。
+
+---
+
 ## 关键词
 
 `AI Agent` `自托管` `大模型服务` `开源` `MCP` `模型上下文协议` `多智能体` `ReAct` `OpenAI` `Claude` `Ollama` `聊天机器人` `飞书` `Lark` `长期记忆` `向量检索` `TypeScript` `Node.js`

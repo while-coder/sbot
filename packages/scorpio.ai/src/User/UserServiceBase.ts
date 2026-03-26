@@ -40,15 +40,15 @@ export abstract class UserServiceBase {
             const messageType = query.startsWith('/') ? MessageType.Command : MessageType.AI;
             let messagePrompt = await this.startProcessMessage(query, args, messageType);
             try {
-                this.logger?.info(`开始处理${messageType}: ${query} (${messagePrompt})(剩余队列: ${this.messageQueue.length})`);
+                this.logger?.info(`开始处理[${messageType}]: ${query} (${messagePrompt})(剩余队列: ${this.messageQueue.length})`);
                 if (messageType === MessageType.Command) {
                     await this.processCommand(query.substring(1), args);
                 } else {
                     await this.processAIMessage(query, args);
                 }
-                this.logger?.info(`${messageType}处理完成: ${query}`);
+                this.logger?.info(`处理完成[${messageType}]: ${query}`);
             } catch (e: any) {
-                this.logger?.error(`${messageType}处理出错: ${query} : ${e.message}\n${e.stack}`);
+                this.logger?.error(`处理出错[${messageType}]: ${query} : ${e.message}\n${e.stack}`);
                 try {
                     await this.processMessageError(e, args, messageType);
                 } catch (errorHandlingError) {
