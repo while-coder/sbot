@@ -3,9 +3,9 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { marked } from 'marked'
-import { GITHUB_REPO_URL, GITHUB_ISSUES_URL, GITHUB_README_URL, fetchLatestRelease, compareSemver } from 'sbot.commons'
+import { GITHUB_REPO_URL, GITHUB_ISSUES_URL, GITHUB_README_URL, GITHUB_README_ZH_URL, fetchLatestRelease, compareSemver } from 'sbot.commons'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const version = ref('')
 const releasenote = ref('')
@@ -27,8 +27,9 @@ onMounted(async () => {
     releasenote.value = res.data?.releasenote || ''
   } catch {}
 
+  const readmeUrl = locale.value === 'zh' ? GITHUB_README_ZH_URL : GITHUB_README_URL
   const [readmeResult, releaseResult] = await Promise.allSettled([
-    fetch(GITHUB_README_URL).then(r => r.text()),
+    fetch(readmeUrl).then(r => r.text()),
     fetchLatestRelease(),
   ])
 

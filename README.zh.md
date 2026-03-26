@@ -26,8 +26,6 @@ sbot port 3000        # 保存端口并退出
 sbot --port 3000      # 保存端口并启动
 ```
 
----
-
 ### Docker
 
 ```bash
@@ -44,108 +42,129 @@ docker run -d \
 
 ---
 
-## 使用说明
-
-### Web UI
-
-启动后打开 `http://localhost:5500`，通过侧边栏操作：
-
-- **模型（Models）** — 添加 LLM 供应商（API Key、Base URL、模型名）
-- **Agent** — 创建 Agent，分配模型 / 工具 / 技能
-- **会话（Sessions）** — 创建绑定到 Agent 的聊天会话
-- **聊天（Chat）** — 切换会话、发送消息、中断正在执行的任务
-- **渠道（Channels）** — 配置飞书集成
-- **调度器（Scheduler）** — 查看和管理定时任务
-
-### 配置飞书 / Lark
-
-1. 在[飞书开放平台](https://open.feishu.cn)创建自建应用
-2. 开启**机器人**能力，订阅 **message.receive** 事件
-3. 在 Web UI → **渠道** 中创建 Lark 渠道，填入 **App ID** 和 **App Secret**
-
----
-
 ## 核心特性
 
-- **多 LLM 供应商** — OpenAI、Anthropic Claude、Azure OpenAI、Ollama，以及任何 OpenAI 兼容接口（Groq、Mistral、DeepSeek 等）
+- **多 LLM 供应商** — OpenAI、Anthropic Claude、Azure OpenAI、Ollama，以及任何 OpenAI 兼容接口（Groq、Mistral、DeepSeek 等）。每个模型可独立配置 API Key、Base URL、温度和 Token 上限。
 - **多 Agent 编排** — ReAct 模式：思考模型拆解任务并分发给专项子 Agent，支持递归组合
 - **长期记忆** — 完整的提取 → 评估 → 压缩流水线，基于向量 Embedding 进行语义检索
 - **MCP 支持** — 通过 stdio 或 HTTP/SSE 接入外部工具服务器
-- **多渠道接入** — Web UI、CLI、飞书/Lark、REST API、WebSocket
+- **多渠道接入** — Web UI、CLI、飞书/Lark、Slack、企业微信、REST API、WebSocket
 - **内置工具** — Shell 执行、文件系统、归档操作、二进制文件读取、Python/PowerShell 内联执行、Cron 调度
 - **技能系统** — 可安装的 Prompt 模块，涵盖头脑风暴、TDD、代码审查、多 Agent 协作等
 - **灵活配置** — 单个 `settings.json`，支持全局、目录、会话三级覆盖
 
 ---
 
-## LLM 模型支持
+## 使用指南
 
-- **OpenAI** — GPT 系列模型
-- **Anthropic** — Claude 系列模型
-- **Azure OpenAI** — Azure 托管的 OpenAI 部署
-- **Ollama** — 本地运行的模型（无需 API Key）
-- **OpenAI 兼容接口** — Groq、Mistral、DeepSeek 等任何兼容 OpenAI 格式的服务
+启动后打开 `http://localhost:5500`，按以下步骤操作：
 
-每个模型可独立配置 API Key、Base URL、温度参数和 Token 上限。
+**1. 添加模型** — 侧栏 → **模型** → 新建
+
+填写 provider、API Key、Base URL 和模型名。支持 OpenAI、Anthropic、Azure OpenAI、Ollama，以及任何兼容 OpenAI 的接口（Groq、Mistral、DeepSeek 等）。
 
 ---
 
-## Agent 模式
+**2. 创建 Saver** — 侧栏 → **存储** → 新建
 
-### Single（单 Agent）
-单个 LLM 挂载工具和技能，适合通用助手场景。
-
-### ReAct（多 Agent 编排）
-由思考模型分析任务并将子任务分发给专项子 Agent，子 Agent 支持递归组合。每个子 Agent 对共享记忆拥有只读权限。
-
----
-
-## 长期记忆
-
-完整的提取 → 评估 → 压缩流水线：
-
-- **提取** — 自动从对话中识别关键信息
-- **评估** — 对记忆重要性打分（0–1）
-- **压缩** — 合并相关记忆，减少冗余
-- **检索** — 基于向量 Embedding 的语义搜索（支持 OpenAI、Azure、Ollama）
-- **自动清理** — 可配置保留天数，过期自动删除
-
-记忆模式：只读 / 仅存储用户消息 / 存储完整对话。
-
----
-
-## 对话持久化
-
-四种对话历史存储后端：
+选择对话历史的持久化后端：
 
 | 后端 | 说明 |
 |---|---|
 | 内存 | 仅保留在进程内，不写磁盘 |
-| SQLite | 每个 Saver 实例独立的本地 SQLite 数据库 |
+| SQLite | 每个 Saver 实例独立的本地 SQLite 数据库（推荐） |
 | PostgreSQL | 外部数据库，适合生产环境部署 |
 | 文件 | 每个会话线程存储为独立 JSON 文件 |
 
 ---
 
-## 接入渠道
+**3. 创建 Agent** — 侧栏 → **Agent** → 新建
 
-### 飞书 / Lark
-企业 IM 集成，支持事件去重、互动卡片、多用户上下文隔离，以及文件和图片的收发。
+选择运行模式：
+- **Single** — 选择模型，填写系统提示词，按需挂载 MCP 工具和技能
+- **ReAct** — 选择 Think 模型，添加子 Agent（每个子 Agent 需填写描述，供 Think 模型调度决策）。Think 模型递归拆解任务并分发；每个子 Agent 对共享记忆拥有只读权限。
 
-### Web UI
-基于浏览器的聊天界面，支持实时流式输出、附件上传、Agent 与会话切换。
-
-### HTTP + WebSocket
-REST API 与 WebSocket 端点，供自定义客户端或程序化接入。
-
-### CLI
-终端 TUI 界面，内置首次使用引导向导，支持实时流式输出。
+→ [MCP 工具](#mcp-工具) · [Skills 技能](#skills-技能)
 
 ---
 
-## 工具
+**4. 开始对话** — 选择接入方式
 
-### 内置工具组
+- **会话** — 侧栏 → **聊天** → 新建会话，选择 Agent + Saver + Memory
+- **目录** — 侧栏 → **目录**，注册本地路径，配置 Agent / Saver / Memory
+- **渠道**（即时通讯）— 侧栏 → **渠道** → 新建 → [渠道配置](#渠道配置)
+
+---
+
+**5. （可选）开启 Memory** — 侧栏 → **记忆** → 新建
+
+需先创建 Embedding 模型（侧栏 → **向量模型** → 新建）。创建后将 Memory 分配给会话、目录或渠道。
+
+| 字段 | 说明 |
+|------|------|
+| 模式 | `read_only` 只读 / `human_only` 仅记用户消息 / `human_and_ai` 记录双方 |
+| 最大保留天数 | 到期自动清理 |
+| 向量模型 | 用于语义检索（支持 OpenAI、Azure、Ollama） |
+| 评估模型 | 评估记忆重要性（0–1 打分） |
+| 提取模型 | 从对话中提取关键事实 |
+| 压缩模型 | 合并相似记忆，减少冗余 |
+| 共享 | 关闭 = 每 thread 独立；开启 = 所有 thread 共享 |
+
+---
+
+**6. （可选）添加 MCP 工具** — 侧栏 → **MCP** → 新建
+
+添加工具服务器：
+- **stdio** — 填写命令和参数（如 `npx -y some-mcp-package`）
+- **http** — 填写远程 URL 和可选请求头
+
+支持全局共享服务器和 Agent 级别独立配置，故障自动重启。然后打开 Agent 编辑页 → MCP 标签页挂载所需服务器。
+
+---
+
+**7. （可选）管理技能** — 侧栏 → **技能**
+
+技能文件（Markdown 格式）存储在 `~/.sbot/skills/`，可在技能页面安装，也可手动放入文件夹。在 Agent 编辑页 → 技能标签页中选择要加载的技能，不选则全部加载。
+
+内置技能：`brainstorming`、`planning`、`debugging`、`tdd`、`code-review`、`multi-agent`。通过 `find-skills` 技能可搜索并安装来自 Clawhub、skills.sh 等远程平台的技能。
+
+---
+
+**8. （可选）自定义提示词** — 侧栏 → **提示词**
+
+查看和编辑任意内置提示词，保存后存储在 `~/.sbot/prompts/` 并覆盖默认值，立即生效无需重启。
+
+| 提示词 | 用途 |
+|--------|------|
+| `system/init.txt` | 所有 Agent 共享的前置系统提示 |
+| `skills/system.txt` | Skills 子系统提示模板 |
+| `agent/react_system.txt` | ReAct Think 节点系统提示 |
+| `agent/react_subnode.txt` | ReAct 子 Agent 任务提示模板 |
+
+提示词支持 `{varName}` 占位符，运行时自动替换。
+
+---
+
+### 渠道配置
+
+在 **渠道 → 新建** 中选择类型，填写凭据，再分配 Agent + Saver + Memory。每个用户/群聊的会话自动隔离。
+
+| 类型 | 必填字段 |
+|------|---------|
+| Lark / 飞书 | App ID、App Secret |
+| Slack | Bot Token（`xoxb-...`）、App Token（`xapp-...`）|
+| 企业微信 WeCom | Bot ID、Secret |
+
+**配置飞书 / Lark：**
+1. 在[飞书开放平台](https://open.feishu.cn)创建自建应用
+2. 开启**机器人**能力，订阅 **message.receive** 事件
+3. 在 Web UI → **渠道** 中创建 Lark 渠道，填入 **App ID** 和 **App Secret**
+
+飞书集成支持事件去重、互动卡片、多用户上下文隔离，以及文件和图片的收发。
+
+---
+
+## 内置工具
 
 **命令执行**
 - Shell 命令与脚本
@@ -175,163 +194,6 @@ REST API 与 WebSocket 端点，供自定义客户端或程序化接入。
 - Agent 在执行过程中可随时暂停并向用户提问
 - 支持四种问题类型：单选、多选、文本输入、开关
 - 支持 Web UI 和飞书；用户回答后 Agent 自动继续执行
-
-### MCP（模型上下文协议）
-
-完整的 MCP 协议支持，用于接入外部工具服务器：
-
-- `stdio` 传输 — 通过子进程 stdin/stdout 通信
-- `http` 传输 — 远程 HTTP/SSE 服务器
-- 全局 MCP 服务器，可在多个 Agent 间共享
-- 每个 Agent 可单独配置 MCP 服务器
-- 故障自动重启
-
----
-
-## 技能（Skills）
-
-技能是独立的 Prompt 模块，用于为 Agent 扩展特定领域的能力或工作流：
-
-- 从全局技能目录加载
-- 限定为单个 Agent 专用
-- 从远程技能市场（Clawhub、skills.sh 等）搜索并安装
-
-内置技能涵盖：头脑风暴、任务规划、系统调试、TDD、代码审查、多 Agent 协作等工作流。内置 `find-skills` 技能可让 Agent 在运行时发现可用技能列表。
-
----
-
-## 配置
-
-所有配置集中在一个 `settings.json` 文件中，支持三级覆盖：
-
-1. **全局级** — 对所有 Agent 和渠道生效
-2. **目录级** — 通过项目内的 `.sbot/settings.json` 覆盖
-3. **会话级** — 通过 Web 或 CLI 对单个会话指定不同的模型、Saver 和记忆配置
-
-首次启动时自动生成配置示例文件。
-
----
-
-## 使用指南
-
-启动后打开 `http://localhost:5500`，按以下步骤操作：
-
-**1. 添加模型** — 侧栏 → **模型** → 新建
-
-填写 provider、API Key、Base URL 和模型名。支持 OpenAI、Anthropic、Azure OpenAI、Ollama，以及任何兼容 OpenAI 的接口（Groq、Mistral、DeepSeek 等）。
-
----
-
-**2. 创建 Saver** — 侧栏 → **存储** → 新建
-
-选择 `sqlite`（推荐）或 `file`，用于持久化对话历史。
-
----
-
-**3. 创建 Agent** — 侧栏 → **Agent** → 新建
-
-选择运行模式：
-- **Single** — 选择模型，填写系统提示词，按需挂载 MCP 工具和技能
-- **ReAct** — 选择 Think 模型，添加子 Agent（每个子 Agent 需填写描述，供 Think 模型调度决策）
-
-→ [MCP 工具](#mcp-工具) · [Skills 技能](#skills-技能)
-
----
-
-**4. 开始对话** — 选择接入方式
-
-- **会话** — 侧栏 → **聊天** → 新建会话，选择 Agent + Saver + Memory
-- **目录** — 侧栏 → **目录**，注册本地路径，配置 Agent / Saver / Memory
-- **渠道**（即时通讯）— 侧栏 → **渠道** → 新建 → [渠道配置](#渠道配置)
-
----
-
-**5. （可选）开启 Memory** — 侧栏 → **记忆** → 新建
-
-需先创建 Embedding 模型（侧栏 → **向量模型** → 新建）。创建后将 Memory 分配给会话、目录或渠道。
-→ [Memory 选项](#memory-选项)
-
----
-
-**6. （可选）添加 MCP 工具** — 侧栏 → **MCP** → 新建
-
-添加 stdio 或 HTTP 工具服务器，然后在 Agent 编辑页的 MCP 标签页中挂载。
-→ [MCP 工具](#mcp-工具)
-
----
-
-**7. （可选）管理技能** — 侧栏 → **技能**
-
-安装或删除技能模块。在 Agent 编辑页的技能标签页中选择指定技能，不选则加载全部。
-→ [Skills 技能](#skills-技能)
-
----
-
-**8. （可选）自定义提示词** — 侧栏 → **提示词**
-
-编辑任意内置提示词，保存后立即生效，无需重启。
-→ [提示词管理](#提示词管理)
-
----
-
-### 渠道配置
-
-在 **渠道 → 新建** 中选择类型，填写凭据，再分配 Agent + Saver + Memory。每个用户/群聊的会话自动隔离。
-
-| 类型 | 必填字段 |
-|------|---------|
-| Lark / 飞书 | App ID、App Secret |
-| Slack | Bot Token（`xoxb-...`）、App Token（`xapp-...`）|
-| 企业微信 WeCom | Bot ID、Secret |
-
----
-
-### Memory 选项
-
-在 **记忆 → 新建** 中配置流水线各角色：
-
-| 字段 | 说明 |
-|------|------|
-| 模式 | `read_only` 只读 / `human_only` 仅记用户消息 / `human_and_ai` 记录双方 |
-| 最大保留天数 | 到期自动清理 |
-| 向量模型 | 用于语义检索 |
-| 评估模型 | 评估记忆重要性（0–1 打分） |
-| 提取模型 | 从对话中提取关键事实 |
-| 压缩模型 | 合并相似记忆，减少冗余 |
-| 共享 | 关闭 = 每 thread 独立；开启 = 所有 thread 共享 |
-
----
-
-### MCP 工具
-
-在 **MCP → 新建** 中添加工具服务器：
-- **stdio** — 填写命令和参数（如 `npx -y some-mcp-package`）
-- **http** — 填写远程 URL 和可选请求头
-
-然后打开 Agent 编辑页 → MCP 标签页挂载所需服务器。
-
----
-
-### Skills 技能
-
-技能文件（Markdown 格式）存储在 `~/.sbot/skills/`，可在技能页面安装，也可手动放入文件夹。
-
-在 Agent 编辑页 → 技能标签页中选择要加载的技能，不选则全部加载。内置技能包括：`brainstorming`、`planning`、`debugging`、`tdd`、`code-review`、`multi-agent` 等。通过 `find-skills` 技能可搜索并安装来自 Clawhub、skills.sh 等远程平台的技能。
-
----
-
-### 提示词管理
-
-在 **提示词** 页面可查看和编辑所有内置提示词，保存后存储在 `~/.sbot/prompts/` 并覆盖默认值。
-
-| 提示词 | 用途 |
-|--------|------|
-| `system/init.txt` | 所有 Agent 共享的前置系统提示 |
-| `skills/system.txt` | Skills 子系统提示模板 |
-| `agent/react_system.txt` | ReAct Think 节点系统提示 |
-| `agent/react_subnode.txt` | ReAct 子 Agent 任务提示模板 |
-
-提示词支持 `{varName}` 占位符，运行时自动替换。
 
 ---
 
