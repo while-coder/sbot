@@ -272,11 +272,17 @@ export class SingleAgentService extends AgentServiceBase {
                     this.logger?.error(`图片转换失败: ${error.message}`);
                 }
 
-                // 将 MCP 格式序列化为 JSON 字符串
-                const content = JSON.stringify(mcpResult);
+                // 单条纯文本且无错误标志时直接返回文本，省去 JSON 包装节省 token
+                // isError=true 时保留 JSON，让 LLM 能感知到错误信号
+                const isError = mcpResult.isError;
+                mcpResult.isError = undefined;
+                const content =
+                    !isError && mcpResult.content.length === 1 && mcpResult.content[0].type === MCPContentType.Text
+                        ? mcpResult.content[0].text
+                        : JSON.stringify(mcpResult);
 
                 toolMessages.push(
-                    new ToolMessage({ tool_call_id: toolCall.id || "", content: content, status: "success" })
+                    new ToolMessage({ tool_call_id: toolCall.id || "", content: content, status: isError ? "error" : "success" })
                 );
             } catch (error: any) {
                 toolMessages.push(
