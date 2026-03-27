@@ -95,7 +95,7 @@ async function handleReceiveMessage(ctx: ReceiveMessageContext): Promise<void> {
     if (sessionAvatar !== undefined) sessionData.avatar = sessionAvatar;
     const [dbSession, sessionCreated] = await database.findOrCreate<ChannelSessionRow>(database.channelSession, {
         where: { channelId, sessionId },
-        defaults: { ...sessionData, agentId: null, memoryId: null },
+        defaults: { ...sessionData, agentId: null },
     });
     if (!sessionCreated) {
         await database.update(database.channelSession, sessionData, { where: { channelId, sessionId } });
