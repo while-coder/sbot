@@ -4,10 +4,14 @@ import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/
 import { z } from 'zod';
 import { LoggerService } from '../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, type MCPToolResult } from 'scorpio.ai';
-import { resolvePath } from '../FileSystem/utils';
+import { resolvePath, formatSize } from '../FileSystem/utils';
 import { loadPrompt } from '../../Core/PromptLoader';
 
 const logger = LoggerService.getLogger('Tools/Archive/read.ts');
+
+const MAX_TEXT_SIZE = 50 * 1024; // 50KB, align with read tool
+const MAX_LINE_LENGTH = 2000;
+const MAX_LINE_SUFFIX = `... (line truncated to ${MAX_LINE_LENGTH} chars)`;
 
 export function createZipReadFileTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
@@ -31,12 +35,37 @@ export function createZipReadFileTool(): StructuredToolInterface {
                 const buf = zip.readFile(entry);
                 if (!buf) return createErrorResult(`Failed to read entry: ${entryPath}`);
 
-                const content = encoding === 'base64'
-                    ? buf.toString('base64')
-                    : buf.toString(encoding as BufferEncoding);
+                if (encoding === 'base64') {
+                    logger.info(`zip_read_file: ${zipAbs}!${entryPath}`);
+                    return createSuccessResult(createTextContent(`size: ${formatSize(buf.length)}\nbase64: ${buf.toString('base64')}`));
+                }
+
+                const raw = buf.toString(encoding as BufferEncoding);
+                const allLines = raw.split('\n');
+                const totalLines = allLines.length;
+                const outputLines: string[] = [];
+                let bytes = 0;
+                let truncated = false;
+
+                for (const line of allLines) {
+                    const text = line.length > MAX_LINE_LENGTH
+                        ? line.substring(0, MAX_LINE_LENGTH) + MAX_LINE_SUFFIX
+                        : line;
+                    const size = Buffer.byteLength(text, 'utf-8') + (outputLines.length > 0 ? 1 : 0);
+                    if (bytes + size > MAX_TEXT_SIZE) { truncated = true; break; }
+                    outputLines.push(text);
+                    bytes += size;
+                }
+
+                let output = outputLines.join('\n');
+                if (truncated) {
+                    output += `\n\n(Output capped at 50KB. Showing lines 1-${outputLines.length} of ${totalLines}.)`;
+                } else {
+                    output += `\n\n(End of entry - total ${totalLines} lines)`;
+                }
 
                 logger.info(`zip_read_file: ${zipAbs}!${entryPath}`);
-                return createSuccessResult(createTextContent(content));
+                return createSuccessResult(createTextContent(output));
             } catch (e: any) {
                 logger.error(`zip_read_file: ${e.message}`);
                 return createErrorResult(e.message);

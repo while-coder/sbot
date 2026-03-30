@@ -8,7 +8,7 @@ import { LoggerService } from '../../Core/LoggerService'
 const logger = LoggerService.getLogger('Tools/Web/webfetch.ts')
 
 const MAX_RESPONSE_SIZE = 5 * 1024 * 1024  // 5MB
-const MAX_OUTPUT_SIZE   = 3000             // 3000 chars
+const MAX_OUTPUT_SIZE   = 20000            // 20000 chars
 const DEFAULT_TIMEOUT_SEC = 30
 const MAX_TIMEOUT_MS = 120 * 1000
 
@@ -108,7 +108,6 @@ export function createWebFetchTool(): StructuredToolInterface {
 
                 const contentType = response.headers.get('content-type') || ''
                 const mime = contentType.split(';')[0]?.trim().toLowerCase() || ''
-                const title = `${url} (${contentType})`
 
                 const isImage =
                     mime.startsWith('image/') &&
@@ -119,7 +118,7 @@ export function createWebFetchTool(): StructuredToolInterface {
                     const base64Content = Buffer.from(arrayBuffer).toString('base64')
                     return createSuccessResult(
                         createTextContent(
-                            `${title}\n\nImage fetched successfully.\ndata:${mime};base64,${base64Content}`,
+                            `size: ${arrayBuffer.byteLength} bytes\nbase64: data:${mime};base64,${base64Content}`,
                         ),
                     )
                 }
@@ -146,9 +145,9 @@ export function createWebFetchTool(): StructuredToolInterface {
 
                 const truncated = output.length > MAX_OUTPUT_SIZE
                 const finalOutput = truncated
-                    ? output.slice(0, MAX_OUTPUT_SIZE) + `\n\n[内容已截断，超过 ${MAX_OUTPUT_SIZE} 字符限制]`
+                    ? output.slice(0, MAX_OUTPUT_SIZE) + `\n\n(Content truncated at ${MAX_OUTPUT_SIZE} characters.)`
                     : output
-                return createSuccessResult(createTextContent(`${title}\n\n${finalOutput}`))
+                return createSuccessResult(createTextContent(finalOutput))
             } catch (err: any) {
                 if (err.name === 'AbortError') {
                     return createErrorResult(`Request timed out after ${timeoutMs / 1000} seconds: ${url}`)

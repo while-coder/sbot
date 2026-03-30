@@ -5,7 +5,7 @@ import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/
 import { z } from 'zod';
 import { LoggerService } from '../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, type MCPToolResult } from 'scorpio.ai';
-import { resolvePath } from '../FileSystem/utils';
+import { resolvePath, formatSize } from '../FileSystem/utils';
 import { loadPrompt } from '../../Core/PromptLoader';
 
 const logger = LoggerService.getLogger('Tools/Archive/compress.ts');
@@ -47,9 +47,10 @@ export function createZipCompressTool(): StructuredToolInterface {
                 zip.writeZip(destAbs);
 
                 const size = fs.statSync(destAbs).size;
+                const entryCount = zip.getEntries().length;
                 logger.info(`zip_compress: ${destAbs} (${size} bytes)`);
                 return createSuccessResult(
-                    createTextContent(`Created: ${destAbs}\nSize: ${size} bytes\nSources: ${srcs.join(', ')}`),
+                    createTextContent(`Created: ${destAbs} (${formatSize(size)}, ${entryCount} entries)`),
                 );
             } catch (e: any) {
                 logger.error(`zip_compress: ${e.message}`);

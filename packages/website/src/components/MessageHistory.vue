@@ -102,7 +102,7 @@ function renderMd(content: string): string {
                   <template v-for="m2 in messages" :key="'r' + (m2.tool_call_id || '')">
                     <div v-if="m2.role === MessageRole.Tool && m2.tool_call_id === (tc as ToolCall).id" class="tool-call-result">
                       <div class="tool-call-result-label">{{ t('chat.tool_result') }}</div>
-                      {{ m2.content }}
+                      <div class="md-content tool-result-content" v-html="renderMd(m2.content || '')" />
                     </div>
                   </template>
                 </div>

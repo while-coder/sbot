@@ -48,7 +48,11 @@ export function createSchedulerCreateTool(): StructuredToolInterface {
                     maxRuns:  maxRuns ?? 0,
                 });
                 await schedulerService.reload((row as any).id);
-                return createSuccessResult(createTextContent(`created id=${(row as any).id}`));
+                const r = row as any;
+                const maxLabel = r.maxRuns ? `max ${r.maxRuns}` : 'unlimited';
+                return createSuccessResult(createTextContent(
+                    `Created task id=${r.id}\n  expr: ${r.expr}\n  type: ${r.type}\n  target: ${r.targetId}\n  runs: ${maxLabel}\n  message: ${r.message}`,
+                ));
             } catch (e: any) {
                 logger.error(`scheduler_create failed: ${e.message}`);
                 return createErrorResult(`Failed to create scheduled task: ${e.message}`);

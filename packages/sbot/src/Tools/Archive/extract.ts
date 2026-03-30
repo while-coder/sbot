@@ -30,10 +30,12 @@ export function createZipExtractTool(): StructuredToolInterface {
                 const zip = new AdmZip(zipAbs);
                 zip.extractAllTo(outAbs, overwrite);
 
-                const entries = zip.getEntries().length;
-                logger.info(`zip_extract: ${zipAbs} -> ${outAbs} (${entries} entries)`);
+                const allEntries = zip.getEntries();
+                const fileCount = allEntries.filter(e => !e.isDirectory).length;
+                const dirCount = allEntries.filter(e => e.isDirectory).length;
+                logger.info(`zip_extract: ${zipAbs} -> ${outAbs} (${allEntries.length} entries)`);
                 return createSuccessResult(
-                    createTextContent(`Extracted ${entries} entries to: ${outAbs}`),
+                    createTextContent(`Extracted to: ${outAbs} (${dirCount} directories, ${fileCount} files)`),
                 );
             } catch (e: any) {
                 logger.error(`zip_extract: ${e.message}`);

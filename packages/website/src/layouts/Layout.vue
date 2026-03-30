@@ -606,7 +606,7 @@ table tr:hover td { background: #fafaf9; }
 }
 .msg-row { display: flex; flex-direction: column; gap: 4px; max-width: 85%; }
 .msg-row.human { align-self: flex-end; align-items: flex-end; }
-.msg-row.ai { align-self: flex-start; align-items: flex-start; max-width: 90%; }
+.msg-row.ai { align-self: flex-start; align-items: flex-start; max-width: 100%; width: 100%; }
 .msg-role-bar {
   display: flex;
   align-items: baseline;
@@ -680,7 +680,6 @@ table tr:hover td { background: #fafaf9; }
   padding: 10px 12px;
   margin-top: 6px;
   font-size: 12px;
-  max-width: 520px;
   min-width: 200px;
 }
 .tool-call-item { border: 1px solid #e8e6e3; border-radius: 6px; margin-top: 6px; overflow: hidden; }
@@ -711,6 +710,13 @@ table tr:hover td { background: #fafaf9; }
 }
 .tool-call-result { margin-top: 6px; padding-top: 6px; border-top: 1px solid #e8e6e3; }
 .tool-call-result-label { font-weight: 600; color: #6b6b6b; margin-bottom: 4px; font-size: 11px; text-transform: uppercase; }
+.tool-result-content { font-size: 12px; line-height: 1.5; overflow-x: auto; }
+.tool-result-content pre { background: rgba(0,0,0,0.04); border-radius: 4px; padding: 6px 8px; margin: 4px 0; font-size: 11px; }
+.tool-result-content code { font-size: 11px; }
+.tool-result-content p { margin: 0 0 4px; }
+.tool-result-content p:last-child { margin-bottom: 0; }
+.tool-result-content table { font-size: 11px; }
+.tool-result-content table th, .tool-result-content table td { padding: 2px 6px; }
 .chat-input-bar {
   display: flex;
   gap: 8px;

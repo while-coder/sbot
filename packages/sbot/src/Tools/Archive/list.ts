@@ -4,7 +4,7 @@ import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/
 import { z } from 'zod';
 import { LoggerService } from '../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, type MCPToolResult } from 'scorpio.ai';
-import { resolvePath } from '../FileSystem/utils';
+import { resolvePath, formatSize } from '../FileSystem/utils';
 import { loadPrompt } from '../../Core/PromptLoader';
 
 const logger = LoggerService.getLogger('Tools/Archive/list.ts');
@@ -22,20 +22,22 @@ export function createZipListTool(): StructuredToolInterface {
                 if (!fs.existsSync(zipAbs)) return createErrorResult(`Zip file not found: ${zipAbs}`);
 
                 const zip = new AdmZip(zipAbs);
-                const entries = zip.getEntries().map(e => ({
-                    name: e.entryName,
-                    size: e.header.size,
-                    compressedSize: e.header.compressedSize,
-                    isDirectory: e.isDirectory,
-                    date: isNaN(e.header.time.getTime()) ? 'unknown' : e.header.time.toISOString(),
-                }));
+                const entries = zip.getEntries();
+                const fileEntries = entries.filter(e => !e.isDirectory);
+                const dirEntries = entries.filter(e => e.isDirectory);
 
-                const lines = entries.map(e =>
-                    `${e.isDirectory ? 'd' : 'f'}  ${e.name}  ${e.size}B (${e.compressedSize}B compressed)  ${e.date}`
-                );
+                const lines = entries.map(e => {
+                    const type = e.isDirectory ? 'd' : 'f';
+                    const size = e.isDirectory ? '-' : formatSize(e.header.size);
+                    return `${type}  ${size.padStart(10)}  ${e.entryName}`;
+                });
+
+                const totalSize = fileEntries.reduce((s, e) => s + e.header.size, 0);
+                const summary = `${dirEntries.length} directories, ${fileEntries.length} files, ${formatSize(totalSize)} total`;
+
                 logger.info(`zip_list: ${zipAbs} (${entries.length} entries)`);
                 return createSuccessResult(
-                    createTextContent(`${entries.length} entries in ${zipAbs}:\n${lines.join('\n')}`),
+                    createTextContent(`${lines.join('\n')}\n\n${summary}`),
                 );
             } catch (e: any) {
                 logger.error(`zip_list: ${e.message}`);

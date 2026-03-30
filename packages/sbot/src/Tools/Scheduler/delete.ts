@@ -19,8 +19,11 @@ export function createSchedulerDeleteTool(): StructuredToolInterface {
             try {
                 const existing = await database.findByPk<SchedulerRow>(database.scheduler, id);
                 if (!existing) return createErrorResult(`Scheduled task id=${id} not found`);
+                const ex = existing as any;
                 await schedulerService.delete(id);
-                return createSuccessResult(createTextContent(`deleted id=${id}`));
+                return createSuccessResult(createTextContent(
+                    `Deleted task id=${id} (expr="${ex.expr}", message="${ex.message}")`,
+                ));
             } catch (e: any) {
                 logger.error(`scheduler_delete failed: ${e.message}`);
                 return createErrorResult(`Failed to delete scheduled task: ${e.message}`);
