@@ -33,7 +33,10 @@ export function createWriteTool(): StructuredToolInterface {
                 await writeAtomic(abs, newContent, 'utf-8');
 
                 if (!exists) {
-                    return createSuccessResult(createTextContent(`Created new file: ${abs}`));
+                    const lines = newContent.split('\n').length;
+                    const size = Buffer.byteLength(newContent, 'utf-8');
+                    const sizeStr = size < 1024 ? `${size} B` : `${(size / 1024).toFixed(1)}KB`;
+                    return createSuccessResult(createTextContent(`Created new file: ${abs} (${lines} lines, ${sizeStr})`));
                 }
 
                 const diff = createTwoFilesPatch(abs, abs, oldContent, newContent, 'original', 'modified');

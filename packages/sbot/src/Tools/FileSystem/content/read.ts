@@ -44,10 +44,25 @@ async function isBinaryFile(filepath: string, fileSize: number): Promise<boolean
     }
 }
 
-async function tailLines(filepath: string, numLines: number): Promise<string[]> {
+async function countLines(filepath: string): Promise<number> {
+    const stream = createReadStream(filepath, { encoding: 'utf8' });
+    const rl = createInterface({ input: stream, crlfDelay: Infinity });
+    let count = 0;
+    try {
+        for await (const _ of rl) count++;
+    } finally {
+        rl.close();
+        stream.destroy();
+    }
+    return count;
+}
+
+async function tailLines(filepath: string, numLines: number): Promise<{ lines: string[]; totalLines: number }> {
+    const totalLines = await countLines(filepath);
+    if (totalLines === 0) return { lines: [], totalLines: 0 };
+
     const CHUNK = 1024;
     const stats = await fsAsync.stat(filepath);
-    if (stats.size === 0) return [];
     const fh = await fsAsync.open(filepath, 'r');
     try {
         const lines: string[] = [];
@@ -68,7 +83,7 @@ async function tailLines(filepath: string, numLines: number): Promise<string[]> 
                 linesFound++;
             }
         }
-        return lines;
+        return { lines, totalLines };
     } finally {
         await fh.close();
     }
@@ -115,8 +130,27 @@ export function createReadTool(): StructuredToolInterface {
 
                 // Tail mode
                 if (tail) {
-                    const lines = await tailLines(abs, tail);
-                    const output = `<path>${abs}</path>\n<type>file</type>\n<content>\n${lines.join('\n')}\n\n(Last ${lines.length} lines)\n</content>`;
+                    const { lines: tailRaw, totalLines } = await tailLines(abs, tail);
+                    const numbered: string[] = [];
+                    let bytes = 0;
+                    let truncatedByBytes = false;
+                    for (let i = 0; i < tailRaw.length; i++) {
+                        const text = tailRaw[i].length > MAX_LINE_LENGTH
+                            ? tailRaw[i].substring(0, MAX_LINE_LENGTH) + MAX_LINE_SUFFIX
+                            : tailRaw[i];
+                        const size = Buffer.byteLength(text, 'utf-8') + (numbered.length > 0 ? 1 : 0);
+                        if (bytes + size > MAX_BYTES) { truncatedByBytes = true; break; }
+                        numbered.push(text);
+                        bytes += size;
+                    }
+                    let output = numbered.join('\n');
+                    if (truncatedByBytes) {
+                        const startLine = totalLines - tailRaw.length + 1;
+                        const actualEnd = startLine + numbered.length - 1;
+                        output += `\n\n(Output capped at ${MAX_BYTES_LABEL}. Showing lines ${startLine}-${actualEnd} of ${totalLines}.)`;
+                    } else {
+                        output += `\n\n(Last ${numbered.length} lines of ${totalLines})`;
+                    }
                     return createSuccessResult(createTextContent(output));
                 }
 
@@ -153,11 +187,10 @@ export function createReadTool(): StructuredToolInterface {
                 }
 
                 const off = offset ?? 1;
-                const content = raw.map((line, i) => `${i + off}: ${line}`).join('\n');
                 const lastReadLine = off + raw.length - 1;
                 const nextOffset = lastReadLine + 1;
 
-                let output = `<path>${abs}</path>\n<type>file</type>\n<content>\n${content}`;
+                let output = raw.join('\n');
                 if (truncatedByBytes) {
                     output += `\n\n(Output capped at ${MAX_BYTES_LABEL}. Showing lines ${off}-${lastReadLine}. Use offset=${nextOffset} to continue.)`;
                 } else if (hasMoreLines) {
@@ -165,7 +198,6 @@ export function createReadTool(): StructuredToolInterface {
                 } else {
                     output += `\n\n(End of file - total ${lineCount} lines)`;
                 }
-                output += '\n</content>';
 
                 return createSuccessResult(createTextContent(output));
             } catch (e: any) {

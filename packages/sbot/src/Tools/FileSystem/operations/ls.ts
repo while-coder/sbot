@@ -19,6 +19,12 @@ const IGNORE_PATTERNS = [
 
 const LIMIT = 100;
 
+interface TreeNode {
+    name: string;
+    isDir: boolean;
+    children: TreeNode[];
+}
+
 /** 以树形文本列出目录结构，自动忽略常见构建/依赖目录 */
 export function createLsTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
@@ -35,62 +41,72 @@ export function createLsTool(): StructuredToolInterface {
                 const shouldIgnore = (name: string) =>
                     IGNORE_PATTERNS.includes(name) || extraIgnore.includes(name);
 
-                const files: string[] = [];
+                let fileCount = 0;
+                let dirCount = 0;
 
-                function walk(dir: string, rel: string) {
-                    if (files.length >= LIMIT) return;
+                function walk(dir: string): TreeNode[] {
                     let entries: fs.Dirent[];
                     try {
                         entries = fs.readdirSync(dir, { withFileTypes: true });
-                    } catch { return; }
+                    } catch { return []; }
 
+                    // 排序：目录在前，文件在后，各自按名称排序
+                    entries.sort((a, b) => {
+                        const aDir = a.isDirectory() ? 0 : 1;
+                        const bDir = b.isDirectory() ? 0 : 1;
+                        if (aDir !== bDir) return aDir - bDir;
+                        return a.name.localeCompare(b.name);
+                    });
+
+                    const nodes: TreeNode[] = [];
                     for (const entry of entries) {
-                        if (files.length >= LIMIT) break;
+                        if (fileCount >= LIMIT) break;
                         if (shouldIgnore(entry.name)) continue;
-                        const relPath = rel ? `${rel}/${entry.name}` : entry.name;
+
                         if (entry.isDirectory()) {
-                            walk(path.join(dir, entry.name), relPath);
+                            dirCount++;
+                            const children = fileCount < LIMIT
+                                ? walk(path.join(dir, entry.name))
+                                : [];
+                            nodes.push({ name: entry.name, isDir: true, children });
                         } else {
-                            files.push(relPath);
+                            fileCount++;
+                            nodes.push({ name: entry.name, isDir: false, children: [] });
+                        }
+                    }
+                    return nodes;
+                }
+
+                const tree = walk(abs);
+
+                // 渲染树形结构
+                const lines: string[] = [`${abs}/`];
+
+                function render(nodes: TreeNode[], prefix: string) {
+                    for (let i = 0; i < nodes.length; i++) {
+                        const node = nodes[i];
+                        const isLast = i === nodes.length - 1;
+                        const connector = isLast ? '└── ' : '├── ';
+                        const label = node.isDir ? `${node.name}/` : node.name;
+                        lines.push(`${prefix}${connector}${label}`);
+
+                        if (node.isDir && node.children.length > 0) {
+                            const childPrefix = prefix + (isLast ? '    ' : '│   ');
+                            render(node.children, childPrefix);
                         }
                     }
                 }
 
-                walk(abs, '');
+                render(tree, '');
 
-                const dirs = new Set<string>();
-                const filesByDir = new Map<string, string[]>();
+                // 汇总信息
+                const parts: string[] = [];
+                parts.push(`${dirCount} director${dirCount === 1 ? 'y' : 'ies'}`);
+                parts.push(`${fileCount} file${fileCount === 1 ? '' : 's'}`);
+                if (fileCount >= LIMIT) parts.push('truncated');
+                lines.push('', parts.join(', '));
 
-                for (const file of files) {
-                    const dir = path.dirname(file).replace(/\\/g, '/');
-                    const parts = dir === '.' ? [] : dir.split('/');
-                    for (let i = 0; i <= parts.length; i++) {
-                        dirs.add(i === 0 ? '.' : parts.slice(0, i).join('/'));
-                    }
-                    if (!filesByDir.has(dir)) filesByDir.set(dir, []);
-                    filesByDir.get(dir)!.push(path.basename(file));
-                }
-
-                function renderDir(dirPath: string, depth: number): string {
-                    const indent = '  '.repeat(depth);
-                    let output = '';
-                    if (depth > 0) output += `${indent}${path.basename(dirPath)}/\n`;
-                    const childIndent = '  '.repeat(depth + 1);
-                    const children = Array.from(dirs)
-                        .filter(d => d.replace(/\\/g, '/') !== dirPath && path.dirname(d).replace(/\\/g, '/') === dirPath)
-                        .sort();
-                    for (const child of children) output += renderDir(child, depth + 1);
-                    for (const file of (filesByDir.get(dirPath) || []).sort()) {
-                        output += `${childIndent}${file}\n`;
-                    }
-                    return output;
-                }
-
-                const truncated = files.length >= LIMIT;
-                const tree = `${abs}/\n` + renderDir('.', 0);
-                const summary = truncated ? `\n(showing first ${LIMIT} files, results truncated)` : '';
-
-                return createSuccessResult(createTextContent(tree + summary));
+                return createSuccessResult(createTextContent(lines.join('\n')));
             } catch (e: any) {
                 logger.error(`ls ${dirPath}: ${e.message}`);
                 return createErrorResult(e.message);

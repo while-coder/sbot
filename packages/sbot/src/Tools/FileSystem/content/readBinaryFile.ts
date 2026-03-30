@@ -1,5 +1,4 @@
 import fsAsync from 'fs/promises';
-import path from 'path';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import { LoggerService } from '../../../Core/LoggerService';
@@ -25,8 +24,7 @@ export function createReadBinaryFileTool(): StructuredToolInterface {
                 const { abs, stat } = checkFile(filePath);
                 if (stat.size > MAX_SIZE) return createErrorResult(`File too large: ${formatSize(stat.size)}, maximum is ${MAX_SIZE_LABEL}`);
                 const base64 = (await fsAsync.readFile(abs)).toString('base64');
-                const ext = path.extname(abs).toLowerCase().slice(1);
-                return createSuccessResult(createTextContent(JSON.stringify({ size: formatSize(stat.size), ext, base64 })));
+                return createSuccessResult(createTextContent(`size: ${formatSize(stat.size)}\nbase64: ${base64}`));
             } catch (e: any) {
                 logger.error(`read_binary_file ${filePath}: ${e.message}`);
                 return createErrorResult(e.message);
