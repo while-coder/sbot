@@ -46,13 +46,10 @@ export {
 // Core - 通用 Token
 // ========================================
 export {
-  T_ThreadId,
-  T_UserId,
   T_SystemPrompts,
   T_DBPath,
   T_DBUrl,
-  T_SkillsDirs,
-  T_SkillDirs,
+  T_DBTable,
   T_MaxMemoryAgeDays,
   T_MemoryMode,
   T_ExtractorSystemPrompt,
@@ -70,6 +67,7 @@ export {
   sleep,
   parseJson,
   truncate,
+  listThreadIds,
 } from "./Core";
 
 // ========================================
@@ -146,6 +144,7 @@ export {
 export {
   // 接口 + Symbol Token
   IAgentSaverService,
+  type SaverMessage,
 
   // 实现类
   AgentMemorySaver,
