@@ -9,7 +9,6 @@ const { t } = useI18n()
 
 interface SchedulerRow {
   id: number
-  name: string
   expr: string
   type: string | null
   message: string
@@ -46,7 +45,6 @@ const directoryOptions = computed(() =>
 )
 
 const form = ref({
-  name:         '',
   uiType:       'daily' as UIType,
   hour:         9,
   minute:       0,
@@ -175,7 +173,6 @@ function openAdd() {
   const parsed = parseExpr('0 9 * * *')
   form.value = {
     ...parsed,
-    name:        '',
     message:     '',
     routingType: 'channel',
     targetId:    '',
@@ -190,7 +187,6 @@ function openEdit(row: SchedulerRow) {
   const rt = routingTypeOf(row)
   form.value = {
     ...parsed,
-    name:        row.name,
     message:     row.message,
     routingType: rt,
     targetId:    row.targetId ?? '',
@@ -202,7 +198,6 @@ function openEdit(row: SchedulerRow) {
 // ── Save ──────────────────────────────────────────────────────────────────────
 
 async function save() {
-  if (!form.value.name.trim())    { show(t('common.name_required'), 'error'); return }
   if (!builtExpr.value.trim())    { show(t('scheduler.error_cron'), 'error'); return }
   if (!form.value.message.trim()) { show(t('scheduler.message_label') + ' ' + t('common.name_required'), 'error'); return }
 
@@ -214,7 +209,6 @@ async function save() {
   saving.value = true
   try {
     const body: any = {
-      name:     form.value.name.trim(),
       expr:     builtExpr.value,
       message:  form.value.message.trim(),
       type:     rt,
@@ -238,7 +232,7 @@ async function save() {
 }
 
 async function remove(row: SchedulerRow) {
-  if (!confirm(t('scheduler.confirm_delete', { name: row.name }))) return
+  if (!confirm(t('scheduler.confirm_delete', { id: row.id }))) return
   try {
     await apiFetch(`/api/schedulers/${row.id}`, 'DELETE')
     show(t('common.deleted'))
@@ -263,7 +257,6 @@ onMounted(load)
         <thead>
           <tr>
             <th>{{ t('common.id') }}</th>
-            <th>{{ t('scheduler.name_col') }}</th>
             <th>{{ t('scheduler.schedule_col') }}</th>
             <th>{{ t('scheduler.message_col') }}</th>
             <th>{{ t('scheduler.type_col') }}</th>
@@ -276,14 +269,13 @@ onMounted(load)
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="10" style="text-align:center;color:#9b9b9b;padding:40px">{{ t('common.loading') }}</td>
+            <td colspan="9" style="text-align:center;color:#9b9b9b;padding:40px">{{ t('common.loading') }}</td>
           </tr>
           <tr v-else-if="timers.length === 0">
-            <td colspan="10" style="text-align:center;color:#9b9b9b;padding:40px">{{ t('scheduler.empty') }}</td>
+            <td colspan="9" style="text-align:center;color:#9b9b9b;padding:40px">{{ t('scheduler.empty') }}</td>
           </tr>
           <tr v-for="t_ in timers" :key="t_.id">
             <td style="font-family:monospace;color:#9b9b9b">{{ t_.id }}</td>
-            <td style="font-weight:500">{{ t_.name }}</td>
             <td>
               <div style="font-size:13px">{{ describeExpr(t_.expr) }}</div>
               <div style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ t_.expr }}</div>
@@ -317,11 +309,6 @@ onMounted(load)
           <button class="modal-close" @click="showModal = false">&times;</button>
         </div>
         <div class="modal-body">
-          <div class="form-group">
-            <label>{{ t('scheduler.name_label') }}</label>
-            <input v-model="form.name" :placeholder="t('scheduler.name_placeholder')" />
-          </div>
-
           <!-- 触发类型 -->
           <div class="form-group">
             <label>{{ t('scheduler.frequency') }}</label>

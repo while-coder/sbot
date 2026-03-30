@@ -19,7 +19,6 @@ export enum SchedulerType {
 
 export type SchedulerRow = {
   id: number;
-  name: string;
   expr: string;                    // cron 表达式，如 "0 9 * * *"
   type: SchedulerType | null;        // 任务类型
   message: string;                 // 消息文本
@@ -280,12 +279,6 @@ class Database {
           primaryKey: true,
           autoIncrement: true,
           comment: "自增ID",
-        },
-        name: {
-          type: DataTypes.STRING(255),
-          allowNull: false,
-          defaultValue: "",
-          comment: "计时器名称",
         },
         type: {
           type: DataTypes.STRING(64),

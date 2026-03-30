@@ -18,7 +18,7 @@ export function createSchedulerListTool(): StructuredToolInterface {
             try {
                 const options = type ? { where: { type } } : undefined;
                 const timers = await database.findAll<SchedulerRow>(database.scheduler, options);
-                return createSuccessResult(createTextContent(JSON.stringify(timers, null, 2)));
+                return createSuccessResult(createTextContent(JSON.stringify(timers)));
             } catch (e: any) {
                 logger.error(`scheduler_list failed: ${e.message}`);
                 return createErrorResult(`Failed to list scheduled tasks: ${e.message}`);

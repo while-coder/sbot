@@ -13,7 +13,6 @@ export function createSchedulerCreateTool(): StructuredToolInterface {
         name: 'scheduler_create',
         description: loadPrompt('tools/scheduler/create.txt'),
         schema: z.object({
-            name:    z.string().describe('Task name'),
             expr:    z.string().describe(
                 'Cron expression, always 6-field: <second> <minute> <hour> <day> <month> <weekday>\n' +
                 'Field values: * = any, */n = every n units, n = exact, n-m = range, n,m = list. Weekday: 0=Sun…6=Sat.\n' +
@@ -33,15 +32,13 @@ export function createSchedulerCreateTool(): StructuredToolInterface {
             message: z.string().describe('Message to send when the task fires'),
             maxRuns: z.number().optional().describe('Max executions (0 or omit = unlimited)'),
         }) as any,
-        func: async ({ name, expr, type, id, message, maxRuns }: any): Promise<MCPToolResult> => {
+        func: async ({ expr, type, id, message, maxRuns }: any): Promise<MCPToolResult> => {
             try {
-                if (!name?.trim())    return createErrorResult('name is required');
                 if (!expr?.trim())    return createErrorResult('expr is required');
                 if (!id?.trim())      return createErrorResult('id is required');
                 if (!message?.trim()) return createErrorResult('message is required');
 
                 const row = await database.create<SchedulerRow>(database.scheduler, {
-                    name:     name.trim(),
                     expr:     expr.trim(),
                     type:     type ?? null,
                     message:  message.trim(),
@@ -51,7 +48,7 @@ export function createSchedulerCreateTool(): StructuredToolInterface {
                     maxRuns:  maxRuns ?? 0,
                 });
                 await schedulerService.reload((row as any).id);
-                return createSuccessResult(createTextContent(`Scheduled task created: id=${(row as any).id} name=${(row as any).name} expr=${(row as any).expr}`));
+                return createSuccessResult(createTextContent(`created id=${(row as any).id}`));
             } catch (e: any) {
                 logger.error(`scheduler_create failed: ${e.message}`);
                 return createErrorResult(`Failed to create scheduled task: ${e.message}`);

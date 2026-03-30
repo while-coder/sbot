@@ -932,12 +932,10 @@ class HttpServer {
         }));
 
         app.post('/api/schedulers', api(async req => {
-            const { name, expr, message, type, targetId, maxRuns } = req.body;
-            if (!name?.trim()) throwBad('name is required');
+            const { expr, message, type, targetId, maxRuns } = req.body;
             if (!expr?.trim()) throwBad('expr is required');
             if (!message?.trim()) throwBad('message is required');
             const scheduler = await database.create(database.scheduler, {
-                name: name.trim(),
                 expr: expr.trim(),
                 type: type ?? null,
                 message: message.trim(),
@@ -953,9 +951,8 @@ class HttpServer {
         app.put('/api/schedulers/:id', api(async req => {
             const id = parseInt(req.params.id as string, 10);
             if (isNaN(id)) throwBad('Invalid id');
-            const { name, expr, message, type, targetId, maxRuns } = req.body;
+            const { expr, message, type, targetId, maxRuns } = req.body;
             const updates: any = {};
-            if (name !== undefined)     updates.name     = name;
             if (expr !== undefined)     updates.expr     = expr;
             if (message !== undefined)  updates.message  = message;
             if (type !== undefined)     updates.type     = type;
