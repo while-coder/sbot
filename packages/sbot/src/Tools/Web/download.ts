@@ -95,7 +95,7 @@ export function createWebDownloadTool(): StructuredToolInterface {
                     logger.info(`Download complete: ${normalizedPath} (${formatBytes(stats.size)})`)
                     return createSuccessResult(
                         createTextContent(
-                            `Downloaded successfully: ${normalizedPath}\nSize: ${formatBytes(stats.size)}\nSource: ${url}`,
+                            `Downloaded successfully: ${normalizedPath}\nSize: ${formatBytes(stats.size)}`,
                         ),
                     )
                 } catch (err: any) {
