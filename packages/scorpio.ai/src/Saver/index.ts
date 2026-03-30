@@ -4,7 +4,7 @@
  */
 
 // ===== 接口 + Symbol Token =====
-export { IAgentSaverService } from "./IAgentSaverService";
+export { IAgentSaverService, type SaverMessage } from "./IAgentSaverService";
 
 // ===== 实现类 =====
 export { AgentMemorySaver } from "./AgentMemorySaver";

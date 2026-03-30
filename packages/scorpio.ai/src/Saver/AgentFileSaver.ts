@@ -1,11 +1,11 @@
-import { readFile, writeFile, readdir, unlink, mkdir } from "fs/promises";
+import { readFile, writeFile, unlink, mkdir } from "fs/promises";
 import { existsSync } from "fs";
-import { join } from "path";
+import { dirname } from "path";
 import { BaseMessage } from "langchain";
-import { IAgentSaverService } from "./IAgentSaverService";
+import { IAgentSaverService, SaverMessage } from "./IAgentSaverService";
 import { ILoggerService, ILogger } from "../Logger";
 import { inject } from "scorpio.di";
-import { T_DBPath, T_ThreadId } from "../Core/tokens";
+import { T_DBPath } from "../Core/tokens";
 import { MessageType, serializeMessage, deserializeMessage, applyTokenLimit } from "./messageSerializer";
 
 type ThreadRow = { type: string; data: string; created_at?: number };
@@ -16,125 +16,80 @@ interface ThreadFile {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AgentFileSaver
-// 每个 thread 独立存储为 {dir}/{threadId}.json
+// 直接读写指定的 JSON 文件
 // ─────────────────────────────────────────────────────────────────────────────
 
 export class AgentFileSaver implements IAgentSaverService {
     private logger?: ILogger;
-
-    readonly threadId: string;
-    private readonly dir: string;
+    private readonly filePath: string;
 
     constructor(
-        @inject(T_ThreadId) threadId: string,
-        @inject(T_DBPath) dir: string,
+        @inject(T_DBPath) filePath: string,
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService
     ) {
-        this.threadId = threadId;
-        this.dir = dir;
+        this.filePath = filePath;
         this.logger = loggerService?.getLogger("AgentFileSaver");
     }
 
-    private threadFile(threadId: string): string {
-        return join(this.dir, `${threadId}.json`);
-    }
-
     private async ensureDir(): Promise<void> {
-        if (!existsSync(this.dir)) {
-            await mkdir(this.dir, { recursive: true });
+        const dir = dirname(this.filePath);
+        if (!existsSync(dir)) {
+            await mkdir(dir, { recursive: true });
         }
     }
 
-    private async readRows(threadId: string): Promise<ThreadRows> {
-        const file = this.threadFile(threadId);
+    private async readRows(): Promise<ThreadRows> {
         try {
-            if (!existsSync(file)) return [];
-            const content = await readFile(file, "utf-8");
+            if (!existsSync(this.filePath)) return [];
+            const content = await readFile(this.filePath, "utf-8");
             const parsed = JSON.parse(content);
-            // 兼容旧数据：直接是数组格式
             if (Array.isArray(parsed)) return parsed as ThreadRows;
             return (parsed as ThreadFile).messages ?? [];
         } catch (error: any) {
-            this.logger?.warn(`读取线程文件失败: ${error.message}`);
+            this.logger?.warn(`读取文件失败: ${error.message}`);
             return [];
         }
     }
 
-    private async writeRows(threadId: string, rows: ThreadRows): Promise<void> {
+    private async writeRows(rows: ThreadRows): Promise<void> {
         await this.ensureDir();
         const file: ThreadFile = { messages: rows };
-        await writeFile(this.threadFile(threadId), JSON.stringify(file), "utf-8");
+        await writeFile(this.filePath, JSON.stringify(file), "utf-8");
     }
 
-    /**
-     * 向当前线程追加一条消息
-     */
     async pushMessage(message: BaseMessage): Promise<void> {
-        const rows = await this.readRows(this.threadId);
+        const rows = await this.readRows();
         const { type, data } = serializeMessage(message);
         rows.push({ type, data, created_at: Math.floor(Date.now() / 1000) });
 
-        // 超过 1000 条时删除较早的记录
         if (rows.length > 1000) {
             rows.splice(0, rows.length - 1000);
         }
 
-        await this.writeRows(this.threadId, rows);
+        await this.writeRows(rows);
     }
 
-    /**
-     * 获取当前线程的全部历史消息（不限制 token）
-     */
     async getAllMessages(): Promise<BaseMessage[]> {
-        const rows = await this.readRows(this.threadId);
-        return rows.map((r) => {
-            const msg = deserializeMessage(r.type as MessageType, r.data);
-            if (r.created_at) {
-                msg.additional_kwargs = { ...msg.additional_kwargs, created_at: r.created_at };
-            }
-            return msg;
-        });
+        return (await this.getAllMessagesWithTime()).map((r) => r.message);
     }
 
-    /**
-     * 获取当前线程的历史消息，从末尾截取不超过 maxTokens 的部分
-     * 确保不破坏 tool_calls 和 ToolMessage 的配对
-     */
+    async getAllMessagesWithTime(): Promise<SaverMessage[]> {
+        const rows = await this.readRows();
+        return rows.map((r) => ({
+            message: deserializeMessage(r.type as MessageType, r.data),
+            createdAt: r.created_at,
+        }));
+    }
+
     async getMessages(maxTokens: number): Promise<BaseMessage[]> {
         return applyTokenLimit(await this.getAllMessages(), maxTokens);
     }
 
-    /**
-     * 清除当前线程的所有历史记录
-     */
     async clearMessages(): Promise<void> {
-        const file = this.threadFile(this.threadId);
-        if (existsSync(file)) {
-            await unlink(file);
+        if (existsSync(this.filePath)) {
+            await unlink(this.filePath);
         }
     }
 
-    /**
-     * 获取所有线程 ID 列表
-     */
-    async getAllThreadIds(): Promise<string[]> {
-        try {
-            if (!existsSync(this.dir)) return [];
-            const files = await readdir(this.dir);
-            return files
-                .filter((f) => f.endsWith(".json"))
-                .map((f) => f.slice(0, -5))
-                .sort();
-        } catch (error: any) {
-            this.logger?.warn(`读取线程目录失败: ${error.message}`);
-            return [];
-        }
-    }
-
-    /**
-     * 释放资源
-     */
-    async dispose(): Promise<void> {
-        // 文件实现无需释放资源
-    }
+    async dispose(): Promise<void> {}
 }

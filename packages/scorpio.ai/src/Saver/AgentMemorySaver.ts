@@ -1,5 +1,5 @@
 import { BaseMessage } from "langchain";
-import { IAgentSaverService } from "./IAgentSaverService";
+import { IAgentSaverService, SaverMessage } from "./IAgentSaverService";
 import { applyTokenLimit } from "./messageSerializer";
 
 /**
@@ -7,28 +7,22 @@ import { applyTokenLimit } from "./messageSerializer";
  * 适用于临时会话、单次任务或测试场景。
  */
 export class AgentMemorySaver implements IAgentSaverService {
-    readonly threadId: string;
-    private messages: BaseMessage[] = [];
-
-    constructor() {
-        this.threadId = `mem_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    }
-
-    async getAllThreadIds(): Promise<string[]> {
-        return [this.threadId];
-    }
+    private messages: SaverMessage[] = [];
 
     async getAllMessages(): Promise<BaseMessage[]> {
+        return this.messages.map((r) => r.message);
+    }
+
+    async getAllMessagesWithTime(): Promise<SaverMessage[]> {
         return [...this.messages];
     }
 
     async getMessages(maxTokens: number): Promise<BaseMessage[]> {
-        return applyTokenLimit(this.messages, maxTokens);
+        return applyTokenLimit(this.messages.map((r) => r.message), maxTokens);
     }
 
     async pushMessage(message: BaseMessage): Promise<void> {
-        message.additional_kwargs = { ...message.additional_kwargs, created_at: Math.floor(Date.now() / 1000) };
-        this.messages.push(message);
+        this.messages.push({ message, createdAt: Math.floor(Date.now() / 1000) });
     }
 
     async clearMessages(): Promise<void> {

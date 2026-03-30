@@ -1,28 +1,26 @@
 import { BaseMessage } from "langchain";
 
+export interface SaverMessage {
+    message: BaseMessage;
+    createdAt?: number;
+}
+
 /**
  * Agent Saver 服务接口
  * 提供对话历史的持久化存储和检索功能
  */
 export interface IAgentSaverService {
-    // --- 基本属性 ---
-
-    /**
-     * 当前线程 ID
-     */
-    readonly threadId: string;
-
     // --- 查询 ---
 
     /**
-     * 获取所有线程 ID 列表
-     */
-    getAllThreadIds(): Promise<string[]>;
-
-    /**
-     * 获取当前线程的全部历史消息（不限制 token）
+     * 获取全部历史消息
      */
     getAllMessages(): Promise<BaseMessage[]>;
+
+    /**
+     * 获取全部历史消息（带创建时间），用于 API 展示
+     */
+    getAllMessagesWithTime(): Promise<SaverMessage[]>;
 
     /**
      * 获取当前线程的历史消息，从末尾截取不超过 maxTokens 的部分
