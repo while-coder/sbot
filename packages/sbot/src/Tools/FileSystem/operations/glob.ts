@@ -51,13 +51,13 @@ function globToRegex(pattern: string): RegExp {
             i++;
         }
     }
-    return new RegExp('^' + re + '$');
+    return new RegExp('^' + re + '$', 'i');
 }
 
 // ─── ripgrep 搜索（--files 模式）──────────────────────────────────────────────
 function searchWithRg(dir: string, pattern: string, includeHidden: boolean): Promise<Array<{ path: string; mtime: number }>> {
     return new Promise((resolve, reject) => {
-        const args = ['--files', '--glob=!.git/*', `--glob=${pattern}`];
+        const args = ['--files', '--glob=!.git/*', `--iglob=${pattern}`];
         if (includeHidden) args.push('--hidden');
         args.push(dir);
 
