@@ -366,14 +366,17 @@ class Config {
     }
     return {};
   }
-  getSaverPath(saverName: string) {
-    return this.getConfigPath(`savers/${saverName}/saver.sqlite`)
+  getSaverDBDir(saverName: string) {
+    return this.getConfigPath(`savers/${saverName}`, true)
   }
-  getSaverDir(saverName: string) {
-    return this.getConfigPath(`savers/${saverName}/messages`, true)
+  getSaverDBPath(saverId: string, saverThreadId: string, ext: string) {
+    return this.getConfigPath(`savers/${saverId}/${saverThreadId}${ext}`)
   }
-  getMemoryPath(memoryName: string) {
-    return this.getConfigPath(`memories/${memoryName}/memory.sqlite`)
+  getMemoryDBDir(memoryId: string) {
+    return this.getConfigPath(`memories/${memoryId}`, true)
+  }
+  getMemoryDBPath(memoryId: string, memoryThreadId: string) {
+    return this.getConfigPath(`memories/${memoryId}/${memoryThreadId}.db`)
   }
 
   /** 读取目录本地配置；路径不存在或解析失败时返回 null */

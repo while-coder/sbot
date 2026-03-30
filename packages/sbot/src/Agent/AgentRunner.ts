@@ -11,7 +11,7 @@ import {
     IEmbeddingService,
     IMemoryExtractor, IMemoryEvaluator, IMemoryCompressor,
     IAgentSaverService, AgentFileSaver, AgentSqliteSaver,
-    T_MaxMemoryAgeDays, T_MemoryMode, T_DBPath, T_ThreadId,
+    T_MaxMemoryAgeDays, T_MemoryMode, T_DBPath,
     T_ExtractorSystemPrompt, T_EvaluatorSystemPrompt, T_CompressorPromptTemplate,
     T_MemorySystemPromptTemplate,
     IModelService,
@@ -162,21 +162,6 @@ export class AgentRunner {
         return service;
     }
 
-    static async createMemoryDatabase(memoryId: string): Promise<IMemoryDatabase> {
-        const memoryConfig = config.getMemory(memoryId);
-        if (!memoryConfig) {
-            const e: any = new Error(`Memory config "${memoryId}" not found`);
-            e.status = 404;
-            throw e;
-        }
-        const container = new ServiceContainer();
-        container.registerWithArgs(IMemoryDatabase, MemorySqliteDatabase, {
-            [T_ThreadId]: memoryId,
-            [T_DBPath]: config.getMemoryPath(memoryId),
-        });
-        return container.resolve<IMemoryDatabase>(IMemoryDatabase);
-    }
-
     static async createSaverService(saverId: string, threadId?: string): Promise<IAgentSaverService> {
         const container = new ServiceContainer();
         await AgentRunner.registerSaverService(container, saverId, threadId ?? '');
@@ -199,7 +184,10 @@ export class AgentRunner {
         if (evaluatorModel) sub.registerWithArgs(IMemoryEvaluator, MemoryEvaluator, { [IModelService]: evaluatorModel, [T_EvaluatorSystemPrompt]: loadPrompt('memory/evaluator.txt') });
         if (extractorModel) sub.registerWithArgs(IMemoryExtractor, MemoryExtractor, { [IModelService]: extractorModel, [T_ExtractorSystemPrompt]: loadPrompt('memory/extractor.txt') });
         if (compressorModel) sub.registerWithArgs(IMemoryCompressor, MemoryCompressor, { [IModelService]: compressorModel, [T_CompressorPromptTemplate]: loadPrompt('memory/compressor.txt') });
-        sub.registerWithArgs(IMemoryDatabase, MemorySqliteDatabase, { [T_ThreadId]: memoryConfig.share ? memoryId : memoryThreadId, [T_DBPath]: config.getMemoryPath(memoryId) });
+        const memThreadId = memoryConfig.share ? memoryId : memoryThreadId;
+        sub.registerWithArgs(IMemoryDatabase, MemorySqliteDatabase, {
+            [T_DBPath]: config.getMemoryDBPath(memoryId, memThreadId),
+        });
 
         sub.registerWithArgs(IMemoryService, MemoryService, { [IEmbeddingService]: embedding, [T_MaxMemoryAgeDays]: memoryConfig.maxAgeDays, [T_MemoryMode]: memoryConfig.mode });
 
@@ -233,13 +221,11 @@ export class AgentRunner {
 
         if (saverConfig.type === SaverType.File) {
             container.registerWithArgs(IAgentSaverService, AgentFileSaver, {
-                [T_ThreadId]: saverThreadId,
-                [T_DBPath]: config.getSaverDir(saverId),
+                [T_DBPath]: config.getSaverDBPath(saverId, saverThreadId, '.json'),
             });
         } else {
             container.registerWithArgs(IAgentSaverService, AgentSqliteSaver, {
-                [T_ThreadId]: saverThreadId,
-                [T_DBPath]: config.getSaverPath(saverId),
+                [T_DBPath]: config.getSaverDBPath(saverId, saverThreadId, '.db'),
             });
         }
     }

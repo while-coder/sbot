@@ -1,4 +1,5 @@
 import { AgentToolCall, AskQuestionType, AskResponse, AskToolParams, ICancellationToken, ToolApproval } from "scorpio.ai";
+import { CancellationTokenSource, PendingAsk, PendingApproval, SessionService } from './SessionService';
 
 export enum SessionStatus {
     Thinking = 'thinking',
@@ -27,35 +28,10 @@ export interface SessionInfo {
     pendingAsk?: AskInfo;
 }
 
-class CancellationTokenSource implements ICancellationToken {
-    private _isCancelled = false;
-    get isCancelled() { return this._isCancelled; }
-    cancel() { this._isCancelled = true; }
-}
-
-interface PendingAsk extends AskInfo {
-    resolve: (result: AskResponse | string) => void;
-    timer: ReturnType<typeof setTimeout>;
-}
-
-interface PendingApproval extends ApprovalInfo {
-    resolve: (approval: ToolApproval) => void;
-    timer: ReturnType<typeof setTimeout>;
-}
-
-interface SessionState {
-    threadId: string;
-    startedAt: Date;
-    status: SessionStatus;
-    source: CancellationTokenSource;
-    pendingAsks: Map<string, PendingAsk>;
-    pendingApprovals: Map<string, PendingApproval>;
-}
-
 class SessionManager {
-    private sessions = new Map<string, SessionState>();
+    private sessions = new Map<string, SessionService>();
 
-    private _syncStatus(session: SessionState): void {
+    private _syncStatus(session: SessionService): void {
         if (session.pendingApprovals.size > 0) session.status = SessionStatus.WaitingApproval;
         else if (session.pendingAsks.size > 0) session.status = SessionStatus.WaitingAsk;
         else session.status = SessionStatus.Thinking;

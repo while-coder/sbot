@@ -6,7 +6,7 @@ import os from 'os';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { WebSocket, WebSocketServer } from 'ws';
-import { AgentToolService, SkillService, ModelProvider } from "scorpio.ai";
+import { AgentToolService, SkillService, ModelProvider, listThreadIds, type SaverMessage } from "scorpio.ai";
 import { config } from '../Core/Config';
 import { AgentRunner } from '../Agent/AgentRunner';
 import { globalAgentToolService, refreshGlobalAgentToolService, refreshBuiltinTools, BuiltinProvider } from '../Agent/GlobalAgentToolService';
@@ -818,8 +818,8 @@ class HttpServer {
     }
 
     // ===== Data (Savers & Memories) =====
-    private formatMessages(messages: any[]) {
-        return messages.map((m: any) => {
+    private formatMessages(items: SaverMessage[]) {
+        return items.map(({ message: m, createdAt }) => {
             const mm = m as any;
             const role = mm._getType?.() ?? 'unknown';
             const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
@@ -827,7 +827,6 @@ class HttpServer {
             if (mm.tool_calls?.length) result.tool_calls = mm.tool_calls;
             if (mm.tool_call_id) result.tool_call_id = mm.tool_call_id;
             if (mm.name) result.name = mm.name;
-            const createdAt = mm.additional_kwargs?.created_at;
             if (createdAt) result.timestamp = new Date(createdAt * 1000).toISOString();
             return result;
         });
@@ -836,10 +835,7 @@ class HttpServer {
     private registerDataRoutes(app: express.Application) {
         // ── Savers / Threads ──
         app.get('/api/savers/:saverId/threads', api(async req => {
-            const saver = await AgentRunner.createSaverService(req.params.saverId as string);
-            const ids = await saver.getAllThreadIds();
-            await saver.dispose();
-            return ids;
+            return listThreadIds(config.getSaverDBDir(req.params.saverId as string), ".db", ".json");
         }));
 
         app.get('/api/savers/:saverId/threads/:threadId/history', api(async req => {
@@ -847,7 +843,7 @@ class HttpServer {
                 req.params.saverId as string,
                 req.params.threadId as string,
             );
-            const messages = await saver.getAllMessages();
+            const messages = await saver.getAllMessagesWithTime();
             await saver.dispose();
             return this.formatMessages(messages);
         }));
@@ -863,20 +859,22 @@ class HttpServer {
 
         app.get('/api/savers/:saverName/history', api(async req => {
             const saver = await AgentRunner.createSaverService(req.params.saverName as string);
-            const messages = await saver.getAllMessages();
+            const messages = await saver.getAllMessagesWithTime();
+            await saver.dispose();
             return this.formatMessages(messages);
         }));
 
         app.delete('/api/savers/:saverName/history', api(async req => {
             const saver = await AgentRunner.createSaverService(req.params.saverName as string);
             await saver.clearMessages();
+            await saver.dispose();
         }));
 
         // ── Memories ──
         app.get('/api/memories/:memoryName', api(async req => {
             const threadId = req.query.threadId as string | undefined;
             const svc = await AgentRunner.createMemoryService(req.params.memoryName as string, threadId);
-            return (await svc.getAllMemories()).map(m => ({
+            const memories = (await svc.getAllMemories()).map(m => ({
                 id: m.id,
                 content: m.content,
                 importance: m.metadata.importance,
@@ -884,6 +882,8 @@ class HttpServer {
                 lastAccessed: m.metadata.lastAccessed,
                 accessCount: m.metadata.accessCount,
             }));
+            await svc.dispose();
+            return memories;
         }));
 
         app.post('/api/memories/:memoryName/add', api(async req => {
@@ -892,6 +892,7 @@ class HttpServer {
             const threadId = req.query.threadId as string | undefined;
             const svc = await AgentRunner.createMemoryService(req.params.memoryName as string, threadId);
             const ids = await svc.addMemoryDirect(content.trim());
+            await svc.dispose();
             return { ids };
         }));
 
@@ -899,6 +900,7 @@ class HttpServer {
             const threadId = req.query.threadId as string | undefined;
             const svc = await AgentRunner.createMemoryService(req.params.memoryName as string, threadId);
             const count = await svc.compressMemories();
+            await svc.dispose();
             return { count };
         }));
 
@@ -906,18 +908,19 @@ class HttpServer {
             const threadId = req.query.threadId as string | undefined;
             const svc = await AgentRunner.createMemoryService(req.params.memoryName as string, threadId);
             await svc.deleteMemory(req.params.memoryId as string);
+            await svc.dispose();
         }));
 
         app.delete('/api/memories/:memoryName', api(async req => {
             const threadId = req.query.threadId as string | undefined;
             const svc = await AgentRunner.createMemoryService(req.params.memoryName as string, threadId);
             const count = await svc.clearAll();
+            await svc.dispose();
             return { count };
         }));
 
         app.get('/api/memories/:memoryId/threads', api(async req => {
-            const db = await AgentRunner.createMemoryDatabase(req.params.memoryId as string);
-            return await db.getAllThreadIds();
+            return listThreadIds(config.getMemoryDBDir(req.params.memoryId as string), ".db");
         }));
     }
 
