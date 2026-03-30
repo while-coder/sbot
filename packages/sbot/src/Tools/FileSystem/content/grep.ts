@@ -50,7 +50,7 @@ function searchWithRg(
         const args = ['--json', '--glob=!.git/*'];
         if (!useRegex) args.push('--fixed-strings');
         if (includeHidden) args.push('--hidden');
-        if (fileGlob) args.push(`--glob=${fileGlob}`);
+        if (fileGlob) args.push(`--iglob=${fileGlob}`);
         args.push('--', pattern, dir);
 
         const proc = spawn('rg', args);
