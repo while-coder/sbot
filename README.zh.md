@@ -157,7 +157,7 @@ docker run -d \
 
 **配置飞书 / Lark：**
 1. 在[飞书开放平台](https://open.feishu.cn)（国际版用 [Lark Developer Console](https://open.larksuite.com/)）创建自建应用
-2. 开启**机器人**能力，订阅 **message.receive** 事件
+2. 开启**机器人**能力，订阅 **im:message.p2p_msg:readonly** **im:message.group_at_msg:readonly** **im:message.group_msg** **im:message:send_as_bot** 事件
 3. 在 Web UI → **渠道** 中创建 Lark 渠道，填入 **App ID** 和 **App Secret**
 
 飞书集成支持事件去重、互动卡片、多用户上下文隔离，以及文件和图片的收发。
