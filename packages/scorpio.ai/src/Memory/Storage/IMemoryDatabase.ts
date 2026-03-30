@@ -5,19 +5,7 @@ import { Memory } from "../types";
  * 定义记忆存储层的标准接口
  */
 export interface IMemoryDatabase {
-    // --- 基本属性 ---
-
-    /**
-     * 当前线程 ID（记忆的作用域标识）
-     */
-    readonly threadId: string;
-
     // --- 查询 ---
-
-    /**
-     * 获取所有线程 ID 列表
-     */
-    getAllThreadIds(): Promise<string[]>;
 
     /**
      * 获取当前线程的所有记忆

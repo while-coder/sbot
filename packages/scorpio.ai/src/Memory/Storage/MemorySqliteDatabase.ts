@@ -1,22 +1,48 @@
 import Database from "better-sqlite3";
-import { inject, T_DBPath, T_ThreadId } from "../../Core";
+import { existsSync, mkdirSync } from "fs";
+import { dirname } from "path";
+import { inject, T_DBPath } from "../../Core";
 import { Memory } from "../types";
 import { IMemoryDatabase } from "./IMemoryDatabase";
 import { cosineSimilarity } from "../utils";
 
-export class MemorySqliteDatabase implements IMemoryDatabase {
-    private db: Database.Database;
+// ─────────────────────────────────────────────────────────────────────────────
+// MemorySqliteDatabase
+// 直接读写指定的 SQLite 文件，懒初始化
+// ─────────────────────────────────────────────────────────────────────────────
 
-    readonly threadId: string;
+export class MemorySqliteDatabase implements IMemoryDatabase {
+    private _db: Database.Database | undefined;
+    private readonly dbPath: string;
 
     constructor(
-        @inject(T_ThreadId) threadId: string,
         @inject(T_DBPath) dbPath: string,
     ) {
-        this.threadId = threadId;
-        this.db = new Database(dbPath);
-        this.db.pragma("journal_mode = WAL");
-        this.initTables();
+        this.dbPath = dbPath;
+    }
+
+    private get db(): Database.Database {
+        if (!this._db) {
+            const dir = dirname(this.dbPath);
+            if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+            this._db = new Database(this.dbPath);
+            this._db.pragma("journal_mode = WAL");
+            this._db.exec(`
+                CREATE TABLE IF NOT EXISTS memories (
+                    id            TEXT    PRIMARY KEY,
+                    content       TEXT    NOT NULL,
+                    embedding     TEXT    NOT NULL,
+                    importance    REAL    NOT NULL DEFAULT 0.5,
+                    access_count  INTEGER NOT NULL DEFAULT 0,
+                    last_accessed INTEGER NOT NULL,
+                    metadata      TEXT,
+                    created_at    INTEGER NOT NULL,
+                    updated_at    INTEGER NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_memories_prune ON memories(created_at, importance, access_count);
+            `);
+        }
+        return this._db;
     }
 
     // ===== 公开方法 =====
@@ -25,12 +51,11 @@ export class MemorySqliteDatabase implements IMemoryDatabase {
         const { importance, accessCount, lastAccessed, timestamp, ...rest } = memory.metadata;
 
         this.db.prepare(`
-            INSERT INTO memories (id, thread_id, content, embedding, importance, access_count,
+            INSERT INTO memories (id, content, embedding, importance, access_count,
                 last_accessed, metadata, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
             memory.id,
-            this.threadId,
             memory.content,
             JSON.stringify(memory.embedding),
             importance,
@@ -43,18 +68,11 @@ export class MemorySqliteDatabase implements IMemoryDatabase {
     }
 
     async clearMemories(): Promise<number> {
-        return this.db.prepare(`DELETE FROM memories WHERE thread_id = ?`).run(this.threadId).changes;
-    }
-
-    async getAllThreadIds(): Promise<string[]> {
-        const rows = this.db.prepare(
-            `SELECT DISTINCT thread_id FROM memories ORDER BY thread_id`
-        ).all() as { thread_id: string }[];
-        return rows.map(r => r.thread_id);
+        return this.db.prepare(`DELETE FROM memories`).run().changes;
     }
 
     async getAllMemories(): Promise<Memory[]> {
-        const rows = this.db.prepare(`SELECT * FROM memories WHERE thread_id = ?`).all(this.threadId) as any[];
+        const rows = this.db.prepare(`SELECT * FROM memories`).all() as any[];
         return rows.map(row => this.rowToMemory(row));
     }
 
@@ -113,40 +131,18 @@ export class MemorySqliteDatabase implements IMemoryDatabase {
     }
 
     async dispose(): Promise<void> {
-        this.db.close();
+        this._db?.close();
     }
 
     // ===== 私有方法 =====
-
-    private initTables(): void {
-        this.db.exec(`
-            CREATE TABLE IF NOT EXISTS memories (
-                id            TEXT    PRIMARY KEY,
-                thread_id     TEXT    NOT NULL,
-                content       TEXT    NOT NULL,
-                embedding     TEXT    NOT NULL,
-                importance    REAL    NOT NULL DEFAULT 0.5,
-                access_count  INTEGER NOT NULL DEFAULT 0,
-                last_accessed INTEGER NOT NULL,
-                metadata      TEXT,
-                created_at    INTEGER NOT NULL,
-                updated_at    INTEGER NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_memories_thread_id ON memories(thread_id);
-            CREATE INDEX IF NOT EXISTS idx_memories_prune ON memories(created_at, importance, access_count);
-        `);
-    }
 
     private searchSimilar(
         queryEmbedding: number[],
         limit: number = 10,
         minSimilarity: number = 0.3
     ): Array<{ memory: Memory; distance: number; score: number }> {
-        const rows = this.db.prepare(
-            `SELECT * FROM memories WHERE thread_id = ?`
-        ).all(this.threadId) as any[];
+        const rows = this.db.prepare(`SELECT * FROM memories`).all() as any[];
 
-        // 预计算查询向量的模长，避免在每次比较时重复计算
         let normQ = 0;
         for (const v of queryEmbedding) normQ += v * v;
         normQ = Math.sqrt(normQ);
