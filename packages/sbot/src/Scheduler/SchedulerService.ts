@@ -7,6 +7,7 @@ import { sessionManager } from "../UserService/SessionManager";
 import { LoggerService } from "../Core/LoggerService";
 import { config, ChannelType } from "../Core/Config";
 import { channelManager } from "../Channel/ChannelManager";
+import { dirThreadId, sessionThreadId } from "sbot.commons";
 
 const logger = LoggerService.getLogger("SchedulerService.ts");
 
@@ -61,8 +62,10 @@ async function executeScheduler(schedulerId: number): Promise<void> {
             // Session / directory mode: deliver via HTTP pipeline
             const sessionId = scheduler.type === SchedulerType.Session    ? scheduler.targetId ?? undefined : undefined;
             const workPath  = scheduler.type === SchedulerType.Directory  ? scheduler.targetId ?? undefined : undefined;
+            const threadId = workPath ? dirThreadId(workPath) : sessionThreadId(sessionId ?? '');
             await sessionManager.onReceiveWebMessage(
                 scheduler.message,
+                threadId,
                 sessionId,
                 workPath,
             );

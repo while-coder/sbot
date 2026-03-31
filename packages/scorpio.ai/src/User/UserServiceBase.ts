@@ -7,7 +7,6 @@ export enum MessageType { Command = 'command', AI = 'ai' }
 interface MessageQueueItem {
   query: string;
   args: any;
-  resolve?: () => void;
 }
 
 export abstract class UserServiceBase {
@@ -19,11 +18,9 @@ export abstract class UserServiceBase {
         this.logger = GlobalLoggerService.getLogger('UserServiceBase.ts');
     }
 
-    async onReceiveMessage(query: string, args: any, resolve?: () => void) {
+    async onReceiveMessage(query: string, args: any) {
         query = query.trim()
-        // 将消息加入队列
-        this.messageQueue.push({ query, args, resolve });
-        // 如果没有正在处理队列，启动处理
+        this.messageQueue.push({ query, args });
         if (!this.isProcessingQueue) {
             this.processMessageQueue();
         }
@@ -34,8 +31,7 @@ export abstract class UserServiceBase {
         this.isProcessingQueue = true;
 
         while (this.messageQueue.length > 0) {
-            const messageItem = this.messageQueue.shift()!;
-            const { query, args } = messageItem;
+            const { query, args } = this.messageQueue.shift()!;
 
             const messageType = query.startsWith('/') ? MessageType.Command : MessageType.AI;
             let messagePrompt = await this.startProcessMessage(query, args, messageType);
@@ -56,7 +52,6 @@ export abstract class UserServiceBase {
                 }
             } finally {
                 await this.onMessageProcessed(query, args, messageType);
-                messageItem.resolve?.();
             }
         }
         this.isProcessingQueue = false;

@@ -10,7 +10,7 @@ import MemoryViewModal from './modals/MemoryViewModal.vue'
 import MultiSelect from '@/components/MultiSelect.vue'
 import NewSessionModal from './modals/NewSessionModal.vue'
 import ChatArea from '@/components/ChatArea.vue'
-import { sessionThreadId } from 'sbot.commons'
+import { sessionThreadId, WsCommandType } from 'sbot.commons'
 import type { WebChatEvent } from 'sbot.commons'
 
 const { t } = useI18n()
@@ -124,8 +124,9 @@ const chatSocket = useChatSocket()
 let doneResolve: (() => void) | null = null
 let doneReject: ((e: Error) => void) | null = null
 
-async function handleWsMessage(evt: WebChatEvent & { sessionId?: string }) {
-  if (evt.sessionId && evt.sessionId !== activeSessionId.value) return
+async function handleWsMessage(evt: WebChatEvent & { threadId?: string }) {
+  const expectedThreadId = activeSessionId.value ? sessionThreadId(activeSessionId.value) : undefined
+  if (evt.threadId && evt.threadId !== expectedThreadId) return
   await chatAreaRef.value?.handleWsEvent(evt)
 }
 
@@ -168,7 +169,9 @@ async function sendOne(query: string, atts: Attachment[]) {
       doneReject = reject
     })
     chatSocket.send({
+      type: WsCommandType.Query,
       query,
+      threadId: sessionThreadId(activeSessionId.value!),
       sessionId: activeSessionId.value!,
       attachments: atts.length ? atts : undefined,
     })

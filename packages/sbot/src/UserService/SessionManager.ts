@@ -4,16 +4,13 @@ import { SlackMessageArgs } from "channel.slack";
 import { WecomMessageArgs } from "channel.wecom";
 import { ICommand, MessageType } from "scorpio.ai";
 import { SessionManager, SessionService } from "channel.base";
-import { dirThreadId, larkThreadId, sessionThreadId, slackThreadId, wecomThreadId, ChannelType } from "sbot.commons";
+import { larkThreadId, slackThreadId, wecomThreadId, ChannelType } from "sbot.commons";
 
-/** Internal channel type extending the shared ChannelType to include Http */
-const CH_HTTP = 'http';
 import { getBuiltInCommands } from "./BuiltInCommands";
 import { LarkUserService } from "./channels/LarkUserService";
 import { SlackUserService } from "./channels/SlackUserService";
 import { WecomUserService } from "./channels/WecomUserService";
 import { WebSocketUserService } from "./web/WebSocketUserService";
-import { HttpUserService } from "./web/HttpUserService";
 
 // ── Per-session concrete class ──
 
@@ -66,7 +63,6 @@ export class SbotSessionManager extends SessionManager {
     readonly slack: SlackUserService;
     readonly wecom: WecomUserService;
     readonly web: WebSocketUserService;
-    readonly http: HttpUserService;
 
     constructor() {
         super();
@@ -74,7 +70,6 @@ export class SbotSessionManager extends SessionManager {
         this.slack  = new SlackUserService(this);
         this.wecom = new WecomUserService(this);
         this.web   = new WebSocketUserService(this);
-        this.http  = new HttpUserService(this);
     }
 
     protected createSession(threadId: string): SessionService {
@@ -86,7 +81,6 @@ export class SbotSessionManager extends SessionManager {
             case ChannelType.Lark:  return this.lark;
             case ChannelType.Slack: return this.slack;
             case ChannelType.Wecom: return this.wecom;
-            case CH_HTTP:           return this.http;
             default:                return this.web;
         }
     }
@@ -114,23 +108,12 @@ export class SbotSessionManager extends SessionManager {
         await session.onReceiveMessage(query, { ...args, channelType: ChannelType.Wecom, userInfo, channelId, dbSessionId });
     }
 
-    async onReceiveWebMessage(query: string, sessionId?: string, workPath?: string): Promise<void> {
+    async onReceiveWebMessage(query: string, threadId: string, sessionId?: string, workPath?: string): Promise<void> {
         if (!query?.trim()) return;
-        const threadId = workPath ? dirThreadId(workPath) : sessionThreadId(sessionId ?? '');
         const session = this.getOrCreate(threadId);
-        return new Promise<void>((resolve) => {
-            session.onReceiveMessage(query, { channelType: ChannelType.Web, sessionId, workPath }, resolve);
-        });
+        await session.onReceiveMessage(query, { channelType: ChannelType.Web, sessionId, workPath });
     }
 
-    async onReceiveHttpMessage(query: string, res: any, sessionId?: string, workPath?: string): Promise<void> {
-        if (!query?.trim()) return;
-        const threadId = workPath ? dirThreadId(workPath) : sessionThreadId(sessionId ?? '');
-        const session = this.getOrCreate(threadId);
-        return new Promise<void>((resolve) => {
-            session.onReceiveMessage(query, { channelType: CH_HTTP, sessionId, workPath, res }, resolve);
-        });
-    }
 }
 
 export const sessionManager = new SbotSessionManager();

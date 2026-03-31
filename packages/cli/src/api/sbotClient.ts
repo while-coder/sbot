@@ -1,10 +1,9 @@
-import nodeHttp from 'node:http';
-import readline from 'node:readline';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
+import WebSocket from 'ws';
 import axios, { type AxiosInstance } from 'axios';
-import { DEFAULT_PORT, type Settings, type WebChatEvent } from 'sbot.commons';
+import { DEFAULT_PORT, WsCommandType, dirThreadId, type Settings, type WebChatEvent } from 'sbot.commons';
 
 export { DEFAULT_PORT, type WebChatEvent } from 'sbot.commons';
 
@@ -59,43 +58,59 @@ export class SbotClient {
     signal: AbortSignal,
   ): AsyncGenerator<WebChatEvent> {
     const workPath = process.cwd();
-    const body = JSON.stringify({ query, agentId, saveId, memoryId, workPath });
-    const url = new URL(`${this.baseUrl}/api/chat`);
+    const threadId = dirThreadId(workPath);
+    const wsUrl = this.baseUrl.replace(/^http/, 'ws') + '/ws/chat';
 
-    const res = await new Promise<nodeHttp.IncomingMessage>((resolve, reject) => {
-      const req = nodeHttp.request(
-        {
-          hostname: url.hostname,
-          port: parseInt(url.port) || 80,
-          path: url.pathname,
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(body),
-          },
-        },
-        resolve,
-      );
-      req.on('error', reject);
-      signal.addEventListener('abort', () => req.destroy(new Error('AbortError')), { once: true });
-      req.write(body);
-      req.end();
+    const ws = new WebSocket(wsUrl);
+    const events: WebChatEvent[] = [];
+    let resolve: (() => void) | null = null;
+    let done = false;
+    let error: Error | null = null;
+
+    ws.on('message', (data) => {
+      try {
+        const event = JSON.parse(data.toString()) as WebChatEvent & { threadId?: string };
+        if (event.threadId && event.threadId !== threadId) return;
+        events.push(event);
+        resolve?.();
+      } catch { /* skip malformed */ }
     });
 
-    if (res.statusCode !== 200) {
-      throw new Error(`Chat request failed: ${res.statusCode}`);
-    }
+    ws.on('error', (err) => { error = err as Error; resolve?.(); });
+    ws.on('close', () => { done = true; resolve?.(); });
 
-    const rl = readline.createInterface({ input: res, crlfDelay: Infinity });
-    for await (const line of rl) {
-      if (!line.startsWith('data: ')) continue;
-      try {
-        const event = JSON.parse(line.slice(6)) as WebChatEvent;
-        yield event;
-        if (event.type === 'done') return;
-      } catch {
-        // skip malformed JSON
+    signal.addEventListener('abort', () => {
+      ws.close();
+      error = new Error('AbortError');
+      (error as any).name = 'AbortError';
+      resolve?.();
+    }, { once: true });
+
+    // wait for connection
+    await new Promise<void>((r, reject) => {
+      ws.on('open', r);
+      ws.on('error', reject);
+    });
+
+    // send query
+    ws.send(JSON.stringify({ type: WsCommandType.Query, query, threadId, workPath }));
+
+    try {
+      while (true) {
+        if (events.length === 0 && !done && !error) {
+          await new Promise<void>((r) => { resolve = r; });
+          resolve = null;
+        }
+        if (error) throw error;
+        while (events.length > 0) {
+          const event = events.shift()!;
+          yield event;
+          if (event.type === 'done') return;
+        }
+        if (done) return;
       }
+    } finally {
+      if (ws.readyState === WebSocket.OPEN) ws.close();
     }
   }
 }

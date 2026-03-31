@@ -1,3 +1,12 @@
+/** Client → Server WS message types */
+export enum WsCommandType {
+  Query    = 'query',
+  Approval = 'approval',
+  Ask      = 'ask',
+  Abort    = 'abort',
+}
+
+/** Server → Client WS event types */
 export enum WebChatEventType {
   Human    = 'human',
   Stream   = 'stream',

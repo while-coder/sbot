@@ -3,8 +3,9 @@ import { ref, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { useToast } from '@/composables/useToast'
+import { useChatSocket } from '@/composables/useChatSocket'
 import ChatPanel from './ChatPanel.vue'
-import { WebChatEventType, MessageRole } from 'sbot.commons'
+import { WebChatEventType, WsCommandType, MessageRole } from 'sbot.commons'
 import type { WebChatEvent } from 'sbot.commons'
 import type { ChatMessage } from '@/types'
 
@@ -35,6 +36,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const { show } = useToast()
+const { send: wsSend } = useChatSocket()
 
 const chatPanelRef = ref<InstanceType<typeof ChatPanel>>()
 
@@ -96,7 +98,7 @@ function submitAsk() {
   askAnswers.value = {}
   askToggleValues.value = {}
   askCustomInputs.value = {}
-  apiFetch('/api/ask-response', 'POST', { threadId, id, answers }).catch(() => {})
+  wsSend({ type: WsCommandType.Ask, threadId, id, answers })
 }
 
 // ── 工具审批状态 ──────────────────────────────────────────
@@ -146,7 +148,7 @@ function approveToolCall(approval: string) {
   stopDenyCountdown()
   const { id, threadId } = pendingToolCall.value
   pendingToolCall.value = null
-  apiFetch('/api/tool-approval', 'POST', { threadId, id, approval }).catch(() => {})
+  wsSend({ type: WsCommandType.Approval, threadId, id, approval })
 }
 
 // ── 历史记录 ──────────────────────────────────────────────
@@ -245,13 +247,9 @@ function reset() {
   pendingAsk.value = null
 }
 
-async function cancelProcessing() {
+function cancelProcessing() {
   if (!props.cancelThreadId) return
-  try {
-    await apiFetch('/api/abort', 'POST', { id: props.cancelThreadId })
-  } catch (e: any) {
-    show(e.message, 'error')
-  }
+  wsSend({ type: WsCommandType.Abort, threadId: props.cancelThreadId })
 }
 
 /** 组件卸载时调用，清理定时器 */

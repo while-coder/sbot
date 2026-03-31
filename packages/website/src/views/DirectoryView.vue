@@ -11,7 +11,7 @@ import SaverViewModal from './modals/SaverViewModal.vue'
 import MemoryViewModal from './modals/MemoryViewModal.vue'
 import MultiSelect from '@/components/MultiSelect.vue'
 import ChatArea from '@/components/ChatArea.vue'
-import { dirThreadId, MessageRole } from 'sbot.commons'
+import { dirThreadId, WsCommandType, MessageRole } from 'sbot.commons'
 import type { WebChatEvent } from 'sbot.commons'
 
 const { t } = useI18n()
@@ -137,8 +137,9 @@ async function saveConfig(patch: Partial<LocalDirCfg>) {
 }
 
 // ── WebSocket 事件处理 ────────────────────────────────────
-async function handleWsEvent(evt: WebChatEvent & { workPath?: string }) {
-  if (evt.workPath && evt.workPath !== activeDir.value) return
+async function handleWsEvent(evt: WebChatEvent & { threadId?: string }) {
+  const expectedThreadId = activeDir.value ? dirThreadId(activeDir.value) : undefined
+  if (evt.threadId && evt.threadId !== expectedThreadId) return
   await chatAreaRef.value?.handleWsEvent(evt)
 }
 
@@ -167,7 +168,9 @@ async function sendOne(query: string, atts: Attachment[]) {
   try {
     await waitForOpen()
     wsSend({
+      type: WsCommandType.Query,
       query,
+      threadId: dirThreadId(activeDir.value!),
       workPath: activeDir.value!,
       attachments: atts.length ? atts : undefined,
     })

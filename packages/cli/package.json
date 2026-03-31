@@ -24,12 +24,14 @@
     "ink": "^5.1.0",
     "ink-spinner": "^5.0.0",
     "react": "^18.3.1",
-    "uuid": "catalog:"
+    "uuid": "catalog:",
+    "ws": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
     "@types/react": "^18.3.0",
     "@types/uuid": "catalog:",
+    "@types/ws": "catalog:",
     "rimraf": "catalog:",
     "tsx": "^4.19.0",
     "typescript": "catalog:"

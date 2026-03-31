@@ -17,7 +17,7 @@ import { database } from '../Core/Database';
 import { sessionManager } from '../UserService/SessionManager';
 import { schedulerService } from '../Scheduler/SchedulerService';
 import { channelManager } from '../Channel/ChannelManager';
-import { sessionThreadId, dirThreadId } from 'sbot.commons';
+import { sessionThreadId, dirThreadId, WsCommandType } from 'sbot.commons';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
 
@@ -190,7 +190,7 @@ class HttpServer {
         this.registerDataRoutes(app);
         this.registerSchedulerRoutes(app);
         this.registerUserRoutes(app);
-        this.registerChatRoutes(app, uploadDir);
+        this.registerChatRoutes(app);
 
         // HTTP + WebSocket 服务
         const server = http.createServer(app);
@@ -201,14 +201,30 @@ class HttpServer {
             ws.on('close', () => { this.wsClients.delete(ws); });
             ws.on('message', (data) => {
                 try {
-                    const msg = JSON.parse(data.toString()) as {
-                        query?: string;
-                        sessionId?: string;
-                        workPath?: string;
-                        attachments?: AttachmentInput[];
-                    };
-                    const enriched = processAttachments(msg.query?.trim() || '', msg.attachments, uploadDir);
-                    if (enriched) sessionManager.onReceiveWebMessage(enriched, msg.sessionId, msg.workPath);
+                    const msg = JSON.parse(data.toString()) as { type?: string; [key: string]: any };
+                    switch (msg.type) {
+                        case WsCommandType.Query: {
+                            const enriched = processAttachments(msg.query?.trim() || '', msg.attachments, uploadDir);
+                            if (!enriched || !msg.threadId) break;
+                            sessionManager.onReceiveWebMessage(enriched, msg.threadId, msg.sessionId, msg.workPath);
+                            break;
+                        }
+                        case WsCommandType.Approval: {
+                            const { threadId, id, approval } = msg;
+                            if (threadId && id && approval) sessionManager.web.resolveToolApproval(threadId, id, approval);
+                            break;
+                        }
+                        case WsCommandType.Ask: {
+                            const { threadId, id, answers } = msg;
+                            if (threadId && id && answers) sessionManager.web.resolveAsk(threadId, id, answers);
+                            break;
+                        }
+                        case WsCommandType.Abort: {
+                            const { threadId } = msg;
+                            if (threadId) sessionManager.abort(threadId);
+                            break;
+                        }
+                    }
                 } catch { /* ignore malformed messages */ }
             });
         });
@@ -1006,7 +1022,7 @@ class HttpServer {
     }
 
     // ===== Chat =====
-    private registerChatRoutes(app: express.Application, uploadDir: string) {
+    private registerChatRoutes(app: express.Application) {
         app.get('/api/session-status', (req, res) => {
             const { sessionId, workPath } = req.query as { sessionId?: string; workPath?: string };
             let threadId: string | undefined;
@@ -1018,45 +1034,6 @@ class HttpServer {
             res.json({ ...info, pendingAsk: info.pendingAsk ?? null });
         });
 
-        app.post('/api/tool-approval', (req, res) => {
-            const { threadId, id, approval } = req.body as { threadId?: string; id?: string; approval?: string };
-            if (!threadId || !id || !approval) { res.status(400).json({ error: 'threadId, id and approval are required' }); return; }
-            const resolved = sessionManager.web.resolveToolApproval(threadId, id, approval as any) || sessionManager.http.resolveToolApproval(threadId, id, approval as any);
-            if (!resolved) { res.status(404).json({ error: 'Tool approval not found or already resolved' }); return; }
-            res.json({ ok: true });
-        });
-
-        app.post('/api/ask-response', (req, res) => {
-            const { threadId, id, answers } = req.body as { threadId?: string; id?: string; answers?: Record<string, any> };
-            if (!threadId || !id || !answers) { res.status(400).json({ error: 'threadId, id and answers are required' }); return; }
-            const resolved = sessionManager.web.resolveAsk(threadId, id, answers) || sessionManager.http.resolveAsk(threadId, id, answers);
-            if (!resolved) { res.status(404).json({ error: 'Ask not found or already resolved' }); return; }
-            res.json({ ok: true });
-        });
-
-        app.post('/api/abort', (req, res) => {
-            const { id } = req.body as { id?: string };
-            if (!id) { res.status(400).json({ error: 'id required' }); return; }
-            const cancelled = sessionManager.abort(id);
-            if (!cancelled) { res.status(404).json({ error: 'No active session found' }); return; }
-            res.json({ ok: true });
-        });
-
-        app.post('/api/chat', async (req, res) => {
-            const { query, sessionId, workPath, attachments } = req.body as {
-                query?: string;
-                sessionId?: string;
-                workPath?: string;
-                attachments?: AttachmentInput[];
-            };
-            const enriched = processAttachments(query?.trim() || '', attachments, uploadDir);
-            if (!enriched) { res.status(400).json({ error: 'Message content is required' }); return; }
-            try {
-                await sessionManager.onReceiveHttpMessage(enriched, res, sessionId, workPath);
-            } finally {
-                res.end();
-            }
-        });
     }
 }
 
