@@ -29,17 +29,18 @@ export abstract class SlackUserServiceBase extends ChannelUserServiceBase {
     super(sessionManager);
   }
 
-  async startProcessMessage(query: string, args: any, _messageType: MessageType): Promise<string> {
+  async onProcessStart(_threadId: string, query: string, args: any, _messageType: MessageType): Promise<void> {
     const { slackService, channel, ts, threadTs } = args as SlackMessageArgs;
     this.slackService = slackService;
     this.provider = await new SlackChatProvider(slackService).init(channel, ts, threadTs, query);
-    return `Slack channel:${channel} ts:${ts}`;
   }
 
-  async processMessageError(e: any, _args: any, _messageType: MessageType): Promise<void> {
-    getLogger()?.error(e.stack ?? e.message);
-    if (this.provider) {
-      await this.provider.setMessage(`Error generating reply: ${e.message}`);
+  async onProcessEnd(_threadId: string, _query: string, _args: any, _messageType: MessageType, error?: any): Promise<void> {
+    if (error) {
+      getLogger()?.error(error.stack ?? error.message);
+      if (this.provider) {
+        await this.provider.setMessage(`Error generating reply: ${error.message}`);
+      }
     }
   }
 

@@ -16,39 +16,30 @@ import { WebSocketUserService } from "./web/WebSocketUserService";
 
 class SbotSession extends SessionService {
     private manager: SbotSessionManager;
-    private channelType?: ChannelType;
 
     constructor(threadId: string, manager: SbotSessionManager) {
         super(threadId);
         this.manager = manager;
     }
 
-    protected async startProcessMessage(query: string, args: any, messageType: MessageType): Promise<string> {
-        this.channelType = args?.channelType;
-        const channel = this.manager.getChannel(this.channelType!);
-        return channel.startProcessMessage(query, args, messageType);
+    private getChannel(args: any) {
+        return this.manager.getChannel(args?.channelType);
     }
 
-    protected async processAIMessage(query: string, args: any): Promise<void> {
-        const channel = this.manager.getChannel(this.channelType!);
-        await channel.processAIMessage(query, args, this.threadId);
+    protected async onProcessStart(query: string, args: any, messageType: MessageType): Promise<void> {
+        await this.getChannel(args).onProcessStart(this.threadId, query, args, messageType);
     }
 
-    protected async processMessageError(e: any, args: any, messageType: MessageType): Promise<void> {
-        const channel = this.manager.getChannel(this.channelType!);
-        await channel.processMessageError(e, args, messageType);
+    protected async processAI(query: string, args: any): Promise<void> {
+        await this.getChannel(args).processAI(this.threadId, query, args);
     }
 
-    protected async onCommandOutput(content: string, args: any): Promise<void> {
-        const channelType = args?.channelType as ChannelType | undefined;
-        const channel = this.manager.getChannel(channelType ?? this.channelType!);
-        await channel.onCommandOutput(content, args);
+    protected async onCommandResult(content: string, args: any): Promise<void> {
+        await this.getChannel(args).onCommandResult(this.threadId, content, args);
     }
 
-    protected async onMessageProcessed(query: string, args: any, messageType: MessageType): Promise<void> {
-        const channel = this.manager.getChannel(this.channelType!);
-        if (channel.onMessageProcessed) await channel.onMessageProcessed(args, messageType);
-        this.channelType = undefined;
+    protected async onProcessEnd(query: string, args: any, messageType: MessageType, error?: any): Promise<void> {
+        await this.getChannel(args).onProcessEnd(this.threadId, query, args, messageType, error);
     }
 
     protected async getAllCommands(): Promise<ICommand[]> {

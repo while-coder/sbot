@@ -9,7 +9,7 @@ type ChannelBase = abstract new (...args: any[]) => ChannelUserServiceBase;
 
 export function ChannelMessageMixin<TBase extends ChannelBase>(Base: TBase) {
     abstract class ChannelMessage extends Base {
-        async processAIMessage(query: string, args: any, threadId: string): Promise<void> {
+        async processAI(threadId: string, query: string, args: any): Promise<void> {
             const channelId = args?.channelId as string;
             const channel = channelId ? config.getChannel(channelId) : undefined;
             if (!channel) throw new Error(`Channel "${channelId}" not found`);

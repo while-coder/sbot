@@ -43,27 +43,21 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
     super(sessionManager);
   }
 
-  async startProcessMessage(query: string, args: any, _messageType: MessageType): Promise<string> {
+  async onProcessStart(_threadId: string, query: string, args: any, _messageType: MessageType): Promise<void> {
     const { larkService, chat_id, root_id, message_id } = args as LarkMessageArgs;
     this.larkService = larkService;
     if (!message_id) {
       this.provider = await new LarkChatProvider(larkService).initChat(LarkReceiveIdType.ChatId, chat_id, query);
-      await this.sendAbortButton();
-      return `Session:${chat_id}`;
+    } else {
+      this.provider = await new LarkChatProvider(larkService).initReplay(message_id);
     }
-    this.provider = await new LarkChatProvider(larkService).initReplay(message_id);
     await this.sendAbortButton();
-    return `Session:${chat_id},Topic:${root_id},MessageId:${message_id}`;
   }
 
-  async onMessageProcessed(_args: any, _messageType: MessageType): Promise<void> {
+  async onProcessEnd(_threadId: string, _query: string, _args: any, _messageType: MessageType, error?: any): Promise<void> {
     await this.clearAbortButton();
-  }
-
-  async processMessageError(e: any, _args: any, _messageType: MessageType): Promise<void> {
-    await this.clearAbortButton();
-    if (this.provider) {
-      await this.provider.setMessage(`Error generating reply: ${e.message}\n${e.stack}`);
+    if (error && this.provider) {
+      await this.provider.setMessage(`Error generating reply: ${error.message}\n${error.stack}`);
     }
   }
 

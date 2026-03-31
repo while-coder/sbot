@@ -26,15 +26,14 @@ export abstract class ChannelUserServiceBase {
     this.sessionManager = sessionManager;
   }
 
-  abstract startProcessMessage(query: string, args: any, messageType: MessageType): Promise<string>;
-  async onMessageProcessed(_args: any, _messageType: MessageType): Promise<void> {}
-  abstract processMessageError(e: any, args: any, messageType: MessageType): Promise<void>;
-  async onCommandOutput(content: string, _args: any): Promise<void> {
+  abstract onProcessStart(threadId: string, query: string, args: any, messageType: MessageType): Promise<void>;
+  abstract onProcessEnd(threadId: string, query: string, args: any, messageType: MessageType, error?: any): Promise<void>;
+  async onCommandResult(_threadId: string, content: string, _args: any): Promise<void> {
     return this.onAgentMessage({ type: MessageChunkType.COMMAND, content });
   }
-  abstract onAgentMessage(message: AgentMessage): Promise<void>;
+  abstract processAI(threadId: string, query: string, args: any): Promise<void>;
   async onAgentStreamMessage(_message: AgentMessage): Promise<void> {}
-  abstract processAIMessage(query: string, args: any, threadId: string): Promise<void>;
+  abstract onAgentMessage(message: AgentMessage): Promise<void>;
 
   protected abstract enterApproval(approvalId: string, remainSec: number, toolCall: AgentToolCall): Promise<void>;
   protected abstract exitApproval(approvalId: string): Promise<void>;

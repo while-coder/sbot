@@ -34,24 +34,21 @@ export abstract class UserServiceBase {
             const { query, args } = this.messageQueue.shift()!;
 
             const messageType = query.startsWith('/') ? MessageType.Command : MessageType.AI;
-            let messagePrompt = await this.startProcessMessage(query, args, messageType);
+            await this.onProcessStart(query, args, messageType);
+            let error: any;
             try {
-                this.logger?.info(`开始处理[${messageType}]: ${query} (${messagePrompt})(剩余队列: ${this.messageQueue.length})`);
+                this.logger?.info(`开始处理[${messageType}]: ${query} (剩余队列: ${this.messageQueue.length})`);
                 if (messageType === MessageType.Command) {
                     await this.processCommand(query.substring(1), args);
                 } else {
-                    await this.processAIMessage(query, args);
+                    await this.processAI(query, args);
                 }
                 this.logger?.info(`处理完成[${messageType}]: ${query}`);
             } catch (e: any) {
                 this.logger?.error(`处理出错[${messageType}]: ${query} : ${e.message}\n${e.stack}`);
-                try {
-                    await this.processMessageError(e, args, messageType);
-                } catch (errorHandlingError) {
-                    // 忽略错误处理中的错误
-                }
+                error = e;
             } finally {
-                await this.onMessageProcessed(query, args, messageType);
+                await this.onProcessEnd(query, args, messageType, error);
             }
         }
         this.isProcessingQueue = false;
@@ -107,16 +104,14 @@ export abstract class UserServiceBase {
         ].join('\n');
 
         if (allContent) {
-            await this.onCommandOutput(allContent, args);
+            await this.onCommandResult(allContent, args);
         }
     }
-    protected abstract startProcessMessage(query: string, args: any, messageType: MessageType): Promise<string>;
-    protected abstract getAllCommands():Promise<ICommand[]>
-    protected abstract processAIMessage(query: string, args: any): Promise<void>;
-    protected abstract onCommandOutput(content: string, args: any): Promise<void>;
-    
-    protected abstract processMessageError(e: any, args: any, messageType: MessageType): Promise<void>;
-    /** 每条消息处理完毕后（无论成功或失败）调用，子类可覆盖以做清理 */
-    protected async onMessageProcessed(_query: string, _args: any, _messageType: MessageType): Promise<void> {}
+    protected abstract onProcessStart(query: string, args: any, messageType: MessageType): Promise<void>;
+    protected abstract processAI(query: string, args: any): Promise<void>;
+    protected abstract getAllCommands(): Promise<ICommand[]>;
+    protected abstract onCommandResult(content: string, args: any): Promise<void>;
+    /** 每条消息处理完毕后（无论成功或失败）调用，error 存在时表示处理出错 */
+    protected abstract onProcessEnd(query: string, args: any, messageType: MessageType, error?: any): Promise<void>;
     
 }

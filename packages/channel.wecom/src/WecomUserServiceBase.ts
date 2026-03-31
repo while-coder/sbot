@@ -29,24 +29,19 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
     super(sessionManager);
   }
 
-  async startProcessMessage(_query: string, args: WecomMessageArgs, _messageType: MessageType): Promise<string> {
-    const { wecomService, chatid, chattype } = args;
+  async onProcessStart(_threadId: string, _query: string, args: WecomMessageArgs, _messageType: MessageType): Promise<void> {
+    const { wecomService, chatid } = args;
     this.wecomService = wecomService;
     this._chatid = chatid;
     this._currentAskQuestion = null;
     this.provider = new WecomChatProvider(wecomService, chatid);
-    return chattype === 'single' ? `Session:${chatid}` : `Session:group:${chatid}`;
   }
 
-  async onMessageProcessed(_args: any, _messageType: MessageType): Promise<void> {
-    await this.provider?.finish();
-  }
-
-  async processMessageError(e: any, _args: any, _messageType: MessageType): Promise<void> {
-    if (this.provider) {
-      await this.provider.setMessage(`处理出错: ${e.message}`);
-      await this.provider.finish();
+  async onProcessEnd(_threadId: string, _query: string, _args: any, _messageType: MessageType, error?: any): Promise<void> {
+    if (error && this.provider) {
+      await this.provider.setMessage(`处理出错: ${error.message}`);
     }
+    await this.provider?.finish();
   }
 
 
