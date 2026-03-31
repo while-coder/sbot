@@ -2,7 +2,7 @@ import { SlackChatProvider } from "./SlackChatProvider";
 import { AgentMessage, AgentToolCall, AskToolParams, AskQuestionType, MessageType } from "scorpio.ai";
 import { GlobalLoggerService } from "scorpio.ai";
 import { SlackService } from "./SlackService";
-import { ChannelUserServiceBase, ToolCallStatus, SessionManager } from "channel.base";
+import { ChannelUserServiceBase, ToolCallStatus, SessionService } from "channel.base";
 
 const getLogger = () => GlobalLoggerService.getLogger("SlackUserServiceBase.ts");
 
@@ -25,8 +25,8 @@ export abstract class SlackUserServiceBase extends ChannelUserServiceBase {
   provider: SlackChatProvider | undefined;
   slackService!: SlackService;
 
-  constructor(sessionManager: SessionManager, threadId: string) {
-    super(sessionManager, threadId);
+  constructor(session: SessionService) {
+    super(session);
   }
 
   async onProcessStart(query: string, args: any, _messageType: MessageType): Promise<void> {

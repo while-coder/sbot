@@ -10,7 +10,7 @@ import {
   MessageType,
   GlobalLoggerService,
 } from 'scorpio.ai';
-import { ChannelUserServiceBase, ToolCallStatus, SessionManager } from 'channel.base';
+import { ChannelUserServiceBase, ToolCallStatus, SessionService } from 'channel.base';
 import { WecomChatProvider } from './WecomChatProvider';
 import type { WecomService, WecomMessageArgs, WecomActionArgs } from './WecomService';
 
@@ -25,8 +25,8 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
   private _chatid = '';
   private _currentAskQuestion: (RadioQuestion | CheckboxQuestion) | null = null;
 
-  constructor(sessionManager: SessionManager, threadId: string) {
-    super(sessionManager, threadId);
+  constructor(session: SessionService) {
+    super(session);
   }
 
   async onProcessStart(_query: string, args: WecomMessageArgs, _messageType: MessageType): Promise<void> {

@@ -2,7 +2,7 @@ import { LarkChatProvider } from "./LarkChatProvider";
 import { AgentMessage, AgentToolCall, AskToolParams, AskQuestionType, MessageType } from "scorpio.ai";
 import { GlobalLoggerService } from "scorpio.ai";
 import { LarkReceiveIdType, LarkService } from "./LarkService";
-import { ChannelUserServiceBase, ToolCallStatus, SessionManager } from "channel.base";
+import { ChannelUserServiceBase, ToolCallStatus, SessionService } from "channel.base";
 
 const getLogger = () => GlobalLoggerService.getLogger('LarkUserService.ts');
 
@@ -39,8 +39,8 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
   provider: LarkChatProvider | undefined;
   larkService!: LarkService;
 
-  constructor(sessionManager: SessionManager, threadId: string) {
-    super(sessionManager, threadId);
+  constructor(session: SessionService) {
+    super(session);
   }
 
   async onProcessStart(query: string, args: any, _messageType: MessageType): Promise<void> {

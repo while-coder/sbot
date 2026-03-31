@@ -8,7 +8,7 @@ import {
   NowDate,
   ToolApproval,
 } from "scorpio.ai";
-import { SessionManager } from "./SessionManager";
+import { SessionService } from "./SessionService";
 
 export enum ToolCallStatus {
   None = "none",
@@ -20,12 +20,12 @@ export enum ToolCallStatus {
 }
 
 export abstract class ChannelUserServiceBase {
-  protected readonly sessionManager: SessionManager;
-  readonly threadId: string;
+  protected readonly session: SessionService;
 
-  constructor(sessionManager: SessionManager, threadId: string) {
-    this.sessionManager = sessionManager;
-    this.threadId = threadId;
+  get threadId(): string { return this.session.threadId; }
+
+  constructor(session: SessionService) {
+    this.session = session;
   }
 
   abstract onProcessStart(query: string, args: any, messageType: MessageType): Promise<void>;
@@ -46,7 +46,7 @@ export abstract class ChannelUserServiceBase {
     return 300 * 1000;
   }
   async executeApproval(toolCall: AgentToolCall): Promise<ToolApproval> {
-    const { id, promise } = this.sessionManager.enterApproval(this.threadId, toolCall, this.getApprovalTimeout());
+    const { id, promise } = this.session.enterApproval(toolCall, this.getApprovalTimeout());
     const end = NowDate() + this.getApprovalTimeout();
     try {
       await this.enterApproval(id, Math.floor((end - NowDate()) / 1000), toolCall);
@@ -61,14 +61,14 @@ export abstract class ChannelUserServiceBase {
       [ToolCallStatus.AlwaysArgs]: ToolApproval.AlwaysArgs,
       [ToolCallStatus.AlwaysTool]: ToolApproval.AlwaysTool,
     };
-    this.sessionManager.exitApproval(this.threadId, id, statusToApproval[status] ?? ToolApproval.Deny);
+    this.session.exitApproval(id, statusToApproval[status] ?? ToolApproval.Deny);
   }
 
   protected getAskTimeout(): number {
     return 600 * 1000;
   }
   async executeAsk(params: AskToolParams): Promise<AskResponse> {
-    const { id, promise } = this.sessionManager.enterAsk(this.threadId, params, this.getAskTimeout());
+    const { id, promise } = this.session.enterAsk(params, this.getAskTimeout());
     const end = NowDate() + this.getAskTimeout();
     try {
       await this.enterAsk(id, Math.floor((end - NowDate()) / 1000), params);
@@ -78,10 +78,10 @@ export abstract class ChannelUserServiceBase {
     }
   }
   protected resolveAsk(askId: string, answers: Record<string, string | string[] | boolean | undefined>): void {
-    this.sessionManager.exitAsk(this.threadId, askId, answers);
+    this.session.exitAsk(askId, answers);
   }
 
   protected abort(): void {
-    this.sessionManager.abort(this.threadId);
+    this.session.source.cancel();
   }
 }

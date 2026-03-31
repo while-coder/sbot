@@ -26,17 +26,16 @@ export function ChannelMessageMixin<TBase extends ChannelBase>(Base: TBase) {
                 ? [...(channel.memories ?? []), ...sessionMemories]
                 : sessionMemories;
 
-            const threadId = this.threadId;
             await AgentRunner.run({
                 query,
                 callbacks: {
                     onMessage: this.onAgentMessage.bind(this),
                     onStreamMessage: this.onAgentStreamMessage.bind(this),
-                    executeTool: buildExecuteTool(threadId, (tc) => this.executeApproval(tc)),
+                    executeTool: buildExecuteTool(this.session, (tc) => this.executeApproval(tc)),
                 },
                 agentId,
                 saverId: channel.saver,
-                threadId,
+                threadId: this.session.threadId,
                 scheduler: { schedulerType: SchedulerType.Channel, schedulerId: String(dbSessionId) },
                 extraInfo: this.buildExtraInfo(userInfo),
                 memories,

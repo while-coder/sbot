@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import { AgentToolCall, AskQuestionType, AskResponse, AskToolParams, ICancellationToken, ToolApproval, UserServiceBase } from "scorpio.ai";
 
 export class CancellationTokenSource implements ICancellationToken {
@@ -59,19 +61,37 @@ interface PendingAskEntry {
 
 type PendingEntry = PendingApprovalEntry | PendingAskEntry;
 
+export interface SessionSettings {
+    autoApproveTools?: string[];
+    approveTools?: Record<string, string[]>;
+}
+
 export abstract class SessionService extends UserServiceBase {
     readonly threadId: string;
     startedAt: Date;
     status: SessionStatus;
     source: CancellationTokenSource;
+    settings: SessionSettings = {};
+    private settingsPath?: string;
     private pending: PendingEntry | null = null;
 
-    constructor(threadId: string) {
+    constructor(threadId: string, settingsPath?: string) {
         super();
         this.threadId = threadId;
         this.startedAt = new Date();
         this.status = SessionStatus.Thinking;
         this.source = new CancellationTokenSource();
+        this.settingsPath = settingsPath;
+        if (settingsPath) {
+            try { this.settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8')); } catch {}
+        }
+    }
+
+    saveSettings(): void {
+        if (this.settingsPath) {
+            fs.mkdirSync(path.dirname(this.settingsPath), { recursive: true });
+            fs.writeFileSync(this.settingsPath, JSON.stringify(this.settings, null, 2), 'utf-8');
+        }
     }
 
     // ── Status ──

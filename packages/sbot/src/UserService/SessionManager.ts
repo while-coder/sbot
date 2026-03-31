@@ -5,6 +5,7 @@ import { WecomMessageArgs, WecomActionArgs } from "channel.wecom";
 import { ICommand, MessageType } from "scorpio.ai";
 import { SessionManager, SessionService } from "channel.base";
 import { larkThreadId, slackThreadId, wecomThreadId, ChannelType, WsCommandType } from "sbot.commons";
+import { config } from "../Core/Config";
 
 import { getBuiltInCommands } from "./BuiltInCommands";
 import { LarkUserService } from "./channels/LarkUserService";
@@ -19,13 +20,13 @@ class SbotSession extends SessionService {
     private channel?: any;
 
     constructor(threadId: string, manager: SbotSessionManager) {
-        super(threadId);
+        super(threadId, config.getConfigPath(`sessions/${threadId}/settings.json`));
         this.manager = manager;
     }
 
     private getChannel(args: any) {
         if (!this.channel) {
-            this.channel = this.manager.createChannel(args?.channelType, this.threadId);
+            this.channel = this.manager.createChannel(args?.channelType, this);
         }
         return this.channel;
     }
@@ -74,12 +75,12 @@ export class SbotSessionManager extends SessionManager {
         return new SbotSession(threadId, this);
     }
 
-    createChannel(type: string, threadId: string): any {
+    createChannel(type: string, session: SessionService): any {
         switch (type) {
-            case ChannelType.Lark:  return new LarkUserService(this, threadId);
-            case ChannelType.Slack: return new SlackUserService(this, threadId);
-            case ChannelType.Wecom: return new WecomUserService(this, threadId);
-            default:                return new WebSocketUserService(this, threadId);
+            case ChannelType.Lark:  return new LarkUserService(session);
+            case ChannelType.Slack: return new SlackUserService(session);
+            case ChannelType.Wecom: return new WecomUserService(session);
+            default:                return new WebSocketUserService(session);
         }
     }
 

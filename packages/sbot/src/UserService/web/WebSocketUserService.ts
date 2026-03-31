@@ -1,22 +1,22 @@
 import "reflect-metadata";
-import { AgentMessage, AskResponse, AskToolParams, MessageChunkType, MessageType, ToolApproval } from "scorpio.ai";
+import { AgentMessage, AskToolParams, MessageChunkType, MessageType } from "scorpio.ai";
 import { AgentRunner, AgentSchedulerContext, createAskAgentTool } from "../../Agent/AgentRunner";
 import { config } from '../../Core/Config';
 import { SchedulerType } from '../../Core/Database';
 import { buildExecuteTool } from '../buildExecuteTool';
-import { SessionManager } from 'channel.base';
+import { SessionService } from 'channel.base';
 import { WebChatEvent, WebChatEventType, ChannelType } from 'sbot.commons';
 import { httpServer } from "../../Server/HttpServer";
 
 export { WebChatEvent, WebChatEventType } from 'sbot.commons';
 
 export class WebSocketUserService {
-    protected readonly sessionManager: SessionManager;
-    readonly threadId: string;
+    protected readonly session: SessionService;
 
-    constructor(sessionManager: SessionManager, threadId: string) {
-        this.sessionManager = sessionManager;
-        this.threadId = threadId;
+    get threadId(): string { return this.session.threadId; }
+
+    constructor(session: SessionService) {
+        this.session = session;
     }
 
     // ── Message lifecycle ──
@@ -50,20 +50,6 @@ export class WebSocketUserService {
         this.emit({ type: WebChatEventType.Stream, content: message.content ?? '' });
     }
 
-    // ── Approval / Ask (singleton routing — keep explicit threadId) ──
-
-    resolveToolApproval(threadId: string, id: string, approval: ToolApproval): boolean {
-        return this.sessionManager.exitApproval(threadId, id, approval);
-    }
-
-    resolveAsk(threadId: string, id: string, answers: AskResponse): boolean {
-        return this.sessionManager.exitAsk(threadId, id, answers);
-    }
-
-    cancel(threadId: string): boolean {
-        return this.sessionManager.abort(threadId);
-    }
-
     // ── Core AI processing ──
 
     async processAI(query: string, args: any): Promise<void> {
@@ -81,9 +67,9 @@ export class WebSocketUserService {
             extraInfo = '';
         } else {
             const sessionId = args?.sessionId as string;
-            const session = sessionId ? config.getSession(sessionId) : undefined;
-            if (!session) throw new Error(`Session "${sessionId}" not found`);
-            agentId = session.agent; saverId = session.saver; memories = session.memories;
+            const sessionCfg = sessionId ? config.getSession(sessionId) : undefined;
+            if (!sessionCfg) throw new Error(`Session "${sessionId}" not found`);
+            agentId = sessionCfg.agent; saverId = sessionCfg.saver; memories = sessionCfg.memories;
             scheduler = { schedulerType: SchedulerType.Session, schedulerId: sessionId };
             extraInfo = '';
         }
@@ -94,8 +80,8 @@ export class WebSocketUserService {
             callbacks: {
                 onMessage: (msg) => this.onAgentMessage(msg),
                 onStreamMessage: (msg) => this.onAgentStreamMessage(msg),
-                executeTool: buildExecuteTool(threadId, (tc) => {
-                    const { id, promise } = this.sessionManager.enterApproval(threadId, tc, 300_000);
+                executeTool: buildExecuteTool(this.session, (tc) => {
+                    const { id, promise } = this.session.enterApproval(tc, 300_000);
                     this.emit({ type: WebChatEventType.ToolCall, id, threadId, name: tc.name, args: tc.args });
                     return promise;
                 }),
@@ -103,7 +89,7 @@ export class WebSocketUserService {
             agentId, saverId, threadId, scheduler, extraInfo, memories,
             workPath,
             agentTools: [createAskAgentTool(ChannelType.Web, async (params: AskToolParams) => {
-                const { id: askId, promise } = this.sessionManager.enterAsk(threadId, params, 600_000);
+                const { id: askId, promise } = this.session.enterAsk(params, 600_000);
                 this.emit({ type: WebChatEventType.Ask, id: askId, threadId, title: params.title, questions: params.questions as any });
                 return promise;
             })],
