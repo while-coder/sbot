@@ -25,11 +25,11 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
   private _chatid = '';
   private _currentAskQuestion: (RadioQuestion | CheckboxQuestion) | null = null;
 
-  constructor(sessionManager: SessionManager) {
-    super(sessionManager);
+  constructor(sessionManager: SessionManager, threadId: string) {
+    super(sessionManager, threadId);
   }
 
-  async onProcessStart(_threadId: string, _query: string, args: WecomMessageArgs, _messageType: MessageType): Promise<void> {
+  async onProcessStart(_query: string, args: WecomMessageArgs, _messageType: MessageType): Promise<void> {
     const { wecomService, chatid } = args;
     this.wecomService = wecomService;
     this._chatid = chatid;
@@ -37,7 +37,7 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
     this.provider = new WecomChatProvider(wecomService, chatid);
   }
 
-  async onProcessEnd(_threadId: string, _query: string, _args: any, _messageType: MessageType, error?: any): Promise<void> {
+  async onProcessEnd(_query: string, _args: any, _messageType: MessageType, error?: any): Promise<void> {
     if (error && this.provider) {
       await this.provider.setMessage(`处理出错: ${error.message}`);
     }
@@ -135,7 +135,7 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
   // --- Card Event Dispatch ---
   // Called by WecomService's onTriggerAction callback after dispatching to the right user service instance.
 
-  async onTriggerAction(threadId: string, _userId: string, args: WecomActionArgs): Promise<void> {
+  async onTriggerAction(_userId: string, args: WecomActionArgs): Promise<void> {
     const { eventKey, frame } = args;
     const parts = eventKey.split('|');
     const code = parts[0];
@@ -149,7 +149,7 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
         AlwaysTool: ToolCallStatus.AlwaysTool,
         Deny: ToolCallStatus.Deny,
       };
-      this.resolveApproval(threadId, id, statusMap[code] ?? ToolCallStatus.Deny);
+      this.resolveApproval(id, statusMap[code] ?? ToolCallStatus.Deny);
       return;
     }
 
@@ -168,12 +168,12 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
         });
         answers['0'] = q.type === AskQuestionType.Checkbox ? selectedTexts : (selectedTexts[0] ?? '');
       }
-      this.resolveAsk(threadId, askId, answers);
+      this.resolveAsk(askId, answers);
       return;
     }
 
     if (code === 'Abort') {
-      this.abort(threadId);
+      this.abort();
       return;
     }
 

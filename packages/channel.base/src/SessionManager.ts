@@ -7,6 +7,11 @@ export abstract class SessionManager {
     /** 子类实现：创建具体的 SessionService 实例 */
     protected abstract createSession(threadId: string): SessionService;
 
+    /** 获取已有 session（不创建） */
+    protected getSession(threadId: string): SessionService | undefined {
+        return this.sessions.get(threadId);
+    }
+
     /** 获取已有 session 或创建新的（若已有则先取消再重建） */
     getOrCreate(threadId: string): SessionService {
         const existing = this.sessions.get(threadId);
@@ -75,4 +80,5 @@ export abstract class SessionManager {
     exitAllAsks(threadId: string, message: string): void {
         this.sessions.get(threadId)?.exitAllAsks(message);
     }
+
 }

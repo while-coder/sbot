@@ -25,17 +25,17 @@ export abstract class SlackUserServiceBase extends ChannelUserServiceBase {
   provider: SlackChatProvider | undefined;
   slackService!: SlackService;
 
-  constructor(sessionManager: SessionManager) {
-    super(sessionManager);
+  constructor(sessionManager: SessionManager, threadId: string) {
+    super(sessionManager, threadId);
   }
 
-  async onProcessStart(_threadId: string, query: string, args: any, _messageType: MessageType): Promise<void> {
+  async onProcessStart(query: string, args: any, _messageType: MessageType): Promise<void> {
     const { slackService, channel, ts, threadTs } = args as SlackMessageArgs;
     this.slackService = slackService;
     this.provider = await new SlackChatProvider(slackService).init(channel, ts, threadTs, query);
   }
 
-  async onProcessEnd(_threadId: string, _query: string, _args: any, _messageType: MessageType, error?: any): Promise<void> {
+  async onProcessEnd(_query: string, _args: any, _messageType: MessageType, error?: any): Promise<void> {
     if (error) {
       getLogger()?.error(error.stack ?? error.message);
       if (this.provider) {
@@ -147,7 +147,7 @@ export abstract class SlackUserServiceBase extends ChannelUserServiceBase {
     await this.provider?.clearAskBlocks();
   }
 
-  async onTriggerAction(threadId: string, args: SlackActionArgs): Promise<void> {
+  async onTriggerAction(args: SlackActionArgs): Promise<void> {
     const { actionId, value } = args;
 
     if (
@@ -156,13 +156,13 @@ export abstract class SlackUserServiceBase extends ChannelUserServiceBase {
       actionId === ToolCallStatus.AlwaysTool ||
       actionId === ToolCallStatus.Deny
     ) {
-      if (value?.id) this.resolveApproval(threadId, value.id, actionId as ToolCallStatus);
+      if (value?.id) this.resolveApproval(value.id, actionId as ToolCallStatus);
       return;
     }
 
     if (actionId.startsWith("ask_submit_")) {
       if (value?.id && value?.answers) {
-        this.resolveAsk(threadId, value.id, value.answers);
+        this.resolveAsk(value.id, value.answers);
       }
       return;
     }

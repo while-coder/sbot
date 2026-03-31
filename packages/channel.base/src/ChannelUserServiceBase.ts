@@ -21,17 +21,19 @@ export enum ToolCallStatus {
 
 export abstract class ChannelUserServiceBase {
   protected readonly sessionManager: SessionManager;
+  readonly threadId: string;
 
-  constructor(sessionManager: SessionManager) {
+  constructor(sessionManager: SessionManager, threadId: string) {
     this.sessionManager = sessionManager;
+    this.threadId = threadId;
   }
 
-  abstract onProcessStart(threadId: string, query: string, args: any, messageType: MessageType): Promise<void>;
-  abstract onProcessEnd(threadId: string, query: string, args: any, messageType: MessageType, error?: any): Promise<void>;
-  async onCommandResult(_threadId: string, content: string, _args: any): Promise<void> {
+  abstract onProcessStart(query: string, args: any, messageType: MessageType): Promise<void>;
+  abstract onProcessEnd(query: string, args: any, messageType: MessageType, error?: any): Promise<void>;
+  async onCommandResult(content: string, _args: any): Promise<void> {
     return this.onAgentMessage({ type: MessageChunkType.COMMAND, content });
   }
-  abstract processAI(threadId: string, query: string, args: any): Promise<void>;
+  abstract processAI(query: string, args: any): Promise<void>;
   async onAgentStreamMessage(_message: AgentMessage): Promise<void> {}
   abstract onAgentMessage(message: AgentMessage): Promise<void>;
 
@@ -43,8 +45,8 @@ export abstract class ChannelUserServiceBase {
   protected getApprovalTimeout(): number {
     return 300 * 1000;
   }
-  async executeApproval(threadId: string, toolCall: AgentToolCall): Promise<ToolApproval> {
-    const { id, promise } = this.sessionManager.enterApproval(threadId, toolCall, this.getApprovalTimeout());
+  async executeApproval(toolCall: AgentToolCall): Promise<ToolApproval> {
+    const { id, promise } = this.sessionManager.enterApproval(this.threadId, toolCall, this.getApprovalTimeout());
     const end = NowDate() + this.getApprovalTimeout();
     try {
       await this.enterApproval(id, Math.floor((end - NowDate()) / 1000), toolCall);
@@ -53,22 +55,20 @@ export abstract class ChannelUserServiceBase {
       try { await this.exitApproval(id); } catch {}
     }
   }
-  protected resolveApproval(threadId: string, id: string, status: ToolCallStatus): void {
+  protected resolveApproval(id: string, status: ToolCallStatus): void {
     const statusToApproval: Partial<Record<ToolCallStatus, ToolApproval>> = {
       [ToolCallStatus.Allow]: ToolApproval.Allow,
       [ToolCallStatus.AlwaysArgs]: ToolApproval.AlwaysArgs,
       [ToolCallStatus.AlwaysTool]: ToolApproval.AlwaysTool,
     };
-    this.sessionManager.exitApproval(threadId, id, statusToApproval[status] ?? ToolApproval.Deny);
+    this.sessionManager.exitApproval(this.threadId, id, statusToApproval[status] ?? ToolApproval.Deny);
   }
-
-
 
   protected getAskTimeout(): number {
     return 600 * 1000;
   }
-  async executeAsk(threadId: string, params: AskToolParams): Promise<AskResponse> {
-    const { id, promise } = this.sessionManager.enterAsk(threadId, params, this.getAskTimeout());
+  async executeAsk(params: AskToolParams): Promise<AskResponse> {
+    const { id, promise } = this.sessionManager.enterAsk(this.threadId, params, this.getAskTimeout());
     const end = NowDate() + this.getAskTimeout();
     try {
       await this.enterAsk(id, Math.floor((end - NowDate()) / 1000), params);
@@ -77,11 +77,11 @@ export abstract class ChannelUserServiceBase {
       try { await this.exitAsk(id); } catch {}
     }
   }
-  protected resolveAsk(threadId: string, askId: string, answers: Record<string, string | string[] | boolean | undefined>): void {
-    this.sessionManager.exitAsk(threadId, askId, answers);
+  protected resolveAsk(askId: string, answers: Record<string, string | string[] | boolean | undefined>): void {
+    this.sessionManager.exitAsk(this.threadId, askId, answers);
   }
 
-  protected abort(threadId: string): void {
-    this.sessionManager.abort(threadId);
+  protected abort(): void {
+    this.sessionManager.abort(this.threadId);
   }
 }

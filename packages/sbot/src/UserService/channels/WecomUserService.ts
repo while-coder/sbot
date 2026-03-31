@@ -13,7 +13,7 @@ export class WecomUserService extends ChannelMessageMixin(WecomUserServiceBase) 
 </wecom-user>`;
     }
 
-    protected buildAgentTools(_args: any, threadId: string): any[] {
-        return [createAskAgentTool(ChannelType.Wecom, (params) => this.executeAsk(threadId, params), [AskQuestionType.Radio, AskQuestionType.Checkbox])];
+    protected buildAgentTools(_args: any): any[] {
+        return [createAskAgentTool(ChannelType.Wecom, (params) => this.executeAsk(params), [AskQuestionType.Radio, AskQuestionType.Checkbox])];
     }
 }

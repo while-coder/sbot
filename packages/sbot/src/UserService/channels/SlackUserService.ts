@@ -14,7 +14,7 @@ export class SlackUserService extends ChannelMessageMixin(SlackUserServiceBase) 
 <\/slack-user>`;
   }
 
-  protected buildAgentTools(_args: any, threadId: string): any[] {
-    return [createAskAgentTool(ChannelType.Slack, (params) => this.executeAsk(threadId, params))];
+  protected buildAgentTools(_args: any): any[] {
+    return [createAskAgentTool(ChannelType.Slack, (params) => this.executeAsk(params))];
   }
 }

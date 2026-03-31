@@ -1,7 +1,7 @@
 import "reflect-metadata";
 import { LarkMessageArgs } from "channel.lark";
-import { SlackMessageArgs } from "channel.slack";
-import { WecomMessageArgs } from "channel.wecom";
+import { SlackMessageArgs, SlackActionArgs } from "channel.slack";
+import { WecomMessageArgs, WecomActionArgs } from "channel.wecom";
 import { ICommand, MessageType } from "scorpio.ai";
 import { SessionManager, SessionService } from "channel.base";
 import { larkThreadId, slackThreadId, wecomThreadId, ChannelType } from "sbot.commons";
@@ -16,6 +16,7 @@ import { WebSocketUserService } from "./web/WebSocketUserService";
 
 class SbotSession extends SessionService {
     private manager: SbotSessionManager;
+    private channel?: any;
 
     constructor(threadId: string, manager: SbotSessionManager) {
         super(threadId);
@@ -23,56 +24,55 @@ class SbotSession extends SessionService {
     }
 
     private getChannel(args: any) {
-        return this.manager.getChannel(args?.channelType);
+        if (!this.channel) {
+            this.channel = this.manager.createChannel(args?.channelType, this.threadId);
+        }
+        return this.channel;
     }
 
     protected async onProcessStart(query: string, args: any, messageType: MessageType): Promise<void> {
-        await this.getChannel(args).onProcessStart(this.threadId, query, args, messageType);
+        await this.getChannel(args).onProcessStart(query, args, messageType);
     }
 
     protected async processAI(query: string, args: any): Promise<void> {
-        await this.getChannel(args).processAI(this.threadId, query, args);
+        await this.getChannel(args).processAI(query, args);
     }
 
     protected async onCommandResult(content: string, args: any): Promise<void> {
-        await this.getChannel(args).onCommandResult(this.threadId, content, args);
+        await this.getChannel(args).onCommandResult(content, args);
     }
 
     protected async onProcessEnd(query: string, args: any, messageType: MessageType, error?: any): Promise<void> {
-        await this.getChannel(args).onProcessEnd(this.threadId, query, args, messageType, error);
+        await this.getChannel(args).onProcessEnd(query, args, messageType, error);
     }
 
     protected async getAllCommands(): Promise<ICommand[]> {
         return getBuiltInCommands();
+    }
+
+    async triggerAction(...args: any[]): Promise<void> {
+        await this.channel?.onTriggerAction(...args);
     }
 }
 
 // ── Session manager singleton ──
 
 export class SbotSessionManager extends SessionManager {
-    readonly lark: LarkUserService;
-    readonly slack: SlackUserService;
-    readonly wecom: WecomUserService;
-    readonly web: WebSocketUserService;
 
     constructor() {
         super();
-        this.lark  = new LarkUserService(this);
-        this.slack  = new SlackUserService(this);
-        this.wecom = new WecomUserService(this);
-        this.web   = new WebSocketUserService(this);
     }
 
     protected createSession(threadId: string): SessionService {
         return new SbotSession(threadId, this);
     }
 
-    getChannel(type: string): any {
+    createChannel(type: string, threadId: string): any {
         switch (type) {
-            case ChannelType.Lark:  return this.lark;
-            case ChannelType.Slack: return this.slack;
-            case ChannelType.Wecom: return this.wecom;
-            default:                return this.web;
+            case ChannelType.Lark:  return new LarkUserService(this, threadId);
+            case ChannelType.Slack: return new SlackUserService(this, threadId);
+            case ChannelType.Wecom: return new WecomUserService(this, threadId);
+            default:                return new WebSocketUserService(this, threadId);
         }
     }
 
@@ -105,6 +105,25 @@ export class SbotSessionManager extends SessionManager {
         await session.onReceiveMessage(query, { channelType: ChannelType.Web, sessionId, workPath });
     }
 
+    // ── Trigger action routing ──
+
+    async onLarkTriggerAction(channelId: string, chatId: string, code: string, data: any, formValue: any): Promise<void> {
+        const threadId = larkThreadId(channelId, chatId);
+        const session = this.getSession(threadId) as SbotSession | undefined;
+        await session?.triggerAction(chatId, code, data, formValue);
+    }
+
+    async onSlackTriggerAction(channelId: string, args: SlackActionArgs): Promise<void> {
+        const threadId = slackThreadId(channelId, args.channel);
+        const session = this.getSession(threadId) as SbotSession | undefined;
+        await session?.triggerAction(args);
+    }
+
+    async onWecomTriggerAction(channelId: string, userId: string, args: WecomActionArgs): Promise<void> {
+        const threadId = wecomThreadId(channelId, args.chatid);
+        const session = this.getSession(threadId) as SbotSession | undefined;
+        await session?.triggerAction(userId, args);
+    }
 }
 
 export const sessionManager = new SbotSessionManager();

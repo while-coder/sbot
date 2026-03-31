@@ -7,7 +7,7 @@ import { Op } from "sequelize";
 import { sessionManager } from "../UserService/SessionManager";
 import { LoggerService } from "../Core/LoggerService";
 import { config, ChannelType, ChannelConfig } from "../Core/Config";
-import { compareSemver, fetchLatestRelease, larkThreadId, slackThreadId, wecomThreadId } from "sbot.commons";
+import { compareSemver, fetchLatestRelease } from "sbot.commons";
 
 const logger = LoggerService.getLogger("ChannelManager.ts");
 
@@ -234,8 +234,7 @@ export class ChannelManager {
                 });
             },
             onTriggerAction: async (_userId: string, args: SlackActionArgs) => {
-                const threadId = slackThreadId(channelId, args.channel);
-                await sessionManager.slack.onTriggerAction(threadId, args);
+                await sessionManager.onSlackTriggerAction(channelId, args);
             },
         });
         await service.registerEventHandlers();
@@ -272,8 +271,7 @@ export class ChannelManager {
                 });
             },
             onTriggerAction: async (_userId: string, _userInfo: any, _chatInfo: any, args: LarkActionArgs) => {
-                const threadId = larkThreadId(channelId, args.chat_id);
-                await sessionManager.lark.onTriggerAction(threadId, args.chat_id, args.code, args.data, args.form_value);
+                await sessionManager.onLarkTriggerAction(channelId, args.chat_id, args.code, args.data, args.form_value);
             },
         });
         await service.registerEventDispatcher();
@@ -306,8 +304,7 @@ export class ChannelManager {
                 });
             },
             onTriggerAction: async (userId: string, args: WecomActionArgs) => {
-                const threadId = wecomThreadId(channelId, args.chatid);
-                await sessionManager.wecom.onTriggerAction(threadId, userId, args);
+                await sessionManager.onWecomTriggerAction(channelId, userId, args);
             },
         });
         service.connect();

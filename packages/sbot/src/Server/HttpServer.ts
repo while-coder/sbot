@@ -211,12 +211,12 @@ class HttpServer {
                         }
                         case WsCommandType.Approval: {
                             const { threadId, id, approval } = msg;
-                            if (threadId && id && approval) sessionManager.web.resolveToolApproval(threadId, id, approval);
+                            if (threadId && id && approval) sessionManager.exitApproval(threadId, id, approval);
                             break;
                         }
                         case WsCommandType.Ask: {
                             const { threadId, id, answers } = msg;
-                            if (threadId && id && answers) sessionManager.web.resolveAsk(threadId, id, answers);
+                            if (threadId && id && answers) sessionManager.exitAsk(threadId, id, answers);
                             break;
                         }
                         case WsCommandType.Abort: {

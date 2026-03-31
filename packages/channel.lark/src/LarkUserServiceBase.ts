@@ -39,11 +39,11 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
   provider: LarkChatProvider | undefined;
   larkService!: LarkService;
 
-  constructor(sessionManager: SessionManager) {
-    super(sessionManager);
+  constructor(sessionManager: SessionManager, threadId: string) {
+    super(sessionManager, threadId);
   }
 
-  async onProcessStart(_threadId: string, query: string, args: any, _messageType: MessageType): Promise<void> {
+  async onProcessStart(query: string, args: any, _messageType: MessageType): Promise<void> {
     const { larkService, chat_id, root_id, message_id } = args as LarkMessageArgs;
     this.larkService = larkService;
     if (!message_id) {
@@ -54,7 +54,7 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
     await this.sendAbortButton();
   }
 
-  async onProcessEnd(_threadId: string, _query: string, _args: any, _messageType: MessageType, error?: any): Promise<void> {
+  async onProcessEnd(_query: string, _args: any, _messageType: MessageType, error?: any): Promise<void> {
     await this.clearAbortButton();
     if (error && this.provider) {
       await this.provider.setMessage(`Error generating reply: ${error.message}\n${error.stack}`);
@@ -199,17 +199,17 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
     await this.provider?.deleteElement(EL_ASK_FORM);
   }
 
-  async onTriggerAction(threadId: string, _chatId: string, code: string, data: any, formValue: any): Promise<any> {
+  async onTriggerAction(_chatId: string, code: string, data: any, formValue: any): Promise<any> {
     if (code === ACTION_TOOL_CALL) {
-      this.resolveApproval(threadId, data.id, data.approval as ToolCallStatus ?? ToolCallStatus.Deny);
+      this.resolveApproval(data.id, data.approval as ToolCallStatus ?? ToolCallStatus.Deny);
       return;
     }
     if (code === ACTION_ASK_FORM) {
-      this.resolveAsk(threadId, data.id, formValue ?? {});
+      this.resolveAsk(data.id, formValue ?? {});
       return;
     }
     if (code === ACTION_ABORT) {
-      this.abort(threadId);
+      this.abort();
       return;
     }
     getLogger()?.warn(`Unhandled card action: ${code}`);

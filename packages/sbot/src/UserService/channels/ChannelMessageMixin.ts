@@ -9,7 +9,7 @@ type ChannelBase = abstract new (...args: any[]) => ChannelUserServiceBase;
 
 export function ChannelMessageMixin<TBase extends ChannelBase>(Base: TBase) {
     abstract class ChannelMessage extends Base {
-        async processAI(threadId: string, query: string, args: any): Promise<void> {
+        async processAI(query: string, args: any): Promise<void> {
             const channelId = args?.channelId as string;
             const channel = channelId ? config.getChannel(channelId) : undefined;
             if (!channel) throw new Error(`Channel "${channelId}" not found`);
@@ -26,12 +26,13 @@ export function ChannelMessageMixin<TBase extends ChannelBase>(Base: TBase) {
                 ? [...(channel.memories ?? []), ...sessionMemories]
                 : sessionMemories;
 
+            const threadId = this.threadId;
             await AgentRunner.run({
                 query,
                 callbacks: {
                     onMessage: this.onAgentMessage.bind(this),
                     onStreamMessage: this.onAgentStreamMessage.bind(this),
-                    executeTool: buildExecuteTool(threadId, (tc) => this.executeApproval(threadId, tc)),
+                    executeTool: buildExecuteTool(threadId, (tc) => this.executeApproval(tc)),
                 },
                 agentId,
                 saverId: channel.saver,
@@ -40,11 +41,11 @@ export function ChannelMessageMixin<TBase extends ChannelBase>(Base: TBase) {
                 extraInfo: this.buildExtraInfo(userInfo),
                 memories,
                 workPath: dbSession?.workPath || undefined,
-                agentTools: this.buildAgentTools(args, threadId),
+                agentTools: this.buildAgentTools(args),
             });
         }
         protected abstract buildExtraInfo(userInfo: any): string;
-        protected abstract buildAgentTools(args: any, threadId: string): any[];
+        protected abstract buildAgentTools(args: any): any[];
     }
     return ChannelMessage;
 }
