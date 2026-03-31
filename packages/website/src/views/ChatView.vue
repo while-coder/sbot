@@ -10,7 +10,7 @@ import MemoryViewModal from './modals/MemoryViewModal.vue'
 import MultiSelect from '@/components/MultiSelect.vue'
 import NewSessionModal from './modals/NewSessionModal.vue'
 import ChatArea from '@/components/ChatArea.vue'
-import { sessionThreadId, WsCommandType, WebChatEventType } from 'sbot.commons'
+import { sessionThreadId, WsCommandType } from 'sbot.commons'
 import type { WebChatEvent } from 'sbot.commons'
 
 const { t } = useI18n()
@@ -121,31 +121,18 @@ async function commitEditSessionName() {
 
 // ── WebSocket ──
 const chatSocket = useChatSocket()
-const pendingDones = new Map<string, { resolve: () => void; reject: (e: Error) => void }>()
 
 async function handleWsMessage(evt: WebChatEvent & { threadId?: string }) {
-  const threadId = evt.threadId
-  // Done/Error: resolve pending promise for any session
-  if (threadId && (evt.type === WebChatEventType.Done || evt.type === WebChatEventType.Error)) {
-    const pending = pendingDones.get(threadId)
-    if (pending) {
-      pendingDones.delete(threadId)
-      if (evt.type === WebChatEventType.Done) pending.resolve()
-      else pending.reject(new Error((evt as any).message))
-    }
-  }
   // Display events: only for active session
   const expectedThreadId = activeSessionId.value ? sessionThreadId(activeSessionId.value) : undefined
-  if (threadId && threadId !== expectedThreadId) return
+  if (evt.threadId && evt.threadId !== expectedThreadId) return
   await chatAreaRef.value?.handleWsEvent(evt)
 }
 
 watch(chatSocket.connected, (val, oldVal) => {
-  if (!val && oldVal && pendingDones.size > 0) {
+  if (!val && oldVal) {
     show(t('chat.ws_reconnecting'), 'error')
     chatAreaRef.value?.reset()
-    for (const [, p] of pendingDones) p.reject(new Error(t('chat.ws_reconnecting')))
-    pendingDones.clear()
   }
 })
 
@@ -157,13 +144,9 @@ async function onPanelSend(query: string, atts: Attachment[]) {
 }
 
 async function sendOne(query: string, atts: Attachment[]) {
-  chatAreaRef.value?.setSending(true)
   const threadId = sessionThreadId(activeSessionId.value!)
   try {
     await chatSocket.waitForOpen()
-    const donePromise = new Promise<void>((resolve, reject) => {
-      pendingDones.set(threadId, { resolve, reject })
-    })
     chatSocket.send({
       type: WsCommandType.Query,
       query,
@@ -171,13 +154,10 @@ async function sendOne(query: string, atts: Attachment[]) {
       sessionId: activeSessionId.value!,
       attachments: atts.length ? atts : undefined,
     })
-    await donePromise
+    chatAreaRef.value?.addQueuedMessage(query)
   } catch (e: any) {
     chatAreaRef.value?.reset()
     show(e.message, 'error')
-  } finally {
-    pendingDones.delete(threadId)
-    chatAreaRef.value?.setSending(false)
   }
 }
 

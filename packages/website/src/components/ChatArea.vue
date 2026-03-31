@@ -183,6 +183,8 @@ watch(() => props.historyUrl, () => refreshHistory())
 async function handleWsEvent(evt: WebChatEvent) {
   if (evt.type === WebChatEventType.Human) {
     isStreaming.value = true
+    // 消息开始处理，从排队列表移除
+    if (queuedMessages.value.length > 0) queuedMessages.value.shift()
     if (props.handleHumanMessage) {
       messages.value.push({ role: MessageRole.Human, content: evt.content, timestamp: new Date().toISOString() })
       await nextTick()
@@ -311,7 +313,11 @@ function restoreSessionStatus(status: {
   }
 }
 
-defineExpose({ handleWsEvent, pushMessage, setSending, refreshHistory, clearHistory, scrollToBottom, reset, cleanup, restoreSessionStatus })
+function addQueuedMessage(query: string) {
+  queuedMessages.value.push(query)
+}
+
+defineExpose({ handleWsEvent, pushMessage, setSending, refreshHistory, clearHistory, scrollToBottom, reset, cleanup, restoreSessionStatus, addQueuedMessage })
 </script>
 
 <template>
