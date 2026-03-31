@@ -83,6 +83,7 @@ export default {
     send: '发送',
     attachment: '附件',
     thinking: '思考中…',
+    queued: '排队中',
     tool_result: '返回结果',
     role_user: '用户',
     role_ai: 'AI',

@@ -619,6 +619,15 @@ table tr:hover td { background: #fafaf9; }
 }
 .msg-bubble.human .msg-time { color: #fff; }
 .msg-bubble.ai    .msg-time { color: #3d3d3d; }
+.msg-queued-tag {
+  font-size: 10px;
+  color: #fff;
+  background: rgba(255,255,255,.25);
+  padding: 0 5px;
+  border-radius: 3px;
+  line-height: 16px;
+}
+.msg-bubble.human.queued { opacity: .65; }
 .msg-date-sep {
   display: flex;
   align-items: center;

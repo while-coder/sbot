@@ -20,6 +20,7 @@ const props = withDefaults(defineProps<{
   streamingContent: string
   streamingToolCalls: { name: string; args: unknown }[]
   chatSending: boolean
+  queuedMessages?: string[]
   showAttachments?: boolean
   emptyText?: string
   onCancel?: () => void
@@ -248,6 +249,17 @@ defineExpose({ scrollToBottom })
                 <div class="tool-call-args">{{ JSON.stringify(tc.args, null, 2) }}</div>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- Queued messages -->
+        <div v-for="(q, i) in queuedMessages" :key="'q' + i" class="msg-row human">
+          <div class="msg-bubble human queued">
+            <div class="msg-role-bar">
+              <span class="msg-role">{{ t('chat.role_user') }}</span>
+              <span class="msg-queued-tag">{{ t('chat.queued') }}</span>
+            </div>
+            {{ q }}
           </div>
         </div>
       </div>

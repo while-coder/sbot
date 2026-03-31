@@ -29,6 +29,7 @@ export interface SessionInfo {
     threadId: string;
     startedAt: Date;
     status: SessionStatus;
+    pendingMessages: string[];
     pendingApproval?: ApprovalInfo;
     pendingAsk?: AskInfo;
 }
@@ -93,6 +94,7 @@ export abstract class SessionService extends UserServiceBase {
             pendingAsk: p?.type === PendingType.Ask
                 ? { id: p.id, title: p.title, questions: p.questions, startedAt: p.startedAt }
                 : undefined,
+            pendingMessages: this.messageQueue.map(m => m.query),
         };
     }
 

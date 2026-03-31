@@ -205,13 +205,19 @@ async function handleWsEvent(evt: WebChatEvent) {
     pendingAsk.value = { id: evt.id, threadId: evt.threadId, title: evt.title, questions: evt.questions as AskQuestion[] }
     initAskAnswers(evt.questions as AskQuestion[])
     startAskCountdown()
+  } else if (evt.type === WebChatEventType.Queue) {
+    queuedMessages.value = evt.pendingMessages
   } else if (evt.type === WebChatEventType.Done) {
-    isStreaming.value = false
-    chatSending.value = false
+    const pending = evt.pendingMessages ?? []
+    queuedMessages.value = pending
     stopDenyCountdown()
     stopAskCountdown()
     pendingToolCall.value = null
     pendingAsk.value = null
+    if (pending.length === 0) {
+      isStreaming.value = false
+      chatSending.value = false
+    }
     emit('done')
   } else if (evt.type === WebChatEventType.Error) {
     isStreaming.value = false
@@ -220,6 +226,7 @@ async function handleWsEvent(evt: WebChatEvent) {
     stopAskCountdown()
     pendingToolCall.value = null
     pendingAsk.value = null
+    queuedMessages.value = []
     emit('error', evt.message)
   }
 }
@@ -245,6 +252,7 @@ function reset() {
   stopAskCountdown()
   pendingToolCall.value = null
   pendingAsk.value = null
+  queuedMessages.value = []
 }
 
 function cancelProcessing() {
@@ -264,10 +272,13 @@ function remainSeconds(startedAt: string, totalSeconds: number): number {
 }
 
 /** 恢复后端 session 状态（切换 session 时调用） */
+const queuedMessages = ref<string[]>([])
+
 function restoreSessionStatus(status: {
   threadId: string
   pendingTool?: { tool: { id?: string; name: string; args: Record<string, any> }; startedAt: string }
   pendingAsk?: { id: string; threadId: string; title?: string; questions: AskQuestion[]; startedAt: string }
+  pendingMessages?: string[]
 } | null) {
   stopDenyCountdown()
   stopAskCountdown()
@@ -278,6 +289,7 @@ function restoreSessionStatus(status: {
   askCustomInputs.value = {}
   streamingContent.value = ''
   streamingToolCalls.value = []
+  queuedMessages.value = []
   if (!status) {
     isStreaming.value = false
     chatSending.value = false
@@ -285,6 +297,7 @@ function restoreSessionStatus(status: {
   }
   isStreaming.value = true
   chatSending.value = true
+  queuedMessages.value = status.pendingMessages ?? []
   if (status.pendingTool) {
     const { tool, startedAt } = status.pendingTool
     pendingToolCall.value = { id: tool.id ?? '', threadId: status.threadId, name: tool.name, args: tool.args }
@@ -374,6 +387,7 @@ defineExpose({ handleWsEvent, pushMessage, setSending, refreshHistory, clearHist
     :streaming-content="streamingContent"
     :streaming-tool-calls="streamingToolCalls"
     :chat-sending="chatSending"
+    :queued-messages="queuedMessages"
     :empty-text="emptyText"
     :show-attachments="showAttachments"
     :on-cancel="cancelThreadId && isStreaming ? cancelProcessing : undefined"

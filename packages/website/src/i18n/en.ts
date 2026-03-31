@@ -83,6 +83,7 @@ export default {
     send: 'Send',
     attachment: 'Attachment',
     thinking: 'Thinking…',
+    queued: 'Queued',
     tool_result: 'Result',
     role_user: 'User',
     role_ai: 'AI',

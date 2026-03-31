@@ -17,7 +17,7 @@ import { database } from '../Core/Database';
 import { sessionManager } from '../UserService/SessionManager';
 import { schedulerService } from '../Scheduler/SchedulerService';
 import { channelManager } from '../Channel/ChannelManager';
-import { sessionThreadId, dirThreadId, WsCommandType } from 'sbot.commons';
+import { sessionThreadId, dirThreadId, WsCommandType, WebChatEventType } from 'sbot.commons';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
 
@@ -207,6 +207,10 @@ class HttpServer {
                             const enriched = processAttachments(msg.query?.trim() || '', msg.attachments, uploadDir);
                             if (!enriched || !msg.threadId) break;
                             sessionManager.onReceiveWebMessage(enriched, msg.threadId, msg.sessionId, msg.workPath);
+                            const info = sessionManager.getInfo(msg.threadId);
+                            if (info && info.pendingMessages.length > 0) {
+                                this.broadcastToWs(JSON.stringify({ type: WebChatEventType.Queue, threadId: msg.threadId, pendingMessages: info.pendingMessages }));
+                            }
                             break;
                         }
                         case WsCommandType.Approval:
@@ -1023,7 +1027,7 @@ class HttpServer {
             if (!threadId) { res.status(400).json({ error: 'sessionId or workPath required' }); return; }
             const info = sessionManager.getInfo(threadId);
             if (!info) { res.json(null); return; }
-            res.json({ ...info, pendingAsk: info.pendingAsk ?? null });
+            res.json(info);
         });
 
     }

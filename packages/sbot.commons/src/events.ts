@@ -15,6 +15,7 @@ export enum WebChatEventType {
   Ask      = 'ask',
   Done     = 'done',
   Error    = 'error',
+  Queue    = 'queue',
 }
 
 type AskQuestionSpec =
@@ -27,8 +28,9 @@ export interface StreamEvent   { type: WebChatEventType.Stream;   content: strin
 export interface MessageEvent  { type: WebChatEventType.Message;  role: string; content?: string; tool_calls?: any[]; tool_call_id?: string }
 export interface ToolCallEvent { type: WebChatEventType.ToolCall; id: string; threadId: string; name: string; args: Record<string, any> }
 export interface AskEvent      { type: WebChatEventType.Ask;      id: string; threadId: string; title?: string; questions: AskQuestionSpec[] }
-export interface DoneEvent     { type: WebChatEventType.Done }
+export interface DoneEvent     { type: WebChatEventType.Done;    pendingMessages?: string[] }
 export interface ErrorEvent    { type: WebChatEventType.Error;    message: string }
+export interface QueueEvent    { type: WebChatEventType.Queue;   pendingMessages: string[] }
 
 export type WebChatEvent =
   | HumanEvent
@@ -38,3 +40,4 @@ export type WebChatEvent =
   | AskEvent
   | DoneEvent
   | ErrorEvent
+  | QueueEvent

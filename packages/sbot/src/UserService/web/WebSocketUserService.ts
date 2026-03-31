@@ -21,13 +21,15 @@ export class WebSocketUserService {
 
     // ── Message lifecycle ──
 
-    async onProcessStart(_query: string, _args: any, _messageType: MessageType): Promise<void> {}
+    async onProcessStart(_query: string, args: any, _messageType: MessageType): Promise<void> {
+        this.emit({ type: WebChatEventType.Queue, pendingMessages: args?.pendingMessages ?? [] });
+    }
 
-    async onProcessEnd(_query: string, _args: any, _messageType: MessageType, error?: any): Promise<void> {
+    async onProcessEnd(_query: string, args: any, _messageType: MessageType, error?: any): Promise<void> {
         if (error) {
             this.emit({ type: WebChatEventType.Error, message: error.message });
         }
-        this.emit({ type: WebChatEventType.Done });
+        this.emit({ type: WebChatEventType.Done, pendingMessages: args?.pendingMessages ?? [] });
     }
 
     async onCommandResult(content: string, _args: any): Promise<void> {

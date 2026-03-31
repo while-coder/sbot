@@ -30,8 +30,12 @@ class SbotSession extends SessionService {
         return this.channel;
     }
 
+    private argsWithQueue(args: any): any {
+        return { ...args, pendingMessages: this.messageQueue.map(m => m.query) };
+    }
+
     protected async onProcessStart(query: string, args: any, messageType: MessageType): Promise<void> {
-        await this.getChannel(args).onProcessStart(query, args, messageType);
+        await this.getChannel(args).onProcessStart(query, this.argsWithQueue(args), messageType);
     }
 
     protected async processAI(query: string, args: any): Promise<void> {
@@ -43,7 +47,7 @@ class SbotSession extends SessionService {
     }
 
     protected async onProcessEnd(query: string, args: any, messageType: MessageType, error?: any): Promise<void> {
-        await this.getChannel(args).onProcessEnd(query, args, messageType, error);
+        await this.getChannel(args).onProcessEnd(query, this.argsWithQueue(args), messageType, error);
     }
 
     protected async getAllCommands(): Promise<ICommand[]> {
