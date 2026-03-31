@@ -8,7 +8,7 @@ import {
   NowDate,
   ToolApproval,
 } from "scorpio.ai";
-import { sessionManager } from "./SessionManager";
+import { SessionManager } from "./SessionManager";
 
 export enum ToolCallStatus {
   None = "none",
@@ -20,8 +20,11 @@ export enum ToolCallStatus {
 }
 
 export abstract class ChannelUserServiceBase {
-  /** 由子类在 processAIMessage 开始时设置，供 executeApproval / executeAsk 使用 */
-  protected threadId: string = '';
+  protected readonly sessionManager: SessionManager;
+
+  constructor(sessionManager: SessionManager) {
+    this.sessionManager = sessionManager;
+  }
 
   abstract startProcessMessage(query: string, args: any, messageType: MessageType): Promise<string>;
   async onMessageProcessed(_args: any, _messageType: MessageType): Promise<void> {}
@@ -30,58 +33,52 @@ export abstract class ChannelUserServiceBase {
     return this.onAgentMessage({ type: MessageChunkType.COMMAND, content });
   }
   abstract onAgentMessage(message: AgentMessage): Promise<void>;
-  abstract processAIMessage(query: string, args: any): Promise<void>;
+  abstract processAIMessage(query: string, args: any, threadId: string): Promise<void>;
 
-  protected abstract sendApproval(toolCall: AgentToolCall, id: string, remainSec: number): Promise<void>;
-  protected abstract clearApproval(toolCallId: string): Promise<void>;
-  protected abstract sendAsk(params: AskToolParams, askId: string, remainSec: number): Promise<void>;
-  protected abstract clearAsk(askId: string): Promise<void>;
+  protected abstract enterApproval(approvalId: string, remainSec: number, toolCall: AgentToolCall): Promise<void>;
+  protected abstract exitApproval(approvalId: string): Promise<void>;
+  protected abstract enterAsk(askId: string, remainSec: number, params: AskToolParams): Promise<void>;
+  protected abstract exitAsk(askId: string): Promise<void>;
 
-  protected resolveApproval(id: string, status: ToolCallStatus): void {
+  protected getApprovalTimeout(): number {
+    return 300 * 1000;
+  }
+  async executeApproval(threadId: string, toolCall: AgentToolCall): Promise<ToolApproval> {
+    const { id, promise } = this.sessionManager.enterApproval(threadId, toolCall, this.getApprovalTimeout());
+    const end = NowDate() + this.getApprovalTimeout();
+    try {
+      await this.enterApproval(id, Math.floor((end - NowDate()) / 1000), toolCall);
+      return await promise;
+    } finally {
+      try { await this.exitApproval(id); } catch {}
+    }
+  }
+  protected resolveApproval(threadId: string, id: string, status: ToolCallStatus): void {
     const statusToApproval: Partial<Record<ToolCallStatus, ToolApproval>> = {
       [ToolCallStatus.Allow]: ToolApproval.Allow,
       [ToolCallStatus.AlwaysArgs]: ToolApproval.AlwaysArgs,
       [ToolCallStatus.AlwaysTool]: ToolApproval.AlwaysTool,
     };
-    sessionManager.exitApproval(this.threadId, id, statusToApproval[status] ?? ToolApproval.Deny);
+    this.sessionManager.exitApproval(threadId, id, statusToApproval[status] ?? ToolApproval.Deny);
   }
 
-  protected getApprovalTimeout(): number {
-    return 300 * 1000;
-  }
+
 
   protected getAskTimeout(): number {
     return 600 * 1000;
   }
-
-  async executeApproval(toolCall: AgentToolCall): Promise<ToolApproval> {
-    const timeoutMs = this.getApprovalTimeout();
-    const { id, promise } = sessionManager.enterApproval(this.threadId, toolCall, timeoutMs);
-    const end = NowDate() + timeoutMs;
-    try {
-      await this.sendApproval(toolCall, id, Math.floor((end - NowDate()) / 1000));
-      return await promise;
-    } finally {
-      try { await this.clearApproval(id); } catch {}
-    }
-  }
-
-  async executeAsk(params: AskToolParams): Promise<AskResponse> {
-    const { id, promise } = sessionManager.enterAsk(this.threadId, params, this.getAskTimeout());
+  async executeAsk(threadId: string, params: AskToolParams): Promise<AskResponse> {
+    const { id, promise } = this.sessionManager.enterAsk(threadId, params, this.getAskTimeout());
     const end = NowDate() + this.getAskTimeout();
     try {
-      await this.sendAsk(params, id, Math.floor((end - NowDate()) / 1000));
+      await this.enterAsk(id, Math.floor((end - NowDate()) / 1000), params);
       return await promise;
     } finally {
-      try { await this.clearAsk(id); } catch {}
+      try { await this.exitAsk(id); } catch {}
     }
   }
-
-  protected resolveAsk(askId: string, answers: Record<string, string | string[] | boolean | undefined>): void {
-    sessionManager.exitAsk(this.threadId, askId, answers);
+  protected resolveAsk(threadId: string, askId: string, answers: Record<string, string | string[] | boolean | undefined>): void {
+    this.sessionManager.exitAsk(threadId, askId, answers);
   }
 
-  protected rejectAsk(askId: string, reason = 'User cancelled'): void {
-    sessionManager.exitAsk(this.threadId, askId, reason);
-  }
 }
