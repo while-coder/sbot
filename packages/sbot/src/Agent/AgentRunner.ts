@@ -6,7 +6,7 @@ import {
     ServiceContainer,
     IAgentCallback,
     ILoggerService,
-    IMemoryService, IMemoryDatabase, MemorySqliteDatabase,
+    IMemoryService, IMemoryDatabase,
     MemoryEvaluator, MemoryCompressor, MemoryExtractor, MemoryService,
     IEmbeddingService,
     IMemoryExtractor, IMemoryEvaluator, IMemoryCompressor,
@@ -24,6 +24,7 @@ import { ChannelType } from "sbot.commons";
 import { AgentFactory } from "./AgentFactory";
 import { LoggerService } from "../Core/LoggerService";
 import { sessionManager } from "../UserService/SessionManager";
+import { MemoryDatabaseManager } from "./MemoryDatabaseManager";
 
 const logger = LoggerService.getLogger('AgentRunner.ts');
 
@@ -187,9 +188,8 @@ export class AgentRunner {
         if (extractorModel) sub.registerWithArgs(IMemoryExtractor, MemoryExtractor, { [IModelService]: extractorModel, [T_ExtractorSystemPrompt]: loadPrompt('memory/extractor.txt') });
         if (compressorModel) sub.registerWithArgs(IMemoryCompressor, MemoryCompressor, { [IModelService]: compressorModel, [T_CompressorPromptTemplate]: loadPrompt('memory/compressor.txt') });
         const memThreadId = memoryConfig.share ? memoryId : memoryThreadId;
-        sub.registerWithArgs(IMemoryDatabase, MemorySqliteDatabase, {
-            [T_DBPath]: config.getMemoryDBPath(memoryId, memThreadId),
-        });
+        const dbPath = config.getMemoryDBPath(memoryId, memThreadId);
+        sub.registerInstance(IMemoryDatabase, MemoryDatabaseManager.getInstance().acquire(dbPath));
 
         sub.registerWithArgs(IMemoryService, MemoryService, { [IEmbeddingService]: embedding, [T_MaxMemoryAgeDays]: memoryConfig.maxAgeDays, [T_MemoryMode]: memoryConfig.mode });
 

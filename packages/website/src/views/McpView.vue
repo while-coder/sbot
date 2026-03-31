@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, reactive } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store, applyMcpList } from '@/store'
 import { useToast } from '@/composables/useToast'
 import type { McpEntry, McpTool } from '@/types'
-import { renderToolParams, serverAddr } from '@/utils/mcpSchema'
+import { serverAddr } from '@/utils/mcpSchema'
+import McpToolsModal from '@/components/McpToolsModal.vue'
 import { sourceBadgeStyle } from '@/utils/badges'
 
 const { t } = useI18n()
@@ -46,18 +47,11 @@ const showToolsModal = ref(false)
 const toolsTitle = ref('')
 const toolsList = ref<McpTool[]>([])
 const toolsLoading = ref(false)
-const expandedTools = reactive(new Set<number>())
-
-function toggleTool(i: number) {
-  if (expandedTools.has(i)) expandedTools.delete(i)
-  else expandedTools.add(i)
-}
 
 async function viewTools(id: string) {
   toolsTitle.value = store.allMcps.find(m => m.id === id)?.name || id
   toolsList.value = []
   toolsLoading.value = true
-  expandedTools.clear()
   showToolsModal.value = true
   try {
     const res = await apiFetch(`/api/mcp/${encodeURIComponent(id)}/tools`, 'GET')
@@ -332,42 +326,17 @@ onMounted(load)
       </div>
     </div>
 
-    <!-- Tools Viewer Modal -->
-    <div v-if="showToolsModal" class="modal-overlay" @click.self="showToolsModal = false">
-      <div class="modal-box wide">
-        <div class="modal-header">
-          <h3>{{ toolsTitle }}<span v-if="!toolsLoading" class="tools-count">({{ toolsList.length }} {{ t('mcp.tools_suffix') }})</span></h3>
-          <button class="modal-close" @click="showToolsModal = false">&times;</button>
-        </div>
-        <div class="modal-body" style="padding:0">
-          <div v-if="toolsLoading" class="tools-loading">{{ t('mcp.connecting') }}</div>
-          <div v-else-if="toolsList.length === 0" class="tools-loading">{{ t('mcp.no_tools') }}</div>
-          <template v-else>
-            <div class="tools-approve-bar">
-              <span class="tools-approve-label">{{ t('mcp.auto_approve') }}</span>
-              <button v-if="!allToolsApproved" class="btn-outline btn-sm" @click="approveAll">{{ t('mcp.approve_all') }}</button>
-              <button v-else class="btn-outline btn-sm" @click="revokeAll">{{ t('mcp.revoke_all') }}</button>
-            </div>
-          <ul class="tools-list">
-            <li v-for="(tool, i) in toolsList" :key="tool.name">
-              <div class="tool-header">
-                <div class="tool-name" :class="{ expanded: expandedTools.has(i) }" @click="toggleTool(i)">{{ tool.name }}</div>
-                <label class="auto-approve-switch" :title="t('mcp.auto_approve')" @click.stop>
-                  <input type="checkbox" :checked="isAutoApproved(tool.name)" @change="toggleAutoApprove(tool.name)" />
-                  <span class="switch-track"></span>
-                  <span class="switch-label">{{ t('mcp.auto_approve') }}</span>
-                </label>
-              </div>
-              <div v-if="tool.description" class="tool-desc">{{ tool.description }}</div>
-              <div class="tool-params" :class="{ show: expandedTools.has(i) }" v-html="renderToolParams((tool as any).parameters)"></div>
-            </li>
-          </ul>
-          </template>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-outline" @click="showToolsModal = false">{{ t('common.close') }}</button>
-        </div>
-      </div>
-    </div>
+    <McpToolsModal
+      :visible="showToolsModal"
+      :title="toolsTitle"
+      :tools="toolsList"
+      :loading="toolsLoading"
+      :auto-approved-tools="store.settings.autoApproveTools ?? []"
+      :all-approved="allToolsApproved"
+      @update:visible="showToolsModal = $event"
+      @toggle-auto-approve="toggleAutoApprove"
+      @approve-all="approveAll"
+      @revoke-all="revokeAll"
+    />
   </div>
 </template>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, reactive } from 'vue'
+import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store, applyMcpList } from '@/store'
@@ -7,9 +7,11 @@ import { useToast } from '@/composables/useToast'
 import AgentModal from './AgentModal.vue'
 import AgentMcpModal from './AgentMcpModal.vue'
 import AgentSkillsModal from './AgentSkillsModal.vue'
+import McpToolsModal from '@/components/McpToolsModal.vue'
+import SkillViewerModal from '@/components/SkillViewerModal.vue'
 import type { SkillItem, McpItem, McpTool } from '@/types'
 import { sourceBadgeStyle, BADGE_PRIVATE } from '@/utils/badges'
-import { renderToolParams, serverAddr } from '@/utils/mcpSchema'
+import { serverAddr } from '@/utils/mcpSchema'
 
 const { t } = useI18n()
 
@@ -113,18 +115,6 @@ const viewBadge   = ref('')
 const viewContent = ref('')
 const viewLoading = ref(false)
 
-const viewParsed = computed(() => {
-  const content = viewContent.value
-  const match = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/)
-  if (!match) return { description: '', body: content }
-  const meta: Record<string, string> = {}
-  for (const line of match[1].split('\n')) {
-    const m = line.match(/^(\w+):\s*"?(.*?)"?\s*$/)
-    if (m) meta[m[1]] = m[2]
-  }
-  return { description: meta.description || '', body: match[2].trim() }
-})
-
 async function openSkillView(agentId: string, name: string, isPrivate: boolean) {
   viewTitle.value   = name
   viewBadge.value   = isPrivate ? t('agents.skills_exclusive_tab') : ''
@@ -150,12 +140,7 @@ const showToolsModal = ref(false)
 const toolsTitle     = ref('')
 const toolsList      = ref<McpTool[]>([])
 const toolsLoading   = ref(false)
-const expandedTools  = reactive(new Set<number>())
-
-function toggleTool(i: number) {
-  if (expandedTools.has(i)) expandedTools.delete(i)
-  else expandedTools.add(i)
-}
+const toolsAgentId   = ref('')
 
 async function openMcpView(agentId: string, id: string, isPrivate: boolean) {
   toolsTitle.value   = isPrivate
@@ -163,7 +148,7 @@ async function openMcpView(agentId: string, id: string, isPrivate: boolean) {
     : (store.allMcps.find((m: McpItem) => m.id === id)?.name || id)
   toolsList.value    = []
   toolsLoading.value = true
-  expandedTools.clear()
+  toolsAgentId.value = agentId
   showToolsModal.value = true
   const url = isPrivate
     ? `/api/agents/${encodeURIComponent(agentId)}/mcp/${encodeURIComponent(id)}/tools`
@@ -177,6 +162,50 @@ async function openMcpView(agentId: string, id: string, isPrivate: boolean) {
   } finally {
     toolsLoading.value = false
   }
+}
+
+// ── Auto-approve tools (agent-level) ──
+function getAgentAutoApproveTools(): string[] {
+  return ((store.settings.agents || {})[toolsAgentId.value] as any)?.autoApproveTools ?? []
+}
+
+const allToolsApproved = computed(() =>
+  toolsList.value.length > 0 && toolsList.value.every(tool => getAgentAutoApproveTools().includes(tool.name))
+)
+
+async function saveAutoApprove(next: string[]) {
+  try {
+    const existing = (store.settings.agents || {})[toolsAgentId.value] || {}
+    const res = await apiFetch(
+      `/api/settings/agents/${encodeURIComponent(toolsAgentId.value)}`,
+      'PUT',
+      { ...existing, autoApproveTools: next },
+    )
+    Object.assign(store.settings, res.data)
+  } catch (e: any) {
+    show(e.message, 'error')
+  }
+}
+
+async function toggleAutoApprove(toolName: string) {
+  const current = getAgentAutoApproveTools()
+  const next = current.includes(toolName)
+    ? current.filter((n: string) => n !== toolName)
+    : [...current, toolName]
+  await saveAutoApprove(next)
+}
+
+async function approveAll() {
+  const names = toolsList.value.map(t => t.name)
+  const current = getAgentAutoApproveTools()
+  const next = Array.from(new Set([...current, ...names]))
+  await saveAutoApprove(next)
+}
+
+async function revokeAll() {
+  const names = new Set(toolsList.value.map(t => t.name))
+  const next = getAgentAutoApproveTools().filter((n: string) => !names.has(n))
+  await saveAutoApprove(next)
 }
 
 async function refresh() {
@@ -410,51 +439,26 @@ async function refresh() {
     <AgentMcpModal ref="agentMcpModal" />
     <AgentSkillsModal ref="agentSkillsModal" @saved="(id) => loadSkills(id)" />
 
-    <!-- ── MCP Tools viewer modal ── -->
-    <div v-if="showToolsModal" class="modal-overlay" @click.self="showToolsModal = false">
-      <div class="modal-box wide">
-        <div class="modal-header">
-          <h3>{{ toolsTitle }}<span v-if="!toolsLoading" style="font-size:12px;color:#9b9b9b;margin-left:8px;font-weight:400">({{ toolsList.length }} 个工具)</span></h3>
-          <button class="modal-close" @click="showToolsModal = false">&times;</button>
-        </div>
-        <div class="modal-body" style="padding:0">
-          <div v-if="toolsLoading" style="text-align:center;color:#94a3b8;padding:40px">{{ t('mcp.connecting') }}</div>
-          <div v-else-if="toolsList.length === 0" style="text-align:center;color:#94a3b8;padding:40px">{{ t('mcp.no_tools') }}</div>
-          <ul v-else class="tools-list">
-            <li v-for="(tool, i) in toolsList" :key="tool.name">
-              <div class="tool-header"><div class="tool-name" :class="{ expanded: expandedTools.has(i) }" @click="toggleTool(i)">{{ tool.name }}</div></div>
-              <div v-if="tool.description" class="tool-desc">{{ tool.description }}</div>
-              <div class="tool-params" :class="{ show: expandedTools.has(i) }" v-html="renderToolParams((tool as any).parameters)"></div>
-            </li>
-          </ul>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-outline" @click="showToolsModal = false">{{ t('common.close') }}</button>
-        </div>
-      </div>
-    </div>
+    <McpToolsModal
+      :visible="showToolsModal"
+      :title="toolsTitle"
+      :tools="toolsList"
+      :loading="toolsLoading"
+      :auto-approved-tools="getAgentAutoApproveTools()"
+      :all-approved="allToolsApproved"
+      @update:visible="showToolsModal = $event"
+      @toggle-auto-approve="toggleAutoApprove"
+      @approve-all="approveAll"
+      @revoke-all="revokeAll"
+    />
 
-    <!-- ── Skill viewer modal ── -->
-    <div v-if="viewVisible" class="modal-overlay" @click.self="viewVisible = false">
-      <div class="modal-box wide">
-        <div class="modal-header">
-          <div style="display:flex;align-items:center;gap:8px">
-            <span v-if="viewBadge" :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(viewBadge)}`">{{ viewBadge }}</span>
-            <h3 style="margin:0;font-family:monospace">{{ viewTitle }}</h3>
-          </div>
-          <button class="modal-close" @click="viewVisible = false">&times;</button>
-        </div>
-        <div class="modal-body">
-          <div v-if="viewLoading" style="text-align:center;color:#94a3b8;padding:40px">{{ t('common.loading') }}</div>
-          <template v-else>
-            <div v-if="viewParsed.description" style="margin-bottom:12px;font-size:13px;color:#475569">{{ viewParsed.description }}</div>
-            <pre style="margin:0;padding:14px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;font-family:Consolas,Monaco,monospace;font-size:12px;line-height:1.6;overflow:auto;max-height:460px;white-space:pre-wrap;word-break:break-word;color:#1e293b">{{ viewParsed.body || viewContent }}</pre>
-          </template>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-outline" @click="viewVisible = false">{{ t('common.close') }}</button>
-        </div>
-      </div>
-    </div>
+    <SkillViewerModal
+      :visible="viewVisible"
+      :title="viewTitle"
+      :badge="viewBadge"
+      :content="viewContent"
+      :loading="viewLoading"
+      @update:visible="viewVisible = $event"
+    />
   </div>
 </template>
