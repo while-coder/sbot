@@ -2,7 +2,7 @@ import { LarkChatProvider } from "./LarkChatProvider";
 import { AgentMessage, AgentToolCall, AskToolParams, AskQuestionType, MessageType } from "scorpio.ai";
 import { GlobalLoggerService } from "scorpio.ai";
 import { LarkReceiveIdType, LarkService } from "./LarkService";
-import { ChannelUserServiceBase, ToolCallStatus } from "channel.base";
+import { ChannelUserServiceBase, ToolCallStatus, SessionManager } from "channel.base";
 
 const getLogger = () => GlobalLoggerService.getLogger('LarkUserService.ts');
 
@@ -39,16 +39,20 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
   provider: LarkChatProvider | undefined;
   larkService!: LarkService;
 
+  constructor(sessionManager: SessionManager) {
+    super(sessionManager);
+  }
+
   async startProcessMessage(query: string, args: any, _messageType: MessageType): Promise<string> {
     const { larkService, chat_id, root_id, message_id } = args as LarkMessageArgs;
     this.larkService = larkService;
     if (!message_id) {
       this.provider = await new LarkChatProvider(larkService).initChat(LarkReceiveIdType.ChatId, chat_id, query);
-      await this.sendAbortButton(chat_id);
+      await this.sendAbortButton();
       return `Session:${chat_id}`;
     }
     this.provider = await new LarkChatProvider(larkService).initReplay(message_id);
-    await this.sendAbortButton(chat_id);
+    await this.sendAbortButton();
     return `Session:${chat_id},Topic:${root_id},MessageId:${message_id}`;
   }
 
@@ -63,7 +67,7 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
     }
   }
 
-  protected async sendAbortButton(chatId: string): Promise<void> {
+  protected async sendAbortButton(): Promise<void> {
     await this.provider?.insertElement(undefined, {
       tag: "button",
       text: { tag: "plain_text", content: "■ 中断" },
@@ -74,17 +78,13 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
         title: { tag: "plain_text", content: "确认中断" },
         text: { tag: "plain_text", content: "确定要中断当前任务吗？" },
       },
-      behaviors: [{ type: "callback", value: { code: ACTION_ABORT, chat_id: chatId } }],
+      behaviors: [{ type: "callback", value: { code: ACTION_ABORT } }],
       element_id: EL_ABORT_BTN,
     });
   }
-
   protected async clearAbortButton(): Promise<void> {
     await this.provider?.deleteElement(EL_ABORT_BTN);
   }
-
-  /** 子类可覆盖此方法以响应中断操作 */
-  protected onAbortAction(_chatId?: string): void {}
 
   async onAgentStreamMessage(message: AgentMessage): Promise<void> {
     await this.provider?.setStreamMessage(message.content || "");
@@ -108,16 +108,16 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
     };
   }
 
-  protected async sendApproval(toolCall: AgentToolCall, id: string, remainSec: number): Promise<void> {
+  protected async enterApproval(approvalId: string, remainSec: number, toolCall: AgentToolCall): Promise<void> {
     await this.provider?.insertElement(undefined,
-      this.buildButton(`Allow ${toolCall.name}`, "primary_filled", ToolCallStatus.Allow, EL_TOOL_CALL_ALLOW, id),
-      this.buildButton(`Always allow ${toolCall.name} (same args)`, "primary", ToolCallStatus.AlwaysArgs, EL_TOOL_CALL_ALWAYS_ARGS, id),
-      this.buildButton(`Always allow ${toolCall.name} (all args)`, "primary", ToolCallStatus.AlwaysTool, EL_TOOL_CALL_ALWAYS_TOOL, id),
-      this.buildButton(`Deny (${remainSec}s)`, "danger_filled", ToolCallStatus.Deny, EL_TOOL_CALL_DENY, id),
+      this.buildButton(`Allow ${toolCall.name}`, "primary_filled", ToolCallStatus.Allow, EL_TOOL_CALL_ALLOW, approvalId),
+      this.buildButton(`Always allow ${toolCall.name} (same args)`, "primary", ToolCallStatus.AlwaysArgs, EL_TOOL_CALL_ALWAYS_ARGS, approvalId),
+      this.buildButton(`Always allow ${toolCall.name} (all args)`, "primary", ToolCallStatus.AlwaysTool, EL_TOOL_CALL_ALWAYS_TOOL, approvalId),
+      this.buildButton(`Deny (${remainSec}s)`, "danger_filled", ToolCallStatus.Deny, EL_TOOL_CALL_DENY, approvalId),
     );
   }
 
-  protected async clearApproval(_toolCallId: string): Promise<void> {
+  protected async exitApproval(_approvalId: string): Promise<void> {
     await this.provider?.deleteElement(EL_TOOL_CALL_ALLOW, EL_TOOL_CALL_ALWAYS_ARGS, EL_TOOL_CALL_ALWAYS_TOOL, EL_TOOL_CALL_DENY);
   }
 
@@ -143,7 +143,7 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
     };
   }
 
-  protected async sendAsk(params: AskToolParams, askId: string, remainSec: number): Promise<void> {
+  protected async enterAsk(askId: string, remainSec: number, params: AskToolParams): Promise<void> {
     const formElements: any[] = [];
     for (let i = 0; i < params.questions.length; i++) {
       const q = params.questions[i];
@@ -201,21 +201,21 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
     });
   }
 
-  protected async clearAsk(_askId: string): Promise<void> {
+  protected async exitAsk(_askId: string): Promise<void> {
     await this.provider?.deleteElement(EL_ASK_FORM);
   }
 
-  async onTriggerAction(_chatId: string, code: string, data: any, formValue: any): Promise<any> {
+  async onTriggerAction(threadId: string, _chatId: string, code: string, data: any, formValue: any): Promise<any> {
     if (code === ACTION_TOOL_CALL) {
-      this.resolveApproval(data.id, data.approval as ToolCallStatus ?? ToolCallStatus.Deny);
+      this.resolveApproval(threadId, data.id, data.approval as ToolCallStatus ?? ToolCallStatus.Deny);
       return;
     }
     if (code === ACTION_ASK_FORM) {
-      this.resolveAsk(data.id, formValue ?? {});
+      this.resolveAsk(threadId, data.id, formValue ?? {});
       return;
     }
     if (code === ACTION_ABORT) {
-      this.onAbortAction(data?.chat_id);
+      this.abort(threadId);
       return;
     }
     getLogger()?.warn(`Unhandled card action: ${code}`);

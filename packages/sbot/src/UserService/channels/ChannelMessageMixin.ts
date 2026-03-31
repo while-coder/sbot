@@ -9,7 +9,7 @@ type ChannelBase = abstract new (...args: any[]) => ChannelUserServiceBase;
 
 export function ChannelMessageMixin<TBase extends ChannelBase>(Base: TBase) {
     abstract class ChannelMessage extends Base {
-        async processAIMessage(query: string, args: any): Promise<void> {
+        async processAIMessage(query: string, args: any, threadId: string): Promise<void> {
             const channelId = args?.channelId as string;
             const channel = channelId ? config.getChannel(channelId) : undefined;
             if (!channel) throw new Error(`Channel "${channelId}" not found`);
@@ -26,27 +26,25 @@ export function ChannelMessageMixin<TBase extends ChannelBase>(Base: TBase) {
                 ? [...(channel.memories ?? []), ...sessionMemories]
                 : sessionMemories;
 
-            this.threadId = this.buildThreadId(channelId, args);
             await AgentRunner.run({
                 query,
                 callbacks: {
                     onMessage: this.onAgentMessage.bind(this),
                     onStreamMessage: this.onAgentStreamMessage.bind(this),
-                    executeTool: buildExecuteTool(this.threadId, this.executeApproval.bind(this)),
+                    executeTool: buildExecuteTool(threadId, (tc) => this.executeApproval(threadId, tc)),
                 },
                 agentId,
                 saverId: channel.saver,
-                threadId: this.threadId,
+                threadId,
                 scheduler: { schedulerType: SchedulerType.Channel, schedulerId: String(dbSessionId) },
                 extraInfo: this.buildExtraInfo(userInfo),
                 memories,
                 workPath: dbSession?.workPath || undefined,
-                agentTools: this.buildAgentTools(args),
+                agentTools: this.buildAgentTools(args, threadId),
             });
         }
-        protected abstract buildThreadId(channelId: string, args: any): string;
         protected abstract buildExtraInfo(userInfo: any): string;
-        protected abstract buildAgentTools(args: any): any[];
+        protected abstract buildAgentTools(args: any, threadId: string): any[];
 
         protected async onAgentStreamMessage(_message: any): Promise<void> {}
     }

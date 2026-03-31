@@ -2,7 +2,7 @@ import { SlackChatProvider } from "./SlackChatProvider";
 import { AgentMessage, AgentToolCall, AskToolParams, AskQuestionType, MessageType } from "scorpio.ai";
 import { GlobalLoggerService } from "scorpio.ai";
 import { SlackService } from "./SlackService";
-import { ChannelUserServiceBase, ToolCallStatus } from "channel.base";
+import { ChannelUserServiceBase, ToolCallStatus, SessionManager } from "channel.base";
 
 const getLogger = () => GlobalLoggerService.getLogger("SlackUserServiceBase.ts");
 
@@ -24,6 +24,10 @@ export interface SlackActionArgs {
 export abstract class SlackUserServiceBase extends ChannelUserServiceBase {
   provider: SlackChatProvider | undefined;
   slackService!: SlackService;
+
+  constructor(sessionManager: SessionManager) {
+    super(sessionManager);
+  }
 
   async startProcessMessage(query: string, args: any, _messageType: MessageType): Promise<string> {
     const { slackService, channel, ts, threadTs } = args as SlackMessageArgs;
@@ -68,15 +72,15 @@ export abstract class SlackUserServiceBase extends ChannelUserServiceBase {
     }];
   }
 
-  protected async sendApproval(toolCall: AgentToolCall, id: string, remainSec: number): Promise<void> {
-    await this.provider?.setApprovalBlocks(this.buildApprovalBlocks(toolCall, id, remainSec));
+  protected async enterApproval(approvalId: string, remainSec: number, toolCall: AgentToolCall): Promise<void> {
+    await this.provider?.setApprovalBlocks(this.buildApprovalBlocks(toolCall, approvalId, remainSec));
   }
 
-  protected async clearApproval(_toolCallId: string): Promise<void> {
+  protected async exitApproval(_approvalId: string): Promise<void> {
     await this.provider?.clearApprovalBlocks();
   }
 
-  protected async sendAsk(params: AskToolParams, askId: string, remainSec: number): Promise<void> {
+  protected async enterAsk(askId: string, remainSec: number, params: AskToolParams): Promise<void> {
     const inputBlocks: any[] = [];
     if (params.title) {
       inputBlocks.push({ type: "section", text: { type: "mrkdwn", text: `*${params.title}*` } });
@@ -138,11 +142,11 @@ export abstract class SlackUserServiceBase extends ChannelUserServiceBase {
     await this.provider?.setAskBlocks(inputBlocks);
   }
 
-  protected async clearAsk(_askId: string): Promise<void> {
+  protected async exitAsk(_askId: string): Promise<void> {
     await this.provider?.clearAskBlocks();
   }
 
-  async onTriggerAction(args: SlackActionArgs): Promise<void> {
+  async onTriggerAction(threadId: string, args: SlackActionArgs): Promise<void> {
     const { actionId, value } = args;
 
     if (
@@ -151,13 +155,13 @@ export abstract class SlackUserServiceBase extends ChannelUserServiceBase {
       actionId === ToolCallStatus.AlwaysTool ||
       actionId === ToolCallStatus.Deny
     ) {
-      if (value?.id) this.resolveApproval(value.id, actionId as ToolCallStatus);
+      if (value?.id) this.resolveApproval(threadId, value.id, actionId as ToolCallStatus);
       return;
     }
 
     if (actionId.startsWith("ask_submit_")) {
       if (value?.id && value?.answers) {
-        this.resolveAsk(value.id, value.answers);
+        this.resolveAsk(threadId, value.id, value.answers);
       }
       return;
     }

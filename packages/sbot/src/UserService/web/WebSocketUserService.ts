@@ -1,6 +1,7 @@
 import "reflect-metadata";
 import { MessageType } from "scorpio.ai";
 import { WebChatEventType } from 'sbot.commons';
+import { SessionManager } from 'channel.base';
 import { BaseWebUserService, WebChatEvent } from "./BaseWebUserService";
 import { httpServer } from "../../Server/HttpServer";
 
@@ -8,12 +9,16 @@ export class WebSocketUserService extends BaseWebUserService {
     private activeSessionId: string | undefined;
     private activeWorkPath: string | undefined;
 
+    constructor(sessionManager: SessionManager) {
+        super(sessionManager);
+    }
+
     private clearContext(): void {
         this.activeSessionId = undefined;
         this.activeWorkPath = undefined;
     }
 
-    // ===== Called by UserService =====
+    // ===== Called by SbotSession =====
 
     async startProcessMessage(_query: string, _args: any, _messageType: MessageType): Promise<string> {
         return '';
@@ -29,10 +34,10 @@ export class WebSocketUserService extends BaseWebUserService {
         this.clearContext();
     }
 
-    async processAIMessage(query: string, args: any): Promise<void> {
+    async processAIMessage(query: string, args: any, threadId: string): Promise<void> {
         this.activeWorkPath = args?.workPath;
         this.activeSessionId = args?.sessionId;
-        await super.processAIMessage(query, args);
+        await super.processAIMessage(query, args, threadId);
     }
 
     protected emit(event: WebChatEvent): void {

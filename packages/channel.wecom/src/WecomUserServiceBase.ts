@@ -10,7 +10,7 @@ import {
   MessageType,
   GlobalLoggerService,
 } from 'scorpio.ai';
-import { ChannelUserServiceBase, ToolCallStatus } from 'channel.base';
+import { ChannelUserServiceBase, ToolCallStatus, SessionManager } from 'channel.base';
 import { WecomChatProvider } from './WecomChatProvider';
 import type { WecomService, WecomMessageArgs, WecomActionArgs } from './WecomService';
 
@@ -24,6 +24,10 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
   wecomService!: WecomService;
   private _chatid = '';
   private _currentAskQuestion: (RadioQuestion | CheckboxQuestion) | null = null;
+
+  constructor(sessionManager: SessionManager) {
+    super(sessionManager);
+  }
 
   async startProcessMessage(_query: string, args: WecomMessageArgs, _messageType: MessageType): Promise<string> {
     const { wecomService, chatid, chattype } = args;
@@ -45,6 +49,8 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
     }
   }
 
+  protected async onAgentStreamMessage(_message: any): Promise<void> {}
+  
   async onAgentMessage(message: AgentMessage): Promise<void> {
     if (this.provider) {
       await this.provider.addAIMessage(message);
@@ -53,7 +59,7 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
 
   // --- Tool Approval UI ---
 
-  protected async sendApproval(toolCall: AgentToolCall, id: string, remainSec: number): Promise<void> {
+  protected async enterApproval(approvalId: string, remainSec: number, toolCall: AgentToolCall): Promise<void> {
     try {
       await this.wecomService.sendMessage(this._chatid, {
         msgtype: 'template_card',
@@ -68,12 +74,12 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
           //   title: `工具调用: ${toolCall.name}`,
           //   quote_text: `参数: ${JSON.stringify(toolCall.args ?? {})}`,
           // },
-          task_id: `approval_${id}`,
+          task_id: `approval_${approvalId}`,
           button_list: [
-            { text: `允许 (${remainSec}s)`, style: 1, key: `Allow|${id}` },
-            { text: `始终允许 (相同参数)`, style: 1, key: `AlwaysArgs|${id}` },
-            { text: `始终允许 (所有参数)`, style: 1, key: `AlwaysTool|${id}` },
-            { text: `拒绝`, style: 2, key: `Deny|${id}` },
+            { text: `允许 (${remainSec}s)`, style: 1, key: `Allow|${approvalId}` },
+            { text: `始终允许 (相同参数)`, style: 1, key: `AlwaysArgs|${approvalId}` },
+            { text: `始终允许 (所有参数)`, style: 1, key: `AlwaysTool|${approvalId}` },
+            { text: `拒绝`, style: 2, key: `Deny|${approvalId}` },
           ],
           // action_menu: {
           //   desc: "操作类型",
@@ -86,15 +92,15 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
         },
       } as any);
     } catch (e: any) {
-      getLogger()?.error(`sendApproval error: ${e.message}`, e.stack);
+      getLogger()?.error(`enterApproval error: ${e.message}`, e.stack);
     }
   }
 
-  protected async clearApproval(_toolCallId: string): Promise<void> {}
+  protected async exitApproval(_approvalId: string): Promise<void> {}
 
   // --- Ask Form ---
 
-  protected async sendAsk(params: AskToolParams, askId: string, remainSec: number): Promise<void> {
+  protected async enterAsk(askId: string, remainSec: number, params: AskToolParams): Promise<void> {
     const q = params.questions.find(
       (q): q is RadioQuestion | CheckboxQuestion =>
         q.type === AskQuestionType.Radio || q.type === AskQuestionType.Checkbox,
@@ -122,19 +128,19 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
         },
       } as any);
     } catch (e: any) {
-      getLogger()?.error(`sendAsk error: ${e.message}`, e.stack);
+      getLogger()?.error(`enterAsk error: ${e.message}`, e.stack);
       this._currentAskQuestion = null;
     }
   }
 
-  protected async clearAsk(_askId: string): Promise<void> {
+  protected async exitAsk(_askId: string): Promise<void> {
     this._currentAskQuestion = null;
   }
 
   // --- Card Event Dispatch ---
   // Called by WecomService's onTriggerAction callback after dispatching to the right user service instance.
 
-  async onTriggerAction(_userId: string, args: WecomActionArgs): Promise<void> {
+  async onTriggerAction(threadId: string, _userId: string, args: WecomActionArgs): Promise<void> {
     const { eventKey, frame } = args;
     const parts = eventKey.split('|');
     const code = parts[0];
@@ -148,7 +154,7 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
         AlwaysTool: ToolCallStatus.AlwaysTool,
         Deny: ToolCallStatus.Deny,
       };
-      this.resolveApproval(id, statusMap[code] ?? ToolCallStatus.Deny);
+      this.resolveApproval(threadId, id, statusMap[code] ?? ToolCallStatus.Deny);
       return;
     }
 
@@ -167,18 +173,15 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
         });
         answers['0'] = q.type === AskQuestionType.Checkbox ? selectedTexts : (selectedTexts[0] ?? '');
       }
-      this.resolveAsk(askId, answers);
+      this.resolveAsk(threadId, askId, answers);
       return;
     }
 
     if (code === 'Abort') {
-      this.onAbortAction();
+      this.abort(threadId);
       return;
     }
 
     getLogger()?.warn(`Unhandled card event key: ${eventKey}`);
   }
-
-  /** Override to handle abort action */
-  protected onAbortAction(): void {}
 }

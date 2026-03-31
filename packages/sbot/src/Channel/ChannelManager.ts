@@ -4,10 +4,10 @@ import { WecomService, WecomMessageArgs, WecomActionArgs } from "channel.wecom";
 import { ChannelUserRow, database, type ChannelSessionRow } from "../Core/Database";
 import { NowDate } from "scorpio.ai";
 import { Op } from "sequelize";
-import { userService } from "../UserService/UserService";
+import { sessionManager } from "../UserService/SessionManager";
 import { LoggerService } from "../Core/LoggerService";
 import { config, ChannelType, ChannelConfig } from "../Core/Config";
-import { compareSemver, fetchLatestRelease } from "sbot.commons";
+import { compareSemver, fetchLatestRelease, larkThreadId, slackThreadId, wecomThreadId } from "sbot.commons";
 
 const logger = LoggerService.getLogger("ChannelManager.ts");
 
@@ -229,12 +229,13 @@ export class ChannelManager {
                     userInfo: JSON.stringify(userInfo ?? {}),
                     sessionId: args.channel,
                     sessionName: args.channel,
-                    processMessage: (dbSessionId: number) => userService.onReceiveSlackMessage(query, args, userInfo ?? {}, channelId, dbSessionId),
+                    processMessage: (dbSessionId: number) => sessionManager.onReceiveSlackMessage(query, args, userInfo ?? {}, channelId, dbSessionId),
                     sendUpdate: (msg: string) => service.sendMessage(args.channel, msg).then(() => {}),
                 });
             },
             onTriggerAction: async (_userId: string, args: SlackActionArgs) => {
-                await userService.slack.onTriggerAction(args);
+                const threadId = slackThreadId(channelId, args.channel);
+                await sessionManager.slack.onTriggerAction(threadId, args);
             },
         });
         await service.registerEventHandlers();
@@ -264,14 +265,15 @@ export class ChannelManager {
                     userInfo: JSON.stringify(userInfo ?? {}),
                     sessionId: args.chat_id,
                     sessionName,
-                    processMessage: (dbSessionId: number) => userService.onReceiveLarkMessage(query, args, userInfo ?? {}, channelId, dbSessionId),
+                    processMessage: (dbSessionId: number) => sessionManager.onReceiveLarkMessage(query, args, userInfo ?? {}, channelId, dbSessionId),
                     sendUpdate: (msg: string) => service.sendMarkdownMessage(LarkReceiveIdType.ChatId, args.chat_id, msg).then(() => {}),
                     userAvatar: userInfo?.avatar?.avatar_origin,
                     sessionAvatar: chatInfo?.avatar || '',
                 });
             },
             onTriggerAction: async (_userId: string, _userInfo: any, _chatInfo: any, args: LarkActionArgs) => {
-                await userService.lark.onTriggerAction(args.chat_id, args.code, args.data, args.form_value);
+                const threadId = larkThreadId(channelId, args.chat_id);
+                await sessionManager.lark.onTriggerAction(threadId, args.chat_id, args.code, args.data, args.form_value);
             },
         });
         await service.registerEventDispatcher();
@@ -299,12 +301,13 @@ export class ChannelManager {
                     userInfo: JSON.stringify({ userId: userId }),
                     sessionId: args.chatid,
                     sessionName: args.chatid,
-                    processMessage: (dbSessionId: number) => userService.onReceiveWecomMessage(query, args, { userId: userId }, channelId, dbSessionId),
+                    processMessage: (dbSessionId: number) => sessionManager.onReceiveWecomMessage(query, args, { userId: userId }, channelId, dbSessionId),
                     sendUpdate: (msg: string) => service.sendMessage(args.chatid, { msgtype: 'markdown', markdown: { content: msg } }).then(() => {}),
                 });
             },
             onTriggerAction: async (userId: string, args: WecomActionArgs) => {
-                await userService.wecom.onTriggerAction(userId, args);
+                const threadId = wecomThreadId(channelId, args.chatid);
+                await sessionManager.wecom.onTriggerAction(threadId, userId, args);
             },
         });
         service.connect();

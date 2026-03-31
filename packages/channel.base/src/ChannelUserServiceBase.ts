@@ -81,4 +81,7 @@ export abstract class ChannelUserServiceBase {
     this.sessionManager.exitAsk(threadId, askId, answers);
   }
 
+  protected abort(threadId: string): void {
+    this.sessionManager.abort(threadId);
+  }
 }

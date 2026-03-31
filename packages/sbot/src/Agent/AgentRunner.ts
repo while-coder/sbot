@@ -23,7 +23,7 @@ import { SchedulerType } from "../Core/Database";
 import { ChannelType } from "sbot.commons";
 import { AgentFactory } from "./AgentFactory";
 import { LoggerService } from "../Core/LoggerService";
-import { sessionManager } from "channel.base";
+import { sessionManager } from "../UserService/SessionManager";
 
 const logger = LoggerService.getLogger('AgentRunner.ts');
 
@@ -108,7 +108,7 @@ export class AgentRunner {
         if (!saverId.trim())   throw new Error("saver not specified");
         if (!threadId.trim())  throw new Error("threadId not specified");
 
-        const cancellationToken = sessionManager.start(threadId);
+        const cancellationToken = sessionManager.getOrCreate(threadId).source;
         try {
             const now = new Date();
             const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;

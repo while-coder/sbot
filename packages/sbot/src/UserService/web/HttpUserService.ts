@@ -2,10 +2,15 @@ import "reflect-metadata";
 import { Response } from "express";
 import { MessageType } from "scorpio.ai";
 import { WebChatEventType } from 'sbot.commons';
+import { SessionManager } from 'channel.base';
 import { BaseWebUserService, WebChatEvent } from "./BaseWebUserService";
 
 export class HttpUserService extends BaseWebUserService {
     private activeRes: Response | null = null;
+
+    constructor(sessionManager: SessionManager) {
+        super(sessionManager);
+    }
 
     private setResponse(res: Response): void {
         this.activeRes = res;
@@ -23,7 +28,7 @@ export class HttpUserService extends BaseWebUserService {
         this.clearPendingApprovals();
     }
 
-    // ===== Called by UserService =====
+    // ===== Called by SbotSession =====
 
     async startProcessMessage(_query: string, args: any, _messageType: MessageType): Promise<string> {
         if (args?.res) this.setResponse(args.res);

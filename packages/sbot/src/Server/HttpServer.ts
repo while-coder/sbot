@@ -14,10 +14,9 @@ import { globalSkillService, refreshGlobalSkillService, getSkillsDirsMap } from 
 import { SkillHubService, type HubSkillResult } from '../SkillHub';
 import { LoggerService } from '../Core/LoggerService';
 import { database } from '../Core/Database';
-import { userService } from '../UserService/UserService';
+import { sessionManager } from '../UserService/SessionManager';
 import { schedulerService } from '../Scheduler/SchedulerService';
 import { channelManager } from '../Channel/ChannelManager';
-import { sessionManager } from 'channel.base';
 import { sessionThreadId, dirThreadId } from 'sbot.commons';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
@@ -209,7 +208,7 @@ class HttpServer {
                         attachments?: AttachmentInput[];
                     };
                     const enriched = processAttachments(msg.query?.trim() || '', msg.attachments, uploadDir);
-                    if (enriched) userService.onReceiveWebMessage(enriched, msg.sessionId, msg.workPath);
+                    if (enriched) sessionManager.onReceiveWebMessage(enriched, msg.sessionId, msg.workPath);
                 } catch { /* ignore malformed messages */ }
             });
         });
@@ -1022,7 +1021,7 @@ class HttpServer {
         app.post('/api/tool-approval', (req, res) => {
             const { threadId, id, approval } = req.body as { threadId?: string; id?: string; approval?: string };
             if (!threadId || !id || !approval) { res.status(400).json({ error: 'threadId, id and approval are required' }); return; }
-            const resolved = userService.web.resolveToolApproval(threadId, id, approval as any) || userService.http.resolveToolApproval(threadId, id, approval as any);
+            const resolved = sessionManager.web.resolveToolApproval(threadId, id, approval as any) || sessionManager.http.resolveToolApproval(threadId, id, approval as any);
             if (!resolved) { res.status(404).json({ error: 'Tool approval not found or already resolved' }); return; }
             res.json({ ok: true });
         });
@@ -1030,7 +1029,7 @@ class HttpServer {
         app.post('/api/ask-response', (req, res) => {
             const { threadId, id, answers } = req.body as { threadId?: string; id?: string; answers?: Record<string, any> };
             if (!threadId || !id || !answers) { res.status(400).json({ error: 'threadId, id and answers are required' }); return; }
-            const resolved = userService.web.resolveAsk(threadId, id, answers) || userService.http.resolveAsk(threadId, id, answers);
+            const resolved = sessionManager.web.resolveAsk(threadId, id, answers) || sessionManager.http.resolveAsk(threadId, id, answers);
             if (!resolved) { res.status(404).json({ error: 'Ask not found or already resolved' }); return; }
             res.json({ ok: true });
         });
@@ -1053,7 +1052,7 @@ class HttpServer {
             const enriched = processAttachments(query?.trim() || '', attachments, uploadDir);
             if (!enriched) { res.status(400).json({ error: 'Message content is required' }); return; }
             try {
-                await userService.onReceiveHttpMessage(enriched, res, sessionId, workPath);
+                await sessionManager.onReceiveHttpMessage(enriched, res, sessionId, workPath);
             } finally {
                 res.end();
             }

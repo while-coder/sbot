@@ -1,4 +1,4 @@
-import { AgentToolCall, AskResponse, AskToolParams, ICancellationToken, ToolApproval } from "scorpio.ai";
+import { AgentToolCall, AskResponse, AskToolParams, ToolApproval } from "scorpio.ai";
 import { SessionService, SessionInfo } from './SessionService';
 
 export abstract class SessionManager {
@@ -7,22 +7,13 @@ export abstract class SessionManager {
     /** 子类实现：创建具体的 SessionService 实例 */
     protected abstract createSession(threadId: string): SessionService;
 
-    /** 获取已有 session 或创建新的 */
+    /** 获取已有 session 或创建新的（若已有则先取消再重建） */
     getOrCreate(threadId: string): SessionService {
-        let session = this.sessions.get(threadId);
-        if (!session) {
-            session = this.createSession(threadId);
-            this.sessions.set(threadId, session);
-        }
-        return session;
-    }
-
-    start(threadId: string): ICancellationToken {
         const existing = this.sessions.get(threadId);
         if (existing) existing.source.cancel();
         const session = this.createSession(threadId);
         this.sessions.set(threadId, session);
-        return session.source;
+        return session;
     }
 
     end(threadId: string): void {

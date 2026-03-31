@@ -3,7 +3,7 @@ import { LarkService, LarkMessageArgs } from "channel.lark";
 import { SlackService, SlackMessageArgs } from "channel.slack";
 import { WecomService, WecomMessageArgs } from "channel.wecom";
 import { database, SchedulerRow, ChannelSessionRow, SchedulerType } from "../Core/Database";
-import { userService } from "../UserService/UserService";
+import { sessionManager } from "../UserService/SessionManager";
 import { LoggerService } from "../Core/LoggerService";
 import { config, ChannelType } from "../Core/Config";
 import { channelManager } from "../Channel/ChannelManager";
@@ -39,19 +39,19 @@ async function executeScheduler(schedulerId: number): Promise<void> {
                     larkService: service as LarkService,
                     event_id: "", chat_type: "", chat_id: sessionId, message_id: "", root_id: "",
                 };
-                await userService.onReceiveLarkMessage(scheduler.message, args, {}, channelId, dbSessionId);
+                await sessionManager.onReceiveLarkMessage(scheduler.message, args, {}, channelId, dbSessionId);
             } else if (channelType === ChannelType.Slack) {
                 const args: SlackMessageArgs = {
                     slackService: service as SlackService,
                     eventId: "", channel: sessionId, ts: "",
                 };
-                await userService.onReceiveSlackMessage(scheduler.message, args, {}, channelId, dbSessionId);
+                await sessionManager.onReceiveSlackMessage(scheduler.message, args, {}, channelId, dbSessionId);
             } else if (channelType === ChannelType.Wecom) {
                 const args: WecomMessageArgs = {
                     wecomService: service as WecomService,
                     chatid: sessionId, chattype: 'single', msgid: '', frame: null as any,
                 };
-                await userService.onReceiveWecomMessage(scheduler.message, args, {}, channelId, dbSessionId);
+                await sessionManager.onReceiveWecomMessage(scheduler.message, args, {}, channelId, dbSessionId);
             } else {
                 logger.warn(`Scheduler task ${tag} unknown channel type: ${channelType}`);
                 return;
@@ -61,7 +61,7 @@ async function executeScheduler(schedulerId: number): Promise<void> {
             // Session / directory mode: deliver via HTTP pipeline
             const sessionId = scheduler.type === SchedulerType.Session    ? scheduler.targetId ?? undefined : undefined;
             const workPath  = scheduler.type === SchedulerType.Directory  ? scheduler.targetId ?? undefined : undefined;
-            await userService.onReceiveWebMessage(
+            await sessionManager.onReceiveWebMessage(
                 scheduler.message,
                 sessionId,
                 workPath,
