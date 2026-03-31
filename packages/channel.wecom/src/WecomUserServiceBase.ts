@@ -135,7 +135,7 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
   // --- Card Event Dispatch ---
   // Called by WecomService's onTriggerAction callback after dispatching to the right user service instance.
 
-  async onTriggerAction(_userId: string, args: WecomActionArgs): Promise<void> {
+  async onTriggerAction(args: WecomActionArgs): Promise<void> {
     const { eventKey, frame } = args;
     const parts = eventKey.split('|');
     const code = parts[0];

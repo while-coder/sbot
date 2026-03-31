@@ -209,19 +209,11 @@ class HttpServer {
                             sessionManager.onReceiveWebMessage(enriched, msg.threadId, msg.sessionId, msg.workPath);
                             break;
                         }
-                        case WsCommandType.Approval: {
-                            const { threadId, id, approval } = msg;
-                            if (threadId && id && approval) sessionManager.exitApproval(threadId, id, approval);
-                            break;
-                        }
-                        case WsCommandType.Ask: {
-                            const { threadId, id, answers } = msg;
-                            if (threadId && id && answers) sessionManager.exitAsk(threadId, id, answers);
-                            break;
-                        }
+                        case WsCommandType.Approval:
+                        case WsCommandType.Ask:
                         case WsCommandType.Abort: {
                             const { threadId } = msg;
-                            if (threadId) sessionManager.abort(threadId);
+                            if (threadId) sessionManager.onWebTriggerAction(threadId, msg.type!, msg);
                             break;
                         }
                     }

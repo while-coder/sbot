@@ -199,13 +199,14 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
     await this.provider?.deleteElement(EL_ASK_FORM);
   }
 
-  async onTriggerAction(_chatId: string, code: string, data: any, formValue: any): Promise<any> {
+  async onTriggerAction(args: LarkActionArgs): Promise<any> {
+    const { code, data, form_value } = args;
     if (code === ACTION_TOOL_CALL) {
       this.resolveApproval(data.id, data.approval as ToolCallStatus ?? ToolCallStatus.Deny);
       return;
     }
     if (code === ACTION_ASK_FORM) {
-      this.resolveAsk(data.id, formValue ?? {});
+      this.resolveAsk(data.id, form_value ?? {});
       return;
     }
     if (code === ACTION_ABORT) {

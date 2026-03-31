@@ -1,10 +1,10 @@
 import "reflect-metadata";
-import { LarkMessageArgs } from "channel.lark";
+import { LarkMessageArgs, LarkActionArgs } from "channel.lark";
 import { SlackMessageArgs, SlackActionArgs } from "channel.slack";
 import { WecomMessageArgs, WecomActionArgs } from "channel.wecom";
 import { ICommand, MessageType } from "scorpio.ai";
 import { SessionManager, SessionService } from "channel.base";
-import { larkThreadId, slackThreadId, wecomThreadId, ChannelType } from "sbot.commons";
+import { larkThreadId, slackThreadId, wecomThreadId, ChannelType, WsCommandType } from "sbot.commons";
 
 import { getBuiltInCommands } from "./BuiltInCommands";
 import { LarkUserService } from "./channels/LarkUserService";
@@ -107,10 +107,10 @@ export class SbotSessionManager extends SessionManager {
 
     // ── Trigger action routing ──
 
-    async onLarkTriggerAction(channelId: string, chatId: string, code: string, data: any, formValue: any): Promise<void> {
-        const threadId = larkThreadId(channelId, chatId);
+    async onLarkTriggerAction(channelId: string, args: LarkActionArgs): Promise<void> {
+        const threadId = larkThreadId(channelId, args.chat_id);
         const session = this.getSession(threadId) as SbotSession | undefined;
-        await session?.triggerAction(chatId, code, data, formValue);
+        await session?.triggerAction(args);
     }
 
     async onSlackTriggerAction(channelId: string, args: SlackActionArgs): Promise<void> {
@@ -119,10 +119,29 @@ export class SbotSessionManager extends SessionManager {
         await session?.triggerAction(args);
     }
 
-    async onWecomTriggerAction(channelId: string, userId: string, args: WecomActionArgs): Promise<void> {
+    async onWecomTriggerAction(channelId: string, args: WecomActionArgs): Promise<void> {
         const threadId = wecomThreadId(channelId, args.chatid);
         const session = this.getSession(threadId) as SbotSession | undefined;
-        await session?.triggerAction(userId, args);
+        await session?.triggerAction(args);
+    }
+
+    onWebTriggerAction(threadId: string, type: string, msg: Record<string, any>): void {
+        switch (type) {
+            case WsCommandType.Approval: {
+                const { id, approval } = msg;
+                if (id && approval) this.exitApproval(threadId, id, approval);
+                break;
+            }
+            case WsCommandType.Ask: {
+                const { id, answers } = msg;
+                if (id && answers) this.exitAsk(threadId, id, answers);
+                break;
+            }
+            case WsCommandType.Abort: {
+                this.abort(threadId);
+                break;
+            }
+        }
     }
 }
 

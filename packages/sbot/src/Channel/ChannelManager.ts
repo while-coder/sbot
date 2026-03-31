@@ -271,7 +271,7 @@ export class ChannelManager {
                 });
             },
             onTriggerAction: async (_userId: string, _userInfo: any, _chatInfo: any, args: LarkActionArgs) => {
-                await sessionManager.onLarkTriggerAction(channelId, args.chat_id, args.code, args.data, args.form_value);
+                await sessionManager.onLarkTriggerAction(channelId, args);
             },
         });
         await service.registerEventDispatcher();
@@ -303,8 +303,8 @@ export class ChannelManager {
                     sendUpdate: (msg: string) => service.sendMessage(args.chatid, { msgtype: 'markdown', markdown: { content: msg } }).then(() => {}),
                 });
             },
-            onTriggerAction: async (userId: string, args: WecomActionArgs) => {
-                await sessionManager.onWecomTriggerAction(channelId, userId, args);
+            onTriggerAction: async (_userId: string, args: WecomActionArgs) => {
+                await sessionManager.onWecomTriggerAction(channelId, args);
             },
         });
         service.connect();
