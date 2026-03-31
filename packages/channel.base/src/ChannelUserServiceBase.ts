@@ -22,8 +22,6 @@ export enum ToolCallStatus {
 export abstract class ChannelUserServiceBase {
   protected readonly session: SessionService;
 
-  get threadId(): string { return this.session.threadId; }
-
   constructor(session: SessionService) {
     this.session = session;
   }

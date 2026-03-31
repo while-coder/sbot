@@ -13,8 +13,6 @@ export { WebChatEvent, WebChatEventType } from 'sbot.commons';
 export class WebSocketUserService {
     protected readonly session: SessionService;
 
-    get threadId(): string { return this.session.threadId; }
-
     constructor(session: SessionService) {
         this.session = session;
     }
@@ -74,7 +72,7 @@ export class WebSocketUserService {
             extraInfo = '';
         }
 
-        const threadId = this.threadId;
+        const threadId = this.session.threadId;
         await AgentRunner.run({
             query,
             callbacks: {
@@ -99,7 +97,7 @@ export class WebSocketUserService {
     // ── Emit ──
 
     private emit(event: WebChatEvent): void {
-        const payload = { ...event, threadId: this.threadId };
+        const payload = { ...event, threadId: this.session.threadId };
         httpServer.broadcastToWs(JSON.stringify(payload));
     }
 }

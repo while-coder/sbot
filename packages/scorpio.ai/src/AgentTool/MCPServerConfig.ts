@@ -33,8 +33,6 @@ export type MCPServerConfig = Connection & {
     name?: string;
     /** Provider 描述 - 扩展字段 */
     description?: string;
-    /** 自动批准的工具列表（无需用户确认） */
-    autoApproveTools?: string[];
 };
 
 /**
