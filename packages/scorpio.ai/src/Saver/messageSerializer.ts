@@ -11,6 +11,12 @@ export enum MessageType {
     Tool  = "tool",
 }
 
+export type ThinkBlock = {
+    type: "thinking";
+    thinking: string;
+    signature?: string;
+};
+
 export function serializeMessage(message: BaseMessage): { type: MessageType; data: string } {
     const name = message.constructor.name;
     const m = message as any;

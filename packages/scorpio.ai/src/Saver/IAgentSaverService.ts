@@ -1,4 +1,5 @@
 import { BaseMessage } from "langchain";
+import { ThinkBlock } from "./messageSerializer";
 
 export interface SaverMessage {
     message: BaseMessage;
@@ -41,6 +42,20 @@ export interface IAgentSaverService {
      * 清除当前线程的所有历史记录
      */
     clearMessages(): Promise<void>;
+
+    // --- Think ---
+
+    /**
+     * 获取指定 thinkId 对应的 think 内容块
+     * 若不存在或实现不支持则返回空数组
+     */
+    getThink(thinkId: string): Promise<ThinkBlock[]>;
+
+    /**
+     * 将消息列表存入指定 thinkId 对应的 think 记录（追加）
+     * 用于将 sub-agent 的执行过程保存为 think
+     */
+    pushThinkMessages(thinkId: string, messages: BaseMessage[]): Promise<void>;
 
     // --- 生命周期 ---
 
