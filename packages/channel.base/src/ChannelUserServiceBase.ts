@@ -33,6 +33,7 @@ export abstract class ChannelUserServiceBase {
     return this.onAgentMessage({ type: MessageChunkType.COMMAND, content });
   }
   abstract onAgentMessage(message: AgentMessage): Promise<void>;
+  async onAgentStreamMessage(_message: AgentMessage): Promise<void> {}
   abstract processAIMessage(query: string, args: any, threadId: string): Promise<void>;
 
   protected abstract enterApproval(approvalId: string, remainSec: number, toolCall: AgentToolCall): Promise<void>;

@@ -45,8 +45,6 @@ export function ChannelMessageMixin<TBase extends ChannelBase>(Base: TBase) {
         }
         protected abstract buildExtraInfo(userInfo: any): string;
         protected abstract buildAgentTools(args: any, threadId: string): any[];
-
-        protected async onAgentStreamMessage(_message: any): Promise<void> {}
     }
     return ChannelMessage;
 }

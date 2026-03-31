@@ -49,8 +49,8 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
     }
   }
 
-  protected async onAgentStreamMessage(_message: any): Promise<void> {}
-  
+
+
   async onAgentMessage(message: AgentMessage): Promise<void> {
     if (this.provider) {
       await this.provider.addAIMessage(message);
