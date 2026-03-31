@@ -48,6 +48,9 @@ class SbotSession extends SessionService {
 
     protected async onProcessEnd(query: string, args: any, messageType: MessageType, error?: any): Promise<void> {
         await this.getChannel(args).onProcessEnd(query, this.argsWithQueue(args), messageType, error);
+        if (this.messageQueue.length === 0) {
+            this.manager.end(this.threadId);
+        }
     }
 
     protected async getAllCommands(): Promise<ICommand[]> {

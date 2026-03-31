@@ -152,7 +152,9 @@ export class AgentRunner {
                 await agent.dispose();
             }
         } finally {
-            sessionManager.end(threadId);
+            // Session lifecycle is managed by processMessageQueue via onQueueDrained,
+            // not here — ending here would remove the session from the map while
+            // queued messages are still pending.
         }
     }
 

@@ -33,7 +33,6 @@ export abstract class UserServiceBase {
 
         while (this.messageQueue.length > 0) {
             const { query, args } = this.messageQueue.shift()!;
-
             const messageType = query.startsWith('/') ? MessageType.Command : MessageType.AI;
             await this.onProcessStart(query, args, messageType);
             let error: any;
@@ -54,6 +53,7 @@ export abstract class UserServiceBase {
         }
         this.isProcessingQueue = false;
     }
+
 
     private async processCommand(query: string, args: any): Promise<void> {
         const program = new CommanderCommand();

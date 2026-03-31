@@ -210,13 +210,14 @@ async function handleWsEvent(evt: WebChatEvent) {
   } else if (evt.type === WebChatEventType.Queue) {
     queuedMessages.value = evt.pendingMessages
   } else if (evt.type === WebChatEventType.Done) {
-    const pending = evt.pendingMessages ?? []
-    queuedMessages.value = pending
+    if (evt.pendingMessages) {
+      queuedMessages.value = evt.pendingMessages
+    }
     stopDenyCountdown()
     stopAskCountdown()
     pendingToolCall.value = null
     pendingAsk.value = null
-    if (pending.length === 0) {
+    if (queuedMessages.value.length === 0) {
       isStreaming.value = false
       chatSending.value = false
     }
@@ -278,8 +279,8 @@ const queuedMessages = ref<string[]>([])
 
 function restoreSessionStatus(status: {
   threadId: string
-  pendingTool?: { tool: { id?: string; name: string; args: Record<string, any> }; startedAt: string }
-  pendingAsk?: { id: string; threadId: string; title?: string; questions: AskQuestion[]; startedAt: string }
+  pendingApproval?: { id: string; tool: { id?: string; name: string; args: Record<string, any> }; startedAt: string }
+  pendingAsk?: { id: string; title?: string; questions: AskQuestion[]; startedAt: string }
   pendingMessages?: string[]
 } | null) {
   stopDenyCountdown()
@@ -300,14 +301,14 @@ function restoreSessionStatus(status: {
   isStreaming.value = true
   chatSending.value = true
   queuedMessages.value = status.pendingMessages ?? []
-  if (status.pendingTool) {
-    const { tool, startedAt } = status.pendingTool
-    pendingToolCall.value = { id: tool.id ?? '', threadId: status.threadId, name: tool.name, args: tool.args }
+  if (status.pendingApproval) {
+    const { tool, startedAt } = status.pendingApproval
+    pendingToolCall.value = { id: status.pendingApproval.id, threadId: status.threadId, name: tool.name, args: tool.args }
     startDenyCountdown(remainSeconds(startedAt, 300))
   }
   if (status.pendingAsk) {
     const { startedAt, ...askInfo } = status.pendingAsk
-    pendingAsk.value = askInfo
+    pendingAsk.value = { ...askInfo, threadId: status.threadId }
     initAskAnswers(askInfo.questions)
     startAskCountdown(remainSeconds(startedAt, 600))
   }
