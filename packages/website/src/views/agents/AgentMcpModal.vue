@@ -186,6 +186,54 @@ async function remove(id: string) {
   }
 }
 
+// ── Auto-approve tools (agent-level) ────────────────────────────
+function getAgentAutoApproveTools(): string[] {
+  return ((store.settings.agents || {})[agentName.value] as any)?.autoApproveTools ?? []
+}
+
+function isAutoApproved(toolName: string): boolean {
+  return getAgentAutoApproveTools().includes(toolName)
+}
+
+const allToolsApproved = computed(() =>
+  toolsList.value.length > 0 && toolsList.value.every(tool => isAutoApproved(tool.name))
+)
+
+async function saveAutoApprove(next: string[]) {
+  try {
+    const existing = (store.settings.agents || {})[agentName.value] || {}
+    const res = await apiFetch(
+      `/api/settings/agents/${encodeURIComponent(agentName.value)}`,
+      'PUT',
+      { ...existing, autoApproveTools: next },
+    )
+    Object.assign(store.settings, res.data)
+  } catch (e: any) {
+    show(e.message, 'error')
+  }
+}
+
+async function toggleAutoApprove(toolName: string) {
+  const current = getAgentAutoApproveTools()
+  const next = current.includes(toolName)
+    ? current.filter((n: string) => n !== toolName)
+    : [...current, toolName]
+  await saveAutoApprove(next)
+}
+
+async function approveAll() {
+  const names = toolsList.value.map(t => t.name)
+  const current = getAgentAutoApproveTools()
+  const next = Array.from(new Set([...current, ...names]))
+  await saveAutoApprove(next)
+}
+
+async function revokeAll() {
+  const names = new Set(toolsList.value.map(t => t.name))
+  const next = getAgentAutoApproveTools().filter((n: string) => !names.has(n))
+  await saveAutoApprove(next)
+}
+
 // ── Tools Viewer ─────────────────────────────────────────────────
 const showToolsModal = ref(false)
 const toolsTitle     = ref('')
@@ -405,13 +453,27 @@ defineExpose({ open })
         <div class="modal-body" style="padding:0">
           <div v-if="toolsLoading" style="text-align:center;color:#94a3b8;padding:40px">{{ t('mcp.connecting') }}</div>
           <div v-else-if="toolsList.length === 0" style="text-align:center;color:#94a3b8;padding:40px">{{ t('mcp.no_tools') }}</div>
-          <ul v-else class="tools-list">
+          <template v-else>
+            <div class="tools-approve-bar">
+              <span class="tools-approve-label">{{ t('mcp.auto_approve') }}</span>
+              <button v-if="!allToolsApproved" class="btn-outline btn-sm" @click="approveAll">{{ t('mcp.approve_all') }}</button>
+              <button v-else class="btn-outline btn-sm" @click="revokeAll">{{ t('mcp.revoke_all') }}</button>
+            </div>
+          <ul class="tools-list">
             <li v-for="(tool, i) in toolsList" :key="tool.name">
-              <div class="tool-header"><div class="tool-name" :class="{ expanded: expandedTools.has(i) }" @click="toggleTool(i)">{{ tool.name }}</div></div>
+              <div class="tool-header">
+                <div class="tool-name" :class="{ expanded: expandedTools.has(i) }" @click="toggleTool(i)">{{ tool.name }}</div>
+                <label class="auto-approve-switch" :title="t('mcp.auto_approve')" @click.stop>
+                  <input type="checkbox" :checked="isAutoApproved(tool.name)" @change="toggleAutoApprove(tool.name)" />
+                  <span class="switch-track"></span>
+                  <span class="switch-label">{{ t('mcp.auto_approve') }}</span>
+                </label>
+              </div>
               <div v-if="tool.description" class="tool-desc">{{ tool.description }}</div>
               <div class="tool-params" :class="{ show: expandedTools.has(i) }" v-html="renderToolParams((tool as any).parameters)"></div>
             </li>
           </ul>
+          </template>
         </div>
         <div class="modal-footer">
           <button class="btn-outline" @click="showToolsModal = false">{{ t('common.close') }}</button>

@@ -91,6 +91,7 @@ export interface AgentConfig {
   systemPrompt?: string
   mcp?: string[]
   skills?: string[]
+  autoApproveTools?: string[]
   // react
   think?: string
   agents?: SubAgentRef[]

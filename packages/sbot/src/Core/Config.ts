@@ -27,6 +27,7 @@ export interface BaseAgentEntry {
   name?: string;               // 显示名称（可选，便于识别）
   type: AgentMode;
   systemPrompt?: string;       // 系统提示词（single 模式直接使用；react 模式注入所有子 Agent）
+  autoApproveTools?: string[]; // 自动批准的工具列表（无需用户确认）
 }
 
 /**

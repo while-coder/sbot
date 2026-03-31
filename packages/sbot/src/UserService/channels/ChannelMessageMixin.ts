@@ -31,7 +31,7 @@ export function ChannelMessageMixin<TBase extends ChannelBase>(Base: TBase) {
                 callbacks: {
                     onMessage: this.onAgentMessage.bind(this),
                     onStreamMessage: this.onAgentStreamMessage.bind(this),
-                    executeTool: buildExecuteTool(this.session, (tc) => this.executeApproval(tc)),
+                    executeTool: buildExecuteTool(this.session, agentId, (tc) => this.executeApproval(tc)),
                 },
                 agentId,
                 saverId: channel.saver,

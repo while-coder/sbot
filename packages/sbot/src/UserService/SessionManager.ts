@@ -58,6 +58,18 @@ class SbotSession extends SessionService {
         return getBuiltInCommands();
     }
 
+    resolveSaverId(args: any): string | undefined {
+        const channelType = args?.channelType as string | undefined;
+        if (channelType === ChannelType.Web) {
+            const workPath = args?.workPath as string | undefined;
+            if (workPath) return config.getDirectoryConfig(workPath)?.saver;
+            const sessionId = args?.sessionId as string | undefined;
+            return sessionId ? config.getSession(sessionId)?.saver : undefined;
+        }
+        const channelId = args?.channelId as string | undefined;
+        return channelId ? config.getChannel(channelId)?.saver : undefined;
+    }
+
     async triggerAction(...args: any[]): Promise<void> {
         await this.channel?.onTriggerAction(...args);
     }

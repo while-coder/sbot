@@ -62,7 +62,6 @@ interface PendingAskEntry {
 type PendingEntry = PendingApprovalEntry | PendingAskEntry;
 
 export interface SessionSettings {
-    autoApproveTools?: string[];
     approveTools?: Record<string, string[]>;
 }
 

@@ -17,16 +17,18 @@ const INTERNAL_TOOLS = new Set([
 
 export function buildExecuteTool(
     session: SessionService,
+    agentId: string,
     executeApproval: (toolCall: AgentToolCall) => Promise<ToolApproval>
 ): (toolCall: AgentToolCall) => Promise<ToolApproval> {
     const { settings } = session;
     if (!settings.approveTools) settings.approveTools = {};
     const approveTools = settings.approveTools;
+    const agentAutoApprove = config.getAgent(agentId)?.autoApproveTools;
 
     return async (toolCall: AgentToolCall) => {
         if (INTERNAL_TOOLS.has(toolCall.name)) return ToolApproval.Allow;
         if (config.settings.autoApproveTools?.includes(toolCall.name)) return ToolApproval.Allow;
-        if (settings.autoApproveTools?.includes(toolCall.name)) return ToolApproval.Allow;
+        if (agentAutoApprove?.includes(toolCall.name)) return ToolApproval.Allow;
         const approvedArgs = approveTools[toolCall.name];
         if (approvedArgs && (approvedArgs.includes('*') || approvedArgs.includes(JSON.stringify(toolCall.args)))) {
             return ToolApproval.Allow;

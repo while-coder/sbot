@@ -78,7 +78,7 @@ export class WebSocketUserService {
             callbacks: {
                 onMessage: (msg) => this.onAgentMessage(msg),
                 onStreamMessage: (msg) => this.onAgentStreamMessage(msg),
-                executeTool: buildExecuteTool(this.session, (tc) => {
+                executeTool: buildExecuteTool(this.session, agentId, (tc) => {
                     const { id, promise } = this.session.enterApproval(tc, 300_000);
                     this.emit({ type: WebChatEventType.ToolCall, id, threadId, name: tc.name, args: tc.args });
                     return promise;

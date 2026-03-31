@@ -164,9 +164,9 @@ export class AgentRunner {
         return service;
     }
 
-    static async createSaverService(saverId: string, threadId?: string): Promise<IAgentSaverService> {
+    static async createSaverService(saverId: string, threadId: string): Promise<IAgentSaverService> {
         const container = new ServiceContainer();
-        await AgentRunner.registerSaverService(container, saverId, threadId ?? '');
+        await AgentRunner.registerSaverService(container, saverId, threadId);
         return container.resolve<IAgentSaverService>(IAgentSaverService);
     }
 

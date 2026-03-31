@@ -1,5 +1,8 @@
 import { Command, Arg, Option, Parsers, CommandContext, ICommand } from "scorpio.ai"
+import { SessionService } from "channel.base"
 import { AgentRunner } from "../Agent/AgentRunner"
+
+type SbotService = SessionService & { resolveSaverId(args: any): string | undefined }
 
 /**
  * /test 命令 - 测试所有装饰器功能
@@ -117,12 +120,15 @@ export class ClearCommand implements ICommand {
     _context!: CommandContext;
 
     async execute(): Promise<string> {
-        const saverContext = await this._context.context.resolveSaverContext(this._context.args);
-        if (!saverContext) return '无法识别当前会话上下文，或当前会话未配置 saver';
+        const session = this._context.context as SbotService;
+        const saverId = session.resolveSaverId(this._context.args);
+        if (!saverId) return '无法识别当前会话上下文，或当前会话未配置 saver';
 
-        const saver = await AgentRunner.createSaverService(saverContext.saverId, saverContext.threadId);
+        const saver = await AgentRunner.createSaverService(saverId, session.threadId);
         try {
             await saver.clearMessages();
+            session.settings = {};
+            session.saveSettings();
             return '历史记录已清理';
         } finally {
             await saver.dispose();

@@ -864,18 +864,6 @@ class HttpServer {
             await saver.dispose();
         }));
 
-        app.get('/api/savers/:saverName/history', api(async req => {
-            const saver = await AgentRunner.createSaverService(req.params.saverName as string);
-            const messages = await saver.getAllMessagesWithTime();
-            await saver.dispose();
-            return this.formatMessages(messages);
-        }));
-
-        app.delete('/api/savers/:saverName/history', api(async req => {
-            const saver = await AgentRunner.createSaverService(req.params.saverName as string);
-            await saver.clearMessages();
-            await saver.dispose();
-        }));
 
         // ── Memories ──
         app.get('/api/memories/:memoryName', api(async req => {
