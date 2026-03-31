@@ -12,10 +12,10 @@ export abstract class SessionManager {
         return this.sessions.get(threadId);
     }
 
-    /** 获取已有 session 或创建新的（若已有则先取消再重建） */
+    /** 获取已有 session 或创建新的 */
     getOrCreate(threadId: string): SessionService {
         const existing = this.sessions.get(threadId);
-        if (existing) existing.source.cancel();
+        if (existing) return existing;
         const session = this.createSession(threadId);
         this.sessions.set(threadId, session);
         return session;

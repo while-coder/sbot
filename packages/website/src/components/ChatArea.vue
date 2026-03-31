@@ -276,7 +276,15 @@ function restoreSessionStatus(status: {
   askAnswers.value = {}
   askToggleValues.value = {}
   askCustomInputs.value = {}
-  if (!status) return
+  streamingContent.value = ''
+  streamingToolCalls.value = []
+  if (!status) {
+    isStreaming.value = false
+    chatSending.value = false
+    return
+  }
+  isStreaming.value = true
+  chatSending.value = true
   if (status.pendingTool) {
     const { tool, startedAt } = status.pendingTool
     pendingToolCall.value = { id: tool.id ?? '', threadId: status.threadId, name: tool.name, args: tool.args }
