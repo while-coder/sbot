@@ -137,10 +137,10 @@ export class LarkService {
   async updateCardMessage(messageId: string, elements: any[], header?: any) {
     if (elements.length === 0) return;
 
-    const remaining = this.callInterval - (Date.now() - this.lastCallTime);
-    if (remaining > 0) await new Promise(resolve => setTimeout(resolve, remaining));
-    this.lastCallTime = Date.now();
-
+    while ((Date.now() - this.lastCallTime) < this.callInterval) {
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    this.lastCallTime = Date.now()
     return await this.larkClient.im.message.patch({
       path: { message_id: messageId },
       data: { content: this.buildCardJson(elements, header) },
