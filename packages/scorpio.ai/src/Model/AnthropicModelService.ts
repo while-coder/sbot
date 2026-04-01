@@ -11,6 +11,7 @@ import { toChatMessage, toBaseMessages } from "../Saver/messageConverter";
  */
 export class AnthropicModelService implements IModelService {
   private model?: ChatAnthropic;
+  private boundModel?: any;
 
   constructor(private config: ModelConfig) {}
 
@@ -26,29 +27,35 @@ export class AnthropicModelService implements IModelService {
 
   async dispose(): Promise<void> {
     this.model = undefined;
+    this.boundModel = undefined;
   }
 
   async invoke(prompt: string | ChatMessage[]): Promise<ChatMessage> {
+    const m = this.boundModel ?? this.model!;
     const input = typeof prompt === 'string' ? prompt : toBaseMessages(prompt);
-    const result = await this.model!.invoke(input);
+    const result = await m.invoke(input);
     return toChatMessage(result);
   }
 
-  bindTools(tools: any[]) {
-    return this.model!.bindTools(tools) as any;
+  bindTools(tools: any[]): void {
+    this.boundModel = this.model!.bindTools(tools);
   }
 
-  withStructuredOutput(schema: any) {
-    return this.model!.withStructuredOutput(schema) as any;
+  async invokeStructured<T = any>(schema: any, prompt: string | ChatMessage[]): Promise<T> {
+    const input = typeof prompt === 'string' ? prompt : toBaseMessages(prompt);
+    return this.model!.withStructuredOutput(schema).invoke(input) as Promise<T>;
   }
 
   async stream(messages: string | ChatMessage[]): Promise<AsyncIterable<ChatMessage>> {
+    const m = this.boundModel ?? this.model!;
     const input = typeof messages === 'string' ? messages : toBaseMessages(messages);
-    const lcStream = await this.model!.stream(input);
+    const lcStream = await m.stream(input);
     return (async function* () {
       let accumulated: AIMessageChunk | undefined;
       for await (const chunk of lcStream) {
-        accumulated = accumulated ? accumulated.concat(chunk as AIMessageChunk) : (chunk as AIMessageChunk);
+        accumulated = accumulated
+          ? accumulated.concat(chunk as AIMessageChunk)
+          : (chunk as AIMessageChunk);
         yield toChatMessage(accumulated);
       }
     })();

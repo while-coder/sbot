@@ -3,6 +3,7 @@ import { ChannelSessionHandler } from "./ChannelSessionHandler";
 import { SessionService } from "./SessionService";
 
 export interface IChannelService {
+  createUserService(session: SessionService): ChannelSessionHandler;
   dispose?(): void;
 }
 
@@ -26,7 +27,6 @@ export interface ChannelSessionInfo {
 }
 
 export interface ChannelPluginContext {
-  channelId: string;
   config: Record<string, any>;
   logger: any;
   filterEvent: (eventId: string) => Promise<boolean>;
@@ -74,6 +74,5 @@ export interface ChannelPlugin {
   type: string;
   configSchema?: Record<string, ConfigField>;
   init(ctx: ChannelPluginContext): Promise<IChannelService | undefined>;
-  createUserService(session: SessionService): ChannelSessionHandler;
   dispose?(): Promise<void>;
 }

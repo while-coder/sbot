@@ -1,9 +1,10 @@
 import { WSClient } from '@wecom/aibot-node-sdk';
 import type { WsFrame, TextMessage, VoiceMessage, SendMsgBody, EventMessageWith, TemplateCardEventData } from '@wecom/aibot-node-sdk';
 import type { ILogger } from 'scorpio.ai';
+import { IChannelService, ChannelSessionHandler, SessionService } from 'channel.base';
+import { WecomSessionHandler } from './WecomSessionHandler';
 
 export interface WecomMessageArgs {
-  wecomService: WecomService;
   chatid: string;         // single: userid, group: chatid
   chattype: 'single' | 'group';
   msgid: string;
@@ -27,7 +28,7 @@ export interface WecomServiceOptions {
   onTriggerAction: (userId: string, args: WecomActionArgs) => Promise<void>;
 }
 
-export class WecomService {
+export class WecomService implements IChannelService {
   private wsClient: WSClient;
   private logger?: ILogger;
   private filterEvent: WecomServiceOptions['filterEvent'];
@@ -50,6 +51,10 @@ export class WecomService {
         error: (m: string, ...a: any[]) => options.logger?.error(m, ...a),
       },
     });
+  }
+
+  createUserService(session: SessionService): ChannelSessionHandler {
+    return new WecomSessionHandler(session, this);
   }
 
   dispose() {
@@ -102,7 +107,7 @@ export class WecomService {
     const chatid = body.chatid ?? userId;
     if (!await this.filterEvent(`wecom_message_${body.msgid}`)) return;
     await this.onReceiveMessage(userId, {
-      wecomService: this,
+
       chatid,
       chattype: body.chattype,
       msgid: body.msgid,
@@ -119,7 +124,7 @@ export class WecomService {
     const chatid = body.chatid ?? userId;
     if (!await this.filterEvent(`wecom_message_${body.msgid}`)) return;
     await this.onReceiveMessage(userId, {
-      wecomService: this,
+
       chatid,
       chattype: body.chattype,
       msgid: body.msgid,

@@ -23,6 +23,7 @@ export interface Model {
   baseURL?: string
   apiKey?: string
   model?: string
+  apiVersion?: string
   temperature?: number
   maxTokens?: number
 }

@@ -21,11 +21,10 @@ const getLogger = () => GlobalLoggerService.getLogger('WecomSessionHandler.ts');
 
 export class WecomSessionHandler extends ChannelSessionHandler {
   protected provider: WecomChatProvider | undefined;
-  wecomService!: WecomService;
   private _chatid = '';
   private _currentAskQuestion: (RadioQuestion | CheckboxQuestion) | null = null;
 
-  constructor(session: SessionService) {
+  constructor(session: SessionService, private wecomService: WecomService) {
     super(session);
   }
 
@@ -41,11 +40,10 @@ export class WecomSessionHandler extends ChannelSessionHandler {
   }
 
   async onProcessStart(_query: string, args: WecomMessageArgs, _messageType: MessageType): Promise<void> {
-    const { wecomService, chatid } = args;
-    this.wecomService = wecomService;
+    const { chatid } = args;
     this._chatid = chatid;
     this._currentAskQuestion = null;
-    this.provider = new WecomChatProvider(wecomService, chatid);
+    this.provider = new WecomChatProvider(this.wecomService, chatid);
   }
 
   async onProcessEnd(_query: string, _args: any, _messageType: MessageType, error?: any): Promise<void> {

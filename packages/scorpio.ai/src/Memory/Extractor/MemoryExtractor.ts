@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { SystemMessage, HumanMessage } from "langchain";
 import { IModelService } from "../../Model";
+import { MessageRole, type ChatMessage } from "../../Saver";
 import { ILoggerService, ILogger } from "../../Logger";
 import { inject } from "scorpio.di";
 import { T_ExtractorSystemPrompt } from "../../Core";
@@ -38,10 +38,11 @@ export class MemoryExtractor implements IMemoryExtractor {
       const human = parts?.length
         ? `<user>${userMessage}</user>\n${parts.map(m => `<assistant>${m}</assistant>`).join("\n")}`
         : `<user>${userMessage}</user>`;
-      const { results } = await this.modelService.withStructuredOutput(ExtractionSchema).invoke([
-        new SystemMessage(this.systemPrompt),
-        new HumanMessage(human),
-      ]);
+      const messages: ChatMessage[] = [
+        { role: MessageRole.System, content: this.systemPrompt },
+        { role: MessageRole.Human, content: human },
+      ];
+      const { results } = await this.modelService.invokeStructured<{ results: ExtractionResult[] }>(ExtractionSchema, messages);
       return results;
     } catch (error: any) {
       this.logger?.warn(`LLM knowledge extraction failed: ${error.message}`);

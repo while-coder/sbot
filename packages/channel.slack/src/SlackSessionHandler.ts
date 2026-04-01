@@ -7,7 +7,6 @@ import { ChannelSessionHandler, ToolCallStatus, SessionService, AgentToolHelpers
 const getLogger = () => GlobalLoggerService.getLogger("SlackSessionHandler.ts");
 
 export interface SlackMessageArgs {
-  slackService: SlackService;
   eventId: string;
   channel: string;
   ts: string;
@@ -23,16 +22,14 @@ export interface SlackActionArgs {
 
 export class SlackSessionHandler extends ChannelSessionHandler {
   provider: SlackChatProvider | undefined;
-  slackService!: SlackService;
 
-  constructor(session: SessionService) {
+  constructor(session: SessionService, private slackService: SlackService) {
     super(session);
   }
 
   async onProcessStart(query: string, args: any, _messageType: MessageType): Promise<void> {
-    const { slackService, channel, ts, threadTs } = args as SlackMessageArgs;
-    this.slackService = slackService;
-    this.provider = await new SlackChatProvider(slackService).init(channel, ts, threadTs, query);
+    const { channel, ts, threadTs } = args as SlackMessageArgs;
+    this.provider = await new SlackChatProvider(this.slackService).init(channel, ts, threadTs, query);
   }
 
   async onProcessEnd(_query: string, _args: any, _messageType: MessageType, error?: any): Promise<void> {

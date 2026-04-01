@@ -18,7 +18,6 @@ const EL_ASK_FORM = 'askForm';
 const EL_ABORT_BTN = 'abortBtn';
 
 export interface LarkMessageArgs {
-  larkService: LarkService;
   event_id: string;
   chat_type: string;
   chat_id: string;
@@ -37,19 +36,17 @@ export interface LarkActionArgs {
 
 export class LarkSessionHandler extends ChannelSessionHandler {
   provider: LarkChatProvider | undefined;
-  larkService!: LarkService;
 
-  constructor(session: SessionService) {
+  constructor(session: SessionService, private larkService: LarkService) {
     super(session);
   }
 
   async onProcessStart(query: string, args: any, _messageType: MessageType): Promise<void> {
-    const { larkService, chat_id, root_id, message_id } = args as LarkMessageArgs;
-    this.larkService = larkService;
+    const { chat_id, message_id } = args as LarkMessageArgs;
     if (!message_id) {
-      this.provider = await new LarkChatProvider(larkService).initChat(LarkReceiveIdType.ChatId, chat_id, query);
+      this.provider = await new LarkChatProvider(this.larkService).initChat(LarkReceiveIdType.ChatId, chat_id, query);
     } else {
-      this.provider = await new LarkChatProvider(larkService).initReplay(message_id);
+      this.provider = await new LarkChatProvider(this.larkService).initReplay(message_id);
     }
     await this.sendAbortButton();
   }
@@ -208,11 +205,11 @@ export class LarkSessionHandler extends ChannelSessionHandler {
   }
 
   buildAgentTools(args: any, helpers: AgentToolHelpers): any[] {
-    const { chat_id, larkService } = args as LarkMessageArgs;
+    const { chat_id } = args as LarkMessageArgs;
     return [
         helpers.createAskTool('lark', (params) => this.executeAsk(params), [AskQuestionType.Radio, AskQuestionType.Checkbox, AskQuestionType.Input]),
         helpers.createSendFileTool('lark', async (filePath, fileName) => {
-            await larkService.sendFileMessage(LarkReceiveIdType.ChatId, chat_id, filePath, fileName);
+            await this.larkService.sendFileMessage(LarkReceiveIdType.ChatId, chat_id, filePath, fileName);
         }),
     ];
   }

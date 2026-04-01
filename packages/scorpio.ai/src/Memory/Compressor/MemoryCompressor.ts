@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { HumanMessage } from "langchain";
 import { IModelService } from "../../Model";
+import { MessageRole, type ChatMessage } from "../../Saver";
 import { Memory } from "../types";
 import { ILoggerService, ILogger } from "../../Logger";
 import { inject } from "scorpio.di";
@@ -135,9 +135,8 @@ export class MemoryCompressor implements IMemoryCompressor {
       `<memory index="${i + 1}" time="${new Date(m.metadata.timestamp).toISOString()}">${m.content}</memory>`
     ).join('\n');
     const prompt = this.promptTemplate.replace('{memories}', memoriesText);
-    const { content } = await this.modelService
-      .withStructuredOutput(CompressionSchema)
-      .invoke([new HumanMessage(prompt)]);
+    const messages: ChatMessage[] = [{ role: MessageRole.Human, content: prompt }];
+    const { content } = await this.modelService.invokeStructured<{ content: string }>(CompressionSchema, messages);
     return content;
   }
 

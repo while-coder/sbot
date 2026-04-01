@@ -16,11 +16,13 @@ const showModal   = ref(false)
 const editingName = ref<string | null>(null)
 const showApiKey  = ref(false)
 const form = ref<{ name: string } & Model>({
-  name: '', provider: 'openai', baseURL: '', apiKey: '', model: '', temperature: undefined, maxTokens: undefined,
+  name: '', provider: 'openai', baseURL: '', apiKey: '', model: '', apiVersion: undefined, temperature: undefined, maxTokens: undefined,
 })
 
 const isOllama     = computed(() => form.value.provider === 'ollama')
 const isAnthropic  = computed(() => form.value.provider === 'anthropic')
+const isGemini     = computed(() => form.value.provider === 'gemini')
+const isOpenAIResp = computed(() => form.value.provider === 'openai-response')
 
 // Model picker
 const showPicker    = ref(false)
@@ -59,7 +61,7 @@ function pickModel(m: string) {
 function openAdd() {
   editingName.value = null
   showApiKey.value  = false
-  form.value = { name: '', provider: 'openai', baseURL: '', apiKey: '', model: '', temperature: undefined, maxTokens: undefined }
+  form.value = { name: '', provider: 'openai', baseURL: '', apiKey: '', model: '', apiVersion: undefined, temperature: undefined, maxTokens: undefined }
   showModal.value = true
 }
 
@@ -73,6 +75,7 @@ function openEdit(id: string) {
     baseURL: m.baseURL || '',
     apiKey: m.apiKey || '',
     model: m.model || '',
+    apiVersion: m.apiVersion,
     temperature: m.temperature,
     maxTokens: m.maxTokens,
   }
@@ -85,6 +88,7 @@ async function save() {
     const body: any = { ...form.value }
     if (body.temperature === undefined || body.temperature === null) delete body.temperature
     if (body.maxTokens === undefined || body.maxTokens === null) delete body.maxTokens
+    if (!body.apiVersion) delete body.apiVersion
     const id = editingName.value
     const res = id
       ? await apiFetch(`/api/settings/models/${encodeURIComponent(id)}`, 'PUT', body)
@@ -189,18 +193,20 @@ async function refresh() {
             <label>{{ t('common.provider') }}</label>
             <select v-model="form.provider">
               <option value="openai">openai</option>
+              <option value="openai-response">openai-response</option>
               <option value="anthropic">anthropic</option>
+              <option value="gemini">gemini</option>
               <option value="ollama">ollama</option>
             </select>
           </div>
           <div class="form-group">
             <label>{{ t('common.base_url') }}</label>
-            <input v-model="form.baseURL" :placeholder="isOllama ? 'http://localhost:11434' : isAnthropic ? 'https://api.anthropic.com' : 'https://api.openai.com/v1'" />
+            <input v-model="form.baseURL" :placeholder="isOllama ? 'http://localhost:11434' : isAnthropic ? 'https://api.anthropic.com' : isGemini ? '' : 'https://api.openai.com/v1'" />
           </div>
           <div v-if="!isOllama" class="form-group">
             <label>{{ t('common.api_key') }}</label>
             <div class="apikey-field">
-              <input v-model="form.apiKey" :type="showApiKey ? 'text' : 'password'" :placeholder="isAnthropic ? 'sk-ant-...' : 'sk-...'" />
+              <input v-model="form.apiKey" :type="showApiKey ? 'text' : 'password'" :placeholder="isAnthropic ? 'sk-ant-...' : isGemini ? 'AIza...' : 'sk-...'" />
               <button type="button" class="apikey-toggle" @click="showApiKey = !showApiKey" :title="showApiKey ? t('common.hide') : t('common.show')">
                 {{ showApiKey ? t('common.hide') : t('common.show') }}
               </button>
@@ -209,9 +215,13 @@ async function refresh() {
           <div class="form-group">
             <label>{{ t('models.model') }}</label>
             <div class="model-field">
-              <input v-model="form.model" :placeholder="isOllama ? 'llama3' : isAnthropic ? 'claude-sonnet-4-6' : 'gpt-4'" />
-              <button type="button" class="model-pick-btn" @click="openPicker" :disabled="!isAnthropic && !form.baseURL">{{ t('models.pick') }}</button>
+              <input v-model="form.model" :placeholder="isOllama ? 'llama3' : isAnthropic ? 'claude-sonnet-4-6' : isGemini ? 'gemini-2.0-flash' : 'gpt-4'" />
+              <button type="button" class="model-pick-btn" @click="openPicker" :disabled="!isAnthropic && !isGemini && !form.baseURL">{{ t('models.pick') }}</button>
             </div>
+          </div>
+          <div v-if="isGemini" class="form-group">
+            <label>{{ t('models.api_version') }}</label>
+            <input v-model="form.apiVersion" placeholder="v1beta" />
           </div>
           <div class="form-group">
             <label>{{ t('models.temperature') }}</label>

@@ -12,8 +12,7 @@ function isChannelPlugin(obj: any): obj is ChannelPlugin {
   return (
     obj &&
     typeof obj.type === "string" &&
-    typeof obj.init === "function" &&
-    typeof obj.createUserService === "function"
+    typeof obj.init === "function"
   );
 }
 

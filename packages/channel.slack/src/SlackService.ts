@@ -1,6 +1,7 @@
 import { App } from "@slack/bolt";
 import { ILogger } from "scorpio.ai";
-import { SlackActionArgs, SlackMessageArgs } from "./SlackSessionHandler";
+import { SlackActionArgs, SlackMessageArgs, SlackSessionHandler } from "./SlackSessionHandler";
+import { IChannelService, ChannelSessionHandler, SessionService } from "channel.base";
 
 export interface SlackServiceOptions {
   botToken: string;
@@ -18,7 +19,7 @@ export interface SlackServiceOptions {
   ) => Promise<void>;
 }
 
-export class SlackService {
+export class SlackService implements IChannelService {
   private app: App;
   private logger?: ILogger;
   private onReceiveMessage: SlackServiceOptions["onReceiveMessage"];
@@ -34,6 +35,10 @@ export class SlackService {
       appToken: options.appToken,
       socketMode: true,
     });
+  }
+
+  createUserService(session: SessionService): ChannelSessionHandler {
+    return new SlackSessionHandler(session, this);
   }
 
   dispose() {
@@ -100,7 +105,6 @@ export class SlackService {
 
         const userInfo = await this.getUserInfo(userId);
         await this.onReceiveMessage(userId, userInfo, {
-          slackService: this,
           eventId,
           channel,
           ts,

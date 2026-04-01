@@ -323,6 +323,14 @@ class HttpServer {
                 return (data.data as any[] || []).map((m: any) => m.id as string);
             }
 
+            if (provider === ModelProvider.Gemini) {
+                if (!apiKey) throwBad('apiKey is required for Gemini');
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+                if (!res.ok) throwBad(`Gemini request failed: ${res.status}`);
+                const data: any = await res.json();
+                return (data.models as any[] || []).map((m: any) => (m.name as string).replace(/^models\//, ''));
+            }
+
             if (!baseURL) throwBad('baseURL is required');
             const base = baseURL.replace(/\/$/, '');
 

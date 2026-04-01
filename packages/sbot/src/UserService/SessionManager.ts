@@ -24,7 +24,7 @@ class SbotSession extends SessionService {
 
     private getChannel(args: any) {
         if (!this.channel) {
-            this.channel = this.manager.createChannel(args?.channelType, this);
+            this.channel = this.manager.createChannel(args?.channelType, this, args?.channelId);
         }
         return this.channel;
     }
@@ -85,15 +85,15 @@ export class SbotSessionManager extends SessionManager {
         return new SbotSession(threadId, this);
     }
 
-    createChannel(type: string, session: SessionService): any {
+    createChannel(type: string, session: SessionService, channelId?: string): any {
         if (type === ChannelType.Web) {
             return new WebSocketUserService(session);
         }
-        const plugin = channelManager.getPlugin(type);
-        if (!plugin) {
+        const service = channelId ? channelManager.getService(channelId) : undefined;
+        if (!service) {
             return new WebSocketUserService(session);  // fallback
         }
-        const userService = plugin.createUserService(session);
+        const userService = service.createUserService(session);
         userService.setProcessAIHandler(processAIHandler);
         return userService;
     }

@@ -1,10 +1,8 @@
 import {
   ChannelPlugin, ChannelPluginContext, IChannelService,
-  SessionService, ChannelSessionHandler,
 } from "channel.base";
 import { WecomService } from "./WecomService";
 import type { WecomMessageArgs, WecomActionArgs } from "./WecomService";
-import { WecomSessionHandler } from "./WecomSessionHandler";
 export const wecomPlugin: ChannelPlugin = {
   type: "wecom",
 
@@ -14,12 +12,9 @@ export const wecomPlugin: ChannelPlugin = {
   },
 
   async init(ctx: ChannelPluginContext): Promise<IChannelService | undefined> {
-    const { channelId, config, logger, filterEvent, initSession, onReceiveMessage, onTriggerAction } = ctx;
+    const { config, logger, filterEvent, initSession, onReceiveMessage, onTriggerAction } = ctx;
 
-    if (!config.botId?.trim() || !config.secret?.trim()) {
-      logger.warn?.(`WeCom channel [${config.name || channelId}] missing botId or secret, skipping`);
-      return undefined;
-    }
+    if (!config.botId?.trim() || !config.secret?.trim()) return undefined;
 
     const service = new WecomService({
       botId: config.botId,
@@ -49,11 +44,6 @@ export const wecomPlugin: ChannelPlugin = {
       },
     });
     service.connect();
-    logger.info?.(`WeCom channel [${config.name || channelId}] started successfully`);
     return service;
-  },
-
-  createUserService(session: SessionService): ChannelSessionHandler {
-    return new WecomSessionHandler(session);
   },
 };

@@ -1,9 +1,8 @@
 import {
   ChannelPlugin, ChannelPluginContext, IChannelService,
-  SessionService, ChannelSessionHandler,
 } from "channel.base";
 import { LarkService, LarkReceiveIdType, LarkUserIdType } from "./LarkService";
-import { LarkSessionHandler, LarkMessageArgs, LarkActionArgs } from "./LarkSessionHandler";
+import { LarkMessageArgs, LarkActionArgs } from "./LarkSessionHandler";
 export const larkPlugin: ChannelPlugin = {
   type: "lark",
 
@@ -13,12 +12,9 @@ export const larkPlugin: ChannelPlugin = {
   },
 
   async init(ctx: ChannelPluginContext): Promise<IChannelService | undefined> {
-    const { channelId, config, logger, filterEvent, initSession, onReceiveMessage, onTriggerAction } = ctx;
+    const { config, logger, filterEvent, initSession, onReceiveMessage, onTriggerAction } = ctx;
 
-    if (!config.appId?.trim() || !config.appSecret?.trim()) {
-      logger.warn?.(`Lark channel [${config.name || channelId}] missing appId or appSecret, skipping`);
-      return undefined;
-    }
+    if (!config.appId?.trim() || !config.appSecret?.trim()) return undefined;
 
     const service = new LarkService({
       appId: config.appId,
@@ -59,11 +55,7 @@ export const larkPlugin: ChannelPlugin = {
       },
     });
     await service.registerEventDispatcher();
-    logger.info?.(`Lark channel [${config.name || channelId}] started successfully`);
     return service;
   },
 
-  createUserService(session: SessionService): ChannelSessionHandler {
-    return new LarkSessionHandler(session);
-  },
 };

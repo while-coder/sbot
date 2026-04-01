@@ -1,7 +1,8 @@
 import * as Lark from "@larksuiteoapi/node-sdk";
 import { NowDate, parseJson } from "scorpio.ai";
-import {LarkActionArgs, LarkMessageArgs} from "./LarkSessionHandler";
+import { LarkActionArgs, LarkMessageArgs, LarkSessionHandler } from "./LarkSessionHandler";
 import { ILogger } from "scorpio.ai";
+import { IChannelService, ChannelSessionHandler, SessionService } from "channel.base";
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
@@ -32,7 +33,7 @@ export interface LarkServiceOptions {
 }
 
 
-export class LarkService {
+export class LarkService implements IChannelService {
   // 速率限制：1000 次/分钟、50 次/秒，固定间隔 65ms
   private lastCallTime = 0;
   private readonly callInterval = 65; // ms
@@ -66,6 +67,10 @@ export class LarkService {
     } : undefined;
     this.larkClient = new Lark.Client({ ...this.larkConfig, logger: this.larkLogger, loggerLevel: this.loggerLevel });
     this.larkWsClient = new Lark.WSClient({ ...this.larkConfig, logger: this.larkLogger, loggerLevel: this.loggerLevel });
+  }
+
+  createUserService(session: SessionService): ChannelSessionHandler {
+    return new LarkSessionHandler(session, this);
   }
 
   dispose() {
@@ -327,7 +332,7 @@ export class LarkService {
             this.getUserInfo(userId),
             this.getChatInfo(chat_id),
           ]);
-          await this.onReceiveMessage(userId, userInfo, chatInfo, { larkService: this, event_id, chat_type, chat_id, message_id, root_id, message_type }, query.trim())
+          await this.onReceiveMessage(userId, userInfo, chatInfo, { event_id, chat_type, chat_id, message_id, root_id, message_type }, query.trim())
         } catch (e: any) {
           this.logger?.error(`Receive message error: ${e.stack}`);
         }

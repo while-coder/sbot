@@ -1,4 +1,3 @@
-import { AIMessageChunk } from "@langchain/core/messages";
 import { StateGraph, START, END } from '../../Graph';
 import { type StructuredToolInterface } from "@langchain/core/tools";
 import { inject, T_SystemPrompts, T_MemorySystemPromptTemplate, truncate } from "../../Core";
@@ -6,7 +5,6 @@ import { IModelService } from "../../Model";
 import { ISkillService } from "../../Skills";
 import { IMemoryService } from "../../Memory";
 import { IAgentSaverService } from "../../Saver";
-import { toChatMessage, toBaseMessage, toBaseMessages } from "../../Saver/messageConverter";
 import { IAgentToolService } from "../../AgentTool";
 import { ILoggerService } from "../../Logger";
 import { normalizeToMCPResult, MCPContentType, MCPToolResult } from '../../Tools';
@@ -156,16 +154,16 @@ export class SingleAgentService extends AgentServiceBase {
      */
     private async callModelNode(state: SingleAgentState) {
         const callback = state.callback ?? undefined;
-        const model = this.modelService.bindTools(state.tools);
+        this.modelService.bindTools(state.tools);
 
         // 每次调用都从 saver 重新取（含 token 截断），防止多轮工具调用后 state.messages 超限
         const savedHistory = await this.saverService.getMessages(MAX_HISTORY_TOKENS);
         if (!savedHistory || savedHistory.length === 0) {
             throw new Error('historyMessages is empty, cannot call model');
         }
-        const messages = [
-            ...(state.systemMessage ? [toBaseMessage(state.systemMessage)] : []),
-            ...toBaseMessages(savedHistory),
+        const messages: ChatMessage[] = [
+            ...(state.systemMessage ? [state.systemMessage] : []),
+            ...savedHistory,
         ];
 
         // this.logger?.debug(`tools count : ${state.tools.length} messages:${messages.length} historyMessages:${historyMessages.length}`)
@@ -175,21 +173,19 @@ export class SingleAgentService extends AgentServiceBase {
         //     this.logger?.debug(`  [${role}] ${contentStr.length > 100 ? contentStr.slice(0, 100) + '…' : contentStr}`);
         // }
 
-        // 使用流式调用收集完整响应
         if (state.cancellationToken?.isCancelled) throw new AgentCancelledError();
-        const stream = await model.stream(messages);
+        const stream = await this.modelService.stream(messages);
 
-        let accumulated: AIMessageChunk | undefined;
+        let lastChunk: ChatMessage | undefined;
         const emitStream = async () => {
-            if (!callback?.onStreamMessage || !accumulated) return;
-            await callback.onStreamMessage(toChatMessage(accumulated));
+            if (!callback?.onStreamMessage || !lastChunk) return;
+            await callback.onStreamMessage(lastChunk);
         };
         let lastStreamCallTime = 0;
-        // 收集所有流式片段
         for await (const chunk of stream) {
             // AIMessage 尚未写入 saver，此处 throw 不会破坏配对
             if (state.cancellationToken?.isCancelled) throw new AgentCancelledError();
-            accumulated = accumulated ? accumulated.concat(chunk) : chunk;
+            lastChunk = chunk;
             const now = Date.now();
             if (now - lastStreamCallTime >= 200) {
                 lastStreamCallTime = now;
@@ -198,8 +194,8 @@ export class SingleAgentService extends AgentServiceBase {
         }
         // 流结束后发送最终状态，确保最后的数据不丢失
         await emitStream();
-        if (!accumulated) return { messages: [] };
-        return { messages: [toChatMessage(accumulated)] };
+        if (!lastChunk) return { messages: [] };
+        return { messages: [lastChunk] };
     }
 
     /**

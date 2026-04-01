@@ -192,6 +192,7 @@ export default {
     pick: 'Pick',
     pick_title: 'Select Model',
     pick_empty: 'No models available',
+    api_version: 'API Version',
   },
   embeddings: {
     add: '+ Add Embedding',

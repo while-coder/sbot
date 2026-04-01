@@ -118,10 +118,10 @@ export class ChannelManager {
                 logger.warn(`Unknown channel type [${channel.type}], skipping channel [${channel.name || channelId}]`);
                 continue;
             }
+            const label = channel.name || channelId;
             try {
                 const ctx: ChannelPluginContext = {
-                    channelId,
-                    config: { name: channel.name, ...(channel.config ?? {}) } as Record<string, any>,
+                    config: channel.config ?? {},
                     logger,
                     filterEvent,
                     initSession: async (initCtx) => {
@@ -137,9 +137,12 @@ export class ChannelManager {
                 if (service) {
                     this.services.set(channelId, service);
                     started++;
+                    logger.info(`Channel [${label}] (${plugin.type}) started successfully`);
+                } else {
+                    logger.warn(`Channel [${label}] (${plugin.type}) init returned nothing, skipped`);
                 }
             } catch (e) {
-                logger.error(`Channel [${(channel as any).name || channelId}] failed to start: ${e}`);
+                logger.error(`Channel [${label}] (${plugin.type}) failed to start: ${e}`);
             }
         }
         logger.info(`ChannelManager initialized, started ${started} channel(s)`);

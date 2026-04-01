@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { SystemMessage, HumanMessage } from "langchain";
 import { IModelService } from "../../Model";
+import { MessageRole, type ChatMessage } from "../../Saver";
 import { ILoggerService, ILogger } from "../../Logger";
 import { inject } from "scorpio.di";
 import { T_EvaluatorSystemPrompt } from "../../Core";
@@ -37,10 +37,11 @@ export class MemoryEvaluator implements IMemoryEvaluator {
    */
   async evaluate(content: string): Promise<EvaluationResult> {
     try {
-      return await this.modelService.withStructuredOutput(EvaluationSchema).invoke([
-        new SystemMessage(this.systemPrompt),
-        new HumanMessage(content),
-      ]);
+      const messages: ChatMessage[] = [
+        { role: MessageRole.System, content: this.systemPrompt },
+        { role: MessageRole.Human, content },
+      ];
+      return await this.modelService.invokeStructured<EvaluationResult>(EvaluationSchema, messages);
     } catch (error: any) {
       this.logger?.warn(`LLM importance evaluation failed: ${error.message}`);
       return { importance: 0.5, reasoning: "Evaluation failed, using default" };

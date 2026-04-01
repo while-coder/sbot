@@ -1,9 +1,8 @@
 import {
   ChannelPlugin, ChannelPluginContext, IChannelService,
-  SessionService, ChannelSessionHandler,
 } from "channel.base";
 import { SlackService } from "./SlackService";
-import { SlackSessionHandler, SlackMessageArgs, SlackActionArgs } from "./SlackSessionHandler";
+import { SlackMessageArgs, SlackActionArgs } from "./SlackSessionHandler";
 export const slackPlugin: ChannelPlugin = {
   type: "slack",
 
@@ -13,12 +12,9 @@ export const slackPlugin: ChannelPlugin = {
   },
 
   async init(ctx: ChannelPluginContext): Promise<IChannelService | undefined> {
-    const { channelId, config, logger, initSession, onReceiveMessage, onTriggerAction } = ctx;
+    const { config, logger, initSession, onReceiveMessage, onTriggerAction } = ctx;
 
-    if (!config.botToken?.trim() || !config.appToken?.trim()) {
-      logger.warn?.(`Slack channel [${config.name || channelId}] missing botToken or appToken, skipping`);
-      return undefined;
-    }
+    if (!config.botToken?.trim() || !config.appToken?.trim()) return undefined;
 
     const service = new SlackService({
       botToken: config.botToken,
@@ -47,11 +43,6 @@ export const slackPlugin: ChannelPlugin = {
       },
     });
     await service.registerEventHandlers();
-    logger.info?.(`Slack channel [${config.name || channelId}] started successfully`);
     return service;
-  },
-
-  createUserService(session: SessionService): ChannelSessionHandler {
-    return new SlackSessionHandler(session);
   },
 };

@@ -11,14 +11,15 @@ export interface IModelService {
   invoke(prompt: string | ChatMessage[]): Promise<ChatMessage>;
 
   /**
-   * 绑定工具到模型，返回绑定后的 Runnable
+   * 绑定工具到模型（有状态）
+   * 调用后 stream / invoke 自动使用绑定的工具，无需切换实例
    */
-  bindTools(tools: any[]): any;
+  bindTools(tools: any[]): void;
 
   /**
-   * 结构化输出 — 绑定 schema，返回可 invoke 的 Runnable
+   * 结构化输出调用 — 使用给定 schema 对模型输出进行结构化解析
    */
-  withStructuredOutput(schema: any): any;
+  invokeStructured<T = any>(schema: any, prompt: string | ChatMessage[]): Promise<T>;
 
   /**
    * 流式调用，返回逐步累积的消息块序列
