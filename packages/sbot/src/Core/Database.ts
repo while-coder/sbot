@@ -356,9 +356,17 @@ class Database {
     }
   }
 
-  async sync() {
+  private async withLock<T>(fn: () => Promise<T>): Promise<T> {
     try {
       await this.wait();
+      return await fn();
+    } finally {
+      this.running = false;
+    }
+  }
+
+  async sync() {
+    return this.withLock(async () => {
       await this.state.sync({ alter: true });
 
       const [data] = await this.state.findOrCreate({
@@ -376,105 +384,53 @@ class Database {
 
       await this.state.update({ value: DBVersion }, { where: { key: DBVersionName } });
       logger.info("Database schema sync completed");
-    } finally {
-      this.running = false;
-    }
+    });
   }
 
   async findAll<T>(db: ModelStatic<any>, options?: FindOptions): Promise<T[]> {
-    try {
-      await this.wait();
-      return await db.findAll(options);
-    } finally {
-      this.running = false;
-    }
+    return this.withLock(() => db.findAll(options));
   }
 
   // 返回值 [返回数据,是否创建了新数据]
   async findOrCreate<T>(db: ModelStatic<any>, options: any): Promise<[T, boolean]> {
-    try {
-      await this.wait();
-      return await db.findOrCreate(options);
-    } finally {
-      this.running = false;
-    }
+    return this.withLock(() => db.findOrCreate(options));
   }
 
   // 返回值 数据  find by primary key
   async findByPk<T>(db: ModelStatic<any>, key: any): Promise<T | null> {
-    try {
-      await this.wait();
-      return await db.findByPk(key);
-    } finally {
-      this.running = false;
-    }
+    return this.withLock(() => db.findByPk(key));
   }
 
   /// 返回值 数据
   async findOne<T>(db: ModelStatic<any>, options?: FindOptions): Promise<T | null> {
-    try {
-      await this.wait();
-      return await db.findOne(options);
-    } finally {
-      this.running = false;
-    }
+    return this.withLock(() => db.findOne(options));
   }
 
   // 返回值 创建的数据
   async create<T>(db: ModelStatic<any>, value: any): Promise<T> {
-    try {
-      await this.wait();
-      return await db.create(value);
-    } finally {
-      this.running = false;
-    }
+    return this.withLock(() => db.create(value));
   }
 
   async count(db: ModelStatic<any>, options?: FindOptions) {
-    try {
-      await this.wait();
-      return await db.count(options);
-    } finally {
-      this.running = false;
-    }
+    return this.withLock(() => db.count(options));
   }
 
   // 返回值,只有一个值的数组 [更新行数]
   async update(db: ModelStatic<any>, value: any, options: UpdateOptions<any>) {
-    try {
-      await this.wait();
-      return await db.update(value, options);
-    } finally {
-      this.running = false;
-    }
+    return this.withLock(() => db.update(value, options));
   }
 
   // 返回值 [返回数据,是否创建了新数据]
   async upsert<T>(db: ModelStatic<any>, value: any, options?: any): Promise<[T, boolean | null]> {
-    try {
-      await this.wait();
-      return await db.upsert(value, options);
-    } finally {
-      this.running = false;
-    }
+    return this.withLock(() => db.upsert(value, options));
   }
 
   async destroy(db: ModelStatic<any>, options?: any) {
-    try {
-      await this.wait();
-      await db.destroy(options);
-    } finally {
-      this.running = false;
-    }
+    return this.withLock(() => db.destroy(options));
   }
 
   async query(sql: string, options?: any) {
-    try {
-      await this.wait();
-      return await this.sequelize.query(sql, options);
-    } finally {
-      this.running = false;
-    }
+    return this.withLock(() => this.sequelize.query(sql, options));
   }
 }
 export const database = new Database();
