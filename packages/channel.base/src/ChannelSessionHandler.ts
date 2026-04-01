@@ -45,10 +45,6 @@ export abstract class ChannelSessionHandler {
     return this._processAIHandler(query, args, this);
   }
 
-  buildExtraInfo(_userInfo: any): string {
-    return "";
-  }
-
   buildAgentTools(_args: any, _helpers: AgentToolHelpers): any[] {
     return [];
   }

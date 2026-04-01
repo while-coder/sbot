@@ -194,17 +194,6 @@ export class LarkSessionHandler extends ChannelSessionHandler {
     await this.provider?.deleteElement(EL_ASK_FORM);
   }
 
-  buildExtraInfo(userInfo: any): string {
-    if (!userInfo) return '';
-    return `<lark-user>
-  <name>${userInfo.name}</name>
-  <email>${userInfo.email}</email>
-  <user-id>${userInfo.user_id}</user-id>
-  <open-id>${userInfo.open_id}</open-id>
-  <union-id>${userInfo.union_id}</union-id>
-</lark-user>`;
-  }
-
   buildAgentTools(args: ChannelMessageArgs, helpers: AgentToolHelpers): any[] {
     const { sessionId } = args as LarkMessageArgs;
     return [

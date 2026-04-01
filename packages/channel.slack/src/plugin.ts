@@ -3,6 +3,15 @@ import {
 } from "channel.base";
 import { SlackService } from "./SlackService";
 import { SlackMessageArgs, SlackActionArgs } from "./SlackSessionHandler";
+
+function buildSlackExtraInfo(userInfo: any): string {
+  if (!userInfo) return '';
+  return `<slack-user>
+  <id>${userInfo.id}</id>
+  <name>${userInfo.real_name ?? userInfo.name ?? ""}</name>
+  <email>${userInfo.profile?.email ?? ""}</email>
+</slack-user>`;
+}
 export const slackPlugin: ChannelPlugin = {
   type: "slack",
 
@@ -29,7 +38,7 @@ export const slackPlugin: ChannelPlugin = {
           sessionName: args.sessionId,
           sendUpdate: (msg: string) => service.sendMessage(args.sessionId, msg, args.threadTs).then(() => {}),
         });
-        await onReceiveMessage(session, query, { ...args, userInfo: userInfo ?? {} });
+        await onReceiveMessage(session, query, { ...args, extraInfo: buildSlackExtraInfo(userInfo) });
       },
       onTriggerAction: async (userId: string, args: SlackActionArgs) => {
         const session = await initSession({

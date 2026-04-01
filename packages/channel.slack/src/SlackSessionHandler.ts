@@ -168,15 +168,6 @@ export class SlackSessionHandler extends ChannelSessionHandler {
     getLogger()?.warn(`Unhandled Slack action: ${actionId}`);
   }
 
-  buildExtraInfo(userInfo: any): string {
-    if (!userInfo) return '';
-    return `<slack-user>
-  <id>${userInfo.id}</id>
-  <name>${userInfo.real_name ?? userInfo.name ?? ""}</name>
-  <email>${userInfo.profile?.email ?? ""}</email>
-</slack-user>`;
-  }
-
   buildAgentTools(args: any, helpers: AgentToolHelpers): any[] {
     return [helpers.createAskTool('slack', (params) => this.executeAsk(params))];
   }

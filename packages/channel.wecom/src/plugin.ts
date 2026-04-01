@@ -3,6 +3,13 @@ import {
 } from "channel.base";
 import { WecomService } from "./WecomService";
 import type { WecomMessageArgs, WecomActionArgs } from "./WecomService";
+
+function buildWecomExtraInfo(userId: string): string {
+  if (!userId) return '';
+  return `<wecom-user>
+  <userid>${userId}</userid>
+</wecom-user>`;
+}
 export const wecomPlugin: ChannelPlugin = {
   type: "wecom",
 
@@ -30,7 +37,7 @@ export const wecomPlugin: ChannelPlugin = {
           sessionName: args.sessionId,
           sendUpdate: (msg: string) => service.sendMessage(args.sessionId, { msgtype: 'markdown', markdown: { content: msg } } as any).then(() => {}),
         });
-        await onReceiveMessage(session, query, { ...args, userInfo: { userid: userId } });
+        await onReceiveMessage(session, query, { ...args, extraInfo: buildWecomExtraInfo(userId) });
       },
       onTriggerAction: async (userId: string, args: WecomActionArgs) => {
         const session = await initSession({

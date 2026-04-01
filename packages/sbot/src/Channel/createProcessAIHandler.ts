@@ -17,7 +17,6 @@ export function createProcessAIHandler(): ProcessAIHandler {
         const channel = channelId ? config.getChannel(channelId) : undefined;
         if (!channel) throw new Error(`Channel "${channelId}" not found`);
 
-        const userInfo = args?.userInfo;
         const dbSessionId: number = args?.dbSessionId;
         if (!dbSessionId) throw new Error("dbSessionId not specified");
 
@@ -44,7 +43,7 @@ export function createProcessAIHandler(): ProcessAIHandler {
             saverId: channel.saver as string,
             threadId: (userService as any).session.threadId,
             scheduler: { schedulerType: SchedulerType.Channel, schedulerId: String(dbSessionId) },
-            extraInfo: userService.buildExtraInfo(userInfo),
+            extraInfo: args?.extraInfo ?? '',
             memories,
             workPath: dbSession?.workPath || undefined,
             agentTools: userService.buildAgentTools(args, agentToolHelpers),

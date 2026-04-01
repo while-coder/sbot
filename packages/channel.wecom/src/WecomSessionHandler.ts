@@ -28,13 +28,6 @@ export class WecomSessionHandler extends ChannelSessionHandler {
     super(session);
   }
 
-  buildExtraInfo(userInfo: any): string {
-    if (!userInfo) return '';
-    return `<wecom-user>
-  <userid>${userInfo.userid}</userid>
-</wecom-user>`;
-  }
-
   buildAgentTools(args: any, helpers: AgentToolHelpers): any[] {
     return [helpers.createAskTool('wecom', (params) => this.executeAsk(params), [AskQuestionType.Radio, AskQuestionType.Checkbox])];
   }

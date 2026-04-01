@@ -3,6 +3,17 @@ import {
 } from "channel.base";
 import { LarkService, LarkReceiveIdType, LarkUserIdType } from "./LarkService";
 import { LarkMessageArgs, LarkActionArgs } from "./LarkSessionHandler";
+
+function buildLarkExtraInfo(userInfo: any): string {
+  if (!userInfo) return '';
+  return `<lark-user>
+  <name>${userInfo.name}</name>
+  <email>${userInfo.email}</email>
+  <user-id>${userInfo.user_id}</user-id>
+  <open-id>${userInfo.open_id}</open-id>
+  <union-id>${userInfo.union_id}</union-id>
+</lark-user>`;
+}
 export const larkPlugin: ChannelPlugin = {
   type: "lark",
 
@@ -36,7 +47,7 @@ export const larkPlugin: ChannelPlugin = {
           userAvatar: userInfo?.avatar?.avatar_origin,
           sessionAvatar: chatInfo?.avatar || '',
         });
-        await onReceiveMessage(session, query, { ...args, userInfo: userInfo ?? {} });
+        await onReceiveMessage(session, query, { ...args, extraInfo: buildLarkExtraInfo(userInfo) });
       },
       onTriggerAction: async (userId: string, userInfo: any, chatInfo: any, args: LarkActionArgs) => {
         const sessionName = chatInfo

@@ -30,6 +30,8 @@ export interface ChannelSessionInfo {
 export interface ChannelMessageArgs {
   /** Channel-agnostic session identifier (same value stored in DB channelSession.sessionId). */
   sessionId: string;
+  /** Channel-specific extra info (e.g. user metadata) passed to the AI agent. */
+  extraInfo?: string;
   [key: string]: any;
 }
 
