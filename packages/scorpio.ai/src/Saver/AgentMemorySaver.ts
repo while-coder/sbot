@@ -1,5 +1,4 @@
-import { BaseMessage } from "langchain";
-import { IAgentSaverService, SaverMessage } from "./IAgentSaverService";
+import { IAgentSaverService, ChatMessage, StoredMessage, ChatMessageOptions } from "./IAgentSaverService";
 import { applyTokenLimit } from "./messageSerializer";
 
 /**
@@ -7,23 +6,19 @@ import { applyTokenLimit } from "./messageSerializer";
  * 适用于临时会话、单次任务或测试场景。
  */
 export class AgentMemorySaver implements IAgentSaverService {
-    private messages: SaverMessage[] = [];
-    private thinks: Record<string, SaverMessage[]> = {};
+    private messages: StoredMessage[] = [];
+    private thinks: Record<string, StoredMessage[]> = {};
 
-    async getAllMessages(): Promise<BaseMessage[]> {
-        return this.messages.map((r) => r.message);
-    }
-
-    async getAllMessagesWithTime(): Promise<SaverMessage[]> {
+    async getAllMessages(): Promise<StoredMessage[]> {
         return [...this.messages];
     }
 
-    async getMessages(maxTokens: number): Promise<BaseMessage[]> {
+    async getMessages(maxTokens: number): Promise<ChatMessage[]> {
         return applyTokenLimit(this.messages.map((r) => r.message), maxTokens);
     }
 
-    async pushMessage(message: BaseMessage): Promise<void> {
-        this.messages.push({ message, createdAt: Math.floor(Date.now() / 1000) });
+    async pushMessage(message: ChatMessage, options?: ChatMessageOptions): Promise<void> {
+        this.messages.push({ message, createdAt: Math.floor(Date.now() / 1000), thinkId: options?.thinkId });
     }
 
     async clearMessages(): Promise<void> {
@@ -31,13 +26,13 @@ export class AgentMemorySaver implements IAgentSaverService {
         this.thinks = {};
     }
 
-    async getThink(thinkId: string): Promise<SaverMessage[]> {
+    async getThink(thinkId: string): Promise<StoredMessage[]> {
         return this.thinks[thinkId] ?? [];
     }
 
-    async pushThinkMessage(thinkId: string, message: BaseMessage): Promise<void> {
+    async pushThinkMessage(thinkId: string, message: ChatMessage, options?: ChatMessageOptions): Promise<void> {
         const existing = this.thinks[thinkId] ?? [];
-        existing.push({ message, createdAt: Math.floor(Date.now() / 1000) });
+        existing.push({ message, createdAt: Math.floor(Date.now() / 1000), thinkId: options?.thinkId });
         this.thinks[thinkId] = existing;
     }
 

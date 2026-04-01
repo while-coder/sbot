@@ -1,14 +1,13 @@
 import { Pool } from "pg";
-import { BaseMessage } from "langchain";
-import { IAgentSaverService, SaverMessage } from "./IAgentSaverService";
+import { IAgentSaverService, ChatMessage, StoredMessage, ChatMessageOptions } from "./IAgentSaverService";
 import { ILoggerService, ILogger } from "../Logger";
 import { inject } from "scorpio.di";
 import { T_DBUrl, T_DBTable } from "../Core/tokens";
-import { MessageType, serializeMessage, deserializeMessage, applyTokenLimit } from "./messageSerializer";
+import { applyTokenLimit } from "./messageSerializer";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AgentPostgresSaver
-// 每个 thread 独立一张表: {tableName}
+// messages / thinks 两张表，表名前缀由 T_DBTable 注入
 // ─────────────────────────────────────────────────────────────────────────────
 
 export class AgentPostgresSaver implements IAgentSaverService {
@@ -17,6 +16,7 @@ export class AgentPostgresSaver implements IAgentSaverService {
     private logger?: ILogger;
 
     private readonly table: string;
+    private get thinksTable() { return `${this.table}_thinks`; }
 
     constructor(
         @inject(T_DBTable) table: string,
@@ -29,29 +29,36 @@ export class AgentPostgresSaver implements IAgentSaverService {
     }
 
     private ensureSetup(): Promise<void> {
-        this.setupPromise ??= this.initTable();
+        this.setupPromise ??= this.initTables();
         return this.setupPromise;
     }
 
-    private async initTable(): Promise<void> {
+    private async initTables(): Promise<void> {
         await this.pool.query(`
             CREATE TABLE IF NOT EXISTS ${this.table} (
                 id         BIGSERIAL PRIMARY KEY,
-                type       TEXT      NOT NULL,
                 data       TEXT      NOT NULL,
-                created_at BIGINT    NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT
-            )
+                created_at BIGINT    NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT,
+                think_id   TEXT
+            );
+            CREATE TABLE IF NOT EXISTS ${this.thinksTable} (
+                id              BIGSERIAL PRIMARY KEY,
+                think_id        TEXT      NOT NULL,
+                data            TEXT      NOT NULL,
+                created_at      BIGINT    NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT,
+                nested_think_id TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_${this.table}_thinks_think_id
+                ON ${this.thinksTable} (think_id);
         `);
     }
 
-    async pushMessage(message: BaseMessage): Promise<void> {
+    async pushMessage(message: ChatMessage, options?: ChatMessageOptions): Promise<void> {
         await this.ensureSetup();
-        const { type, data } = serializeMessage(message);
         await this.pool.query(
-            `INSERT INTO ${this.table} (type, data) VALUES ($1, $2)`,
-            [type, data]
+            `INSERT INTO ${this.table} (data, created_at, think_id) VALUES ($1, $2, $3)`,
+            [JSON.stringify(message), Math.floor(Date.now() / 1000), options?.thinkId ?? null]
         );
-
         await this.pool.query(`
             DELETE FROM ${this.table}
             WHERE id < (
@@ -62,19 +69,16 @@ export class AgentPostgresSaver implements IAgentSaverService {
         `);
     }
 
-    async getAllMessages(): Promise<BaseMessage[]> {
-        return (await this.getAllMessagesWithTime()).map((r) => r.message);
-    }
-
-    async getAllMessagesWithTime(): Promise<SaverMessage[]> {
+    async getAllMessages(): Promise<StoredMessage[]> {
         await this.ensureSetup();
         try {
             const result = await this.pool.query(
-                `SELECT type, data, created_at FROM ${this.table} ORDER BY id`
+                `SELECT data, created_at, think_id FROM ${this.table} ORDER BY id`
             );
-            return result.rows.map((r: { type: string; data: string; created_at: number }) => ({
-                message: deserializeMessage(r.type as MessageType, r.data),
+            return result.rows.map((r: { data: string; created_at: number; think_id: string | null }) => ({
+                message: JSON.parse(r.data) as ChatMessage,
                 createdAt: r.created_at,
+                thinkId: r.think_id ?? undefined,
             }));
         } catch (error: any) {
             this.logger?.warn(`获取历史消息失败: ${error.message}`);
@@ -82,8 +86,8 @@ export class AgentPostgresSaver implements IAgentSaverService {
         }
     }
 
-    async getMessages(maxTokens: number): Promise<BaseMessage[]> {
-        return applyTokenLimit(await this.getAllMessages(), maxTokens);
+    async getMessages(maxTokens: number): Promise<ChatMessage[]> {
+        return applyTokenLimit((await this.getAllMessages()).map((r) => r.message), maxTokens);
     }
 
     async clearMessages(): Promise<void> {
@@ -91,11 +95,31 @@ export class AgentPostgresSaver implements IAgentSaverService {
         await this.pool.query(`DELETE FROM ${this.table}`);
     }
 
-    async getThink(): Promise<SaverMessage[]> {
-        return [];
+    async getThink(thinkId: string): Promise<StoredMessage[]> {
+        await this.ensureSetup();
+        try {
+            const result = await this.pool.query(
+                `SELECT data, created_at, nested_think_id FROM ${this.thinksTable} WHERE think_id = $1 ORDER BY id`,
+                [thinkId]
+            );
+            return result.rows.map((r: { data: string; created_at: number; nested_think_id: string | null }) => ({
+                message: JSON.parse(r.data) as ChatMessage,
+                createdAt: r.created_at,
+                thinkId: r.nested_think_id ?? undefined,
+            }));
+        } catch (error: any) {
+            this.logger?.warn(`获取 think 消息失败: ${error.message}`);
+            return [];
+        }
     }
 
-    async pushThinkMessage(): Promise<void> {}
+    async pushThinkMessage(thinkId: string, message: ChatMessage, options?: ChatMessageOptions): Promise<void> {
+        await this.ensureSetup();
+        await this.pool.query(
+            `INSERT INTO ${this.thinksTable} (think_id, data, created_at, nested_think_id) VALUES ($1, $2, $3, $4)`,
+            [thinkId, JSON.stringify(message), Math.floor(Date.now() / 1000), options?.thinkId ?? null]
+        );
+    }
 
     async dispose(): Promise<void> {
         try {

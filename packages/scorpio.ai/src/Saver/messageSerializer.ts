@@ -1,102 +1,25 @@
-import {
-    AIMessage,
-    BaseMessage,
-    HumanMessage,
-    ToolMessage,
-} from "langchain";
+import { ChatMessage, ChatToolCall, MessageRole } from "./IAgentSaverService";
 
-export enum MessageType {
-    Human = "human",
-    AI    = "ai",
-    Tool  = "tool",
-}
+// ─── Token estimation ────────────────────────────────────────────────────────
 
-export type ThinkBlock = {
-    type: "thinking";
-    thinking: string;
-    signature?: string;
-};
-
-export function serializeMessage(message: BaseMessage): { type: MessageType; data: string } {
-    const name = message.constructor.name;
-    const m = message as any;
-    if (name === 'AIMessage') {
-        return {
-            type: MessageType.AI,
-            data: JSON.stringify({
-                content: m.content,
-                tool_calls: m.tool_calls,
-                additional_kwargs: m.additional_kwargs,
-                id: m.id,
-            }),
-        };
-    }
-    if (name === 'ToolMessage') {
-        return {
-            type: MessageType.Tool,
-            data: JSON.stringify({
-                content: m.content,
-                tool_call_id: m.tool_call_id,
-                name: m.name,
-                status: m.status,
-            }),
-        };
-    }
-    if (name === 'HumanMessage') {
-        return {
-            type: MessageType.Human,
-            data: JSON.stringify({
-                content: m.content,
-                additional_kwargs: m.additional_kwargs,
-            }),
-        };
-    }
-    throw new Error(`Unknown message type: ${name}`);
-}
-
-export function deserializeMessage(type: MessageType, data: string): BaseMessage {
-    const d = JSON.parse(data);
-    switch (type) {
-        case MessageType.AI:
-            return new AIMessage({
-                content: d.content,
-                tool_calls: d.tool_calls,
-                additional_kwargs: d.additional_kwargs,
-                id: d.id,
-            });
-        case MessageType.Tool:
-            return new ToolMessage({
-                content: d.content,
-                tool_call_id: d.tool_call_id,
-                name: d.name,
-                status: d.status,
-            });
-        default: // MessageType.Human
-            return new HumanMessage({
-                content: d.content ?? "",
-                additional_kwargs: d.additional_kwargs,
-            });
-    }
-}
-
-export function estimateMessageTokens(message: BaseMessage): number {
+export function estimateMessageTokens(message: ChatMessage): number {
     const content = message.content;
     let textLength = 0;
 
     if (typeof content === "string") {
         textLength = content.length;
     } else if (Array.isArray(content)) {
-        for (const part of content as any[]) {
+        for (const part of content) {
             if (typeof part === "string") {
-                textLength += part.length;
+                textLength += (part as string).length;
             } else if (part && typeof part === "object" && "text" in part) {
                 textLength += part.text?.length ?? 0;
             }
         }
     }
 
-    if (message instanceof AIMessage && message.tool_calls?.length) {
-        for (const tc of message.tool_calls) {
+    if (message.role === MessageRole.AI && message.tool_calls?.length) {
+        for (const tc of message.tool_calls as ChatToolCall[]) {
             textLength += (tc.name?.length ?? 0) + JSON.stringify(tc.args ?? {}).length;
         }
     }
@@ -106,9 +29,9 @@ export function estimateMessageTokens(message: BaseMessage): number {
 
 /**
  * 从消息数组末尾截取不超过 maxTokens 的部分，
- * 并丢弃开头的孤立 ToolMessage（其配对的 AIMessage 已被截断）
+ * 并丢弃开头的孤立 tool 消息（其配对的 AI 消息已被截断）
  */
-export function applyTokenLimit(messages: BaseMessage[], maxTokens: number): BaseMessage[] {
+export function applyTokenLimit(messages: ChatMessage[], maxTokens: number): ChatMessage[] {
     let tokenCount = 0;
     let startIndex = messages.length;
 
@@ -119,7 +42,7 @@ export function applyTokenLimit(messages: BaseMessage[], maxTokens: number): Bas
         startIndex = i;
     }
 
-    while (startIndex < messages.length && messages[startIndex] instanceof ToolMessage) {
+    while (startIndex < messages.length && messages[startIndex].role === MessageRole.Tool) {
         startIndex++;
     }
 
