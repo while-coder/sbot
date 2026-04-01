@@ -86,8 +86,11 @@ export class MemoryService implements IMemoryService {
     }
   }
 
-  async addMemoryDirect(content: string): Promise<string[]> {
-    const chunks = await new CharacterTextSplitter({ chunkSize: 500, chunkOverlap: 50 }).splitText(content);
+  async addMemoryDirect(content: string, options?: { autoSplit?: boolean }): Promise<string[]> {
+    const shouldSplit = options?.autoSplit !== false;
+    const chunks = shouldSplit
+      ? await new CharacterTextSplitter({ chunkSize: 500, chunkOverlap: 50 }).splitText(content)
+      : [content];
     const [evaluations, embeddings] = await Promise.all([
       Promise.all(chunks.map(chunk => this.evaluator.evaluate(chunk))),
       this.embeddings.embedDocuments(chunks),

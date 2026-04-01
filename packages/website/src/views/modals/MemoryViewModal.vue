@@ -19,6 +19,7 @@ const compressing  = ref(false)
 const showAddModal = ref(false)
 const addContent   = ref('')
 const adding       = ref(false)
+const autoSplit    = ref(true)
 
 function memUrl(path = '') {
   const base = `/api/memories/${encodeURIComponent(memoryId.value)}${path}`
@@ -59,6 +60,7 @@ async function clearAll() {
 
 function openAdd() {
   addContent.value   = ''
+  autoSplit.value    = true
   showAddModal.value = true
 }
 
@@ -66,7 +68,7 @@ async function confirmAdd() {
   if (!addContent.value.trim()) { show(t('memories.error_content'), 'error'); return }
   adding.value = true
   try {
-    const res = await apiFetch(memUrl('/add'), 'POST', { content: addContent.value.trim() })
+    const res = await apiFetch(memUrl('/add'), 'POST', { content: addContent.value.trim(), autoSplit: autoSplit.value })
     show(t('memories.added_count', { count: res.data?.ids?.length ?? 0 }))
     showAddModal.value = false
     await load()
@@ -174,6 +176,10 @@ defineExpose({ open })
         <div class="form-group">
           <label>{{ t('memories.memory_content') }}</label>
           <textarea v-model="addContent" rows="7" :placeholder="t('memories.memory_placeholder')" style="resize:vertical" />
+        </div>
+        <div class="form-group" style="display:flex;align-items:center;gap:8px;margin-top:8px">
+          <input type="checkbox" id="autoSplit" v-model="autoSplit" />
+          <label for="autoSplit" style="margin:0">{{ t('memories.auto_split') }}</label>
         </div>
       </div>
       <div class="modal-footer">

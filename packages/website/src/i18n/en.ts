@@ -257,6 +257,7 @@ export default {
     add_memory_title: 'Add Memory',
     memory_content: 'Content',
     memory_placeholder: 'Enter memory content to add directly...',
+    auto_split: 'Auto split content',
     error_content: 'Content is required',
     adding: 'Adding…',
     add_btn: 'Add',

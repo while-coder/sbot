@@ -28,11 +28,12 @@ export interface IMemoryService {
 
     /**
      * 直接插入一段完整记忆，跳过 Extractor，由 Evaluator 评估重要性
-     * 大文本会自动按字符切割后分批插入
+     * 大文本会自动按字符切割后分批插入（可通过 options.autoSplit 禁用）
      * @param content 记忆内容
+     * @param options.autoSplit 是否自动分割，默认 true
      * @returns 插入的记忆 ID 数组
      */
-    addMemoryDirect(content: string): Promise<string[]>;
+    addMemoryDirect(content: string, options?: { autoSplit?: boolean }): Promise<string[]>;
 
     // ── 维护 ──────────────────────────────────────────────────────────────────
 
