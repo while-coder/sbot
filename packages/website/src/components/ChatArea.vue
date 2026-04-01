@@ -188,7 +188,7 @@ watch(() => props.historyUrl, () => refreshHistory())
 async function handleWsEvent(evt: WebChatEvent) {
   if (evt.type === WebChatEventType.Human) {
     isStreaming.value = true
-    // 消息开始处理，从排队列表移除
+    // 从排队列表移除当前消息（与 push 到 messages 同步，避免空窗期）
     if (queuedMessages.value.length > 0) queuedMessages.value.shift()
     if (props.handleHumanMessage) {
       messages.value.push({ message: { role: MessageRole.Human, content: evt.content }, createdAt: Date.now() / 1000 })
@@ -215,7 +215,11 @@ async function handleWsEvent(evt: WebChatEvent) {
     initAskAnswers(evt.questions as AskQuestion[])
     startAskCountdown()
   } else if (evt.type === WebChatEventType.Queue) {
-    queuedMessages.value = evt.pendingMessages
+    // Queue 事件仅用于补充服务端额外的排队消息（如恢复连接后），
+    // 不覆盖客户端乐观队列，避免与 Human shift 冲突
+    if (queuedMessages.value.length === 0 && evt.pendingMessages.length > 0) {
+      queuedMessages.value = evt.pendingMessages
+    }
   } else if (evt.type === WebChatEventType.Done) {
     if (evt.pendingMessages) {
       queuedMessages.value = evt.pendingMessages

@@ -1,36 +1,25 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
-import { useChatSocket } from '@/composables/useChatSocket'
+import { useChatViewLogic } from '@/composables/useChatViewLogic'
 import DirectoryModal from './modals/DirectoryModal.vue'
 import SaverViewModal from './modals/SaverViewModal.vue'
 import MemoryViewModal from './modals/MemoryViewModal.vue'
 import MultiSelect from '@/components/MultiSelect.vue'
 import ChatArea from '@/components/ChatArea.vue'
 import { dirThreadId, WsCommandType } from 'sbot.commons'
-import type { WebChatEvent } from 'sbot.commons'
 
 const { t } = useI18n()
 
 type LocalDirCfg = { agent?: string; saver?: string; memories?: string[] }
 
-interface Attachment {
-  name: string
-  type: string
-  dataUrl?: string
-  content?: string
-}
-
 const { show } = useToast()
-const chatSocket = useChatSocket()
-const { send: wsSend, onMessage: wsOnMessage, offMessage: wsOffMessage, waitForOpen } = chatSocket
 const directoryModal  = ref<InstanceType<typeof DirectoryModal>>()
 const saverViewModal  = ref<InstanceType<typeof SaverViewModal>>()
 const memoryViewModal = ref<InstanceType<typeof MemoryViewModal>>()
-const chatAreaRef     = ref<InstanceType<typeof ChatArea>>()
 
 // ── 无效路径 ──────────────────────────────────────────────
 const invalidDirs = ref<string[]>([])
@@ -61,8 +50,6 @@ async function removeInvalidDir(dirPath: string) {
   }
 }
 
-onMounted(() => { checkInvalidDirs(); wsOnMessage(handleWsEvent) })
-
 // ── 目录选择 ──────────────────────────────────────────────
 const activeDir  = ref<string | null>(null)
 const activeCfg  = ref<LocalDirCfg | null>(null)
@@ -70,15 +57,17 @@ const loadingCfg = ref(false)
 
 const directories = computed(() => store.settings.directories || {})
 
-const agentOptions  = computed(() =>
-  Object.entries(store.settings.agents   || {}).map(([id, a]) => ({ id, label: (a as any).name || id }))
-)
-const saverOptions  = computed(() =>
-  Object.entries(store.settings.savers   || {}).map(([id, s]) => ({ id, label: (s as any).name || id }))
-)
-const memoryOptions = computed(() =>
-  Object.entries(store.settings.memories || {}).map(([id, m]) => ({ id, label: (m as any).name || id }))
-)
+const { chatAreaRef, agentOptions, saverOptions, memoryOptions, sendOne, fetchAndRestoreSessionStatus } = useChatViewLogic({
+  threadId: () => activeDir.value ? dirThreadId(activeDir.value) : undefined,
+  buildSendPayload: (query, threadId, atts) => ({
+    type: WsCommandType.Query,
+    query,
+    threadId,
+    workPath: activeDir.value!,
+    attachments: atts?.length ? atts : undefined,
+  }),
+  sessionStatusQuery: (dir) => `workPath=${encodeURIComponent(dir)}`,
+})
 
 const historyUrl = computed<string | null>(() => {
   if (!activeDir.value || !activeCfg.value?.saver) return null
@@ -136,39 +125,8 @@ async function saveConfig(patch: Partial<LocalDirCfg>) {
   }
 }
 
-// ── WebSocket 事件处理 ────────────────────────────────────
-async function handleWsEvent(evt: WebChatEvent & { threadId?: string }) {
-  const expectedThreadId = activeDir.value ? dirThreadId(activeDir.value) : undefined
-  if (evt.threadId && evt.threadId !== expectedThreadId) return
-  await chatAreaRef.value?.handleWsEvent(evt)
-}
-
-watch(chatSocket.connected, (val, oldVal) => {
-  if (!val && oldVal) {
-    show(t('chat.ws_reconnecting'), 'error')
-    chatAreaRef.value?.reset()
-  }
-})
-
-function onChatAreaDone() {
-  chatAreaRef.value?.refreshHistory()
-}
-
-// ── 切换目录时恢复 session 状态 ──────────────────────────
-async function fetchAndRestoreSessionStatus(dirPath: string | null) {
-  if (!dirPath) { chatAreaRef.value?.restoreSessionStatus(null); return }
-  try {
-    const res = await apiFetch(`/api/session-status?workPath=${encodeURIComponent(dirPath)}`)
-    chatAreaRef.value?.restoreSessionStatus(res ?? null)
-  } catch {
-    chatAreaRef.value?.restoreSessionStatus(null)
-  }
-}
-
-watch(activeDir, (dir) => fetchAndRestoreSessionStatus(dir))
-
 // ── 发送消息 ──────────────────────────────────────────────
-async function onPanelSend(query: string, atts: Attachment[]) {
+async function onPanelSend(query: string, atts: { name: string; type: string; dataUrl?: string; content?: string }[]) {
   if (!activeDir.value)         { show('请先选择目录', 'error'); return }
   if (!activeCfg.value?.agent)  { show('请先配置 Agent', 'error'); return }
   if (!activeCfg.value?.saver)  { show('请先配置存储', 'error'); return }
@@ -176,24 +134,15 @@ async function onPanelSend(query: string, atts: Attachment[]) {
   await sendOne(query, atts)
 }
 
-async function sendOne(query: string, atts: Attachment[]) {
-  try {
-    await waitForOpen()
-    wsSend({
-      type: WsCommandType.Query,
-      query,
-      threadId: dirThreadId(activeDir.value!),
-      workPath: activeDir.value!,
-      attachments: atts.length ? atts : undefined,
-    })
-    chatAreaRef.value?.addQueuedMessage(query)
-  } catch (e: any) {
-    chatAreaRef.value?.reset()
-    show(e.message, 'error')
-  }
-}
+watch(activeDir, (dir) => fetchAndRestoreSessionStatus(dir))
 
-onUnmounted(() => { wsOffMessage(handleWsEvent); chatAreaRef.value?.cleanup() })
+onMounted(() => {
+  checkInvalidDirs()
+  const dirs = Object.keys(directories.value)
+  if (dirs.length > 0 && !activeDir.value) {
+    selectDir(dirs[0])
+  }
+})
 </script>
 
 <template>
@@ -332,7 +281,7 @@ onUnmounted(() => { wsOffMessage(handleWsEvent); chatAreaRef.value?.cleanup() })
             :empty-text="!activeCfg?.agent || !activeCfg?.saver ? '请先在工具栏配置 Agent 和存储' : '暂无对话历史，发送消息开始对话'"
             :cancel-thread-id="activeDir ? dirThreadId(activeDir) : undefined"
             @send="onPanelSend"
-            @done="onChatAreaDone"
+
           />
         </template>
 

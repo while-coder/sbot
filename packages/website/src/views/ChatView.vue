@@ -1,31 +1,22 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, nextTick, watch } from 'vue'
+
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
-import { useChatSocket } from '@/composables/useChatSocket'
+import { useChatViewLogic } from '@/composables/useChatViewLogic'
+import ChatArea from '@/components/ChatArea.vue'
 import SaverViewModal from './modals/SaverViewModal.vue'
 import MemoryViewModal from './modals/MemoryViewModal.vue'
 import MultiSelect from '@/components/MultiSelect.vue'
 import NewSessionModal from './modals/NewSessionModal.vue'
-import ChatArea from '@/components/ChatArea.vue'
 import { sessionThreadId, WsCommandType } from 'sbot.commons'
-import type { WebChatEvent } from 'sbot.commons'
 
 const { t } = useI18n()
-
-interface Attachment {
-  name: string
-  type: string
-  dataUrl?: string
-  content?: string
-}
-
 const { show } = useToast()
 
 // ── Refs ──
-const chatAreaRef     = ref<InstanceType<typeof ChatArea>>()
 const saverViewModal  = ref<InstanceType<typeof SaverViewModal>>()
 const memoryViewModal = ref<InstanceType<typeof MemoryViewModal>>()
 const newSessionModal = ref<InstanceType<typeof NewSessionModal>>()
@@ -39,15 +30,17 @@ const editingSessionName = ref('')
 const activeSessionId = ref<string | null>(null)
 const sessions = computed(() => store.settings.sessions || {})
 
-const agentOptions  = computed(() =>
-  Object.entries(store.settings.agents   || {}).map(([id, a]) => ({ id, label: (a as any).name || id }))
-)
-const saverOptions  = computed(() =>
-  Object.entries(store.settings.savers   || {}).map(([id, s]) => ({ id, label: (s as any).name || id }))
-)
-const memoryOptions = computed(() =>
-  Object.entries(store.settings.memories || {}).map(([id, m]) => ({ id, label: (m as any).name || id }))
-)
+const { chatAreaRef, agentOptions, saverOptions, memoryOptions, sendOne, fetchAndRestoreSessionStatus } = useChatViewLogic({
+  threadId: () => activeSessionId.value ? sessionThreadId(activeSessionId.value) : undefined,
+  buildSendPayload: (query, threadId, atts) => ({
+    type: WsCommandType.Query,
+    query,
+    threadId,
+    sessionId: activeSessionId.value!,
+    attachments: atts?.length ? atts : undefined,
+  }),
+  sessionStatusQuery: (id) => `sessionId=${encodeURIComponent(id)}`,
+})
 
 const effectiveAgent  = computed(() => activeSessionId.value ? sessions.value[activeSessionId.value]?.agent  : undefined)
 const effectiveSaver  = computed(() => activeSessionId.value ? (sessions.value[activeSessionId.value]?.saver  || null) : null)
@@ -119,71 +112,21 @@ async function commitEditSessionName() {
   activeSessionId.value = prev
 }
 
-// ── WebSocket ──
-const chatSocket = useChatSocket()
-
-async function handleWsMessage(evt: WebChatEvent & { threadId?: string }) {
-  // Display events: only for active session
-  const expectedThreadId = activeSessionId.value ? sessionThreadId(activeSessionId.value) : undefined
-  if (evt.threadId && evt.threadId !== expectedThreadId) return
-  await chatAreaRef.value?.handleWsEvent(evt)
-}
-
-watch(chatSocket.connected, (val, oldVal) => {
-  if (!val && oldVal) {
-    show(t('chat.ws_reconnecting'), 'error')
-    chatAreaRef.value?.reset()
-  }
-})
-
-async function onPanelSend(query: string, atts: Attachment[]) {
+// ── Send / lifecycle ──
+async function onPanelSend(query: string, atts: { name: string; type: string; dataUrl?: string; content?: string }[]) {
   if (!activeSessionId.value) { show(t('chat.no_session'), 'error'); return }
   if (!effectiveSaver.value) { show(t('chat.no_saver'), 'error'); return }
   if (!query && atts.length === 0) return
   await sendOne(query, atts)
 }
 
-async function sendOne(query: string, atts: Attachment[]) {
-  const threadId = sessionThreadId(activeSessionId.value!)
-  try {
-    await chatSocket.waitForOpen()
-    chatSocket.send({
-      type: WsCommandType.Query,
-      query,
-      threadId,
-      sessionId: activeSessionId.value!,
-      attachments: atts.length ? atts : undefined,
-    })
-    chatAreaRef.value?.addQueuedMessage(query)
-  } catch (e: any) {
-    chatAreaRef.value?.reset()
-    show(e.message, 'error')
-  }
-}
-
-async function fetchAndRestoreSessionStatus(sessionId: string | null) {
-  if (!sessionId) { chatAreaRef.value?.restoreSessionStatus(null); return }
-  try {
-    const res = await apiFetch(`/api/session-status?sessionId=${encodeURIComponent(sessionId)}`)
-    chatAreaRef.value?.restoreSessionStatus(res ?? null)
-  } catch {
-    chatAreaRef.value?.restoreSessionStatus(null)
-  }
-}
-
 watch(activeSessionId, (id) => fetchAndRestoreSessionStatus(id))
 
 onMounted(() => {
-  chatSocket.onMessage(handleWsMessage)
   const ids = Object.keys(sessions.value)
   if (ids.length > 0 && !activeSessionId.value) {
     activeSessionId.value = ids[0]
   }
-})
-
-onUnmounted(() => {
-  chatSocket.offMessage(handleWsMessage)
-  chatAreaRef.value?.cleanup()
 })
 </script>
 
