@@ -5,27 +5,12 @@ import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/
 import { z } from 'zod';
 import { LoggerService } from '../../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
-import { checkDir } from '../utils';
+import { checkDir, EXCLUDE_DIRS, checkRg } from '../utils';
 import { loadPrompt } from '../../../Core/PromptLoader';
 
 const logger = LoggerService.getLogger('Tools/FileSystem/operations/glob.ts');
 
 const LIMIT = 100;
-const EXCLUDE_DIRS = new Set([
-    'node_modules', '.git', '.svn', 'dist', 'build', 'out',
-    '.cache', 'coverage', '__pycache__', '.next', '.nuxt', '.turbo', 'vendor',
-]);
-
-// ─── ripgrep 可用性检测（结果缓存）──────────────────────────────────────────
-let rgAvailable: boolean | null = null;
-function checkRg(): Promise<boolean> {
-    if (rgAvailable !== null) return Promise.resolve(rgAvailable);
-    return new Promise(resolve => {
-        const proc = spawn('rg', ['--version'], { stdio: 'ignore' });
-        proc.on('close', code => { rgAvailable = code === 0; resolve(rgAvailable!); });
-        proc.on('error', () => { rgAvailable = false; resolve(false); });
-    });
-}
 
 // ─── glob 模式 → RegExp（支持 ** / * / ?）────────────────────────────────────
 function hasPathPattern(pattern: string): boolean {

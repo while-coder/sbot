@@ -1,7 +1,26 @@
 import fs from 'fs';
 import fsAsync from 'fs/promises';
 import path from 'path';
+import { spawn } from 'child_process';
 import { randomBytes } from 'crypto';
+
+// ─── 默认跳过目录（等同于常见 .gitignore 规则）─────────────────────────────
+export const EXCLUDE_DIRS = new Set([
+    'node_modules', '.git', '.svn', 'dist', 'build', 'out',
+    '.cache', 'coverage', '__pycache__', '.next', '.nuxt', '.turbo', 'vendor',
+]);
+
+// ─── ripgrep 可用性检测（结果缓存）──────────────────────────────────────────
+let rgAvailable: boolean | null = null;
+
+export function checkRg(): Promise<boolean> {
+    if (rgAvailable !== null) return Promise.resolve(rgAvailable);
+    return new Promise(resolve => {
+        const proc = spawn('rg', ['--version'], { stdio: 'ignore' });
+        proc.on('close', code => { rgAvailable = code === 0; resolve(rgAvailable!); });
+        proc.on('error', () => { rgAvailable = false; resolve(false); });
+    });
+}
 
 export function formatSize(bytes: number): string {
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
