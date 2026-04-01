@@ -52,10 +52,10 @@ export interface IAgentSaverService {
     getThink(thinkId: string): Promise<SaverMessage[]>;
 
     /**
-     * 将消息列表存入指定 thinkId 对应的 think 记录（追加）
+     * 向指定 thinkId 追加一条 think 消息
      * 用于将 sub-agent 的执行过程保存为 think
      */
-    pushThinkMessages(thinkId: string, messages: BaseMessage[]): Promise<void>;
+    pushThinkMessage(thinkId: string, message: BaseMessage): Promise<void>;
 
     // --- 生命周期 ---
 

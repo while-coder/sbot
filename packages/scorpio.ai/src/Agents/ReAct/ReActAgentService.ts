@@ -1,4 +1,4 @@
-import { SystemMessage, AIMessage } from "langchain";
+import { SystemMessage, AIMessage, BaseMessage } from "langchain";
 import { type StructuredToolInterface } from "@langchain/core/tools";
 import { inject, ServiceContainer, T_SystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc, T_MemorySystemPromptTemplate } from "../../Core";
 import { IMemoryService, ReadOnlyMemoryService } from "../../Memory";
@@ -11,6 +11,21 @@ import { IAgentToolService } from "../../AgentTool";
 import { AgentMemorySaver } from "../../Saver/AgentMemorySaver";
 import { SingleAgentService } from "../Single/SingleAgentService";
 import { createTaskTool, type RunTaskFn } from "../../Tools";
+import { v4 as uuidv4 } from "uuid";
+
+// ── ThinkForwardSaver ────────────────────────────────────────
+
+/**
+ * 包装 AgentMemorySaver，每次 pushMessage 时同步转发到父 saver 的 think 记录
+ */
+class ThinkForwardSaver extends AgentMemorySaver {
+  constructor(private thinkId: string, private parentSaver: IAgentSaverService) { super(); }
+
+  override async pushMessage(message: BaseMessage): Promise<void> {
+    await super.pushMessage(message);
+    await this.parentSaver.pushThinkMessage(this.thinkId, message);
+  }
+}
 
 // ── Tokens ────────────────────────────────────────────────────
 
@@ -70,9 +85,12 @@ export class ReActAgentService extends SingleAgentService {
 
     const runFn: RunTaskFn = async ({ agentId, goal, task, systemPrompt }) => {
       let agentService: AgentServiceBase | null = null;
+      const thinkId = uuidv4();
       try {
+        const parentSaver = this.saverService;
+        const thinkSaver = new ThinkForwardSaver(thinkId, parentSaver);
         const subContainer = new ServiceContainer();
-        subContainer.registerSingleton(IAgentSaverService, AgentMemorySaver);
+        subContainer.registerInstance(IAgentSaverService, thinkSaver);
         if (this.memoryServices.length > 0) subContainer.registerInstance(IMemoryService, this.memoryServices.map(m => new ReadOnlyMemoryService(m)));
         if (this.memorySystemPromptTemplate) subContainer.registerInstance(T_MemorySystemPromptTemplate, this.memorySystemPromptTemplate);
         if (this.loggerService) subContainer.registerInstance(ILoggerService, this.loggerService);
@@ -89,9 +107,9 @@ export class ReActAgentService extends SingleAgentService {
         const finalMsg = [...messages].reverse().find(
           m => m instanceof AIMessage && typeof m.content === 'string' && m.content
         );
-        return finalMsg ? (finalMsg.content as string) : '';
+        return { result: finalMsg ? (finalMsg.content as string) : '', think_id: thinkId };
       } catch (error: any) {
-        return `Execution failed: ${error.message}`;
+        return { result: `Execution failed: ${error.message}`, think_id: thinkId };
       } finally {
         await agentService?.dispose();
       }

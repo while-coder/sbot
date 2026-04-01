@@ -276,13 +276,15 @@ export class SingleAgentService extends AgentServiceBase {
                 // isError=true 时保留 JSON，让 LLM 能感知到错误信号
                 const isError = mcpResult.isError;
                 mcpResult.isError = undefined;
+                const think_id = mcpResult.think_id;
+                mcpResult.think_id = undefined;
                 const content =
                     !isError && mcpResult.content.length === 1 && mcpResult.content[0].type === MCPContentType.Text
                         ? mcpResult.content[0].text
                         : JSON.stringify(mcpResult);
 
                 toolMessages.push(
-                    new ToolMessage({ tool_call_id: toolCall.id || "", content: content, status: isError ? "error" : "success" })
+                    new ToolMessage({ tool_call_id: toolCall.id || "", content: content, status: isError ? "error" : "success", additional_kwargs: think_id ? { think_id } : undefined })
                 );
             } catch (error: any) {
                 toolMessages.push(

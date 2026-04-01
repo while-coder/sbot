@@ -95,7 +95,7 @@ export class AgentPostgresSaver implements IAgentSaverService {
         return [];
     }
 
-    async pushThinkMessages(): Promise<void> {}
+    async pushThinkMessage(): Promise<void> {}
 
     async dispose(): Promise<void> {
         try {

@@ -61,6 +61,7 @@ export type MCPContent = MCPTextContent | MCPImageContent | MCPAudioContent | MC
 export type MCPToolResult = {
     content: MCPContent[];
     isError?: boolean;
+    think_id?: string;
 };
 
 /**

@@ -35,13 +35,10 @@ export class AgentMemorySaver implements IAgentSaverService {
         return this.thinks[thinkId] ?? [];
     }
 
-    async pushThinkMessages(thinkId: string, messages: BaseMessage[]): Promise<void> {
+    async pushThinkMessage(thinkId: string, message: BaseMessage): Promise<void> {
         const existing = this.thinks[thinkId] ?? [];
-        const newRows: SaverMessage[] = messages.map((m) => ({
-            message: m,
-            createdAt: Math.floor(Date.now() / 1000),
-        }));
-        this.thinks[thinkId] = [...existing, ...newRows];
+        existing.push({ message, createdAt: Math.floor(Date.now() / 1000) });
+        this.thinks[thinkId] = existing;
     }
 
     async dispose(): Promise<void> {}

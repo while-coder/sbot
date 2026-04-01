@@ -120,18 +120,16 @@ export class AgentFileSaver implements IAgentSaverService {
         }));
     }
 
-    async pushThinkMessages(thinkId: string, messages: BaseMessage[]): Promise<void> {
+    async pushThinkMessage(thinkId: string, message: BaseMessage): Promise<void> {
         const file = await this.readFile();
-        const existing = file.thinks?.[thinkId] ?? [];
-        const newRows: ThreadRow[] = messages.map((m) => {
-            const additionalKwargs = (m as any).additional_kwargs;
-            const think_id = additionalKwargs?.think_id as string | undefined;
-            if (think_id) delete additionalKwargs.think_id;
-            const { type, data } = serializeMessage(m);
-            return { type, data, created_at: Math.floor(Date.now() / 1000), think_id };
-        });
+        const additionalKwargs = (message as any).additional_kwargs;
+        const think_id = additionalKwargs?.think_id as string | undefined;
+        if (think_id) delete additionalKwargs.think_id;
+        const { type, data } = serializeMessage(message);
         if (!file.thinks) file.thinks = {};
-        file.thinks[thinkId] = [...existing, ...newRows];
+        const existing = file.thinks[thinkId] ?? [];
+        existing.push({ type, data, created_at: Math.floor(Date.now() / 1000), think_id });
+        file.thinks[thinkId] = existing;
         await this.writeThreadFile(file);
     }
 
