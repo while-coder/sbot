@@ -4,8 +4,7 @@ import { sessionManager } from "../UserService/SessionManager";
 import { LoggerService } from "../Core/LoggerService";
 import { config } from "../Core/Config";
 import { channelManager } from "../Channel/ChannelManager";
-import { dirThreadId, sessionThreadId } from "sbot.commons";
-import { getPluginThreadId } from "channel.base";
+import { channelThreadId, dirThreadId, sessionThreadId } from "sbot.commons";
 
 const logger = LoggerService.getLogger("SchedulerService.ts");
 
@@ -32,15 +31,14 @@ async function executeScheduler(schedulerId: number): Promise<void> {
 
             const { channelId, sessionId, id: dbSessionId } = sessionRow;
             const channelType = config.getChannel(channelId)?.type;
-            const plugin = channelType ? channelManager.getPlugin(channelType) : undefined;
-            const threadId = plugin ? getPluginThreadId(plugin, channelId, sessionId) : '';
+            const threadId = channelType ? channelThreadId(channelType, channelId, sessionId) : '';
 
             if (!threadId) {
                 logger.warn(`Scheduler task ${tag} unknown channel type: ${channelType}`);
                 return;
             }
 
-            await sessionManager.onReceiveChannelMessage(scheduler.message, threadId, {
+            await sessionManager.onReceiveChannelMessage(threadId, scheduler.message, {
                 channelType,
                 channelId,
                 dbSessionId,
@@ -53,8 +51,8 @@ async function executeScheduler(schedulerId: number): Promise<void> {
             const workPath  = scheduler.type === SchedulerType.Directory  ? scheduler.targetId ?? undefined : undefined;
             const threadId = workPath ? dirThreadId(workPath) : sessionThreadId(sessionId ?? '');
             await sessionManager.onReceiveWebMessage(
-                scheduler.message,
                 threadId,
+                scheduler.message,
                 sessionId,
                 workPath,
             );

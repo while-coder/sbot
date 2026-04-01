@@ -37,7 +37,7 @@ export class MemoryEvaluator implements IMemoryEvaluator {
    */
   async evaluate(content: string): Promise<EvaluationResult> {
     try {
-      return await this.modelService.withStructuredOutput<EvaluationResult>(EvaluationSchema).invoke([
+      return await this.modelService.withStructuredOutput(EvaluationSchema).invoke([
         new SystemMessage(this.systemPrompt),
         new HumanMessage(content),
       ]);

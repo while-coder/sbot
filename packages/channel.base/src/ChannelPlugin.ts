@@ -6,17 +6,23 @@ export interface IChannelService {
   dispose?(): void;
 }
 
-export interface ReceiveMessageContext {
-  channelId: string;
+export interface InitSessionContext {
   userId: string;
   userName: string;
   userInfo: string;
+  userAvatar?: string;
   sessionId: string;
   sessionName: string;
-  processMessage: (dbSessionId: number) => Promise<void>;
-  sendUpdate: (msg: string) => Promise<void>;
-  userAvatar?: string;
   sessionAvatar?: string;
+  sendUpdate?: (msg: string) => Promise<void>;
+}
+
+export interface ChannelSessionInfo {
+  channelId: string;
+  userId: string;
+  sessionId: string;
+  dbUserId: number;
+  dbSessionId: number;
 }
 
 export interface ChannelPluginContext {
@@ -24,9 +30,9 @@ export interface ChannelPluginContext {
   config: Record<string, any>;
   logger: any;
   filterEvent: (eventId: string) => Promise<boolean>;
-  handleReceiveMessage: (ctx: ReceiveMessageContext) => Promise<void>;
-  onReceiveMessage: (query: string, threadId: string, args: any) => Promise<void>;
-  onTriggerAction: (threadId: string, args: any) => Promise<void>;
+  initSession: (ctx: InitSessionContext) => Promise<ChannelSessionInfo>;
+  onReceiveMessage: (session: ChannelSessionInfo, query: string, args: any) => Promise<void>;
+  onTriggerAction: (session: ChannelSessionInfo, args: any) => Promise<void>;
 }
 
 export interface AgentToolHelpers {
@@ -67,14 +73,7 @@ export interface ConfigField {
 export interface ChannelPlugin {
   type: string;
   configSchema?: Record<string, ConfigField>;
-  getThreadId?: (channelId: string, sessionId: string) => string;
   init(ctx: ChannelPluginContext): Promise<IChannelService | undefined>;
   createUserService(session: SessionService): ChannelSessionHandler;
   dispose?(): Promise<void>;
-}
-
-export function getPluginThreadId(plugin: ChannelPlugin, channelId: string, sessionId: string): string {
-  return plugin.getThreadId
-    ? plugin.getThreadId(channelId, sessionId)
-    : `${plugin.type}_${channelId}_${sessionId}`;
 }

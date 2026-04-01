@@ -1,11 +1,11 @@
-import { ChannelPlugin, ChannelPluginContext, IChannelService, ReceiveMessageContext } from "channel.base";
+import { ChannelPlugin, ChannelPluginContext, IChannelService, ChannelSessionInfo } from "channel.base";
 import { ChannelUserRow, database, type ChannelSessionRow } from "../Core/Database";
 import { NowDate } from "scorpio.ai";
 import { Op } from "sequelize";
 import { sessionManager } from "../UserService/SessionManager";
 import { LoggerService } from "../Core/LoggerService";
 import { config } from "../Core/Config";
-import { compareSemver, fetchLatestRelease } from "sbot.commons";
+import { compareSemver, fetchLatestRelease, channelThreadId } from "sbot.commons";
 import { PluginLoader } from "./PluginLoader";
 
 const logger = LoggerService.getLogger("ChannelManager.ts");
@@ -65,15 +65,19 @@ async function checkForUpdate(sendMessage: (msg: string) => Promise<void>): Prom
 
 // ── DB 辅助函数 ───────────────────────────────────────────────────────────────
 
-export async function handleReceiveMessage(ctx: ReceiveMessageContext): Promise<void> {
-    const { channelId, userId, userName, userInfo, sessionId, sessionName, processMessage, sendUpdate, userAvatar, sessionAvatar } = ctx;
+function hasChanged(row: Record<string, any>, data: Record<string, any>): boolean {
+    return Object.keys(data).some(k => row[k] !== data[k]);
+}
+
+async function doInitSession(channelId: string, ctx: import("channel.base").InitSessionContext): Promise<{ dbUserId: number; dbSessionId: number }> {
+    const { userId, userName, userInfo, sessionId, sessionName, sendUpdate, userAvatar, sessionAvatar } = ctx;
     const userData: Record<string, any> = { userName, userInfo };
     if (userAvatar !== undefined) userData.avatar = userAvatar;
-    const [, userCreated] = await database.findOrCreate<ChannelUserRow>(database.channelUser, {
-        where: { userId, channelId },
+    const [dbUser, userCreated] = await database.findOrCreate<ChannelUserRow>(database.channelUser, {
+        where: { channelId, userId },
         defaults: userData,
     });
-    if (!userCreated) {
+    if (!userCreated && hasChanged(dbUser as any, userData)) {
         await database.update(database.channelUser, userData, { where: { channelId, userId } });
     }
 
@@ -81,14 +85,14 @@ export async function handleReceiveMessage(ctx: ReceiveMessageContext): Promise<
     if (sessionAvatar !== undefined) sessionData.avatar = sessionAvatar;
     const [dbSession, sessionCreated] = await database.findOrCreate<ChannelSessionRow>(database.channelSession, {
         where: { channelId, sessionId },
-        defaults: { ...sessionData, agentId: null },
+        defaults: sessionData,
     });
-    if (!sessionCreated) {
+    if (!sessionCreated && hasChanged(dbSession as any, sessionData)) {
         await database.update(database.channelSession, sessionData, { where: { channelId, sessionId } });
     }
 
-    await processMessage((dbSession as any).id);
-    checkForUpdate(sendUpdate).catch(() => {});
+    if (sendUpdate) checkForUpdate(sendUpdate).catch(() => {});
+    return { dbUserId: (dbUser as any).id, dbSessionId: (dbSession as any).id };
 }
 
 // ── ChannelManager ────────────────────────────────────────────────────────────
@@ -109,22 +113,25 @@ export class ChannelManager {
 
         let started = 0;
         for (const [channelId, channel] of channels) {
-            const plugin = this.plugins.get((channel as any).type as string);
+            const plugin = this.plugins.get(channel.type);
             if (!plugin) {
-                logger.warn(`Unknown channel type [${(channel as any).type}], skipping channel [${(channel as any).name || channelId}]`);
+                logger.warn(`Unknown channel type [${channel.type}], skipping channel [${channel.name || channelId}]`);
                 continue;
             }
             try {
                 const ctx: ChannelPluginContext = {
                     channelId,
-                    config: channel as Record<string, any>,
+                    config: { name: channel.name, ...(channel.config ?? {}) } as Record<string, any>,
                     logger,
                     filterEvent,
-                    handleReceiveMessage,
-                    onReceiveMessage: (query, threadId, args) =>
-                        sessionManager.onReceiveChannelMessage(query, threadId, args),
-                    onTriggerAction: (threadId, args) =>
-                        sessionManager.onChannelTriggerAction(threadId, args),
+                    initSession: async (initCtx) => {
+                        const { dbUserId, dbSessionId } = await doInitSession(channelId, initCtx);
+                        return { channelId, userId: initCtx.userId, sessionId: initCtx.sessionId, dbUserId, dbSessionId };
+                    },
+                    onReceiveMessage: (session, query, args) =>
+                        sessionManager.onReceiveChannelMessage(channelThreadId(plugin.type, channelId, session.sessionId), query, { ...args, channelType: plugin.type, channelId, dbSessionId: session.dbSessionId }),
+                    onTriggerAction: (session, args) =>
+                        sessionManager.onChannelTriggerAction(channelThreadId(plugin.type, channelId, session.sessionId), { ...args, channelType: plugin.type, channelId }),
                 };
                 const service = await plugin.init(ctx);
                 if (service) {

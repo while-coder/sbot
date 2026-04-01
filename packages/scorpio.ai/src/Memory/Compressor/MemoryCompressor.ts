@@ -136,7 +136,7 @@ export class MemoryCompressor implements IMemoryCompressor {
     ).join('\n');
     const prompt = this.promptTemplate.replace('{memories}', memoriesText);
     const { content } = await this.modelService
-      .withStructuredOutput<{ content: string }>(CompressionSchema)
+      .withStructuredOutput(CompressionSchema)
       .invoke([new HumanMessage(prompt)]);
     return content;
   }

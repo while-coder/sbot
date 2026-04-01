@@ -100,13 +100,13 @@ export class SbotSessionManager extends SessionManager {
 
     // ── Channel entry points ──
 
-    async onReceiveChannelMessage(query: string, threadId: string, args: any): Promise<void> {
+    async onReceiveChannelMessage(threadId: string, query: string, args: any): Promise<void> {
         if (!query?.trim()) return;
         const session = this.getOrCreate(threadId);
         await session.onReceiveMessage(query, args);
     }
 
-    async onReceiveWebMessage(query: string, threadId: string, sessionId?: string, workPath?: string): Promise<void> {
+    async onReceiveWebMessage(threadId: string, query: string, sessionId?: string, workPath?: string): Promise<void> {
         if (!query?.trim()) return;
         const session = this.getOrCreate(threadId);
         await session.onReceiveMessage(query, { channelType: ChannelType.Web, sessionId, workPath });

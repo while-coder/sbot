@@ -1,6 +1,6 @@
 import {
   ChannelPlugin, ChannelPluginContext, IChannelService,
-  SessionService, ChannelSessionHandler, getPluginThreadId,
+  SessionService, ChannelSessionHandler,
 } from "channel.base";
 import { SlackService } from "./SlackService";
 import { SlackSessionHandler, SlackMessageArgs, SlackActionArgs } from "./SlackSessionHandler";
@@ -13,7 +13,7 @@ export const slackPlugin: ChannelPlugin = {
   },
 
   async init(ctx: ChannelPluginContext): Promise<IChannelService | undefined> {
-    const { channelId, config, logger, handleReceiveMessage, onReceiveMessage, onTriggerAction } = ctx;
+    const { channelId, config, logger, initSession, onReceiveMessage, onTriggerAction } = ctx;
 
     if (!config.botToken?.trim() || !config.appToken?.trim()) {
       logger.warn?.(`Slack channel [${config.name || channelId}] missing botToken or appToken, skipping`);
@@ -25,22 +25,25 @@ export const slackPlugin: ChannelPlugin = {
       appToken: config.appToken,
       logger,
       onReceiveMessage: async (userId: string, userInfo: any, args: SlackMessageArgs, query: string) => {
-        const threadId = getPluginThreadId(slackPlugin, channelId, args.channel);
-        await handleReceiveMessage({
-          channelId,
+        const session = await initSession({
           userId,
           userName: userInfo?.real_name ?? userInfo?.name ?? '',
           userInfo: JSON.stringify(userInfo ?? {}),
           sessionId: args.channel,
           sessionName: args.channel,
-          processMessage: (dbSessionId: number) =>
-            onReceiveMessage(query, threadId, { ...args, channelType: 'slack', userInfo: userInfo ?? {}, channelId, dbSessionId }),
           sendUpdate: (msg: string) => service.sendMessage(args.channel, msg, args.threadTs).then(() => {}),
         });
+        await onReceiveMessage(session, query, { ...args, userInfo: userInfo ?? {} });
       },
       onTriggerAction: async (userId: string, args: SlackActionArgs) => {
-        const threadId = getPluginThreadId(slackPlugin, channelId, args.channel);
-        await onTriggerAction(threadId, args);
+        const session = await initSession({
+          userId,
+          userName: '',
+          userInfo: '',
+          sessionId: args.channel,
+          sessionName: args.channel,
+        });
+        await onTriggerAction(session, args);
       },
     });
     await service.registerEventHandlers();

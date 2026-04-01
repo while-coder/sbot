@@ -120,7 +120,7 @@ export interface ChannelConfig {
   /** 使用的记忆配置 UUID 列表（对应 memories 中的 key） */
   memories: string[]
   /** 插件特有配置（appId, botToken 等） */
-  [key: string]: unknown
+  config?: Record<string, unknown>
 }
 
 // 配置内容（agent/saver/memory）保存在对应目录的 .sbot/settings.json，
@@ -166,17 +166,7 @@ export function sessionThreadId(sessionId: string): string {
   return `session_${sessionId}`
 }
 
-/** Lark 频道模式 threadId */
-export function larkThreadId(channelId: string, chatId: string): string {
-  return `lark_${channelId}_${chatId}`
-}
-
-/** Slack 频道模式 threadId */
-export function slackThreadId(channelId: string, slackChannel: string): string {
-  return `slack_${channelId}_${slackChannel}`
-}
-
-/** WeCom 频道模式 threadId */
-export function wecomThreadId(channelId: string, chatid: string): string {
-  return `wecom_${channelId}_${chatid}`
+/** 频道模式 threadId */
+export function channelThreadId(channelType: string, channelId: string, sessionId: string): string {
+  return `${channelType}_${channelId}_${sessionId}`
 }

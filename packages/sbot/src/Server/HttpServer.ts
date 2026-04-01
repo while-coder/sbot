@@ -258,7 +258,7 @@ class HttpServer {
                         case WsCommandType.Query: {
                             const enriched = processAttachments(msg.query?.trim() || '', msg.attachments, uploadDir);
                             if (!enriched || !msg.threadId) break;
-                            sessionManager.onReceiveWebMessage(enriched, msg.threadId, msg.sessionId, msg.workPath);
+                            sessionManager.onReceiveWebMessage(msg.threadId, enriched, msg.sessionId, msg.workPath);
                             break;
                         }
                         case WsCommandType.Approval:

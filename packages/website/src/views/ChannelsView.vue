@@ -171,7 +171,8 @@ function openAdd() {
 function openEdit(id: string) {
   const c = channels.value[id]
   editingId.value = id
-  form.value = { name: c.name || '', type: c.type || 'lark', appId: c.appId || '', appSecret: c.appSecret || '', botToken: c.botToken || '', appToken: c.appToken || '', botId: c.botId || '', secret: c.secret || '', agent: c.agent, saver: c.saver, memories: c.memories || [] }
+  const cfg = (c.config ?? {}) as Record<string, any>
+  form.value = { name: c.name || '', type: c.type || 'lark', appId: cfg.appId || '', appSecret: cfg.appSecret || '', botToken: cfg.botToken || '', appToken: cfg.appToken || '', botId: cfg.botId || '', secret: cfg.secret || '', agent: c.agent, saver: c.saver, memories: c.memories || [] }
   showModal.value = true
 }
 
@@ -180,19 +181,18 @@ async function save() {
   if (!form.value.saver) { show(t('channels.select_saver'), 'error'); return }
   try {
     const validIds = new Set(memoryOptions.value.map(m => m.id))
+    const pluginConfig: Record<string, unknown> = {}
+    for (const [key, val] of Object.entries({ appId: form.value.appId, appSecret: form.value.appSecret, botToken: form.value.botToken, appToken: form.value.appToken, botId: form.value.botId, secret: form.value.secret })) {
+      if (typeof val === 'string' && val.trim()) pluginConfig[key] = val.trim()
+    }
     const config: ChannelConfig = {
       type: form.value.type,
       agent: form.value.agent,
       saver: form.value.saver,
       memories: form.value.memories.filter(id => validIds.has(id)),
+      config: pluginConfig,
     }
     if (form.value.name.trim()) config.name = form.value.name.trim()
-    if (form.value.appId.trim()) config.appId = form.value.appId.trim()
-    if (form.value.appSecret.trim()) config.appSecret = form.value.appSecret.trim()
-    if (form.value.botToken.trim()) config.botToken = form.value.botToken.trim()
-    if (form.value.appToken.trim()) config.appToken = form.value.appToken.trim()
-    if (form.value.botId.trim()) config.botId = form.value.botId.trim()
-    if (form.value.secret.trim()) config.secret = form.value.secret.trim()
 
     if (editingId.value) {
       await apiFetch(`/api/settings/channels/${editingId.value}`, 'PUT', config)

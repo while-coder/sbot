@@ -1,6 +1,6 @@
 import {
   ChannelPlugin, ChannelPluginContext, IChannelService,
-  SessionService, ChannelSessionHandler, getPluginThreadId,
+  SessionService, ChannelSessionHandler,
 } from "channel.base";
 import { WecomService } from "./WecomService";
 import type { WecomMessageArgs, WecomActionArgs } from "./WecomService";
@@ -14,7 +14,7 @@ export const wecomPlugin: ChannelPlugin = {
   },
 
   async init(ctx: ChannelPluginContext): Promise<IChannelService | undefined> {
-    const { channelId, config, logger, filterEvent, handleReceiveMessage, onReceiveMessage, onTriggerAction } = ctx;
+    const { channelId, config, logger, filterEvent, initSession, onReceiveMessage, onTriggerAction } = ctx;
 
     if (!config.botId?.trim() || !config.secret?.trim()) {
       logger.warn?.(`WeCom channel [${config.name || channelId}] missing botId or secret, skipping`);
@@ -27,22 +27,25 @@ export const wecomPlugin: ChannelPlugin = {
       logger,
       filterEvent,
       onReceiveMessage: async (userId: string, args: WecomMessageArgs, query: string) => {
-        const threadId = getPluginThreadId(wecomPlugin, channelId, args.chatid);
-        await handleReceiveMessage({
-          channelId,
+        const session = await initSession({
           userId,
           userName: userId,
           userInfo: JSON.stringify({ userid: userId }),
           sessionId: args.chatid,
           sessionName: args.chatid,
-          processMessage: (dbSessionId: number) =>
-            onReceiveMessage(query, threadId, { ...args, channelType: 'wecom', userInfo: { userid: userId }, channelId, dbSessionId }),
           sendUpdate: (msg: string) => service.sendMessage(args.chatid, { msgtype: 'markdown', markdown: { content: msg } } as any).then(() => {}),
         });
+        await onReceiveMessage(session, query, { ...args, userInfo: { userid: userId } });
       },
-      onTriggerAction: async (_userId: string, args: WecomActionArgs) => {
-        const threadId = getPluginThreadId(wecomPlugin, channelId, args.chatid);
-        await onTriggerAction(threadId, args);
+      onTriggerAction: async (userId: string, args: WecomActionArgs) => {
+        const session = await initSession({
+          userId,
+          userName: userId,
+          userInfo: JSON.stringify({ userid: userId }),
+          sessionId: args.chatid,
+          sessionName: args.chatid,
+        });
+        await onTriggerAction(session, args);
       },
     });
     service.connect();

@@ -38,7 +38,7 @@ export class MemoryExtractor implements IMemoryExtractor {
       const human = parts?.length
         ? `<user>${userMessage}</user>\n${parts.map(m => `<assistant>${m}</assistant>`).join("\n")}`
         : `<user>${userMessage}</user>`;
-      const { results } = await this.modelService.withStructuredOutput<{ results: ExtractionResult[] }>(ExtractionSchema).invoke([
+      const { results } = await this.modelService.withStructuredOutput(ExtractionSchema).invoke([
         new SystemMessage(this.systemPrompt),
         new HumanMessage(human),
       ]);

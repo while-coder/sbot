@@ -1,8 +1,8 @@
 export { ChannelSessionHandler, ToolCallStatus } from './ChannelSessionHandler';
 export {
-  ChannelPlugin, ChannelPluginContext, ReceiveMessageContext,
+  ChannelPlugin, ChannelPluginContext, InitSessionContext, ChannelSessionInfo,
   IChannelService, AgentToolHelpers, ProcessAIHandler,
-  ConfigFieldType, ConfigField, getPluginThreadId,
+  ConfigFieldType, ConfigField,
 } from './ChannelPlugin';
 export { AbstractChatProvider } from './AbstractChatProvider';
 export { parseMessages2Text } from './ProviderMessage';

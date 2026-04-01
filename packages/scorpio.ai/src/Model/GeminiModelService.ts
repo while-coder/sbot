@@ -38,8 +38,8 @@ export class GeminiModelService implements IModelService {
     return this.model!.bindTools(tools);
   }
 
-  withStructuredOutput<T extends Record<string, any> = Record<string, any>>(schema: any) {
-    return this.model!.withStructuredOutput<T>(schema) as any;
+  withStructuredOutput(schema: any) {
+    return this.model!.withStructuredOutput(schema) as any;
   }
 
   async stream(messages: string | ChatMessage[]): Promise<AsyncIterable<ChatMessage>> {

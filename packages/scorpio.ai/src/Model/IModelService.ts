@@ -18,7 +18,7 @@ export interface IModelService {
   /**
    * 结构化输出 — 绑定 schema，返回可 invoke 的 Runnable
    */
-  withStructuredOutput<T extends Record<string, any> = Record<string, any>>(schema: any): any;
+  withStructuredOutput(schema: any): any;
 
   /**
    * 流式调用，返回逐步累积的消息块序列
