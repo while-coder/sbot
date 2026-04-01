@@ -20,6 +20,10 @@ function historyUrl() {
   return `/api/savers/${encodeURIComponent(saverId.value)}/threads/${encodeURIComponent(threadId.value)}/history`
 }
 
+function thinksUrl() {
+  return `/api/savers/${encodeURIComponent(saverId.value)}/threads/${encodeURIComponent(threadId.value)}/thinks`
+}
+
 async function load() {
   loading.value = true
   try {
@@ -76,7 +80,7 @@ defineExpose({ open })
       <div style="flex:1;overflow-y:auto">
         <div v-if="loading" class="modal-loading">{{ t('common.loading') }}</div>
         <div v-else-if="messages.length === 0" class="modal-empty">{{ t('savers.no_history') }}</div>
-        <MessageHistory v-else :messages="messages" />
+        <MessageHistory v-else :messages="messages" :thinks-url-prefix="thinksUrl()" />
       </div>
     </div>
   </div>

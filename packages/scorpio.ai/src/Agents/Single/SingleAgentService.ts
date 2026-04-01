@@ -350,7 +350,9 @@ export class SingleAgentService extends AgentServiceBase {
                     }
 
                     if (callback.onMessage) {
+                        if (thinkId) message.additional_kwargs = { ...message.additional_kwargs, think_id: thinkId };
                         await callback.onMessage(message);
+                        if (thinkId && message.additional_kwargs) delete message.additional_kwargs.think_id;
                     }
                 }
             }

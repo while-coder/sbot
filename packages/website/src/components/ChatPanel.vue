@@ -2,6 +2,7 @@
 import { ref, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { marked } from 'marked'
+import { apiFetch } from '@/api'
 import { MessageRole } from '@/types'
 import type { ChatMessage, ToolCall } from '@/types'
 
@@ -24,9 +25,11 @@ const props = withDefaults(defineProps<{
   showAttachments?: boolean
   emptyText?: string
   onCancel?: () => void
+  thinksUrlPrefix?: string | null
 }>(), {
   showAttachments: false,
   emptyText: '',
+  thinksUrlPrefix: null,
 })
 
 const emit = defineEmits<{
@@ -83,6 +86,30 @@ function toggleToolCall(el: HTMLElement) {
 
 function renderMd(content: string): string {
   return marked.parse(content) as string
+}
+
+// ── Think viewer ──
+const thinkData = ref<Record<string, ChatMessage[]>>({})
+const thinkExpanded = ref<Record<string, boolean>>({})
+const thinkLoading = ref<Record<string, boolean>>({})
+
+async function toggleThink(thinkId: string) {
+  if (thinkExpanded.value[thinkId]) {
+    thinkExpanded.value[thinkId] = false
+    return
+  }
+  thinkExpanded.value[thinkId] = true
+  if (thinkData.value[thinkId]) return
+  if (!props.thinksUrlPrefix) return
+  thinkLoading.value[thinkId] = true
+  try {
+    const res = await apiFetch(`${props.thinksUrlPrefix}/${encodeURIComponent(thinkId)}`)
+    thinkData.value[thinkId] = res.data || []
+  } catch {
+    thinkData.value[thinkId] = []
+  } finally {
+    thinkLoading.value[thinkId] = false
+  }
 }
 
 // ── Attachments ──
@@ -214,6 +241,36 @@ defineExpose({ scrollToBottom })
                       <div v-if="m2.role === MessageRole.Tool && m2.tool_call_id === (tc as ToolCall).id" class="tool-call-result">
                         <div class="tool-call-result-label">{{ t('chat.tool_result') }}</div>
                         <div class="md-content tool-result-content" v-html="renderMd(m2.content || '')" />
+                        <template v-if="m2.think_id && thinksUrlPrefix">
+                          <div class="think-toggle" @click="toggleThink(m2.think_id!)">
+                            <span>{{ thinkExpanded[m2.think_id!] ? '▾' : '▸' }}</span>
+                            <span>Think</span>
+                            <span v-if="thinkLoading[m2.think_id!]" class="think-loading">...</span>
+                          </div>
+                          <div v-if="thinkExpanded[m2.think_id!] && thinkData[m2.think_id!]" class="think-messages">
+                            <template v-for="(tm, ti) in thinkData[m2.think_id!]" :key="ti">
+                              <div v-if="tm.role === MessageRole.Human" class="think-msg think-human">
+                                <span class="think-role">User</span>
+                                <div>{{ tm.content }}</div>
+                              </div>
+                              <div v-else-if="tm.role === MessageRole.AI && tm.content" class="think-msg think-ai">
+                                <span class="think-role">AI</span>
+                                <div class="md-content" v-html="renderMd(tm.content || '')" />
+                              </div>
+                              <div v-else-if="tm.role === MessageRole.AI && tm.tool_calls?.length" class="think-msg think-ai">
+                                <span class="think-role">AI</span>
+                                <div v-for="ttc in tm.tool_calls" :key="(ttc as ToolCall).id" class="think-tool-call">
+                                  <span class="tool-call-name">{{ (ttc as ToolCall).name }}</span>
+                                  <span class="think-tool-args">{{ JSON.stringify((ttc as ToolCall).args) }}</span>
+                                </div>
+                              </div>
+                              <div v-else-if="tm.role === MessageRole.Tool" class="think-msg think-tool">
+                                <span class="think-role">Tool</span>
+                                <div class="md-content tool-result-content" v-html="renderMd(tm.content || '')" />
+                              </div>
+                            </template>
+                          </div>
+                        </template>
                       </div>
                     </template>
                   </div>

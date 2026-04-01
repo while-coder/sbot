@@ -726,6 +726,39 @@ table tr:hover td { background: #fafaf9; }
 .tool-result-content p:last-child { margin-bottom: 0; }
 .tool-result-content table { font-size: 11px; }
 .tool-result-content table th, .tool-result-content table td { padding: 2px 6px; }
+/* ── Think viewer ── */
+.think-toggle {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-top: 6px; padding: 2px 8px;
+  font-size: 11px; font-weight: 600; color: #6b7280;
+  cursor: pointer; user-select: none; border-radius: 4px;
+  background: #f3f4f6;
+}
+.think-toggle:hover { background: #e5e7eb; color: #374151; }
+.think-loading { color: #9ca3af; }
+.think-messages {
+  margin-top: 6px; padding: 8px;
+  background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px;
+  max-height: 400px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.think-msg {
+  padding: 4px 8px; border-radius: 4px; font-size: 12px; line-height: 1.5;
+}
+.think-role {
+  display: inline-block; font-size: 10px; font-weight: 600; text-transform: uppercase;
+  color: #9ca3af; margin-bottom: 2px;
+}
+.think-human { background: #eff6ff; }
+.think-ai { background: #fff; border: 1px solid #f0f0f0; }
+.think-tool { background: #f0fdf4; }
+.think-tool-call {
+  display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap;
+}
+.think-tool-args {
+  font-family: monospace; font-size: 11px; color: #6b7280;
+  max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .chat-input-bar {
   display: flex;
   gap: 8px;

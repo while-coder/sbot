@@ -734,12 +734,13 @@ class HttpServer {
 
     // ===== Data (Savers & Memories) =====
     private formatMessages(items: StoredMessage[]) {
-        return items.map(({ message: m, createdAt }) => {
+        return items.map(({ message: m, createdAt, thinkId }) => {
             const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
             const result: any = { role: m.role, content };
             if (m.tool_calls?.length) result.tool_calls = m.tool_calls;
             if (m.tool_call_id) result.tool_call_id = m.tool_call_id;
             if (m.name) result.name = m.name;
+            if (thinkId) result.think_id = thinkId;
             if (createdAt) result.timestamp = new Date(createdAt * 1000).toISOString();
             return result;
         });
@@ -770,6 +771,15 @@ class HttpServer {
             await saver.dispose();
         }));
 
+        app.get('/api/savers/:saverId/threads/:threadId/thinks/:thinkId', api(async req => {
+            const saver = await AgentRunner.createSaverService(
+                req.params.saverId as string,
+                req.params.threadId as string,
+            );
+            const messages = await saver.getThink(req.params.thinkId as string);
+            await saver.dispose();
+            return this.formatMessages(messages);
+        }));
 
         // ── Memories ──
         app.get('/api/memories/:memoryName', api(async req => {

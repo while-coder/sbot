@@ -35,13 +35,16 @@ export class WebSocketUserService {
     }
 
     async onChatMessage(message: ChatMessage): Promise<void> {
-        this.emit({
+        const evt: any = {
             type: WebChatEventType.Message,
             role: message.isCommand ? 'command' : message.role,
             content: message.content as string | undefined,
             tool_calls: message.tool_calls,
             tool_call_id: message.tool_call_id,
-        });
+        };
+        const thinkId = message.additional_kwargs?.think_id as string | undefined;
+        if (thinkId) evt.think_id = thinkId;
+        this.emit(evt);
     }
 
     async onAgentStreamMessage(message: ChatMessage): Promise<void> {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { useToast } from '@/composables/useToast'
@@ -39,6 +39,11 @@ const { show } = useToast()
 const { send: wsSend } = useChatSocket()
 
 const chatPanelRef = ref<InstanceType<typeof ChatPanel>>()
+
+const thinksUrlPrefix = computed<string | null>(() => {
+  if (!props.historyUrl) return null
+  return props.historyUrl.replace(/\/history$/, '/thinks')
+})
 
 // ── 聊天状态 ──────────────────────────────────────────────
 const messages           = ref<ChatMessage[]>([])
@@ -193,11 +198,13 @@ async function handleWsEvent(evt: WebChatEvent) {
   } else if (evt.type === WebChatEventType.Stream) {
     streamingContent.value = evt.content
   } else if (evt.type === WebChatEventType.Message) {
-    messages.value.push({
+    const msg: ChatMessage = {
       role: evt.role, content: evt.content,
       tool_calls: evt.tool_calls, tool_call_id: evt.tool_call_id,
       timestamp: new Date().toISOString(),
-    })
+    }
+    if (evt.think_id) msg.think_id = evt.think_id
+    messages.value.push(msg)
     streamingContent.value = ''
     streamingToolCalls.value = []
   } else if (evt.type === WebChatEventType.ToolCall) {
@@ -398,6 +405,7 @@ defineExpose({ handleWsEvent, pushMessage, setSending, refreshHistory, clearHist
     :empty-text="emptyText"
     :show-attachments="showAttachments"
     :on-cancel="cancelThreadId && isStreaming ? cancelProcessing : undefined"
+    :thinks-url-prefix="thinksUrlPrefix"
     @send="(q, a) => emit('send', q, a)"
   />
 </template>
