@@ -1,6 +1,6 @@
 import { App } from "@slack/bolt";
 import { ILogger } from "scorpio.ai";
-import { SlackActionArgs, SlackMessageArgs } from "./SlackUserServiceBase";
+import { SlackActionArgs, SlackMessageArgs } from "./SlackSessionHandler";
 
 export interface SlackServiceOptions {
   botToken: string;

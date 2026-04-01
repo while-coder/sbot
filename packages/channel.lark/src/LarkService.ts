@@ -1,6 +1,6 @@
 import * as Lark from "@larksuiteoapi/node-sdk";
 import { NowDate, parseJson } from "scorpio.ai";
-import {LarkActionArgs, LarkMessageArgs} from "./LarkUserServiceBase";
+import {LarkActionArgs, LarkMessageArgs} from "./LarkSessionHandler";
 import { ILogger } from "scorpio.ai";
 import fs from 'fs';
 import os from 'os';

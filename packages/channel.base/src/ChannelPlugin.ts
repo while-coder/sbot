@@ -1,5 +1,5 @@
 import { AskResponse, AskToolParams, AskQuestionType } from "scorpio.ai";
-import { ChannelUserServiceBase } from "./ChannelUserServiceBase";
+import { ChannelSessionHandler } from "./ChannelSessionHandler";
 import { SessionService } from "./SessionService";
 
 export interface IChannelService {
@@ -44,12 +44,12 @@ export interface AgentToolHelpers {
 export type ProcessAIHandler = (
   query: string,
   args: any,
-  userService: ChannelUserServiceBase,
+  userService: ChannelSessionHandler,
 ) => Promise<void>;
 
 export interface ChannelPlugin {
   type: string;
   init(ctx: ChannelPluginContext): Promise<IChannelService | undefined>;
-  createUserService(session: SessionService): ChannelUserServiceBase;
+  createUserService(session: SessionService): ChannelSessionHandler;
   dispose?(): Promise<void>;
 }

@@ -2,9 +2,9 @@ import { SlackChatProvider } from "./SlackChatProvider";
 import { AgentMessage, AgentToolCall, AskToolParams, AskQuestionType, MessageType } from "scorpio.ai";
 import { GlobalLoggerService } from "scorpio.ai";
 import { SlackService } from "./SlackService";
-import { ChannelUserServiceBase, ToolCallStatus, SessionService, AgentToolHelpers } from "channel.base";
+import { ChannelSessionHandler, ToolCallStatus, SessionService, AgentToolHelpers } from "channel.base";
 
-const getLogger = () => GlobalLoggerService.getLogger("SlackUserServiceBase.ts");
+const getLogger = () => GlobalLoggerService.getLogger("SlackSessionHandler.ts");
 
 export interface SlackMessageArgs {
   slackService: SlackService;
@@ -21,7 +21,7 @@ export interface SlackActionArgs {
   value?: any;
 }
 
-export class SlackUserServiceBase extends ChannelUserServiceBase {
+export class SlackSessionHandler extends ChannelSessionHandler {
   provider: SlackChatProvider | undefined;
   slackService!: SlackService;
 

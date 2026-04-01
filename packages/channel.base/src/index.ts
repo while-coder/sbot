@@ -1,4 +1,4 @@
-export { ChannelUserServiceBase, ToolCallStatus } from './ChannelUserServiceBase';
+export { ChannelSessionHandler, ToolCallStatus } from './ChannelSessionHandler';
 export {
   ChannelPlugin, ChannelPluginContext, ReceiveMessageContext,
   IChannelService, AgentToolHelpers, ProcessAIHandler,

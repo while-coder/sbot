@@ -10,16 +10,16 @@ import {
   MessageType,
   GlobalLoggerService,
 } from 'scorpio.ai';
-import { ChannelUserServiceBase, ToolCallStatus, SessionService, AgentToolHelpers } from 'channel.base';
+import { ChannelSessionHandler, ToolCallStatus, SessionService, AgentToolHelpers } from 'channel.base';
 import { WecomChatProvider } from './WecomChatProvider';
 import type { WecomService, WecomMessageArgs, WecomActionArgs } from './WecomService';
 
 export { ToolCallStatus } from 'channel.base';
 export type { WecomMessageArgs, WecomActionArgs } from './WecomService';
 
-const getLogger = () => GlobalLoggerService.getLogger('WecomUserServiceBase.ts');
+const getLogger = () => GlobalLoggerService.getLogger('WecomSessionHandler.ts');
 
-export class WecomUserServiceBase extends ChannelUserServiceBase {
+export class WecomSessionHandler extends ChannelSessionHandler {
   protected provider: WecomChatProvider | undefined;
   wecomService!: WecomService;
   private _chatid = '';

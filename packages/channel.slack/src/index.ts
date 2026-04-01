@@ -1,10 +1,10 @@
 export { SlackService, SlackServiceOptions } from './SlackService';
 export { SlackChatProvider } from './SlackChatProvider';
 export {
-  SlackUserServiceBase,
+  SlackSessionHandler,
   SlackMessageArgs,
   SlackActionArgs,
-} from './SlackUserServiceBase';
+} from './SlackSessionHandler';
 export { ToolCallStatus } from 'channel.base';
 export { slackPlugin } from './plugin';
 export type { ChannelPlugin } from 'channel.base';

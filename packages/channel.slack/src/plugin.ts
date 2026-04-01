@@ -1,9 +1,9 @@
 import {
   ChannelPlugin, ChannelPluginContext, IChannelService,
-  SessionService, ChannelUserServiceBase,
+  SessionService, ChannelSessionHandler,
 } from "channel.base";
 import { SlackService } from "./SlackService";
-import { SlackUserServiceBase, SlackMessageArgs, SlackActionArgs } from "./SlackUserServiceBase";
+import { SlackSessionHandler, SlackMessageArgs, SlackActionArgs } from "./SlackSessionHandler";
 import { slackThreadId } from "sbot.commons";
 
 export const slackPlugin: ChannelPlugin = {
@@ -45,7 +45,7 @@ export const slackPlugin: ChannelPlugin = {
     return service;
   },
 
-  createUserService(session: SessionService): ChannelUserServiceBase {
-    return new SlackUserServiceBase(session);
+  createUserService(session: SessionService): ChannelSessionHandler {
+    return new SlackSessionHandler(session);
   },
 };

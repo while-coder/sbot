@@ -20,7 +20,7 @@ export enum ToolCallStatus {
   Deny = "deny",
 }
 
-export abstract class ChannelUserServiceBase {
+export abstract class ChannelSessionHandler {
   protected readonly session: SessionService;
 
   constructor(session: SessionService) {

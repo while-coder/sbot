@@ -2,7 +2,7 @@ import { LarkChatProvider } from "./LarkChatProvider";
 import { AgentMessage, AgentToolCall, AskToolParams, AskQuestionType, MessageType } from "scorpio.ai";
 import { GlobalLoggerService } from "scorpio.ai";
 import { LarkReceiveIdType, LarkService } from "./LarkService";
-import { ChannelUserServiceBase, ToolCallStatus, SessionService, AgentToolHelpers } from "channel.base";
+import { ChannelSessionHandler, ToolCallStatus, SessionService, AgentToolHelpers } from "channel.base";
 
 const getLogger = () => GlobalLoggerService.getLogger('LarkUserService.ts');
 
@@ -35,7 +35,7 @@ export interface LarkActionArgs {
   form_value: any;
 }
 
-export class LarkUserServiceBase extends ChannelUserServiceBase {
+export class LarkSessionHandler extends ChannelSessionHandler {
   provider: LarkChatProvider | undefined;
   larkService!: LarkService;
 

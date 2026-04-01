@@ -1,9 +1,9 @@
 import {
   ChannelPlugin, ChannelPluginContext, IChannelService,
-  SessionService, ChannelUserServiceBase,
+  SessionService, ChannelSessionHandler,
 } from "channel.base";
 import { LarkService, LarkReceiveIdType, LarkUserIdType } from "./LarkService";
-import { LarkUserServiceBase, LarkMessageArgs, LarkActionArgs } from "./LarkUserServiceBase";
+import { LarkSessionHandler, LarkMessageArgs, LarkActionArgs } from "./LarkSessionHandler";
 import { larkThreadId } from "sbot.commons";
 
 export const larkPlugin: ChannelPlugin = {
@@ -52,7 +52,7 @@ export const larkPlugin: ChannelPlugin = {
     return service;
   },
 
-  createUserService(session: SessionService): ChannelUserServiceBase {
-    return new LarkUserServiceBase(session);
+  createUserService(session: SessionService): ChannelSessionHandler {
+    return new LarkSessionHandler(session);
   },
 };

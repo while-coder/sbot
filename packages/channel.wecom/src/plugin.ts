@@ -1,10 +1,10 @@
 import {
   ChannelPlugin, ChannelPluginContext, IChannelService,
-  SessionService, ChannelUserServiceBase,
+  SessionService, ChannelSessionHandler,
 } from "channel.base";
 import { WecomService } from "./WecomService";
 import type { WecomMessageArgs, WecomActionArgs } from "./WecomService";
-import { WecomUserServiceBase } from "./WecomUserServiceBase";
+import { WecomSessionHandler } from "./WecomSessionHandler";
 import { wecomThreadId } from "sbot.commons";
 
 export const wecomPlugin: ChannelPlugin = {
@@ -47,7 +47,7 @@ export const wecomPlugin: ChannelPlugin = {
     return service;
   },
 
-  createUserService(session: SessionService): ChannelUserServiceBase {
-    return new WecomUserServiceBase(session);
+  createUserService(session: SessionService): ChannelSessionHandler {
+    return new WecomSessionHandler(session);
   },
 };
