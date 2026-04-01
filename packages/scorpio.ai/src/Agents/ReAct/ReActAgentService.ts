@@ -106,9 +106,9 @@ export class ReActAgentService extends SingleAgentService {
         const finalMsg = [...messages].reverse().find(
           m => m.role === MessageRole.AI && typeof m.content === 'string' && m.content
         );
-        return { result: finalMsg ? (finalMsg.content as string) : '', think_id: thinkId };
+        return { result: finalMsg ? (finalMsg.content as string) : '', thinkId: thinkId };
       } catch (error: any) {
-        return { result: `Execution failed: ${error.message}`, think_id: thinkId };
+        return { result: `Execution failed: ${error.message}`, thinkId: thinkId };
       } finally {
         await agentService?.dispose();
       }

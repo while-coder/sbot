@@ -743,7 +743,7 @@ class HttpServer {
     // ===== Data (Savers & Memories) =====
     private formatMessages(items: StoredMessage[]) {
         return items.map(({ message: { content, role, tool_calls, tool_call_id, name }, createdAt, thinkId }) => ({
-            message: { role, content: typeof content === 'string' ? content : JSON.stringify(content), tool_calls, tool_call_id, name },
+            message: { role, content, tool_calls, tool_call_id, name },
             createdAt,
             thinkId,
         }));

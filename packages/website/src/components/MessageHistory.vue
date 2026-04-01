@@ -2,9 +2,9 @@
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { marked } from 'marked'
-import { apiFetch } from '@/api'
 import { MessageRole } from '@/types'
 import type { StoredMessage, ToolCall } from '@/types'
+import ThinkDrawer from './ThinkDrawer.vue'
 
 const { t } = useI18n()
 
@@ -54,32 +54,24 @@ function toggleToolCall(el: HTMLElement) {
   if (detail) detail.classList.toggle('show')
 }
 
-function renderMd(content: string): string {
+function renderMd(content: string | any[] | undefined | null): string {
+  if (!content) return ''
+  if (Array.isArray(content)) {
+    return marked.parse(
+      content
+        .filter((c: any) => typeof c === 'string' || c?.type === 'text')
+        .map((c: any) => (typeof c === 'string' ? c : c.text ?? ''))
+        .join('\n')
+    ) as string
+  }
   return marked.parse(content) as string
 }
 
-// ── Think viewer ──
-const thinkData = ref<Record<string, StoredMessage[]>>({})
-const thinkExpanded = ref<Record<string, boolean>>({})
-const thinkLoading = ref<Record<string, boolean>>({})
+// ── Think drawer ──
+const thinkDrawerRef = ref<InstanceType<typeof ThinkDrawer>>()
 
-async function toggleThink(thinkId: string) {
-  if (thinkExpanded.value[thinkId]) {
-    thinkExpanded.value[thinkId] = false
-    return
-  }
-  thinkExpanded.value[thinkId] = true
-  if (thinkData.value[thinkId]) return
-  if (!props.thinksUrlPrefix) return
-  thinkLoading.value[thinkId] = true
-  try {
-    const res = await apiFetch(`${props.thinksUrlPrefix}/${encodeURIComponent(thinkId)}`)
-    thinkData.value[thinkId] = res.data || []
-  } catch {
-    thinkData.value[thinkId] = []
-  } finally {
-    thinkLoading.value[thinkId] = false
-  }
+function openThink(thinkId: string) {
+  thinkDrawerRef.value?.open(thinkId)
 }
 </script>
 
@@ -103,6 +95,10 @@ async function toggleThink(thinkId: string) {
               <div class="msg-role-bar">
                 <span class="msg-role">{{ t('chat.role_user') }}</span>
                 <span v-if="msg.createdAt" class="msg-time">{{ fmtTs(msg.createdAt) }}</span>
+                <div v-if="msg.thinkId && thinksUrlPrefix" class="think-toggle think-toggle-human" @click="openThink(msg.thinkId!)">
+                  <span>▸</span>
+                  <span>Think</span>
+                </div>
               </div>
               {{ msg.message.content }}
             </div>
@@ -114,6 +110,10 @@ async function toggleThink(thinkId: string) {
               <div class="msg-role-bar">
                 <span class="msg-role">{{ t('chat.role_ai') }}</span>
                 <span v-if="msg.createdAt" class="msg-time">{{ fmtTs(msg.createdAt) }}</span>
+                <div v-if="msg.thinkId && thinksUrlPrefix" class="think-toggle" @click="openThink(msg.thinkId!)">
+                  <span>▸</span>
+                  <span>Think</span>
+                </div>
               </div>
               <div class="md-content" v-html="renderMd(msg.message.content)" />
             </div>
@@ -127,38 +127,14 @@ async function toggleThink(thinkId: string) {
                   <div class="tool-call-args">{{ JSON.stringify((tc as ToolCall).args, null, 2) }}</div>
                   <template v-for="m2 in messages" :key="'r' + (m2.message.tool_call_id || '')">
                     <div v-if="m2.message.role === MessageRole.Tool && m2.message.tool_call_id === (tc as ToolCall).id" class="tool-call-result">
-                      <div class="tool-call-result-label">{{ t('chat.tool_result') }}</div>
-                      <div class="md-content tool-result-content" v-html="renderMd(m2.message.content || '')" />
-                      <template v-if="m2.thinkId && thinksUrlPrefix">
-                        <div class="think-toggle" @click="toggleThink(m2.thinkId!)">
-                          <span>{{ thinkExpanded[m2.thinkId!] ? '▾' : '▸' }}</span>
+                      <div class="tool-call-result-top">
+                        <div class="tool-call-result-label">{{ t('chat.tool_result') }}</div>
+                        <div v-if="m2.thinkId && thinksUrlPrefix" class="think-toggle" @click="openThink(m2.thinkId!)">
+                          <span>▸</span>
                           <span>Think</span>
-                          <span v-if="thinkLoading[m2.thinkId!]" class="think-loading">...</span>
                         </div>
-                        <div v-if="thinkExpanded[m2.thinkId!] && thinkData[m2.thinkId!]" class="think-messages">
-                          <template v-for="(tm, ti) in thinkData[m2.thinkId!]" :key="ti">
-                            <div v-if="tm.message.role === MessageRole.Human" class="think-msg think-human">
-                              <span class="think-role">User</span>
-                              <div>{{ tm.message.content }}</div>
-                            </div>
-                            <div v-else-if="tm.message.role === MessageRole.AI && tm.message.content" class="think-msg think-ai">
-                              <span class="think-role">AI</span>
-                              <div class="md-content" v-html="renderMd(tm.message.content || '')" />
-                            </div>
-                            <div v-else-if="tm.message.role === MessageRole.AI && tm.message.tool_calls?.length" class="think-msg think-ai">
-                              <span class="think-role">AI</span>
-                              <div v-for="ttc in tm.message.tool_calls" :key="(ttc as ToolCall).id" class="think-tool-call">
-                                <span class="tool-call-name">{{ (ttc as ToolCall).name }}</span>
-                                <span class="think-tool-args">{{ JSON.stringify((ttc as ToolCall).args) }}</span>
-                              </div>
-                            </div>
-                            <div v-else-if="tm.message.role === MessageRole.Tool" class="think-msg think-tool">
-                              <span class="think-role">Tool</span>
-                              <div class="md-content tool-result-content" v-html="renderMd(tm.message.content || '')" />
-                            </div>
-                          </template>
-                        </div>
-                      </template>
+                      </div>
+                      <div class="md-content tool-result-content" v-html="renderMd(m2.message.content || '')" />
                     </div>
                   </template>
                 </div>
@@ -189,5 +165,6 @@ async function toggleThink(thinkId: string) {
         </template>
       </template>
     </template>
+    <ThinkDrawer v-if="thinksUrlPrefix" ref="thinkDrawerRef" :thinks-url-prefix="thinksUrlPrefix" />
   </div>
 </template>

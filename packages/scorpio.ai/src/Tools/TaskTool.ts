@@ -11,7 +11,7 @@ export interface TaskToolParams {
   systemPrompt?: string;
 }
 
-export type RunTaskResult = { result: string; think_id?: string };
+export type RunTaskResult = { result: string; thinkId?: string };
 export type RunTaskFn = (params: TaskToolParams) => Promise<RunTaskResult>;
 
 // ── Factory ─────────────────────────────────────────────────────────────────
@@ -35,8 +35,8 @@ export function createTaskTool(agentIds: string[], runFn: RunTaskFn, description
     description: description,
     schema: schema as any,
     func: async (params: any): Promise<MCPToolResult> => {
-      const { result, think_id } = await runFn(params);
-      return { ...createSuccessResult(createTextContent(result)), think_id };
+      const { result, thinkId } = await runFn(params);
+      return { ...createSuccessResult(createTextContent(result)), thinkId };
     },
   });
 }

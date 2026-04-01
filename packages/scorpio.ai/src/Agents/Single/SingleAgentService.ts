@@ -103,7 +103,7 @@ export class SingleAgentService extends AgentServiceBase {
      */
     async convertImages(result: MCPToolResult): Promise<MCPToolResult> {
         try {
-            const converted: MCPToolResult = { content: [], isError: result.isError };
+            const converted: MCPToolResult = { content: [], isError: result.isError, thinkId: result.thinkId };
             for (const item of result.content) {
                 if (item.type !== MCPContentType.Image && item.type !== MCPContentType.ImageUrl) {
                     converted.content.push(item);
@@ -260,8 +260,8 @@ export class SingleAgentService extends AgentServiceBase {
                 // isError=true 时保留 JSON，让 LLM 能感知到错误信号
                 const isError = mcpResult.isError;
                 mcpResult.isError = undefined;
-                const think_id = mcpResult.think_id;
-                mcpResult.think_id = undefined;
+                const thinkId = mcpResult.thinkId;
+                mcpResult.thinkId = undefined;
                 const content =
                     !isError && mcpResult.content.length === 1 && mcpResult.content[0].type === MCPContentType.Text
                         ? mcpResult.content[0].text
@@ -272,7 +272,7 @@ export class SingleAgentService extends AgentServiceBase {
                     tool_call_id: toolCall.id || "",
                     content: content,
                     status: isError ? "error" : "success",
-                    additional_kwargs: think_id ? { think_id } : undefined,
+                    additional_kwargs: thinkId ? { thinkId } : undefined,
                 });
             } catch (error: any) {
                 toolMessages.push({ role: MessageRole.Tool, tool_call_id: toolCall.id || "", content: `Execute Tool ${toolCall.name} Error: ${error.message}`, status: "error" });
@@ -333,9 +333,9 @@ export class SingleAgentService extends AgentServiceBase {
 
                 for (const message of messages) {
                     outputMessages.push(message);
-                    // 压入历史：从 additional_kwargs 中取出 think_id 作为独立参数，不存入消息体
-                    const thinkId = message.additional_kwargs?.think_id as string | undefined;
-                    if (thinkId) delete message.additional_kwargs!.think_id;
+                    // 压入历史：从 additional_kwargs 中取出 thinkId 作为独立参数，不存入消息体
+                    const thinkId = message.additional_kwargs?.thinkId as string | undefined;
+                    if (thinkId) delete message.additional_kwargs!.thinkId;
                     await this.saverService.pushMessage(message, thinkId ? { thinkId } : undefined);
 
                     if (message.role === MessageRole.AI) {
@@ -346,9 +346,9 @@ export class SingleAgentService extends AgentServiceBase {
                     }
 
                     if (callback.onMessage) {
-                        if (thinkId) message.additional_kwargs = { ...message.additional_kwargs, think_id: thinkId };
+                        if (thinkId) message.additional_kwargs = { ...message.additional_kwargs, thinkId };
                         await callback.onMessage(message);
-                        if (thinkId && message.additional_kwargs) delete message.additional_kwargs.think_id;
+                        if (thinkId && message.additional_kwargs) delete message.additional_kwargs.thinkId;
                     }
                 }
             }

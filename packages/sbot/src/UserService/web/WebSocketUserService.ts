@@ -38,17 +38,17 @@ export class WebSocketUserService {
         const evt: any = {
             type: WebChatEventType.Message,
             role: message.isCommand ? 'command' : message.role,
-            content: message.content as string | undefined,
+            content: message.content,
             tool_calls: message.tool_calls,
             tool_call_id: message.tool_call_id,
         };
-        const thinkId = message.additional_kwargs?.think_id as string | undefined;
-        if (thinkId) evt.think_id = thinkId;
+        const thinkId = message.additional_kwargs?.thinkId as string | undefined;
+        if (thinkId) evt.thinkId = thinkId;
         this.emit(evt);
     }
 
     async onAgentStreamMessage(message: ChatMessage): Promise<void> {
-        this.emit({ type: WebChatEventType.Stream, content: message.content as string ?? '' });
+        this.emit({ type: WebChatEventType.Stream, content: message.content ?? '' });
     }
 
     // ── Core AI processing ──

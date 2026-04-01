@@ -49,7 +49,7 @@ const thinksUrlPrefix = computed<string | null>(() => {
 const messages           = ref<StoredMessage[]>([])
 const chatSending        = ref(false)
 const isStreaming        = ref(false)
-const streamingContent   = ref('')
+const streamingContent   = ref<string | any[]>('')
 const streamingToolCalls = ref<{ name: string; args: unknown }[]>([])
 
 // ── Ask 表单状态 ──────────────────────────────────────────
@@ -203,7 +203,7 @@ async function handleWsEvent(evt: WebChatEvent) {
       tool_calls: evt.tool_calls, tool_call_id: evt.tool_call_id,
     }
     const msg: StoredMessage = { message: chatMsg, createdAt: Date.now() / 1000 }
-    if (evt.think_id) msg.thinkId = evt.think_id
+    if (evt.thinkId) msg.thinkId = evt.thinkId
     messages.value.push(msg)
     streamingContent.value = ''
     streamingToolCalls.value = []

@@ -689,7 +689,8 @@ table tr:hover td { background: #fafaf9; }
   padding: 10px 12px;
   margin-top: 6px;
   font-size: 12px;
-  min-width: 200px;
+  width: 100%;
+  box-sizing: border-box;
 }
 .tool-call-item { border: 1px solid #e8e6e3; border-radius: 6px; margin-top: 6px; overflow: hidden; }
 .tool-call-header {
@@ -711,15 +712,19 @@ table tr:hover td { background: #fafaf9; }
   font-family: monospace;
   font-size: 11px;
   white-space: pre-wrap;
+  word-break: break-all;
   color: #3d3d3d;
   background: #fafaf9;
   padding: 6px 8px;
   border-radius: 4px;
-  overflow-x: auto;
+  max-height: 300px;
+  overflow-y: auto;
 }
 .tool-call-result { margin-top: 6px; padding-top: 6px; border-top: 1px solid #e8e6e3; }
-.tool-call-result-label { font-weight: 600; color: #6b6b6b; margin-bottom: 4px; font-size: 11px; text-transform: uppercase; }
-.tool-result-content { font-size: 12px; line-height: 1.5; overflow-x: auto; }
+.tool-call-result-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.tool-call-result-top .think-toggle { margin-top: 0; }
+.tool-call-result-label { font-weight: 600; color: #6b6b6b; font-size: 11px; text-transform: uppercase; }
+.tool-result-content { font-size: 12px; line-height: 1.5; overflow-x: hidden; word-break: break-word; }
 .tool-result-content pre { background: rgba(0,0,0,0.04); border-radius: 4px; padding: 6px 8px; margin: 4px 0; font-size: 11px; }
 .tool-result-content code { font-size: 11px; }
 .tool-result-content p { margin: 0 0 4px; }
@@ -728,20 +733,16 @@ table tr:hover td { background: #fafaf9; }
 .tool-result-content table th, .tool-result-content table td { padding: 2px 6px; }
 /* ── Think viewer ── */
 .think-toggle {
-  display: inline-flex; align-items: center; gap: 4px;
-  margin-top: 6px; padding: 2px 8px;
-  font-size: 11px; font-weight: 600; color: #6b7280;
-  cursor: pointer; user-select: none; border-radius: 4px;
-  background: #f3f4f6;
+  display: inline-flex; align-items: center; gap: 5px;
+  margin-top: 8px; padding: 4px 12px;
+  font-size: 12px; font-weight: 600; color: #7c3aed;
+  cursor: pointer; user-select: none; border-radius: 6px;
+  background: #f5f3ff; border: 1px solid #ddd6fe;
+  transition: all 0.15s ease;
 }
-.think-toggle:hover { background: #e5e7eb; color: #374151; }
-.think-loading { color: #9ca3af; }
-.think-messages {
-  margin-top: 6px; padding: 8px;
-  background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px;
-  max-height: 400px; overflow-y: auto;
-  display: flex; flex-direction: column; gap: 6px;
-}
+.think-toggle:hover { background: #ede9fe; color: #6d28d9; border-color: #c4b5fd; }
+.think-toggle-human { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.3); color: #e9d5ff; }
+.think-toggle-human:hover { background: rgba(255,255,255,0.25); border-color: rgba(255,255,255,0.4); color: #fff; }
 .think-msg {
   padding: 4px 8px; border-radius: 4px; font-size: 12px; line-height: 1.5;
 }
