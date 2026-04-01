@@ -45,11 +45,15 @@ export enum MessageRole {
 export interface ChatMessage {
   role: MessageRole | string
   content?: string
-  timestamp?: string
   tool_calls?: ToolCall[]
   tool_call_id?: string
   name?: string
-  think_id?: string
+}
+
+export interface StoredMessage {
+  message: ChatMessage
+  createdAt?: number
+  thinkId?: string
 }
 
 export interface MemoryItem {
@@ -59,10 +63,4 @@ export interface MemoryItem {
   timestamp?: number
   accessCount?: number
   lastAccessed?: number
-}
-
-export interface LocalConfig {
-  agentId: string
-  saverId: string
-  memoryId: string | null
 }

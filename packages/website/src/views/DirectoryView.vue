@@ -5,7 +5,6 @@ import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 import { useChatSocket } from '@/composables/useChatSocket'
-import type { ChatMessage } from '@/types'
 import DirectoryModal from './modals/DirectoryModal.vue'
 import SaverViewModal from './modals/SaverViewModal.vue'
 import MemoryViewModal from './modals/MemoryViewModal.vue'
@@ -161,7 +160,7 @@ async function sendOne(query: string, atts: Attachment[]) {
 
   // 乐观推送人类消息（包含附件名称展示）
   const displayContent = [query, ...atts.map(a => `[附件: ${a.name}]`)].filter(Boolean).join('\n')
-  chatAreaRef.value?.pushMessage({ role: MessageRole.Human, content: displayContent, timestamp: new Date().toISOString() } as ChatMessage)
+  chatAreaRef.value?.pushMessage({ message: { role: MessageRole.Human, content: displayContent }, createdAt: Date.now() / 1000 })
   await nextTick()
   chatAreaRef.value?.scrollToBottom(true)
 

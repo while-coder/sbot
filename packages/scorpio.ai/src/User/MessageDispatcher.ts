@@ -1,5 +1,5 @@
 import { Command as CommanderCommand } from "commander";
-import { CommandContext, CommandRegistry, ICommand, SaverContext } from "../Command";
+import { CommandContext, CommandRegistry, ICommand } from "../Command";
 import { GlobalLoggerService, ILogger } from "../Logger";
 
 export enum MessageType { Command = 'command', AI = 'ai' }
@@ -9,13 +9,13 @@ interface MessageQueueItem {
   args: any;
 }
 
-export abstract class UserServiceBase {
+export abstract class MessageDispatcher {
     protected messageQueue: MessageQueueItem[] = [];
     protected isProcessingQueue = false;
     protected logger?: ILogger;
 
     constructor() {
-        this.logger = GlobalLoggerService.getLogger('UserServiceBase.ts');
+        this.logger = GlobalLoggerService.getLogger('MessageDispatcher.ts');
     }
 
     async onReceiveMessage(query: string, args: any) {

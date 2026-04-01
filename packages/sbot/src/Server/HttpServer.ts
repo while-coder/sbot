@@ -734,16 +734,11 @@ class HttpServer {
 
     // ===== Data (Savers & Memories) =====
     private formatMessages(items: StoredMessage[]) {
-        return items.map(({ message: m, createdAt, thinkId }) => {
-            const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
-            const result: any = { role: m.role, content };
-            if (m.tool_calls?.length) result.tool_calls = m.tool_calls;
-            if (m.tool_call_id) result.tool_call_id = m.tool_call_id;
-            if (m.name) result.name = m.name;
-            if (thinkId) result.think_id = thinkId;
-            if (createdAt) result.timestamp = new Date(createdAt * 1000).toISOString();
-            return result;
-        });
+        return items.map(({ message: { content, role, tool_calls, tool_call_id, name }, createdAt, thinkId }) => ({
+            message: { role, content: typeof content === 'string' ? content : JSON.stringify(content), tool_calls, tool_call_id, name },
+            createdAt,
+            thinkId,
+        }));
     }
 
     private registerDataRoutes(app: express.Application) {

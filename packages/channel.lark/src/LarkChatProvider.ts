@@ -25,12 +25,12 @@ export class LarkChatProvider extends AbstractChatProvider {
     return this;
   }
 
-  async addTextMessage(content: string) {
+  addTextMessage(content: string) {
     this.messages.push({ role: MessageRole.AI, content });
-    await this.onMessagesUpdated();
+    this.onMessagesUpdated();
   }
 
-  async deleteElement(...element_id: string[]) {
+  deleteElement(...element_id: string[]) {
     for (let id of element_id) {
       for (let i = 0; i < this.elements.length; i++) {
         if (this.elements[i].element_id === id) {
@@ -39,9 +39,9 @@ export class LarkChatProvider extends AbstractChatProvider {
         }
       }
     }
-    await this.updateCardMessage()
+    this.updateCardMessage()
   }
-  async insertElement(index: number | undefined, ...elements: any[]) {
+  insertElement(index: number | undefined, ...elements: any[]) {
     for (let element of elements) {
       let find = false
       for (let i = 0; i < this.elements.length; i++) {
@@ -59,12 +59,12 @@ export class LarkChatProvider extends AbstractChatProvider {
         }
       }
     }
-    await this.updateCardMessage()
+    this.updateCardMessage()
   }
 
   protected async onMessagesUpdated(): Promise<void> {
     const messages = this.getDisplayMessages();
-    await this.insertElement(0, {
+    this.insertElement(0, {
       tag: "markdown",
       element_id: "markdown",
       content: parseMessages2Text(messages),
@@ -73,10 +73,10 @@ export class LarkChatProvider extends AbstractChatProvider {
     })
   }
 
-  private async updateCardMessage() {
+  private updateCardMessage() {
     try {
       if (this.messageId) {
-        await this.larkService.updateCardMessage(this.messageId, this.elements, this.header);
+        this.larkService.updateCardMessage(this.messageId, this.elements, this.header);
       }
     } catch (e: any) {
       getLogger()?.error(`updateCardMessage exception: ${e.message || e}`, e.stack);

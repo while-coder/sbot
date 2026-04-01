@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { useToast } from '@/composables/useToast'
 import MessageHistory from '@/components/MessageHistory.vue'
-import type { ChatMessage } from '@/types'
+import type { StoredMessage } from '@/types'
 
 const { t } = useI18n()
 const { show } = useToast()
@@ -13,7 +13,7 @@ const visible    = ref(false)
 const saverId    = ref('')
 const saverName  = ref('')
 const threadId   = ref('')
-const messages   = ref<ChatMessage[]>([])
+const messages   = ref<StoredMessage[]>([])
 const loading    = ref(false)
 
 function historyUrl() {

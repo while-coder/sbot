@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { ChatToolCall, AskQuestionType, AskResponse, AskToolParams, ICancellationToken, ToolApproval, UserServiceBase } from "scorpio.ai";
+import { ChatToolCall, AskQuestionType, AskResponse, AskToolParams, ICancellationToken, ToolApproval, MessageDispatcher } from "scorpio.ai";
 
 export class CancellationTokenSource implements ICancellationToken {
     private _isCancelled = false;
@@ -65,7 +65,7 @@ export interface SessionSettings {
     approveTools?: Record<string, string[]>;
 }
 
-export abstract class SessionService extends UserServiceBase {
+export abstract class SessionService extends MessageDispatcher {
     readonly threadId: string;
     startedAt: Date;
     status: SessionStatus;

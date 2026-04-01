@@ -7,7 +7,7 @@ import { useChatSocket } from '@/composables/useChatSocket'
 import ChatPanel from './ChatPanel.vue'
 import { WebChatEventType, WsCommandType, MessageRole } from 'sbot.commons'
 import type { WebChatEvent } from 'sbot.commons'
-import type { ChatMessage } from '@/types'
+import type { StoredMessage, ChatMessage } from '@/types'
 
 interface Attachment {
   name: string
@@ -46,7 +46,7 @@ const thinksUrlPrefix = computed<string | null>(() => {
 })
 
 // ── 聊天状态 ──────────────────────────────────────────────
-const messages           = ref<ChatMessage[]>([])
+const messages           = ref<StoredMessage[]>([])
 const chatSending        = ref(false)
 const isStreaming        = ref(false)
 const streamingContent   = ref('')
@@ -191,19 +191,19 @@ async function handleWsEvent(evt: WebChatEvent) {
     // 消息开始处理，从排队列表移除
     if (queuedMessages.value.length > 0) queuedMessages.value.shift()
     if (props.handleHumanMessage) {
-      messages.value.push({ role: MessageRole.Human, content: evt.content, timestamp: new Date().toISOString() })
+      messages.value.push({ message: { role: MessageRole.Human, content: evt.content }, createdAt: Date.now() / 1000 })
       await nextTick()
       chatPanelRef.value?.scrollToBottom(true)
     }
   } else if (evt.type === WebChatEventType.Stream) {
     streamingContent.value = evt.content
   } else if (evt.type === WebChatEventType.Message) {
-    const msg: ChatMessage = {
+    const chatMsg: ChatMessage = {
       role: evt.role, content: evt.content,
       tool_calls: evt.tool_calls, tool_call_id: evt.tool_call_id,
-      timestamp: new Date().toISOString(),
     }
-    if (evt.think_id) msg.think_id = evt.think_id
+    const msg: StoredMessage = { message: chatMsg, createdAt: Date.now() / 1000 }
+    if (evt.think_id) msg.thinkId = evt.think_id
     messages.value.push(msg)
     streamingContent.value = ''
     streamingToolCalls.value = []
@@ -242,7 +242,7 @@ async function handleWsEvent(evt: WebChatEvent) {
 }
 
 // ── 公开接口 ──────────────────────────────────────────────
-function pushMessage(msg: ChatMessage) {
+function pushMessage(msg: StoredMessage) {
   messages.value.push(msg)
 }
 
