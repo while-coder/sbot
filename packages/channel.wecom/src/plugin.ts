@@ -1,14 +1,17 @@
 import {
   ChannelPlugin, ChannelPluginContext, IChannelService,
-  SessionService, ChannelSessionHandler,
+  SessionService, ChannelSessionHandler, getPluginThreadId,
 } from "channel.base";
 import { WecomService } from "./WecomService";
 import type { WecomMessageArgs, WecomActionArgs } from "./WecomService";
 import { WecomSessionHandler } from "./WecomSessionHandler";
-import { wecomThreadId } from "sbot.commons";
-
 export const wecomPlugin: ChannelPlugin = {
   type: "wecom",
+
+  configSchema: {
+    botId:  { label: 'Bot ID',  type: 'string', required: true, description: 'WeCom bot ID' },
+    secret: { label: 'Secret',  type: 'string', required: true, description: 'WeCom bot secret' },
+  },
 
   async init(ctx: ChannelPluginContext): Promise<IChannelService | undefined> {
     const { channelId, config, logger, filterEvent, handleReceiveMessage, onReceiveMessage, onTriggerAction } = ctx;
@@ -24,7 +27,7 @@ export const wecomPlugin: ChannelPlugin = {
       logger,
       filterEvent,
       onReceiveMessage: async (userId: string, args: WecomMessageArgs, query: string) => {
-        const threadId = wecomThreadId(channelId, args.chatid);
+        const threadId = getPluginThreadId(wecomPlugin, channelId, args.chatid);
         await handleReceiveMessage({
           channelId,
           userId,
@@ -38,7 +41,7 @@ export const wecomPlugin: ChannelPlugin = {
         });
       },
       onTriggerAction: async (_userId: string, args: WecomActionArgs) => {
-        const threadId = wecomThreadId(channelId, args.chatid);
+        const threadId = getPluginThreadId(wecomPlugin, channelId, args.chatid);
         await onTriggerAction(threadId, args);
       },
     });

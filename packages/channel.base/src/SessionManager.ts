@@ -1,4 +1,4 @@
-import { AgentToolCall, AskResponse, AskToolParams, ToolApproval } from "scorpio.ai";
+import { ChatToolCall, AskResponse, AskToolParams, ToolApproval } from "scorpio.ai";
 import { SessionService, SessionInfo } from './SessionService';
 
 export abstract class SessionManager {
@@ -49,7 +49,7 @@ export abstract class SessionManager {
 
     // ── Delegation to session (by threadId) ──
 
-    enterApproval(threadId: string, toolCall: AgentToolCall, timeoutMs: number): { id: string; promise: Promise<ToolApproval> } {
+    enterApproval(threadId: string, toolCall: ChatToolCall, timeoutMs: number): { id: string; promise: Promise<ToolApproval> } {
         const session = this.sessions.get(threadId);
         if (!session) return { id: '', promise: Promise.reject(new Error('Session not found')) };
         return session.enterApproval(toolCall, timeoutMs);

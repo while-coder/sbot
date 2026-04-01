@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { AgentToolCall, AskQuestionType, AskResponse, AskToolParams, ICancellationToken, ToolApproval, UserServiceBase } from "scorpio.ai";
+import { ChatToolCall, AskQuestionType, AskResponse, AskToolParams, ICancellationToken, ToolApproval, UserServiceBase } from "scorpio.ai";
 
 export class CancellationTokenSource implements ICancellationToken {
     private _isCancelled = false;
@@ -23,7 +23,7 @@ export interface AskInfo {
 
 export interface ApprovalInfo {
     id: string;
-    tool: AgentToolCall;
+    tool: ChatToolCall;
     startedAt: Date;
 }
 
@@ -46,7 +46,7 @@ interface PendingApprovalEntry {
     startedAt: Date;
     timer: ReturnType<typeof setTimeout>;
     resolve: (approval: ToolApproval) => void;
-    tool: AgentToolCall;
+    tool: ChatToolCall;
 }
 
 interface PendingAskEntry {
@@ -119,7 +119,7 @@ export abstract class SessionService extends UserServiceBase {
 
     // ── Approval ──
 
-    enterApproval(toolCall: AgentToolCall, timeoutMs: number): { id: string; promise: Promise<ToolApproval> } {
+    enterApproval(toolCall: ChatToolCall, timeoutMs: number): { id: string; promise: Promise<ToolApproval> } {
         this.cancelPending();
         const id = `tc-${Date.now()}`;
         let resolve!: (approval: ToolApproval) => void;

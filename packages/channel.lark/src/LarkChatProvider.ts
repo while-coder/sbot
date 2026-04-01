@@ -1,8 +1,6 @@
 import { LarkService, LarkReceiveIdType } from "./LarkService";
-import { GlobalLoggerService } from "scorpio.ai";
-import { AbstractChatProvider, parseMessages2Text, ProviderMessageType } from "channel.base";
-
-export { ProviderMessageType, ProviderTextMessage, ProviderToolMessage, ProviderMessage } from "channel.base";
+import { GlobalLoggerService, MessageRole } from "scorpio.ai";
+import { AbstractChatProvider, parseMessages2Text } from "channel.base";
 
 const getLogger = () => GlobalLoggerService.getLogger("LarkChatProvider.ts");
 
@@ -28,7 +26,7 @@ export class LarkChatProvider extends AbstractChatProvider {
   }
 
   async addTextMessage(content: string) {
-    this.messages.push({ type: ProviderMessageType.TEXT, content });
+    this.messages.push({ role: MessageRole.AI, content });
     await this.onMessagesUpdated();
   }
 

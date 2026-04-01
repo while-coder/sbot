@@ -1,4 +1,3 @@
-import type { BaseMessage } from "langchain";
 import { ServiceContainer } from "scorpio.di";
 import { IMemoryService } from "../Memory";
 import { IAgentSaverService, AgentMemorySaver, ChatMessage, ChatToolCall, MessageRole } from "../Saver";
@@ -11,7 +10,7 @@ export const MAX_HISTORY_TOKENS = 150_000;
 // 公共类型定义
 // ─────────────────────────────────────────────────────────────────────────────
 
-export { ChatMessage, MessageRole };
+export { ChatMessage, ChatToolCall, MessageRole };
 
 export enum GraphNodeType {
     AGENT = "agent",
@@ -29,11 +28,6 @@ export enum ToolApproval {
     AlwaysTool = "alwaysTool",
 }
 
-/** 向后兼容别名：AgentToolCall 与 ChatToolCall 结构相同 */
-export type AgentToolCall = ChatToolCall;
-
-/** 向后兼容别名：AgentMessage 已统一为 ChatMessage */
-export type AgentMessage = ChatMessage;
 
 /**
  * Agent 回调接口 - 统一管理消息、流式、工具确认和图片转换回调

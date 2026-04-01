@@ -1,43 +1,21 @@
-import { AgentMessage, MessageRole } from "scorpio.ai";
-import { ProviderMessage, ProviderMessageType, ProviderTextMessage, ProviderToolMessage } from "./ProviderMessage";
+import { ChatMessage, MessageRole } from "scorpio.ai";
 
 export abstract class AbstractChatProvider {
-  protected messages: ProviderMessage[] = [];
-  protected streamMessage: ProviderTextMessage | undefined;
-  protected tools: Record<string, ProviderToolMessage> = {};
+  protected messages: ChatMessage[] = [];
+  protected streamMessage: ChatMessage | undefined;
 
-  async addAIMessage(message: AgentMessage): Promise<void> {
-    if (message.isCommand) {
-      this.messages.push({ type: ProviderMessageType.TEXT, content: message.content as string ?? '' });
-    } else if (message.role === MessageRole.AI) {
-      if (message.content) {
-        this.messages.push({ type: ProviderMessageType.TEXT, content: message.content as string });
-      }
-      if (message.tool_calls?.length) {
-        for (const t of message.tool_calls) {
-          const toolMsg: ProviderToolMessage = { type: ProviderMessageType.TOOL, name: t.name, args: t.args };
-          if (t.id) this.tools[t.id] = toolMsg;
-          this.messages.push(toolMsg);
-        }
-      }
-    } else if (message.role === MessageRole.Tool) {
-      const toolMsg = this.tools[message.tool_call_id ?? ''];
-      if (toolMsg) {
-        toolMsg.result = true;
-        toolMsg.status = message.status;
-        toolMsg.response = message.content as string ?? '';
-      }
-    }
+  async addAIMessage(message: ChatMessage): Promise<void> {
+    this.messages.push(message);
     await this.onMessagesUpdated();
   }
 
   async setMessage(content: string): Promise<void> {
-    this.messages = [{ type: ProviderMessageType.TEXT, content }];
+    this.messages = [{ role: MessageRole.AI, content }];
     await this.onMessagesUpdated();
   }
 
-  async setStreamMessage(content: string): Promise<void> {
-    this.streamMessage = { type: ProviderMessageType.TEXT, content };
+  async setStreamMessage(message: ChatMessage): Promise<void> {
+    this.streamMessage = message;
     await this.onMessagesUpdated();
   }
 
@@ -45,7 +23,7 @@ export abstract class AbstractChatProvider {
     this.streamMessage = undefined;
   }
 
-  protected getDisplayMessages(): ProviderMessage[] {
+  protected getDisplayMessages(): ChatMessage[] {
     if (this.streamMessage) {
       return [...this.messages, this.streamMessage];
     }

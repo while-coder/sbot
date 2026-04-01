@@ -2,7 +2,6 @@ import { GlobalLoggerService } from 'scorpio.ai';
 import { AbstractChatProvider, parseMessages2Text } from 'channel.base';
 import type { WecomService } from './WecomService';
 
-export { ProviderMessageType, ProviderTextMessage, ProviderToolMessage, ProviderMessage } from 'channel.base';
 
 const getLogger = () => GlobalLoggerService.getLogger('WecomChatProvider.ts');
 

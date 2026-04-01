@@ -8,7 +8,6 @@ import type { ChannelConfig } from '@/types'
 import SaverViewModal from './modals/SaverViewModal.vue'
 import PathPickerModal from './modals/PathPickerModal.vue'
 import MultiSelect from '@/components/MultiSelect.vue'
-import { larkThreadId, slackThreadId, wecomThreadId } from 'sbot.commons'
 
 const { t } = useI18n()
 
@@ -89,9 +88,7 @@ async function saveSession() {
 }
 
 function threadId(channelId: string, c: any, sessionId: string): string {
-  if (c.type === 'slack') return slackThreadId(channelId, sessionId)
-  if (c.type === 'wecom') return wecomThreadId(channelId, sessionId)
-  return larkThreadId(channelId, sessionId)
+  return `${c.type}_${channelId}_${sessionId}`
 }
 
 const showModal = ref(false)

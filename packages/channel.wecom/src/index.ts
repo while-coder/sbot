@@ -1,8 +1,6 @@
 export { WecomService } from './WecomService';
 export type { WecomServiceOptions } from './WecomService';
 export { WecomChatProvider } from './WecomChatProvider';
-export { ProviderMessageType } from './WecomChatProvider';
-export type { ProviderTextMessage, ProviderToolMessage, ProviderMessage } from './WecomChatProvider';
 export { WecomSessionHandler, ToolCallStatus } from './WecomSessionHandler';
 export type { WecomMessageArgs, WecomActionArgs } from './WecomSessionHandler';
 export { wecomPlugin } from './plugin';

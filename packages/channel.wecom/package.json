@@ -10,7 +10,6 @@
   "dependencies": {
     "@wecom/aibot-node-sdk": "^1.0.4",
     "channel.base": "workspace:*",
-    "sbot.commons": "workspace:*",
     "scorpio.ai": "workspace:*"
   },
   "private": true,

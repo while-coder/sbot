@@ -1,4 +1,4 @@
-import { AgentToolCall, ToolApproval, ASK_TOOL_NAME, TASK_TOOL_NAME, READ_SKILL_FILE_TOOL_NAME, EXECUTE_SKILL_SCRIPT_TOOL_NAME, LIST_SKILL_FILES_TOOL_NAME } from "scorpio.ai";
+import { ChatToolCall, ToolApproval, ASK_TOOL_NAME, TASK_TOOL_NAME, READ_SKILL_FILE_TOOL_NAME, EXECUTE_SKILL_SCRIPT_TOOL_NAME, LIST_SKILL_FILES_TOOL_NAME } from "scorpio.ai";
 import { SessionService } from "channel.base";
 import { SEND_FILE_TOOL_NAME } from "../Agent/AgentRunner";
 import { config } from "../Core/Config";
@@ -18,14 +18,14 @@ const INTERNAL_TOOLS = new Set([
 export function buildExecuteTool(
     session: SessionService,
     agentId: string,
-    executeApproval: (toolCall: AgentToolCall) => Promise<ToolApproval>
-): (toolCall: AgentToolCall) => Promise<ToolApproval> {
+    executeApproval: (toolCall: ChatToolCall) => Promise<ToolApproval>
+): (toolCall: ChatToolCall) => Promise<ToolApproval> {
     const { settings } = session;
     if (!settings.approveTools) settings.approveTools = {};
     const approveTools = settings.approveTools;
     const agentAutoApprove = config.getAgent(agentId)?.autoApproveTools;
 
-    return async (toolCall: AgentToolCall) => {
+    return async (toolCall: ChatToolCall) => {
         if (INTERNAL_TOOLS.has(toolCall.name)) return ToolApproval.Allow;
         if (config.settings.autoApproveTools?.includes(toolCall.name)) return ToolApproval.Allow;
         if (agentAutoApprove?.includes(toolCall.name)) return ToolApproval.Allow;

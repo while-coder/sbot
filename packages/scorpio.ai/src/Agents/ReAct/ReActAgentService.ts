@@ -1,4 +1,3 @@
-import { SystemMessage } from "langchain";
 import { type StructuredToolInterface } from "@langchain/core/tools";
 import { inject, ServiceContainer, T_SystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc, T_MemorySystemPromptTemplate } from "../../Core";
 import { IMemoryService, ReadOnlyMemoryService } from "../../Memory";
@@ -66,7 +65,7 @@ export class ReActAgentService extends SingleAgentService {
 
   // ── Overrides ────────────────────────────────────────────────
 
-  protected override async buildSystemMessage(query: string, callback?: IAgentCallback, cancellationToken?: ICancellationToken): Promise<SystemMessage | null> {
+  protected override async buildSystemMessage(query: string, callback?: IAgentCallback, cancellationToken?: ICancellationToken): Promise<ChatMessage | null> {
     const agentsDesc = this.agentSubNodes.map(a =>
       `  <agent id="${a.id}">${a.desc}</agent>`
     ).join('\n');
@@ -76,7 +75,7 @@ export class ReActAgentService extends SingleAgentService {
     const parentMsg = await super.buildSystemMessage(query, callback, cancellationToken);
     if (parentMsg) parts.push(parentMsg.content as string);
 
-    return new SystemMessage(parts.join('\n\n'));
+    return { role: MessageRole.System, content: parts.join('\n\n') };
   }
 
   protected override async buildTools(callback?: IAgentCallback, cancellationToken?: ICancellationToken): Promise<StructuredToolInterface[]> {

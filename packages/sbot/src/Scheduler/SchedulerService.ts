@@ -2,9 +2,10 @@ import { CronJob } from "cron";
 import { database, SchedulerRow, ChannelSessionRow, SchedulerType } from "../Core/Database";
 import { sessionManager } from "../UserService/SessionManager";
 import { LoggerService } from "../Core/LoggerService";
-import { config, ChannelType } from "../Core/Config";
+import { config } from "../Core/Config";
 import { channelManager } from "../Channel/ChannelManager";
-import { dirThreadId, sessionThreadId, larkThreadId, slackThreadId, wecomThreadId } from "sbot.commons";
+import { dirThreadId, sessionThreadId } from "sbot.commons";
+import { getPluginThreadId } from "channel.base";
 
 const logger = LoggerService.getLogger("SchedulerService.ts");
 
@@ -31,14 +32,8 @@ async function executeScheduler(schedulerId: number): Promise<void> {
 
             const { channelId, sessionId, id: dbSessionId } = sessionRow;
             const channelType = config.getChannel(channelId)?.type;
-            const threadId = (() => {
-                switch (channelType) {
-                    case ChannelType.Lark: return larkThreadId(channelId, sessionId);
-                    case ChannelType.Slack: return slackThreadId(channelId, sessionId);
-                    case ChannelType.Wecom: return wecomThreadId(channelId, sessionId);
-                    default: return '';
-                }
-            })();
+            const plugin = channelType ? channelManager.getPlugin(channelType) : undefined;
+            const threadId = plugin ? getPluginThreadId(plugin, channelId, sessionId) : '';
 
             if (!threadId) {
                 logger.warn(`Scheduler task ${tag} unknown channel type: ${channelType}`);

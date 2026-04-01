@@ -1,4 +1,4 @@
-import { AIMessage, HumanMessage, ToolMessage, BaseMessage } from "langchain";
+import { AIMessage, HumanMessage, ToolMessage, SystemMessage, BaseMessage } from "@langchain/core/messages";
 import { ChatMessage, MessageRole } from "./IAgentSaverService";
 
 /**
@@ -40,6 +40,14 @@ export function toChatMessage(message: BaseMessage): ChatMessage {
         };
     }
 
+    if (name === 'SystemMessage') {
+        return {
+            role: MessageRole.System,
+            content: m.content,
+            additional_kwargs: m.additional_kwargs,
+        };
+    }
+
     throw new Error(`Unsupported message type for conversion: ${name}`);
 }
 
@@ -63,6 +71,11 @@ export function toBaseMessage(message: ChatMessage): BaseMessage {
                 tool_call_id: message.tool_call_id ?? '',
                 name: message.name,
                 status: message.status as any,
+            });
+        case MessageRole.System:
+            return new SystemMessage({
+                content: message.content as any,
+                additional_kwargs: message.additional_kwargs,
             });
         case MessageRole.Human:
         default:

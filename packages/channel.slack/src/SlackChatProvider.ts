@@ -1,6 +1,6 @@
 import { SlackService } from "./SlackService";
-import { GlobalLoggerService } from "scorpio.ai";
-import { AbstractChatProvider, parseMessages2Text, ProviderMessageType } from "channel.base";
+import { GlobalLoggerService, ChatMessage } from "scorpio.ai";
+import { AbstractChatProvider, parseMessages2Text } from "channel.base";
 
 const getLogger = () => GlobalLoggerService.getLogger("SlackChatProvider.ts");
 
@@ -33,8 +33,8 @@ export class SlackChatProvider extends AbstractChatProvider {
     return this;
   }
 
-  async setStreamMessage(content: string): Promise<void> {
-    this.streamMessage = { type: ProviderMessageType.TEXT, content };
+  async setStreamMessage(message: ChatMessage): Promise<void> {
+    this.streamMessage = message;
     await this.throttledUpdate();
   }
 

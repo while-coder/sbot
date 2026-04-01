@@ -1,4 +1,4 @@
-import { HumanMessage, AIMessageChunk, BaseMessage, SystemMessage } from "langchain";
+import { AIMessageChunk } from "@langchain/core/messages";
 import { StateGraph, START, END } from '../../Graph';
 import { type StructuredToolInterface } from "@langchain/core/tools";
 import { inject, T_SystemPrompts, T_MemorySystemPromptTemplate, truncate } from "../../Core";
@@ -6,7 +6,7 @@ import { IModelService } from "../../Model";
 import { ISkillService } from "../../Skills";
 import { IMemoryService } from "../../Memory";
 import { IAgentSaverService } from "../../Saver";
-import { toChatMessage, toBaseMessages } from "../../Saver/messageConverter";
+import { toChatMessage, toBaseMessage, toBaseMessages } from "../../Saver/messageConverter";
 import { IAgentToolService } from "../../AgentTool";
 import { ILoggerService } from "../../Logger";
 import { normalizeToMCPResult, MCPContentType, MCPToolResult } from '../../Tools';
@@ -19,8 +19,7 @@ import { pathToFileURL } from 'url';
 export {
     GraphNodeType,
     ToolApproval,
-    AgentToolCall,
-    AgentMessage,
+    ChatToolCall,
     ChatMessage,
     MessageRole,
     IAgentCallback,
@@ -31,7 +30,7 @@ export {
 type SingleAgentState = {
     messages: ChatMessage[];
     callback: IAgentCallback | null;
-    systemMessage: SystemMessage | null;
+    systemMessage: ChatMessage | null;
     tools: StructuredToolInterface[];
     cancellationToken: ICancellationToken | null;
 };
@@ -44,7 +43,7 @@ export class SingleAgentService extends AgentServiceBase {
     protected modelService: IModelService;
     protected skillService?: ISkillService;
     protected toolService?: IAgentToolService;
-    protected systemMessages: SystemMessage[];
+    protected systemMessages: ChatMessage[];
     protected memorySystemPromptTemplate?: string;
 
     constructor(
@@ -61,18 +60,18 @@ export class SingleAgentService extends AgentServiceBase {
         this.modelService = modelService;
         this.skillService = skillService;
         this.toolService = toolService;
-        this.systemMessages = (systemPrompts ?? []).map(p => new SystemMessage(p));
+        this.systemMessages = (systemPrompts ?? []).map(p => ({ role: MessageRole.System, content: p }));
         this.memorySystemPromptTemplate = memorySystemPromptTemplate;
     }
 
     override addSystemPrompts(prompts: string[]): void {
-        this.systemMessages.unshift(...prompts.map(p => new SystemMessage(p)));
+        this.systemMessages.unshift(...prompts.map(p => ({ role: MessageRole.System, content: p })));
     }
 
     /**
      * 构建本轮 system message（基础 + 记忆 + skill 合并为单条）
      */
-    protected async buildSystemMessage(query: string, _callback?: IAgentCallback, _cancellationToken?: ICancellationToken): Promise<SystemMessage | null> {
+    protected async buildSystemMessage(query: string, _callback?: IAgentCallback, _cancellationToken?: ICancellationToken): Promise<ChatMessage | null> {
         const parts: string[] = this.systemMessages.map(m => m.content as string);
         if (this.memorySystemPromptTemplate) {
             const memoryLimit = 10;
@@ -89,7 +88,7 @@ export class SingleAgentService extends AgentServiceBase {
             const skillMessage = await this.skillService.getSystemMessage();
             if (skillMessage) parts.push(skillMessage);
         }
-        return new SystemMessage(parts.join("\n\n"));
+        return { role: MessageRole.System, content: parts.join("\n\n") };
     }
 
     /**
@@ -165,7 +164,7 @@ export class SingleAgentService extends AgentServiceBase {
             throw new Error('historyMessages is empty, cannot call model');
         }
         const messages = [
-            ...(state.systemMessage ? [state.systemMessage] : []),
+            ...(state.systemMessage ? [toBaseMessage(state.systemMessage)] : []),
             ...toBaseMessages(savedHistory),
         ];
 
@@ -308,10 +307,8 @@ export class SingleAgentService extends AgentServiceBase {
      * 流式处理用户查询
      */
     override async stream(query: string, callback: IAgentCallback, cancellationToken?: ICancellationToken): Promise<ChatMessage[]> {
-        const humanMessage = new HumanMessage(query);
-
         // 将本次用户消息压入历史
-        await this.saverService.pushMessage(toChatMessage(humanMessage));
+        await this.saverService.pushMessage({ role: MessageRole.Human, content: query });
 
         const [systemMessage, tools] = await Promise.all([
             this.buildSystemMessage(query, callback, cancellationToken),

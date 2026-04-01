@@ -1,6 +1,6 @@
 import {
-  AgentMessage,
-  AgentToolCall,
+  ChatMessage,
+  ChatToolCall,
   AskResponse,
   AskToolParams,
   MessageRole,
@@ -30,7 +30,7 @@ export abstract class ChannelSessionHandler {
   abstract onProcessStart(query: string, args: any, messageType: MessageType): Promise<void>;
   abstract onProcessEnd(query: string, args: any, messageType: MessageType, error?: any): Promise<void>;
   async onCommandResult(content: string, _args: any): Promise<void> {
-    return this.onAgentMessage({ role: MessageRole.AI, content, isCommand: true });
+    return this.onChatMessage({ role: MessageRole.AI, content, isCommand: true });
   }
   private _processAIHandler?: ProcessAIHandler;
 
@@ -52,10 +52,10 @@ export abstract class ChannelSessionHandler {
   buildAgentTools(_args: any, _helpers: AgentToolHelpers): any[] {
     return [];
   }
-  async onAgentStreamMessage(_message: AgentMessage): Promise<void> {}
-  abstract onAgentMessage(message: AgentMessage): Promise<void>;
+  async onAgentStreamMessage(_message: ChatMessage): Promise<void> {}
+  abstract onChatMessage(message: ChatMessage): Promise<void>;
 
-  protected abstract enterApproval(approvalId: string, remainSec: number, toolCall: AgentToolCall): Promise<void>;
+  protected abstract enterApproval(approvalId: string, remainSec: number, toolCall: ChatToolCall): Promise<void>;
   protected abstract exitApproval(approvalId: string): Promise<void>;
   protected abstract enterAsk(askId: string, remainSec: number, params: AskToolParams): Promise<void>;
   protected abstract exitAsk(askId: string): Promise<void>;
@@ -63,7 +63,7 @@ export abstract class ChannelSessionHandler {
   protected getApprovalTimeout(): number {
     return 300 * 1000;
   }
-  async executeApproval(toolCall: AgentToolCall): Promise<ToolApproval> {
+  async executeApproval(toolCall: ChatToolCall): Promise<ToolApproval> {
     const { id, promise } = this.session.enterApproval(toolCall, this.getApprovalTimeout());
     const end = NowDate() + this.getApprovalTimeout();
     try {

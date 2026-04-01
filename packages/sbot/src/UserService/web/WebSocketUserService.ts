@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { AgentMessage, AskToolParams, MessageRole, MessageType } from "scorpio.ai";
+import { ChatMessage, AskToolParams, MessageRole, MessageType } from "scorpio.ai";
 import { AgentRunner, AgentSchedulerContext, createAskAgentTool } from "../../Agent/AgentRunner";
 import { config } from '../../Core/Config';
 import { SchedulerType } from '../../Core/Database';
@@ -31,10 +31,10 @@ export class WebSocketUserService {
     }
 
     async onCommandResult(content: string, _args: any): Promise<void> {
-        return this.onAgentMessage({ role: MessageRole.AI, content, isCommand: true });
+        return this.onChatMessage({ role: MessageRole.AI, content, isCommand: true });
     }
 
-    async onAgentMessage(message: AgentMessage): Promise<void> {
+    async onChatMessage(message: ChatMessage): Promise<void> {
         this.emit({
             type: WebChatEventType.Message,
             role: message.isCommand ? 'command' : message.role,
@@ -44,7 +44,7 @@ export class WebSocketUserService {
         });
     }
 
-    async onAgentStreamMessage(message: AgentMessage): Promise<void> {
+    async onAgentStreamMessage(message: ChatMessage): Promise<void> {
         this.emit({ type: WebChatEventType.Stream, content: message.content as string ?? '' });
     }
 
@@ -76,7 +76,7 @@ export class WebSocketUserService {
         await AgentRunner.run({
             query,
             callbacks: {
-                onMessage: (msg) => this.onAgentMessage(msg),
+                onMessage: (msg) => this.onChatMessage(msg),
                 onStreamMessage: (msg) => this.onAgentStreamMessage(msg),
                 executeTool: buildExecuteTool(this.session, agentId, (tc) => {
                     const { id, promise } = this.session.enterApproval(tc, 300_000);

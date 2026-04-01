@@ -11,17 +11,10 @@ export class OpenAIResponseModelService extends OpenAIModelService {
     super(config);
   }
 
-  async initialize(): Promise<void> {
-    this.model = new ChatOpenAI({
-      configuration: {
-        baseURL: this.config.baseURL,
-        apiKey: this.config.apiKey,
-      },
-      apiKey: this.config.apiKey,
-      model: this.config.model,
-      temperature: this.config.temperature,
-      maxTokens: this.config.maxTokens,
+  protected override buildChatOpenAIOptions(): ConstructorParameters<typeof ChatOpenAI>[0] {
+    return {
+      ...super.buildChatOpenAIOptions(),
       useResponsesApi: true,
-    });
+    };
   }
 }

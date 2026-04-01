@@ -1,5 +1,5 @@
 import { SlackChatProvider } from "./SlackChatProvider";
-import { AgentMessage, AgentToolCall, AskToolParams, AskQuestionType, MessageType } from "scorpio.ai";
+import { ChatMessage, ChatToolCall, AskToolParams, AskQuestionType, MessageType } from "scorpio.ai";
 import { GlobalLoggerService } from "scorpio.ai";
 import { SlackService } from "./SlackService";
 import { ChannelSessionHandler, ToolCallStatus, SessionService, AgentToolHelpers } from "channel.base";
@@ -44,16 +44,16 @@ export class SlackSessionHandler extends ChannelSessionHandler {
     }
   }
 
-  async onAgentStreamMessage(message: AgentMessage): Promise<void> {
-    await this.provider?.setStreamMessage(message.content as string || "");
+  async onAgentStreamMessage(message: ChatMessage): Promise<void> {
+    await this.provider?.setStreamMessage(message);
   }
 
-  async onAgentMessage(message: AgentMessage): Promise<void> {
+  async onChatMessage(message: ChatMessage): Promise<void> {
     this.provider?.resetStreamMessage();
     await this.provider?.addAIMessage(message);
   }
 
-  private buildApprovalBlocks(toolCall: AgentToolCall, id: string, remainSec: number): any[] {
+  private buildApprovalBlocks(toolCall: ChatToolCall, id: string, remainSec: number): any[] {
     const makeButton = (text: string, actionId: string, style?: string) => ({
       type: "button",
       text: { type: "plain_text", text },
@@ -73,7 +73,7 @@ export class SlackSessionHandler extends ChannelSessionHandler {
     }];
   }
 
-  protected async enterApproval(approvalId: string, remainSec: number, toolCall: AgentToolCall): Promise<void> {
+  protected async enterApproval(approvalId: string, remainSec: number, toolCall: ChatToolCall): Promise<void> {
     await this.provider?.setApprovalBlocks(this.buildApprovalBlocks(toolCall, approvalId, remainSec));
   }
 

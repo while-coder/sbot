@@ -32,7 +32,7 @@ export function createProcessAIHandler(): ProcessAIHandler {
         await AgentRunner.run({
             query,
             callbacks: {
-                onMessage: userService.onAgentMessage.bind(userService),
+                onMessage: userService.onChatMessage.bind(userService),
                 onStreamMessage: userService.onAgentStreamMessage.bind(userService),
                 executeTool: buildExecuteTool(
                     (userService as any).session,

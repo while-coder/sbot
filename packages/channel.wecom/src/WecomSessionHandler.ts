@@ -1,8 +1,8 @@
 import { TemplateCardType } from '@wecom/aibot-node-sdk';
 import type { WsFrame } from '@wecom/aibot-node-sdk';
 import {
-  AgentMessage,
-  AgentToolCall,
+  ChatMessage,
+  ChatToolCall,
   AskToolParams,
   AskQuestionType,
   type RadioQuestion,
@@ -57,7 +57,7 @@ export class WecomSessionHandler extends ChannelSessionHandler {
 
 
 
-  async onAgentMessage(message: AgentMessage): Promise<void> {
+  async onChatMessage(message: ChatMessage): Promise<void> {
     if (this.provider) {
       await this.provider.addAIMessage(message);
     }
@@ -65,7 +65,7 @@ export class WecomSessionHandler extends ChannelSessionHandler {
 
   // --- Tool Approval UI ---
 
-  protected async enterApproval(approvalId: string, remainSec: number, toolCall: AgentToolCall): Promise<void> {
+  protected async enterApproval(approvalId: string, remainSec: number, toolCall: ChatToolCall): Promise<void> {
     try {
       await this.wecomService.sendMessage(this._chatid, {
         msgtype: 'template_card',

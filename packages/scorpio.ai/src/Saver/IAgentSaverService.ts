@@ -1,9 +1,10 @@
 // ─── Neutral message types (no LangChain dependency) ────────────────────────
 
 export enum MessageRole {
-    Human = 'human',
-    AI    = 'ai',
-    Tool  = 'tool',
+    Human  = 'human',
+    AI     = 'ai',
+    Tool   = 'tool',
+    System = 'system',
 }
 
 export interface ChatToolCall {

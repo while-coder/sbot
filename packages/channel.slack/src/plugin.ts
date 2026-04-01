@@ -1,13 +1,16 @@
 import {
   ChannelPlugin, ChannelPluginContext, IChannelService,
-  SessionService, ChannelSessionHandler,
+  SessionService, ChannelSessionHandler, getPluginThreadId,
 } from "channel.base";
 import { SlackService } from "./SlackService";
 import { SlackSessionHandler, SlackMessageArgs, SlackActionArgs } from "./SlackSessionHandler";
-import { slackThreadId } from "sbot.commons";
-
 export const slackPlugin: ChannelPlugin = {
   type: "slack",
+
+  configSchema: {
+    botToken: { label: 'Bot Token', type: 'string', required: true, description: 'Slack bot token (xoxb-...)' },
+    appToken: { label: 'App Token', type: 'string', required: true, description: 'Slack app-level token (xapp-...)' },
+  },
 
   async init(ctx: ChannelPluginContext): Promise<IChannelService | undefined> {
     const { channelId, config, logger, handleReceiveMessage, onReceiveMessage, onTriggerAction } = ctx;
@@ -22,7 +25,7 @@ export const slackPlugin: ChannelPlugin = {
       appToken: config.appToken,
       logger,
       onReceiveMessage: async (userId: string, userInfo: any, args: SlackMessageArgs, query: string) => {
-        const threadId = slackThreadId(channelId, args.channel);
+        const threadId = getPluginThreadId(slackPlugin, channelId, args.channel);
         await handleReceiveMessage({
           channelId,
           userId,
@@ -36,7 +39,7 @@ export const slackPlugin: ChannelPlugin = {
         });
       },
       onTriggerAction: async (userId: string, args: SlackActionArgs) => {
-        const threadId = slackThreadId(channelId, args.channel);
+        const threadId = getPluginThreadId(slackPlugin, channelId, args.channel);
         await onTriggerAction(threadId, args);
       },
     });

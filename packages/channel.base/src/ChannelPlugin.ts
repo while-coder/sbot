@@ -47,9 +47,34 @@ export type ProcessAIHandler = (
   userService: ChannelSessionHandler,
 ) => Promise<void>;
 
+export enum ConfigFieldType {
+  String = 'string',
+  Boolean = 'boolean',
+  Number = 'number',
+  Select = 'select',
+}
+
+export interface ConfigField {
+  label: string;
+  type: `${ConfigFieldType}`;
+  required?: boolean;
+  description?: string;
+  default?: string | boolean | number;
+  /** only for type: 'select' */
+  options?: Array<{ label: string; value: string }>;
+}
+
 export interface ChannelPlugin {
   type: string;
+  configSchema?: Record<string, ConfigField>;
+  getThreadId?: (channelId: string, sessionId: string) => string;
   init(ctx: ChannelPluginContext): Promise<IChannelService | undefined>;
   createUserService(session: SessionService): ChannelSessionHandler;
   dispose?(): Promise<void>;
+}
+
+export function getPluginThreadId(plugin: ChannelPlugin, channelId: string, sessionId: string): string {
+  return plugin.getThreadId
+    ? plugin.getThreadId(channelId, sessionId)
+    : `${plugin.type}_${channelId}_${sessionId}`;
 }

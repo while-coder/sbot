@@ -1,13 +1,16 @@
 import {
   ChannelPlugin, ChannelPluginContext, IChannelService,
-  SessionService, ChannelSessionHandler,
+  SessionService, ChannelSessionHandler, getPluginThreadId,
 } from "channel.base";
 import { LarkService, LarkReceiveIdType, LarkUserIdType } from "./LarkService";
 import { LarkSessionHandler, LarkMessageArgs, LarkActionArgs } from "./LarkSessionHandler";
-import { larkThreadId } from "sbot.commons";
-
 export const larkPlugin: ChannelPlugin = {
   type: "lark",
+
+  configSchema: {
+    appId:     { label: 'App ID',     type: 'string', required: true, description: 'Lark app ID' },
+    appSecret: { label: 'App Secret', type: 'string', required: true, description: 'Lark app secret' },
+  },
 
   async init(ctx: ChannelPluginContext): Promise<IChannelService | undefined> {
     const { channelId, config, logger, filterEvent, handleReceiveMessage, onReceiveMessage, onTriggerAction } = ctx;
@@ -24,7 +27,7 @@ export const larkPlugin: ChannelPlugin = {
       userIdType: LarkUserIdType.UnionId,
       filterEvent,
       onRecevieMessage: async (userId: string, userInfo: any, chatInfo: any, args: LarkMessageArgs, query: string) => {
-        const threadId = larkThreadId(channelId, args.chat_id);
+        const threadId = getPluginThreadId(larkPlugin, channelId, args.chat_id);
         const sessionName = chatInfo
           ? (chatInfo.chat_mode === 'p2p' ? `p2p_${userId}` : `${chatInfo.chat_mode}_${chatInfo.name}`)
           : '';
@@ -43,7 +46,7 @@ export const larkPlugin: ChannelPlugin = {
         });
       },
       onTriggerAction: async (_userId: string, _userInfo: any, _chatInfo: any, args: LarkActionArgs) => {
-        const threadId = larkThreadId(channelId, args.chat_id);
+        const threadId = getPluginThreadId(larkPlugin, channelId, args.chat_id);
         await onTriggerAction(threadId, args);
       },
     });

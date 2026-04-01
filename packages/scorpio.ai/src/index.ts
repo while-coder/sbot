@@ -145,6 +145,7 @@ export {
   // 接口 + Symbol Token
   IAgentSaverService,
   type StoredMessage,
+  type ChatToolCall,
 
   // 实现类
   AgentMemorySaver,
@@ -223,8 +224,6 @@ export {
   // 类型定义
   GraphNodeType,
   ToolApproval,
-  AgentToolCall,
-  AgentMessage,
   ChatMessage,
   MessageRole,
   IAgentCallback,

@@ -1,5 +1,5 @@
 import { LarkChatProvider } from "./LarkChatProvider";
-import { AgentMessage, AgentToolCall, AskToolParams, AskQuestionType, MessageType } from "scorpio.ai";
+import { ChatMessage, ChatToolCall, AskToolParams, AskQuestionType, MessageType } from "scorpio.ai";
 import { GlobalLoggerService } from "scorpio.ai";
 import { LarkReceiveIdType, LarkService } from "./LarkService";
 import { ChannelSessionHandler, ToolCallStatus, SessionService, AgentToolHelpers } from "channel.base";
@@ -80,11 +80,11 @@ export class LarkSessionHandler extends ChannelSessionHandler {
     await this.provider?.deleteElement(EL_ABORT_BTN);
   }
 
-  async onAgentStreamMessage(message: AgentMessage): Promise<void> {
-    await this.provider?.setStreamMessage(message.content as string || "");
+  async onAgentStreamMessage(message: ChatMessage): Promise<void> {
+    await this.provider?.setStreamMessage(message);
   }
 
-  async onAgentMessage(message: AgentMessage): Promise<void> {
+  async onChatMessage(message: ChatMessage): Promise<void> {
     this.provider!.resetStreamMessage();
     await this.provider?.addAIMessage(message);
   }
@@ -102,7 +102,7 @@ export class LarkSessionHandler extends ChannelSessionHandler {
     };
   }
 
-  protected async enterApproval(approvalId: string, remainSec: number, toolCall: AgentToolCall): Promise<void> {
+  protected async enterApproval(approvalId: string, remainSec: number, toolCall: ChatToolCall): Promise<void> {
     await this.provider?.insertElement(undefined,
       this.buildButton(`Allow ${toolCall.name}`, "primary_filled", ToolCallStatus.Allow, EL_TOOL_CALL_ALLOW, approvalId),
       this.buildButton(`Always allow ${toolCall.name} (same args)`, "primary", ToolCallStatus.AlwaysArgs, EL_TOOL_CALL_ALWAYS_ARGS, approvalId),

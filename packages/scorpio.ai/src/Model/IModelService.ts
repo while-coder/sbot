@@ -1,16 +1,14 @@
-import { AIMessage, AIMessageChunk } from "langchain";
-import { BaseMessageLike } from "@langchain/core/messages";
-import { IterableReadableStream } from "@langchain/core/utils/stream";
+import { type ChatMessage } from "../Saver/IAgentSaverService";
 
 /**
  * 模型服务接口
- * 定义模型服务的标准接口
+ * 定义模型服务的标准接口，不依赖任何 LLM 框架类型
  */
 export interface IModelService {
   /**
-   * 简单文本调用 — 发送 prompt 字符串，返回 AI 消息
+   * 简单文本调用 — 发送 prompt 字符串或消息列表，返回 AI 消息
    */
-  invoke(prompt: string | BaseMessageLike[]): Promise<AIMessage>;
+  invoke(prompt: string | ChatMessage[]): Promise<ChatMessage>;
 
   /**
    * 绑定工具到模型，返回绑定后的 Runnable
@@ -23,9 +21,9 @@ export interface IModelService {
   withStructuredOutput<T extends Record<string, any> = Record<string, any>>(schema: any): any;
 
   /**
-   * 流式调用（如果已绑定工具，则使用绑定后的模型）
+   * 流式调用，返回逐步累积的消息块序列
    */
-  stream(messages: string | BaseMessageLike[]): Promise<IterableReadableStream<AIMessageChunk>>;
+  stream(messages: string | ChatMessage[]): Promise<AsyncIterable<ChatMessage>>;
 
   /**
    * 返回底层模型实例，供 LangChain createAgent 等原生 API 使用
