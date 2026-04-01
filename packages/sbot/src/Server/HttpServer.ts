@@ -875,6 +875,9 @@ class HttpServer {
 
     // ===== Users & Channel Sessions =====
     private registerUserRoutes(app: express.Application) {
+        app.get('/api/channel-plugins', api(async () => {
+            return channelManager.getPluginList();
+        }));
         app.get('/api/channel-users', api(async req => {
             const channelId = req.query.channelId as string | undefined;
             const where = channelId ? { channelId } : undefined;

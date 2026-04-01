@@ -11,6 +11,11 @@ import MultiSelect from '@/components/MultiSelect.vue'
 
 const { t } = useI18n()
 
+interface PluginInfo {
+  type: string
+  configSchema?: Record<string, { label: string; type: string; required?: boolean; description?: string; default?: string | boolean | number; options?: Array<{ label: string; value: string }> }>
+}
+
 interface ChannelSessionRow {
   id: number
   channelId: string
@@ -33,6 +38,21 @@ interface UserRow {
 }
 
 const { show } = useToast()
+
+const plugins = ref<PluginInfo[]>([])
+
+async function loadPlugins() {
+  try {
+    const res = await apiFetch('/api/channel-plugins')
+    plugins.value = res.data || []
+  } catch { /* ignore */ }
+}
+loadPlugins()
+
+const currentSchema = computed(() => {
+  const p = plugins.value.find(p => p.type === form.value.type)
+  return p?.configSchema ?? {}
+})
 
 const channels = computed(() => store.settings.channels || {})
 const agentOptions  = computed(() => Object.entries(store.settings.agents   || {}).map(([id, a]) => ({ id, label: (a as any).name  || id })))
@@ -93,8 +113,8 @@ function threadId(channelId: string, c: any, sessionId: string): string {
 
 const showModal = ref(false)
 const editingId = ref<string | null>(null)
-const form = ref<{ name: string; type: string; appId: string; appSecret: string; botToken: string; appToken: string; botId: string; secret: string; agent: string; saver: string; memories: string[] }>({
-  name: '', type: 'lark', appId: '', appSecret: '', botToken: '', appToken: '', botId: '', secret: '', agent: '', saver: '', memories: [],
+const form = ref<{ name: string; type: string; pluginConfig: Record<string, any>; agent: string; saver: string; memories: string[] }>({
+  name: '', type: '', pluginConfig: {}, agent: '', saver: '', memories: [],
 })
 
 async function loadChannelData(id: string) {
@@ -164,15 +184,14 @@ function formatUserInfo(raw: string) {
 
 function openAdd() {
   editingId.value = null
-  form.value = { name: '', type: 'lark', appId: '', appSecret: '', botToken: '', appToken: '', botId: '', secret: '', agent: '', saver: '', memories: [] }
+  form.value = { name: '', type: plugins.value[0]?.type || '', pluginConfig: {}, agent: '', saver: '', memories: [] }
   showModal.value = true
 }
 
 function openEdit(id: string) {
   const c = channels.value[id]
   editingId.value = id
-  const cfg = (c.config ?? {}) as Record<string, any>
-  form.value = { name: c.name || '', type: c.type || 'lark', appId: cfg.appId || '', appSecret: cfg.appSecret || '', botToken: cfg.botToken || '', appToken: cfg.appToken || '', botId: cfg.botId || '', secret: cfg.secret || '', agent: c.agent, saver: c.saver, memories: c.memories || [] }
+  form.value = { name: c.name || '', type: c.type || '', pluginConfig: { ...(c.config ?? {}) }, agent: c.agent, saver: c.saver, memories: c.memories || [] }
   showModal.value = true
 }
 
@@ -182,8 +201,8 @@ async function save() {
   try {
     const validIds = new Set(memoryOptions.value.map(m => m.id))
     const pluginConfig: Record<string, unknown> = {}
-    for (const [key, val] of Object.entries({ appId: form.value.appId, appSecret: form.value.appSecret, botToken: form.value.botToken, appToken: form.value.appToken, botId: form.value.botId, secret: form.value.secret })) {
-      if (typeof val === 'string' && val.trim()) pluginConfig[key] = val.trim()
+    for (const [key, val] of Object.entries(form.value.pluginConfig)) {
+      if (val !== '' && val !== undefined && val !== null) pluginConfig[key] = typeof val === 'string' ? val.trim() : val
     }
     const config: ChannelConfig = {
       type: form.value.type,
@@ -232,6 +251,7 @@ async function refresh() {
   try {
     const res = await apiFetch('/api/settings')
     Object.assign(store.settings, res.data)
+    await loadPlugins()
     const expandedIds = Object.keys(expandedChannels.value).filter(id => expandedChannels.value[id])
     if (expandedIds.length > 0) await refreshSessions(expandedIds)
   } catch (e: any) {
@@ -389,27 +409,24 @@ async function refresh() {
           </div>
           <div class="form-group">
             <label>{{ t('channels.channel_type') }} *</label>
-            <select v-model="form.type">
-              <option value="lark">Lark</option>
-              <option value="wecom">WeCom</option>
+            <select v-model="form.type" @change="form.pluginConfig = {}">
+              <option v-for="p in plugins" :key="p.type" :value="p.type">{{ p.type }}</option>
             </select>
           </div>
-          <div v-if="form.type === 'lark'" class="form-group">
-            <label>{{ t('channels.app_id') }}</label>
-            <input v-model="form.appId" placeholder="Lark App ID" />
-          </div>
-          <div v-if="form.type === 'lark'" class="form-group">
-            <label>{{ t('channels.app_secret') }}</label>
-            <input v-model="form.appSecret" placeholder="Lark App Secret" type="password" />
-          </div>
-          <div v-if="form.type === 'wecom'" class="form-group">
-            <label>{{ t('channels.bot_id') }}</label>
-            <input v-model="form.botId" placeholder="WeCom Bot ID" />
-          </div>
-          <div v-if="form.type === 'wecom'" class="form-group">
-            <label>{{ t('channels.bot_secret') }}</label>
-            <input v-model="form.secret" placeholder="WeCom Bot Secret" type="password" />
-          </div>
+          <template v-for="(field, key) in currentSchema" :key="key">
+            <div class="form-group">
+              <label>{{ field.label }}{{ field.required ? ' *' : '' }}</label>
+              <select v-if="field.type === 'select'" v-model="form.pluginConfig[key]">
+                <option v-for="opt in field.options" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+              </select>
+              <label v-else-if="field.type === 'boolean'" class="toggle-label">
+                <input type="checkbox" v-model="form.pluginConfig[key]" />
+                <span>{{ field.description || '' }}</span>
+              </label>
+              <input v-else-if="field.type === 'number'" type="number" v-model.number="form.pluginConfig[key]" :placeholder="field.description || ''" />
+              <input v-else v-model="form.pluginConfig[key]" :placeholder="field.description || ''" :type="key.toLowerCase().includes('secret') || key.toLowerCase().includes('token') ? 'password' : 'text'" />
+            </div>
+          </template>
           <div class="form-group">
             <label>{{ t('common.agent') }} *</label>
             <select v-model="form.agent">

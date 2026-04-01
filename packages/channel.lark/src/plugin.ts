@@ -43,12 +43,15 @@ export const larkPlugin: ChannelPlugin = {
         await onReceiveMessage(session, query, { ...args, userInfo: userInfo ?? {} });
       },
       onTriggerAction: async (userId: string, userInfo: any, chatInfo: any, args: LarkActionArgs) => {
+        const sessionName = chatInfo
+          ? (chatInfo.chat_mode === 'p2p' ? `p2p_${userId}` : `${chatInfo.chat_mode}_${chatInfo.name}`)
+          : '';
         const session = await initSession({
           userId,
           userName: userInfo?.name ?? '',
           userInfo: JSON.stringify(userInfo ?? {}),
           sessionId: args.chat_id,
-          sessionName: '',
+          sessionName,
           userAvatar: userInfo?.avatar?.avatar_origin,
           sessionAvatar: chatInfo?.avatar || '',
         });

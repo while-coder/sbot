@@ -149,6 +149,10 @@ export class ChannelManager {
         return this.plugins.get(type);
     }
 
+    getPluginList(): Array<{ type: string; configSchema?: Record<string, any> }> {
+        return [...this.plugins.values()].map(p => ({ type: p.type, configSchema: p.configSchema }));
+    }
+
     async dispose(): Promise<void> {
         for (const [channelId, service] of this.services) {
             try {
