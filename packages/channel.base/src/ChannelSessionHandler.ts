@@ -57,13 +57,14 @@ export abstract class ChannelSessionHandler {
   protected abstract exitAsk(askId: string): Promise<void>;
 
   protected getApprovalTimeout(): number {
-    return 300 * 1000;
+    return 0;
   }
   async executeApproval(toolCall: ChatToolCall): Promise<ToolApproval> {
-    const { id, promise } = this.session.enterApproval(toolCall, this.getApprovalTimeout());
-    const end = NowDate() + this.getApprovalTimeout();
+    const timeout = this.getApprovalTimeout();
+    const { id, promise } = this.session.enterApproval(toolCall, timeout);
+    const remainSec = timeout > 0 ? Math.floor((NowDate() + timeout - NowDate()) / 1000) : 0;
     try {
-      await this.enterApproval(id, Math.floor((end - NowDate()) / 1000), toolCall);
+      await this.enterApproval(id, remainSec, toolCall);
       return await promise;
     } finally {
       try { await this.exitApproval(id); } catch {}
@@ -79,13 +80,14 @@ export abstract class ChannelSessionHandler {
   }
 
   protected getAskTimeout(): number {
-    return 600 * 1000;
+    return 0;
   }
   async executeAsk(params: AskToolParams): Promise<AskResponse> {
-    const { id, promise } = this.session.enterAsk(params, this.getAskTimeout());
-    const end = NowDate() + this.getAskTimeout();
+    const timeout = this.getAskTimeout();
+    const { id, promise } = this.session.enterAsk(params, timeout);
+    const remainSec = timeout > 0 ? Math.floor((NowDate() + timeout - NowDate()) / 1000) : 0;
     try {
-      await this.enterAsk(id, Math.floor((end - NowDate()) / 1000), params);
+      await this.enterAsk(id, remainSec, params);
       return await promise;
     } finally {
       try { await this.exitAsk(id); } catch {}

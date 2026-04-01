@@ -44,7 +44,7 @@ interface PendingApprovalEntry {
     type: PendingType.Approval;
     id: string;
     startedAt: Date;
-    timer: ReturnType<typeof setTimeout>;
+    timer?: ReturnType<typeof setTimeout>;
     resolve: (approval: ToolApproval) => void;
     tool: ChatToolCall;
 }
@@ -53,7 +53,7 @@ interface PendingAskEntry {
     type: PendingType.Ask;
     id: string;
     startedAt: Date;
-    timer: ReturnType<typeof setTimeout>;
+    timer?: ReturnType<typeof setTimeout>;
     resolve: (result: AskResponse | string) => void;
     title?: string;
     questions: AskToolParams['questions'];
@@ -124,13 +124,13 @@ export abstract class SessionService extends MessageDispatcher {
         const id = `tc-${Date.now()}`;
         let resolve!: (approval: ToolApproval) => void;
         const promise = new Promise<ToolApproval>((res) => { resolve = res; });
-        const timer = setTimeout(() => {
+        const timer = timeoutMs > 0 ? setTimeout(() => {
             if (this.pending?.id === id) {
                 this.pending = null;
                 this._syncStatus();
             }
             resolve(ToolApproval.Deny);
-        }, timeoutMs);
+        }, timeoutMs) : undefined;
         this.pending = { type: PendingType.Approval, id, tool: toolCall, startedAt: new Date(), resolve, timer };
         this._syncStatus();
         return { id, promise };
@@ -165,13 +165,13 @@ export abstract class SessionService extends MessageDispatcher {
         const promise = new Promise<AskResponse>((res, rej) => {
             resolve = (result) => typeof result === 'string' ? rej(new Error(result)) : res(result);
         });
-        const timer = setTimeout(() => {
+        const timer = timeoutMs > 0 ? setTimeout(() => {
             if (this.pending?.id === id) {
                 this.pending = null;
                 this._syncStatus();
             }
             resolve('User did not answer within the allotted time');
-        }, timeoutMs);
+        }, timeoutMs) : undefined;
         this.pending = { type: PendingType.Ask, id, title: params.title, questions: params.questions, startedAt: new Date(), resolve, timer };
         this._syncStatus();
         return { id, promise };
