@@ -34,6 +34,58 @@ function throwBad(msg: string): never {
     const e: any = new Error(msg); e.status = 400; throw e;
 }
 
+/** 注册标准 Settings CRUD 路由 (POST/PUT/DELETE) */
+function registerSettingsCrud(
+    app: express.Application,
+    section: string,
+    opts?: {
+        label?: string;
+        checkOnUpdate?: boolean;
+        checkOnDelete?: boolean;
+        afterSave?: () => Promise<void> | void;
+        createReturn?: (id: string, body: any) => any;
+    },
+) {
+    const label = opts?.label ?? section.charAt(0).toUpperCase() + section.slice(1, -1);
+    const checkOnUpdate = opts?.checkOnUpdate ?? true;
+    const checkOnDelete = opts?.checkOnDelete ?? false;
+    const getSection = (): Record<string, any> => {
+        const s = config.settings as any;
+        if (!s[section]) s[section] = {};
+        return s[section];
+    };
+
+    app.post(`/api/settings/${section}`, api(async req => {
+        const map = getSection();
+        let id = randomUUID();
+        while (map[id]) id = randomUUID();
+        map[id] = req.body;
+        config.saveSettings();
+        await opts?.afterSave?.();
+        return opts?.createReturn ? opts.createReturn(id, req.body) : config.settings;
+    }));
+
+    app.put(`/api/settings/${section}/:id`, api(async req => {
+        const id = req.params.id as string;
+        const map = getSection();
+        if (checkOnUpdate && !map[id]) throwBad(`${label} "${id}" not found`);
+        map[id] = req.body;
+        config.saveSettings();
+        await opts?.afterSave?.();
+        return opts?.createReturn ? opts.createReturn(id, req.body) : config.settings;
+    }));
+
+    app.delete(`/api/settings/${section}/:id`, api(async req => {
+        const id = req.params.id as string;
+        const map = getSection();
+        if (checkOnDelete && !map[id]) throwBad(`${label} "${id}" not found`);
+        delete map[id];
+        config.saveSettings();
+        await opts?.afterSave?.();
+        return config.settings;
+    }));
+}
+
 // ===== Prompts =====
 const PROMPTS_DIR = path.resolve(__dirname, '../../prompts');
 
@@ -292,166 +344,22 @@ class HttpServer {
             }
         }));
 
-        // Models
-        app.post('/api/settings/models', api(req => {
-            if (!config.settings.models) config.settings.models = {};
-            let id = randomUUID();
-            while (config.settings.models[id]) id = randomUUID();
-            config.settings.models[id] = req.body;
-            config.saveSettings();
-            return config.settings;
-        }));
-        app.put('/api/settings/models/:id', api(req => {
-            const id = req.params.id as string;
-            if (!config.settings.models?.[id]) throwBad(`Model "${id}" not found`);
-            config.settings.models![id] = req.body;
-            config.saveSettings();
-            return config.settings;
-        }));
-        app.delete('/api/settings/models/:name', api(req => {
-            const name = req.params.name as string;
-            if (config.settings.models) delete config.settings.models[name];
-            config.saveSettings();
-            return config.settings;
-        }));
-
-        // Embeddings
-        app.post('/api/settings/embeddings', api(req => {
-            if (!config.settings.embeddings) config.settings.embeddings = {};
-            let id = randomUUID();
-            while (config.settings.embeddings[id]) id = randomUUID();
-            config.settings.embeddings[id] = req.body;
-            config.saveSettings();
-            return config.settings;
-        }));
-        app.put('/api/settings/embeddings/:id', api(req => {
-            const id = req.params.id as string;
-            if (!config.settings.embeddings?.[id]) throwBad(`Embedding "${id}" not found`);
-            config.settings.embeddings![id] = req.body;
-            config.saveSettings();
-            return config.settings;
-        }));
-        app.delete('/api/settings/embeddings/:id', api(req => {
-            const id = req.params.id as string;
-            if (config.settings.embeddings) delete config.settings.embeddings[id];
-            config.saveSettings();
-            return config.settings;
-        }));
-
-        // Savers
-        app.post('/api/settings/savers', api(req => {
-            if (!config.settings.savers) config.settings.savers = {};
-            let id = randomUUID();
-            while (config.settings.savers[id]) id = randomUUID();
-            config.settings.savers[id] = req.body;
-            config.saveSettings();
-            return config.settings;
-        }));
-        app.put('/api/settings/savers/:id', api(req => {
-            const id = req.params.id as string;
-            if (!config.settings.savers?.[id]) throwBad(`Saver config "${id}" not found`);
-            config.settings.savers![id] = req.body;
-            config.saveSettings();
-            return config.settings;
-        }));
-        app.delete('/api/settings/savers/:id', api(req => {
-            const id = req.params.id as string;
-            if (config.settings.savers) delete config.settings.savers[id];
-            config.saveSettings();
-            return config.settings;
-        }));
-
-        // Memories
-        app.post('/api/settings/memories', api(req => {
-            if (!config.settings.memories) config.settings.memories = {};
-            let id = randomUUID();
-            while (config.settings.memories[id]) id = randomUUID();
-            config.settings.memories[id] = req.body;
-            config.saveSettings();
-            return config.settings;
-        }));
-        app.put('/api/settings/memories/:id', api(req => {
-            const id = req.params.id as string;
-            if (!config.settings.memories?.[id]) throwBad(`Memory config "${id}" not found`);
-            config.settings.memories![id] = req.body;
-            config.saveSettings();
-            return config.settings;
-        }));
-        app.delete('/api/settings/memories/:id', api(req => {
-            const id = req.params.id as string;
-            if (config.settings.memories) delete config.settings.memories[id];
-            config.saveSettings();
-            return config.settings;
-        }));
-
-        // Agents
-        app.post('/api/settings/agents', api(req => {
-            const id = randomUUID();
-            if (!config.settings.agents) config.settings.agents = {};
-            config.settings.agents[id] = req.body;
-            config.saveSettings();
-            return config.settings;
-        }));
-        app.put('/api/settings/agents/:id', api(req => {
-            const id = req.params.id as string;
-            if (!config.settings.agents) config.settings.agents = {};
-            config.settings.agents[id] = req.body;
-            config.saveSettings();
-            return config.settings;
-        }));
-        app.delete('/api/settings/agents/:id', api(req => {
-            const id = req.params.id as string;
-            if (config.settings.agents) delete config.settings.agents[id];
-            config.saveSettings();
-            return config.settings;
-        }));
-
-        // Channels
-        app.post('/api/settings/channels', api(async req => {
-            const id = randomUUID();
-            if (!config.settings.channels) config.settings.channels = {};
-            config.settings.channels[id] = req.body;
-            config.saveSettings();
-            await channelManager.reload();
-            return { id, ...req.body };
-        }));
-        app.put('/api/settings/channels/:id', api(async req => {
-            const id = req.params.id as string;
-            if (!config.settings.channels?.[id]) throwBad(`Channel "${id}" not found`);
-            config.settings.channels[id] = req.body;
-            config.saveSettings();
-            await channelManager.reload();
-            return { id, ...req.body };
-        }));
-        app.delete('/api/settings/channels/:id', api(async req => {
-            const id = req.params.id as string;
-            if (!config.settings.channels?.[id]) throwBad(`Channel "${id}" not found`);
-            delete config.settings.channels[id];
-            config.saveSettings();
-            await channelManager.reload();
-        }));
-
-        // Sessions
-        app.post('/api/settings/sessions', api(req => {
-            const id = randomUUID();
-            if (!config.settings.sessions) config.settings.sessions = {};
-            config.settings.sessions[id] = req.body;
-            config.saveSettings();
-            return { id };
-        }));
-        app.put('/api/settings/sessions/:id', api(req => {
-            const id = req.params.id as string;
-            if (!config.settings.sessions?.[id]) throwBad(`Session "${id}" not found`);
-            config.settings.sessions[id] = req.body;
-            config.saveSettings();
-            return config.settings;
-        }));
-        app.delete('/api/settings/sessions/:id', api(req => {
-            const id = req.params.id as string;
-            if (config.settings.sessions) delete config.settings.sessions[id];
-            config.saveSettings();
-            return config.settings;
-        }));
+        registerSettingsCrud(app, 'models', { label: 'Model' });
+        registerSettingsCrud(app, 'embeddings', { label: 'Embedding' });
+        registerSettingsCrud(app, 'savers', { label: 'Saver config' });
+        registerSettingsCrud(app, 'memories', { label: 'Memory config' });
+        registerSettingsCrud(app, 'agents', { label: 'Agent', checkOnUpdate: false });
+        registerSettingsCrud(app, 'channels', {
+            label: 'Channel',
+            checkOnUpdate: true,
+            checkOnDelete: true,
+            afterSave: () => channelManager.reload(),
+            createReturn: (id, body) => ({ id, ...body }),
+        });
+        registerSettingsCrud(app, 'sessions', {
+            label: 'Session',
+            createReturn: (id) => ({ id }),
+        });
     }
 
     // ===== Directories =====
