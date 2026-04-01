@@ -1,7 +1,9 @@
 import { IModelService } from "./IModelService";
 import { OpenAIModelService } from "./OpenAIModelService";
+import { OpenAIResponseModelService } from "./OpenAIResponseModelService";
 import { OllamaModelService } from "./OllamaModelService";
 import { AnthropicModelService } from "./AnthropicModelService";
+import { GeminiModelService } from "./GeminiModelService";
 import { ModelConfig, ModelProvider } from "./types";
 
 /**
@@ -30,6 +32,16 @@ export class ModelServiceFactory {
       }
       case ModelProvider.Ollama: {
         const service = new OllamaModelService(config);
+        await service.initialize();
+        return service;
+      }
+      case ModelProvider.OpenAIResponse: {
+        const service = new OpenAIResponseModelService(config);
+        await service.initialize();
+        return service;
+      }
+      case ModelProvider.Gemini: {
+        const service = new GeminiModelService(config);
         await service.initialize();
         return service;
       }

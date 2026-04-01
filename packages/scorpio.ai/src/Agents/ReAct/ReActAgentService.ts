@@ -1,11 +1,11 @@
-import { SystemMessage, AIMessage, BaseMessage } from "langchain";
+import { SystemMessage } from "langchain";
 import { type StructuredToolInterface } from "@langchain/core/tools";
 import { inject, ServiceContainer, T_SystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc, T_MemorySystemPromptTemplate } from "../../Core";
 import { IMemoryService, ReadOnlyMemoryService } from "../../Memory";
-import { IAgentSaverService } from "../../Saver";
+import { IAgentSaverService, ChatMessage, ChatMessageOptions } from "../../Saver";
 import { ILoggerService } from "../../Logger";
 import { IModelService } from "../../Model";
-import { type AgentServiceBase, IAgentCallback, ICancellationToken, AgentSubNode, CreateAgentFn, T_CreateAgent } from "../AgentServiceBase";
+import { type AgentServiceBase, IAgentCallback, ICancellationToken, AgentSubNode, CreateAgentFn, T_CreateAgent, MessageRole } from "../AgentServiceBase";
 import { ISkillService } from "../../Skills";
 import { IAgentToolService } from "../../AgentTool";
 import { AgentMemorySaver } from "../../Saver/AgentMemorySaver";
@@ -21,8 +21,8 @@ import { v4 as uuidv4 } from "uuid";
 class ThinkForwardSaver extends AgentMemorySaver {
   constructor(private thinkId: string, private parentSaver: IAgentSaverService) { super(); }
 
-  override async pushMessage(message: BaseMessage): Promise<void> {
-    await super.pushMessage(message);
+  override async pushMessage(message: ChatMessage, options?: ChatMessageOptions): Promise<void> {
+    await super.pushMessage(message, options);
     await this.parentSaver.pushThinkMessage(this.thinkId, message);
   }
 }
@@ -105,7 +105,7 @@ export class ReActAgentService extends SingleAgentService {
 
         const messages = await agentService.stream(task, subCallback, cancellationToken);
         const finalMsg = [...messages].reverse().find(
-          m => m instanceof AIMessage && typeof m.content === 'string' && m.content
+          m => m.role === MessageRole.AI && typeof m.content === 'string' && m.content
         );
         return { result: finalMsg ? (finalMsg.content as string) : '', think_id: thinkId };
       } catch (error: any) {

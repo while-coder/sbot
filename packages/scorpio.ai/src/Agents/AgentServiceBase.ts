@@ -1,7 +1,7 @@
-import { BaseMessage } from "langchain";
+import type { BaseMessage } from "langchain";
 import { ServiceContainer } from "scorpio.di";
 import { IMemoryService } from "../Memory";
-import { IAgentSaverService, AgentMemorySaver } from "../Saver";
+import { IAgentSaverService, AgentMemorySaver, ChatMessage, ChatToolCall, MessageRole } from "../Saver";
 import { ILoggerService, ILogger } from "../Logger";
 
 
@@ -11,11 +11,7 @@ export const MAX_HISTORY_TOKENS = 150_000;
 // 公共类型定义
 // ─────────────────────────────────────────────────────────────────────────────
 
-export enum MessageChunkType {
-    AI = "ai",
-    TOOL = "tool",
-    COMMAND = "command",
-}
+export { ChatMessage, MessageRole };
 
 export enum GraphNodeType {
     AGENT = "agent",
@@ -33,19 +29,11 @@ export enum ToolApproval {
     AlwaysTool = "alwaysTool",
 }
 
-export type AgentToolCall = {
-    id?: string;
-    name: string;
-    args: Record<string, any>;
-};
+/** 向后兼容别名：AgentToolCall 与 ChatToolCall 结构相同 */
+export type AgentToolCall = ChatToolCall;
 
-export type AgentMessage = {
-    type: MessageChunkType;
-    content?: string;
-    tool_calls?: AgentToolCall[];
-    tool_call_id?: string;
-    status?: string;
-};
+/** 向后兼容别名：AgentMessage 已统一为 ChatMessage */
+export type AgentMessage = ChatMessage;
 
 /**
  * Agent 回调接口 - 统一管理消息、流式、工具确认和图片转换回调
@@ -54,18 +42,18 @@ export interface IAgentCallback {
     /**
      * 接收完整的消息（在节点输出完成后触发）
      */
-    onMessage?(message: AgentMessage): Promise<void>;
+    onMessage?(message: ChatMessage): Promise<void>;
 
     /**
      * 接收实时的流式消息块（在模型生成过程中触发）
      */
-    onStreamMessage?(message: AgentMessage): Promise<void>;
+    onStreamMessage?(message: ChatMessage): Promise<void>;
 
     /**
      * 工具执行前进行确认
      * @returns ToolApproval 枚举，表示执行意图
      */
-    executeTool?(toolCall: AgentToolCall): Promise<ToolApproval>;
+    executeTool?(toolCall: ChatToolCall): Promise<ToolApproval>;
 
 
 }
@@ -110,7 +98,7 @@ export class AgentCancelledError extends Error {
 }
 
 export abstract class AgentServiceBase {
-    abstract stream(query: string, callback: IAgentCallback, cancellationToken?: ICancellationToken): Promise<BaseMessage[]>;
+    abstract stream(query: string, callback: IAgentCallback, cancellationToken?: ICancellationToken): Promise<ChatMessage[]>;
     protected saverService: IAgentSaverService;
     protected memoryServices: IMemoryService[];
     protected loggerService?: ILoggerService;
@@ -136,7 +124,7 @@ export abstract class AgentServiceBase {
     /**
      * 以无回调方式调用 stream，返回 stream 的结果消息列表。
      */
-    invoke(query: string, cancellationToken?: ICancellationToken): Promise<BaseMessage[]> {
+    invoke(query: string, cancellationToken?: ICancellationToken): Promise<ChatMessage[]> {
         return this.stream(query, {}, cancellationToken);
     }
 
@@ -148,33 +136,4 @@ export abstract class AgentServiceBase {
         await Promise.all(this.memoryServices.map(m => m.dispose()));
     }
 
-    /**
-     * 将 BaseMessage 转换为 AgentMessage 格式
-     */
-    protected convertToMessageChunk(message: BaseMessage): AgentMessage | null {
-        const name = message.constructor.name;
-        const m = message as any;
-        if (name === 'AIMessage' || name === 'AIMessageChunk') {
-            const toolCalls: AgentToolCall[] = (m.tool_calls || []).map((tc: any) => ({
-                id: tc.id || "",
-                name: tc.name,
-                args: tc.args
-            }));
-            return {
-                type: MessageChunkType.AI,
-                content: m.text as string,
-                tool_calls: toolCalls
-            };
-        } else if (name === 'ToolMessage') {
-            return {
-                type: MessageChunkType.TOOL,
-                tool_call_id: m.tool_call_id || "",
-                status: m.status,
-                content: (m.content as string).trim()
-            };
-        } else {
-            this.logger?.warn(`未知AI消息类型: ${name}`);
-        }
-        return null;
-    }
 }

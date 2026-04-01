@@ -2,9 +2,11 @@
  * 模型提供者枚举
  */
 export enum ModelProvider {
-  OpenAI    = "openai",
-  Anthropic = "anthropic",
-  Ollama    = "ollama",
+  OpenAI          = "openai",
+  OpenAIResponse  = "openai-response",
+  Anthropic       = "anthropic",
+  Ollama          = "ollama",
+  Gemini          = "gemini",
 }
 
 /**
@@ -15,9 +17,7 @@ export interface ModelConfig {
   apiKey?: string;
   baseURL?: string;
   model?: string;
+  apiVersion?: string;
   temperature?: number;
   maxTokens?: number;
-  // Azure OpenAI specific
-  azureDeployment?: string;
-  azureApiVersion?: string;
 }

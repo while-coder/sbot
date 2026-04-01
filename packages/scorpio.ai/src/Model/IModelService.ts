@@ -1,11 +1,6 @@
 import { AIMessage, AIMessageChunk } from "langchain";
 import { BaseMessageLike } from "@langchain/core/messages";
 import { IterableReadableStream } from "@langchain/core/utils/stream";
-import { Runnable } from "@langchain/core/runnables";
-import { BaseLanguageModelInput, BaseLanguageModelCallOptions } from "@langchain/core/language_models/base";
-import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { InteropZodType } from "@langchain/core/utils/types";
-import { SerializableSchema } from "@langchain/core/utils/standard_schema";
 
 /**
  * 模型服务接口
@@ -20,12 +15,12 @@ export interface IModelService {
   /**
    * 绑定工具到模型，返回绑定后的 Runnable
    */
-  bindTools(tools: any[]): Runnable<BaseLanguageModelInput, AIMessageChunk, BaseLanguageModelCallOptions>;
+  bindTools(tools: any[]): any;
 
   /**
    * 结构化输出 — 绑定 schema，返回可 invoke 的 Runnable
    */
-  withStructuredOutput<RunOutput extends Record<string, any> = Record<string, any>>(outputSchema: InteropZodType<RunOutput> | SerializableSchema<RunOutput> | Record<string, any>): Runnable<BaseLanguageModelInput, RunOutput>;
+  withStructuredOutput<T extends Record<string, any> = Record<string, any>>(schema: any): any;
 
   /**
    * 流式调用（如果已绑定工具，则使用绑定后的模型）
@@ -33,9 +28,9 @@ export interface IModelService {
   stream(messages: string | BaseMessageLike[]): Promise<IterableReadableStream<AIMessageChunk>>;
 
   /**
-   * 返回底层 BaseChatModel 实例，供 LangChain createAgent 等原生 API 使用
+   * 返回底层模型实例，供 LangChain createAgent 等原生 API 使用
    */
-  getModel(): BaseChatModel;
+  getModel(): any;
 
   /**
    * 清理资源 — 释放模型实例占用的资源

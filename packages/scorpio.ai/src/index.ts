@@ -221,11 +221,12 @@ export {
   T_ThinkModelService,
 
   // 类型定义
-  MessageChunkType,
   GraphNodeType,
   ToolApproval,
   AgentToolCall,
   AgentMessage,
+  ChatMessage,
+  MessageRole,
   IAgentCallback,
   AgentCancelledError,
 } from "./Agents";

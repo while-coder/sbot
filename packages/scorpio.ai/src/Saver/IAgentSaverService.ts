@@ -16,9 +16,10 @@ export interface ChatToolCall {
 /**
  * 中性化的消息结构，不依赖任何 LLM 框架
  *
- * - human : 用户输入
- * - ai    : 模型输出（可含 tool_calls）
- * - tool  : 工具执行结果（含 tool_call_id）
+ * - human   : 用户输入
+ * - ai      : 模型输出（可含 tool_calls）
+ * - tool    : 工具执行结果（含 tool_call_id）
+ * - isCommand: true 时表示 AI 执行的指令结果（非对话内容，用于回调展示）
  */
 export interface ChatMessage {
     role: MessageRole;
@@ -34,6 +35,8 @@ export interface ChatMessage {
     /** 消息唯一 ID */
     id?: string;
     additional_kwargs?: Record<string, any>;
+    /** 标记为 Command 结果（指令型回调，不保存至历史） */
+    isCommand?: boolean;
 }
 
 // ─── Push options ────────────────────────────────────────────────────────────

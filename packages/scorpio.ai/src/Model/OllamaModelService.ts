@@ -2,7 +2,6 @@ import { ChatOllama } from "@langchain/ollama";
 import { AIMessage, AIMessageChunk } from "langchain";
 import { BaseMessageLike } from "@langchain/core/messages";
 import { IterableReadableStream } from "@langchain/core/utils/stream";
-import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { IModelService } from "./IModelService";
 import { ModelConfig } from "./types";
 
@@ -33,18 +32,18 @@ export class OllamaModelService implements IModelService {
   }
 
   bindTools(tools: any[]) {
-    return this.model!.bindTools(tools);
+    return this.model!.bindTools(tools) as any;
   }
 
   withStructuredOutput<T extends Record<string, any>>(schema: any) {
-    return this.model!.withStructuredOutput<T>(schema);
+    return this.model!.withStructuredOutput<T>(schema) as any;
   }
 
   stream(messages: string | BaseMessageLike[]): Promise<IterableReadableStream<AIMessageChunk>> {
     return this.model!.stream(messages);
   }
 
-  getModel(): BaseChatModel {
+  getModel(): any {
     return this.model!;
   }
 }

@@ -1,4 +1,4 @@
-import { HumanMessage, AIMessage, ToolMessage, AIMessageChunk, BaseMessage, SystemMessage } from "langchain";
+import { HumanMessage, AIMessageChunk, BaseMessage, SystemMessage } from "langchain";
 import { StateGraph, START, END } from '../../Graph';
 import { type StructuredToolInterface } from "@langchain/core/tools";
 import { inject, T_SystemPrompts, T_MemorySystemPromptTemplate, truncate } from "../../Core";
@@ -6,28 +6,30 @@ import { IModelService } from "../../Model";
 import { ISkillService } from "../../Skills";
 import { IMemoryService } from "../../Memory";
 import { IAgentSaverService } from "../../Saver";
+import { toChatMessage, toBaseMessages } from "../../Saver/messageConverter";
 import { IAgentToolService } from "../../AgentTool";
 import { ILoggerService } from "../../Logger";
 import { normalizeToMCPResult, MCPContentType, MCPToolResult } from '../../Tools';
-import { AgentServiceBase, GraphNodeType, ToolApproval, IAgentCallback, ICancellationToken, AgentCancelledError, MAX_HISTORY_TOKENS } from "../AgentServiceBase";
+import { AgentServiceBase, GraphNodeType, ToolApproval, IAgentCallback, ICancellationToken, AgentCancelledError, MAX_HISTORY_TOKENS, ChatMessage, MessageRole } from "../AgentServiceBase";
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
 
 export {
-    MessageChunkType,
     GraphNodeType,
     ToolApproval,
     AgentToolCall,
     AgentMessage,
+    ChatMessage,
+    MessageRole,
     IAgentCallback,
     ICancellationToken,
     AgentCancelledError,
 } from "../AgentServiceBase";
 
 type SingleAgentState = {
-    messages: BaseMessage[];
+    messages: ChatMessage[];
     callback: IAgentCallback | null;
     systemMessage: SystemMessage | null;
     tools: StructuredToolInterface[];
@@ -158,13 +160,13 @@ export class SingleAgentService extends AgentServiceBase {
         const model = this.modelService.bindTools(state.tools);
 
         // 每次调用都从 saver 重新取（含 token 截断），防止多轮工具调用后 state.messages 超限
-        const historyMessages = await this.saverService.getMessages(MAX_HISTORY_TOKENS);
-        if (!historyMessages || historyMessages.length === 0) {
+        const savedHistory = await this.saverService.getMessages(MAX_HISTORY_TOKENS);
+        if (!savedHistory || savedHistory.length === 0) {
             throw new Error('historyMessages is empty, cannot call model');
         }
         const messages = [
             ...(state.systemMessage ? [state.systemMessage] : []),
-            ...historyMessages,
+            ...toBaseMessages(savedHistory),
         ];
 
         // this.logger?.debug(`tools count : ${state.tools.length} messages:${messages.length} historyMessages:${historyMessages.length}`)
@@ -181,10 +183,7 @@ export class SingleAgentService extends AgentServiceBase {
         let accumulated: AIMessageChunk | undefined;
         const emitStream = async () => {
             if (!callback?.onStreamMessage || !accumulated) return;
-            const messageChunk = this.convertToMessageChunk(accumulated);
-            if (messageChunk) {
-                await callback.onStreamMessage(messageChunk);
-            }
+            await callback.onStreamMessage(toChatMessage(accumulated));
         };
         let lastStreamCallTime = 0;
         // 收集所有流式片段
@@ -201,13 +200,7 @@ export class SingleAgentService extends AgentServiceBase {
         // 流结束后发送最终状态，确保最后的数据不丢失
         await emitStream();
         if (!accumulated) return { messages: [] };
-        const response = new AIMessage({
-            content: accumulated.content,
-            tool_calls: accumulated.tool_calls,
-            id: accumulated.id,
-            response_metadata: accumulated.response_metadata,
-        });
-        return { messages: [response] };
+        return { messages: [toChatMessage(accumulated)] };
     }
 
     /**
@@ -219,7 +212,7 @@ export class SingleAgentService extends AgentServiceBase {
         if (!messages || messages.length === 0) {
             throw new Error('historyMessages is empty, cannot execute tools');
         }
-        const lastMessage = messages[messages.length - 1] as AIMessage;
+        const lastMessage = messages[messages.length - 1];
 
         // 获取工具调用
         const toolCalls = lastMessage.tool_calls || [];
@@ -229,17 +222,13 @@ export class SingleAgentService extends AgentServiceBase {
         const toolMap = new Map(state.tools.map(t => [t.name, t]));
 
         // 执行所有工具调用
-        const toolMessages: ToolMessage[] = [];
+        const toolMessages: ChatMessage[] = [];
         for (let i = 0; i < toolCalls.length; i++) {
             const toolCall = toolCalls[i];
             // 取消时补偿剩余 tool_calls 的 ToolMessage，保持与 AIMessage 的配对完整
             if (state.cancellationToken?.isCancelled) {
                 for (let j = i; j < toolCalls.length; j++) {
-                    toolMessages.push(new ToolMessage({
-                        tool_call_id: toolCalls[j].id ?? "",
-                        content: "Cancelled",
-                        status: "error",
-                    }));
+                    toolMessages.push({ role: MessageRole.Tool, tool_call_id: toolCalls[j].id ?? "", content: "Cancelled", status: "error" });
                 }
                 break;
             }
@@ -283,13 +272,15 @@ export class SingleAgentService extends AgentServiceBase {
                         ? mcpResult.content[0].text
                         : JSON.stringify(mcpResult);
 
-                toolMessages.push(
-                    new ToolMessage({ tool_call_id: toolCall.id || "", content: content, status: isError ? "error" : "success", additional_kwargs: think_id ? { think_id } : undefined })
-                );
+                toolMessages.push({
+                    role: MessageRole.Tool,
+                    tool_call_id: toolCall.id || "",
+                    content: content,
+                    status: isError ? "error" : "success",
+                    additional_kwargs: think_id ? { think_id } : undefined,
+                });
             } catch (error: any) {
-                toolMessages.push(
-                    new ToolMessage({ tool_call_id: toolCall.id || "", content: `Execute Tool ${toolCall.name} Error: ${error.message}`, status: "error" })
-                );
+                toolMessages.push({ role: MessageRole.Tool, tool_call_id: toolCall.id || "", content: `Execute Tool ${toolCall.name} Error: ${error.message}`, status: "error" });
             }
         }
 
@@ -308,19 +299,19 @@ export class SingleAgentService extends AgentServiceBase {
         return result;
     }
 
-    private agentNext(state: { messages: BaseMessage[] }): GraphNodeType.TOOLS | typeof END {
-        const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
-        return lastMessage.tool_calls?.length ? GraphNodeType.TOOLS : END;
+    private agentNext(state: { messages: ChatMessage[] }): GraphNodeType.TOOLS | typeof END {
+        const lastMessage = state.messages[state.messages.length - 1];
+        return lastMessage?.tool_calls?.length ? GraphNodeType.TOOLS : END;
     }
 
     /**
      * 流式处理用户查询
      */
-    override async stream(query: string, callback: IAgentCallback, cancellationToken?: ICancellationToken): Promise<BaseMessage[]> {
+    override async stream(query: string, callback: IAgentCallback, cancellationToken?: ICancellationToken): Promise<ChatMessage[]> {
         const humanMessage = new HumanMessage(query);
 
         // 将本次用户消息压入历史
-        await this.saverService.pushMessage(humanMessage);
+        await this.saverService.pushMessage(toChatMessage(humanMessage));
 
         const [systemMessage, tools] = await Promise.all([
             this.buildSystemMessage(query, callback, cancellationToken),
@@ -340,30 +331,29 @@ export class SingleAgentService extends AgentServiceBase {
 
         // 收集 AI 响应（供记忆服务按 MemoryMode 决定是否使用）
         const aiResponses: string[] = [];
-        const outputMessages: BaseMessage[] = [];
+        const outputMessages: ChatMessage[] = [];
 
         // 处理流式输出，每条输出消息压入历史
         for await (const update of graphStream) {
             for (const [, nodeOutput] of Object.entries(update)) {
-                const messages = (nodeOutput as any).messages || [];
+                const messages: ChatMessage[] = (nodeOutput as any).messages || [];
 
                 for (const message of messages) {
-                    if (message instanceof HumanMessage) continue;
-
                     outputMessages.push(message);
-                    // 压入历史
-                    await this.saverService.pushMessage(message);
+                    // 压入历史：从 additional_kwargs 中取出 think_id 作为独立参数，不存入消息体
+                    const thinkId = message.additional_kwargs?.think_id as string | undefined;
+                    if (thinkId) delete message.additional_kwargs!.think_id;
+                    await this.saverService.pushMessage(message, thinkId ? { thinkId } : undefined);
 
-                    if (message instanceof AIMessage) {
-                        const content = message.content as string;
-                        if (content) {
+                    if (message.role === MessageRole.AI) {
+                        const content = message.content;
+                        if (typeof content === 'string' && content) {
                             aiResponses.push(content);
                         }
                     }
 
-                    const messageChunk = this.convertToMessageChunk(message);
-                    if (messageChunk && callback.onMessage) {
-                        await callback.onMessage(messageChunk!);
+                    if (callback.onMessage) {
+                        await callback.onMessage(message);
                     }
                 }
             }
