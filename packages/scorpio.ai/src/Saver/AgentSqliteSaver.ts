@@ -85,6 +85,12 @@ export class AgentSqliteSaver implements IAgentSaverService {
         this.db.prepare("DELETE FROM agent_messages").run();
     }
 
+    async getThink(): Promise<SaverMessage[]> {
+        return [];
+    }
+
+    async pushThinkMessages(): Promise<void> {}
+
     async dispose(): Promise<void> {
         try {
             this._db?.close();

@@ -91,6 +91,12 @@ export class AgentPostgresSaver implements IAgentSaverService {
         await this.pool.query(`DELETE FROM ${this.table}`);
     }
 
+    async getThink(): Promise<SaverMessage[]> {
+        return [];
+    }
+
+    async pushThinkMessages(): Promise<void> {}
+
     async dispose(): Promise<void> {
         try {
             await this.pool.end();

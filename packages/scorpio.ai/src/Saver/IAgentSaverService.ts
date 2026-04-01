@@ -1,9 +1,9 @@
 import { BaseMessage } from "langchain";
-import { ThinkBlock } from "./messageSerializer";
 
 export interface SaverMessage {
     message: BaseMessage;
     createdAt?: number;
+    thinkId?: string;
 }
 
 /**
@@ -46,10 +46,10 @@ export interface IAgentSaverService {
     // --- Think ---
 
     /**
-     * 获取指定 thinkId 对应的 think 内容块
+     * 获取指定 thinkId 对应的消息列表（含嵌套 think_id）
      * 若不存在或实现不支持则返回空数组
      */
-    getThink(thinkId: string): Promise<ThinkBlock[]>;
+    getThink(thinkId: string): Promise<SaverMessage[]>;
 
     /**
      * 将消息列表存入指定 thinkId 对应的 think 记录（追加）
