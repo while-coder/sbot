@@ -1,22 +1,21 @@
 import { SlackService } from "./SlackService";
-import { AgentMessage, GlobalLoggerService, MessageChunkType } from "scorpio.ai";
-import { parseMessages2Text, ProviderMessage, ProviderMessageType, ProviderTextMessage, ProviderToolMessage } from "channel.base";
+import { GlobalLoggerService } from "scorpio.ai";
+import { AbstractChatProvider, parseMessages2Text, ProviderMessageType } from "channel.base";
 
 const getLogger = () => GlobalLoggerService.getLogger("SlackChatProvider.ts");
 
 const UPDATE_INTERVAL_MS = 300;
 
-export class SlackChatProvider {
+export class SlackChatProvider extends AbstractChatProvider {
   private channel: string = "";
   private ts: string = "";
-  private messages: ProviderMessage[] = [];
-  private streamMessage: ProviderTextMessage | undefined;
-  private tools: Record<string, ProviderToolMessage> = {};
   private approvalBlocks: any[] | undefined;
   private askBlocks: any[] | undefined;
   private lastUpdateTime = 0;
 
-  constructor(private slackService: SlackService) {}
+  constructor(private slackService: SlackService) {
+    super();
+  }
 
   async init(
     channel: string,
@@ -34,47 +33,9 @@ export class SlackChatProvider {
     return this;
   }
 
-  async addAIMessage(message: AgentMessage): Promise<void> {
-    if (message.type === MessageChunkType.AI) {
-      if (message.content) {
-        this.messages.push({ type: ProviderMessageType.TEXT, content: message.content });
-      }
-      if (message.tool_calls?.length) {
-        for (const t of message.tool_calls) {
-          const toolMsg: ProviderToolMessage = {
-            type: ProviderMessageType.TOOL,
-            name: t.name,
-            args: t.args,
-          };
-          if (t.id) this.tools[t.id] = toolMsg;
-          this.messages.push(toolMsg);
-        }
-      }
-    } else if (message.type === MessageChunkType.TOOL) {
-      const toolMsg = this.tools[message.tool_call_id || ""];
-      if (toolMsg) {
-        toolMsg.result = true;
-        toolMsg.status = message.status;
-        toolMsg.response = message.content || "";
-      }
-    } else if (message.type === MessageChunkType.COMMAND) {
-      this.messages.push({ type: ProviderMessageType.TEXT, content: message.content || "" });
-    }
-    await this.flushUpdate();
-  }
-
-  async setMessage(content: string): Promise<void> {
-    this.messages = [{ type: ProviderMessageType.TEXT, content }];
-    await this.flushUpdate();
-  }
-
   async setStreamMessage(content: string): Promise<void> {
     this.streamMessage = { type: ProviderMessageType.TEXT, content };
     await this.throttledUpdate();
-  }
-
-  resetStreamMessage(): void {
-    this.streamMessage = undefined;
   }
 
   async setApprovalBlocks(blocks: any[]): Promise<void> {
@@ -94,6 +55,10 @@ export class SlackChatProvider {
 
   async clearAskBlocks(): Promise<void> {
     this.askBlocks = undefined;
+    await this.flushUpdate();
+  }
+
+  protected async onMessagesUpdated(): Promise<void> {
     await this.flushUpdate();
   }
 
@@ -118,10 +83,7 @@ export class SlackChatProvider {
   private async flushUpdate(): Promise<void> {
     if (!this.channel || !this.ts) return;
     this.lastUpdateTime = Date.now();
-    let msgs = this.messages;
-    if (this.streamMessage) {
-      msgs = [...this.messages, this.streamMessage];
-    }
+    const msgs = this.getDisplayMessages();
     const text = parseMessages2Text(msgs);
     const blocks = this.buildBlocks(text);
     try {

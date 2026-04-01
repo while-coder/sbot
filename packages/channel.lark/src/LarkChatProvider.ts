@@ -1,21 +1,19 @@
 import { LarkService, LarkReceiveIdType } from "./LarkService";
-import { AgentMessage, MessageChunkType } from "scorpio.ai";
 import { GlobalLoggerService } from "scorpio.ai";
-import { parseMessages2Text, ProviderMessage, ProviderMessageType, ProviderTextMessage, ProviderToolMessage } from "channel.base";
+import { AbstractChatProvider, parseMessages2Text, ProviderMessageType } from "channel.base";
 
 export { ProviderMessageType, ProviderTextMessage, ProviderToolMessage, ProviderMessage } from "channel.base";
 
 const getLogger = () => GlobalLoggerService.getLogger("LarkChatProvider.ts");
 
-export class LarkChatProvider {
+export class LarkChatProvider extends AbstractChatProvider {
   messageId: string | null = null;
-  messages: ProviderMessage[] = [];
-  streamMessage: ProviderTextMessage | undefined;
   header: any | undefined;
   elements: any[] = [];
-  tools: Record<string, ProviderToolMessage> = {};
 
-  constructor(private larkService: LarkService) {}
+  constructor(private larkService: LarkService) {
+    super();
+  }
 
   async initReplay(messageId: string) {
     const resp: any = await this.larkService.replayMarkdownMessage(messageId, `Thinking...`);
@@ -29,47 +27,11 @@ export class LarkChatProvider {
     return this;
   }
 
-  async addAIMessage(message: AgentMessage) {
-    if (message.type === MessageChunkType.AI) {
-      if (message.content) {
-        this.messages.push({ type: ProviderMessageType.TEXT, content: message.content || "" });
-      }
-      if (message.tool_calls && message.tool_calls.length > 0) {
-        for (const t of message.tool_calls) {
-          const toolCall: ProviderToolMessage = { type: ProviderMessageType.TOOL, name: t.name, args: t.args };
-          if (t.id) {
-            this.tools[t.id] = toolCall;
-          }
-          this.messages.push(toolCall);
-        }
-      }
-    } else if (message.type === MessageChunkType.TOOL) {
-      const toolCall = this.tools[message.tool_call_id || ""];
-      if (toolCall) {
-        toolCall.result = true;
-        toolCall.status = message.status;
-        toolCall.response = message.content || "";
-      }
-    } else if (message.type === MessageChunkType.COMMAND) {
-      this.messages.push({ type: ProviderMessageType.TEXT, content: message.content || "" });
-    }
-    await this.updateMessage()
-  }
   async addTextMessage(content: string) {
     this.messages.push({ type: ProviderMessageType.TEXT, content });
-    await this.updateMessage();
+    await this.onMessagesUpdated();
   }
-  async setMessage(content: string) {
-    this.messages = [{ type: ProviderMessageType.TEXT, content: content }];
-    await this.updateMessage()
-  }
-  async setStreamMessage(content: string) {
-    this.streamMessage = { type: ProviderMessageType.TEXT, content: content }
-    await this.updateMessage()
-  }
-  async resetStreamMessage() {
-    this.streamMessage = undefined
-  }
+
   async deleteElement(...element_id: string[]) {
     for (let id of element_id) {
       for (let i = 0; i < this.elements.length; i++) {
@@ -101,12 +63,9 @@ export class LarkChatProvider {
     }
     await this.updateCardMessage()
   }
-  private async updateMessage() {
-    let messages = this.messages
-    if (this.streamMessage != undefined) {
-      messages = [...this.messages]
-      messages.push(this.streamMessage)
-    }
+
+  protected async onMessagesUpdated(): Promise<void> {
+    const messages = this.getDisplayMessages();
     await this.insertElement(0, {
       tag: "markdown",
       element_id: "markdown",
@@ -115,6 +74,7 @@ export class LarkChatProvider {
       text_size: "normal",
     })
   }
+
   private async updateCardMessage() {
     try {
       if (this.messageId) {
