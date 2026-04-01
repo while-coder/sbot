@@ -4,7 +4,7 @@ import { GlobalLoggerService } from "scorpio.ai";
 import { LarkReceiveIdType, LarkService } from "./LarkService";
 import { ChannelSessionHandler, ToolCallStatus, SessionService, AgentToolHelpers } from "channel.base";
 
-const getLogger = () => GlobalLoggerService.getLogger('LarkUserService.ts');
+const getLogger = () => GlobalLoggerService.getLogger('LarkSessionHandler.ts');
 
 const ACTION_TOOL_CALL = 'ToolCall';
 const ACTION_ASK_FORM = 'AskForm';
@@ -137,45 +137,42 @@ export class LarkSessionHandler extends ChannelSessionHandler {
     };
   }
 
-  protected async enterAsk(askId: string, remainSec: number, params: AskToolParams): Promise<void> {
-    const formElements: any[] = [];
-    for (let i = 0; i < params.questions.length; i++) {
-      const q = params.questions[i];
-      const name = `${i}`;
-      if (q.type === AskQuestionType.Radio) {
-        const options = q.options.map((o: string) => ({ text: { tag: 'plain_text', content: o }, value: o }));
-        if (q.allowCustom) options.push({ text: { tag: 'plain_text', content: 'Other' }, value: '__custom__' });
-        formElements.push(this.buildQuestionRow(q.label, {
-          tag: 'select_static', name, options, required: true,
-          placeholder: { tag: 'plain_text', content: '请选择' },
-          type: 'default', width: 'default',
-        }));
-      } else if (q.type === AskQuestionType.Checkbox) {
-        const options = q.options.map((o: string) => ({ text: { tag: 'plain_text', content: o }, value: o }));
-        if (q.allowCustom) options.push({ text: { tag: 'plain_text', content: 'Other' }, value: '__custom__' });
-        formElements.push(this.buildQuestionRow(q.label, {
-          tag: 'multi_select_static', name, options, required: true,
-          placeholder: { tag: 'plain_text', content: '请选择' },
-          width: 'default',
-        }));
-      } else if (q.type === AskQuestionType.Toggle) {
-        const toggleOptions = [
-          { text: { tag: 'plain_text', content: '是' }, value: 'true' },
-          { text: { tag: 'plain_text', content: '否' }, value: 'false' },
-        ];
-        formElements.push(this.buildQuestionRow(q.label, {
-          tag: 'select_static', name, options: toggleOptions, required: true,
-          placeholder: { tag: 'plain_text', content: '请选择' },
-          type: 'default', width: 'default',
-          initial_index: (q.default ?? false) ? 0 : 1,
-        }));
-      } else {
-        formElements.push(this.buildQuestionRow(q.label, {
-          tag: 'input', name, width: 'default', required: true,
-          placeholder: q.placeholder ? { tag: 'plain_text', content: q.placeholder } : { tag: 'plain_text', content: '请输入' },
-        }));
-      }
+  private buildSelectOptions(values: string[], allowCustom?: boolean) {
+    const options = values.map(o => ({ text: { tag: 'plain_text' as const, content: o }, value: o }));
+    if (allowCustom) options.push({ text: { tag: 'plain_text', content: 'Other' }, value: '__custom__' });
+    return options;
+  }
+
+  private buildQuestionElement(q: any, name: string): object {
+    const placeholder = { tag: 'plain_text', content: '请选择' };
+    if (q.type === AskQuestionType.Radio || q.type === AskQuestionType.Checkbox) {
+      const isMulti = q.type === AskQuestionType.Checkbox;
+      return {
+        tag: isMulti ? 'multi_select_static' : 'select_static', name, required: true, width: 'default', placeholder,
+        options: this.buildSelectOptions(q.options, q.allowCustom),
+        ...(!isMulti && { type: 'default' }),
+      };
     }
+    if (q.type === AskQuestionType.Toggle) {
+      return {
+        tag: 'select_static', name, required: true, width: 'default', placeholder, type: 'default',
+        options: [
+          { text: { tag: 'plain_text' as const, content: '是' }, value: 'true' },
+          { text: { tag: 'plain_text' as const, content: '否' }, value: 'false' },
+        ],
+        initial_index: (q.default ?? false) ? 0 : 1,
+      };
+    }
+    return {
+      tag: 'input', name, width: 'default', required: true,
+      placeholder: { tag: 'plain_text', content: q.placeholder || '请输入' },
+    };
+  }
+
+  protected async enterAsk(askId: string, remainSec: number, params: AskToolParams): Promise<void> {
+    const formElements = params.questions.map((q, i) =>
+      this.buildQuestionRow(q.label, this.buildQuestionElement(q, `${i}`))
+    );
     formElements.push({
       tag: 'button',
       name: 'submitBtn',

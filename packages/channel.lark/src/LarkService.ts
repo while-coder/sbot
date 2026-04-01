@@ -2,7 +2,7 @@ import * as Lark from "@larksuiteoapi/node-sdk";
 import { NowDate, parseJson } from "scorpio.ai";
 import {LarkActionArgs, LarkMessageArgs} from "./LarkSessionHandler";
 import { ILogger } from "scorpio.ai";
-import fs from 'fs';
+import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
 
@@ -27,7 +27,7 @@ export interface LarkServiceOptions {
   userIdType: LarkUserIdType;
   logger?: ILogger;
   filterEvent: (eventId: string) => Promise<boolean>;
-  onRecevieMessage: (userId: string, userInfo:any, chatInfo: any, args: LarkMessageArgs, query: string) => Promise<void>;
+  onReceiveMessage: (userId: string, userInfo:any, chatInfo: any, args: LarkMessageArgs, query: string) => Promise<void>;
   onTriggerAction: (userId: string, userInfo: any, chatInfo: any, args: LarkActionArgs) => Promise<void>;
 }
 
@@ -43,16 +43,14 @@ export class LarkService {
   private larkLogger: any;
   private loggerLevel: Lark.LoggerLevel;
   private filterEvent: (eventId: string) => Promise<boolean>;
-  private onRecevieMessage: (userId: string, userInfo:any, chatInfo: any, args: LarkMessageArgs, query: string) => Promise<void>;
+  private onReceiveMessage: (userId: string, userInfo:any, chatInfo: any, args: LarkMessageArgs, query: string) => Promise<void>;
   private onTriggerAction: (userId: string, userInfo: any, chatInfo: any, args: LarkActionArgs) => Promise<void>;
   private userIdType: LarkUserIdType;
   private tenantAccessToken: string = '';
   private tokenExpireTime: number = 0;
 
-  get idType(): LarkUserIdType { return this.userIdType; }
-
   constructor(options: LarkServiceOptions) {
-    this.onRecevieMessage = options.onRecevieMessage;
+    this.onReceiveMessage = options.onReceiveMessage;
     this.onTriggerAction = options.onTriggerAction;
     this.filterEvent = options.filterEvent;
     this.userIdType = options.userIdType;
@@ -76,7 +74,7 @@ export class LarkService {
     this.tokenExpireTime = 0;
   }
 
-  async sendMessage(receiveIdType: LarkReceiveIdType, receiveId: string, msgType: string, content: string) {
+  private async sendMessage(receiveIdType: LarkReceiveIdType, receiveId: string, msgType: string, content: string) {
     try {
       const response = await this.larkClient.im.message.create({
         params: { receive_id_type: receiveIdType as any },
@@ -94,30 +92,12 @@ export class LarkService {
     return await this.sendMessage(receiveIdType, receiveId, "interactive", this.buildMarkdownContent(text, header));
   }
 
-  /**
-   * 上传文件并发送文件消息
-   * @param receiveIdType 接收方 ID 类型
-   * @param receiveId 接收方 ID
-   * @param file 本地文件路径或 Buffer
-   * @param fileName 文件名（含扩展名）
-   */
   async sendFileMessage(receiveIdType: LarkReceiveIdType, receiveId: string, file: string | Buffer, fileName?: string) {
     const fileKey = await this.uploadFile(file, fileName);
     return await this.sendMessage(receiveIdType, receiveId, "file", JSON.stringify({ file_key: fileKey }));
   }
 
-  /**
-   * 上传文件并回复文件消息
-   * @param messageId 被回复的消息 ID
-   * @param file 本地文件路径或 Buffer
-   * @param fileName 文件名（含扩展名）
-   */
-  async replyFileMessage(messageId: string, file: string | Buffer, fileName?: string) {
-    const fileKey = await this.uploadFile(file, fileName);
-    return await this.replyMessage(messageId, "file", false, JSON.stringify({ file_key: fileKey }));
-  }
-
-  async replyMessage(message_id: string, msg_type: string, reply_in_thread: boolean, content: string) {
+  private async replyMessage(message_id: string, msg_type: string, reply_in_thread: boolean, content: string) {
     try {
       const response = await this.larkClient.im.message.reply({
         path: { message_id },
@@ -131,75 +111,51 @@ export class LarkService {
       this.logger?.error("Error sending message:", error);
     }
   }
-  async replayMarkdownMessage(message_id: string, text: string, header:any|undefined = undefined) {
+  async replyMarkdownMessage(message_id: string, text: string, header:any|undefined = undefined) {
     return await this.replyMessage(message_id, "interactive", false, this.buildMarkdownContent(text, header));
   }
 
-  private buildMarkdownContent(text: string, header: any|undefined): string {
-    const content = {
+  private buildCardJson(elements: any[], header?: any): string {
+    return JSON.stringify({
       schema: "2.0",
-      config: {
-        update_multi: true,
-        streaming_mode: false,
-      },
+      config: { update_multi: true, streaming_mode: false },
       header,
       body: {
         direction: "vertical",
         padding: "12px 12px 12px 12px",
-        elements: [
-          {
-            tag: "markdown",
-            content: text,
-            text_align: "left",
-            text_size: "normal",
-            margin: "0px 0px 0px 0px",
-          },
-        ],
+        elements,
       },
-    };
-    return JSON.stringify(content);
-  }
-
-
-  async updateCardMessage(messageId: string, elements: any[], header:any|undefined = undefined) {
-    if (elements.length === 0) return;
-
-    while ((Date.now() - this.lastCallTime) < this.callInterval) {
-      await new Promise(resolve => setTimeout(resolve, 10));
-    }
-    this.lastCallTime = Date.now();
-
-    const content = {
-      schema: "2.0",
-      config: {
-        update_multi: true,
-        streaming_mode: false,
-      },
-      header,
-      body: {
-        direction: "vertical",
-        padding: "12px 12px 12px 12px",
-        elements: elements,
-      },
-    };
-    return await this.larkClient.im.message.patch({
-      path: {message_id: messageId},
-      data: {content: JSON.stringify(content)},
     });
   }
 
-  /**
-   * 获取 tenant_access_token
-   */
-  protected async getTenantAccessToken(): Promise<string> {
+  private buildMarkdownContent(text: string, header?: any): string {
+    return this.buildCardJson([{
+      tag: "markdown", content: text, text_align: "left", text_size: "normal", margin: "0px 0px 0px 0px",
+    }], header);
+  }
+
+  async updateCardMessage(messageId: string, elements: any[], header?: any) {
+    if (elements.length === 0) return;
+
+    const remaining = this.callInterval - (Date.now() - this.lastCallTime);
+    if (remaining > 0) await new Promise(resolve => setTimeout(resolve, remaining));
+    this.lastCallTime = Date.now();
+
+    return await this.larkClient.im.message.patch({
+      path: { message_id: messageId },
+      data: { content: this.buildCardJson(elements, header) },
+    });
+  }
+
+  private async getTenantAccessToken(): Promise<string> {
     if (this.tenantAccessToken && NowDate() < this.tokenExpireTime) {
       return this.tenantAccessToken;
     }
     try {
       const response = await this.larkClient.auth.tenantAccessToken.internal({
         data: {
-          app_id: this.larkConfig!.appId,
-          app_secret: this.larkConfig!.appSecret,
+          app_id: this.larkConfig.appId,
+          app_secret: this.larkConfig.appSecret,
         },
       }) as any;
 
@@ -217,97 +173,30 @@ export class LarkService {
   }
 
 
-  /**
-   * 上传图片到飞书并获取图片 key
-   * 支持 base64 data URI 和本地文件路径
-   * @param imagePath 图片文件路径（支持本地路径或 base64 data URI）
-   * @returns 飞书图片 key (img_xxx)
-   */
-  async uploadImage(imagePath: string): Promise<string> {
-    let imageBuffer: Buffer;
+  /** https://open.feishu.cn/document/server-docs/im-v1/file/create */
+  private async uploadFile(file: string | Buffer, fileName?: string): Promise<string> {
     try {
-      if (imagePath.startsWith('data:image/')) {
-        const base64Data = imagePath.split(',')[1];
-        if (!base64Data) {
-          throw new Error('Invalid base64 image data format');
-        }
-        imageBuffer = Buffer.from(base64Data, 'base64');
-      } else {
-        if (!fs.existsSync(imagePath)) {
-          throw new Error(`Image file not found: ${imagePath}`);
-        }
-        imageBuffer = fs.readFileSync(imagePath);
-      }
-
-      const token = await this.getTenantAccessToken();
-      const response = await this.larkClient.im.v1.image.create({
-        data: {
-          image_type: 'message',
-          image: imageBuffer,
-        },
-      }, Lark.withTenantToken(token)) as any;
-
-      if (!response || !response.image_key) {
-        throw new Error(`Lark API error: ${response?.msg || 'unknown error'}`);
-      }
-
-      return response.image_key;
-    } catch (error: any) {
-      this.logger?.error(`Failed to upload image to Lark: ${error.message}\n${error.stack}`);
-      throw error;
-    }
-  }
-
-  /**
-   * 上传文件到飞书并获取 file_key
-   * 支持本地文件路径或 Buffer
-   * @param file 文件路径或 Buffer
-   * @param fileName 文件名（含扩展名）
-   * @returns 飞书 file_key
-   * https://open.feishu.cn/document/server-docs/im-v1/file/create
-   */
-  async uploadFile(file: string | Buffer, fileName?: string): Promise<string> {
-    let fileBuffer: Buffer;
-    try {
-      if (typeof file === 'string') {
-        if (!fs.existsSync(file)) {
-          throw new Error(`File not found: ${file}`);
-        }
-        fileBuffer = fs.readFileSync(file);
-        fileName ??= path.basename(file);
-      } else {
-        fileBuffer = file;
-        if (!fileName) throw new Error('fileName is required when file is a Buffer');
-      }
+      const fileBuffer = typeof file === 'string' ? await fs.readFile(file) : file;
+      fileName ??= typeof file === 'string' ? path.basename(file) : undefined;
+      if (!fileName) throw new Error('fileName is required when file is a Buffer');
 
       const token = await this.getTenantAccessToken();
       const response = await this.larkClient.im.v1.file.create({
-        data: {
-          file_type: 'stream',
-          file_name: fileName,
-          file: fileBuffer,
-        },
+        data: { file_type: 'stream', file_name: fileName, file: fileBuffer },
       }, Lark.withTenantToken(token)) as any;
 
       if (!response?.file_key) {
         throw new Error(`Lark API error: ${JSON.stringify(response)}`);
       }
-
       return response.file_key;
     } catch (error: any) {
-      this.logger?.error(`Failed to upload file to Lark: ${error.message}\n${error.stack}`);
+      this.logger?.error(`Failed to upload file: ${error.message}\n${error.stack}`);
       throw error;
     }
   }
 
-  /**
-   * 下载消息内的图片资源（用于 post/image 消息中的 image_key）
-   * @param messageId 消息 ID
-   * @param imageKey 图片 key（来自消息内容）
-   * @param savePath 保存到本地的文件路径
-   * https://open.feishu.cn/document/server-docs/im-v1/message-content/get-2
-   */
-  async downloadMessageFile(messageId: string, fileKey: string, fileType: "image"| "file", savePath: string): Promise<void> {
+  /** https://open.feishu.cn/document/server-docs/im-v1/message-content/get-2 */
+  private async downloadMessageFile(messageId: string, fileKey: string, fileType: "image"| "file", savePath: string): Promise<void> {
     try {
       const token = await this.getTenantAccessToken();
       const response = await this.larkClient.im.v1.messageResource.get({
@@ -326,15 +215,15 @@ export class LarkService {
     const textParts: string[] = [];
     for (const paragraph of paragraphs) {
       const paraTexts: string[] = [];
-      for (const element of paragraph) {
-        if (element.tag === 'text') {
-          paraTexts.push(element.text ?? '');
-        } else if (element.tag === 'img') {
-          const filePath = path.join(os.tmpdir(), `lark_${element.image_key}`);
-          await this.downloadMessageFile(messageId, element.image_key, 'image', filePath);
+      for (const el of paragraph) {
+        if (el.tag === 'text') {
+          paraTexts.push(el.text ?? '');
+        } else if (el.tag === 'img') {
+          const filePath = path.join(os.tmpdir(), `lark_${el.image_key}`);
+          await this.downloadMessageFile(messageId, el.image_key, 'image', filePath);
           paraTexts.push(`<attachment>${filePath}</attachment>`);
         } else {
-          throw new Error(`不支持的 message tag : ${element.tag}`);
+          this.logger?.warn(`Unsupported post element tag: ${el.tag}`);
         }
       }
       if (paraTexts.length > 0) textParts.push(paraTexts.join(''));
@@ -355,13 +244,8 @@ export class LarkService {
     return `<attachment name="${file_name}">${filePath}</attachment>`;
   }
 
-  /**
-   * 获取用户信息
-   * @param userId 用户ID
-   * @param userIdType 用户ID类型，默认使用实例配置的类型
-   * https://open.feishu.cn/document/server-docs/contact-v3/user/get
-   */
-  async getUserInfo(userId: string, userIdType?: LarkUserIdType) {
+  /** https://open.feishu.cn/document/server-docs/contact-v3/user/get */
+  private async getUserInfo(userId: string, userIdType?: LarkUserIdType) {
     try {
       const idType = (userIdType || this.userIdType) as LarkUserIdType;
       const response = await this.larkClient.contact.user.get({
@@ -377,12 +261,8 @@ export class LarkService {
     }
   }
 
-  /**
-   * 获取群组信息
-   * @param chatId 群组 ID
-   * https://open.feishu.cn/document/server-docs/group/chat/get-2
-   */
-  async getChatInfo(chatId: string) {
+  /** https://open.feishu.cn/document/server-docs/group/chat/get-2 */
+  private async getChatInfo(chatId: string) {
     try {
       const response = await this.larkClient.im.v1.chat.get({
         path: { chat_id: chatId },
@@ -447,7 +327,7 @@ export class LarkService {
             this.getUserInfo(userId),
             this.getChatInfo(chat_id),
           ]);
-          await this.onRecevieMessage(userId, userInfo, chatInfo, { larkService: this, event_id, chat_type, chat_id, message_id, root_id, message_type }, query.trim())
+          await this.onReceiveMessage(userId, userInfo, chatInfo, { larkService: this, event_id, chat_type, chat_id, message_id, root_id, message_type }, query.trim())
         } catch (e: any) {
           this.logger?.error(`Receive message error: ${e.stack}`);
         }
