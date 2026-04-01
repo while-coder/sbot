@@ -1,8 +1,10 @@
 import { LarkChatProvider } from "./LarkChatProvider";
-import { ChatMessage, ChatToolCall, AskToolParams, AskQuestionType, MessageType } from "scorpio.ai";
-import { GlobalLoggerService } from "scorpio.ai";
 import { LarkReceiveIdType, LarkService } from "./LarkService";
-import { ChannelSessionHandler, ToolCallStatus, SessionService, AgentToolHelpers } from "channel.base";
+import {
+  ChannelSessionHandler, ToolCallStatus, SessionService, AgentToolHelpers,
+  GlobalLoggerService, AskQuestionType,
+  type ChannelMessageArgs, type ChatMessage, type ChatToolCall, type AskToolParams, type MessageType,
+} from "channel.base";
 
 const getLogger = () => GlobalLoggerService.getLogger('LarkSessionHandler.ts');
 
@@ -17,10 +19,9 @@ const EL_TOOL_CALL_DENY = 'toolCallDeny';
 const EL_ASK_FORM = 'askForm';
 const EL_ABORT_BTN = 'abortBtn';
 
-export interface LarkMessageArgs {
+export interface LarkMessageArgs extends ChannelMessageArgs {
   event_id: string;
   chat_type: string;
-  chat_id: string;
   root_id: string;
   message_id: string;
   message_type?: string;
@@ -28,7 +29,7 @@ export interface LarkMessageArgs {
 
 export interface LarkActionArgs {
   event_id: string;
-  chat_id: string;
+  sessionId: string;
   code: string;
   data: any;
   form_value: any;
@@ -41,10 +42,10 @@ export class LarkSessionHandler extends ChannelSessionHandler {
     super(session);
   }
 
-  async onProcessStart(query: string, args: any, _messageType: MessageType): Promise<void> {
-    const { chat_id, message_id } = args as LarkMessageArgs;
+  async onProcessStart(query: string, args: ChannelMessageArgs, _messageType: MessageType): Promise<void> {
+    const { sessionId, message_id } = args as LarkMessageArgs;
     if (!message_id) {
-      this.provider = await new LarkChatProvider(this.larkService).initChat(LarkReceiveIdType.ChatId, chat_id, query);
+      this.provider = await new LarkChatProvider(this.larkService).initChat(LarkReceiveIdType.ChatId, sessionId, query);
     } else {
       this.provider = await new LarkChatProvider(this.larkService).initReplay(message_id);
     }
@@ -204,12 +205,12 @@ export class LarkSessionHandler extends ChannelSessionHandler {
 </lark-user>`;
   }
 
-  buildAgentTools(args: any, helpers: AgentToolHelpers): any[] {
-    const { chat_id } = args as LarkMessageArgs;
+  buildAgentTools(args: ChannelMessageArgs, helpers: AgentToolHelpers): any[] {
+    const { sessionId } = args as LarkMessageArgs;
     return [
         helpers.createAskTool('lark', (params) => this.executeAsk(params), [AskQuestionType.Radio, AskQuestionType.Checkbox, AskQuestionType.Input]),
         helpers.createSendFileTool('lark', async (filePath, fileName) => {
-            await this.larkService.sendFileMessage(LarkReceiveIdType.ChatId, chat_id, filePath, fileName);
+            await this.larkService.sendFileMessage(LarkReceiveIdType.ChatId, sessionId, filePath, fileName);
         }),
     ];
   }

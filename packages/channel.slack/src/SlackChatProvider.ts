@@ -1,6 +1,5 @@
 import { SlackService } from "./SlackService";
-import { GlobalLoggerService, ChatMessage } from "scorpio.ai";
-import { AbstractChatProvider, parseMessages2Text } from "channel.base";
+import { AbstractChatProvider, parseMessages2Text, GlobalLoggerService, type ChatMessage } from "channel.base";
 
 const getLogger = () => GlobalLoggerService.getLogger("SlackChatProvider.ts");
 

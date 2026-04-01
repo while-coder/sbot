@@ -1,7 +1,6 @@
 import { App } from "@slack/bolt";
-import { ILogger } from "scorpio.ai";
 import { SlackActionArgs, SlackMessageArgs, SlackSessionHandler } from "./SlackSessionHandler";
-import { IChannelService, ChannelSessionHandler, SessionService } from "channel.base";
+import { IChannelService, ChannelSessionHandler, SessionService, type ILogger } from "channel.base";
 
 export interface SlackServiceOptions {
   botToken: string;
@@ -106,7 +105,7 @@ export class SlackService implements IChannelService {
         const userInfo = await this.getUserInfo(userId);
         await this.onReceiveMessage(userId, userInfo, {
           eventId,
-          channel,
+          sessionId: channel,
           ts,
           threadTs,
         }, query);
@@ -153,7 +152,7 @@ export class SlackService implements IChannelService {
         }
 
         await this.onTriggerAction(userId, {
-          channel,
+          sessionId: channel,
           messageTs,
           actionId: act.action_id,
           value,

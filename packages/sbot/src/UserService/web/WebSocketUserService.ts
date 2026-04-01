@@ -4,7 +4,7 @@ import { AgentRunner, AgentSchedulerContext, createAskAgentTool } from "../../Ag
 import { config } from '../../Core/Config';
 import { SchedulerType } from '../../Core/Database';
 import { buildExecuteTool } from '../buildExecuteTool';
-import { SessionService } from 'channel.base';
+import { SessionService, type ChannelMessageArgs } from 'channel.base';
 import { WebChatEvent, WebChatEventType, ChannelType } from 'sbot.commons';
 import { httpServer } from "../../Server/HttpServer";
 
@@ -19,15 +19,15 @@ export class WebSocketUserService {
 
     // ── Message lifecycle ──
 
-    async onProcessStart(_query: string, args: any, _messageType: MessageType): Promise<void> {
-        this.emit({ type: WebChatEventType.Queue, pendingMessages: args?.pendingMessages ?? [] });
+    async onProcessStart(_query: string, args: ChannelMessageArgs, _messageType: MessageType): Promise<void> {
+        this.emit({ type: WebChatEventType.Queue, pendingMessages: (args as any)?.pendingMessages ?? [] });
     }
 
-    async onProcessEnd(_query: string, args: any, _messageType: MessageType, error?: any): Promise<void> {
+    async onProcessEnd(_query: string, args: ChannelMessageArgs, _messageType: MessageType, error?: any): Promise<void> {
         if (error) {
             this.emit({ type: WebChatEventType.Error, message: error.message });
         }
-        this.emit({ type: WebChatEventType.Done, pendingMessages: args?.pendingMessages ?? [] });
+        this.emit({ type: WebChatEventType.Done, pendingMessages: (args as any)?.pendingMessages ?? [] });
     }
 
     async onCommandResult(content: string, _args: any): Promise<void> {

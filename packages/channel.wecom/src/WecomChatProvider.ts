@@ -1,5 +1,4 @@
-import { GlobalLoggerService } from 'scorpio.ai';
-import { AbstractChatProvider, parseMessages2Text } from 'channel.base';
+import { AbstractChatProvider, parseMessages2Text, GlobalLoggerService } from 'channel.base';
 import type { WecomService } from './WecomService';
 
 

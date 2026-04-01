@@ -1,8 +1,6 @@
 import * as Lark from "@larksuiteoapi/node-sdk";
-import { NowDate, parseJson } from "scorpio.ai";
 import { LarkActionArgs, LarkMessageArgs, LarkSessionHandler } from "./LarkSessionHandler";
-import { ILogger } from "scorpio.ai";
-import { IChannelService, ChannelSessionHandler, SessionService } from "channel.base";
+import { IChannelService, ChannelSessionHandler, SessionService, NowDate, parseJson, type ILogger } from "channel.base";
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
@@ -332,7 +330,7 @@ export class LarkService implements IChannelService {
             this.getUserInfo(userId),
             this.getChatInfo(chat_id),
           ]);
-          await this.onReceiveMessage(userId, userInfo, chatInfo, { event_id, chat_type, chat_id, message_id, root_id, message_type }, query.trim())
+          await this.onReceiveMessage(userId, userInfo, chatInfo, { event_id, chat_type, sessionId: chat_id, message_id, root_id, message_type }, query.trim())
         } catch (e: any) {
           this.logger?.error(`Receive message error: ${e.stack}`);
         }
@@ -356,7 +354,7 @@ export class LarkService implements IChannelService {
             this.getUserInfo(userId),
             this.getChatInfo(open_chat_id),
           ]);
-          await this.onTriggerAction(userId, userInfo, chatInfo, { event_id, chat_id: open_chat_id, code: value.code, data: value.data, form_value })
+          await this.onTriggerAction(userId, userInfo, chatInfo, { event_id, sessionId: open_chat_id, code: value.code, data: value.data, form_value })
         } catch (e: any) {
           this.logger?.error(`Card Action error: ${e.stack}`);
         }

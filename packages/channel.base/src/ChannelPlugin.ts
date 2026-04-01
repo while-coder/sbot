@@ -26,12 +26,19 @@ export interface ChannelSessionInfo {
   dbSessionId: number;
 }
 
+/** Base interface for channel message args. All channel-specific args must extend this. */
+export interface ChannelMessageArgs {
+  /** Channel-agnostic session identifier (same value stored in DB channelSession.sessionId). */
+  sessionId: string;
+  [key: string]: any;
+}
+
 export interface ChannelPluginContext {
   config: Record<string, any>;
   logger: any;
   filterEvent: (eventId: string) => Promise<boolean>;
   initSession: (ctx: InitSessionContext) => Promise<ChannelSessionInfo>;
-  onReceiveMessage: (session: ChannelSessionInfo, query: string, args: any) => Promise<void>;
+  onReceiveMessage: (session: ChannelSessionInfo, query: string, args: ChannelMessageArgs) => Promise<void>;
   onTriggerAction: (session: ChannelSessionInfo, args: any) => Promise<void>;
 }
 

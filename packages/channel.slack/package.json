@@ -9,8 +9,7 @@
   },
   "dependencies": {
     "@slack/bolt": "^4.4.0",
-    "channel.base": "workspace:*",
-    "scorpio.ai": "workspace:*"
+    "channel.base": "workspace:*"
   },
   "private": true,
   "devDependencies": {

@@ -1,6 +1,5 @@
 import { LarkService, LarkReceiveIdType } from "./LarkService";
-import { GlobalLoggerService, MessageRole } from "scorpio.ai";
-import { AbstractChatProvider, parseMessages2Text } from "channel.base";
+import { AbstractChatProvider, parseMessages2Text, GlobalLoggerService, MessageRole } from "channel.base";
 
 const getLogger = () => GlobalLoggerService.getLogger("LarkChatProvider.ts");
 

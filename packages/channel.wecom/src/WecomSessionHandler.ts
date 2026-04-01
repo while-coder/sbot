@@ -10,7 +10,7 @@ import {
   MessageType,
   GlobalLoggerService,
 } from 'scorpio.ai';
-import { ChannelSessionHandler, ToolCallStatus, SessionService, AgentToolHelpers } from 'channel.base';
+import { ChannelSessionHandler, ToolCallStatus, SessionService, AgentToolHelpers, type ChannelMessageArgs } from 'channel.base';
 import { WecomChatProvider } from './WecomChatProvider';
 import type { WecomService, WecomMessageArgs, WecomActionArgs } from './WecomService';
 
@@ -39,14 +39,14 @@ export class WecomSessionHandler extends ChannelSessionHandler {
     return [helpers.createAskTool('wecom', (params) => this.executeAsk(params), [AskQuestionType.Radio, AskQuestionType.Checkbox])];
   }
 
-  async onProcessStart(_query: string, args: WecomMessageArgs, _messageType: MessageType): Promise<void> {
-    const { chatid } = args;
-    this._chatid = chatid;
+  async onProcessStart(_query: string, args: ChannelMessageArgs, _messageType: MessageType): Promise<void> {
+    const { sessionId } = args;
+    this._chatid = sessionId;
     this._currentAskQuestion = null;
-    this.provider = new WecomChatProvider(this.wecomService, chatid);
+    this.provider = new WecomChatProvider(this.wecomService, sessionId);
   }
 
-  async onProcessEnd(_query: string, _args: any, _messageType: MessageType, error?: any): Promise<void> {
+  async onProcessEnd(_query: string, _args: ChannelMessageArgs, _messageType: MessageType, error?: any): Promise<void> {
     if (error && this.provider) {
       await this.provider.setMessage(`处理出错: ${error.message}`);
     }

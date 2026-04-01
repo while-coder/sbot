@@ -26,9 +26,9 @@ export const wecomPlugin: ChannelPlugin = {
           userId,
           userName: userId,
           userInfo: JSON.stringify({ userid: userId }),
-          sessionId: args.chatid,
-          sessionName: args.chatid,
-          sendUpdate: (msg: string) => service.sendMessage(args.chatid, { msgtype: 'markdown', markdown: { content: msg } } as any).then(() => {}),
+          sessionId: args.sessionId,
+          sessionName: args.sessionId,
+          sendUpdate: (msg: string) => service.sendMessage(args.sessionId, { msgtype: 'markdown', markdown: { content: msg } } as any).then(() => {}),
         });
         await onReceiveMessage(session, query, { ...args, userInfo: { userid: userId } });
       },
@@ -37,8 +37,8 @@ export const wecomPlugin: ChannelPlugin = {
           userId,
           userName: userId,
           userInfo: JSON.stringify({ userid: userId }),
-          sessionId: args.chatid,
-          sessionName: args.chatid,
+          sessionId: args.sessionId,
+          sessionName: args.sessionId,
         });
         await onTriggerAction(session, args);
       },

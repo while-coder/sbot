@@ -1,20 +1,21 @@
 import { SlackChatProvider } from "./SlackChatProvider";
-import { ChatMessage, ChatToolCall, AskToolParams, AskQuestionType, MessageType } from "scorpio.ai";
-import { GlobalLoggerService } from "scorpio.ai";
 import { SlackService } from "./SlackService";
-import { ChannelSessionHandler, ToolCallStatus, SessionService, AgentToolHelpers } from "channel.base";
+import {
+  ChannelSessionHandler, ToolCallStatus, SessionService, AgentToolHelpers,
+  GlobalLoggerService, AskQuestionType,
+  type ChannelMessageArgs, type ChatMessage, type ChatToolCall, type AskToolParams, type MessageType,
+} from "channel.base";
 
 const getLogger = () => GlobalLoggerService.getLogger("SlackSessionHandler.ts");
 
-export interface SlackMessageArgs {
+export interface SlackMessageArgs extends ChannelMessageArgs {
   eventId: string;
-  channel: string;
   ts: string;
   threadTs?: string;
 }
 
 export interface SlackActionArgs {
-  channel: string;
+  sessionId: string;
   messageTs: string;
   actionId: string;
   value?: any;
@@ -27,12 +28,12 @@ export class SlackSessionHandler extends ChannelSessionHandler {
     super(session);
   }
 
-  async onProcessStart(query: string, args: any, _messageType: MessageType): Promise<void> {
-    const { channel, ts, threadTs } = args as SlackMessageArgs;
-    this.provider = await new SlackChatProvider(this.slackService).init(channel, ts, threadTs, query);
+  async onProcessStart(query: string, args: ChannelMessageArgs, _messageType: MessageType): Promise<void> {
+    const { sessionId, ts, threadTs } = args as SlackMessageArgs;
+    this.provider = await new SlackChatProvider(this.slackService).init(sessionId, ts, threadTs, query);
   }
 
-  async onProcessEnd(_query: string, _args: any, _messageType: MessageType, error?: any): Promise<void> {
+  async onProcessEnd(_query: string, _args: ChannelMessageArgs, _messageType: MessageType, error?: any): Promise<void> {
     if (error) {
       getLogger()?.error(error.stack ?? error.message);
       if (this.provider) {

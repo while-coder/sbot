@@ -9,7 +9,7 @@ import {
   ToolApproval,
 } from "scorpio.ai";
 import { SessionService } from "./SessionService";
-import { AgentToolHelpers, ProcessAIHandler } from "./ChannelPlugin";
+import { AgentToolHelpers, ChannelMessageArgs, ProcessAIHandler } from "./ChannelPlugin";
 
 export enum ToolCallStatus {
   None = "none",
@@ -27,8 +27,8 @@ export abstract class ChannelSessionHandler {
     this.session = session;
   }
 
-  abstract onProcessStart(query: string, args: any, messageType: MessageType): Promise<void>;
-  abstract onProcessEnd(query: string, args: any, messageType: MessageType, error?: any): Promise<void>;
+  abstract onProcessStart(query: string, args: ChannelMessageArgs, messageType: MessageType): Promise<void>;
+  abstract onProcessEnd(query: string, args: ChannelMessageArgs, messageType: MessageType, error?: any): Promise<void>;
   async onCommandResult(content: string, _args: any): Promise<void> {
     return this.onChatMessage({ role: MessageRole.AI, content, isCommand: true });
   }

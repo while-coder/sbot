@@ -25,9 +25,9 @@ export const slackPlugin: ChannelPlugin = {
           userId,
           userName: userInfo?.real_name ?? userInfo?.name ?? '',
           userInfo: JSON.stringify(userInfo ?? {}),
-          sessionId: args.channel,
-          sessionName: args.channel,
-          sendUpdate: (msg: string) => service.sendMessage(args.channel, msg, args.threadTs).then(() => {}),
+          sessionId: args.sessionId,
+          sessionName: args.sessionId,
+          sendUpdate: (msg: string) => service.sendMessage(args.sessionId, msg, args.threadTs).then(() => {}),
         });
         await onReceiveMessage(session, query, { ...args, userInfo: userInfo ?? {} });
       },
@@ -36,8 +36,8 @@ export const slackPlugin: ChannelPlugin = {
           userId,
           userName: '',
           userInfo: '',
-          sessionId: args.channel,
-          sessionName: args.channel,
+          sessionId: args.sessionId,
+          sessionName: args.sessionId,
         });
         await onTriggerAction(session, args);
       },
