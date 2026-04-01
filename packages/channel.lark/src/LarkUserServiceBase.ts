@@ -2,7 +2,7 @@ import { LarkChatProvider } from "./LarkChatProvider";
 import { AgentMessage, AgentToolCall, AskToolParams, AskQuestionType, MessageType } from "scorpio.ai";
 import { GlobalLoggerService } from "scorpio.ai";
 import { LarkReceiveIdType, LarkService } from "./LarkService";
-import { ChannelUserServiceBase, ToolCallStatus, SessionService } from "channel.base";
+import { ChannelUserServiceBase, ToolCallStatus, SessionService, AgentToolHelpers } from "channel.base";
 
 const getLogger = () => GlobalLoggerService.getLogger('LarkUserService.ts');
 
@@ -35,7 +35,7 @@ export interface LarkActionArgs {
   form_value: any;
 }
 
-export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
+export class LarkUserServiceBase extends ChannelUserServiceBase {
   provider: LarkChatProvider | undefined;
   larkService!: LarkService;
 
@@ -81,7 +81,7 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
   }
 
   async onAgentStreamMessage(message: AgentMessage): Promise<void> {
-    await this.provider?.setStreamMessage(message.content || "");
+    await this.provider?.setStreamMessage(message.content as string || "");
   }
 
   async onAgentMessage(message: AgentMessage): Promise<void> {
@@ -197,6 +197,27 @@ export abstract class LarkUserServiceBase extends ChannelUserServiceBase {
 
   protected async exitAsk(_askId: string): Promise<void> {
     await this.provider?.deleteElement(EL_ASK_FORM);
+  }
+
+  buildExtraInfo(userInfo: any): string {
+    if (!userInfo) return '';
+    return `<lark-user>
+  <name>${userInfo.name}</name>
+  <email>${userInfo.email}</email>
+  <user-id>${userInfo.user_id}</user-id>
+  <open-id>${userInfo.open_id}</open-id>
+  <union-id>${userInfo.union_id}</union-id>
+</lark-user>`;
+  }
+
+  buildAgentTools(args: any, helpers: AgentToolHelpers): any[] {
+    const { chat_id, larkService } = args as LarkMessageArgs;
+    return [
+        helpers.createAskTool('lark', (params) => this.executeAsk(params), [AskQuestionType.Radio, AskQuestionType.Checkbox, AskQuestionType.Input]),
+        helpers.createSendFileTool('lark', async (filePath, fileName) => {
+            await larkService.sendFileMessage(LarkReceiveIdType.ChatId, chat_id, filePath, fileName);
+        }),
+    ];
   }
 
   async onTriggerAction(args: LarkActionArgs): Promise<any> {

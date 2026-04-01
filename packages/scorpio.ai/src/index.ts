@@ -144,7 +144,7 @@ export {
 export {
   // 接口 + Symbol Token
   IAgentSaverService,
-  type SaverMessage,
+  type StoredMessage,
 
   // 实现类
   AgentMemorySaver,

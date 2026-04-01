@@ -45,7 +45,11 @@ catalogs:
 
 importers:
 
-  .: {}
+  .:
+    dependencies:
+      '@langchain/google-genai':
+        specifier: ^0.0.14
+        version: 0.0.14(openai@6.27.0(ws@8.19.0)(zod@3.25.76))
 
   packages/channel.base:
     dependencies:
@@ -71,6 +75,9 @@ importers:
       channel.base:
         specifier: workspace:*
         version: link:../channel.base
+      sbot.commons:
+        specifier: workspace:*
+        version: link:../sbot.commons
       scorpio.ai:
         specifier: workspace:*
         version: link:../scorpio.ai
@@ -93,6 +100,9 @@ importers:
       channel.base:
         specifier: workspace:*
         version: link:../channel.base
+      sbot.commons:
+        specifier: workspace:*
+        version: link:../sbot.commons
       scorpio.ai:
         specifier: workspace:*
         version: link:../scorpio.ai
@@ -115,6 +125,9 @@ importers:
       channel.base:
         specifier: workspace:*
         version: link:../channel.base
+      sbot.commons:
+        specifier: workspace:*
+        version: link:../sbot.commons
       scorpio.ai:
         specifier: workspace:*
         version: link:../scorpio.ai
@@ -287,6 +300,9 @@ importers:
       '@langchain/core':
         specifier: 'catalog:'
         version: 1.1.31(openai@6.27.0(ws@8.19.0)(zod@4.3.6))
+      '@langchain/google-genai':
+        specifier: ^0.0.14
+        version: 0.0.14(openai@6.27.0(ws@8.19.0)(zod@4.3.6))
       '@langchain/mcp-adapters':
         specifier: ^1.1.3
         version: 1.1.3(@cfworker/json-schema@4.1.1)(@langchain/core@1.1.31(openai@6.27.0(ws@8.19.0)(zod@4.3.6)))(@langchain/langgraph@1.2.2(@langchain/core@1.1.31(openai@6.27.0(ws@8.19.0)(zod@4.3.6)))(vue@3.5.30(typescript@5.9.3))(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6))
@@ -756,6 +772,10 @@ packages:
   '@gar/promisify@1.1.3':
     resolution: {integrity: sha512-k2Ty1JcVojjJFwrg/ThKi2ujJ7XNLYaFGNB/bWT9wGR+oSMJHMa5w+CUq6p/pVrKeNNgA7pCqEcjSnHVoqJQFw==}
 
+  '@google/generative-ai@0.7.1':
+    resolution: {integrity: sha512-WTjMLLYL/xfA5BW6xAycRPiAX7FNHKAxrid/ayqC1QMam0KAK0NbMeS9Lubw80gVg5xFMLE+H7pw4wdNzTOlxw==}
+    engines: {node: '>=18.0.0'}
+
   '@hono/node-server@1.19.11':
     resolution: {integrity: sha512-dr8/3zEaB+p0D2n/IUrlPF1HZm586qgJNXK1a9fhg/PzdtkK7Ksd5l312tJX2yBuALqDYBlG20QEbayqPyxn+g==}
     engines: {node: '>=18.14.1'}
@@ -783,9 +803,17 @@ packages:
     peerDependencies:
       '@langchain/core': ^1.1.32
 
+  '@langchain/core@0.2.36':
+    resolution: {integrity: sha512-qHLvScqERDeH7y2cLuJaSAlMwg3f/3Oc9nayRSXRU2UuaK/SOhI42cxiPLj1FnuHJSmN0rBQFkrLx02gI4mcVg==}
+    engines: {node: '>=18'}
+
   '@langchain/core@1.1.31':
     resolution: {integrity: sha512-FxsgIUONjKaRpjx59sISgmb0OMCbAetPGyhzjGa2kX0y1f8LZ5xm9VB2db7W9HYWyLvzRWcMA51Uu4OSTJmtZQ==}
     engines: {node: '>=20'}
+
+  '@langchain/google-genai@0.0.14':
+    resolution: {integrity: sha512-logV+S9wnEgZ2zG8y3id8ET/3nIeZLtiNsVtS1NMtqSUDLECCxVAf6fPHRpn1YarRjz3vqdHc7xya2xKemQeqA==}
+    engines: {node: '>=18'}
 
   '@langchain/langgraph-checkpoint@1.0.0':
     resolution: {integrity: sha512-xrclBGvNCXDmi0Nz28t3vjpxSH6UYx6w5XAXSiiB1WEdc2xD2iY/a913I3x3a31XpInUW/GGfXXfePfaghV54A==}
@@ -1405,6 +1433,10 @@ packages:
     resolution: {integrity: sha512-FQN4MRfuJeHf7cBbBMJFXhKSDq+2kAArBlmRBvcvFE5BB1HZKXtSFASDhdlz9zOYwxh8lDdnvmMOe/+5cdoEdg==}
     engines: {node: '>= 0.8'}
 
+  commander@10.0.1:
+    resolution: {integrity: sha512-y4Mg2tXshplEbSGzx7amzPwKKOCGuoSRP/CjEdwwk0FOGlUbq6lKuoyDZTNZkmxHdJtp54hdfY/JUrdL7Xfdug==}
+    engines: {node: '>=14'}
+
   commander@14.0.3:
     resolution: {integrity: sha512-H+y0Jo/T1RZ9qPP4Eh1pkcQcLRglraJaSLoyOtHxu6AapkjWVCy2Sit1QQ4x3Dng8qDlSsZEet7g5Pq06MvTgw==}
     engines: {node: '>=20'}
@@ -1911,6 +1943,14 @@ packages:
     engines: {node: '>=20'}
     peerDependencies:
       '@langchain/core': ^1.1.31
+
+  langsmith@0.1.68:
+    resolution: {integrity: sha512-otmiysWtVAqzMx3CJ4PrtUBhWRG5Co8Z4o7hSZENPjlit9/j3/vm3TSvbaxpDYakZxtMjhkcJTqrdYFipISEiQ==}
+    peerDependencies:
+      openai: '*'
+    peerDependenciesMeta:
+      openai:
+        optional: true
 
   langsmith@0.5.9:
     resolution: {integrity: sha512-mT88HlYTz7IZzVJP/OM7D6PAR3kzcbPGjYDJpx64ua9WiJXFqQx6YKewxIIxkVSZCb9I/9TiYvPYfZ4rawOdEg==}
@@ -2804,6 +2844,9 @@ packages:
     peerDependencies:
       zod: ^3.25 || ^4
 
+  zod@3.25.76:
+    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
+
   zod@4.3.6:
     resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
 
@@ -2996,6 +3039,8 @@ snapshots:
   '@gar/promisify@1.1.3':
     optional: true
 
+  '@google/generative-ai@0.7.1': {}
+
   '@hono/node-server@1.19.11(hono@4.12.7)':
     dependencies:
       hono: 4.12.7
@@ -3020,6 +3065,38 @@ snapshots:
       '@langchain/core': 1.1.31(openai@6.27.0(ws@8.19.0)(zod@4.3.6))
       zod: 4.3.6
 
+  '@langchain/core@0.2.36(openai@6.27.0(ws@8.19.0)(zod@3.25.76))':
+    dependencies:
+      ansi-styles: 5.2.0
+      camelcase: 6.3.0
+      decamelize: 1.2.0
+      js-tiktoken: 1.0.21
+      langsmith: 0.1.68(openai@6.27.0(ws@8.19.0)(zod@3.25.76))
+      mustache: 4.2.0
+      p-queue: 6.6.2
+      p-retry: 4.6.2
+      uuid: 10.0.0
+      zod: 3.25.76
+      zod-to-json-schema: 3.25.1(zod@3.25.76)
+    transitivePeerDependencies:
+      - openai
+
+  '@langchain/core@0.2.36(openai@6.27.0(ws@8.19.0)(zod@4.3.6))':
+    dependencies:
+      ansi-styles: 5.2.0
+      camelcase: 6.3.0
+      decamelize: 1.2.0
+      js-tiktoken: 1.0.21
+      langsmith: 0.1.68(openai@6.27.0(ws@8.19.0)(zod@4.3.6))
+      mustache: 4.2.0
+      p-queue: 6.6.2
+      p-retry: 4.6.2
+      uuid: 10.0.0
+      zod: 3.25.76
+      zod-to-json-schema: 3.25.1(zod@3.25.76)
+    transitivePeerDependencies:
+      - openai
+
   '@langchain/core@1.1.31(openai@6.27.0(ws@8.19.0)(zod@4.3.6))':
     dependencies:
       '@cfworker/json-schema': 4.1.1
@@ -3037,6 +3114,20 @@ snapshots:
       - '@opentelemetry/api'
       - '@opentelemetry/exporter-trace-otlp-proto'
       - '@opentelemetry/sdk-trace-base'
+      - openai
+
+  '@langchain/google-genai@0.0.14(openai@6.27.0(ws@8.19.0)(zod@3.25.76))':
+    dependencies:
+      '@google/generative-ai': 0.7.1
+      '@langchain/core': 0.2.36(openai@6.27.0(ws@8.19.0)(zod@3.25.76))
+    transitivePeerDependencies:
+      - openai
+
+  '@langchain/google-genai@0.0.14(openai@6.27.0(ws@8.19.0)(zod@4.3.6))':
+    dependencies:
+      '@google/generative-ai': 0.7.1
+      '@langchain/core': 0.2.36(openai@6.27.0(ws@8.19.0)(zod@4.3.6))
+    transitivePeerDependencies:
       - openai
 
   '@langchain/langgraph-checkpoint@1.0.0(@langchain/core@1.1.31(openai@6.27.0(ws@8.19.0)(zod@4.3.6)))':
@@ -3727,6 +3818,8 @@ snapshots:
     dependencies:
       delayed-stream: 1.0.0
 
+  commander@10.0.1: {}
+
   commander@14.0.3: {}
 
   concat-map@0.0.1:
@@ -4304,6 +4397,28 @@ snapshots:
       - vue
       - zod-to-json-schema
 
+  langsmith@0.1.68(openai@6.27.0(ws@8.19.0)(zod@3.25.76)):
+    dependencies:
+      '@types/uuid': 10.0.0
+      commander: 10.0.1
+      p-queue: 6.6.2
+      p-retry: 4.6.2
+      semver: 7.7.4
+      uuid: 10.0.0
+    optionalDependencies:
+      openai: 6.27.0(ws@8.19.0)(zod@3.25.76)
+
+  langsmith@0.1.68(openai@6.27.0(ws@8.19.0)(zod@4.3.6)):
+    dependencies:
+      '@types/uuid': 10.0.0
+      commander: 10.0.1
+      p-queue: 6.6.2
+      p-retry: 4.6.2
+      semver: 7.7.4
+      uuid: 10.0.0
+    optionalDependencies:
+      openai: 6.27.0(ws@8.19.0)(zod@4.3.6)
+
   langsmith@0.5.9(openai@6.27.0(ws@8.19.0)(zod@4.3.6)):
     dependencies:
       '@types/uuid': 10.0.0
@@ -4550,6 +4665,12 @@ snapshots:
   onetime@5.1.2:
     dependencies:
       mimic-fn: 2.1.0
+
+  openai@6.27.0(ws@8.19.0)(zod@3.25.76):
+    optionalDependencies:
+      ws: 8.19.0
+      zod: 3.25.76
+    optional: true
 
   openai@6.27.0(ws@8.19.0)(zod@4.3.6):
     optionalDependencies:
@@ -5195,8 +5316,14 @@ snapshots:
 
   yoga-layout@3.2.1: {}
 
+  zod-to-json-schema@3.25.1(zod@3.25.76):
+    dependencies:
+      zod: 3.25.76
+
   zod-to-json-schema@3.25.1(zod@4.3.6):
     dependencies:
       zod: 4.3.6
+
+  zod@3.25.76: {}
 
   zod@4.3.6: {}

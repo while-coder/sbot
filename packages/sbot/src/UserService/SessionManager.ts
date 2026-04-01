@@ -1,17 +1,15 @@
 import "reflect-metadata";
-import { LarkMessageArgs, LarkActionArgs } from "channel.lark";
-import { SlackMessageArgs, SlackActionArgs } from "channel.slack";
-import { WecomMessageArgs, WecomActionArgs } from "channel.wecom";
 import { ICommand, MessageType } from "scorpio.ai";
 import { SessionManager, SessionService } from "channel.base";
-import { larkThreadId, slackThreadId, wecomThreadId, ChannelType, WsCommandType } from "sbot.commons";
+import { ChannelType, WsCommandType } from "sbot.commons";
 import { config } from "../Core/Config";
+import { channelManager } from "../Channel/ChannelManager";
+import { createProcessAIHandler } from "../Channel/createProcessAIHandler";
 
 import { getBuiltInCommands } from "./BuiltInCommands";
-import { LarkUserService } from "./channels/LarkUserService";
-import { SlackUserService } from "./channels/SlackUserService";
-import { WecomUserService } from "./channels/WecomUserService";
 import { WebSocketUserService } from "./web/WebSocketUserService";
+
+const processAIHandler = createProcessAIHandler();
 
 // ── Per-session concrete class ──
 
@@ -88,35 +86,24 @@ export class SbotSessionManager extends SessionManager {
     }
 
     createChannel(type: string, session: SessionService): any {
-        switch (type) {
-            case ChannelType.Lark:  return new LarkUserService(session);
-            case ChannelType.Slack: return new SlackUserService(session);
-            case ChannelType.Wecom: return new WecomUserService(session);
-            default:                return new WebSocketUserService(session);
+        if (type === ChannelType.Web) {
+            return new WebSocketUserService(session);
         }
+        const plugin = channelManager.getPlugin(type);
+        if (!plugin) {
+            return new WebSocketUserService(session);  // fallback
+        }
+        const userService = plugin.createUserService(session);
+        userService.setProcessAIHandler(processAIHandler);
+        return userService;
     }
 
     // ── Channel entry points ──
 
-    async onReceiveLarkMessage(query: string, args: LarkMessageArgs, userInfo: any, channelId: string, dbSessionId?: number): Promise<void> {
+    async onReceiveChannelMessage(query: string, threadId: string, args: any): Promise<void> {
         if (!query?.trim()) return;
-        const threadId = larkThreadId(channelId, args.chat_id);
         const session = this.getOrCreate(threadId);
-        await session.onReceiveMessage(query, { ...args, channelType: ChannelType.Lark, userInfo, channelId, dbSessionId });
-    }
-
-    async onReceiveSlackMessage(query: string, args: SlackMessageArgs, userInfo: any, channelId: string, dbSessionId?: number): Promise<void> {
-        if (!query?.trim()) return;
-        const threadId = slackThreadId(channelId, args.channel);
-        const session = this.getOrCreate(threadId);
-        await session.onReceiveMessage(query, { ...args, channelType: ChannelType.Slack, userInfo, channelId, dbSessionId });
-    }
-
-    async onReceiveWecomMessage(query: string, args: WecomMessageArgs, userInfo: any, channelId: string, dbSessionId?: number): Promise<void> {
-        if (!query?.trim()) return;
-        const threadId = wecomThreadId(channelId, args.chatid);
-        const session = this.getOrCreate(threadId);
-        await session.onReceiveMessage(query, { ...args, channelType: ChannelType.Wecom, userInfo, channelId, dbSessionId });
+        await session.onReceiveMessage(query, args);
     }
 
     async onReceiveWebMessage(query: string, threadId: string, sessionId?: string, workPath?: string): Promise<void> {
@@ -127,20 +114,7 @@ export class SbotSessionManager extends SessionManager {
 
     // ── Trigger action routing ──
 
-    async onLarkTriggerAction(channelId: string, args: LarkActionArgs): Promise<void> {
-        const threadId = larkThreadId(channelId, args.chat_id);
-        const session = this.getSession(threadId) as SbotSession | undefined;
-        await session?.triggerAction(args);
-    }
-
-    async onSlackTriggerAction(channelId: string, args: SlackActionArgs): Promise<void> {
-        const threadId = slackThreadId(channelId, args.channel);
-        const session = this.getSession(threadId) as SbotSession | undefined;
-        await session?.triggerAction(args);
-    }
-
-    async onWecomTriggerAction(channelId: string, args: WecomActionArgs): Promise<void> {
-        const threadId = wecomThreadId(channelId, args.chatid);
+    async onChannelTriggerAction(threadId: string, args: any): Promise<void> {
         const session = this.getSession(threadId) as SbotSession | undefined;
         await session?.triggerAction(args);
     }

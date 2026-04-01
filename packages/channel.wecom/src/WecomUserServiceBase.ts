@@ -10,7 +10,7 @@ import {
   MessageType,
   GlobalLoggerService,
 } from 'scorpio.ai';
-import { ChannelUserServiceBase, ToolCallStatus, SessionService } from 'channel.base';
+import { ChannelUserServiceBase, ToolCallStatus, SessionService, AgentToolHelpers } from 'channel.base';
 import { WecomChatProvider } from './WecomChatProvider';
 import type { WecomService, WecomMessageArgs, WecomActionArgs } from './WecomService';
 
@@ -19,7 +19,7 @@ export type { WecomMessageArgs, WecomActionArgs } from './WecomService';
 
 const getLogger = () => GlobalLoggerService.getLogger('WecomUserServiceBase.ts');
 
-export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
+export class WecomUserServiceBase extends ChannelUserServiceBase {
   protected provider: WecomChatProvider | undefined;
   wecomService!: WecomService;
   private _chatid = '';
@@ -27,6 +27,17 @@ export abstract class WecomUserServiceBase extends ChannelUserServiceBase {
 
   constructor(session: SessionService) {
     super(session);
+  }
+
+  buildExtraInfo(userInfo: any): string {
+    if (!userInfo) return '';
+    return `<wecom-user>
+  <userid>${userInfo.userid}</userid>
+</wecom-user>`;
+  }
+
+  buildAgentTools(args: any, helpers: AgentToolHelpers): any[] {
+    return [helpers.createAskTool('wecom', (params) => this.executeAsk(params), [AskQuestionType.Radio, AskQuestionType.Checkbox])];
   }
 
   async onProcessStart(_query: string, args: WecomMessageArgs, _messageType: MessageType): Promise<void> {

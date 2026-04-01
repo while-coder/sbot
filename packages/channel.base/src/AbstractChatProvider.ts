@@ -1,4 +1,4 @@
-import { AgentMessage, MessageChunkType } from "scorpio.ai";
+import { AgentMessage, MessageRole } from "scorpio.ai";
 import { ProviderMessage, ProviderMessageType, ProviderTextMessage, ProviderToolMessage } from "./ProviderMessage";
 
 export abstract class AbstractChatProvider {
@@ -7,9 +7,11 @@ export abstract class AbstractChatProvider {
   protected tools: Record<string, ProviderToolMessage> = {};
 
   async addAIMessage(message: AgentMessage): Promise<void> {
-    if (message.type === MessageChunkType.AI) {
+    if (message.isCommand) {
+      this.messages.push({ type: ProviderMessageType.TEXT, content: message.content as string ?? '' });
+    } else if (message.role === MessageRole.AI) {
       if (message.content) {
-        this.messages.push({ type: ProviderMessageType.TEXT, content: message.content });
+        this.messages.push({ type: ProviderMessageType.TEXT, content: message.content as string });
       }
       if (message.tool_calls?.length) {
         for (const t of message.tool_calls) {
@@ -18,15 +20,13 @@ export abstract class AbstractChatProvider {
           this.messages.push(toolMsg);
         }
       }
-    } else if (message.type === MessageChunkType.TOOL) {
+    } else if (message.role === MessageRole.Tool) {
       const toolMsg = this.tools[message.tool_call_id ?? ''];
       if (toolMsg) {
         toolMsg.result = true;
         toolMsg.status = message.status;
-        toolMsg.response = message.content ?? '';
+        toolMsg.response = message.content as string ?? '';
       }
-    } else if (message.type === MessageChunkType.COMMAND) {
-      this.messages.push({ type: ProviderMessageType.TEXT, content: message.content ?? '' });
     }
     await this.onMessagesUpdated();
   }

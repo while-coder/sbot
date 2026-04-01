@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { AgentMessage, AskToolParams, MessageChunkType, MessageType } from "scorpio.ai";
+import { AgentMessage, AskToolParams, MessageRole, MessageType } from "scorpio.ai";
 import { AgentRunner, AgentSchedulerContext, createAskAgentTool } from "../../Agent/AgentRunner";
 import { config } from '../../Core/Config';
 import { SchedulerType } from '../../Core/Database';
@@ -31,21 +31,21 @@ export class WebSocketUserService {
     }
 
     async onCommandResult(content: string, _args: any): Promise<void> {
-        return this.onAgentMessage({ type: MessageChunkType.COMMAND, content });
+        return this.onAgentMessage({ role: MessageRole.AI, content, isCommand: true });
     }
 
     async onAgentMessage(message: AgentMessage): Promise<void> {
         this.emit({
             type: WebChatEventType.Message,
-            role: message.type,
-            content: message.content,
+            role: message.isCommand ? 'command' : message.role,
+            content: message.content as string | undefined,
             tool_calls: message.tool_calls,
             tool_call_id: message.tool_call_id,
         });
     }
 
     async onAgentStreamMessage(message: AgentMessage): Promise<void> {
-        this.emit({ type: WebChatEventType.Stream, content: message.content ?? '' });
+        this.emit({ type: WebChatEventType.Stream, content: message.content as string ?? '' });
     }
 
     // ── Core AI processing ──

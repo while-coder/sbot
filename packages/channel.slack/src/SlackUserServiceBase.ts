@@ -2,7 +2,7 @@ import { SlackChatProvider } from "./SlackChatProvider";
 import { AgentMessage, AgentToolCall, AskToolParams, AskQuestionType, MessageType } from "scorpio.ai";
 import { GlobalLoggerService } from "scorpio.ai";
 import { SlackService } from "./SlackService";
-import { ChannelUserServiceBase, ToolCallStatus, SessionService } from "channel.base";
+import { ChannelUserServiceBase, ToolCallStatus, SessionService, AgentToolHelpers } from "channel.base";
 
 const getLogger = () => GlobalLoggerService.getLogger("SlackUserServiceBase.ts");
 
@@ -21,7 +21,7 @@ export interface SlackActionArgs {
   value?: any;
 }
 
-export abstract class SlackUserServiceBase extends ChannelUserServiceBase {
+export class SlackUserServiceBase extends ChannelUserServiceBase {
   provider: SlackChatProvider | undefined;
   slackService!: SlackService;
 
@@ -45,7 +45,7 @@ export abstract class SlackUserServiceBase extends ChannelUserServiceBase {
   }
 
   async onAgentStreamMessage(message: AgentMessage): Promise<void> {
-    await this.provider?.setStreamMessage(message.content || "");
+    await this.provider?.setStreamMessage(message.content as string || "");
   }
 
   async onAgentMessage(message: AgentMessage): Promise<void> {
@@ -168,5 +168,18 @@ export abstract class SlackUserServiceBase extends ChannelUserServiceBase {
     }
 
     getLogger()?.warn(`Unhandled Slack action: ${actionId}`);
+  }
+
+  buildExtraInfo(userInfo: any): string {
+    if (!userInfo) return '';
+    return `<slack-user>
+  <id>${userInfo.id}</id>
+  <name>${userInfo.real_name ?? userInfo.name ?? ""}</name>
+  <email>${userInfo.profile?.email ?? ""}</email>
+</slack-user>`;
+  }
+
+  buildAgentTools(args: any, helpers: AgentToolHelpers): any[] {
+    return [helpers.createAskTool('slack', (params) => this.executeAsk(params))];
   }
 }

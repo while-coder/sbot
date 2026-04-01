@@ -1,13 +1,10 @@
 import { CronJob } from "cron";
-import { LarkService, LarkMessageArgs } from "channel.lark";
-import { SlackService, SlackMessageArgs } from "channel.slack";
-import { WecomService, WecomMessageArgs } from "channel.wecom";
 import { database, SchedulerRow, ChannelSessionRow, SchedulerType } from "../Core/Database";
 import { sessionManager } from "../UserService/SessionManager";
 import { LoggerService } from "../Core/LoggerService";
 import { config, ChannelType } from "../Core/Config";
 import { channelManager } from "../Channel/ChannelManager";
-import { dirThreadId, sessionThreadId } from "sbot.commons";
+import { dirThreadId, sessionThreadId, larkThreadId, slackThreadId, wecomThreadId } from "sbot.commons";
 
 const logger = LoggerService.getLogger("SchedulerService.ts");
 
@@ -34,29 +31,26 @@ async function executeScheduler(schedulerId: number): Promise<void> {
 
             const { channelId, sessionId, id: dbSessionId } = sessionRow;
             const channelType = config.getChannel(channelId)?.type;
+            const threadId = (() => {
+                switch (channelType) {
+                    case ChannelType.Lark: return larkThreadId(channelId, sessionId);
+                    case ChannelType.Slack: return slackThreadId(channelId, sessionId);
+                    case ChannelType.Wecom: return wecomThreadId(channelId, sessionId);
+                    default: return '';
+                }
+            })();
 
-            if (channelType === ChannelType.Lark) {
-                const args: LarkMessageArgs = {
-                    larkService: service as LarkService,
-                    event_id: "", chat_type: "", chat_id: sessionId, message_id: "", root_id: "",
-                };
-                await sessionManager.onReceiveLarkMessage(scheduler.message, args, {}, channelId, dbSessionId);
-            } else if (channelType === ChannelType.Slack) {
-                const args: SlackMessageArgs = {
-                    slackService: service as SlackService,
-                    eventId: "", channel: sessionId, ts: "",
-                };
-                await sessionManager.onReceiveSlackMessage(scheduler.message, args, {}, channelId, dbSessionId);
-            } else if (channelType === ChannelType.Wecom) {
-                const args: WecomMessageArgs = {
-                    wecomService: service as WecomService,
-                    chatid: sessionId, chattype: 'single', msgid: '', frame: null as any,
-                };
-                await sessionManager.onReceiveWecomMessage(scheduler.message, args, {}, channelId, dbSessionId);
-            } else {
+            if (!threadId) {
                 logger.warn(`Scheduler task ${tag} unknown channel type: ${channelType}`);
                 return;
             }
+
+            await sessionManager.onReceiveChannelMessage(scheduler.message, threadId, {
+                channelType,
+                channelId,
+                dbSessionId,
+                sessionId,
+            });
             logger.info(`Scheduler task ${tag} fired (${channelType}), session ${sessionId}`);
         } else {
             // Session / directory mode: deliver via HTTP pipeline

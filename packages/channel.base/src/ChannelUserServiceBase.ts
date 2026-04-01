@@ -3,12 +3,13 @@ import {
   AgentToolCall,
   AskResponse,
   AskToolParams,
-  MessageChunkType,
+  MessageRole,
   MessageType,
   NowDate,
   ToolApproval,
 } from "scorpio.ai";
 import { SessionService } from "./SessionService";
+import { AgentToolHelpers, ProcessAIHandler } from "./ChannelPlugin";
 
 export enum ToolCallStatus {
   None = "none",
@@ -29,9 +30,28 @@ export abstract class ChannelUserServiceBase {
   abstract onProcessStart(query: string, args: any, messageType: MessageType): Promise<void>;
   abstract onProcessEnd(query: string, args: any, messageType: MessageType, error?: any): Promise<void>;
   async onCommandResult(content: string, _args: any): Promise<void> {
-    return this.onAgentMessage({ type: MessageChunkType.COMMAND, content });
+    return this.onAgentMessage({ role: MessageRole.AI, content, isCommand: true });
   }
-  abstract processAI(query: string, args: any): Promise<void>;
+  private _processAIHandler?: ProcessAIHandler;
+
+  setProcessAIHandler(handler: ProcessAIHandler): void {
+    this._processAIHandler = handler;
+  }
+
+  async processAI(query: string, args: any): Promise<void> {
+    if (!this._processAIHandler) {
+      throw new Error("processAI handler not set. Call setProcessAIHandler first.");
+    }
+    return this._processAIHandler(query, args, this);
+  }
+
+  buildExtraInfo(_userInfo: any): string {
+    return "";
+  }
+
+  buildAgentTools(_args: any, _helpers: AgentToolHelpers): any[] {
+    return [];
+  }
   async onAgentStreamMessage(_message: AgentMessage): Promise<void> {}
   abstract onAgentMessage(message: AgentMessage): Promise<void>;
 

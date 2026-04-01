@@ -111,26 +111,16 @@ export interface SessionConfig {
 export interface ChannelConfig {
   /** 显示名称（可选，便于识别） */
   name?: string
-  /** 频道类型（不含 web，web 频道通过 HTTP 接口直接接入） */
-  type: Exclude<ChannelType, ChannelType.Web>
-  /** Lark App ID */
-  appId?: string
-  /** Lark App Secret */
-  appSecret?: string
-  /** Slack Bot Token (xoxb-...) */
-  botToken?: string
-  /** Slack App-Level Token for Socket Mode (xapp-...) */
-  appToken?: string
-  /** WeCom AI Bot ID */
-  botId?: string
-  /** WeCom AI Bot Secret */
-  secret?: string
+  /** 频道类型（匹配插件 type，如 "lark", "slack", "telegram"） */
+  type: string
   /** 该频道使用的 Agent UUID（对应 agents 中的 key） */
   agent: string
   /** 使用的 Saver 配置 UUID（对应 savers 中的 key） */
   saver: string
   /** 使用的记忆配置 UUID 列表（对应 memories 中的 key） */
   memories: string[]
+  /** 插件特有配置（appId, botToken 等） */
+  [key: string]: unknown
 }
 
 // 配置内容（agent/saver/memory）保存在对应目录的 .sbot/settings.json，
@@ -151,6 +141,8 @@ export interface Settings {
   httpPort?: number
   httpUrl?: string
   autoApproveTools?: string[]
+  /** Channel 插件列表（npm 包名或本地路径） */
+  plugins?: string[]
   agents?: Record<string, AgentConfig>
   models?: Record<string, Model>
   embeddings?: Record<string, Embedding>

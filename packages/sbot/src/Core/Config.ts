@@ -69,6 +69,7 @@ export interface Settings {
   sessions?: Record<string, SessionConfig>;
   channels?: Record<string, ChannelConfig>;
   directories?: Record<string, DirectoryConfig>;
+  plugins?: string[];
 }
 
 class Config {
@@ -246,14 +247,14 @@ class Config {
       },
       models: {
         [M1]: { name: "openai-gpt4",   provider: ModelProvider.OpenAI,     apiKey: "your-api-key", baseURL: "https://api.openai.com/v1",               model: "gpt-4" },
-        [M2]: { name: "claude",         provider: "anthropic" as any,        apiKey: "your-api-key", baseURL: "https://api.anthropic.com",               model: "claude-3-opus-20240229" },
-        [M3]: { name: "azure",          provider: "azure" as any,            apiKey: "your-api-key", baseURL: "https://your-resource.openai.azure.com",  model: "gpt-4" },
+        [M2]: { name: "claude",         provider: ModelProvider.Anthropic,   apiKey: "your-api-key", baseURL: "https://api.anthropic.com",               model: "claude-3-opus-20240229" },
+        [M3]: { name: "azure",          provider: "azure",                   apiKey: "your-api-key", baseURL: "https://your-resource.openai.azure.com",  model: "gpt-4" },
       },
       embeddings: {
         [E1]: { name: "openai-ada",     provider: EmbeddingProvider.OpenAI, apiKey: "your-api-key", baseURL: "https://api.openai.com/v1",               model: "text-embedding-ada-002" },
         [E2]: { name: "openai-3-small", provider: EmbeddingProvider.OpenAI, apiKey: "your-api-key", baseURL: "https://api.openai.com/v1",               model: "text-embedding-3-small" },
         [E3]: { name: "openai-3-large", provider: EmbeddingProvider.OpenAI, apiKey: "your-api-key", baseURL: "https://api.openai.com/v1",               model: "text-embedding-3-large" },
-        [E4]: { name: "azure-ada",      provider: "azure" as any,            apiKey: "your-api-key", baseURL: "https://your-resource.openai.azure.com", model: "text-embedding-ada-002" },
+        [E4]: { name: "azure-ada",      provider: "azure",                   apiKey: "your-api-key", baseURL: "https://your-resource.openai.azure.com", model: "text-embedding-ada-002" },
       },
       agents: {
         [A1]: { name: "default",      type: AgentMode.Single, model: M1, systemPrompt: "你是一个有用的AI助手" },

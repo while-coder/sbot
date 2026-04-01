@@ -1,4 +1,8 @@
 export { ChannelUserServiceBase, ToolCallStatus } from './ChannelUserServiceBase';
+export {
+  ChannelPlugin, ChannelPluginContext, ReceiveMessageContext,
+  IChannelService, AgentToolHelpers, ProcessAIHandler,
+} from './ChannelPlugin';
 export { AbstractChatProvider } from './AbstractChatProvider';
 export { ProviderMessageType, ProviderTextMessage, ProviderToolMessage, ProviderMessage, parseMessages2Text } from './ProviderMessage';
 export { SessionManager } from './SessionManager';

@@ -10,6 +10,7 @@
   "dependencies": {
     "@slack/bolt": "^4.4.0",
     "channel.base": "workspace:*",
+    "sbot.commons": "workspace:*",
     "scorpio.ai": "workspace:*"
   },
   "private": true,

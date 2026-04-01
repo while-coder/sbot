@@ -1,13 +1,12 @@
-import { LarkService, LarkReceiveIdType, LarkActionArgs, LarkMessageArgs, LarkUserIdType } from "channel.lark";
-import { SlackService, SlackMessageArgs, SlackActionArgs } from "channel.slack";
-import { WecomService, WecomMessageArgs, WecomActionArgs } from "channel.wecom";
+import { ChannelPlugin, ChannelPluginContext, IChannelService, ReceiveMessageContext } from "channel.base";
 import { ChannelUserRow, database, type ChannelSessionRow } from "../Core/Database";
 import { NowDate } from "scorpio.ai";
 import { Op } from "sequelize";
 import { sessionManager } from "../UserService/SessionManager";
 import { LoggerService } from "../Core/LoggerService";
-import { config, ChannelType, ChannelConfig } from "../Core/Config";
+import { config } from "../Core/Config";
 import { compareSemver, fetchLatestRelease } from "sbot.commons";
+import { PluginLoader } from "./PluginLoader";
 
 const logger = LoggerService.getLogger("ChannelManager.ts");
 
@@ -66,20 +65,7 @@ async function checkForUpdate(sendMessage: (msg: string) => Promise<void>): Prom
 
 // ── DB 辅助函数 ───────────────────────────────────────────────────────────────
 
-interface ReceiveMessageContext {
-    channelId: string;
-    userId: string;
-    userName: string;
-    userInfo: string;
-    sessionId: string;
-    sessionName: string;
-    processMessage: (dbSessionId: number) => Promise<void>;
-    sendUpdate: (msg: string) => Promise<void>;
-    userAvatar?: string;
-    sessionAvatar?: string;
-}
-
-async function handleReceiveMessage(ctx: ReceiveMessageContext): Promise<void> {
+export async function handleReceiveMessage(ctx: ReceiveMessageContext): Promise<void> {
     const { channelId, userId, userName, userInfo, sessionId, sessionName, processMessage, sendUpdate, userAvatar, sessionAvatar } = ctx;
     const userData: Record<string, any> = { userName, userInfo };
     if (userAvatar !== undefined) userData.avatar = userAvatar;
@@ -105,75 +91,57 @@ async function handleReceiveMessage(ctx: ReceiveMessageContext): Promise<void> {
     checkForUpdate(sendUpdate).catch(() => {});
 }
 
-// ── 频道 Handler 接口 ─────────────────────────────────────────────────────────
-
-export interface IChannelService {
-    dispose?(): void;
-}
-
-/**
- * 频道初始化函数类型。
- * 每种 ChannelType 注册一个对应的初始化函数，返回可卸载的服务实例。
- */
-export type ChannelInitFn = (
-    channelId: string,
-    channel: ChannelConfig,
-) => Promise<IChannelService | undefined>;
-
 // ── ChannelManager ────────────────────────────────────────────────────────────
 
 export class ChannelManager {
-    /** 各 ChannelType 对应的初始化函数 */
-    private initializers = new Map<ChannelType, ChannelInitFn>();
-    /** 已启动的频道服务实例，key 为 channelId */
+    private pluginLoader = new PluginLoader();
+    private plugins = new Map<string, ChannelPlugin>();
     private services = new Map<string, IChannelService>();
 
-    constructor() {
-        // 注册内置频道类型
-        this.register(ChannelType.Lark, this.initLark.bind(this));
-        this.register(ChannelType.Slack, this.initSlack.bind(this));
-        this.register(ChannelType.Wecom, this.initWecom.bind(this));
-    }
-
-    /**
-     * 注册频道类型初始化函数（支持扩展新类型）
-     */
-    register(type: ChannelType, init: ChannelInitFn): void {
-        this.initializers.set(type, init);
-    }
-
-    /**
-     * 初始化所有已配置的频道
-     */
     async init(): Promise<void> {
-        const channels = Object.entries(config.settings.channels || {}) as [string, ChannelConfig][];
+        this.plugins = await this.pluginLoader.loadAll();
+
+        const channels = Object.entries(config.settings.channels || {});
         if (channels.length === 0) {
             logger.info("No channel configuration, skipping startup");
             return;
         }
+
         let started = 0;
         for (const [channelId, channel] of channels) {
-            const initializer = this.initializers.get(channel.type as ChannelType);
-            if (!initializer) {
-                logger.warn(`Unknown channel type [${channel.type}], skipping channel [${channel.name || channelId}]`);
+            const plugin = this.plugins.get((channel as any).type as string);
+            if (!plugin) {
+                logger.warn(`Unknown channel type [${(channel as any).type}], skipping channel [${(channel as any).name || channelId}]`);
                 continue;
             }
             try {
-                const service = await initializer(channelId, channel);
+                const ctx: ChannelPluginContext = {
+                    channelId,
+                    config: channel as Record<string, any>,
+                    logger,
+                    filterEvent,
+                    handleReceiveMessage,
+                    onReceiveMessage: (query, threadId, args) =>
+                        sessionManager.onReceiveChannelMessage(query, threadId, args),
+                    onTriggerAction: (threadId, args) =>
+                        sessionManager.onChannelTriggerAction(threadId, args),
+                };
+                const service = await plugin.init(ctx);
                 if (service) {
                     this.services.set(channelId, service);
                     started++;
                 }
             } catch (e) {
-                logger.error(`Channel [${channel.name || channelId}] failed to start: ${e}`);
+                logger.error(`Channel [${(channel as any).name || channelId}] failed to start: ${e}`);
             }
         }
         logger.info(`ChannelManager initialized, started ${started} channel(s)`);
     }
 
-    /**
-     * 卸载所有频道服务
-     */
+    getPlugin(type: string): ChannelPlugin | undefined {
+        return this.plugins.get(type);
+    }
+
     async dispose(): Promise<void> {
         for (const [channelId, service] of this.services) {
             try {
@@ -186,130 +154,19 @@ export class ChannelManager {
         this.services.clear();
     }
 
-    /**
-     * 重新加载所有频道
-     */
     async reload(): Promise<void> {
         await this.dispose();
         await this.init();
         logger.info("ChannelManager reload completed");
     }
 
-    /**
-     * 获取指定频道配置
-     */
-    getChannel(channelId: string): ChannelConfig | undefined {
-        return config.getChannel(channelId);
-    }
+    getChannel(channelId: string) { return config.getChannel(channelId); }
+    getService(channelId: string) { return this.services.get(channelId); }
 
-    /**
-     * 获取已启动的频道服务实例
-     */
-    getService(channelId: string): IChannelService | undefined {
-        return this.services.get(channelId);
-    }
-
-    // ── Lark 频道初始化 ───────────────────────────────────────────────────────
-
-    // ── Slack 频道初始化 ──────────────────────────────────────────────────────
-
-    private async initSlack(channelId: string, channel: ChannelConfig): Promise<IChannelService | undefined> {
-        if (!channel.botToken?.trim() || !channel.appToken?.trim()) {
-            logger.warn(`Slack channel [${channel.name || channelId}] missing botToken or appToken, skipping`);
-            return undefined;
-        }
-        const service = new SlackService({
-            botToken: channel.botToken,
-            appToken: channel.appToken,
-            logger: logger,
-            onReceiveMessage: async (userId: string, userInfo: any, args: SlackMessageArgs, query: string) => {
-                await handleReceiveMessage({
-                    channelId, userId,
-                    userName: userInfo?.real_name ?? userInfo?.name ?? "",
-                    userInfo: JSON.stringify(userInfo ?? {}),
-                    sessionId: args.channel,
-                    sessionName: args.channel,
-                    processMessage: (dbSessionId: number) => sessionManager.onReceiveSlackMessage(query, args, userInfo ?? {}, channelId, dbSessionId),
-                    sendUpdate: (msg: string) => service.sendMessage(args.channel, msg).then(() => {}),
-                });
-            },
-            onTriggerAction: async (_userId: string, args: SlackActionArgs) => {
-                await sessionManager.onSlackTriggerAction(channelId, args);
-            },
-        });
-        await service.registerEventHandlers();
-        logger.info(`Slack channel [${channel.name || channelId}] started successfully`);
-        return service;
-    }
-
-    // ── Lark 频道初始化 ───────────────────────────────────────────────────────
-
-    private async initLark(channelId: string, channel: ChannelConfig): Promise<IChannelService | undefined> {
-        if (!channel.appId?.trim() || !channel.appSecret?.trim()) {
-            logger.warn(`Lark channel [${channel.name || channelId}] missing appId or appSecret, skipping`);
-            return undefined;
-        }
-        const service = new LarkService({
-            appId: channel.appId,
-            appSecret: channel.appSecret,
-            logger: logger,
-            userIdType: LarkUserIdType.UnionId,
-            filterEvent,
-            onRecevieMessage: async (userId: string, userInfo: any, chatInfo: any, args: LarkMessageArgs, query: string) => {
-                const sessionName = chatInfo ? (chatInfo?.chat_mode == 'p2p' ? `p2p_${userId}` : `${chatInfo?.chat_mode}_${chatInfo?.name}`) : '';
-                await handleReceiveMessage({
-                    channelId,
-                    userId,
-                    userName: userInfo?.name ?? '',
-                    userInfo: JSON.stringify(userInfo ?? {}),
-                    sessionId: args.chat_id,
-                    sessionName,
-                    processMessage: (dbSessionId: number) => sessionManager.onReceiveLarkMessage(query, args, userInfo ?? {}, channelId, dbSessionId),
-                    sendUpdate: (msg: string) => service.sendMarkdownMessage(LarkReceiveIdType.ChatId, args.chat_id, msg).then(() => {}),
-                    userAvatar: userInfo?.avatar?.avatar_origin,
-                    sessionAvatar: chatInfo?.avatar || '',
-                });
-            },
-            onTriggerAction: async (_userId: string, _userInfo: any, _chatInfo: any, args: LarkActionArgs) => {
-                await sessionManager.onLarkTriggerAction(channelId, args);
-            },
-        });
-        await service.registerEventDispatcher();
-        logger.info(`Lark channel [${channel.name || channelId}] started successfully`);
-        return service;
-    }
-
-    // ── WeCom 频道初始化 ──────────────────────────────────────────────────────
-
-    private async initWecom(channelId: string, channel: ChannelConfig): Promise<IChannelService | undefined> {
-        if (!channel.botId?.trim() || !channel.secret?.trim()) {
-            logger.warn(`WeCom channel [${channel.name || channelId}] missing botId or secret, skipping`);
-            return undefined;
-        }
-        const service = new WecomService({
-            botId: channel.botId,
-            secret: channel.secret,
-            logger: logger,
-            filterEvent,
-            onReceiveMessage: async (userId: string, args: WecomMessageArgs, query: string) => {
-                await handleReceiveMessage({
-                    channelId,
-                    userId,
-                    userName: userId,
-                    userInfo: JSON.stringify({ userId: userId }),
-                    sessionId: args.chatid,
-                    sessionName: args.chatid,
-                    processMessage: (dbSessionId: number) => sessionManager.onReceiveWecomMessage(query, args, { userId: userId }, channelId, dbSessionId),
-                    sendUpdate: (msg: string) => service.sendMessage(args.chatid, { msgtype: 'markdown', markdown: { content: msg } }).then(() => {}),
-                });
-            },
-            onTriggerAction: async (_userId: string, args: WecomActionArgs) => {
-                await sessionManager.onWecomTriggerAction(channelId, args);
-            },
-        });
-        service.connect();
-        logger.info(`WeCom channel [${channel.name || channelId}] started successfully`);
-        return service;
+    async loadPlugin(moduleOrPath: string): Promise<ChannelPlugin | undefined> {
+        const plugin = this.pluginLoader.loadPlugin(moduleOrPath);
+        if (plugin) this.plugins.set(plugin.type, plugin);
+        return plugin;
     }
 }
 

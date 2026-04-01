@@ -6,7 +6,7 @@ import os from 'os';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { WebSocket, WebSocketServer } from 'ws';
-import { AgentToolService, SkillService, ModelProvider, listThreadIds, type SaverMessage } from "scorpio.ai";
+import { AgentToolService, SkillService, ModelProvider, listThreadIds, type StoredMessage } from "scorpio.ai";
 import { config } from '../Core/Config';
 import { AgentRunner } from '../Agent/AgentRunner';
 import { globalAgentToolService, refreshGlobalAgentToolService, refreshBuiltinTools, BuiltinProvider } from '../Agent/GlobalAgentToolService';
@@ -733,15 +733,13 @@ class HttpServer {
     }
 
     // ===== Data (Savers & Memories) =====
-    private formatMessages(items: SaverMessage[]) {
+    private formatMessages(items: StoredMessage[]) {
         return items.map(({ message: m, createdAt }) => {
-            const mm = m as any;
-            const role = mm._getType?.() ?? 'unknown';
             const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
-            const result: any = { role, content };
-            if (mm.tool_calls?.length) result.tool_calls = mm.tool_calls;
-            if (mm.tool_call_id) result.tool_call_id = mm.tool_call_id;
-            if (mm.name) result.name = mm.name;
+            const result: any = { role: m.role, content };
+            if (m.tool_calls?.length) result.tool_calls = m.tool_calls;
+            if (m.tool_call_id) result.tool_call_id = m.tool_call_id;
+            if (m.name) result.name = m.name;
             if (createdAt) result.timestamp = new Date(createdAt * 1000).toISOString();
             return result;
         });
@@ -758,7 +756,7 @@ class HttpServer {
                 req.params.saverId as string,
                 req.params.threadId as string,
             );
-            const messages = await saver.getAllMessagesWithTime();
+            const messages = await saver.getAllMessages();
             await saver.dispose();
             return this.formatMessages(messages);
         }));
@@ -790,11 +788,11 @@ class HttpServer {
         }));
 
         app.post('/api/memories/:memoryName/add', api(async req => {
-            const { content } = req.body as { content?: string };
+            const { content, autoSplit } = req.body as { content?: string; autoSplit?: boolean };
             if (!content?.trim()) { const e: any = new Error('content is required'); e.status = 400; throw e; }
             const threadId = req.query.threadId as string | undefined;
             const svc = await AgentRunner.createMemoryService(req.params.memoryName as string, threadId);
-            const ids = await svc.addMemoryDirect(content.trim());
+            const ids = await svc.addMemoryDirect(content.trim(), { autoSplit });
             await svc.dispose();
             return { ids };
         }));
