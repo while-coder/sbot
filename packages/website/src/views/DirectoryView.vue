@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
@@ -10,7 +10,7 @@ import SaverViewModal from './modals/SaverViewModal.vue'
 import MemoryViewModal from './modals/MemoryViewModal.vue'
 import MultiSelect from '@/components/MultiSelect.vue'
 import ChatArea from '@/components/ChatArea.vue'
-import { dirThreadId, WsCommandType, MessageRole } from 'sbot.commons'
+import { dirThreadId, WsCommandType } from 'sbot.commons'
 import type { WebChatEvent } from 'sbot.commons'
 
 const { t } = useI18n()
@@ -25,7 +25,8 @@ interface Attachment {
 }
 
 const { show } = useToast()
-const { send: wsSend, onMessage: wsOnMessage, offMessage: wsOffMessage, waitForOpen } = useChatSocket()
+const chatSocket = useChatSocket()
+const { send: wsSend, onMessage: wsOnMessage, offMessage: wsOffMessage, waitForOpen } = chatSocket
 const directoryModal  = ref<InstanceType<typeof DirectoryModal>>()
 const saverViewModal  = ref<InstanceType<typeof SaverViewModal>>()
 const memoryViewModal = ref<InstanceType<typeof MemoryViewModal>>()
@@ -142,9 +143,29 @@ async function handleWsEvent(evt: WebChatEvent & { threadId?: string }) {
   await chatAreaRef.value?.handleWsEvent(evt)
 }
 
+watch(chatSocket.connected, (val, oldVal) => {
+  if (!val && oldVal) {
+    show(t('chat.ws_reconnecting'), 'error')
+    chatAreaRef.value?.reset()
+  }
+})
+
 function onChatAreaDone() {
   chatAreaRef.value?.refreshHistory()
 }
+
+// ── 切换目录时恢复 session 状态 ──────────────────────────
+async function fetchAndRestoreSessionStatus(dirPath: string | null) {
+  if (!dirPath) { chatAreaRef.value?.restoreSessionStatus(null); return }
+  try {
+    const res = await apiFetch(`/api/session-status?workPath=${encodeURIComponent(dirPath)}`)
+    chatAreaRef.value?.restoreSessionStatus(res ?? null)
+  } catch {
+    chatAreaRef.value?.restoreSessionStatus(null)
+  }
+}
+
+watch(activeDir, (dir) => fetchAndRestoreSessionStatus(dir))
 
 // ── 发送消息 ──────────────────────────────────────────────
 async function onPanelSend(query: string, atts: Attachment[]) {
@@ -156,14 +177,6 @@ async function onPanelSend(query: string, atts: Attachment[]) {
 }
 
 async function sendOne(query: string, atts: Attachment[]) {
-  chatAreaRef.value?.setSending(true)
-
-  // 乐观推送人类消息（包含附件名称展示）
-  const displayContent = [query, ...atts.map(a => `[附件: ${a.name}]`)].filter(Boolean).join('\n')
-  chatAreaRef.value?.pushMessage({ message: { role: MessageRole.Human, content: displayContent }, createdAt: Date.now() / 1000 })
-  await nextTick()
-  chatAreaRef.value?.scrollToBottom(true)
-
   try {
     await waitForOpen()
     wsSend({
@@ -173,9 +186,10 @@ async function sendOne(query: string, atts: Attachment[]) {
       workPath: activeDir.value!,
       attachments: atts.length ? atts : undefined,
     })
+    chatAreaRef.value?.addQueuedMessage(query)
   } catch (e: any) {
+    chatAreaRef.value?.reset()
     show(e.message, 'error')
-    chatAreaRef.value?.setSending(false)
   }
 }
 
@@ -314,7 +328,6 @@ onUnmounted(() => { wsOffMessage(handleWsEvent); chatAreaRef.value?.cleanup() })
           <ChatArea
             ref="chatAreaRef"
             :history-url="historyUrl"
-            :handle-human-message="false"
             :show-attachments="true"
             :empty-text="!activeCfg?.agent || !activeCfg?.saver ? '请先在工具栏配置 Agent 和存储' : '暂无对话历史，发送消息开始对话'"
             :cancel-thread-id="activeDir ? dirThreadId(activeDir) : undefined"

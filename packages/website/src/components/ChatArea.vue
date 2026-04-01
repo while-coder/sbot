@@ -164,7 +164,7 @@ async function refreshHistory() {
     const res = await apiFetch(url)
     messages.value = res.data || []
     await nextTick()
-    chatPanelRef.value?.scrollToBottom()
+    chatPanelRef.value?.scrollToBottom(true)
   } catch (e: any) {
     show(e.message, 'error')
   }
