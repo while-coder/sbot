@@ -1,7 +1,7 @@
 import { SlackChatProvider } from "./SlackChatProvider";
 import { SlackService } from "./SlackService";
 import {
-  ChannelSessionHandler, ToolCallStatus, SessionService, AgentToolHelpers,
+  ChannelSessionHandler, ToolCallStatus, SessionService, ChannelToolHelpers,
   GlobalLoggerService, AskQuestionType,
   type ChannelMessageArgs, type ChatMessage, type ChatToolCall, type AskToolParams, type MessageType,
 } from "channel.base";
@@ -42,11 +42,11 @@ export class SlackSessionHandler extends ChannelSessionHandler {
     }
   }
 
-  async onAgentStreamMessage(message: ChatMessage): Promise<void> {
+  async onStreamMessage(message: ChatMessage, _args: any): Promise<void> {
     await this.provider?.setStreamMessage(message);
   }
 
-  async onChatMessage(message: ChatMessage): Promise<void> {
+  async onChatMessage(message: ChatMessage, _args: any): Promise<void> {
     this.provider?.resetStreamMessage();
     await this.provider?.addAIMessage(message);
   }
@@ -168,7 +168,7 @@ export class SlackSessionHandler extends ChannelSessionHandler {
     getLogger()?.warn(`Unhandled Slack action: ${actionId}`);
   }
 
-  buildAgentTools(args: any, helpers: AgentToolHelpers): any[] {
+  buildAgentTools(args: any, helpers: ChannelToolHelpers): any[] {
     return [helpers.createAskTool('slack', (params) => this.executeAsk(params))];
   }
 }

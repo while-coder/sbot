@@ -47,7 +47,7 @@ export class WebSocketUserService {
         this.emit(evt);
     }
 
-    async onAgentStreamMessage(message: ChatMessage): Promise<void> {
+    async onStreamMessage(message: ChatMessage): Promise<void> {
         this.emit({ type: WebChatEventType.Stream, content: message.content ?? '' });
     }
 
@@ -80,7 +80,7 @@ export class WebSocketUserService {
             query,
             callbacks: {
                 onMessage: (msg) => this.onChatMessage(msg),
-                onStreamMessage: (msg) => this.onAgentStreamMessage(msg),
+                onStreamMessage: (msg) => this.onStreamMessage(msg),
                 executeTool: buildExecuteTool(this.session, agentId, (tc) => {
                     const { id, promise } = this.session.enterApproval(tc, 300_000);
                     this.emit({ type: WebChatEventType.ToolCall, id, threadId, name: tc.name, args: tc.args });

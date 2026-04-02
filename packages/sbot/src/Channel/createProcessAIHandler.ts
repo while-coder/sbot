@@ -1,10 +1,10 @@
-import { ProcessAIHandler, AgentToolHelpers } from "channel.base";
+import { ProcessAIHandler, ChannelToolHelpers } from "channel.base";
 import { AgentRunner, createAskAgentTool, createSendFileAgentTool } from "../Agent/AgentRunner";
 import { config } from "../Core/Config";
 import { ChannelSessionRow, SchedulerType, database, parseMemories } from "../Core/Database";
 import { buildExecuteTool } from "../UserService/buildExecuteTool";
 
-const agentToolHelpers: AgentToolHelpers = {
+const agentToolHelpers: ChannelToolHelpers = {
     createAskTool: (channelType, askFn, supportedTypes) =>
         createAskAgentTool(channelType as any, askFn, supportedTypes),
     createSendFileTool: (channelType, sendFileFn) =>
@@ -31,8 +31,8 @@ export function createProcessAIHandler(): ProcessAIHandler {
         await AgentRunner.run({
             query,
             callbacks: {
-                onMessage: userService.onChatMessage.bind(userService),
-                onStreamMessage: userService.onAgentStreamMessage.bind(userService),
+                onMessage: (msg) => userService.onChatMessage(msg, args),
+                onStreamMessage: (msg) => userService.onStreamMessage(msg, args),
                 executeTool: buildExecuteTool(
                     (userService as any).session,
                     agentId,

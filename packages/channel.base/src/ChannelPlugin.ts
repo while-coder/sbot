@@ -44,7 +44,7 @@ export interface ChannelPluginContext {
   onTriggerAction: (session: ChannelSessionInfo, args: any) => Promise<void>;
 }
 
-export interface AgentToolHelpers {
+export interface ChannelToolHelpers {
   createAskTool: (
     channelType: string,
     askFn: (params: AskToolParams) => Promise<AskResponse>,
@@ -58,7 +58,7 @@ export interface AgentToolHelpers {
 
 export type ProcessAIHandler = (
   query: string,
-  args: any,
+  args: ChannelMessageArgs,
   userService: ChannelSessionHandler,
 ) => Promise<void>;
 

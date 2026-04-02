@@ -1,7 +1,7 @@
 import { LarkChatProvider } from "./LarkChatProvider";
 import { LarkReceiveIdType, LarkService } from "./LarkService";
 import {
-  ChannelSessionHandler, ToolCallStatus, SessionService, AgentToolHelpers,
+  ChannelSessionHandler, ToolCallStatus, SessionService, ChannelToolHelpers,
   GlobalLoggerService, AskQuestionType,
   type ChannelMessageArgs, type ChatMessage, type ChatToolCall, type AskToolParams, type MessageType,
 } from "channel.base";
@@ -78,13 +78,30 @@ export class LarkSessionHandler extends ChannelSessionHandler {
     await this.provider?.deleteElement(EL_ABORT_BTN);
   }
 
-  async onAgentStreamMessage(message: ChatMessage): Promise<void> {
+  async onStreamMessage(message: ChatMessage, _args: ChannelMessageArgs): Promise<void> {
     await this.provider?.setStreamMessage(message);
   }
 
-  async onChatMessage(message: ChatMessage): Promise<void> {
+  async onChatMessage(message: ChatMessage, args: ChannelMessageArgs): Promise<void> {
     this.provider!.resetStreamMessage();
     await this.provider?.addAIMessage(message);
+    await this.sendInlineImages(message, args);
+  }
+
+  private async sendInlineImages(message: ChatMessage, args: ChannelMessageArgs): Promise<void> {
+    if (!Array.isArray(message.content)) return;
+    const { sessionId } = args;
+    for (const part of message.content) {
+      if (part.type === 'inlineData' && part.inlineData?.data) {
+        try {
+          const ext = (part.inlineData.mimeType ?? 'image/png').split('/')[1] || 'png';
+          const buf = Buffer.from(part.inlineData.data, 'base64');
+          await this.larkService.sendFileMessage(LarkReceiveIdType.ChatId, sessionId, buf, `image_${Date.now()}.${ext}`);
+        } catch (e: any) {
+          getLogger()?.error(`Failed to send inline image: ${e.message}`);
+        }
+      }
+    }
   }
 
   private buildButton(label: string, type: string, approval: ToolCallStatus, elementId: string, toolCallId: string): object {
@@ -194,7 +211,7 @@ export class LarkSessionHandler extends ChannelSessionHandler {
     await this.provider?.deleteElement(EL_ASK_FORM);
   }
 
-  buildAgentTools(args: ChannelMessageArgs, helpers: AgentToolHelpers): any[] {
+  buildAgentTools(args: ChannelMessageArgs, helpers: ChannelToolHelpers): any[] {
     const { sessionId } = args as LarkMessageArgs;
     return [
         helpers.createAskTool('lark', (params) => this.executeAsk(params), [AskQuestionType.Radio, AskQuestionType.Checkbox, AskQuestionType.Input]),

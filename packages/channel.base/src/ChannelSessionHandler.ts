@@ -9,7 +9,7 @@ import {
   ToolApproval,
 } from "scorpio.ai";
 import { SessionService } from "./SessionService";
-import { AgentToolHelpers, ChannelMessageArgs, ProcessAIHandler } from "./ChannelPlugin";
+import { ChannelToolHelpers, ChannelMessageArgs, ProcessAIHandler } from "./ChannelPlugin";
 
 export enum ToolCallStatus {
   None = "none",
@@ -29,8 +29,8 @@ export abstract class ChannelSessionHandler {
 
   abstract onProcessStart(query: string, args: ChannelMessageArgs, messageType: MessageType): Promise<void>;
   abstract onProcessEnd(query: string, args: ChannelMessageArgs, messageType: MessageType, error?: any): Promise<void>;
-  async onCommandResult(content: string, _args: any): Promise<void> {
-    return this.onChatMessage({ role: MessageRole.AI, content, isCommand: true });
+  async onCommandResult(content: string, args: ChannelMessageArgs): Promise<void> {
+    return this.onChatMessage({ role: MessageRole.AI, content, isCommand: true }, args);
   }
   private _processAIHandler?: ProcessAIHandler;
 
@@ -38,18 +38,18 @@ export abstract class ChannelSessionHandler {
     this._processAIHandler = handler;
   }
 
-  async processAI(query: string, args: any): Promise<void> {
+  async processAI(query: string, args: ChannelMessageArgs): Promise<void> {
     if (!this._processAIHandler) {
       throw new Error("processAI handler not set. Call setProcessAIHandler first.");
     }
     return this._processAIHandler(query, args, this);
   }
 
-  buildAgentTools(_args: any, _helpers: AgentToolHelpers): any[] {
+  buildAgentTools(_args: any, _helpers: ChannelToolHelpers): any[] {
     return [];
   }
-  async onAgentStreamMessage(_message: ChatMessage): Promise<void> {}
-  abstract onChatMessage(message: ChatMessage): Promise<void>;
+  abstract onStreamMessage(message: ChatMessage, args: ChannelMessageArgs): Promise<void>;
+  abstract onChatMessage(message: ChatMessage, args: ChannelMessageArgs): Promise<void>;
 
   protected abstract enterApproval(approvalId: string, remainSec: number, toolCall: ChatToolCall): Promise<void>;
   protected abstract exitApproval(approvalId: string): Promise<void>;

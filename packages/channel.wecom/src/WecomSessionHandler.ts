@@ -10,7 +10,7 @@ import {
   MessageType,
   GlobalLoggerService,
 } from 'scorpio.ai';
-import { ChannelSessionHandler, ToolCallStatus, SessionService, AgentToolHelpers, type ChannelMessageArgs } from 'channel.base';
+import { ChannelSessionHandler, ToolCallStatus, SessionService, ChannelToolHelpers, type ChannelMessageArgs } from 'channel.base';
 import { WecomChatProvider } from './WecomChatProvider';
 import type { WecomService, WecomMessageArgs, WecomActionArgs } from './WecomService';
 
@@ -28,7 +28,7 @@ export class WecomSessionHandler extends ChannelSessionHandler {
     super(session);
   }
 
-  buildAgentTools(args: any, helpers: AgentToolHelpers): any[] {
+  buildAgentTools(args: any, helpers: ChannelToolHelpers): any[] {
     return [helpers.createAskTool('wecom', (params) => this.executeAsk(params), [AskQuestionType.Radio, AskQuestionType.Checkbox])];
   }
 
@@ -48,7 +48,11 @@ export class WecomSessionHandler extends ChannelSessionHandler {
 
 
 
-  async onChatMessage(message: ChatMessage): Promise<void> {
+  async onStreamMessage(message: ChatMessage, _args: ChannelMessageArgs): Promise<void> {
+    await this.provider?.setStreamMessage(message);
+  }
+
+  async onChatMessage(message: ChatMessage, _args: any): Promise<void> {
     if (this.provider) {
       await this.provider.addAIMessage(message);
     }
