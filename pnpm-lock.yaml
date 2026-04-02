@@ -71,9 +71,6 @@ importers:
       channel.base:
         specifier: workspace:*
         version: link:../channel.base
-      scorpio.ai:
-        specifier: workspace:*
-        version: link:../scorpio.ai
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -90,6 +87,22 @@ importers:
       '@slack/bolt':
         specifier: ^4.4.0
         version: 4.6.0(@types/express@5.0.6)
+      channel.base:
+        specifier: workspace:*
+        version: link:../channel.base
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.4.0
+      rimraf:
+        specifier: 'catalog:'
+        version: 6.1.3
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+
+  packages/channel.wechat:
+    dependencies:
       channel.base:
         specifier: workspace:*
         version: link:../channel.base
@@ -115,9 +128,6 @@ importers:
       channel.base:
         specifier: workspace:*
         version: link:../channel.base
-      scorpio.ai:
-        specifier: workspace:*
-        version: link:../scorpio.ai
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -198,6 +208,9 @@ importers:
       channel.slack:
         specifier: workspace:*
         version: link:../channel.slack
+      channel.wechat:
+        specifier: workspace:*
+        version: link:../channel.wechat
       channel.wecom:
         specifier: workspace:*
         version: link:../channel.wecom

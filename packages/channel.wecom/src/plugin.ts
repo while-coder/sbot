@@ -1,5 +1,5 @@
 import {
-  ChannelPlugin, ChannelPluginContext, IChannelService,
+  ChannelPlugin, ChannelPluginContext, IChannelService, ConfigFieldType,
 } from "channel.base";
 import { WecomService } from "./WecomService";
 import type { WecomMessageArgs, WecomActionArgs } from "./WecomService";
@@ -14,8 +14,8 @@ export const wecomPlugin: ChannelPlugin = {
   type: "wecom",
 
   configSchema: {
-    botId:  { label: 'Bot ID',  type: 'string', required: true, description: 'WeCom bot ID' },
-    secret: { label: 'Secret',  type: 'string', required: true, description: 'WeCom bot secret' },
+    botId:  { label: 'Bot ID',  type: ConfigFieldType.String, required: true, description: 'WeCom bot ID' },
+    secret: { label: 'Secret',  type: ConfigFieldType.String, required: true, description: 'WeCom bot secret' },
   },
 
   async init(ctx: ChannelPluginContext): Promise<IChannelService | undefined> {

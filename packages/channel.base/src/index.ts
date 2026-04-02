@@ -1,8 +1,8 @@
 export { ChannelSessionHandler, ToolCallStatus } from './ChannelSessionHandler';
 export {
   ChannelPlugin, ChannelPluginContext, ChannelMessageArgs, InitSessionContext, ChannelSessionInfo,
-  IChannelService, ChannelToolHelpers, ProcessAIHandler,
-  ConfigFieldType, ConfigField,
+  IChannelService, ActionResult, ChannelToolHelpers, ProcessAIHandler,
+  ConfigFieldType, ActionResultType, ConfigField,
 } from './ChannelPlugin';
 export { AbstractChatProvider } from './AbstractChatProvider';
 export { parseMessages2Text } from './ProviderMessage';
@@ -12,4 +12,5 @@ export { SessionService, SessionSettings, SessionStatus, SessionInfo, AskInfo, A
 // Re-export scorpio.ai types for channel implementations
 export { GlobalLoggerService, type ILogger } from "scorpio.ai";
 export { MessageRole, NowDate, parseJson, AskQuestionType } from "scorpio.ai";
+export { ToolApproval } from "scorpio.ai";
 export type { ChatMessage, ChatToolCall, AskToolParams, MessageType } from "scorpio.ai";

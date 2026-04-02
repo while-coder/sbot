@@ -2,8 +2,17 @@ import { AskResponse, AskToolParams, AskQuestionType } from "scorpio.ai";
 import { ChannelSessionHandler } from "./ChannelSessionHandler";
 import { SessionService } from "./SessionService";
 
+export interface ActionResult {
+  /** Arbitrary data returned to the frontend (e.g. qrcodeUrl, status). */
+  [key: string]: any;
+  /** If present, the frontend auto-fills these values into the config form and persists them. */
+  configUpdates?: Record<string, any>;
+}
+
 export interface IChannelService {
   createUserService(session: SessionService): ChannelSessionHandler;
+  /** Generic action handler dispatched by HttpServer. Channel plugins implement this to handle configSchema actions. */
+  executeAction?(action: string, params?: any): Promise<ActionResult>;
   dispose?(): void;
 }
 
@@ -67,16 +76,30 @@ export enum ConfigFieldType {
   Boolean = 'boolean',
   Number = 'number',
   Select = 'select',
+  /** Renders a button that triggers a channel action via API. */
+  Action = 'action',
+}
+
+/** How to display the result of a configSchema action. */
+export enum ActionResultType {
+  /** Show a QR image and auto-poll `${key}-status` until confirmed/expired. */
+  QR = 'qr',
 }
 
 export interface ConfigField {
   label: string;
-  type: `${ConfigFieldType}`;
+  type: ConfigFieldType;
   required?: boolean;
   description?: string;
   default?: string | boolean | number;
   /** only for type: 'select' */
   options?: Array<{ label: string; value: string }>;
+  /**
+   * Only for type: 'action'.
+   * How to display the action result. The configSchema key is used as the action name.
+   * For 'qr', the frontend auto-polls `${key}-status` until confirmed/expired.
+   */
+  actionResultType?: ActionResultType;
 }
 
 export interface ChannelPlugin {

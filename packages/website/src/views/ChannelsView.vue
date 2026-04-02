@@ -13,7 +13,7 @@ const { t } = useI18n()
 
 interface PluginInfo {
   type: string
-  configSchema?: Record<string, { label: string; type: string; required?: boolean; description?: string; default?: string | boolean | number; options?: Array<{ label: string; value: string }> }>
+  configSchema?: Record<string, { label: string; type: string; required?: boolean; description?: string; default?: string | boolean | number; options?: Array<{ label: string; value: string }>; actionResultType?: string }>
 }
 
 interface ChannelSessionRow {
@@ -182,8 +182,82 @@ function formatUserInfo(raw: string) {
   try { return JSON.stringify(JSON.parse(raw), null, 2) } catch { return raw }
 }
 
+// --- Action field support (QR login etc.) ---
+const actionState = ref<Record<string, { loading: boolean; qrUrl?: string; status?: string; error?: string }>>({})
+let pollTimer: ReturnType<typeof setTimeout> | null = null
+
+function clearActionState() {
+  actionState.value = {}
+  if (pollTimer) { clearTimeout(pollTimer); pollTimer = null }
+}
+
+async function triggerAction(key: string, field: any) {
+  const channelId = editingId.value
+  if (!channelId) { show('请先保存 Channel 后再执行此操作', 'error'); return }
+
+  actionState.value[key] = { loading: true }
+  try {
+    const res = await apiFetch(`/api/channels/${channelId}/action/${key}`, 'POST')
+    applyConfigUpdates(res.data)
+    if (field.actionResultType === 'qr' && res.data?.qrcodeUrl) {
+      actionState.value[key] = { loading: false, qrUrl: res.data.qrcodeUrl, status: 'wait' }
+      startPolling(key, channelId)
+    } else {
+      actionState.value[key] = { loading: false, status: 'done' }
+    }
+  } catch (e: any) {
+    actionState.value[key] = { loading: false, error: e.message }
+  }
+}
+
+/** Apply configUpdates from an action response to the form and store */
+function applyConfigUpdates(data: any) {
+  if (!data?.configUpdates || !editingId.value) return
+  for (const [k, v] of Object.entries(data.configUpdates)) {
+    form.value.pluginConfig[k] = v as any
+  }
+  // Also update the store so the saved config stays in sync
+  const c = store.settings.channels?.[editingId.value]
+  if (c) {
+    if (!c.config) c.config = {}
+    Object.assign(c.config, data.configUpdates)
+  }
+}
+
+function startPolling(key: string, channelId: string) {
+  if (pollTimer) clearTimeout(pollTimer)
+  const poll = async () => {
+    try {
+      const res = await apiFetch(`/api/channels/${channelId}/action/${key}-status`, 'POST')
+      const data = res.data
+      const status = data?.status
+      const s = actionState.value[key]
+      if (!s) return
+      s.status = status
+      if (status === 'confirmed') {
+        s.qrUrl = undefined
+        applyConfigUpdates(data)
+        show('登录成功')
+        return
+      }
+      if (status === 'expired') {
+        s.qrUrl = undefined
+        s.error = '二维码已过期，请重新生成'
+        return
+      }
+      // Continue polling for 'wait' / 'scaned'
+      pollTimer = setTimeout(poll, 2000)
+    } catch (e: any) {
+      const s = actionState.value[key]
+      if (s) s.error = e.message
+    }
+  }
+  pollTimer = setTimeout(poll, 3000)
+}
+
 function openAdd() {
   editingId.value = null
+  clearActionState()
   form.value = { name: '', type: plugins.value[0]?.type || '', pluginConfig: {}, agent: '', saver: '', memories: [] }
   showModal.value = true
 }
@@ -191,6 +265,7 @@ function openAdd() {
 function openEdit(id: string) {
   const c = channels.value[id]
   editingId.value = id
+  clearActionState()
   form.value = { name: c.name || '', type: c.type || '', pluginConfig: { ...(c.config ?? {}) }, agent: c.agent, saver: c.saver, memories: c.memories || [] }
   showModal.value = true
 }
@@ -201,7 +276,9 @@ async function save() {
   try {
     const validIds = new Set(memoryOptions.value.map(m => m.id))
     const pluginConfig: Record<string, unknown> = {}
+    const schema = currentSchema.value
     for (const [key, val] of Object.entries(form.value.pluginConfig)) {
+      if (schema[key]?.type === 'action') continue // action fields are not persisted
       if (val !== '' && val !== undefined && val !== null) pluginConfig[key] = typeof val === 'string' ? val.trim() : val
     }
     const config: ChannelConfig = {
@@ -414,7 +491,21 @@ async function refresh() {
             </select>
           </div>
           <template v-for="(field, key) in currentSchema" :key="key">
-            <div class="form-group">
+            <div v-if="field.type === 'action'" class="form-group">
+              <label>{{ field.label }}</label>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <button class="btn-outline" style="align-self:flex-start" :disabled="actionState[key]?.loading" @click="triggerAction(key as string, field)">
+                  {{ actionState[key]?.loading ? '...' : field.label }}
+                </button>
+                <img v-if="actionState[key]?.qrUrl" :src="actionState[key]!.qrUrl" style="width:200px;height:200px;border:1px solid #e8e6e3;border-radius:8px" />
+                <span v-if="actionState[key]?.status === 'scaned'" style="font-size:12px;color:#e6a700">已扫码，请在手机上确认...</span>
+                <span v-if="actionState[key]?.status === 'wait' && actionState[key]?.qrUrl" style="font-size:12px;color:#888">请用微信扫描上方二维码</span>
+                <span v-if="actionState[key]?.status === 'confirmed'" style="font-size:12px;color:#16a34a">登录成功</span>
+                <span v-if="actionState[key]?.error" style="font-size:12px;color:#dc2626">{{ actionState[key]!.error }}</span>
+                <span v-if="field.description && !actionState[key]?.qrUrl" style="font-size:11px;color:#888">{{ field.description }}</span>
+              </div>
+            </div>
+            <div v-else class="form-group">
               <label>{{ field.label }}{{ field.required ? ' *' : '' }}</label>
               <select v-if="field.type === 'select'" v-model="form.pluginConfig[key]">
                 <option v-for="opt in field.options" :key="opt.value" :value="opt.value">{{ opt.label }}</option>

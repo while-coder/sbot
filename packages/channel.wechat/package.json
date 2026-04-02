@@ -1,0 +1,19 @@
+{
+  "name": "channel.wechat",
+  "version": "0.0.1",
+  "description": "WeChat (个人微信) AI bot channel integration via iLink Bot API",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "rimraf dist && tsc -b --force"
+  },
+  "dependencies": {
+    "channel.base": "workspace:*"
+  },
+  "private": true,
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "rimraf": "catalog:",
+    "typescript": "catalog:"
+  }
+}

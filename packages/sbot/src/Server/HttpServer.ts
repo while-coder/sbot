@@ -895,6 +895,30 @@ class HttpServer {
             if (isNaN(id)) { const e: any = new Error('Invalid id'); e.status = 400; throw e; }
             await database.destroy(database.channelSession, { where: { id } });
         }));
+
+        // --- Generic channel action dispatch ---
+
+        app.post('/api/channels/:id/action/:action', api(async req => {
+            const channelId = req.params.id as string;
+            const action = req.params.action as string;
+            const channel = channelManager.getChannel(channelId);
+            if (!channel) throwBad(`Channel "${channelId}" not found`);
+
+            const service = channelManager.getService(channelId);
+            if (!service?.executeAction) throwBad(`Channel "${channelId}" does not support actions`);
+
+            const result = await service.executeAction(action, req.body);
+
+            // If the action returns configUpdates, persist them
+            if (result.configUpdates) {
+                const cfg = channel.config ?? {};
+                Object.assign(cfg, result.configUpdates);
+                channel.config = cfg;
+                config.saveSettings();
+            }
+
+            return result;
+        }));
     }
 
     // ===== Logs =====

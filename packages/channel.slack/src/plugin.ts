@@ -1,5 +1,5 @@
 import {
-  ChannelPlugin, ChannelPluginContext, IChannelService,
+  ChannelPlugin, ChannelPluginContext, IChannelService, ConfigFieldType,
 } from "channel.base";
 import { SlackService } from "./SlackService";
 import { SlackMessageArgs, SlackActionArgs } from "./SlackSessionHandler";
@@ -16,8 +16,8 @@ export const slackPlugin: ChannelPlugin = {
   type: "slack",
 
   configSchema: {
-    botToken: { label: 'Bot Token', type: 'string', required: true, description: 'Slack bot token (xoxb-...)' },
-    appToken: { label: 'App Token', type: 'string', required: true, description: 'Slack app-level token (xapp-...)' },
+    botToken: { label: 'Bot Token', type: ConfigFieldType.String, required: true, description: 'Slack bot token (xoxb-...)' },
+    appToken: { label: 'App Token', type: ConfigFieldType.String, required: true, description: 'Slack app-level token (xapp-...)' },
   },
 
   async init(ctx: ChannelPluginContext): Promise<IChannelService | undefined> {

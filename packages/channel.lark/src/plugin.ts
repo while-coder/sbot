@@ -1,5 +1,5 @@
 import {
-  ChannelPlugin, ChannelPluginContext, IChannelService,
+  ChannelPlugin, ChannelPluginContext, IChannelService, ConfigFieldType,
 } from "channel.base";
 import { LarkService, LarkReceiveIdType, LarkUserIdType } from "./LarkService";
 import { LarkMessageArgs, LarkActionArgs } from "./LarkSessionHandler";
@@ -18,8 +18,8 @@ export const larkPlugin: ChannelPlugin = {
   type: "lark",
 
   configSchema: {
-    appId:     { label: 'App ID',     type: 'string', required: true, description: 'Lark app ID' },
-    appSecret: { label: 'App Secret', type: 'string', required: true, description: 'Lark app secret' },
+    appId:     { label: 'App ID',     type: ConfigFieldType.String, required: true, description: 'Lark app ID' },
+    appSecret: { label: 'App Secret', type: ConfigFieldType.String, required: true, description: 'Lark app secret' },
   },
 
   async init(ctx: ChannelPluginContext): Promise<IChannelService | undefined> {
