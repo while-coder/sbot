@@ -1,5 +1,7 @@
 # sbot — Self-hosted AI Agent Server
 
+**English** | [中文](README.zh.md)
+
 [![npm version](https://img.shields.io/npm/v/@qingfeng346/sbot)](https://www.npmjs.com/package/@qingfeng346/sbot)
 [![npm downloads](https://img.shields.io/npm/dm/@qingfeng346/sbot)](https://www.npmjs.com/package/@qingfeng346/sbot)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org)
@@ -44,7 +46,7 @@ Configuration and data are persisted in `~/.sbot` on the host.
 
 ## Features
 
-- **Multiple LLM providers** — OpenAI, Anthropic Claude, Azure OpenAI, Ollama, and any OpenAI-compatible API (Groq, Mistral, DeepSeek, etc.). Each model has its own API key, base URL, temperature, and token limits.
+- **Multiple LLM providers** — OpenAI, Anthropic Claude, Google Gemini, Ollama, and any OpenAI-compatible API (Azure OpenAI, Groq, Mistral, DeepSeek, etc.). Each model has its own API key, base URL, temperature, and token limits.
 - **Multi-agent orchestration** — ReAct mode: a thinking model decomposes tasks and dispatches to specialized sub-agents recursively
 - **Long-term memory** — Full extract → evaluate → compress pipeline with vector-embedding semantic search
 - **MCP support** — Connect external tool servers via stdio or HTTP/SSE transport
@@ -61,7 +63,7 @@ Open `http://localhost:5500` after starting sbot. Follow these steps:
 
 **1. Add a Model** — sidebar → **Models** → New
 
-Fill in provider, API key, base URL, and model name. Supported providers: OpenAI, Anthropic, Azure OpenAI, Ollama, and any OpenAI-compatible endpoint (Groq, Mistral, DeepSeek, etc.).
+Fill in provider, API key, base URL, and model name. Supported providers: OpenAI, Anthropic, Google Gemini, Ollama, and any OpenAI-compatible endpoint (Azure OpenAI, Groq, Mistral, DeepSeek, etc.).
 
 ---
 
@@ -84,7 +86,7 @@ Choose a mode:
 - **Single** — select a model, write a system prompt, optionally attach MCP tools and skills
 - **ReAct** — select a think model, then add sub-agents (each with an id and description for task dispatch). The think model decomposes tasks and dispatches sub-tasks recursively; each sub-agent has read-only access to shared memory.
 
-→ [MCP Tools](#mcp-tools) · [Skills](#skills)
+→ [MCP Tools](#add-mcp-tools) · [Skills](#manage-skills)
 
 ---
 
@@ -112,7 +114,9 @@ Requires an embedding model first (sidebar → **Embeddings** → New). Then ass
 
 ---
 
-**6. (Optional) Add MCP Tools** — sidebar → **MCP** → New
+### Add MCP Tools
+
+Sidebar → **MCP** → New
 
 Add a server:
 - **stdio** — command + args (e.g. `npx -y some-mcp-package`)
@@ -122,7 +126,9 @@ Supports global servers shared across all agents and per-agent overrides. Server
 
 ---
 
-**7. (Optional) Manage Skills** — sidebar → **Skills**
+### Manage Skills
+
+Sidebar → **Skills**
 
 Skill files (Markdown) are stored in `~/.sbot/skills/`. Install them from the Skills page or drop files manually. In an agent → Skills tab, select specific skills to load, or leave empty to load all.
 
@@ -130,7 +136,9 @@ Built-in skills: `brainstorming`, `planning`, `debugging`, `tdd`, `code-review`,
 
 ---
 
-**8. (Optional) Customize Prompts** — sidebar → **Prompts**
+### Customize Prompts
+
+Sidebar → **Prompts**
 
 View and edit any built-in prompt. Saved overrides are stored in `~/.sbot/prompts/` and take precedence over the defaults.
 

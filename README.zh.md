@@ -1,5 +1,7 @@
 # sbot — 自托管 AI Agent 服务
 
+[English](README.md) | **中文**
+
 [![npm version](https://img.shields.io/npm/v/@qingfeng346/sbot)](https://www.npmjs.com/package/@qingfeng346/sbot)
 [![npm downloads](https://img.shields.io/npm/dm/@qingfeng346/sbot)](https://www.npmjs.com/package/@qingfeng346/sbot)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org)
@@ -44,7 +46,7 @@ docker run -d \
 
 ## 核心特性
 
-- **多 LLM 供应商** — OpenAI、Anthropic Claude、Azure OpenAI、Ollama，以及任何 OpenAI 兼容接口（Groq、Mistral、DeepSeek 等）。每个模型可独立配置 API Key、Base URL、温度和 Token 上限。
+- **多 LLM 供应商** — OpenAI、Anthropic Claude、Google Gemini、Ollama，以及任何 OpenAI 兼容接口（Azure OpenAI、Groq、Mistral、DeepSeek 等）。每个模型可独立配置 API Key、Base URL、温度和 Token 上限。
 - **多 Agent 编排** — ReAct 模式：思考模型拆解任务并分发给专项子 Agent，支持递归组合
 - **长期记忆** — 完整的提取 → 评估 → 压缩流水线，基于向量 Embedding 进行语义检索
 - **MCP 支持** — 通过 stdio 或 HTTP/SSE 接入外部工具服务器
@@ -61,7 +63,7 @@ docker run -d \
 
 **1. 添加模型** — 侧栏 → **模型** → 新建
 
-填写 provider、API Key、Base URL 和模型名。支持 OpenAI、Anthropic、Azure OpenAI、Ollama，以及任何兼容 OpenAI 的接口（Groq、Mistral、DeepSeek 等）。
+填写 provider、API Key、Base URL 和模型名。支持 OpenAI、Anthropic、Google Gemini、Ollama，以及任何兼容 OpenAI 的接口（Azure OpenAI、Groq、Mistral、DeepSeek 等）。
 
 ---
 
@@ -84,7 +86,7 @@ docker run -d \
 - **Single** — 选择模型，填写系统提示词，按需挂载 MCP 工具和技能
 - **ReAct** — 选择 Think 模型，添加子 Agent（每个子 Agent 需填写描述，供 Think 模型调度决策）。Think 模型递归拆解任务并分发；每个子 Agent 对共享记忆拥有只读权限。
 
-→ [MCP 工具](#mcp-工具) · [Skills 技能](#skills-技能)
+→ [MCP 工具](#添加-mcp-工具) · [技能](#管理技能)
 
 ---
 
@@ -112,7 +114,9 @@ docker run -d \
 
 ---
 
-**6. （可选）添加 MCP 工具** — 侧栏 → **MCP** → 新建
+### 添加 MCP 工具
+
+侧栏 → **MCP** → 新建
 
 添加工具服务器：
 - **stdio** — 填写命令和参数（如 `npx -y some-mcp-package`）
@@ -122,7 +126,9 @@ docker run -d \
 
 ---
 
-**7. （可选）管理技能** — 侧栏 → **技能**
+### 管理技能
+
+侧栏 → **技能**
 
 技能文件（Markdown 格式）存储在 `~/.sbot/skills/`，可在技能页面安装，也可手动放入文件夹。在 Agent 编辑页 → 技能标签页中选择要加载的技能，不选则全部加载。
 
@@ -130,7 +136,9 @@ docker run -d \
 
 ---
 
-**8. （可选）自定义提示词** — 侧栏 → **提示词**
+### 自定义提示词
+
+侧栏 → **提示词**
 
 查看和编辑任意内置提示词，保存后存储在 `~/.sbot/prompts/` 并覆盖默认值，立即生效无需重启。
 
