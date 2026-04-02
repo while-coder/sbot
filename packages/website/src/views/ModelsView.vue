@@ -21,7 +21,7 @@ const form = ref<{ name: string } & Model>({
 
 const isOllama     = computed(() => form.value.provider === 'ollama')
 const isAnthropic  = computed(() => form.value.provider === 'anthropic')
-const isGemini     = computed(() => form.value.provider === 'gemini')
+const isGemini     = computed(() => form.value.provider === 'gemini' || form.value.provider === 'gemini-image')
 const isOpenAIResp = computed(() => form.value.provider === 'openai-response')
 
 // Model picker
@@ -196,6 +196,7 @@ async function refresh() {
               <option value="openai-response">openai-response</option>
               <option value="anthropic">anthropic</option>
               <option value="gemini">gemini</option>
+              <option value="gemini-image">gemini-image</option>
               <option value="ollama">ollama</option>
             </select>
           </div>

@@ -325,7 +325,7 @@ class HttpServer {
                 return (data.data as any[] || []).map((m: any) => m.id as string);
             }
 
-            if (provider === ModelProvider.Gemini) {
+            if (provider === ModelProvider.Gemini || provider === ModelProvider.GeminiImage) {
                 if (!apiKey) throwBad('apiKey is required for Gemini');
                 const base = (baseURL || 'https://generativelanguage.googleapis.com').replace(/\/$/, '');
                 const headers: Record<string, string> = { 'x-goog-api-key': apiKey };

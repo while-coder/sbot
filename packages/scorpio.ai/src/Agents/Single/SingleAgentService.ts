@@ -154,7 +154,9 @@ export class SingleAgentService extends AgentServiceBase {
      */
     private async callModelNode(state: SingleAgentState) {
         const callback = state.callback ?? undefined;
-        this.modelService.bindTools(state.tools);
+        if (state.tools.length > 0) {
+            this.modelService.bindTools(state.tools);
+        }
 
         // 每次调用都从 saver 重新取（含 token 截断），防止多轮工具调用后 state.messages 超限
         const savedHistory = await this.saverService.getMessages(MAX_HISTORY_TOKENS);
