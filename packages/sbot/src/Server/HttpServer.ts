@@ -310,7 +310,7 @@ class HttpServer {
 
         // Fetch available models from a provider's baseURL
         app.post('/api/models/available', api(async req => {
-            const { baseURL, apiKey, provider } = req.body as { baseURL?: string; apiKey?: string; provider?: string };
+            const { baseURL, apiKey, provider, apiVersion } = req.body as { baseURL?: string; apiKey?: string; provider?: string; apiVersion?: string };
 
             if (provider === ModelProvider.Anthropic) {
                 const base = (baseURL || 'https://api.anthropic.com').replace(/\/$/, '');
@@ -327,7 +327,10 @@ class HttpServer {
 
             if (provider === ModelProvider.Gemini) {
                 if (!apiKey) throwBad('apiKey is required for Gemini');
-                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+                const base = (baseURL || 'https://generativelanguage.googleapis.com').replace(/\/$/, '');
+                const headers: Record<string, string> = { 'x-goog-api-key': apiKey };
+                const ver = apiVersion || 'v1beta';
+                const res = await fetch(`${base}/${ver}/models`, { headers });
                 if (!res.ok) throwBad(`Gemini request failed: ${res.status}`);
                 const data: any = await res.json();
                 return (data.models as any[] || []).map((m: any) => (m.name as string).replace(/^models\//, ''));

@@ -1,5 +1,4 @@
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { AIMessageChunk } from "@langchain/core/messages";
 import { IModelService } from "./IModelService";
 import { ModelConfig } from "./types";
 import { type ChatMessage } from "../Saver/IAgentSaverService";
@@ -16,13 +15,15 @@ export class GeminiModelService implements IModelService {
   constructor(private config: ModelConfig) {}
 
   async initialize(): Promise<void> {
-    this.model = new ChatGoogleGenerativeAI({
-      ...(this.config.apiKey !== undefined && { apiKey: this.config.apiKey }),
+    const opts: Record<string, any> = {
+      apiKey: this.config.apiKey,
+      baseUrl: this.config.baseURL,
       model: this.config.model,
-      apiVersion: this.config.apiVersion ?? "v1beta",
-      temperature: this.config.temperature,
-      maxOutputTokens: this.config.maxTokens,
-    } as any);
+      apiVersion: this.config.apiVersion ?? "v1",
+    };
+    if (this.config.temperature != null) opts.temperature = this.config.temperature;
+    if (this.config.maxTokens != null) opts.maxOutputTokens = this.config.maxTokens;
+    this.model = new ChatGoogleGenerativeAI(opts as any);
   }
 
   async dispose(): Promise<void> {
@@ -47,17 +48,9 @@ export class GeminiModelService implements IModelService {
   }
 
   async stream(messages: string | ChatMessage[]): Promise<AsyncIterable<ChatMessage>> {
-    const m = this.boundModel ?? this.model!;
-    const input = typeof messages === 'string' ? messages : toBaseMessages(messages);
-    const lcStream = await m.stream(input);
+    const result = await this.invoke(messages);
     return (async function* () {
-      let accumulated: AIMessageChunk | undefined;
-      for await (const chunk of lcStream) {
-        accumulated = accumulated
-          ? accumulated.concat(chunk as AIMessageChunk)
-          : (chunk as AIMessageChunk);
-        yield toChatMessage(accumulated);
-      }
+      yield result;
     })();
   }
 

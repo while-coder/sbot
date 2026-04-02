@@ -17,7 +17,7 @@ export class OllamaModelService implements IModelService {
 
   async initialize(): Promise<void> {
     this.model = new ChatOllama({
-      baseUrl: this.config.baseURL ?? "http://localhost:11434",
+      baseUrl: this.config.baseURL,
       model: this.config.model,
       temperature: this.config.temperature,
       numPredict: this.config.maxTokens,
