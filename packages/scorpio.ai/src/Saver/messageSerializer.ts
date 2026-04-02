@@ -29,7 +29,10 @@ export function estimateMessageTokens(message: ChatMessage): number {
 
 /**
  * 从消息数组末尾截取不超过 maxTokens 的部分，
- * 并丢弃开头的孤立 tool 消息（其配对的 AI 消息已被截断）
+ * 并修复可能破坏 tool_calls / tool_result 配对的截断：
+ *   1. 丢弃开头的孤立 tool 消息（其配对的 AI 消息已被截断）
+ *   2. 移除缺少后续 tool_result 的 AI(tool_calls) 消息
+ *      （常见于上次执行中途出错或被取消的场景）
  */
 export function applyTokenLimit(messages: ChatMessage[], maxTokens: number): ChatMessage[] {
     let tokenCount = 0;
@@ -51,5 +54,31 @@ export function applyTokenLimit(messages: ChatMessage[], maxTokens: number): Cha
         startIndex = messages.length - 1;
     }
 
-    return messages.slice(startIndex);
+    const result = messages.slice(startIndex);
+
+    // 移除缺少 tool_result 配对的 AI(tool_calls) 消息
+    return stripOrphanedToolCalls(result);
+}
+
+/**
+ * 扫描消息列表，移除任何 AI 消息中 tool_calls 没有对应 tool_result 的消息。
+ * 当上次执行中途出错 / 取消时，saver 里可能残留这样的孤立 AI 消息。
+ */
+function stripOrphanedToolCalls(messages: ChatMessage[]): ChatMessage[] {
+    const cleaned: ChatMessage[] = [];
+    for (let i = 0; i < messages.length; i++) {
+        const msg = messages[i];
+        if (msg.role === MessageRole.AI && msg.tool_calls?.length) {
+            // 收集紧随其后的所有 tool_result id
+            const resultIds = new Set<string>();
+            for (let j = i + 1; j < messages.length && messages[j].role === MessageRole.Tool; j++) {
+                if (messages[j].tool_call_id) resultIds.add(messages[j].tool_call_id!);
+            }
+            // 如果任何 tool_call 缺少对应的 tool_result，丢弃这条 AI 消息
+            const allMatched = msg.tool_calls.every(tc => !tc.id || resultIds.has(tc.id));
+            if (!allMatched) continue;
+        }
+        cleaned.push(msg);
+    }
+    return cleaned;
 }
