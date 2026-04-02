@@ -1,6 +1,6 @@
 # sbot — Self-hosted AI Agent Server
 
-**English** | [中文](README.zh.md)
+**English** | [中文](https://github.com/while-coder/sbot/blob/main/README.zh.md)
 
 [![npm version](https://img.shields.io/npm/v/@qingfeng346/sbot)](https://www.npmjs.com/package/@qingfeng346/sbot)
 [![npm downloads](https://img.shields.io/npm/dm/@qingfeng346/sbot)](https://www.npmjs.com/package/@qingfeng346/sbot)
@@ -11,11 +11,11 @@
 
 | Chat | Image Generation | Models |
 |:---:|:---:|:---:|
-| ![Chat](docs/screenshot-chat.png) | ![Image Generation](docs/screenshot-image.png) | ![Models](docs/screenshot-models.png) |
+| ![Chat](https://raw.githubusercontent.com/while-coder/sbot/main/docs/screenshot-chat.png) | ![Image Generation](https://raw.githubusercontent.com/while-coder/sbot/main/docs/screenshot-image.png) | ![Models](https://raw.githubusercontent.com/while-coder/sbot/main/docs/screenshot-models.png) |
 
 | Agents | Channels | MCP Tools |
 |:---:|:---:|:---:|
-| ![Agents](docs/screenshot-agents.png) | ![Channels](docs/screenshot-channels.png) | ![MCP Tools](docs/screenshot-tools.png) |
+| ![Agents](https://raw.githubusercontent.com/while-coder/sbot/main/docs/screenshot-agents.png) | ![Channels](https://raw.githubusercontent.com/while-coder/sbot/main/docs/screenshot-channels.png) | ![MCP Tools](https://raw.githubusercontent.com/while-coder/sbot/main/docs/screenshot-tools.png) |
 
 ---
 

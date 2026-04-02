@@ -1,6 +1,6 @@
 # sbot — 自托管 AI Agent 服务
 
-[English](README.md) | **中文**
+[English](https://github.com/while-coder/sbot/blob/main/README.md) | **中文**
 
 [![npm version](https://img.shields.io/npm/v/@qingfeng346/sbot)](https://www.npmjs.com/package/@qingfeng346/sbot)
 [![npm downloads](https://img.shields.io/npm/dm/@qingfeng346/sbot)](https://www.npmjs.com/package/@qingfeng346/sbot)
@@ -11,11 +11,11 @@
 
 | 聊天 | 图片生成 | 模型配置 |
 |:---:|:---:|:---:|
-| ![聊天](docs/screenshot-chat.png) | ![图片生成](docs/screenshot-image.png) | ![模型配置](docs/screenshot-models.png) |
+| ![聊天](https://raw.githubusercontent.com/while-coder/sbot/main/docs/screenshot-chat.png) | ![图片生成](https://raw.githubusercontent.com/while-coder/sbot/main/docs/screenshot-image.png) | ![模型配置](https://raw.githubusercontent.com/while-coder/sbot/main/docs/screenshot-models.png) |
 
 | 智能体管理 | 频道管理 | MCP 工具 |
 |:---:|:---:|:---:|
-| ![智能体管理](docs/screenshot-agents.png) | ![频道管理](docs/screenshot-channels.png) | ![MCP 工具](docs/screenshot-tools.png) |
+| ![智能体管理](https://raw.githubusercontent.com/while-coder/sbot/main/docs/screenshot-agents.png) | ![频道管理](https://raw.githubusercontent.com/while-coder/sbot/main/docs/screenshot-channels.png) | ![MCP 工具](https://raw.githubusercontent.com/while-coder/sbot/main/docs/screenshot-tools.png) |
 
 ---
 
