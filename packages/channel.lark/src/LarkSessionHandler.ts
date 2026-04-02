@@ -130,7 +130,7 @@ export class LarkSessionHandler extends ChannelSessionHandler {
     await this.provider?.deleteElement(EL_TOOL_CALL_ALLOW, EL_TOOL_CALL_ALWAYS_ARGS, EL_TOOL_CALL_ALWAYS_TOOL, EL_TOOL_CALL_DENY);
   }
 
-  private buildQuestionRow(label: string, inputElement: object): object {
+  private buildQuestionRow(label: string, inputElements: object[]): object {
     return {
       tag: 'column_set',
       columns: [
@@ -146,47 +146,40 @@ export class LarkSessionHandler extends ChannelSessionHandler {
           width: 'weighted',
           weight: 1,
           vertical_align: 'top',
-          elements: [inputElement],
+          elements: inputElements,
         },
       ],
     };
   }
 
-  private buildSelectOptions(values: string[], allowCustom?: boolean) {
-    const options = values.map(o => ({ text: { tag: 'plain_text' as const, content: o }, value: o }));
-    if (allowCustom) options.push({ text: { tag: 'plain_text', content: 'Other' }, value: '__custom__' });
-    return options;
+  private buildSelectOptions(values: string[]) {
+    return values.map(o => ({ text: { tag: 'plain_text' as const, content: o }, value: o }));
   }
 
-  private buildQuestionElement(q: any, name: string): object {
+  private buildQuestionElements(q: any, name: string): object[] {
     const placeholder = { tag: 'plain_text', content: '请选择' };
     if (q.type === AskQuestionType.Radio || q.type === AskQuestionType.Checkbox) {
       const isMulti = q.type === AskQuestionType.Checkbox;
-      return {
-        tag: isMulti ? 'multi_select_static' : 'select_static', name, required: true, width: 'default', placeholder,
-        options: this.buildSelectOptions(q.options, q.allowCustom),
+      const select = {
+        tag: isMulti ? 'multi_select_static' : 'select_static', name, required: !q.allowCustom, width: 'default', placeholder,
+        options: this.buildSelectOptions(q.options),
         ...(!isMulti && { type: 'default' }),
       };
+      if (!q.allowCustom) return [select];
+      return [select, {
+        tag: 'input', name: `${name}_custom`, width: 'default', required: false,
+        placeholder: { tag: 'plain_text', content: '或在此输入自定义选项' },
+      }];
     }
-    if (q.type === AskQuestionType.Toggle) {
-      return {
-        tag: 'select_static', name, required: true, width: 'default', placeholder, type: 'default',
-        options: [
-          { text: { tag: 'plain_text' as const, content: '是' }, value: 'true' },
-          { text: { tag: 'plain_text' as const, content: '否' }, value: 'false' },
-        ],
-        initial_index: (q.default ?? false) ? 0 : 1,
-      };
-    }
-    return {
+    return [{
       tag: 'input', name, width: 'default', required: true,
       placeholder: { tag: 'plain_text', content: q.placeholder || '请输入' },
-    };
+    }];
   }
 
   protected async enterAsk(askId: string, remainSec: number, params: AskToolParams): Promise<void> {
     const formElements = params.questions.map((q, i) =>
-      this.buildQuestionRow(q.label, this.buildQuestionElement(q, `${i}`))
+      this.buildQuestionRow(q.label, this.buildQuestionElements(q, `${i}`))
     );
     formElements.push({
       tag: 'button',
@@ -231,7 +224,20 @@ export class LarkSessionHandler extends ChannelSessionHandler {
       return;
     }
     if (code === ACTION_ASK_FORM) {
-      this.resolveAsk(data.id, form_value ?? {});
+      const merged: Record<string, any> = { ...(form_value ?? {}) };
+      for (const key of Object.keys(merged)) {
+        if (key.endsWith('_custom')) {
+          const base = key.slice(0, -'_custom'.length);
+          const customVal = typeof merged[key] === 'string' ? merged[key].trim() : '';
+          if (customVal) {
+            merged[base] = merged[base] instanceof Array
+              ? [...merged[base], customVal]
+              : customVal;
+          }
+          delete merged[key];
+        }
+      }
+      this.resolveAsk(data.id, merged);
       return;
     }
     if (code === ACTION_ABORT) {
