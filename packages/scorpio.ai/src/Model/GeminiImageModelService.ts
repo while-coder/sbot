@@ -13,8 +13,7 @@ export class GeminiImageModelService extends GeminiModelService {
 
   private filterMessages(prompt: string | ChatMessage[]): string | ChatMessage[] {
     if (typeof prompt === 'string') return prompt;
-    const lastHuman = prompt.filter(m => m.role === MessageRole.Human).pop();
-    return lastHuman ? [lastHuman] : [];
+    return prompt.filter(m => m.role === MessageRole.Human);
   }
 
   override async invoke(prompt: string | ChatMessage[]): Promise<ChatMessage> {
