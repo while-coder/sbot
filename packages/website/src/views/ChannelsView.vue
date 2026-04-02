@@ -484,9 +484,10 @@ async function refresh() {
                 <button class="btn-outline" style="align-self:flex-start" :disabled="actionState[key]?.loading" @click="triggerAction(key as string)">
                   {{ actionState[key]?.loading ? '...' : field.label }}
                 </button>
-                <img v-if="actionState[key]?.qrUrl" :src="actionState[key]!.qrUrl" style="width:200px;height:200px;border:1px solid #e8e6e3;border-radius:8px" />
+                <img v-if="actionState[key]?.qrUrl && actionState[key]?.qrType === 'image'" :src="actionState[key]!.qrUrl" style="width:200px;height:200px;border:1px solid #e8e6e3;border-radius:8px" />
+                <a v-else-if="actionState[key]?.qrUrl && actionState[key]?.qrType === 'link'" :href="actionState[key]!.qrUrl" target="_blank" class="btn-outline" style="align-self:flex-start;text-align:center">打开二维码链接</a>
                 <span v-if="actionState[key]?.status === 'scaned'" style="font-size:12px;color:#e6a700">已扫码，请在手机上确认...</span>
-                <span v-if="actionState[key]?.status === 'wait' && actionState[key]?.qrUrl" style="font-size:12px;color:#888">请用微信扫描上方二维码</span>
+                <span v-if="actionState[key]?.status === 'wait' && actionState[key]?.qrUrl" style="font-size:12px;color:#888">请扫描二维码</span>
                 <span v-if="actionState[key]?.status === 'confirmed'" style="font-size:12px;color:#16a34a">登录成功</span>
                 <span v-if="actionState[key]?.error" style="font-size:12px;color:#dc2626">{{ actionState[key]!.error }}</span>
                 <span v-if="field.description && !actionState[key]?.qrUrl" style="font-size:11px;color:#888">{{ field.description }}</span>
