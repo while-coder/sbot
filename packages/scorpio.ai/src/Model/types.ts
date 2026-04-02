@@ -7,6 +7,7 @@ export enum ModelProvider {
   Anthropic       = "anthropic",
   Ollama          = "ollama",
   Gemini          = "gemini",
+  GeminiImage     = "gemini-image",
 }
 
 /**

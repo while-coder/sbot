@@ -33,6 +33,7 @@ export default {
     refresh: 'Refresh',
     filter: 'Filter...',
     close: 'Close',
+    download: 'Download',
     create: 'Create',
     show: 'Show',
     hide: 'Hide',

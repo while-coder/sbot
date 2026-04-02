@@ -12,6 +12,7 @@ export { OpenAIResponseModelService } from "./OpenAIResponseModelService";
 export { OllamaModelService } from "./OllamaModelService";
 export { AnthropicModelService } from "./AnthropicModelService";
 export { GeminiModelService } from "./GeminiModelService";
+export { GeminiImageModelService } from "./GeminiImageModelService";
 
 // ===== 工厂和配置 =====
 export { ModelServiceFactory } from "./ModelServiceFactory";

@@ -41,6 +41,26 @@ const messagesEl = ref<HTMLElement | null>(null)
 const attachments = ref<Attachment[]>([])
 const fileInputEl = ref<HTMLInputElement | null>(null)
 
+// ── Image lightbox ──
+const lightboxSrc = ref<string | null>(null)
+
+function openLightbox(mimeType: string, data: string) {
+  lightboxSrc.value = `data:${mimeType};base64,${data}`
+}
+
+function closeLightbox() {
+  lightboxSrc.value = null
+}
+
+function downloadLightbox() {
+  if (!lightboxSrc.value) return
+  const a = document.createElement('a')
+  a.href = lightboxSrc.value
+  const ext = lightboxSrc.value.startsWith('data:image/png') ? 'png' : 'jpg'
+  a.download = `image_${Date.now()}.${ext}`
+  a.click()
+}
+
 // ── Scrolling ──
 function isAtBottom(): boolean {
   if (!messagesEl.value) return true
@@ -87,7 +107,7 @@ function toggleToolCall(el: HTMLElement) {
 function renderMd(content: string | any[] | undefined | null): string {
   if (!content) return ''
   if (Array.isArray(content)) {
-    // LangChain multi-part content: extract text parts
+    // LangChain multi-part content: extract text parts only (images handled separately)
     return marked.parse(
       content
         .filter((c: any) => typeof c === 'string' || c?.type === 'text')
@@ -96,6 +116,13 @@ function renderMd(content: string | any[] | undefined | null): string {
     ) as string
   }
   return marked.parse(content) as string
+}
+
+function getInlineImages(content: string | any[] | undefined | null): { mimeType: string; data: string }[] {
+  if (!Array.isArray(content)) return []
+  return content
+    .filter((c: any) => c?.type === 'inlineData' && c?.inlineData?.data)
+    .map((c: any) => c.inlineData)
 }
 
 // ── Think drawer ──
@@ -229,9 +256,18 @@ defineExpose({ scrollToBottom })
                   </div>
                 </div>
                 <div class="md-content" v-html="renderMd(msg.message.content)" />
+                <div v-for="(img, imgIdx) in getInlineImages(msg.message.content)" :key="imgIdx" class="inline-image">
+                  <img :src="`data:${img.mimeType};base64,${img.data}`" class="inline-image-thumb" @click="openLightbox(img.mimeType, img.data)" />
+                </div>
               </div>
               <div v-if="msg.message.tool_calls && msg.message.tool_calls.length > 0" class="msg-tool-calls">
-                <div class="msg-role">{{ t('chat.tool_calls', { count: msg.message.tool_calls.length }) }}</div>
+                <div class="msg-role" style="display:flex;align-items:center;gap:6px">
+                  {{ t('chat.tool_calls', { count: msg.message.tool_calls.length }) }}
+                  <div v-if="msg.thinkId && thinksUrlPrefix" class="think-toggle" @click="openThink(msg.thinkId!)">
+                    <span>▸</span>
+                    <span>Think</span>
+                  </div>
+                </div>
                 <div v-for="tc in msg.message.tool_calls" :key="(tc as ToolCall).id" class="tool-call-item">
                   <div class="tool-call-header" @click="toggleToolCall($event.currentTarget as HTMLElement)">
                     <span class="tool-call-name">{{ (tc as ToolCall).name }}</span>
@@ -272,6 +308,9 @@ defineExpose({ scrollToBottom })
             <div class="msg-role-bar"><span class="msg-role">{{ t('chat.role_ai') }}</span></div>
             <div v-if="streamingContent" class="md-content" v-html="renderMd(streamingContent)" />
             <span v-else style="color:#94a3b8">{{ t('chat.thinking') }}</span>
+            <div v-for="(img, imgIdx) in getInlineImages(streamingContent)" :key="imgIdx" class="inline-image">
+              <img :src="`data:${img.mimeType};base64,${img.data}`" class="inline-image-thumb" @click="openLightbox(img.mimeType, img.data)" />
+            </div>
           </div>
           <div v-for="(tc, i) in streamingToolCalls" :key="i" class="msg-tool-calls">
             <div class="msg-role">{{ t('chat.tool_call') }}</div>
@@ -335,5 +374,18 @@ defineExpose({ scrollToBottom })
     </div>
 
     <ThinkDrawer v-if="thinksUrlPrefix" ref="thinkDrawerRef" :thinks-url-prefix="thinksUrlPrefix" />
+
+    <!-- Image lightbox -->
+    <Teleport to="body">
+      <div v-if="lightboxSrc" class="lightbox-overlay" @click.self="closeLightbox">
+        <div class="lightbox-content">
+          <img :src="lightboxSrc" class="lightbox-img" />
+          <div class="lightbox-actions">
+            <button class="btn-primary btn-sm" @click="downloadLightbox">{{ t('common.download') }}</button>
+            <button class="btn-outline btn-sm" @click="closeLightbox">{{ t('common.close') }}</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>

@@ -744,23 +744,6 @@ table tr:hover td { background: #fafaf9; }
 .think-toggle:hover { background: #ede9fe; color: #6d28d9; border-color: #c4b5fd; }
 .think-toggle-human { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.3); color: #e9d5ff; }
 .think-toggle-human:hover { background: rgba(255,255,255,0.25); border-color: rgba(255,255,255,0.4); color: #fff; }
-.think-msg {
-  padding: 4px 8px; border-radius: 4px; font-size: 12px; line-height: 1.5;
-}
-.think-role {
-  display: inline-block; font-size: 10px; font-weight: 600; text-transform: uppercase;
-  color: #9ca3af; margin-bottom: 2px;
-}
-.think-human { background: #eff6ff; }
-.think-ai { background: #fff; border: 1px solid #f0f0f0; }
-.think-tool { background: #f0fdf4; }
-.think-tool-call {
-  display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap;
-}
-.think-tool-args {
-  font-family: monospace; font-size: 11px; color: #6b7280;
-  max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
 .chat-input-bar {
   display: flex;
   gap: 8px;
@@ -840,5 +823,45 @@ table tr:hover td { background: #fafaf9; }
 .row-dropdown-menu button:disabled {
   color: #b0b0b0;
   cursor: default;
+}
+
+/* ── Inline images ── */
+.inline-image { margin-top: 8px; }
+.inline-image-thumb {
+  max-width: 240px;
+  max-height: 240px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.inline-image-thumb:hover { opacity: .85; }
+
+/* ── Image lightbox ── */
+.lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0,0,0,.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lightbox-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  max-width: 90vw;
+  max-height: 90vh;
+}
+.lightbox-img {
+  max-width: 90vw;
+  max-height: 80vh;
+  border-radius: 8px;
+  object-fit: contain;
+}
+.lightbox-actions {
+  display: flex;
+  gap: 8px;
 }
 </style>

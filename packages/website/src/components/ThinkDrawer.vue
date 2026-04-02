@@ -29,6 +29,12 @@ function renderMd(content: string | any[] | undefined | null): string {
   return marked.parse(content) as string
 }
 
+function toggleToolCall(el: HTMLElement) {
+  el.classList.toggle('expanded')
+  const detail = el.nextElementSibling as HTMLElement
+  if (detail) detail.classList.toggle('show')
+}
+
 /** Open drawer with a think id (push to stack) */
 async function open(thinkId: string) {
   // Check if already in stack
@@ -108,34 +114,57 @@ defineExpose({ open })
               <div v-if="thinkStack[thinkStack.length - 1].loading" class="think-drawer-loading">
                 Loading...
               </div>
-              <template v-else>
+              <div v-else class="history-messages">
                 <template v-for="(tm, ti) in thinkStack[thinkStack.length - 1].messages" :key="ti">
-                  <div v-if="tm.message.role === MessageRole.Human" class="think-msg think-human">
-                    <span class="think-role">User</span>
-                    <div>{{ tm.message.content }}</div>
-                  </div>
-                  <div v-else-if="tm.message.role === MessageRole.AI && tm.message.content" class="think-msg think-ai">
-                    <span class="think-role">AI</span>
-                    <div class="md-content" v-html="renderMd(tm.message.content)" />
-                  </div>
-                  <div v-else-if="tm.message.role === MessageRole.AI && tm.message.tool_calls?.length" class="think-msg think-ai">
-                    <span class="think-role">AI</span>
-                    <div v-for="ttc in tm.message.tool_calls" :key="(ttc as ToolCall).id" class="think-tool-call">
-                      <span class="tool-call-name">{{ (ttc as ToolCall).name }}</span>
-                      <span class="think-tool-args">{{ JSON.stringify((ttc as ToolCall).args) }}</span>
+                  <template v-if="tm.message.role !== MessageRole.Tool">
+                    <div v-if="tm.message.role === MessageRole.Human" class="msg-row human">
+                      <div class="msg-bubble human">
+                        <div class="msg-role-bar">
+                          <span class="msg-role">User</span>
+                        </div>
+                        {{ tm.message.content }}
+                      </div>
                     </div>
-                  </div>
-                  <div v-else-if="tm.message.role === MessageRole.Tool" class="think-msg think-tool">
-                    <span class="think-role">Tool</span>
-                    <div class="md-content tool-result-content" v-html="renderMd(tm.message.content || '')" />
-                    <!-- Nested think button -->
-                    <div v-if="tm.thinkId" class="think-toggle" @click="onNestedThink(tm.thinkId!)">
-                      <span>▸</span>
-                      <span>Think</span>
+                    <div v-else-if="tm.message.role === MessageRole.AI" class="msg-row ai">
+                      <div v-if="tm.message.content" class="msg-bubble ai">
+                        <div class="msg-role-bar">
+                          <span class="msg-role">AI</span>
+                        </div>
+                        <div class="md-content" v-html="renderMd(tm.message.content)" />
+                      </div>
+                      <div v-if="tm.message.tool_calls && tm.message.tool_calls.length > 0" class="msg-tool-calls">
+                        <div class="msg-role" style="display:flex;align-items:center;gap:6px">
+                          Tool Calls ({{ tm.message.tool_calls.length }})
+                          <div v-if="tm.thinkId" class="think-toggle" @click="onNestedThink(tm.thinkId!)">
+                            <span>▸</span>
+                            <span>Think</span>
+                          </div>
+                        </div>
+                        <div v-for="ttc in tm.message.tool_calls" :key="(ttc as ToolCall).id" class="tool-call-item">
+                          <div class="tool-call-header" @click="toggleToolCall($event.currentTarget as HTMLElement)">
+                            <span class="tool-call-name">{{ (ttc as ToolCall).name }}</span>
+                          </div>
+                          <div class="tool-call-detail">
+                            <div class="tool-call-args">{{ JSON.stringify((ttc as ToolCall).args, null, 2) }}</div>
+                            <template v-for="m2 in thinkStack[thinkStack.length - 1].messages" :key="'r' + (m2.message.tool_call_id || '')">
+                              <div v-if="m2.message.role === MessageRole.Tool && m2.message.tool_call_id === (ttc as ToolCall).id" class="tool-call-result">
+                                <div class="tool-call-result-top">
+                                  <div class="tool-call-result-label">Result</div>
+                                  <div v-if="m2.thinkId" class="think-toggle" @click="onNestedThink(m2.thinkId!)">
+                                    <span>▸</span>
+                                    <span>Think</span>
+                                  </div>
+                                </div>
+                                <div class="md-content tool-result-content" v-html="renderMd(m2.message.content || '')" />
+                              </div>
+                            </template>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  </template>
                 </template>
-              </template>
+              </div>
             </template>
           </div>
         </div>
@@ -234,10 +263,7 @@ defineExpose({ open })
 .think-drawer-body {
   flex: 1;
   overflow-y: auto;
-  padding: 12px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  padding: 0;
 }
 
 .think-drawer-loading {

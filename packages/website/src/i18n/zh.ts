@@ -33,6 +33,7 @@ export default {
     refresh: '刷新',
     filter: '过滤...',
     close: '关闭',
+    download: '下载',
     create: '创建',
     show: '显示',
     hide: '隐藏',
