@@ -42,7 +42,7 @@ function registerSettingsCrud(
         label?: string;
         checkOnUpdate?: boolean;
         checkOnDelete?: boolean;
-        afterSave?: () => Promise<void> | void;
+        afterSave?: (id: string) => Promise<void> | void;
         createReturn?: (id: string, body: any) => any;
     },
 ) {
@@ -61,7 +61,7 @@ function registerSettingsCrud(
         while (map[id]) id = randomUUID();
         map[id] = req.body;
         config.saveSettings();
-        await opts?.afterSave?.();
+        await opts?.afterSave?.(id);
         return opts?.createReturn ? opts.createReturn(id, req.body) : config.settings;
     }));
 
@@ -71,7 +71,7 @@ function registerSettingsCrud(
         if (checkOnUpdate && !map[id]) throwBad(`${label} "${id}" not found`);
         map[id] = req.body;
         config.saveSettings();
-        await opts?.afterSave?.();
+        await opts?.afterSave?.(id);
         return opts?.createReturn ? opts.createReturn(id, req.body) : config.settings;
     }));
 
@@ -81,7 +81,7 @@ function registerSettingsCrud(
         if (checkOnDelete && !map[id]) throwBad(`${label} "${id}" not found`);
         delete map[id];
         config.saveSettings();
-        await opts?.afterSave?.();
+        await opts?.afterSave?.(id);
         return config.settings;
     }));
 }
@@ -366,7 +366,7 @@ class HttpServer {
             label: 'Channel',
             checkOnUpdate: true,
             checkOnDelete: true,
-            afterSave: () => channelManager.reload(),
+            afterSave: (id) => channelManager.reloadChannel(id),
             createReturn: (id, body) => ({ id, ...body }),
         });
         registerSettingsCrud(app, 'sessions', {
@@ -930,7 +930,7 @@ class HttpServer {
             config.saveSettings();
 
             // Reload the channel so it picks up the new credentials
-            await channelManager.reload();
+            await channelManager.reloadChannel(channelId);
 
             return { status: "confirmed", credentials };
         }));

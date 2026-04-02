@@ -31,15 +31,14 @@ export const wechatPlugin: ChannelPlugin = {
 
   configSchema: {
     qrLogin:  { label: "扫码登录", type: ConfigFieldType.QRCode, description: "扫码登录后自动填入凭证" },
-    baseUrl:  { label: "Base URL",  type: ConfigFieldType.String, required: false, description: "iLink API base URL", default: "https://ilinkai.weixin.qq.com" },
   },
 
-  async getQRCode(key: string, params?: any): Promise<{ url: string; type: 'image' | 'link' }> {
+  async getQRCode(key: string, _params?: any): Promise<{ url: string; type: 'image' | 'link' }> {
     // Abort any previous pending poll for the same key
     const prev = _qrState.get(key);
     if (prev) prev.aborted = true;
 
-    const baseUrl = params?.baseUrl || "https://ilinkai.weixin.qq.com";
+    const baseUrl = "https://ilinkai.weixin.qq.com";
     const resp = await WechatApiClient.fetchQRCode(baseUrl);
     _qrState.set(key, { qrcode: resp.qrcode, baseUrl, aborted: false });
     return toQRCodeResult(resp.qrcode_img_content);
@@ -61,7 +60,6 @@ export const wechatPlugin: ChannelPlugin = {
           botToken: resp.bot_token,
           botId: resp.ilink_bot_id,
           userId: resp.ilink_user_id,
-          baseUrl: resp.baseurl || state.baseUrl,
         };
       }
       if (resp.status === "expired") {
@@ -78,12 +76,11 @@ export const wechatPlugin: ChannelPlugin = {
     const { config, logger, filterEvent, initSession, onReceiveMessage } = ctx;
 
     const cred = config.qrLogin as WechatCredentials | undefined;
-    const baseUrl = config.baseUrl?.trim() || cred?.baseUrl || "https://ilinkai.weixin.qq.com";
     const credentials: WechatCredentials = {
       botToken: cred?.botToken ?? "",
       botId: cred?.botId ?? "",
       userId: cred?.userId ?? "",
-      baseUrl,
+      baseUrl: "https://ilinkai.weixin.qq.com",
     };
 
     const hasCredentials = credentials.botToken && credentials.botId;

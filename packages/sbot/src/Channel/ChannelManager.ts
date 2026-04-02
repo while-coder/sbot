@@ -112,40 +112,64 @@ export class ChannelManager {
         }
 
         let started = 0;
-        for (const [channelId, channel] of channels) {
-            const plugin = this.plugins.get(channel.type);
-            if (!plugin) {
-                logger.warn(`Unknown channel type [${channel.type}], skipping channel [${channel.name || channelId}]`);
-                continue;
-            }
-            const label = channel.name || channelId;
-            try {
-                const ctx: ChannelPluginContext = {
-                    config: channel.config ?? {},
-                    logger,
-                    filterEvent,
-                    initSession: async (initCtx) => {
-                        const { dbUserId, dbSessionId } = await doInitSession(channelId, initCtx);
-                        return { channelId, userId: initCtx.userId, sessionId: initCtx.sessionId, dbUserId, dbSessionId };
-                    },
-                    onReceiveMessage: (session, query, args) =>
-                        sessionManager.onReceiveChannelMessage(channelThreadId(plugin.type, channelId, session.sessionId), query, { ...args, channelType: plugin.type, channelId, dbSessionId: session.dbSessionId }),
-                    onTriggerAction: (session, args) =>
-                        sessionManager.onChannelTriggerAction(channelThreadId(plugin.type, channelId, session.sessionId), { ...args, channelType: plugin.type, channelId }),
-                };
-                const service = await plugin.init(ctx);
-                if (service) {
-                    this.services.set(channelId, service);
-                    started++;
-                    logger.info(`Channel [${label}] (${plugin.type}) started successfully`);
-                } else {
-                    logger.warn(`Channel [${label}] (${plugin.type}) init returned nothing, skipped`);
-                }
-            } catch (e) {
-                logger.error(`Channel [${label}] (${plugin.type}) failed to start: ${e}`);
-            }
+        for (const [channelId] of channels) {
+            if (await this.startChannel(channelId)) started++;
         }
         logger.info(`ChannelManager initialized, started ${started} channel(s)`);
+    }
+
+    private async startChannel(channelId: string): Promise<boolean> {
+        const channel = config.getChannel(channelId);
+        if (!channel) return false;
+
+        const plugin = this.plugins.get(channel.type);
+        if (!plugin) {
+            logger.warn(`Unknown channel type [${channel.type}], skipping channel [${channel.name || channelId}]`);
+            return false;
+        }
+        const name = channel.name ? `${channel.name} (${channelId})` : channelId;
+        const label = `[${name}] (${plugin.type})`;
+        try {
+            const ctx: ChannelPluginContext = {
+                config: channel.config ?? {},
+                logger,
+                filterEvent,
+                initSession: async (initCtx) => {
+                    const { dbUserId, dbSessionId } = await doInitSession(channelId, initCtx);
+                    return { channelId, userId: initCtx.userId, sessionId: initCtx.sessionId, dbUserId, dbSessionId };
+                },
+                onReceiveMessage: (session, query, args) =>
+                    sessionManager.onReceiveChannelMessage(channelThreadId(plugin.type, channelId, session.sessionId), query, { ...args, channelType: plugin.type, channelId, dbSessionId: session.dbSessionId }),
+                onTriggerAction: (session, args) =>
+                    sessionManager.onChannelTriggerAction(channelThreadId(plugin.type, channelId, session.sessionId), { ...args, channelType: plugin.type, channelId }),
+            };
+            const service = await plugin.init(ctx);
+            if (service) {
+                this.services.set(channelId, service);
+                logger.info(`Channel ${label} started successfully`);
+                return true;
+            }
+            logger.warn(`Channel ${label} init returned nothing, skipped`);
+            return false;
+        } catch (e) {
+            logger.error(`Channel ${label} failed to start: ${e}`);
+            return false;
+        }
+    }
+
+    private stopChannel(channelId: string): void {
+        const service = this.services.get(channelId);
+        if (!service) return;
+        const channel = config.getChannel(channelId);
+        const name = channel?.name ? `${channel.name} (${channelId})` : channelId;
+        const label = `[${name}] (${channel?.type})`;
+        try {
+            service.dispose?.();
+            this.services.delete(channelId);
+            logger.info(`Channel ${label} disposed`);
+        } catch (e) {
+            logger.error(`Channel ${label} failed to dispose: ${e}`);
+        }
     }
 
     getPlugin(type: string): ChannelPlugin | undefined {
@@ -157,21 +181,20 @@ export class ChannelManager {
     }
 
     async dispose(): Promise<void> {
-        for (const [channelId, service] of this.services) {
-            try {
-                service.dispose?.();
-                logger.info(`Channel [${channelId}] disposed`);
-            } catch (e) {
-                logger.error(`Failed to dispose channel [${channelId}]: ${e}`);
-            }
+        for (const [channelId] of this.services) {
+            this.stopChannel(channelId);
         }
-        this.services.clear();
     }
 
     async reload(): Promise<void> {
         await this.dispose();
         await this.init();
         logger.info("ChannelManager reload completed");
+    }
+
+    async reloadChannel(channelId: string): Promise<void> {
+        this.stopChannel(channelId);
+        await this.startChannel(channelId);
     }
 
     getChannel(channelId: string) { return config.getChannel(channelId); }
