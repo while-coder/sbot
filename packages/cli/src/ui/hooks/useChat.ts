@@ -42,7 +42,7 @@ export function useChat(
       try {
         for await (const event of client.chatStream(query, agentId, saverId, memoryId, abort.signal)) {
           if (event.type === 'stream') {
-            accumulated = event.content ?? '';
+            accumulated = typeof event.content === 'string' ? event.content : '';
             setStreamingContent(accumulated);
           } else if (event.type === 'tool_call') {
             // Commit accumulated streaming content first
