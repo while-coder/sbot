@@ -4,12 +4,13 @@ import { createTextContent, createErrorResult, createSuccessResult, MCPToolResul
 import { database, SchedulerRow } from '../../Core/Database';
 import { LoggerService } from '../../Core/LoggerService';
 import { loadPrompt } from '../../Core/PromptLoader';
+import { SCHEDULER_LIST_TOOL_NAME } from './index';
 
 const logger = LoggerService.getLogger('Tools/Scheduler/list.ts');
 
 export function createSchedulerListTool(schedulerType: string, schedulerId: string): StructuredToolInterface {
     return new DynamicStructuredTool({
-        name: 'scheduler_list',
+        name: SCHEDULER_LIST_TOOL_NAME,
         description: loadPrompt('tools/scheduler/list.txt'),
         schema: z.object({}) as any,
         func: async (_args: any): Promise<MCPToolResult> => {

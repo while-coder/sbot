@@ -5,12 +5,13 @@ import { database, SchedulerRow } from '../../Core/Database';
 import { schedulerService } from '../../Scheduler/SchedulerService';
 import { LoggerService } from '../../Core/LoggerService';
 import { loadPrompt } from '../../Core/PromptLoader';
+import { SCHEDULER_DELETE_TOOL_NAME } from './index';
 
 const logger = LoggerService.getLogger('Tools/Scheduler/delete.ts');
 
 export function createSchedulerDeleteTool(schedulerType: string, schedulerId: string): StructuredToolInterface {
     return new DynamicStructuredTool({
-        name: 'scheduler_delete',
+        name: SCHEDULER_DELETE_TOOL_NAME,
         description: loadPrompt('tools/scheduler/delete.txt'),
         schema: z.object({
             id: z.number().describe('Task id (from scheduler_list)'),

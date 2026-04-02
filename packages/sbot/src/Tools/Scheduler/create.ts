@@ -5,12 +5,13 @@ import { database, SchedulerRow } from '../../Core/Database';
 import { schedulerService } from '../../Scheduler/SchedulerService';
 import { LoggerService } from '../../Core/LoggerService';
 import { loadPrompt } from '../../Core/PromptLoader';
+import { SCHEDULER_CREATE_TOOL_NAME } from './index';
 
 const logger = LoggerService.getLogger('Tools/Scheduler/create.ts');
 
 export function createSchedulerCreateTool(schedulerType: string, schedulerId: string): StructuredToolInterface {
     return new DynamicStructuredTool({
-        name: 'scheduler_create',
+        name: SCHEDULER_CREATE_TOOL_NAME,
         description: loadPrompt('tools/scheduler/create.txt'),
         schema: z.object({
             expr: z.string().describe(

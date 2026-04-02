@@ -1,6 +1,7 @@
 import { ChatToolCall, ToolApproval, ASK_TOOL_NAME, TASK_TOOL_NAME, READ_SKILL_FILE_TOOL_NAME, EXECUTE_SKILL_SCRIPT_TOOL_NAME, LIST_SKILL_FILES_TOOL_NAME } from "scorpio.ai";
 import { SessionService } from "channel.base";
 import { SEND_FILE_TOOL_NAME } from "../Agent/AgentRunner";
+import { SCHEDULER_CREATE_TOOL_NAME, SCHEDULER_DELETE_TOOL_NAME, SCHEDULER_LIST_TOOL_NAME } from "../Tools/Scheduler";
 import { config } from "../Core/Config";
 
 /** 内部工具名，直接放行无需用户确认 */
@@ -13,6 +14,10 @@ const INTERNAL_TOOLS = new Set([
     LIST_SKILL_FILES_TOOL_NAME,
     // 渠道内置工具
     SEND_FILE_TOOL_NAME,
+    // Scheduler 工具
+    SCHEDULER_CREATE_TOOL_NAME,
+    SCHEDULER_DELETE_TOOL_NAME,
+    SCHEDULER_LIST_TOOL_NAME,
 ]);
 
 export function buildExecuteTool(
