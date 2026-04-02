@@ -13,7 +13,7 @@ const { t } = useI18n()
 
 interface PluginInfo {
   type: string
-  configSchema?: Record<string, { label: string; type: string; required?: boolean; description?: string; default?: string | boolean | number; options?: Array<{ label: string; value: string }>; actionResultType?: string }>
+  configSchema?: Record<string, { label: string; type: string; required?: boolean; description?: string; default?: string | boolean | number; options?: Array<{ label: string; value: string }> }>
 }
 
 interface ChannelSessionRow {
@@ -183,25 +183,23 @@ function formatUserInfo(raw: string) {
 }
 
 // --- Action field support (QR login etc.) ---
-const actionState = ref<Record<string, { loading: boolean; qrUrl?: string; status?: string; error?: string }>>({})
-let pollTimer: ReturnType<typeof setTimeout> | null = null
+const actionState = ref<Record<string, { loading: boolean; qrUrl?: string; qrType?: 'image' | 'link'; status?: string; error?: string }>>({})
 
 function clearActionState() {
   actionState.value = {}
-  if (pollTimer) { clearTimeout(pollTimer); pollTimer = null }
 }
 
-async function triggerAction(key: string, field: any) {
+async function triggerAction(key: string) {
   const channelId = editingId.value
   if (!channelId) { show('请先保存 Channel 后再执行此操作', 'error'); return }
 
   actionState.value[key] = { loading: true }
   try {
-    const res = await apiFetch(`/api/channels/${channelId}/action/${key}`, 'POST')
-    applyConfigUpdates(res.data)
-    if (field.actionResultType === 'qr' && res.data?.qrcodeUrl) {
-      actionState.value[key] = { loading: false, qrUrl: res.data.qrcodeUrl, status: 'wait' }
-      startPolling(key, channelId)
+    const res = await apiFetch(`/api/channels/${channelId}/qrcode/${key}`, 'POST', form.value.pluginConfig)
+    const data = res.data
+    if (data?.url) {
+      actionState.value[key] = { loading: false, qrUrl: data.url, qrType: data.type || 'link', status: 'wait' }
+      await waitForQRConfirm(key, channelId)
     } else {
       actionState.value[key] = { loading: false, status: 'done' }
     }
@@ -210,49 +208,33 @@ async function triggerAction(key: string, field: any) {
   }
 }
 
-/** Apply configUpdates from an action response to the form and store */
-function applyConfigUpdates(data: any) {
-  if (!data?.configUpdates || !editingId.value) return
-  for (const [k, v] of Object.entries(data.configUpdates)) {
-    form.value.pluginConfig[k] = v as any
-  }
-  // Also update the store so the saved config stays in sync
-  const c = store.settings.channels?.[editingId.value]
-  if (c) {
-    if (!c.config) c.config = {}
-    Object.assign(c.config, data.configUpdates)
-  }
-}
-
-function startPolling(key: string, channelId: string) {
-  if (pollTimer) clearTimeout(pollTimer)
-  const poll = async () => {
-    try {
-      const res = await apiFetch(`/api/channels/${channelId}/action/${key}-status`, 'POST')
-      const data = res.data
-      const status = data?.status
-      const s = actionState.value[key]
-      if (!s) return
-      s.status = status
-      if (status === 'confirmed') {
-        s.qrUrl = undefined
-        applyConfigUpdates(data)
-        show('登录成功')
-        return
+/** Long-polls backend until QR scan confirmed or expired */
+async function waitForQRConfirm(key: string, channelId: string) {
+  try {
+    const res = await apiFetch(`/api/channels/${channelId}/qrcode/${key}/confirm`, 'POST')
+    const data = res.data
+    const s = actionState.value[key]
+    if (!s) return
+    s.status = data?.status
+    if (data?.status === 'confirmed') {
+      s.qrUrl = undefined
+      if (data.credentials) {
+        form.value.pluginConfig[key] = data.credentials
+        const c = store.settings.channels?.[channelId]
+        if (c) {
+          if (!c.config) c.config = {}
+          c.config[key] = data.credentials
+        }
       }
-      if (status === 'expired') {
-        s.qrUrl = undefined
-        s.error = '二维码已过期，请重新生成'
-        return
-      }
-      // Continue polling for 'wait' / 'scaned'
-      pollTimer = setTimeout(poll, 2000)
-    } catch (e: any) {
-      const s = actionState.value[key]
-      if (s) s.error = e.message
+      show('登录成功')
+    } else if (data?.status === 'expired') {
+      s.qrUrl = undefined
+      s.error = '二维码已过期，请重新生成'
     }
+  } catch (e: any) {
+    const s = actionState.value[key]
+    if (s) s.error = e.message
   }
-  pollTimer = setTimeout(poll, 3000)
 }
 
 function openAdd() {
@@ -278,7 +260,12 @@ async function save() {
     const pluginConfig: Record<string, unknown> = {}
     const schema = currentSchema.value
     for (const [key, val] of Object.entries(form.value.pluginConfig)) {
-      if (schema[key]?.type === 'action') continue // action fields are not persisted
+      const ft = schema[key]?.type
+      if (ft === 'qrcode') {
+        // QR code fields store nested credentials — persist the object as-is
+        if (val && typeof val === 'object') pluginConfig[key] = val
+        continue
+      }
       if (val !== '' && val !== undefined && val !== null) pluginConfig[key] = typeof val === 'string' ? val.trim() : val
     }
     const config: ChannelConfig = {
@@ -491,10 +478,10 @@ async function refresh() {
             </select>
           </div>
           <template v-for="(field, key) in currentSchema" :key="key">
-            <div v-if="field.type === 'action'" class="form-group">
+            <div v-if="field.type === 'qrcode'" class="form-group">
               <label>{{ field.label }}</label>
               <div style="display:flex;flex-direction:column;gap:8px">
-                <button class="btn-outline" style="align-self:flex-start" :disabled="actionState[key]?.loading" @click="triggerAction(key as string, field)">
+                <button class="btn-outline" style="align-self:flex-start" :disabled="actionState[key]?.loading" @click="triggerAction(key as string)">
                   {{ actionState[key]?.loading ? '...' : field.label }}
                 </button>
                 <img v-if="actionState[key]?.qrUrl" :src="actionState[key]!.qrUrl" style="width:200px;height:200px;border:1px solid #e8e6e3;border-radius:8px" />

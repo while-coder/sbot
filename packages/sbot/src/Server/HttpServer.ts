@@ -896,28 +896,43 @@ class HttpServer {
             await database.destroy(database.channelSession, { where: { id } });
         }));
 
-        // --- Generic channel action dispatch ---
+        // --- QR code login ---
 
-        app.post('/api/channels/:id/action/:action', api(async req => {
+        app.post('/api/channels/:id/qrcode/:key', api(async req => {
             const channelId = req.params.id as string;
-            const action = req.params.action as string;
+            const key = req.params.key as string;
             const channel = channelManager.getChannel(channelId);
             if (!channel) throwBad(`Channel "${channelId}" not found`);
 
-            const service = channelManager.getService(channelId);
-            if (!service?.executeAction) throwBad(`Channel "${channelId}" does not support actions`);
+            const plugin = channelManager.getPlugin(channel.type);
+            if (!plugin?.getQRCode) throwBad(`Plugin "${channel.type}" does not support QR code login`);
 
-            const result = await service.executeAction(action, req.body);
+            const qrcode = await plugin.getQRCode(key, req.body);
+            return qrcode;
+        }));
 
-            // If the action returns configUpdates, persist them
-            if (result.configUpdates) {
-                const cfg = channel.config ?? {};
-                Object.assign(cfg, result.configUpdates);
-                channel.config = cfg;
-                config.saveSettings();
-            }
+        app.post('/api/channels/:id/qrcode/:key/confirm', api(async req => {
+            const channelId = req.params.id as string;
+            const key = req.params.key as string;
+            const channel = channelManager.getChannel(channelId);
+            if (!channel) throwBad(`Channel "${channelId}" not found`);
 
-            return result;
+            const plugin = channelManager.getPlugin(channel.type);
+            if (!plugin?.awaitQRResult) throwBad(`Plugin "${channel.type}" does not support QR code login`);
+
+            const credentials = await plugin.awaitQRResult(key);
+            if (!credentials) return { status: "expired" };
+
+            // Persist credentials under config[key]
+            const cfg = channel.config ?? {};
+            cfg[key] = credentials;
+            channel.config = cfg;
+            config.saveSettings();
+
+            // Reload the channel so it picks up the new credentials
+            await channelManager.reload();
+
+            return { status: "confirmed", credentials };
         }));
     }
 

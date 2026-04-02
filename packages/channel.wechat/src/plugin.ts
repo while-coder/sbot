@@ -1,8 +1,10 @@
 import {
-  ChannelPlugin, ChannelPluginContext, IChannelService, ConfigFieldType, ActionResultType,
+  ChannelPlugin, ChannelPluginContext, IChannelService, ConfigFieldType,
 } from "channel.base";
+import { WechatApiClient } from "./WechatApiClient";
 import { WechatService } from "./WechatService";
 import type { WechatMessageArgs } from "./WechatService";
+import type { WechatCredentials } from "./types";
 
 function buildWechatExtraInfo(userId: string): string {
   if (!userId) return "";
@@ -11,30 +13,83 @@ function buildWechatExtraInfo(userId: string): string {
 </wechat-user>`;
 }
 
+// QR login state per key (managed at plugin level, before service init)
+interface QRState { qrcode: string; baseUrl: string; aborted: boolean }
+const _qrState = new Map<string, QRState>();
+const QR_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+
+function toQRCodeResult(raw: string): { url: string; type: 'image' | 'link' } {
+  if (!raw) return { url: "", type: "link" };
+  if (raw.startsWith("data:")) return { url: raw, type: "image" };
+  if (raw.startsWith("http")) return { url: raw, type: "link" };
+  // Raw base64 data
+  return { url: `data:image/png;base64,${raw}`, type: "image" };
+}
+
 export const wechatPlugin: ChannelPlugin = {
   type: "wechat",
 
   configSchema: {
-    qrLogin:  { label: "生成二维码", type: ConfigFieldType.Action, actionResultType: ActionResultType.QR, description: "扫码登录后自动填入以下凭证" },
-    botToken: { label: "Bot Token", type: ConfigFieldType.String, required: false, description: "iLink Bot API token（扫码登录自动获取）" },
-    botId:    { label: "Bot ID",    type: ConfigFieldType.String, required: false, description: "iLink Bot ID（扫码登录自动获取）" },
-    userId:   { label: "User ID",   type: ConfigFieldType.String, required: false, description: "iLink User ID（扫码登录自动获取）" },
+    qrLogin:  { label: "扫码登录", type: ConfigFieldType.QRCode, description: "扫码登录后自动填入凭证" },
     baseUrl:  { label: "Base URL",  type: ConfigFieldType.String, required: false, description: "iLink API base URL", default: "https://ilinkai.weixin.qq.com" },
+  },
+
+  async getQRCode(key: string, params?: any): Promise<{ url: string; type: 'image' | 'link' }> {
+    // Abort any previous pending poll for the same key
+    const prev = _qrState.get(key);
+    if (prev) prev.aborted = true;
+
+    const baseUrl = params?.baseUrl || "https://ilinkai.weixin.qq.com";
+    const resp = await WechatApiClient.fetchQRCode(baseUrl);
+    _qrState.set(key, { qrcode: resp.qrcode, baseUrl, aborted: false });
+    return toQRCodeResult(resp.qrcode_img_content);
+  },
+
+  async awaitQRResult(key: string): Promise<Record<string, any> | null> {
+    const state = _qrState.get(key);
+    if (!state) return null;
+    const deadline = Date.now() + QR_TIMEOUT_MS;
+    while (state.qrcode && !state.aborted && Date.now() < deadline) {
+      const resp = await WechatApiClient.pollQRStatus(state.qrcode, state.baseUrl);
+      if (state.aborted) break;
+      if (resp.status === "confirmed") {
+        _qrState.delete(key);
+        if (!resp.bot_token || !resp.ilink_bot_id || !resp.ilink_user_id) {
+          throw new Error("Login confirmed but server returned incomplete data.");
+        }
+        return {
+          botToken: resp.bot_token,
+          botId: resp.ilink_bot_id,
+          userId: resp.ilink_user_id,
+          baseUrl: resp.baseurl || state.baseUrl,
+        };
+      }
+      if (resp.status === "expired") {
+        _qrState.delete(key);
+        return null;
+      }
+      // "wait" / "scaned" → continue polling
+    }
+    _qrState.delete(key);
+    return null;
   },
 
   async init(ctx: ChannelPluginContext): Promise<IChannelService | undefined> {
     const { config, logger, filterEvent, initSession, onReceiveMessage } = ctx;
 
-    const hasCredentials = config.botToken?.trim() && config.botId?.trim();
-    const baseUrl = config.baseUrl?.trim() || "https://ilinkai.weixin.qq.com";
+    const cred = config.qrLogin as WechatCredentials | undefined;
+    const baseUrl = config.baseUrl?.trim() || cred?.baseUrl || "https://ilinkai.weixin.qq.com";
+    const credentials: WechatCredentials = {
+      botToken: cred?.botToken ?? "",
+      botId: cred?.botId ?? "",
+      userId: cred?.userId ?? "",
+      baseUrl,
+    };
+
+    const hasCredentials = credentials.botToken && credentials.botId;
 
     const service = new WechatService({
-      credentials: {
-        botToken: config.botToken ?? "",
-        botId: config.botId ?? "",
-        userId: config.userId ?? "",
-        baseUrl,
-      },
+      credentials,
       logger,
       filterEvent,
       onReceiveMessage: async (userId: string, args: WechatMessageArgs, query: string) => {
@@ -50,7 +105,6 @@ export const wechatPlugin: ChannelPlugin = {
       },
     });
 
-    // Only connect if credentials are already configured; otherwise wait for QR login
     if (hasCredentials) {
       service.connect();
     }

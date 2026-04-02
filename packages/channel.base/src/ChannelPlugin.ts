@@ -2,17 +2,8 @@ import { AskResponse, AskToolParams, AskQuestionType } from "scorpio.ai";
 import { ChannelSessionHandler } from "./ChannelSessionHandler";
 import { SessionService } from "./SessionService";
 
-export interface ActionResult {
-  /** Arbitrary data returned to the frontend (e.g. qrcodeUrl, status). */
-  [key: string]: any;
-  /** If present, the frontend auto-fills these values into the config form and persists them. */
-  configUpdates?: Record<string, any>;
-}
-
 export interface IChannelService {
   createUserService(session: SessionService): ChannelSessionHandler;
-  /** Generic action handler dispatched by HttpServer. Channel plugins implement this to handle configSchema actions. */
-  executeAction?(action: string, params?: any): Promise<ActionResult>;
   dispose?(): void;
 }
 
@@ -76,14 +67,8 @@ export enum ConfigFieldType {
   Boolean = 'boolean',
   Number = 'number',
   Select = 'select',
-  /** Renders a button that triggers a channel action via API. */
-  Action = 'action',
-}
-
-/** How to display the result of a configSchema action. */
-export enum ActionResultType {
-  /** Show a QR image and auto-poll `${key}-status` until confirmed/expired. */
-  QR = 'qr',
+  /** Renders a button → QR code image → waits for scan result. */
+  QRCode = 'qrcode',
 }
 
 export interface ConfigField {
@@ -94,17 +79,15 @@ export interface ConfigField {
   default?: string | boolean | number;
   /** only for type: 'select' */
   options?: Array<{ label: string; value: string }>;
-  /**
-   * Only for type: 'action'.
-   * How to display the action result. The configSchema key is used as the action name.
-   * For 'qr', the frontend auto-polls `${key}-status` until confirmed/expired.
-   */
-  actionResultType?: ActionResultType;
 }
 
 export interface ChannelPlugin {
   type: string;
   configSchema?: Record<string, ConfigField>;
+  /** Get a QR code for the given config key. Returns url and display type. */
+  getQRCode?(key: string, params?: any): Promise<{ url: string; type: 'image' | 'link' }>;
+  /** Long-poll until QR scan completes for the given config key. Returns credentials object, or null if expired. */
+  awaitQRResult?(key: string): Promise<Record<string, any> | null>;
   init(ctx: ChannelPluginContext): Promise<IChannelService | undefined>;
   dispose?(): Promise<void>;
 }
