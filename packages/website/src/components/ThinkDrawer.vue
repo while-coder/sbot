@@ -133,7 +133,7 @@ defineExpose({ open })
                         <div class="md-content" v-html="renderMd(tm.message.content)" />
                       </div>
                       <div v-if="tm.message.tool_calls && tm.message.tool_calls.length > 0" class="msg-tool-calls">
-                        <div class="msg-role" style="display:flex;align-items:center;gap:6px">
+                        <div class="msg-role has-think">
                           Tool Calls ({{ tm.message.tool_calls.length }})
                           <div v-if="tm.thinkId" class="think-toggle" @click="onNestedThink(tm.thinkId!)">
                             <span>▸</span>

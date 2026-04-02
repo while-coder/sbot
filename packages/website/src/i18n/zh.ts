@@ -97,6 +97,7 @@ export default {
     ask_timeout: '已超时',
     stop: '中断',
     no_history: '暂无历史记录',
+    think: 'Think',
     date_today: '今天',
     date_yesterday: '昨天',
   },

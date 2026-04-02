@@ -97,6 +97,7 @@ export default {
     ask_timeout: 'Timed out',
     stop: 'Stop',
     no_history: 'No history',
+    think: 'Think',
     date_today: 'Today',
     date_yesterday: 'Yesterday',
   },

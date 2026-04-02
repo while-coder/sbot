@@ -610,7 +610,7 @@ table tr:hover td { background: #fafaf9; }
 .msg-row.ai { align-self: flex-start; align-items: flex-start; max-width: 100%; width: 100%; }
 .msg-role-bar {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 6px;
   margin-bottom: 4px;
 }
@@ -723,7 +723,7 @@ table tr:hover td { background: #fafaf9; }
 }
 .tool-call-result { margin-top: 6px; padding-top: 6px; border-top: 1px solid #e8e6e3; }
 .tool-call-result-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
-.tool-call-result-top .think-toggle { margin-top: 0; }
+.msg-role.has-think { display: flex; align-items: center; gap: 6px; }
 .tool-call-result-label { font-weight: 600; color: #6b6b6b; font-size: 11px; text-transform: uppercase; }
 .tool-result-content { font-size: 12px; line-height: 1.5; overflow-x: hidden; word-break: break-word; }
 .tool-result-content pre { background: rgba(0,0,0,0.04); border-radius: 4px; padding: 6px 8px; margin: 4px 0; font-size: 11px; }
@@ -734,12 +734,13 @@ table tr:hover td { background: #fafaf9; }
 .tool-result-content table th, .tool-result-content table td { padding: 2px 6px; }
 /* ── Think viewer ── */
 .think-toggle {
-  display: inline-flex; align-items: center; gap: 5px;
-  margin-top: 8px; padding: 4px 12px;
-  font-size: 12px; font-weight: 600; color: #7c3aed;
-  cursor: pointer; user-select: none; border-radius: 6px;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 10px;
+  font-size: 11px; font-weight: 600; color: #7c3aed;
+  cursor: pointer; user-select: none; border-radius: 4px;
   background: #f5f3ff; border: 1px solid #ddd6fe;
   transition: all 0.15s ease;
+  white-space: nowrap; vertical-align: middle;
 }
 .think-toggle:hover { background: #ede9fe; color: #6d28d9; border-color: #c4b5fd; }
 .think-toggle-human { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.3); color: #e9d5ff; }

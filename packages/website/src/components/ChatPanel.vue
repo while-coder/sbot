@@ -239,7 +239,7 @@ defineExpose({ scrollToBottom })
                   <span v-if="msg.createdAt" class="msg-time">{{ fmtTs(msg.createdAt) }}</span>
                   <div v-if="msg.thinkId && thinksUrlPrefix" class="think-toggle think-toggle-human" @click="openThink(msg.thinkId!)">
                     <span>▸</span>
-                    <span>Think</span>
+                    <span>{{ t('chat.think') }}</span>
                   </div>
                 </div>
                 {{ msg.message.content }}
@@ -252,7 +252,7 @@ defineExpose({ scrollToBottom })
                   <span v-if="msg.createdAt" class="msg-time">{{ fmtTs(msg.createdAt) }}</span>
                   <div v-if="msg.thinkId && thinksUrlPrefix" class="think-toggle" @click="openThink(msg.thinkId!)">
                     <span>▸</span>
-                    <span>Think</span>
+                    <span>{{ t('chat.think') }}</span>
                   </div>
                 </div>
                 <div class="md-content" v-html="renderMd(msg.message.content)" />
@@ -261,11 +261,11 @@ defineExpose({ scrollToBottom })
                 </div>
               </div>
               <div v-if="msg.message.tool_calls && msg.message.tool_calls.length > 0" class="msg-tool-calls">
-                <div class="msg-role" style="display:flex;align-items:center;gap:6px">
+                <div class="msg-role has-think">
                   {{ t('chat.tool_calls', { count: msg.message.tool_calls.length }) }}
                   <div v-if="msg.thinkId && thinksUrlPrefix" class="think-toggle" @click="openThink(msg.thinkId!)">
                     <span>▸</span>
-                    <span>Think</span>
+                    <span>{{ t('chat.think') }}</span>
                   </div>
                 </div>
                 <div v-for="tc in msg.message.tool_calls" :key="(tc as ToolCall).id" class="tool-call-item">
@@ -280,7 +280,7 @@ defineExpose({ scrollToBottom })
                           <div class="tool-call-result-label">{{ t('chat.tool_result') }}</div>
                           <div v-if="m2.thinkId && thinksUrlPrefix" class="think-toggle" @click="openThink(m2.thinkId!)">
                             <span>▸</span>
-                            <span>Think</span>
+                            <span>{{ t('chat.think') }}</span>
                           </div>
                         </div>
                         <div class="md-content tool-result-content" v-html="renderMd(m2.message.content || '')" />
