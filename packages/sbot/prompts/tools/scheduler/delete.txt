@@ -1,1 +1,2 @@
 Delete and cancel a scheduled task by id. Use scheduler_list first if you need to find the id.
+Only tasks belonging to the current scheduler can be deleted; attempting to delete another scheduler's task will return a permission error.

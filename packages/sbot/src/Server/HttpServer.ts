@@ -850,37 +850,6 @@ class HttpServer {
             }));
         }));
 
-        app.post('/api/schedulers', api(async req => {
-            const { expr, message, type, targetId, maxRuns } = req.body;
-            if (!expr?.trim()) throwBad('expr is required');
-            if (!message?.trim()) throwBad('message is required');
-            const scheduler = await database.create(database.scheduler, {
-                expr: expr.trim(),
-                type: type ?? null,
-                message: message.trim(),
-                targetId: targetId ?? null,
-                lastRun: null,
-                runCount: 0,
-                maxRuns: maxRuns ?? 0,
-            });
-            await schedulerService.reload((scheduler as any).id);
-            return scheduler;
-        }));
-
-        app.put('/api/schedulers/:id', api(async req => {
-            const id = parseInt(req.params.id as string, 10);
-            if (isNaN(id)) throwBad('Invalid id');
-            const { expr, message, type, targetId, maxRuns } = req.body;
-            const updates: any = {};
-            if (expr !== undefined)     updates.expr     = expr;
-            if (message !== undefined)  updates.message  = message;
-            if (type !== undefined)     updates.type     = type;
-            if (targetId !== undefined) updates.targetId = targetId;
-            if (maxRuns !== undefined)  updates.maxRuns  = maxRuns;
-            await database.update(database.scheduler, updates, { where: { id } });
-            await schedulerService.reload(id);
-        }));
-
         app.delete('/api/schedulers/:id', api(async req => {
             const id = parseInt(req.params.id as string, 10);
             if (isNaN(id)) throwBad('Invalid id');

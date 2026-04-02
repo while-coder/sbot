@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
-import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 
 const { t } = useI18n()
@@ -32,44 +31,8 @@ const { show } = useToast()
 const timers = ref<SchedulerRow[]>([])
 const channelSessions = ref<ChannelSessionRow[]>([])
 const loading = ref(false)
-const showModal = ref(false)
-const editingId = ref<number | null>(null)
-const saving = ref(false)
-
-const sessionOptions = computed(() =>
-  Object.keys(store.settings.sessions ?? {})
-)
-
-const directoryOptions = computed(() =>
-  Object.keys(store.settings.directories ?? {})
-)
-
-const form = ref({
-  uiType:       'daily' as UIType,
-  hour:         9,
-  minute:       0,
-  dayOfWeek:    1,
-  dayOfMonth:   1,
-  minutes:      30,
-  customExpr:   '',
-  message:      '',
-  routingType:  'channel' as RoutingType,
-  targetId:     '',
-  maxRuns:      0,
-})
 
 // ── Cron helpers ─────────────────────────────────────────────────────────────
-
-const builtExpr = computed((): string => {
-  const { uiType, hour, minute, dayOfWeek, dayOfMonth, minutes, customExpr } = form.value
-  const h = hour, m = minute
-  if (uiType === 'daily')    return `${m} ${h} * * *`
-  if (uiType === 'weekly')   return `${m} ${h} * * ${dayOfWeek}`
-  if (uiType === 'monthly')  return `${m} ${h} ${dayOfMonth} * *`
-  if (uiType === 'interval') return `*/${minutes} * * * *`
-  if (uiType === 'hourly')   return `${minute} * * * *`
-  return customExpr.trim()
-})
 
 function detectUIType(expr: string): UIType {
   const p = expr.trim().split(/\s+/)
@@ -81,19 +44,6 @@ function detectUIType(expr: string): UIType {
   if (/^\d+$/.test(m) && /^\d+$/.test(h) && /^\d+$/.test(dom) && mon === '*' && dow === '*') return 'monthly'
   if (/^\d+$/.test(m) && /^\d+$/.test(h) && dom === '*' && mon === '*' && dow === '*') return 'daily'
   return 'custom'
-}
-
-function parseExpr(expr: string) {
-  const uiType = detectUIType(expr)
-  const p = expr.trim().split(/\s+/)
-  const base = { uiType, hour: 9, minute: 0, dayOfWeek: 1, dayOfMonth: 1, minutes: 30, customExpr: expr }
-  if (uiType === 'custom')   return base
-  if (uiType === 'interval') return { ...base, minutes: parseInt(p[0].slice(2)) }
-  if (uiType === 'hourly')   return { ...base, minute: parseInt(p[0]) }
-  if (uiType === 'daily')    return { ...base, hour: parseInt(p[1]), minute: parseInt(p[0]) }
-  if (uiType === 'weekly')   return { ...base, hour: parseInt(p[1]), minute: parseInt(p[0]), dayOfWeek: parseInt(p[4]) }
-  if (uiType === 'monthly')  return { ...base, hour: parseInt(p[1]), minute: parseInt(p[0]), dayOfMonth: parseInt(p[2]) }
-  return base
 }
 
 function describeExpr(expr: string): string {
@@ -162,75 +112,6 @@ function formatNextRun(ts: number | null): string {
   return new Date(ts).toLocaleString('zh-CN')
 }
 
-function sessionLabel(s: ChannelSessionRow): string {
-  return s.sessionId ? `${s.sessionId} (${s.channelId})` : String(s.id)
-}
-
-// ── Modal open/close ──────────────────────────────────────────────────────────
-
-function openAdd() {
-  editingId.value = null
-  const parsed = parseExpr('0 9 * * *')
-  form.value = {
-    ...parsed,
-    message:     '',
-    routingType: 'channel',
-    targetId:    '',
-    maxRuns:     0,
-  }
-  showModal.value = true
-}
-
-function openEdit(row: SchedulerRow) {
-  editingId.value = row.id
-  const parsed = parseExpr(row.expr)
-  const rt = routingTypeOf(row)
-  form.value = {
-    ...parsed,
-    message:     row.message,
-    routingType: rt,
-    targetId:    row.targetId ?? '',
-    maxRuns:     row.maxRuns ?? 0,
-  }
-  showModal.value = true
-}
-
-// ── Save ──────────────────────────────────────────────────────────────────────
-
-async function save() {
-  if (!builtExpr.value.trim())    { show(t('scheduler.error_cron'), 'error'); return }
-  if (!form.value.message.trim()) { show(t('scheduler.message_label') + ' ' + t('common.name_required'), 'error'); return }
-
-  const rt = form.value.routingType
-  if (rt === 'channel' && !form.value.targetId)          { show(t('scheduler.error_session'), 'error'); return }
-  if (rt === 'session' && !form.value.targetId)          { show(t('scheduler.error_session_id'), 'error'); return }
-  if (rt === 'directory' && !form.value.targetId.trim()) { show(t('scheduler.error_work_dir'), 'error'); return }
-
-  saving.value = true
-  try {
-    const body: any = {
-      expr:     builtExpr.value,
-      message:  form.value.message.trim(),
-      type:     rt,
-      targetId: form.value.targetId || null,
-      maxRuns:  form.value.maxRuns ?? 0,
-    }
-    if (editingId.value !== null) {
-      await apiFetch(`/api/schedulers/${editingId.value}`, 'PUT', body)
-      show(t('common.saved'))
-    } else {
-      await apiFetch('/api/schedulers', 'POST', body)
-      show(t('common.created'))
-    }
-    showModal.value = false
-    await load()
-  } catch (e: any) {
-    show(e.message, 'error')
-  } finally {
-    saving.value = false
-  }
-}
-
 async function remove(row: SchedulerRow) {
   if (!confirm(t('scheduler.confirm_delete', { id: row.id }))) return
   try {
@@ -250,7 +131,6 @@ onMounted(load)
     <div class="page-toolbar">
       <span class="page-toolbar-title">{{ t('scheduler.title') }}</span>
       <button class="btn-outline btn-sm" @click="load">{{ t('common.refresh') }}</button>
-      <button class="btn-primary btn-sm" @click="openAdd">{{ t('scheduler.add') }}</button>
     </div>
     <div class="page-content">
       <table>
@@ -293,7 +173,6 @@ onMounted(load)
             <td style="font-size:12px;color:#9b9b9b;white-space:nowrap">{{ formatNextRun(t_.nextRun) }}</td>
             <td>
               <div class="ops-cell">
-                <button class="btn-outline btn-sm" @click="openEdit(t_)">{{ t('common.edit') }}</button>
                 <button class="btn-danger btn-sm" @click="remove(t_)">{{ t('common.delete') }}</button>
               </div>
             </td>
@@ -302,132 +181,5 @@ onMounted(load)
       </table>
     </div>
 
-    <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
-      <div class="modal-box">
-        <div class="modal-header">
-          <h3>{{ editingId !== null ? t('scheduler.edit_title') : t('scheduler.add_title') }}</h3>
-          <button class="modal-close" @click="showModal = false">&times;</button>
-        </div>
-        <div class="modal-body">
-          <!-- 触发类型 -->
-          <div class="form-group">
-            <label>{{ t('scheduler.frequency') }}</label>
-            <select v-model="form.uiType">
-              <option value="daily">{{ t('scheduler.freq_daily') }}</option>
-              <option value="weekly">{{ t('scheduler.freq_weekly') }}</option>
-              <option value="monthly">{{ t('scheduler.freq_monthly') }}</option>
-              <option value="interval">{{ t('scheduler.freq_interval') }}</option>
-              <option value="hourly">{{ t('scheduler.freq_hourly') }}</option>
-              <option value="custom">{{ t('scheduler.freq_custom') }}</option>
-            </select>
-          </div>
-
-          <!-- daily / weekly / monthly: 时间 -->
-          <div v-if="['daily','weekly','monthly'].includes(form.uiType)" class="inline-form">
-            <div class="form-group">
-              <label>{{ t('scheduler.hour_label') }}</label>
-              <input type="number" v-model.number="form.hour" min="0" max="23" />
-            </div>
-            <div class="form-group">
-              <label>{{ t('scheduler.minute_label') }}</label>
-              <input type="number" v-model.number="form.minute" min="0" max="59" />
-            </div>
-          </div>
-
-          <!-- weekly: 星期几 -->
-          <div v-if="form.uiType === 'weekly'" class="form-group">
-            <label>{{ t('scheduler.weekday_label') }}</label>
-            <select v-model.number="form.dayOfWeek">
-              <option v-for="i in 7" :key="i - 1" :value="i - 1">{{ t(`scheduler.weekday_${i - 1}`) }}</option>
-            </select>
-          </div>
-
-          <!-- monthly: 几号 -->
-          <div v-if="form.uiType === 'monthly'" class="form-group">
-            <label>{{ t('scheduler.day_label') }}</label>
-            <input type="number" v-model.number="form.dayOfMonth" min="1" max="31" />
-          </div>
-
-          <!-- interval: 间隔分钟 -->
-          <div v-if="form.uiType === 'interval'" class="form-group">
-            <label>{{ t('scheduler.interval_label') }}</label>
-            <input type="number" v-model.number="form.minutes" min="1" max="59" />
-          </div>
-
-          <!-- hourly: 触发分钟 -->
-          <div v-if="form.uiType === 'hourly'" class="form-group">
-            <label>{{ t('scheduler.trigger_minute_label') }}</label>
-            <input type="number" v-model.number="form.minute" min="0" max="59" />
-          </div>
-
-          <!-- custom: 直接输入 -->
-          <div v-if="form.uiType === 'custom'" class="form-group">
-            <label>{{ t('scheduler.cron_label') }}</label>
-            <input v-model="form.customExpr" :placeholder="t('scheduler.cron_placeholder')" style="font-family:monospace" />
-          </div>
-
-          <!-- cron 预览 -->
-          <div v-if="form.uiType !== 'custom' && builtExpr" style="margin-bottom:12px;padding:6px 10px;background:#f5f4f2;border-radius:4px;font-family:monospace;font-size:12px;color:#6b6b6b">
-            {{ builtExpr }}
-          </div>
-
-          <div class="form-group">
-            <label>{{ t('scheduler.message_label') }}</label>
-            <textarea v-model="form.message" rows="3" :placeholder="t('scheduler.message_placeholder')" />
-          </div>
-
-          <!-- 路由类型 -->
-          <div class="form-group">
-            <label>{{ t('scheduler.route_type') }}</label>
-            <select v-model="form.routingType">
-              <option value="channel">{{ t('scheduler.route_channel') }}</option>
-              <option value="session">{{ t('scheduler.route_session') }}</option>
-              <option value="directory">{{ t('scheduler.route_directory') }}</option>
-            </select>
-          </div>
-
-          <!-- channel: 频道会话 -->
-          <div v-if="form.routingType === 'channel'" class="form-group">
-            <label>{{ t('scheduler.channel_session') }}</label>
-            <select v-model="form.targetId">
-              <option value="">{{ t('scheduler.select_session') }}</option>
-              <option v-for="s in channelSessions" :key="s.id" :value="String(s.id)">{{ sessionLabel(s) }}</option>
-            </select>
-          </div>
-
-          <!-- session: 会话 -->
-          <div v-if="form.routingType === 'session'" class="form-group">
-            <label>{{ t('scheduler.session_id') }}</label>
-            <select v-if="sessionOptions.length" v-model="form.targetId">
-              <option value="">{{ t('scheduler.select_session') }}</option>
-              <option v-for="s in sessionOptions" :key="s" :value="s">{{ s }}</option>
-            </select>
-            <input v-else v-model="form.targetId" placeholder="session ID" />
-          </div>
-
-          <!-- directory: 工作目录 -->
-          <div v-if="form.routingType === 'directory'" class="form-group">
-            <label>{{ t('scheduler.work_dir') }}</label>
-            <select v-if="directoryOptions.length" v-model="form.targetId">
-              <option value="">{{ t('common.select_placeholder') }}</option>
-              <option v-for="d in directoryOptions" :key="d" :value="d">{{ d }}</option>
-            </select>
-            <input v-else v-model="form.targetId" :placeholder="t('scheduler.work_dir_placeholder')" style="font-family:monospace" />
-          </div>
-
-          <!-- 最大执行次数 -->
-          <div class="form-group">
-            <label>{{ t('scheduler.max_runs') }}</label>
-            <input type="number" v-model.number="form.maxRuns" min="0" />
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-outline" @click="showModal = false">{{ t('common.cancel') }}</button>
-          <button class="btn-primary" :disabled="saving" @click="save">
-            {{ saving ? t('common.saving') : t('common.save') }}
-          </button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>

@@ -178,6 +178,12 @@ export default {
     lang_zh: '中文',
     lang_en: 'English',
     service: 'Service',
+    tool_approval: 'Tool Approval',
+    auto_approve_all: 'Auto-approve all tools',
+    auto_approve_all_hint: 'When enabled, all tool calls are approved without user confirmation',
+    auto_approve_tools: 'Auto-approved tools',
+    auto_approve_tools_placeholder: 'e.g. read_file, run_code',
+    auto_approve_tools_hint: 'Comma-separated tool names that are always approved without prompting',
   },
   models: {
     add: '+ Add Model',

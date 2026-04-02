@@ -47,7 +47,7 @@ export class AgentFactory {
         if (!container.isRegistered(IAgentSaverService)) container.registerSingleton(IAgentSaverService, AgentMemorySaver);
         const { mcp, skills } = agentEntry;
         await this.registerSkillService(container, agentId, skills);
-        await this.registerToolService(container, agentId, mcp, agentTools, options.scheduler);
+        await this.registerToolService(container, agentId, options.scheduler, mcp, agentTools);
 
         const systemPrompts = [loadPrompt('system/init.txt'), ...extraPrompts];
         if (agentEntry.systemPrompt)

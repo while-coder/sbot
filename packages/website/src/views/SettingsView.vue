@@ -20,10 +20,14 @@ function changeLocale(lang: string) {
 
 const httpPort = ref<number | ''>('')
 const httpUrl = ref('')
+const autoApproveAllTools = ref(false)
+const autoApproveToolsText = ref('')
 
 watch(() => store.settings, (s) => {
   httpPort.value = s.httpPort ?? ''
   httpUrl.value = s.httpUrl || ''
+  autoApproveAllTools.value = s.autoApproveAllTools ?? false
+  autoApproveToolsText.value = (s.autoApproveTools ?? []).join(', ')
 }, { immediate: true, deep: true })
 
 // 当前浏览器访问端口
@@ -37,9 +41,15 @@ const portMismatch = computed(() => {
 
 async function save() {
   try {
+    const tools = autoApproveToolsText.value
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
     const res = await apiFetch('/api/settings/general', 'PUT', {
       httpPort: httpPort.value === '' ? undefined : Number(httpPort.value),
       httpUrl: httpUrl.value.trim() || undefined,
+      autoApproveAllTools: autoApproveAllTools.value,
+      autoApproveTools: tools,
     })
     Object.assign(store.settings, res.data)
     show(t('common.saved'))
@@ -83,11 +93,42 @@ async function save() {
           </div>
         </div>
       </div>
+      <div class="card">
+        <div class="card-title">{{ t('settings.tool_approval') }}</div>
+        <div class="inline-form">
+          <div class="form-group form-group-checkbox">
+            <label>
+              <input type="checkbox" v-model="autoApproveAllTools" />
+              {{ t('settings.auto_approve_all') }}
+            </label>
+            <div class="form-hint">{{ t('settings.auto_approve_all_hint') }}</div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
+.form-group-checkbox label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.form-group-checkbox input[type='checkbox'] {
+  width: auto;
+  margin: 0;
+}
+.form-hint {
+  font-size: 0.78rem;
+  color: var(--color-text-muted, #888);
+  margin-top: 4px;
+}
+.form-group.disabled label,
+.form-group.disabled .form-hint {
+  opacity: 0.45;
+}
 .port-mismatch-banner {
   background: var(--color-warning-bg, #7c5a0020);
   border-bottom: 1px solid var(--color-warning, #a07020);

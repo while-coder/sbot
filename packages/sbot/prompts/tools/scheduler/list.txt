@@ -1,1 +1,2 @@
-List scheduled tasks (id, name, expr, type, message, targetId, lastRun, runCount, maxRuns). Call before create/delete to check for duplicates or find a task id. Optionally filter by type.
+List scheduled tasks belonging to the current scheduler (id, expr, type, targetId, lastRun, runCount, maxRuns, nextRun, message).
+Call before create or delete to check for duplicates or look up a task id.

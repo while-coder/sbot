@@ -178,6 +178,12 @@ export default {
     lang_zh: '中文',
     lang_en: 'English',
     service: '服务',
+    tool_approval: '工具审批',
+    auto_approve_all: '自动批准所有工具',
+    auto_approve_all_hint: '开启后，Agent 调用任何工具均无需用户确认',
+    auto_approve_tools: '自动批准的工具列表',
+    auto_approve_tools_placeholder: '例：read_file, run_code',
+    auto_approve_tools_hint: '多个工具名用英文逗号分隔，列表中的工具无需逐次确认',
   },
   models: {
     add: '+ 添加模型',

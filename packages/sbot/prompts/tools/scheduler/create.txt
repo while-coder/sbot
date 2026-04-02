@@ -1,3 +1,3 @@
-Create a scheduled task.
-- type: from <environment><scheduler><scheduler-type>
-- id:   from <environment><scheduler><scheduler-id>
+Create a scheduled task for the current scheduler.
+The scheduler type and target id are bound automatically — do not supply them.
+Use expr for recurring tasks; for a one-shot task pin all 6 cron fields to the exact target datetime and set maxRuns=1.
