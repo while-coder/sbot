@@ -3,14 +3,10 @@ import type { WsFrame } from '@wecom/aibot-node-sdk';
 import {
   ChatMessage,
   ChatToolCall,
-  AskToolParams,
-  AskQuestionType,
-  type RadioQuestion,
-  type CheckboxQuestion,
   MessageType,
   GlobalLoggerService,
 } from 'scorpio.ai';
-import { ChannelSessionHandler, ToolCallStatus, SessionService, ChannelToolHelpers, type ChannelMessageArgs } from 'channel.base';
+import { ChannelSessionHandler, ToolCallStatus, SessionService, type ChannelMessageArgs } from 'channel.base';
 import { WecomChatProvider } from './WecomChatProvider';
 import type { WecomService, WecomMessageArgs, WecomActionArgs } from './WecomService';
 
@@ -19,25 +15,24 @@ export type { WecomMessageArgs, WecomActionArgs } from './WecomService';
 
 const getLogger = () => GlobalLoggerService.getLogger('WecomSessionHandler.ts');
 
+const EventKey = {
+  Allow: 'Allow',
+  AlwaysArgs: 'AlwaysArgs',
+  AlwaysTool: 'AlwaysTool',
+  Deny: 'Deny',
+  Abort: 'Abort',
+} as const;
+
 export class WecomSessionHandler extends ChannelSessionHandler {
   protected provider: WecomChatProvider | undefined;
   private _chatid = '';
-  private _currentAskQuestion: (RadioQuestion | CheckboxQuestion) | null = null;
-
   constructor(session: SessionService, private wecomService: WecomService) {
     super(session);
-  }
-
-  static readonly ASK_PROMPT = 'Ask the user one or more structured questions and wait for their response. Use this tool whenever you need clarification, a decision, or input before proceeding.\n\nQuestion types:\n- radio: single-choice selection from a fixed list (optionally with a custom "Other" option)\n- checkbox: multi-choice selection from a fixed list (optionally with a custom "Other" option)\n\nReturns a map of question label → answer (string for radio, string[] for checkbox).';
-
-  buildAgentTools(args: ChannelMessageArgs, helpers: ChannelToolHelpers): any[] {
-    return [helpers.createAskTool(WecomSessionHandler.ASK_PROMPT, (params) => this.executeAsk(params), [AskQuestionType.Radio, AskQuestionType.Checkbox])];
   }
 
   async onProcessStart(_query: string, args: ChannelMessageArgs, _messageType: MessageType): Promise<void> {
     const { sessionId } = args;
     this._chatid = sessionId;
-    this._currentAskQuestion = null;
     this.provider = new WecomChatProvider(this.wecomService, sessionId);
   }
 
@@ -73,25 +68,13 @@ export class WecomSessionHandler extends ChannelSessionHandler {
             title: `工具调用: ${toolCall.name}`,
             desc: `参数: ${JSON.stringify(toolCall.args ?? {})}`,
           },
-          // quote_area: {
-          //   title: `工具调用: ${toolCall.name}`,
-          //   quote_text: `参数: ${JSON.stringify(toolCall.args ?? {})}`,
-          // },
           task_id: `approval_${approvalId}`,
           button_list: [
-            { text: `允许 (${remainSec}s)`, style: 1, key: `Allow|${approvalId}` },
-            { text: `始终允许 (相同参数)`, style: 1, key: `AlwaysArgs|${approvalId}` },
-            { text: `始终允许 (所有参数)`, style: 1, key: `AlwaysTool|${approvalId}` },
-            { text: `拒绝`, style: 2, key: `Deny|${approvalId}` },
+            { text: `允许`, style: 1, key: `${EventKey.Allow}|${approvalId}` },
+            { text: `始终允许 (相同参数)`, style: 1, key: `${EventKey.AlwaysArgs}|${approvalId}` },
+            { text: `始终允许 (所有参数)`, style: 1, key: `${EventKey.AlwaysTool}|${approvalId}` },
+            { text: `拒绝 (${remainSec}s)`, style: 2, key: `${EventKey.Deny}|${approvalId}` },
           ],
-          // action_menu: {
-          //   desc: "操作类型",
-          //   action_list: [
-          //     { text: `始终允许 (相同参数)`, style: 1, key: `AlwaysArgs|${id}` },
-          //     { text: `始终允许 (所有参数)`, style: 1, key: `AlwaysTool|${id}` },
-          //     { text: `拒绝`, style: 2, key: `Deny|${id}` },
-          //   ]
-          // }
         },
       } as any);
     } catch (e: any) {
@@ -101,45 +84,8 @@ export class WecomSessionHandler extends ChannelSessionHandler {
 
   protected async exitApproval(_approvalId: string): Promise<void> {}
 
-  // --- Ask Form ---
-
-  protected async enterAsk(askId: string, remainSec: number, params: AskToolParams): Promise<void> {
-    const q = params.questions.find(
-      (q): q is RadioQuestion | CheckboxQuestion =>
-        q.type === AskQuestionType.Radio || q.type === AskQuestionType.Checkbox,
-    );
-    if (!q) return;
-
-    this._currentAskQuestion = q;
-    const isMulti = q.type === AskQuestionType.Checkbox;
-    try {
-      await this.wecomService.sendMessage(this._chatid, {
-        msgtype: 'template_card',
-        template_card: {
-          card_type: TemplateCardType.TextNotice,
-          main_title: {
-            title: params.title ?? q.label,
-            desc: params.title ? q.label : undefined,
-          },
-          task_id: `ask_${askId}`,
-          card_action: { type: 0 },
-          checkbox: {
-            question_key: 'q0',
-            mode: isMulti ? 1 : 0,
-            option_list: q.options.map((opt, i) => ({ id: `opt_${i}`, text: opt, is_checked: false })),
-          },
-          submit_button: { text: `提交 (${remainSec}s)`, key: `AskSubmit|${askId}` },
-        },
-      } as any);
-    } catch (e: any) {
-      getLogger()?.error(`enterAsk error: ${e?.message ?? e}`, e?.stack);
-      this._currentAskQuestion = null;
-    }
-  }
-
-  protected async exitAsk(_askId: string): Promise<void> {
-    this._currentAskQuestion = null;
-  }
+  protected async enterAsk(): Promise<void> {}
+  protected async exitAsk(): Promise<void> {}
 
   // --- Card Event Dispatch ---
   // Called by WecomService's onTriggerAction callback after dispatching to the right user service instance.
@@ -149,39 +95,20 @@ export class WecomSessionHandler extends ChannelSessionHandler {
     const parts = eventKey.split('|');
     const code = parts[0];
 
-    if (code === 'Allow' || code === 'AlwaysArgs' || code === 'AlwaysTool' || code === 'Deny') {
+    if (code === EventKey.Allow || code === EventKey.AlwaysArgs || code === EventKey.AlwaysTool || code === EventKey.Deny) {
       const id = parts[1];
       if (!id) { getLogger()?.warn(`ToolCall event missing id: ${eventKey}`); return; }
       const statusMap: Partial<Record<string, ToolCallStatus>> = {
-        Allow: ToolCallStatus.Allow,
-        AlwaysArgs: ToolCallStatus.AlwaysArgs,
-        AlwaysTool: ToolCallStatus.AlwaysTool,
-        Deny: ToolCallStatus.Deny,
+        [EventKey.Allow]: ToolCallStatus.Allow,
+        [EventKey.AlwaysArgs]: ToolCallStatus.AlwaysArgs,
+        [EventKey.AlwaysTool]: ToolCallStatus.AlwaysTool,
+        [EventKey.Deny]: ToolCallStatus.Deny,
       };
       this.resolveApproval(id, statusMap[code] ?? ToolCallStatus.Deny);
       return;
     }
 
-    if (code === 'AskSubmit') {
-      const askId = parts[1];
-      if (!askId) { getLogger()?.warn(`Ask event missing id: ${eventKey}`); return; }
-      const checkboxData = (frame.body as any)?.event?.checkbox_data;
-      const selectedItems: Array<{ id: string; is_checked: boolean }> = checkboxData?.selected_items ?? [];
-      const selectedIds = selectedItems.filter(item => item.is_checked).map(item => item.id);
-      const q = this._currentAskQuestion;
-      const answers: Record<string, string | string[]> = {};
-      if (q) {
-        const selectedTexts = selectedIds.map(id => {
-          const idx = parseInt(id.replace('opt_', ''), 10);
-          return q.options[idx] ?? id;
-        });
-        answers['0'] = q.type === AskQuestionType.Checkbox ? selectedTexts : (selectedTexts[0] ?? '');
-      }
-      this.resolveAsk(askId, answers);
-      return;
-    }
-
-    if (code === 'Abort') {
+    if (code === EventKey.Abort) {
       this.abort();
       return;
     }
