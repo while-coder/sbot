@@ -9,6 +9,14 @@
 
 **开源、自托管的 AI Agent 框架。** 在自己的服务器上运行 LLM 驱动的 Agent，支持持久化记忆、多渠道接入、MCP 工具协议和内置 Web UI —— 无供应商绑定。
 
+| 聊天 | 图片生成 | 模型配置 |
+|:---:|:---:|:---:|
+| ![聊天](docs/screenshot-chat.png) | ![图片生成](docs/screenshot-image.png) | ![模型配置](docs/screenshot-models.png) |
+
+| 智能体管理 | 频道管理 | MCP 工具 |
+|:---:|:---:|:---:|
+| ![智能体管理](docs/screenshot-agents.png) | ![频道管理](docs/screenshot-channels.png) | ![MCP 工具](docs/screenshot-tools.png) |
+
 ---
 
 ## 快速开始

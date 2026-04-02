@@ -9,6 +9,14 @@
 
 **Open-source, self-hosted AI agent framework.** Run LLM-powered agents on your own server with persistent memory, multi-channel integrations, MCP tool support, and a built-in web UI — no vendor lock-in.
 
+| Chat | Image Generation | Models |
+|:---:|:---:|:---:|
+| ![Chat](docs/screenshot-chat.png) | ![Image Generation](docs/screenshot-image.png) | ![Models](docs/screenshot-models.png) |
+
+| Agents | Channels | MCP Tools |
+|:---:|:---:|:---:|
+| ![Agents](docs/screenshot-agents.png) | ![Channels](docs/screenshot-channels.png) | ![MCP Tools](docs/screenshot-tools.png) |
+
 ---
 
 ## Quick Start
