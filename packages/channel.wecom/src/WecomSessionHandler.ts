@@ -28,8 +28,10 @@ export class WecomSessionHandler extends ChannelSessionHandler {
     super(session);
   }
 
-  buildAgentTools(args: any, helpers: ChannelToolHelpers): any[] {
-    return [helpers.createAskTool('wecom', (params) => this.executeAsk(params), [AskQuestionType.Radio, AskQuestionType.Checkbox])];
+  static readonly ASK_PROMPT = 'Ask the user one or more structured questions and wait for their response. Use this tool whenever you need clarification, a decision, or input before proceeding.\n\nQuestion types:\n- radio: single-choice selection from a fixed list (optionally with a custom "Other" option)\n- checkbox: multi-choice selection from a fixed list (optionally with a custom "Other" option)\n\nReturns a map of question label → answer (string for radio, string[] for checkbox).';
+
+  buildAgentTools(args: ChannelMessageArgs, helpers: ChannelToolHelpers): any[] {
+    return [helpers.createAskTool(WecomSessionHandler.ASK_PROMPT, (params) => this.executeAsk(params), [AskQuestionType.Radio, AskQuestionType.Checkbox])];
   }
 
   async onProcessStart(_query: string, args: ChannelMessageArgs, _messageType: MessageType): Promise<void> {
@@ -120,6 +122,7 @@ export class WecomSessionHandler extends ChannelSessionHandler {
             desc: params.title ? q.label : undefined,
           },
           task_id: `ask_${askId}`,
+          card_action: { type: 0 },
           checkbox: {
             question_key: 'q0',
             mode: isMulti ? 1 : 0,
@@ -129,7 +132,7 @@ export class WecomSessionHandler extends ChannelSessionHandler {
         },
       } as any);
     } catch (e: any) {
-      getLogger()?.error(`enterAsk error: ${e.message}`, e.stack);
+      getLogger()?.error(`enterAsk error: ${e?.message ?? e}`, e?.stack);
       this._currentAskQuestion = null;
     }
   }

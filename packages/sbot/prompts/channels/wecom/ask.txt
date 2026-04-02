@@ -1,7 +1,0 @@
-Ask the user one or more structured questions and wait for their response. Use this tool whenever you need clarification, a decision, or input before proceeding.
-
-Question types:
-- radio: single-choice selection from a fixed list (optionally with a custom "Other" option)
-- checkbox: multi-choice selection from a fixed list (optionally with a custom "Other" option)
-
-Returns a map of question label → answer (string for radio, string[] for checkbox).

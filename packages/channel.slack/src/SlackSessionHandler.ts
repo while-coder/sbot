@@ -168,7 +168,9 @@ export class SlackSessionHandler extends ChannelSessionHandler {
     getLogger()?.warn(`Unhandled Slack action: ${actionId}`);
   }
 
-  buildAgentTools(args: any, helpers: ChannelToolHelpers): any[] {
-    return [helpers.createAskTool('slack', (params) => this.executeAsk(params))];
+  static readonly ASK_PROMPT = 'Ask the user one or more structured questions and wait for their response. Use this tool whenever you need clarification, a decision, or input before proceeding.\n\nQuestion types:\n- radio: single-choice selection from a fixed list (optionally with a custom "Other" option)\n- checkbox: multi-choice selection from a fixed list (optionally with a custom "Other" option)\n- input: free-text entry with an optional placeholder\n- toggle: boolean on/off switch\n\nReturns a map of question label → answer (string for radio/input, string[] for checkbox, boolean for toggle).';
+
+  buildAgentTools(args: ChannelMessageArgs, helpers: ChannelToolHelpers): any[] {
+    return [helpers.createAskTool(SlackSessionHandler.ASK_PROMPT, (params) => this.executeAsk(params))];
   }
 }

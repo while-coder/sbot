@@ -211,11 +211,14 @@ export class LarkSessionHandler extends ChannelSessionHandler {
     await this.provider?.deleteElement(EL_ASK_FORM);
   }
 
+  static readonly ASK_PROMPT = 'Ask the user one or more structured questions and wait for their response. Use this tool whenever you need clarification, a decision, or input before proceeding.\n\nQuestion types:\n- radio: single-choice selection from a fixed list (optionally with a custom "Other" option)\n- checkbox: multi-choice selection from a fixed list (optionally with a custom "Other" option)\n- input: free-text entry with an optional placeholder\n\nReturns a map of question label → answer (string for radio/input, string[] for checkbox).';
+  static readonly SEND_FILE_PROMPT = 'Send a local file to the current Lark conversation. Use this tool to deliver any generated or exported file (documents, archives, reports, images, etc.) directly to the user via Lark.';
+
   buildAgentTools(args: ChannelMessageArgs, helpers: ChannelToolHelpers): any[] {
     const { sessionId } = args as LarkMessageArgs;
     return [
-        helpers.createAskTool('lark', (params) => this.executeAsk(params), [AskQuestionType.Radio, AskQuestionType.Checkbox, AskQuestionType.Input]),
-        helpers.createSendFileTool('lark', async (filePath, fileName) => {
+        helpers.createAskTool(LarkSessionHandler.ASK_PROMPT, (params) => this.executeAsk(params), [AskQuestionType.Radio, AskQuestionType.Checkbox, AskQuestionType.Input]),
+        helpers.createSendFileTool(LarkSessionHandler.SEND_FILE_PROMPT, async (filePath, fileName) => {
             await this.larkService.sendFileMessage(LarkReceiveIdType.ChatId, sessionId, filePath, fileName);
         }),
     ];

@@ -20,7 +20,7 @@ import {
 import { loadPrompt } from "../Core/PromptLoader";
 import { config, SaverType } from "../Core/Config";
 import { SchedulerType } from "../Core/Database";
-import { ChannelType } from "sbot.commons";
+
 import { AgentFactory } from "./AgentFactory";
 import { LoggerService } from "../Core/LoggerService";
 import { sessionManager } from "../UserService/SessionManager";
@@ -42,13 +42,12 @@ export type SendFileFn = (filePath: string, fileName: string) => Promise<void>;
 export const SEND_FILE_TOOL_NAME = '_send_file';
 
 /** 创建 send_file 工具 */
-export function createSendFileAgentTool(channelType: ChannelType, sendFileFn: SendFileFn): AgentTool {
-    const description = loadPrompt(`channels/${channelType}/send_file.txt`);
+export function createSendFileAgentTool(prompt: string, sendFileFn: SendFileFn): AgentTool {
     return {
         name: "__send_file__",
         factory: () => [new DynamicStructuredTool({
             name: SEND_FILE_TOOL_NAME,
-            description,
+            description: prompt,
             schema: z.object({
                 file_path: z.string().describe('Absolute path of the local file to send'),
                 file_name: z.string().optional().describe('File name with extension; defaults to the basename of file_path'),
@@ -62,12 +61,11 @@ export function createSendFileAgentTool(channelType: ChannelType, sendFileFn: Se
     };
 }
 
-/** 创建 ask 交互工具（封装 createAskTool + prompt 加载） */
-export function createAskAgentTool(channelType: ChannelType, askFn: AskUserFn, supportedTypes?: AskQuestionType[]): AgentTool {
-    const promptPath = `channels/${channelType}/ask.txt`;
+/** 创建 ask 交互工具（封装 createAskTool） */
+export function createAskAgentTool(prompt: string, askFn: AskUserFn, supportedTypes?: AskQuestionType[]): AgentTool {
     return {
         name: '__ask__',
-        factory: async () => [createAskTool(askFn, loadPrompt(promptPath), supportedTypes)],
+        factory: async () => [createAskTool(askFn, prompt, supportedTypes)],
     };
 }
 

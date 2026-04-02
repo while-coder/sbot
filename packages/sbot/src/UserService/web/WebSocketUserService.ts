@@ -5,8 +5,10 @@ import { config } from '../../Core/Config';
 import { SchedulerType } from '../../Core/Database';
 import { buildExecuteTool } from '../buildExecuteTool';
 import { SessionService, type ChannelMessageArgs } from 'channel.base';
-import { WebChatEvent, WebChatEventType, ChannelType } from 'sbot.commons';
+import { WebChatEvent, WebChatEventType } from 'sbot.commons';
 import { httpServer } from "../../Server/HttpServer";
+
+const WEB_ASK_PROMPT = 'Ask the user one or more structured questions and wait for their response. Use this tool whenever you need clarification, a decision, or input before proceeding.\n\nQuestion types:\n- radio: single-choice selection from a fixed list (optionally with a custom "Other" option)\n- checkbox: multi-choice selection from a fixed list (optionally with a custom "Other" option)\n- input: free-text entry with an optional placeholder\n- toggle: boolean on/off switch\n\nReturns a map of question label → answer (string for radio/input, string[] for checkbox, boolean for toggle).';
 
 export { WebChatEvent, WebChatEventType } from 'sbot.commons';
 
@@ -82,15 +84,15 @@ export class WebSocketUserService {
                 onMessage: (msg) => this.onChatMessage(msg),
                 onStreamMessage: (msg) => this.onStreamMessage(msg),
                 executeTool: buildExecuteTool(this.session, agentId, (tc) => {
-                    const { id, promise } = this.session.enterApproval(tc, 300_000);
+                    const { id, promise } = this.session.enterApproval(tc, 0);
                     this.emit({ type: WebChatEventType.ToolCall, id, threadId, name: tc.name, args: tc.args });
                     return promise;
                 }),
             },
             agentId, saverId, threadId, scheduler, extraInfo, memories,
             workPath,
-            agentTools: [createAskAgentTool(ChannelType.Web, async (params: AskToolParams) => {
-                const { id: askId, promise } = this.session.enterAsk(params, 600_000);
+            agentTools: [createAskAgentTool(WEB_ASK_PROMPT, async (params: AskToolParams) => {
+                const { id: askId, promise } = this.session.enterAsk(params, 0);
                 this.emit({ type: WebChatEventType.Ask, id: askId, threadId, title: params.title, questions: params.questions as any });
                 return promise;
             })],

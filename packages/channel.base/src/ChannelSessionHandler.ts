@@ -45,7 +45,7 @@ export abstract class ChannelSessionHandler {
     return this._processAIHandler(query, args, this);
   }
 
-  buildAgentTools(_args: any, _helpers: ChannelToolHelpers): any[] {
+  buildAgentTools(_args: ChannelMessageArgs, _helpers: ChannelToolHelpers): any[] {
     return [];
   }
   abstract onStreamMessage(message: ChatMessage, args: ChannelMessageArgs): Promise<void>;

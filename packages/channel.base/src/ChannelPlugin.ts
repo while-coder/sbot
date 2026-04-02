@@ -46,12 +46,12 @@ export interface ChannelPluginContext {
 
 export interface ChannelToolHelpers {
   createAskTool: (
-    channelType: string,
+    prompt: string,
     askFn: (params: AskToolParams) => Promise<AskResponse>,
     supportedTypes?: AskQuestionType[],
   ) => any;
   createSendFileTool: (
-    channelType: string,
+    prompt: string,
     sendFileFn: (filePath: string, fileName: string) => Promise<void>,
   ) => any;
 }

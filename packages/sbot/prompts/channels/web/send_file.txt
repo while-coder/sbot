@@ -1,1 +1,0 @@
-Send a local file to the current web chat session. Use this tool to deliver any generated or exported file (documents, archives, reports, images, etc.) directly to the user.

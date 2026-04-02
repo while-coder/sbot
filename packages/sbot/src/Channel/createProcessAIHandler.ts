@@ -5,10 +5,10 @@ import { ChannelSessionRow, SchedulerType, database, parseMemories } from "../Co
 import { buildExecuteTool } from "../UserService/buildExecuteTool";
 
 const agentToolHelpers: ChannelToolHelpers = {
-    createAskTool: (channelType, askFn, supportedTypes) =>
-        createAskAgentTool(channelType as any, askFn, supportedTypes),
-    createSendFileTool: (channelType, sendFileFn) =>
-        createSendFileAgentTool(channelType as any, sendFileFn),
+    createAskTool: (prompt, askFn, supportedTypes) =>
+        createAskAgentTool(prompt, askFn, supportedTypes),
+    createSendFileTool: (prompt, sendFileFn) =>
+        createSendFileAgentTool(prompt, sendFileFn),
 };
 
 export function createProcessAIHandler(): ProcessAIHandler {
