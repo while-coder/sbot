@@ -93,6 +93,7 @@ export interface AgentConfig {
   mcp?: string[]
   skills?: string[]
   autoApproveTools?: string[]
+  autoApproveAllTools?: boolean
   // react
   think?: string
   agents?: SubAgentRef[]
@@ -142,6 +143,7 @@ export interface Settings {
   httpPort?: number
   httpUrl?: string
   autoApproveTools?: string[]
+  autoApproveAllTools?: boolean
   /** Channel 插件列表（npm 包名或本地路径） */
   plugins?: string[]
   agents?: Record<string, AgentConfig>

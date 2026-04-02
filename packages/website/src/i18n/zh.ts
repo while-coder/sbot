@@ -17,6 +17,7 @@ export default {
     prompts: 'Prompt 管理',
     group_admin: '管理',
     scheduler: '计时器管理',
+    logs: '日志',
     about: '关于',
     app_title: 'SBot 设置',
     reload: '重载配置',
@@ -417,6 +418,14 @@ export default {
     channel: '频道',
     user_info: '用户信息',
     confirm_delete: '确定要删除用户 "{name}" 吗?',
+  },
+  logs: {
+    title: '日志',
+    all_levels: '全部级别',
+    search_placeholder: '搜索关键词...',
+    last_n: '最近 {n} 行',
+    all_lines: '全部',
+    empty: '暂无日志',
   },
   about: {
     title: '关于',

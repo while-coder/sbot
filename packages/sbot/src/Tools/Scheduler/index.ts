@@ -8,10 +8,10 @@ import { createSchedulerListTool } from './list';
 import { createSchedulerCreateTool } from './create';
 import { createSchedulerDeleteTool } from './delete';
 
-export function createSchedulerTools(): StructuredToolInterface[] {
+export function createSchedulerTools(schedulerType: string, schedulerId: string): StructuredToolInterface[] {
     return [
-        createSchedulerListTool(),
-        createSchedulerCreateTool(),
-        createSchedulerDeleteTool(),
+        createSchedulerListTool(schedulerType, schedulerId),
+        createSchedulerCreateTool(schedulerType, schedulerId),
+        createSchedulerDeleteTool(schedulerType, schedulerId),
     ];
 }

@@ -381,10 +381,58 @@ class Database {
       await this.channelUser.sync({ alter });
       await this.channelSession.sync({ alter });
       await this.scheduler.sync({ alter });
+      await this.migrateSchedulerAutoIncrement();
 
       await this.state.update({ value: DBVersion }, { where: { key: DBVersionName } });
       logger.info("Database schema sync completed");
     });
+  }
+
+  /**
+   * 确保 scheduler 表使用 AUTOINCREMENT，保证 id 严格单调递增、清空表后不重置。
+   * SQLite 的 INTEGER PRIMARY KEY 本身不保证不重用，必须显式声明 AUTOINCREMENT。
+   * 若旧表缺少该关键字则进行原地迁移（重命名 → 新建 → 复制 → 删旧）。
+   */
+  private async migrateSchedulerAutoIncrement(): Promise<void> {
+    const [rows] = await this.sequelize.query(
+      `SELECT sql FROM sqlite_master WHERE type='table' AND name='scheduler'`
+    ) as [any[], unknown];
+
+    const existingSql: string = rows[0]?.sql ?? '';
+    if (existingSql.toUpperCase().includes('AUTOINCREMENT')) return;
+
+    logger.info('Migrating scheduler table to add AUTOINCREMENT...');
+    await this.sequelize.query(`ALTER TABLE "scheduler" RENAME TO "scheduler_old"`);
+    await this.sequelize.query(`
+      CREATE TABLE "scheduler" (
+        "id"       INTEGER PRIMARY KEY AUTOINCREMENT,
+        "type"     VARCHAR(64),
+        "expr"     TEXT    NOT NULL DEFAULT '',
+        "message"  TEXT    NOT NULL DEFAULT '',
+        "targetId" TEXT,
+        "lastRun"  BIGINT,
+        "runCount" INTEGER NOT NULL DEFAULT 0,
+        "nextRun"  BIGINT,
+        "maxRuns"  INTEGER NOT NULL DEFAULT 0
+      )
+    `);
+    await this.sequelize.query(`
+      INSERT INTO "scheduler" ("id","type","expr","message","targetId","lastRun","runCount","nextRun","maxRuns")
+      SELECT "id","type","expr","message","targetId","lastRun","runCount","nextRun","maxRuns"
+      FROM "scheduler_old"
+    `);
+    await this.sequelize.query(`DROP TABLE "scheduler_old"`);
+
+    // 将 sqlite_sequence 的计数同步到当前最大 id，保证后续插入严格递增
+    const [maxRows] = await this.sequelize.query(
+      `SELECT COALESCE(MAX("id"), 0) AS maxId FROM "scheduler"`
+    ) as [any[], unknown];
+    const maxId: number = maxRows[0]?.maxId ?? 0;
+    await this.sequelize.query(`
+      INSERT INTO sqlite_sequence (name, seq) VALUES ('scheduler', ${maxId})
+      ON CONFLICT(name) DO UPDATE SET seq = MAX(seq, ${maxId})
+    `);
+    logger.info(`Scheduler table migration completed, sequence set to ${maxId}`);
   }
 
   async findAll<T>(db: ModelStatic<any>, options?: FindOptions): Promise<T[]> {

@@ -23,11 +23,15 @@ export function buildExecuteTool(
     const { settings } = session;
     if (!settings.approveTools) settings.approveTools = {};
     const approveTools = settings.approveTools;
-    const agentAutoApprove = config.getAgent(agentId)?.autoApproveTools;
+    const agentEntry = config.getAgent(agentId);
+    const agentAutoApprove = agentEntry?.autoApproveTools;
+    const agentAutoApproveAll = agentEntry?.autoApproveAllTools;
 
     return async (toolCall: ChatToolCall) => {
         if (INTERNAL_TOOLS.has(toolCall.name)) return ToolApproval.Allow;
+        if (config.settings.autoApproveAllTools) return ToolApproval.Allow;
         if (config.settings.autoApproveTools?.includes(toolCall.name)) return ToolApproval.Allow;
+        if (agentAutoApproveAll) return ToolApproval.Allow;
         if (agentAutoApprove?.includes(toolCall.name)) return ToolApproval.Allow;
         const approvedArgs = approveTools[toolCall.name];
         if (approvedArgs && (approvedArgs.includes('*') || approvedArgs.includes(JSON.stringify(toolCall.args)))) {

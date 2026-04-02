@@ -12,7 +12,8 @@ import {
     T_SkillSystemPromptTemplate, T_SkillToolReadDesc, T_SkillToolListDesc, T_SkillToolExecDesc,
     type CreateAgentFn,
 } from "scorpio.ai";
-import { type AgentTool } from "./AgentRunner";
+import { type AgentTool, type AgentSchedulerContext } from "./AgentRunner";
+import { createSchedulerTools } from "../Tools/Scheduler/index";
 import { config, AgentMode, SingleAgentEntry, ReactAgentEntry } from "../Core/Config";
 import { loadPrompt } from "../Core/PromptLoader";
 import { globalAgentToolService } from "./GlobalAgentToolService";
@@ -27,6 +28,8 @@ export interface AgentCreateOptions {
     container: ServiceContainer;
     /** 注入到 system prompt 的额外上下文片段 */
     extraPrompts: string[];
+    /** 调度器上下文，用于内联绑定 scheduler_create 工具的 type/id */
+    scheduler: AgentSchedulerContext;
     /** 动态注册到 Agent 的工具列表 */
     agentTools?: AgentTool[];
 }
@@ -44,14 +47,14 @@ export class AgentFactory {
         if (!container.isRegistered(IAgentSaverService)) container.registerSingleton(IAgentSaverService, AgentMemorySaver);
         const { mcp, skills } = agentEntry;
         await this.registerSkillService(container, agentId, skills);
-        await this.registerToolService(container, agentId, mcp, agentTools);
+        await this.registerToolService(container, agentId, mcp, agentTools, options.scheduler);
 
         const systemPrompts = [loadPrompt('system/init.txt'), ...extraPrompts];
         if (agentEntry.systemPrompt)
             systemPrompts.push(agentEntry.systemPrompt);
 
         const createAgentFn: CreateAgentFn = (name, subContainer) =>
-            AgentFactory.create({ agentId: name, container: subContainer, extraPrompts, agentTools });
+            AgentFactory.create({ agentId: name, container: subContainer, extraPrompts, agentTools, scheduler: options.scheduler });
         const agentType = agentEntry.type || AgentMode.Single;
 
         switch (agentType) {
@@ -89,11 +92,15 @@ export class AgentFactory {
     private static async registerToolService(
         container: ServiceContainer,
         agentName: string,
+        scheduler: AgentSchedulerContext,
         mcp?: string[],
         agentTools?: AgentTool[],
     ): Promise<void> {
         container.registerSingleton(IAgentToolService, AgentToolService);
         const toolService = await container.resolve<AgentToolService>(IAgentToolService);
+        toolService.registerToolFactory('__scheduler__', () =>
+            Promise.resolve(createSchedulerTools(scheduler.schedulerType, scheduler.schedulerId))
+        );
         if (mcp && mcp.length > 0) {
             const mcpNames = [...mcp];
             toolService.registerToolFactory('__global_mcp__', () => globalAgentToolService.getToolsFrom(mcpNames));

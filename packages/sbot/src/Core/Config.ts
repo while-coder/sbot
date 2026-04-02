@@ -28,6 +28,7 @@ export interface BaseAgentEntry {
   type: AgentMode;
   systemPrompt?: string;       // 系统提示词（single 模式直接使用；react 模式注入所有子 Agent）
   autoApproveTools?: string[]; // 自动批准的工具列表（无需用户确认）
+  autoApproveAllTools?: boolean; // 自动批准所有工具（无需用户确认）
 }
 
 /**
@@ -60,6 +61,7 @@ export interface Settings {
   httpPort?: number;           // HTTP 服务监听端口，默认 5500
   httpUrl?: string;            // HTTP 服务对外访问的根 URL，默认 http://localhost:5500
   autoApproveTools?: string[]; // 全局自动批准的工具列表（无需用户确认）
+  autoApproveAllTools?: boolean; // 全局自动批准所有工具（无需用户确认）
   checkUpdateTime?: number;    // 下次检查更新的时间戳（ms），0 或 undefined 表示立即检查
   models?: Record<string, NamedModelConfig>;
   embeddings?: Record<string, NamedEmbeddingConfig>;

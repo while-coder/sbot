@@ -17,6 +17,7 @@ export default {
     prompts: 'Prompts',
     group_admin: 'Admin',
     scheduler: 'Scheduler',
+    logs: 'Logs',
     about: 'About',
     app_title: 'SBot Settings',
     reload: 'Reload Config',
@@ -417,6 +418,14 @@ export default {
     channel: 'Channel',
     user_info: 'User Info',
     confirm_delete: 'Delete user "{name}"?',
+  },
+  logs: {
+    title: 'Logs',
+    all_levels: 'All Levels',
+    search_placeholder: 'Search keyword...',
+    last_n: 'Last {n} lines',
+    all_lines: 'All',
+    empty: 'No log entries',
   },
   about: {
     title: 'About',

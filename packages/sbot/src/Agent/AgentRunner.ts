@@ -104,7 +104,7 @@ export interface AgentRunOptions {
 
 export class AgentRunner {
     static async run(options: AgentRunOptions): Promise<void> {
-        const { query, callbacks, agentId, saverId, threadId, scheduler: { schedulerType, schedulerId }, extraInfo, memories, agentTools } = options;
+        const { query, callbacks, agentId, saverId, threadId, scheduler, extraInfo, memories, agentTools } = options;
         if (!agentId.trim())   throw new Error("agent not specified");
         if (!saverId.trim())   throw new Error("saver not specified");
         if (!threadId.trim())  throw new Error("threadId not specified");
@@ -124,10 +124,6 @@ export class AgentRunner {
   <current-time>${now.toLocaleString(undefined, { timeZone: timezone, hour12: false })}</current-time>
   <timezone>${timezone}</timezone>
   <os>${os.type()} ${os.release()} (${os.platform()})</os>
-  <scheduler>
-    <scheduler-type>${schedulerType}</scheduler-type>
-    <scheduler-id>${schedulerId}</scheduler-id>
-  </scheduler>
   <paths>
     <assets dir="${assetsDir}" url="${httpUrl}/assets/&lt;filename&gt;">IMPORTANT: This is the ONLY way to deliver files to users. Whenever you generate, export, or produce any file intended for the user (images, documents, archives, reports, etc.), you MUST save it to this directory and share the URL above. Never send raw file content inline, never use any other path or method.</assets>
     <scripts dir="${scriptsDir}">Store temporary scripts here</scripts>
@@ -146,7 +142,7 @@ export class AgentRunner {
             await AgentRunner.registerMemoryServices(container, memories ?? [], threadId);
             await AgentRunner.registerSaverService(container, saverId, threadId);
 
-            const agent = await AgentFactory.create({ agentId, container, extraPrompts, agentTools });
+            const agent = await AgentFactory.create({ agentId, container, extraPrompts, agentTools, scheduler });
             try {
                 await agent.stream(query, callbacks, cancellationToken);
             } finally {

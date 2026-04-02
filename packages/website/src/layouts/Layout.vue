@@ -49,6 +49,7 @@ const menuGroups = computed(() => [
     group: t('nav.group_admin'),
     items: [
       { label: t('nav.scheduler'), key: '/scheduler' },
+      { label: t('nav.logs'), key: '/logs' },
       { label: t('nav.about'), key: '/about' },
     ],
   },

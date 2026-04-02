@@ -8,7 +8,7 @@ import { loadPrompt } from '../../Core/PromptLoader';
 
 const logger = LoggerService.getLogger('Tools/Scheduler/delete.ts');
 
-export function createSchedulerDeleteTool(): StructuredToolInterface {
+export function createSchedulerDeleteTool(schedulerType: string, schedulerId: string): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'scheduler_delete',
         description: loadPrompt('tools/scheduler/delete.txt'),
@@ -20,6 +20,11 @@ export function createSchedulerDeleteTool(): StructuredToolInterface {
                 const existing = await database.findByPk<SchedulerRow>(database.scheduler, id);
                 if (!existing) return createErrorResult(`Scheduled task id=${id} not found`);
                 const ex = existing as any;
+                if (ex.type !== schedulerType || ex.targetId !== schedulerId) {
+                    return createErrorResult(
+                        `Permission denied: task id=${id} does not belong to current scheduler (type=${schedulerType}, id=${schedulerId})`
+                    );
+                }
                 await schedulerService.delete(id);
                 return createSuccessResult(createTextContent(
                     `Deleted task id=${id} (expr="${ex.expr}", message="${ex.message}")`,

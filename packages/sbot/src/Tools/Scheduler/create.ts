@@ -1,14 +1,14 @@
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
-import { database, SchedulerRow, SchedulerType } from '../../Core/Database';
+import { database, SchedulerRow } from '../../Core/Database';
 import { schedulerService } from '../../Scheduler/SchedulerService';
 import { LoggerService } from '../../Core/LoggerService';
 import { loadPrompt } from '../../Core/PromptLoader';
 
 const logger = LoggerService.getLogger('Tools/Scheduler/create.ts');
 
-export function createSchedulerCreateTool(): StructuredToolInterface {
+export function createSchedulerCreateTool(schedulerType: string, schedulerId: string): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'scheduler_create',
         description: loadPrompt('tools/scheduler/create.txt'),
@@ -27,22 +27,19 @@ export function createSchedulerCreateTool(): StructuredToolInterface {
                 'One-shot (run exactly once): pin all fields + set maxRuns=1.\n' +
                 '  "0 30 14 25 3 *"  → Mar 25 at 14:30:00, once'
             ),
-            type:    z.enum(Object.values(SchedulerType) as [string, ...string[]]).describe('"channel" | "session" | "directory" — from <environment><scheduler><scheduler-type>'),
-            id:      z.string().describe('from <environment><scheduler><scheduler-id>'),
             message: z.string().describe('Message to send when the task fires'),
             maxRuns: z.number().optional().describe('Max executions (0 or omit = unlimited)'),
         }) as any,
-        func: async ({ expr, type, id, message, maxRuns }: any): Promise<MCPToolResult> => {
+        func: async ({ expr, message, maxRuns }: any): Promise<MCPToolResult> => {
             try {
                 if (!expr?.trim())    return createErrorResult('expr is required');
-                if (!id?.trim())      return createErrorResult('id is required');
                 if (!message?.trim()) return createErrorResult('message is required');
 
                 const row = await database.create<SchedulerRow>(database.scheduler, {
+                    type:     schedulerType,
+                    targetId: schedulerId,
                     expr:     expr.trim(),
-                    type:     type ?? null,
                     message:  message.trim(),
-                    targetId: id.trim(),
                     lastRun:  null,
                     runCount: 0,
                     maxRuns:  maxRuns ?? 0,
@@ -51,7 +48,7 @@ export function createSchedulerCreateTool(): StructuredToolInterface {
                 const r = row as any;
                 const maxLabel = r.maxRuns ? `max ${r.maxRuns}` : 'unlimited';
                 return createSuccessResult(createTextContent(
-                    `Created task id=${r.id}\n  expr: ${r.expr}\n  type: ${r.type}\n  target: ${r.targetId}\n  runs: ${maxLabel}\n  message: ${r.message}`,
+                    `Created task id=${r.id}\n  expr: ${r.expr}\n  runs: ${maxLabel}\n  message: ${r.message}`,
                 ));
             } catch (e: any) {
                 logger.error(`scheduler_create failed: ${e.message}`);

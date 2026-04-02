@@ -2,14 +2,12 @@ import { AgentToolService, GlobalLoggerService } from "scorpio.ai";
 import { config } from "../Core/Config.js";
 import { createCommandTools } from "../Tools/Command/index.js";
 import { createFileSystemTools } from "../Tools/FileSystem/index.js";
-import { createSchedulerTools } from "../Tools/Scheduler/index.js";
 import { createWebFetchTools } from "../Tools/Web/index.js";
 import { createArchiveTools } from '../Tools/Archive/index.js';
 
 export enum BuiltinProvider {
     Command = 'builtin_command',
     FileSystem = 'builtin_filesystem',
-    Scheduler = 'builtin_scheduler',
     WebFetch = 'builtin_webfetch',
     Archive = 'builtin_archive',
 
@@ -24,7 +22,6 @@ export const globalAgentToolService = new AgentToolService(GlobalLoggerService.g
 export function initGlobalAgentToolService() {
     globalAgentToolService.registerToolFactory(BuiltinProvider.Command, async () => createCommandTools(), '命令执行');
     globalAgentToolService.registerToolFactory(BuiltinProvider.FileSystem, async () => createFileSystemTools(), '文件系统操作');
-    globalAgentToolService.registerToolFactory(BuiltinProvider.Scheduler, async () => createSchedulerTools(), '定时任务管理');
     globalAgentToolService.registerToolFactory(BuiltinProvider.WebFetch, async () => createWebFetchTools(), 'Web 内容抓取');
     globalAgentToolService.registerToolFactory(BuiltinProvider.Archive, async () => createArchiveTools(), 'ZIP 压缩/解压');
     globalAgentToolService.registerMcpServers({
@@ -63,7 +60,6 @@ export async function refreshBuiltinTools() {
     await globalAgentToolService.reloadProviders(
         BuiltinProvider.Command,
         BuiltinProvider.FileSystem,
-        BuiltinProvider.Scheduler,
         BuiltinProvider.WebFetch,
         BuiltinProvider.Archive,
     );
