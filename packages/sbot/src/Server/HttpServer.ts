@@ -846,7 +846,7 @@ class HttpServer {
     // ===== Schedulers =====
     private registerSchedulerRoutes(app: express.Application) {
         app.get('/api/schedulers', api(async () => {
-            const schedulers = await database.findAll(database.scheduler);
+            const schedulers = await database.findAll(database.scheduler, { where: { disabled: false } });
             return (schedulers as any[]).map(s => ({
                 ...(s.toJSON ? s.toJSON() : s),
                 nextRun: schedulerService.nextDate((s as any).id),

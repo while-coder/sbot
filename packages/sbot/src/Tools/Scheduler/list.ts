@@ -15,7 +15,7 @@ export function createSchedulerListTool(schedulerType: string, schedulerId: stri
         func: async (_args: any): Promise<MCPToolResult> => {
             try {
                 const timers = await database.findAll<SchedulerRow>(database.scheduler, {
-                    where: { type: schedulerType, targetId: schedulerId },
+                    where: { type: schedulerType, targetId: schedulerId, disabled: false },
                 });
 
                 if (timers.length === 0) {

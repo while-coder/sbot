@@ -27,6 +27,7 @@ export type SchedulerRow = {
   nextRun: number | null;          // 下次预计执行时间戳
   runCount: number;                // 已执行次数
   maxRuns: number;                 // 最大执行次数（0 表示不限制）
+  disabled: boolean;               // 是否已禁用（软删除）
 };
 
 export type StateRow = {
@@ -328,6 +329,12 @@ class Database {
           defaultValue: 0,
           comment: "最大执行次数（0 表示不限制）",
         },
+        disabled: {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: false,
+          comment: "是否已禁用（软删除）",
+        },
       },
       {
         tableName: "scheduler",
@@ -413,7 +420,8 @@ class Database {
         "lastRun"  BIGINT,
         "runCount" INTEGER NOT NULL DEFAULT 0,
         "nextRun"  BIGINT,
-        "maxRuns"  INTEGER NOT NULL DEFAULT 0
+        "maxRuns"  INTEGER NOT NULL DEFAULT 0,
+        "disabled" TINYINT NOT NULL DEFAULT 0
       )
     `);
     await this.sequelize.query(`
@@ -428,10 +436,19 @@ class Database {
       `SELECT COALESCE(MAX("id"), 0) AS maxId FROM "scheduler"`
     ) as [any[], unknown];
     const maxId: number = maxRows[0]?.maxId ?? 0;
-    await this.sequelize.query(`
-      INSERT INTO sqlite_sequence (name, seq) VALUES ('scheduler', ${maxId})
-      ON CONFLICT(name) DO UPDATE SET seq = MAX(seq, ${maxId})
-    `);
+    // sqlite_sequence may already have a row for 'scheduler'; update or insert accordingly
+    const [seqRows] = await this.sequelize.query(
+      `SELECT seq FROM sqlite_sequence WHERE name = 'scheduler'`
+    ) as [any[], unknown];
+    if (seqRows.length > 0) {
+      await this.sequelize.query(
+        `UPDATE sqlite_sequence SET seq = MAX(seq, ${maxId}) WHERE name = 'scheduler'`
+      );
+    } else {
+      await this.sequelize.query(
+        `INSERT INTO sqlite_sequence (name, seq) VALUES ('scheduler', ${maxId})`
+      );
+    }
     logger.info(`Scheduler table migration completed, sequence set to ${maxId}`);
   }
 

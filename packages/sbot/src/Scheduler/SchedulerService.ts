@@ -10,7 +10,7 @@ const logger = LoggerService.getLogger("SchedulerService.ts");
 
 async function executeScheduler(schedulerId: number): Promise<void> {
     const scheduler = await database.findByPk<SchedulerRow>(database.scheduler, schedulerId);
-    if (!scheduler) return;
+    if (!scheduler || scheduler.disabled) return;
 
     const tag = `[${scheduler.id}]`;
     const isChannel = scheduler.type === SchedulerType.Channel;
@@ -77,7 +77,9 @@ class SchedulerService {
     private jobs = new Map<number, CronJob>();
 
     async start(): Promise<void> {
-        const schedulers = await database.findAll<SchedulerRow>(database.scheduler);
+        const schedulers = await database.findAll<SchedulerRow>(database.scheduler, {
+            where: { disabled: false },
+        });
         let loaded = 0;
         const now = Date.now();
         for (const scheduler of schedulers) {
@@ -100,9 +102,14 @@ class SchedulerService {
             return false;
         }
 
+        if (scheduler.disabled) {
+            logger.info(`Scheduler task [${scheduler.id}] is disabled, skipping`);
+            return false;
+        }
+
         if (scheduler.maxRuns > 0 && (scheduler.runCount ?? 0) >= scheduler.maxRuns) {
-            logger.info(`Scheduler task [${scheduler.id}] reached max runs, cleaning up`);
-            await database.destroy(database.scheduler, { where: { id: scheduler.id } });
+            logger.info(`Scheduler task [${scheduler.id}] reached max runs, disabling`);
+            await database.update(database.scheduler, { disabled: true }, { where: { id: scheduler.id } });
             return false;
         }
 
@@ -140,10 +147,10 @@ class SchedulerService {
         }
     }
 
-    /** 取消调度并从数据库删除 */
+    /** 取消调度并标记为禁用（软删除） */
     async delete(schedulerId: number): Promise<void> {
         this.cancel(schedulerId);
-        await database.destroy(database.scheduler, { where: { id: schedulerId } });
+        await database.update(database.scheduler, { disabled: true }, { where: { id: schedulerId } });
     }
 
     /** 重新从 DB 加载并重新调度（外部增删改后调用） */
