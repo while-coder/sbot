@@ -9,6 +9,8 @@ import {initGlobalAgentToolService} from "./Agent/GlobalAgentToolService";
 import {initGlobalSkillService} from "./Agent/GlobalSkillService";
 import {schedulerService} from "./Scheduler/SchedulerService";
 import { Command } from "commander";
+import { spawn } from "child_process";
+import http from "http";
 import { enableAutoStart, disableAutoStart, isAutoStartEnabled } from "./Core/AutoStart";
 
 const logger = LoggerService.getLogger('index.ts');
@@ -27,7 +29,8 @@ program
     .name('sbot')
     .description(config.pkg.description)
     .version(config.pkg.version, '-v, --version')
-    .option('-p, --port <port>', 'HTTP server port');
+    .option('-p, --port <port>', 'HTTP server port')
+    .option('-d, --daemon', '后台运行');
 
 // 设置端口命令：修改并保存端口，不启动服务
 program
@@ -36,6 +39,26 @@ program
     .action((portStr: string) => {
         applyPort(portStr, msg => { console.error(msg); process.exit(1); });
         console.log(`Port updated to ${portStr}`);
+    });
+
+// 查看状态
+program
+    .command('status')
+    .description('查看 sbot 运行状态')
+    .action(async () => {
+        const port = config.getHttpPort();
+        const running = await new Promise<boolean>(resolve => {
+            const req = http.get(`http://localhost:${port}/`, () => resolve(true));
+            req.on('error', () => resolve(false));
+            req.setTimeout(2000, () => { req.destroy(); resolve(false); });
+        });
+        const startup = isAutoStartEnabled();
+        console.log(`sbot 状态:`);
+        console.log(`  运行状态: ${running ? '运行中' : '未运行'}`);
+        console.log(`  HTTP 端口: ${port}`);
+        console.log(`  开机自启动: ${startup ? '已开启' : '未开启'}`);
+        console.log(`  版本: ${config.pkg.version}`);
+        console.log(`  配置目录: ${config.getConfigPath('.')}`);
     });
 
 // 开机启动
@@ -79,7 +102,17 @@ program
 
 // 默认行为：启动服务
 program
-    .action(async (options: { port?: string }) => {
+    .action(async (options: { port?: string; daemon?: boolean }) => {
+        if (options.daemon) {
+            const args = process.argv.slice(2).filter(a => a !== '-d' && a !== '--daemon');
+            const child = spawn(process.execPath, [__filename, ...args], {
+                detached: true,
+                stdio: 'ignore',
+            });
+            child.unref();
+            console.log(`sbot 已在后台启动 (PID: ${child.pid})`);
+            return;
+        }
         if (options.port) {
             applyPort(options.port, msg => logger.warn(msg));
         }
