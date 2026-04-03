@@ -17,6 +17,7 @@ import { SessionPicker } from './ui/components/SessionPicker.js';
 import { CreateSessionWizard } from './ui/components/CreateSessionWizard.js';
 import { App } from './ui/App.js';
 import { theme } from './ui/colors.js';
+import { setInkClear } from './ui/inkInstance.js';
 
 const BASE_URL = getServerBaseUrl();
 
@@ -138,11 +139,20 @@ function Boot() {
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 console.log('[sbot-cli] starting...');
-const { waitUntilExit } = render(
+const { waitUntilExit, clear } = render(
   <KeypressProvider>
     <Boot />
   </KeypressProvider>,
 );
+
+// Share clear() with React components (for Ctrl+L, Tab toggle, etc.)
+setInkClear(clear);
+// On resize: reset log-update tracking then truly clear the terminal,
+// so Ink's resize handler writes fresh output from a clean slate.
+process.stdout.prependListener('resize', () => {
+  clear();                                        // reset log-update previousLineCount
+  process.stdout.write('\x1b[2J\x1b[3J\x1b[H');  // clear screen + scrollback + cursor home
+});
 
 waitUntilExit().then(() => process.exit(0)).catch((err) => {
   process.stderr.write(`[sbot-cli] fatal: ${err?.message ?? err}\n`);

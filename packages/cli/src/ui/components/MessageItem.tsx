@@ -8,9 +8,10 @@ import type { HistoryItem } from '../types.js';
 interface MessageItemProps {
   item: HistoryItem;
   isInputActive: boolean;
+  toolCallsExpanded: boolean;
 }
 
-export const MessageItem: React.FC<MessageItemProps> = ({ item, isInputActive }) => {
+export const MessageItem: React.FC<MessageItemProps> = ({ item, isInputActive, toolCallsExpanded }) => {
   switch (item.type) {
     case 'user':
       return (
@@ -31,7 +32,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ item, isInputActive })
     case 'toolCall':
       return (
         <Box marginBottom={1}>
-          <ToolCallItem name={item.name} args={item.args} result={item.result} isInputActive={isInputActive} />
+          <ToolCallItem name={item.name} args={item.args} result={item.result} expanded={toolCallsExpanded} />
         </Box>
       );
 

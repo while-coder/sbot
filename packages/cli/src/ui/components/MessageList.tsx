@@ -9,12 +9,14 @@ interface MessageListProps {
   history: HistoryItem[];
   streamingContent: string;
   isInputActive: boolean;
+  toolCallsExpanded: boolean;
 }
 
 export const MessageList: React.FC<MessageListProps> = ({
   history,
   streamingContent,
   isInputActive,
+  toolCallsExpanded,
 }) => {
   return (
     <Box flexDirection="column" flexGrow={1} overflow="hidden">
@@ -25,7 +27,7 @@ export const MessageList: React.FC<MessageListProps> = ({
       )}
       <Box flexDirection="column" paddingX={2}>
         {history.map((item) => (
-          <MessageItem key={item.id} item={item} isInputActive={isInputActive} />
+          <MessageItem key={item.id} item={item} isInputActive={isInputActive} toolCallsExpanded={toolCallsExpanded} />
         ))}
         {streamingContent && (
           <Box flexDirection="column" marginBottom={1}>

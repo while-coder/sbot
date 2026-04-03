@@ -1,30 +1,15 @@
-import React, { useState, useCallback } from 'react';
+import React from 'react';
 import { Box, Text } from 'ink';
 import { theme } from '../colors.js';
-import { useKeypress, type Key } from '../hooks/useKeypress.js';
 
 interface ToolCallItemProps {
   name: string;
   args: unknown;
   result?: string;
-  isInputActive: boolean;
+  expanded: boolean;
 }
 
-export const ToolCallItem: React.FC<ToolCallItemProps> = ({ name, args, result, isInputActive }) => {
-  const [expanded, setExpanded] = useState(false);
-
-  const handleKeypress = useCallback(
-    (key: Key) => {
-      if (key.name === 'tab') {
-        setExpanded((e) => !e);
-      }
-    },
-    [],
-  );
-
-  // Only handle Tab when input is active (idle state)
-  useKeypress(handleKeypress, { isActive: isInputActive });
-
+export const ToolCallItem: React.FC<ToolCallItemProps> = ({ name, args, result, expanded }) => {
   const argsText = typeof args === 'string' ? args : JSON.stringify(args, null, 2);
 
   // If args is an object with 1-2 keys, show inline on the header line
