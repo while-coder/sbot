@@ -80,63 +80,104 @@ export class SbotClient {
     return res.data.data.id;
   }
 
-  async *chatStream(
+  /** Open a bidirectional chat session over WebSocket. */
+  openChatSession(
     query: string,
     sessionId: string,
     signal: AbortSignal,
-  ): AsyncGenerator<WebChatEvent> {
-    const wsUrl = this.baseUrl.replace(/^http/, 'ws') + '/ws/chat';
+  ): ChatSession {
+    return new ChatSession(this.baseUrl, query, sessionId, signal);
+  }
+}
 
-    const ws = new WebSocket(wsUrl);
-    const events: WebChatEvent[] = [];
-    let resolve: (() => void) | null = null;
-    let done = false;
-    let error: Error | null = null;
+/**
+ * Bidirectional WebSocket chat session.
+ * Yields server events as an async iterator while allowing
+ * mid-stream sends (approval / ask responses).
+ */
+export class ChatSession {
+  private ws: WebSocket;
+  private events: WebChatEvent[] = [];
+  private resolve: (() => void) | null = null;
+  private done = false;
+  private error: Error | null = null;
+  readonly ready: Promise<void>;
 
-    ws.on('message', (data) => {
+  constructor(baseUrl: string, query: string, private sessionId: string, signal: AbortSignal) {
+    const wsUrl = baseUrl.replace(/^http/, 'ws') + '/ws/chat';
+    this.ws = new WebSocket(wsUrl);
+
+    this.ws.on('message', (data) => {
       try {
         const event = JSON.parse(data.toString()) as WebChatEvent & { sessionId?: string };
         if (event.sessionId && event.sessionId !== sessionId) return;
-        events.push(event);
-        resolve?.();
+        this.events.push(event);
+        this.resolve?.();
       } catch { /* skip malformed */ }
     });
 
-    ws.on('error', (err) => { error = err as Error; resolve?.(); });
-    ws.on('close', () => { done = true; resolve?.(); });
+    this.ws.on('error', (err) => { this.error = err as Error; this.resolve?.(); });
+    this.ws.on('close', () => { this.done = true; this.resolve?.(); });
 
     signal.addEventListener('abort', () => {
-      ws.close();
-      error = new Error('AbortError');
-      (error as any).name = 'AbortError';
-      resolve?.();
+      this.ws.close();
+      this.error = new Error('AbortError');
+      (this.error as any).name = 'AbortError';
+      this.resolve?.();
     }, { once: true });
 
-    // wait for connection
-    await new Promise<void>((r, reject) => {
-      ws.on('open', r);
-      ws.on('error', reject);
+    this.ready = new Promise<void>((res, reject) => {
+      this.ws.on('open', () => {
+        this.ws.send(JSON.stringify({ type: WsCommandType.Query, query, sessionId }));
+        res();
+      });
+      this.ws.on('error', reject);
     });
+  }
 
-    // send query — backend computes threadId from sessionId
-    ws.send(JSON.stringify({ type: WsCommandType.Query, query, sessionId }));
-
+  /** Iterate over server events. */
+  async *events_iter(): AsyncGenerator<WebChatEvent> {
+    await this.ready;
     try {
       while (true) {
-        if (events.length === 0 && !done && !error) {
-          await new Promise<void>((r) => { resolve = r; });
-          resolve = null;
+        if (this.events.length === 0 && !this.done && !this.error) {
+          await new Promise<void>((r) => { this.resolve = r; });
+          this.resolve = null;
         }
-        if (error) throw error;
-        while (events.length > 0) {
-          const event = events.shift()!;
+        if (this.error) throw this.error;
+        while (this.events.length > 0) {
+          const event = this.events.shift()!;
           yield event;
           if (event.type === 'done') return;
         }
-        if (done) return;
+        if (this.done) return;
       }
     } finally {
-      if (ws.readyState === WebSocket.OPEN) ws.close();
+      if (this.ws.readyState === WebSocket.OPEN) this.ws.close();
     }
+  }
+
+  /** Send tool-call approval back to server. */
+  sendApproval(id: string, approval: string): void {
+    this.ws.send(JSON.stringify({
+      type: WsCommandType.Approval,
+      sessionId: this.sessionId,
+      id,
+      approval,
+    }));
+  }
+
+  /** Send ask answers back to server. */
+  sendAsk(id: string, answers: Record<string, string | string[]>): void {
+    this.ws.send(JSON.stringify({
+      type: WsCommandType.Ask,
+      sessionId: this.sessionId,
+      id,
+      answers,
+    }));
+  }
+
+  close(): void {
+    if (this.ws.readyState === WebSocket.OPEN) this.ws.close();
   }
 }

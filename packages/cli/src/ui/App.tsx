@@ -8,6 +8,8 @@ import { Header } from './components/Header.js';
 import { Footer } from './components/Footer.js';
 import { MessageList } from './components/MessageList.js';
 import { InputPrompt } from './components/InputPrompt.js';
+import { ApprovalPrompt } from './components/ApprovalPrompt.js';
+import { AskPrompt } from './components/AskPrompt.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 
 interface AppProps {
@@ -19,8 +21,12 @@ interface AppProps {
 
 export const App: React.FC<AppProps> = ({ client, sessionId, agentName, saverName }) => {
   const { exit } = useApp();
-  const { history, streamingContent, streamingState, submitQuery, cancelRequest, clearHistory } =
-    useChat(client, sessionId);
+  const {
+    history, streamingContent, streamingState,
+    pendingApproval, pendingAsk,
+    submitQuery, resolveApproval, resolveAsk,
+    cancelRequest, clearHistory,
+  } = useChat(client, sessionId);
 
   const isIdle = streamingState === StreamingState.Idle;
 
@@ -66,11 +72,19 @@ export const App: React.FC<AppProps> = ({ client, sessionId, agentName, saverNam
           streamingContent={streamingContent}
           isInputActive={isIdle}
         />
-        <InputPrompt
-          isActive={isIdle}
-          onSubmit={handleSubmit}
-          onCancel={handleCancel}
-        />
+        {streamingState === StreamingState.Approval && pendingApproval && (
+          <ApprovalPrompt pending={pendingApproval} onResolve={resolveApproval} />
+        )}
+        {streamingState === StreamingState.Asking && pendingAsk && (
+          <AskPrompt pending={pendingAsk} onResolve={resolveAsk} />
+        )}
+        {(streamingState === StreamingState.Idle || streamingState === StreamingState.Responding) && (
+          <InputPrompt
+            isActive={isIdle}
+            onSubmit={handleSubmit}
+            onCancel={handleCancel}
+          />
+        )}
         <Footer streamingState={streamingState} />
       </Box>
     </ErrorBoundary>

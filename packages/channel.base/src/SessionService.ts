@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { ChatToolCall, AskQuestionType, AskResponse, AskToolParams, ICancellationToken, ToolApproval, MessageDispatcher } from "scorpio.ai";
+import { ChatToolCall, AskResponse, AskToolParams, ICancellationToken, ToolApproval, MessageDispatcher } from "scorpio.ai";
 
 export class CancellationTokenSource implements ICancellationToken {
     private _isCancelled = false;
@@ -190,11 +190,7 @@ export abstract class SessionService extends MessageDispatcher {
             for (let i = 0; i < p.questions.length; i++) {
                 const q = p.questions[i];
                 const raw = result[String(i)];
-                if (q.type === AskQuestionType.Toggle) {
-                    if (typeof raw === 'boolean') labeledAnswers[q.label] = String(raw);
-                    else if (Array.isArray(raw)) labeledAnswers[q.label] = raw.includes('true') ? 'true' : 'false';
-                    else labeledAnswers[q.label] = raw === 'true' ? 'true' : 'false';
-                } else if (raw !== undefined) {
+                if (raw !== undefined) {
                     labeledAnswers[q.label] = raw as string | string[];
                 }
             }

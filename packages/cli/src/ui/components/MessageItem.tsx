@@ -27,10 +27,24 @@ export const MessageItem: React.FC<MessageItemProps> = ({ item, isInputActive })
         </Box>
       );
 
-    case 'tool_call':
+    case 'toolCall':
       return (
         <Box marginBottom={1}>
           <ToolCallItem name={item.name} args={item.args} isInputActive={isInputActive} />
+        </Box>
+      );
+
+    case 'ask':
+      return (
+        <Box flexDirection="column" marginBottom={1}>
+          <Text bold color={theme.status.info}>
+            {item.title ? `[ask] ${item.title}` : '[ask]'}
+          </Text>
+          {Object.entries(item.answers).map(([label, val]) => (
+            <Text key={label} color={theme.text.primary}>
+              {'  '}{label}: {Array.isArray(val) ? val.join(', ') : val}
+            </Text>
+          ))}
         </Box>
       );
 

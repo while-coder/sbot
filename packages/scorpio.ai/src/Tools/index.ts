@@ -38,5 +38,4 @@ export {
     type RadioQuestion,
     type CheckboxQuestion,
     type InputQuestion,
-    type ToggleQuestion,
 } from './AskTool';

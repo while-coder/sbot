@@ -57,24 +57,19 @@ type AskQuestion =
   | { type: 'radio';    label: string; options: string[]; allowCustom?: boolean }
   | { type: 'checkbox'; label: string; options: string[]; allowCustom?: boolean }
   | { type: 'input';    label: string; placeholder?: string }
-  | { type: 'toggle';   label: string; default?: boolean }
 
 const pendingAsk        = ref<{ id: string; title?: string; questions: AskQuestion[] } | null>(null)
 const askAnswers        = ref<Record<number, string | string[]>>({})
-const askToggleValues   = ref<Record<number, boolean>>({})
 const askCustomInputs   = ref<Record<number, string>>({})
 
 const CUSTOM_SENTINEL = '__custom__'
 
 function initAskAnswers(questions: AskQuestion[]) {
   const init: Record<number, string | string[]> = {}
-  const toggleInit: Record<number, boolean> = {}
   questions.forEach((q, i) => {
     if (q.type === 'checkbox') init[i] = []
-    if (q.type === 'toggle') toggleInit[i] = q.default ?? false
   })
   askAnswers.value = init
-  askToggleValues.value = toggleInit
   askCustomInputs.value = {}
 }
 const askCountdown    = ref(600)
@@ -83,10 +78,6 @@ function submitAsk() {
   if (!pendingAsk.value) return
   const answers: Record<string, string | string[]> = {}
   pendingAsk.value.questions.forEach((q, i) => {
-    if (q.type === 'toggle') {
-      answers[String(i)] = String(askToggleValues.value[i] ?? false)
-      return
-    }
     let val = askAnswers.value[i]
     if (Array.isArray(val)) {
       // checkbox: replace sentinel with custom text
@@ -101,7 +92,6 @@ function submitAsk() {
   const { id } = pendingAsk.value
   pendingAsk.value = null
   askAnswers.value = {}
-  askToggleValues.value = {}
   askCustomInputs.value = {}
   wsSend({ type: WsCommandType.Ask, sessionId: props.cancelSessionId, id, answers })
 }
@@ -298,7 +288,6 @@ function restoreSessionStatus(status: {
   pendingToolCall.value = null
   pendingAsk.value = null
   askAnswers.value = {}
-  askToggleValues.value = {}
   askCustomInputs.value = {}
   streamingContent.value = ''
   streamingToolCalls.value = []
@@ -364,10 +353,6 @@ defineExpose({ handleWsEvent, pushMessage, setSending, refreshHistory, clearHist
             v-model="askCustomInputs[i]" :placeholder="t('chat.ask_other_placeholder')" />
         </template>
       </div>
-      <label v-else-if="q.type === 'toggle'" class="ask-option ask-toggle">
-        <input type="checkbox" v-model="askToggleValues[i]" />
-        {{ q.label }}
-      </label>
       <input v-else type="text" class="ask-input" v-model="(askAnswers[i] as string)"
         :placeholder="(q as any).placeholder ?? ''" />
     </div>

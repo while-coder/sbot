@@ -11,7 +11,7 @@ export interface AssistantMessage {
 }
 
 export interface ToolCallMessage {
-  type: 'tool_call';
+  type: 'toolCall';
   id: string;
   name: string;
   args: unknown;
@@ -23,11 +23,19 @@ export interface ErrorMessage {
   message: string;
 }
 
+export interface AskHistoryMessage {
+  type: 'ask';
+  id: string;
+  title?: string;
+  answers: Record<string, string | string[]>;
+}
+
 export type HistoryItem =
   | UserMessage
   | AssistantMessage
   | ToolCallMessage
-  | ErrorMessage;
+  | ErrorMessage
+  | AskHistoryMessage;
 
 export enum AppState {
   Loading = 'loading',
@@ -38,4 +46,23 @@ export enum AppState {
 export enum StreamingState {
   Idle = 'idle',
   Responding = 'responding',
+  Approval = 'approval',
+  Asking = 'asking',
 }
+
+export interface PendingApproval {
+  id: string;
+  name: string;
+  args: Record<string, any>;
+}
+
+export interface PendingAsk {
+  id: string;
+  title?: string;
+  questions: AskQuestionSpec[];
+}
+
+export type AskQuestionSpec =
+  | { type: 'radio';    label: string; options: string[]; allowCustom?: boolean }
+  | { type: 'checkbox'; label: string; options: string[]; allowCustom?: boolean }
+  | { type: 'input';    label: string; placeholder?: string }

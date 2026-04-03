@@ -266,7 +266,6 @@ export {
   type RadioQuestion,
   type CheckboxQuestion,
   type InputQuestion,
-  type ToggleQuestion,
 
   // 工具函数
   createTextContent,

@@ -107,16 +107,6 @@ export class SlackSessionHandler extends ChannelSessionHandler {
             options: q.options.map((o: string) => ({ text: { type: "plain_text", text: o }, value: o })),
           },
         });
-      } else if (q.type === AskQuestionType.Toggle) {
-        inputBlocks.push({
-          type: "input", block_id: blockId, optional: true,
-          label: { type: "plain_text", text: q.label },
-          element: {
-            type: "checkboxes", action_id: blockId,
-            options: [{ text: { type: "plain_text", text: q.label }, value: "true" }],
-            ...(q.default ? { initial_options: [{ text: { type: "plain_text", text: q.label }, value: "true" }] } : {}),
-          },
-        });
       } else {
         inputBlocks.push({
           type: "input", block_id: blockId,

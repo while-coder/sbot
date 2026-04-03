@@ -8,7 +8,6 @@ export enum AskQuestionType {
   Radio    = "radio",
   Checkbox = "checkbox",
   Input    = "input",
-  Toggle   = "toggle",
 }
 
 interface AskQuestionBase {
@@ -32,12 +31,7 @@ export interface InputQuestion extends AskQuestionBase {
   placeholder?: string;
 }
 
-export interface ToggleQuestion extends AskQuestionBase {
-  type: AskQuestionType.Toggle;
-  default?: boolean;
-}
-
-export type AskQuestion = RadioQuestion | CheckboxQuestion | InputQuestion | ToggleQuestion;
+export type AskQuestion = RadioQuestion | CheckboxQuestion | InputQuestion;
 
 export interface AskToolParams {
   title?: string;
@@ -70,16 +64,10 @@ const InputSchema = z.object({
   placeholder: z.string().optional().describe("Placeholder text for the input field"),
 });
 
-const ToggleSchema = z.object({
-  type: z.literal(AskQuestionType.Toggle),
-  label: z.string().describe("Question label displayed to the user"),
-  default: z.boolean().optional().describe("Default checked state, defaults to false"),
-});
-
 const AskSchema = z.object({
   title: z.string().optional().describe("Optional title for the question dialog"),
   questions: z.array(
-    z.discriminatedUnion("type", [RadioSchema, CheckboxSchema, InputSchema, ToggleSchema])
+    z.discriminatedUnion("type", [RadioSchema, CheckboxSchema, InputSchema])
   ).min(1).describe("Array of questions to present to the user"),
 });
 
@@ -91,7 +79,6 @@ const typeSchemas: Record<AskQuestionType, z.ZodObject<any>> = {
   [AskQuestionType.Radio]:    RadioSchema,
   [AskQuestionType.Checkbox]: CheckboxSchema,
   [AskQuestionType.Input]:    InputSchema,
-  [AskQuestionType.Toggle]:   ToggleSchema,
 };
 
 export function createAskTool(askFn: AskUserFn, description: string, supportedTypes?: AskQuestionType[]): DynamicStructuredTool {

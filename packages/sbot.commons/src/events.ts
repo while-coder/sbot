@@ -11,7 +11,7 @@ export enum WebChatEventType {
   Human    = 'human',
   Stream   = 'stream',
   Message  = 'message',
-  ToolCall = 'tool_call',
+  ToolCall = 'toolCall',
   Ask      = 'ask',
   Done     = 'done',
   Error    = 'error',
