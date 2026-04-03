@@ -4,6 +4,7 @@ import { marked } from 'marked'
 import { apiFetch } from '@/api'
 import { MessageRole } from '@/types'
 import type { StoredMessage, ToolCall } from '@/types'
+import { inlineArgs, resultPreview } from '@/utils/toolCallFormat'
 
 const props = defineProps<{
   thinksUrlPrefix: string
@@ -143,6 +144,8 @@ defineExpose({ open })
                         <div v-for="ttc in tm.message.tool_calls" :key="(ttc as ToolCall).id" class="tool-call-item">
                           <div class="tool-call-header" @click="toggleToolCall($event.currentTarget as HTMLElement)">
                             <span class="tool-call-name">{{ (ttc as ToolCall).name }}</span>
+                            <span v-if="inlineArgs(ttc as ToolCall)" class="tool-call-inline-args">{{ inlineArgs(ttc as ToolCall) }}</span>
+                            <span v-if="resultPreview(thinkStack[thinkStack.length - 1].messages, (ttc as ToolCall).id)" class="tool-call-result-preview">↳ {{ resultPreview(thinkStack[thinkStack.length - 1].messages, (ttc as ToolCall).id) }}</span>
                           </div>
                           <div class="tool-call-detail">
                             <div class="tool-call-args">{{ JSON.stringify((ttc as ToolCall).args, null, 2) }}</div>

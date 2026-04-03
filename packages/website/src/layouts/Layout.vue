@@ -699,13 +699,16 @@ table tr:hover td { background: #fafaf9; }
   cursor: pointer;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   font-weight: 500;
   user-select: none;
 }
-.tool-call-header::after { content: '▶'; font-size: 10px; color: #9b9b9b; }
+.tool-call-header::after { content: '▶'; font-size: 10px; color: #9b9b9b; margin-left: auto; flex-shrink: 0; }
 .tool-call-header.expanded::after { content: '▼'; }
-.tool-call-name { font-family: monospace; color: #1c1c1c; font-size: 12px; }
+.tool-call-name { font-family: monospace; color: #1c1c1c; font-size: 12px; flex-shrink: 0; }
+.tool-call-inline-args { font-family: monospace; font-size: 11px; color: #7a7a7a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool-call-result-preview { font-size: 11px; color: #9b9b9b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.tool-call-header.expanded .tool-call-result-preview { display: none; }
 .tool-call-detail { display: none; padding: 8px 10px; }
 .tool-call-detail.show { display: block; }
 .tool-call-args {

@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { marked } from 'marked'
 import { MessageRole } from '@/types'
 import type { StoredMessage, ToolCall } from '@/types'
+import { inlineArgs, resultPreview } from '@/utils/toolCallFormat'
 import ThinkDrawer from './ThinkDrawer.vue'
 
 const { t } = useI18n()
@@ -271,6 +272,8 @@ defineExpose({ scrollToBottom })
                 <div v-for="tc in msg.message.tool_calls" :key="(tc as ToolCall).id" class="tool-call-item">
                   <div class="tool-call-header" @click="toggleToolCall($event.currentTarget as HTMLElement)">
                     <span class="tool-call-name">{{ (tc as ToolCall).name }}</span>
+                    <span v-if="inlineArgs(tc as ToolCall)" class="tool-call-inline-args">{{ inlineArgs(tc as ToolCall) }}</span>
+                    <span v-if="resultPreview(messages, (tc as ToolCall).id)" class="tool-call-result-preview">↳ {{ resultPreview(messages, (tc as ToolCall).id) }}</span>
                   </div>
                   <div class="tool-call-detail">
                     <div class="tool-call-args">{{ JSON.stringify((tc as ToolCall).args, null, 2) }}</div>
