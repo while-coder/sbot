@@ -48,6 +48,7 @@ export function KeypressProvider({ children }: { children?: React.ReactNode }) {
   );
 
   useEffect(() => {
+    if (!stdin.isTTY) return;
     const wasRaw = stdin.isRaw;
     if (!wasRaw) setRawMode(true);
 

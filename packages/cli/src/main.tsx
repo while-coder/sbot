@@ -134,4 +134,7 @@ const { waitUntilExit } = render(
   </KeypressProvider>,
 );
 
-waitUntilExit().then(() => process.exit(0)).catch(() => process.exit(1));
+waitUntilExit().then(() => process.exit(0)).catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
