@@ -2,10 +2,13 @@ import crypto from "node:crypto";
 import type {
   GetUpdatesResp, SendMessageReq, SendTypingReq, GetConfigResp,
   WechatCredentials, QRCodeResponse, QRStatusResponse,
+  GetUploadUrlReq, GetUploadUrlResp,
 } from "./types";
 
 const LONG_POLL_TIMEOUT_MS = 30_000;
 const API_TIMEOUT_MS = 15_000;
+const UPLOAD_TIMEOUT_MS = 60_000;
+const CDN_BASE_URL = "https://novac2c.cdn.weixin.qq.com/c2c";
 const QR_LONG_POLL_TIMEOUT_MS = 35_000;
 const CHANNEL_VERSION = "1.0.0";
 const DEFAULT_BASE_URL = "https://ilinkai.weixin.qq.com";
@@ -147,5 +150,38 @@ export class WechatApiClient {
       ...req,
       base_info: { channel_version: CHANNEL_VERSION },
     }, API_TIMEOUT_MS);
+  }
+
+  async getUploadUrl(req: GetUploadUrlReq): Promise<GetUploadUrlResp> {
+    const raw = await this.post("ilink/bot/getuploadurl", {
+      ...req,
+      base_info: { channel_version: CHANNEL_VERSION },
+    }, API_TIMEOUT_MS);
+    return JSON.parse(raw);
+  }
+
+  async uploadToCDN(uploadParam: string, filekey: string, encryptedData: Buffer): Promise<string> {
+    const url = `${CDN_BASE_URL}/upload?encrypted_query_param=${encodeURIComponent(uploadParam)}&filekey=${encodeURIComponent(filekey)}`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/octet-stream" },
+        body: encryptedData,
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "(unreadable)");
+        throw new Error(`CDN upload failed: ${res.status} ${text}`);
+      }
+      const encryptQueryParam = res.headers.get("x-encrypted-param");
+      if (!encryptQueryParam) {
+        throw new Error("CDN upload response missing x-encrypted-param header");
+      }
+      return encryptQueryParam;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 }

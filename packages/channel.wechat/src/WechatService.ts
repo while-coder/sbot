@@ -1,4 +1,6 @@
 import crypto from "node:crypto";
+import fs from "node:fs/promises";
+import path from "node:path";
 import {
   IChannelService, ChannelSessionHandler, SessionService,
   type ChannelMessageArgs, type ILogger,
@@ -7,8 +9,9 @@ import { WechatApiClient } from "./WechatApiClient";
 import { WechatSessionHandler } from "./WechatSessionHandler";
 import {
   WechatMessageType, WechatMessageItemType, WechatMessageState,
+  UploadMediaType,
 } from "./types";
-import type { WeixinMessage, WechatCredentials } from "./types";
+import type { WeixinMessage, WechatCredentials, CDNMedia } from "./types";
 
 export interface WechatMessageArgs extends ChannelMessageArgs {
   messageId: number;
@@ -69,6 +72,71 @@ export class WechatService implements IChannelService {
         message_type: WechatMessageType.BOT,
         message_state: WechatMessageState.FINISH,
         item_list: [{ type: WechatMessageItemType.TEXT, text_item: { text } }],
+        context_token: contextToken,
+      },
+    });
+  }
+
+  async sendFileMessage(toUserId: string, file: string | Buffer, fileName?: string): Promise<void> {
+    const fileBuffer = typeof file === "string" ? await fs.readFile(file) : file;
+    fileName ??= typeof file === "string" ? path.basename(file) : undefined;
+    if (!fileName) throw new Error("fileName is required when file is a Buffer");
+
+    // Generate random 16-byte AES key
+    const aesKeyBuf = crypto.randomBytes(16);
+    const aesKeyHex = aesKeyBuf.toString("hex"); // 32 hex chars
+
+    // AES-128-ECB encrypt with PKCS7 padding
+    const cipher = crypto.createCipheriv("aes-128-ecb", aesKeyBuf, null);
+    const encrypted = Buffer.concat([cipher.update(fileBuffer), cipher.final()]);
+
+    const rawMd5 = crypto.createHash("md5").update(fileBuffer).digest("hex");
+    const filekey = crypto.randomBytes(16).toString("hex");
+
+    // Step 1: get upload URL params
+    const uploadResp = await this.api.getUploadUrl({
+      filekey,
+      media_type: UploadMediaType.FILE,
+      to_user_id: toUserId,
+      rawsize: fileBuffer.length,
+      rawfilemd5: rawMd5,
+      filesize: encrypted.length,
+      no_need_thumb: true,
+      aeskey: aesKeyHex,
+    });
+
+    if (!uploadResp.upload_param) {
+      throw new Error(`getUploadUrl failed: ${uploadResp.errmsg ?? "no upload_param"}`);
+    }
+
+    // Step 2: upload encrypted file to CDN
+    const encryptQueryParam = await this.api.uploadToCDN(uploadResp.upload_param, filekey, encrypted);
+
+    // Step 3: send message with CDN reference
+    const aesKeyBase64 = Buffer.from(aesKeyHex, "utf-8").toString("base64");
+    const media: CDNMedia = {
+      encrypt_query_param: encryptQueryParam,
+      aes_key: aesKeyBase64,
+      encrypt_type: 1,
+    };
+
+    const contextToken = this.getContextToken(toUserId);
+    await this.api.sendMessage({
+      msg: {
+        from_user_id: "",
+        to_user_id: toUserId,
+        client_id: `sbot:${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
+        message_type: WechatMessageType.BOT,
+        message_state: WechatMessageState.FINISH,
+        item_list: [{
+          type: WechatMessageItemType.FILE,
+          file_item: {
+            media,
+            file_name: fileName,
+            md5: rawMd5,
+            len: String(fileBuffer.length),
+          },
+        }],
         context_token: contextToken,
       },
     });

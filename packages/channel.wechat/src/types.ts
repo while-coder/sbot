@@ -29,8 +29,29 @@ export interface VoiceItem {
   text?: string;
 }
 
+export interface CDNMedia {
+  encrypt_query_param?: string;
+  aes_key?: string;
+  encrypt_type?: number;
+}
+
 export interface FileItem {
   file_name?: string;
+  media?: CDNMedia;
+  md5?: string;
+  len?: string;
+}
+
+export interface ImageItem {
+  media?: CDNMedia;
+  thumb_media?: CDNMedia;
+  aeskey?: string;
+  mid_size?: number;
+  thumb_size?: number;
+  thumb_width?: number;
+  thumb_height?: number;
+  hd_size?: number;
+  url?: string;
 }
 
 export interface RefMessage {
@@ -45,6 +66,35 @@ export interface WechatMessageItem {
   text_item?: TextItem;
   voice_item?: VoiceItem;
   file_item?: FileItem;
+  image_item?: ImageItem;
+}
+
+/** media_type values for getuploadurl */
+export const UploadMediaType = {
+  IMAGE: 1,
+  VIDEO: 2,
+  FILE: 3,
+  VOICE: 4,
+} as const;
+
+export interface GetUploadUrlReq {
+  filekey: string;
+  media_type: number;
+  to_user_id: string;
+  rawsize: number;
+  rawfilemd5: string;
+  filesize: number;
+  no_need_thumb?: boolean;
+  aeskey: string;
+  base_info?: { channel_version: string };
+}
+
+export interface GetUploadUrlResp {
+  ret?: number;
+  errcode?: number;
+  errmsg?: string;
+  upload_param?: string;
+  thumb_upload_param?: string;
 }
 
 export interface WeixinMessage {
