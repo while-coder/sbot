@@ -266,7 +266,7 @@ class HttpServer {
                         case WsCommandType.Approval:
                         case WsCommandType.Ask:
                         case WsCommandType.Abort: {
-                            sessionManager.onWebTriggerAction(threadId, msg.type!, msg);
+                            sessionManager.onWebTriggerAction(threadId, msg.type!, msg).catch(e => logger.error(`ws trigger error: ${e?.message ?? e}`));
                             break;
                         }
                     }

@@ -1,15 +1,16 @@
 import "reflect-metadata";
 import { ICommand, MessageType } from "scorpio.ai";
 import { SessionManager, SessionService } from "channel.base";
-import { ChannelType, WsCommandType } from "sbot.commons";
+import { ChannelType } from "sbot.commons";
 import { config } from "../Core/Config";
 import { channelManager } from "../Channel/ChannelManager";
-import { createProcessAIHandler } from "../Channel/createProcessAIHandler";
+import { createProcessAIHandler, createWebProcessAIHandler } from "../Channel/createProcessAIHandler";
 
 import { getBuiltInCommands } from "./BuiltInCommands";
 import { WebSocketUserService } from "./web/WebSocketUserService";
 
 const processAIHandler = createProcessAIHandler();
+const webProcessAIHandler = createWebProcessAIHandler();
 
 // ── Per-session concrete class ──
 
@@ -85,11 +86,13 @@ export class SbotSessionManager extends SessionManager {
 
     createChannel(type: string, session: SessionService, channelId?: string): any {
         if (type === ChannelType.Web) {
-            return new WebSocketUserService(session);
+            const ws = new WebSocketUserService(session);
+            ws.setProcessAIHandler(webProcessAIHandler);
+            return ws;
         }
         const service = channelId ? channelManager.getService(channelId) : undefined;
         if (!service) {
-            return new WebSocketUserService(session);  // fallback
+            throw new Error(`Channel service "${channelId}" not found`);
         }
         const userService = service.createUserService(session);
         userService.setProcessAIHandler(processAIHandler);
@@ -117,23 +120,9 @@ export class SbotSessionManager extends SessionManager {
         await session?.triggerAction(args);
     }
 
-    onWebTriggerAction(threadId: string, type: string, msg: Record<string, any>): void {
-        switch (type) {
-            case WsCommandType.Approval: {
-                const { id, approval } = msg;
-                if (id && approval) this.exitApproval(threadId, id, approval);
-                break;
-            }
-            case WsCommandType.Ask: {
-                const { id, answers } = msg;
-                if (id && answers) this.exitAsk(threadId, id, answers);
-                break;
-            }
-            case WsCommandType.Abort: {
-                this.abort(threadId);
-                break;
-            }
-        }
+    async onWebTriggerAction(threadId: string, type: string, msg: Record<string, any>): Promise<void> {
+        const session = this.getSession(threadId) as SbotSession | undefined;
+        await session?.triggerAction(type, msg);
     }
 }
 

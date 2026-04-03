@@ -3,6 +3,8 @@ import { AgentRunner, createAskAgentTool, createSendFileAgentTool } from "../Age
 import { config } from "../Core/Config";
 import { ChannelSessionRow, SchedulerType, database, parseMemories } from "../Core/Database";
 import { buildExecuteTool } from "../UserService/buildExecuteTool";
+import { WebChatEventType } from "sbot.commons";
+import { httpServer } from "../Server/HttpServer";
 
 const agentToolHelpers: ChannelToolHelpers = {
     createAskTool: (prompt, askFn, supportedTypes) =>
@@ -10,6 +12,29 @@ const agentToolHelpers: ChannelToolHelpers = {
     createSendFileTool: (prompt, sendFileFn) =>
         createSendFileAgentTool(prompt, sendFileFn),
 };
+
+function runAgent(query: string, args: any, userService: any, agentId: string, saverId: string, schedulerType: SchedulerType, schedulerId: string, memories: string[], workPath?: string): Promise<void> {
+    return AgentRunner.run({
+        query,
+        callbacks: {
+            onMessage: (msg) => userService.onChatMessage(msg, args),
+            onStreamMessage: (msg) => userService.onStreamMessage(msg, args),
+            executeTool: buildExecuteTool(
+                userService.session,
+                agentId,
+                (tc) => userService.executeApproval(tc),
+            ),
+        },
+        agentId,
+        saverId,
+        threadId: userService.session.threadId,
+        scheduler: { schedulerType, schedulerId },
+        extraInfo: args?.extraInfo ?? '',
+        memories,
+        workPath,
+        agentTools: userService.buildAgentTools(args, agentToolHelpers),
+    });
+}
 
 export function createProcessAIHandler(): ProcessAIHandler {
     return async (query, args, userService) => {
@@ -28,25 +53,24 @@ export function createProcessAIHandler(): ProcessAIHandler {
             ? [...((channel.memories as string[]) ?? []), ...sessionMemories]
             : sessionMemories;
 
-        await AgentRunner.run({
-            query,
-            callbacks: {
-                onMessage: (msg) => userService.onChatMessage(msg, args),
-                onStreamMessage: (msg) => userService.onStreamMessage(msg, args),
-                executeTool: buildExecuteTool(
-                    (userService as any).session,
-                    agentId,
-                    (tc) => userService.executeApproval(tc),
-                ),
-            },
-            agentId,
-            saverId: channel.saver as string,
-            threadId: (userService as any).session.threadId,
-            scheduler: { schedulerType: SchedulerType.Channel, schedulerId: String(dbSessionId) },
-            extraInfo: args?.extraInfo ?? '',
-            memories,
-            workPath: dbSession?.workPath || undefined,
-            agentTools: userService.buildAgentTools(args, agentToolHelpers),
-        });
+        await runAgent(query, args, userService, agentId, channel.saver as string,
+            SchedulerType.Channel, String(dbSessionId), memories, dbSession?.workPath || undefined);
+    };
+}
+
+export function createWebProcessAIHandler(): ProcessAIHandler {
+    return async (query, args, userService) => {
+        const sessionId = args?.sessionId as string;
+
+        // Echo the human message back to the WebSocket client
+        httpServer.broadcastToWs(JSON.stringify({ type: WebChatEventType.Human, content: query, sessionId }));
+
+        const sessionCfg = sessionId ? config.getSession(sessionId) : undefined;
+        if (!sessionCfg) throw new Error(`Session "${sessionId}" not found`);
+
+        const { agent: agentId, saver: saverId, memories, workPath } = sessionCfg;
+
+        await runAgent(query, args, userService, agentId, saverId,
+            SchedulerType.Session, sessionId, memories ?? [], workPath);
     };
 }
