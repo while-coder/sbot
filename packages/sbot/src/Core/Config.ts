@@ -3,8 +3,8 @@ import path from "path";
 import fs from "fs";
 import { ModelConfig, ModelProvider, EmbeddingConfig, EmbeddingProvider, MCPServers, IModelService, IEmbeddingService, ModelServiceFactory, EmbeddingServiceFactory, type AgentSubNode } from "scorpio.ai";
 export type { AgentSubNode } from "scorpio.ai";
-import { DEFAULT_PORT, SaverType, AgentMode, SaverConfig, MemoryConfig, SessionConfig, ChannelConfig, DirectoryConfig, LocalDirConfig } from "sbot.commons";
-export { DEFAULT_PORT, SaverType, AgentMode, ChannelType, SaverConfig, MemoryConfig, SessionConfig, ChannelConfig, DirectoryConfig, LocalDirConfig } from "sbot.commons";
+import { DEFAULT_PORT, SaverType, AgentMode, SaverConfig, MemoryConfig, SessionConfig, ChannelConfig } from "sbot.commons";
+export { DEFAULT_PORT, SaverType, AgentMode, ChannelType, SaverConfig, MemoryConfig, SessionConfig, ChannelConfig } from "sbot.commons";
 
 /**
  * ModelConfig 的命名扩展（key 为 UUID）
@@ -70,7 +70,6 @@ export interface Settings {
   agents?: Record<string, AgentEntry>;
   sessions?: Record<string, SessionConfig>;
   channels?: Record<string, ChannelConfig>;
-  directories?: Record<string, DirectoryConfig>;
   plugins?: string[];
 }
 
@@ -381,23 +380,6 @@ class Config {
   }
   getMemoryDBPath(memoryId: string, memoryThreadId: string) {
     return this.getConfigPath(`memories/${memoryId}/${memoryThreadId}.db`)
-  }
-
-  /** 读取目录本地配置；路径不存在或解析失败时返回 null */
-  getDirectoryConfig(dirPath: string): LocalDirConfig | null {
-    try {
-      const cfgPath = path.join(dirPath, '.sbot', 'settings.json');
-      return JSON.parse(fs.readFileSync(cfgPath, 'utf-8')) as LocalDirConfig;
-    } catch {
-      return null;
-    }
-  }
-
-  /** 写入目录本地配置到 <dirPath>/.sbot/settings.json */
-  saveDirectoryConfig(dirPath: string, cfg: LocalDirConfig): void {
-    const sbotDir = path.join(dirPath, '.sbot');
-    if (!fs.existsSync(sbotDir)) fs.mkdirSync(sbotDir, { recursive: true });
-    fs.writeFileSync(path.join(sbotDir, 'settings.json'), JSON.stringify(cfg, null, 2), 'utf-8');
   }
 
 }

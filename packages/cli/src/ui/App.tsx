@@ -20,7 +20,7 @@ interface AppProps {
 export const App: React.FC<AppProps> = ({ client, config, agentName, saverName }) => {
   const { exit } = useApp();
   const { history, streamingContent, streamingState, submitQuery, cancelRequest, clearHistory } =
-    useChat(client, config.agentId, config.saverId, config.memoryId);
+    useChat(client, config.sessionId);
 
   const isIdle = streamingState === StreamingState.Idle;
 

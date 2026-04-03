@@ -4,7 +4,6 @@ const routes = [
   { path: '/', redirect: '/chat' },
   // 聊天
   { path: '/chat', component: () => import('@/views/ChatView.vue') },
-  { path: '/directory', component: () => import('@/views/DirectoryView.vue') },
   { path: '/channels', component: () => import('@/views/ChannelsView.vue') },
   // 基础
   { path: '/settings', component: () => import('@/views/SettingsView.vue') },

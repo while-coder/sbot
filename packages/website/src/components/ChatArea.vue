@@ -20,10 +20,10 @@ const props = withDefaults(defineProps<{
   historyUrl: string | null
   emptyText?: string
   showAttachments?: boolean
-  /** 是否从 ws Human 事件推消息（ChatView=true；DirectoryView=false，由父组件乐观推送） */
+  /** 是否从 ws Human 事件推消息（ChatView=true；Channel=false，由父组件乐观推送） */
   handleHumanMessage?: boolean
-  /** threadId，有值时显示中断按钮 */
-  cancelThreadId?: string
+  /** sessionId，有值时显示中断按钮 */
+  cancelSessionId?: string
 }>(), {
   handleHumanMessage: true,
 })
@@ -98,12 +98,12 @@ function submitAsk() {
       if (val !== undefined && val !== '') answers[String(i)] = val
     }
   })
-  const { id, threadId } = pendingAsk.value
+  const { id } = pendingAsk.value
   pendingAsk.value = null
   askAnswers.value = {}
   askToggleValues.value = {}
   askCustomInputs.value = {}
-  wsSend({ type: WsCommandType.Ask, threadId, id, answers })
+  wsSend({ type: WsCommandType.Ask, sessionId: props.cancelSessionId, id, answers })
 }
 
 // ── 工具审批状态 ──────────────────────────────────────────
@@ -151,9 +151,9 @@ function stopAskCountdown() {
 function approveToolCall(approval: string) {
   if (!pendingToolCall.value) return
   stopDenyCountdown()
-  const { id, threadId } = pendingToolCall.value
+  const { id } = pendingToolCall.value
   pendingToolCall.value = null
-  wsSend({ type: WsCommandType.Approval, threadId, id, approval })
+  wsSend({ type: WsCommandType.Approval, sessionId: props.cancelSessionId, id, approval })
 }
 
 // ── 历史记录 ──────────────────────────────────────────────
@@ -270,8 +270,8 @@ function reset() {
 }
 
 function cancelProcessing() {
-  if (!props.cancelThreadId) return
-  wsSend({ type: WsCommandType.Abort, threadId: props.cancelThreadId })
+  if (!props.cancelSessionId) return
+  wsSend({ type: WsCommandType.Abort, sessionId: props.cancelSessionId })
 }
 
 /** 组件卸载时调用，清理定时器 */
@@ -408,7 +408,7 @@ defineExpose({ handleWsEvent, pushMessage, setSending, refreshHistory, clearHist
     :queued-messages="queuedMessages"
     :empty-text="emptyText"
     :show-attachments="showAttachments"
-    :on-cancel="cancelThreadId && isStreaming ? cancelProcessing : undefined"
+    :on-cancel="cancelSessionId && isStreaming ? cancelProcessing : undefined"
     :thinks-url-prefix="thinksUrlPrefix"
     @send="(q, a) => emit('send', q, a)"
   />

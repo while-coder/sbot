@@ -59,8 +59,6 @@ class SbotSession extends SessionService {
     resolveSaverId(args: any): string | undefined {
         const channelType = args?.channelType as string | undefined;
         if (channelType === ChannelType.Web) {
-            const workPath = args?.workPath as string | undefined;
-            if (workPath) return config.getDirectoryConfig(workPath)?.saver;
             const sessionId = args?.sessionId as string | undefined;
             return sessionId ? config.getSession(sessionId)?.saver : undefined;
         }
@@ -106,10 +104,10 @@ export class SbotSessionManager extends SessionManager {
         await session.onReceiveMessage(query, args);
     }
 
-    async onReceiveWebMessage(threadId: string, query: string, sessionId?: string, workPath?: string): Promise<void> {
+    async onReceiveWebMessage(threadId: string, query: string, sessionId?: string): Promise<void> {
         if (!query?.trim()) return;
         const session = this.getOrCreate(threadId);
-        await session.onReceiveMessage(query, { channelType: ChannelType.Web, sessionId, workPath });
+        await session.onReceiveMessage(query, { channelType: ChannelType.Web, sessionId });
     }
 
     // ── Trigger action routing ──

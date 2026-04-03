@@ -53,6 +53,8 @@ export default {
     agent: 'Agent',
     storage: 'Storage',
     memory: 'Memory',
+    workpath: 'Work Path',
+    workpath_placeholder: 'Not set (click … to browse)',
     model: 'Model',
     name_required: 'Name is required',
     provider: 'Provider',

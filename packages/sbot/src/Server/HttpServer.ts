@@ -17,7 +17,7 @@ import { database } from '../Core/Database';
 import { sessionManager } from '../UserService/SessionManager';
 import { schedulerService } from '../Scheduler/SchedulerService';
 import { channelManager } from '../Channel/ChannelManager';
-import { sessionThreadId, dirThreadId, WsCommandType } from 'sbot.commons';
+import { sessionThreadId, WsCommandType } from 'sbot.commons';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
 
@@ -121,7 +121,7 @@ function buildPromptTree(dir: string, basePath = '', userBaseDir = ''): PromptNo
 }
 
 // ===== 附件处理 =====
-type AttachmentInput = { name: string; type: string; dataUrl?: string; content?: string };
+type AttachmentInput = { name: string; dataUrl?: string; content?: string };
 
 function xmlAttr(s: string): string {
     return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -133,15 +133,13 @@ function processAttachments(query: string, attachments: AttachmentInput[] | unde
     for (const att of attachments) {
         const filePath = path.join(uploadDir, `${randomUUID()}-${att.name}`);
         if (att.dataUrl) {
-            const base64 = att.dataUrl.replace(/^data:[^;]+;base64,/, '');
-            fs.writeFileSync(filePath, Buffer.from(base64, 'base64'));
+            fs.writeFileSync(filePath, Buffer.from(att.dataUrl.replace(/^data:[^;]+;base64,/, ''), 'base64'));
         } else if (att.content != null) {
-            const isText = !att.type || att.type.startsWith('text/') || att.type === 'application/json';
-            fs.writeFileSync(filePath, isText ? att.content : Buffer.from(att.content, 'binary'));
+            fs.writeFileSync(filePath, att.content);
         } else {
             continue;
         }
-        parts.push(`  <attachment name="${xmlAttr(att.name)}" type="${xmlAttr(att.type)}" path="${xmlAttr(filePath)}" />`);
+        parts.push(`  <attachment name="${xmlAttr(att.name)}" path="${xmlAttr(filePath)}" />`);
     }
     if (parts.length === 0) return query;
     const xml = `<attachments>\n${parts.join('\n')}\n</attachments>`;
@@ -233,7 +231,6 @@ class HttpServer {
 
         this.registerSystemRoutes(app);
         this.registerSettingsRoutes(app);
-        this.registerDirectoryRoutes(app);
         this.registerFilesystemRoutes(app);
         this.registerMcpRoutes(app);
         this.registerSkillRoutes(app);
@@ -255,22 +252,26 @@ class HttpServer {
             ws.on('message', (data) => {
                 try {
                     const msg = JSON.parse(data.toString()) as { type?: string; [key: string]: any };
+                    const sid = msg.sessionId as string | undefined;
+                    if (!sid) throw new Error('sessionId is required');
+                    const threadId = sessionThreadId(sid);
                     switch (msg.type) {
                         case WsCommandType.Query: {
                             const enriched = processAttachments(msg.query?.trim() || '', msg.attachments, uploadDir);
-                            if (!enriched || !msg.threadId) break;
-                            sessionManager.onReceiveWebMessage(msg.threadId, enriched, msg.sessionId, msg.workPath);
+                            if (!enriched) break;
+                            sessionManager.onReceiveWebMessage(threadId, enriched, sid);
                             break;
                         }
                         case WsCommandType.Approval:
                         case WsCommandType.Ask:
                         case WsCommandType.Abort: {
-                            const { threadId } = msg;
-                            if (threadId) sessionManager.onWebTriggerAction(threadId, msg.type!, msg);
+                            sessionManager.onWebTriggerAction(threadId, msg.type!, msg);
                             break;
                         }
                     }
-                } catch { /* ignore malformed messages */ }
+                } catch (e: any) { 
+                    logger.error(`ws message error: ${e?.message ?? e}`);
+                }
             });
         });
 
@@ -373,45 +374,6 @@ class HttpServer {
             label: 'Session',
             createReturn: (id) => ({ id }),
         });
-    }
-
-    // ===== Directories =====
-    private registerDirectoryRoutes(app: express.Application) {
-        app.get('/api/directories', api(req => {
-            const dir = req.query.dir as string;
-            if (!dir) throwBad('dir is required');
-            const exists = fs.existsSync(dir) && fs.statSync(dir).isDirectory();
-            if (!exists) return { exists: false, config: null };
-            return { exists: true, config: config.getDirectoryConfig(dir) };
-        }));
-
-        app.post('/api/directories', api(req => {
-            const { path: dirPath, agent, saver, memories } = req.body;
-            if (!dirPath) throwBad('path is required');
-            if (!fs.existsSync(dirPath) || !fs.statSync(dirPath).isDirectory())
-                throwBad(`Path does not exist or is not a directory: ${dirPath}`);
-            config.saveDirectoryConfig(dirPath, { agent: agent || undefined, saver: saver || undefined, memories: memories || [] });
-            if (!config.settings.directories) config.settings.directories = {};
-            config.settings.directories[dirPath] = {};
-            config.saveSettings();
-            return { path: dirPath };
-        }));
-
-        app.put('/api/directories', api(req => {
-            const { path: dirPath, agent, saver, memories } = req.body;
-            if (!dirPath) throwBad('path is required');
-            if (!config.settings.directories?.[dirPath]) throwBad(`Directory "${dirPath}" is not registered`);
-            config.saveDirectoryConfig(dirPath, { agent: agent || undefined, saver: saver || undefined, memories: memories || [] });
-            return { path: dirPath };
-        }));
-
-        app.delete('/api/directories', api(req => {
-            const dirPath = req.query.path as string;
-            if (!dirPath) throwBad('path is required');
-            if (config.settings.directories) delete config.settings.directories[dirPath];
-            config.saveSettings();
-            return {};
-        }));
     }
 
     // ===== Filesystem =====
@@ -982,11 +944,9 @@ class HttpServer {
     // ===== Chat =====
     private registerChatRoutes(app: express.Application) {
         app.get('/api/session-status', (req, res) => {
-            const { sessionId, workPath } = req.query as { sessionId?: string; workPath?: string };
-            let threadId: string | undefined;
-            if (sessionId) threadId = sessionThreadId(sessionId);
-            else if (workPath) threadId = dirThreadId(workPath);
-            if (!threadId) { res.status(400).json({ error: 'sessionId or workPath required' }); return; }
+            const { sessionId } = req.query as { sessionId?: string };
+            if (!sessionId) { res.status(400).json({ error: 'sessionId is required' }); return; }
+            const threadId = sessionThreadId(sessionId);
             const info = sessionManager.getInfo(threadId);
             if (!info) { res.json(null); return; }
             res.json(info);

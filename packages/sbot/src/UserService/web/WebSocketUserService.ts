@@ -58,24 +58,12 @@ export class WebSocketUserService {
     async processAI(query: string, args: any): Promise<void> {
         this.emit({ type: WebChatEventType.Human, content: query });
 
-        const workPath = args?.workPath as string | undefined;
-        let agentId: string, saverId: string, memories: string[] | undefined;
-        let scheduler: AgentSchedulerContext, extraInfo: string;
+        const sessionId = args?.sessionId as string;
+        const sessionCfg = sessionId ? config.getSession(sessionId) : undefined;
+        if (!sessionCfg) throw new Error(`Session "${sessionId}" not found`);
 
-        if (workPath) {
-            const cfg = config.getDirectoryConfig(workPath);
-            if (!cfg) throw new Error(`Directory "${workPath}" has no agent configured`);
-            agentId = cfg.agent; saverId = cfg.saver; memories = cfg.memories;
-            scheduler = { schedulerType: SchedulerType.Directory, schedulerId: workPath };
-            extraInfo = '';
-        } else {
-            const sessionId = args?.sessionId as string;
-            const sessionCfg = sessionId ? config.getSession(sessionId) : undefined;
-            if (!sessionCfg) throw new Error(`Session "${sessionId}" not found`);
-            agentId = sessionCfg.agent; saverId = sessionCfg.saver; memories = sessionCfg.memories;
-            scheduler = { schedulerType: SchedulerType.Session, schedulerId: sessionId };
-            extraInfo = '';
-        }
+        const { agent: agentId, saver: saverId, memories, workPath } = sessionCfg;
+        const scheduler: AgentSchedulerContext = { schedulerType: SchedulerType.Session, schedulerId: sessionId };
 
         const threadId = this.session.threadId;
         await AgentRunner.run({
@@ -89,7 +77,7 @@ export class WebSocketUserService {
                     return promise;
                 }),
             },
-            agentId, saverId, threadId, scheduler, extraInfo, memories,
+            agentId, saverId, threadId, scheduler, extraInfo: '', memories,
             workPath,
             agentTools: [createAskAgentTool(WEB_ASK_PROMPT, async (params: AskToolParams) => {
                 const { id: askId, promise } = this.session.enterAsk(params, 0);

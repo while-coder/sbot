@@ -9,6 +9,7 @@ import { useChatViewLogic } from '@/composables/useChatViewLogic'
 import ChatArea from '@/components/ChatArea.vue'
 import SaverViewModal from './modals/SaverViewModal.vue'
 import MemoryViewModal from './modals/MemoryViewModal.vue'
+import PathPickerModal from './modals/PathPickerModal.vue'
 import MultiSelect from '@/components/MultiSelect.vue'
 import NewSessionModal from './modals/NewSessionModal.vue'
 import { sessionThreadId, WsCommandType } from 'sbot.commons'
@@ -19,6 +20,7 @@ const { show } = useToast()
 // ── Refs ──
 const saverViewModal  = ref<InstanceType<typeof SaverViewModal>>()
 const memoryViewModal = ref<InstanceType<typeof MemoryViewModal>>()
+const pathPickerModal = ref<InstanceType<typeof PathPickerModal>>()
 const newSessionModal = ref<InstanceType<typeof NewSessionModal>>()
 const sessionNameInputEl = ref<HTMLInputElement | null>(null)
 
@@ -32,10 +34,9 @@ const sessions = computed(() => store.settings.sessions || {})
 
 const { chatAreaRef, agentOptions, saverOptions, memoryOptions, sendOne, fetchAndRestoreSessionStatus } = useChatViewLogic({
   threadId: () => activeSessionId.value ? sessionThreadId(activeSessionId.value) : undefined,
-  buildSendPayload: (query, threadId, atts) => ({
+  buildSendPayload: (query, _threadId, atts) => ({
     type: WsCommandType.Query,
     query,
-    threadId,
     sessionId: activeSessionId.value!,
     attachments: atts?.length ? atts : undefined,
   }),
@@ -45,6 +46,7 @@ const { chatAreaRef, agentOptions, saverOptions, memoryOptions, sendOne, fetchAn
 const effectiveAgent  = computed(() => activeSessionId.value ? sessions.value[activeSessionId.value]?.agent  : undefined)
 const effectiveSaver  = computed(() => activeSessionId.value ? (sessions.value[activeSessionId.value]?.saver  || null) : null)
 const effectiveMemories = computed(() => activeSessionId.value ? (sessions.value[activeSessionId.value]?.memories || []) : [])
+const effectiveWorkPath = computed(() => activeSessionId.value ? ((sessions.value[activeSessionId.value] as any)?.workPath || '') : '')
 
 const historyUrl = computed<string | null>(() => {
   const saver = effectiveSaver.value
@@ -164,6 +166,7 @@ onMounted(() => {
                 @dblclick.stop="startEditSessionName(id as string)"
                 title="双击编辑名称"
               >{{ s.name || (id as string).slice(0, 8) + '…' }}</div>
+              <div v-if="(s as any).workPath" class="session-item-path" :title="(s as any).workPath">{{ (s as any).workPath }}</div>
             </div>
             <button
               class="session-del-btn"
@@ -205,6 +208,19 @@ onMounted(() => {
           </select>
           <button v-if="effectiveSaver" class="chat-info-chip" @click="saverViewModal?.open(effectiveSaver!, saverOptions.find(s => s.id === effectiveSaver)?.label || effectiveSaver!, sessionThreadId(activeSessionId))">{{ t('common.view') }}</button>
 
+          <!-- WorkPath -->
+          <label class="toolbar-label">{{ t('common.workpath') }}</label>
+          <input
+            class="toolbar-input-sm"
+            :value="effectiveWorkPath"
+            :placeholder="t('common.workpath_placeholder')"
+            readonly
+            :title="effectiveWorkPath || t('common.workpath_placeholder')"
+            style="max-width:180px"
+          />
+          <button class="btn-outline btn-sm" @click="pathPickerModal?.open(effectiveWorkPath)">…</button>
+          <button v-if="effectiveWorkPath" class="chat-info-chip" style="color:#ef4444" @click="saveSession({ workPath: undefined })">×</button>
+
           <!-- Memory -->
           <label class="toolbar-label">{{ t('common.memory') }}</label>
           <MultiSelect
@@ -227,13 +243,14 @@ onMounted(() => {
         ref="chatAreaRef"
         :history-url="historyUrl"
         :show-attachments="true"
-        :cancel-thread-id="activeSessionId ? sessionThreadId(activeSessionId) : undefined"
+        :cancel-session-id="activeSessionId || undefined"
         @send="onPanelSend"
       />
     </div>
 
     <SaverViewModal ref="saverViewModal" />
     <MemoryViewModal ref="memoryViewModal" />
+    <PathPickerModal ref="pathPickerModal" @confirm="(p: string) => saveSession({ workPath: p || undefined })" />
     <NewSessionModal ref="newSessionModal" @created="onSessionCreated" />
   </div>
 </template>
@@ -248,6 +265,15 @@ onMounted(() => {
 }
 .session-item:hover { background: #f5f4f2; }
 .session-item.active { background: #f0efed; }
+.session-item-path {
+  font-size: 10px;
+  color: #9b9b9b;
+  font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 1px;
+}
 .session-item-name {
   font-size: 13px;
   font-weight: 500;
@@ -280,5 +306,17 @@ onMounted(() => {
   font-family: inherit;
   color: #1c1c1c;
   background: #fff;
+}
+.toolbar-input-sm {
+  font-size: 12px;
+  padding: 2px 6px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #f9fafb;
+  color: #6b7280;
+  font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: default;
 }
 </style>

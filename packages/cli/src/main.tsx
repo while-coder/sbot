@@ -55,16 +55,21 @@ function Boot() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleWizardComplete = (
+  const handleWizardComplete = async (
     agentId: string,
     saverId: string,
     memoryId: string | null,
     agentName: string,
     saverName: string,
   ) => {
-    const cfg: LocalConfig = { agentId, saverId, memoryId };
-    writeLocalConfig(cfg);
-    setState({ phase: 'chat', config: cfg, agentName, saverName });
+    try {
+      const sessionId = await client.createSession(agentId, saverId, memoryId, process.cwd());
+      const cfg: LocalConfig = { sessionId, agentId, saverId, memoryId };
+      writeLocalConfig(cfg);
+      setState({ phase: 'chat', config: cfg, agentName, saverName });
+    } catch (e: any) {
+      setState({ phase: 'error', message: `Failed to create session: ${e.message}` });
+    }
   };
 
   if (state.phase === 'loading') {

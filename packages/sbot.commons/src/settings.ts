@@ -108,6 +108,8 @@ export interface SessionConfig {
   saver: string
   /** 使用的记忆配置 UUID 列表（对应 memories 中的 key） */
   memories: string[]
+  /** 工作目录路径（有值时为目录模式，Agent 文件操作限定在此目录） */
+  workPath?: string
 }
 
 export interface ChannelConfig {
@@ -125,20 +127,6 @@ export interface ChannelConfig {
   config?: Record<string, unknown>
 }
 
-// 配置内容（agent/saver/memory）保存在对应目录的 .sbot/settings.json，
-// 全局 settings.directories 只做路径注册，value 保留为空对象
-export interface DirectoryConfig {}
-
-/** 目录本地配置（存储于 <dir>/.sbot/settings.json） */
-export interface LocalDirConfig {
-  /** 使用的 Agent UUID（对应 agents 中的 key） */
-  agent: string
-  /** 使用的 Saver 配置 UUID（对应 savers 中的 key） */
-  saver: string
-  /** 使用的记忆配置 UUID 列表（对应 memories 中的 key） */
-  memories: string[]
-}
-
 export interface Settings {
   httpPort?: number
   httpUrl?: string
@@ -153,16 +141,10 @@ export interface Settings {
   savers?: Record<string, SaverConfig>
   sessions?: Record<string, SessionConfig>
   channels?: Record<string, ChannelConfig>
-  directories?: Record<string, DirectoryConfig>
 }
 
 // ── threadId 工厂函数 ──────────────────────────────────────────────────────────
 // 集中定义，供 sbot（后端）与 website（前端）共用，避免算法分散后不同步
-
-/** 目录模式 threadId：将路径中的非法字符（冒号、斜杠、反斜杠）替换为下划线 */
-export function dirThreadId(workPath: string): string {
-  return `dir_${workPath.replace(/[:/\\]/g, '_')}`
-}
 
 /** 会话模式 threadId */
 export function sessionThreadId(sessionId: string): string {

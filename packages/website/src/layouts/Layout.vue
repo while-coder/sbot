@@ -17,7 +17,6 @@ const menuGroups = computed(() => [
     group: t('nav.chat'),
     items: [
       { label: t('nav.chat'), key: '/chat' },
-      { label: t('nav.directory'), key: '/directory' },
       { label: t('nav.channels'), key: '/channels' },
     ],
   },

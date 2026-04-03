@@ -25,7 +25,7 @@ interface ChannelSessionRow {
 }
 
 type UIType = 'daily' | 'weekly' | 'monthly' | 'interval' | 'hourly' | 'custom'
-type RoutingType = 'channel' | 'session' | 'directory'
+type RoutingType = 'channel' | 'session'
 
 const { show } = useToast()
 const timers = ref<SchedulerRow[]>([])
@@ -62,8 +62,7 @@ function describeExpr(expr: string): string {
 
 function routingTypeOf(row: SchedulerRow): RoutingType {
   if (row.type === 'channel') return 'channel'
-  if (row.type === 'session') return 'session'
-  return 'directory'
+  return 'session'
 }
 
 function routingLabel(row: SchedulerRow): string {
@@ -74,14 +73,12 @@ function routingLabel(row: SchedulerRow): string {
     const s = channelSessions.value.find(s => s.id === id)
     return s ? s.sessionId : row.targetId
   }
-  if (rt === 'session') return row.targetId ?? '-'
-  return row.targetId ? row.targetId.split(/[\\/]/).slice(-2).join('/') : '-'
+  return row.targetId ?? '-'
 }
 
 const ROUTING_BADGE: Record<RoutingType, { bg: string; color: string; label: string }> = {
   channel:   { bg: '#dbeafe', color: '#1d4ed8', label: 'channel' },
   session:   { bg: '#fef9c3', color: '#854d0e', label: 'session' },
-  directory: { bg: '#dcfce7', color: '#15803d', label: 'directory' },
 }
 
 // ── Data loading ──────────────────────────────────────────────────────────────

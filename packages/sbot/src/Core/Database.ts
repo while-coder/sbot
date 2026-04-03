@@ -14,7 +14,6 @@ export type MessageRow = {
 export enum SchedulerType {
   Channel   = "channel",    // Lark 频道模式（channel_session）
   Session   = "session",    // 会话模式（sessionId）
-  Directory = "directory",  // 目录模式（workPath）
 }
 
 export type SchedulerRow = {

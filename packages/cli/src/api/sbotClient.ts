@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import WebSocket from 'ws';
 import axios, { type AxiosInstance } from 'axios';
-import { DEFAULT_PORT, WsCommandType, dirThreadId, type Settings, type WebChatEvent } from 'sbot.commons';
+import { DEFAULT_PORT, WsCommandType, sessionThreadId, type Settings, type WebChatEvent } from 'sbot.commons';
 
 export { DEFAULT_PORT, type WebChatEvent } from 'sbot.commons';
 
@@ -50,15 +50,25 @@ export class SbotClient {
     return res.data.data;
   }
 
+  /** Create a session on the server and return its ID */
+  async createSession(agentId: string, saverId: string, memoryId: string | null, workPath: string): Promise<string> {
+    const body: any = {
+      agent: agentId,
+      saver: saverId,
+      memories: memoryId ? [memoryId] : [],
+      workPath,
+      name: workPath.replace(/[/\\]+$/, '').split(/[/\\]/).pop() || workPath,
+    };
+    const res = await this.http.post<{ data: { id: string } }>('/api/settings/sessions', body);
+    return res.data.data.id;
+  }
+
   async *chatStream(
     query: string,
-    agentId: string,
-    saveId: string,
-    memoryId: string | null,
+    sessionId: string,
     signal: AbortSignal,
   ): AsyncGenerator<WebChatEvent> {
-    const workPath = process.cwd();
-    const threadId = dirThreadId(workPath);
+    const threadId = sessionThreadId(sessionId);
     const wsUrl = this.baseUrl.replace(/^http/, 'ws') + '/ws/chat';
 
     const ws = new WebSocket(wsUrl);
@@ -92,8 +102,8 @@ export class SbotClient {
       ws.on('error', reject);
     });
 
-    // send query
-    ws.send(JSON.stringify({ type: WsCommandType.Query, query, threadId, workPath }));
+    // send query — backend computes threadId from sessionId
+    ws.send(JSON.stringify({ type: WsCommandType.Query, query, sessionId }));
 
     try {
       while (true) {

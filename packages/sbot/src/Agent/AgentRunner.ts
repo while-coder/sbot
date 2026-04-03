@@ -71,9 +71,9 @@ export function createAskAgentTool(prompt: string, askFn: AskUserFn, supportedTy
 
 /** 调度器上下文，标识本次运行归属的调度器 */
 export interface AgentSchedulerContext {
-    /** 调度器类型（Channel / Session / Directory） */
+    /** 调度器类型（Channel / Session） */
     schedulerType: SchedulerType;
-    /** 调度器实例 ID（channelSessionId / sessionId / workPath 等） */
+    /** 调度器实例 ID（channelSessionId / sessionId） */
     schedulerId: string;
 }
 
@@ -108,17 +108,16 @@ export class AgentRunner {
         if (!threadId.trim())  throw new Error("threadId not specified");
 
         const cancellationToken = sessionManager.getOrCreate(threadId).source;
-        try {
-            const now = new Date();
-            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-            const assetsDir = config.getConfigPath('assets', true);
-            const scriptsDir = config.getConfigPath('scripts', true);
-            const httpUrl = config.getHttpUrl();
-            const workPath = options.workPath ?? `${assetsDir}/${threadId}`;
+        const now = new Date();
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const assetsDir = config.getConfigPath('assets', true);
+        const scriptsDir = config.getConfigPath('scripts', true);
+        const httpUrl = config.getHttpUrl();
+        const workPath = options.workPath ?? `${assetsDir}/${threadId}`;
 
-            /** 注入到 system prompt 末尾的额外上下文片段，按顺序拼接 */
-            const extraPrompts: string[] = [
-                `<environment>
+        /** 注入到 system prompt 末尾的额外上下文片段，按顺序拼接 */
+        const extraPrompts: string[] = [
+            `<environment>
   <current-time>${now.toLocaleString(undefined, { timeZone: timezone, hour12: false })}</current-time>
   <timezone>${timezone}</timezone>
   <os>${os.type()} ${os.release()} (${os.platform()})</os>
@@ -133,23 +132,18 @@ export class AgentRunner {
   </paths>
   ${extraInfo}
 </environment>`,
-            ];
+        ];
 
-            const container = new ServiceContainer();
-            container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
-            await AgentRunner.registerMemoryServices(container, memories ?? [], threadId);
-            await AgentRunner.registerSaverService(container, saverId, threadId);
+        const container = new ServiceContainer();
+        container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
+        await AgentRunner.registerMemoryServices(container, memories ?? [], threadId);
+        await AgentRunner.registerSaverService(container, saverId, threadId);
 
-            const agent = await AgentFactory.create({ agentId, container, extraPrompts, agentTools, scheduler });
-            try {
-                await agent.stream(query, callbacks, cancellationToken);
-            } finally {
-                await agent.dispose();
-            }
+        const agent = await AgentFactory.create({ agentId, container, extraPrompts, agentTools, scheduler });
+        try {
+            await agent.stream(query, callbacks, cancellationToken);
         } finally {
-            // Session lifecycle is managed by processMessageQueue via onQueueDrained,
-            // not here — ending here would remove the session from the map while
-            // queued messages are still pending.
+            await agent.dispose();
         }
     }
 

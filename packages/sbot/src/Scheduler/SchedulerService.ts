@@ -4,7 +4,7 @@ import { sessionManager } from "../UserService/SessionManager";
 import { LoggerService } from "../Core/LoggerService";
 import { config } from "../Core/Config";
 import { channelManager } from "../Channel/ChannelManager";
-import { channelThreadId, dirThreadId, sessionThreadId } from "sbot.commons";
+import { channelThreadId, sessionThreadId } from "sbot.commons";
 
 const logger = LoggerService.getLogger("SchedulerService.ts");
 
@@ -46,17 +46,15 @@ async function executeScheduler(schedulerId: number): Promise<void> {
             });
             logger.info(`Scheduler task ${tag} fired (${channelType}), session ${sessionId}`);
         } else {
-            // Session / directory mode: deliver via HTTP pipeline
-            const sessionId = scheduler.type === SchedulerType.Session    ? scheduler.targetId ?? undefined : undefined;
-            const workPath  = scheduler.type === SchedulerType.Directory  ? scheduler.targetId ?? undefined : undefined;
-            const threadId = workPath ? dirThreadId(workPath) : sessionThreadId(sessionId ?? '');
+            // Session mode: deliver via HTTP pipeline
+            const sessionId = scheduler.targetId ?? '';
+            const threadId = sessionThreadId(sessionId);
             await sessionManager.onReceiveWebMessage(
                 threadId,
                 scheduler.message,
                 sessionId,
-                workPath,
             );
-            logger.info(`Scheduler task ${tag} fired (http), sessionId=${sessionId ?? '-'} workPath=${workPath ?? '-'}`);
+            logger.info(`Scheduler task ${tag} fired (http), sessionId=${sessionId}`);
         }
     } catch (e: any) {
         logger.error(`Scheduler task ${tag} failed: ${e?.message ?? e}`);

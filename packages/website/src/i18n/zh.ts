@@ -53,6 +53,8 @@ export default {
     agent: 'Agent',
     storage: '存储',
     memory: '记忆',
+    workpath: '工作目录',
+    workpath_placeholder: '未设置（点击 … 浏览）',
     model: '模型',
     name_required: '名称不能为空',
     provider: 'Provider',

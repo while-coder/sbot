@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 export interface LocalConfig {
+  sessionId: string;
   agentId: string;
   saverId: string;
   memoryId: string | null;
@@ -18,7 +19,10 @@ export function readLocalConfig(): LocalConfig | null {
   const path = getConfigPath();
   if (!existsSync(path)) return null;
   try {
-    return JSON.parse(readFileSync(path, 'utf-8')) as LocalConfig;
+    const cfg = JSON.parse(readFileSync(path, 'utf-8'));
+    // Require sessionId — old configs without it are treated as missing
+    if (!cfg.sessionId) return null;
+    return cfg as LocalConfig;
   } catch {
     return null;
   }

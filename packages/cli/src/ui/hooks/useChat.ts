@@ -15,9 +15,7 @@ export interface UseChatReturn {
 
 export function useChat(
   client: SbotClient,
-  agentId: string,
-  saverId: string,
-  memoryId: string | null,
+  sessionId: string,
 ): UseChatReturn {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [streamingContent, setStreamingContent] = useState('');
@@ -40,7 +38,7 @@ export function useChat(
       let accumulated = '';
 
       try {
-        for await (const event of client.chatStream(query, agentId, saverId, memoryId, abort.signal)) {
+        for await (const event of client.chatStream(query, sessionId, abort.signal)) {
           if (event.type === 'stream') {
             accumulated = typeof event.content === 'string' ? event.content : '';
             setStreamingContent(accumulated);
@@ -110,7 +108,7 @@ export function useChat(
         abortRef.current = null;
       }
     },
-    [client, agentId, saverId, memoryId, streamingState],
+    [client, sessionId, streamingState],
   );
 
   const cancelRequest = useCallback(() => {
