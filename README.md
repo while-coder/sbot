@@ -208,7 +208,7 @@ Lark integration supports event deduplication, interactive card support, per-use
 
 **Ask**
 - Agents can pause mid-task and ask the user structured questions
-- Supported question types: single-select, multi-select, text input, toggle
+- Supported question types: single-select, multi-select, text input
 - Works across Web UI and Lark; the agent resumes automatically after the user responds
 
 ---
