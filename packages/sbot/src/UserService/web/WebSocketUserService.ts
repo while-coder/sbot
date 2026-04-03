@@ -40,8 +40,14 @@ export class WebSocketUserService extends ChannelSessionHandler {
 
     // ── Approval / Ask ──
 
+    /** Derive the original sessionId from the threadId ("session_xxx" → "xxx"). */
+    private get sessionId(): string | undefined {
+        const tid = this.session.threadId;
+        return tid.startsWith('session_') ? tid.slice('session_'.length) : undefined;
+    }
+
     protected async enterApproval(approvalId: string, _remainSec: number, toolCall: ChatToolCall): Promise<void> {
-        this.emit({ type: WebChatEventType.ToolCall, id: approvalId, name: toolCall.name, args: toolCall.args });
+        this.emit({ type: WebChatEventType.ToolCall, id: approvalId, name: toolCall.name, args: toolCall.args }, this.sessionId);
     }
 
     protected async exitApproval(_approvalId: string): Promise<void> {
@@ -49,7 +55,7 @@ export class WebSocketUserService extends ChannelSessionHandler {
     }
 
     protected async enterAsk(askId: string, _remainSec: number, params: AskToolParams): Promise<void> {
-        this.emit({ type: WebChatEventType.Ask, id: askId, title: params.title, questions: params.questions as any });
+        this.emit({ type: WebChatEventType.Ask, id: askId, title: params.title, questions: params.questions as any }, this.sessionId);
     }
 
     protected async exitAsk(_askId: string): Promise<void> {

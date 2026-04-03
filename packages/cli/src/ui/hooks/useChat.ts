@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { WsCommandType } from 'sbot.commons';
+import { WsCommandType, WebChatEventType } from 'sbot.commons';
 import type { SbotClient, ChatSession } from '../../api/sbotClient.js';
 import type { HistoryItem, PendingApproval, PendingAsk } from '../types.js';
 import { StreamingState } from '../types.js';
@@ -97,10 +97,10 @@ export function useChat(
       try {
         for await (const event of chat.events_iter()) {
           try {
-            if (event.type === 'stream') {
+            if (event.type === WebChatEventType.Stream) {
               accumulated = extractText(event.content);
               setStreamingContent(accumulated);
-            } else if (event.type === 'toolCall') {
+            } else if (event.type === WebChatEventType.ToolCall) {
               // Commit accumulated streaming content first
               if (accumulated) {
                 const assistantMsg: HistoryItem = {
@@ -112,16 +112,6 @@ export function useChat(
                 accumulated = '';
                 setStreamingContent('');
               }
-              // Show tool call in history
-              const toolCallId = (event as any).id ?? '';
-              const toolMsg: HistoryItem = {
-                type: 'toolCall',
-                id: uuidv4(),
-                toolCallId,
-                name: (event as any).name ?? '',
-                args: (event as any).args,
-              };
-              setHistory((prev) => [...prev, toolMsg]);
 
               // Enter approval mode and pause event loop
               const pending: PendingApproval = {
@@ -140,7 +130,7 @@ export function useChat(
 
               // Back to responding
               setStreamingState(StreamingState.Responding);
-            } else if (event.type === 'ask') {
+            } else if (event.type === WebChatEventType.Ask) {
               // Commit accumulated streaming content first
               if (accumulated) {
                 const assistantMsg: HistoryItem = {
@@ -170,13 +160,15 @@ export function useChat(
 
               // Back to responding
               setStreamingState(StreamingState.Responding);
-            } else if (event.type === 'message') {
+            } else if (event.type === WebChatEventType.Message) {
               accumulated = '';
               setStreamingContent('');
               const content = extractText((event as any).content);
               const toolCallId = (event as any).tool_call_id as string | undefined;
+              const toolCalls = (event as any).tool_calls as { id?: string; name: string; args: unknown }[] | undefined;
+
               if (toolCallId && content) {
-                // Attach result to matching tool call history item
+                // Tool result — attach to matching tool call history item
                 setHistory((prev) => prev.map((item) =>
                   item.type === 'toolCall' && item.toolCallId === toolCallId
                     ? { ...item, result: content }
@@ -190,14 +182,26 @@ export function useChat(
                 };
                 setHistory((prev) => [...prev, msg]);
               }
-            } else if (event.type === 'error') {
+
+              // AI message with tool_calls — create tool call history items
+              if (toolCalls?.length) {
+                const items: HistoryItem[] = toolCalls.map((tc) => ({
+                  type: 'toolCall' as const,
+                  id: uuidv4(),
+                  toolCallId: tc.id ?? '',
+                  name: tc.name,
+                  args: tc.args,
+                }));
+                setHistory((prev) => [...prev, ...items]);
+              }
+            } else if (event.type === WebChatEventType.Error) {
               const errMsg: HistoryItem = {
                 type: 'error',
                 id: uuidv4(),
                 message: (event as any).message ?? 'Unknown error',
               };
               setHistory((prev) => [...prev, errMsg]);
-            } else if (event.type === 'done') {
+            } else if (event.type === WebChatEventType.Done) {
               // Commit any remaining streamed content
               if (accumulated) {
                 const assistantMsg: HistoryItem = {

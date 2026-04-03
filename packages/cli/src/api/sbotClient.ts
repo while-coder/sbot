@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import WebSocket from 'ws';
 import axios, { type AxiosInstance } from 'axios';
-import { DEFAULT_PORT, WsCommandType, type Settings, type WebChatEvent } from 'sbot.commons';
+import { DEFAULT_PORT, WsCommandType, WebChatEventType, type Settings, type WebChatEvent } from 'sbot.commons';
 
 export { DEFAULT_PORT, type WebChatEvent } from 'sbot.commons';
 
@@ -270,7 +270,7 @@ export class ChatSession {
         while (this.events.length > 0) {
           const event = this.events.shift()!;
           yield event;
-          if (event.type === 'done') return;
+          if (event.type === WebChatEventType.Done) return;
         }
         if (this.done) return;
       }
