@@ -13,10 +13,10 @@ const { show } = useToast()
 
 const memories         = computed(() => store.settings.memories || {})
 const embeddingOptions = computed(() =>
-  Object.entries(store.settings.embeddings || {}).map(([id, e]) => ({ id, label: (e as any).name || id }))
+  Object.entries(store.settings.embeddings || {}).map(([id, e]) => ({ id, label: e.name || id }))
 )
 const modelOptions = computed(() =>
-  Object.entries(store.settings.models || {}).map(([id, m]) => ({ id, label: (m as any).name || id }))
+  Object.entries(store.settings.models || {}).map(([id, m]) => ({ id, label: m.name || id }))
 )
 
 const showModal   = ref(false)
@@ -102,7 +102,7 @@ async function save() {
 
 async function remove(id: string) {
   const m = memories.value[id]
-  const label = (m as any).name || id
+  const label = m.name || id
   if (!window.confirm(t('memories.confirm_delete', { name: label }))) return
   try {
     const res = await apiFetch(`/api/settings/memories/${encodeURIComponent(id)}`, 'DELETE')
@@ -161,7 +161,7 @@ async function refresh() {
                   {{ expandedMemories[id as string] ? '▼' : '▶' }}
                 </button>
               </td>
-              <td>{{ (m as any).name || id }}</td>
+              <td>{{ m.name || id }}</td>
               <td>{{ m.mode || '-' }}</td>
               <td>{{ embeddingOptions.find(e => e.id === m.embedding)?.label || m.embedding || '-' }}</td>
               <td>{{ m.maxAgeDays ?? '-' }}</td>

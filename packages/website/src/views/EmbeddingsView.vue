@@ -4,7 +4,8 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
-import type { Embedding } from '@/types'
+import { EmbeddingProvider } from '@/types'
+import type { EmbeddingConfig } from '@/types'
 
 const { t } = useI18n()
 const { show } = useToast()
@@ -14,14 +15,14 @@ const embeddings = computed(() => store.settings.embeddings || {})
 const showModal   = ref(false)
 const editingName = ref<string | null>(null)
 const showApiKey  = ref(false)
-const form = ref<{ name: string } & Embedding>({
-  name: '', provider: 'openai', baseURL: '', apiKey: '', model: '',
+const form = ref<EmbeddingConfig>({
+  name: '', provider: EmbeddingProvider.OpenAI, baseURL: '', apiKey: '', model: '',
 })
 
 function openAdd() {
   editingName.value = null
   showApiKey.value  = false
-  form.value = { name: '', provider: 'openai', baseURL: '', apiKey: '', model: '' }
+  form.value = { name: '', provider: EmbeddingProvider.OpenAI, baseURL: '', apiKey: '', model: '' }
   showModal.value = true
 }
 
@@ -30,17 +31,20 @@ function openEdit(id: string) {
   editingName.value = id
   showApiKey.value  = false
   form.value = {
-    name: (e as any).name || '',
-    provider: e.provider || 'openai',
-    baseURL: e.baseURL || '',
-    apiKey: e.apiKey || '',
-    model: e.model || '',
+    name: e.name,
+    provider: e.provider,
+    baseURL: e.baseURL,
+    apiKey: e.apiKey,
+    model: e.model,
   }
   showModal.value = true
 }
 
 async function save() {
   if (!form.value.name.trim()) { show(t('common.name_required'), 'error'); return }
+  if (!form.value.baseURL.trim()) { show(t('common.base_url_required'), 'error'); return }
+  if (!form.value.apiKey.trim()) { show(t('common.api_key_required'), 'error'); return }
+  if (!form.value.model.trim()) { show(t('common.model_required'), 'error'); return }
   try {
     const body = { ...form.value }
     const id = editingName.value
@@ -57,7 +61,7 @@ async function save() {
 
 async function remove(id: string) {
   const e = embeddings.value[id]
-  const label = (e as any).name || id
+  const label = e.name || id
   if (!window.confirm(t('embeddings.confirm_delete', { name: label }))) return
   try {
     const res = await apiFetch(`/api/settings/embeddings/${encodeURIComponent(id)}`, 'DELETE')
@@ -94,10 +98,10 @@ async function refresh() {
             <td colspan="5" style="text-align:center;color:#94a3b8;padding:40px">{{ t('embeddings.empty') }}</td>
           </tr>
           <tr v-for="(emb, id) in embeddings" :key="id">
-            <td>{{ (emb as any).name || id }}</td>
-            <td>{{ emb.provider || '-' }}</td>
-            <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ emb.baseURL || '-' }}</td>
-            <td>{{ emb.model || '-' }}</td>
+            <td>{{ emb.name || id }}</td>
+            <td>{{ emb.provider }}</td>
+            <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ emb.baseURL }}</td>
+            <td>{{ emb.model }}</td>
             <td>
               <div class="ops-cell">
                 <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
@@ -121,17 +125,17 @@ async function refresh() {
             <input v-model="form.name" :placeholder="t('embeddings.name_placeholder')" />
           </div>
           <div class="form-group">
-            <label>{{ t('common.provider') }}</label>
+            <label>{{ t('common.provider') }} *</label>
             <select v-model="form.provider">
-              <option value="openai">openai</option>
+              <option v-for="p in Object.values(EmbeddingProvider)" :key="p" :value="p">{{ p }}</option>
             </select>
           </div>
           <div class="form-group">
-            <label>{{ t('common.base_url') }}</label>
+            <label>{{ t('common.base_url') }} *</label>
             <input v-model="form.baseURL" placeholder="https://api.openai.com/v1" />
           </div>
           <div class="form-group">
-            <label>{{ t('common.api_key') }}</label>
+            <label>{{ t('common.api_key') }} *</label>
             <div class="apikey-field">
               <input v-model="form.apiKey" :type="showApiKey ? 'text' : 'password'" placeholder="sk-..." />
               <button type="button" class="apikey-toggle" @click="showApiKey = !showApiKey" :title="showApiKey ? t('common.hide') : t('common.show')">
@@ -140,7 +144,7 @@ async function refresh() {
             </div>
           </div>
           <div class="form-group">
-            <label>{{ t('common.model') }}</label>
+            <label>{{ t('common.model') }} *</label>
             <input v-model="form.model" placeholder="text-embedding-ada-002" />
           </div>
         </div>

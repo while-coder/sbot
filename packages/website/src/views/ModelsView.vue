@@ -4,7 +4,8 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
-import type { Model } from '@/types'
+import { ModelProvider } from '@/types'
+import type { ModelConfig } from '@/types'
 
 const { t } = useI18n()
 const { show } = useToast()
@@ -15,14 +16,14 @@ const models = computed(() => store.settings.models || {})
 const showModal   = ref(false)
 const editingName = ref<string | null>(null)
 const showApiKey  = ref(false)
-const form = ref<{ name: string } & Model>({
-  name: '', provider: 'openai', baseURL: '', apiKey: '', model: '', apiVersion: undefined, temperature: undefined, maxTokens: undefined,
+const form = ref<ModelConfig>({
+  name: '', provider: ModelProvider.OpenAI, baseURL: '', apiKey: '', model: '', apiVersion: undefined, temperature: undefined, maxTokens: undefined,
 })
 
-const isOllama     = computed(() => form.value.provider === 'ollama')
-const isAnthropic  = computed(() => form.value.provider === 'anthropic')
-const isGemini     = computed(() => form.value.provider === 'gemini' || form.value.provider === 'gemini-image')
-const isOpenAIResp = computed(() => form.value.provider === 'openai-response')
+const isOllama     = computed(() => form.value.provider === ModelProvider.Ollama)
+const isAnthropic  = computed(() => form.value.provider === ModelProvider.Anthropic)
+const isGemini     = computed(() => form.value.provider === ModelProvider.Gemini || form.value.provider === ModelProvider.GeminiImage)
+
 
 // Model picker
 const showPicker    = ref(false)
@@ -61,7 +62,7 @@ function pickModel(m: string) {
 function openAdd() {
   editingName.value = null
   showApiKey.value  = false
-  form.value = { name: '', provider: 'openai', baseURL: '', apiKey: '', model: '', apiVersion: undefined, temperature: undefined, maxTokens: undefined }
+  form.value = { name: '', provider: ModelProvider.OpenAI, baseURL: '', apiKey: '', model: '', apiVersion: undefined, temperature: undefined, maxTokens: undefined }
   showModal.value = true
 }
 
@@ -70,11 +71,11 @@ function openEdit(id: string) {
   editingName.value = id
   showApiKey.value  = false
   form.value = {
-    name: (m as any).name || '',
-    provider: m.provider || 'openai',
-    baseURL: m.baseURL || '',
-    apiKey: m.apiKey || '',
-    model: m.model || '',
+    name: m.name || '',
+    provider: m.provider,
+    baseURL: m.baseURL,
+    apiKey: m.apiKey,
+    model: m.model,
     apiVersion: m.apiVersion,
     temperature: m.temperature,
     maxTokens: m.maxTokens,
@@ -84,6 +85,9 @@ function openEdit(id: string) {
 
 async function save() {
   if (!form.value.name.trim()) { show(t('common.name_required'), 'error'); return }
+  if (!form.value.baseURL.trim()) { show(t('common.base_url_required'), 'error'); return }
+  if (!isOllama.value && !form.value.apiKey.trim()) { show(t('common.api_key_required'), 'error'); return }
+  if (!form.value.model.trim()) { show(t('common.model_required'), 'error'); return }
   try {
     const body: any = { ...form.value }
     if (body.temperature === undefined || body.temperature === null) delete body.temperature
@@ -103,7 +107,7 @@ async function save() {
 
 async function remove(id: string) {
   const m = models.value[id]
-  const label = (m as any).name || id
+  const label = m.name || id
   if (!window.confirm(t('models.confirm_delete', { name: label }))) return
   try {
     const res = await apiFetch(`/api/settings/models/${encodeURIComponent(id)}`, 'DELETE')
@@ -140,10 +144,10 @@ async function refresh() {
             <td colspan="5" style="text-align:center;color:#94a3b8;padding:40px">{{ t('models.empty') }}</td>
           </tr>
           <tr v-for="(m, id) in models" :key="id">
-            <td>{{ (m as any).name || id }}</td>
-            <td>{{ m.provider || '-' }}</td>
-            <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.baseURL || '-' }}</td>
-            <td>{{ m.model || '-' }}</td>
+            <td>{{ m.name || id }}</td>
+            <td>{{ m.provider }}</td>
+            <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.baseURL }}</td>
+            <td>{{ m.model }}</td>
             <td>
               <div class="ops-cell">
                 <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
@@ -190,22 +194,17 @@ async function refresh() {
             <input v-model="form.name" :placeholder="t('models.name_placeholder')" />
           </div>
           <div class="form-group">
-            <label>{{ t('common.provider') }}</label>
+            <label>{{ t('common.provider') }} *</label>
             <select v-model="form.provider">
-              <option value="openai">openai</option>
-              <option value="openai-response">openai-response</option>
-              <option value="anthropic">anthropic</option>
-              <option value="gemini">gemini</option>
-              <option value="gemini-image">gemini-image</option>
-              <option value="ollama">ollama</option>
+              <option v-for="p in Object.values(ModelProvider)" :key="p" :value="p">{{ p }}</option>
             </select>
           </div>
           <div class="form-group">
-            <label>{{ t('common.base_url') }}</label>
+            <label>{{ t('common.base_url') }} *</label>
             <input v-model="form.baseURL" :placeholder="isOllama ? 'http://localhost:11434' : isAnthropic ? 'https://api.anthropic.com' : isGemini ? '' : 'https://api.openai.com/v1'" />
           </div>
           <div v-if="!isOllama" class="form-group">
-            <label>{{ t('common.api_key') }}</label>
+            <label>{{ t('common.api_key') }} *</label>
             <div class="apikey-field">
               <input v-model="form.apiKey" :type="showApiKey ? 'text' : 'password'" :placeholder="isAnthropic ? 'sk-ant-...' : isGemini ? 'AIza...' : 'sk-...'" />
               <button type="button" class="apikey-toggle" @click="showApiKey = !showApiKey" :title="showApiKey ? t('common.hide') : t('common.show')">
@@ -214,7 +213,7 @@ async function refresh() {
             </div>
           </div>
           <div class="form-group">
-            <label>{{ t('models.model') }}</label>
+            <label>{{ t('models.model') }} *</label>
             <div class="model-field">
               <input v-model="form.model" :placeholder="isOllama ? 'llama3' : isAnthropic ? 'claude-sonnet-4-6' : isGemini ? 'gemini-2.0-flash' : 'gpt-4'" />
               <button type="button" class="model-pick-btn" @click="openPicker" :disabled="!isAnthropic && !isGemini && !form.baseURL">{{ t('models.pick') }}</button>

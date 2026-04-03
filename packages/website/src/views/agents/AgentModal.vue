@@ -14,7 +14,7 @@ const { show } = useToast()
 
 const agents      = computed(() => store.settings.agents || {})
 const modelOptions  = computed(() =>
-  Object.entries(store.settings.models || {}).map(([id, m]) => ({ id, label: (m as any).name || id }))
+  Object.entries(store.settings.models || {}).map(([id, m]) => ({ id, label: m.name || id }))
 )
 const agentOptions  = computed(() =>
   Object.entries(store.settings.agents || {}).map(([id, a]) => ({ id, label: (a as any).name || id }))

@@ -17,23 +17,37 @@ export enum ChannelType {
   Web   = "web",
 }
 
-export interface Model {
-  name?: string
-  provider?: string
-  baseURL?: string
-  apiKey?: string
-  model?: string
+export enum ModelProvider {
+  OpenAI         = "openai",
+  OpenAIResponse = "openai-response",
+  Anthropic      = "anthropic",
+  Ollama         = "ollama",
+  Gemini         = "gemini",
+  GeminiImage    = "gemini-image",
+}
+
+export interface ModelConfig {
+  name: string
+  provider: ModelProvider
+  baseURL: string
+  apiKey: string
+  model: string
   apiVersion?: string
   temperature?: number
   maxTokens?: number
 }
 
-export interface Embedding {
-  name?: string
-  provider?: string
-  baseURL?: string
-  apiKey?: string
-  model?: string
+export enum EmbeddingProvider {
+  OpenAI = "openai",
+  Ollama = "ollama",
+}
+
+export interface EmbeddingConfig {
+  name: string
+  provider: EmbeddingProvider
+  baseURL: string
+  apiKey: string
+  model: string
 }
 
 export enum MemoryMode {
@@ -106,8 +120,8 @@ export interface AgentConfig {
 }
 
 export interface SessionConfig {
-  /** 显示名称（可选，便于识别） */
-  name?: string
+  /** 显示名称 */
+  name: string
   /** 使用的 Agent UUID（对应 agents 中的 key） */
   agent: string
   /** 使用的 Saver 配置 UUID（对应 savers 中的 key） */
@@ -141,8 +155,8 @@ export interface Settings {
   /** Channel 插件列表（npm 包名或本地路径） */
   plugins?: string[]
   agents?: Record<string, AgentConfig>
-  models?: Record<string, Model>
-  embeddings?: Record<string, Embedding>
+  models?: Record<string, ModelConfig>
+  embeddings?: Record<string, EmbeddingConfig>
   memories?: Record<string, MemoryConfig>
   savers?: Record<string, SaverConfig>
   sessions?: Record<string, SessionConfig>
