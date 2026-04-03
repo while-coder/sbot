@@ -1,3 +1,5 @@
+import type { ChatMessage } from './api'
+
 /** Client → Server WS message types */
 export enum WsCommandType {
   Query    = 'query',
@@ -18,26 +20,39 @@ export enum WebChatEventType {
   Queue    = 'queue',
 }
 
-type AskQuestionSpec =
-  | { type: 'radio';    label: string; options: string[]; allowCustom?: boolean }
-  | { type: 'checkbox'; label: string; options: string[]; allowCustom?: boolean }
-  | { type: 'input';    label: string; placeholder?: string }
+export enum AskQuestionType {
+  Radio    = 'radio',
+  Checkbox = 'checkbox',
+  Input    = 'input',
+}
 
-export interface HumanEvent    { type: WebChatEventType.Human;    content: string }
-export interface StreamEvent   { type: WebChatEventType.Stream;   content: string | any[] }
-export interface MessageEvent  { type: WebChatEventType.Message;  role: string; content?: string | any[]; tool_calls?: any[]; tool_call_id?: string; thinkId?: string }
-export interface ToolCallEvent { type: WebChatEventType.ToolCall; id: string; name: string; args: Record<string, any> }
-export interface AskEvent      { type: WebChatEventType.Ask;      id: string; title?: string; questions: AskQuestionSpec[] }
-export interface DoneEvent     { type: WebChatEventType.Done;    pendingMessages?: string[] }
-export interface ErrorEvent    { type: WebChatEventType.Error;    message: string }
-export interface QueueEvent    { type: WebChatEventType.Queue;   pendingMessages: string[] }
+export type AskQuestionSpec =
+  | { type: AskQuestionType.Radio;    label: string; options: string[]; allowCustom?: boolean }
+  | { type: AskQuestionType.Checkbox; label: string; options: string[]; allowCustom?: boolean }
+  | { type: AskQuestionType.Input;    label: string; placeholder?: string }
 
-export type WebChatEvent =
-  | HumanEvent
-  | StreamEvent
-  | MessageEvent
-  | ToolCallEvent
-  | AskEvent
-  | DoneEvent
-  | ErrorEvent
-  | QueueEvent
+export interface HumanData    { content: string }
+export interface StreamData   { content: string | any[] }
+export interface MessageData  { message: ChatMessage; thinkId?: string; createdAt: number }
+export interface ToolCallData { approvalId: string; toolCallId?: string; name: string; args: Record<string, any> }
+export interface AskData      { id: string; title?: string; questions: AskQuestionSpec[] }
+export interface DoneData     { pendingMessages?: string[] }
+export interface ErrorData    { message: string }
+export interface QueueData    { pendingMessages: string[] }
+
+export type WebChatEventDataMap = {
+  [WebChatEventType.Human]:    HumanData
+  [WebChatEventType.Stream]:   StreamData
+  [WebChatEventType.Message]:  MessageData
+  [WebChatEventType.ToolCall]: ToolCallData
+  [WebChatEventType.Ask]:      AskData
+  [WebChatEventType.Done]:     DoneData
+  [WebChatEventType.Error]:    ErrorData
+  [WebChatEventType.Queue]:    QueueData
+}
+
+export type WebChatEvent<T extends WebChatEventType = WebChatEventType> = {
+  sessionId: string
+  type: T
+  data: WebChatEventDataMap[T]
+}

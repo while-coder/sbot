@@ -5,9 +5,9 @@ import { apiFetch } from '@/api'
 import { useToast } from '@/composables/useToast'
 import { useChatSocket } from '@/composables/useChatSocket'
 import ChatPanel from './ChatPanel.vue'
-import { WebChatEventType, WsCommandType, MessageRole } from 'sbot.commons'
-import type { WebChatEvent } from 'sbot.commons'
-import type { StoredMessage, ChatMessage } from '@/types'
+import { WebChatEventType, WsCommandType, MessageRole, AskQuestionType } from 'sbot.commons'
+import type { WebChatEvent, AskQuestionSpec } from 'sbot.commons'
+import type { StoredMessage } from '@/types'
 
 interface Attachment {
   name: string
@@ -53,21 +53,16 @@ const streamingContent   = ref<string | any[]>('')
 const streamingToolCalls = ref<{ name: string; args: unknown }[]>([])
 
 // ── Ask 表单状态 ──────────────────────────────────────────
-type AskQuestion =
-  | { type: 'radio';    label: string; options: string[]; allowCustom?: boolean }
-  | { type: 'checkbox'; label: string; options: string[]; allowCustom?: boolean }
-  | { type: 'input';    label: string; placeholder?: string }
-
-const pendingAsk        = ref<{ id: string; title?: string; questions: AskQuestion[] } | null>(null)
+const pendingAsk        = ref<{ id: string; title?: string; questions: AskQuestionSpec[] } | null>(null)
 const askAnswers        = ref<Record<number, string | string[]>>({})
 const askCustomInputs   = ref<Record<number, string>>({})
 
 const CUSTOM_SENTINEL = '__custom__'
 
-function initAskAnswers(questions: AskQuestion[]) {
+function initAskAnswers(questions: AskQuestionSpec[]) {
   const init: Record<number, string | string[]> = {}
   questions.forEach((q, i) => {
-    if (q.type === 'checkbox') init[i] = []
+    if (q.type === AskQuestionType.Checkbox) init[i] = []
   })
   askAnswers.value = init
   askCustomInputs.value = {}
@@ -97,7 +92,7 @@ function submitAsk() {
 }
 
 // ── 工具审批状态 ──────────────────────────────────────────
-const pendingToolCall = ref<{ id: string; name: string; args: Record<string, any> } | null>(null)
+const pendingToolCall = ref<{ approvalId: string; name: string; args: Record<string, any> } | null>(null)
 const denyCountdown   = ref(300)
 const argsExpanded    = ref(false)
 let denyTimer: ReturnType<typeof setInterval> | null = null
@@ -141,9 +136,9 @@ function stopAskCountdown() {
 function approveToolCall(approval: string) {
   if (!pendingToolCall.value) return
   stopDenyCountdown()
-  const { id } = pendingToolCall.value
+  const { approvalId } = pendingToolCall.value
   pendingToolCall.value = null
-  wsSend({ type: WsCommandType.Approval, sessionId: props.cancelSessionId, id, approval })
+  wsSend({ type: WsCommandType.Approval, sessionId: props.cancelSessionId, id: approvalId, approval })
 }
 
 // ── 历史记录 ──────────────────────────────────────────────
@@ -176,43 +171,41 @@ watch(() => props.historyUrl, () => refreshHistory())
 
 // ── WebSocket 事件处理 ────────────────────────────────────
 async function handleWsEvent(evt: WebChatEvent) {
+  console.log('[ws]', evt.type, evt.data)
+  const d = evt.data as any
   if (evt.type === WebChatEventType.Human) {
     isStreaming.value = true
     // 从排队列表移除当前消息（与 push 到 messages 同步，避免空窗期）
     if (queuedMessages.value.length > 0) queuedMessages.value.shift()
     if (props.handleHumanMessage) {
-      messages.value.push({ message: { role: MessageRole.Human, content: evt.content }, createdAt: Date.now() / 1000 })
+      messages.value.push({ message: { role: MessageRole.Human, content: d.content }, createdAt: Date.now() / 1000 })
       await nextTick()
       chatPanelRef.value?.scrollToBottom(true)
     }
   } else if (evt.type === WebChatEventType.Stream) {
-    streamingContent.value = evt.content
+    streamingContent.value = d.content
   } else if (evt.type === WebChatEventType.Message) {
-    const chatMsg: ChatMessage = {
-      role: evt.role, content: evt.content,
-      tool_calls: evt.tool_calls, tool_call_id: evt.tool_call_id,
-    }
-    const msg: StoredMessage = { message: chatMsg, createdAt: Date.now() / 1000 }
-    if (evt.thinkId) msg.thinkId = evt.thinkId
+    const msg: StoredMessage = { message: d.message, createdAt: d.createdAt ?? Date.now() / 1000 }
+    if (d.thinkId) msg.thinkId = d.thinkId
     messages.value.push(msg)
     streamingContent.value = ''
     streamingToolCalls.value = []
   } else if (evt.type === WebChatEventType.ToolCall) {
-    pendingToolCall.value = { id: evt.id, name: evt.name, args: evt.args }
+    pendingToolCall.value = { approvalId: d.approvalId, name: d.name, args: d.args }
     startDenyCountdown()
   } else if (evt.type === WebChatEventType.Ask) {
-    pendingAsk.value = { id: evt.id, title: evt.title, questions: evt.questions as AskQuestion[] }
-    initAskAnswers(evt.questions as AskQuestion[])
+    pendingAsk.value = { id: d.id, title: d.title, questions: d.questions as AskQuestionSpec[] }
+    initAskAnswers(d.questions as AskQuestionSpec[])
     startAskCountdown()
   } else if (evt.type === WebChatEventType.Queue) {
     // Queue 事件仅用于补充服务端额外的排队消息（如恢复连接后），
     // 不覆盖客户端乐观队列，避免与 Human shift 冲突
-    if (queuedMessages.value.length === 0 && evt.pendingMessages.length > 0) {
-      queuedMessages.value = evt.pendingMessages
+    if (queuedMessages.value.length === 0 && d.pendingMessages.length > 0) {
+      queuedMessages.value = d.pendingMessages
     }
   } else if (evt.type === WebChatEventType.Done) {
-    if (evt.pendingMessages) {
-      queuedMessages.value = evt.pendingMessages
+    if (d.pendingMessages) {
+      queuedMessages.value = d.pendingMessages
     }
     stopDenyCountdown()
     stopAskCountdown()
@@ -231,7 +224,7 @@ async function handleWsEvent(evt: WebChatEvent) {
     pendingToolCall.value = null
     pendingAsk.value = null
     queuedMessages.value = []
-    emit('error', evt.message)
+    emit('error', d.message)
   }
 }
 
@@ -280,7 +273,7 @@ const queuedMessages = ref<string[]>([])
 
 function restoreSessionStatus(status: {
   pendingApproval?: { id: string; tool: { id?: string; name: string; args: Record<string, any> }; startedAt: string }
-  pendingAsk?: { id: string; title?: string; questions: AskQuestion[]; startedAt: string }
+  pendingAsk?: { id: string; title?: string; questions: AskQuestionSpec[]; startedAt: string }
   pendingMessages?: string[]
 } | null) {
   stopDenyCountdown()
@@ -302,7 +295,7 @@ function restoreSessionStatus(status: {
   queuedMessages.value = status.pendingMessages ?? []
   if (status.pendingApproval) {
     const { tool, startedAt } = status.pendingApproval
-    pendingToolCall.value = { id: status.pendingApproval.id, name: tool.name, args: tool.args }
+    pendingToolCall.value = { approvalId: status.pendingApproval.id, name: tool.name, args: tool.args }
     startDenyCountdown(remainSeconds(startedAt, 300))
   }
   if (status.pendingAsk) {
@@ -324,8 +317,8 @@ defineExpose({ handleWsEvent, pushMessage, setSending, refreshHistory, clearHist
   <div v-if="pendingAsk" class="ask-form">
     <div v-if="pendingAsk.title" class="ask-title">{{ pendingAsk.title }}</div>
     <div v-for="(q, i) in pendingAsk.questions" :key="i" class="ask-question">
-      <div v-if="q.type !== 'toggle'" class="ask-label">{{ q.label }}</div>
-      <div v-if="q.type === 'radio'" class="ask-options">
+      <div class="ask-label">{{ q.label }}</div>
+      <div v-if="q.type === AskQuestionType.Radio" class="ask-options">
         <label v-for="opt in q.options" :key="opt" class="ask-option">
           <input type="radio" :name="`ask_${pendingAsk.id}_${i}`" :value="opt" v-model="askAnswers[i]" />
           {{ opt }}
@@ -339,7 +332,7 @@ defineExpose({ handleWsEvent, pushMessage, setSending, refreshHistory, clearHist
             v-model="askCustomInputs[i]" :placeholder="t('chat.ask_other_placeholder')" />
         </template>
       </div>
-      <div v-else-if="q.type === 'checkbox'" class="ask-options">
+      <div v-else-if="q.type === AskQuestionType.Checkbox" class="ask-options">
         <label v-for="opt in q.options" :key="opt" class="ask-option">
           <input type="checkbox" :value="opt" v-model="(askAnswers[i] as string[])" />
           {{ opt }}

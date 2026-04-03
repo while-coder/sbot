@@ -63,7 +63,7 @@ export function createWebProcessAIHandler(): ProcessAIHandler {
         const sessionId = args?.sessionId as string;
 
         // Echo the human message back to the WebSocket client
-        httpServer.broadcastToWs(JSON.stringify({ type: WebChatEventType.Human, content: query, sessionId }));
+        httpServer.broadcastToWs(JSON.stringify({ sessionId, type: WebChatEventType.Human, data: { content: query } }));
 
         const sessionCfg = sessionId ? config.getSession(sessionId) : undefined;
         if (!sessionCfg) throw new Error(`Session "${sessionId}" not found`);

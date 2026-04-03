@@ -97,8 +97,9 @@ export function useChat(
       try {
         for await (const event of chat.events_iter()) {
           try {
+            const d = (event as any).data;
             if (event.type === WebChatEventType.Stream) {
-              accumulated = extractText(event.content);
+              accumulated = extractText(d.content);
               setStreamingContent(accumulated);
             } else if (event.type === WebChatEventType.ToolCall) {
               // Commit accumulated streaming content first
@@ -115,9 +116,9 @@ export function useChat(
 
               // Enter approval mode and pause event loop
               const pending: PendingApproval = {
-                id: (event as any).id,
-                name: (event as any).name ?? '',
-                args: (event as any).args ?? {},
+                id: d.id,
+                name: d.name ?? '',
+                args: d.args ?? {},
               };
               setPendingApproval(pending);
               setStreamingState(StreamingState.Approval);
@@ -145,9 +146,9 @@ export function useChat(
 
               // Enter ask mode and pause event loop
               const pending: PendingAsk = {
-                id: (event as any).id,
-                title: (event as any).title,
-                questions: (event as any).questions ?? [],
+                id: d.id,
+                title: d.title,
+                questions: d.questions ?? [],
               };
               setPendingAsk(pending);
               setStreamingState(StreamingState.Asking);
@@ -163,9 +164,10 @@ export function useChat(
             } else if (event.type === WebChatEventType.Message) {
               accumulated = '';
               setStreamingContent('');
-              const content = extractText((event as any).content);
-              const toolCallId = (event as any).tool_call_id as string | undefined;
-              const toolCalls = (event as any).tool_calls as { id?: string; name: string; args: unknown }[] | undefined;
+              const msg = d.message;
+              const content = extractText(msg?.content);
+              const toolCallId = msg?.tool_call_id as string | undefined;
+              const toolCalls = msg?.tool_calls as { id?: string; name: string; args: unknown }[] | undefined;
 
               if (toolCallId && content) {
                 // Tool result — attach to matching tool call history item
@@ -198,7 +200,7 @@ export function useChat(
               const errMsg: HistoryItem = {
                 type: 'error',
                 id: uuidv4(),
-                message: (event as any).message ?? 'Unknown error',
+                message: d.message ?? 'Unknown error',
               };
               setHistory((prev) => [...prev, errMsg]);
             } else if (event.type === WebChatEventType.Done) {
