@@ -9,7 +9,6 @@ export {
     Parsers,
     ICommand,
     CommandContext,
-    SaverContext,
 } from './CommandDecorators';
 
 export { CommandRegistry } from './CommandRegistry';

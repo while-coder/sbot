@@ -1,9 +1,3 @@
-/** 命令可使用的会话 saver 上下文，由 UserService 在分发命令前解析 */
-export interface SaverContext {
-    saverId: string;
-    threadId: string;
-}
-
 /**
  * 命令执行上下文（内部使用）
  */

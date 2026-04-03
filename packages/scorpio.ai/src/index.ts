@@ -187,7 +187,6 @@ export {
   // 接口和类
   ICommand,
   CommandContext,
-  SaverContext,
   CommandRegistry,
 } from "./Command";
 
