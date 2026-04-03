@@ -18,20 +18,14 @@ interface Attachment {
 
 const props = withDefaults(defineProps<{
   historyUrl: string | null
-  emptyText?: string
   showAttachments?: boolean
-  /** 是否从 ws Human 事件推消息（ChatView=true；Channel=false，由父组件乐观推送） */
-  handleHumanMessage?: boolean
   /** sessionId，有值时显示中断按钮 */
   cancelSessionId?: string
 }>(), {
-  handleHumanMessage: true,
 })
 
 const emit = defineEmits<{
   send: [query: string, attachments: Attachment[]]
-  done: []
-  error: [message: string]
 }>()
 
 const { t } = useI18n()
@@ -47,10 +41,8 @@ const thinksUrlPrefix = computed<string | null>(() => {
 
 // ── 聊天状态 ──────────────────────────────────────────────
 const messages           = ref<StoredMessage[]>([])
-const chatSending        = ref(false)
 const isStreaming        = ref(false)
 const streamingContent   = ref<string | any[]>('')
-const streamingToolCalls = ref<{ name: string; args: unknown }[]>([])
 
 // ── Ask 表单状态 ──────────────────────────────────────────
 const pendingAsk        = ref<{ id: string; title?: string; questions: AskQuestionSpec[] } | null>(null)
@@ -177,11 +169,9 @@ async function handleWsEvent(evt: WebChatEvent) {
     isStreaming.value = true
     // 从排队列表移除当前消息（与 push 到 messages 同步，避免空窗期）
     if (queuedMessages.value.length > 0) queuedMessages.value.shift()
-    if (props.handleHumanMessage) {
-      messages.value.push({ message: { role: MessageRole.Human, content: d.content }, createdAt: Date.now() / 1000 })
-      await nextTick()
-      chatPanelRef.value?.scrollToBottom(true)
-    }
+    messages.value.push({ message: { role: MessageRole.Human, content: d.content }, createdAt: Date.now() / 1000 })
+    await nextTick()
+    chatPanelRef.value?.scrollToBottom(true)
   } else if (evt.type === WebChatEventType.Stream) {
     streamingContent.value = d.content
   } else if (evt.type === WebChatEventType.Message) {
@@ -189,7 +179,6 @@ async function handleWsEvent(evt: WebChatEvent) {
     if (d.thinkId) msg.thinkId = d.thinkId
     messages.value.push(msg)
     streamingContent.value = ''
-    streamingToolCalls.value = []
   } else if (evt.type === WebChatEventType.ToolCall) {
     pendingToolCall.value = { approvalId: d.approvalId, name: d.name, args: d.args }
     startDenyCountdown()
@@ -213,30 +202,18 @@ async function handleWsEvent(evt: WebChatEvent) {
     pendingAsk.value = null
     if (queuedMessages.value.length === 0) {
       isStreaming.value = false
-      chatSending.value = false
     }
-    emit('done')
   } else if (evt.type === WebChatEventType.Error) {
     isStreaming.value = false
-    chatSending.value = false
     stopDenyCountdown()
     stopAskCountdown()
     pendingToolCall.value = null
     pendingAsk.value = null
     queuedMessages.value = []
-    emit('error', d.message)
   }
 }
 
 // ── 公开接口 ──────────────────────────────────────────────
-function pushMessage(msg: StoredMessage) {
-  messages.value.push(msg)
-}
-
-function setSending(val: boolean) {
-  chatSending.value = val
-}
-
 function scrollToBottom(force?: boolean) {
   chatPanelRef.value?.scrollToBottom(force)
 }
@@ -244,7 +221,6 @@ function scrollToBottom(force?: boolean) {
 /** 重置流式/发送状态（ws 断连时调用） */
 function reset() {
   isStreaming.value = false
-  chatSending.value = false
   stopDenyCountdown()
   stopAskCountdown()
   pendingToolCall.value = null
@@ -283,15 +259,12 @@ function restoreSessionStatus(status: {
   askAnswers.value = {}
   askCustomInputs.value = {}
   streamingContent.value = ''
-  streamingToolCalls.value = []
   queuedMessages.value = []
   if (!status) {
     isStreaming.value = false
-    chatSending.value = false
     return
   }
   isStreaming.value = true
-  chatSending.value = true
   queuedMessages.value = status.pendingMessages ?? []
   if (status.pendingApproval) {
     const { tool, startedAt } = status.pendingApproval
@@ -310,7 +283,7 @@ function addQueuedMessage(query: string) {
   queuedMessages.value.push(query)
 }
 
-defineExpose({ handleWsEvent, pushMessage, setSending, refreshHistory, clearHistory, scrollToBottom, reset, cleanup, restoreSessionStatus, addQueuedMessage })
+defineExpose({ handleWsEvent, refreshHistory, clearHistory, scrollToBottom, reset, cleanup, restoreSessionStatus, addQueuedMessage })
 </script>
 
 <template>
@@ -380,10 +353,7 @@ defineExpose({ handleWsEvent, pushMessage, setSending, refreshHistory, clearHist
     :messages="messages"
     :is-streaming="isStreaming"
     :streaming-content="streamingContent"
-    :streaming-tool-calls="streamingToolCalls"
-    :chat-sending="chatSending"
-    :queued-messages="queuedMessages"
-    :empty-text="emptyText"
+:queued-messages="queuedMessages"
     :show-attachments="showAttachments"
     :on-cancel="cancelSessionId && isStreaming ? cancelProcessing : undefined"
     :thinks-url-prefix="thinksUrlPrefix"
@@ -466,6 +436,5 @@ defineExpose({ handleWsEvent, pushMessage, setSending, refreshHistory, clearHist
 }
 .ask-input:focus { border-color: #38bdf8; }
 .ask-custom-input { margin-top: 4px; margin-left: 20px; }
-.ask-toggle { font-weight: 500; color: #075985; }
 .ask-footer { display: flex; justify-content: flex-end; padding-top: 4px; }
 </style>

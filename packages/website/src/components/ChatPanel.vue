@@ -20,16 +20,12 @@ const props = withDefaults(defineProps<{
   messages: StoredMessage[]
   isStreaming: boolean
   streamingContent: string | any[]
-  streamingToolCalls: { name: string; args: unknown }[]
-  chatSending: boolean
   queuedMessages?: string[]
   showAttachments?: boolean
-  emptyText?: string
   onCancel?: () => void
   thinksUrlPrefix?: string | null
 }>(), {
   showAttachments: false,
-  emptyText: '',
   thinksUrlPrefix: null,
 })
 
@@ -228,7 +224,7 @@ defineExpose({ scrollToBottom })
     <div ref="messagesEl" style="flex:1;overflow-y:auto">
       <div class="history-messages">
         <template v-if="messages.length === 0 && !isStreaming">
-          <div style="text-align:center;color:#94a3b8;padding:60px">{{ emptyText || t('chat.no_history') }}</div>
+          <div style="text-align:center;color:#94a3b8;padding:60px">{{ t('chat.no_history') }}</div>
         </template>
 
         <template v-for="(msg, idx) in messages" :key="idx">
@@ -313,17 +309,6 @@ defineExpose({ scrollToBottom })
             <span v-else style="color:#94a3b8">{{ t('chat.thinking') }}</span>
             <div v-for="(img, imgIdx) in getInlineImages(streamingContent)" :key="imgIdx" class="inline-image">
               <img :src="`data:${img.mimeType};base64,${img.data}`" class="inline-image-thumb" @click="openLightbox(img.mimeType, img.data)" />
-            </div>
-          </div>
-          <div v-for="(tc, i) in streamingToolCalls" :key="i" class="msg-tool-calls">
-            <div class="msg-role">{{ t('chat.tool_call') }}</div>
-            <div class="tool-call-item">
-              <div class="tool-call-header expanded" @click="toggleToolCall($event.currentTarget as HTMLElement)">
-                <span class="tool-call-name">{{ tc.name }}</span>
-              </div>
-              <div class="tool-call-detail show">
-                <div class="tool-call-args">{{ JSON.stringify(tc.args, null, 2) }}</div>
-              </div>
             </div>
           </div>
         </div>
