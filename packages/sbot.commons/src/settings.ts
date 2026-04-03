@@ -133,8 +133,8 @@ export interface SessionConfig {
 }
 
 export interface ChannelConfig {
-  /** 显示名称（可选，便于识别） */
-  name?: string
+  /** 显示名称 */
+  name: string
   /** 频道类型（匹配插件 type，如 "lark", "slack", "telegram"） */
   type: string
   /** 该频道使用的 Agent UUID（对应 agents 中的 key） */
@@ -144,7 +144,7 @@ export interface ChannelConfig {
   /** 使用的记忆配置 UUID 列表（对应 memories 中的 key） */
   memories: string[]
   /** 插件特有配置（appId, botToken 等） */
-  config?: Record<string, unknown>
+  config: Record<string, any>
 }
 
 export interface Settings {

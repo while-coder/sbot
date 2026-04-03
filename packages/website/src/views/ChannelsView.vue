@@ -57,7 +57,7 @@ const currentSchema = computed(() => {
 const channels = computed(() => store.settings.channels || {})
 const agentOptions  = computed(() => Object.entries(store.settings.agents   || {}).map(([id, a]) => ({ id, label: (a as any).name  || id })))
 const saverOptions  = computed(() => Object.entries(store.settings.savers   || {}).map(([id, s]) => ({ id, label: (s as any).name  || id })))
-const memoryOptions = computed(() => Object.entries(store.settings.memories  || {}).map(([id, m]) => ({ id, label: (m as any).name  || id })))
+const memoryOptions = computed(() => Object.entries(store.settings.memories  || {}).map(([id, m]) => ({ id, label: m.name  || id })))
 
 const saverViewModal = ref<InstanceType<typeof SaverViewModal>>()
 const pathPicker     = ref<InstanceType<typeof PathPickerModal>>()
@@ -113,8 +113,8 @@ function threadId(channelId: string, c: any, sessionId: string): string {
 
 const showModal = ref(false)
 const editingId = ref<string | null>(null)
-const form = ref<{ name: string; type: string; pluginConfig: Record<string, any>; agent: string; saver: string; memories: string[] }>({
-  name: '', type: '', pluginConfig: {}, agent: '', saver: '', memories: [],
+const form = ref<ChannelConfig>({
+  name: '', type: '', config: {}, agent: '', saver: '', memories: [],
 })
 
 async function loadChannelData(id: string) {
@@ -124,15 +124,9 @@ async function loadChannelData(id: string) {
       apiFetch(`/api/channel-sessions?channelId=${encodeURIComponent(id)}`),
       apiFetch(`/api/channel-users?channelId=${encodeURIComponent(id)}`),
     ])
-    sessionMap.value[id] = (sessRes.data || []).map((s: any) => {
-      let memories: string[] = []
-      if (Array.isArray(s.memories)) {
-        memories = s.memories
-      } else if (typeof s.memories === 'string' && s.memories) {
-        try { memories = JSON.parse(s.memories) } catch { memories = [s.memories] }
-      }
-      return { ...s, memories, useChannelMemories: !!s.useChannelMemories }
-    })
+    sessionMap.value[id] = (sessRes.data || []).map((s: any) => ({
+      ...s, memories: s.memories || [], useChannelMemories: !!s.useChannelMemories,
+    }))
     userMap.value[id]    = userRes.data || []
   } catch (e: any) {
     show(e.message, 'error')
@@ -197,7 +191,7 @@ async function triggerAction(key: string) {
 
   actionState.value[key] = { loading: true }
   try {
-    const res = await apiFetch(`/api/channels/${channelId}/qrcode/${key}`, 'POST', form.value.pluginConfig)
+    const res = await apiFetch(`/api/channels/${channelId}/qrcode/${key}`, 'POST', form.value.config)
     const data = res.data
     if (data?.url) {
       actionState.value[key] = { loading: false, qrUrl: data.url, qrType: data.type || 'link', status: 'wait' }
@@ -221,7 +215,7 @@ async function waitForQRConfirm(key: string, channelId: string) {
     if (data?.status === 'confirmed') {
       s.qrUrl = undefined
       if (data.credentials) {
-        form.value.pluginConfig[key] = data.credentials
+        form.value.config[key] = data.credentials
         const c = store.settings.channels?.[channelId]
         if (c) {
           if (!c.config) c.config = {}
@@ -242,7 +236,7 @@ async function waitForQRConfirm(key: string, channelId: string) {
 function openAdd() {
   editingId.value = null
   clearActionState()
-  form.value = { name: '', type: plugins.value[0]?.type || '', pluginConfig: {}, agent: '', saver: '', memories: [] }
+  form.value = { name: '', type: plugins.value[0]?.type || '', config: {}, agent: '', saver: '', memories: [] }
   showModal.value = true
 }
 
@@ -250,44 +244,44 @@ function openEdit(id: string) {
   const c = channels.value[id]
   editingId.value = id
   clearActionState()
-  form.value = { name: c.name || '', type: c.type || '', pluginConfig: { ...(c.config ?? {}) }, agent: c.agent, saver: c.saver, memories: c.memories || [] }
+  form.value = { name: c.name, type: c.type, config: { ...c.config }, agent: c.agent, saver: c.saver, memories: c.memories || [] }
   showModal.value = true
 }
 
 async function save() {
+  if (!form.value.name.trim()) { show(t('common.name_required'), 'error'); return }
   if (!form.value.agent) { show(t('channels.select_agent'), 'error'); return }
   if (!form.value.saver) { show(t('channels.select_saver'), 'error'); return }
   try {
     const validIds = new Set(memoryOptions.value.map(m => m.id))
-    const pluginConfig: Record<string, unknown> = {}
+    const processedConfig: Record<string, any> = {}
     const schema = currentSchema.value
-    for (const [key, val] of Object.entries(form.value.pluginConfig)) {
+    for (const [key, val] of Object.entries(form.value.config)) {
       const ft = schema[key]?.type
       if (ft === 'qrcode') {
-        // QR code fields store nested credentials — persist the object as-is
-        if (val && typeof val === 'object') pluginConfig[key] = val
+        if (val && typeof val === 'object') processedConfig[key] = val
         continue
       }
-      if (val !== '' && val !== undefined && val !== null) pluginConfig[key] = typeof val === 'string' ? val.trim() : val
+      if (val !== '' && val !== undefined && val !== null) processedConfig[key] = typeof val === 'string' ? val.trim() : val
     }
-    const config: ChannelConfig = {
+    const payload: ChannelConfig = {
+      name: form.value.name.trim(),
       type: form.value.type,
       agent: form.value.agent,
       saver: form.value.saver,
       memories: form.value.memories.filter(id => validIds.has(id)),
-      config: pluginConfig,
+      config: processedConfig,
     }
-    if (form.value.name.trim()) config.name = form.value.name.trim()
 
     if (editingId.value) {
-      await apiFetch(`/api/settings/channels/${editingId.value}`, 'PUT', config)
-      if (store.settings.channels) Object.assign(store.settings.channels[editingId.value], config)
+      await apiFetch(`/api/settings/channels/${editingId.value}`, 'PUT', payload)
+      if (store.settings.channels) Object.assign(store.settings.channels[editingId.value], payload)
     } else {
-      const res = await apiFetch('/api/settings/channels', 'POST', config)
+      const res = await apiFetch('/api/settings/channels', 'POST', payload)
       const id = res.data?.id
       if (id) {
         if (!store.settings.channels) store.settings.channels = {}
-        store.settings.channels[id] = config
+        store.settings.channels[id] = payload
       }
     }
     show(t('common.saved'))
@@ -348,9 +342,9 @@ async function refresh() {
                   {{ expandedChannels[id as string] ? '▼' : '▶' }}
                 </button>
               </td>
-              <td>{{ c.name || '-' }}</td>
+              <td>{{ c.name }}</td>
               <td style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ id }}</td>
-              <td>{{ c.type || '-' }}</td>
+              <td>{{ c.type }}</td>
               <td>{{ agentOptions.find(a => a.id === c.agent)?.label || c.agent || '-' }}</td>
               <td>{{ c.saver ? (saverOptions.find(s => s.id === c.saver)?.label || c.saver) : '-' }}</td>
               <td>{{ c.memories?.length ? c.memories.map(id => memoryOptions.find(m => m.id === id)?.label || id).join(', ') : '-' }}</td>
@@ -470,12 +464,12 @@ async function refresh() {
             <input :value="editingId" disabled style="font-family:monospace;font-size:11px" />
           </div>
           <div class="form-group">
-            <label>{{ t('channels.display_name') }}</label>
+            <label>{{ t('channels.display_name') }} *</label>
             <input v-model="form.name" :placeholder="t('channels.display_name_placeholder')" />
           </div>
           <div class="form-group">
             <label>{{ t('channels.channel_type') }} *</label>
-            <select v-model="form.type" @change="form.pluginConfig = {}" :disabled="!!editingId">
+            <select v-model="form.type" @change="form.config = {}" :disabled="!!editingId">
               <option v-for="p in plugins" :key="p.type" :value="p.type">{{ p.type }}</option>
             </select>
           </div>
@@ -497,19 +491,19 @@ async function refresh() {
             </div>
             <div v-else class="form-group">
               <label>{{ field.label }}{{ field.required ? ' *' : '' }}</label>
-              <select v-if="field.type === 'select'" v-model="form.pluginConfig[key]">
+              <select v-if="field.type === 'select'" v-model="form.config[key]">
                 <option v-for="opt in field.options" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
               </select>
               <label v-else-if="field.type === 'boolean'" class="toggle-label">
-                <input type="checkbox" v-model="form.pluginConfig[key]" />
+                <input type="checkbox" v-model="form.config[key]" />
                 <span>{{ field.description || '' }}</span>
               </label>
-              <input v-else-if="field.type === 'number'" type="number" v-model.number="form.pluginConfig[key]" :placeholder="field.description || ''" />
+              <input v-else-if="field.type === 'number'" type="number" v-model.number="form.config[key]" :placeholder="field.description || ''" />
               <div v-else-if="field.type === 'password'" class="apikey-field">
-                <input v-model="form.pluginConfig[key]" :placeholder="field.description || ''" :type="passwordVisible[key] ? 'text' : 'password'" />
+                <input v-model="form.config[key]" :placeholder="field.description || ''" :type="passwordVisible[key] ? 'text' : 'password'" />
                 <button type="button" class="apikey-toggle" @click="passwordVisible[key] = !passwordVisible[key]" :title="passwordVisible[key] ? t('common.hide') : t('common.show')">{{ passwordVisible[key] ? t('common.hide') : t('common.show') }}</button>
               </div>
-              <input v-else v-model="form.pluginConfig[key]" :placeholder="field.description || ''" />
+              <input v-else v-model="form.config[key]" :placeholder="field.description || ''" />
             </div>
           </template>
           <div class="form-group">
