@@ -30,7 +30,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ item, isInputActive })
     case 'toolCall':
       return (
         <Box marginBottom={1}>
-          <ToolCallItem name={item.name} args={item.args} isInputActive={isInputActive} />
+          <ToolCallItem name={item.name} args={item.args} result={item.result} isInputActive={isInputActive} />
         </Box>
       );
 

@@ -13,8 +13,10 @@ export interface AssistantMessage {
 export interface ToolCallMessage {
   type: 'toolCall';
   id: string;
+  toolCallId: string;
   name: string;
   args: unknown;
+  result?: string;
 }
 
 export interface ErrorMessage {

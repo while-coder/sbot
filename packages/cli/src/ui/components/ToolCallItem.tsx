@@ -6,10 +6,11 @@ import { useKeypress, type Key } from '../hooks/useKeypress.js';
 interface ToolCallItemProps {
   name: string;
   args: unknown;
+  result?: string;
   isInputActive: boolean;
 }
 
-export const ToolCallItem: React.FC<ToolCallItemProps> = ({ name, args, isInputActive }) => {
+export const ToolCallItem: React.FC<ToolCallItemProps> = ({ name, args, result, isInputActive }) => {
   const [expanded, setExpanded] = useState(false);
 
   const handleKeypress = useCallback(
@@ -30,10 +31,18 @@ export const ToolCallItem: React.FC<ToolCallItemProps> = ({ name, args, isInputA
     <Box flexDirection="column" marginY={0}>
       <Text color={theme.status.warning}>
         {expanded ? '▼' : '▶'} [tool_call] {name}
+        {result ? ' ✓' : ''}
       </Text>
       {expanded && (
-        <Box marginLeft={2} marginBottom={1}>
+        <Box flexDirection="column" marginLeft={2} marginBottom={1}>
+          <Text color={theme.text.muted} bold>Args:</Text>
           <Text color={theme.text.muted}>{argsText}</Text>
+          {result && (
+            <>
+              <Text color={theme.status.success} bold>Result:</Text>
+              <Text color={theme.text.muted}>{result}</Text>
+            </>
+          )}
         </Box>
       )}
     </Box>

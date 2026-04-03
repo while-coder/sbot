@@ -81,9 +81,11 @@ export function useChat(
                 setStreamingContent('');
               }
               // Show tool call in history
+              const toolCallId = (event as any).id ?? '';
               const toolMsg: HistoryItem = {
                 type: 'toolCall',
                 id: uuidv4(),
+                toolCallId,
                 name: (event as any).name ?? '',
                 args: (event as any).args,
               };
@@ -140,7 +142,15 @@ export function useChat(
               accumulated = '';
               setStreamingContent('');
               const content = extractText((event as any).content);
-              if (content) {
+              const toolCallId = (event as any).tool_call_id as string | undefined;
+              if (toolCallId && content) {
+                // Attach result to matching tool call history item
+                setHistory((prev) => prev.map((item) =>
+                  item.type === 'toolCall' && item.toolCallId === toolCallId
+                    ? { ...item, result: content }
+                    : item,
+                ));
+              } else if (content) {
                 const msg: HistoryItem = {
                   type: 'assistant',
                   id: uuidv4(),
