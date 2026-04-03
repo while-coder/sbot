@@ -10,11 +10,8 @@ export enum EmbeddingProvider {
  * Embedding 配置接口
  */
 export interface EmbeddingConfig {
-  provider?: EmbeddingProvider | string;
-  apiKey?: string;
-  baseURL?: string;
-  model?: string;
-  // Azure OpenAI specific
-  azureDeployment?: string;
-  azureApiVersion?: string;
+  provider: EmbeddingProvider;
+  apiKey: string;
+  baseURL: string;
+  model: string;
 }

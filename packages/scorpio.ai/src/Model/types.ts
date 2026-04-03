@@ -14,7 +14,7 @@ export enum ModelProvider {
  * 模型配置接口
  */
 export interface ModelConfig {
-  provider: ModelProvider | string;
+  provider: ModelProvider;
   apiKey: string;
   baseURL: string;
   model: string;
