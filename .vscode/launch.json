@@ -27,7 +27,7 @@
       "name": "Launch cli",
       "program": "${workspaceFolder}/packages/cli/debug/main.js",
       "preLaunchTask": "debug:cli",
-      "console": "integratedTerminal",
+      "console": "externalTerminal",
       "sourceMaps": true,
       "outFiles": [
         "${workspaceFolder}/packages/cli/debug/**/*.js",

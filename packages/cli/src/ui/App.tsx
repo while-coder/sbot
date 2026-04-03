@@ -8,6 +8,7 @@ import { Header } from './components/Header.js';
 import { Footer } from './components/Footer.js';
 import { MessageList } from './components/MessageList.js';
 import { InputPrompt } from './components/InputPrompt.js';
+import { ErrorBoundary } from './components/ErrorBoundary.js';
 
 interface AppProps {
   client: SbotClient;
@@ -54,22 +55,24 @@ export const App: React.FC<AppProps> = ({ client, sessionId, agentName, saverNam
   useKeypress(handleGlobalKey, { isActive: true });
 
   return (
-    <Box flexDirection="column" height="100%">
-      <Header
-        agentName={agentName}
-        saverName={saverName}
-      />
-      <MessageList
-        history={history}
-        streamingContent={streamingContent}
-        isInputActive={isIdle}
-      />
-      <InputPrompt
-        isActive={isIdle}
-        onSubmit={handleSubmit}
-        onCancel={handleCancel}
-      />
-      <Footer streamingState={streamingState} />
-    </Box>
+    <ErrorBoundary>
+      <Box flexDirection="column" height="100%">
+        <Header
+          agentName={agentName}
+          saverName={saverName}
+        />
+        <MessageList
+          history={history}
+          streamingContent={streamingContent}
+          isInputActive={isIdle}
+        />
+        <InputPrompt
+          isActive={isIdle}
+          onSubmit={handleSubmit}
+          onCancel={handleCancel}
+        />
+        <Footer streamingState={streamingState} />
+      </Box>
+    </ErrorBoundary>
   );
 };

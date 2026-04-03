@@ -1,4 +1,13 @@
 #!/usr/bin/env node
+
+// Global error handlers — prevent uncaught errors from killing the CLI
+process.on('uncaughtException', (err) => {
+  process.stderr.write(`[sbot-cli] uncaught error: ${err.message}\n`);
+});
+process.on('unhandledRejection', (reason) => {
+  process.stderr.write(`[sbot-cli] unhandled rejection: ${reason}\n`);
+});
+
 import React, { useState, useMemo } from 'react';
 import { render, Box, Text } from 'ink';
 import Spinner from 'ink-spinner';
@@ -128,6 +137,7 @@ function Boot() {
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
+console.log('[sbot-cli] starting...');
 const { waitUntilExit } = render(
   <KeypressProvider>
     <Boot />
@@ -135,6 +145,6 @@ const { waitUntilExit } = render(
 );
 
 waitUntilExit().then(() => process.exit(0)).catch((err) => {
-  console.error(err);
-  process.exit(1);
+  process.stderr.write(`[sbot-cli] fatal: ${err?.message ?? err}\n`);
+  process.exit(0);
 });

@@ -13,6 +13,17 @@ export interface UseChatReturn {
   clearHistory: () => void;
 }
 
+/** Extract plain text from content that may be a string or an array of content blocks */
+function extractText(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((block: any) => (typeof block === 'string' ? block : block?.text ?? ''))
+      .join('');
+  }
+  return '';
+}
+
 export function useChat(
   client: SbotClient,
   sessionId: string,
@@ -39,58 +50,67 @@ export function useChat(
 
       try {
         for await (const event of client.chatStream(query, sessionId, abort.signal)) {
-          if (event.type === 'stream') {
-            accumulated = typeof event.content === 'string' ? event.content : '';
-            setStreamingContent(accumulated);
-          } else if (event.type === 'tool_call') {
-            // Commit accumulated streaming content first
-            if (accumulated) {
-              const assistantMsg: HistoryItem = {
-                type: 'assistant',
+          try {
+            if (event.type === 'stream') {
+              accumulated = extractText(event.content);
+              setStreamingContent(accumulated);
+            } else if (event.type === 'tool_call') {
+              // Commit accumulated streaming content first
+              if (accumulated) {
+                const assistantMsg: HistoryItem = {
+                  type: 'assistant',
+                  id: uuidv4(),
+                  content: accumulated,
+                };
+                setHistory((prev) => [...prev, assistantMsg]);
+                accumulated = '';
+                setStreamingContent('');
+              }
+              const toolMsg: HistoryItem = {
+                type: 'tool_call',
                 id: uuidv4(),
-                content: accumulated,
+                name: event.name ?? '',
+                args: event.args,
               };
-              setHistory((prev) => [...prev, assistantMsg]);
+              setHistory((prev) => [...prev, toolMsg]);
+            } else if (event.type === 'message') {
               accumulated = '';
               setStreamingContent('');
-            }
-            const toolMsg: HistoryItem = {
-              type: 'tool_call',
-              id: uuidv4(),
-              name: event.name ?? '',
-              args: event.args,
-            };
-            setHistory((prev) => [...prev, toolMsg]);
-          } else if (event.type === 'message') {
-            accumulated = '';
-            setStreamingContent('');
-            const content = (event.content as string) ?? '';
-            if (content) {
-              const msg: HistoryItem = {
-                type: 'assistant',
+              const content = extractText(event.content);
+              if (content) {
+                const msg: HistoryItem = {
+                  type: 'assistant',
+                  id: uuidv4(),
+                  content,
+                };
+                setHistory((prev) => [...prev, msg]);
+              }
+            } else if (event.type === 'error') {
+              const errMsg: HistoryItem = {
+                type: 'error',
                 id: uuidv4(),
-                content,
+                message: event.message ?? 'Unknown error',
               };
-              setHistory((prev) => [...prev, msg]);
+              setHistory((prev) => [...prev, errMsg]);
+            } else if (event.type === 'done') {
+              // Commit any remaining streamed content
+              if (accumulated) {
+                const assistantMsg: HistoryItem = {
+                  type: 'assistant',
+                  id: uuidv4(),
+                  content: accumulated,
+                };
+                setHistory((prev) => [...prev, assistantMsg]);
+              }
+              break;
             }
-          } else if (event.type === 'error') {
-            const errMsg: HistoryItem = {
-              type: 'error',
+          } catch (eventErr) {
+            // Single event processing error — show it but keep the stream alive
+            setHistory((prev) => [...prev, {
+              type: 'error' as const,
               id: uuidv4(),
-              message: event.message ?? 'Unknown error',
-            };
-            setHistory((prev) => [...prev, errMsg]);
-          } else if (event.type === 'done') {
-            // Commit any remaining streamed content
-            if (accumulated) {
-              const assistantMsg: HistoryItem = {
-                type: 'assistant',
-                id: uuidv4(),
-                content: accumulated,
-              };
-              setHistory((prev) => [...prev, assistantMsg]);
-            }
-            break;
+              message: `Event error: ${(eventErr as Error).message}`,
+            }]);
           }
         }
       } catch (err) {
