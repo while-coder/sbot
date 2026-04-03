@@ -2,10 +2,10 @@
 import React, { useState, useMemo } from 'react';
 import { render, Box, Text } from 'ink';
 import Spinner from 'ink-spinner';
-import { readLocalConfig, writeLocalConfig, type LocalConfig } from './config/localConfig.js';
-import { SbotClient, getServerBaseUrl, type SbotSettings } from './api/sbotClient.js';
+import { SbotClient, getServerBaseUrl, type SbotSettings, type SessionItem } from './api/sbotClient.js';
 import { KeypressProvider } from './ui/contexts/KeypressContext.js';
-import { SetupWizard } from './ui/components/SetupWizard.js';
+import { SessionPicker } from './ui/components/SessionPicker.js';
+import { CreateSessionWizard } from './ui/components/CreateSessionWizard.js';
 import { App } from './ui/App.js';
 import { theme } from './ui/colors.js';
 
@@ -15,8 +15,9 @@ const BASE_URL = getServerBaseUrl();
 
 type BootState =
   | { phase: 'loading' }
-  | { phase: 'setup'; settings: SbotSettings }
-  | { phase: 'chat'; config: LocalConfig; agentName: string; saverName: string }
+  | { phase: 'session-pick'; settings: SbotSettings; sessions: SessionItem[] }
+  | { phase: 'create'; settings: SbotSettings }
+  | { phase: 'chat'; sessionId: string; agentName: string; saverName: string }
   | { phase: 'error'; message: string };
 
 function Boot() {
@@ -40,33 +41,40 @@ function Boot() {
         return;
       }
 
-      // 2. Use existing local config if present
-      const existing = readLocalConfig();
-      if (existing) {
-        const agentName = settings.agents?.[existing.agentId]?.name ?? existing.agentId;
-        const saverName = settings.savers?.[existing.saverId]?.name ?? existing.saverId;
-        setState({ phase: 'chat', config: existing, agentName, saverName });
-        return;
+      // 2. Fetch sessions for current directory
+      let sessions: SessionItem[];
+      try {
+        sessions = await client.fetchSessions(process.cwd());
+      } catch {
+        sessions = [];
       }
 
-      // 3. Show setup wizard
-      setState({ phase: 'setup', settings });
+      // 3. Show session picker
+      setState({ phase: 'session-pick', settings, sessions });
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const handleSessionSelect = (sessionId: string, agentName: string, saverName: string) => {
+    setState({ phase: 'chat', sessionId, agentName, saverName });
+  };
+
+  const handleCreateNew = () => {
+    if (state.phase === 'session-pick') {
+      setState({ phase: 'create', settings: state.settings });
+    }
+  };
+
   const handleWizardComplete = async (
     agentId: string,
     saverId: string,
-    memoryId: string | null,
+    memoryIds: string[],
     agentName: string,
     saverName: string,
   ) => {
     try {
-      const sessionId = await client.createSession(agentId, saverId, memoryId, process.cwd());
-      const cfg: LocalConfig = { sessionId, agentId, saverId, memoryId };
-      writeLocalConfig(cfg);
-      setState({ phase: 'chat', config: cfg, agentName, saverName });
+      const sessionId = await client.createSession(agentId, saverId, memoryIds, process.cwd());
+      setState({ phase: 'chat', sessionId, agentName, saverName });
     } catch (e: any) {
       setState({ phase: 'error', message: `Failed to create session: ${e.message}` });
     }
@@ -90,9 +98,24 @@ function Boot() {
     );
   }
 
-  if (state.phase === 'setup') {
+  if (state.phase === 'session-pick') {
+    const agentNames: Record<string, string> = {};
+    for (const [id, a] of Object.entries(state.settings.agents ?? {})) {
+      agentNames[id] = a.name ?? id;
+    }
     return (
-      <SetupWizard
+      <SessionPicker
+        sessions={state.sessions}
+        agentNames={agentNames}
+        onSelect={handleSessionSelect}
+        onCreateNew={handleCreateNew}
+      />
+    );
+  }
+
+  if (state.phase === 'create') {
+    return (
+      <CreateSessionWizard
         settings={state.settings}
         onComplete={handleWizardComplete}
       />
@@ -100,7 +123,7 @@ function Boot() {
   }
 
   // phase === 'chat'
-  return <App client={client} config={state.config} agentName={state.agentName} saverName={state.saverName} />;
+  return <App client={client} sessionId={state.sessionId} agentName={state.agentName} saverName={state.saverName} />;
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────────

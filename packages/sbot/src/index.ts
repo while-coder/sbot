@@ -9,6 +9,7 @@ import {initGlobalAgentToolService} from "./Agent/GlobalAgentToolService";
 import {initGlobalSkillService} from "./Agent/GlobalSkillService";
 import {schedulerService} from "./Scheduler/SchedulerService";
 import { Command } from "commander";
+import { enableAutoStart, disableAutoStart, isAutoStartEnabled } from "./Core/AutoStart";
 
 const logger = LoggerService.getLogger('index.ts');
 
@@ -37,14 +38,44 @@ program
         console.log(`Port updated to ${portStr}`);
     });
 
-// 显示配置目录
-// program
-//     .command('config')
-//     .description('显示配置目录路径')
-//     .action(() => {
-//         const configDir = path.dirname(config.getConfigPath('settings.json'));
-//         console.log(configDir);
-//     });
+// 开机启动
+program
+    .command('startup')
+    .description('管理开机自启动')
+    .addCommand(
+        new Command('enable')
+            .description('开启开机自启动')
+            .action(() => {
+                try {
+                    enableAutoStart();
+                    console.log('已开启开机自启动');
+                } catch (e: any) {
+                    console.error(`开启失败: ${e.message}`);
+                    process.exit(1);
+                }
+            }),
+    )
+    .addCommand(
+        new Command('disable')
+            .description('取消开机自启动')
+            .action(() => {
+                try {
+                    disableAutoStart();
+                    console.log('已取消开机自启动');
+                } catch (e: any) {
+                    console.error(`取消失败: ${e.message}`);
+                    process.exit(1);
+                }
+            }),
+    )
+    .addCommand(
+        new Command('status')
+            .description('查看开机自启动状态')
+            .action(() => {
+                const enabled = isAutoStartEnabled();
+                console.log(`开机自启动: ${enabled ? '已开启' : '未开启'}`);
+            }),
+    );
 
 // 默认行为：启动服务
 program

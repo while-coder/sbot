@@ -371,6 +371,14 @@ class HttpServer {
             afterSave: (id) => channelManager.reloadChannel(id),
             createReturn: (id, body) => ({ id, ...body }),
         });
+        app.get('/api/sessions', api(req => {
+            const workPath = req.query.workPath as string | undefined;
+            const sessions = config.settings.sessions ?? {};
+            return Object.entries(sessions)
+                .filter(([, s]) => !workPath || s.workPath === workPath)
+                .map(([id, s]) => ({ id, ...s }));
+        }));
+
         registerSettingsCrud(app, 'sessions', {
             label: 'Session',
             createReturn: (id) => ({ id }),

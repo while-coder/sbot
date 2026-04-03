@@ -1,7 +1,6 @@
 import React, { useCallback } from 'react';
 import { Box, useApp } from 'ink';
 import type { SbotClient } from '../api/sbotClient.js';
-import type { LocalConfig } from '../config/localConfig.js';
 import { StreamingState } from './types.js';
 import { useChat } from './hooks/useChat.js';
 import { useKeypress, type Key } from './hooks/useKeypress.js';
@@ -12,15 +11,15 @@ import { InputPrompt } from './components/InputPrompt.js';
 
 interface AppProps {
   client: SbotClient;
-  config: LocalConfig;
+  sessionId: string;
   agentName: string;
   saverName: string;
 }
 
-export const App: React.FC<AppProps> = ({ client, config, agentName, saverName }) => {
+export const App: React.FC<AppProps> = ({ client, sessionId, agentName, saverName }) => {
   const { exit } = useApp();
   const { history, streamingContent, streamingState, submitQuery, cancelRequest, clearHistory } =
-    useChat(client, config.sessionId);
+    useChat(client, sessionId);
 
   const isIdle = streamingState === StreamingState.Idle;
 

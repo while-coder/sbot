@@ -27,6 +27,15 @@ export interface SbotSettings {
   memories?: Settings['memories'];
 }
 
+export interface SessionItem {
+  id: string;
+  name?: string;
+  agent: string;
+  saver: string;
+  memories: string[];
+  workPath?: string;
+}
+
 export class SbotClient {
   private readonly http: AxiosInstance;
   private readonly baseUrl: string;
@@ -50,12 +59,20 @@ export class SbotClient {
     return res.data.data;
   }
 
+  /** Fetch sessions filtered by workPath */
+  async fetchSessions(workPath: string): Promise<SessionItem[]> {
+    const res = await this.http.get<{ data: SessionItem[] }>(
+      '/api/sessions', { params: { workPath } },
+    );
+    return res.data.data;
+  }
+
   /** Create a session on the server and return its ID */
-  async createSession(agentId: string, saverId: string, memoryId: string | null, workPath: string): Promise<string> {
+  async createSession(agentId: string, saverId: string, memoryIds: string[], workPath: string): Promise<string> {
     const body: any = {
       agent: agentId,
       saver: saverId,
-      memories: memoryId ? [memoryId] : [],
+      memories: memoryIds,
       workPath,
       name: workPath.replace(/[/\\]+$/, '').split(/[/\\]/).pop() || workPath,
     };
