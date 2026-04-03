@@ -1,3 +1,5 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { WSClient } from '@wecom/aibot-node-sdk';
 import type { WsFrame, TextMessage, VoiceMessage, SendMsgBody, EventMessageWith, TemplateCardEventData } from '@wecom/aibot-node-sdk';
 import { IChannelService, ChannelSessionHandler, SessionService, type ChannelMessageArgs, type ILogger } from 'channel.base';
@@ -63,6 +65,18 @@ export class WecomService implements IChannelService {
 
   sendMessage(chatid: string, body: SendMsgBody) {
     return this.wsClient.sendMessage(chatid, body);
+  }
+
+  async sendFileMessage(chatid: string, file: string | Buffer, fileName?: string): Promise<void> {
+    const fileBuffer = typeof file === 'string' ? await fs.readFile(file) : file;
+    fileName ??= typeof file === 'string' ? path.basename(file) : undefined;
+    if (!fileName) throw new Error('fileName is required when file is a Buffer');
+
+    const { media_id } = await this.wsClient.uploadMedia(fileBuffer, {
+      type: 'file',
+      filename: fileName,
+    });
+    await this.wsClient.sendMediaMessage(chatid, 'file', media_id);
   }
 
   // --- Connection ---

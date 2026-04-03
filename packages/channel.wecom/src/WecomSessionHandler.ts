@@ -2,7 +2,7 @@ import {
   ChatMessage,
   MessageType,
 } from 'scorpio.ai';
-import { ChannelSessionHandler, ToolCallStatus, SessionService, type ChannelMessageArgs } from 'channel.base';
+import { ChannelSessionHandler, ToolCallStatus, SessionService, type ChannelMessageArgs, type ChannelToolHelpers } from 'channel.base';
 import { WecomChatProvider } from './WecomChatProvider';
 import type { WecomService, WecomMessageArgs, WecomActionArgs } from './WecomService';
 
@@ -48,4 +48,17 @@ export class WecomSessionHandler extends ChannelSessionHandler {
   protected async exitAsk(): Promise<void> {}
 
   async onTriggerAction(_args: WecomActionArgs): Promise<void> {}
+
+  // --- Agent tools ---
+
+  static readonly SEND_FILE_PROMPT = 'Send a local file to the current WeCom conversation. Use this tool to deliver any generated or exported file (documents, archives, reports, images, etc.) directly to the user via WeCom.';
+
+  buildAgentTools(args: ChannelMessageArgs, helpers: ChannelToolHelpers): any[] {
+    const { sessionId } = args;
+    return [
+      helpers.createSendFileTool(WecomSessionHandler.SEND_FILE_PROMPT, async (filePath, fileName) => {
+        await this.wecomService.sendFileMessage(sessionId, filePath, fileName);
+      }),
+    ];
+  }
 }
