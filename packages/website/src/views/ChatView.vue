@@ -12,7 +12,7 @@ import MemoryViewModal from './modals/MemoryViewModal.vue'
 import PathPickerModal from './modals/PathPickerModal.vue'
 import MultiSelect from '@/components/MultiSelect.vue'
 import NewSessionModal from './modals/NewSessionModal.vue'
-import { sessionThreadId, WsCommandType } from 'sbot.commons'
+import { WsCommandType } from 'sbot.commons'
 
 const { t } = useI18n()
 const { show } = useToast()
@@ -33,11 +33,11 @@ const activeSessionId = ref<string | null>(null)
 const sessions = computed(() => store.settings.sessions || {})
 
 const { chatAreaRef, agentOptions, saverOptions, memoryOptions, sendOne, fetchAndRestoreSessionStatus } = useChatViewLogic({
-  threadId: () => activeSessionId.value ? sessionThreadId(activeSessionId.value) : undefined,
-  buildSendPayload: (query, _threadId, atts) => ({
+  sessionId: () => activeSessionId.value ?? undefined,
+  buildSendPayload: (query, sessionId, atts) => ({
     type: WsCommandType.Query,
     query,
-    sessionId: activeSessionId.value!,
+    sessionId,
     attachments: atts?.length ? atts : undefined,
   }),
   sessionStatusQuery: (id) => `sessionId=${encodeURIComponent(id)}`,
@@ -49,9 +49,8 @@ const effectiveMemories = computed(() => activeSessionId.value ? (sessions.value
 const effectiveWorkPath = computed(() => activeSessionId.value ? ((sessions.value[activeSessionId.value] as any)?.workPath || '') : '')
 
 const historyUrl = computed<string | null>(() => {
-  const saver = effectiveSaver.value
-  if (!saver || !activeSessionId.value) return null
-  return `/api/savers/${encodeURIComponent(saver)}/threads/${encodeURIComponent(sessionThreadId(activeSessionId.value))}/history`
+  if (!effectiveSaver.value || !activeSessionId.value) return null
+  return `/api/sessions/${encodeURIComponent(activeSessionId.value)}/history`
 })
 
 function switchSession(id: string) {
@@ -66,7 +65,7 @@ async function deleteSession(id: string) {
   try {
     await apiFetch(`/api/settings/sessions/${encodeURIComponent(id)}`, 'DELETE')
     if (s?.saver) {
-      await apiFetch(`/api/savers/${encodeURIComponent(s.saver)}/threads/${encodeURIComponent(sessionThreadId(id))}/history`, 'DELETE').catch(() => {})
+      await apiFetch(`/api/sessions/${encodeURIComponent(id)}/history`, 'DELETE').catch(() => {})
     }
     if (store.settings.sessions) delete store.settings.sessions[id]
     if (activeSessionId.value === id) {
@@ -206,7 +205,7 @@ onMounted(() => {
           >
             <option v-for="s in saverOptions" :key="s.id" :value="s.id">{{ s.label }}</option>
           </select>
-          <button v-if="effectiveSaver" class="chat-info-chip" @click="saverViewModal?.open(effectiveSaver!, saverOptions.find(s => s.id === effectiveSaver)?.label || effectiveSaver!, sessionThreadId(activeSessionId))">{{ t('common.view') }}</button>
+          <button v-if="effectiveSaver" class="chat-info-chip" @click="saverViewModal?.openSession(activeSessionId!, saverOptions.find(s => s.id === effectiveSaver)?.label || effectiveSaver!)">{{ t('common.view') }}</button>
 
           <!-- WorkPath -->
           <label class="toolbar-label">{{ t('common.workpath') }}</label>
@@ -231,7 +230,7 @@ onMounted(() => {
             @update:model-value="saveSession({ memories: $event })"
           />
           <template v-for="mid in effectiveMemories" :key="mid">
-            <button class="chat-info-chip" @click="memoryViewModal?.open(mid, store.settings.memories?.[mid] ?? {}, store.settings.memories?.[mid]?.share ? undefined : sessionThreadId(activeSessionId!))">{{ memoryOptions.find(m => m.id === mid)?.label || t('common.view') }}</button>
+            <button class="chat-info-chip" @click="store.settings.memories?.[mid]?.share ? memoryViewModal?.open(mid, store.settings.memories[mid]) : memoryViewModal?.openSession(mid, store.settings.memories?.[mid] ?? {}, activeSessionId!)">{{ memoryOptions.find(m => m.id === mid)?.label || t('common.view') }}</button>
           </template>
         </template>
         <span v-else style="font-size:13px;color:#94a3b8">{{ t('chat.select_or_create') }}</span>

@@ -17,7 +17,8 @@ import { database } from '../Core/Database';
 import { sessionManager } from '../UserService/SessionManager';
 import { schedulerService } from '../Scheduler/SchedulerService';
 import { channelManager } from '../Channel/ChannelManager';
-import { sessionThreadId, WsCommandType } from 'sbot.commons';
+import { WsCommandType } from 'sbot.commons';
+import { sessionThreadId } from '../Core/Database';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
 
@@ -716,6 +717,12 @@ class HttpServer {
         }));
     }
 
+    private resolveMemoryThreadId(req: Request): string | undefined {
+        const sessionId = req.query.sessionId as string | undefined;
+        if (sessionId) return sessionThreadId(sessionId);
+        return req.query.threadId as string | undefined;
+    }
+
     private registerDataRoutes(app: express.Application) {
         // ── Savers / Threads ──
         app.get('/api/savers/:saverId/threads', api(async req => {
@@ -751,9 +758,39 @@ class HttpServer {
             return this.formatMessages(messages);
         }));
 
-        // ── Memories ──
+        // ── Session-based saver shortcuts (resolve saverId + threadId from sessionId) ──
+        app.get('/api/sessions/:sessionId/history', api(async req => {
+            const sessionId = req.params.sessionId as string;
+            const sessionCfg = config.getSession(sessionId);
+            if (!sessionCfg?.saver) { const e: any = new Error(`Session "${sessionId}" not found or no saver`); e.status = 404; throw e; }
+            const saver = await AgentRunner.createSaverService(sessionCfg.saver, sessionThreadId(sessionId));
+            const messages = await saver.getAllMessages();
+            await saver.dispose();
+            return this.formatMessages(messages);
+        }));
+
+        app.delete('/api/sessions/:sessionId/history', api(async req => {
+            const sessionId = req.params.sessionId as string;
+            const sessionCfg = config.getSession(sessionId);
+            if (!sessionCfg?.saver) { const e: any = new Error(`Session "${sessionId}" not found or no saver`); e.status = 404; throw e; }
+            const saver = await AgentRunner.createSaverService(sessionCfg.saver, sessionThreadId(sessionId));
+            await saver.clearMessages();
+            await saver.dispose();
+        }));
+
+        app.get('/api/sessions/:sessionId/thinks/:thinkId', api(async req => {
+            const sessionId = req.params.sessionId as string;
+            const sessionCfg = config.getSession(sessionId);
+            if (!sessionCfg?.saver) { const e: any = new Error(`Session "${sessionId}" not found or no saver`); e.status = 404; throw e; }
+            const saver = await AgentRunner.createSaverService(sessionCfg.saver, sessionThreadId(sessionId));
+            const messages = await saver.getThink(req.params.thinkId as string);
+            await saver.dispose();
+            return this.formatMessages(messages);
+        }));
+
+        // ── Memories (accept ?sessionId= or ?threadId=) ──
         app.get('/api/memories/:memoryName', api(async req => {
-            const threadId = req.query.threadId as string | undefined;
+            const threadId = this.resolveMemoryThreadId(req);
             const svc = await AgentRunner.createMemoryService(req.params.memoryName as string, threadId);
             const memories = (await svc.getAllMemories()).map(m => ({
                 id: m.id,
@@ -770,7 +807,7 @@ class HttpServer {
         app.post('/api/memories/:memoryName/add', api(async req => {
             const { content, autoSplit } = req.body as { content?: string; autoSplit?: boolean };
             if (!content?.trim()) { const e: any = new Error('content is required'); e.status = 400; throw e; }
-            const threadId = req.query.threadId as string | undefined;
+            const threadId = this.resolveMemoryThreadId(req);
             const svc = await AgentRunner.createMemoryService(req.params.memoryName as string, threadId);
             const ids = await svc.addMemoryDirect(content.trim(), { autoSplit });
             await svc.dispose();
@@ -778,7 +815,7 @@ class HttpServer {
         }));
 
         app.post('/api/memories/:memoryName/compress', api(async req => {
-            const threadId = req.query.threadId as string | undefined;
+            const threadId = this.resolveMemoryThreadId(req);
             const svc = await AgentRunner.createMemoryService(req.params.memoryName as string, threadId);
             const count = await svc.compressMemories();
             await svc.dispose();
@@ -786,14 +823,14 @@ class HttpServer {
         }));
 
         app.delete('/api/memories/:memoryName/:memoryId', api(async req => {
-            const threadId = req.query.threadId as string | undefined;
+            const threadId = this.resolveMemoryThreadId(req);
             const svc = await AgentRunner.createMemoryService(req.params.memoryName as string, threadId);
             await svc.deleteMemory(req.params.memoryId as string);
             await svc.dispose();
         }));
 
         app.delete('/api/memories/:memoryName', api(async req => {
-            const threadId = req.query.threadId as string | undefined;
+            const threadId = this.resolveMemoryThreadId(req);
             const svc = await AgentRunner.createMemoryService(req.params.memoryName as string, threadId);
             const count = await svc.clearAll();
             await svc.dispose();

@@ -4,7 +4,7 @@ import { sessionManager } from "../UserService/SessionManager";
 import { LoggerService } from "../Core/LoggerService";
 import { config } from "../Core/Config";
 import { channelManager } from "../Channel/ChannelManager";
-import { channelThreadId, sessionThreadId } from "sbot.commons";
+import { channelThreadId, sessionThreadId } from "../Core/Database";
 
 const logger = LoggerService.getLogger("SchedulerService.ts");
 

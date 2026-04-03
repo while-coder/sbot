@@ -142,16 +142,3 @@ export interface Settings {
   sessions?: Record<string, SessionConfig>
   channels?: Record<string, ChannelConfig>
 }
-
-// ── threadId 工厂函数 ──────────────────────────────────────────────────────────
-// 集中定义，供 sbot（后端）与 website（前端）共用，避免算法分散后不同步
-
-/** 会话模式 threadId */
-export function sessionThreadId(sessionId: string): string {
-  return `session_${sessionId}`
-}
-
-/** 频道模式 threadId */
-export function channelThreadId(channelType: string, channelId: string, sessionId: string): string {
-  return `${channelType}_${channelId}_${sessionId}`
-}

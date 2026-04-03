@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import WebSocket from 'ws';
 import axios, { type AxiosInstance } from 'axios';
-import { DEFAULT_PORT, WsCommandType, sessionThreadId, type Settings, type WebChatEvent } from 'sbot.commons';
+import { DEFAULT_PORT, WsCommandType, type Settings, type WebChatEvent } from 'sbot.commons';
 
 export { DEFAULT_PORT, type WebChatEvent } from 'sbot.commons';
 
@@ -68,7 +68,6 @@ export class SbotClient {
     sessionId: string,
     signal: AbortSignal,
   ): AsyncGenerator<WebChatEvent> {
-    const threadId = sessionThreadId(sessionId);
     const wsUrl = this.baseUrl.replace(/^http/, 'ws') + '/ws/chat';
 
     const ws = new WebSocket(wsUrl);
@@ -79,8 +78,8 @@ export class SbotClient {
 
     ws.on('message', (data) => {
       try {
-        const event = JSON.parse(data.toString()) as WebChatEvent & { threadId?: string };
-        if (event.threadId && event.threadId !== threadId) return;
+        const event = JSON.parse(data.toString()) as WebChatEvent & { sessionId?: string };
+        if (event.sessionId && event.sessionId !== sessionId) return;
         events.push(event);
         resolve?.();
       } catch { /* skip malformed */ }

@@ -26,8 +26,8 @@ type AskQuestionSpec =
 export interface HumanEvent    { type: WebChatEventType.Human;    content: string }
 export interface StreamEvent   { type: WebChatEventType.Stream;   content: string | any[] }
 export interface MessageEvent  { type: WebChatEventType.Message;  role: string; content?: string | any[]; tool_calls?: any[]; tool_call_id?: string; thinkId?: string }
-export interface ToolCallEvent { type: WebChatEventType.ToolCall; id: string; threadId: string; name: string; args: Record<string, any> }
-export interface AskEvent      { type: WebChatEventType.Ask;      id: string; threadId: string; title?: string; questions: AskQuestionSpec[] }
+export interface ToolCallEvent { type: WebChatEventType.ToolCall; id: string; name: string; args: Record<string, any> }
+export interface AskEvent      { type: WebChatEventType.Ask;      id: string; title?: string; questions: AskQuestionSpec[] }
 export interface DoneEvent     { type: WebChatEventType.Done;    pendingMessages?: string[] }
 export interface ErrorEvent    { type: WebChatEventType.Error;    message: string }
 export interface QueueEvent    { type: WebChatEventType.Queue;   pendingMessages: string[] }

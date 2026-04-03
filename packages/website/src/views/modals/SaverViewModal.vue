@@ -13,14 +13,17 @@ const visible    = ref(false)
 const saverId    = ref('')
 const saverName  = ref('')
 const threadId   = ref('')
+const sessionId  = ref('')
 const messages   = ref<StoredMessage[]>([])
 const loading    = ref(false)
 
 function historyUrl() {
+  if (sessionId.value) return `/api/sessions/${encodeURIComponent(sessionId.value)}/history`
   return `/api/savers/${encodeURIComponent(saverId.value)}/threads/${encodeURIComponent(threadId.value)}/history`
 }
 
 function thinksUrl() {
+  if (sessionId.value) return `/api/sessions/${encodeURIComponent(sessionId.value)}/thinks`
   return `/api/savers/${encodeURIComponent(saverId.value)}/threads/${encodeURIComponent(threadId.value)}/thinks`
 }
 
@@ -51,12 +54,23 @@ function open(id: string, name: string, thread: string) {
   saverId.value   = id
   saverName.value = name
   threadId.value  = thread
+  sessionId.value = ''
   messages.value = []
   visible.value  = true
   load()
 }
 
-defineExpose({ open })
+function openSession(sid: string, name: string) {
+  saverId.value   = ''
+  saverName.value = name
+  threadId.value  = ''
+  sessionId.value = sid
+  messages.value = []
+  visible.value  = true
+  load()
+}
+
+defineExpose({ open, openSession })
 </script>
 
 <template>
@@ -66,7 +80,7 @@ defineExpose({ open })
         <div style="display:flex;align-items:center;gap:10px">
           <h3>{{ t('savers.history_title') }}</h3>
           <span class="saver-name-badge">{{ saverName }}</span>
-          <span class="saver-thread-badge">{{ threadId }}</span>
+          <span class="saver-thread-badge">{{ sessionId || threadId }}</span>
           <span v-if="!loading" class="saver-count-badge">{{ t('savers.count', { count: messages.length }) }}</span>
         </div>
         <button class="modal-close" @click="visible = false">&times;</button>

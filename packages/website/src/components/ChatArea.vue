@@ -59,7 +59,7 @@ type AskQuestion =
   | { type: 'input';    label: string; placeholder?: string }
   | { type: 'toggle';   label: string; default?: boolean }
 
-const pendingAsk        = ref<{ id: string; threadId: string; title?: string; questions: AskQuestion[] } | null>(null)
+const pendingAsk        = ref<{ id: string; title?: string; questions: AskQuestion[] } | null>(null)
 const askAnswers        = ref<Record<number, string | string[]>>({})
 const askToggleValues   = ref<Record<number, boolean>>({})
 const askCustomInputs   = ref<Record<number, string>>({})
@@ -107,7 +107,7 @@ function submitAsk() {
 }
 
 // ── 工具审批状态 ──────────────────────────────────────────
-const pendingToolCall = ref<{ id: string; threadId: string; name: string; args: Record<string, any> } | null>(null)
+const pendingToolCall = ref<{ id: string; name: string; args: Record<string, any> } | null>(null)
 const denyCountdown   = ref(300)
 const argsExpanded    = ref(false)
 let denyTimer: ReturnType<typeof setInterval> | null = null
@@ -208,10 +208,10 @@ async function handleWsEvent(evt: WebChatEvent) {
     streamingContent.value = ''
     streamingToolCalls.value = []
   } else if (evt.type === WebChatEventType.ToolCall) {
-    pendingToolCall.value = { id: evt.id, threadId: evt.threadId, name: evt.name, args: evt.args }
+    pendingToolCall.value = { id: evt.id, name: evt.name, args: evt.args }
     startDenyCountdown()
   } else if (evt.type === WebChatEventType.Ask) {
-    pendingAsk.value = { id: evt.id, threadId: evt.threadId, title: evt.title, questions: evt.questions as AskQuestion[] }
+    pendingAsk.value = { id: evt.id, title: evt.title, questions: evt.questions as AskQuestion[] }
     initAskAnswers(evt.questions as AskQuestion[])
     startAskCountdown()
   } else if (evt.type === WebChatEventType.Queue) {
@@ -289,7 +289,6 @@ function remainSeconds(startedAt: string, totalSeconds: number): number {
 const queuedMessages = ref<string[]>([])
 
 function restoreSessionStatus(status: {
-  threadId: string
   pendingApproval?: { id: string; tool: { id?: string; name: string; args: Record<string, any> }; startedAt: string }
   pendingAsk?: { id: string; title?: string; questions: AskQuestion[]; startedAt: string }
   pendingMessages?: string[]
@@ -314,12 +313,12 @@ function restoreSessionStatus(status: {
   queuedMessages.value = status.pendingMessages ?? []
   if (status.pendingApproval) {
     const { tool, startedAt } = status.pendingApproval
-    pendingToolCall.value = { id: status.pendingApproval.id, threadId: status.threadId, name: tool.name, args: tool.args }
+    pendingToolCall.value = { id: status.pendingApproval.id, name: tool.name, args: tool.args }
     startDenyCountdown(remainSeconds(startedAt, 300))
   }
   if (status.pendingAsk) {
     const { startedAt, ...askInfo } = status.pendingAsk
-    pendingAsk.value = { ...askInfo, threadId: status.threadId }
+    pendingAsk.value = askInfo
     initAskAnswers(askInfo.questions)
     startAskCountdown(remainSeconds(startedAt, 600))
   }

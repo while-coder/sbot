@@ -12,6 +12,7 @@ const visible      = ref(false)
 const memoryId     = ref('')
 const memoryConfig = ref<Partial<MemoryConfig>>({})
 const threadId     = ref<string | undefined>(undefined)
+const sessionId    = ref<string | undefined>(undefined)
 const memories     = ref<MemoryItem[]>([])
 const loading      = ref(false)
 const compressing  = ref(false)
@@ -23,7 +24,9 @@ const autoSplit    = ref(true)
 
 function memUrl(path = '') {
   const base = `/api/memories/${encodeURIComponent(memoryId.value)}${path}`
-  return threadId.value ? `${base}?threadId=${encodeURIComponent(threadId.value)}` : base
+  if (sessionId.value) return `${base}?sessionId=${encodeURIComponent(sessionId.value)}`
+  if (threadId.value) return `${base}?threadId=${encodeURIComponent(threadId.value)}`
+  return base
 }
 
 async function load() {
@@ -97,12 +100,23 @@ function open(id: string, config: Partial<MemoryConfig>, thread?: string) {
   memoryId.value     = id
   memoryConfig.value = config
   threadId.value     = thread
+  sessionId.value    = undefined
   memories.value     = []
   visible.value      = true
   load()
 }
 
-defineExpose({ open })
+function openSession(id: string, config: Partial<MemoryConfig>, sid: string) {
+  memoryId.value     = id
+  memoryConfig.value = config
+  threadId.value     = undefined
+  sessionId.value    = sid
+  memories.value     = []
+  visible.value      = true
+  load()
+}
+
+defineExpose({ open, openSession })
 </script>
 
 <template>
@@ -114,7 +128,7 @@ defineExpose({ open })
           <h3>{{ t('memories.content_title') }}</h3>
           <span class="mem-name-badge">{{ memoryConfig.name || memoryId }}</span>
           <span v-if="memoryConfig.share" class="mem-share-badge">{{ t('memories.share') }}</span>
-          <span v-if="threadId" class="mem-thread-badge">{{ threadId }}</span>
+          <span v-if="sessionId || threadId" class="mem-thread-badge">{{ sessionId || threadId }}</span>
           <span v-if="!loading" class="mem-count-badge">{{ t('memories.count', { count: memories.length }) }}</span>
         </div>
         <button class="modal-close" @click="visible = false">&times;</button>

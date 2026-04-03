@@ -5,7 +5,8 @@ import { Op } from "sequelize";
 import { sessionManager } from "../UserService/SessionManager";
 import { LoggerService } from "../Core/LoggerService";
 import { config } from "../Core/Config";
-import { compareSemver, fetchLatestRelease, channelThreadId } from "sbot.commons";
+import { compareSemver, fetchLatestRelease } from "sbot.commons";
+import { channelThreadId } from "../Core/Database";
 import { PluginLoader } from "./PluginLoader";
 
 const logger = LoggerService.getLogger("ChannelManager.ts");

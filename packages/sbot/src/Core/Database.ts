@@ -16,6 +16,18 @@ export enum SchedulerType {
   Session   = "session",    // 会话模式（sessionId）
 }
 
+// ── threadId 工厂函数 ──
+
+/** 会话模式 threadId */
+export function sessionThreadId(sessionId: string): string {
+  return `session_${sessionId}`
+}
+
+/** 频道模式 threadId */
+export function channelThreadId(channelType: string, channelId: string, sessionId: string): string {
+  return `${channelType}_${channelId}_${sessionId}`
+}
+
 export type SchedulerRow = {
   id: number;
   expr: string;                    // cron 表达式，如 "0 9 * * *"

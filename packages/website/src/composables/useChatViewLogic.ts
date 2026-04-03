@@ -15,10 +15,10 @@ interface Attachment {
 }
 
 interface ChatViewLogicOptions {
-  /** Reactive getter for the current threadId */
-  threadId: () => string | undefined
+  /** Reactive getter for the current sessionId */
+  sessionId: () => string | undefined
   /** Build the WS command payload (view-specific fields) */
-  buildSendPayload: (query: string, threadId: string, atts?: Attachment[]) => Record<string, any>
+  buildSendPayload: (query: string, sessionId: string, atts?: Attachment[]) => Record<string, any>
   /** Build the session-status API query string */
   sessionStatusQuery: (activeId: string) => string
 }
@@ -41,9 +41,9 @@ export function useChatViewLogic(options: ChatViewLogicOptions) {
   )
 
   // ── WS event routing ──
-  async function handleWsEvent(evt: WebChatEvent & { threadId?: string }) {
-    const expected = options.threadId()
-    if (evt.threadId && evt.threadId !== expected) return
+  async function handleWsEvent(evt: WebChatEvent & { sessionId?: string }) {
+    const expected = options.sessionId()
+    if (evt.sessionId && evt.sessionId !== expected) return
     await chatAreaRef.value?.handleWsEvent(evt)
   }
 
@@ -57,11 +57,11 @@ export function useChatViewLogic(options: ChatViewLogicOptions) {
 
   // ── Send ──
   async function sendOne(query: string, atts: Attachment[]) {
-    const threadId = options.threadId()
-    if (!threadId) return
+    const sessionId = options.sessionId()
+    if (!sessionId) return
     try {
       await chatSocket.waitForOpen()
-      chatSocket.send(options.buildSendPayload(query, threadId, atts))
+      chatSocket.send(options.buildSendPayload(query, sessionId, atts))
       chatAreaRef.value?.addQueuedMessage(query)
     } catch (e: any) {
       chatAreaRef.value?.reset()
