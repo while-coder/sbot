@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import { theme } from '../colors.js';
 import { MessageItem } from './MessageItem.js';
+import { MarkdownText } from './MarkdownText.js';
 import type { HistoryItem } from '../types.js';
 
 interface MessageListProps {
@@ -29,10 +30,10 @@ export const MessageList: React.FC<MessageListProps> = ({
         {streamingContent && (
           <Box flexDirection="column" marginBottom={1}>
             <Text bold color={theme.prompt.assistantPrefix}>Assistant</Text>
-            <Text color={theme.text.primary}>
-              {streamingContent}
+            <Box>
+              <MarkdownText>{streamingContent}</MarkdownText>
               <Text color={theme.text.accent}>▊</Text>
-            </Text>
+            </Box>
           </Box>
         )}
       </Box>

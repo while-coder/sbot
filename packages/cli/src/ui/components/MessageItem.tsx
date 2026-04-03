@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import { theme } from '../colors.js';
 import { ToolCallItem } from './ToolCallItem.js';
+import { MarkdownText } from './MarkdownText.js';
 import type { HistoryItem } from '../types.js';
 
 interface MessageItemProps {
@@ -23,7 +24,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ item, isInputActive })
       return (
         <Box flexDirection="column" marginBottom={1}>
           <Text bold color={theme.prompt.assistantPrefix}>Assistant</Text>
-          <Text color={theme.text.primary}>{item.content}</Text>
+          <MarkdownText>{item.content}</MarkdownText>
         </Box>
       );
 

@@ -57,7 +57,7 @@ export function KeypressProvider({ children }: { children?: React.ReactNode }) {
       for (const handler of subscribers) handler(key);
     };
 
-    const rl = readline.createInterface({ input: stdin, escapeCodeTimeout: 0 });
+    const rl = readline.createInterface({ input: stdin, escapeCodeTimeout: 50 });
     readline.emitKeypressEvents(stdin, rl);
     stdin.on('keypress', handleKeypress);
 

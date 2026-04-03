@@ -1,5 +1,6 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
+import { WsCommandType } from 'sbot.commons';
 import type { SbotClient, ChatSession } from '../../api/sbotClient.js';
 import type { HistoryItem, PendingApproval, PendingAsk } from '../types.js';
 import { StreamingState } from '../types.js';
@@ -43,6 +44,37 @@ export function useChat(
   // Resolve callbacks — stored as refs so the event loop can await them
   const approvalResolveRef = useRef<(() => void) | null>(null);
   const askResolveRef = useRef<(() => void) | null>(null);
+
+  // Track whether we're in a "restored" state (no active ChatSession)
+  const restoredRef = useRef(false);
+
+  // ── Restore pending approval/ask from server on mount ──
+  useEffect(() => {
+    void (async () => {
+      const info = await client.fetchSessionStatus(sessionId);
+      if (!info) return;
+
+      if (info.status === 'waiting_approval' && info.pendingApproval) {
+        const pa = info.pendingApproval;
+        setHistory((prev) => [...prev, {
+          type: 'toolCall' as const,
+          id: uuidv4(),
+          toolCallId: pa.id,
+          name: pa.tool.name,
+          args: pa.tool.args,
+        }]);
+        setPendingApproval({ id: pa.id, name: pa.tool.name, args: pa.tool.args });
+        setStreamingState(StreamingState.Approval);
+        restoredRef.current = true;
+      } else if (info.status === 'waiting_ask' && info.pendingAsk) {
+        const ask = info.pendingAsk;
+        setPendingAsk({ id: ask.id, title: ask.title, questions: ask.questions });
+        setStreamingState(StreamingState.Asking);
+        restoredRef.current = true;
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const submitQuery = useCallback(
     async (query: string) => {
@@ -208,19 +240,35 @@ export function useChat(
   );
 
   const resolveApproval = useCallback((approval: string) => {
-    const chat = sessionRef.current;
     const pending = pendingApproval;
-    if (!chat || !pending) return;
-    chat.sendApproval(pending.id, approval);
+    if (!pending) return;
+
+    // Always send through the shared persistent WS
+    client.send(sessionId, {
+      type: WsCommandType.Approval,
+      id: pending.id,
+      approval,
+    });
+
     setPendingApproval(null);
-    approvalResolveRef.current?.();
-  }, [pendingApproval]);
+    if (restoredRef.current) {
+      restoredRef.current = false;
+      setStreamingState(StreamingState.Idle);
+    } else {
+      approvalResolveRef.current?.();
+    }
+  }, [client, sessionId, pendingApproval]);
 
   const resolveAsk = useCallback((answers: Record<string, string | string[]>) => {
-    const chat = sessionRef.current;
     const pending = pendingAsk;
-    if (!chat || !pending) return;
-    chat.sendAsk(pending.id, answers);
+    if (!pending) return;
+
+    // Always send through the shared persistent WS
+    client.send(sessionId, {
+      type: WsCommandType.Ask,
+      id: pending.id,
+      answers,
+    });
 
     // Record in history
     const answerDisplay: Record<string, string | string[]> = {};
@@ -238,8 +286,13 @@ export function useChat(
     }]);
 
     setPendingAsk(null);
-    askResolveRef.current?.();
-  }, [pendingAsk]);
+    if (restoredRef.current) {
+      restoredRef.current = false;
+      setStreamingState(StreamingState.Idle);
+    } else {
+      askResolveRef.current?.();
+    }
+  }, [client, sessionId, pendingAsk]);
 
   const cancelRequest = useCallback(() => {
     // If in approval/ask mode, also unblock the event loop

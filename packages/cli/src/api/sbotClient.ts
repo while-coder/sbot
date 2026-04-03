@@ -36,13 +36,116 @@ export interface SessionItem {
   workPath?: string;
 }
 
-export class SbotClient {
-  private readonly http: AxiosInstance;
-  private readonly baseUrl: string;
+export interface SessionStatus {
+  threadId: string;
+  status: 'thinking' | 'waiting_approval' | 'waiting_ask';
+  pendingApproval?: {
+    id: string;
+    tool: { name: string; args: Record<string, any> };
+  };
+  pendingAsk?: {
+    id: string;
+    title?: string;
+    questions: Array<
+      | { type: 'radio'; label: string; options: string[]; allowCustom?: boolean }
+      | { type: 'checkbox'; label: string; options: string[]; allowCustom?: boolean }
+      | { type: 'input'; label: string; placeholder?: string }
+    >;
+  };
+}
+
+// ── Persistent WebSocket with auto-reconnect ─────────────────────────────────
+
+type WsListener = (event: WebChatEvent & { sessionId?: string }) => void;
+
+class PersistentWs {
+  private ws: WebSocket | null = null;
+  private readonly wsUrl: string;
+  private listeners = new Set<WsListener>();
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private disposed = false;
 
   constructor(baseUrl: string) {
-    this.baseUrl = baseUrl;
+    this.wsUrl = baseUrl.replace(/^http/, 'ws') + '/ws/chat';
+    this.connect();
+  }
+
+  private connect(): void {
+    if (this.disposed) return;
+    const ws = new WebSocket(this.wsUrl);
+
+    ws.on('open', () => {
+      this.ws = ws;
+    });
+
+    ws.on('message', (data) => {
+      try {
+        const event = JSON.parse(data.toString());
+        for (const listener of this.listeners) listener(event);
+      } catch { /* skip malformed */ }
+    });
+
+    ws.on('close', () => {
+      this.ws = null;
+      this.scheduleReconnect();
+    });
+
+    ws.on('error', () => {
+      // error triggers close, reconnect will happen there
+      try { ws.close(); } catch { /* ignore */ }
+    });
+  }
+
+  private scheduleReconnect(): void {
+    if (this.disposed || this.reconnectTimer) return;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.connect();
+    }, 2000);
+  }
+
+  /** Send a JSON message. Resolves when open, rejects if disposed. */
+  send(msg: Record<string, any>): void {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(msg));
+    }
+  }
+
+  /** Wait until the WS is open, with timeout. */
+  async waitReady(timeoutMs = 5000): Promise<void> {
+    if (this.ws?.readyState === WebSocket.OPEN) return;
+    return new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('WS connect timeout')), timeoutMs);
+      const check = setInterval(() => {
+        if (this.ws?.readyState === WebSocket.OPEN) {
+          clearTimeout(timer);
+          clearInterval(check);
+          resolve();
+        }
+      }, 50);
+    });
+  }
+
+  addListener(fn: WsListener): void { this.listeners.add(fn); }
+  removeListener(fn: WsListener): void { this.listeners.delete(fn); }
+
+  dispose(): void {
+    this.disposed = true;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.listeners.clear();
+    try { this.ws?.close(); } catch { /* ignore */ }
+  }
+}
+
+// ── SbotClient ───────────────────────────────────────────────────────────────
+
+export class SbotClient {
+  private readonly http: AxiosInstance;
+  readonly ws: PersistentWs;
+
+  constructor(baseUrl: string) {
     this.http = axios.create({ baseURL: baseUrl });
+    this.ws = new PersistentWs(baseUrl);
   }
 
   async isOnline(): Promise<boolean> {
@@ -80,58 +183,77 @@ export class SbotClient {
     return res.data.data.id;
   }
 
-  /** Open a bidirectional chat session over WebSocket. */
+  /** Fetch current session status (pending approval/ask). Returns null if no active run. */
+  async fetchSessionStatus(sessionId: string): Promise<SessionStatus | null> {
+    try {
+      const res = await this.http.get<SessionStatus | null>(
+        '/api/session-status',
+        { params: { sessionId } },
+      );
+      return res.data;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Send a command (approval / ask / abort) through the persistent WS. */
+  send(sessionId: string, msg: Record<string, any>): void {
+    this.ws.send({ ...msg, sessionId });
+  }
+
+  /** Open a chat session that uses the persistent WS. */
   openChatSession(
     query: string,
     sessionId: string,
     signal: AbortSignal,
   ): ChatSession {
-    return new ChatSession(this.baseUrl, query, sessionId, signal);
+    return new ChatSession(this, query, sessionId, signal);
+  }
+
+  dispose(): void {
+    this.ws.dispose();
   }
 }
 
+// ── ChatSession (uses shared PersistentWs) ───────────────────────────────────
+
 /**
- * Bidirectional WebSocket chat session.
+ * Chat session built on top of the shared persistent WebSocket.
  * Yields server events as an async iterator while allowing
  * mid-stream sends (approval / ask responses).
  */
 export class ChatSession {
-  private ws: WebSocket;
   private events: WebChatEvent[] = [];
   private resolve: (() => void) | null = null;
   private done = false;
   private error: Error | null = null;
+  private listener: WsListener;
+  private readonly client: SbotClient;
+  private readonly sessionId: string;
   readonly ready: Promise<void>;
 
-  constructor(baseUrl: string, query: string, private sessionId: string, signal: AbortSignal) {
-    const wsUrl = baseUrl.replace(/^http/, 'ws') + '/ws/chat';
-    this.ws = new WebSocket(wsUrl);
+  constructor(client: SbotClient, query: string, sessionId: string, signal: AbortSignal) {
+    this.client = client;
+    this.sessionId = sessionId;
 
-    this.ws.on('message', (data) => {
-      try {
-        const event = JSON.parse(data.toString()) as WebChatEvent & { sessionId?: string };
-        if (event.sessionId && event.sessionId !== sessionId) return;
-        this.events.push(event);
-        this.resolve?.();
-      } catch { /* skip malformed */ }
-    });
-
-    this.ws.on('error', (err) => { this.error = err as Error; this.resolve?.(); });
-    this.ws.on('close', () => { this.done = true; this.resolve?.(); });
+    // Subscribe to events from the shared WS, filtered by sessionId
+    this.listener = (event) => {
+      if (event.sessionId && event.sessionId !== sessionId) return;
+      this.events.push(event);
+      this.resolve?.();
+    };
+    client.ws.addListener(this.listener);
 
     signal.addEventListener('abort', () => {
-      this.ws.close();
+      this.cleanup();
       this.error = new Error('AbortError');
       (this.error as any).name = 'AbortError';
       this.resolve?.();
     }, { once: true });
 
-    this.ready = new Promise<void>((res, reject) => {
-      this.ws.on('open', () => {
-        this.ws.send(JSON.stringify({ type: WsCommandType.Query, query, sessionId }));
-        res();
-      });
-      this.ws.on('error', reject);
+    // Wait for WS to be ready, then send query
+    this.ready = client.ws.waitReady().then(() => {
+      client.send(sessionId, { type: WsCommandType.Query, query });
     });
   }
 
@@ -153,31 +275,30 @@ export class ChatSession {
         if (this.done) return;
       }
     } finally {
-      if (this.ws.readyState === WebSocket.OPEN) this.ws.close();
+      this.cleanup();
     }
   }
 
   /** Send tool-call approval back to server. */
   sendApproval(id: string, approval: string): void {
-    this.ws.send(JSON.stringify({
+    this.client.send(this.sessionId, {
       type: WsCommandType.Approval,
-      sessionId: this.sessionId,
       id,
       approval,
-    }));
+    });
   }
 
   /** Send ask answers back to server. */
   sendAsk(id: string, answers: Record<string, string | string[]>): void {
-    this.ws.send(JSON.stringify({
+    this.client.send(this.sessionId, {
       type: WsCommandType.Ask,
-      sessionId: this.sessionId,
       id,
       answers,
-    }));
+    });
   }
 
-  close(): void {
-    if (this.ws.readyState === WebSocket.OPEN) this.ws.close();
+  private cleanup(): void {
+    this.done = true;
+    this.client.ws.removeListener(this.listener);
   }
 }
