@@ -11,6 +11,7 @@ import {schedulerService} from "./Scheduler/SchedulerService";
 import { Command } from "commander";
 import { spawn } from "child_process";
 import http from "http";
+import { fetchLatestRelease, compareSemver, NPM_PACKAGE } from "sbot.commons";
 import { enableAutoStart, disableAutoStart, isAutoStartEnabled } from "./Core/AutoStart";
 
 const logger = LoggerService.getLogger('index.ts');
@@ -47,17 +48,27 @@ program
     .description('查看 sbot 运行状态')
     .action(async () => {
         const port = config.getHttpPort();
-        const running = await new Promise<boolean>(resolve => {
-            const req = http.get(`http://localhost:${port}/`, () => resolve(true));
-            req.on('error', () => resolve(false));
-            req.setTimeout(2000, () => { req.destroy(); resolve(false); });
-        });
+        const [running, release] = await Promise.all([
+            new Promise<boolean>(resolve => {
+                const req = http.get(`http://localhost:${port}/`, () => resolve(true));
+                req.on('error', () => resolve(false));
+                req.setTimeout(2000, () => { req.destroy(); resolve(false); });
+            }),
+            fetchLatestRelease(),
+        ]);
         const startup = isAutoStartEnabled();
+        const currentVer = config.pkg.version;
+        let versionInfo = currentVer;
+        if (release && compareSemver(currentVer, release.tag) < 0) {
+            versionInfo += ` (最新版: ${release.tag}, 可通过 npm install -g ${NPM_PACKAGE}@latest 升级)`;
+        } else if (release) {
+            versionInfo += ` (已是最新)`;
+        }
         console.log(`sbot 状态:`);
         console.log(`  运行状态: ${running ? '运行中' : '未运行'}`);
         console.log(`  HTTP 端口: ${port}`);
         console.log(`  开机自启动: ${startup ? '已开启' : '未开启'}`);
-        console.log(`  版本: ${config.pkg.version}`);
+        console.log(`  版本: ${versionInfo}`);
         console.log(`  配置目录: ${config.getConfigPath('.')}`);
     });
 
