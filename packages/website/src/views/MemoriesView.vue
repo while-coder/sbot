@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
+import { MemoryMode } from '@/types'
 import type { MemoryConfig } from '@/types'
 import MemoryViewModal from './modals/MemoryViewModal.vue'
 
@@ -20,8 +21,8 @@ const modelOptions = computed(() =>
 
 const showModal   = ref(false)
 const editingName = ref<string | null>(null)
-const form = ref<{ name: string } & MemoryConfig>({
-  name: '', mode: 'human_and_ai', maxAgeDays: undefined,
+const form = ref<MemoryConfig>({
+  name: '', mode: MemoryMode.HumanAndAI, maxAgeDays: undefined,
   embedding: '', evaluator: '', extractor: '', compressor: '', share: false,
 })
 
@@ -50,7 +51,7 @@ async function toggleExpand(id: string) {
 
 function openAdd() {
   editingName.value = null
-  form.value = { name: '', mode: 'human_and_ai', maxAgeDays: undefined, embedding: '', evaluator: '', extractor: '', compressor: '', share: false }
+  form.value = { name: '', mode: MemoryMode.HumanAndAI, maxAgeDays: undefined, embedding: '', evaluator: '', extractor: '', compressor: '', share: false }
   showModal.value = true
 }
 
@@ -58,12 +59,12 @@ function openEdit(id: string) {
   const m = memories.value[id]
   editingName.value = id
   form.value = {
-    name: (m as any).name || '',
-    mode: m.mode || 'human_and_ai',
+    name: m.name,
+    mode: m.mode,
     maxAgeDays: m.maxAgeDays,
-    embedding: m.embedding || '',
-    evaluator: m.evaluator || '',
-    extractor: m.extractor || '',
+    embedding: m.embedding,
+    evaluator: m.evaluator,
+    extractor: m.extractor,
     compressor: m.compressor || '',
     share: !!m.share,
   }
@@ -77,16 +78,16 @@ async function save() {
   if (!form.value.extractor)    { show(t('memories.error_extractor'),      'error'); return }
   try {
     const { name, ...config } = form.value
-    const body: MemoryConfig & { name: string } = {
+    const body: MemoryConfig = {
       name,
       mode: config.mode,
       embedding: config.embedding,
       evaluator: config.evaluator,
       extractor: config.extractor,
+      share: !!config.share,
     }
     if (config.maxAgeDays) body.maxAgeDays = config.maxAgeDays
     if (config.compressor) body.compressor = config.compressor
-    if (config.share) body.share = true
     const id = editingName.value
     const res = id
       ? await apiFetch(`/api/settings/memories/${encodeURIComponent(id)}`, 'PUT', body)
@@ -212,9 +213,9 @@ async function refresh() {
           <div class="form-group">
             <label>{{ t('memories.memory_mode') }}</label>
             <select v-model="form.mode">
-              <option value="human_and_ai">{{ t('memories.mode_human_and_ai') }}</option>
-              <option value="human_only">{{ t('memories.mode_human_only') }}</option>
-              <option value="read_only">{{ t('memories.mode_read_only') }}</option>
+              <option :value="MemoryMode.HumanAndAI">{{ t('memories.mode_human_and_ai') }}</option>
+              <option :value="MemoryMode.HumanOnly">{{ t('memories.mode_human_only') }}</option>
+              <option :value="MemoryMode.ReadOnly">{{ t('memories.mode_read_only') }}</option>
             </select>
           </div>
           <div class="form-group">

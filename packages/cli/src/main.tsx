@@ -147,11 +147,28 @@ const { waitUntilExit, clear } = render(
 
 // Share clear() with React components (for Ctrl+L, Tab toggle, etc.)
 setInkClear(clear);
-// On resize: reset log-update tracking then truly clear the terminal,
-// so Ink's resize handler writes fresh output from a clean slate.
+
+// Throttled resize handler — clears immediately on first event, then suppresses
+// rapid-fire events while dragging the terminal edge to prevent flicker.
+// Trailing flush ensures the final size gets a clean repaint.
+let resizeLast = 0;
+let resizeTrailing: ReturnType<typeof setTimeout> | undefined;
+const doResizeClear = () => {
+  resizeLast = Date.now();
+  clear();                                // reset log-update previousLineCount
+  process.stdout.write('\x1b[2J\x1b[H'); // clear screen + cursor home (preserve scrollback)
+};
 process.stdout.prependListener('resize', () => {
-  clear();                                        // reset log-update previousLineCount
-  process.stdout.write('\x1b[2J\x1b[3J\x1b[H');  // clear screen + scrollback + cursor home
+  const now = Date.now();
+  if (resizeTrailing) clearTimeout(resizeTrailing);
+  if (now - resizeLast >= 80) {
+    doResizeClear();
+  }
+  // Always schedule a trailing flush so the final resize gets a clean repaint
+  resizeTrailing = setTimeout(() => {
+    resizeTrailing = undefined;
+    doResizeClear();
+  }, 80);
 });
 
 waitUntilExit().then(() => process.exit(0)).catch((err) => {

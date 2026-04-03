@@ -9,5 +9,5 @@ export function setInkClear(fn: () => void) {
 /** Reset log-update tracking + clear terminal so Ink repaints from scratch. */
 export function inkClear() {
   _clear();
-  process.stdout.write('\x1b[2J\x1b[3J\x1b[H');
+  process.stdout.write('\x1b[2J\x1b[H'); // clear screen + cursor home (preserve scrollback)
 }

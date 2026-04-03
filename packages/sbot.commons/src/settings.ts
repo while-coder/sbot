@@ -36,19 +36,25 @@ export interface Embedding {
   model?: string
 }
 
+export enum MemoryMode {
+  ReadOnly    = "read_only",
+  HumanOnly   = "human_only",
+  HumanAndAI  = "human_and_ai",
+}
+
 export interface MemoryConfig {
-  /** 显示名称（可选，便于识别） */
-  name?: string
+  /** 显示名称 */
+  name: string
   /** 记忆模式 */
-  mode?: string
-/** 记忆最大保留天数 */
+  mode: MemoryMode
+  /** 记忆最大保留天数 */
   maxAgeDays?: number
   /** 记忆使用的 embedding UUID（对应 embeddings 中的 key） */
-  embedding?: string
+  embedding: string
   /** 重要性评估器使用的模型 UUID（对应 models 中的 key） */
-  evaluator?: string
+  evaluator: string
   /** 知识提取器使用的模型 UUID（对应 models 中的 key） */
-  extractor?: string
+  extractor: string
   /** 记忆压缩器使用的模型 UUID（对应 models 中的 key） */
   compressor?: string
   /** 是否共享记忆（true = 所有 thread 共用同一份记忆；false = 每个 thread 独立，默认） */
