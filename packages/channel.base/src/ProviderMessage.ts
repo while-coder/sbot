@@ -22,13 +22,13 @@ function formatToolResult(response: string): string {
     const contentParts: string[] = [];
     for (const c of parsed.content) {
       if (c.type === MCPContentType.Text) {
-        contentParts.push(`------${c.type}------\n${c.text}`);
+        contentParts.push(c.text);
       } else if (c.type === MCPContentType.Image) {
-        contentParts.push(`------${c.type}------\n[image:${c.mimeType}]`);
+        contentParts.push(`[image:${c.mimeType}]`);
       } else if (c.type === MCPContentType.Audio) {
-        contentParts.push(`------${c.type}------\n[audio:${c.mimeType}]`);
+        contentParts.push(`[audio:${c.mimeType}]`);
       } else {
-        contentParts.push(`------${c.type}------\n${JSON.stringify(c)}`);
+        contentParts.push(JSON.stringify(c));
       }
     }
     return contentParts.join("\n").replace(/`/g, "\\`");
@@ -57,13 +57,14 @@ export function parseMessages2Text(messages: ChatMessage[]): string {
 
       if (msg.tool_calls?.length) {
         for (const t of msg.tool_calls) {
-          let block = `\`\`\`\nTool: ${t.name}\nArgs:\n${JSON.stringify(t.args, null, 2)}`;
+          const args = JSON.stringify(t.args, null, 2).replace(/`/g, "\\`");
+          let block = `\`\`\`\n🔧 ${t.name}\n📥 Args:\n${args}`;
           const result = t.id ? toolResults.get(t.id) : undefined;
           if (result) {
             const response = contentToText(result.content);
-            block += `\nResult:\n${formatToolResult(response)}`;
+            block += `\n📤 Result:\n${formatToolResult(response)}`;
           } else {
-            block += `\nRunning...`;
+            block += `\n⏳ Running...`;
           }
           block += `\n\`\`\`\n---`;
           parts.push(block);

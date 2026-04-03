@@ -9,17 +9,15 @@ export class WecomChatProvider extends AbstractChatProvider {
     super();
   }
 
-  protected async onMessagesUpdated(): Promise<void> {
-    const msg = this.messages[this.messages.length - 1];
-    if (!msg) return;
-    const text = parseMessages2Text([msg]);
+  protected async onMessagesUpdated(): Promise<void> {}
+
+  async finish(): Promise<void> {
+    const text = parseMessages2Text(this.messages);
     if (!text) return;
     try {
       await this.service.sendMessage(this.chatid, { msgtype: 'markdown', markdown: { content: text } });
     } catch (e: any) {
-      getLogger()?.error(`sendMessage error: ${e.message}`, e.stack);
+      getLogger()?.error(`finish error: ${e.message}`, e.stack);
     }
   }
-
-  async finish(): Promise<void> {}
 }
