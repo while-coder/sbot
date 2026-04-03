@@ -64,6 +64,7 @@ export type ProcessAIHandler = (
 
 export enum ConfigFieldType {
   String = 'string',
+  Password = 'password',
   Boolean = 'boolean',
   Number = 'number',
   Select = 'select',

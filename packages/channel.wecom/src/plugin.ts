@@ -15,7 +15,7 @@ export const wecomPlugin: ChannelPlugin = {
 
   configSchema: {
     botId:  { label: 'Bot ID',  type: ConfigFieldType.String, required: true, description: 'WeCom bot ID' },
-    secret: { label: 'Secret',  type: ConfigFieldType.String, required: true, description: 'WeCom bot secret' },
+    secret: { label: 'Secret',  type: ConfigFieldType.Password, required: true, description: 'WeCom bot secret' },
   },
 
   async init(ctx: ChannelPluginContext): Promise<IChannelService | undefined> {

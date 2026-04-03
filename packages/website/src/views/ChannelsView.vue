@@ -182,6 +182,8 @@ function formatUserInfo(raw: string) {
   try { return JSON.stringify(JSON.parse(raw), null, 2) } catch { return raw }
 }
 
+const passwordVisible = ref<Record<string, boolean>>({})
+
 // --- Action field support (QR login etc.) ---
 const actionState = ref<Record<string, { loading: boolean; qrUrl?: string; qrType?: 'image' | 'link'; status?: string; error?: string }>>({})
 
@@ -473,7 +475,7 @@ async function refresh() {
           </div>
           <div class="form-group">
             <label>{{ t('channels.channel_type') }} *</label>
-            <select v-model="form.type" @change="form.pluginConfig = {}">
+            <select v-model="form.type" @change="form.pluginConfig = {}" :disabled="!!editingId">
               <option v-for="p in plugins" :key="p.type" :value="p.type">{{ p.type }}</option>
             </select>
           </div>
@@ -503,7 +505,11 @@ async function refresh() {
                 <span>{{ field.description || '' }}</span>
               </label>
               <input v-else-if="field.type === 'number'" type="number" v-model.number="form.pluginConfig[key]" :placeholder="field.description || ''" />
-              <input v-else v-model="form.pluginConfig[key]" :placeholder="field.description || ''" :type="key.toLowerCase().includes('secret') || key.toLowerCase().includes('token') ? 'password' : 'text'" />
+              <div v-else-if="field.type === 'password'" class="apikey-field">
+                <input v-model="form.pluginConfig[key]" :placeholder="field.description || ''" :type="passwordVisible[key] ? 'text' : 'password'" />
+                <button type="button" class="apikey-toggle" @click="passwordVisible[key] = !passwordVisible[key]" :title="passwordVisible[key] ? t('common.hide') : t('common.show')">{{ passwordVisible[key] ? t('common.hide') : t('common.show') }}</button>
+              </div>
+              <input v-else v-model="form.pluginConfig[key]" :placeholder="field.description || ''" />
             </div>
           </template>
           <div class="form-group">
@@ -619,6 +625,27 @@ async function refresh() {
 </template>
 
 <style scoped>
+.apikey-field {
+  display: flex;
+  gap: 0;
+}
+.apikey-field input {
+  flex: 1;
+  border-radius: 6px 0 0 6px;
+  border-right: none;
+}
+.apikey-toggle {
+  padding: 0 12px;
+  font-size: 12px;
+  background: #f4f3f1;
+  border: 1px solid #d1d0ce;
+  border-radius: 0 6px 6px 0;
+  cursor: pointer;
+  color: #555;
+  white-space: nowrap;
+  transition: background .15s;
+}
+.apikey-toggle:hover { background: #eceae6; }
 .expand-btn {
   background: none;
   border: none;

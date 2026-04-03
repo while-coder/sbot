@@ -19,7 +19,7 @@ export const larkPlugin: ChannelPlugin = {
 
   configSchema: {
     appId:     { label: 'App ID',     type: ConfigFieldType.String, required: true, description: 'Lark app ID' },
-    appSecret: { label: 'App Secret', type: ConfigFieldType.String, required: true, description: 'Lark app secret' },
+    appSecret: { label: 'App Secret', type: ConfigFieldType.Password, required: true, description: 'Lark app secret' },
   },
 
   async init(ctx: ChannelPluginContext): Promise<IChannelService | undefined> {
