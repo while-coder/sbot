@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
 import { useToast } from '@/composables/useToast'
 
 const { t } = useI18n()
+const { isMobile } = useResponsive()
 
 interface UserRow {
   id: number
@@ -60,7 +62,7 @@ onMounted(load)
       <button class="btn-outline btn-sm" @click="load">{{ t('common.refresh') }}</button>
     </div>
     <div class="page-content">
-      <table>
+      <table v-if="!isMobile">
         <thead>
           <tr>
             <th>{{ t('common.id') }}</th>
@@ -91,6 +93,27 @@ onMounted(load)
           </tr>
         </tbody>
       </table>
+
+      <!-- Mobile card layout -->
+      <div v-else class="card-list">
+        <div v-if="loading" class="mobile-card-empty">{{ t('common.loading') }}</div>
+        <div v-else-if="users.length === 0" class="mobile-card-empty">{{ t('users.empty') }}</div>
+        <div v-for="u in users" :key="u.id" class="mobile-card">
+          <div class="mobile-card-header">{{ u.userName || '-' }}</div>
+          <div class="mobile-card-fields">
+            <span class="mobile-card-label">{{ t('common.id') }}</span>
+            <span class="mobile-card-value" style="font-family:monospace;color:#9b9b9b">{{ u.id }}</span>
+            <span class="mobile-card-label">{{ t('users.user_id_col') }}</span>
+            <span class="mobile-card-value" style="font-family:monospace">{{ u.userId }}</span>
+            <span class="mobile-card-label">{{ t('users.channel_col') }}</span>
+            <span class="mobile-card-value" style="font-family:monospace;font-size:12px;color:#6b6b6b">{{ u.channel || '-' }}</span>
+          </div>
+          <div class="mobile-card-ops">
+            <button class="btn-outline btn-sm" @click="viewUser = u">{{ t('common.view') }}</button>
+            <button class="btn-danger btn-sm" @click="remove(u)">{{ t('common.delete') }}</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div v-if="viewUser" class="modal-overlay" @click.self="viewUser = null">

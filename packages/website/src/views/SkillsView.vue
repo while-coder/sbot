@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
@@ -9,6 +10,7 @@ import { sourceBadgeStyle, BADGE_CLAWHUB, BADGE_INSTALLED } from '@/utils/badges
 
 const { t } = useI18n()
 const { show } = useToast()
+const { isMobile } = useResponsive()
 
 const allSkills = ref<SkillItem[]>([])
 
@@ -240,7 +242,7 @@ onMounted(load)
       <div style="margin-bottom:16px;padding:10px 14px;background:#f1f5f9;border-radius:6px;font-size:13px;color:#475569">
         {{ t('skills.skills_dir') }}<code style="font-family:monospace;background:#e2e8f0;padding:2px 6px;border-radius:3px">~/.sbot/skills/</code>
       </div>
-      <table style="table-layout:fixed;width:100%">
+      <table v-if="!isMobile" style="table-layout:fixed;width:100%">
         <colgroup>
           <col style="width:240px" />
           <col />
@@ -269,6 +271,25 @@ onMounted(load)
           </tr>
         </tbody>
       </table>
+      <div v-else class="card-list">
+        <div v-for="s in filteredSkills" :key="s.name" class="mobile-card">
+          <div class="mobile-card-header">
+            <span :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;margin-right:6px;${sourceBadgeStyle(s.source)}`">{{ s.source }}</span>
+            {{ s.name }}
+          </div>
+          <div class="mobile-card-fields">
+            <span class="mobile-card-label">{{ t('common.description') }}</span>
+            <span class="mobile-card-value">{{ s.description || '-' }}</span>
+          </div>
+          <div class="mobile-card-ops">
+            <button class="btn-outline btn-sm" @click="openView(s.name, s.source)">{{ t('common.view') }}</button>
+            <button v-if="s.source === '全局'" class="btn-danger btn-sm" @click="remove(s.name)">{{ t('common.delete') }}</button>
+          </div>
+        </div>
+        <div v-if="filteredSkills.length === 0" class="mobile-card-empty">
+          {{ searchQuery.trim() ? t('skills.no_match') : t('skills.empty') }}
+        </div>
+      </div>
     </div>
 
     <!-- View Skill modal -->

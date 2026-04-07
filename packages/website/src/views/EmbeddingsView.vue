@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
@@ -9,6 +10,7 @@ import type { EmbeddingConfig } from '@/types'
 
 const { t } = useI18n()
 const { show } = useToast()
+const { isMobile } = useResponsive()
 
 const embeddings = computed(() => store.settings.embeddings || {})
 
@@ -89,7 +91,7 @@ async function refresh() {
       <button class="btn-primary btn-sm" @click="openAdd">{{ t('embeddings.add') }}</button>
     </div>
     <div class="page-content">
-      <table>
+      <table v-if="!isMobile">
         <thead>
           <tr><th>{{ t('common.name') }}</th><th>{{ t('common.provider') }}</th><th>{{ t('common.base_url') }}</th><th>{{ t('common.model') }}</th><th>{{ t('common.ops') }}</th></tr>
         </thead>
@@ -111,6 +113,24 @@ async function refresh() {
           </tr>
         </tbody>
       </table>
+      <div v-else class="card-list">
+        <div v-for="(emb, id) in embeddings" :key="id" class="mobile-card">
+          <div class="mobile-card-header">{{ emb.name || id }}</div>
+          <div class="mobile-card-fields">
+            <span class="mobile-card-label">Provider</span>
+            <span class="mobile-card-value">{{ emb.provider }}</span>
+            <span class="mobile-card-label">Model</span>
+            <span class="mobile-card-value">{{ emb.model }}</span>
+            <span class="mobile-card-label">Base URL</span>
+            <span class="mobile-card-value" style="word-break:break-all">{{ emb.baseURL }}</span>
+          </div>
+          <div class="mobile-card-ops">
+            <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
+            <button class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
+          </div>
+        </div>
+        <div v-if="Object.keys(embeddings).length === 0" class="mobile-card-empty">-</div>
+      </div>
     </div>
 
     <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">

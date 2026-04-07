@@ -6,11 +6,14 @@ import { apiFetch } from '@/api'
 import { store, applyMcpList } from '@/store'
 import { useToast } from '@/composables/useToast'
 import { fetchLatestRelease, compareSemver } from 'sbot.commons'
+import { useResponsive } from '../composables/useResponsive'
 
 const { t } = useI18n()
 const router = useRouter()
 const route = useRoute()
 const { show } = useToast()
+const { isMobile } = useResponsive()
+const sidebarOpen = ref(false)
 
 const menuGroups = computed(() => [
   {
@@ -108,11 +111,15 @@ init()
 <template>
   <div class="app-layout">
     <div class="topbar">
-      <div class="topbar-title">{{ t('nav.app_title') }}</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button v-if="isMobile" class="hamburger-btn" @click="sidebarOpen = !sidebarOpen">&#9776;</button>
+        <div class="topbar-title">{{ t('nav.app_title') }}</div>
+      </div>
       <button class="btn-outline btn-sm" @click="reloadConfig">{{ t('nav.reload') }}</button>
     </div>
     <div class="app-body">
-      <div class="sidebar">
+      <div v-if="isMobile && sidebarOpen" class="sidebar-overlay" @click="sidebarOpen = false"></div>
+      <div class="sidebar" :class="{ 'sidebar-open': sidebarOpen, 'sidebar-mobile': isMobile }">
         <template v-for="group in menuGroups" :key="group.group">
           <div class="sidebar-group-label">{{ group.group }}</div>
           <div
@@ -120,7 +127,7 @@ init()
             :key="item.key"
             class="sidebar-item"
             :class="{ active: activeKey === item.key }"
-            @click="router.push(item.key)"
+            @click="router.push(item.key); isMobile && (sidebarOpen = false)"
           >
             {{ item.label }}
             <span v-if="item.key === '/about' && hasUpdate" class="update-dot"></span>
@@ -866,5 +873,160 @@ table tr:hover td { background: #fafaf9; }
 .lightbox-actions {
   display: flex;
   gap: 8px;
+}
+
+/* ===== Hamburger & Drawer ===== */
+.hamburger-btn {
+  background: none;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+  padding: 4px 8px;
+  color: #1c1c1c;
+}
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.3);
+  z-index: 99;
+}
+
+/* ===== Mobile Card List (shared across all table views) ===== */
+.card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mobile-card {
+  background: #fff;
+  border: 1px solid #e8e6e3;
+  border-radius: 8px;
+  padding: 12px;
+}
+.mobile-card-header {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+.mobile-card-fields {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+.mobile-card-label {
+  color: #9b9b9b;
+  font-size: 12px;
+}
+.mobile-card-value {
+  color: #1c1c1c;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mobile-card-ops {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.mobile-card-empty {
+  text-align: center;
+  color: #9b9b9b;
+  padding: 20px;
+}
+
+@media (max-width: 768px) {
+  /* Sidebar drawer */
+  .sidebar-mobile {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 200px;
+    z-index: 100;
+    background: #fff;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+  }
+  .sidebar-mobile.sidebar-open {
+    transform: translateX(0);
+  }
+
+  /* Spacing */
+  .main-content {
+    padding: 0 !important;
+  }
+  .topbar {
+    padding: 0 12px;
+  }
+  .page-content {
+    padding: 12px;
+  }
+
+  /* Modal fullscreen */
+  .modal-box,
+  .picker-box {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+  }
+  .modal-overlay {
+    align-items: stretch !important;
+    padding: 0 !important;
+  }
+  .modal-header {
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    background: #fff;
+    z-index: 1;
+    border-bottom: 1px solid #e8e6e3;
+  }
+  .modal-body {
+    flex: 1;
+    overflow-y: auto;
+  }
+  .modal-footer {
+    flex-shrink: 0;
+    position: sticky;
+    bottom: 0;
+    background: #fff;
+    border-top: 1px solid #e8e6e3;
+  }
+
+  /* Forms */
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+  .inline-form {
+    flex-direction: column;
+  }
+
+  /* Toolbar */
+  .page-toolbar {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  /* Tables base */
+  table {
+    font-size: 13px;
+  }
+  .ops-cell {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .btn-sm {
+    padding: 3px 8px;
+    font-size: 12px;
+  }
 }
 </style>

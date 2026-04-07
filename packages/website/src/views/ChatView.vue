@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 
 import { useI18n } from 'vue-i18n'
+import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
@@ -16,6 +17,8 @@ import { WsCommandType } from 'sbot.commons'
 
 const { t } = useI18n()
 const { show } = useToast()
+const { isMobile } = useResponsive()
+const showSessionPanel = ref(true)
 
 // ── Refs ──
 const saverViewModal  = ref<InstanceType<typeof SaverViewModal>>()
@@ -56,6 +59,7 @@ const historyUrl = computed<string | null>(() => {
 function switchSession(id: string) {
   if (activeSessionId.value === id) return
   activeSessionId.value = id
+  if (isMobile.value) showSessionPanel.value = false
 }
 
 async function deleteSession(id: string) {
@@ -134,8 +138,12 @@ onMounted(() => {
 <template>
   <div style="height:100%;display:flex;overflow:hidden">
 
+    <button v-if="isMobile" class="session-toggle-btn" @click="showSessionPanel = !showSessionPanel">
+      {{ showSessionPanel ? '✕' : '☰' }}
+    </button>
+
     <!-- Session sidebar (left, full height) -->
-    <div style="width:180px;border-right:1px solid #e8e6e3;display:flex;flex-direction:column;overflow:hidden;flex-shrink:0">
+    <div v-if="!isMobile || showSessionPanel" :class="{ 'chat-session-panel-mobile': isMobile }" style="width:180px;border-right:1px solid #e8e6e3;display:flex;flex-direction:column;overflow:hidden;flex-shrink:0">
       <div style="padding:6px 8px;border-bottom:1px solid #e8e6e3;flex-shrink:0">
         <button class="btn-outline btn-sm" style="width:100%" @click="newSessionModal?.open()">{{ t('chat.new_session') }}</button>
       </div>
@@ -181,10 +189,10 @@ onMounted(() => {
     </div>
 
     <!-- Right panel: toolbar + chat -->
-    <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+    <div v-if="!isMobile || !showSessionPanel" style="flex:1;display:flex;flex-direction:column;overflow:hidden">
 
       <!-- Toolbar -->
-      <div class="page-toolbar">
+      <div class="page-toolbar chat-toolbar" :class="{ 'chat-toolbar-mobile': isMobile }">
         <template v-if="activeSessionId">
           <!-- Agent -->
           <label class="toolbar-label">Agent</label>
@@ -317,5 +325,34 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   cursor: default;
+}
+.session-toggle-btn {
+  position: fixed;
+  top: 58px;
+  left: 8px;
+  z-index: 50;
+  background: #fff;
+  border: 1px solid #e8e6e3;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 16px;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+.chat-session-panel-mobile {
+  width: 100% !important;
+  border-right: none !important;
+}
+@media (max-width: 768px) {
+  .chat-toolbar-mobile {
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 6px 8px;
+  }
+  .chat-toolbar-mobile select,
+  .chat-toolbar-mobile .toolbar-input-sm {
+    min-width: 0;
+    flex: 1 1 calc(50% - 4px);
+  }
 }
 </style>

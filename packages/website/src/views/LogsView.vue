@@ -122,4 +122,16 @@ onMounted(async () => {
 .log-error { color: #f87171; }
 .log-warn { color: #fbbf24; }
 .log-debug { color: #9ca3af; }
+
+@media (max-width: 768px) {
+  :deep(.page-toolbar) {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  :deep(.page-toolbar) select,
+  :deep(.page-toolbar) input {
+    min-width: 0;
+    flex: 1 1 calc(50% - 4px);
+  }
+}
 </style>

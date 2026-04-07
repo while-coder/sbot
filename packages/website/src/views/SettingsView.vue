@@ -60,7 +60,7 @@ async function save() {
 </script>
 
 <template>
-  <div>
+  <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
     <div v-if="portMismatch" class="port-mismatch-banner">
       {{ t('settings.port_changed') }}
     </div>
@@ -136,5 +136,10 @@ async function save() {
   font-size: 0.85rem;
   padding: 8px 16px;
   text-align: center;
+}
+
+@media (max-width: 768px) {
+  .inline-form { flex-direction: column; }
+  .card { padding: 12px; }
 }
 </style>

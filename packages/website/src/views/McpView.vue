@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
 import { store, applyMcpList } from '@/store'
 import { useToast } from '@/composables/useToast'
@@ -11,6 +12,7 @@ import { sourceBadgeStyle } from '@/utils/badges'
 
 const { t } = useI18n()
 const { show } = useToast()
+const { isMobile } = useResponsive()
 
 // ── Search & tab filter ──
 const searchQuery = ref('')
@@ -237,7 +239,7 @@ onMounted(load)
     </div>
 
     <div class="page-content">
-      <table style="table-layout:fixed;width:100%">
+      <table v-if="!isMobile" style="table-layout:fixed;width:100%">
         <colgroup>
           <col style="width:220px" />
           <col />
@@ -269,6 +271,28 @@ onMounted(load)
           </tr>
         </tbody>
       </table>
+      <div v-else class="card-list">
+        <div v-for="m in filteredMcps" :key="m.id" class="mobile-card">
+          <div class="mobile-card-header">
+            <span :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;margin-right:6px;${sourceBadgeStyle(m.source)}`">{{ m.source }}</span>
+            {{ m.name }}
+          </div>
+          <div class="mobile-card-fields">
+            <span class="mobile-card-label">{{ t('common.description') }}</span>
+            <span class="mobile-card-value">{{ m.description || '—' }}</span>
+            <span class="mobile-card-label">{{ t('mcp.address_col') }}</span>
+            <span class="mobile-card-value" style="word-break:break-all">{{ serverAddr(m as any) || '—' }}</span>
+          </div>
+          <div class="mobile-card-ops">
+            <button class="btn-outline btn-sm" @click="viewTools(m.id)">{{ t('common.view') }}</button>
+            <button v-if="m.source !== '内置'" class="btn-outline btn-sm" @click="openEdit(m.id)">{{ t('common.edit') }}</button>
+            <button v-if="m.source !== '内置'" class="btn-danger btn-sm" @click="remove(m.id)">{{ t('common.delete') }}</button>
+          </div>
+        </div>
+        <div v-if="filteredMcps.length === 0" class="mobile-card-empty">
+          {{ searchQuery.trim() ? t('mcp.no_match') : t('mcp.empty') }}
+        </div>
+      </div>
     </div>
 
     <!-- Edit / Add MCP Modal -->

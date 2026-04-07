@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
 import { useToast } from '@/composables/useToast'
 
 const { t } = useI18n()
+const { isMobile } = useResponsive()
 
 interface SchedulerRow {
   id: number
@@ -130,7 +132,7 @@ onMounted(load)
       <button class="btn-outline btn-sm" @click="load">{{ t('common.refresh') }}</button>
     </div>
     <div class="page-content">
-      <table>
+      <table v-if="!isMobile">
         <thead>
           <tr>
             <th>{{ t('common.id') }}</th>
@@ -176,6 +178,40 @@ onMounted(load)
           </tr>
         </tbody>
       </table>
+
+      <!-- Mobile card layout -->
+      <div v-else class="card-list">
+        <div v-if="loading" class="mobile-card-empty">{{ t('common.loading') }}</div>
+        <div v-else-if="timers.length === 0" class="mobile-card-empty">{{ t('scheduler.empty') }}</div>
+        <div v-for="t_ in timers" :key="t_.id" class="mobile-card">
+          <div class="mobile-card-header" style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:13px">{{ describeExpr(t_.expr) }}</span>
+            <span
+              style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;font-family:monospace"
+              :style="{ background: ROUTING_BADGE[routingTypeOf(t_)].bg, color: ROUTING_BADGE[routingTypeOf(t_)].color }"
+            >{{ ROUTING_BADGE[routingTypeOf(t_)].label }}</span>
+          </div>
+          <div class="mobile-card-fields">
+            <span class="mobile-card-label">{{ t('common.id') }}</span>
+            <span class="mobile-card-value" style="font-family:monospace;color:#9b9b9b">{{ t_.id }}</span>
+            <span class="mobile-card-label">{{ t('scheduler.schedule_col') }}</span>
+            <span class="mobile-card-value" style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ t_.expr }}</span>
+            <span class="mobile-card-label">{{ t('scheduler.message_col') }}</span>
+            <span class="mobile-card-value" style="color:#6b6b6b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ t_.message }}</span>
+            <span class="mobile-card-label">{{ t('scheduler.target_col') }}</span>
+            <span class="mobile-card-value" style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ routingLabel(t_) }}</span>
+            <span class="mobile-card-label">{{ t('scheduler.run_count_col') }}</span>
+            <span class="mobile-card-value" style="font-family:monospace;font-size:12px;color:#9b9b9b">{{ t_.runCount }}{{ t_.maxRuns > 0 ? ` / ${t_.maxRuns}` : '' }}</span>
+            <span class="mobile-card-label">{{ t('scheduler.last_run_col') }}</span>
+            <span class="mobile-card-value" style="font-size:12px;color:#9b9b9b">{{ formatLastRun(t_.lastRun) }}</span>
+            <span class="mobile-card-label">{{ t('scheduler.next_run_col') }}</span>
+            <span class="mobile-card-value" style="font-size:12px;color:#9b9b9b">{{ formatNextRun(t_.nextRun) }}</span>
+          </div>
+          <div class="mobile-card-ops">
+            <button class="btn-danger btn-sm" @click="remove(t_)">{{ t('common.delete') }}</button>
+          </div>
+        </div>
+      </div>
     </div>
 
   </div>

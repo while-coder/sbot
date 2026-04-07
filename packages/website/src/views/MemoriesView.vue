@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
@@ -10,6 +11,7 @@ import MemoryViewModal from './modals/MemoryViewModal.vue'
 
 const { t } = useI18n()
 const { show } = useToast()
+const { isMobile } = useResponsive()
 
 const memories         = computed(() => store.settings.memories || {})
 const embeddingOptions = computed(() =>
@@ -146,7 +148,7 @@ async function refresh() {
       <button class="btn-primary btn-sm" @click="openAdd">{{ t('memories.add') }}</button>
     </div>
     <div class="page-content">
-      <table>
+      <table v-if="!isMobile">
         <thead>
           <tr><th style="width:32px"></th><th>{{ t('common.name') }}</th><th>{{ t('memories.mode_col') }}</th><th>{{ t('memories.embedding_col') }}</th><th>{{ t('memories.max_days_col') }}</th><th>{{ t('common.ops') }}</th></tr>
         </thead>
@@ -196,6 +198,46 @@ async function refresh() {
           </template>
         </tbody>
       </table>
+
+      <!-- Mobile card layout -->
+      <template v-else>
+        <div v-if="Object.keys(memories).length === 0" class="mobile-card-empty">{{ t('memories.empty') }}</div>
+        <div v-for="(m, id) in memories" :key="id" class="mobile-card">
+          <div class="mobile-card-header" @click="toggleExpand(id as string)" style="cursor:pointer;display:flex;align-items:center;gap:6px">
+            <span style="font-size:10px;color:#9b9b9b">{{ expandedMemories[id as string] ? '▼' : '▶' }}</span>
+            {{ m.name || id }}
+          </div>
+          <div class="mobile-card-fields">
+            <span class="mobile-card-label">{{ t('memories.mode_col') }}</span>
+            <span class="mobile-card-value">{{ m.mode || '-' }}</span>
+            <span class="mobile-card-label">{{ t('memories.embedding_col') }}</span>
+            <span class="mobile-card-value">{{ embeddingOptions.find(e => e.id === m.embedding)?.label || m.embedding || '-' }}</span>
+            <span class="mobile-card-label">{{ t('memories.max_days_col') }}</span>
+            <span class="mobile-card-value">{{ m.maxAgeDays ?? '-' }}</span>
+          </div>
+          <div class="mobile-card-ops">
+            <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
+            <button class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
+          </div>
+          <!-- Expanded threads -->
+          <div v-if="expandedMemories[id as string]" class="mobile-card-threads">
+            <div v-if="memoryLoading[id as string]" class="thread-sub-cell">{{ t('common.loading') }}</div>
+            <!-- No threads: show the memory itself as viewable -->
+            <div v-else-if="(memoryThreadsMap[id as string] || []).length === 0" class="mobile-thread-row">
+              <span class="thread-id-cell">{{ id }}</span>
+              <div class="mobile-card-ops">
+                <button class="btn-outline btn-sm" @click="memoryViewModal?.open(id as string, m)">{{ t('common.view') }}</button>
+              </div>
+            </div>
+            <div v-for="thread in memoryThreadsMap[id as string] || []" :key="thread" class="mobile-thread-row">
+              <span class="thread-id-cell">{{ thread }}</span>
+              <div class="mobile-card-ops">
+                <button class="btn-outline btn-sm" @click="memoryViewModal?.open(id as string, m, thread)">{{ t('common.view') }}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
     </div>
 
     <!-- Edit/Add modal -->
@@ -297,5 +339,19 @@ async function refresh() {
   font-size: 12px;
   color: #3d3d3d;
   padding: 5px 12px;
+}
+.mobile-card-threads {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #f0efed;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mobile-thread-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 </style>

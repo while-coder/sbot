@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
@@ -10,6 +11,7 @@ import SaverViewModal from './modals/SaverViewModal.vue'
 
 const { t } = useI18n()
 const { show } = useToast()
+const { isMobile } = useResponsive()
 
 const savers = computed(() => store.settings.savers || {})
 
@@ -133,7 +135,7 @@ async function refresh() {
       <button class="btn-primary btn-sm" @click="openAdd">{{ t('savers.add') }}</button>
     </div>
     <div class="page-content">
-      <table>
+      <table v-if="!isMobile">
         <thead>
           <tr><th style="width:32px"></th><th>{{ t('common.name') }}</th><th>{{ t('common.type') }}</th><th>{{ t('common.ops') }}</th></tr>
         </thead>
@@ -178,6 +180,37 @@ async function refresh() {
           </template>
         </tbody>
       </table>
+
+      <!-- Mobile card layout -->
+      <template v-else>
+        <div v-if="Object.keys(savers).length === 0" class="mobile-card-empty">{{ t('savers.empty') }}</div>
+        <div v-for="(s, id) in savers" :key="id" class="mobile-card">
+          <div class="mobile-card-header" @click="toggleExpand(id as string)" style="cursor:pointer;display:flex;align-items:center;gap:6px">
+            <span style="font-size:10px;color:#9b9b9b">{{ expandedSavers[id as string] ? '▼' : '▶' }}</span>
+            {{ (s as any).name || id }}
+          </div>
+          <div class="mobile-card-fields">
+            <span class="mobile-card-label">{{ t('common.type') }}</span>
+            <span class="mobile-card-value">{{ s.type || '-' }}</span>
+          </div>
+          <div class="mobile-card-ops">
+            <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
+            <button class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
+          </div>
+          <!-- Expanded threads -->
+          <div v-if="expandedSavers[id as string]" class="mobile-card-threads">
+            <div v-if="saverLoading[id as string]" class="thread-sub-cell">{{ t('common.loading') }}</div>
+            <div v-else-if="(saverThreadsMap[id as string] || []).length === 0" class="thread-sub-cell empty">{{ t('savers.no_sessions') }}</div>
+            <div v-for="thread in saverThreadsMap[id as string] || []" :key="thread" class="mobile-thread-row">
+              <span class="thread-id-cell">{{ thread }}</span>
+              <div class="mobile-card-ops">
+                <button class="btn-outline btn-sm" @click="saverViewModal?.open(id as string, (s as any).name || id as string, thread)">{{ t('common.view') }}</button>
+                <button class="btn-danger btn-sm" :disabled="threadClearing[`${id}::${thread}`]" @click="clearThread(id as string, thread)">{{ t('savers.cleanup') }}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
     </div>
 
     <!-- Edit/Add modal -->
@@ -241,5 +274,19 @@ async function refresh() {
   font-size: 12px;
   color: #3d3d3d;
   padding: 5px 12px;
+}
+.mobile-card-threads {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #f0efed;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mobile-thread-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 </style>

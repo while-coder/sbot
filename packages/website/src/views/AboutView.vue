@@ -312,4 +312,17 @@ onMounted(async () => {
   vertical-align: middle;
   margin-right: 4px;
 }
+
+@media (max-width: 768px) {
+  .card :deep(td a),
+  .readme-wrap :deep(a),
+  .readme-wrap :deep(code) {
+    word-break: break-all;
+  }
+  .newRelease-banner-top {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}
 </style>

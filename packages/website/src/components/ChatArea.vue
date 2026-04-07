@@ -437,4 +437,20 @@ defineExpose({ handleWsEvent, refreshHistory, clearHistory, scrollToBottom, rese
 .ask-input:focus { border-color: #38bdf8; }
 .ask-custom-input { margin-top: 4px; margin-left: 20px; }
 .ask-footer { display: flex; justify-content: flex-end; padding-top: 4px; }
+
+@media (max-width: 768px) {
+  .msg-bubble {
+    max-width: 95% !important;
+  }
+  .ask-form {
+    max-height: 60vh;
+  }
+  .tool-approval-bar {
+    flex-wrap: wrap;
+  }
+  .tool-approval-btns {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
 </style>

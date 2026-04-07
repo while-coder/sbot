@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
@@ -10,6 +11,7 @@ import PathPickerModal from './modals/PathPickerModal.vue'
 import MultiSelect from '@/components/MultiSelect.vue'
 
 const { t } = useI18n()
+const { isMobile } = useResponsive()
 
 interface PluginInfo {
   type: string
@@ -329,7 +331,7 @@ async function refresh() {
       <button class="btn-primary btn-sm" @click="openAdd">{{ t('channels.add') }}</button>
     </div>
     <div class="page-content">
-      <table>
+      <table v-if="!isMobile">
         <thead>
           <tr><th style="width:32px"></th><th>{{ t('common.name') }}</th><th>{{ t('common.id') }}</th><th>{{ t('common.type') }}</th><th>{{ t('common.agent') }}</th><th>{{ t('common.storage') }}</th><th>{{ t('common.memory') }}</th><th>{{ t('common.ops') }}</th></tr>
         </thead>
@@ -338,11 +340,13 @@ async function refresh() {
             <td colspan="8" style="text-align:center;color:#94a3b8;padding:40px">{{ t('channels.empty') }}</td>
           </tr>
           <template v-for="(c, id) in channels" :key="id">
-            <tr>
-              <td>
-                <button class="expand-btn" @click="toggleExpand(id as string)">
-                  {{ expandedChannels[id as string] ? '▼' : '▶' }}
-                </button>
+            <tr
+              @click="toggleExpand(id as string)"
+              style="cursor:pointer"
+              :style="expandedChannels[id as string] ? 'background:#f8fafc' : ''"
+            >
+              <td style="padding:6px 8px;text-align:center">
+                <span style="color:#6b6b6b;font-size:10px">{{ expandedChannels[id as string] ? '▼' : '▶' }}</span>
               </td>
               <td>{{ c.name }}</td>
               <td style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ id }}</td>
@@ -350,7 +354,7 @@ async function refresh() {
               <td>{{ agentOptions.find(a => a.id === c.agent)?.label || c.agent || '-' }}</td>
               <td>{{ c.saver ? (saverOptions.find(s => s.id === c.saver)?.label || c.saver) : '-' }}</td>
               <td>{{ Array.isArray(c.memories) && c.memories.length ? c.memories.map(id => memoryOptions.find(m => m.id === id)?.label || id).join(', ') : '-' }}</td>
-              <td>
+              <td @click.stop>
                 <div class="ops-cell">
                   <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
                   <button class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
@@ -452,6 +456,73 @@ async function refresh() {
           </template>
         </tbody>
       </table>
+
+      <!-- Mobile card layout -->
+      <div v-else class="card-list">
+        <div v-for="(c, id) in channels" :key="id" class="mobile-card">
+          <div class="mobile-card-header" @click="toggleExpand(id as string)" style="display:flex;justify-content:space-between;cursor:pointer">
+            <span>{{ c.name }}</span>
+            <span style="font-size:10px">{{ expandedChannels[id as string] ? '▼' : '▶' }}</span>
+          </div>
+          <div class="mobile-card-fields">
+            <span class="mobile-card-label">{{ t('common.type') }}</span>
+            <span class="mobile-card-value">{{ c.type }}</span>
+            <span class="mobile-card-label">{{ t('common.agent') }}</span>
+            <span class="mobile-card-value">{{ agentOptions.find(a => a.id === c.agent)?.label || c.agent || '-' }}</span>
+            <span class="mobile-card-label">{{ t('common.storage') }}</span>
+            <span class="mobile-card-value">{{ c.saver ? (saverOptions.find(s => s.id === c.saver)?.label || c.saver) : '-' }}</span>
+            <span class="mobile-card-label">{{ t('common.memory') }}</span>
+            <span class="mobile-card-value">{{ Array.isArray(c.memories) && c.memories.length ? c.memories.map(mid => memoryOptions.find(m => m.id === mid)?.label || mid).join(', ') : '-' }}</span>
+          </div>
+          <div class="mobile-card-ops">
+            <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
+            <button class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
+          </div>
+          <!-- Expandable detail -->
+          <div v-if="expandedChannels[id as string]" style="margin-top:10px">
+            <div class="detail-tab-bar">
+              <button class="detail-tab-btn" :class="{ active: getChannelTab(id as string) === 'sessions' }" @click="setChannelTab(id as string, 'sessions')">{{ t('channels.sessions') }}</button>
+              <button class="detail-tab-btn" :class="{ active: getChannelTab(id as string) === 'users' }" @click="setChannelTab(id as string, 'users')">{{ t('channels.users') }}</button>
+            </div>
+            <!-- Sessions -->
+            <div v-if="getChannelTab(id as string) === 'sessions'" class="card-list" style="margin-top:8px">
+              <div v-for="s in (sessionMap[id as string] || [])" :key="s.id" class="mobile-card" style="border-color:#e2e8f0">
+                <div class="mobile-card-header" style="font-size:13px;display:flex;align-items:center;gap:4px">
+                  <img v-if="s.avatar" :src="s.avatar" style="width:20px;height:20px;border-radius:50%;object-fit:cover" />
+                  {{ s.sessionName || s.sessionId }}
+                </div>
+                <div class="mobile-card-fields">
+                  <span class="mobile-card-label">{{ t('common.agent') }}</span>
+                  <span class="mobile-card-value">{{ agentOptions.find(a => a.id === s.agentId)?.label || s.agentId || '-' }}</span>
+                  <span class="mobile-card-label">{{ t('common.memory') }}</span>
+                  <span class="mobile-card-value">{{ Array.isArray(s.memories) && s.memories.length ? s.memories.map(mid => memoryOptions.find(m => m.id === mid)?.label || mid).join(', ') : '-' }}</span>
+                </div>
+                <div class="mobile-card-ops">
+                  <button class="btn-outline btn-sm" @click="openEditSession(s)">{{ t('common.edit') }}</button>
+                  <button class="btn-danger btn-sm" @click="removeSession(id as string, s)">{{ t('common.delete') }}</button>
+                </div>
+              </div>
+              <div v-if="channelLoading[id as string]" class="mobile-card-empty">{{ t('common.loading') }}</div>
+              <div v-else-if="!(sessionMap[id as string] || []).length" class="mobile-card-empty">-</div>
+            </div>
+            <!-- Users -->
+            <div v-if="getChannelTab(id as string) === 'users'" class="card-list" style="margin-top:8px">
+              <div v-for="u in (userMap[id as string] || [])" :key="u.id" class="mobile-card" style="border-color:#e2e8f0">
+                <div class="mobile-card-header" style="font-size:13px;display:flex;align-items:center;gap:4px">
+                  <img v-if="u.avatar" :src="u.avatar" style="width:20px;height:20px;border-radius:50%;object-fit:cover" />
+                  {{ u.userName || '-' }}
+                </div>
+                <div class="mobile-card-ops">
+                  <button class="btn-outline btn-sm" @click="viewUser = u">{{ t('common.view') }}</button>
+                  <button class="btn-danger btn-sm" @click="removeUser(id as string, u)">{{ t('common.delete') }}</button>
+                </div>
+              </div>
+              <div v-if="!(userMap[id as string] || []).length" class="mobile-card-empty">-</div>
+            </div>
+          </div>
+        </div>
+        <div v-if="Object.keys(channels).length === 0" class="mobile-card-empty">{{ t('channels.empty') }}</div>
+      </div>
     </div>
 
     <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
@@ -642,18 +713,6 @@ async function refresh() {
   transition: background .15s;
 }
 .apikey-toggle:hover { background: #eceae6; }
-.expand-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 10px;
-  color: #9b9b9b;
-  padding: 2px 6px;
-  width: 28px;
-  text-align: center;
-  line-height: 1;
-}
-.expand-btn:hover { color: #1c1c1c; }
 .session-id-cell {
   font-size: 13px;
   font-weight: 500;

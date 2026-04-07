@@ -319,4 +319,15 @@ onMounted(loadTree)
   color: #9b9b9b;
   font-size: 13px;
 }
+
+@media (max-width: 768px) {
+  .prompts-layout { flex-direction: column; }
+  .prompts-tree {
+    width: 100%;
+    max-height: 200px;
+    border-right: none;
+    border-bottom: 1px solid #e8e6e3;
+  }
+  .prompts-editor { width: 100%; }
+}
 </style>
