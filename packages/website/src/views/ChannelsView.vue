@@ -77,7 +77,9 @@ const sessionForm      = ref<{ name: string; agentId: string; memories: string[]
 
 function openEditSession(s: ChannelSessionRow) {
   editingSession.value = s
-  sessionForm.value = { name: s.sessionName || '', agentId: s.agentId || '', memories: s.memories || [], useChannelMemories: !!s.useChannelMemories, workPath: s.workPath || '' }
+  const rawMem = s.memories
+  const memArr = Array.isArray(rawMem) ? rawMem : typeof rawMem === 'string' ? (() => { try { const p = JSON.parse(rawMem); return Array.isArray(p) ? p : [] } catch { return [] } })() : []
+  sessionForm.value = { name: s.sessionName || '', agentId: s.agentId || '', memories: memArr, useChannelMemories: !!s.useChannelMemories, workPath: s.workPath || '' }
 }
 
 async function saveSession() {
