@@ -13,12 +13,11 @@ import { globalAgentToolService, refreshGlobalAgentToolService, refreshBuiltinTo
 import { globalSkillService, refreshGlobalSkillService, getSkillsDirsMap } from '../Agent/GlobalSkillService';
 import { SkillHubService, type HubSkillResult } from '../SkillHub';
 import { LoggerService } from '../Core/LoggerService';
-import { database } from '../Core/Database';
+import { database, sessionThreadId, parseMemories, type SessionRow } from '../Core/Database';
 import { sessionManager } from '../UserService/SessionManager';
 import { schedulerService } from '../Scheduler/SchedulerService';
 import { channelManager } from '../Channel/ChannelManager';
 import { WsCommandType } from 'sbot.commons';
-import { sessionThreadId } from '../Core/Database';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
 
@@ -371,18 +370,60 @@ class HttpServer {
             afterSave: (id) => channelManager.reloadChannel(id),
             createReturn: (id, body) => ({ id, ...body }),
         });
-        app.get('/api/sessions', api(req => {
+        app.get('/api/sessions', api(async req => {
             const workPath = req.query.workPath as string | undefined;
-            const sessions = config.settings.sessions ?? {};
-            return Object.entries(sessions)
-                .filter(([, s]) => !workPath || s.workPath === workPath)
-                .map(([id, s]) => ({ id, ...s }));
+            const where: any = {};
+            if (workPath) where.workPath = workPath;
+            const rows = await database.findAll<SessionRow>(database.session, {
+                where,
+                order: [['createdAt', 'DESC']],
+            });
+            return rows.map(r => ({
+                ...r,
+                memories: parseMemories(r.memories),
+            }));
         }));
 
-        registerSettingsCrud(app, 'sessions', {
-            label: 'Session',
-            createReturn: (id) => ({ id }),
-        });
+        app.post('/api/settings/sessions', api(async req => {
+            const id = randomUUID();
+            const now = Date.now();
+            const body = req.body;
+            if (!body.agent) throwBad('agent is required');
+            if (!body.saver) throwBad('saver is required');
+            await database.create(database.session, {
+                id,
+                name: body.name ?? '',
+                agent: body.agent,
+                saver: body.saver,
+                memories: body.memories ? JSON.stringify(body.memories) : null,
+                workPath: body.workPath ?? null,
+                createdAt: now,
+                updatedAt: now,
+            });
+            return { id };
+        }));
+
+        app.put('/api/settings/sessions/:id', api(async req => {
+            const id = req.params.id as string;
+            const existing = await database.findByPk<SessionRow>(database.session, id);
+            if (!existing) throwBad(`Session "${id}" not found`);
+            const body = req.body;
+            await database.update(database.session, {
+                name: body.name ?? existing.name,
+                agent: body.agent ?? existing.agent,
+                saver: body.saver ?? existing.saver,
+                memories: body.memories !== undefined ? (body.memories ? JSON.stringify(body.memories) : null) : existing.memories,
+                workPath: body.workPath !== undefined ? body.workPath : existing.workPath,
+                updatedAt: Date.now(),
+            }, { where: { id } });
+            return { id };
+        }));
+
+        app.delete('/api/settings/sessions/:id', api(async req => {
+            const id = req.params.id as string;
+            await database.destroy(database.session, { where: { id } });
+            return { success: true };
+        }));
     }
 
     // ===== Filesystem =====
@@ -767,11 +808,16 @@ class HttpServer {
         }));
 
         // ── Session-based saver shortcuts (resolve saverId + threadId from sessionId) ──
+        const getSessionRow = async (sessionId: string): Promise<SessionRow> => {
+            const row = await database.findByPk<SessionRow>(database.session, sessionId);
+            if (!row?.saver) { const e: any = new Error(`Session "${sessionId}" not found or no saver`); e.status = 404; throw e; }
+            return row;
+        };
+
         app.get('/api/sessions/:sessionId/history', api(async req => {
             const sessionId = req.params.sessionId as string;
-            const sessionCfg = config.getSession(sessionId);
-            if (!sessionCfg?.saver) { const e: any = new Error(`Session "${sessionId}" not found or no saver`); e.status = 404; throw e; }
-            const saver = await AgentRunner.createSaverService(sessionCfg.saver, sessionThreadId(sessionId));
+            const row = await getSessionRow(sessionId);
+            const saver = await AgentRunner.createSaverService(row.saver, sessionThreadId(sessionId));
             const messages = await saver.getAllMessages();
             await saver.dispose();
             return this.formatMessages(messages);
@@ -779,18 +825,16 @@ class HttpServer {
 
         app.delete('/api/sessions/:sessionId/history', api(async req => {
             const sessionId = req.params.sessionId as string;
-            const sessionCfg = config.getSession(sessionId);
-            if (!sessionCfg?.saver) { const e: any = new Error(`Session "${sessionId}" not found or no saver`); e.status = 404; throw e; }
-            const saver = await AgentRunner.createSaverService(sessionCfg.saver, sessionThreadId(sessionId));
+            const row = await getSessionRow(sessionId);
+            const saver = await AgentRunner.createSaverService(row.saver, sessionThreadId(sessionId));
             await saver.clearMessages();
             await saver.dispose();
         }));
 
         app.get('/api/sessions/:sessionId/thinks/:thinkId', api(async req => {
             const sessionId = req.params.sessionId as string;
-            const sessionCfg = config.getSession(sessionId);
-            if (!sessionCfg?.saver) { const e: any = new Error(`Session "${sessionId}" not found or no saver`); e.status = 404; throw e; }
-            const saver = await AgentRunner.createSaverService(sessionCfg.saver, sessionThreadId(sessionId));
+            const row = await getSessionRow(sessionId);
+            const saver = await AgentRunner.createSaverService(row.saver, sessionThreadId(sessionId));
             const messages = await saver.getThink(req.params.thinkId as string);
             await saver.dispose();
             return this.formatMessages(messages);

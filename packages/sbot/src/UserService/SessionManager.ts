@@ -3,6 +3,7 @@ import { ICommand, MessageType } from "scorpio.ai";
 import { SessionManager, SessionService } from "channel.base";
 import { ChannelType } from "sbot.commons";
 import { config } from "../Core/Config";
+import { database, SessionRow } from "../Core/Database";
 import { channelManager } from "../Channel/ChannelManager";
 import { createProcessAIHandler, createWebProcessAIHandler } from "../Channel/createProcessAIHandler";
 
@@ -57,11 +58,13 @@ class SbotSession extends SessionService {
         return getBuiltInCommands();
     }
 
-    resolveSaverId(args: any): string | undefined {
+    async resolveSaverId(args: any): Promise<string | undefined> {
         const channelType = args?.channelType as string | undefined;
         if (channelType === ChannelType.Web) {
             const sessionId = args?.sessionId as string | undefined;
-            return sessionId ? config.getSession(sessionId)?.saver : undefined;
+            if (!sessionId) return undefined;
+            const row = await database.findByPk<SessionRow>(database.session, sessionId);
+            return row?.saver;
         }
         const channelId = args?.channelId as string | undefined;
         return channelId ? config.getChannel(channelId)?.saver : undefined;

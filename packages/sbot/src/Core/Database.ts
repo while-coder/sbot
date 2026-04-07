@@ -67,6 +67,17 @@ export type ChannelSessionRow = {
   workPath: string | null;      // 工作目录路径
 };
 
+export type SessionRow = {
+  id: string;          // UUID primary key
+  name: string;
+  agent: string;       // Agent UUID
+  saver: string;       // Saver UUID
+  memories: string | null;  // JSON array of memory UUIDs
+  workPath: string | null;
+  createdAt: number;   // timestamp ms
+  updatedAt: number;   // timestamp ms
+};
+
 /** 解析 DB 中存储的 memories 字段（JSON 字符串 → string[]） */
 export function parseMemories(raw: string | null | undefined): string[] {
   if (!raw) return [];
@@ -92,6 +103,7 @@ class Database {
   public channelUser!: ModelStatic<any>;
   public channelSession!: ModelStatic<any>;
   public scheduler!: ModelStatic<any>;
+  public session!: ModelStatic<any>;
 
   async init() {
     this.running = false;
@@ -283,6 +295,60 @@ class Database {
       },
     );
 
+    this.session = sequelize.define(
+      "session",
+      {
+        id: {
+          type: DataTypes.STRING(36),
+          primaryKey: true,
+          comment: "UUID",
+        },
+        name: {
+          type: DataTypes.STRING(255),
+          allowNull: false,
+          defaultValue: "",
+          comment: "显示名称",
+        },
+        agent: {
+          type: DataTypes.STRING(36),
+          allowNull: false,
+          comment: "Agent UUID",
+        },
+        saver: {
+          type: DataTypes.STRING(36),
+          allowNull: false,
+          comment: "Saver UUID",
+        },
+        memories: {
+          type: DataTypes.TEXT,
+          allowNull: true,
+          defaultValue: null,
+          comment: "Memory UUID 列表（JSON 字符串）",
+        },
+        workPath: {
+          type: DataTypes.STRING(1024),
+          allowNull: true,
+          defaultValue: null,
+          comment: "工作目录路径",
+        },
+        createdAt: {
+          type: DataTypes.BIGINT,
+          allowNull: false,
+          comment: "创建时间戳(ms)",
+        },
+        updatedAt: {
+          type: DataTypes.BIGINT,
+          allowNull: false,
+          comment: "更新时间戳(ms)",
+        },
+      },
+      {
+        tableName: "session",
+        timestamps: false,
+        comment: "会话表",
+      },
+    );
+
     this.scheduler = sequelize.define(
       "scheduler",
       {
@@ -398,6 +464,7 @@ class Database {
       await this.message.sync({ alter });
       await this.channelUser.sync({ alter });
       await this.channelSession.sync({ alter });
+      await this.session.sync({ alter });
       await this.scheduler.sync({ alter });
 
       await this.state.update({ value: DBVersion }, { where: { key: DBVersionName } });

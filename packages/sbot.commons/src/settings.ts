@@ -159,6 +159,5 @@ export interface Settings {
   embeddings?: Record<string, EmbeddingConfig>
   memories?: Record<string, MemoryConfig>
   savers?: Record<string, SaverConfig>
-  sessions?: Record<string, SessionConfig>
   channels?: Record<string, ChannelConfig>
 }

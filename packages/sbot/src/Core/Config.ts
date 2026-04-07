@@ -3,8 +3,8 @@ import path from "path";
 import fs from "fs";
 import { ModelConfig, ModelProvider, EmbeddingConfig, EmbeddingProvider, MCPServers, IModelService, IEmbeddingService, ModelServiceFactory, EmbeddingServiceFactory, type AgentSubNode } from "scorpio.ai";
 export type { AgentSubNode } from "scorpio.ai";
-import { DEFAULT_PORT, SaverType, AgentMode, MemoryMode, SaverConfig, MemoryConfig, SessionConfig, ChannelConfig } from "sbot.commons";
-export { DEFAULT_PORT, SaverType, AgentMode, ChannelType, SaverConfig, MemoryConfig, SessionConfig, ChannelConfig } from "sbot.commons";
+import { DEFAULT_PORT, SaverType, AgentMode, MemoryMode, SaverConfig, MemoryConfig, ChannelConfig } from "sbot.commons";
+export { DEFAULT_PORT, SaverType, AgentMode, ChannelType, SaverConfig, MemoryConfig, ChannelConfig } from "sbot.commons";
 
 /**
  * ModelConfig 的命名扩展（key 为 UUID）
@@ -68,7 +68,6 @@ export interface Settings {
   savers?: Record<string, SaverConfig>;
   memories?: Record<string, MemoryConfig>;
   agents?: Record<string, AgentEntry>;
-  sessions?: Record<string, SessionConfig>;
   channels?: Record<string, ChannelConfig>;
   plugins?: string[];
 }
@@ -133,11 +132,6 @@ class Config {
   getMemory(id: string): MemoryConfig | undefined {
     if (!this._settings.memories) return undefined;
     return this._settings.memories[id.trim()];
-  }
-
-  getSession(id: string): SessionConfig | undefined {
-    if (!this._settings.sessions) return undefined;
-    return this._settings.sessions[id.trim()];
   }
 
   getChannel(id: string): ChannelConfig | undefined {

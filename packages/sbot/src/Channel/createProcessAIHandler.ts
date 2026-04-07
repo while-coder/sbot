@@ -1,7 +1,7 @@
 import { ProcessAIHandler, ChannelToolHelpers } from "channel.base";
 import { AgentRunner, createAskAgentTool, createSendFileAgentTool } from "../Agent/AgentRunner";
 import { config } from "../Core/Config";
-import { ChannelSessionRow, SchedulerType, database, parseMemories } from "../Core/Database";
+import { ChannelSessionRow, SessionRow, SchedulerType, database, parseMemories } from "../Core/Database";
 import { buildExecuteTool } from "../UserService/buildExecuteTool";
 import { WebChatEventType } from "sbot.commons";
 import { httpServer } from "../Server/HttpServer";
@@ -65,12 +65,10 @@ export function createWebProcessAIHandler(): ProcessAIHandler {
         // Echo the human message back to the WebSocket client
         httpServer.broadcastToWs(JSON.stringify({ sessionId, type: WebChatEventType.Human, data: { content: query } }));
 
-        const sessionCfg = sessionId ? config.getSession(sessionId) : undefined;
-        if (!sessionCfg) throw new Error(`Session "${sessionId}" not found`);
+        const row = sessionId ? await database.findByPk<SessionRow>(database.session, sessionId) : undefined;
+        if (!row) throw new Error(`Session "${sessionId}" not found`);
 
-        const { agent: agentId, saver: saverId, memories, workPath } = sessionCfg;
-
-        await runAgent(query, args, userService, agentId, saverId,
-            SchedulerType.Session, sessionId, memories ?? [], workPath);
+        await runAgent(query, args, userService, row.agent, row.saver,
+            SchedulerType.Session, sessionId, parseMemories(row.memories), row.workPath || undefined);
     };
 }

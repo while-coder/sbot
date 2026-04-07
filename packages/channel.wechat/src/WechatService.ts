@@ -249,11 +249,31 @@ export class WechatService implements IChannelService {
           parts.push(fileContent);
           break;
         }
-        case WechatMessageItemType.IMAGE: parts.push("[图片]"); break;
+        case WechatMessageItemType.IMAGE: {
+          const imageContent = await this.extractImageContent(msg.message_id, item);
+          parts.push(imageContent);
+          break;
+        }
         case WechatMessageItemType.VIDEO: parts.push("[视频]"); break;
       }
     }
     return parts.join("\n").trim();
+  }
+
+  private async extractImageContent(messageId: number | undefined, item: WechatMessageItem): Promise<string> {
+    const media = item.image_item?.media;
+    if (!media?.encrypt_query_param) {
+      return "[图片]";
+    }
+    try {
+      const buffer = await this.api.downloadFromCDN(media.encrypt_query_param, media.aes_key);
+      const filePath = path.join(os.tmpdir(), `wechat_${messageId ?? Date.now()}_img.png`);
+      await fs.writeFile(filePath, buffer);
+      return `<attachment>${filePath}</attachment>`;
+    } catch (e: any) {
+      this.logger?.error(`Failed to download image: ${e.message}`);
+      return "[图片]";
+    }
   }
 
   private async extractFileContent(messageId: number | undefined, item: WechatMessageItem): Promise<string> {
