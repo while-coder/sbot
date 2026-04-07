@@ -347,7 +347,7 @@ async function refresh() {
               <td>{{ c.type }}</td>
               <td>{{ agentOptions.find(a => a.id === c.agent)?.label || c.agent || '-' }}</td>
               <td>{{ c.saver ? (saverOptions.find(s => s.id === c.saver)?.label || c.saver) : '-' }}</td>
-              <td>{{ c.memories?.length ? c.memories.map(id => memoryOptions.find(m => m.id === id)?.label || id).join(', ') : '-' }}</td>
+              <td>{{ Array.isArray(c.memories) && c.memories.length ? c.memories.map(id => memoryOptions.find(m => m.id === id)?.label || id).join(', ') : '-' }}</td>
               <td>
                 <div class="ops-cell">
                   <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
@@ -398,7 +398,7 @@ async function refresh() {
                             </td>
                             <td style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ s.sessionId }}</td>
                             <td>{{ agentOptions.find(a => a.id === s.agentId)?.label || s.agentId || '-' }}</td>
-                            <td>{{ s.memories?.length ? s.memories.map(id => memoryOptions.find(m => m.id === id)?.label || id).join(', ') : '-' }}</td>
+                            <td>{{ Array.isArray(s.memories) && s.memories.length ? s.memories.map(id => memoryOptions.find(m => m.id === id)?.label || id).join(', ') : '-' }}</td>
                             <td style="text-align:center">
                               <span v-if="s.useChannelMemories" style="color:#16a34a;font-size:13px">✓</span>
                               <span v-else style="color:#94a3b8">-</span>
