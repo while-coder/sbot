@@ -226,6 +226,7 @@ export default {
     cleanup: 'Cleanup',
     cleanup_confirm: 'Clean up history for "{name}"?',
     cleanup_success: 'Cleanup successful',
+    share: 'Shared storage (all sessions use the same history)',
     confirm_delete: 'Delete storage configuration "{name}"?',
     history_title: 'Session History',
     count: '{count} items',

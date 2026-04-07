@@ -209,13 +209,15 @@ export class AgentRunner {
             return;
         }
 
+        const dbThreadId = saverConfig.share ? saverId : saverThreadId;
+
         if (saverConfig.type === SaverType.File) {
             container.registerWithArgs(IAgentSaverService, AgentFileSaver, {
-                [T_DBPath]: config.getSaverDBPath(saverId, saverThreadId, '.json'),
+                [T_DBPath]: config.getSaverDBPath(saverId, dbThreadId, '.json'),
             });
         } else {
             container.registerWithArgs(IAgentSaverService, AgentSqliteSaver, {
-                [T_DBPath]: config.getSaverDBPath(saverId, saverThreadId, '.db'),
+                [T_DBPath]: config.getSaverDBPath(saverId, dbThreadId, '.db'),
             });
         }
     }

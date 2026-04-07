@@ -17,7 +17,7 @@ const savers = computed(() => store.settings.savers || {})
 
 const showModal   = ref(false)
 const editingName = ref<string | null>(null)
-const form = ref<{ name: string } & SaverConfig>({ name: '', type: SaverType.Sqlite })
+const form = ref<{ name: string } & SaverConfig>({ name: '', type: SaverType.Sqlite, share: false })
 
 const saverViewModal = ref<InstanceType<typeof SaverViewModal>>()
 
@@ -45,14 +45,14 @@ async function toggleExpand(id: string) {
 
 function openAdd() {
   editingName.value = null
-  form.value = { name: '', type: SaverType.Sqlite }
+  form.value = { name: '', type: SaverType.Sqlite, share: false }
   showModal.value = true
 }
 
 function openEdit(id: string) {
   const s = savers.value[id]
   editingName.value = id
-  form.value = { name: (s as any).name || '', type: s.type || SaverType.Sqlite }
+  form.value = { name: (s as any).name || '', type: s.type || SaverType.Sqlite, share: s.share ?? false }
   showModal.value = true
 }
 
@@ -233,6 +233,12 @@ async function refresh() {
               <option value="sqlite">SQLite</option>
               <option value="file">File</option>
             </select>
+          </div>
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" v-model="form.share" />
+              {{ t('savers.share') }}
+            </label>
           </div>
         </div>
         <div class="modal-footer">

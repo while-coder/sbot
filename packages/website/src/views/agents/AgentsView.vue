@@ -20,6 +20,14 @@ const { isMobile } = useResponsive()
 const { show } = useToast()
 
 const agents = computed(() => store.settings.agents || {})
+const sortedAgentEntries = computed(() => {
+  const entries = Object.entries(agents.value)
+  return entries.sort(([, a], [, b]) => {
+    // react first, then single, then others
+    const order = (type: string) => type === 'react' ? 0 : type === 'single' ? 1 : 2
+    return order(a.type) - order(b.type)
+  })
+})
 const modelName = (id: string) => (store.settings.models?.[id] as any)?.name || id
 
 // ── Modal refs ──
@@ -245,11 +253,11 @@ async function refresh() {
           </tr>
         </thead>
         <tbody>
-          <tr v-if="Object.keys(agents).length === 0">
+          <tr v-if="sortedAgentEntries.length === 0">
             <td colspan="5" style="text-align:center;color:#94a3b8;padding:40px">{{ t('agents.empty') }}</td>
           </tr>
 
-          <template v-for="(a, id) in agents" :key="id">
+          <template v-for="[id, a] in sortedAgentEntries" :key="id">
             <!-- ── Agent row ── -->
             <tr
               @click="toggleExpand(id as string)"
@@ -262,8 +270,8 @@ async function refresh() {
               <td>
                 <span style="font-weight:500;color:#1c1c1c">{{ (a as any).name || id }}</span>
               </td>
-              <td>{{ a.type }}</td>
-              <td>{{ a.model ? modelName(a.model) : '-' }}</td>
+              <td><span :class="'agent-type-badge agent-type-' + a.type">{{ a.type }}</span></td>
+              <td>{{ a.type === 'react' ? ((a as any).think ? modelName((a as any).think) : '-') : (a.model ? modelName(a.model) : '-') }}</td>
               <td @click.stop>
                 <div class="ops-cell">
                   <button class="btn-outline btn-sm" @click="agentModal?.open(id as string)">{{ t('common.edit') }}</button>
@@ -438,14 +446,14 @@ async function refresh() {
 
       <!-- ── Mobile card layout ── -->
       <div v-else class="card-list">
-        <div v-for="(a, id) in agents" :key="id" class="mobile-card">
+        <div v-for="[id, a] in sortedAgentEntries" :key="id" class="mobile-card">
           <div class="mobile-card-header" @click="toggleExpand(id as string)" style="display:flex;justify-content:space-between;cursor:pointer">
             <span>{{ (a as any).name || id }}</span>
             <span style="font-size:10px">{{ isExpanded(id as string) ? '▼' : '▶' }}</span>
           </div>
           <div class="mobile-card-fields">
             <span class="mobile-card-label">{{ t('agents.type_col') }}</span>
-            <span class="mobile-card-value">{{ a.type }}</span>
+            <span class="mobile-card-value"><span :class="'agent-type-badge agent-type-' + a.type">{{ a.type }}</span></span>
             <span class="mobile-card-label">{{ t('agents.model_col') }}</span>
             <span class="mobile-card-value">{{ a.model ? modelName(a.model) : '-' }}</span>
           </div>
@@ -613,7 +621,7 @@ async function refresh() {
             </div>
           </div>
         </div>
-        <div v-if="Object.keys(agents).length === 0" class="mobile-card-empty">-</div>
+        <div v-if="sortedAgentEntries.length === 0" class="mobile-card-empty">-</div>
       </div>
 
     </div>
@@ -645,3 +653,22 @@ async function refresh() {
     />
   </div>
 </template>
+
+<style scoped>
+.agent-type-badge {
+  display: inline-block;
+  font-family: monospace;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 8px;
+  border-radius: 4px;
+}
+.agent-type-react {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+.agent-type-single {
+  background: #f0f4f8;
+  color: #64748b;
+}
+</style>

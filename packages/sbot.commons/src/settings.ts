@@ -76,10 +76,12 @@ export interface MemoryConfig {
 }
 
 export interface SaverConfig {
-  /** 显示名称（可选，便于识别） */
-  name?: string
+  /** 显示名称 */
+  name: string
   /** 存储类型：file | sqlite */
-  type?: SaverType
+  type: SaverType
+  /** 是否共享存储（true = 所有 session 共用同一份存储；false = 每个 session 独立，默认） */
+  share: boolean
 }
 
 export interface SubAgentRef {

@@ -226,6 +226,7 @@ export default {
     cleanup: '清理',
     cleanup_confirm: '确定要清理 "{name}" 的历史记录吗?',
     cleanup_success: '清理成功',
+    share: '共享存储（所有会话共用同一份历史记录）',
     confirm_delete: '确定要删除存储配置 "{name}" 吗?',
     history_title: '会话历史',
     count: '{count} 条',

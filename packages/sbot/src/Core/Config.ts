@@ -231,7 +231,7 @@ class Config {
 
     const example: Settings = {
       savers: {
-        [S1]: { name: "default", type: SaverType.Sqlite },
+        [S1]: { name: "default", type: SaverType.Sqlite, share: false },
       },
       memories: {
         [ME1]: { name: "default", mode: MemoryMode.HumanAndAI, maxAgeDays: 90, embedding: E1, evaluator: M1, extractor: M1, compressor: M1, share: false },
