@@ -33,7 +33,7 @@ const editingSessionName = ref('')
 
 // ── Session sidebar ──
 const activeSessionId = ref<string | null>(null)
-const sessions = computed(() => store.settings.sessions || {})
+const sessions = computed(() => store.sessions)
 
 const { chatAreaRef, agentOptions, saverOptions, memoryOptions, sendOne, fetchAndRestoreSessionStatus } = useChatViewLogic({
   sessionId: () => activeSessionId.value ?? undefined,
@@ -71,7 +71,7 @@ async function deleteSession(id: string) {
     if (s?.saver) {
       await apiFetch(`/api/sessions/${encodeURIComponent(id)}/history`, 'DELETE').catch(() => {})
     }
-    if (store.settings.sessions) delete store.settings.sessions[id]
+    delete store.sessions[id]
     if (activeSessionId.value === id) {
       const remaining = Object.keys(sessions.value)
       activeSessionId.value = remaining.length > 0 ? remaining[0] : null
@@ -93,7 +93,7 @@ async function saveSession(patch: Record<string, any>, id?: string) {
     const current = { ...sessions.value[targetId] }
     const updated = { ...current, ...patch }
     await apiFetch(`/api/settings/sessions/${encodeURIComponent(targetId)}`, 'PUT', updated)
-    Object.assign(store.settings.sessions![targetId], patch)
+    Object.assign(store.sessions[targetId], patch)
   } catch (e: any) {
     show(e.message, 'error')
   }

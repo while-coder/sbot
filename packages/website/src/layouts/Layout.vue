@@ -91,13 +91,22 @@ async function checkUpdate(currentVersion: string) {
 // Initial load
 async function init() {
   try {
-    const [settingsRes, mcpRes, skillRes, aboutRes] = await Promise.all([
+    const [settingsRes, mcpRes, skillRes, aboutRes, sessionsRes] = await Promise.all([
       apiFetch('/api/settings'),
       apiFetch('/api/mcp'),
       apiFetch('/api/skills'),
       apiFetch('/api/about'),
+      apiFetch('/api/sessions'),
     ])
     Object.assign(store.settings, settingsRes.data)
+    // Convert sessions array to Record<id, SessionConfig>
+    const sessionsArr: any[] = sessionsRes.data || []
+    const sessionsMap: Record<string, any> = {}
+    for (const s of sessionsArr) {
+      const { id, ...rest } = s
+      sessionsMap[id] = rest
+    }
+    store.sessions = sessionsMap
     applyMcpList(mcpRes.data || [])
     const allSkillsData = skillRes.data || []
     store.allSkills = allSkillsData

@@ -45,8 +45,7 @@ async function create() {
     const body: any = { name: autoName(), agent: form.value.agent, saver: form.value.saver, memories: form.value.memories }
     const res = await apiFetch('/api/settings/sessions', 'POST', body)
     const id = res.data.id as string
-    if (!store.settings.sessions) store.settings.sessions = {}
-    store.settings.sessions[id] = body
+    store.sessions[id] = body
     showModal.value = false
     emit('created', id)
   } catch (e: any) {

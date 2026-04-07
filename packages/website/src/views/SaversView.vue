@@ -144,15 +144,17 @@ async function refresh() {
             <td colspan="4" style="text-align:center;color:#94a3b8;padding:40px">{{ t('savers.empty') }}</td>
           </tr>
           <template v-for="(s, id) in savers" :key="id">
-            <tr>
-              <td>
-                <button class="expand-btn" @click="toggleExpand(id as string)">
-                  {{ expandedSavers[id as string] ? '▼' : '▶' }}
-                </button>
+            <tr
+              @click="toggleExpand(id as string)"
+              style="cursor:pointer"
+              :style="expandedSavers[id as string] ? 'background:#f8fafc' : ''"
+            >
+              <td style="padding:6px 8px;text-align:center">
+                <span style="color:#6b6b6b;font-size:10px">{{ expandedSavers[id as string] ? '▼' : '▶' }}</span>
               </td>
               <td>{{ (s as any).name || id }}</td>
               <td>{{ s.type || '-' }}</td>
-              <td>
+              <td @click.stop>
                 <div class="ops-cell">
                   <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
                   <button class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
@@ -245,18 +247,6 @@ async function refresh() {
 </template>
 
 <style scoped>
-.expand-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 10px;
-  color: #9b9b9b;
-  padding: 2px 6px;
-  width: 28px;
-  text-align: center;
-  line-height: 1;
-}
-.expand-btn:hover { color: #1c1c1c; }
 .thread-sub-row td {
   background: #fafaf9;
   border-bottom: 1px solid #f0efed;
