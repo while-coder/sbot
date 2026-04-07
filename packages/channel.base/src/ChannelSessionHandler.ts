@@ -27,7 +27,7 @@ export abstract class ChannelSessionHandler {
     this.session = session;
   }
 
-  abstract onProcessStart(query: string, args: ChannelMessageArgs, messageType: MessageType): Promise<void>;
+  abstract onProcessStart(query: string, args: ChannelMessageArgs, messageType: MessageType): Promise<string | void>;
   abstract onProcessEnd(query: string, args: ChannelMessageArgs, messageType: MessageType, error?: any): Promise<void>;
   async onCommandResult(content: string, args: ChannelMessageArgs): Promise<void> {
     return this.onChatMessage({ role: MessageRole.AI, content, isCommand: true }, args);

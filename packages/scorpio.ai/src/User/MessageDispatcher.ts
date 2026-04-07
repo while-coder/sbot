@@ -34,18 +34,19 @@ export abstract class MessageDispatcher {
         while (this.messageQueue.length > 0) {
             const { query, args } = this.messageQueue.shift()!;
             const messageType = query.startsWith('/') ? MessageType.Command : MessageType.AI;
-            await this.onProcessStart(query, args, messageType);
+            const startLabel = await this.onProcessStart(query, args, messageType);
+            const logSuffix = startLabel != null ? ` (${startLabel})` : '';
             let error: any;
             try {
-                this.logger?.info(`开始处理[${messageType}]: ${query} (剩余队列: ${this.messageQueue.length})`);
+                this.logger?.info(`开始处理[${logSuffix}]: ${query} (剩余队列: ${this.messageQueue.length})`);
                 if (messageType === MessageType.Command) {
                     await this.processCommand(query.substring(1), args);
                 } else {
                     await this.processAI(query, args);
                 }
-                this.logger?.info(`处理完成[${messageType}]: ${query}`);
+                this.logger?.info(`处理完成[${logSuffix}]: ${query}`);
             } catch (e: any) {
-                this.logger?.error(`处理出错[${messageType}]: ${query} : ${e.message}\n${e.stack}`);
+                this.logger?.error(`处理出错[${logSuffix}]: ${query} : ${e.message}\n${e.stack}`);
                 error = e;
             } finally {
                 await this.onProcessEnd(query, args, messageType, error);
@@ -108,7 +109,7 @@ export abstract class MessageDispatcher {
             await this.onCommandResult(allContent, args);
         }
     }
-    protected abstract onProcessStart(query: string, args: any, messageType: MessageType): Promise<void>;
+    protected abstract onProcessStart(query: string, args: any, messageType: MessageType): Promise<string | void>;
     protected abstract processAI(query: string, args: any): Promise<void>;
     protected abstract getAllCommands(): Promise<ICommand[]>;
     protected abstract onCommandResult(content: string, args: any): Promise<void>;

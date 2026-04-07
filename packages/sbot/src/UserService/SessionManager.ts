@@ -35,8 +35,11 @@ class SbotSession extends SessionService {
         return { ...args, pendingMessages: this.messageQueue.map(m => m.query) };
     }
 
-    protected async onProcessStart(query: string, args: any, messageType: MessageType): Promise<void> {
+    protected async onProcessStart(query: string, args: any, messageType: MessageType): Promise<string | void> {
         await this.getChannel(args).onProcessStart(query, this.argsWithQueue(args), messageType);
+        const channelType = args?.channelType as string | undefined;
+        const channelId = args?.channelId as string | undefined;
+        return [channelType, channelId].filter(Boolean).join('/') || undefined;
     }
 
     protected async processAI(query: string, args: any): Promise<void> {
