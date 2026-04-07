@@ -8,6 +8,7 @@ import type {
 const LONG_POLL_TIMEOUT_MS = 30_000;
 const API_TIMEOUT_MS = 15_000;
 const UPLOAD_TIMEOUT_MS = 60_000;
+const DOWNLOAD_TIMEOUT_MS = 60_000;
 const CDN_BASE_URL = "https://novac2c.cdn.weixin.qq.com/c2c";
 const QR_LONG_POLL_TIMEOUT_MS = 35_000;
 const CHANNEL_VERSION = "1.0.0";
@@ -158,6 +159,30 @@ export class WechatApiClient {
       base_info: { channel_version: CHANNEL_VERSION },
     }, API_TIMEOUT_MS);
     return JSON.parse(raw);
+  }
+
+  async downloadFromCDN(encryptQueryParam: string, aesKeyBase64?: string): Promise<Buffer> {
+    const url = `${CDN_BASE_URL}/download?encrypted_query_param=${encodeURIComponent(encryptQueryParam)}`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS);
+    try {
+      const res = await fetch(url, { signal: controller.signal });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "(unreadable)");
+        throw new Error(`CDN download failed: ${res.status} ${text}`);
+      }
+      const encrypted = Buffer.from(await res.arrayBuffer());
+
+      if (!aesKeyBase64) return encrypted;
+
+      // aes_key is base64-encoded hex string → decode to hex → parse to 16-byte key
+      const aesKeyHex = Buffer.from(aesKeyBase64, "base64").toString("utf-8");
+      const aesKeyBuf = Buffer.from(aesKeyHex, "hex");
+      const decipher = crypto.createDecipheriv("aes-128-ecb", aesKeyBuf, null);
+      return Buffer.concat([decipher.update(encrypted), decipher.final()]);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   async uploadToCDN(uploadParam: string, filekey: string, encryptedData: Buffer): Promise<string> {

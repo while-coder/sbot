@@ -1,7 +1,8 @@
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { WSClient } from '@wecom/aibot-node-sdk';
-import type { WsFrame, TextMessage, VoiceMessage, SendMsgBody, EventMessageWith, TemplateCardEventData } from '@wecom/aibot-node-sdk';
+import type { WsFrame, TextMessage, VoiceMessage, FileMessage, SendMsgBody, EventMessageWith, TemplateCardEventData } from '@wecom/aibot-node-sdk';
 import { IChannelService, ChannelSessionHandler, SessionService, type ChannelMessageArgs, type ILogger } from 'channel.base';
 import { WecomSessionHandler } from './WecomSessionHandler';
 
@@ -103,6 +104,11 @@ export class WecomService implements IChannelService {
         this.logger?.error(`handleVoiceMessage error: ${e.stack}`);
       });
     });
+    this.wsClient.on('message.file', (frame: WsFrame<FileMessage>) => {
+      this.handleFileMessage(frame).catch((e: any) => {
+        this.logger?.error(`handleFileMessage error: ${e.stack}`);
+      });
+    });
     this.wsClient.on('event.template_card_event', (frame: WsFrame<EventMessageWith<TemplateCardEventData>>) => {
       this.handleCardEvent(frame).catch((e: any) => {
         this.logger?.error(`handleCardEvent error: ${e.stack}`);
@@ -134,6 +140,27 @@ export class WecomService implements IChannelService {
     const userId = body.from.userid;
     const chatid = body.chatid ?? userId;
     if (!await this.filterEvent(`wecom_message_${body.msgid}`)) return;
+    await this.onReceiveMessage(userId, {
+      sessionId: chatid,
+      chattype: body.chattype,
+      msgid: body.msgid,
+      frame,
+    }, query);
+  }
+
+  private async handleFileMessage(frame: WsFrame<FileMessage>) {
+    const body = frame.body!;
+    const userId = body.from.userid;
+    const chatid = body.chatid ?? userId;
+    if (!await this.filterEvent(`wecom_message_${body.msgid}`)) return;
+
+    const { buffer, filename } = await this.wsClient.downloadFile(body.file.url, body.file.aeskey);
+    const fileName = filename ?? 'unknown_file';
+    const ext = path.extname(fileName);
+    const filePath = path.join(os.tmpdir(), `wecom_${body.msgid}${ext}`);
+    await fs.writeFile(filePath, buffer);
+
+    const query = `<attachment name="${fileName}">${filePath}</attachment>`;
     await this.onReceiveMessage(userId, {
       sessionId: chatid,
       chattype: body.chattype,
