@@ -24,6 +24,11 @@ class ThinkForwardSaver extends AgentMemorySaver {
     await super.pushMessage(message, options);
     await this.parentSaver.pushThinkMessage(this.thinkId, message);
   }
+
+  override async pushThinkMessage(thinkId: string, message: ChatMessage, options?: ChatMessageOptions): Promise<void> {
+    await super.pushThinkMessage(thinkId, message, options);
+    await this.parentSaver.pushThinkMessage(thinkId, message, options);
+  }
 }
 
 // ── Tokens ────────────────────────────────────────────────────
