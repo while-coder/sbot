@@ -21,7 +21,6 @@ export abstract class MessageDispatcher {
     async onReceiveMessage(query: string, args: any) {
         query = query.trim()
         this.messageQueue.push({ query, args });
-        this.logger?.info(`收到消息:${query} (剩余队列: ${this.messageQueue.length})`);
         if (!this.isProcessingQueue) {
             this.processMessageQueue();
         }

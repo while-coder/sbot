@@ -39,7 +39,8 @@ class SbotSession extends SessionService {
         await this.getChannel(args).onProcessStart(query, this.argsWithQueue(args), messageType);
         const channelType = args?.channelType as string | undefined;
         const channelId = args?.channelId as string | undefined;
-        return [channelType, channelId].filter(Boolean).join('/') || undefined;
+        const channelName = channelId ? config.getChannel(channelId)?.name : undefined;
+        return [channelType, channelName ?? channelId].filter(Boolean).join('/') || undefined;
     }
 
     protected async processAI(query: string, args: any): Promise<void> {
