@@ -33,7 +33,6 @@ export const LIST_SKILL_FILES_TOOL_NAME = 'list_skill_files';
  * 技能延迟加载：首次调用 getAllSkills() 时扫描目录。
  */
 export class SkillService implements ISkillService {
-  private _skills: Skill[] | null = null;
   private skillsDirs: string[] = [];
   private singleSkillDirs: string[] = [];
   private logger;
@@ -53,7 +52,6 @@ export class SkillService implements ISkillService {
    */
   registerSkillsDir(dir: string): void {
     this.skillsDirs.push(dir);
-    this._skills = null;
   }
 
   /**
@@ -61,25 +59,21 @@ export class SkillService implements ISkillService {
    */
   registerSingleSkillDir(dir: string): void {
     this.singleSkillDirs.push(dir);
-    this._skills = null;
   }
 
   /**
-   * 重置所有已注册目录和缓存
+   * 重置所有已注册目录
    */
   reset(): void {
     this.skillsDirs = [];
     this.singleSkillDirs = [];
-    this._skills = null;
   }
 
   /**
-   * 获取所有已加载的技能（延迟加载，首次调用时扫描目录）
+   * 获取所有技能（每次调用重新扫描目录）
    */
   getAllSkills(): Skill[] {
-    if (this._skills !== null) return this._skills;
-
-    this._skills = [];
+    const skills: Skill[] = [];
 
     // 收集所有 skill 目录
     const allSkillDirs: string[] = [...this.singleSkillDirs];
@@ -109,13 +103,13 @@ export class SkillService implements ISkillService {
           this.logger?.warn(`技能目录解析失败: ${skillDir}`);
           continue;
         }
-        this._skills.push(skill);
+        skills.push(skill);
       } catch (e: any) {
         this.logger?.error(`加载 skill 失败 ${skillDir}: ${e.message}`);
       }
     }
 
-    return this._skills;
+    return skills;
   }
 
   /**
