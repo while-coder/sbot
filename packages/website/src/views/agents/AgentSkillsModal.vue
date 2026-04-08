@@ -20,11 +20,15 @@ const skills     = ref<SkillItem[]>([])
 const activeTab  = ref('all')
 
 // ── Global skills ─────────────────────────────────────────────────
+const useAllSkills     = ref(false)
+const origUseAll       = ref(false)
 const agentSkillNames  = ref<string[]>([])
 const selectedSkills   = ref<string[]>([])
 const skillSearch      = ref('')
 
 const skillsChanged = computed(() => {
+  if (useAllSkills.value !== origUseAll.value) return true
+  if (useAllSkills.value) return false
   const a = [...selectedSkills.value].sort().join(',')
   const b = [...agentSkillNames.value].sort().join(',')
   return a !== b
@@ -50,14 +54,18 @@ function apiBase() {
 
 async function load() {
   try {
+    const agent = (store.settings.agents || {})[agentName.value]
+    const isAll = agent?.skills === '*'
+    useAllSkills.value = isAll
+    origUseAll.value   = isAll
     const [agentRes, skillsRes] = await Promise.all([
       apiFetch(apiBase()),
       apiFetch('/api/skills'),
     ])
     skills.value = agentRes.data?.skills || []
     const selectedFromApi: string[] = (agentRes.data?.globals || []).map((g: any) => g.name)
-    agentSkillNames.value  = selectedFromApi
-    selectedSkills.value   = [...selectedFromApi]
+    agentSkillNames.value  = isAll ? [] : selectedFromApi
+    selectedSkills.value   = isAll ? [] : [...selectedFromApi]
     const allSkills = skillsRes.data || []
     store.allSkills = allSkills
   } catch (e: any) {
@@ -68,13 +76,15 @@ async function load() {
 async function saveGlobalSkills() {
   try {
     const existing = (store.settings.agents || {})[agentName.value] || {}
+    const skillsValue = useAllSkills.value ? '*' : selectedSkills.value
     const res = await apiFetch(
       `/api/settings/agents/${encodeURIComponent(agentName.value)}`,
       'PUT',
-      { ...existing, skills: selectedSkills.value },
+      { ...existing, skills: skillsValue },
     )
     Object.assign(store.settings, res.data)
-    agentSkillNames.value = [...selectedSkills.value]
+    origUseAll.value = useAllSkills.value
+    agentSkillNames.value = useAllSkills.value ? [] : [...selectedSkills.value]
     show(t('common.saved'))
     emit('saved', agentName.value)
   } catch (e: any) {
@@ -275,7 +285,12 @@ defineExpose({ open })
           <!-- Global skills tab -->
           <template v-if="activeTab !== t('agents.skills_exclusive_tab')">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-              <input v-model="skillSearch" :placeholder="t('skills.search_placeholder')" style="flex:1;padding:6px 10px;border:1px solid #e8e6e3;border-radius:6px;font-size:12px;outline:none" />
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;flex-shrink:0;padding:4px 10px;background:#f8fafc;border:1px solid #e8e6e3;border-radius:6px">
+                <input type="checkbox" v-model="useAllSkills" style="width:14px;height:14px;cursor:pointer" />
+                {{ t('agents.use_all') }}
+              </label>
+              <input v-if="!useAllSkills" v-model="skillSearch" :placeholder="t('skills.search_placeholder')" style="flex:1;padding:6px 10px;border:1px solid #e8e6e3;border-radius:6px;font-size:12px;outline:none" />
+              <div v-else style="flex:1" />
               <button class="btn-primary btn-sm" :disabled="!skillsChanged" @click="saveGlobalSkills">{{ t('common.save') }}</button>
               <span v-if="skillsChanged" style="font-size:12px;color:#f59e0b;white-space:nowrap">{{ t('common.unsaved_changes') }}</span>
             </div>
@@ -287,7 +302,7 @@ defineExpose({ open })
                 style="display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;border-bottom:1px solid #f5f4f2;font-size:13px"
                 :style="selectedSkills.includes(s.name) ? 'background:#fafaf9' : ''"
               >
-                <input type="checkbox" :value="s.name" v-model="selectedSkills" style="cursor:pointer;flex-shrink:0;width:14px;height:14px" />
+                <input type="checkbox" :value="s.name" v-model="selectedSkills" :disabled="useAllSkills" :checked="useAllSkills || selectedSkills.includes(s.name)" style="cursor:pointer;flex-shrink:0;width:14px;height:14px" />
                 <span :style="`flex-shrink:0;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(s.source)}`">{{ s.source }}</span>
                 <span style="font-family:monospace;font-weight:500;width:200px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.name }}</span>
                 <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:#64748b">{{ s.description || '-' }}</span>

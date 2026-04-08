@@ -28,7 +28,7 @@ const form = ref({
   type: AgentMode.Single as string,
   model: '',
   systemPrompt: '',
-  think: '',
+  autoApproveAllTools: false,
 })
 const tempSubAgents = ref<SubAgentRef[]>([])
 
@@ -41,7 +41,7 @@ function open(id?: string) {
       type: a.type || AgentMode.Single,
       model: a.model || '',
       systemPrompt: a.systemPrompt || '',
-      think: a.think || '',
+      autoApproveAllTools: !!(a as any).autoApproveAllTools,
     }
     tempSubAgents.value = Array.isArray(a.agents) ? [...a.agents] : []
   } else {
@@ -49,7 +49,7 @@ function open(id?: string) {
     tempSubAgents.value = []
     form.value = {
       name: '', type: AgentMode.Single, model: '', systemPrompt: '',
-      think: '',
+      autoApproveAllTools: false,
     }
   }
   showModal.value = true
@@ -58,29 +58,22 @@ function open(id?: string) {
 async function save() {
   if (!form.value.name.trim()) { show(t('common.name_required'), 'error'); return }
   const { type } = form.value
-  if (type === AgentMode.Single) {
-    if (!form.value.model) { show(t('agents.error_model'), 'error'); return }
-  } else if (type === AgentMode.ReAct) {
-    if (!form.value.think) { show('ReAct 模式：Think 模型不能为空', 'error'); return }
+  if (!form.value.model) { show(t('agents.error_model'), 'error'); return }
+  if (type === AgentMode.ReAct && tempSubAgents.value.length === 0) {
+    show(t('agents.error_sub_agents'), 'error'); return
   }
   try {
-    const config: Agent = { type }
+    const config: Agent = { type, model: form.value.model }
 
     if (form.value.systemPrompt) config.systemPrompt = form.value.systemPrompt
-    if (type === AgentMode.Single) {
-      if (form.value.model) config.model = form.value.model
-      // 保留在专属页面配置的 mcp 和 skills
-      const existing = editingId.value ? agents.value[editingId.value] : null
-      if (Array.isArray(existing?.mcp)    && existing.mcp.length)    config.mcp    = existing.mcp
-      if (Array.isArray(existing?.skills) && existing.skills.length) config.skills = existing.skills
-    } else if (type === AgentMode.ReAct) {
-      config.think  = form.value.think
+    if (form.value.autoApproveAllTools) (config as any).autoApproveAllTools = true
+    if (type === AgentMode.ReAct) {
       config.agents = tempSubAgents.value
-      // 保留在专属页面配置的 mcp 和 skills
-      const existingReact = editingId.value ? agents.value[editingId.value] : null
-      if (Array.isArray(existingReact?.mcp)    && existingReact.mcp.length)    config.mcp    = existingReact.mcp
-      if (Array.isArray(existingReact?.skills) && existingReact.skills.length) config.skills = existingReact.skills
     }
+    // 保留在专属页面配置的 mcp 和 skills（支持 "*" 通配符）
+    const existing = editingId.value ? agents.value[editingId.value] : null
+    if (existing?.mcp)    config.mcp    = existing.mcp
+    if (existing?.skills) config.skills = existing.skills
 
     if (form.value.name.trim()) (config as any).name = form.value.name.trim()
     const id = editingId.value
@@ -175,29 +168,23 @@ defineExpose({ open })
           <textarea v-model="form.systemPrompt" rows="3" :placeholder="t('agents.system_prompt_placeholder')" />
         </div>
 
-        <!-- Single-only fields -->
-        <template v-if="form.type === AgentMode.Single">
-          <div class="form-group">
-            <label>{{ t('agents.model_col') }} *</label>
-            <select v-model="form.model">
-              <option value="">{{ t('common.select_placeholder') }}</option>
-              <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-            </select>
-          </div>
-        </template>
+        <!-- Model (所有类型共用) -->
+        <div class="form-group">
+          <label>{{ t('agents.model_col') }} *</label>
+          <select v-model="form.model">
+            <option value="">{{ t('common.select_placeholder') }}</option>
+            <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
+          </select>
+        </div>
+
+        <!-- autoApproveAllTools -->
+        <div class="form-group" style="display:flex;align-items:center;gap:8px">
+          <input type="checkbox" v-model="form.autoApproveAllTools" id="autoApproveAll" style="width:14px;height:14px;cursor:pointer" />
+          <label for="autoApproveAll" style="cursor:pointer;margin:0">{{ t('agents.auto_approve_all_tools') }}</label>
+        </div>
 
         <!-- ReAct fields -->
-        <template v-else-if="form.type === AgentMode.ReAct">
-          <div class="form-section">
-            <div class="form-section-title">{{ t('agents.node_config') }}</div>
-            <div class="form-group">
-              <label>{{ t('agents.think_model') }} *</label>
-              <select v-model="form.think">
-                <option value="">{{ t('common.select_placeholder') }}</option>
-                <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-              </select>
-            </div>
-          </div>
+        <template v-if="form.type === AgentMode.ReAct">
           <div class="form-section">
             <div class="form-section-title">
               {{ t('agents.sub_agents') }}

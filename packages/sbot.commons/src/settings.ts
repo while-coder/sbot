@@ -109,15 +109,13 @@ export interface McpEntry {
 export interface AgentConfig {
   name?: string
   type: AgentMode | string
-  // single
   model?: string
   systemPrompt?: string
-  mcp?: string[]
-  skills?: string[]
+  mcp?: string[] | '*'
+  skills?: string[] | '*'
   autoApproveTools?: string[]
   autoApproveAllTools?: boolean
   // react
-  think?: string
   agents?: SubAgentRef[]
 }
 

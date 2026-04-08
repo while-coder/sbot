@@ -501,11 +501,13 @@ class HttpServer {
 
     private listAgentMcp(agentName: string) {
         const agent = (config.settings as any).agents?.[agentName];
-        const globalIds: string[] = (agent?.mcp as string[]) || [];
+        const mcp = agent?.mcp;
         const allGlobals = this.listGlobalMcps();
-        const globals = globalIds
-            .map(id => allGlobals.find(m => m.id === id))
-            .filter((m): m is NonNullable<typeof m> => !!m);
+        const globals = mcp === '*'
+            ? allGlobals
+            : ((mcp as string[]) || [])
+                .map(id => allGlobals.find(m => m.id === id))
+                .filter((m): m is NonNullable<typeof m> => !!m);
         const servers = Object.entries(config.getAgentMcpServers(agentName)).map(([id, s]) => ({
             ...(s as any), id,
             name: (s as any).name || id,
@@ -640,23 +642,25 @@ class HttpServer {
         app.get('/api/agents/:name/skills', api(req => {
             const agentName = req.params.name as string;
             const agent = (config.settings as any).agents?.[agentName];
-            const agentSkillNames: string[] = (agent?.skills as string[]) || [];
             const dirsMap = getSkillsDirsMap();
             const allGlobalSkills = globalSkillService.getAllSkills();
-            const globals = agentSkillNames
-                .map(name => allGlobalSkills.find((s: any) => s.name === name))
-                .filter((s): s is NonNullable<typeof s> => !!s)
-                .map(s => {
-                    const normalizedPath = path.normalize(s.path);
-                    let source = 'unknown';
-                    for (const [sourceName, dir] of Object.entries(dirsMap)) {
-                        if (normalizedPath.startsWith(path.normalize(dir))) {
-                            source = sourceName;
-                            break;
-                        }
+            const skills = agent?.skills;
+            const matchedSkills = skills === '*'
+                ? allGlobalSkills
+                : ((skills as string[]) || [])
+                    .map(name => allGlobalSkills.find((s: any) => s.name === name))
+                    .filter((s): s is NonNullable<typeof s> => !!s);
+            const globals = matchedSkills.map(s => {
+                const normalizedPath = path.normalize(s.path);
+                let source = 'unknown';
+                for (const [sourceName, dir] of Object.entries(dirsMap)) {
+                    if (normalizedPath.startsWith(path.normalize(dir))) {
+                        source = sourceName;
+                        break;
                     }
-                    return { name: s.name, description: s.description, source };
-                });
+                }
+                return { name: s.name, description: s.description, source };
+            });
             return {
                 globals,
                 skills: listSkills(config.getAgentSkillsPath(agentName)).map((s: any) => ({ ...s, source: 'agent' })),

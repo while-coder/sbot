@@ -26,7 +26,10 @@ export interface NamedEmbeddingConfig extends EmbeddingConfig {
 export interface BaseAgentEntry {
   name?: string;               // 显示名称（可选，便于识别）
   type: AgentMode;
+  model: string;               // 模型 UUID（single 模式为执行模型；react 模式为 Think 编排模型）
   systemPrompt?: string;       // 系统提示词（single 模式直接使用；react 模式注入所有子 Agent）
+  mcp?: string[] | '*';        // 全局 MCP 服务器过滤列表（对应 mcp.json 中的 key）；"*" = 加载全部
+  skills?: string[] | '*';     // 全局 Skills 过滤列表（skill 名称）；"*" = 加载全部
   autoApproveTools?: string[]; // 自动批准的工具列表（无需用户确认）
   autoApproveAllTools?: boolean; // 自动批准所有工具（无需用户确认）
 }
@@ -36,9 +39,6 @@ export interface BaseAgentEntry {
  */
 export interface SingleAgentEntry extends BaseAgentEntry {
   type: AgentMode.Single;
-  model: string;               // 使用的模型 UUID（对应 models 中的 key）
-  mcp?: string[];              // Agent 专属 MCP 服务器名称列表（对应 mcp.json 中的 key）
-  skills?: string[];           // 全局 Skills 过滤列表（skill 名称），不填则加载所有全局 Skills
 }
 
 /**
@@ -46,9 +46,6 @@ export interface SingleAgentEntry extends BaseAgentEntry {
  */
 export interface ReactAgentEntry extends BaseAgentEntry {
   type: AgentMode.ReAct;
-  think: string;               // Think 节点使用的模型 UUID（对应 models 中的 key）
-  mcp?: string[];              // MCP 服务列表（对应全局 mcp 中的 key）
-  skills?: string[];           // Skill 目录列表（对应全局 skills 中的 key）
   agents: AgentSubNode[];      // 子 Agent 引用列表（name 字段为 agent UUID）
 }
 
@@ -247,7 +244,7 @@ class Config {
         [A1]: { name: "default",      type: AgentMode.Single, model: M1, systemPrompt: "你是一个有用的AI助手" },
         [A2]: { name: "coder",        type: AgentMode.Single, model: M1, systemPrompt: "你是一个开发专家，擅长编写高质量代码" },
         [A3]: { name: "researcher",   type: AgentMode.Single, model: M1, systemPrompt: "你是一个研究专家，擅长搜索和分析信息" },
-        [A4]: { name: "react-example", type: AgentMode.ReAct, think: M1,
+        [A4]: { name: "react-example", type: AgentMode.ReAct, model: M1,
                 agents: [{ id: A2, desc: "开发专家，擅长编写高质量代码" }, { id: A3, desc: "研究专家，擅长搜索和分析信息" }] },
       },
     };

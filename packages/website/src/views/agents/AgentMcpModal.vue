@@ -18,12 +18,16 @@ const agentName  = ref('')
 const agentDisplayName = computed(() => (store.settings.agents?.[agentName.value] as any)?.name || agentName.value)
 
 const servers       = ref<Record<string, McpEntry>>({})
+const useAllMcp     = ref(false)
+const origUseAll    = ref(false)
 const agentGlobals  = ref<string[]>([])
 const activeTab     = ref('all')
 const selectedGlobals = ref<string[]>([])
 const mcpSearch     = ref('')
 
 const globalsChanged = computed(() => {
+  if (useAllMcp.value !== origUseAll.value) return true
+  if (useAllMcp.value) return false
   const a = [...selectedGlobals.value].sort().join(',')
   const b = [...agentGlobals.value].sort().join(',')
   return a !== b
@@ -53,6 +57,10 @@ function apiBase() {
 
 async function load() {
   try {
+    const agent = (store.settings.agents || {})[agentName.value]
+    const isAll = agent?.mcp === '*'
+    useAllMcp.value  = isAll
+    origUseAll.value = isAll
     const [res, globalRes] = await Promise.all([
       apiFetch(apiBase()),
       apiFetch('/api/mcp'),
@@ -60,8 +68,8 @@ async function load() {
     const rawServers: any[] = res.data?.servers || []
     servers.value = Object.fromEntries(rawServers.map(({ id, source: _s, ...rest }: any) => [id, rest]))
     const globalsFromApi: string[] = (res.data?.globals || []).map((m: any) => m.id)
-    agentGlobals.value = globalsFromApi
-    selectedGlobals.value = [...globalsFromApi]
+    agentGlobals.value = isAll ? [] : globalsFromApi
+    selectedGlobals.value = isAll ? [] : [...globalsFromApi]
     applyMcpList(globalRes.data || [])
   } catch (e: any) {
     show(e.message, 'error')
@@ -71,13 +79,15 @@ async function load() {
 async function saveGlobals() {
   try {
     const existing = (store.settings.agents || {})[agentName.value] || {}
+    const mcpValue = useAllMcp.value ? '*' : selectedGlobals.value
     const res = await apiFetch(
       `/api/settings/agents/${encodeURIComponent(agentName.value)}`,
       'PUT',
-      { ...existing, mcp: selectedGlobals.value },
+      { ...existing, mcp: mcpValue },
     )
     Object.assign(store.settings, res.data)
-    agentGlobals.value = [...selectedGlobals.value]
+    origUseAll.value = useAllMcp.value
+    agentGlobals.value = useAllMcp.value ? [] : [...selectedGlobals.value]
     show(t('common.saved'))
   } catch (e: any) {
     show(e.message, 'error')
@@ -328,7 +338,12 @@ defineExpose({ open })
           <!-- Global MCPs tab -->
           <template v-if="activeTab !== t('agents.mcp_exclusive_tab')">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-              <input v-model="mcpSearch" :placeholder="t('mcp.search_placeholder')" style="flex:1;padding:6px 10px;border:1px solid #e8e6e3;border-radius:6px;font-size:12px;outline:none" />
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;flex-shrink:0;padding:4px 10px;background:#f8fafc;border:1px solid #e8e6e3;border-radius:6px">
+                <input type="checkbox" v-model="useAllMcp" style="width:14px;height:14px;cursor:pointer" />
+                {{ t('agents.use_all') }}
+              </label>
+              <input v-if="!useAllMcp" v-model="mcpSearch" :placeholder="t('mcp.search_placeholder')" style="flex:1;padding:6px 10px;border:1px solid #e8e6e3;border-radius:6px;font-size:12px;outline:none" />
+              <div v-else style="flex:1" />
               <button class="btn-primary btn-sm" :disabled="!globalsChanged" @click="saveGlobals">{{ t('common.save') }}</button>
               <span v-if="globalsChanged" style="font-size:12px;color:#f59e0b;white-space:nowrap">{{ t('common.unsaved_changes') }}</span>
             </div>
@@ -340,7 +355,7 @@ defineExpose({ open })
                 style="display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;border-bottom:1px solid #f5f4f2;font-size:13px"
                 :style="selectedGlobals.includes(m.id) ? 'background:#fafaf9' : ''"
               >
-                <input type="checkbox" :value="m.id" v-model="selectedGlobals" style="cursor:pointer;flex-shrink:0;width:14px;height:14px" />
+                <input type="checkbox" :value="m.id" v-model="selectedGlobals" :disabled="useAllMcp" :checked="useAllMcp || selectedGlobals.includes(m.id)" style="cursor:pointer;flex-shrink:0;width:14px;height:14px" />
                 <span :style="`flex-shrink:0;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(m.source)}`">{{ m.source }}</span>
                 <span style="font-family:monospace;font-weight:500;width:200px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.name }}</span>
                 <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:#64748b">{{ m.description || '-' }}</span>

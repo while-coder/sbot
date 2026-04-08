@@ -17,7 +17,7 @@ import { createSchedulerTools } from "../Tools/Scheduler/index";
 import { config, AgentMode, SingleAgentEntry, ReactAgentEntry } from "../Core/Config";
 import { loadPrompt } from "../Core/PromptLoader";
 import { globalAgentToolService } from "./GlobalAgentToolService";
-import { globalSkillService } from "./GlobalSkillService";
+import { globalSkillService, getSkillsDirsMap } from "./GlobalSkillService";
 import { getLogger } from "log4js";
 
 
@@ -70,7 +70,7 @@ export class AgentFactory {
     private static async registerSkillService(
         container: ServiceContainer,
         agentName: string,
-        skills?: string[],
+        skills?: string[] | '*',
     ): Promise<void> {
         container.registerWithArgs(ISkillService, SkillService, {
             [T_SkillSystemPromptTemplate]: loadPrompt('skills/system.txt'),
@@ -79,7 +79,11 @@ export class AgentFactory {
             [T_SkillToolExecDesc]: loadPrompt('skills/tool_execute_skill_script.txt'),
         });
         const skillService = await container.resolve<SkillService>(ISkillService);
-        if (skills && skills.length > 0) {
+        if (skills === '*') {
+            for (const dir of Object.values(getSkillsDirsMap())) {
+                skillService.registerSkillsDir(dir);
+            }
+        } else if (skills && skills.length > 0) {
             const allGlobalSkills = globalSkillService.getAllSkills();
             for (const name of skills) {
                 const skill = allGlobalSkills.find(s => s.name === name);
@@ -93,7 +97,7 @@ export class AgentFactory {
         container: ServiceContainer,
         agentName: string,
         scheduler: AgentSchedulerContext,
-        mcp?: string[],
+        mcp?: string[] | '*',
         agentTools?: AgentTool[],
     ): Promise<void> {
         container.registerSingleton(IAgentToolService, AgentToolService);
@@ -101,7 +105,9 @@ export class AgentFactory {
         toolService.registerToolFactory('__scheduler__', () =>
             Promise.resolve(createSchedulerTools(scheduler.schedulerType, scheduler.schedulerId))
         );
-        if (mcp && mcp.length > 0) {
+        if (mcp === '*') {
+            toolService.registerToolFactory('__global_mcp__', () => globalAgentToolService.getAllTools());
+        } else if (mcp && mcp.length > 0) {
             const mcpNames = [...mcp];
             toolService.registerToolFactory('__global_mcp__', () => globalAgentToolService.getToolsFrom(mcpNames));
         }
@@ -141,10 +147,10 @@ export class AgentFactory {
         if (agentSubNodes.length === 0) {
             throw new Error("ReAct mode: no sub-agents configured");
         }
-        if (!entry.think) {
-            throw new Error("ReAct mode: think modelName not configured");
+        if (!entry.model) {
+            throw new Error("ReAct mode: model not configured");
         }
-        const thinkModelService = await config.getModelService(entry.think, true);
+        const thinkModelService = await config.getModelService(entry.model, true);
         container.registerWithArgs(ReActAgentService, {
             [T_AgentSubNodes]: agentSubNodes,
             [T_CreateAgent]: createAgentFn,

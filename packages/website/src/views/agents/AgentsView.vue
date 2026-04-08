@@ -45,13 +45,17 @@ function isExpanded(id: string) { return expandedIds.value.has(id) }
 function getTab(id: string): 'config' | 'skills' | 'mcp' { return activeTabs.value[id] ?? 'config' }
 function getSkills(id: string)  { return skillsMap.value[id]     ?? [] }
 function getGlobals(id: string) {
-  const ids = new Set<string>((store.settings.agents || {})[id]?.skills ?? [])
+  const skills = (store.settings.agents || {})[id]?.skills
+  if (skills === '*') return store.allSkills
+  const ids = new Set<string>(skills ?? [])
   return store.allSkills.filter((s: SkillItem) => ids.has(s.name))
 }
 function getMcpServers(id: string) { return mcpServersMap.value[id] ?? [] }
 
 function getMcpGlobals(id: string) {
-  const ids = new Set<string>((store.settings.agents || {})[id]?.mcp ?? [])
+  const mcp = (store.settings.agents || {})[id]?.mcp
+  if (mcp === '*') return store.allMcps
+  const ids = new Set<string>(mcp ?? [])
   return store.allMcps.filter((m: McpItem) => ids.has(m.id))
 }
 
@@ -269,9 +273,12 @@ async function refresh() {
               </td>
               <td>
                 <span style="font-weight:500;color:#1c1c1c">{{ (a as any).name || id }}</span>
+                <span v-if="a.skills === '*'" class="config-badge config-badge-info">Skills *</span>
+                <span v-if="a.mcp === '*'" class="config-badge config-badge-info">MCP *</span>
+                <span v-if="(a as any).autoApproveAllTools" class="config-badge config-badge-warn">{{ t('agents.auto_approve_all_tools') }}</span>
               </td>
               <td><span :class="'agent-type-badge agent-type-' + a.type">{{ a.type }}</span></td>
-              <td>{{ a.type === 'react' ? ((a as any).think ? modelName((a as any).think) : '-') : (a.model ? modelName(a.model) : '-') }}</td>
+              <td>{{ a.model ? modelName(a.model) : '-' }}</td>
               <td @click.stop>
                 <div class="ops-cell">
                   <button class="btn-outline btn-sm" @click="agentModal?.open(id as string)">{{ t('common.edit') }}</button>
@@ -332,6 +339,26 @@ async function refresh() {
                               <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.storage_label') }}</td>
                               <td style="font-family:monospace;padding:7px 12px">{{ (a as any).saver }}</td>
                             </tr>
+                            <tr>
+                              <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">Skills</td>
+                              <td style="padding:7px 12px">
+                                <span v-if="a.skills === '*'" class="config-badge config-badge-info">{{ t('agents.use_all') }}</span>
+                                <span v-else-if="Array.isArray(a.skills) && a.skills.length" style="font-size:12px;color:#475569">{{ a.skills.length }} {{ t('agents.items_selected') }}</span>
+                                <span v-else style="font-size:12px;color:#94a3b8">-</span>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">MCP</td>
+                              <td style="padding:7px 12px">
+                                <span v-if="a.mcp === '*'" class="config-badge config-badge-info">{{ t('agents.use_all') }}</span>
+                                <span v-else-if="Array.isArray(a.mcp) && a.mcp.length" style="font-size:12px;color:#475569">{{ a.mcp.length }} {{ t('agents.items_selected') }}</span>
+                                <span v-else style="font-size:12px;color:#94a3b8">-</span>
+                              </td>
+                            </tr>
+                            <tr v-if="(a as any).autoApproveAllTools">
+                              <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.auto_approve_all_tools') }}</td>
+                              <td style="padding:7px 12px"><span class="config-badge config-badge-warn">ON</span></td>
+                            </tr>
                           </tbody>
                         </table>
                       </div>
@@ -341,19 +368,8 @@ async function refresh() {
                         <pre style="margin:0;padding:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-family:Consolas,Monaco,monospace;font-size:12px;line-height:1.6;white-space:pre-wrap;word-break:break-word;color:#1e293b;max-height:180px;overflow:auto">{{ (a as any).systemPrompt }}</pre>
                       </div>
 
-                      <!-- react -->
+                      <!-- react sub-agents -->
                       <template v-if="a.type === 'react'">
-                        <div class="card">
-                          <div class="card-title">{{ t('agents.react_config') }}</div>
-                          <table style="margin:0">
-                            <tbody>
-                              <tr>
-                                <td style="width:160px;color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.think_model') }}</td>
-                                <td style="padding:7px 12px">{{ (a as any).think ? modelName((a as any).think) : '-' }}</td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </div>
                         <div v-if="((a as any).agents as any[] | undefined)?.length" class="card">
                           <div class="card-title">{{ t('agents.sub_agents') }}</div>
                           <div v-for="sub in ((a as any).agents as any[])" :key="sub.id" class="sub-agent-item">
@@ -448,7 +464,12 @@ async function refresh() {
       <div v-else class="card-list">
         <div v-for="[id, a] in sortedAgentEntries" :key="id" class="mobile-card">
           <div class="mobile-card-header" @click="toggleExpand(id as string)" style="display:flex;justify-content:space-between;cursor:pointer">
-            <span>{{ (a as any).name || id }}</span>
+            <span>
+              {{ (a as any).name || id }}
+              <span v-if="a.skills === '*'" class="config-badge config-badge-info">Skills *</span>
+              <span v-if="a.mcp === '*'" class="config-badge config-badge-info">MCP *</span>
+              <span v-if="(a as any).autoApproveAllTools" class="config-badge config-badge-warn">{{ t('agents.auto_approve_all_tools') }}</span>
+            </span>
             <span style="font-size:10px">{{ isExpanded(id as string) ? '▼' : '▶' }}</span>
           </div>
           <div class="mobile-card-fields">
@@ -513,6 +534,26 @@ async function refresh() {
                           <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.storage_label') }}</td>
                           <td style="font-family:monospace;padding:7px 12px">{{ (a as any).saver }}</td>
                         </tr>
+                        <tr>
+                          <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">Skills</td>
+                          <td style="padding:7px 12px">
+                            <span v-if="a.skills === '*'" class="config-badge config-badge-info">{{ t('agents.use_all') }}</span>
+                            <span v-else-if="Array.isArray(a.skills) && a.skills.length" style="font-size:12px;color:#475569">{{ a.skills.length }} {{ t('agents.items_selected') }}</span>
+                            <span v-else style="font-size:12px;color:#94a3b8">-</span>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">MCP</td>
+                          <td style="padding:7px 12px">
+                            <span v-if="a.mcp === '*'" class="config-badge config-badge-info">{{ t('agents.use_all') }}</span>
+                            <span v-else-if="Array.isArray(a.mcp) && a.mcp.length" style="font-size:12px;color:#475569">{{ a.mcp.length }} {{ t('agents.items_selected') }}</span>
+                            <span v-else style="font-size:12px;color:#94a3b8">-</span>
+                          </td>
+                        </tr>
+                        <tr v-if="(a as any).autoApproveAllTools">
+                          <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.auto_approve_all_tools') }}</td>
+                          <td style="padding:7px 12px"><span class="config-badge config-badge-warn">ON</span></td>
+                        </tr>
                       </tbody>
                     </table>
                   </div>
@@ -522,19 +563,8 @@ async function refresh() {
                     <pre style="margin:0;padding:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-family:Consolas,Monaco,monospace;font-size:12px;line-height:1.6;white-space:pre-wrap;word-break:break-word;color:#1e293b;max-height:180px;overflow:auto">{{ (a as any).systemPrompt }}</pre>
                   </div>
 
-                  <!-- react -->
+                  <!-- react sub-agents -->
                   <template v-if="a.type === 'react'">
-                    <div class="card">
-                      <div class="card-title">{{ t('agents.react_config') }}</div>
-                      <table style="margin:0">
-                        <tbody>
-                          <tr>
-                            <td style="width:160px;color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.think_model') }}</td>
-                            <td style="padding:7px 12px">{{ (a as any).think ? modelName((a as any).think) : '-' }}</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
                     <div v-if="((a as any).agents as any[] | undefined)?.length" class="card">
                       <div class="card-title">{{ t('agents.sub_agents') }}</div>
                       <div v-for="sub in ((a as any).agents as any[])" :key="sub.id" class="sub-agent-item">
@@ -670,5 +700,22 @@ async function refresh() {
 .agent-type-single {
   background: #f0f4f8;
   color: #64748b;
+}
+.config-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.config-badge-info {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+.config-badge-warn {
+  background: #fef3c7;
+  color: #b45309;
 }
 </style>
