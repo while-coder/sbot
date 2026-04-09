@@ -16,7 +16,7 @@ export enum BuiltinProvider {
     ChromeDevTools = 'builtin_chrome-devtools-mcp',
     Markitdown = 'builtin_markitdown',
     Exa = 'builtin_exa',
-    GameData = 'builtin_gamedata'
+    // GameData = 'builtin_gamedata'
 }
 
 export const globalAgentToolService = new AgentToolService(GlobalLoggerService.getLoggerService());
@@ -65,6 +65,6 @@ export async function refreshBuiltinTools() {
         BuiltinProvider.FileSystem,
         BuiltinProvider.WebFetch,
         BuiltinProvider.Archive,
-        BuiltinProvider.GameData,
+        // BuiltinProvider.GameData,
     );
 }
