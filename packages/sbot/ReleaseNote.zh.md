@@ -1,23 +1,24 @@
-## v0.0.8
+## v0.0.9
 
 ### 新功能
 
-- **Gemini 模型支持**: 新增 `GeminiModelService` 和 `GeminiImageModelService`，支持 Google Gemini 系列模型（含图像生成）
-- **OpenAI Response 模型**: 新增 `OpenAIResponseModelService`，支持 OpenAI Response API 格式
-- **Channel 插件系统**: 引入 `ChannelPlugin` 抽象和 `PluginLoader`，各渠道（Lark、Slack、WeCom）均改为插件化注册方式
-- **Think 思考过程展示**: Web UI 新增 `ThinkDrawer` 组件，支持查看 AI 推理的思考过程
-- **日志查看页面**: Web 管理后台新增 `LogsView` 日志查看页面
+- **微信渠道**: 新增 `channel.wechat` 包，完整微信集成 — API 客户端、聊天 Provider、Session Handler、扫码登录、文件收发
+- **移动端适配**: Web 管理后台所有页面（Agents、Channels、Chat、Memories、Savers、Models、Embeddings、MCP、Skills、Scheduler、Users 等）全面支持移动端显示
+- **全局 MCP 与 Skills**: 支持全局 MCP Skills 配置，Web UI 中支持 Agent 级别的 MCP/Skill 管理
+- **共享对话历史**: Agent 支持跨会话共享对话历史记录
+- **自动启动**: 服务器自启动能力，支持开机启动配置
 
 ### 架构变更
 
-- **Session 重构**: 大规模重构 Session 管理，引入消息队列机制；`UserService` 重命名为 `SessionManager`；移除 `BaseWebUserService`、`HttpUserService` 及各渠道独立的 UserService（Lark/Slack/WeCom），统一由 `ChannelSessionHandler` 处理。`SessionService` 大幅扩展并继承 `MessageDispatcher`
-- **Channel 插件化架构**: 新增 `AbstractChatProvider` 抽象基类；`ChannelManager` 大幅精简，拆分出 `PluginLoader` 和 `createProcessAIHandler`；各渠道 `UserServiceBase` 重命名为 `SessionHandler`；每个渠道新增 `plugin.ts` 实现自注册。channel.base 中 `SessionManager` 改为抽象类
-- **Saver 重构**: 新增 `messageConverter.ts` 统一消息转换逻辑；精简 `messageSerializer.ts`；Saver 接口（`IAgentSaverService`）大幅扩展，支持 think 内容存储
-- **移除 Azure 模型**: 移除 `AzureModelService`，统一使用 OpenAI 兼容接口
+- **WebSocket 重构**: 重新整理 `WebSocketUserService`，扩展 `createProcessAIHandler` 以构建更清晰的请求处理流程
+- **SkillService 无缓存**: `SkillService` 切换为无缓存模式，支持 Skill 实时更新
+- **代码清理**: 移除未使用的 `CommandDecorators`，精简冗余聊天组件，清理 WeCom SessionHandler
 
 ### 改进
 
-- **Memory 内容分割**: Memory 内容支持分段存储和检索
-- **Saver 支持 Think**: 对话历史保存支持记录 AI 思考过程
-- **Anthropic 模型增强**: `AnthropicModelService` 功能扩展，支持更多配置选项
+- **微信/企微文件支持**: 微信和企业微信渠道均支持文件收发
+- **企微图片与图文混排**: 企业微信渠道支持图片消息和图文混排内容
+- **渠道密码认证**: 渠道管理界面支持密码/认证配置
+- **WebSocket 事件整理**: 统一并简化 WebSocket 事件类型和处理逻辑
+- **多项 Bug 修复**: 修复 Lark/Slack SessionHandler、消息序列化器、模型配置、Embedding 类型等多处问题
 
