@@ -1,0 +1,2 @@
+列出游戏数据 Excel 目录下所有数据表的概览信息（表名、行数、列数、列名摘要）。支持 WDataBuilder 格式的 xlsx 文件（使用 /Name、/Type、/Begin、/End 元数据行）。
+自动跳过 l10n_data.xlsx 等辅助文件和以 ! 开头的调试 sheet。dir 必须为绝对路径。

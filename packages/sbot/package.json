@@ -45,6 +45,7 @@
     "commander": "catalog:",
     "cron": "^4.4.0",
     "diff": "^8.0.3",
+    "exceljs": "^4.4.0",
     "express": "^5.2.1",
     "log4js": "^6.9.1",
     "reflect-metadata": "catalog:",
