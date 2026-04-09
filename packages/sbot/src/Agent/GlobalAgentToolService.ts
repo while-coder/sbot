@@ -26,7 +26,7 @@ export function initGlobalAgentToolService() {
     globalAgentToolService.registerToolFactory(BuiltinProvider.FileSystem, async () => createFileSystemTools(), '文件系统操作');
     globalAgentToolService.registerToolFactory(BuiltinProvider.WebFetch, async () => createWebFetchTools(), 'Web 内容抓取');
     globalAgentToolService.registerToolFactory(BuiltinProvider.Archive, async () => createArchiveTools(), 'ZIP 压缩/解压');
-    globalAgentToolService.registerToolFactory(BuiltinProvider.GameData, async () => createGameDataTools(), '游戏数据表查询与修改');
+    // globalAgentToolService.registerToolFactory(BuiltinProvider.GameData, async () => createGameDataTools(), '游戏数据表查询与修改');
     globalAgentToolService.registerMcpServers({
         [BuiltinProvider.Playwright]: {
             "command": "npx.cmd",

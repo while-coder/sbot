@@ -1,6 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import ExcelJS from 'exceljs';
+import { LoggerService } from '../../Core/LoggerService.js';
+
+const logger = LoggerService.getLogger('Tools/GameData/parser');
 
 export interface TableSchema {
     name: string;
@@ -164,8 +167,12 @@ export async function scanDir(dir: string): Promise<ParsedTable[]> {
 
     const allTables: ParsedTable[] = [];
     for (const file of files) {
-        const tables = await parseWorkbook(path.join(dir, file));
-        allTables.push(...tables);
+        try {
+            const tables = await parseWorkbook(path.join(dir, file));
+            allTables.push(...tables);
+        } catch (e: any) {
+            logger.warn(`Skipping unreadable file ${file}: ${e.message}`);
+        }
     }
     return allTables;
 }
@@ -181,7 +188,12 @@ export async function findTable(dir: string, tableName: string): Promise<{ table
     for (const file of files) {
         const filePath = path.join(dir, file);
         const workbook = new ExcelJS.Workbook();
-        await workbook.xlsx.readFile(filePath);
+        try {
+            await workbook.xlsx.readFile(filePath);
+        } catch (e: any) {
+            logger.warn(`Skipping unreadable file ${file}: ${e.message}`);
+            continue;
+        }
 
         let found: ParsedTable | null = null;
         workbook.eachSheet((ws) => {
