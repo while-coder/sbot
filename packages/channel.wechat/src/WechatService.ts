@@ -144,22 +144,6 @@ export class WechatService implements IChannelService {
     });
   }
 
-  async sendTypingIndicator(toUserId: string, typing: boolean): Promise<void> {
-    const contextToken = this.getContextToken(toUserId);
-    if (!contextToken) return; // need context from a prior message
-    try {
-      const config = await this.api.getConfig(toUserId, contextToken);
-      if (!config.typing_ticket) return;
-      await this.api.sendTyping({
-        ilink_user_id: toUserId,
-        typing_ticket: config.typing_ticket,
-        status: typing ? 1 : 2,
-      });
-    } catch (e: any) {
-      this.logger?.warn(`sendTyping failed: ${e.message}`);
-    }
-  }
-
   // --- Long-polling loop ---
 
   connect(): void {

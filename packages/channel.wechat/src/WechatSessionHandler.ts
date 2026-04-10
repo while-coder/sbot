@@ -10,22 +10,17 @@ const getLogger = () => GlobalLoggerService.getLogger("WechatSessionHandler.ts")
 
 export class WechatSessionHandler extends ChannelSessionHandler {
   private provider: WechatChatProvider | undefined;
-  private _fromUserId = "";
 
   constructor(session: SessionService, private wechatService: WechatService) {
     super(session);
   }
 
   async onProcessStart(_query: MessageContent, args: ChannelMessageArgs, _messageType: MessageType): Promise<void> {
-    this._fromUserId = (args as WechatMessageArgs).fromUserId ?? args.sessionId;
-    this.provider = new WechatChatProvider(this.wechatService, this._fromUserId);
-    // Send typing indicator
-    this.wechatService.sendTypingIndicator(this._fromUserId, true).catch(() => {});
+    const fromUserId = (args as WechatMessageArgs).fromUserId ?? args.sessionId;
+    this.provider = new WechatChatProvider(this.wechatService, fromUserId);
   }
 
   async onProcessEnd(_query: MessageContent, _args: ChannelMessageArgs, _messageType: MessageType, error?: any): Promise<void> {
-    // Cancel typing
-    this.wechatService.sendTypingIndicator(this._fromUserId, false).catch(() => {});
     if (error && this.provider) {
       await this.provider.setMessage(`处理出错: ${error.message}`);
     }
