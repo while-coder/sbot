@@ -7,12 +7,10 @@ import { IMemoryService } from "../../Memory";
 import { IAgentSaverService } from "../../Saver";
 import { IAgentToolService } from "../../AgentTool";
 import { ILoggerService } from "../../Logger";
-import { normalizeToMCPResult, MCPContentType, MCPToolResult } from '../../Tools';
+import { normalizeToMCPResult, MCPContentType, type MCPToolResult } from '../../Tools';
 import { AgentServiceBase, GraphNodeType, ToolApproval, IAgentCallback, ICancellationToken, AgentCancelledError, MAX_HISTORY_TOKENS, ChatMessage, MessageRole } from "../AgentServiceBase";
-import * as fs from 'fs/promises';
-import * as os from 'os';
-import * as path from 'path';
-import { pathToFileURL } from 'url';
+import type { MessageContent } from "../../Saver/IAgentSaverService";
+import { contentToString } from "../../Utils/contentUtils";
 
 export {
     GraphNodeType,
@@ -69,11 +67,12 @@ export class SingleAgentService extends AgentServiceBase {
     /**
      * 构建本轮 system message（基础 + 记忆 + skill 合并为单条）
      */
-    protected async buildSystemMessage(query: string, _callback?: IAgentCallback, _cancellationToken?: ICancellationToken): Promise<ChatMessage | null> {
+    protected async buildSystemMessage(query: MessageContent, _callback?: IAgentCallback, _cancellationToken?: ICancellationToken): Promise<ChatMessage | null> {
         const parts: string[] = this.systemMessages.map(m => m.content as string);
         if (this.memorySystemPromptTemplate) {
             const memoryLimit = 10;
-            const allMemories = (await Promise.all(this.memoryServices.map(mem => mem.getMemories(query, memoryLimit))))
+            const queryText = contentToString(query);
+            const allMemories = (await Promise.all(this.memoryServices.map(mem => mem.getMemories(queryText, memoryLimit))))
                 .flat()
                 .sort((a, b) => b.decayedScore - a.decayedScore)
                 .slice(0, memoryLimit);
@@ -96,57 +95,6 @@ export class SingleAgentService extends AgentServiceBase {
         const tools: StructuredToolInterface[] = await this.toolService?.getAllTools() ?? [];
         if (this.skillService) tools.push(...this.skillService.getTools());
         return tools;
-    }
-
-    /**
-     * 将 MCPToolResult 中的 base64 图片保存为本地临时文件，返回 file:// URL
-     */
-    async convertImages(result: MCPToolResult): Promise<MCPToolResult> {
-        try {
-            const converted: MCPToolResult = { content: [], isError: result.isError, thinkId: result.thinkId };
-            for (const item of result.content) {
-                if (item.type !== MCPContentType.Image && item.type !== MCPContentType.ImageUrl) {
-                    converted.content.push(item);
-                    continue;
-                }
-                try {
-                    if (item.type === MCPContentType.Image) {
-                        const fileUrl = await this.saveBase64ToTmp(item.data, item.mimeType);
-                        converted.content.push({ type: MCPContentType.ImageUrl, url: fileUrl });
-                    } else {
-                        const raw = item.url ?? item.image_url!;
-                        const rawStr = typeof raw === 'string' ? raw : raw.url;
-                        if (rawStr.startsWith('data:')) {
-                            const fileUrl = await this.saveDataUrlToTmp(rawStr);
-                            converted.content.push({ type: MCPContentType.ImageUrl, url: fileUrl });
-                        } else {
-                            converted.content.push(item);
-                        }
-                    }
-                } catch (error: any) {
-                    this.logger?.error(`转换图片失败: ${error.message}`);
-                    converted.content.push(item);
-                }
-            }
-            return converted;
-        } catch (error: any) {
-            this.logger?.error(`图片转换过程出错: ${error.message}`);
-            return result;
-        }
-    }
-
-    private async saveBase64ToTmp(base64: string, mimeType: string): Promise<string> {
-        const ext = mimeType.split('/')[1]?.split(';')[0] ?? 'png';
-        const filename = `img_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-        const filePath = path.join(os.tmpdir(), filename);
-        await fs.writeFile(filePath, Buffer.from(base64, 'base64'));
-        return pathToFileURL(filePath).href;
-    }
-
-    private async saveDataUrlToTmp(dataUrl: string): Promise<string> {
-        const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-        if (!match) throw new Error('Invalid data URL format');
-        return this.saveBase64ToTmp(match[2], match[1]);
     }
 
     /**
@@ -251,29 +199,26 @@ export class SingleAgentService extends AgentServiceBase {
                     `执行工具 ${tool.name}\n  参数: ${truncate(JSON.stringify(parsedArgs), 150)}\n  结果: ${truncate(resultStr, 100)}`
                 );
 
-                // 转换内容中的图片（base64 → 本地 tmp 文件）
-                try {
-                    mcpResult = await this.convertImages(mcpResult);
-                } catch (error: any) {
-                    this.logger?.error(`图片转换失败: ${error.message}`);
-                }
-
-                // 单条纯文本且无错误标志时直接返回文本，省去 JSON 包装节省 token
-                // isError=true 时保留 JSON，让 LLM 能感知到错误信号
-                const isError = mcpResult.isError;
-                mcpResult.isError = undefined;
                 const thinkId = mcpResult.thinkId;
-                mcpResult.thinkId = undefined;
-                const content =
-                    !isError && mcpResult.content.length === 1 && mcpResult.content[0].type === MCPContentType.Text
-                        ? mcpResult.content[0].text
-                        : JSON.stringify(mcpResult);
+                // 将 MCP 结果转为 MessageContent：单条纯文本直接用 string，否则转为多模态数组
+                const content: MessageContent = !mcpResult.isError && mcpResult.content.length === 1 && mcpResult.content[0].type === MCPContentType.Text
+                    ? mcpResult.content[0].text
+                    : mcpResult.content.map(item => {
+                        if (item.type === MCPContentType.Image) {
+                            return { type: 'image_url', image_url: { url: `data:${item.mimeType};base64,${item.data}` } };
+                        }
+                        if (item.type === MCPContentType.ImageUrl) {
+                            const raw = item.url ?? item.image_url!;
+                            return { type: 'image_url', image_url: { url: typeof raw === 'string' ? raw : raw.url } };
+                        }
+                        return item;
+                    });
 
                 toolMessages.push({
                     role: MessageRole.Tool,
                     tool_call_id: toolCall.id || "",
-                    content: content,
-                    status: isError ? "error" : "success",
+                    content,
+                    status: mcpResult.isError ? "error" : "success",
                     additional_kwargs: thinkId ? { thinkId } : undefined,
                 });
             } catch (error: any) {
@@ -304,7 +249,7 @@ export class SingleAgentService extends AgentServiceBase {
     /**
      * 流式处理用户查询
      */
-    override async stream(query: string, callback: IAgentCallback, cancellationToken?: ICancellationToken): Promise<ChatMessage[]> {
+    override async stream(query: MessageContent, callback: IAgentCallback, cancellationToken?: ICancellationToken): Promise<ChatMessage[]> {
         // 将本次用户消息压入历史
         await this.saverService.pushMessage({ role: MessageRole.Human, content: query });
 
@@ -361,7 +306,7 @@ export class SingleAgentService extends AgentServiceBase {
         // 保存对话到长期记忆
         for (const mem of this.memoryServices) {
             try {
-                await mem.memorizeConversation(query, aiResponses.length > 0 ? aiResponses : undefined);
+                await mem.memorizeConversation(contentToString(query), aiResponses.length > 0 ? aiResponses : undefined);
             } catch (error: any) {
                 this.logger?.warn(`保存对话记忆失败: ${error.message}`);
             }
