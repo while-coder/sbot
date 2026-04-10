@@ -3,7 +3,7 @@ import { LarkReceiveIdType, LarkService } from "./LarkService";
 import {
   ChannelSessionHandler, ToolCallStatus, SessionService, ChannelToolHelpers,
   GlobalLoggerService, AskQuestionType,
-  type ChannelMessageArgs, type ChatMessage, type ChatToolCall, type AskToolParams, type MessageType,
+  type ChannelMessageArgs, type ChatMessage, type ChatToolCall, type AskToolParams, type MessageType, type MessageContent,
 } from "channel.base";
 
 const getLogger = () => GlobalLoggerService.getLogger('LarkSessionHandler.ts');
@@ -42,17 +42,17 @@ export class LarkSessionHandler extends ChannelSessionHandler {
     super(session);
   }
 
-  async onProcessStart(query: string, args: ChannelMessageArgs, _messageType: MessageType): Promise<void> {
+  async onProcessStart(query: MessageContent, args: ChannelMessageArgs, _messageType: MessageType): Promise<void> {
     const { sessionId, message_id } = args as LarkMessageArgs;
     if (!message_id) {
-      this.provider = await new LarkChatProvider(this.larkService).initChat(LarkReceiveIdType.ChatId, sessionId, query);
+      this.provider = await new LarkChatProvider(this.larkService).initChat(LarkReceiveIdType.ChatId, sessionId);
     } else {
       this.provider = await new LarkChatProvider(this.larkService).initReplay(message_id);
     }
     await this.sendAbortButton();
   }
 
-  async onProcessEnd(_query: string, _args: any, _messageType: MessageType, error?: any): Promise<void> {
+  async onProcessEnd(_query: MessageContent, _args: any, _messageType: MessageType, error?: any): Promise<void> {
     await this.clearAbortButton();
     if (error && this.provider) {
       await this.provider.setMessage(`Error generating reply: ${error.message}\n${error.stack}`);

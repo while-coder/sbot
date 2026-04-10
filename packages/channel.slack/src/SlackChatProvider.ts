@@ -20,13 +20,9 @@ export class SlackChatProvider extends AbstractChatProvider {
     channel: string,
     incomingTs: string,
     threadTs: string | undefined,
-    query?: string,
   ): Promise<this> {
-    const initialText = query
-      ? `${query}\nThinking...`
-      : `Processing...`;
     const replyThreadTs = threadTs ?? incomingTs;
-    const sent = await this.slackService.sendMessage(channel, initialText, replyThreadTs);
+    const sent = await this.slackService.sendMessage(channel, `Processing...`, replyThreadTs);
     this.channel = sent.channel;
     this.ts = sent.ts;
     return this;

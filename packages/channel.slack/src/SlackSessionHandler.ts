@@ -3,7 +3,7 @@ import { SlackService } from "./SlackService";
 import {
   ChannelSessionHandler, ToolCallStatus, SessionService, ChannelToolHelpers,
   GlobalLoggerService, AskQuestionType,
-  type ChannelMessageArgs, type ChatMessage, type ChatToolCall, type AskToolParams, type MessageType,
+  type ChannelMessageArgs, type ChatMessage, type ChatToolCall, type AskToolParams, type MessageType, type MessageContent,
 } from "channel.base";
 
 const getLogger = () => GlobalLoggerService.getLogger("SlackSessionHandler.ts");
@@ -28,12 +28,12 @@ export class SlackSessionHandler extends ChannelSessionHandler {
     super(session);
   }
 
-  async onProcessStart(query: string, args: ChannelMessageArgs, _messageType: MessageType): Promise<void> {
+  async onProcessStart(query: MessageContent, args: ChannelMessageArgs, _messageType: MessageType): Promise<void> {
     const { sessionId, ts, threadTs } = args as SlackMessageArgs;
-    this.provider = await new SlackChatProvider(this.slackService).init(sessionId, ts, threadTs, query);
+    this.provider = await new SlackChatProvider(this.slackService).init(sessionId, ts, threadTs);
   }
 
-  async onProcessEnd(_query: string, _args: ChannelMessageArgs, _messageType: MessageType, error?: any): Promise<void> {
+  async onProcessEnd(_query: MessageContent, _args: ChannelMessageArgs, _messageType: MessageType, error?: any): Promise<void> {
     if (error) {
       getLogger()?.error(error.stack ?? error.message);
       if (this.provider) {

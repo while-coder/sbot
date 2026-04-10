@@ -1,7 +1,7 @@
 import {
   ChannelSessionHandler, SessionService, GlobalLoggerService, ToolApproval,
   type ChatMessage, type ChatToolCall, type AskToolParams, type MessageType,
-  type ChannelMessageArgs, type ChannelToolHelpers,
+  type ChannelMessageArgs, type ChannelToolHelpers, type MessageContent,
 } from "channel.base";
 import { WechatChatProvider } from "./WechatChatProvider";
 import type { WechatService, WechatMessageArgs } from "./WechatService";
@@ -16,14 +16,14 @@ export class WechatSessionHandler extends ChannelSessionHandler {
     super(session);
   }
 
-  async onProcessStart(_query: string, args: ChannelMessageArgs, _messageType: MessageType): Promise<void> {
+  async onProcessStart(_query: MessageContent, args: ChannelMessageArgs, _messageType: MessageType): Promise<void> {
     this._fromUserId = (args as WechatMessageArgs).fromUserId ?? args.sessionId;
     this.provider = new WechatChatProvider(this.wechatService, this._fromUserId);
     // Send typing indicator
     this.wechatService.sendTypingIndicator(this._fromUserId, true).catch(() => {});
   }
 
-  async onProcessEnd(_query: string, _args: ChannelMessageArgs, _messageType: MessageType, error?: any): Promise<void> {
+  async onProcessEnd(_query: MessageContent, _args: ChannelMessageArgs, _messageType: MessageType, error?: any): Promise<void> {
     // Cancel typing
     this.wechatService.sendTypingIndicator(this._fromUserId, false).catch(() => {});
     if (error && this.provider) {

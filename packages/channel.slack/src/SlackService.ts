@@ -1,6 +1,6 @@
 import { App } from "@slack/bolt";
 import { SlackActionArgs, SlackMessageArgs, SlackSessionHandler } from "./SlackSessionHandler";
-import { IChannelService, ChannelSessionHandler, SessionService, type ILogger } from "channel.base";
+import { IChannelService, ChannelSessionHandler, SessionService, type ILogger, type MessageContent } from "channel.base";
 
 export interface SlackServiceOptions {
   botToken: string;
@@ -10,7 +10,7 @@ export interface SlackServiceOptions {
     userId: string,
     userInfo: any,
     args: SlackMessageArgs,
-    query: string,
+    query: MessageContent,
   ) => Promise<void>;
   onTriggerAction: (
     userId: string,

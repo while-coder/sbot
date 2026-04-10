@@ -1,5 +1,6 @@
 import {
   ChannelPlugin, ChannelPluginContext, IChannelService, ConfigFieldType,
+  type MessageContent,
 } from "channel.base";
 import { WechatApiClient } from "./WechatApiClient";
 import { WechatService } from "./WechatService";
@@ -89,7 +90,7 @@ export const wechatPlugin: ChannelPlugin = {
       credentials,
       logger,
       filterEvent,
-      onReceiveMessage: async (userId: string, args: WechatMessageArgs, query: string) => {
+      onReceiveMessage: async (userId: string, args: WechatMessageArgs, query: MessageContent) => {
         const session = await initSession({
           userId,
           userName: userId,

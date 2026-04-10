@@ -1,5 +1,6 @@
 import {
   ChannelPlugin, ChannelPluginContext, IChannelService, ConfigFieldType,
+  type MessageContent,
 } from "channel.base";
 import { WecomService } from "./WecomService";
 import type { WecomMessageArgs, WecomActionArgs } from "./WecomService";
@@ -28,7 +29,7 @@ export const wecomPlugin: ChannelPlugin = {
       secret: config.secret,
       logger,
       filterEvent,
-      onReceiveMessage: async (userId: string, args: WecomMessageArgs, query: string) => {
+      onReceiveMessage: async (userId: string, args: WecomMessageArgs, query: MessageContent) => {
         const session = await initSession({
           userId,
           userName: userId,

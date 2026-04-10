@@ -17,9 +17,8 @@ export class LarkChatProvider extends AbstractChatProvider {
     this.messageId = resp?.message_id ?? null;
     return this;
   }
-  async initChat(receiveIdType: LarkReceiveIdType, receiveId: string, query?: string) {
-    const initialText = query ? `${query}\nThinking...` : `Processing...`;
-    const resp: any = await this.larkService.sendMarkdownMessage(receiveIdType, receiveId, initialText);
+  async initChat(receiveIdType: LarkReceiveIdType, receiveId: string) {
+    const resp: any = await this.larkService.sendMarkdownMessage(receiveIdType, receiveId, `Processing...`);
     this.messageId = resp?.message_id ?? null;
     return this;
   }

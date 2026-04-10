@@ -1,5 +1,6 @@
 import {
   ChannelPlugin, ChannelPluginContext, IChannelService, ConfigFieldType,
+  type MessageContent,
 } from "channel.base";
 import { SlackService } from "./SlackService";
 import { SlackMessageArgs, SlackActionArgs } from "./SlackSessionHandler";
@@ -29,7 +30,7 @@ export const slackPlugin: ChannelPlugin = {
       botToken: config.botToken,
       appToken: config.appToken,
       logger,
-      onReceiveMessage: async (userId: string, userInfo: any, args: SlackMessageArgs, query: string) => {
+      onReceiveMessage: async (userId: string, userInfo: any, args: SlackMessageArgs, query: MessageContent) => {
         const session = await initSession({
           userId,
           userName: userInfo?.real_name ?? userInfo?.name ?? '',
