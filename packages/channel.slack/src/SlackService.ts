@@ -1,6 +1,6 @@
 import { App } from "@slack/bolt";
 import { SlackActionArgs, SlackMessageArgs, SlackSessionHandler } from "./SlackSessionHandler";
-import { IChannelService, ChannelSessionHandler, SessionService, type ILogger, type MessageContent } from "channel.base";
+import { IChannelService, ChannelSessionHandler, SessionService, isEmptyContent, type ILogger, type MessageContent } from "channel.base";
 
 export interface SlackServiceOptions {
   botToken: string;
@@ -100,7 +100,7 @@ export class SlackService implements IChannelService {
           .replace(/<@[A-Z0-9]+>/g, "")
           .trim();
 
-        if (!query) return;
+        if (isEmptyContent(query)) return;
 
         const userInfo = await this.getUserInfo(userId);
         await this.onReceiveMessage(userId, userInfo, {

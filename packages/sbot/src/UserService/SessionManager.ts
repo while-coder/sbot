@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { ICommand, MessageType, type MessageContent } from "scorpio.ai";
+import { ICommand, MessageType, type MessageContent, isEmptyContent } from "scorpio.ai";
 import { SessionManager, SessionService } from "channel.base";
 import { ChannelType } from "sbot.commons";
 import { config } from "../Core/Config";
@@ -109,7 +109,7 @@ export class SbotSessionManager extends SessionManager {
     // ── Channel entry points ──
 
     async onReceiveChannelMessage(threadId: string, query: MessageContent, args: any): Promise<void> {
-        if (!query || (typeof query === 'string' && !query.trim()) || (Array.isArray(query) && query.length === 0)) return;
+        if (isEmptyContent(query)) return;
         const session = this.getOrCreate(threadId);
         await session.onReceiveMessage(query, args);
     }

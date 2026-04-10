@@ -36,9 +36,9 @@ export interface StreamData   { content: string | any[] }
 export interface MessageData  { message: ChatMessage; thinkId?: string; createdAt: number }
 export interface ToolCallData { approvalId: string; toolCallId?: string; name: string; args: Record<string, any> }
 export interface AskData      { id: string; title?: string; questions: AskQuestionSpec[] }
-export interface DoneData     { pendingMessages?: string[] }
+export interface DoneData     { pendingMessages?: (string | any[])[] }
 export interface ErrorData    { message: string }
-export interface QueueData    { pendingMessages: string[] }
+export interface QueueData    { pendingMessages: (string | any[])[] }
 
 export type WebChatEventDataMap = {
   [WebChatEventType.Human]:    HumanData

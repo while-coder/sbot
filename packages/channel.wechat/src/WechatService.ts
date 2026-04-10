@@ -4,7 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import {
   IChannelService, ChannelSessionHandler, SessionService,
-  type ChannelMessageArgs, type ILogger,
+  readFileAsDataUrl, isEmptyContent,
+  type ChannelMessageArgs, type ILogger, type MessageContent,
 } from "channel.base";
 import { WechatApiClient } from "./WechatApiClient";
 import { WechatSessionHandler } from "./WechatSessionHandler";
@@ -23,7 +24,7 @@ export interface WechatServiceOptions {
   credentials: WechatCredentials;
   logger?: ILogger;
   filterEvent: (eventId: string) => Promise<boolean>;
-  onReceiveMessage: (userId: string, args: WechatMessageArgs, query: string) => Promise<void>;
+  onReceiveMessage: (userId: string, args: WechatMessageArgs, query: MessageContent) => Promise<void>;
 }
 
 export class WechatService implements IChannelService {
@@ -224,8 +225,8 @@ export class WechatService implements IChannelService {
     const fromUserId = msg.from_user_id;
     if (!fromUserId) return;
 
-    const query = await this.extractText(msg);
-    if (!query) return;
+    const query = await this.extractContent(msg);
+    if (isEmptyContent(query)) return;
 
     const eventId = `wechat_message_${msg.message_id}`;
     if (!await this.filterEvent(eventId)) return;
@@ -237,42 +238,47 @@ export class WechatService implements IChannelService {
     }, query);
   }
 
-  private async extractText(msg: WeixinMessage): Promise<string> {
+  private async extractContent(msg: WeixinMessage): Promise<MessageContent> {
     const items = msg.item_list ?? [];
-    const parts: string[] = [];
+    const parts: Array<{ type: string; text?: string; [key: string]: any }> = [];
+    let hasImage = false;
     for (const item of items) {
       switch (item.type) {
-        case WechatMessageItemType.TEXT: parts.push(item.text_item?.text ?? ""); break;
-        case WechatMessageItemType.VOICE: parts.push(item.voice_item?.text ?? ""); break;
+        case WechatMessageItemType.TEXT: parts.push({ type: 'text', text: item.text_item?.text ?? "" }); break;
+        case WechatMessageItemType.VOICE: parts.push({ type: 'text', text: item.voice_item?.text ?? "" }); break;
         case WechatMessageItemType.FILE: {
           const fileContent = await this.extractFileContent(msg.message_id, item);
-          parts.push(fileContent);
+          parts.push({ type: 'text', text: fileContent });
           break;
         }
         case WechatMessageItemType.IMAGE: {
-          const imageContent = await this.extractImageContent(msg.message_id, item);
-          parts.push(imageContent);
+          const imagePart = await this.extractImagePart(msg.message_id, item);
+          parts.push(imagePart);
+          if (imagePart.type === 'image_url') hasImage = true;
           break;
         }
-        case WechatMessageItemType.VIDEO: parts.push("[视频]"); break;
+        case WechatMessageItemType.VIDEO: parts.push({ type: 'text', text: "[视频]" }); break;
       }
     }
-    return parts.join("\n").trim();
+    // If no images, return plain string for backward compat
+    if (!hasImage) return parts.map(p => p.text!).join("\n").trim();
+    return parts;
   }
 
-  private async extractImageContent(messageId: number | undefined, item: WechatMessageItem): Promise<string> {
+  private async extractImagePart(messageId: number | undefined, item: WechatMessageItem): Promise<{ type: string; [key: string]: any }> {
     const media = item.image_item?.media;
     if (!media?.encrypt_query_param) {
-      return "[图片]";
+      return { type: 'text', text: "[图片]" };
     }
     try {
       const buffer = await this.api.downloadFromCDN(media.encrypt_query_param, media.aes_key);
       const filePath = path.join(os.tmpdir(), `wechat_${messageId ?? Date.now()}_img.png`);
       await fs.writeFile(filePath, buffer);
-      return `<attachment>${filePath}</attachment>`;
+      const dataUrl = await readFileAsDataUrl(filePath);
+      return { type: 'image_url', image_url: { url: dataUrl } };
     } catch (e: any) {
       this.logger?.error(`Failed to download image: ${e.message}`);
-      return "[图片]";
+      return { type: 'text', text: "[图片]" };
     }
   }
 
@@ -287,7 +293,7 @@ export class WechatService implements IChannelService {
       const ext = path.extname(fileName);
       const filePath = path.join(os.tmpdir(), `wechat_${messageId ?? Date.now()}${ext}`);
       await fs.writeFile(filePath, buffer);
-      return `<attachment name="${fileName}">${filePath}</attachment>`;
+      return `[file: ${fileName}](${filePath})`;
     } catch (e: any) {
       this.logger?.error(`Failed to download file "${fileName}": ${e.message}`);
       return `[文件: ${fileName}]`;

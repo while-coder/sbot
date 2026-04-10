@@ -1,9 +1,26 @@
 import * as Lark from "@larksuiteoapi/node-sdk";
 import { LarkActionArgs, LarkMessageArgs, LarkSessionHandler } from "./LarkSessionHandler";
-import { IChannelService, ChannelSessionHandler, SessionService, NowDate, parseJson, type ILogger } from "channel.base";
+import { IChannelService, ChannelSessionHandler, SessionService, NowDate, parseJson, readFileAsDataUrl, type ILogger, type MessageContent } from "channel.base";
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
+
+function removeMentions(content: MessageContent, mentions: Array<{ key: string }>): MessageContent {
+  if (!mentions?.length) return content;
+  if (typeof content === 'string') {
+    let result = content;
+    for (const mention of mentions) result = result.replaceAll(mention.key, '');
+    return result;
+  }
+  return content.map(part => {
+    if (part.type === 'text' && part.text) {
+      let text = part.text;
+      for (const mention of mentions) text = text.replaceAll(mention.key, '');
+      return { ...part, text };
+    }
+    return part;
+  });
+}
 
 /** 消息接收 ID 类型（涵盖所有飞书支持的类型） */
 export enum LarkReceiveIdType {
@@ -26,7 +43,7 @@ export interface LarkServiceOptions {
   userIdType: LarkUserIdType;
   logger?: ILogger;
   filterEvent: (eventId: string) => Promise<boolean>;
-  onReceiveMessage: (userId: string, userInfo:any, chatInfo: any, args: LarkMessageArgs, query: string) => Promise<void>;
+  onReceiveMessage: (userId: string, userInfo:any, chatInfo: any, args: LarkMessageArgs, query: MessageContent) => Promise<void>;
   onTriggerAction: (userId: string, userInfo: any, chatInfo: any, args: LarkActionArgs) => Promise<void>;
 }
 
@@ -42,7 +59,7 @@ export class LarkService implements IChannelService {
   private larkLogger: any;
   private loggerLevel: Lark.LoggerLevel;
   private filterEvent: (eventId: string) => Promise<boolean>;
-  private onReceiveMessage: (userId: string, userInfo:any, chatInfo: any, args: LarkMessageArgs, query: string) => Promise<void>;
+  private onReceiveMessage: (userId: string, userInfo:any, chatInfo: any, args: LarkMessageArgs, query: MessageContent) => Promise<void>;
   private onTriggerAction: (userId: string, userInfo: any, chatInfo: any, args: LarkActionArgs) => Promise<void>;
   private userIdType: LarkUserIdType;
   private tenantAccessToken: string = '';
@@ -213,30 +230,34 @@ export class LarkService implements IChannelService {
     }
   }
 
-  private async extractPostContent(messageId: string, msg: any): Promise<string> {
+  private async extractPostContent(messageId: string, msg: any): Promise<MessageContent> {
     const paragraphs: any[][] = msg.content ?? [];
-    const textParts: string[] = [];
+    const parts: Array<{ type: string; text?: string; [key: string]: any }> = [];
+    let hasImage = false;
     for (const paragraph of paragraphs) {
-      const paraTexts: string[] = [];
       for (const el of paragraph) {
         if (el.tag === 'text') {
-          paraTexts.push(el.text ?? '');
+          parts.push({ type: 'text', text: el.text ?? '' });
         } else if (el.tag === 'img') {
           const filePath = path.join(os.tmpdir(), `lark_${el.image_key}`);
           await this.downloadMessageFile(messageId, el.image_key, 'image', filePath);
-          paraTexts.push(`<attachment>${filePath}</attachment>`);
+          const dataUrl = await readFileAsDataUrl(filePath);
+          parts.push({ type: 'image_url', image_url: { url: dataUrl } });
+          hasImage = true;
         } else {
           this.logger?.warn(`Unsupported post element tag: ${el.tag}`);
         }
       }
-      if (paraTexts.length > 0) textParts.push(paraTexts.join(''));
     }
-    return textParts.join('\n');
+    if (!hasImage) return parts.map(p => p.text!).join('\n');
+    return parts;
   }
-  private async extractImageContent(messageId: string, msg: any): Promise<string> {
+
+  private async extractImageContent(messageId: string, msg: any): Promise<MessageContent> {
     const filePath = path.join(os.tmpdir(), `lark_${msg.image_key}`);
     await this.downloadMessageFile(messageId, msg.image_key, 'image', filePath);
-    return `<attachment>${filePath}</attachment>`;
+    const dataUrl = await readFileAsDataUrl(filePath);
+    return [{ type: 'image_url', image_url: { url: dataUrl } }];
   }
 
   private async extractFileContent(messageId: string, msg: any): Promise<string> {
@@ -244,7 +265,7 @@ export class LarkService implements IChannelService {
     const ext = path.extname(file_name);
     const filePath = path.join(os.tmpdir(), `lark_${msg.file_key}${ext}`);
     await this.downloadMessageFile(messageId, msg.file_key, 'file', filePath);
-    return `<attachment name="${file_name}">${filePath}</attachment>`;
+    return `[file: ${file_name}](${filePath})`;
   }
 
   /** https://open.feishu.cn/document/server-docs/contact-v3/user/get */
@@ -304,7 +325,7 @@ export class LarkService implements IChannelService {
           if (!await this.filterEvent(`lark_message_${event_id}`)) return;
 
           const msg = parseJson(content, { text: "" }) as any;
-          let query = "";
+          let query: MessageContent = "";
 
           if (message_type === "post") {
             query = await this.extractPostContent(message_id, msg);
@@ -320,9 +341,7 @@ export class LarkService implements IChannelService {
           }
 
           if (mentions != null) {
-            for (const mention of mentions) {
-              query = query.replace(mention.key, "");
-            }
+            query = removeMentions(query, mentions);
           }
 
           const userId = sender_id[this.userIdType];
@@ -330,7 +349,7 @@ export class LarkService implements IChannelService {
             this.getUserInfo(userId),
             this.getChatInfo(chat_id),
           ]);
-          await this.onReceiveMessage(userId, userInfo, chatInfo, { event_id, chat_type, sessionId: chat_id, message_id, root_id, message_type }, query.trim())
+          await this.onReceiveMessage(userId, userInfo, chatInfo, { event_id, chat_type, sessionId: chat_id, message_id, root_id, message_type }, typeof query === 'string' ? query.trim() : query)
         } catch (e: any) {
           this.logger?.error(`Receive message error: ${e.stack}`);
         }

@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { WSClient } from '@wecom/aibot-node-sdk';
 import type { WsFrame, TextMessage, VoiceMessage, FileMessage, ImageMessage, MixedMessage, SendMsgBody, EventMessageWith, TemplateCardEventData } from '@wecom/aibot-node-sdk';
-import { IChannelService, ChannelSessionHandler, SessionService, type ChannelMessageArgs, type ILogger } from 'channel.base';
+import { IChannelService, ChannelSessionHandler, SessionService, readFileAsDataUrl, isEmptyContent, type ChannelMessageArgs, type ILogger, type MessageContent } from 'channel.base';
 import { WecomSessionHandler } from './WecomSessionHandler';
 
 export interface WecomMessageArgs extends ChannelMessageArgs {
@@ -25,7 +25,7 @@ export interface WecomServiceOptions {
   secret: string;
   logger?: ILogger;
   filterEvent: (eventId: string) => Promise<boolean>;
-  onReceiveMessage: (userId: string, args: WecomMessageArgs, query: string) => Promise<void>;
+  onReceiveMessage: (userId: string, args: WecomMessageArgs, query: MessageContent) => Promise<void>;
   onTriggerAction: (userId: string, args: WecomActionArgs) => Promise<void>;
 }
 
@@ -129,7 +129,7 @@ export class WecomService implements IChannelService {
   private async handleTextMessage(frame: WsFrame<TextMessage>) {
     const body = frame.body!;
     const query = body.text?.content?.trim() ?? '';
-    if (!query) return;
+    if (isEmptyContent(query)) return;
 
     const userId = body.from.userid;
     const chatid = body.chatid ?? userId;
@@ -145,7 +145,7 @@ export class WecomService implements IChannelService {
   private async handleVoiceMessage(frame: WsFrame<VoiceMessage>) {
     const body = frame.body!;
     const query = body.voice?.content?.trim() ?? '';
-    if (!query) return;
+    if (isEmptyContent(query)) return;
 
     const userId = body.from.userid;
     const chatid = body.chatid ?? userId;
@@ -170,7 +170,7 @@ export class WecomService implements IChannelService {
     const filePath = path.join(os.tmpdir(), `wecom_${body.msgid}${ext}`);
     await fs.writeFile(filePath, buffer);
 
-    const query = `<attachment name="${fileName}">${filePath}</attachment>`;
+    const query = `[file: ${fileName}](${filePath})`;
     await this.onReceiveMessage(userId, {
       sessionId: chatid,
       chattype: body.chattype,
@@ -194,7 +194,8 @@ export class WecomService implements IChannelService {
     if (!await this.filterEvent(`wecom_message_${body.msgid}`)) return;
 
     const filePath = await this.downloadWecomFile(body.image.url, body.image.aeskey, body.msgid, '.png');
-    const query = `<attachment>${filePath}</attachment>`;
+    const dataUrl = await readFileAsDataUrl(filePath);
+    const query: MessageContent = [{ type: 'image_url', image_url: { url: dataUrl } }];
     await this.onReceiveMessage(userId, {
       sessionId: chatid,
       chattype: body.chattype,
@@ -209,18 +210,21 @@ export class WecomService implements IChannelService {
     const chatid = body.chatid ?? userId;
     if (!await this.filterEvent(`wecom_message_${body.msgid}`)) return;
 
-    const parts: string[] = [];
+    const parts: Array<{ type: string; text?: string; [key: string]: any }> = [];
+    let hasImage = false;
     for (const item of body.mixed?.msg_item ?? []) {
       if (item.msgtype === 'text' && item.text?.content) {
-        parts.push(item.text.content);
+        parts.push({ type: 'text', text: item.text.content });
       } else if (item.msgtype === 'image' && item.image?.url) {
         const filePath = await this.downloadWecomFile(item.image.url, item.image.aeskey, `${body.msgid}_${parts.length}`, '.png');
-        parts.push(`<attachment>${filePath}</attachment>`);
+        const dataUrl = await readFileAsDataUrl(filePath);
+        parts.push({ type: 'image_url', image_url: { url: dataUrl } });
+        hasImage = true;
       }
     }
 
-    const query = parts.join('\n').trim();
-    if (!query) return;
+    const query: MessageContent = hasImage ? parts : parts.map(p => p.text!).join('\n').trim();
+    if (isEmptyContent(query)) return;
     await this.onReceiveMessage(userId, {
       sessionId: chatid,
       chattype: body.chattype,

@@ -245,12 +245,12 @@ function remainSeconds(startedAt: string, totalSeconds: number): number {
 }
 
 /** 恢复后端 session 状态（切换 session 时调用） */
-const queuedMessages = ref<string[]>([])
+const queuedMessages = ref<(string | any[])[]>([])
 
 function restoreSessionStatus(status: {
   pendingApproval?: { id: string; tool: { id?: string; name: string; args: Record<string, any> }; startedAt: string }
   pendingAsk?: { id: string; title?: string; questions: AskQuestionSpec[]; startedAt: string }
-  pendingMessages?: string[]
+  pendingMessages?: (string | any[])[]
 } | null) {
   stopDenyCountdown()
   stopAskCountdown()
@@ -279,7 +279,7 @@ function restoreSessionStatus(status: {
   }
 }
 
-function addQueuedMessage(query: string) {
+function addQueuedMessage(query: string | any[]) {
   queuedMessages.value.push(query)
 }
 

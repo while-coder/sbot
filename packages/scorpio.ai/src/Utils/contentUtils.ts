@@ -10,6 +10,13 @@ export function contentToString(content: MessageContent): string {
         .join('\n');
 }
 
+/** Check if MessageContent is empty. */
+export function isEmptyContent(content: MessageContent): boolean {
+    if (!content) return true;
+    if (typeof content === 'string') return !content.trim();
+    return content.length === 0;
+}
+
 /** Convert a local file to a base64 data URL. */
 export async function readFileAsDataUrl(filePath: string, mimeType = 'image/png'): Promise<string> {
     const { readFile } = await import('fs/promises');

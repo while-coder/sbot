@@ -20,7 +20,7 @@ const props = withDefaults(defineProps<{
   messages: StoredMessage[]
   isStreaming: boolean
   streamingContent: string | any[]
-  queuedMessages?: string[]
+  queuedMessages?: (string | any[])[]
   showAttachments?: boolean
   onCancel?: () => void
   thinksUrlPrefix?: string | null
@@ -320,7 +320,10 @@ defineExpose({ scrollToBottom })
               <span class="msg-role">{{ t('chat.role_user') }}</span>
               <span class="msg-queued-tag">{{ t('chat.queued') }}</span>
             </div>
-            {{ q }}
+            <div class="md-content" v-html="renderMd(q)" />
+            <div v-for="(img, imgIdx) in getInlineImages(q)" :key="imgIdx" class="inline-image">
+              <img :src="`data:${img.mimeType};base64,${img.data}`" class="inline-image-thumb" @click="openLightbox(img.mimeType, img.data)" />
+            </div>
           </div>
         </div>
       </div>
