@@ -146,6 +146,7 @@ export {
   IAgentSaverService,
   type StoredMessage,
   type ChatToolCall,
+  type MessageContent,
 
   // 实现类
   AgentMemorySaver,
@@ -293,3 +294,8 @@ export {
 // User - 用户服务基类
 // ========================================
 export { MessageDispatcher, MessageType } from "./User";
+
+// ========================================
+// Utils - 工具函数
+// ========================================
+export { contentToString, readFileAsDataUrl } from "./Utils/contentUtils";

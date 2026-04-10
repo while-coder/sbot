@@ -1,6 +1,6 @@
 import { ServiceContainer } from "scorpio.di";
 import { IMemoryService } from "../Memory";
-import { IAgentSaverService, AgentMemorySaver, ChatMessage, ChatToolCall, MessageRole } from "../Saver";
+import { IAgentSaverService, AgentMemorySaver, ChatMessage, ChatToolCall, MessageRole, type MessageContent } from "../Saver";
 import { ILoggerService, ILogger } from "../Logger";
 
 
@@ -92,7 +92,7 @@ export class AgentCancelledError extends Error {
 }
 
 export abstract class AgentServiceBase {
-    abstract stream(query: string, callback: IAgentCallback, cancellationToken?: ICancellationToken): Promise<ChatMessage[]>;
+    abstract stream(query: MessageContent, callback: IAgentCallback, cancellationToken?: ICancellationToken): Promise<ChatMessage[]>;
     protected saverService: IAgentSaverService;
     protected memoryServices: IMemoryService[];
     protected loggerService?: ILoggerService;
@@ -118,7 +118,7 @@ export abstract class AgentServiceBase {
     /**
      * 以无回调方式调用 stream，返回 stream 的结果消息列表。
      */
-    invoke(query: string, cancellationToken?: ICancellationToken): Promise<ChatMessage[]> {
+    invoke(query: MessageContent, cancellationToken?: ICancellationToken): Promise<ChatMessage[]> {
         return this.stream(query, {}, cancellationToken);
     }
 

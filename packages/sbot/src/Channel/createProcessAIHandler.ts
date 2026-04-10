@@ -1,4 +1,4 @@
-import { ProcessAIHandler, ChannelToolHelpers } from "channel.base";
+import { ProcessAIHandler, ChannelToolHelpers, type MessageContent } from "channel.base";
 import { AgentRunner, createAskAgentTool, createSendFileAgentTool } from "../Agent/AgentRunner";
 import { config } from "../Core/Config";
 import { ChannelSessionRow, SessionRow, SchedulerType, database, parseMemories } from "../Core/Database";
@@ -13,7 +13,7 @@ const agentToolHelpers: ChannelToolHelpers = {
         createSendFileAgentTool(prompt, sendFileFn),
 };
 
-function runAgent(query: string, args: any, userService: any, agentId: string, saverId: string, schedulerType: SchedulerType, schedulerId: string, memories: string[], workPath?: string): Promise<void> {
+function runAgent(query: MessageContent, args: any, userService: any, agentId: string, saverId: string, schedulerType: SchedulerType, schedulerId: string, memories: string[], workPath?: string): Promise<void> {
     return AgentRunner.run({
         query,
         callbacks: {

@@ -7,6 +7,7 @@ import {
   MessageType,
   NowDate,
   ToolApproval,
+  type MessageContent,
 } from "scorpio.ai";
 import { SessionService } from "./SessionService";
 import { ChannelToolHelpers, ChannelMessageArgs, ProcessAIHandler } from "./ChannelPlugin";
@@ -27,8 +28,8 @@ export abstract class ChannelSessionHandler {
     this.session = session;
   }
 
-  abstract onProcessStart(query: string, args: ChannelMessageArgs, messageType: MessageType): Promise<string | void>;
-  abstract onProcessEnd(query: string, args: ChannelMessageArgs, messageType: MessageType, error?: any): Promise<void>;
+  abstract onProcessStart(query: MessageContent, args: ChannelMessageArgs, messageType: MessageType): Promise<string | void>;
+  abstract onProcessEnd(query: MessageContent, args: ChannelMessageArgs, messageType: MessageType, error?: any): Promise<void>;
   async onCommandResult(content: string, args: ChannelMessageArgs): Promise<void> {
     return this.onChatMessage({ role: MessageRole.AI, content, isCommand: true }, args);
   }
@@ -38,7 +39,7 @@ export abstract class ChannelSessionHandler {
     this._processAIHandler = handler;
   }
 
-  async processAI(query: string, args: ChannelMessageArgs): Promise<void> {
+  async processAI(query: MessageContent, args: ChannelMessageArgs): Promise<void> {
     if (!this._processAIHandler) {
       throw new Error("processAI handler not set. Call setProcessAIHandler first.");
     }

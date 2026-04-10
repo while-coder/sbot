@@ -1,7 +1,7 @@
 import { type StructuredToolInterface } from "@langchain/core/tools";
 import { inject, ServiceContainer, T_SystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc, T_MemorySystemPromptTemplate } from "../../Core";
 import { IMemoryService, ReadOnlyMemoryService } from "../../Memory";
-import { IAgentSaverService, ChatMessage, ChatMessageOptions } from "../../Saver";
+import { IAgentSaverService, ChatMessage, ChatMessageOptions, type MessageContent } from "../../Saver";
 import { ILoggerService } from "../../Logger";
 import { IModelService } from "../../Model";
 import { type AgentServiceBase, IAgentCallback, ICancellationToken, AgentSubNode, CreateAgentFn, T_CreateAgent, MessageRole } from "../AgentServiceBase";
@@ -70,7 +70,7 @@ export class ReActAgentService extends SingleAgentService {
 
   // ── Overrides ────────────────────────────────────────────────
 
-  protected override async buildSystemMessage(query: string, callback?: IAgentCallback, cancellationToken?: ICancellationToken): Promise<ChatMessage | null> {
+  protected override async buildSystemMessage(query: MessageContent, callback?: IAgentCallback, cancellationToken?: ICancellationToken): Promise<ChatMessage | null> {
     const agentsDesc = this.agentSubNodes.map(a =>
       `  <agent id="${a.id}">${a.desc}</agent>`
     ).join('\n');

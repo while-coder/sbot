@@ -1,11 +1,12 @@
 import { Command as CommanderCommand } from "commander";
 import { CommandContext, CommandRegistry, ICommand } from "../Command";
 import { GlobalLoggerService, ILogger } from "../Logger";
+import type { MessageContent } from "../Saver/IAgentSaverService";
 
 export enum MessageType { Command = 'command', AI = 'ai' }
 
 interface MessageQueueItem {
-  query: string;
+  query: MessageContent;
   args: any;
 }
 
@@ -18,8 +19,7 @@ export abstract class MessageDispatcher {
         this.logger = GlobalLoggerService.getLogger('MessageDispatcher.ts');
     }
 
-    async onReceiveMessage(query: string, args: any) {
-        query = query.trim()
+    async onReceiveMessage(query: MessageContent, args: any) {
         this.messageQueue.push({ query, args });
         if (!this.isProcessingQueue) {
             this.processMessageQueue();
@@ -32,20 +32,21 @@ export abstract class MessageDispatcher {
 
         while (this.messageQueue.length > 0) {
             const { query, args } = this.messageQueue.shift()!;
-            const messageType = query.startsWith('/') ? MessageType.Command : MessageType.AI;
+            const queryText = typeof query === 'string' ? query : '[multimodal]';
+            const messageType = typeof query === 'string' && query.trimStart().startsWith('/') ? MessageType.Command : MessageType.AI;
             const startLabel = await this.onProcessStart(query, args, messageType);
             const logSuffix = startLabel != null ? ` (${startLabel})` : '';
             let error: any;
             try {
-                this.logger?.info(`开始处理[${logSuffix}]: ${query} (剩余队列: ${this.messageQueue.length})`);
+                this.logger?.info(`开始处理[${logSuffix}]: ${queryText} (剩余队列: ${this.messageQueue.length})`);
                 if (messageType === MessageType.Command) {
-                    await this.processCommand(query.substring(1), args);
+                    await this.processCommand((query as string).substring(1), args);
                 } else {
                     await this.processAI(query, args);
                 }
-                this.logger?.info(`处理完成[${logSuffix}]: ${query}`);
+                this.logger?.info(`处理完成[${logSuffix}]: ${queryText}`);
             } catch (e: any) {
-                this.logger?.error(`处理出错[${logSuffix}]: ${query} : ${e.message}\n${e.stack}`);
+                this.logger?.error(`处理出错[${logSuffix}]: ${queryText} : ${e.message}\n${e.stack}`);
                 error = e;
             } finally {
                 await this.onProcessEnd(query, args, messageType, error);
@@ -108,11 +109,11 @@ export abstract class MessageDispatcher {
             await this.onCommandResult(allContent, args);
         }
     }
-    protected abstract onProcessStart(query: string, args: any, messageType: MessageType): Promise<string | void>;
-    protected abstract processAI(query: string, args: any): Promise<void>;
+    protected abstract onProcessStart(query: MessageContent, args: any, messageType: MessageType): Promise<string | void>;
+    protected abstract processAI(query: MessageContent, args: any): Promise<void>;
     protected abstract getAllCommands(): Promise<ICommand[]>;
     protected abstract onCommandResult(content: string, args: any): Promise<void>;
     /** 每条消息处理完毕后（无论成功或失败）调用，error 存在时表示处理出错 */
-    protected abstract onProcessEnd(query: string, args: any, messageType: MessageType, error?: any): Promise<void>;
+    protected abstract onProcessEnd(query: MessageContent, args: any, messageType: MessageType, error?: any): Promise<void>;
     
 }

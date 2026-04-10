@@ -40,6 +40,9 @@ export interface ChatMessage {
     isCommand?: boolean;
 }
 
+/** Reusable alias for ChatMessage.content — text or multimodal content parts. */
+export type MessageContent = ChatMessage['content'];
+
 // ─── Push options ────────────────────────────────────────────────────────────
 
 export interface ChatMessageOptions {

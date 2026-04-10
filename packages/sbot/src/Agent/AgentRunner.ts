@@ -16,6 +16,7 @@ import {
     T_MemorySystemPromptTemplate,
     IModelService,
     createAskTool, type AskUserFn, AskQuestionType,
+    type MessageContent,
 } from "scorpio.ai";
 import { loadPrompt } from "../Core/PromptLoader";
 import { config, SaverType } from "../Core/Config";
@@ -79,7 +80,7 @@ export interface AgentSchedulerContext {
 
 export interface AgentRunOptions {
     /** 用户输入的消息 */
-    query: string;
+    query: MessageContent;
     /** Agent 运行期间的消息回调（流式输出、工具调用确认等） */
     callbacks: IAgentCallback;
     /** 要运行的 Agent 配置 ID */

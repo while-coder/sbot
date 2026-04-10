@@ -1,4 +1,4 @@
-import { AskResponse, AskToolParams, AskQuestionType } from "scorpio.ai";
+import { AskResponse, AskToolParams, AskQuestionType, type MessageContent } from "scorpio.ai";
 import { ChannelSessionHandler } from "./ChannelSessionHandler";
 import { SessionService } from "./SessionService";
 
@@ -40,7 +40,7 @@ export interface ChannelPluginContext {
   logger: any;
   filterEvent: (eventId: string) => Promise<boolean>;
   initSession: (ctx: InitSessionContext) => Promise<ChannelSessionInfo>;
-  onReceiveMessage: (session: ChannelSessionInfo, query: string, args: ChannelMessageArgs) => Promise<void>;
+  onReceiveMessage: (session: ChannelSessionInfo, query: MessageContent, args: ChannelMessageArgs) => Promise<void>;
   onTriggerAction: (session: ChannelSessionInfo, args: any) => Promise<void>;
 }
 
@@ -57,7 +57,7 @@ export interface ChannelToolHelpers {
 }
 
 export type ProcessAIHandler = (
-  query: string,
+  query: MessageContent,
   args: ChannelMessageArgs,
   userService: ChannelSessionHandler,
 ) => Promise<void>;
