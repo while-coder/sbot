@@ -1,12 +1,8 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { MessageRole } from '@/types'
-import type { StoredMessage, ToolCall } from '@/types'
-import { inlineArgs, resultPreview } from '@/utils/toolCallFormat'
-import { getContentParts, renderMd, fmtTs, toggleToolCall } from '@/utils/messageRender'
-import ThinkDrawer from './ThinkDrawer.vue'
-import ImageLightbox from './ImageLightbox.vue'
+import type { StoredMessage } from '@/types'
+import MessageList from './MessageList.vue'
 import RichInput, { type ContentPart } from './RichInput.vue'
 
 const { t } = useI18n()
@@ -41,13 +37,6 @@ const messagesEl = ref<HTMLElement | null>(null)
 const attachments = ref<Attachment[]>([])
 const fileInputEl = ref<HTMLInputElement | null>(null)
 
-// ── Image lightbox ──
-const lightboxRef = ref<InstanceType<typeof ImageLightbox>>()
-
-function openLightbox(src: string) {
-  lightboxRef.value?.open(src)
-}
-
 // ── Scrolling ──
 function isAtBottom(): boolean {
   if (!messagesEl.value) return true
@@ -71,13 +60,6 @@ watch(() => props.streamingContent, async () => {
   scrollToBottom()
 })
 
-
-// ── Think drawer ──
-const thinkDrawerRef = ref<InstanceType<typeof ThinkDrawer>>()
-
-function openThink(thinkId: string) {
-  thinkDrawerRef.value?.open(thinkId)
-}
 
 // ── Attachments ──
 function pickFile() {
@@ -142,129 +124,13 @@ defineExpose({ scrollToBottom })
 
     <!-- Messages -->
     <div ref="messagesEl" style="flex:1;overflow-y:auto">
-      <div class="history-messages">
-        <template v-if="messages.length === 0 && !isStreaming">
-          <div style="text-align:center;color:#94a3b8;padding:60px">{{ t('chat.no_history') }}</div>
-        </template>
-
-        <template v-for="(msg, idx) in messages" :key="idx">
-          <template v-if="msg.message.role !== MessageRole.Tool">
-            <div v-if="msg.message.role === MessageRole.Human" class="msg-row human">
-              <div class="msg-bubble human">
-                <div class="msg-role-bar">
-                  <span class="msg-role">{{ t('chat.role_user') }}</span>
-                  <span v-if="msg.createdAt" class="msg-time">{{ fmtTs(msg.createdAt) }}</span>
-                  <div v-if="msg.thinkId && thinksUrlPrefix" class="think-toggle think-toggle-human" @click="openThink(msg.thinkId!)">
-                    <span>▸</span>
-                    <span>{{ t('chat.think') }}</span>
-                  </div>
-                </div>
-                <template v-for="(part, pIdx) in getContentParts(msg.message.content)" :key="pIdx">
-                  <div v-if="part.type === 'text'" class="md-content" v-html="renderMd(part.text)" />
-                  <div v-else-if="part.type === 'image'" class="inline-image">
-                    <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
-                  </div>
-                </template>
-              </div>
-            </div>
-            <div v-else-if="msg.message.role === MessageRole.AI" class="msg-row ai">
-              <div v-if="msg.message.content" class="msg-bubble ai">
-                <div class="msg-role-bar">
-                  <span class="msg-role">{{ t('chat.role_ai') }}</span>
-                  <span v-if="msg.createdAt" class="msg-time">{{ fmtTs(msg.createdAt) }}</span>
-                  <div v-if="msg.thinkId && thinksUrlPrefix" class="think-toggle" @click="openThink(msg.thinkId!)">
-                    <span>▸</span>
-                    <span>{{ t('chat.think') }}</span>
-                  </div>
-                </div>
-                <template v-for="(part, pIdx) in getContentParts(msg.message.content)" :key="pIdx">
-                  <div v-if="part.type === 'text'" class="md-content" v-html="renderMd(part.text)" />
-                  <div v-else-if="part.type === 'image'" class="inline-image">
-                    <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
-                  </div>
-                </template>
-              </div>
-              <div v-if="msg.message.tool_calls && msg.message.tool_calls.length > 0" class="msg-tool-calls">
-                <div class="msg-role has-think">
-                  {{ t('chat.tool_calls', { count: msg.message.tool_calls.length }) }}
-                  <div v-if="msg.thinkId && thinksUrlPrefix" class="think-toggle" @click="openThink(msg.thinkId!)">
-                    <span>▸</span>
-                    <span>{{ t('chat.think') }}</span>
-                  </div>
-                </div>
-                <div v-for="tc in msg.message.tool_calls" :key="(tc as ToolCall).id" class="tool-call-item">
-                  <div class="tool-call-header" @click="toggleToolCall($event.currentTarget as HTMLElement)">
-                    <span class="tool-call-name">{{ (tc as ToolCall).name }}</span>
-                    <span v-if="inlineArgs(tc as ToolCall)" class="tool-call-inline-args">{{ inlineArgs(tc as ToolCall) }}</span>
-                    <span v-if="resultPreview(messages, (tc as ToolCall).id)" class="tool-call-result-preview">↳ {{ resultPreview(messages, (tc as ToolCall).id) }}</span>
-                  </div>
-                  <div class="tool-call-detail">
-                    <div class="tool-call-args">{{ JSON.stringify((tc as ToolCall).args, null, 2) }}</div>
-                    <template v-for="m2 in messages" :key="'r' + (m2.message.tool_call_id || '')">
-                      <div v-if="m2.message.role === MessageRole.Tool && m2.message.tool_call_id === (tc as ToolCall).id" class="tool-call-result">
-                        <div class="tool-call-result-top">
-                          <div class="tool-call-result-label">{{ t('chat.tool_result') }}</div>
-                          <div v-if="m2.thinkId && thinksUrlPrefix" class="think-toggle" @click="openThink(m2.thinkId!)">
-                            <span>▸</span>
-                            <span>{{ t('chat.think') }}</span>
-                          </div>
-                        </div>
-                        <div class="md-content tool-result-content" v-html="renderMd(m2.message.content || '')" />
-                      </div>
-                    </template>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div v-else class="msg-row ai">
-              <div class="msg-bubble ai">
-                <div class="msg-role-bar">
-                  <span class="msg-role">{{ msg.message.role }}</span>
-                  <span v-if="msg.createdAt" class="msg-time">{{ fmtTs(msg.createdAt) }}</span>
-                </div>
-                <template v-for="(part, pIdx) in getContentParts(msg.message.content)" :key="pIdx">
-                  <div v-if="part.type === 'text'" class="md-content" v-html="renderMd(part.text)" />
-                  <div v-else-if="part.type === 'image'" class="inline-image">
-                    <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
-                  </div>
-                </template>
-              </div>
-            </div>
-          </template>
-        </template>
-
-        <!-- Streaming -->
-        <div v-if="isStreaming" class="msg-row ai">
-          <div class="msg-bubble ai streaming">
-            <div class="msg-role-bar"><span class="msg-role">{{ t('chat.role_ai') }}</span></div>
-            <template v-if="streamingContent">
-              <template v-for="(part, pIdx) in getContentParts(streamingContent)" :key="pIdx">
-                <div v-if="part.type === 'text'" class="md-content" v-html="renderMd(part.text)" />
-                <div v-else-if="part.type === 'image'" class="inline-image">
-                  <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
-                </div>
-              </template>
-            </template>
-            <span v-else style="color:#94a3b8">{{ t('chat.thinking') }}</span>
-          </div>
-        </div>
-
-        <!-- Queued messages -->
-        <div v-for="(q, i) in queuedMessages" :key="'q' + i" class="msg-row human">
-          <div class="msg-bubble human queued">
-            <div class="msg-role-bar">
-              <span class="msg-role">{{ t('chat.role_user') }}</span>
-              <span class="msg-queued-tag">{{ t('chat.queued') }}</span>
-            </div>
-            <template v-for="(part, pIdx) in getContentParts(q)" :key="pIdx">
-              <div v-if="part.type === 'text'" class="md-content" v-html="renderMd(part.text)" />
-              <div v-else-if="part.type === 'image'" class="inline-image">
-                <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
-              </div>
-            </template>
-          </div>
-        </div>
-      </div>
+      <MessageList
+        :messages="messages"
+        :thinks-url-prefix="thinksUrlPrefix"
+        :is-streaming="isStreaming"
+        :streaming-content="streamingContent"
+        :queued-messages="queuedMessages"
+      />
     </div>
 
     <!-- Stop bar -->
@@ -301,9 +167,5 @@ defineExpose({ scrollToBottom })
         <button class="btn-primary" @click="send">{{ t('chat.send') }}</button>
       </div>
     </div>
-
-    <ThinkDrawer v-if="thinksUrlPrefix" ref="thinkDrawerRef" :thinks-url-prefix="thinksUrlPrefix" />
-
-    <ImageLightbox ref="lightboxRef" />
   </div>
 </template>

@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { useToast } from '@/composables/useToast'
-import MessageHistory from '@/components/MessageHistory.vue'
+import MessageList from '@/components/MessageList.vue'
 import type { StoredMessage } from '@/types'
 
 const { t } = useI18n()
@@ -94,7 +94,7 @@ defineExpose({ open, openSession })
       <div style="flex:1;overflow-y:auto">
         <div v-if="loading" class="modal-loading">{{ t('common.loading') }}</div>
         <div v-else-if="messages.length === 0" class="modal-empty">{{ t('savers.no_history') }}</div>
-        <MessageHistory v-else :messages="messages" :thinks-url-prefix="thinksUrl()" />
+        <MessageList v-else :messages="messages" :thinks-url-prefix="thinksUrl()" show-date-separators />
       </div>
     </div>
   </div>
