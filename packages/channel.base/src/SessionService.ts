@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { ChatToolCall, AskResponse, AskToolParams, ICancellationToken, ToolApproval, MessageDispatcher } from "scorpio.ai";
+import { ChatToolCall, AskResponse, AskToolParams, ICancellationToken, ToolApproval, MessageDispatcher, type MessageContent } from "scorpio.ai";
 
 export class CancellationTokenSource implements ICancellationToken {
     private _isCancelled = false;
@@ -31,7 +31,7 @@ export interface SessionInfo {
     threadId: string;
     startedAt: Date;
     status: SessionStatus;
-    pendingMessages: string[];
+    pendingMessages: MessageContent[];
     pendingApproval?: ApprovalInfo;
     pendingAsk?: AskInfo;
 }

@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { ICommand, MessageType } from "scorpio.ai";
+import { ICommand, MessageType, type MessageContent } from "scorpio.ai";
 import { SessionManager, SessionService } from "channel.base";
 import { ChannelType } from "sbot.commons";
 import { config } from "../Core/Config";
@@ -35,7 +35,7 @@ class SbotSession extends SessionService {
         return { ...args, pendingMessages: this.messageQueue.map(m => m.query) };
     }
 
-    protected async onProcessStart(query: string, args: any, messageType: MessageType): Promise<string | void> {
+    protected async onProcessStart(query: MessageContent, args: any, messageType: MessageType): Promise<string | void> {
         await this.getChannel(args).onProcessStart(query, this.argsWithQueue(args), messageType);
         const channelType = args?.channelType as string | undefined;
         const channelId = args?.channelId as string | undefined;
@@ -43,7 +43,7 @@ class SbotSession extends SessionService {
         return [channelType, channelName ?? channelId].filter(Boolean).join('/') || undefined;
     }
 
-    protected async processAI(query: string, args: any): Promise<void> {
+    protected async processAI(query: MessageContent, args: any): Promise<void> {
         await this.getChannel(args).processAI(query, args);
     }
 
@@ -51,7 +51,7 @@ class SbotSession extends SessionService {
         await this.getChannel(args).onCommandResult(content, args);
     }
 
-    protected async onProcessEnd(query: string, args: any, messageType: MessageType, error?: any): Promise<void> {
+    protected async onProcessEnd(query: MessageContent, args: any, messageType: MessageType, error?: any): Promise<void> {
         await this.getChannel(args).onProcessEnd(query, this.argsWithQueue(args), messageType, error);
         if (this.messageQueue.length === 0) {
             this.manager.end(this.threadId);
@@ -108,8 +108,8 @@ export class SbotSessionManager extends SessionManager {
 
     // ── Channel entry points ──
 
-    async onReceiveChannelMessage(threadId: string, query: string, args: any): Promise<void> {
-        if (!query?.trim()) return;
+    async onReceiveChannelMessage(threadId: string, query: MessageContent, args: any): Promise<void> {
+        if (!query || (typeof query === 'string' && !query.trim()) || (Array.isArray(query) && query.length === 0)) return;
         const session = this.getOrCreate(threadId);
         await session.onReceiveMessage(query, args);
     }
