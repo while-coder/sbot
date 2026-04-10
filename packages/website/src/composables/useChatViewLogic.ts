@@ -5,6 +5,7 @@ import { useToast } from '@/composables/useToast'
 import { useChatSocket } from '@/composables/useChatSocket'
 import { useI18n } from 'vue-i18n'
 import ChatArea from '@/components/ChatArea.vue'
+import type { ContentPart } from '@/components/RichInput.vue'
 import type { WebChatEvent } from 'sbot.commons'
 
 interface Attachment {
@@ -18,7 +19,7 @@ interface ChatViewLogicOptions {
   /** Reactive getter for the current sessionId */
   sessionId: () => string | undefined
   /** Build the WS command payload (view-specific fields) */
-  buildSendPayload: (query: string, sessionId: string, atts?: Attachment[]) => Record<string, any>
+  buildSendPayload: (parts: ContentPart[], sessionId: string, fileAtts?: Attachment[]) => Record<string, any>
   /** Build the session-status API query string */
   sessionStatusQuery: (activeId: string) => string
 }
@@ -56,13 +57,23 @@ export function useChatViewLogic(options: ChatViewLogicOptions) {
   })
 
   // ── Send ──
-  async function sendOne(query: string, atts: Attachment[]) {
+  async function sendOne(parts: ContentPart[], fileAtts: Attachment[]) {
     const sessionId = options.sessionId()
     if (!sessionId) return
     try {
       await chatSocket.waitForOpen()
-      chatSocket.send(options.buildSendPayload(query, sessionId, atts))
-      chatAreaRef.value?.addQueuedMessage(query)
+      chatSocket.send(options.buildSendPayload(parts, sessionId, fileAtts))
+      // Build multimodal content for queued message display (preserving interleaved order)
+      const hasImages = parts.some(p => p.type === 'image')
+      if (hasImages) {
+        const queuedContent = parts.map(p =>
+          p.type === 'text' ? { type: 'text', text: p.text } : { type: 'image_url', image_url: { url: (p as any).dataUrl } }
+        )
+        chatAreaRef.value?.addQueuedMessage(queuedContent)
+      } else {
+        const text = parts.filter(p => p.type === 'text').map(p => (p as any).text).join('\n')
+        chatAreaRef.value?.addQueuedMessage(text)
+      }
     } catch (e: any) {
       chatAreaRef.value?.reset()
       show(e.message, 'error')

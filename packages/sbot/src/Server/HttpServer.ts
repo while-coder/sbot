@@ -122,33 +122,51 @@ function buildPromptTree(dir: string, basePath = '', userBaseDir = ''): PromptNo
 
 // ===== 附件处理 =====
 type AttachmentInput = { name: string; dataUrl?: string; content?: string };
+type ContentPartInput = { type: 'text'; text: string } | { type: 'image'; dataUrl: string };
 
 function isImageDataUrl(dataUrl: string): boolean {
     return /^data:image\//.test(dataUrl);
 }
 
-function processAttachments(query: string, attachments: AttachmentInput[] | undefined, uploadDir: string): MessageContent {
-    if (!attachments?.length) return query;
-    const parts: Array<{ type: string; text?: string; [key: string]: any }> = [];
+/**
+ * Build MessageContent from ordered parts (interleaved text/image) + file attachments.
+ * Parts preserve the interleaved order from the editor.
+ * File attachments (non-inline) are appended at the end.
+ */
+function processMessage(parts: ContentPartInput[], attachments: AttachmentInput[] | undefined, uploadDir: string): MessageContent {
+    const msgParts: Array<{ type: string; text?: string; [key: string]: any }> = [];
     let hasImage = false;
-    if (query) parts.push({ type: 'text', text: query });
-    for (const att of attachments) {
-        if (att.dataUrl && isImageDataUrl(att.dataUrl)) {
-            parts.push({ type: 'image_url', image_url: { url: att.dataUrl } });
+
+    for (const p of parts) {
+        if (p.type === 'text') {
+            msgParts.push({ type: 'text', text: p.text });
+        } else if (p.type === 'image' && p.dataUrl) {
+            msgParts.push({ type: 'image_url', image_url: { url: p.dataUrl } });
             hasImage = true;
-        } else if (att.dataUrl) {
-            // Non-image binary: save to disk, reference as text
-            const filePath = path.join(uploadDir, `${randomUUID()}-${att.name}`);
-            fs.writeFileSync(filePath, Buffer.from(att.dataUrl.replace(/^data:[^;]+;base64,/, ''), 'base64'));
-            parts.push({ type: 'text', text: `[file: ${att.name}](${filePath})` });
-        } else if (att.content != null) {
-            const filePath = path.join(uploadDir, `${randomUUID()}-${att.name}`);
-            fs.writeFileSync(filePath, att.content);
-            parts.push({ type: 'text', text: `[file: ${att.name}](${filePath})` });
         }
     }
-    if (!hasImage) return parts.map(p => p.text!).join('\n');
-    return parts;
+
+    // Append file attachments (non-inline files from the attachment picker)
+    if (attachments?.length) {
+        for (const att of attachments) {
+            if (att.dataUrl && isImageDataUrl(att.dataUrl)) {
+                msgParts.push({ type: 'image_url', image_url: { url: att.dataUrl } });
+                hasImage = true;
+            } else if (att.dataUrl) {
+                const filePath = path.join(uploadDir, `${randomUUID()}-${att.name}`);
+                fs.writeFileSync(filePath, Buffer.from(att.dataUrl.replace(/^data:[^;]+;base64,/, ''), 'base64'));
+                msgParts.push({ type: 'text', text: `[file: ${att.name}](${filePath})` });
+            } else if (att.content != null) {
+                const filePath = path.join(uploadDir, `${randomUUID()}-${att.name}`);
+                fs.writeFileSync(filePath, att.content);
+                msgParts.push({ type: 'text', text: `[file: ${att.name}](${filePath})` });
+            }
+        }
+    }
+
+    if (msgParts.length === 0) return '';
+    if (!hasImage) return msgParts.map(p => p.text!).join('\n');
+    return msgParts;
 }
 
 // ===== Skills 辅助函数 =====
@@ -262,7 +280,7 @@ class HttpServer {
                     const threadId = sessionThreadId(sid);
                     switch (msg.type) {
                         case WsCommandType.Query: {
-                            const enriched = processAttachments(msg.query?.trim() || '', msg.attachments, uploadDir);
+                            const enriched = processMessage(msg.parts ?? [], msg.attachments, uploadDir);
                             if (isEmptyContent(enriched)) break;
                             sessionManager.onReceiveWebMessage(threadId, enriched, sid);
                             break;

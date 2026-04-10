@@ -20,6 +20,9 @@ export enum WebChatEventType {
   Queue    = 'queue',
 }
 
+/** Multimodal message content: plain string or array of content parts (text/image_url/etc.) */
+export type DisplayContent = string | any[]
+
 export enum AskQuestionType {
   Radio    = 'radio',
   Checkbox = 'checkbox',
@@ -31,14 +34,14 @@ export type AskQuestionSpec =
   | { type: AskQuestionType.Checkbox; label: string; options: string[]; allowCustom?: boolean }
   | { type: AskQuestionType.Input;    label: string; placeholder?: string }
 
-export interface HumanData    { content: string }
-export interface StreamData   { content: string | any[] }
+export interface HumanData    { content: DisplayContent }
+export interface StreamData   { content: DisplayContent }
 export interface MessageData  { message: ChatMessage; thinkId?: string; createdAt: number }
 export interface ToolCallData { approvalId: string; toolCallId?: string; name: string; args: Record<string, any> }
 export interface AskData      { id: string; title?: string; questions: AskQuestionSpec[] }
-export interface DoneData     { pendingMessages?: (string | any[])[] }
+export interface DoneData     { pendingMessages?: DisplayContent[] }
 export interface ErrorData    { message: string }
-export interface QueueData    { pendingMessages: (string | any[])[] }
+export interface QueueData    { pendingMessages: DisplayContent[] }
 
 export type WebChatEventDataMap = {
   [WebChatEventType.Human]:    HumanData

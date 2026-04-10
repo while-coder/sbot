@@ -56,30 +56,41 @@ function toggleToolCall(el: HTMLElement) {
   if (detail) detail.classList.toggle('show')
 }
 
-function renderMd(content: string | any[] | undefined | null): string {
-  if (!content) return ''
-  if (Array.isArray(content)) {
-    return marked.parse(
-      content
-        .filter((c: any) => typeof c === 'string' || c?.type === 'text')
-        .map((c: any) => (typeof c === 'string' ? c : c.text ?? ''))
-        .join('\n')
-    ) as string
-  }
-  return marked.parse(content) as string
-}
+type ContentPart = { type: 'html'; html: string } | { type: 'image'; src: string }
 
-function getImages(content: string | any[] | undefined | null): string[] {
-  if (!Array.isArray(content)) return []
-  const urls: string[] = []
-  for (const c of content) {
-    if (c?.type === 'image_url' && c.image_url?.url) {
-      urls.push(c.image_url.url)
-    } else if (c?.type === 'inlineData' && c.inlineData?.data) {
-      urls.push(`data:${c.inlineData.mimeType};base64,${c.inlineData.data}`)
+function getContentParts(content: string | any[] | undefined | null): ContentPart[] {
+  if (!content) return []
+  if (!Array.isArray(content)) return [{ type: 'html', html: marked.parse(content) as string }]
+
+  const parts: ContentPart[] = []
+  let textBuf = ''
+
+  const flushText = () => {
+    if (textBuf) {
+      parts.push({ type: 'html', html: marked.parse(textBuf) as string })
+      textBuf = ''
     }
   }
-  return urls
+
+  for (const c of content) {
+    if (typeof c === 'string') {
+      textBuf += (textBuf ? '\n' : '') + c
+    } else if (c?.type === 'text') {
+      textBuf += (textBuf ? '\n' : '') + (c.text ?? '')
+    } else if (c?.type === 'image_url' && c.image_url?.url) {
+      flushText()
+      parts.push({ type: 'image', src: c.image_url.url })
+    } else if (c?.type === 'inlineData' && c.inlineData?.data) {
+      flushText()
+      parts.push({ type: 'image', src: `data:${c.inlineData.mimeType};base64,${c.inlineData.data}` })
+    }
+  }
+  flushText()
+  return parts
+}
+
+function renderMd(content: string | any[] | undefined | null): string {
+  return getContentParts(content).filter(p => p.type === 'html').map(p => (p as any).html).join('')
 }
 
 // ── Image lightbox ──
@@ -122,10 +133,12 @@ function openThink(thinkId: string) {
                   <span>{{ t('chat.think') }}</span>
                 </div>
               </div>
-              <div class="md-content" v-html="renderMd(msg.message.content)" />
-              <div v-for="(src, imgIdx) in getImages(msg.message.content)" :key="imgIdx" class="inline-image">
-                <img :src="src" class="inline-image-thumb" @click="openLightbox(src)" />
-              </div>
+              <template v-for="(part, pi) in getContentParts(msg.message.content)" :key="pi">
+                <div v-if="part.type === 'html'" class="md-content" v-html="part.html" />
+                <div v-else class="inline-image">
+                  <img :src="part.src" class="inline-image-thumb" @click="openLightbox(part.src)" />
+                </div>
+              </template>
             </div>
           </div>
 
@@ -140,10 +153,12 @@ function openThink(thinkId: string) {
                   <span>{{ t('chat.think') }}</span>
                 </div>
               </div>
-              <div class="md-content" v-html="renderMd(msg.message.content)" />
-              <div v-for="(src, imgIdx) in getImages(msg.message.content)" :key="imgIdx" class="inline-image">
-                <img :src="src" class="inline-image-thumb" @click="openLightbox(src)" />
-              </div>
+              <template v-for="(part, pi) in getContentParts(msg.message.content)" :key="pi">
+                <div v-if="part.type === 'html'" class="md-content" v-html="part.html" />
+                <div v-else class="inline-image">
+                  <img :src="part.src" class="inline-image-thumb" @click="openLightbox(part.src)" />
+                </div>
+              </template>
             </div>
             <div v-if="msg.message.tool_calls && msg.message.tool_calls.length > 0" class="msg-tool-calls">
               <div class="msg-role has-think">
@@ -184,10 +199,12 @@ function openThink(thinkId: string) {
               <div class="msg-role-bar">
                 <span class="msg-role">Tool{{ msg.message.name ? ` · ${msg.message.name}` : '' }}</span>
               </div>
-              <div class="md-content" v-html="renderMd(msg.message.content)" />
-              <div v-for="(src, imgIdx) in getImages(msg.message.content)" :key="imgIdx" class="inline-image">
-                <img :src="src" class="inline-image-thumb" @click="openLightbox(src)" />
-              </div>
+              <template v-for="(part, pi) in getContentParts(msg.message.content)" :key="pi">
+                <div v-if="part.type === 'html'" class="md-content" v-html="part.html" />
+                <div v-else class="inline-image">
+                  <img :src="part.src" class="inline-image-thumb" @click="openLightbox(part.src)" />
+                </div>
+              </template>
             </div>
           </div>
 
@@ -198,10 +215,12 @@ function openThink(thinkId: string) {
                 <span class="msg-role">{{ msg.message.role }}</span>
                 <span v-if="msg.createdAt" class="msg-time">{{ fmtTs(msg.createdAt) }}</span>
               </div>
-              <div class="md-content" v-html="renderMd(msg.message.content)" />
-              <div v-for="(src, imgIdx) in getImages(msg.message.content)" :key="imgIdx" class="inline-image">
-                <img :src="src" class="inline-image-thumb" @click="openLightbox(src)" />
-              </div>
+              <template v-for="(part, pi) in getContentParts(msg.message.content)" :key="pi">
+                <div v-if="part.type === 'html'" class="md-content" v-html="part.html" />
+                <div v-else class="inline-image">
+                  <img :src="part.src" class="inline-image-thumb" @click="openLightbox(part.src)" />
+                </div>
+              </template>
             </div>
           </div>
         </template>

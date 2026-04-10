@@ -37,11 +37,11 @@ const sessions = computed(() => store.sessions)
 
 const { chatAreaRef, agentOptions, saverOptions, memoryOptions, sendOne, fetchAndRestoreSessionStatus } = useChatViewLogic({
   sessionId: () => activeSessionId.value ?? undefined,
-  buildSendPayload: (query, sessionId, atts) => ({
+  buildSendPayload: (parts, sessionId, fileAtts) => ({
     type: WsCommandType.Query,
-    query,
     sessionId,
-    attachments: atts?.length ? atts : undefined,
+    parts,
+    attachments: fileAtts?.length ? fileAtts : undefined,
   }),
   sessionStatusQuery: (id) => `sessionId=${encodeURIComponent(id)}`,
 })
@@ -118,11 +118,11 @@ async function commitEditSessionName() {
 }
 
 // ── Send / lifecycle ──
-async function onPanelSend(query: string, atts: { name: string; type: string; dataUrl?: string; content?: string }[]) {
+async function onPanelSend(parts: any[], fileAtts: { name: string; type: string; dataUrl?: string; content?: string }[]) {
   if (!activeSessionId.value) { show(t('chat.no_session'), 'error'); return }
   if (!effectiveSaver.value) { show(t('chat.no_saver'), 'error'); return }
-  if (!query && atts.length === 0) return
-  await sendOne(query, atts)
+  if (parts.length === 0 && fileAtts.length === 0) return
+  await sendOne(parts, fileAtts)
 }
 
 watch(activeSessionId, (id) => fetchAndRestoreSessionStatus(id))

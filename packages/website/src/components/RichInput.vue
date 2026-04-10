@@ -6,13 +6,6 @@ import Image from '@tiptap/extension-image'
 import Placeholder from '@tiptap/extension-placeholder'
 import Dropcursor from '@tiptap/extension-dropcursor'
 
-interface Attachment {
-  name: string
-  type: string
-  dataUrl?: string
-  content?: string
-}
-
 const props = withDefaults(defineProps<{
   placeholder?: string
   maxHeight?: number
@@ -101,25 +94,39 @@ onBeforeUnmount(() => {
   editor.value?.destroy()
 })
 
-function getContent(): { text: string; images: Attachment[] } {
-  if (!editor.value) return { text: '', images: [] }
-  const text = editor.value.getText()
-  const images: Attachment[] = []
-  let imgCounter = 0
-  editor.value.state.doc.descendants((node) => {
-    if (node.type.name === 'image' && node.attrs.src) {
-      const src: string = node.attrs.src
-      const alt: string = node.attrs.alt || ''
-      if (src.startsWith('data:')) {
-        const mimeMatch = src.match(/^data:(image\/\w+);/)
-        const mimeType = mimeMatch?.[1] || 'image/png'
-        const ext = mimeType.split('/')[1] || 'png'
-        const name = alt || `image-${++imgCounter}.${ext}`
-        images.push({ name, type: mimeType, dataUrl: src })
-      }
+export type ContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image'; dataUrl: string }
+
+function getContent(): { parts: ContentPart[] } {
+  if (!editor.value) return { parts: [] }
+  const parts: ContentPart[] = []
+
+  // Traverse top-level nodes in order to preserve interleaved text/image sequence
+  editor.value.state.doc.forEach((node) => {
+    if (node.type.name === 'paragraph' || node.type.name === 'text') {
+      const textFragments: string[] = []
+      node.forEach((child) => {
+        if (child.type.name === 'image' && child.attrs.src) {
+          // Flush accumulated text before the image
+          const t = textFragments.join('').trim()
+          if (t) parts.push({ type: 'text', text: t })
+          textFragments.length = 0
+          if (child.attrs.src.startsWith('data:')) {
+            parts.push({ type: 'image', dataUrl: child.attrs.src })
+          }
+        } else {
+          textFragments.push(child.textContent)
+        }
+      })
+      const t = textFragments.join('').trim()
+      if (t) parts.push({ type: 'text', text: t })
+    } else if (node.type.name === 'image' && node.attrs.src?.startsWith('data:')) {
+      parts.push({ type: 'image', dataUrl: node.attrs.src })
     }
   })
-  return { text, images }
+
+  return { parts }
 }
 
 function clear() {

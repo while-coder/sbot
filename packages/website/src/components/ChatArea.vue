@@ -5,6 +5,7 @@ import { apiFetch } from '@/api'
 import { useToast } from '@/composables/useToast'
 import { useChatSocket } from '@/composables/useChatSocket'
 import ChatPanel from './ChatPanel.vue'
+import type { ContentPart } from './RichInput.vue'
 import { WebChatEventType, WsCommandType, MessageRole, AskQuestionType } from 'sbot.commons'
 import type { WebChatEvent, AskQuestionSpec } from 'sbot.commons'
 import type { StoredMessage } from '@/types'
@@ -25,7 +26,7 @@ const props = withDefaults(defineProps<{
 })
 
 const emit = defineEmits<{
-  send: [query: string, attachments: Attachment[]]
+  send: [parts: ContentPart[], fileAttachments: Attachment[]]
 }>()
 
 const { t } = useI18n()
@@ -357,7 +358,7 @@ defineExpose({ handleWsEvent, refreshHistory, clearHistory, scrollToBottom, rese
     :show-attachments="showAttachments"
     :on-cancel="cancelSessionId && isStreaming ? cancelProcessing : undefined"
     :thinks-url-prefix="thinksUrlPrefix"
-    @send="(q, a) => emit('send', q, a)"
+    @send="(parts, fileAtts) => emit('send', parts, fileAtts)"
   />
 </template>
 

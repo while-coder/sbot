@@ -7,7 +7,7 @@ import type { StoredMessage, ToolCall } from '@/types'
 import { inlineArgs, resultPreview } from '@/utils/toolCallFormat'
 import ThinkDrawer from './ThinkDrawer.vue'
 import ImageLightbox from './ImageLightbox.vue'
-import RichInput from './RichInput.vue'
+import RichInput, { type ContentPart } from './RichInput.vue'
 
 const { t } = useI18n()
 
@@ -16,6 +16,32 @@ interface Attachment {
   type: string
   dataUrl?: string
   content?: string
+}
+
+/** Render-friendly content part for interleaved display */
+interface DisplayPart {
+  type: 'text' | 'image'
+  text?: string
+  url?: string
+}
+
+/** Convert LangChain MessageContent (string or array) into ordered display parts */
+function getContentParts(content: string | any[] | undefined | null): DisplayPart[] {
+  if (!content) return []
+  if (typeof content === 'string') return [{ type: 'text', text: content }]
+  const parts: DisplayPart[] = []
+  for (const c of content) {
+    if (typeof c === 'string') {
+      parts.push({ type: 'text', text: c })
+    } else if (c?.type === 'text' && c.text) {
+      parts.push({ type: 'text', text: c.text })
+    } else if (c?.type === 'image_url' && c.image_url?.url) {
+      parts.push({ type: 'image', url: c.image_url.url })
+    } else if (c?.type === 'inlineData' && c.inlineData?.data) {
+      parts.push({ type: 'image', url: `data:${c.inlineData.mimeType};base64,${c.inlineData.data}` })
+    }
+  }
+  return parts
 }
 
 const props = withDefaults(defineProps<{
@@ -32,7 +58,7 @@ const props = withDefaults(defineProps<{
 })
 
 const emit = defineEmits<{
-  send: [query: string, attachments: Attachment[]]
+  send: [parts: ContentPart[], fileAttachments: Attachment[]]
 }>()
 
 const richInputRef = ref<InstanceType<typeof RichInput>>()
@@ -104,19 +130,6 @@ function renderMd(content: string | any[] | undefined | null): string {
   return marked.parse(content) as string
 }
 
-function getImages(content: string | any[] | undefined | null): string[] {
-  if (!Array.isArray(content)) return []
-  const urls: string[] = []
-  for (const c of content) {
-    if (c?.type === 'image_url' && c.image_url?.url) {
-      urls.push(c.image_url.url)
-    } else if (c?.type === 'inlineData' && c.inlineData?.data) {
-      urls.push(`data:${c.inlineData.mimeType};base64,${c.inlineData.data}`)
-    }
-  }
-  return urls
-}
-
 // ── Think drawer ──
 const thinkDrawerRef = ref<InstanceType<typeof ThinkDrawer>>()
 
@@ -172,12 +185,11 @@ function isImage(att: Attachment) {
 // ── Input ──
 function send() {
   if (!richInputRef.value) return
-  const { text, images } = richInputRef.value.getContent()
+  const { parts } = richInputRef.value.getContent()
   const fileAtts = props.showAttachments ? attachments.value.splice(0) : []
-  const allAtts = [...images, ...fileAtts]
-  if (!text.trim() && allAtts.length === 0) return
+  if (parts.length === 0 && fileAtts.length === 0) return
   richInputRef.value.clear()
-  emit('send', text.trim(), allAtts)
+  emit('send', parts, fileAtts)
 }
 
 defineExpose({ scrollToBottom })
@@ -205,10 +217,12 @@ defineExpose({ scrollToBottom })
                     <span>{{ t('chat.think') }}</span>
                   </div>
                 </div>
-                <div class="md-content" v-html="renderMd(msg.message.content)" />
-                <div v-for="(src, imgIdx) in getImages(msg.message.content)" :key="imgIdx" class="inline-image">
-                  <img :src="src" class="inline-image-thumb" @click="openLightbox(src)" />
-                </div>
+                <template v-for="(part, pIdx) in getContentParts(msg.message.content)" :key="pIdx">
+                  <div v-if="part.type === 'text'" class="md-content" v-html="renderMd(part.text)" />
+                  <div v-else-if="part.type === 'image'" class="inline-image">
+                    <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
+                  </div>
+                </template>
               </div>
             </div>
             <div v-else-if="msg.message.role === MessageRole.AI" class="msg-row ai">
@@ -221,10 +235,12 @@ defineExpose({ scrollToBottom })
                     <span>{{ t('chat.think') }}</span>
                   </div>
                 </div>
-                <div class="md-content" v-html="renderMd(msg.message.content)" />
-                <div v-for="(img, imgIdx) in getImages(msg.message.content)" :key="imgIdx" class="inline-image">
-                  <img :src="img" class="inline-image-thumb" @click="openLightbox(img)" />
-                </div>
+                <template v-for="(part, pIdx) in getContentParts(msg.message.content)" :key="pIdx">
+                  <div v-if="part.type === 'text'" class="md-content" v-html="renderMd(part.text)" />
+                  <div v-else-if="part.type === 'image'" class="inline-image">
+                    <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
+                  </div>
+                </template>
               </div>
               <div v-if="msg.message.tool_calls && msg.message.tool_calls.length > 0" class="msg-tool-calls">
                 <div class="msg-role has-think">
@@ -264,10 +280,12 @@ defineExpose({ scrollToBottom })
                   <span class="msg-role">{{ msg.message.role }}</span>
                   <span v-if="msg.createdAt" class="msg-time">{{ fmtTs(msg.createdAt) }}</span>
                 </div>
-                <div class="md-content" v-html="renderMd(msg.message.content)" />
-                <div v-for="(src, imgIdx) in getImages(msg.message.content)" :key="imgIdx" class="inline-image">
-                  <img :src="src" class="inline-image-thumb" @click="openLightbox(src)" />
-                </div>
+                <template v-for="(part, pIdx) in getContentParts(msg.message.content)" :key="pIdx">
+                  <div v-if="part.type === 'text'" class="md-content" v-html="renderMd(part.text)" />
+                  <div v-else-if="part.type === 'image'" class="inline-image">
+                    <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
+                  </div>
+                </template>
               </div>
             </div>
           </template>
@@ -277,11 +295,15 @@ defineExpose({ scrollToBottom })
         <div v-if="isStreaming" class="msg-row ai">
           <div class="msg-bubble ai streaming">
             <div class="msg-role-bar"><span class="msg-role">{{ t('chat.role_ai') }}</span></div>
-            <div v-if="streamingContent" class="md-content" v-html="renderMd(streamingContent)" />
+            <template v-if="streamingContent">
+              <template v-for="(part, pIdx) in getContentParts(streamingContent)" :key="pIdx">
+                <div v-if="part.type === 'text'" class="md-content" v-html="renderMd(part.text)" />
+                <div v-else-if="part.type === 'image'" class="inline-image">
+                  <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
+                </div>
+              </template>
+            </template>
             <span v-else style="color:#94a3b8">{{ t('chat.thinking') }}</span>
-            <div v-for="(img, imgIdx) in getImages(streamingContent)" :key="imgIdx" class="inline-image">
-              <img :src="img" class="inline-image-thumb" @click="openLightbox(img)" />
-            </div>
           </div>
         </div>
 
@@ -292,13 +314,20 @@ defineExpose({ scrollToBottom })
               <span class="msg-role">{{ t('chat.role_user') }}</span>
               <span class="msg-queued-tag">{{ t('chat.queued') }}</span>
             </div>
-            <div class="md-content" v-html="renderMd(q)" />
-            <div v-for="(img, imgIdx) in getImages(q)" :key="imgIdx" class="inline-image">
-              <img :src="img" class="inline-image-thumb" @click="openLightbox(img)" />
-            </div>
+            <template v-for="(part, pIdx) in getContentParts(q)" :key="pIdx">
+              <div v-if="part.type === 'text'" class="md-content" v-html="renderMd(part.text)" />
+              <div v-else-if="part.type === 'image'" class="inline-image">
+                <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
+              </div>
+            </template>
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Stop bar -->
+    <div v-if="onCancel && isStreaming" class="chat-stop-bar">
+      <button class="btn-danger btn-sm stop-btn" @click="onCancel">■ {{ t('chat.stop') }}</button>
     </div>
 
     <!-- Input bar -->
@@ -327,7 +356,6 @@ defineExpose({ scrollToBottom })
       </div>
       <div style="display:flex;flex-direction:column;gap:6px;align-self:flex-end">
         <button v-if="showAttachments" class="btn-outline btn-sm" @click="pickFile" :title="t('chat.add_attachment')">{{ t('chat.attachment') }}</button>
-        <button v-if="onCancel && isStreaming" class="btn-danger btn-sm stop-btn" @click="onCancel">■ {{ t('chat.stop') }}</button>
         <button class="btn-primary" @click="send">{{ t('chat.send') }}</button>
       </div>
     </div>

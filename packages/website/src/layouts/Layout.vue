@@ -763,6 +763,12 @@ table tr:hover td { background: #fafaf9; }
 .think-toggle:hover { background: #ede9fe; color: #6d28d9; border-color: #c4b5fd; }
 .think-toggle-human { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.3); color: #e9d5ff; }
 .think-toggle-human:hover { background: rgba(255,255,255,0.25); border-color: rgba(255,255,255,0.4); color: #fff; }
+.chat-stop-bar {
+  display: flex;
+  justify-content: center;
+  padding: 4px 12px;
+  flex-shrink: 0;
+}
 .chat-input-bar {
   display: flex;
   gap: 8px;

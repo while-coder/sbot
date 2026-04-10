@@ -62,7 +62,7 @@ export function createWebProcessAIHandler(): ProcessAIHandler {
     return async (query, args, userService) => {
         const sessionId = args?.sessionId as string;
 
-        // Echo the human message back to the WebSocket client
+        // Echo the human message back to the WebSocket client (preserves multimodal content)
         httpServer.broadcastToWs(JSON.stringify({ sessionId, type: WebChatEventType.Human, data: { content: query } }));
 
         const row = sessionId ? await database.findByPk<SessionRow>(database.session, sessionId) : undefined;
