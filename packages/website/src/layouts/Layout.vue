@@ -771,19 +771,18 @@ table tr:hover td { background: #fafaf9; }
   background: #fff;
   flex-shrink: 0;
 }
-.chat-input-bar textarea {
+.chat-input-bar .rich-input {
   flex: 1;
   padding: 8px 12px;
   border: 1px solid #e8e6e3;
   border-radius: 8px;
   font-size: 13px;
-  resize: none;
-  max-height: 160px;
+  max-height: 200px;
   outline: none;
   font-family: inherit;
   line-height: 1.5;
 }
-.chat-input-bar textarea:focus { border-color: #1c1c1c; }
+.chat-input-bar .rich-input:focus-within { border-color: #1c1c1c; }
 .chat-queue {
   display: flex;
   flex-direction: column;

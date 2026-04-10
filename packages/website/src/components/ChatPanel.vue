@@ -6,6 +6,8 @@ import { MessageRole } from '@/types'
 import type { StoredMessage, ToolCall } from '@/types'
 import { inlineArgs, resultPreview } from '@/utils/toolCallFormat'
 import ThinkDrawer from './ThinkDrawer.vue'
+import ImageLightbox from './ImageLightbox.vue'
+import RichInput from './RichInput.vue'
 
 const { t } = useI18n()
 
@@ -33,29 +35,16 @@ const emit = defineEmits<{
   send: [query: string, attachments: Attachment[]]
 }>()
 
-const chatInput = ref('')
+const richInputRef = ref<InstanceType<typeof RichInput>>()
 const messagesEl = ref<HTMLElement | null>(null)
 const attachments = ref<Attachment[]>([])
 const fileInputEl = ref<HTMLInputElement | null>(null)
 
 // ── Image lightbox ──
-const lightboxSrc = ref<string | null>(null)
+const lightboxRef = ref<InstanceType<typeof ImageLightbox>>()
 
-function openLightbox(mimeType: string, data: string) {
-  lightboxSrc.value = `data:${mimeType};base64,${data}`
-}
-
-function closeLightbox() {
-  lightboxSrc.value = null
-}
-
-function downloadLightbox() {
-  if (!lightboxSrc.value) return
-  const a = document.createElement('a')
-  a.href = lightboxSrc.value
-  const ext = lightboxSrc.value.startsWith('data:image/png') ? 'png' : 'jpg'
-  a.download = `image_${Date.now()}.${ext}`
-  a.click()
+function openLightbox(src: string) {
+  lightboxRef.value?.open(src)
 }
 
 // ── Scrolling ──
@@ -115,11 +104,17 @@ function renderMd(content: string | any[] | undefined | null): string {
   return marked.parse(content) as string
 }
 
-function getInlineImages(content: string | any[] | undefined | null): { mimeType: string; data: string }[] {
+function getImages(content: string | any[] | undefined | null): string[] {
   if (!Array.isArray(content)) return []
-  return content
-    .filter((c: any) => c?.type === 'inlineData' && c?.inlineData?.data)
-    .map((c: any) => c.inlineData)
+  const urls: string[] = []
+  for (const c of content) {
+    if (c?.type === 'image_url' && c.image_url?.url) {
+      urls.push(c.image_url.url)
+    } else if (c?.type === 'inlineData' && c.inlineData?.data) {
+      urls.push(`data:${c.inlineData.mimeType};base64,${c.inlineData.data}`)
+    }
+  }
+  return urls
 }
 
 // ── Think drawer ──
@@ -174,44 +169,15 @@ function isImage(att: Attachment) {
   return att.type.startsWith('image/')
 }
 
-// ── Paste ──
-async function onPaste(e: ClipboardEvent) {
-  if (!props.showAttachments) return
-  const items = Array.from(e.clipboardData?.items ?? [])
-  const fileItems = items.filter(i => i.kind === 'file')
-  if (fileItems.length === 0) return
-  e.preventDefault()
-  for (const item of fileItems) {
-    const file = item.getAsFile()
-    if (!file) continue
-    const name = file.name && file.name !== 'image.png' ? file.name
-      : `paste-${Date.now()}.${file.type.split('/')[1] || 'bin'}`
-    const namedFile = new File([file], name, { type: file.type })
-    if (attachments.value.find(a => a.name === namedFile.name)) continue
-    attachments.value.push(await readFile(namedFile))
-  }
-}
-
 // ── Input ──
-function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault()
-    send()
-  }
-}
-
-function autoResize(e: Event) {
-  const el = e.target as HTMLTextAreaElement
-  el.style.height = 'auto'
-  el.style.height = Math.min(el.scrollHeight, 200) + 'px'
-}
-
 function send() {
-  const query = chatInput.value.trim()
-  const atts = props.showAttachments ? attachments.value.splice(0) : []
-  if (!query && atts.length === 0) return
-  chatInput.value = ''
-  emit('send', query, atts)
+  if (!richInputRef.value) return
+  const { text, images } = richInputRef.value.getContent()
+  const fileAtts = props.showAttachments ? attachments.value.splice(0) : []
+  const allAtts = [...images, ...fileAtts]
+  if (!text.trim() && allAtts.length === 0) return
+  richInputRef.value.clear()
+  emit('send', text.trim(), allAtts)
 }
 
 defineExpose({ scrollToBottom })
@@ -239,7 +205,10 @@ defineExpose({ scrollToBottom })
                     <span>{{ t('chat.think') }}</span>
                   </div>
                 </div>
-                {{ msg.message.content }}
+                <div class="md-content" v-html="renderMd(msg.message.content)" />
+                <div v-for="(src, imgIdx) in getImages(msg.message.content)" :key="imgIdx" class="inline-image">
+                  <img :src="src" class="inline-image-thumb" @click="openLightbox(src)" />
+                </div>
               </div>
             </div>
             <div v-else-if="msg.message.role === MessageRole.AI" class="msg-row ai">
@@ -253,8 +222,8 @@ defineExpose({ scrollToBottom })
                   </div>
                 </div>
                 <div class="md-content" v-html="renderMd(msg.message.content)" />
-                <div v-for="(img, imgIdx) in getInlineImages(msg.message.content)" :key="imgIdx" class="inline-image">
-                  <img :src="`data:${img.mimeType};base64,${img.data}`" class="inline-image-thumb" @click="openLightbox(img.mimeType, img.data)" />
+                <div v-for="(img, imgIdx) in getImages(msg.message.content)" :key="imgIdx" class="inline-image">
+                  <img :src="img" class="inline-image-thumb" @click="openLightbox(img)" />
                 </div>
               </div>
               <div v-if="msg.message.tool_calls && msg.message.tool_calls.length > 0" class="msg-tool-calls">
@@ -295,7 +264,10 @@ defineExpose({ scrollToBottom })
                   <span class="msg-role">{{ msg.message.role }}</span>
                   <span v-if="msg.createdAt" class="msg-time">{{ fmtTs(msg.createdAt) }}</span>
                 </div>
-                {{ msg.message.content }}
+                <div class="md-content" v-html="renderMd(msg.message.content)" />
+                <div v-for="(src, imgIdx) in getImages(msg.message.content)" :key="imgIdx" class="inline-image">
+                  <img :src="src" class="inline-image-thumb" @click="openLightbox(src)" />
+                </div>
               </div>
             </div>
           </template>
@@ -307,8 +279,8 @@ defineExpose({ scrollToBottom })
             <div class="msg-role-bar"><span class="msg-role">{{ t('chat.role_ai') }}</span></div>
             <div v-if="streamingContent" class="md-content" v-html="renderMd(streamingContent)" />
             <span v-else style="color:#94a3b8">{{ t('chat.thinking') }}</span>
-            <div v-for="(img, imgIdx) in getInlineImages(streamingContent)" :key="imgIdx" class="inline-image">
-              <img :src="`data:${img.mimeType};base64,${img.data}`" class="inline-image-thumb" @click="openLightbox(img.mimeType, img.data)" />
+            <div v-for="(img, imgIdx) in getImages(streamingContent)" :key="imgIdx" class="inline-image">
+              <img :src="img" class="inline-image-thumb" @click="openLightbox(img)" />
             </div>
           </div>
         </div>
@@ -321,8 +293,8 @@ defineExpose({ scrollToBottom })
               <span class="msg-queued-tag">{{ t('chat.queued') }}</span>
             </div>
             <div class="md-content" v-html="renderMd(q)" />
-            <div v-for="(img, imgIdx) in getInlineImages(q)" :key="imgIdx" class="inline-image">
-              <img :src="`data:${img.mimeType};base64,${img.data}`" class="inline-image-thumb" @click="openLightbox(img.mimeType, img.data)" />
+            <div v-for="(img, imgIdx) in getImages(q)" :key="imgIdx" class="inline-image">
+              <img :src="img" class="inline-image-thumb" @click="openLightbox(img)" />
             </div>
           </div>
         </div>
@@ -347,14 +319,10 @@ defineExpose({ scrollToBottom })
               style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:14px;padding:0;line-height:1;flex-shrink:0">×</button>
           </div>
         </div>
-        <textarea
-          v-model="chatInput"
+        <RichInput
+          ref="richInputRef"
           :placeholder="t('chat.input_placeholder')"
-          rows="3"
-          @keydown="onKeydown"
-          @paste="onPaste"
-          @input="autoResize"
-          style="resize:none;width:100%"
+          @submit="send"
         />
       </div>
       <div style="display:flex;flex-direction:column;gap:6px;align-self:flex-end">
@@ -366,17 +334,6 @@ defineExpose({ scrollToBottom })
 
     <ThinkDrawer v-if="thinksUrlPrefix" ref="thinkDrawerRef" :thinks-url-prefix="thinksUrlPrefix" />
 
-    <!-- Image lightbox -->
-    <Teleport to="body">
-      <div v-if="lightboxSrc" class="lightbox-overlay" @click.self="closeLightbox">
-        <div class="lightbox-content">
-          <img :src="lightboxSrc" class="lightbox-img" />
-          <div class="lightbox-actions">
-            <button class="btn-primary btn-sm" @click="downloadLightbox">{{ t('common.download') }}</button>
-            <button class="btn-outline btn-sm" @click="closeLightbox">{{ t('common.close') }}</button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
+    <ImageLightbox ref="lightboxRef" />
   </div>
 </template>

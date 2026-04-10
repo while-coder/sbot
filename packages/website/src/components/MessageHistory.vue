@@ -6,6 +6,7 @@ import { MessageRole } from '@/types'
 import type { StoredMessage, ToolCall } from '@/types'
 import { inlineArgs, resultPreview } from '@/utils/toolCallFormat'
 import ThinkDrawer from './ThinkDrawer.vue'
+import ImageLightbox from './ImageLightbox.vue'
 
 const { t } = useI18n()
 
@@ -68,6 +69,26 @@ function renderMd(content: string | any[] | undefined | null): string {
   return marked.parse(content) as string
 }
 
+function getImages(content: string | any[] | undefined | null): string[] {
+  if (!Array.isArray(content)) return []
+  const urls: string[] = []
+  for (const c of content) {
+    if (c?.type === 'image_url' && c.image_url?.url) {
+      urls.push(c.image_url.url)
+    } else if (c?.type === 'inlineData' && c.inlineData?.data) {
+      urls.push(`data:${c.inlineData.mimeType};base64,${c.inlineData.data}`)
+    }
+  }
+  return urls
+}
+
+// ── Image lightbox ──
+const lightboxRef = ref<InstanceType<typeof ImageLightbox>>()
+
+function openLightbox(src: string) {
+  lightboxRef.value?.open(src)
+}
+
 // ── Think drawer ──
 const thinkDrawerRef = ref<InstanceType<typeof ThinkDrawer>>()
 
@@ -101,7 +122,10 @@ function openThink(thinkId: string) {
                   <span>{{ t('chat.think') }}</span>
                 </div>
               </div>
-              {{ msg.message.content }}
+              <div class="md-content" v-html="renderMd(msg.message.content)" />
+              <div v-for="(src, imgIdx) in getImages(msg.message.content)" :key="imgIdx" class="inline-image">
+                <img :src="src" class="inline-image-thumb" @click="openLightbox(src)" />
+              </div>
             </div>
           </div>
 
@@ -117,6 +141,9 @@ function openThink(thinkId: string) {
                 </div>
               </div>
               <div class="md-content" v-html="renderMd(msg.message.content)" />
+              <div v-for="(src, imgIdx) in getImages(msg.message.content)" :key="imgIdx" class="inline-image">
+                <img :src="src" class="inline-image-thumb" @click="openLightbox(src)" />
+              </div>
             </div>
             <div v-if="msg.message.tool_calls && msg.message.tool_calls.length > 0" class="msg-tool-calls">
               <div class="msg-role has-think">
@@ -157,7 +184,10 @@ function openThink(thinkId: string) {
               <div class="msg-role-bar">
                 <span class="msg-role">Tool{{ msg.message.name ? ` · ${msg.message.name}` : '' }}</span>
               </div>
-              {{ msg.message.content }}
+              <div class="md-content" v-html="renderMd(msg.message.content)" />
+              <div v-for="(src, imgIdx) in getImages(msg.message.content)" :key="imgIdx" class="inline-image">
+                <img :src="src" class="inline-image-thumb" @click="openLightbox(src)" />
+              </div>
             </div>
           </div>
 
@@ -168,12 +198,17 @@ function openThink(thinkId: string) {
                 <span class="msg-role">{{ msg.message.role }}</span>
                 <span v-if="msg.createdAt" class="msg-time">{{ fmtTs(msg.createdAt) }}</span>
               </div>
-              {{ msg.message.content }}
+              <div class="md-content" v-html="renderMd(msg.message.content)" />
+              <div v-for="(src, imgIdx) in getImages(msg.message.content)" :key="imgIdx" class="inline-image">
+                <img :src="src" class="inline-image-thumb" @click="openLightbox(src)" />
+              </div>
             </div>
           </div>
         </template>
       </template>
     </template>
     <ThinkDrawer v-if="thinksUrlPrefix" ref="thinkDrawerRef" :thinks-url-prefix="thinksUrlPrefix" />
+
+    <ImageLightbox ref="lightboxRef" />
   </div>
 </template>

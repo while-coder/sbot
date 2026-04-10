@@ -114,8 +114,8 @@ export class SbotSessionManager extends SessionManager {
         await session.onReceiveMessage(query, args);
     }
 
-    async onReceiveWebMessage(threadId: string, query: string, sessionId?: string): Promise<void> {
-        if (!query?.trim()) return;
+    async onReceiveWebMessage(threadId: string, query: MessageContent, sessionId?: string): Promise<void> {
+        if (isEmptyContent(query)) return;
         const session = this.getOrCreate(threadId);
         await session.onReceiveMessage(query, { channelType: ChannelType.Web, sessionId });
     }

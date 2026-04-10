@@ -6,7 +6,7 @@ import os from 'os';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { WebSocket, WebSocketServer } from 'ws';
-import { AgentToolService, SkillService, ModelProvider, listThreadIds, type StoredMessage } from "scorpio.ai";
+import { AgentToolService, SkillService, ModelProvider, listThreadIds, readImageAsDataUrl, isEmptyContent, type StoredMessage, type MessageContent } from "scorpio.ai";
 import { config } from '../Core/Config';
 import { AgentRunner } from '../Agent/AgentRunner';
 import { globalAgentToolService, refreshGlobalAgentToolService, refreshBuiltinTools, BuiltinProvider } from '../Agent/GlobalAgentToolService';
@@ -123,27 +123,32 @@ function buildPromptTree(dir: string, basePath = '', userBaseDir = ''): PromptNo
 // ===== 附件处理 =====
 type AttachmentInput = { name: string; dataUrl?: string; content?: string };
 
-function xmlAttr(s: string): string {
-    return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+function isImageDataUrl(dataUrl: string): boolean {
+    return /^data:image\//.test(dataUrl);
 }
 
-function processAttachments(query: string, attachments: AttachmentInput[] | undefined, uploadDir: string): string {
+function processAttachments(query: string, attachments: AttachmentInput[] | undefined, uploadDir: string): MessageContent {
     if (!attachments?.length) return query;
-    const parts: string[] = [];
+    const parts: Array<{ type: string; text?: string; [key: string]: any }> = [];
+    let hasImage = false;
+    if (query) parts.push({ type: 'text', text: query });
     for (const att of attachments) {
-        const filePath = path.join(uploadDir, `${randomUUID()}-${att.name}`);
-        if (att.dataUrl) {
+        if (att.dataUrl && isImageDataUrl(att.dataUrl)) {
+            parts.push({ type: 'image_url', image_url: { url: att.dataUrl } });
+            hasImage = true;
+        } else if (att.dataUrl) {
+            // Non-image binary: save to disk, reference as text
+            const filePath = path.join(uploadDir, `${randomUUID()}-${att.name}`);
             fs.writeFileSync(filePath, Buffer.from(att.dataUrl.replace(/^data:[^;]+;base64,/, ''), 'base64'));
+            parts.push({ type: 'text', text: `[file: ${att.name}](${filePath})` });
         } else if (att.content != null) {
+            const filePath = path.join(uploadDir, `${randomUUID()}-${att.name}`);
             fs.writeFileSync(filePath, att.content);
-        } else {
-            continue;
+            parts.push({ type: 'text', text: `[file: ${att.name}](${filePath})` });
         }
-        parts.push(`  <attachment name="${xmlAttr(att.name)}" path="${xmlAttr(filePath)}" />`);
     }
-    if (parts.length === 0) return query;
-    const xml = `<attachments>\n${parts.join('\n')}\n</attachments>`;
-    return query ? `${query}\n${xml}` : xml;
+    if (!hasImage) return parts.map(p => p.text!).join('\n');
+    return parts;
 }
 
 // ===== Skills 辅助函数 =====
@@ -258,7 +263,7 @@ class HttpServer {
                     switch (msg.type) {
                         case WsCommandType.Query: {
                             const enriched = processAttachments(msg.query?.trim() || '', msg.attachments, uploadDir);
-                            if (!enriched) break;
+                            if (isEmptyContent(enriched)) break;
                             sessionManager.onReceiveWebMessage(threadId, enriched, sid);
                             break;
                         }
