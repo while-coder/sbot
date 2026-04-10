@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { marked } from 'marked'
 import { MessageRole } from '@/types'
 import type { StoredMessage, ToolCall } from '@/types'
 import { inlineArgs, resultPreview } from '@/utils/toolCallFormat'
+import { getContentParts, renderMd, fmtTs, toggleToolCall } from '@/utils/messageRender'
 import ThinkDrawer from './ThinkDrawer.vue'
 import ImageLightbox from './ImageLightbox.vue'
 import RichInput, { type ContentPart } from './RichInput.vue'
@@ -18,31 +18,6 @@ interface Attachment {
   content?: string
 }
 
-/** Render-friendly content part for interleaved display */
-interface DisplayPart {
-  type: 'text' | 'image'
-  text?: string
-  url?: string
-}
-
-/** Convert LangChain MessageContent (string or array) into ordered display parts */
-function getContentParts(content: string | any[] | undefined | null): DisplayPart[] {
-  if (!content) return []
-  if (typeof content === 'string') return [{ type: 'text', text: content }]
-  const parts: DisplayPart[] = []
-  for (const c of content) {
-    if (typeof c === 'string') {
-      parts.push({ type: 'text', text: c })
-    } else if (c?.type === 'text' && c.text) {
-      parts.push({ type: 'text', text: c.text })
-    } else if (c?.type === 'image_url' && c.image_url?.url) {
-      parts.push({ type: 'image', url: c.image_url.url })
-    } else if (c?.type === 'inlineData' && c.inlineData?.data) {
-      parts.push({ type: 'image', url: `data:${c.inlineData.mimeType};base64,${c.inlineData.data}` })
-    }
-  }
-  return parts
-}
 
 const props = withDefaults(defineProps<{
   messages: StoredMessage[]
@@ -96,39 +71,6 @@ watch(() => props.streamingContent, async () => {
   scrollToBottom()
 })
 
-// ── Rendering ──
-function fmtTs(ts?: number) {
-  if (!ts) return ''
-  try {
-    const d = new Date(ts * 1000)
-    const now = new Date()
-    const pad = (n: number) => n.toString().padStart(2, '0')
-    const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`
-    if (d.toDateString() === now.toDateString()) return time
-    if (d.getFullYear() === now.getFullYear()) return `${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${time}`
-    return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${time}`
-  } catch { return '' }
-}
-
-function toggleToolCall(el: HTMLElement) {
-  el.classList.toggle('expanded')
-  const detail = el.nextElementSibling as HTMLElement
-  if (detail) detail.classList.toggle('show')
-}
-
-function renderMd(content: string | any[] | undefined | null): string {
-  if (!content) return ''
-  if (Array.isArray(content)) {
-    // LangChain multi-part content: extract text parts only (images handled separately)
-    return marked.parse(
-      content
-        .filter((c: any) => typeof c === 'string' || c?.type === 'text')
-        .map((c: any) => (typeof c === 'string' ? c : c.text ?? ''))
-        .join('\n')
-    ) as string
-  }
-  return marked.parse(content) as string
-}
 
 // ── Think drawer ──
 const thinkDrawerRef = ref<InstanceType<typeof ThinkDrawer>>()

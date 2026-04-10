@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { marked } from 'marked'
 import { MessageRole } from '@/types'
 import type { StoredMessage, ToolCall } from '@/types'
 import { inlineArgs, resultPreview } from '@/utils/toolCallFormat'
+import { getContentParts, renderMd, fmtTs, toggleToolCall } from '@/utils/messageRender'
 import ThinkDrawer from './ThinkDrawer.vue'
 import ImageLightbox from './ImageLightbox.vue'
 
@@ -12,18 +12,6 @@ const { t } = useI18n()
 
 const props = withDefaults(defineProps<{ messages: StoredMessage[]; thinksUrlPrefix?: string | null }>(), { thinksUrlPrefix: null })
 
-function fmtTs(ts?: number) {
-  if (!ts) return ''
-  try {
-    const d = new Date(ts * 1000)
-    const now = new Date()
-    const pad = (n: number) => n.toString().padStart(2, '0')
-    const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`
-    if (d.toDateString() === now.toDateString()) return time
-    if (d.getFullYear() === now.getFullYear()) return `${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${time}`
-    return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${time}`
-  } catch { return '' }
-}
 
 function fmtDateSep(ts?: number) {
   if (!ts) return ''
@@ -50,48 +38,6 @@ function showDateSep(idx: number) {
   return new Date(msg.createdAt * 1000).toDateString() !== new Date(prev.createdAt * 1000).toDateString()
 }
 
-function toggleToolCall(el: HTMLElement) {
-  el.classList.toggle('expanded')
-  const detail = el.nextElementSibling as HTMLElement
-  if (detail) detail.classList.toggle('show')
-}
-
-type ContentPart = { type: 'html'; html: string } | { type: 'image'; src: string }
-
-function getContentParts(content: string | any[] | undefined | null): ContentPart[] {
-  if (!content) return []
-  if (!Array.isArray(content)) return [{ type: 'html', html: marked.parse(content) as string }]
-
-  const parts: ContentPart[] = []
-  let textBuf = ''
-
-  const flushText = () => {
-    if (textBuf) {
-      parts.push({ type: 'html', html: marked.parse(textBuf) as string })
-      textBuf = ''
-    }
-  }
-
-  for (const c of content) {
-    if (typeof c === 'string') {
-      textBuf += (textBuf ? '\n' : '') + c
-    } else if (c?.type === 'text') {
-      textBuf += (textBuf ? '\n' : '') + (c.text ?? '')
-    } else if (c?.type === 'image_url' && c.image_url?.url) {
-      flushText()
-      parts.push({ type: 'image', src: c.image_url.url })
-    } else if (c?.type === 'inlineData' && c.inlineData?.data) {
-      flushText()
-      parts.push({ type: 'image', src: `data:${c.inlineData.mimeType};base64,${c.inlineData.data}` })
-    }
-  }
-  flushText()
-  return parts
-}
-
-function renderMd(content: string | any[] | undefined | null): string {
-  return getContentParts(content).filter(p => p.type === 'html').map(p => (p as any).html).join('')
-}
 
 // ── Image lightbox ──
 const lightboxRef = ref<InstanceType<typeof ImageLightbox>>()
@@ -134,9 +80,9 @@ function openThink(thinkId: string) {
                 </div>
               </div>
               <template v-for="(part, pi) in getContentParts(msg.message.content)" :key="pi">
-                <div v-if="part.type === 'html'" class="md-content" v-html="part.html" />
-                <div v-else class="inline-image">
-                  <img :src="part.src" class="inline-image-thumb" @click="openLightbox(part.src)" />
+                <div v-if="part.type === 'text'" class="md-content" v-html="renderMd(part.text)" />
+                <div v-else-if="part.type === 'image'" class="inline-image">
+                  <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
                 </div>
               </template>
             </div>
@@ -154,9 +100,9 @@ function openThink(thinkId: string) {
                 </div>
               </div>
               <template v-for="(part, pi) in getContentParts(msg.message.content)" :key="pi">
-                <div v-if="part.type === 'html'" class="md-content" v-html="part.html" />
-                <div v-else class="inline-image">
-                  <img :src="part.src" class="inline-image-thumb" @click="openLightbox(part.src)" />
+                <div v-if="part.type === 'text'" class="md-content" v-html="renderMd(part.text)" />
+                <div v-else-if="part.type === 'image'" class="inline-image">
+                  <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
                 </div>
               </template>
             </div>
@@ -200,9 +146,9 @@ function openThink(thinkId: string) {
                 <span class="msg-role">Tool{{ msg.message.name ? ` · ${msg.message.name}` : '' }}</span>
               </div>
               <template v-for="(part, pi) in getContentParts(msg.message.content)" :key="pi">
-                <div v-if="part.type === 'html'" class="md-content" v-html="part.html" />
-                <div v-else class="inline-image">
-                  <img :src="part.src" class="inline-image-thumb" @click="openLightbox(part.src)" />
+                <div v-if="part.type === 'text'" class="md-content" v-html="renderMd(part.text)" />
+                <div v-else-if="part.type === 'image'" class="inline-image">
+                  <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
                 </div>
               </template>
             </div>
@@ -216,9 +162,9 @@ function openThink(thinkId: string) {
                 <span v-if="msg.createdAt" class="msg-time">{{ fmtTs(msg.createdAt) }}</span>
               </div>
               <template v-for="(part, pi) in getContentParts(msg.message.content)" :key="pi">
-                <div v-if="part.type === 'html'" class="md-content" v-html="part.html" />
-                <div v-else class="inline-image">
-                  <img :src="part.src" class="inline-image-thumb" @click="openLightbox(part.src)" />
+                <div v-if="part.type === 'text'" class="md-content" v-html="renderMd(part.text)" />
+                <div v-else-if="part.type === 'image'" class="inline-image">
+                  <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
                 </div>
               </template>
             </div>
