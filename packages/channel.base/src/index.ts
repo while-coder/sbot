@@ -14,4 +14,4 @@ export { GlobalLoggerService, type ILogger } from "scorpio.ai";
 export { MessageRole, NowDate, parseJson, AskQuestionType } from "scorpio.ai";
 export { ToolApproval } from "scorpio.ai";
 export type { ChatMessage, ChatToolCall, AskToolParams, MessageType, MessageContent } from "scorpio.ai";
-export { contentToString, isEmptyContent, readFileAsDataUrl } from "scorpio.ai";
+export { contentToString, isEmptyContent, readImageAsDataUrl } from "scorpio.ai";

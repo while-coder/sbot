@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import type {
-  GetUpdatesResp, SendMessageReq, SendTypingReq, GetConfigResp,
+  GetUpdatesResp, SendMessageReq,
   WechatCredentials, QRCodeResponse, QRStatusResponse,
   GetUploadUrlReq, GetUploadUrlResp,
 } from "./types";
@@ -28,13 +28,6 @@ export class WechatApiClient {
   private token: string;
 
   constructor(credentials: WechatCredentials) {
-    this.baseUrl = credentials.baseUrl.endsWith("/")
-      ? credentials.baseUrl
-      : `${credentials.baseUrl}/`;
-    this.token = credentials.botToken;
-  }
-
-  updateCredentials(credentials: WechatCredentials): void {
     this.baseUrl = credentials.baseUrl.endsWith("/")
       ? credentials.baseUrl
       : `${credentials.baseUrl}/`;
@@ -132,22 +125,6 @@ export class WechatApiClient {
 
   async sendMessage(req: SendMessageReq): Promise<void> {
     await this.post("ilink/bot/sendmessage", {
-      ...req,
-      base_info: { channel_version: CHANNEL_VERSION },
-    }, API_TIMEOUT_MS);
-  }
-
-  async getConfig(ilinkUserId: string, contextToken?: string): Promise<GetConfigResp> {
-    const raw = await this.post("ilink/bot/getconfig", {
-      ilink_user_id: ilinkUserId,
-      context_token: contextToken,
-      base_info: { channel_version: CHANNEL_VERSION },
-    }, API_TIMEOUT_MS);
-    return JSON.parse(raw);
-  }
-
-  async sendTyping(req: SendTypingReq): Promise<void> {
-    await this.post("ilink/bot/sendtyping", {
       ...req,
       base_info: { channel_version: CHANNEL_VERSION },
     }, API_TIMEOUT_MS);

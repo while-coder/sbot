@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import {
   IChannelService, ChannelSessionHandler, SessionService,
-  readFileAsDataUrl, isEmptyContent,
+  readImageAsDataUrl, isEmptyContent,
   type ChannelMessageArgs, type ILogger, type MessageContent,
 } from "channel.base";
 import { WechatApiClient } from "./WechatApiClient";
@@ -256,9 +256,9 @@ export class WechatService implements IChannelService {
     }
     try {
       const buffer = await this.api.downloadFromCDN(media.encrypt_query_param, media.aes_key);
-      const filePath = path.join(os.tmpdir(), `wechat_${messageId ?? Date.now()}_img.png`);
+      const filePath = path.join(os.tmpdir(), `wechat_${messageId ?? Date.now()}_img`);
       await fs.writeFile(filePath, buffer);
-      const dataUrl = await readFileAsDataUrl(filePath);
+      const dataUrl = await readImageAsDataUrl(filePath);
       return { type: 'image_url', image_url: { url: dataUrl } };
     } catch (e: any) {
       this.logger?.error(`Failed to download image: ${e.message}`);

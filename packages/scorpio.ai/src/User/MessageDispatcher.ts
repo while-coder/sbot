@@ -35,7 +35,7 @@ export abstract class MessageDispatcher {
             const queryText = typeof query === 'string' ? query : '[multimodal]';
             const messageType = typeof query === 'string' && query.trimStart().startsWith('/') ? MessageType.Command : MessageType.AI;
             const startLabel = await this.onProcessStart(query, args, messageType);
-            const logSuffix = startLabel != null ? ` (${startLabel})` : '';
+            const logSuffix = startLabel != null ? `(${startLabel})` : '';
             let error: any;
             try {
                 this.logger?.info(`开始处理[${logSuffix}]: ${queryText} (剩余队列: ${this.messageQueue.length})`);

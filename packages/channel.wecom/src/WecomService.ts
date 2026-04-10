@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { WSClient } from '@wecom/aibot-node-sdk';
 import type { WsFrame, TextMessage, VoiceMessage, FileMessage, ImageMessage, MixedMessage, SendMsgBody, EventMessageWith, TemplateCardEventData } from '@wecom/aibot-node-sdk';
-import { IChannelService, ChannelSessionHandler, SessionService, readFileAsDataUrl, isEmptyContent, type ChannelMessageArgs, type ILogger, type MessageContent } from 'channel.base';
+import { IChannelService, ChannelSessionHandler, SessionService, readImageAsDataUrl, isEmptyContent, type ChannelMessageArgs, type ILogger, type MessageContent } from 'channel.base';
 import { WecomSessionHandler } from './WecomSessionHandler';
 
 export interface WecomMessageArgs extends ChannelMessageArgs {
@@ -194,7 +194,7 @@ export class WecomService implements IChannelService {
     if (!await this.filterEvent(`wecom_message_${body.msgid}`)) return;
 
     const filePath = await this.downloadWecomFile(body.image.url, body.image.aeskey, body.msgid, '.png');
-    const dataUrl = await readFileAsDataUrl(filePath);
+    const dataUrl = await readImageAsDataUrl(filePath);
     const query: MessageContent = [{ type: 'image_url', image_url: { url: dataUrl } }];
     await this.onReceiveMessage(userId, {
       sessionId: chatid,
@@ -217,7 +217,7 @@ export class WecomService implements IChannelService {
         parts.push({ type: 'text', text: item.text.content });
       } else if (item.msgtype === 'image' && item.image?.url) {
         const filePath = await this.downloadWecomFile(item.image.url, item.image.aeskey, `${body.msgid}_${parts.length}`, '.png');
-        const dataUrl = await readFileAsDataUrl(filePath);
+        const dataUrl = await readImageAsDataUrl(filePath);
         parts.push({ type: 'image_url', image_url: { url: dataUrl } });
         hasImage = true;
       }

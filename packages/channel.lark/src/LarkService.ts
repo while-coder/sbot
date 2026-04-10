@@ -1,6 +1,6 @@
 import * as Lark from "@larksuiteoapi/node-sdk";
 import { LarkActionArgs, LarkMessageArgs, LarkSessionHandler } from "./LarkSessionHandler";
-import { IChannelService, ChannelSessionHandler, SessionService, NowDate, parseJson, readFileAsDataUrl, type ILogger, type MessageContent } from "channel.base";
+import { IChannelService, ChannelSessionHandler, SessionService, NowDate, parseJson, readImageAsDataUrl, type ILogger, type MessageContent } from "channel.base";
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
@@ -241,7 +241,7 @@ export class LarkService implements IChannelService {
         } else if (el.tag === 'img') {
           const filePath = path.join(os.tmpdir(), `lark_${el.image_key}`);
           await this.downloadMessageFile(messageId, el.image_key, 'image', filePath);
-          const dataUrl = await readFileAsDataUrl(filePath);
+          const dataUrl = await readImageAsDataUrl(filePath);
           parts.push({ type: 'image_url', image_url: { url: dataUrl } });
           hasImage = true;
         } else {
@@ -256,7 +256,7 @@ export class LarkService implements IChannelService {
   private async extractImageContent(messageId: string, msg: any): Promise<MessageContent> {
     const filePath = path.join(os.tmpdir(), `lark_${msg.image_key}`);
     await this.downloadMessageFile(messageId, msg.image_key, 'image', filePath);
-    const dataUrl = await readFileAsDataUrl(filePath);
+    const dataUrl = await readImageAsDataUrl(filePath);
     return [{ type: 'image_url', image_url: { url: dataUrl } }];
   }
 

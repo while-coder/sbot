@@ -298,4 +298,4 @@ export { MessageDispatcher, MessageType } from "./User";
 // ========================================
 // Utils - 工具函数
 // ========================================
-export { contentToString, isEmptyContent, readFileAsDataUrl } from "./Utils/contentUtils";
+export { contentToString, isEmptyContent, readImageAsDataUrl } from "./Utils/contentUtils";
