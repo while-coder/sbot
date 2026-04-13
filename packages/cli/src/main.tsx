@@ -8,19 +8,19 @@ process.on('unhandledRejection', (reason) => {
   process.stderr.write(`[sbot-cli] unhandled rejection: ${reason}\n`);
 });
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { render, useApp, Box, Text } from 'ink';
 import Spinner from 'ink-spinner';
-import { SbotClient, getServerBaseUrl, type SbotSettings, type SessionItem } from './api/sbotClient.js';
+import { SbotClient, type SbotSettings, type SessionItem } from './api/sbotClient.js';
 import { KeypressProvider } from './ui/contexts/KeypressContext.js';
+import { useKeypress, type Key } from './ui/hooks/useKeypress.js';
+import { ConnectionWizard, type ConnectionTarget } from './ui/components/ConnectionWizard.js';
 import { SessionPicker } from './ui/components/SessionPicker.js';
 import { CreateSessionWizard } from './ui/components/CreateSessionWizard.js';
 import { ChatView } from './ui/components/ChatView.js';
 import { theme } from './ui/colors.js';
 
-const BASE_URL = getServerBaseUrl();
-
-// ── Root bootstrap component ──────────────────────────────────────────────────
+// ── Boot component (now receives baseUrl + workPath) ────────────────────────
 
 type BootState =
   | { phase: 'loading' }
@@ -29,20 +29,24 @@ type BootState =
   | { phase: 'chat'; sessionId: string; agentName: string; saverName: string }
   | { phase: 'error'; message: string };
 
-function Boot() {
+interface BootProps {
+  baseUrl: string;
+  workPath: string;
+  onBack: () => void;
+}
+
+function Boot({ baseUrl, workPath, onBack }: BootProps) {
   const { exit } = useApp();
   const [state, setState] = useState<BootState>({ phase: 'loading' });
-  const client = useMemo(() => new SbotClient(BASE_URL), []);
+  const client = useMemo(() => new SbotClient(baseUrl), [baseUrl]);
 
-  // Run boot sequence on mount
   React.useEffect(() => {
     void (async () => {
-      // 1. Fetch settings (also serves as online check)
       let settings: SbotSettings;
       try {
         settings = await client.fetchSettings();
       } catch {
-        setState({ phase: 'error', message: `Cannot reach sbot at ${BASE_URL}. Is it running?` });
+        setState({ phase: 'error', message: `Cannot reach sbot at ${baseUrl}. Is it running?` });
         return;
       }
 
@@ -51,15 +55,13 @@ function Boot() {
         return;
       }
 
-      // 2. Fetch sessions for current directory
       let sessions: SessionItem[];
       try {
-        sessions = await client.fetchSessions(process.cwd());
+        sessions = await client.fetchSessions(workPath);
       } catch {
         sessions = [];
       }
 
-      // 3. Show session picker
       setState({ phase: 'session-pick', settings, sessions });
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -83,7 +85,7 @@ function Boot() {
     saverName: string,
   ) => {
     try {
-      const sessionId = await client.createSession(agentId, saverId, memoryIds, process.cwd());
+      const sessionId = await client.createSession(agentId, saverId, memoryIds, workPath);
       setState({ phase: 'chat', sessionId, agentName, saverName });
     } catch (e: any) {
       setState({ phase: 'error', message: `Failed to create session: ${e.message}` });
@@ -100,12 +102,7 @@ function Boot() {
   }
 
   if (state.phase === 'error') {
-    return (
-      <Box padding={1} flexDirection="column">
-        <Text color={theme.status.error}>✗ {state.message}</Text>
-        <Text color={theme.text.muted}>Run sbot first, then retry.</Text>
-      </Box>
-    );
+    return <BootError message={state.message} onBack={onBack} />;
   }
 
   if (state.phase === 'session-pick') {
@@ -136,11 +133,43 @@ function Boot() {
   return <ChatView client={client} sessionId={state.sessionId} agentName={state.agentName} saverName={state.saverName} onExit={exit} />;
 }
 
-// ── Entry point ───────────────────────────────────────────────────────────────
+// ── BootError: show error + Enter to go back ────────────────────────────────
+
+function BootError({ message, onBack }: { message: string; onBack: () => void }) {
+  const handleKeypress = useCallback(
+    (key: Key) => {
+      if (key.name === 'return') onBack();
+    },
+    [onBack],
+  );
+  useKeypress(handleKeypress, { isActive: true });
+
+  return (
+    <Box padding={1} flexDirection="column">
+      <Text color={theme.status.error}>✗ {message}</Text>
+      <Text color={theme.text.muted}>Press Enter to go back.</Text>
+    </Box>
+  );
+}
+
+// ── App: ConnectionWizard → Boot ────────────────────────────────────────────
+
+function App() {
+  const [target, setTarget] = useState<ConnectionTarget | null>(null);
+  const handleBack = useCallback(() => setTarget(null), []);
+
+  if (!target) {
+    return <ConnectionWizard onReady={setTarget} />;
+  }
+
+  return <Boot baseUrl={target.baseUrl} workPath={target.workPath} onBack={handleBack} />;
+}
+
+// ── Entry point ─────────────────────────────────────────────────────────────
 
 const { waitUntilExit } = render(
   <KeypressProvider>
-    <Boot />
+    <App />
   </KeypressProvider>,
   { exitOnCtrlC: false },
 );
