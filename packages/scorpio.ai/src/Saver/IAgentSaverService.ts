@@ -1,5 +1,11 @@
 // ─── Neutral message types (no LangChain dependency) ────────────────────────
 
+export interface TokenUsage {
+    input_tokens: number;
+    output_tokens: number;
+    total_tokens: number;
+}
+
 export enum MessageRole {
     Human  = 'human',
     AI     = 'ai',
@@ -36,6 +42,8 @@ export interface ChatMessage {
     /** 消息唯一 ID */
     id?: string;
     additional_kwargs?: Record<string, any>;
+    /** 模型返回的 token 用量（仅 AI 消息，不持久化） */
+    usage?: TokenUsage;
     /** 标记为 Command 结果（指令型回调，不保存至历史） */
     isCommand?: boolean;
 }

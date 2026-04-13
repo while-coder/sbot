@@ -22,6 +22,7 @@ export default {
     app_title: 'SBot 设置',
     reload: '重载配置',
     reload_success: '配置已重载',
+    token_usage: 'Token 消耗',
   },
   common: {
     save: '保存',
@@ -514,6 +515,17 @@ export default {
     title: '新建会话',
     error_agent: '请选择 Agent',
     error_saver: '请选择存储',
+  },
+  usage: {
+    title: 'Token 用量统计',
+    date: '日期',
+    input_tokens: '输入',
+    output_tokens: '输出',
+    total_tokens: '合计',
+    no_data: '暂无数据',
+    last: '最近',
+    total: '累计',
+    tokens: 'tokens',
   },
   mcp_schema: {
     no_params: '无参数',

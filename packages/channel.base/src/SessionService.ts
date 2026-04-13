@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { ChatToolCall, AskResponse, AskToolParams, ICancellationToken, ToolApproval, MessageDispatcher, type MessageContent } from "scorpio.ai";
+import { ChatToolCall, AskResponse, AskToolParams, ICancellationToken, ToolApproval, MessageDispatcher, type MessageContent, type TokenUsage } from "scorpio.ai";
 
 export class CancellationTokenSource implements ICancellationToken {
     private _isCancelled = false;
@@ -71,6 +71,8 @@ export abstract class SessionService extends MessageDispatcher {
     status: SessionStatus;
     source: CancellationTokenSource;
     settings: SessionSettings = {};
+    /** 本 session 累计 token 用量 */
+    usage: TokenUsage = { input_tokens: 0, output_tokens: 0, total_tokens: 0 };
     private settingsPath?: string;
     private pending: PendingEntry | null = null;
 
@@ -91,6 +93,14 @@ export abstract class SessionService extends MessageDispatcher {
             fs.mkdirSync(path.dirname(this.settingsPath), { recursive: true });
             fs.writeFileSync(this.settingsPath, JSON.stringify(this.settings, null, 2), 'utf-8');
         }
+    }
+
+    // ── Usage ──
+
+    recordUsage(usage: TokenUsage): void {
+        this.usage.input_tokens += usage.input_tokens;
+        this.usage.output_tokens += usage.output_tokens;
+        this.usage.total_tokens += usage.total_tokens;
     }
 
     // ── Status ──

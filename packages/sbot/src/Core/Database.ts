@@ -65,6 +65,12 @@ export type ChannelSessionRow = {
   memories: string | null;      // Memory UUID 列表（JSON 字符串，使用 parseMemories() 解析）
   useChannelMemories: boolean;  // 是否使用渠道级记忆
   workPath: string | null;      // 工作目录路径
+  inputTokens: number;          // 累计输入 token
+  outputTokens: number;         // 累计输出 token
+  totalTokens: number;          // 累计总 token
+  lastInputTokens: number;      // 最后一次输入 token
+  lastOutputTokens: number;     // 最后一次输出 token
+  lastTotalTokens: number;      // 最后一次总 token
 };
 
 export type SessionRow = {
@@ -74,8 +80,27 @@ export type SessionRow = {
   saver: string;       // Saver UUID
   memories: string | null;  // JSON array of memory UUIDs
   workPath: string | null;
+  inputTokens: number;       // 累计输入 token
+  outputTokens: number;      // 累计输出 token
+  totalTokens: number;       // 累计总 token
+  lastInputTokens: number;   // 最后一次输入 token
+  lastOutputTokens: number;  // 最后一次输出 token
+  lastTotalTokens: number;   // 最后一次总 token
   createdAt: number;   // timestamp ms
   updatedAt: number;   // timestamp ms
+};
+
+export type UsageStatsRow = {
+  id: number;
+  date: string;           // 日期，如 "2026-04-13"
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+};
+
+export type ThreadUsage = {
+  inputTokens: number; outputTokens: number; totalTokens: number;
+  lastInputTokens: number; lastOutputTokens: number; lastTotalTokens: number;
 };
 
 /** 解析 DB 中存储的 memories 字段（JSON 字符串 → string[]） */
@@ -104,6 +129,7 @@ class Database {
   public channelSession!: ModelStatic<any>;
   public scheduler!: ModelStatic<any>;
   public session!: ModelStatic<any>;
+  public usageStats!: ModelStatic<any>;
 
   async init() {
     this.running = false;
@@ -287,6 +313,42 @@ class Database {
           defaultValue: null,
           comment: "工作目录路径",
         },
+        inputTokens: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
+          comment: "累计输入 token 数",
+        },
+        outputTokens: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
+          comment: "累计输出 token 数",
+        },
+        totalTokens: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
+          comment: "累计总 token 数",
+        },
+        lastInputTokens: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
+          comment: "最后一次输入 token 数",
+        },
+        lastOutputTokens: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
+          comment: "最后一次输出 token 数",
+        },
+        lastTotalTokens: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
+          comment: "最后一次总 token 数",
+        },
       },
       {
         tableName: "channel_session",
@@ -330,6 +392,42 @@ class Database {
           allowNull: true,
           defaultValue: null,
           comment: "工作目录路径",
+        },
+        inputTokens: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
+          comment: "累计输入 token 数",
+        },
+        outputTokens: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
+          comment: "累计输出 token 数",
+        },
+        totalTokens: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
+          comment: "累计总 token 数",
+        },
+        lastInputTokens: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
+          comment: "最后一次输入 token 数",
+        },
+        lastOutputTokens: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
+          comment: "最后一次输出 token 数",
+        },
+        lastTotalTokens: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
+          comment: "最后一次总 token 数",
         },
         createdAt: {
           type: DataTypes.BIGINT,
@@ -420,6 +518,47 @@ class Database {
       },
     );
 
+    this.usageStats = sequelize.define(
+      "usage_stats",
+      {
+        id: {
+          type: DataTypes.INTEGER,
+          primaryKey: true,
+          autoIncrement: true,
+          comment: "自增ID",
+        },
+        date: {
+          type: DataTypes.STRING(10),
+          allowNull: false,
+          unique: true,
+          comment: "日期，如 2026-04-13",
+        },
+        inputTokens: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
+          comment: "输入 token 数",
+        },
+        outputTokens: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
+          comment: "输出 token 数",
+        },
+        totalTokens: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
+          comment: "总 token 数",
+        },
+      },
+      {
+        tableName: "usage_stats",
+        timestamps: false,
+        comment: "每日 Token 用量统计表",
+      },
+    );
+
     await this.sync();
   }
 
@@ -466,6 +605,7 @@ class Database {
       await this.channelSession.sync({ alter });
       await this.session.sync({ alter });
       await this.scheduler.sync({ alter });
+      await this.usageStats.sync({ alter });
 
       await this.state.update({ value: DBVersion }, { where: { key: DBVersionName } });
       logger.info("Database schema sync completed");
@@ -516,6 +656,28 @@ class Database {
 
   async query(sql: string, options?: any) {
     return this.withLock(() => this.sequelize.query(sql, options));
+  }
+
+  /** 批量加载 token 用量：sessions 按主键查 session 表，channels 按 channelId+sessionId 查 channel_session 表 */
+  async loadThreadUsages(channelThreadIds: string[], sessionIds: string[]): Promise<Record<string, ThreadUsage>> {
+    const result: Record<string, ThreadUsage> = {};
+    const pick = (r: any): ThreadUsage => ({
+      inputTokens: r.inputTokens, outputTokens: r.outputTokens, totalTokens: r.totalTokens,
+      lastInputTokens: r.lastInputTokens, lastOutputTokens: r.lastOutputTokens, lastTotalTokens: r.lastTotalTokens,
+    });
+    for (const sid of sessionIds) {
+      const row = await this.findByPk<SessionRow>(this.session, sid);
+      if (row) result[sid] = pick(row);
+    }
+    for (const tid of channelThreadIds) {
+      const parts = tid.split('_');
+      if (parts.length < 3) continue;
+      const sessionId = parts[parts.length - 1];
+      const channelId = parts.slice(1, -1).join('_');
+      const row = await this.findOne<ChannelSessionRow>(this.channelSession, { where: { channelId, sessionId } });
+      if (row) result[tid] = pick(row);
+    }
+    return result;
   }
 }
 export const database = new Database();

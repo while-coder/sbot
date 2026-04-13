@@ -1,6 +1,6 @@
 import { ServiceContainer } from "scorpio.di";
 import { IMemoryService } from "../Memory";
-import { IAgentSaverService, AgentMemorySaver, ChatMessage, ChatToolCall, MessageRole, type MessageContent } from "../Saver";
+import { IAgentSaverService, AgentMemorySaver, ChatMessage, ChatToolCall, MessageRole, type MessageContent, type TokenUsage } from "../Saver";
 import { ILoggerService, ILogger } from "../Logger";
 
 
@@ -10,7 +10,7 @@ export const MAX_HISTORY_TOKENS = 150_000;
 // 公共类型定义
 // ─────────────────────────────────────────────────────────────────────────────
 
-export { ChatMessage, ChatToolCall, MessageRole };
+export { ChatMessage, ChatToolCall, MessageRole, type TokenUsage };
 
 export enum GraphNodeType {
     AGENT = "agent",
@@ -49,7 +49,10 @@ export interface IAgentCallback {
      */
     executeTool?(toolCall: ChatToolCall): Promise<ToolApproval>;
 
-
+    /**
+     * 每次模型调用后报告 token 用量
+     */
+    onUsage?(usage: TokenUsage): Promise<void>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -55,8 +55,8 @@ function open(id: string, name: string, thread: string) {
   saverName.value = name
   threadId.value  = thread
   sessionId.value = ''
-  messages.value = []
-  visible.value  = true
+  messages.value  = []
+  visible.value   = true
   load()
 }
 
@@ -65,8 +65,8 @@ function openSession(sid: string, name: string) {
   saverName.value = name
   threadId.value  = ''
   sessionId.value = sid
-  messages.value = []
-  visible.value  = true
+  messages.value  = []
+  visible.value   = true
   load()
 }
 

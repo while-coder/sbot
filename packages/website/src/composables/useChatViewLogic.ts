@@ -6,7 +6,7 @@ import { useChatSocket } from '@/composables/useChatSocket'
 import { useI18n } from 'vue-i18n'
 import ChatArea from '@/components/ChatArea.vue'
 import type { ContentPart } from '@/components/RichInput.vue'
-import type { WebChatEvent } from 'sbot.commons'
+import { WebChatEventType, type WebChatEvent } from 'sbot.commons'
 
 interface Attachment {
   name: string
@@ -22,6 +22,8 @@ interface ChatViewLogicOptions {
   buildSendPayload: (parts: ContentPart[], sessionId: string, fileAtts?: Attachment[]) => Record<string, any>
   /** Build the session-status API query string */
   sessionStatusQuery: (activeId: string) => string
+  /** Called when an AI response round completes (Done event) */
+  onDone?: () => void
 }
 
 export function useChatViewLogic(options: ChatViewLogicOptions) {
@@ -46,6 +48,7 @@ export function useChatViewLogic(options: ChatViewLogicOptions) {
     const expected = options.sessionId()
     if (evt.sessionId && evt.sessionId !== expected) return
     await chatAreaRef.value?.handleWsEvent(evt)
+    if (evt.type === WebChatEventType.Done) options.onDone?.()
   }
 
   // ── WS reconnect ──

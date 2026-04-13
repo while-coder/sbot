@@ -78,6 +78,28 @@ async function reloadConfig() {
   }
 }
 
+// ── Token Usage ──
+const showUsageModal = ref(false)
+const usageStats = ref<{ date: string; inputTokens: number; outputTokens: number; totalTokens: number }[]>([])
+const usageLoading = ref(false)
+
+async function openUsageModal() {
+  showUsageModal.value = true
+  usageLoading.value = true
+  try {
+    const res = await apiFetch('/api/usage-stats')
+    usageStats.value = res.data || []
+  } catch (e: any) {
+    show(e.message, 'error')
+  } finally {
+    usageLoading.value = false
+  }
+}
+
+function formatNumber(n: number): string {
+  return n.toLocaleString()
+}
+
 const hasUpdate = ref(false)
 
 
@@ -124,7 +146,10 @@ init()
         <button v-if="isMobile" class="hamburger-btn" @click="sidebarOpen = !sidebarOpen">&#9776;</button>
         <div class="topbar-title">{{ t('nav.app_title') }}</div>
       </div>
-      <button class="btn-outline btn-sm" @click="reloadConfig">{{ t('nav.reload') }}</button>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="btn-outline btn-sm" @click="openUsageModal">{{ t('nav.token_usage') }}</button>
+        <button class="btn-outline btn-sm" @click="reloadConfig">{{ t('nav.reload') }}</button>
+      </div>
     </div>
     <div class="app-body">
       <div v-if="isMobile && sidebarOpen" class="sidebar-overlay" @click="sidebarOpen = false"></div>
@@ -145,6 +170,38 @@ init()
       </div>
       <div class="main-content">
         <RouterView />
+      </div>
+    </div>
+
+    <!-- Token Usage Modal -->
+    <div v-if="showUsageModal" class="modal-overlay" @click.self="showUsageModal = false">
+      <div class="modal-box" style="width:520px">
+        <div class="modal-header">
+          <h3>{{ t('usage.title') }}</h3>
+          <button class="modal-close" @click="showUsageModal = false">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div v-if="usageLoading" style="text-align:center;padding:24px;color:#94a3b8">{{ t('common.loading') }}</div>
+          <div v-else-if="usageStats.length === 0" style="text-align:center;padding:24px;color:#94a3b8">{{ t('usage.no_data') }}</div>
+          <table v-else class="usage-table">
+            <thead>
+              <tr>
+                <th>{{ t('usage.date') }}</th>
+                <th style="text-align:right">{{ t('usage.input_tokens') }}</th>
+                <th style="text-align:right">{{ t('usage.output_tokens') }}</th>
+                <th style="text-align:right">{{ t('usage.total_tokens') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in usageStats" :key="row.date">
+                <td>{{ row.date }}</td>
+                <td style="text-align:right">{{ formatNumber(row.inputTokens) }}</td>
+                <td style="text-align:right">{{ formatNumber(row.outputTokens) }}</td>
+                <td style="text-align:right;font-weight:600">{{ formatNumber(row.totalTokens) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
@@ -1042,5 +1099,23 @@ table tr:hover td { background: #fafaf9; }
     padding: 3px 8px;
     font-size: 12px;
   }
+}
+
+.usage-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.usage-table th {
+  padding: 6px 10px;
+  font-weight: 600;
+  color: #64748b;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 12px;
+}
+.usage-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid #f1f5f9;
+  font-variant-numeric: tabular-nums;
 }
 </style>

@@ -44,6 +44,7 @@ const { chatAreaRef, agentOptions, saverOptions, memoryOptions, sendOne, fetchAn
     attachments: fileAtts?.length ? fileAtts : undefined,
   }),
   sessionStatusQuery: (id) => `sessionId=${encodeURIComponent(id)}`,
+  onDone: () => loadSessionUsage(activeSessionId.value),
 })
 
 const effectiveAgent  = computed(() => activeSessionId.value ? sessions.value[activeSessionId.value]?.agent  : undefined)
@@ -125,7 +126,29 @@ async function onPanelSend(parts: any[], fileAtts: { name: string; type: string;
   await sendOne(parts, fileAtts)
 }
 
-watch(activeSessionId, (id) => fetchAndRestoreSessionStatus(id))
+// ── Token usage ──
+interface ThreadUsage {
+  inputTokens: number; outputTokens: number; totalTokens: number
+  lastInputTokens: number; lastOutputTokens: number; lastTotalTokens: number
+}
+const sessionUsage = ref<ThreadUsage | null>(null)
+
+async function loadSessionUsage(id: string | null) {
+  if (!id) { sessionUsage.value = null; return }
+  try {
+    const res = await apiFetch(`/api/thread-usage?sessions=${encodeURIComponent(id)}`)
+    sessionUsage.value = res.data?.[id] ?? null
+  } catch { sessionUsage.value = null }
+}
+
+function formatNumber(n: number): string {
+  return n.toLocaleString()
+}
+
+watch(activeSessionId, (id) => {
+  fetchAndRestoreSessionStatus(id)
+  loadSessionUsage(id)
+})
 
 onMounted(() => {
   const ids = Object.keys(sessions.value)
@@ -242,7 +265,8 @@ onMounted(() => {
           </template>
         </template>
         <span v-else style="font-size:13px;color:#94a3b8">{{ t('chat.select_or_create') }}</span>
-        <button class="btn-outline btn-sm" style="margin-left:auto" @click="chatAreaRef?.refreshHistory()">{{ t('common.refresh') }}</button>
+        <span v-if="sessionUsage && sessionUsage.lastTotalTokens > 0" class="usage-chip" :title="`${t('usage.total')}: ${formatNumber(sessionUsage.totalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatNumber(sessionUsage.inputTokens)} / ${t('usage.output_tokens')}: ${formatNumber(sessionUsage.outputTokens)}\n${t('usage.last')}: ${formatNumber(sessionUsage.lastTotalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatNumber(sessionUsage.lastInputTokens)} / ${t('usage.output_tokens')}: ${formatNumber(sessionUsage.lastOutputTokens)}`" style="margin-left:auto">{{ formatNumber(sessionUsage.lastInputTokens) }} + {{ formatNumber(sessionUsage.lastOutputTokens) }} = {{ formatNumber(sessionUsage.lastTotalTokens) }}</span>
+        <button class="btn-outline btn-sm" :style="sessionUsage && sessionUsage.lastTotalTokens > 0 ? '' : 'margin-left:auto'" @click="() => { chatAreaRef?.refreshHistory(); loadSessionUsage(activeSessionId) }">{{ t('common.refresh') }}</button>
         <button class="btn-danger btn-sm" :disabled="!effectiveSaver" @click="chatAreaRef?.clearHistory()">{{ t('chat.clear_history') }}</button>
       </div>
 
@@ -342,6 +366,16 @@ onMounted(() => {
 .chat-session-panel-mobile {
   width: 100% !important;
   border-right: none !important;
+}
+.usage-chip {
+  font-size: 11px;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: default;
 }
 @media (max-width: 768px) {
   .chat-toolbar-mobile {

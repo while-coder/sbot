@@ -14,6 +14,7 @@ const agentToolHelpers: ChannelToolHelpers = {
 };
 
 function runAgent(query: MessageContent, args: any, userService: any, agentId: string, saverId: string, schedulerType: SchedulerType, schedulerId: string, memories: string[], workPath?: string): Promise<void> {
+    const threadId = userService.session.threadId;
     return AgentRunner.run({
         query,
         callbacks: {
@@ -24,10 +25,39 @@ function runAgent(query: MessageContent, args: any, userService: any, agentId: s
                 agentId,
                 (tc) => userService.executeApproval(tc),
             ),
+            onUsage: async (usage) => {
+                userService.session.recordUsage(usage);
+                const today = new Date().toISOString().slice(0, 10);
+                const [, created] = await database.findOrCreate(database.usageStats, {
+                    where: { date: today },
+                    defaults: { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens, totalTokens: usage.total_tokens },
+                });
+                if (!created) {
+                    await database.update(database.usageStats, {
+                        inputTokens: database.sequelize.literal(`inputTokens + ${usage.input_tokens}`),
+                        outputTokens: database.sequelize.literal(`outputTokens + ${usage.output_tokens}`),
+                        totalTokens: database.sequelize.literal(`totalTokens + ${usage.total_tokens}`),
+                    }, { where: { date: today } });
+                }
+                // 增量更新 session 行的累计 token + last token
+                const tokenUpdate = {
+                    inputTokens: database.sequelize.literal(`inputTokens + ${usage.input_tokens}`),
+                    outputTokens: database.sequelize.literal(`outputTokens + ${usage.output_tokens}`),
+                    totalTokens: database.sequelize.literal(`totalTokens + ${usage.total_tokens}`),
+                    lastInputTokens: usage.input_tokens,
+                    lastOutputTokens: usage.output_tokens,
+                    lastTotalTokens: usage.total_tokens,
+                };
+                if (schedulerType === SchedulerType.Channel) {
+                    await database.update(database.channelSession, tokenUpdate, { where: { id: Number(schedulerId) } });
+                } else {
+                    await database.update(database.session, tokenUpdate, { where: { id: schedulerId } });
+                }
+            },
         },
         agentId,
         saverId,
-        threadId: userService.session.threadId,
+        threadId,
         scheduler: { schedulerType, schedulerId },
         extraInfo: args?.extraInfo ?? '',
         memories,

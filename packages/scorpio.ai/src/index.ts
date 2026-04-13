@@ -147,6 +147,7 @@ export {
   type StoredMessage,
   type ChatToolCall,
   type MessageContent,
+  type TokenUsage,
 
   // 实现类
   AgentMemorySaver,

@@ -8,7 +8,7 @@ import { IAgentSaverService } from "../../Saver";
 import { IAgentToolService } from "../../AgentTool";
 import { ILoggerService } from "../../Logger";
 import { normalizeToMCPResult, MCPContentType, type MCPToolResult } from '../../Tools';
-import { AgentServiceBase, GraphNodeType, ToolApproval, IAgentCallback, ICancellationToken, AgentCancelledError, MAX_HISTORY_TOKENS, ChatMessage, MessageRole } from "../AgentServiceBase";
+import { AgentServiceBase, GraphNodeType, ToolApproval, IAgentCallback, ICancellationToken, AgentCancelledError, MAX_HISTORY_TOKENS, ChatMessage, MessageRole, type TokenUsage } from "../AgentServiceBase";
 import type { MessageContent } from "../../Saver/IAgentSaverService";
 import { contentToString } from "../../Utils/contentUtils";
 
@@ -21,6 +21,7 @@ export {
     IAgentCallback,
     ICancellationToken,
     AgentCancelledError,
+    type TokenUsage,
 } from "../AgentServiceBase";
 
 type SingleAgentState = {
@@ -145,6 +146,16 @@ export class SingleAgentService extends AgentServiceBase {
         // 流结束后发送最终状态，确保最后的数据不丢失
         await emitStream();
         if (!lastChunk) return { messages: [] };
+
+        // 报告本次模型调用的 token 用量，然后剥离（不持久化到 saver 消息历史）
+        if (lastChunk.usage) {
+            this.logger?.info(
+                `Token usage: input=${lastChunk.usage.input_tokens} output=${lastChunk.usage.output_tokens} total=${lastChunk.usage.total_tokens}`
+            );
+            await callback?.onUsage?.(lastChunk.usage);
+            delete lastChunk.usage;
+        }
+
         return { messages: [lastChunk] };
     }
 

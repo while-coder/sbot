@@ -4,7 +4,7 @@
  */
 
 // ===== 接口 + Symbol Token + 中性类型 =====
-export { IAgentSaverService, MessageRole, type StoredMessage, type ChatMessage, type ChatToolCall, type ChatMessageOptions, type MessageContent } from "./IAgentSaverService";
+export { IAgentSaverService, MessageRole, type StoredMessage, type ChatMessage, type ChatToolCall, type ChatMessageOptions, type MessageContent, type TokenUsage } from "./IAgentSaverService";
 
 // ===== LangChain 转换（仅在 Agent 执行层需要） =====
 export { toChatMessage, toBaseMessage, toBaseMessages } from "./messageConverter";

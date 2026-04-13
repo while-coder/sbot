@@ -28,6 +28,12 @@ interface ChannelSessionRow {
   memories: string[]
   useChannelMemories: boolean
   workPath: string | null
+  inputTokens: number
+  outputTokens: number
+  totalTokens: number
+  lastInputTokens: number
+  lastOutputTokens: number
+  lastTotalTokens: number
 }
 
 interface UserRow {
@@ -109,6 +115,10 @@ async function saveSession() {
   } catch (e: any) {
     show(e.message, 'error')
   }
+}
+
+function formatTokens(n: number): string {
+  return n.toLocaleString()
 }
 
 function threadId(channelId: string, c: any, sessionId: string): string {
@@ -393,6 +403,7 @@ async function refresh() {
                             <th>{{ t('common.memory') }}</th>
                             <th>{{ t('channels.use_channel_memories') }}</th>
                             <th>{{ t('directory.path_label') }}</th>
+                            <th>Tokens</th>
                             <th>{{ t('common.ops') }}</th>
                           </tr>
                         </thead>
@@ -410,6 +421,10 @@ async function refresh() {
                               <span v-else style="color:#94a3b8">-</span>
                             </td>
                             <td style="font-family:monospace;font-size:11px;color:#6b7280;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" :title="s.workPath || ''">{{ s.workPath || '-' }}</td>
+                            <td style="font-family:monospace;font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap" :title="s.totalTokens > 0 ? `${t('usage.total')}: ${formatTokens(s.totalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatTokens(s.inputTokens)} / ${t('usage.output_tokens')}: ${formatTokens(s.outputTokens)}` + (s.lastTotalTokens > 0 ? `\n${t('usage.last')}: ${formatTokens(s.lastTotalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatTokens(s.lastInputTokens)} / ${t('usage.output_tokens')}: ${formatTokens(s.lastOutputTokens)}` : '') : ''">
+                              <template v-if="s.totalTokens > 0">{{ formatTokens(s.totalTokens) }}</template>
+                              <template v-else>-</template>
+                            </td>
                             <td>
                               <div class="ops-cell">
                                 <button v-if="c.saver" class="btn-outline btn-sm" @click="saverViewModal?.open(c.saver, saverOptions.find(o => o.id === c.saver)?.label || c.saver, threadId(id as string, c, s.sessionId))">{{ t('channels.history') }}</button>
@@ -496,6 +511,8 @@ async function refresh() {
                   <span class="mobile-card-value">{{ agentOptions.find(a => a.id === s.agentId)?.label || s.agentId || '-' }}</span>
                   <span class="mobile-card-label">{{ t('common.memory') }}</span>
                   <span class="mobile-card-value">{{ Array.isArray(s.memories) && s.memories.length ? s.memories.map(mid => memoryOptions.find(m => m.id === mid)?.label || mid).join(', ') : '-' }}</span>
+                  <span class="mobile-card-label">Tokens</span>
+                  <span class="mobile-card-value" style="font-family:monospace;font-variant-numeric:tabular-nums" :title="s.totalTokens > 0 ? `${t('usage.total')}: ${formatTokens(s.totalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatTokens(s.inputTokens)} / ${t('usage.output_tokens')}: ${formatTokens(s.outputTokens)}` + (s.lastTotalTokens > 0 ? `\n${t('usage.last')}: ${formatTokens(s.lastTotalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatTokens(s.lastInputTokens)} / ${t('usage.output_tokens')}: ${formatTokens(s.lastOutputTokens)}` : '') : ''">{{ s.totalTokens > 0 ? formatTokens(s.totalTokens) : '-' }}</span>
                 </div>
                 <div class="mobile-card-ops">
                   <button class="btn-outline btn-sm" @click="openEditSession(s)">{{ t('common.edit') }}</button>

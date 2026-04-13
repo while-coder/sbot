@@ -12,12 +12,18 @@ export function toChatMessage(message: BaseMessage): ChatMessage {
     const name = message.constructor.name;
 
     if (name === 'AIMessage' || name === 'AIMessageChunk') {
+        const usage = m.usage_metadata;
         return {
             role: MessageRole.AI,
             content: m.content,
             tool_calls: m.tool_calls,
             additional_kwargs: m.additional_kwargs,
             id: m.id,
+            usage: usage ? {
+                input_tokens: usage.input_tokens ?? 0,
+                output_tokens: usage.output_tokens ?? 0,
+                total_tokens: usage.total_tokens ?? 0,
+            } : undefined,
         };
     }
 

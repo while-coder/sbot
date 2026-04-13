@@ -22,6 +22,7 @@ export default {
     app_title: 'SBot Settings',
     reload: 'Reload Config',
     reload_success: 'Configuration reloaded',
+    token_usage: 'Token Usage',
   },
   common: {
     save: 'Save',
@@ -514,6 +515,17 @@ export default {
     title: 'New Session',
     error_agent: 'Please select an Agent',
     error_saver: 'Please select Storage',
+  },
+  usage: {
+    title: 'Token Usage Stats',
+    date: 'Date',
+    input_tokens: 'Input',
+    output_tokens: 'Output',
+    total_tokens: 'Total',
+    no_data: 'No data',
+    last: 'Last',
+    total: 'Cumulative',
+    tokens: 'tokens',
   },
   mcp_schema: {
     no_params: 'No parameters',

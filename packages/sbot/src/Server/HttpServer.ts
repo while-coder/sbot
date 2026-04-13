@@ -315,6 +315,18 @@ class HttpServer {
             refreshGlobalAgentToolService();
             return { message: 'Config reloaded' };
         }));
+
+        // 每日 token 用量（最近 30 天）
+        app.get('/api/usage-stats', api(async () => {
+            return database.findAll(database.usageStats, { order: [['date', 'DESC']], limit: 30 });
+        }));
+
+        // 按 threadId / sessionId 查询 token 用量
+        app.get('/api/thread-usage', api(async req => {
+            const threads = (req.query.threads as string || '').split(',').filter(Boolean);
+            const sessions = (req.query.sessions as string || '').split(',').filter(Boolean);
+            return database.loadThreadUsages(threads, sessions);
+        }));
     }
 
     // ===== Settings =====
