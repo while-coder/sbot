@@ -3,15 +3,14 @@ import { Box, Text } from 'ink';
 import { theme } from '../colors.js';
 import { ToolCallItem } from './ToolCallItem.js';
 import { MarkdownText } from './MarkdownText.js';
-import type { HistoryItem } from '../types.js';
+import type { HistoryItem as HistoryItemType } from '../types.js';
 
-interface MessageItemProps {
-  item: HistoryItem;
-  isInputActive: boolean;
+interface HistoryItemProps {
+  item: HistoryItemType;
   toolCallsExpanded: boolean;
 }
 
-export const MessageItem: React.FC<MessageItemProps> = ({ item, isInputActive, toolCallsExpanded }) => {
+export const HistoryItem: React.FC<HistoryItemProps> = ({ item, toolCallsExpanded }) => {
   switch (item.type) {
     case 'user':
       return (

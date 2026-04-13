@@ -9,15 +9,14 @@ process.on('unhandledRejection', (reason) => {
 });
 
 import React, { useState, useMemo } from 'react';
-import { render, Box, Text } from 'ink';
+import { render, useApp, Box, Text } from 'ink';
 import Spinner from 'ink-spinner';
 import { SbotClient, getServerBaseUrl, type SbotSettings, type SessionItem } from './api/sbotClient.js';
 import { KeypressProvider } from './ui/contexts/KeypressContext.js';
 import { SessionPicker } from './ui/components/SessionPicker.js';
 import { CreateSessionWizard } from './ui/components/CreateSessionWizard.js';
-import { App } from './ui/App.js';
+import { ChatView } from './ui/components/ChatView.js';
 import { theme } from './ui/colors.js';
-import { setInkClear } from './ui/inkInstance.js';
 
 const BASE_URL = getServerBaseUrl();
 
@@ -31,6 +30,7 @@ type BootState =
   | { phase: 'error'; message: string };
 
 function Boot() {
+  const { exit } = useApp();
   const [state, setState] = useState<BootState>({ phase: 'loading' });
   const client = useMemo(() => new SbotClient(BASE_URL), []);
 
@@ -133,43 +133,17 @@ function Boot() {
   }
 
   // phase === 'chat'
-  return <App client={client} sessionId={state.sessionId} agentName={state.agentName} saverName={state.saverName} />;
+  return <ChatView client={client} sessionId={state.sessionId} agentName={state.agentName} saverName={state.saverName} onExit={exit} />;
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
-console.log('[sbot-cli] starting...');
-const { waitUntilExit, clear } = render(
+const { waitUntilExit } = render(
   <KeypressProvider>
     <Boot />
   </KeypressProvider>,
+  { exitOnCtrlC: false },
 );
-
-// Share clear() with React components (for Ctrl+L, Tab toggle, etc.)
-setInkClear(clear);
-
-// Throttled resize handler — clears immediately on first event, then suppresses
-// rapid-fire events while dragging the terminal edge to prevent flicker.
-// Trailing flush ensures the final size gets a clean repaint.
-let resizeLast = 0;
-let resizeTrailing: ReturnType<typeof setTimeout> | undefined;
-const doResizeClear = () => {
-  resizeLast = Date.now();
-  clear();                                // reset log-update previousLineCount
-  process.stdout.write('\x1b[2J\x1b[H'); // clear screen + cursor home (preserve scrollback)
-};
-process.stdout.prependListener('resize', () => {
-  const now = Date.now();
-  if (resizeTrailing) clearTimeout(resizeTrailing);
-  if (now - resizeLast >= 80) {
-    doResizeClear();
-  }
-  // Always schedule a trailing flush so the final resize gets a clean repaint
-  resizeTrailing = setTimeout(() => {
-    resizeTrailing = undefined;
-    doResizeClear();
-  }, 80);
-});
 
 waitUntilExit().then(() => process.exit(0)).catch((err) => {
   process.stderr.write(`[sbot-cli] fatal: ${err?.message ?? err}\n`);

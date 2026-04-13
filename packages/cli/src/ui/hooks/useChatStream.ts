@@ -4,10 +4,11 @@ import { WsCommandType, WebChatEventType } from 'sbot.commons';
 import type { SbotClient, ChatSession } from '../../api/sbotClient.js';
 import type { HistoryItem, PendingApproval, PendingAsk } from '../types.js';
 import { StreamingState } from '../types.js';
+import { findSafeSplitPoint, shouldSplit } from '../utils/markdownSplit.js';
 
-export interface UseChatReturn {
+export interface UseChatStreamReturn {
   history: HistoryItem[];
-  streamingContent: string;
+  pendingContent: string;
   streamingState: StreamingState;
   pendingApproval: PendingApproval | null;
   pendingAsk: PendingAsk | null;
@@ -15,7 +16,6 @@ export interface UseChatReturn {
   resolveApproval: (approval: string) => void;
   resolveAsk: (answers: Record<string, string | string[]>) => void;
   cancelRequest: () => void;
-  clearHistory: () => void;
 }
 
 /** Extract plain text from content that may be a string or an array of content blocks */
@@ -29,24 +29,31 @@ function extractText(content: unknown): string {
   return '';
 }
 
-export function useChat(
+export function useChatStream(
   client: SbotClient,
   sessionId: string,
-): UseChatReturn {
+): UseChatStreamReturn {
   const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [streamingContent, setStreamingContent] = useState('');
+  const [pendingContent, setPendingContent] = useState('');
   const [streamingState, setStreamingState] = useState<StreamingState>(StreamingState.Idle);
   const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
   const [pendingAsk, setPendingAsk] = useState<PendingAsk | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const sessionRef = useRef<ChatSession | null>(null);
 
-  // Resolve callbacks — stored as refs so the event loop can await them
+  // Resolve callbacks -- stored as refs so the event loop can await them
   const approvalResolveRef = useRef<(() => void) | null>(null);
   const askResolveRef = useRef<(() => void) | null>(null);
 
   // Track whether we're in a "restored" state (no active ChatSession)
   const restoredRef = useRef(false);
+
+  /** Append a completed assistant text chunk to history */
+  const commitText = useCallback((text: string) => {
+    if (!text) return;
+    const msg: HistoryItem = { type: 'assistant', id: uuidv4(), content: text };
+    setHistory((prev) => [...prev, msg]);
+  }, []);
 
   // ── Restore pending approval/ask from server on mount ──
   useEffect(() => {
@@ -84,7 +91,7 @@ export function useChat(
       const userMsg: HistoryItem = { type: 'user', id: uuidv4(), content: query };
       setHistory((prev) => [...prev, userMsg]);
       setStreamingState(StreamingState.Responding);
-      setStreamingContent('');
+      setPendingContent('');
 
       const abort = new AbortController();
       abortRef.current = abort;
@@ -98,21 +105,39 @@ export function useChat(
         for await (const event of chat.events_iter()) {
           try {
             const d = (event as any).data;
+
             if (event.type === WebChatEventType.Stream) {
+              // Server sends cumulative content (full text so far), not deltas
               accumulated = extractText(d.content);
-              setStreamingContent(accumulated);
+
+              // Smart split: move completed chunks to Static zone
+              if (shouldSplit(accumulated)) {
+                const splitAt = findSafeSplitPoint(accumulated);
+                if (splitAt > 0) {
+                  const completed = accumulated.substring(0, splitAt);
+                  accumulated = accumulated.substring(splitAt);
+                  commitText(completed);
+                }
+              }
+
+              setPendingContent(accumulated);
+
             } else if (event.type === WebChatEventType.ToolCall) {
               // Commit accumulated streaming content first
               if (accumulated) {
-                const assistantMsg: HistoryItem = {
-                  type: 'assistant',
-                  id: uuidv4(),
-                  content: accumulated,
-                };
-                setHistory((prev) => [...prev, assistantMsg]);
+                commitText(accumulated);
                 accumulated = '';
-                setStreamingContent('');
+                setPendingContent('');
               }
+
+              // Add tool call to history immediately
+              setHistory((prev) => [...prev, {
+                type: 'toolCall' as const,
+                id: uuidv4(),
+                toolCallId: d.id,
+                name: d.name ?? '',
+                args: d.args ?? {},
+              }]);
 
               // Enter approval mode and pause event loop
               const pending: PendingApproval = {
@@ -131,17 +156,13 @@ export function useChat(
 
               // Back to responding
               setStreamingState(StreamingState.Responding);
+
             } else if (event.type === WebChatEventType.Ask) {
               // Commit accumulated streaming content first
               if (accumulated) {
-                const assistantMsg: HistoryItem = {
-                  type: 'assistant',
-                  id: uuidv4(),
-                  content: accumulated,
-                };
-                setHistory((prev) => [...prev, assistantMsg]);
+                commitText(accumulated);
                 accumulated = '';
-                setStreamingContent('');
+                setPendingContent('');
               }
 
               // Enter ask mode and pause event loop
@@ -161,31 +182,31 @@ export function useChat(
 
               // Back to responding
               setStreamingState(StreamingState.Responding);
+
             } else if (event.type === WebChatEventType.Message) {
-              accumulated = '';
-              setStreamingContent('');
+              // Commit accumulated streaming content first (same pattern as ToolCall/Ask)
+              if (accumulated) {
+                commitText(accumulated);
+                accumulated = '';
+                setPendingContent('');
+              }
               const msg = d.message;
               const content = extractText(msg?.content);
               const toolCallId = msg?.tool_call_id as string | undefined;
               const toolCalls = msg?.tool_calls as { id?: string; name: string; args: unknown }[] | undefined;
 
               if (toolCallId && content) {
-                // Tool result — attach to matching tool call history item
+                // Tool result -- attach to matching tool call history item
                 setHistory((prev) => prev.map((item) =>
                   item.type === 'toolCall' && item.toolCallId === toolCallId
                     ? { ...item, result: content }
                     : item,
                 ));
               } else if (content) {
-                const msg: HistoryItem = {
-                  type: 'assistant',
-                  id: uuidv4(),
-                  content,
-                };
-                setHistory((prev) => [...prev, msg]);
+                commitText(content);
               }
 
-              // AI message with tool_calls — create tool call history items
+              // AI message with tool_calls -- create tool call history items
               if (toolCalls?.length) {
                 const items: HistoryItem[] = toolCalls.map((tc) => ({
                   type: 'toolCall' as const,
@@ -196,6 +217,7 @@ export function useChat(
                 }));
                 setHistory((prev) => [...prev, ...items]);
               }
+
             } else if (event.type === WebChatEventType.Error) {
               const errMsg: HistoryItem = {
                 type: 'error',
@@ -203,20 +225,16 @@ export function useChat(
                 message: d.message ?? 'Unknown error',
               };
               setHistory((prev) => [...prev, errMsg]);
+
             } else if (event.type === WebChatEventType.Done) {
               // Commit any remaining streamed content
               if (accumulated) {
-                const assistantMsg: HistoryItem = {
-                  type: 'assistant',
-                  id: uuidv4(),
-                  content: accumulated,
-                };
-                setHistory((prev) => [...prev, assistantMsg]);
+                commitText(accumulated);
               }
               break;
             }
           } catch (eventErr) {
-            // Single event processing error — show it but keep the stream alive
+            // Single event processing error -- show it but keep the stream alive
             setHistory((prev) => [...prev, {
               type: 'error' as const,
               id: uuidv4(),
@@ -234,7 +252,7 @@ export function useChat(
           setHistory((prev) => [...prev, errMsg]);
         }
       } finally {
-        setStreamingContent('');
+        setPendingContent('');
         setStreamingState(StreamingState.Idle);
         setPendingApproval(null);
         setPendingAsk(null);
@@ -242,7 +260,7 @@ export function useChat(
         sessionRef.current = null;
       }
     },
-    [client, sessionId, streamingState],
+    [client, sessionId, streamingState, commitText],
   );
 
   const resolveApproval = useCallback((approval: string) => {
@@ -307,14 +325,10 @@ export function useChat(
     abortRef.current?.abort();
   }, []);
 
-  const clearHistory = useCallback(() => {
-    setHistory([]);
-  }, []);
-
   return {
-    history, streamingContent, streamingState,
+    history, pendingContent, streamingState,
     pendingApproval, pendingAsk,
     submitQuery, resolveApproval, resolveAsk,
-    cancelRequest, clearHistory,
+    cancelRequest,
   };
 }
