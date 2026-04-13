@@ -23,8 +23,15 @@ if (command === 'build') {
   console.log(`Saving Docker image ${tag} to sbot.tar...`);
   execSync(`docker save -o sbot.tar ${tag}`, { stdio: 'inherit' });
   console.log(`Saved sbot.tar (${tag})`);
+} else if (command === 'publish') {
+  console.log(`Pushing Docker image ${tag}...`);
+  execSync(`docker push ${tag}`, { stdio: 'inherit' });
+  console.log(`Pushed ${tag}`);
+  console.log(`Pushing Docker image ${latestTag}...`);
+  execSync(`docker push ${latestTag}`, { stdio: 'inherit' });
+  console.log(`Pushed ${latestTag}`);
 } else {
   console.error(`Unknown command: ${command}`);
-  console.error('Usage: node packages/sbot/scripts/docker.js <build|save>');
+  console.error('Usage: node packages/sbot/scripts/docker.js <build|save|publish>');
   process.exit(1);
 }

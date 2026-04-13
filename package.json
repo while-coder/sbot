@@ -19,6 +19,7 @@
 
     "docker:build": "pnpm run build && node packages/sbot/scripts/docker.js build",
     "docker:save": "node packages/sbot/scripts/docker.js save",
+    "docker:publish": "pnpm run docker:build && node packages/sbot/scripts/docker.js publish",
     "docker": "pnpm run docker:build && pnpm run docker:save"
   },
   "pnpm": {
