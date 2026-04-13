@@ -4,6 +4,8 @@ import { inject, T_SystemPrompts, T_MemorySystemPromptTemplate, truncate } from 
 import { IModelService } from "../../Model";
 import { ISkillService } from "../../Skills";
 import { IMemoryService } from "../../Memory";
+import { IWikiService } from "../../Wiki";
+import { WikiToolProvider } from "../../Wiki";
 import { IAgentSaverService } from "../../Saver";
 import { IAgentToolService } from "../../AgentTool";
 import { ILoggerService } from "../../Logger";
@@ -51,6 +53,7 @@ export class SingleAgentService extends AgentServiceBase {
         @inject(ISkillService, { optional: true }) skillService?: ISkillService,
         @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
         @inject(IMemoryService, { optional: true }) memoryServices?: IMemoryService[],
+        @inject(IWikiService, { optional: true }) protected wikiServices?: IWikiService[],
         @inject(T_MemorySystemPromptTemplate, { optional: true }) memorySystemPromptTemplate?: string,
     ) {
         super(loggerService, agentSaver, memoryServices);
@@ -95,6 +98,9 @@ export class SingleAgentService extends AgentServiceBase {
     protected async buildTools(_callback?: IAgentCallback, _cancellationToken?: ICancellationToken): Promise<StructuredToolInterface[]> {
         const tools: StructuredToolInterface[] = await this.toolService?.getAllTools() ?? [];
         if (this.skillService) tools.push(...this.skillService.getTools());
+        if (this.wikiServices && this.wikiServices.length > 0) {
+            tools.push(...WikiToolProvider.getTools(this.wikiServices));
+        }
         return tools;
     }
 
@@ -320,6 +326,20 @@ export class SingleAgentService extends AgentServiceBase {
                 await mem.memorizeConversation(contentToString(query), aiResponses.length > 0 ? aiResponses : undefined);
             } catch (error: any) {
                 this.logger?.warn(`保存对话记忆失败: ${error.message}`);
+            }
+        }
+
+        // 保存对话到 wiki 知识库
+        if (this.wikiServices) {
+            for (const wiki of this.wikiServices) {
+                try {
+                    await wiki.extractFromConversation(
+                        contentToString(query),
+                        aiResponses.length > 0 ? aiResponses : undefined
+                    );
+                } catch (error: any) {
+                    this.logger?.warn(`Wiki knowledge extraction failed: ${error.message}`);
+                }
             }
         }
 

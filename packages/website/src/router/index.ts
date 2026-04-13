@@ -14,6 +14,7 @@ const routes = [
   { path: '/agents', component: () => import('@/views/agents/AgentsView.vue') },
   { path: '/savers', component: () => import('@/views/SaversView.vue') },
   { path: '/memories', component: () => import('@/views/MemoriesView.vue') },
+  { path: '/wikis', component: () => import('@/views/WikisView.vue') },
   { path: '/mcp', component: () => import('@/views/McpView.vue') },
   { path: '/skills', component: () => import('@/views/SkillsView.vue') },
   { path: '/prompts', component: () => import('@/views/PromptsView.vue') },

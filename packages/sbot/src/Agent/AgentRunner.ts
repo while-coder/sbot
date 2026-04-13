@@ -15,6 +15,10 @@ import {
     T_ExtractorSystemPrompt, T_EvaluatorSystemPrompt, T_CompressorPromptTemplate,
     T_MemorySystemPromptTemplate,
     IModelService,
+    IWikiService, IWikiDatabase,
+    WikiExtractor, WikiService,
+    IWikiExtractor,
+    T_WikiExtractorSystemPrompt, T_WikiAutoExtract,
     createAskTool, type AskUserFn, AskQuestionType,
     type MessageContent,
 } from "scorpio.ai";
@@ -26,6 +30,7 @@ import { AgentFactory } from "./AgentFactory";
 import { LoggerService } from "../Core/LoggerService";
 import { sessionManager } from "../UserService/SessionManager";
 import { MemoryDatabaseManager } from "./MemoryDatabaseManager";
+import { WikiDatabaseManager } from "./WikiDatabaseManager";
 
 const logger = LoggerService.getLogger('AgentRunner.ts');
 
@@ -93,6 +98,8 @@ export interface AgentRunOptions {
     extraInfo: string;
     /** 记忆服务配置 ID 列表，不传则不启用记忆 */
     memories?: string[];
+    /** Wiki 知识库配置 ID 列表 */
+    wikis?: string[];
     /** Agent 文件操作根目录，不传则默认为 assets/{threadId} */
     workPath?: string;
     /** 动态注册到 Agent 的工具列表 */
@@ -103,7 +110,7 @@ export interface AgentRunOptions {
 
 export class AgentRunner {
     static async run(options: AgentRunOptions): Promise<void> {
-        const { query, callbacks, agentId, saverId, threadId, scheduler, extraInfo, memories, agentTools } = options;
+        const { query, callbacks, agentId, saverId, threadId, scheduler, extraInfo, memories, wikis, agentTools } = options;
         if (!agentId.trim())   throw new Error("agent not specified");
         if (!saverId.trim())   throw new Error("saver not specified");
         if (!threadId.trim())  throw new Error("threadId not specified");
@@ -138,6 +145,7 @@ export class AgentRunner {
         const container = new ServiceContainer();
         container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
         await AgentRunner.registerMemoryServices(container, memories ?? [], threadId);
+        await AgentRunner.registerWikiServices(container, wikis ?? [], threadId);
         await AgentRunner.registerSaverService(container, saverId, threadId);
 
         const agent = await AgentFactory.create({ agentId, container, extraPrompts, agentTools, scheduler });
@@ -196,6 +204,58 @@ export class AgentRunner {
         if (services.length > 0) {
             container.registerInstance(IMemoryService, services);
             container.registerInstance(T_MemorySystemPromptTemplate, loadPrompt('memory/system.txt'));
+        }
+    }
+
+    static async createWikiService(wikiId: string, threadId?: string): Promise<IWikiService> {
+        const service = await AgentRunner.buildWikiService(wikiId, threadId ?? wikiId);
+        if (!service) throw new Error(`Wiki config "${wikiId}" not found`);
+        return service;
+    }
+
+    private static async buildWikiService(
+        wikiId: string,
+        wikiThreadId: string,
+        loggerService?: LoggerService
+    ): Promise<IWikiService | null> {
+        const wikiConfig = config.getWiki(wikiId);
+        if (!wikiConfig) return null;
+
+        const extractorModel = await config.getModelService(wikiConfig.extractor);
+
+        const sub = new ServiceContainer();
+        if (loggerService) sub.registerInstance(ILoggerService, loggerService);
+        if (extractorModel) sub.registerWithArgs(IWikiExtractor, WikiExtractor, {
+            [IModelService]: extractorModel,
+            [T_WikiExtractorSystemPrompt]: loadPrompt('wiki/extractor.txt'),
+        });
+
+        const wikiThreadIdResolved = wikiConfig.share ? wikiId : wikiThreadId;
+        const wikiDir = config.getWikiDBPath(wikiId, wikiThreadIdResolved);
+        sub.registerInstance(IWikiDatabase, WikiDatabaseManager.getInstance().acquire(wikiDir));
+
+        sub.registerWithArgs(IWikiService, WikiService, {
+            [T_WikiAutoExtract]: wikiConfig.autoExtract !== false,
+        });
+
+        return sub.resolve<IWikiService>(IWikiService);
+    }
+
+    private static async registerWikiServices(
+        container: ServiceContainer,
+        wikis: string[],
+        wikiThreadId: string,
+    ): Promise<void> {
+        if (wikis.length === 0) return;
+        const loggerService = container.isRegistered(ILoggerService)
+            ? await container.resolve<LoggerService>(ILoggerService)
+            : undefined;
+        const results = await Promise.all(
+            wikis.map(wikiId => AgentRunner.buildWikiService(wikiId, wikiThreadId, loggerService))
+        );
+        const services = results.filter((s): s is IWikiService => s !== null);
+        if (services.length > 0) {
+            container.registerInstance(IWikiService, services);
         }
     }
 

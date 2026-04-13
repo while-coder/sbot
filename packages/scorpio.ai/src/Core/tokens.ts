@@ -20,3 +20,8 @@ export const T_SkillToolReadDesc         = Symbol("scorpio:T_SkillToolReadDesc")
 export const T_SkillToolListDesc         = Symbol("scorpio:T_SkillToolListDesc");
 export const T_SkillToolExecDesc         = Symbol("scorpio:T_SkillToolExecDesc");
 export const T_MemorySystemPromptTemplate = Symbol("scorpio:T_MemorySystemPromptTemplate");
+
+// Wiki tokens
+export const T_WikiExtractorSystemPrompt   = Symbol("scorpio:T_WikiExtractorSystemPrompt");
+export const T_WikiSystemPromptTemplate    = Symbol("scorpio:T_WikiSystemPromptTemplate");
+export const T_WikiAutoExtract             = Symbol("scorpio:T_WikiAutoExtract");

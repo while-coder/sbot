@@ -63,11 +63,15 @@ export {
   T_SkillToolListDesc,
   T_SkillToolExecDesc,
   T_MemorySystemPromptTemplate,
+  T_WikiExtractorSystemPrompt,
+  T_WikiSystemPromptTemplate,
+  T_WikiAutoExtract,
   NowDate,
   sleep,
   parseJson,
   truncate,
   listThreadIds,
+  listSubDirs,
 } from "./Core";
 
 // ========================================
@@ -137,6 +141,32 @@ export {
   EvaluationResult,
   CompressionResult,
 } from "./Memory";
+
+// ========================================
+// Wiki - 知识库系统
+// ========================================
+export {
+  // 接口 + Symbol Token
+  IWikiService,
+  IWikiExtractor,
+
+  // 实现类
+  WikiService,
+  WikiExtractor,
+
+  // 存储层
+  IWikiDatabase,
+  WikiFileDatabase,
+
+  // 工具
+  WikiToolProvider,
+
+  // 类型定义
+  WikiPage,
+  WikiPageSource,
+  WikiSearchResult,
+  ExtractedKnowledge,
+} from "./Wiki";
 
 // ========================================
 // Saver - 状态持久化

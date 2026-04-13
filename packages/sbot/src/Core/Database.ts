@@ -63,6 +63,7 @@ export type ChannelSessionRow = {
   avatar: string;      // 会话头像
   agentId: string | null;       // Agent UUID
   memories: string | null;      // Memory UUID 列表（JSON 字符串，使用 parseMemories() 解析）
+  wikis: string | null;         // Wiki UUID 列表（JSON 字符串，使用 parseMemories() 解析）
   useChannelMemories: boolean;  // 是否使用渠道级记忆
   workPath: string | null;      // 工作目录路径
   inputTokens: number;          // 累计输入 token
@@ -79,6 +80,7 @@ export type SessionRow = {
   agent: string;       // Agent UUID
   saver: string;       // Saver UUID
   memories: string | null;  // JSON array of memory UUIDs
+  wikis: string | null;     // JSON array of wiki UUIDs
   workPath: string | null;
   inputTokens: number;       // 累计输入 token
   outputTokens: number;      // 累计输出 token
@@ -301,6 +303,12 @@ class Database {
           defaultValue: null,
           comment: "Memory UUID 列表（JSON 字符串，读取时用 parseMemories() 解析）",
         },
+        wikis: {
+          type: DataTypes.TEXT,
+          allowNull: true,
+          defaultValue: null,
+          comment: "Wiki UUID 列表（JSON 字符串）",
+        },
         useChannelMemories: {
           type: DataTypes.BOOLEAN,
           allowNull: false,
@@ -386,6 +394,12 @@ class Database {
           allowNull: true,
           defaultValue: null,
           comment: "Memory UUID 列表（JSON 字符串）",
+        },
+        wikis: {
+          type: DataTypes.TEXT,
+          allowNull: true,
+          defaultValue: null,
+          comment: "Wiki UUID 列表（JSON 字符串）",
         },
         workPath: {
           type: DataTypes.STRING(1024),

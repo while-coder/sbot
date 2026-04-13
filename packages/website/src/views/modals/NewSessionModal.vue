@@ -14,7 +14,7 @@ const emit = defineEmits<{ created: [sessionId: string] }>()
 
 const showModal = ref(false)
 const saving = ref(false)
-const form = ref({ agent: '', saver: '', memories: [] as string[] })
+const form = ref({ agent: '', saver: '', memories: [] as string[], wikis: [] as string[] })
 
 const agentOptions = computed(() =>
   Object.entries(store.settings.agents || {}).map(([id, a]) => ({ id, label: (a as any).name || id }))
@@ -25,9 +25,12 @@ const saverOptions = computed(() =>
 const memoryOptions = computed(() =>
   Object.entries(store.settings.memories || {}).map(([id, m]) => ({ id, label: (m as any).name || id }))
 )
+const wikiOptions = computed(() =>
+  Object.entries(store.settings.wikis || {}).map(([id, w]) => ({ id, label: (w as any).name || id }))
+)
 
 function open() {
-  form.value = { agent: '', saver: '', memories: [] }
+  form.value = { agent: '', saver: '', memories: [], wikis: [] }
   showModal.value = true
 }
 
@@ -42,7 +45,7 @@ async function create() {
   if (!form.value.saver) { show(t('new_session.error_saver'), 'error'); return }
   saving.value = true
   try {
-    const body: any = { name: autoName(), agent: form.value.agent, saver: form.value.saver, memories: form.value.memories }
+    const body: any = { name: autoName(), agent: form.value.agent, saver: form.value.saver, memories: form.value.memories, wikis: form.value.wikis }
     const res = await apiFetch('/api/settings/sessions', 'POST', body)
     const id = res.data.id as string
     store.sessions[id] = body
@@ -83,6 +86,10 @@ defineExpose({ open })
         <div class="form-group">
           <label>{{ t('common.memory') }}</label>
           <MultiSelect v-model="form.memories" :options="memoryOptions" />
+        </div>
+        <div class="form-group">
+          <label>{{ t('common.wiki') }}</label>
+          <MultiSelect v-model="form.wikis" :options="wikiOptions" />
         </div>
       </div>
       <div class="modal-footer">

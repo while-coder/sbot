@@ -1,6 +1,7 @@
 import { type StructuredToolInterface } from "@langchain/core/tools";
 import { inject, ServiceContainer, T_SystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc, T_MemorySystemPromptTemplate } from "../../Core";
 import { IMemoryService, ReadOnlyMemoryService } from "../../Memory";
+import { IWikiService } from "../../Wiki";
 import { IAgentSaverService, ChatMessage, ChatMessageOptions, type MessageContent } from "../../Saver";
 import { ILoggerService } from "../../Logger";
 import { IModelService } from "../../Model";
@@ -61,9 +62,10 @@ export class ReActAgentService extends SingleAgentService {
     @inject(ISkillService, { optional: true }) skillService?: ISkillService,
     @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
     @inject(IMemoryService, { optional: true }) memoryServices?: IMemoryService[],
+    @inject(IWikiService, { optional: true }) wikiServices?: IWikiService[],
     @inject(T_MemorySystemPromptTemplate, { optional: true }) memorySystemPromptTemplate?: string,
   ) {
-    super(thinkModelService, systemPrompts, loggerService, agentSaver, skillService, toolService, memoryServices, memorySystemPromptTemplate);
+    super(thinkModelService, systemPrompts, loggerService, agentSaver, skillService, toolService, memoryServices, wikiServices, memorySystemPromptTemplate);
     this.agentSubNodes = agentSubNodes;
     this.agentFactory = agentFactory;
   }
@@ -96,6 +98,7 @@ export class ReActAgentService extends SingleAgentService {
         const subContainer = new ServiceContainer();
         subContainer.registerInstance(IAgentSaverService, thinkSaver);
         if (this.memoryServices.length > 0) subContainer.registerInstance(IMemoryService, this.memoryServices.map(m => new ReadOnlyMemoryService(m)));
+        if (this.wikiServices && this.wikiServices.length > 0) subContainer.registerInstance(IWikiService, this.wikiServices);
         if (this.memorySystemPromptTemplate) subContainer.registerInstance(T_MemorySystemPromptTemplate, this.memorySystemPromptTemplate);
         if (this.loggerService) subContainer.registerInstance(ILoggerService, this.loggerService);
 

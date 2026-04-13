@@ -66,6 +66,7 @@ const channels = computed(() => store.settings.channels || {})
 const agentOptions  = computed(() => Object.entries(store.settings.agents   || {}).map(([id, a]) => ({ id, label: (a as any).name  || id })))
 const saverOptions  = computed(() => Object.entries(store.settings.savers   || {}).map(([id, s]) => ({ id, label: (s as any).name  || id })))
 const memoryOptions = computed(() => Object.entries(store.settings.memories  || {}).map(([id, m]) => ({ id, label: m.name  || id })))
+const wikiOptions   = computed(() => Object.entries(store.settings.wikis    || {}).map(([id, w]) => ({ id, label: (w as any).name  || id })))
 
 const saverViewModal = ref<InstanceType<typeof SaverViewModal>>()
 const pathPicker     = ref<InstanceType<typeof PathPickerModal>>()
@@ -81,25 +82,30 @@ const channelLoading   = ref<Record<string, boolean>>({})
 const viewUser         = ref<UserRow | null>(null)
 
 const editingSession   = ref<ChannelSessionRow | null>(null)
-const sessionForm      = ref<{ name: string; agentId: string; memories: string[]; useChannelMemories: boolean; workPath: string }>({ name: '', agentId: '', memories: [], useChannelMemories: false, workPath: '' })
+const sessionForm      = ref<{ name: string; agentId: string; memories: string[]; wikis: string[]; useChannelMemories: boolean; workPath: string }>({ name: '', agentId: '', memories: [], wikis: [], useChannelMemories: false, workPath: '' })
 
 function openEditSession(s: ChannelSessionRow) {
   editingSession.value = s
   const rawMem = s.memories
   const memArr = Array.isArray(rawMem) ? rawMem : typeof rawMem === 'string' ? (() => { try { const p = JSON.parse(rawMem); return Array.isArray(p) ? p : [] } catch { return [] } })() : []
-  sessionForm.value = { name: s.sessionName || '', agentId: s.agentId || '', memories: memArr, useChannelMemories: !!s.useChannelMemories, workPath: s.workPath || '' }
+  const rawWiki = (s as any).wikis
+  const wikiArr = Array.isArray(rawWiki) ? rawWiki : typeof rawWiki === 'string' ? (() => { try { const p = JSON.parse(rawWiki); return Array.isArray(p) ? p : [] } catch { return [] } })() : []
+  sessionForm.value = { name: s.sessionName || '', agentId: s.agentId || '', memories: memArr, wikis: wikiArr, useChannelMemories: !!s.useChannelMemories, workPath: s.workPath || '' }
 }
 
 async function saveSession() {
   const s = editingSession.value
   if (!s) return
-  const validIds = new Set(memoryOptions.value.map(m => m.id))
-  const memories = sessionForm.value.memories.filter(id => validIds.has(id))
+  const validMemIds = new Set(memoryOptions.value.map(m => m.id))
+  const memories = sessionForm.value.memories.filter(id => validMemIds.has(id))
+  const validWikiIds = new Set(wikiOptions.value.map(w => w.id))
+  const wikis = sessionForm.value.wikis.filter(id => validWikiIds.has(id))
   try {
     await apiFetch(`/api/channel-sessions/${s.id}`, 'PUT', {
       sessionName: sessionForm.value.name.trim(),
       agentId: sessionForm.value.agentId,
       memories,
+      wikis,
       useChannelMemories: sessionForm.value.useChannelMemories,
       workPath: sessionForm.value.workPath.trim() || null,
     })
@@ -107,6 +113,7 @@ async function saveSession() {
       sessionName: sessionForm.value.name.trim(),
       agentId: sessionForm.value.agentId,
       memories,
+      wikis,
       useChannelMemories: sessionForm.value.useChannelMemories,
       workPath: sessionForm.value.workPath.trim() || null,
     })
@@ -250,7 +257,7 @@ async function waitForQRConfirm(key: string, channelId: string) {
 function openAdd() {
   editingId.value = null
   clearActionState()
-  form.value = { name: '', type: plugins.value[0]?.type || '', config: {}, agent: '', saver: '', memories: [] }
+  form.value = { name: '', type: plugins.value[0]?.type || '', config: {}, agent: '', saver: '', memories: [], wikis: [] }
   showModal.value = true
 }
 
@@ -258,7 +265,7 @@ function openEdit(id: string) {
   const c = channels.value[id]
   editingId.value = id
   clearActionState()
-  form.value = { name: c.name, type: c.type, config: { ...c.config }, agent: c.agent, saver: c.saver, memories: c.memories || [] }
+  form.value = { name: c.name, type: c.type, config: { ...c.config }, agent: c.agent, saver: c.saver, memories: c.memories || [], wikis: (c as any).wikis || [] }
   showModal.value = true
 }
 
@@ -267,7 +274,8 @@ async function save() {
   if (!form.value.agent) { show(t('channels.select_agent'), 'error'); return }
   if (!form.value.saver) { show(t('channels.select_saver'), 'error'); return }
   try {
-    const validIds = new Set(memoryOptions.value.map(m => m.id))
+    const validMemIds = new Set(memoryOptions.value.map(m => m.id))
+    const validWikiIds = new Set(wikiOptions.value.map(w => w.id))
     const processedConfig: Record<string, any> = {}
     const schema = currentSchema.value
     for (const [key, val] of Object.entries(form.value.config)) {
@@ -283,7 +291,8 @@ async function save() {
       type: form.value.type,
       agent: form.value.agent,
       saver: form.value.saver,
-      memories: form.value.memories.filter(id => validIds.has(id)),
+      memories: form.value.memories.filter(id => validMemIds.has(id)),
+      wikis: (form.value.wikis || []).filter(id => validWikiIds.has(id)),
       config: processedConfig,
     }
 
@@ -614,6 +623,10 @@ async function refresh() {
             <label>{{ t('common.memory') }}</label>
             <MultiSelect v-model="form.memories" :options="memoryOptions" />
           </div>
+          <div class="form-group">
+            <label>{{ t('common.wiki') }}</label>
+            <MultiSelect :model-value="form.wikis || []" :options="wikiOptions" @update:model-value="form.wikis = $event" />
+          </div>
         </div>
         <div class="modal-footer">
           <button class="btn-outline" @click="showModal = false">{{ t('common.cancel') }}</button>
@@ -653,6 +666,10 @@ async function refresh() {
           <div class="form-group">
             <label>{{ t('common.memory') }}</label>
             <MultiSelect v-model="sessionForm.memories" :options="memoryOptions" />
+          </div>
+          <div class="form-group">
+            <label>{{ t('common.wiki') }}</label>
+            <MultiSelect v-model="sessionForm.wikis" :options="wikiOptions" />
           </div>
           <div class="form-group">
             <label>{{ t('directory.path_label') }}</label>

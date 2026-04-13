@@ -75,6 +75,17 @@ export interface MemoryConfig {
   share: boolean
 }
 
+export interface WikiConfig {
+  /** 显示名称 */
+  name: string
+  /** 知识提取器使用的模型 UUID（对应 models 中的 key） */
+  extractor: string
+  /** 对话后自动提取知识（默认 true） */
+  autoExtract?: boolean
+  /** 是否共享（true = 所有 thread 共用同一份 wiki；false = 每个 thread 独立，默认） */
+  share: boolean
+}
+
 export interface SaverConfig {
   /** 显示名称 */
   name: string
@@ -128,6 +139,8 @@ export interface SessionConfig {
   saver: string
   /** 使用的记忆配置 UUID 列表（对应 memories 中的 key） */
   memories: string[]
+  /** 使用的 Wiki 配置 UUID 列表（对应 wikis 中的 key） */
+  wikis?: string[]
   /** 工作目录路径（有值时为目录模式，Agent 文件操作限定在此目录） */
   workPath?: string
 }
@@ -143,6 +156,8 @@ export interface ChannelConfig {
   saver: string
   /** 使用的记忆配置 UUID 列表（对应 memories 中的 key） */
   memories: string[]
+  /** 使用的 Wiki 配置 UUID 列表（对应 wikis 中的 key） */
+  wikis?: string[]
   /** 插件特有配置（appId, botToken 等） */
   config: Record<string, any>
 }
@@ -158,6 +173,7 @@ export interface Settings {
   models?: Record<string, ModelConfig>
   embeddings?: Record<string, EmbeddingConfig>
   memories?: Record<string, MemoryConfig>
+  wikis?: Record<string, WikiConfig>
   savers?: Record<string, SaverConfig>
   channels?: Record<string, ChannelConfig>
 }

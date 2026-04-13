@@ -3,8 +3,8 @@ import path from "path";
 import fs from "fs";
 import { ModelConfig, ModelProvider, EmbeddingConfig, EmbeddingProvider, MCPServers, IModelService, IEmbeddingService, ModelServiceFactory, EmbeddingServiceFactory, type AgentSubNode } from "scorpio.ai";
 export type { AgentSubNode } from "scorpio.ai";
-import { DEFAULT_PORT, SaverType, AgentMode, MemoryMode, SaverConfig, MemoryConfig, ChannelConfig } from "sbot.commons";
-export { DEFAULT_PORT, SaverType, AgentMode, ChannelType, SaverConfig, MemoryConfig, ChannelConfig } from "sbot.commons";
+import { DEFAULT_PORT, SaverType, AgentMode, MemoryMode, SaverConfig, MemoryConfig, WikiConfig, ChannelConfig } from "sbot.commons";
+export { DEFAULT_PORT, SaverType, AgentMode, ChannelType, SaverConfig, MemoryConfig, WikiConfig, ChannelConfig } from "sbot.commons";
 
 /**
  * ModelConfig 的命名扩展（key 为 UUID）
@@ -64,6 +64,7 @@ export interface Settings {
   embeddings?: Record<string, NamedEmbeddingConfig>;
   savers?: Record<string, SaverConfig>;
   memories?: Record<string, MemoryConfig>;
+  wikis?: Record<string, WikiConfig>;
   agents?: Record<string, AgentEntry>;
   channels?: Record<string, ChannelConfig>;
   plugins?: string[];
@@ -363,6 +364,16 @@ class Config {
   }
   getMemoryDBPath(memoryId: string, memoryThreadId: string) {
     return this.getConfigPath(`memories/${memoryId}/${memoryThreadId}.db`)
+  }
+
+  getWiki(id: string): WikiConfig | undefined {
+    return this._settings.wikis?.[id.trim()];
+  }
+  getWikiDBDir(wikiId: string) {
+    return this.getConfigPath(`wiki/${wikiId}`, true)
+  }
+  getWikiDBPath(wikiId: string, threadId: string) {
+    return this.getConfigPath(`wiki/${wikiId}/${threadId}`, true)
   }
 
 }

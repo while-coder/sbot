@@ -1,4 +1,5 @@
-import { readdirSync } from "fs";
+import { readdirSync, statSync } from "fs";
+import { join } from "path";
 
 export const NowDate = (): number => Date.now();
 
@@ -15,6 +16,19 @@ export function listThreadIds(dir: string, ...exts: string[]): string[] {
             if (ext) set.add(f.slice(0, -ext.length));
         }
         return [...set].sort();
+    } catch {
+        return [];
+    }
+}
+
+/**
+ * 扫描目录，返回子目录名列表
+ */
+export function listSubDirs(dir: string): string[] {
+    try {
+        return readdirSync(dir)
+            .filter(f => { try { return statSync(join(dir, f)).isDirectory(); } catch { return false; } })
+            .sort();
     } catch {
         return [];
     }

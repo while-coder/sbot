@@ -42,6 +42,7 @@ const menuGroups = computed(() => [
       { label: t('nav.agents'), key: '/agents' },
       { label: t('nav.savers'), key: '/savers' },
       { label: t('nav.memories'), key: '/memories' },
+      { label: t('nav.wikis'), key: '/wikis' },
       { label: t('nav.mcp'), key: '/mcp' },
       { label: t('nav.skills'), key: '/skills' },
       { label: t('nav.prompts'), key: '/prompts' },

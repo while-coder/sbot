@@ -42,6 +42,9 @@ export function useChatViewLogic(options: ChatViewLogicOptions) {
   const memoryOptions = computed(() =>
     Object.entries(store.settings.memories || {}).map(([id, m]) => ({ id, label: (m as any).name || id }))
   )
+  const wikiOptions = computed(() =>
+    Object.entries(store.settings.wikis || {}).map(([id, w]) => ({ id, label: (w as any).name || id }))
+  )
 
   // ── WS event routing ──
   async function handleWsEvent(evt: WebChatEvent & { sessionId?: string }) {
@@ -110,6 +113,7 @@ export function useChatViewLogic(options: ChatViewLogicOptions) {
     agentOptions,
     saverOptions,
     memoryOptions,
+    wikiOptions,
     handleWsEvent,
     sendOne,
     fetchAndRestoreSessionStatus,

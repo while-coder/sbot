@@ -6,7 +6,7 @@ import os from 'os';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { WebSocket, WebSocketServer } from 'ws';
-import { AgentToolService, SkillService, ModelProvider, listThreadIds, readImageAsDataUrl, isEmptyContent, type StoredMessage, type MessageContent } from "scorpio.ai";
+import { AgentToolService, SkillService, ModelProvider, listThreadIds, listSubDirs, readImageAsDataUrl, isEmptyContent, type StoredMessage, type MessageContent } from "scorpio.ai";
 import { config } from '../Core/Config';
 import { AgentRunner } from '../Agent/AgentRunner';
 import { globalAgentToolService, refreshGlobalAgentToolService, refreshBuiltinTools, BuiltinProvider } from '../Agent/GlobalAgentToolService';
@@ -397,6 +397,7 @@ class HttpServer {
         registerSettingsCrud(app, 'embeddings', { label: 'Embedding' });
         registerSettingsCrud(app, 'savers', { label: 'Saver config' });
         registerSettingsCrud(app, 'memories', { label: 'Memory config' });
+        registerSettingsCrud(app, 'wikis', { label: 'Wiki config' });
         registerSettingsCrud(app, 'agents', { label: 'Agent', checkOnUpdate: false });
         registerSettingsCrud(app, 'channels', {
             label: 'Channel',
@@ -416,6 +417,7 @@ class HttpServer {
             return rows.map(r => ({
                 ...r,
                 memories: parseMemories(r.memories),
+                wikis: parseMemories(r.wikis),
             }));
         }));
 
@@ -431,6 +433,7 @@ class HttpServer {
                 agent: body.agent,
                 saver: body.saver,
                 memories: body.memories ? JSON.stringify(body.memories) : null,
+                wikis: body.wikis ? JSON.stringify(body.wikis) : null,
                 workPath: body.workPath ?? null,
                 createdAt: now,
                 updatedAt: now,
@@ -448,6 +451,7 @@ class HttpServer {
                 agent: body.agent ?? existing.agent,
                 saver: body.saver ?? existing.saver,
                 memories: body.memories !== undefined ? (body.memories ? JSON.stringify(body.memories) : null) : existing.memories,
+                wikis: body.wikis !== undefined ? (body.wikis ? JSON.stringify(body.wikis) : null) : existing.wikis,
                 workPath: body.workPath !== undefined ? body.workPath : existing.workPath,
                 updatedAt: Date.now(),
             }, { where: { id } });
@@ -930,6 +934,62 @@ class HttpServer {
 
         app.get('/api/memories/:memoryId/threads', api(async req => {
             return listThreadIds(config.getMemoryDBDir(req.params.memoryId as string), ".db");
+        }));
+
+        // ── Wiki ──
+        app.get('/api/wikis/:wikiName', api(async req => {
+            const threadId = this.resolveMemoryThreadId(req);
+            const svc = await AgentRunner.createWikiService(req.params.wikiName as string, threadId);
+            const pages = await svc.getAllPages();
+            return pages.map((p: any) => ({
+                id: p.id, title: p.title, tags: p.tags,
+                source: p.source, version: p.version,
+                createdAt: p.createdAt, updatedAt: p.updatedAt,
+            }));
+        }));
+
+        app.get('/api/wikis/:wikiName/pages/:pageId', api(async req => {
+            const threadId = this.resolveMemoryThreadId(req);
+            const svc = await AgentRunner.createWikiService(req.params.wikiName as string, threadId);
+            const page = await svc.getPage(req.params.pageId as string);
+            if (!page) { const e: any = new Error('Page not found'); e.status = 404; throw e; }
+            return page;
+        }));
+
+        app.post('/api/wikis/:wikiName/pages', api(async req => {
+            const { title, content, tags } = req.body as { title?: string; content?: string; tags?: string[] };
+            if (!title?.trim() || !content?.trim()) {
+                const e: any = new Error('title and content are required'); e.status = 400; throw e;
+            }
+            const threadId = this.resolveMemoryThreadId(req);
+            const svc = await AgentRunner.createWikiService(req.params.wikiName as string, threadId);
+            return svc.createPage(title, content, tags);
+        }));
+
+        app.put('/api/wikis/:wikiName/pages/:pageId', api(async req => {
+            const threadId = this.resolveMemoryThreadId(req);
+            const svc = await AgentRunner.createWikiService(req.params.wikiName as string, threadId);
+            return svc.updatePage(req.params.pageId as string, req.body);
+        }));
+
+        app.delete('/api/wikis/:wikiName/pages/:pageId', api(async req => {
+            const threadId = this.resolveMemoryThreadId(req);
+            const svc = await AgentRunner.createWikiService(req.params.wikiName as string, threadId);
+            await svc.deletePage(req.params.pageId as string);
+            return { ok: true };
+        }));
+
+        app.get('/api/wikis/:wikiName/search', api(async req => {
+            const query = req.query.q as string;
+            const limit = parseInt(req.query.limit as string) || 5;
+            if (!query?.trim()) { const e: any = new Error('q parameter is required'); e.status = 400; throw e; }
+            const threadId = this.resolveMemoryThreadId(req);
+            const svc = await AgentRunner.createWikiService(req.params.wikiName as string, threadId);
+            return svc.search(query, limit);
+        }));
+
+        app.get('/api/wikis/:wikiId/threads', api(async req => {
+            return listSubDirs(config.getWikiDBDir(req.params.wikiId as string));
         }));
     }
 

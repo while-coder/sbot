@@ -35,7 +35,7 @@ const editingSessionName = ref('')
 const activeSessionId = ref<string | null>(null)
 const sessions = computed(() => store.sessions)
 
-const { chatAreaRef, agentOptions, saverOptions, memoryOptions, sendOne, fetchAndRestoreSessionStatus } = useChatViewLogic({
+const { chatAreaRef, agentOptions, saverOptions, memoryOptions, wikiOptions, sendOne, fetchAndRestoreSessionStatus } = useChatViewLogic({
   sessionId: () => activeSessionId.value ?? undefined,
   buildSendPayload: (parts, sessionId, fileAtts) => ({
     type: WsCommandType.Query,
@@ -50,6 +50,7 @@ const { chatAreaRef, agentOptions, saverOptions, memoryOptions, sendOne, fetchAn
 const effectiveAgent  = computed(() => activeSessionId.value ? sessions.value[activeSessionId.value]?.agent  : undefined)
 const effectiveSaver  = computed(() => activeSessionId.value ? (sessions.value[activeSessionId.value]?.saver  || null) : null)
 const effectiveMemories = computed(() => activeSessionId.value ? (sessions.value[activeSessionId.value]?.memories || []) : [])
+const effectiveWikis = computed(() => activeSessionId.value ? ((sessions.value[activeSessionId.value] as any)?.wikis || []) : [])
 const effectiveWorkPath = computed(() => activeSessionId.value ? ((sessions.value[activeSessionId.value] as any)?.workPath || '') : '')
 
 const historyUrl = computed<string | null>(() => {
@@ -263,6 +264,16 @@ onMounted(() => {
           <template v-for="mid in effectiveMemories" :key="mid">
             <button class="chat-info-chip" @click="store.settings.memories?.[mid]?.share ? memoryViewModal?.open(mid, store.settings.memories[mid]) : memoryViewModal?.openSession(mid, store.settings.memories?.[mid] ?? {}, activeSessionId!)">{{ memoryOptions.find(m => m.id === mid)?.label || t('common.view') }}</button>
           </template>
+
+          <!-- Wiki -->
+          <label class="toolbar-label">{{ t('common.wiki') }}</label>
+          <MultiSelect
+            :model-value="effectiveWikis"
+            :options="wikiOptions"
+            compact
+            style="min-width:140px"
+            @update:model-value="saveSession({ wikis: $event })"
+          />
         </template>
         <span v-else style="font-size:13px;color:#94a3b8">{{ t('chat.select_or_create') }}</span>
         <span v-if="sessionUsage && sessionUsage.lastTotalTokens > 0" class="usage-chip" :title="`${t('usage.total')}: ${formatNumber(sessionUsage.totalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatNumber(sessionUsage.inputTokens)} / ${t('usage.output_tokens')}: ${formatNumber(sessionUsage.outputTokens)}\n${t('usage.last')}: ${formatNumber(sessionUsage.lastTotalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatNumber(sessionUsage.lastInputTokens)} / ${t('usage.output_tokens')}: ${formatNumber(sessionUsage.lastOutputTokens)}`" style="margin-left:auto">{{ formatNumber(sessionUsage.lastInputTokens) }} + {{ formatNumber(sessionUsage.lastOutputTokens) }} = {{ formatNumber(sessionUsage.lastTotalTokens) }}</span>

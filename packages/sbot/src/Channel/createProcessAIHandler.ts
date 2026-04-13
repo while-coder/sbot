@@ -13,7 +13,7 @@ const agentToolHelpers: ChannelToolHelpers = {
         createSendFileAgentTool(prompt, sendFileFn),
 };
 
-function runAgent(query: MessageContent, args: any, userService: any, agentId: string, saverId: string, schedulerType: SchedulerType, schedulerId: string, memories: string[], workPath?: string): Promise<void> {
+function runAgent(query: MessageContent, args: any, userService: any, agentId: string, saverId: string, schedulerType: SchedulerType, schedulerId: string, memories: string[], wikis: string[], workPath?: string): Promise<void> {
     const threadId = userService.session.threadId;
     return AgentRunner.run({
         query,
@@ -61,6 +61,7 @@ function runAgent(query: MessageContent, args: any, userService: any, agentId: s
         scheduler: { schedulerType, schedulerId },
         extraInfo: args?.extraInfo ?? '',
         memories,
+        wikis,
         workPath,
         agentTools: userService.buildAgentTools(args, agentToolHelpers),
     });
@@ -83,8 +84,13 @@ export function createProcessAIHandler(): ProcessAIHandler {
             ? [...((channel.memories as string[]) ?? []), ...sessionMemories]
             : sessionMemories;
 
+        const sessionWikis = parseMemories(dbSession?.wikis);
+        const wikis = dbSession?.useChannelMemories
+            ? [...((channel.wikis as string[]) ?? []), ...sessionWikis]
+            : sessionWikis;
+
         await runAgent(query, args, userService, agentId, channel.saver as string,
-            SchedulerType.Channel, String(dbSessionId), memories, dbSession?.workPath || undefined);
+            SchedulerType.Channel, String(dbSessionId), memories, wikis, dbSession?.workPath || undefined);
     };
 }
 
@@ -99,6 +105,6 @@ export function createWebProcessAIHandler(): ProcessAIHandler {
         if (!row) throw new Error(`Session "${sessionId}" not found`);
 
         await runAgent(query, args, userService, row.agent, row.saver,
-            SchedulerType.Session, sessionId, parseMemories(row.memories), row.workPath || undefined);
+            SchedulerType.Session, sessionId, parseMemories(row.memories), parseMemories(row.wikis), row.workPath || undefined);
     };
 }
