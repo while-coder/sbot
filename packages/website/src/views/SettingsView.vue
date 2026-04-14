@@ -22,13 +22,22 @@ const httpPort = ref<number | ''>('')
 const httpUrl = ref('')
 const autoApproveAllTools = ref(false)
 const autoApproveToolsText = ref('')
+const startupCommands = ref<string[]>([])
 
 watch(() => store.settings, (s) => {
   httpPort.value = s.httpPort ?? ''
   httpUrl.value = s.httpUrl || ''
   autoApproveAllTools.value = s.autoApproveAllTools ?? false
   autoApproveToolsText.value = (s.autoApproveTools ?? []).join(', ')
+  startupCommands.value = [...(s.startupCommands ?? [])]
 }, { immediate: true, deep: true })
+
+function addStartupCommand() {
+  startupCommands.value.push('')
+}
+function removeStartupCommand(index: number) {
+  startupCommands.value.splice(index, 1)
+}
 
 // 当前浏览器访问端口
 const currentPort = parseInt(window.location.port) || (window.location.protocol === 'https:' ? 443 : 80)
@@ -45,11 +54,13 @@ async function save() {
       .split(',')
       .map(s => s.trim())
       .filter(Boolean)
+    const cmds = startupCommands.value.filter(s => s.trim())
     const res = await apiFetch('/api/settings/general', 'PUT', {
       httpPort: httpPort.value === '' ? undefined : Number(httpPort.value),
       httpUrl: httpUrl.value.trim() || undefined,
       autoApproveAllTools: autoApproveAllTools.value,
       autoApproveTools: tools,
+      startupCommands: cmds,
     })
     Object.assign(store.settings, res.data)
     show(t('common.saved'))
@@ -105,6 +116,15 @@ async function save() {
           </div>
         </div>
       </div>
+      <div class="card">
+        <div class="card-title">{{ t('settings.startup_commands') }}</div>
+        <div class="form-hint" style="margin-bottom:8px">{{ t('settings.startup_commands_hint') }}</div>
+        <div v-for="(_, index) in startupCommands" :key="index" class="startup-cmd-item">
+          <textarea v-model="startupCommands[index]" rows="3" :placeholder="t('settings.startup_commands_placeholder')" />
+          <button class="btn-icon btn-danger-text" @click="removeStartupCommand(index)" :title="t('common.delete')">✕</button>
+        </div>
+        <button class="btn-sm btn-outline" @click="addStartupCommand">{{ t('settings.startup_commands_add') }}</button>
+      </div>
     </div>
   </div>
 </template>
@@ -136,6 +156,38 @@ async function save() {
   font-size: 0.85rem;
   padding: 8px 16px;
   text-align: center;
+}
+
+.startup-cmd-item {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+.startup-cmd-item textarea {
+  flex: 1;
+  font-family: monospace;
+  font-size: 0.85rem;
+  resize: vertical;
+}
+.btn-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 1rem;
+  line-height: 1;
+}
+.btn-danger-text {
+  color: var(--color-danger, #d44);
+}
+.btn-outline {
+  background: none;
+  border: 1px dashed var(--color-border, #ccc);
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 4px 12px;
+  color: var(--color-text-muted, #888);
 }
 
 @media (max-width: 768px) {

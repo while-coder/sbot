@@ -200,6 +200,10 @@ export default {
     auto_approve_tools: '自动批准的工具列表',
     auto_approve_tools_placeholder: '例：read_file, run_code',
     auto_approve_tools_hint: '多个工具名用英文逗号分隔，列表中的工具无需逐次确认',
+    startup_commands: '启动命令',
+    startup_commands_add: '+ 添加命令',
+    startup_commands_placeholder: '#!/bin/sh\necho "hello"',
+    startup_commands_hint: '服务启动时依次同步执行的脚本，适用于 Docker 初始化等场景',
   },
   models: {
     add: '+ 添加模型',

@@ -200,6 +200,10 @@ export default {
     auto_approve_tools: 'Auto-approved tools',
     auto_approve_tools_placeholder: 'e.g. read_file, run_code',
     auto_approve_tools_hint: 'Comma-separated tool names that are always approved without prompting',
+    startup_commands: 'Startup Commands',
+    startup_commands_add: '+ Add Command',
+    startup_commands_placeholder: '#!/bin/sh\necho "hello"',
+    startup_commands_hint: 'Shell scripts executed sequentially on service startup, useful for Docker initialization',
   },
   models: {
     add: '+ Add Model',

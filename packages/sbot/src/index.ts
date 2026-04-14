@@ -143,12 +143,14 @@ async function main() {
         // 执行启动命令
         const cmds = config.settings.startupCommands;
         if (cmds?.length) {
-            for (const cmd of cmds) {
-                logger.info(`Startup command: ${cmd}`);
+            for (let i = 0; i < cmds.length; i++) {
+                const cmd = cmds[i];
+                const preview = cmd.includes('\n') ? cmd.split('\n')[0] + '...' : cmd;
+                logger.info(`Startup command [${i + 1}/${cmds.length}]: ${preview}`);
                 try {
                     execSync(cmd, { stdio: 'inherit' });
                 } catch (e: any) {
-                    logger.error(`Startup command failed: ${cmd} — ${e?.message ?? e}`);
+                    logger.error(`Startup command [${i + 1}] failed: ${e?.message ?? e}`);
                 }
             }
         }
