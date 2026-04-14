@@ -179,6 +179,12 @@ export default {
     use_channel_agent: 'Use channel agent',
     use_channel_memories: 'Use channel memories',
     use_channel_memories_hint: 'When enabled, use the memories configured on the channel',
+    intent_model: 'Intent Model',
+    intent_model_hint: 'When a model is selected, intent filtering is enabled — only messages classified as needing a reply will trigger AI response',
+    intent_threshold: 'Confidence Threshold',
+    intent_threshold_hint: '0-1, higher is stricter (default 0.7)',
+    intent_prompt: 'Custom Intent Prompt',
+    intent_prompt_placeholder: 'Leave empty to use the built-in default prompt',
   },
   settings: {
     http_port: 'HTTP Port',

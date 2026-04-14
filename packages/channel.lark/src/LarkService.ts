@@ -10,13 +10,13 @@ function removeMentions(content: MessageContent, mentions: Array<{ key: string }
   if (typeof content === 'string') {
     let result = content;
     for (const mention of mentions) result = result.replaceAll(mention.key, '');
-    return result;
+    return result.trim();
   }
   return content.map(part => {
     if (part.type === 'text' && part.text) {
       let text = part.text;
       for (const mention of mentions) text = text.replaceAll(mention.key, '');
-      return { ...part, text };
+      return { ...part, text: text.trim() };
     }
     return part;
   });
@@ -64,6 +64,7 @@ export class LarkService implements IChannelService {
   private userIdType: LarkUserIdType;
   private tenantAccessToken: string = '';
   private tokenExpireTime: number = 0;
+  private botOpenId: string = '';
 
   constructor(options: LarkServiceOptions) {
     this.onReceiveMessage = options.onReceiveMessage;
@@ -301,6 +302,24 @@ export class LarkService implements IChannelService {
     }
   }
 
+  private async fetchBotOpenId(): Promise<void> {
+    try {
+      const token = await this.getTenantAccessToken();
+      const response = await fetch('https://open.feishu.cn/open-apis/bot/v3/info/', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json() as any;
+      if (data.code === 0 && data.bot?.open_id) {
+        this.botOpenId = data.bot.open_id;
+        this.logger?.info(`Bot open_id: ${this.botOpenId}`);
+      } else {
+        this.logger?.error(`Failed to get bot info: ${JSON.stringify(data)}`);
+      }
+    } catch (error: any) {
+      this.logger?.error(`Error fetching bot info: ${error.message}`);
+    }
+  }
+
   async registerEventDispatcher() {
     const eventDispatcher = new Lark.EventDispatcher({logger: this.larkLogger, loggerLevel: this.loggerLevel}).register({
       "im.message.receive_v1": async (data: any) => {
@@ -340,6 +359,8 @@ export class LarkService implements IChannelService {
             return
           }
 
+          if (!this.botOpenId) await this.fetchBotOpenId();
+          const mentionBot = mentions?.some((m: any) => m.mentioned_type === 'bot' && m.id?.open_id === this.botOpenId) ?? false;
           if (mentions != null) {
             query = removeMentions(query, mentions);
           }
@@ -349,7 +370,7 @@ export class LarkService implements IChannelService {
             this.getUserInfo(userId),
             this.getChatInfo(chat_id),
           ]);
-          await this.onReceiveMessage(userId, userInfo, chatInfo, { event_id, chat_type, sessionId: chat_id, message_id, root_id, message_type }, typeof query === 'string' ? query.trim() : query)
+          await this.onReceiveMessage(userId, userInfo, chatInfo, { event_id, chat_type, sessionId: chat_id, message_id, root_id, message_type, mentionBot }, typeof query === 'string' ? query.trim() : query)
         } catch (e: any) {
           this.logger?.error(`Receive message error: ${e.stack}`);
         }

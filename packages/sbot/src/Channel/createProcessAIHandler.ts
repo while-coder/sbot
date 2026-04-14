@@ -6,6 +6,7 @@ import { buildExecuteTool } from "../UserService/buildExecuteTool";
 import { WebChatEventType } from "sbot.commons";
 import { httpServer } from "../Server/HttpServer";
 
+
 const agentToolHelpers: ChannelToolHelpers = {
     createAskTool: (prompt, askFn, supportedTypes) =>
         createAskAgentTool(prompt, askFn, supportedTypes),
@@ -79,6 +80,7 @@ export function createProcessAIHandler(): ProcessAIHandler {
         const dbSession = await database.findByPk<ChannelSessionRow>(database.channelSession, dbSessionId);
 
         const agentId = dbSession?.agentId || (channel.agent as string);
+
         const sessionMemories = parseMemories(dbSession?.memories);
         const memories = dbSession?.useChannelMemories
             ? [...((channel.memories as string[]) ?? []), ...sessionMemories]

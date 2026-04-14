@@ -94,7 +94,8 @@ export function prepareMessage(text: string, pending: PendingAttachment[]): Prep
 
     if (att.isImage) {
       const mime = getMimeType(att.filePath);
-      const dataUrl = `data:${mime};base64,${buf.toString('base64')}`;
+      const dataUrl = `data:${mime};base64,$
+      {buf.toString('base64')}`;
       parts.push({ type: 'image', dataUrl });
     } else if (isTextFile(att.filePath)) {
       attachments.push({ name: att.name, content: buf.toString('utf-8') });

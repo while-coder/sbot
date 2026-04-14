@@ -66,6 +66,9 @@ export type ChannelSessionRow = {
   wikis: string | null;         // Wiki UUID 列表（JSON 字符串，使用 parseMemories() 解析）
   useChannelMemories: boolean;  // 是否使用渠道级记忆
   workPath: string | null;      // 工作目录路径
+  intentModel: string | null;
+  intentPrompt: string | null;
+  intentThreshold: number;
   inputTokens: number;          // 累计输入 token
   outputTokens: number;         // 累计输出 token
   totalTokens: number;          // 累计总 token
@@ -320,6 +323,24 @@ class Database {
           allowNull: true,
           defaultValue: null,
           comment: "工作目录路径",
+        },
+        intentModel: {
+          type: DataTypes.STRING(255),
+          allowNull: true,
+          defaultValue: null,
+          comment: "意图识别模型 UUID，非空即启用意图过滤",
+        },
+        intentPrompt: {
+          type: DataTypes.TEXT,
+          allowNull: true,
+          defaultValue: null,
+          comment: "自定义意图过滤 prompt，null 使用内置默认",
+        },
+        intentThreshold: {
+          type: DataTypes.FLOAT,
+          allowNull: false,
+          defaultValue: 0.7,
+          comment: "意图识别置信度阈值 (0-1)",
         },
         inputTokens: {
           type: DataTypes.INTEGER,

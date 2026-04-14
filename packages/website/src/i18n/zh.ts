@@ -179,6 +179,12 @@ export default {
     use_channel_agent: '使用渠道 Agent',
     use_channel_memories: '使用渠道记忆',
     use_channel_memories_hint: '启用后使用所属渠道配置的记忆',
+    intent_model: '意图识别模型',
+    intent_model_hint: '选择模型后启用意图过滤，仅识别为需要回复的消息才会触发 AI 响应',
+    intent_threshold: '置信度阈值',
+    intent_threshold_hint: '0-1 之间，越高越严格（默认 0.7）',
+    intent_prompt: '自定义意图 Prompt',
+    intent_prompt_placeholder: '留空使用内置默认 Prompt',
   },
   settings: {
     http_port: 'HTTP 端口',

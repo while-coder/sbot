@@ -3,9 +3,10 @@ import { ICommand, MessageType, type MessageContent, isEmptyContent } from "scor
 import { SessionManager, SessionService } from "channel.base";
 import { ChannelType } from "sbot.commons";
 import { config } from "../Core/Config";
-import { database, SessionRow } from "../Core/Database";
+import { database, ChannelSessionRow, SessionRow } from "../Core/Database";
 import { channelManager } from "../Channel/ChannelManager";
 import { createProcessAIHandler, createWebProcessAIHandler } from "../Channel/createProcessAIHandler";
+import { classifyIntent } from "../Channel/classifyIntent";
 
 import { getBuiltInCommands } from "./BuiltInCommands";
 import { WebSocketUserService } from "./web/WebSocketUserService";
@@ -110,6 +111,19 @@ export class SbotSessionManager extends SessionManager {
 
     async onReceiveChannelMessage(threadId: string, query: MessageContent, args: any): Promise<void> {
         if (isEmptyContent(query)) return;
+
+        // 意图过滤：在进入消息队列之前检查，避免触发 onProcessStart（回复卡片）
+        if (!args?.mentionBot) {
+            const dbSessionId = args?.dbSessionId as number | undefined;
+            if (dbSessionId) {
+                const dbSession = await database.findByPk<ChannelSessionRow>(database.channelSession, dbSessionId);
+                if (dbSession?.intentModel) {
+                    const shouldReply = await classifyIntent(query, dbSession.intentModel, dbSession.intentPrompt ?? null, dbSession.intentThreshold ?? 0.7);
+                    if (!shouldReply) return;
+                }
+            }
+        }
+
         const session = this.getOrCreate(threadId);
         await session.onReceiveMessage(query, args);
     }

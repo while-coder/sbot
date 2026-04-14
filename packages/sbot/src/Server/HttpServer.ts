@@ -1036,8 +1036,8 @@ class HttpServer {
         app.put('/api/channel-sessions/:id', api(async req => {
             const id = parseInt(req.params.id as string, 10);
             if (isNaN(id)) { const e: any = new Error('Invalid id'); e.status = 400; throw e; }
-            const { sessionName, agentId, memories, useChannelMemories, workPath } = req.body;
-            await database.update(database.channelSession, { sessionName, agentId, memories: JSON.stringify(memories || []), useChannelMemories: !!useChannelMemories, workPath: workPath || null }, { where: { id } });
+            const { sessionName, agentId, memories, useChannelMemories, workPath, intentModel, intentPrompt, intentThreshold } = req.body;
+            await database.update(database.channelSession, { sessionName, agentId, memories: JSON.stringify(memories || []), useChannelMemories: !!useChannelMemories, workPath: workPath || null, intentModel: intentModel || null, intentPrompt: intentPrompt || null, intentThreshold: intentThreshold ?? 0.7 }, { where: { id } });
         }));
 
         app.delete('/api/channel-sessions/:id', api(async req => {

@@ -10,7 +10,7 @@ import {
     MemoryEvaluator, MemoryCompressor, MemoryExtractor, MemoryService,
     IEmbeddingService,
     IMemoryExtractor, IMemoryEvaluator, IMemoryCompressor,
-    IAgentSaverService, AgentFileSaver, AgentSqliteSaver,
+    IAgentSaverService, AgentFileSaver, AgentSqliteSaver, AgentMemorySaver,
     T_MaxMemoryAgeDays, T_MemoryMode, T_DBPath,
     T_ExtractorSystemPrompt, T_EvaluatorSystemPrompt, T_CompressorPromptTemplate,
     T_MemorySystemPromptTemplate,
@@ -273,7 +273,9 @@ export class AgentRunner {
 
         const dbThreadId = saverConfig.share ? saverId : saverThreadId;
 
-        if (saverConfig.type === SaverType.File) {
+        if (saverConfig.type === SaverType.Memory) {
+            container.registerSingleton(IAgentSaverService, AgentMemorySaver);
+        } else if (saverConfig.type === SaverType.File) {
             container.registerWithArgs(IAgentSaverService, AgentFileSaver, {
                 [T_DBPath]: config.getSaverDBPath(saverId, dbThreadId, '.json'),
             });

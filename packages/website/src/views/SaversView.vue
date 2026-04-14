@@ -232,6 +232,7 @@ async function refresh() {
             <select v-model="form.type">
               <option value="sqlite">SQLite</option>
               <option value="file">File</option>
+              <option value="memory">Memory</option>
             </select>
           </div>
           <div class="form-group">

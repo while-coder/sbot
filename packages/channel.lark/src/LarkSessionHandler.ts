@@ -25,6 +25,7 @@ export interface LarkMessageArgs extends ChannelMessageArgs {
   root_id: string;
   message_id: string;
   message_type?: string;
+  mentionBot?: boolean;
 }
 
 export interface LarkActionArgs {

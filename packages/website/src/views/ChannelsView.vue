@@ -28,6 +28,9 @@ interface ChannelSessionRow {
   memories: string[]
   useChannelMemories: boolean
   workPath: string | null
+  intentModel: string | null
+  intentPrompt: string | null
+  intentThreshold: number
   inputTokens: number
   outputTokens: number
   totalTokens: number
@@ -67,6 +70,7 @@ const agentOptions  = computed(() => Object.entries(store.settings.agents   || {
 const saverOptions  = computed(() => Object.entries(store.settings.savers   || {}).map(([id, s]) => ({ id, label: (s as any).name  || id })))
 const memoryOptions = computed(() => Object.entries(store.settings.memories  || {}).map(([id, m]) => ({ id, label: m.name  || id })))
 const wikiOptions   = computed(() => Object.entries(store.settings.wikis    || {}).map(([id, w]) => ({ id, label: (w as any).name  || id })))
+const modelOptions  = computed(() => Object.entries(store.settings.models   || {}).map(([id, m]) => ({ id, label: (m as any).name  || id })))
 
 const saverViewModal = ref<InstanceType<typeof SaverViewModal>>()
 const pathPicker     = ref<InstanceType<typeof PathPickerModal>>()
@@ -82,7 +86,7 @@ const channelLoading   = ref<Record<string, boolean>>({})
 const viewUser         = ref<UserRow | null>(null)
 
 const editingSession   = ref<ChannelSessionRow | null>(null)
-const sessionForm      = ref<{ name: string; agentId: string; memories: string[]; wikis: string[]; useChannelMemories: boolean; workPath: string }>({ name: '', agentId: '', memories: [], wikis: [], useChannelMemories: false, workPath: '' })
+const sessionForm      = ref<{ name: string; agentId: string; memories: string[]; wikis: string[]; useChannelMemories: boolean; workPath: string; intentModel: string; intentPrompt: string; intentThreshold: number }>({ name: '', agentId: '', memories: [], wikis: [], useChannelMemories: false, workPath: '', intentModel: '', intentPrompt: '', intentThreshold: 0.7 })
 
 function openEditSession(s: ChannelSessionRow) {
   editingSession.value = s
@@ -90,7 +94,7 @@ function openEditSession(s: ChannelSessionRow) {
   const memArr = Array.isArray(rawMem) ? rawMem : typeof rawMem === 'string' ? (() => { try { const p = JSON.parse(rawMem); return Array.isArray(p) ? p : [] } catch { return [] } })() : []
   const rawWiki = (s as any).wikis
   const wikiArr = Array.isArray(rawWiki) ? rawWiki : typeof rawWiki === 'string' ? (() => { try { const p = JSON.parse(rawWiki); return Array.isArray(p) ? p : [] } catch { return [] } })() : []
-  sessionForm.value = { name: s.sessionName || '', agentId: s.agentId || '', memories: memArr, wikis: wikiArr, useChannelMemories: !!s.useChannelMemories, workPath: s.workPath || '' }
+  sessionForm.value = { name: s.sessionName || '', agentId: s.agentId || '', memories: memArr, wikis: wikiArr, useChannelMemories: !!s.useChannelMemories, workPath: s.workPath || '', intentModel: s.intentModel || '', intentPrompt: s.intentPrompt || '', intentThreshold: s.intentThreshold ?? 0.7 }
 }
 
 async function saveSession() {
@@ -108,6 +112,9 @@ async function saveSession() {
       wikis,
       useChannelMemories: sessionForm.value.useChannelMemories,
       workPath: sessionForm.value.workPath.trim() || null,
+      intentModel: sessionForm.value.intentModel || null,
+      intentPrompt: sessionForm.value.intentPrompt.trim() || null,
+      intentThreshold: sessionForm.value.intentThreshold,
     })
     Object.assign(s, {
       sessionName: sessionForm.value.name.trim(),
@@ -116,6 +123,9 @@ async function saveSession() {
       wikis,
       useChannelMemories: sessionForm.value.useChannelMemories,
       workPath: sessionForm.value.workPath.trim() || null,
+      intentModel: sessionForm.value.intentModel || null,
+      intentPrompt: sessionForm.value.intentPrompt.trim() || null,
+      intentThreshold: sessionForm.value.intentThreshold,
     })
     show(t('common.saved'))
     editingSession.value = null
@@ -678,6 +688,25 @@ async function refresh() {
               <button class="btn-outline btn-sm" @click="pathPicker?.open(sessionForm.workPath)">{{ t('directory.browse') }}</button>
             </div>
           </div>
+          <div class="form-group">
+            <label>{{ t('channels.intent_model') }}</label>
+            <select v-model="sessionForm.intentModel">
+              <option value="">{{ t('common.not_use') }}</option>
+              <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
+            </select>
+            <span style="font-size:11px;color:#888">{{ t('channels.intent_model_hint') }}</span>
+          </div>
+          <template v-if="sessionForm.intentModel">
+            <div class="form-group">
+              <label>{{ t('channels.intent_threshold') }}</label>
+              <input v-model.number="sessionForm.intentThreshold" type="number" min="0" max="1" step="0.1" />
+              <span style="font-size:11px;color:#888">{{ t('channels.intent_threshold_hint') }}</span>
+            </div>
+            <div class="form-group">
+              <label>{{ t('channels.intent_prompt') }}</label>
+              <textarea v-model="sessionForm.intentPrompt" rows="4" :placeholder="t('channels.intent_prompt_placeholder')" style="font-size:12px" />
+            </div>
+          </template>
         </div>
         <div class="modal-footer">
           <button class="btn-outline" @click="editingSession = null">{{ t('common.cancel') }}</button>
