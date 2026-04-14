@@ -8,7 +8,7 @@
     "build": "rimraf dist && tsc -b --force"
   },
   "dependencies": {
-    "@larksuiteoapi/node-sdk": "^1.58.0",
+    "@larksuiteoapi/node-sdk": "^1.60.0",
     "channel.base": "workspace:*"
   },
   "private": true,

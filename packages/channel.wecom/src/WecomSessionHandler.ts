@@ -1,9 +1,8 @@
 import {
-  ChatMessage,
-  MessageType,
-  type MessageContent,
-} from 'scorpio.ai';
-import { ChannelSessionHandler, ToolCallStatus, SessionService, type ChannelMessageArgs, type ChannelToolHelpers } from 'channel.base';
+  ChannelSessionHandler, ToolCallStatus, SessionService,
+  type ChannelMessageArgs, type ChannelToolHelpers,
+  type ChatMessage, type MessageContent, type MessageType,
+} from 'channel.base';
 import { WecomChatProvider } from './WecomChatProvider';
 import type { WecomService, WecomMessageArgs, WecomActionArgs } from './WecomService';
 

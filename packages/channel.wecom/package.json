@@ -8,7 +8,7 @@
     "build": "rimraf dist && tsc -b --force"
   },
   "dependencies": {
-    "@wecom/aibot-node-sdk": "^1.0.4",
+    "@wecom/aibot-node-sdk": "^1.0.6",
     "channel.base": "workspace:*"
   },
   "private": true,
