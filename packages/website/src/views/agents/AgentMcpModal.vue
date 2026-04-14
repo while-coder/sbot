@@ -80,12 +80,13 @@ async function saveGlobals() {
   try {
     const existing = (store.settings.agents || {})[agentName.value] || {}
     const mcpValue = useAllMcp.value ? '*' : selectedGlobals.value
-    const res = await apiFetch(
-      `/api/settings/agents/${encodeURIComponent(agentName.value)}`,
+    await apiFetch(
+      `/api/agents/${encodeURIComponent(agentName.value)}`,
       'PUT',
       { ...existing, mcp: mcpValue },
     )
-    Object.assign(store.settings, res.data)
+    const settingsRes = await apiFetch('/api/settings')
+    Object.assign(store.settings, settingsRes.data)
     origUseAll.value = useAllMcp.value
     agentGlobals.value = useAllMcp.value ? [] : [...selectedGlobals.value]
     show(t('common.saved'))
@@ -213,12 +214,13 @@ const allToolsApproved = computed(() =>
 async function saveAutoApprove(next: string[]) {
   try {
     const existing = (store.settings.agents || {})[agentName.value] || {}
-    const res = await apiFetch(
-      `/api/settings/agents/${encodeURIComponent(agentName.value)}`,
+    await apiFetch(
+      `/api/agents/${encodeURIComponent(agentName.value)}`,
       'PUT',
       { ...existing, autoApproveTools: next },
     )
-    Object.assign(store.settings, res.data)
+    const settingsRes = await apiFetch('/api/settings')
+    Object.assign(store.settings, settingsRes.data)
   } catch (e: any) {
     show(e.message, 'error')
   }

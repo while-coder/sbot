@@ -94,14 +94,32 @@ function switchTab(id: string, tab: 'config' | 'skills' | 'mcp') {
   if (tab === 'mcp')    loadMcp(id)
 }
 
+async function exportAgent(id: string) {
+  try {
+    const res = await apiFetch(`/api/agent-store/export/${encodeURIComponent(id)}`)
+    const pkg = res.data ?? res
+    const blob = new Blob([JSON.stringify(pkg, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `agent-${pkg.id || id}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    show(t('agentStore.export_success'))
+  } catch (e: any) {
+    show(e.message, 'error')
+  }
+}
+
 async function copyAgent(id: string) {
   const agent = agents.value[id]
   if (!agent) return
   try {
     const copy = JSON.parse(JSON.stringify(agent))
     if (copy.name) copy.name = copy.name + '-copy'
-    const res = await apiFetch('/api/settings/agents', 'POST', copy)
-    Object.assign(store.settings, res.data)
+    await apiFetch('/api/agents', 'POST', copy)
+    const settingsRes = await apiFetch('/api/settings')
+    Object.assign(store.settings, settingsRes.data)
     show(t('agents.copy'))
   } catch (e: any) {
     show(e.message, 'error')
@@ -112,8 +130,9 @@ async function removeAgent(id: string) {
   const label = (agents.value[id] as any)?.name || id
   if (!window.confirm(t('agents.confirm_delete', { name: label }))) return
   try {
-    const res = await apiFetch(`/api/settings/agents/${encodeURIComponent(id)}`, 'DELETE')
-    Object.assign(store.settings, res.data)
+    await apiFetch(`/api/agents/${encodeURIComponent(id)}`, 'DELETE')
+    const settingsRes = await apiFetch('/api/settings')
+    Object.assign(store.settings, settingsRes.data)
     expandedIds.value.delete(id)
     expandedIds.value = new Set(expandedIds.value)
     show(t('common.deleted'))
@@ -190,12 +209,13 @@ const allToolsApproved = computed(() =>
 async function saveAutoApprove(next: string[]) {
   try {
     const existing = (store.settings.agents || {})[toolsAgentId.value] || {}
-    const res = await apiFetch(
-      `/api/settings/agents/${encodeURIComponent(toolsAgentId.value)}`,
+    await apiFetch(
+      `/api/agents/${encodeURIComponent(toolsAgentId.value)}`,
       'PUT',
       { ...existing, autoApproveTools: next },
     )
-    Object.assign(store.settings, res.data)
+    const settingsRes = await apiFetch('/api/settings')
+    Object.assign(store.settings, settingsRes.data)
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -273,6 +293,7 @@ async function refresh() {
               </td>
               <td>
                 <span style="font-weight:500;color:#1c1c1c">{{ (a as any).name || id }}</span>
+                <span v-if="(a as any).id" class="config-badge" style="background:#e0f2fe;color:#0369a1">{{ (a as any).id }}</span>
                 <span v-if="a.skills === '*'" class="config-badge config-badge-info">Skills *</span>
                 <span v-if="a.mcp === '*'" class="config-badge config-badge-info">MCP *</span>
                 <span v-if="(a as any).autoApproveAllTools" class="config-badge config-badge-warn">{{ t('agents.auto_approve_all_tools') }}</span>
@@ -285,6 +306,7 @@ async function refresh() {
                   <button class="btn-outline btn-sm" @click="agentMcpModal?.open(id as string)">MCP</button>
                   <button class="btn-outline btn-sm" @click="agentSkillsModal?.open(id as string)">Skills</button>
                   <button class="btn-outline btn-sm" @click="copyAgent(id as string)">{{ t('agents.copy') }}</button>
+                  <!-- <button class="btn-outline btn-sm" @click="exportAgent(id as string)">{{ t('agentStore.export_btn') }}</button> -->
                   <button class="btn-danger btn-sm" @click="removeAgent(id as string)">{{ t('common.delete') }}</button>
                 </div>
               </td>
@@ -483,6 +505,7 @@ async function refresh() {
             <button class="btn-outline btn-sm" @click="agentMcpModal?.open(id as string)">MCP</button>
             <button class="btn-outline btn-sm" @click="agentSkillsModal?.open(id as string)">Skills</button>
             <button class="btn-outline btn-sm" @click="copyAgent(id as string)">{{ t('agents.copy') }}</button>
+            <button class="btn-outline btn-sm" @click="exportAgent(id as string)">{{ t('agentStore.export_btn') }}</button>
             <button class="btn-danger btn-sm" @click="removeAgent(id as string)">{{ t('common.delete') }}</button>
           </div>
 

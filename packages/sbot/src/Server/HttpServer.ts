@@ -7,11 +7,12 @@ import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { WebSocket, WebSocketServer } from 'ws';
 import { AgentToolService, SkillService, ModelProvider, listThreadIds, listSubDirs, readImageAsDataUrl, isEmptyContent, type StoredMessage, type MessageContent } from "scorpio.ai";
-import { config } from '../Core/Config';
+import { config, sanitizeId } from '../Core/Config';
 import { AgentRunner } from '../Agent/AgentRunner';
 import { globalAgentToolService, refreshGlobalAgentToolService, refreshBuiltinTools, BuiltinProvider } from '../Agent/GlobalAgentToolService';
 import { globalSkillService, refreshGlobalSkillService, getSkillsDirsMap } from '../Agent/GlobalSkillService';
 import { SkillHubService, type HubSkillResult } from '../SkillHub';
+import { AgentStoreService } from '../AgentStore';
 import { LoggerService } from '../Core/LoggerService';
 import { database, sessionThreadId, parseMemories, type SessionRow } from '../Core/Database';
 import { sessionManager } from '../UserService/SessionManager';
@@ -220,12 +221,20 @@ function api(fn: (req: Request, res: Response) => any) {
 
 class HttpServer {
     private readonly skillHubService = new SkillHubService();
+    private readonly agentStoreService = new AgentStoreService();
     private readonly wsClients = new Set<WebSocket>();
 
     broadcastToWs(data: string): void {
         for (const ws of this.wsClients) {
             if (ws.readyState === WebSocket.OPEN) ws.send(data);
         }
+    }
+
+    /** Build settings response with agents dynamically injected from directories */
+    private settingsWithAgents() {
+        const agents: Record<string, any> = {};
+        for (const a of config.listAgents()) agents[a.id] = a;
+        return { ...config.settings, agents };
     }
 
     async start() {
@@ -258,6 +267,7 @@ class HttpServer {
         this.registerMcpRoutes(app);
         this.registerSkillRoutes(app);
         this.registerSkillHubRoutes(app);
+        this.registerAgentStoreRoutes(app);
         this.registerPromptRoutes(app);
         this.registerDataRoutes(app);
         this.registerSchedulerRoutes(app);
@@ -301,6 +311,9 @@ class HttpServer {
         server.listen(port, () => {
             logger.info(`HTTP server started, admin UI available at: http://127.0.0.1:${port}`);
         });
+
+        // Start agent store auto-update scheduler
+        this.agentStoreService.startAutoUpdate((data) => this.broadcastToWs(data));
     }
 
     // ===== System =====
@@ -331,7 +344,7 @@ class HttpServer {
 
     // ===== Settings =====
     private registerSettingsRoutes(app: express.Application) {
-        app.get('/api/settings', api(() => config.settings));
+        app.get('/api/settings', api(() => this.settingsWithAgents()));
 
         app.put('/api/settings/general', api(req => {
             const { httpPort, httpUrl, lark, autoApproveTools, autoApproveAllTools, startupCommands } = req.body;
@@ -399,7 +412,7 @@ class HttpServer {
         registerSettingsCrud(app, 'savers', { label: 'Saver config' });
         registerSettingsCrud(app, 'memories', { label: 'Memory config' });
         registerSettingsCrud(app, 'wikis', { label: 'Wiki config' });
-        registerSettingsCrud(app, 'agents', { label: 'Agent', checkOnUpdate: false });
+        this.registerAgentRoutes(app);
         registerSettingsCrud(app, 'channels', {
             label: 'Channel',
             checkOnUpdate: true,
@@ -462,6 +475,46 @@ class HttpServer {
         app.delete('/api/settings/sessions/:id', api(async req => {
             const id = req.params.id as string;
             await database.destroy(database.session, { where: { id } });
+            return { success: true };
+        }));
+    }
+
+    // ===== Agents (directory-based CRUD) =====
+    private registerAgentRoutes(app: express.Application) {
+        // List all agents
+        app.get('/api/agents', api(() => config.listAgents()));
+
+        // Create agent
+        app.post('/api/agents', api(req => {
+            const body = req.body;
+            const id = body.id || sanitizeId(body.name || 'agent');
+            // 冲突检查
+            let finalId = id;
+            if (config.agentExists(finalId)) {
+                let n = 2;
+                while (config.agentExists(`${id}-${n}`)) n++;
+                finalId = `${id}-${n}`;
+            }
+            config.saveAgent(finalId, body);
+            return config.getAgent(finalId);
+        }));
+
+        // Get single agent
+        app.get('/api/agents/:id', api(req => {
+            return config.getAgent(req.params.id as string);
+        }));
+
+        // Update agent
+        app.put('/api/agents/:id', api(req => {
+            const id = req.params.id as string;
+            config.saveAgent(id, req.body);
+            return config.getAgent(id);
+        }));
+
+        // Delete agent
+        app.delete('/api/agents/:id', api(req => {
+            const id = req.params.id as string;
+            config.deleteAgent(id);
             return { success: true };
         }));
     }
@@ -540,7 +593,8 @@ class HttpServer {
     }
 
     private listAgentMcp(agentName: string) {
-        const agent = (config.settings as any).agents?.[agentName];
+        let agent: any;
+        try { agent = config.getAgent(agentName); } catch { /* not found */ }
         const mcp = agent?.mcp;
         const allGlobals = this.listGlobalMcps();
         const globals = mcp === '*'
@@ -681,7 +735,8 @@ class HttpServer {
         // ── Agent Skills ──
         app.get('/api/agents/:name/skills', api(req => {
             const agentName = req.params.name as string;
-            const agent = (config.settings as any).agents?.[agentName];
+            let agent: any;
+            try { agent = config.getAgent(agentName); } catch { /* not found */ }
             const dirsMap = getSkillsDirsMap();
             const allGlobalSkills = globalSkillService.getAllSkills();
             const skills = agent?.skills;
@@ -760,6 +815,85 @@ class HttpServer {
             const { url, overwrite = false }: { url: string; overwrite: boolean } = req.body;
             if (!url?.trim()) { const e: any = new Error('Missing url'); e.status = 400; throw e; }
             return await this.skillHubService.installSkillWithUrl(url.trim(), config.getAgentSkillsPath(agentName), { overwrite });
+        }));
+    }
+
+    // ===== Agent Store =====
+    private registerAgentStoreRoutes(app: express.Application) {
+        // ── Sources ──
+        app.get('/api/agent-store/sources', api(() => {
+            return this.agentStoreService.getSources();
+        }));
+
+        app.post('/api/agent-store/sources', api(async req => {
+            const { url, name, enabled, autoUpdate, updateInterval } = req.body;
+            if (!url?.trim()) throwBad('Missing url');
+            this.agentStoreService.addSource({ url: url.trim(), name, enabled, autoUpdate, updateInterval });
+            return this.agentStoreService.getSources();
+        }));
+
+        app.delete('/api/agent-store/sources/:index', api(async req => {
+            const index = Number(req.params.index);
+            if (isNaN(index)) throwBad('Invalid index');
+            this.agentStoreService.removeSource(index);
+            return this.agentStoreService.getSources();
+        }));
+
+        // ── Pending updates (from auto-update scheduler) ──
+        app.get('/api/agent-store/pending-updates', api(() => {
+            return this.agentStoreService.pendingUpdates;
+        }));
+
+        // ── Browse ──
+        app.get('/api/agent-store/browse', api(async req => {
+            const source = req.query.source as string | undefined;
+            return this.agentStoreService.fetchRemoteAgents(source);
+        }));
+
+        // ── Install ──
+        app.post('/api/agent-store/install', api(async req => {
+            const { pkg, overwrite = false, sourceUrl }: { pkg: any; overwrite: boolean; sourceUrl?: string } = req.body;
+            if (!pkg?.id) throwBad('Missing pkg.id');
+            const result = await this.agentStoreService.install(pkg, overwrite, {
+                sourceUrl,
+                skillHub: this.skillHubService,
+            });
+            return { ...result, settings: this.settingsWithAgents() };
+        }));
+
+        // ── Updates ──
+        app.post('/api/agent-store/check-updates', api(async () => {
+            return this.agentStoreService.checkUpdates();
+        }));
+
+        app.post('/api/agent-store/update/:id', api(async req => {
+            const agentId = req.params.id as string;
+            const { pkg } = req.body;
+            if (!pkg) throwBad('Missing pkg');
+            const ok = this.agentStoreService.applyUpdate(agentId, pkg);
+            if (!ok) throwBad(`Agent "${agentId}" not found`);
+            return this.settingsWithAgents();
+        }));
+
+        // ── Export ──
+        app.get('/api/agent-store/export/:agentId', api(async req => {
+            return this.agentStoreService.exportAgent(req.params.agentId as string);
+        }));
+
+        // ── Import ──
+        app.post('/api/agent-store/import', api(async req => {
+            const pkg = this.agentStoreService.importFromJson(req.body);
+            const result = await this.agentStoreService.install(pkg, false, {
+                skillHub: this.skillHubService,
+            });
+            return { ...result, pkg, settings: this.settingsWithAgents() };
+        }));
+
+        app.post('/api/agent-store/import-url', api(async req => {
+            const { url } = req.body;
+            if (!url?.trim()) throwBad('Missing url');
+            const pkg = await this.agentStoreService.importFromUrl(url.trim());
+            return { pkg };
         }));
     }
 

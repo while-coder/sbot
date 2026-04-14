@@ -3,7 +3,7 @@ import path from "path";
 import fs from "fs";
 import { ModelConfig, ModelProvider, EmbeddingConfig, EmbeddingProvider, MCPServers, IModelService, IEmbeddingService, ModelServiceFactory, EmbeddingServiceFactory, type AgentSubNode } from "scorpio.ai";
 export type { AgentSubNode } from "scorpio.ai";
-import { DEFAULT_PORT, SaverType, AgentMode, MemoryMode, SaverConfig, MemoryConfig, WikiConfig, ChannelConfig } from "sbot.commons";
+import { DEFAULT_PORT, SaverType, AgentMode, MemoryMode, SaverConfig, MemoryConfig, WikiConfig, ChannelConfig, type AgentStoreSource } from "sbot.commons";
 export { DEFAULT_PORT, SaverType, AgentMode, ChannelType, SaverConfig, MemoryConfig, WikiConfig, ChannelConfig } from "sbot.commons";
 
 /**
@@ -71,9 +71,22 @@ export interface Settings {
   plugins?: string[];
 }
 
+/**
+ * 将名称转换为合法的目录 ID
+ */
+export function sanitizeId(name: string): string {
+  let id = name
+    .toLowerCase()
+    .replace(/[\s_]+/g, '-')       // 空格和下划线替换为连字符
+    .replace(/[^a-z0-9\-\.]/g, '') // 只保留 a-z 0-9 - .
+    .replace(/^-+|-+$/g, '');      // 去除首尾连字符
+  return id || 'agent';
+}
+
 class Config {
   private _configDir: string;
   private _settings: Settings = {};
+  private _migrationMap: Record<string, string> | null = null;
   readonly pkg: { version: string; name: string; description: string; releasenote: string };
 
   constructor() {
@@ -117,10 +130,144 @@ class Config {
     return this._settings.embeddings[id.trim()];
   }
 
-  getAgent(id: string): AgentEntry {
-    const entry = this._settings.agents?.[id.trim()];
-    if (!entry) throw new Error(`Agent config "${id}" not found`);
-    return entry;
+  /**
+   * 从 ~/.sbot/agents/<id>/ 目录读取单个 Agent 配置
+   * 合并 system-prompt.md 和 .store.json
+   */
+  private _readAgentDir(id: string): (AgentEntry & { id: string; storeSource?: AgentStoreSource }) | null {
+    const agentDir = path.join(this._configDir, 'agents', id);
+    const agentJsonPath = path.join(agentDir, 'agent.json');
+    if (!fs.existsSync(agentJsonPath)) return null;
+
+    try {
+      const entry = JSON.parse(fs.readFileSync(agentJsonPath, 'utf-8')) as AgentEntry;
+
+      // 读取 system-prompt.md
+      const promptPath = path.join(agentDir, 'system-prompt.md');
+      if (fs.existsSync(promptPath)) {
+        entry.systemPrompt = fs.readFileSync(promptPath, 'utf-8');
+      }
+
+      // 读取 .store.json
+      let storeSource: AgentStoreSource | undefined;
+      const storePath = path.join(agentDir, '.store.json');
+      if (fs.existsSync(storePath)) {
+        storeSource = JSON.parse(fs.readFileSync(storePath, 'utf-8'));
+      }
+
+      return { ...entry, id, storeSource };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * 列出所有 Agent 目录配置
+   */
+  listAgents(): (AgentEntry & { id: string; storeSource?: AgentStoreSource })[] {
+    const agentsDir = path.join(this._configDir, 'agents');
+    if (!fs.existsSync(agentsDir)) return [];
+
+    const results: (AgentEntry & { id: string; storeSource?: AgentStoreSource })[] = [];
+    const entries = fs.readdirSync(agentsDir, { withFileTypes: true });
+
+    for (const dirent of entries) {
+      if (!dirent.isDirectory()) continue;
+      const agent = this._readAgentDir(dirent.name);
+      if (agent) results.push(agent);
+    }
+
+    return results.sort((a, b) => a.id.localeCompare(b.id));
+  }
+
+  /**
+   * 获取 Agent 配置（目录优先，兼容 settings.json 旧格式）
+   */
+  getAgent(id: string): AgentEntry & { id: string; storeSource?: AgentStoreSource } {
+    const trimmed = id.trim();
+
+    // 1. 尝试从目录读取（新方式）
+    const fromDir = this._readAgentDir(trimmed);
+    if (fromDir) return fromDir;
+
+    // 2. 兼容旧格式：从 settings.json 中读取
+    const fromSettings = this._settings.agents?.[trimmed];
+    if (fromSettings) return { ...fromSettings, id: fromSettings.name || trimmed };
+
+    // 3. 尝试 UUID 迁移映射
+    const resolved = this.resolveAgentRef(trimmed);
+    if (resolved !== trimmed) {
+      const fromResolved = this._readAgentDir(resolved);
+      if (fromResolved) return fromResolved;
+    }
+
+    throw new Error(`Agent config "${id}" not found`);
+  }
+
+  /**
+   * 保存 Agent 配置到目录
+   */
+  saveAgent(id: string, entry: any): void {
+    const agentDir = this.getConfigPath(`agents/${id}`, true);
+
+    // 提取并分离 systemPrompt
+    const { systemPrompt, storeSource, id: _id, ...rest } = entry;
+
+    // 写入 agent.json
+    fs.writeFileSync(path.join(agentDir, 'agent.json'), JSON.stringify(rest, null, 2), 'utf-8');
+
+    // 写入或删除 system-prompt.md
+    const promptPath = path.join(agentDir, 'system-prompt.md');
+    if (systemPrompt) {
+      fs.writeFileSync(promptPath, systemPrompt, 'utf-8');
+    } else if (fs.existsSync(promptPath)) {
+      fs.unlinkSync(promptPath);
+    }
+
+    // 写入或删除 .store.json
+    const storePath = path.join(agentDir, '.store.json');
+    if (storeSource !== undefined) {
+      fs.writeFileSync(storePath, JSON.stringify(storeSource, null, 2), 'utf-8');
+    } else if (fs.existsSync(storePath)) {
+      fs.unlinkSync(storePath);
+    }
+  }
+
+  /**
+   * 删除 Agent 目录
+   */
+  deleteAgent(id: string): void {
+    const agentDir = path.join(this._configDir, 'agents', id);
+    fs.rmSync(agentDir, { recursive: true, force: true });
+  }
+
+  /**
+   * 检查 Agent 目录是否存在
+   */
+  agentExists(id: string): boolean {
+    const agentJsonPath = path.join(this._configDir, 'agents', id, 'agent.json');
+    return fs.existsSync(agentJsonPath);
+  }
+
+  /**
+   * 解析 Agent 引用（支持 UUID 到别名的迁移映射）
+   */
+  resolveAgentRef(ref: string): string {
+    // UUID 格式：包含连字符且长度为 36
+    if (ref.length === 36 && ref.includes('-')) {
+      const mapPath = path.join(this._configDir, '.migration-map.json');
+      if (fs.existsSync(mapPath)) {
+        if (!this._migrationMap) {
+          try {
+            this._migrationMap = JSON.parse(fs.readFileSync(mapPath, 'utf-8'));
+          } catch {
+            this._migrationMap = {};
+          }
+        }
+        return this._migrationMap![ref] ?? ref;
+      }
+    }
+    return ref;
   }
 
   getSaver(id: string): SaverConfig | undefined {
@@ -177,6 +324,86 @@ class Config {
     } catch (error) {
       this._settings = {};
     }
+
+    // 自动迁移：settings.agents → 目录结构
+    if (this._settings.agents && Object.keys(this._settings.agents).length > 0) {
+      this.migrateAgentsToDirectories();
+    }
+  }
+
+  /**
+   * 将 settings.json 中的 agents 迁移到 ~/.sbot/agents/<id>/ 目录结构
+   * 幂等：如果目录已存在则跳过
+   */
+  private migrateAgentsToDirectories(): void {
+    const settingsPath = this.getConfigPath("settings.json");
+    const backupPath = this.getConfigPath("settings.json.pre-agent-migration");
+
+    // 1. 备份 settings.json（仅首次迁移）
+    if (!fs.existsSync(backupPath)) {
+      fs.copyFileSync(settingsPath, backupPath);
+    }
+
+    const uuidToId: Record<string, string> = {};
+    const usedIds = new Set<string>();
+
+    // 收集已有目录名
+    const agentsDir = path.join(this._configDir, 'agents');
+    if (fs.existsSync(agentsDir)) {
+      for (const d of fs.readdirSync(agentsDir, { withFileTypes: true })) {
+        if (d.isDirectory()) usedIds.add(d.name);
+      }
+    }
+
+    // 2. 遍历 settings.agents 并迁移
+    for (const [uuid, entry] of Object.entries(this._settings.agents!)) {
+      // 计算 id：优先用 name（sanitize），最后用 uuid
+      let id = sanitizeId((entry as any).name || uuid);
+
+      // 冲突追加后缀
+      if (usedIds.has(id)) {
+        let n = 2;
+        while (usedIds.has(`${id}-${n}`)) n++;
+        id = `${id}-${n}`;
+      }
+      usedIds.add(id);
+      uuidToId[uuid] = id;
+
+      // 幂等检查：目录已存在（含 agent.json）则跳过写入
+      const agentDir = this.getConfigPath(`agents/${id}`, true);
+      const agentJsonPath = path.join(agentDir, 'agent.json');
+      if (fs.existsSync(agentJsonPath)) continue;
+
+      // 提取并分离字段
+      const { systemPrompt, storeSource, alias: _alias, id: _id, ...rest } = entry as any;
+
+      // 写入 agent.json
+      fs.writeFileSync(agentJsonPath, JSON.stringify(rest, null, 2), 'utf-8');
+
+      // 写入 system-prompt.md
+      if (systemPrompt) {
+        fs.writeFileSync(path.join(agentDir, 'system-prompt.md'), systemPrompt, 'utf-8');
+      }
+
+      // 写入 .store.json
+      if (storeSource) {
+        fs.writeFileSync(path.join(agentDir, '.store.json'), JSON.stringify(storeSource, null, 2), 'utf-8');
+      }
+    }
+
+    // 3. 写入 UUID → id 映射
+    const mapPath = path.join(this._configDir, '.migration-map.json');
+    let existingMap: Record<string, string> = {};
+    if (fs.existsSync(mapPath)) {
+      try { existingMap = JSON.parse(fs.readFileSync(mapPath, 'utf-8')); } catch { /* ignore */ }
+    }
+    const mergedMap = { ...existingMap, ...uuidToId };
+    fs.writeFileSync(mapPath, JSON.stringify(mergedMap, null, 2), 'utf-8');
+    this._migrationMap = mergedMap;
+
+    // 4. 清除 settings.agents 并保存
+    delete this._settings.agents;
+    this.saveSettings();
   }
 
   /**
@@ -223,10 +450,6 @@ class Config {
     const E1 = "20000000-0000-0000-0000-000000000001";
     const S1 = "30000000-0000-0000-0000-000000000001";
     const ME1 = "40000000-0000-0000-0000-000000000001";
-    const A1  = "50000000-0000-0000-0000-000000000001";
-    const A2  = "50000000-0000-0000-0000-000000000002";
-    const A3  = "50000000-0000-0000-0000-000000000003";
-    const A4  = "50000000-0000-0000-0000-000000000004";
 
     const example: Settings = {
       startupCommands: ["echo 'sbot initializing...'"],
@@ -242,13 +465,6 @@ class Config {
       },
       embeddings: {
         [E1]: { name: "openai-ada",     provider: EmbeddingProvider.OpenAI, apiKey: "your-api-key", baseURL: "https://api.openai.com/v1",               model: "text-embedding-ada-002" },
-      },
-      agents: {
-        [A1]: { name: "default",      type: AgentMode.Single, model: M1, systemPrompt: "你是一个有用的AI助手" },
-        [A2]: { name: "coder",        type: AgentMode.Single, model: M1, systemPrompt: "你是一个开发专家，擅长编写高质量代码" },
-        [A3]: { name: "researcher",   type: AgentMode.Single, model: M1, systemPrompt: "你是一个研究专家，擅长搜索和分析信息" },
-        [A4]: { name: "react-example", type: AgentMode.ReAct, model: M1,
-                agents: [{ id: A2, desc: "开发专家，擅长编写高质量代码" }, { id: A3, desc: "研究专家，擅长搜索和分析信息" }] },
       },
     };
 

@@ -97,8 +97,16 @@ export interface SaverConfig {
 }
 
 export interface SubAgentRef {
+  /** Agent ID（对应 ~/.sbot/agents/<id> 目录名） */
   id: string
   desc: string
+}
+
+export interface AgentStoreSource {
+  url: string
+  version?: string
+  installedAt: string
+  updatedAt?: string
 }
 
 export interface McpBuiltin {
@@ -129,12 +137,46 @@ export interface AgentConfig {
   autoApproveAllTools?: boolean
   // react
   agents?: SubAgentRef[]
+  // store
+  id?: string
+  storeSource?: AgentStoreSource
+}
+
+export interface AgentPackage {
+  id: string
+  name: string
+  description?: string
+  version: string
+  author?: string
+  tags?: string[]
+  agent: Omit<AgentConfig, 'storeSource'>
+  requires?: {
+    skills?: string[]
+    mcpServers?: string[]
+    subAgents?: string[]
+  }
+}
+
+export interface AgentSourceEntry {
+  url: string
+  name?: string
+  enabled?: boolean
+  autoUpdate?: boolean
+  updateInterval?: number
+}
+
+export interface AgentUpdateDiff {
+  id: string
+  localVersion?: string
+  remoteVersion: string
+  changes: string[]
+  pkg: AgentPackage
 }
 
 export interface SessionConfig {
   /** 显示名称 */
   name: string
-  /** 使用的 Agent UUID（对应 agents 中的 key） */
+  /** 使用的 Agent ID（对应 ~/.sbot/agents/<id> 目录名） */
   agent: string
   /** 使用的 Saver 配置 UUID（对应 savers 中的 key） */
   saver: string
@@ -151,7 +193,7 @@ export interface ChannelConfig {
   name: string
   /** 频道类型（匹配插件 type，如 "lark", "slack", "telegram"） */
   type: string
-  /** 该频道使用的 Agent UUID（对应 agents 中的 key） */
+  /** 该频道使用的 Agent ID（对应 ~/.sbot/agents/<id> 目录名） */
   agent: string
   /** 使用的 Saver 配置 UUID（对应 savers 中的 key） */
   saver: string
@@ -172,6 +214,7 @@ export interface Settings {
   startupCommands?: string[]
   /** Channel 插件列表（npm 包名或本地路径） */
   plugins?: string[]
+  /** @deprecated 迁移后由 ~/.sbot/agents/ 目录管理，API 响应中动态注入 */
   agents?: Record<string, AgentConfig>
   models?: Record<string, ModelConfig>
   embeddings?: Record<string, EmbeddingConfig>
@@ -179,4 +222,5 @@ export interface Settings {
   wikis?: Record<string, WikiConfig>
   savers?: Record<string, SaverConfig>
   channels?: Record<string, ChannelConfig>
+  agentSources?: AgentSourceEntry[]
 }

@@ -77,12 +77,13 @@ async function saveGlobalSkills() {
   try {
     const existing = (store.settings.agents || {})[agentName.value] || {}
     const skillsValue = useAllSkills.value ? '*' : selectedSkills.value
-    const res = await apiFetch(
-      `/api/settings/agents/${encodeURIComponent(agentName.value)}`,
+    await apiFetch(
+      `/api/agents/${encodeURIComponent(agentName.value)}`,
       'PUT',
       { ...existing, skills: skillsValue },
     )
-    Object.assign(store.settings, res.data)
+    const settingsRes = await apiFetch('/api/settings')
+    Object.assign(store.settings, settingsRes.data)
     origUseAll.value = useAllSkills.value
     agentSkillNames.value = useAllSkills.value ? [] : [...selectedSkills.value]
     show(t('common.saved'))

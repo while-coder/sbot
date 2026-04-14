@@ -77,10 +77,13 @@ async function save() {
 
     if (form.value.name.trim()) (config as any).name = form.value.name.trim()
     const id = editingId.value
-    const res = id
-      ? await apiFetch(`/api/settings/agents/${encodeURIComponent(id)}`, 'PUT', config)
-      : await apiFetch('/api/settings/agents', 'POST', config)
-    Object.assign(store.settings, res.data)
+    if (id) {
+      await apiFetch(`/api/agents/${encodeURIComponent(id)}`, 'PUT', config)
+    } else {
+      await apiFetch('/api/agents', 'POST', config)
+    }
+    const settingsRes = await apiFetch('/api/settings')
+    Object.assign(store.settings, settingsRes.data)
     show(t('common.saved'))
     showModal.value = false
     emit('saved')
@@ -151,7 +154,7 @@ defineExpose({ open })
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label>{{ t('agents.name_id_label') }} *</label>
+          <label>{{ t('agents.name') }} *</label>
           <input v-model="form.name" :placeholder="t('agents.name_placeholder')" />
         </div>
         <div class="form-group">

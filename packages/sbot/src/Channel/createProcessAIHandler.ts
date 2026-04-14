@@ -79,7 +79,8 @@ export function createProcessAIHandler(): ProcessAIHandler {
 
         const dbSession = await database.findByPk<ChannelSessionRow>(database.channelSession, dbSessionId);
 
-        const agentId = dbSession?.agentId || (channel.agent as string);
+        const rawAgentId = dbSession?.agentId || (channel.agent as string);
+        const agentId = config.resolveAgentRef(rawAgentId);
 
         const sessionMemories = parseMemories(dbSession?.memories);
         const memories = dbSession?.useChannelMemories
@@ -106,7 +107,8 @@ export function createWebProcessAIHandler(): ProcessAIHandler {
         const row = sessionId ? await database.findByPk<SessionRow>(database.session, sessionId) : undefined;
         if (!row) throw new Error(`Session "${sessionId}" not found`);
 
-        await runAgent(query, args, userService, row.agent, row.saver,
+        const resolvedAgent = config.resolveAgentRef(row.agent);
+        await runAgent(query, args, userService, resolvedAgent, row.saver,
             SchedulerType.Session, sessionId, parseMemories(row.memories), parseMemories(row.wikis), row.workPath || undefined);
     };
 }

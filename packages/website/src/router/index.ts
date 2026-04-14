@@ -12,6 +12,7 @@ const routes = [
   { path: '/embeddings', component: () => import('@/views/EmbeddingsView.vue') },
   // 智能体
   { path: '/agents', component: () => import('@/views/agents/AgentsView.vue') },
+  { path: '/agent-store', component: () => import('@/views/agent-store/AgentStoreView.vue') },
   { path: '/savers', component: () => import('@/views/SaversView.vue') },
   { path: '/memories', component: () => import('@/views/MemoriesView.vue') },
   { path: '/wikis', component: () => import('@/views/WikisView.vue') },
