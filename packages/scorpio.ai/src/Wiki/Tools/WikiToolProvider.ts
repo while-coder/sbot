@@ -20,7 +20,7 @@ export class WikiToolProvider {
         return new DynamicStructuredTool({
             name: "wiki_search",
             description:
-                "Search the wiki knowledge base by text. Returns matching pages with relevance scores.",
+                "Search the wiki knowledge base. Uses semantic similarity when available, falls back to text matching.",
             schema: z.object({
                 query: z.string().describe("The search query text"),
                 limit: z.number().optional().default(5).describe("Maximum number of results to return"),
@@ -94,9 +94,7 @@ export class WikiToolProvider {
                         return "Page not found.";
                     }
 
-                    const tags = page.tags.length > 0 ? page.tags.join(", ") : "none";
-                    const date = new Date(page.updatedAt).toLocaleString();
-                    return `# ${page.title}\n\n- **ID:** ${page.id}\n- **Tags:** ${tags}\n- **Version:** ${page.version}\n- **Updated:** ${date}\n\n${page.content}`;
+                    return `# ${page.title}\n\n${page.content}`;
                 } catch (e: any) {
                     return `Error reading wiki page: ${e.message}`;
                 }

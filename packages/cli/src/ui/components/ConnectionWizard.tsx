@@ -24,7 +24,7 @@ interface ConnectionWizardProps {
 type Phase =
   | { step: 'mode-pick' }
   | { step: 'remote-pick'; remotes: RemoteEntry[] }
-  | { step: 'remote-new'; field: 'name' | 'host' | 'port'; name: string; host: string }
+  | { step: 'remote-new'; field: 'host' | 'port' | 'name'; host: string; port: number }
   | { step: 'workdir-pick'; remoteIndex: number; remote: RemoteEntry }
   | { step: 'workdir-new'; remoteIndex: number; remote: RemoteEntry; field: 'path' | 'alias'; path: string };
 
@@ -105,29 +105,32 @@ export const ConnectionWizard: React.FC<ConnectionWizardProps> = ({ onReady }) =
             setSelectedIndex(0);
             setPhase({ step: 'workdir-pick', remoteIndex: selectedIndex, remote });
           } else {
-            // New remote
+            // New remote — start with host
             setInputValue('');
-            setPhase({ step: 'remote-new', field: 'name', name: '', host: '' });
+            setPhase({ step: 'remote-new', field: 'host', host: '', port: 0 });
           }
         }
         return;
       }
 
-      // ── Remote new: input name → host → port ───────────────────────────
+      // ── Remote new: input host → port → name ───────────────────────────
       if (phase.step === 'remote-new') {
         if (key.name === 'return') {
           const val = inputValue.trim();
-          if (!val) return; // ignore empty
-          if (phase.field === 'name') {
-            setInputValue('');
-            setPhase({ ...phase, field: 'host', name: val });
-          } else if (phase.field === 'host') {
+          if (phase.field === 'host') {
+            if (!val) return; // host is required
             setInputValue('');
             setPhase({ ...phase, field: 'port', host: val });
-          } else {
-            // port → save and go to workdir pick
+          } else if (phase.field === 'port') {
+            if (!val) return; // port is required
             const port = parseInt(val, 10) || 3000;
-            const updated = addRemote(phase.name, phase.host, port);
+            // pre-fill name with host:port as default
+            setInputValue(`${phase.host}:${port}`);
+            setPhase({ ...phase, field: 'name', port });
+          } else {
+            // name — use default (host:port) if empty
+            const name = val || `${phase.host}:${phase.port}`;
+            const updated = addRemote(name, phase.host, phase.port);
             const newIndex = updated.remotes.length - 1;
             setSelectedIndex(0);
             setInputValue('');
@@ -179,11 +182,14 @@ export const ConnectionWizard: React.FC<ConnectionWizardProps> = ({ onReady }) =
           const val = inputValue.trim();
           if (!val) return;
           if (phase.field === 'path') {
-            setInputValue('');
+            // pre-fill alias with last segment of path
+            const defaultAlias = val.replace(/[/\\]+$/, '').split(/[/\\]/).pop() || val;
+            setInputValue(defaultAlias);
             setPhase({ ...phase, field: 'alias', path: val });
           } else {
-            // alias → save and finish
-            const updated = addWorkPath(phase.remoteIndex, phase.path, val);
+            // alias — use default if empty
+            const alias = val || phase.path.replace(/[/\\]+$/, '').split(/[/\\]/).pop() || phase.path;
+            const updated = addWorkPath(phase.remoteIndex, phase.path, alias);
             const remote = updated.remotes[phase.remoteIndex]!;
             onReady({
               baseUrl: `http://${remote.host}:${remote.port}`,
@@ -232,8 +238,22 @@ export const ConnectionWizard: React.FC<ConnectionWizardProps> = ({ onReady }) =
   }
 
   if (phase.step === 'remote-new') {
-    const labels: Record<string, string> = { name: 'Name', host: 'Host / IP', port: 'Port' };
-    return <TextInput title="New Remote Server" label={labels[phase.field]!} value={inputValue} />;
+    const labels: Record<string, string> = { host: 'Host / IP', port: 'Port', name: 'Name' };
+    const hints: Record<string, string> = {
+      host: 'Type value, Enter to confirm',
+      port: 'Type value, Enter to confirm',
+      name: 'Enter to confirm, or clear and type a custom name',
+    };
+    return (
+      <Box flexDirection="column" paddingX={2} paddingY={1}>
+        <Text bold color={theme.text.accent}>New Remote Server</Text>
+        <Text color={theme.text.secondary}>{hints[phase.field]!}</Text>
+        <Box marginTop={1}>
+          <Text color={theme.text.primary}>{labels[phase.field]!}: </Text>
+          <Text color={theme.status.info}>{inputValue}<Text color={theme.text.muted}>█</Text></Text>
+        </Box>
+      </Box>
+    );
   }
 
   if (phase.step === 'workdir-pick') {

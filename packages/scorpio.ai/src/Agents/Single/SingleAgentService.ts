@@ -1,6 +1,6 @@
 import { StateGraph, START, END } from '../../Graph';
 import { type StructuredToolInterface } from "@langchain/core/tools";
-import { inject, T_SystemPrompts, T_MemorySystemPromptTemplate, truncate } from "../../Core";
+import { inject, T_SystemPrompts, T_MemorySystemPromptTemplate, T_WikiSystemPromptTemplate, truncate } from "../../Core";
 import { IModelService } from "../../Model";
 import { ISkillService } from "../../Skills";
 import { IMemoryService } from "../../Memory";
@@ -55,6 +55,7 @@ export class SingleAgentService extends AgentServiceBase {
         @inject(IMemoryService, { optional: true }) memoryServices?: IMemoryService[],
         @inject(IWikiService, { optional: true }) protected wikiServices?: IWikiService[],
         @inject(T_MemorySystemPromptTemplate, { optional: true }) memorySystemPromptTemplate?: string,
+        @inject(T_WikiSystemPromptTemplate, { optional: true }) protected wikiSystemPromptTemplate?: string,
     ) {
         super(loggerService, agentSaver, memoryServices);
         this.modelService = modelService;
@@ -83,6 +84,20 @@ export class SingleAgentService extends AgentServiceBase {
             if (allMemories.length > 0) {
                 const items = allMemories.map(({ memory: m }) => `  <memory time="${SingleAgentService.formatTimeAgo(m.metadata.timestamp)}">${m.content}</memory>`).join("\n");
                 parts.push(this.memorySystemPromptTemplate.replace('{items}', items));
+            }
+        }
+        if (this.wikiSystemPromptTemplate && this.wikiServices?.length) {
+            const wikiLimit = 5;
+            const queryText = contentToString(query);
+            const results = (await Promise.all(
+                this.wikiServices.map(w => w.search(queryText, wikiLimit))
+            )).flat().slice(0, wikiLimit);
+
+            if (results.length > 0) {
+                const items = results.map(r =>
+                    `  <wiki id="${r.page.id}" title="${r.page.title}" tags="${r.page.tags.join(', ')}">\n${r.page.content}\n  </wiki>`
+                ).join("\n");
+                parts.push(this.wikiSystemPromptTemplate.replace('{items}', items));
             }
         }
         if (this.skillService) {

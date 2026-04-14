@@ -20,7 +20,7 @@ export const Footer: React.FC<FooterProps> = ({ streamingState }) => (
     )}
     {streamingState === StreamingState.Idle && (
       <Text color={theme.text.muted}>
-        Enter send  Shift+Enter newline  ↑↓ history  Tab fold tool_call  Ctrl+L clear  Ctrl+C exit
+        Enter send  Shift+Enter newline  Ctrl+A attach  ↑↓ history  Tab fold  Ctrl+L clear  Ctrl+C exit
       </Text>
     )}
   </Box>

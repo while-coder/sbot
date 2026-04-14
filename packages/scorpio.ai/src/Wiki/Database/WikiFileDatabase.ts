@@ -43,6 +43,7 @@ export class WikiFileDatabase implements IWikiDatabase {
             .slice(0, limit);
     }
 
+
     async getAll(): Promise<WikiPage[]> {
         return this.readAllPages();
     }
@@ -154,7 +155,7 @@ export class WikiFileDatabase implements IWikiDatabase {
     }
 
     private serializePage(page: WikiPage): string {
-        const frontmatter = [
+        const lines = [
             "---",
             `id: "${page.id}"`,
             `title: "${page.title}"`,
@@ -165,10 +166,10 @@ export class WikiFileDatabase implements IWikiDatabase {
             `source: ${page.source}`,
             `createdAt: ${page.createdAt}`,
             `updatedAt: ${page.updatedAt}`,
-            "---",
-        ].join("\n");
+        ];
+        lines.push("---");
 
-        return frontmatter + "\n" + page.content + "\n";
+        return lines.join("\n") + "\n" + page.content + "\n";
     }
 
     private pageFilePath(title: string): string {

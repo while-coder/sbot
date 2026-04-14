@@ -1,5 +1,5 @@
 import { type StructuredToolInterface } from "@langchain/core/tools";
-import { inject, ServiceContainer, T_SystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc, T_MemorySystemPromptTemplate } from "../../Core";
+import { inject, ServiceContainer, T_SystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc, T_MemorySystemPromptTemplate, T_WikiSystemPromptTemplate } from "../../Core";
 import { IMemoryService, ReadOnlyMemoryService } from "../../Memory";
 import { IWikiService } from "../../Wiki";
 import { IAgentSaverService, ChatMessage, ChatMessageOptions, type MessageContent } from "../../Saver";
@@ -64,8 +64,9 @@ export class ReActAgentService extends SingleAgentService {
     @inject(IMemoryService, { optional: true }) memoryServices?: IMemoryService[],
     @inject(IWikiService, { optional: true }) wikiServices?: IWikiService[],
     @inject(T_MemorySystemPromptTemplate, { optional: true }) memorySystemPromptTemplate?: string,
+    @inject(T_WikiSystemPromptTemplate, { optional: true }) private wikiSystemPromptTemplateValue?: string,
   ) {
-    super(thinkModelService, systemPrompts, loggerService, agentSaver, skillService, toolService, memoryServices, wikiServices, memorySystemPromptTemplate);
+    super(thinkModelService, systemPrompts, loggerService, agentSaver, skillService, toolService, memoryServices, wikiServices, memorySystemPromptTemplate, wikiSystemPromptTemplateValue);
     this.agentSubNodes = agentSubNodes;
     this.agentFactory = agentFactory;
   }
@@ -100,6 +101,7 @@ export class ReActAgentService extends SingleAgentService {
         if (this.memoryServices.length > 0) subContainer.registerInstance(IMemoryService, this.memoryServices.map(m => new ReadOnlyMemoryService(m)));
         if (this.wikiServices && this.wikiServices.length > 0) subContainer.registerInstance(IWikiService, this.wikiServices);
         if (this.memorySystemPromptTemplate) subContainer.registerInstance(T_MemorySystemPromptTemplate, this.memorySystemPromptTemplate);
+        if (this.wikiSystemPromptTemplate) subContainer.registerInstance(T_WikiSystemPromptTemplate, this.wikiSystemPromptTemplate);
         if (this.loggerService) subContainer.registerInstance(ILoggerService, this.loggerService);
 
         agentService = await this.agentFactory(agentId, subContainer);

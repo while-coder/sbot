@@ -2,6 +2,8 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { WsCommandType, WebChatEventType } from 'sbot.commons';
 import type { SbotClient, ChatSession } from '../../api/sbotClient.js';
+import type { PendingAttachment } from '../utils/fileAttachment.js';
+import { prepareMessage } from '../utils/fileAttachment.js';
 import type { HistoryItem, PendingApproval, PendingAsk } from '../types.js';
 import { StreamingState } from '../types.js';
 import { findSafeSplitPoint, shouldSplit } from '../utils/markdownSplit.js';
@@ -12,7 +14,7 @@ export interface UseChatStreamReturn {
   streamingState: StreamingState;
   pendingApproval: PendingApproval | null;
   pendingAsk: PendingAsk | null;
-  submitQuery: (query: string) => Promise<void>;
+  submitQuery: (query: string, attachments?: PendingAttachment[]) => Promise<void>;
   resolveApproval: (approval: string) => void;
   resolveAsk: (answers: Record<string, string | string[]>) => void;
   cancelRequest: () => void;
@@ -84,19 +86,26 @@ export function useChatStream(
   }, []);
 
   const submitQuery = useCallback(
-    async (query: string) => {
+    async (query: string, pendingAttachments?: PendingAttachment[]) => {
       if (streamingState !== StreamingState.Idle) return;
 
-      // Add user message
-      const userMsg: HistoryItem = { type: 'user', id: uuidv4(), content: query };
+      // Add user message (with attachment display names)
+      const attNames = pendingAttachments?.map(a => a.name);
+      const userMsg: HistoryItem = {
+        type: 'user', id: uuidv4(), content: query,
+        ...(attNames?.length ? { attachments: attNames } : {}),
+      };
       setHistory((prev) => [...prev, userMsg]);
       setStreamingState(StreamingState.Responding);
       setPendingContent('');
 
+      // Build server-compatible parts + attachments
+      const prepared = prepareMessage(query, pendingAttachments ?? []);
+
       const abort = new AbortController();
       abortRef.current = abort;
 
-      const chat = client.openChatSession(query, sessionId, abort.signal);
+      const chat = client.openChatSession(query, sessionId, abort.signal, prepared.parts, prepared.attachments);
       sessionRef.current = chat;
 
       let accumulated = '';

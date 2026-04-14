@@ -85,10 +85,9 @@ export class WikiService implements IWikiService {
 
   async search(query: string, limit: number = 5): Promise<WikiSearchResult[]> {
     const pages = await this.db.searchByText(query, limit);
-
     return pages.map(page => ({
       page,
-      score: 1, // text search does not produce a similarity score
+      score: 1,
       snippet: this.createSnippet(page.content),
     }));
   }

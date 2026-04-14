@@ -2,6 +2,7 @@ export interface UserMessage {
   type: 'user';
   id: string;
   content: string;
+  attachments?: string[];
 }
 
 export interface AssistantMessage {

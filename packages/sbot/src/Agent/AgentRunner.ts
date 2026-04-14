@@ -18,7 +18,7 @@ import {
     IWikiService, IWikiDatabase,
     WikiExtractor, WikiService,
     IWikiExtractor,
-    T_WikiExtractorSystemPrompt, T_WikiAutoExtract,
+    T_WikiExtractorSystemPrompt, T_WikiAutoExtract, T_WikiSystemPromptTemplate,
     createAskTool, type AskUserFn, AskQuestionType,
     type MessageContent,
 } from "scorpio.ai";
@@ -256,6 +256,7 @@ export class AgentRunner {
         const services = results.filter((s): s is IWikiService => s !== null);
         if (services.length > 0) {
             container.registerInstance(IWikiService, services);
+            container.registerInstance(T_WikiSystemPromptTemplate, loadPrompt('wiki/system.txt'));
         }
     }
 

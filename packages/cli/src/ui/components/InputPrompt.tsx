@@ -2,10 +2,18 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Text, Box } from 'ink';
 import { theme } from '../colors.js';
 import { useKeypress, type Key } from '../hooks/useKeypress.js';
+import {
+  validateFilePath,
+  isImageFile,
+  type PendingAttachment,
+} from '../utils/fileAttachment.js';
+import { basename } from 'node:path';
+
+export type { PendingAttachment } from '../utils/fileAttachment.js';
 
 interface InputPromptProps {
   isActive: boolean;
-  onSubmit: (text: string) => void;
+  onSubmit: (text: string, attachments: PendingAttachment[]) => void;
   onCancel: () => void;
   placeholder?: string;
 }
@@ -19,30 +27,114 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
   const [input, setInput] = useState('');
   const [inputHistory, setInputHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  const [attachMode, setAttachMode] = useState(false);
+  const [attachError, setAttachError] = useState('');
 
   // Refs for stable callback access (avoids re-subscribing on every keystroke)
   const inputRef = useRef('');
   const historyRef = useRef<string[]>([]);
   const historyIndexRef = useRef(-1);
+  const attachmentsRef = useRef<PendingAttachment[]>([]);
+  const attachModeRef = useRef(false);
 
   useEffect(() => { inputRef.current = input; }, [input]);
   useEffect(() => { historyRef.current = inputHistory; }, [inputHistory]);
   useEffect(() => { historyIndexRef.current = historyIndex; }, [historyIndex]);
+  useEffect(() => { attachmentsRef.current = attachments; }, [attachments]);
+  useEffect(() => { attachModeRef.current = attachMode; }, [attachMode]);
 
   const handleKeypress = useCallback(
     (key: Key) => {
+      // ── Attach mode ──────────────────────────────────────────────────
+      if (attachModeRef.current) {
+        if (key.name === 'escape') {
+          setAttachMode(false);
+          setAttachError('');
+          setInput('');
+          return;
+        }
+        if (key.name === 'return') {
+          const raw = inputRef.current.trim();
+          if (!raw) return;
+          const resolved = validateFilePath(raw);
+          if (!resolved) {
+            setAttachError(`File not found or too large: ${raw}`);
+            return;
+          }
+          const att: PendingAttachment = {
+            filePath: resolved,
+            name: basename(resolved),
+            isImage: isImageFile(resolved),
+          };
+          setAttachments(prev => [...prev, att]);
+          setAttachMode(false);
+          setAttachError('');
+          setInput('');
+          return;
+        }
+        if (key.name === 'backspace') {
+          setInput(prev => prev.slice(0, -1));
+          setAttachError('');
+          return;
+        }
+        if (key.sequence && !key.ctrl && !key.meta && key.name !== 'tab') {
+          setInput(prev => prev + key.sequence);
+          setAttachError('');
+        }
+        return;
+      }
+
+      // ── Normal mode ──────────────────────────────────────────────────
       if (key.ctrl && key.name === 'c') {
         onCancel();
         return;
       }
 
+      // Ctrl+A → enter attach mode
+      if (key.ctrl && key.name === 'a') {
+        setAttachMode(true);
+        setAttachError('');
+        setInput('');
+        return;
+      }
+
+      // Ctrl+D → remove last attachment
+      if (key.ctrl && key.name === 'd') {
+        setAttachments(prev => prev.slice(0, -1));
+        return;
+      }
+
       if (key.name === 'return' && !key.shift) {
         const trimmed = inputRef.current.trim();
-        if (trimmed) {
-          setInputHistory((prev) => [...prev, trimmed]);
+        const atts = [...attachmentsRef.current];
+
+        // Auto-detect: if input is a valid file path, treat as attachment
+        if (trimmed && atts.length === 0) {
+          const resolved = validateFilePath(trimmed);
+          if (resolved) {
+            const att: PendingAttachment = {
+              filePath: resolved,
+              name: basename(resolved),
+              isImage: isImageFile(resolved),
+            };
+            setInputHistory((prev) => [...prev, trimmed]);
+            setHistoryIndex(-1);
+            onSubmit('', [att]);
+            setInput('');
+            setAttachments([]);
+            return;
+          }
+        }
+
+        if (trimmed || atts.length > 0) {
+          if (trimmed) {
+            setInputHistory((prev) => [...prev, trimmed]);
+          }
           setHistoryIndex(-1);
-          onSubmit(trimmed);
+          onSubmit(trimmed, atts);
           setInput('');
+          setAttachments([]);
         }
         return;
       }
@@ -92,7 +184,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
 
       if (key.ctrl && key.name === 'u') {
         setInput('');
-        setHistoryIndex(-1); // reset history navigation position
+        setHistoryIndex(-1);
         return;
       }
 
@@ -107,7 +199,29 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
 
   return (
     <Box flexDirection="column" marginTop={1} borderStyle="single" borderColor={theme.text.muted} paddingX={1}>
-      {input.length === 0 ? (
+      {/* Attachment list */}
+      {attachments.length > 0 && (
+        <Box flexDirection="column">
+          {attachments.map((att, i) => (
+            <Text key={i} color={theme.status.info}>
+              {att.isImage ? '[img]' : '[file]'} {att.name}
+            </Text>
+          ))}
+        </Box>
+      )}
+      {/* Attach mode */}
+      {attachMode ? (
+        <Box flexDirection="column">
+          <Box>
+            <Text color={theme.status.warning}>Attach: </Text>
+            <Text color={theme.text.primary}>
+              {input || <Text color={theme.text.muted}>paste or type file path</Text>}
+              {isActive && <Text color={theme.text.accent}>▊</Text>}
+            </Text>
+          </Box>
+          {attachError && <Text color={theme.status.error}>{attachError}</Text>}
+        </Box>
+      ) : input.length === 0 && attachments.length === 0 ? (
         <Text color={theme.text.muted}>{placeholder}</Text>
       ) : (
         <Text color={theme.text.primary}>

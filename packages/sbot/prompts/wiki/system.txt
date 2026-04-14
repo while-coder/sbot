@@ -1,0 +1,4 @@
+<wiki-knowledge>
+{items}
+</wiki-knowledge>
+The above are relevant wiki knowledge articles. Reference them when they help answer the user's question.

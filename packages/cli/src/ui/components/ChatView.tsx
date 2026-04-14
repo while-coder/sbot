@@ -8,7 +8,7 @@ import { Header } from './Header.js';
 import { Footer } from './Footer.js';
 import { HistoryItem } from './HistoryItem.js';
 import { PendingZone } from './PendingZone.js';
-import { InputPrompt } from './InputPrompt.js';
+import { InputPrompt, type PendingAttachment } from './InputPrompt.js';
 import { ErrorBoundary } from './ErrorBoundary.js';
 import { useChatStream } from '../hooks/useChatStream.js';
 
@@ -39,8 +39,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [remountKey, setRemountKey] = useState(0);
 
   const handleSubmit = useCallback(
-    async (text: string) => {
-      await submitQuery(text);
+    async (text: string, attachments: PendingAttachment[]) => {
+      await submitQuery(text, attachments);
     },
     [submitQuery],
   );

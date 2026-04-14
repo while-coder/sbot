@@ -7,6 +7,18 @@ import { DEFAULT_PORT, WsCommandType, WebChatEventType, type Settings, type WebC
 
 export { DEFAULT_PORT, type WebChatEvent } from 'sbot.commons';
 
+/** Content part matching server's ContentPartInput */
+export type ContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image'; dataUrl: string };
+
+/** Attachment matching server's AttachmentInput */
+export interface Attachment {
+  name: string;
+  dataUrl?: string;
+  content?: string;
+}
+
 export function getServerBaseUrl(): string {
   try {
     const settingsPath = join(homedir(), '.sbot', 'settings.json');
@@ -206,8 +218,10 @@ export class SbotClient {
     query: string,
     sessionId: string,
     signal: AbortSignal,
+    parts?: ContentPart[],
+    attachments?: Attachment[],
   ): ChatSession {
-    return new ChatSession(this, query, sessionId, signal);
+    return new ChatSession(this, query, sessionId, signal, parts, attachments);
   }
 
   dispose(): void {
@@ -232,7 +246,14 @@ export class ChatSession {
   private readonly sessionId: string;
   readonly ready: Promise<void>;
 
-  constructor(client: SbotClient, query: string, sessionId: string, signal: AbortSignal) {
+  constructor(
+    client: SbotClient,
+    query: string,
+    sessionId: string,
+    signal: AbortSignal,
+    parts?: ContentPart[],
+    attachments?: Attachment[],
+  ) {
     this.client = client;
     this.sessionId = sessionId;
 
@@ -251,9 +272,14 @@ export class ChatSession {
       this.resolve?.();
     }, { once: true });
 
-    // Wait for WS to be ready, then send query
+    // Wait for WS to be ready, then send query using parts-based protocol
     this.ready = client.ws.waitReady().then(() => {
-      client.send(sessionId, { type: WsCommandType.Query, query });
+      const payload: Record<string, any> = {
+        type: WsCommandType.Query,
+        parts: parts ?? [{ type: 'text', text: query }],
+      };
+      if (attachments?.length) payload.attachments = attachments;
+      client.send(sessionId, payload);
     });
   }
 

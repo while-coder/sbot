@@ -16,7 +16,10 @@ export const HistoryItem: React.FC<HistoryItemProps> = ({ item, toolCallsExpande
       return (
         <Box flexDirection="column" marginBottom={1}>
           <Text bold color={theme.prompt.userPrefix}>You</Text>
-          <Text color={theme.text.primary}>{item.content}</Text>
+          {item.content && <Text color={theme.text.primary}>{item.content}</Text>}
+          {item.attachments?.map((name, i) => (
+            <Text key={i} color={theme.status.info}>  [attached] {name}</Text>
+          ))}
         </Box>
       );
 
