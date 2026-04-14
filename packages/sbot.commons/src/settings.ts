@@ -168,6 +168,8 @@ export interface Settings {
   httpUrl?: string
   autoApproveTools?: string[]
   autoApproveAllTools?: boolean
+  /** 启动后立即执行的命令行列表，依次同步执行 */
+  startupCommands?: string[]
   /** Channel 插件列表（npm 包名或本地路径） */
   plugins?: string[]
   agents?: Record<string, AgentConfig>

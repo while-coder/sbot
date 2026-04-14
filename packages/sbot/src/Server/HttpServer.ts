@@ -334,12 +334,13 @@ class HttpServer {
         app.get('/api/settings', api(() => config.settings));
 
         app.put('/api/settings/general', api(req => {
-            const { httpPort, httpUrl, lark, autoApproveTools, autoApproveAllTools } = req.body;
+            const { httpPort, httpUrl, lark, autoApproveTools, autoApproveAllTools, startupCommands } = req.body;
             if (httpPort !== undefined) config.settings.httpPort = httpPort || undefined;
             if (httpUrl !== undefined) config.settings.httpUrl = httpUrl || undefined;
             if (lark !== undefined) (config.settings as any).lark = lark;
             if (autoApproveTools !== undefined) config.settings.autoApproveTools = autoApproveTools;
             if (autoApproveAllTools !== undefined) config.settings.autoApproveAllTools = autoApproveAllTools;
+            if (startupCommands !== undefined) config.settings.startupCommands = startupCommands;
             config.saveSettings();
             return config.settings;
         }));

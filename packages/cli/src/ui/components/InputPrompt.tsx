@@ -7,6 +7,7 @@ import {
   isImageFile,
   type PendingAttachment,
 } from '../utils/fileAttachment.js';
+import { readClipboard } from '../utils/clipboard.js';
 import { basename } from 'node:path';
 
 export type { PendingAttachment } from '../utils/fileAttachment.js';
@@ -37,6 +38,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
   const historyIndexRef = useRef(-1);
   const attachmentsRef = useRef<PendingAttachment[]>([]);
   const attachModeRef = useRef(false);
+  const isPastingRef = useRef(false);
 
   useEffect(() => { inputRef.current = input; }, [input]);
   useEffect(() => { historyRef.current = inputHistory; }, [inputHistory]);
@@ -88,6 +90,36 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
       // ── Normal mode ──────────────────────────────────────────────────
       if (key.ctrl && key.name === 'c') {
         onCancel();
+        return;
+      }
+
+      // Ctrl+V → paste image/files from clipboard
+      if (key.ctrl && key.name === 'v') {
+        if (isPastingRef.current) return;
+        isPastingRef.current = true;
+        readClipboard()
+          .then(result => {
+            if (result.type === 'image') {
+              setAttachments(prev => [...prev, {
+                filePath: result.filePath,
+                name: basename(result.filePath),
+                isImage: true,
+              }]);
+            } else if (result.type === 'files') {
+              const newAtts = result.filePaths
+                .map(fp => validateFilePath(fp))
+                .filter((fp): fp is string => fp !== null)
+                .map(fp => ({
+                  filePath: fp,
+                  name: basename(fp),
+                  isImage: isImageFile(fp),
+                }));
+              if (newAtts.length > 0) {
+                setAttachments(prev => [...prev, ...newAtts]);
+              }
+            }
+          })
+          .finally(() => { isPastingRef.current = false; });
         return;
       }
 

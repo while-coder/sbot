@@ -9,7 +9,7 @@ import {initGlobalAgentToolService} from "./Agent/GlobalAgentToolService";
 import {initGlobalSkillService} from "./Agent/GlobalSkillService";
 import {schedulerService} from "./Scheduler/SchedulerService";
 import { Command } from "commander";
-import { spawn } from "child_process";
+import { spawn, execSync } from "child_process";
 import http from "http";
 import { fetchLatestRelease, compareSemver, NPM_PACKAGE } from "sbot.commons";
 import { enableAutoStart, disableAutoStart, isAutoStartEnabled } from "./Core/AutoStart";
@@ -139,6 +139,19 @@ async function main() {
         process.on('uncaughtException', function(err, origin) {
             logger.error(`Uncaught exception: ${err?.stack}\n${origin}`)
         })
+
+        // 执行启动命令
+        const cmds = config.settings.startupCommands;
+        if (cmds?.length) {
+            for (const cmd of cmds) {
+                logger.info(`Startup command: ${cmd}`);
+                try {
+                    execSync(cmd, { stdio: 'inherit' });
+                } catch (e: any) {
+                    logger.error(`Startup command failed: ${cmd} — ${e?.message ?? e}`);
+                }
+            }
+        }
 
         await database.init()
         initGlobalAgentToolService()

@@ -59,6 +59,7 @@ export interface Settings {
   httpUrl?: string;            // HTTP 服务对外访问的根 URL，默认 http://localhost:5500
   autoApproveTools?: string[]; // 全局自动批准的工具列表（无需用户确认）
   autoApproveAllTools?: boolean; // 全局自动批准所有工具（无需用户确认）
+  startupCommands?: string[];  // 启动后立即执行的命令行列表，依次同步执行
   checkUpdateTime?: number;    // 下次检查更新的时间戳（ms），0 或 undefined 表示立即检查
   models?: Record<string, NamedModelConfig>;
   embeddings?: Record<string, NamedEmbeddingConfig>;
@@ -228,6 +229,7 @@ class Config {
     const A4  = "50000000-0000-0000-0000-000000000004";
 
     const example: Settings = {
+      startupCommands: ["echo 'sbot initializing...'"],
       savers: {
         [S1]: { name: "default", type: SaverType.Sqlite, share: false },
       },
