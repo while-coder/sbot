@@ -238,7 +238,8 @@ class HttpServer {
     }
 
     async start() {
-        const port = config.getHttpPort();
+        const isDev = process.env.NODE_ENV === 'development';
+        const port = isDev ? 5510 : config.getHttpPort();
         const app = express();
         app.use(express.json());
 

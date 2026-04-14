@@ -19,6 +19,7 @@
         "${workspaceFolder}/packages/channel.wecom/dist/**/*.js",
         "${workspaceFolder}/packages/channel.wechat/dist/**/*.js"
       ],
+      "env": { "NODE_ENV": "development" },
       "cwd": "${workspaceFolder}/packages/sbot",
       "skipFiles": ["<node_internals>/**"]
     },
