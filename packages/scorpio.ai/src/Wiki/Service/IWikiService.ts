@@ -11,14 +11,10 @@ export interface IWikiService {
     // Search
     search(query: string, limit?: number): Promise<WikiSearchResult[]>;
     searchByTag(tag: string, limit?: number): Promise<WikiPage[]>;
-    getLinkedPages(pageId: string): Promise<WikiPage[]>;
     getAllPages(): Promise<WikiPage[]>;
 
     // Conversation auto-extraction
     extractFromConversation(userMessage: string, assistantMessages?: string[]): Promise<WikiPage[]>;
-
-    // Maintenance
-    mergeSimilarPages(): Promise<number>;
 
     dispose(): Promise<void>;
 }

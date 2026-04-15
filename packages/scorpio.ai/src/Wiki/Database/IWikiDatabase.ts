@@ -9,7 +9,6 @@ export interface IWikiDatabase {
     getById(id: string): Promise<WikiPage | null>;
     getByTitle(title: string): Promise<WikiPage | null>;
     getByTags(tags: string[]): Promise<WikiPage[]>;
-    getLinked(pageId: string): Promise<WikiPage[]>;
     searchByText(query: string, limit: number): Promise<WikiPage[]>;
     getAll(): Promise<WikiPage[]>;
 

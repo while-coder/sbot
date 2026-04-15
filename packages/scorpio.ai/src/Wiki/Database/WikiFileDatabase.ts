@@ -32,10 +32,6 @@ export class WikiFileDatabase implements IWikiDatabase {
         return this.readAllPages().filter(p => tags.some(t => p.tags.includes(t)));
     }
 
-    async getLinked(pageId: string): Promise<WikiPage[]> {
-        return this.readAllPages().filter(p => p.links.includes(pageId));
-    }
-
     async searchByText(query: string, limit: number): Promise<WikiPage[]> {
         const q = query.toLowerCase();
         return this.readAllPages()

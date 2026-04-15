@@ -12,7 +12,6 @@ class ManagedWikiDatabase implements IWikiDatabase {
     getById(...args: Parameters<IWikiDatabase['getById']>)                 { return this.inner.getById(...args); }
     getByTitle(...args: Parameters<IWikiDatabase['getByTitle']>)           { return this.inner.getByTitle(...args); }
     getByTags(...args: Parameters<IWikiDatabase['getByTags']>)             { return this.inner.getByTags(...args); }
-    getLinked(...args: Parameters<IWikiDatabase['getLinked']>)             { return this.inner.getLinked(...args); }
     searchByText(...args: Parameters<IWikiDatabase['searchByText']>)       { return this.inner.searchByText(...args); }
     getAll()                                                               { return this.inner.getAll(); }
     insert(...args: Parameters<IWikiDatabase['insert']>)                   { return this.inner.insert(...args); }

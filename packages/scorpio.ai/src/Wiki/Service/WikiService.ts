@@ -97,10 +97,6 @@ export class WikiService implements IWikiService {
     return pages.slice(0, limit);
   }
 
-  async getLinkedPages(pageId: string): Promise<WikiPage[]> {
-    return this.db.getLinked(pageId);
-  }
-
   async getAllPages(): Promise<WikiPage[]> {
     return this.db.getAll();
   }
@@ -152,13 +148,6 @@ export class WikiService implements IWikiService {
       this.logger?.error(`Failed to extract from conversation: ${error.message}`);
       return [];
     }
-  }
-
-  // -- Maintenance ----------------------------------------------------------
-
-  async mergeSimilarPages(): Promise<number> {
-    this.logger?.info("mergeSimilarPages not yet implemented");
-    return 0;
   }
 
   // -- Lifecycle ------------------------------------------------------------
