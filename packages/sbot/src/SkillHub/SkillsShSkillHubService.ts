@@ -1,6 +1,6 @@
-import { URL } from 'url';
+import fs from 'fs';
+import path from 'path';
 import { httpGetJson, httpGetText } from './types';
-import { normalizeBundle, writeSkillToDisk, type Bundle } from './bundle';
 import { SkillHubProvider } from './types';
 import type { ISkillHubService, HubSkillResult, HubInstallResult, InstallSkillOptions } from './types';
 
@@ -9,8 +9,8 @@ const BASE_URL = 'https://skills.sh';
 /**
  * skills.sh 实现
  *
- * 搜索 API：`https://skills.sh/api/search?q=...&limit=...`
- * skill.id 格式：`{owner}/{repo}/{skill}`
+ * 搜索：skills.sh API
+ * 安装：委托给 `npx skills add` CLI
  */
 export class SkillsShSkillHubService implements ISkillHubService {
   async searchSkills(query: string, limit = 20): Promise<HubSkillResult[]> {
@@ -28,110 +28,163 @@ export class SkillsShSkillHubService implements ISkillHubService {
       }));
   }
 
-  /** 从 HubSkillResult 安装（委托给 installSkillWithUrl） */
   async installSkill(skill: HubSkillResult, targetDir: string, options?: InstallSkillOptions): Promise<HubInstallResult> {
-    return this.installSkillWithUrl(skill.sourceUrl, targetDir, options);
+    return this._installById(skill.id, targetDir, options);
   }
 
-  /** 主要安装入口：直接从 URL 安装 */
   async installSkillWithUrl(url: string, targetDir: string, options: InstallSkillOptions = {}): Promise<HubInstallResult> {
     const u = new URL(url);
     const parts = u.pathname.split('/').filter(Boolean);
     if (parts.length < 2) throw new Error(`URL 格式应至少包含 owner/repo，收到: ${u.pathname}`);
-    // skills.sh: /owner/repo/skill  |  github.com: /owner/repo (skill via --skill flag or tree path)
     const id = parts.slice(0, Math.min(parts.length, 3)).join('/');
-
-    const { version = '', overwrite = false } = options;
-    const { bundle, sourceUrl } = await this._fetch(id, version);
-    bundle.id = id;
-    const skillPath = writeSkillToDisk(bundle, targetDir, overwrite);
-    return { id, name: bundle.name, path: skillPath, sourceUrl };
+    return this._installById(id, targetDir, options);
   }
 
   /**
-   * id 格式: `owner/repo/skill`
-   *
-   * 1) 直接按目录名尝试 GitHub raw (main/master × skills/ 前缀)
-   * 2) 若未命中，用 GitHub Tree API 扫描仓库所有 SKILL.md，
-   *    按 frontmatter name 字段匹配（skills.sh 索引名可能与目录名不同）
+   * 从 skills.sh 页面解析安装命令，然后委托 CLI 执行。
+   * 页面中包含如 `npx skills add https://github.com/owner/repo --skill name` 的命令。
    */
-  private async _fetch(id: string, _version: string): Promise<{ bundle: Bundle; sourceUrl: string }> {
-    const sourceUrl = `${BASE_URL}/${id}`;
-    const parts = id.split('/');
-    if (parts.length < 3) throw new Error(`skills.sh id 格式应为 owner/repo/skill，收到: ${id}`);
-    const owner = parts[0];
-    const repo = parts[1];
-    const skill = parts.slice(2).join('/');
-    const ghRaw = `https://raw.githubusercontent.com/${owner}/${repo}`;
+  private async _installById(
+    id: string,
+    targetDir: string,
+    options: InstallSkillOptions = {},
+  ): Promise<HubInstallResult> {
+    const { overwrite = false } = options;
 
-    // ── 1) 直接按目录名尝试 ──
-    let content: string | undefined;
-    let branch = 'main';
-    for (const b of ['main', 'master']) {
-      for (const prefix of ['skills/', '']) {
-        try {
-          content = await httpGetText(`${ghRaw}/${b}/${prefix}${skill}/SKILL.md`);
-          branch = b;
-        } catch { /* try next */ }
-        if (content) break;
-      }
-      if (content) break;
-    }
+    // 从 skills.sh 页面 HTML 解析安装命令
+    const { addArgs, skillName } = await this._parseInstallCommand(id);
 
-    // ── 2) fallback: Tree API 扫描仓库，按 name 匹配 ──
-    if (!content) {
-      try {
-        content = await this._fetchByTreeScan(owner, repo, skill);
-      } catch { /* ignore */ }
-    }
+    const tmpDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'sbot-skills-'));
 
-    if (!content) {
-      const err: any = new Error(`Skill "${skill}" 在仓库 ${owner}/${repo} 中未找到`);
-      err.status = 404;
-      throw err;
-    }
-
-    const name = skill.split('/').pop() ?? skill;
-    return { bundle: normalizeBundle({ name, files: { 'SKILL.md': content } }), sourceUrl };
-  }
-
-  /**
-   * 用 GitHub Tree API 列出仓库中所有 SKILL.md，
-   * 然后逐个拉取并匹配 frontmatter `name` 字段。
-   */
-  private async _fetchByTreeScan(owner: string, repo: string, skillName: string): Promise<string | undefined> {
-    const ghApi = `https://api.github.com/repos/${owner}/${repo}`;
-
-    // 获取默认分支
-    let defaultBranch = 'main';
     try {
-      const repoInfo = await httpGetJson<any>(ghApi);
-      if (repoInfo?.default_branch) defaultBranch = repoInfo.default_branch;
-    } catch { /* use main */ }
+      const args = ['skills', 'add', ...addArgs, '-y', '--copy'];
+      await this._exec('npx', ['-y', ...args], tmpDir);
 
-    // 列出所有文件
-    const tree = await httpGetJson<any>(`${ghApi}/git/trees/${defaultBranch}?recursive=1`);
-    const skillMdPaths: string[] = (tree?.tree ?? [])
-      .filter((n: any) => n.type === 'blob' && n.path?.endsWith('/SKILL.md'))
-      .map((n: any) => n.path as string);
+      // 查找安装结果: {tmpDir}/.agents/skills/{name}/SKILL.md
+      const agentsSkillsDir = path.join(tmpDir, '.agents', 'skills');
+      if (!fs.existsSync(agentsSkillsDir)) {
+        throw new Error(`安装完成但未找到 skills 输出目录`);
+      }
 
-    if (!skillMdPaths.length) return undefined;
+      const installed = fs.readdirSync(agentsSkillsDir).filter(d =>
+        fs.existsSync(path.join(agentsSkillsDir, d, 'SKILL.md')),
+      );
 
-    const ghRaw = `https://raw.githubusercontent.com/${owner}/${repo}/${defaultBranch}`;
+      if (installed.length === 0) {
+        throw new Error(`安装完成但未找到 SKILL.md`);
+      }
 
-    for (const p of skillMdPaths) {
-      try {
-        const raw = await httpGetText(`${ghRaw}/${p}`);
-        // 解析 frontmatter name
-        const m = raw.match(/^---\s*\n([\s\S]*?)\n---/);
-        if (m) {
-          const nameMatch = m[1].match(/^name\s*:\s*['"]?(.+?)['"]?\s*$/m);
-          if (nameMatch && nameMatch[1].trim() === skillName) {
-            return raw;
-          }
+      // 如果指定了 skillName，找匹配的；否则取第一个
+      const dirName = skillName
+        ? installed.find(d => d === skillName) ?? installed[0]
+        : installed[0];
+
+      const srcSkillDir = path.join(agentsSkillsDir, dirName);
+      const destSkillDir = path.join(targetDir, dirName);
+
+      if (fs.existsSync(destSkillDir)) {
+        if (!overwrite) {
+          throw new Error(`Skill '${dirName}' already exists at ${destSkillDir}. Use overwrite: true to replace it.`);
         }
-      } catch { /* skip */ }
+        fs.rmSync(destSkillDir, { recursive: true, force: true });
+      }
+
+      // 递归复制整个 skill 目录（SKILL.md + references 等）
+      this._copyDir(srcSkillDir, destSkillDir);
+
+      return {
+        id,
+        name: dirName,
+        path: destSkillDir,
+        sourceUrl: `${BASE_URL}/${id}`,
+      };
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
     }
-    return undefined;
+  }
+
+  /**
+   * 抓取 skills.sh/{id} 页面，解析出 `npx skills add {url} --skill {name}` 命令。
+   * 返回 addArgs（传给 `skills add` 的参数）和 skillName。
+   */
+  private async _parseInstallCommand(id: string): Promise<{ addArgs: string[]; skillName?: string }> {
+    const pageUrl = `${BASE_URL}/${id}`;
+    const html = await httpGetText(pageUrl);
+
+    // 匹配: npx skills add <source> --skill <name>
+    // 或:    npx skills add <source>
+    const m = html.match(/npx\s+skills\s+add\s+(https?:\/\/[^\s"'<]+?)(?:\s+--skill\s+([^\s"'<]+))?/);
+    if (m) {
+      // GitHub URL 转 owner/repo 短格式（CLI 需要短格式才能 git clone）
+      let source = m[1];
+      const ghMatch = source.match(/github\.com\/([^/]+\/[^/]+?)(?:\.git)?$/);
+      if (ghMatch) source = ghMatch[1];
+      const args = [source];
+      if (m[2]) args.push('--skill', m[2]);
+      return { addArgs: args, skillName: m[2] };
+    }
+
+    // fallback: 用 id 自身拆分
+    const parts = id.split('/');
+    if (parts.length >= 3) {
+      const source = `${parts[0]}/${parts[1]}`;
+      const skill = parts.slice(2).join('/');
+      return { addArgs: [source, '--skill', skill], skillName: skill };
+    }
+
+    return { addArgs: [id] };
+  }
+
+  private _exec(cmd: string, args: string[], cwd: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      // Windows 需要用 spawn + shell，execFile 不带 shell 无法解析 npx
+      const proc = require('child_process').spawn(cmd, args, {
+        cwd,
+        timeout: 120_000,
+        shell: true,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        // 避免继承 Node debug 端口
+        env: { ...process.env, NODE_OPTIONS: '' },
+      });
+      let stdout = '';
+      let stderr = '';
+      proc.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
+      proc.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
+      proc.on('close', (code: number) => {
+        if (code !== 0) {
+          // 清除 ANSI 码
+          const clean = (stdout + '\n' + stderr).replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '').replace(/\[999D\[J/g, '');
+          // 提取关键错误行
+          const key = clean.split('\n').map(l => l.replace(/^[│├└┌■●◇\s]+/, '').trim()).filter(Boolean);
+          const noMatch = key.find(l => /no matching/i.test(l));
+          const available = key.filter(l => l.startsWith('- ')).map(l => l.slice(2));
+          let msg: string;
+          if (noMatch) {
+            msg = available.length ? `${noMatch} (available: ${available.join(', ')})` : noMatch;
+          } else {
+            msg = key.slice(-3).join(' | ') || `Process exited with code ${code}`;
+          }
+          const err: any = new Error(msg);
+          if (noMatch) err.status = 404;
+          reject(err);
+        } else {
+          resolve(stdout);
+        }
+      });
+      proc.on('error', (e: Error) => reject(e));
+    });
+  }
+
+  private _copyDir(src: string, dest: string): void {
+    fs.mkdirSync(dest, { recursive: true });
+    for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+      const srcPath = path.join(src, entry.name);
+      const destPath = path.join(dest, entry.name);
+      if (entry.isDirectory()) {
+        this._copyDir(srcPath, destPath);
+      } else {
+        fs.copyFileSync(srcPath, destPath);
+      }
+    }
   }
 }
