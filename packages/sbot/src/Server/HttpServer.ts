@@ -777,7 +777,7 @@ class HttpServer {
                         break;
                     }
                 }
-                return { name: s.name, description: s.description, source };
+                return { name: s.name, description: s.description, source, dirName: path.basename(s.path) };
             });
         }));
 
@@ -818,7 +818,7 @@ class HttpServer {
                         break;
                     }
                 }
-                return { name: s.name, description: s.description, source };
+                return { name: s.name, description: s.description, source, dirName: path.basename(s.path) };
             });
             return {
                 globals,

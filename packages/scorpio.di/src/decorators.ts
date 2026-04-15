@@ -71,7 +71,7 @@ export function singleton(): ClassDecorator {
  *   constructor(
  *     @inject("API_KEY") private apiKey: string,
  *     @inject(ILogger) private logger: ILogger,
- *     @inject(MemoryEvaluator, { optional: true }) private evaluator?: MemoryEvaluator,
+ *     @inject(ILogger, { optional: true }) private logger?: ILogger,
  *   ) {}
  * }
  * ```

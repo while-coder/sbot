@@ -13,6 +13,7 @@ export interface SkillItem {
   description?: string
   content?: string
   source?: string
+  dirName?: string
 }
 
 export interface McpItem {

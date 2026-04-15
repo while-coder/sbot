@@ -24,7 +24,14 @@ const sources = computed(() => {
   return Array.from(seen)
 })
 
-const installedNames = computed(() => new Set(allSkills.value.map(s => s.name)))
+const installedNames = computed(() => {
+  const set = new Set<string>()
+  for (const s of allSkills.value) {
+    if (s.name) set.add(s.name)
+    if (s.dirName) set.add(s.dirName)
+  }
+  return set
+})
 
 const filteredSkills = computed(() => {
   const list = activeTab.value === 'all'
@@ -406,7 +413,7 @@ onMounted(load)
                         <a :href="s.sourceUrl" target="_blank" rel="noopener" style="color:#4f46e5;font-size:12px" title="Open">&#x2197;</a>
                       </td>
                       <td style="white-space:nowrap">
-                        <span v-if="installedNames.has(s.name || s.id)"
+                        <span v-if="installedNames.has(s.name) || installedNames.has(s.id)"
                           :style="BADGE_INSTALLED">{{ t('skills.installed_badge') }}</span>
                         <button v-else class="btn-primary btn-sm" style="white-space:nowrap" @click="openInstall(s)">{{ t('skills.install_title') }}</button>
                       </td>
