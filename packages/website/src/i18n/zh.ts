@@ -186,6 +186,8 @@ export default {
     intent_threshold_hint: '0-1 之间，越高越严格（默认 0.7）',
     intent_prompt: '自定义意图 Prompt',
     intent_prompt_placeholder: '留空使用内置默认 Prompt',
+    stream_verbose: '中间消息和流式输出',
+    stream_verbose_hint: '启用后输出中间过程消息和流式输出，而非仅发送最终回复',
   },
   settings: {
     http_port: 'HTTP 端口',

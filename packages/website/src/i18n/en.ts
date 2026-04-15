@@ -186,6 +186,8 @@ export default {
     intent_threshold_hint: '0-1, higher is stricter (default 0.7)',
     intent_prompt: 'Custom Intent Prompt',
     intent_prompt_placeholder: 'Leave empty to use the built-in default prompt',
+    stream_verbose: 'Intermediate messages & streaming',
+    stream_verbose_hint: 'When enabled, output intermediate messages and streaming instead of only the final reply',
   },
   settings: {
     http_port: 'HTTP Port',

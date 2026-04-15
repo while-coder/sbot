@@ -69,6 +69,7 @@ export type ChannelSessionRow = {
   intentModel: string | null;
   intentPrompt: string | null;
   intentThreshold: number;
+  streamVerbose: boolean;        // 是否输出中间消息和流式输出
   inputTokens: number;          // 累计输入 token
   outputTokens: number;         // 累计输出 token
   totalTokens: number;          // 累计总 token
@@ -341,6 +342,12 @@ class Database {
           allowNull: false,
           defaultValue: 0.7,
           comment: "意图识别置信度阈值 (0-1)",
+        },
+        streamVerbose: {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: false,
+          comment: "是否输出中间消息和流式输出",
         },
         inputTokens: {
           type: DataTypes.INTEGER,

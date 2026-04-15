@@ -31,6 +31,7 @@ interface ChannelSessionRow {
   intentModel: string | null
   intentPrompt: string | null
   intentThreshold: number
+  streamVerbose: boolean
   inputTokens: number
   outputTokens: number
   totalTokens: number
@@ -86,7 +87,7 @@ const channelLoading   = ref<Record<string, boolean>>({})
 const viewUser         = ref<UserRow | null>(null)
 
 const editingSession   = ref<ChannelSessionRow | null>(null)
-const sessionForm      = ref<{ name: string; agentId: string; memories: string[]; wikis: string[]; useChannelMemories: boolean; workPath: string; intentModel: string; intentPrompt: string; intentThreshold: number }>({ name: '', agentId: '', memories: [], wikis: [], useChannelMemories: false, workPath: '', intentModel: '', intentPrompt: '', intentThreshold: 0.7 })
+const sessionForm      = ref<{ name: string; agentId: string; memories: string[]; wikis: string[]; useChannelMemories: boolean; workPath: string; intentModel: string; intentPrompt: string; intentThreshold: number; streamVerbose: boolean }>({ name: '', agentId: '', memories: [], wikis: [], useChannelMemories: false, workPath: '', intentModel: '', intentPrompt: '', intentThreshold: 0.7, streamVerbose: false })
 
 function openEditSession(s: ChannelSessionRow) {
   editingSession.value = s
@@ -94,7 +95,7 @@ function openEditSession(s: ChannelSessionRow) {
   const memArr = Array.isArray(rawMem) ? rawMem : typeof rawMem === 'string' ? (() => { try { const p = JSON.parse(rawMem); return Array.isArray(p) ? p : [] } catch { return [] } })() : []
   const rawWiki = (s as any).wikis
   const wikiArr = Array.isArray(rawWiki) ? rawWiki : typeof rawWiki === 'string' ? (() => { try { const p = JSON.parse(rawWiki); return Array.isArray(p) ? p : [] } catch { return [] } })() : []
-  sessionForm.value = { name: s.sessionName || '', agentId: s.agentId || '', memories: memArr, wikis: wikiArr, useChannelMemories: !!s.useChannelMemories, workPath: s.workPath || '', intentModel: s.intentModel || '', intentPrompt: s.intentPrompt || '', intentThreshold: s.intentThreshold ?? 0.7 }
+  sessionForm.value = { name: s.sessionName || '', agentId: s.agentId || '', memories: memArr, wikis: wikiArr, useChannelMemories: !!s.useChannelMemories, workPath: s.workPath || '', intentModel: s.intentModel || '', intentPrompt: s.intentPrompt || '', intentThreshold: s.intentThreshold ?? 0.7, streamVerbose: !!s.streamVerbose }
 }
 
 async function saveSession() {
@@ -115,6 +116,7 @@ async function saveSession() {
       intentModel: sessionForm.value.intentModel || null,
       intentPrompt: sessionForm.value.intentPrompt.trim() || null,
       intentThreshold: sessionForm.value.intentThreshold,
+      streamVerbose: sessionForm.value.streamVerbose,
     })
     Object.assign(s, {
       sessionName: sessionForm.value.name.trim(),
@@ -126,6 +128,7 @@ async function saveSession() {
       intentModel: sessionForm.value.intentModel || null,
       intentPrompt: sessionForm.value.intentPrompt.trim() || null,
       intentThreshold: sessionForm.value.intentThreshold,
+      streamVerbose: sessionForm.value.streamVerbose,
     })
     show(t('common.saved'))
     editingSession.value = null
@@ -672,6 +675,13 @@ async function refresh() {
               <input type="checkbox" v-model="sessionForm.useChannelMemories" />
               <span>{{ t('channels.use_channel_memories') }}</span>
             </label>
+          </div>
+          <div class="form-group">
+            <label class="toggle-label">
+              <input type="checkbox" v-model="sessionForm.streamVerbose" />
+              <span>{{ t('channels.stream_verbose') }}</span>
+            </label>
+            <span style="font-size:11px;color:#888">{{ t('channels.stream_verbose_hint') }}</span>
           </div>
           <div class="form-group">
             <label>{{ t('common.memory') }}</label>

@@ -1,5 +1,6 @@
 import { ProcessAIHandler, ChannelToolHelpers, type MessageContent } from "channel.base";
 import { AgentRunner, createAskAgentTool, createSendFileAgentTool } from "../Agent/AgentRunner";
+import { MessageRole, type ChatMessage } from "scorpio.ai";
 import { config } from "../Core/Config";
 import { ChannelSessionRow, SessionRow, SchedulerType, database, parseMemories } from "../Core/Database";
 import { buildExecuteTool } from "../UserService/buildExecuteTool";
@@ -14,13 +15,13 @@ const agentToolHelpers: ChannelToolHelpers = {
         createSendFileAgentTool(prompt, sendFileFn),
 };
 
-function runAgent(query: MessageContent, args: any, userService: any, agentId: string, saverId: string, schedulerType: SchedulerType, schedulerId: string, memories: string[], wikis: string[], workPath?: string): Promise<void> {
+function runAgent(query: MessageContent, args: any, userService: any, agentId: string, saverId: string, schedulerType: SchedulerType, schedulerId: string, memories: string[], wikis: string[], workPath?: string, callbackOverrides?: { onMessage?: (msg: ChatMessage) => Promise<void>; onStreamMessage?: ((msg: ChatMessage) => Promise<void>) | undefined }): Promise<void> {
     const threadId = userService.session.threadId;
     return AgentRunner.run({
         query,
         callbacks: {
-            onMessage: (msg) => userService.onChatMessage(msg, args),
-            onStreamMessage: (msg) => userService.onStreamMessage(msg, args),
+            onMessage: callbackOverrides?.onMessage ?? ((msg) => userService.onChatMessage(msg, args)),
+            onStreamMessage: callbackOverrides && 'onStreamMessage' in callbackOverrides ? callbackOverrides.onStreamMessage : (msg) => userService.onStreamMessage(msg, args),
             executeTool: buildExecuteTool(
                 userService.session,
                 agentId,
@@ -92,8 +93,22 @@ export function createProcessAIHandler(): ProcessAIHandler {
             ? [...((channel.wikis as string[]) ?? []), ...sessionWikis]
             : sessionWikis;
 
+        const streamVerbose = dbSession?.streamVerbose ?? false;
+        const pendingMessages: ChatMessage[] = [];
+
         await runAgent(query, args, userService, agentId, channel.saver as string,
-            SchedulerType.Channel, String(dbSessionId), memories, wikis, dbSession?.workPath || undefined);
+            SchedulerType.Channel, String(dbSessionId), memories, wikis, dbSession?.workPath || undefined,
+            !streamVerbose ? {
+                onMessage: (msg) => { pendingMessages.push(msg); return Promise.resolve(); },
+                onStreamMessage: undefined,
+            } : undefined);
+
+        if (!streamVerbose) {
+            const last = [...pendingMessages].reverse().find(
+                m => m.role === MessageRole.AI && typeof m.content === 'string' && m.content
+            );
+            if (last) await userService.onChatMessage(last, args);
+        }
     };
 }
 
