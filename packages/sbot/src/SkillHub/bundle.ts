@@ -68,6 +68,9 @@ export function mapToHubResults(items: any[], provider: SkillHubProvider): HubSk
       version: String(item.version ?? ''),
       sourceUrl: String(item.url ?? ''),
       provider,
+      ...(item.score != null ? { score: Number(item.score) } : {}),
+      ...(item.updatedAt != null ? { updatedAt: Number(item.updatedAt) } : {}),
+      ...(item.installs != null ? { installs: Number(item.installs) } : {}),
     }))
     .filter(r => r.id);
 }

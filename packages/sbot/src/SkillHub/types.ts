@@ -15,6 +15,9 @@ export interface HubSkillResult {
   version: string;
   sourceUrl: string;
   provider: SkillHubProvider;
+  score?: number;
+  updatedAt?: number;
+  installs?: number;
 }
 
 export interface HubInstallResult {

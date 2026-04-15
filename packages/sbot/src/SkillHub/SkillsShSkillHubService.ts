@@ -25,6 +25,7 @@ export class SkillsShSkillHubService implements ISkillHubService {
         version: '',
         sourceUrl: `${BASE_URL}/${item.id}`,
         provider: SkillHubProvider.SkillsSh,
+        ...(item.installs != null ? { installs: Number(item.installs) } : {}),
       }));
   }
 
@@ -50,11 +51,15 @@ export class SkillsShSkillHubService implements ISkillHubService {
     options: InstallSkillOptions = {},
   ): Promise<HubInstallResult> {
     const { overwrite = false } = options;
+    const log = (msg: string) => console.log(`[SkillHub] ${msg}`);
 
     // 从 skills.sh 页面 HTML 解析安装命令
+    log(`parseInstallCommand for id="${id}"`);
     const { addArgs, skillName } = await this._parseInstallCommand(id);
+    log(`parsed: addArgs=${JSON.stringify(addArgs)}, skillName=${skillName}`);
 
     const tmpDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'sbot-skills-'));
+    log(`tmpDir: ${tmpDir}`);
 
     try {
       const args = ['skills', 'add', ...addArgs, '-y', '--copy'];
@@ -63,21 +68,25 @@ export class SkillsShSkillHubService implements ISkillHubService {
       // 查找安装结果: {tmpDir}/.agents/skills/{name}/SKILL.md
       const agentsSkillsDir = path.join(tmpDir, '.agents', 'skills');
       if (!fs.existsSync(agentsSkillsDir)) {
+        log(`ERROR: .agents/skills dir not found in ${tmpDir}`);
+        // 列出 tmpDir 内容帮助调试
+        try { log(`tmpDir contents: ${fs.readdirSync(tmpDir).join(', ')}`); } catch {}
         throw new Error(`安装完成但未找到 skills 输出目录`);
       }
 
       const installed = fs.readdirSync(agentsSkillsDir).filter(d =>
         fs.existsSync(path.join(agentsSkillsDir, d, 'SKILL.md')),
       );
+      log(`installed skills: [${installed.join(', ')}]`);
 
       if (installed.length === 0) {
         throw new Error(`安装完成但未找到 SKILL.md`);
       }
 
-      // 如果指定了 skillName，找匹配的；否则取第一个
       const dirName = skillName
         ? installed.find(d => d === skillName) ?? installed[0]
         : installed[0];
+      log(`selected: ${dirName}, copying to ${targetDir}`);
 
       const srcSkillDir = path.join(agentsSkillsDir, dirName);
       const destSkillDir = path.join(targetDir, dirName);
@@ -89,8 +98,8 @@ export class SkillsShSkillHubService implements ISkillHubService {
         fs.rmSync(destSkillDir, { recursive: true, force: true });
       }
 
-      // 递归复制整个 skill 目录（SKILL.md + references 等）
       this._copyDir(srcSkillDir, destSkillDir);
+      log(`done: ${destSkillDir}`);
 
       return {
         id,
@@ -113,7 +122,7 @@ export class SkillsShSkillHubService implements ISkillHubService {
 
     // 匹配: npx skills add <source> --skill <name>
     // 或:    npx skills add <source>
-    const m = html.match(/npx\s+skills\s+add\s+(https?:\/\/[^\s"'<]+?)(?:\s+--skill\s+([^\s"'<]+))?/);
+    const m = html.match(/npx\s+skills\s+add\s+(https?:\/\/[^\s"'<]+)(?:\s+--skill\s+([^\s"'<]+))?/);
     if (m) {
       // GitHub URL 转 owner/repo 短格式（CLI 需要短格式才能 git clone）
       let source = m[1];
@@ -136,8 +145,8 @@ export class SkillsShSkillHubService implements ISkillHubService {
   }
 
   private _exec(cmd: string, args: string[], cwd: string): Promise<string> {
+    console.log(`[SkillHub] exec: ${cmd} ${args.join(' ')}`);
     return new Promise((resolve, reject) => {
-      // Windows 需要用 spawn + shell，execFile 不带 shell 无法解析 npx
       const proc = require('child_process').spawn(cmd, args, {
         cwd,
         timeout: 120_000,

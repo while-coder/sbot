@@ -102,6 +102,9 @@ interface HubSkillResult {
   version: string
   sourceUrl: string
   provider: 'clawhub' | 'skills.sh'
+  score?: number
+  updatedAt?: number
+  installs?: number
 }
 
 const showHub = ref(false)
@@ -379,19 +382,23 @@ onMounted(load)
                   <colgroup>
                     <col style="width:180px" />
                     <col />
-                    <col style="width:70px" />
+                    <col style="width:80px" />
                     <col style="width:90px" />
                     <col style="width:50px" />
                     <col style="width:90px" />
                   </colgroup>
                   <thead>
-                    <tr><th>{{ t('common.name') }}</th><th>{{ t('common.description') }}</th><th>{{ t('skills.version_col') }}</th><th>{{ t('skills.source_col') }}</th><th>{{ t('skills.link_col') }}</th><th>{{ t('common.ops') }}</th></tr>
+                    <tr><th>{{ t('common.name') }}</th><th>{{ t('common.description') }}</th><th>{{ t('skills.popularity_col') }}</th><th>{{ t('skills.source_col') }}</th><th>{{ t('skills.link_col') }}</th><th>{{ t('common.ops') }}</th></tr>
                   </thead>
                   <tbody>
                     <tr v-for="s in hubResults" :key="s.provider + ':' + s.id">
                       <td style="font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.name || s.id }}</td>
                       <td style="color:#475569;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.description || '-' }}</td>
-                      <td style="font-size:12px;color:#94a3b8;white-space:nowrap">{{ s.version || '-' }}</td>
+                      <td style="font-size:12px;color:#94a3b8;white-space:nowrap">
+                        <template v-if="s.installs != null">{{ s.installs >= 1000 ? (s.installs / 1000).toFixed(1) + 'K' : s.installs }} installs</template>
+                        <template v-else-if="s.score != null">{{ s.score.toFixed(1) }}</template>
+                        <template v-else>-</template>
+                      </td>
                       <td>
                         <span :style="s.provider === 'skills.sh' ? BADGE_SKILLSSH : BADGE_CLAWHUB">{{ s.provider === 'skills.sh' ? 'Skills.sh' : 'ClawHub' }}</span>
                       </td>

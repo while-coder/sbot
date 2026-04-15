@@ -391,6 +391,7 @@ export default {
     version_col: 'Version',
     source_col: 'Source',
     link_col: 'Link',
+    popularity_col: 'Popularity',
     installed_badge: 'Installed',
     install_title: 'Install Skill',
     install_to: 'Install to:',

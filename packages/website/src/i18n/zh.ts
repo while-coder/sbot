@@ -391,6 +391,7 @@ export default {
     version_col: '版本',
     source_col: '来源',
     link_col: '链接',
+    popularity_col: '热度',
     installed_badge: '已安装',
     install_title: '安装 Skill',
     install_to: '安装到:',
