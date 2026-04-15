@@ -48,19 +48,11 @@ export interface ISkillHubService {
 
   /**
    * 从 URL 安装 Skill 到本地目录
-   * @param bundleUrl  Skill 来源 URL
-   * @param targetDir  安装目标父目录
-   * @param options    可选配置（version / overwrite）
-   */
-  installSkill(skill: HubSkillResult, targetDir: string, options?: InstallSkillOptions): Promise<HubInstallResult>;
-
-  /**
-   * 从 URL 直接安装 Skill（无需事先搜索）
    * @param url       Skill 来源 URL（各 provider 自行解析）
    * @param targetDir 安装目标父目录
    * @param options   可选配置（version / overwrite）
    */
-  installSkillWithUrl(url: string, targetDir: string, options?: InstallSkillOptions): Promise<HubInstallResult>;
+  installSkill(url: string, targetDir: string, options?: InstallSkillOptions): Promise<HubInstallResult>;
 }
 
 // ── HTTP Utilities ─────────────────────────────────────────────

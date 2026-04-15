@@ -30,13 +30,7 @@ export class ClawhubSkillHubService implements ISkillHubService {
     }));
   }
 
-  /** 从 HubSkillResult 安装（委托给 installSkillWithUrl） */
-  async installSkill(skill: HubSkillResult, targetDir: string, options?: InstallSkillOptions): Promise<HubInstallResult> {
-    return this.installSkillWithUrl(skill.sourceUrl, targetDir, options);
-  }
-
-  /** 主要安装入口：直接从 URL 安装 */
-  async installSkillWithUrl(url: string, targetDir: string, options: InstallSkillOptions = {}): Promise<HubInstallResult> {
+  async installSkill(url: string, targetDir: string, options: InstallSkillOptions = {}): Promise<HubInstallResult> {
     requireHttpUrl(url);
 
     const u = new URL(url);

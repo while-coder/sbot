@@ -233,7 +233,7 @@ export class AgentStoreService {
         try {
           const results = await options.skillHub.searchSkills(skillName, 1);
           if (results.length > 0) {
-            await options.skillHub.installSkill(results[0], config.getAgentSkillsPath(agentId));
+            await options.skillHub.installSkill(results[0].sourceUrl, config.getAgentSkillsPath(agentId));
           } else {
             skippedDeps.push(`skill:${skillName}`);
           }

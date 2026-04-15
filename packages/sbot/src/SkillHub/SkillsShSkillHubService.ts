@@ -29,11 +29,7 @@ export class SkillsShSkillHubService implements ISkillHubService {
       }));
   }
 
-  async installSkill(skill: HubSkillResult, targetDir: string, options?: InstallSkillOptions): Promise<HubInstallResult> {
-    return this._installById(skill.id, targetDir, options);
-  }
-
-  async installSkillWithUrl(url: string, targetDir: string, options: InstallSkillOptions = {}): Promise<HubInstallResult> {
+  async installSkill(url: string, targetDir: string, options: InstallSkillOptions = {}): Promise<HubInstallResult> {
     const u = new URL(url);
     const parts = u.pathname.split('/').filter(Boolean);
     if (parts.length < 2) throw new Error(`URL 格式应至少包含 owner/repo，收到: ${u.pathname}`);

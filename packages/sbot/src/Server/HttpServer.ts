@@ -11,7 +11,7 @@ import { config, sanitizeId } from '../Core/Config';
 import { AgentRunner } from '../Agent/AgentRunner';
 import { globalAgentToolService, refreshGlobalAgentToolService, refreshBuiltinTools, BuiltinProvider } from '../Agent/GlobalAgentToolService';
 import { globalSkillService, refreshGlobalSkillService, getSkillsDirsMap } from '../Agent/GlobalSkillService';
-import { SkillHubService, type HubSkillResult } from '../SkillHub';
+import { SkillHubService } from '../SkillHub';
 import { AgentStoreService } from '../AgentStore';
 import { LoggerService, log4js } from '../Core/LoggerService';
 import { database, sessionThreadId, parseMemories, type SessionRow } from '../Core/Database';
@@ -851,17 +851,9 @@ class HttpServer {
         }));
 
         app.post('/api/skill-hub/install', api(async req => {
-            const { skill, overwrite = false }: { skill: HubSkillResult; overwrite: boolean } = req.body;
-            if (!skill?.id) { const e: any = new Error('Missing skill'); e.status = 400; throw e; }
-            const result = await this.skillHubService.installSkill(skill, config.getSkillsPath(), { overwrite });
-            refreshGlobalSkillService();
-            return result;
-        }));
-
-        app.post('/api/skill-hub/install-url', api(async req => {
             const { url, overwrite = false }: { url: string; overwrite: boolean } = req.body;
             if (!url?.trim()) { const e: any = new Error('Missing url'); e.status = 400; throw e; }
-            const result = await this.skillHubService.installSkillWithUrl(url.trim(), config.getSkillsPath(), { overwrite });
+            const result = await this.skillHubService.installSkill(url.trim(), config.getSkillsPath(), { overwrite });
             refreshGlobalSkillService();
             return result;
         }));
@@ -869,16 +861,9 @@ class HttpServer {
         // ── Agent Skill Hub ──
         app.post('/api/agents/:agentName/skill-hub/install', api(async req => {
             const agentName = req.params.agentName as string;
-            const { skill, overwrite = false }: { skill: HubSkillResult; overwrite: boolean } = req.body;
-            if (!skill?.id) { const e: any = new Error('Missing skill'); e.status = 400; throw e; }
-            return await this.skillHubService.installSkill(skill, config.getAgentSkillsPath(agentName), { overwrite });
-        }));
-
-        app.post('/api/agents/:agentName/skill-hub/install-url', api(async req => {
-            const agentName = req.params.agentName as string;
             const { url, overwrite = false }: { url: string; overwrite: boolean } = req.body;
             if (!url?.trim()) { const e: any = new Error('Missing url'); e.status = 400; throw e; }
-            return await this.skillHubService.installSkillWithUrl(url.trim(), config.getAgentSkillsPath(agentName), { overwrite });
+            return await this.skillHubService.installSkill(url.trim(), config.getAgentSkillsPath(agentName), { overwrite });
         }));
     }
 

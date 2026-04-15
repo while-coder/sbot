@@ -1,15 +1,9 @@
 import { ClawhubSkillHubService } from './ClawhubSkillHubService';
 import { SkillsShSkillHubService } from './SkillsShSkillHubService';
-import { SkillHubProvider } from './types';
-import type { HubSkillResult, HubInstallResult, InstallSkillOptions, ISkillHubService } from './types';
+import type { HubSkillResult, HubInstallResult, InstallSkillOptions } from './types';
 
 const _clawhub = new ClawhubSkillHubService();
 const _skillsSh = new SkillsShSkillHubService();
-
-const providers: Record<string, ISkillHubService> = {
-  [SkillHubProvider.Clawhub]: _clawhub,
-  [SkillHubProvider.SkillsSh]: _skillsSh,
-};
 
 /**
  * SkillHubService — 聚合多个 provider（clawhub.ai + skills.sh）
@@ -23,17 +17,8 @@ export class SkillHubService {
     return results.flatMap(r => (r.status === 'fulfilled' ? r.value : []));
   }
 
-  async installSkill(
-    skill: HubSkillResult,
-    targetDir: string,
-    options?: InstallSkillOptions,
-  ): Promise<HubInstallResult> {
-    const svc = providers[skill.provider] ?? _clawhub;
-    return svc.installSkill(skill, targetDir, options);
-  }
-
-  async installSkillWithUrl(url: string, targetDir: string, options?: InstallSkillOptions): Promise<HubInstallResult> {
+  async installSkill(url: string, targetDir: string, options?: InstallSkillOptions): Promise<HubInstallResult> {
     const svc = url.includes('skills.sh') ? _skillsSh : _clawhub;
-    return svc.installSkillWithUrl(url, targetDir, options);
+    return svc.installSkill(url, targetDir, options);
   }
 }

@@ -124,7 +124,7 @@ async function installByUrl() {
   if (!url) return
   hubUrlInstalling.value = true
   try {
-    const res = await apiFetch('/api/skill-hub/install-url', 'POST', {
+    const res = await apiFetch('/api/skill-hub/install', 'POST', {
       url,
       overwrite: hubUrlOverwrite.value,
     })
@@ -185,7 +185,7 @@ async function confirmInstall() {
   installing.value = true
   try {
     const res = await apiFetch('/api/skill-hub/install', 'POST', {
-      skill: selected.value,
+      url: selected.value.sourceUrl,
       overwrite: overwrite.value,
     })
     show(`已安装：${res.data?.name ?? selected.value.name}`)
