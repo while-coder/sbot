@@ -225,7 +225,7 @@ onMounted(() => {
             :value="effectiveAgent"
             @change="saveSession({ agent: ($event.target as HTMLSelectElement).value })"
           >
-            <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }}</option>
+            <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }} ({{ a.type }})</option>
           </select>
 
           <!-- Saver -->
@@ -274,6 +274,16 @@ onMounted(() => {
             style="min-width:140px"
             @update:model-value="saveSession({ wikis: $event })"
           />
+
+          <!-- Auto Approve All Tools -->
+          <label class="toggle-label toolbar-toggle" style="margin-left:8px;font-size:12px">
+            <input
+              type="checkbox"
+              :checked="!!sessions[activeSessionId!]?.autoApproveAllTools"
+              @change="saveSession({ autoApproveAllTools: ($event.target as HTMLInputElement).checked })"
+            />
+            <span>{{ t('settings.auto_approve_all') }}</span>
+          </label>
         </template>
         <span v-else style="font-size:13px;color:#94a3b8">{{ t('chat.select_or_create') }}</span>
         <span v-if="sessionUsage && sessionUsage.lastTotalTokens > 0" class="usage-chip" :title="`${t('usage.total')}: ${formatNumber(sessionUsage.totalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatNumber(sessionUsage.inputTokens)} / ${t('usage.output_tokens')}: ${formatNumber(sessionUsage.outputTokens)}\n${t('usage.last')}: ${formatNumber(sessionUsage.lastTotalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatNumber(sessionUsage.lastInputTokens)} / ${t('usage.output_tokens')}: ${formatNumber(sessionUsage.lastOutputTokens)}`" style="margin-left:auto">{{ formatNumber(sessionUsage.lastInputTokens) }} + {{ formatNumber(sessionUsage.lastOutputTokens) }} = {{ formatNumber(sessionUsage.lastTotalTokens) }}</span>

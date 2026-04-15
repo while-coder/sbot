@@ -186,6 +186,8 @@ export interface SessionConfig {
   wikis?: string[]
   /** 工作目录路径（有值时为目录模式，Agent 文件操作限定在此目录） */
   workPath?: string
+  /** 自动批准所有工具调用 */
+  autoApproveAllTools?: boolean
 }
 
 export interface ChannelConfig {

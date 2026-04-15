@@ -145,6 +145,14 @@ class SchedulerService {
         }
     }
 
+    /** 停止所有 cron job */
+    stopAll(): void {
+        for (const [id, job] of this.jobs) {
+            job.stop();
+        }
+        this.jobs.clear();
+    }
+
     /** 取消调度并标记为禁用（软删除） */
     async delete(schedulerId: number): Promise<void> {
         this.cancel(schedulerId);

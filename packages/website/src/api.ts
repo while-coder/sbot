@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const http = axios.create({ baseURL: process.env.NODE_ENV === 'development' ? 'http://127.0.0.1:5500' : '' })
+const http = axios.create()
 
 export async function apiFetch(path: string, method = 'GET', body?: unknown): Promise<any> {
   try {

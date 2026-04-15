@@ -32,6 +32,7 @@ interface ChannelSessionRow {
   intentPrompt: string | null
   intentThreshold: number
   streamVerbose: boolean
+  autoApproveAllTools: boolean
   inputTokens: number
   outputTokens: number
   totalTokens: number
@@ -67,7 +68,7 @@ const currentSchema = computed(() => {
 })
 
 const channels = computed(() => store.settings.channels || {})
-const agentOptions  = computed(() => Object.entries(store.settings.agents   || {}).map(([id, a]) => ({ id, label: (a as any).name  || id })))
+const agentOptions  = computed(() => Object.entries(store.settings.agents   || {}).map(([id, a]) => ({ id, label: (a as any).name  || id, type: (a as any).type || '' })))
 const saverOptions  = computed(() => Object.entries(store.settings.savers   || {}).map(([id, s]) => ({ id, label: (s as any).name  || id })))
 const memoryOptions = computed(() => Object.entries(store.settings.memories  || {}).map(([id, m]) => ({ id, label: m.name  || id })))
 const wikiOptions   = computed(() => Object.entries(store.settings.wikis    || {}).map(([id, w]) => ({ id, label: (w as any).name  || id })))
@@ -87,7 +88,7 @@ const channelLoading   = ref<Record<string, boolean>>({})
 const viewUser         = ref<UserRow | null>(null)
 
 const editingSession   = ref<ChannelSessionRow | null>(null)
-const sessionForm      = ref<{ name: string; agentId: string; memories: string[]; wikis: string[]; useChannelMemories: boolean; workPath: string; intentModel: string; intentPrompt: string; intentThreshold: number; streamVerbose: boolean }>({ name: '', agentId: '', memories: [], wikis: [], useChannelMemories: false, workPath: '', intentModel: '', intentPrompt: '', intentThreshold: 0.7, streamVerbose: false })
+const sessionForm      = ref<{ name: string; agentId: string; memories: string[]; wikis: string[]; useChannelMemories: boolean; workPath: string; intentModel: string; intentPrompt: string; intentThreshold: number; streamVerbose: boolean; autoApproveAllTools: boolean }>({ name: '', agentId: '', memories: [], wikis: [], useChannelMemories: false, workPath: '', intentModel: '', intentPrompt: '', intentThreshold: 0.7, streamVerbose: false, autoApproveAllTools: false })
 
 function openEditSession(s: ChannelSessionRow) {
   editingSession.value = s
@@ -95,7 +96,7 @@ function openEditSession(s: ChannelSessionRow) {
   const memArr = Array.isArray(rawMem) ? rawMem : typeof rawMem === 'string' ? (() => { try { const p = JSON.parse(rawMem); return Array.isArray(p) ? p : [] } catch { return [] } })() : []
   const rawWiki = (s as any).wikis
   const wikiArr = Array.isArray(rawWiki) ? rawWiki : typeof rawWiki === 'string' ? (() => { try { const p = JSON.parse(rawWiki); return Array.isArray(p) ? p : [] } catch { return [] } })() : []
-  sessionForm.value = { name: s.sessionName || '', agentId: s.agentId || '', memories: memArr, wikis: wikiArr, useChannelMemories: !!s.useChannelMemories, workPath: s.workPath || '', intentModel: s.intentModel || '', intentPrompt: s.intentPrompt || '', intentThreshold: s.intentThreshold ?? 0.7, streamVerbose: !!s.streamVerbose }
+  sessionForm.value = { name: s.sessionName || '', agentId: s.agentId || '', memories: memArr, wikis: wikiArr, useChannelMemories: !!s.useChannelMemories, workPath: s.workPath || '', intentModel: s.intentModel || '', intentPrompt: s.intentPrompt || '', intentThreshold: s.intentThreshold ?? 0.7, streamVerbose: !!s.streamVerbose, autoApproveAllTools: !!(s as any).autoApproveAllTools }
 }
 
 async function saveSession() {
@@ -117,6 +118,7 @@ async function saveSession() {
       intentPrompt: sessionForm.value.intentPrompt.trim() || null,
       intentThreshold: sessionForm.value.intentThreshold,
       streamVerbose: sessionForm.value.streamVerbose,
+      autoApproveAllTools: sessionForm.value.autoApproveAllTools,
     })
     Object.assign(s, {
       sessionName: sessionForm.value.name.trim(),
@@ -129,6 +131,7 @@ async function saveSession() {
       intentPrompt: sessionForm.value.intentPrompt.trim() || null,
       intentThreshold: sessionForm.value.intentThreshold,
       streamVerbose: sessionForm.value.streamVerbose,
+      autoApproveAllTools: sessionForm.value.autoApproveAllTools,
     })
     show(t('common.saved'))
     editingSession.value = null
@@ -622,7 +625,7 @@ async function refresh() {
             <label>{{ t('common.agent') }} *</label>
             <select v-model="form.agent">
               <option value="" disabled>{{ t('channels.select_agent') }}</option>
-              <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }}</option>
+              <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }} ({{ a.type }})</option>
             </select>
           </div>
           <div class="form-group">
@@ -667,7 +670,7 @@ async function refresh() {
             <label>{{ t('common.agent') }}</label>
             <select v-model="sessionForm.agentId">
               <option value="">{{ t('channels.use_channel_agent') }}</option>
-              <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }}</option>
+              <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }} ({{ a.type }})</option>
             </select>
           </div>
           <div class="form-group">
@@ -682,6 +685,13 @@ async function refresh() {
               <span>{{ t('channels.stream_verbose') }}</span>
             </label>
             <span style="font-size:11px;color:#888">{{ t('channels.stream_verbose_hint') }}</span>
+          </div>
+          <div class="form-group">
+            <label class="toggle-label">
+              <input type="checkbox" v-model="sessionForm.autoApproveAllTools" />
+              <span>{{ t('settings.auto_approve_all') }}</span>
+            </label>
+            <span style="font-size:11px;color:#888">{{ t('settings.auto_approve_all_hint') }}</span>
           </div>
           <div class="form-group">
             <label>{{ t('common.memory') }}</label>

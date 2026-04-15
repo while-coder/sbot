@@ -33,6 +33,37 @@ program
     .option('-p, --port <port>', 'HTTP server port')
     .option('-d, --daemon', '后台运行');
 
+// 关闭服务命令
+program
+    .command('stop')
+    .description('关闭正在运行的 sbot 服务')
+    .action(async () => {
+        const port = config.getHttpPort();
+        try {
+            const req = http.request(`http://localhost:${port}/api/shutdown`, { method: 'POST' }, (res) => {
+                if (res.statusCode === 200) {
+                    console.log('sbot 服务正在关闭...');
+                } else {
+                    console.error(`关闭失败，HTTP 状态码: ${res.statusCode}`);
+                    process.exit(1);
+                }
+            });
+            req.on('error', () => {
+                console.error('sbot 服务未运行');
+                process.exit(1);
+            });
+            req.setTimeout(5000, () => {
+                req.destroy();
+                console.error('请求超时，服务可能未运行');
+                process.exit(1);
+            });
+            req.end();
+        } catch {
+            console.error('sbot 服务未运行');
+            process.exit(1);
+        }
+    });
+
 // 设置端口命令：修改并保存端口，不启动服务
 program
     .command('port <port>')

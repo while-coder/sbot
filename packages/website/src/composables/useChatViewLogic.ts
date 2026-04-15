@@ -34,7 +34,7 @@ export function useChatViewLogic(options: ChatViewLogicOptions) {
 
   // ── Shared computed: agent/saver/memory options ──
   const agentOptions = computed(() =>
-    Object.entries(store.settings.agents || {}).map(([id, a]) => ({ id, label: (a as any).name || id }))
+    Object.entries(store.settings.agents || {}).map(([id, a]) => ({ id, label: (a as any).name || id, type: (a as any).type || '' }))
   )
   const saverOptions = computed(() =>
     Object.entries(store.settings.savers || {}).map(([id, s]) => ({ id, label: (s as any).name || id }))

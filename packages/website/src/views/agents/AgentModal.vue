@@ -17,7 +17,7 @@ const modelOptions  = computed(() =>
   Object.entries(store.settings.models || {}).map(([id, m]) => ({ id, label: m.name || id }))
 )
 const agentOptions  = computed(() =>
-  Object.entries(store.settings.agents || {}).map(([id, a]) => ({ id, label: (a as any).name || id }))
+  Object.entries(store.settings.agents || {}).map(([id, a]) => ({ id, label: (a as any).name || id, type: (a as any).type || '' }))
 )
 
 // ── Main modal ──
@@ -230,7 +230,7 @@ defineExpose({ open })
           <label>{{ t('agents.sub_agent_label') }} *</label>
           <select v-model="subForm.id">
             <option value="">{{ t('common.select_placeholder') }}</option>
-            <option v-for="a in subAgentSelectOptions()" :key="a.id" :value="a.id">{{ a.label }}</option>
+            <option v-for="a in subAgentSelectOptions()" :key="a.id" :value="a.id">{{ a.label }} ({{ a.type }})</option>
           </select>
         </div>
         <div class="form-group">

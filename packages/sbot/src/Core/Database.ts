@@ -70,12 +70,14 @@ export type ChannelSessionRow = {
   intentPrompt: string | null;
   intentThreshold: number;
   streamVerbose: boolean;        // 是否输出中间消息和流式输出
+  autoApproveAllTools: boolean;  // 是否自动批准所有工具
   inputTokens: number;          // 累计输入 token
   outputTokens: number;         // 累计输出 token
   totalTokens: number;          // 累计总 token
   lastInputTokens: number;      // 最后一次输入 token
   lastOutputTokens: number;     // 最后一次输出 token
   lastTotalTokens: number;      // 最后一次总 token
+  createdAt: number;            // timestamp ms
 };
 
 export type SessionRow = {
@@ -86,6 +88,7 @@ export type SessionRow = {
   memories: string | null;  // JSON array of memory UUIDs
   wikis: string | null;     // JSON array of wiki UUIDs
   workPath: string | null;
+  autoApproveAllTools: boolean;  // 是否自动批准所有工具
   inputTokens: number;       // 累计输入 token
   outputTokens: number;      // 累计输出 token
   totalTokens: number;       // 累计总 token
@@ -93,7 +96,6 @@ export type SessionRow = {
   lastOutputTokens: number;  // 最后一次输出 token
   lastTotalTokens: number;   // 最后一次总 token
   createdAt: number;   // timestamp ms
-  updatedAt: number;   // timestamp ms
 };
 
 export type UsageStatsRow = {
@@ -349,6 +351,12 @@ class Database {
           defaultValue: false,
           comment: "是否输出中间消息和流式输出",
         },
+        autoApproveAllTools: {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: false,
+          comment: "是否自动批准所有工具",
+        },
         inputTokens: {
           type: DataTypes.INTEGER,
           allowNull: false,
@@ -384,6 +392,12 @@ class Database {
           allowNull: false,
           defaultValue: 0,
           comment: "最后一次总 token 数",
+        },
+        createdAt: {
+          type: DataTypes.BIGINT,
+          allowNull: false,
+          defaultValue: 0,
+          comment: "创建时间戳(ms)",
         },
       },
       {
@@ -435,6 +449,12 @@ class Database {
           defaultValue: null,
           comment: "工作目录路径",
         },
+        autoApproveAllTools: {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: false,
+          comment: "是否自动批准所有工具",
+        },
         inputTokens: {
           type: DataTypes.INTEGER,
           allowNull: false,
@@ -475,11 +495,6 @@ class Database {
           type: DataTypes.BIGINT,
           allowNull: false,
           comment: "创建时间戳(ms)",
-        },
-        updatedAt: {
-          type: DataTypes.BIGINT,
-          allowNull: false,
-          comment: "更新时间戳(ms)",
         },
       },
       {

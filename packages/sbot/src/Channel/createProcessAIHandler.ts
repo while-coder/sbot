@@ -15,7 +15,7 @@ const agentToolHelpers: ChannelToolHelpers = {
         createSendFileAgentTool(prompt, sendFileFn),
 };
 
-function runAgent(query: MessageContent, args: any, userService: any, agentId: string, saverId: string, schedulerType: SchedulerType, schedulerId: string, memories: string[], wikis: string[], workPath?: string, callbackOverrides?: { onMessage?: (msg: ChatMessage) => Promise<void>; onStreamMessage?: ((msg: ChatMessage) => Promise<void>) | undefined }): Promise<void> {
+function runAgent(query: MessageContent, args: any, userService: any, agentId: string, saverId: string, schedulerType: SchedulerType, schedulerId: string, memories: string[], wikis: string[], workPath?: string, autoApproveAllTools?: boolean, callbackOverrides?: { onMessage?: (msg: ChatMessage) => Promise<void>; onStreamMessage?: ((msg: ChatMessage) => Promise<void>) | undefined }): Promise<void> {
     const threadId = userService.session.threadId;
     return AgentRunner.run({
         query,
@@ -26,6 +26,7 @@ function runAgent(query: MessageContent, args: any, userService: any, agentId: s
                 userService.session,
                 agentId,
                 (tc) => userService.executeApproval(tc),
+                autoApproveAllTools,
             ),
             onUsage: async (usage) => {
                 userService.session.recordUsage(usage);
@@ -80,8 +81,7 @@ export function createProcessAIHandler(): ProcessAIHandler {
 
         const dbSession = await database.findByPk<ChannelSessionRow>(database.channelSession, dbSessionId);
 
-        const rawAgentId = dbSession?.agentId || (channel.agent as string);
-        const agentId = config.resolveAgentRef(rawAgentId);
+        const agentId = dbSession?.agentId || (channel.agent as string);
 
         const sessionMemories = parseMemories(dbSession?.memories);
         const memories = dbSession?.useChannelMemories
@@ -98,7 +98,7 @@ export function createProcessAIHandler(): ProcessAIHandler {
 
         await runAgent(query, args, userService, agentId, channel.saver as string,
             SchedulerType.Channel, String(dbSessionId), memories, wikis, dbSession?.workPath || undefined,
-            !streamVerbose ? {
+            dbSession?.autoApproveAllTools, !streamVerbose ? {
                 onMessage: (msg) => { pendingMessages.push(msg); return Promise.resolve(); },
                 onStreamMessage: undefined,
             } : undefined);
@@ -122,8 +122,8 @@ export function createWebProcessAIHandler(): ProcessAIHandler {
         const row = sessionId ? await database.findByPk<SessionRow>(database.session, sessionId) : undefined;
         if (!row) throw new Error(`Session "${sessionId}" not found`);
 
-        const resolvedAgent = config.resolveAgentRef(row.agent);
-        await runAgent(query, args, userService, resolvedAgent, row.saver,
-            SchedulerType.Session, sessionId, parseMemories(row.memories), parseMemories(row.wikis), row.workPath || undefined);
+        await runAgent(query, args, userService, row.agent, row.saver,
+            SchedulerType.Session, sessionId, parseMemories(row.memories), parseMemories(row.wikis), row.workPath || undefined,
+            row.autoApproveAllTools);
     };
 }

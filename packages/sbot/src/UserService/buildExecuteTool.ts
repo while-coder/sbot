@@ -23,7 +23,8 @@ const INTERNAL_TOOLS = new Set([
 export function buildExecuteTool(
     session: SessionService,
     agentId: string,
-    executeApproval: (toolCall: ChatToolCall) => Promise<ToolApproval>
+    executeApproval: (toolCall: ChatToolCall) => Promise<ToolApproval>,
+    sessionAutoApproveAll?: boolean,
 ): (toolCall: ChatToolCall) => Promise<ToolApproval> {
     const { settings } = session;
     if (!settings.approveTools) settings.approveTools = {};
@@ -36,6 +37,7 @@ export function buildExecuteTool(
         if (INTERNAL_TOOLS.has(toolCall.name)) return ToolApproval.Allow;
         if (config.settings.autoApproveAllTools) return ToolApproval.Allow;
         if (config.settings.autoApproveTools?.includes(toolCall.name)) return ToolApproval.Allow;
+        if (sessionAutoApproveAll) return ToolApproval.Allow;
         if (agentAutoApproveAll) return ToolApproval.Allow;
         if (agentAutoApprove?.includes(toolCall.name)) return ToolApproval.Allow;
         const approvedArgs = approveTools[toolCall.name];

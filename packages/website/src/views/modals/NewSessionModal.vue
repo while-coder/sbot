@@ -17,7 +17,7 @@ const saving = ref(false)
 const form = ref({ agent: '', saver: '', memories: [] as string[], wikis: [] as string[] })
 
 const agentOptions = computed(() =>
-  Object.entries(store.settings.agents || {}).map(([id, a]) => ({ id, label: (a as any).name || id }))
+  Object.entries(store.settings.agents || {}).map(([id, a]) => ({ id, label: (a as any).name || id, type: (a as any).type || '' }))
 )
 const saverOptions = computed(() =>
   Object.entries(store.settings.savers || {}).map(([id, s]) => ({ id, label: (s as any).name || id }))
@@ -73,7 +73,7 @@ defineExpose({ open })
           <label>{{ t('common.agent') }} *</label>
           <select v-model="form.agent">
             <option value="" disabled>{{ t('common.select_placeholder') }}</option>
-            <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }}</option>
+            <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }} ({{ a.type }})</option>
           </select>
         </div>
         <div class="form-group">

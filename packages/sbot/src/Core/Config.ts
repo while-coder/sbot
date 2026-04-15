@@ -66,7 +66,6 @@ export interface Settings {
   savers?: Record<string, SaverConfig>;
   memories?: Record<string, MemoryConfig>;
   wikis?: Record<string, WikiConfig>;
-  agents?: Record<string, AgentEntry>;
   channels?: Record<string, ChannelConfig>;
   plugins?: string[];
 }
@@ -86,7 +85,6 @@ export function sanitizeId(name: string): string {
 class Config {
   private _configDir: string;
   private _settings: Settings = {};
-  private _migrationMap: Record<string, string> | null = null;
   readonly pkg: { version: string; name: string; description: string; releasenote: string };
 
   constructor() {
@@ -181,26 +179,12 @@ class Config {
   }
 
   /**
-   * 获取 Agent 配置（目录优先，兼容 settings.json 旧格式）
+   * 获取 Agent 配置
    */
   getAgent(id: string): AgentEntry & { id: string; storeSource?: AgentStoreSource } {
     const trimmed = id.trim();
-
-    // 1. 尝试从目录读取（新方式）
     const fromDir = this._readAgentDir(trimmed);
     if (fromDir) return fromDir;
-
-    // 2. 兼容旧格式：从 settings.json 中读取
-    const fromSettings = this._settings.agents?.[trimmed];
-    if (fromSettings) return { ...fromSettings, id: fromSettings.name || trimmed };
-
-    // 3. 尝试 UUID 迁移映射
-    const resolved = this.resolveAgentRef(trimmed);
-    if (resolved !== trimmed) {
-      const fromResolved = this._readAgentDir(resolved);
-      if (fromResolved) return fromResolved;
-    }
-
     throw new Error(`Agent config "${id}" not found`);
   }
 
@@ -247,27 +231,6 @@ class Config {
   agentExists(id: string): boolean {
     const agentJsonPath = path.join(this._configDir, 'agents', id, 'agent.json');
     return fs.existsSync(agentJsonPath);
-  }
-
-  /**
-   * 解析 Agent 引用（支持 UUID 到别名的迁移映射）
-   */
-  resolveAgentRef(ref: string): string {
-    // UUID 格式：包含连字符且长度为 36
-    if (ref.length === 36 && ref.includes('-')) {
-      const mapPath = path.join(this._configDir, '.migration-map.json');
-      if (fs.existsSync(mapPath)) {
-        if (!this._migrationMap) {
-          try {
-            this._migrationMap = JSON.parse(fs.readFileSync(mapPath, 'utf-8'));
-          } catch {
-            this._migrationMap = {};
-          }
-        }
-        return this._migrationMap![ref] ?? ref;
-      }
-    }
-    return ref;
   }
 
   getSaver(id: string): SaverConfig | undefined {
@@ -324,86 +287,6 @@ class Config {
     } catch (error) {
       this._settings = {};
     }
-
-    // 自动迁移：settings.agents → 目录结构
-    if (this._settings.agents && Object.keys(this._settings.agents).length > 0) {
-      this.migrateAgentsToDirectories();
-    }
-  }
-
-  /**
-   * 将 settings.json 中的 agents 迁移到 ~/.sbot/agents/<id>/ 目录结构
-   * 幂等：如果目录已存在则跳过
-   */
-  private migrateAgentsToDirectories(): void {
-    const settingsPath = this.getConfigPath("settings.json");
-    const backupPath = this.getConfigPath("settings.json.pre-agent-migration");
-
-    // 1. 备份 settings.json（仅首次迁移）
-    if (!fs.existsSync(backupPath)) {
-      fs.copyFileSync(settingsPath, backupPath);
-    }
-
-    const uuidToId: Record<string, string> = {};
-    const usedIds = new Set<string>();
-
-    // 收集已有目录名
-    const agentsDir = path.join(this._configDir, 'agents');
-    if (fs.existsSync(agentsDir)) {
-      for (const d of fs.readdirSync(agentsDir, { withFileTypes: true })) {
-        if (d.isDirectory()) usedIds.add(d.name);
-      }
-    }
-
-    // 2. 遍历 settings.agents 并迁移
-    for (const [uuid, entry] of Object.entries(this._settings.agents!)) {
-      // 计算 id：优先用 name（sanitize），最后用 uuid
-      let id = sanitizeId((entry as any).name || uuid);
-
-      // 冲突追加后缀
-      if (usedIds.has(id)) {
-        let n = 2;
-        while (usedIds.has(`${id}-${n}`)) n++;
-        id = `${id}-${n}`;
-      }
-      usedIds.add(id);
-      uuidToId[uuid] = id;
-
-      // 幂等检查：目录已存在（含 agent.json）则跳过写入
-      const agentDir = this.getConfigPath(`agents/${id}`, true);
-      const agentJsonPath = path.join(agentDir, 'agent.json');
-      if (fs.existsSync(agentJsonPath)) continue;
-
-      // 提取并分离字段
-      const { systemPrompt, storeSource, alias: _alias, id: _id, ...rest } = entry as any;
-
-      // 写入 agent.json
-      fs.writeFileSync(agentJsonPath, JSON.stringify(rest, null, 2), 'utf-8');
-
-      // 写入 system-prompt.md
-      if (systemPrompt) {
-        fs.writeFileSync(path.join(agentDir, 'system-prompt.md'), systemPrompt, 'utf-8');
-      }
-
-      // 写入 .store.json
-      if (storeSource) {
-        fs.writeFileSync(path.join(agentDir, '.store.json'), JSON.stringify(storeSource, null, 2), 'utf-8');
-      }
-    }
-
-    // 3. 写入 UUID → id 映射
-    const mapPath = path.join(this._configDir, '.migration-map.json');
-    let existingMap: Record<string, string> = {};
-    if (fs.existsSync(mapPath)) {
-      try { existingMap = JSON.parse(fs.readFileSync(mapPath, 'utf-8')); } catch { /* ignore */ }
-    }
-    const mergedMap = { ...existingMap, ...uuidToId };
-    fs.writeFileSync(mapPath, JSON.stringify(mergedMap, null, 2), 'utf-8');
-    this._migrationMap = mergedMap;
-
-    // 4. 清除 settings.agents 并保存
-    delete this._settings.agents;
-    this.saveSettings();
   }
 
   /**

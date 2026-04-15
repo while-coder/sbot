@@ -13,7 +13,7 @@ import { globalAgentToolService, refreshGlobalAgentToolService, refreshBuiltinTo
 import { globalSkillService, refreshGlobalSkillService, getSkillsDirsMap } from '../Agent/GlobalSkillService';
 import { SkillHubService, type HubSkillResult } from '../SkillHub';
 import { AgentStoreService } from '../AgentStore';
-import { LoggerService } from '../Core/LoggerService';
+import { LoggerService, log4js } from '../Core/LoggerService';
 import { database, sessionThreadId, parseMemories, type SessionRow } from '../Core/Database';
 import { sessionManager } from '../UserService/SessionManager';
 import { schedulerService } from '../Scheduler/SchedulerService';
@@ -223,11 +223,32 @@ class HttpServer {
     private readonly skillHubService = new SkillHubService();
     private readonly agentStoreService = new AgentStoreService();
     private readonly wsClients = new Set<WebSocket>();
+    private server?: http.Server;
 
     broadcastToWs(data: string): void {
         for (const ws of this.wsClients) {
             if (ws.readyState === WebSocket.OPEN) ws.send(data);
         }
+    }
+
+    async shutdown(): Promise<void> {
+        logger.info('Shutting down services...');
+        try {
+            schedulerService.stopAll();
+            await channelManager.dispose();
+            for (const ws of this.wsClients) ws.close();
+            this.wsClients.clear();
+            if (this.server) {
+                await new Promise<void>((resolve, reject) =>
+                    this.server!.close(err => err ? reject(err) : resolve()),
+                );
+            }
+            await database.sequelize.close();
+            logger.info('All services stopped');
+        } catch (e: any) {
+            logger.error(`Shutdown error: ${e?.message ?? e}`);
+        }
+        log4js.shutdown(() => process.exit(0));
     }
 
     /** Build settings response with agents dynamically injected from directories */
@@ -277,7 +298,7 @@ class HttpServer {
         this.registerChatRoutes(app);
 
         // HTTP + WebSocket 服务
-        const server = http.createServer(app);
+        const server = this.server = http.createServer(app);
 
         const wss = new WebSocketServer({ server, path: '/ws/chat' });
         wss.on('connection', (ws) => {
@@ -330,6 +351,13 @@ class HttpServer {
             return { message: 'Config reloaded' };
         }));
 
+        app.post('/api/shutdown', api(async () => {
+            logger.info('Shutdown requested via API');
+            // 先返回响应，再异步关闭服务
+            setTimeout(() => this.shutdown(), 500);
+            return { message: 'Shutting down...' };
+        }));
+
         // 每日 token 用量（最近 30 天）
         app.get('/api/usage-stats', api(async () => {
             return database.findAll(database.usageStats, { order: [['date', 'DESC']], limit: 30 });
@@ -366,25 +394,61 @@ class HttpServer {
             if (provider === ModelProvider.Anthropic) {
                 const base = (baseURL || 'https://api.anthropic.com').replace(/\/$/, '');
                 if (!apiKey) throwBad('apiKey is required for Anthropic');
-                const headers: Record<string, string> = {
-                    'x-api-key': apiKey,
-                    'anthropic-version': '2023-06-01',
-                };
-                const res = await fetch(`${base}/v1/models`, { headers });
-                if (!res.ok) throwBad(`Anthropic request failed: ${res.status}`);
-                const data: any = await res.json();
-                return (data.data as any[] || []).map((m: any) => m.id as string);
+                try {
+                    const headers: Record<string, string> = {
+                        'x-api-key': apiKey,
+                        'anthropic-version': '2023-06-01',
+                    };
+                    const res = await fetch(`${base}/v1/models`, { headers });
+                    if (!res.ok) throw new Error(`${res.status}`);
+                    const data: any = await res.json();
+                    return (data.data as any[] || []).map((m: any) => m.id as string);
+                } catch {
+                    return [
+                        'claude-opus-4-6',
+                        'claude-sonnet-4-6',
+                        'claude-haiku-4-5-20251001',
+                        'claude-sonnet-4-5-20250929',
+                        'claude-opus-4-5-20251101',
+                        'claude-opus-4-1-20250805',
+                        'claude-sonnet-4-20250514',
+                        'claude-opus-4-20250514',
+                    ];
+                }
             }
 
             if (provider === ModelProvider.Gemini || provider === ModelProvider.GeminiImage) {
                 if (!apiKey) throwBad('apiKey is required for Gemini');
                 const base = (baseURL || 'https://generativelanguage.googleapis.com').replace(/\/$/, '');
-                const headers: Record<string, string> = { 'x-goog-api-key': apiKey };
-                const ver = apiVersion || 'v1beta';
-                const res = await fetch(`${base}/${ver}/models`, { headers });
-                if (!res.ok) throwBad(`Gemini request failed: ${res.status}`);
-                const data: any = await res.json();
-                return (data.models as any[] || []).map((m: any) => (m.name as string).replace(/^models\//, ''));
+                try {
+                    const headers: Record<string, string> = { 'x-goog-api-key': apiKey };
+                    const ver = apiVersion || 'v1beta';
+                    const res = await fetch(`${base}/${ver}/models`, { headers });
+                    if (!res.ok) throw new Error(`${res.status}`);
+                    const data: any = await res.json();
+                    return (data.models as any[] || []).map((m: any) => (m.name as string).replace(/^models\//, ''));
+                } catch {
+                    const imageModels = [
+                        'gemini-3.1-flash-image-preview',
+                        'gemini-3-pro-image-preview',
+                        'gemini-2.5-flash-image',
+                    ];
+                    const textModels = [
+                        'gemini-3.1-pro-preview',
+                        'gemini-3-flash-preview',
+                        'gemini-3.1-flash-lite-preview',
+                        'gemini-2.5-pro',
+                        'gemini-2.5-flash',
+                        'gemini-2.5-flash-lite',
+                        'gemini-2.0-flash',
+                        'gemini-2.0-flash-lite',
+                        'gemini-1.5-pro',
+                        'gemini-1.5-flash',
+                    ];
+                    return provider === ModelProvider.GeminiImage
+                        ? [...imageModels, ...textModels]
+                        : [...textModels, ...imageModels];
+                }
             }
 
             if (!baseURL) throwBad('baseURL is required');
@@ -451,7 +515,6 @@ class HttpServer {
                 wikis: body.wikis ? JSON.stringify(body.wikis) : null,
                 workPath: body.workPath ?? null,
                 createdAt: now,
-                updatedAt: now,
             });
             return { id };
         }));
@@ -468,7 +531,7 @@ class HttpServer {
                 memories: body.memories !== undefined ? (body.memories ? JSON.stringify(body.memories) : null) : existing.memories,
                 wikis: body.wikis !== undefined ? (body.wikis ? JSON.stringify(body.wikis) : null) : existing.wikis,
                 workPath: body.workPath !== undefined ? body.workPath : existing.workPath,
-                updatedAt: Date.now(),
+                autoApproveAllTools: body.autoApproveAllTools !== undefined ? !!body.autoApproveAllTools : existing.autoApproveAllTools,
             }, { where: { id } });
             return { id };
         }));
@@ -1172,8 +1235,8 @@ class HttpServer {
         app.put('/api/channel-sessions/:id', api(async req => {
             const id = parseInt(req.params.id as string, 10);
             if (isNaN(id)) { const e: any = new Error('Invalid id'); e.status = 400; throw e; }
-            const { sessionName, agentId, memories, useChannelMemories, workPath, intentModel, intentPrompt, intentThreshold } = req.body;
-            await database.update(database.channelSession, { sessionName, agentId, memories: JSON.stringify(memories || []), useChannelMemories: !!useChannelMemories, workPath: workPath || null, intentModel: intentModel || null, intentPrompt: intentPrompt || null, intentThreshold: intentThreshold ?? 0.7 }, { where: { id } });
+            const { sessionName, agentId, memories, useChannelMemories, workPath, intentModel, intentPrompt, intentThreshold, streamVerbose, autoApproveAllTools } = req.body;
+            await database.update(database.channelSession, { sessionName, agentId, memories: JSON.stringify(memories || []), useChannelMemories: !!useChannelMemories, workPath: workPath || null, intentModel: intentModel || null, intentPrompt: intentPrompt || null, intentThreshold: intentThreshold ?? 0.7, streamVerbose: !!streamVerbose, autoApproveAllTools: !!autoApproveAllTools }, { where: { id } });
         }));
 
         app.delete('/api/channel-sessions/:id', api(async req => {
