@@ -27,13 +27,14 @@ export interface IMemoryService {
     memorizeConversation(userMessage: string, assistantMessage?: string[]): Promise<void>;
 
     /**
-     * 直接插入一段完整记忆，跳过 Extractor，由 Evaluator 评估重要性
+     * 直接插入一段完整记忆，跳过 Extractor
      * 大文本会自动按字符切割后分批插入（可通过 options.autoSplit 禁用）
      * @param content 记忆内容
      * @param options.autoSplit 是否自动分割，默认 true
+     * @param options.importance 重要性分数 0-1，默认 0.5
      * @returns 插入的记忆 ID 数组
      */
-    addMemoryDirect(content: string, options?: { autoSplit?: boolean }): Promise<string[]>;
+    addMemoryDirect(content: string, options?: { autoSplit?: boolean; importance?: number }): Promise<string[]>;
 
     // ── 维护 ──────────────────────────────────────────────────────────────────
 

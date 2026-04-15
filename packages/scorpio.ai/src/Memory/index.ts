@@ -6,14 +6,14 @@
 // ===== 接口 + Symbol Token =====
 export { IMemoryService } from "./Service/IMemoryService";
 export { IMemoryExtractor } from "./Extractor/IMemoryExtractor";
-export { IMemoryEvaluator } from "./Evaluator/IMemoryEvaluator";
+
 export { IMemoryCompressor } from "./Compressor/IMemoryCompressor";
 
 // ===== 实现类 =====
 export { ReadOnlyMemoryService } from "./Service/ReadOnlyMemoryService";
 export { MemoryService } from "./Service/MemoryService";
 export { MemoryExtractor } from "./Extractor/MemoryExtractor";
-export { MemoryEvaluator } from "./Evaluator/MemoryEvaluator";
+
 export { MemoryCompressor } from "./Compressor/MemoryCompressor";
 
 // ===== 存储层 =====
@@ -33,5 +33,5 @@ export {
 
 // 从接口文件导出
 export { ExtractionResult } from "./Extractor/IMemoryExtractor";
-export { EvaluationResult } from "./Evaluator/IMemoryEvaluator";
+
 export { CompressionResult } from "./Compressor/IMemoryCompressor";

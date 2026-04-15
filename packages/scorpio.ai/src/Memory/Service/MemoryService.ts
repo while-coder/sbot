@@ -7,7 +7,6 @@ import { IMemoryService } from "./IMemoryService";
 import { IEmbeddingService } from "../../Embedding";
 import { ILoggerService, ILogger } from "../../Logger";
 import { IMemoryCompressor } from "../Compressor/IMemoryCompressor";
-import { IMemoryEvaluator } from "../Evaluator/IMemoryEvaluator";
 import { IMemoryExtractor } from "../Extractor/IMemoryExtractor";
 import { CharacterTextSplitter } from "@langchain/textsplitters";
 
@@ -19,7 +18,6 @@ export class MemoryService implements IMemoryService {
   constructor(
     @inject(IMemoryDatabase) private db: IMemoryDatabase,
     @inject(IEmbeddingService) private embeddings: IEmbeddingService,
-    @inject(IMemoryEvaluator) private evaluator: IMemoryEvaluator,
     @inject(IMemoryExtractor) private extractor: IMemoryExtractor,
     @inject(T_MaxMemoryAgeDays, { optional: true }) maxMemoryAgeDays?: number,
     @inject(T_MemoryMode, { optional: true }) memoryMode?: MemoryMode,
@@ -86,18 +84,16 @@ export class MemoryService implements IMemoryService {
     }
   }
 
-  async addMemoryDirect(content: string, options?: { autoSplit?: boolean }): Promise<string[]> {
+  async addMemoryDirect(content: string, options?: { autoSplit?: boolean; importance?: number }): Promise<string[]> {
     const shouldSplit = options?.autoSplit !== false;
+    const importance = options?.importance ?? 0.5;
     const chunks = shouldSplit
       ? await new CharacterTextSplitter({ chunkSize: 500, chunkOverlap: 50 }).splitText(content)
       : [content];
-    const [evaluations, embeddings] = await Promise.all([
-      Promise.all(chunks.map(chunk => this.evaluator.evaluate(chunk))),
-      this.embeddings.embedDocuments(chunks),
-    ]);
+    const embeddings = await this.embeddings.embedDocuments(chunks);
     const ids: string[] = [];
     for (let i = 0; i < chunks.length; i++) {
-      ids.push(await this.addMemory(chunks[i], evaluations[i].importance, embeddings[i]));
+      ids.push(await this.addMemory(chunks[i], importance, embeddings[i]));
     }
     return ids;
   }

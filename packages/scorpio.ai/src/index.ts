@@ -53,7 +53,6 @@ export {
   T_MaxMemoryAgeDays,
   T_MemoryMode,
   T_ExtractorSystemPrompt,
-  T_EvaluatorSystemPrompt,
   T_CompressorPromptTemplate,
   T_ReactSystemPromptTemplate,
   T_ReactSubNodePrompt,
@@ -117,14 +116,12 @@ export {
   // 接口 + Symbol Token
   IMemoryService,
   IMemoryExtractor,
-  IMemoryEvaluator,
   IMemoryCompressor,
 
   // 实现类
   ReadOnlyMemoryService,
   MemoryService,
   MemoryExtractor,
-  MemoryEvaluator,
   MemoryCompressor,
 
   // 存储层
@@ -138,7 +135,6 @@ export {
   MemorySearchResult,
   MemoryMode,
   ExtractionResult,
-  EvaluationResult,
   CompressionResult,
 } from "./Memory";
 

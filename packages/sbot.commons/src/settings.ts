@@ -66,12 +66,14 @@ export interface MemoryConfig {
   maxAgeDays?: number
   /** 记忆使用的 embedding UUID（对应 embeddings 中的 key） */
   embedding: string
-  /** 重要性评估器使用的模型 UUID（对应 models 中的 key） */
-  evaluator: string
   /** 知识提取器使用的模型 UUID（对应 models 中的 key） */
   extractor: string
   /** 记忆压缩器使用的模型 UUID（对应 models 中的 key） */
   compressor?: string
+  /** 提取器 system prompt 文件路径（相对于 ~/.sbot/prompts/，默认 memory/extractor.txt） */
+  extractorPrompt?: string
+  /** 压缩器 prompt 文件路径（相对于 ~/.sbot/prompts/，默认 memory/compressor.txt） */
+  compressorPrompt?: string
   /** 是否共享记忆（true = 所有 thread 共用同一份记忆；false = 每个 thread 独立，默认） */
   share: boolean
 }
@@ -83,6 +85,8 @@ export interface WikiConfig {
   extractor: string
   /** 对话后自动提取知识（默认 true） */
   autoExtract?: boolean
+  /** 提取器 system prompt 文件路径（相对于 ~/.sbot/prompts/，默认 wiki/extractor.txt） */
+  extractorPrompt?: string
   /** 是否共享（true = 所有 thread 共用同一份 wiki；false = 每个 thread 独立，默认） */
   share: boolean
 }

@@ -25,7 +25,7 @@ const showModal   = ref(false)
 const editingName = ref<string | null>(null)
 const form = ref<MemoryConfig>({
   name: '', mode: MemoryMode.HumanAndAI, maxAgeDays: undefined,
-  embedding: '', evaluator: '', extractor: '', compressor: '', share: false,
+  embedding: '', extractor: '', compressor: '', share: false,
 })
 
 const memoryViewModal = ref<InstanceType<typeof MemoryViewModal>>()
@@ -53,7 +53,7 @@ async function toggleExpand(id: string) {
 
 function openAdd() {
   editingName.value = null
-  form.value = { name: '', mode: MemoryMode.HumanAndAI, maxAgeDays: undefined, embedding: '', evaluator: '', extractor: '', compressor: '', share: false }
+  form.value = { name: '', mode: MemoryMode.HumanAndAI, maxAgeDays: undefined, embedding: '', extractor: '', compressor: '', share: false }
   showModal.value = true
 }
 
@@ -65,7 +65,6 @@ function openEdit(id: string) {
     mode: m.mode,
     maxAgeDays: m.maxAgeDays,
     embedding: m.embedding,
-    evaluator: m.evaluator,
     extractor: m.extractor,
     compressor: m.compressor || '',
     share: !!m.share,
@@ -76,7 +75,6 @@ function openEdit(id: string) {
 async function save() {
   if (!form.value.name.trim())  { show(t('common.name_required'),        'error'); return }
   if (!form.value.embedding)    { show(t('memories.error_embedding'), 'error'); return }
-  if (!form.value.evaluator)    { show(t('memories.error_evaluator'),      'error'); return }
   if (!form.value.extractor)    { show(t('memories.error_extractor'),      'error'); return }
   try {
     const { name, ...config } = form.value
@@ -84,7 +82,6 @@ async function save() {
       name,
       mode: config.mode,
       embedding: config.embedding,
-      evaluator: config.evaluator,
       extractor: config.extractor,
       share: !!config.share,
     }
@@ -270,13 +267,6 @@ async function refresh() {
             <label>{{ t('memories.embedding_model') }} *</label>
             <select v-model="form.embedding">
               <option v-for="e in embeddingOptions" :key="e.id" :value="e.id">{{ e.label }}</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>{{ t('memories.evaluator_model') }} *</label>
-            <select v-model="form.evaluator">
-              <option value="" disabled>{{ t('common.select_placeholder') }}</option>
-              <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
             </select>
           </div>
           <div class="form-group">

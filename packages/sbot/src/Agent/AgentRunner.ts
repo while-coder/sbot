@@ -7,12 +7,12 @@ import {
     IAgentCallback,
     ILoggerService,
     IMemoryService, IMemoryDatabase,
-    MemoryEvaluator, MemoryCompressor, MemoryExtractor, MemoryService,
+    MemoryCompressor, MemoryExtractor, MemoryService,
     IEmbeddingService,
-    IMemoryExtractor, IMemoryEvaluator, IMemoryCompressor,
+    IMemoryExtractor, IMemoryCompressor,
     IAgentSaverService, AgentFileSaver, AgentSqliteSaver, AgentMemorySaver,
     T_MaxMemoryAgeDays, T_MemoryMode, T_DBPath,
-    T_ExtractorSystemPrompt, T_EvaluatorSystemPrompt, T_CompressorPromptTemplate,
+    T_ExtractorSystemPrompt, T_CompressorPromptTemplate,
     T_MemorySystemPromptTemplate,
     IModelService,
     IWikiService, IWikiDatabase,
@@ -172,8 +172,7 @@ export class AgentRunner {
         const memoryConfig = config.getMemory(memoryId);
         if (!memoryConfig?.embedding) return null;
 
-        const [evaluatorModel, extractorModel, compressorModel, embedding] = await Promise.all([
-            config.getModelService(memoryConfig.evaluator),
+        const [extractorModel, compressorModel, embedding] = await Promise.all([
             config.getModelService(memoryConfig.extractor),
             config.getModelService(memoryConfig.compressor),
             config.getEmbeddingService(memoryConfig.embedding, true),
@@ -181,9 +180,8 @@ export class AgentRunner {
 
         const sub = new ServiceContainer();
         if (loggerService) sub.registerInstance(ILoggerService, loggerService)
-        if (evaluatorModel) sub.registerWithArgs(IMemoryEvaluator, MemoryEvaluator, { [IModelService]: evaluatorModel, [T_EvaluatorSystemPrompt]: loadPrompt('memory/evaluator.txt') });
-        if (extractorModel) sub.registerWithArgs(IMemoryExtractor, MemoryExtractor, { [IModelService]: extractorModel, [T_ExtractorSystemPrompt]: loadPrompt('memory/extractor.txt') });
-        if (compressorModel) sub.registerWithArgs(IMemoryCompressor, MemoryCompressor, { [IModelService]: compressorModel, [T_CompressorPromptTemplate]: loadPrompt('memory/compressor.txt') });
+        if (extractorModel) sub.registerWithArgs(IMemoryExtractor, MemoryExtractor, { [IModelService]: extractorModel, [T_ExtractorSystemPrompt]: loadPrompt(memoryConfig.extractorPrompt ?? 'memory/extractor.txt') });
+        if (compressorModel) sub.registerWithArgs(IMemoryCompressor, MemoryCompressor, { [IModelService]: compressorModel, [T_CompressorPromptTemplate]: loadPrompt(memoryConfig.compressorPrompt ?? 'memory/compressor.txt') });
         const memThreadId = memoryConfig.share ? memoryId : memoryThreadId;
         const dbPath = config.getMemoryDBPath(memoryId, memThreadId);
         sub.registerInstance(IMemoryDatabase, MemoryDatabaseManager.getInstance().acquire(dbPath));
@@ -227,7 +225,7 @@ export class AgentRunner {
         if (loggerService) sub.registerInstance(ILoggerService, loggerService);
         if (extractorModel) sub.registerWithArgs(IWikiExtractor, WikiExtractor, {
             [IModelService]: extractorModel,
-            [T_WikiExtractorSystemPrompt]: loadPrompt('wiki/extractor.txt'),
+            [T_WikiExtractorSystemPrompt]: loadPrompt(wikiConfig.extractorPrompt ?? 'wiki/extractor.txt'),
         });
 
         const wikiThreadIdResolved = wikiConfig.share ? wikiId : wikiThreadId;

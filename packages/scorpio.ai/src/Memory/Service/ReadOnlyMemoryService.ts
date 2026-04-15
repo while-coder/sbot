@@ -20,7 +20,7 @@ export class ReadOnlyMemoryService implements IMemoryService {
 
     async memorizeConversation(): Promise<void> {}
 
-    async addMemoryDirect(_content: string, _options?: { autoSplit?: boolean }): Promise<string[]> { return []; }
+    async addMemoryDirect(_content: string, _options?: { autoSplit?: boolean; importance?: number }): Promise<string[]> { return []; }
 
     // ── 维护 ──────────────────────────────────────────────────────────────────
 
