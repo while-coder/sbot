@@ -29,6 +29,7 @@ export const BADGE_PRIVATE  = 'background:#f0efed;color:#6b6b6b;font-size:10px;p
 
 // 10px-radius pill variants (used in card/pill context)
 export const BADGE_CLAWHUB       = 'background:#e0e7ff;color:#4f46e5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600'
+export const BADGE_SKILLSSH      = 'background:#ecfeff;color:#0e7490;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600'
 export const BADGE_GLOBAL_PILL   = 'background:#f5f4f2;color:#6b6b6b;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600'
 export const BADGE_PRIVATE_PILL  = 'background:#f0efed;color:#6b6b6b;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600'
 

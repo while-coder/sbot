@@ -26,7 +26,7 @@ export class ClawhubSkillHubService implements ISkillHubService {
 
     return mapToHubResults(items, SkillHubProvider.Clawhub).map(r => ({
       ...r,
-      sourceUrl: `${BASE_URL}/${r.id}`,
+      sourceUrl: `${BASE_URL}/skills/${r.id}`,
     }));
   }
 

@@ -142,19 +142,24 @@ export interface AgentConfig {
   storeSource?: AgentStoreSource
 }
 
+/** 单个版本的配置快照 */
+export interface AgentPackageVersion {
+  version: string
+  agent: Omit<AgentConfig, 'storeSource'>
+  /** 该智能体专属 MCP 服务器配置（来自 agents/<id>/mcp.json） */
+  agentMcp?: { mcpServers: Record<string, unknown> }
+  /** agent.mcp 中引用的非内置全局 MCP 的完整配置（导入时写入专属 mcp.json） */
+  globalMcp?: { mcpServers: Record<string, unknown> }
+}
+
+/** 智能体包 = 元信息 + 版本列表（index 0 = 最新版） */
 export interface AgentPackage {
   id: string
   name: string
   description?: string
-  version: string
   author?: string
   tags?: string[]
-  agent: Omit<AgentConfig, 'storeSource'>
-  requires?: {
-    skills?: string[]
-    mcpServers?: string[]
-    subAgents?: string[]
-  }
+  versions: AgentPackageVersion[]
 }
 
 export interface AgentSourceEntry {

@@ -6,7 +6,7 @@ import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 import type { SkillItem } from '@/types'
-import { sourceBadgeStyle, BADGE_CLAWHUB, BADGE_INSTALLED } from '@/utils/badges'
+import { sourceBadgeStyle, BADGE_CLAWHUB, BADGE_SKILLSSH, BADGE_INSTALLED } from '@/utils/badges'
 
 const { t } = useI18n()
 const { show } = useToast()
@@ -101,7 +101,7 @@ interface HubSkillResult {
   description: string
   version: string
   sourceUrl: string
-  provider: 'clawhub'
+  provider: 'clawhub' | 'skills.sh'
 }
 
 const showHub = ref(false)
@@ -352,7 +352,8 @@ onMounted(load)
             </label>
             <div style="margin-top:16px;padding:12px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;color:#64748b;line-height:1.7">
               {{ t('skills.support_formats') }}<br>
-              <code style="font-family:monospace">https://clawhub.ai/{slug}</code>
+              <code style="font-family:monospace">https://clawhub.ai/{slug}</code><br>
+              <code style="font-family:monospace">https://skills.sh/{owner}/{repo}/{skill}</code>
             </div>
           </template>
 
@@ -376,14 +377,15 @@ onMounted(load)
                 <div v-if="hubResults.length === 0" style="text-align:center;color:#94a3b8;padding:40px">{{ t('skills.no_search_result') }}</div>
                 <table v-else style="width:100%;table-layout:fixed">
                   <colgroup>
-                    <col style="width:200px" />
+                    <col style="width:180px" />
                     <col />
-                    <col style="width:80px" />
-                    <col style="width:90px" />
                     <col style="width:70px" />
+                    <col style="width:90px" />
+                    <col style="width:50px" />
+                    <col style="width:90px" />
                   </colgroup>
                   <thead>
-                    <tr><th>{{ t('common.name') }}</th><th>{{ t('common.description') }}</th><th>{{ t('skills.version_col') }}</th><th>{{ t('skills.source_col') }}</th><th>{{ t('common.ops') }}</th></tr>
+                    <tr><th>{{ t('common.name') }}</th><th>{{ t('common.description') }}</th><th>{{ t('skills.version_col') }}</th><th>{{ t('skills.source_col') }}</th><th>{{ t('skills.link_col') }}</th><th>{{ t('common.ops') }}</th></tr>
                   </thead>
                   <tbody>
                     <tr v-for="s in hubResults" :key="s.provider + ':' + s.id">
@@ -391,12 +393,15 @@ onMounted(load)
                       <td style="color:#475569;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.description || '-' }}</td>
                       <td style="font-size:12px;color:#94a3b8;white-space:nowrap">{{ s.version || '-' }}</td>
                       <td>
-                        <span :style="BADGE_CLAWHUB">ClawHub</span>
+                        <span :style="s.provider === 'skills.sh' ? BADGE_SKILLSSH : BADGE_CLAWHUB">{{ s.provider === 'skills.sh' ? 'Skills.sh' : 'ClawHub' }}</span>
                       </td>
                       <td>
+                        <a :href="s.sourceUrl" target="_blank" rel="noopener" style="color:#4f46e5;font-size:12px" title="Open">&#x2197;</a>
+                      </td>
+                      <td style="white-space:nowrap">
                         <span v-if="installedNames.has(s.name || s.id)"
                           :style="BADGE_INSTALLED">{{ t('skills.installed_badge') }}</span>
-                        <button v-else class="btn-primary btn-sm" @click="openInstall(s)">{{ t('skills.install_title') }}</button>
+                        <button v-else class="btn-primary btn-sm" style="white-space:nowrap" @click="openInstall(s)">{{ t('skills.install_title') }}</button>
                       </td>
                     </tr>
                   </tbody>
@@ -422,7 +427,7 @@ onMounted(load)
           <div style="margin-bottom:12px">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
               <span style="font-family:monospace;font-size:15px;font-weight:600;color:#1e293b">{{ selected.name || selected.id }}</span>
-              <span :style="BADGE_CLAWHUB">ClawHub</span>
+              <span :style="selected.provider === 'skills.sh' ? BADGE_SKILLSSH : BADGE_CLAWHUB">{{ selected.provider === 'skills.sh' ? 'Skills.sh' : 'ClawHub' }}</span>
             </div>
             <div v-if="selected.description" style="font-size:13px;color:#475569">{{ selected.description }}</div>
           </div>

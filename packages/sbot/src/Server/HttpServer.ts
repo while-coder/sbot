@@ -916,10 +916,14 @@ class HttpServer {
 
         // ── Install ──
         app.post('/api/agent-store/install', api(async req => {
-            const { pkg, overwrite = false, sourceUrl }: { pkg: any; overwrite: boolean; sourceUrl?: string } = req.body;
+            const { pkg, overwrite = false, sourceUrl, localAgents, versionIndex }: {
+                pkg: any; overwrite: boolean; sourceUrl?: string; localAgents?: any[]; versionIndex?: number;
+            } = req.body;
             if (!pkg?.id) throwBad('Missing pkg.id');
             const result = await this.agentStoreService.install(pkg, overwrite, {
+                versionIndex,
                 sourceUrl,
+                localAgents,
                 skillHub: this.skillHubService,
             });
             return { ...result, settings: this.settingsWithAgents() };
@@ -942,22 +946,6 @@ class HttpServer {
         // ── Export ──
         app.get('/api/agent-store/export/:agentId', api(async req => {
             return this.agentStoreService.exportAgent(req.params.agentId as string);
-        }));
-
-        // ── Import ──
-        app.post('/api/agent-store/import', api(async req => {
-            const pkg = this.agentStoreService.importFromJson(req.body);
-            const result = await this.agentStoreService.install(pkg, false, {
-                skillHub: this.skillHubService,
-            });
-            return { ...result, pkg, settings: this.settingsWithAgents() };
-        }));
-
-        app.post('/api/agent-store/import-url', api(async req => {
-            const { url } = req.body;
-            if (!url?.trim()) throwBad('Missing url');
-            const pkg = await this.agentStoreService.importFromUrl(url.trim());
-            return { pkg };
         }));
     }
 

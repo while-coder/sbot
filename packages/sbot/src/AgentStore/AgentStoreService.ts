@@ -2,6 +2,7 @@ import { config } from '../Core/Config';
 import { httpGetJson } from '../SkillHub/types';
 import type {
   AgentPackage,
+  AgentPackageVersion,
   AgentSourceEntry,
   AgentUpdateDiff,
   AgentConfig,
@@ -81,8 +82,9 @@ export class AgentStoreService {
           if (!pkg.id) continue;
           const local = this.findLocal(pkg.id);
           const installed = local !== null;
+          const latestVersion = pkg.versions?.[0]?.version;
           const hasUpdate = installed
-            ? pkg.version !== local!.storeSource?.version
+            ? latestVersion !== local!.storeSource?.version
             : false;
 
           results.push({
@@ -110,18 +112,24 @@ export class AgentStoreService {
    * If a conflict exists and `overwrite` is false, the agent is NOT written
    * and `conflict: true` is returned.
    *
-   * When `options.sourceUrl` is provided, sub-agent dependencies declared in
-   * `pkg.requires.subAgents` are fetched from the same remote store and
-   * installed recursively (with cycle detection).
+   * Sub-agent dependencies (from `pkg.agent.agents`) are resolved from
+   * `options.localAgents` first, then from `options.sourceUrl` (remote store).
    *
-   * When `options.skillHub` is provided, skill dependencies declared in
-   * `pkg.requires.skills` are searched and installed into the agent's skills
-   * directory (best-effort).
+   * Skill dependencies (from `pkg.agent.skills`) are searched and installed
+   * via `options.skillHub` (best-effort).
    */
   async install(
     pkg: AgentPackage,
     overwrite = false,
-    options?: { sourceUrl?: string; skillHub?: SkillHubService; _installingIds?: Set<string> },
+    options?: {
+      /** Which version to install (index into pkg.versions, default 0 = latest) */
+      versionIndex?: number;
+      sourceUrl?: string;
+      /** Sibling packages from the same source (flat array) for resolving sub-agent deps locally */
+      localAgents?: AgentPackage[];
+      skillHub?: SkillHubService;
+      _installingIds?: Set<string>;
+    },
   ): Promise<{ agentId: string; conflict: boolean; installed?: string[]; skippedDeps?: string[] }> {
     const agentId = pkg.id;
     const exists = config.agentExists(agentId);
@@ -130,45 +138,74 @@ export class AgentStoreService {
       return { agentId, conflict: true };
     }
 
+    const ver = pkg.versions[options?.versionIndex ?? 0];
+    if (!ver) throw new Error(`Version index out of range for "${agentId}"`);
+
+    // ── Restore MCP: merge globalMcp into agent-specific, keep only builtin refs in agent.mcp ──
+    const mergedMcp: Record<string, unknown> = {};
+    if (ver.globalMcp?.mcpServers) Object.assign(mergedMcp, ver.globalMcp.mcpServers);
+    if (ver.agentMcp?.mcpServers) Object.assign(mergedMcp, ver.agentMcp.mcpServers);
+
+    // Rewrite agent.mcp: builtin IDs stay, non-builtin globals become agent-specific
+    const agentConfig = { ...ver.agent };
+    if (Array.isArray(agentConfig.mcp)) {
+      agentConfig.mcp = (agentConfig.mcp as string[]).filter(id => id.startsWith('builtin_'));
+    }
+
     config.saveAgent(agentId, {
-      ...pkg.agent,
+      ...agentConfig,
       name: pkg.name,
       storeSource: {
         url: '',
-        version: pkg.version,
+        version: ver.version,
         installedAt: new Date().toISOString(),
       } as AgentStoreSource,
     });
 
+    // Write merged MCP to agent-specific mcp.json
+    if (Object.keys(mergedMcp).length > 0) {
+      config.saveAgentMcpServers(agentId, mergedMcp as any);
+    }
+
     const installed: string[] = [agentId];
     const skippedDeps: string[] = [];
 
-    // ── Cascading: sub-agent dependencies ──
-    if (pkg.requires?.subAgents?.length && options?.sourceUrl) {
-      const installingIds = options._installingIds ?? new Set<string>();
+    // ── Cascading: sub-agent dependencies (read from ver.agent.agents) ──
+    const subAgentIds = Array.isArray(ver.agent.agents)
+      ? (ver.agent.agents as { id: string }[]).map(a => a.id)
+      : [];
+    if (subAgentIds.length) {
+      const installingIds = options?._installingIds ?? new Set<string>();
       installingIds.add(agentId);
 
-      let remoteAgents: AgentPackage[] = [];
-      try {
-        const remote = await httpGetJson<RemoteAgentStoreJson>(options.sourceUrl);
-        remoteAgents = remote?.agents ?? [];
-      } catch {
-        // If the remote store is unreachable, skip all sub-agent deps
-        skippedDeps.push(...pkg.requires.subAgents);
+      // Build lookup from localAgents (sibling packages in the same source)
+      const localMap = new Map<string, AgentPackage>();
+      if (options?.localAgents?.length) {
+        for (const a of options.localAgents) localMap.set(a.id, a);
       }
 
-      for (const subId of pkg.requires.subAgents) {
+      // Fetch remote only for sub-agents not in localAgents
+      let remoteAgents: AgentPackage[] = [];
+      const needRemote = subAgentIds.some(id => !localMap.has(id));
+      if (needRemote && options?.sourceUrl) {
+        try {
+          const remote = await httpGetJson<RemoteAgentStoreJson>(options.sourceUrl);
+          remoteAgents = remote?.agents ?? [];
+        } catch {
+          // Remote unreachable — will skip missing deps below
+        }
+      }
+
+      for (const subId of subAgentIds) {
         if (installingIds.has(subId)) {
-          // Cycle detected — skip
           skippedDeps.push(subId);
           continue;
         }
         if (config.agentExists(subId)) {
-          // Already installed locally — skip
           continue;
         }
 
-        const subPkg = remoteAgents.find(a => a.id === subId);
+        const subPkg = localMap.get(subId) ?? remoteAgents.find(a => a.id === subId);
         if (!subPkg) {
           skippedDeps.push(subId);
           continue;
@@ -176,8 +213,9 @@ export class AgentStoreService {
 
         try {
           const subResult = await this.install(subPkg, false, {
-            sourceUrl: options.sourceUrl,
-            skillHub: options.skillHub,
+            sourceUrl: options?.sourceUrl,
+            localAgents: options?.localAgents,
+            skillHub: options?.skillHub,
             _installingIds: installingIds,
           });
           if (subResult.installed) installed.push(...subResult.installed);
@@ -188,9 +226,10 @@ export class AgentStoreService {
       }
     }
 
-    // ── Cascading: skill dependencies ──
-    if (pkg.requires?.skills?.length && options?.skillHub) {
-      for (const skillName of pkg.requires.skills) {
+    // ── Cascading: skill dependencies (read from ver.agent.skills) ──
+    const skillNames = Array.isArray(ver.agent.skills) ? ver.agent.skills as string[] : [];
+    if (skillNames.length && options?.skillHub) {
+      for (const skillName of skillNames) {
         try {
           const results = await options.skillHub.searchSkills(skillName, 1);
           if (results.length > 0) {
@@ -223,8 +262,8 @@ export class AgentStoreService {
       diffs.push({
         id: browsed.pkg.id,
         localVersion: local.storeSource?.version,
-        remoteVersion: browsed.pkg.version,
-        changes: this.diffChanges(local as AgentConfig, browsed.pkg.agent),
+        remoteVersion: browsed.pkg.versions[0].version,
+        changes: this.diffChanges(local as AgentConfig, browsed.pkg.versions[0].agent as AgentConfig),
         pkg: browsed.pkg,
       });
     }
@@ -237,12 +276,15 @@ export class AgentStoreService {
     const local = this.findLocal(agentId);
     if (!local) return false;
 
+    const ver = pkg.versions[0];
+    if (!ver) return false;
+
     config.saveAgent(agentId, {
-      ...pkg.agent,
+      ...ver.agent,
       name: pkg.name,
       storeSource: {
         url: local.storeSource?.url ?? '',
-        version: pkg.version,
+        version: ver.version,
         installedAt: local.storeSource?.installedAt ?? new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       } as AgentStoreSource,
@@ -251,49 +293,78 @@ export class AgentStoreService {
     return true;
   }
 
-  // ── Export / Import ─────────────────────────────────────────
+  // ── Export ───────────────────────────────────────────────────
 
-  /** Export a locally configured agent as a portable AgentPackage. */
-  exportAgent(agentId: string): AgentPackage {
+  /**
+   * Export a locally configured agent as a source-format JSON.
+   * Returns `{ name, agents: AgentPackage[] }` with the main agent
+   * and all sub-agents flattened into the array.
+   */
+  exportAgent(agentId: string): RemoteAgentStoreJson {
+    const collected = new Map<string, AgentPackage>();
+    this._collectAgentPackage(agentId, collected, new Set());
+
+    const main = collected.get(agentId)!;
+    // Put the main agent first, then the rest
+    const agents: AgentPackage[] = [main];
+    for (const [id, pkg] of collected) {
+      if (id !== agentId) agents.push(pkg);
+    }
+
+    return { name: main.name, agents };
+  }
+
+  /** Recursively collect an agent and its sub-agents into a flat map. */
+  private _collectAgentPackage(agentId: string, out: Map<string, AgentPackage>, visited: Set<string>): void {
+    if (visited.has(agentId)) return; // cycle guard
+    visited.add(agentId);
+
     let agent: any;
     try { agent = config.getAgent(agentId); } catch { /* not found */ }
-    if (!agent) throw new Error(`Agent "${agentId}" not found`);
+    if (!agent) return;
 
     const { storeSource: _drop, id: _id, ...agentFields } = agent;
 
-    return {
-      id: agentId,
-      name: agent.name ?? agentId,
+    // Build a single version snapshot
+    const ver: AgentPackageVersion = {
       version: agent.storeSource?.version ?? '0.0.0',
       agent: agentFields,
     };
-  }
 
-  /** Fetch an AgentPackage from a remote URL. */
-  async importFromUrl(url: string): Promise<AgentPackage> {
-    const data = await httpGetJson<AgentPackage>(url);
-    return this.importFromJson(data);
-  }
+    const subAgentIds = Array.isArray(agentFields.agents)
+      ? (agentFields.agents as { id: string }[]).map(a => a.id)
+      : [];
 
-  /** Validate and return an AgentPackage from raw JSON. */
-  importFromJson(raw: unknown): AgentPackage {
-    if (!raw || typeof raw !== 'object') {
-      throw new Error('Invalid agent package: expected an object');
+    // ── MCP: split builtin vs non-builtin global references ──
+    const mcpRefs = Array.isArray(agentFields.mcp) ? agentFields.mcp as string[] : [];
+    const nonBuiltinIds = mcpRefs.filter((id: string) => !id.startsWith('builtin_'));
+    if (nonBuiltinIds.length) {
+      const allGlobal = config.getGlobalMcpServers();
+      const globalMcpServers: Record<string, unknown> = {};
+      for (const id of nonBuiltinIds) {
+        if (allGlobal[id]) globalMcpServers[id] = allGlobal[id];
+      }
+      if (Object.keys(globalMcpServers).length > 0) {
+        ver.globalMcp = { mcpServers: globalMcpServers };
+      }
     }
-    const obj = raw as Record<string, unknown>;
-    if (typeof obj.id !== 'string' || !obj.id) {
-      throw new Error('Invalid agent package: missing "id"');
+
+    // ── Agent-specific MCP (mcp.json) ──
+    const agentMcpServers = config.getAgentMcpServers(agentId);
+    if (Object.keys(agentMcpServers).length > 0) {
+      ver.agentMcp = { mcpServers: agentMcpServers };
     }
-    if (typeof obj.name !== 'string' || !obj.name) {
-      throw new Error('Invalid agent package: missing "name"');
+
+    out.set(agentId, {
+      id: agentId,
+      name: agent.name ?? agentId,
+      versions: [ver],
+    });
+
+    // ── Recurse into sub-agents ──
+    for (const subId of subAgentIds) {
+      this._collectAgentPackage(subId, out, visited);
     }
-    if (typeof obj.version !== 'string' || !obj.version) {
-      throw new Error('Invalid agent package: missing "version"');
-    }
-    if (!obj.agent || typeof obj.agent !== 'object') {
-      throw new Error('Invalid agent package: missing "agent" config');
-    }
-    return raw as AgentPackage;
   }
 
   // ── Private helpers ─────────────────────────────────────────

@@ -11,21 +11,20 @@ const { show } = useToast()
 const { isMobile } = useResponsive()
 
 // ── Types ──
-interface AgentRequires {
-  skills?: string[]
-  mcpServers?: string[]
-  subAgents?: string[]
+interface AgentPackageVersion {
+  version: string
+  agent: { type: string; model?: string; systemPrompt?: string; skills?: string[]; agents?: { id: string }[]; mcp?: string[]; [k: string]: any }
+  agentMcp?: { mcpServers: Record<string, unknown> }
+  globalMcp?: { mcpServers: Record<string, unknown> }
 }
 
 interface AgentPackage {
   id: string
   name: string
   description?: string
-  version: string
   author?: string
   tags?: string[]
-  agent: { type: string; model?: string; systemPrompt?: string; [k: string]: any }
-  requires?: AgentRequires
+  versions: AgentPackageVersion[]
 }
 
 interface BrowsedAgent {
@@ -74,17 +73,14 @@ const filteredAgents = computed(() => {
   )
 })
 
-const requiresTotal = (r?: AgentRequires): number => {
-  if (!r) return 0
-  return (r.skills?.length || 0) + (r.mcpServers?.length || 0) + (r.subAgents?.length || 0)
+const depsTotal = (agent: AgentPackageVersion['agent']): number => {
+  return (agent.skills?.length || 0) + (agent.agents?.length || 0)
 }
 
-const requiresSummary = (r?: AgentRequires): string => {
-  if (!r) return ''
+const depsSummary = (agent: AgentPackageVersion['agent']): string => {
   const parts: string[] = []
-  if (r.skills?.length) parts.push(`${r.skills.length} skill${r.skills.length > 1 ? 's' : ''}`)
-  if (r.mcpServers?.length) parts.push(`${r.mcpServers.length} MCP`)
-  if (r.subAgents?.length) parts.push(`${r.subAgents.length} agent${r.subAgents.length > 1 ? 's' : ''}`)
+  if (agent.skills?.length) parts.push(`${agent.skills.length} skill${agent.skills.length > 1 ? 's' : ''}`)
+  if (agent.agents?.length) parts.push(`${agent.agents.length} agent${agent.agents.length > 1 ? 's' : ''}`)
   return parts.join(', ')
 }
 
@@ -161,10 +157,12 @@ const showInstallModal = ref(false)
 const installTarget = ref<BrowsedAgent | null>(null)
 const installOverwrite = ref(false)
 const installing = ref(false)
+const selectedVersionIndex = ref(0)
 
 function openInstall(agent: BrowsedAgent) {
   installTarget.value = agent
   installOverwrite.value = false
+  selectedVersionIndex.value = 0
   showInstallModal.value = true
 }
 
@@ -172,10 +170,14 @@ async function confirmInstall() {
   if (!installTarget.value) return
   installing.value = true
   try {
+    const target = installTarget.value as BrowsedAgent & { _localAgents?: AgentPackage[] }
+    const isFileSource = target.sourceUrl.startsWith('__file__:')
     const res = await apiFetch('/api/agent-store/install', 'POST', {
-      pkg: installTarget.value.pkg,
+      pkg: target.pkg,
       overwrite: installOverwrite.value,
-      sourceUrl: installTarget.value.sourceUrl,
+      versionIndex: selectedVersionIndex.value,
+      sourceUrl: isFileSource ? undefined : target.sourceUrl,
+      localAgents: isFileSource ? (target._localAgents ?? tempSourceAgents.value.map(a => a.pkg)) : undefined,
     })
     if (res.data?.settings) Object.assign(store.settings, res.data.settings)
     show(t('agentStore.install_success'))
@@ -251,25 +253,12 @@ async function confirmUpdate() {
   }
 }
 
-// ── Import dropdown ──
-const showImportMenu = ref(false)
-
-function toggleImportMenu() {
-  showImportMenu.value = !showImportMenu.value
-}
-
-function closeImportMenu() {
-  showImportMenu.value = false
-}
-
-// ── Import from file ──
-const showFilePreview = ref(false)
-const filePkg = ref<AgentPackage | null>(null)
-const fileImporting = ref(false)
+// ── Load from file (temporary source) ──
 const fileInputRef = ref<HTMLInputElement | null>(null)
+const tempSourceName = ref('')
+const tempSourceAgents = ref<BrowsedAgent[]>([])
 
-function triggerFileImport() {
-  closeImportMenu()
+function triggerFileLoad() {
   fileInputRef.value?.click()
 }
 
@@ -281,8 +270,30 @@ function onFileSelected(ev: Event) {
   reader.onload = () => {
     try {
       const data = JSON.parse(reader.result as string)
-      filePkg.value = data
-      showFilePreview.value = true
+      // Accept source format: { name?, agents: [...] }
+      const sourceAgents: AgentPackage[] = Array.isArray(data.agents) ? data.agents : []
+      if (!sourceAgents.length) {
+        show(t('agentStore.no_agents'), 'error')
+        return
+      }
+      const sourceName = data.name || file.name.replace(/\.json$/, '')
+      const sourceUrl = `__file__:${sourceName}`
+      tempSourceName.value = sourceName
+      // Check installed status against known agents from store settings
+      const installedIds = new Set(
+        Object.keys(store.settings.agents ?? {})
+      )
+      tempSourceAgents.value = sourceAgents.map(pkg => ({
+        sourceUrl,
+        sourceName: sourceName,
+        installed: installedIds.has(pkg.id),
+        hasUpdate: false,
+        pkg,
+        _localAgents: sourceAgents,
+      } as BrowsedAgent & { _localAgents?: AgentPackage[] }))
+      // Merge into agents list
+      agents.value = [...agents.value.filter(a => !a.sourceUrl.startsWith('__file__:')), ...tempSourceAgents.value]
+      selectedSource.value = sourceUrl
     } catch {
       show('Invalid JSON file', 'error')
     }
@@ -291,64 +302,11 @@ function onFileSelected(ev: Event) {
   input.value = ''
 }
 
-async function confirmFileImport() {
-  if (!filePkg.value) return
-  fileImporting.value = true
-  try {
-    const res = await apiFetch('/api/agent-store/import', 'POST', filePkg.value)
-    if (res.data?.settings) Object.assign(store.settings, res.data.settings)
-    show(t('agentStore.import_success'))
-    showFilePreview.value = false
-    await loadAgents()
-  } catch (e: any) {
-    show(e.message, 'error')
-  } finally {
-    fileImporting.value = false
-  }
-}
-
-// ── Import from URL ──
-const showUrlModal = ref(false)
-const importUrl = ref('')
-const urlPkg = ref<AgentPackage | null>(null)
-const urlFetching = ref(false)
-const urlImporting = ref(false)
-
-function openUrlImport() {
-  closeImportMenu()
-  importUrl.value = ''
-  urlPkg.value = null
-  showUrlModal.value = true
-}
-
-async function fetchUrlPkg() {
-  const url = importUrl.value.trim()
-  if (!url) return
-  urlFetching.value = true
-  try {
-    const res = await apiFetch('/api/agent-store/import-url', 'POST', { url })
-    urlPkg.value = res.data ?? res
-  } catch (e: any) {
-    show(e.message, 'error')
-  } finally {
-    urlFetching.value = false
-  }
-}
-
-async function confirmUrlImport() {
-  if (!urlPkg.value) return
-  urlImporting.value = true
-  try {
-    const res = await apiFetch('/api/agent-store/install', 'POST', { pkg: urlPkg.value })
-    if (res.data?.settings) Object.assign(store.settings, res.data.settings)
-    show(t('agentStore.import_success'))
-    showUrlModal.value = false
-    await loadAgents()
-  } catch (e: any) {
-    show(e.message, 'error')
-  } finally {
-    urlImporting.value = false
-  }
+function closeTempSource() {
+  agents.value = agents.value.filter(a => !a.sourceUrl.startsWith('__file__:'))
+  tempSourceName.value = ''
+  tempSourceAgents.value = []
+  selectedSource.value = '__all__'
 }
 
 // ── Init ──
@@ -363,16 +321,7 @@ onMounted(reload)
       <button class="btn-outline btn-sm" :disabled="checkingUpdates" @click="checkUpdates">
         {{ checkingUpdates ? t('agentStore.loading') : t('agentStore.check_updates') }}
       </button>
-      <!-- Import dropdown -->
-      <div class="row-dropdown" style="position:relative">
-        <button class="btn-primary btn-sm" @click="toggleImportMenu">
-          Import &#x25BE;
-        </button>
-        <div v-if="showImportMenu" class="row-dropdown-menu" style="min-width:140px">
-          <button @click="triggerFileImport">{{ t('agentStore.import_file') }}</button>
-          <button @click="openUrlImport">{{ t('agentStore.import_url') }}</button>
-        </div>
-      </div>
+      <button class="btn-primary btn-sm" @click="triggerFileLoad">{{ t('agentStore.import_file') }}</button>
       <input
         ref="fileInputRef"
         type="file"
@@ -409,6 +358,23 @@ onMounted(reload)
           @click.stop="removeSource(idx)"
           style="margin-left:2px;font-size:14px;color:#9b9b9b;cursor:pointer;line-height:1"
           title="Remove source"
+        >&times;</span>
+      </button>
+      <!-- Temp file source tab -->
+      <button
+        v-if="tempSourceName"
+        @click="selectedSource = '__file__:' + tempSourceName"
+        style="padding:10px 14px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s;display:flex;align-items:center;gap:4px"
+        :style="selectedSource === '__file__:' + tempSourceName ? 'color:#e67e22;border-bottom-color:#e67e22' : 'color:#e67e22;opacity:.6'"
+      >
+        {{ tempSourceName }}
+        <span style="margin-left:4px;font-size:11px;padding:0 5px;border-radius:10px;font-weight:600"
+          :style="selectedSource === '__file__:' + tempSourceName ? 'background:#e67e22;color:#fff' : 'background:#fef3c7;color:#e67e22'"
+        >{{ tempSourceAgents.length }}</span>
+        <span
+          @click.stop="closeTempSource"
+          style="margin-left:2px;font-size:14px;color:#e67e22;cursor:pointer;line-height:1"
+          title="Close"
         >&times;</span>
       </button>
       <div style="flex:1" />
@@ -449,12 +415,13 @@ onMounted(reload)
               <div style="font-size:14px;font-weight:600;color:#1c1c1c;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ a.pkg.name }}</div>
               <div style="font-family:monospace;font-size:11px;color:#9b9b9b;margin-top:2px">{{ a.pkg.id }}</div>
             </div>
-            <span :class="'agent-type-badge agent-type-' + a.pkg.agent.type">{{ a.pkg.agent.type }}</span>
+            <span :class="'agent-type-badge agent-type-' + a.pkg.versions[0]?.agent.type">{{ a.pkg.versions[0]?.agent.type }}</span>
           </div>
 
           <!-- Version & Author -->
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px;color:#6b6b6b">
-            <span>v{{ a.pkg.version }}</span>
+            <span>v{{ a.pkg.versions[0]?.version }}</span>
+            <span v-if="a.pkg.versions.length > 1" style="color:#9b9b9b">({{ a.pkg.versions.length }} versions)</span>
             <span v-if="a.pkg.author" style="color:#9b9b9b">@{{ a.pkg.author }}</span>
           </div>
 
@@ -474,8 +441,8 @@ onMounted(reload)
 
           <!-- Requires -->
           <div style="font-size:12px;color:#9b9b9b;margin-bottom:12px">
-            <template v-if="requiresTotal(a.pkg.requires) > 0">
-              {{ t('agentStore.requires') }}: {{ requiresSummary(a.pkg.requires) }}
+            <template v-if="a.pkg.versions[0] && depsTotal(a.pkg.versions[0].agent) > 0">
+              {{ t('agentStore.requires') }}: {{ depsSummary(a.pkg.versions[0].agent) }}
             </template>
             <template v-else>
               {{ t('agentStore.no_deps') }}
@@ -560,13 +527,22 @@ onMounted(reload)
           <div style="margin-bottom:12px">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
               <span style="font-family:monospace;font-size:15px;font-weight:600;color:#1e293b">{{ installTarget.pkg.name }}</span>
-              <span :class="'agent-type-badge agent-type-' + installTarget.pkg.agent.type">{{ installTarget.pkg.agent.type }}</span>
+              <span v-if="installTarget.pkg.versions[selectedVersionIndex]" :class="'agent-type-badge agent-type-' + installTarget.pkg.versions[selectedVersionIndex].agent.type">{{ installTarget.pkg.versions[selectedVersionIndex].agent.type }}</span>
             </div>
-            <div style="font-size:12px;color:#9b9b9b;font-family:monospace">{{ installTarget.pkg.id }} v{{ installTarget.pkg.version }}</div>
+            <div style="font-size:12px;color:#9b9b9b;font-family:monospace">{{ installTarget.pkg.id }} v{{ installTarget.pkg.versions[selectedVersionIndex]?.version }}</div>
+          </div>
+          <!-- Version selector (multi-version) -->
+          <div v-if="installTarget.pkg.versions.length > 1" class="form-group" style="margin-bottom:12px">
+            <label style="font-size:12px;font-weight:600;color:#6b6b6b;margin-bottom:4px;display:block">{{ t('agentStore.select_version') }}</label>
+            <select v-model="selectedVersionIndex" style="width:100%;padding:6px 10px;border:1px solid #e8e6e3;border-radius:6px;font-size:13px;color:#1c1c1c;background:#fafaf9">
+              <option v-for="(ver, idx) in installTarget.pkg.versions" :key="idx" :value="idx">
+                v{{ ver.version }}{{ idx === 0 ? ' (latest)' : '' }}
+              </option>
+            </select>
           </div>
           <div v-if="installTarget.pkg.description" style="font-size:13px;color:#475569;margin-bottom:12px;line-height:1.5">{{ installTarget.pkg.description }}</div>
-          <div v-if="requiresTotal(installTarget.pkg.requires) > 0" style="padding:10px 12px;background:#f1f5f9;border-radius:6px;font-size:13px;color:#475569;margin-bottom:12px">
-            {{ t('agentStore.requires') }}: {{ requiresSummary(installTarget.pkg.requires) }}
+          <div v-if="installTarget.pkg.versions[selectedVersionIndex] && depsTotal(installTarget.pkg.versions[selectedVersionIndex].agent) > 0" style="padding:10px 12px;background:#f1f5f9;border-radius:6px;font-size:13px;color:#475569;margin-bottom:12px">
+            {{ t('agentStore.requires') }}: {{ depsSummary(installTarget.pkg.versions[selectedVersionIndex].agent) }}
           </div>
           <div v-if="installTarget.installed" style="padding:10px 12px;background:#fef3c7;border-radius:6px;font-size:13px;color:#92400e;margin-bottom:12px">
             {{ t('agentStore.confirm_overwrite', { id: installTarget.pkg.id }) }}
@@ -600,7 +576,7 @@ onMounted(reload)
           <div style="margin-bottom:12px">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
               <span style="font-family:monospace;font-size:15px;font-weight:600;color:#1e293b">{{ updateTarget.pkg.name }}</span>
-              <span :class="'agent-type-badge agent-type-' + updateTarget.pkg.agent.type">{{ updateTarget.pkg.agent.type }}</span>
+              <span v-if="updateTarget.pkg.versions[0]" :class="'agent-type-badge agent-type-' + updateTarget.pkg.versions[0].agent.type">{{ updateTarget.pkg.versions[0].agent.type }}</span>
             </div>
             <div style="font-size:12px;color:#9b9b9b;font-family:monospace">{{ updateTarget.pkg.id }}</div>
           </div>
@@ -610,7 +586,7 @@ onMounted(reload)
               v{{ updateDiffs.get(updateTarget.pkg.id)!.oldVersion }}
             </span>
             <span style="color:#9b9b9b">&rarr;</span>
-            <span style="font-weight:600;color:#1c1c1c">v{{ updateTarget.pkg.version }}</span>
+            <span style="font-weight:600;color:#1c1c1c">v{{ updateTarget.pkg.versions[0]?.version }}</span>
           </div>
           <!-- Changes -->
           <div v-if="updateDiffs.get(updateTarget.pkg.id)?.changes" style="margin-bottom:12px">
@@ -628,85 +604,6 @@ onMounted(reload)
       </div>
     </div>
 
-    <!-- ── File Import Preview Modal ── -->
-    <div v-if="showFilePreview && filePkg" class="modal-overlay" @click.self="showFilePreview = false">
-      <div class="modal-box">
-        <div class="modal-header">
-          <h3>{{ t('agentStore.import_file') }}</h3>
-          <button class="modal-close" @click="showFilePreview = false">&times;</button>
-        </div>
-        <div class="modal-body">
-          <div style="margin-bottom:12px">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-              <span style="font-family:monospace;font-size:15px;font-weight:600;color:#1e293b">{{ filePkg.name }}</span>
-              <span v-if="filePkg.agent?.type" :class="'agent-type-badge agent-type-' + filePkg.agent.type">{{ filePkg.agent.type }}</span>
-            </div>
-            <div style="font-size:12px;color:#9b9b9b;font-family:monospace">{{ filePkg.id }} v{{ filePkg.version }}</div>
-          </div>
-          <div v-if="filePkg.description" style="font-size:13px;color:#475569;margin-bottom:12px;line-height:1.5">{{ filePkg.description }}</div>
-          <div v-if="filePkg.author" style="font-size:12px;color:#6b6b6b;margin-bottom:12px">{{ t('agentStore.author') }}: {{ filePkg.author }}</div>
-          <div v-if="requiresTotal(filePkg.requires) > 0" style="padding:10px 12px;background:#f1f5f9;border-radius:6px;font-size:13px;color:#475569;margin-bottom:12px">
-            {{ t('agentStore.requires') }}: {{ requiresSummary(filePkg.requires) }}
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-outline" @click="showFilePreview = false">{{ t('common.cancel') }}</button>
-          <button class="btn-primary" :disabled="fileImporting" @click="confirmFileImport">
-            {{ fileImporting ? t('agentStore.loading') : t('agentStore.install') }}
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── URL Import Modal ── -->
-    <div v-if="showUrlModal" class="modal-overlay" @click.self="showUrlModal = false">
-      <div class="modal-box">
-        <div class="modal-header">
-          <h3>{{ t('agentStore.import_url') }}</h3>
-          <button class="modal-close" @click="showUrlModal = false">&times;</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label>URL</label>
-            <input
-              v-model="importUrl"
-              :placeholder="t('agentStore.import_url_placeholder')"
-              @keydown.enter="fetchUrlPkg"
-            />
-          </div>
-          <button
-            class="btn-primary btn-sm"
-            :disabled="urlFetching || !importUrl.trim()"
-            style="margin-bottom:16px"
-            @click="fetchUrlPkg"
-          >
-            {{ urlFetching ? t('agentStore.loading') : t('common.view') }}
-          </button>
-
-          <!-- Preview -->
-          <div v-if="urlPkg" style="border-top:1px solid #e8e6e3;padding-top:12px">
-            <div style="margin-bottom:12px">
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-                <span style="font-family:monospace;font-size:15px;font-weight:600;color:#1e293b">{{ urlPkg.name }}</span>
-                <span v-if="urlPkg.agent?.type" :class="'agent-type-badge agent-type-' + urlPkg.agent.type">{{ urlPkg.agent.type }}</span>
-              </div>
-              <div style="font-size:12px;color:#9b9b9b;font-family:monospace">{{ urlPkg.id }} v{{ urlPkg.version }}</div>
-            </div>
-            <div v-if="urlPkg.description" style="font-size:13px;color:#475569;margin-bottom:12px;line-height:1.5">{{ urlPkg.description }}</div>
-            <div v-if="urlPkg.author" style="font-size:12px;color:#6b6b6b;margin-bottom:12px">{{ t('agentStore.author') }}: {{ urlPkg.author }}</div>
-            <div v-if="requiresTotal(urlPkg.requires) > 0" style="padding:10px 12px;background:#f1f5f9;border-radius:6px;font-size:13px;color:#475569;margin-bottom:12px">
-              {{ t('agentStore.requires') }}: {{ requiresSummary(urlPkg.requires) }}
-            </div>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-outline" @click="showUrlModal = false">{{ t('common.cancel') }}</button>
-          <button class="btn-primary" :disabled="urlImporting || !urlPkg" @click="confirmUrlImport">
-            {{ urlImporting ? t('agentStore.loading') : t('agentStore.install') }}
-          </button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
