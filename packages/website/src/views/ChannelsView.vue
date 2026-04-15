@@ -198,7 +198,7 @@ async function removeSession(channelId: string, session: ChannelSessionRow) {
 }
 
 async function removeUser(channelId: string, user: UserRow) {
-  if (!window.confirm(t('channels.confirm_delete_user', { name: user.userName || user.userId }))) return
+  if (!window.confirm(t('users.confirm_delete', { name: user.userName || user.userId }))) return
   try {
     await apiFetch(`/api/channel-users/${user.id}`, 'DELETE')
     const list = userMap.value[channelId]
@@ -738,7 +738,7 @@ async function refresh() {
     <div v-if="viewUser" class="modal-overlay" @click.self="viewUser = null">
       <div class="modal-box wide">
         <div class="modal-header">
-          <h3>{{ t('channels.user_detail_title', { name: viewUser.userName || viewUser.userId }) }}</h3>
+          <h3>{{ t('users.detail_title', { name: viewUser.userName || viewUser.userId }) }}</h3>
           <button class="modal-close" @click="viewUser = null">&times;</button>
         </div>
         <div class="modal-body">
@@ -747,19 +747,19 @@ async function refresh() {
             <input :value="viewUser.id" disabled />
           </div>
           <div class="form-group">
-            <label>{{ t('channels.user_id') }}</label>
+            <label>{{ t('users.user_id') }}</label>
             <input :value="viewUser.userId" disabled />
           </div>
           <div class="form-group">
-            <label>{{ t('channels.username') }}</label>
+            <label>{{ t('users.username') }}</label>
             <input :value="viewUser.userName" disabled />
           </div>
           <div class="form-group">
-            <label>{{ t('channels.channel') }}</label>
+            <label>{{ t('users.channel') }}</label>
             <input :value="viewUser.channelId" disabled />
           </div>
           <div class="form-group">
-            <label>{{ t('channels.user_info') }}</label>
+            <label>{{ t('users.user_info') }}</label>
             <textarea :value="formatUserInfo(viewUser.userInfo)" disabled rows="16" style="font-family:monospace;font-size:12px" />
           </div>
         </div>

@@ -8,7 +8,7 @@ import { useToast } from '@/composables/useToast'
 import type { SkillItem } from '@/types'
 import { sourceBadgeStyle } from '@/utils/badges'
 import SkillHubModal from '@/components/SkillHubModal.vue'
-import SkillViewModal from '@/components/SkillViewModal.vue'
+import SkillViewerModal from '@/components/SkillViewerModal.vue'
 
 const { t } = useI18n()
 const { show } = useToast()
@@ -48,10 +48,10 @@ async function load() {
 }
 
 // ── View Skill modal ──────────────────────────────────────────────
-const skillViewRef = ref<InstanceType<typeof SkillViewModal>>()
+const skillViewRef = ref<InstanceType<typeof SkillViewerModal>>()
 
 function openView(name: string, badge = '') {
-  skillViewRef.value?.open(name, badge, `/api/skills/${encodeURIComponent(name)}`)
+  skillViewRef.value?.open(name, badge)
 }
 
 async function remove(name: string) {
@@ -168,7 +168,7 @@ onMounted(load)
       </div>
     </div>
 
-    <SkillViewModal ref="skillViewRef" />
+    <SkillViewerModal ref="skillViewRef" />
 
     <SkillHubModal
       ref="hubRef"

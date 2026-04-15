@@ -141,31 +141,13 @@ async function removeAgent(id: string) {
   }
 }
 
-// ── Inline viewer ──
-const viewVisible = ref(false)
-const viewTitle   = ref('')
-const viewBadge   = ref('')
-const viewContent = ref('')
-const viewLoading = ref(false)
+// ── Skill viewer ──
+const skillViewRef = ref<InstanceType<typeof SkillViewerModal>>()
 
-async function openSkillView(agentId: string, name: string, isPrivate: boolean) {
-  viewTitle.value   = name
-  viewBadge.value   = isPrivate ? t('agents.skills_exclusive_tab') : ''
-  viewContent.value = ''
-  viewLoading.value = true
-  viewVisible.value = true
-  const url = isPrivate
-    ? `/api/agents/${encodeURIComponent(agentId)}/skills/${encodeURIComponent(name)}`
-    : `/api/skills/${encodeURIComponent(name)}`
-  try {
-    const res = await apiFetch(url)
-    viewContent.value = res.data?.content || ''
-  } catch (e: any) {
-    show(e.message, 'error')
-    viewVisible.value = false
-  } finally {
-    viewLoading.value = false
-  }
+function openSkillView(agentId: string, name: string, isPrivate: boolean) {
+  const badge = isPrivate ? t('agents.skills_exclusive_tab') : ''
+  const apiBase = isPrivate ? `/api/agents/${encodeURIComponent(agentId)}/skills` : '/api/skills'
+  skillViewRef.value?.open(name, badge, apiBase)
 }
 
 // ── MCP Tools viewer ──
@@ -696,14 +678,7 @@ async function refresh() {
       @revoke-all="revokeAll"
     />
 
-    <SkillViewerModal
-      :visible="viewVisible"
-      :title="viewTitle"
-      :badge="viewBadge"
-      :content="viewContent"
-      :loading="viewLoading"
-      @update:visible="viewVisible = $event"
-    />
+    <SkillViewerModal ref="skillViewRef" />
   </div>
 </template>
 

@@ -204,6 +204,34 @@ function deleteSkill(skillsDir: string, name: string) {
     return { name };
 }
 
+type SkillTreeNode = { name: string; type: 'file' | 'dir'; path: string; children?: SkillTreeNode[] };
+
+function buildSkillTree(dir: string, basePath = ''): SkillTreeNode[] {
+    if (!fs.existsSync(dir)) return [];
+    const entries = fs.readdirSync(dir, { withFileTypes: true })
+        .sort((a, b) => {
+            if (a.isDirectory() !== b.isDirectory()) return a.isDirectory() ? -1 : 1;
+            return a.name.localeCompare(b.name);
+        });
+    const result: SkillTreeNode[] = [];
+    for (const entry of entries) {
+        const relPath = basePath ? `${basePath}/${entry.name}` : entry.name;
+        if (entry.isDirectory()) {
+            result.push({ name: entry.name, type: 'dir', path: relPath, children: buildSkillTree(path.join(dir, entry.name), relPath) });
+        } else if (entry.isFile()) {
+            result.push({ name: entry.name, type: 'file', path: relPath });
+        }
+    }
+    return result;
+}
+
+function safeSkillFilePath(filePath: string): string {
+    if (!filePath?.trim()) { const e: any = new Error('path is required'); e.status = 400; throw e; }
+    const normalized = path.normalize(filePath.trim()).replace(/\\/g, '/');
+    if (normalized.startsWith('..') || path.isAbsolute(normalized)) { const e: any = new Error('Invalid path'); e.status = 400; throw e; }
+    return normalized;
+}
+
 /** 统一异常包装：捕获异常并返回标准 JSON 响应 */
 function api(fn: (req: Request, res: Response) => any) {
     return async (req: Request, res: Response) => {
@@ -790,6 +818,25 @@ class HttpServer {
             return { name, content: fs.readFileSync(path.join(skill.path, 'SKILL.md'), 'utf-8') };
         }));
 
+        app.get('/api/skills/:name/tree', api(req => {
+            const name = req.params.name as string;
+            const skill = globalSkillService.getAllSkills().find((s: any) => s.name === name);
+            if (!skill) { const e: any = new Error(`Skill "${name}" not found`); e.status = 404; throw e; }
+            return buildSkillTree(skill.path);
+        }));
+
+        app.get('/api/skills/:name/file', api(req => {
+            const name = req.params.name as string;
+            const skill = globalSkillService.getAllSkills().find((s: any) => s.name === name);
+            if (!skill) { const e: any = new Error(`Skill "${name}" not found`); e.status = 404; throw e; }
+            const filePath = safeSkillFilePath(req.query.path as string);
+            const fullPath = path.join(skill.path, filePath);
+            if (!fs.existsSync(fullPath) || !fs.statSync(fullPath).isFile()) {
+                const e: any = new Error(`File "${filePath}" not found`); e.status = 404; throw e;
+            }
+            return { path: filePath, content: fs.readFileSync(fullPath, 'utf-8') };
+        }));
+
         app.delete('/api/skills/:name', api(req => {
             const result = deleteSkill(config.getSkillsPath(), req.params.name as string);
             refreshGlobalSkillService();
@@ -829,6 +876,29 @@ class HttpServer {
         app.get('/api/agents/:name/skills/:skillName', api(req =>
             getSkill(config.getAgentSkillsPath(req.params.name as string), req.params.skillName as string)
         ));
+
+        app.get('/api/agents/:name/skills/:skillName/tree', api(req => {
+            const skillsDir = config.getAgentSkillsPath(req.params.name as string);
+            const svc = new SkillService("", "", "", "");
+            svc.registerSkillsDir(skillsDir);
+            const skill = svc.getAllSkills().find(s => s.name === req.params.skillName);
+            if (!skill) { const e: any = new Error(`Skill "${req.params.skillName}" not found`); e.status = 404; throw e; }
+            return buildSkillTree(skill.path);
+        }));
+
+        app.get('/api/agents/:name/skills/:skillName/file', api(req => {
+            const skillsDir = config.getAgentSkillsPath(req.params.name as string);
+            const svc = new SkillService("", "", "", "");
+            svc.registerSkillsDir(skillsDir);
+            const skill = svc.getAllSkills().find(s => s.name === req.params.skillName);
+            if (!skill) { const e: any = new Error(`Skill "${req.params.skillName}" not found`); e.status = 404; throw e; }
+            const filePath = safeSkillFilePath(req.query.path as string);
+            const fullPath = path.join(skill.path, filePath);
+            if (!fs.existsSync(fullPath) || !fs.statSync(fullPath).isFile()) {
+                const e: any = new Error(`File "${filePath}" not found`); e.status = 404; throw e;
+            }
+            return { path: filePath, content: fs.readFileSync(fullPath, 'utf-8') };
+        }));
 
         app.put('/api/agents/:name/skills/:skillName', api(req => {
             if (!req.body.content) { const e: any = new Error('Missing content'); e.status = 400; throw e; }
