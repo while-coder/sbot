@@ -29,7 +29,7 @@ export function initGlobalAgentToolService() {
     // globalAgentToolService.registerToolFactory(BuiltinProvider.GameData, async () => createGameDataTools(), '游戏数据表查询与修改');
     globalAgentToolService.registerMcpServers({
         [BuiltinProvider.Playwright]: {
-            "command": "npx.cmd",
+            "command": "npx",
             "args": ["@playwright/mcp@latest"],
             "description": "Playwright 浏览器自动化",
         },

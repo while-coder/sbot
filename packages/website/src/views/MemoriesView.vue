@@ -25,7 +25,7 @@ const showModal   = ref(false)
 const editingName = ref<string | null>(null)
 const form = ref<MemoryConfig>({
   name: '', mode: MemoryMode.HumanAndAI, maxAgeDays: undefined,
-  embedding: '', extractor: '', compressor: '', share: false,
+  embedding: '', extractor: '', compressor: '', extractorPrompt: '', compressorPrompt: '', share: false,
 })
 
 const memoryViewModal = ref<InstanceType<typeof MemoryViewModal>>()
@@ -53,7 +53,7 @@ async function toggleExpand(id: string) {
 
 function openAdd() {
   editingName.value = null
-  form.value = { name: '', mode: MemoryMode.HumanAndAI, maxAgeDays: undefined, embedding: '', extractor: '', compressor: '', share: false }
+  form.value = { name: '', mode: MemoryMode.HumanAndAI, maxAgeDays: undefined, embedding: '', extractor: '', compressor: '', extractorPrompt: '', compressorPrompt: '', share: false }
   showModal.value = true
 }
 
@@ -67,6 +67,8 @@ function openEdit(id: string) {
     embedding: m.embedding,
     extractor: m.extractor,
     compressor: m.compressor || '',
+    extractorPrompt: m.extractorPrompt || '',
+    compressorPrompt: m.compressorPrompt || '',
     share: !!m.share,
   }
   showModal.value = true
@@ -87,6 +89,8 @@ async function save() {
     }
     if (config.maxAgeDays) body.maxAgeDays = config.maxAgeDays
     if (config.compressor) body.compressor = config.compressor
+    if (config.extractorPrompt) body.extractorPrompt = config.extractorPrompt
+    if (config.compressorPrompt) body.compressorPrompt = config.compressorPrompt
     const id = editingName.value
     const res = id
       ? await apiFetch(`/api/settings/memories/${encodeURIComponent(id)}`, 'PUT', body)
@@ -277,11 +281,19 @@ async function refresh() {
             </select>
           </div>
           <div class="form-group">
+            <label>{{ t('memories.extractor_prompt') }}</label>
+            <input v-model="form.extractorPrompt" :placeholder="t('memories.extractor_prompt_placeholder')" />
+          </div>
+          <div class="form-group">
             <label>{{ t('memories.compressor_model') }}</label>
             <select v-model="form.compressor">
               <option value="">{{ t('common.not_use') }}</option>
               <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
             </select>
+          </div>
+          <div class="form-group">
+            <label>{{ t('memories.compressor_prompt') }}</label>
+            <input v-model="form.compressorPrompt" :placeholder="t('memories.compressor_prompt_placeholder')" />
           </div>
           <div class="form-group">
             <label class="toggle-label">
