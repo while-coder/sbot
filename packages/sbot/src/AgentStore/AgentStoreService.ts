@@ -1,28 +1,18 @@
 import fs from 'fs';
 import path from 'path';
 import AdmZip from 'adm-zip';
-import { config } from '../Core/Config';
+import { config, type AgentSourceEntry } from '../Core/Config';
 import { httpGetJson } from '../SkillHub/types';
 import { globalSkillService } from '../Agent/GlobalSkillService';
 import type {
   AgentPackage,
   AgentPackageVersion,
-  AgentSourceEntry,
   AgentUpdateDiff,
   AgentConfig,
   AgentStoreSource,
-  Settings as CommonsSettings,
 } from 'sbot.commons';
 import type { RemoteAgentStoreJson, BrowsedAgent } from './types';
 import type { SkillHubService } from '../SkillHub';
-
-/**
- * Cast config.settings to the sbot.commons Settings shape so we can
- * access `agentSources`.
- */
-function getSettings(): CommonsSettings {
-  return config.settings as unknown as CommonsSettings;
-}
 
 /**
  * AgentStoreService -- browse, install, update, and export agent packages
@@ -40,12 +30,12 @@ export class AgentStoreService {
 
   /** Return all configured agent sources. */
   getSources(): AgentSourceEntry[] {
-    return getSettings().agentSources ?? [];
+    return config.settings.agentSources ?? [];
   }
 
   /** Append a new source entry and persist. */
   addSource(entry: AgentSourceEntry): void {
-    const s = getSettings();
+    const s = config.settings;
     if (!s.agentSources) {
       s.agentSources = [];
     }
@@ -55,7 +45,7 @@ export class AgentStoreService {
 
   /** Remove the source at `index` and persist. */
   removeSource(index: number): void {
-    const s = getSettings();
+    const s = config.settings;
     if (!s.agentSources || index < 0 || index >= s.agentSources.length) return;
     s.agentSources.splice(index, 1);
     config.saveSettings();
@@ -499,7 +489,7 @@ export class AgentStoreService {
 
   /** Get the minimum update interval across all auto-update-enabled sources. */
   private getMinUpdateInterval(): number {
-    const sources = getSettings().agentSources ?? [];
+    const sources = config.settings.agentSources ?? [];
     const intervals = sources
       .filter(s => s.enabled !== false && s.autoUpdate !== false)
       .map(s => s.updateInterval ?? 60);
