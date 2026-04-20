@@ -1,5 +1,9 @@
+import fs from 'fs';
+import path from 'path';
+import AdmZip from 'adm-zip';
 import { config } from '../Core/Config';
 import { httpGetJson } from '../SkillHub/types';
+import { globalSkillService } from '../Agent/GlobalSkillService';
 import type {
   AgentPackage,
   AgentPackageVersion,
@@ -141,15 +145,10 @@ export class AgentStoreService {
     const ver = pkg.versions[options?.versionIndex ?? 0];
     if (!ver) throw new Error(`Version index out of range for "${agentId}"`);
 
-    // ── Restore MCP: merge globalMcp into agent-specific, keep only builtin refs in agent.mcp ──
-    const mergedMcp: Record<string, unknown> = {};
-    if (ver.globalMcp?.mcpServers) Object.assign(mergedMcp, ver.globalMcp.mcpServers);
-    if (ver.agentMcp?.mcpServers) Object.assign(mergedMcp, ver.agentMcp.mcpServers);
-
-    // Rewrite agent.mcp: builtin IDs stay, non-builtin globals become agent-specific
-    const agentConfig = { ...ver.agent };
-    if (Array.isArray(agentConfig.mcp)) {
-      agentConfig.mcp = (agentConfig.mcp as string[]).filter(id => id.startsWith('builtin_'));
+    // ── Restore MCP from package ──
+    const agentConfig: Record<string, unknown> = { ...ver.agent };
+    if (ver.mcp?.builtin?.length) {
+      agentConfig.mcp = ver.mcp.builtin;
     }
 
     config.saveAgent(agentId, {
@@ -162,9 +161,9 @@ export class AgentStoreService {
       } as AgentStoreSource,
     });
 
-    // Write merged MCP to agent-specific mcp.json
-    if (Object.keys(mergedMcp).length > 0) {
-      config.saveAgentMcpServers(agentId, mergedMcp as any);
+    // Write MCP servers to agent-specific mcp.json
+    if (ver.mcp?.servers && Object.keys(ver.mcp.servers).length > 0) {
+      config.saveAgentMcpServers(agentId, ver.mcp.servers as any);
     }
 
     const installed: string[] = [agentId];
@@ -226,21 +225,13 @@ export class AgentStoreService {
       }
     }
 
-    // ── Cascading: skill dependencies (read from ver.agent.skills) ──
-    const skillNames = Array.isArray(ver.agent.skills) ? ver.agent.skills as string[] : [];
-    if (skillNames.length && options?.skillHub) {
-      for (const skillName of skillNames) {
-        try {
-          const results = await options.skillHub.searchSkills(skillName, 1);
-          if (results.length > 0) {
-            await options.skillHub.installSkill(results[0].sourceUrl, config.getAgentSkillsPath(agentId));
-          } else {
-            skippedDeps.push(`skill:${skillName}`);
-          }
-        } catch {
-          skippedDeps.push(`skill:${skillName}`);
-        }
-      }
+    // ── Cascading: skill dependencies ──
+    if (ver.skillsBundle) {
+      const buf = Buffer.from(ver.skillsBundle, 'base64');
+      const zip = new AdmZip(buf);
+      const targetDir = config.getAgentSkillsPath(agentId);
+      if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+      zip.extractAllTo(targetDir, true);
     }
 
     return { agentId, conflict: false, installed, skippedDeps };
@@ -323,7 +314,7 @@ export class AgentStoreService {
     try { agent = config.getAgent(agentId); } catch { /* not found */ }
     if (!agent) return;
 
-    const { storeSource: _drop, id: _id, ...agentFields } = agent;
+    const { storeSource: _drop, id: _id, mcp: _mcp, skills: _skills, autoApproveTools: _aat, autoApproveAllTools: _aaat, ...agentFields } = agent;
 
     // Build a single version snapshot
     const ver: AgentPackageVersion = {
@@ -335,24 +326,29 @@ export class AgentStoreService {
       ? (agentFields.agents as { id: string }[]).map(a => a.id)
       : [];
 
-    // ── MCP: split builtin vs non-builtin global references ──
-    const mcpRefs = Array.isArray(agentFields.mcp) ? agentFields.mcp as string[] : [];
+    // ── MCP: collect builtin refs + all server configs ──
+    const mcpRefs = Array.isArray(agent.mcp) ? agent.mcp as string[] : [];
+    const builtin = mcpRefs.filter((id: string) => id.startsWith('builtin_'));
     const nonBuiltinIds = mcpRefs.filter((id: string) => !id.startsWith('builtin_'));
+
+    const servers: Record<string, unknown> = {};
     if (nonBuiltinIds.length) {
       const allGlobal = config.getGlobalMcpServers();
-      const globalMcpServers: Record<string, unknown> = {};
       for (const id of nonBuiltinIds) {
-        if (allGlobal[id]) globalMcpServers[id] = allGlobal[id];
-      }
-      if (Object.keys(globalMcpServers).length > 0) {
-        ver.globalMcp = { mcpServers: globalMcpServers };
+        if (allGlobal[id]) servers[id] = allGlobal[id];
       }
     }
-
-    // ── Agent-specific MCP (mcp.json) ──
     const agentMcpServers = config.getAgentMcpServers(agentId);
-    if (Object.keys(agentMcpServers).length > 0) {
-      ver.agentMcp = { mcpServers: agentMcpServers };
+    Object.assign(servers, agentMcpServers);
+
+    if (builtin.length || Object.keys(servers).length) {
+      ver.mcp = { builtin, servers };
+    }
+
+    // ── Skills: bundle agent-specific + referenced global skills ──
+    const skillsBundle = this._bundleSkills(agentId, agent.skills as string[] | '*' | undefined);
+    if (skillsBundle) {
+      ver.skillsBundle = skillsBundle;
     }
 
     out.set(agentId, {
@@ -365,6 +361,54 @@ export class AgentStoreService {
     for (const subId of subAgentIds) {
       this._collectAgentPackage(subId, out, visited);
     }
+  }
+
+  // ── Skills bundling ─────────────────────────────────────────
+
+  private _bundleSkills(agentId: string, agentSkills: string[] | '*' | undefined): string | undefined {
+    const zip = new AdmZip();
+    const added = new Set<string>();
+
+    const agentSkillsDir = config.getAgentSkillsPath(agentId);
+    if (fs.existsSync(agentSkillsDir)) {
+      for (const entry of fs.readdirSync(agentSkillsDir, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        const skillDir = path.join(agentSkillsDir, entry.name);
+        if (!fs.existsSync(path.join(skillDir, 'SKILL.md'))) continue;
+        this._addDirToZip(zip, skillDir, entry.name);
+        added.add(entry.name);
+      }
+    }
+
+    if (Array.isArray(agentSkills)) {
+      const allGlobal = globalSkillService.getAllSkills();
+      for (const skillName of agentSkills) {
+        if (added.has(skillName)) continue;
+        const skill = allGlobal.find(s => s.name === skillName);
+        if (skill?.path && fs.existsSync(skill.path)) {
+          this._addDirToZip(zip, skill.path, skillName);
+          added.add(skillName);
+        }
+      }
+    }
+
+    if (added.size === 0) return undefined;
+    return zip.toBuffer().toString('base64');
+  }
+
+  private _addDirToZip(zip: AdmZip, dirPath: string, zipPrefix: string): void {
+    const walk = (dir: string, rel: string) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const fullPath = path.join(dir, entry.name);
+        const zipPath = rel ? `${rel}/${entry.name}` : entry.name;
+        if (entry.isDirectory()) {
+          walk(fullPath, zipPath);
+        } else {
+          zip.addFile(`${zipPrefix}/${zipPath}`, fs.readFileSync(fullPath));
+        }
+      }
+    };
+    walk(dirPath, '');
   }
 
   // ── Private helpers ─────────────────────────────────────────
