@@ -168,9 +168,6 @@ export interface AgentPackage {
 export interface AgentSourceEntry {
   url: string
   name?: string
-  enabled?: boolean
-  autoUpdate?: boolean
-  updateInterval?: number
 }
 
 export interface AgentUpdateDiff {

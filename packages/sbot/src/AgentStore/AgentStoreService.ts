@@ -56,13 +56,13 @@ export class AgentStoreService {
   /**
    * Fetch available agent packages from remote sources.
    * If `sourceUrl` is given, only that source is fetched.
-   * Otherwise all enabled sources are fetched.
+   * Otherwise all sources are fetched.
    */
   async fetchRemoteAgents(sourceUrl?: string): Promise<BrowsedAgent[]> {
     const sources = this.getSources();
     const targets = sourceUrl
-      ? [{ url: sourceUrl, name: undefined as string | undefined, enabled: true }]
-      : sources.filter(s => s.enabled !== false);
+      ? [{ url: sourceUrl, name: undefined as string | undefined }]
+      : sources;
 
     const results: BrowsedAgent[] = [];
 
@@ -460,11 +460,11 @@ export class AgentStoreService {
 
   // ── Auto-update scheduler ──────────────────────────────────
 
-  /** Start periodic update checks. `broadcastFn` sends WS notifications to clients. */
+  /** Start periodic update checks (fixed 60-min interval). `broadcastFn` sends WS notifications to clients. */
   startAutoUpdate(broadcastFn?: (data: string) => void): void {
     this.stopAutoUpdate();
-    const interval = this.getMinUpdateInterval();
-    if (interval <= 0) return;
+    const sources = config.settings.agentSources ?? [];
+    if (sources.length === 0) return;
 
     this.updateTimer = setInterval(async () => {
       try {
@@ -476,7 +476,7 @@ export class AgentStoreService {
           }));
         }
       } catch { /* ignore */ }
-    }, interval * 60 * 1000);
+    }, 60 * 60 * 1000);
   }
 
   /** Stop the periodic update timer. */
@@ -485,14 +485,5 @@ export class AgentStoreService {
       clearInterval(this.updateTimer);
       this.updateTimer = null;
     }
-  }
-
-  /** Get the minimum update interval across all auto-update-enabled sources. */
-  private getMinUpdateInterval(): number {
-    const sources = config.settings.agentSources ?? [];
-    const intervals = sources
-      .filter(s => s.enabled !== false && s.autoUpdate !== false)
-      .map(s => s.updateInterval ?? 60);
-    return intervals.length > 0 ? Math.min(...intervals) : 0;
   }
 }

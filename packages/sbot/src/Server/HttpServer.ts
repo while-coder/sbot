@@ -945,9 +945,9 @@ class HttpServer {
         }));
 
         app.post('/api/agent-store/sources', api(async req => {
-            const { url, name, enabled, autoUpdate, updateInterval } = req.body;
+            const { url, name } = req.body;
             if (!url?.trim()) throwBad('Missing url');
-            this.agentStoreService.addSource({ url: url.trim(), name, enabled, autoUpdate, updateInterval });
+            this.agentStoreService.addSource({ url: url.trim(), name });
             return this.agentStoreService.getSources();
         }));
 
