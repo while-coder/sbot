@@ -362,8 +362,6 @@ class HttpServer {
             logger.info(`HTTP server started, admin UI available at: http://127.0.0.1:${port}`);
         });
 
-        // Start agent store auto-update scheduler
-        this.agentStoreService.startAutoUpdate((data) => this.broadcastToWs(data));
     }
 
     // ===== System =====
@@ -958,15 +956,11 @@ class HttpServer {
             return this.agentStoreService.getSources();
         }));
 
-        // ── Pending updates (from auto-update scheduler) ──
-        app.get('/api/agent-store/pending-updates', api(() => {
-            return this.agentStoreService.pendingUpdates;
-        }));
-
-        // ── Browse ──
-        app.get('/api/agent-store/browse', api(async req => {
-            const source = req.query.source as string | undefined;
-            return this.agentStoreService.fetchRemoteAgents(source);
+        // ── Proxy (fetch remote JSON on behalf of frontend to avoid CORS) ──
+        app.get('/api/agent-store/proxy', api(async req => {
+            const url = req.query.url as string | undefined;
+            if (!url?.trim()) throwBad('Missing url');
+            return this.agentStoreService.fetchRemoteJson(url.trim());
         }));
 
         // ── Install ──
@@ -984,24 +978,6 @@ class HttpServer {
             return { ...result, settings: this.settingsWithAgents() };
         }));
 
-        // ── Updates ──
-        app.post('/api/agent-store/check-updates', api(async () => {
-            return this.agentStoreService.checkUpdates();
-        }));
-
-        app.post('/api/agent-store/update/:id', api(async req => {
-            const agentId = req.params.id as string;
-            const { pkg } = req.body;
-            if (!pkg) throwBad('Missing pkg');
-            const ok = this.agentStoreService.applyUpdate(agentId, pkg);
-            if (!ok) throwBad(`Agent "${agentId}" not found`);
-            return this.settingsWithAgents();
-        }));
-
-        // ── Export ──
-        app.get('/api/agent-store/export/:agentId', api(async req => {
-            return this.agentStoreService.exportAgent(req.params.agentId as string);
-        }));
     }
 
     // ===== Prompts =====

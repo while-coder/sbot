@@ -170,14 +170,6 @@ export interface AgentSourceEntry {
   name?: string
 }
 
-export interface AgentUpdateDiff {
-  id: string
-  localVersion?: string
-  remoteVersion: string
-  changes: string[]
-  pkg: AgentPackage
-}
-
 export interface SessionConfig {
   /** 显示名称 */
   name: string

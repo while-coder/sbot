@@ -1,2 +1,2 @@
 export { AgentStoreService } from './AgentStoreService';
-export type { BrowsedAgent, RemoteAgentStoreJson } from './types';
+export type { RemoteAgentStoreJson } from './types';

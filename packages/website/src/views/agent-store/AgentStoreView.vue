@@ -31,8 +31,6 @@ interface BrowsedAgent {
   sourceUrl: string
   sourceName?: string
   installed: boolean
-  installedId?: string
-  hasUpdate: boolean
   pkg: AgentPackage
 }
 
@@ -41,21 +39,12 @@ interface AgentSourceEntry {
   name?: string
 }
 
-interface AgentUpdateDiff {
-  id: string
-  oldVersion: string
-  newVersion: string
-  changes?: string
-  pkg: AgentPackage
-}
-
 // ── State ──
 const agents = ref<BrowsedAgent[]>([])
 const sources = ref<AgentSourceEntry[]>([])
 const loading = ref(false)
 const searchQuery = ref('')
 const selectedSource = ref('__all__')
-const updateDiffs = ref<Map<string, AgentUpdateDiff>>(new Map())
 
 // ── Computed ──
 const filteredAgents = computed(() => {
@@ -84,6 +73,10 @@ const depsSummary = (agent: AgentPackageVersion['agent']): string => {
   return parts.join(', ')
 }
 
+function isInstalled(pkgId: string): boolean {
+  return pkgId in (store.settings.agents ?? {})
+}
+
 // ── Data loading ──
 async function loadSources() {
   try {
@@ -97,8 +90,26 @@ async function loadSources() {
 async function loadAgents() {
   loading.value = true
   try {
-    const res = await apiFetch('/api/agent-store/browse')
-    agents.value = Array.isArray(res) ? res : (res.data ?? [])
+    const results: BrowsedAgent[] = []
+    await Promise.all(sources.value.map(async (src) => {
+      try {
+        const remote: { name?: string; agents?: AgentPackage[] } = await apiFetch(
+          `/api/agent-store/proxy?url=${encodeURIComponent(src.url)}`,
+        )
+        const pkgs = remote?.agents
+        if (!Array.isArray(pkgs)) return
+        for (const pkg of pkgs) {
+          if (!pkg.id) continue
+          results.push({
+            sourceUrl: src.url,
+            sourceName: src.name ?? remote.name,
+            installed: isInstalled(pkg.id),
+            pkg,
+          })
+        }
+      } catch { /* skip unreachable source */ }
+    }))
+    agents.value = results
   } catch (e: any) {
     show(t('agentStore.fetch_error'), 'error')
   } finally {
@@ -107,7 +118,8 @@ async function loadAgents() {
 }
 
 async function reload() {
-  await Promise.all([loadSources(), loadAgents()])
+  await loadSources()
+  await loadAgents()
 }
 
 // ── Source management modal ──
@@ -196,63 +208,6 @@ async function confirmInstall() {
   }
 }
 
-// ── Update ──
-const checkingUpdates = ref(false)
-
-async function checkUpdates() {
-  checkingUpdates.value = true
-  try {
-    const res = await apiFetch('/api/agent-store/check-updates', 'POST')
-    const diffs: AgentUpdateDiff[] = Array.isArray(res) ? res : (res.data ?? [])
-    updateDiffs.value = new Map(diffs.map(d => [d.id, d]))
-    if (diffs.length === 0) {
-      show(t('agentStore.no_updates'))
-    } else {
-      show(t('agentStore.updates_found', { count: diffs.length }))
-      // Mark hasUpdate on agents
-      for (const a of agents.value) {
-        if (updateDiffs.value.has(a.pkg.id)) {
-          a.hasUpdate = true
-        }
-      }
-    }
-  } catch (e: any) {
-    show(e.message, 'error')
-  } finally {
-    checkingUpdates.value = false
-  }
-}
-
-const showUpdateModal = ref(false)
-const updateTarget = ref<BrowsedAgent | null>(null)
-const updating = ref(false)
-
-function openUpdate(agent: BrowsedAgent) {
-  updateTarget.value = agent
-  showUpdateModal.value = true
-}
-
-async function confirmUpdate() {
-  if (!updateTarget.value) return
-  updating.value = true
-  try {
-    const res = await apiFetch(
-      `/api/agent-store/update/${encodeURIComponent(updateTarget.value.pkg.id)}`,
-      'POST',
-      { pkg: updateTarget.value.pkg },
-    )
-    if (res.data?.settings) Object.assign(store.settings, res.data.settings)
-    show(t('agentStore.update_success'))
-    showUpdateModal.value = false
-    updateDiffs.value.delete(updateTarget.value.pkg.id)
-    await loadAgents()
-  } catch (e: any) {
-    show(e.message, 'error')
-  } finally {
-    updating.value = false
-  }
-}
-
 // ── Load from file (temporary source) ──
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const tempSourceName = ref('')
@@ -279,15 +234,10 @@ function onFileSelected(ev: Event) {
       const sourceName = data.name || file.name.replace(/\.json$/, '')
       const sourceUrl = `__file__:${sourceName}`
       tempSourceName.value = sourceName
-      // Check installed status against known agents from store settings
-      const installedIds = new Set(
-        Object.keys(store.settings.agents ?? {})
-      )
       tempSourceAgents.value = sourceAgents.map(pkg => ({
         sourceUrl,
         sourceName: sourceName,
-        installed: installedIds.has(pkg.id),
-        hasUpdate: false,
+        installed: isInstalled(pkg.id),
         pkg,
         _localAgents: sourceAgents,
       } as BrowsedAgent & { _localAgents?: AgentPackage[] }))
@@ -318,9 +268,6 @@ onMounted(reload)
     <!-- Toolbar -->
     <div class="page-toolbar">
       <button class="btn-outline btn-sm" @click="openAddSource">{{ t('agentStore.add_source') }}</button>
-      <button class="btn-outline btn-sm" :disabled="checkingUpdates" @click="checkUpdates">
-        {{ checkingUpdates ? t('agentStore.loading') : t('agentStore.check_updates') }}
-      </button>
       <button class="btn-primary btn-sm" @click="triggerFileLoad">{{ t('agentStore.import_file') }}</button>
       <input
         ref="fileInputRef"
@@ -451,20 +398,13 @@ onMounted(reload)
 
           <!-- Action button -->
           <div style="display:flex;gap:6px">
-            <template v-if="a.installed && a.hasUpdate">
-              <span class="store-installed-badge">{{ t('agentStore.installed') }}</span>
-              <button class="btn-primary btn-sm" @click="openUpdate(a)">{{ t('agentStore.update') }}</button>
-            </template>
-            <template v-else-if="a.installed">
+            <template v-if="a.installed">
               <span class="store-installed-badge">{{ t('agentStore.installed') }}</span>
             </template>
             <template v-else>
               <button class="btn-primary btn-sm" @click="openInstall(a)">{{ t('agentStore.install') }}</button>
             </template>
           </div>
-
-          <!-- Update available dot -->
-          <div v-if="a.hasUpdate && a.installed" class="store-update-dot" :title="t('agentStore.has_update')"></div>
         </div>
       </div>
     </div>
@@ -565,45 +505,6 @@ onMounted(reload)
       </div>
     </div>
 
-    <!-- ── Update Confirm Modal ── -->
-    <div v-if="showUpdateModal && updateTarget" class="modal-overlay" @click.self="showUpdateModal = false">
-      <div class="modal-box">
-        <div class="modal-header">
-          <h3>{{ t('agentStore.update') }}</h3>
-          <button class="modal-close" @click="showUpdateModal = false">&times;</button>
-        </div>
-        <div class="modal-body">
-          <div style="margin-bottom:12px">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-              <span style="font-family:monospace;font-size:15px;font-weight:600;color:#1e293b">{{ updateTarget.pkg.name }}</span>
-              <span v-if="updateTarget.pkg.versions[0]" :class="'agent-type-badge agent-type-' + updateTarget.pkg.versions[0].agent.type">{{ updateTarget.pkg.versions[0].agent.type }}</span>
-            </div>
-            <div style="font-size:12px;color:#9b9b9b;font-family:monospace">{{ updateTarget.pkg.id }}</div>
-          </div>
-          <!-- Version change -->
-          <div style="padding:10px 12px;background:#f1f5f9;border-radius:6px;font-size:13px;color:#475569;margin-bottom:12px;display:flex;align-items:center;gap:8px">
-            <span v-if="updateDiffs.get(updateTarget.pkg.id)">
-              v{{ updateDiffs.get(updateTarget.pkg.id)!.oldVersion }}
-            </span>
-            <span style="color:#9b9b9b">&rarr;</span>
-            <span style="font-weight:600;color:#1c1c1c">v{{ updateTarget.pkg.versions[0]?.version }}</span>
-          </div>
-          <!-- Changes -->
-          <div v-if="updateDiffs.get(updateTarget.pkg.id)?.changes" style="margin-bottom:12px">
-            <div style="font-size:12px;font-weight:600;color:#6b6b6b;margin-bottom:6px">{{ t('agentStore.changes') }}</div>
-            <pre style="margin:0;padding:10px;background:#fafaf9;border:1px solid #e8e6e3;border-radius:6px;font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-word;color:#1e293b;max-height:200px;overflow:auto">{{ updateDiffs.get(updateTarget.pkg.id)!.changes }}</pre>
-          </div>
-          <div style="font-size:13px;color:#475569">{{ t('agentStore.confirm_update') }}</div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-outline" @click="showUpdateModal = false">{{ t('common.cancel') }}</button>
-          <button class="btn-primary" :disabled="updating" @click="confirmUpdate">
-            {{ updating ? t('agentStore.loading') : t('agentStore.update') }}
-          </button>
-        </div>
-      </div>
-    </div>
-
   </div>
 </template>
 
@@ -637,16 +538,6 @@ onMounted(reload)
   border-radius: 4px;
   background: #dcfce7;
   color: #166534;
-}
-
-.store-update-dot {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #f59e0b;
 }
 
 .agent-type-badge {
