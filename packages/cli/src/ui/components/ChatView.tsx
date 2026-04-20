@@ -1,85 +1,95 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Box, Static, Text } from 'ink';
 import ansiEscapes from 'ansi-escapes';
-import type { SbotClient } from '../../api/sbotClient.js';
-import { StreamingState } from '../types.js';
 import { useKeypress, type Key } from '../hooks/useKeypress.js';
+import { useStore } from '../../store/useStore.js';
+import {
+  submitQuery,
+  resolveApproval,
+  resolveAsk,
+  cancelRequest,
+  restoreSessionStatus,
+} from '../../store/actions.js';
+import type { AppStateStore } from '../../store/AppStateStore.js';
+import type { CommandRegistry } from '../../commands/registry.js';
+import { StreamingState } from '../types.js';
 import { Header } from './Header.js';
 import { Footer } from './Footer.js';
 import { HistoryItem } from './HistoryItem.js';
 import { PendingZone } from './PendingZone.js';
 import { InputPrompt, type PendingAttachment } from './InputPrompt.js';
 import { ErrorBoundary } from './ErrorBoundary.js';
-import { useChatStream } from '../hooks/useChatStream.js';
 
 interface ChatViewProps {
-  client: SbotClient;
-  sessionId: string;
-  agentName: string;
-  saverName: string;
+  store: AppStateStore;
+  registry: CommandRegistry;
   onExit: () => void;
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({
-  client,
-  sessionId,
-  agentName,
-  saverName,
+  store,
+  registry,
   onExit,
 }) => {
-  const {
-    history, pendingContent, streamingState,
-    pendingApproval, pendingAsk,
-    submitQuery, resolveApproval, resolveAsk,
-    cancelRequest,
-  } = useChatStream(client, sessionId);
+  const history = useStore(s => s.history);
+  const pendingContent = useStore(s => s.pendingContent);
+  const streamingState = useStore(s => s.streamingState);
+  const pendingApproval = useStore(s => s.pendingApproval);
+  const pendingAsk = useStore(s => s.pendingAsk);
+  const agentName = useStore(s => s.agentName);
+  const saverName = useStore(s => s.saverName);
+  const toolCallsExpanded = useStore(s => s.toolCallsExpanded);
 
   const isIdle = streamingState === StreamingState.Idle;
-  const [toolCallsExpanded, setToolCallsExpanded] = useState(false);
   const [remountKey, setRemountKey] = useState(0);
+
+  useEffect(() => {
+    void restoreSessionStatus(store);
+  }, [store]);
 
   const handleSubmit = useCallback(
     async (text: string, attachments: PendingAttachment[]) => {
-      await submitQuery(text, attachments);
+      if (text.startsWith('/') && text.trim().length > 1) {
+        const handled = await registry.execute(text, store);
+        if (handled) return;
+      }
+      await submitQuery(store, text, attachments);
     },
-    [submitQuery],
+    [store, registry],
   );
 
   const handleCancel = useCallback(() => {
     if (streamingState === StreamingState.Responding) {
-      cancelRequest();
+      cancelRequest(store);
     } else {
       onExit();
     }
-  }, [streamingState, cancelRequest, onExit]);
+  }, [store, streamingState, onExit]);
 
-  // Global keys (Tab fold, Ctrl+L clear, Ctrl+C cancel)
   const handleGlobalKey = useCallback(
     (key: Key) => {
       if (key.name === 'tab') {
         process.stdout.write(ansiEscapes.clearTerminal);
-        setToolCallsExpanded((e) => !e);
-        setRemountKey((k) => k + 1);
+        store.setState({ toolCallsExpanded: !store.getState().toolCallsExpanded });
+        setRemountKey(k => k + 1);
       }
       if (key.ctrl && key.name === 'l') {
         process.stdout.write(ansiEscapes.clearTerminal);
-        setRemountKey((k) => k + 1);
+        setRemountKey(k => k + 1);
       }
       if (key.ctrl && key.name === 'c') {
         if (streamingState === StreamingState.Responding) {
-          cancelRequest();
+          cancelRequest(store);
         } else if (isIdle) {
           onExit();
         }
       }
     },
-    [streamingState, isIdle, cancelRequest, onExit],
+    [store, streamingState, isIdle, onExit],
   );
 
   useKeypress(handleGlobalKey, { isActive: true });
 
-  // Build the static items array: Header + completed history.
-  // Memoized to avoid rebuilding on unrelated re-renders (e.g. pendingContent changes).
   const staticItems = useMemo(() => [
     <Header key="header" agentName={agentName} saverName={saverName} />,
     ...history.map((item) => (
@@ -99,8 +109,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
           streamingState={streamingState}
           pendingApproval={pendingApproval}
           pendingAsk={pendingAsk}
-          onResolveApproval={resolveApproval}
-          onResolveAsk={resolveAsk}
+          onResolveApproval={(approval) => resolveApproval(store, approval)}
+          onResolveAsk={(answers) => resolveAsk(store, answers)}
         />
 
         {(isIdle || streamingState === StreamingState.Responding) && (
@@ -108,10 +118,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
             isActive={isIdle}
             onSubmit={handleSubmit}
             onCancel={handleCancel}
+            commandRegistry={registry}
           />
         )}
 
-        <Footer streamingState={streamingState} />
+        <Footer streamingState={streamingState} commandMode={false} />
       </Box>
     </ErrorBoundary>
   );

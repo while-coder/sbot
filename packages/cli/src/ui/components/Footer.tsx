@@ -5,9 +5,10 @@ import { StreamingState } from '../types.js';
 
 interface FooterProps {
   streamingState: StreamingState;
+  commandMode?: boolean;
 }
 
-export const Footer: React.FC<FooterProps> = ({ streamingState }) => (
+export const Footer: React.FC<FooterProps> = ({ streamingState, commandMode }) => (
   <Box borderStyle="single" borderColor={theme.text.muted} paddingX={1}>
     {streamingState === StreamingState.Responding && (
       <Text color={theme.status.warning}>Ctrl+C cancel</Text>
@@ -18,9 +19,12 @@ export const Footer: React.FC<FooterProps> = ({ streamingState }) => (
     {streamingState === StreamingState.Asking && (
       <Text color={theme.status.info}>↑↓ navigate  Space toggle  Enter confirm  Ctrl+C cancel</Text>
     )}
-    {streamingState === StreamingState.Idle && (
+    {streamingState === StreamingState.Idle && commandMode && (
+      <Text color={theme.status.info}>↑↓ navigate  Tab complete  Enter execute  Esc cancel</Text>
+    )}
+    {streamingState === StreamingState.Idle && !commandMode && (
       <Text color={theme.text.muted}>
-        Enter send  Shift+Enter newline  Ctrl+A attach  ↑↓ history  Tab fold  Ctrl+L clear  Ctrl+C exit
+        Enter send  Shift+Enter newline  /help commands  Ctrl+A attach  ↑↓ history  Tab fold  Ctrl+L clear  Ctrl+C exit
       </Text>
     )}
   </Box>

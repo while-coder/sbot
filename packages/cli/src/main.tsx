@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-// Global error handlers — prevent uncaught errors from killing the CLI
 process.on('uncaughtException', (err) => {
   process.stderr.write(`[sbot-cli] uncaught error: ${err.message}\n`);
 });
@@ -19,14 +18,26 @@ import { SessionPicker } from './ui/components/SessionPicker.js';
 import { CreateSessionWizard } from './ui/components/CreateSessionWizard.js';
 import { ChatView } from './ui/components/ChatView.js';
 import { theme } from './ui/colors.js';
+import { AppStateStore } from './store/AppStateStore.js';
+import { StoreContext } from './store/useStore.js';
+import { CommandRegistry } from './commands/registry.js';
+import {
+  createHelpCommand,
+  clearCommand,
+  sessionCommand,
+  createExitCommand,
+  compactCommand,
+  approveAllCommand,
+} from './commands/builtins/index.js';
 
-// ── Boot component (now receives baseUrl + workPath) ────────────────────────
+const globalStore = new AppStateStore();
+const globalRegistry = new CommandRegistry();
 
 type BootState =
   | { phase: 'loading' }
   | { phase: 'session-pick'; settings: SbotSettings; sessions: SessionItem[] }
   | { phase: 'create'; settings: SbotSettings }
-  | { phase: 'chat'; sessionId: string; agentName: string; saverName: string }
+  | { phase: 'chat' }
   | { phase: 'error'; message: string };
 
 interface BootProps {
@@ -38,7 +49,21 @@ interface BootProps {
 function Boot({ baseUrl, workPath, onBack }: BootProps) {
   const { exit } = useApp();
   const [state, setState] = useState<BootState>({ phase: 'loading' });
-  const client = useMemo(() => new SbotClient(baseUrl), [baseUrl]);
+  const client = useMemo(() => {
+    const c = new SbotClient(baseUrl);
+    globalStore.setClient(c);
+    globalStore.setState({ connection: { baseUrl, workPath } });
+    return c;
+  }, [baseUrl, workPath]);
+
+  useMemo(() => {
+    globalRegistry.register(createHelpCommand(globalRegistry));
+    globalRegistry.register(clearCommand);
+    globalRegistry.register(sessionCommand);
+    globalRegistry.register(createExitCommand(exit));
+    globalRegistry.register(compactCommand);
+    globalRegistry.register(approveAllCommand);
+  }, [exit]);
 
   React.useEffect(() => {
     void (async () => {
@@ -68,7 +93,8 @@ function Boot({ baseUrl, workPath, onBack }: BootProps) {
   }, []);
 
   const handleSessionSelect = (sessionId: string, agentName: string, saverName: string) => {
-    setState({ phase: 'chat', sessionId, agentName, saverName });
+    globalStore.setState({ sessionId, agentName, saverName });
+    setState({ phase: 'chat' });
   };
 
   const handleCreateNew = () => {
@@ -86,7 +112,8 @@ function Boot({ baseUrl, workPath, onBack }: BootProps) {
   ) => {
     try {
       const sessionId = await client.createSession(agentId, saverId, memoryIds, workPath);
-      setState({ phase: 'chat', sessionId, agentName, saverName });
+      globalStore.setState({ sessionId, agentName, saverName });
+      setState({ phase: 'chat' });
     } catch (e: any) {
       setState({ phase: 'error', message: `Failed to create session: ${e.message}` });
     }
@@ -129,11 +156,8 @@ function Boot({ baseUrl, workPath, onBack }: BootProps) {
     );
   }
 
-  // phase === 'chat'
-  return <ChatView client={client} sessionId={state.sessionId} agentName={state.agentName} saverName={state.saverName} onExit={exit} />;
+  return <ChatView store={globalStore} registry={globalRegistry} onExit={exit} />;
 }
-
-// ── BootError: show error + Enter to go back ────────────────────────────────
 
 function BootError({ message, onBack }: { message: string; onBack: () => void }) {
   const handleKeypress = useCallback(
@@ -146,13 +170,11 @@ function BootError({ message, onBack }: { message: string; onBack: () => void })
 
   return (
     <Box padding={1} flexDirection="column">
-      <Text color={theme.status.error}>✗ {message}</Text>
+      <Text color={theme.status.error}>{message}</Text>
       <Text color={theme.text.muted}>Press Enter to go back.</Text>
     </Box>
   );
 }
-
-// ── App: ConnectionWizard → Boot ────────────────────────────────────────────
 
 function App() {
   const [target, setTarget] = useState<ConnectionTarget | null>(null);
@@ -165,12 +187,12 @@ function App() {
   return <Boot baseUrl={target.baseUrl} workPath={target.workPath} onBack={handleBack} />;
 }
 
-// ── Entry point ─────────────────────────────────────────────────────────────
-
 const { waitUntilExit } = render(
-  <KeypressProvider>
-    <App />
-  </KeypressProvider>,
+  <StoreContext.Provider value={globalStore}>
+    <KeypressProvider>
+      <App />
+    </KeypressProvider>
+  </StoreContext.Provider>,
   { exitOnCtrlC: false },
 );
 
