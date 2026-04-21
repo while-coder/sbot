@@ -85,7 +85,7 @@ export class LarkService implements IChannelService {
     this.larkWsClient = new Lark.WSClient({ ...this.larkConfig, logger: this.larkLogger, loggerLevel: this.loggerLevel });
   }
 
-  createUserService(session: SessionService): ChannelSessionHandler {
+  createSessionHandler(session: SessionService): ChannelSessionHandler {
     return new LarkSessionHandler(session, this);
   }
 

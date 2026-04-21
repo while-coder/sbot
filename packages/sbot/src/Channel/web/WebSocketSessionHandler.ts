@@ -19,7 +19,7 @@ Returns a map of question label → answer (string for radio/input, string[] for
 export { WebChatEventType } from 'sbot.commons';
 export type { WebChatEvent } from 'sbot.commons';
 
-export class WebSocketUserService extends ChannelSessionHandler {
+export class WebSocketSessionHandler extends ChannelSessionHandler {
 
     constructor(session: SessionService) {
         super(session);

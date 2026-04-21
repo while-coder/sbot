@@ -1,6 +1,6 @@
 import "reflect-metadata";
 import { ICommand, MessageType, type MessageContent, isEmptyContent } from "scorpio.ai";
-import { SessionManager, SessionService, ChannelMessageArgs } from "channel.base";
+import { SessionManager, SessionService, ChannelMessageArgs, ChannelSessionHandler } from "channel.base";
 import { config } from "../Core/Config";
 import { database, ChannelSessionRow, SessionRow } from "../Core/Database";
 import { channelManager } from "../Channel/ChannelManager";
@@ -8,7 +8,9 @@ import { createProcessAIHandler, createWebProcessAIHandler } from "../Processing
 import { classifyIntent } from "../Processing/classifyIntent";
 
 import { getBuiltInCommands } from "./BuiltInCommands";
-import { WebSocketUserService } from "../Channel/web/WebSocketUserService";
+import { WebSocketSessionHandler } from "../Channel/web/WebSocketSessionHandler";
+
+const WEB_CHANNEL = "web" as const;
 
 interface ChannelRouteArgs extends ChannelMessageArgs {
     channelType: string;
@@ -16,6 +18,13 @@ interface ChannelRouteArgs extends ChannelMessageArgs {
     dbSessionId: number;
     mentionBot?: boolean;
 }
+
+interface WebRouteArgs {
+    channelType: typeof WEB_CHANNEL;
+    sessionId?: string;
+}
+
+type SessionRouteArgs = ChannelRouteArgs | WebRouteArgs;
 
 const processAIHandler = createProcessAIHandler();
 const webProcessAIHandler = createWebProcessAIHandler();
@@ -31,34 +40,34 @@ class SbotSession extends SessionService {
         this.manager = manager;
     }
 
-    private getChannel(args: any) {
+    private getChannel(args: SessionRouteArgs) {
         if (!this.channel) {
-            this.channel = this.manager.createChannel(args?.channelType, this, args?.channelId);
+            const channelId = 'channelId' in args ? args.channelId : undefined;
+            this.channel = this.manager.createChannel(args.channelType, this, channelId);
         }
         return this.channel;
     }
 
-    private argsWithQueue(args: any): any {
+    private argsWithQueue(args: SessionRouteArgs) {
         return { ...args, pendingMessages: this.messageQueue.map(m => m.query) };
     }
 
-    protected async onProcessStart(query: MessageContent, args: any, messageType: MessageType): Promise<string | void> {
+    protected async onProcessStart(query: MessageContent, args: SessionRouteArgs, messageType: MessageType): Promise<string | void> {
         await this.getChannel(args).onProcessStart(query, this.argsWithQueue(args), messageType);
-        const channelType = args?.channelType as string | undefined;
-        const channelId = args?.channelId as string | undefined;
+        const channelId = 'channelId' in args ? args.channelId : undefined;
         const channelName = channelId ? config.getChannel(channelId)?.name : undefined;
-        return [channelType, channelName ?? channelId].filter(Boolean).join('/') || undefined;
+        return [args.channelType, channelName ?? channelId].filter(Boolean).join('/') || undefined;
     }
 
-    protected async processAI(query: MessageContent, args: any): Promise<void> {
+    protected async processAI(query: MessageContent, args: SessionRouteArgs): Promise<void> {
         await this.getChannel(args).processAI(query, args);
     }
 
-    protected async onCommandResult(content: string, args: any): Promise<void> {
+    protected async onCommandResult(content: string, args: SessionRouteArgs): Promise<void> {
         await this.getChannel(args).onCommandResult(content, args);
     }
 
-    protected async onProcessEnd(query: MessageContent, args: any, messageType: MessageType, error?: any): Promise<void> {
+    protected async onProcessEnd(query: MessageContent, args: SessionRouteArgs, messageType: MessageType, error?: any): Promise<void> {
         await this.getChannel(args).onProcessEnd(query, this.argsWithQueue(args), messageType, error);
         if (this.messageQueue.length === 0) {
             this.manager.end(this.threadId);
@@ -69,15 +78,14 @@ class SbotSession extends SessionService {
         return getBuiltInCommands();
     }
 
-    async resolveSaverId(args: any): Promise<string | undefined> {
-        const channelType = args?.channelType as string | undefined;
-        if (channelType === "web") {
-            const sessionId = args?.sessionId as string | undefined;
+    async resolveSaverId(args: SessionRouteArgs): Promise<string | undefined> {
+        if (args.channelType === WEB_CHANNEL) {
+            const sessionId = args.sessionId;
             if (!sessionId) return undefined;
             const row = await database.findByPk<SessionRow>(database.session, sessionId);
             return row?.saver;
         }
-        const channelId = args?.channelId as string | undefined;
+        const channelId = 'channelId' in args ? args.channelId : undefined;
         return channelId ? config.getChannel(channelId)?.saver : undefined;
     }
 
@@ -98,19 +106,20 @@ export class SbotSessionManager extends SessionManager {
         return new SbotSession(threadId, this);
     }
 
-    createChannel(type: string, session: SessionService, channelId?: string): any {
-        if (type === "web") {
-            const ws = new WebSocketUserService(session);
-            ws.setProcessAIHandler(webProcessAIHandler);
-            return ws;
+    createChannel(type: string, session: SessionService, channelId?: string): ChannelSessionHandler {
+        if (type === WEB_CHANNEL) {
+            const sessionHandler = new WebSocketSessionHandler(session);
+            sessionHandler.setProcessAIHandler(webProcessAIHandler);
+            return sessionHandler;
+        } else {
+            const service = channelId ? channelManager.getService(channelId) : undefined;
+            if (!service) {
+                throw new Error(`Channel service "${channelId}" not found`);
+            }
+            const sessionHandler = service.createSessionHandler(session);
+            sessionHandler.setProcessAIHandler(processAIHandler);
+            return sessionHandler;
         }
-        const service = channelId ? channelManager.getService(channelId) : undefined;
-        if (!service) {
-            throw new Error(`Channel service "${channelId}" not found`);
-        }
-        const userService = service.createUserService(session);
-        userService.setProcessAIHandler(processAIHandler);
-        return userService;
     }
 
     // ── Channel entry points ──
@@ -137,7 +146,7 @@ export class SbotSessionManager extends SessionManager {
     async onReceiveWebMessage(threadId: string, query: MessageContent, sessionId?: string): Promise<void> {
         if (isEmptyContent(query)) return;
         const session = this.getOrCreate(threadId);
-        await session.onReceiveMessage(query, { channelType: "web", sessionId });
+        await session.onReceiveMessage(query, { channelType: WEB_CHANNEL, sessionId });
     }
 
     // ── Trigger action routing ──

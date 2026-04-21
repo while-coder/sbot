@@ -36,7 +36,7 @@ export class SlackService implements IChannelService {
     });
   }
 
-  createUserService(session: SessionService): ChannelSessionHandler {
+  createSessionHandler(session: SessionService): ChannelSessionHandler {
     return new SlackSessionHandler(session, this);
   }
 

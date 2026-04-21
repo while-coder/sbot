@@ -68,9 +68,6 @@ export class GenerativeAgentService extends AgentServiceBase {
         if (!lastChunk) return [];
 
         if (lastChunk.usage) {
-            this.logger?.info(
-                `Token usage: input=${lastChunk.usage.input_tokens} output=${lastChunk.usage.output_tokens} total=${lastChunk.usage.total_tokens}`
-            );
             await callback?.onUsage?.(lastChunk.usage);
             delete lastChunk.usage;
         }

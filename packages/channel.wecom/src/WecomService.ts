@@ -54,7 +54,7 @@ export class WecomService implements IChannelService {
     });
   }
 
-  createUserService(session: SessionService): ChannelSessionHandler {
+  createSessionHandler(session: SessionService): ChannelSessionHandler {
     return new WecomSessionHandler(session, this);
   }
 

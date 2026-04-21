@@ -3,7 +3,7 @@ import { ChannelSessionHandler } from "./ChannelSessionHandler";
 import { SessionService } from "./SessionService";
 
 export interface IChannelService {
-  createUserService(session: SessionService): ChannelSessionHandler;
+  createSessionHandler(session: SessionService): ChannelSessionHandler;
   dispose?(): void;
 }
 

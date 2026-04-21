@@ -49,7 +49,7 @@ export class WechatService implements IChannelService {
     this._botId = options.credentials.botId;
   }
 
-  createUserService(session: SessionService): ChannelSessionHandler {
+  createSessionHandler(session: SessionService): ChannelSessionHandler {
     return new WechatSessionHandler(session, this);
   }
 

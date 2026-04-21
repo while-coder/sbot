@@ -171,11 +171,7 @@ export class SingleAgentService extends AgentServiceBase {
         await emitStream();
         if (!lastChunk) return { messages: [] };
 
-        // 报告本次模型调用的 token 用量，然后剥离（不持久化到 saver 消息历史）
         if (lastChunk.usage) {
-            this.logger?.info(
-                `Token usage: input=${lastChunk.usage.input_tokens} output=${lastChunk.usage.output_tokens} total=${lastChunk.usage.total_tokens}`
-            );
             await callback?.onUsage?.(lastChunk.usage);
             delete lastChunk.usage;
         }
