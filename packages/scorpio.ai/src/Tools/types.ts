@@ -10,6 +10,7 @@ export enum MCPContentType {
     Text = "text",
     Image = "image",
     Audio = "audio",
+    Document = "document",
     ImageUrl = "image_url",  // OpenAI 格式支持
 }
 
@@ -40,6 +41,15 @@ export type MCPAudioContent = {
 };
 
 /**
+ * MCP 文档内容（PDF 等）
+ */
+export type MCPDocumentContent = {
+    type: MCPContentType.Document;
+    data: string;
+    mimeType: string;
+};
+
+/**
  * OpenAI 风格的图片 URL 内容
  * 支持 url 或 image_url 字段名
  */
@@ -53,7 +63,7 @@ export type MCPImageUrlContent = {
 /**
  * MCP 内容块（联合类型）
  */
-export type MCPContent = MCPTextContent | MCPImageContent | MCPAudioContent | MCPImageUrlContent;
+export type MCPContent = MCPTextContent | MCPImageContent | MCPAudioContent | MCPDocumentContent | MCPImageUrlContent;
 
 /**
  * MCP 工具调用结果
@@ -83,6 +93,13 @@ export function createImageContent(data: string, mimeType: string = "image/png")
  */
 export function createAudioContent(data: string, mimeType: string = "audio/mpeg"): MCPAudioContent {
     return { type: MCPContentType.Audio, data, mimeType };
+}
+
+/**
+ * 创建文档内容块
+ */
+export function createDocumentContent(data: string, mimeType: string = "application/pdf"): MCPDocumentContent {
+    return { type: MCPContentType.Document, data, mimeType };
 }
 
 /**

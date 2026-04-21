@@ -3,5 +3,5 @@ IMPORTANT: Do NOT use read to search for content inside files. Use grep first to
 - offset + limit: read a specific line range (e.g. offset=50 limit=40 reads lines 50–89).
 - tail: efficiently read the last N lines (mutually exclusive with offset/limit).
 - Returns "Did you mean?" suggestions when the file is not found.
-- Automatically detects and rejects binary files; use read_binary_file for binary files.
+- Automatically detects and rejects binary files; use read_media_file for binary files.
 - Use ls to list directory contents instead of reading a directory path.

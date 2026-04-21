@@ -10,7 +10,7 @@ export { formatSize } from './utils';
 
 // 文件内容操作
 export { createReadTool } from './content/read';
-export { createReadBinaryFileTool } from './content/readBinaryFile';
+export { createReadMediaFileTool } from './content/readMediaFile';
 export { createWriteTool } from './content/write';
 export { createEditFileTool } from './content/edit';
 export { createGrepFilesTool } from './content/grep';
@@ -24,7 +24,7 @@ export { createMvTool } from './operations/mv';
 export { createCpTool } from './operations/cp';
 
 import { createReadTool } from './content/read';
-import { createReadBinaryFileTool } from './content/readBinaryFile';
+import { createReadMediaFileTool } from './content/readMediaFile';
 import { createWriteTool } from './content/write';
 import { createEditFileTool } from './content/edit';
 import { createGrepFilesTool } from './content/grep';
@@ -40,7 +40,7 @@ export function createFileSystemTools(): StructuredToolInterface[] {
     return [
         // 文件内容操作
         createReadTool(),
-        createReadBinaryFileTool(),
+        createReadMediaFileTool(),
         createWriteTool(),
         createEditFileTool(),
         createGrepFilesTool(),
