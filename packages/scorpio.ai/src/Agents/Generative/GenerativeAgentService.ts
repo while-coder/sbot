@@ -72,22 +72,37 @@ export class GenerativeAgentService extends AgentServiceBase {
             delete lastChunk.usage;
         }
 
+        const result: ChatMessage[] = [];
+
         if (this.outputDir) {
-            lastChunk.content = await this.saveInlineMedia(lastChunk.content);
+            const savedPaths = await this.saveInlineMedia(lastChunk.content);
+
+            await this.saverService.pushMessage(lastChunk);
+            if (callback.onMessage) await callback.onMessage(lastChunk);
+            result.push(lastChunk);
+
+            const text = savedPaths.length > 0
+                ? `生成图片: ${savedPaths.join(', ')}`
+                : '没有生成图片';
+            const textMsg: ChatMessage = { role: MessageRole.AI, content: text };
+            await this.saverService.pushMessage(textMsg);
+            if (callback.onMessage) await callback.onMessage(textMsg);
+            result.push(textMsg);
+        } else {
+            await this.saverService.pushMessage(lastChunk);
+            if (callback.onMessage) await callback.onMessage(lastChunk);
+            result.push(lastChunk);
         }
 
-        await this.saverService.pushMessage(lastChunk);
-        if (callback.onMessage) await callback.onMessage(lastChunk);
-
-        return [lastChunk];
+        return result;
     }
 
     /**
-     * 提取 multimodal content 中的 inlineData，保存为文件，追加 text part 记录路径。
-     * 原始 inlineData 保留（供 channel 直接发送图片）。
+     * 提取 multimodal content 中的 inlineData，保存为文件，返回保存路径列表。
+     * 原始 inlineData 保留在 content 中（供 channel 直接发送图片）。
      */
-    private async saveInlineMedia(content: MessageContent): Promise<MessageContent> {
-        if (typeof content === 'string' || !Array.isArray(content)) return content;
+    private async saveInlineMedia(content: MessageContent): Promise<string[]> {
+        if (typeof content === 'string' || !Array.isArray(content)) return [];
 
         const savedPaths: string[] = [];
         for (const part of content) {
@@ -106,9 +121,6 @@ export class GenerativeAgentService extends AgentServiceBase {
             }
         }
 
-        if (savedPaths.length > 0) {
-            content.push({ type: 'text', text: savedPaths.join('\n') });
-        }
-        return content;
+        return savedPaths;
     }
 }

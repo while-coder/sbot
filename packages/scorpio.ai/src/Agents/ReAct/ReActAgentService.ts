@@ -11,7 +11,7 @@ import { IAgentToolService } from "../../AgentTool";
 import { AgentMemorySaver } from "../../Saver/AgentMemorySaver";
 import { SingleAgentService } from "../Single/SingleAgentService";
 import { createTaskTool, type RunTaskFn } from "../../Tools";
-import { contentToString } from "../../Utils/contentUtils";
+import { createTextContent, createImageContent, type MCPContent } from "../../Tools/types";
 import { v4 as uuidv4 } from "uuid";
 
 // ── ThinkForwardSaver ────────────────────────────────────────
@@ -114,9 +114,26 @@ export class ReActAgentService extends SingleAgentService {
         agentService.addSystemPrompts(extraPrompts);
 
         const messages = await agentService.stream(task, subCallback, cancellationToken);
-        const finalMsg = [...messages].reverse().find(m => m.role === MessageRole.AI && m.content);
-        const result = finalMsg ? contentToString(finalMsg.content) : '';
-        return { result, thinkId: thinkId };
+        const content: MCPContent[] = [];
+        for (const msg of messages) {
+          if (msg.role !== MessageRole.AI || !msg.content) continue;
+          if (typeof msg.content === 'string') {
+            if (msg.content.trim()) content.push(createTextContent(msg.content));
+          } else if (Array.isArray(msg.content)) {
+            for (const part of msg.content) {
+              if (part.type === 'text' && part.text?.trim()) {
+                content.push(createTextContent(part.text));
+              } else if (part.type === 'inlineData' && part.inlineData?.data) {
+                content.push(createImageContent(part.inlineData.data, part.inlineData.mimeType ?? 'image/png'));
+              } else if (part.type === 'image_url') {
+                const url = typeof part.image_url === 'string' ? part.image_url : part.image_url?.url;
+                if (url) content.push(createImageContent(url, 'image/png'));
+              }
+            }
+          }
+        }
+        if (content.length === 0) content.push(createTextContent(''));
+        return { content, thinkId: thinkId };
       } catch (error: any) {
         return { result: `Execution failed: ${error.message}`, thinkId: thinkId };
       } finally {

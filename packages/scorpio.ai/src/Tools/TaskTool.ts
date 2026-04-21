@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { DynamicStructuredTool } from "@langchain/core/tools";
-import { createSuccessResult, createTextContent, MCPToolResult } from "./types";
+import { createSuccessResult, createTextContent, type MCPContent, type MCPToolResult } from "./types";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -11,7 +11,7 @@ export interface TaskToolParams {
   systemPrompt?: string;
 }
 
-export type RunTaskResult = { result: string; thinkId?: string };
+export type RunTaskResult = { result?: string; content?: MCPContent[]; thinkId?: string };
 export type RunTaskFn = (params: TaskToolParams) => Promise<RunTaskResult>;
 
 // ── Factory ─────────────────────────────────────────────────────────────────
@@ -35,8 +35,9 @@ export function createTaskTool(agentIds: string[], runFn: RunTaskFn, description
     description: description,
     schema: schema as any,
     func: async (params: any): Promise<MCPToolResult> => {
-      const { result, thinkId } = await runFn(params);
-      return { ...createSuccessResult(createTextContent(result)), thinkId };
+      const { result, content, thinkId } = await runFn(params);
+      const mcpContent = content ?? [createTextContent(result ?? '')];
+      return { ...createSuccessResult(...mcpContent), thinkId };
     },
   });
 }
