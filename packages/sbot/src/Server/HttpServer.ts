@@ -15,7 +15,7 @@ import { SkillHubService } from '../SkillHub';
 import { AgentStoreService } from '../AgentStore';
 import { LoggerService, log4js } from '../Core/LoggerService';
 import { database, sessionThreadId, parseMemories, type SessionRow, type TodoRow } from '../Core/Database';
-import { sessionManager } from '../UserService/SessionManager';
+import { sessionManager } from '../Session/SessionManager';
 import { schedulerService } from '../Scheduler/SchedulerService';
 import { channelManager } from '../Channel/ChannelManager';
 import { WsCommandType } from 'sbot.commons';

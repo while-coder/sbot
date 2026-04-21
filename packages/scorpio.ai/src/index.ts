@@ -137,6 +137,8 @@ export {
   MemoryMode,
   ExtractionResult,
   CompressionResult,
+  MEMORY_SEARCH_TOOL_NAME,
+  MEMORY_ADD_TOOL_NAME,
 } from "./Memory";
 
 // ========================================
@@ -157,6 +159,9 @@ export {
 
   // 工具
   WikiToolProvider,
+  WIKI_SEARCH_TOOL_NAME,
+  WIKI_CREATE_TOOL_NAME,
+  WIKI_READ_TOOL_NAME,
 
   // 类型定义
   WikiPage,
@@ -329,4 +334,5 @@ export { MessageDispatcher, MessageType } from "./User";
 // ========================================
 // Utils - 工具函数
 // ========================================
-export { contentToString, isEmptyContent, readImageAsDataUrl } from "./Utils/contentUtils";
+export { contentToString, isEmptyContent, readImageAsDataUrl, readMediaAsContentPart, detectMediaType } from "./Utils/contentUtils";
+export type { MediaCategory, ContentPart } from "./Utils/contentUtils";

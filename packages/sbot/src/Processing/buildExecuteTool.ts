@@ -1,7 +1,8 @@
-import { ChatToolCall, ToolApproval, ASK_TOOL_NAME, TASK_TOOL_NAME, READ_SKILL_FILE_TOOL_NAME, EXECUTE_SKILL_SCRIPT_TOOL_NAME, LIST_SKILL_FILES_TOOL_NAME } from "scorpio.ai";
+import { ChatToolCall, ToolApproval, ASK_TOOL_NAME, TASK_TOOL_NAME, READ_SKILL_FILE_TOOL_NAME, EXECUTE_SKILL_SCRIPT_TOOL_NAME, LIST_SKILL_FILES_TOOL_NAME, MEMORY_SEARCH_TOOL_NAME, MEMORY_ADD_TOOL_NAME, WIKI_SEARCH_TOOL_NAME, WIKI_CREATE_TOOL_NAME, WIKI_READ_TOOL_NAME } from "scorpio.ai";
 import { SessionService } from "channel.base";
 import { SEND_FILE_TOOL_NAME } from "../Agent/AgentRunner";
 import { SCHEDULER_CREATE_TOOL_NAME, SCHEDULER_DELETE_TOOL_NAME, SCHEDULER_LIST_TOOL_NAME } from "../Tools/Scheduler";
+import { TODO_CREATE_TOOL_NAME, TODO_LIST_TOOL_NAME, TODO_DONE_TOOL_NAME } from "../Tools/Todo";
 import { config } from "../Core/Config";
 
 /** 内部工具名，直接放行无需用户确认 */
@@ -18,6 +19,17 @@ const INTERNAL_TOOLS = new Set([
     SCHEDULER_CREATE_TOOL_NAME,
     SCHEDULER_DELETE_TOOL_NAME,
     SCHEDULER_LIST_TOOL_NAME,
+    // Todo 工具
+    TODO_CREATE_TOOL_NAME,
+    TODO_LIST_TOOL_NAME,
+    TODO_DONE_TOOL_NAME,
+    // Memory 工具
+    MEMORY_SEARCH_TOOL_NAME,
+    MEMORY_ADD_TOOL_NAME,
+    // Wiki 工具
+    WIKI_SEARCH_TOOL_NAME,
+    WIKI_CREATE_TOOL_NAME,
+    WIKI_READ_TOOL_NAME,
 ]);
 
 export function buildExecuteTool(

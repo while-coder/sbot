@@ -29,7 +29,7 @@ import { SchedulerType } from "../Core/Database";
 
 import { AgentFactory } from "./AgentFactory";
 import { LoggerService } from "../Core/LoggerService";
-import { sessionManager } from "../UserService/SessionManager";
+import { sessionManager } from "../Session/SessionManager";
 import { MemoryDatabaseManager } from "./MemoryDatabaseManager";
 import { WikiDatabaseManager } from "./WikiDatabaseManager";
 

@@ -2,7 +2,7 @@ import { ChannelPlugin, ChannelPluginContext, IChannelService, ChannelSessionInf
 import { ChannelUserRow, database, type ChannelSessionRow } from "../Core/Database";
 import { NowDate } from "scorpio.ai";
 import { Op } from "sequelize";
-import { sessionManager } from "../UserService/SessionManager";
+import { sessionManager } from "../Session/SessionManager";
 import { LoggerService } from "../Core/LoggerService";
 import { config } from "../Core/Config";
 import { compareSemver, fetchLatestRelease } from "sbot.commons";

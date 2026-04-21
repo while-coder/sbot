@@ -3,7 +3,7 @@ import { AgentRunner, createAskAgentTool, createSendFileAgentTool } from "../Age
 import { MessageRole, type ChatMessage } from "scorpio.ai";
 import { config } from "../Core/Config";
 import { ChannelSessionRow, SessionRow, SchedulerType, database, parseMemories } from "../Core/Database";
-import { buildExecuteTool } from "../UserService/buildExecuteTool";
+import { buildExecuteTool } from "./buildExecuteTool";
 import { WebChatEventType } from "sbot.commons";
 import { httpServer } from "../Server/HttpServer";
 

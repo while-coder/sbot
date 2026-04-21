@@ -21,7 +21,7 @@ export { IMemoryDatabase } from "./Storage/IMemoryDatabase";
 export { MemorySqliteDatabase } from "./Storage/MemorySqliteDatabase";
 
 // ===== 工具 =====
-export { MemoryToolProvider } from "./Tools/MemoryToolProvider";
+export { MemoryToolProvider, MEMORY_SEARCH_TOOL_NAME, MEMORY_ADD_TOOL_NAME } from "./Tools/MemoryToolProvider";
 
 // ===== 类型定义 =====
 // 从 types.ts 导出

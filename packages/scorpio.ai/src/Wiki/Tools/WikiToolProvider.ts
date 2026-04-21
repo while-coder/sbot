@@ -2,6 +2,10 @@ import { z } from "zod";
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { IWikiService } from "../Service/IWikiService";
 
+export const WIKI_SEARCH_TOOL_NAME = 'wiki_search' as const;
+export const WIKI_CREATE_TOOL_NAME = 'wiki_create' as const;
+export const WIKI_READ_TOOL_NAME = 'wiki_read' as const;
+
 export class WikiToolProvider {
 
     static getTools(wikiServices: IWikiService[]): DynamicStructuredTool[] {
@@ -15,7 +19,7 @@ export class WikiToolProvider {
 
     private static createSearchTool(wikiServices: IWikiService[]): DynamicStructuredTool {
         return new DynamicStructuredTool({
-            name: "wiki_search",
+            name: WIKI_SEARCH_TOOL_NAME,
             description:
                 "Search the wiki knowledge base. Uses semantic similarity when available, falls back to text matching.",
             schema: z.object({
@@ -46,7 +50,7 @@ export class WikiToolProvider {
 
     private static createCreateTool(wikiServices: IWikiService[]): DynamicStructuredTool {
         return new DynamicStructuredTool({
-            name: "wiki_create",
+            name: WIKI_CREATE_TOOL_NAME,
             description:
                 "Create a new wiki page to persist knowledge for future reference.",
             schema: z.object({
@@ -67,7 +71,7 @@ export class WikiToolProvider {
 
     private static createReadTool(wikiServices: IWikiService[]): DynamicStructuredTool {
         return new DynamicStructuredTool({
-            name: "wiki_read",
+            name: WIKI_READ_TOOL_NAME,
             description:
                 "Read a wiki page by title or ID. Use title for human-friendly lookups.",
             schema: z.object({

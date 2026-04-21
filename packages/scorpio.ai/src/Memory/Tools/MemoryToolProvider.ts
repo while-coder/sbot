@@ -3,6 +3,9 @@ import { DynamicStructuredTool } from "@langchain/core/tools";
 import { formatTimeAgo } from "../../Core";
 import { IMemoryService } from "../Service/IMemoryService";
 
+export const MEMORY_SEARCH_TOOL_NAME = 'memory_search' as const;
+export const MEMORY_ADD_TOOL_NAME = 'memory_add' as const;
+
 export class MemoryToolProvider {
 
     static getTools(memoryServices: IMemoryService[]): DynamicStructuredTool[] {
@@ -15,7 +18,7 @@ export class MemoryToolProvider {
 
     private static createSearchTool(memoryServices: IMemoryService[]): DynamicStructuredTool {
         return new DynamicStructuredTool({
-            name: "memory_search",
+            name: MEMORY_SEARCH_TOOL_NAME,
             description:
                 "Search long-term memory using semantic similarity. Use this to recall past conversations, user preferences, or previously learned facts.",
             schema: z.object({
@@ -49,7 +52,7 @@ export class MemoryToolProvider {
 
     private static createAddTool(memoryServices: IMemoryService[]): DynamicStructuredTool {
         return new DynamicStructuredTool({
-            name: "memory_add",
+            name: MEMORY_ADD_TOOL_NAME,
             description:
                 "Explicitly save an important piece of information to long-term memory for future recall. Use this for key facts, user preferences, or decisions worth remembering.",
             schema: z.object({

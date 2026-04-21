@@ -1,6 +1,6 @@
 import * as Lark from "@larksuiteoapi/node-sdk";
 import { LarkActionArgs, LarkMessageArgs, LarkSessionHandler } from "./LarkSessionHandler";
-import { IChannelService, ChannelSessionHandler, SessionService, NowDate, parseJson, readImageAsDataUrl, type ILogger, type MessageContent } from "channel.base";
+import { IChannelService, ChannelSessionHandler, SessionService, NowDate, parseJson, readImageAsDataUrl, readMediaAsContentPart, type ILogger, type MessageContent } from "channel.base";
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
@@ -234,7 +234,7 @@ export class LarkService implements IChannelService {
   private async extractPostContent(messageId: string, msg: any): Promise<MessageContent> {
     const paragraphs: any[][] = msg.content ?? [];
     const parts: Array<{ type: string; text?: string; [key: string]: any }> = [];
-    let hasImage = false;
+    let hasMedia = false;
     for (const paragraph of paragraphs) {
       for (const el of paragraph) {
         if (el.tag === 'text') {
@@ -244,13 +244,19 @@ export class LarkService implements IChannelService {
           await this.downloadMessageFile(messageId, el.image_key, 'image', filePath);
           const dataUrl = await readImageAsDataUrl(filePath);
           parts.push({ type: 'image_url', image_url: { url: dataUrl } });
-          hasImage = true;
+          hasMedia = true;
+        } else if (el.tag === 'media') {
+          const filePath = path.join(os.tmpdir(), `lark_${el.file_key}`);
+          await this.downloadMessageFile(messageId, el.file_key, 'file', filePath);
+          const { part, category } = await readMediaAsContentPart(filePath);
+          parts.push(part);
+          if (category !== 'other') hasMedia = true;
         } else {
           this.logger?.warn(`Unsupported post element tag: ${el.tag}`);
         }
       }
     }
-    if (!hasImage) return parts.map(p => p.text!).join('\n');
+    if (!hasMedia) return parts.map(p => p.text!).join('\n');
     return parts;
   }
 
@@ -261,11 +267,20 @@ export class LarkService implements IChannelService {
     return [{ type: 'image_url', image_url: { url: dataUrl } }];
   }
 
-  private async extractFileContent(messageId: string, msg: any): Promise<string> {
-    const file_name = msg.file_name ?? ''
+  private async extractAudioContent(messageId: string, msg: any): Promise<MessageContent> {
+    const filePath = path.join(os.tmpdir(), `lark_${msg.file_key}.opus`);
+    await this.downloadMessageFile(messageId, msg.file_key, 'file', filePath);
+    const { part } = await readMediaAsContentPart(filePath);
+    return [part as any];
+  }
+
+  private async extractFileContent(messageId: string, msg: any): Promise<MessageContent> {
+    const file_name = msg.file_name ?? '';
     const ext = path.extname(file_name);
     const filePath = path.join(os.tmpdir(), `lark_${msg.file_key}${ext}`);
     await this.downloadMessageFile(messageId, msg.file_key, 'file', filePath);
+    const { part, category } = await readMediaAsContentPart(filePath);
+    if (category !== 'other') return [part as any];
     return `[file: ${file_name}](${filePath})`;
   }
 
@@ -352,6 +367,8 @@ export class LarkService implements IChannelService {
             query = String(msg.text ?? "").trim();
           } else if (message_type === 'image') {
             query = await this.extractImageContent(message_id, msg);
+          } else if (message_type === 'audio') {
+            query = await this.extractAudioContent(message_id, msg);
           } else if (message_type === 'file') {
             query = await this.extractFileContent(message_id, msg);
           } else {

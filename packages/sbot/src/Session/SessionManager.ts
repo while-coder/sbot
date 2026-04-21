@@ -5,11 +5,11 @@ import { ChannelType } from "sbot.commons";
 import { config } from "../Core/Config";
 import { database, ChannelSessionRow, SessionRow } from "../Core/Database";
 import { channelManager } from "../Channel/ChannelManager";
-import { createProcessAIHandler, createWebProcessAIHandler } from "../Channel/createProcessAIHandler";
-import { classifyIntent } from "../Channel/classifyIntent";
+import { createProcessAIHandler, createWebProcessAIHandler } from "../Processing/createProcessAIHandler";
+import { classifyIntent } from "../Processing/classifyIntent";
 
 import { getBuiltInCommands } from "./BuiltInCommands";
-import { WebSocketUserService } from "./web/WebSocketUserService";
+import { WebSocketUserService } from "../Channel/web/WebSocketUserService";
 
 const processAIHandler = createProcessAIHandler();
 const webProcessAIHandler = createWebProcessAIHandler();

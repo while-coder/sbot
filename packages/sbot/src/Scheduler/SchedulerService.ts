@@ -1,6 +1,6 @@
 import { CronJob } from "cron";
 import { database, SchedulerRow, ChannelSessionRow, SchedulerType } from "../Core/Database";
-import { sessionManager } from "../UserService/SessionManager";
+import { sessionManager } from "../Session/SessionManager";
 import { LoggerService } from "../Core/LoggerService";
 import { config } from "../Core/Config";
 import { channelManager } from "../Channel/ChannelManager";

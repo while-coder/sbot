@@ -16,7 +16,7 @@ export { IWikiDatabase } from "./Database/IWikiDatabase";
 export { WikiFileDatabase } from "./Database/WikiFileDatabase";
 
 // ===== 工具 =====
-export { WikiToolProvider } from "./Tools/WikiToolProvider";
+export { WikiToolProvider, WIKI_SEARCH_TOOL_NAME, WIKI_CREATE_TOOL_NAME, WIKI_READ_TOOL_NAME } from "./Tools/WikiToolProvider";
 
 // ===== 类型定义 =====
 export {
