@@ -1,1 +1,0 @@
-Reads a binary file (image, audio, PDF, font, etc.) and returns its raw content as a base64-encoded string along with file size and extension. Maximum file size 100KB. Use for non-text files; use read for text files (source code, config, markdown, etc.). Path must be absolute.
