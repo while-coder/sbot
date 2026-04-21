@@ -592,5 +592,6 @@ export default {
     last: 'Last',
     total: 'Cumulative',
     tokens: 'tokens',
+    context_window: 'Context Window',
   },
 }

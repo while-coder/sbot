@@ -592,5 +592,6 @@ export default {
     last: '最近',
     total: '累计',
     tokens: 'tokens',
+    context_window: '上下文窗口',
   },
 }

@@ -24,6 +24,8 @@ interface ChatViewLogicOptions {
   sessionStatusQuery: (activeId: string) => string
   /** Called when an AI response round completes (Done event) */
   onDone?: () => void
+  /** Called when a Usage event arrives with per-call token counts */
+  onUsage?: (data: { inputTokens: number; outputTokens: number; totalTokens: number }) => void
 }
 
 export function useChatViewLogic(options: ChatViewLogicOptions) {
@@ -52,6 +54,7 @@ export function useChatViewLogic(options: ChatViewLogicOptions) {
     if (evt.sessionId && evt.sessionId !== expected) return
     await chatAreaRef.value?.handleWsEvent(evt)
     if (evt.type === WebChatEventType.Done) options.onDone?.()
+    if (evt.type === WebChatEventType.Usage) options.onUsage?.((evt as any).data)
   }
 
   // ── WS reconnect ──

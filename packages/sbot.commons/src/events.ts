@@ -18,6 +18,7 @@ export enum WebChatEventType {
   Done     = 'done',
   Error    = 'error',
   Queue    = 'queue',
+  Usage    = 'usage',
 }
 
 /** Multimodal message content: plain string or array of content parts (text/image_url/etc.) */
@@ -42,6 +43,7 @@ export interface AskData      { id: string; title?: string; questions: AskQuesti
 export interface DoneData     { pendingMessages?: DisplayContent[] }
 export interface ErrorData    { message: string }
 export interface QueueData    { pendingMessages: DisplayContent[] }
+export interface UsageData    { inputTokens: number; outputTokens: number; totalTokens: number }
 
 export type WebChatEventDataMap = {
   [WebChatEventType.Human]:    HumanData
@@ -52,6 +54,7 @@ export type WebChatEventDataMap = {
   [WebChatEventType.Done]:     DoneData
   [WebChatEventType.Error]:    ErrorData
   [WebChatEventType.Queue]:    QueueData
+  [WebChatEventType.Usage]:    UsageData
 }
 
 export type WebChatEvent<T extends WebChatEventType = WebChatEventType> = {

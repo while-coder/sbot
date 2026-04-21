@@ -65,6 +65,7 @@ export {
   T_WikiExtractorSystemPrompt,
   T_WikiSystemPromptTemplate,
   T_WikiAutoExtract,
+  T_OutputDir,
   NowDate,
   sleep,
   parseJson,
@@ -242,6 +243,7 @@ export {
   // 服务类
   SingleAgentService,
   ReActAgentService,
+  GenerativeAgentService,
 
   // Token
   T_AgentSubNodes,
@@ -272,6 +274,7 @@ export {
   MCPTextContent,
   MCPImageContent,
   MCPAudioContent,
+  MCPDocumentContent,
   MCPImageUrlContent,
   MCPContent,
   MCPToolResult,
@@ -299,6 +302,7 @@ export {
   createTextContent,
   createImageContent,
   createAudioContent,
+  createDocumentContent,
   createSuccessResult,
   createErrorResult,
   isMCPToolResult,

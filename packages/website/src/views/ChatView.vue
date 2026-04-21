@@ -45,6 +45,21 @@ const { chatAreaRef, agentOptions, saverOptions, memoryOptions, wikiOptions, sen
   }),
   sessionStatusQuery: (id) => `sessionId=${encodeURIComponent(id)}`,
   onDone: () => loadSessionUsage(activeSessionId.value),
+  onUsage: (data) => {
+    if (sessionUsage.value) {
+      sessionUsage.value.lastInputTokens = data.inputTokens
+      sessionUsage.value.lastOutputTokens = data.outputTokens
+      sessionUsage.value.lastTotalTokens = data.totalTokens
+      sessionUsage.value.inputTokens += data.inputTokens
+      sessionUsage.value.outputTokens += data.outputTokens
+      sessionUsage.value.totalTokens += data.totalTokens
+    } else {
+      sessionUsage.value = {
+        inputTokens: data.inputTokens, outputTokens: data.outputTokens, totalTokens: data.totalTokens,
+        lastInputTokens: data.inputTokens, lastOutputTokens: data.outputTokens, lastTotalTokens: data.totalTokens,
+      }
+    }
+  },
 })
 
 const effectiveAgent  = computed(() => activeSessionId.value ? sessions.value[activeSessionId.value]?.agent  : undefined)
@@ -141,6 +156,32 @@ async function loadSessionUsage(id: string | null) {
     sessionUsage.value = res.data?.[id] ?? null
   } catch { sessionUsage.value = null }
 }
+
+// ── Model info (context window) ──
+const sessionContextWindow = computed(() => {
+  const sid = activeSessionId.value
+  if (!sid) return undefined
+  const session = sessions.value[sid]
+  if (!session?.agent) return undefined
+  const agentEntry = (store.settings.agents || {} as any)[session.agent]
+  const modelId = agentEntry?.model as string | undefined
+  if (!modelId) return undefined
+  const mc = (store.settings as any).models?.[modelId]
+  return mc?.contextWindow as number | undefined
+})
+
+const contextPercent = computed(() => {
+  if (!sessionContextWindow.value || !sessionUsage.value?.lastInputTokens) return null
+  return Math.min(100, Math.round(sessionUsage.value.lastInputTokens / sessionContextWindow.value * 100))
+})
+
+const contextBarColor = computed(() => {
+  const p = contextPercent.value
+  if (p == null) return ''
+  if (p < 60) return '#22c55e'
+  if (p < 85) return '#eab308'
+  return '#ef4444'
+})
 
 function formatNumber(n: number): string {
   return n.toLocaleString()
@@ -286,8 +327,14 @@ onMounted(() => {
           </label>
         </template>
         <span v-else style="font-size:13px;color:#94a3b8">{{ t('chat.select_or_create') }}</span>
-        <span v-if="sessionUsage && sessionUsage.lastTotalTokens > 0" class="usage-chip" :title="`${t('usage.total')}: ${formatNumber(sessionUsage.totalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatNumber(sessionUsage.inputTokens)} / ${t('usage.output_tokens')}: ${formatNumber(sessionUsage.outputTokens)}\n${t('usage.last')}: ${formatNumber(sessionUsage.lastTotalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatNumber(sessionUsage.lastInputTokens)} / ${t('usage.output_tokens')}: ${formatNumber(sessionUsage.lastOutputTokens)}`" style="margin-left:auto">{{ formatNumber(sessionUsage.lastInputTokens) }} + {{ formatNumber(sessionUsage.lastOutputTokens) }} = {{ formatNumber(sessionUsage.lastTotalTokens) }}</span>
-        <button class="btn-outline btn-sm" :style="sessionUsage && sessionUsage.lastTotalTokens > 0 ? '' : 'margin-left:auto'" @click="() => { chatAreaRef?.refreshHistory(); loadSessionUsage(activeSessionId) }">{{ t('common.refresh') }}</button>
+        <span v-if="sessionUsage && sessionUsage.lastTotalTokens > 0 && contextPercent != null" class="context-bar-wrap" style="margin-left:auto" :title="`${t('usage.context_window')}: ${formatNumber(sessionUsage.lastInputTokens)} / ${formatNumber(sessionContextWindow!)} (${contextPercent}%)\n${t('usage.total')}: ${formatNumber(sessionUsage.totalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatNumber(sessionUsage.inputTokens)} / ${t('usage.output_tokens')}: ${formatNumber(sessionUsage.outputTokens)}\n${t('usage.last')}: ${formatNumber(sessionUsage.lastTotalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatNumber(sessionUsage.lastInputTokens)} / ${t('usage.output_tokens')}: ${formatNumber(sessionUsage.lastOutputTokens)}`">
+          <div class="context-bar-track">
+            <div class="context-bar-fill" :style="{ width: contextPercent + '%', background: contextBarColor }" />
+          </div>
+          <span class="context-bar-label">{{ contextPercent }}%</span>
+        </span>
+        <span v-else-if="sessionUsage && sessionUsage.lastTotalTokens > 0" class="usage-chip" style="margin-left:auto" :title="`${t('usage.total')}: ${formatNumber(sessionUsage.totalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatNumber(sessionUsage.inputTokens)} / ${t('usage.output_tokens')}: ${formatNumber(sessionUsage.outputTokens)}\n${t('usage.last')}: ${formatNumber(sessionUsage.lastTotalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatNumber(sessionUsage.lastInputTokens)} / ${t('usage.output_tokens')}: ${formatNumber(sessionUsage.lastOutputTokens)}`">{{ formatNumber(sessionUsage.lastInputTokens) }} + {{ formatNumber(sessionUsage.lastOutputTokens) }} = {{ formatNumber(sessionUsage.lastTotalTokens) }}</span>
+        <button class="btn-outline btn-sm" :style="(sessionUsage && sessionUsage.lastTotalTokens > 0) ? '' : 'margin-left:auto'" @click="() => { chatAreaRef?.refreshHistory(); loadSessionUsage(activeSessionId) }">{{ t('common.refresh') }}</button>
         <button class="btn-danger btn-sm" :disabled="!effectiveSaver" @click="chatAreaRef?.clearHistory()">{{ t('chat.clear_history') }}</button>
       </div>
 
@@ -397,6 +444,30 @@ onMounted(() => {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   cursor: default;
+}
+.context-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: default;
+}
+.context-bar-track {
+  width: 80px;
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.context-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width .3s, background .3s;
+}
+.context-bar-label {
+  font-size: 11px;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 @media (max-width: 768px) {
   .chat-toolbar-mobile {
