@@ -14,6 +14,7 @@ import {
 } from "scorpio.ai";
 import { type AgentTool, type AgentSchedulerContext } from "./AgentRunner";
 import { createSchedulerTools } from "../Tools/Scheduler/index";
+import { createTodoTools } from "../Tools/Todo/index";
 import { config, AgentMode, SingleAgentEntry, ReactAgentEntry } from "../Core/Config";
 import { loadPrompt } from "../Core/PromptLoader";
 import { globalAgentToolService } from "./GlobalAgentToolService";
@@ -104,6 +105,9 @@ export class AgentFactory {
         const toolService = await container.resolve<AgentToolService>(IAgentToolService);
         toolService.registerToolFactory('__scheduler__', () =>
             Promise.resolve(createSchedulerTools(scheduler.schedulerType, scheduler.schedulerId))
+        );
+        toolService.registerToolFactory('__todo__', () =>
+            Promise.resolve(createTodoTools(scheduler.schedulerType, scheduler.schedulerId))
         );
         if (mcp === '*') {
             toolService.registerToolFactory('__global_mcp__', () => globalAgentToolService.getAllTools());

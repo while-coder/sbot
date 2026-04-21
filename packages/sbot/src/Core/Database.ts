@@ -41,6 +41,19 @@ export type SchedulerRow = {
   disabled: boolean;               // 是否已禁用（软删除）
 };
 
+export type TodoRow = {
+  id: number;
+  type: string | null;
+  targetId: string | null;
+  content: string;
+  status: string;
+  priority: string;
+  deadline: number | null;
+  schedulerId: number | null;
+  doneAt: number | null;
+  createdAt: number;
+};
+
 export type StateRow = {
   key: string;
   value: string;
@@ -138,6 +151,7 @@ class Database {
   public scheduler!: ModelStatic<any>;
   public session!: ModelStatic<any>;
   public usageStats!: ModelStatic<any>;
+  public todo!: ModelStatic<any>;
 
   async init() {
     this.running = false;
@@ -575,6 +589,77 @@ class Database {
       },
     );
 
+    this.todo = sequelize.define(
+      "todo",
+      {
+        id: {
+          type: DataTypes.INTEGER,
+          primaryKey: true,
+          autoIncrement: true,
+          comment: "自增ID",
+        },
+        type: {
+          type: DataTypes.STRING(64),
+          allowNull: true,
+          defaultValue: null,
+          comment: "任务类型标识 (channel | session)",
+        },
+        targetId: {
+          type: DataTypes.TEXT,
+          allowNull: true,
+          defaultValue: null,
+          comment: "目标 ID（channel_session.id | sessionId）",
+        },
+        content: {
+          type: DataTypes.TEXT,
+          allowNull: false,
+          defaultValue: "",
+          comment: "任务描述",
+        },
+        status: {
+          type: DataTypes.STRING(16),
+          allowNull: false,
+          defaultValue: "pending",
+          comment: "任务状态 (pending | done)",
+        },
+        priority: {
+          type: DataTypes.STRING(16),
+          allowNull: false,
+          defaultValue: "normal",
+          comment: "优先级 (low | normal | high)",
+        },
+        deadline: {
+          type: DataTypes.BIGINT,
+          allowNull: true,
+          defaultValue: null,
+          comment: "截止时间戳(ms)",
+        },
+        schedulerId: {
+          type: DataTypes.INTEGER,
+          allowNull: true,
+          defaultValue: null,
+          comment: "关联的 scheduler.id（deadline 提醒）",
+        },
+        doneAt: {
+          type: DataTypes.BIGINT,
+          allowNull: true,
+          defaultValue: null,
+          comment: "完成时间戳(ms)",
+        },
+        createdAt: {
+          type: DataTypes.BIGINT,
+          allowNull: false,
+          defaultValue: 0,
+          comment: "创建时间戳(ms)",
+        },
+      },
+      {
+        tableName: "todo",
+        timestamps: false,
+        comment: "待办任务表",
+      },
+    );
+
     this.usageStats = sequelize.define(
       "usage_stats",
       {
@@ -662,6 +747,7 @@ class Database {
       await this.channelSession.sync({ alter });
       await this.session.sync({ alter });
       await this.scheduler.sync({ alter });
+      await this.todo.sync({ alter });
       await this.usageStats.sync({ alter });
 
       await this.state.update({ value: DBVersion }, { where: { key: DBVersionName } });

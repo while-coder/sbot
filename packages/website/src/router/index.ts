@@ -12,7 +12,7 @@ const routes = [
   { path: '/embeddings', component: () => import('@/views/EmbeddingsView.vue') },
   // 智能体
   { path: '/agents', component: () => import('@/views/agents/AgentsView.vue') },
-  { path: '/agent-store', component: () => import('@/views/agent-store/AgentStoreView.vue') },
+  // { path: '/agent-store', component: () => import('@/views/agent-store/AgentStoreView.vue') },
   { path: '/savers', component: () => import('@/views/SaversView.vue') },
   { path: '/memories', component: () => import('@/views/MemoriesView.vue') },
   { path: '/wikis', component: () => import('@/views/WikisView.vue') },
@@ -21,6 +21,7 @@ const routes = [
   { path: '/prompts', component: () => import('@/views/PromptsView.vue') },
   // 管理
   { path: '/scheduler', component: () => import('@/views/SchedulerView.vue') },
+  { path: '/todo', component: () => import('@/views/TodoView.vue') },
   { path: '/logs', component: () => import('@/views/LogsView.vue') },
   { path: '/about', component: () => import('@/views/AboutView.vue') },
 ]

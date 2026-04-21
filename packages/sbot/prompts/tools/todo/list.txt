@@ -1,0 +1,3 @@
+List todo items for the current session.
+By default shows only pending items. Use status="done" to see completed items, or status="all" to see everything.
+Items are sorted by priority (high → normal → low), then by creation time.

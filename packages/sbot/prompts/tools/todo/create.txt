@@ -1,0 +1,3 @@
+Create a new todo item for the current session.
+Optionally set priority (low/normal/high) and a deadline (ISO 8601 datetime string, e.g. "2026-04-25T18:00:00").
+If a deadline is set, a one-shot scheduler reminder will be created automatically.

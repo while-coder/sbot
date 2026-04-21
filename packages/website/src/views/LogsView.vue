@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { useToast } from '@/composables/useToast'
@@ -15,10 +15,14 @@ const levelFilter = ref('')
 const keyword = ref('')
 const tailCount = ref(500)
 const autoScroll = ref(true)
+const autoRefresh = ref(false)
+const refreshInterval = ref(3)
 
 const logRef = ref<HTMLElement | null>(null)
+let refreshTimer: ReturnType<typeof setInterval> | null = null
 
 const levels = ['', 'DEBUG', 'INFO', 'WARN', 'ERROR']
+const intervalOptions = [3, 5, 10, 30]
 
 async function loadFiles() {
   try {
@@ -43,14 +47,14 @@ async function loadContent() {
     const qs = params.toString()
     const res = await apiFetch(`/api/logs/${selectedFile.value}${qs ? '?' + qs : ''}`)
     lines.value = res.data?.lines || []
-    if (autoScroll.value) {
-      await nextTick()
-      scrollToBottom()
-    }
   } catch (e: any) {
     show(e.message, 'error')
   } finally {
     loading.value = false
+    if (autoScroll.value) {
+      await nextTick()
+      scrollToBottom()
+    }
   }
 }
 
@@ -65,12 +69,37 @@ function lineClass(line: string): string {
   return ''
 }
 
+function startAutoRefresh() {
+  stopAutoRefresh()
+  if (autoRefresh.value) {
+    refreshTimer = setInterval(() => loadContent(), refreshInterval.value * 1000)
+  }
+}
+
+function stopAutoRefresh() {
+  if (refreshTimer) {
+    clearInterval(refreshTimer)
+    refreshTimer = null
+  }
+}
+
+watch(autoRefresh, (val) => {
+  if (val) startAutoRefresh()
+  else stopAutoRefresh()
+})
+
+watch(refreshInterval, () => {
+  if (autoRefresh.value) startAutoRefresh()
+})
+
 watch(selectedFile, () => loadContent())
 
 onMounted(async () => {
   await loadFiles()
   if (selectedFile.value) loadContent()
 })
+
+onUnmounted(() => stopAutoRefresh())
 </script>
 
 <template>
@@ -93,6 +122,13 @@ onMounted(async () => {
         <option :value="0">{{ t('logs.all_lines') }}</option>
       </select>
       <button class="btn-outline btn-sm" @click="loadContent()">{{ t('common.refresh') }}</button>
+      <label class="auto-refresh-toggle">
+        <input type="checkbox" v-model="autoRefresh" />
+        <span>{{ t('logs.auto_refresh') }}</span>
+      </label>
+      <select v-if="autoRefresh" v-model.number="refreshInterval" style="font-size:12px;padding:3px 8px;border:1px solid #e8e6e3;border-radius:4px">
+        <option v-for="sec in intervalOptions" :key="sec" :value="sec">{{ t('logs.every_n_seconds', { n: sec }) }}</option>
+      </select>
     </div>
     <div ref="logRef" class="log-viewer">
       <div v-if="loading" style="padding:20px;color:#9b9b9b;text-align:center">{{ t('common.loading') }}</div>
@@ -119,6 +155,16 @@ onMounted(async () => {
   white-space: pre-wrap;
   word-break: break-all;
 }
+.auto-refresh-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #666;
+  cursor: pointer;
+  user-select: none;
+}
+.auto-refresh-toggle input { margin: 0; cursor: pointer; }
 .log-error { color: #f87171; }
 .log-warn { color: #fbbf24; }
 .log-debug { color: #9ca3af; }

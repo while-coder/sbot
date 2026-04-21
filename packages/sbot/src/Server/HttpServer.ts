@@ -14,7 +14,7 @@ import { globalSkillService, refreshGlobalSkillService, getSkillsDirsMap } from 
 import { SkillHubService } from '../SkillHub';
 import { AgentStoreService } from '../AgentStore';
 import { LoggerService, log4js } from '../Core/LoggerService';
-import { database, sessionThreadId, parseMemories, type SessionRow } from '../Core/Database';
+import { database, sessionThreadId, parseMemories, type SessionRow, type TodoRow } from '../Core/Database';
 import { sessionManager } from '../UserService/SessionManager';
 import { schedulerService } from '../Scheduler/SchedulerService';
 import { channelManager } from '../Channel/ChannelManager';
@@ -321,6 +321,7 @@ class HttpServer {
         this.registerPromptRoutes(app);
         this.registerDataRoutes(app);
         this.registerSchedulerRoutes(app);
+        this.registerTodoRoutes(app);
         this.registerLogRoutes(app);
         this.registerUserRoutes(app);
         this.registerChatRoutes(app);
@@ -1225,6 +1226,39 @@ class HttpServer {
             const id = parseInt(req.params.id as string, 10);
             if (isNaN(id)) throwBad('Invalid id');
             await schedulerService.delete(id);
+        }));
+    }
+
+    // ===== Todos =====
+    private registerTodoRoutes(app: express.Application) {
+        app.get('/api/todos', api(async () => {
+            return await database.findAll<TodoRow>(database.todo, {
+                where: { status: 'pending' },
+                order: [['createdAt', 'DESC']],
+            });
+        }));
+
+        app.patch('/api/todos/:id', api(async req => {
+            const id = parseInt(req.params.id as string, 10);
+            if (isNaN(id)) throwBad('Invalid id');
+            const todo = await database.findByPk<TodoRow>(database.todo, id);
+            if (!todo) throwBad('Todo not found');
+            const now = Date.now();
+            await database.update(database.todo, { status: 'done', doneAt: now }, { where: { id } });
+            if (todo.schedulerId) {
+                try { await schedulerService.delete(todo.schedulerId); } catch {}
+            }
+        }));
+
+        app.delete('/api/todos/:id', api(async req => {
+            const id = parseInt(req.params.id as string, 10);
+            if (isNaN(id)) throwBad('Invalid id');
+            const todo = await database.findByPk<TodoRow>(database.todo, id);
+            if (!todo) throwBad('Todo not found');
+            if (todo.schedulerId) {
+                try { await schedulerService.delete(todo.schedulerId); } catch {}
+            }
+            await database.destroy(database.todo, { where: { id } });
         }));
     }
 
