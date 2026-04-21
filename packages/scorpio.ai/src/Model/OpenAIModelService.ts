@@ -25,6 +25,7 @@ export class OpenAIModelService implements IModelService {
       model: this.config.model,
       temperature: this.config.temperature,
       maxTokens: this.config.maxTokens,
+      streamUsage: true,
     };
   }
 

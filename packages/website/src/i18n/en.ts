@@ -529,6 +529,7 @@ export default {
     name_placeholder: 'e.g. default, my-agent',
     type_single: 'Single',
     type_react: 'ReAct',
+    type_generative: 'Generative',
     system_prompt_placeholder: 'Optional',
     node_config: 'Node Config',
     add_sub: '+ Add',

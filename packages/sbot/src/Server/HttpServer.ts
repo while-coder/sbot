@@ -537,7 +537,7 @@ class HttpServer {
 
         registerSettingsCrud(app, 'models', {
             label: 'Model',
-            afterSave: (id) => { fetchAndSaveContextWindow(id).catch(() => {}); },
+            afterSave: (id) => fetchAndSaveContextWindow(id).catch(() => {}),
         });
         registerSettingsCrud(app, 'embeddings', { label: 'Embedding' });
         registerSettingsCrud(app, 'savers', { label: 'Saver config' });

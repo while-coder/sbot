@@ -162,6 +162,7 @@ defineExpose({ open })
           <select v-model="form.type">
             <option :value="AgentMode.Single">{{ t('agents.type_single') }}</option>
             <option :value="AgentMode.ReAct">{{ t('agents.type_react') }}</option>
+            <option :value="AgentMode.Generative">{{ t('agents.type_generative') }}</option>
           </select>
         </div>
 

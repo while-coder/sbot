@@ -12,13 +12,6 @@ export enum AgentMode {
   Generative = "generative",
 }
 
-export enum ChannelType {
-  Lark  = "lark",
-  Slack = "slack",
-  Wecom = "wecom",
-  Web   = "web",
-}
-
 export enum ModelProvider {
   OpenAI         = "openai",
   OpenAIResponse = "openai-response",

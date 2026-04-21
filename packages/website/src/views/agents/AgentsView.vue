@@ -23,8 +23,7 @@ const agents = computed(() => store.settings.agents || {})
 const sortedAgentEntries = computed(() => {
   const entries = Object.entries(agents.value)
   return entries.sort(([, a], [, b]) => {
-    // react first, then single, then others
-    const order = (type: string) => type === 'react' ? 0 : type === 'single' ? 1 : 2
+    const order = (type: string) => type === 'react' ? 0 : type === 'single' ? 1 : type === 'generative' ? 2 : 3
     return order(a.type) - order(b.type)
   })
 })
@@ -698,6 +697,10 @@ async function refresh() {
 .agent-type-single {
   background: #f0f4f8;
   color: #64748b;
+}
+.agent-type-generative {
+  background: #fef3c7;
+  color: #b45309;
 }
 .config-badge {
   display: inline-block;

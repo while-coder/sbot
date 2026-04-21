@@ -1,7 +1,6 @@
 import "reflect-metadata";
 import { ICommand, MessageType, type MessageContent, isEmptyContent } from "scorpio.ai";
-import { SessionManager, SessionService } from "channel.base";
-import { ChannelType } from "sbot.commons";
+import { SessionManager, SessionService, ChannelMessageArgs } from "channel.base";
 import { config } from "../Core/Config";
 import { database, ChannelSessionRow, SessionRow } from "../Core/Database";
 import { channelManager } from "../Channel/ChannelManager";
@@ -10,6 +9,13 @@ import { classifyIntent } from "../Processing/classifyIntent";
 
 import { getBuiltInCommands } from "./BuiltInCommands";
 import { WebSocketUserService } from "../Channel/web/WebSocketUserService";
+
+interface ChannelRouteArgs extends ChannelMessageArgs {
+    channelType: string;
+    channelId: string;
+    dbSessionId: number;
+    mentionBot?: boolean;
+}
 
 const processAIHandler = createProcessAIHandler();
 const webProcessAIHandler = createWebProcessAIHandler();
@@ -65,7 +71,7 @@ class SbotSession extends SessionService {
 
     async resolveSaverId(args: any): Promise<string | undefined> {
         const channelType = args?.channelType as string | undefined;
-        if (channelType === ChannelType.Web) {
+        if (channelType === "web") {
             const sessionId = args?.sessionId as string | undefined;
             if (!sessionId) return undefined;
             const row = await database.findByPk<SessionRow>(database.session, sessionId);
@@ -93,7 +99,7 @@ export class SbotSessionManager extends SessionManager {
     }
 
     createChannel(type: string, session: SessionService, channelId?: string): any {
-        if (type === ChannelType.Web) {
+        if (type === "web") {
             const ws = new WebSocketUserService(session);
             ws.setProcessAIHandler(webProcessAIHandler);
             return ws;
@@ -109,7 +115,7 @@ export class SbotSessionManager extends SessionManager {
 
     // ── Channel entry points ──
 
-    async onReceiveChannelMessage(threadId: string, query: MessageContent, args: any): Promise<void> {
+    async onReceiveChannelMessage(threadId: string, query: MessageContent, args: ChannelRouteArgs): Promise<void> {
         if (isEmptyContent(query)) return;
 
         // 意图过滤：在进入消息队列之前检查，避免触发 onProcessStart（回复卡片）
@@ -131,7 +137,7 @@ export class SbotSessionManager extends SessionManager {
     async onReceiveWebMessage(threadId: string, query: MessageContent, sessionId?: string): Promise<void> {
         if (isEmptyContent(query)) return;
         const session = this.getOrCreate(threadId);
-        await session.onReceiveMessage(query, { channelType: ChannelType.Web, sessionId });
+        await session.onReceiveMessage(query, { channelType: "web", sessionId });
     }
 
     // ── Trigger action routing ──

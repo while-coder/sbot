@@ -529,6 +529,7 @@ export default {
     name_placeholder: '如 default, my-agent',
     type_single: 'Single (单智能体)',
     type_react: 'ReAct (迭代决策)',
+    type_generative: 'Generative (生成式)',
     system_prompt_placeholder: '可选',
     node_config: '节点配置',
     add_sub: '+ 添加',
