@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
-import { marked } from 'marked'
+import { ref, nextTick } from 'vue'
 import { apiFetch } from '@/api'
 import { MessageRole } from '@/types'
 import type { StoredMessage, ToolCall } from '@/types'
 import { inlineArgs, resultPreview } from '@/utils/toolCallFormat'
+import { getContentParts, renderMd } from '@/utils/messageRender'
 
 const props = defineProps<{
   thinksUrlPrefix: string
@@ -16,19 +16,7 @@ const visible = ref(false)
 const thinkStack = ref<{ id: string; messages: StoredMessage[]; loading: boolean }[]>([])
 
 const drawerEl = ref<HTMLElement | null>(null)
-
-function renderMd(content: string | any[] | undefined | null): string {
-  if (!content) return ''
-  if (Array.isArray(content)) {
-    return marked.parse(
-      content
-        .filter((c: any) => typeof c === 'string' || c?.type === 'text')
-        .map((c: any) => (typeof c === 'string' ? c : c.text ?? ''))
-        .join('\n')
-    ) as string
-  }
-  return marked.parse(content) as string
-}
+const lightboxUrl = ref<string | null>(null)
 
 function toggleToolCall(el: HTMLElement) {
   el.classList.toggle('expanded')
@@ -123,7 +111,12 @@ defineExpose({ open })
                         <div class="msg-role-bar">
                           <span class="msg-role">User</span>
                         </div>
-                        {{ tm.message.content }}
+                        <template v-for="(part, pIdx) in getContentParts(tm.message.content)" :key="pIdx">
+                          <div v-if="part.type === 'text'" class="md-content" v-html="renderMd(part.text)" />
+                          <div v-else-if="part.type === 'image'" class="inline-image">
+                            <img :src="part.url" class="inline-image-thumb" @click="lightboxUrl = part.url!" />
+                          </div>
+                        </template>
                       </div>
                     </div>
                     <div v-else-if="tm.message.role === MessageRole.AI" class="msg-row ai">
@@ -131,7 +124,12 @@ defineExpose({ open })
                         <div class="msg-role-bar">
                           <span class="msg-role">AI</span>
                         </div>
-                        <div class="md-content" v-html="renderMd(tm.message.content)" />
+                        <template v-for="(part, pIdx) in getContentParts(tm.message.content)" :key="pIdx">
+                          <div v-if="part.type === 'text'" class="md-content" v-html="renderMd(part.text)" />
+                          <div v-else-if="part.type === 'image'" class="inline-image">
+                            <img :src="part.url" class="inline-image-thumb" @click="lightboxUrl = part.url!" />
+                          </div>
+                        </template>
                       </div>
                       <div v-if="tm.message.tool_calls && tm.message.tool_calls.length > 0" class="msg-tool-calls">
                         <div class="msg-role has-think">
@@ -158,7 +156,12 @@ defineExpose({ open })
                                     <span>Think</span>
                                   </div>
                                 </div>
-                                <div class="md-content tool-result-content" v-html="renderMd(m2.message.content || '')" />
+                                <template v-for="(part, pIdx) in getContentParts(m2.message.content)" :key="pIdx">
+                                  <div v-if="part.type === 'text'" class="md-content tool-result-content" v-html="renderMd(part.text)" />
+                                  <div v-else-if="part.type === 'image'" class="inline-image">
+                                    <img :src="part.url" class="inline-image-thumb" @click="lightboxUrl = part.url!" />
+                                  </div>
+                                </template>
                               </div>
                             </template>
                           </div>
@@ -173,6 +176,11 @@ defineExpose({ open })
         </div>
       </div>
     </Transition>
+
+    <!-- Image lightbox -->
+    <div v-if="lightboxUrl" class="think-lightbox-backdrop" @click="lightboxUrl = null">
+      <img :src="lightboxUrl" class="think-lightbox-img" @click.stop />
+    </div>
   </Teleport>
 </template>
 
@@ -274,6 +282,44 @@ defineExpose({ open })
   color: #9ca3af;
   padding: 40px 0;
   font-size: 13px;
+}
+
+/* Inline images */
+.inline-image {
+  margin: 8px 0;
+}
+
+.inline-image-thumb {
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid #e5e7eb;
+  transition: opacity 0.15s;
+}
+
+.inline-image-thumb:hover {
+  opacity: 0.85;
+}
+
+/* Lightbox */
+.think-lightbox-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.think-lightbox-img {
+  max-width: 90vw;
+  max-height: 90vh;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  cursor: default;
 }
 
 /* Transitions */
