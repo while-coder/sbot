@@ -1,9 +1,9 @@
 import { StateGraph, START, END } from '../../Graph';
 import { type StructuredToolInterface } from "@langchain/core/tools";
-import { inject, T_SystemPrompts, T_MemorySystemPromptTemplate, T_WikiSystemPromptTemplate, truncate } from "../../Core";
+import { inject, T_SystemPrompts, T_MemorySystemPromptTemplate, T_WikiSystemPromptTemplate, truncate, formatTimeAgo } from "../../Core";
 import { IModelService } from "../../Model";
 import { ISkillService } from "../../Skills";
-import { IMemoryService } from "../../Memory";
+import { IMemoryService, MemoryToolProvider } from "../../Memory";
 import { IWikiService } from "../../Wiki";
 import { WikiToolProvider } from "../../Wiki";
 import { IAgentSaverService } from "../../Saver";
@@ -82,7 +82,7 @@ export class SingleAgentService extends AgentServiceBase {
                 .sort((a, b) => b.decayedScore - a.decayedScore)
                 .slice(0, memoryLimit);
             if (allMemories.length > 0) {
-                const items = allMemories.map(({ memory: m }) => `  <memory time="${SingleAgentService.formatTimeAgo(m.metadata.timestamp)}">${m.content}</memory>`).join("\n");
+                const items = allMemories.map(({ memory: m }) => `  <memory time="${formatTimeAgo(m.metadata.timestamp)}">${m.content}</memory>`).join("\n");
                 parts.push(this.memorySystemPromptTemplate.replace('{items}', items));
             }
         }
@@ -113,6 +113,9 @@ export class SingleAgentService extends AgentServiceBase {
     protected async buildTools(_callback?: IAgentCallback, _cancellationToken?: ICancellationToken): Promise<StructuredToolInterface[]> {
         const tools: StructuredToolInterface[] = await this.toolService?.getAllTools() ?? [];
         if (this.skillService) tools.push(...this.skillService.getTools());
+        if (this.memoryServices.length > 0) {
+            tools.push(...MemoryToolProvider.getTools(this.memoryServices));
+        }
         if (this.wikiServices && this.wikiServices.length > 0) {
             tools.push(...WikiToolProvider.getTools(this.wikiServices));
         }
@@ -359,16 +362,5 @@ export class SingleAgentService extends AgentServiceBase {
         }
 
         return outputMessages;
-    }
-
-    private static formatTimeAgo(timestamp: number): string {
-        const diff = Date.now() - timestamp;
-        const minutes = Math.floor(diff / 60000);
-        const hours = Math.floor(diff / 3600000);
-        const days = Math.floor(diff / 86400000);
-        if (days > 0) return `${days}d ago`;
-        if (hours > 0) return `${hours}h ago`;
-        if (minutes > 0) return `${minutes}m ago`;
-        return "just now";
     }
 }

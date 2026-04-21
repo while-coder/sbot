@@ -41,6 +41,17 @@ export function truncate(str: string, maxLen: number, ellipsis = '…'): string 
 export const sleep = (ms: number): Promise<void> =>
     new Promise(resolve => setTimeout(resolve, ms));
 
+export function formatTimeAgo(timestamp: number): string {
+    const diff = Date.now() - timestamp;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+    if (days > 0) return `${days}d ago`;
+    if (hours > 0) return `${hours}h ago`;
+    if (minutes > 0) return `${minutes}m ago`;
+    return "just now";
+}
+
 export function parseJson<T>(str: string, defaultValue: T | undefined): T | undefined {
     try {
         return JSON.parse(str) as T;

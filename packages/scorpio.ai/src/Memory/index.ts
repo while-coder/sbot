@@ -20,6 +20,9 @@ export { MemoryCompressor } from "./Compressor/MemoryCompressor";
 export { IMemoryDatabase } from "./Storage/IMemoryDatabase";
 export { MemorySqliteDatabase } from "./Storage/MemorySqliteDatabase";
 
+// ===== 工具 =====
+export { MemoryToolProvider } from "./Tools/MemoryToolProvider";
+
 // ===== 类型定义 =====
 // 从 types.ts 导出
 export {

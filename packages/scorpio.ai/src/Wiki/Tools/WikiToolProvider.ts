@@ -10,9 +10,6 @@ export class WikiToolProvider {
             WikiToolProvider.createSearchTool(wikiServices),
             WikiToolProvider.createCreateTool(wikiServices),
             WikiToolProvider.createReadTool(wikiServices),
-            WikiToolProvider.createUpdateTool(wikiServices),
-            WikiToolProvider.createListTool(wikiServices),
-            WikiToolProvider.createDeleteTool(wikiServices),
         ];
     }
 
@@ -102,102 +99,4 @@ export class WikiToolProvider {
         });
     }
 
-    private static createUpdateTool(wikiServices: IWikiService[]): DynamicStructuredTool {
-        return new DynamicStructuredTool({
-            name: "wiki_update",
-            description:
-                "Update an existing wiki page's content or tags.",
-            schema: z.object({
-                id: z.string().describe("ID of the page to update"),
-                content: z.string().optional().describe("New content for the page"),
-                tags: z.array(z.string()).optional().describe("New tags for the page"),
-            }),
-            func: async ({ id, content, tags }) => {
-                try {
-                    const updates: Record<string, any> = {};
-                    if (content !== undefined) updates.content = content;
-                    if (tags !== undefined) updates.tags = tags;
-
-                    for (const wiki of wikiServices) {
-                        const existing = await wiki.getPage(id);
-                        if (existing) {
-                            const page = await wiki.updatePage(id, updates);
-                            return `Wiki page updated successfully.\n\n- **ID:** ${page.id}\n- **Title:** ${page.title}\n- **Version:** ${page.version}`;
-                        }
-                    }
-                    return `Error updating wiki page: page not found (ID: ${id})`;
-                } catch (e: any) {
-                    return `Error updating wiki page: ${e.message}`;
-                }
-            },
-        });
-    }
-
-    private static createListTool(wikiServices: IWikiService[]): DynamicStructuredTool {
-        return new DynamicStructuredTool({
-            name: "wiki_list",
-            description:
-                "List wiki pages, optionally filtered by tag.",
-            schema: z.object({
-                tag: z.string().optional().describe("Filter pages by this tag"),
-                limit: z.number().optional().default(20).describe("Maximum number of pages to return"),
-            }),
-            func: async ({ tag, limit }) => {
-                try {
-                    let pages;
-                    if (tag) {
-                        pages = (await Promise.all(
-                            wikiServices.map(s => s.searchByTag(tag, limit))
-                        )).flat().slice(0, limit);
-                    } else {
-                        pages = (await Promise.all(
-                            wikiServices.map(s => s.getAllPages())
-                        )).flat().slice(0, limit);
-                    }
-
-                    if (pages.length === 0) {
-                        return tag
-                            ? `No wiki pages found with tag "${tag}".`
-                            : "No wiki pages found.";
-                    }
-
-                    const lines = pages.map((p, i) => {
-                        const tags = p.tags.length > 0 ? ` [${p.tags.join(", ")}]` : "";
-                        return `${i + 1}. **${p.title}**${tags}`;
-                    });
-                    const header = tag
-                        ? `Wiki pages tagged "${tag}" (${pages.length}):`
-                        : `Wiki pages (${pages.length}):`;
-                    return `${header}\n\n${lines.join("\n")}`;
-                } catch (e: any) {
-                    return `Error listing wiki pages: ${e.message}`;
-                }
-            },
-        });
-    }
-
-    private static createDeleteTool(wikiServices: IWikiService[]): DynamicStructuredTool {
-        return new DynamicStructuredTool({
-            name: "wiki_delete",
-            description:
-                "Delete a wiki page by ID.",
-            schema: z.object({
-                id: z.string().describe("ID of the page to delete"),
-            }),
-            func: async ({ id }) => {
-                try {
-                    for (const wiki of wikiServices) {
-                        const existing = await wiki.getPage(id);
-                        if (existing) {
-                            await wiki.deletePage(id);
-                            return `Wiki page deleted successfully (ID: ${id}).`;
-                        }
-                    }
-                    return `Error deleting wiki page: page not found (ID: ${id})`;
-                } catch (e: any) {
-                    return `Error deleting wiki page: ${e.message}`;
-                }
-            },
-        });
-    }
 }
