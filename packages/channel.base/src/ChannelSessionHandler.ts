@@ -22,7 +22,7 @@ export enum ToolCallStatus {
 }
 
 export abstract class ChannelSessionHandler {
-  protected readonly session: SessionService;
+  readonly session: SessionService;
 
   constructor(session: SessionService) {
     this.session = session;

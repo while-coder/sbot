@@ -31,8 +31,8 @@ export enum AskQuestionType {
 }
 
 export type AskQuestionSpec =
-  | { type: AskQuestionType.Radio;    label: string; options: string[]; allowCustom?: boolean }
-  | { type: AskQuestionType.Checkbox; label: string; options: string[]; allowCustom?: boolean }
+  | { type: AskQuestionType.Radio;    label: string; options: string[] }
+  | { type: AskQuestionType.Checkbox; label: string; options: string[] }
   | { type: AskQuestionType.Input;    label: string; placeholder?: string }
 
 export interface HumanData    { content: DisplayContent }

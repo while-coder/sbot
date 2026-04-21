@@ -59,7 +59,7 @@ export interface ChannelToolHelpers {
 export type ProcessAIHandler = (
   query: MessageContent,
   args: ChannelMessageArgs,
-  userService: ChannelSessionHandler,
+  sessionHandler: ChannelSessionHandler,
 ) => Promise<void>;
 
 export enum ConfigFieldType {

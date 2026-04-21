@@ -162,11 +162,10 @@ export class LarkSessionHandler extends ChannelSessionHandler {
     if (q.type === AskQuestionType.Radio || q.type === AskQuestionType.Checkbox) {
       const isMulti = q.type === AskQuestionType.Checkbox;
       const select = {
-        tag: isMulti ? 'multi_select_static' : 'select_static', name, required: !q.allowCustom, width: 'default', placeholder,
+        tag: isMulti ? 'multi_select_static' : 'select_static', name, required: false, width: 'default', placeholder,
         options: this.buildSelectOptions(q.options),
         ...(!isMulti && { type: 'default' }),
       };
-      if (!q.allowCustom) return [select];
       return [select, {
         tag: 'input', name: `${name}_custom`, width: 'default', required: false,
         placeholder: { tag: 'plain_text', content: '或在此输入自定义选项' },

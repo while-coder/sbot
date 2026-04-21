@@ -59,8 +59,8 @@ export interface SessionStatus {
     id: string;
     title?: string;
     questions: Array<
-      | { type: 'radio'; label: string; options: string[]; allowCustom?: boolean }
-      | { type: 'checkbox'; label: string; options: string[]; allowCustom?: boolean }
+      | { type: 'radio'; label: string; options: string[] }
+      | { type: 'checkbox'; label: string; options: string[] }
       | { type: 'input'; label: string; placeholder?: string }
     >;
   };

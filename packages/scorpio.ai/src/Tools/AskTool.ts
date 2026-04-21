@@ -17,13 +17,11 @@ interface AskQuestionBase {
 export interface RadioQuestion extends AskQuestionBase {
   type: AskQuestionType.Radio;
   options: string[];
-  allowCustom?: boolean;
 }
 
 export interface CheckboxQuestion extends AskQuestionBase {
   type: AskQuestionType.Checkbox;
   options: string[];
-  allowCustom?: boolean;
 }
 
 export interface InputQuestion extends AskQuestionBase {
@@ -48,14 +46,12 @@ const RadioSchema = z.object({
   type: z.literal(AskQuestionType.Radio),
   label: z.string().describe("Question label displayed to the user"),
   options: z.array(z.string()).min(2).describe("Choices for single selection"),
-  allowCustom: z.boolean().optional().describe("Show an extra 'Other' option with a text input"),
 });
 
 const CheckboxSchema = z.object({
   type: z.literal(AskQuestionType.Checkbox),
   label: z.string().describe("Question label displayed to the user"),
   options: z.array(z.string()).min(1).describe("Choices for multiple selection"),
-  allowCustom: z.boolean().optional().describe("Show an extra 'Other' option with a text input"),
 });
 
 const InputSchema = z.object({

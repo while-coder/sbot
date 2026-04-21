@@ -297,28 +297,24 @@ defineExpose({ handleWsEvent, refreshHistory, clearHistory, scrollToBottom, rese
           <input type="radio" :name="`ask_${pendingAsk.id}_${i}`" :value="opt" v-model="askAnswers[i]" />
           {{ opt }}
         </label>
-        <template v-if="q.allowCustom">
-          <label class="ask-option">
-            <input type="radio" :name="`ask_${pendingAsk.id}_${i}`" :value="CUSTOM_SENTINEL" v-model="askAnswers[i]" />
-            {{ t('chat.ask_other') }}
-          </label>
-          <input v-if="askAnswers[i] === CUSTOM_SENTINEL" type="text" class="ask-input ask-custom-input"
-            v-model="askCustomInputs[i]" :placeholder="t('chat.ask_other_placeholder')" />
-        </template>
+        <label class="ask-option">
+          <input type="radio" :name="`ask_${pendingAsk.id}_${i}`" :value="CUSTOM_SENTINEL" v-model="askAnswers[i]" />
+          {{ t('chat.ask_other') }}
+        </label>
+        <input v-if="askAnswers[i] === CUSTOM_SENTINEL" type="text" class="ask-input ask-custom-input"
+          v-model="askCustomInputs[i]" :placeholder="t('chat.ask_other_placeholder')" />
       </div>
       <div v-else-if="q.type === AskQuestionType.Checkbox" class="ask-options">
         <label v-for="opt in q.options" :key="opt" class="ask-option">
           <input type="checkbox" :value="opt" v-model="(askAnswers[i] as string[])" />
           {{ opt }}
         </label>
-        <template v-if="q.allowCustom">
-          <label class="ask-option">
-            <input type="checkbox" :value="CUSTOM_SENTINEL" v-model="(askAnswers[i] as string[])" />
-            {{ t('chat.ask_other') }}
-          </label>
-          <input v-if="(askAnswers[i] as string[]).includes(CUSTOM_SENTINEL)" type="text" class="ask-input ask-custom-input"
-            v-model="askCustomInputs[i]" :placeholder="t('chat.ask_other_placeholder')" />
-        </template>
+        <label class="ask-option">
+          <input type="checkbox" :value="CUSTOM_SENTINEL" v-model="(askAnswers[i] as string[])" />
+          {{ t('chat.ask_other') }}
+        </label>
+        <input v-if="(askAnswers[i] as string[]).includes(CUSTOM_SENTINEL)" type="text" class="ask-input ask-custom-input"
+          v-model="askCustomInputs[i]" :placeholder="t('chat.ask_other_placeholder')" />
       </div>
       <input v-else type="text" class="ask-input" v-model="(askAnswers[i] as string)"
         :placeholder="(q as any).placeholder ?? ''" />

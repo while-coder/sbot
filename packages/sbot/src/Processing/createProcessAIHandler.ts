@@ -1,4 +1,4 @@
-import { ProcessAIHandler, ChannelToolHelpers, type MessageContent } from "channel.base";
+import { ProcessAIHandler, ChannelToolHelpers, ChannelSessionHandler, type ChannelMessageArgs, type MessageContent } from "channel.base";
 import { AgentRunner, createAskAgentTool, createSendFileAgentTool } from "../Agent/AgentRunner";
 import { MessageRole, type ChatMessage } from "scorpio.ai";
 import { config } from "../Core/Config";
@@ -15,21 +15,21 @@ const agentToolHelpers: ChannelToolHelpers = {
         createSendFileAgentTool(prompt, sendFileFn),
 };
 
-function runAgent(query: MessageContent, args: any, userService: any, agentId: string, saverId: string, schedulerType: SchedulerType, schedulerId: string, memories: string[], wikis: string[], workPath?: string, autoApproveAllTools?: boolean, callbackOverrides?: { onMessage?: (msg: ChatMessage) => Promise<void>; onStreamMessage?: ((msg: ChatMessage) => Promise<void>) | undefined }): Promise<void> {
-    const threadId = userService.session.threadId;
+function runAgent(query: MessageContent, args: ChannelMessageArgs, sessionHandler: ChannelSessionHandler, agentId: string, saverId: string, schedulerType: SchedulerType, schedulerId: string, memories: string[], wikis: string[], workPath?: string, autoApproveAllTools?: boolean, callbackOverrides?: { onMessage?: (msg: ChatMessage) => Promise<void>; onStreamMessage?: ((msg: ChatMessage) => Promise<void>) | undefined }): Promise<void> {
+    const threadId = sessionHandler.session.threadId;
     return AgentRunner.run({
         query,
         callbacks: {
-            onMessage: callbackOverrides?.onMessage ?? ((msg) => userService.onChatMessage(msg, args)),
-            onStreamMessage: callbackOverrides && 'onStreamMessage' in callbackOverrides ? callbackOverrides.onStreamMessage : (msg) => userService.onStreamMessage(msg, args),
+            onMessage: callbackOverrides?.onMessage ?? ((msg) => sessionHandler.onChatMessage(msg, args)),
+            onStreamMessage: callbackOverrides ? callbackOverrides.onStreamMessage : (msg) => sessionHandler.onStreamMessage(msg, args),
             executeTool: buildExecuteTool(
-                userService.session,
+                sessionHandler.session,
                 agentId,
-                (tc) => userService.executeApproval(tc),
+                (tc) => sessionHandler.executeApproval(tc),
                 autoApproveAllTools,
             ),
             onUsage: async (usage) => {
-                userService.session.recordUsage(usage);
+                sessionHandler.session.recordUsage(usage);
                 const today = new Date().toISOString().slice(0, 10);
                 const [, created] = await database.findOrCreate(database.usageStats, {
                     where: { date: today },
@@ -71,12 +71,12 @@ function runAgent(query: MessageContent, args: any, userService: any, agentId: s
         memories,
         wikis,
         workPath,
-        agentTools: userService.buildAgentTools(args, agentToolHelpers),
+        agentTools: sessionHandler.buildAgentTools(args, agentToolHelpers),
     });
 }
 
 export function createProcessAIHandler(): ProcessAIHandler {
-    return async (query, args, userService) => {
+    return async (query, args, sessionHandler) => {
         const channelId = args?.channelId as string;
         const channel = channelId ? config.getChannel(channelId) : undefined;
         if (!channel) throw new Error(`Channel "${channelId}" not found`);
@@ -99,28 +99,29 @@ export function createProcessAIHandler(): ProcessAIHandler {
             : sessionWikis;
 
         const streamVerbose = dbSession?.streamVerbose ?? false;
-        const pendingMessages: ChatMessage[] = [];
 
-        const callbackOverrides: { onMessage: (msg: ChatMessage) => Promise<void>; onStreamMessage?: undefined } = {
-            onMessage: (msg) => { pendingMessages.push(msg); return Promise.resolve(); },
-        };
-        if (!streamVerbose) {
-            callbackOverrides.onStreamMessage = undefined;
+        if (streamVerbose) {
+            await runAgent(query, args, sessionHandler, agentId, channel.saver,
+                SchedulerType.Channel, String(dbSessionId), memories, wikis, dbSession?.workPath || undefined,
+                dbSession?.autoApproveAllTools);
+        } else {
+            await runAgent(query, args, sessionHandler, agentId, channel.saver,
+                SchedulerType.Channel, String(dbSessionId), memories, wikis, dbSession?.workPath || undefined,
+                dbSession?.autoApproveAllTools, {
+                    onMessage: (msg) => {
+                        if (msg.role === MessageRole.AI && !msg.tool_calls?.length) {
+                            return sessionHandler.onChatMessage(msg, args);
+                        }
+                        return Promise.resolve();
+                    },
+                    onStreamMessage: undefined,
+                });
         }
-
-        await runAgent(query, args, userService, agentId, channel.saver as string,
-            SchedulerType.Channel, String(dbSessionId), memories, wikis, dbSession?.workPath || undefined,
-            dbSession?.autoApproveAllTools, callbackOverrides);
-
-        const last = [...pendingMessages].reverse().find(
-            m => m.role === MessageRole.AI && typeof m.content === 'string' && m.content
-        );
-        if (last) await userService.onChatMessage(last, args);
     };
 }
 
 export function createWebProcessAIHandler(): ProcessAIHandler {
-    return async (query, args, userService) => {
+    return async (query, args, sessionHandler) => {
         const sessionId = args?.sessionId as string;
 
         // Echo the human message back to the WebSocket client (preserves multimodal content)
@@ -129,7 +130,7 @@ export function createWebProcessAIHandler(): ProcessAIHandler {
         const row = sessionId ? await database.findByPk<SessionRow>(database.session, sessionId) : undefined;
         if (!row) throw new Error(`Session "${sessionId}" not found`);
 
-        await runAgent(query, args, userService, row.agent, row.saver,
+        await runAgent(query, args, sessionHandler, row.agent, row.saver,
             SchedulerType.Session, sessionId, parseMemories(row.memories), parseMemories(row.wikis), row.workPath || undefined,
             row.autoApproveAllTools);
     };
