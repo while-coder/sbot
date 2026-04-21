@@ -47,19 +47,16 @@ export async function classifyIntent(
   if (!modelService) return true;
 
   try {
-    const text = typeof query === 'string'
-      ? query
-      : query.filter(b => b.type === 'text').map(b => b.text).join('\n');
-
-    if (!text.trim()) return true;
-
     const result = await modelService.invokeStructured<IntentResult>(IntentSchema, [
       { role: MessageRole.System, content: intentPrompt || DEFAULT_INTENT_PROMPT },
-      { role: MessageRole.Human, content: text },
+      { role: MessageRole.Human, content: query },
     ]);
 
     const shouldReply = result.shouldReply && result.confidence >= intentThreshold;
     if (!shouldReply) {
+      const text = typeof query === 'string'
+        ? query
+        : query.filter(b => b.type === 'text').map(b => b.text).join('\n');
       logger.info(`意图过滤: "${text.length > 80 ? text.slice(0, 80) + '...' : text}" → 已过滤 (confidence=${result.confidence}, threshold=${intentThreshold}, reasoning=${result.reasoning})`);
     }
     return shouldReply;
