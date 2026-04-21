@@ -31,12 +31,11 @@ async function executeScheduler(schedulerId: number): Promise<void> {
 
             const { channelId, sessionId, id: dbSessionId } = sessionRow;
             const channelType = config.getChannel(channelId)?.type;
-            const threadId = channelType ? channelThreadId(channelType, channelId, sessionId) : '';
-
-            if (!threadId) {
-                logger.warn(`Scheduler task ${tag} unknown channel type: ${channelType}`);
+            if (!channelType) {
+                logger.warn(`Scheduler task ${tag} unknown channel type for channelId=${channelId}`);
                 return;
             }
+            const threadId = channelThreadId(channelType, channelId, sessionId);
 
             await sessionManager.onReceiveChannelMessage(threadId, scheduler.message, {
                 channelType,
