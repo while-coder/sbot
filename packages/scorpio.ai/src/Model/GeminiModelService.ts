@@ -14,6 +14,8 @@ export class GeminiModelService implements IModelService {
 
   constructor(private config: ModelConfig) {}
 
+  get contextWindow(): number | undefined { return this.config.contextWindow; }
+
   async initialize(): Promise<void> {
     const opts: Record<string, any> = {
       apiKey: this.config.apiKey,

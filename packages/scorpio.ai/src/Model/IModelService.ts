@@ -27,6 +27,11 @@ export interface IModelService {
   stream(messages: string | ChatMessage[]): Promise<AsyncIterable<ChatMessage>>;
 
   /**
+   * 模型上下文窗口大小（token 数），用于历史消息截断
+   */
+  readonly contextWindow?: number;
+
+  /**
    * 返回底层模型实例，供 LangChain createAgent 等原生 API 使用
    */
   getModel(): any;

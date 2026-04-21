@@ -4,7 +4,7 @@ import { GeminiModelService } from "./GeminiModelService";
 
 /**
  * Gemini 图片生成模型服务
- * 过滤掉 SystemMessage 和 ToolMessage，仅保留 Human/AI 消息
+ * 过滤掉 ToolMessage，仅保留 System/Human 消息
  */
 export class GeminiImageModelService extends GeminiModelService {
   constructor(config: ModelConfig) {
@@ -13,7 +13,7 @@ export class GeminiImageModelService extends GeminiModelService {
 
   private filterMessages(prompt: string | ChatMessage[]): string | ChatMessage[] {
     if (typeof prompt === 'string') return prompt;
-    return prompt.filter(m => m.role === MessageRole.Human);
+    return prompt.filter(m => m.role === MessageRole.Human || m.role === MessageRole.System);
   }
 
   override async invoke(prompt: string | ChatMessage[]): Promise<ChatMessage> {

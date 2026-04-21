@@ -5,7 +5,7 @@ import { IModelService } from "../../Model";
 import { IAgentSaverService } from "../../Saver";
 import { ILoggerService } from "../../Logger";
 import { IMemoryService } from "../../Memory";
-import { AgentServiceBase, IAgentCallback, ICancellationToken, AgentCancelledError, MAX_HISTORY_TOKENS, ChatMessage, MessageRole } from "../AgentServiceBase";
+import { AgentServiceBase, IAgentCallback, ICancellationToken, AgentCancelledError, DEFAULT_MAX_HISTORY_TOKENS, ChatMessage, MessageRole } from "../AgentServiceBase";
 import type { MessageContent } from "../../Saver/IAgentSaverService";
 
 export { ChatMessage, MessageRole, IAgentCallback, ICancellationToken, AgentCancelledError } from "../AgentServiceBase";
@@ -40,7 +40,7 @@ export class GenerativeAgentService extends AgentServiceBase {
     override async stream(query: MessageContent, callback: IAgentCallback, cancellationToken?: ICancellationToken): Promise<ChatMessage[]> {
         await this.saverService.pushMessage({ role: MessageRole.Human, content: query });
 
-        const savedHistory = await this.saverService.getMessages(MAX_HISTORY_TOKENS);
+        const savedHistory = await this.saverService.getMessages(this.modelService.contextWindow ?? DEFAULT_MAX_HISTORY_TOKENS);
         if (!savedHistory || savedHistory.length === 0) {
             throw new Error('historyMessages is empty, cannot call model');
         }

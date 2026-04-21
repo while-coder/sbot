@@ -4,7 +4,9 @@ import { IAgentSaverService, AgentMemorySaver, ChatMessage, ChatToolCall, Messag
 import { ILoggerService, ILogger } from "../Logger";
 
 
-export const MAX_HISTORY_TOKENS = 150_000;
+export const DEFAULT_MAX_HISTORY_TOKENS = 150_000;
+/** @deprecated Use DEFAULT_MAX_HISTORY_TOKENS instead */
+export const MAX_HISTORY_TOKENS = DEFAULT_MAX_HISTORY_TOKENS;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 公共类型定义

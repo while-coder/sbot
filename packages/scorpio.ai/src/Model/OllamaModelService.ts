@@ -15,6 +15,8 @@ export class OllamaModelService implements IModelService {
 
   constructor(private config: ModelConfig) {}
 
+  get contextWindow(): number | undefined { return this.config.contextWindow; }
+
   async initialize(): Promise<void> {
     this.model = new ChatOllama({
       baseUrl: this.config.baseURL,

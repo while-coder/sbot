@@ -10,7 +10,7 @@ import { IAgentSaverService } from "../../Saver";
 import { IAgentToolService } from "../../AgentTool";
 import { ILoggerService } from "../../Logger";
 import { normalizeToMCPResult, MCPContentType, type MCPToolResult } from '../../Tools';
-import { AgentServiceBase, GraphNodeType, ToolApproval, IAgentCallback, ICancellationToken, AgentCancelledError, MAX_HISTORY_TOKENS, ChatMessage, MessageRole, type TokenUsage } from "../AgentServiceBase";
+import { AgentServiceBase, GraphNodeType, ToolApproval, IAgentCallback, ICancellationToken, AgentCancelledError, DEFAULT_MAX_HISTORY_TOKENS, ChatMessage, MessageRole, type TokenUsage } from "../AgentServiceBase";
 import type { MessageContent } from "../../Saver/IAgentSaverService";
 import { contentToString } from "../../Utils/contentUtils";
 
@@ -132,7 +132,7 @@ export class SingleAgentService extends AgentServiceBase {
         }
 
         // 每次调用都从 saver 重新取（含 token 截断），防止多轮工具调用后 state.messages 超限
-        const savedHistory = await this.saverService.getMessages(MAX_HISTORY_TOKENS);
+        const savedHistory = await this.saverService.getMessages(this.modelService.contextWindow ?? DEFAULT_MAX_HISTORY_TOKENS);
         if (!savedHistory || savedHistory.length === 0) {
             throw new Error('historyMessages is empty, cannot call model');
         }
@@ -184,7 +184,7 @@ export class SingleAgentService extends AgentServiceBase {
      */
     private async callToolsNode(state: SingleAgentState) {
         const callback = state.callback ?? undefined;
-        const messages = await this.saverService.getMessages(MAX_HISTORY_TOKENS);
+        const messages = await this.saverService.getMessages(this.modelService.contextWindow ?? DEFAULT_MAX_HISTORY_TOKENS);
         if (!messages || messages.length === 0) {
             throw new Error('historyMessages is empty, cannot execute tools');
         }

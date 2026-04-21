@@ -15,6 +15,8 @@ export class AnthropicModelService implements IModelService {
 
   constructor(private config: ModelConfig) {}
 
+  get contextWindow(): number | undefined { return this.config.contextWindow; }
+
   async initialize(): Promise<void> {
     this.model = new ChatAnthropic({
       anthropicApiKey: this.config.apiKey,
