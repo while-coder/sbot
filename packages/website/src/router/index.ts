@@ -20,7 +20,6 @@ const routes = [
   { path: '/skills', component: () => import('@/views/SkillsView.vue') },
   { path: '/prompts', component: () => import('@/views/PromptsView.vue') },
   // 管理
-  { path: '/users', component: () => import('@/views/UsersView.vue') },
   { path: '/scheduler', component: () => import('@/views/SchedulerView.vue') },
   { path: '/logs', component: () => import('@/views/LogsView.vue') },
   { path: '/about', component: () => import('@/views/AboutView.vue') },

@@ -41,9 +41,19 @@ const menuGroups = computed(() => [
     items: [
       { label: t('nav.agents'), key: '/agents' },
       { label: t('nav.agent_store'), key: '/agent-store' },
+    ],
+  },
+  {
+    group: t('nav.group_storage'),
+    items: [
       { label: t('nav.savers'), key: '/savers' },
       { label: t('nav.memories'), key: '/memories' },
       { label: t('nav.wikis'), key: '/wikis' },
+    ],
+  },
+  {
+    group: t('nav.group_tools'),
+    items: [
       { label: t('nav.mcp'), key: '/mcp' },
       { label: t('nav.skills'), key: '/skills' },
       { label: t('nav.prompts'), key: '/prompts' },
