@@ -525,6 +525,7 @@ export default {
     copy: 'Copy',
     edit_title: 'Edit Agent',
     add_title: 'Add Agent',
+    id_hint: 'Unique identifier, only lowercase letters, numbers, hyphens and dots',
     name: 'Name',
     name_placeholder: 'e.g. default, my-agent',
     type_single: 'Single',

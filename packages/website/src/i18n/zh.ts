@@ -525,6 +525,7 @@ export default {
     copy: '复制',
     edit_title: '编辑智能体',
     add_title: '添加智能体',
+    id_hint: '唯一标识，仅支持小写字母、数字、连字符和点号',
     name: '名称',
     name_placeholder: '如 default, my-agent',
     type_single: 'Single (单智能体)',

@@ -24,6 +24,7 @@ const agentOptions  = computed(() =>
 const showModal  = ref(false)
 const editingId  = ref<string | null>(null)
 const form = ref({
+  id: '',
   name: '',
   type: AgentMode.Single as string,
   model: '',
@@ -37,6 +38,7 @@ function open(id?: string) {
     const a = agents.value[id]
     editingId.value = id
     form.value = {
+      id: id,
       name: (a as any).name || '',
       type: a.type || AgentMode.Single,
       model: a.model || '',
@@ -48,7 +50,7 @@ function open(id?: string) {
     editingId.value = null
     tempSubAgents.value = []
     form.value = {
-      name: '', type: AgentMode.Single, model: '', systemPrompt: '',
+      id: '', name: '', type: AgentMode.Single, model: '', systemPrompt: '',
       autoApproveAllTools: false,
     }
   }
@@ -56,6 +58,7 @@ function open(id?: string) {
 }
 
 async function save() {
+  if (!editingId.value && !form.value.id.trim()) { show('ID is required', 'error'); return }
   if (!form.value.name.trim()) { show(t('common.name_required'), 'error'); return }
   const { type } = form.value
   if (!form.value.model) { show(t('agents.error_model'), 'error'); return }
@@ -70,16 +73,20 @@ async function save() {
     if (type === AgentMode.ReAct) {
       config.agents = tempSubAgents.value
     }
-    // 保留在专属页面配置的 mcp 和 skills（支持 "*" 通配符）
+    // 保留在专属页面配置的字段（generative 模式无工具/技能，不保留）
     const existing = editingId.value ? agents.value[editingId.value] : null
-    if (existing?.mcp)    config.mcp    = existing.mcp
-    if (existing?.skills) config.skills = existing.skills
+    if (type !== AgentMode.Generative) {
+      if (existing?.mcp)    config.mcp    = existing.mcp
+      if (existing?.skills) config.skills = existing.skills
+      if ((existing as any)?.autoApproveTools) (config as any).autoApproveTools = (existing as any).autoApproveTools
+    }
 
     if (form.value.name.trim()) (config as any).name = form.value.name.trim()
     const id = editingId.value
     if (id) {
       await apiFetch(`/api/agents/${encodeURIComponent(id)}`, 'PUT', config)
     } else {
+      if (form.value.id.trim()) (config as any).id = form.value.id.trim()
       await apiFetch('/api/agents', 'POST', config)
     }
     const settingsRes = await apiFetch('/api/settings')
@@ -135,10 +142,7 @@ function deleteSubAgent(idx: number) {
 }
 
 function subAgentSelectOptions() {
-  return agentOptions.value.filter(a =>
-    a.id !== subAgentExclude.value &&
-    (agents.value[a.id] as any)?.type === 'single'
-  )
+  return agentOptions.value.filter(a => a.id !== subAgentExclude.value)
 }
 
 defineExpose({ open })
@@ -153,6 +157,11 @@ defineExpose({ open })
         <button class="modal-close" @click="showModal = false">&times;</button>
       </div>
       <div class="modal-body">
+        <div class="form-group" v-if="!editingId">
+          <label>ID *</label>
+          <input v-model="form.id" placeholder="ID" />
+          <span style="font-size:0.78rem;color:var(--color-text-muted,#888);margin-top:2px">{{ t('agents.id_hint') }}</span>
+        </div>
         <div class="form-group">
           <label>{{ t('agents.name') }} *</label>
           <input v-model="form.name" :placeholder="t('agents.name_placeholder')" />

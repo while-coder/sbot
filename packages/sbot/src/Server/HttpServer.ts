@@ -296,6 +296,7 @@ function safeSkillFilePath(filePath: string): string {
 function api(fn: (req: Request, res: Response) => any) {
     return async (req: Request, res: Response) => {
         const start = Date.now();
+        logger.debug(`${req.method} ${req.path} body=${JSON.stringify(req.body)} query=${JSON.stringify(req.query)}`);
         try {
             const result = await fn(req, res);
             if (!res.headersSent) res.json({ success: true, data: result ?? null });
@@ -617,16 +618,12 @@ class HttpServer {
         // Create agent
         app.post('/api/agents', api(req => {
             const body = req.body;
-            const id = body.id || sanitizeId(body.name || 'agent');
-            // 冲突检查
-            let finalId = id;
-            if (config.agentExists(finalId)) {
-                let n = 2;
-                while (config.agentExists(`${id}-${n}`)) n++;
-                finalId = `${id}-${n}`;
-            }
-            config.saveAgent(finalId, body);
-            return config.getAgent(finalId);
+            const id = (body.id || '').trim();
+            if (!id) throwBad('id is required');
+            if (id !== sanitizeId(id)) throwBad(`Invalid id "${id}"`);
+            if (config.agentExists(id)) throwBad(`Agent "${id}" already exists`);
+            config.saveAgent(id, body);
+            return config.getAgent(id);
         }));
 
         // Get single agent

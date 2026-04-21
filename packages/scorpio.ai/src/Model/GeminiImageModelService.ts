@@ -13,7 +13,9 @@ export class GeminiImageModelService extends GeminiModelService {
 
   private filterMessages(prompt: string | ChatMessage[]): string | ChatMessage[] {
     if (typeof prompt === 'string') return prompt;
-    return prompt.filter(m => m.role === MessageRole.Human || m.role === MessageRole.System);
+    return prompt
+      .filter(m => m.role === MessageRole.Human || m.role === MessageRole.System)
+      .map(m => m.role === MessageRole.System ? { ...m, role: MessageRole.Human } : m);
   }
 
   override async invoke(prompt: string | ChatMessage[]): Promise<ChatMessage> {
