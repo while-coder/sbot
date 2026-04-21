@@ -37,6 +37,7 @@ export interface ModelConfig {
   apiVersion?: string
   temperature?: number
   maxTokens?: number
+  contextWindow?: number
 }
 
 export enum EmbeddingProvider {

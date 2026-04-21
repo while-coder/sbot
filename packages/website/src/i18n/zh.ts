@@ -192,6 +192,7 @@ export default {
     pick_title: '选择模型',
     pick_empty: '未找到可用模型',
     api_version: 'API 版本',
+    context_window: '上下文窗口',
   },
   embeddings: {
     add: '+ 添加 Embedding',

@@ -192,6 +192,7 @@ export default {
     pick_title: 'Select Model',
     pick_empty: 'No models available',
     api_version: 'API Version',
+    context_window: 'Context Window',
   },
   embeddings: {
     add: '+ Add Embedding',

@@ -256,86 +256,124 @@ onMounted(() => {
     <!-- Right panel: toolbar + chat -->
     <div v-if="!isMobile || !showSessionPanel" style="flex:1;display:flex;flex-direction:column;overflow:hidden">
 
-      <!-- Toolbar -->
-      <div class="page-toolbar chat-toolbar" :class="{ 'chat-toolbar-mobile': isMobile }">
-        <template v-if="activeSessionId">
-          <!-- Agent -->
-          <label class="toolbar-label">Agent</label>
-          <select
-            class="toolbar-select-sm"
-            :value="effectiveAgent"
-            @change="saveSession({ agent: ($event.target as HTMLSelectElement).value })"
-          >
-            <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }} ({{ a.type }})</option>
-          </select>
+      <!-- Header -->
+      <div class="chat-header">
+        <!-- Row 1: Config -->
+        <div class="chat-toolbar-row" :class="{ 'chat-toolbar-mobile': isMobile }">
+          <template v-if="activeSessionId">
+            <div class="toolbar-group">
+              <label class="toolbar-label">Agent</label>
+              <select
+                class="toolbar-select-sm"
+                :value="effectiveAgent"
+                @change="saveSession({ agent: ($event.target as HTMLSelectElement).value })"
+              >
+                <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }} ({{ a.type }})</option>
+              </select>
+            </div>
 
-          <!-- Saver -->
-          <label class="toolbar-label">{{ t('common.storage') }}</label>
-          <select
-            class="toolbar-select-sm"
-            :value="effectiveSaver || ''"
-            @change="saveSession({ saver: ($event.target as HTMLSelectElement).value })"
-          >
-            <option v-for="s in saverOptions" :key="s.id" :value="s.id">{{ s.label }}</option>
-          </select>
-          <button v-if="effectiveSaver" class="chat-info-chip" @click="saverViewModal?.openSession(activeSessionId!, saverOptions.find(s => s.id === effectiveSaver)?.label || effectiveSaver!)">{{ t('common.view') }}</button>
+            <div class="toolbar-sep" />
 
-          <!-- WorkPath -->
-          <label class="toolbar-label">{{ t('common.workpath') }}</label>
-          <input
-            class="toolbar-input-sm"
-            :value="effectiveWorkPath"
-            :placeholder="t('common.workpath_placeholder')"
-            readonly
-            :title="effectiveWorkPath || t('common.workpath_placeholder')"
-            style="max-width:180px"
-          />
-          <button class="btn-outline btn-sm" @click="pathPickerModal?.open(effectiveWorkPath)">…</button>
-          <button v-if="effectiveWorkPath" class="chat-info-chip" style="color:#ef4444" @click="saveSession({ workPath: undefined })">×</button>
+            <div class="toolbar-group">
+              <label class="toolbar-label">{{ t('common.storage') }}</label>
+              <select
+                class="toolbar-select-sm"
+                :value="effectiveSaver || ''"
+                @change="saveSession({ saver: ($event.target as HTMLSelectElement).value })"
+              >
+                <option v-for="s in saverOptions" :key="s.id" :value="s.id">{{ s.label }}</option>
+              </select>
+              <button v-if="effectiveSaver" class="chat-info-chip" @click="saverViewModal?.openSession(activeSessionId!, saverOptions.find(s => s.id === effectiveSaver)?.label || effectiveSaver!)">{{ t('common.view') }}</button>
+            </div>
 
-          <!-- Memory -->
-          <label class="toolbar-label">{{ t('common.memory') }}</label>
-          <MultiSelect
-            :model-value="effectiveMemories"
-            :options="memoryOptions"
-            compact
-            style="min-width:140px"
-            @update:model-value="saveSession({ memories: $event })"
-          />
-          <template v-for="mid in effectiveMemories" :key="mid">
-            <button class="chat-info-chip" @click="store.settings.memories?.[mid]?.share ? memoryViewModal?.open(mid, store.settings.memories[mid]) : memoryViewModal?.openSession(mid, store.settings.memories?.[mid] ?? {}, activeSessionId!)">{{ memoryOptions.find(m => m.id === mid)?.label || t('common.view') }}</button>
+            <div class="toolbar-sep" />
+
+            <div class="toolbar-group">
+              <label class="toolbar-label">{{ t('common.workpath') }}</label>
+              <input
+                class="toolbar-input-sm"
+                :value="effectiveWorkPath"
+                :placeholder="t('common.workpath_placeholder')"
+                readonly
+                :title="effectiveWorkPath || t('common.workpath_placeholder')"
+                style="max-width:180px"
+              />
+              <button class="btn-outline btn-sm" @click="pathPickerModal?.open(effectiveWorkPath)">…</button>
+              <button v-if="effectiveWorkPath" class="chat-info-chip" style="color:#ef4444" @click="saveSession({ workPath: undefined })">×</button>
+            </div>
+
+            <div class="toolbar-sep" />
+
+            <div class="toolbar-group">
+              <label class="toolbar-label">{{ t('common.memory') }}</label>
+              <MultiSelect
+                :model-value="effectiveMemories"
+                :options="memoryOptions"
+                compact
+                style="min-width:140px"
+                @update:model-value="saveSession({ memories: $event })"
+              />
+              <template v-for="mid in effectiveMemories" :key="mid">
+                <button class="chat-info-chip" @click="store.settings.memories?.[mid]?.share ? memoryViewModal?.open(mid, store.settings.memories[mid]) : memoryViewModal?.openSession(mid, store.settings.memories?.[mid] ?? {}, activeSessionId!)">{{ memoryOptions.find(m => m.id === mid)?.label || t('common.view') }}</button>
+              </template>
+            </div>
+
+            <div class="toolbar-sep" />
+
+            <div class="toolbar-group">
+              <label class="toolbar-label">{{ t('common.wiki') }}</label>
+              <MultiSelect
+                :model-value="effectiveWikis"
+                :options="wikiOptions"
+                compact
+                style="min-width:140px"
+                @update:model-value="saveSession({ wikis: $event })"
+              />
+            </div>
+
+            <div class="toolbar-group" style="margin-left:auto">
+              <label class="toggle-label toolbar-toggle" style="font-size:12px">
+                <input
+                  type="checkbox"
+                  :checked="!!sessions[activeSessionId!]?.autoApproveAllTools"
+                  @change="saveSession({ autoApproveAllTools: ($event.target as HTMLInputElement).checked })"
+                />
+                <span>{{ t('settings.auto_approve_all') }}</span>
+              </label>
+            </div>
           </template>
+          <span v-else style="font-size:13px;color:#94a3b8">{{ t('chat.select_or_create') }}</span>
+        </div>
 
-          <!-- Wiki -->
-          <label class="toolbar-label">{{ t('common.wiki') }}</label>
-          <MultiSelect
-            :model-value="effectiveWikis"
-            :options="wikiOptions"
-            compact
-            style="min-width:140px"
-            @update:model-value="saveSession({ wikis: $event })"
-          />
-
-          <!-- Auto Approve All Tools -->
-          <label class="toggle-label toolbar-toggle" style="margin-left:8px;font-size:12px">
-            <input
-              type="checkbox"
-              :checked="!!sessions[activeSessionId!]?.autoApproveAllTools"
-              @change="saveSession({ autoApproveAllTools: ($event.target as HTMLInputElement).checked })"
-            />
-            <span>{{ t('settings.auto_approve_all') }}</span>
-          </label>
-        </template>
-        <span v-else style="font-size:13px;color:#94a3b8">{{ t('chat.select_or_create') }}</span>
-        <span v-if="sessionUsage && sessionUsage.lastTotalTokens > 0 && contextPercent != null" class="context-bar-wrap" style="margin-left:auto" :title="`${t('usage.context_window')}: ${formatNumber(sessionUsage.lastInputTokens)} / ${formatNumber(sessionContextWindow!)} (${contextPercent}%)\n${t('usage.total')}: ${formatNumber(sessionUsage.totalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatNumber(sessionUsage.inputTokens)} / ${t('usage.output_tokens')}: ${formatNumber(sessionUsage.outputTokens)}\n${t('usage.last')}: ${formatNumber(sessionUsage.lastTotalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatNumber(sessionUsage.lastInputTokens)} / ${t('usage.output_tokens')}: ${formatNumber(sessionUsage.lastOutputTokens)}`">
-          <div class="context-bar-track">
-            <div class="context-bar-fill" :style="{ width: contextPercent + '%', background: contextBarColor }" />
+        <!-- Row 2: Usage + Actions -->
+        <div class="chat-status-row" v-if="activeSessionId">
+          <div class="usage-stats" v-if="sessionUsage && sessionUsage.totalTokens > 0">
+            <span v-if="contextPercent != null" class="context-bar-wrap" :title="`${formatNumber(sessionUsage.lastInputTokens)} / ${formatNumber(sessionContextWindow!)}`">
+              <div class="context-bar-track">
+                <div class="context-bar-fill" :style="{ width: contextPercent + '%', background: contextBarColor }" />
+              </div>
+              <span class="context-bar-label">{{ contextPercent }}%</span>
+            </span>
+            <span class="usage-sep" v-if="contextPercent != null" />
+            <span class="usage-item">
+              <span class="usage-label">{{ t('usage.last') }}</span>
+              <span class="usage-val usage-in">{{ formatNumber(sessionUsage.lastInputTokens) }}</span>
+              <span class="usage-op">/</span>
+              <span class="usage-val usage-out">{{ formatNumber(sessionUsage.lastOutputTokens) }}</span>
+            </span>
+            <span class="usage-sep" />
+            <span class="usage-item">
+              <span class="usage-label">{{ t('usage.total') }}</span>
+              <span class="usage-val usage-in">{{ formatNumber(sessionUsage.inputTokens) }}</span>
+              <span class="usage-op">/</span>
+              <span class="usage-val usage-out">{{ formatNumber(sessionUsage.outputTokens) }}</span>
+            </span>
           </div>
-          <span class="context-bar-label">{{ contextPercent }}%</span>
-        </span>
-        <span v-else-if="sessionUsage && sessionUsage.lastTotalTokens > 0" class="usage-chip" style="margin-left:auto" :title="`${t('usage.total')}: ${formatNumber(sessionUsage.totalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatNumber(sessionUsage.inputTokens)} / ${t('usage.output_tokens')}: ${formatNumber(sessionUsage.outputTokens)}\n${t('usage.last')}: ${formatNumber(sessionUsage.lastTotalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatNumber(sessionUsage.lastInputTokens)} / ${t('usage.output_tokens')}: ${formatNumber(sessionUsage.lastOutputTokens)}`">{{ formatNumber(sessionUsage.lastInputTokens) }} + {{ formatNumber(sessionUsage.lastOutputTokens) }} = {{ formatNumber(sessionUsage.lastTotalTokens) }}</span>
-        <button class="btn-outline btn-sm" :style="(sessionUsage && sessionUsage.lastTotalTokens > 0) ? '' : 'margin-left:auto'" @click="() => { chatAreaRef?.refreshHistory(); loadSessionUsage(activeSessionId) }">{{ t('common.refresh') }}</button>
-        <button class="btn-danger btn-sm" :disabled="!effectiveSaver" @click="chatAreaRef?.clearHistory()">{{ t('chat.clear_history') }}</button>
+          <div class="toolbar-actions">
+            <button class="btn-outline btn-sm" @click="() => { chatAreaRef?.refreshHistory(); loadSessionUsage(activeSessionId) }">{{ t('common.refresh') }}</button>
+            <button class="btn-danger btn-sm" :disabled="!effectiveSaver" @click="chatAreaRef?.clearHistory()">{{ t('chat.clear_history') }}</button>
+          </div>
+        </div>
       </div>
 
       <ChatArea
@@ -406,6 +444,50 @@ onMounted(() => {
   color: #1c1c1c;
   background: #fff;
 }
+/* ── Header layout ── */
+.chat-header {
+  border-bottom: 1px solid #e8e6e3;
+  background: #fff;
+  flex-shrink: 0;
+}
+.chat-toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  flex-wrap: wrap;
+}
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.toolbar-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #9b9b9b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.toolbar-select-sm {
+  font-size: 12px;
+  padding: 3px 6px;
+  border: 1px solid #e8e6e3;
+  border-radius: 4px;
+  background: #fff;
+  color: #1c1c1c;
+  outline: none;
+  font-family: inherit;
+}
+.toolbar-select-sm:focus { border-color: #1c1c1c; }
+.toolbar-sep {
+  width: 1px;
+  height: 18px;
+  background: #e8e6e3;
+  flex-shrink: 0;
+}
 .toolbar-input-sm {
   font-size: 12px;
   padding: 2px 6px;
@@ -417,6 +499,54 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   cursor: default;
+}
+/* ── Status row ── */
+.chat-status-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 5px 16px;
+  border-top: 1px solid #f0efed;
+  min-height: 30px;
+}
+.usage-stats {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: #64748b;
+}
+.usage-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.usage-label {
+  color: #94a3b8;
+  font-weight: 500;
+}
+.usage-val {
+  font-weight: 600;
+}
+.usage-in { color: #3b82f6; }
+.usage-out { color: #8b5cf6; }
+.usage-op {
+  color: #cbd5e1;
+  font-size: 10px;
+}
+.usage-sep {
+  width: 1px;
+  height: 12px;
+  background: #e2e8f0;
+  flex-shrink: 0;
+}
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
 }
 .session-toggle-btn {
   position: fixed;
@@ -434,16 +564,6 @@ onMounted(() => {
 .chat-session-panel-mobile {
   width: 100% !important;
   border-right: none !important;
-}
-.usage-chip {
-  font-size: 11px;
-  color: #64748b;
-  background: #f1f5f9;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  cursor: default;
 }
 .context-bar-wrap {
   display: flex;
@@ -471,14 +591,17 @@ onMounted(() => {
 }
 @media (max-width: 768px) {
   .chat-toolbar-mobile {
-    flex-wrap: wrap;
     gap: 6px;
     padding: 6px 8px;
   }
-  .chat-toolbar-mobile select,
-  .chat-toolbar-mobile .toolbar-input-sm {
-    min-width: 0;
-    flex: 1 1 calc(50% - 4px);
+  .chat-toolbar-mobile .toolbar-sep { display: none; }
+  .chat-toolbar-mobile .toolbar-group {
+    flex-wrap: wrap;
+  }
+  .chat-status-row {
+    flex-wrap: wrap;
+    padding: 4px 8px;
+    gap: 6px;
   }
 }
 </style>

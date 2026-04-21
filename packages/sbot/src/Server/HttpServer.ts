@@ -19,6 +19,7 @@ import { sessionManager } from '../UserService/SessionManager';
 import { schedulerService } from '../Scheduler/SchedulerService';
 import { channelManager } from '../Channel/ChannelManager';
 import { WsCommandType } from 'sbot.commons';
+import { getModelMeta, getKnownModels } from './modelCatalog';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
 
@@ -30,8 +31,9 @@ async function fetchAndSaveContextWindow(modelId: string): Promise<void> {
     try {
         const base = (mc.baseURL || '').replace(/\/$/, '');
         if (mc.provider === ModelProvider.Anthropic) {
+            const url = `${base}/v1/models/${encodeURIComponent(mc.model)}`;
             const headers: Record<string, string> = { 'x-api-key': mc.apiKey, 'anthropic-version': '2023-06-01' };
-            const res = await fetch(`${base}/v1/models/${encodeURIComponent(mc.model)}`, { headers });
+            const res = await fetch(url, { headers });
             if (res.ok) {
                 const data: any = await res.json();
                 contextWindow = data.context_window;
@@ -39,15 +41,17 @@ async function fetchAndSaveContextWindow(modelId: string): Promise<void> {
             }
         } else if (mc.provider === ModelProvider.Gemini || mc.provider === ModelProvider.GeminiImage) {
             const ver = mc.apiVersion || 'v1beta';
+            const url = `${base}/${ver}/models/${encodeURIComponent(mc.model)}`;
             const headers: Record<string, string> = { 'x-goog-api-key': mc.apiKey };
-            const res = await fetch(`${base}/${ver}/models/${encodeURIComponent(mc.model)}`, { headers });
+            const res = await fetch(url, { headers });
             if (res.ok) {
                 const data: any = await res.json();
                 contextWindow = data.inputTokenLimit;
                 maxOutputTokens = data.outputTokenLimit;
             }
         } else if (mc.provider === ModelProvider.Ollama) {
-            const res = await fetch(`${base}/api/show`, {
+            const url = `${base}/api/show`;
+            const res = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: mc.model }),
@@ -60,7 +64,14 @@ async function fetchAndSaveContextWindow(modelId: string): Promise<void> {
                 }
             }
         }
-    } catch { /* provider API unavailable */ }
+    } catch { /* ignore */ }
+    if (contextWindow == null && maxOutputTokens == null) {
+        const meta = getModelMeta(mc.provider, mc.model);
+        if (meta) {
+            contextWindow = meta.contextWindow;
+            maxOutputTokens = meta.maxOutputTokens;
+        }
+    }
     if (contextWindow != null || maxOutputTokens != null) {
         const map = (config.settings as any).models;
         if (map?.[modelId]) {
@@ -480,16 +491,7 @@ class HttpServer {
                     const data: any = await res.json();
                     return (data.data as any[] || []).map((m: any) => m.id as string);
                 } catch {
-                    return [
-                        'claude-opus-4-6',
-                        'claude-sonnet-4-6',
-                        'claude-haiku-4-5-20251001',
-                        'claude-sonnet-4-5-20250929',
-                        'claude-opus-4-5-20251101',
-                        'claude-opus-4-1-20250805',
-                        'claude-sonnet-4-20250514',
-                        'claude-opus-4-20250514',
-                    ];
+                    return getKnownModels(ModelProvider.Anthropic);
                 }
             }
 
@@ -504,23 +506,8 @@ class HttpServer {
                     const data: any = await res.json();
                     return (data.models as any[] || []).map((m: any) => (m.name as string).replace(/^models\//, ''));
                 } catch {
-                    const imageModels = [
-                        'gemini-3.1-flash-image-preview',
-                        'gemini-3-pro-image-preview',
-                        'gemini-2.5-flash-image',
-                    ];
-                    const textModels = [
-                        'gemini-3.1-pro-preview',
-                        'gemini-3-flash-preview',
-                        'gemini-3.1-flash-lite-preview',
-                        'gemini-2.5-pro',
-                        'gemini-2.5-flash',
-                        'gemini-2.5-flash-lite',
-                        'gemini-2.0-flash',
-                        'gemini-2.0-flash-lite',
-                        'gemini-1.5-pro',
-                        'gemini-1.5-flash',
-                    ];
+                    const imageModels = getKnownModels(ModelProvider.GeminiImage);
+                    const textModels = getKnownModels(ModelProvider.Gemini);
                     return provider === ModelProvider.GeminiImage
                         ? [...imageModels, ...textModels]
                         : [...textModels, ...imageModels];

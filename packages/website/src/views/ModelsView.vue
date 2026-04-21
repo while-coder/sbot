@@ -19,7 +19,7 @@ const showModal   = ref(false)
 const editingName = ref<string | null>(null)
 const showApiKey  = ref(false)
 const form = ref<ModelConfig>({
-  name: '', provider: ModelProvider.OpenAI, baseURL: '', apiKey: '', model: '', apiVersion: undefined, temperature: undefined, maxTokens: undefined,
+  name: '', provider: ModelProvider.OpenAI, baseURL: '', apiKey: '', model: '', apiVersion: undefined, temperature: undefined, maxTokens: undefined, contextWindow: undefined,
 })
 
 const isOllama     = computed(() => form.value.provider === ModelProvider.Ollama)
@@ -64,7 +64,7 @@ function pickModel(m: string) {
 function openAdd() {
   editingName.value = null
   showApiKey.value  = false
-  form.value = { name: '', provider: ModelProvider.OpenAI, baseURL: '', apiKey: '', model: '', apiVersion: undefined, temperature: undefined, maxTokens: undefined }
+  form.value = { name: '', provider: ModelProvider.OpenAI, baseURL: '', apiKey: '', model: '', apiVersion: undefined, temperature: undefined, maxTokens: undefined, contextWindow: undefined }
   showModal.value = true
 }
 
@@ -81,6 +81,7 @@ function openEdit(id: string) {
     apiVersion: m.apiVersion,
     temperature: m.temperature,
     maxTokens: m.maxTokens,
+    contextWindow: m.contextWindow,
   }
   showModal.value = true
 }
@@ -94,6 +95,7 @@ async function save() {
     const body: any = { ...form.value }
     if (body.temperature === undefined || body.temperature === null) delete body.temperature
     if (body.maxTokens === undefined || body.maxTokens === null) delete body.maxTokens
+    if (body.contextWindow === undefined || body.contextWindow === null) delete body.contextWindow
     if (!body.apiVersion) delete body.apiVersion
     const id = editingName.value
     const res = id
@@ -163,11 +165,11 @@ async function refresh() {
         <div v-for="(m, id) in models" :key="id" class="mobile-card">
           <div class="mobile-card-header">{{ m.name || id }}</div>
           <div class="mobile-card-fields">
-            <span class="mobile-card-label">Provider</span>
+            <span class="mobile-card-label">{{ t('common.provider') }}</span>
             <span class="mobile-card-value">{{ m.provider }}</span>
-            <span class="mobile-card-label">Model</span>
+            <span class="mobile-card-label">{{ t('models.model') }}</span>
             <span class="mobile-card-value">{{ m.model }}</span>
-            <span class="mobile-card-label">Base URL</span>
+            <span class="mobile-card-label">{{ t('common.base_url') }}</span>
             <span class="mobile-card-value" style="word-break:break-all">{{ m.baseURL }}</span>
           </div>
           <div class="mobile-card-ops">
@@ -246,6 +248,10 @@ async function refresh() {
           <div class="form-group">
             <label>{{ t('models.temperature') }}</label>
             <input v-model.number="form.temperature" type="number" step="0.1" placeholder="0.7" />
+          </div>
+          <div class="form-group">
+            <label>{{ t('models.context_window') }}</label>
+            <input v-model.number="form.contextWindow" type="number" step="1" placeholder="128000" />
           </div>
           <div class="form-group">
             <label>{{ t('models.max_tokens') }}</label>
