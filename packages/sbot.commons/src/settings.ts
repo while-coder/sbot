@@ -7,8 +7,9 @@ export enum SaverType {
 }
 
 export enum AgentMode {
-  Single = "single",
-  ReAct  = "react",
+  Single     = "single",
+  ReAct      = "react",
+  Generative = "generative",
 }
 
 export enum ChannelType {

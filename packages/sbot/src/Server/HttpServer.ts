@@ -22,6 +22,55 @@ import { WsCommandType } from 'sbot.commons';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
 
+async function fetchAndSaveContextWindow(modelId: string): Promise<void> {
+    const mc = config.getModel(modelId);
+    if (!mc?.model) return;
+    let contextWindow: number | undefined;
+    let maxOutputTokens: number | undefined;
+    try {
+        const base = (mc.baseURL || '').replace(/\/$/, '');
+        if (mc.provider === ModelProvider.Anthropic) {
+            const headers: Record<string, string> = { 'x-api-key': mc.apiKey, 'anthropic-version': '2023-06-01' };
+            const res = await fetch(`${base}/v1/models/${encodeURIComponent(mc.model)}`, { headers });
+            if (res.ok) {
+                const data: any = await res.json();
+                contextWindow = data.context_window;
+                maxOutputTokens = data.max_tokens;
+            }
+        } else if (mc.provider === ModelProvider.Gemini || mc.provider === ModelProvider.GeminiImage) {
+            const ver = mc.apiVersion || 'v1beta';
+            const headers: Record<string, string> = { 'x-goog-api-key': mc.apiKey };
+            const res = await fetch(`${base}/${ver}/models/${encodeURIComponent(mc.model)}`, { headers });
+            if (res.ok) {
+                const data: any = await res.json();
+                contextWindow = data.inputTokenLimit;
+                maxOutputTokens = data.outputTokenLimit;
+            }
+        } else if (mc.provider === ModelProvider.Ollama) {
+            const res = await fetch(`${base}/api/show`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: mc.model }),
+            });
+            if (res.ok) {
+                const data: any = await res.json();
+                const info = data.model_info ?? {};
+                for (const key of Object.keys(info)) {
+                    if (key.includes('context_length')) { contextWindow = info[key]; break; }
+                }
+            }
+        }
+    } catch { /* provider API unavailable */ }
+    if (contextWindow != null || maxOutputTokens != null) {
+        const map = (config.settings as any).models;
+        if (map?.[modelId]) {
+            if (contextWindow != null) map[modelId].contextWindow = contextWindow;
+            if (maxOutputTokens != null && !map[modelId].maxTokens) map[modelId].maxTokens = maxOutputTokens;
+            config.saveSettings();
+        }
+    }
+}
+
 /** 将工具的 schema 统一转换为 JSON Schema 纯对象 */
 function toJsonSchema(schema: any): any {
     if (schema && typeof schema.parse === 'function') {
@@ -499,7 +548,10 @@ class HttpServer {
             }
         }));
 
-        registerSettingsCrud(app, 'models', { label: 'Model' });
+        registerSettingsCrud(app, 'models', {
+            label: 'Model',
+            afterSave: (id) => { fetchAndSaveContextWindow(id).catch(() => {}); },
+        });
         registerSettingsCrud(app, 'embeddings', { label: 'Embedding' });
         registerSettingsCrud(app, 'savers', { label: 'Saver config' });
         registerSettingsCrud(app, 'memories', { label: 'Memory config' });

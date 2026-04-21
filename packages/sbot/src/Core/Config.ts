@@ -51,9 +51,16 @@ export interface ReactAgentEntry extends BaseAgentEntry {
 }
 
 /**
+ * Generative 模式 Agent 配置（图片/音频等纯生成式模型，无工具循环）
+ */
+export interface GenerativeAgentEntry extends BaseAgentEntry {
+  type: AgentMode.Generative;
+}
+
+/**
  * Agent 配置条目（联合类型）
  */
-export type AgentEntry = SingleAgentEntry | ReactAgentEntry;
+export type AgentEntry = SingleAgentEntry | ReactAgentEntry | GenerativeAgentEntry;
 
 export interface Settings {
   httpPort?: number;           // HTTP 服务监听端口，默认 5500

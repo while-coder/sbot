@@ -55,6 +55,11 @@ function runAgent(query: MessageContent, args: any, userService: any, agentId: s
                     await database.update(database.channelSession, tokenUpdate, { where: { id: Number(schedulerId) } });
                 } else {
                     await database.update(database.session, tokenUpdate, { where: { id: schedulerId } });
+                    httpServer.broadcastToWs(JSON.stringify({
+                        sessionId: schedulerId,
+                        type: WebChatEventType.Usage,
+                        data: { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens, totalTokens: usage.total_tokens },
+                    }));
                 }
             },
         },
@@ -96,19 +101,21 @@ export function createProcessAIHandler(): ProcessAIHandler {
         const streamVerbose = dbSession?.streamVerbose ?? false;
         const pendingMessages: ChatMessage[] = [];
 
+        const callbackOverrides: { onMessage: (msg: ChatMessage) => Promise<void>; onStreamMessage?: undefined } = {
+            onMessage: (msg) => { pendingMessages.push(msg); return Promise.resolve(); },
+        };
+        if (!streamVerbose) {
+            callbackOverrides.onStreamMessage = undefined;
+        }
+
         await runAgent(query, args, userService, agentId, channel.saver as string,
             SchedulerType.Channel, String(dbSessionId), memories, wikis, dbSession?.workPath || undefined,
-            dbSession?.autoApproveAllTools, !streamVerbose ? {
-                onMessage: (msg) => { pendingMessages.push(msg); return Promise.resolve(); },
-                onStreamMessage: undefined,
-            } : undefined);
+            dbSession?.autoApproveAllTools, callbackOverrides);
 
-        if (!streamVerbose) {
-            const last = [...pendingMessages].reverse().find(
-                m => m.role === MessageRole.AI && typeof m.content === 'string' && m.content
-            );
-            if (last) await userService.onChatMessage(last, args);
-        }
+        const last = [...pendingMessages].reverse().find(
+            m => m.role === MessageRole.AI && typeof m.content === 'string' && m.content
+        );
+        if (last) await userService.onChatMessage(last, args);
     };
 }
 

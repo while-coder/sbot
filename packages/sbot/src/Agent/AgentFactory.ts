@@ -1,5 +1,5 @@
 import {
-    AgentServiceBase, SingleAgentService,
+    AgentServiceBase, SingleAgentService, GenerativeAgentService,
     IModelService,
     IAgentSaverService, AgentMemorySaver,
 } from "scorpio.ai";
@@ -15,7 +15,7 @@ import {
 import { type AgentTool, type AgentSchedulerContext } from "./AgentRunner";
 import { createSchedulerTools } from "../Tools/Scheduler/index";
 import { createTodoTools } from "../Tools/Todo/index";
-import { config, AgentMode, SingleAgentEntry, ReactAgentEntry } from "../Core/Config";
+import { config, AgentMode, SingleAgentEntry, ReactAgentEntry, GenerativeAgentEntry } from "../Core/Config";
 import { loadPrompt } from "../Core/PromptLoader";
 import { globalAgentToolService } from "./GlobalAgentToolService";
 import { globalSkillService, getSkillsDirsMap } from "./GlobalSkillService";
@@ -46,9 +46,13 @@ export class AgentFactory {
         const agentEntry = config.getAgent(agentId);
 
         if (!container.isRegistered(IAgentSaverService)) container.registerSingleton(IAgentSaverService, AgentMemorySaver);
-        const { mcp, skills } = agentEntry;
-        await this.registerSkillService(container, agentId, skills);
-        await this.registerToolService(container, agentId, options.scheduler, mcp, agentTools);
+        const agentType = agentEntry.type || AgentMode.Single;
+
+        if (agentType !== AgentMode.Generative) {
+            const { mcp, skills } = agentEntry;
+            await this.registerSkillService(container, agentId, skills);
+            await this.registerToolService(container, agentId, options.scheduler, mcp, agentTools);
+        }
 
         const systemPrompts = [loadPrompt('system/init.txt'), ...extraPrompts];
         if (agentEntry.systemPrompt)
@@ -56,11 +60,13 @@ export class AgentFactory {
 
         const createAgentFn: CreateAgentFn = (name, subContainer) =>
             AgentFactory.create({ agentId: name, container: subContainer, extraPrompts, agentTools, scheduler: options.scheduler });
-        const agentType = agentEntry.type || AgentMode.Single;
 
         switch (agentType) {
             case AgentMode.ReAct:
                 return this.createReAct(container, agentEntry as ReactAgentEntry, systemPrompts, createAgentFn);
+
+            case AgentMode.Generative:
+                return this.createGenerative(container, agentEntry as GenerativeAgentEntry, systemPrompts);
 
             case AgentMode.Single:
             default:
@@ -136,6 +142,21 @@ export class AgentFactory {
             [T_SystemPrompts]: systemPrompts,
         });
         return container.resolve(SingleAgentService);
+    }
+
+    /**
+     * 创建 Generative Agent（图片/音频等纯生成式模型，无工具循环）
+     */
+    private static async createGenerative(
+        container: ServiceContainer,
+        entry: GenerativeAgentEntry,
+        systemPrompts: string[],
+    ): Promise<AgentServiceBase> {
+        container.registerInstance(IModelService, await config.getModelService(entry.model, true));
+        container.registerWithArgs(GenerativeAgentService, {
+            [T_SystemPrompts]: systemPrompts,
+        });
+        return container.resolve(GenerativeAgentService);
     }
 
     /**

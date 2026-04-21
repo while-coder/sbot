@@ -21,6 +21,9 @@ export const T_SkillToolListDesc         = Symbol("scorpio:T_SkillToolListDesc")
 export const T_SkillToolExecDesc         = Symbol("scorpio:T_SkillToolExecDesc");
 export const T_MemorySystemPromptTemplate = Symbol("scorpio:T_MemorySystemPromptTemplate");
 
+// Generative agent tokens
+export const T_OutputDir = Symbol("scorpio:T_OutputDir");
+
 // Wiki tokens
 export const T_WikiExtractorSystemPrompt   = Symbol("scorpio:T_WikiExtractorSystemPrompt");
 export const T_WikiSystemPromptTemplate    = Symbol("scorpio:T_WikiSystemPromptTemplate");
