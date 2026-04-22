@@ -84,10 +84,9 @@ export interface Settings {
  */
 export function sanitizeId(name: string): string {
   let id = name
-    .toLowerCase()
-    .replace(/[\s_]+/g, '-')       // 空格和下划线替换为连字符
-    .replace(/[^a-z0-9\-\.]/g, '') // 只保留 a-z 0-9 - .
-    .replace(/^-+|-+$/g, '');      // 去除首尾连字符
+    .replace(/[<>:"/\\|?*\x00-\x1f]/g, '') // 排除路径非法字符
+    .replace(/\s+/g, '-')                   // 空格替换为连字符
+    .replace(/^[-_.]+|[-_.]+$/g, '');       // 去除首尾特殊字符
   return id || 'agent';
 }
 
