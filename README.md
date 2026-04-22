@@ -66,7 +66,7 @@ Configuration and data are persisted in `~/.sbot` on the host.
 - **Built-in tools** — Shell execution, file system, archive operations, media file read, Python/PowerShell inline execution, cron scheduler, todo tasks
 - **Skills** — Installable prompt modules, remote install from skills.sh / Clawhub
 - **Token usage tracking** — Built-in consumption statistics with real-time visibility
-- **Flexible config** — Global, per-directory, and per-session overrides from a single `settings.json`
+- **Flexible config** — Global and per-session overrides from a single `settings.json`
 
 ---
 
@@ -105,15 +105,26 @@ Choose a mode:
 
 **4. Start chatting** — choose your entry point
 
-- **Session** — sidebar → **Chat** → New Session, select agent + saver + memory
-- **Directory** — sidebar → **Directory**, register a local path, then configure agent/saver/memory for it
-- **Channel** (IM) — sidebar → **Channels** → New → [Channel Setup](#channel-setup)
+- **Session** — sidebar → **Chat** → New Session, select agent + saver + memory; optionally configure a working directory
+- **Channel** (IM) — sidebar → **Channels** → New → [Channel Setup](#channel-setup); optionally configure a working directory
 
 ---
 
-**5. (Optional) Enable Memory** — sidebar → **Memories** → New
+**5. (Optional) Enable Wiki Knowledge Base** — sidebar → **Wiki** → New
 
-Requires an embedding model first (sidebar → **Embeddings** → New). Then assign the memory to a session, directory, or channel.
+Built-in knowledge base. Create pages manually (title + content + tags) or let the agent auto-extract knowledge from conversations. Auto-extraction requires an extractor model. Assign wikis to a session or channel; agents can search, read, and create pages via built-in tools.
+
+| Field | Description |
+|-------|-------------|
+| Extractor | LLM model for auto-extracting knowledge from conversations |
+| Auto-extract | When enabled, the agent extracts valuable knowledge after each reply |
+| Shared | Off = per-thread wiki; On = shared across all threads |
+
+---
+
+**6. (Optional) Enable Memory** — sidebar → **Memories** → New
+
+Requires an embedding model first (sidebar → **Embeddings** → New). Then assign the memory to a session or channel.
 
 | Field | Description |
 |-------|-------------|
