@@ -11,7 +11,7 @@ import { IAgentToolService } from "../../AgentTool";
 import { AgentMemorySaver } from "../../Saver/AgentMemorySaver";
 import { SingleAgentService } from "../Single/SingleAgentService";
 import { createTaskTool, type RunTaskFn } from "../../Tools";
-import { createTextContent, createImageContent, type MCPContent } from "../../Tools/types";
+import { MCPContentType, createTextContent, createImageContent, createAudioContent, createErrorResult, type MCPContent } from "../../Tools/types";
 import { v4 as uuidv4 } from "uuid";
 
 // ── ThinkForwardSaver ────────────────────────────────────────
@@ -121,13 +121,12 @@ export class ReActAgentService extends SingleAgentService {
             if (msg.content.trim()) content.push(createTextContent(msg.content));
           } else if (Array.isArray(msg.content)) {
             for (const part of msg.content) {
-              if (part.type === 'text' && part.text?.trim()) {
+              if (part.type === MCPContentType.Text && part.text?.trim()) {
                 content.push(createTextContent(part.text));
-              } else if (part.type === 'inlineData' && part.inlineData?.data) {
-                content.push(createImageContent(part.inlineData.data, part.inlineData.mimeType ?? 'image/png'));
-              } else if (part.type === 'image_url') {
-                const url = typeof part.image_url === 'string' ? part.image_url : part.image_url?.url;
-                if (url) content.push(createImageContent(url, 'image/png'));
+              } else if (part.type === MCPContentType.Image && part.data) {
+                content.push(createImageContent(part.data, part.mimeType));
+              } else if (part.type === MCPContentType.Audio && part.data) {
+                content.push(createAudioContent(part.data, part.mimeType));
               }
             }
           }
@@ -135,7 +134,7 @@ export class ReActAgentService extends SingleAgentService {
         if (content.length === 0) content.push(createTextContent(''));
         return { content, thinkId };
       } catch (error: any) {
-        return { content: [createTextContent(`Execution failed: ${error.message}`)], thinkId };
+        return { ...createErrorResult(`Execution failed: ${error.message}`), thinkId };
       } finally {
         await agentService?.dispose();
       }

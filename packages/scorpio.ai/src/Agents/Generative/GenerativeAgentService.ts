@@ -1,4 +1,5 @@
 import { inject, T_SystemPrompts } from "../../Core";
+import { MCPContentType } from "../../Tools/types";
 import { IModelService } from "../../Model";
 import { IAgentSaverService } from "../../Saver";
 import { ILoggerService } from "../../Logger";
@@ -50,9 +51,28 @@ export class GenerativeAgentService extends AgentServiceBase {
             delete result.usage;
         }
 
+        GenerativeAgentService.normalizeMessageContent(result);
+
         await this.saverService.pushMessage(result);
         if (callback.onMessage) await callback.onMessage(result);
 
         return [result];
+    }
+
+    static normalizeMessageContent(message: ChatMessage): void {
+        if (!Array.isArray(message.content)) return;
+        message.content = message.content.map(part => {
+            if (part.type === 'inlineData' && part.inlineData?.data) {
+                const mime: string = part.inlineData.mimeType ?? 'image/png';
+                return mime.startsWith('audio/')
+                    ? { type: MCPContentType.Audio, data: part.inlineData.data, mimeType: mime }
+                    : { type: MCPContentType.Image, data: part.inlineData.data, mimeType: mime };
+            }
+            if (part.type === 'image_url') {
+                const url = typeof part.image_url === 'string' ? part.image_url : part.image_url?.url;
+                if (url) return { type: MCPContentType.Image, data: url, mimeType: 'image/png' };
+            }
+            return part;
+        });
     }
 }
