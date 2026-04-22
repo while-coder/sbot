@@ -55,11 +55,12 @@ Configuration and data are persisted in `~/.sbot` on the host.
 ## Features
 
 - **Multiple LLM providers** — OpenAI, Anthropic Claude, Google Gemini, Ollama, and any OpenAI-compatible API (Azure OpenAI, Groq, Mistral, DeepSeek, etc.). Each model has its own API key, base URL, temperature, and token limits.
-- **Multi-agent orchestration** — ReAct mode: a thinking model decomposes tasks and dispatches to specialized sub-agents recursively
-- **Long-term memory** — Full extract → evaluate → compress pipeline with vector-embedding semantic search
+- **Multi-agent orchestration** — ReAct mode: a thinking model decomposes tasks and dispatches to specialized sub-agents recursively; Generative mode: multimodal content generation
+- **Knowledge base** — Built-in wiki system with document storage, automatic extraction, and semantic search; agents can reference wiki content during conversations
+- **Long-term memory** — Full extract → compress pipeline with vector-embedding semantic search
 - **MCP support** — Connect external tool servers via stdio or HTTP/SSE transport
 - **Multiple channels** — Web UI, CLI, Lark/Feishu, Slack, WeCom, REST API, WebSocket
-- **Built-in tools** — Shell execution, file system, archive operations, binary file read, Python/PowerShell inline execution, cron scheduler
+- **Built-in tools** — Shell execution, file system, archive operations, media file read, Python/PowerShell inline execution, cron scheduler, todo tasks
 - **Skills** — Installable prompt modules for brainstorming, TDD, code review, multi-agent coordination, and more
 - **Flexible config** — Global, per-directory, and per-session overrides from a single `settings.json`
 
@@ -92,7 +93,8 @@ Choose a backend for storing conversation history:
 
 Choose a mode:
 - **Single** — select a model, write a system prompt, optionally attach MCP tools and skills
-- **ReAct** — select a think model, then add sub-agents (each with an id and description for task dispatch). The think model decomposes tasks and dispatches sub-tasks recursively; each sub-agent has read-only access to shared memory.
+- **ReAct** — select a think model, then add sub-agents (each with an id and description for task dispatch). The think model decomposes tasks and dispatches sub-tasks recursively; each sub-agent has read-only access to shared memory
+- **Generative** — select a multimodal model for mixed text and image content generation
 
 → [MCP Tools](#add-mcp-tools) · [Skills](#manage-skills)
 
@@ -115,7 +117,6 @@ Requires an embedding model first (sidebar → **Embeddings** → New). Then ass
 | Mode | `read_only` / `human_only` (user messages) / `human_and_ai` (full conversation) |
 | Max age (days) | Auto-expire memories after N days |
 | Embedding | Embedding model for semantic search (OpenAI, Azure, Ollama) |
-| Evaluator | Scores memory importance (0–1) |
 | Extractor | Extracts key facts from conversation |
 | Compressor | Merges similar memories to reduce redundancy |
 | Shared | Off = per-thread memory; On = shared across all threads |
@@ -170,13 +171,66 @@ In **Channels → New**, select the type and fill in the credentials, then assig
 | Lark / Feishu | App ID, App Secret |
 | Slack | Bot Token (`xoxb-...`), App Token (`xapp-...`) |
 | WeCom | Bot ID, Secret |
+| WeChat | QR code login (credentials auto-populated) |
 
 **Setting up Lark / Feishu:**
 1. Create a bot app in the [Feishu Developer Console](https://open.feishu.cn) (or [Lark Developer Console](https://open.larksuite.com/) for international)
-2. Enable **Bot** capability and subscribe to **im:message.p2p_msg:readonly** **im:message.group_at_msg:readonly** **im:message.group_msg** **im:message:send_as_bot** events
-3. In Web UI → **Channels**, create a Lark channel and fill in **App ID** and **App Secret**
+2. Enable **Bot** capability
+3. Grant the following permissions under **Permissions & Scopes** (or use **Batch Import** with the JSON below):
 
-Lark integration supports event deduplication, interactive card support, per-user context preservation, and file/image send and receive.
+| Permission | Description |
+|------------|-------------|
+| `im:message:send_as_bot` | Send messages as bot |
+| `im:message.p2p_msg:readonly` | Receive direct messages |
+| `im:message.group_at_msg:readonly` | Receive group @bot messages |
+| `im:message.group_msg` | Receive all group messages |
+| `im:message:readonly` | Read message content |
+| `im:chat:readonly` | Read chat/group info |
+| `im:resource` | Read files and images in messages |
+| `contact:user.base:readonly` | Read basic user info |
+| `contact:contact.base:readonly` | Read basic contact info |
+
+<details>
+<summary>Batch import JSON</summary>
+
+```json
+{
+  "scopes": {
+    "tenant": [
+      "contact:contact.base:readonly",
+      "contact:user.base:readonly",
+      "im:chat:readonly",
+      "im:message.group_at_msg:readonly",
+      "im:message.group_msg",
+      "im:message.p2p_msg:readonly",
+      "im:message:readonly",
+      "im:message:send_as_bot",
+      "im:resource"
+    ],
+    "user": []
+  }
+}
+```
+
+</details>
+
+4. Under **Events & Callbacks**, set the subscription mode to **Long Connection**
+5. In Web UI → **Channels**, create a Lark channel and fill in **App ID** and **App Secret**
+
+Supports event deduplication, interactive cards, per-user context isolation, and file/image send and receive.
+
+**Setting up WeCom:**
+1. Create an AI app in the [WeCom Admin Console](https://work.weixin.qq.com) and obtain the **Bot ID** and **Secret**
+2. In Web UI → **Channels**, create a WeCom channel and fill in Bot ID and Secret
+
+Connects via WebSocket for real-time messaging, with file and image support.
+
+**Setting up WeChat:**
+1. In Web UI → **Channels**, create a WeChat channel
+2. Click QR login and scan the code with WeChat to authenticate
+3. Credentials are saved automatically once authenticated, and the channel goes live immediately
+
+WeChat integration connects via the iLink Bot API, with file and image support.
 
 ---
 
@@ -193,7 +247,7 @@ Lark integration supports event deduplication, interactive card support, per-use
 - Search with regex (grep)
 - Find files by pattern (glob)
 - Directory listing, create, remove, move, copy
-- Read binary files
+- Read media files (images, etc.)
 
 **Archive**
 - Compress and extract archive files
@@ -205,6 +259,10 @@ Lark integration supports event deduplication, interactive card support, per-use
 - Tasks can target a channel user, a web session, or a working directory
 - Optional max run count with auto-cleanup
 - Manageable via the Web UI or by asking the agent directly
+
+**Todo**
+- Agents can create, complete, and query todo tasks
+- Web UI provides a Todo management page
 
 **Ask**
 - Agents can pause mid-task and ask the user structured questions
