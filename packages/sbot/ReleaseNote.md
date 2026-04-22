@@ -1,7 +1,6 @@
-## v0.0.10
-
 ### New Features
 
+- **Agent Store**: Agent marketplace — browse and install agent packages from remote sources, import from local JSON files; export agents as shareable JSON packages (with automatic sub-agent collection); automatic dependency resolution and installation of sub-agents
 - **Wiki Knowledge Base**: Full knowledge base system — document storage, automatic extraction, semantic search; agents can reference wiki content during conversations; new Wiki management page in Web UI
 - **Todo Module**: Built-in todo/task module — agents can create/complete/query todos; new Todo management page in Web UI
 - **Intent Classification**: New intent classification system with per-channel message filtering rules, automatically identifies and routes user messages
