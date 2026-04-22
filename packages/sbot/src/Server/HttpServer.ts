@@ -7,7 +7,7 @@ import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { WebSocket, WebSocketServer } from 'ws';
 import { AgentToolService, SkillService, ModelProvider, listThreadIds, listSubDirs, readImageAsDataUrl, isEmptyContent, type StoredMessage, type MessageContent } from "scorpio.ai";
-import { config, sanitizeId } from '../Core/Config';
+import { config, isValidAgentId } from '../Core/Config';
 import { AgentRunner } from '../Agent/AgentRunner';
 import { globalAgentToolService, refreshGlobalAgentToolService, refreshBuiltinTools, BuiltinProvider } from '../Agent/GlobalAgentToolService';
 import { globalSkillService, refreshGlobalSkillService, getSkillsDirsMap } from '../Agent/GlobalSkillService';
@@ -620,7 +620,7 @@ class HttpServer {
             const body = req.body;
             const id = (body.id || '').trim();
             if (!id) throwBad('id is required');
-            if (id !== sanitizeId(id)) throwBad(`Invalid id "${id}"`);
+            if (!isValidAgentId(id)) throwBad(`Invalid id "${id}"`);
             if (config.agentExists(id)) throwBad(`Agent "${id}" already exists`);
             config.saveAgent(id, body);
             return config.getAgent(id);

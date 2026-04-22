@@ -80,14 +80,13 @@ export interface Settings {
 }
 
 /**
- * 将名称转换为合法的目录 ID
+ * 检查 agentId 是否合法：不含路径非法字符、不含空格、首尾无特殊字符、非空
  */
-export function sanitizeId(name: string): string {
-  let id = name
-    .replace(/[<>:"/\\|?*\x00-\x1f]/g, '') // 排除路径非法字符
-    .replace(/\s+/g, '-')                   // 空格替换为连字符
-    .replace(/^[-_.]+|[-_.]+$/g, '');       // 去除首尾特殊字符
-  return id || 'agent';
+export function isValidAgentId(id: string): boolean {
+  if (!id) return false;
+  if (/[<>:"/\\|?*\x00-\x1f\s]/.test(id)) return false;
+  if (/^[-_.]|[-_.]$/.test(id)) return false;
+  return true;
 }
 
 class Config {
