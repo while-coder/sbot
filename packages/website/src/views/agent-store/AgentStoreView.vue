@@ -80,7 +80,7 @@ function isInstalled(pkgId: string): boolean {
 // ── Data loading ──
 async function loadSources() {
   try {
-    const res = await apiFetch('/api/agent-store/sources')
+    const res = await apiFetch('/api/agent-store/list')
     sources.value = Array.isArray(res) ? res : (res.data ?? [])
   } catch (e: any) {
     show(e.message, 'error')
@@ -93,9 +93,9 @@ async function loadAgents() {
     const results: BrowsedAgent[] = []
     await Promise.all(sources.value.map(async (src) => {
       try {
-        const remote: { name?: string; agents?: AgentPackage[] } = await apiFetch(
-          `/api/agent-store/proxy?url=${encodeURIComponent(src.url)}`,
-        )
+        const proxyRes = await fetch(`/api/proxy?url=${encodeURIComponent(src.url)}`)
+        if (!proxyRes.ok) return
+        const remote: { name?: string; agents?: AgentPackage[] } = await proxyRes.json()
         const pkgs = remote?.agents
         if (!Array.isArray(pkgs)) return
         for (const pkg of pkgs) {
@@ -139,7 +139,7 @@ async function addSource() {
   if (!url) return
   sourceAdding.value = true
   try {
-    await apiFetch('/api/agent-store/sources', 'POST', {
+    await apiFetch('/api/agent-store/add', 'POST', {
       url,
       name: sourceName.value.trim() || undefined,
     })
@@ -156,7 +156,7 @@ async function addSource() {
 async function removeSource(index: number) {
   if (!confirm(t('agentStore.source_removed') + '?')) return
   try {
-    await apiFetch(`/api/agent-store/sources/${index}`, 'DELETE')
+    await apiFetch('/api/agent-store/remove', 'POST', { index })
     show(t('agentStore.source_removed'))
     await reload()
   } catch (e: any) {
@@ -178,25 +178,52 @@ function openInstall(agent: BrowsedAgent) {
   showInstallModal.value = true
 }
 
+async function installOne(pkg: AgentPackage, version: string, overwrite: boolean) {
+  const res = await apiFetch('/api/agent-store/install', 'POST', { pkg, version, overwrite })
+  if (res.data?.settings) Object.assign(store.settings, res.data.settings)
+  return res
+}
+
+function resolveSubAgents(ver: AgentPackageVersion): { resolved: { pkg: AgentPackage; version: string }[]; missing: string[] } {
+  const subIds = ver.agent.agents?.map(a => a.id) ?? []
+  const resolved: { pkg: AgentPackage; version: string }[] = []
+  const missing: string[] = []
+  for (const id of subIds) {
+    if (isInstalled(id)) continue
+    const browsed = agents.value.find(a => a.pkg.id === id)
+    if (browsed) {
+      resolved.push({ pkg: browsed.pkg, version: browsed.pkg.versions[0].version })
+    } else {
+      missing.push(id)
+    }
+  }
+  return { resolved, missing }
+}
+
 async function confirmInstall() {
   if (!installTarget.value) return
   installing.value = true
   try {
-    const target = installTarget.value as BrowsedAgent & { _localAgents?: AgentPackage[] }
-    const isFileSource = target.sourceUrl.startsWith('__file__:')
-    const res = await apiFetch('/api/agent-store/install', 'POST', {
-      pkg: target.pkg,
-      overwrite: installOverwrite.value,
-      versionIndex: selectedVersionIndex.value,
-      sourceUrl: isFileSource ? undefined : target.sourceUrl,
-      localAgents: isFileSource ? (target._localAgents ?? tempSourceAgents.value.map(a => a.pkg)) : undefined,
-    })
-    if (res.data?.settings) Object.assign(store.settings, res.data.settings)
+    const pkg = installTarget.value.pkg
+    const ver = pkg.versions[selectedVersionIndex.value]
+    if (!ver) return
+
+    const { resolved, missing } = resolveSubAgents(ver)
+    if (missing.length) {
+      show(`Missing sub-agents: ${missing.join(', ')}`, 'error')
+    }
+
+    for (const sub of resolved) {
+      try {
+        await installOne(sub.pkg, sub.version, false)
+      } catch { /* skip failed sub-agent */ }
+    }
+
+    await installOne(pkg, ver.version, installOverwrite.value)
     show(t('agentStore.install_success'))
     showInstallModal.value = false
     await loadAgents()
   } catch (e: any) {
-    // If conflict, prompt overwrite
     if (e.message && e.message.includes('exist')) {
       installOverwrite.value = true
       show(t('agentStore.confirm_overwrite', { id: installTarget.value.pkg.id }), 'error')
@@ -239,8 +266,7 @@ function onFileSelected(ev: Event) {
         sourceName: sourceName,
         installed: isInstalled(pkg.id),
         pkg,
-        _localAgents: sourceAgents,
-      } as BrowsedAgent & { _localAgents?: AgentPackage[] }))
+      }))
       // Merge into agents list
       agents.value = [...agents.value.filter(a => !a.sourceUrl.startsWith('__file__:')), ...tempSourceAgents.value]
       selectedSource.value = sourceUrl

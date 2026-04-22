@@ -1,13 +1,11 @@
 import { config, type AgentSourceEntry } from '../Core/Config';
-import { httpGetJson } from '../SkillHub/types';
 import type {
   AgentPackage,
   AgentStoreSource,
 } from 'sbot.commons';
-import type { RemoteAgentStoreJson } from './types';
 
 /**
- * AgentStoreService -- source management, remote proxy, and agent installation.
+ * AgentStoreService -- source management and agent installation.
  */
 export class AgentStoreService {
 
@@ -31,13 +29,6 @@ export class AgentStoreService {
     if (!s.agentSources || index < 0 || index >= s.agentSources.length) return;
     s.agentSources.splice(index, 1);
     config.saveSettings();
-  }
-
-  // ── Proxy ──────────────────────────────────────────────────
-
-  /** Fetch remote agent store JSON on behalf of the frontend (avoids CORS). */
-  async fetchRemoteJson(url: string): Promise<RemoteAgentStoreJson> {
-    return httpGetJson<RemoteAgentStoreJson>(url);
   }
 
   // ── Install ─────────────────────────────────────────────────

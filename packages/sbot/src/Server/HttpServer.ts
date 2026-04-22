@@ -12,6 +12,7 @@ import { AgentRunner } from '../Agent/AgentRunner';
 import { globalAgentToolService, refreshGlobalAgentToolService, refreshBuiltinTools, BuiltinProvider } from '../Agent/GlobalAgentToolService';
 import { globalSkillService, refreshGlobalSkillService, getSkillsDirsMap } from '../Agent/GlobalSkillService';
 import { SkillHubService } from '../SkillHub';
+import axios from 'axios';
 import { AgentStoreService } from '../AgentStore';
 import { LoggerService, log4js } from '../Core/LoggerService';
 import { database, sessionThreadId, parseMemories, type SessionRow, type TodoRow } from '../Core/Database';
@@ -444,6 +445,17 @@ class HttpServer {
             // 先返回响应，再异步关闭服务
             setTimeout(() => this.shutdown(), 500);
             return { message: 'Shutting down...' };
+        }));
+
+        app.get('/api/proxy', api(async (req, res) => {
+            const url = req.query.url as string | undefined;
+            if (!url?.trim()) throwBad('Missing url');
+            const upstream = await axios.get(url.trim(), { responseType: 'stream', timeout: 15000 });
+            const headers = upstream.headers;
+            if (headers['content-type']) res.setHeader('Content-Type', headers['content-type']);
+            if (headers['content-length']) res.setHeader('Content-Length', headers['content-length']);
+            res.status(upstream.status);
+            upstream.data.pipe(res);
         }));
 
         // 每日 token 用量（最近 30 天）
@@ -974,44 +986,29 @@ class HttpServer {
 
     // ===== Agent Store =====
     private registerAgentStoreRoutes(app: express.Application) {
-        // ── Sources ──
-        app.get('/api/agent-store/sources', api(() => {
+        app.get('/api/agent-store/list', api(() => {
             return this.agentStoreService.getSources();
         }));
 
-        app.post('/api/agent-store/sources', api(async req => {
+        app.post('/api/agent-store/add', api(async req => {
             const { url, name } = req.body;
             if (!url?.trim()) throwBad('Missing url');
             this.agentStoreService.addSource({ url: url.trim(), name });
             return this.agentStoreService.getSources();
         }));
 
-        app.delete('/api/agent-store/sources/:index', api(async req => {
-            const index = Number(req.params.index);
-            if (isNaN(index)) throwBad('Invalid index');
-            this.agentStoreService.removeSource(index);
+        app.post('/api/agent-store/remove', api(async req => {
+            const { index } = req.body;
+            if (index == null || isNaN(Number(index))) throwBad('Invalid index');
+            this.agentStoreService.removeSource(Number(index));
             return this.agentStoreService.getSources();
         }));
 
-        // ── Proxy (fetch remote JSON on behalf of frontend to avoid CORS) ──
-        app.get('/api/agent-store/proxy', api(async req => {
-            const url = req.query.url as string | undefined;
-            if (!url?.trim()) throwBad('Missing url');
-            return this.agentStoreService.fetchRemoteJson(url.trim());
-        }));
-
-        // ── Install ──
         app.post('/api/agent-store/install', api(async req => {
-            const { pkg, overwrite = false, sourceUrl, localAgents, versionIndex }: {
-                pkg: any; overwrite: boolean; sourceUrl?: string; localAgents?: any[]; versionIndex?: number;
-            } = req.body;
+            const { pkg, version, overwrite = false } = req.body;
             if (!pkg?.id) throwBad('Missing pkg.id');
-            const result = await this.agentStoreService.install(pkg, overwrite, {
-                versionIndex,
-                sourceUrl,
-                localAgents,
-                skillHub: this.skillHubService,
-            });
+            if (!version) throwBad('Missing version');
+            const result = await this.agentStoreService.install(pkg, version, overwrite);
             return { ...result, settings: this.settingsWithAgents() };
         }));
 
