@@ -177,6 +177,7 @@ export default {
     startup_commands_add: '+ 添加命令',
     startup_commands_placeholder: '#!/bin/sh\necho "hello"',
     startup_commands_hint: '服务启动时依次同步执行的脚本，适用于 Docker 初始化等场景',
+    startup_commands_drag: '拖动调整顺序',
   },
   models: {
     add: '+ 添加模型',

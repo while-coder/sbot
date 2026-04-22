@@ -39,6 +39,36 @@ function removeStartupCommand(index: number) {
   startupCommands.value.splice(index, 1)
 }
 
+// ── Drag & Drop ──────────────────────────────────────────────────
+const dragIndex = ref<number | null>(null)
+const dropIndex = ref<number | null>(null)
+
+function onDragStart(index: number, e: DragEvent) {
+  dragIndex.value = index
+  e.dataTransfer!.effectAllowed = 'move'
+}
+function onDragOver(index: number, e: DragEvent) {
+  e.preventDefault()
+  e.dataTransfer!.dropEffect = 'move'
+  dropIndex.value = index
+}
+function onDragLeave() {
+  dropIndex.value = null
+}
+function onDrop(index: number) {
+  const from = dragIndex.value
+  if (from !== null && from !== index) {
+    const item = startupCommands.value.splice(from, 1)[0]
+    startupCommands.value.splice(index, 0, item)
+  }
+  dragIndex.value = null
+  dropIndex.value = null
+}
+function onDragEnd() {
+  dragIndex.value = null
+  dropIndex.value = null
+}
+
 // 当前浏览器访问端口
 const currentPort = parseInt(window.location.port) || (window.location.protocol === 'https:' ? 443 : 80)
 
@@ -119,7 +149,19 @@ async function save() {
       <div class="card">
         <div class="card-title">{{ t('settings.startup_commands') }}</div>
         <div class="form-hint" style="margin-bottom:8px">{{ t('settings.startup_commands_hint') }}</div>
-        <div v-for="(_, index) in startupCommands" :key="index" class="startup-cmd-item">
+        <div
+          v-for="(_, index) in startupCommands"
+          :key="index"
+          class="startup-cmd-item"
+          :class="{ 'drag-over': dropIndex === index && dragIndex !== index, 'dragging': dragIndex === index }"
+          draggable="true"
+          @dragstart="onDragStart(index, $event)"
+          @dragover="onDragOver(index, $event)"
+          @dragleave="onDragLeave"
+          @drop="onDrop(index)"
+          @dragend="onDragEnd"
+        >
+          <span class="drag-handle" :title="t('settings.startup_commands_drag')">⠿</span>
           <textarea v-model="startupCommands[index]" rows="3" :placeholder="t('settings.startup_commands_placeholder')" />
           <button class="btn-icon btn-danger-text" @click="removeStartupCommand(index)" :title="t('common.delete')">✕</button>
         </div>
@@ -163,6 +205,27 @@ async function save() {
   gap: 8px;
   align-items: flex-start;
   margin-bottom: 8px;
+  border-radius: 4px;
+  transition: background 0.15s, opacity 0.15s;
+}
+.startup-cmd-item.dragging {
+  opacity: 0.4;
+}
+.startup-cmd-item.drag-over {
+  background: var(--color-primary-bg, rgba(100, 149, 237, 0.1));
+  box-shadow: 0 -2px 0 0 var(--color-primary, #4a8fd4) inset;
+}
+.drag-handle {
+  cursor: grab;
+  user-select: none;
+  padding: 6px 2px;
+  color: var(--color-text-muted, #888);
+  font-size: 1.1rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.drag-handle:active {
+  cursor: grabbing;
 }
 .startup-cmd-item textarea {
   flex: 1;

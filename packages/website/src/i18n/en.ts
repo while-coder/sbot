@@ -177,6 +177,7 @@ export default {
     startup_commands_add: '+ Add Command',
     startup_commands_placeholder: '#!/bin/sh\necho "hello"',
     startup_commands_hint: 'Shell scripts executed sequentially on service startup, useful for Docker initialization',
+    startup_commands_drag: 'Drag to reorder',
   },
   models: {
     add: '+ Add Model',
