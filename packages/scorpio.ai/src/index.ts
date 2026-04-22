@@ -65,7 +65,6 @@ export {
   T_WikiExtractorSystemPrompt,
   T_WikiSystemPromptTemplate,
   T_WikiAutoExtract,
-  T_OutputDir,
   NowDate,
   sleep,
   parseJson,
@@ -289,7 +288,6 @@ export {
   TASK_TOOL_NAME,
   type TaskToolParams,
   type RunTaskFn,
-  type RunTaskResult,
 
   // AskTool
   createAskTool,

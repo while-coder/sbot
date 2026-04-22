@@ -26,7 +26,6 @@ export {
     TASK_TOOL_NAME,
     type TaskToolParams,
     type RunTaskFn,
-    type RunTaskResult,
 } from './TaskTool';
 
 export {

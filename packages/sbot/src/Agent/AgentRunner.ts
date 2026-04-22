@@ -19,7 +19,6 @@ import {
     WikiExtractor, WikiService,
     IWikiExtractor,
     T_WikiExtractorSystemPrompt, T_WikiAutoExtract, T_WikiSystemPromptTemplate,
-    T_OutputDir,
     createAskTool, type AskUserFn, AskQuestionType,
     type MessageContent,
 } from "scorpio.ai";
@@ -145,7 +144,6 @@ export class AgentRunner {
 
         const container = new ServiceContainer();
         container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
-        container.registerInstance(T_OutputDir, assetsDir);
         await AgentRunner.registerMemoryServices(container, memories ?? [], threadId);
         await AgentRunner.registerWikiServices(container, wikis ?? [], threadId);
         await AgentRunner.registerSaverService(container, saverId, threadId);

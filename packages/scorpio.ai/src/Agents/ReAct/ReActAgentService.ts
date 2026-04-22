@@ -133,9 +133,9 @@ export class ReActAgentService extends SingleAgentService {
           }
         }
         if (content.length === 0) content.push(createTextContent(''));
-        return { content, thinkId: thinkId };
+        return { content, thinkId };
       } catch (error: any) {
-        return { result: `Execution failed: ${error.message}`, thinkId: thinkId };
+        return { content: [createTextContent(`Execution failed: ${error.message}`)], thinkId };
       } finally {
         await agentService?.dispose();
       }
