@@ -4,7 +4,7 @@ import { apiFetch } from '@/api'
 import { MessageRole } from '@/types'
 import type { StoredMessage, ToolCall } from '@/types'
 import { inlineArgs, resultPreview } from '@/utils/toolCallFormat'
-import { getContentParts, renderMd } from '@/utils/messageRender'
+import { ContentPartType, getContentParts, renderMd } from '@/utils/messageRender'
 
 const props = defineProps<{
   thinksUrlPrefix: string
@@ -112,9 +112,12 @@ defineExpose({ open })
                           <span class="msg-role">User</span>
                         </div>
                         <template v-for="(part, pIdx) in getContentParts(tm.message.content)" :key="pIdx">
-                          <div v-if="part.type === 'text'" class="md-content" v-html="renderMd(part.text)" />
-                          <div v-else-if="part.type === 'image'" class="inline-image">
+                          <div v-if="part.type === ContentPartType.Text" class="md-content" v-html="renderMd(part.text)" />
+                          <div v-else-if="part.type === ContentPartType.Image" class="inline-image">
                             <img :src="part.url" class="inline-image-thumb" @click="lightboxUrl = part.url!" />
+                          </div>
+                          <div v-else-if="part.type === ContentPartType.Audio" class="inline-audio">
+                            <audio controls :src="part.url" />
                           </div>
                         </template>
                       </div>
@@ -125,9 +128,12 @@ defineExpose({ open })
                           <span class="msg-role">AI</span>
                         </div>
                         <template v-for="(part, pIdx) in getContentParts(tm.message.content)" :key="pIdx">
-                          <div v-if="part.type === 'text'" class="md-content" v-html="renderMd(part.text)" />
-                          <div v-else-if="part.type === 'image'" class="inline-image">
+                          <div v-if="part.type === ContentPartType.Text" class="md-content" v-html="renderMd(part.text)" />
+                          <div v-else-if="part.type === ContentPartType.Image" class="inline-image">
                             <img :src="part.url" class="inline-image-thumb" @click="lightboxUrl = part.url!" />
+                          </div>
+                          <div v-else-if="part.type === ContentPartType.Audio" class="inline-audio">
+                            <audio controls :src="part.url" />
                           </div>
                         </template>
                       </div>
@@ -157,9 +163,12 @@ defineExpose({ open })
                                   </div>
                                 </div>
                                 <template v-for="(part, pIdx) in getContentParts(m2.message.content)" :key="pIdx">
-                                  <div v-if="part.type === 'text'" class="md-content tool-result-content" v-html="renderMd(part.text)" />
-                                  <div v-else-if="part.type === 'image'" class="inline-image">
+                                  <div v-if="part.type === ContentPartType.Text" class="md-content tool-result-content" v-html="renderMd(part.text)" />
+                                  <div v-else-if="part.type === ContentPartType.Image" class="inline-image">
                                     <img :src="part.url" class="inline-image-thumb" @click="lightboxUrl = part.url!" />
+                                  </div>
+                                  <div v-else-if="part.type === ContentPartType.Audio" class="inline-audio">
+                                    <audio controls :src="part.url" />
                                   </div>
                                 </template>
                               </div>
@@ -301,6 +310,10 @@ defineExpose({ open })
 .inline-image-thumb:hover {
   opacity: 0.85;
 }
+
+/* Inline audio */
+.inline-audio { margin: 8px 0; }
+.inline-audio audio { max-width: 100%; border-radius: 6px; }
 
 /* Lightbox */
 .think-lightbox-backdrop {

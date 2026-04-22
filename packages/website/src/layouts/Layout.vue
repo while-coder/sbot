@@ -930,6 +930,10 @@ table tr:hover td { background: #fafaf9; }
 }
 .inline-image-thumb:hover { opacity: .85; }
 
+/* ── Inline audio ── */
+.inline-audio { margin-top: 8px; }
+.inline-audio audio { max-width: 100%; border-radius: 6px; }
+
 /* ── Image lightbox ── */
 .lightbox-overlay {
   position: fixed;

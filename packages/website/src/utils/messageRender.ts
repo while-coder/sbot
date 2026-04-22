@@ -1,8 +1,13 @@
 import { marked } from 'marked'
 
-/** Render-friendly content part for interleaved text/image display */
+export enum ContentPartType {
+  Text = 'text',
+  Image = 'image',
+  Audio = 'audio',
+}
+
 export interface DisplayPart {
-  type: 'text' | 'image'
+  type: ContentPartType
   text?: string
   url?: string
 }
@@ -10,17 +15,23 @@ export interface DisplayPart {
 /** Convert LangChain MessageContent (string or array) into ordered display parts */
 export function getContentParts(content: string | any[] | undefined | null): DisplayPart[] {
   if (!content) return []
-  if (typeof content === 'string') return [{ type: 'text', text: content }]
+  if (typeof content === 'string') return [{ type: ContentPartType.Text, text: content }]
   const parts: DisplayPart[] = []
   for (const c of content) {
     if (typeof c === 'string') {
-      parts.push({ type: 'text', text: c })
+      parts.push({ type: ContentPartType.Text, text: c })
     } else if (c?.type === 'text' && c.text) {
-      parts.push({ type: 'text', text: c.text })
+      parts.push({ type: ContentPartType.Text, text: c.text })
     } else if (c?.type === 'image_url' && c.image_url?.url) {
-      parts.push({ type: 'image', url: c.image_url.url })
+      parts.push({ type: ContentPartType.Image, url: c.image_url.url })
     } else if (c?.type === 'inlineData' && c.inlineData?.data) {
-      parts.push({ type: 'image', url: `data:${c.inlineData.mimeType};base64,${c.inlineData.data}` })
+      parts.push({ type: ContentPartType.Image, url: `data:${c.inlineData.mimeType};base64,${c.inlineData.data}` })
+    } else if (c?.type === 'image' && c.data && c.mimeType) {
+      parts.push({ type: ContentPartType.Image, url: `data:${c.mimeType};base64,${c.data}` })
+    } else if (c?.type === 'audio' && c.data && c.mimeType) {
+      parts.push({ type: ContentPartType.Audio, url: `data:${c.mimeType};base64,${c.data}` })
+    } else if (c?.type === 'document' && c.data && c.mimeType) {
+      parts.push({ type: ContentPartType.Image, url: `data:${c.mimeType};base64,${c.data}` })
     }
   }
   return parts

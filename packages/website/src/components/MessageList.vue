@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { MessageRole } from '@/types'
 import type { StoredMessage, ToolCall } from '@/types'
 import { inlineArgs, resultPreview } from '@/utils/toolCallFormat'
-import { getContentParts, renderMd, fmtTs, toggleToolCall } from '@/utils/messageRender'
+import { ContentPartType, getContentParts, renderMd, fmtTs, toggleToolCall } from '@/utils/messageRender'
 import ThinkDrawer from './ThinkDrawer.vue'
 import ImageLightbox from './ImageLightbox.vue'
 
@@ -92,9 +92,12 @@ function openThink(thinkId: string) {
               </div>
             </div>
             <template v-for="(part, pIdx) in getContentParts(msg.message.content)" :key="pIdx">
-              <div v-if="part.type === 'text'" class="md-content" v-html="renderMd(part.text)" />
-              <div v-else-if="part.type === 'image'" class="inline-image">
+              <div v-if="part.type === ContentPartType.Text" class="md-content" v-html="renderMd(part.text)" />
+              <div v-else-if="part.type === ContentPartType.Image" class="inline-image">
                 <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
+              </div>
+              <div v-else-if="part.type === ContentPartType.Audio" class="inline-audio">
+                <audio controls :src="part.url" />
               </div>
             </template>
           </div>
@@ -112,9 +115,12 @@ function openThink(thinkId: string) {
               </div>
             </div>
             <template v-for="(part, pIdx) in getContentParts(msg.message.content)" :key="pIdx">
-              <div v-if="part.type === 'text'" class="md-content" v-html="renderMd(part.text)" />
-              <div v-else-if="part.type === 'image'" class="inline-image">
+              <div v-if="part.type === ContentPartType.Text" class="md-content" v-html="renderMd(part.text)" />
+              <div v-else-if="part.type === ContentPartType.Image" class="inline-image">
                 <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
+              </div>
+              <div v-else-if="part.type === ContentPartType.Audio" class="inline-audio">
+                <audio controls :src="part.url" />
               </div>
             </template>
           </div>
@@ -143,7 +149,15 @@ function openThink(thinkId: string) {
                         <span>{{ t('chat.think') }}</span>
                       </div>
                     </div>
-                    <div class="md-content tool-result-content" v-html="renderMd(m2.message.content || '')" />
+                    <template v-for="(part, pIdx) in getContentParts(m2.message.content)" :key="'tr' + pIdx">
+                      <div v-if="part.type === ContentPartType.Text" class="md-content tool-result-content" v-html="renderMd(part.text)" />
+                      <div v-else-if="part.type === ContentPartType.Image" class="inline-image">
+                        <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
+                      </div>
+                      <div v-else-if="part.type === ContentPartType.Audio" class="inline-audio">
+                        <audio controls :src="part.url" />
+                      </div>
+                    </template>
                   </div>
                 </template>
               </div>
@@ -158,9 +172,12 @@ function openThink(thinkId: string) {
               <span class="msg-role">Tool{{ msg.message.name ? ` · ${msg.message.name}` : '' }}</span>
             </div>
             <template v-for="(part, pIdx) in getContentParts(msg.message.content)" :key="pIdx">
-              <div v-if="part.type === 'text'" class="md-content" v-html="renderMd(part.text)" />
-              <div v-else-if="part.type === 'image'" class="inline-image">
+              <div v-if="part.type === ContentPartType.Text" class="md-content" v-html="renderMd(part.text)" />
+              <div v-else-if="part.type === ContentPartType.Image" class="inline-image">
                 <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
+              </div>
+              <div v-else-if="part.type === ContentPartType.Audio" class="inline-audio">
+                <audio controls :src="part.url" />
               </div>
             </template>
           </div>
@@ -174,9 +191,12 @@ function openThink(thinkId: string) {
               <span v-if="msg.createdAt" class="msg-time">{{ fmtTs(msg.createdAt) }}</span>
             </div>
             <template v-for="(part, pIdx) in getContentParts(msg.message.content)" :key="pIdx">
-              <div v-if="part.type === 'text'" class="md-content" v-html="renderMd(part.text)" />
-              <div v-else-if="part.type === 'image'" class="inline-image">
+              <div v-if="part.type === ContentPartType.Text" class="md-content" v-html="renderMd(part.text)" />
+              <div v-else-if="part.type === ContentPartType.Image" class="inline-image">
                 <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
+              </div>
+              <div v-else-if="part.type === ContentPartType.Audio" class="inline-audio">
+                <audio controls :src="part.url" />
               </div>
             </template>
           </div>
@@ -190,8 +210,8 @@ function openThink(thinkId: string) {
         <div class="msg-role-bar"><span class="msg-role">{{ t('chat.role_ai') }}</span></div>
         <template v-if="streamingContent">
           <template v-for="(part, pIdx) in getContentParts(streamingContent)" :key="pIdx">
-            <div v-if="part.type === 'text'" class="md-content" v-html="renderMd(part.text)" />
-            <div v-else-if="part.type === 'image'" class="inline-image">
+            <div v-if="part.type === ContentPartType.Text" class="md-content" v-html="renderMd(part.text)" />
+            <div v-else-if="part.type === ContentPartType.Image" class="inline-image">
               <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
             </div>
           </template>
@@ -208,8 +228,8 @@ function openThink(thinkId: string) {
           <span class="msg-queued-tag">{{ t('chat.queued') }}</span>
         </div>
         <template v-for="(part, pIdx) in getContentParts(q)" :key="pIdx">
-          <div v-if="part.type === 'text'" class="md-content" v-html="renderMd(part.text)" />
-          <div v-else-if="part.type === 'image'" class="inline-image">
+          <div v-if="part.type === ContentPartType.Text" class="md-content" v-html="renderMd(part.text)" />
+          <div v-else-if="part.type === ContentPartType.Image" class="inline-image">
             <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
           </div>
         </template>

@@ -21,12 +21,28 @@ export function resultPreview(messages: StoredMessage[], toolCallId: string): st
     (m) => m.message.role === MessageRole.Tool && m.message.tool_call_id === toolCallId,
   )
   if (!msg) return ''
-  const content = typeof msg.message.content === 'string'
-    ? msg.message.content
-    : Array.isArray(msg.message.content)
-      ? msg.message.content.map((b: any) => (typeof b === 'string' ? b : b?.text ?? '')).join('')
-      : ''
-  if (!content) return ''
-  const oneLine = content.replace(/\s+/g, ' ').trim()
-  return oneLine.length > 80 ? oneLine.slice(0, 80) + '…' : oneLine
+  const raw = msg.message.content
+  if (!raw) return ''
+
+  if (typeof raw === 'string') {
+    const oneLine = raw.replace(/\s+/g, ' ').trim()
+    return oneLine.length > 80 ? oneLine.slice(0, 80) + '…' : oneLine
+  }
+
+  if (!Array.isArray(raw)) return ''
+
+  const textParts: string[] = []
+  const mediaTags: string[] = []
+  for (const b of raw) {
+    if (typeof b === 'string') textParts.push(b)
+    else if (b?.type === 'text' && b.text) textParts.push(b.text)
+    else if (b?.type === 'image' || b?.type === 'image_url' || b?.type === 'inlineData') mediaTags.push('[image]')
+    else if (b?.type === 'audio') mediaTags.push('[audio]')
+    else if (b?.type === 'document') mediaTags.push('[document]')
+  }
+  const text = textParts.join('').replace(/\s+/g, ' ').trim()
+  const media = mediaTags.join(' ')
+  const combined = [media, text].filter(Boolean).join(' ')
+  if (!combined) return ''
+  return combined.length > 80 ? combined.slice(0, 80) + '…' : combined
 }
