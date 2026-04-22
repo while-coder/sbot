@@ -296,7 +296,7 @@ function safeSkillFilePath(filePath: string): string {
 function api(fn: (req: Request, res: Response) => any) {
     return async (req: Request, res: Response) => {
         const start = Date.now();
-        logger.debug(`${req.method} ${req.path} body=${JSON.stringify(req.body)} query=${JSON.stringify(req.query)}`);
+        // logger.debug(`${req.method} ${req.path} body=${JSON.stringify(req.body)} query=${JSON.stringify(req.query)}`);
         try {
             const result = await fn(req, res);
             if (!res.headersSent) res.json({ success: true, data: result ?? null });
