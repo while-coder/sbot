@@ -69,6 +69,7 @@ export default {
     api_key_required: 'API Key 不能为空',
     model_required: '模型不能为空',
     provider: 'Provider',
+    recommended: '（推荐）',
     base_url: 'Base URL',
     api_key: 'API Key',
     id: 'ID',

@@ -7,7 +7,7 @@
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**Open-source, self-hosted AI agent framework.** Run LLM-powered agents on your own server with persistent memory, multi-channel integrations, MCP tool support, and a built-in web UI — no vendor lock-in.
+**Open-source, self-hosted AI agent framework.** Modular by design: models, memory, tools, and channels are independent building blocks you mix and match to assemble agents — run on your own server with multi-channel integrations, MCP tool support, and a built-in web UI, no vendor lock-in.
 
 | Chat | Image Generation | Models |
 |:---:|:---:|:---:|
@@ -54,14 +54,18 @@ Configuration and data are persisted in `~/.sbot` on the host.
 
 ## Features
 
-- **Multiple LLM providers** — OpenAI, Anthropic Claude, Google Gemini, Ollama, and any OpenAI-compatible API (Azure OpenAI, Groq, Mistral, DeepSeek, etc.). Each model has its own API key, base URL, temperature, and token limits.
-- **Multi-agent orchestration** — ReAct mode: a thinking model decomposes tasks and dispatches to specialized sub-agents recursively; Generative mode: multimodal content generation
-- **Knowledge base** — Built-in wiki system with document storage, automatic extraction, and semantic search; agents can reference wiki content during conversations
+- **Modular composition** — Models, memory, tools, channels, and skills are independent building blocks you mix and match to assemble agents
+- **One-command deployment** — `npm install -g` or `docker run`, native cross-platform with no extra system dependencies
+- **Full Web UI management** — All configuration done in the browser, no manual file editing required
+- **Multiple LLM providers** — OpenAI, Anthropic Claude, Google Gemini, Ollama, and any OpenAI-compatible API (Azure OpenAI, Groq, Mistral, DeepSeek, etc.)
+- **Multi-agent orchestration** — ReAct recursive task decomposition + Generative multimodal, agents can be nested and composed
+- **Knowledge base** — Built-in wiki system with automatic document extraction and semantic search, referenced by agents during conversations
 - **Long-term memory** — Full extract → compress pipeline with vector-embedding semantic search
-- **MCP support** — Connect external tool servers via stdio or HTTP/SSE transport
-- **Multiple channels** — Web UI, CLI, Lark/Feishu, Slack, WeCom, REST API, WebSocket
+- **MCP tools** — Standard MCP protocol (stdio/HTTP), connect to any MCP tool ecosystem
+- **Multiple channels** — Web UI, CLI, Lark/Feishu, Slack, WeCom, WeChat, REST API, WebSocket
 - **Built-in tools** — Shell execution, file system, archive operations, media file read, Python/PowerShell inline execution, cron scheduler, todo tasks
-- **Skills** — Installable prompt modules for brainstorming, TDD, code review, multi-agent coordination, and more
+- **Skills** — Installable prompt modules, remote install from skills.sh / Clawhub
+- **Token usage tracking** — Built-in consumption statistics with real-time visibility
 - **Flexible config** — Global, per-directory, and per-session overrides from a single `settings.json`
 
 ---
@@ -82,10 +86,9 @@ Choose a backend for storing conversation history:
 
 | Backend | Description |
 |---|---|
-| Memory | In-process only, no disk writes |
-| SQLite | Local SQLite database per saver instance (recommended) |
-| PostgreSQL | External database for production deployments |
-| File | JSON files per conversation thread |
+| File | JSON files per conversation thread (recommended) |
+| SQLite | Local SQLite database |
+| Memory | Cleared after conversation ends, no persistence, suitable for one-off conversations or Q&A assistants |
 
 ---
 
@@ -139,9 +142,7 @@ Supports global servers shared across all agents and per-agent overrides. Server
 
 Sidebar → **Skills**
 
-Skill files (Markdown) are stored in `~/.sbot/skills/`. Install them from the Skills page or drop files manually. In an agent → Skills tab, select specific skills to load, or leave empty to load all.
-
-Built-in skills: `brainstorming`, `planning`, `debugging`, `tdd`, `code-review`, `multi-agent`. Use the `find-skills` skill to discover and install from remote hubs (Clawhub, skills.sh).
+Skill files (Markdown) are stored in `~/.sbot/skills/`. Search and install from remote hubs (Clawhub, skills.sh) on the Skills page, or drop files manually. In an agent → Skills tab, select specific skills to load, or leave empty to load all.
 
 ---
 
@@ -149,16 +150,7 @@ Built-in skills: `brainstorming`, `planning`, `debugging`, `tdd`, `code-review`,
 
 Sidebar → **Prompts**
 
-View and edit any built-in prompt. Saved overrides are stored in `~/.sbot/prompts/` and take precedence over the defaults.
-
-| Prompt | Purpose |
-|--------|---------|
-| `system/init.txt` | Prepended to all agents' system prompt |
-| `skills/system.txt` | Skills subsystem prompt template |
-| `agent/react_system.txt` | ReAct think node system prompt |
-| `agent/react_subnode.txt` | ReAct sub-agent task prompt template |
-
-Prompts support `{varName}` placeholders substituted at runtime.
+View and edit any built-in prompt (system prompts, agent prompts, tool descriptions, etc.). Saved overrides are stored in `~/.sbot/prompts/` and take precedence over the defaults, effective immediately without restart. Supports `{varName}` placeholders substituted at runtime.
 
 ---
 

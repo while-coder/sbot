@@ -69,6 +69,7 @@ export default {
     api_key_required: 'API Key is required',
     model_required: 'Model is required',
     provider: 'Provider',
+    recommended: '(Recommended)',
     base_url: 'Base URL',
     api_key: 'API Key',
     id: 'ID',

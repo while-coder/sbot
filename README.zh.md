@@ -7,7 +7,7 @@
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**开源、自托管的 AI Agent 框架。** 在自己的服务器上运行 LLM 驱动的 Agent，支持持久化记忆、多渠道接入、MCP 工具协议和内置 Web UI —— 无供应商绑定。
+**开源、自托管的 AI Agent 框架。** 模块化配置：模型、记忆、工具、渠道均可独立组合，按需搭建 Agent —— 在自己的服务器上运行，支持多渠道接入、MCP 工具协议和内置 Web UI，无供应商绑定。
 
 | 聊天 | 图片生成 | 模型配置 |
 |:---:|:---:|:---:|
@@ -54,14 +54,18 @@ docker run -d \
 
 ## 核心特性
 
-- **多 LLM 供应商** — OpenAI、Anthropic Claude、Google Gemini、Ollama，以及任何 OpenAI 兼容接口（Azure OpenAI、Groq、Mistral、DeepSeek 等）。每个模型可独立配置 API Key、Base URL、温度和 Token 上限。
-- **多 Agent 编排** — ReAct 模式：思考模型拆解任务并分发给专项子 Agent，支持递归组合；Generative 模式：支持多模态内容生成
-- **知识库** — 内置 Wiki 知识库系统，支持文档存储、自动提取和语义搜索，Agent 对话中可自动引用
+- **模块化组合** — 模型、记忆、工具、渠道、技能均为独立模块，自由搭配搭建 Agent，无固定套路
+- **一条命令部署** — `npm install -g` 或 `docker run`，跨平台原生运行，无额外系统依赖
+- **全 Web UI 管理** — 所有配置在浏览器中完成，无需手动编辑文件
+- **多 LLM 供应商** — OpenAI、Anthropic Claude、Google Gemini、Ollama，以及任何 OpenAI 兼容接口（Azure OpenAI、Groq、Mistral、DeepSeek 等）
+- **多 Agent 编排** — ReAct 递归任务分解 + Generative 多模态生成，Agent 可嵌套组合
+- **知识库** — 内置 Wiki 系统，支持文档自动提取和语义搜索，Agent 对话中自动引用
 - **长期记忆** — 完整的提取 → 压缩流水线，基于向量 Embedding 进行语义检索
-- **MCP 支持** — 通过 stdio 或 HTTP/SSE 接入外部工具服务器
-- **多渠道接入** — Web UI、CLI、飞书/Lark、Slack、企业微信、REST API、WebSocket
+- **MCP 工具** — 标准 MCP 协议（stdio/HTTP），接入任意 MCP 工具生态
+- **多渠道接入** — Web UI、CLI、飞书/Lark、Slack、企业微信、微信、REST API、WebSocket
 - **内置工具** — Shell 执行、文件系统、归档操作、媒体文件读取、Python/PowerShell 内联执行、Cron 调度、待办事项
-- **技能系统** — 可安装的 Prompt 模块，涵盖头脑风暴、TDD、代码审查、多 Agent 协作等
+- **技能系统** — 可安装的 Prompt 模块，支持从 skills.sh / Clawhub 远程安装
+- **Token 用量追踪** — 内置消耗统计，实时可见
 - **灵活配置** — 单个 `settings.json`，支持全局、目录、会话三级覆盖
 
 ---
@@ -82,10 +86,9 @@ docker run -d \
 
 | 后端 | 说明 |
 |---|---|
-| 内存 | 仅保留在进程内，不写磁盘 |
-| SQLite | 每个 Saver 实例独立的本地 SQLite 数据库（推荐） |
-| PostgreSQL | 外部数据库，适合生产环境部署 |
-| 文件 | 每个会话线程存储为独立 JSON 文件 |
+| 文件 | 每个会话线程存储为独立 JSON 文件（推荐） |
+| SQLite | 本地 SQLite 数据库 |
+| 内存 | 对话完成后即清空，不持久化，适合一次性对话或问答助手 |
 
 ---
 
@@ -139,9 +142,7 @@ docker run -d \
 
 侧栏 → **技能**
 
-技能文件（Markdown 格式）存储在 `~/.sbot/skills/`，可在技能页面安装，也可手动放入文件夹。在 Agent 编辑页 → 技能标签页中选择要加载的技能，不选则全部加载。
-
-内置技能：`brainstorming`、`planning`、`debugging`、`tdd`、`code-review`、`multi-agent`。通过 `find-skills` 技能可搜索并安装来自 Clawhub、skills.sh 等远程平台的技能。
+技能文件（Markdown 格式）存储在 `~/.sbot/skills/`，可在技能页面从 Clawhub、skills.sh 等远程平台搜索并安装，也可手动放入文件夹。在 Agent 编辑页 → 技能标签页中选择要加载的技能，不选则全部加载。
 
 ---
 
@@ -149,16 +150,7 @@ docker run -d \
 
 侧栏 → **提示词**
 
-查看和编辑任意内置提示词，保存后存储在 `~/.sbot/prompts/` 并覆盖默认值，立即生效无需重启。
-
-| 提示词 | 用途 |
-|--------|------|
-| `system/init.txt` | 所有 Agent 共享的前置系统提示 |
-| `skills/system.txt` | Skills 子系统提示模板 |
-| `agent/react_system.txt` | ReAct Think 节点系统提示 |
-| `agent/react_subnode.txt` | ReAct 子 Agent 任务提示模板 |
-
-提示词支持 `{varName}` 占位符，运行时自动替换。
+查看和编辑任意内置提示词（系统提示、Agent 提示、工具描述等），保存后存储在 `~/.sbot/prompts/` 并覆盖默认值，立即生效无需重启。支持 `{varName}` 占位符，运行时自动替换。
 
 ---
 
