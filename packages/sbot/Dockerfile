@@ -4,7 +4,6 @@ EXPOSE 5500
 VOLUME [ "/root/.sbot" ]
 
 ENV TZ=Asia/Shanghai
-ENV EXEC_DOCKER=true
 
 WORKDIR /app
 
