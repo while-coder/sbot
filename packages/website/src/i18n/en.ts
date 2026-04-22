@@ -580,6 +580,8 @@ export default {
     select_version: 'Select Version',
     loading: 'Loading...',
     fetch_error: 'Failed to fetch agent list',
+    export_btn: 'Export',
+    export_success: 'Agent exported',
   },
   new_session: {
     title: 'New Session',

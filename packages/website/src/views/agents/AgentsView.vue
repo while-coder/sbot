@@ -93,22 +93,22 @@ function switchTab(id: string, tab: 'config' | 'skills' | 'mcp') {
   if (tab === 'mcp')    loadMcp(id)
 }
 
-// async function exportAgent(id: string) {
-//   try {
-//     const res = await apiFetch(`/api/agent-store/export/${encodeURIComponent(id)}`)
-//     const source = res.data ?? res
-//     const blob = new Blob([JSON.stringify(source, null, 2)], { type: 'application/json' })
-//     const url = URL.createObjectURL(blob)
-//     const a = document.createElement('a')
-//     a.href = url
-//     a.download = `${source.name || id}.json`
-//     a.click()
-//     URL.revokeObjectURL(url)
-//     show(t('agentStore.export_success'))
-//   } catch (e: any) {
-//     show(e.message, 'error')
-//   }
-// }
+async function exportAgent(id: string) {
+  try {
+    const res = await apiFetch(`/api/agent-store/export?id=${encodeURIComponent(id)}`)
+    const pkg = res.data ?? res
+    const blob = new Blob([JSON.stringify(pkg, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${pkg.name || id}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    show(t('agentStore.export_success'))
+  } catch (e: any) {
+    show(e.message, 'error')
+  }
+}
 
 async function copyAgent(id: string) {
   const agent = agents.value[id]
@@ -287,7 +287,7 @@ async function refresh() {
                   <button class="btn-outline btn-sm" @click="agentMcpModal?.open(id as string)">MCP</button>
                   <button class="btn-outline btn-sm" @click="agentSkillsModal?.open(id as string)">Skills</button>
                   <button class="btn-outline btn-sm" @click="copyAgent(id as string)">{{ t('agents.copy') }}</button>
-                  <!-- <button class="btn-outline btn-sm" @click="exportAgent(id as string)">{{ t('agentStore.export_btn') }}</button> -->
+                  <button class="btn-outline btn-sm" @click="exportAgent(id as string)">{{ t('agentStore.export_btn') }}</button>
                   <button class="btn-danger btn-sm" @click="removeAgent(id as string)">{{ t('common.delete') }}</button>
                 </div>
               </td>

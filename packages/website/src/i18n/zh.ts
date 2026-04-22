@@ -580,6 +580,8 @@ export default {
     select_version: '选择版本',
     loading: '加载中...',
     fetch_error: '获取智能体列表失败',
+    export_btn: '导出',
+    export_success: '智能体已导出',
   },
   new_session: {
     title: '新建会话',

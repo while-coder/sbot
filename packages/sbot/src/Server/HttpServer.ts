@@ -1012,6 +1012,12 @@ class HttpServer {
             return { ...result, settings: this.settingsWithAgents() };
         }));
 
+        app.get('/api/agent-store/export', api(req => {
+            const id = req.query.id as string | undefined;
+            if (!id?.trim()) throwBad('Missing id');
+            return this.agentStoreService.export(id.trim());
+        }));
+
     }
 
     // ===== Prompts =====

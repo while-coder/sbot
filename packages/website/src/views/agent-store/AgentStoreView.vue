@@ -109,7 +109,15 @@ async function loadAgents() {
         }
       } catch { /* skip unreachable source */ }
     }))
-    agents.value = results
+    if (tempSourceAgents.value.length) {
+      tempSourceAgents.value = tempSourceAgents.value.map(a => ({
+        ...a,
+        installed: isInstalled(a.pkg.id),
+      }))
+      agents.value = [...results, ...tempSourceAgents.value]
+    } else {
+      agents.value = results
+    }
   } catch (e: any) {
     show(t('agentStore.fetch_error'), 'error')
   } finally {
