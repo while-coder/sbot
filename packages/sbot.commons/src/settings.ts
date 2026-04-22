@@ -143,11 +143,7 @@ export interface AgentConfig {
 /** 单个版本的配置快照 */
 export interface AgentPackageVersion {
   version: string
-  agent: Omit<AgentConfig, 'storeSource' | 'mcp' | 'skills' | 'autoApproveTools' | 'autoApproveAllTools'>
-  /** MCP 配置：builtin 引用列表 + 完整 MCP 服务器配置 */
-  mcp?: { builtin: string[]; servers: Record<string, unknown> }
-  /** agent skills 目录的 zip 压缩包（base64 编码），安装时直接解压 */
-  skillsBundle?: string
+  agent: Omit<AgentConfig, 'storeSource' | 'mcp' | 'skills' | 'autoApproveTools' | 'autoApproveAllTools' | 'model'>
 }
 
 /** 智能体包 = 元信息 + 版本列表（index 0 = 最新版） */
