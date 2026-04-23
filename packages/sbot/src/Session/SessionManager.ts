@@ -86,6 +86,11 @@ class SbotSession extends SessionService {
             return row?.saver;
         }
         const channelId = 'channelId' in args ? args.channelId : undefined;
+        const dbSessionId = 'dbSessionId' in args ? args.dbSessionId : undefined;
+        if (dbSessionId) {
+            const dbSession = await database.findByPk<ChannelSessionRow>(database.channelSession, dbSessionId);
+            if (dbSession?.saver) return dbSession.saver;
+        }
         return channelId ? config.getChannel(channelId)?.saver : undefined;
     }
 
@@ -132,8 +137,12 @@ export class SbotSessionManager extends SessionManager {
             const dbSessionId = args?.dbSessionId as number | undefined;
             if (dbSessionId) {
                 const dbSession = await database.findByPk<ChannelSessionRow>(database.channelSession, dbSessionId);
-                if (dbSession?.intentModel) {
-                    const shouldReply = await classifyIntent(query, dbSession.intentModel, dbSession.intentPrompt ?? null, dbSession.intentThreshold ?? 0.7);
+                const channel = args.channelId ? config.getChannel(args.channelId) : undefined;
+                const intentModel = dbSession?.intentModel || channel?.intentModel;
+                if (intentModel) {
+                    const intentPrompt = dbSession?.intentPrompt ?? channel?.intentPrompt ?? null;
+                    const intentThreshold = dbSession?.intentThreshold ?? channel?.intentThreshold ?? 0.7;
+                    const shouldReply = await classifyIntent(query, intentModel, intentPrompt, intentThreshold);
                     if (!shouldReply) return;
                 }
             }

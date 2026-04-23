@@ -24,15 +24,20 @@ interface ChannelSessionRow {
   sessionId: string
   sessionName: string
   avatar: string
-  agentId: string
+  // 可覆盖 ChannelConfig 默认值（null = 使用频道默认值）
+  agentId: string | null
+  saver: string | null
   memories: string[]
-  useChannelMemories: boolean
+  wikis: string[]
   workPath: string | null
+  streamVerbose: boolean | null
+  autoApproveAllTools: boolean | null
   intentModel: string | null
   intentPrompt: string | null
-  intentThreshold: number
-  streamVerbose: boolean
-  autoApproveAllTools: boolean
+  intentThreshold: number | null
+  // 会话自有字段
+  useChannelMemories: boolean
+  // 运行时统计
   inputTokens: number
   outputTokens: number
   totalTokens: number
@@ -88,7 +93,7 @@ const channelLoading   = ref<Record<string, boolean>>({})
 const viewUser         = ref<UserRow | null>(null)
 
 const editingSession   = ref<ChannelSessionRow | null>(null)
-const sessionForm      = ref<{ name: string; agentId: string; memories: string[]; wikis: string[]; useChannelMemories: boolean; workPath: string; intentModel: string; intentPrompt: string; intentThreshold: number; streamVerbose: boolean; autoApproveAllTools: boolean }>({ name: '', agentId: '', memories: [], wikis: [], useChannelMemories: false, workPath: '', intentModel: '', intentPrompt: '', intentThreshold: 0.7, streamVerbose: false, autoApproveAllTools: false })
+const sessionForm      = ref<{ name: string; agentId: string; saver: string; memories: string[]; wikis: string[]; useChannelMemories: boolean; workPath: string; intentModel: string; intentPrompt: string; intentThreshold: number; streamVerbose: boolean | null; autoApproveAllTools: boolean | null }>({ name: '', agentId: '', saver: '', memories: [], wikis: [], useChannelMemories: false, workPath: '', intentModel: '', intentPrompt: '', intentThreshold: 0.7, streamVerbose: null, autoApproveAllTools: null })
 
 function openEditSession(s: ChannelSessionRow) {
   editingSession.value = s
@@ -96,7 +101,7 @@ function openEditSession(s: ChannelSessionRow) {
   const memArr = Array.isArray(rawMem) ? rawMem : typeof rawMem === 'string' ? (() => { try { const p = JSON.parse(rawMem); return Array.isArray(p) ? p : [] } catch { return [] } })() : []
   const rawWiki = (s as any).wikis
   const wikiArr = Array.isArray(rawWiki) ? rawWiki : typeof rawWiki === 'string' ? (() => { try { const p = JSON.parse(rawWiki); return Array.isArray(p) ? p : [] } catch { return [] } })() : []
-  sessionForm.value = { name: s.sessionName || '', agentId: s.agentId || '', memories: memArr, wikis: wikiArr, useChannelMemories: !!s.useChannelMemories, workPath: s.workPath || '', intentModel: s.intentModel || '', intentPrompt: s.intentPrompt || '', intentThreshold: s.intentThreshold ?? 0.7, streamVerbose: !!s.streamVerbose, autoApproveAllTools: !!(s as any).autoApproveAllTools }
+  sessionForm.value = { name: s.sessionName || '', agentId: s.agentId || '', saver: s.saver || '', memories: memArr, wikis: wikiArr, useChannelMemories: !!s.useChannelMemories, workPath: s.workPath || '', intentModel: s.intentModel || '', intentPrompt: s.intentPrompt || '', intentThreshold: s.intentThreshold ?? 0.7, streamVerbose: s.streamVerbose, autoApproveAllTools: s.autoApproveAllTools }
 }
 
 async function saveSession() {
@@ -110,26 +115,28 @@ async function saveSession() {
     await apiFetch(`/api/channel-sessions/${s.id}`, 'PUT', {
       sessionName: sessionForm.value.name.trim(),
       agentId: sessionForm.value.agentId,
+      saver: sessionForm.value.saver || null,
       memories,
       wikis,
       useChannelMemories: sessionForm.value.useChannelMemories,
       workPath: sessionForm.value.workPath.trim() || null,
       intentModel: sessionForm.value.intentModel || null,
       intentPrompt: sessionForm.value.intentPrompt.trim() || null,
-      intentThreshold: sessionForm.value.intentThreshold,
+      intentThreshold: sessionForm.value.intentModel ? sessionForm.value.intentThreshold : null,
       streamVerbose: sessionForm.value.streamVerbose,
       autoApproveAllTools: sessionForm.value.autoApproveAllTools,
     })
     Object.assign(s, {
       sessionName: sessionForm.value.name.trim(),
       agentId: sessionForm.value.agentId,
+      saver: sessionForm.value.saver || null,
       memories,
       wikis,
       useChannelMemories: sessionForm.value.useChannelMemories,
       workPath: sessionForm.value.workPath.trim() || null,
       intentModel: sessionForm.value.intentModel || null,
       intentPrompt: sessionForm.value.intentPrompt.trim() || null,
-      intentThreshold: sessionForm.value.intentThreshold,
+      intentThreshold: sessionForm.value.intentModel ? sessionForm.value.intentThreshold : null,
       streamVerbose: sessionForm.value.streamVerbose,
       autoApproveAllTools: sessionForm.value.autoApproveAllTools,
     })
@@ -152,6 +159,8 @@ const showModal = ref(false)
 const editingId = ref<string | null>(null)
 const form = ref<ChannelConfig>({
   name: '', type: '', config: {}, agent: '', saver: '', memories: [],
+  workPath: '', streamVerbose: false, autoApproveAllTools: false,
+  intentModel: '', intentPrompt: '', intentThreshold: 0.7,
 })
 
 async function loadChannelData(id: string) {
@@ -273,7 +282,7 @@ async function waitForQRConfirm(key: string, channelId: string) {
 function openAdd() {
   editingId.value = null
   clearActionState()
-  form.value = { name: '', type: plugins.value[0]?.type || '', config: {}, agent: '', saver: '', memories: [], wikis: [] }
+  form.value = { name: '', type: plugins.value[0]?.type || '', config: {}, agent: '', saver: '', memories: [], wikis: [], workPath: '', streamVerbose: false, autoApproveAllTools: false, intentModel: '', intentPrompt: '', intentThreshold: 0.7 }
   showModal.value = true
 }
 
@@ -281,7 +290,7 @@ function openEdit(id: string) {
   const c = channels.value[id]
   editingId.value = id
   clearActionState()
-  form.value = { name: c.name, type: c.type, config: { ...c.config }, agent: c.agent, saver: c.saver, memories: c.memories || [], wikis: (c as any).wikis || [] }
+  form.value = { name: c.name, type: c.type, config: { ...c.config }, agent: c.agent, saver: c.saver, memories: c.memories || [], wikis: (c as any).wikis || [], workPath: c.workPath || '', streamVerbose: !!c.streamVerbose, autoApproveAllTools: !!c.autoApproveAllTools, intentModel: c.intentModel || '', intentPrompt: c.intentPrompt || '', intentThreshold: c.intentThreshold ?? 0.7 }
   showModal.value = true
 }
 
@@ -310,6 +319,12 @@ async function save() {
       memories: form.value.memories.filter(id => validMemIds.has(id)),
       wikis: (form.value.wikis || []).filter(id => validWikiIds.has(id)),
       config: processedConfig,
+      workPath: form.value.workPath?.trim() || undefined,
+      streamVerbose: form.value.streamVerbose || undefined,
+      autoApproveAllTools: form.value.autoApproveAllTools || undefined,
+      intentModel: form.value.intentModel || undefined,
+      intentPrompt: form.value.intentPrompt?.trim() || undefined,
+      intentThreshold: form.value.intentModel ? form.value.intentThreshold : undefined,
     }
 
     if (editingId.value) {
@@ -643,6 +658,46 @@ async function refresh() {
             <label>{{ t('common.wiki') }}</label>
             <MultiSelect :model-value="form.wikis || []" :options="wikiOptions" @update:model-value="form.wikis = $event" />
           </div>
+          <div class="form-group">
+            <label>{{ t('directory.path_label') }}</label>
+            <div style="display:flex;gap:6px">
+              <input v-model="form.workPath" type="text" :placeholder="t('directory.path_placeholder')" style="flex:1" />
+              <button class="btn-outline btn-sm" @click="pathPicker?.open(form.workPath || '')">{{ t('directory.browse') }}</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="toggle-label">
+              <input type="checkbox" v-model="form.streamVerbose" />
+              <span>{{ t('channels.stream_verbose') }}</span>
+            </label>
+            <span style="font-size:11px;color:#888">{{ t('channels.stream_verbose_hint') }}</span>
+          </div>
+          <div class="form-group">
+            <label class="toggle-label">
+              <input type="checkbox" v-model="form.autoApproveAllTools" />
+              <span>{{ t('settings.auto_approve_all') }}</span>
+            </label>
+            <span style="font-size:11px;color:#888">{{ t('settings.auto_approve_all_hint') }}</span>
+          </div>
+          <div class="form-group">
+            <label>{{ t('channels.intent_model') }}</label>
+            <select v-model="form.intentModel">
+              <option value="">{{ t('common.not_use') }}</option>
+              <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
+            </select>
+            <span style="font-size:11px;color:#888">{{ t('channels.intent_model_hint') }}</span>
+          </div>
+          <template v-if="form.intentModel">
+            <div class="form-group">
+              <label>{{ t('channels.intent_threshold') }}</label>
+              <input v-model.number="form.intentThreshold" type="number" min="0" max="1" step="0.1" />
+              <span style="font-size:11px;color:#888">{{ t('channels.intent_threshold_hint') }}</span>
+            </div>
+            <div class="form-group">
+              <label>{{ t('channels.intent_prompt') }}</label>
+              <textarea v-model="form.intentPrompt" rows="4" :placeholder="t('channels.intent_prompt_placeholder')" style="font-size:12px" />
+            </div>
+          </template>
         </div>
         <div class="modal-footer">
           <button class="btn-outline" @click="showModal = false">{{ t('common.cancel') }}</button>
@@ -669,8 +724,15 @@ async function refresh() {
           <div class="form-group">
             <label>{{ t('common.agent') }}</label>
             <select v-model="sessionForm.agentId">
-              <option value="">{{ t('channels.use_channel_agent') }}</option>
+              <option value="">{{ t('channels.use_channel_default') }}</option>
               <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }} ({{ a.type }})</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>{{ t('common.storage') }}</label>
+            <select v-model="sessionForm.saver">
+              <option value="">{{ t('channels.use_channel_default') }}</option>
+              <option v-for="s in saverOptions" :key="s.id" :value="s.id">{{ s.label }}</option>
             </select>
           </div>
           <div class="form-group">
@@ -680,17 +742,21 @@ async function refresh() {
             </label>
           </div>
           <div class="form-group">
-            <label class="toggle-label">
-              <input type="checkbox" v-model="sessionForm.streamVerbose" />
-              <span>{{ t('channels.stream_verbose') }}</span>
-            </label>
+            <label>{{ t('channels.stream_verbose') }}</label>
+            <select :value="sessionForm.streamVerbose" @change="sessionForm.streamVerbose = ($event.target as HTMLSelectElement).value === '' ? null : ($event.target as HTMLSelectElement).value === 'true'">
+              <option value="">{{ t('channels.use_channel_default') }}</option>
+              <option value="true">{{ t('common.enabled') }}</option>
+              <option value="false">{{ t('common.disabled') }}</option>
+            </select>
             <span style="font-size:11px;color:#888">{{ t('channels.stream_verbose_hint') }}</span>
           </div>
           <div class="form-group">
-            <label class="toggle-label">
-              <input type="checkbox" v-model="sessionForm.autoApproveAllTools" />
-              <span>{{ t('settings.auto_approve_all') }}</span>
-            </label>
+            <label>{{ t('settings.auto_approve_all') }}</label>
+            <select :value="sessionForm.autoApproveAllTools" @change="sessionForm.autoApproveAllTools = ($event.target as HTMLSelectElement).value === '' ? null : ($event.target as HTMLSelectElement).value === 'true'">
+              <option value="">{{ t('channels.use_channel_default') }}</option>
+              <option value="true">{{ t('common.enabled') }}</option>
+              <option value="false">{{ t('common.disabled') }}</option>
+            </select>
             <span style="font-size:11px;color:#888">{{ t('settings.auto_approve_all_hint') }}</span>
           </div>
           <div class="form-group">
@@ -770,7 +836,7 @@ async function refresh() {
     </div>
 
     <SaverViewModal ref="saverViewModal" />
-    <PathPickerModal ref="pathPicker" @confirm="p => sessionForm.workPath = p" />
+    <PathPickerModal ref="pathPicker" @confirm="p => { if (editingSession) sessionForm.workPath = p; else form.workPath = p }" />
   </div>
 </template>
 

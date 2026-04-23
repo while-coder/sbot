@@ -79,6 +79,7 @@ export function createProcessAIHandler(): ProcessAIHandler {
         const dbSession = await database.findByPk<ChannelSessionRow>(database.channelSession, dbSessionId);
 
         const agentId = dbSession?.agentId || (channel.agent as string);
+        const saverId = dbSession?.saver || channel.saver;
 
         const sessionMemories = parseMemories(dbSession?.memories);
         const memories = dbSession?.useChannelMemories
@@ -90,16 +91,18 @@ export function createProcessAIHandler(): ProcessAIHandler {
             ? [...((channel.wikis as string[]) ?? []), ...sessionWikis]
             : sessionWikis;
 
-        const streamVerbose = dbSession?.streamVerbose ?? false;
+        const workPath = dbSession?.workPath ?? channel.workPath;
+        const autoApproveAllTools = dbSession?.autoApproveAllTools ?? channel.autoApproveAllTools;
+        const streamVerbose = dbSession?.streamVerbose ?? channel.streamVerbose ?? false;
 
         if (streamVerbose) {
-            await runAgent(query, args, sessionHandler, agentId, channel.saver,
-                SchedulerType.Channel, String(dbSessionId), memories, wikis, dbSession?.workPath || undefined,
-                dbSession?.autoApproveAllTools);
+            await runAgent(query, args, sessionHandler, agentId, saverId,
+                SchedulerType.Channel, String(dbSessionId), memories, wikis, workPath,
+                autoApproveAllTools);
         } else {
-            await runAgent(query, args, sessionHandler, agentId, channel.saver,
-                SchedulerType.Channel, String(dbSessionId), memories, wikis, dbSession?.workPath || undefined,
-                dbSession?.autoApproveAllTools, {
+            await runAgent(query, args, sessionHandler, agentId, saverId,
+                SchedulerType.Channel, String(dbSessionId), memories, wikis, workPath,
+                autoApproveAllTools, {
                     onMessage: (msg) => {
                         if (msg.role === MessageRole.AI && !msg.tool_calls?.length) {
                             return sessionHandler.onChatMessage(msg, args);

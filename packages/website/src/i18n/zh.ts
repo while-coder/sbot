@@ -55,6 +55,8 @@ export default {
     created: '创建成功',
     select_placeholder: '请选择',
     not_use: '不使用',
+    enabled: '启用',
+    disabled: '禁用',
     unsaved_changes: '● 有未保存的更改',
     all: '全部',
     agent: '智能体',
@@ -158,6 +160,7 @@ export default {
     intent_prompt_placeholder: '留空使用内置默认 Prompt',
     stream_verbose: '中间消息和流式输出',
     stream_verbose_hint: '启用后输出中间过程消息和流式输出，而非仅发送最终回复',
+    use_channel_default: '使用渠道默认值',
   },
   settings: {
     http_port: 'HTTP 端口',

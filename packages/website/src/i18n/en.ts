@@ -55,6 +55,8 @@ export default {
     created: 'Created',
     select_placeholder: 'Select...',
     not_use: 'None',
+    enabled: 'Enabled',
+    disabled: 'Disabled',
     unsaved_changes: '● Unsaved changes',
     all: 'All',
     agent: 'Agent',
@@ -158,6 +160,7 @@ export default {
     intent_prompt_placeholder: 'Leave empty to use the built-in default prompt',
     stream_verbose: 'Intermediate messages & streaming',
     stream_verbose_hint: 'When enabled, output intermediate messages and streaming instead of only the final reply',
+    use_channel_default: 'Use channel default',
   },
   settings: {
     http_port: 'HTTP Port',

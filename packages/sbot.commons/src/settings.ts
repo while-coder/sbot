@@ -179,20 +179,35 @@ export interface SessionConfig {
 }
 
 export interface ChannelConfig {
+  // ── 频道基础配置（不可被会话覆盖） ──
   /** 显示名称 */
   name: string
   /** 频道类型（匹配插件 type，如 "lark", "slack", "telegram"） */
   type: string
-  /** 该频道使用的 Agent ID（对应 ~/.sbot/agents/<id> 目录名） */
-  agent: string
-  /** 使用的 Saver 配置 UUID（对应 savers 中的 key） */
-  saver: string
-  /** 使用的记忆配置 UUID 列表（对应 memories 中的 key） */
-  memories: string[]
-  /** 使用的 Wiki 配置 UUID 列表（对应 wikis 中的 key） */
-  wikis?: string[]
   /** 插件特有配置（appId, botToken 等） */
   config: Record<string, any>
+
+  // ── 频道级默认值（ChannelSessionRow 中同名字段可逐会话覆盖，会话值为 null 时回退到此处） ──
+  /** Agent ID（对应 ~/.sbot/agents/<id> 目录名） */
+  agent: string
+  /** Saver 配置 UUID（对应 savers 中的 key） */
+  saver: string
+  /** 记忆配置 UUID 列表（对应 memories 中的 key） */
+  memories: string[]
+  /** Wiki 配置 UUID 列表（对应 wikis 中的 key） */
+  wikis?: string[]
+  /** 工作目录路径 */
+  workPath?: string
+  /** 是否输出中间消息和流式输出 */
+  streamVerbose?: boolean
+  /** 自动批准所有工具调用 */
+  autoApproveAllTools?: boolean
+  /** 意图识别模型 UUID */
+  intentModel?: string
+  /** 自定义意图过滤 prompt */
+  intentPrompt?: string
+  /** 意图识别置信度阈值 0-1 */
+  intentThreshold?: number
 }
 
 export interface Settings {

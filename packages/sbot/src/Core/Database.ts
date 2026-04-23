@@ -69,28 +69,36 @@ export type ChannelUserRow = {
 };
 
 export type ChannelSessionRow = {
+  // ── 会话标识 ──
   id: number;
-  channelId: string;   // 频道唯一ID
-  sessionId: string;   // 会话唯一ID
-  sessionName: string; // 会话名称
-  avatar: string;      // 会话头像
-  agentId: string | null;       // Agent UUID
-  memories: string | null;      // Memory UUID 列表（JSON 字符串，使用 parseMemories() 解析）
-  wikis: string | null;         // Wiki UUID 列表（JSON 字符串，使用 parseMemories() 解析）
-  useChannelMemories: boolean;  // 是否使用渠道级记忆
-  workPath: string | null;      // 工作目录路径
+  channelId: string;
+  sessionId: string;
+  sessionName: string;
+  avatar: string;
+
+  // ── 可覆盖 ChannelConfig 默认值的字段（null = 使用频道默认值） ──
+  agentId: string | null;
+  saver: string | null;
+  memories: string | null;           // JSON 字符串，使用 parseMemories() 解析
+  wikis: string | null;              // JSON 字符串，使用 parseMemories() 解析
+  workPath: string | null;
+  streamVerbose: boolean | null;
+  autoApproveAllTools: boolean | null;
   intentModel: string | null;
   intentPrompt: string | null;
-  intentThreshold: number;
-  streamVerbose: boolean;        // 是否输出中间消息和流式输出
-  autoApproveAllTools: boolean;  // 是否自动批准所有工具
-  inputTokens: number;          // 累计输入 token
-  outputTokens: number;         // 累计输出 token
-  totalTokens: number;          // 累计总 token
-  lastInputTokens: number;      // 最后一次输入 token
-  lastOutputTokens: number;     // 最后一次输出 token
-  lastTotalTokens: number;      // 最后一次总 token
-  createdAt: number;            // timestamp ms
+  intentThreshold: number | null;
+
+  // ── 会话自有字段 ──
+  useChannelMemories: boolean;       // 是否合并渠道级 memories/wikis
+
+  // ── 运行时统计 ──
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  lastInputTokens: number;
+  lastOutputTokens: number;
+  lastTotalTokens: number;
+  createdAt: number;
 };
 
 export type SessionRow = {
@@ -315,7 +323,13 @@ class Database {
           type: DataTypes.STRING(255),
           allowNull: true,
           defaultValue: null,
-          comment: "Agent UUID",
+          comment: "Agent UUID，null = 使用 ChannelConfig 默认值",
+        },
+        saver: {
+          type: DataTypes.STRING(255),
+          allowNull: true,
+          defaultValue: null,
+          comment: "Saver UUID，null = 使用 ChannelConfig 默认值",
         },
         memories: {
           type: DataTypes.TEXT,
@@ -355,21 +369,21 @@ class Database {
         },
         intentThreshold: {
           type: DataTypes.FLOAT,
-          allowNull: false,
-          defaultValue: 0.7,
-          comment: "意图识别置信度阈值 (0-1)",
+          allowNull: true,
+          defaultValue: null,
+          comment: "意图识别置信度阈值 (0-1)，null = 使用 ChannelConfig 默认值",
         },
         streamVerbose: {
           type: DataTypes.BOOLEAN,
-          allowNull: false,
-          defaultValue: false,
-          comment: "是否输出中间消息和流式输出",
+          allowNull: true,
+          defaultValue: null,
+          comment: "是否输出中间消息和流式输出，null = 使用 ChannelConfig 默认值",
         },
         autoApproveAllTools: {
           type: DataTypes.BOOLEAN,
-          allowNull: false,
-          defaultValue: false,
-          comment: "是否自动批准所有工具",
+          allowNull: true,
+          defaultValue: null,
+          comment: "是否自动批准所有工具，null = 使用 ChannelConfig 默认值",
         },
         inputTokens: {
           type: DataTypes.INTEGER,
