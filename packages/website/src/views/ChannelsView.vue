@@ -37,6 +37,7 @@ interface ChannelSessionRow {
   intentThreshold: number | null
   // 会话自有字段
   useChannelMemories: boolean
+  useChannelWikis: boolean
   // 运行时统计
   inputTokens: number
   outputTokens: number
@@ -93,7 +94,7 @@ const channelLoading   = ref<Record<string, boolean>>({})
 const viewUser         = ref<UserRow | null>(null)
 
 const editingSession   = ref<ChannelSessionRow | null>(null)
-const sessionForm      = ref<{ name: string; agentId: string; saver: string; memories: string[]; wikis: string[]; useChannelMemories: boolean; workPath: string; intentModel: string; intentPrompt: string; intentThreshold: number; streamVerbose: boolean | null; autoApproveAllTools: boolean | null }>({ name: '', agentId: '', saver: '', memories: [], wikis: [], useChannelMemories: false, workPath: '', intentModel: '', intentPrompt: '', intentThreshold: 0.7, streamVerbose: null, autoApproveAllTools: null })
+const sessionForm      = ref<{ name: string; agentId: string; saver: string; memories: string[]; wikis: string[]; useChannelMemories: boolean; useChannelWikis: boolean; workPath: string; intentModel: string; intentPrompt: string; intentThreshold: number; streamVerbose: boolean | null; autoApproveAllTools: boolean | null }>({ name: '', agentId: '', saver: '', memories: [], wikis: [], useChannelMemories: false, useChannelWikis: false, workPath: '', intentModel: '', intentPrompt: '', intentThreshold: 0.7, streamVerbose: null, autoApproveAllTools: null })
 
 function openEditSession(s: ChannelSessionRow) {
   editingSession.value = s
@@ -101,7 +102,7 @@ function openEditSession(s: ChannelSessionRow) {
   const memArr = Array.isArray(rawMem) ? rawMem : typeof rawMem === 'string' ? (() => { try { const p = JSON.parse(rawMem); return Array.isArray(p) ? p : [] } catch { return [] } })() : []
   const rawWiki = (s as any).wikis
   const wikiArr = Array.isArray(rawWiki) ? rawWiki : typeof rawWiki === 'string' ? (() => { try { const p = JSON.parse(rawWiki); return Array.isArray(p) ? p : [] } catch { return [] } })() : []
-  sessionForm.value = { name: s.sessionName || '', agentId: s.agentId || '', saver: s.saver || '', memories: memArr, wikis: wikiArr, useChannelMemories: !!s.useChannelMemories, workPath: s.workPath || '', intentModel: s.intentModel || '', intentPrompt: s.intentPrompt || '', intentThreshold: s.intentThreshold ?? 0.7, streamVerbose: s.streamVerbose, autoApproveAllTools: s.autoApproveAllTools }
+  sessionForm.value = { name: s.sessionName || '', agentId: s.agentId || '', saver: s.saver || '', memories: memArr, wikis: wikiArr, useChannelMemories: !!s.useChannelMemories, useChannelWikis: !!s.useChannelWikis, workPath: s.workPath || '', intentModel: s.intentModel || '', intentPrompt: s.intentPrompt || '', intentThreshold: s.intentThreshold ?? 0.7, streamVerbose: s.streamVerbose, autoApproveAllTools: s.autoApproveAllTools }
 }
 
 async function saveSession() {
@@ -119,6 +120,7 @@ async function saveSession() {
       memories,
       wikis,
       useChannelMemories: sessionForm.value.useChannelMemories,
+      useChannelWikis: sessionForm.value.useChannelWikis,
       workPath: sessionForm.value.workPath.trim() || null,
       intentModel: sessionForm.value.intentModel || null,
       intentPrompt: sessionForm.value.intentPrompt.trim() || null,
@@ -133,6 +135,7 @@ async function saveSession() {
       memories,
       wikis,
       useChannelMemories: sessionForm.value.useChannelMemories,
+      useChannelWikis: sessionForm.value.useChannelWikis,
       workPath: sessionForm.value.workPath.trim() || null,
       intentModel: sessionForm.value.intentModel || null,
       intentPrompt: sessionForm.value.intentPrompt.trim() || null,
@@ -171,7 +174,7 @@ async function loadChannelData(id: string) {
       apiFetch(`/api/channel-users?channelId=${encodeURIComponent(id)}`),
     ])
     sessionMap.value[id] = (sessRes.data || []).map((s: any) => ({
-      ...s, memories: s.memories || [], useChannelMemories: !!s.useChannelMemories,
+      ...s, memories: s.memories || [], useChannelMemories: !!s.useChannelMemories, useChannelWikis: !!s.useChannelWikis,
     }))
     userMap.value[id]    = userRes.data || []
   } catch (e: any) {
@@ -441,7 +444,7 @@ async function refresh() {
                             <th>{{ t('common.id') }}</th>
                             <th>{{ t('common.agent') }}</th>
                             <th>{{ t('common.memory') }}</th>
-                            <th>{{ t('channels.use_channel_memories') }}</th>
+                            <th>{{ t('channels.use_channel_memories') }} / {{ t('channels.use_channel_wikis') }}</th>
                             <th>{{ t('directory.path_label') }}</th>
                             <th>Tokens</th>
                             <th>{{ t('common.ops') }}</th>
@@ -456,9 +459,10 @@ async function refresh() {
                             <td style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ s.sessionId }}</td>
                             <td>{{ agentOptions.find(a => a.id === s.agentId)?.label || s.agentId || '-' }}</td>
                             <td>{{ Array.isArray(s.memories) && s.memories.length ? s.memories.map(id => memoryOptions.find(m => m.id === id)?.label || id).join(', ') : '-' }}</td>
-                            <td style="text-align:center">
-                              <span v-if="s.useChannelMemories" style="color:#16a34a;font-size:13px">✓</span>
-                              <span v-else style="color:#94a3b8">-</span>
+                            <td style="text-align:center;white-space:nowrap">
+                              <span v-if="s.useChannelMemories" style="color:#16a34a;font-size:13px">✓</span><span v-else style="color:#94a3b8">-</span>
+                              /
+                              <span v-if="s.useChannelWikis" style="color:#16a34a;font-size:13px">✓</span><span v-else style="color:#94a3b8">-</span>
                             </td>
                             <td style="font-family:monospace;font-size:11px;color:#6b7280;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" :title="s.workPath || ''">{{ s.workPath || '-' }}</td>
                             <td style="font-family:monospace;font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap" :title="s.totalTokens > 0 ? `${t('usage.total')}: ${formatTokens(s.totalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatTokens(s.inputTokens)} / ${t('usage.output_tokens')}: ${formatTokens(s.outputTokens)}` + (s.lastTotalTokens > 0 ? `\n${t('usage.last')}: ${formatTokens(s.lastTotalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatTokens(s.lastInputTokens)} / ${t('usage.output_tokens')}: ${formatTokens(s.lastOutputTokens)}` : '') : ''">
@@ -740,10 +744,18 @@ async function refresh() {
               <input type="checkbox" v-model="sessionForm.useChannelMemories" />
               <span>{{ t('channels.use_channel_memories') }}</span>
             </label>
+            <span style="font-size:11px;color:#888">{{ t('channels.use_channel_memories_hint') }}</span>
+          </div>
+          <div class="form-group">
+            <label class="toggle-label">
+              <input type="checkbox" v-model="sessionForm.useChannelWikis" />
+              <span>{{ t('channels.use_channel_wikis') }}</span>
+            </label>
+            <span style="font-size:11px;color:#888">{{ t('channels.use_channel_wikis_hint') }}</span>
           </div>
           <div class="form-group">
             <label>{{ t('channels.stream_verbose') }}</label>
-            <select :value="sessionForm.streamVerbose" @change="sessionForm.streamVerbose = ($event.target as HTMLSelectElement).value === '' ? null : ($event.target as HTMLSelectElement).value === 'true'">
+            <select :value="sessionForm.streamVerbose ?? ''" @change="sessionForm.streamVerbose = ($event.target as HTMLSelectElement).value === '' ? null : ($event.target as HTMLSelectElement).value === 'true'">
               <option value="">{{ t('channels.use_channel_default') }}</option>
               <option value="true">{{ t('common.enabled') }}</option>
               <option value="false">{{ t('common.disabled') }}</option>
@@ -752,7 +764,7 @@ async function refresh() {
           </div>
           <div class="form-group">
             <label>{{ t('settings.auto_approve_all') }}</label>
-            <select :value="sessionForm.autoApproveAllTools" @change="sessionForm.autoApproveAllTools = ($event.target as HTMLSelectElement).value === '' ? null : ($event.target as HTMLSelectElement).value === 'true'">
+            <select :value="sessionForm.autoApproveAllTools ?? ''" @change="sessionForm.autoApproveAllTools = ($event.target as HTMLSelectElement).value === '' ? null : ($event.target as HTMLSelectElement).value === 'true'">
               <option value="">{{ t('channels.use_channel_default') }}</option>
               <option value="true">{{ t('common.enabled') }}</option>
               <option value="false">{{ t('common.disabled') }}</option>
@@ -773,6 +785,7 @@ async function refresh() {
               <input v-model="sessionForm.workPath" type="text" :placeholder="t('directory.path_placeholder')" style="flex:1" />
               <button class="btn-outline btn-sm" @click="pathPicker?.open(sessionForm.workPath)">{{ t('directory.browse') }}</button>
             </div>
+            <span style="font-size:11px;color:#888">{{ t('channels.work_path_hint') }}</span>
           </div>
           <div class="form-group">
             <label>{{ t('channels.intent_model') }}</label>

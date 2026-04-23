@@ -87,7 +87,7 @@ export function createProcessAIHandler(): ProcessAIHandler {
             : sessionMemories;
 
         const sessionWikis = parseMemories(dbSession?.wikis);
-        const wikis = dbSession?.useChannelMemories
+        const wikis = dbSession?.useChannelWikis
             ? [...((channel.wikis as string[]) ?? []), ...sessionWikis]
             : sessionWikis;
 

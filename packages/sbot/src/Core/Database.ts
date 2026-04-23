@@ -89,7 +89,8 @@ export type ChannelSessionRow = {
   intentThreshold: number | null;
 
   // ── 会话自有字段 ──
-  useChannelMemories: boolean;       // 是否合并渠道级 memories/wikis
+  useChannelMemories: boolean;       // 是否合并渠道级 memories
+  useChannelWikis: boolean;          // 是否合并渠道级 wikis
 
   // ── 运行时统计 ──
   inputTokens: number;
@@ -348,6 +349,12 @@ class Database {
           allowNull: false,
           defaultValue: false,
           comment: "是否使用渠道级记忆",
+        },
+        useChannelWikis: {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: false,
+          comment: "是否使用渠道级知识库",
         },
         workPath: {
           type: DataTypes.STRING(1024),
