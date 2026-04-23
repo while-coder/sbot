@@ -452,8 +452,8 @@ class HttpServer {
             if (!url?.trim()) throwBad('Missing url');
             const upstream = await axios.get(url.trim(), { responseType: 'stream', timeout: 15000 });
             const headers = upstream.headers;
-            if (headers['content-type']) res.setHeader('Content-Type', headers['content-type']);
-            if (headers['content-length']) res.setHeader('Content-Length', headers['content-length']);
+            if (headers['content-type']) res.setHeader('Content-Type', String(headers['content-type']));
+            if (headers['content-length']) res.setHeader('Content-Length', String(headers['content-length']));
             res.status(upstream.status);
             upstream.data.pipe(res);
         }));

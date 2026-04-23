@@ -68,7 +68,7 @@ export function createWebDownloadTool(): StructuredToolInterface {
                         httpsAgent: new https.Agent({ keepAlive: true, keepAliveMsecs: 30000 }),
                     })
 
-                    const totalBytes: number = parseInt(response.headers['content-length'] || '0', 10)
+                    const totalBytes: number = parseInt(String(response.headers['content-length'] || '0'), 10)
                     let downloaded = 0
 
                     const writer = fs.createWriteStream(normalizedPath)
