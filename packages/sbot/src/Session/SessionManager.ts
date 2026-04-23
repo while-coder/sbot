@@ -138,10 +138,10 @@ export class SbotSessionManager extends SessionManager {
             if (dbSessionId) {
                 const dbSession = await database.findByPk<ChannelSessionRow>(database.channelSession, dbSessionId);
                 const channel = args.channelId ? config.getChannel(args.channelId) : undefined;
-                const intentModel = dbSession?.intentModel || channel?.intentModel;
+                const intentModel = dbSession?.intentModel != null ? dbSession.intentModel : channel?.intentModel;
                 if (intentModel) {
-                    const intentPrompt = dbSession?.intentPrompt ?? channel?.intentPrompt ?? null;
-                    const intentThreshold = dbSession?.intentThreshold ?? channel?.intentThreshold ?? 0.7;
+                    const intentPrompt = dbSession?.intentPrompt != null ? dbSession.intentPrompt : (channel?.intentPrompt ?? null);
+                    const intentThreshold = dbSession?.intentThreshold != null ? dbSession.intentThreshold : (channel?.intentThreshold ?? 0.7);
                     const shouldReply = await classifyIntent(query, intentModel, intentPrompt, intentThreshold);
                     if (!shouldReply) return;
                 }

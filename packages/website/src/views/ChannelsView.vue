@@ -94,7 +94,7 @@ const channelLoading   = ref<Record<string, boolean>>({})
 const viewUser         = ref<UserRow | null>(null)
 
 const editingSession   = ref<ChannelSessionRow | null>(null)
-const sessionForm      = ref<{ name: string; agentId: string; saver: string; memories: string[]; wikis: string[]; useChannelMemories: boolean; useChannelWikis: boolean; workPath: string; intentModel: string; intentPrompt: string; intentThreshold: number; streamVerbose: boolean | null; autoApproveAllTools: boolean | null }>({ name: '', agentId: '', saver: '', memories: [], wikis: [], useChannelMemories: false, useChannelWikis: false, workPath: '', intentModel: '', intentPrompt: '', intentThreshold: 0.7, streamVerbose: null, autoApproveAllTools: null })
+const sessionForm      = ref<{ name: string; agentId: string; saver: string; memories: string[]; wikis: string[]; useChannelMemories: boolean; useChannelWikis: boolean; workPath: string; intentModel: string | null; intentPrompt: string; intentThreshold: number; streamVerbose: boolean | null; autoApproveAllTools: boolean | null }>({ name: '', agentId: '', saver: '', memories: [], wikis: [], useChannelMemories: false, useChannelWikis: false, workPath: '', intentModel: null, intentPrompt: '', intentThreshold: 0.7, streamVerbose: null, autoApproveAllTools: null })
 
 function openEditSession(s: ChannelSessionRow) {
   editingSession.value = s
@@ -102,7 +102,7 @@ function openEditSession(s: ChannelSessionRow) {
   const memArr = Array.isArray(rawMem) ? rawMem : typeof rawMem === 'string' ? (() => { try { const p = JSON.parse(rawMem); return Array.isArray(p) ? p : [] } catch { return [] } })() : []
   const rawWiki = (s as any).wikis
   const wikiArr = Array.isArray(rawWiki) ? rawWiki : typeof rawWiki === 'string' ? (() => { try { const p = JSON.parse(rawWiki); return Array.isArray(p) ? p : [] } catch { return [] } })() : []
-  sessionForm.value = { name: s.sessionName || '', agentId: s.agentId || '', saver: s.saver || '', memories: memArr, wikis: wikiArr, useChannelMemories: !!s.useChannelMemories, useChannelWikis: !!s.useChannelWikis, workPath: s.workPath || '', intentModel: s.intentModel || '', intentPrompt: s.intentPrompt || '', intentThreshold: s.intentThreshold ?? 0.7, streamVerbose: s.streamVerbose, autoApproveAllTools: s.autoApproveAllTools }
+  sessionForm.value = { name: s.sessionName || '', agentId: s.agentId || '', saver: s.saver || '', memories: memArr, wikis: wikiArr, useChannelMemories: !!s.useChannelMemories, useChannelWikis: !!s.useChannelWikis, workPath: s.workPath || '', intentModel: s.intentModel ?? null, intentPrompt: s.intentPrompt || '', intentThreshold: s.intentThreshold ?? 0.7, streamVerbose: s.streamVerbose, autoApproveAllTools: s.autoApproveAllTools }
 }
 
 async function saveSession() {
@@ -122,7 +122,7 @@ async function saveSession() {
       useChannelMemories: sessionForm.value.useChannelMemories,
       useChannelWikis: sessionForm.value.useChannelWikis,
       workPath: sessionForm.value.workPath.trim() || null,
-      intentModel: sessionForm.value.intentModel || null,
+      intentModel: sessionForm.value.intentModel ?? null,
       intentPrompt: sessionForm.value.intentPrompt.trim() || null,
       intentThreshold: sessionForm.value.intentModel ? sessionForm.value.intentThreshold : null,
       streamVerbose: sessionForm.value.streamVerbose,
@@ -137,7 +137,7 @@ async function saveSession() {
       useChannelMemories: sessionForm.value.useChannelMemories,
       useChannelWikis: sessionForm.value.useChannelWikis,
       workPath: sessionForm.value.workPath.trim() || null,
-      intentModel: sessionForm.value.intentModel || null,
+      intentModel: sessionForm.value.intentModel ?? null,
       intentPrompt: sessionForm.value.intentPrompt.trim() || null,
       intentThreshold: sessionForm.value.intentModel ? sessionForm.value.intentThreshold : null,
       streamVerbose: sessionForm.value.streamVerbose,
@@ -740,18 +740,30 @@ async function refresh() {
             </select>
           </div>
           <div class="form-group">
-            <label class="toggle-label">
+            <label>{{ t('common.memory') }}</label>
+            <MultiSelect v-model="sessionForm.memories" :options="memoryOptions" />
+            <label class="toggle-label" style="margin-top:4px">
               <input type="checkbox" v-model="sessionForm.useChannelMemories" />
               <span>{{ t('channels.use_channel_memories') }}</span>
             </label>
             <span style="font-size:11px;color:#888">{{ t('channels.use_channel_memories_hint') }}</span>
           </div>
           <div class="form-group">
-            <label class="toggle-label">
+            <label>{{ t('common.wiki') }}</label>
+            <MultiSelect v-model="sessionForm.wikis" :options="wikiOptions" />
+            <label class="toggle-label" style="margin-top:4px">
               <input type="checkbox" v-model="sessionForm.useChannelWikis" />
               <span>{{ t('channels.use_channel_wikis') }}</span>
             </label>
             <span style="font-size:11px;color:#888">{{ t('channels.use_channel_wikis_hint') }}</span>
+          </div>
+          <div class="form-group">
+            <label>{{ t('directory.path_label') }}</label>
+            <div style="display:flex;gap:6px">
+              <input v-model="sessionForm.workPath" type="text" :placeholder="t('directory.path_placeholder')" style="flex:1" />
+              <button class="btn-outline btn-sm" @click="pathPicker?.open(sessionForm.workPath)">{{ t('directory.browse') }}</button>
+            </div>
+            <span style="font-size:11px;color:#888">{{ t('channels.work_path_hint') }}</span>
           </div>
           <div class="form-group">
             <label>{{ t('channels.stream_verbose') }}</label>
@@ -772,24 +784,9 @@ async function refresh() {
             <span style="font-size:11px;color:#888">{{ t('settings.auto_approve_all_hint') }}</span>
           </div>
           <div class="form-group">
-            <label>{{ t('common.memory') }}</label>
-            <MultiSelect v-model="sessionForm.memories" :options="memoryOptions" />
-          </div>
-          <div class="form-group">
-            <label>{{ t('common.wiki') }}</label>
-            <MultiSelect v-model="sessionForm.wikis" :options="wikiOptions" />
-          </div>
-          <div class="form-group">
-            <label>{{ t('directory.path_label') }}</label>
-            <div style="display:flex;gap:6px">
-              <input v-model="sessionForm.workPath" type="text" :placeholder="t('directory.path_placeholder')" style="flex:1" />
-              <button class="btn-outline btn-sm" @click="pathPicker?.open(sessionForm.workPath)">{{ t('directory.browse') }}</button>
-            </div>
-            <span style="font-size:11px;color:#888">{{ t('channels.work_path_hint') }}</span>
-          </div>
-          <div class="form-group">
             <label>{{ t('channels.intent_model') }}</label>
-            <select v-model="sessionForm.intentModel">
+            <select :value="sessionForm.intentModel ?? '__default__'" @change="sessionForm.intentModel = ($event.target as HTMLSelectElement).value === '__default__' ? null : ($event.target as HTMLSelectElement).value">
+              <option value="__default__">{{ t('channels.use_channel_default') }}</option>
               <option value="">{{ t('common.not_use') }}</option>
               <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
             </select>

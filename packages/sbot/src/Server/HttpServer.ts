@@ -1328,7 +1328,7 @@ class HttpServer {
             const id = parseInt(req.params.id as string, 10);
             if (isNaN(id)) { const e: any = new Error('Invalid id'); e.status = 400; throw e; }
             const { sessionName, agentId, saver, memories, wikis, useChannelMemories, useChannelWikis, workPath, intentModel, intentPrompt, intentThreshold, streamVerbose, autoApproveAllTools } = req.body;
-            await database.update(database.channelSession, { sessionName, agentId, saver: saver || null, memories: JSON.stringify(memories || []), wikis: JSON.stringify(wikis || []), useChannelMemories: !!useChannelMemories, useChannelWikis: !!useChannelWikis, workPath: workPath || null, intentModel: intentModel || null, intentPrompt: intentPrompt || null, intentThreshold: intentThreshold ?? null, streamVerbose: streamVerbose ?? null, autoApproveAllTools: autoApproveAllTools ?? null }, { where: { id } });
+            await database.update(database.channelSession, { sessionName, agentId, saver: saver || null, memories: JSON.stringify(memories || []), wikis: JSON.stringify(wikis || []), useChannelMemories: !!useChannelMemories, useChannelWikis: !!useChannelWikis, workPath: workPath || null, intentModel: intentModel ?? null, intentPrompt: intentModel == null ? null : (intentPrompt || null), intentThreshold: intentModel == null ? null : (intentThreshold ?? null), streamVerbose: streamVerbose ?? null, autoApproveAllTools: autoApproveAllTools ?? null }, { where: { id } });
         }));
 
         app.delete('/api/channel-sessions/:id', api(async req => {

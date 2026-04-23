@@ -14,6 +14,41 @@ const { isMobile } = useResponsive()
 
 const embeddings = computed(() => store.settings.embeddings || {})
 
+// Model picker
+const showPicker    = ref(false)
+const pickerLoading = ref(false)
+const pickerModels  = ref<string[]>([])
+const pickerFilter  = ref('')
+const filteredModels = computed(() =>
+  pickerFilter.value ? pickerModels.value.filter(m => m.toLowerCase().includes(pickerFilter.value.toLowerCase())) : pickerModels.value
+)
+
+async function openPicker() {
+  pickerLoading.value = true
+  pickerModels.value  = []
+  pickerFilter.value  = ''
+  showPicker.value    = true
+  try {
+    const provider = form.value.provider === EmbeddingProvider.Ollama ? 'ollama' : 'openai'
+    const res = await apiFetch('/api/models/available', 'POST', {
+      baseURL:  form.value.baseURL,
+      apiKey:   form.value.apiKey,
+      provider,
+    })
+    pickerModels.value = res.data as string[]
+  } catch (e: any) {
+    show(e.message, 'error')
+    showPicker.value = false
+  } finally {
+    pickerLoading.value = false
+  }
+}
+
+function pickModel(m: string) {
+  form.value.model = m
+  showPicker.value = false
+}
+
 const showModal   = ref(false)
 const editingName = ref<string | null>(null)
 const showApiKey  = ref(false)
@@ -165,7 +200,10 @@ async function refresh() {
           </div>
           <div class="form-group">
             <label>{{ t('common.model') }} *</label>
-            <input v-model="form.model" placeholder="text-embedding-ada-002" />
+            <div class="model-field">
+              <input v-model="form.model" placeholder="text-embedding-ada-002" />
+              <button type="button" class="model-pick-btn" @click="openPicker" :disabled="!form.baseURL">{{ t('models.pick') }}</button>
+            </div>
           </div>
         </div>
         <div class="modal-footer">
