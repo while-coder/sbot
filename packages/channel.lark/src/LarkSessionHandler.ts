@@ -1,5 +1,7 @@
 import { LarkChatProvider } from "./LarkChatProvider";
 import { LarkReceiveIdType, LarkService } from "./LarkService";
+import { DynamicStructuredTool } from "@langchain/core/tools";
+import { z } from "zod";
 import {
   ChannelSessionHandler, ToolCallStatus, SessionService, createAskTool, createSendFileTool,
   GlobalLoggerService, AskQuestionType,
@@ -221,6 +223,28 @@ Returns a map of question label → answer (string for radio/input, string[] for
         createAskTool((params: AskToolParams) => this.executeAsk(params), LarkSessionHandler.ASK_PROMPT, [AskQuestionType.Radio, AskQuestionType.Checkbox, AskQuestionType.Input]),
         createSendFileTool(LarkSessionHandler.SEND_FILE_PROMPT, async (filePath: string, fileName: string) => {
             await this.larkService.sendFileMessage(LarkReceiveIdType.ChatId, sessionId, filePath, fileName);
+        }),
+        new DynamicStructuredTool({
+            name: '_get_message_history',
+            description: 'Retrieve message history from the current Lark chat. Use this tool to look up previous messages in the conversation for context, reference, or summarization.',
+            schema: z.object({
+                start_time: z.string().optional().describe('Start time as Unix timestamp in seconds (e.g. "1700000000"). Only messages after this time are returned.'),
+                end_time: z.string().optional().describe('End time as Unix timestamp in seconds (e.g. "1700086400"). Only messages before this time are returned.'),
+                page_size: z.number().optional().describe('Number of messages to return per page (max 50, default 20).'),
+                page_token: z.string().optional().describe('Pagination token from a previous call to fetch the next page.'),
+            }),
+            func: async ({ start_time, end_time, page_size, page_token }) => {
+                const data = await this.larkService.getMessageHistory(sessionId, {
+                    startTime: start_time,
+                    endTime: end_time,
+                    sortType: 'ByCreateTimeDesc',
+                    pageSize: page_size,
+                    pageToken: page_token,
+                });
+                if (!data) return 'Failed to retrieve message history.';
+                const messages = (data.items ?? []).map((m: any) => m.body?.content);
+                return JSON.stringify({ messages, has_more: data.has_more, page_token: data.page_token });
+            },
         }),
     ];
   }
