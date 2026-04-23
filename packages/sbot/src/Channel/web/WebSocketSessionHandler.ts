@@ -1,7 +1,8 @@
 import "reflect-metadata";
-import { ChatMessage, AskToolParams, MessageType, type MessageContent } from "scorpio.ai";
+import { ChatMessage, MessageType, type MessageContent } from "scorpio.ai";
 import {
-    ChannelSessionHandler, ToolCallStatus, SessionService, ChannelToolHelpers, AskQuestionType,
+    ChannelSessionHandler, ToolCallStatus, SessionService, AskQuestionType, createAskTool,
+    type StructuredToolInterface, type AskToolParams,
     type ChannelMessageArgs, type ChatToolCall,
 } from "channel.base";
 import { WebChatEventType, WsCommandType } from 'sbot.commons';
@@ -73,9 +74,9 @@ export class WebSocketSessionHandler extends ChannelSessionHandler {
 
     // ── Agent tools ──
 
-    buildAgentTools(_args: ChannelMessageArgs, helpers: ChannelToolHelpers): any[] {
+    buildAgentTools(_args: ChannelMessageArgs): StructuredToolInterface[] {
         return [
-            helpers.createAskTool(WEB_ASK_PROMPT, (params) => this.executeAsk(params), [AskQuestionType.Radio, AskQuestionType.Checkbox, AskQuestionType.Input]),
+            createAskTool((params: AskToolParams) => this.executeAsk(params), WEB_ASK_PROMPT, [AskQuestionType.Radio, AskQuestionType.Checkbox, AskQuestionType.Input]),
         ];
     }
 

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { DynamicStructuredTool } from "@langchain/core/tools";
-import { createSuccessResult, createTextContent, MCPToolResult } from "./types";
+import { createSuccessResult, createTextContent, type MCPToolResult } from "scorpio.ai";
 
 // ── Question Types ──────────────────────────────────────────────────────────
 

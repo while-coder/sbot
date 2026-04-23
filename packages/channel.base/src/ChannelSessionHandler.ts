@@ -1,16 +1,16 @@
 import {
   ChatMessage,
   ChatToolCall,
-  AskResponse,
-  AskToolParams,
   MessageRole,
   MessageType,
   NowDate,
   ToolApproval,
   type MessageContent,
 } from "scorpio.ai";
+import { type AskResponse, type AskToolParams } from "./AskTool";
+import { type StructuredToolInterface } from "@langchain/core/tools";
 import { SessionService } from "./SessionService";
-import { ChannelToolHelpers, ChannelMessageArgs, ProcessAIHandler } from "./ChannelPlugin";
+import { ChannelMessageArgs, ProcessAIHandler } from "./ChannelPlugin";
 
 export enum ToolCallStatus {
   None = "none",
@@ -46,7 +46,7 @@ export abstract class ChannelSessionHandler {
     return this._processAIHandler(query, args, this);
   }
 
-  buildAgentTools(_args: ChannelMessageArgs, _helpers: ChannelToolHelpers): any[] {
+  buildAgentTools(_args: ChannelMessageArgs): StructuredToolInterface[] {
     return [];
   }
   abstract onStreamMessage(message: ChatMessage, args: ChannelMessageArgs): Promise<void>;

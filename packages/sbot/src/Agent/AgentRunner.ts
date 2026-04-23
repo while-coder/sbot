@@ -1,7 +1,5 @@
 import os from 'os';
-import path from 'path';
-import { z } from 'zod';
-import { DynamicStructuredTool } from '@langchain/core/tools';
+import { type StructuredToolInterface } from '@langchain/core/tools';
 import {
     ServiceContainer,
     IAgentCallback,
@@ -19,7 +17,6 @@ import {
     WikiExtractor, WikiService,
     IWikiExtractor,
     T_WikiExtractorSystemPrompt, T_WikiAutoExtract, T_WikiSystemPromptTemplate,
-    createAskTool, type AskUserFn, AskQuestionType,
     type MessageContent,
 } from "scorpio.ai";
 import { loadPrompt } from "../Core/PromptLoader";
@@ -34,46 +31,6 @@ import { WikiDatabaseManager } from "./WikiDatabaseManager";
 
 const logger = LoggerService.getLogger('AgentRunner.ts');
 
-/** 动态注册到 Agent 的工具描述 */
-export interface AgentTool {
-    /** 工具唯一标识，用于 registerToolFactory 的 key */
-    name: string;
-    /** 工具工厂函数，返回工具实例列表 */
-    factory: () => Promise<any[]> | any[];
-}
-
-/** 发送文件的函数签名，由具体渠道实现并传入 */
-export type SendFileFn = (filePath: string, fileName: string) => Promise<void>;
-
-export const SEND_FILE_TOOL_NAME = '_send_file';
-
-/** 创建 send_file 工具 */
-export function createSendFileAgentTool(prompt: string, sendFileFn: SendFileFn): AgentTool {
-    return {
-        name: "__send_file__",
-        factory: () => [new DynamicStructuredTool({
-            name: SEND_FILE_TOOL_NAME,
-            description: prompt,
-            schema: z.object({
-                file_path: z.string().describe('Absolute path of the local file to send'),
-                file_name: z.string().optional().describe('File name with extension; defaults to the basename of file_path'),
-            }),
-            func: async ({ file_path, file_name }) => {
-                const name = file_name ?? path.basename(file_path);
-                await sendFileFn(file_path, name);
-                return `File "${name}" sent successfully`;
-            },
-        })],
-    };
-}
-
-/** 创建 ask 交互工具（封装 createAskTool） */
-export function createAskAgentTool(prompt: string, askFn: AskUserFn, supportedTypes?: AskQuestionType[]): AgentTool {
-    return {
-        name: '__ask__',
-        factory: async () => [createAskTool(askFn, prompt, supportedTypes)],
-    };
-}
 
 /** 调度器上下文，标识本次运行归属的调度器 */
 export interface AgentSchedulerContext {
@@ -103,7 +60,7 @@ export interface AgentRunOptions {
     /** Agent 文件操作根目录，不传则默认为 assets/{threadId} */
     workPath?: string;
     /** 动态注册到 Agent 的工具列表 */
-    agentTools?: AgentTool[];
+    agentTools?: StructuredToolInterface[];
     /** 调度器上下文 */
     scheduler: AgentSchedulerContext;
 }

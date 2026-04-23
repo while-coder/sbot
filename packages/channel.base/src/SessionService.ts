@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
-import { ChatToolCall, AskResponse, AskToolParams, ICancellationToken, ToolApproval, MessageDispatcher, type MessageContent, type TokenUsage } from "scorpio.ai";
+import { ChatToolCall, ICancellationToken, ToolApproval, MessageDispatcher, type MessageContent, type TokenUsage } from "scorpio.ai";
+import { type AskResponse, type AskToolParams } from "./AskTool";
 
 export class CancellationTokenSource implements ICancellationToken {
     private _isCancelled = false;

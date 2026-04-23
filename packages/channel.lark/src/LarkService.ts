@@ -168,6 +168,35 @@ export class LarkService implements IChannelService {
     });
   }
 
+  /** https://open.feishu.cn/document/server-docs/im-v1/message/list */
+  async getMessageHistory(containerId: string, options?: {
+    startTime?: string;
+    endTime?: string;
+    sortType?: "ByCreateTimeAsc" | "ByCreateTimeDesc";
+    pageSize?: number;
+    pageToken?: string;
+  }) {
+    try {
+      const response = await this.larkClient.im.v1.message.list({
+        params: {
+          container_id_type: 'chat',
+          container_id: containerId,
+          start_time: options?.startTime,
+          end_time: options?.endTime,
+          sort_type: options?.sortType,
+          page_size: options?.pageSize,
+          page_token: options?.pageToken,
+        },
+      });
+      if (response.code !== 0) {
+        throw new Error(`Failed to get message history: ${response.msg}`);
+      }
+      return response.data;
+    } catch (error: any) {
+      this.logger?.error(`Error getting message history: ${error.message}`);
+    }
+  }
+
   private async getTenantAccessToken(): Promise<string> {
     if (this.tenantAccessToken && NowDate() < this.tokenExpireTime) {
       return this.tenantAccessToken;

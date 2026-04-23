@@ -1,4 +1,4 @@
-import { AskResponse, AskToolParams, AskQuestionType, type MessageContent } from "scorpio.ai";
+import { type MessageContent } from "scorpio.ai";
 import { ChannelSessionHandler } from "./ChannelSessionHandler";
 import { SessionService } from "./SessionService";
 
@@ -42,18 +42,6 @@ export interface ChannelPluginContext {
   initSession: (ctx: InitSessionContext) => Promise<ChannelSessionInfo>;
   onReceiveMessage: (session: ChannelSessionInfo, query: MessageContent, args: ChannelMessageArgs) => Promise<void>;
   onTriggerAction: (session: ChannelSessionInfo, args: any) => Promise<void>;
-}
-
-export interface ChannelToolHelpers {
-  createAskTool: (
-    prompt: string,
-    askFn: (params: AskToolParams) => Promise<AskResponse>,
-    supportedTypes?: AskQuestionType[],
-  ) => any;
-  createSendFileTool: (
-    prompt: string,
-    sendFileFn: (filePath: string, fileName: string) => Promise<void>,
-  ) => any;
 }
 
 export type ProcessAIHandler = (

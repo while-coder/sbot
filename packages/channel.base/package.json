@@ -8,7 +8,9 @@
     "build": "rimraf dist && tsc -b --force"
   },
   "dependencies": {
-    "scorpio.ai": "workspace:*"
+    "@langchain/core": "catalog:",
+    "scorpio.ai": "workspace:*",
+    "zod": "catalog:"
   },
   "private": true,
   "devDependencies": {

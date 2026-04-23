@@ -1,8 +1,9 @@
 import { LarkChatProvider } from "./LarkChatProvider";
 import { LarkReceiveIdType, LarkService } from "./LarkService";
 import {
-  ChannelSessionHandler, ToolCallStatus, SessionService, ChannelToolHelpers,
+  ChannelSessionHandler, ToolCallStatus, SessionService, createAskTool, createSendFileTool,
   GlobalLoggerService, AskQuestionType,
+  type StructuredToolInterface,
   type ChannelMessageArgs, type ChatMessage, type ChatToolCall, type AskToolParams, type MessageType, type MessageContent,
 } from "channel.base";
 
@@ -214,11 +215,11 @@ Question types:
 Returns a map of question label → answer (string for radio/input, string[] for checkbox).`;
   static readonly SEND_FILE_PROMPT = 'Send a local file to the current Lark conversation. Use this tool to deliver any generated or exported file (documents, archives, reports, images, etc.) directly to the user via Lark.';
 
-  buildAgentTools(args: ChannelMessageArgs, helpers: ChannelToolHelpers): any[] {
+  buildAgentTools(args: ChannelMessageArgs): StructuredToolInterface[] {
     const { sessionId } = args as LarkMessageArgs;
     return [
-        helpers.createAskTool(LarkSessionHandler.ASK_PROMPT, (params) => this.executeAsk(params), [AskQuestionType.Radio, AskQuestionType.Checkbox, AskQuestionType.Input]),
-        helpers.createSendFileTool(LarkSessionHandler.SEND_FILE_PROMPT, async (filePath, fileName) => {
+        createAskTool((params: AskToolParams) => this.executeAsk(params), LarkSessionHandler.ASK_PROMPT, [AskQuestionType.Radio, AskQuestionType.Checkbox, AskQuestionType.Input]),
+        createSendFileTool(LarkSessionHandler.SEND_FILE_PROMPT, async (filePath: string, fileName: string) => {
             await this.larkService.sendFileMessage(LarkReceiveIdType.ChatId, sessionId, filePath, fileName);
         }),
     ];

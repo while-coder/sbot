@@ -1,19 +1,11 @@
-import { ProcessAIHandler, ChannelToolHelpers, ChannelSessionHandler, type ChannelMessageArgs, type MessageContent } from "channel.base";
-import { AgentRunner, createAskAgentTool, createSendFileAgentTool } from "../Agent/AgentRunner";
+import { ProcessAIHandler, ChannelSessionHandler, type ChannelMessageArgs, type MessageContent } from "channel.base";
+import { AgentRunner } from "../Agent/AgentRunner";
 import { MessageRole, type ChatMessage } from "scorpio.ai";
 import { config } from "../Core/Config";
 import { ChannelSessionRow, SessionRow, SchedulerType, database, parseMemories } from "../Core/Database";
 import { buildExecuteTool } from "./buildExecuteTool";
 import { WebChatEventType } from "sbot.commons";
 import { httpServer } from "../Server/HttpServer";
-
-
-const agentToolHelpers: ChannelToolHelpers = {
-    createAskTool: (prompt, askFn, supportedTypes) =>
-        createAskAgentTool(prompt, askFn, supportedTypes),
-    createSendFileTool: (prompt, sendFileFn) =>
-        createSendFileAgentTool(prompt, sendFileFn),
-};
 
 function runAgent(query: MessageContent, args: ChannelMessageArgs, sessionHandler: ChannelSessionHandler, agentId: string, saverId: string, schedulerType: SchedulerType, schedulerId: string, memories: string[], wikis: string[], workPath?: string, autoApproveAllTools?: boolean, callbackOverrides?: { onMessage?: (msg: ChatMessage) => Promise<void>; onStreamMessage?: ((msg: ChatMessage) => Promise<void>) | undefined }): Promise<void> {
     const threadId = sessionHandler.session.threadId;
@@ -71,7 +63,7 @@ function runAgent(query: MessageContent, args: ChannelMessageArgs, sessionHandle
         memories,
         wikis,
         workPath,
-        agentTools: sessionHandler.buildAgentTools(args, agentToolHelpers),
+        agentTools: sessionHandler.buildAgentTools(args),
     });
 }
 

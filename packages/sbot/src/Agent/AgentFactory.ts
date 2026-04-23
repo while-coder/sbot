@@ -12,7 +12,8 @@ import {
     T_SkillSystemPromptTemplate, T_SkillToolReadDesc, T_SkillToolListDesc, T_SkillToolExecDesc,
     type CreateAgentFn,
 } from "scorpio.ai";
-import { type AgentTool, type AgentSchedulerContext } from "./AgentRunner";
+import { type AgentSchedulerContext } from "./AgentRunner";
+import { type StructuredToolInterface } from "@langchain/core/tools";
 import { createSchedulerTools } from "../Tools/Scheduler/index";
 import { createTodoTools } from "../Tools/Todo/index";
 import { config, AgentMode, SingleAgentEntry, ReactAgentEntry, GenerativeAgentEntry } from "../Core/Config";
@@ -32,7 +33,7 @@ export interface AgentCreateOptions {
     /** 调度器上下文，用于内联绑定 scheduler_create 工具的 type/id */
     scheduler: AgentSchedulerContext;
     /** 动态注册到 Agent 的工具列表 */
-    agentTools?: AgentTool[];
+    agentTools?: StructuredToolInterface[];
 }
 
 /**
@@ -105,7 +106,7 @@ export class AgentFactory {
         agentName: string,
         scheduler: AgentSchedulerContext,
         mcp?: string[] | '*',
-        agentTools?: AgentTool[],
+        agentTools?: StructuredToolInterface[],
     ): Promise<void> {
         container.registerSingleton(IAgentToolService, AgentToolService);
         const toolService = await container.resolve<AgentToolService>(IAgentToolService);
@@ -121,10 +122,8 @@ export class AgentFactory {
             const mcpNames = [...mcp];
             toolService.registerToolFactory('__global_mcp__', () => globalAgentToolService.getToolsFrom(mcpNames));
         }
-        if (agentTools) {
-            for (const tool of agentTools) {
-                toolService.registerToolFactory(tool.name, () => Promise.resolve(tool.factory()));
-            }
+        if (agentTools?.length) {
+            toolService.registerToolFactory('__channel__', () => Promise.resolve(agentTools));
         }
         toolService.registerMcpServers(config.getAgentMcpServers(agentName));
     }

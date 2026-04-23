@@ -1,4 +1,5 @@
-import { ChatToolCall, AskResponse, AskToolParams, ToolApproval } from "scorpio.ai";
+import { ChatToolCall, ToolApproval } from "scorpio.ai";
+import { type AskResponse, type AskToolParams } from "./AskTool";
 import { SessionService, SessionInfo } from './SessionService';
 
 export abstract class SessionManager {

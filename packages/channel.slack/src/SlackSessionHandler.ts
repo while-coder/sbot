@@ -1,8 +1,9 @@
 import { SlackChatProvider } from "./SlackChatProvider";
 import { SlackService } from "./SlackService";
 import {
-  ChannelSessionHandler, ToolCallStatus, SessionService, ChannelToolHelpers,
+  ChannelSessionHandler, ToolCallStatus, SessionService, createAskTool,
   GlobalLoggerService, AskQuestionType,
+  type StructuredToolInterface,
   type ChannelMessageArgs, type ChatMessage, type ChatToolCall, type AskToolParams, type MessageType, type MessageContent,
 } from "channel.base";
 
@@ -167,7 +168,7 @@ Question types:
 
 Returns a map of question label → answer (string for radio/input, string[] for checkbox).`;
 
-  buildAgentTools(args: ChannelMessageArgs, helpers: ChannelToolHelpers): any[] {
-    return [helpers.createAskTool(SlackSessionHandler.ASK_PROMPT, (params) => this.executeAsk(params))];
+  buildAgentTools(_args: ChannelMessageArgs): StructuredToolInterface[] {
+    return [createAskTool((params: AskToolParams) => this.executeAsk(params), SlackSessionHandler.ASK_PROMPT)];
   }
 }
