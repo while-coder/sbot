@@ -29,6 +29,7 @@ export interface LarkMessageArgs extends ChannelMessageArgs {
   message_id: string;
   message_type?: string;
   mentionBot?: boolean;
+  userOpenId?: string;
 }
 
 export interface LarkActionArgs {
@@ -218,7 +219,7 @@ Returns a map of question label → answer (string for radio/input, string[] for
   static readonly SEND_FILE_PROMPT = 'Send a local file to the current Lark conversation. Use this tool to deliver any generated or exported file (documents, archives, reports, images, etc.) directly to the user via Lark.';
 
   buildAgentTools(args: ChannelMessageArgs): StructuredToolInterface[] {
-    const { sessionId } = args as LarkMessageArgs;
+    const { sessionId, userOpenId } = args as LarkMessageArgs;
     return [
         createAskTool((params: AskToolParams) => this.executeAsk(params), LarkSessionHandler.ASK_PROMPT, [AskQuestionType.Radio, AskQuestionType.Checkbox, AskQuestionType.Input]),
         createSendFileTool(LarkSessionHandler.SEND_FILE_PROMPT, async (filePath: string, fileName: string) => {
@@ -238,8 +239,13 @@ Returns a map of question label → answer (string for radio/input, string[] for
                     pageToken: page_token,
                 });
                 if (!data) return 'Failed to retrieve message history.';
-                const messages = (data.items ?? []).map((m: any) => m.body?.content);
-                return JSON.stringify({ messages, has_more: data.has_more, page_token: data.page_token });
+                const items = data.items ?? [];
+                const messagesXml = items.map((m: any) => {
+                    const isSelf = userOpenId && m.sender?.id === userOpenId;
+                    const senderType = m.sender?.sender_type === 'app' ? 'bot' : 'user';
+                    return `<message id="${m.message_id ?? ''}" sender_type="${senderType}" is_self="${!!isSelf}">${m.body?.content ?? ''}</message>`;
+                }).join('\n');
+                return `<message-history has_more="${!!data.has_more}" page_token="${data.page_token ?? ''}">\n${messagesXml}\n</message-history>`;
             },
         }),
     ];

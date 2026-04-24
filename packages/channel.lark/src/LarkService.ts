@@ -416,7 +416,7 @@ export class LarkService implements IChannelService {
             this.getUserInfo(userId),
             this.getChatInfo(chat_id),
           ]);
-          await this.onReceiveMessage(userId, userInfo, chatInfo, { event_id, chat_type, sessionId: chat_id, message_id, root_id, message_type, mentionBot }, typeof query === 'string' ? query.trim() : query)
+          await this.onReceiveMessage(userId, userInfo, chatInfo, { event_id, chat_type, sessionId: chat_id, message_id, root_id, message_type, mentionBot, userOpenId: sender_id.open_id }, typeof query === 'string' ? query.trim() : query)
         } catch (e: any) {
           this.logger?.error(`Receive message error: ${e.stack}`);
         }

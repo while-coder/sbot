@@ -10,8 +10,6 @@ function buildLarkExtraInfo(userInfo: any, chatId?: string, messageId?: string):
   return `<lark-info>
   <name>${userInfo.name}</name>
   <email>${userInfo.email}</email>
-  <user-id>${userInfo.user_id}</user-id>
-  <open-id>${userInfo.open_id}</open-id>
   <union-id>${userInfo.union_id}</union-id>
   <chat-id>${chatId ?? ''}</chat-id>
   <message-id>${messageId ?? ''}</message-id>
