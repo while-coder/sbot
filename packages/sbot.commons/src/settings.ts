@@ -34,8 +34,11 @@ export interface ModelConfig {
 }
 
 export enum EmbeddingProvider {
-  OpenAI = "openai",
-  Ollama = "ollama",
+  OpenAI   = "openai",
+  Ollama   = "ollama",
+  Google   = "google",
+  VoyageAI = "voyageai",
+  Cohere   = "cohere",
 }
 
 export interface EmbeddingConfig {

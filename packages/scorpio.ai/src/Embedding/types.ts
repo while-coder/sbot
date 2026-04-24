@@ -4,6 +4,9 @@
 export enum EmbeddingProvider {
   OpenAI = "openai",
   Ollama = "ollama",
+  Google = "google",
+  VoyageAI = "voyageai",
+  Cohere = "cohere",
 }
 
 /**

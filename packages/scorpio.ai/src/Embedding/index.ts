@@ -9,6 +9,9 @@ export { IEmbeddingService } from "./IEmbeddingService";
 // ===== 实现类 =====
 export { OpenAIEmbeddingService } from "./OpenAIEmbeddingService";
 export { OllamaEmbeddingService } from "./OllamaEmbeddingService";
+export { GoogleEmbeddingService } from "./GoogleEmbeddingService";
+export { VoyageAIEmbeddingService } from "./VoyageAIEmbeddingService";
+export { CohereEmbeddingService } from "./CohereEmbeddingService";
 
 // ===== 工厂和配置 =====
 export { EmbeddingServiceFactory } from "./EmbeddingServiceFactory";
