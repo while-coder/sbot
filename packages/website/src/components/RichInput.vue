@@ -16,6 +16,7 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   submit: []
+  files: [files: File[]]
 }>()
 
 function fileToDataUrl(file: File): Promise<string> {
@@ -28,20 +29,26 @@ function fileToDataUrl(file: File): Promise<string> {
 
 function handleImageDrop(view: any, event: DragEvent, _slice: any, moved: boolean): boolean {
   if (moved || !event.dataTransfer?.files?.length) return false
-  const images = Array.from(event.dataTransfer.files).filter(f => f.type.startsWith('image/'))
-  if (images.length === 0) return false
+  const allFiles = Array.from(event.dataTransfer.files)
+  const images = allFiles.filter(f => f.type.startsWith('image/'))
+  const others = allFiles.filter(f => !f.type.startsWith('image/'))
+  if (images.length === 0 && others.length === 0) return false
   event.preventDefault()
+  event.stopPropagation()
   images.forEach(async (file) => {
     const dataUrl = await fileToDataUrl(file)
     editor.value?.chain().focus().setImage({ src: dataUrl, alt: file.name }).run()
   })
+  if (others.length > 0) emit('files', others)
   return true
 }
 
 function handleImagePaste(view: any, event: ClipboardEvent): boolean {
   const items = Array.from(event.clipboardData?.items ?? [])
-  const imageItems = items.filter(i => i.kind === 'file' && i.type.startsWith('image/'))
-  if (imageItems.length === 0) return false
+  const fileItems = items.filter(i => i.kind === 'file')
+  if (fileItems.length === 0) return false
+  const imageItems = fileItems.filter(i => i.type.startsWith('image/'))
+  const otherItems = fileItems.filter(i => !i.type.startsWith('image/'))
   event.preventDefault()
   imageItems.forEach(async (item) => {
     const file = item.getAsFile()
@@ -52,6 +59,10 @@ function handleImagePaste(view: any, event: ClipboardEvent): boolean {
     const dataUrl = await fileToDataUrl(file)
     editor.value?.chain().focus().setImage({ src: dataUrl, alt: name }).run()
   })
+  if (otherItems.length > 0) {
+    const files = otherItems.map(i => i.getAsFile()).filter((f): f is File => f !== null)
+    if (files.length > 0) emit('files', files)
+  }
   return true
 }
 

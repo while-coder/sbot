@@ -36,6 +36,8 @@ const richInputRef = ref<InstanceType<typeof RichInput>>()
 const messagesEl = ref<HTMLElement | null>(null)
 const attachments = ref<Attachment[]>([])
 const fileInputEl = ref<HTMLInputElement | null>(null)
+const isDragging = ref(false)
+let dragLeaveTimer: ReturnType<typeof setTimeout> | null = null
 
 // ── Scrolling ──
 function isAtBottom(): boolean {
@@ -106,11 +108,43 @@ function isImage(att: Attachment) {
   return att.type.startsWith('image/')
 }
 
+async function addFiles(files: File[]) {
+  for (const file of files) {
+    if (attachments.value.find(a => a.name === file.name)) continue
+    const att = await readFile(file)
+    attachments.value.push(att)
+  }
+}
+
+function onInputBarDragOver(e: DragEvent) {
+  if (!e.dataTransfer?.types?.includes('Files')) return
+  e.preventDefault()
+  e.dataTransfer.dropEffect = 'copy'
+  if (dragLeaveTimer) { clearTimeout(dragLeaveTimer); dragLeaveTimer = null }
+  isDragging.value = true
+}
+
+function onInputBarDragLeave() {
+  dragLeaveTimer = setTimeout(() => { isDragging.value = false }, 80)
+}
+
+function onInputBarDrop(e: DragEvent) {
+  isDragging.value = false
+  e.preventDefault()
+  if (!e.dataTransfer?.files?.length) return
+  const nonImageFiles = Array.from(e.dataTransfer.files).filter(f => !f.type.startsWith('image/'))
+  if (nonImageFiles.length > 0) addFiles(nonImageFiles)
+}
+
+function onFilesFromEditor(files: File[]) {
+  addFiles(files)
+}
+
 // ── Input ──
 function send() {
   if (!richInputRef.value) return
   const { parts } = richInputRef.value.getContent()
-  const fileAtts = props.showAttachments ? attachments.value.splice(0) : []
+  const fileAtts = attachments.value.splice(0)
   if (parts.length === 0 && fileAtts.length === 0) return
   richInputRef.value.clear()
   emit('send', parts, fileAtts)
@@ -139,10 +173,17 @@ defineExpose({ scrollToBottom })
     </div>
 
     <!-- Input bar -->
-    <div class="chat-input-bar">
-      <input v-if="showAttachments" ref="fileInputEl" type="file" multiple style="display:none" @change="onFileChange" />
+    <div
+      class="chat-input-bar"
+      :class="{ 'drag-over': isDragging }"
+      @dragover="onInputBarDragOver"
+      @dragleave="onInputBarDragLeave"
+      @drop.capture="isDragging = false"
+      @drop="onInputBarDrop"
+    >
+      <input ref="fileInputEl" type="file" multiple style="display:none" @change="onFileChange" />
       <div style="flex:1;display:flex;flex-direction:column;gap:6px">
-        <div v-if="showAttachments && attachments.length > 0" style="display:flex;flex-wrap:wrap;gap:6px">
+        <div v-if="attachments.length > 0" style="display:flex;flex-wrap:wrap;gap:6px">
           <div
             v-for="(att, i) in attachments"
             :key="att.name"
@@ -160,6 +201,7 @@ defineExpose({ scrollToBottom })
           ref="richInputRef"
           :placeholder="t('chat.input_placeholder')"
           @submit="send"
+          @files="onFilesFromEditor"
         />
       </div>
       <div style="display:flex;flex-direction:column;gap:6px;align-self:flex-end">
@@ -169,3 +211,11 @@ defineExpose({ scrollToBottom })
     </div>
   </div>
 </template>
+
+<style scoped>
+.chat-input-bar.drag-over {
+  outline: 2px dashed #3b82f6;
+  outline-offset: -2px;
+  background: rgba(59, 130, 246, 0.05);
+}
+</style>
