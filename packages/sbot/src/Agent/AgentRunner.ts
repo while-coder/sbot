@@ -89,7 +89,7 @@ export class AgentRunner {
   <paths>
     <assets dir="${assetsDir}" url="${httpUrl}/assets/&lt;filename&gt;">IMPORTANT: This is the ONLY way to deliver files to users. Whenever you generate, export, or produce any file intended for the user (images, documents, archives, reports, etc.), you MUST save it to this directory and share the URL above. Never send raw file content inline, never use any other path or method.</assets>
     <scripts dir="${scriptsDir}">Store temporary scripts here</scripts>
-    <working-directory dir="${workPath}">All file operations (create, write, delete, move) must stay within this directory. Never access, modify, or delete files outside it.</working-directory>
+    <working-directory dir="${workPath}">All write operations (create, write, delete, move) MUST stay within this directory. Reading files outside this directory is allowed only when the user explicitly requests it or the task absolutely requires it; prefer working with files inside this directory.</working-directory>
     <skills>
       <agent-skills dir="${config.getAgentSkillsPath(agentId)}">Your dedicated skills directory. When using tools to install or create skills, always use this directory as the default target.</agent-skills>
       <global-skills dir="${config.getSkillsPath()}">Shared skills directory available to all agents. Only install here when the user explicitly requests installing to global skills.</global-skills>

@@ -79,7 +79,7 @@ export class SkillService implements ISkillService {
     const allSkillDirs: string[] = [...this.singleSkillDirs];
     for (const dir of this.skillsDirs) {
       if (!fs.existsSync(dir)) {
-        this.logger?.warn(`技能目录不存在 ${dir}`);
+        this.logger?.debug(`技能目录不存在 ${dir}`);
         continue;
       }
       try {
