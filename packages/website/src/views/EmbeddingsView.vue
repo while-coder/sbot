@@ -14,6 +14,20 @@ const { isMobile } = useResponsive()
 
 const embeddings = computed(() => store.settings.embeddings || {})
 
+const providerDefaults: Record<string, { baseURL: string; apiKey: string; model: string }> = {
+  [EmbeddingProvider.OpenAI]:   { baseURL: 'https://api.openai.com/v1',   apiKey: 'sk-...',  model: 'text-embedding-ada-002' },
+  [EmbeddingProvider.Ollama]:   { baseURL: 'http://localhost:11434',       apiKey: '',         model: 'nomic-embed-text' },
+  [EmbeddingProvider.Gemini]:   { baseURL: 'https://generativelanguage.googleapis.com', apiKey: 'AIza...', model: 'text-embedding-004' },
+  [EmbeddingProvider.VoyageAI]: { baseURL: 'https://api.voyageai.com/v1', apiKey: 'pa-...',   model: 'voyage-3' },
+  [EmbeddingProvider.Cohere]:   { baseURL: 'https://api.cohere.com/v2',   apiKey: 'sk-...',   model: 'embed-v4.0' },
+}
+
+const defaults = computed(() => providerDefaults[form.value.provider] || providerDefaults[EmbeddingProvider.OpenAI])
+const isOllama = computed(() => form.value.provider === EmbeddingProvider.Ollama)
+const isGemini = computed(() => form.value.provider === EmbeddingProvider.Gemini)
+
+const canPick = computed(() => isGemini.value || isOllama.value || !!form.value.baseURL)
+
 // Model picker
 const showPicker    = ref(false)
 const pickerLoading = ref(false)
@@ -29,7 +43,7 @@ async function openPicker() {
   pickerFilter.value  = ''
   showPicker.value    = true
   try {
-    const provider = form.value.provider === EmbeddingProvider.Ollama ? 'ollama' : 'openai'
+    const provider = form.value.provider as string
     const res = await apiFetch('/api/models/available', 'POST', {
       baseURL:  form.value.baseURL,
       apiKey:   form.value.apiKey,
@@ -79,8 +93,7 @@ function openEdit(id: string) {
 
 async function save() {
   if (!form.value.name.trim()) { show(t('common.name_required'), 'error'); return }
-  if (!form.value.baseURL.trim()) { show(t('common.base_url_required'), 'error'); return }
-  if (!form.value.apiKey.trim()) { show(t('common.api_key_required'), 'error'); return }
+  if (!isOllama.value && !form.value.apiKey.trim()) { show(t('common.api_key_required'), 'error'); return }
   if (!form.value.model.trim()) { show(t('common.model_required'), 'error'); return }
   try {
     const body = { ...form.value }
@@ -186,13 +199,13 @@ async function refresh() {
             </select>
           </div>
           <div class="form-group">
-            <label>{{ t('common.base_url') }} *</label>
-            <input v-model="form.baseURL" placeholder="https://api.openai.com/v1" />
+            <label>{{ t('common.base_url') }}</label>
+            <input v-model="form.baseURL" :placeholder="defaults.baseURL" />
           </div>
-          <div class="form-group">
+          <div v-if="!isOllama" class="form-group">
             <label>{{ t('common.api_key') }} *</label>
             <div class="apikey-field">
-              <input v-model="form.apiKey" :type="showApiKey ? 'text' : 'password'" placeholder="sk-..." />
+              <input v-model="form.apiKey" :type="showApiKey ? 'text' : 'password'" :placeholder="defaults.apiKey" />
               <button type="button" class="apikey-toggle" @click="showApiKey = !showApiKey" :title="showApiKey ? t('common.hide') : t('common.show')">
                 {{ showApiKey ? t('common.hide') : t('common.show') }}
               </button>
@@ -201,8 +214,8 @@ async function refresh() {
           <div class="form-group">
             <label>{{ t('common.model') }} *</label>
             <div class="model-field">
-              <input v-model="form.model" placeholder="text-embedding-ada-002" />
-              <button type="button" class="model-pick-btn" @click="openPicker" :disabled="!form.baseURL">{{ t('models.pick') }}</button>
+              <input v-model="form.model" :placeholder="defaults.model" />
+              <button type="button" class="model-pick-btn" @click="openPicker" :disabled="!canPick">{{ t('models.pick') }}</button>
             </div>
           </div>
         </div>

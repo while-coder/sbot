@@ -4,7 +4,7 @@
 export enum EmbeddingProvider {
   OpenAI = "openai",
   Ollama = "ollama",
-  Google = "google",
+  Gemini = "gemini",
   VoyageAI = "voyageai",
   Cohere = "cohere",
 }
@@ -15,6 +15,6 @@ export enum EmbeddingProvider {
 export interface EmbeddingConfig {
   provider: EmbeddingProvider;
   apiKey: string;
-  baseURL: string;
+  baseURL?: string;
   model: string;
 }

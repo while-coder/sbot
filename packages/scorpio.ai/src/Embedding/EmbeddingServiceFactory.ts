@@ -14,7 +14,7 @@ export class EmbeddingServiceFactory {
       case EmbeddingProvider.Ollama:
         service = new OllamaEmbeddingService(config);
         break;
-      case EmbeddingProvider.Google:
+      case EmbeddingProvider.Gemini:
         service = new GoogleEmbeddingService(config);
         break;
       case EmbeddingProvider.VoyageAI:

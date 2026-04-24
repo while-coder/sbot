@@ -207,7 +207,7 @@ export default {
     empty: '暂无向量模型配置',
     add_title: '添加向量模型',
     edit_title: '编辑向量模型',
-    name_placeholder: '如 openai-ada',
+    name_placeholder: '如 openai-ada、gemini-004、voyage-3',
     confirm_delete: '确定要删除向量模型 "{name}" 吗?',
   },
   savers: {
