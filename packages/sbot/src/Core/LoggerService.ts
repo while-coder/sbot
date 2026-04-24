@@ -33,7 +33,7 @@ log4js.configure({
         default: {
             enableCallStack: true,
             appenders: ["console", "file"],
-            level: "ALL",
+            level: process.env.LOG_LEVEL || "ALL",
         },
     },
 });

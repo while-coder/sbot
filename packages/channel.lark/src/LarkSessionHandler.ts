@@ -58,10 +58,10 @@ export class LarkSessionHandler extends ChannelSessionHandler {
   }
 
   async onProcessEnd(_query: MessageContent, _args: any, _messageType: MessageType, error?: any): Promise<void> {
-    await this.clearAbortButton();
     if (error && this.provider) {
       await this.provider.setMessage(`Error generating reply: ${error.message}\n${error.stack}`);
     }
+    await this.clearAbortButton();
   }
 
   protected async sendAbortButton(): Promise<void> {

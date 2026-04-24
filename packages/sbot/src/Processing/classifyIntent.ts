@@ -35,7 +35,7 @@ const DEFAULT_INTENT_PROMPT = `You are a group chat message intent classifier. D
 /**
  * Classify whether a group chat message needs an AI reply.
  * Returns true = should reply, false = skip silently.
- * Falls back to true on any error.
+ * Falls back to false (skip) on any error.
  */
 export async function classifyIntent(
   query: MessageContent,
@@ -60,8 +60,9 @@ export async function classifyIntent(
       logger.info(`意图过滤: "${text.length > 80 ? text.slice(0, 80) + '...' : text}" (置信度=${result.confidence}, 阈值=${intentThreshold}, 原因=${result.reasoning})`);
     }
     return shouldReply;
-  } catch {
-    return true;
+  } catch (err) {
+    logger.error("意图分类出错，默认过滤该消息", err);
+    return false;
   } finally {
     await modelService.dispose();
   }
