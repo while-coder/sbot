@@ -33,10 +33,10 @@ export class GeminiModelService implements IModelService {
     this.boundModel = undefined;
   }
 
-  async invoke(prompt: string | ChatMessage[]): Promise<ChatMessage> {
+  async invoke(prompt: string | ChatMessage[], options?: { signal?: AbortSignal }): Promise<ChatMessage> {
     const m = this.boundModel ?? this.model!;
     const input = typeof prompt === 'string' ? prompt : toBaseMessages(prompt);
-    const result = await m.invoke(input);
+    const result = await m.invoke(input, options?.signal ? { signal: options.signal } : undefined);
     return toChatMessage(result);
   }
 
@@ -44,13 +44,13 @@ export class GeminiModelService implements IModelService {
     this.boundModel = this.model!.bindTools(tools);
   }
 
-  async invokeStructured<T = any>(schema: any, prompt: string | ChatMessage[]): Promise<T> {
+  async invokeStructured<T = any>(schema: any, prompt: string | ChatMessage[], options?: { signal?: AbortSignal }): Promise<T> {
     const input = typeof prompt === 'string' ? prompt : toBaseMessages(prompt);
-    return this.model!.withStructuredOutput(schema).invoke(input) as Promise<T>;
+    return this.model!.withStructuredOutput(schema).invoke(input, options?.signal ? { signal: options.signal } : undefined) as Promise<T>;
   }
 
-  async stream(messages: string | ChatMessage[]): Promise<AsyncIterable<ChatMessage>> {
-    const result = await this.invoke(messages);
+  async stream(messages: string | ChatMessage[], options?: { signal?: AbortSignal }): Promise<AsyncIterable<ChatMessage>> {
+    const result = await this.invoke(messages, options);
     return (async function* () {
       yield result;
     })();

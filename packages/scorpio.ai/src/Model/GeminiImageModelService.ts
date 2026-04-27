@@ -16,12 +16,12 @@ export class GeminiImageModelService extends GeminiModelService {
     return prompt.filter(m => m.role === MessageRole.Human);
   }
 
-  override async invoke(prompt: string | ChatMessage[]): Promise<ChatMessage> {
-    return super.invoke(this.filterMessages(prompt));
+  override async invoke(prompt: string | ChatMessage[], options?: { signal?: AbortSignal }): Promise<ChatMessage> {
+    return super.invoke(this.filterMessages(prompt), options);
   }
 
-  override async stream(messages: string | ChatMessage[]): Promise<AsyncIterable<ChatMessage>> {
-    return super.stream(this.filterMessages(messages));
+  override async stream(messages: string | ChatMessage[], options?: { signal?: AbortSignal }): Promise<AsyncIterable<ChatMessage>> {
+    return super.stream(this.filterMessages(messages), options);
   }
 
   override bindTools(_tools: any[]): void {

@@ -32,10 +32,10 @@ export class AnthropicModelService implements IModelService {
     this.boundModel = undefined;
   }
 
-  async invoke(prompt: string | ChatMessage[]): Promise<ChatMessage> {
+  async invoke(prompt: string | ChatMessage[], options?: { signal?: AbortSignal }): Promise<ChatMessage> {
     const m = this.boundModel ?? this.model!;
     const input = typeof prompt === 'string' ? prompt : toBaseMessages(prompt);
-    const result = await m.invoke(input);
+    const result = await m.invoke(input, options?.signal ? { signal: options.signal } : undefined);
     return toChatMessage(result);
   }
 
@@ -43,15 +43,15 @@ export class AnthropicModelService implements IModelService {
     this.boundModel = this.model!.bindTools(tools);
   }
 
-  async invokeStructured<T = any>(schema: any, prompt: string | ChatMessage[]): Promise<T> {
+  async invokeStructured<T = any>(schema: any, prompt: string | ChatMessage[], options?: { signal?: AbortSignal }): Promise<T> {
     const input = typeof prompt === 'string' ? prompt : toBaseMessages(prompt);
-    return this.model!.withStructuredOutput(schema).invoke(input) as Promise<T>;
+    return this.model!.withStructuredOutput(schema).invoke(input, options?.signal ? { signal: options.signal } : undefined) as Promise<T>;
   }
 
-  async stream(messages: string | ChatMessage[]): Promise<AsyncIterable<ChatMessage>> {
+  async stream(messages: string | ChatMessage[], options?: { signal?: AbortSignal }): Promise<AsyncIterable<ChatMessage>> {
     const m = this.boundModel ?? this.model!;
     const input = typeof messages === 'string' ? messages : toBaseMessages(messages);
-    const lcStream = await m.stream(input);
+    const lcStream = await m.stream(input, options?.signal ? { signal: options.signal } : undefined);
     return (async function* () {
       let accumulated: AIMessageChunk | undefined;
       for await (const chunk of lcStream) {

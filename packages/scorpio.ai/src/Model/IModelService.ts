@@ -8,7 +8,7 @@ export interface IModelService {
   /**
    * 简单文本调用 — 发送 prompt 字符串或消息列表，返回 AI 消息
    */
-  invoke(prompt: string | ChatMessage[]): Promise<ChatMessage>;
+  invoke(prompt: string | ChatMessage[], options?: { signal?: AbortSignal }): Promise<ChatMessage>;
 
   /**
    * 绑定工具到模型（有状态）
@@ -19,12 +19,12 @@ export interface IModelService {
   /**
    * 结构化输出调用 — 使用给定 schema 对模型输出进行结构化解析
    */
-  invokeStructured<T = any>(schema: any, prompt: string | ChatMessage[]): Promise<T>;
+  invokeStructured<T = any>(schema: any, prompt: string | ChatMessage[], options?: { signal?: AbortSignal }): Promise<T>;
 
   /**
    * 流式调用，返回逐步累积的消息块序列
    */
-  stream(messages: string | ChatMessage[]): Promise<AsyncIterable<ChatMessage>>;
+  stream(messages: string | ChatMessage[], options?: { signal?: AbortSignal }): Promise<AsyncIterable<ChatMessage>>;
 
   /**
    * 模型上下文窗口大小（token 数），用于历史消息截断
