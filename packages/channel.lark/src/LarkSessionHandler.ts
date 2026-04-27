@@ -58,6 +58,8 @@ export class LarkSessionHandler extends ChannelSessionHandler {
   }
 
   async onProcessEnd(_query: MessageContent, _args: any, _messageType: MessageType, error?: any): Promise<void> {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    await this.clearAbortButton();
     if (error && this.provider) {
       if (error instanceof AgentCancelledError || error?.name === 'AbortError' || error?.name === 'TimeoutError') {
         await this.provider.setMessage('已中断');
@@ -65,9 +67,6 @@ export class LarkSessionHandler extends ChannelSessionHandler {
         await this.provider.setMessage(`Error generating reply: ${error.message}\n${error.stack}`);
       }
     }
-    const queryText = typeof _query === 'string' ? _query : summarizeMultimodal(_query);
-    getLogger()?.info(`onProcessEnd: clearing abort button, query=${queryText}, provider=${!!this.provider}`);
-    await this.clearAbortButton();
   }
 
   protected async sendAbortButton(): Promise<void> {
