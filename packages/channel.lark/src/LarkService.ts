@@ -1,6 +1,6 @@
 import * as Lark from "@larksuiteoapi/node-sdk";
 import { LarkActionArgs, LarkMessageArgs, LarkSessionHandler } from "./LarkSessionHandler";
-import { IChannelService, ChannelSessionHandler, SessionService, NowDate, parseJson, readImageAsDataUrl, readMediaAsContentPart, type ILogger, type MessageContent } from "channel.base";
+import { IChannelService, ChannelSessionHandler, SessionService, NowDate, parseJson, readMediaAsContentPart, type ILogger, type MessageContent } from "channel.base";
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
@@ -85,6 +85,14 @@ export interface LarkChatInfo {
   tenant_key?: string;
   user_count?: string;
   bot_count?: string;
+}
+
+export interface LarkHistoryMessage {
+  message_id: string;
+  msg_type: string;
+  sender_id: string;
+  create_time: string;
+  content: MessageContent;
 }
 
 export interface LarkServiceOptions {
@@ -219,32 +227,84 @@ export class LarkService implements IChannelService {
     });
   }
 
+  async parseMessageContent(messageId: string, messageType: string, content: string, mentions?: Array<{ key: string }>, mediaAsFilePath = false): Promise<MessageContent | undefined> {
+    const msg = parseJson(content, { text: "" }) as any;
+
+    let result: MessageContent;
+    if (messageType === 'post') {
+      result = await this.extractPostContent(messageId, msg, mediaAsFilePath);
+    } else if (messageType === 'text') {
+      result = String(msg.text ?? '').trim();
+    } else if (messageType === 'image' || messageType === 'audio' || messageType === 'file') {
+      let filePath: string;
+      let fileKey: string;
+      let downloadType: 'image' | 'file';
+      if (messageType === 'image') {
+        fileKey = msg.image_key;
+        filePath = path.join(os.tmpdir(), `lark_${fileKey}.png`);
+        downloadType = 'image';
+      } else if (messageType === 'audio') {
+        fileKey = msg.file_key;
+        filePath = path.join(os.tmpdir(), `lark_${fileKey}.opus`);
+        downloadType = 'file';
+      } else {
+        fileKey = msg.file_key;
+        filePath = path.join(os.tmpdir(), `lark_${fileKey}${path.extname(msg.file_name ?? '')}`);
+        downloadType = 'file';
+      }
+      await this.downloadMessageFile(messageId, fileKey, downloadType, filePath);
+      const { part } = await readMediaAsContentPart(filePath, mediaAsFilePath);
+      result = mediaAsFilePath ? (part.text ?? '') : [part as any];
+    } else {
+      return undefined;
+    }
+
+    if (mentions?.length) {
+      result = removeMentions(result, mentions);
+    }
+    return result;
+  }
+
+
   /** https://open.feishu.cn/document/server-docs/im-v1/message/list */
   async getMessageHistory(containerId: string, options?: {
     startTime?: string;
     endTime?: string;
-    sortType?: "ByCreateTimeAsc" | "ByCreateTimeDesc";
-    pageSize?: number;
-    pageToken?: string;
-  }) {
+    limit?: number;
+    filter?: (message: any) => boolean;
+  }): Promise<LarkHistoryMessage[]> {
+    const limit = options?.limit ?? 20;
     try {
-      const response = await this.larkClient.im.v1.message.list({
+      const iter = await this.larkClient.im.v1.message.listWithIterator({
         params: {
           container_id_type: 'chat',
           container_id: containerId,
           start_time: options?.startTime,
           end_time: options?.endTime,
-          sort_type: options?.sortType,
-          page_size: options?.pageSize,
-          page_token: options?.pageToken,
+          sort_type: 'ByCreateTimeDesc',
         },
       });
-      if (response.code !== 0) {
-        throw new Error(`Failed to get message history: ${response.msg}`);
+      const result: LarkHistoryMessage[] = [];
+      for await (const page of iter) {
+        for (const item of page?.items ?? []) {
+          if (item.sender?.sender_type === 'app') continue;
+          if (options?.filter && !options.filter(item)) continue;
+          const content = await this.parseMessageContent(item.message_id ?? '', item.msg_type ?? '', item.body?.content ?? '', item.mentions, true);
+          if (content == null) continue;
+          result.push({
+            message_id: item.message_id ?? '',
+            msg_type: item.msg_type ?? '',
+            sender_id: item.sender?.id ?? '',
+            create_time: item.create_time ?? '',
+            content,
+          });
+          if (result.length >= limit) return result;
+        }
       }
-      return response.data;
+      return result;
     } catch (error: any) {
       this.logger?.error(`Error getting message history: ${error.message}`);
+      return [];
     }
   }
 
@@ -311,7 +371,7 @@ export class LarkService implements IChannelService {
     }
   }
 
-  private async extractPostContent(messageId: string, msg: any): Promise<MessageContent> {
+  private async extractPostContent(messageId: string, msg: any, mediaAsFilePath = false): Promise<MessageContent> {
     const paragraphs: any[][] = msg.content ?? [];
     const parts: Array<{ type: string; text?: string; [key: string]: any }> = [];
     let hasMedia = false;
@@ -320,17 +380,17 @@ export class LarkService implements IChannelService {
         if (el.tag === 'text') {
           parts.push({ type: 'text', text: el.text ?? '' });
         } else if (el.tag === 'img') {
-          const filePath = path.join(os.tmpdir(), `lark_${el.image_key}`);
+          const filePath = path.join(os.tmpdir(), `lark_${el.image_key}.png`);
           await this.downloadMessageFile(messageId, el.image_key, 'image', filePath);
-          const dataUrl = await readImageAsDataUrl(filePath);
-          parts.push({ type: 'image_url', image_url: { url: dataUrl } });
-          hasMedia = true;
+          const { part } = await readMediaAsContentPart(filePath, mediaAsFilePath);
+          parts.push(part);
+          if (!mediaAsFilePath) hasMedia = true;
         } else if (el.tag === 'media') {
           const filePath = path.join(os.tmpdir(), `lark_${el.file_key}.mp4`);
           await this.downloadMessageFile(messageId, el.file_key, 'file', filePath);
-          const { part, category } = await readMediaAsContentPart(filePath);
+          const { part } = await readMediaAsContentPart(filePath, mediaAsFilePath);
           parts.push(part);
-          if (category !== 'other') hasMedia = true;
+          if (!mediaAsFilePath) hasMedia = true;
         } else {
           this.logger?.warn(`Unsupported post element tag: ${el.tag}`);
         }
@@ -338,30 +398,6 @@ export class LarkService implements IChannelService {
     }
     if (!hasMedia) return parts.map(p => p.text!).join('\n');
     return parts;
-  }
-
-  private async extractImageContent(messageId: string, msg: any): Promise<MessageContent> {
-    const filePath = path.join(os.tmpdir(), `lark_${msg.image_key}`);
-    await this.downloadMessageFile(messageId, msg.image_key, 'image', filePath);
-    const dataUrl = await readImageAsDataUrl(filePath);
-    return [{ type: 'image_url', image_url: { url: dataUrl } }];
-  }
-
-  private async extractAudioContent(messageId: string, msg: any): Promise<MessageContent> {
-    const filePath = path.join(os.tmpdir(), `lark_${msg.file_key}.opus`);
-    await this.downloadMessageFile(messageId, msg.file_key, 'file', filePath);
-    const { part } = await readMediaAsContentPart(filePath);
-    return [part as any];
-  }
-
-  private async extractFileContent(messageId: string, msg: any): Promise<MessageContent> {
-    const file_name = msg.file_name ?? '';
-    const ext = path.extname(file_name);
-    const filePath = path.join(os.tmpdir(), `lark_${msg.file_key}${ext}`);
-    await this.downloadMessageFile(messageId, msg.file_key, 'file', filePath);
-    const { part, category } = await readMediaAsContentPart(filePath);
-    if (category !== 'other') return [part as any];
-    return `[file: ${file_name}](${filePath})`;
   }
 
   /** https://open.feishu.cn/document/server-docs/contact-v3/user/get */
@@ -397,7 +433,8 @@ export class LarkService implements IChannelService {
     }
   }
 
-  private async fetchBotOpenId(): Promise<void> {
+  private async getBotOpenId(): Promise<string> {
+    if (this.botOpenId) return this.botOpenId;
     try {
       const token = await this.getTenantAccessToken();
       const response = await fetch('https://open.feishu.cn/open-apis/bot/v3/info/', {
@@ -413,6 +450,7 @@ export class LarkService implements IChannelService {
     } catch (error: any) {
       this.logger?.error(`Error fetching bot info: ${error.message}`);
     }
+    return this.botOpenId;
   }
 
   async registerEventDispatcher() {
@@ -438,29 +476,14 @@ export class LarkService implements IChannelService {
 
           if (!await this.filterEvent(`lark_message_${event_id}`)) return;
 
-          const msg = parseJson(content, { text: "" }) as any;
-          let query: MessageContent = "";
-
-          if (message_type === "post") {
-            query = await this.extractPostContent(message_id, msg);
-          } else if (message_type === "text") {
-            query = String(msg.text ?? "").trim();
-          } else if (message_type === 'image') {
-            query = await this.extractImageContent(message_id, msg);
-          } else if (message_type === 'audio') {
-            query = await this.extractAudioContent(message_id, msg);
-          } else if (message_type === 'file') {
-            query = await this.extractFileContent(message_id, msg);
-          } else {
+          const query = await this.parseMessageContent(message_id, message_type, content, mentions);
+          if (query == null) {
             this.logger?.error(`不支持的消息类型: ${message_type}`);
-            return
+            return;
           }
 
-          if (!this.botOpenId) await this.fetchBotOpenId();
-          const mentionBot = chat_type === 'p2p' || (mentions?.some((m: any) => m.mentioned_type === 'bot' && m.id?.open_id === this.botOpenId) ?? false);
-          if (mentions != null) {
-            query = removeMentions(query, mentions);
-          }
+          const botOpenId = await this.getBotOpenId();
+          const mentionBot = chat_type === 'p2p' || (mentions?.some((m: any) => m.mentioned_type === 'bot' && m.id?.open_id === botOpenId) ?? false);
 
           const userId = sender_id[this.userIdType];
           const [userInfo, chatInfo] = await Promise.all([

@@ -64,10 +64,16 @@ export function detectMediaType(filePath: string): { mimeType: string; category:
 
 export type ContentPart = { type: string; text?: string; [key: string]: any };
 
-export async function readMediaAsContentPart(filePath: string): Promise<{ part: ContentPart; category: MediaCategory }> {
+export async function readMediaAsContentPart(filePath: string, mediaAsFilePath = false): Promise<{ part: ContentPart; category: MediaCategory }> {
+    const { mimeType, category } = detectMediaType(filePath);
+
+    if (mediaAsFilePath) {
+        const name = filePath.slice(filePath.lastIndexOf('/') + 1) || filePath.slice(filePath.lastIndexOf('\\') + 1);
+        return { part: { type: 'text', text: `[${category}: ${name}](${filePath})` }, category };
+    }
+
     const { readFile } = await import('fs/promises');
     const buffer = await readFile(filePath);
-    const { mimeType, category } = detectMediaType(filePath);
 
     switch (category) {
         case 'image':

@@ -233,25 +233,24 @@ Returns a map of question label → answer (string for radio/input, string[] for
         }),
         new DynamicStructuredTool({
             name: '_get_message_history',
-            description: 'Retrieve message history from the current Lark chat. Use this tool to look up previous messages in the conversation for context, reference, or summarization.',
+            description: 'Retrieve message history from the current Lark chat. Returns user messages in reverse chronological order (newest first).',
             schema: z.object({
-                page_size: z.number().describe('Number of messages to return per page (max 50).'),
-                page_token: z.string().optional().describe('Pagination token from a previous call to fetch the next page.'),
+                limit: z.number().optional().describe('Max number of messages to retrieve (default 20).'),
+                start_time: z.string().optional().describe('Only messages after this Unix timestamp in seconds (e.g. "1700000000").'),
+                end_time: z.string().optional().describe('Only messages before this Unix timestamp in seconds (e.g. "1700100000").'),
+                self_only: z.boolean().optional().describe('If true, only return messages sent by the current user.'),
             }),
-            func: async ({ page_size, page_token }) => {
-                const data = await this.larkService.getMessageHistory(sessionId, {
-                    sortType: 'ByCreateTimeDesc',
-                    pageSize: page_size,
-                    pageToken: page_token,
+            func: async ({ limit, start_time, end_time, self_only }) => {
+                const items = await this.larkService.getMessageHistory(sessionId, {
+                    limit,
+                    startTime: start_time,
+                    endTime: end_time,
+                    filter: self_only ? (m) => m.sender?.id === userOpenId : undefined,
                 });
-                if (!data) return 'Failed to retrieve message history.';
-                const items = data.items ?? [];
-                const messagesXml = items.map((m: any) => {
-                    const isSelf = userOpenId && m.sender?.id === userOpenId;
-                    const senderType = m.sender?.sender_type === 'app' ? 'bot' : 'user';
-                    return `<message id="${m.message_id ?? ''}" sender_type="${senderType}" is_self="${!!isSelf}">${m.body?.content ?? ''}</message>`;
-                }).join('\n');
-                return `<message-history has_more="${!!data.has_more}" page_token="${data.page_token ?? ''}">\n${messagesXml}\n</message-history>`;
+                const lines = items.map((m) =>
+                    `<message id="${m.message_id}" sender="${m.sender_id}" time="${m.create_time}">${m.content}</message>`
+                );
+                return `<message-history count="${items.length}">\n${lines.join('\n')}\n</message-history>`;
             },
         }),
     ];
