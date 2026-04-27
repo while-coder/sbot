@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { ICommand, MessageType, type MessageContent, isEmptyContent } from "scorpio.ai";
+import { ICommand, MessageType, type MessageContent, trimContent, isEmptyContent } from "scorpio.ai";
 import { SessionManager, SessionService, ChannelMessageArgs, ChannelSessionHandler } from "channel.base";
 import { config } from "../Core/Config";
 import { database, ChannelSessionRow, SessionRow } from "../Core/Database";
@@ -130,6 +130,7 @@ export class SbotSessionManager extends SessionManager {
     // ── Channel entry points ──
 
     async onReceiveChannelMessage(threadId: string, query: MessageContent, args: ChannelRouteArgs): Promise<void> {
+        query = trimContent(query);
         if (isEmptyContent(query)) return;
 
         // 意图过滤：在进入消息队列之前检查，避免触发 onProcessStart（回复卡片）
@@ -153,6 +154,7 @@ export class SbotSessionManager extends SessionManager {
     }
 
     async onReceiveWebMessage(threadId: string, query: MessageContent, sessionId?: string): Promise<void> {
+        query = trimContent(query);
         if (isEmptyContent(query)) return;
         const session = this.getOrCreate(threadId);
         await session.onReceiveMessage(query, { channelType: WEB_CHANNEL, sessionId });

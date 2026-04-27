@@ -315,10 +315,10 @@ export {
 // ========================================
 // User - 用户服务基类
 // ========================================
-export { MessageDispatcher, MessageType } from "./User";
+export { MessageDispatcher, MessageType, summarizeMultimodal } from "./User";
 
 // ========================================
 // Utils - 工具函数
 // ========================================
-export { contentToString, isEmptyContent, readImageAsDataUrl, readMediaAsContentPart, detectMediaType } from "./Utils/contentUtils";
+export { contentToString, trimContent, isEmptyContent, readImageAsDataUrl, readMediaAsContentPart, detectMediaType } from "./Utils/contentUtils";
 export type { MediaCategory, ContentPart } from "./Utils/contentUtils";

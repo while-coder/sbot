@@ -1,1 +1,1 @@
-export { MessageDispatcher, MessageType } from './MessageDispatcher';
+export { MessageDispatcher, MessageType, summarizeMultimodal } from './MessageDispatcher';

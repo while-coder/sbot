@@ -10,6 +10,12 @@ export function contentToString(content: MessageContent): string {
         .join('\n');
 }
 
+/** Remove empty/whitespace-only text parts from MessageContent. */
+export function trimContent(content: MessageContent): MessageContent {
+    if (typeof content === 'string') return content.trim();
+    return content.filter(p => p.type !== 'text' || p.text?.trim());
+}
+
 /** Check if MessageContent is empty. */
 export function isEmptyContent(content: MessageContent): boolean {
     if (!content) return true;

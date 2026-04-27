@@ -5,7 +5,7 @@ import type { MessageContent } from "../Saver/IAgentSaverService";
 
 export enum MessageType { Command = 'command', AI = 'ai' }
 
-function summarizeMultimodal(parts: Array<{ type: string; text?: string; [key: string]: any }>): string {
+export function summarizeMultimodal(parts: Array<{ type: string; text?: string; [key: string]: any }>): string {
     const segments: string[] = [];
     for (const part of parts) {
         if (part.type === 'text' && part.text) {
