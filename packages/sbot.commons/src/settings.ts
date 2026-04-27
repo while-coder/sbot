@@ -137,6 +137,7 @@ export interface AgentConfig {
   skills?: string[] | '*'
   autoApproveTools?: string[]
   autoApproveAllTools?: boolean
+  modelCallTimeout?: number
   // react
   agents?: SubAgentRef[]
   // store

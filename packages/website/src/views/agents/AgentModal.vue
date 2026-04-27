@@ -30,6 +30,7 @@ const form = ref({
   model: '',
   systemPrompt: '',
   autoApproveAllTools: false,
+  modelCallTimeout: undefined as number | undefined,
 })
 const tempSubAgents = ref<SubAgentRef[]>([])
 
@@ -44,6 +45,7 @@ function open(id?: string) {
       model: a.model || '',
       systemPrompt: a.systemPrompt || '',
       autoApproveAllTools: !!(a as any).autoApproveAllTools,
+      modelCallTimeout: (a as any).modelCallTimeout ?? undefined,
     }
     tempSubAgents.value = Array.isArray(a.agents) ? [...a.agents] : []
   } else {
@@ -51,7 +53,7 @@ function open(id?: string) {
     tempSubAgents.value = []
     form.value = {
       id: '', name: '', type: AgentMode.Single, model: '', systemPrompt: '',
-      autoApproveAllTools: false,
+      autoApproveAllTools: false, modelCallTimeout: undefined,
     }
   }
   showModal.value = true
@@ -70,6 +72,7 @@ async function save() {
 
     if (form.value.systemPrompt) config.systemPrompt = form.value.systemPrompt
     if (form.value.autoApproveAllTools) (config as any).autoApproveAllTools = true
+    if (form.value.modelCallTimeout != null && form.value.modelCallTimeout > 0) config.modelCallTimeout = form.value.modelCallTimeout
     if (type === AgentMode.ReAct) {
       config.agents = tempSubAgents.value
     }
@@ -194,6 +197,12 @@ defineExpose({ open })
         <div class="form-group" style="display:flex;align-items:center;gap:8px">
           <input type="checkbox" v-model="form.autoApproveAllTools" id="autoApproveAll" style="width:14px;height:14px;cursor:pointer" />
           <label for="autoApproveAll" style="cursor:pointer;margin:0">{{ t('agents.auto_approve_all_tools') }}</label>
+        </div>
+
+        <!-- modelCallTimeout -->
+        <div class="form-group" v-if="form.type !== AgentMode.Generative">
+          <label>{{ t('agents.model_call_timeout') }}</label>
+          <input type="number" v-model.number="form.modelCallTimeout" min="0" step="1000" :placeholder="t('agents.model_call_timeout_placeholder')" />
         </div>
 
         <!-- ReAct fields -->

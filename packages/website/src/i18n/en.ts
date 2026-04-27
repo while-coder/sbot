@@ -520,6 +520,8 @@ export default {
     basic_info: 'Basic Info',
     system_prompt: 'System Prompt',
     auto_approve_all_tools: 'Auto-approve all tools',
+    model_call_timeout: 'Model call timeout (ms)',
+    model_call_timeout_placeholder: 'Leave empty for no timeout',
     use_all: 'Use all',
     items_selected: 'selected',
     error_sub_agents: 'ReAct mode: at least one sub-agent required',
