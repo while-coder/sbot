@@ -227,7 +227,7 @@ export class SingleAgentService extends AgentServiceBase {
                 let mcpResult = normalizeToMCPResult(result);
                 const resultStr = JSON.stringify(mcpResult);
                 this.logger?.info(
-                    `执行工具 ${tool.name}\n  参数: ${truncate(JSON.stringify(parsedArgs), 150)}\n  结果: ${truncate(resultStr, 100)}`
+                    `执行工具 ${tool.name}\n  参数: ${truncate(JSON.stringify(parsedArgs), 200)}\n  结果: ${truncate(resultStr, 200)}`
                 );
 
                 const thinkId = mcpResult.thinkId;
