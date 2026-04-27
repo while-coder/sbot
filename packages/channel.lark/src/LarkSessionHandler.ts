@@ -59,7 +59,7 @@ export class LarkSessionHandler extends ChannelSessionHandler {
 
   async onProcessEnd(_query: MessageContent, _args: any, _messageType: MessageType, error?: any): Promise<void> {
     if (error && this.provider) {
-      if (error instanceof AgentCancelledError) {
+      if (error instanceof AgentCancelledError || error?.name === 'AbortError' || error?.name === 'TimeoutError') {
         await this.provider.setMessage('已中断');
       } else {
         await this.provider.setMessage(`Error generating reply: ${error.message}\n${error.stack}`);
