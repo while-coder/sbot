@@ -2,6 +2,7 @@ import { ChatToolCall, ToolApproval, TASK_TOOL_NAME, READ_SKILL_FILE_TOOL_NAME, 
 import { SessionService, ASK_TOOL_NAME, SEND_FILE_TOOL_NAME } from "channel.base";
 import { SCHEDULER_CREATE_TOOL_NAME, SCHEDULER_DELETE_TOOL_NAME, SCHEDULER_LIST_TOOL_NAME } from "../Tools/Scheduler";
 import { TODO_CREATE_TOOL_NAME, TODO_LIST_TOOL_NAME, TODO_DONE_TOOL_NAME } from "../Tools/Todo";
+import { SLEEP_TOOL_NAME } from "../Tools/Sleep";
 import { config } from "../Core/Config";
 
 /** 内部工具名，直接放行无需用户确认 */
@@ -22,6 +23,8 @@ const INTERNAL_TOOLS = new Set([
     TODO_CREATE_TOOL_NAME,
     TODO_LIST_TOOL_NAME,
     TODO_DONE_TOOL_NAME,
+    // Sleep 工具
+    SLEEP_TOOL_NAME,
     // Memory 工具
     MEMORY_SEARCH_TOOL_NAME,
     MEMORY_ADD_TOOL_NAME,

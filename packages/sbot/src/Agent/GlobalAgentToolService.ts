@@ -4,6 +4,7 @@ import { createCommandTools } from "../Tools/Command/index.js";
 import { createFileSystemTools } from "../Tools/FileSystem/index.js";
 import { createWebFetchTools } from "../Tools/Web/index.js";
 import { createArchiveTools } from '../Tools/Archive/index.js';
+import { createSleepTool } from '../Tools/Sleep/index.js';
 import { createGameDataTools } from '../Tools/GameData/index.js';
 
 export enum BuiltinProvider {
@@ -11,6 +12,7 @@ export enum BuiltinProvider {
     FileSystem = 'builtin_filesystem',
     WebFetch = 'builtin_webfetch',
     Archive = 'builtin_archive',
+    Sleep = 'builtin_sleep',
 
     Playwright = 'builtin_playwright',
     ChromeDevTools = 'builtin_chrome-devtools-mcp',
@@ -26,6 +28,7 @@ export function initGlobalAgentToolService() {
     globalAgentToolService.registerToolFactory(BuiltinProvider.FileSystem, async () => createFileSystemTools(), '文件系统操作');
     globalAgentToolService.registerToolFactory(BuiltinProvider.WebFetch, async () => createWebFetchTools(), 'Web 内容抓取');
     globalAgentToolService.registerToolFactory(BuiltinProvider.Archive, async () => createArchiveTools(), 'ZIP 压缩/解压');
+    globalAgentToolService.registerToolFactory(BuiltinProvider.Sleep, async () => [createSleepTool()], '等待/暂停执行');
     // globalAgentToolService.registerToolFactory(BuiltinProvider.GameData, async () => createGameDataTools(), '游戏数据表查询与修改');
     globalAgentToolService.registerMcpServers({
         [BuiltinProvider.Playwright]: {
@@ -65,6 +68,7 @@ export async function refreshBuiltinTools() {
         BuiltinProvider.FileSystem,
         BuiltinProvider.WebFetch,
         BuiltinProvider.Archive,
+        BuiltinProvider.Sleep,
         // BuiltinProvider.GameData,
     );
 }
