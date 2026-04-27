@@ -30,7 +30,7 @@ const DEFAULT_INTENT_PROMPT = `You are a group chat message intent classifier. D
 ## Guiding principles
 1. Core criterion: Does the sender expect a reply from the AI?
 2. Human conversation takes priority: if the message seems directed at another person in the group, do not reply
-3. When in doubt, stay silent: prefer shouldReply=false with lower confidence`;
+3. When in doubt, stay silent: if you are not confident that shouldReply should be true, always return shouldReply=false with lower confidence. Err on the side of silence.`;
 
 /**
  * Classify whether a group chat message needs an AI reply.
@@ -50,7 +50,7 @@ export async function classifyIntent(
     const result = await modelService.invokeStructured<IntentResult>(IntentSchema, [
       { role: MessageRole.System, content: intentPrompt || DEFAULT_INTENT_PROMPT },
       { role: MessageRole.Human, content: query },
-    ]);
+    ], { signal: AbortSignal.timeout(120_000) });
 
     const shouldReply = result.shouldReply && result.confidence >= intentThreshold;
     if (!shouldReply) {
