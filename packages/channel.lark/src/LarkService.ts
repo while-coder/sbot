@@ -325,7 +325,7 @@ export class LarkService implements IChannelService {
           parts.push({ type: 'image_url', image_url: { url: dataUrl } });
           hasMedia = true;
         } else if (el.tag === 'media') {
-          const filePath = path.join(os.tmpdir(), `lark_${el.file_key}`);
+          const filePath = path.join(os.tmpdir(), `lark_${el.file_key}.mp4`);
           await this.downloadMessageFile(messageId, el.file_key, 'file', filePath);
           const { part, category } = await readMediaAsContentPart(filePath);
           parts.push(part);

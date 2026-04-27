@@ -31,6 +31,9 @@ const MIME_MAP: Record<string, string> = {
     '.flac': 'audio/flac',
     '.aac': 'audio/aac',
     '.m4a': 'audio/mp4',
+    // video
+    '.mp4': 'video/mp4',
+    '.mkv': 'video/x-matroska',
     // pdf
     '.pdf': 'application/pdf',
 };
