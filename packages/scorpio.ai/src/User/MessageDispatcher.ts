@@ -5,6 +5,18 @@ import type { MessageContent } from "../Saver/IAgentSaverService";
 
 export enum MessageType { Command = 'command', AI = 'ai' }
 
+function summarizeMultimodal(parts: Array<{ type: string; text?: string; [key: string]: any }>): string {
+    const segments: string[] = [];
+    for (const part of parts) {
+        if (part.type === 'text' && part.text) {
+            segments.push(part.text);
+        } else {
+            segments.push(`[${part.type}]`);
+        }
+    }
+    return segments.join(' ');
+}
+
 interface MessageQueueItem {
   query: MessageContent;
   args: any;
@@ -32,7 +44,7 @@ export abstract class MessageDispatcher {
 
         while (this.messageQueue.length > 0) {
             const { query, args } = this.messageQueue.shift()!;
-            const queryText = typeof query === 'string' ? query : '[multimodal]';
+            const queryText = typeof query === 'string' ? query : summarizeMultimodal(query);
             const messageType = typeof query === 'string' && query.trimStart().startsWith('/') ? MessageType.Command : MessageType.AI;
             const startLabel = await this.onProcessStart(query, args, messageType);
             const logSuffix = startLabel != null ? `(${startLabel})` : '';

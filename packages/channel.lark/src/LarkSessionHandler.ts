@@ -61,6 +61,7 @@ export class LarkSessionHandler extends ChannelSessionHandler {
     if (error && this.provider) {
       await this.provider.setMessage(`Error generating reply: ${error.message}\n${error.stack}`);
     }
+    getLogger()?.info(`onProcessEnd: clearing abort button, query=${JSON.stringify(_query)}, provider=${!!this.provider}`);
     await this.clearAbortButton();
   }
 
