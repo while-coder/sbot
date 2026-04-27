@@ -10,7 +10,7 @@ import { IAgentSaverService } from "../../Saver";
 import { IAgentToolService } from "../../AgentTool";
 import { ILoggerService } from "../../Logger";
 import { normalizeToMCPResult, MCPContentType, type MCPToolResult } from '../../Tools';
-import { AgentServiceBase, GraphNodeType, ToolApproval, IAgentCallback, ICancellationToken, AgentCancelledError, DEFAULT_MAX_HISTORY_TOKENS, ChatMessage, MessageRole, type TokenUsage } from "../AgentServiceBase";
+import { AgentServiceBase, GraphNodeType, ToolApproval, IAgentCallback, AgentCancelledError, DEFAULT_MAX_HISTORY_TOKENS, ChatMessage, MessageRole, type TokenUsage } from "../AgentServiceBase";
 import type { MessageContent } from "../../Saver/IAgentSaverService";
 import { contentToString } from "../../Utils/contentUtils";
 
@@ -21,17 +21,29 @@ export {
     ChatMessage,
     MessageRole,
     IAgentCallback,
-    ICancellationToken,
     AgentCancelledError,
     type TokenUsage,
 } from "../AgentServiceBase";
 
+function raceCancel<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+    if (!signal) return promise;
+    if (signal.aborted) return Promise.reject(new AgentCancelledError());
+    return new Promise<T>((resolve, reject) => {
+        const onAbort = () => reject(new AgentCancelledError());
+        signal.addEventListener('abort', onAbort, { once: true });
+        promise.then(
+            v => { signal.removeEventListener('abort', onAbort); resolve(v); },
+            e => { signal.removeEventListener('abort', onAbort); reject(e); },
+        );
+    });
+}
+
 type SingleAgentState = {
     messages: ChatMessage[];
-    callback: IAgentCallback | null;
-    systemMessage: ChatMessage | null;
+    callback?: IAgentCallback;
+    systemMessage?: ChatMessage;
     tools: StructuredToolInterface[];
-    cancellationToken: ICancellationToken | null;
+    signal?: AbortSignal;
 };
 
 /**
@@ -72,7 +84,7 @@ export class SingleAgentService extends AgentServiceBase {
     /**
      * 构建本轮 system message（基础 + 记忆 + skill 合并为单条）
      */
-    protected async buildSystemMessage(query: MessageContent, _callback?: IAgentCallback, _cancellationToken?: ICancellationToken): Promise<ChatMessage | null> {
+    protected async buildSystemMessage(query: MessageContent): Promise<ChatMessage | undefined> {
         const parts: string[] = this.systemMessages.map(m => m.content as string);
         if (this.memorySystemPromptTemplate) {
             const memoryLimit = 10;
@@ -104,13 +116,15 @@ export class SingleAgentService extends AgentServiceBase {
             const skillMessage = await this.skillService.getSystemMessage();
             if (skillMessage) parts.push(skillMessage);
         }
-        return { role: MessageRole.System, content: parts.join("\n\n") };
+        const content = parts.join("\n\n").trim();
+        if (!content) return undefined;
+        return { role: MessageRole.System, content };
     }
 
     /**
      * 构建本轮所有可用工具（toolService + 记忆 + skill）
      */
-    protected async buildTools(_callback?: IAgentCallback, _cancellationToken?: ICancellationToken): Promise<StructuredToolInterface[]> {
+    protected async buildTools(_callback?: IAgentCallback, _signal?: AbortSignal): Promise<StructuredToolInterface[]> {
         const tools: StructuredToolInterface[] = await this.toolService?.getAllTools() ?? [];
         if (this.skillService) tools.push(...this.skillService.getTools());
         if (this.memoryServices.length > 0) {
@@ -126,7 +140,7 @@ export class SingleAgentService extends AgentServiceBase {
      * 调用模型节点
      */
     private async callModelNode(state: SingleAgentState) {
-        const callback = state.callback ?? undefined;
+        const callback = state.callback;
         if (state.tools.length > 0) {
             this.modelService.bindTools(state.tools);
         }
@@ -148,18 +162,18 @@ export class SingleAgentService extends AgentServiceBase {
         //     this.logger?.debug(`  [${role}] ${contentStr.length > 100 ? contentStr.slice(0, 100) + '…' : contentStr}`);
         // }
 
-        if (state.cancellationToken?.isCancelled) throw new AgentCancelledError();
-        const stream = await this.modelService.stream(messages);
+        if (state.signal?.aborted) throw new AgentCancelledError();
 
         let lastChunk: ChatMessage | undefined;
+        const stream = await this.modelService.stream(messages, { signal: state.signal });
+
         const emitStream = async () => {
             if (!callback?.onStreamMessage || !lastChunk) return;
             await callback.onStreamMessage(lastChunk);
         };
         let lastStreamCallTime = 0;
         for await (const chunk of stream) {
-            // AIMessage 尚未写入 saver，此处 throw 不会破坏配对
-            if (state.cancellationToken?.isCancelled) throw new AgentCancelledError();
+            if (state.signal?.aborted) throw new AgentCancelledError();
             lastChunk = chunk;
             const now = Date.now();
             if (now - lastStreamCallTime >= 200) {
@@ -167,7 +181,6 @@ export class SingleAgentService extends AgentServiceBase {
                 await emitStream();
             }
         }
-        // 流结束后发送最终状态，确保最后的数据不丢失
         await emitStream();
         if (!lastChunk) return { messages: [] };
 
@@ -183,7 +196,7 @@ export class SingleAgentService extends AgentServiceBase {
      * 工具执行节点 - 替代 ToolNode
      */
     private async callToolsNode(state: SingleAgentState) {
-        const callback = state.callback ?? undefined;
+        const callback = state.callback;
         const messages = await this.saverService.getMessages(this.modelService.contextWindow ?? DEFAULT_MAX_HISTORY_TOKENS);
         if (!messages || messages.length === 0) {
             throw new Error('historyMessages is empty, cannot execute tools');
@@ -202,7 +215,7 @@ export class SingleAgentService extends AgentServiceBase {
         for (let i = 0; i < toolCalls.length; i++) {
             const toolCall = toolCalls[i];
             // 取消时补偿剩余 tool_calls 的 ToolMessage，保持与 AIMessage 的配对完整
-            if (state.cancellationToken?.isCancelled) {
+            if (state.signal?.aborted) {
                 for (let j = i; j < toolCalls.length; j++) {
                     toolMessages.push({ role: MessageRole.Tool, tool_call_id: toolCalls[j].id ?? "", content: "Cancelled", status: "error" });
                 }
@@ -214,14 +227,14 @@ export class SingleAgentService extends AgentServiceBase {
                     throw new Error(`Tool not found`);
                 }
                 if (callback?.executeTool) {
-                    const approval = await callback.executeTool(toolCall);
+                    const approval = await raceCancel(callback.executeTool(toolCall), state.signal);
                     if (approval === ToolApproval.Deny) {
                         throw new Error(`Tool call rejected by user`);
                     }
                 }
                 // 执行工具（LLM 有时会将数组/对象参数 JSON 序列化成字符串，先做一次反解析）
                 const parsedArgs = SingleAgentService.parseStringArgs(toolCall.args);
-                const result = await tool.invoke(parsedArgs);
+                const result = await raceCancel(tool.invoke(parsedArgs), state.signal);
 
                 // 标准化为 MCP 格式（自动检测和转换各种格式）
                 let mcpResult = normalizeToMCPResult(result);
@@ -280,13 +293,13 @@ export class SingleAgentService extends AgentServiceBase {
     /**
      * 流式处理用户查询
      */
-    override async stream(query: MessageContent, callback: IAgentCallback, cancellationToken?: ICancellationToken): Promise<ChatMessage[]> {
+    override async stream(query: MessageContent, callback: IAgentCallback, signal?: AbortSignal): Promise<ChatMessage[]> {
         // 将本次用户消息压入历史
         await this.saverService.pushMessage({ role: MessageRole.Human, content: query });
 
         const [systemMessage, tools] = await Promise.all([
-            this.buildSystemMessage(query, callback, cancellationToken),
-            this.buildTools(callback, cancellationToken),
+            this.buildSystemMessage(query),
+            this.buildTools(callback, signal),
         ]);
 
         const graph = new StateGraph<SingleAgentState>()
@@ -297,7 +310,7 @@ export class SingleAgentService extends AgentServiceBase {
             .addEdge(GraphNodeType.TOOLS, GraphNodeType.AGENT);
         // this.logger?.info(`开始执行 Agent ${query}  system: ${systemMessage?.content}`);
         const graphStream = graph.stream(
-            { messages: [], callback, systemMessage, tools, cancellationToken: cancellationToken ?? null },
+            { messages: [], callback, systemMessage, tools, signal },
         );
 
         // 收集 AI 响应（供记忆服务按 MemoryMode 决定是否使用）
@@ -331,7 +344,7 @@ export class SingleAgentService extends AgentServiceBase {
                 }
             }
             // tools node 的补偿消息已全部写入 saver，配对完整后再抛出
-            if (cancellationToken?.isCancelled) throw new AgentCancelledError();
+            if (signal?.aborted) throw new AgentCancelledError();
         }
 
         // 保存对话到长期记忆

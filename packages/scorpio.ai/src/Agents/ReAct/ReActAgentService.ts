@@ -5,7 +5,7 @@ import { IWikiService } from "../../Wiki";
 import { IAgentSaverService, ChatMessage, ChatMessageOptions, type MessageContent } from "../../Saver";
 import { ILoggerService } from "../../Logger";
 import { IModelService } from "../../Model";
-import { type AgentServiceBase, IAgentCallback, ICancellationToken, AgentSubNode, CreateAgentFn, T_CreateAgent, MessageRole } from "../AgentServiceBase";
+import { type AgentServiceBase, IAgentCallback, AgentSubNode, CreateAgentFn, T_CreateAgent, MessageRole } from "../AgentServiceBase";
 import { ISkillService } from "../../Skills";
 import { IAgentToolService } from "../../AgentTool";
 import { AgentMemorySaver } from "../../Saver/AgentMemorySaver";
@@ -74,20 +74,22 @@ export class ReActAgentService extends SingleAgentService {
 
   // ── Overrides ────────────────────────────────────────────────
 
-  protected override async buildSystemMessage(query: MessageContent, callback?: IAgentCallback, cancellationToken?: ICancellationToken): Promise<ChatMessage | null> {
+  protected override async buildSystemMessage(query: MessageContent): Promise<ChatMessage | undefined> {
     const agentsDesc = this.agentSubNodes.map(a =>
       `  <agent id="${a.id}">${a.desc}</agent>`
     ).join('\n');
     const parts: string[] = [this.systemPromptTemplate.replace('{agents}', agentsDesc)];
 
     // Append systemPrompts, memory, and skill prompts from parent
-    const parentMsg = await super.buildSystemMessage(query, callback, cancellationToken);
+    const parentMsg = await super.buildSystemMessage(query);
     if (parentMsg) parts.push(parentMsg.content as string);
 
-    return { role: MessageRole.System, content: parts.join('\n\n') };
+    const content = parts.join('\n\n').trim();
+    if (!content) return undefined;
+    return { role: MessageRole.System, content };
   }
 
-  protected override async buildTools(callback?: IAgentCallback, cancellationToken?: ICancellationToken): Promise<StructuredToolInterface[]> {
+  protected override async buildTools(callback?: IAgentCallback, signal?: AbortSignal): Promise<StructuredToolInterface[]> {
     if (!callback) return [];
     const { onMessage: _, ...subCallback } = callback;
 
@@ -113,7 +115,7 @@ export class ReActAgentService extends SingleAgentService {
         extraPrompts.push(this.subNodePrompt);
         agentService.addSystemPrompts(extraPrompts);
 
-        const messages = await agentService.stream(task, subCallback, cancellationToken);
+        const messages = await agentService.stream(task, subCallback, signal);
         const content: MCPContent[] = [];
         for (const msg of messages) {
           if (msg.role !== MessageRole.AI || !msg.content) continue;
@@ -141,7 +143,7 @@ export class ReActAgentService extends SingleAgentService {
     };
 
     const agentIds = this.agentSubNodes.map(a => a.id);
-    const parentTools = await super.buildTools(callback, cancellationToken);
+    const parentTools = await super.buildTools(callback, signal);
     return [createTaskTool(agentIds, runFn, this.taskToolDesc), ...parentTools];
   }
 

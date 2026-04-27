@@ -85,10 +85,6 @@ export const T_SummaryModelService = Symbol("scorpio:T_SummaryModelService");
  * 仅保留所有 Agent 共用的最小状态：saver、memory、logger 和系统提示词管理。
  * 模型、技能、工具等 SingleAgent 专属逻辑由 SingleAgentService 自行持有。
  */
-export interface ICancellationToken {
-    readonly isCancelled: boolean;
-}
-
 export class AgentCancelledError extends Error {
     constructor() {
         super('Agent execution cancelled');
@@ -97,12 +93,10 @@ export class AgentCancelledError extends Error {
 }
 
 export abstract class AgentServiceBase {
-    abstract stream(query: MessageContent, callback: IAgentCallback, cancellationToken?: ICancellationToken): Promise<ChatMessage[]>;
     protected saverService: IAgentSaverService;
     protected memoryServices: IMemoryService[];
     protected loggerService?: ILoggerService;
     protected logger?: ILogger;
-
     constructor(
         loggerService?: ILoggerService,
         agentSaver?: IAgentSaverService,
@@ -123,10 +117,11 @@ export abstract class AgentServiceBase {
     /**
      * 以无回调方式调用 stream，返回 stream 的结果消息列表。
      */
-    invoke(query: MessageContent, cancellationToken?: ICancellationToken): Promise<ChatMessage[]> {
-        return this.stream(query, {}, cancellationToken);
+    invoke(query: MessageContent, signal?: AbortSignal): Promise<ChatMessage[]> {
+        return this.stream(query, {}, signal);
     }
 
+    abstract stream(query: MessageContent, callback: IAgentCallback, signal?: AbortSignal): Promise<ChatMessage[]>;
     /**
      * 释放资源
      */

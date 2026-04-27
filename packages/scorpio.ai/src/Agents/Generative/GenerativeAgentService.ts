@@ -4,11 +4,11 @@ import { IModelService } from "../../Model";
 import { IAgentSaverService } from "../../Saver";
 import { ILoggerService } from "../../Logger";
 import { IMemoryService } from "../../Memory";
-import { AgentServiceBase, IAgentCallback, ICancellationToken, AgentCancelledError, DEFAULT_MAX_HISTORY_TOKENS, ChatMessage, MessageRole } from "../AgentServiceBase";
+import { AgentServiceBase, IAgentCallback, AgentCancelledError, DEFAULT_MAX_HISTORY_TOKENS, ChatMessage, MessageRole } from "../AgentServiceBase";
 
 import type { MessageContent } from "../../Saver/IAgentSaverService";
 
-export { ChatMessage, MessageRole, IAgentCallback, ICancellationToken, AgentCancelledError } from "../AgentServiceBase";
+export { ChatMessage, MessageRole, IAgentCallback, AgentCancelledError } from "../AgentServiceBase";
 
 /**
  * 纯生成式 Agent（图片/音频/视频等）
@@ -34,16 +34,20 @@ export class GenerativeAgentService extends AgentServiceBase {
         this.systemMessages.unshift(...prompts.map(p => ({ role: MessageRole.System, content: p })));
     }
 
-    override async stream(query: MessageContent, callback: IAgentCallback, cancellationToken?: ICancellationToken): Promise<ChatMessage[]> {
+    override async stream(query: MessageContent, callback: IAgentCallback, signal?: AbortSignal): Promise<ChatMessage[]> {
         await this.saverService.pushMessage({ role: MessageRole.Human, content: query });
 
         const savedHistory = await this.saverService.getMessages(this.modelService.contextWindow ?? DEFAULT_MAX_HISTORY_TOKENS);
         if (!savedHistory || savedHistory.length === 0) {
             throw new Error('historyMessages is empty, cannot call model');
         }
-        const messages: ChatMessage[] = [...this.systemMessages, ...savedHistory];
+        const systemContent = this.systemMessages.map(m => m.content as string).join('\n\n').trim();
+        const messages: ChatMessage[] = [
+            ...(systemContent ? [{ role: MessageRole.System, content: systemContent } as ChatMessage] : []),
+            ...savedHistory,
+        ];
 
-        if (cancellationToken?.isCancelled) throw new AgentCancelledError();
+        if (signal?.aborted) throw new AgentCancelledError();
         const result = await this.modelService.invoke(messages);
 
         if (result.usage) {
