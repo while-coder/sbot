@@ -1,6 +1,6 @@
 import { StateGraph, START, END } from '../../Graph';
 import { type StructuredToolInterface } from "@langchain/core/tools";
-import { inject, T_SystemPrompts, T_MemorySystemPromptTemplate, T_WikiSystemPromptTemplate, truncate, formatTimeAgo } from "../../Core";
+import { inject, T_SystemPrompts, T_MemorySystemPromptTemplate, T_WikiSystemPromptTemplate, T_ModelCallTimeout, truncate, formatTimeAgo } from "../../Core";
 import { IModelService } from "../../Model";
 import { ISkillService } from "../../Skills";
 import { IMemoryService, MemoryToolProvider } from "../../Memory";
@@ -56,6 +56,7 @@ export class SingleAgentService extends AgentServiceBase {
     protected toolService?: IAgentToolService;
     protected systemMessages: ChatMessage[];
     protected memorySystemPromptTemplate?: string;
+    protected modelCallTimeout?: number;
 
     constructor(
         @inject(IModelService) modelService: IModelService,
@@ -68,6 +69,7 @@ export class SingleAgentService extends AgentServiceBase {
         @inject(IWikiService, { optional: true }) protected wikiServices?: IWikiService[],
         @inject(T_MemorySystemPromptTemplate, { optional: true }) memorySystemPromptTemplate?: string,
         @inject(T_WikiSystemPromptTemplate, { optional: true }) protected wikiSystemPromptTemplate?: string,
+        @inject(T_ModelCallTimeout, { optional: true }) modelCallTimeout?: number,
     ) {
         super(loggerService, agentSaver, memoryServices);
         this.modelService = modelService;
@@ -75,6 +77,7 @@ export class SingleAgentService extends AgentServiceBase {
         this.toolService = toolService;
         this.systemMessages = (systemPrompts ?? []).map(p => ({ role: MessageRole.System, content: p }));
         this.memorySystemPromptTemplate = memorySystemPromptTemplate;
+        this.modelCallTimeout = modelCallTimeout;
     }
 
     override addSystemPrompts(prompts: string[]): void {
@@ -164,8 +167,12 @@ export class SingleAgentService extends AgentServiceBase {
 
         if (state.signal?.aborted) throw new AgentCancelledError();
 
+        const mergedSignal = this.modelCallTimeout != null
+            ? AbortSignal.any([state.signal, AbortSignal.timeout(this.modelCallTimeout)].filter(Boolean) as AbortSignal[])
+            : state.signal;
+
         let lastChunk: ChatMessage | undefined;
-        const stream = await this.modelService.stream(messages, { signal: state.signal });
+        const stream = await this.modelService.stream(messages, { signal: mergedSignal });
 
         const emitStream = async () => {
             if (!callback?.onStreamMessage || !lastChunk) return;
@@ -173,7 +180,7 @@ export class SingleAgentService extends AgentServiceBase {
         };
         let lastStreamCallTime = 0;
         for await (const chunk of stream) {
-            if (state.signal?.aborted) throw new AgentCancelledError();
+            if (mergedSignal?.aborted) throw new AgentCancelledError();
             lastChunk = chunk;
             const now = Date.now();
             if (now - lastStreamCallTime >= 200) {

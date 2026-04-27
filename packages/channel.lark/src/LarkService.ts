@@ -212,6 +212,7 @@ export class LarkService implements IChannelService {
       await new Promise(resolve => setTimeout(resolve, 10));
     }
     this.lastCallTime = Date.now()
+    this.logger?.debug(`updateCardMessage: messageId=${messageId}, elements=${JSON.stringify(elements)}`);
     return await this.larkClient.im.message.patch({
       path: { message_id: messageId },
       data: { content: this.buildCardJson(elements, header) },
