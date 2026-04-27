@@ -33,6 +33,7 @@ export interface BaseAgentEntry {
   skills?: string[] | '*';     // 全局 Skills 过滤列表（skill 名称）；"*" = 加载全部
   autoApproveTools?: string[]; // 自动批准的工具列表（无需用户确认）
   autoApproveAllTools?: boolean; // 自动批准所有工具（无需用户确认）
+  modelCallTimeout?: number;   // 单次模型调用超时（毫秒），不设置则不超时
 }
 
 /**

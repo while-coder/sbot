@@ -10,6 +10,7 @@ import {
     ReActAgentService, T_AgentSubNodes, T_CreateAgent, T_ThinkModelService,
     T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc,
     T_SkillSystemPromptTemplate, T_SkillToolReadDesc, T_SkillToolListDesc, T_SkillToolExecDesc,
+    T_ModelCallTimeout,
     type CreateAgentFn,
 } from "scorpio.ai";
 import { type AgentSchedulerContext } from "./AgentRunner";
@@ -138,6 +139,7 @@ export class AgentFactory {
         container.registerInstance(IModelService, await config.getModelService(entry.model, true));
         container.registerWithArgs(SingleAgentService, {
             [T_SystemPrompts]: systemPrompts,
+            ...(entry.modelCallTimeout != null && { [T_ModelCallTimeout]: entry.modelCallTimeout }),
         });
         return container.resolve(SingleAgentService);
     }
