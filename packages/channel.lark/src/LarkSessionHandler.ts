@@ -1,5 +1,5 @@
 import { LarkChatProvider } from "./LarkChatProvider";
-import { LarkReceiveIdType, LarkService } from "./LarkService";
+import { LarkChatType, LarkReceiveIdType, LarkService } from "./LarkService";
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import {
@@ -24,7 +24,7 @@ const EL_ABORT_BTN = 'abortBtn';
 
 export interface LarkMessageArgs extends ChannelMessageArgs {
   event_id: string;
-  chat_type: string;
+  chat_type: LarkChatType;
   root_id: string;
   message_id: string;
   message_type?: string;

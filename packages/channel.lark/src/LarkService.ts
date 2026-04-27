@@ -70,6 +70,8 @@ export interface LarkUserInfo {
   employee_type?: number;
 }
 
+export type LarkChatType = 'p2p' | 'group';
+
 export interface LarkChatInfo {
   avatar?: string;
   name?: string;
@@ -78,7 +80,7 @@ export interface LarkChatInfo {
   owner_id?: string;
   owner_id_type?: string;
   chat_mode?: string;
-  chat_type?: string;
+  chat_type?: LarkChatType;
   external?: boolean;
   tenant_key?: string;
   user_count?: string;
@@ -388,7 +390,7 @@ export class LarkService implements IChannelService {
       if (response.code !== 0) {
         throw new Error(`Failed to get chat info: ${response.msg}`);
       }
-      return response.data;
+      return response.data as LarkChatInfo;
     } catch (error: any) {
       this.logger?.error(`Error getting chat info: ${error.message}`);
     }
@@ -454,7 +456,7 @@ export class LarkService implements IChannelService {
           }
 
           if (!this.botOpenId) await this.fetchBotOpenId();
-          const mentionBot = mentions?.some((m: any) => m.mentioned_type === 'bot' && m.id?.open_id === this.botOpenId) ?? false;
+          const mentionBot = chat_type === 'p2p' || (mentions?.some((m: any) => m.mentioned_type === 'bot' && m.id?.open_id === this.botOpenId) ?? false);
           if (mentions != null) {
             query = removeMentions(query, mentions);
           }

@@ -471,7 +471,7 @@ async function refresh() {
                             </td>
                             <td>
                               <div class="ops-cell">
-                                <button v-if="c.saver" class="btn-outline btn-sm" @click="saverViewModal?.open(c.saver, saverOptions.find(o => o.id === c.saver)?.label || c.saver, threadId(id as string, c, s.sessionId))">{{ t('channels.history') }}</button>
+                                <button v-if="s.saver || c.saver" class="btn-outline btn-sm" @click="saverViewModal?.open(s.saver || c.saver, saverOptions.find(o => o.id === (s.saver || c.saver))?.label || (s.saver || c.saver), threadId(id as string, c, s.sessionId))">{{ t('channels.history') }}</button>
                                 <button class="btn-outline btn-sm" @click="openEditSession(s)">{{ t('common.edit') }}</button>
                                 <button class="btn-danger btn-sm" @click="removeSession(id as string, s)">{{ t('common.delete') }}</button>
                               </div>
