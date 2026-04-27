@@ -4,6 +4,7 @@ EXPOSE 5500
 VOLUME [ "/root/.sbot" ]
 
 ENV TZ=Asia/Shanghai
+ENV LOG_LEVEL=INFO
 
 WORKDIR /app
 
