@@ -1,13 +1,7 @@
 import fs from "fs";
 import path from "path";
-import { ChatToolCall, ICancellationToken, ToolApproval, MessageDispatcher, type MessageContent, type TokenUsage } from "scorpio.ai";
+import { ChatToolCall, ToolApproval, MessageDispatcher, type MessageContent, type TokenUsage } from "scorpio.ai";
 import { type AskResponse, type AskToolParams } from "./AskTool";
-
-export class CancellationTokenSource implements ICancellationToken {
-    private _isCancelled = false;
-    get isCancelled() { return this._isCancelled; }
-    cancel() { this._isCancelled = true; }
-}
 
 export enum SessionStatus {
     Thinking = 'thinking',
@@ -70,7 +64,8 @@ export abstract class SessionService extends MessageDispatcher {
     readonly threadId: string;
     startedAt: Date;
     status: SessionStatus;
-    source: CancellationTokenSource;
+    private controller: AbortController;
+    get signal(): AbortSignal { return this.controller.signal; }
     settings: SessionSettings = {};
     /** 本 session 累计 token 用量 */
     usage: TokenUsage = { input_tokens: 0, output_tokens: 0, total_tokens: 0 };
@@ -82,7 +77,7 @@ export abstract class SessionService extends MessageDispatcher {
         this.threadId = threadId;
         this.startedAt = new Date();
         this.status = SessionStatus.Thinking;
-        this.source = new CancellationTokenSource();
+        this.controller = new AbortController();
         this.settingsPath = settingsPath;
         if (settingsPath) {
             try { this.settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8')); } catch {}
@@ -231,6 +226,13 @@ export abstract class SessionService extends MessageDispatcher {
         if (p.type === PendingType.Approval) p.resolve(ToolApproval.Deny);
         else p.resolve('Cancelled by new interaction');
         this._syncStatus();
+    }
+
+    /** Cancel the session and prepare a fresh signal for the next cycle. */
+    abort(): void {
+        this.cancelPending();
+        this.controller.abort();
+        this.controller = new AbortController();
     }
 
     cleanup(): void {

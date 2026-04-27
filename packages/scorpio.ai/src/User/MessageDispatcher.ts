@@ -1,5 +1,6 @@
 import { Command as CommanderCommand } from "commander";
 import { CommandContext, CommandRegistry, ICommand } from "../Command";
+import { AgentCancelledError } from "../Agents/AgentServiceBase";
 import { GlobalLoggerService, ILogger } from "../Logger";
 import type { MessageContent } from "../Saver/IAgentSaverService";
 
@@ -58,7 +59,11 @@ export abstract class MessageDispatcher {
                 }
                 this.logger?.info(`处理完成[${logSuffix}]: ${queryText}`);
             } catch (e: any) {
-                this.logger?.error(`处理出错[${logSuffix}]: ${queryText} : ${e.message}\n${e.stack}`);
+                if (e instanceof AgentCancelledError) {
+                    this.logger?.info(`处理已取消[${logSuffix}]: ${queryText}`);
+                } else {
+                    this.logger?.error(`处理出错[${logSuffix}]: ${queryText} : ${e.message}\n${e.stack}`);
+                }
                 error = e;
             } finally {
                 await this.onProcessEnd(query, args, messageType, error);

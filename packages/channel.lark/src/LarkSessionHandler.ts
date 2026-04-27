@@ -4,7 +4,7 @@ import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import {
   ChannelSessionHandler, ToolCallStatus, SessionService, createAskTool, createSendFileTool,
-  GlobalLoggerService, AskQuestionType, summarizeMultimodal,
+  GlobalLoggerService, AskQuestionType, summarizeMultimodal, AgentCancelledError,
   type StructuredToolInterface,
   type ChannelMessageArgs, type ChatMessage, type ChatToolCall, type AskToolParams, type MessageType, type MessageContent,
 } from "channel.base";
@@ -59,7 +59,11 @@ export class LarkSessionHandler extends ChannelSessionHandler {
 
   async onProcessEnd(_query: MessageContent, _args: any, _messageType: MessageType, error?: any): Promise<void> {
     if (error && this.provider) {
-      await this.provider.setMessage(`Error generating reply: ${error.message}\n${error.stack}`);
+      if (error instanceof AgentCancelledError) {
+        await this.provider.setMessage('已中断');
+      } else {
+        await this.provider.setMessage(`Error generating reply: ${error.message}\n${error.stack}`);
+      }
     }
     const queryText = typeof _query === 'string' ? _query : summarizeMultimodal(_query);
     getLogger()?.info(`onProcessEnd: clearing abort button, query=${queryText}, provider=${!!this.provider}`);

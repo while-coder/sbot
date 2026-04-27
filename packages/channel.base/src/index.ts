@@ -19,7 +19,7 @@ export { SessionService, SessionSettings, SessionStatus, SessionInfo, AskInfo, A
 // Re-export scorpio.ai types for channel implementations
 export { GlobalLoggerService, type ILogger } from "scorpio.ai";
 export { MessageRole, NowDate, parseJson } from "scorpio.ai";
-export { ToolApproval } from "scorpio.ai";
+export { ToolApproval, AgentCancelledError } from "scorpio.ai";
 export type { ChatMessage, ChatToolCall, MessageType, MessageContent } from "scorpio.ai";
 export { contentToString, trimContent, isEmptyContent, readImageAsDataUrl, readMediaAsContentPart, detectMediaType, summarizeMultimodal } from "scorpio.ai";
 export type { MediaCategory, ContentPart } from "scorpio.ai";
