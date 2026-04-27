@@ -32,7 +32,7 @@ export abstract class SessionManager {
     abort(threadId: string): boolean {
         const session = this.sessions.get(threadId);
         if (!session) return false;
-        session.source.cancel();
+        session.abort();
         return true;
     }
 

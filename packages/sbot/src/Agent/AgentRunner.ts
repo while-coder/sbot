@@ -72,7 +72,7 @@ export class AgentRunner {
         if (!saverId.trim())   throw new Error("saver not specified");
         if (!threadId.trim())  throw new Error("threadId not specified");
 
-        const cancellationToken = sessionManager.getOrCreate(threadId).source;
+        const signal = sessionManager.getOrCreate(threadId).signal;
         const now = new Date();
         const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
         const assetsDir = config.getConfigPath('assets', true);
@@ -107,7 +107,7 @@ export class AgentRunner {
 
         const agent = await AgentFactory.create({ agentId, container, extraPrompts, agentTools, scheduler });
         try {
-            await agent.stream(query, callbacks, cancellationToken);
+            await agent.stream(query, callbacks, signal);
         } finally {
             await agent.dispose();
         }

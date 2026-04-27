@@ -99,6 +99,6 @@ export abstract class ChannelSessionHandler {
   }
 
   protected abort(): void {
-    this.session.source.cancel();
+    this.session.abort();
   }
 }
