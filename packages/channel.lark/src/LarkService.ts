@@ -37,14 +37,62 @@ export enum LarkUserIdType {
   UserId  = 'user_id',
 }
 
+export interface LarkUserInfo {
+  union_id?: string;
+  user_id?: string;
+  open_id?: string;
+  name?: string;
+  en_name?: string;
+  nickname?: string;
+  email?: string;
+  mobile?: string;
+  gender?: number;
+  avatar?: {
+    avatar_72?: string;
+    avatar_240?: string;
+    avatar_640?: string;
+    avatar_origin?: string;
+  };
+  status?: {
+    is_frozen?: boolean;
+    is_resigned?: boolean;
+    is_activated?: boolean;
+    is_exited?: boolean;
+    is_unjoin?: boolean;
+  };
+  department_ids?: string[];
+  leader_user_id?: string;
+  city?: string;
+  country?: string;
+  work_station?: string;
+  join_time?: number;
+  employee_no?: string;
+  employee_type?: number;
+}
+
+export interface LarkChatInfo {
+  avatar?: string;
+  name?: string;
+  description?: string;
+  i18n_names?: { zh_cn?: string; en_us?: string; ja_jp?: string };
+  owner_id?: string;
+  owner_id_type?: string;
+  chat_mode?: string;
+  chat_type?: string;
+  external?: boolean;
+  tenant_key?: string;
+  user_count?: string;
+  bot_count?: string;
+}
+
 export interface LarkServiceOptions {
   appId: string;
   appSecret: string;
   userIdType: LarkUserIdType;
   logger?: ILogger;
   filterEvent: (eventId: string) => Promise<boolean>;
-  onReceiveMessage: (userId: string, userInfo:any, chatInfo: any, args: LarkMessageArgs, query: MessageContent) => Promise<void>;
-  onTriggerAction: (userId: string, userInfo: any, chatInfo: any, args: LarkActionArgs) => Promise<void>;
+  onReceiveMessage: (userId: string, userInfo: LarkUserInfo | undefined, chatInfo: LarkChatInfo | undefined, args: LarkMessageArgs, query: MessageContent) => Promise<void>;
+  onTriggerAction: (userId: string, userInfo: LarkUserInfo | undefined, chatInfo: LarkChatInfo | undefined, args: LarkActionArgs) => Promise<void>;
 }
 
 
@@ -59,8 +107,8 @@ export class LarkService implements IChannelService {
   private larkLogger: any;
   private loggerLevel: Lark.LoggerLevel;
   private filterEvent: (eventId: string) => Promise<boolean>;
-  private onReceiveMessage: (userId: string, userInfo:any, chatInfo: any, args: LarkMessageArgs, query: MessageContent) => Promise<void>;
-  private onTriggerAction: (userId: string, userInfo: any, chatInfo: any, args: LarkActionArgs) => Promise<void>;
+  private onReceiveMessage: (userId: string, userInfo: LarkUserInfo | undefined, chatInfo: LarkChatInfo | undefined, args: LarkMessageArgs, query: MessageContent) => Promise<void>;
+  private onTriggerAction: (userId: string, userInfo: LarkUserInfo | undefined, chatInfo: LarkChatInfo | undefined, args: LarkActionArgs) => Promise<void>;
   private userIdType: LarkUserIdType;
   private tenantAccessToken: string = '';
   private tokenExpireTime: number = 0;
@@ -314,7 +362,7 @@ export class LarkService implements IChannelService {
   }
 
   /** https://open.feishu.cn/document/server-docs/contact-v3/user/get */
-  private async getUserInfo(userId: string, userIdType?: LarkUserIdType) {
+  private async getUserInfo(userId: string, userIdType?: LarkUserIdType): Promise<LarkUserInfo | undefined> {
     try {
       const idType = (userIdType || this.userIdType) as LarkUserIdType;
       const response = await this.larkClient.contact.user.get({
@@ -331,7 +379,7 @@ export class LarkService implements IChannelService {
   }
 
   /** https://open.feishu.cn/document/server-docs/group/chat/get-2 */
-  private async getChatInfo(chatId: string) {
+  private async getChatInfo(chatId: string): Promise<LarkChatInfo | undefined> {
     try {
       const response = await this.larkClient.im.v1.chat.get({
         path: { chat_id: chatId },

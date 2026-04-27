@@ -2,10 +2,10 @@ import {
   ChannelPlugin, ChannelPluginContext, IChannelService, ConfigFieldType,
   type MessageContent,
 } from "channel.base";
-import { LarkService, LarkReceiveIdType, LarkUserIdType } from "./LarkService";
+import { LarkService, LarkReceiveIdType, LarkUserIdType, type LarkUserInfo, type LarkChatInfo } from "./LarkService";
 import { LarkMessageArgs, LarkActionArgs } from "./LarkSessionHandler";
 
-function buildLarkExtraInfo(userInfo: any, chatId?: string, messageId?: string): string {
+function buildLarkExtraInfo(userInfo: LarkUserInfo | undefined, chatId?: string, messageId?: string): string {
   if (!userInfo) return '';
   return `<lark-info>
   <name>${userInfo.name}</name>
@@ -34,9 +34,9 @@ export const larkPlugin: ChannelPlugin = {
       logger,
       userIdType: LarkUserIdType.UnionId,
       filterEvent,
-      onReceiveMessage: async (userId: string, userInfo: any, chatInfo: any, args: LarkMessageArgs, query: MessageContent) => {
+      onReceiveMessage: async (userId: string, userInfo: LarkUserInfo | undefined, chatInfo: LarkChatInfo | undefined, args: LarkMessageArgs, query: MessageContent) => {
         const sessionName = chatInfo
-          ? (chatInfo.chat_mode === 'p2p' ? `p2p_${userId}` : `${chatInfo.chat_mode}_${chatInfo.name}`)
+          ? (chatInfo.chat_mode === 'p2p' ? `p2p_${userInfo?.name || userId}` : `${chatInfo.chat_mode}_${chatInfo.name}`)
           : '';
         const session = await initSession({
           userId,
@@ -50,9 +50,9 @@ export const larkPlugin: ChannelPlugin = {
         });
         await onReceiveMessage(session, query, { ...args, extraInfo: buildLarkExtraInfo(userInfo, args.sessionId, args.message_id) });
       },
-      onTriggerAction: async (userId: string, userInfo: any, chatInfo: any, args: LarkActionArgs) => {
+      onTriggerAction: async (userId: string, userInfo: LarkUserInfo | undefined, chatInfo: LarkChatInfo | undefined, args: LarkActionArgs) => {
         const sessionName = chatInfo
-          ? (chatInfo.chat_mode === 'p2p' ? `p2p_${userId}` : `${chatInfo.chat_mode}_${chatInfo.name}`)
+          ? (chatInfo.chat_mode === 'p2p' ? `p2p_${userInfo?.name || userId}` : `${chatInfo.chat_mode}_${chatInfo.name}`)
           : '';
         const session = await initSession({
           userId,

@@ -20,7 +20,6 @@ import { config, AgentMode, SingleAgentEntry, ReactAgentEntry, GenerativeAgentEn
 import { loadPrompt } from "../Core/PromptLoader";
 import { globalAgentToolService } from "./GlobalAgentToolService";
 import { globalSkillService, getSkillsDirsMap } from "./GlobalSkillService";
-import { getLogger } from "log4js";
 
 
 export interface AgentCreateOptions {
