@@ -14,7 +14,7 @@ export {
 export { type StructuredToolInterface } from '@langchain/core/tools';
 export { parseMessages2Text } from './ProviderMessage';
 export { SessionManager } from './SessionManager';
-export { SessionService, SessionSettings, SessionStatus, SessionInfo, AskInfo, ApprovalInfo, CancellationTokenSource } from './SessionService';
+export { SessionService, SessionSettings, SessionStatus, SessionInfo, AskInfo, ApprovalInfo } from './SessionService';
 
 // Re-export scorpio.ai types for channel implementations
 export { GlobalLoggerService, type ILogger } from "scorpio.ai";
