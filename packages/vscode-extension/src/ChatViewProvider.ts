@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { WebChatEventType, type WebChatEvent } from 'sbot.commons';
 import { SbotClient } from './SbotClient';
-import { loadCliSettings, addRemote, addWorkPath } from './cliSettings';
+import { loadCliSettings, addRemote, updateRemote, removeRemote, addWorkPath, updateWorkPath, removeWorkPath } from './cliSettings';
 
 function getLocalBaseUrl(): string {
   const { readFileSync, existsSync } = require('node:fs');
@@ -124,6 +124,33 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         if (!remote) return;
         this.switchClient(`http://${remote.host}:${remote.port}`);
         await this.sendInit();
+        break;
+      }
+      case 'updateRemote': {
+        updateRemote(msg.remoteIndex, msg.patch);
+        this.sendServerList();
+        break;
+      }
+      case 'removeRemote': {
+        removeRemote(msg.remoteIndex);
+        if (this.remoteIndex === msg.remoteIndex) {
+          this.remoteIndex = -1;
+        }
+        this.sendServerList();
+        break;
+      }
+      case 'updateWorkPath': {
+        updateWorkPath(this.remoteIndex, msg.wpIndex, msg.patch);
+        const s1 = loadCliSettings();
+        const r1 = s1.remotes[this.remoteIndex];
+        if (r1) this.postMessage({ type: 'workDirList', remoteIndex: this.remoteIndex, remote: r1 });
+        break;
+      }
+      case 'removeWorkPath': {
+        removeWorkPath(this.remoteIndex, msg.wpIndex);
+        const s2 = loadCliSettings();
+        const r2 = s2.remotes[this.remoteIndex];
+        if (r2) this.postMessage({ type: 'workDirList', remoteIndex: this.remoteIndex, remote: r2 });
         break;
       }
       case 'backToServerPick': {

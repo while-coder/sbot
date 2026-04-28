@@ -161,6 +161,22 @@ export function useChat() {
     vscode.postMessage({ type: 'addWorkDir', path, alias });
   }
 
+  function updateRemote(remoteIndex: number, patch: { name?: string; host?: string; port?: number }) {
+    vscode.postMessage({ type: 'updateRemote', remoteIndex, patch });
+  }
+
+  function removeRemote(remoteIndex: number) {
+    vscode.postMessage({ type: 'removeRemote', remoteIndex });
+  }
+
+  function updateWorkPath(wpIndex: number, patch: { path?: string; alias?: string }) {
+    vscode.postMessage({ type: 'updateWorkPath', wpIndex, patch });
+  }
+
+  function removeWorkPath(wpIndex: number) {
+    vscode.postMessage({ type: 'removeWorkPath', wpIndex });
+  }
+
   function backToServerPick() {
     vscode.postMessage({ type: 'backToServerPick' });
   }
@@ -195,8 +211,12 @@ export function useChat() {
     selectLocal,
     selectRemote,
     addRemote,
+    updateRemote,
+    removeRemote,
     selectWorkDir,
     addWorkDir,
+    updateWorkPath,
+    removeWorkPath,
     backToServerPick,
     selectSession,
     createSession,

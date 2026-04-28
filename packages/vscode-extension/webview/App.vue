@@ -16,6 +16,8 @@
         @selectLocal="selectLocal"
         @selectRemote="selectRemote"
         @addRemote="addRemote"
+        @updateRemote="updateRemote"
+        @removeRemote="removeRemote"
       />
     </template>
 
@@ -24,6 +26,8 @@
         :remote="state.currentRemote"
         @select="selectWorkDir"
         @add="addWorkDir"
+        @updateWorkPath="updateWorkPath"
+        @removeWorkPath="removeWorkPath"
         @back="backToServerPick"
       />
     </template>
@@ -68,8 +72,12 @@ const {
   selectLocal,
   selectRemote,
   addRemote,
+  updateRemote,
+  removeRemote,
   selectWorkDir,
   addWorkDir,
+  updateWorkPath,
+  removeWorkPath,
   backToServerPick,
   selectSession,
   createSession,

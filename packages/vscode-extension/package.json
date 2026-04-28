@@ -7,7 +7,10 @@
   "engines": {
     "vscode": "^1.85.0"
   },
-  "categories": ["AI", "Chat"],
+  "categories": [
+    "AI",
+    "Chat"
+  ],
   "main": "./dist/extension.js",
   "activationEvents": [],
   "contributes": {
@@ -57,12 +60,17 @@
     "ws": "catalog:"
   },
   "devDependencies": {
+    "@tiptap/extension-dropcursor": "^3.22.4",
+    "@tiptap/extension-image": "^3.22.4",
+    "@tiptap/extension-placeholder": "^3.22.4",
+    "@tiptap/starter-kit": "^3.22.4",
+    "@tiptap/vue-3": "^3.22.4",
     "@types/node": "catalog:",
     "@types/vscode": "^1.85.0",
     "@types/ws": "catalog:",
     "@vitejs/plugin-vue": "^6.0.6",
-    "esbuild": "^0.28.0",
     "concurrently": "^9.1.0",
+    "esbuild": "^0.28.0",
     "marked": "^18.0.2",
     "typescript": "catalog:",
     "vite": "^8.0.9",

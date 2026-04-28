@@ -8,15 +8,29 @@
     </button>
 
     <div v-if="remotes.length" class="server-list">
-      <button
-        v-for="(r, i) in remotes"
-        :key="i"
-        class="server-item"
-        @click="$emit('selectRemote', i)"
-      >
-        <span class="server-name">{{ r.name }}</span>
-        <span class="server-desc">{{ r.host }}:{{ r.port }}</span>
-      </button>
+      <div v-for="(r, i) in remotes" :key="i" class="server-row">
+        <template v-if="editingIndex === i">
+          <div class="edit-form">
+            <input v-model="editName" placeholder="名称" />
+            <input v-model="editHost" placeholder="Host" />
+            <input v-model.number="editPort" type="number" placeholder="Port" />
+            <div class="edit-actions">
+              <button class="btn-sm btn-save" @click="onSaveEdit(i)">保存</button>
+              <button class="btn-sm btn-cancel" @click="editingIndex = -1">取消</button>
+            </div>
+          </div>
+        </template>
+        <template v-else>
+          <button class="server-item" @click="$emit('selectRemote', i)">
+            <span class="server-name">{{ r.name }}</span>
+            <span class="server-desc">{{ r.host }}:{{ r.port }}</span>
+          </button>
+          <div class="item-actions">
+            <button class="btn-icon" title="编辑" @click.stop="startEdit(i, r)">&#9998;</button>
+            <button class="btn-icon btn-danger" title="删除" @click.stop="$emit('removeRemote', i)">&times;</button>
+          </div>
+        </template>
+      </div>
     </div>
 
     <div class="divider"></div>
@@ -46,11 +60,18 @@ const emit = defineEmits<{
   selectLocal: [];
   selectRemote: [index: number];
   addRemote: [name: string, host: string, port: number];
+  updateRemote: [index: number, patch: { name?: string; host?: string; port?: number }];
+  removeRemote: [index: number];
 }>();
 
 const host = ref('');
 const port = ref(3000);
 const name = ref('');
+
+const editingIndex = ref(-1);
+const editName = ref('');
+const editHost = ref('');
+const editPort = ref(3000);
 
 function onAdd() {
   if (!host.value) return;
@@ -58,6 +79,18 @@ function onAdd() {
   host.value = '';
   port.value = 3000;
   name.value = '';
+}
+
+function startEdit(i: number, r: RemoteEntry) {
+  editingIndex.value = i;
+  editName.value = r.name;
+  editHost.value = r.host;
+  editPort.value = r.port;
+}
+
+function onSaveEdit(i: number) {
+  emit('updateRemote', i, { name: editName.value, host: editHost.value, port: editPort.value });
+  editingIndex.value = -1;
 }
 </script>
 
@@ -80,7 +113,13 @@ h3 {
   flex-direction: column;
   gap: 4px;
 }
+.server-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 .server-item {
+  flex: 1;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -102,6 +141,65 @@ h3 {
   font-size: 11px;
   color: var(--vscode-descriptionForeground);
 }
+.item-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.btn-icon {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--vscode-descriptionForeground);
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-icon:hover { background: var(--vscode-list-hoverBackground); color: var(--vscode-foreground); }
+.btn-icon.btn-danger:hover { color: var(--vscode-errorForeground, #f48771); }
+.edit-form {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--vscode-focusBorder);
+  border-radius: 6px;
+}
+.edit-form input {
+  padding: 3px 6px;
+  border: 1px solid var(--vscode-input-border, rgba(255,255,255,0.1));
+  border-radius: 4px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  font-size: 12px;
+}
+.edit-actions {
+  display: flex;
+  gap: 4px;
+}
+.btn-sm {
+  padding: 3px 8px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+}
+.btn-save {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+.btn-save:hover { background: var(--vscode-button-hoverBackground); }
+.btn-cancel {
+  background: transparent;
+  color: var(--vscode-descriptionForeground);
+  border: 1px solid var(--vscode-widget-border, rgba(255,255,255,0.1));
+}
+.btn-cancel:hover { background: var(--vscode-list-hoverBackground); }
 .divider {
   height: 1px;
   background: var(--vscode-widget-border, rgba(255,255,255,0.1));
