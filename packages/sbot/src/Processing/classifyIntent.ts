@@ -42,6 +42,7 @@ export async function classifyIntent(
   intentModelId: string,
   intentPrompt: string | null,
   intentThreshold: number,
+  sessionName?: string,
 ): Promise<boolean> {
   const modelService = await config.getModelService(intentModelId);
   if (!modelService) return true;
@@ -53,18 +54,23 @@ export async function classifyIntent(
     ], { signal: AbortSignal.timeout(120_000) });
 
     const shouldReply = result.shouldReply && result.confidence >= intentThreshold;
-    if (!shouldReply) {
+    if (shouldReply) {
       const text = typeof query === 'string'
         ? query
         : query.filter(b => b.type === 'text').map(b => b.text).join('\n');
-      logger.info(`意图过滤: "${text.length > 80 ? text.slice(0, 80) + '...' : text}" (置信度=${result.confidence}, 阈值=${intentThreshold}, 原因=${result.reasoning})`);
+      logger.info(`[${sessionName ?? '?'}] 意图通过: "${text.length > 80 ? text.slice(0, 80) + '...' : text}" (置信度=${result.confidence}, 阈值=${intentThreshold}, 原因=${result.reasoning})`);
+    } else {
+      const text = typeof query === 'string'
+        ? query
+        : query.filter(b => b.type === 'text').map(b => b.text).join('\n');
+      logger.info(`[${sessionName ?? '?'}] 意图过滤: "${text.length > 80 ? text.slice(0, 80) + '...' : text}" (置信度=${result.confidence}, 阈值=${intentThreshold}, 原因=${result.reasoning})`);
     }
     return shouldReply;
   } catch (err) {
     const text = typeof query === 'string'
       ? query
       : query.filter(b => b.type === 'text').map(b => b.text).join('\n');
-    logger.error(`意图分类出错，默认过滤该消息, query="${text.length > 80 ? text.slice(0, 80) + '...' : text}"`, err);
+    logger.error(`[${sessionName ?? '?'}] 意图分类出错，默认过滤该消息, query="${text.length > 80 ? text.slice(0, 80) + '...' : text}"`, err);
     return false;
   } finally {
     await modelService.dispose();

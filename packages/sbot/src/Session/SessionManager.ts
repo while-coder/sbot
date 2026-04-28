@@ -56,7 +56,7 @@ class SbotSession extends SessionService {
         await this.getChannel(args).onProcessStart(query, this.argsWithQueue(args), messageType);
         const channelId = 'channelId' in args ? args.channelId : undefined;
         const channelName = channelId ? config.getChannel(channelId)?.name : undefined;
-        return [args.channelType, channelName ?? channelId].filter(Boolean).join('/') || undefined;
+        return [args.channelType, channelName ?? channelId, this.threadId].filter(Boolean).join('/');
     }
 
     protected async processAI(query: MessageContent, args: SessionRouteArgs): Promise<void> {
@@ -143,7 +143,7 @@ export class SbotSessionManager extends SessionManager {
                 if (intentModel) {
                     const intentPrompt = dbSession?.intentPrompt != null ? dbSession.intentPrompt : (channel?.intentPrompt ?? null);
                     const intentThreshold = dbSession?.intentThreshold != null ? dbSession.intentThreshold : (channel?.intentThreshold ?? 0.7);
-                    const shouldReply = await classifyIntent(query, intentModel, intentPrompt, intentThreshold);
+                    const shouldReply = await classifyIntent(query, intentModel, intentPrompt, intentThreshold, threadId);
                     if (!shouldReply) return;
                 }
             }
