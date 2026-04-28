@@ -10,6 +10,11 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./webview', import.meta.url)),
     },
   },
+  server: {
+    fs: {
+      allow: ['../..'],
+    },
+  },
   build: {
     outDir: '../dist/webview',
     emptyOutDir: true,

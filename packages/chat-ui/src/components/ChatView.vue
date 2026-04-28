@@ -78,9 +78,9 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue';
 import { marked } from 'marked';
-import type { StoredMessage, AgentOption, SaverOption, MemoryOption } from '../composables/useChat';
+import type { StoredMessage, AgentOption, SaverOption, MemoryOption, ContentPart } from '../types';
 import MessageItem from './MessageItem.vue';
-import RichInput, { type ContentPart } from './RichInput.vue';
+import RichInput from './RichInput.vue';
 
 const props = defineProps<{
   messages: StoredMessage[];

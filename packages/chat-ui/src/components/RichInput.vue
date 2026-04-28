@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, watch } from 'vue'
+import type { ContentPart } from '../types'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Image from '@tiptap/extension-image'
@@ -93,10 +94,6 @@ watch(() => props.placeholder, (val) => {
 onBeforeUnmount(() => {
   editor.value?.destroy()
 })
-
-export type ContentPart =
-  | { type: 'text'; text: string }
-  | { type: 'image'; dataUrl: string }
 
 function getContent(): { parts: ContentPart[] } {
   if (!editor.value) return { parts: [] }

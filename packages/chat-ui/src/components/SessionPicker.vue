@@ -40,7 +40,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import type { SessionItem, AgentOption, SaverOption } from '../composables/useChat';
+import type { SessionItem, AgentOption, SaverOption } from '../types';
 
 const props = defineProps<{
   sessions: SessionItem[];

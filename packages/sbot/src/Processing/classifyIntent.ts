@@ -61,7 +61,10 @@ export async function classifyIntent(
     }
     return shouldReply;
   } catch (err) {
-    logger.error("意图分类出错，默认过滤该消息", err);
+    const text = typeof query === 'string'
+      ? query
+      : query.filter(b => b.type === 'text').map(b => b.text).join('\n');
+    logger.error(`意图分类出错，默认过滤该消息, query="${text.length > 80 ? text.slice(0, 80) + '...' : text}"`, err);
     return false;
   } finally {
     await modelService.dispose();

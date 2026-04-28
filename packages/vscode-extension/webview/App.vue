@@ -59,9 +59,7 @@
 
 <script setup lang="ts">
 import { useChat } from './composables/useChat';
-import ServerPicker from './components/ServerPicker.vue';
-import SessionPicker from './components/SessionPicker.vue';
-import ChatView from './components/ChatView.vue';
+import { ServerPicker, SessionPicker, ChatView } from '@sbot/chat-ui';
 
 const {
   state,

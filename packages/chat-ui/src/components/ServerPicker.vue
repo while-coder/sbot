@@ -52,7 +52,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import type { RemoteEntry } from '../composables/useChat';
+import type { RemoteEntry } from '../types';
 
 defineProps<{ remotes: RemoteEntry[] }>();
 
