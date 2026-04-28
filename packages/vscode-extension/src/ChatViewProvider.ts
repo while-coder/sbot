@@ -1,47 +1,68 @@
 import * as vscode from 'vscode';
 import { WebChatEventType, type WebChatEvent } from 'sbot.commons';
 import { SbotClient } from './SbotClient';
+import { loadCliSettings, addRemote, addWorkPath } from './cliSettings';
 
-export class ChatViewProvider {
-  private panel: vscode.WebviewPanel | undefined;
-  private client: SbotClient;
+function getLocalBaseUrl(): string {
+  const { readFileSync, existsSync } = require('node:fs');
+  const { join } = require('node:path');
+  const { homedir } = require('node:os');
+  const { DEFAULT_PORT } = require('sbot.commons');
+  try {
+    const p = join(homedir(), '.sbot', 'settings.json');
+    if (existsSync(p)) {
+      const s = JSON.parse(readFileSync(p, 'utf-8'));
+      return `http://localhost:${s.httpPort ?? DEFAULT_PORT}`;
+    }
+  } catch { /* use default */ }
+  return `http://localhost:${DEFAULT_PORT}`;
+}
+
+export class ChatViewProvider implements vscode.WebviewViewProvider {
+  public static readonly viewType = 'sbot.chatView';
+
+  private view: vscode.WebviewView | undefined;
+  private client: SbotClient | undefined;
   private sessionId: string | undefined;
-  private workPath: string;
+  private workPath = '';
+  private remoteIndex = -1;
 
-  constructor(
-    private readonly extensionUri: vscode.Uri,
-    private readonly context: vscode.ExtensionContext,
-  ) {
-    this.workPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
-    this.client = new SbotClient();
-    this.client.addListener(this.onServerEvent);
+  constructor(private readonly extensionUri: vscode.Uri) {}
+
+  resolveWebviewView(
+    webviewView: vscode.WebviewView,
+    _context: vscode.WebviewViewResolveContext,
+    _token: vscode.CancellationToken,
+  ): void {
+    this.view = webviewView;
+
+    webviewView.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'dist', 'webview')],
+    };
+
+    webviewView.webview.html = this.getHtml(webviewView.webview);
+    webviewView.webview.onDidReceiveMessage(this.onWebviewMessage);
+    webviewView.onDidDispose(() => { this.view = undefined; });
+
+    this.sendServerList();
   }
 
-  async open(): Promise<void> {
-    if (this.panel) {
-      this.panel.reveal();
-      return;
-    }
+  private sendServerList(): void {
+    const { remotes } = loadCliSettings();
+    this.postMessage({ type: 'serverList', remotes });
+  }
 
-    this.panel = vscode.window.createWebviewPanel(
-      'sbotChat',
-      'sbot Chat',
-      vscode.ViewColumn.Beside,
-      {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-        localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'dist', 'webview')],
-      },
-    );
-
-    this.panel.webview.html = this.getHtml(this.panel.webview);
-    this.panel.webview.onDidReceiveMessage(this.onWebviewMessage, this, this.context.subscriptions);
-    this.panel.onDidDispose(() => { this.panel = undefined; }, this, this.context.subscriptions);
-
-    await this.sendInit();
+  private switchClient(baseUrl: string): void {
+    this.client?.dispose();
+    this.client = new SbotClient(baseUrl);
+    this.client.addListener(this.onServerEvent);
+    this.sessionId = undefined;
   }
 
   private async sendInit(): Promise<void> {
+    if (!this.client) return;
+
     const online = await this.client.isOnline();
     if (!online) {
       this.postMessage({ type: 'connectionStatus', online: false });
@@ -64,18 +85,68 @@ export class ChatViewProvider {
 
   private onWebviewMessage = async (msg: any) => {
     switch (msg.type) {
+      case 'selectLocal': {
+        this.remoteIndex = -1;
+        this.workPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+        this.switchClient(getLocalBaseUrl());
+        await this.sendInit();
+        break;
+      }
+      case 'selectRemote': {
+        const { remotes } = loadCliSettings();
+        const remote = remotes[msg.remoteIndex];
+        if (!remote) return;
+        this.remoteIndex = msg.remoteIndex;
+        this.postMessage({ type: 'workDirList', remoteIndex: msg.remoteIndex, remote });
+        break;
+      }
+      case 'addRemote': {
+        const settings = addRemote(msg.name || `${msg.host}:${msg.port}`, msg.host, msg.port);
+        this.remoteIndex = settings.remotes.length - 1;
+        const remote = settings.remotes[this.remoteIndex]!;
+        this.postMessage({ type: 'workDirList', remoteIndex: this.remoteIndex, remote });
+        break;
+      }
+      case 'selectWorkDir': {
+        const { remotes } = loadCliSettings();
+        const remote = remotes[this.remoteIndex];
+        if (!remote) return;
+        this.workPath = msg.path;
+        this.switchClient(`http://${remote.host}:${remote.port}`);
+        await this.sendInit();
+        break;
+      }
+      case 'addWorkDir': {
+        addWorkPath(this.remoteIndex, msg.path, msg.alias || msg.path.split(/[/\\]/).pop() || msg.path);
+        this.workPath = msg.path;
+        const { remotes } = loadCliSettings();
+        const remote = remotes[this.remoteIndex];
+        if (!remote) return;
+        this.switchClient(`http://${remote.host}:${remote.port}`);
+        await this.sendInit();
+        break;
+      }
+      case 'backToServerPick': {
+        this.client?.dispose();
+        this.client = undefined;
+        this.sessionId = undefined;
+        this.sendServerList();
+        break;
+      }
       case 'sendMessage': {
-        if (!this.sessionId) return;
+        if (!this.sessionId || !this.client) return;
         this.client.sendQuery(this.sessionId, msg.text);
         break;
       }
       case 'selectSession': {
+        if (!this.client) return;
         this.sessionId = msg.sessionId;
-        const history = await this.client.fetchHistory(this.sessionId);
+        const history = await this.client.fetchHistory(this.sessionId!);
         this.postMessage({ type: 'history', messages: history });
         break;
       }
       case 'createSession': {
+        if (!this.client) return;
         const id = await this.client.createSession(
           msg.agentId, msg.saverId, msg.memoryIds ?? [], this.workPath,
         );
@@ -84,7 +155,11 @@ export class ChatViewProvider {
         break;
       }
       case 'refreshInit': {
-        await this.sendInit();
+        if (this.client) {
+          await this.sendInit();
+        } else {
+          this.sendServerList();
+        }
         break;
       }
     }
@@ -112,7 +187,7 @@ export class ChatViewProvider {
   };
 
   private postMessage(msg: any): void {
-    this.panel?.webview.postMessage(msg);
+    this.view?.webview.postMessage(msg);
   }
 
   private getHtml(webview: vscode.Webview): string {
@@ -138,8 +213,7 @@ export class ChatViewProvider {
   }
 
   dispose(): void {
-    this.client.dispose();
-    this.panel?.dispose();
+    this.client?.dispose();
   }
 }
 

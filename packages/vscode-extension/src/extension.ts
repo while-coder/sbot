@@ -1,17 +1,16 @@
 import * as vscode from 'vscode';
 import { ChatViewProvider } from './ChatViewProvider';
 
-let provider: ChatViewProvider | undefined;
-
 export function activate(context: vscode.ExtensionContext) {
-  provider = new ChatViewProvider(context.extensionUri, context);
+  const provider = new ChatViewProvider(context.extensionUri);
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('sbot.openChat', () => provider!.open()),
-    { dispose: () => provider?.dispose() },
+    vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, provider),
+    vscode.commands.registerCommand('sbot.openChat', () => {
+      vscode.commands.executeCommand(`${ChatViewProvider.viewType}.focus`);
+    }),
+    { dispose: () => provider.dispose() },
   );
 }
 
-export function deactivate() {
-  provider?.dispose();
-}
+export function deactivate() {}

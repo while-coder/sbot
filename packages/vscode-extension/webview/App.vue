@@ -2,19 +2,40 @@
   <div class="app">
     <div class="header">
       <span class="title">sbot</span>
-      <span class="status" :class="{ online: state.online }">
+      <span v-if="state.phase !== 'server-pick'" class="btn-switch" @click="backToServerPick">
+        切换服务器
+      </span>
+      <span class="status" :class="{ online: state.online }" v-if="state.online || state.phase === 'session-pick' || state.phase === 'chat'">
         {{ state.online ? '已连接' : '未连接' }}
       </span>
     </div>
 
-    <template v-if="!state.online">
+    <template v-if="state.phase === 'server-pick'">
+      <ServerPicker
+        :remotes="state.remotes"
+        @selectLocal="selectLocal"
+        @selectRemote="selectRemote"
+        @addRemote="addRemote"
+      />
+    </template>
+
+    <template v-else-if="state.phase === 'workdir-pick' && state.currentRemote">
+      <WorkDirPicker
+        :remote="state.currentRemote"
+        @select="selectWorkDir"
+        @add="addWorkDir"
+        @back="backToServerPick"
+      />
+    </template>
+
+    <template v-else-if="!state.online && (state.phase === 'session-pick' || state.phase === 'chat')">
       <div class="center-msg">
         <p>无法连接到 sbot 服务器</p>
         <button class="btn-retry" @click="retry">重试</button>
       </div>
     </template>
 
-    <template v-else-if="!state.sessionId">
+    <template v-else-if="state.phase === 'session-pick'">
       <SessionPicker
         :sessions="state.sessions"
         :agents="state.agents"
@@ -24,7 +45,7 @@
       />
     </template>
 
-    <template v-else>
+    <template v-else-if="state.phase === 'chat'">
       <ChatView
         :messages="state.messages"
         :streamingContent="state.streamingContent"
@@ -37,16 +58,24 @@
 
 <script setup lang="ts">
 import { useChat } from './composables/useChat';
+import ServerPicker from './components/ServerPicker.vue';
+import WorkDirPicker from './components/WorkDirPicker.vue';
 import SessionPicker from './components/SessionPicker.vue';
 import ChatView from './components/ChatView.vue';
 
-const vscodeApi = acquireVsCodeApi();
-
-const { state, selectSession, createSession, sendMessage } = useChat();
-
-function retry() {
-  vscodeApi.postMessage({ type: 'refreshInit' });
-}
+const {
+  state,
+  selectLocal,
+  selectRemote,
+  addRemote,
+  selectWorkDir,
+  addWorkDir,
+  backToServerPick,
+  selectSession,
+  createSession,
+  sendMessage,
+  retry,
+} = useChat();
 </script>
 
 <style>
@@ -70,11 +99,19 @@ body {
   padding: 8px 12px;
   border-bottom: 1px solid var(--vscode-widget-border, rgba(255,255,255,0.1));
   flex-shrink: 0;
+  gap: 8px;
 }
 .title {
   font-weight: 600;
   font-size: 14px;
 }
+.btn-switch {
+  font-size: 11px;
+  color: var(--vscode-textLink-foreground, #3794ff);
+  cursor: pointer;
+  margin-left: auto;
+}
+.btn-switch:hover { text-decoration: underline; }
 .status {
   font-size: 11px;
   padding: 2px 8px;
