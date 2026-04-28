@@ -139,7 +139,7 @@ export class AgentFactory {
         container.registerInstance(IModelService, await config.getModelService(entry.model, true));
         container.registerWithArgs(SingleAgentService, {
             [T_SystemPrompts]: systemPrompts,
-            ...(entry.modelCallTimeout != null && { [T_ModelCallTimeout]: entry.modelCallTimeout }),
+            ...(entry.modelCallTimeout != null && { [T_ModelCallTimeout]: entry.modelCallTimeout * 1000 }),
         });
         return container.resolve(SingleAgentService);
     }

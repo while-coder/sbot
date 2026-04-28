@@ -202,7 +202,7 @@ defineExpose({ open })
         <!-- modelCallTimeout -->
         <div class="form-group" v-if="form.type !== AgentMode.Generative">
           <label>{{ t('agents.model_call_timeout') }}</label>
-          <input type="number" v-model.number="form.modelCallTimeout" min="0" step="1000" :placeholder="t('agents.model_call_timeout_placeholder')" />
+          <input type="number" v-model.number="form.modelCallTimeout" min="0" step="1" :placeholder="t('agents.model_call_timeout_placeholder')" />
         </div>
 
         <!-- ReAct fields -->

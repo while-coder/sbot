@@ -520,7 +520,7 @@ export default {
     basic_info: '基本信息',
     system_prompt: '系统提示词',
     auto_approve_all_tools: '自动批准所有工具',
-    model_call_timeout: '模型调用超时（毫秒）',
+    model_call_timeout: '模型调用超时（秒）',
     model_call_timeout_placeholder: '不填则不超时',
     use_all: '使用全部',
     items_selected: '项已选',
