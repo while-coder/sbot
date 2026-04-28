@@ -159,3 +159,5 @@ export function useChat(transport: IChatTransport) {
     retry,
   };
 }
+
+export type ChatInstance = ReturnType<typeof useChat>;
