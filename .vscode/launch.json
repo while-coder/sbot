@@ -24,6 +24,18 @@
       "skipFiles": ["<node_internals>/**"]
     },
     {
+      "name": "Run sbot Extension",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}/packages/vscode-extension"
+      ],
+      "outFiles": [
+        "${workspaceFolder}/packages/vscode-extension/dist/**/*.js"
+      ],
+      "preLaunchTask": "build:vscode-extension"
+    },
+    {
       "type": "node",
       "request": "launch",
       "name": "Launch cli",

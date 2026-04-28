@@ -1,0 +1,53 @@
+{
+  "name": "sbot-vscode",
+  "displayName": "sbot",
+  "description": "Chat with sbot AI server inside VS Code",
+  "version": "0.0.1",
+  "private": true,
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["AI", "Chat"],
+  "main": "./dist/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      {
+        "command": "sbot.openChat",
+        "title": "sbot: Open Chat"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "sbot.openChat",
+        "key": "ctrl+shift+b",
+        "mac": "cmd+shift+b"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "pnpm run build:ext && pnpm run build:webview",
+    "build:ext": "node scripts/build-ext.mjs",
+    "build:webview": "vite build",
+    "watch:ext": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch",
+    "watch:webview": "vite build --watch",
+    "dev": "concurrently \"pnpm run watch:ext\" \"pnpm run watch:webview\""
+  },
+  "dependencies": {
+    "axios": "catalog:",
+    "sbot.commons": "workspace:*",
+    "ws": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/vscode": "^1.85.0",
+    "@types/ws": "catalog:",
+    "@vitejs/plugin-vue": "^6.0.6",
+    "esbuild": "^0.28.0",
+    "concurrently": "^9.1.0",
+    "marked": "^18.0.2",
+    "typescript": "catalog:",
+    "vite": "^8.0.9",
+    "vue": "^3.5.33"
+  }
+}
