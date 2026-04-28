@@ -80,6 +80,14 @@ export interface Settings {
   agentSources?: AgentSourceEntry[];
 }
 
+// Record<keyof Settings, true> 保证与接口同步：漏写或多写都会编译报错
+const SETTINGS_KEYS: ReadonlySet<string> = new Set(Object.keys({
+  httpPort: true, httpUrl: true, autoApproveTools: true, autoApproveAllTools: true,
+  startupCommands: true, checkUpdateTime: true,
+  models: true, embeddings: true, savers: true, memories: true, wikis: true, channels: true,
+  plugins: true, agentSources: true,
+} satisfies Record<keyof Settings, true>));
+
 /**
  * 检查 agentId 是否合法：不含路径非法字符、不含空格、首尾无特殊字符、非空
  */
@@ -287,7 +295,13 @@ class Config {
     try {
       if (fs.existsSync(settingsPath)) {
         const content = fs.readFileSync(settingsPath, "utf-8");
-        this._settings = JSON.parse(content);
+        const raw = JSON.parse(content);
+        let dirty = false;
+        for (const key of Object.keys(raw)) {
+          if (!SETTINGS_KEYS.has(key)) { delete raw[key]; dirty = true; }
+        }
+        this._settings = raw;
+        if (dirty) this.saveSettings();
       } else {
         // 创建默认配置文件
         this.createDefaultSettings(settingsPath);

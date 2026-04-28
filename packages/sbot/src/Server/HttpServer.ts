@@ -106,11 +106,13 @@ function registerSettingsCrud(
         checkOnDelete?: boolean;
         afterSave?: (id: string) => Promise<void> | void;
         createReturn?: (id: string, body: any) => any;
+        getSettings?: () => any;
     },
 ) {
     const label = opts?.label ?? section.charAt(0).toUpperCase() + section.slice(1, -1);
     const checkOnUpdate = opts?.checkOnUpdate ?? true;
     const checkOnDelete = opts?.checkOnDelete ?? false;
+    const getSettings = opts?.getSettings ?? (() => config.settings);
     const getSection = (): Record<string, any> => {
         const s = config.settings as any;
         if (!s[section]) s[section] = {};
@@ -124,7 +126,7 @@ function registerSettingsCrud(
         map[id] = req.body;
         config.saveSettings();
         await opts?.afterSave?.(id);
-        return opts?.createReturn ? opts.createReturn(id, req.body) : config.settings;
+        return opts?.createReturn ? opts.createReturn(id, req.body) : getSettings();
     }));
 
     app.put(`/api/settings/${section}/:id`, api(async req => {
@@ -134,7 +136,7 @@ function registerSettingsCrud(
         map[id] = req.body;
         config.saveSettings();
         await opts?.afterSave?.(id);
-        return opts?.createReturn ? opts.createReturn(id, req.body) : config.settings;
+        return opts?.createReturn ? opts.createReturn(id, req.body) : getSettings();
     }));
 
     app.delete(`/api/settings/${section}/:id`, api(async req => {
@@ -144,7 +146,7 @@ function registerSettingsCrud(
         delete map[id];
         config.saveSettings();
         await opts?.afterSave?.(id);
-        return config.settings;
+        return getSettings();
     }));
 }
 
@@ -476,15 +478,14 @@ class HttpServer {
         app.get('/api/settings', api(() => this.settingsWithAgents()));
 
         app.put('/api/settings/general', api(req => {
-            const { httpPort, httpUrl, lark, autoApproveTools, autoApproveAllTools, startupCommands } = req.body;
+            const { httpPort, httpUrl, autoApproveTools, autoApproveAllTools, startupCommands } = req.body;
             if (httpPort !== undefined) config.settings.httpPort = httpPort || undefined;
             if (httpUrl !== undefined) config.settings.httpUrl = httpUrl || undefined;
-            if (lark !== undefined) (config.settings as any).lark = lark;
             if (autoApproveTools !== undefined) config.settings.autoApproveTools = autoApproveTools;
             if (autoApproveAllTools !== undefined) config.settings.autoApproveAllTools = autoApproveAllTools;
             if (startupCommands !== undefined) config.settings.startupCommands = startupCommands;
             config.saveSettings();
-            return config.settings;
+            return this.settingsWithAgents();
         }));
 
         // Fetch available models from a provider's baseURL
@@ -548,14 +549,16 @@ class HttpServer {
             }
         }));
 
+        const getSettings = () => this.settingsWithAgents();
         registerSettingsCrud(app, 'models', {
             label: 'Model',
             afterSave: (id) => fetchAndSaveContextWindow(id).catch(() => {}),
+            getSettings,
         });
-        registerSettingsCrud(app, 'embeddings', { label: 'Embedding' });
-        registerSettingsCrud(app, 'savers', { label: 'Saver config' });
-        registerSettingsCrud(app, 'memories', { label: 'Memory config' });
-        registerSettingsCrud(app, 'wikis', { label: 'Wiki config' });
+        registerSettingsCrud(app, 'embeddings', { label: 'Embedding', getSettings });
+        registerSettingsCrud(app, 'savers', { label: 'Saver config', getSettings });
+        registerSettingsCrud(app, 'memories', { label: 'Memory config', getSettings });
+        registerSettingsCrud(app, 'wikis', { label: 'Wiki config', getSettings });
         this.registerAgentRoutes(app);
         registerSettingsCrud(app, 'channels', {
             label: 'Channel',
@@ -563,6 +566,7 @@ class HttpServer {
             checkOnDelete: true,
             afterSave: (id) => channelManager.reloadChannel(id),
             createReturn: (id, body) => ({ id, ...body }),
+            getSettings,
         });
         app.get('/api/sessions', api(async req => {
             const workPath = req.query.workPath as string | undefined;
