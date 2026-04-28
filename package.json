@@ -13,6 +13,7 @@
     "unlink:sbot": "npm unlink -g @qingfeng346/sbot",
 
     "debug:website": "pnpm run build:deps && pnpm --filter sbot-website run debug",
+    "debug:pwa": "pnpm --filter @sbot/pwa run dev",
 
     "debug:cli": "pnpm run build:deps && pnpm --filter sbot-cli run debug",
     "publish:cli": "pnpm run build:deps && pnpm --filter sbot-cli publish --no-git-checks",

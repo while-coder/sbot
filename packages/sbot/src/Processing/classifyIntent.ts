@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MessageRole, type MessageContent } from "scorpio.ai";
+import { MessageRole, truncate, type MessageContent } from "scorpio.ai";
 import { config } from "../Core/Config";
 import { LoggerService } from "../Core/LoggerService";
 
@@ -46,31 +46,21 @@ export async function classifyIntent(
 ): Promise<boolean> {
   const modelService = await config.getModelService(intentModelId);
   if (!modelService) return true;
-
+  let text = truncate(typeof query === 'string' ? query : query.filter(b => b.type === 'text').map(b => b.text).join('\n'), 100);
   try {
     const result = await modelService.invokeStructured<IntentResult>(IntentSchema, [
       { role: MessageRole.System, content: intentPrompt || DEFAULT_INTENT_PROMPT },
       { role: MessageRole.Human, content: query },
     ], { signal: AbortSignal.timeout(120_000) });
-
     const shouldReply = result.shouldReply && result.confidence >= intentThreshold;
     if (shouldReply) {
-      const text = typeof query === 'string'
-        ? query
-        : query.filter(b => b.type === 'text').map(b => b.text).join('\n');
-      logger.info(`[${sessionName ?? '?'}] 意图通过: "${text.length > 80 ? text.slice(0, 80) + '...' : text}" (置信度=${result.confidence}, 阈值=${intentThreshold}, 原因=${result.reasoning})`);
+      logger.info(`[${sessionName ?? '?'}] 意图通过: "${text}" (置信度=${result.confidence}, 阈值=${intentThreshold}, 原因=${result.reasoning})`);
     } else {
-      const text = typeof query === 'string'
-        ? query
-        : query.filter(b => b.type === 'text').map(b => b.text).join('\n');
-      logger.info(`[${sessionName ?? '?'}] 意图过滤: "${text.length > 80 ? text.slice(0, 80) + '...' : text}" (置信度=${result.confidence}, 阈值=${intentThreshold}, 原因=${result.reasoning})`);
+      logger.info(`[${sessionName ?? '?'}] 意图过滤: "${text}" (置信度=${result.confidence}, 阈值=${intentThreshold}, 原因=${result.reasoning})`);
     }
     return shouldReply;
   } catch (err) {
-    const text = typeof query === 'string'
-      ? query
-      : query.filter(b => b.type === 'text').map(b => b.text).join('\n');
-    logger.error(`[${sessionName ?? '?'}] 意图分类出错，默认过滤该消息, query="${text.length > 80 ? text.slice(0, 80) + '...' : text}"`, err);
+    logger.error(`[${sessionName ?? '?'}] 意图分类出错，默认过滤该消息, query="${text}"`, err);
     return false;
   } finally {
     await modelService.dispose();
