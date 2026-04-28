@@ -1,6 +1,6 @@
 <template>
   <div class="session-picker">
-    <h3>选择会话</h3>
+    <h3>{{ L.selectSession }}</h3>
     <div class="session-list" v-if="sessions.length">
       <button
         v-for="s in sortedSessions"
@@ -16,10 +16,10 @@
         <span v-if="s.workPath" class="session-path" :title="s.workPath">{{ s.workPath }}</span>
       </button>
     </div>
-    <div v-else class="empty">暂无已有会话</div>
+    <div v-else class="empty">{{ L.noSession }}</div>
 
     <div class="divider"></div>
-    <h3>新建会话</h3>
+    <h3>{{ L.newSession }}</h3>
     <div class="form">
       <label>Agent</label>
       <select v-model="agentId">
@@ -32,7 +32,7 @@
       </select>
 
       <button class="btn-create" :disabled="!agentId || !saverId" @click="onCreate">
-        创建会话
+        {{ L.createSession }}
       </button>
     </div>
   </div>
@@ -40,14 +40,18 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import type { SessionItem, AgentOption, SaverOption } from '../types';
+import type { SessionItem, AgentOption, SaverOption, ChatLabels } from '../types';
+import { resolveLabels } from '../labels';
 
 const props = defineProps<{
   sessions: SessionItem[];
   agents: AgentOption[];
   savers: SaverOption[];
   workPath: string;
+  labels?: ChatLabels;
 }>();
+
+const L = computed(() => resolveLabels(props.labels));
 
 const emit = defineEmits<{
   select: [sessionId: string];

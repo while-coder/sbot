@@ -1,22 +1,22 @@
 <template>
   <div class="server-picker">
-    <h3>选择服务器</h3>
+    <h3>{{ L.selectServer }}</h3>
 
     <button class="server-item local" @click="$emit('selectLocal')">
-      <span class="server-name">本机 (Local)</span>
-      <span class="server-desc">自动检测本地 sbot</span>
+      <span class="server-name">{{ L.localServer }}</span>
+      <span class="server-desc">{{ L.localServerDesc }}</span>
     </button>
 
     <div v-if="remotes.length" class="server-list">
       <div v-for="(r, i) in remotes" :key="i" class="server-row">
         <template v-if="editingIndex === i">
           <div class="edit-form">
-            <input v-model="editName" placeholder="名称" />
+            <input v-model="editName" :placeholder="L.namePlaceholder" />
             <input v-model="editHost" placeholder="Host" />
             <input v-model.number="editPort" type="number" placeholder="Port" />
             <div class="edit-actions">
-              <button class="btn-sm btn-save" @click="onSaveEdit(i)">保存</button>
-              <button class="btn-sm btn-cancel" @click="editingIndex = -1">取消</button>
+              <button class="btn-sm btn-save" @click="onSaveEdit(i)">{{ L.save }}</button>
+              <button class="btn-sm btn-cancel" @click="editingIndex = -1">{{ L.cancel }}</button>
             </div>
           </div>
         </template>
@@ -34,7 +34,7 @@
     </div>
 
     <div class="divider"></div>
-    <h3>添加远端服务器</h3>
+    <h3>{{ L.addRemoteServer }}</h3>
     <div class="form">
       <label>Host</label>
       <input v-model="host" placeholder="192.168.1.100" />
@@ -42,19 +42,21 @@
       <label>Port</label>
       <input v-model.number="port" type="number" placeholder="3000" />
 
-      <label>名称 (可选)</label>
+      <label>{{ L.namePlaceholder }}</label>
       <input v-model="name" :placeholder="host ? `${host}:${port}` : ''" />
 
-      <button class="btn-add" :disabled="!host" @click="onAdd">添加</button>
+      <button class="btn-add" :disabled="!host" @click="onAdd">{{ L.add }}</button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import type { RemoteEntry } from '../types';
+import { ref, computed } from 'vue';
+import type { RemoteEntry, ChatLabels } from '../types';
+import { resolveLabels } from '../labels';
 
-defineProps<{ remotes: RemoteEntry[] }>();
+const props = defineProps<{ remotes: RemoteEntry[]; labels?: ChatLabels }>();
+const L = computed(() => resolveLabels(props.labels));
 
 const emit = defineEmits<{
   selectLocal: [];

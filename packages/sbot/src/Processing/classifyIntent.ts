@@ -54,9 +54,9 @@ export async function classifyIntent(
     ], { signal: AbortSignal.timeout(120_000) });
     const shouldReply = result.shouldReply && result.confidence >= intentThreshold;
     if (shouldReply) {
-      logger.info(`[${sessionName ?? '?'}] 意图通过: "${text}" (置信度=${result.confidence}, 阈值=${intentThreshold}, 原因=${result.reasoning})`);
+      logger.info(`[${sessionName ?? '?'}] ✅ 意图通过: "${text}" (置信度=${result.confidence}, 阈值=${intentThreshold}, 原因=${result.reasoning})`);
     } else {
-      logger.info(`[${sessionName ?? '?'}] 意图过滤: "${text}" (置信度=${result.confidence}, 阈值=${intentThreshold}, 原因=${result.reasoning})`);
+      logger.info(`[${sessionName ?? '?'}] 🚫 意图过滤: "${text}" (置信度=${result.confidence}, 阈值=${intentThreshold}, 原因=${result.reasoning})`);
     }
     return shouldReply;
   } catch (err) {

@@ -13,6 +13,7 @@ export interface IChatTransport {
   sendMessage(parts: ContentPart[]): void;
   updateSessionConfig(field: string, value: any): void;
   retry(): void;
+  cancel?(): void;
 }
 
 export function useChat(transport: IChatTransport) {
@@ -27,7 +28,7 @@ export function useChat(transport: IChatTransport) {
     workPath: '',
     sessionId: null,
     messages: [],
-    streamingContent: '',
+    streamingContent: '' as string | any[],
     isStreaming: false,
     currentAgent: '',
     currentSaver: '',
@@ -68,8 +69,10 @@ export function useChat(transport: IChatTransport) {
         const d = msg.content;
         if (typeof d === 'string') {
           state.streamingContent = d;
+        } else if (Array.isArray(d)) {
+          state.streamingContent = d;
         } else if (d?.content) {
-          state.streamingContent = typeof d.content === 'string' ? d.content : '';
+          state.streamingContent = d.content;
         }
         break;
       }
@@ -120,17 +123,26 @@ export function useChat(transport: IChatTransport) {
 
   function sendMessage(parts: ContentPart[]) {
     if (parts.length === 0 || !state.sessionId) return;
-    const textContent = parts
-      .filter(p => p.type === 'text')
-      .map(p => (p as any).text)
-      .join('\n');
+    const contentArray = parts.map(p => {
+      if (p.type === 'text') return { type: 'text', text: (p as any).text }
+      if (p.type === 'image') return { type: 'image_url', image_url: { url: (p as any).dataUrl } }
+      if (p.type === 'audio') return { type: 'audio', data: (p as any).dataUrl }
+      return { type: 'text', text: '' }
+    })
+    const hasNonText = parts.some(p => p.type !== 'text')
     state.messages.push({
-      message: { role: 'human', content: textContent || '[image]' },
+      message: { role: 'human', content: hasNonText ? contentArray : contentArray.map(c => c.text ?? '').join('\n') },
       createdAt: Date.now() / 1000,
     });
     state.streamingContent = '';
     state.isStreaming = true;
     transport.sendMessage(parts);
+  }
+
+  function cancel() {
+    transport.cancel?.();
+    state.isStreaming = false;
+    state.streamingContent = '';
   }
 
   function updateSessionConfig(field: string, value: any) {
@@ -157,6 +169,7 @@ export function useChat(transport: IChatTransport) {
     sendMessage,
     updateSessionConfig,
     retry,
+    cancel,
   };
 }
 

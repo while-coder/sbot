@@ -1,6 +1,13 @@
 <template>
   <div class="msg-row" :class="role">
-    <div class="msg-bubble" :class="role" v-html="rendered"></div>
+    <div class="msg-bubble" :class="role">
+      <template v-for="(part, idx) in displayParts" :key="idx">
+        <div v-if="part.type === 'text'" class="md-content" v-html="renderMd(part.text!)"></div>
+        <div v-else-if="part.type === 'image'" class="inline-image">
+          <img :src="part.url" />
+        </div>
+      </template>
+    </div>
     <div class="msg-time" v-if="time">{{ time }}</div>
   </div>
 </template>
@@ -9,23 +16,46 @@
 import { computed } from 'vue';
 import { marked } from 'marked';
 
+interface DisplayPart {
+  type: 'text' | 'image';
+  text?: string;
+  url?: string;
+}
+
 const props = defineProps<{
   role: string;
   content: string | any[];
   createdAt?: number;
 }>();
 
-const rendered = computed(() => {
+function renderMd(text: string): string {
+  return marked.parse(text) as string;
+}
+
+function resolveImageUrl(c: any): string | null {
+  if (c?.type === 'image_url' && c.image_url?.url) return c.image_url.url;
+  if (c?.type === 'image' && c.dataUrl) return c.dataUrl;
+  if (c?.type === 'image' && c.data && c.mimeType) return `data:${c.mimeType};base64,${c.data}`;
+  if (c?.type === 'inlineData' && c.inlineData?.data) return `data:${c.inlineData.mimeType};base64,${c.inlineData.data}`;
+  return null;
+}
+
+const displayParts = computed<DisplayPart[]>(() => {
   const c = props.content;
-  if (!c) return '';
-  if (Array.isArray(c)) {
-    const text = c
-      .filter((p: any) => typeof p === 'string' || p?.type === 'text')
-      .map((p: any) => (typeof p === 'string' ? p : p.text ?? ''))
-      .join('\n');
-    return marked.parse(text) as string;
+  if (!c) return [];
+  if (typeof c === 'string') return [{ type: 'text', text: c }];
+  const parts: DisplayPart[] = [];
+  for (const item of c) {
+    if (typeof item === 'string') {
+      parts.push({ type: 'text', text: item });
+    } else if (item?.type === 'text' && item.text) {
+      parts.push({ type: 'text', text: item.text });
+    } else {
+      const url = resolveImageUrl(item);
+      if (url) parts.push({ type: 'image', url });
+    }
   }
-  return marked.parse(c) as string;
+  return parts;
 });
 
 const time = computed(() => {
@@ -98,5 +128,15 @@ const time = computed(() => {
   padding: 2px 10px;
   margin: 4px 0;
   opacity: 0.85;
+}
+.inline-image {
+  margin: 6px 0;
+}
+.inline-image img {
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 6px;
+  cursor: pointer;
+  object-fit: contain;
 }
 </style>

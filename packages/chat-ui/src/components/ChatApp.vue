@@ -3,16 +3,17 @@
     <div class="header">
       <span class="title">sbot</span>
       <span v-if="chat.state.phase !== 'server-pick'" class="btn-switch" @click="chat.backToServerPick">
-        切换服务器
+        {{ L.switchServer }}
       </span>
       <span class="status" :class="{ online: chat.state.online }" v-if="chat.state.online || chat.state.phase === 'session-pick' || chat.state.phase === 'chat'">
-        {{ chat.state.online ? '已连接' : '未连接' }}
+        {{ chat.state.online ? L.connected : L.disconnected }}
       </span>
     </div>
 
     <template v-if="chat.state.phase === 'server-pick'">
       <ServerPicker
         :remotes="chat.state.remotes"
+        :labels="labels"
         @selectLocal="chat.selectLocal"
         @selectRemote="chat.selectRemote"
         @addRemote="chat.addRemote"
@@ -23,8 +24,8 @@
 
     <template v-else-if="!chat.state.online && (chat.state.phase === 'session-pick' || chat.state.phase === 'chat')">
       <div class="center-msg">
-        <p>无法连接到 sbot 服务器</p>
-        <button class="btn-retry" @click="chat.retry">重试</button>
+        <p>{{ L.connectFailed }}</p>
+        <button class="btn-retry" @click="chat.retry">{{ L.retryConnect }}</button>
       </div>
     </template>
 
@@ -34,6 +35,7 @@
         :agents="chat.state.agents"
         :savers="chat.state.savers"
         :workPath="chat.state.workPath"
+        :labels="labels"
         @select="chat.selectSession"
         @create="chat.createSession"
       />
@@ -50,6 +52,10 @@
         :currentAgent="chat.state.currentAgent"
         :currentSaver="chat.state.currentSaver"
         :currentMemories="chat.state.currentMemories"
+        :labels="labels"
+        :thinksUrlPrefix="thinksUrlPrefix"
+        :onCancel="chat.cancel"
+        :fetchFn="fetchFn"
         @send="chat.sendMessage"
         @updateConfig="chat.updateSessionConfig"
       />
@@ -58,12 +64,25 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import type { ChatInstance } from '../transport';
+import type { ChatLabels } from '../types';
+import { resolveLabels } from '../labels';
 import ServerPicker from './ServerPicker.vue';
 import SessionPicker from './SessionPicker.vue';
 import ChatView from './ChatView.vue';
 
-defineProps<{ chat: ChatInstance }>();
+const props = withDefaults(defineProps<{
+  chat: ChatInstance
+  labels?: ChatLabels
+  thinksUrlPrefix?: string | null
+  fetchFn?: (url: string) => Promise<any>
+}>(), {
+  thinksUrlPrefix: null,
+  fetchFn: undefined,
+});
+
+const L = computed(() => resolveLabels(props.labels))
 </script>
 
 <style scoped>
@@ -79,7 +98,7 @@ defineProps<{ chat: ChatInstance }>();
   justify-content: space-between;
   align-items: center;
   padding: 10px 16px;
-  border-bottom: 1px solid var(--vscode-widget-border, rgba(255,255,255,0.1));
+  border-bottom: 1px solid var(--chatui-border, var(--vscode-widget-border, rgba(255,255,255,0.1)));
   flex-shrink: 0;
   gap: 8px;
 }
@@ -112,7 +131,7 @@ defineProps<{ chat: ChatInstance }>();
   align-items: center;
   justify-content: center;
   gap: 12px;
-  color: var(--vscode-descriptionForeground);
+  color: var(--chatui-fg-secondary, var(--vscode-descriptionForeground));
 }
 .btn-retry {
   padding: 8px 20px;

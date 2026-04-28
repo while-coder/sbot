@@ -49,27 +49,30 @@
 
     <!-- Messages -->
     <div class="messages" ref="messagesEl">
-      <MessageItem
-        v-for="(m, i) in messages"
-        :key="i"
-        :role="m.message.role"
-        :content="m.message.content"
-        :createdAt="m.createdAt"
+      <MessageList
+        :messages="messages"
+        :is-streaming="isStreaming"
+        :streaming-content="streamingContent"
+        :thinks-url-prefix="thinksUrlPrefix"
+        :labels="labels"
+        :fetch-fn="fetchFn"
       />
-      <div v-if="isStreaming && streamingContent" class="msg-row ai">
-        <div class="msg-bubble ai streaming" v-html="renderedStreaming"></div>
-      </div>
+    </div>
+
+    <!-- Stop bar -->
+    <div v-if="onCancel && isStreaming" class="chat-stop-bar">
+      <button class="btn-stop" @click="onCancel">{{ L.stop }}</button>
     </div>
 
     <!-- Input bar -->
     <div class="input-bar">
       <RichInput
         ref="richInputRef"
-        placeholder="输入消息... (Enter 发送, Shift+Enter 换行)"
+        :placeholder="L.inputPlaceholder"
         @submit="onSend"
       />
       <button class="btn-send" :disabled="isStreaming" @click="onSend">
-        发送
+        {{ L.send }}
       </button>
     </div>
   </div>
@@ -77,14 +80,14 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue';
-import { marked } from 'marked';
-import type { StoredMessage, AgentOption, SaverOption, MemoryOption, ContentPart } from '../types';
-import MessageItem from './MessageItem.vue';
+import type { StoredMessage, AgentOption, SaverOption, MemoryOption, ContentPart, ChatLabels } from '../types';
+import { resolveLabels } from '../labels';
+import MessageList from './MessageList.vue';
 import RichInput from './RichInput.vue';
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   messages: StoredMessage[];
-  streamingContent: string;
+  streamingContent: string | any[];
   isStreaming: boolean;
   agents: AgentOption[];
   savers: SaverOption[];
@@ -92,7 +95,17 @@ const props = defineProps<{
   currentAgent: string;
   currentSaver: string;
   currentMemories: string[];
-}>();
+  labels?: ChatLabels;
+  thinksUrlPrefix?: string | null;
+  onCancel?: () => void;
+  fetchFn?: (url: string) => Promise<any>;
+}>(), {
+  thinksUrlPrefix: null,
+  onCancel: undefined,
+  fetchFn: undefined,
+});
+
+const L = computed(() => resolveLabels(props.labels))
 
 const emit = defineEmits<{
   send: [parts: ContentPart[]];
@@ -101,10 +114,6 @@ const emit = defineEmits<{
 
 const messagesEl = ref<HTMLElement>();
 const richInputRef = ref<InstanceType<typeof RichInput>>();
-
-const renderedStreaming = computed(() => {
-  return marked.parse(props.streamingContent) as string;
-});
 
 function scrollToBottom() {
   nextTick(() => {
@@ -147,7 +156,7 @@ function toggleMemory(id: string) {
 
 /* Toolbar */
 .chat-toolbar {
-  border-bottom: 1px solid var(--vscode-widget-border, rgba(255,255,255,0.1));
+  border-bottom: 1px solid var(--chatui-border, var(--vscode-widget-border, rgba(255,255,255,0.1)));
   padding: 6px 10px;
   flex-shrink: 0;
   display: flex;
@@ -168,7 +177,7 @@ function toggleMemory(id: string) {
 .toolbar-label {
   font-size: 10px;
   font-weight: 600;
-  color: var(--vscode-descriptionForeground);
+  color: var(--chatui-fg-secondary, var(--vscode-descriptionForeground));
   text-transform: uppercase;
   letter-spacing: 0.04em;
   white-space: nowrap;
@@ -176,7 +185,7 @@ function toggleMemory(id: string) {
 .toolbar-select {
   font-size: 11px;
   padding: 2px 4px;
-  border: 1px solid var(--vscode-input-border, rgba(255,255,255,0.1));
+  border: 1px solid var(--chatui-border, var(--vscode-input-border, rgba(255,255,255,0.1)));
   border-radius: 3px;
   background: var(--vscode-input-background);
   color: var(--vscode-input-foreground);
@@ -198,8 +207,8 @@ function toggleMemory(id: string) {
   font-size: 10px;
   padding: 1px 6px;
   border-radius: 8px;
-  border: 1px solid var(--vscode-widget-border, rgba(255,255,255,0.1));
-  color: var(--vscode-descriptionForeground);
+  border: 1px solid var(--chatui-border, var(--vscode-widget-border, rgba(255,255,255,0.1)));
+  color: var(--chatui-fg-secondary, var(--vscode-descriptionForeground));
   cursor: pointer;
   white-space: nowrap;
   user-select: none;
@@ -219,35 +228,26 @@ function toggleMemory(id: string) {
   overflow-y: auto;
   padding: 12px;
 }
-.msg-row.ai {
+
+/* Stop bar */
+.chat-stop-bar {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  margin-bottom: 12px;
+  justify-content: center;
+  padding: 6px 10px;
+  border-top: 1px solid var(--chatui-border, var(--vscode-widget-border, rgba(255,255,255,0.1)));
 }
-.msg-bubble.ai {
-  max-width: 90%;
-  padding: 8px 12px;
-  border-radius: 8px;
-  border-bottom-left-radius: 2px;
-  background: var(--vscode-editor-inactiveSelectionBackground, rgba(255,255,255,0.08));
-  color: var(--vscode-foreground);
-  line-height: 1.5;
-  word-break: break-word;
+.btn-stop {
+  padding: 4px 20px;
+  border: 1px solid var(--vscode-errorForeground, #f48771);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--vscode-errorForeground, #f48771);
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.15s;
 }
-.msg-bubble.streaming { opacity: 0.85; }
-.msg-bubble :deep(p) { margin: 0 0 6px; }
-.msg-bubble :deep(p:last-child) { margin-bottom: 0; }
-.msg-bubble :deep(pre) {
-  background: var(--vscode-textCodeBlock-background, rgba(0,0,0,0.2));
-  padding: 8px;
-  border-radius: 4px;
-  overflow-x: auto;
-  margin: 6px 0;
-}
-.msg-bubble :deep(code) {
-  font-family: var(--vscode-editor-font-family, monospace);
-  font-size: 0.9em;
+.btn-stop:hover {
+  background: rgba(244, 135, 113, 0.1);
 }
 
 /* Input bar */
@@ -255,13 +255,13 @@ function toggleMemory(id: string) {
   display: flex;
   gap: 8px;
   padding: 8px 10px;
-  border-top: 1px solid var(--vscode-widget-border, rgba(255,255,255,0.1));
-  background: var(--vscode-editor-background);
+  border-top: 1px solid var(--chatui-border, var(--vscode-widget-border, rgba(255,255,255,0.1)));
+  background: var(--chatui-bg-surface, var(--vscode-editor-background));
   align-items: flex-end;
 }
 .input-bar .rich-input {
   flex: 1;
-  border: 1px solid var(--vscode-input-border, rgba(255,255,255,0.1));
+  border: 1px solid var(--chatui-border, var(--vscode-input-border, rgba(255,255,255,0.1)));
   border-radius: 6px;
   background: var(--vscode-input-background);
   padding: 6px 8px;
