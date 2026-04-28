@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { WebChatEventType, type WebChatEvent } from 'sbot.commons';
 import { SbotClient } from './SbotClient';
-import { loadCliSettings, addRemote, updateRemote, removeRemote, addWorkPath, updateWorkPath, removeWorkPath } from './cliSettings';
+import { loadCliSettings, addRemote, updateRemote, removeRemote } from './cliSettings';
 
 function getLocalBaseUrl(): string {
   const { readFileSync, existsSync } = require('node:fs');
@@ -25,7 +25,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private client: SbotClient | undefined;
   private sessionId: string | undefined;
   private workPath = '';
-  private remoteIndex = -1;
 
   constructor(private readonly extensionUri: vscode.Uri) {}
 
@@ -72,7 +71,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     const [settings, sessions] = await Promise.all([
       this.client.fetchSettings(),
-      this.client.fetchSessions(this.workPath),
+      this.client.fetchSessions(),
     ]);
 
     this.postMessage({
@@ -86,7 +85,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private onWebviewMessage = async (msg: any) => {
     switch (msg.type) {
       case 'selectLocal': {
-        this.remoteIndex = -1;
         this.workPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
         this.switchClient(getLocalBaseUrl());
         await this.sendInit();
@@ -96,32 +94,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         const { remotes } = loadCliSettings();
         const remote = remotes[msg.remoteIndex];
         if (!remote) return;
-        this.remoteIndex = msg.remoteIndex;
-        this.postMessage({ type: 'workDirList', remoteIndex: msg.remoteIndex, remote });
-        break;
-      }
-      case 'addRemote': {
-        const settings = addRemote(msg.name || `${msg.host}:${msg.port}`, msg.host, msg.port);
-        this.remoteIndex = settings.remotes.length - 1;
-        const remote = settings.remotes[this.remoteIndex]!;
-        this.postMessage({ type: 'workDirList', remoteIndex: this.remoteIndex, remote });
-        break;
-      }
-      case 'selectWorkDir': {
-        const { remotes } = loadCliSettings();
-        const remote = remotes[this.remoteIndex];
-        if (!remote) return;
-        this.workPath = msg.path;
+        this.workPath = '';
         this.switchClient(`http://${remote.host}:${remote.port}`);
         await this.sendInit();
         break;
       }
-      case 'addWorkDir': {
-        addWorkPath(this.remoteIndex, msg.path, msg.alias || msg.path.split(/[/\\]/).pop() || msg.path);
-        this.workPath = msg.path;
-        const { remotes } = loadCliSettings();
-        const remote = remotes[this.remoteIndex];
-        if (!remote) return;
+      case 'addRemote': {
+        const settings = addRemote(msg.name || `${msg.host}:${msg.port}`, msg.host, msg.port);
+        const remote = settings.remotes[settings.remotes.length - 1]!;
+        this.workPath = '';
         this.switchClient(`http://${remote.host}:${remote.port}`);
         await this.sendInit();
         break;
@@ -133,24 +114,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       }
       case 'removeRemote': {
         removeRemote(msg.remoteIndex);
-        if (this.remoteIndex === msg.remoteIndex) {
-          this.remoteIndex = -1;
-        }
         this.sendServerList();
-        break;
-      }
-      case 'updateWorkPath': {
-        updateWorkPath(this.remoteIndex, msg.wpIndex, msg.patch);
-        const s1 = loadCliSettings();
-        const r1 = s1.remotes[this.remoteIndex];
-        if (r1) this.postMessage({ type: 'workDirList', remoteIndex: this.remoteIndex, remote: r1 });
-        break;
-      }
-      case 'removeWorkPath': {
-        removeWorkPath(this.remoteIndex, msg.wpIndex);
-        const s2 = loadCliSettings();
-        const r2 = s2.remotes[this.remoteIndex];
-        if (r2) this.postMessage({ type: 'workDirList', remoteIndex: this.remoteIndex, remote: r2 });
         break;
       }
       case 'backToServerPick': {
@@ -162,7 +126,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       }
       case 'sendMessage': {
         if (!this.sessionId || !this.client) return;
-        this.client.sendQuery(this.sessionId, msg.text);
+        this.client.sendParts(this.sessionId, msg.parts);
         break;
       }
       case 'selectSession': {
@@ -178,7 +142,21 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           msg.agentId, msg.saverId, msg.memoryIds ?? [], this.workPath,
         );
         this.sessionId = id;
-        this.postMessage({ type: 'sessionCreated', sessionId: id });
+        this.postMessage({
+          type: 'sessionCreated', sessionId: id,
+          agent: msg.agentId, saver: msg.saverId, memories: msg.memoryIds ?? [],
+        });
+        break;
+      }
+      case 'updateSessionConfig': {
+        if (!this.sessionId || !this.client) return;
+        const patch: Record<string, any> = {};
+        patch[msg.field] = msg.value;
+        try {
+          await this.client.updateSession(this.sessionId, patch);
+        } catch (e: any) {
+          this.postMessage({ type: 'error', message: e.message });
+        }
         break;
       }
       case 'refreshInit': {

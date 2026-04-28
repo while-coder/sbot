@@ -21,17 +21,6 @@
       />
     </template>
 
-    <template v-else-if="state.phase === 'workdir-pick' && state.currentRemote">
-      <WorkDirPicker
-        :remote="state.currentRemote"
-        @select="selectWorkDir"
-        @add="addWorkDir"
-        @updateWorkPath="updateWorkPath"
-        @removeWorkPath="removeWorkPath"
-        @back="backToServerPick"
-      />
-    </template>
-
     <template v-else-if="!state.online && (state.phase === 'session-pick' || state.phase === 'chat')">
       <div class="center-msg">
         <p>无法连接到 sbot 服务器</p>
@@ -44,6 +33,7 @@
         :sessions="state.sessions"
         :agents="state.agents"
         :savers="state.savers"
+        :workPath="state.workPath"
         @select="selectSession"
         @create="createSession"
       />
@@ -54,7 +44,14 @@
         :messages="state.messages"
         :streamingContent="state.streamingContent"
         :isStreaming="state.isStreaming"
+        :agents="state.agents"
+        :savers="state.savers"
+        :memories="state.memories"
+        :currentAgent="state.currentAgent"
+        :currentSaver="state.currentSaver"
+        :currentMemories="state.currentMemories"
         @send="sendMessage"
+        @updateConfig="updateSessionConfig"
       />
     </template>
   </div>
@@ -63,7 +60,6 @@
 <script setup lang="ts">
 import { useChat } from './composables/useChat';
 import ServerPicker from './components/ServerPicker.vue';
-import WorkDirPicker from './components/WorkDirPicker.vue';
 import SessionPicker from './components/SessionPicker.vue';
 import ChatView from './components/ChatView.vue';
 
@@ -74,14 +70,11 @@ const {
   addRemote,
   updateRemote,
   removeRemote,
-  selectWorkDir,
-  addWorkDir,
-  updateWorkPath,
-  removeWorkPath,
   backToServerPick,
   selectSession,
   createSession,
   sendMessage,
+  updateSessionConfig,
   retry,
 } = useChat();
 </script>

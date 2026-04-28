@@ -91,8 +91,9 @@ export class SbotClient {
     return res.data.data;
   }
 
-  async fetchSessions(workPath: string): Promise<SessionItem[]> {
-    const res = await this.http.get<{ data: SessionItem[] }>('/api/sessions', { params: { workPath } });
+  async fetchSessions(workPath?: string): Promise<SessionItem[]> {
+    const params = workPath ? { workPath } : {};
+    const res = await this.http.get<{ data: SessionItem[] }>('/api/sessions', { params });
     return res.data.data;
   }
 
@@ -121,6 +122,17 @@ export class SbotClient {
       type: WsCommandType.Query,
       parts: [{ type: 'text', text }],
     });
+  }
+
+  sendParts(sessionId: string, parts: Array<{ type: string; text?: string; dataUrl?: string }>): void {
+    this.send(sessionId, {
+      type: WsCommandType.Query,
+      parts,
+    });
+  }
+
+  async updateSession(sessionId: string, patch: Record<string, any>): Promise<void> {
+    await this.http.put(`/api/settings/sessions/${encodeURIComponent(sessionId)}`, patch);
   }
 
   addListener(fn: WsListener): void { this.listeners.add(fn); }

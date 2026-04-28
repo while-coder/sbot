@@ -1,15 +1,9 @@
 import { reactive, onMounted, onUnmounted } from 'vue';
 
-export interface WorkPathEntry {
-  path: string;
-  alias: string;
-}
-
 export interface RemoteEntry {
   name: string;
   host: string;
   port: number;
-  workPaths: WorkPathEntry[];
 }
 
 export interface SessionItem {
@@ -18,6 +12,7 @@ export interface SessionItem {
   agent: string;
   saver: string;
   memories: string[];
+  workPath?: string;
 }
 
 export interface AgentOption { id: string; name?: string }
@@ -30,12 +25,14 @@ export interface StoredMessage {
   thinkId?: string;
 }
 
+export type ContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image'; dataUrl: string };
+
 export interface ChatState {
-  phase: 'server-pick' | 'workdir-pick' | 'session-pick' | 'chat';
+  phase: 'server-pick' | 'session-pick' | 'chat';
   online: boolean;
   remotes: RemoteEntry[];
-  currentRemote: RemoteEntry | null;
-  currentRemoteIndex: number;
   sessions: SessionItem[];
   agents: AgentOption[];
   savers: SaverOption[];
@@ -45,6 +42,9 @@ export interface ChatState {
   messages: StoredMessage[];
   streamingContent: string;
   isStreaming: boolean;
+  currentAgent: string;
+  currentSaver: string;
+  currentMemories: string[];
 }
 
 const vscode = acquireVsCodeApi();
@@ -54,8 +54,6 @@ export function useChat() {
     phase: 'server-pick',
     online: false,
     remotes: [],
-    currentRemote: null,
-    currentRemoteIndex: -1,
     sessions: [],
     agents: [],
     savers: [],
@@ -65,6 +63,9 @@ export function useChat() {
     messages: [],
     streamingContent: '',
     isStreaming: false,
+    currentAgent: '',
+    currentSaver: '',
+    currentMemories: [],
   });
 
   function handleMessage(event: MessageEvent) {
@@ -73,15 +74,8 @@ export function useChat() {
       case 'serverList':
         state.phase = 'server-pick';
         state.remotes = msg.remotes ?? [];
-        state.currentRemote = null;
-        state.currentRemoteIndex = -1;
         state.online = false;
         state.sessionId = null;
-        break;
-      case 'workDirList':
-        state.phase = 'workdir-pick';
-        state.currentRemoteIndex = msg.remoteIndex;
-        state.currentRemote = msg.remote;
         break;
       case 'connectionStatus':
         state.online = msg.online;
@@ -106,24 +100,19 @@ export function useChat() {
         break;
       case 'streamChunk': {
         state.isStreaming = true;
-        const chunk = msg.content;
-        if (typeof chunk === 'string') {
-          state.streamingContent += chunk;
-        } else if (chunk?.content) {
-          state.streamingContent += typeof chunk.content === 'string' ? chunk.content : '';
+        const d = msg.content;
+        if (typeof d === 'string') {
+          state.streamingContent = d;
+        } else if (d?.content) {
+          state.streamingContent = typeof d.content === 'string' ? d.content : '';
         }
         break;
       }
       case 'messageComplete':
         state.messages.push(msg.data);
+        state.streamingContent = '';
         break;
       case 'done':
-        if (state.streamingContent) {
-          state.messages.push({
-            message: { role: 'ai', content: state.streamingContent },
-            createdAt: Date.now() / 1000,
-          });
-        }
         state.streamingContent = '';
         state.isStreaming = false;
         break;
@@ -131,6 +120,9 @@ export function useChat() {
         state.sessionId = msg.sessionId;
         state.messages = [];
         state.phase = 'chat';
+        if (msg.agent) state.currentAgent = msg.agent;
+        if (msg.saver) state.currentSaver = msg.saver;
+        if (msg.memories) state.currentMemories = msg.memories;
         break;
       case 'error':
         console.error('[sbot]', msg.message);
@@ -153,28 +145,12 @@ export function useChat() {
     vscode.postMessage({ type: 'addRemote', name, host, port });
   }
 
-  function selectWorkDir(path: string) {
-    vscode.postMessage({ type: 'selectWorkDir', path });
-  }
-
-  function addWorkDir(path: string, alias: string) {
-    vscode.postMessage({ type: 'addWorkDir', path, alias });
-  }
-
   function updateRemote(remoteIndex: number, patch: { name?: string; host?: string; port?: number }) {
     vscode.postMessage({ type: 'updateRemote', remoteIndex, patch });
   }
 
   function removeRemote(remoteIndex: number) {
     vscode.postMessage({ type: 'removeRemote', remoteIndex });
-  }
-
-  function updateWorkPath(wpIndex: number, patch: { path?: string; alias?: string }) {
-    vscode.postMessage({ type: 'updateWorkPath', wpIndex, patch });
-  }
-
-  function removeWorkPath(wpIndex: number) {
-    vscode.postMessage({ type: 'removeWorkPath', wpIndex });
   }
 
   function backToServerPick() {
@@ -184,6 +160,12 @@ export function useChat() {
   function selectSession(sessionId: string) {
     state.sessionId = sessionId;
     state.phase = 'chat';
+    const session = state.sessions.find(s => s.id === sessionId);
+    if (session) {
+      state.currentAgent = session.agent;
+      state.currentSaver = session.saver;
+      state.currentMemories = session.memories ?? [];
+    }
     vscode.postMessage({ type: 'selectSession', sessionId });
   }
 
@@ -191,15 +173,27 @@ export function useChat() {
     vscode.postMessage({ type: 'createSession', agentId, saverId, memoryIds });
   }
 
-  function sendMessage(text: string) {
-    if (!text.trim() || !state.sessionId) return;
+  function sendMessage(parts: ContentPart[]) {
+    if (parts.length === 0 || !state.sessionId) return;
+    const textContent = parts
+      .filter(p => p.type === 'text')
+      .map(p => (p as any).text)
+      .join('\n');
     state.messages.push({
-      message: { role: 'human', content: text },
+      message: { role: 'human', content: textContent || '[image]' },
       createdAt: Date.now() / 1000,
     });
     state.streamingContent = '';
     state.isStreaming = true;
-    vscode.postMessage({ type: 'sendMessage', text });
+    vscode.postMessage({ type: 'sendMessage', parts });
+  }
+
+  function updateSessionConfig(field: string, value: any) {
+    if (!state.sessionId) return;
+    if (field === 'agent') state.currentAgent = value;
+    else if (field === 'saver') state.currentSaver = value;
+    else if (field === 'memories') state.currentMemories = value;
+    vscode.postMessage({ type: 'updateSessionConfig', field, value });
   }
 
   function retry() {
@@ -213,14 +207,11 @@ export function useChat() {
     addRemote,
     updateRemote,
     removeRemote,
-    selectWorkDir,
-    addWorkDir,
-    updateWorkPath,
-    removeWorkPath,
     backToServerPick,
     selectSession,
     createSession,
     sendMessage,
+    updateSessionConfig,
     retry,
   };
 }

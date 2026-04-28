@@ -3,16 +3,20 @@
     <h3>选择会话</h3>
     <div class="session-list" v-if="sessions.length">
       <button
-        v-for="s in sessions"
+        v-for="s in sortedSessions"
         :key="s.id"
         class="session-item"
+        :class="{ highlight: workPath && s.workPath === workPath }"
         @click="$emit('select', s.id)"
       >
-        <span class="session-name">{{ s.name || s.id }}</span>
-        <span class="session-agent">{{ s.agent }}</span>
+        <div class="session-main">
+          <span class="session-name">{{ s.name || s.id }}</span>
+          <span class="session-agent">{{ s.agent }}</span>
+        </div>
+        <span v-if="s.workPath" class="session-path" :title="s.workPath">{{ s.workPath }}</span>
       </button>
     </div>
-    <div v-else class="empty">当前目录没有已有会话</div>
+    <div v-else class="empty">暂无已有会话</div>
 
     <div class="divider"></div>
     <h3>新建会话</h3>
@@ -35,13 +39,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import type { SessionItem, AgentOption, SaverOption } from '../composables/useChat';
 
 const props = defineProps<{
   sessions: SessionItem[];
   agents: AgentOption[];
   savers: SaverOption[];
+  workPath: string;
 }>();
 
 const emit = defineEmits<{
@@ -51,6 +56,15 @@ const emit = defineEmits<{
 
 const agentId = ref(props.agents[0]?.id ?? '');
 const saverId = ref(props.savers[0]?.id ?? '');
+
+const sortedSessions = computed(() => {
+  if (!props.workPath) return props.sessions;
+  return [...props.sessions].sort((a, b) => {
+    const aMatch = a.workPath === props.workPath ? 0 : 1;
+    const bMatch = b.workPath === props.workPath ? 0 : 1;
+    return aMatch - bMatch;
+  });
+});
 
 function onCreate() {
   if (!agentId.value || !saverId.value) return;
@@ -64,6 +78,7 @@ function onCreate() {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  overflow-y: auto;
 }
 h3 {
   font-size: 13px;
@@ -78,8 +93,8 @@ h3 {
 }
 .session-item {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  gap: 2px;
   padding: 8px 12px;
   border: 1px solid var(--vscode-widget-border, rgba(255,255,255,0.1));
   border-radius: 6px;
@@ -87,13 +102,33 @@ h3 {
   color: var(--vscode-foreground);
   cursor: pointer;
   font-size: 13px;
+  text-align: left;
 }
 .session-item:hover {
   background: var(--vscode-list-hoverBackground);
 }
+.session-item.highlight {
+  border-color: var(--vscode-testing-iconPassed, #73c991);
+}
+.session-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 .session-agent {
   font-size: 11px;
   color: var(--vscode-descriptionForeground);
+}
+.session-path {
+  font-size: 10px;
+  color: var(--vscode-descriptionForeground);
+  font-family: var(--vscode-editor-font-family, monospace);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.session-item.highlight .session-path {
+  color: var(--vscode-testing-iconPassed, #73c991);
 }
 .empty {
   font-size: 12px;
