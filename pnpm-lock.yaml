@@ -500,6 +500,9 @@ importers:
 
   packages/website:
     dependencies:
+      '@sbot/chat-ui':
+        specifier: workspace:*
+        version: link:../chat-ui
       '@tiptap/extension-dropcursor':
         specifier: ^3.22.4
         version: 3.22.4(@tiptap/extensions@3.22.4(@tiptap/core@3.22.4(@tiptap/pm@3.22.4))(@tiptap/pm@3.22.4))

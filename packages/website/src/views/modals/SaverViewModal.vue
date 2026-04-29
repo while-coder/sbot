@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { useToast } from '@/composables/useToast'
 import MessageList from '@/components/MessageList.vue'
-import type { StoredMessage } from '@/types'
+import type { StoredMessage } from '@sbot/chat-ui'
 
 const { t } = useI18n()
 const { show } = useToast()

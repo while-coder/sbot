@@ -1,12 +1,9 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { MessageRole } from '@/types'
-import type { StoredMessage, ToolCall } from '@/types'
-import { inlineArgs, resultPreview } from '@/utils/toolCallFormat'
-import { ContentPartType, getContentParts, renderMd, fmtTs, toggleToolCall } from '@/utils/messageRender'
-import ThinkDrawer from './ThinkDrawer.vue'
-import ImageLightbox from './ImageLightbox.vue'
+import { MessageList as ChatUiMessageList } from '@sbot/chat-ui'
+import type { StoredMessage, ChatLabels } from '@sbot/chat-ui'
+import { apiFetch } from '@/api'
 
 const { t } = useI18n()
 
@@ -24,219 +21,58 @@ const props = withDefaults(defineProps<{
   streamingContent: '',
 })
 
-// ── Date separators ──
-function fmtDateSep(ts?: number) {
-  if (!ts) return ''
-  try {
-    const d = new Date(ts * 1000)
-    const now = new Date()
-    const pad = (n: number) => n.toString().padStart(2, '0')
-    if (d.toDateString() === now.toDateString()) return t('chat.date_today')
-    const yesterday = new Date(now)
-    yesterday.setDate(now.getDate() - 1)
-    if (d.toDateString() === yesterday.toDateString()) return t('chat.date_yesterday')
-    if (d.getFullYear() === now.getFullYear())
-      return `${pad(d.getMonth() + 1)}月${pad(d.getDate())}日`
-    return `${d.getFullYear()}年${pad(d.getMonth() + 1)}月${pad(d.getDate())}日`
-  } catch { return '' }
-}
+const labels = computed<ChatLabels>(() => ({
+  roleUser: t('chat.role_user'),
+  roleAi: t('chat.role_ai'),
+  thinking: t('chat.thinking'),
+  think: t('chat.think'),
+  toolCalls: t('chat.tool_calls', { count: '{count}' }),
+  toolResult: t('chat.tool_result'),
+  noHistory: t('chat.no_history'),
+  dateToday: t('chat.date_today'),
+  dateYesterday: t('chat.date_yesterday'),
+  queued: t('chat.queued'),
+  loading: t('common.loading'),
+  download: t('common.download'),
+  close: t('common.close'),
+}))
 
-function showDateSep(idx: number) {
-  if (!props.showDateSeparators) return false
-  const msg = props.messages[idx]
-  if (!msg.createdAt) return false
-  if (idx === 0) return true
-  const prev = props.messages[idx - 1]
-  if (!prev.createdAt) return false
-  return new Date(msg.createdAt * 1000).toDateString() !== new Date(prev.createdAt * 1000).toDateString()
-}
-
-// ── Image lightbox ──
-const lightboxRef = ref<InstanceType<typeof ImageLightbox>>()
-
-function openLightbox(src: string) {
-  lightboxRef.value?.open(src)
-}
-
-// ── Think drawer ──
-const thinkDrawerRef = ref<InstanceType<typeof ThinkDrawer>>()
-
-function openThink(thinkId: string) {
-  thinkDrawerRef.value?.open(thinkId)
+async function fetchFn(url: string) {
+  return apiFetch(url)
 }
 </script>
 
 <template>
-  <div class="history-messages">
-    <template v-if="messages.length === 0 && !isStreaming">
-      <div style="text-align:center;color:#94a3b8;padding:60px">{{ t('chat.no_history') }}</div>
-    </template>
-
-    <template v-for="(msg, idx) in messages" :key="idx">
-      <!-- Date separator -->
-      <div v-if="showDateSep(idx)" class="msg-date-sep">
-        <span>{{ fmtDateSep(msg.createdAt) }}</span>
-      </div>
-
-      <!-- skip tool messages that are embedded in AI messages -->
-      <template v-if="!(msg.message.role === MessageRole.Tool && msg.message.tool_call_id)">
-        <!-- Human message -->
-        <div v-if="msg.message.role === MessageRole.Human" class="msg-row human">
-          <div class="msg-bubble human">
-            <div class="msg-role-bar">
-              <span class="msg-role">{{ t('chat.role_user') }}</span>
-              <span v-if="msg.createdAt" class="msg-time">{{ fmtTs(msg.createdAt) }}</span>
-              <div v-if="msg.thinkId && thinksUrlPrefix" class="think-toggle think-toggle-human" @click="openThink(msg.thinkId!)">
-                <span>▸</span>
-                <span>{{ t('chat.think') }}</span>
-              </div>
-            </div>
-            <template v-for="(part, pIdx) in getContentParts(msg.message.content)" :key="pIdx">
-              <div v-if="part.type === ContentPartType.Text" class="md-content" v-html="renderMd(part.text)" />
-              <div v-else-if="part.type === ContentPartType.Image" class="inline-image">
-                <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
-              </div>
-              <div v-else-if="part.type === ContentPartType.Audio" class="inline-audio">
-                <audio controls :src="part.url" />
-              </div>
-            </template>
-          </div>
-        </div>
-
-        <!-- AI message -->
-        <div v-else-if="msg.message.role === MessageRole.AI" class="msg-row ai">
-          <div v-if="msg.message.content" class="msg-bubble ai">
-            <div class="msg-role-bar">
-              <span class="msg-role">{{ t('chat.role_ai') }}</span>
-              <span v-if="msg.createdAt" class="msg-time">{{ fmtTs(msg.createdAt) }}</span>
-              <div v-if="msg.thinkId && thinksUrlPrefix" class="think-toggle" @click="openThink(msg.thinkId!)">
-                <span>▸</span>
-                <span>{{ t('chat.think') }}</span>
-              </div>
-            </div>
-            <template v-for="(part, pIdx) in getContentParts(msg.message.content)" :key="pIdx">
-              <div v-if="part.type === ContentPartType.Text" class="md-content" v-html="renderMd(part.text)" />
-              <div v-else-if="part.type === ContentPartType.Image" class="inline-image">
-                <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
-              </div>
-              <div v-else-if="part.type === ContentPartType.Audio" class="inline-audio">
-                <audio controls :src="part.url" />
-              </div>
-            </template>
-          </div>
-          <div v-if="msg.message.tool_calls && msg.message.tool_calls.length > 0" class="msg-tool-calls">
-            <div class="msg-role has-think">
-              {{ t('chat.tool_calls', { count: msg.message.tool_calls.length }) }}
-              <div v-if="msg.thinkId && thinksUrlPrefix" class="think-toggle" @click="openThink(msg.thinkId!)">
-                <span>▸</span>
-                <span>{{ t('chat.think') }}</span>
-              </div>
-            </div>
-            <div v-for="tc in msg.message.tool_calls" :key="(tc as ToolCall).id" class="tool-call-item">
-              <div class="tool-call-header" @click="toggleToolCall($event.currentTarget as HTMLElement)">
-                <span class="tool-call-name">{{ (tc as ToolCall).name }}</span>
-                <span v-if="inlineArgs(tc as ToolCall)" class="tool-call-inline-args">{{ inlineArgs(tc as ToolCall) }}</span>
-                <span v-if="resultPreview(messages, (tc as ToolCall).id)" class="tool-call-result-preview">↳ {{ resultPreview(messages, (tc as ToolCall).id) }}</span>
-              </div>
-              <div class="tool-call-detail">
-                <div class="tool-call-args">{{ JSON.stringify((tc as ToolCall).args, null, 2) }}</div>
-                <template v-for="m2 in messages" :key="'r' + (m2.message.tool_call_id || '')">
-                  <div v-if="m2.message.role === MessageRole.Tool && m2.message.tool_call_id === (tc as ToolCall).id" class="tool-call-result">
-                    <div class="tool-call-result-top">
-                      <div class="tool-call-result-label">{{ t('chat.tool_result') }}</div>
-                      <div v-if="m2.thinkId && thinksUrlPrefix" class="think-toggle" @click="openThink(m2.thinkId!)">
-                        <span>▸</span>
-                        <span>{{ t('chat.think') }}</span>
-                      </div>
-                    </div>
-                    <template v-for="(part, pIdx) in getContentParts(m2.message.content)" :key="'tr' + pIdx">
-                      <div v-if="part.type === ContentPartType.Text" class="md-content tool-result-content" v-html="renderMd(part.text)" />
-                      <div v-else-if="part.type === ContentPartType.Image" class="inline-image">
-                        <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
-                      </div>
-                      <div v-else-if="part.type === ContentPartType.Audio" class="inline-audio">
-                        <audio controls :src="part.url" />
-                      </div>
-                    </template>
-                  </div>
-                </template>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Tool message (standalone, no tool_call_id) -->
-        <div v-else-if="msg.message.role === MessageRole.Tool" class="msg-row ai">
-          <div class="msg-bubble tool">
-            <div class="msg-role-bar">
-              <span class="msg-role">Tool{{ msg.message.name ? ` · ${msg.message.name}` : '' }}</span>
-            </div>
-            <template v-for="(part, pIdx) in getContentParts(msg.message.content)" :key="pIdx">
-              <div v-if="part.type === ContentPartType.Text" class="md-content" v-html="renderMd(part.text)" />
-              <div v-else-if="part.type === ContentPartType.Image" class="inline-image">
-                <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
-              </div>
-              <div v-else-if="part.type === ContentPartType.Audio" class="inline-audio">
-                <audio controls :src="part.url" />
-              </div>
-            </template>
-          </div>
-        </div>
-
-        <!-- System/other -->
-        <div v-else class="msg-row ai">
-          <div class="msg-bubble ai">
-            <div class="msg-role-bar">
-              <span class="msg-role">{{ msg.message.role }}</span>
-              <span v-if="msg.createdAt" class="msg-time">{{ fmtTs(msg.createdAt) }}</span>
-            </div>
-            <template v-for="(part, pIdx) in getContentParts(msg.message.content)" :key="pIdx">
-              <div v-if="part.type === ContentPartType.Text" class="md-content" v-html="renderMd(part.text)" />
-              <div v-else-if="part.type === ContentPartType.Image" class="inline-image">
-                <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
-              </div>
-              <div v-else-if="part.type === ContentPartType.Audio" class="inline-audio">
-                <audio controls :src="part.url" />
-              </div>
-            </template>
-          </div>
-        </div>
-      </template>
-    </template>
-
-    <!-- Streaming -->
-    <div v-if="isStreaming" class="msg-row ai">
-      <div class="msg-bubble ai streaming">
-        <div class="msg-role-bar"><span class="msg-role">{{ t('chat.role_ai') }}</span></div>
-        <template v-if="streamingContent">
-          <template v-for="(part, pIdx) in getContentParts(streamingContent)" :key="pIdx">
-            <div v-if="part.type === ContentPartType.Text" class="md-content" v-html="renderMd(part.text)" />
-            <div v-else-if="part.type === ContentPartType.Image" class="inline-image">
-              <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
-            </div>
-          </template>
-        </template>
-        <span v-else style="color:#94a3b8">{{ t('chat.thinking') }}</span>
-      </div>
-    </div>
-
-    <!-- Queued messages -->
-    <div v-for="(q, i) in queuedMessages" :key="'q' + i" class="msg-row human">
-      <div class="msg-bubble human queued">
-        <div class="msg-role-bar">
-          <span class="msg-role">{{ t('chat.role_user') }}</span>
-          <span class="msg-queued-tag">{{ t('chat.queued') }}</span>
-        </div>
-        <template v-for="(part, pIdx) in getContentParts(q)" :key="pIdx">
-          <div v-if="part.type === ContentPartType.Text" class="md-content" v-html="renderMd(part.text)" />
-          <div v-else-if="part.type === ContentPartType.Image" class="inline-image">
-            <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
-          </div>
-        </template>
-      </div>
-    </div>
-
-    <ThinkDrawer v-if="thinksUrlPrefix" ref="thinkDrawerRef" :thinks-url-prefix="thinksUrlPrefix" />
-    <ImageLightbox ref="lightboxRef" />
+  <div class="website-chatui-wrapper">
+    <ChatUiMessageList
+      :messages="messages"
+      :thinks-url-prefix="thinksUrlPrefix"
+      :show-date-separators="showDateSeparators"
+      :is-streaming="isStreaming"
+      :streaming-content="streamingContent"
+      :queued-messages="queuedMessages"
+      :labels="labels"
+      :fetch-fn="fetchFn"
+    />
   </div>
 </template>
+
+<style scoped>
+.website-chatui-wrapper {
+  --chatui-bg-human: #1c1c1c;
+  --chatui-fg-human: #fff;
+  --chatui-bg-ai: #f5f4f2;
+  --chatui-fg-ai: #1c1c1c;
+  --chatui-bg-tool: #fefce8;
+  --chatui-fg-tool: #713f12;
+  --chatui-bg-surface: #fff;
+  --chatui-bg-code: #fafaf9;
+  --chatui-fg-primary: #1c1c1c;
+  --chatui-fg-secondary: #9b9b9b;
+  --chatui-border: #e8e6e3;
+  --chatui-think-fg: #7c3aed;
+  --chatui-think-bg: #f5f3ff;
+  --chatui-think-border: #ddd6fe;
+  padding: 16px;
+}
+</style>

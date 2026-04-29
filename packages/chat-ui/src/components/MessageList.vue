@@ -14,6 +14,7 @@ const props = withDefaults(defineProps<{
   showDateSeparators?: boolean
   isStreaming?: boolean
   streamingContent?: string | any[]
+  queuedMessages?: (string | any[])[]
   labels?: ChatLabels
   fetchFn?: (url: string) => Promise<any>
 }>(), {
@@ -197,6 +198,22 @@ function openThink(thinkId: string) {
           </template>
         </template>
         <span v-else class="chatui-thinking">{{ L.thinking }}</span>
+      </div>
+    </div>
+
+    <!-- Queued messages -->
+    <div v-for="(q, i) in queuedMessages" :key="'q' + i" class="msg-row human">
+      <div class="msg-bubble human queued">
+        <div class="msg-role-bar">
+          <span class="msg-role">{{ L.roleUser }}</span>
+          <span class="msg-queued-tag">{{ L.queued }}</span>
+        </div>
+        <template v-for="(part, pIdx) in getContentParts(q)" :key="pIdx">
+          <div v-if="part.type === ContentPartType.Text" class="md-content" v-html="renderMd(part.text)" />
+          <div v-else-if="part.type === ContentPartType.Image" class="inline-image">
+            <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
+          </div>
+        </template>
       </div>
     </div>
 
@@ -446,6 +463,14 @@ function openThink(thinkId: string) {
   background: rgba(255, 255, 255, 0.25);
   border-color: rgba(255, 255, 255, 0.4);
   color: #fff;
+}
+
+/* Queued */
+.msg-bubble.queued { opacity: 0.6; }
+.msg-queued-tag {
+  font-size: 10px;
+  color: var(--chatui-fg-secondary, var(--vscode-descriptionForeground, #94a3b8));
+  font-style: italic;
 }
 
 /* Thinking indicator */

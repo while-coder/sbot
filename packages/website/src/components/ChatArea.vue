@@ -5,10 +5,10 @@ import { apiFetch } from '@/api'
 import { useToast } from '@/composables/useToast'
 import { useChatSocket } from '@/composables/useChatSocket'
 import ChatPanel from './ChatPanel.vue'
-import type { ContentPart } from './RichInput.vue'
-import { WebChatEventType, WsCommandType, MessageRole, AskQuestionType } from 'sbot.commons'
+import { MessageRole } from '@sbot/chat-ui'
+import type { ContentPart, StoredMessage } from '@sbot/chat-ui'
+import { WebChatEventType, WsCommandType, AskQuestionType } from 'sbot.commons'
 import type { WebChatEvent, AskQuestionSpec } from 'sbot.commons'
-import type { StoredMessage } from '@/types'
 
 interface Attachment {
   name: string
