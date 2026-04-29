@@ -38,8 +38,9 @@ export class WebSocketTransport implements IChatTransport {
 
   connect(): void {
     if (this.ws?.readyState === WebSocket.CONNECTING || this.ws?.readyState === WebSocket.OPEN) return
-    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const host = this._baseUrl ? new URL(this._baseUrl).host : location.host
+    const url = this._baseUrl ? new URL(this._baseUrl) : location
+    const proto = url.protocol === 'https:' ? 'wss:' : 'ws:'
+    const host = url.host
     const ws = new WebSocket(`${proto}//${host}/ws/chat`)
     this.ws = ws
     ws.onopen = () => {

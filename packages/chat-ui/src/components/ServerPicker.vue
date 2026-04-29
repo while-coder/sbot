@@ -15,6 +15,7 @@
             <input v-model="editHost" placeholder="Host" />
             <label>Port</label>
             <input v-model.number="editPort" type="number" placeholder="Port" />
+            <label class="checkbox-label"><input v-model="editSecure" type="checkbox" /> HTTPS</label>
             <label>{{ L.namePlaceholder }}</label>
             <input v-model="editName" :placeholder="L.namePlaceholder" />
             <div class="edit-actions">
@@ -45,6 +46,8 @@
       <label>Port</label>
       <input v-model.number="port" type="number" placeholder="5500" />
 
+      <label class="checkbox-label"><input v-model="secure" type="checkbox" /> HTTPS</label>
+
       <label>{{ L.namePlaceholder }}</label>
       <input v-model="name" :placeholder="host ? `${host}:${port}` : ''" />
 
@@ -64,28 +67,33 @@ const L = computed(() => resolveLabels(props.labels));
 const emit = defineEmits<{
   selectLocal: [];
   selectRemote: [index: number];
-  addRemote: [name: string, host: string, port: number];
-  updateRemote: [index: number, patch: { name?: string; host?: string; port?: number }];
+  addRemote: [name: string, host: string, port: number, secure: boolean];
+  updateRemote: [index: number, patch: { name?: string; host?: string; port?: number; secure?: boolean }];
   removeRemote: [index: number];
 }>();
 
 const DEFAULT_PORT = 5500;
 
+const defaultSecure = typeof location !== 'undefined' && location.protocol === 'https:';
+
 const host = ref('');
 const port = ref(DEFAULT_PORT);
 const name = ref('');
+const secure = ref(defaultSecure);
 
 const editingIndex = ref(-1);
 const editName = ref('');
 const editHost = ref('');
 const editPort = ref(DEFAULT_PORT);
+const editSecure = ref(defaultSecure);
 
 function onAdd() {
   if (!host.value) return;
-  emit('addRemote', name.value || `${host.value}:${port.value}`, host.value, port.value);
+  emit('addRemote', name.value || `${host.value}:${port.value}`, host.value, port.value, secure.value);
   host.value = '';
   port.value = DEFAULT_PORT;
   name.value = '';
+  secure.value = defaultSecure;
 }
 
 function startEdit(i: number, r: RemoteEntry) {
@@ -93,10 +101,11 @@ function startEdit(i: number, r: RemoteEntry) {
   editName.value = r.name;
   editHost.value = r.host;
   editPort.value = r.port;
+  editSecure.value = r.secure ?? defaultSecure;
 }
 
 function onSaveEdit(i: number) {
-  emit('updateRemote', i, { name: editName.value, host: editHost.value, port: editPort.value });
+  emit('updateRemote', i, { name: editName.value, host: editHost.value, port: editPort.value, secure: editSecure.value });
   editingIndex.value = -1;
 }
 </script>
@@ -248,4 +257,13 @@ h3 {
 }
 .btn-add:hover { background: var(--chatui-btn-hover); }
 .btn-add:disabled { opacity: 0.5; cursor: default; }
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--chatui-font-size-sm);
+  color: var(--chatui-fg-secondary);
+  cursor: pointer;
+}
+.checkbox-label input[type="checkbox"] { margin: 0; }
 </style>

@@ -2,6 +2,7 @@ export interface RemoteEntry {
   name: string;
   host: string;
   port: number;
+  secure?: boolean;
 }
 
 export interface SessionItem {

@@ -41,16 +41,20 @@ function selectLocal() {
 
 function selectRemote(index: number) {
   const r = remotes.value[index]
-  if (r) selectServer(`http://${r.host}:${r.port}`)
+  if (r) {
+    const proto = r.secure ? 'https' : 'http'
+    selectServer(`${proto}://${r.host}:${r.port}`)
+  }
 }
 
-function addRemote(name: string, host: string, port: number) {
-  remotes.value.push({ name, host, port })
+function addRemote(name: string, host: string, port: number, secure: boolean) {
+  remotes.value.push({ name, host, port, secure })
   saveRemotes(remotes.value)
-  selectServer(`http://${host}:${port}`)
+  const proto = secure ? 'https' : 'http'
+  selectServer(`${proto}://${host}:${port}`)
 }
 
-function updateRemote(index: number, patch: { name?: string; host?: string; port?: number }) {
+function updateRemote(index: number, patch: { name?: string; host?: string; port?: number; secure?: boolean }) {
   const r = remotes.value[index]
   if (r) {
     Object.assign(r, patch)
