@@ -59,6 +59,13 @@ async function fetchFn(url: string) {
 
 <style scoped>
 .website-chatui-wrapper {
+  padding: 16px;
+}
+</style>
+
+<!-- Non-scoped: sets chatui CSS variables on body so Teleport-ed overlays (ThinkDrawer, Lightbox) inherit them -->
+<style>
+body {
   --chatui-bg-human: #1c1c1c;
   --chatui-fg-human: #fff;
   --chatui-bg-ai: #f5f4f2;
@@ -73,6 +80,5 @@ async function fetchFn(url: string) {
   --chatui-think-fg: #7c3aed;
   --chatui-think-bg: #f5f3ff;
   --chatui-think-border: #ddd6fe;
-  padding: 16px;
 }
 </style>

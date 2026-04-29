@@ -1,5 +1,5 @@
 import { reactive } from 'vue';
-import type { ChatState, ContentPart } from './types';
+import type { ChatState, ContentPart, Attachment } from './types';
 
 export interface IChatTransport {
   selectLocal(): void;
@@ -10,7 +10,7 @@ export interface IChatTransport {
   backToServerPick(): void;
   selectSession(sessionId: string): void;
   createSession(agentId: string, saverId: string, memoryIds: string[]): void;
-  sendMessage(parts: ContentPart[]): void;
+  sendMessage(parts: ContentPart[], attachments?: Attachment[]): void;
   updateSessionConfig(field: string, value: any): void;
   retry(): void;
   cancel?(): void;
@@ -121,7 +121,7 @@ export function useChat(transport: IChatTransport) {
     transport.createSession(agentId, saverId, memoryIds);
   }
 
-  function sendMessage(parts: ContentPart[]) {
+  function sendMessage(parts: ContentPart[], attachments?: Attachment[]) {
     if (parts.length === 0 || !state.sessionId) return;
     const contentArray = parts.map(p => {
       if (p.type === 'text') return { type: 'text', text: (p as any).text }
@@ -136,7 +136,7 @@ export function useChat(transport: IChatTransport) {
     });
     state.streamingContent = '';
     state.isStreaming = true;
-    transport.sendMessage(parts);
+    transport.sendMessage(parts, attachments);
   }
 
   function cancel() {

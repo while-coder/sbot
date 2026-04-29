@@ -237,7 +237,7 @@ defineExpose({ open })
 }
 .think-drawer-back:hover,
 .think-drawer-close:hover {
-  background: var(--vscode-list-hoverBackground, #f3f4f6);
+  background: var(--chatui-bg-ai, var(--vscode-list-hoverBackground, #f3f4f6));
   color: var(--chatui-fg-primary, var(--vscode-foreground, #374151));
 }
 .think-drawer-breadcrumb {
@@ -266,19 +266,24 @@ defineExpose({ open })
   padding: 40px 0;
   font-size: 13px;
 }
-.think-messages { display: flex; flex-direction: column; gap: 8px; }
+.think-messages { display: flex; flex-direction: column; gap: 2px; }
 
-/* Message bubbles */
-.msg-row { display: flex; flex-direction: column; }
+/* Message rows — same as MessageList */
+.msg-row {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 8px;
+}
 .msg-row.human { align-items: flex-end; }
 .msg-row.ai { align-items: flex-start; }
+
+/* Bubbles */
 .msg-bubble {
   max-width: 95%;
   padding: 8px 12px;
   border-radius: 8px;
   line-height: 1.5;
   word-break: break-word;
-  font-size: 13px;
 }
 .msg-bubble.human {
   background: var(--chatui-bg-human, var(--vscode-button-background, #1c1c1c));
@@ -286,10 +291,12 @@ defineExpose({ open })
   border-bottom-right-radius: 2px;
 }
 .msg-bubble.ai {
-  background: var(--chatui-bg-ai, var(--vscode-editor-inactiveSelectionBackground, #f5f4f2));
+  background: var(--chatui-bg-ai, var(--vscode-editor-inactiveSelectionBackground, rgba(255,255,255,0.08)));
   color: var(--chatui-fg-ai, var(--vscode-foreground, #1c1c1c));
   border-bottom-left-radius: 2px;
 }
+
+/* Role bar */
 .msg-role-bar {
   display: flex;
   align-items: center;
@@ -303,10 +310,12 @@ defineExpose({ open })
   letter-spacing: 0.04em;
   color: var(--chatui-fg-secondary, var(--vscode-descriptionForeground, #6b7280));
 }
+
+/* Markdown content */
 .md-content :deep(p) { margin: 0 0 6px; }
 .md-content :deep(p:last-child) { margin-bottom: 0; }
 .md-content :deep(pre) {
-  background: var(--chatui-bg-code, var(--vscode-textCodeBlock-background, rgba(0,0,0,0.1)));
+  background: var(--chatui-bg-code, var(--vscode-textCodeBlock-background, rgba(0,0,0,0.2)));
   padding: 8px;
   border-radius: 4px;
   overflow-x: auto;
@@ -316,6 +325,23 @@ defineExpose({ open })
   font-family: var(--vscode-editor-font-family, monospace);
   font-size: 0.9em;
 }
+.md-content :deep(:not(pre) > code) {
+  background: var(--chatui-bg-code, var(--vscode-textCodeBlock-background, rgba(0,0,0,0.2)));
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.md-content :deep(ul), .md-content :deep(ol) {
+  padding-left: 20px;
+  margin: 4px 0;
+}
+.md-content :deep(blockquote) {
+  border-left: 3px solid var(--vscode-textBlockQuote-border, #555);
+  padding: 2px 10px;
+  margin: 4px 0;
+  opacity: 0.85;
+}
+
+/* Inline media */
 .inline-image { margin: 6px 0; }
 .inline-image-thumb {
   max-width: 240px;
@@ -338,7 +364,11 @@ defineExpose({ open })
   font-size: 12px;
   max-width: 95%;
 }
-.msg-role.has-think { display: flex; align-items: center; gap: 8px; }
+.msg-role.has-think {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .tool-call-item {
   border: 1px solid var(--chatui-border, var(--vscode-widget-border, rgba(255,255,255,0.1)));
   border-radius: 6px;
@@ -354,11 +384,26 @@ defineExpose({ open })
   font-weight: 500;
   user-select: none;
 }
-.tool-call-header::after { content: '▶'; font-size: 10px; color: var(--chatui-fg-secondary, #9b9b9b); margin-left: auto; }
+.tool-call-header::after {
+  content: '▶';
+  font-size: 10px;
+  color: var(--chatui-fg-secondary, var(--vscode-descriptionForeground, #9b9b9b));
+  margin-left: auto;
+}
 .tool-call-header.expanded::after { content: '▼'; }
-.tool-call-name { font-family: monospace; font-size: 12px; }
-.tool-call-inline-args { font-family: monospace; font-size: 11px; color: var(--chatui-fg-secondary, var(--vscode-descriptionForeground, #7a7a7a)); }
-.tool-call-result-preview { font-size: 11px; color: var(--chatui-fg-secondary, var(--vscode-descriptionForeground, #9b9b9b)); }
+.tool-call-name {
+  font-family: monospace;
+  font-size: 12px;
+}
+.tool-call-inline-args {
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--chatui-fg-secondary, var(--vscode-descriptionForeground, #7a7a7a));
+}
+.tool-call-result-preview {
+  font-size: 11px;
+  color: var(--chatui-fg-secondary, var(--vscode-descriptionForeground, #9b9b9b));
+}
 .tool-call-header.expanded .tool-call-result-preview { display: none; }
 .tool-call-detail { display: none; }
 .tool-call-detail.show { display: block; }
@@ -374,9 +419,23 @@ defineExpose({ open })
   max-height: 300px;
   overflow-y: auto;
 }
-.tool-call-result { padding: 8px; border-top: 1px solid var(--chatui-border, var(--vscode-widget-border, rgba(255,255,255,0.1))); }
-.tool-call-result-top { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-.tool-call-result-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--chatui-fg-secondary, var(--vscode-descriptionForeground, #6b7280)); }
+.tool-call-result {
+  padding: 8px;
+  border-top: 1px solid var(--chatui-border, var(--vscode-widget-border, rgba(255,255,255,0.1)));
+}
+.tool-call-result-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.tool-call-result-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--chatui-fg-secondary, var(--vscode-descriptionForeground, #6b7280));
+}
 .tool-result-content { font-size: 12px; }
 
 /* Think toggle */

@@ -64,12 +64,23 @@ export type ContentPart =
   | { type: 'image'; dataUrl: string }
   | { type: 'audio'; dataUrl: string };
 
+// ── Attachment ──
+
+export interface Attachment {
+  name: string
+  type: string
+  dataUrl?: string
+  content?: string
+}
+
 // ── Labels (i18n without vue-i18n) ──
 
 export interface ChatLabels {
   send?: string
   inputPlaceholder?: string
   stop?: string
+  attachment?: string
+  addAttachment?: string
   roleUser?: string
   roleAi?: string
   thinking?: string

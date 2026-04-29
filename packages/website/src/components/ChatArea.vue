@@ -6,16 +6,9 @@ import { useToast } from '@/composables/useToast'
 import { useChatSocket } from '@/composables/useChatSocket'
 import ChatPanel from './ChatPanel.vue'
 import { MessageRole } from '@sbot/chat-ui'
-import type { ContentPart, StoredMessage } from '@sbot/chat-ui'
+import type { ContentPart, StoredMessage, Attachment } from '@sbot/chat-ui'
 import { WebChatEventType, WsCommandType, AskQuestionType } from 'sbot.commons'
 import type { WebChatEvent, AskQuestionSpec } from 'sbot.commons'
-
-interface Attachment {
-  name: string
-  type: string
-  dataUrl?: string
-  content?: string
-}
 
 const props = withDefaults(defineProps<{
   historyUrl: string | null

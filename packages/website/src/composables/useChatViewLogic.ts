@@ -5,15 +5,8 @@ import { useToast } from '@/composables/useToast'
 import { useChatSocket } from '@/composables/useChatSocket'
 import { useI18n } from 'vue-i18n'
 import ChatArea from '@/components/ChatArea.vue'
-import type { ContentPart } from '@sbot/chat-ui'
+import type { ContentPart, Attachment } from '@sbot/chat-ui'
 import { WebChatEventType, type WebChatEvent } from 'sbot.commons'
-
-interface Attachment {
-  name: string
-  type: string
-  dataUrl?: string
-  content?: string
-}
 
 interface ChatViewLogicOptions {
   /** Reactive getter for the current sessionId */

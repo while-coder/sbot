@@ -1,18 +1,11 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { StoredMessage, ContentPart } from '@sbot/chat-ui'
+import type { StoredMessage, ContentPart, Attachment } from '@sbot/chat-ui'
 import MessageList from './MessageList.vue'
 import RichInput from './RichInput.vue'
 
 const { t } = useI18n()
-
-interface Attachment {
-  name: string
-  type: string
-  dataUrl?: string
-  content?: string
-}
 
 
 const props = withDefaults(defineProps<{

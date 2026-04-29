@@ -1,4 +1,4 @@
-import { onUnmounted, ref } from 'vue';
+import { onUnmounted, ref, computed } from 'vue';
 import { useChat as useChatCore, type IChatTransport, type ContentPart } from '@sbot/chat-ui';
 import { WsCommandType, WebChatEventType, DEFAULT_PORT } from 'sbot.commons';
 
@@ -15,7 +15,7 @@ function saveRemotes(remotes: RemoteEntry[]) {
 }
 
 export function useChat() {
-  let baseUrl = '';
+  const baseUrl = ref('');
   let ws: WebSocket | null = null;
   let sessionId: string | null = null;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -34,6 +34,10 @@ export function useChat() {
       remotes.value.push({ name, host, port });
       saveRemotes(remotes.value);
       switchServer(`http://${host}:${port}`);
+    },
+    cancel() {
+      if (!sessionId || !ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({ type: WsCommandType.Abort, sessionId }));
     },
     updateRemote(remoteIndex: number, patch: { name?: string; host?: string; port?: number }) {
       const r = remotes.value[remoteIndex];
@@ -59,9 +63,9 @@ export function useChat() {
     createSession(agentId: string, saverId: string, memoryIds: string[]) {
       createSessionOnServer(agentId, saverId, memoryIds);
     },
-    sendMessage(parts: ContentPart[]) {
+    sendMessage(parts: ContentPart[], attachments?: any[]) {
       if (!sessionId || !ws || ws.readyState !== WebSocket.OPEN) return;
-      ws.send(JSON.stringify({ sessionId, type: WsCommandType.Query, parts }));
+      ws.send(JSON.stringify({ sessionId, type: WsCommandType.Query, parts, attachments }));
     },
     updateSessionConfig(field: string, value: any) {
       if (!sessionId) return;
@@ -70,7 +74,7 @@ export function useChat() {
       apiFetch(`/api/settings/sessions/${encodeURIComponent(sessionId)}`, { method: 'PUT', body: patch }).catch(console.error);
     },
     retry() {
-      if (baseUrl) sendInit();
+      if (baseUrl.value) sendInit();
       else chat.handleMessage({ type: 'serverList', remotes: remotes.value });
     },
   };
@@ -78,7 +82,7 @@ export function useChat() {
   const chat = useChatCore(transport);
 
   async function apiFetch(path: string, opts?: { method?: string; body?: any }) {
-    const url = baseUrl + path;
+    const url = baseUrl.value + path;
     const init: RequestInit = { method: opts?.method ?? 'GET', headers: { 'Content-Type': 'application/json' } };
     if (opts?.body) init.body = JSON.stringify(opts.body);
     const res = await fetch(url, init);
@@ -87,7 +91,7 @@ export function useChat() {
   }
 
   function switchServer(url: string) {
-    baseUrl = url;
+    baseUrl.value = url;
     closeWs();
     sessionId = null;
     connectWs();
@@ -143,8 +147,8 @@ export function useChat() {
   }
 
   function connectWs() {
-    if (!baseUrl) return;
-    const wsUrl = baseUrl.replace(/^http/, 'ws') + '/ws/chat';
+    if (!baseUrl.value) return;
+    const wsUrl = baseUrl.value.replace(/^http/, 'ws') + '/ws/chat';
     const socket = new WebSocket(wsUrl);
     socket.onmessage = (event) => {
       try {
@@ -181,7 +185,7 @@ export function useChat() {
   }
 
   function scheduleReconnect() {
-    if (reconnectTimer || !baseUrl) return;
+    if (reconnectTimer || !baseUrl.value) return;
     reconnectTimer = setTimeout(() => { reconnectTimer = null; connectWs(); }, 3000);
   }
 
@@ -189,5 +193,17 @@ export function useChat() {
 
   onUnmounted(() => { closeWs(); });
 
-  return chat;
+  const thinksUrlPrefix = computed(() => {
+    const sid = chat.state.sessionId;
+    if (!sid || !baseUrl.value) return null;
+    return `${baseUrl.value}/api/sessions/${encodeURIComponent(sid)}/thinks`;
+  });
+
+  async function pwaFetchFn(url: string) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    return res.json();
+  }
+
+  return { ...chat, thinksUrlPrefix, fetchFn: pwaFetchFn };
 }

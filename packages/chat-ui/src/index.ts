@@ -6,6 +6,7 @@ export type {
   MemoryOption,
   StoredMessage,
   ContentPart,
+  Attachment,
   ChatState,
   ChatLabels,
   DisplayPart,

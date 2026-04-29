@@ -56,6 +56,7 @@
         :thinksUrlPrefix="thinksUrlPrefix"
         :onCancel="chat.cancel"
         :fetchFn="fetchFn"
+        :showAttachments="showAttachments"
         @send="chat.sendMessage"
         @updateConfig="chat.updateSessionConfig"
       />
@@ -77,9 +78,11 @@ const props = withDefaults(defineProps<{
   labels?: ChatLabels
   thinksUrlPrefix?: string | null
   fetchFn?: (url: string) => Promise<any>
+  showAttachments?: boolean
 }>(), {
   thinksUrlPrefix: null,
   fetchFn: undefined,
+  showAttachments: false,
 });
 
 const L = computed(() => resolveLabels(props.labels))

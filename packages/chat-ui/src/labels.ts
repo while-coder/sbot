@@ -4,6 +4,8 @@ export const defaultLabels: Required<ChatLabels> = {
   send: '发送',
   inputPlaceholder: '输入消息... (Enter 发送, Shift+Enter 换行)',
   stop: '中断',
+  attachment: '附件',
+  addAttachment: '添加附件',
   roleUser: '用户',
   roleAi: 'AI',
   thinking: '思考中...',
