@@ -14,29 +14,7 @@
       },
       "problemMatcher": "$tsc"
     },
-    {
-      "label": "start:website",
-      "type": "shell",
-      "command": "pnpm --filter sbot-website run debug",
-      "options": {
-        "cwd": "${workspaceFolder}"
-      },
-      "isBackground": true,
-      "presentation": {
-        "reveal": "silent",
-        "panel": "dedicated"
-      },
-      "problemMatcher": {
-        "owner": "vite",
-        "pattern": { "regexp": "^$" },
-        "background": {
-          "activeOnStart": true,
-          "beginsPattern": "VITE",
-          "endsPattern": "Local:"
-        }
-      }
-    },
-    {
+{
       "label": "debug:sbot",
       "type": "shell",
       "command": "pnpm run debug:sbot",
@@ -56,7 +34,7 @@
     {
       "label": "build:vscode-extension",
       "type": "shell",
-      "command": "pnpm --filter sbot-vscode run build",
+      "command": "pnpm run build:vscode",
       "options": {
         "cwd": "${workspaceFolder}"
       },

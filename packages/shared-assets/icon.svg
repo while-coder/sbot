@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Antenna -->
+  <line x1="12" y1="2" x2="12" y2="5"/>
+  <circle cx="12" cy="2" r="1" fill="currentColor" stroke="none"/>
+
+  <!-- Head -->
+  <rect x="4" y="5" width="16" height="12" rx="3"/>
+
+  <!-- Ears -->
+  <rect x="1" y="9" width="2.5" height="4" rx="1.25"/>
+  <rect x="20.5" y="9" width="2.5" height="4" rx="1.25"/>
+
+  <!-- Eyes -->
+  <rect x="7.5" y="9" width="3" height="2.5" rx="0.75" fill="currentColor" stroke="none"/>
+  <rect x="13.5" y="9" width="3" height="2.5" rx="0.75" fill="currentColor" stroke="none"/>
+
+  <!-- Mouth S-shape -->
+  <path d="M9.5 13.5 Q9.5 12.5 10.5 12.5 L13.5 12.5 Q14.5 12.5 14.5 13.5 Q14.5 14.5 13.5 14.5 L10.5 14.5 Q9.5 14.5 9.5 15.5" fill="none"/>
+
+  <!-- Body hint -->
+  <path d="M7 17 L7 20 Q7 21 8 21 L16 21 Q17 21 17 20 L17 17" fill="none"/>
+</svg>
