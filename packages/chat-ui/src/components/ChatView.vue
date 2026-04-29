@@ -10,6 +10,7 @@ import type {
 import { MessageRole } from '../types'
 import type { IChatTransport } from '../transport'
 import { resolveLabels } from '../labels'
+import { useCompactProvider } from '../composables/useCompact'
 import SessionBar from './SessionBar.vue'
 import ConfigToolbar from './ConfigToolbar.vue'
 import StatusBar from './StatusBar.vue'
@@ -47,6 +48,9 @@ const usage = ref<UsageInfo | null>(null)
 const chatAreaRef = ref<InstanceType<typeof ChatArea>>()
 const pathPickerRef = ref<InstanceType<typeof PathPickerModal>>()
 const newSessionRef = ref<InstanceType<typeof NewSessionModal>>()
+const rootEl = ref<HTMLElement | null>(null)
+const isCompact = useCompactProvider(rootEl)
+const sidebarOpen = ref(false)
 
 // ── Derived ──
 
@@ -355,9 +359,37 @@ const fetchThinks = computed(() => props.transport.fetchThinks?.bind(props.trans
 </script>
 
 <template>
-  <div class="chatui-root">
-    <!-- Session sidebar -->
+  <div ref="rootEl" class="chatui-root" :class="{ 'chatui-compact': isCompact }">
+    <!-- Compact header bar -->
+    <div v-if="isCompact" class="chatui-compact-header">
+      <button class="chatui-hamburger" @click="sidebarOpen = !sidebarOpen">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+          <rect x="2" y="4" width="16" height="2" rx="1"/>
+          <rect x="2" y="9" width="16" height="2" rx="1"/>
+          <rect x="2" y="14" width="16" height="2" rx="1"/>
+        </svg>
+      </button>
+      <span class="chatui-compact-title">{{ activeSession?.name || activeSession?.id?.slice(0, 8) || '' }}</span>
+    </div>
+
+    <!-- Session sidebar: drawer in compact, static otherwise -->
+    <Transition name="chatui-drawer">
+      <div v-if="isCompact && sidebarOpen" class="chatui-drawer-backdrop" @click="sidebarOpen = false">
+        <div class="chatui-drawer" @click.stop>
+          <SessionBar
+            :sessions="sessions"
+            :active-session-id="activeSessionId"
+            :labels="labels"
+            @select="(id: string) => { selectSession(id); sidebarOpen = false }"
+            @delete="onDeleteSession"
+            @rename="onRenameSession"
+            @new-session="newSessionRef?.open()"
+          />
+        </div>
+      </div>
+    </Transition>
     <SessionBar
+      v-if="!isCompact"
       :sessions="sessions"
       :active-session-id="activeSessionId"
       :labels="labels"
@@ -435,8 +467,62 @@ const fetchThinks = computed(() => props.transport.fetchThinks?.bind(props.trans
   color: var(--chatui-fg);
   background: var(--chatui-bg);
 }
+.chatui-root.chatui-compact {
+  flex-direction: column;
+}
 .chatui-main {
   flex: 1; display: flex; flex-direction: column; overflow: hidden;
   min-width: 0;
+}
+
+/* Compact header */
+.chatui-compact-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--chatui-border);
+  background: var(--chatui-bg-surface);
+  flex-shrink: 0;
+}
+.chatui-hamburger {
+  background: none; border: none; cursor: pointer;
+  color: var(--chatui-fg); padding: 4px; display: flex;
+  border-radius: 4px;
+}
+.chatui-hamburger:hover { background: var(--chatui-bg-hover); }
+.chatui-compact-title {
+  font-size: 13px; font-weight: 600; color: var(--chatui-fg);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  min-width: 0;
+}
+
+/* Drawer overlay */
+.chatui-drawer-backdrop {
+  position: fixed; inset: 0; z-index: 99;
+  background: rgba(0, 0, 0, 0.4);
+}
+.chatui-drawer {
+  position: fixed; top: 0; left: 0; bottom: 0;
+  width: 240px; z-index: 100;
+}
+.chatui-drawer :deep(.chatui-session-bar) {
+  width: 100%; height: 100%;
+}
+
+/* Drawer transitions */
+.chatui-drawer-enter-active,
+.chatui-drawer-leave-active {
+  transition: opacity 0.25s ease;
+}
+.chatui-drawer-enter-active .chatui-drawer,
+.chatui-drawer-leave-active .chatui-drawer {
+  transition: transform 0.25s ease;
+}
+.chatui-drawer-enter-from,
+.chatui-drawer-leave-to {
+  opacity: 0;
+}
+.chatui-drawer-enter-from .chatui-drawer,
+.chatui-drawer-leave-to .chatui-drawer {
+  transform: translateX(-100%);
 }
 </style>
