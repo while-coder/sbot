@@ -1,5 +1,5 @@
+import type { IChatTransport } from './transport'
 import type {
-  IChatTransport,
   ChatEvent,
   ContentPart,
   Attachment,
