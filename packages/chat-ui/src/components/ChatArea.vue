@@ -6,6 +6,8 @@ import type {
   DisplayContent,
 } from '../types'
 import { resolveLabels } from '../labels'
+import { useCompact } from '../composables/useCompact'
+const isCompact = useCompact()
 import MessageList from './MessageList.vue'
 import RichInput from './RichInput.vue'
 import ToolApprovalBar from './ToolApprovalBar.vue'
@@ -199,7 +201,7 @@ defineExpose({ scrollToBottom })
     <!-- Input bar -->
     <div
       class="chatui-input-bar"
-      :class="{ 'chatui-drag-over': isDragging }"
+      :class="{ 'chatui-drag-over': isDragging, 'chatui-compact': isCompact }"
       @dragover="onInputBarDragOver"
       @dragleave="onInputBarDragLeave"
       @drop.capture="isDragging = false"
@@ -299,7 +301,5 @@ defineExpose({ scrollToBottom })
 .chatui-btn-danger:hover { background: rgba(239, 68, 68, 0.08); }
 .chatui-btn-sm { padding: 4px 10px; font-size: 12px; }
 
-@media (max-width: 768px) {
-  .chatui-input-bar { padding: 8px; gap: 6px; }
-}
+.chatui-input-bar.chatui-compact { padding: 8px; gap: 6px; }
 </style>

@@ -3,6 +3,9 @@ import { computed } from 'vue'
 import type { SessionItem, AppSettings, ChatLabels } from '../types'
 import { resolveLabels } from '../labels'
 import MultiSelect from './MultiSelect.vue'
+import { useCompact } from '../composables/useCompact'
+
+const isCompact = useCompact()
 
 const props = defineProps<{
   session: SessionItem | null
@@ -32,7 +35,7 @@ const wikiOptions = computed(() =>
 </script>
 
 <template>
-  <div class="chatui-config-toolbar">
+  <div class="chatui-config-toolbar" :class="{ 'chatui-compact': isCompact }">
     <template v-if="session">
       <div class="chatui-toolbar-group">
         <label class="chatui-toolbar-label">{{ L.agent }}</label>
@@ -155,9 +158,7 @@ const wikiOptions = computed(() =>
 .chatui-btn-outline:hover { background: var(--chatui-bg-hover); }
 .chatui-btn-sm { padding: 4px 10px; font-size: 12px; }
 
-@media (max-width: 768px) {
-  .chatui-config-toolbar { gap: 6px; padding: 6px 8px; }
-  .chatui-toolbar-sep { display: none; }
-  .chatui-toolbar-group { flex-wrap: wrap; }
-}
+.chatui-config-toolbar.chatui-compact { gap: 6px; padding: 6px 8px; }
+.chatui-compact .chatui-toolbar-sep { display: none; }
+.chatui-compact .chatui-toolbar-group { flex-wrap: wrap; }
 </style>

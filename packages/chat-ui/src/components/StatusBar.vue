@@ -2,6 +2,9 @@
 import { computed } from 'vue'
 import type { UsageInfo, ChatLabels } from '../types'
 import { resolveLabels } from '../labels'
+import { useCompact } from '../composables/useCompact'
+
+const isCompact = useCompact()
 
 const props = defineProps<{
   usage: UsageInfo | null
@@ -36,7 +39,7 @@ function fmt(n: number): string {
 </script>
 
 <template>
-  <div class="chatui-status-bar">
+  <div class="chatui-status-bar" :class="{ 'chatui-compact': isCompact }">
     <div class="chatui-usage-stats" v-if="usage && usage.totalTokens > 0">
       <span v-if="contextPercent != null" class="chatui-ctx-bar-wrap"
         :title="`${fmt(usage!.lastInputTokens)} / ${fmt(contextWindow!)}`">
@@ -112,7 +115,5 @@ function fmt(n: number): string {
 .chatui-btn-danger:hover { background: rgba(239, 68, 68, 0.08); }
 .chatui-btn-danger:disabled { opacity: 0.5; cursor: default; }
 
-@media (max-width: 768px) {
-  .chatui-status-bar { flex-wrap: wrap; padding: 4px 8px; gap: 6px; }
-}
+.chatui-status-bar.chatui-compact { flex-wrap: wrap; padding: 4px 8px; gap: 6px; }
 </style>

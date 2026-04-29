@@ -40,6 +40,9 @@ export { defaultLabels, resolveLabels, tpl } from './labels';
 // ── Transport implementations ──
 export { WebSocketTransport } from './WebSocketTransport';
 
+// ── Composables ──
+export { useCompact, useCompactProvider } from './composables/useCompact';
+
 // ── Components ──
 export { default as ChatView } from './components/ChatView.vue';
 export { default as ChatArea } from './components/ChatArea.vue';

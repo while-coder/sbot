@@ -236,6 +236,9 @@ importers:
       sbot.commons:
         specifier: workspace:*
         version: link:../sbot.commons
+      shared-assets:
+        specifier: workspace:*
+        version: link:../shared-assets
     devDependencies:
       '@vitejs/plugin-vue':
         specifier: ^6.0.6
@@ -455,6 +458,8 @@ importers:
         specifier: 'catalog:'
         version: 6.0.3
 
+  packages/shared-assets: {}
+
   packages/vscode-extension:
     dependencies:
       '@sbot/chat-ui':
@@ -466,6 +471,9 @@ importers:
       sbot.commons:
         specifier: workspace:*
         version: link:../sbot.commons
+      shared-assets:
+        specifier: workspace:*
+        version: link:../shared-assets
       ws:
         specifier: 'catalog:'
         version: 8.20.0
@@ -527,6 +535,9 @@ importers:
       sbot.commons:
         specifier: workspace:*
         version: link:../sbot.commons
+      shared-assets:
+        specifier: workspace:*
+        version: link:../shared-assets
       vue:
         specifier: ^3.5.33
         version: 3.5.33(typescript@6.0.3)

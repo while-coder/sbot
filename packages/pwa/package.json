@@ -4,12 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "copy-assets": "cp ../shared-assets/logo.svg public/ && cp ../shared-assets/pwa-192x192.png public/ && cp ../shared-assets/pwa-512x512.png public/",
+    "dev": "pnpm run copy-assets && vite",
+    "build": "pnpm run copy-assets && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
     "@sbot/chat-ui": "workspace:*",
+    "shared-assets": "workspace:*",
     "sbot.commons": "workspace:*"
   },
   "devDependencies": {
