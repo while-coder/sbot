@@ -1,7 +1,7 @@
 /* PWA theme — mobile-optimized spacing overrides (no colors) */
 :root {
-  --chatui-font-size: 15px;
-  --chatui-font-size-sm: 13px;
+  --chatui-font-size: 14px;
+  --chatui-font-size-sm: 12px;
   --chatui-spacing-sm: 10px;
   --chatui-spacing-md: 14px;
   --chatui-radius-sm: 6px;
