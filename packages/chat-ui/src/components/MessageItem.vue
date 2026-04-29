@@ -86,36 +86,36 @@ const time = computed(() => {
   word-break: break-word;
 }
 .msg-bubble.human {
-  background: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
+  background: var(--chatui-bg-human);
+  color: var(--chatui-fg-human);
   border-bottom-right-radius: 2px;
 }
 .msg-bubble.ai {
-  background: var(--vscode-editor-inactiveSelectionBackground, rgba(255,255,255,0.08));
-  color: var(--vscode-foreground);
+  background: var(--chatui-bg-ai);
+  color: var(--chatui-fg-ai);
   border-bottom-left-radius: 2px;
 }
 .msg-time {
   font-size: 11px;
-  color: var(--vscode-descriptionForeground);
+  color: var(--chatui-fg-secondary);
   margin-top: 2px;
   padding: 0 4px;
 }
 .msg-bubble :deep(p) { margin: 0 0 6px; }
 .msg-bubble :deep(p:last-child) { margin-bottom: 0; }
 .msg-bubble :deep(pre) {
-  background: var(--vscode-textCodeBlock-background, rgba(0,0,0,0.2));
+  background: var(--chatui-bg-code);
   padding: 8px;
   border-radius: 4px;
   overflow-x: auto;
   margin: 6px 0;
 }
 .msg-bubble :deep(code) {
-  font-family: var(--vscode-editor-font-family, monospace);
+  font-family: var(--chatui-font-family-mono);
   font-size: 0.9em;
 }
 .msg-bubble :deep(:not(pre) > code) {
-  background: var(--vscode-textCodeBlock-background, rgba(0,0,0,0.2));
+  background: var(--chatui-bg-code);
   padding: 1px 4px;
   border-radius: 3px;
 }
@@ -124,7 +124,7 @@ const time = computed(() => {
   margin: 4px 0;
 }
 .msg-bubble :deep(blockquote) {
-  border-left: 3px solid var(--vscode-textBlockQuote-border);
+  border-left: 3px solid var(--chatui-blockquote-border);
   padding: 2px 10px;
   margin: 4px 0;
   opacity: 0.85;

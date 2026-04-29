@@ -64,39 +64,39 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutside))
 .chatui-ms-root { position: relative; display: inline-flex; flex-direction: column; }
 .chatui-ms-trigger {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 5px 8px 5px 10px; border: 1px solid var(--chatui-border, #d4d2ce);
-  border-radius: 6px; background: var(--chatui-bg-surface, #fff);
+  padding: 5px 8px 5px 10px; border: 1px solid var(--chatui-border);
+  border-radius: 6px; background: var(--chatui-bg-surface);
   cursor: pointer; text-align: left; min-height: 32px; gap: 6px;
-  color: var(--chatui-fg, #1c1c1c); font-size: inherit; font-family: inherit;
+  color: var(--chatui-fg); font-size: inherit; font-family: inherit;
 }
 .chatui-ms-root.compact .chatui-ms-trigger { min-height: 26px; padding: 3px 6px 3px 8px; }
-.chatui-ms-trigger:hover, .chatui-ms-root.open .chatui-ms-trigger { border-color: var(--chatui-border-focus, #999); }
+.chatui-ms-trigger:hover, .chatui-ms-root.open .chatui-ms-trigger { border-color: var(--chatui-border-focus); }
 .chatui-ms-value { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; min-width: 0; }
 .chatui-ms-chip {
-  background: var(--chatui-chip-bg, #1c1c1c); color: var(--chatui-chip-fg, #fff);
+  background: var(--chatui-chip-bg); color: var(--chatui-chip-fg);
   font-size: 12px; padding: 1px 7px; border-radius: 99px; white-space: nowrap;
 }
 .chatui-ms-root.compact .chatui-ms-chip { font-size: 11px; padding: 0 6px; }
-.chatui-ms-placeholder { font-size: 13px; color: var(--chatui-fg-secondary, #aaa); line-height: 1.6; }
-.chatui-ms-arrow { color: var(--chatui-fg-secondary, #999); flex-shrink: 0; transition: transform .15s; }
+.chatui-ms-placeholder { font-size: 13px; color: var(--chatui-fg-secondary); line-height: 1.6; }
+.chatui-ms-arrow { color: var(--chatui-fg-secondary); flex-shrink: 0; transition: transform .15s; }
 .chatui-ms-root.open .chatui-ms-arrow { transform: rotate(180deg); }
 .chatui-ms-dropdown {
   position: absolute; top: calc(100% + 4px); left: 0; min-width: 100%; width: max-content;
-  background: var(--chatui-bg-surface, #fff); border: 1px solid var(--chatui-border, #d4d2ce);
+  background: var(--chatui-bg-surface); border: 1px solid var(--chatui-border);
   border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,.1); z-index: 100;
   max-height: 200px; overflow-y: auto;
 }
 .chatui-ms-option {
   display: flex; align-items: center; gap: 8px; padding: 7px 12px;
-  cursor: pointer; font-size: 13px; color: var(--chatui-fg, #1c1c1c);
-  border-bottom: 1px solid var(--chatui-border-subtle, #f0eeeb); user-select: none;
+  cursor: pointer; font-size: 13px; color: var(--chatui-fg);
+  border-bottom: 1px solid var(--chatui-border-subtle); user-select: none;
 }
 .chatui-ms-option:last-child { border-bottom: none; }
-.chatui-ms-option:hover { background: var(--chatui-bg-hover, #f8f7f6); }
-.chatui-ms-option.checked { background: var(--chatui-bg-active, #f4f4f4); font-weight: 500; }
+.chatui-ms-option:hover { background: var(--chatui-bg-hover); }
+.chatui-ms-option.checked { background: var(--chatui-bg-active); font-weight: 500; }
 .chatui-ms-option input[type="checkbox"] {
-  margin: 0; flex-shrink: 0; accent-color: var(--chatui-accent, #1c1c1c);
+  margin: 0; flex-shrink: 0; accent-color: var(--chatui-accent);
   width: 14px; height: 14px; cursor: pointer;
 }
-.chatui-ms-empty { padding: 8px 12px; font-size: 13px; color: var(--chatui-fg-secondary, #94a3b8); }
+.chatui-ms-empty { padding: 8px 12px; font-size: 13px; color: var(--chatui-fg-secondary); }
 </style>

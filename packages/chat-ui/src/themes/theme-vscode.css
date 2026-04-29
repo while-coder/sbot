@@ -1,22 +1,69 @@
 /* VSCode theme — maps chatui variables to VSCode CSS variables */
 :root {
+  /* ── Core ── */
   --chatui-bg: var(--vscode-editor-background, #1e1e1e);
   --chatui-bg-surface: var(--vscode-editor-background, #1e1e1e);
   --chatui-bg-hover: var(--vscode-list-hoverBackground, #2a2d2e);
   --chatui-bg-active: var(--vscode-list-activeSelectionBackground, #094771);
   --chatui-fg: var(--vscode-editor-foreground, #d4d4d4);
+  --chatui-fg-primary: var(--vscode-foreground, #d4d4d4);
   --chatui-fg-secondary: var(--vscode-descriptionForeground, #858585);
   --chatui-border: var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
   --chatui-border-subtle: var(--vscode-widget-border, rgba(255, 255, 255, 0.06));
   --chatui-border-focus: var(--vscode-focusBorder, #007fd4);
   --chatui-accent: var(--vscode-button-background, #0e639c);
+
+  /* ── Font ── */
   --chatui-font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+  --chatui-font-family-mono: var(--vscode-editor-font-family, monospace);
   --chatui-font-size: var(--vscode-font-size, 13px);
   --chatui-font-size-sm: 11px;
+
+  /* ── Buttons ── */
   --chatui-btn-bg: var(--vscode-button-background, #0e639c);
   --chatui-btn-fg: var(--vscode-button-foreground, #ffffff);
   --chatui-btn-hover: var(--vscode-button-hoverBackground, #1177bb);
   --chatui-btn-danger: var(--vscode-errorForeground, #f48771);
+
+  /* ── Messages ── */
+  --chatui-bg-human: var(--vscode-button-background, #0e639c);
+  --chatui-fg-human: var(--vscode-button-foreground, #ffffff);
+  --chatui-bg-ai: var(--vscode-editor-inactiveSelectionBackground, rgba(255, 255, 255, 0.08));
+  --chatui-fg-ai: var(--vscode-foreground, #d4d4d4);
+  --chatui-bg-tool: rgba(120, 100, 40, 0.15);
+  --chatui-fg-tool: #fbbf24;
+  --chatui-bg-code: var(--vscode-textCodeBlock-background, rgba(0, 0, 0, 0.2));
+
+  /* ── Think ── */
+  --chatui-think-fg: #b694f7;
+  --chatui-think-bg: rgba(182, 148, 247, 0.1);
+  --chatui-think-border: rgba(182, 148, 247, 0.25);
+
+  /* ── Ask ── */
+  --chatui-ask-bg: #1e2a3a;
+  --chatui-ask-border: #2d6ca3;
+  --chatui-ask-title: #7dd3fc;
+  --chatui-ask-label: #93c5fd;
+  --chatui-ask-focus: var(--vscode-focusBorder, #007fd4);
+
+  /* ── Approval ── */
+  --chatui-approval-bg: #2a2418;
+  --chatui-approval-border: #a68a2a;
+  --chatui-approval-toggle: #f59e0b;
+  --chatui-approval-key: #fcd34d;
+  --chatui-approval-val: #d4c8a0;
+  --chatui-approval-args-bg: rgba(120, 100, 40, 0.15);
+  --chatui-approval-full-bg: rgba(120, 100, 40, 0.2);
+
+  /* ── Usage ── */
   --chatui-usage-input: #569cd6;
   --chatui-usage-output: #c586c0;
+  --chatui-usage-sep: rgba(255, 255, 255, 0.1);
+  --chatui-usage-op: #555555;
+  --chatui-usage-track: rgba(255, 255, 255, 0.1);
+
+  /* ── Misc ── */
+  --chatui-blockquote-border: var(--vscode-textBlockQuote-border, #555555);
+  --chatui-chip-bg: var(--vscode-button-background, #0e639c);
+  --chatui-chip-fg: var(--vscode-button-foreground, #ffffff);
 }

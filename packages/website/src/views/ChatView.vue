@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ChatView, WebSocketTransport } from '@sbot/chat-ui'
 import '@sbot/chat-ui/themes/variables.css'
-import '@sbot/chat-ui/themes/theme-web.css'
+import '@sbot/chat-ui/themes/theme-light.css'
 
 const transport = new WebSocketTransport()
 </script>

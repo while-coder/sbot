@@ -70,44 +70,44 @@ function fmt(n: number): string {
 <style scoped>
 .chatui-status-bar {
   display: flex; align-items: center; gap: 12px;
-  padding: 5px 16px; border-bottom: 1px solid var(--chatui-border-subtle, #f0efed);
+  padding: 5px 16px; border-bottom: 1px solid var(--chatui-border-subtle);
   min-height: 30px; flex-shrink: 0;
-  background: var(--chatui-bg-surface, #fff);
+  background: var(--chatui-bg-surface);
 }
 .chatui-usage-stats {
   display: flex; align-items: center; gap: 10px;
   font-size: 11px; font-variant-numeric: tabular-nums;
-  color: var(--chatui-fg-secondary, #64748b);
+  color: var(--chatui-fg-secondary);
 }
 .chatui-usage-item { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
-.chatui-usage-label { color: var(--chatui-fg-secondary, #94a3b8); font-weight: 500; }
+.chatui-usage-label { color: var(--chatui-fg-secondary); font-weight: 500; }
 .chatui-usage-val { font-weight: 600; }
-.chatui-usage-in { color: var(--chatui-usage-input, #3b82f6); }
-.chatui-usage-out { color: var(--chatui-usage-output, #8b5cf6); }
-.chatui-usage-op { color: #cbd5e1; font-size: 10px; }
-.chatui-usage-sep { width: 1px; height: 12px; background: #e2e8f0; flex-shrink: 0; }
+.chatui-usage-in { color: var(--chatui-usage-input); }
+.chatui-usage-out { color: var(--chatui-usage-output); }
+.chatui-usage-op { color: var(--chatui-usage-op); font-size: 10px; }
+.chatui-usage-sep { width: 1px; height: 12px; background: var(--chatui-usage-sep); flex-shrink: 0; }
 .chatui-toolbar-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
 .chatui-ctx-bar-wrap { display: flex; align-items: center; gap: 6px; cursor: default; }
 .chatui-ctx-bar-track {
-  width: 80px; height: 6px; background: #e2e8f0;
+  width: 80px; height: 6px; background: var(--chatui-usage-track);
   border-radius: 3px; overflow: hidden;
 }
 .chatui-ctx-bar-fill { height: 100%; border-radius: 3px; transition: width .3s, background .3s; }
 .chatui-ctx-bar-label {
-  font-size: 11px; color: var(--chatui-fg-secondary, #64748b);
+  font-size: 11px; color: var(--chatui-fg-secondary);
   font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 .chatui-btn-outline {
-  padding: 4px 10px; border: 1px solid var(--chatui-border, #d1d5db);
+  padding: 4px 10px; border: 1px solid var(--chatui-border);
   border-radius: 6px; background: transparent; cursor: pointer;
-  font-size: 12px; color: var(--chatui-fg, #374151);
+  font-size: 12px; color: var(--chatui-fg);
 }
-.chatui-btn-outline:hover { background: var(--chatui-bg-hover, #f5f4f2); }
+.chatui-btn-outline:hover { background: var(--chatui-bg-hover); }
 .chatui-btn-sm { padding: 4px 10px; font-size: 12px; }
 .chatui-btn-danger {
-  padding: 4px 10px; border: 1px solid var(--chatui-btn-danger, #ef4444);
+  padding: 4px 10px; border: 1px solid var(--chatui-btn-danger);
   border-radius: 6px; background: transparent; cursor: pointer;
-  font-size: 12px; color: var(--chatui-btn-danger, #ef4444);
+  font-size: 12px; color: var(--chatui-btn-danger);
 }
 .chatui-btn-danger:hover { background: rgba(239, 68, 68, 0.08); }
 .chatui-btn-danger:disabled { opacity: 0.5; cursor: default; }

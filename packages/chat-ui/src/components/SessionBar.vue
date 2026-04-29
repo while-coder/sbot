@@ -89,26 +89,26 @@ function onDelete(id: string) {
 
 <style scoped>
 .chatui-session-bar {
-  width: 180px; border-right: 1px solid var(--chatui-border, #e8e6e3);
+  width: 180px; border-right: 1px solid var(--chatui-border);
   display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0;
-  background: var(--chatui-bg-surface, #fff);
+  background: var(--chatui-bg-surface);
 }
 .chatui-session-bar-header {
-  padding: 6px 8px; border-bottom: 1px solid var(--chatui-border, #e8e6e3); flex-shrink: 0;
+  padding: 6px 8px; border-bottom: 1px solid var(--chatui-border); flex-shrink: 0;
 }
 .chatui-session-list { flex: 1; overflow-y: auto; padding: 4px; }
 .chatui-session-item {
   padding: 8px 10px; border-radius: 6px; cursor: pointer;
   transition: background .12s; margin-bottom: 2px;
 }
-.chatui-session-item:hover { background: var(--chatui-bg-hover, #f5f4f2); }
-.chatui-session-item.active { background: var(--chatui-bg-active, #f0efed); }
+.chatui-session-item:hover { background: var(--chatui-bg-hover); }
+.chatui-session-item.active { background: var(--chatui-bg-active); }
 .chatui-session-item-name {
-  font-size: 13px; font-weight: 500; color: var(--chatui-fg, #1c1c1c);
+  font-size: 13px; font-weight: 500; color: var(--chatui-fg);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .chatui-session-item-path {
-  font-size: 10px; color: var(--chatui-fg-secondary, #9b9b9b);
+  font-size: 10px; color: var(--chatui-fg-secondary);
   font-family: monospace; overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap; margin-top: 1px;
 }
@@ -116,23 +116,23 @@ function onDelete(id: string) {
   background: none; border: none; cursor: pointer; color: transparent;
   font-size: 16px; padding: 0 2px; line-height: 1; flex-shrink: 0; transition: color .1s;
 }
-.chatui-session-item:hover .chatui-session-del-btn { color: var(--chatui-fg-secondary, #94a3b8); }
-.chatui-session-del-btn:hover { color: var(--chatui-btn-danger, #ef4444) !important; }
+.chatui-session-item:hover .chatui-session-del-btn { color: var(--chatui-fg-secondary); }
+.chatui-session-del-btn:hover { color: var(--chatui-btn-danger) !important; }
 .chatui-session-name-input {
   width: 100%; font-size: 13px; font-weight: 500; padding: 1px 4px;
-  border: 1px solid var(--chatui-fg, #1c1c1c); border-radius: 4px;
+  border: 1px solid var(--chatui-fg); border-radius: 4px;
   outline: none; font-family: inherit;
-  color: var(--chatui-fg, #1c1c1c); background: var(--chatui-bg-surface, #fff);
+  color: var(--chatui-fg); background: var(--chatui-bg-surface);
 }
 .chatui-session-empty {
-  text-align: center; color: var(--chatui-fg-secondary, #94a3b8);
+  text-align: center; color: var(--chatui-fg-secondary);
   padding: 20px 8px; font-size: 12px;
 }
 .chatui-btn-outline {
-  padding: 4px 10px; border: 1px solid var(--chatui-border, #d1d5db);
+  padding: 4px 10px; border: 1px solid var(--chatui-border);
   border-radius: 6px; background: transparent; cursor: pointer;
-  font-size: 12px; color: var(--chatui-fg, #374151);
+  font-size: 12px; color: var(--chatui-fg);
 }
-.chatui-btn-outline:hover { background: var(--chatui-bg-hover, #f5f4f2); }
+.chatui-btn-outline:hover { background: var(--chatui-bg-hover); }
 .chatui-btn-sm { padding: 4px 10px; font-size: 12px; }
 </style>

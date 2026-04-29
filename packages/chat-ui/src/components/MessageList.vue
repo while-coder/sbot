@@ -242,20 +242,20 @@ function openThink(thinkId: string) {
 }
 .chatui-empty {
   text-align: center;
-  color: var(--chatui-fg-secondary, var(--vscode-descriptionForeground, #94a3b8));
+  color: var(--chatui-fg-secondary);
   padding: 60px 0;
 }
 .chatui-date-sep {
   text-align: center;
   padding: 8px 0;
   font-size: 11px;
-  color: var(--chatui-fg-secondary, var(--vscode-descriptionForeground, #94a3b8));
+  color: var(--chatui-fg-secondary);
 }
 .chatui-date-sep span {
-  background: var(--chatui-bg-surface, var(--vscode-editor-background, #fff));
+  background: var(--chatui-bg-surface);
   padding: 2px 12px;
   border-radius: 10px;
-  border: 1px solid var(--chatui-border, var(--vscode-widget-border, rgba(255,255,255,0.1)));
+  border: 1px solid var(--chatui-border);
 }
 
 /* Message rows */
@@ -276,18 +276,18 @@ function openThink(thinkId: string) {
   word-break: break-word;
 }
 .msg-bubble.human {
-  background: var(--chatui-bg-human, var(--vscode-button-background, #1c1c1c));
-  color: var(--chatui-fg-human, var(--vscode-button-foreground, #fff));
+  background: var(--chatui-bg-human);
+  color: var(--chatui-fg-human);
   border-bottom-right-radius: 2px;
 }
 .msg-bubble.ai {
-  background: var(--chatui-bg-ai, var(--vscode-editor-inactiveSelectionBackground, rgba(255,255,255,0.08)));
-  color: var(--chatui-fg-ai, var(--vscode-foreground, #1c1c1c));
+  background: var(--chatui-bg-ai);
+  color: var(--chatui-fg-ai);
   border-bottom-left-radius: 2px;
 }
 .msg-bubble.tool {
-  background: var(--chatui-bg-tool, rgba(254, 252, 232, 0.1));
-  color: var(--chatui-fg-tool, var(--vscode-foreground, #713f12));
+  background: var(--chatui-bg-tool);
+  color: var(--chatui-fg-tool);
   font-family: monospace;
   font-size: 12px;
   border-bottom-left-radius: 2px;
@@ -306,29 +306,29 @@ function openThink(thinkId: string) {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--chatui-fg-secondary, var(--vscode-descriptionForeground, #6b7280));
+  color: var(--chatui-fg-secondary);
 }
 .msg-time {
   font-size: 10px;
-  color: var(--chatui-fg-secondary, var(--vscode-descriptionForeground, #6b7280));
+  color: var(--chatui-fg-secondary);
 }
 
 /* Markdown content */
 .md-content :deep(p) { margin: 0 0 6px; }
 .md-content :deep(p:last-child) { margin-bottom: 0; }
 .md-content :deep(pre) {
-  background: var(--chatui-bg-code, var(--vscode-textCodeBlock-background, rgba(0,0,0,0.2)));
+  background: var(--chatui-bg-code);
   padding: 8px;
   border-radius: 4px;
   overflow-x: auto;
   margin: 6px 0;
 }
 .md-content :deep(code) {
-  font-family: var(--vscode-editor-font-family, monospace);
+  font-family: var(--chatui-font-family-mono);
   font-size: 0.9em;
 }
 .md-content :deep(:not(pre) > code) {
-  background: var(--chatui-bg-code, var(--vscode-textCodeBlock-background, rgba(0,0,0,0.2)));
+  background: var(--chatui-bg-code);
   padding: 1px 4px;
   border-radius: 3px;
 }
@@ -337,7 +337,7 @@ function openThink(thinkId: string) {
   margin: 4px 0;
 }
 .md-content :deep(blockquote) {
-  border-left: 3px solid var(--vscode-textBlockQuote-border, #555);
+  border-left: 3px solid var(--chatui-blockquote-border);
   padding: 2px 10px;
   margin: 4px 0;
   opacity: 0.85;
@@ -358,8 +358,8 @@ function openThink(thinkId: string) {
 
 /* Tool calls */
 .msg-tool-calls {
-  background: var(--chatui-bg-ai, var(--vscode-editor-inactiveSelectionBackground, rgba(0,0,0,0.04)));
-  border: 1px solid var(--chatui-border, var(--vscode-widget-border, rgba(255,255,255,0.1)));
+  background: var(--chatui-bg-ai);
+  border: 1px solid var(--chatui-border);
   border-radius: 8px;
   padding: 10px 12px;
   margin-top: 6px;
@@ -372,7 +372,7 @@ function openThink(thinkId: string) {
   gap: 8px;
 }
 .tool-call-item {
-  border: 1px solid var(--chatui-border, var(--vscode-widget-border, rgba(255,255,255,0.1)));
+  border: 1px solid var(--chatui-border);
   border-radius: 6px;
   margin-top: 6px;
   overflow: hidden;
@@ -389,7 +389,7 @@ function openThink(thinkId: string) {
 .tool-call-header::after {
   content: '▶';
   font-size: 10px;
-  color: var(--chatui-fg-secondary, var(--vscode-descriptionForeground, #9b9b9b));
+  color: var(--chatui-fg-secondary);
   margin-left: auto;
 }
 .tool-call-header.expanded::after { content: '▼'; }
@@ -400,11 +400,11 @@ function openThink(thinkId: string) {
 .tool-call-inline-args {
   font-family: monospace;
   font-size: 11px;
-  color: var(--chatui-fg-secondary, var(--vscode-descriptionForeground, #7a7a7a));
+  color: var(--chatui-fg-secondary);
 }
 .tool-call-result-preview {
   font-size: 11px;
-  color: var(--chatui-fg-secondary, var(--vscode-descriptionForeground, #9b9b9b));
+  color: var(--chatui-fg-secondary);
 }
 .tool-call-header.expanded .tool-call-result-preview { display: none; }
 .tool-call-detail { display: none; }
@@ -414,8 +414,8 @@ function openThink(thinkId: string) {
   font-size: 11px;
   white-space: pre-wrap;
   word-break: break-all;
-  color: var(--chatui-fg-primary, var(--vscode-foreground, #3d3d3d));
-  background: var(--chatui-bg-code, var(--vscode-textCodeBlock-background, rgba(0,0,0,0.04)));
+  color: var(--chatui-fg-primary);
+  background: var(--chatui-bg-code);
   padding: 6px 8px;
   border-radius: 4px;
   max-height: 300px;
@@ -423,7 +423,7 @@ function openThink(thinkId: string) {
 }
 .tool-call-result {
   padding: 8px;
-  border-top: 1px solid var(--chatui-border, var(--vscode-widget-border, rgba(255,255,255,0.1)));
+  border-top: 1px solid var(--chatui-border);
 }
 .tool-call-result-top {
   display: flex;
@@ -436,7 +436,7 @@ function openThink(thinkId: string) {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--chatui-fg-secondary, var(--vscode-descriptionForeground, #6b7280));
+  color: var(--chatui-fg-secondary);
 }
 .tool-result-content { font-size: 12px; }
 
@@ -448,12 +448,12 @@ function openThink(thinkId: string) {
   padding: 2px 10px;
   font-size: 11px;
   font-weight: 600;
-  color: var(--chatui-think-fg, #7c3aed);
+  color: var(--chatui-think-fg);
   cursor: pointer;
   user-select: none;
   border-radius: 4px;
-  background: var(--chatui-think-bg, rgba(124, 58, 237, 0.1));
-  border: 1px solid var(--chatui-think-border, rgba(124, 58, 237, 0.25));
+  background: var(--chatui-think-bg);
+  border: 1px solid var(--chatui-think-border);
   transition: all 0.15s ease;
   white-space: nowrap;
 }
@@ -475,12 +475,12 @@ function openThink(thinkId: string) {
 .msg-bubble.queued { opacity: 0.6; }
 .msg-queued-tag {
   font-size: 10px;
-  color: var(--chatui-fg-secondary, var(--vscode-descriptionForeground, #94a3b8));
+  color: var(--chatui-fg-secondary);
   font-style: italic;
 }
 
 /* Thinking indicator */
 .chatui-thinking {
-  color: var(--chatui-fg-secondary, var(--vscode-descriptionForeground, #94a3b8));
+  color: var(--chatui-fg-secondary);
 }
 </style>

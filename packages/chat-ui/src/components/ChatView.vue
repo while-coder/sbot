@@ -430,10 +430,10 @@ const fetchThinks = computed(() => props.transport.fetchThinks?.bind(props.trans
 <style scoped>
 .chatui-root {
   display: flex; height: 100%; overflow: hidden;
-  font-family: var(--chatui-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
-  font-size: var(--chatui-font-size, 14px);
-  color: var(--chatui-fg, #1c1c1c);
-  background: var(--chatui-bg, #fff);
+  font-family: var(--chatui-font-family);
+  font-size: var(--chatui-font-size);
+  color: var(--chatui-fg);
+  background: var(--chatui-bg);
 }
 .chatui-main {
   flex: 1; display: flex; flex-direction: column; overflow: hidden;

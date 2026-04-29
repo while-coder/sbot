@@ -146,19 +146,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         return client.mkdir(args[0]);
       case 'fetchThinks':
         return client.fetchThinks(args[0]);
-      case 'getRemotes':
-        return this.globalState.get<any[]>(ChatViewProvider.REMOTES_KEY, []);
-      case 'saveRemotes':
-        await this.globalState.update(ChatViewProvider.REMOTES_KEY, args[0]);
-        return;
-      case 'connectServer': {
-        const baseUrl = args[0] as string;
-        this.customBaseUrl = baseUrl;
-        this.client?.dispose();
-        this.client = undefined;
-        this.ensureClient();
-        return;
-      }
       default:
         throw new Error(`Unknown RPC method: ${method}`);
     }

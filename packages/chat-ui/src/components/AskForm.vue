@@ -101,29 +101,29 @@ onUnmounted(stopTimer)
 <style scoped>
 .chatui-ask-form {
   display: flex; flex-direction: column; gap: 12px;
-  padding: 12px 16px; background: var(--chatui-ask-bg, #f0f9ff);
-  border-bottom: 1px solid var(--chatui-ask-border, #7dd3fc);
+  padding: 12px 16px; background: var(--chatui-ask-bg);
+  border-bottom: 1px solid var(--chatui-ask-border);
   flex-shrink: 0; font-size: 13px; max-height: 50vh; overflow-y: auto;
 }
-.chatui-ask-title { font-weight: 600; font-size: 14px; color: #0c4a6e; }
+.chatui-ask-title { font-weight: 600; font-size: 14px; color: var(--chatui-ask-title); }
 .chatui-ask-question { display: flex; flex-direction: column; gap: 6px; }
-.chatui-ask-label { font-weight: 500; color: #075985; }
+.chatui-ask-label { font-weight: 500; color: var(--chatui-ask-label); }
 .chatui-ask-options { display: flex; flex-direction: column; gap: 4px; }
-.chatui-ask-option { display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--chatui-fg, #1c1c1c); }
+.chatui-ask-option { display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--chatui-fg); }
 .chatui-ask-option input { cursor: pointer; }
 .chatui-ask-input {
-  padding: 5px 8px; border: 1px solid var(--chatui-ask-border, #bae6fd);
+  padding: 5px 8px; border: 1px solid var(--chatui-ask-border);
   border-radius: 4px; font-size: 13px; outline: none;
-  background: var(--chatui-bg-surface, #fff); color: var(--chatui-fg, #1c1c1c);
+  background: var(--chatui-bg-surface); color: var(--chatui-fg);
 }
-.chatui-ask-input:focus { border-color: #38bdf8; }
+.chatui-ask-input:focus { border-color: var(--chatui-ask-focus); }
 .chatui-ask-custom-input { margin-top: 4px; margin-left: 20px; }
 .chatui-ask-footer { display: flex; justify-content: flex-end; padding-top: 4px; }
 .chatui-btn-primary {
   border: none; border-radius: 6px;
-  background: var(--chatui-btn-bg, #1c1c1c); color: var(--chatui-btn-fg, #fff);
+  background: var(--chatui-btn-bg); color: var(--chatui-btn-fg);
   cursor: pointer;
 }
-.chatui-btn-primary:hover { background: var(--chatui-btn-hover, #333); }
+.chatui-btn-primary:hover { background: var(--chatui-btn-hover); }
 .chatui-btn-sm { padding: 4px 10px; font-size: 12px; }
 </style>

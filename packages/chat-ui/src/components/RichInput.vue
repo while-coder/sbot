@@ -80,7 +80,7 @@ const editor = useEditor({
     }),
     Image.configure({ inline: true, allowBase64: true }),
     Placeholder.configure({ placeholder: props.placeholder }),
-    Dropcursor.configure({ color: 'var(--vscode-focusBorder, #007fd4)', width: 2 }),
+    Dropcursor.configure({ color: 'var(--chatui-border-focus)', width: 2 }),
   ],
   editorProps: {
     handleDrop: handleImageDrop,
@@ -166,10 +166,10 @@ defineExpose({ getContent, clear, focus, isEmpty })
   outline: none;
   min-height: 40px;
   padding: 0;
-  font-size: var(--vscode-font-size, 13px);
-  font-family: var(--vscode-font-family, sans-serif);
+  font-size: var(--chatui-font-size);
+  font-family: var(--chatui-font-family);
   line-height: 1.5;
-  color: var(--vscode-input-foreground);
+  color: var(--chatui-fg);
 }
 
 .rich-input :deep(.tiptap p) {
@@ -179,7 +179,7 @@ defineExpose({ getContent, clear, focus, isEmpty })
 .rich-input :deep(.tiptap p.is-editor-empty:first-child::before) {
   content: attr(data-placeholder);
   float: left;
-  color: var(--vscode-input-placeholderForeground, rgba(255,255,255,0.3));
+  color: var(--chatui-fg-secondary);
   pointer-events: none;
   height: 0;
 }
@@ -194,7 +194,7 @@ defineExpose({ getContent, clear, focus, isEmpty })
 }
 
 .rich-input :deep(.tiptap img.ProseMirror-selectednode) {
-  outline: 2px solid var(--vscode-focusBorder, #007fd4);
+  outline: 2px solid var(--chatui-border-focus);
   outline-offset: 2px;
 }
 </style>

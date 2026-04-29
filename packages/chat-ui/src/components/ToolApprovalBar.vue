@@ -73,25 +73,25 @@ onUnmounted(stopTimer)
 <style scoped>
 .chatui-tool-approval {
   display: flex; flex-direction: column; gap: 6px;
-  padding: 8px 16px; background: var(--chatui-approval-bg, #fffbeb);
-  border-bottom: 1px solid var(--chatui-approval-border, #fcd34d);
+  padding: 8px 16px; background: var(--chatui-approval-bg);
+  border-bottom: 1px solid var(--chatui-approval-border);
   flex-shrink: 0; font-size: 13px;
 }
 .chatui-tool-approval-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.chatui-tool-approval-label { flex: 1; min-width: 0; color: var(--chatui-fg, #1c1c1c); }
+.chatui-tool-approval-label { flex: 1; min-width: 0; color: var(--chatui-fg); }
 .chatui-tool-approval-btns { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; }
 .chatui-tool-approval-args {
   display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px;
-  padding: 4px 8px; background: rgba(254, 249, 195, 0.5); border-radius: 4px;
+  padding: 4px 8px; background: var(--chatui-approval-args-bg); border-radius: 4px;
   font-size: 12px; cursor: pointer; user-select: none;
 }
-.chatui-args-toggle { color: #92400e; flex-shrink: 0; }
+.chatui-args-toggle { color: var(--chatui-approval-toggle); flex-shrink: 0; }
 .chatui-args-kv { display: inline-flex; gap: 3px; }
-.chatui-args-key { color: #78350f; font-weight: 500; }
-.chatui-args-val { color: #44403c; font-family: monospace; word-break: break-all; }
+.chatui-args-key { color: var(--chatui-approval-key); font-weight: 500; }
+.chatui-args-val { color: var(--chatui-approval-val); font-family: monospace; word-break: break-all; }
 .chatui-args-full {
   margin: 4px 0 0; width: 100%; padding: 6px 8px;
-  background: rgba(254, 243, 199, 0.5); border-radius: 4px;
+  background: var(--chatui-approval-full-bg); border-radius: 4px;
   font-size: 11px; font-family: monospace; white-space: pre-wrap;
   word-break: break-all; max-height: 200px; overflow-y: auto;
   cursor: text; user-select: text;
@@ -99,18 +99,18 @@ onUnmounted(stopTimer)
 .chatui-btn-sm { padding: 4px 10px; font-size: 12px; }
 .chatui-btn-primary {
   border: none; border-radius: 6px;
-  background: var(--chatui-btn-bg, #1c1c1c); color: var(--chatui-btn-fg, #fff);
+  background: var(--chatui-btn-bg); color: var(--chatui-btn-fg);
   cursor: pointer;
 }
-.chatui-btn-primary:hover { background: var(--chatui-btn-hover, #333); }
+.chatui-btn-primary:hover { background: var(--chatui-btn-hover); }
 .chatui-btn-outline {
-  border: 1px solid var(--chatui-border, #d1d5db); border-radius: 6px;
-  background: transparent; cursor: pointer; color: var(--chatui-fg, #374151);
+  border: 1px solid var(--chatui-border); border-radius: 6px;
+  background: transparent; cursor: pointer; color: var(--chatui-fg);
 }
-.chatui-btn-outline:hover { background: var(--chatui-bg-hover, #f5f4f2); }
+.chatui-btn-outline:hover { background: var(--chatui-bg-hover); }
 .chatui-btn-danger {
-  border: 1px solid var(--chatui-btn-danger, #ef4444); border-radius: 6px;
-  background: transparent; cursor: pointer; color: var(--chatui-btn-danger, #ef4444);
+  border: 1px solid var(--chatui-btn-danger); border-radius: 6px;
+  background: transparent; cursor: pointer; color: var(--chatui-btn-danger);
 }
 .chatui-btn-danger:hover { background: rgba(239, 68, 68, 0.08); }
 </style>

@@ -112,47 +112,47 @@ const wikiOptions = computed(() =>
 .chatui-config-toolbar {
   display: flex; align-items: center; gap: 8px;
   padding: 8px 16px; flex-wrap: wrap;
-  border-bottom: 1px solid var(--chatui-border, #e8e6e3);
-  background: var(--chatui-bg-surface, #fff); flex-shrink: 0;
+  border-bottom: 1px solid var(--chatui-border);
+  background: var(--chatui-bg-surface); flex-shrink: 0;
 }
 .chatui-toolbar-group { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .chatui-toolbar-label {
-  font-size: 11px; font-weight: 600; color: var(--chatui-fg-secondary, #9b9b9b);
+  font-size: 11px; font-weight: 600; color: var(--chatui-fg-secondary);
   text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap;
 }
 .chatui-toolbar-select {
   font-size: 12px; padding: 3px 6px;
-  border: 1px solid var(--chatui-border, #e8e6e3); border-radius: 4px;
-  background: var(--chatui-bg-surface, #fff); color: var(--chatui-fg, #1c1c1c);
+  border: 1px solid var(--chatui-border); border-radius: 4px;
+  background: var(--chatui-bg-surface); color: var(--chatui-fg);
   outline: none; font-family: inherit;
 }
-.chatui-toolbar-select:focus { border-color: var(--chatui-border-focus, #1c1c1c); }
+.chatui-toolbar-select:focus { border-color: var(--chatui-border-focus); }
 .chatui-toolbar-input {
   font-size: 12px; padding: 2px 6px;
-  border: 1px solid var(--chatui-border, #d1d5db); border-radius: 4px;
-  background: var(--chatui-bg-hover, #f9fafb); color: var(--chatui-fg-secondary, #6b7280);
+  border: 1px solid var(--chatui-border); border-radius: 4px;
+  background: var(--chatui-bg-hover); color: var(--chatui-fg-secondary);
   font-family: monospace; overflow: hidden; text-overflow: ellipsis; cursor: default;
 }
 .chatui-toolbar-sep {
-  width: 1px; height: 18px; background: var(--chatui-border, #e8e6e3); flex-shrink: 0;
+  width: 1px; height: 18px; background: var(--chatui-border); flex-shrink: 0;
 }
 .chatui-toolbar-clear {
   background: none; border: none; cursor: pointer;
-  color: var(--chatui-btn-danger, #ef4444); font-size: 14px;
+  color: var(--chatui-btn-danger); font-size: 14px;
   padding: 0 4px; line-height: 1;
 }
 .chatui-toolbar-toggle {
   display: flex; align-items: center; gap: 4px;
-  font-size: 12px; cursor: pointer; color: var(--chatui-fg, #1c1c1c); white-space: nowrap;
+  font-size: 12px; cursor: pointer; color: var(--chatui-fg); white-space: nowrap;
 }
 .chatui-toolbar-toggle input { cursor: pointer; }
-.chatui-toolbar-placeholder { font-size: 13px; color: var(--chatui-fg-secondary, #94a3b8); }
+.chatui-toolbar-placeholder { font-size: 13px; color: var(--chatui-fg-secondary); }
 .chatui-btn-outline {
-  padding: 4px 10px; border: 1px solid var(--chatui-border, #d1d5db);
+  padding: 4px 10px; border: 1px solid var(--chatui-border);
   border-radius: 6px; background: transparent; cursor: pointer;
-  font-size: 12px; color: var(--chatui-fg, #374151);
+  font-size: 12px; color: var(--chatui-fg);
 }
-.chatui-btn-outline:hover { background: var(--chatui-bg-hover, #f5f4f2); }
+.chatui-btn-outline:hover { background: var(--chatui-bg-hover); }
 .chatui-btn-sm { padding: 4px 10px; font-size: 12px; }
 
 @media (max-width: 768px) {

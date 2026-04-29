@@ -1,4 +1,4 @@
-import type { IChatTransport, ChatEvent, ContentPart, Attachment, SessionItem, CreateSessionOpts, StoredMessage, UsageInfo, AppSettings, SessionStatus, ToolApprovalPayload, AskAnswerPayload, DirListResult, QuickDir } from '@sbot/chat-ui'
+import type { IChatTransport, ChatEvent, ContentPart, Attachment, SessionItem, CreateSessionOpts, StoredMessage, UsageInfo, AppSettings, SessionStatus, ToolApprovalPayload, AskAnswerPayload, DirListResult, QuickDir, RemoteEntry } from '@sbot/chat-ui'
 
 declare function acquireVsCodeApi(): { postMessage(msg: any): void }
 const vscode = acquireVsCodeApi()
@@ -64,6 +64,10 @@ export class VsCodeTransport implements IChatTransport {
 
   getThinksUrlPrefix(_sessionId: string): string | null { return null }
   async fetchThinks(url: string): Promise<any> { return rpc('fetchThinks', url) }
+
+  getRemotes(): Promise<RemoteEntry[]> { return rpc('getRemotes') }
+  saveRemotes(remotes: RemoteEntry[]): Promise<void> { return rpc('saveRemotes', remotes) }
+  connectServer(baseUrl: string): Promise<void> { return rpc('connectServer', baseUrl) }
 }
 
 export const transport = new VsCodeTransport()

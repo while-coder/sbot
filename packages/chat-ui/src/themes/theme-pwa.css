@@ -1,23 +1,9 @@
-/* PWA theme — mobile-optimized spacing, same light colors as web */
+/* PWA theme — mobile-optimized spacing overrides (no colors) */
 :root {
-  --chatui-bg: #f5f4f2;
-  --chatui-bg-surface: #ffffff;
-  --chatui-bg-hover: #eae9e6;
-  --chatui-bg-active: #e2e1de;
-  --chatui-fg: #1c1c1c;
-  --chatui-fg-secondary: #6b7280;
-  --chatui-border: #d1d5db;
-  --chatui-border-subtle: #e8e6e3;
-  --chatui-border-focus: #2563eb;
-  --chatui-accent: #2563eb;
   --chatui-font-size: 15px;
   --chatui-font-size-sm: 13px;
   --chatui-spacing-sm: 10px;
   --chatui-spacing-md: 14px;
   --chatui-radius-sm: 6px;
   --chatui-radius-md: 10px;
-  --chatui-btn-bg: #2563eb;
-  --chatui-btn-fg: #ffffff;
-  --chatui-btn-hover: #1d4ed8;
-  --chatui-btn-danger: #ef4444;
 }

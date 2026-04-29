@@ -115,7 +115,7 @@ defineExpose({ open })
 .think-drawer {
   width: min(560px, 85vw);
   height: 100%;
-  background: var(--chatui-bg-surface, var(--vscode-editor-background, #fff));
+  background: var(--chatui-bg-surface);
   box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
   display: flex;
   flex-direction: column;
@@ -126,25 +126,25 @@ defineExpose({ open })
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--chatui-border, var(--vscode-widget-border, #e5e7eb));
+  border-bottom: 1px solid var(--chatui-border);
   flex-shrink: 0;
 }
 .think-drawer-title {
   flex: 1;
   font-weight: 600;
   font-size: 14px;
-  color: var(--chatui-fg-primary, var(--vscode-foreground, #374151));
+  color: var(--chatui-fg-primary);
 }
 .think-drawer-depth {
   font-weight: 400;
   font-size: 12px;
-  color: var(--chatui-fg-secondary, var(--vscode-descriptionForeground, #9ca3af));
+  color: var(--chatui-fg-secondary);
   margin-left: 4px;
 }
 .think-drawer-back,
 .think-drawer-close {
   background: none;
-  border: 1px solid var(--chatui-border, var(--vscode-widget-border, #e5e7eb));
+  border: 1px solid var(--chatui-border);
   border-radius: 6px;
   width: 28px;
   height: 28px;
@@ -153,13 +153,13 @@ defineExpose({ open })
   justify-content: center;
   cursor: pointer;
   font-size: 16px;
-  color: var(--chatui-fg-secondary, var(--vscode-descriptionForeground, #6b7280));
+  color: var(--chatui-fg-secondary);
   flex-shrink: 0;
 }
 .think-drawer-back:hover,
 .think-drawer-close:hover {
-  background: var(--chatui-bg-ai, var(--vscode-list-hoverBackground, #f3f4f6));
-  color: var(--chatui-fg-primary, var(--vscode-foreground, #374151));
+  background: var(--chatui-bg-hover);
+  color: var(--chatui-fg-primary);
 }
 .think-drawer-breadcrumb {
   display: flex;
@@ -167,13 +167,13 @@ defineExpose({ open })
   gap: 4px;
   padding: 6px 16px;
   font-size: 11px;
-  color: var(--chatui-fg-secondary, var(--vscode-descriptionForeground, #9ca3af));
-  border-bottom: 1px solid var(--chatui-border, var(--vscode-widget-border, #f3f4f6));
+  color: var(--chatui-fg-secondary);
+  border-bottom: 1px solid var(--chatui-border-subtle);
   flex-shrink: 0;
 }
 .think-breadcrumb-sep { margin: 0 2px; }
 .think-breadcrumb-item .active {
-  color: var(--chatui-fg-primary, var(--vscode-foreground, #374151));
+  color: var(--chatui-fg-primary);
   font-weight: 500;
 }
 .think-drawer-body {
@@ -183,7 +183,7 @@ defineExpose({ open })
 }
 .think-drawer-loading {
   text-align: center;
-  color: var(--chatui-fg-secondary, var(--vscode-descriptionForeground, #9ca3af));
+  color: var(--chatui-fg-secondary);
   padding: 40px 0;
   font-size: 13px;
 }

@@ -1,0 +1,63 @@
+/* Dark theme — all color tokens */
+:root {
+  /* ── Core ── */
+  --chatui-bg: #1a1a1a;
+  --chatui-bg-surface: #252525;
+  --chatui-bg-hover: #2e2e2e;
+  --chatui-bg-active: #363636;
+  --chatui-fg: #e0e0e0;
+  --chatui-fg-primary: #e0e0e0;
+  --chatui-fg-secondary: #888888;
+  --chatui-border: rgba(255, 255, 255, 0.1);
+  --chatui-border-subtle: rgba(255, 255, 255, 0.06);
+  --chatui-border-focus: #528bff;
+  --chatui-accent: #528bff;
+
+  /* ── Buttons ── */
+  --chatui-btn-bg: #528bff;
+  --chatui-btn-fg: #ffffff;
+  --chatui-btn-hover: #4078e6;
+  --chatui-btn-danger: #f87171;
+
+  /* ── Messages ── */
+  --chatui-bg-human: #2d4a8a;
+  --chatui-fg-human: #e0e0e0;
+  --chatui-bg-ai: #2a2a2a;
+  --chatui-fg-ai: #e0e0e0;
+  --chatui-bg-tool: rgba(120, 100, 40, 0.2);
+  --chatui-fg-tool: #fbbf24;
+  --chatui-bg-code: rgba(255, 255, 255, 0.06);
+
+  /* ── Think ── */
+  --chatui-think-fg: #a78bfa;
+  --chatui-think-bg: rgba(167, 139, 250, 0.12);
+  --chatui-think-border: rgba(167, 139, 250, 0.3);
+
+  /* ── Ask ── */
+  --chatui-ask-bg: #1e2a3a;
+  --chatui-ask-border: #2d6ca3;
+  --chatui-ask-title: #7dd3fc;
+  --chatui-ask-label: #93c5fd;
+  --chatui-ask-focus: #38bdf8;
+
+  /* ── Approval ── */
+  --chatui-approval-bg: #2a2418;
+  --chatui-approval-border: #a68a2a;
+  --chatui-approval-toggle: #f59e0b;
+  --chatui-approval-key: #fcd34d;
+  --chatui-approval-val: #d4c8a0;
+  --chatui-approval-args-bg: rgba(120, 100, 40, 0.15);
+  --chatui-approval-full-bg: rgba(120, 100, 40, 0.2);
+
+  /* ── Usage ── */
+  --chatui-usage-input: #60a5fa;
+  --chatui-usage-output: #a78bfa;
+  --chatui-usage-sep: rgba(255, 255, 255, 0.1);
+  --chatui-usage-op: #555555;
+  --chatui-usage-track: rgba(255, 255, 255, 0.1);
+
+  /* ── Misc ── */
+  --chatui-blockquote-border: #555555;
+  --chatui-chip-bg: #528bff;
+  --chatui-chip-fg: #ffffff;
+}
