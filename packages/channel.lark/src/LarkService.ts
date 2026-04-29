@@ -391,6 +391,8 @@ export class LarkService implements IChannelService {
           const { part } = await readMediaAsContentPart(filePath, mediaAsFilePath);
           parts.push(part);
           if (!mediaAsFilePath) hasMedia = true;
+        } else if (el.tag == 'at') {
+          
         } else {
           this.logger?.warn(`Unsupported post element tag: ${el.tag}`);
         }
