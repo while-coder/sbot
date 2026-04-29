@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "distribute": {
-    "../website/public": ["logo.svg"],
+    "../admin/public": ["logo.svg"],
     "../pwa/public": ["logo.svg", "pwa-192x192.png", "pwa-512x512.png"],
     "../vscode-extension/media": [{ "from": "icon.svg", "to": "icon.svg" }]
   },

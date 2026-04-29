@@ -185,17 +185,17 @@ if (fs.existsSync(promptsSrc)) {
 }
 
 // 复制 website/dist 到 dist/webui/
-const webuitSrc = workspaceMap['sbot-website'] ? path.join(workspaceMap['sbot-website'], 'dist') : null;
+const webuitSrc = workspaceMap['sbot-admin'] ? path.join(workspaceMap['sbot-admin'], 'dist') : null;
 const webuiDst = path.join(distDir, 'webui');
 if (webuitSrc && fs.existsSync(webuitSrc)) {
   if (fs.existsSync(webuiDst)) fs.rmSync(webuiDst, { recursive: true });
   fs.cpSync(webuitSrc, webuiDst, { recursive: true });
   console.log(`webui: ${webuitSrc} -> ${webuiDst}`);
 } else if (isRelease) {
-  console.error(`webui: ${webuitSrc ?? 'sbot-website not found'} not found, run "pnpm --filter sbot-website run build" first`);
+  console.error(`webui: ${webuitSrc ?? 'sbot-admin not found'} not found, run "pnpm --filter sbot-admin run build" first`);
   process.exit(1);
 } else {
-  console.warn(`webui: ${webuitSrc ?? 'sbot-website not found'} not found, skipping in debug mode`);
+  console.warn(`webui: ${webuitSrc ?? 'sbot-admin not found'} not found, skipping in debug mode`);
 }
 
 // 非 release 模式：将 webui 额外复制到 packages/sbot/webui 供 debug 使用
