@@ -4,7 +4,7 @@ import type { SessionItem, ChatLabels } from '../types'
 import { resolveLabels, tpl } from '../labels'
 
 const props = defineProps<{
-  sessions: Record<string, SessionItem>
+  sessions: SessionItem[]
   activeSessionId: string | null
   labels?: ChatLabels
 }>()
@@ -24,7 +24,7 @@ const nameInputEl = ref<HTMLInputElement | null>(null)
 
 function startEdit(id: string) {
   editingId.value = id
-  editingName.value = props.sessions[id]?.name || ''
+  editingName.value = props.sessions.find(s => s.id === id)?.name || ''
   nextTick(() => nameInputEl.value?.focus())
 }
 
@@ -37,7 +37,7 @@ function commitEdit() {
 }
 
 function onDelete(id: string) {
-  const s = props.sessions[id]
+  const s = props.sessions.find(s => s.id === id)
   const label = s?.name || id.slice(0, 8) + '…'
   if (window.confirm(tpl(L.value.confirmDeleteSession, { name: label }))) {
     emit('delete', id)
@@ -52,15 +52,15 @@ function onDelete(id: string) {
     </div>
     <div class="chatui-session-list">
       <div
-        v-for="(s, id) in sessions" :key="id"
+        v-for="s in sessions" :key="s.id"
         class="chatui-session-item"
-        :class="{ active: activeSessionId === id }"
-        @click="emit('select', id as string)"
+        :class="{ active: activeSessionId === s.id }"
+        @click="emit('select', s.id)"
       >
         <div style="display:flex;align-items:center;gap:4px">
           <div style="flex:1;min-width:0">
             <input
-              v-if="editingId === id"
+              v-if="editingId === s.id"
               ref="nameInputEl"
               v-model="editingName"
               class="chatui-session-name-input"
@@ -72,15 +72,15 @@ function onDelete(id: string) {
             <div
               v-else
               class="chatui-session-item-name"
-              @dblclick.stop="startEdit(id as string)"
+              @dblclick.stop="startEdit(s.id)"
               :title="L.editSessionNameHint"
-            >{{ s.name || (id as string).slice(0, 8) + '…' }}</div>
+            >{{ s.name || s.id.slice(0, 8) + '…' }}</div>
             <div v-if="s.workPath" class="chatui-session-item-path" :title="s.workPath">{{ s.workPath }}</div>
           </div>
-          <button class="chatui-session-del-btn" @click.stop="onDelete(id as string)">×</button>
+          <button class="chatui-session-del-btn" @click.stop="onDelete(s.id)">×</button>
         </div>
       </div>
-      <div v-if="Object.keys(sessions).length === 0" class="chatui-session-empty">
+      <div v-if="sessions.length === 0" class="chatui-session-empty">
         {{ L.emptySession }}<br>{{ L.createSessionHint }}
       </div>
     </div>

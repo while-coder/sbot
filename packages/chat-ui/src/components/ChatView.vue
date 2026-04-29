@@ -29,7 +29,7 @@ const L = computed(() => resolveLabels(props.labels))
 
 // ── Core state ──
 
-const sessions = ref<Record<string, SessionItem>>({})
+const sessions = ref<SessionItem[]>([])
 const activeSessionId = ref<string | null>(null)
 const settings = ref<AppSettings>({ agents: {}, savers: {}, memories: {}, wikis: {} })
 
@@ -52,7 +52,7 @@ const newSessionRef = ref<InstanceType<typeof NewSessionModal>>()
 
 const activeSession = computed<SessionItem | null>(() => {
   if (!activeSessionId.value) return null
-  return sessions.value[activeSessionId.value] ?? null
+  return sessions.value.find(s => s.id === activeSessionId.value) ?? null
 })
 
 const hasSaver = computed(() => !!activeSession.value?.saver)
@@ -221,10 +221,9 @@ async function restoreSessionStatus() {
 async function onDeleteSession(id: string) {
   try {
     await props.transport.deleteSession(id)
-    delete sessions.value[id]
+    sessions.value = sessions.value.filter(s => s.id !== id)
     if (activeSessionId.value === id) {
-      const keys = Object.keys(sessions.value)
-      activeSessionId.value = keys.length > 0 ? keys[0] : null
+      activeSessionId.value = sessions.value.length > 0 ? sessions.value[0].id : null
     }
   } catch (e) {
     console.error('[ChatView] deleteSession', e)
@@ -234,7 +233,8 @@ async function onDeleteSession(id: string) {
 async function onRenameSession(id: string, name: string) {
   try {
     await props.transport.updateSession(id, { name })
-    if (sessions.value[id]) sessions.value[id].name = name
+    const s = sessions.value.find(s => s.id === id)
+    if (s) s.name = name
   } catch (e) {
     console.error('[ChatView] renameSession', e)
   }
@@ -255,9 +255,8 @@ async function onUpdateConfig(field: string, value: any) {
   if (!id) return
   try {
     await props.transport.updateSession(id, { [field]: value })
-    if (sessions.value[id]) {
-      ;(sessions.value[id] as any)[field] = value
-    }
+    const s = sessions.value.find(s => s.id === id)
+    if (s) (s as any)[field] = value
   } catch (e) {
     console.error('[ChatView] updateConfig', e)
   }
@@ -337,9 +336,8 @@ onMounted(async () => {
     ])
     sessions.value = s
     settings.value = cfg
-    const ids = Object.keys(s)
-    if (ids.length > 0 && !activeSessionId.value) {
-      activeSessionId.value = ids[0]
+    if (s.length > 0 && !activeSessionId.value) {
+      activeSessionId.value = s[0].id
     }
   } catch (e) {
     console.error('[ChatView] init', e)

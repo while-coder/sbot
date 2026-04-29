@@ -1,13 +1,13 @@
 /* PWA theme — mobile-optimized spacing, same light colors as web */
 :root {
-  --chatui-bg: #ffffff;
+  --chatui-bg: #f5f4f2;
   --chatui-bg-surface: #ffffff;
-  --chatui-bg-hover: #f5f4f2;
-  --chatui-bg-active: #f0efed;
+  --chatui-bg-hover: #eae9e6;
+  --chatui-bg-active: #e2e1de;
   --chatui-fg: #1c1c1c;
-  --chatui-fg-secondary: #9b9b9b;
-  --chatui-border: #e8e6e3;
-  --chatui-border-subtle: #f0efed;
+  --chatui-fg-secondary: #6b7280;
+  --chatui-border: #d1d5db;
+  --chatui-border-subtle: #e8e6e3;
   --chatui-border-focus: #2563eb;
   --chatui-accent: #2563eb;
   --chatui-font-size: 15px;

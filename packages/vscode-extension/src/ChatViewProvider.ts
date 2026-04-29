@@ -35,7 +35,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private view: vscode.WebviewView | undefined;
   private client: SbotClient | undefined;
 
-  constructor(private readonly extensionUri: vscode.Uri) {}
+  private readonly globalState: vscode.Memento;
+  private static readonly REMOTES_KEY = 'sbot.remotes';
+
+  constructor(
+    private readonly extensionUri: vscode.Uri,
+    context: vscode.ExtensionContext,
+  ) {
+    this.globalState = context.globalState;
+  }
 
   resolveWebviewView(
     webviewView: vscode.WebviewView,
@@ -54,13 +62,30 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     webviewView.onDidDispose(() => { this.view = undefined; });
   }
 
+  private customBaseUrl: string | undefined;
+
   private ensureClient(): SbotClient {
     if (!this.client) {
-      const baseUrl = getLocalBaseUrl();
+      const baseUrl = this.customBaseUrl ?? getLocalBaseUrl();
       this.client = new SbotClient(baseUrl);
       this.client.addListener(this.onServerEvent);
     }
     return this.client;
+  }
+
+  async selectServer(): Promise<void> {
+    const current = this.client?.baseUrl ?? getLocalBaseUrl();
+    const input = await vscode.window.showInputBox({
+      title: 'sbot Server URL',
+      prompt: 'Enter the sbot server base URL',
+      value: current,
+      placeHolder: 'http://localhost:5500',
+    });
+    if (!input) return;
+    this.customBaseUrl = input;
+    this.client?.dispose();
+    this.client = undefined;
+    this.ensureClient();
   }
 
   private onWebviewMessage = async (msg: any) => {
@@ -78,10 +103,25 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   };
 
   private async handleRpc(method: string, args: any[]): Promise<any> {
+    switch (method) {
+      case 'getRemotes':
+        return this.globalState.get<any[]>(ChatViewProvider.REMOTES_KEY, []);
+      case 'saveRemotes':
+        await this.globalState.update(ChatViewProvider.REMOTES_KEY, args[0]);
+        return;
+      case 'connectServer': {
+        const baseUrl = args[0] as string;
+        this.customBaseUrl = baseUrl;
+        this.client?.dispose();
+        this.client = undefined;
+        this.ensureClient();
+        return;
+      }
+    }
     const client = this.ensureClient();
     switch (method) {
       case 'listSessions':
-        return client.fetchSessionsMap();
+        return client.fetchSessions();
       case 'createSession':
         return client.createSessionNew(args[0]);
       case 'deleteSession':
@@ -106,6 +146,19 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         return client.mkdir(args[0]);
       case 'fetchThinks':
         return client.fetchThinks(args[0]);
+      case 'getRemotes':
+        return this.globalState.get<any[]>(ChatViewProvider.REMOTES_KEY, []);
+      case 'saveRemotes':
+        await this.globalState.update(ChatViewProvider.REMOTES_KEY, args[0]);
+        return;
+      case 'connectServer': {
+        const baseUrl = args[0] as string;
+        this.customBaseUrl = baseUrl;
+        this.client?.dispose();
+        this.client = undefined;
+        this.ensureClient();
+        return;
+      }
       default:
         throw new Error(`Unknown RPC method: ${method}`);
     }

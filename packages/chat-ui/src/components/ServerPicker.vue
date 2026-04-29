@@ -11,9 +11,12 @@
       <div v-for="(r, i) in remotes" :key="i" class="server-row">
         <template v-if="editingIndex === i">
           <div class="edit-form">
-            <input v-model="editName" :placeholder="L.namePlaceholder" />
+            <label>Host</label>
             <input v-model="editHost" placeholder="Host" />
+            <label>Port</label>
             <input v-model.number="editPort" type="number" placeholder="Port" />
+            <label>{{ L.namePlaceholder }}</label>
+            <input v-model="editName" :placeholder="L.namePlaceholder" />
             <div class="edit-actions">
               <button class="btn-sm btn-save" @click="onSaveEdit(i)">{{ L.save }}</button>
               <button class="btn-sm btn-cancel" @click="editingIndex = -1">{{ L.cancel }}</button>
@@ -40,7 +43,7 @@
       <input v-model="host" placeholder="192.168.1.100" />
 
       <label>Port</label>
-      <input v-model.number="port" type="number" placeholder="3000" />
+      <input v-model.number="port" type="number" placeholder="5500" />
 
       <label>{{ L.namePlaceholder }}</label>
       <input v-model="name" :placeholder="host ? `${host}:${port}` : ''" />
@@ -66,20 +69,22 @@ const emit = defineEmits<{
   removeRemote: [index: number];
 }>();
 
+const DEFAULT_PORT = 5500;
+
 const host = ref('');
-const port = ref(3000);
+const port = ref(DEFAULT_PORT);
 const name = ref('');
 
 const editingIndex = ref(-1);
 const editName = ref('');
 const editHost = ref('');
-const editPort = ref(3000);
+const editPort = ref(DEFAULT_PORT);
 
 function onAdd() {
   if (!host.value) return;
   emit('addRemote', name.value || `${host.value}:${port.value}`, host.value, port.value);
   host.value = '';
-  port.value = 3000;
+  port.value = DEFAULT_PORT;
   name.value = '';
 }
 
@@ -98,16 +103,18 @@ function onSaveEdit(i: number) {
 
 <style scoped>
 .server-picker {
-  padding: 16px;
+  padding: var(--chatui-spacing-md);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--chatui-spacing-sm);
   overflow-y: auto;
+  background: var(--chatui-bg);
+  color: var(--chatui-fg);
 }
 h3 {
-  font-size: 13px;
+  font-size: var(--chatui-font-size-sm);
   font-weight: 600;
-  color: var(--vscode-foreground);
+  color: var(--chatui-fg);
   margin: 0;
 }
 .server-list {
@@ -125,23 +132,23 @@ h3 {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
-  border: 1px solid var(--vscode-widget-border, rgba(255,255,255,0.1));
-  border-radius: 6px;
-  background: transparent;
-  color: var(--vscode-foreground);
+  padding: var(--chatui-spacing-sm) 12px;
+  border: 1px solid var(--chatui-border);
+  border-radius: var(--chatui-radius-sm);
+  background: var(--chatui-bg-surface);
+  color: var(--chatui-fg);
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--chatui-font-size-sm);
 }
 .server-item:hover {
-  background: var(--vscode-list-hoverBackground);
+  background: var(--chatui-bg-hover);
 }
 .server-item.local {
-  border-color: var(--vscode-button-background);
+  border-color: var(--chatui-accent);
 }
 .server-desc {
-  font-size: 11px;
-  color: var(--vscode-descriptionForeground);
+  font-size: var(--chatui-font-size-sm);
+  color: var(--chatui-fg-secondary);
 }
 .item-actions {
   display: flex;
@@ -152,33 +159,38 @@ h3 {
   width: 24px;
   height: 24px;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--chatui-radius-sm);
   background: transparent;
-  color: var(--vscode-descriptionForeground);
+  color: var(--chatui-fg-secondary);
   cursor: pointer;
   font-size: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
-.btn-icon:hover { background: var(--vscode-list-hoverBackground); color: var(--vscode-foreground); }
-.btn-icon.btn-danger:hover { color: var(--vscode-errorForeground, #f48771); }
+.btn-icon:hover { background: var(--chatui-bg-hover); color: var(--chatui-fg); }
+.btn-icon.btn-danger:hover { color: var(--chatui-btn-danger); }
 .edit-form {
   flex: 1;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 8px;
-  border: 1px solid var(--vscode-focusBorder);
-  border-radius: 6px;
+  padding: var(--chatui-spacing-sm);
+  border: 1px solid var(--chatui-border-focus);
+  border-radius: var(--chatui-radius-sm);
+  background: var(--chatui-bg-surface);
+}
+.edit-form label {
+  font-size: var(--chatui-font-size-sm);
+  color: var(--chatui-fg-secondary);
 }
 .edit-form input {
   padding: 3px 6px;
-  border: 1px solid var(--vscode-input-border, rgba(255,255,255,0.1));
-  border-radius: 4px;
-  background: var(--vscode-input-background);
-  color: var(--vscode-input-foreground);
-  font-size: 12px;
+  border: 1px solid var(--chatui-border);
+  border-radius: var(--chatui-radius-sm);
+  background: var(--chatui-bg-surface);
+  color: var(--chatui-fg);
+  font-size: var(--chatui-font-size-sm);
 }
 .edit-actions {
   display: flex;
@@ -187,25 +199,25 @@ h3 {
 .btn-sm {
   padding: 3px 8px;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--chatui-radius-sm);
   cursor: pointer;
-  font-size: 11px;
+  font-size: var(--chatui-font-size-sm);
 }
 .btn-save {
-  background: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
+  background: var(--chatui-btn-bg);
+  color: var(--chatui-btn-fg);
 }
-.btn-save:hover { background: var(--vscode-button-hoverBackground); }
+.btn-save:hover { background: var(--chatui-btn-hover); }
 .btn-cancel {
   background: transparent;
-  color: var(--vscode-descriptionForeground);
-  border: 1px solid var(--vscode-widget-border, rgba(255,255,255,0.1));
+  color: var(--chatui-fg-secondary);
+  border: 1px solid var(--chatui-border);
 }
-.btn-cancel:hover { background: var(--vscode-list-hoverBackground); }
+.btn-cancel:hover { background: var(--chatui-bg-hover); }
 .divider {
   height: 1px;
-  background: var(--vscode-widget-border, rgba(255,255,255,0.1));
-  margin: 8px 0;
+  background: var(--chatui-border);
+  margin: var(--chatui-spacing-sm) 0;
 }
 .form {
   display: flex;
@@ -213,27 +225,27 @@ h3 {
   gap: 6px;
 }
 .form label {
-  font-size: 12px;
-  color: var(--vscode-descriptionForeground);
+  font-size: var(--chatui-font-size-sm);
+  color: var(--chatui-fg-secondary);
 }
 .form input {
   padding: 4px 8px;
-  border: 1px solid var(--vscode-input-border, rgba(255,255,255,0.1));
-  border-radius: 4px;
-  background: var(--vscode-input-background);
-  color: var(--vscode-input-foreground);
-  font-size: 13px;
+  border: 1px solid var(--chatui-border);
+  border-radius: var(--chatui-radius-sm);
+  background: var(--chatui-bg-surface);
+  color: var(--chatui-fg);
+  font-size: var(--chatui-font-size);
 }
 .btn-add {
   margin-top: 4px;
   padding: 6px 12px;
   border: none;
-  border-radius: 4px;
-  background: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
+  border-radius: var(--chatui-radius-sm);
+  background: var(--chatui-btn-bg);
+  color: var(--chatui-btn-fg);
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--chatui-font-size);
 }
-.btn-add:hover { background: var(--vscode-button-hoverBackground); }
+.btn-add:hover { background: var(--chatui-btn-hover); }
 .btn-add:disabled { opacity: 0.5; cursor: default; }
 </style>

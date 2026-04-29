@@ -70,9 +70,9 @@ export class SbotClient {
 
   // ── Sessions ──
 
-  async fetchSessionsMap(): Promise<Record<string, any>> {
+  async fetchSessions(): Promise<any[]> {
     const res = await this.http.get('/api/sessions');
-    return res.data.data ?? res.data ?? {};
+    return res.data.data ?? res.data ?? [];
   }
 
   async createSessionNew(opts: { agent: string; saver: string; memories?: string[]; wikis?: string[]; name?: string }): Promise<{ id: string }> {

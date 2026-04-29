@@ -36,6 +36,10 @@
       {
         "command": "sbot.openChat",
         "title": "sbot: Open Chat"
+      },
+      {
+        "command": "sbot.selectServer",
+        "title": "sbot: Select Server"
       }
     ],
     "keybindings": [

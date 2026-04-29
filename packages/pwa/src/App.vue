@@ -20,9 +20,18 @@ const remotes = ref<RemoteEntry[]>(loadRemotes())
 const phase = ref<'server-pick' | 'chat'>('server-pick')
 const transport = ref<WebSocketTransport | null>(null)
 
+const currentBaseUrl = ref('')
+
 function selectServer(baseUrl: string) {
   transport.value = new WebSocketTransport(baseUrl)
+  currentBaseUrl.value = baseUrl
   phase.value = 'chat'
+}
+
+function switchServer() {
+  transport.value?.disconnect()
+  transport.value = null
+  phase.value = 'server-pick'
 }
 
 function selectLocal() {
@@ -67,7 +76,45 @@ function removeRemote(index: number) {
       />
     </template>
     <template v-else-if="transport">
+      <div class="pwa-server-bar">
+        <span class="pwa-server-url">{{ currentBaseUrl }}</span>
+        <button class="pwa-server-switch" @click="switchServer">切换服务器</button>
+      </div>
       <ChatView :transport="transport" :show-attachments="true" />
     </template>
   </div>
 </template>
+
+<style scoped>
+.pwa-server-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 12px;
+  background: var(--chatui-bg-surface, #f8f8f8);
+  border-bottom: 1px solid var(--chatui-border, #e8e6e3);
+  flex-shrink: 0;
+  font-size: 12px;
+}
+.pwa-server-url {
+  color: var(--chatui-fg-secondary, #888);
+  font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pwa-server-switch {
+  margin-left: 8px;
+  padding: 2px 10px;
+  border: 1px solid var(--chatui-border, #d1d5db);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--chatui-fg, #374151);
+  flex-shrink: 0;
+}
+.pwa-server-switch:hover {
+  background: var(--chatui-bg-hover, #f0efed);
+}
+</style>

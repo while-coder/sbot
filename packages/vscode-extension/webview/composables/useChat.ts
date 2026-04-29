@@ -40,7 +40,7 @@ export class VsCodeTransport implements IChatTransport {
   onEvent(handler: EventHandler): void { handlers.add(handler) }
   offEvent(handler: EventHandler): void { handlers.delete(handler) }
 
-  listSessions(): Promise<Record<string, SessionItem>> { return rpc('listSessions') }
+  listSessions(): Promise<SessionItem[]> { return rpc('listSessions') }
   createSession(opts: CreateSessionOpts): Promise<{ id: string }> { return rpc('createSession', opts) }
   deleteSession(sessionId: string): Promise<void> { return rpc('deleteSession', sessionId) }
   updateSession(sessionId: string, patch: Partial<SessionItem>): Promise<void> { return rpc('updateSession', sessionId, patch) }

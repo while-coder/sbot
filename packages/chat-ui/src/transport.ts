@@ -12,7 +12,7 @@ export interface IChatTransport {
   onEvent(handler: (event: ChatEvent) => void): void
   offEvent(handler: (event: ChatEvent) => void): void
 
-  listSessions(): Promise<Record<string, SessionItem>>
+  listSessions(): Promise<SessionItem[]>
   createSession(opts: CreateSessionOpts): Promise<{ id: string }>
   deleteSession(sessionId: string): Promise<void>
   updateSession(sessionId: string, patch: Partial<SessionItem>): Promise<void>

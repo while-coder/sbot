@@ -92,9 +92,9 @@ export class WebSocketTransport implements IChatTransport {
 
   // ── Sessions ──
 
-  async listSessions(): Promise<Record<string, SessionItem>> {
+  async listSessions(): Promise<SessionItem[]> {
     const res = await this.api('/api/sessions')
-    return res.data ?? res ?? {}
+    return res.data ?? res ?? []
   }
 
   async createSession(opts: CreateSessionOpts): Promise<{ id: string }> {
