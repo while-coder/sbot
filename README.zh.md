@@ -9,14 +9,6 @@
 
 **开源、自托管的 AI Agent 框架。** 模块化配置：模型、记忆、工具、渠道均可独立组合，按需搭建 Agent —— 在自己的服务器上运行，支持多渠道接入、MCP 工具协议和内置 Web UI，无供应商绑定。
 
-| 聊天 | 图片生成 | 模型配置 |
-|:---:|:---:|:---:|
-| ![聊天](https://raw.githubusercontent.com/while-coder/sbot/main/docs/screenshot-chat.png) | ![图片生成](https://raw.githubusercontent.com/while-coder/sbot/main/docs/screenshot-image.png) | ![模型配置](https://raw.githubusercontent.com/while-coder/sbot/main/docs/screenshot-models.png) |
-
-| 智能体管理 | 频道管理 | MCP 工具 |
-|:---:|:---:|:---:|
-| ![智能体管理](https://raw.githubusercontent.com/while-coder/sbot/main/docs/screenshot-agents.png) | ![频道管理](https://raw.githubusercontent.com/while-coder/sbot/main/docs/screenshot-channels.png) | ![MCP 工具](https://raw.githubusercontent.com/while-coder/sbot/main/docs/screenshot-tools.png) |
-
 ---
 
 ## 快速开始

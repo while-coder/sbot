@@ -9,14 +9,6 @@
 
 **Open-source, self-hosted AI agent framework.** Modular by design: models, memory, tools, and channels are independent building blocks you mix and match to assemble agents — run on your own server with multi-channel integrations, MCP tool support, and a built-in web UI, no vendor lock-in.
 
-| Chat | Image Generation | Models |
-|:---:|:---:|:---:|
-| ![Chat](https://raw.githubusercontent.com/while-coder/sbot/main/docs/screenshot-chat.png) | ![Image Generation](https://raw.githubusercontent.com/while-coder/sbot/main/docs/screenshot-image.png) | ![Models](https://raw.githubusercontent.com/while-coder/sbot/main/docs/screenshot-models.png) |
-
-| Agents | Channels | MCP Tools |
-|:---:|:---:|:---:|
-| ![Agents](https://raw.githubusercontent.com/while-coder/sbot/main/docs/screenshot-agents.png) | ![Channels](https://raw.githubusercontent.com/while-coder/sbot/main/docs/screenshot-channels.png) | ![MCP Tools](https://raw.githubusercontent.com/while-coder/sbot/main/docs/screenshot-tools.png) |
-
 ---
 
 ## Quick Start
