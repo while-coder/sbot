@@ -56,7 +56,8 @@
     "build:webview": "vite build",
     "watch:ext": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch",
     "watch:webview": "vite build --watch",
-    "dev": "concurrently \"pnpm run watch:ext\" \"pnpm run watch:webview\""
+    "dev": "concurrently \"pnpm run watch:ext\" \"pnpm run watch:webview\"",
+    "install-ext": "node scripts/install.mjs"
   },
   "dependencies": {
     "@sbot/chat-ui": "workspace:*",

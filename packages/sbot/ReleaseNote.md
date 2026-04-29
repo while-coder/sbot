@@ -1,29 +1,27 @@
 ### New Features
 
-- **Agent Store**: Agent marketplace — browse and install agent packages from remote sources, import from local JSON files; export agents as shareable JSON packages (with automatic sub-agent collection); automatic dependency resolution and installation of sub-agents
-- **Wiki Knowledge Base**: Full knowledge base system — document storage, automatic extraction, semantic search; agents can reference wiki content during conversations; new Wiki management page in Web UI
-- **Todo Module**: Built-in todo/task module — agents can create/complete/query todos; new Todo management page in Web UI
-- **Intent Classification**: New intent classification system with per-channel message filtering rules, automatically identifies and routes user messages
-- **Token Usage Statistics**: Token consumption tracking and statistics — real-time usage display in sidebar, per-conversation token details in chat view
-- **Context Window Progress**: Chat interface shows context window usage progress; model catalog supports context window size queries
-- **Generative Agent**: New generative agent type with multimodal content processing support
-- **Skill Hub Refactoring**: Revamped skill management — skills.sh integration, redesigned skill browsing and viewer modals
-- **Memory Search**: Memory module now includes a tool provider for searching memory content
-- **Startup Command Configuration**: Settings page supports configuring server startup commands
+- **VSCode Extension**: Full-featured VSCode plugin — chat with sbot directly in the IDE, built-in server picker, working directory selector, reads connection info from CLI config
+- **Unified Chat UI Component Library**: Refactored chat interface into a standalone `chat-ui` package shared across VSCode extension, PWA, and Web (ChatView, SessionBar, ConfigToolbar, StatusBar, etc.)
+- **PWA Application**: Added PWA build support for offline-capable installation; new server connection picker
+- **Zip Skill Installation**: Support installing Skill packages via zip file upload
+- **Agent Abort Signal**: Agent execution supports cancellation (AbortSignal) — model calls and tool execution can be aborted
+- **Model Timeout Configuration**: Global and per-agent model call timeout settings
+- **Sleep Tool**: New sleep tool allowing agents to pause during execution
+- **MP4 Support**: `readMediaFile` now supports reading MP4 video files
 
 ### Architecture Changes
 
-- **Code Directory Restructuring**: `UserService` → `Session`, `Channel/classifyIntent` → `Processing/classifyIntent` for clearer separation of concerns
-- **Memory Evaluator Removal**: Removed `MemoryEvaluator`, simplified memory service architecture
-- **Agent Config Migration**: Agent configurations migrated from file-based to database storage for dynamic management
-- **WebSocket Rename**: `WebSocketUserService` → `WebSocketSessionHandler`
-- **Configurable Streaming Output**: Per-channel streaming output configuration support
+- **Chat UI Component Split**: `ChatApp` decomposed into `ChatView`, `ChatArea`, `AskForm`, `MessageList`, `SessionBar`, `ConfigToolbar`, `StatusBar`, `ToolApprovalBar`, `ThinkDrawer` and other independent components
+- **WebSocket Transport Layer**: New standalone `WebSocketTransport` class unifying WebSocket connection management across all platforms
+- **IModelService Interface**: All model service methods now accept AbortSignal parameter
+- **Shared Assets Package**: New `shared-assets` package for unified management of logos, icons, and static resources
 
 ### Improvements
 
-- **Multimodal Enhancements**: Agent-level multimodal model configuration; `readBinaryFile` upgraded to `readMediaFile`; improved client-side multimodal message rendering
-- **ThinkDrawer Improvements**: Enhanced thinking process display component UI
-- **Lark Channel**: Fixed `chat_id` handling, optimized LarkService message flow
-- **Scheduler Fix**: Fixed SchedulerService runtime issues
-- **Dependency Upgrades**: Upgraded core package versions for scorpio.ai, website, and others
-- **Code Cleanup**: Removed dead code, streamlined AgentStore logic, cleaned up redundant exports
+- **Unified Theme System**: Added theme-dark, theme-light, theme-vscode, theme-pwa theme files for consistent styling across platforms
+- **Lark Channel**: Improved history handling, fixed message flow, excluded at-mention noise
+- **Intent Classification**: Fixed classification logic issues
+- **Empty Message Filtering**: Fixed handling of empty content messages
+- **Attachment Handling**: Improved Web UI attachment upload experience
+- **Code Cleanup**: Removed dead code and types, deleted redundant dev-dist files
+- **Logo Update**: Unified brand logo across the entire project

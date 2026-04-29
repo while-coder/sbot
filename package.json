@@ -16,6 +16,7 @@
     "assets": "pnpm --filter shared-assets run distribute",
 
     "build:vscode": "pnpm run build:deps && pnpm run assets && pnpm --filter sbot-vscode run build",
+    "install:vscode": "pnpm run build:deps && pnpm run assets && pnpm --filter sbot-vscode run install-ext",
     
     "build:pwa": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/pwa run build",
     "debug:pwa": "pnpm run assets && pnpm --filter @sbot/pwa run dev",
