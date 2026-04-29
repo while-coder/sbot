@@ -1,0 +1,1 @@
+import{_ as e,o,c as t,a0 as r}from"./chunks/framework.DoRPXVp_.js";const u=JSON.parse('{"title":"MCP Tools","description":"","frontmatter":{},"headers":[],"relativePath":"guide/mcp.md","filePath":"guide/mcp.md"}'),n={name:"guide/mcp.md"};function s(l,a,i,d,c,p){return o(),t("div",null,[...a[0]||(a[0]=[r("",9)])])}const h=e(n,[["render",s]]);export{u as __pageData,h as default};

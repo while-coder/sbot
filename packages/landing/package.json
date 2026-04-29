@@ -1,0 +1,14 @@
+{
+  "name": "sbot-landing",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build"
+  },
+  "devDependencies": {
+    "vitepress": "^1.6.3",
+    "vue": "^3.5.33"
+  }
+}
