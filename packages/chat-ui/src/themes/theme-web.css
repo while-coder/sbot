@@ -1,0 +1,17 @@
+/* Website theme — light, clean, web-native */
+:root {
+  --chatui-bg: #ffffff;
+  --chatui-bg-surface: #ffffff;
+  --chatui-bg-hover: #f5f4f2;
+  --chatui-bg-active: #f0efed;
+  --chatui-fg: #1c1c1c;
+  --chatui-fg-secondary: #9b9b9b;
+  --chatui-border: #e8e6e3;
+  --chatui-border-subtle: #f0efed;
+  --chatui-border-focus: #1c1c1c;
+  --chatui-accent: #2563eb;
+  --chatui-btn-bg: #2563eb;
+  --chatui-btn-fg: #ffffff;
+  --chatui-btn-hover: #1d4ed8;
+  --chatui-btn-danger: #ef4444;
+}

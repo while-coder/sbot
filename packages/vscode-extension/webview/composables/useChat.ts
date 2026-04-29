@@ -1,32 +1,69 @@
-import { onMounted, onUnmounted } from 'vue';
-import { useChat as useChatCore, type IChatTransport, type ContentPart } from '@sbot/chat-ui';
+import type { IChatTransport, ChatEvent, ContentPart, Attachment, SessionItem, CreateSessionOpts, StoredMessage, UsageInfo, AppSettings, SessionStatus, ToolApprovalPayload, AskAnswerPayload, DirListResult, QuickDir } from '@sbot/chat-ui'
 
-const vscode = acquireVsCodeApi();
+declare function acquireVsCodeApi(): { postMessage(msg: any): void }
+const vscode = acquireVsCodeApi()
 
-class VsCodeTransport implements IChatTransport {
-  selectLocal() { vscode.postMessage({ type: 'selectLocal' }); }
-  selectRemote(remoteIndex: number) { vscode.postMessage({ type: 'selectRemote', remoteIndex }); }
-  addRemote(name: string, host: string, port: number) { vscode.postMessage({ type: 'addRemote', name, host, port }); }
-  updateRemote(remoteIndex: number, patch: { name?: string; host?: string; port?: number }) { vscode.postMessage({ type: 'updateRemote', remoteIndex, patch }); }
-  removeRemote(remoteIndex: number) { vscode.postMessage({ type: 'removeRemote', remoteIndex }); }
-  backToServerPick() { vscode.postMessage({ type: 'backToServerPick' }); }
-  selectSession(sessionId: string) { vscode.postMessage({ type: 'selectSession', sessionId }); }
-  createSession(agentId: string, saverId: string, memoryIds: string[]) { vscode.postMessage({ type: 'createSession', agentId, saverId, memoryIds }); }
-  sendMessage(parts: ContentPart[]) { vscode.postMessage({ type: 'sendMessage', parts }); }
-  updateSessionConfig(field: string, value: any) { vscode.postMessage({ type: 'updateSessionConfig', field, value }); }
-  retry() { vscode.postMessage({ type: 'refreshInit' }); }
-}
+type EventHandler = (event: ChatEvent) => void
 
-export function useChat() {
-  const transport = new VsCodeTransport();
-  const chat = useChatCore(transport);
+let rpcId = 0
+const pending = new Map<number, { resolve: (v: any) => void; reject: (e: Error) => void }>()
+const handlers = new Set<EventHandler>()
 
-  function onMessage(event: MessageEvent) {
-    chat.handleMessage(event.data);
+window.addEventListener('message', (e: MessageEvent) => {
+  const msg = e.data
+  if (msg.type === 'rpc-result') {
+    const p = pending.get(msg.id)
+    if (p) { pending.delete(msg.id); p.resolve(msg.result) }
+  } else if (msg.type === 'rpc-error') {
+    const p = pending.get(msg.id)
+    if (p) { pending.delete(msg.id); p.reject(new Error(msg.error)) }
+  } else if (msg.type === 'event') {
+    handlers.forEach(h => h(msg.event))
   }
+})
 
-  onMounted(() => window.addEventListener('message', onMessage));
-  onUnmounted(() => window.removeEventListener('message', onMessage));
-
-  return chat;
+function rpc(method: string, ...args: any[]): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const id = ++rpcId
+    pending.set(id, { resolve, reject })
+    vscode.postMessage({ type: 'rpc', id, method, args })
+  })
 }
+
+function cmd(method: string, ...args: any[]) {
+  vscode.postMessage({ type: 'cmd', method, args })
+}
+
+export class VsCodeTransport implements IChatTransport {
+  connect(): void { cmd('connect') }
+  disconnect(): void { cmd('disconnect') }
+  onEvent(handler: EventHandler): void { handlers.add(handler) }
+  offEvent(handler: EventHandler): void { handlers.delete(handler) }
+
+  listSessions(): Promise<Record<string, SessionItem>> { return rpc('listSessions') }
+  createSession(opts: CreateSessionOpts): Promise<{ id: string }> { return rpc('createSession', opts) }
+  deleteSession(sessionId: string): Promise<void> { return rpc('deleteSession', sessionId) }
+  updateSession(sessionId: string, patch: Partial<SessionItem>): Promise<void> { return rpc('updateSession', sessionId, patch) }
+
+  sendMessage(sessionId: string, parts: ContentPart[], attachments?: Attachment[]): void { cmd('sendMessage', sessionId, parts, attachments) }
+  getHistory(sessionId: string): Promise<StoredMessage[]> { return rpc('getHistory', sessionId) }
+  clearHistory(sessionId: string): Promise<void> { return rpc('clearHistory', sessionId) }
+
+  getUsage(sessionId: string): Promise<UsageInfo | null> { return rpc('getUsage', sessionId) }
+
+  approveToolCall(sessionId: string, payload: ToolApprovalPayload): void { cmd('approveToolCall', sessionId, payload) }
+  answerAsk(sessionId: string, payload: AskAnswerPayload): void { cmd('answerAsk', sessionId, payload) }
+  abort(sessionId: string): void { cmd('abort', sessionId) }
+
+  getSettings(): Promise<AppSettings> { return rpc('getSettings') }
+  getSessionStatus(sessionId: string): Promise<SessionStatus | null> { return rpc('getSessionStatus', sessionId) }
+
+  listDir(dir?: string): Promise<DirListResult> { return rpc('listDir', dir) }
+  quickDirs(): Promise<QuickDir[]> { return rpc('quickDirs') }
+  mkdir(path: string): Promise<{ path: string }> { return rpc('mkdir', path) }
+
+  getThinksUrlPrefix(_sessionId: string): string | null { return null }
+  async fetchThinks(url: string): Promise<any> { return rpc('fetchThinks', url) }
+}
+
+export const transport = new VsCodeTransport()

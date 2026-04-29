@@ -1,35 +1,17 @@
-import { readFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
-import { homedir } from 'node:os';
 import WebSocket from 'ws';
 import axios, { type AxiosInstance } from 'axios';
 import {
   DEFAULT_PORT,
   WsCommandType,
-  WebChatEventType,
-  type Settings,
   type WebChatEvent,
-  type StoredMessage,
 } from 'sbot.commons';
 
 export type WsListener = (event: WebChatEvent & { sessionId?: string }) => void;
 
-export interface SessionItem {
-  id: string;
-  name?: string;
-  agent: string;
-  saver: string;
-  memories: string[];
-  workPath?: string;
-}
-
-export interface SbotSettings {
-  agents?: Settings['agents'];
-  savers?: Settings['savers'];
-  memories?: Settings['memories'];
-}
-
 function getServerBaseUrl(): string {
+  const { readFileSync, existsSync } = require('node:fs');
+  const { join } = require('node:path');
+  const { homedir } = require('node:os');
   try {
     const settingsPath = join(homedir(), '.sbot', 'settings.json');
     if (existsSync(settingsPath)) {
@@ -79,37 +61,89 @@ export class SbotClient {
     }, 3000);
   }
 
-  async isOnline(): Promise<boolean> {
+  // ── Settings ──
+
+  async fetchSettings(): Promise<any> {
+    const res = await this.http.get('/api/settings');
+    return res.data.data ?? res.data ?? {};
+  }
+
+  // ── Sessions ──
+
+  async fetchSessionsMap(): Promise<Record<string, any>> {
+    const res = await this.http.get('/api/sessions');
+    return res.data.data ?? res.data ?? {};
+  }
+
+  async createSessionNew(opts: { agent: string; saver: string; memories?: string[]; wikis?: string[]; name?: string }): Promise<{ id: string }> {
+    const res = await this.http.post('/api/settings/sessions', opts);
+    return { id: res.data.data?.id ?? res.data.id };
+  }
+
+  async deleteSession(sessionId: string): Promise<void> {
+    await this.http.delete(`/api/settings/sessions/${encodeURIComponent(sessionId)}`);
+    await this.http.delete(`/api/sessions/${encodeURIComponent(sessionId)}/history`).catch(() => {});
+  }
+
+  async updateSession(sessionId: string, patch: Record<string, any>): Promise<void> {
+    await this.http.put(`/api/settings/sessions/${encodeURIComponent(sessionId)}`, patch);
+  }
+
+  // ── Messages ──
+
+  async fetchHistory(sessionId: string): Promise<any[]> {
+    const res = await this.http.get(`/api/sessions/${encodeURIComponent(sessionId)}/history`);
+    return res.data.data ?? res.data ?? [];
+  }
+
+  async clearHistory(sessionId: string): Promise<void> {
+    await this.http.delete(`/api/sessions/${encodeURIComponent(sessionId)}/history`);
+  }
+
+  // ── Usage ──
+
+  async getUsage(sessionId: string): Promise<any> {
     try {
-      await this.http.get('/api/settings', { timeout: 3000 });
-      return true;
-    } catch { return false; }
+      const res = await this.http.get(`/api/thread-usage?sessions=${encodeURIComponent(sessionId)}`);
+      return res.data.data?.[sessionId] ?? null;
+    } catch { return null; }
   }
 
-  async fetchSettings(): Promise<SbotSettings> {
-    const res = await this.http.get<{ data: SbotSettings }>('/api/settings');
-    return res.data.data;
+  // ── Session status ──
+
+  async getSessionStatus(sessionId: string): Promise<any> {
+    try {
+      const res = await this.http.get(`/api/session-status?sessionId=${encodeURIComponent(sessionId)}`);
+      return res.data ?? null;
+    } catch { return null; }
   }
 
-  async fetchSessions(workPath?: string): Promise<SessionItem[]> {
-    const params = workPath ? { workPath } : {};
-    const res = await this.http.get<{ data: SessionItem[] }>('/api/sessions', { params });
-    return res.data.data;
+  // ── Filesystem ──
+
+  async listDir(dir?: string): Promise<any> {
+    const qs = dir ? `?dir=${encodeURIComponent(dir)}` : '';
+    const res = await this.http.get(`/api/fs/list${qs}`);
+    return res.data.data ?? res.data;
   }
 
-  async createSession(agentId: string, saverId: string, memoryIds: string[], workPath: string): Promise<string> {
-    const body = {
-      agent: agentId, saver: saverId, memories: memoryIds, workPath,
-      name: workPath.replace(/[/\\]+$/, '').split(/[/\\]/).pop() || workPath,
-    };
-    const res = await this.http.post<{ data: { id: string } }>('/api/settings/sessions', body);
-    return res.data.data.id;
+  async quickDirs(): Promise<any[]> {
+    const res = await this.http.get('/api/fs/quickdirs');
+    return res.data.data ?? res.data ?? [];
   }
 
-  async fetchHistory(sessionId: string): Promise<StoredMessage[]> {
-    const res = await this.http.get<{ data: StoredMessage[] }>('/api/messages', { params: { sessionId } });
-    return res.data.data ?? [];
+  async mkdir(path: string): Promise<{ path: string }> {
+    const res = await this.http.post('/api/fs/mkdir', { path });
+    return res.data.data ?? res.data ?? { path };
   }
+
+  // ── Thinks ──
+
+  async fetchThinks(url: string): Promise<any> {
+    const res = await this.http.get(url);
+    return res.data;
+  }
+
+  // ── WebSocket commands ──
 
   send(sessionId: string, msg: Record<string, any>): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
@@ -117,22 +151,12 @@ export class SbotClient {
     }
   }
 
-  sendQuery(sessionId: string, text: string): void {
-    this.send(sessionId, {
-      type: WsCommandType.Query,
-      parts: [{ type: 'text', text }],
-    });
-  }
-
-  sendParts(sessionId: string, parts: Array<{ type: string; text?: string; dataUrl?: string }>): void {
+  sendParts(sessionId: string, parts: any[], attachments?: any[]): void {
     this.send(sessionId, {
       type: WsCommandType.Query,
       parts,
+      attachments: attachments?.length ? attachments : undefined,
     });
-  }
-
-  async updateSession(sessionId: string, patch: Record<string, any>): Promise<void> {
-    await this.http.put(`/api/settings/sessions/${encodeURIComponent(sessionId)}`, patch);
   }
 
   addListener(fn: WsListener): void { this.listeners.add(fn); }

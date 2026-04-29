@@ -17,11 +17,13 @@ const props = withDefaults(defineProps<{
   queuedMessages?: (string | any[])[]
   labels?: ChatLabels
   fetchFn?: (url: string) => Promise<any>
+  onThinkClick?: (thinkId: string) => void
 }>(), {
   thinksUrlPrefix: null,
   showDateSeparators: false,
   isStreaming: false,
   streamingContent: '',
+  onThinkClick: undefined,
 })
 
 const L = computed(() => resolveLabels(props.labels))
@@ -46,7 +48,11 @@ function openLightbox(src: string) {
 // ── Think drawer ──
 const thinkDrawerRef = ref<InstanceType<typeof ThinkDrawer>>()
 function openThink(thinkId: string) {
-  thinkDrawerRef.value?.open(thinkId)
+  if (props.onThinkClick) {
+    props.onThinkClick(thinkId)
+  } else {
+    thinkDrawerRef.value?.open(thinkId)
+  }
 }
 </script>
 

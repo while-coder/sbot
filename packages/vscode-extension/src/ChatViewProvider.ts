@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
-import { WebChatEventType, type WebChatEvent } from 'sbot.commons';
+import { WebChatEventType, WsCommandType, type WebChatEvent } from 'sbot.commons';
 import { SbotClient } from './SbotClient';
-import { loadCliSettings, addRemote, updateRemote, removeRemote } from './cliSettings';
 
 function getLocalBaseUrl(): string {
   const { readFileSync, existsSync } = require('node:fs');
@@ -18,13 +17,23 @@ function getLocalBaseUrl(): string {
   return `http://localhost:${DEFAULT_PORT}`;
 }
 
+const EVENT_TYPE_MAP: Record<string, string> = {
+  [WebChatEventType.Human]: 'human',
+  [WebChatEventType.Stream]: 'stream',
+  [WebChatEventType.Message]: 'message',
+  [WebChatEventType.ToolCall]: 'toolCall',
+  [WebChatEventType.Ask]: 'ask',
+  [WebChatEventType.Queue]: 'queue',
+  [WebChatEventType.Done]: 'done',
+  [WebChatEventType.Error]: 'error',
+  [WebChatEventType.Usage]: 'usage',
+};
+
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'sbot.chatView';
 
   private view: vscode.WebviewView | undefined;
   private client: SbotClient | undefined;
-  private sessionId: string | undefined;
-  private workPath = '';
 
   constructor(private readonly extensionUri: vscode.Uri) {}
 
@@ -43,152 +52,94 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.html = this.getHtml(webviewView.webview);
     webviewView.webview.onDidReceiveMessage(this.onWebviewMessage);
     webviewView.onDidDispose(() => { this.view = undefined; });
-
-    this.sendServerList();
   }
 
-  private sendServerList(): void {
-    const { remotes } = loadCliSettings();
-    this.postMessage({ type: 'serverList', remotes });
-  }
-
-  private switchClient(baseUrl: string): void {
-    this.client?.dispose();
-    this.client = new SbotClient(baseUrl);
-    this.client.addListener(this.onServerEvent);
-    this.sessionId = undefined;
-  }
-
-  private async sendInit(): Promise<void> {
-    if (!this.client) return;
-
-    const online = await this.client.isOnline();
-    if (!online) {
-      this.postMessage({ type: 'connectionStatus', online: false });
-      return;
+  private ensureClient(): SbotClient {
+    if (!this.client) {
+      const baseUrl = getLocalBaseUrl();
+      this.client = new SbotClient(baseUrl);
+      this.client.addListener(this.onServerEvent);
     }
-    this.postMessage({ type: 'connectionStatus', online: true });
-
-    const [settings, sessions] = await Promise.all([
-      this.client.fetchSettings(),
-      this.client.fetchSessions(),
-    ]);
-
-    this.postMessage({
-      type: 'init',
-      settings,
-      sessions,
-      workPath: this.workPath,
-    });
+    return this.client;
   }
 
   private onWebviewMessage = async (msg: any) => {
-    switch (msg.type) {
-      case 'selectLocal': {
-        this.workPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
-        this.switchClient(getLocalBaseUrl());
-        await this.sendInit();
-        break;
+    if (msg.type === 'rpc') {
+      const { id, method, args } = msg;
+      try {
+        const result = await this.handleRpc(method, args);
+        this.postMessage({ type: 'rpc-result', id, result });
+      } catch (e: any) {
+        this.postMessage({ type: 'rpc-error', id, error: e.message ?? String(e) });
       }
-      case 'selectRemote': {
-        const { remotes } = loadCliSettings();
-        const remote = remotes[msg.remoteIndex];
-        if (!remote) return;
-        this.workPath = '';
-        this.switchClient(`http://${remote.host}:${remote.port}`);
-        await this.sendInit();
-        break;
-      }
-      case 'addRemote': {
-        const settings = addRemote(msg.name || `${msg.host}:${msg.port}`, msg.host, msg.port);
-        const remote = settings.remotes[settings.remotes.length - 1]!;
-        this.workPath = '';
-        this.switchClient(`http://${remote.host}:${remote.port}`);
-        await this.sendInit();
-        break;
-      }
-      case 'updateRemote': {
-        updateRemote(msg.remoteIndex, msg.patch);
-        this.sendServerList();
-        break;
-      }
-      case 'removeRemote': {
-        removeRemote(msg.remoteIndex);
-        this.sendServerList();
-        break;
-      }
-      case 'backToServerPick': {
-        this.client?.dispose();
-        this.client = undefined;
-        this.sessionId = undefined;
-        this.sendServerList();
-        break;
-      }
-      case 'sendMessage': {
-        if (!this.sessionId || !this.client) return;
-        this.client.sendParts(this.sessionId, msg.parts);
-        break;
-      }
-      case 'selectSession': {
-        if (!this.client) return;
-        this.sessionId = msg.sessionId;
-        const history = await this.client.fetchHistory(this.sessionId!);
-        this.postMessage({ type: 'history', messages: history });
-        break;
-      }
-      case 'createSession': {
-        if (!this.client) return;
-        const id = await this.client.createSession(
-          msg.agentId, msg.saverId, msg.memoryIds ?? [], this.workPath,
-        );
-        this.sessionId = id;
-        this.postMessage({
-          type: 'sessionCreated', sessionId: id,
-          agent: msg.agentId, saver: msg.saverId, memories: msg.memoryIds ?? [],
-        });
-        break;
-      }
-      case 'updateSessionConfig': {
-        if (!this.sessionId || !this.client) return;
-        const patch: Record<string, any> = {};
-        patch[msg.field] = msg.value;
-        try {
-          await this.client.updateSession(this.sessionId, patch);
-        } catch (e: any) {
-          this.postMessage({ type: 'error', message: e.message });
-        }
-        break;
-      }
-      case 'refreshInit': {
-        if (this.client) {
-          await this.sendInit();
-        } else {
-          this.sendServerList();
-        }
-        break;
-      }
+    } else if (msg.type === 'cmd') {
+      this.handleCmd(msg.method, msg.args);
     }
   };
 
-  private onServerEvent = (event: WebChatEvent & { sessionId?: string }) => {
-    if (event.sessionId && event.sessionId !== this.sessionId) return;
-    switch (event.type) {
-      case WebChatEventType.Stream:
-        this.postMessage({ type: 'streamChunk', content: event.data });
+  private async handleRpc(method: string, args: any[]): Promise<any> {
+    const client = this.ensureClient();
+    switch (method) {
+      case 'listSessions':
+        return client.fetchSessionsMap();
+      case 'createSession':
+        return client.createSessionNew(args[0]);
+      case 'deleteSession':
+        return client.deleteSession(args[0]);
+      case 'updateSession':
+        return client.updateSession(args[0], args[1]);
+      case 'getHistory':
+        return client.fetchHistory(args[0]);
+      case 'clearHistory':
+        return client.clearHistory(args[0]);
+      case 'getUsage':
+        return client.getUsage(args[0]);
+      case 'getSettings':
+        return client.fetchSettings();
+      case 'getSessionStatus':
+        return client.getSessionStatus(args[0]);
+      case 'listDir':
+        return client.listDir(args[0]);
+      case 'quickDirs':
+        return client.quickDirs();
+      case 'mkdir':
+        return client.mkdir(args[0]);
+      case 'fetchThinks':
+        return client.fetchThinks(args[0]);
+      default:
+        throw new Error(`Unknown RPC method: ${method}`);
+    }
+  }
+
+  private handleCmd(method: string, args: any[]): void {
+    const client = this.ensureClient();
+    switch (method) {
+      case 'connect':
         break;
-      case WebChatEventType.Message:
-        this.postMessage({ type: 'messageComplete', data: event.data });
+      case 'disconnect':
         break;
-      case WebChatEventType.Human:
-        this.postMessage({ type: 'humanEcho', data: event.data });
+      case 'sendMessage':
+        client.sendParts(args[0], args[1], args[2]);
         break;
-      case WebChatEventType.Done:
-        this.postMessage({ type: 'done', data: event.data });
+      case 'approveToolCall':
+        client.send(args[0], { type: WsCommandType.Approval, id: args[1].approvalId, approval: args[1].approval });
         break;
-      case WebChatEventType.Error:
-        this.postMessage({ type: 'error', message: (event.data as any).message });
+      case 'answerAsk':
+        client.send(args[0], { type: WsCommandType.Ask, id: args[1].askId, answers: args[1].answers });
+        break;
+      case 'abort':
+        client.send(args[0], { type: WsCommandType.Abort });
         break;
     }
+  }
+
+  private onServerEvent = (event: WebChatEvent & { sessionId?: string }) => {
+    const chatType = EVENT_TYPE_MAP[event.type];
+    if (!chatType) return;
+    this.postMessage({
+      type: 'event',
+      event: { type: chatType, data: event.data },
+    });
   };
 
   private postMessage(msg: any): void {

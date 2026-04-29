@@ -5,12 +5,14 @@ export interface RemoteEntry {
 }
 
 export interface SessionItem {
-  id: string;
-  name?: string;
-  agent: string;
-  saver: string;
-  memories: string[];
-  workPath?: string;
+  id: string
+  name?: string
+  agent: string
+  saver: string
+  memories: string[]
+  wikis?: string[]
+  workPath?: string
+  autoApproveAllTools?: boolean
 }
 
 export interface AgentOption { id: string; name?: string }
@@ -111,24 +113,162 @@ export interface ChatLabels {
   noSession?: string
   newSession?: string
   createSession?: string
+  confirmDeleteSession?: string
+  sessionDeleted?: string
+  emptySession?: string
+  createSessionHint?: string
+  editSessionNameHint?: string
+  agent?: string
+  storage?: string
+  workpath?: string
+  workpathPlaceholder?: string
+  memory?: string
+  wiki?: string
+  autoApproveAll?: string
+  view?: string
+  usageLast?: string
+  usageTotal?: string
+  refresh?: string
+  clearHistory?: string
+  confirmClearHistory?: string
+  historyCleared?: string
+  newSessionTitle?: string
+  errorNoAgent?: string
+  errorNoSaver?: string
+  selectPlaceholder?: string
+  create?: string
+  executeTool?: string
+  allow?: string
+  alwaysAllowArgs?: string
+  alwaysAllowAll?: string
+  deny?: string
+  askSubmit?: string
+  askOther?: string
+  askOtherPlaceholder?: string
+  selectDirTitle?: string
+  myComputer?: string
+  upDir?: string
+  newFolder?: string
+  newFolderPlaceholder?: string
+  selectThis?: string
+  noSubdirs?: string
+  noSaver?: string
+  selectOrCreate?: string
 }
 
-// ── Chat state ──
+// ── Wiki option ──
+export interface WikiOption { id: string; name: string }
 
-export interface ChatState {
-  phase: 'server-pick' | 'session-pick' | 'chat';
-  online: boolean;
-  remotes: RemoteEntry[];
-  sessions: SessionItem[];
-  agents: AgentOption[];
-  savers: SaverOption[];
-  memories: MemoryOption[];
-  workPath: string;
-  sessionId: string | null;
-  messages: StoredMessage[];
-  streamingContent: string | any[];
-  isStreaming: boolean;
-  currentAgent: string;
-  currentSaver: string;
-  currentMemories: string[];
+// ── Create session ──
+export interface CreateSessionOpts {
+  agent: string
+  saver: string
+  memories?: string[]
+  wikis?: string[]
+  name?: string
 }
+
+// ── Token usage ──
+export interface UsageInfo {
+  inputTokens: number
+  outputTokens: number
+  totalTokens: number
+  lastInputTokens: number
+  lastOutputTokens: number
+  lastTotalTokens: number
+}
+
+export interface UsageData {
+  inputTokens: number
+  outputTokens: number
+  totalTokens: number
+}
+
+// ── Tool approval ──
+export interface ToolCallEvent {
+  approvalId: string
+  toolCallId?: string
+  name: string
+  args: Record<string, any>
+}
+
+export type ToolApprovalType = 'allow' | 'alwaysArgs' | 'alwaysTool' | 'deny'
+
+export interface ToolApprovalPayload {
+  approvalId: string
+  approval: ToolApprovalType
+}
+
+// ── Ask form ──
+export enum AskQuestionType {
+  Radio    = 'radio',
+  Checkbox = 'checkbox',
+  Input    = 'input',
+}
+
+export interface AskQuestionSpec {
+  type: AskQuestionType
+  label: string
+  options?: string[]
+  placeholder?: string
+}
+
+export interface AskEvent {
+  id: string
+  title?: string
+  questions: AskQuestionSpec[]
+  startedAt?: string
+}
+
+export interface AskAnswerPayload {
+  askId: string
+  answers: Record<string, string | string[]>
+}
+
+// ── Queued messages ──
+export type DisplayContent = string | any[]
+
+// ── Directory browser ──
+export interface DirListResult {
+  path: string
+  parent: string | null
+  items: string[]
+}
+
+export interface QuickDir {
+  label: string
+  path: string
+}
+
+// ── App settings ──
+export interface AppSettings {
+  agents: Record<string, { name?: string; type?: string; model?: string }>
+  savers: Record<string, { name: string }>
+  memories: Record<string, { name: string; share?: boolean }>
+  wikis: Record<string, { name: string }>
+  models?: Record<string, { contextWindow?: number }>
+}
+
+// ── Session status (pending state on reconnect) ──
+export interface SessionStatus {
+  pendingApproval?: {
+    id: string
+    tool: { id?: string; name: string; args: Record<string, any> }
+    startedAt: string
+  }
+  pendingAsk?: AskEvent & { startedAt: string }
+  pendingMessages?: DisplayContent[]
+}
+
+// ── Chat events (server → client) ──
+export type ChatEvent =
+  | { type: 'connectionStatus'; online: boolean }
+  | { type: 'human'; data: { content: DisplayContent } }
+  | { type: 'stream'; data: { content: DisplayContent } }
+  | { type: 'message'; data: { message: ChatMessage; thinkId?: string; createdAt: number } }
+  | { type: 'toolCall'; data: ToolCallEvent }
+  | { type: 'ask'; data: AskEvent }
+  | { type: 'queue'; data: { pendingMessages: DisplayContent[] } }
+  | { type: 'done'; data: { pendingMessages?: DisplayContent[] } }
+  | { type: 'error'; data: { message: string } }
+  | { type: 'usage'; data: UsageData }

@@ -1,13 +1,13 @@
-<template>
-  <ChatApp :chat="chat" />
-</template>
-
 <script setup lang="ts">
-import { ChatApp } from '@sbot/chat-ui';
-import { useChat } from './composables/useChat';
-
-const chat = useChat();
+import { ChatView } from '@sbot/chat-ui'
+import '@sbot/chat-ui/themes/variables.css'
+import '@sbot/chat-ui/themes/theme-vscode.css'
+import { transport } from './composables/useChat'
 </script>
+
+<template>
+  <ChatView :transport="transport" />
+</template>
 
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
