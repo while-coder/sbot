@@ -361,6 +361,7 @@ export default {
     search_placeholder: '搜索技能名称或描述...',
     hub_title: '技能中心',
     url_install_tab: 'URL 安装',
+    zip_install_tab: 'ZIP 安装',
     search_tab: '搜索',
     url_placeholder: '输入 URL 安装（如 https://skills.sh/owner/repo/skill）',
     search_placeholder_hub: '搜索技能（如 code-review、web-scraper）',

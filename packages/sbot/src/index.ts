@@ -29,7 +29,7 @@ const program = new Command();
 program
     .name('sbot')
     .description(config.pkg.description)
-    .version(config.pkg.version, '-v, --version')
+    .option('-v, --version', '显示版本号并检查更新')
     .option('-p, --port <port>', 'HTTP server port')
     .option('-d, --daemon', '后台运行');
 
@@ -144,7 +144,20 @@ program
 
 // 默认行为：启动服务
 program
-    .action(async (options: { port?: string; daemon?: boolean }) => {
+    .action(async (options: { port?: string; daemon?: boolean; version?: boolean }) => {
+        if (options.version) {
+            const currentVer = config.pkg.version;
+            console.log(`sbot v${currentVer}`);
+            try {
+                const release = await fetchLatestRelease();
+                if (release && compareSemver(currentVer, release.tag) < 0) {
+                    console.log(`最新版: ${release.tag}, 可通过 npm install -g ${NPM_PACKAGE}@latest 升级`);
+                } else if (release) {
+                    console.log('已是最新版本');
+                }
+            } catch {}
+            return;
+        }
         if (options.daemon) {
             const args = process.argv.slice(2).filter(a => a !== '-d' && a !== '--daemon');
             const child = spawn(process.execPath, [__filename, ...args], {

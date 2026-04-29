@@ -361,6 +361,7 @@ export default {
     search_placeholder: 'Search skill name or description...',
     hub_title: 'Skill Hub',
     url_install_tab: 'URL Install',
+    zip_install_tab: 'ZIP Install',
     search_tab: 'Search',
     url_placeholder: 'Enter URL to install (e.g. https://skills.sh/owner/repo/skill)',
     search_placeholder_hub: 'Search skills (e.g. code-review, web-scraper)',

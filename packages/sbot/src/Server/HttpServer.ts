@@ -12,6 +12,7 @@ import { AgentRunner } from '../Agent/AgentRunner';
 import { globalAgentToolService, refreshGlobalAgentToolService, refreshBuiltinTools, BuiltinProvider } from '../Agent/GlobalAgentToolService';
 import { globalSkillService, refreshGlobalSkillService, getSkillsDirsMap } from '../Agent/GlobalSkillService';
 import { SkillHubService } from '../SkillHub';
+import { installSkillFromZip } from '../SkillHub/bundle';
 import axios from 'axios';
 import { AgentStoreService } from '../AgentStore';
 import { LoggerService, log4js } from '../Core/LoggerService';
@@ -979,12 +980,29 @@ class HttpServer {
             return result;
         }));
 
+        app.post('/api/skill-hub/install-zip', express.raw({ type: 'application/zip', limit: '20mb' }), api(async req => {
+            const overwrite = req.query.overwrite === 'true';
+            const buf = req.body as Buffer;
+            if (!buf?.length) { const e: any = new Error('Missing zip body'); e.status = 400; throw e; }
+            const result = installSkillFromZip(buf, config.getSkillsPath(), overwrite);
+            refreshGlobalSkillService();
+            return result;
+        }));
+
         // ── Agent Skill Hub ──
         app.post('/api/agents/:agentName/skill-hub/install', api(async req => {
             const agentName = req.params.agentName as string;
             const { url, overwrite = false }: { url: string; overwrite: boolean } = req.body;
             if (!url?.trim()) { const e: any = new Error('Missing url'); e.status = 400; throw e; }
             return await this.skillHubService.installSkill(url.trim(), config.getAgentSkillsPath(agentName), { overwrite });
+        }));
+
+        app.post('/api/agents/:agentName/skill-hub/install-zip', express.raw({ type: 'application/zip', limit: '20mb' }), api(async req => {
+            const agentName = req.params.agentName as string;
+            const overwrite = req.query.overwrite === 'true';
+            const buf = req.body as Buffer;
+            if (!buf?.length) { const e: any = new Error('Missing zip body'); e.status = 400; throw e; }
+            return installSkillFromZip(buf, config.getAgentSkillsPath(agentName), overwrite);
         }));
     }
 

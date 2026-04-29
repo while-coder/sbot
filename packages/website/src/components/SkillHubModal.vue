@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import axios from 'axios'
 import { apiFetch } from '@/api'
 import { useToast } from '@/composables/useToast'
 import { BADGE_CLAWHUB, BADGE_SKILLSSH } from '@/utils/badges'
@@ -34,7 +35,7 @@ const { show } = useToast()
 
 // ── Hub state ────────────────────────────────────────────────────
 const visible = ref(false)
-const hubTab = ref<'url' | 'search'>('search')
+const hubTab = ref<'url' | 'search' | 'zip'>('search')
 const hubQuery = ref('')
 const hubResults = ref<HubSkillResult[]>([])
 const hubSearching = ref(false)
@@ -44,6 +45,13 @@ const hubSearched = ref(false)
 const hubUrlInput = ref('')
 const hubUrlInstalling = ref(false)
 const hubUrlOverwrite = ref(false)
+
+// Zip install
+const zipFiles = ref<File[]>([])
+const zipInstalling = ref(false)
+const zipOverwrite = ref(false)
+const zipResults = ref<{ name: string; ok: boolean; msg: string }[]>([])
+const zipInstallUrl = computed(() => props.installApiUrl.replace(/\/install$/, '/install-zip'))
 
 // Install confirm
 const showInstall = ref(false)
@@ -58,7 +66,42 @@ function open() {
   hubSearched.value = false
   hubUrlInput.value = ''
   hubUrlOverwrite.value = false
+  zipFiles.value = []
+  zipOverwrite.value = false
+  zipResults.value = []
   visible.value = true
+}
+
+function onZipFilesChange(e: Event) {
+  const input = e.target as HTMLInputElement
+  zipFiles.value = input.files ? Array.from(input.files) : []
+  zipResults.value = []
+}
+
+async function installZips() {
+  if (!zipFiles.value.length) return
+  zipInstalling.value = true
+  zipResults.value = []
+  const ow = zipOverwrite.value ? '?overwrite=true' : ''
+  let anyOk = false
+  for (const file of zipFiles.value) {
+    try {
+      const buf = await file.arrayBuffer()
+      const res = await axios.post(zipInstallUrl.value + ow, buf, {
+        headers: { 'Content-Type': 'application/zip' },
+      })
+      const items: { name: string }[] = Array.isArray(res.data?.data) ? res.data.data : [res.data?.data ?? { name: file.name }]
+      for (const item of items) {
+        zipResults.value.push({ name: item.name, ok: true, msg: '安装成功' })
+      }
+      anyOk = true
+    } catch (e: any) {
+      const msg = e.response?.data?.message || e.response?.data?.error || e.message
+      zipResults.value.push({ name: file.name, ok: false, msg })
+    }
+  }
+  zipInstalling.value = false
+  if (anyOk) emit('installed')
 }
 
 async function hubSearch() {
@@ -138,7 +181,7 @@ defineExpose({ open })
       <!-- Tabs -->
       <div style="display:flex;border-bottom:1px solid #e2e8f0;flex-shrink:0;padding:0 20px">
         <button
-          v-for="tab in ([{key:'search',label:t('skills.search_tab')},{key:'url',label:t('skills.url_install_tab')}] as const)"
+          v-for="tab in ([{key:'search',label:t('skills.search_tab')},{key:'url',label:t('skills.url_install_tab')},{key:'zip',label:t('skills.zip_install_tab')}] as const)"
           :key="tab.key"
           @click="hubTab = tab.key"
           style="padding:10px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px"
@@ -165,6 +208,40 @@ defineExpose({ open })
           <div style="margin-top:16px;padding:12px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;color:#64748b;line-height:1.7">
             {{ t('skills.support_formats') }}<br>
             <code v-for="fmt in urlFormats" :key="fmt" style="font-family:monospace;display:block">{{ fmt }}</code>
+          </div>
+        </template>
+
+        <!-- Tab: ZIP install -->
+        <template v-else-if="hubTab === 'zip'">
+          <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
+            <input
+              type="file"
+              accept=".zip"
+              multiple
+              @change="onZipFilesChange"
+              style="flex:1"
+            />
+            <button class="btn-primary" :disabled="zipInstalling || !zipFiles.length" @click="installZips">
+              {{ zipInstalling ? t('common.loading') : '安装' }}
+            </button>
+          </div>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;margin-bottom:12px">
+            <input type="checkbox" v-model="zipOverwrite" /> {{ t('skills.override') }}
+          </label>
+          <div v-if="zipFiles.length && !zipResults.length" style="font-size:13px;color:#64748b">
+            已选择 {{ zipFiles.length }} 个文件
+          </div>
+          <div v-if="zipResults.length" style="margin-top:8px">
+            <div
+              v-for="(r, i) in zipResults" :key="i"
+              style="padding:8px 12px;border-radius:6px;margin-bottom:6px;font-size:13px"
+              :style="r.ok ? 'background:#f0fdf4;color:#166534' : 'background:#fef2f2;color:#991b1b'"
+            >
+              <strong>{{ r.name }}</strong>: {{ r.msg }}
+            </div>
+          </div>
+          <div v-if="!zipFiles.length && !zipResults.length" style="margin-top:16px;padding:12px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;color:#64748b;line-height:1.7">
+            选择包含 SKILL.md 的 .zip 文件，支持多选批量安装
           </div>
         </template>
 

@@ -301,16 +301,21 @@ function openThink(thinkId: string) {
   gap: 6px;
   margin-bottom: 4px;
 }
+.msg-bubble.human .msg-role-bar {
+  justify-content: flex-end;
+}
 .msg-role {
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--chatui-fg-secondary);
+  white-space: nowrap;
 }
 .msg-time {
   font-size: 10px;
   color: var(--chatui-fg-secondary);
+  white-space: nowrap;
 }
 
 /* Markdown content */

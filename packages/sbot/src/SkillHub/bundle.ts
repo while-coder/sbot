@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import AdmZip from 'adm-zip';
 import type { HubSkillResult, SkillHubProvider } from './types';
 
 export interface Bundle {
@@ -56,6 +57,71 @@ export function writeSkillToDisk(bundle: Bundle, targetDir: string, overwrite: b
   }
 
   return skillDir;
+}
+
+export interface ZipInstallResult {
+  name: string;
+  path: string;
+}
+
+function parseSkillName(content: string): string {
+  const match = content.match(/^---\s*\n([\s\S]*?)\n---/);
+  const nameMatch = match?.[1].match(/^name\s*:\s*(.+)$/m);
+  return nameMatch ? nameMatch[1].trim().replace(/^['"]|['"]$/g, '') : '';
+}
+
+export function installSkillFromZip(buf: Buffer, targetDir: string, overwrite: boolean): ZipInstallResult[] {
+  const zip = new AdmZip(buf);
+  const entries = zip.getEntries();
+
+  const skillMdEntries = entries.filter(e => !e.isDirectory && e.entryName.endsWith('SKILL.md'));
+  if (!skillMdEntries.length) throw new Error('zip 中未找到 SKILL.md');
+
+  // Sort by depth so shallower skills are processed first
+  skillMdEntries.sort((a, b) => a.entryName.split('/').length - b.entryName.split('/').length);
+
+  // Each SKILL.md defines a skill rooted at its parent directory
+  const skillRoots = skillMdEntries.map(e => {
+    const idx = e.entryName.lastIndexOf('SKILL.md');
+    return e.entryName.slice(0, idx); // '' for root, or 'some/path/'
+  });
+
+  const results: ZipInstallResult[] = [];
+
+  for (let i = 0; i < skillMdEntries.length; i++) {
+    const prefix = skillRoots[i];
+    const dirName = prefix ? prefix.replace(/\/$/, '').split('/').pop()! : '';
+    const name = dirName || parseSkillName(skillMdEntries[i].getData().toString('utf-8'));
+    if (!name) throw new Error(`无法确定 skill 名称: ${skillMdEntries[i].entryName}`);
+
+    // Collect files under this prefix but not under a deeper skill root
+    const skillEntries = entries.filter(e => {
+      if (e.isDirectory) return false;
+      if (!e.entryName.startsWith(prefix)) return false;
+      const rel = e.entryName.slice(prefix.length);
+      if (!rel) return false;
+      // Exclude files that belong to a nested skill
+      return !skillRoots.some((other, j) => j !== i && other.startsWith(prefix) && other !== prefix && e.entryName.startsWith(other));
+    });
+
+    const skillDir = path.join(targetDir, name);
+    if (fs.existsSync(skillDir)) {
+      if (!overwrite) throw new Error(`Skill '${name}' 已存在，启用覆盖以替换`);
+      fs.rmSync(skillDir, { recursive: true, force: true });
+    }
+    fs.mkdirSync(skillDir, { recursive: true });
+
+    for (const entry of skillEntries) {
+      const rel = entry.entryName.slice(prefix.length);
+      const fullPath = path.join(skillDir, rel);
+      fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+      fs.writeFileSync(fullPath, entry.getData());
+    }
+
+    results.push({ name, path: skillDir });
+  }
+
+  return results;
 }
 
 export function mapToHubResults(items: any[], provider: SkillHubProvider): HubSkillResult[] {
