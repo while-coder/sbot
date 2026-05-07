@@ -67,7 +67,7 @@ watch(() => props.messages.length, async () => {
 
 watch(() => props.streamingContent, async () => {
   await nextTick()
-  scrollToBottom()
+  scrollToBottom(true)
 })
 
 // ── Attachments ──

@@ -62,12 +62,13 @@ export class VsCodeTransport implements IChatTransport {
   quickDirs(): Promise<QuickDir[]> { return rpc('quickDirs') }
   mkdir(path: string): Promise<{ path: string }> { return rpc('mkdir', path) }
 
-  getThinksUrlPrefix(_sessionId: string): string | null { return null }
+  getThinksUrlPrefix(sessionId: string): string | null { return `/api/sessions/${encodeURIComponent(sessionId)}/thinks` }
   async fetchThinks(url: string): Promise<any> { return rpc('fetchThinks', url) }
 
   getRemotes(): Promise<RemoteEntry[]> { return rpc('getRemotes') }
   saveRemotes(remotes: RemoteEntry[]): Promise<void> { return rpc('saveRemotes', remotes) }
-  connectServer(baseUrl: string): Promise<void> { return rpc('connectServer', baseUrl) }
+  connectServer(baseUrl: string, local?: boolean): Promise<void> { return rpc('connectServer', baseUrl, local ?? false) }
+  getLastServer(): Promise<{ url: string; local: boolean } | null> { return rpc('getLastServer') }
 }
 
 export const transport = new VsCodeTransport()

@@ -168,6 +168,7 @@ export interface CreateSessionOpts {
   memories?: string[]
   wikis?: string[]
   name?: string
+  workPath?: string
 }
 
 // ── Token usage ──

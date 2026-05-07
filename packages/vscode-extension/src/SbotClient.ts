@@ -75,7 +75,7 @@ export class SbotClient {
     return res.data.data ?? res.data ?? [];
   }
 
-  async createSessionNew(opts: { agent: string; saver: string; memories?: string[]; wikis?: string[]; name?: string }): Promise<{ id: string }> {
+  async createSessionNew(opts: { agent: string; saver: string; memories?: string[]; wikis?: string[]; name?: string; workPath?: string }): Promise<{ id: string }> {
     const res = await this.http.post('/api/settings/sessions', opts);
     return { id: res.data.data?.id ?? res.data.id };
   }

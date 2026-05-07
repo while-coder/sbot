@@ -28,6 +28,7 @@
       "type": "extensionHost",
       "request": "launch",
       "args": [
+        "${workspaceFolder}",
         "--extensionDevelopmentPath=${workspaceFolder}/packages/vscode-extension"
       ],
       "outFiles": [

@@ -14,10 +14,12 @@ const currentBaseUrl = ref('')
 
 onMounted(async () => {
   remotes.value = await transport.getRemotes()
+  const last = await transport.getLastServer()
+  if (last) selectServer(last.url, last.local)
 })
 
-async function selectServer(baseUrl: string) {
-  await transport.connectServer(baseUrl)
+async function selectServer(baseUrl: string, local = false) {
+  await transport.connectServer(baseUrl, local)
   currentBaseUrl.value = baseUrl
   phase.value = 'chat'
 }
@@ -27,7 +29,7 @@ function switchServer() {
 }
 
 function selectLocal() {
-  selectServer(`http://localhost:${DEFAULT_PORT}`)
+  selectServer(`http://localhost:${DEFAULT_PORT}`, true)
 }
 
 function selectRemote(index: number) {

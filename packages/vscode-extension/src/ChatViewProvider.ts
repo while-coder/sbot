@@ -37,6 +37,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
   private readonly globalState: vscode.Memento;
   private static readonly REMOTES_KEY = 'sbot.remotes';
+  private static readonly LAST_SERVER_KEY = 'sbot.lastServer';
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -63,6 +64,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   private customBaseUrl: string | undefined;
+  private localMode = true;
 
   private ensureClient(): SbotClient {
     if (!this.client) {
@@ -111,19 +113,36 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         return;
       case 'connectServer': {
         const baseUrl = args[0] as string;
+        const local = args[1] ?? false;
         this.customBaseUrl = baseUrl;
+        this.localMode = !!local;
         this.client?.dispose();
         this.client = undefined;
         this.ensureClient();
+        await this.globalState.update(ChatViewProvider.LAST_SERVER_KEY, { url: baseUrl, local });
         return;
       }
+      case 'getLastServer':
+        return this.globalState.get<any>(ChatViewProvider.LAST_SERVER_KEY) ?? null;
     }
     const client = this.ensureClient();
     switch (method) {
-      case 'listSessions':
-        return client.fetchSessions();
-      case 'createSession':
-        return client.createSessionNew(args[0]);
+      case 'listSessions': {
+        const all = await client.fetchSessions();
+        if (!this.isLocal()) return all;
+        const cwd = this.getWorkspaceFolder();
+        if (!cwd) return all;
+        const cwdLower = cwd.toLowerCase();
+        return all.filter((s: any) => s.workPath && s.workPath.toLowerCase() === cwdLower);
+      }
+      case 'createSession': {
+        const opts = { ...args[0] };
+        if (this.isLocal()) {
+          const wsFolder = this.getWorkspaceFolder();
+          if (wsFolder) opts.workPath = wsFolder;
+        }
+        return client.createSessionNew(opts);
+      }
       case 'deleteSession':
         return client.deleteSession(args[0]);
       case 'updateSession':
@@ -181,6 +200,18 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       event: { type: chatType, data: event.data },
     });
   };
+
+  private isLocal(): boolean {
+    return this.localMode;
+  }
+
+  private getWorkspaceFolder(): string | undefined {
+    if (vscode.workspace.workspaceFolders?.length) {
+      return vscode.workspace.workspaceFolders[0].uri.fsPath;
+    }
+    // fallback: deprecated but works when no folder is explicitly opened
+    return (vscode.workspace as any).rootPath ?? undefined;
+  }
 
   private postMessage(msg: any): void {
     this.view?.webview.postMessage(msg);
