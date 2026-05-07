@@ -236,15 +236,19 @@ function clearActionState() {
 
 async function triggerAction(key: string) {
   const channelId = editingId.value
-  if (!channelId) { show('请先保存 Channel 后再执行此操作', 'error'); return }
+  const type = form.value.type
+  if (!type) { show('请先选择频道类型', 'error'); return }
 
   actionState.value[key] = { loading: true }
   try {
-    const res = await apiFetch(`/api/channels/${channelId}/qrcode/${key}`, 'POST', form.value.config)
+    const url = channelId
+      ? `/api/channels/${channelId}/qrcode/${key}`
+      : `/api/channel-plugins/${type}/qrcode/${key}`
+    const res = await apiFetch(url, 'POST', form.value.config)
     const data = res.data
     if (data?.url) {
       actionState.value[key] = { loading: false, qrUrl: data.url, qrType: data.type || 'link', status: 'wait' }
-      await waitForQRConfirm(key, channelId)
+      await waitForQRConfirm(key, channelId, type)
     } else {
       actionState.value[key] = { loading: false, status: 'done' }
     }
@@ -254,9 +258,12 @@ async function triggerAction(key: string) {
 }
 
 /** Long-polls backend until QR scan confirmed or expired */
-async function waitForQRConfirm(key: string, channelId: string) {
+async function waitForQRConfirm(key: string, channelId: string | null, type: string) {
   try {
-    const res = await apiFetch(`/api/channels/${channelId}/qrcode/${key}/confirm`, 'POST')
+    const url = channelId
+      ? `/api/channels/${channelId}/qrcode/${key}/confirm`
+      : `/api/channel-plugins/${type}/qrcode/${key}/confirm`
+    const res = await apiFetch(url, 'POST')
     const data = res.data
     const s = actionState.value[key]
     if (!s) return
@@ -265,13 +272,15 @@ async function waitForQRConfirm(key: string, channelId: string) {
       s.qrUrl = undefined
       if (data.credentials) {
         form.value.config[key] = data.credentials
-        const c = store.settings.channels?.[channelId]
-        if (c) {
-          if (!c.config) c.config = {}
-          c.config[key] = data.credentials
+        if (channelId) {
+          const c = store.settings.channels?.[channelId]
+          if (c) {
+            if (!c.config) c.config = {}
+            c.config[key] = data.credentials
+          }
         }
       }
-      show('登录成功')
+      show('登录成功，请记得保存')
     } else if (data?.status === 'expired') {
       s.qrUrl = undefined
       s.error = '二维码已过期，请重新生成'

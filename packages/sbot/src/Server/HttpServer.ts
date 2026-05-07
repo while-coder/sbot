@@ -1365,43 +1365,52 @@ class HttpServer {
         }));
 
         // --- QR code login ---
+        // Supports both /api/channel-plugins/:type/qrcode/:key (add flow)
+        // and /api/channels/:id/qrcode/:key (edit flow, auto-persists)
 
-        app.post('/api/channels/:id/qrcode/:key', api(async req => {
-            const channelId = req.params.id as string;
+        const resolvePlugin = (req: express.Request) => {
+            if (req.params.type) {
+                return { type: req.params.type as string, channel: null };
+            }
+            const id = req.params.id as string;
+            const channel = channelManager.getChannel(id);
+            if (!channel) throwBad(`Channel "${id}" not found`);
+            return { type: channel!.type, channel };
+        };
+
+        const qrCodeHandler = api(async (req: express.Request) => {
+            const { type } = resolvePlugin(req);
             const key = req.params.key as string;
-            const channel = channelManager.getChannel(channelId);
-            if (!channel) throwBad(`Channel "${channelId}" not found`);
+            const plugin = channelManager.getPlugin(type);
+            if (!plugin?.getQRCode) throwBad(`Plugin "${type}" does not support QR code login`);
+            return plugin.getQRCode(key, req.body);
+        });
 
-            const plugin = channelManager.getPlugin(channel.type);
-            if (!plugin?.getQRCode) throwBad(`Plugin "${channel.type}" does not support QR code login`);
-
-            const qrcode = await plugin.getQRCode(key, req.body);
-            return qrcode;
-        }));
-
-        app.post('/api/channels/:id/qrcode/:key/confirm', api(async req => {
-            const channelId = req.params.id as string;
+        const qrConfirmHandler = api(async (req: express.Request) => {
+            const { type, channel } = resolvePlugin(req);
             const key = req.params.key as string;
-            const channel = channelManager.getChannel(channelId);
-            if (!channel) throwBad(`Channel "${channelId}" not found`);
-
-            const plugin = channelManager.getPlugin(channel.type);
-            if (!plugin?.awaitQRResult) throwBad(`Plugin "${channel.type}" does not support QR code login`);
+            const plugin = channelManager.getPlugin(type);
+            if (!plugin?.awaitQRResult) throwBad(`Plugin "${type}" does not support QR code login`);
 
             const credentials = await plugin.awaitQRResult(key);
             if (!credentials) return { status: "expired" };
 
-            // Persist credentials under config[key]
-            const cfg = channel.config ?? {};
-            cfg[key] = credentials;
-            channel.config = cfg;
-            config.saveSettings();
-
-            // Reload the channel so it picks up the new credentials
-            await channelManager.reloadChannel(channelId);
+            if (channel) {
+                const id = req.params.id as string;
+                const cfg = channel.config ?? {};
+                cfg[key] = credentials;
+                channel.config = cfg;
+                config.saveSettings();
+                await channelManager.reloadChannel(id);
+            }
 
             return { status: "confirmed", credentials };
-        }));
+        });
+
+        app.post('/api/channel-plugins/:type/qrcode/:key', qrCodeHandler);
+        app.post('/api/channel-plugins/:type/qrcode/:key/confirm', qrConfirmHandler);
+        app.post('/api/channels/:id/qrcode/:key', qrCodeHandler);
+        app.post('/api/channels/:id/qrcode/:key/confirm', qrConfirmHandler);
     }
 
     // ===== Logs =====
