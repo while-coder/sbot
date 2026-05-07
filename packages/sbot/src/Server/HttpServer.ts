@@ -7,7 +7,7 @@ import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { WebSocket, WebSocketServer } from 'ws';
 import { AgentToolService, SkillService, ModelProvider, listThreadIds, listSubDirs, readImageAsDataUrl, isEmptyContent, type StoredMessage, type MessageContent } from "scorpio.ai";
-import { config, isValidAgentId } from '../Core/Config';
+import { config, isDev, isValidAgentId } from '../Core/Config';
 import { AgentRunner } from '../Agent/AgentRunner';
 import { globalAgentToolService, refreshGlobalAgentToolService, refreshBuiltinTools, BuiltinProvider } from '../Agent/GlobalAgentToolService';
 import { globalSkillService, refreshGlobalSkillService, getSkillsDirsMap } from '../Agent/GlobalSkillService';
@@ -352,7 +352,6 @@ class HttpServer {
     }
 
     async start() {
-        const isDev = process.env.NODE_ENV === 'development';
         const port = isDev ? 5510 : config.getHttpPort();
         const app = express();
         app.use(express.json());
