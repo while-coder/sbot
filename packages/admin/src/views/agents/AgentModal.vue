@@ -28,6 +28,8 @@ const form = ref({
   name: '',
   type: AgentMode.Single as string,
   model: '',
+  compactModel: '',
+  compactPrompt: '',
   systemPrompt: '',
   autoApproveAllTools: false,
   modelCallTimeout: undefined as number | undefined,
@@ -43,6 +45,8 @@ function open(id?: string) {
       name: (a as any).name || '',
       type: a.type || AgentMode.Single,
       model: a.model || '',
+      compactModel: (a as any).compactModel || '',
+      compactPrompt: (a as any).compactPrompt || '',
       systemPrompt: a.systemPrompt || '',
       autoApproveAllTools: !!(a as any).autoApproveAllTools,
       modelCallTimeout: (a as any).modelCallTimeout ?? undefined,
@@ -52,8 +56,8 @@ function open(id?: string) {
     editingId.value = null
     tempSubAgents.value = []
     form.value = {
-      id: '', name: '', type: AgentMode.Single, model: '', systemPrompt: '',
-      autoApproveAllTools: false, modelCallTimeout: undefined,
+      id: '', name: '', type: AgentMode.Single, model: '', compactModel: '', compactPrompt: '',
+      systemPrompt: '', autoApproveAllTools: false, modelCallTimeout: undefined,
     }
   }
   showModal.value = true
@@ -71,6 +75,8 @@ async function save() {
     const config: Agent = { type, model: form.value.model }
 
     if (form.value.systemPrompt) config.systemPrompt = form.value.systemPrompt
+    if (form.value.compactModel) (config as any).compactModel = form.value.compactModel
+    if (form.value.compactPrompt) (config as any).compactPrompt = form.value.compactPrompt
     if (form.value.autoApproveAllTools) (config as any).autoApproveAllTools = true
     if (form.value.modelCallTimeout != null && form.value.modelCallTimeout > 0) config.modelCallTimeout = form.value.modelCallTimeout
     if (type === AgentMode.ReAct) {
@@ -191,6 +197,21 @@ defineExpose({ open })
             <option value="">{{ t('common.select_placeholder') }}</option>
             <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
           </select>
+        </div>
+
+        <!-- Compact Model (Single 模式) -->
+        <div class="form-group" v-if="form.type === AgentMode.Single">
+          <label>{{ t('agents.compact_model') }}</label>
+          <select v-model="form.compactModel">
+            <option value="">{{ t('agents.compact_model_placeholder') }}</option>
+            <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
+          </select>
+        </div>
+
+        <!-- Compact Prompt (Single 模式，配置了 compactModel 时) -->
+        <div class="form-group" v-if="form.type === AgentMode.Single && form.compactModel">
+          <label>{{ t('agents.compact_prompt') }}</label>
+          <textarea v-model="form.compactPrompt" rows="3" :placeholder="t('agents.compact_prompt_placeholder')" />
         </div>
 
         <!-- autoApproveAllTools -->

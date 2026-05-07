@@ -94,6 +94,22 @@ class SbotSession extends SessionService {
         return channelId ? config.getChannel(channelId)?.saver : undefined;
     }
 
+    async resolveAgentId(args: SessionRouteArgs): Promise<string | undefined> {
+        if (args.channelType === WEB_CHANNEL) {
+            const sessionId = args.sessionId;
+            if (!sessionId) return undefined;
+            const row = await database.findByPk<SessionRow>(database.session, sessionId);
+            return row?.agent;
+        }
+        const channelId = 'channelId' in args ? args.channelId : undefined;
+        const dbSessionId = 'dbSessionId' in args ? args.dbSessionId : undefined;
+        if (dbSessionId) {
+            const dbSession = await database.findByPk<ChannelSessionRow>(database.channelSession, dbSessionId);
+            if (dbSession?.agentId) return dbSession.agentId;
+        }
+        return channelId ? config.getChannel(channelId)?.agent : undefined;
+    }
+
     async triggerAction(...args: any[]): Promise<void> {
         await this.channel?.onTriggerAction(...args);
     }

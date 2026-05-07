@@ -2,6 +2,7 @@ import {
     AgentServiceBase, SingleAgentService, GenerativeAgentService,
     IModelService,
     IAgentSaverService, AgentMemorySaver,
+    ConversationCompactor, IConversationCompactor, T_SummaryModelService, T_CompactPromptTemplate,
 } from "scorpio.ai";
 import {
     IAgentToolService, AgentToolService,
@@ -136,8 +137,16 @@ export class AgentFactory {
         entry: SingleAgentEntry,
         systemPrompts: string[],
     ): Promise<AgentServiceBase> {
-        container.registerInstance(IModelService, await config.getModelService(entry.model, true));
+
+        if (entry.compactModel) {
+            container.registerWithArgs(IConversationCompactor, ConversationCompactor, {
+                [T_SummaryModelService]: await config.getModelService(entry.compactModel, true),
+                ...(entry.compactPrompt && { [T_CompactPromptTemplate]: entry.compactPrompt }),
+            });
+        }
+
         container.registerWithArgs(SingleAgentService, {
+            [IModelService]: await config.getModelService(entry.model, true),
             [T_SystemPrompts]: systemPrompts,
             ...(entry.modelCallTimeout != null && { [T_ModelCallTimeout]: entry.modelCallTimeout * 1000 }),
         });
@@ -152,8 +161,8 @@ export class AgentFactory {
         entry: GenerativeAgentEntry,
         systemPrompts: string[],
     ): Promise<AgentServiceBase> {
-        container.registerInstance(IModelService, await config.getModelService(entry.model, true));
         container.registerWithArgs(GenerativeAgentService, {
+            [IModelService]: await config.getModelService(entry.model, true),
             [T_SystemPrompts]: systemPrompts,
         });
         return container.resolve(GenerativeAgentService);
@@ -175,11 +184,11 @@ export class AgentFactory {
         if (!entry.model) {
             throw new Error("ReAct mode: model not configured");
         }
-        const thinkModelService = await config.getModelService(entry.model, true);
+        
         container.registerWithArgs(ReActAgentService, {
             [T_AgentSubNodes]: agentSubNodes,
             [T_CreateAgent]: createAgentFn,
-            [T_ThinkModelService]: thinkModelService,
+            [T_ThinkModelService]: await config.getModelService(entry.model, true),
             [T_SystemPrompts]: systemPrompts,
             [T_ReactSystemPromptTemplate]: loadPrompt('agent/react_system.txt'),
             [T_ReactSubNodePrompt]: loadPrompt('agent/react_subnode.txt'),

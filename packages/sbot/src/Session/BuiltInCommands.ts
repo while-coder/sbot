@@ -1,8 +1,12 @@
-import { Command, Arg, Option, Parsers, CommandContext, ICommand } from "scorpio.ai"
+import { Command, Arg, Option, Parsers, CommandContext, ICommand, ConversationCompactor, IModelService } from "scorpio.ai"
 import { SessionService } from "channel.base"
 import { AgentRunner } from "../Agent/AgentRunner"
+import { config } from "../Core/Config"
 
-type SbotService = SessionService & { resolveSaverId(args: any): Promise<string | undefined> }
+type SbotService = SessionService & {
+    resolveSaverId(args: any): Promise<string | undefined>;
+    resolveAgentId(args: any): Promise<string | undefined>;
+}
 
 /**
  * /test 命令 - 测试所有装饰器功能
@@ -137,11 +141,50 @@ export class ClearCommand implements ICommand {
 }
 
 /**
+ * /compact 命令 - 手动压缩对话历史
+ */
+@Command('compact', '压缩当前会话的对话历史')
+export class CompactCommand implements ICommand {
+    _context!: CommandContext;
+
+    async execute(): Promise<string> {
+        const session = this._context.context as SbotService;
+        const saverId = await session.resolveSaverId(this._context.args);
+        if (!saverId) return '无法识别当前会话，或未配置 saver';
+
+        const agentId = await session.resolveAgentId(this._context.args);
+        if (!agentId) return '无法识别当前 Agent 配置';
+
+        const agentEntry = config.getAgent(agentId);
+        if (!agentEntry) return `Agent "${agentId}" 配置不存在`;
+
+        const compactModelId = agentEntry.compactModel;
+        if (!compactModelId) return `没有配置压缩模型`;
+        const summaryModel = await config.getModelService(compactModelId);
+        if (!summaryModel) return `模型 "${compactModelId}" 不可用`;
+
+        const saver = await AgentRunner.createSaverService(saverId, session.threadId);
+        try {
+            const compactor = new ConversationCompactor(summaryModel, undefined, undefined);
+            const allMessages = await saver.getAllMessages();
+            if (allMessages.length <= 1) return '消息过少，无需压缩';
+
+            const result = await compactor.compact(allMessages);
+            await saver.replaceAllMessages(result.messages);
+            return `压缩完成：${allMessages.length} 条消息 → ${result.messages.length} 条`;
+        } finally {
+            await saver.dispose();
+        }
+    }
+}
+
+/**
  * 获取所有内置命令
  */
 export function getBuiltInCommands(): ICommand[] {
     return [
         new TestCommand(),
         new ClearCommand(),
+        new CompactCommand(),
     ];
 }

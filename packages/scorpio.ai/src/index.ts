@@ -260,6 +260,7 @@ export {
   T_AgentSubNodes,
   T_CreateAgent,
   T_ThinkModelService,
+  T_SummaryModelService,
 
   // 类型定义
   GraphNodeType,

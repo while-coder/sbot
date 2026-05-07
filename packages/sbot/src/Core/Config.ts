@@ -33,6 +33,8 @@ export interface BaseAgentEntry {
   name?: string;               // 显示名称（可选，便于识别）
   type: AgentMode;
   model: string;               // 模型 UUID（single 模式为执行模型；react 模式为 Think 编排模型）
+  compactModel?: string;       // 对话压缩模型 UUID（可选，不配置则用 model）
+  compactPrompt?: string;      // 对话压缩自定义提示词（可选，不配置则用默认）
   systemPrompt?: string;       // 系统提示词（single 模式直接使用；react 模式注入所有子 Agent）
   mcp?: string[] | '*';        // 全局 MCP 服务器过滤列表（对应 mcp.json 中的 key）；"*" = 加载全部
   skills?: string[] | '*';     // 全局 Skills 过滤列表（skill 名称）；"*" = 加载全部
