@@ -6,7 +6,7 @@ import os from 'os';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { WebSocket, WebSocketServer } from 'ws';
-import { AgentToolService, SkillService, ModelProvider, listThreadIds, listSubDirs, readImageAsDataUrl, isEmptyContent, type StoredMessage, type MessageContent } from "scorpio.ai";
+import { AgentToolService, SkillService, ModelProvider, listThreadIds, listSubDirs, readImageAsDataUrl, isEmptyContent, resizeImageIfNeeded, setMaxImageSize, type StoredMessage, type MessageContent } from "scorpio.ai";
 import { config, isDev, isValidAgentId } from '../Core/Config';
 import { AgentRunner } from '../Agent/AgentRunner';
 import { globalAgentToolService, refreshGlobalAgentToolService, refreshBuiltinTools, BuiltinProvider } from '../Agent/GlobalAgentToolService';
@@ -198,7 +198,7 @@ function isImageDataUrl(dataUrl: string): boolean {
  * Parts preserve the interleaved order from the editor.
  * File attachments (non-inline) are appended at the end.
  */
-function processMessage(parts: ContentPartInput[], attachments: AttachmentInput[] | undefined, uploadDir: string): MessageContent {
+async function processMessage(parts: ContentPartInput[], attachments: AttachmentInput[] | undefined, uploadDir: string): Promise<MessageContent> {
     const msgParts: Array<{ type: string; text?: string; [key: string]: any }> = [];
     let hasImage = false;
 
@@ -206,7 +206,8 @@ function processMessage(parts: ContentPartInput[], attachments: AttachmentInput[
         if (p.type === 'text') {
             msgParts.push({ type: 'text', text: p.text });
         } else if (p.type === 'image' && p.dataUrl) {
-            msgParts.push({ type: 'image_url', image_url: { url: p.dataUrl } });
+            const url = await resizeImageIfNeeded(p.dataUrl);
+            msgParts.push({ type: 'image_url', image_url: { url } });
             hasImage = true;
         }
     }
@@ -215,7 +216,8 @@ function processMessage(parts: ContentPartInput[], attachments: AttachmentInput[
     if (attachments?.length) {
         for (const att of attachments) {
             if (att.dataUrl && isImageDataUrl(att.dataUrl)) {
-                msgParts.push({ type: 'image_url', image_url: { url: att.dataUrl } });
+                const url = await resizeImageIfNeeded(att.dataUrl);
+                msgParts.push({ type: 'image_url', image_url: { url } });
                 hasImage = true;
             } else if (att.dataUrl) {
                 const filePath = path.join(uploadDir, `${randomUUID()}-${att.name}`);
@@ -397,7 +399,7 @@ class HttpServer {
         wss.on('connection', (ws) => {
             this.wsClients.add(ws);
             ws.on('close', () => { this.wsClients.delete(ws); });
-            ws.on('message', (data) => {
+            ws.on('message', async (data) => {
                 try {
                     const msg = JSON.parse(data.toString()) as { type?: string; [key: string]: any };
                     const sid = msg.sessionId as string | undefined;
@@ -405,7 +407,7 @@ class HttpServer {
                     const threadId = sessionThreadId(sid);
                     switch (msg.type) {
                         case WsCommandType.Query: {
-                            const enriched = processMessage(msg.parts ?? [], msg.attachments, uploadDir);
+                            const enriched = await processMessage(msg.parts ?? [], msg.attachments, uploadDir);
                             if (isEmptyContent(enriched)) break;
                             sessionManager.onReceiveWebMessage(threadId, enriched, sid);
                             break;
@@ -478,9 +480,13 @@ class HttpServer {
         app.get('/api/settings', api(() => this.settingsWithAgents()));
 
         app.put('/api/settings/general', api(req => {
-            const { httpPort, httpUrl, autoApproveTools, autoApproveAllTools, startupCommands } = req.body;
+            const { httpPort, httpUrl, maxImageSize, autoApproveTools, autoApproveAllTools, startupCommands } = req.body;
             if (httpPort !== undefined) config.settings.httpPort = httpPort || undefined;
             if (httpUrl !== undefined) config.settings.httpUrl = httpUrl || undefined;
+            if (maxImageSize !== undefined) {
+                config.settings.maxImageSize = maxImageSize || undefined;
+                setMaxImageSize(config.settings.maxImageSize);
+            }
             if (autoApproveTools !== undefined) config.settings.autoApproveTools = autoApproveTools;
             if (autoApproveAllTools !== undefined) config.settings.autoApproveAllTools = autoApproveAllTools;
             if (startupCommands !== undefined) config.settings.startupCommands = startupCommands;

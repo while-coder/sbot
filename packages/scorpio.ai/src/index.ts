@@ -320,5 +320,5 @@ export { MessageDispatcher, MessageType, summarizeMultimodal } from "./User";
 // ========================================
 // Utils - 工具函数
 // ========================================
-export { contentToString, trimContent, isEmptyContent, readImageAsDataUrl, readMediaAsContentPart, detectMediaType, setMaxImageSize } from "./Utils/contentUtils";
+export { contentToString, trimContent, isEmptyContent, readImageAsDataUrl, readMediaAsContentPart, detectMediaType, setMaxImageSize, resizeImageIfNeeded } from "./Utils/contentUtils";
 export type { MediaCategory, ContentPart } from "./Utils/contentUtils";

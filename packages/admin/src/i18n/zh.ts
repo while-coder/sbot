@@ -173,6 +173,8 @@ export default {
     lang_zh: '中文',
     lang_en: 'English',
     service: '服务',
+    max_image_size: '图片最大尺寸 (px)',
+    max_image_size_hint: '图片宽高超过此值时按比例缩小，不设置则不压缩',
     tool_approval: '工具审批',
     auto_approve_all: '自动批准所有工具',
     auto_approve_all_hint: '开启后，智能体调用任何工具均无需用户确认',

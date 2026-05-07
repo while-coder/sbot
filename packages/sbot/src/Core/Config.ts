@@ -72,6 +72,7 @@ export interface Settings {
   autoApproveAllTools?: boolean; // 全局自动批准所有工具（无需用户确认）
   startupCommands?: string[];  // 启动后立即执行的命令行列表，依次同步执行
   checkUpdateTime?: number;    // 下次检查更新的时间戳（ms），0 或 undefined 表示立即检查
+  maxImageSize?: number;       // 图片最大尺寸（px），max(width,height) 超过此值时按比例缩小；不设置则不压缩
   models?: Record<string, NamedModelConfig>;
   embeddings?: Record<string, NamedEmbeddingConfig>;
   savers?: Record<string, SaverConfig>;
@@ -85,7 +86,7 @@ export interface Settings {
 // Record<keyof Settings, true> 保证与接口同步：漏写或多写都会编译报错
 const SETTINGS_KEYS: ReadonlySet<string> = new Set(Object.keys({
   httpPort: true, httpUrl: true, autoApproveTools: true, autoApproveAllTools: true,
-  startupCommands: true, checkUpdateTime: true,
+  startupCommands: true, checkUpdateTime: true, maxImageSize: true,
   models: true, embeddings: true, savers: true, memories: true, wikis: true, channels: true,
   plugins: true, agentSources: true,
 } satisfies Record<keyof Settings, true>));

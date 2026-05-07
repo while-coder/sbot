@@ -2,6 +2,7 @@
 // 第一行必须导入 logger 配置，确保 log4js 在所有模块加载前初始化
 import {LoggerService, log4js} from "./Core/LoggerService";
 import {config} from "./Core/Config";
+import {setMaxImageSize} from "scorpio.ai";
 import {database} from "./Core/Database";
 import { channelManager } from "./Channel/ChannelManager";
 import {httpServer} from "./Server/HttpServer";
@@ -199,6 +200,7 @@ async function main() {
             }
         }
 
+        setMaxImageSize(config.settings.maxImageSize);
         await database.init()
         initGlobalAgentToolService()
         initGlobalSkillService()

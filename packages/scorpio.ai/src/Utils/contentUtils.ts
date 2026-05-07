@@ -70,14 +70,24 @@ export function setMaxImageSize(size: number | undefined) {
     maxImageSize = size;
 }
 
-async function resizeImageIfNeeded(buffer: Buffer): Promise<Buffer> {
-    if (!maxImageSize) return buffer;
+export async function resizeImageIfNeeded(input: Buffer): Promise<Buffer>;
+export async function resizeImageIfNeeded(input: string): Promise<string>;
+export async function resizeImageIfNeeded(input: Buffer | string): Promise<Buffer | string> {
+    if (!maxImageSize) return input;
+    if (typeof input === 'string') {
+        const match = input.match(/^data:(image\/[^;]+);base64,(.+)$/);
+        if (!match) return input;
+        const buffer = Buffer.from(match[2], 'base64');
+        const resized = await resizeImageIfNeeded(buffer);
+        if (resized === buffer) return input;
+        return `data:${detectImageMimeType(resized)};base64,${resized.toString('base64')}`;
+    }
     const sharp = (await import('sharp')).default;
-    const metadata = await sharp(buffer).metadata();
+    const metadata = await sharp(input).metadata();
     const { width, height } = metadata;
-    if (!width || !height) return buffer;
-    if (Math.max(width, height) <= maxImageSize) return buffer;
-    return sharp(buffer).resize(maxImageSize, maxImageSize, { fit: 'inside' }).toBuffer();
+    if (!width || !height) return input;
+    if (Math.max(width, height) <= maxImageSize) return input;
+    return sharp(input).resize(maxImageSize, maxImageSize, { fit: 'inside' }).toBuffer();
 }
 
 export async function readMediaAsContentPart(filePath: string, mediaAsFilePath = false): Promise<{ part: ContentPart; category: MediaCategory }> {

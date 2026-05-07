@@ -20,6 +20,7 @@ function changeLocale(lang: string) {
 
 const httpPort = ref<number | ''>('')
 const httpUrl = ref('')
+const maxImageSize = ref<number | ''>('')
 const autoApproveAllTools = ref(false)
 const autoApproveToolsText = ref('')
 const startupCommands = ref<string[]>([])
@@ -27,6 +28,7 @@ const startupCommands = ref<string[]>([])
 watch(() => store.settings, (s) => {
   httpPort.value = s.httpPort ?? ''
   httpUrl.value = s.httpUrl || ''
+  maxImageSize.value = s.maxImageSize ?? ''
   autoApproveAllTools.value = s.autoApproveAllTools ?? false
   autoApproveToolsText.value = (s.autoApproveTools ?? []).join(', ')
   startupCommands.value = [...(s.startupCommands ?? [])]
@@ -88,6 +90,7 @@ async function save() {
     const res = await apiFetch('/api/settings/general', 'PUT', {
       httpPort: httpPort.value === '' ? undefined : Number(httpPort.value),
       httpUrl: httpUrl.value.trim() || undefined,
+      maxImageSize: maxImageSize.value === '' ? undefined : Number(maxImageSize.value),
       autoApproveAllTools: autoApproveAllTools.value,
       autoApproveTools: tools,
       startupCommands: cmds,
@@ -131,6 +134,11 @@ async function save() {
           <div class="form-group">
             <label>{{ t('settings.http_url') }}</label>
             <input v-model="httpUrl" type="text" placeholder="http://localhost:5500" />
+          </div>
+          <div class="form-group">
+            <label>{{ t('settings.max_image_size') }}</label>
+            <input v-model.number="maxImageSize" type="number" placeholder="1024" min="0" />
+            <div class="form-hint">{{ t('settings.max_image_size_hint') }}</div>
           </div>
         </div>
       </div>

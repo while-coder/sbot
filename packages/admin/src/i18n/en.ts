@@ -173,6 +173,8 @@ export default {
     lang_zh: '中文',
     lang_en: 'English',
     service: 'Service',
+    max_image_size: 'Max Image Size (px)',
+    max_image_size_hint: 'Images exceeding this size will be proportionally resized. Leave empty to disable.',
     tool_approval: 'Tool Approval',
     auto_approve_all: 'Auto-approve all tools',
     auto_approve_all_hint: 'When enabled, all tool calls are approved without user confirmation',
