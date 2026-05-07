@@ -8,6 +8,7 @@ import { applyTokenLimit } from "./messageSerializer";
 export class AgentMemorySaver implements IAgentSaverService {
     private messages: StoredMessage[] = [];
     private thinks: Record<string, StoredMessage[]> = {};
+    private metadata: Record<string, string> = {};
 
     async getAllMessages(): Promise<StoredMessage[]> {
         return [...this.messages];
@@ -19,6 +20,11 @@ export class AgentMemorySaver implements IAgentSaverService {
 
     async pushMessage(message: ChatMessage, options?: ChatMessageOptions): Promise<void> {
         this.messages.push({ message, createdAt: Math.floor(Date.now() / 1000), thinkId: options?.thinkId });
+    }
+
+    async replaceAllMessages(messages: StoredMessage[]): Promise<void> {
+        this.messages = [...messages];
+        this.thinks = {};
     }
 
     async clearMessages(): Promise<void> {
@@ -34,6 +40,14 @@ export class AgentMemorySaver implements IAgentSaverService {
         const existing = this.thinks[thinkId] ?? [];
         existing.push({ message, createdAt: Math.floor(Date.now() / 1000), thinkId: options?.thinkId });
         this.thinks[thinkId] = existing;
+    }
+
+    async getMetadata(key: string): Promise<string | undefined> {
+        return this.metadata[key];
+    }
+
+    async setMetadata(key: string, value: string): Promise<void> {
+        this.metadata[key] = value;
     }
 
     async dispose(): Promise<void> {}

@@ -45,6 +45,10 @@ export class AgentSqliteSaver implements IAgentSaverService {
                     created_at      INTEGER NOT NULL DEFAULT (unixepoch()),
                     nested_think_id TEXT
                 );
+                CREATE TABLE IF NOT EXISTS metadata (
+                    key   TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                );
                 CREATE INDEX IF NOT EXISTS idx_thinks_think_id ON thinks (think_id);
             `);
         }
@@ -85,6 +89,18 @@ export class AgentSqliteSaver implements IAgentSaverService {
         return applyTokenLimit((await this.getAllMessages()).map((r) => r.message), maxTokens);
     }
 
+    async replaceAllMessages(messages: StoredMessage[]): Promise<void> {
+        const txn = this.db.transaction(() => {
+            this.db.prepare("DELETE FROM messages").run();
+            this.db.prepare("DELETE FROM thinks").run();
+            const stmt = this.db.prepare("INSERT INTO messages (data, created_at, think_id) VALUES (?, ?, ?)");
+            for (const stored of messages) {
+                stmt.run(JSON.stringify(stored.message), stored.createdAt ?? Math.floor(Date.now() / 1000), stored.thinkId ?? null);
+            }
+        });
+        txn();
+    }
+
     async clearMessages(): Promise<void> {
         this.db.prepare("DELETE FROM messages").run();
     }
@@ -108,6 +124,15 @@ export class AgentSqliteSaver implements IAgentSaverService {
     async pushThinkMessage(thinkId: string, message: ChatMessage, options?: ChatMessageOptions): Promise<void> {
         this.db.prepare("INSERT INTO thinks (think_id, data, created_at, nested_think_id) VALUES (?, ?, ?, ?)")
             .run(thinkId, JSON.stringify(message), Math.floor(Date.now() / 1000), options?.thinkId ?? null);
+    }
+
+    async getMetadata(key: string): Promise<string | undefined> {
+        const row = this.db.prepare("SELECT value FROM metadata WHERE key = ?").get(key) as { value: string } | undefined;
+        return row?.value;
+    }
+
+    async setMetadata(key: string, value: string): Promise<void> {
+        this.db.prepare("INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)").run(key, value);
     }
 
     async dispose(): Promise<void> {

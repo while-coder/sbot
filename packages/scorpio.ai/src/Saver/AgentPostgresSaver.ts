@@ -33,6 +33,8 @@ export class AgentPostgresSaver implements IAgentSaverService {
         return this.setupPromise;
     }
 
+    private get metadataTable() { return `${this.table}_metadata`; }
+
     private async initTables(): Promise<void> {
         await this.pool.query(`
             CREATE TABLE IF NOT EXISTS ${this.table} (
@@ -47,6 +49,10 @@ export class AgentPostgresSaver implements IAgentSaverService {
                 data            TEXT      NOT NULL,
                 created_at      BIGINT    NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT,
                 nested_think_id TEXT
+            );
+            CREATE TABLE IF NOT EXISTS ${this.metadataTable} (
+                key   TEXT PRIMARY KEY,
+                value TEXT NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_${this.table}_thinks_think_id
                 ON ${this.thinksTable} (think_id);
@@ -90,6 +96,25 @@ export class AgentPostgresSaver implements IAgentSaverService {
         return applyTokenLimit((await this.getAllMessages()).map((r) => r.message), maxTokens);
     }
 
+    async replaceAllMessages(messages: StoredMessage[]): Promise<void> {
+        await this.ensureSetup();
+        await this.pool.query(`BEGIN`);
+        try {
+            await this.pool.query(`DELETE FROM ${this.table}`);
+            await this.pool.query(`DELETE FROM ${this.thinksTable}`);
+            for (const stored of messages) {
+                await this.pool.query(
+                    `INSERT INTO ${this.table} (data, created_at, think_id) VALUES ($1, $2, $3)`,
+                    [JSON.stringify(stored.message), stored.createdAt ?? Math.floor(Date.now() / 1000), stored.thinkId ?? null]
+                );
+            }
+            await this.pool.query(`COMMIT`);
+        } catch (e) {
+            await this.pool.query(`ROLLBACK`);
+            throw e;
+        }
+    }
+
     async clearMessages(): Promise<void> {
         await this.ensureSetup();
         await this.pool.query(`DELETE FROM ${this.table}`);
@@ -118,6 +143,22 @@ export class AgentPostgresSaver implements IAgentSaverService {
         await this.pool.query(
             `INSERT INTO ${this.thinksTable} (think_id, data, created_at, nested_think_id) VALUES ($1, $2, $3, $4)`,
             [thinkId, JSON.stringify(message), Math.floor(Date.now() / 1000), options?.thinkId ?? null]
+        );
+    }
+
+    async getMetadata(key: string): Promise<string | undefined> {
+        await this.ensureSetup();
+        const result = await this.pool.query(
+            `SELECT value FROM ${this.metadataTable} WHERE key = $1`, [key]
+        );
+        return result.rows[0]?.value;
+    }
+
+    async setMetadata(key: string, value: string): Promise<void> {
+        await this.ensureSetup();
+        await this.pool.query(
+            `INSERT INTO ${this.metadataTable} (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2`,
+            [key, value]
         );
     }
 

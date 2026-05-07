@@ -10,6 +10,7 @@ import { applyTokenLimit } from "./messageSerializer";
 interface ThreadFile {
     messages: StoredMessage[];
     thinks?: Record<string, StoredMessage[]>;
+    metadata?: Record<string, string>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -78,6 +79,13 @@ export class AgentFileSaver implements IAgentSaverService {
         return applyTokenLimit((await this.getAllMessages()).map((r) => r.message), maxTokens);
     }
 
+    async replaceAllMessages(messages: StoredMessage[]): Promise<void> {
+        const file = await this.getFile();
+        file.messages = [...messages];
+        file.thinks = {};
+        await this.writeThreadFile(file);
+    }
+
     async clearMessages(): Promise<void> {
         this.cache = undefined;
         if (existsSync(this.filePath)) {
@@ -95,6 +103,17 @@ export class AgentFileSaver implements IAgentSaverService {
         const existing = file.thinks[thinkId] ?? [];
         existing.push({ message, createdAt: Math.floor(Date.now() / 1000), thinkId: options?.thinkId });
         file.thinks[thinkId] = existing;
+        await this.writeThreadFile(file);
+    }
+
+    async getMetadata(key: string): Promise<string | undefined> {
+        return (await this.getFile()).metadata?.[key];
+    }
+
+    async setMetadata(key: string, value: string): Promise<void> {
+        const file = await this.getFile();
+        if (!file.metadata) file.metadata = {};
+        file.metadata[key] = value;
         await this.writeThreadFile(file);
     }
 

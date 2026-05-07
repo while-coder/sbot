@@ -99,6 +99,11 @@ export interface IAgentSaverService {
     pushMessage(message: ChatMessage, options?: ChatMessageOptions): Promise<void>;
 
     /**
+     * 用新消息列表替换全部历史（用于对话 compact）
+     */
+    replaceAllMessages(messages: StoredMessage[]): Promise<void>;
+
+    /**
      * 清除当前线程的所有历史记录
      */
     clearMessages(): Promise<void>;
@@ -116,6 +121,18 @@ export interface IAgentSaverService {
      * 用于将 sub-agent 的执行过程保存为 think
      */
     pushThinkMessage(thinkId: string, message: ChatMessage, options?: ChatMessageOptions): Promise<void>;
+
+    // --- Metadata ---
+
+    /**
+     * 读取持久化的元数据（如 lastInputTokens）
+     */
+    getMetadata(key: string): Promise<string | undefined>;
+
+    /**
+     * 写入持久化的元数据
+     */
+    setMetadata(key: string, value: string): Promise<void>;
 
     // --- 生命周期 ---
 
