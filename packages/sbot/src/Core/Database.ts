@@ -126,6 +126,8 @@ export type UsageStatsRow = {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
+  cacheCreationTokens: number;
+  cacheReadTokens: number;
 };
 
 export type ThreadUsage = {
@@ -713,6 +715,18 @@ class Database {
           allowNull: false,
           defaultValue: 0,
           comment: "总 token 数",
+        },
+        cacheCreationTokens: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
+          comment: "缓存创建 token 数",
+        },
+        cacheReadTokens: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
+          comment: "缓存命中 token 数",
         },
       },
       {

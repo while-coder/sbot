@@ -62,6 +62,11 @@ function fmt(n: number): string {
         <span class="chatui-usage-op">/</span>
         <span class="chatui-usage-val chatui-usage-out">{{ fmt(usage!.outputTokens) }}</span>
       </span>
+      <span class="chatui-usage-sep" v-if="usage!.cacheReadTokens" />
+      <span class="chatui-usage-item" v-if="usage!.cacheReadTokens">
+        <span class="chatui-usage-label">{{ L.usageCache }}</span>
+        <span class="chatui-usage-val chatui-usage-cache">{{ fmt(usage!.cacheReadTokens!) }}</span>
+      </span>
     </div>
     <div class="chatui-toolbar-actions">
       <button class="chatui-btn-outline chatui-btn-sm" @click="emit('refresh')">{{ L.refresh }}</button>
@@ -87,6 +92,7 @@ function fmt(n: number): string {
 .chatui-usage-val { font-weight: 600; }
 .chatui-usage-in { color: var(--chatui-usage-input); }
 .chatui-usage-out { color: var(--chatui-usage-output); }
+.chatui-usage-cache { color: var(--chatui-usage-cache, #22c55e); }
 .chatui-usage-op { color: var(--chatui-usage-op); font-size: 10px; }
 .chatui-usage-sep { width: 1px; height: 12px; background: var(--chatui-usage-sep); flex-shrink: 0; }
 .chatui-toolbar-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }

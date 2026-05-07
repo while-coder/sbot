@@ -144,10 +144,13 @@ function handleEvent(evt: ChatEvent) {
         usage.value.inputTokens += d.inputTokens
         usage.value.outputTokens += d.outputTokens
         usage.value.totalTokens += d.totalTokens
+        usage.value.cacheCreationTokens = (usage.value.cacheCreationTokens ?? 0) + (d.cacheCreationTokens ?? 0)
+        usage.value.cacheReadTokens = (usage.value.cacheReadTokens ?? 0) + (d.cacheReadTokens ?? 0)
       } else {
         usage.value = {
           inputTokens: d.inputTokens, outputTokens: d.outputTokens, totalTokens: d.totalTokens,
           lastInputTokens: d.inputTokens, lastOutputTokens: d.outputTokens, lastTotalTokens: d.totalTokens,
+          cacheCreationTokens: d.cacheCreationTokens ?? 0, cacheReadTokens: d.cacheReadTokens ?? 0,
         }
       }
       break

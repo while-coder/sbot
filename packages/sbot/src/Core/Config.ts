@@ -5,6 +5,8 @@ import { ModelConfig, ModelProvider, EmbeddingConfig, EmbeddingProvider, MCPServ
 export type { AgentSubNode } from "scorpio.ai";
 import { DEFAULT_PORT, SaverType, AgentMode, MemoryMode, SaverConfig, MemoryConfig, WikiConfig, ChannelConfig, type AgentStoreSource, type AgentSourceEntry } from "sbot.commons";
 export { DEFAULT_PORT, SaverType, AgentMode, SaverConfig, MemoryConfig, WikiConfig, ChannelConfig } from "sbot.commons";
+
+export const isDev = process.env.NODE_ENV === 'development';
 export type { AgentSourceEntry } from "sbot.commons";
 
 /**
@@ -108,7 +110,7 @@ class Config {
 
     // 获取用户目录
     const userHome = os.homedir();
-    this._configDir = path.join(userHome, ".sbot");
+    this._configDir = path.join(userHome, isDev ? ".sbot-dev" : ".sbot");
 
     // 每次启动都生成示例配置文件
     this.createExampleSettings();

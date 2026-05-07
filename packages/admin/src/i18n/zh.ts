@@ -604,6 +604,8 @@ export default {
     input_tokens: '输入',
     output_tokens: '输出',
     total_tokens: '合计',
+    cache_read: '缓存命中',
+    cache_creation: '缓存创建',
     no_data: '暂无数据',
     last: '最近',
     total: '累计',

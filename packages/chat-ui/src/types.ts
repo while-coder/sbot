@@ -129,6 +129,7 @@ export interface ChatLabels {
   view?: string
   usageLast?: string
   usageTotal?: string
+  usageCache?: string
   refresh?: string
   clearHistory?: string
   confirmClearHistory?: string
@@ -177,12 +178,16 @@ export interface UsageInfo {
   lastInputTokens: number
   lastOutputTokens: number
   lastTotalTokens: number
+  cacheCreationTokens?: number
+  cacheReadTokens?: number
 }
 
 export interface UsageData {
   inputTokens: number
   outputTokens: number
   totalTokens: number
+  cacheCreationTokens?: number
+  cacheReadTokens?: number
 }
 
 // ── Tool approval ──

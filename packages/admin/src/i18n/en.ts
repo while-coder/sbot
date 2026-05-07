@@ -604,6 +604,8 @@ export default {
     input_tokens: 'Input',
     output_tokens: 'Output',
     total_tokens: 'Total',
+    cache_read: 'Cache Hit',
+    cache_creation: 'Cache Create',
     no_data: 'No data',
     last: 'Last',
     total: 'Cumulative',

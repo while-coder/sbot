@@ -23,15 +23,19 @@ function runAgent(query: MessageContent, args: ChannelMessageArgs, sessionHandle
             onUsage: async (usage) => {
                 sessionHandler.session.recordUsage(usage);
                 const today = new Date().toISOString().slice(0, 10);
+                const cacheCreation = usage.cache_creation_input_tokens ?? 0;
+                const cacheRead = usage.cache_read_input_tokens ?? 0;
                 const [, created] = await database.findOrCreate(database.usageStats, {
                     where: { date: today },
-                    defaults: { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens, totalTokens: usage.total_tokens },
+                    defaults: { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens, totalTokens: usage.total_tokens, cacheCreationTokens: cacheCreation, cacheReadTokens: cacheRead },
                 });
                 if (!created) {
                     await database.update(database.usageStats, {
                         inputTokens: database.sequelize.literal(`inputTokens + ${usage.input_tokens}`),
                         outputTokens: database.sequelize.literal(`outputTokens + ${usage.output_tokens}`),
                         totalTokens: database.sequelize.literal(`totalTokens + ${usage.total_tokens}`),
+                        cacheCreationTokens: database.sequelize.literal(`cacheCreationTokens + ${cacheCreation}`),
+                        cacheReadTokens: database.sequelize.literal(`cacheReadTokens + ${cacheRead}`),
                     }, { where: { date: today } });
                 }
                 // 增量更新 session 行的累计 token + last token
@@ -50,7 +54,7 @@ function runAgent(query: MessageContent, args: ChannelMessageArgs, sessionHandle
                     httpServer.broadcastToWs(JSON.stringify({
                         sessionId: schedulerId,
                         type: WebChatEventType.Usage,
-                        data: { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens, totalTokens: usage.total_tokens },
+                        data: { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens, totalTokens: usage.total_tokens, cacheCreationTokens: cacheCreation, cacheReadTokens: cacheRead },
                     }));
                 }
             },

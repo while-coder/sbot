@@ -93,7 +93,7 @@ async function reloadConfig() {
 
 // ── Token Usage ──
 const showUsageModal = ref(false)
-const usageStats = ref<{ date: string; inputTokens: number; outputTokens: number; totalTokens: number }[]>([])
+const usageStats = ref<{ date: string; inputTokens: number; outputTokens: number; totalTokens: number; cacheCreationTokens: number; cacheReadTokens: number }[]>([])
 const usageLoading = ref(false)
 
 async function openUsageModal() {
@@ -203,6 +203,8 @@ init()
                 <th style="text-align:right">{{ t('usage.input_tokens') }}</th>
                 <th style="text-align:right">{{ t('usage.output_tokens') }}</th>
                 <th style="text-align:right">{{ t('usage.total_tokens') }}</th>
+                <th style="text-align:right">{{ t('usage.cache_read') }}</th>
+                <th style="text-align:right">{{ t('usage.cache_creation') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -211,6 +213,8 @@ init()
                 <td style="text-align:right">{{ formatNumber(row.inputTokens) }}</td>
                 <td style="text-align:right">{{ formatNumber(row.outputTokens) }}</td>
                 <td style="text-align:right;font-weight:600">{{ formatNumber(row.totalTokens) }}</td>
+                <td style="text-align:right;color:#22c55e">{{ formatNumber(row.cacheReadTokens) }}</td>
+                <td style="text-align:right;color:#94a3b8">{{ formatNumber(row.cacheCreationTokens) }}</td>
               </tr>
             </tbody>
           </table>
