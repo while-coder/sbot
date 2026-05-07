@@ -17,6 +17,8 @@
     "build:pwa": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/pwa run build",
     "debug:pwa": "pnpm run assets && pnpm --filter @sbot/pwa run dev",
     "build:landing": "pnpm --filter sbot-landing run build",
+    "build:desktop": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/desktop run build",
+    "debug:desktop": "pnpm run assets && pnpm --filter @sbot/desktop run dev",
     "debug:landing": "pnpm --filter sbot-landing run dev",
     "debug:cli": "pnpm run build:deps && pnpm --filter sbot-cli run debug",
     "publish:cli": "pnpm run build:deps && pnpm --filter sbot-cli publish --no-git-checks",

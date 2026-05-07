@@ -72,7 +72,7 @@ async function removeRemote(index: number) {
         <span class="vscode-server-url">{{ currentBaseUrl }}</span>
         <button class="vscode-server-switch" @click="switchServer">切换服务器</button>
       </div>
-      <ChatView :transport="transport" />
+      <ChatView :transport="transport" always-compact />
     </template>
   </div>
 </template>

@@ -22,8 +22,10 @@ const props = withDefaults(defineProps<{
   transport: IChatTransport
   labels?: ChatLabels
   showAttachments?: boolean
+  alwaysCompact?: boolean
 }>(), {
   showAttachments: true,
+  alwaysCompact: false,
 })
 
 const L = computed(() => resolveLabels(props.labels))
@@ -362,37 +364,39 @@ const fetchThinks = computed(() => props.transport.fetchThinks?.bind(props.trans
 </script>
 
 <template>
-  <div ref="rootEl" class="chatui-root" :class="{ 'chatui-compact': isCompact }">
-    <!-- Compact header bar -->
-    <div v-if="isCompact" class="chatui-compact-header">
-      <button class="chatui-hamburger" @click="sidebarOpen = !sidebarOpen">
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-          <rect x="2" y="4" width="16" height="2" rx="1"/>
-          <rect x="2" y="9" width="16" height="2" rx="1"/>
-          <rect x="2" y="14" width="16" height="2" rx="1"/>
-        </svg>
-      </button>
-      <span class="chatui-compact-title">{{ activeSession?.name || activeSession?.id?.slice(0, 8) || '' }}</span>
-    </div>
-
-    <!-- Session sidebar: drawer in compact, static otherwise -->
-    <Transition name="chatui-drawer">
-      <div v-if="isCompact && sidebarOpen" class="chatui-drawer-backdrop" @click="sidebarOpen = false">
-        <div class="chatui-drawer" @click.stop>
-          <SessionBar
-            :sessions="sessions"
-            :active-session-id="activeSessionId"
-            :labels="labels"
-            @select="(id: string) => { selectSession(id); sidebarOpen = false }"
-            @delete="onDeleteSession"
-            @rename="onRenameSession"
-            @new-session="newSessionRef?.open()"
-          />
-        </div>
+  <div ref="rootEl" class="chatui-root" :class="{ 'chatui-compact': isCompact || alwaysCompact }">
+    <!-- Compact mode (narrow screen or alwaysCompact): hamburger + drawer -->
+    <template v-if="isCompact || alwaysCompact">
+      <div class="chatui-compact-header">
+        <button class="chatui-hamburger" @click="sidebarOpen = !sidebarOpen">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+            <rect x="2" y="4" width="16" height="2" rx="1"/>
+            <rect x="2" y="9" width="16" height="2" rx="1"/>
+            <rect x="2" y="14" width="16" height="2" rx="1"/>
+          </svg>
+        </button>
+        <span class="chatui-compact-title">{{ activeSession?.name || activeSession?.id?.slice(0, 8) || '' }}</span>
       </div>
-    </Transition>
+      <Transition name="chatui-drawer">
+        <div v-if="sidebarOpen" class="chatui-drawer-backdrop" @click="sidebarOpen = false">
+          <div class="chatui-drawer" @click.stop>
+            <SessionBar
+              :sessions="sessions"
+              :active-session-id="activeSessionId"
+              :labels="labels"
+              @select="(id: string) => { selectSession(id); sidebarOpen = false }"
+              @delete="onDeleteSession"
+              @rename="onRenameSession"
+              @new-session="newSessionRef?.open()"
+            />
+          </div>
+        </div>
+      </Transition>
+    </template>
+
+    <!-- Non-compact: static sidebar -->
     <SessionBar
-      v-if="!isCompact"
+      v-else
       :sessions="sessions"
       :active-session-id="activeSessionId"
       :labels="labels"
@@ -490,6 +494,7 @@ const fetchThinks = computed(() => props.transport.fetchThinks?.bind(props.trans
   background: none; border: none; cursor: pointer;
   color: var(--chatui-fg); padding: 4px; display: flex;
   border-radius: 4px;
+  flex-shrink: 0;
 }
 .chatui-hamburger:hover { background: var(--chatui-bg-hover); }
 .chatui-compact-title {
@@ -498,7 +503,7 @@ const fetchThinks = computed(() => props.transport.fetchThinks?.bind(props.trans
   min-width: 0;
 }
 
-/* Drawer overlay */
+/* Drawer overlay (drawer mode) */
 .chatui-drawer-backdrop {
   position: fixed; inset: 0; z-index: 99;
   background: rgba(0, 0, 0, 0.4);

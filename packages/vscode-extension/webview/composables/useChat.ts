@@ -26,12 +26,12 @@ function rpc(method: string, ...args: any[]): Promise<any> {
   return new Promise((resolve, reject) => {
     const id = ++rpcId
     pending.set(id, { resolve, reject })
-    vscode.postMessage({ type: 'rpc', id, method, args })
+    vscode.postMessage({ type: 'rpc', id, method, args: JSON.parse(JSON.stringify(args)) })
   })
 }
 
 function cmd(method: string, ...args: any[]) {
-  vscode.postMessage({ type: 'cmd', method, args })
+  vscode.postMessage({ type: 'cmd', method, args: JSON.parse(JSON.stringify(args)) })
 }
 
 export class VsCodeTransport implements IChatTransport {
