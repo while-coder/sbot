@@ -2,21 +2,6 @@ import * as vscode from 'vscode';
 import { WebChatEventType, WsCommandType, type WebChatEvent } from 'sbot.commons';
 import { SbotClient } from './SbotClient';
 
-function getLocalBaseUrl(): string {
-  const { readFileSync, existsSync } = require('node:fs');
-  const { join } = require('node:path');
-  const { homedir } = require('node:os');
-  const { DEFAULT_PORT } = require('sbot.commons');
-  try {
-    const p = join(homedir(), '.sbot', 'settings.json');
-    if (existsSync(p)) {
-      const s = JSON.parse(readFileSync(p, 'utf-8'));
-      return `http://localhost:${s.httpPort ?? DEFAULT_PORT}`;
-    }
-  } catch { /* use default */ }
-  return `http://localhost:${DEFAULT_PORT}`;
-}
-
 const EVENT_TYPE_MAP: Record<string, string> = {
   [WebChatEventType.Human]: 'human',
   [WebChatEventType.Stream]: 'stream',
@@ -68,7 +53,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
   private ensureClient(): SbotClient {
     if (!this.client) {
-      const baseUrl = this.customBaseUrl ?? getLocalBaseUrl();
+      const baseUrl = this.customBaseUrl!;
       this.client = new SbotClient(baseUrl);
       this.client.addListener(this.onServerEvent);
     }
@@ -76,7 +61,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   async selectServer(): Promise<void> {
-    const current = this.client?.baseUrl ?? getLocalBaseUrl();
+    const current = this.client?.baseUrl ?? '';
     const input = await vscode.window.showInputBox({
       title: 'sbot Server URL',
       prompt: 'Enter the sbot server base URL',
@@ -118,7 +103,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         this.localMode = !!local;
         this.client?.dispose();
         this.client = undefined;
-        this.ensureClient();
+        const client = this.ensureClient();
+        await client.fetchSettings();
         await this.globalState.update(ChatViewProvider.LAST_SERVER_KEY, { url: baseUrl, local });
         return;
       }
@@ -129,11 +115,14 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     switch (method) {
       case 'listSessions': {
         const all = await client.fetchSessions();
+        console.log('[sbot] listSessions: localMode=', this.localMode, 'cwd=', this.getWorkspaceFolder(), 'total=', all.length);
         if (!this.isLocal()) return all;
         const cwd = this.getWorkspaceFolder();
         if (!cwd) return all;
         const cwdLower = cwd.toLowerCase();
-        return all.filter((s: any) => s.workPath && s.workPath.toLowerCase() === cwdLower);
+        const filtered = all.filter((s: any) => s.workPath && s.workPath.toLowerCase() === cwdLower);
+        console.log('[sbot] listSessions filtered:', filtered.length);
+        return filtered;
       }
       case 'createSession': {
         const opts = { ...args[0] };

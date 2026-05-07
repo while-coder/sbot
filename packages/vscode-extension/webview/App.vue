@@ -15,13 +15,20 @@ const currentBaseUrl = ref('')
 onMounted(async () => {
   remotes.value = await transport.getRemotes()
   const last = await transport.getLastServer()
-  if (last) selectServer(last.url, last.local)
+  if (last?.url) selectServer(last.url, !!last.local)
 })
 
+const connectError = ref('')
+
 async function selectServer(baseUrl: string, local = false) {
-  await transport.connectServer(baseUrl, local)
-  currentBaseUrl.value = baseUrl
-  phase.value = 'chat'
+  connectError.value = ''
+  try {
+    await transport.connectServer(baseUrl, local)
+    currentBaseUrl.value = baseUrl
+    phase.value = 'chat'
+  } catch (e: any) {
+    connectError.value = `无法连接服务器 ${baseUrl}`
+  }
 }
 
 function switchServer() {
@@ -60,6 +67,7 @@ async function removeRemote(index: number) {
 <template>
   <div class="vscode-app">
     <template v-if="phase === 'server-pick'">
+      <div v-if="connectError" class="vscode-connect-error">{{ connectError }}</div>
       <ServerPicker
         :remotes="remotes"
         @select-local="selectLocal"
@@ -127,5 +135,14 @@ body {
 }
 .vscode-server-switch:hover {
   background: var(--vscode-button-secondaryHoverBackground, #e0e0e0);
+}
+.vscode-connect-error {
+  padding: 8px 12px;
+  margin: 8px 12px 0;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--vscode-errorForeground, #f44);
+  background: var(--vscode-inputValidation-errorBackground, rgba(255,0,0,0.1));
+  border: 1px solid var(--vscode-inputValidation-errorBorder, rgba(255,0,0,0.3));
 }
 </style>
