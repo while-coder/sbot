@@ -64,6 +64,22 @@ export function detectMediaType(filePath: string): { mimeType: string; category:
 
 export type ContentPart = { type: string; text?: string; [key: string]: any };
 
+export let maxImageSize: number | undefined;
+
+export function setMaxImageSize(size: number | undefined) {
+    maxImageSize = size;
+}
+
+async function resizeImageIfNeeded(buffer: Buffer): Promise<Buffer> {
+    if (!maxImageSize) return buffer;
+    const sharp = (await import('sharp')).default;
+    const metadata = await sharp(buffer).metadata();
+    const { width, height } = metadata;
+    if (!width || !height) return buffer;
+    if (Math.max(width, height) <= maxImageSize) return buffer;
+    return sharp(buffer).resize(maxImageSize, maxImageSize, { fit: 'inside' }).toBuffer();
+}
+
 export async function readMediaAsContentPart(filePath: string, mediaAsFilePath = false): Promise<{ part: ContentPart; category: MediaCategory }> {
     const { mimeType, category } = detectMediaType(filePath);
 
@@ -76,8 +92,10 @@ export async function readMediaAsContentPart(filePath: string, mediaAsFilePath =
     const buffer = await readFile(filePath);
 
     switch (category) {
-        case 'image':
-            return { part: { type: 'image_url', image_url: { url: `data:${detectImageMimeType(buffer)};base64,${buffer.toString('base64')}` } }, category };
+        case 'image': {
+            const resized = await resizeImageIfNeeded(buffer);
+            return { part: { type: 'image_url', image_url: { url: `data:${detectImageMimeType(resized)};base64,${resized.toString('base64')}` } }, category };
+        }
         case 'audio':
             return { part: { type: 'audio', data: buffer.toString('base64'), mimeType }, category };
         case 'document':

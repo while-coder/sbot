@@ -23,6 +23,7 @@
     "pg": "^8.20.0",
     "reflect-metadata": "catalog:",
     "scorpio.di": "workspace:*",
+    "sharp": "^0.34.5",
     "uuid": "catalog:",
     "zod": "catalog:"
   },
