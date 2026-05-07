@@ -7,6 +7,7 @@ import { IMemoryService, MemoryToolProvider } from "../../Memory";
 import { IWikiService } from "../../Wiki";
 import { WikiToolProvider } from "../../Wiki";
 import { IAgentSaverService } from "../../Saver";
+import { ConversationCompactor, IConversationCompactor, METADATA_KEY_INPUT_TOKENS } from "../../Saver/ConversationCompactor";
 import { IAgentToolService } from "../../AgentTool";
 import { ILoggerService } from "../../Logger";
 import { normalizeToMCPResult, MCPContentType, type MCPToolResult } from '../../Tools';
@@ -57,6 +58,7 @@ export class SingleAgentService extends AgentServiceBase {
     protected systemMessages: ChatMessage[];
     protected memorySystemPromptTemplate?: string;
     protected modelCallTimeout?: number;
+    protected compactor?: ConversationCompactor;
 
     constructor(
         @inject(IModelService) modelService: IModelService,
@@ -70,6 +72,7 @@ export class SingleAgentService extends AgentServiceBase {
         @inject(T_MemorySystemPromptTemplate, { optional: true }) memorySystemPromptTemplate?: string,
         @inject(T_WikiSystemPromptTemplate, { optional: true }) protected wikiSystemPromptTemplate?: string,
         @inject(T_ModelCallTimeout, { optional: true }) modelCallTimeout?: number,
+        @inject(IConversationCompactor, { optional: true }) compactor?: ConversationCompactor,
     ) {
         super(loggerService, agentSaver, memoryServices);
         this.modelService = modelService;
@@ -78,6 +81,7 @@ export class SingleAgentService extends AgentServiceBase {
         this.systemMessages = (systemPrompts ?? []).map(p => ({ role: MessageRole.System, content: p }));
         this.memorySystemPromptTemplate = memorySystemPromptTemplate;
         this.modelCallTimeout = modelCallTimeout;
+        this.compactor = compactor;
     }
 
     override addSystemPrompts(prompts: string[]): void {
@@ -148,8 +152,19 @@ export class SingleAgentService extends AgentServiceBase {
             this.modelService.bindTools(state.tools);
         }
 
+        // 自动 compact：input_tokens 超过阈值时压缩早期消息
+        const contextWindow = this.modelService.contextWindow ?? DEFAULT_MAX_HISTORY_TOKENS;
+        if (this.compactor) {
+            const allMessages = await this.saverService.getAllMessages();
+            const savedTokens = parseInt(await this.saverService.getMetadata(METADATA_KEY_INPUT_TOKENS) ?? '0', 10);
+            if (this.compactor.shouldCompact(savedTokens, allMessages, contextWindow)) {
+                const result = await this.compactor.compact(allMessages);
+                await this.saverService.replaceAllMessages(result.messages);
+            }
+        }
+
         // 每次调用都从 saver 重新取（含 token 截断），防止多轮工具调用后 state.messages 超限
-        const savedHistory = await this.saverService.getMessages(this.modelService.contextWindow ?? DEFAULT_MAX_HISTORY_TOKENS);
+        const savedHistory = await this.saverService.getMessages(contextWindow);
         if (!savedHistory || savedHistory.length === 0) {
             throw new Error('historyMessages is empty, cannot call model');
         }
@@ -192,6 +207,9 @@ export class SingleAgentService extends AgentServiceBase {
         if (!lastChunk) return { messages: [] };
 
         if (lastChunk.usage) {
+            if (this.compactor) {
+                await this.saverService.setMetadata(METADATA_KEY_INPUT_TOKENS, String(lastChunk.usage.input_tokens));
+            }
             await callback?.onUsage?.(lastChunk.usage);
             delete lastChunk.usage;
         }

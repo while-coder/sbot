@@ -66,6 +66,7 @@ export {
   T_WikiSystemPromptTemplate,
   T_WikiAutoExtract,
   T_ModelCallTimeout,
+  T_CompactPromptTemplate,
   NowDate,
   sleep,
   parseJson,
@@ -186,6 +187,11 @@ export {
   AgentFileSaver,
   AgentSqliteSaver,
   AgentPostgresSaver,
+
+  // Compact
+  ConversationCompactor,
+  IConversationCompactor,
+  type CompactResult,
 } from "./Saver";
 
 // ========================================

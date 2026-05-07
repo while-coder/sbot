@@ -23,6 +23,9 @@ export const T_MemorySystemPromptTemplate = Symbol("scorpio:T_MemorySystemPrompt
 
 export const T_ModelCallTimeout           = Symbol("scorpio:T_ModelCallTimeout");
 
+// Compact tokens
+export const T_CompactPromptTemplate      = Symbol("scorpio:T_CompactPromptTemplate");
+
 // Wiki tokens
 export const T_WikiExtractorSystemPrompt   = Symbol("scorpio:T_WikiExtractorSystemPrompt");
 export const T_WikiSystemPromptTemplate    = Symbol("scorpio:T_WikiSystemPromptTemplate");
