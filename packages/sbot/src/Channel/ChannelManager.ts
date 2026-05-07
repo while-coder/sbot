@@ -57,10 +57,10 @@ async function checkForUpdate(sendMessage: (msg: string) => Promise<void>): Prom
             `[View release notes](${latest.url})${releasenoteSection}`,
         ].join('\n');
         await sendMessage(message);
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        tomorrow.setHours(0, 0, 0, 0);
-        config.setCheckUpdateTime(tomorrow.getTime());
+        const next = new Date();
+        next.setDate(next.getDate() + 5);
+        next.setHours(0, 0, 0, 0);
+        config.setCheckUpdateTime(next.getTime());
     }
 }
 
