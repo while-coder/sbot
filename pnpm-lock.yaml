@@ -43,6 +43,11 @@ catalogs:
       specifier: ^4.3.6
       version: 4.3.6
 
+patchedDependencies:
+  '@modelcontextprotocol/sdk':
+    hash: 62a67dc63b83ffefd8c7df3c421d55ce38f79ee3b2c9f2933d31e2a907d58ef1
+    path: patches/@modelcontextprotocol__sdk.patch
+
 importers:
 
   .: {}
@@ -7849,7 +7854,7 @@ snapshots:
     dependencies:
       '@langchain/core': 1.1.41(openai@6.34.0(ws@8.20.0)(zod@4.3.6))
       '@langchain/langgraph': 1.2.9(@langchain/core@1.1.41(openai@6.34.0(ws@8.20.0)(zod@4.3.6)))(react@19.2.5)(vue@3.5.33(typescript@6.0.3))(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6)
-      '@modelcontextprotocol/sdk': 1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.6)
+      '@modelcontextprotocol/sdk': 1.27.1(patch_hash=62a67dc63b83ffefd8c7df3c421d55ce38f79ee3b2c9f2933d31e2a907d58ef1)(@cfworker/json-schema@4.1.1)(zod@4.3.6)
       debug: 4.4.3
       zod: 4.3.6
     optionalDependencies:
@@ -7894,7 +7899,7 @@ snapshots:
 
   '@mixmark-io/domino@2.2.0': {}
 
-  '@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.6)':
+  '@modelcontextprotocol/sdk@1.27.1(patch_hash=62a67dc63b83ffefd8c7df3c421d55ce38f79ee3b2c9f2933d31e2a907d58ef1)(@cfworker/json-schema@4.1.1)(zod@4.3.6)':
     dependencies:
       '@hono/node-server': 1.19.11(hono@4.12.7)
       ajv: 8.18.0

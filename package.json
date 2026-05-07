@@ -34,6 +34,9 @@
       "protobufjs",
       "sqlite3",
       "sharp"
-    ]
+    ],
+    "patchedDependencies": {
+      "@modelcontextprotocol/sdk": "patches/@modelcontextprotocol__sdk.patch"
+    }
   }
 }

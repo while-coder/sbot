@@ -1,0 +1,26 @@
+diff --git a/dist/cjs/client/stdio.js b/dist/cjs/client/stdio.js
+index ee48b40d283afde9473bd11ee59c89c3214f6491..cd24a0f38be65f054e946b95c8228a9a8bfc6451 100644
+--- a/dist/cjs/client/stdio.js
++++ b/dist/cjs/client/stdio.js
+@@ -77,7 +77,7 @@ class StdioClientTransport {
+                 },
+                 stdio: ['pipe', 'pipe', this._serverParams.stderr ?? 'inherit'],
+                 shell: false,
+-                windowsHide: node_process_1.default.platform === 'win32' && isElectron(),
++                windowsHide: node_process_1.default.platform === 'win32',
+                 cwd: this._serverParams.cwd
+             });
+             this._process.on('error', error => {
+diff --git a/dist/esm/client/stdio.js b/dist/esm/client/stdio.js
+index e1e4b9c6023709a15a845f115caf217aafb4f8cd..6b2d030e674b7f4f6d63b8553aea458ee0519957 100644
+--- a/dist/esm/client/stdio.js
++++ b/dist/esm/client/stdio.js
+@@ -70,7 +70,7 @@ export class StdioClientTransport {
+                 },
+                 stdio: ['pipe', 'pipe', this._serverParams.stderr ?? 'inherit'],
+                 shell: false,
+-                windowsHide: process.platform === 'win32' && isElectron(),
++                windowsHide: process.platform === 'win32',
+                 cwd: this._serverParams.cwd
+             });
+             this._process.on('error', error => {
