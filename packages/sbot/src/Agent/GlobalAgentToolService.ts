@@ -1,11 +1,6 @@
-import { AgentToolService, GlobalLoggerService } from "scorpio.ai";
+import { AgentToolService } from "scorpio.ai/AgentTool";
+import { GlobalLoggerService } from "scorpio.ai/Logger";
 import { config } from "../Core/Config.js";
-import { createCommandTools } from "../Tools/Command/index.js";
-import { createFileSystemTools } from "../Tools/FileSystem/index.js";
-import { createWebFetchTools } from "../Tools/Web/index.js";
-import { createArchiveTools } from '../Tools/Archive/index.js';
-import { createSleepTool } from '../Tools/Sleep/index.js';
-import { createGameDataTools } from '../Tools/GameData/index.js';
 
 export enum BuiltinProvider {
     Command = 'builtin_command',
@@ -24,12 +19,26 @@ export enum BuiltinProvider {
 export const globalAgentToolService = new AgentToolService(GlobalLoggerService.getLoggerService());
 
 export function initGlobalAgentToolService() {
-    globalAgentToolService.registerToolFactory(BuiltinProvider.Command, async () => createCommandTools(), '命令执行');
-    globalAgentToolService.registerToolFactory(BuiltinProvider.FileSystem, async () => createFileSystemTools(), '文件系统操作');
-    globalAgentToolService.registerToolFactory(BuiltinProvider.WebFetch, async () => createWebFetchTools(), 'Web 内容抓取');
-    globalAgentToolService.registerToolFactory(BuiltinProvider.Archive, async () => createArchiveTools(), 'ZIP 压缩/解压');
-    globalAgentToolService.registerToolFactory(BuiltinProvider.Sleep, async () => [createSleepTool()], '等待/暂停执行');
-    // globalAgentToolService.registerToolFactory(BuiltinProvider.GameData, async () => createGameDataTools(), '游戏数据表查询与修改');
+    globalAgentToolService.registerToolFactory(BuiltinProvider.Command, async () => {
+        const { createCommandTools } = await import("../Tools/Command/index.js");
+        return createCommandTools();
+    }, '命令执行');
+    globalAgentToolService.registerToolFactory(BuiltinProvider.FileSystem, async () => {
+        const { createFileSystemTools } = await import("../Tools/FileSystem/index.js");
+        return createFileSystemTools();
+    }, '文件系统操作');
+    globalAgentToolService.registerToolFactory(BuiltinProvider.WebFetch, async () => {
+        const { createWebFetchTools } = await import("../Tools/Web/index.js");
+        return createWebFetchTools();
+    }, 'Web 内容抓取');
+    globalAgentToolService.registerToolFactory(BuiltinProvider.Archive, async () => {
+        const { createArchiveTools } = await import("../Tools/Archive/index.js");
+        return createArchiveTools();
+    }, 'ZIP 压缩/解压');
+    globalAgentToolService.registerToolFactory(BuiltinProvider.Sleep, async () => {
+        const { createSleepTool } = await import("../Tools/Sleep/index.js");
+        return [createSleepTool()];
+    }, '等待/暂停执行');
     globalAgentToolService.registerMcpServers({
         [BuiltinProvider.Playwright]: {
             "command": "npx",

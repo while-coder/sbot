@@ -16,6 +16,7 @@ const emit = defineEmits<{ created: [sessionId: string] }>()
 
 const showModal = ref(false)
 const saving = ref(false)
+const error = ref('')
 const form = ref({ agent: '', saver: '', memories: [] as string[], wikis: [] as string[] })
 
 const agentOptions = computed(() =>
@@ -33,6 +34,7 @@ const wikiOptions = computed(() =>
 
 function open() {
   form.value = { agent: '', saver: '', memories: [], wikis: [] }
+  error.value = ''
   showModal.value = true
 }
 
@@ -43,7 +45,11 @@ function autoName(): string {
 }
 
 async function create() {
-  if (!form.value.agent || !form.value.saver) return
+  error.value = ''
+  if (!form.value.agent || !form.value.saver) {
+    error.value = !form.value.agent ? L.value.errorNoAgent : L.value.errorNoSaver
+    return
+  }
   saving.value = true
   try {
     const res = await props.transport.createSession({
@@ -55,6 +61,8 @@ async function create() {
     })
     showModal.value = false
     emit('created', res.id)
+  } catch (e: any) {
+    error.value = e.message ?? String(e)
   } finally {
     saving.value = false
   }
@@ -95,6 +103,7 @@ defineExpose({ open })
         </div>
       </div>
       <div class="chatui-modal-footer">
+        <span v-if="error" class="chatui-form-error">{{ error }}</span>
         <button class="chatui-btn-outline" @click="showModal = false">{{ L.cancel }}</button>
         <button class="chatui-btn-primary" :disabled="saving" @click="create">{{ L.create }}</button>
       </div>
@@ -151,4 +160,7 @@ defineExpose({ open })
 }
 .chatui-btn-primary:hover { background: var(--chatui-btn-hover); }
 .chatui-btn-primary:disabled { opacity: 0.5; cursor: default; }
+.chatui-form-error {
+  font-size: 12px; color: var(--chatui-btn-danger, #ef4444); margin-right: auto;
+}
 </style>

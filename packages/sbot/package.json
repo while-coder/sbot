@@ -31,6 +31,7 @@
   "scripts": {
     "debug": "rimraf debug && tsc -p tsconfig.debug.json && node scripts/postbuild.js debug",
     "build": "rimraf dist && tsc && node scripts/postbuild.js",
+    "build:bundle": "rimraf dist && node scripts/bundle.js && node scripts/postbuild.js",
     "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
@@ -65,6 +66,7 @@
     "@types/node": "catalog:",
     "@types/turndown": "^5.0.6",
     "@types/ws": "catalog:",
+    "esbuild": "^0.28.0",
     "rimraf": "catalog:",
     "typescript": "catalog:"
   }

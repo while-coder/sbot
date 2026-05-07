@@ -1,6 +1,6 @@
 import { ChannelPlugin, ChannelPluginContext, IChannelService, ChannelSessionInfo } from "channel.base";
 import { ChannelUserRow, database, type ChannelSessionRow } from "../Core/Database";
-import { NowDate } from "scorpio.ai";
+import { NowDate } from "scorpio.ai/Core";
 import { Op } from "sequelize";
 import { sessionManager } from "../Session/SessionManager";
 import { LoggerService } from "../Core/LoggerService";

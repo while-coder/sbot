@@ -1,6 +1,6 @@
 import path from "path";
 import log4js from "log4js";
-import { ILogger, ILoggerService, GlobalLoggerService } from "scorpio.ai";
+import { ILogger, ILoggerService, GlobalLoggerService } from "scorpio.ai/Logger";
 import { config } from "./Config";
 
 // 确保日志目录存在并获取路径

@@ -1,21 +1,10 @@
 #!/usr/bin/env node
-// 第一行必须导入 logger 配置，确保 log4js 在所有模块加载前初始化
-import {LoggerService, log4js} from "./Core/LoggerService";
-import {config} from "./Core/Config";
-import {setMaxImageSize} from "scorpio.ai";
-import {database} from "./Core/Database";
-import { channelManager } from "./Channel/ChannelManager";
-import {httpServer} from "./Server/HttpServer";
-import {initGlobalAgentToolService} from "./Agent/GlobalAgentToolService";
-import {initGlobalSkillService} from "./Agent/GlobalSkillService";
-import {schedulerService} from "./Scheduler/SchedulerService";
 import { Command } from "commander";
 import { spawn, execSync } from "child_process";
 import http from "http";
 import { fetchLatestRelease, compareSemver, NPM_PACKAGE } from "sbot.commons";
 import { enableAutoStart, disableAutoStart, isAutoStartEnabled } from "./Core/AutoStart";
-
-const logger = LoggerService.getLogger('index.ts');
+import { config } from "./Core/Config";
 
 function applyPort(portStr: string, onInvalid: (msg: string) => void): void {
     const port = Number(portStr);
@@ -170,7 +159,7 @@ program
             return;
         }
         if (options.port) {
-            applyPort(options.port, msg => logger.warn(msg));
+            applyPort(options.port, msg => console.warn(msg));
         }
         await main();
     });
@@ -178,9 +167,19 @@ program
 program.parseAsync(process.argv);
 
 async function main() {
+    // 延迟加载重模块，避免 CLI 子命令（stop/status/port）承担启动开销
+    const { LoggerService, log4js } = await import("./Core/LoggerService");
+    const { setMaxImageSize } = await import("scorpio.ai");
+    const { database } = await import("./Core/Database");
+    const { channelManager } = await import("./Channel/ChannelManager");
+    const { httpServer } = await import("./Server/HttpServer");
+    const { initGlobalAgentToolService } = await import("./Agent/GlobalAgentToolService");
+    const { initGlobalSkillService } = await import("./Agent/GlobalSkillService");
+    const { schedulerService } = await import("./Scheduler/SchedulerService");
+
+    const logger = LoggerService.getLogger('index.ts');
     logger.info("=========================Starting===========================")
     try {
-        //监听未捕获的异常
         process.on('uncaughtException', function(err, origin) {
             logger.error(`Uncaught exception: ${err?.stack}\n${origin}`)
         })
@@ -219,7 +218,6 @@ async function main() {
             logger.error("Unknown error:", e)
         }
         logger.error("=============================================================")
-        // 确保日志刷新到磁盘后再退出
         log4js.shutdown(() => {
             process.exit(1)
         })

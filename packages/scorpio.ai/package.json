@@ -4,6 +4,45 @@
   "description": "Scorpio AI - Core AI infrastructure library",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./Core": "./dist/Core/index.js",
+    "./Logger": "./dist/Logger/index.js",
+    "./Model": "./dist/Model/index.js",
+    "./Model/types": "./dist/Model/types.js",
+    "./Embedding": "./dist/Embedding/index.js",
+    "./Embedding/types": "./dist/Embedding/types.js",
+    "./Memory": "./dist/Memory/index.js",
+    "./Wiki": "./dist/Wiki/index.js",
+    "./Saver": "./dist/Saver/index.js",
+    "./Skills": "./dist/Skills/index.js",
+    "./Command": "./dist/Command/index.js",
+    "./AgentTool": "./dist/AgentTool/index.js",
+    "./Agents": "./dist/Agents/index.js",
+    "./Tools": "./dist/Tools/index.js",
+    "./User": "./dist/User/index.js",
+    "./Utils": "./dist/Utils/contentUtils.js"
+  },
+  "typesVersions": {
+    "*": {
+      "Core": ["dist/Core/index.d.ts"],
+      "Logger": ["dist/Logger/index.d.ts"],
+      "Model": ["dist/Model/index.d.ts"],
+      "Model/types": ["dist/Model/types.d.ts"],
+      "Embedding": ["dist/Embedding/index.d.ts"],
+      "Embedding/types": ["dist/Embedding/types.d.ts"],
+      "Memory": ["dist/Memory/index.d.ts"],
+      "Wiki": ["dist/Wiki/index.d.ts"],
+      "Saver": ["dist/Saver/index.d.ts"],
+      "Skills": ["dist/Skills/index.d.ts"],
+      "Command": ["dist/Command/index.d.ts"],
+      "AgentTool": ["dist/AgentTool/index.d.ts"],
+      "Agents": ["dist/Agents/index.d.ts"],
+      "Tools": ["dist/Tools/index.d.ts"],
+      "User": ["dist/User/index.d.ts"],
+      "Utils": ["dist/Utils/contentUtils.d.ts"]
+    }
+  },
   "scripts": {
     "build": "rimraf dist && tsc -b --force"
   },

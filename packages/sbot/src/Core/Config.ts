@@ -1,7 +1,10 @@
 import os from "os";
 import path from "path";
 import fs from "fs";
-import { ModelConfig, ModelProvider, EmbeddingConfig, EmbeddingProvider, MCPServers, IModelService, IEmbeddingService, ModelServiceFactory, EmbeddingServiceFactory, type AgentSubNode } from "scorpio.ai";
+import type { ModelConfig, MCPServers, IModelService, IEmbeddingService, AgentSubNode } from "scorpio.ai";
+import { ModelProvider } from "scorpio.ai/Model/types";
+import type { EmbeddingConfig } from "scorpio.ai/Embedding/types";
+import { EmbeddingProvider } from "scorpio.ai/Embedding/types";
 export type { AgentSubNode } from "scorpio.ai";
 import { DEFAULT_PORT, SaverType, AgentMode, MemoryMode, SaverConfig, MemoryConfig, WikiConfig, ChannelConfig, type AgentStoreSource, type AgentSourceEntry } from "sbot.commons";
 export { DEFAULT_PORT, SaverType, AgentMode, SaverConfig, MemoryConfig, WikiConfig, ChannelConfig } from "sbot.commons";
@@ -277,6 +280,7 @@ class Config {
       if (throwError) throw new Error(`Model config "${id}" not found`);
       return undefined;
     }
+    const { ModelServiceFactory } = await import("scorpio.ai/Model");
     return ModelServiceFactory.getModelService(modelConfig);
   }
 
@@ -286,6 +290,7 @@ class Config {
       if (throwError) throw new Error(`Embedding config "${name}" not found`);
       return undefined;
     }
+    const { EmbeddingServiceFactory } = await import("scorpio.ai/Embedding");
     return EmbeddingServiceFactory.getEmbeddingService(embeddingConfig);
   }
 
