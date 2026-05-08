@@ -15,6 +15,7 @@ import {
 } from "./types";
 import type { WeixinMessage, WechatMessageItem, WechatCredentials, CDNMedia } from "./types";
 
+
 export interface WechatMessageArgs extends ChannelMessageArgs {
   messageId: number;
   fromUserId: string;
@@ -37,7 +38,6 @@ export class WechatService implements IChannelService {
   private _abortController?: AbortController;
   private _updatesBuf = "";
   private _lastMessageId = 0;
-  /** Map of `botId:userId` → context_token, needed for typing and reply continuity */
   private _contextTokens = new Map<string, string>();
   private _botId: string;
 
@@ -226,61 +226,80 @@ export class WechatService implements IChannelService {
     const items = msg.item_list ?? [];
     const parts: Array<{ type: string; text?: string; [key: string]: any }> = [];
     let hasImage = false;
+
     for (const item of items) {
-      switch (item.type) {
-        case WechatMessageItemType.TEXT: parts.push({ type: 'text', text: item.text_item?.text ?? "" }); break;
-        case WechatMessageItemType.VOICE: parts.push({ type: 'text', text: item.voice_item?.text ?? "" }); break;
-        case WechatMessageItemType.FILE: {
-          const fileContent = await this.extractFileContent(msg.message_id, item);
-          parts.push({ type: 'text', text: fileContent });
-          break;
+      if (item.ref_msg?.message_item) {
+        const refParts = await this.extractItemParts(msg.message_id, item.ref_msg.message_item, "引用");
+        for (const rp of refParts) {
+          parts.push(rp);
+          if (rp.type === 'image_url') hasImage = true;
         }
-        case WechatMessageItemType.IMAGE: {
-          const imagePart = await this.extractImagePart(msg.message_id, item);
-          parts.push(imagePart);
-          if (imagePart.type === 'image_url') hasImage = true;
-          break;
-        }
-        case WechatMessageItemType.VIDEO: parts.push({ type: 'text', text: "[视频]" }); break;
+      }
+
+      const itemParts = await this.extractItemParts(msg.message_id, item);
+      for (const p of itemParts) {
+        parts.push(p);
+        if (p.type === 'image_url') hasImage = true;
       }
     }
-    // If no images, return plain string for backward compat
     if (!hasImage) return parts.map(p => p.text!).join("\n").trim();
     return parts;
   }
 
-  private async extractImagePart(messageId: number | undefined, item: WechatMessageItem): Promise<{ type: string; [key: string]: any }> {
-    const media = item.image_item?.media;
-    if (!media?.encrypt_query_param) {
-      return { type: 'text', text: "[图片]" };
-    }
-    try {
-      const buffer = await this.api.downloadFromCDN(media.encrypt_query_param, media.aes_key);
-      const filePath = path.join(os.tmpdir(), `wechat_${messageId ?? Date.now()}_img`);
-      await fs.writeFile(filePath, buffer);
-      const dataUrl = await readImageAsDataUrl(filePath);
-      return { type: 'image_url', image_url: { url: dataUrl } };
-    } catch (e: any) {
-      this.logger?.error(`Failed to download image: ${e.message}`);
-      return { type: 'text', text: "[图片]" };
-    }
-  }
+  private async extractItemParts(messageId: number | undefined, item: WechatMessageItem, label?: string): Promise<Array<{ type: string; [key: string]: any }>> {
+    switch (item.type) {
+      case WechatMessageItemType.TEXT: {
+        const text = item.text_item?.text ?? "";
+        return [{ type: 'text', text: label ? `[${label}: ${text}]` : text }];
+      }
 
-  private async extractFileContent(messageId: number | undefined, item: WechatMessageItem): Promise<string> {
-    const fileName = item.file_item?.file_name ?? "unknown_file";
-    const media = item.file_item?.media;
-    if (!media?.encrypt_query_param) {
-      return `[文件: ${fileName}]`;
-    }
-    try {
-      const buffer = await this.api.downloadFromCDN(media.encrypt_query_param, media.aes_key);
-      const ext = path.extname(fileName);
-      const filePath = path.join(os.tmpdir(), `wechat_${messageId ?? Date.now()}${ext}`);
-      await fs.writeFile(filePath, buffer);
-      return `[file: ${fileName}](${filePath})`;
-    } catch (e: any) {
-      this.logger?.error(`Failed to download file "${fileName}": ${e.message}`);
-      return `[文件: ${fileName}]`;
+      case WechatMessageItemType.VOICE: {
+        const text = item.voice_item?.text ?? "";
+        return [{ type: 'text', text: label ? `[${label}: ${text}]` : text }];
+      }
+
+      case WechatMessageItemType.IMAGE: {
+        const media = item.image_item?.media;
+        const imgFallback = label ? `[${label}: 图片]` : "[图片]";
+        if (!media?.encrypt_query_param) return [{ type: 'text', text: imgFallback }];
+        try {
+          const buffer = await this.api.downloadFromCDN(media.encrypt_query_param, media.aes_key);
+          const filePath = path.join(os.tmpdir(), `wechat_${messageId ?? Date.now()}_img`);
+          await fs.writeFile(filePath, buffer);
+          const dataUrl = await readImageAsDataUrl(filePath);
+          const parts: Array<{ type: string; [key: string]: any }> = [];
+          if (label) parts.push({ type: 'text', text: imgFallback });
+          parts.push({ type: 'image_url', image_url: { url: dataUrl } });
+          return parts;
+        } catch (e: any) {
+          this.logger?.error(`Failed to download image: ${e.message}`);
+          return [{ type: 'text', text: imgFallback }];
+        }
+      }
+
+      case WechatMessageItemType.FILE: {
+        const fileName = item.file_item?.file_name ?? "unknown_file";
+        const media = item.file_item?.media;
+        const fileFallback = label ? `[${label}: 文件 ${fileName}]` : `[文件: ${fileName}]`;
+        if (!media?.encrypt_query_param) return [{ type: 'text', text: fileFallback }];
+        try {
+          const buffer = await this.api.downloadFromCDN(media.encrypt_query_param, media.aes_key);
+          const ext = path.extname(fileName);
+          const filePath = path.join(os.tmpdir(), `wechat_${messageId ?? Date.now()}${ext}`);
+          await fs.writeFile(filePath, buffer);
+          const linkText = label ? `[${label}: file ${fileName}](${filePath})` : `[file: ${fileName}](${filePath})`;
+          return [{ type: 'text', text: linkText }];
+        } catch (e: any) {
+          this.logger?.error(`Failed to download file "${fileName}": ${e.message}`);
+          return [{ type: 'text', text: fileFallback }];
+        }
+      }
+
+      case WechatMessageItemType.VIDEO:
+        return [{ type: 'text', text: label ? `[${label}: 视频]` : "[视频]" }];
+
+      default:
+        return [];
     }
   }
 

@@ -1,5 +1,6 @@
 import {
-  ChannelSessionHandler, SessionService, GlobalLoggerService, ToolApproval, createSendFileTool,
+  ChannelSessionHandler, SessionService, GlobalLoggerService, ToolApproval,
+  createSendFileTool,
   type StructuredToolInterface,
   type ChatMessage, type ChatToolCall, type AskToolParams, type MessageType,
   type ChannelMessageArgs, type MessageContent,
@@ -58,7 +59,7 @@ export class WechatSessionHandler extends ChannelSessionHandler {
 
   // --- Agent tools ---
 
-  static readonly SEND_FILE_PROMPT = "Send a local file to the current WeChat conversation. Use this tool to deliver any generated or exported file (documents, archives, reports, images, etc.) directly to the user via WeChat.";
+  static readonly SEND_FILE_PROMPT = "Send a local file or image to the current WeChat conversation. Use this tool to deliver any generated or exported file (documents, archives, reports, images, charts, etc.) directly to the user via WeChat.";
 
   buildAgentTools(args: ChannelMessageArgs): StructuredToolInterface[] {
     const userId = (args as WechatMessageArgs).fromUserId ?? args.sessionId;
