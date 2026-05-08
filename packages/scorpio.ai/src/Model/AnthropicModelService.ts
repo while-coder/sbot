@@ -24,6 +24,7 @@ export class AnthropicModelService implements IModelService {
       model: this.config.model,
       temperature: this.config.temperature,
       maxTokens: this.config.maxTokens,
+      ...(this.config.thinking && { thinking: this.config.thinking as any }),
     });
   }
 

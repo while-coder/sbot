@@ -10,6 +10,11 @@ export enum ModelProvider {
   GeminiImage     = "gemini-image",
 }
 
+export interface ThinkingConfig {
+  type: "adaptive" | "enabled" | "disabled";
+  budgetTokens?: number;
+}
+
 /**
  * 模型配置接口
  */
@@ -22,4 +27,5 @@ export interface ModelConfig {
   temperature?: number;
   maxTokens?: number;
   contextWindow?: number;
+  thinking?: ThinkingConfig;
 }

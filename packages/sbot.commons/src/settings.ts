@@ -21,6 +21,11 @@ export enum ModelProvider {
   GeminiImage    = "gemini-image",
 }
 
+export interface ThinkingConfig {
+  type: "adaptive" | "enabled" | "disabled"
+  budgetTokens?: number
+}
+
 export interface ModelConfig {
   name: string
   provider: ModelProvider
@@ -31,6 +36,7 @@ export interface ModelConfig {
   temperature?: number
   maxTokens?: number
   contextWindow?: number
+  thinking?: ThinkingConfig
 }
 
 export enum EmbeddingProvider {
