@@ -210,6 +210,9 @@ export default {
     pick_empty: 'No models available',
     api_version: 'API Version',
     context_window: 'Context Window',
+    thinking: 'Thinking',
+    thinking_none: 'Default (off)',
+    thinking_budget: 'Budget Tokens',
   },
   embeddings: {
     add: '+ Add Embedding',

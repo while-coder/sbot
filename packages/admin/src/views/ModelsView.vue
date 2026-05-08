@@ -19,12 +19,24 @@ const showModal   = ref(false)
 const editingName = ref<string | null>(null)
 const showApiKey  = ref(false)
 const form = ref<ModelConfig>({
-  name: '', provider: ModelProvider.OpenAI, baseURL: '', apiKey: '', model: '', apiVersion: undefined, temperature: undefined, maxTokens: undefined, contextWindow: undefined,
+  name: '', provider: ModelProvider.OpenAI, baseURL: '', apiKey: '', model: '', apiVersion: undefined, temperature: undefined, maxTokens: undefined, contextWindow: undefined, thinking: undefined,
 })
 
 const isOllama     = computed(() => form.value.provider === ModelProvider.Ollama)
 const isAnthropic  = computed(() => form.value.provider === ModelProvider.Anthropic)
 const isGemini     = computed(() => form.value.provider === ModelProvider.Gemini || form.value.provider === ModelProvider.GeminiImage)
+
+const thinkingType = computed({
+  get: () => form.value.thinking?.type ?? '',
+  set: (v: string) => {
+    if (!v) { form.value.thinking = undefined; return }
+    form.value.thinking = { type: v as any, ...(v === 'enabled' ? { budgetTokens: form.value.thinking?.budgetTokens ?? 8192 } : {}) }
+  },
+})
+const thinkingBudget = computed({
+  get: () => form.value.thinking?.budgetTokens,
+  set: (v: number | undefined) => { if (form.value.thinking) form.value.thinking.budgetTokens = v },
+})
 
 
 // Model picker
@@ -97,6 +109,8 @@ async function save() {
     if (body.maxTokens === undefined || body.maxTokens === null) delete body.maxTokens
     if (body.contextWindow === undefined || body.contextWindow === null) delete body.contextWindow
     if (!body.apiVersion) delete body.apiVersion
+    if (!body.thinking) delete body.thinking
+    else if (body.thinking.type !== 'enabled') delete body.thinking.budgetTokens
     const id = editingName.value
     const res = id
       ? await apiFetch(`/api/settings/models/${encodeURIComponent(id)}`, 'PUT', body)
@@ -256,6 +270,19 @@ async function refresh() {
           <div class="form-group">
             <label>{{ t('models.max_tokens') }}</label>
             <input v-model.number="form.maxTokens" type="number" step="1" :placeholder="t('models.no_limit')" />
+          </div>
+          <div v-if="isAnthropic" class="form-group">
+            <label>{{ t('models.thinking') }}</label>
+            <select v-model="thinkingType">
+              <option value="">{{ t('models.thinking_none') }}</option>
+              <option value="adaptive">adaptive</option>
+              <option value="enabled">enabled</option>
+              <option value="disabled">disabled</option>
+            </select>
+          </div>
+          <div v-if="isAnthropic && thinkingType === 'enabled'" class="form-group">
+            <label>{{ t('models.thinking_budget') }}</label>
+            <input v-model.number="thinkingBudget" type="number" step="1024" placeholder="8192" />
           </div>
         </div>
         <div class="modal-footer">

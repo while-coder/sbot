@@ -210,6 +210,9 @@ export default {
     pick_empty: '未找到可用模型',
     api_version: 'API 版本',
     context_window: '上下文窗口',
+    thinking: '思考模式',
+    thinking_none: '默认（关闭）',
+    thinking_budget: '思考 Token 预算',
   },
   embeddings: {
     add: '+ 添加向量模型',
