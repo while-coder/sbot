@@ -13,6 +13,7 @@ function buildWecomExtraInfo(userId: string): string {
 }
 export const wecomPlugin: ChannelPlugin = {
   type: "wecom",
+  label: "企业微信",
 
   configSchema: {
     botId:  { label: 'Bot ID',  type: ConfigFieldType.String, required: true, description: 'WeCom bot ID' },

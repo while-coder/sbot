@@ -15,7 +15,8 @@ const { isMobile } = useResponsive()
 
 interface PluginInfo {
   type: string
-  configSchema?: Record<string, { label: string; type: string; required?: boolean; description?: string; default?: string | boolean | number; options?: Array<{ label: string; value: string }> }>
+  label: string
+  configSchema: Record<string, { label: string; type: string; required?: boolean; description?: string; default?: string | boolean | number; options?: Array<{ label: string; value: string }> }>
 }
 
 interface ChannelSessionRow {
@@ -412,7 +413,7 @@ async function refresh() {
               </td>
               <td>{{ c.name }}</td>
               <td style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ id }}</td>
-              <td>{{ c.type }}</td>
+              <td>{{ plugins.find(p => p.type === c.type)?.label || c.type }}</td>
               <td>{{ agentOptions.find(a => a.id === c.agent)?.label || c.agent || '-' }}</td>
               <td>{{ c.saver ? (saverOptions.find(s => s.id === c.saver)?.label || c.saver) : '-' }}</td>
               <td>{{ Array.isArray(c.memories) && c.memories.length ? c.memories.map(id => memoryOptions.find(m => m.id === id)?.label || id).join(', ') : '-' }}</td>
@@ -534,7 +535,7 @@ async function refresh() {
           </div>
           <div class="mobile-card-fields">
             <span class="mobile-card-label">{{ t('common.type') }}</span>
-            <span class="mobile-card-value">{{ c.type }}</span>
+            <span class="mobile-card-value">{{ plugins.find(p => p.type === c.type)?.label || c.type }}</span>
             <span class="mobile-card-label">{{ t('common.agent') }}</span>
             <span class="mobile-card-value">{{ agentOptions.find(a => a.id === c.agent)?.label || c.agent || '-' }}</span>
             <span class="mobile-card-label">{{ t('common.storage') }}</span>
@@ -613,7 +614,7 @@ async function refresh() {
           <div class="form-group">
             <label>{{ t('channels.channel_type') }} *</label>
             <select v-model="form.type" @change="form.config = {}" :disabled="!!editingId">
-              <option v-for="p in plugins" :key="p.type" :value="p.type">{{ p.type }}</option>
+              <option v-for="p in plugins" :key="p.type" :value="p.type">{{ p.label }}</option>
             </select>
           </div>
           <template v-for="(field, key) in currentSchema" :key="key">

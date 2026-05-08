@@ -177,8 +177,8 @@ export class ChannelManager {
         return this.plugins.get(type);
     }
 
-    getPluginList(): Array<{ type: string; configSchema?: Record<string, any> }> {
-        return [...this.plugins.values()].map(p => ({ type: p.type, configSchema: p.configSchema }));
+    getPluginList(): Array<{ type: string; label: string; configSchema: Record<string, any> }> {
+        return [...this.plugins.values()].map(p => ({ type: p.type, label: p.label, configSchema: p.configSchema }));
     }
 
     async dispose(): Promise<void> {

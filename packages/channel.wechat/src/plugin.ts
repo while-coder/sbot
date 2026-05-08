@@ -29,6 +29,7 @@ function toQRCodeResult(raw: string): { url: string; type: 'image' | 'link' } {
 
 export const wechatPlugin: ChannelPlugin = {
   type: "wechat",
+  label: "微信",
 
   configSchema: {
     qrLogin:  { label: "扫码登录", type: ConfigFieldType.QRCode, description: "扫码登录后自动填入凭证" },

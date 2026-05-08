@@ -17,6 +17,7 @@ function buildLarkExtraInfo(userInfo: LarkUserInfo | undefined, chatId?: string,
 }
 export const larkPlugin: ChannelPlugin = {
   type: "lark",
+  label: "飞书",
 
   configSchema: {
     appId:     { label: 'App ID',     type: ConfigFieldType.String, required: true, description: 'Lark app ID' },

@@ -72,7 +72,8 @@ export interface ConfigField {
 
 export interface ChannelPlugin {
   type: string;
-  configSchema?: Record<string, ConfigField>;
+  label: string;
+  configSchema: Record<string, ConfigField>;
   /** Get a QR code for the given config key. Returns url and display type. */
   getQRCode?(key: string, params?: any): Promise<{ url: string; type: 'image' | 'link' }>;
   /** Long-poll until QR scan completes for the given config key. Returns credentials object, or null if expired. */

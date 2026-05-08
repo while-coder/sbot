@@ -15,6 +15,7 @@ function buildSlackExtraInfo(userInfo: any): string {
 }
 export const slackPlugin: ChannelPlugin = {
   type: "slack",
+  label: "Slack",
 
   configSchema: {
     botToken: { label: 'Bot Token', type: ConfigFieldType.Password, required: true, description: 'Slack bot token (xoxb-...)' },
