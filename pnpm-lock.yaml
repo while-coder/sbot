@@ -230,6 +230,25 @@ importers:
         specifier: 'catalog:'
         version: 6.0.3
 
+  packages/channel.xiaoai:
+    dependencies:
+      axios:
+        specifier: 'catalog:'
+        version: 1.15.2
+      channel.base:
+        specifier: workspace:*
+        version: link:../channel.base
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.6.0
+      rimraf:
+        specifier: 'catalog:'
+        version: 6.1.3
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
   packages/chat-ui:
     dependencies:
       marked:
@@ -401,6 +420,9 @@ importers:
       channel.wecom:
         specifier: workspace:*
         version: link:../channel.wecom
+      channel.xiaoai:
+        specifier: workspace:*
+        version: link:../channel.xiaoai
       commander:
         specifier: 'catalog:'
         version: 14.0.3

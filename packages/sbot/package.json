@@ -43,6 +43,7 @@
     "channel.slack": "workspace:*",
     "channel.onebot": "workspace:*",
     "channel.wechat": "workspace:*",
+    "channel.xiaoai": "workspace:*",
     "channel.wecom": "workspace:*",
     "commander": "catalog:",
     "cron": "^4.4.0",

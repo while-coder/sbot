@@ -6,7 +6,7 @@ import { config } from "../Core/Config";
 
 const logger = LoggerService.getLogger("PluginLoader.ts");
 
-const BUILTIN_PLUGINS = ["channel.lark", "channel.slack", "channel.wecom", "channel.wechat", "channel.onebot"];
+const BUILTIN_PLUGINS = ["channel.lark", "channel.slack", "channel.wecom", "channel.wechat", "channel.onebot", "channel.xiaoai"];
 
 function isChannelPlugin(obj: any): obj is ChannelPlugin {
   return (
