@@ -7,6 +7,7 @@
     "build": "vite build"
   },
   "dependencies": {
+    "@sbot/chat-ui": "workspace:*",
     "@tiptap/extension-dropcursor": "^3.22.4",
     "@tiptap/extension-image": "^3.22.4",
     "@tiptap/extension-placeholder": "^3.22.4",
@@ -14,7 +15,7 @@
     "@tiptap/vue-3": "^3.22.4",
     "axios": "catalog:",
     "marked": "^18.0.2",
-    "@sbot/chat-ui": "workspace:*",
+    "qrcode": "^1.5.4",
     "sbot.commons": "workspace:*",
     "vue": "^3.5.33",
     "vue-i18n": "^11.3.2",
@@ -22,6 +23,7 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "@types/qrcode": "^1.5.6",
     "@vitejs/plugin-vue": "^6.0.6",
     "typescript": "catalog:",
     "vite": "^8.0.9",

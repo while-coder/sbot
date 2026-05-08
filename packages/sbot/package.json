@@ -41,6 +41,7 @@
     "channel.base": "workspace:*",
     "channel.lark": "workspace:*",
     "channel.slack": "workspace:*",
+    "channel.onebot": "workspace:*",
     "channel.wechat": "workspace:*",
     "channel.wecom": "workspace:*",
     "commander": "catalog:",

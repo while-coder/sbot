@@ -1,0 +1,21 @@
+{
+  "name": "channel.onebot",
+  "version": "0.0.1",
+  "description": "OneBot v11 reverse WebSocket channel integration",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "rimraf dist && tsc -b --force"
+  },
+  "dependencies": {
+    "channel.base": "workspace:*",
+    "ws": "catalog:"
+  },
+  "private": true,
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/ws": "catalog:",
+    "rimraf": "catalog:",
+    "typescript": "catalog:"
+  }
+}

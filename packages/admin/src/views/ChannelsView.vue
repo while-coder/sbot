@@ -5,6 +5,7 @@ import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
+import QRCode from 'qrcode'
 import type { ChannelConfig } from '@/types'
 import SaverViewModal from './modals/SaverViewModal.vue'
 import PathPickerModal from './modals/PathPickerModal.vue'
@@ -229,7 +230,7 @@ function formatUserInfo(raw: string) {
 const passwordVisible = ref<Record<string, boolean>>({})
 
 // --- Action field support (QR login etc.) ---
-const actionState = ref<Record<string, { loading: boolean; qrUrl?: string; qrType?: 'image' | 'link'; status?: string; error?: string }>>({})
+const actionState = ref<Record<string, { loading: boolean; qrUrl?: string; qrLink?: string; qrType?: 'image' | 'link'; status?: string; error?: string }>>({})
 
 function clearActionState() {
   actionState.value = {}
@@ -248,7 +249,14 @@ async function triggerAction(key: string) {
     const res = await apiFetch(url, 'POST', form.value.config)
     const data = res.data
     if (data?.url) {
-      actionState.value[key] = { loading: false, qrUrl: data.url, qrType: data.type || 'link', status: 'wait' }
+      let qrUrl = data.url
+      let qrLink: string | undefined
+      const qrType = data.type || 'link'
+      if (qrType === 'link') {
+        qrLink = data.url
+        qrUrl = await QRCode.toDataURL(data.url, { width: 200, margin: 2 })
+      }
+      actionState.value[key] = { loading: false, qrUrl, qrLink, qrType: 'image', status: 'wait' }
       await waitForQRConfirm(key, channelId, type)
     } else {
       actionState.value[key] = { loading: false, status: 'done' }
@@ -624,8 +632,8 @@ async function refresh() {
                 <button class="btn-outline" style="align-self:flex-start" :disabled="actionState[key]?.loading" @click="triggerAction(key as string)">
                   {{ actionState[key]?.loading ? '...' : field.label }}
                 </button>
-                <img v-if="actionState[key]?.qrUrl && actionState[key]?.qrType === 'image'" :src="actionState[key]!.qrUrl" style="width:200px;height:200px;border:1px solid #e8e6e3;border-radius:8px" />
-                <a v-else-if="actionState[key]?.qrUrl && actionState[key]?.qrType === 'link'" :href="actionState[key]!.qrUrl" target="_blank" class="btn-outline" style="align-self:flex-start;text-align:center">打开二维码链接</a>
+                <img v-if="actionState[key]?.qrUrl" :src="actionState[key]!.qrUrl" style="width:200px;height:200px;border:1px solid #e8e6e3;border-radius:8px" />
+                <a v-if="actionState[key]?.qrLink" :href="actionState[key]!.qrLink" target="_blank" style="font-size:11px;color:#888;align-self:flex-start">打开二维码链接</a>
                 <span v-if="actionState[key]?.status === 'scaned'" style="font-size:12px;color:#e6a700">已扫码，请在手机上确认...</span>
                 <span v-if="actionState[key]?.status === 'wait' && actionState[key]?.qrUrl" style="font-size:12px;color:#888">请扫描二维码</span>
                 <span v-if="actionState[key]?.status === 'confirmed'" style="font-size:12px;color:#16a34a">登录成功</span>
