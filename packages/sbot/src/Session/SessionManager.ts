@@ -115,9 +115,60 @@ class SbotSession extends SessionService {
     }
 }
 
+// ── Merge helpers ──
+
+interface MergeBufferEntry {
+    items: { query: MessageContent; args: ChannelRouteArgs }[];
+    timer: ReturnType<typeof setTimeout>;
+}
+
+function mergeMessageContents(items: { query: MessageContent }[]): MessageContent {
+    if (items.length === 1) return items[0].query;
+
+    const parts: Array<string | { type: string; text?: string;[key: string]: any }> = [];
+    for (const { query } of items) {
+        if (typeof query === 'string') {
+            parts.push(query);
+        } else {
+            for (const part of query) {
+                parts.push(part);
+            }
+        }
+    }
+
+    // 相邻纯文本合并
+    const merged: Array<string | { type: string; text?: string;[key: string]: any }> = [];
+    for (const part of parts) {
+        const prev = merged[merged.length - 1];
+        if (typeof part === 'string') {
+            if (typeof prev === 'string') {
+                merged[merged.length - 1] = prev + '\n' + part;
+            } else if (prev && typeof prev === 'object' && prev.type === 'text' && prev.text != null) {
+                merged[merged.length - 1] = { ...prev, text: prev.text + '\n' + part };
+            } else {
+                merged.push(part);
+            }
+        } else if (part.type === 'text' && part.text != null) {
+            if (typeof prev === 'string') {
+                merged[merged.length - 1] = prev + '\n' + part.text;
+            } else if (prev && typeof prev === 'object' && prev.type === 'text' && prev.text != null) {
+                merged[merged.length - 1] = { ...prev, text: prev.text + '\n' + part.text };
+            } else {
+                merged.push(part);
+            }
+        } else {
+            merged.push(part);
+        }
+    }
+
+    if (merged.length === 1 && typeof merged[0] === 'string') return merged[0];
+    return merged.map(p => typeof p === 'string' ? { type: 'text', text: p } : p);
+}
+
 // ── Session manager singleton ──
 
 export class SbotSessionManager extends SessionManager {
+    private mergeBuffers = new Map<string, MergeBufferEntry>();
 
     constructor() {
         super();
@@ -149,24 +200,59 @@ export class SbotSessionManager extends SessionManager {
         query = trimContent(query);
         if (isEmptyContent(query)) return;
 
-        // 意图过滤：在进入消息队列之前检查，避免触发 onProcessStart（回复卡片）
-        if (!args?.mentionBot) {
-            const dbSessionId = args?.dbSessionId as number | undefined;
-            if (dbSessionId) {
-                const dbSession = await database.findByPk<ChannelSessionRow>(database.channelSession, dbSessionId);
-                const channel = args.channelId ? config.getChannel(args.channelId) : undefined;
-                const intentModel = dbSession?.intentModel != null ? dbSession.intentModel : channel?.intentModel;
-                if (intentModel) {
-                    const intentPrompt = dbSession?.intentPrompt != null ? dbSession.intentPrompt : (channel?.intentPrompt ?? null);
-                    const intentThreshold = dbSession?.intentThreshold != null ? dbSession.intentThreshold : (channel?.intentThreshold ?? 0.7);
-                    const shouldReply = await classifyIntent(query, intentModel, intentPrompt, intentThreshold, threadId);
-                    if (!shouldReply) return;
-                }
-            }
+        // 命令消息跳过意图过滤和消息合并，直接透传
+        if (typeof query === 'string' && query.trimStart().startsWith('/')) {
+            const session = this.getOrCreate(threadId);
+            await session.onReceiveMessage(query, args);
+            return;
         }
 
+        // 消息合并：mergeWindow > 0 时，缓存消息并 debounce
+        const channel = args.channelId ? config.getChannel(args.channelId) : undefined;
+        const mergeWindow = channel?.mergeWindow;
+        if (mergeWindow && mergeWindow > 0) {
+            const existing = this.mergeBuffers.get(threadId);
+            if (existing) {
+                clearTimeout(existing.timer);
+                existing.items.push({ query, args });
+            } else {
+                this.mergeBuffers.set(threadId, { items: [{ query, args }], timer: null! });
+            }
+            const entry = this.mergeBuffers.get(threadId)!;
+            entry.timer = setTimeout(() => this.flushMergeBuffer(threadId), mergeWindow);
+            return;
+        }
+
+        await this.dispatchToSession(threadId, query, args);
+    }
+
+    private async flushMergeBuffer(threadId: string): Promise<void> {
+        const entry = this.mergeBuffers.get(threadId);
+        if (!entry) return;
+        this.mergeBuffers.delete(threadId);
+
+        const mergedQuery = mergeMessageContents(entry.items);
+        const lastArgs = entry.items[entry.items.length - 1].args;
+        await this.dispatchToSession(threadId, mergedQuery, lastArgs);
+    }
+
+    private async dispatchToSession(threadId: string, query: MessageContent, args: ChannelRouteArgs): Promise<void> {
+        if (!await this.passIntentFilter(query, args, threadId)) return;
         const session = this.getOrCreate(threadId);
         await session.onReceiveMessage(query, args);
+    }
+
+    private async passIntentFilter(query: MessageContent, args: ChannelRouteArgs, threadId: string): Promise<boolean> {
+        if (args?.mentionBot) return true;
+        const dbSessionId = args?.dbSessionId as number | undefined;
+        if (!dbSessionId) return true;
+        const dbSession = await database.findByPk<ChannelSessionRow>(database.channelSession, dbSessionId);
+        const channel = args.channelId ? config.getChannel(args.channelId) : undefined;
+        const intentModel = dbSession?.intentModel != null ? dbSession.intentModel : channel?.intentModel;
+        if (!intentModel) return true;
+        const intentPrompt = dbSession?.intentPrompt != null ? dbSession.intentPrompt : (channel?.intentPrompt ?? null);
+        const intentThreshold = dbSession?.intentThreshold != null ? dbSession.intentThreshold : (channel?.intentThreshold ?? 0.7);
+        return classifyIntent(query, intentModel, intentPrompt, intentThreshold, threadId);
     }
 
     async onReceiveWebMessage(threadId: string, query: MessageContent, sessionId?: string): Promise<void> {

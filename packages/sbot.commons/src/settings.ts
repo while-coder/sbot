@@ -212,6 +212,8 @@ export interface ChannelConfig {
   intentPrompt?: string
   /** 意图识别置信度阈值 0-1 */
   intentThreshold?: number
+  /** 消息合并窗口（毫秒），同一会话在此时间内的连续消息会合并后再处理。0 或不设置表示不合并 */
+  mergeWindow?: number
 }
 
 export interface Settings {
