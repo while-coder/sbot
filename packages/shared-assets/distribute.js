@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { execSync } = require("child_process");
 
 const pkg = require("./package.json");
 const entries = pkg.distribute;
@@ -11,11 +12,25 @@ if (!entries) {
 
 const baseDir = __dirname;
 
-for (const [dest, files] of Object.entries(entries)) {
+for (const [dest, config] of Object.entries(entries)) {
   const destDir = path.resolve(baseDir, dest);
   fs.mkdirSync(destDir, { recursive: true });
 
-  for (const item of files) {
+  if (config && config.type === "tauri-icons") {
+    const src = path.resolve(baseDir, config.source);
+    const iconPng = path.resolve(destDir, "icon.png");
+    fs.cpSync(src, iconPng);
+    console.log(`${config.source} -> ${path.relative(baseDir, iconPng)}`);
+    const desktopDir = path.resolve(destDir, "../..");
+    console.log(`Running tauri icon in ${path.relative(baseDir, desktopDir)}...`);
+    execSync(`npx tauri icon ${path.resolve(destDir, "icon.png")}`, {
+      cwd: desktopDir,
+      stdio: "inherit",
+    });
+    continue;
+  }
+
+  for (const item of config) {
     const from = typeof item === "string" ? item : item.from;
     const to = typeof item === "string" ? item : item.to;
     const src = path.resolve(baseDir, from);

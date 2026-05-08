@@ -5,6 +5,10 @@
   "distribute": {
     "../admin/public": ["logo.svg"],
     "../pwa/public": ["logo.svg", "pwa-192x192.png", "pwa-512x512.png"],
+    "../desktop/src-tauri/icons": {
+      "type": "tauri-icons",
+      "source": "pwa-1024x1024.png"
+    },
     "../vscode-extension/media": [{ "from": "icon.svg", "to": "icon.svg" }]
   },
   "scripts": {
