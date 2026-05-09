@@ -7,7 +7,7 @@ import type {
   AskEvent, AskAnswerPayload,
   DisplayContent, ChatEvent,
 } from '../types'
-import { MessageRole } from '../types'
+import { MessageRole, ChatEventType } from '../types'
 import type { IChatTransport } from '../transport'
 import { resolveLabels } from '../labels'
 import { useCompactProvider } from '../composables/useCompact'
@@ -59,7 +59,7 @@ const activeSession = computed<SessionItem | null>(() => {
   return sessions.value.find(s => s.id === activeSessionId.value) ?? null
 })
 
-const hasSaver = computed(() => !!activeSession.value?.saver)
+const hasSaver = computed(() => activeSession.value != null)
 
 const thinksUrlPrefix = computed(() => {
   if (!activeSessionId.value) return null
@@ -87,39 +87,40 @@ function stopAskTimer() { if (askTimer) { clearInterval(askTimer); askTimer = nu
 // ── Event handler ──
 
 function handleEvent(evt: ChatEvent) {
+  if ('sessionId' in evt && evt.sessionId !== activeSessionId.value) return
   const d = (evt as any).data
   switch (evt.type) {
-    case 'connectionStatus':
+    case ChatEventType.ConnectionStatus:
       if (!evt.online) resetStreamState()
       break
-    case 'human':
+    case ChatEventType.Human:
       isStreaming.value = true
       if (queuedMessages.value.length > 0) queuedMessages.value.shift()
       messages.value.push({ message: { role: MessageRole.Human, content: d.content }, createdAt: Date.now() / 1000 })
       nextTick(() => chatAreaRef.value?.scrollToBottom(true))
       break
-    case 'stream':
+    case ChatEventType.Stream:
       streamingContent.value = d.content
       break
-    case 'message': {
+    case ChatEventType.Message: {
       const msg: StoredMessage = { message: d.message, createdAt: d.createdAt ?? Date.now() / 1000 }
       if (d.thinkId) msg.thinkId = d.thinkId
       messages.value.push(msg)
       streamingContent.value = ''
       break
     }
-    case 'toolCall':
+    case ChatEventType.ToolCall:
       pendingToolCall.value = d as ToolCallEvent
       break
-    case 'ask':
+    case ChatEventType.Ask:
       pendingAsk.value = d as AskEvent
       break
-    case 'queue':
+    case ChatEventType.Queue:
       if (queuedMessages.value.length === 0 && d.pendingMessages?.length > 0) {
         queuedMessages.value = d.pendingMessages
       }
       break
-    case 'done':
+    case ChatEventType.Done:
       if (d?.pendingMessages) queuedMessages.value = d.pendingMessages
       stopDenyTimer()
       stopAskTimer()
@@ -128,7 +129,7 @@ function handleEvent(evt: ChatEvent) {
       if (queuedMessages.value.length === 0) isStreaming.value = false
       loadUsage()
       break
-    case 'error':
+    case ChatEventType.Error:
       isStreaming.value = false
       stopDenyTimer()
       stopAskTimer()
@@ -136,7 +137,7 @@ function handleEvent(evt: ChatEvent) {
       pendingAsk.value = null
       queuedMessages.value = []
       break
-    case 'usage':
+    case ChatEventType.Usage:
       if (usage.value) {
         usage.value.lastInputTokens = d.inputTokens
         usage.value.lastOutputTokens = d.outputTokens

@@ -126,6 +126,7 @@ export interface ChatLabels {
   memory?: string
   wiki?: string
   autoApproveAll?: string
+  useChannelDefault?: string
   view?: string
   usageLast?: string
   usageTotal?: string
@@ -265,14 +266,27 @@ export interface SessionStatus {
 }
 
 // ── Chat events (server → client) ──
+export enum ChatEventType {
+  ConnectionStatus = 'connectionStatus',
+  Human = 'human',
+  Stream = 'stream',
+  Message = 'message',
+  ToolCall = 'toolCall',
+  Ask = 'ask',
+  Queue = 'queue',
+  Done = 'done',
+  Error = 'error',
+  Usage = 'usage',
+}
+
 export type ChatEvent =
-  | { type: 'connectionStatus'; online: boolean }
-  | { type: 'human'; data: { content: DisplayContent } }
-  | { type: 'stream'; data: { content: DisplayContent } }
-  | { type: 'message'; data: { message: ChatMessage; thinkId?: string; createdAt: number } }
-  | { type: 'toolCall'; data: ToolCallEvent }
-  | { type: 'ask'; data: AskEvent }
-  | { type: 'queue'; data: { pendingMessages: DisplayContent[] } }
-  | { type: 'done'; data: { pendingMessages?: DisplayContent[] } }
-  | { type: 'error'; data: { message: string } }
-  | { type: 'usage'; data: UsageData }
+  | { type: ChatEventType.ConnectionStatus; online: boolean }
+  | { type: ChatEventType.Human; sessionId: string; data: { content: DisplayContent } }
+  | { type: ChatEventType.Stream; sessionId: string; data: { content: DisplayContent } }
+  | { type: ChatEventType.Message; sessionId: string; data: { message: ChatMessage; thinkId?: string; createdAt: number } }
+  | { type: ChatEventType.ToolCall; sessionId: string; data: ToolCallEvent }
+  | { type: ChatEventType.Ask; sessionId: string; data: AskEvent }
+  | { type: ChatEventType.Queue; sessionId: string; data: { pendingMessages: DisplayContent[] } }
+  | { type: ChatEventType.Done; sessionId: string; data: { pendingMessages?: DisplayContent[] } }
+  | { type: ChatEventType.Error; sessionId: string; data: { message: string } }
+  | { type: ChatEventType.Usage; sessionId: string; data: UsageData }

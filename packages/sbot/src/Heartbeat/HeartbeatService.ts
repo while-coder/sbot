@@ -1,5 +1,6 @@
 import { CronJob } from "cron";
 import { config } from "../Core/Config";
+import { database } from "../Core/Database";
 import { LoggerService } from "../Core/LoggerService";
 import { durationToCron, durationToMs } from "./durationParser";
 import { executeHeartbeat, type HeartbeatExecutionContext } from "./executeHeartbeat";
@@ -125,13 +126,20 @@ class HeartbeatService {
         await this.execute(heartbeatId);
     }
 
-    getStatus(): Array<{ id: string; nextRun: string | null; enabled: boolean }> {
+    async getStatus(): Promise<Array<{ id: string; nextRun: string | null; lastRun: string | null; running: boolean; enabled: boolean }>> {
         const heartbeats = config.settings.heartbeats ?? {};
-        return Object.entries(heartbeats).map(([id, hbConfig]) => {
+        const results = [];
+        for (const [id, hbConfig] of Object.entries(heartbeats)) {
             const job = this.jobs.get(id);
             const nextRun = job ? job.nextDate().toISO() : null;
-            return { id, nextRun, enabled: hbConfig.enabled !== false };
-        });
+            let lastRun: string | null = null;
+            try {
+                const row = await database.state.findOne({ where: { key: `heartbeat_lastRun_${id}` } });
+                if (row) lastRun = new Date(Number(row.getDataValue('value'))).toISOString();
+            } catch {}
+            results.push({ id, nextRun, lastRun, running: this.running.has(id), enabled: hbConfig.enabled !== false });
+        }
+        return results;
     }
 }
 

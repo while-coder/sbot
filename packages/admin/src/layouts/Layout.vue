@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store, applyMcpList } from '@/store'
 import { useToast } from '@/composables/useToast'
-import { fetchLatestRelease, compareSemver } from 'sbot.commons'
+import { fetchLatestRelease, compareSemver, GITHUB_REPO_URL, GITHUB_RELEASES_URL } from 'sbot.commons'
 import { useResponsive } from '../composables/useResponsive'
+import { saveLocale } from '@/i18n'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const router = useRouter()
 const route = useRoute()
 const { show } = useToast()
@@ -65,6 +66,7 @@ const menuGroups = computed(() => [
       { label: t('nav.heartbeats'), key: '/heartbeats' },
       { label: t('nav.scheduler'), key: '/scheduler' },
       { label: t('nav.todo'), key: '/todo' },
+      { label: t('nav.token_usage'), key: '/token-usage' },
       { label: t('nav.logs'), key: '/logs' },
       { label: t('nav.about'), key: '/about' },
     ],
@@ -92,30 +94,25 @@ async function reloadConfig() {
   }
 }
 
-// ── Token Usage ──
-const showUsageModal = ref(false)
-const usageStats = ref<{ date: string; inputTokens: number; outputTokens: number; totalTokens: number; cacheCreationTokens: number; cacheReadTokens: number }[]>([])
-const usageLoading = ref(false)
-
-async function openUsageModal() {
-  showUsageModal.value = true
-  usageLoading.value = true
-  try {
-    const res = await apiFetch('/api/usage-stats')
-    usageStats.value = res.data || []
-  } catch (e: any) {
-    show(e.message, 'error')
-  } finally {
-    usageLoading.value = false
-  }
-}
-
-function formatNumber(n: number): string {
-  return n.toLocaleString()
-}
 
 const hasUpdate = ref(false)
 
+// Language switcher
+const showLangMenu = ref(false)
+const languages = [
+  { code: 'en', label: 'English' },
+  { code: 'zh', label: '简体中文' },
+]
+function switchLocale(code: string) {
+  locale.value = code
+  saveLocale(code)
+  showLangMenu.value = false
+}
+
+// Docs URL
+const docsUrl = computed(() => locale.value === 'zh'
+  ? `${GITHUB_REPO_URL}/blob/main/README.zh.md`
+  : `${GITHUB_REPO_URL}/blob/main/README.md`)
 
 async function checkUpdate(currentVersion: string) {
   const data = await fetchLatestRelease()
@@ -151,18 +148,42 @@ async function init() {
 }
 
 init()
+
+function closeLangMenu(e: MouseEvent) {
+  if (showLangMenu.value && !(e.target as HTMLElement)?.closest('.topbar-icon-btn')) {
+    showLangMenu.value = false
+  }
+}
+onMounted(() => document.addEventListener('click', closeLangMenu))
+onUnmounted(() => document.removeEventListener('click', closeLangMenu))
 </script>
 
 <template>
   <div class="app-layout">
     <div class="topbar">
-      <div style="display:flex;align-items:center;gap:8px">
+      <div class="topbar-left">
         <button v-if="isMobile" class="hamburger-btn" @click="sidebarOpen = !sidebarOpen">&#9776;</button>
         <div class="topbar-title">{{ t('nav.app_title') }}</div>
       </div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <button class="btn-outline btn-sm" @click="openUsageModal">{{ t('nav.token_usage') }}</button>
-        <button class="btn-outline btn-sm" @click="reloadConfig">{{ t('nav.reload') }}</button>
+      <div class="topbar-right">
+        <nav class="topbar-nav">
+          <a :href="GITHUB_RELEASES_URL" target="_blank" class="topbar-link">{{ t('nav.changelog') }}</a>
+          <a :href="docsUrl" target="_blank" class="topbar-link">{{ t('nav.docs') }}</a>
+          <a :href="`${GITHUB_REPO_URL}/issues`" target="_blank" class="topbar-link">{{ t('nav.faq') }}</a>
+          <a :href="GITHUB_REPO_URL" target="_blank" class="topbar-link">GitHub</a>
+        </nav>
+        <div class="topbar-icon-btn" style="position:relative" @click="showLangMenu = !showLangMenu">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          <div v-if="showLangMenu" class="lang-dropdown">
+            <div v-for="lang in languages" :key="lang.code" class="lang-option" :class="{ active: locale === lang.code }" @click.stop="switchLocale(lang.code)">{{ lang.label }}</div>
+          </div>
+        </div>
+        <div class="topbar-icon-btn" @click="router.push('/token-usage')" :title="t('nav.token_usage')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        </div>
+        <div class="topbar-icon-btn" @click="reloadConfig" :title="t('nav.reload')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        </div>
       </div>
     </div>
     <div class="app-body">
@@ -187,41 +208,6 @@ init()
       </div>
     </div>
 
-    <!-- Token Usage Modal -->
-    <div v-if="showUsageModal" class="modal-overlay" @click.self="showUsageModal = false">
-      <div class="modal-box" style="width:520px">
-        <div class="modal-header">
-          <h3>{{ t('usage.title') }}</h3>
-          <button class="modal-close" @click="showUsageModal = false">&times;</button>
-        </div>
-        <div class="modal-body">
-          <div v-if="usageLoading" style="text-align:center;padding:24px;color:#94a3b8">{{ t('common.loading') }}</div>
-          <div v-else-if="usageStats.length === 0" style="text-align:center;padding:24px;color:#94a3b8">{{ t('usage.no_data') }}</div>
-          <table v-else class="usage-table">
-            <thead>
-              <tr>
-                <th>{{ t('usage.date') }}</th>
-                <th style="text-align:right">{{ t('usage.input_tokens') }}</th>
-                <th style="text-align:right">{{ t('usage.output_tokens') }}</th>
-                <th style="text-align:right">{{ t('usage.total_tokens') }}</th>
-                <th style="text-align:right">{{ t('usage.cache_read') }}</th>
-                <th style="text-align:right">{{ t('usage.cache_creation') }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in usageStats" :key="row.date">
-                <td>{{ row.date }}</td>
-                <td style="text-align:right">{{ formatNumber(row.inputTokens) }}</td>
-                <td style="text-align:right">{{ formatNumber(row.outputTokens) }}</td>
-                <td style="text-align:right;font-weight:600">{{ formatNumber(row.totalTokens) }}</td>
-                <td style="text-align:right;color:#22c55e">{{ formatNumber(row.cacheReadTokens) }}</td>
-                <td style="text-align:right;color:#94a3b8">{{ formatNumber(row.cacheCreationTokens) }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -250,6 +236,76 @@ body {
   border-bottom: 1px solid #e8e6e3;
   background: #fff;
   flex-shrink: 0;
+}
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.topbar-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.topbar-link {
+  padding: 4px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #3d3d3d;
+  text-decoration: none;
+  border-radius: 5px;
+  transition: background 0.15s, color 0.15s;
+}
+.topbar-link:hover {
+  background: #f5f4f2;
+  color: #1c1c1c;
+}
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.topbar-icon-btn {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #6b6b6b;
+  transition: background 0.15s, color 0.15s;
+}
+.topbar-icon-btn:hover {
+  background: #f5f4f2;
+  color: #1c1c1c;
+}
+.lang-dropdown {
+  position: absolute;
+  top: 38px;
+  right: 0;
+  background: #fff;
+  border: 1px solid #e8e6e3;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  min-width: 150px;
+  padding: 4px;
+  z-index: 100;
+}
+.lang-option {
+  padding: 8px 14px;
+  font-size: 13px;
+  color: #3d3d3d;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.lang-option:hover {
+  background: #f5f4f2;
+}
+.lang-option.active {
+  font-weight: 600;
+  color: #1c1c1c;
 }
 .topbar-title {
   font-size: 16px;

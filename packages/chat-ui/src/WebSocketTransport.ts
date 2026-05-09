@@ -1,25 +1,24 @@
 import type { IChatTransport } from './transport'
-import type {
-  ChatEvent,
-  ContentPart,
-  Attachment,
-  SessionItem,
-  CreateSessionOpts,
-  StoredMessage,
-  UsageInfo,
-  AppSettings,
-  SessionStatus,
-  ToolApprovalPayload,
-  AskAnswerPayload,
-  DirListResult,
-  QuickDir,
+import {
+  ChatEventType,
+  type ChatEvent,
+  type ContentPart,
+  type Attachment,
+  type SessionItem,
+  type CreateSessionOpts,
+  type StoredMessage,
+  type UsageInfo,
+  type AppSettings,
+  type SessionStatus,
+  type ToolApprovalPayload,
+  type AskAnswerPayload,
+  type DirListResult,
+  type QuickDir,
 } from './types'
 
 type EventHandler = (event: ChatEvent) => void
 
-const EVENT_TYPES = new Set([
-  'human', 'stream', 'message', 'toolCall', 'ask', 'queue', 'done', 'error', 'usage',
-])
+const SESSION_EVENT_TYPES = new Set<string>(Object.values(ChatEventType).filter(v => v !== ChatEventType.ConnectionStatus))
 
 export class WebSocketTransport implements IChatTransport {
   private ws: WebSocket | null = null
@@ -44,19 +43,19 @@ export class WebSocketTransport implements IChatTransport {
     const ws = new WebSocket(`${proto}//${host}/ws/chat`)
     this.ws = ws
     ws.onopen = () => {
-      this.emit({ type: 'connectionStatus', online: true } as ChatEvent)
+      this.emit({ type: ChatEventType.ConnectionStatus, online: true } as ChatEvent)
     }
     ws.onmessage = (e: MessageEvent) => {
       let msg: any
       try { msg = JSON.parse(e.data as string) } catch { return }
       const type = msg.type as string
-      if (EVENT_TYPES.has(type)) {
-        this.emit({ type, data: msg.data } as ChatEvent)
+      if (SESSION_EVENT_TYPES.has(type)) {
+        this.emit({ type, sessionId: msg.sessionId, data: msg.data } as ChatEvent)
       }
     }
     ws.onclose = () => {
       if (this.ws === ws) this.ws = null
-      this.emit({ type: 'connectionStatus', online: false } as ChatEvent)
+      this.emit({ type: ChatEventType.ConnectionStatus, online: false } as ChatEvent)
       this.reconnectTimer = setTimeout(() => this.connect(), 3000)
     }
     ws.onerror = () => {}

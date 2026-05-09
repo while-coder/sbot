@@ -29,7 +29,7 @@ export type {
   ChatEvent,
 } from './types';
 
-export { MessageRole, ContentPartType, AskQuestionType } from './types';
+export { MessageRole, ContentPartType, AskQuestionType, ChatEventType } from './types';
 
 export type { IChatTransport } from './transport';
 

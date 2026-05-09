@@ -43,6 +43,7 @@ const wikiOptions = computed(() =>
           :value="session.agent"
           @change="emit('updateConfig', 'agent', ($event.target as HTMLSelectElement).value)"
         >
+          <option value="">{{ L.useChannelDefault }}</option>
           <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }}{{ a.type ? ` (${a.type})` : '' }}</option>
         </select>
       </div>
@@ -55,6 +56,7 @@ const wikiOptions = computed(() =>
           :value="session.saver || ''"
           @change="emit('updateConfig', 'saver', ($event.target as HTMLSelectElement).value)"
         >
+          <option value="">{{ L.useChannelDefault }}</option>
           <option v-for="s in saverOptions" :key="s.id" :value="s.id">{{ s.label }}</option>
         </select>
       </div>

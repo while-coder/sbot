@@ -13,6 +13,8 @@ const { isMobile } = useResponsive()
 interface HeartbeatStatus {
   id: string
   nextRun: string | null
+  lastRun: string | null
+  running: boolean
   enabled: boolean
 }
 
@@ -40,14 +42,23 @@ const form = ref({
   activeHoursStart: 9,
   activeHoursEnd: 22,
   activeHoursTimezone: '',
-  okToken: '',
-  pruneOk: true,
-  dedupHours: 24,
+  pruneIdle: true,
 })
 
+function getStatus(id: string): HeartbeatStatus | undefined {
+  return statusList.value.find(s => s.id === id)
+}
+
 function getNextRun(id: string): string | null {
-  const s = statusList.value.find(s => s.id === id)
-  return s?.nextRun ?? null
+  return getStatus(id)?.nextRun ?? null
+}
+
+function getLastRun(id: string): string | null {
+  return getStatus(id)?.lastRun ?? null
+}
+
+function isRunning(id: string): boolean {
+  return getStatus(id)?.running ?? false
 }
 
 function sessionLabel(id: number): string {
@@ -69,9 +80,7 @@ function openAdd() {
     activeHoursStart: 9,
     activeHoursEnd: 22,
     activeHoursTimezone: '',
-    okToken: '',
-    pruneOk: true,
-    dedupHours: 24,
+    pruneIdle: true,
   }
   showModal.value = true
 }
@@ -90,9 +99,7 @@ function openEdit(id: string) {
     activeHoursStart: hb.activeHours?.start ?? 9,
     activeHoursEnd: hb.activeHours?.end ?? 22,
     activeHoursTimezone: hb.activeHours?.timezone ?? '',
-    okToken: hb.okToken ?? '',
-    pruneOk: hb.pruneOk !== false,
-    dedupHours: hb.dedupHours ?? 24,
+    pruneIdle: hb.pruneIdle !== false,
   }
   showModal.value = true
 }
@@ -104,8 +111,7 @@ function buildBody() {
     promptFile: form.value.promptFile,
     target: form.value.target,
     enabled: form.value.enabled,
-    pruneOk: form.value.pruneOk,
-    dedupHours: form.value.dedupHours,
+    pruneIdle: form.value.pruneIdle,
   }
   if (form.value.notifyTargets.length > 0) {
     body.notifyTargets = form.value.notifyTargets
@@ -116,9 +122,6 @@ function buildBody() {
       end: form.value.activeHoursEnd,
       ...(form.value.activeHoursTimezone ? { timezone: form.value.activeHoursTimezone } : {}),
     }
-  }
-  if (form.value.okToken.trim()) {
-    body.okToken = form.value.okToken.trim()
   }
   return body
 }
@@ -205,23 +208,28 @@ onMounted(async () => {
             <th>{{ t('heartbeats.name') }}</th>
             <th>{{ t('heartbeats.expr') }}</th>
             <th>{{ t('heartbeats.target') }}</th>
-            <th>{{ t('heartbeats.enabled') }}</th>
+            <th>{{ t('heartbeats.status') }}</th>
+            <th>{{ t('heartbeats.last_run') }}</th>
             <th>{{ t('heartbeats.next_run') }}</th>
             <th>{{ t('common.ops') }}</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="Object.keys(heartbeats).length === 0">
-            <td colspan="6" style="text-align:center;color:#94a3b8;padding:40px">{{ t('heartbeats.empty') }}</td>
+            <td colspan="7" style="text-align:center;color:#94a3b8;padding:40px">{{ t('heartbeats.empty') }}</td>
           </tr>
           <tr v-for="(hb, id) in heartbeats" :key="id">
             <td>{{ (hb as any).name || id }}</td>
             <td style="font-family:monospace;font-size:12px">{{ (hb as any).expr }}</td>
             <td style="font-size:12px">{{ sessionLabel((hb as any).target) }}</td>
             <td>
-              <span :style="{ color: (hb as any).enabled !== false ? '#16a34a' : '#9b9b9b' }">
+              <span v-if="isRunning(id as string)" style="color:#f59e0b;font-weight:600">{{ t('heartbeats.running') }}</span>
+              <span v-else :style="{ color: (hb as any).enabled !== false ? '#16a34a' : '#9b9b9b' }">
                 {{ (hb as any).enabled !== false ? 'ON' : 'OFF' }}
               </span>
+            </td>
+            <td style="font-size:12px;color:#9b9b9b;white-space:nowrap">
+              {{ getLastRun(id as string) ? new Date(getLastRun(id as string)!).toLocaleString('zh-CN') : '-' }}
             </td>
             <td style="font-size:12px;color:#9b9b9b;white-space:nowrap">
               {{ getNextRun(id as string) ? new Date(getNextRun(id as string)!).toLocaleString('zh-CN') : '-' }}
@@ -243,7 +251,8 @@ onMounted(async () => {
         <div v-for="(hb, id) in heartbeats" :key="id" class="mobile-card">
           <div class="mobile-card-header" style="display:flex;justify-content:space-between;align-items:center">
             <span>{{ (hb as any).name || id }}</span>
-            <span :style="{ color: (hb as any).enabled !== false ? '#16a34a' : '#9b9b9b', fontSize: '12px', fontWeight: 600 }">
+            <span v-if="isRunning(id as string)" style="color:#f59e0b;font-size:12px;font-weight:600">{{ t('heartbeats.running') }}</span>
+            <span v-else :style="{ color: (hb as any).enabled !== false ? '#16a34a' : '#9b9b9b', fontSize: '12px', fontWeight: 600 }">
               {{ (hb as any).enabled !== false ? 'ON' : 'OFF' }}
             </span>
           </div>
@@ -252,6 +261,10 @@ onMounted(async () => {
             <span class="mobile-card-value" style="font-family:monospace;font-size:12px">{{ (hb as any).expr }}</span>
             <span class="mobile-card-label">{{ t('heartbeats.target') }}</span>
             <span class="mobile-card-value" style="font-size:12px">{{ sessionLabel((hb as any).target) }}</span>
+            <span class="mobile-card-label">{{ t('heartbeats.last_run') }}</span>
+            <span class="mobile-card-value" style="font-size:12px;color:#9b9b9b">
+              {{ getLastRun(id as string) ? new Date(getLastRun(id as string)!).toLocaleString('zh-CN') : '-' }}
+            </span>
             <span class="mobile-card-label">{{ t('heartbeats.next_run') }}</span>
             <span class="mobile-card-value" style="font-size:12px;color:#9b9b9b">
               {{ getNextRun(id as string) ? new Date(getNextRun(id as string)!).toLocaleString('zh-CN') : '-' }}
@@ -337,19 +350,11 @@ onMounted(async () => {
             </div>
           </template>
           <div class="form-group">
-            <label>{{ t('heartbeats.okToken') }}</label>
-            <input v-model="form.okToken" placeholder="HEARTBEAT_OK" />
-            <div class="hint">{{ t('heartbeats.okToken_hint') }}</div>
-          </div>
-          <div class="form-group">
             <label class="checkbox-label">
-              <input type="checkbox" v-model="form.pruneOk" />
-              {{ t('heartbeats.pruneOk') }}
+              <input type="checkbox" v-model="form.pruneIdle" />
+              {{ t('heartbeats.pruneIdle') }}
             </label>
-          </div>
-          <div class="form-group">
-            <label>{{ t('heartbeats.dedupHours') }}</label>
-            <input v-model.number="form.dedupHours" type="number" min="0" />
+            <div class="hint">{{ t('heartbeats.pruneIdle_hint') }}</div>
           </div>
         </div>
         <div class="modal-footer">

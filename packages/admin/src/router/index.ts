@@ -24,6 +24,7 @@ const routes = [
   { path: '/scheduler', component: () => import('@/views/SchedulerView.vue') },
   { path: '/todo', component: () => import('@/views/TodoView.vue') },
   { path: '/logs', component: () => import('@/views/LogsView.vue') },
+  { path: '/token-usage', component: () => import('@/views/TokenUsageView.vue') },
   { path: '/about', component: () => import('@/views/AboutView.vue') },
 ]
 
