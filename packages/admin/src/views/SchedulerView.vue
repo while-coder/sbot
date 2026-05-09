@@ -11,7 +11,6 @@ const { isMobile } = useResponsive()
 interface SchedulerRow {
   id: number
   expr: string
-  type: string | null
   message: string
   targetId: string | null
   lastRun: number | null
@@ -27,7 +26,6 @@ interface ChannelSessionRow {
 }
 
 type UIType = 'daily' | 'weekly' | 'monthly' | 'interval' | 'hourly' | 'custom'
-type RoutingType = 'channel' | 'session'
 
 const { show } = useToast()
 const timers = ref<SchedulerRow[]>([])
@@ -60,27 +58,11 @@ function describeExpr(expr: string): string {
   return expr
 }
 
-// ── Routing helpers ───────────────────────────────────────────────────────────
-
-function routingTypeOf(row: SchedulerRow): RoutingType {
-  if (row.type === 'channel') return 'channel'
-  return 'session'
-}
-
-function routingLabel(row: SchedulerRow): string {
-  const rt = routingTypeOf(row)
-  if (rt === 'channel') {
-    if (row.targetId == null) return '-'
-    const id = parseInt(row.targetId)
-    const s = channelSessions.value.find(s => s.id === id)
-    return s ? s.sessionId : row.targetId
-  }
-  return row.targetId ?? '-'
-}
-
-const ROUTING_BADGE: Record<RoutingType, { bg: string; color: string; label: string }> = {
-  channel:   { bg: '#dbeafe', color: '#1d4ed8', label: 'channel' },
-  session:   { bg: '#fef9c3', color: '#854d0e', label: 'session' },
+function targetLabel(row: SchedulerRow): string {
+  if (row.targetId == null) return '-'
+  const id = parseInt(row.targetId)
+  const s = channelSessions.value.find(s => s.id === id)
+  return s ? s.sessionId : row.targetId
 }
 
 // ── Data loading ──────────────────────────────────────────────────────────────
@@ -138,7 +120,6 @@ onMounted(load)
             <th>{{ t('common.id') }}</th>
             <th>{{ t('scheduler.schedule_col') }}</th>
             <th>{{ t('scheduler.message_col') }}</th>
-            <th>{{ t('scheduler.type_col') }}</th>
             <th>{{ t('scheduler.target_col') }}</th>
             <th>{{ t('scheduler.run_count_col') }}</th>
             <th>{{ t('scheduler.last_run_col') }}</th>
@@ -148,10 +129,10 @@ onMounted(load)
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="9" style="text-align:center;color:#9b9b9b;padding:40px">{{ t('common.loading') }}</td>
+            <td colspan="8" style="text-align:center;color:#9b9b9b;padding:40px">{{ t('common.loading') }}</td>
           </tr>
           <tr v-else-if="timers.length === 0">
-            <td colspan="9" style="text-align:center;color:#9b9b9b;padding:40px">{{ t('scheduler.empty') }}</td>
+            <td colspan="8" style="text-align:center;color:#9b9b9b;padding:40px">{{ t('scheduler.empty') }}</td>
           </tr>
           <tr v-for="t_ in timers" :key="t_.id">
             <td style="font-family:monospace;color:#9b9b9b">{{ t_.id }}</td>
@@ -160,13 +141,7 @@ onMounted(load)
               <div style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ t_.expr }}</div>
             </td>
             <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#6b6b6b">{{ t_.message }}</td>
-            <td>
-              <span
-                style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;font-family:monospace"
-                :style="{ background: ROUTING_BADGE[routingTypeOf(t_)].bg, color: ROUTING_BADGE[routingTypeOf(t_)].color }"
-              >{{ ROUTING_BADGE[routingTypeOf(t_)].label }}</span>
-            </td>
-            <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ routingLabel(t_) }}</td>
+            <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ targetLabel(t_) }}</td>
             <td style="font-size:12px;font-family:monospace;color:#9b9b9b;white-space:nowrap">{{ t_.runCount }}{{ t_.maxRuns > 0 ? ` / ${t_.maxRuns}` : '' }}</td>
             <td style="font-size:12px;color:#9b9b9b;white-space:nowrap">{{ formatLastRun(t_.lastRun) }}</td>
             <td style="font-size:12px;color:#9b9b9b;white-space:nowrap">{{ formatNextRun(t_.nextRun) }}</td>
@@ -184,12 +159,8 @@ onMounted(load)
         <div v-if="loading" class="mobile-card-empty">{{ t('common.loading') }}</div>
         <div v-else-if="timers.length === 0" class="mobile-card-empty">{{ t('scheduler.empty') }}</div>
         <div v-for="t_ in timers" :key="t_.id" class="mobile-card">
-          <div class="mobile-card-header" style="display:flex;justify-content:space-between;align-items:center">
+          <div class="mobile-card-header">
             <span style="font-size:13px">{{ describeExpr(t_.expr) }}</span>
-            <span
-              style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;font-family:monospace"
-              :style="{ background: ROUTING_BADGE[routingTypeOf(t_)].bg, color: ROUTING_BADGE[routingTypeOf(t_)].color }"
-            >{{ ROUTING_BADGE[routingTypeOf(t_)].label }}</span>
           </div>
           <div class="mobile-card-fields">
             <span class="mobile-card-label">{{ t('common.id') }}</span>
@@ -199,7 +170,7 @@ onMounted(load)
             <span class="mobile-card-label">{{ t('scheduler.message_col') }}</span>
             <span class="mobile-card-value" style="color:#6b6b6b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ t_.message }}</span>
             <span class="mobile-card-label">{{ t('scheduler.target_col') }}</span>
-            <span class="mobile-card-value" style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ routingLabel(t_) }}</span>
+            <span class="mobile-card-value" style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ targetLabel(t_) }}</span>
             <span class="mobile-card-label">{{ t('scheduler.run_count_col') }}</span>
             <span class="mobile-card-value" style="font-family:monospace;font-size:12px;color:#9b9b9b">{{ t_.runCount }}{{ t_.maxRuns > 0 ? ` / ${t_.maxRuns}` : '' }}</span>
             <span class="mobile-card-label">{{ t('scheduler.last_run_col') }}</span>

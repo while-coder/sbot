@@ -21,7 +21,6 @@ import {
 } from "scorpio.ai";
 import { loadPrompt } from "../Core/PromptLoader";
 import { config, SaverType } from "../Core/Config";
-import { SchedulerType } from "../Core/Database";
 
 import { AgentFactory } from "./AgentFactory";
 import { LoggerService } from "../Core/LoggerService";
@@ -30,15 +29,6 @@ import { MemoryDatabaseManager } from "./MemoryDatabaseManager";
 import { WikiDatabaseManager } from "./WikiDatabaseManager";
 
 const logger = LoggerService.getLogger('AgentRunner.ts');
-
-
-/** 归属上下文，标识本次运行归属的会话 */
-export interface AgentOwnerContext {
-    /** 归属类型（Channel / Session） */
-    ownerType: SchedulerType;
-    /** 归属实例 ID（channelSessionId / sessionId） */
-    ownerId: string;
-}
 
 export interface AgentRunOptions {
     /** 用户输入的消息 */
@@ -61,13 +51,13 @@ export interface AgentRunOptions {
     workPath?: string;
     /** 动态注册到 Agent 的工具列表 */
     agentTools?: StructuredToolInterface[];
-    /** 归属上下文 */
-    owner: AgentOwnerContext;
+    /** 归属会话 DB 主键（channel_session.id） */
+    dbSessionId: string;
 }
 
 export class AgentRunner {
     static async run(options: AgentRunOptions): Promise<void> {
-        const { query, callbacks, agentId, saverId, threadId, owner, extraInfo, memories, wikis, agentTools } = options;
+        const { query, callbacks, agentId, saverId, threadId, dbSessionId, extraInfo, memories, wikis, agentTools } = options;
         if (!agentId.trim())   throw new Error("agent not specified");
         if (!saverId.trim())   throw new Error("saver not specified");
         if (!threadId.trim())  throw new Error("threadId not specified");
@@ -105,7 +95,7 @@ export class AgentRunner {
         await AgentRunner.registerWikiServices(container, wikis ?? [], threadId);
         await AgentRunner.registerSaverService(container, saverId, threadId);
 
-        const agent = await AgentFactory.create({ agentId, container, extraPrompts, agentTools, owner });
+        const agent = await AgentFactory.create({ agentId, container, extraPrompts, agentTools, dbSessionId });
         try {
             await agent.stream(query, callbacks, signal);
         } finally {

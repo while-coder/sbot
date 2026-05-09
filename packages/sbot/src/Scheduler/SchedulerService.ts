@@ -1,10 +1,9 @@
 import { CronJob } from "cron";
-import { database, SchedulerRow, ChannelSessionRow, SchedulerType } from "../Core/Database";
+import { database, SchedulerRow, ChannelSessionRow, channelThreadId } from "../Core/Database";
 import { sessionManager } from "../Session/SessionManager";
 import { LoggerService } from "../Core/LoggerService";
 import { config } from "../Core/Config";
 import { channelManager } from "../Channel/ChannelManager";
-import { channelThreadId, sessionThreadId } from "../Core/Database";
 
 const logger = LoggerService.getLogger("SchedulerService.ts");
 
@@ -13,30 +12,30 @@ async function executeScheduler(schedulerId: number): Promise<void> {
     if (!scheduler || scheduler.disabled) return;
 
     const tag = `[${scheduler.id}]`;
-    const isChannel = scheduler.type === SchedulerType.Channel;
 
     try {
-        if (isChannel) {
-            const sessionRow = scheduler.targetId
-                ? await database.findByPk<ChannelSessionRow>(database.channelSession, parseInt(scheduler.targetId))
-                : null;
-            const service = sessionRow?.channelId
-                ? channelManager.getService(sessionRow.channelId)
-                : undefined;
+        const sessionRow = scheduler.targetId
+            ? await database.findByPk<ChannelSessionRow>(database.channelSession, parseInt(scheduler.targetId))
+            : null;
 
-            if (!sessionRow || !service) {
-                logger.error(`Scheduler task ${tag} channel mode: targetId=${scheduler.targetId} not found or has no service`);
-                return;
-            }
+        if (!sessionRow) {
+            logger.error(`Scheduler task ${tag}: targetId=${scheduler.targetId} not found`);
+            return;
+        }
 
-            const { channelId, sessionId, id: dbSessionId } = sessionRow;
-            const channelType = config.getChannel(channelId)?.type;
-            if (!channelType) {
-                logger.warn(`Scheduler task ${tag} unknown channel type for channelId=${channelId}`);
-                return;
-            }
+        const { channelId, sessionId, id: dbSessionId } = sessionRow;
+        const channelConfig = config.getChannel(channelId);
+        const channelType = channelConfig?.type;
+        if (!channelType) {
+            logger.warn(`Scheduler task ${tag} unknown channel type for channelId=${channelId}`);
+            return;
+        }
 
-            if (scheduler.aiProcess) {
+        if (scheduler.aiProcess) {
+            if (channelId === 'web') {
+                const threadId = channelThreadId(channelType, channelId, sessionId);
+                await sessionManager.onReceiveWebMessage(threadId, scheduler.message, sessionId, dbSessionId);
+            } else {
                 const threadId = channelThreadId(channelType, channelId, sessionId);
                 await sessionManager.onReceiveChannelMessage(threadId, scheduler.message, {
                     channelType,
@@ -44,21 +43,15 @@ async function executeScheduler(schedulerId: number): Promise<void> {
                     dbSessionId,
                     sessionId,
                 });
-            } else {
-                await service.sendText(sessionId, scheduler.message);
             }
-            logger.info(`Scheduler task ${tag} fired (${channelType}), session ${sessionId}, aiProcess=${scheduler.aiProcess}`);
         } else {
-            // Session mode: deliver via HTTP pipeline
-            const sessionId = scheduler.targetId ?? '';
-            const threadId = sessionThreadId(sessionId);
-            await sessionManager.onReceiveWebMessage(
-                threadId,
-                scheduler.message,
-                sessionId,
-            );
-            logger.info(`Scheduler task ${tag} fired (http), sessionId=${sessionId}`);
+            if (channelId === 'web') {
+                logger.warn(`Scheduler task ${tag} non-aiProcess for web channel is not supported`);
+            } else {
+                await channelManager.sendText(channelId, sessionId, scheduler.message);
+            }
         }
+        logger.info(`Scheduler task ${tag} fired (${channelType}), session ${sessionId}, aiProcess=${scheduler.aiProcess}`);
     } catch (e: any) {
         logger.error(`Scheduler task ${tag} failed: ${e?.message ?? e}`);
     }

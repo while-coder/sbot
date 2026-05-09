@@ -26,10 +26,10 @@ export class WebSocketSessionHandler extends ChannelSessionHandler {
         super(session);
     }
 
-    /** Derive the original sessionId from the threadId ("session_xxx" → "xxx"). */
     private get sessionId(): string {
         const tid = this.session.threadId;
-        return tid.startsWith('session_') ? tid.slice('session_'.length) : tid;
+        const prefix = 'web_web_';
+        return tid.startsWith(prefix) ? tid.slice(prefix.length) : tid;
     }
 
     // ── Message lifecycle ──

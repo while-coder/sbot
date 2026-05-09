@@ -10,7 +10,7 @@ const logger = LoggerService.getLogger('Tools/Todo/list.ts');
 
 const PRIORITY_ORDER: Record<string, number> = { high: 0, normal: 1, low: 2 };
 
-export function createTodoListTool(todoType: string, todoTargetId: string): StructuredToolInterface {
+export function createTodoListTool(targetId: string): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: TODO_LIST_TOOL_NAME,
         description: loadPrompt('tools/todo/list.txt'),
@@ -20,7 +20,7 @@ export function createTodoListTool(todoType: string, todoTargetId: string): Stru
         func: async ({ status }: any): Promise<MCPToolResult> => {
             try {
                 const filter = status || 'pending';
-                const where: any = { type: todoType, targetId: todoTargetId };
+                const where: any = { targetId };
                 if (filter !== 'all') where.status = filter;
 
                 const todos = await database.findAll<TodoRow>(database.todo, { where });

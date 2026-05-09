@@ -18,7 +18,7 @@ function deadlineToCron(deadline: Date): string {
     return `${s} ${m} ${h} ${d} ${mo} *`;
 }
 
-export function createTodoCreateTool(todoType: string, todoTargetId: string): StructuredToolInterface {
+export function createTodoCreateTool(targetId: string): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: TODO_CREATE_TOOL_NAME,
         description: loadPrompt('tools/todo/create.txt'),
@@ -40,8 +40,7 @@ export function createTodoCreateTool(todoType: string, todoTargetId: string): St
                 }
 
                 const row = await database.create<any>(database.todo, {
-                    type: todoType,
-                    targetId: todoTargetId,
+                    targetId,
                     content: content.trim(),
                     status: 'pending',
                     priority: priority || 'normal',
@@ -58,8 +57,7 @@ export function createTodoCreateTool(todoType: string, todoTargetId: string): St
                     const deadlineDate = new Date(deadlineMs);
                     const cronExpr = deadlineToCron(deadlineDate);
                     const schedulerRow = await database.create<SchedulerRow>(database.scheduler, {
-                        type: todoType,
-                        targetId: todoTargetId,
+                        targetId,
                         expr: cronExpr,
                         message: `[Todo Reminder] #${todoId}: ${content.trim()}`,
                         lastRun: null,

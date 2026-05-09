@@ -16,7 +16,7 @@ import { installSkillFromZip } from '../SkillHub/bundle';
 import axios from 'axios';
 import { AgentStoreService } from '../AgentStore';
 import { LoggerService, log4js } from '../Core/LoggerService';
-import { database, sessionThreadId, parseMemories, type SessionRow, type TodoRow } from '../Core/Database';
+import { database, channelThreadId, parseMemories, type ChannelSessionRow, type TodoRow } from '../Core/Database';
 import { sessionManager } from '../Session/SessionManager';
 import { schedulerService } from '../Scheduler/SchedulerService';
 import { heartbeatService } from '../Heartbeat/HeartbeatService';
@@ -25,6 +25,7 @@ import { WsCommandType } from 'sbot.commons';
 import { getModelMeta, getKnownModels } from './modelCatalog';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
+const WEB_CHANNEL_ID = 'web';
 
 async function fetchAndSaveContextWindow(modelId: string): Promise<void> {
     const mc = config.getModel(modelId);
@@ -406,12 +407,14 @@ class HttpServer {
                     const msg = JSON.parse(data.toString()) as { type?: string; [key: string]: any };
                     const sid = msg.sessionId as string | undefined;
                     if (!sid) throw new Error('sessionId is required');
-                    const threadId = sessionThreadId(sid);
+                    const threadId = channelThreadId('web', WEB_CHANNEL_ID, sid);
                     switch (msg.type) {
                         case WsCommandType.Query: {
                             const enriched = await processMessage(msg.parts ?? [], msg.attachments, uploadDir);
                             if (isEmptyContent(enriched)) break;
-                            sessionManager.onReceiveWebMessage(threadId, enriched, sid);
+                            const row = await database.findOne<ChannelSessionRow>(database.channelSession, { where: { channelId: WEB_CHANNEL_ID, sessionId: sid } });
+                            if (!row) throw new Error(`Web session "${sid}" not found`);
+                            sessionManager.onReceiveWebMessage(threadId, enriched, sid, row.id);
                             break;
                         }
                         case WsCommandType.Approval:
@@ -421,7 +424,7 @@ class HttpServer {
                             break;
                         }
                     }
-                } catch (e: any) { 
+                } catch (e: any) {
                     logger.error(`ws message error: ${e?.message ?? e}`);
                 }
             });
@@ -469,11 +472,10 @@ class HttpServer {
             return database.findAll(database.usageStats, { order: [['date', 'DESC']], limit: 30 });
         }));
 
-        // 按 threadId / sessionId 查询 token 用量
+        // 按 threadId 查询 token 用量
         app.get('/api/thread-usage', api(async req => {
             const threads = (req.query.threads as string || '').split(',').filter(Boolean);
-            const sessions = (req.query.sessions as string || '').split(',').filter(Boolean);
-            return database.loadThreadUsages(threads, sessions);
+            return database.loadThreadUsages(threads);
         }));
     }
 
@@ -583,9 +585,9 @@ class HttpServer {
         });
         app.get('/api/sessions', api(async req => {
             const workPath = req.query.workPath as string | undefined;
-            const where: any = {};
+            const where: any = { channelId: WEB_CHANNEL_ID };
             if (workPath) where.workPath = workPath;
-            const rows = await database.findAll<SessionRow>(database.session, {
+            const rows = await database.findAll<ChannelSessionRow>(database.channelSession, {
                 where,
                 order: [['createdAt', 'DESC']],
             });
@@ -597,33 +599,32 @@ class HttpServer {
         }));
 
         app.post('/api/settings/sessions', api(async req => {
-            const id = randomUUID();
             const now = Date.now();
             const body = req.body;
-            if (!body.agent) throwBad('agent is required');
-            if (!body.saver) throwBad('saver is required');
-            await database.create(database.session, {
-                id,
-                name: body.name ?? '',
-                agent: body.agent,
-                saver: body.saver,
+            const row = await database.create<ChannelSessionRow>(database.channelSession, {
+                channelId: WEB_CHANNEL_ID,
+                sessionId: randomUUID(),
+                sessionName: body.name ?? '',
+                agentId: body.agent || null,
+                saver: body.saver || null,
                 memories: body.memories ? JSON.stringify(body.memories) : null,
                 wikis: body.wikis ? JSON.stringify(body.wikis) : null,
                 workPath: body.workPath ?? null,
                 createdAt: now,
             });
-            return { id };
+            return { id: (row as any).id };
         }));
 
         app.put('/api/settings/sessions/:id', api(async req => {
-            const id = req.params.id as string;
-            const existing = await database.findByPk<SessionRow>(database.session, id);
-            if (!existing) throwBad(`Session "${id}" not found`);
+            const id = parseInt(req.params.id as string, 10);
+            if (isNaN(id)) throwBad('Invalid id');
+            const existing = await database.findByPk<ChannelSessionRow>(database.channelSession, id);
+            if (!existing || existing.channelId !== WEB_CHANNEL_ID) throwBad(`Session "${id}" not found`);
             const body = req.body;
-            await database.update(database.session, {
-                name: body.name ?? existing.name,
-                agent: body.agent ?? existing.agent,
-                saver: body.saver ?? existing.saver,
+            await database.update(database.channelSession, {
+                sessionName: body.name ?? existing.sessionName,
+                agentId: body.agent !== undefined ? (body.agent || null) : existing.agentId,
+                saver: body.saver !== undefined ? (body.saver || null) : existing.saver,
                 memories: body.memories !== undefined ? (body.memories ? JSON.stringify(body.memories) : null) : existing.memories,
                 wikis: body.wikis !== undefined ? (body.wikis ? JSON.stringify(body.wikis) : null) : existing.wikis,
                 workPath: body.workPath !== undefined ? body.workPath : existing.workPath,
@@ -633,8 +634,9 @@ class HttpServer {
         }));
 
         app.delete('/api/settings/sessions/:id', api(async req => {
-            const id = req.params.id as string;
-            await database.destroy(database.session, { where: { id } });
+            const id = parseInt(req.params.id as string, 10);
+            if (isNaN(id)) throwBad('Invalid id');
+            await database.destroy(database.channelSession, { where: { id, channelId: WEB_CHANNEL_ID } });
             return { success: true };
         }));
     }
@@ -1103,7 +1105,7 @@ class HttpServer {
 
     private resolveMemoryThreadId(req: Request): string | undefined {
         const sessionId = req.query.sessionId as string | undefined;
-        if (sessionId) return sessionThreadId(sessionId);
+        if (sessionId) return channelThreadId('web', WEB_CHANNEL_ID, sessionId);
         return req.query.threadId as string | undefined;
     }
 
@@ -1143,16 +1145,19 @@ class HttpServer {
         }));
 
         // ── Session-based saver shortcuts (resolve saverId + threadId from sessionId) ──
-        const getSessionRow = async (sessionId: string): Promise<SessionRow> => {
-            const row = await database.findByPk<SessionRow>(database.session, sessionId);
-            if (!row?.saver) { const e: any = new Error(`Session "${sessionId}" not found or no saver`); e.status = 404; throw e; }
+        const getWebSessionRow = async (sessionId: string): Promise<ChannelSessionRow> => {
+            const row = await database.findOne<ChannelSessionRow>(database.channelSession, { where: { channelId: WEB_CHANNEL_ID, sessionId } });
+            if (!row) { const e: any = new Error(`Session "${sessionId}" not found`); e.status = 404; throw e; }
             return row;
         };
 
         app.get('/api/sessions/:sessionId/history', api(async req => {
             const sessionId = req.params.sessionId as string;
-            const row = await getSessionRow(sessionId);
-            const saver = await AgentRunner.createSaverService(row.saver, sessionThreadId(sessionId));
+            const row = await getWebSessionRow(sessionId);
+            const saverId = row.saver || config.getChannel(WEB_CHANNEL_ID)?.saver;
+            if (!saverId) throwBad(`Session "${sessionId}" has no saver configured`);
+            const threadId = channelThreadId('web', WEB_CHANNEL_ID, sessionId);
+            const saver = await AgentRunner.createSaverService(saverId, threadId);
             const messages = await saver.getAllMessages();
             await saver.dispose();
             return this.formatMessages(messages);
@@ -1160,16 +1165,22 @@ class HttpServer {
 
         app.delete('/api/sessions/:sessionId/history', api(async req => {
             const sessionId = req.params.sessionId as string;
-            const row = await getSessionRow(sessionId);
-            const saver = await AgentRunner.createSaverService(row.saver, sessionThreadId(sessionId));
+            const row = await getWebSessionRow(sessionId);
+            const saverId = row.saver || config.getChannel(WEB_CHANNEL_ID)?.saver;
+            if (!saverId) throwBad(`Session "${sessionId}" has no saver configured`);
+            const threadId = channelThreadId('web', WEB_CHANNEL_ID, sessionId);
+            const saver = await AgentRunner.createSaverService(saverId, threadId);
             await saver.clearMessages();
             await saver.dispose();
         }));
 
         app.get('/api/sessions/:sessionId/thinks/:thinkId', api(async req => {
             const sessionId = req.params.sessionId as string;
-            const row = await getSessionRow(sessionId);
-            const saver = await AgentRunner.createSaverService(row.saver, sessionThreadId(sessionId));
+            const row = await getWebSessionRow(sessionId);
+            const saverId = row.saver || config.getChannel(WEB_CHANNEL_ID)?.saver;
+            if (!saverId) throwBad(`Session "${sessionId}" has no saver configured`);
+            const threadId = channelThreadId('web', WEB_CHANNEL_ID, sessionId);
+            const saver = await AgentRunner.createSaverService(saverId, threadId);
             const messages = await saver.getThink(req.params.thinkId as string);
             await saver.dispose();
             return this.formatMessages(messages);
@@ -1513,7 +1524,7 @@ class HttpServer {
         app.get('/api/session-status', (req, res) => {
             const { sessionId } = req.query as { sessionId?: string };
             if (!sessionId) { res.status(400).json({ error: 'sessionId is required' }); return; }
-            const threadId = sessionThreadId(sessionId);
+            const threadId = channelThreadId('web', WEB_CHANNEL_ID, sessionId);
             const info = sessionManager.getInfo(threadId);
             if (!info) { res.json(null); return; }
             res.json(info);

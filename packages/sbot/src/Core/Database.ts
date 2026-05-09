@@ -11,17 +11,7 @@ export type MessageRow = {
   expireTime: number;
 };
 
-export enum SchedulerType {
-  Channel   = "channel",    // Lark 频道模式（channel_session）
-  Session   = "session",    // 会话模式（sessionId）
-}
-
 // ── threadId 工厂函数 ──
-
-/** 会话模式 threadId */
-export function sessionThreadId(sessionId: string): string {
-  return `session_${sessionId}`
-}
 
 /** 频道模式 threadId */
 export function channelThreadId(channelType: string, channelId: string, sessionId: string): string {
@@ -31,9 +21,8 @@ export function channelThreadId(channelType: string, channelId: string, sessionI
 export type SchedulerRow = {
   id: number;
   expr: string;                    // cron 表达式，如 "0 9 * * *"
-  type: SchedulerType | null;        // 任务类型
   message: string;                 // 消息文本
-  targetId: string | null;         // channel_session.id (string) | sessionId | workPath（按 type 区分）
+  targetId: string | null;         // channel_session.id (string)
   aiProcess: boolean;              // true=交给AI处理后回复, false=直接发送原文不经AI
   lastRun: number | null;          // 上次执行时间戳
   nextRun: number | null;          // 下次预计执行时间戳
@@ -44,7 +33,6 @@ export type SchedulerRow = {
 
 export type TodoRow = {
   id: number;
-  type: string | null;
   targetId: string | null;
   content: string;
   status: string;
@@ -103,24 +91,6 @@ export type ChannelSessionRow = {
   createdAt: number;
 };
 
-export type SessionRow = {
-  id: string;          // UUID primary key
-  name: string;
-  agent: string;       // Agent UUID
-  saver: string;       // Saver UUID
-  memories: string | null;  // JSON array of memory UUIDs
-  wikis: string | null;     // JSON array of wiki UUIDs
-  workPath: string | null;
-  autoApproveAllTools: boolean;  // 是否自动批准所有工具
-  inputTokens: number;       // 累计输入 token
-  outputTokens: number;      // 累计输出 token
-  totalTokens: number;       // 累计总 token
-  lastInputTokens: number;   // 最后一次输入 token
-  lastOutputTokens: number;  // 最后一次输出 token
-  lastTotalTokens: number;   // 最后一次总 token
-  createdAt: number;   // timestamp ms
-};
-
 export type UsageStatsRow = {
   id: number;
   date: string;           // 日期，如 "2026-04-13"
@@ -161,7 +131,6 @@ class Database {
   public channelUser!: ModelStatic<any>;
   public channelSession!: ModelStatic<any>;
   public scheduler!: ModelStatic<any>;
-  public session!: ModelStatic<any>;
   public usageStats!: ModelStatic<any>;
   public todo!: ModelStatic<any>;
 
@@ -445,103 +414,6 @@ class Database {
       },
     );
 
-    this.session = sequelize.define(
-      "session",
-      {
-        id: {
-          type: DataTypes.STRING(36),
-          primaryKey: true,
-          comment: "UUID",
-        },
-        name: {
-          type: DataTypes.STRING(255),
-          allowNull: false,
-          defaultValue: "",
-          comment: "显示名称",
-        },
-        agent: {
-          type: DataTypes.STRING(36),
-          allowNull: false,
-          comment: "Agent UUID",
-        },
-        saver: {
-          type: DataTypes.STRING(36),
-          allowNull: false,
-          comment: "Saver UUID",
-        },
-        memories: {
-          type: DataTypes.TEXT,
-          allowNull: true,
-          defaultValue: null,
-          comment: "Memory UUID 列表（JSON 字符串）",
-        },
-        wikis: {
-          type: DataTypes.TEXT,
-          allowNull: true,
-          defaultValue: null,
-          comment: "Wiki UUID 列表（JSON 字符串）",
-        },
-        workPath: {
-          type: DataTypes.STRING(1024),
-          allowNull: true,
-          defaultValue: null,
-          comment: "工作目录路径",
-        },
-        autoApproveAllTools: {
-          type: DataTypes.BOOLEAN,
-          allowNull: false,
-          defaultValue: false,
-          comment: "是否自动批准所有工具",
-        },
-        inputTokens: {
-          type: DataTypes.INTEGER,
-          allowNull: false,
-          defaultValue: 0,
-          comment: "累计输入 token 数",
-        },
-        outputTokens: {
-          type: DataTypes.INTEGER,
-          allowNull: false,
-          defaultValue: 0,
-          comment: "累计输出 token 数",
-        },
-        totalTokens: {
-          type: DataTypes.INTEGER,
-          allowNull: false,
-          defaultValue: 0,
-          comment: "累计总 token 数",
-        },
-        lastInputTokens: {
-          type: DataTypes.INTEGER,
-          allowNull: false,
-          defaultValue: 0,
-          comment: "最后一次输入 token 数",
-        },
-        lastOutputTokens: {
-          type: DataTypes.INTEGER,
-          allowNull: false,
-          defaultValue: 0,
-          comment: "最后一次输出 token 数",
-        },
-        lastTotalTokens: {
-          type: DataTypes.INTEGER,
-          allowNull: false,
-          defaultValue: 0,
-          comment: "最后一次总 token 数",
-        },
-        createdAt: {
-          type: DataTypes.BIGINT,
-          allowNull: false,
-          comment: "创建时间戳(ms)",
-        },
-      },
-      {
-        tableName: "session",
-        timestamps: false,
-        comment: "会话表",
-      },
-    );
-
     this.scheduler = sequelize.define(
       "scheduler",
       {
@@ -550,12 +422,6 @@ class Database {
           primaryKey: true,
           autoIncrement: true,
           comment: "自增ID",
-        },
-        type: {
-          type: DataTypes.STRING(64),
-          allowNull: true,
-          defaultValue: null,
-          comment: "任务类型标识",
         },
         expr: {
           type: DataTypes.TEXT,
@@ -573,7 +439,7 @@ class Database {
           type: DataTypes.TEXT,
           allowNull: true,
           defaultValue: null,
-          comment: "目标 ID（channel_session.id | sessionId | workPath，按 type 区分）",
+          comment: "目标 channel_session.id",
         },
         aiProcess: {
           type: DataTypes.BOOLEAN,
@@ -628,17 +494,11 @@ class Database {
           autoIncrement: true,
           comment: "自增ID",
         },
-        type: {
-          type: DataTypes.STRING(64),
-          allowNull: true,
-          defaultValue: null,
-          comment: "任务类型标识 (channel | session)",
-        },
         targetId: {
           type: DataTypes.TEXT,
           allowNull: true,
           defaultValue: null,
-          comment: "目标 ID（channel_session.id | sessionId）",
+          comment: "目标 channel_session.id",
         },
         content: {
           type: DataTypes.TEXT,
@@ -787,7 +647,6 @@ class Database {
       await this.message.sync({ alter });
       await this.channelUser.sync({ alter });
       await this.channelSession.sync({ alter });
-      await this.session.sync({ alter });
       await this.scheduler.sync({ alter });
       await this.todo.sync({ alter });
       await this.usageStats.sync({ alter });
@@ -843,17 +702,12 @@ class Database {
     return this.withLock(() => this.sequelize.query(sql, options));
   }
 
-  /** 批量加载 token 用量：sessions 按主键查 session 表，channels 按 channelId+sessionId 查 channel_session 表 */
-  async loadThreadUsages(channelThreadIds: string[], sessionIds: string[]): Promise<Record<string, ThreadUsage>> {
+  async loadThreadUsages(channelThreadIds: string[]): Promise<Record<string, ThreadUsage>> {
     const result: Record<string, ThreadUsage> = {};
     const pick = (r: any): ThreadUsage => ({
       inputTokens: r.inputTokens, outputTokens: r.outputTokens, totalTokens: r.totalTokens,
       lastInputTokens: r.lastInputTokens, lastOutputTokens: r.lastOutputTokens, lastTotalTokens: r.lastTotalTokens,
     });
-    for (const sid of sessionIds) {
-      const row = await this.findByPk<SessionRow>(this.session, sid);
-      if (row) result[sid] = pick(row);
-    }
     for (const tid of channelThreadIds) {
       const parts = tid.split('_');
       if (parts.length < 3) continue;

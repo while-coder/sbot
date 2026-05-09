@@ -9,7 +9,7 @@ import { TODO_DONE_TOOL_NAME } from './index';
 
 const logger = LoggerService.getLogger('Tools/Todo/done.ts');
 
-export function createTodoDoneTool(todoType: string, todoTargetId: string): StructuredToolInterface {
+export function createTodoDoneTool(targetId: string): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: TODO_DONE_TOOL_NAME,
         description: loadPrompt('tools/todo/done.txt'),
@@ -21,7 +21,7 @@ export function createTodoDoneTool(todoType: string, todoTargetId: string): Stru
                 const existing = await database.findByPk<TodoRow>(database.todo, id);
                 if (!existing) return createErrorResult(`Todo #${id} not found`);
 
-                if (existing.type !== todoType || existing.targetId !== todoTargetId) {
+                if (existing.targetId !== targetId) {
                     return createErrorResult(
                         `Permission denied: todo #${id} does not belong to current session`,
                     );

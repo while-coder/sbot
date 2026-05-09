@@ -8,7 +8,7 @@ import { SCHEDULER_LIST_TOOL_NAME } from './index';
 
 const logger = LoggerService.getLogger('Tools/Scheduler/list.ts');
 
-export function createSchedulerListTool(schedulerType: string, schedulerId: string): StructuredToolInterface {
+export function createSchedulerListTool(targetId: string): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: SCHEDULER_LIST_TOOL_NAME,
         description: loadPrompt('tools/scheduler/list.txt'),
@@ -16,7 +16,7 @@ export function createSchedulerListTool(schedulerType: string, schedulerId: stri
         func: async (_args: any): Promise<MCPToolResult> => {
             try {
                 const timers = await database.findAll<SchedulerRow>(database.scheduler, {
-                    where: { type: schedulerType, targetId: schedulerId, disabled: false },
+                    where: { targetId, disabled: false },
                 });
 
                 if (timers.length === 0) {

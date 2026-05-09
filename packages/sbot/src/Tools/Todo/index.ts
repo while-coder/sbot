@@ -12,10 +12,10 @@ import { createTodoCreateTool } from './create';
 import { createTodoListTool } from './list';
 import { createTodoDoneTool } from './done';
 
-export function createTodoTools(todoType: string, todoTargetId: string): StructuredToolInterface[] {
+export function createTodoTools(targetId: string): StructuredToolInterface[] {
     return [
-        createTodoListTool(todoType, todoTargetId),
-        createTodoCreateTool(todoType, todoTargetId),
-        createTodoDoneTool(todoType, todoTargetId),
+        createTodoListTool(targetId),
+        createTodoCreateTool(targetId),
+        createTodoDoneTool(targetId),
     ];
 }

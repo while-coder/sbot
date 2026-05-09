@@ -9,7 +9,7 @@ import { SCHEDULER_CREATE_TOOL_NAME } from './index';
 
 const logger = LoggerService.getLogger('Tools/Scheduler/create.ts');
 
-export function createSchedulerCreateTool(schedulerType: string, schedulerId: string): StructuredToolInterface {
+export function createSchedulerCreateTool(targetId: string): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: SCHEDULER_CREATE_TOOL_NAME,
         description: loadPrompt('tools/scheduler/create.txt'),
@@ -46,8 +46,7 @@ export function createSchedulerCreateTool(schedulerType: string, schedulerId: st
                 if (!message?.trim()) return createErrorResult('message is required');
 
                 const row = await database.create<SchedulerRow>(database.scheduler, {
-                    type:     schedulerType,
-                    targetId: schedulerId,
+                    targetId,
                     expr:     expr.trim(),
                     message:  message.trim(),
                     aiProcess: aiProcess ?? true,

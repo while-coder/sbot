@@ -1,6 +1,6 @@
 import { ProcessAIHandler } from "channel.base";
 import { MessageRole, ToolApproval } from "scorpio.ai";
-import { SessionRow, SchedulerType, database, ChannelSessionRow, channelThreadId, parseMemories } from "../Core/Database";
+import { database, ChannelSessionRow, channelThreadId, parseMemories } from "../Core/Database";
 import { config } from "../Core/Config";
 import { buildExecuteTool } from "./buildExecuteTool";
 import { updateUsageStats } from "./updateUsageStats";
@@ -19,6 +19,10 @@ export function createProcessAIHandler(): ProcessAIHandler {
         const { channelId, sessionId } = dbSession;
         const channel = config.getChannel(channelId);
         if (!channel) throw new Error(`Channel config not found: ${channelId}`);
+
+        if (channelId === 'web') {
+            httpServer.broadcastToWs(JSON.stringify({ sessionId, type: WebChatEventType.Human, data: { content: query } }));
+        }
 
         const agentId = dbSession.agentId || channel.agent;
         const saverId = dbSession.saver || channel.saver;
@@ -53,7 +57,7 @@ export function createProcessAIHandler(): ProcessAIHandler {
 
         const onUsage = async (usage: any) => {
             if (!silent) sessionHandler.session.recordUsage(usage);
-            await updateUsageStats(usage, SchedulerType.Channel, schedulerId);
+            await updateUsageStats(usage, dbSessionId);
         };
 
         const onMessage = silent
@@ -79,51 +83,12 @@ export function createProcessAIHandler(): ProcessAIHandler {
             agentId,
             saverId,
             threadId,
-            scheduler: { schedulerType: SchedulerType.Channel, schedulerId },
+            dbSessionId: schedulerId,
             extraInfo: args?.extraInfo ?? '',
             memories,
             wikis,
             workPath,
             agentTools,
-        });
-    };
-}
-
-export function createWebProcessAIHandler(): ProcessAIHandler {
-    return async (query, args, sessionHandler) => {
-        const sessionId = args?.sessionId as string;
-
-        httpServer.broadcastToWs(JSON.stringify({ sessionId, type: WebChatEventType.Human, data: { content: query } }));
-
-        const row = sessionId ? await database.findByPk<SessionRow>(database.session, sessionId) : undefined;
-        if (!row) throw new Error(`Session "${sessionId}" not found`);
-
-        const threadId = sessionHandler.session.threadId;
-        await AgentRunner.run({
-            query,
-            callbacks: {
-                onMessage: (msg) => sessionHandler.onChatMessage(msg, args),
-                onStreamMessage: (msg) => sessionHandler.onStreamMessage(msg, args),
-                executeTool: buildExecuteTool(
-                    sessionHandler.session,
-                    row.agent,
-                    row.autoApproveAllTools,
-                    (tc) => sessionHandler.executeApproval(tc),
-                ),
-                onUsage: async (usage) => {
-                    sessionHandler.session.recordUsage(usage);
-                    await updateUsageStats(usage, SchedulerType.Session, sessionId);
-                },
-            },
-            agentId: row.agent,
-            saverId: row.saver,
-            threadId,
-            scheduler: { schedulerType: SchedulerType.Session, schedulerId: sessionId },
-            extraInfo: args?.extraInfo ?? '',
-            memories: parseMemories(row.memories),
-            wikis: parseMemories(row.wikis),
-            workPath: row.workPath || undefined,
-            agentTools: sessionHandler.buildAgentTools(args),
         });
     };
 }

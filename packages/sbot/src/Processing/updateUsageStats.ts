@@ -1,12 +1,11 @@
 import { type TokenUsage } from "scorpio.ai";
 import { WebChatEventType } from "sbot.commons";
-import { SchedulerType, database } from "../Core/Database";
+import { database, type ChannelSessionRow } from "../Core/Database";
 import { httpServer } from "../Server/HttpServer";
 
 export async function updateUsageStats(
     usage: TokenUsage,
-    schedulerType: SchedulerType,
-    schedulerId: string,
+    dbSessionId: number,
 ): Promise<void> {
     const today = new Date().toISOString().slice(0, 10);
     const cacheCreation = usage.cache_creation_input_tokens ?? 0;
@@ -34,12 +33,12 @@ export async function updateUsageStats(
         lastOutputTokens: usage.output_tokens,
         lastTotalTokens: usage.total_tokens,
     };
-    if (schedulerType === SchedulerType.Channel) {
-        await database.update(database.channelSession, tokenUpdate, { where: { id: Number(schedulerId) } });
-    } else {
-        await database.update(database.session, tokenUpdate, { where: { id: schedulerId } });
+    await database.update(database.channelSession, tokenUpdate, { where: { id: dbSessionId } });
+
+    const row = await database.findByPk<ChannelSessionRow>(database.channelSession, dbSessionId);
+    if (row && row.channelId === 'web') {
         httpServer.broadcastToWs(JSON.stringify({
-            sessionId: schedulerId,
+            sessionId: row.sessionId,
             type: WebChatEventType.Usage,
             data: { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens, totalTokens: usage.total_tokens, cacheCreationTokens: cacheCreation, cacheReadTokens: cacheRead },
         }));
