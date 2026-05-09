@@ -22,7 +22,7 @@ export type SchedulerRow = {
   id: number;
   expr: string;                    // cron 表达式，如 "0 9 * * *"
   message: string;                 // 消息文本
-  targetId: string | null;         // channel_session.id (string)
+  targetId: string;                // channel_session.id (string)
   aiProcess: boolean;              // true=交给AI处理后回复, false=直接发送原文不经AI
   lastRun: number | null;          // 上次执行时间戳
   nextRun: number | null;          // 下次预计执行时间戳
@@ -33,7 +33,7 @@ export type SchedulerRow = {
 
 export type TodoRow = {
   id: number;
-  targetId: string | null;
+  targetId: string;
   content: string;
   status: string;
   priority: string;
@@ -437,8 +437,8 @@ class Database {
         },
         targetId: {
           type: DataTypes.TEXT,
-          allowNull: true,
-          defaultValue: null,
+          allowNull: false,
+          defaultValue: "",
           comment: "目标 channel_session.id",
         },
         aiProcess: {
@@ -496,8 +496,8 @@ class Database {
         },
         targetId: {
           type: DataTypes.TEXT,
-          allowNull: true,
-          defaultValue: null,
+          allowNull: false,
+          defaultValue: "",
           comment: "目标 channel_session.id",
         },
         content: {

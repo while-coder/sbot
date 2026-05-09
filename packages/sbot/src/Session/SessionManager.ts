@@ -2,6 +2,7 @@ import "reflect-metadata";
 import { ICommand, MessageType, type ChatMessage, type MessageContent, trimContent, isEmptyContent } from "scorpio.ai";
 import { SessionManager, SessionService, ChannelMessageArgs, ChannelSessionHandler } from "channel.base";
 import { type StructuredToolInterface } from "@langchain/core/tools";
+import { WEB_CHANNEL_ID, WEB_CHANNEL_TYPE } from "sbot.commons";
 import { config } from "../Core/Config";
 import { database, ChannelSessionRow } from "../Core/Database";
 import { channelManager } from "../Channel/ChannelManager";
@@ -10,8 +11,6 @@ import { classifyIntent } from "../Processing/classifyIntent";
 
 import { getBuiltInCommands } from "./BuiltInCommands";
 import { WebSocketSessionHandler } from "../Channel/web/WebSocketSessionHandler";
-
-const WEB_CHANNEL_ID = "web";
 
 interface ChannelRouteArgs extends ChannelMessageArgs {
     channelType: string;
@@ -230,7 +229,7 @@ export class SbotSessionManager extends SessionManager {
         query = trimContent(query);
         if (isEmptyContent(query)) return;
         const args: ChannelRouteArgs = {
-            channelType: 'web',
+            channelType: WEB_CHANNEL_TYPE,
             channelId: WEB_CHANNEL_ID,
             dbSessionId,
             sessionId,

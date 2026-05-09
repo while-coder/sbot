@@ -1,5 +1,9 @@
 export const DEFAULT_PORT = 5500;
 
+/** Web channel 的固定 channelId 和 type */
+export const WEB_CHANNEL_ID = 'web';
+export const WEB_CHANNEL_TYPE = 'web';
+
 export enum SaverType {
   File   = "file",
   Sqlite = "sqlite",

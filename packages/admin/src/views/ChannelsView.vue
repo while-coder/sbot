@@ -17,6 +17,7 @@ const { isMobile } = useResponsive()
 interface PluginInfo {
   type: string
   label: string
+  builtin: boolean
   configSchema: Record<string, { label: string; type: string; required?: boolean; description?: string; default?: string | boolean | number; options?: Array<{ label: string; value: string }> }>
 }
 
@@ -156,9 +157,6 @@ function formatTokens(n: number): string {
   return n.toLocaleString()
 }
 
-function threadId(channelId: string, c: any, sessionId: string): string {
-  return `${c.type}_${channelId}_${sessionId}`
-}
 
 const showModal = ref(false)
 const editingId = ref<string | null>(null)
@@ -304,7 +302,8 @@ async function waitForQRConfirm(key: string, channelId: string | null, type: str
 function openAdd() {
   editingId.value = null
   clearActionState()
-  form.value = { name: '', type: plugins.value[0]?.type || '', config: {}, agent: '', saver: '', memories: [], wikis: [], workPath: '', streamVerbose: false, autoApproveAllTools: false, intentModel: '', intentPrompt: '', intentThreshold: 0.7, mergeWindow: 0 }
+  const defaultType = plugins.value.find(p => !p.builtin)?.type || ''
+  form.value = { name: '', type: defaultType, config: {}, agent: '', saver: '', memories: [], wikis: [], workPath: '', streamVerbose: false, autoApproveAllTools: false, intentModel: '', intentPrompt: '', intentThreshold: 0.7, mergeWindow: 0 }
   showModal.value = true
 }
 
@@ -368,6 +367,12 @@ async function save() {
   }
 }
 
+function isBuiltin(id: string): boolean {
+  const c = channels.value[id]
+  if (!c) return false
+  return plugins.value.some(p => p.type === c.type && p.builtin)
+}
+
 async function remove(id: string) {
   const c = channels.value[id]
   const label = c?.name || id
@@ -417,7 +422,7 @@ async function refresh() {
             <div class="channel-card-right" @click.stop>
               <span class="channel-card-agent">{{ agentOptions.find(a => a.id === c.agent)?.label || c.agent || '-' }}</span>
               <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
-              <button class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
+              <button v-if="!isBuiltin(id as string)" class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
             </div>
           </div>
           <!-- Card meta -->
@@ -461,7 +466,7 @@ async function refresh() {
                           <span v-if="s.totalTokens > 0" class="session-item-tokens" :title="`${t('usage.total')}: ${formatTokens(s.totalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatTokens(s.inputTokens)} / ${t('usage.output_tokens')}: ${formatTokens(s.outputTokens)}` + (s.lastTotalTokens > 0 ? `\n${t('usage.last')}: ${formatTokens(s.lastTotalTokens)} tokens` : '')">{{ formatTokens(s.totalTokens) }} tok</span>
                         </div>
                         <div class="ops-cell">
-                          <button v-if="s.saver || c.saver" class="btn-outline btn-sm" @click="saverViewModal?.open(s.saver || c.saver, saverOptions.find(o => o.id === (s.saver || c.saver))?.label || (s.saver || c.saver), threadId(id as string, c, s.sessionId))">{{ t('channels.history') }}</button>
+                          <button v-if="s.saver || c.saver" class="btn-outline btn-sm" @click="saverViewModal?.openByDbId(s.id, saverOptions.find(o => o.id === (s.saver || c.saver))?.label || (s.saver || c.saver))">{{ t('channels.history') }}</button>
                           <button class="btn-outline btn-sm" @click="openEditSession(s)">{{ t('common.edit') }}</button>
                           <button class="btn-danger btn-sm" @click="removeSession(id as string, s)">{{ t('common.delete') }}</button>
                         </div>
@@ -523,7 +528,7 @@ async function refresh() {
           </div>
           <div class="mobile-card-ops">
             <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
-            <button class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
+            <button v-if="!isBuiltin(id as string)" class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
           </div>
           <!-- Expandable detail -->
           <div v-if="expandedChannels[id as string]" style="margin-top:10px">
@@ -597,7 +602,7 @@ async function refresh() {
           <div class="form-group">
             <label>{{ t('channels.channel_type') }} *</label>
             <select v-model="form.type" @change="form.config = {}" :disabled="!!editingId">
-              <option v-for="p in plugins" :key="p.type" :value="p.type">{{ p.label }}</option>
+              <option v-for="p in plugins.filter(p => !p.builtin || editingId)" :key="p.type" :value="p.type">{{ p.label }}</option>
             </select>
           </div>
           <div class="form-group">

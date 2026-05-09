@@ -21,11 +21,10 @@ import { sessionManager } from '../Session/SessionManager';
 import { schedulerService } from '../Scheduler/SchedulerService';
 import { heartbeatService } from '../Heartbeat/HeartbeatService';
 import { channelManager } from '../Channel/ChannelManager';
-import { WsCommandType } from 'sbot.commons';
+import { WsCommandType, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE } from 'sbot.commons';
 import { getModelMeta, getKnownModels } from './modelCatalog';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
-const WEB_CHANNEL_ID = 'web';
 
 async function fetchAndSaveContextWindow(modelId: string): Promise<void> {
     const mc = config.getModel(modelId);
@@ -107,6 +106,7 @@ function registerSettingsCrud(
         label?: string;
         checkOnUpdate?: boolean;
         checkOnDelete?: boolean;
+        beforeDelete?: (id: string) => void;
         afterSave?: (id: string) => Promise<void> | void;
         createReturn?: (id: string, body: any) => any;
         getSettings?: () => any;
@@ -144,6 +144,7 @@ function registerSettingsCrud(
 
     app.delete(`/api/settings/${section}/:id`, api(async req => {
         const id = req.params.id as string;
+        opts?.beforeDelete?.(id);
         const map = getSection();
         if (checkOnDelete && !map[id]) throwBad(`${label} "${id}" not found`);
         delete map[id];
@@ -407,7 +408,7 @@ class HttpServer {
                     const msg = JSON.parse(data.toString()) as { type?: string; [key: string]: any };
                     const sid = msg.sessionId as string | undefined;
                     if (!sid) throw new Error('sessionId is required');
-                    const threadId = channelThreadId('web', WEB_CHANNEL_ID, sid);
+                    const threadId = channelThreadId(WEB_CHANNEL_TYPE, WEB_CHANNEL_ID, sid);
                     switch (msg.type) {
                         case WsCommandType.Query: {
                             const enriched = await processMessage(msg.parts ?? [], msg.attachments, uploadDir);
@@ -579,6 +580,7 @@ class HttpServer {
             label: 'Channel',
             checkOnUpdate: true,
             checkOnDelete: true,
+            beforeDelete: (id) => { if (id === WEB_CHANNEL_ID) throwBad('Cannot delete built-in web channel'); },
             afterSave: (id) => channelManager.reloadChannel(id),
             createReturn: (id, body) => ({ id, ...body }),
             getSettings,
@@ -1105,7 +1107,7 @@ class HttpServer {
 
     private resolveMemoryThreadId(req: Request): string | undefined {
         const sessionId = req.query.sessionId as string | undefined;
-        if (sessionId) return channelThreadId('web', WEB_CHANNEL_ID, sessionId);
+        if (sessionId) return channelThreadId(WEB_CHANNEL_TYPE, WEB_CHANNEL_ID, sessionId);
         return req.query.threadId as string | undefined;
     }
 
@@ -1144,7 +1146,47 @@ class HttpServer {
             return this.formatMessages(messages);
         }));
 
-        // ── Session-based saver shortcuts (resolve saverId + threadId from sessionId) ──
+        // ── Channel-session history (generic, by DB PK) ──
+        const resolveSessionSaver = (row: ChannelSessionRow): { saverId: string; threadId: string } => {
+            const saverId = row.saver || config.getChannel(row.channelId)?.saver;
+            if (!saverId) throwBad(`Session id=${row.id} has no saver configured`);
+            const channelType = config.getChannel(row.channelId)?.type ?? row.channelId;
+            return { saverId, threadId: channelThreadId(channelType, row.channelId, row.sessionId) };
+        };
+
+        const getSessionRowByPk = async (id: string): Promise<ChannelSessionRow> => {
+            const row = await database.findByPk<ChannelSessionRow>(database.channelSession, parseInt(id));
+            if (!row) { const e: any = new Error(`channel_session id=${id} not found`); e.status = 404; throw e; }
+            return row;
+        };
+
+        app.get('/api/channel-sessions/:id/history', api(async req => {
+            const row = await getSessionRowByPk(req.params.id as string);
+            const { saverId, threadId } = resolveSessionSaver(row);
+            const saver = await AgentRunner.createSaverService(saverId, threadId);
+            const messages = await saver.getAllMessages();
+            await saver.dispose();
+            return this.formatMessages(messages);
+        }));
+
+        app.delete('/api/channel-sessions/:id/history', api(async req => {
+            const row = await getSessionRowByPk(req.params.id as string);
+            const { saverId, threadId } = resolveSessionSaver(row);
+            const saver = await AgentRunner.createSaverService(saverId, threadId);
+            await saver.clearMessages();
+            await saver.dispose();
+        }));
+
+        app.get('/api/channel-sessions/:id/thinks/:thinkId', api(async req => {
+            const row = await getSessionRowByPk(req.params.id as string);
+            const { saverId, threadId } = resolveSessionSaver(row);
+            const saver = await AgentRunner.createSaverService(saverId, threadId);
+            const messages = await saver.getThink(req.params.thinkId as string);
+            await saver.dispose();
+            return this.formatMessages(messages);
+        }));
+
+        // ── Legacy compat: /api/sessions/:sessionId/* (web channel UUID-based) ──
         const getWebSessionRow = async (sessionId: string): Promise<ChannelSessionRow> => {
             const row = await database.findOne<ChannelSessionRow>(database.channelSession, { where: { channelId: WEB_CHANNEL_ID, sessionId } });
             if (!row) { const e: any = new Error(`Session "${sessionId}" not found`); e.status = 404; throw e; }
@@ -1152,11 +1194,8 @@ class HttpServer {
         };
 
         app.get('/api/sessions/:sessionId/history', api(async req => {
-            const sessionId = req.params.sessionId as string;
-            const row = await getWebSessionRow(sessionId);
-            const saverId = row.saver || config.getChannel(WEB_CHANNEL_ID)?.saver;
-            if (!saverId) throwBad(`Session "${sessionId}" has no saver configured`);
-            const threadId = channelThreadId('web', WEB_CHANNEL_ID, sessionId);
+            const row = await getWebSessionRow(req.params.sessionId as string);
+            const { saverId, threadId } = resolveSessionSaver(row);
             const saver = await AgentRunner.createSaverService(saverId, threadId);
             const messages = await saver.getAllMessages();
             await saver.dispose();
@@ -1164,22 +1203,16 @@ class HttpServer {
         }));
 
         app.delete('/api/sessions/:sessionId/history', api(async req => {
-            const sessionId = req.params.sessionId as string;
-            const row = await getWebSessionRow(sessionId);
-            const saverId = row.saver || config.getChannel(WEB_CHANNEL_ID)?.saver;
-            if (!saverId) throwBad(`Session "${sessionId}" has no saver configured`);
-            const threadId = channelThreadId('web', WEB_CHANNEL_ID, sessionId);
+            const row = await getWebSessionRow(req.params.sessionId as string);
+            const { saverId, threadId } = resolveSessionSaver(row);
             const saver = await AgentRunner.createSaverService(saverId, threadId);
             await saver.clearMessages();
             await saver.dispose();
         }));
 
         app.get('/api/sessions/:sessionId/thinks/:thinkId', api(async req => {
-            const sessionId = req.params.sessionId as string;
-            const row = await getWebSessionRow(sessionId);
-            const saverId = row.saver || config.getChannel(WEB_CHANNEL_ID)?.saver;
-            if (!saverId) throwBad(`Session "${sessionId}" has no saver configured`);
-            const threadId = channelThreadId('web', WEB_CHANNEL_ID, sessionId);
+            const row = await getWebSessionRow(req.params.sessionId as string);
+            const { saverId, threadId } = resolveSessionSaver(row);
             const saver = await AgentRunner.createSaverService(saverId, threadId);
             const messages = await saver.getThink(req.params.thinkId as string);
             await saver.dispose();
@@ -1524,7 +1557,7 @@ class HttpServer {
         app.get('/api/session-status', (req, res) => {
             const { sessionId } = req.query as { sessionId?: string };
             if (!sessionId) { res.status(400).json({ error: 'sessionId is required' }); return; }
-            const threadId = channelThreadId('web', WEB_CHANNEL_ID, sessionId);
+            const threadId = channelThreadId(WEB_CHANNEL_TYPE, WEB_CHANNEL_ID, sessionId);
             const info = sessionManager.getInfo(threadId);
             if (!info) { res.json(null); return; }
             res.json(info);

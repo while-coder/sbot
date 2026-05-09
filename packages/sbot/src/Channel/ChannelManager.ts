@@ -5,7 +5,7 @@ import { Op } from "sequelize";
 import { sessionManager } from "../Session/SessionManager";
 import { LoggerService } from "../Core/LoggerService";
 import { config } from "../Core/Config";
-import { compareSemver, fetchLatestRelease } from "sbot.commons";
+import { compareSemver, fetchLatestRelease, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE } from "sbot.commons";
 import { channelThreadId } from "../Core/Database";
 import { PluginLoader } from "./PluginLoader";
 
@@ -123,6 +123,8 @@ export class ChannelManager {
         const channel = config.getChannel(channelId);
         if (!channel) return false;
 
+        if (channel.type === WEB_CHANNEL_TYPE) return false;
+
         const plugin = this.plugins.get(channel.type);
         if (!plugin) {
             logger.warn(`Unknown channel type [${channel.type}], skipping channel [${channel.name || channelId}]`);
@@ -177,8 +179,14 @@ export class ChannelManager {
         return this.plugins.get(type);
     }
 
-    getPluginList(): Array<{ type: string; label: string; configSchema: Record<string, any> }> {
-        return [...this.plugins.values()].map(p => ({ type: p.type, label: p.label, configSchema: p.configSchema }));
+    getPluginList(): Array<{ type: string; label: string; configSchema: Record<string, any>; builtin: boolean }> {
+        const list: Array<{ type: string; label: string; configSchema: Record<string, any>; builtin: boolean }> = [
+            { type: WEB_CHANNEL_TYPE, label: 'Web', configSchema: {}, builtin: true },
+        ];
+        for (const p of this.plugins.values()) {
+            list.push({ type: p.type, label: p.label, configSchema: p.configSchema, builtin: false });
+        }
+        return list;
     }
 
     async dispose(): Promise<void> {

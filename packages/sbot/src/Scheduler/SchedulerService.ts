@@ -1,4 +1,5 @@
 import { CronJob } from "cron";
+import { WEB_CHANNEL_ID } from "sbot.commons";
 import { database, SchedulerRow, ChannelSessionRow, channelThreadId } from "../Core/Database";
 import { sessionManager } from "../Session/SessionManager";
 import { LoggerService } from "../Core/LoggerService";
@@ -32,7 +33,7 @@ async function executeScheduler(schedulerId: number): Promise<void> {
         }
 
         if (scheduler.aiProcess) {
-            if (channelId === 'web') {
+            if (channelId === WEB_CHANNEL_ID) {
                 const threadId = channelThreadId(channelType, channelId, sessionId);
                 await sessionManager.onReceiveWebMessage(threadId, scheduler.message, sessionId, dbSessionId);
             } else {
@@ -45,7 +46,7 @@ async function executeScheduler(schedulerId: number): Promise<void> {
                 });
             }
         } else {
-            if (channelId === 'web') {
+            if (channelId === WEB_CHANNEL_ID) {
                 logger.warn(`Scheduler task ${tag} non-aiProcess for web channel is not supported`);
             } else {
                 await channelManager.sendText(channelId, sessionId, scheduler.message);

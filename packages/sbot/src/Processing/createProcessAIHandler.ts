@@ -4,7 +4,7 @@ import { database, ChannelSessionRow, channelThreadId, parseMemories } from "../
 import { config } from "../Core/Config";
 import { buildExecuteTool } from "./buildExecuteTool";
 import { updateUsageStats } from "./updateUsageStats";
-import { WebChatEventType } from "sbot.commons";
+import { WebChatEventType, WEB_CHANNEL_ID } from "sbot.commons";
 import { httpServer } from "../Server/HttpServer";
 import { AgentRunner } from "../Agent/AgentRunner";
 
@@ -20,7 +20,7 @@ export function createProcessAIHandler(): ProcessAIHandler {
         const channel = config.getChannel(channelId);
         if (!channel) throw new Error(`Channel config not found: ${channelId}`);
 
-        if (channelId === 'web') {
+        if (channelId === WEB_CHANNEL_ID) {
             httpServer.broadcastToWs(JSON.stringify({ sessionId, type: WebChatEventType.Human, data: { content: query } }));
         }
 
@@ -38,7 +38,6 @@ export function createProcessAIHandler(): ProcessAIHandler {
         const autoApproveAllTools = dbSession.autoApproveAllTools ?? channel.autoApproveAllTools ?? false;
         const streamVerbose = dbSession.streamVerbose ?? channel.streamVerbose ?? false;
         const threadId = channelThreadId(channel.type, channelId, sessionId);
-        const schedulerId = String(dbSessionId);
 
         const silent: boolean = args?.silent ?? false;
         const extraAgentTools = args?.agentTools;
@@ -83,7 +82,7 @@ export function createProcessAIHandler(): ProcessAIHandler {
             agentId,
             saverId,
             threadId,
-            dbSessionId: schedulerId,
+            dbSessionId: String(dbSessionId),
             extraInfo: args?.extraInfo ?? '',
             memories,
             wikis,
