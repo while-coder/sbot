@@ -612,8 +612,6 @@ export default {
   },
   new_session: {
     title: 'New Session',
-    error_agent: 'Please select an Agent',
-    error_saver: 'Please select Storage',
   },
   usage: {
     title: 'Token Usage Stats',

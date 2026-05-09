@@ -594,18 +594,24 @@ class HttpServer {
                 order: [['createdAt', 'DESC']],
             });
             return rows.map(r => ({
-                ...r,
+                id: r.sessionId,
+                name: r.sessionName,
+                agent: r.agentId || '',
+                saver: r.saver || '',
                 memories: parseMemories(r.memories),
                 wikis: parseMemories(r.wikis),
+                workPath: r.workPath || undefined,
+                autoApproveAllTools: r.autoApproveAllTools || undefined,
             }));
         }));
 
         app.post('/api/settings/sessions', api(async req => {
             const now = Date.now();
             const body = req.body;
-            const row = await database.create<ChannelSessionRow>(database.channelSession, {
+            const sid = randomUUID();
+            await database.create<ChannelSessionRow>(database.channelSession, {
                 channelId: WEB_CHANNEL_ID,
-                sessionId: randomUUID(),
+                sessionId: sid,
                 sessionName: body.name ?? '',
                 agentId: body.agent || null,
                 saver: body.saver || null,
@@ -614,14 +620,13 @@ class HttpServer {
                 workPath: body.workPath ?? null,
                 createdAt: now,
             });
-            return { id: (row as any).id };
+            return { id: sid };
         }));
 
         app.put('/api/settings/sessions/:id', api(async req => {
-            const id = parseInt(req.params.id as string, 10);
-            if (isNaN(id)) throwBad('Invalid id');
-            const existing = await database.findByPk<ChannelSessionRow>(database.channelSession, id);
-            if (!existing || existing.channelId !== WEB_CHANNEL_ID) throwBad(`Session "${id}" not found`);
+            const sessionId = req.params.id as string;
+            const existing = await database.findOne<ChannelSessionRow>(database.channelSession, { where: { channelId: WEB_CHANNEL_ID, sessionId } });
+            if (!existing) throwBad(`Session "${sessionId}" not found`);
             const body = req.body;
             await database.update(database.channelSession, {
                 sessionName: body.name ?? existing.sessionName,
@@ -631,14 +636,13 @@ class HttpServer {
                 wikis: body.wikis !== undefined ? (body.wikis ? JSON.stringify(body.wikis) : null) : existing.wikis,
                 workPath: body.workPath !== undefined ? body.workPath : existing.workPath,
                 autoApproveAllTools: body.autoApproveAllTools !== undefined ? !!body.autoApproveAllTools : existing.autoApproveAllTools,
-            }, { where: { id } });
-            return { id };
+            }, { where: { channelId: WEB_CHANNEL_ID, sessionId } });
+            return { id: sessionId };
         }));
 
         app.delete('/api/settings/sessions/:id', api(async req => {
-            const id = parseInt(req.params.id as string, 10);
-            if (isNaN(id)) throwBad('Invalid id');
-            await database.destroy(database.channelSession, { where: { id, channelId: WEB_CHANNEL_ID } });
+            const sessionId = req.params.id as string;
+            await database.destroy(database.channelSession, { where: { channelId: WEB_CHANNEL_ID, sessionId } });
             return { success: true };
         }));
     }

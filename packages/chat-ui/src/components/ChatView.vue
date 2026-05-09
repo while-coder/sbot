@@ -16,7 +16,6 @@ import ConfigToolbar from './ConfigToolbar.vue'
 import StatusBar from './StatusBar.vue'
 import ChatArea from './ChatArea.vue'
 import PathPickerModal from './PathPickerModal.vue'
-import NewSessionModal from './NewSessionModal.vue'
 
 const props = withDefaults(defineProps<{
   transport: IChatTransport
@@ -49,7 +48,6 @@ const usage = ref<UsageInfo | null>(null)
 
 const chatAreaRef = ref<InstanceType<typeof ChatArea>>()
 const pathPickerRef = ref<InstanceType<typeof PathPickerModal>>()
-const newSessionRef = ref<InstanceType<typeof NewSessionModal>>()
 const rootEl = ref<HTMLElement | null>(null)
 const isCompact = useCompactProvider(rootEl)
 const sidebarOpen = ref(false)
@@ -249,12 +247,16 @@ async function onRenameSession(id: string, name: string) {
   }
 }
 
-async function onSessionCreated(sessionId: string) {
+async function createNewSession() {
   try {
+    const d = new Date()
+    const pad = (n: number) => n.toString().padStart(2, '0')
+    const name = `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+    const res = await props.transport.createSession({ name })
     const list = await props.transport.listSessions()
     sessions.value = list
+    activeSessionId.value = res.id
   } catch {}
-  activeSessionId.value = sessionId
 }
 
 // ── Config updates ──
@@ -387,7 +389,7 @@ const fetchThinks = computed(() => props.transport.fetchThinks?.bind(props.trans
               @select="(id: string) => { selectSession(id); sidebarOpen = false }"
               @delete="onDeleteSession"
               @rename="onRenameSession"
-              @new-session="newSessionRef?.open()"
+              @new-session="createNewSession"
             />
           </div>
         </div>
@@ -403,7 +405,7 @@ const fetchThinks = computed(() => props.transport.fetchThinks?.bind(props.trans
       @select="selectSession"
       @delete="onDeleteSession"
       @rename="onRenameSession"
-      @new-session="newSessionRef?.open()"
+      @new-session="createNewSession"
     />
 
     <!-- Right panel -->
@@ -455,13 +457,6 @@ const fetchThinks = computed(() => props.transport.fetchThinks?.bind(props.trans
       :transport="transport"
       :labels="labels"
       @confirm="onPathConfirmed"
-    />
-    <NewSessionModal
-      ref="newSessionRef"
-      :transport="transport"
-      :settings="settings"
-      :labels="labels"
-      @created="onSessionCreated"
     />
   </div>
 </template>

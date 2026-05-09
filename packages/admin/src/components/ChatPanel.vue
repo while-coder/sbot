@@ -3,7 +3,7 @@ import { ref, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { StoredMessage, ContentPart, Attachment } from '@sbot/chat-ui'
 import MessageList from './MessageList.vue'
-import RichInput from './RichInput.vue'
+import { RichInput } from '@sbot/chat-ui'
 
 const { t } = useI18n()
 
@@ -193,6 +193,7 @@ defineExpose({ scrollToBottom })
         <RichInput
           ref="richInputRef"
           :placeholder="t('chat.input_placeholder')"
+          :max-height="200"
           @submit="send"
           @files="onFilesFromEditor"
         />

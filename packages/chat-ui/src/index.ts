@@ -53,7 +53,6 @@ export { default as ToolApprovalBar } from './components/ToolApprovalBar.vue';
 export { default as AskForm } from './components/AskForm.vue';
 export { default as MultiSelect } from './components/MultiSelect.vue';
 export { default as PathPickerModal } from './components/PathPickerModal.vue';
-export { default as NewSessionModal } from './components/NewSessionModal.vue';
 export { default as MessageList } from './components/MessageList.vue';
 export { default as MessageItem } from './components/MessageItem.vue';
 export { default as RichInput } from './components/RichInput.vue';

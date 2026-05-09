@@ -6,7 +6,7 @@ import { ModelProvider } from "scorpio.ai/Model/types";
 import type { EmbeddingConfig } from "scorpio.ai/Embedding/types";
 import { EmbeddingProvider } from "scorpio.ai/Embedding/types";
 export type { AgentSubNode } from "scorpio.ai";
-import { DEFAULT_PORT, SaverType, AgentMode, MemoryMode, SaverConfig, MemoryConfig, WikiConfig, ChannelConfig, type AgentStoreSource, type AgentSourceEntry, type HeartbeatConfig } from "sbot.commons";
+import { DEFAULT_PORT, SaverType, AgentMode, MemoryMode, SaverConfig, MemoryConfig, WikiConfig, ChannelConfig, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE, type AgentStoreSource, type AgentSourceEntry, type HeartbeatConfig } from "sbot.commons";
 export { DEFAULT_PORT, SaverType, AgentMode, SaverConfig, MemoryConfig, WikiConfig, ChannelConfig } from "sbot.commons";
 
 export const isDev = process.env.NODE_ENV === 'development';
@@ -324,6 +324,22 @@ class Config {
       }
     } catch (error) {
       this._settings = {};
+    }
+    this.ensureWebChannel();
+  }
+
+  private ensureWebChannel(): void {
+    if (!this._settings.channels) this._settings.channels = {};
+    if (!this._settings.channels[WEB_CHANNEL_ID]) {
+      this._settings.channels[WEB_CHANNEL_ID] = {
+        name: 'Web',
+        type: WEB_CHANNEL_TYPE,
+        config: {},
+        agent: '',
+        saver: '',
+        memories: [],
+      };
+      this.saveSettings();
     }
   }
 

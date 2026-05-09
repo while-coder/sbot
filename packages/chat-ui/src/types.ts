@@ -134,9 +134,6 @@ export interface ChatLabels {
   clearHistory?: string
   confirmClearHistory?: string
   historyCleared?: string
-  newSessionTitle?: string
-  errorNoAgent?: string
-  errorNoSaver?: string
   selectPlaceholder?: string
   create?: string
   executeTool?: string
@@ -163,8 +160,8 @@ export interface WikiOption { id: string; name: string }
 
 // ── Create session ──
 export interface CreateSessionOpts {
-  agent: string
-  saver: string
+  agent?: string
+  saver?: string
   memories?: string[]
   wikis?: string[]
   name?: string

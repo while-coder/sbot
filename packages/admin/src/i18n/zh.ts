@@ -612,8 +612,6 @@ export default {
   },
   new_session: {
     title: '新建会话',
-    error_agent: '请选择智能体',
-    error_saver: '请选择存储',
   },
   usage: {
     title: 'Token 用量统计',
