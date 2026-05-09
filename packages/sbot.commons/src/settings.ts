@@ -222,6 +222,29 @@ export interface ChannelConfig {
   mergeWindow?: number
 }
 
+export interface HeartbeatConfig {
+  /** 显示名称 */
+  name: string
+  /** 触发间隔：cron 表达式（如 "0 0/30 * * *"）或时长简写（"30m", "2h"） */
+  expr: string
+  /** 心跳 prompt 文件路径（相对于 ~/.sbot/prompts/，如 "heartbeat/daily.md"） */
+  promptFile: string
+  /** 主执行目标 ChannelSession ID（对应 channel_session 表主键），Agent 上下文和 saver 从此 session 获取 */
+  target: number
+  /** 通知目标（可选）：有意义的响应额外转发到这些 session 的频道 */
+  notifyTargets?: number[]
+  /** 是否启用（默认 true） */
+  enabled?: boolean
+  /** 活跃时段（仅在此时段内触发），start/end 为小时数 0-23 */
+  activeHours?: { start: number; end: number; timezone?: string }
+  /** 空心跳标记 token，配置后 Agent 无事可做时应回复此 token，触发历史剪枝；不配置则不做检测 */
+  okToken?: string
+  /** 是否从对话历史中剪枝空心跳（默认 true，仅 okToken 配置时生效） */
+  pruneOk?: boolean
+  /** 去重窗口（小时），相同响应内容在此窗口内不重复通知（默认 24） */
+  dedupHours?: number
+}
+
 export interface Settings {
   httpPort?: number
   httpUrl?: string
@@ -239,5 +262,6 @@ export interface Settings {
   wikis?: Record<string, WikiConfig>
   savers?: Record<string, SaverConfig>
   channels?: Record<string, ChannelConfig>
+  heartbeats?: Record<string, HeartbeatConfig>
   agentSources?: AgentSourceEntry[]
 }

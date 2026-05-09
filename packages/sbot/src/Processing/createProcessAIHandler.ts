@@ -1,112 +1,38 @@
-import { ProcessAIHandler, ChannelSessionHandler, type ChannelMessageArgs, type MessageContent } from "channel.base";
-import { AgentRunner } from "../Agent/AgentRunner";
-import { MessageRole, type ChatMessage } from "scorpio.ai";
-import { config } from "../Core/Config";
-import { ChannelSessionRow, SessionRow, SchedulerType, database, parseMemories } from "../Core/Database";
+import { ProcessAIHandler } from "channel.base";
+import { MessageRole } from "scorpio.ai";
+import { SessionRow, SchedulerType, database, parseMemories } from "../Core/Database";
 import { buildExecuteTool } from "./buildExecuteTool";
+import { updateUsageStats } from "./updateUsageStats";
+import { runChannelSessionAgent } from "./runChannelSessionAgent";
 import { WebChatEventType } from "sbot.commons";
 import { httpServer } from "../Server/HttpServer";
-
-function runAgent(query: MessageContent, args: ChannelMessageArgs, sessionHandler: ChannelSessionHandler, agentId: string, saverId: string, schedulerType: SchedulerType, schedulerId: string, memories: string[], wikis: string[], workPath?: string, autoApproveAllTools?: boolean, callbackOverrides?: { onMessage?: (msg: ChatMessage) => Promise<void>; onStreamMessage?: ((msg: ChatMessage) => Promise<void>) | undefined }): Promise<void> {
-    const threadId = sessionHandler.session.threadId;
-    return AgentRunner.run({
-        query,
-        callbacks: {
-            onMessage: callbackOverrides?.onMessage ?? ((msg) => sessionHandler.onChatMessage(msg, args)),
-            onStreamMessage: callbackOverrides ? callbackOverrides.onStreamMessage : (msg) => sessionHandler.onStreamMessage(msg, args),
-            executeTool: buildExecuteTool(
-                sessionHandler.session,
-                agentId,
-                (tc) => sessionHandler.executeApproval(tc),
-                autoApproveAllTools,
-            ),
-            onUsage: async (usage) => {
-                sessionHandler.session.recordUsage(usage);
-                const today = new Date().toISOString().slice(0, 10);
-                const cacheCreation = usage.cache_creation_input_tokens ?? 0;
-                const cacheRead = usage.cache_read_input_tokens ?? 0;
-                const [, created] = await database.findOrCreate(database.usageStats, {
-                    where: { date: today },
-                    defaults: { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens, totalTokens: usage.total_tokens, cacheCreationTokens: cacheCreation, cacheReadTokens: cacheRead },
-                });
-                if (!created) {
-                    await database.update(database.usageStats, {
-                        inputTokens: database.sequelize.literal(`inputTokens + ${usage.input_tokens}`),
-                        outputTokens: database.sequelize.literal(`outputTokens + ${usage.output_tokens}`),
-                        totalTokens: database.sequelize.literal(`totalTokens + ${usage.total_tokens}`),
-                        cacheCreationTokens: database.sequelize.literal(`cacheCreationTokens + ${cacheCreation}`),
-                        cacheReadTokens: database.sequelize.literal(`cacheReadTokens + ${cacheRead}`),
-                    }, { where: { date: today } });
-                }
-                // 增量更新 session 行的累计 token + last token
-                const tokenUpdate = {
-                    inputTokens: database.sequelize.literal(`inputTokens + ${usage.input_tokens}`),
-                    outputTokens: database.sequelize.literal(`outputTokens + ${usage.output_tokens}`),
-                    totalTokens: database.sequelize.literal(`totalTokens + ${usage.total_tokens}`),
-                    lastInputTokens: usage.input_tokens,
-                    lastOutputTokens: usage.output_tokens,
-                    lastTotalTokens: usage.total_tokens,
-                };
-                if (schedulerType === SchedulerType.Channel) {
-                    await database.update(database.channelSession, tokenUpdate, { where: { id: Number(schedulerId) } });
-                } else {
-                    await database.update(database.session, tokenUpdate, { where: { id: schedulerId } });
-                    httpServer.broadcastToWs(JSON.stringify({
-                        sessionId: schedulerId,
-                        type: WebChatEventType.Usage,
-                        data: { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens, totalTokens: usage.total_tokens, cacheCreationTokens: cacheCreation, cacheReadTokens: cacheRead },
-                    }));
-                }
-            },
-        },
-        agentId,
-        saverId,
-        threadId,
-        scheduler: { schedulerType, schedulerId },
-        extraInfo: args?.extraInfo ?? '',
-        memories,
-        wikis,
-        workPath,
-        agentTools: sessionHandler.buildAgentTools(args),
-    });
-}
+import { AgentRunner } from "../Agent/AgentRunner";
 
 export function createProcessAIHandler(): ProcessAIHandler {
     return async (query, args, sessionHandler) => {
-        const channelId = args?.channelId as string;
-        const channel = channelId ? config.getChannel(channelId) : undefined;
-        if (!channel) throw new Error(`Channel "${channelId}" not found`);
-
         const dbSessionId: number = args?.dbSessionId;
         if (!dbSessionId) throw new Error("dbSessionId not specified");
 
-        const dbSession = await database.findByPk<ChannelSessionRow>(database.channelSession, dbSessionId);
+        await runChannelSessionAgent({
+            dbSessionId,
+            query,
+            buildCallbacks: (ctx) => {
+                const executeTool = buildExecuteTool(
+                    sessionHandler.session,
+                    ctx.agentId,
+                    (tc) => sessionHandler.executeApproval(tc),
+                    ctx.autoApproveAllTools,
+                );
 
-        const agentId = dbSession?.agentId || (channel.agent as string);
-        const saverId = dbSession?.saver || channel.saver;
-
-        const sessionMemories = parseMemories(dbSession?.memories);
-        const memories = dbSession?.useChannelMemories
-            ? [...((channel.memories as string[]) ?? []), ...sessionMemories]
-            : sessionMemories;
-
-        const sessionWikis = parseMemories(dbSession?.wikis);
-        const wikis = dbSession?.useChannelWikis
-            ? [...((channel.wikis as string[]) ?? []), ...sessionWikis]
-            : sessionWikis;
-
-        const workPath = dbSession?.workPath ?? channel.workPath;
-        const autoApproveAllTools = dbSession?.autoApproveAllTools ?? channel.autoApproveAllTools;
-        const streamVerbose = dbSession?.streamVerbose ?? channel.streamVerbose ?? false;
-
-        if (streamVerbose) {
-            await runAgent(query, args, sessionHandler, agentId, saverId,
-                SchedulerType.Channel, String(dbSessionId), memories, wikis, workPath,
-                autoApproveAllTools);
-        } else {
-            await runAgent(query, args, sessionHandler, agentId, saverId,
-                SchedulerType.Channel, String(dbSessionId), memories, wikis, workPath,
-                autoApproveAllTools, {
+                if (ctx.streamVerbose) {
+                    return {
+                        onMessage: (msg) => sessionHandler.onChatMessage(msg, args),
+                        onStreamMessage: (msg) => sessionHandler.onStreamMessage(msg, args),
+                        executeTool,
+                        onUsage: async (usage) => { sessionHandler.session.recordUsage(usage); },
+                    };
+                }
+                return {
                     onMessage: (msg) => {
                         if (msg.role === MessageRole.AI && !msg.tool_calls?.length) {
                             return sessionHandler.onChatMessage(msg, args);
@@ -114,8 +40,13 @@ export function createProcessAIHandler(): ProcessAIHandler {
                         return Promise.resolve();
                     },
                     onStreamMessage: undefined,
-                });
-        }
+                    executeTool,
+                    onUsage: async (usage) => { sessionHandler.session.recordUsage(usage); },
+                };
+            },
+            extraInfo: args?.extraInfo ?? '',
+            agentTools: sessionHandler.buildAgentTools(args),
+        });
     };
 }
 
@@ -123,14 +54,37 @@ export function createWebProcessAIHandler(): ProcessAIHandler {
     return async (query, args, sessionHandler) => {
         const sessionId = args?.sessionId as string;
 
-        // Echo the human message back to the WebSocket client (preserves multimodal content)
         httpServer.broadcastToWs(JSON.stringify({ sessionId, type: WebChatEventType.Human, data: { content: query } }));
 
         const row = sessionId ? await database.findByPk<SessionRow>(database.session, sessionId) : undefined;
         if (!row) throw new Error(`Session "${sessionId}" not found`);
 
-        await runAgent(query, args, sessionHandler, row.agent, row.saver,
-            SchedulerType.Session, sessionId, parseMemories(row.memories), parseMemories(row.wikis), row.workPath || undefined,
-            row.autoApproveAllTools);
+        const threadId = sessionHandler.session.threadId;
+        await AgentRunner.run({
+            query,
+            callbacks: {
+                onMessage: (msg) => sessionHandler.onChatMessage(msg, args),
+                onStreamMessage: (msg) => sessionHandler.onStreamMessage(msg, args),
+                executeTool: buildExecuteTool(
+                    sessionHandler.session,
+                    row.agent,
+                    (tc) => sessionHandler.executeApproval(tc),
+                    row.autoApproveAllTools,
+                ),
+                onUsage: async (usage) => {
+                    sessionHandler.session.recordUsage(usage);
+                    await updateUsageStats(usage, SchedulerType.Session, sessionId);
+                },
+            },
+            agentId: row.agent,
+            saverId: row.saver,
+            threadId,
+            scheduler: { schedulerType: SchedulerType.Session, schedulerId: sessionId },
+            extraInfo: args?.extraInfo ?? '',
+            memories: parseMemories(row.memories),
+            wikis: parseMemories(row.wikis),
+            workPath: row.workPath || undefined,
+            agentTools: sessionHandler.buildAgentTools(args),
+        });
     };
 }

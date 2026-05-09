@@ -16,12 +16,11 @@ interface ChannelRouteArgs extends ChannelMessageArgs {
     channelType: string;
     channelId: string;
     dbSessionId: number;
-    mentionBot?: boolean;
+    mentionBot: boolean;
 }
 
-interface WebRouteArgs {
+interface WebRouteArgs extends ChannelMessageArgs {
     channelType: typeof WEB_CHANNEL;
-    sessionId?: string;
 }
 
 type SessionRouteArgs = ChannelRouteArgs | WebRouteArgs;
@@ -33,7 +32,7 @@ const webProcessAIHandler = createWebProcessAIHandler();
 
 class SbotSession extends SessionService {
     private manager: SbotSessionManager;
-    private channel?: any;
+    private channel?: ChannelSessionHandler;
 
     constructor(threadId: string, manager: SbotSessionManager) {
         super(threadId, config.getConfigPath(`sessions/${threadId}/settings.json`));
@@ -255,11 +254,12 @@ export class SbotSessionManager extends SessionManager {
         return classifyIntent(query, intentModel, intentPrompt, intentThreshold, threadId);
     }
 
-    async onReceiveWebMessage(threadId: string, query: MessageContent, sessionId?: string): Promise<void> {
+    async onReceiveWebMessage(threadId: string, query: MessageContent, sessionId: string): Promise<void> {
         query = trimContent(query);
         if (isEmptyContent(query)) return;
         const session = this.getOrCreate(threadId);
-        await session.onReceiveMessage(query, { channelType: WEB_CHANNEL, sessionId });
+        const args: WebRouteArgs = { channelType: WEB_CHANNEL, sessionId };
+        await session.onReceiveMessage(query, args);
     }
 
     // ── Trigger action routing ──

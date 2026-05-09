@@ -101,4 +101,6 @@ export abstract class ChannelSessionHandler {
   protected abort(): void {
     this.session.abort();
   }
+
+  async onTriggerAction(..._args: any[]): Promise<void> {}
 }

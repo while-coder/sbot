@@ -6,7 +6,7 @@ import { ModelProvider } from "scorpio.ai/Model/types";
 import type { EmbeddingConfig } from "scorpio.ai/Embedding/types";
 import { EmbeddingProvider } from "scorpio.ai/Embedding/types";
 export type { AgentSubNode } from "scorpio.ai";
-import { DEFAULT_PORT, SaverType, AgentMode, MemoryMode, SaverConfig, MemoryConfig, WikiConfig, ChannelConfig, type AgentStoreSource, type AgentSourceEntry } from "sbot.commons";
+import { DEFAULT_PORT, SaverType, AgentMode, MemoryMode, SaverConfig, MemoryConfig, WikiConfig, ChannelConfig, type AgentStoreSource, type AgentSourceEntry, type HeartbeatConfig } from "sbot.commons";
 export { DEFAULT_PORT, SaverType, AgentMode, SaverConfig, MemoryConfig, WikiConfig, ChannelConfig } from "sbot.commons";
 
 export const isDev = process.env.NODE_ENV === 'development';
@@ -84,6 +84,7 @@ export interface Settings {
   memories?: Record<string, MemoryConfig>;
   wikis?: Record<string, WikiConfig>;
   channels?: Record<string, ChannelConfig>;
+  heartbeats?: Record<string, HeartbeatConfig>;
   plugins?: string[];
   agentSources?: AgentSourceEntry[];
 }
@@ -93,7 +94,7 @@ const SETTINGS_KEYS: ReadonlySet<string> = new Set(Object.keys({
   httpPort: true, httpUrl: true, autoApproveTools: true, autoApproveAllTools: true,
   startupCommands: true, checkUpdateTime: true, maxImageSize: true,
   models: true, embeddings: true, savers: true, memories: true, wikis: true, channels: true,
-  plugins: true, agentSources: true,
+  heartbeats: true, plugins: true, agentSources: true,
 } satisfies Record<keyof Settings, true>));
 
 /**
@@ -270,6 +271,11 @@ class Config {
   getChannel(id: string): ChannelConfig | undefined {
     if (!this._settings.channels) return undefined;
     return this._settings.channels[id.trim()];
+  }
+
+  getHeartbeat(id: string): HeartbeatConfig | undefined {
+    if (!this._settings.heartbeats) return undefined;
+    return this._settings.heartbeats[id.trim()];
   }
 
   async getModelService(id: string | undefined, throwError = false): Promise<IModelService | undefined> {

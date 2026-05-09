@@ -19,6 +19,7 @@ import { LoggerService, log4js } from '../Core/LoggerService';
 import { database, sessionThreadId, parseMemories, type SessionRow, type TodoRow } from '../Core/Database';
 import { sessionManager } from '../Session/SessionManager';
 import { schedulerService } from '../Scheduler/SchedulerService';
+import { heartbeatService } from '../Heartbeat/HeartbeatService';
 import { channelManager } from '../Channel/ChannelManager';
 import { WsCommandType } from 'sbot.commons';
 import { getModelMeta, getKnownModels } from './modelCatalog';
@@ -387,6 +388,7 @@ class HttpServer {
         this.registerPromptRoutes(app);
         this.registerDataRoutes(app);
         this.registerSchedulerRoutes(app);
+        this.registerHeartbeatRoutes(app);
         this.registerTodoRoutes(app);
         this.registerLogRoutes(app);
         this.registerUserRoutes(app);
@@ -565,6 +567,11 @@ class HttpServer {
         registerSettingsCrud(app, 'savers', { label: 'Saver config', getSettings });
         registerSettingsCrud(app, 'memories', { label: 'Memory config', getSettings });
         registerSettingsCrud(app, 'wikis', { label: 'Wiki config', getSettings });
+        registerSettingsCrud(app, 'heartbeats', {
+            label: 'Heartbeat',
+            afterSave: () => heartbeatService.reloadAll(),
+            getSettings,
+        });
         this.registerAgentRoutes(app);
         registerSettingsCrud(app, 'channels', {
             label: 'Channel',
@@ -1292,6 +1299,26 @@ class HttpServer {
             const id = parseInt(req.params.id as string, 10);
             if (isNaN(id)) throwBad('Invalid id');
             await schedulerService.delete(id);
+        }));
+    }
+
+    // ===== Heartbeats =====
+    private registerHeartbeatRoutes(app: express.Application) {
+        app.get('/api/heartbeats', api(async () => {
+            return heartbeatService.getStatus();
+        }));
+
+        app.post('/api/heartbeats/:id/trigger', api(async req => {
+            const id = req.params.id as string;
+            const hbConfig = config.getHeartbeat(id);
+            if (!hbConfig) throwBad('Heartbeat config not found');
+            await heartbeatService.triggerOnce(id);
+            return { triggered: true };
+        }));
+
+        app.post('/api/heartbeats/reload', api(async () => {
+            await heartbeatService.reloadAll();
+            return { reloaded: true };
         }));
     }
 
