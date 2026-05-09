@@ -220,6 +220,10 @@ export interface ChannelConfig {
   intentThreshold?: number
   /** 消息合并窗口（毫秒），同一会话在此时间内的连续消息会合并后再处理。0 或不设置表示不合并 */
   mergeWindow?: number
+  /** 日常对话工具白名单，不设置则全部可用 */
+  tools?: string[]
+  /** 心跳可用工具白名单 */
+  heartbeatTools?: string[]
 }
 
 export interface HeartbeatConfig {
@@ -231,18 +235,14 @@ export interface HeartbeatConfig {
   promptFile: string
   /** 主执行目标 ChannelSession ID（对应 channel_session 表主键），Agent 上下文和 saver 从此 session 获取 */
   target: number
-  /** 通知目标（可选）：有意义的响应额外转发到这些 session 的频道 */
-  notifyTargets?: number[]
-  /** 是否启用（默认 true） */
-  enabled?: boolean
+  /** 通知目标：有意义的响应额外转发到这些 session 的频道 */
+  notifyTargets: number[]
+  /** 是否启用 */
+  enabled: boolean
   /** 活跃时段（仅在此时段内触发），start/end 为小时数 0-23 */
-  activeHours?: { start: number; end: number; timezone?: string }
-  /** 空心跳标记 token，配置后 Agent 无事可做时应回复此 token，触发历史剪枝；不配置则不做检测 */
-  okToken?: string
-  /** 是否从对话历史中剪枝空心跳（默认 true，仅 okToken 配置时生效） */
-  pruneOk?: boolean
-  /** 去重窗口（小时），相同响应内容在此窗口内不重复通知（默认 24） */
-  dedupHours?: number
+  activeHours: { start: number; end: number; timezone?: string }
+  /** AI 调用 idle tool 后是否剪枝本轮对话 */
+  pruneIdle: boolean
 }
 
 export interface Settings {

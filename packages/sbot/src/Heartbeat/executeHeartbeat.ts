@@ -1,13 +1,14 @@
-import { createHash } from "crypto";
-import { MessageRole, ToolApproval, type ChatMessage } from "scorpio.ai";
+import { MessageRole, type ChatMessage, type StoredMessage } from "scorpio.ai";
+import { DynamicStructuredTool } from "@langchain/core/tools";
+import { z } from "zod";
 import { type HeartbeatConfig } from "sbot.commons";
 import { AgentRunner } from "../Agent/AgentRunner";
 import { database, ChannelSessionRow, channelThreadId } from "../Core/Database";
 import { config } from "../Core/Config";
-import { sessionManager } from "../Session/SessionManager";
+import { channelManager } from "../Channel/ChannelManager";
 import { loadPrompt } from "../Core/PromptLoader";
 import { LoggerService } from "../Core/LoggerService";
-import { runChannelSessionAgent } from "../Processing/runChannelSessionAgent";
+import { sessionManager } from "../Session/SessionManager";
 
 
 const logger = LoggerService.getLogger("executeHeartbeat.ts");
@@ -15,8 +16,6 @@ const logger = LoggerService.getLogger("executeHeartbeat.ts");
 export interface HeartbeatExecutionContext {
     heartbeatId: string;
     config: HeartbeatConfig;
-    running: Set<string>;
-    dedupCache: Map<string, { hash: string; ts: number }>;
 }
 
 function isInActiveHours(cfg: HeartbeatConfig): boolean {
@@ -33,28 +32,33 @@ function isInActiveHours(cfg: HeartbeatConfig): boolean {
     return hour >= start || hour < end;
 }
 
-function contentHash(text: string): string {
-    return createHash('md5').update(text.trim()).digest('hex').slice(0, 16);
-}
-
 function extractText(content: ChatMessage['content']): string {
     if (typeof content === 'string') return content;
     return content.filter(p => p.type === 'text').map(p => p.text ?? '').join('');
 }
 
+const IDLE_TOOL_NAME = '_heartbeat_idle';
+
+function createIdleTool(onCalled: () => void) {
+    return new DynamicStructuredTool({
+        name: IDLE_TOOL_NAME,
+        description: 'Call this tool when everything is normal and there is nothing to report. Do NOT reply with text if you call this tool.',
+        schema: z.object({}),
+        func: async () => {
+            onCalled();
+            return 'OK';
+        },
+    });
+}
+
 export async function executeHeartbeat(ctx: HeartbeatExecutionContext): Promise<void> {
-    const { heartbeatId, config: hbConfig, running, dedupCache } = ctx;
+    const { heartbeatId, config: hbConfig } = ctx;
     const tag = `[heartbeat:${heartbeatId}]`;
 
     if (hbConfig.enabled === false) return;
 
     if (!isInActiveHours(hbConfig)) {
         logger.debug(`${tag} skipped: outside active hours`);
-        return;
-    }
-
-    if (running.has(heartbeatId)) {
-        logger.debug(`${tag} still running, skipping`);
         return;
     }
 
@@ -66,91 +70,83 @@ export async function executeHeartbeat(ctx: HeartbeatExecutionContext): Promise<
         return;
     }
 
-    const okToken = hbConfig.okToken;
-    const pruneOk = hbConfig.pruneOk !== false;
-    const dedupHours = hbConfig.dedupHours ?? 24;
+    const pruneIdle = hbConfig.pruneIdle !== false;
 
     let aiResponse = '';
+    let idleCalled = false;
 
-    running.add(heartbeatId);
-    let result;
-    try {
-        result = await runChannelSessionAgent({
-            dbSessionId: hbConfig.target,
-            query: prompt,
-            buildCallbacks: () => ({
-                onMessage: async (msg: ChatMessage) => {
-                    if (msg.role === MessageRole.AI && !msg.tool_calls?.length) {
-                        aiResponse = extractText(msg.content);
-                    }
-                },
-                onStreamMessage: undefined,
-                executeTool: async () => ToolApproval.Allow,
-            }),
-        });
-    } finally {
-        running.delete(heartbeatId);
+    const dbSession = await database.findByPk<ChannelSessionRow>(database.channelSession, hbConfig.target);
+    if (!dbSession) {
+        logger.error(`${tag} channel_session id=${hbConfig.target} not found`);
+        return;
+    }
+    const channel = config.getChannel(dbSession.channelId);
+    if (!channel) {
+        logger.error(`${tag} channel config not found: ${dbSession.channelId}`);
+        return;
     }
 
-    const { saverId, threadId } = result;
+    const agentTools = [createIdleTool(() => { idleCalled = true; })];
+    const toolWhitelist = [...(channel.heartbeatTools ?? []), IDLE_TOOL_NAME];
+    const saverId = dbSession.saver || channel.saver;
+    const threadId = channelThreadId(channel.type, dbSession.channelId, dbSession.sessionId);
 
-    // 响应处理
-    const isOk = okToken
-        ? aiResponse.trim().toUpperCase().includes(okToken.toUpperCase())
-        : false;
-
-    if (isOk && pruneOk) {
+    // 在 agent 运行前保存消息快照，pruneIdle 时用快照覆盖
+    let snapshot: StoredMessage[] | undefined;
+    if (pruneIdle) {
         try {
             const saver = await AgentRunner.createSaverService(saverId, threadId);
             try {
-                const allMessages = await saver.getAllMessages();
-                if (allMessages.length >= 2) {
-                    const last = allMessages[allMessages.length - 1];
-                    const secondLast = allMessages[allMessages.length - 2];
-                    if (last.message.role === MessageRole.AI && secondLast.message.role === MessageRole.Human) {
-                        allMessages.splice(allMessages.length - 2, 2);
-                        await saver.replaceAllMessages(allMessages);
-                        logger.debug(`${tag} pruned ok token from history`);
-                    }
-                }
+                snapshot = await saver.getAllMessages();
             } finally {
                 await saver.dispose();
             }
         } catch (e: any) {
-            logger.warn(`${tag} prune failed: ${e?.message}`);
+            logger.warn(`${tag} snapshot failed: ${e?.message}`);
         }
-    } else if (!isOk && aiResponse.trim()) {
-        // 有意义的响应：去重 + 通知
-        const hash = contentHash(aiResponse);
-        const cached = dedupCache.get(heartbeatId);
-        const now = Date.now();
-        const dedupWindowMs = dedupHours * 3600_000;
+    }
 
-        if (cached && cached.hash === hash && (now - cached.ts) < dedupWindowMs) {
-            logger.debug(`${tag} dedup hit, suppressing notification`);
-        } else {
-            dedupCache.set(heartbeatId, { hash, ts: now });
-
-            // 转发到 notifyTargets
-            const notifyTargets = hbConfig.notifyTargets ?? [];
-            for (const notifyId of notifyTargets) {
-                try {
-                    const notifySession = await database.findByPk<ChannelSessionRow>(database.channelSession, notifyId);
-                    if (!notifySession) continue;
-                    const notifyChannel = config.getChannel(notifySession.channelId);
-                    if (!notifyChannel) continue;
-                    const notifyThreadId = channelThreadId(notifyChannel.type, notifySession.channelId, notifySession.sessionId);
-                    await sessionManager.onReceiveChannelMessage(notifyThreadId, `[Heartbeat] ${aiResponse}`, {
-                        channelType: notifyChannel.type,
-                        channelId: notifySession.channelId,
-                        dbSessionId: notifyId,
-                        sessionId: notifySession.sessionId,
-                        mentionBot: true,
-                    });
-                } catch (e: any) {
-                    logger.warn(`${tag} notify to session ${notifyId} failed: ${e?.message}`);
+    // 通过消息队列执行，避免与正常消息并发冲突
+    await new Promise<void>((resolve, reject) => {
+        sessionManager.onReceiveChannelMessage(threadId, prompt, {
+            channelType: channel.type,
+            channelId: dbSession.channelId,
+            dbSessionId: hbConfig.target,
+            sessionId: dbSession.sessionId,
+            silent: true,
+            agentTools,
+            toolWhitelist,
+            onMessage: (msg: ChatMessage) => {
+                if (msg.role === MessageRole.AI && !msg.tool_calls?.length) {
+                    aiResponse = extractText(msg.content);
                 }
+            },
+            onComplete: (error?: any) => {
+                if (error) reject(error);
+                else resolve();
+            },
+        });
+    });
+
+    if (idleCalled) {
+        if (pruneIdle && snapshot) {
+            try {
+                const saver = await AgentRunner.createSaverService(saverId, threadId);
+                try {
+                    await saver.replaceAllMessages(snapshot);
+                    logger.debug(`${tag} idle: restored pre-heartbeat snapshot`);
+                } finally {
+                    await saver.dispose();
+                }
+            } catch (e: any) {
+                logger.warn(`${tag} prune failed: ${e?.message}`);
             }
+        } else {
+            logger.debug(`${tag} idle: keeping history`);
+        }
+    } else if (aiResponse.trim() && hbConfig.notifyTargets) {
+        for (const notifyId of hbConfig.notifyTargets) {
+            await channelManager.sendTextToSession(notifyId, `[Heartbeat] ${aiResponse}`);
         }
 
         logger.info(`${tag} substantive response: ${aiResponse.slice(0, 100)}...`);

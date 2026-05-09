@@ -1,6 +1,7 @@
 import "reflect-metadata";
-import { ICommand, MessageType, type MessageContent, trimContent, isEmptyContent } from "scorpio.ai";
+import { ICommand, MessageType, type ChatMessage, type MessageContent, trimContent, isEmptyContent } from "scorpio.ai";
 import { SessionManager, SessionService, ChannelMessageArgs, ChannelSessionHandler } from "channel.base";
+import { type StructuredToolInterface } from "@langchain/core/tools";
 import { config } from "../Core/Config";
 import { database, ChannelSessionRow, SessionRow } from "../Core/Database";
 import { channelManager } from "../Channel/ChannelManager";
@@ -17,6 +18,11 @@ interface ChannelRouteArgs extends ChannelMessageArgs {
     channelId: string;
     dbSessionId: number;
     mentionBot?: boolean;
+    silent?: boolean;
+    agentTools?: StructuredToolInterface[];
+    toolWhitelist?: string[];
+    onMessage?: (msg: ChatMessage) => void;
+    onComplete?: (error?: any) => void;
 }
 
 interface WebRouteArgs extends ChannelMessageArgs {
@@ -52,7 +58,9 @@ class SbotSession extends SessionService {
     }
 
     protected async onProcessStart(query: MessageContent, args: SessionRouteArgs, messageType: MessageType): Promise<string | void> {
-        await this.getChannel(args).onProcessStart(query, this.argsWithQueue(args), messageType);
+        if (!('silent' in args && args.silent)) {
+            await this.getChannel(args).onProcessStart(query, this.argsWithQueue(args), messageType);
+        }
         const channelId = 'channelId' in args ? args.channelId : undefined;
         const channelName = channelId ? config.getChannel(channelId)?.name : undefined;
         return [args.channelType, channelName ?? channelId, this.threadId].filter(Boolean).join('/');
@@ -67,7 +75,12 @@ class SbotSession extends SessionService {
     }
 
     protected async onProcessEnd(query: MessageContent, args: SessionRouteArgs, messageType: MessageType, error?: any): Promise<void> {
-        await this.getChannel(args).onProcessEnd(query, this.argsWithQueue(args), messageType, error);
+        if (!('silent' in args && args.silent)) {
+            await this.getChannel(args).onProcessEnd(query, this.argsWithQueue(args), messageType, error);
+        }
+        if ('onComplete' in args && args.onComplete) {
+            args.onComplete(error);
+        }
         if (this.messageQueue.length === 0) {
             this.manager.end(this.threadId);
         }
@@ -199,8 +212,8 @@ export class SbotSessionManager extends SessionManager {
         query = trimContent(query);
         if (isEmptyContent(query)) return;
 
-        // 命令消息跳过意图过滤和消息合并，直接透传
-        if (typeof query === 'string' && query.trimStart().startsWith('/')) {
+        // 静默模式和命令消息跳过意图过滤和消息合并，直接透传
+        if (args.silent || (typeof query === 'string' && query.trimStart().startsWith('/'))) {
             const session = this.getOrCreate(threadId);
             await session.onReceiveMessage(query, args);
             return;

@@ -1,6 +1,5 @@
 import { CronJob } from "cron";
 import { config } from "../Core/Config";
-import { database } from "../Core/Database";
 import { LoggerService } from "../Core/LoggerService";
 import { durationToCron, durationToMs } from "./durationParser";
 import { executeHeartbeat, type HeartbeatExecutionContext } from "./executeHeartbeat";
@@ -11,7 +10,6 @@ class HeartbeatService {
     private jobs = new Map<string, CronJob>();
     private intervals = new Map<string, ReturnType<typeof setInterval>>();
     private running = new Set<string>();
-    private dedupCache = new Map<string, { hash: string; ts: number }>();
 
     async start(): Promise<void> {
         const heartbeats = config.settings.heartbeats;
@@ -82,17 +80,23 @@ class HeartbeatService {
             return;
         }
 
+        if (this.running.has(heartbeatId)) {
+            logger.debug(`Heartbeat [${heartbeatId}] still running, skipping`);
+            return;
+        }
+
         const ctx: HeartbeatExecutionContext = {
             heartbeatId,
             config: hbConfig,
-            running: this.running,
-            dedupCache: this.dedupCache,
         };
 
+        this.running.add(heartbeatId);
         try {
             await executeHeartbeat(ctx);
         } catch (e: any) {
             logger.error(`Heartbeat [${heartbeatId}] execution error: ${e?.message ?? e}`);
+        } finally {
+            this.running.delete(heartbeatId);
         }
     }
 

@@ -37,8 +37,8 @@ const INTERNAL_TOOLS = new Set([
 export function buildExecuteTool(
     session: SessionService,
     agentId: string,
+    sessionAutoApproveAll: boolean,
     executeApproval: (toolCall: ChatToolCall) => Promise<ToolApproval>,
-    sessionAutoApproveAll?: boolean,
 ): (toolCall: ChatToolCall) => Promise<ToolApproval> {
     const { settings } = session;
     if (!settings.approveTools) settings.approveTools = {};

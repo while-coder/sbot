@@ -14,7 +14,7 @@ import {
     T_ModelCallTimeout,
     type CreateAgentFn,
 } from "scorpio.ai";
-import { type AgentSchedulerContext } from "./AgentRunner";
+import { type AgentOwnerContext } from "./AgentRunner";
 import { type StructuredToolInterface } from "@langchain/core/tools";
 import { createSchedulerTools } from "../Tools/Scheduler/index";
 import { createTodoTools } from "../Tools/Todo/index";
@@ -31,8 +31,8 @@ export interface AgentCreateOptions {
     container: ServiceContainer;
     /** 注入到 system prompt 的额外上下文片段 */
     extraPrompts: string[];
-    /** 调度器上下文，用于内联绑定 scheduler_create 工具的 type/id */
-    scheduler: AgentSchedulerContext;
+    /** 归属上下文，用于内联绑定 scheduler/todo 工具的 type/id */
+    owner: AgentOwnerContext;
     /** 动态注册到 Agent 的工具列表 */
     agentTools?: StructuredToolInterface[];
 }
@@ -53,7 +53,7 @@ export class AgentFactory {
         if (agentType !== AgentMode.Generative) {
             const { mcp, skills } = agentEntry;
             await this.registerSkillService(container, agentId, skills);
-            await this.registerToolService(container, agentId, options.scheduler, mcp, agentTools);
+            await this.registerToolService(container, agentId, options.owner, mcp, agentTools);
         }
 
         const systemPrompts = [loadPrompt('system/init.txt'), ...extraPrompts];
@@ -61,7 +61,7 @@ export class AgentFactory {
             systemPrompts.push(agentEntry.systemPrompt);
 
         const createAgentFn: CreateAgentFn = (name, subContainer) =>
-            AgentFactory.create({ agentId: name, container: subContainer, extraPrompts, agentTools, scheduler: options.scheduler });
+            AgentFactory.create({ agentId: name, container: subContainer, extraPrompts, agentTools, owner: options.owner });
 
         switch (agentType) {
             case AgentMode.ReAct:

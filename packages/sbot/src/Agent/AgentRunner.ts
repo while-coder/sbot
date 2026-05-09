@@ -32,12 +32,12 @@ import { WikiDatabaseManager } from "./WikiDatabaseManager";
 const logger = LoggerService.getLogger('AgentRunner.ts');
 
 
-/** 调度器上下文，标识本次运行归属的调度器 */
-export interface AgentSchedulerContext {
-    /** 调度器类型（Channel / Session） */
-    schedulerType: SchedulerType;
-    /** 调度器实例 ID（channelSessionId / sessionId） */
-    schedulerId: string;
+/** 归属上下文，标识本次运行归属的会话 */
+export interface AgentOwnerContext {
+    /** 归属类型（Channel / Session） */
+    ownerType: SchedulerType;
+    /** 归属实例 ID（channelSessionId / sessionId） */
+    ownerId: string;
 }
 
 export interface AgentRunOptions {
@@ -61,13 +61,13 @@ export interface AgentRunOptions {
     workPath?: string;
     /** 动态注册到 Agent 的工具列表 */
     agentTools?: StructuredToolInterface[];
-    /** 调度器上下文 */
-    scheduler: AgentSchedulerContext;
+    /** 归属上下文 */
+    owner: AgentOwnerContext;
 }
 
 export class AgentRunner {
     static async run(options: AgentRunOptions): Promise<void> {
-        const { query, callbacks, agentId, saverId, threadId, scheduler, extraInfo, memories, wikis, agentTools } = options;
+        const { query, callbacks, agentId, saverId, threadId, owner, extraInfo, memories, wikis, agentTools } = options;
         if (!agentId.trim())   throw new Error("agent not specified");
         if (!saverId.trim())   throw new Error("saver not specified");
         if (!threadId.trim())  throw new Error("threadId not specified");
@@ -105,7 +105,7 @@ export class AgentRunner {
         await AgentRunner.registerWikiServices(container, wikis ?? [], threadId);
         await AgentRunner.registerSaverService(container, saverId, threadId);
 
-        const agent = await AgentFactory.create({ agentId, container, extraPrompts, agentTools, scheduler });
+        const agent = await AgentFactory.create({ agentId, container, extraPrompts, agentTools, owner });
         try {
             await agent.stream(query, callbacks, signal);
         } finally {
