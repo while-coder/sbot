@@ -38,8 +38,9 @@ export function createSchedulerCreateTool(schedulerType: string, schedulerId: st
             ),
             message: z.string().describe('Message to send when the task fires'),
             maxRuns: z.number().optional().describe('Max executions (0 or omit = unlimited). Set to 1 for one-shot tasks.'),
+            aiProcess: z.boolean().optional().describe('Whether AI should process this message before sending the reply. true (default) = AI receives the message as input and generates a response; false = send the message text directly to the channel as-is, no AI involvement.'),
         }) as any,
-        func: async ({ expr, message, maxRuns }: any): Promise<MCPToolResult> => {
+        func: async ({ expr, message, maxRuns, aiProcess }: any): Promise<MCPToolResult> => {
             try {
                 if (!expr?.trim())    return createErrorResult('expr is required');
                 if (!message?.trim()) return createErrorResult('message is required');
@@ -49,6 +50,7 @@ export function createSchedulerCreateTool(schedulerType: string, schedulerId: st
                     targetId: schedulerId,
                     expr:     expr.trim(),
                     message:  message.trim(),
+                    aiProcess: aiProcess ?? true,
                     lastRun:  null,
                     runCount: 0,
                     maxRuns:  maxRuns ?? 0,

@@ -208,6 +208,17 @@ export class ChannelManager {
         return true;
     }
 
+    async sendTextToSession(dbSessionId: number, text: string): Promise<boolean> {
+        try {
+            const row = await database.findOne<ChannelSessionRow>(database.channelSession, { where: { id: dbSessionId } });
+            if (!row) return false;
+            return this.sendText(row.channelId, row.sessionId, text);
+        } catch (e) {
+            logger.warn(`sendTextToSession(${dbSessionId}) failed: ${e}`);
+            return false;
+        }
+    }
+
     async sendFile(channelId: string, sessionId: string, file: string | Buffer, fileName?: string): Promise<boolean> {
         const service = this.services.get(channelId);
         if (!service) return false;

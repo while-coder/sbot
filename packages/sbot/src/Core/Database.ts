@@ -34,6 +34,7 @@ export type SchedulerRow = {
   type: SchedulerType | null;        // 任务类型
   message: string;                 // 消息文本
   targetId: string | null;         // channel_session.id (string) | sessionId | workPath（按 type 区分）
+  aiProcess: boolean;              // true=交给AI处理后回复, false=直接发送原文不经AI
   lastRun: number | null;          // 上次执行时间戳
   nextRun: number | null;          // 下次预计执行时间戳
   runCount: number;                // 已执行次数
@@ -573,6 +574,12 @@ class Database {
           allowNull: true,
           defaultValue: null,
           comment: "目标 ID（channel_session.id | sessionId | workPath，按 type 区分）",
+        },
+        aiProcess: {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: true,
+          comment: "true=交给AI处理后回复, false=直接发送原文",
         },
         lastRun: {
           type: DataTypes.BIGINT,

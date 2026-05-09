@@ -35,15 +35,19 @@ async function executeScheduler(schedulerId: number): Promise<void> {
                 logger.warn(`Scheduler task ${tag} unknown channel type for channelId=${channelId}`);
                 return;
             }
-            const threadId = channelThreadId(channelType, channelId, sessionId);
 
-            await sessionManager.onReceiveChannelMessage(threadId, scheduler.message, {
-                channelType,
-                channelId,
-                dbSessionId,
-                sessionId,
-            });
-            logger.info(`Scheduler task ${tag} fired (${channelType}), session ${sessionId}`);
+            if (scheduler.aiProcess) {
+                const threadId = channelThreadId(channelType, channelId, sessionId);
+                await sessionManager.onReceiveChannelMessage(threadId, scheduler.message, {
+                    channelType,
+                    channelId,
+                    dbSessionId,
+                    sessionId,
+                });
+            } else {
+                await service.sendText(sessionId, scheduler.message);
+            }
+            logger.info(`Scheduler task ${tag} fired (${channelType}), session ${sessionId}, aiProcess=${scheduler.aiProcess}`);
         } else {
             // Session mode: deliver via HTTP pipeline
             const sessionId = scheduler.targetId ?? '';
