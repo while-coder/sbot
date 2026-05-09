@@ -1391,6 +1391,31 @@ class HttpServer {
             await database.destroy(database.channelSession, { where: { id } });
         }));
 
+        app.post('/api/channels/:channelId/send', api(async req => {
+            const channelId = req.params.channelId as string;
+            const { sessionId, type, content, payload } = req.body as Record<string, any>;
+            if (!sessionId) throwBad('sessionId is required');
+            if (!type) throwBad('type is required');
+            let ok: boolean;
+            switch (type) {
+                case 'text':
+                    if (!content) throwBad('content is required for type "text"');
+                    ok = await channelManager.sendText(channelId, sessionId, content);
+                    break;
+                case 'file':
+                    if (!content) throwBad('content (file path) is required for type "file"');
+                    ok = await channelManager.sendFile(channelId, sessionId, content, req.body.fileName);
+                    break;
+                case 'native':
+                    if (!payload) throwBad('payload is required for type "native"');
+                    ok = await channelManager.sendNative(channelId, sessionId, payload);
+                    break;
+                default:
+                    throwBad(`Unknown type "${type}", expected "text" | "file" | "native"`);
+            }
+            if (!ok) throwBad(`Channel "${channelId}" not found or not running`);
+        }));
+
         // --- QR code login ---
         // Supports both /api/channel-plugins/:type/qrcode/:key (add flow)
         // and /api/channels/:id/qrcode/:key (edit flow, auto-persists)

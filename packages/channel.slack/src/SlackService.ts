@@ -40,6 +40,20 @@ export class SlackService implements IChannelService {
     return new SlackSessionHandler(session, this);
   }
 
+  async sendText(sessionId: string, text: string): Promise<void> {
+    await this.sendMessage(sessionId, text);
+  }
+
+  async sendFile(_sessionId: string, _file: string | Buffer, _fileName?: string): Promise<void> {}
+
+  async sendNative(sessionId: string, payload: any): Promise<void> {
+    await this.app.client.chat.postMessage({
+      channel: sessionId,
+      text: payload.text ?? '',
+      ...(payload.blocks ? { blocks: payload.blocks } : {}),
+    });
+  }
+
   dispose() {
     this.app.stop().catch(() => {});
   }

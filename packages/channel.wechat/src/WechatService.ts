@@ -53,6 +53,16 @@ export class WechatService implements IChannelService {
     return new WechatSessionHandler(session, this);
   }
 
+  async sendText(sessionId: string, text: string): Promise<void> {
+    await this.sendTextMessage(sessionId, text);
+  }
+
+  async sendFile(sessionId: string, file: string | Buffer, fileName?: string): Promise<void> {
+    await this.sendFileMessage(sessionId, file, fileName);
+  }
+
+  async sendNative(_sessionId: string, _payload: any): Promise<void> {}
+
   dispose(): void {
     this._running = false;
     this._abortController?.abort();

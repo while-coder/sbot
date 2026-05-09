@@ -50,6 +50,20 @@ export class OnebotService implements IChannelService {
     return new OnebotSessionHandler(session, this);
   }
 
+  private parseSessionTarget(sessionId: string): { userId?: number; groupId?: number } {
+    const parts = sessionId.split(':');
+    if (parts[1] === 'group') return { groupId: Number(parts[2]), userId: Number(parts[3]) };
+    return { userId: Number(parts[2]) };
+  }
+
+  async sendText(sessionId: string, text: string): Promise<void> {
+    await this.sendTextMessage(this.parseSessionTarget(sessionId), text);
+  }
+
+  async sendFile(_sessionId: string, _file: string | Buffer, _fileName?: string): Promise<void> {}
+
+  async sendNative(_sessionId: string, _payload: any): Promise<void> {}
+
   dispose() {
     for (const ws of this.connections) {
       try { ws.close(); } catch (_) {}

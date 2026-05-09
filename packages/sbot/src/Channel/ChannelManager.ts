@@ -201,6 +201,27 @@ export class ChannelManager {
     getChannel(channelId: string) { return config.getChannel(channelId); }
     getService(channelId: string) { return this.services.get(channelId); }
 
+    async sendText(channelId: string, sessionId: string, text: string): Promise<boolean> {
+        const service = this.services.get(channelId);
+        if (!service) return false;
+        await service.sendText(sessionId, text);
+        return true;
+    }
+
+    async sendFile(channelId: string, sessionId: string, file: string | Buffer, fileName?: string): Promise<boolean> {
+        const service = this.services.get(channelId);
+        if (!service) return false;
+        await service.sendFile(sessionId, file, fileName);
+        return true;
+    }
+
+    async sendNative(channelId: string, sessionId: string, payload: any): Promise<boolean> {
+        const service = this.services.get(channelId);
+        if (!service) return false;
+        await service.sendNative(sessionId, payload);
+        return true;
+    }
+
     async loadPlugin(moduleOrPath: string): Promise<ChannelPlugin | undefined> {
         const plugin = this.pluginLoader.loadPlugin(moduleOrPath);
         if (plugin) this.plugins.set(plugin.type, plugin);

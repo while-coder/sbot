@@ -16,7 +16,7 @@ interface ChannelRouteArgs extends ChannelMessageArgs {
     channelType: string;
     channelId: string;
     dbSessionId: number;
-    mentionBot: boolean;
+    mentionBot?: boolean;
 }
 
 interface WebRouteArgs extends ChannelMessageArgs {

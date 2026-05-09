@@ -4,7 +4,10 @@ import { SessionService } from "./SessionService";
 
 export interface IChannelService {
   createSessionHandler(session: SessionService): ChannelSessionHandler;
-  dispose?(): void;
+  sendText(sessionId: string, text: string): Promise<void>;
+  sendFile(sessionId: string, file: string | Buffer, fileName?: string): Promise<void>;
+  sendNative(sessionId: string, payload: any): Promise<void>;
+  dispose(): void;
 }
 
 export interface InitSessionContext {

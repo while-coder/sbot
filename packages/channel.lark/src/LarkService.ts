@@ -147,6 +147,19 @@ export class LarkService implements IChannelService {
     return new LarkSessionHandler(session, this);
   }
 
+  async sendText(sessionId: string, text: string): Promise<void> {
+    await this.sendMarkdownMessage(LarkReceiveIdType.ChatId, sessionId, text);
+  }
+
+  async sendFile(sessionId: string, file: string | Buffer, fileName?: string): Promise<void> {
+    await this.sendFileMessage(LarkReceiveIdType.ChatId, sessionId, file, fileName);
+  }
+
+  async sendNative(sessionId: string, payload: any): Promise<void> {
+    const content = typeof payload === 'string' ? payload : JSON.stringify(payload);
+    await this.sendMessage(LarkReceiveIdType.ChatId, sessionId, 'interactive', content);
+  }
+
   dispose() {
     try { this.larkWsClient?.close(); } catch (_) {}
     this.tenantAccessToken = '';
