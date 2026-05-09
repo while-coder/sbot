@@ -22,6 +22,10 @@ export const slackPlugin: ChannelPlugin = {
     appToken: { label: 'App Token', type: ConfigFieldType.Password, required: true, description: 'Slack app-level token (xapp-...)' },
   },
 
+  tools: [
+    { name: '_ask', label: '询问用户' },
+  ],
+
   async init(ctx: ChannelPluginContext): Promise<IChannelService | undefined> {
     const { config, logger, initSession, onReceiveMessage, onTriggerAction } = ctx;
 

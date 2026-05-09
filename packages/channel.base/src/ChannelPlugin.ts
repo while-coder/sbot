@@ -77,6 +77,8 @@ export interface ChannelPlugin {
   type: string;
   label: string;
   configSchema: Record<string, ConfigField>;
+  /** 该频道类型支持的工具列表（供 admin 配置白名单） */
+  tools?: { name: string; label: string }[];
   /** Get a QR code for the given config key. Returns url and display type. */
   getQRCode?(key: string, params?: any): Promise<{ url: string; type: 'image' | 'link' }>;
   /** Long-poll until QR scan completes for the given config key. Returns credentials object, or null if expired. */
