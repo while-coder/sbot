@@ -151,6 +151,11 @@ export interface AgentConfig {
   modelCallTimeout?: number
   // react
   agents?: SubAgentRef[]
+  // acp
+  command?: string
+  args?: string[]
+  env?: Record<string, string>
+  sessionMode?: "transient" | "persistent"
   // store
   storeSource?: AgentStoreSource
 }

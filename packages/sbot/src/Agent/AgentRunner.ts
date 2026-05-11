@@ -70,23 +70,21 @@ export class AgentRunner {
         const httpUrl = config.getHttpUrl();
         const workPath = options.workPath ?? `${assetsDir}/${threadId}`;
 
-        /** 注入到 system prompt 末尾的额外上下文片段，按顺序拼接 */
+        /** 组装 system prompts：init → environment → (AgentFactory 追加 agentEntry.systemPrompt) */
         const extraPrompts: string[] = [
-            `<environment>
-  <current-time>${now.toLocaleString(undefined, { timeZone: timezone, hour12: false })}</current-time>
-  <timezone>${timezone}</timezone>
-  <os>${os.type()} ${os.release()} (${os.platform()})</os>
-  <paths>
-    <assets dir="${assetsDir}" url="${httpUrl}/assets/&lt;filename&gt;">IMPORTANT: This is the ONLY way to deliver files to users. Whenever you generate, export, or produce any file intended for the user (images, documents, archives, reports, etc.), you MUST save it to this directory and share the URL above. Never send raw file content inline, never use any other path or method.</assets>
-    <scripts dir="${scriptsDir}">Store temporary scripts here</scripts>
-    <working-directory dir="${workPath}">This is your primary workspace. By default, scope all file operations — both read and write — to this directory. Accessing or modifying files outside this directory is permitted only when the user explicitly requests it or the task cannot be completed otherwise. Always prefer operating within this directory first.</working-directory>
-    <skills>
-      <agent-skills dir="${config.getAgentSkillsPath(agentId)}">Your dedicated skills directory. When using tools to install or create skills, always use this directory as the default target.</agent-skills>
-      <global-skills dir="${config.getSkillsPath()}">Shared skills directory available to all agents. Only install here when the user explicitly requests installing to global skills.</global-skills>
-    </skills>
-  </paths>
-  ${extraInfo}
-</environment>`,
+            loadPrompt('system/init.txt'),
+            loadPrompt('system/environment.txt', {
+                currentTime: now.toLocaleString(undefined, { timeZone: timezone, hour12: false }),
+                timezone,
+                os: `${os.type()} ${os.release()} (${os.platform()})`,
+                assetsDir,
+                httpUrl,
+                scriptsDir,
+                workPath,
+                agentSkillsPath: config.getAgentSkillsPath(agentId),
+                globalSkillsPath: config.getSkillsPath(),
+                extraInfo,
+            }),
         ];
 
         const container = new ServiceContainer();

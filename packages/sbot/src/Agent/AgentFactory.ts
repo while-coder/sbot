@@ -58,7 +58,7 @@ export class AgentFactory {
             await this.registerToolService(container, agentId, options.dbSessionId, mcp, agentTools);
         }
 
-        const systemPrompts = [loadPrompt('system/init.txt'), ...extraPrompts];
+        const systemPrompts = [...extraPrompts];
         if (agentEntry.systemPrompt)
             systemPrompts.push(agentEntry.systemPrompt);
 

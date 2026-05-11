@@ -23,7 +23,7 @@ const agents = computed(() => store.settings.agents || {})
 const sortedAgentEntries = computed(() => {
   const entries = Object.entries(agents.value)
   return entries.sort(([, a], [, b]) => {
-    const order = (type: string) => type === 'react' ? 0 : type === 'single' ? 1 : type === 'generative' ? 2 : 3
+    const order = (type: string) => type === 'react' ? 0 : type === 'single' ? 1 : type === 'acp' ? 2 : type === 'generative' ? 3 : 4
     return order(a.type) - order(b.type)
   })
 })
@@ -265,12 +265,17 @@ async function refresh() {
                 <span v-if="(a as any).autoApproveAllTools" class="config-badge config-badge-warn">{{ t('agents.auto_approve_all_tools') }}</span>
               </td>
               <td><span :class="'agent-type-badge agent-type-' + a.type">{{ a.type }}</span></td>
-              <td>{{ a.model ? modelName(a.model) : '-' }}</td>
+              <td>
+                <template v-if="a.type === 'acp'">
+                  <span style="font-family:monospace;font-size:12px;color:#0f766e">{{ (a as any).command }}</span>
+                </template>
+                <template v-else>{{ a.model ? modelName(a.model) : '-' }}</template>
+              </td>
               <td @click.stop>
                 <div class="ops-cell">
                   <button class="btn-outline btn-sm" @click="agentModal?.open(id as string)">{{ t('common.edit') }}</button>
-                  <button class="btn-outline btn-sm" @click="agentMcpModal?.open(id as string)">{{ t('agents.tab_tools') }}</button>
-                  <button class="btn-outline btn-sm" @click="agentSkillsModal?.open(id as string)">{{ t('agents.tab_skills') }}</button>
+                  <button v-if="a.type !== 'acp'" class="btn-outline btn-sm" @click="agentMcpModal?.open(id as string)">{{ t('agents.tab_tools') }}</button>
+                  <button v-if="a.type !== 'acp'" class="btn-outline btn-sm" @click="agentSkillsModal?.open(id as string)">{{ t('agents.tab_skills') }}</button>
                   <button class="btn-outline btn-sm" @click="exportAgent(id as string)">{{ t('agentStore.export_btn') }}</button>
                   <button class="btn-danger btn-sm" @click="removeAgent(id as string)">{{ t('common.delete') }}</button>
                 </div>
@@ -285,8 +290,10 @@ async function refresh() {
                   <button
                     v-for="tab in [
                       { key: 'config', label: t('agents.tab_config') },
-                      { key: 'skills', label: `${t('agents.tab_skills')} (${getSkills(id as string).length + getGlobals(id as string).length})` },
-                      { key: 'mcp',    label: `${t('agents.tab_tools')} (${getMcpGlobals(id as string).length + getMcpServers(id as string).length})` },
+                      ...(a.type !== 'acp' ? [
+                        { key: 'skills', label: `${t('agents.tab_skills')} (${getSkills(id as string).length + getGlobals(id as string).length})` },
+                        { key: 'mcp',    label: `${t('agents.tab_tools')} (${getMcpGlobals(id as string).length + getMcpServers(id as string).length})` },
+                      ] : []),
                     ]"
                     :key="tab.key"
                     @click="switchTab(id as string, tab.key as any)"
@@ -318,34 +325,58 @@ async function refresh() {
                               <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('common.type') }}</td>
                               <td style="padding:7px 12px"><span style="font-family:monospace;background:#f5f4f2;padding:1px 8px;border-radius:4px;font-size:12px">{{ a.type }}</span></td>
                             </tr>
-                            <tr v-if="a.model">
-                              <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.model_col') }}</td>
-                              <td style="padding:7px 12px">{{ modelName(a.model) }}</td>
-                            </tr>
-                            <tr v-if="(a as any).saver">
-                              <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.storage_label') }}</td>
-                              <td style="font-family:monospace;padding:7px 12px">{{ (a as any).saver }}</td>
-                            </tr>
-                            <tr>
-                              <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.tab_skills') }}</td>
-                              <td style="padding:7px 12px">
-                                <span v-if="a.skills === '*'" class="config-badge config-badge-info">{{ t('agents.use_all') }}</span>
-                                <span v-else-if="Array.isArray(a.skills) && a.skills.length" style="font-size:12px;color:#475569">{{ a.skills.length }} {{ t('agents.items_selected') }}</span>
-                                <span v-else style="font-size:12px;color:#94a3b8">-</span>
-                              </td>
-                            </tr>
-                            <tr>
-                              <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.tab_tools') }}</td>
-                              <td style="padding:7px 12px">
-                                <span v-if="a.mcp === '*'" class="config-badge config-badge-info">{{ t('agents.use_all') }}</span>
-                                <span v-else-if="Array.isArray(a.mcp) && a.mcp.length" style="font-size:12px;color:#475569">{{ a.mcp.length }} {{ t('agents.items_selected') }}</span>
-                                <span v-else style="font-size:12px;color:#94a3b8">-</span>
-                              </td>
-                            </tr>
-                            <tr v-if="(a as any).autoApproveAllTools">
-                              <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.auto_approve_all_tools') }}</td>
-                              <td style="padding:7px 12px"><span class="config-badge config-badge-warn">ON</span></td>
-                            </tr>
+                            <!-- ACP-specific rows -->
+                            <template v-if="a.type === 'acp'">
+                              <tr>
+                                <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.acp_command') }}</td>
+                                <td style="font-family:monospace;padding:7px 12px">{{ (a as any).command }}</td>
+                              </tr>
+                              <tr v-if="(a as any).args?.length">
+                                <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.acp_args') }}</td>
+                                <td style="font-family:monospace;padding:7px 12px">{{ (a as any).args.join(' ') }}</td>
+                              </tr>
+                              <tr>
+                                <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.acp_session_mode') }}</td>
+                                <td style="padding:7px 12px"><span style="font-family:monospace;background:#f5f4f2;padding:1px 8px;border-radius:4px;font-size:12px">{{ (a as any).sessionMode || 'persistent' }}</span></td>
+                              </tr>
+                              <tr v-if="(a as any).env && Object.keys((a as any).env).length">
+                                <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.acp_env') }}</td>
+                                <td style="padding:7px 12px">
+                                  <div v-for="(v, k) in (a as any).env" :key="k" style="font-family:monospace;font-size:12px">{{ k }}={{ v }}</div>
+                                </td>
+                              </tr>
+                            </template>
+                            <!-- Non-ACP rows -->
+                            <template v-else>
+                              <tr v-if="a.model">
+                                <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.model_col') }}</td>
+                                <td style="padding:7px 12px">{{ modelName(a.model) }}</td>
+                              </tr>
+                              <tr v-if="(a as any).saver">
+                                <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.storage_label') }}</td>
+                                <td style="font-family:monospace;padding:7px 12px">{{ (a as any).saver }}</td>
+                              </tr>
+                              <tr>
+                                <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.tab_skills') }}</td>
+                                <td style="padding:7px 12px">
+                                  <span v-if="a.skills === '*'" class="config-badge config-badge-info">{{ t('agents.use_all') }}</span>
+                                  <span v-else-if="Array.isArray(a.skills) && a.skills.length" style="font-size:12px;color:#475569">{{ a.skills.length }} {{ t('agents.items_selected') }}</span>
+                                  <span v-else style="font-size:12px;color:#94a3b8">-</span>
+                                </td>
+                              </tr>
+                              <tr>
+                                <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.tab_tools') }}</td>
+                                <td style="padding:7px 12px">
+                                  <span v-if="a.mcp === '*'" class="config-badge config-badge-info">{{ t('agents.use_all') }}</span>
+                                  <span v-else-if="Array.isArray(a.mcp) && a.mcp.length" style="font-size:12px;color:#475569">{{ a.mcp.length }} {{ t('agents.items_selected') }}</span>
+                                  <span v-else style="font-size:12px;color:#94a3b8">-</span>
+                                </td>
+                              </tr>
+                              <tr v-if="(a as any).autoApproveAllTools">
+                                <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.auto_approve_all_tools') }}</td>
+                                <td style="padding:7px 12px"><span class="config-badge config-badge-warn">ON</span></td>
+                              </tr>
+                            </template>
                           </tbody>
                         </table>
                       </div>
@@ -462,13 +493,16 @@ async function refresh() {
           <div class="mobile-card-fields">
             <span class="mobile-card-label">{{ t('agents.type_col') }}</span>
             <span class="mobile-card-value"><span :class="'agent-type-badge agent-type-' + a.type">{{ a.type }}</span></span>
-            <span class="mobile-card-label">{{ t('agents.model_col') }}</span>
-            <span class="mobile-card-value">{{ a.model ? modelName(a.model) : '-' }}</span>
+            <span class="mobile-card-label">{{ a.type === 'acp' ? t('agents.acp_command') : t('agents.model_col') }}</span>
+            <span class="mobile-card-value">
+              <template v-if="a.type === 'acp'"><span style="font-family:monospace;font-size:12px;color:#0f766e">{{ (a as any).command }}</span></template>
+              <template v-else>{{ a.model ? modelName(a.model) : '-' }}</template>
+            </span>
           </div>
           <div class="mobile-card-ops">
             <button class="btn-outline btn-sm" @click="agentModal?.open(id as string)">{{ t('common.edit') }}</button>
-            <button class="btn-outline btn-sm" @click="agentMcpModal?.open(id as string)">{{ t('agents.tab_tools') }}</button>
-            <button class="btn-outline btn-sm" @click="agentSkillsModal?.open(id as string)">{{ t('agents.tab_skills') }}</button>
+            <button v-if="a.type !== 'acp'" class="btn-outline btn-sm" @click="agentMcpModal?.open(id as string)">{{ t('agents.tab_tools') }}</button>
+            <button v-if="a.type !== 'acp'" class="btn-outline btn-sm" @click="agentSkillsModal?.open(id as string)">{{ t('agents.tab_skills') }}</button>
             <!-- <button class="btn-outline btn-sm" @click="exportAgent(id as string)">{{ t('agentStore.export_btn') }}</button> -->
             <button class="btn-danger btn-sm" @click="removeAgent(id as string)">{{ t('common.delete') }}</button>
           </div>
@@ -480,8 +514,10 @@ async function refresh() {
               <button
                 v-for="tab in [
                   { key: 'config', label: t('agents.tab_config') },
-                  { key: 'skills', label: `${t('agents.tab_skills')} (${getSkills(id as string).length + getGlobals(id as string).length})` },
-                  { key: 'mcp',    label: `${t('agents.tab_tools')} (${getMcpGlobals(id as string).length + getMcpServers(id as string).length})` },
+                  ...(a.type !== 'acp' ? [
+                    { key: 'skills', label: `${t('agents.tab_skills')} (${getSkills(id as string).length + getGlobals(id as string).length})` },
+                    { key: 'mcp',    label: `${t('agents.tab_tools')} (${getMcpGlobals(id as string).length + getMcpServers(id as string).length})` },
+                  ] : []),
                 ]"
                 :key="tab.key"
                 @click="switchTab(id as string, tab.key as any)"
@@ -513,34 +549,58 @@ async function refresh() {
                           <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('common.type') }}</td>
                           <td style="padding:7px 12px"><span style="font-family:monospace;background:#f5f4f2;padding:1px 8px;border-radius:4px;font-size:12px">{{ a.type }}</span></td>
                         </tr>
-                        <tr v-if="a.model">
-                          <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.model_col') }}</td>
-                          <td style="padding:7px 12px">{{ modelName(a.model) }}</td>
-                        </tr>
-                        <tr v-if="(a as any).saver">
-                          <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.storage_label') }}</td>
-                          <td style="font-family:monospace;padding:7px 12px">{{ (a as any).saver }}</td>
-                        </tr>
-                        <tr>
-                          <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.tab_skills') }}</td>
-                          <td style="padding:7px 12px">
-                            <span v-if="a.skills === '*'" class="config-badge config-badge-info">{{ t('agents.use_all') }}</span>
-                            <span v-else-if="Array.isArray(a.skills) && a.skills.length" style="font-size:12px;color:#475569">{{ a.skills.length }} {{ t('agents.items_selected') }}</span>
-                            <span v-else style="font-size:12px;color:#94a3b8">-</span>
-                          </td>
-                        </tr>
-                        <tr>
-                          <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.tab_tools') }}</td>
-                          <td style="padding:7px 12px">
-                            <span v-if="a.mcp === '*'" class="config-badge config-badge-info">{{ t('agents.use_all') }}</span>
-                            <span v-else-if="Array.isArray(a.mcp) && a.mcp.length" style="font-size:12px;color:#475569">{{ a.mcp.length }} {{ t('agents.items_selected') }}</span>
-                            <span v-else style="font-size:12px;color:#94a3b8">-</span>
-                          </td>
-                        </tr>
-                        <tr v-if="(a as any).autoApproveAllTools">
-                          <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.auto_approve_all_tools') }}</td>
-                          <td style="padding:7px 12px"><span class="config-badge config-badge-warn">ON</span></td>
-                        </tr>
+                        <!-- ACP-specific rows -->
+                        <template v-if="a.type === 'acp'">
+                          <tr>
+                            <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.acp_command') }}</td>
+                            <td style="font-family:monospace;padding:7px 12px">{{ (a as any).command }}</td>
+                          </tr>
+                          <tr v-if="(a as any).args?.length">
+                            <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.acp_args') }}</td>
+                            <td style="font-family:monospace;padding:7px 12px">{{ (a as any).args.join(' ') }}</td>
+                          </tr>
+                          <tr>
+                            <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.acp_session_mode') }}</td>
+                            <td style="padding:7px 12px"><span style="font-family:monospace;background:#f5f4f2;padding:1px 8px;border-radius:4px;font-size:12px">{{ (a as any).sessionMode || 'persistent' }}</span></td>
+                          </tr>
+                          <tr v-if="(a as any).env && Object.keys((a as any).env).length">
+                            <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.acp_env') }}</td>
+                            <td style="padding:7px 12px">
+                              <div v-for="(v, k) in (a as any).env" :key="k" style="font-family:monospace;font-size:12px">{{ k }}={{ v }}</div>
+                            </td>
+                          </tr>
+                        </template>
+                        <!-- Non-ACP rows -->
+                        <template v-else>
+                          <tr v-if="a.model">
+                            <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.model_col') }}</td>
+                            <td style="padding:7px 12px">{{ modelName(a.model) }}</td>
+                          </tr>
+                          <tr v-if="(a as any).saver">
+                            <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.storage_label') }}</td>
+                            <td style="font-family:monospace;padding:7px 12px">{{ (a as any).saver }}</td>
+                          </tr>
+                          <tr>
+                            <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.tab_skills') }}</td>
+                            <td style="padding:7px 12px">
+                              <span v-if="a.skills === '*'" class="config-badge config-badge-info">{{ t('agents.use_all') }}</span>
+                              <span v-else-if="Array.isArray(a.skills) && a.skills.length" style="font-size:12px;color:#475569">{{ a.skills.length }} {{ t('agents.items_selected') }}</span>
+                              <span v-else style="font-size:12px;color:#94a3b8">-</span>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.tab_tools') }}</td>
+                            <td style="padding:7px 12px">
+                              <span v-if="a.mcp === '*'" class="config-badge config-badge-info">{{ t('agents.use_all') }}</span>
+                              <span v-else-if="Array.isArray(a.mcp) && a.mcp.length" style="font-size:12px;color:#475569">{{ a.mcp.length }} {{ t('agents.items_selected') }}</span>
+                              <span v-else style="font-size:12px;color:#94a3b8">-</span>
+                            </td>
+                          </tr>
+                          <tr v-if="(a as any).autoApproveAllTools">
+                            <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.auto_approve_all_tools') }}</td>
+                            <td style="padding:7px 12px"><span class="config-badge config-badge-warn">ON</span></td>
+                          </tr>
+                        </template>
                       </tbody>
                     </table>
                   </div>
@@ -684,6 +744,10 @@ async function refresh() {
 .agent-type-generative {
   background: #fef3c7;
   color: #b45309;
+}
+.agent-type-acp {
+  background: #ccfbf1;
+  color: #0f766e;
 }
 .config-badge {
   display: inline-block;

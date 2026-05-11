@@ -33,6 +33,11 @@ const form = ref({
   systemPrompt: '',
   autoApproveAllTools: false,
   modelCallTimeout: undefined as number | undefined,
+  // acp
+  command: '',
+  args: '',
+  env: [] as { key: string; value: string }[],
+  sessionMode: 'persistent' as 'transient' | 'persistent',
 })
 const tempSubAgents = ref<SubAgentRef[]>([])
 
@@ -50,6 +55,10 @@ function open(id?: string) {
       systemPrompt: a.systemPrompt || '',
       autoApproveAllTools: !!(a as any).autoApproveAllTools,
       modelCallTimeout: (a as any).modelCallTimeout ?? undefined,
+      command: a.command || '',
+      args: Array.isArray(a.args) ? a.args.join(' ') : '',
+      env: a.env ? Object.entries(a.env).map(([key, value]) => ({ key, value })) : [],
+      sessionMode: (a as any).sessionMode || 'persistent',
     }
     tempSubAgents.value = Array.isArray(a.agents) ? [...a.agents] : []
   } else {
@@ -58,6 +67,7 @@ function open(id?: string) {
     form.value = {
       id: '', name: '', type: AgentMode.Single, model: '', compactModel: '', compactPrompt: '',
       systemPrompt: '', autoApproveAllTools: false, modelCallTimeout: undefined,
+      command: '', args: '', env: [], sessionMode: 'persistent',
     }
   }
   showModal.value = true
@@ -67,7 +77,8 @@ async function save() {
   if (!editingId.value && !form.value.id.trim()) { show('ID is required', 'error'); return }
   if (!form.value.name.trim()) { show(t('common.name_required'), 'error'); return }
   const { type } = form.value
-  if (!form.value.model) { show(t('agents.error_model'), 'error'); return }
+  if (type !== AgentMode.ACP && !form.value.model) { show(t('agents.error_model'), 'error'); return }
+  if (type === AgentMode.ACP && !form.value.command.trim()) { show(t('agents.error_command'), 'error'); return }
   if (type === AgentMode.ReAct && tempSubAgents.value.length === 0) {
     show(t('agents.error_sub_agents'), 'error'); return
   }
@@ -82,9 +93,17 @@ async function save() {
     if (type === AgentMode.ReAct) {
       config.agents = tempSubAgents.value
     }
-    // 保留在专属页面配置的字段（generative 模式无工具/技能，不保留）
+    if (type === AgentMode.ACP) {
+      config.command = form.value.command.trim()
+      const argsStr = form.value.args.trim()
+      if (argsStr) config.args = argsStr.split(/\s+/)
+      const envEntries = form.value.env.filter(e => e.key.trim())
+      if (envEntries.length) config.env = Object.fromEntries(envEntries.map(e => [e.key.trim(), e.value]))
+      if (form.value.sessionMode !== 'persistent') config.sessionMode = form.value.sessionMode
+    }
+    // 保留在专属页面配置的字段（generative/acp 模式无工具/技能，不保留）
     const existing = editingId.value ? agents.value[editingId.value] : null
-    if (type !== AgentMode.Generative) {
+    if (type !== AgentMode.Generative && type !== AgentMode.ACP) {
       if (existing?.mcp)    config.mcp    = existing.mcp
       if (existing?.skills) config.skills = existing.skills
       if ((existing as any)?.autoApproveTools) (config as any).autoApproveTools = (existing as any).autoApproveTools
@@ -181,6 +200,7 @@ defineExpose({ open })
             <option :value="AgentMode.Single">{{ t('agents.type_single') }}</option>
             <option :value="AgentMode.ReAct">{{ t('agents.type_react') }}</option>
             <option :value="AgentMode.Generative">{{ t('agents.type_generative') }}</option>
+            <option :value="AgentMode.ACP">{{ t('agents.type_acp') }}</option>
           </select>
         </div>
 
@@ -190,8 +210,8 @@ defineExpose({ open })
           <textarea v-model="form.systemPrompt" rows="3" :placeholder="t('agents.system_prompt_placeholder')" />
         </div>
 
-        <!-- Model (所有类型共用) -->
-        <div class="form-group">
+        <!-- Model (ACP 模式不需要本地模型) -->
+        <div class="form-group" v-if="form.type !== AgentMode.ACP">
           <label>{{ t('agents.model_col') }} *</label>
           <select v-model="form.model">
             <option value="">{{ t('common.select_placeholder') }}</option>
@@ -214,14 +234,43 @@ defineExpose({ open })
           <textarea v-model="form.compactPrompt" rows="3" :placeholder="t('agents.compact_prompt_placeholder')" />
         </div>
 
-        <!-- autoApproveAllTools -->
-        <div class="form-group" style="display:flex;align-items:center;gap:8px">
+        <!-- ACP 专属字段 -->
+        <template v-if="form.type === AgentMode.ACP">
+          <div class="form-group">
+            <label>{{ t('agents.acp_command') }} *</label>
+            <input v-model="form.command" :placeholder="t('agents.acp_command_placeholder')" />
+          </div>
+          <div class="form-group">
+            <label>{{ t('agents.acp_args') }}</label>
+            <input v-model="form.args" :placeholder="t('agents.acp_args_placeholder')" />
+            <span style="font-size:0.78rem;color:var(--color-text-muted,#888);margin-top:2px">{{ t('agents.acp_args_hint') }}</span>
+          </div>
+          <div class="form-group">
+            <label>{{ t('agents.acp_session_mode') }}</label>
+            <select v-model="form.sessionMode">
+              <option value="persistent">Persistent</option>
+              <option value="transient">Transient</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>{{ t('agents.acp_env') }}</label>
+            <div v-for="(item, i) in form.env" :key="i" style="display:flex;gap:6px;margin-bottom:4px">
+              <input v-model="item.key" placeholder="KEY" style="flex:1" />
+              <input v-model="item.value" placeholder="VALUE" style="flex:2" />
+              <button class="btn-danger btn-sm" @click="form.env.splice(i, 1)" style="flex-shrink:0">&times;</button>
+            </div>
+            <button class="btn-outline btn-sm" @click="form.env.push({ key: '', value: '' })">+ {{ t('agents.acp_env_add') }}</button>
+          </div>
+        </template>
+
+        <!-- autoApproveAllTools (ACP 不需要) -->
+        <div class="form-group" v-if="form.type !== AgentMode.ACP" style="display:flex;align-items:center;gap:8px">
           <input type="checkbox" v-model="form.autoApproveAllTools" id="autoApproveAll" style="width:14px;height:14px;cursor:pointer" />
           <label for="autoApproveAll" style="cursor:pointer;margin:0">{{ t('agents.auto_approve_all_tools') }}</label>
         </div>
 
-        <!-- modelCallTimeout -->
-        <div class="form-group" v-if="form.type !== AgentMode.Generative">
+        <!-- modelCallTimeout (ACP/Generative 不需要) -->
+        <div class="form-group" v-if="form.type !== AgentMode.Generative && form.type !== AgentMode.ACP">
           <label>{{ t('agents.model_call_timeout') }}</label>
           <input type="number" v-model.number="form.modelCallTimeout" min="0" step="1" :placeholder="t('agents.model_call_timeout_placeholder')" />
         </div>

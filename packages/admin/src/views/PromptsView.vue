@@ -43,12 +43,15 @@ function toggleDir(p: string) {
 }
 
 // ── Editor ────────────────────────────────────────────────────────
+type VarMeta = { name: string; description: string }
+
 const selectedPath = ref('')
 const editContent = ref('')
 const originalContent = ref('')
 const isOverride = ref(false)
 const loading = ref(false)
 const saving = ref(false)
+const vars = ref<VarMeta[]>([])
 
 const isDirty = computed(() => editContent.value !== originalContent.value)
 
@@ -76,11 +79,13 @@ async function selectFile(p: string) {
   loading.value = true
   editContent.value = ''
   originalContent.value = ''
+  vars.value = []
   try {
     const res = await apiFetch(`/api/prompts/content?path=${encodeURIComponent(p)}`)
     editContent.value = res.data?.content ?? ''
     originalContent.value = editContent.value
     isOverride.value = res.data?.isOverride ?? false
+    vars.value = res.data?.vars ?? []
   } catch (e: any) {
     show(e.message, 'error')
   } finally {
@@ -157,6 +162,10 @@ onMounted(loadTree)
           <button class="btn-primary btn-sm" :disabled="saving || !isDirty" @click="save">
             {{ saving ? t('prompts.saving') : t('prompts.save') }}
           </button>
+        </div>
+        <div v-if="vars.length" class="prompts-vars-bar">
+          <span class="prompts-vars-label">{{ t('prompts.vars_label') }}</span>
+          <span v-for="v in vars" :key="v.name" class="prompts-var-chip" :title="v.description">{{ '{' + v.name + '}' }}</span>
         </div>
         <div v-if="loading" class="prompts-loading">{{ t('prompts.loading') }}</div>
         <div v-else class="prompts-editor-body">
@@ -263,6 +272,31 @@ onMounted(loadTree)
   border-radius: 10px;
   background: #f3f4f6;
   color: #6b7280;
+}
+.prompts-vars-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-bottom: 1px solid #e8e6e3;
+  flex-shrink: 0;
+  background: #fffbf5;
+  flex-wrap: wrap;
+}
+.prompts-vars-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #8b6c2a;
+  margin-right: 2px;
+}
+.prompts-var-chip {
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #fff3e0;
+  color: #c05c00;
+  cursor: default;
 }
 .prompts-loading {
   flex: 1;

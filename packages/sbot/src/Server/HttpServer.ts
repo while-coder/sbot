@@ -155,6 +155,8 @@ function registerSettingsCrud(
 }
 
 // ===== Prompts =====
+import { loadPromptMeta, type PromptVarMeta } from '../Core/PromptLoader';
+
 const PROMPTS_DIR = path.resolve(__dirname, '../../prompts');
 
 type PromptNode = { name: string; type: 'file' | 'dir'; path: string; isOverride?: boolean; children?: PromptNode[] };
@@ -1073,13 +1075,20 @@ class HttpServer {
             const relPath = safePromptRelPath(req.query.path as string);
             const userPath = config.getConfigPath(`prompts/${relPath}`);
             const defaultPath = path.join(PROMPTS_DIR, relPath);
+            let content: string;
+            let isOverride: boolean;
             if (fs.existsSync(userPath)) {
-                return { path: relPath, content: fs.readFileSync(userPath, 'utf-8'), isOverride: true };
+                content = fs.readFileSync(userPath, 'utf-8');
+                isOverride = true;
             } else if (fs.existsSync(defaultPath)) {
-                return { path: relPath, content: fs.readFileSync(defaultPath, 'utf-8'), isOverride: false };
+                content = fs.readFileSync(defaultPath, 'utf-8');
+                isOverride = false;
             } else {
                 const e: any = new Error(`Prompt "${relPath}" not found`); e.status = 404; throw e;
             }
+            let vars: PromptVarMeta[] = [];
+            try { vars = loadPromptMeta(relPath).vars; } catch {}
+            return { path: relPath, content, isOverride, vars };
         }));
 
         app.put('/api/prompts/content', api(async req => {
