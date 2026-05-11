@@ -15,6 +15,15 @@ export interface ThinkingConfig {
   budgetTokens?: number;
 }
 
+export interface AnthropicConfig {
+  thinking?: ThinkingConfig;
+  promptCaching?: boolean;
+}
+
+export interface GeminiConfig {
+  apiVersion?: string;
+}
+
 /**
  * 模型配置接口
  */
@@ -23,9 +32,9 @@ export interface ModelConfig {
   apiKey: string;
   baseURL: string;
   model: string;
-  apiVersion?: string;
   temperature?: number;
   maxTokens?: number;
   contextWindow?: number;
-  thinking?: ThinkingConfig;
+  anthropic?: AnthropicConfig;
+  gemini?: GeminiConfig;
 }

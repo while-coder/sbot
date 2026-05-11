@@ -31,17 +31,26 @@ export interface ThinkingConfig {
   budgetTokens?: number
 }
 
+export interface AnthropicConfig {
+  thinking?: ThinkingConfig
+  promptCaching?: boolean
+}
+
+export interface GeminiConfig {
+  apiVersion?: string
+}
+
 export interface ModelConfig {
   name: string
   provider: ModelProvider
   baseURL: string
   apiKey: string
   model: string
-  apiVersion?: string
   temperature?: number
   maxTokens?: number
   contextWindow?: number
-  thinking?: ThinkingConfig
+  anthropic?: AnthropicConfig
+  gemini?: GeminiConfig
 }
 
 export enum EmbeddingProvider {

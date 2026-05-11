@@ -12,8 +12,13 @@ import { toChatMessage, toBaseMessages } from "../Saver/messageConverter";
 export class AnthropicModelService implements IModelService {
   private model?: ChatAnthropic;
   private boundModel?: any;
+  private cacheControl?: { type: "ephemeral" };
 
-  constructor(private config: ModelConfig) {}
+  constructor(private config: ModelConfig) {
+    if (config.anthropic?.promptCaching) {
+      this.cacheControl = { type: "ephemeral" };
+    }
+  }
 
   get contextWindow(): number | undefined { return this.config.contextWindow; }
 
@@ -24,7 +29,7 @@ export class AnthropicModelService implements IModelService {
       model: this.config.model,
       temperature: this.config.temperature,
       maxTokens: this.config.maxTokens,
-      ...(this.config.thinking && { thinking: this.config.thinking as any }),
+      ...(this.config.anthropic?.thinking && { thinking: this.config.anthropic.thinking as any }),
     });
   }
 
@@ -36,7 +41,10 @@ export class AnthropicModelService implements IModelService {
   async invoke(prompt: string | ChatMessage[], options?: { signal?: AbortSignal }): Promise<ChatMessage> {
     const m = this.boundModel ?? this.model!;
     const input = typeof prompt === 'string' ? prompt : toBaseMessages(prompt);
-    const result = await m.invoke(input, options?.signal ? { signal: options.signal } : undefined);
+    const result = await m.invoke(input, {
+      ...(options?.signal && { signal: options.signal }),
+      ...(this.cacheControl && { cache_control: this.cacheControl }),
+    });
     return toChatMessage(result);
   }
 
@@ -52,7 +60,10 @@ export class AnthropicModelService implements IModelService {
   async stream(messages: string | ChatMessage[], options?: { signal?: AbortSignal }): Promise<AsyncIterable<ChatMessage>> {
     const m = this.boundModel ?? this.model!;
     const input = typeof messages === 'string' ? messages : toBaseMessages(messages);
-    const lcStream = await m.stream(input, options?.signal ? { signal: options.signal } : undefined);
+    const lcStream = await m.stream(input, {
+      ...(options?.signal && { signal: options.signal }),
+      ...(this.cacheControl && { cache_control: this.cacheControl }),
+    });
     return (async function* () {
       let accumulated: AIMessageChunk | undefined;
       for await (const chunk of lcStream) {

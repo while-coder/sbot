@@ -1,6 +1,7 @@
 export interface MiAccount {
   userId: string;
   password: string;
+  passToken?: string;
   serviceToken?: string;
   deviceId?: string;
 }

@@ -18,4 +18,4 @@ export { GeminiImageModelService } from "./GeminiImageModelService";
 export { ModelServiceFactory } from "./ModelServiceFactory";
 
 // ===== 类型定义 =====
-export { ModelConfig, ModelProvider } from "./types";
+export { ModelConfig, ModelProvider, AnthropicConfig, GeminiConfig, ThinkingConfig } from "./types";

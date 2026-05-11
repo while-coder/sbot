@@ -21,7 +21,7 @@ export class GeminiModelService implements IModelService {
       apiKey: this.config.apiKey,
       baseUrl: this.config.baseURL,
       model: this.config.model,
-      apiVersion: this.config.apiVersion ?? "v1",
+      apiVersion: this.config.gemini?.apiVersion ?? "v1",
     };
     if (this.config.temperature != null) opts.temperature = this.config.temperature;
     if (this.config.maxTokens != null) opts.maxOutputTokens = this.config.maxTokens;
