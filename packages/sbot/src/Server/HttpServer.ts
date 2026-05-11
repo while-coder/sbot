@@ -17,7 +17,8 @@ import { installSkillFromZip } from '../SkillHub/bundle';
 import axios from 'axios';
 import { AgentStoreService } from '../AgentStore';
 import { LoggerService, log4js } from '../Core/LoggerService';
-import { database, channelThreadId, parseMemories, type ChannelSessionRow, type TodoRow } from '../Core/Database';
+import { database, channelThreadId, parseMemories, type ChannelSessionRow, type TodoRow, type UsageLogRow } from '../Core/Database';
+import { Op } from 'sequelize';
 import { sessionManager } from '../Session/SessionManager';
 import { schedulerService } from '../Scheduler/SchedulerService';
 import { heartbeatService } from '../Heartbeat/HeartbeatService';
@@ -44,7 +45,7 @@ async function fetchAndSaveContextWindow(modelId: string): Promise<void> {
                 maxOutputTokens = data.max_tokens;
             }
         } else if (mc.provider === ModelProvider.Gemini || mc.provider === ModelProvider.GeminiImage) {
-            const ver = mc.apiVersion || 'v1beta';
+            const ver = mc.gemini?.apiVersion || 'v1beta';
             const url = `${base}/${ver}/models/${encodeURIComponent(mc.model)}`;
             const headers: Record<string, string> = { 'x-goog-api-key': mc.apiKey };
             const res = await fetch(url, { headers });
@@ -472,15 +473,60 @@ class HttpServer {
             upstream.data.pipe(res);
         }));
 
-        // 每日 token 用量（最近 30 天）
-        app.get('/api/usage-stats', api(async () => {
-            return database.findAll(database.usageStats, { order: [['date', 'DESC']], limit: 30 });
+        app.get('/api/usage-stats', api(async (req) => {
+            const today = new Date().toISOString().slice(0, 10);
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            const start = (req.query.start as string) || thirtyDaysAgo.toISOString().slice(0, 10);
+            const end = (req.query.end as string) || today;
+            const agentId = req.query.agentId as string | undefined;
+            const modelId = req.query.modelId as string | undefined;
+
+            const where: any = { date: { [Op.between]: [start, end] } };
+            if (agentId) where.agentId = agentId;
+            if (modelId) where.modelId = modelId;
+
+            const rows = await database.findAll<UsageLogRow>(database.usageLogs, {
+                where,
+                order: [['date', 'ASC']],
+            });
+
+            const dailyMap = new Map<string, { date: string; inputTokens: number; outputTokens: number; totalTokens: number; cacheCreationTokens: number; cacheReadTokens: number }>();
+            const summary = { totalTokens: 0, inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 };
+
+            for (const r of rows) {
+                summary.totalTokens += r.totalTokens;
+                summary.inputTokens += r.inputTokens;
+                summary.outputTokens += r.outputTokens;
+                summary.cacheCreationTokens += r.cacheCreationTokens;
+                summary.cacheReadTokens += r.cacheReadTokens;
+
+                let day = dailyMap.get(r.date);
+                if (!day) {
+                    day = { date: r.date, inputTokens: 0, outputTokens: 0, totalTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 };
+                    dailyMap.set(r.date, day);
+                }
+                day.inputTokens += r.inputTokens;
+                day.outputTokens += r.outputTokens;
+                day.totalTokens += r.totalTokens;
+                day.cacheCreationTokens += r.cacheCreationTokens;
+                day.cacheReadTokens += r.cacheReadTokens;
+            }
+
+            return { summary, daily: Array.from(dailyMap.values()) };
         }));
 
-        // 按 threadId 查询 token 用量
+        // 按 threadId 或 sessionId 查询 token 用量
         app.get('/api/thread-usage', api(async req => {
             const threads = (req.query.threads as string || '').split(',').filter(Boolean);
-            return database.loadThreadUsages(threads);
+            const sessions = (req.query.sessions as string || '').split(',').filter(Boolean);
+            const result: Record<string, any> = {};
+            if (threads.length > 0) Object.assign(result, await database.loadThreadUsages(threads));
+            for (const sid of sessions) {
+                const row = await database.findOne<ChannelSessionRow>(database.channelSession, { where: { channelId: WEB_CHANNEL_ID, sessionId: sid } });
+                if (row) result[sid] = { inputTokens: row.inputTokens, outputTokens: row.outputTokens, totalTokens: row.totalTokens, lastInputTokens: row.lastInputTokens, lastOutputTokens: row.lastOutputTokens, lastTotalTokens: row.lastTotalTokens };
+            }
+            return result;
         }));
     }
 

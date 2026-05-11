@@ -650,6 +650,9 @@ export default {
     total: 'Cumulative',
     tokens: 'tokens',
     context_window: 'Context Window',
+    all_agents: 'All Agents',
+    all_models: 'All Models',
+    daily_chart: 'Daily Usage Trend',
   },
   heartbeats: {
     title: 'Heartbeats',

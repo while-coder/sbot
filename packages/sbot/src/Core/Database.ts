@@ -91,9 +91,18 @@ export type ChannelSessionRow = {
   createdAt: number;
 };
 
-export type UsageStatsRow = {
+
+export type UsageLogRow = {
   id: number;
-  date: string;           // 日期，如 "2026-04-13"
+  date: string;
+  timestamp: number;
+  agentId: string;
+  agentName: string;
+  modelId: string;
+  modelName: string;
+  provider: string;
+  channelId: string;
+  sessionId: number;
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
@@ -131,7 +140,7 @@ class Database {
   public channelUser!: ModelStatic<any>;
   public channelSession!: ModelStatic<any>;
   public scheduler!: ModelStatic<any>;
-  public usageStats!: ModelStatic<any>;
+  public usageLogs!: ModelStatic<any>;
   public todo!: ModelStatic<any>;
 
   async init() {
@@ -550,56 +559,91 @@ class Database {
       },
     );
 
-    this.usageStats = sequelize.define(
-      "usage_stats",
+    this.usageLogs = sequelize.define(
+      "usage_logs",
       {
         id: {
           type: DataTypes.INTEGER,
           primaryKey: true,
           autoIncrement: true,
-          comment: "自增ID",
         },
         date: {
           type: DataTypes.STRING(10),
           allowNull: false,
-          unique: true,
-          comment: "日期，如 2026-04-13",
+        },
+        timestamp: {
+          type: DataTypes.BIGINT,
+          allowNull: false,
+        },
+        agentId: {
+          type: DataTypes.STRING,
+          allowNull: false,
+          defaultValue: "",
+        },
+        agentName: {
+          type: DataTypes.STRING,
+          allowNull: false,
+          defaultValue: "",
+        },
+        modelId: {
+          type: DataTypes.STRING,
+          allowNull: false,
+          defaultValue: "",
+        },
+        modelName: {
+          type: DataTypes.STRING,
+          allowNull: false,
+          defaultValue: "",
+        },
+        provider: {
+          type: DataTypes.STRING,
+          allowNull: false,
+          defaultValue: "",
+        },
+        channelId: {
+          type: DataTypes.STRING,
+          allowNull: false,
+          defaultValue: "",
+        },
+        sessionId: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
         },
         inputTokens: {
           type: DataTypes.INTEGER,
           allowNull: false,
           defaultValue: 0,
-          comment: "输入 token 数",
         },
         outputTokens: {
           type: DataTypes.INTEGER,
           allowNull: false,
           defaultValue: 0,
-          comment: "输出 token 数",
         },
         totalTokens: {
           type: DataTypes.INTEGER,
           allowNull: false,
           defaultValue: 0,
-          comment: "总 token 数",
         },
         cacheCreationTokens: {
           type: DataTypes.INTEGER,
           allowNull: false,
           defaultValue: 0,
-          comment: "缓存创建 token 数",
         },
         cacheReadTokens: {
           type: DataTypes.INTEGER,
           allowNull: false,
           defaultValue: 0,
-          comment: "缓存命中 token 数",
         },
       },
       {
-        tableName: "usage_stats",
+        tableName: "usage_logs",
         timestamps: false,
-        comment: "每日 Token 用量统计表",
+        indexes: [
+          { fields: ["date"] },
+          { fields: ["agentId"] },
+          { fields: ["modelId"] },
+        ],
       },
     );
 
@@ -649,7 +693,7 @@ class Database {
       await this.channelSession.sync({ alter });
       await this.scheduler.sync({ alter });
       await this.todo.sync({ alter });
-      await this.usageStats.sync({ alter });
+      await this.usageLogs.sync({ alter });
 
       await this.state.update({ value: DBVersion }, { where: { key: DBVersionName } });
       logger.info("Database schema sync completed");

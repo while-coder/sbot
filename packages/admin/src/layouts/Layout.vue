@@ -752,9 +752,9 @@ table tr:hover td { background: #fafaf9; }
   gap: 12px;
   padding: 16px;
 }
-.msg-row { display: flex; flex-direction: column; gap: 4px; max-width: 85%; }
-.msg-row.human { align-self: flex-end; align-items: flex-end; }
-.msg-row.ai { align-self: flex-start; align-items: flex-start; max-width: 100%; width: 100%; }
+.msg-row { display: flex; flex-direction: column; gap: 4px; }
+.msg-row.human { align-items: flex-end; }
+.msg-row.ai { align-items: flex-start; }
 .msg-role-bar {
   display: flex;
   align-items: center;
@@ -797,9 +797,9 @@ table tr:hover td { background: #fafaf9; }
   font-size: 13px;
   line-height: 1.6;
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: break-word;
 }
-.msg-bubble.human { background: #1c1c1c; color: #fff; border-bottom-right-radius: 3px; }
+.msg-bubble.human { background: #1c1c1c; color: #fff; border-bottom-right-radius: 3px; max-width: 85%; }
 .msg-bubble.ai { background: #f5f4f2; color: #1c1c1c; border-bottom-left-radius: 3px; }
 .msg-bubble.tool { background: #fefce8; color: #713f12; font-family: monospace; font-size: 12px; }
 .msg-bubble.streaming { opacity: 0.85; }

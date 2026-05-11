@@ -13,7 +13,7 @@ function md5(str: string): string {
 }
 
 function sha1(str: string): string {
-  return crypto.createHash('sha1').update(str).digest('hex');
+  return crypto.createHash('sha1').update(str).digest('base64');
 }
 
 function randomDeviceId(): string {
@@ -91,17 +91,27 @@ export async function login(account: MiAccount): Promise<AuthedAccount> {
   const clientSign = sha1(`nonce=${pass.nonce}&${pass.ssecurity}`);
   const tokenUrl = `${pass.location}&clientSign=${encodeURIComponent(clientSign)}`;
 
-  const step3 = await axios.get(tokenUrl, {
-    headers: { 'User-Agent': USER_AGENT },
-    validateStatus: (s) => s >= 200 && s < 400,
-  });
-
-  const setCookies: string[] = step3.headers['set-cookie'] || [];
   let serviceToken = '';
-  for (const c of setCookies) {
-    const match = c.match(/serviceToken=([^;]+)/);
-    if (match) {
-      serviceToken = match[1];
+  let nextUrl: string | null = tokenUrl;
+  while (nextUrl) {
+    const resp: { headers: Record<string, any>; status: number } = await axios.get(nextUrl, {
+      headers: { 'User-Agent': USER_AGENT },
+      maxRedirects: 0,
+      validateStatus: () => true,
+    });
+    const setCookies: string[] = resp.headers['set-cookie'] || [];
+    for (const c of setCookies) {
+      const match = c.match(/serviceToken=([^;]+)/);
+      if (match) {
+        serviceToken = match[1];
+        break;
+      }
+    }
+    if (serviceToken) break;
+    const redirect: string | undefined = resp.headers['location'];
+    if (resp.status >= 300 && resp.status < 400 && redirect) {
+      nextUrl = redirect;
+    } else {
       break;
     }
   }

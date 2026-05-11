@@ -273,7 +273,7 @@ function openThink(thinkId: string) {
   padding: 8px 12px;
   border-radius: 8px;
   line-height: 1.5;
-  word-break: break-word;
+  overflow-wrap: break-word;
 }
 .msg-bubble.human {
   background: var(--chatui-bg-human);

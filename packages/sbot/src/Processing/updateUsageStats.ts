@@ -3,27 +3,41 @@ import { WebChatEventType, WEB_CHANNEL_ID } from "sbot.commons";
 import { database, type ChannelSessionRow } from "../Core/Database";
 import { httpServer } from "../Server/HttpServer";
 
+export interface UsageContext {
+    agentId: string;
+    agentName: string;
+    modelId: string;
+    modelName: string;
+    provider: string;
+    channelId: string;
+}
+
 export async function updateUsageStats(
     usage: TokenUsage,
     dbSessionId: number,
+    context: UsageContext,
 ): Promise<void> {
-    const today = new Date().toISOString().slice(0, 10);
+    const now = new Date();
+    const date = now.toISOString().slice(0, 10);
     const cacheCreation = usage.cache_creation_input_tokens ?? 0;
     const cacheRead = usage.cache_read_input_tokens ?? 0;
 
-    const [, created] = await database.findOrCreate(database.usageStats, {
-        where: { date: today },
-        defaults: { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens, totalTokens: usage.total_tokens, cacheCreationTokens: cacheCreation, cacheReadTokens: cacheRead },
+    await database.create(database.usageLogs, {
+        date,
+        timestamp: now.getTime(),
+        agentId: context.agentId,
+        agentName: context.agentName,
+        modelId: context.modelId,
+        modelName: context.modelName,
+        provider: context.provider,
+        channelId: context.channelId,
+        sessionId: dbSessionId,
+        inputTokens: usage.input_tokens,
+        outputTokens: usage.output_tokens,
+        totalTokens: usage.total_tokens,
+        cacheCreationTokens: cacheCreation,
+        cacheReadTokens: cacheRead,
     });
-    if (!created) {
-        await database.update(database.usageStats, {
-            inputTokens: database.sequelize.literal(`inputTokens + ${usage.input_tokens}`),
-            outputTokens: database.sequelize.literal(`outputTokens + ${usage.output_tokens}`),
-            totalTokens: database.sequelize.literal(`totalTokens + ${usage.total_tokens}`),
-            cacheCreationTokens: database.sequelize.literal(`cacheCreationTokens + ${cacheCreation}`),
-            cacheReadTokens: database.sequelize.literal(`cacheReadTokens + ${cacheRead}`),
-        }, { where: { date: today } });
-    }
 
     const tokenUpdate = {
         inputTokens: database.sequelize.literal(`inputTokens + ${usage.input_tokens}`),

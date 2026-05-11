@@ -3,7 +3,7 @@ import { MessageRole, ToolApproval } from "scorpio.ai";
 import { database, ChannelSessionRow, channelThreadId, parseMemories } from "../Core/Database";
 import { config } from "../Core/Config";
 import { buildExecuteTool } from "./buildExecuteTool";
-import { updateUsageStats } from "./updateUsageStats";
+import { updateUsageStats, type UsageContext } from "./updateUsageStats";
 import { WebChatEventType, WEB_CHANNEL_ID } from "sbot.commons";
 import { httpServer } from "../Server/HttpServer";
 import { AgentRunner } from "../Agent/AgentRunner";
@@ -54,9 +54,25 @@ export function createProcessAIHandler(): ProcessAIHandler {
             ? async () => ToolApproval.Allow
             : buildExecuteTool(sessionHandler.session, agentId, autoApproveAllTools, (tc) => sessionHandler.executeApproval(tc));
 
+        let usageContext: UsageContext;
+        try {
+            const agentEntry = config.getAgent(agentId);
+            const namedModel = agentEntry.model ? config.settings.models?.[agentEntry.model] : undefined;
+            usageContext = {
+                agentId,
+                agentName: agentEntry.name || agentId,
+                modelId: agentEntry.model || '',
+                modelName: namedModel?.name || namedModel?.model || agentEntry.model || '',
+                provider: namedModel?.provider || '',
+                channelId,
+            };
+        } catch {
+            usageContext = { agentId, agentName: agentId, modelId: '', modelName: '', provider: '', channelId };
+        }
+
         const onUsage = async (usage: any) => {
             if (!silent) sessionHandler.session.recordUsage(usage);
-            await updateUsageStats(usage, dbSessionId);
+            await updateUsageStats(usage, dbSessionId, usageContext);
         };
 
         const onMessage = silent

@@ -1,5 +1,5 @@
 import { ChatAnthropic } from "@langchain/anthropic";
-import { AIMessageChunk } from "@langchain/core/messages";
+import { AIMessageChunk, BaseMessage, SystemMessage, HumanMessage } from "@langchain/core/messages";
 import { IModelService } from "./IModelService";
 import { ModelConfig } from "./types";
 import { type ChatMessage } from "../Saver/IAgentSaverService";
@@ -16,6 +16,7 @@ export class AnthropicModelService implements IModelService {
 
   constructor(private config: ModelConfig) {
     if (config.anthropic?.promptCaching) {
+      console.log("-----------------------------------------")
       this.cacheControl = { type: "ephemeral" };
     }
   }
@@ -40,10 +41,9 @@ export class AnthropicModelService implements IModelService {
 
   async invoke(prompt: string | ChatMessage[], options?: { signal?: AbortSignal }): Promise<ChatMessage> {
     const m = this.boundModel ?? this.model!;
-    const input = typeof prompt === 'string' ? prompt : toBaseMessages(prompt);
+    const input = typeof prompt === 'string' ? prompt : this.applyCache(toBaseMessages(prompt));
     const result = await m.invoke(input, {
       ...(options?.signal && { signal: options.signal }),
-      ...(this.cacheControl && { cache_control: this.cacheControl }),
     });
     return toChatMessage(result);
   }
@@ -59,10 +59,9 @@ export class AnthropicModelService implements IModelService {
 
   async stream(messages: string | ChatMessage[], options?: { signal?: AbortSignal }): Promise<AsyncIterable<ChatMessage>> {
     const m = this.boundModel ?? this.model!;
-    const input = typeof messages === 'string' ? messages : toBaseMessages(messages);
+    const input = typeof messages === 'string' ? messages : this.applyCache(toBaseMessages(messages));
     const lcStream = await m.stream(input, {
       ...(options?.signal && { signal: options.signal }),
-      ...(this.cacheControl && { cache_control: this.cacheControl }),
     });
     return (async function* () {
       let accumulated: AIMessageChunk | undefined;
@@ -77,5 +76,35 @@ export class AnthropicModelService implements IModelService {
 
   getModel(): any {
     return this.model!;
+  }
+
+  private applyCache(messages: BaseMessage[]): BaseMessage[] {
+    if (!this.cacheControl) return messages;
+
+    for (const msg of messages) {
+      if (msg instanceof SystemMessage) {
+        this.addCacheMarker(msg);
+        break;
+      }
+    }
+
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i] instanceof HumanMessage) {
+        this.addCacheMarker(messages[i]);
+        break;
+      }
+    }
+
+    return messages;
+  }
+
+  private addCacheMarker(message: BaseMessage): void {
+    const content = message.content;
+    if (typeof content === 'string') {
+      message.content = [{ type: "text", text: content, cache_control: this.cacheControl }];
+    } else if (Array.isArray(content) && content.length > 0) {
+      const last = content[content.length - 1];
+      content[content.length - 1] = { ...last, cache_control: this.cacheControl };
+    }
   }
 }

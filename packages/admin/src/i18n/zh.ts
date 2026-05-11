@@ -650,6 +650,9 @@ export default {
     total: '累计',
     tokens: 'tokens',
     context_window: '上下文窗口',
+    all_agents: '全部 Agent',
+    all_models: '全部模型',
+    daily_chart: '每日用量趋势',
   },
   heartbeats: {
     title: '心跳管理',
