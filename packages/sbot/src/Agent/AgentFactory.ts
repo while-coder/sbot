@@ -2,7 +2,7 @@ import {
     AgentServiceBase, SingleAgentService, GenerativeAgentService,
     ACPAgentService, T_ACPCommand, T_ACPArgs, T_ACPEnv, T_ACPSessionMode, T_ACPWorkPath,
     IModelService,
-    IAgentSaverService, AgentMemorySaver,
+    IAgentSaverService, AgentMemorySaver, ILoggerService,
     ConversationCompactor, IConversationCompactor, T_SummaryModelService, T_CompactPromptTemplate,
 } from "scorpio.ai";
 import {
@@ -22,6 +22,7 @@ import { config, AgentMode, SingleAgentEntry, ReactAgentEntry, GenerativeAgentEn
 import { loadPrompt } from "../Core/PromptLoader";
 import { globalAgentToolService } from "./GlobalAgentToolService";
 import { globalSkillService, getSkillsDirsMap } from "./GlobalSkillService";
+import { ACPAgentPool } from "./ACPAgentPool";
 
 
 export interface AgentCreateOptions {
@@ -52,7 +53,7 @@ export class AgentFactory {
         if (!container.isRegistered(IAgentSaverService)) container.registerSingleton(IAgentSaverService, AgentMemorySaver);
         const agentType = agentEntry.type || AgentMode.Single;
 
-        if (agentType !== AgentMode.Generative) {
+        if (agentType !== AgentMode.Generative && agentType !== AgentMode.ACP) {
             const { mcp, skills } = agentEntry;
             await this.registerSkillService(container, agentId, skills);
             await this.registerToolService(container, agentId, options.dbSessionId, mcp, agentTools);
@@ -73,7 +74,7 @@ export class AgentFactory {
                 return this.createGenerative(container, agentEntry as GenerativeAgentEntry, systemPrompts);
 
             case AgentMode.ACP:
-                return this.createACP(container, agentEntry as ACPAgentEntry, options.workPath ?? process.cwd());
+                return this.createACP(container, agentEntry as ACPAgentEntry, options);
 
             case AgentMode.Single:
             default:
@@ -208,14 +209,40 @@ export class AgentFactory {
     private static async createACP(
         container: ServiceContainer,
         entry: ACPAgentEntry,
-        workPath: string,
+        options: AgentCreateOptions,
     ): Promise<AgentServiceBase> {
+        const workPath = options.workPath ?? process.cwd();
+        const sessionMode = entry.sessionMode ?? "persistent";
+
+        if (sessionMode === "persistent") {
+            const pool = ACPAgentPool.getInstance();
+            const key = `${options.agentId}:${options.dbSessionId}`;
+            const agentName = entry.name ?? options.agentId;
+            const configHash = JSON.stringify({ command: entry.command, args: entry.args ?? [], env: entry.env ?? {}, workPath });
+
+            return pool.acquire(key, options.agentId, agentName, options.dbSessionId, configHash, async () => {
+                const sub = new ServiceContainer();
+                if (container.isRegistered(ILoggerService))
+                    sub.registerInstance(ILoggerService, await container.resolve(ILoggerService));
+                if (container.isRegistered(IAgentSaverService))
+                    sub.registerInstance(IAgentSaverService, await container.resolve(IAgentSaverService));
+                sub.registerWithArgs(ACPAgentService, {
+                    [T_ACPCommand]: entry.command,
+                    [T_ACPArgs]: entry.args ?? [],
+                    [T_ACPWorkPath]: workPath,
+                    ...(entry.env && { [T_ACPEnv]: entry.env }),
+                    [T_ACPSessionMode]: "persistent" as const,
+                });
+                return sub.resolve<ACPAgentService>(ACPAgentService);
+            });
+        }
+
         container.registerWithArgs(ACPAgentService, {
             [T_ACPCommand]: entry.command,
             [T_ACPArgs]: entry.args ?? [],
             [T_ACPWorkPath]: workPath,
             ...(entry.env && { [T_ACPEnv]: entry.env }),
-            ...(entry.sessionMode && { [T_ACPSessionMode]: entry.sessionMode }),
+            [T_ACPSessionMode]: "transient" as const,
         });
         return container.resolve(ACPAgentService);
     }

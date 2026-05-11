@@ -32,6 +32,16 @@ export class ACPAgentService extends AgentServiceBase {
     private _callback: IAgentCallback = {};
     private _text = "";
 
+    private _pooled = false;
+    onExit?: () => void;
+
+    get pooled() { return this._pooled; }
+    set pooled(v: boolean) { this._pooled = v; }
+
+    isAlive(): boolean {
+        return this.childProcess !== null && this.childProcess.exitCode === null;
+    }
+
     constructor(
         @inject(T_ACPCommand) command: string,
         @inject(T_ACPArgs) args: string[],
@@ -104,6 +114,11 @@ export class ACPAgentService extends AgentServiceBase {
     }
 
     override async dispose() {
+        if (this._pooled) return;
+        await this.forceDispose();
+    }
+
+    async forceDispose() {
         if (this.sessionId && this.connection) {
             await this.connection.closeSession({ sessionId: this.sessionId }).catch(() => {});
             this.sessionId = null;
@@ -114,6 +129,7 @@ export class ACPAgentService extends AgentServiceBase {
         }
         this.connection = null;
         this.initialized = false;
+        this._pooled = false;
         await super.dispose();
     }
 
@@ -135,6 +151,7 @@ export class ACPAgentService extends AgentServiceBase {
             this.connection = null;
             this.initialized = false;
             this.sessionId = null;
+            this.onExit?.();
         });
 
         const stdout = this.childProcess.stdout!;

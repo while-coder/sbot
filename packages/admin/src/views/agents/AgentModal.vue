@@ -10,6 +10,21 @@ import type { Agent, SubAgentRef } from '@/types'
 const { t } = useI18n()
 
 const emit = defineEmits<{ saved: [] }>()
+
+const acpPresets = [
+  { label: 'Claude Code', command: 'npx', args: '-y @anthropic-ai/claude-code@latest --acp' },
+  { label: 'OpenCode', command: 'npx', args: '-y @anthropic-ai/opencode@latest --acp' },
+  { label: 'Codex', command: 'npx', args: '-y @openai/codex@latest --acp' },
+  { label: 'Cline', command: 'npx', args: '-y cline@latest --acp' },
+  { label: 'Qwen Code', command: 'npx', args: '-y qwen-agent-acp@latest' },
+]
+
+function applyPreset(idx: number) {
+  if (idx < 0) return
+  const p = acpPresets[idx]
+  form.value.command = p.command
+  form.value.args = p.args
+}
 const { show } = useToast()
 
 const agents      = computed(() => store.settings.agents || {})
@@ -236,6 +251,12 @@ defineExpose({ open })
 
         <!-- ACP 专属字段 -->
         <template v-if="form.type === AgentMode.ACP">
+          <div class="form-group">
+            <label>{{ t('agents.acp_preset') }}</label>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button v-for="(p, i) in acpPresets" :key="i" class="btn-outline btn-sm" @click="applyPreset(i)">{{ p.label }}</button>
+            </div>
+          </div>
           <div class="form-group">
             <label>{{ t('agents.acp_command') }} *</label>
             <input v-model="form.command" :placeholder="t('agents.acp_command_placeholder')" />

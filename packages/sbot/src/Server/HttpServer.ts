@@ -9,6 +9,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { AgentToolService, SkillService, ModelProvider, listThreadIds, listSubDirs, readImageAsDataUrl, isEmptyContent, resizeImageIfNeeded, setMaxImageSize, type StoredMessage, type MessageContent } from "scorpio.ai";
 import { config, isDev, isValidAgentId } from '../Core/Config';
 import { AgentRunner } from '../Agent/AgentRunner';
+import { ACPAgentPool } from '../Agent/ACPAgentPool';
 import { globalAgentToolService, refreshGlobalAgentToolService, refreshBuiltinTools, BuiltinProvider } from '../Agent/GlobalAgentToolService';
 import { globalSkillService, refreshGlobalSkillService, getSkillsDirsMap } from '../Agent/GlobalSkillService';
 import { SkillHubService } from '../SkillHub';
@@ -335,6 +336,7 @@ class HttpServer {
         logger.info('Shutting down services...');
         try {
             schedulerService.stopAll();
+            await ACPAgentPool.getInstance().disposeAll();
             await channelManager.dispose();
             for (const ws of this.wsClients) ws.close();
             this.wsClients.clear();
@@ -578,6 +580,7 @@ class HttpServer {
             getSettings,
         });
         this.registerAgentRoutes(app);
+        this.registerACPRoutes(app);
         registerSettingsCrud(app, 'channels', {
             label: 'Channel',
             checkOnUpdate: true,
@@ -681,6 +684,22 @@ class HttpServer {
         app.delete('/api/agents/:id', api(req => {
             const id = req.params.id as string;
             config.deleteAgent(id);
+            return { success: true };
+        }));
+    }
+
+    // ===== ACP Process Pool =====
+    private registerACPRoutes(app: express.Application) {
+        app.get('/api/acp-sessions', api(() => ACPAgentPool.getInstance().list()));
+
+        app.delete('/api/acp-sessions/:key', api(async req => {
+            const key = decodeURIComponent(req.params.key as string);
+            await ACPAgentPool.getInstance().release(key);
+            return { success: true };
+        }));
+
+        app.delete('/api/acp-sessions', api(async () => {
+            await ACPAgentPool.getInstance().disposeAll();
             return { success: true };
         }));
     }
