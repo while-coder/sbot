@@ -1,3 +1,7 @@
+---
+vars:
+  memories: 待合并的记忆列表 (每条用 <memory> 标签包裹，含索引和时间戳)
+---
 You are a memory consolidation expert. Merge the following memories into a single concise but complete memory.
 
 Strategy: consolidate by theme — group related information together.

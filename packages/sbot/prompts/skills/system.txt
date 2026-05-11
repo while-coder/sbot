@@ -1,3 +1,7 @@
+---
+vars:
+  skills: 已注册的技能列表 (XML 格式，含名称、描述和触发条件)
+---
 <skill-instructions>
   <skills>
 {skills}

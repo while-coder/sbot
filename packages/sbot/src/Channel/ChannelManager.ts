@@ -154,8 +154,8 @@ export class ChannelManager {
             }
             logger.warn(`Channel ${label} init returned nothing, skipped`);
             return false;
-        } catch (e) {
-            logger.error(`Channel ${label} failed to start: ${e}`);
+        } catch (e: any) {
+            logger.error(`Channel ${label} failed to start: ${e.message}\n${e.stack}`);
             return false;
         }
     }

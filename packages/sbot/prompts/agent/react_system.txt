@@ -1,3 +1,7 @@
+---
+vars:
+  agents: 可调度的子智能体列表 (XML 格式，含 ID 和描述)
+---
 You are a ReAct orchestration expert. Break down the user's request and dispatch sub-tasks to specialized agents using the `task` tool.
 
 <agents>

@@ -24,7 +24,37 @@ function flattenTree(nodes: TreeNode[], depth = 0): { node: TreeNode; depth: num
   return result
 }
 
-const flatTree = computed(() => flattenTree(tree.value))
+const categoryOrder = ['system', 'agent', 'memory', 'wiki', 'skills', 'tools']
+
+const categories = computed(() => {
+  const map = new Map<string, TreeNode>()
+  for (const node of tree.value) {
+    if (node.type === 'dir') map.set(node.name, node)
+  }
+  const order = [...categoryOrder]
+  for (const node of tree.value) {
+    if (node.type === 'dir' && !order.includes(node.name)) order.push(node.name)
+  }
+  return order
+    .filter(name => map.has(name))
+    .map(name => ({
+      key: name,
+      label: t(`prompts.cat_${name}`, name),
+      node: map.get(name)!,
+    }))
+})
+
+const collapsedCats = ref(new Set<string>())
+
+function toggleCat(name: string) {
+  if (collapsedCats.value.has(name)) collapsedCats.value.delete(name)
+  else collapsedCats.value.add(name)
+  collapsedCats.value = new Set(collapsedCats.value)
+}
+
+function flattenChildren(parent: TreeNode) {
+  return flattenTree(parent.children || [], 0)
+}
 
 async function loadTree() {
   try {
@@ -132,22 +162,31 @@ onMounted(loadTree)
     <!-- Left: file tree -->
     <div class="prompts-tree">
       <div class="prompts-tree-header">{{ t('prompts.header') }}</div>
-      <div
-        v-for="{ node, depth } in flatTree"
-        :key="node.path"
-        class="tree-item"
-        :class="{
-          'tree-dir': node.type === 'dir',
-          'tree-file': node.type === 'file',
-          'tree-selected': selectedPath === node.path,
-        }"
-        :style="{ paddingLeft: `${10 + depth * 14}px` }"
-        @click="node.type === 'dir' ? toggleDir(node.path) : selectFile(node.path)"
-      >
-        <span class="tree-icon">{{ node.type === 'dir' ? (collapsed.has(node.path) ? '▶' : '▼') : '·' }}</span>
-        <span class="tree-name">{{ node.name }}</span>
-        <span v-if="node.isOverride" class="tree-custom-dot" :title="node.type === 'dir' ? t('prompts.contains_custom') : t('prompts.custom_title')"></span>
-      </div>
+      <template v-for="cat in categories" :key="cat.key">
+        <div class="tree-category" @click="toggleCat(cat.key)">
+          <span class="tree-icon">{{ collapsedCats.has(cat.key) ? '▶' : '▼' }}</span>
+          <span class="tree-cat-label">{{ cat.label }}</span>
+          <span v-if="cat.node.isOverride" class="tree-custom-dot" :title="t('prompts.contains_custom')"></span>
+        </div>
+        <template v-if="!collapsedCats.has(cat.key)">
+          <div
+            v-for="{ node, depth } in flattenChildren(cat.node)"
+            :key="node.path"
+            class="tree-item"
+            :class="{
+              'tree-dir': node.type === 'dir',
+              'tree-file': node.type === 'file',
+              'tree-selected': selectedPath === node.path,
+            }"
+            :style="{ paddingLeft: `${14 + depth * 14}px` }"
+            @click="node.type === 'dir' ? toggleDir(node.path) : selectFile(node.path)"
+          >
+            <span class="tree-icon">{{ node.type === 'dir' ? (collapsed.has(node.path) ? '▶' : '▼') : '·' }}</span>
+            <span class="tree-name">{{ node.name }}</span>
+            <span v-if="node.isOverride" class="tree-custom-dot" :title="node.type === 'dir' ? t('prompts.contains_custom') : t('prompts.custom_title')"></span>
+          </div>
+        </template>
+      </template>
     </div>
 
     <!-- Right: editor -->
@@ -208,6 +247,22 @@ onMounted(loadTree)
   letter-spacing: 0.06em;
   border-bottom: 1px solid #e8e6e3;
 }
+.tree-category {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 10px 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #4a4a4a;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 1px solid #ece8e4;
+  margin-top: 2px;
+}
+.tree-category:first-child { margin-top: 0; }
+.tree-category:hover { background: #f0ece8; }
+.tree-cat-label { flex: 1; }
 .tree-item {
   display: flex;
   align-items: center;

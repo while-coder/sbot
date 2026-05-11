@@ -1,3 +1,7 @@
+---
+vars:
+  items: 相关知识库条目列表
+---
 <wiki-knowledge>
 {items}
 </wiki-knowledge>
