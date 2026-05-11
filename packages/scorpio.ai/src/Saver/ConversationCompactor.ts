@@ -48,15 +48,29 @@ export class ConversationCompactor {
     async compact(messages: StoredMessage[]): Promise<CompactResult> {
         if (messages.length <= 1) return { messages };
 
-        const lastMessage = messages[messages.length - 1];
-        const toSummarize = messages.slice(0, -1);
+        // 找到尾部需要完整保留的消息组（AI tool_calls + 对应的 Tool results）
+        let tailStart = messages.length - 1;
+        if (messages[tailStart].message.role === MessageRole.Tool) {
+            while (tailStart > 0 && messages[tailStart - 1].message.role === MessageRole.Tool) {
+                tailStart--;
+            }
+            // 再往前一步包含发起 tool_calls 的 AI 消息
+            if (tailStart > 0 && messages[tailStart - 1].message.role === MessageRole.AI) {
+                tailStart--;
+            }
+        }
+
+        const toSummarize = messages.slice(0, tailStart);
+        const tailMessages = messages.slice(tailStart);
+
+        if (toSummarize.length === 0) return { messages };
 
         const chatMessages: ChatMessage[] = [
             ...toSummarize.map(s => s.message),
             { role: MessageRole.Human, content: this.compactInstruction },
         ];
 
-        this.logger?.info(`Compacting ${toSummarize.length} messages`);
+        this.logger?.info(`Compacting ${toSummarize.length} messages, preserving tail group of ${tailMessages.length}`);
 
         const result = await this.summaryModel.invoke(chatMessages);
         const summaryContent = typeof result.content === 'string'
@@ -70,6 +84,6 @@ export class ConversationCompactor {
 
         this.logger?.info(`Compact complete, summary length: ${summaryContent.length}`);
 
-        return { messages: [summaryStored, lastMessage] };
+        return { messages: [summaryStored, ...tailMessages] };
     }
 }

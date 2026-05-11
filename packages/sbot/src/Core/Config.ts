@@ -66,9 +66,20 @@ export interface GenerativeAgentEntry extends BaseAgentEntry {
 }
 
 /**
+ * ACP 模式 Agent 配置（通过 ACP 协议委派给外部编码 Agent）
+ */
+export interface ACPAgentEntry extends BaseAgentEntry {
+  type: AgentMode.ACP;
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+  sessionMode?: "transient" | "persistent";
+}
+
+/**
  * Agent 配置条目（联合类型）
  */
-export type AgentEntry = SingleAgentEntry | ReactAgentEntry | GenerativeAgentEntry;
+export type AgentEntry = SingleAgentEntry | ReactAgentEntry | GenerativeAgentEntry | ACPAgentEntry;
 
 export interface Settings {
   httpPort?: number;           // HTTP 服务监听端口，默认 5500

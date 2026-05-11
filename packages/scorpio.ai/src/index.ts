@@ -255,12 +255,18 @@ export {
   SingleAgentService,
   ReActAgentService,
   GenerativeAgentService,
+  ACPAgentService,
 
   // Token
   T_AgentSubNodes,
   T_CreateAgent,
   T_ThinkModelService,
   T_SummaryModelService,
+  T_ACPCommand,
+  T_ACPArgs,
+  T_ACPEnv,
+  T_ACPSessionMode,
+  T_ACPWorkPath,
 
   // 类型定义
   GraphNodeType,
@@ -274,6 +280,7 @@ export {
 export type {
   AgentSubNode,
   CreateAgentFn,
+  ACPSessionMode,
 } from "./Agents";
 
 // ========================================

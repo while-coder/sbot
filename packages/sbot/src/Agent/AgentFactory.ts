@@ -1,5 +1,6 @@
 import {
     AgentServiceBase, SingleAgentService, GenerativeAgentService,
+    ACPAgentService, T_ACPCommand, T_ACPArgs, T_ACPEnv, T_ACPSessionMode, T_ACPWorkPath,
     IModelService,
     IAgentSaverService, AgentMemorySaver,
     ConversationCompactor, IConversationCompactor, T_SummaryModelService, T_CompactPromptTemplate,
@@ -17,7 +18,7 @@ import {
 import { type StructuredToolInterface } from "@langchain/core/tools";
 import { createSchedulerTools } from "../Tools/Scheduler/index";
 import { createTodoTools } from "../Tools/Todo/index";
-import { config, AgentMode, SingleAgentEntry, ReactAgentEntry, GenerativeAgentEntry } from "../Core/Config";
+import { config, AgentMode, SingleAgentEntry, ReactAgentEntry, GenerativeAgentEntry, ACPAgentEntry } from "../Core/Config";
 import { loadPrompt } from "../Core/PromptLoader";
 import { globalAgentToolService } from "./GlobalAgentToolService";
 import { globalSkillService, getSkillsDirsMap } from "./GlobalSkillService";
@@ -34,6 +35,8 @@ export interface AgentCreateOptions {
     dbSessionId: string;
     /** 动态注册到 Agent 的工具列表 */
     agentTools?: StructuredToolInterface[];
+    /** Agent 文件操作根目录（ACP 模式作为 cwd 传给外部 agent） */
+    workPath?: string;
 }
 
 /**
@@ -68,6 +71,9 @@ export class AgentFactory {
 
             case AgentMode.Generative:
                 return this.createGenerative(container, agentEntry as GenerativeAgentEntry, systemPrompts);
+
+            case AgentMode.ACP:
+                return this.createACP(container, agentEntry as ACPAgentEntry, options.workPath ?? process.cwd());
 
             case AgentMode.Single:
             default:
@@ -194,5 +200,23 @@ export class AgentFactory {
             [T_ReactTaskToolDesc]: loadPrompt('agent/react_task.txt'),
         });
         return container.resolve(ReActAgentService);
+    }
+
+    /**
+     * 创建 ACP Agent（通过 ACP 协议委派给外部编码 Agent）
+     */
+    private static async createACP(
+        container: ServiceContainer,
+        entry: ACPAgentEntry,
+        workPath: string,
+    ): Promise<AgentServiceBase> {
+        container.registerWithArgs(ACPAgentService, {
+            [T_ACPCommand]: entry.command,
+            [T_ACPArgs]: entry.args ?? [],
+            [T_ACPWorkPath]: workPath,
+            ...(entry.env && { [T_ACPEnv]: entry.env }),
+            ...(entry.sessionMode && { [T_ACPSessionMode]: entry.sessionMode }),
+        });
+        return container.resolve(ACPAgentService);
     }
 }

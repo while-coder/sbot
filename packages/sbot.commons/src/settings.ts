@@ -14,6 +14,7 @@ export enum AgentMode {
   Single     = "single",
   ReAct      = "react",
   Generative = "generative",
+  ACP        = "acp",
 }
 
 export enum ModelProvider {

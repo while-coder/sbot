@@ -25,28 +25,61 @@
   },
   "typesVersions": {
     "*": {
-      "Core": ["dist/Core/index.d.ts"],
-      "Logger": ["dist/Logger/index.d.ts"],
-      "Model": ["dist/Model/index.d.ts"],
-      "Model/types": ["dist/Model/types.d.ts"],
-      "Embedding": ["dist/Embedding/index.d.ts"],
-      "Embedding/types": ["dist/Embedding/types.d.ts"],
-      "Memory": ["dist/Memory/index.d.ts"],
-      "Wiki": ["dist/Wiki/index.d.ts"],
-      "Saver": ["dist/Saver/index.d.ts"],
-      "Skills": ["dist/Skills/index.d.ts"],
-      "Command": ["dist/Command/index.d.ts"],
-      "AgentTool": ["dist/AgentTool/index.d.ts"],
-      "Agents": ["dist/Agents/index.d.ts"],
-      "Tools": ["dist/Tools/index.d.ts"],
-      "User": ["dist/User/index.d.ts"],
-      "Utils": ["dist/Utils/contentUtils.d.ts"]
+      "Core": [
+        "dist/Core/index.d.ts"
+      ],
+      "Logger": [
+        "dist/Logger/index.d.ts"
+      ],
+      "Model": [
+        "dist/Model/index.d.ts"
+      ],
+      "Model/types": [
+        "dist/Model/types.d.ts"
+      ],
+      "Embedding": [
+        "dist/Embedding/index.d.ts"
+      ],
+      "Embedding/types": [
+        "dist/Embedding/types.d.ts"
+      ],
+      "Memory": [
+        "dist/Memory/index.d.ts"
+      ],
+      "Wiki": [
+        "dist/Wiki/index.d.ts"
+      ],
+      "Saver": [
+        "dist/Saver/index.d.ts"
+      ],
+      "Skills": [
+        "dist/Skills/index.d.ts"
+      ],
+      "Command": [
+        "dist/Command/index.d.ts"
+      ],
+      "AgentTool": [
+        "dist/AgentTool/index.d.ts"
+      ],
+      "Agents": [
+        "dist/Agents/index.d.ts"
+      ],
+      "Tools": [
+        "dist/Tools/index.d.ts"
+      ],
+      "User": [
+        "dist/User/index.d.ts"
+      ],
+      "Utils": [
+        "dist/Utils/contentUtils.d.ts"
+      ]
     }
   },
   "scripts": {
     "build": "rimraf dist && tsc -b --force"
   },
   "dependencies": {
+    "@agentclientprotocol/sdk": "^0.21.0",
     "@langchain/anthropic": "^1.3.26",
     "@langchain/cohere": "^1.0.4",
     "@langchain/core": "catalog:",

@@ -95,7 +95,7 @@ export class AgentRunner {
         await AgentRunner.registerWikiServices(container, wikis ?? [], threadId);
         await AgentRunner.registerSaverService(container, saverId, threadId);
 
-        const agent = await AgentFactory.create({ agentId, container, extraPrompts, agentTools, dbSessionId });
+        const agent = await AgentFactory.create({ agentId, container, extraPrompts, agentTools, dbSessionId, workPath });
         try {
             await agent.stream(query, callbacks, signal);
         } finally {

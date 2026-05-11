@@ -32,6 +32,8 @@ export function estimateMessageTokens(message: ChatMessage): number {
  * 并丢弃开头的孤立 tool 消息（其配对的 AI 消息已被截断）
  */
 export function applyTokenLimit(messages: ChatMessage[], maxTokens: number): ChatMessage[] {
+    if (messages.length === 0) return messages;
+
     let tokenCount = 0;
     let startIndex = messages.length;
 
@@ -42,13 +44,18 @@ export function applyTokenLimit(messages: ChatMessage[], maxTokens: number): Cha
         startIndex = i;
     }
 
+    // 跳过开头孤立的 tool 消息（其配对的 AI tool_calls 已被截断）
     while (startIndex < messages.length && messages[startIndex].role === MessageRole.Tool) {
         startIndex++;
     }
 
-    // 保证至少返回最后 1 条消息
     if (startIndex >= messages.length) {
-        startIndex = messages.length - 1;
+        // 所有保留的消息都是孤立 Tool，需要回退到其父 AI 消息以保持配对完整
+        let i = messages.length - 1;
+        while (i >= 0 && messages[i].role === MessageRole.Tool) {
+            i--;
+        }
+        startIndex = Math.max(0, i);
     }
 
     return messages.slice(startIndex);
