@@ -63,6 +63,7 @@ export interface ChatMessageOptions {
 // ─── Storage row wrapper ─────────────────────────────────────────────────────
 
 export interface StoredMessage {
+    id?: number;
     message: ChatMessage;
     createdAt?: number;
     thinkId?: string;
@@ -83,11 +84,9 @@ export interface IAgentSaverService {
     getAllMessages(): Promise<StoredMessage[]>;
 
     /**
-     * 获取当前线程的历史消息，从末尾截取不超过 maxTokens 的部分
-     * 确保不破坏 tool_calls 和 tool 消息的配对
-     * @param maxTokens 最大 token 数
+     * 获取当前线程的历史消息（未压缩部分）
      */
-    getMessages(maxTokens: number): Promise<ChatMessage[]>;
+    getMessages(): Promise<ChatMessage[]>;
 
     // --- 历史管理 ---
 
@@ -133,6 +132,18 @@ export interface IAgentSaverService {
      * 写入持久化的元数据
      */
     setMetadata(key: string, value: string): Promise<void>;
+
+    // --- 会话搜索 ---
+
+    /**
+     * 全文搜索历史消息（含已压缩消息），需 FTS5 支持
+     */
+    searchMessages?(query: string, limit?: number): Promise<StoredMessage[]>;
+
+    /**
+     * 将指定消息标记为已压缩（保留在 DB 中但不参与正常查询）
+     */
+    markMessagesAsCompacted?(ids: number[]): Promise<void>;
 
     // --- 生命周期 ---
 

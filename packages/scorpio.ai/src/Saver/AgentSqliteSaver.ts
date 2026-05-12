@@ -5,7 +5,6 @@ import { IAgentSaverService, ChatMessage, StoredMessage, ChatMessageOptions } fr
 import { ILoggerService, ILogger } from "../Logger";
 import { inject } from "scorpio.di";
 import { T_DBPath } from "../Core/tokens";
-import { applyTokenLimit } from "./messageSerializer";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AgentSqliteSaver
@@ -51,6 +50,37 @@ export class AgentSqliteSaver implements IAgentSaverService {
                 );
                 CREATE INDEX IF NOT EXISTS idx_thinks_think_id ON thinks (think_id);
             `);
+
+            // Schema 迁移：添加 compacted 列
+            try {
+                this._db.exec(`ALTER TABLE messages ADD COLUMN compacted INTEGER NOT NULL DEFAULT 0`);
+            } catch { /* 列已存在，忽略 */ }
+
+            // FTS5 全文搜索索引
+            this._db.exec(`
+                CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
+                    content,
+                    content='messages',
+                    content_rowid='id'
+                );
+                CREATE TRIGGER IF NOT EXISTS messages_fts_ai AFTER INSERT ON messages BEGIN
+                    INSERT INTO messages_fts(rowid, content) VALUES (new.id, new.data);
+                END;
+                CREATE TRIGGER IF NOT EXISTS messages_fts_ad AFTER DELETE ON messages BEGIN
+                    INSERT INTO messages_fts(messages_fts, rowid, content) VALUES('delete', old.id, old.data);
+                END;
+                CREATE TRIGGER IF NOT EXISTS messages_fts_au AFTER UPDATE ON messages BEGIN
+                    INSERT INTO messages_fts(messages_fts, rowid, content) VALUES('delete', old.id, old.data);
+                    INSERT INTO messages_fts(rowid, content) VALUES (new.id, new.data);
+                END;
+            `);
+
+            // 一次性迁移：为已有消息重建 FTS 索引
+            const ftsInit = this._db.prepare("SELECT value FROM metadata WHERE key = 'fts5_initialized'").get() as { value: string } | undefined;
+            if (!ftsInit) {
+                this._db.exec(`INSERT INTO messages_fts(rowid, content) SELECT id, data FROM messages`);
+                this._db.prepare("INSERT OR REPLACE INTO metadata (key, value) VALUES ('fts5_initialized', '1')").run();
+            }
         }
         return this._db;
     }
@@ -59,10 +89,11 @@ export class AgentSqliteSaver implements IAgentSaverService {
         this.db.prepare("INSERT INTO messages (data, created_at, think_id) VALUES (?, ?, ?)")
             .run(JSON.stringify(message), Math.floor(Date.now() / 1000), options?.thinkId ?? null);
 
+        // 仅清理非 compacted 的超出消息
         this.db.prepare(`
-            DELETE FROM messages
-            WHERE id < (
-                SELECT id FROM messages
+            UPDATE messages SET compacted = 1
+            WHERE compacted = 0 AND id < (
+                SELECT id FROM messages WHERE compacted = 0
                 ORDER BY id DESC
                 LIMIT 1 OFFSET 999
             )
@@ -72,9 +103,10 @@ export class AgentSqliteSaver implements IAgentSaverService {
     async getAllMessages(): Promise<StoredMessage[]> {
         try {
             const rows = this.db
-                .prepare("SELECT data, created_at, think_id FROM messages ORDER BY id")
-                .all() as { data: string; created_at: number; think_id: string | null }[];
+                .prepare("SELECT id, data, created_at, think_id FROM messages WHERE compacted = 0 ORDER BY id")
+                .all() as { id: number; data: string; created_at: number; think_id: string | null }[];
             return rows.map((r) => ({
+                id: r.id,
                 message: JSON.parse(r.data) as ChatMessage,
                 createdAt: r.created_at,
                 thinkId: r.think_id ?? undefined,
@@ -85,20 +117,47 @@ export class AgentSqliteSaver implements IAgentSaverService {
         }
     }
 
-    async getMessages(maxTokens: number): Promise<ChatMessage[]> {
-        return applyTokenLimit((await this.getAllMessages()).map((r) => r.message), maxTokens);
+    async getMessages(): Promise<ChatMessage[]> {
+        return (await this.getAllMessages()).map((r) => r.message);
     }
 
     async replaceAllMessages(messages: StoredMessage[]): Promise<void> {
         const txn = this.db.transaction(() => {
-            this.db.prepare("DELETE FROM messages").run();
-            this.db.prepare("DELETE FROM thinks").run();
+            this.db.prepare("DELETE FROM messages WHERE compacted = 0").run();
             const stmt = this.db.prepare("INSERT INTO messages (data, created_at, think_id) VALUES (?, ?, ?)");
             for (const stored of messages) {
                 stmt.run(JSON.stringify(stored.message), stored.createdAt ?? Math.floor(Date.now() / 1000), stored.thinkId ?? null);
             }
         });
         txn();
+    }
+
+    async markMessagesAsCompacted(ids: number[]): Promise<void> {
+        if (ids.length === 0) return;
+        const placeholders = ids.map(() => '?').join(',');
+        this.db.prepare(`UPDATE messages SET compacted = 1 WHERE id IN (${placeholders})`).run(...ids);
+    }
+
+    async searchMessages(query: string, limit: number = 20): Promise<StoredMessage[]> {
+        try {
+            const rows = this.db.prepare(`
+                SELECT m.id, m.data, m.created_at, m.think_id
+                FROM messages_fts fts
+                JOIN messages m ON m.id = fts.rowid
+                WHERE messages_fts MATCH ?
+                ORDER BY rank
+                LIMIT ?
+            `).all(query, limit) as { id: number; data: string; created_at: number; think_id: string | null }[];
+            return rows.map((r) => ({
+                id: r.id,
+                message: JSON.parse(r.data) as ChatMessage,
+                createdAt: r.created_at,
+                thinkId: r.think_id ?? undefined,
+            }));
+        } catch (error: any) {
+            this.logger?.warn(`FTS5 搜索失败: ${error.message}`);
+            return [];
+        }
     }
 
     async clearMessages(): Promise<void> {

@@ -5,12 +5,13 @@ import { IAgentSaverService, ChatMessage, StoredMessage, ChatMessageOptions } fr
 import { ILoggerService, ILogger } from "../Logger";
 import { inject } from "scorpio.di";
 import { T_DBPath } from "../Core/tokens";
-import { applyTokenLimit } from "./messageSerializer";
 
 interface ThreadFile {
     messages: StoredMessage[];
     thinks?: Record<string, StoredMessage[]>;
     metadata?: Record<string, string>;
+    nextId?: number;
+    compactedIds?: number[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -35,14 +36,20 @@ export class AgentFileSaver implements IAgentSaverService {
         if (this.cache) return this.cache;
         try {
             if (!existsSync(this.filePath)) {
-                this.cache = { messages: [], thinks: {} };
+                this.cache = { messages: [], thinks: {}, nextId: 1, compactedIds: [] };
             } else {
                 const content = await readFile(this.filePath, "utf-8");
                 this.cache = JSON.parse(content) as ThreadFile;
+                let nextId = this.cache.nextId ?? 1;
+                for (const m of this.cache.messages) {
+                    if (m.id == null) m.id = nextId++;
+                }
+                this.cache.nextId = nextId;
+                if (!this.cache.compactedIds) this.cache.compactedIds = [];
             }
         } catch (error: any) {
             this.logger?.warn(`读取文件失败: ${error.message}`);
-            this.cache = { messages: [], thinks: {} };
+            this.cache = { messages: [], thinks: {}, nextId: 1, compactedIds: [] };
         }
         return this.cache!;
     }
@@ -55,35 +62,65 @@ export class AgentFileSaver implements IAgentSaverService {
 
     async pushMessage(message: ChatMessage, options?: ChatMessageOptions): Promise<void> {
         const file = await this.getFile();
-        const thinks = file.thinks ?? {};
+        const id = file.nextId ?? 1;
+        file.nextId = id + 1;
+        file.messages.push({ id, message, createdAt: Math.floor(Date.now() / 1000), thinkId: options?.thinkId });
 
-        file.messages.push({ message, createdAt: Math.floor(Date.now() / 1000), thinkId: options?.thinkId });
-
-        // trim: keep last 1000, clean up orphaned thinks
-        if (file.messages.length > 1000) {
-            const removed = file.messages.splice(0, file.messages.length - 1000);
-            for (const row of removed) {
-                if (row.thinkId) delete thinks[row.thinkId];
+        const compactedSet = new Set(file.compactedIds);
+        const nonCompacted = file.messages.filter(m => !compactedSet.has(m.id!));
+        if (nonCompacted.length > 1000) {
+            for (const m of nonCompacted.slice(0, nonCompacted.length - 1000)) {
+                compactedSet.add(m.id!);
             }
+            file.compactedIds = [...compactedSet];
         }
 
-        file.thinks = thinks;
         await this.writeThreadFile(file);
     }
 
     async getAllMessages(): Promise<StoredMessage[]> {
-        return (await this.getFile()).messages;
+        const file = await this.getFile();
+        const compactedSet = new Set(file.compactedIds);
+        return file.messages.filter(m => !compactedSet.has(m.id!));
     }
 
-    async getMessages(maxTokens: number): Promise<ChatMessage[]> {
-        return applyTokenLimit((await this.getAllMessages()).map((r) => r.message), maxTokens);
+    async getMessages(): Promise<ChatMessage[]> {
+        return (await this.getAllMessages()).map((r) => r.message);
     }
 
     async replaceAllMessages(messages: StoredMessage[]): Promise<void> {
         const file = await this.getFile();
-        file.messages = [...messages];
+        const compactedSet = new Set(file.compactedIds);
+        const compacted = file.messages.filter(m => compactedSet.has(m.id!));
+        const newMessages = messages.map(m => {
+            if (m.id != null) return m;
+            const id = file.nextId ?? 1;
+            file.nextId = id + 1;
+            return { ...m, id };
+        });
+        file.messages = [...compacted, ...newMessages];
         file.thinks = {};
         await this.writeThreadFile(file);
+    }
+
+    async markMessagesAsCompacted(ids: number[]): Promise<void> {
+        if (ids.length === 0) return;
+        const file = await this.getFile();
+        const compactedSet = new Set(file.compactedIds);
+        for (const id of ids) compactedSet.add(id);
+        file.compactedIds = [...compactedSet];
+        await this.writeThreadFile(file);
+    }
+
+    async searchMessages(query: string, limit: number = 20): Promise<StoredMessage[]> {
+        const file = await this.getFile();
+        const lower = query.toLowerCase();
+        return file.messages
+            .filter(m => {
+                const c = m.message.content;
+                return (typeof c === 'string' ? c : JSON.stringify(c)).toLowerCase().includes(lower);
+            })
+            .slice(-limit);
     }
 
     async clearMessages(): Promise<void> {
