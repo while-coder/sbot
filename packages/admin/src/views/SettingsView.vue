@@ -4,19 +4,9 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
-import { i18n, saveLocale } from '@/i18n'
-
 const { t } = useI18n()
 
 const { show } = useToast()
-
-// ── Language ──────────────────────────────────────────────────────
-const locale = ref(i18n.global.locale.value)
-function changeLocale(lang: string) {
-  locale.value = lang
-  ;(i18n.global.locale as any).value = lang
-  saveLocale(lang)
-}
 
 const httpPort = ref<number | ''>('')
 const httpUrl = ref('')
@@ -112,18 +102,6 @@ async function save() {
       <button class="btn-primary btn-sm" @click="save">{{ t('common.save') }}</button>
     </div>
     <div class="page-content">
-      <div class="card">
-        <div class="card-title">{{ t('settings.language') }}</div>
-        <div class="inline-form">
-          <div class="form-group">
-            <label>{{ t('settings.language') }}</label>
-            <select :value="locale" @change="changeLocale(($event.target as HTMLSelectElement).value)">
-              <option value="zh">{{ t('settings.lang_zh') }}</option>
-              <option value="en">{{ t('settings.lang_en') }}</option>
-            </select>
-          </div>
-        </div>
-      </div>
       <div class="card">
         <div class="card-title">{{ t('settings.service') }}</div>
         <div class="inline-form">

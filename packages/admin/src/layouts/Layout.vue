@@ -110,6 +110,29 @@ function switchLocale(code: string) {
   showLangMenu.value = false
 }
 
+// Theme switcher
+type ThemeMode = 'light' | 'dark' | 'system'
+const showThemeMenu = ref(false)
+const currentTheme = ref<ThemeMode>((localStorage.getItem('sbot-theme') as ThemeMode) || 'system')
+
+function applyTheme(mode: ThemeMode) {
+  const isDark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light')
+}
+
+function switchTheme(mode: ThemeMode) {
+  currentTheme.value = mode
+  localStorage.setItem('sbot-theme', mode)
+  applyTheme(mode)
+  showThemeMenu.value = false
+}
+
+applyTheme(currentTheme.value)
+const systemMql = window.matchMedia('(prefers-color-scheme: dark)')
+function onSystemThemeChange() {
+  if (currentTheme.value === 'system') applyTheme('system')
+}
+
 // Docs URL
 const docsUrl = computed(() => locale.value === 'zh'
   ? `${GITHUB_REPO_URL}/blob/main/README.zh.md`
@@ -150,13 +173,19 @@ async function init() {
 
 init()
 
-function closeLangMenu(e: MouseEvent) {
-  if (showLangMenu.value && !(e.target as HTMLElement)?.closest('.topbar-icon-btn')) {
-    showLangMenu.value = false
-  }
+function closeDropdowns(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  if (showLangMenu.value && !target?.closest('.lang-btn')) showLangMenu.value = false
+  if (showThemeMenu.value && !target?.closest('.theme-btn')) showThemeMenu.value = false
 }
-onMounted(() => document.addEventListener('click', closeLangMenu))
-onUnmounted(() => document.removeEventListener('click', closeLangMenu))
+onMounted(() => {
+  document.addEventListener('click', closeDropdowns)
+  systemMql.addEventListener('change', onSystemThemeChange)
+})
+onUnmounted(() => {
+  document.removeEventListener('click', closeDropdowns)
+  systemMql.removeEventListener('change', onSystemThemeChange)
+})
 </script>
 
 <template>
@@ -173,14 +202,19 @@ onUnmounted(() => document.removeEventListener('click', closeLangMenu))
           <a :href="`${GITHUB_REPO_URL}/issues`" target="_blank" class="topbar-link">{{ t('nav.faq') }}</a>
           <a :href="GITHUB_REPO_URL" target="_blank" class="topbar-link">GitHub</a>
         </nav>
-        <div class="topbar-icon-btn" style="position:relative" @click="showLangMenu = !showLangMenu">
+        <div class="topbar-icon-btn lang-btn" style="position:relative" @click="showLangMenu = !showLangMenu">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
           <div v-if="showLangMenu" class="lang-dropdown">
             <div v-for="lang in languages" :key="lang.code" class="lang-option" :class="{ active: locale === lang.code }" @click.stop="switchLocale(lang.code)">{{ lang.label }}</div>
           </div>
         </div>
-        <div class="topbar-icon-btn" @click="router.push('/token-usage')" :title="t('nav.token_usage')">
+        <div class="topbar-icon-btn theme-btn" style="position:relative" @click="showThemeMenu = !showThemeMenu">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          <div v-if="showThemeMenu" class="theme-dropdown">
+            <div class="theme-option" :class="{ active: currentTheme === 'light' }" @click.stop="switchTheme('light')">{{ t('nav.theme_light') }}</div>
+            <div class="theme-option" :class="{ active: currentTheme === 'dark' }" @click.stop="switchTheme('dark')">{{ t('nav.theme_dark') }}</div>
+            <div class="theme-option" :class="{ active: currentTheme === 'system' }" @click.stop="switchTheme('system')">{{ t('nav.theme_system') }}</div>
+          </div>
         </div>
         <div class="topbar-icon-btn" @click="reloadConfig" :title="t('nav.reload')">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
@@ -1178,6 +1212,150 @@ table tr:hover td { background: #fafaf9; }
     padding: 3px 8px;
     font-size: 12px;
   }
+}
+
+/* Theme dropdown */
+.theme-dropdown {
+  position: absolute;
+  top: 38px;
+  right: 0;
+  background: #fff;
+  border: 1px solid #e8e6e3;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  min-width: 120px;
+  padding: 4px;
+  z-index: 100;
+}
+.theme-option {
+  padding: 8px 14px;
+  font-size: 13px;
+  color: #3d3d3d;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.theme-option:hover { background: #f5f4f2; }
+.theme-option.active { font-weight: 600; color: #1c1c1c; }
+
+/* ===== Dark Theme ===== */
+html[data-theme="dark"] body { color: #d4d4d4; background: #1a1a1a; }
+html[data-theme="dark"] .topbar { background: #1a1a1a; border-bottom-color: #333; }
+html[data-theme="dark"] .topbar-title { color: #e0e0e0; }
+html[data-theme="dark"] .topbar-link { color: #aaa; }
+html[data-theme="dark"] .topbar-link:hover { background: #2a2a2a; color: #e0e0e0; }
+html[data-theme="dark"] .topbar-icon-btn { color: #999; }
+html[data-theme="dark"] .topbar-icon-btn:hover { background: #2a2a2a; color: #e0e0e0; }
+html[data-theme="dark"] .lang-dropdown,
+html[data-theme="dark"] .theme-dropdown { background: #252525; border-color: #333; box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
+html[data-theme="dark"] .lang-option,
+html[data-theme="dark"] .theme-option { color: #ccc; }
+html[data-theme="dark"] .lang-option:hover,
+html[data-theme="dark"] .theme-option:hover { background: #333; }
+html[data-theme="dark"] .lang-option.active,
+html[data-theme="dark"] .theme-option.active { color: #fff; }
+html[data-theme="dark"] .sidebar { background: #1a1a1a; border-right-color: #333; }
+html[data-theme="dark"] .sidebar-group-label { color: #aaa; border-top-color: #333; }
+html[data-theme="dark"] .sidebar-item { color: #999; }
+html[data-theme="dark"] .sidebar-item:hover { background: #2a2a2a; color: #e0e0e0; }
+html[data-theme="dark"] .sidebar-item.active { background: #252525; color: #e0e0e0; }
+html[data-theme="dark"] .page-toolbar { background: #1a1a1a; border-bottom-color: #333; }
+html[data-theme="dark"] .page-toolbar-title { color: #e0e0e0; }
+html[data-theme="dark"] .card { background: #222; border-color: #333; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+html[data-theme="dark"] .card-title { color: #999; }
+html[data-theme="dark"] .form-group label { color: #ccc; }
+html[data-theme="dark"] .form-group input,
+html[data-theme="dark"] .form-group select,
+html[data-theme="dark"] .form-group textarea { background: #2a2a2a; border-color: #444; color: #d4d4d4; }
+html[data-theme="dark"] .form-group input:focus,
+html[data-theme="dark"] .form-group select:focus,
+html[data-theme="dark"] .form-group textarea:focus { border-color: #888; }
+html[data-theme="dark"] .form-group input:disabled { background: #222; color: #666; }
+html[data-theme="dark"] .btn-primary { background: #e0e0e0; color: #1a1a1a; }
+html[data-theme="dark"] .btn-primary:hover:not(:disabled) { background: #fff; }
+html[data-theme="dark"] .btn-outline { border-color: #444; color: #ccc; }
+html[data-theme="dark"] .btn-outline:hover:not(:disabled) { background: #2a2a2a; }
+html[data-theme="dark"] .btn-danger { background: #dc2626; }
+html[data-theme="dark"] table th { background: #252525; color: #999; border-bottom-color: #333; }
+html[data-theme="dark"] table td { border-bottom-color: #333; color: #d4d4d4; }
+html[data-theme="dark"] table tr:hover td { background: #252525; }
+html[data-theme="dark"] .modal-overlay { background: rgba(0,0,0,0.6); }
+html[data-theme="dark"] .modal-box { background: #222; box-shadow: 0 8px 40px rgba(0,0,0,0.3); }
+html[data-theme="dark"] .modal-header { border-bottom-color: #333; }
+html[data-theme="dark"] .modal-header h3 { color: #e0e0e0; }
+html[data-theme="dark"] .modal-body { color: #d4d4d4; }
+html[data-theme="dark"] .modal-footer { border-top-color: #333; }
+html[data-theme="dark"] .modal-close { color: #666; }
+html[data-theme="dark"] .modal-close:hover { color: #ccc; }
+html[data-theme="dark"] .toast { background: #e0e0e0; color: #1a1a1a; }
+html[data-theme="dark"] .toast.error { background: #ef4444; color: #fff; }
+html[data-theme="dark"] .hint { color: #777; }
+html[data-theme="dark"] .form-section { border-top-color: #333; }
+html[data-theme="dark"] .form-details { border-color: #333; }
+html[data-theme="dark"] .form-details-summary { background: #252525; color: #ccc; }
+html[data-theme="dark"] .form-details-body { border-top-color: #333; }
+html[data-theme="dark"] .form-section-title { color: #999; }
+html[data-theme="dark"] .check-item { background: #252525; border-color: #333; color: #ccc; }
+html[data-theme="dark"] .check-item:hover { background: #333; }
+html[data-theme="dark"] .tag-item { background: #333; color: #ccc; }
+html[data-theme="dark"] .tag-add-select { background: #252525; border-color: #555; color: #999; }
+html[data-theme="dark"] .row-dropdown-menu { background: #252525; border-color: #333; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+html[data-theme="dark"] .row-dropdown-menu button { color: #ccc; }
+html[data-theme="dark"] .row-dropdown-menu button:hover:not(:disabled) { background: #333; }
+html[data-theme="dark"] .msg-bubble.ai { background: #2a2a2a; color: #d4d4d4; }
+html[data-theme="dark"] .msg-bubble.tool { background: #2a2500; color: #d4b860; }
+html[data-theme="dark"] .msg-tool-calls { background: #252525; border-color: #333; }
+html[data-theme="dark"] .tool-call-header { background: #2a2a2a; }
+html[data-theme="dark"] .tool-call-item { border-color: #333; }
+html[data-theme="dark"] .tool-call-name { color: #e0e0e0; }
+html[data-theme="dark"] .tool-call-args { background: #252525; color: #ccc; }
+html[data-theme="dark"] .tool-call-result { border-top-color: #333; }
+html[data-theme="dark"] .chat-input-bar { background: #1a1a1a; border-top-color: #333; }
+html[data-theme="dark"] .chat-input-bar .rich-input { background: #2a2a2a; border-color: #444; color: #d4d4d4; }
+html[data-theme="dark"] .chat-input-bar .rich-input:focus-within { border-color: #888; }
+html[data-theme="dark"] .chat-queue { background: #2a2500; border-top-color: #333; }
+html[data-theme="dark"] .chat-queue-label { color: #d4b860; }
+html[data-theme="dark"] .chat-queue-item { background: #252525; border-color: #444; }
+html[data-theme="dark"] .chat-queue-text { color: #ccc; }
+html[data-theme="dark"] .chat-info-chip { background: #2a2a2a; border-color: #444; color: #999; }
+html[data-theme="dark"] .chat-info-chip:hover { background: #333; border-color: #555; }
+html[data-theme="dark"] .think-toggle { background: #2d2540; border-color: #4a3580; color: #a78bfa; }
+html[data-theme="dark"] .think-toggle:hover { background: #3d3060; border-color: #6d54b0; color: #c4b5fd; }
+html[data-theme="dark"] .md-content pre { background: rgba(255,255,255,0.06); }
+html[data-theme="dark"] .md-content code { background: rgba(255,255,255,0.08); }
+html[data-theme="dark"] .md-content blockquote { border-left-color: #444; color: #999; }
+html[data-theme="dark"] .md-content hr { border-top-color: #333; }
+html[data-theme="dark"] .md-content table th { background: #2a2a2a; }
+html[data-theme="dark"] .md-content table td,
+html[data-theme="dark"] .md-content table th { border-color: #333; }
+html[data-theme="dark"] .mobile-card { background: #222; border-color: #333; }
+html[data-theme="dark"] .mobile-card-label { color: #777; }
+html[data-theme="dark"] .mobile-card-value { color: #d4d4d4; }
+html[data-theme="dark"] .hamburger-btn { color: #e0e0e0; }
+html[data-theme="dark"] .sidebar-overlay { background: rgba(0,0,0,0.5); }
+html[data-theme="dark"] .sub-agent-item { background: #252525; border-color: #333; }
+html[data-theme="dark"] .sub-agent-item-name { color: #e0e0e0; }
+html[data-theme="dark"] .sub-agent-item-desc { color: #999; }
+html[data-theme="dark"] .tools-list li:hover { background: #252525; }
+html[data-theme="dark"] .tools-list li { border-bottom-color: #333; }
+html[data-theme="dark"] .tool-name { color: #e0e0e0; }
+html[data-theme="dark"] .tool-desc { color: #999; }
+html[data-theme="dark"] .tools-approve-bar { background: #252525; border-bottom-color: #333; }
+html[data-theme="dark"] .param-name { color: #e0e0e0; }
+html[data-theme="dark"] .param-desc { color: #999; }
+html[data-theme="dark"] .tool-params { border-left-color: #333; }
+html[data-theme="dark"] .tool-param + .tool-param { border-top-color: #333; }
+html[data-theme="dark"] .table-link-btn { color: #818cf8; }
+html[data-theme="dark"] .table-link-btn:hover { color: #a5b4fc; text-decoration-color: #a5b4fc; }
+html[data-theme="dark"] .msg-date-sep { color: #666; }
+html[data-theme="dark"] .msg-date-sep::before,
+html[data-theme="dark"] .msg-date-sep::after { background: #333; }
+html[data-theme="dark"] .section-disabled { opacity: 0.3; }
+html[data-theme="dark"] .lightbox-overlay { background: rgba(0,0,0,0.85); }
+@media (max-width: 768px) {
+  html[data-theme="dark"] .sidebar-mobile { background: #1a1a1a; }
+  html[data-theme="dark"] .modal-header { background: #222; }
+  html[data-theme="dark"] .modal-footer { background: #222; }
 }
 
 .usage-table {

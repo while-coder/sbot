@@ -10,6 +10,9 @@ export enum BuiltinProvider {
     Sleep = 'builtin_sleep',
     Time = 'builtin_time',
 
+    Scheduler = 'builtin_scheduler',
+    Todo = 'builtin_todo',
+
     Playwright = 'builtin_playwright',
     ChromeDevTools = 'builtin_chrome-devtools-mcp',
     Markitdown = 'builtin_markitdown',
@@ -44,6 +47,8 @@ export function initGlobalAgentToolService() {
         const { createTimeTool } = await import("../Tools/Time/index.js");
         return [createTimeTool()];
     }, '获取当前时间');
+    globalAgentToolService.registerToolFactory(BuiltinProvider.Scheduler, async () => [], '定时任务调度');
+    globalAgentToolService.registerToolFactory(BuiltinProvider.Todo, async () => [], '待办事项管理');
     globalAgentToolService.registerMcpServers({
         [BuiltinProvider.Playwright]: {
             "command": "npx",

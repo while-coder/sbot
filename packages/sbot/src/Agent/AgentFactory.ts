@@ -20,7 +20,7 @@ import { createSchedulerTools } from "../Tools/Scheduler/index";
 import { createTodoTools } from "../Tools/Todo/index";
 import { config, AgentMode, SingleAgentEntry, ReactAgentEntry, GenerativeAgentEntry, ACPAgentEntry } from "../Core/Config";
 import { loadPrompt } from "../Core/PromptLoader";
-import { globalAgentToolService } from "./GlobalAgentToolService";
+import { globalAgentToolService, BuiltinProvider } from "./GlobalAgentToolService";
 import { globalSkillService, getSkillsDirsMap } from "./GlobalSkillService";
 import { ACPAgentPool } from "./ACPAgentPool";
 
@@ -114,6 +114,11 @@ export class AgentFactory {
         skillService.registerSkillsDir(config.getAgentSkillsPath(agentName));
     }
 
+    private static readonly SESSION_TOOL_CREATORS: Record<string, (dbSessionId: string) => Promise<StructuredToolInterface[]>> = {
+        [BuiltinProvider.Scheduler]: (id) => Promise.resolve(createSchedulerTools(id)),
+        [BuiltinProvider.Todo]: (id) => Promise.resolve(createTodoTools(id)),
+    };
+
     private static async registerToolService(
         container: ServiceContainer,
         agentName: string,
@@ -123,18 +128,27 @@ export class AgentFactory {
     ): Promise<void> {
         container.registerSingleton(IAgentToolService, AgentToolService);
         const toolService = await container.resolve<AgentToolService>(IAgentToolService);
-        toolService.registerToolFactory('__scheduler__', () =>
-            Promise.resolve(createSchedulerTools(dbSessionId))
-        );
-        toolService.registerToolFactory('__todo__', () =>
-            Promise.resolve(createTodoTools(dbSessionId))
-        );
+
+        const sessionNames = new Set(Object.keys(this.SESSION_TOOL_CREATORS));
+
         if (mcp === '*') {
+            for (const [name, creator] of Object.entries(this.SESSION_TOOL_CREATORS)) {
+                toolService.registerToolFactory(name, () => creator(dbSessionId));
+            }
             toolService.registerToolFactory('__global_mcp__', () => globalAgentToolService.getAllTools());
         } else if (mcp && mcp.length > 0) {
-            const mcpNames = [...mcp];
-            toolService.registerToolFactory('__global_mcp__', () => globalAgentToolService.getToolsFrom(mcpNames));
+            for (const name of mcp) {
+                const creator = this.SESSION_TOOL_CREATORS[name];
+                if (creator) {
+                    toolService.registerToolFactory(name, () => creator(dbSessionId));
+                }
+            }
+            const globalNames = mcp.filter(n => !sessionNames.has(n));
+            if (globalNames.length > 0) {
+                toolService.registerToolFactory('__global_mcp__', () => globalAgentToolService.getToolsFrom(globalNames));
+            }
         }
+
         if (agentTools?.length) {
             toolService.registerToolFactory('__channel__', () => Promise.resolve(agentTools));
         }
