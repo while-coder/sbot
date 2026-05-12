@@ -8,6 +8,7 @@ export enum BuiltinProvider {
     WebFetch = 'builtin_webfetch',
     Archive = 'builtin_archive',
     Sleep = 'builtin_sleep',
+    Time = 'builtin_time',
 
     Playwright = 'builtin_playwright',
     ChromeDevTools = 'builtin_chrome-devtools-mcp',
@@ -39,6 +40,10 @@ export function initGlobalAgentToolService() {
         const { createSleepTool } = await import("../Tools/Sleep/index.js");
         return [createSleepTool()];
     }, '等待/暂停执行');
+    globalAgentToolService.registerToolFactory(BuiltinProvider.Time, async () => {
+        const { createTimeTool } = await import("../Tools/Time/index.js");
+        return [createTimeTool()];
+    }, '获取当前时间');
     globalAgentToolService.registerMcpServers({
         [BuiltinProvider.Playwright]: {
             "command": "npx",
@@ -78,6 +83,7 @@ export async function refreshBuiltinTools() {
         BuiltinProvider.WebFetch,
         BuiltinProvider.Archive,
         BuiltinProvider.Sleep,
+        BuiltinProvider.Time,
         // BuiltinProvider.GameData,
     );
 }

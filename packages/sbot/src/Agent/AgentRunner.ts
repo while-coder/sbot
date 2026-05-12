@@ -63,7 +63,6 @@ export class AgentRunner {
         if (!threadId.trim())  throw new Error("threadId not specified");
 
         const signal = sessionManager.getOrCreate(threadId).signal;
-        const now = new Date();
         const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
         const assetsDir = config.getConfigPath('assets', true);
         const httpUrl = config.getHttpUrl();
@@ -83,10 +82,7 @@ export class AgentRunner {
 
         /** 动态 system prompts（每次请求变化，不可缓存） */
         const dynamicPrompts: string[] = [
-            loadPrompt('system/dynamic_context.txt', {
-                currentTime: now.toLocaleString(undefined, { timeZone: timezone, hour12: false }),
-                extraInfo,
-            }),
+            ...(extraInfo?.trim() ? [loadPrompt('system/dynamic_context.txt', { extraInfo })] : []),
         ];
 
         const container = new ServiceContainer();

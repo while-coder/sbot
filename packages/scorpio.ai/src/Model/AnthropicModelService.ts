@@ -43,13 +43,18 @@ export class AnthropicModelService implements IModelService {
     const input = typeof prompt === 'string' ? prompt : this.applyCache(toBaseMessages(prompt));
     const result = await m.invoke(input, {
       ...(options?.signal && { signal: options.signal }),
-      ...(this.cacheControl && { cache_control: this.cacheControl }),
     });
     return toChatMessage(result);
   }
 
   bindTools(tools: any[]): void {
-    this.boundModel = this.model!.bindTools(tools);
+    if (this.cacheControl && tools.length > 0) {
+      const formatted = (this.model! as any).formatStructuredToolToAnthropic(tools);
+      formatted[formatted.length - 1].cache_control = this.cacheControl;
+      this.boundModel = (this.model! as any).withConfig({ tools: formatted });
+    } else {
+      this.boundModel = this.model!.bindTools(tools);
+    }
   }
 
   async invokeStructured<T = any>(schema: any, prompt: string | ChatMessage[], options?: { signal?: AbortSignal }): Promise<T> {
@@ -62,7 +67,6 @@ export class AnthropicModelService implements IModelService {
     const input = typeof messages === 'string' ? messages : this.applyCache(toBaseMessages(messages));
     const lcStream = await m.stream(input, {
       ...(options?.signal && { signal: options.signal }),
-      ...(this.cacheControl && { cache_control: this.cacheControl }),
     });
     return (async function* () {
       let accumulated: AIMessageChunk | undefined;
@@ -80,24 +84,33 @@ export class AnthropicModelService implements IModelService {
   }
 
   private applyCache(messages: BaseMessage[]): BaseMessage[] {
-    if (!this.cacheControl) return messages;
+    if (!this.cacheControl || messages.length === 0) return messages;
 
+    // breakpoint 1: system message (last block) — covers static + dynamic as a whole
+    // system is built once per stream() call, so within a ReAct loop it's always identical
     for (const msg of messages) {
       if (msg instanceof SystemMessage) {
-        this.addCacheMarker(msg);
+        this.addCacheMarker(msg, 'last');
         break;
       }
+    }
+
+    // breakpoint 2: conversation history tail — next call reuses the entire prefix
+    const last = messages[messages.length - 1];
+    if (!(last instanceof SystemMessage)) {
+      this.addCacheMarker(last, 'first');
     }
 
     return messages;
   }
 
-  private addCacheMarker(message: BaseMessage): void {
+  private addCacheMarker(message: BaseMessage, position: 'first' | 'last' = 'first'): void {
     const content = message.content;
     if (typeof content === 'string') {
       message.content = [{ type: "text", text: content, cache_control: this.cacheControl }];
     } else if (Array.isArray(content) && content.length > 0) {
-      content[0] = { ...content[0], cache_control: this.cacheControl };
+      const idx = position === 'last' ? content.length - 1 : 0;
+      content[idx] = { ...content[idx], cache_control: this.cacheControl };
     }
   }
 }

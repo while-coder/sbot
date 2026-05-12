@@ -1,7 +1,5 @@
 ---
 vars:
-  currentTime: 当前时间 (如 2026/1/1 12:00:00)
   extraInfo: 渠道注入的额外信息 (XML 片段，可为空)
 ---
-<current-time>{currentTime}</current-time>
 {extraInfo}
