@@ -108,11 +108,10 @@ export abstract class AgentServiceBase {
         this.logger = loggerService?.getLogger(this.constructor.name);
     }
 
-    /**
-     * 在构造后追加系统提示词（子类按需 override；编排 Agent 调用子 Agent 时使用）
-     */
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    addSystemPrompts(_prompts: string[]): void {}
+    addStaticSystemPrompts(_prompts: string[]): void {}
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    addDynamicSystemPrompts(_prompts: string[]): void {}
 
     /**
      * 以无回调方式调用 stream，返回 stream 的结果消息列表。

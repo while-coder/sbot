@@ -55,7 +55,7 @@ export class SingleAgentService extends AgentServiceBase {
     protected modelService: IModelService;
     protected skillService?: ISkillService;
     protected toolService?: IAgentToolService;
-    protected systemMessages: ChatMessage[];
+    protected staticSystemPrompts: string[];
     protected dynamicSystemPrompts: string[];
     protected memorySystemPromptTemplate?: string;
     protected modelCallTimeout?: number;
@@ -63,7 +63,7 @@ export class SingleAgentService extends AgentServiceBase {
 
     constructor(
         @inject(IModelService) modelService: IModelService,
-        @inject(T_StaticSystemPrompts, { optional: true }) systemPrompts?: string[],
+        @inject(T_StaticSystemPrompts, { optional: true }) staticSystemPrompts?: string[],
         @inject(T_DynamicSystemPrompts, { optional: true }) dynamicSystemPrompts?: string[],
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
         @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
@@ -80,23 +80,24 @@ export class SingleAgentService extends AgentServiceBase {
         this.modelService = modelService;
         this.skillService = skillService;
         this.toolService = toolService;
-        this.systemMessages = (systemPrompts ?? []).map(p => ({ role: MessageRole.System, content: p }));
+        this.staticSystemPrompts = staticSystemPrompts ?? [];
         this.dynamicSystemPrompts = dynamicSystemPrompts ?? [];
         this.memorySystemPromptTemplate = memorySystemPromptTemplate;
         this.modelCallTimeout = modelCallTimeout;
         this.compactor = compactor;
     }
 
-    override addSystemPrompts(prompts: string[]): void {
-        this.systemMessages.unshift(...prompts.map(p => ({ role: MessageRole.System, content: p })));
+    override addStaticSystemPrompts(prompts: string[]): void {
+        this.staticSystemPrompts.unshift(...prompts);
     }
 
-    /**
-     * 构建本轮 system message，分为静态块（可缓存）和动态块（每次请求变化）
-     */
+    override addDynamicSystemPrompts(prompts: string[]): void {
+        this.dynamicSystemPrompts.push(...prompts);
+    }
+
     protected async buildSystemMessage(query: MessageContent): Promise<ChatMessage | undefined> {
         // ── 静态部分（跨请求不变，可被 prompt caching 缓存） ──
-        const staticParts: string[] = this.systemMessages.map(m => m.content as string);
+        const staticParts: string[] = [...this.staticSystemPrompts];
         if (this.skillService) {
             const skillMessage = await this.skillService.getSystemMessage();
             if (skillMessage) staticParts.push(skillMessage);
@@ -130,13 +131,12 @@ export class SingleAgentService extends AgentServiceBase {
             }
         }
 
-        const staticContent = staticParts.join("\n\n").trim();
-        const dynamicContent = dynamicParts.join("\n\n").trim();
-        if (!staticContent && !dynamicContent) return undefined;
-
         const contentBlocks: Array<{ type: string; text: string }> = [];
+        const staticContent = staticParts.join("\n\n").trim();
         if (staticContent) contentBlocks.push({ type: "text", text: staticContent });
+        const dynamicContent = dynamicParts.join("\n\n").trim();
         if (dynamicContent) contentBlocks.push({ type: "text", text: dynamicContent });
+        if (contentBlocks.length === 0) return undefined;
         return { role: MessageRole.System, content: contentBlocks };
     }
 

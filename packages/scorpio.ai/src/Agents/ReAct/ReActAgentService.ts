@@ -57,7 +57,7 @@ export class ReActAgentService extends SingleAgentService {
     @inject(T_ReactSystemPromptTemplate) private systemPromptTemplate: string,
     @inject(T_ReactSubNodePrompt) private subNodePrompt: string,
     @inject(T_ReactTaskToolDesc) private taskToolDesc: string,
-    @inject(T_StaticSystemPrompts, { optional: true }) systemPrompts?: string[],
+    @inject(T_StaticSystemPrompts, { optional: true }) staticSystemPrompts?: string[],
     @inject(T_DynamicSystemPrompts, { optional: true }) dynamicSystemPrompts?: string[],
     @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
     @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
@@ -68,7 +68,7 @@ export class ReActAgentService extends SingleAgentService {
     @inject(T_MemorySystemPromptTemplate, { optional: true }) memorySystemPromptTemplate?: string,
     @inject(T_WikiSystemPromptTemplate, { optional: true }) private wikiSystemPromptTemplateValue?: string,
   ) {
-    super(thinkModelService, systemPrompts, dynamicSystemPrompts, loggerService, agentSaver, skillService, toolService, memoryServices, wikiServices, memorySystemPromptTemplate, wikiSystemPromptTemplateValue);
+    super(thinkModelService, staticSystemPrompts, dynamicSystemPrompts, loggerService, agentSaver, skillService, toolService, memoryServices, wikiServices, memorySystemPromptTemplate, wikiSystemPromptTemplateValue);
     this.agentSubNodes = agentSubNodes;
     this.agentFactory = agentFactory;
   }
@@ -100,7 +100,7 @@ export class ReActAgentService extends SingleAgentService {
     if (!callback) return [];
     const { onMessage: _, ...subCallback } = callback;
 
-    const runFn: RunTaskFn = async ({ agentId, goal, task, systemPrompt }) => {
+    const runFn: RunTaskFn = async ({ agentId, task, systemPrompt }) => {
       let agentService: AgentServiceBase | null = null;
       const thinkId = uuidv4();
       try {
@@ -116,11 +116,10 @@ export class ReActAgentService extends SingleAgentService {
 
         agentService = await this.agentFactory(agentId, subContainer);
 
-        const extraPrompts: string[] = [];
-        if (goal?.trim()) extraPrompts.push(`<goal>${goal.trim()}</goal>`);
-        if (systemPrompt?.trim()) extraPrompts.push(systemPrompt.trim());
-        extraPrompts.push(this.subNodePrompt);
-        agentService.addSystemPrompts(extraPrompts);
+        agentService.addStaticSystemPrompts([this.subNodePrompt]);
+        if (systemPrompt?.trim()) {
+          agentService.addDynamicSystemPrompts([systemPrompt.trim()]);
+        }
 
         const messages = await agentService.stream(task, subCallback, signal);
         const content: MCPContent[] = [];

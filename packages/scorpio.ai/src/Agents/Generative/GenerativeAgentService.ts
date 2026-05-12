@@ -16,12 +16,12 @@ export { ChatMessage, MessageRole, IAgentCallback, AgentCancelledError } from ".
  */
 export class GenerativeAgentService extends AgentServiceBase {
     protected modelService: IModelService;
-    protected systemMessages: ChatMessage[];
+    protected staticSystemPrompts: string[];
     protected dynamicSystemPrompts: string[];
 
     constructor(
         @inject(IModelService) modelService: IModelService,
-        @inject(T_StaticSystemPrompts, { optional: true }) systemPrompts?: string[],
+        @inject(T_StaticSystemPrompts, { optional: true }) staticSystemPrompts?: string[],
         @inject(T_DynamicSystemPrompts, { optional: true }) dynamicSystemPrompts?: string[],
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
         @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
@@ -29,12 +29,16 @@ export class GenerativeAgentService extends AgentServiceBase {
     ) {
         super(loggerService, agentSaver, memoryServices);
         this.modelService = modelService;
-        this.systemMessages = (systemPrompts ?? []).map(p => ({ role: MessageRole.System, content: p }));
+        this.staticSystemPrompts = staticSystemPrompts ?? [];
         this.dynamicSystemPrompts = dynamicSystemPrompts ?? [];
     }
 
-    override addSystemPrompts(prompts: string[]): void {
-        this.systemMessages.unshift(...prompts.map(p => ({ role: MessageRole.System, content: p })));
+    override addStaticSystemPrompts(prompts: string[]): void {
+        this.staticSystemPrompts.unshift(...prompts);
+    }
+
+    override addDynamicSystemPrompts(prompts: string[]): void {
+        this.dynamicSystemPrompts.push(...prompts);
     }
 
     override async stream(query: MessageContent, callback: IAgentCallback, signal?: AbortSignal): Promise<ChatMessage[]> {
@@ -44,17 +48,13 @@ export class GenerativeAgentService extends AgentServiceBase {
         if (!savedHistory || savedHistory.length === 0) {
             throw new Error('historyMessages is empty, cannot call model');
         }
-        const staticContent = this.systemMessages.map(m => m.content as string).join('\n\n').trim();
+        const contentBlocks: Array<{ type: "text"; text: string }> = [];
+        const staticContent = this.staticSystemPrompts.join('\n\n').trim();
+        if (staticContent) contentBlocks.push({ type: "text", text: staticContent });
         const dynamicContent = this.dynamicSystemPrompts.join('\n\n').trim();
-        let systemMsg: ChatMessage | undefined;
-        if (staticContent || dynamicContent) {
-            const contentBlocks: Array<{ type: string; text: string }> = [];
-            if (staticContent) contentBlocks.push({ type: "text", text: staticContent });
-            if (dynamicContent) contentBlocks.push({ type: "text", text: dynamicContent });
-            systemMsg = { role: MessageRole.System, content: contentBlocks };
-        }
+        if (dynamicContent) contentBlocks.push({ type: "text", text: dynamicContent });
         const messages: ChatMessage[] = [
-            ...(systemMsg ? [systemMsg] : []),
+            ...(contentBlocks.length > 0 ? [{ role: MessageRole.System, content: contentBlocks }] : []),
             ...savedHistory,
         ];
 

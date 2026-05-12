@@ -6,7 +6,6 @@ import { createSuccessResult, type MCPToolResult } from "./types";
 
 export interface TaskToolParams {
   agentId: string;
-  goal: string;
   task: string;
   systemPrompt?: string;
 }
@@ -21,8 +20,6 @@ export function createTaskTool(agentIds: string[], runFn: RunTaskFn, description
   const schema = z.object({
     agentId: z.enum(agentIds as [string, ...string[]])
       .describe("ID of the sub-agent to invoke"),
-    goal: z.string()
-      .describe("The primary objective of this task in one concise sentence. Summarizes the end result expected from the sub-agent."),
     task: z.string()
       .describe("Complete, self-contained task instruction with all steps the agent must perform. Include every detail needed — the agent has no memory of prior conversation."),
     systemPrompt: z.string().optional()
