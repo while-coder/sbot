@@ -144,11 +144,7 @@ export async function executeHeartbeat(ctx: HeartbeatExecutionContext): Promise<
         } else {
             logger.debug(`${tag} idle: keeping history`);
         }
-    } else if (aiResponse.trim() && hbConfig.notifyTargets) {
-        for (const notifyId of hbConfig.notifyTargets) {
-            await channelManager.sendTextToSession(notifyId, `[Heartbeat] ${aiResponse}`);
-        }
-
+    } else if (aiResponse.trim()) {
         logger.info(`${tag} substantive response: ${aiResponse.slice(0, 100)}...`);
     }
 

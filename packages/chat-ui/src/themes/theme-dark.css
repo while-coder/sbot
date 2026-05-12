@@ -54,6 +54,9 @@
   --chatui-usage-output: #a78bfa;
   --chatui-usage-sep: rgba(255, 255, 255, 0.1);
   --chatui-usage-op: #555555;
+  --chatui-usage-cache: #4ade80;
+  --chatui-usage-cache-creation: #94a3b8;
+  --chatui-usage-total: #e0e0e0;
   --chatui-usage-track: rgba(255, 255, 255, 0.1);
 
   /* ── Misc ── */

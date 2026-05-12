@@ -179,12 +179,12 @@ export class ChannelManager {
         return this.plugins.get(type);
     }
 
-    getPluginList(): Array<{ type: string; label: string; configSchema: Record<string, any>; builtin: boolean }> {
-        const list: Array<{ type: string; label: string; configSchema: Record<string, any>; builtin: boolean }> = [
+    getPluginList(): Array<{ type: string; label: string; configSchema: Record<string, any>; builtin: boolean; tools?: { name: string; label: string }[] }> {
+        const list: Array<{ type: string; label: string; configSchema: Record<string, any>; builtin: boolean; tools?: { name: string; label: string }[] }> = [
             { type: WEB_CHANNEL_TYPE, label: 'Web', configSchema: {}, builtin: true },
         ];
         for (const p of this.plugins.values()) {
-            list.push({ type: p.type, label: p.label, configSchema: p.configSchema, builtin: false });
+            list.push({ type: p.type, label: p.label, configSchema: p.configSchema, builtin: false, tools: p.tools });
         }
         return list;
     }

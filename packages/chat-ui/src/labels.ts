@@ -53,6 +53,8 @@ export const defaultLabels: Required<ChatLabels> = {
   usageLast: 'Last',
   usageTotal: 'Total',
   usageCache: 'Cache',
+  usageCacheCreation: '写入',
+  usageSaved: '节省',
   refresh: '刷新',
   clearHistory: '清除历史',
   confirmClearHistory: '确定清除所有历史记录?',

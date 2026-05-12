@@ -131,6 +131,8 @@ export interface ChatLabels {
   usageLast?: string
   usageTotal?: string
   usageCache?: string
+  usageCacheCreation?: string
+  usageSaved?: string
   refresh?: string
   clearHistory?: string
   confirmClearHistory?: string

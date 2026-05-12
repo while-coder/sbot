@@ -161,7 +161,7 @@ import { loadPromptMeta, type PromptVarMeta } from '../Core/PromptLoader';
 
 const PROMPTS_DIR = path.resolve(__dirname, '../../prompts');
 
-type PromptNode = { name: string; type: 'file' | 'dir'; path: string; isOverride?: boolean; children?: PromptNode[] };
+type PromptNode = { name: string; type: 'file' | 'dir'; path: string; isOverride?: boolean; isUserOnly?: boolean; children?: PromptNode[] };
 
 function safePromptRelPath(relPath: string): string {
     if (!relPath?.trim()) throwBad('path is required');
@@ -178,15 +178,37 @@ function buildPromptTree(dir: string, basePath = '', userBaseDir = ''): PromptNo
             return a.name.localeCompare(b.name);
         });
     const result: PromptNode[] = [];
+    const seen = new Set<string>();
     for (const entry of entries) {
         const relPath = basePath ? `${basePath}/${entry.name}` : entry.name;
+        seen.add(entry.name);
         if (entry.isDirectory()) {
             const children = buildPromptTree(path.join(dir, entry.name), relPath, userBaseDir);
-            const anyOverride = children.some(c => c.isOverride || c.children?.some(cc => cc.isOverride));
+            const anyOverride = children.some(c => c.isOverride || c.isUserOnly || c.children?.some(cc => cc.isOverride || cc.isUserOnly));
             result.push({ name: entry.name, type: 'dir', path: relPath, isOverride: anyOverride, children });
         } else if (entry.isFile()) {
             const isOverride = userBaseDir ? fs.existsSync(path.join(userBaseDir, relPath)) : false;
             result.push({ name: entry.name, type: 'file', path: relPath, isOverride });
+        }
+    }
+    if (userBaseDir) {
+        const userDir = basePath ? path.join(userBaseDir, basePath) : userBaseDir;
+        if (fs.existsSync(userDir)) {
+            const userEntries = fs.readdirSync(userDir, { withFileTypes: true })
+                .filter(e => !seen.has(e.name))
+                .sort((a, b) => {
+                    if (a.isDirectory() !== b.isDirectory()) return a.isDirectory() ? -1 : 1;
+                    return a.name.localeCompare(b.name);
+                });
+            for (const entry of userEntries) {
+                const relPath = basePath ? `${basePath}/${entry.name}` : entry.name;
+                if (entry.isDirectory()) {
+                    const children = buildPromptTree(path.join(userDir, entry.name), relPath, userBaseDir);
+                    result.push({ name: entry.name, type: 'dir', path: relPath, isUserOnly: true, children });
+                } else if (entry.isFile()) {
+                    result.push({ name: entry.name, type: 'file', path: relPath, isUserOnly: true });
+                }
+            }
         }
     }
     return result;
@@ -1134,6 +1156,25 @@ class HttpServer {
         app.get('/api/prompts/tree', api(() => {
             const userBaseDir = config.getConfigPath('prompts', true);
             return buildPromptTree(PROMPTS_DIR, '', userBaseDir);
+        }));
+
+        app.get('/api/prompts/files', api(req => {
+            const prefix = (req.query.prefix as string || '').replace(/\\/g, '/').replace(/\/$/, '');
+            const userBaseDir = config.getConfigPath('prompts', true);
+            const tree = buildPromptTree(PROMPTS_DIR, '', userBaseDir);
+            function flatten(nodes: PromptNode[]): { path: string; isUserOnly?: boolean }[] {
+                const out: { path: string; isUserOnly?: boolean }[] = [];
+                for (const n of nodes) {
+                    if (n.type === 'file') out.push({ path: n.path, ...(n.isUserOnly ? { isUserOnly: true } : {}) });
+                    else if (n.children) out.push(...flatten(n.children));
+                }
+                return out;
+            }
+            if (prefix) {
+                const cat = tree.find(n => n.type === 'dir' && n.name === prefix);
+                return cat ? flatten(cat.children || []) : [];
+            }
+            return flatten(tree);
         }));
 
         app.get('/api/prompts/content', api(req => {

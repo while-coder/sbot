@@ -8,7 +8,7 @@ const { t } = useI18n()
 const { show } = useToast()
 
 // ── Tree ──────────────────────────────────────────────────────────
-type TreeNode = { name: string; type: 'file' | 'dir'; path: string; isOverride?: boolean; children?: TreeNode[] }
+type TreeNode = { name: string; type: 'file' | 'dir'; path: string; isOverride?: boolean; isUserOnly?: boolean; children?: TreeNode[] }
 
 const tree = ref<TreeNode[]>([])
 const collapsed = ref(new Set<string>())
@@ -24,7 +24,7 @@ function flattenTree(nodes: TreeNode[], depth = 0): { node: TreeNode; depth: num
   return result
 }
 
-const categoryOrder = ['system', 'agent', 'memory', 'wiki', 'skills', 'tools']
+const categoryOrder = ['system', 'agent', 'memory', 'wiki', 'skills', 'tools', 'heartbeat']
 
 const categories = computed(() => {
   const map = new Map<string, TreeNode>()
@@ -154,6 +154,50 @@ async function reset() {
   }
 }
 
+// ── Create / Delete ──────────────────────────────────────────────
+const creatingInCat = ref<string | null>(null)
+const newFileName = ref('')
+
+function startCreate(cat: string) {
+  creatingInCat.value = cat
+  newFileName.value = ''
+}
+
+function cancelCreate() {
+  creatingInCat.value = null
+  newFileName.value = ''
+}
+
+async function confirmCreate(category: string) {
+  const name = newFileName.value.trim()
+  if (!name) return
+  const filePath = `${category}/${name}${name.includes('.') ? '' : '.md'}`
+  try {
+    await apiFetch('/api/prompts/content', 'PUT', { path: filePath, content: '' })
+    show(t('common.created'))
+    cancelCreate()
+    await loadTree()
+    selectFile(filePath)
+  } catch (e: any) {
+    show(e.message, 'error')
+  }
+}
+
+async function deleteFile(filePath: string) {
+  if (!window.confirm(t('prompts.confirm_delete', { name: filePath }))) return
+  try {
+    await apiFetch(`/api/prompts/content?path=${encodeURIComponent(filePath)}`, 'DELETE')
+    show(t('common.deleted'))
+    if (selectedPath.value === filePath) {
+      selectedPath.value = ''
+      editContent.value = ''
+    }
+    await loadTree()
+  } catch (e: any) {
+    show(e.message, 'error')
+  }
+}
+
 onMounted(loadTree)
 </script>
 
@@ -167,8 +211,20 @@ onMounted(loadTree)
           <span class="tree-icon">{{ collapsedCats.has(cat.key) ? '▶' : '▼' }}</span>
           <span class="tree-cat-label">{{ cat.label }}</span>
           <span v-if="cat.node.isOverride" class="tree-custom-dot" :title="t('prompts.contains_custom')"></span>
+          <button v-if="cat.key === 'heartbeat'" class="tree-add-btn" @click.stop="startCreate(cat.key)" :title="t('prompts.create_file')">+</button>
         </div>
         <template v-if="!collapsedCats.has(cat.key)">
+          <div v-if="creatingInCat === cat.key" class="tree-item tree-file" style="padding-left:14px;gap:3px">
+            <input
+              v-model="newFileName"
+              class="tree-new-input"
+              :placeholder="t('prompts.create_file')"
+              @keyup.enter="confirmCreate(cat.key)"
+              @keyup.escape="cancelCreate"
+            />
+            <button class="tree-inline-btn" @click="confirmCreate(cat.key)">&#10003;</button>
+            <button class="tree-inline-btn" @click="cancelCreate">&#10005;</button>
+          </div>
           <div
             v-for="{ node, depth } in flattenChildren(cat.node)"
             :key="node.path"
@@ -183,7 +239,9 @@ onMounted(loadTree)
           >
             <span class="tree-icon">{{ node.type === 'dir' ? (collapsed.has(node.path) ? '▶' : '▼') : '·' }}</span>
             <span class="tree-name">{{ node.name }}</span>
-            <span v-if="node.isOverride" class="tree-custom-dot" :title="node.type === 'dir' ? t('prompts.contains_custom') : t('prompts.custom_title')"></span>
+            <span v-if="node.isOverride && !node.isUserOnly" class="tree-custom-dot" :title="node.type === 'dir' ? t('prompts.contains_custom') : t('prompts.custom_title')"></span>
+            <span v-if="node.isUserOnly" class="tree-user-badge" :title="t('prompts.user_only')">&#9679;</span>
+            <button v-if="node.isUserOnly && node.type === 'file'" class="tree-delete-btn" @click.stop="deleteFile(node.path)" :title="t('common.delete')">&times;</button>
           </div>
         </template>
       </template>
@@ -290,6 +348,59 @@ onMounted(loadTree)
   flex-shrink: 0;
   margin-left: auto;
 }
+.tree-user-badge {
+  font-size: 6px;
+  color: #16a34a;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.tree-add-btn {
+  margin-left: auto;
+  background: none;
+  border: 1px solid #d0ccc8;
+  border-radius: 4px;
+  width: 20px;
+  height: 20px;
+  font-size: 14px;
+  line-height: 1;
+  color: #6b6b6b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tree-add-btn:hover { background: #e8e4e0; color: #1c1c1c; }
+.tree-new-input {
+  flex: 1;
+  font-size: 12px;
+  padding: 2px 6px;
+  border: 1px solid #d0ccc8;
+  border-radius: 3px;
+  outline: none;
+  min-width: 0;
+}
+.tree-new-input:focus { border-color: #3b82f6; }
+.tree-inline-btn {
+  background: none;
+  border: none;
+  font-size: 13px;
+  cursor: pointer;
+  color: #6b6b6b;
+  padding: 0 2px;
+}
+.tree-inline-btn:hover { color: #1c1c1c; }
+.tree-delete-btn {
+  background: none;
+  border: none;
+  font-size: 15px;
+  cursor: pointer;
+  color: #9b9b9b;
+  padding: 0 2px;
+  flex-shrink: 0;
+  display: none;
+}
+.tree-item:hover .tree-delete-btn { display: block; }
+.tree-delete-btn:hover { color: #dc2626; }
 
 /* Editor */
 .prompts-editor {

@@ -19,6 +19,7 @@ interface PluginInfo {
   label: string
   builtin: boolean
   configSchema: Record<string, { label: string; type: string; required?: boolean; description?: string; default?: string | boolean | number; options?: Array<{ label: string; value: string }> }>
+  tools?: { name: string; label: string }[]
 }
 
 interface ChannelSessionRow {
@@ -74,6 +75,11 @@ loadPlugins()
 const currentSchema = computed(() => {
   const p = plugins.value.find(p => p.type === form.value.type)
   return p?.configSchema ?? {}
+})
+
+const currentToolOptions = computed(() => {
+  const p = plugins.value.find(p => p.type === form.value.type)
+  return (p?.tools ?? []).map(t => ({ id: t.name, label: t.label }))
 })
 
 const channels = computed(() => store.settings.channels || {})
@@ -166,6 +172,9 @@ const form = ref<ChannelConfig>({
   intentModel: '', intentPrompt: '', intentThreshold: 0.7,
   mergeWindow: 0,
 })
+const formTools = ref<string[]>([])
+const formHeartbeatTools = ref<string[]>([])
+
 
 async function loadChannelData(id: string) {
   channelLoading.value[id] = true
@@ -304,6 +313,8 @@ function openAdd() {
   clearActionState()
   const defaultType = plugins.value.find(p => !p.builtin)?.type || ''
   form.value = { name: '', type: defaultType, config: {}, agent: '', saver: '', memories: [], wikis: [], workPath: '', streamVerbose: false, autoApproveAllTools: false, intentModel: '', intentPrompt: '', intentThreshold: 0.7, mergeWindow: 0 }
+  formTools.value = []
+  formHeartbeatTools.value = []
   showModal.value = true
 }
 
@@ -312,6 +323,8 @@ function openEdit(id: string) {
   editingId.value = id
   clearActionState()
   form.value = { name: c.name, type: c.type, config: { ...c.config }, agent: c.agent, saver: c.saver, memories: c.memories || [], wikis: (c as any).wikis || [], workPath: c.workPath || '', streamVerbose: !!c.streamVerbose, autoApproveAllTools: !!c.autoApproveAllTools, intentModel: c.intentModel || '', intentPrompt: c.intentPrompt || '', intentThreshold: c.intentThreshold ?? 0.7, mergeWindow: c.mergeWindow || 0 }
+  formTools.value = [...(c.tools ?? [])]
+  formHeartbeatTools.value = [...(c.heartbeatTools ?? [])]
   showModal.value = true
 }
 
@@ -347,6 +360,8 @@ async function save() {
       intentPrompt: form.value.intentPrompt?.trim() || undefined,
       intentThreshold: form.value.intentModel ? form.value.intentThreshold : undefined,
       mergeWindow: form.value.mergeWindow || undefined,
+      tools: formTools.value.length ? formTools.value : undefined,
+      heartbeatTools: formHeartbeatTools.value.length ? formHeartbeatTools.value : undefined,
     }
 
     if (editingId.value) {
@@ -435,6 +450,8 @@ async function refresh() {
             <span class="session-meta-chip" :class="c.streamVerbose ? 'green' : 'muted'">{{ t('channels.stream_verbose') }}: {{ c.streamVerbose ? t('common.enabled') : t('common.disabled') }}</span>
             <span class="session-meta-chip" :class="c.autoApproveAllTools ? 'orange' : 'muted'">{{ t('settings.auto_approve_all') }}: {{ c.autoApproveAllTools ? t('common.enabled') : t('common.disabled') }}</span>
             <span class="session-meta-chip" :class="c.intentModel ? '' : 'muted'">{{ t('channels.intent_model') }}: {{ c.intentModel ? (modelOptions.find(m => m.id === c.intentModel)?.label || c.intentModel) : t('common.not_configured') }}</span>
+            <span v-if="c.tools?.length" class="session-meta-chip">{{ t('channels.tools') }}: {{ c.tools.map(n => plugins.find(p => p.type === c.type)?.tools?.find(t => t.name === n)?.label || n).join(', ') }}</span>
+            <span v-if="c.heartbeatTools?.length" class="session-meta-chip">{{ t('channels.heartbeat_tools') }}: {{ c.heartbeatTools.map(n => plugins.find(p => p.type === c.type)?.tools?.find(t => t.name === n)?.label || n).join(', ') }}</span>
           </div>
           <!-- Expanded content -->
           <div v-if="expandedChannels[id as string]" class="channel-card-detail">
@@ -716,6 +733,18 @@ async function refresh() {
             <input v-model.number="form.mergeWindow" type="number" min="0" step="100" placeholder="0" />
             <span style="font-size:11px;color:#888">{{ t('channels.merge_window_hint') }}</span>
           </div>
+          <template v-if="currentToolOptions.length > 0">
+            <div class="form-group">
+              <label>{{ t('channels.tools') }}</label>
+              <MultiSelect v-model="formTools" :options="currentToolOptions" />
+              <span style="font-size:11px;color:#888">{{ t('channels.tools_hint') }}</span>
+            </div>
+            <div class="form-group">
+              <label>{{ t('channels.heartbeat_tools') }}</label>
+              <MultiSelect v-model="formHeartbeatTools" :options="currentToolOptions" />
+              <span style="font-size:11px;color:#888">{{ t('channels.heartbeat_tools_hint') }}</span>
+            </div>
+          </template>
         </div>
         <div class="drawer-footer">
           <button class="btn-outline" @click="showModal = false">{{ t('common.cancel') }}</button>

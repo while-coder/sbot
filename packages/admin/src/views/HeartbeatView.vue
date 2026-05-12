@@ -36,7 +36,6 @@ const form = ref({
   expr: '30m',
   promptFile: 'heartbeat/default.md',
   target: null as number | null,
-  notifyTargets: [] as number[],
   enabled: true,
   activeHoursEnabled: false,
   activeHoursStart: 9,
@@ -74,7 +73,6 @@ function openAdd() {
     expr: '30m',
     promptFile: 'heartbeat/default.md',
     target: null,
-    notifyTargets: [],
     enabled: true,
     activeHoursEnabled: false,
     activeHoursStart: 9,
@@ -93,7 +91,6 @@ function openEdit(id: string) {
     expr: hb.expr || '30m',
     promptFile: hb.promptFile || 'heartbeat/default.md',
     target: hb.target ?? null,
-    notifyTargets: hb.notifyTargets ?? [],
     enabled: hb.enabled !== false,
     activeHoursEnabled: !!hb.activeHours,
     activeHoursStart: hb.activeHours?.start ?? 9,
@@ -112,9 +109,6 @@ function buildBody() {
     target: form.value.target,
     enabled: form.value.enabled,
     pruneIdle: form.value.pruneIdle,
-  }
-  if (form.value.notifyTargets.length > 0) {
-    body.notifyTargets = form.value.notifyTargets
   }
   if (form.value.activeHoursEnabled) {
     body.activeHours = {
@@ -180,6 +174,40 @@ async function loadSessions() {
   } catch {}
 }
 
+const heartbeatPrompts = ref<{ path: string; isUserOnly?: boolean }[]>([])
+
+async function loadHeartbeatPrompts() {
+  try {
+    const res = await apiFetch('/api/prompts/files?prefix=heartbeat')
+    heartbeatPrompts.value = res.data || []
+  } catch {}
+}
+
+const showCreatePrompt = ref(false)
+const newPromptName = ref('')
+const newPromptContent = ref('')
+
+function openCreatePrompt() {
+  newPromptName.value = ''
+  newPromptContent.value = ''
+  showCreatePrompt.value = true
+}
+
+async function createPrompt() {
+  const name = newPromptName.value.trim()
+  if (!name) { show(t('common.name_required'), 'error'); return }
+  const filePath = `heartbeat/${name}${name.endsWith('.md') ? '' : '.md'}`
+  try {
+    await apiFetch('/api/prompts/content', 'PUT', { path: filePath, content: newPromptContent.value })
+    show(t('common.created'))
+    showCreatePrompt.value = false
+    await loadHeartbeatPrompts()
+    form.value.promptFile = filePath
+  } catch (e: any) {
+    show(e.message, 'error')
+  }
+}
+
 async function refresh() {
   try {
     const res = await apiFetch('/api/settings')
@@ -191,7 +219,7 @@ async function refresh() {
 }
 
 onMounted(async () => {
-  await Promise.all([loadStatus(), loadSessions()])
+  await Promise.all([loadStatus(), loadSessions(), loadHeartbeatPrompts()])
 })
 </script>
 
@@ -298,7 +326,14 @@ onMounted(async () => {
           </div>
           <div class="form-group">
             <label>{{ t('heartbeats.promptFile') }}</label>
-            <input v-model="form.promptFile" placeholder="heartbeat/default.md" />
+            <div style="display:flex;gap:6px;align-items:center">
+              <select v-model="form.promptFile" style="flex:1">
+                <option v-for="p in heartbeatPrompts" :key="p.path" :value="p.path">
+                  {{ p.path }}
+                </option>
+              </select>
+              <button type="button" class="btn-outline btn-sm" @click="openCreatePrompt" title="+">+</button>
+            </div>
             <div class="hint">{{ t('heartbeats.promptFile_hint') }}</div>
           </div>
           <div class="form-group">
@@ -310,15 +345,6 @@ onMounted(async () => {
               </option>
             </select>
             <div class="hint">{{ t('heartbeats.target_hint') }}</div>
-          </div>
-          <div class="form-group">
-            <label>{{ t('heartbeats.notifyTargets') }}</label>
-            <select v-model="form.notifyTargets" multiple style="min-height:60px">
-              <option v-for="s in channelSessions" :key="s.id" :value="s.id">
-                {{ s.sessionName || `${s.channelId} / ${s.sessionId}` }} (#{{ s.id }})
-              </option>
-            </select>
-            <div class="hint">{{ t('heartbeats.notifyTargets_hint') }}</div>
           </div>
           <div class="form-group">
             <label class="checkbox-label">
@@ -360,6 +386,33 @@ onMounted(async () => {
         <div class="modal-footer">
           <button class="btn-outline" @click="showModal = false">{{ t('common.cancel') }}</button>
           <button class="btn-primary" @click="save">{{ t('common.save') }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick create prompt sub-dialog -->
+    <div v-if="showCreatePrompt" class="modal-overlay" style="z-index:1001" @click.self="showCreatePrompt = false">
+      <div class="modal-box" style="width:440px">
+        <div class="modal-header">
+          <h3>{{ t('heartbeats.create_prompt') }}</h3>
+          <button class="modal-close" @click="showCreatePrompt = false">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>{{ t('heartbeats.prompt_filename') }}</label>
+            <div style="display:flex;align-items:center;gap:4px">
+              <span style="color:#9b9b9b;font-size:13px;flex-shrink:0">heartbeat/</span>
+              <input v-model="newPromptName" placeholder="my-prompt.md" style="flex:1" @keyup.enter="createPrompt" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label>{{ t('heartbeats.prompt_content') }}</label>
+            <textarea v-model="newPromptContent" rows="8" style="font-family:'Consolas','Monaco',monospace;font-size:13px" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-outline" @click="showCreatePrompt = false">{{ t('common.cancel') }}</button>
+          <button class="btn-primary" @click="createPrompt">{{ t('common.create') }}</button>
         </div>
       </div>
     </div>

@@ -254,8 +254,6 @@ export interface HeartbeatConfig {
   promptFile: string
   /** 主执行目标 ChannelSession ID（对应 channel_session 表主键），Agent 上下文和 saver 从此 session 获取 */
   target: number
-  /** 通知目标：有意义的响应额外转发到这些 session 的频道 */
-  notifyTargets: number[]
   /** 是否启用 */
   enabled: boolean
   /** 活跃时段（仅在此时段内触发），start/end 为小时数 0-23 */
