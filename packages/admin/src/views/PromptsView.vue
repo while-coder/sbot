@@ -45,11 +45,44 @@ const categories = computed(() => {
 })
 
 const collapsedCats = ref(new Set<string>())
+const STORAGE_KEY = 'prompts-tree-state'
+
+function saveTreeState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    collapsed: [...collapsed.value],
+    collapsedCats: [...collapsedCats.value],
+  }))
+}
+
+function restoreTreeState() {
+  const raw = localStorage.getItem(STORAGE_KEY)
+  if (raw) {
+    try {
+      const state = JSON.parse(raw)
+      collapsed.value = new Set(state.collapsed || [])
+      collapsedCats.value = new Set(state.collapsedCats || [])
+      return
+    } catch {}
+  }
+  const allDirs: string[] = []
+  function collectDirs(nodes: TreeNode[]) {
+    for (const n of nodes) {
+      if (n.type === 'dir') {
+        allDirs.push(n.path)
+        if (n.children) collectDirs(n.children)
+      }
+    }
+  }
+  collectDirs(tree.value)
+  collapsed.value = new Set(allDirs)
+  collapsedCats.value = new Set(tree.value.filter(n => n.type === 'dir').map(n => n.name))
+}
 
 function toggleCat(name: string) {
   if (collapsedCats.value.has(name)) collapsedCats.value.delete(name)
   else collapsedCats.value.add(name)
   collapsedCats.value = new Set(collapsedCats.value)
+  saveTreeState()
 }
 
 function flattenChildren(parent: TreeNode) {
@@ -68,8 +101,8 @@ async function loadTree() {
 function toggleDir(p: string) {
   if (collapsed.value.has(p)) collapsed.value.delete(p)
   else collapsed.value.add(p)
-  // trigger reactivity
   collapsed.value = new Set(collapsed.value)
+  saveTreeState()
 }
 
 // ── Editor ────────────────────────────────────────────────────────
@@ -84,6 +117,17 @@ const saving = ref(false)
 const vars = ref<VarMeta[]>([])
 
 const isDirty = computed(() => editContent.value !== originalContent.value)
+
+const isUserOnly = computed(() => {
+  function find(nodes: TreeNode[]): boolean {
+    for (const n of nodes) {
+      if (n.type === 'file' && n.path === selectedPath.value) return !!n.isUserOnly
+      if (n.children) { const r = find(n.children); if (r) return true }
+    }
+    return false
+  }
+  return find(tree.value)
+})
 
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 const highlightRef = ref<HTMLDivElement | null>(null)
@@ -198,7 +242,10 @@ async function deleteFile(filePath: string) {
   }
 }
 
-onMounted(loadTree)
+onMounted(async () => {
+  await loadTree()
+  restoreTreeState()
+})
 </script>
 
 <template>
@@ -255,7 +302,7 @@ onMounted(loadTree)
           <span v-if="isOverride" class="prompts-badge-custom">{{ t('prompts.badge_custom') }}</span>
           <span v-else class="prompts-badge-default">{{ t('prompts.badge_default') }}</span>
           <span style="flex:1" />
-          <button class="btn-outline btn-sm" :disabled="!isOverride" @click="reset">{{ t('prompts.reset') }}</button>
+          <button class="btn-outline btn-sm" :disabled="!isOverride || isUserOnly" @click="reset">{{ t('prompts.reset') }}</button>
           <button class="btn-primary btn-sm" :disabled="saving || !isDirty" @click="save">
             {{ saving ? t('prompts.saving') : t('prompts.save') }}
           </button>
