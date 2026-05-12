@@ -55,8 +55,5 @@ export class GeminiModelService implements IModelService {
       yield result;
     })();
   }
-
-  getModel(): any {
-    return this.model!;
-  }
+  
 }

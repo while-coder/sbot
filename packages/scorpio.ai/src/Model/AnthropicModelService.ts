@@ -79,15 +79,9 @@ export class AnthropicModelService implements IModelService {
     })();
   }
 
-  getModel(): any {
-    return this.model!;
-  }
-
   private applyCache(messages: BaseMessage[]): BaseMessage[] {
     if (!this.cacheControl || messages.length === 0) return messages;
 
-    // breakpoint 1: system message (last block) — covers static + dynamic as a whole
-    // system is built once per stream() call, so within a ReAct loop it's always identical
     for (const msg of messages) {
       if (msg instanceof SystemMessage) {
         this.addCacheMarker(msg, 'last');
@@ -95,7 +89,6 @@ export class AnthropicModelService implements IModelService {
       }
     }
 
-    // breakpoint 2: conversation history tail — next call reuses the entire prefix
     const last = messages[messages.length - 1];
     if (!(last instanceof SystemMessage)) {
       this.addCacheMarker(last, 'first');

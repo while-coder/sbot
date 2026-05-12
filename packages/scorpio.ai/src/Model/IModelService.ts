@@ -32,11 +32,6 @@ export interface IModelService {
   readonly contextWindow?: number;
 
   /**
-   * 返回底层模型实例，供 LangChain createAgent 等原生 API 使用
-   */
-  getModel(): any;
-
-  /**
    * 清理资源 — 释放模型实例占用的资源
    */
   dispose(): Promise<void>;

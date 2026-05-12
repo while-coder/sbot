@@ -60,7 +60,4 @@ export class OllamaModelService implements IModelService {
     })();
   }
 
-  getModel(): any {
-    return this.model!;
-  }
 }

@@ -69,7 +69,4 @@ export class OpenAIModelService implements IModelService {
     })();
   }
 
-  getModel(): any {
-    return this.model!;
-  }
 }
