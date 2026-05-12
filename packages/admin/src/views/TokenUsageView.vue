@@ -4,6 +4,19 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { useToast } from '@/composables/useToast'
 import { store } from '@/store'
+import { Bar, Line } from 'vue-chartjs'
+import {
+  Chart as ChartJS,
+  CategoryScale, LinearScale,
+  BarElement, PointElement, LineElement,
+  Tooltip, Legend, Filler,
+} from 'chart.js'
+
+ChartJS.register(
+  CategoryScale, LinearScale,
+  BarElement, PointElement, LineElement,
+  Tooltip, Legend, Filler,
+)
 
 const { t } = useI18n()
 const { show } = useToast()
@@ -36,6 +49,7 @@ const startDate = ref(fmtDate(thirtyDaysAgo))
 const endDate = ref(fmtDate(today))
 const filterAgentId = ref('')
 const filterModelId = ref('')
+const chartType = ref<'bar' | 'area' | 'table'>('bar')
 
 function fmtDate(d: Date): string {
   return d.toISOString().slice(0, 10)
@@ -75,16 +89,103 @@ async function fetchUsage() {
   }
 }
 
-const maxDaily = computed(() => Math.max(...dailyData.value.map(d => d.totalTokens), 1))
-
-function barPercent(value: number): string {
-  return `${Math.max((value / maxDaily.value) * 100, 0.5)}%`
+const COLORS = {
+  input: '#3b82f6',
+  output: '#8b5cf6',
+  cacheRead: '#22c55e',
+  cacheCreation: '#94a3b8',
 }
 
 function shortDate(date: string): string {
   const parts = date.split('-')
   return `${parseInt(parts[1])}/${parseInt(parts[2])}`
 }
+
+const chartLabels = computed(() => dailyData.value.map(d => shortDate(d.date)))
+
+const barChartData = computed(() => ({
+  labels: chartLabels.value,
+  datasets: [
+    { label: t('usage.cache_read'), data: dailyData.value.map(d => d.cacheReadTokens), backgroundColor: COLORS.cacheRead },
+    { label: t('usage.cache_creation'), data: dailyData.value.map(d => d.cacheCreationTokens), backgroundColor: COLORS.cacheCreation },
+    { label: t('usage.input_tokens'), data: dailyData.value.map(d => Math.max(0, d.inputTokens - d.cacheReadTokens - d.cacheCreationTokens)), backgroundColor: COLORS.input },
+    { label: t('usage.output_tokens'), data: dailyData.value.map(d => d.outputTokens), backgroundColor: COLORS.output },
+  ],
+}))
+
+const barChartOptions = computed(() => ({
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      mode: 'index' as const,
+      intersect: false,
+      reverse: true,
+      callbacks: {
+        afterTitle: (items: any[]) => {
+          const idx = items[0]?.dataIndex
+          if (idx != null) return `${t('usage.total_tokens')}: ${formatNumber(dailyData.value[idx]?.totalTokens ?? 0)}`
+          return ''
+        },
+        label: (ctx: any) => `${ctx.dataset.label}: ${formatNumber(ctx.parsed.y)}`,
+      },
+    },
+  },
+  scales: {
+    x: { stacked: true, grid: { display: false }, ticks: { font: { size: 11 }, color: '#9b9b9b' } },
+    y: {
+      stacked: true,
+      grid: { color: '#f0efed' },
+      ticks: { font: { size: 11 }, color: '#9b9b9b', callback: (v: string | number) => formatCompact(Number(v)) },
+    },
+  },
+}))
+
+const areaChartData = computed(() => ({
+  labels: chartLabels.value,
+  datasets: [
+    { label: t('usage.cache_read'), data: dailyData.value.map(d => d.cacheReadTokens), borderColor: COLORS.cacheRead, backgroundColor: COLORS.cacheRead + '40', tension: 0.3, pointRadius: 0, fill: true },
+    { label: t('usage.cache_creation'), data: dailyData.value.map(d => d.cacheCreationTokens), borderColor: COLORS.cacheCreation, backgroundColor: COLORS.cacheCreation + '40', tension: 0.3, pointRadius: 0, fill: true },
+    { label: t('usage.input_tokens'), data: dailyData.value.map(d => Math.max(0, d.inputTokens - d.cacheReadTokens - d.cacheCreationTokens)), borderColor: COLORS.input, backgroundColor: COLORS.input + '40', tension: 0.3, pointRadius: 0, fill: true },
+    { label: t('usage.output_tokens'), data: dailyData.value.map(d => d.outputTokens), borderColor: COLORS.output, backgroundColor: COLORS.output + '40', tension: 0.3, pointRadius: 0, fill: true },
+  ],
+}))
+
+const areaChartOptions = computed(() => ({
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      mode: 'index' as const,
+      intersect: false,
+      reverse: true,
+      callbacks: {
+        afterTitle: (items: any[]) => {
+          const idx = items[0]?.dataIndex
+          if (idx != null) return `${t('usage.total_tokens')}: ${formatNumber(dailyData.value[idx]?.totalTokens ?? 0)}`
+          return ''
+        },
+        label: (ctx: any) => `${ctx.dataset.label}: ${formatNumber(ctx.parsed.y)}`,
+      },
+    },
+  },
+  scales: {
+    x: { stacked: true, grid: { display: false }, ticks: { font: { size: 11 }, color: '#9b9b9b' } },
+    y: {
+      stacked: true,
+      grid: { color: '#f0efed' },
+      ticks: { font: { size: 11 }, color: '#9b9b9b', callback: (v: string | number) => formatCompact(Number(v)) },
+    },
+  },
+}))
+
+const chartTabs = [
+  { key: 'bar' as const, label: () => t('usage.chart_bar') },
+  { key: 'area' as const, label: () => t('usage.chart_area') },
+  { key: 'table' as const, label: () => t('usage.chart_table') },
+]
 
 onMounted(fetchUsage)
 </script>
@@ -146,39 +247,63 @@ onMounted(fetchUsage)
         </div>
       </div>
 
-      <!-- Bar Chart -->
-      <div v-if="dailyData.length > 0" class="chart-section card">
-        <div class="card-title">{{ t('usage.daily_chart') }}</div>
-        <div class="chart-container">
-          <div class="chart-y-axis">
-            <span>{{ formatCompact(maxDaily) }}</span>
-            <span>{{ formatCompact(Math.round(maxDaily * 0.5)) }}</span>
-            <span>0</span>
-          </div>
-          <div class="chart-bars">
-            <div class="chart-grid-line" style="bottom:50%"></div>
-            <div class="chart-grid-line" style="bottom:100%"></div>
-            <div
-              v-for="row in dailyData"
-              :key="row.date"
-              class="bar-col"
-              :title="`${row.date}\n${t('usage.total_tokens')}: ${formatNumber(row.totalTokens)}\n${t('usage.input_tokens')}: ${formatNumber(row.inputTokens)}\n${t('usage.output_tokens')}: ${formatNumber(row.outputTokens)}\n${t('usage.cache_read')}: ${formatNumber(row.cacheReadTokens)}\n${t('usage.cache_creation')}: ${formatNumber(row.cacheCreationTokens)}`"
-            >
-              <div class="bar-stack">
-                <div class="bar-segment bar-cache-read" :style="{ height: barPercent(row.cacheReadTokens) }"></div>
-                <div class="bar-segment bar-input" :style="{ height: barPercent(row.inputTokens) }"></div>
-                <div class="bar-segment bar-output" :style="{ height: barPercent(row.outputTokens) }"></div>
-                <div class="bar-segment bar-cache-write" :style="{ height: barPercent(row.cacheCreationTokens) }"></div>
-              </div>
-              <div class="bar-date">{{ shortDate(row.date) }}</div>
-            </div>
+      <!-- Chart Section -->
+      <div v-if="dailyData.length > 0 || chartType === 'table'" class="chart-section card">
+        <div class="chart-header">
+          <div class="card-title">{{ t('usage.daily_chart') }}</div>
+          <div class="chart-tabs">
+            <button
+              v-for="tab in chartTabs"
+              :key="tab.key"
+              class="chart-tab"
+              :class="{ active: chartType === tab.key }"
+              @click="chartType = tab.key"
+            >{{ tab.label() }}</button>
           </div>
         </div>
+
+        <!-- Bar Chart -->
+        <div v-if="chartType === 'bar'" class="chart-canvas-wrap">
+          <Bar :data="barChartData" :options="barChartOptions" />
+        </div>
+
+        <!-- Area Chart -->
+        <div v-if="chartType === 'area'" class="chart-canvas-wrap">
+          <Line :data="areaChartData" :options="areaChartOptions" />
+        </div>
+
+        <!-- Table -->
+        <div v-if="chartType === 'table'" class="chart-table-wrap">
+          <table class="usage-table">
+            <thead>
+              <tr>
+                <th>{{ t('usage.date') }}</th>
+                <th>{{ t('usage.input_tokens') }}</th>
+                <th>{{ t('usage.output_tokens') }}</th>
+                <th>{{ t('usage.cache_read') }}</th>
+                <th>{{ t('usage.cache_creation') }}</th>
+                <th>{{ t('usage.total_tokens') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in dailyData" :key="row.date">
+                <td>{{ row.date }}</td>
+                <td>{{ formatNumber(row.inputTokens) }}</td>
+                <td>{{ formatNumber(row.outputTokens) }}</td>
+                <td>{{ formatNumber(row.cacheReadTokens) }}</td>
+                <td>{{ formatNumber(row.cacheCreationTokens) }}</td>
+                <td style="font-weight:600">{{ formatNumber(row.totalTokens) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Legend -->
         <div class="chart-legend">
-          <span class="legend-item"><span class="legend-dot" style="background:#3b82f6"></span>{{ t('usage.input_tokens') }}</span>
-          <span class="legend-item"><span class="legend-dot" style="background:#8b5cf6"></span>{{ t('usage.output_tokens') }}</span>
-          <span class="legend-item"><span class="legend-dot" style="background:#22c55e"></span>{{ t('usage.cache_read') }}</span>
-          <span class="legend-item"><span class="legend-dot" style="background:#94a3b8"></span>{{ t('usage.cache_creation') }}</span>
+          <span class="legend-item"><span class="legend-dot" :style="{ background: COLORS.input }"></span>{{ t('usage.input_tokens') }}</span>
+          <span class="legend-item"><span class="legend-dot" :style="{ background: COLORS.output }"></span>{{ t('usage.output_tokens') }}</span>
+          <span class="legend-item"><span class="legend-dot" :style="{ background: COLORS.cacheRead }"></span>{{ t('usage.cache_read') }}</span>
+          <span class="legend-item"><span class="legend-dot" :style="{ background: COLORS.cacheCreation }"></span>{{ t('usage.cache_creation') }}</span>
         </div>
       </div>
 
@@ -281,88 +406,79 @@ onMounted(fetchUsage)
 .chart-section {
   margin-bottom: 20px;
 }
-.chart-container {
+.chart-header {
   display: flex;
-  gap: 0;
-  height: 220px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chart-tabs {
+  display: flex;
+  gap: 2px;
+  background: #f5f4f2;
+  border-radius: 6px;
+  padding: 2px;
+}
+.chart-tab {
+  border: none;
+  background: none;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  color: #9b9b9b;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.chart-tab.active {
+  background: #fff;
+  color: #1c1c1c;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+}
+.chart-canvas-wrap {
+  height: 280px;
   margin-top: 12px;
 }
-.chart-y-axis {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  align-items: flex-end;
-  padding-right: 8px;
-  font-size: 11px;
-  color: #9b9b9b;
-  min-width: 50px;
-  padding-bottom: 22px;
+/* Table */
+.chart-table-wrap {
+  margin-top: 12px;
+  max-height: 400px;
+  overflow-y: auto;
 }
-.chart-bars {
-  flex: 1;
-  display: flex;
-  align-items: flex-end;
-  gap: 2px;
-  border-bottom: 1px solid #e8e6e3;
-  border-left: 1px solid #e8e6e3;
-  position: relative;
-  padding-bottom: 22px;
+.usage-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
 }
-.chart-grid-line {
-  position: absolute;
-  left: 0;
-  right: 0;
-  border-top: 1px dashed #f0efed;
-  pointer-events: none;
+.usage-table th {
+  text-align: right;
+  padding: 8px 12px;
+  font-weight: 600;
+  color: #6b7280;
+  font-size: 12px;
+  border-bottom: 2px solid #e8e6e3;
+  position: sticky;
+  top: 0;
+  background: #fff;
 }
-.bar-col {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-width: 0;
-  cursor: default;
+.usage-table th:first-child {
+  text-align: left;
 }
-.bar-stack {
-  width: 70%;
-  max-width: 32px;
-  display: flex;
-  flex-direction: column-reverse;
-  align-items: stretch;
-  flex: 1;
-  justify-content: flex-start;
+.usage-table td {
+  text-align: right;
+  padding: 7px 12px;
+  color: #1c1c1c;
+  border-bottom: 1px solid #f0efed;
+  font-variant-numeric: tabular-nums;
 }
-.bar-segment {
-  min-height: 0;
-  transition: height 0.3s ease;
+.usage-table td:first-child {
+  text-align: left;
+  color: #6b7280;
 }
-.bar-input {
-  background: #3b82f6;
-}
-.bar-output {
-  background: #8b5cf6;
-}
-.bar-cache-read {
-  background: #22c55e;
-}
-.bar-cache-write {
-  background: #94a3b8;
-}
-.bar-segment:first-child {
-  border-radius: 0 0 2px 2px;
-}
-.bar-segment:last-child {
-  border-radius: 2px 2px 0 0;
-}
-.bar-date {
-  font-size: 10px;
-  color: #9b9b9b;
-  margin-top: 4px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-  text-align: center;
+.usage-table tbody tr:hover {
+  background: #fafaf9;
 }
 
 /* Legend */

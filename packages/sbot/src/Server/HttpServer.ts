@@ -1152,7 +1152,11 @@ class HttpServer {
                 const e: any = new Error(`Prompt "${relPath}" not found`); e.status = 404; throw e;
             }
             let vars: PromptVarMeta[] = [];
-            try { vars = loadPromptMeta(relPath).vars; } catch {}
+            if (fs.existsSync(defaultPath)) {
+                const meta = loadPromptMeta(relPath, defaultPath);
+                vars = meta.vars;
+                if (!isOverride) content = meta.body;
+            }
             return { path: relPath, content, isOverride, vars };
         }));
 

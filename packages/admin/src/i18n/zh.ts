@@ -638,7 +638,6 @@ export default {
     title: '新建会话',
   },
   usage: {
-    title: 'Token 用量统计',
     date: '日期',
     input_tokens: '输入 Token',
     output_tokens: '输出 Token',
@@ -648,11 +647,12 @@ export default {
     no_data: '暂无数据',
     last: '最近',
     total: '累计',
-    tokens: 'tokens',
-    context_window: '上下文窗口',
     all_agents: '全部 Agent',
     all_models: '全部模型',
     daily_chart: '每日用量趋势',
+    chart_bar: '柱状图',
+    chart_area: '面积图',
+    chart_table: '数据表',
   },
   heartbeats: {
     title: '心跳管理',

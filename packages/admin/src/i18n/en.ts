@@ -638,7 +638,6 @@ export default {
     title: 'New Session',
   },
   usage: {
-    title: 'Token Usage Stats',
     date: 'Date',
     input_tokens: 'Input Tokens',
     output_tokens: 'Output Tokens',
@@ -648,11 +647,12 @@ export default {
     no_data: 'No data',
     last: 'Last',
     total: 'Cumulative',
-    tokens: 'tokens',
-    context_window: 'Context Window',
     all_agents: 'All Agents',
     all_models: 'All Models',
     daily_chart: 'Daily Usage Trend',
+    chart_bar: 'Bar',
+    chart_area: 'Area',
+    chart_table: 'Table',
   },
   heartbeats: {
     title: 'Heartbeats',

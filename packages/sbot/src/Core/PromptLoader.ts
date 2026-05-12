@@ -69,9 +69,9 @@ export function loadPrompt(relPath: string, vars?: Record<string, string>): stri
  * Load prompt metadata (vars declarations from frontmatter).
  * Used by admin API to display available template variables.
  */
-export function loadPromptMeta(relPath: string): PromptMeta {
-    const filePath = resolvePromptPath(relPath);
-    const raw = fs.readFileSync(filePath, 'utf-8').trim();
+export function loadPromptMeta(relPath: string, filePath?: string): PromptMeta {
+    const resolved = filePath ?? resolvePromptPath(relPath);
+    const raw = fs.readFileSync(resolved, 'utf-8').trim();
     const { vars, body } = parseFrontmatter(raw);
     return { vars, body: body.trim() };
 }
