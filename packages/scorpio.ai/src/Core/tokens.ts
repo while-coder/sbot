@@ -3,7 +3,8 @@
  * 用于注入配置值和基础参数
  */
 
-export const T_SystemPrompts = Symbol("scorpio:T_SystemPrompts");
+export const T_StaticSystemPrompts = Symbol("scorpio:T_StaticSystemPrompts");
+export const T_DynamicSystemPrompts = Symbol("scorpio:T_DynamicSystemPrompts");
 export const T_DBPath = Symbol("scorpio:T_DBPath");
 export const T_DBUrl = Symbol("scorpio:T_DBUrl");
 export const T_DBTable = Symbol("scorpio:T_DBTable");

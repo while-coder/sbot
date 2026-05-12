@@ -66,23 +66,25 @@ export class AgentRunner {
         const now = new Date();
         const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
         const assetsDir = config.getConfigPath('assets', true);
-        const scriptsDir = config.getConfigPath('scripts', true);
         const httpUrl = config.getHttpUrl();
         const workPath = options.workPath ?? `${assetsDir}/${threadId}`;
 
-        /** 组装 system prompts：init → environment → (AgentFactory 追加 agentEntry.systemPrompt) */
+        /** 静态 system prompts（可缓存）：init → environment */
         const extraPrompts: string[] = [
             loadPrompt('system/init.txt'),
-            loadPrompt('system/environment.txt', {
-                currentTime: now.toLocaleString(undefined, { timeZone: timezone, hour12: false }),
+            loadPrompt('system/static_environment.txt', {
                 timezone,
                 os: `${os.type()} ${os.release()} (${os.platform()})`,
                 assetsDir,
                 httpUrl,
-                scriptsDir,
                 workPath,
-                agentSkillsPath: config.getAgentSkillsPath(agentId),
-                globalSkillsPath: config.getSkillsPath(),
+            }),
+        ];
+
+        /** 动态 system prompts（每次请求变化，不可缓存） */
+        const dynamicPrompts: string[] = [
+            loadPrompt('system/dynamic_context.txt', {
+                currentTime: now.toLocaleString(undefined, { timeZone: timezone, hour12: false }),
                 extraInfo,
             }),
         ];
@@ -93,7 +95,7 @@ export class AgentRunner {
         await AgentRunner.registerWikiServices(container, wikis ?? [], threadId);
         await AgentRunner.registerSaverService(container, saverId, threadId);
 
-        const agent = await AgentFactory.create({ agentId, container, extraPrompts, agentTools, dbSessionId, workPath });
+        const agent = await AgentFactory.create({ agentId, container, extraPrompts, dynamicPrompts, agentTools, dbSessionId, workPath });
         try {
             await agent.stream(query, callbacks, signal);
         } finally {

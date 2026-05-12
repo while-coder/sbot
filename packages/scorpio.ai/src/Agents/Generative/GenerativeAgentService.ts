@@ -1,4 +1,4 @@
-import { inject, T_SystemPrompts } from "../../Core";
+import { inject, T_StaticSystemPrompts, T_DynamicSystemPrompts } from "../../Core";
 import { MCPContentType } from "../../Tools/types";
 import { IModelService } from "../../Model";
 import { IAgentSaverService } from "../../Saver";
@@ -17,10 +17,12 @@ export { ChatMessage, MessageRole, IAgentCallback, AgentCancelledError } from ".
 export class GenerativeAgentService extends AgentServiceBase {
     protected modelService: IModelService;
     protected systemMessages: ChatMessage[];
+    protected dynamicSystemPrompts: string[];
 
     constructor(
         @inject(IModelService) modelService: IModelService,
-        @inject(T_SystemPrompts, { optional: true }) systemPrompts?: string[],
+        @inject(T_StaticSystemPrompts, { optional: true }) systemPrompts?: string[],
+        @inject(T_DynamicSystemPrompts, { optional: true }) dynamicSystemPrompts?: string[],
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
         @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
         @inject(IMemoryService, { optional: true }) memoryServices?: IMemoryService[],
@@ -28,6 +30,7 @@ export class GenerativeAgentService extends AgentServiceBase {
         super(loggerService, agentSaver, memoryServices);
         this.modelService = modelService;
         this.systemMessages = (systemPrompts ?? []).map(p => ({ role: MessageRole.System, content: p }));
+        this.dynamicSystemPrompts = dynamicSystemPrompts ?? [];
     }
 
     override addSystemPrompts(prompts: string[]): void {
@@ -41,9 +44,17 @@ export class GenerativeAgentService extends AgentServiceBase {
         if (!savedHistory || savedHistory.length === 0) {
             throw new Error('historyMessages is empty, cannot call model');
         }
-        const systemContent = this.systemMessages.map(m => m.content as string).join('\n\n').trim();
+        const staticContent = this.systemMessages.map(m => m.content as string).join('\n\n').trim();
+        const dynamicContent = this.dynamicSystemPrompts.join('\n\n').trim();
+        let systemMsg: ChatMessage | undefined;
+        if (staticContent || dynamicContent) {
+            const contentBlocks: Array<{ type: string; text: string }> = [];
+            if (staticContent) contentBlocks.push({ type: "text", text: staticContent });
+            if (dynamicContent) contentBlocks.push({ type: "text", text: dynamicContent });
+            systemMsg = { role: MessageRole.System, content: contentBlocks };
+        }
         const messages: ChatMessage[] = [
-            ...(systemContent ? [{ role: MessageRole.System, content: systemContent } as ChatMessage] : []),
+            ...(systemMsg ? [systemMsg] : []),
             ...savedHistory,
         ];
 

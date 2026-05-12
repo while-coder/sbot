@@ -23,8 +23,8 @@ export function toChatMessage(message: BaseMessage): ChatMessage {
                 input_tokens: usage.input_tokens ?? 0,
                 output_tokens: usage.output_tokens ?? 0,
                 total_tokens: usage.total_tokens ?? 0,
-                cache_creation_input_tokens: usage.cache_creation_input_tokens,
-                cache_read_input_tokens: usage.cache_read_input_tokens,
+                cache_creation_input_tokens: usage.input_token_details?.cache_creation ?? usage.cache_creation_input_tokens,
+                cache_read_input_tokens: usage.input_token_details?.cache_read ?? usage.cache_read_input_tokens,
             } : undefined,
         };
     }

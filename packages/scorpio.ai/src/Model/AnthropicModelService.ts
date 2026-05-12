@@ -1,5 +1,5 @@
 import { ChatAnthropic } from "@langchain/anthropic";
-import { AIMessageChunk, BaseMessage, SystemMessage, HumanMessage } from "@langchain/core/messages";
+import { AIMessageChunk, BaseMessage, SystemMessage } from "@langchain/core/messages";
 import { IModelService } from "./IModelService";
 import { ModelConfig } from "./types";
 import { type ChatMessage } from "../Saver/IAgentSaverService";
@@ -16,7 +16,6 @@ export class AnthropicModelService implements IModelService {
 
   constructor(private config: ModelConfig) {
     if (config.anthropic?.promptCaching) {
-      console.log("-----------------------------------------")
       this.cacheControl = { type: "ephemeral" };
     }
   }
@@ -44,6 +43,7 @@ export class AnthropicModelService implements IModelService {
     const input = typeof prompt === 'string' ? prompt : this.applyCache(toBaseMessages(prompt));
     const result = await m.invoke(input, {
       ...(options?.signal && { signal: options.signal }),
+      ...(this.cacheControl && { cache_control: this.cacheControl }),
     });
     return toChatMessage(result);
   }
@@ -62,6 +62,7 @@ export class AnthropicModelService implements IModelService {
     const input = typeof messages === 'string' ? messages : this.applyCache(toBaseMessages(messages));
     const lcStream = await m.stream(input, {
       ...(options?.signal && { signal: options.signal }),
+      ...(this.cacheControl && { cache_control: this.cacheControl }),
     });
     return (async function* () {
       let accumulated: AIMessageChunk | undefined;
@@ -88,13 +89,6 @@ export class AnthropicModelService implements IModelService {
       }
     }
 
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i] instanceof HumanMessage) {
-        this.addCacheMarker(messages[i]);
-        break;
-      }
-    }
-
     return messages;
   }
 
@@ -103,8 +97,7 @@ export class AnthropicModelService implements IModelService {
     if (typeof content === 'string') {
       message.content = [{ type: "text", text: content, cache_control: this.cacheControl }];
     } else if (Array.isArray(content) && content.length > 0) {
-      const last = content[content.length - 1];
-      content[content.length - 1] = { ...last, cache_control: this.cacheControl };
+      content[0] = { ...content[0], cache_control: this.cacheControl };
     }
   }
 }

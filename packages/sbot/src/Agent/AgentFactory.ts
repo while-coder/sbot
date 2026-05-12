@@ -8,7 +8,7 @@ import {
 import {
     IAgentToolService, AgentToolService,
     ISkillService, SkillService,
-    ServiceContainer, T_SystemPrompts,
+    ServiceContainer, T_StaticSystemPrompts, T_DynamicSystemPrompts,
     ReActAgentService, T_AgentSubNodes, T_CreateAgent, T_ThinkModelService,
     T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc,
     T_SkillSystemPromptTemplate, T_SkillToolReadDesc, T_SkillToolListDesc, T_SkillToolExecDesc,
@@ -30,8 +30,10 @@ export interface AgentCreateOptions {
     agentId: string;
     /** 当前请求的 DI 容器 */
     container: ServiceContainer;
-    /** 注入到 system prompt 的额外上下文片段 */
+    /** 注入到 system prompt 的额外上下文片段（静态，可缓存） */
     extraPrompts: string[];
+    /** 每次请求变化的动态 system prompt（如 currentTime），不可缓存 */
+    dynamicPrompts?: string[];
     /** 归属会话 DB 主键（channel_session.id），用于绑定 scheduler/todo 工具 */
     dbSessionId: string;
     /** 动态注册到 Agent 的工具列表 */
@@ -47,7 +49,7 @@ export interface AgentCreateOptions {
 export class AgentFactory {
 
     static async create(options: AgentCreateOptions): Promise<AgentServiceBase> {
-        const { agentId, container, extraPrompts, agentTools } = options;
+        const { agentId, container, extraPrompts, dynamicPrompts, agentTools } = options;
         const agentEntry = config.getAgent(agentId);
 
         if (!container.isRegistered(IAgentSaverService)) container.registerSingleton(IAgentSaverService, AgentMemorySaver);
@@ -63,8 +65,12 @@ export class AgentFactory {
         if (agentEntry.systemPrompt)
             systemPrompts.push(agentEntry.systemPrompt);
 
+        if (dynamicPrompts && dynamicPrompts.length > 0) {
+            container.registerInstance(T_DynamicSystemPrompts, dynamicPrompts);
+        }
+
         const createAgentFn: CreateAgentFn = (name, subContainer) =>
-            AgentFactory.create({ agentId: name, container: subContainer, extraPrompts, agentTools, dbSessionId: options.dbSessionId });
+            AgentFactory.create({ agentId: name, container: subContainer, extraPrompts, dynamicPrompts, agentTools, dbSessionId: options.dbSessionId });
 
         switch (agentType) {
             case AgentMode.ReAct:
@@ -153,7 +159,7 @@ export class AgentFactory {
 
         container.registerWithArgs(SingleAgentService, {
             [IModelService]: await config.getModelService(entry.model, true),
-            [T_SystemPrompts]: systemPrompts,
+            [T_StaticSystemPrompts]: systemPrompts,
             ...(entry.modelCallTimeout != null && { [T_ModelCallTimeout]: entry.modelCallTimeout * 1000 }),
         });
         return container.resolve(SingleAgentService);
@@ -169,7 +175,7 @@ export class AgentFactory {
     ): Promise<AgentServiceBase> {
         container.registerWithArgs(GenerativeAgentService, {
             [IModelService]: await config.getModelService(entry.model, true),
-            [T_SystemPrompts]: systemPrompts,
+            [T_StaticSystemPrompts]: systemPrompts,
         });
         return container.resolve(GenerativeAgentService);
     }
@@ -195,7 +201,7 @@ export class AgentFactory {
             [T_AgentSubNodes]: agentSubNodes,
             [T_CreateAgent]: createAgentFn,
             [T_ThinkModelService]: await config.getModelService(entry.model, true),
-            [T_SystemPrompts]: systemPrompts,
+            [T_StaticSystemPrompts]: systemPrompts,
             [T_ReactSystemPromptTemplate]: loadPrompt('agent/react_system.txt'),
             [T_ReactSubNodePrompt]: loadPrompt('agent/react_subnode.txt'),
             [T_ReactTaskToolDesc]: loadPrompt('agent/react_task.txt'),

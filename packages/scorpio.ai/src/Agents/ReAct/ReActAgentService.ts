@@ -1,5 +1,5 @@
 import { type StructuredToolInterface } from "@langchain/core/tools";
-import { inject, ServiceContainer, T_SystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc, T_MemorySystemPromptTemplate, T_WikiSystemPromptTemplate } from "../../Core";
+import { inject, ServiceContainer, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc, T_MemorySystemPromptTemplate, T_WikiSystemPromptTemplate } from "../../Core";
 import { IMemoryService, ReadOnlyMemoryService } from "../../Memory";
 import { IWikiService } from "../../Wiki";
 import { IAgentSaverService, ChatMessage, ChatMessageOptions, type MessageContent } from "../../Saver";
@@ -57,7 +57,8 @@ export class ReActAgentService extends SingleAgentService {
     @inject(T_ReactSystemPromptTemplate) private systemPromptTemplate: string,
     @inject(T_ReactSubNodePrompt) private subNodePrompt: string,
     @inject(T_ReactTaskToolDesc) private taskToolDesc: string,
-    @inject(T_SystemPrompts, { optional: true }) systemPrompts?: string[],
+    @inject(T_StaticSystemPrompts, { optional: true }) systemPrompts?: string[],
+    @inject(T_DynamicSystemPrompts, { optional: true }) dynamicSystemPrompts?: string[],
     @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
     @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
     @inject(ISkillService, { optional: true }) skillService?: ISkillService,
@@ -67,7 +68,7 @@ export class ReActAgentService extends SingleAgentService {
     @inject(T_MemorySystemPromptTemplate, { optional: true }) memorySystemPromptTemplate?: string,
     @inject(T_WikiSystemPromptTemplate, { optional: true }) private wikiSystemPromptTemplateValue?: string,
   ) {
-    super(thinkModelService, systemPrompts, loggerService, agentSaver, skillService, toolService, memoryServices, wikiServices, memorySystemPromptTemplate, wikiSystemPromptTemplateValue);
+    super(thinkModelService, systemPrompts, dynamicSystemPrompts, loggerService, agentSaver, skillService, toolService, memoryServices, wikiServices, memorySystemPromptTemplate, wikiSystemPromptTemplateValue);
     this.agentSubNodes = agentSubNodes;
     this.agentFactory = agentFactory;
   }
@@ -78,15 +79,21 @@ export class ReActAgentService extends SingleAgentService {
     const agentsDesc = this.agentSubNodes.map(a =>
       `  <agent id="${a.id}">${a.desc}</agent>`
     ).join('\n');
-    const parts: string[] = [this.systemPromptTemplate.replace('{agents}', agentsDesc)];
+    const reactPrompt = this.systemPromptTemplate.replace('{agents}', agentsDesc);
 
-    // Append systemPrompts, memory, and skill prompts from parent
     const parentMsg = await super.buildSystemMessage(query);
-    if (parentMsg) parts.push(parentMsg.content as string);
+    if (!parentMsg) {
+      return { role: MessageRole.System, content: [{ type: "text", text: reactPrompt }] };
+    }
 
-    const content = parts.join('\n\n').trim();
-    if (!content) return undefined;
-    return { role: MessageRole.System, content };
+    const parentContent = parentMsg.content as Array<{ type: string; text: string }>;
+    return {
+      role: MessageRole.System,
+      content: [
+        { type: "text", text: reactPrompt + "\n\n" + parentContent[0].text },
+        ...parentContent.slice(1),
+      ],
+    };
   }
 
   protected override async buildTools(callback?: IAgentCallback, signal?: AbortSignal): Promise<StructuredToolInterface[]> {

@@ -46,7 +46,8 @@ export {
 // Core - 通用 Token
 // ========================================
 export {
-  T_SystemPrompts,
+  T_StaticSystemPrompts,
+  T_DynamicSystemPrompts,
   T_DBPath,
   T_DBUrl,
   T_DBTable,

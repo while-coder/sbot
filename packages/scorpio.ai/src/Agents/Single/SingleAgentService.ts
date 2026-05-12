@@ -1,6 +1,6 @@
 import { StateGraph, START, END } from '../../Graph';
 import { type StructuredToolInterface } from "@langchain/core/tools";
-import { inject, T_SystemPrompts, T_MemorySystemPromptTemplate, T_WikiSystemPromptTemplate, T_ModelCallTimeout, truncate, formatTimeAgo } from "../../Core";
+import { inject, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_MemorySystemPromptTemplate, T_WikiSystemPromptTemplate, T_ModelCallTimeout, truncate, formatTimeAgo } from "../../Core";
 import { IModelService } from "../../Model";
 import { ISkillService } from "../../Skills";
 import { IMemoryService, MemoryToolProvider } from "../../Memory";
@@ -56,13 +56,15 @@ export class SingleAgentService extends AgentServiceBase {
     protected skillService?: ISkillService;
     protected toolService?: IAgentToolService;
     protected systemMessages: ChatMessage[];
+    protected dynamicSystemPrompts: string[];
     protected memorySystemPromptTemplate?: string;
     protected modelCallTimeout?: number;
     protected compactor?: ConversationCompactor;
 
     constructor(
         @inject(IModelService) modelService: IModelService,
-        @inject(T_SystemPrompts, { optional: true }) systemPrompts?: string[],
+        @inject(T_StaticSystemPrompts, { optional: true }) systemPrompts?: string[],
+        @inject(T_DynamicSystemPrompts, { optional: true }) dynamicSystemPrompts?: string[],
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
         @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
         @inject(ISkillService, { optional: true }) skillService?: ISkillService,
@@ -79,6 +81,7 @@ export class SingleAgentService extends AgentServiceBase {
         this.skillService = skillService;
         this.toolService = toolService;
         this.systemMessages = (systemPrompts ?? []).map(p => ({ role: MessageRole.System, content: p }));
+        this.dynamicSystemPrompts = dynamicSystemPrompts ?? [];
         this.memorySystemPromptTemplate = memorySystemPromptTemplate;
         this.modelCallTimeout = modelCallTimeout;
         this.compactor = compactor;
@@ -89,10 +92,18 @@ export class SingleAgentService extends AgentServiceBase {
     }
 
     /**
-     * 构建本轮 system message（基础 + 记忆 + skill 合并为单条）
+     * 构建本轮 system message，分为静态块（可缓存）和动态块（每次请求变化）
      */
     protected async buildSystemMessage(query: MessageContent): Promise<ChatMessage | undefined> {
-        const parts: string[] = this.systemMessages.map(m => m.content as string);
+        // ── 静态部分（跨请求不变，可被 prompt caching 缓存） ──
+        const staticParts: string[] = this.systemMessages.map(m => m.content as string);
+        if (this.skillService) {
+            const skillMessage = await this.skillService.getSystemMessage();
+            if (skillMessage) staticParts.push(skillMessage);
+        }
+
+        // ── 动态部分（每次请求可能变化） ──
+        const dynamicParts: string[] = [...this.dynamicSystemPrompts];
         if (this.memorySystemPromptTemplate) {
             const memoryLimit = 10;
             const queryText = contentToString(query);
@@ -102,7 +113,7 @@ export class SingleAgentService extends AgentServiceBase {
                 .slice(0, memoryLimit);
             if (allMemories.length > 0) {
                 const items = allMemories.map(({ memory: m }) => `  <memory time="${formatTimeAgo(m.metadata.timestamp)}">${m.content}</memory>`).join("\n");
-                parts.push(this.memorySystemPromptTemplate.replace('{items}', items));
+                dynamicParts.push(this.memorySystemPromptTemplate.replace('{items}', items));
             }
         }
         if (this.wikiSystemPromptTemplate && this.wikiServices?.length) {
@@ -111,21 +122,22 @@ export class SingleAgentService extends AgentServiceBase {
             const results = (await Promise.all(
                 this.wikiServices.map(w => w.search(queryText, wikiLimit))
             )).flat().slice(0, wikiLimit);
-
             if (results.length > 0) {
                 const items = results.map(r =>
                     `  <wiki id="${r.page.id}" title="${r.page.title}" tags="${r.page.tags.join(', ')}">\n${r.page.content}\n  </wiki>`
                 ).join("\n");
-                parts.push(this.wikiSystemPromptTemplate.replace('{items}', items));
+                dynamicParts.push(this.wikiSystemPromptTemplate.replace('{items}', items));
             }
         }
-        if (this.skillService) {
-            const skillMessage = await this.skillService.getSystemMessage();
-            if (skillMessage) parts.push(skillMessage);
-        }
-        const content = parts.join("\n\n").trim();
-        if (!content) return undefined;
-        return { role: MessageRole.System, content };
+
+        const staticContent = staticParts.join("\n\n").trim();
+        const dynamicContent = dynamicParts.join("\n\n").trim();
+        if (!staticContent && !dynamicContent) return undefined;
+
+        const contentBlocks: Array<{ type: string; text: string }> = [];
+        if (staticContent) contentBlocks.push({ type: "text", text: staticContent });
+        if (dynamicContent) contentBlocks.push({ type: "text", text: dynamicContent });
+        return { role: MessageRole.System, content: contentBlocks };
     }
 
     /**
