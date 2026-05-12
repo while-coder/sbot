@@ -27,6 +27,12 @@ export const T_ModelCallTimeout           = Symbol("scorpio:T_ModelCallTimeout")
 // Compact tokens
 export const T_CompactPromptTemplate      = Symbol("scorpio:T_CompactPromptTemplate");
 
+// Skill management tokens
+export const T_SkillToolCreateDesc   = Symbol("scorpio:T_SkillToolCreateDesc");
+export const T_SkillToolPatchDesc    = Symbol("scorpio:T_SkillToolPatchDesc");
+export const T_SkillToolDeleteDesc   = Symbol("scorpio:T_SkillToolDeleteDesc");
+export const T_SkillManagementDir    = Symbol("scorpio:T_SkillManagementDir");
+
 // Wiki tokens
 export const T_WikiExtractorSystemPrompt   = Symbol("scorpio:T_WikiExtractorSystemPrompt");
 export const T_WikiSystemPromptTemplate    = Symbol("scorpio:T_WikiSystemPromptTemplate");

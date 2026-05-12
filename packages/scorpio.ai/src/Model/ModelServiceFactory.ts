@@ -5,6 +5,7 @@ import { OllamaModelService } from "./OllamaModelService";
 import { AnthropicModelService } from "./AnthropicModelService";
 import { GeminiModelService } from "./GeminiModelService";
 import { GeminiImageModelService } from "./GeminiImageModelService";
+import { RetryModelServiceProxy } from "./RetryModelServiceProxy";
 import { ModelConfig, ModelProvider } from "./types";
 
 /**
@@ -29,33 +30,33 @@ export class ModelServiceFactory {
       case ModelProvider.Anthropic: {
         const service = new AnthropicModelService(config);
         await service.initialize();
-        return service;
+        return new RetryModelServiceProxy(service);
       }
       case ModelProvider.Ollama: {
         const service = new OllamaModelService(config);
         await service.initialize();
-        return service;
+        return new RetryModelServiceProxy(service);
       }
       case ModelProvider.OpenAIResponse: {
         const service = new OpenAIResponseModelService(config);
         await service.initialize();
-        return service;
+        return new RetryModelServiceProxy(service);
       }
       case ModelProvider.GeminiImage: {
         const service = new GeminiImageModelService(config);
         await service.initialize();
-        return service;
+        return new RetryModelServiceProxy(service);
       }
       case ModelProvider.Gemini: {
         const service = new GeminiModelService(config);
         await service.initialize();
-        return service;
+        return new RetryModelServiceProxy(service);
       }
       // OpenAI, Azure, Groq, Mistral, DeepSeek, and any OpenAI-compatible provider
       default: {
         const service = new OpenAIModelService(config);
         await service.initialize();
-        return service;
+        return new RetryModelServiceProxy(service);
       }
     }
   }

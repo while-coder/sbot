@@ -171,12 +171,21 @@ export class SingleAgentService extends AgentServiceBase {
             const savedTokens = parseInt(await this.saverService.getMetadata(METADATA_KEY_INPUT_TOKENS) ?? '0', 10);
             if (this.compactor.shouldCompact(savedTokens, allMessages, contextWindow)) {
                 const result = await this.compactor.compact(allMessages);
-                await this.saverService.replaceAllMessages(result.messages);
+                if (this.saverService.markMessagesAsCompacted) {
+                    const tailSet = new Set(result.messages.slice(1));
+                    const compactedIds = allMessages.filter(m => !tailSet.has(m) && m.id != null).map(m => m.id!);
+                    if (compactedIds.length > 0) {
+                        await this.saverService.markMessagesAsCompacted(compactedIds);
+                    }
+                    // replaceAllMessages 删除剩余 non-compacted 消息后按正确顺序重新插入 [摘要, ...tail]
+                    await this.saverService.replaceAllMessages(result.messages);
+                } else {
+                    await this.saverService.replaceAllMessages(result.messages);
+                }
             }
         }
 
-        // 每次调用都从 saver 重新取（含 token 截断），防止多轮工具调用后 state.messages 超限
-        const savedHistory = await this.saverService.getMessages(contextWindow);
+        const savedHistory = await this.saverService.getMessages();
         if (!savedHistory || savedHistory.length === 0) {
             throw new Error('historyMessages is empty, cannot call model');
         }
@@ -234,7 +243,7 @@ export class SingleAgentService extends AgentServiceBase {
      */
     private async callToolsNode(state: SingleAgentState) {
         const callback = state.callback;
-        const messages = await this.saverService.getMessages(this.modelService.contextWindow ?? DEFAULT_MAX_HISTORY_TOKENS);
+        const messages = await this.saverService.getMessages();
         if (!messages || messages.length === 0) {
             throw new Error('historyMessages is empty, cannot execute tools');
         }

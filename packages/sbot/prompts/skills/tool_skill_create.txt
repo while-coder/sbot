@@ -1,0 +1,3 @@
+Create a new skill in your skill directory. Use when you identify a repeatable workflow, specialized knowledge, or multi-step procedure that should be captured for future reuse.
+
+The skill will be immediately available for use. Provide a clear name (kebab-case), description, and SKILL.md content with instructions, steps, and any reference materials.

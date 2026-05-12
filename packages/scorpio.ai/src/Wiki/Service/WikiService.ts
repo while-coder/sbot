@@ -6,10 +6,12 @@ import { IWikiDatabase } from "../Database/IWikiDatabase";
 import { IWikiExtractor } from "../Extractor/IWikiExtractor";
 import { WikiPage, WikiSearchResult, WikiPageSource } from "../Types";
 import { IWikiService } from "./IWikiService";
+import { PromptInjectionDetector, InjectionSeverity } from "../../Utils/PromptInjectionDetector";
 
 export class WikiService implements IWikiService {
   private logger?: ILogger;
   private autoExtract: boolean;
+  private injectionDetector = new PromptInjectionDetector();
 
   constructor(
     @inject(IWikiDatabase) private db: IWikiDatabase,
@@ -18,7 +20,7 @@ export class WikiService implements IWikiService {
     @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
   ) {
     this.logger = loggerService?.getLogger("WikiService");
-    this.autoExtract = autoExtract !== false; // default true
+    this.autoExtract = autoExtract !== false;
   }
 
   // -- CRUD -----------------------------------------------------------------
@@ -118,6 +120,15 @@ export class WikiService implements IWikiService {
       const result: WikiPage[] = [];
 
       for (const item of extracted) {
+        const detection = this.injectionDetector.detect(item.content);
+        if (detection.severity === InjectionSeverity.BLOCK) {
+          this.logger?.warn(`Wiki extraction blocked: injection detected in "${item.title}"`);
+          continue;
+        }
+        if (detection.severity === InjectionSeverity.WARN) {
+          item.content = detection.sanitized;
+        }
+
         if (item.shouldMergeWith) {
           const existing = await this.db.getByTitle(item.shouldMergeWith);
           if (existing) {
@@ -137,7 +148,6 @@ export class WikiService implements IWikiService {
           item.content,
           item.tags,
         );
-        // Override source to 'conversation' for extracted pages
         const conversationPage: WikiPage = { ...page, source: "conversation" as WikiPageSource };
         await this.db.update(conversationPage.id, { source: "conversation" });
         result.push(conversationPage);

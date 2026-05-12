@@ -16,6 +16,7 @@ export { GeminiImageModelService } from "./GeminiImageModelService";
 
 // ===== 工厂和配置 =====
 export { ModelServiceFactory } from "./ModelServiceFactory";
+export { RetryModelServiceProxy } from "./RetryModelServiceProxy";
 
 // ===== 类型定义 =====
 export { ModelConfig, ModelProvider, AnthropicConfig, GeminiConfig, ThinkingConfig } from "./types";

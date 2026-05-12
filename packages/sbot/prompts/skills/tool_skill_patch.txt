@@ -1,0 +1,3 @@
+Modify a file within an existing skill directory. Use to update skill instructions, fix errors, improve workflows, or add new reference materials.
+
+Specify the skill name and the relative file path within the skill directory (e.g. "SKILL.md", "scripts/process.py").

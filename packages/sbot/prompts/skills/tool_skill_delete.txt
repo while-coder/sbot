@@ -1,0 +1,1 @@
+Archive a skill (moves to .archive/ directory). Use when a skill is no longer relevant, outdated, or has been superseded by a better version. Archived skills can be restored manually if needed.

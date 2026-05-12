@@ -21,6 +21,7 @@ import {
 } from "scorpio.ai";
 import { loadPrompt } from "../Core/PromptLoader";
 import { config, SaverType } from "../Core/Config";
+import { discoverContextFiles } from "../Core/ContextFileDiscovery";
 
 import { AgentFactory } from "./AgentFactory";
 import { LoggerService } from "../Core/LoggerService";
@@ -84,6 +85,15 @@ export class AgentRunner {
         const dynamicPrompts: string[] = [
             ...(extraInfo?.trim() ? [loadPrompt('system/dynamic_context.txt', { extraInfo })] : []),
         ];
+
+        // 目录级上下文自动发现（.sbot.md / SBOT.md）
+        const contextFiles = discoverContextFiles(workPath);
+        if (contextFiles.length > 0) {
+            const contextContent = contextFiles
+                .map(c => `<workspace-context source="${c.path}">\n${c.content}\n</workspace-context>`)
+                .join('\n');
+            dynamicPrompts.push(contextContent);
+        }
 
         const container = new ServiceContainer();
         container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });

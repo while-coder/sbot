@@ -27,8 +27,9 @@ export class MemoryToolProvider {
             }),
             func: async ({ query, limit }) => {
                 try {
+                    const perServiceLimit = Math.ceil(limit / memoryServices.length);
                     const allResults = (await Promise.all(
-                        memoryServices.map(m => m.getMemories(query, limit))
+                        memoryServices.map(m => m.getMemories(query, perServiceLimit))
                     )).flat()
                       .sort((a, b) => b.decayedScore - a.decayedScore)
                       .slice(0, limit);

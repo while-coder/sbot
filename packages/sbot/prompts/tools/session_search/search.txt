@@ -1,0 +1,9 @@
+Search past conversation history using full-text search. Use this tool to recall earlier discussions, find specific information mentioned in previous sessions, or locate relevant context from past interactions.
+
+Supports FTS5 query syntax:
+- Simple keywords: "deployment issue"
+- Phrase search: "\"database migration\""
+- Boolean operators: "error AND timeout", "python NOT java"
+- Prefix matching: "config*"
+
+Returns matching messages with timestamps and roles.

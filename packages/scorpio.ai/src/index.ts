@@ -62,6 +62,10 @@ export {
   T_SkillToolReadDesc,
   T_SkillToolListDesc,
   T_SkillToolExecDesc,
+  T_SkillToolCreateDesc,
+  T_SkillToolPatchDesc,
+  T_SkillToolDeleteDesc,
+  T_SkillManagementDir,
   T_MemorySystemPromptTemplate,
   T_WikiExtractorSystemPrompt,
   T_WikiSystemPromptTemplate,
@@ -207,6 +211,13 @@ export {
   READ_SKILL_FILE_TOOL_NAME,
   EXECUTE_SKILL_SCRIPT_TOOL_NAME,
   LIST_SKILL_FILES_TOOL_NAME,
+  CREATE_SKILL_TOOL_NAME,
+  PATCH_SKILL_TOOL_NAME,
+  DELETE_SKILL_TOOL_NAME,
+
+  // 使用遥测
+  SkillUsageTracker,
+  type SkillUsageData,
 
   // 类型定义
   Skill,
@@ -337,3 +348,5 @@ export { MessageDispatcher, MessageType, summarizeMultimodal } from "./User";
 // ========================================
 export { contentToString, trimContent, isEmptyContent, readImageAsDataUrl, readMediaAsContentPart, detectMediaType, setMaxImageSize, resizeImageIfNeeded } from "./Utils/contentUtils";
 export type { MediaCategory, ContentPart } from "./Utils/contentUtils";
+export { PromptInjectionDetector, InjectionSeverity, type DetectionResult } from "./Utils/PromptInjectionDetector";
+export { withRetry } from "./Utils/withRetry";

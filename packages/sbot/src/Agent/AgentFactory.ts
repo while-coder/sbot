@@ -12,12 +12,14 @@ import {
     ReActAgentService, T_AgentSubNodes, T_CreateAgent, T_ThinkModelService,
     T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc,
     T_SkillSystemPromptTemplate, T_SkillToolReadDesc, T_SkillToolListDesc, T_SkillToolExecDesc,
+    T_SkillToolCreateDesc, T_SkillToolPatchDesc, T_SkillToolDeleteDesc, T_SkillManagementDir,
     T_ModelCallTimeout,
     type CreateAgentFn,
 } from "scorpio.ai";
 import { type StructuredToolInterface } from "@langchain/core/tools";
 import { createSchedulerTools } from "../Tools/Scheduler/index";
 import { createTodoTools } from "../Tools/Todo/index";
+import { createSessionSearchTool } from "../Tools/SessionSearch/index";
 import { config, AgentMode, SingleAgentEntry, ReactAgentEntry, GenerativeAgentEntry, ACPAgentEntry } from "../Core/Config";
 import { loadPrompt } from "../Core/PromptLoader";
 import { globalAgentToolService, BuiltinProvider } from "./GlobalAgentToolService";
@@ -98,6 +100,10 @@ export class AgentFactory {
             [T_SkillToolReadDesc]: loadPrompt('skills/tool_read_skill_file.txt'),
             [T_SkillToolListDesc]: loadPrompt('skills/tool_list_skill_files.txt'),
             [T_SkillToolExecDesc]: loadPrompt('skills/tool_execute_skill_script.txt'),
+            [T_SkillToolCreateDesc]: loadPrompt('skills/tool_skill_create.txt'),
+            [T_SkillToolPatchDesc]: loadPrompt('skills/tool_skill_patch.txt'),
+            [T_SkillToolDeleteDesc]: loadPrompt('skills/tool_skill_delete.txt'),
+            [T_SkillManagementDir]: config.getAgentSkillsPath(agentName),
         });
         const skillService = await container.resolve<SkillService>(ISkillService);
         if (skills === '*') {
@@ -152,6 +158,15 @@ export class AgentFactory {
         if (agentTools?.length) {
             toolService.registerToolFactory('__channel__', () => Promise.resolve(agentTools));
         }
+
+        // 跨会话搜索工具（需 saver 支持 FTS5）
+        toolService.registerToolFactory('__session_search__', async () => {
+            if (!container.isRegistered(IAgentSaverService)) return [];
+            const saver = await container.resolve<IAgentSaverService>(IAgentSaverService);
+            if (!('searchMessages' in saver)) return [];
+            return [createSessionSearchTool(saver)];
+        });
+
         toolService.registerMcpServers(config.getAgentMcpServers(agentName));
     }
 

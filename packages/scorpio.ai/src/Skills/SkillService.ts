@@ -2,7 +2,7 @@ import { Skill } from "./types";
 import { parseSkill, isValidSkillDirectory } from "./parser";
 import { ISkillService } from "./ISkillService";
 import { ILoggerService } from "../Logger";
-import { inject, T_SkillSystemPromptTemplate, T_SkillToolReadDesc, T_SkillToolListDesc, T_SkillToolExecDesc } from "../Core";
+import { inject, T_SkillSystemPromptTemplate, T_SkillToolReadDesc, T_SkillToolListDesc, T_SkillToolExecDesc, T_SkillToolCreateDesc, T_SkillToolPatchDesc, T_SkillToolDeleteDesc, T_SkillManagementDir } from "../Core";
 import { DynamicStructuredTool, type StructuredToolInterface } from "@langchain/core/tools";
 import { z } from "zod";
 import fs from "fs";
@@ -15,27 +15,24 @@ import {
     createSuccessResult,
     MCPToolResult
 } from "../Tools";
+import { SkillUsageTracker } from "./SkillUsageTracker";
+import { PromptInjectionDetector, InjectionSeverity } from "../Utils/PromptInjectionDetector";
 
 const execAsync = promisify(exec);
 
 export const READ_SKILL_FILE_TOOL_NAME = 'read_skill_file';
 export const EXECUTE_SKILL_SCRIPT_TOOL_NAME = 'execute_skill_script';
 export const LIST_SKILL_FILES_TOOL_NAME = 'list_skill_files';
+export const CREATE_SKILL_TOOL_NAME = 'skill_create';
+export const PATCH_SKILL_TOOL_NAME = 'skill_patch';
+export const DELETE_SKILL_TOOL_NAME = 'skill_delete';
 
-/**
- * Skill 服务
- * 管理技能的加载、查询和访问
- *
- * 调用 registerSkillsDir() 注册目录，支持两种目录类型：
- * - skillsDirs: 包含多个 skill 子目录的父目录
- * - singleSkillDirs: 单个 skill 目录（直接指向 skill 根目录）
- *
- * 技能延迟加载：首次调用 getAllSkills() 时扫描目录。
- */
 export class SkillService implements ISkillService {
   private skillsDirs: string[] = [];
   private singleSkillDirs: string[] = [];
   private logger;
+  private usageTracker = new SkillUsageTracker();
+  private injectionDetector = new PromptInjectionDetector();
 
   constructor(
     @inject(T_SkillSystemPromptTemplate) private systemPromptTemplate: string,
@@ -43,39 +40,29 @@ export class SkillService implements ISkillService {
     @inject(T_SkillToolListDesc) private toolListDesc: string,
     @inject(T_SkillToolExecDesc) private toolExecDesc: string,
     @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
+    @inject(T_SkillToolCreateDesc, { optional: true }) private toolCreateDesc?: string,
+    @inject(T_SkillToolPatchDesc, { optional: true }) private toolPatchDesc?: string,
+    @inject(T_SkillToolDeleteDesc, { optional: true }) private toolDeleteDesc?: string,
+    @inject(T_SkillManagementDir, { optional: true }) private managementDir?: string,
   ) {
     this.logger = loggerService?.getLogger("SkillService");
   }
 
-  /**
-   * 注册父目录（目录内每个子目录为一个 skill）
-   */
   registerSkillsDir(dir: string): void {
     this.skillsDirs.push(dir);
   }
 
-  /**
-   * 注册单个 skill 目录（目录本身即为一个 skill 根目录）
-   */
   registerSingleSkillDir(dir: string): void {
     this.singleSkillDirs.push(dir);
   }
 
-  /**
-   * 重置所有已注册目录
-   */
   reset(): void {
     this.skillsDirs = [];
     this.singleSkillDirs = [];
   }
 
-  /**
-   * 获取所有技能（每次调用重新扫描目录）
-   */
   getAllSkills(): Skill[] {
     const skills: Skill[] = [];
-
-    // 收集所有 skill 目录
     const allSkillDirs: string[] = [...this.singleSkillDirs];
     for (const dir of this.skillsDirs) {
       if (!fs.existsSync(dir)) {
@@ -84,14 +71,13 @@ export class SkillService implements ISkillService {
       }
       try {
         for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-          if (entry.isDirectory()) allSkillDirs.push(path.join(dir, entry.name));
+          if (entry.isDirectory() && entry.name !== '.archive') allSkillDirs.push(path.join(dir, entry.name));
         }
       } catch (e: any) {
         this.logger?.error(`读取技能目录失败 ${dir}: ${e.message}`);
       }
     }
 
-    // 逐个加载
     for (const skillDir of allSkillDirs) {
       try {
         if (!isValidSkillDirectory(skillDir)) {
@@ -103,6 +89,9 @@ export class SkillService implements ISkillService {
           this.logger?.warn(`技能目录解析失败: ${skillDir}`);
           continue;
         }
+        // 过滤 archived 状态的 skill
+        const usage = this.usageTracker.getUsage(skillDir);
+        if (usage?.state === 'archived') continue;
         skills.push(skill);
       } catch (e: any) {
         this.logger?.error(`加载 skill 失败 ${skillDir}: ${e.message}`);
@@ -112,32 +101,48 @@ export class SkillService implements ISkillService {
     return skills;
   }
 
-  /**
-   * 获取 Skills 系统提示词
-   * 用于注入到 Agent 的系统消息中
-   */
   async getSystemMessage(): Promise<string | null> {
     if (!this.systemPromptTemplate) return null;
     const skills = this.getAllSkills();
     if (skills.length === 0) return null;
 
     const items = skills
-      .map(s => `  <skill name="${s.name}" path="${s.path}">${s.description}</skill>`)
+      .map(s => {
+        const usage = this.usageTracker.getUsage(s.path);
+        const usageAttr = usage ? ` uses="${usage.useCount}" lastUsed="${usage.lastUsedAt ?? 'never'}"` : '';
+        return `  <skill name="${s.name}" path="${s.path}"${usageAttr}>${s.description}</skill>`;
+      })
       .join("\n");
 
     return this.systemPromptTemplate.replace('{skills}', items);
   }
 
-  /**
-   * 获取 Skill 相关的工具
-   */
   getTools(): StructuredToolInterface[] {
-    if (this.getAllSkills().length === 0 || !this.toolReadDesc) {
-      return [];
+    const hasSkills = this.getAllSkills().length > 0;
+    const hasManagement = this.managementDir && this.toolCreateDesc;
+
+    if (!hasSkills && !hasManagement) return [];
+    if (!this.toolReadDesc) return [];
+
+    const tools: StructuredToolInterface[] = [];
+
+    if (hasSkills) {
+      tools.push(this.buildReadTool(), this.buildExecTool(), this.buildListTool());
     }
 
-    // Read skill file tool
-    const readSkillFileTool = new DynamicStructuredTool({
+    if (hasManagement) {
+      if (this.toolCreateDesc) tools.push(this.buildCreateTool());
+      if (this.toolPatchDesc) tools.push(this.buildPatchTool());
+      if (this.toolDeleteDesc) tools.push(this.buildDeleteTool());
+    }
+
+    return tools;
+  }
+
+  // ── 基础工具（读/执行/列表） ──
+
+  private buildReadTool(): StructuredToolInterface {
+    return new DynamicStructuredTool({
       name: READ_SKILL_FILE_TOOL_NAME,
       description: this.toolReadDesc,
       schema: z.object({
@@ -147,27 +152,14 @@ export class SkillService implements ISkillService {
       func: async ({ skillName, filePath }: any): Promise<MCPToolResult> => {
         try {
           const skill = this.getAllSkills().find(s => s.name === skillName);
-          if (!skill) {
-            return createErrorResult(`Skill "${skillName}" not found`);
-          }
+          if (!skill) return createErrorResult(`Skill "${skillName}" not found`);
 
-          const skillDir = skill.path;
-          const fullPath = path.join(skillDir, filePath);
+          const fullPath = path.join(skill.path, filePath);
+          if (!this.isPathSafe(fullPath, skill.path)) return createErrorResult("Security error: access outside the skill directory is not allowed");
+          if (!fs.existsSync(fullPath)) return createErrorResult(`File not found: ${filePath}`);
+          if (!fs.statSync(fullPath).isFile()) return createErrorResult(`Path is not a file: ${filePath}`);
 
-          const normalizedPath = path.normalize(fullPath);
-          const normalizedSkillDir = path.normalize(skillDir);
-          if (!normalizedPath.startsWith(normalizedSkillDir)) {
-            return createErrorResult("Security error: access outside the skill directory is not allowed");
-          }
-
-          if (!fs.existsSync(fullPath)) {
-            return createErrorResult(`File not found: ${filePath}`);
-          }
-
-          if (!fs.statSync(fullPath).isFile()) {
-            return createErrorResult(`Path is not a file: ${filePath}`);
-          }
-
+          this.usageTracker.recordView(skill.path);
           const content = fs.readFileSync(fullPath, "utf-8");
           return createSuccessResult(createTextContent(content));
         } catch (error: any) {
@@ -176,9 +168,10 @@ export class SkillService implements ISkillService {
         }
       }
     });
+  }
 
-    // Execute skill script tool
-    const executeSkillScriptTool = new DynamicStructuredTool({
+  private buildExecTool(): StructuredToolInterface {
+    return new DynamicStructuredTool({
       name: EXECUTE_SKILL_SCRIPT_TOOL_NAME,
       description: this.toolExecDesc!,
       schema: z.object({
@@ -189,48 +182,24 @@ export class SkillService implements ISkillService {
       func: async ({ skillName, scriptPath, args = [] }: any): Promise<MCPToolResult> => {
         try {
           const skill = this.getAllSkills().find(s => s.name === skillName);
-          if (!skill) {
-            return createErrorResult(`Skill "${skillName}" not found`);
-          }
+          if (!skill) return createErrorResult(`Skill "${skillName}" not found`);
 
-          const skillDir = skill.path;
-          const fullPath = path.join(skillDir, scriptPath);
-
-          const normalizedPath = path.normalize(fullPath);
-          if (!normalizedPath.startsWith(path.normalize(skillDir))) {
-            return createErrorResult("Security error: executing scripts outside the skill directory is not allowed");
-          }
-
-          if (!fs.existsSync(fullPath)) {
-            return createErrorResult(`Script not found: ${scriptPath}`);
-          }
+          const fullPath = path.join(skill.path, scriptPath);
+          if (!this.isPathSafe(fullPath, skill.path)) return createErrorResult("Security error: executing scripts outside the skill directory is not allowed");
+          if (!fs.existsSync(fullPath)) return createErrorResult(`Script not found: ${scriptPath}`);
 
           const ext = path.extname(scriptPath).toLowerCase();
           let command = "";
-
           switch (ext) {
-            case ".py":
-              command = `python "${fullPath}" ${args.join(" ")}`;
-              break;
-            case ".sh":
-              command = `bash "${fullPath}" ${args.join(" ")}`;
-              break;
-            case ".js":
-              command = `node "${fullPath}" ${args.join(" ")}`;
-              break;
-            case ".ts":
-              command = `ts-node "${fullPath}" ${args.join(" ")}`;
-              break;
-            default:
-              return createErrorResult(`Unsupported script type: ${ext}. Supported: .py, .sh, .js, .ts`);
+            case ".py":  command = `python "${fullPath}" ${args.join(" ")}`; break;
+            case ".sh":  command = `bash "${fullPath}" ${args.join(" ")}`; break;
+            case ".js":  command = `node "${fullPath}" ${args.join(" ")}`; break;
+            case ".ts":  command = `ts-node "${fullPath}" ${args.join(" ")}`; break;
+            default: return createErrorResult(`Unsupported script type: ${ext}. Supported: .py, .sh, .js, .ts`);
           }
 
-          const { stdout, stderr } = await execAsync(command, {
-            cwd: skillDir,
-            env: process.env,
-            timeout: 60000,
-            maxBuffer: 10 * 1024 * 1024
-          });
+          this.usageTracker.recordUse(skill.path);
+          const { stdout, stderr } = await execAsync(command, { cwd: skill.path, env: process.env, timeout: 60000, maxBuffer: 10 * 1024 * 1024 });
 
           const result = [];
           if (stdout.trim()) result.push(createTextContent(stdout.trim()));
@@ -238,18 +207,17 @@ export class SkillService implements ISkillService {
           return createSuccessResult(...result);
         } catch (error: any) {
           this.logger?.error(`Error executing skill script ${skillName}/${scriptPath}: ${error.message}`);
-
           const errorDetails = [createTextContent(`Error: ${error.message}`)];
           if (error.stdout?.trim()) errorDetails.push(createTextContent(`stdout:\n${error.stdout.trim()}`));
           if (error.stderr?.trim()) errorDetails.push(createTextContent(`stderr:\n${error.stderr.trim()}`));
-
           return { content: errorDetails, isError: true };
         }
       }
     });
+  }
 
-    // List skill files tool
-    const listSkillFilesTool = new DynamicStructuredTool({
+  private buildListTool(): StructuredToolInterface {
+    return new DynamicStructuredTool({
       name: LIST_SKILL_FILES_TOOL_NAME,
       description: this.toolListDesc!,
       schema: z.object({
@@ -259,47 +227,13 @@ export class SkillService implements ISkillService {
       func: async ({ skillName, subPath = "" }: any): Promise<MCPToolResult> => {
         try {
           const skill = this.getAllSkills().find(s => s.name === skillName);
-          if (!skill) {
-            return createErrorResult(`Skill "${skillName}" not found`);
-          }
+          if (!skill) return createErrorResult(`Skill "${skillName}" not found`);
 
-          const skillDir = skill.path;
-          const fullPath = path.join(skillDir, subPath);
+          const fullPath = path.join(skill.path, subPath);
+          if (!this.isPathSafe(fullPath, skill.path)) return createErrorResult("Security error: access outside the skill directory is not allowed");
+          if (!fs.existsSync(fullPath)) return createErrorResult(`Directory not found: ${subPath || "/"}`);
 
-          if (!path.normalize(fullPath).startsWith(path.normalize(skillDir))) {
-            return createErrorResult("Security error: access outside the skill directory is not allowed");
-          }
-
-          if (!fs.existsSync(fullPath)) {
-            return createErrorResult(`Directory not found: ${subPath || "/"}`);
-          }
-
-          const getDirectoryStructure = (dirPath: string, prefix = ""): string[] => {
-            const items: string[] = [];
-            const entries = fs.readdirSync(dirPath, { withFileTypes: true });
-
-            entries.forEach((entry, index) => {
-              const isLast = index === entries.length - 1;
-              const marker = isLast ? "└─" : "├─";
-              const nextPrefix = prefix + (isLast ? "  " : "│ ");
-
-              if (entry.isDirectory()) {
-                items.push(`${prefix}${marker} ${entry.name}/`);
-                const subItems = getDirectoryStructure(path.join(dirPath, entry.name), nextPrefix);
-                items.push(...subItems);
-              } else {
-                const filePath = path.join(dirPath, entry.name);
-                const stat = fs.statSync(filePath);
-                const size = stat.size;
-                const sizeStr = size > 1024 ? `${(size / 1024).toFixed(1)}KB` : `${size}B`;
-                items.push(`${prefix}${marker} ${entry.name} (${sizeStr})`);
-              }
-            });
-
-            return items;
-          };
-
-          const structure = getDirectoryStructure(fullPath);
+          const structure = this.getDirectoryStructure(fullPath);
           return createSuccessResult(createTextContent(structure.join("\n")));
         } catch (error: any) {
           this.logger?.error(`Error listing skill files ${skillName}/${subPath}: ${error.message}`);
@@ -307,7 +241,141 @@ export class SkillService implements ISkillService {
         }
       }
     });
+  }
 
-    return [readSkillFileTool, executeSkillScriptTool, listSkillFilesTool];
+  // ── 管理工具（创建/修改/归档） ──
+
+  private buildCreateTool(): StructuredToolInterface {
+    return new DynamicStructuredTool({
+      name: CREATE_SKILL_TOOL_NAME,
+      description: this.toolCreateDesc!,
+      schema: z.object({
+        name: z.string().describe("Skill name in kebab-case (e.g. 'data-analysis', 'code-review')"),
+        description: z.string().describe("Brief description of what this skill does and when to use it"),
+        content: z.string().describe("SKILL.md body content (markdown). Frontmatter will be auto-generated."),
+      }) as any,
+      func: async ({ name, description, content }: any): Promise<MCPToolResult> => {
+        try {
+          if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(name) && !/^[a-z0-9]$/.test(name)) {
+            return createErrorResult("Invalid skill name: must be kebab-case (lowercase letters, numbers, hyphens)");
+          }
+
+          const detection = this.injectionDetector.detect(content);
+          if (detection.severity === InjectionSeverity.BLOCK) {
+            return createErrorResult(`Content rejected: detected suspicious patterns: ${detection.patterns.join(', ')}`);
+          }
+          const safeContent = detection.severity === InjectionSeverity.WARN ? detection.sanitized : content;
+
+          const skillDir = path.join(this.managementDir!, name);
+          if (fs.existsSync(skillDir)) return createErrorResult(`Skill "${name}" already exists`);
+
+          fs.mkdirSync(skillDir, { recursive: true });
+          const skillMd = `---\nname: ${name}\ndescription: ${description}\n---\n\n${safeContent}`;
+          fs.writeFileSync(path.join(skillDir, 'SKILL.md'), skillMd, 'utf-8');
+          this.usageTracker.createUsage(skillDir, 'agent');
+
+          this.logger?.info(`Skill created: ${name} at ${skillDir}`);
+          return createSuccessResult(createTextContent(`Skill "${name}" created at ${skillDir}`));
+        } catch (error: any) {
+          this.logger?.error(`Error creating skill ${name}: ${error.message}`);
+          return createErrorResult(error.message);
+        }
+      }
+    });
+  }
+
+  private buildPatchTool(): StructuredToolInterface {
+    return new DynamicStructuredTool({
+      name: PATCH_SKILL_TOOL_NAME,
+      description: this.toolPatchDesc!,
+      schema: z.object({
+        skillName: z.string().describe("Skill name (kebab-case)"),
+        filePath: z.string().describe('Relative file path within skill directory (e.g. "SKILL.md")'),
+        content: z.string().describe("New file content (full replacement)"),
+      }) as any,
+      func: async ({ skillName, filePath, content }: any): Promise<MCPToolResult> => {
+        try {
+          const skill = this.getAllSkills().find(s => s.name === skillName);
+          if (!skill) return createErrorResult(`Skill "${skillName}" not found`);
+
+          const fullPath = path.join(skill.path, filePath);
+          if (!this.isPathSafe(fullPath, skill.path)) return createErrorResult("Security error: access outside the skill directory is not allowed");
+
+          const dir = path.dirname(fullPath);
+          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+          fs.writeFileSync(fullPath, content, 'utf-8');
+          this.usageTracker.recordPatch(skill.path);
+
+          return createSuccessResult(createTextContent(`File "${filePath}" in skill "${skillName}" updated`));
+        } catch (error: any) {
+          this.logger?.error(`Error patching skill ${skillName}/${filePath}: ${error.message}`);
+          return createErrorResult(error.message);
+        }
+      }
+    });
+  }
+
+  private buildDeleteTool(): StructuredToolInterface {
+    return new DynamicStructuredTool({
+      name: DELETE_SKILL_TOOL_NAME,
+      description: this.toolDeleteDesc!,
+      schema: z.object({
+        skillName: z.string().describe("Skill name (kebab-case)"),
+      }) as any,
+      func: async ({ skillName }: any): Promise<MCPToolResult> => {
+        try {
+          const skill = this.getAllSkills().find(s => s.name === skillName);
+          if (!skill) return createErrorResult(`Skill "${skillName}" not found`);
+
+          const archiveBase = this.managementDir
+            ? path.join(this.managementDir, '.archive')
+            : path.join(path.dirname(skill.path), '.archive');
+          if (!fs.existsSync(archiveBase)) fs.mkdirSync(archiveBase, { recursive: true });
+
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const archiveDest = path.join(archiveBase, `${skillName}_${timestamp}`);
+          fs.renameSync(skill.path, archiveDest);
+
+          const usage = this.usageTracker.getUsage(archiveDest);
+          if (usage) {
+            usage.state = 'archived';
+            fs.writeFileSync(path.join(archiveDest, '.usage.json'), JSON.stringify(usage, null, 2), 'utf-8');
+          }
+
+          this.logger?.info(`Skill archived: ${skillName} → ${archiveDest}`);
+          return createSuccessResult(createTextContent(`Skill "${skillName}" archived to ${archiveDest}`));
+        } catch (error: any) {
+          this.logger?.error(`Error deleting skill ${skillName}: ${error.message}`);
+          return createErrorResult(error.message);
+        }
+      }
+    });
+  }
+
+  // ── 工具函数 ──
+
+  private isPathSafe(fullPath: string, baseDir: string): boolean {
+    return path.normalize(fullPath).startsWith(path.normalize(baseDir));
+  }
+
+  private getDirectoryStructure(dirPath: string, prefix = ""): string[] {
+    const items: string[] = [];
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    entries.forEach((entry, index) => {
+      if (entry.name === '.usage.json') return;
+      const isLast = index === entries.length - 1;
+      const marker = isLast ? "└─" : "├─";
+      const nextPrefix = prefix + (isLast ? "  " : "│ ");
+      if (entry.isDirectory()) {
+        items.push(`${prefix}${marker} ${entry.name}/`);
+        items.push(...this.getDirectoryStructure(path.join(dirPath, entry.name), nextPrefix));
+      } else {
+        const stat = fs.statSync(path.join(dirPath, entry.name));
+        const sizeStr = stat.size > 1024 ? `${(stat.size / 1024).toFixed(1)}KB` : `${stat.size}B`;
+        items.push(`${prefix}${marker} ${entry.name} (${sizeStr})`);
+      }
+    });
+    return items;
   }
 }
