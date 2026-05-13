@@ -12,11 +12,11 @@ const { t } = useI18n()
 const emit = defineEmits<{ saved: [] }>()
 
 const acpPresets = [
-  { label: 'Claude Code', command: 'npx', args: ['-y', '@anthropic-ai/claude-code@latest', '--acp'] },
-  { label: 'OpenCode', command: 'npx', args: ['-y', '@anthropic-ai/opencode@latest', '--acp'] },
-  { label: 'Codex', command: 'npx', args: ['-y', '@openai/codex@latest', '--acp'] },
-  { label: 'Cline', command: 'npx', args: ['-y', 'cline@latest', '--acp'] },
-  { label: 'Qwen Code', command: 'npx', args: ['-y', 'qwen-agent-acp@latest'] },
+  { label: 'Claude Code', command: 'npx', args: ['-y', '@agentclientprotocol/claude-agent-acp@latest'], envKeys: ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL'] },
+  { label: 'OpenCode', command: 'opencode', args: ['acp'], envKeys: ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL'] },
+  { label: 'Codex', command: 'npx', args: ['-y', '@openai/codex@latest', '--acp'], envKeys: ['OPENAI_API_KEY', 'OPENAI_BASE_URL'] },
+  { label: 'Cline', command: 'npx', args: ['-y', 'cline@latest', '--acp'], envKeys: ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL', 'OPENAI_API_KEY', 'OPENAI_BASE_URL'] },
+  { label: 'Qwen Code', command: 'npx', args: ['-y', 'qwen-agent-acp@latest'], envKeys: ['DASHSCOPE_API_KEY', 'DASHSCOPE_BASE_URL'] },
 ]
 
 function applyPreset(idx: number) {
@@ -24,6 +24,12 @@ function applyPreset(idx: number) {
   const p = acpPresets[idx]
   form.value.command = p.command
   form.value.args = [...p.args]
+  const existing = new Set(form.value.env.map(e => e.key))
+  for (const key of p.envKeys) {
+    if (!existing.has(key)) {
+      form.value.env.push({ key, value: '' })
+    }
+  }
 }
 const { show } = useToast()
 
