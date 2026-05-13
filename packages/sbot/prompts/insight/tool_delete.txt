@@ -1,0 +1,1 @@
+Archive an insight (moves to .archive/ directory). Use when an insight is outdated, incorrect, or superseded by a better version.

@@ -3,6 +3,7 @@ import { type StructuredToolInterface } from "@langchain/core/tools";
 import { inject, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_MemorySystemPromptTemplate, T_WikiSystemPromptTemplate, T_ModelCallTimeout, truncate, formatTimeAgo } from "../../Core";
 import { IModelService } from "../../Model";
 import { ISkillService } from "../../Skills";
+import { IInsightService } from "../../Insight";
 import { IMemoryService, MemoryToolProvider } from "../../Memory";
 import { IWikiService } from "../../Wiki";
 import { WikiToolProvider } from "../../Wiki";
@@ -54,6 +55,7 @@ type SingleAgentState = {
 export class SingleAgentService extends AgentServiceBase {
     protected modelService: IModelService;
     protected skillService?: ISkillService;
+    protected insightService?: IInsightService;
     protected toolService?: IAgentToolService;
     protected staticSystemPrompts: string[];
     protected dynamicSystemPrompts: string[];
@@ -68,6 +70,7 @@ export class SingleAgentService extends AgentServiceBase {
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
         @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
         @inject(ISkillService, { optional: true }) skillService?: ISkillService,
+        @inject(IInsightService, { optional: true }) insightService?: IInsightService,
         @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
         @inject(IMemoryService, { optional: true }) memoryServices?: IMemoryService[],
         @inject(IWikiService, { optional: true }) protected wikiServices?: IWikiService[],
@@ -79,6 +82,7 @@ export class SingleAgentService extends AgentServiceBase {
         super(loggerService, agentSaver, memoryServices);
         this.modelService = modelService;
         this.skillService = skillService;
+        this.insightService = insightService;
         this.toolService = toolService;
         this.staticSystemPrompts = staticSystemPrompts ?? [];
         this.dynamicSystemPrompts = dynamicSystemPrompts ?? [];
@@ -146,6 +150,7 @@ export class SingleAgentService extends AgentServiceBase {
     protected async buildTools(_callback?: IAgentCallback, _signal?: AbortSignal): Promise<StructuredToolInterface[]> {
         const tools: StructuredToolInterface[] = await this.toolService?.getAllTools() ?? [];
         if (this.skillService) tools.push(...this.skillService.getTools());
+        if (this.insightService) tools.push(...this.insightService.getTools());
         if (this.memoryServices.length > 0) {
             tools.push(...MemoryToolProvider.getTools(this.memoryServices));
         }

@@ -38,6 +38,7 @@ export interface BaseAgentEntry {
   systemPrompt?: string;       // 系统提示词（single 模式直接使用；react 模式注入所有子 Agent）
   mcp?: string[] | '*';        // 全局 MCP 服务器过滤列表（对应 mcp.json 中的 key）；"*" = 加载全部
   skills?: string[] | '*';     // 全局 Skills 过滤列表（skill 名称）；"*" = 加载全部
+  insight?: { scope?: 'agent' | 'session' }; // 经验洞察模块：配置即启用，scope 控制隔离粒度（默认 agent）
   autoApproveTools?: string[]; // 自动批准的工具列表（无需用户确认）
   autoApproveAllTools?: boolean; // 自动批准所有工具（无需用户确认）
   modelCallTimeout?: number;   // 单次模型调用超时（秒），不设置则不超时
@@ -499,6 +500,9 @@ class Config {
   }
   getAgentSkillsPath(agentName: string) {
     return this.getConfigPath(`agents/${agentName}/skills`, true)
+  }
+  getSessionSkillsPath(dbSessionId: string) {
+    return this.getConfigPath(`sessions/${dbSessionId}/skills`, true)
   }
   getAgentMcpServers(agentName: string): MCPServers {
     const mcpConfigPath = this.getConfigPath(`agents/${agentName}/mcp.json`);

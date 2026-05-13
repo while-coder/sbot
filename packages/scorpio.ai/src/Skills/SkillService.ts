@@ -2,7 +2,7 @@ import { Skill } from "./types";
 import { parseSkill, isValidSkillDirectory } from "./parser";
 import { ISkillService } from "./ISkillService";
 import { ILoggerService } from "../Logger";
-import { inject, T_SkillSystemPromptTemplate, T_SkillToolReadDesc, T_SkillToolListDesc, T_SkillToolExecDesc, T_SkillToolCreateDesc, T_SkillToolPatchDesc, T_SkillToolDeleteDesc, T_SkillManagementDir } from "../Core";
+import { inject, T_SkillSystemPromptTemplate, T_SkillToolReadDesc, T_SkillToolListDesc, T_SkillToolExecDesc } from "../Core";
 import { DynamicStructuredTool, type StructuredToolInterface } from "@langchain/core/tools";
 import { z } from "zod";
 import fs from "fs";
@@ -16,23 +16,18 @@ import {
     MCPToolResult
 } from "../Tools";
 import { SkillUsageTracker } from "./SkillUsageTracker";
-import { PromptInjectionDetector, InjectionSeverity } from "../Utils/PromptInjectionDetector";
 
 const execAsync = promisify(exec);
 
 export const READ_SKILL_FILE_TOOL_NAME = 'read_skill_file';
 export const EXECUTE_SKILL_SCRIPT_TOOL_NAME = 'execute_skill_script';
 export const LIST_SKILL_FILES_TOOL_NAME = 'list_skill_files';
-export const CREATE_SKILL_TOOL_NAME = 'skill_create';
-export const PATCH_SKILL_TOOL_NAME = 'skill_patch';
-export const DELETE_SKILL_TOOL_NAME = 'skill_delete';
 
 export class SkillService implements ISkillService {
   private skillsDirs: string[] = [];
   private singleSkillDirs: string[] = [];
   private logger;
   private usageTracker = new SkillUsageTracker();
-  private injectionDetector = new PromptInjectionDetector();
 
   constructor(
     @inject(T_SkillSystemPromptTemplate) private systemPromptTemplate: string,
@@ -40,10 +35,6 @@ export class SkillService implements ISkillService {
     @inject(T_SkillToolListDesc) private toolListDesc: string,
     @inject(T_SkillToolExecDesc) private toolExecDesc: string,
     @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
-    @inject(T_SkillToolCreateDesc, { optional: true }) private toolCreateDesc?: string,
-    @inject(T_SkillToolPatchDesc, { optional: true }) private toolPatchDesc?: string,
-    @inject(T_SkillToolDeleteDesc, { optional: true }) private toolDeleteDesc?: string,
-    @inject(T_SkillManagementDir, { optional: true }) private managementDir?: string,
   ) {
     this.logger = loggerService?.getLogger("SkillService");
   }
@@ -118,25 +109,9 @@ export class SkillService implements ISkillService {
   }
 
   getTools(): StructuredToolInterface[] {
-    const hasSkills = this.getAllSkills().length > 0;
-    const hasManagement = this.managementDir && this.toolCreateDesc;
-
-    if (!hasSkills && !hasManagement) return [];
+    if (this.getAllSkills().length === 0) return [];
     if (!this.toolReadDesc) return [];
-
-    const tools: StructuredToolInterface[] = [];
-
-    if (hasSkills) {
-      tools.push(this.buildReadTool(), this.buildExecTool(), this.buildListTool());
-    }
-
-    if (hasManagement) {
-      if (this.toolCreateDesc) tools.push(this.buildCreateTool());
-      if (this.toolPatchDesc) tools.push(this.buildPatchTool());
-      if (this.toolDeleteDesc) tools.push(this.buildDeleteTool());
-    }
-
-    return tools;
+    return [this.buildReadTool(), this.buildExecTool(), this.buildListTool()];
   }
 
   // ── 基础工具（读/执行/列表） ──
@@ -237,116 +212,6 @@ export class SkillService implements ISkillService {
           return createSuccessResult(createTextContent(structure.join("\n")));
         } catch (error: any) {
           this.logger?.error(`Error listing skill files ${skillName}/${subPath}: ${error.message}`);
-          return createErrorResult(error.message);
-        }
-      }
-    });
-  }
-
-  // ── 管理工具（创建/修改/归档） ──
-
-  private buildCreateTool(): StructuredToolInterface {
-    return new DynamicStructuredTool({
-      name: CREATE_SKILL_TOOL_NAME,
-      description: this.toolCreateDesc!,
-      schema: z.object({
-        name: z.string().describe("Skill name in kebab-case (e.g. 'data-analysis', 'code-review')"),
-        description: z.string().describe("Brief description of what this skill does and when to use it"),
-        content: z.string().describe("SKILL.md body content (markdown). Frontmatter will be auto-generated."),
-      }) as any,
-      func: async ({ name, description, content }: any): Promise<MCPToolResult> => {
-        try {
-          if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(name) && !/^[a-z0-9]$/.test(name)) {
-            return createErrorResult("Invalid skill name: must be kebab-case (lowercase letters, numbers, hyphens)");
-          }
-
-          const detection = this.injectionDetector.detect(content);
-          if (detection.severity === InjectionSeverity.BLOCK) {
-            return createErrorResult(`Content rejected: detected suspicious patterns: ${detection.patterns.join(', ')}`);
-          }
-          const safeContent = detection.severity === InjectionSeverity.WARN ? detection.sanitized : content;
-
-          const skillDir = path.join(this.managementDir!, name);
-          if (fs.existsSync(skillDir)) return createErrorResult(`Skill "${name}" already exists`);
-
-          fs.mkdirSync(skillDir, { recursive: true });
-          const skillMd = `---\nname: ${name}\ndescription: ${description}\n---\n\n${safeContent}`;
-          fs.writeFileSync(path.join(skillDir, 'SKILL.md'), skillMd, 'utf-8');
-          this.usageTracker.createUsage(skillDir, 'agent');
-
-          this.logger?.info(`Skill created: ${name} at ${skillDir}`);
-          return createSuccessResult(createTextContent(`Skill "${name}" created at ${skillDir}`));
-        } catch (error: any) {
-          this.logger?.error(`Error creating skill ${name}: ${error.message}`);
-          return createErrorResult(error.message);
-        }
-      }
-    });
-  }
-
-  private buildPatchTool(): StructuredToolInterface {
-    return new DynamicStructuredTool({
-      name: PATCH_SKILL_TOOL_NAME,
-      description: this.toolPatchDesc!,
-      schema: z.object({
-        skillName: z.string().describe("Skill name (kebab-case)"),
-        filePath: z.string().describe('Relative file path within skill directory (e.g. "SKILL.md")'),
-        content: z.string().describe("New file content (full replacement)"),
-      }) as any,
-      func: async ({ skillName, filePath, content }: any): Promise<MCPToolResult> => {
-        try {
-          const skill = this.getAllSkills().find(s => s.name === skillName);
-          if (!skill) return createErrorResult(`Skill "${skillName}" not found`);
-
-          const fullPath = path.join(skill.path, filePath);
-          if (!this.isPathSafe(fullPath, skill.path)) return createErrorResult("Security error: access outside the skill directory is not allowed");
-
-          const dir = path.dirname(fullPath);
-          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
-          fs.writeFileSync(fullPath, content, 'utf-8');
-          this.usageTracker.recordPatch(skill.path);
-
-          return createSuccessResult(createTextContent(`File "${filePath}" in skill "${skillName}" updated`));
-        } catch (error: any) {
-          this.logger?.error(`Error patching skill ${skillName}/${filePath}: ${error.message}`);
-          return createErrorResult(error.message);
-        }
-      }
-    });
-  }
-
-  private buildDeleteTool(): StructuredToolInterface {
-    return new DynamicStructuredTool({
-      name: DELETE_SKILL_TOOL_NAME,
-      description: this.toolDeleteDesc!,
-      schema: z.object({
-        skillName: z.string().describe("Skill name (kebab-case)"),
-      }) as any,
-      func: async ({ skillName }: any): Promise<MCPToolResult> => {
-        try {
-          const skill = this.getAllSkills().find(s => s.name === skillName);
-          if (!skill) return createErrorResult(`Skill "${skillName}" not found`);
-
-          const archiveBase = this.managementDir
-            ? path.join(this.managementDir, '.archive')
-            : path.join(path.dirname(skill.path), '.archive');
-          if (!fs.existsSync(archiveBase)) fs.mkdirSync(archiveBase, { recursive: true });
-
-          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-          const archiveDest = path.join(archiveBase, `${skillName}_${timestamp}`);
-          fs.renameSync(skill.path, archiveDest);
-
-          const usage = this.usageTracker.getUsage(archiveDest);
-          if (usage) {
-            usage.state = 'archived';
-            fs.writeFileSync(path.join(archiveDest, '.usage.json'), JSON.stringify(usage, null, 2), 'utf-8');
-          }
-
-          this.logger?.info(`Skill archived: ${skillName} → ${archiveDest}`);
-          return createSuccessResult(createTextContent(`Skill "${skillName}" archived to ${archiveDest}`));
-        } catch (error: any) {
-          this.logger?.error(`Error deleting skill ${skillName}: ${error.message}`);
           return createErrorResult(error.message);
         }
       }

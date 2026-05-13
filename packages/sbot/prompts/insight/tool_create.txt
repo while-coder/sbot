@@ -1,0 +1,1 @@
+Create a new insight to capture a reusable pattern, proven workflow, or domain knowledge learned from the current conversation. The insight should be class-level (general and reusable), not session-specific. Provide a kebab-case name, description, and SKILL.md content.

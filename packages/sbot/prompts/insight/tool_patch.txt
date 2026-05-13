@@ -1,0 +1,1 @@
+Update a file within an existing insight. Use to refine instructions, add new knowledge, or correct outdated information.

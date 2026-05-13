@@ -8,11 +8,12 @@ import {
 import {
     IAgentToolService, AgentToolService,
     ISkillService, SkillService,
+    IInsightService, InsightService,
     ServiceContainer, T_StaticSystemPrompts, T_DynamicSystemPrompts,
     ReActAgentService, T_AgentSubNodes, T_CreateAgent, T_ThinkModelService,
     T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc,
     T_SkillSystemPromptTemplate, T_SkillToolReadDesc, T_SkillToolListDesc, T_SkillToolExecDesc,
-    T_SkillToolCreateDesc, T_SkillToolPatchDesc, T_SkillToolDeleteDesc, T_SkillManagementDir,
+    T_InsightToolCreateDesc, T_InsightToolPatchDesc, T_InsightToolDeleteDesc, T_InsightDir,
     T_ModelCallTimeout,
     type CreateAgentFn,
 } from "scorpio.ai";
@@ -58,9 +59,12 @@ export class AgentFactory {
         const agentType = agentEntry.type || AgentMode.Single;
 
         if (agentType !== AgentMode.Generative && agentType !== AgentMode.ACP) {
-            const { mcp, skills } = agentEntry;
+            const { mcp, skills, insight } = agentEntry;
             await this.registerSkillService(container, agentId, skills);
             await this.registerToolService(container, agentId, options.dbSessionId, mcp, agentTools);
+            if (insight) {
+                await this.registerInsightService(container, agentId, options.dbSessionId, insight.scope);
+            }
         }
 
         const systemPrompts = [...extraPrompts];
@@ -100,10 +104,6 @@ export class AgentFactory {
             [T_SkillToolReadDesc]: loadPrompt('skills/tool_read_skill_file.txt'),
             [T_SkillToolListDesc]: loadPrompt('skills/tool_list_skill_files.txt'),
             [T_SkillToolExecDesc]: loadPrompt('skills/tool_execute_skill_script.txt'),
-            [T_SkillToolCreateDesc]: loadPrompt('skills/tool_skill_create.txt'),
-            [T_SkillToolPatchDesc]: loadPrompt('skills/tool_skill_patch.txt'),
-            [T_SkillToolDeleteDesc]: loadPrompt('skills/tool_skill_delete.txt'),
-            [T_SkillManagementDir]: config.getAgentSkillsPath(agentName),
         });
         const skillService = await container.resolve<SkillService>(ISkillService);
         if (skills === '*') {
@@ -118,6 +118,27 @@ export class AgentFactory {
             }
         }
         skillService.registerSkillsDir(config.getAgentSkillsPath(agentName));
+    }
+
+    private static async registerInsightService(
+        container: ServiceContainer,
+        agentName: string,
+        dbSessionId: string,
+        scope?: 'agent' | 'session',
+    ): Promise<void> {
+        const insightDir = scope === 'session'
+            ? config.getSessionSkillsPath(dbSessionId)
+            : config.getAgentSkillsPath(agentName);
+
+        container.registerWithArgs(IInsightService, InsightService, {
+            [T_InsightDir]: insightDir,
+            [T_InsightToolCreateDesc]: loadPrompt('insight/tool_create.txt'),
+            [T_InsightToolPatchDesc]: loadPrompt('insight/tool_patch.txt'),
+            [T_InsightToolDeleteDesc]: loadPrompt('insight/tool_delete.txt'),
+        });
+
+        const skillService = await container.resolve<SkillService>(ISkillService);
+        skillService.registerSkillsDir(insightDir);
     }
 
     private static readonly SESSION_TOOL_CREATORS: Record<string, (dbSessionId: string) => Promise<StructuredToolInterface[]>> = {

@@ -62,11 +62,11 @@ export {
   T_SkillToolReadDesc,
   T_SkillToolListDesc,
   T_SkillToolExecDesc,
-  T_SkillToolCreateDesc,
-  T_SkillToolPatchDesc,
-  T_SkillToolDeleteDesc,
-  T_SkillManagementDir,
   T_MemorySystemPromptTemplate,
+  T_InsightToolCreateDesc,
+  T_InsightToolPatchDesc,
+  T_InsightToolDeleteDesc,
+  T_InsightDir,
   T_WikiExtractorSystemPrompt,
   T_WikiSystemPromptTemplate,
   T_WikiAutoExtract,
@@ -211,9 +211,6 @@ export {
   READ_SKILL_FILE_TOOL_NAME,
   EXECUTE_SKILL_SCRIPT_TOOL_NAME,
   LIST_SKILL_FILES_TOOL_NAME,
-  CREATE_SKILL_TOOL_NAME,
-  PATCH_SKILL_TOOL_NAME,
-  DELETE_SKILL_TOOL_NAME,
 
   // 使用遥测
   SkillUsageTracker,
@@ -223,6 +220,20 @@ export {
   Skill,
   SkillMetadata,
 } from "./Skills";
+
+// ========================================
+// Insight - 经验洞察系统
+// ========================================
+export {
+  // 接口 + Symbol Token
+  IInsightService,
+
+  // 实现类
+  InsightService,
+  INSIGHT_CREATE_TOOL_NAME,
+  INSIGHT_PATCH_TOOL_NAME,
+  INSIGHT_DELETE_TOOL_NAME,
+} from "./Insight";
 
 // ========================================
 // Command - 命令系统

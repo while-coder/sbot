@@ -68,7 +68,7 @@ export class ReActAgentService extends SingleAgentService {
     @inject(T_MemorySystemPromptTemplate, { optional: true }) memorySystemPromptTemplate?: string,
     @inject(T_WikiSystemPromptTemplate, { optional: true }) private wikiSystemPromptTemplateValue?: string,
   ) {
-    super(thinkModelService, staticSystemPrompts, dynamicSystemPrompts, loggerService, agentSaver, skillService, toolService, memoryServices, wikiServices, memorySystemPromptTemplate, wikiSystemPromptTemplateValue);
+    super(thinkModelService, staticSystemPrompts, dynamicSystemPrompts, loggerService, agentSaver, skillService, undefined, toolService, memoryServices, wikiServices, memorySystemPromptTemplate, wikiSystemPromptTemplateValue);
     this.agentSubNodes = agentSubNodes;
     this.agentFactory = agentFactory;
   }

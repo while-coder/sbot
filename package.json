@@ -4,28 +4,35 @@
   "packageManager": "pnpm@10.33.0",
   "scripts": {
     "build:deps": "pnpm --filter scorpio.di run build && pnpm --filter scorpio.ai run build && pnpm --filter sbot.commons run build && pnpm --filter channel.base run build && pnpm --filter channel.lark run build && pnpm --filter channel.slack run build && pnpm --filter channel.wecom run build && pnpm --filter channel.wechat run build && pnpm --filter channel.onebot run build && pnpm --filter channel.xiaoai run build",
-    "build": "pnpm run prebuild:sbot && pnpm --filter @qingfeng346/sbot run build && pnpm --filter sbot-cli run build",
-    "prebuild:sbot": "pnpm run build:deps && pnpm run assets && pnpm --filter sbot-admin run build",
-    "debug:sbot": "pnpm run prebuild:sbot && pnpm --filter @qingfeng346/sbot run debug",
-    "publish:sbot": "pnpm run prebuild:sbot && pnpm --filter @qingfeng346/sbot publish --no-git-checks --access public",
-    "link:sbot": "pnpm run prebuild:sbot && pnpm --filter @qingfeng346/sbot run build && npm link packages/sbot/dist",
-    "unlink:sbot": "npm unlink -g @qingfeng346/sbot",
-    "debug:admin": "pnpm run build:deps && pnpm --filter sbot-admin run debug",
     "assets": "pnpm --filter shared-assets run distribute",
+
+    "debug:sbot": "pnpm run build:deps && pnpm run assets && pnpm --filter sbot-admin run build && pnpm --filter @qingfeng346/sbot run debug",
+    "build:sbot": "pnpm run build:deps && pnpm run assets && pnpm --filter sbot-admin run build && pnpm --filter @qingfeng346/sbot run build",
+    "publish:sbot": "pnpm run build:sbot && pnpm --filter @qingfeng346/sbot publish --no-git-checks --access public",
+    "link:sbot": "pnpm run build:sbot && npm link packages/sbot/dist",
+    "unlink:sbot": "npm unlink -g @qingfeng346/sbot",
+
+    "debug:cli": "pnpm run build:deps && pnpm --filter sbot-cli run debug",
+    "build:cli": "pnpm run build:deps && pnpm --filter sbot-cli run build",
+    "publish:cli": "pnpm run build:cli && pnpm --filter sbot-cli publish --no-git-checks",
+
+    "debug:admin": "pnpm run build:deps && pnpm --filter sbot-admin run debug",
+    "build:admin": "pnpm run build:deps && pnpm --filter sbot-admin run build",
+
     "build:vscode": "pnpm run build:deps && pnpm run assets && pnpm --filter sbot-vscode run build",
-    "install:vscode": "pnpm run build:deps && pnpm run assets && pnpm --filter sbot-vscode run install-ext",
-    "build:pwa": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/pwa run build",
-    "debug:pwa": "pnpm run assets && pnpm --filter @sbot/pwa run dev",
-    "build:landing": "pnpm --filter sbot-landing run build",
+    "install:vscode": "pnpm run build:vscode && pnpm --filter sbot-vscode run install-ext",
+
     "build:desktop": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/desktop run build",
     "debug:desktop": "pnpm run assets && pnpm --filter @sbot/desktop run dev",
+
+    "debug:pwa": "pnpm run assets && pnpm --filter @sbot/pwa run dev",
+    "build:pwa": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/pwa run build",
+
     "debug:landing": "pnpm --filter sbot-landing run dev",
-    "debug:cli": "pnpm run build:deps && pnpm --filter sbot-cli run debug",
-    "publish:cli": "pnpm run build:deps && pnpm --filter sbot-cli publish --no-git-checks",
-    "docker:build": "pnpm run build && node packages/sbot/scripts/docker.js build",
-    "docker:save": "node packages/sbot/scripts/docker.js save",
-    "docker:publish": "pnpm run docker:build && node packages/sbot/scripts/docker.js publish",
-    "docker": "pnpm run docker:build && pnpm run docker:save"
+    "build:landing": "pnpm --filter sbot-landing run build",
+
+    "docker:sbot": "pnpm run build && node packages/sbot/scripts/docker.js build && node packages/sbot/scripts/docker.js save",
+    "docker:sbot:publish": "pnpm run build && node packages/sbot/scripts/docker.js build && node packages/sbot/scripts/docker.js publish"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
