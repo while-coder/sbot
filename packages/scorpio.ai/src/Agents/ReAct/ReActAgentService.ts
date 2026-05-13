@@ -122,13 +122,16 @@ export class ReActAgentService extends SingleAgentService {
         }
 
         const messages = await agentService.stream(task, subCallback, signal);
+        let lastAI: ChatMessage | undefined;
+        for (let i = messages.length - 1; i >= 0; i--) {
+          if (messages[i].role === MessageRole.AI && messages[i].content) { lastAI = messages[i]; break; }
+        }
         const content: MCPContent[] = [];
-        for (const msg of messages) {
-          if (msg.role !== MessageRole.AI || !msg.content) continue;
-          if (typeof msg.content === 'string') {
-            if (msg.content.trim()) content.push(createTextContent(msg.content));
-          } else if (Array.isArray(msg.content)) {
-            for (const part of msg.content) {
+        if (lastAI) {
+          if (typeof lastAI.content === 'string') {
+            if (lastAI.content.trim()) content.push(createTextContent(lastAI.content));
+          } else if (Array.isArray(lastAI.content)) {
+            for (const part of lastAI.content) {
               if (part.type === MCPContentType.Text && part.text?.trim()) {
                 content.push(createTextContent(part.text));
               } else if (part.type === MCPContentType.Image && part.data) {
