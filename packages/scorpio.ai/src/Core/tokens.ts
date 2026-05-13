@@ -26,6 +26,7 @@ export const T_ModelCallTimeout           = Symbol("scorpio:T_ModelCallTimeout")
 
 // Compact tokens
 export const T_CompactPromptTemplate      = Symbol("scorpio:T_CompactPromptTemplate");
+export const T_MaxHistoryRounds           = Symbol("scorpio:T_MaxHistoryRounds");
 
 // Insight tokens
 export const T_InsightToolCreateDesc = Symbol("scorpio:T_InsightToolCreateDesc");

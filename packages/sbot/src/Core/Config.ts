@@ -65,6 +65,7 @@ export interface ReactAgentEntry extends BaseAgentEntry {
  */
 export interface GenerativeAgentEntry extends BaseAgentEntry {
   type: AgentMode.Generative;
+  maxHistoryRounds?: number;   // 滑动窗口保留的最大对话轮数（1 轮 = 1 human + 1 ai），默认 5
 }
 
 /**

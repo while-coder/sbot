@@ -1,6 +1,6 @@
 import {
     AgentServiceBase, SingleAgentService, GenerativeAgentService,
-    ACPAgentService, T_ACPCommand, T_ACPArgs, T_ACPEnv, T_ACPSessionMode, T_ACPWorkPath,
+    ACPAgentService, ACPSessionMode, T_ACPCommand, T_ACPArgs, T_ACPEnv, T_ACPSessionMode, T_ACPWorkPath,
     IModelService,
     IAgentSaverService, AgentMemorySaver, ILoggerService,
     ConversationCompactor, IConversationCompactor, T_SummaryModelService, T_CompactPromptTemplate,
@@ -14,7 +14,7 @@ import {
     T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc,
     T_SkillSystemPromptTemplate, T_SkillToolReadDesc, T_SkillToolListDesc, T_SkillToolExecDesc,
     T_InsightToolCreateDesc, T_InsightToolPatchDesc, T_InsightToolDeleteDesc, T_InsightDir,
-    T_ModelCallTimeout,
+    T_ModelCallTimeout, T_MaxHistoryRounds,
     type CreateAgentFn,
 } from "scorpio.ai";
 import { type StructuredToolInterface } from "@langchain/core/tools";
@@ -223,10 +223,14 @@ export class AgentFactory {
         entry: GenerativeAgentEntry,
         systemPrompts: string[],
     ): Promise<AgentServiceBase> {
-        container.registerWithArgs(GenerativeAgentService, {
+        const args: Record<symbol, any> = {
             [IModelService]: await config.getModelService(entry.model, true),
             [T_StaticSystemPrompts]: systemPrompts,
-        });
+        };
+        if (entry.maxHistoryRounds != null) {
+            args[T_MaxHistoryRounds] = entry.maxHistoryRounds;
+        }
+        container.registerWithArgs(GenerativeAgentService, args);
         return container.resolve(GenerativeAgentService);
     }
 
@@ -287,7 +291,7 @@ export class AgentFactory {
                     [T_ACPArgs]: entry.args ?? [],
                     [T_ACPWorkPath]: workPath,
                     ...(entry.env && { [T_ACPEnv]: entry.env }),
-                    [T_ACPSessionMode]: "persistent" as const,
+                    [T_ACPSessionMode]: ACPSessionMode.Persistent,
                 });
                 return sub.resolve<ACPAgentService>(ACPAgentService);
             });
@@ -298,7 +302,7 @@ export class AgentFactory {
             [T_ACPArgs]: entry.args ?? [],
             [T_ACPWorkPath]: workPath,
             ...(entry.env && { [T_ACPEnv]: entry.env }),
-            [T_ACPSessionMode]: "transient" as const,
+            [T_ACPSessionMode]: ACPSessionMode.Transient,
         });
         return container.resolve(ACPAgentService);
     }

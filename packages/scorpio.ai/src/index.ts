@@ -72,6 +72,7 @@ export {
   T_WikiAutoExtract,
   T_ModelCallTimeout,
   T_CompactPromptTemplate,
+  T_MaxHistoryRounds,
   NowDate,
   sleep,
   parseJson,
