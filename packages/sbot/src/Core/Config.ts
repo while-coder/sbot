@@ -2,6 +2,7 @@ import os from "os";
 import path from "path";
 import fs from "fs";
 import type { ModelConfig, MCPServers, IModelService, IEmbeddingService, AgentSubNode } from "scorpio.ai";
+import { ACPSessionMode } from "scorpio.ai";
 import { ModelProvider } from "scorpio.ai/Model/types";
 import type { EmbeddingConfig } from "scorpio.ai/Embedding/types";
 import { EmbeddingProvider } from "scorpio.ai/Embedding/types";
@@ -28,34 +29,40 @@ export interface NamedEmbeddingConfig extends EmbeddingConfig {
 }
 
 /**
- * Agent 基础配置（所有模式共用）
+ * Agent 基础配置（所有模式共用的最小集）
  */
 export interface BaseAgentEntry {
   name?: string;               // 显示名称（可选，便于识别）
   type: AgentMode;
-  model: string;               // 模型 UUID（single 模式为执行模型；react 模式为 Think 编排模型）
-  compactModel?: string;       // 对话压缩模型 UUID（可选，不配置则用 model）
-  compactPrompt?: string;      // 对话压缩自定义提示词（可选，不配置则用默认）
-  systemPrompt?: string;       // 系统提示词（single 模式直接使用；react 模式注入所有子 Agent）
-  mcp?: string[] | '*';        // 全局 MCP 服务器过滤列表（对应 mcp.json 中的 key）；"*" = 加载全部
-  skills?: string[] | '*';     // 全局 Skills 过滤列表（skill 名称）；"*" = 加载全部
-  insight: InsightConfig;      // 经验洞察模块配置
   autoApproveTools?: string[]; // 自动批准的工具列表（无需用户确认）
   autoApproveAllTools?: boolean; // 自动批准所有工具（无需用户确认）
+}
+
+/**
+ * 带工具链的 Agent 配置（Single / ReAct 共用）
+ */
+export interface ToolAgentEntry extends BaseAgentEntry {
+  systemPrompt?: string;       // 系统提示词（single 模式直接使用；react 模式注入所有子 Agent）
+  model: string;               // 模型 UUID（single 模式为执行模型；react 模式为 Think 编排模型）
+  compactModel?: string;       // 对话压缩模型 UUID（可选）
+  compactPrompt?: string;      // 对话压缩自定义提示词（可选）
+  mcp?: string[] | '*';        // MCP 服务器过滤列表（对应 mcp.json 中的 key）；"*" = 加载全部
+  skills?: string[] | '*';     // Skills 过滤列表（skill 名称）；"*" = 加载全部
+  insight: InsightConfig;      // 经验洞察模块配置
   modelCallTimeout?: number;   // 单次模型调用超时（秒），不设置则不超时
 }
 
 /**
  * Single 模式 Agent 配置
  */
-export interface SingleAgentEntry extends BaseAgentEntry {
+export interface SingleAgentEntry extends ToolAgentEntry {
   type: AgentMode.Single;
 }
 
 /**
  * ReAct 模式 Agent 配置
  */
-export interface ReactAgentEntry extends BaseAgentEntry {
+export interface ReactAgentEntry extends ToolAgentEntry {
   type: AgentMode.ReAct;
   agents: AgentSubNode[];      // 子 Agent 引用列表（name 字段为 agent UUID）
 }
@@ -65,6 +72,8 @@ export interface ReactAgentEntry extends BaseAgentEntry {
  */
 export interface GenerativeAgentEntry extends BaseAgentEntry {
   type: AgentMode.Generative;
+  systemPrompt?: string;       // 系统提示词
+  model: string;               // 模型 UUID
   maxHistoryRounds?: number;   // 滑动窗口保留的最大对话轮数（1 轮 = 1 human + 1 ai），默认 5
 }
 
@@ -76,7 +85,7 @@ export interface ACPAgentEntry extends BaseAgentEntry {
   command: string;
   args?: string[];
   env?: Record<string, string>;
-  sessionMode?: "transient" | "persistent";
+  sessionMode?: ACPSessionMode;
 }
 
 /**
@@ -178,10 +187,12 @@ class Config {
     try {
       const entry = JSON.parse(fs.readFileSync(agentJsonPath, 'utf-8')) as AgentEntry;
 
-      // 读取 system-prompt.md
-      const promptPath = path.join(agentDir, 'system-prompt.md');
-      if (fs.existsSync(promptPath)) {
-        entry.systemPrompt = fs.readFileSync(promptPath, 'utf-8');
+      // 读取 system-prompt.md（ACP 模式无 systemPrompt，跳过）
+      if (entry.type !== AgentMode.ACP) {
+        const promptPath = path.join(agentDir, 'system-prompt.md');
+        if (fs.existsSync(promptPath)) {
+          (entry as ToolAgentEntry | GenerativeAgentEntry).systemPrompt = fs.readFileSync(promptPath, 'utf-8');
+        }
       }
 
       // 读取 .store.json

@@ -161,16 +161,23 @@ export interface McpEntry {
 export interface AgentConfig {
   name?: string
   type: AgentMode | string
+  // 所有模式（ACP 除外）
   model?: string
   systemPrompt?: string
+  // 所有模式
+  autoApproveTools?: string[]
+  autoApproveAllTools?: boolean
+  // single / react（ToolAgent）
   mcp?: string[] | '*'
   skills?: string[] | '*'
   insight?: InsightConfig
-  autoApproveTools?: string[]
-  autoApproveAllTools?: boolean
+  compactModel?: string
+  compactPrompt?: string
   modelCallTimeout?: number
   // react
   agents?: SubAgentRef[]
+  // generative
+  maxHistoryRounds?: number
   // acp
   command?: string
   args?: string[]

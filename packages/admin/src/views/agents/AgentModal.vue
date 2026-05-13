@@ -100,14 +100,18 @@ async function save() {
     show(t('agents.error_sub_agents'), 'error'); return
   }
   try {
-    const config: Agent = { type, model: form.value.model }
+    const config: Agent = { type }
 
-    if (form.value.systemPrompt) config.systemPrompt = form.value.systemPrompt
-    if (form.value.compactModel) (config as any).compactModel = form.value.compactModel
-    if (form.value.compactPrompt) (config as any).compactPrompt = form.value.compactPrompt
-    config.insight = { scope: form.value.insightScope as any }
+    if (type !== AgentMode.ACP) config.model = form.value.model
+    if (type !== AgentMode.ACP && form.value.systemPrompt) config.systemPrompt = form.value.systemPrompt
     if (form.value.autoApproveAllTools) (config as any).autoApproveAllTools = true
-    if (form.value.modelCallTimeout != null && form.value.modelCallTimeout > 0) config.modelCallTimeout = form.value.modelCallTimeout
+
+    if (type === AgentMode.Single || type === AgentMode.ReAct) {
+      if (form.value.compactModel) (config as any).compactModel = form.value.compactModel
+      if (form.value.compactPrompt) (config as any).compactPrompt = form.value.compactPrompt
+      config.insight = { scope: form.value.insightScope as any }
+      if (form.value.modelCallTimeout != null && form.value.modelCallTimeout > 0) config.modelCallTimeout = form.value.modelCallTimeout
+    }
     if (type === AgentMode.ReAct) {
       config.agents = tempSubAgents.value
     }
@@ -222,8 +226,8 @@ defineExpose({ open })
           </select>
         </div>
 
-        <!-- 系统提示词（所有类型） -->
-        <div class="form-group">
+        <!-- 系统提示词（ACP 模式无 systemPrompt，由外部 Agent 自行管理） -->
+        <div class="form-group" v-if="form.type !== AgentMode.ACP">
           <label>{{ t('agents.system_prompt') }}</label>
           <textarea v-model="form.systemPrompt" rows="3" :placeholder="t('agents.system_prompt_placeholder')" />
         </div>
@@ -299,8 +303,8 @@ defineExpose({ open })
           <span style="font-size:0.78rem;color:var(--color-text-muted,#888);margin-top:2px">{{ t('agents.insight_hint') }}</span>
         </div>
 
-        <!-- autoApproveAllTools (ACP 不需要) -->
-        <div class="form-group" v-if="form.type !== AgentMode.ACP" style="display:flex;align-items:center;gap:8px">
+        <!-- autoApproveAllTools -->
+        <div class="form-group" style="display:flex;align-items:center;gap:8px">
           <input type="checkbox" v-model="form.autoApproveAllTools" id="autoApproveAll" style="width:14px;height:14px;cursor:pointer" />
           <label for="autoApproveAll" style="cursor:pointer;margin:0">{{ t('agents.auto_approve_all_tools') }}</label>
         </div>

@@ -21,7 +21,7 @@ import { type StructuredToolInterface } from "@langchain/core/tools";
 import { createSchedulerTools } from "../Tools/Scheduler/index";
 import { createTodoTools } from "../Tools/Todo/index";
 import { createSessionSearchTool } from "../Tools/SessionSearch/index";
-import { config, AgentMode, InsightScope, SingleAgentEntry, ReactAgentEntry, GenerativeAgentEntry, ACPAgentEntry } from "../Core/Config";
+import { config, AgentMode, InsightScope, ToolAgentEntry, SingleAgentEntry, ReactAgentEntry, GenerativeAgentEntry, ACPAgentEntry } from "../Core/Config";
 import { loadPrompt } from "../Core/PromptLoader";
 import { globalAgentToolService, BuiltinProvider } from "./GlobalAgentToolService";
 import { globalSkillService, getSkillsDirsMap } from "./GlobalSkillService";
@@ -59,17 +59,21 @@ export class AgentFactory {
         const agentType = agentEntry.type || AgentMode.Single;
 
         if (agentType !== AgentMode.Generative && agentType !== AgentMode.ACP) {
-            const { mcp, skills, insight } = agentEntry;
-            await this.registerSkillService(container, agentId, skills);
-            await this.registerToolService(container, agentId, options.dbSessionId, mcp, agentTools);
-            if (insight.scope !== InsightScope.Disabled) {
-                await this.registerInsightService(container, agentId, options.dbSessionId, insight.scope);
+            const toolEntry = agentEntry as ToolAgentEntry;
+            await this.registerSkillService(container, agentId, toolEntry.skills);
+            await this.registerToolService(container, agentId, options.dbSessionId, toolEntry.mcp, agentTools);
+            if (toolEntry.insight.scope !== InsightScope.Disabled) {
+                await this.registerInsightService(container, agentId, options.dbSessionId, toolEntry.insight.scope);
             }
         }
 
+        if (agentType === AgentMode.ACP) {
+            return this.createACP(container, agentEntry as ACPAgentEntry, options);
+        }
+
         const systemPrompts = [...extraPrompts];
-        if (agentEntry.systemPrompt)
-            systemPrompts.push(agentEntry.systemPrompt);
+        const sp = (agentEntry as ToolAgentEntry | GenerativeAgentEntry).systemPrompt;
+        if (sp) systemPrompts.push(sp);
 
         if (dynamicPrompts && dynamicPrompts.length > 0) {
             container.registerInstance(T_DynamicSystemPrompts, dynamicPrompts);
@@ -84,9 +88,6 @@ export class AgentFactory {
 
             case AgentMode.Generative:
                 return this.createGenerative(container, agentEntry as GenerativeAgentEntry, systemPrompts);
-
-            case AgentMode.ACP:
-                return this.createACP(container, agentEntry as ACPAgentEntry, options);
 
             case AgentMode.Single:
             default:
@@ -272,9 +273,9 @@ export class AgentFactory {
         options: AgentCreateOptions,
     ): Promise<AgentServiceBase> {
         const workPath = options.workPath ?? process.cwd();
-        const sessionMode = entry.sessionMode ?? "persistent";
+        const sessionMode = entry.sessionMode ?? ACPSessionMode.Persistent;
 
-        if (sessionMode === "persistent") {
+        if (sessionMode === ACPSessionMode.Persistent) {
             const pool = ACPAgentPool.getInstance();
             const key = `${options.agentId}:${options.dbSessionId}`;
             const agentName = entry.name ?? options.agentId;

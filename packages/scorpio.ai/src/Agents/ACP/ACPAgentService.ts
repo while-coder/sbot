@@ -15,7 +15,10 @@ export const T_ACPEnv = Symbol("scorpio:T_ACPEnv");
 export const T_ACPSessionMode = Symbol("scorpio:T_ACPSessionMode");
 export const T_ACPWorkPath = Symbol("scorpio:T_ACPWorkPath");
 
-export type ACPSessionMode = "transient" | "persistent";
+export enum ACPSessionMode {
+    Transient = "transient",
+    Persistent = "persistent",
+}
 
 export class ACPAgentService extends AgentServiceBase {
     private command: string;
@@ -56,7 +59,7 @@ export class ACPAgentService extends AgentServiceBase {
         this.command = command;
         this.args = args;
         this.env = env ?? {};
-        this.sessionMode = sessionMode ?? "persistent";
+        this.sessionMode = sessionMode ?? ACPSessionMode.Persistent;
         this.workPath = workPath;
     }
 
@@ -104,7 +107,7 @@ export class ACPAgentService extends AgentServiceBase {
         } finally {
             signal?.removeEventListener("abort", onCancel);
             this._callback = {};
-            if (this.sessionMode === "transient" && this.sessionId) {
+            if (this.sessionMode === ACPSessionMode.Transient && this.sessionId) {
                 await this.connection!.closeSession({ sessionId: this.sessionId }).catch(() => {});
                 this.sessionId = null;
             }
@@ -239,7 +242,7 @@ export class ACPAgentService extends AgentServiceBase {
     }
 
     private async ensureSession(): Promise<void> {
-        if (this.sessionMode === "persistent" && this.sessionId) return;
+        if (this.sessionMode === ACPSessionMode.Persistent && this.sessionId) return;
 
         const response = await this.connection!.newSession({
             cwd: this.workPath,

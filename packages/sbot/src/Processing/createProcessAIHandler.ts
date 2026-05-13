@@ -1,7 +1,7 @@
 import { ProcessAIHandler } from "channel.base";
 import { MessageRole, ToolApproval } from "scorpio.ai";
 import { database, ChannelSessionRow, channelThreadId, parseMemories } from "../Core/Database";
-import { config } from "../Core/Config";
+import { config, AgentMode } from "../Core/Config";
 import { buildExecuteTool } from "./buildExecuteTool";
 import { updateUsageStats, type UsageContext } from "./updateUsageStats";
 import { WebChatEventType, WEB_CHANNEL_ID } from "sbot.commons";
@@ -56,12 +56,13 @@ export function createProcessAIHandler(): ProcessAIHandler {
         let usageContext: UsageContext;
         try {
             const agentEntry = config.getAgent(agentId);
-            const namedModel = agentEntry.model ? config.settings.models?.[agentEntry.model] : undefined;
+            const agentModel = agentEntry.type !== AgentMode.ACP ? agentEntry.model : undefined;
+            const namedModel = agentModel ? config.settings.models?.[agentModel] : undefined;
             usageContext = {
                 agentId,
                 agentName: agentEntry.name || agentId,
-                modelId: agentEntry.model || '',
-                modelName: namedModel?.name || namedModel?.model || agentEntry.model || '',
+                modelId: agentModel || '',
+                modelName: namedModel?.name || namedModel?.model || agentModel || '',
                 provider: namedModel?.provider || '',
                 channelId,
             };

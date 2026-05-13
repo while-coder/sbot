@@ -299,12 +299,12 @@ export {
   MessageRole,
   IAgentCallback,
   AgentCancelledError,
+  ACPSessionMode,
 } from "./Agents";
 
 export type {
   AgentSubNode,
   CreateAgentFn,
-  ACPSessionMode,
 } from "./Agents";
 
 // ========================================

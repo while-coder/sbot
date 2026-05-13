@@ -1,7 +1,7 @@
 import { Command, Arg, Option, Parsers, CommandContext, ICommand, ConversationCompactor, IModelService } from "scorpio.ai"
 import { SessionService } from "channel.base"
 import { AgentRunner } from "../Agent/AgentRunner"
-import { config } from "../Core/Config"
+import { config, AgentMode, type ToolAgentEntry } from "../Core/Config"
 
 type SbotService = SessionService & {
     resolveSaverId(args: any): Promise<string | undefined>;
@@ -158,7 +158,8 @@ export class CompactCommand implements ICommand {
         const agentEntry = config.getAgent(agentId);
         if (!agentEntry) return `Agent "${agentId}" 配置不存在`;
 
-        const compactModelId = agentEntry.compactModel;
+        if (agentEntry.type !== AgentMode.Single && agentEntry.type !== AgentMode.ReAct) return '当前 Agent 类型不支持压缩';
+        const compactModelId = (agentEntry as ToolAgentEntry).compactModel;
         if (!compactModelId) return `没有配置压缩模型`;
         const summaryModel = await config.getModelService(compactModelId);
         if (!summaryModel) return `模型 "${compactModelId}" 不可用`;
