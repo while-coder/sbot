@@ -8,6 +8,8 @@ import { ILoggerService } from "../../Logger";
 import { IMemoryService } from "../../Memory";
 import { AgentServiceBase, IAgentCallback, AgentCancelledError, ChatMessage, MessageRole, ToolApproval } from "../AgentServiceBase";
 import type { MessageContent } from "../../Saver/IAgentSaverService";
+import { contentToString } from "../../Utils/contentUtils";
+import { v4 as uuidv4 } from "uuid";
 
 export const T_ACPCommand = Symbol("scorpio:T_ACPCommand");
 export const T_ACPArgs = Symbol("scorpio:T_ACPArgs");
@@ -31,9 +33,11 @@ export class ACPAgentService extends AgentServiceBase {
     private connection: ClientSideConnection | null = null;
     private sessionId: string | null = null;
     private initialized = false;
+    private sessionFirstPrompt = true;
 
     private _callback: IAgentCallback = {};
     private _text = "";
+    private _thinkId = "";
 
     private _pooled = false;
     onExit?: () => void;
@@ -49,8 +53,8 @@ export class ACPAgentService extends AgentServiceBase {
         @inject(T_ACPCommand) command: string,
         @inject(T_ACPArgs) args: string[],
         @inject(T_ACPWorkPath) workPath: string,
+        @inject(T_ACPSessionMode) sessionMode: ACPSessionMode,
         @inject(T_ACPEnv, { optional: true }) env?: Record<string, string>,
-        @inject(T_ACPSessionMode, { optional: true }) sessionMode?: ACPSessionMode,
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
         @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
         @inject(IMemoryService, { optional: true }) memoryServices?: IMemoryService[],
@@ -59,20 +63,23 @@ export class ACPAgentService extends AgentServiceBase {
         this.command = command;
         this.args = args;
         this.env = env ?? {};
-        this.sessionMode = sessionMode ?? ACPSessionMode.Persistent;
+        this.sessionMode = sessionMode;
         this.workPath = workPath;
     }
 
     override async stream(query: MessageContent, callback: IAgentCallback, signal?: AbortSignal): Promise<ChatMessage[]> {
         if (signal?.aborted) throw new AgentCancelledError();
 
-        await this.ensureConnection();
-        await this.ensureSession();
+        await this.ensureReady();
+        const isFirstPrompt = this.sessionFirstPrompt;
+        this.sessionFirstPrompt = false;
 
+        const previousHistory = isFirstPrompt ? await this.saverService.getMessages() : [];
         await this.saverService.pushMessage({ role: MessageRole.Human, content: query });
 
         this._callback = callback;
         this._text = "";
+        this._thinkId = uuidv4();
 
         const onCancel = () => {
             if (this.sessionId && this.connection) {
@@ -84,17 +91,26 @@ export class ACPAgentService extends AgentServiceBase {
         const messages: ChatMessage[] = [];
 
         try {
-            const promptBlocks = this.buildPromptBlocks(query);
+            const promptBlocks: schema.ContentBlock[] = [];
+            if (isFirstPrompt && previousHistory.length > 0) {
+                promptBlocks.push({ type: "text", text: this.formatHistory(previousHistory) });
+            }
+            promptBlocks.push(...this.buildPromptBlocks(query));
+
             const response = await this.connection!.prompt({
                 sessionId: this.sessionId!,
                 prompt: promptBlocks,
             });
 
-            if (this._text) {
-                const msg: ChatMessage = { role: MessageRole.AI, content: this._text };
+            if (this._text.trim()) {
+                const msg: ChatMessage = {
+                    role: MessageRole.AI,
+                    content: this._text.trim(),
+                    additional_kwargs: { thinkId: this._thinkId },
+                };
                 messages.push(msg);
                 await callback.onMessage?.(msg);
-                await this.saverService.pushMessage(msg);
+                await this.saverService.pushMessage(msg, { thinkId: this._thinkId });
             }
 
             if (response.usage) {
@@ -108,7 +124,9 @@ export class ACPAgentService extends AgentServiceBase {
             signal?.removeEventListener("abort", onCancel);
             this._callback = {};
             if (this.sessionMode === ACPSessionMode.Transient && this.sessionId) {
-                await this.connection!.closeSession({ sessionId: this.sessionId }).catch(() => {});
+                await this.connection!.closeSession({ sessionId: this.sessionId }).catch(e => {
+                    this.logger?.debug(`[ACP] closeSession ignored: ${e?.message ?? e}`);
+                });
                 this.sessionId = null;
             }
         }
@@ -123,7 +141,9 @@ export class ACPAgentService extends AgentServiceBase {
 
     async forceDispose() {
         if (this.sessionId && this.connection) {
-            await this.connection.closeSession({ sessionId: this.sessionId }).catch(() => {});
+            await this.connection.closeSession({ sessionId: this.sessionId }).catch(e => {
+                this.logger?.debug(`[ACP] closeSession ignored: ${e?.message ?? e}`);
+            });
             this.sessionId = null;
         }
         if (this.childProcess) {
@@ -136,119 +156,152 @@ export class ACPAgentService extends AgentServiceBase {
         await super.dispose();
     }
 
-    private async ensureConnection(): Promise<void> {
-        if (this.connection && this.initialized) return;
+    private async ensureReady(): Promise<void> {
+        if (!this.connection || !this.initialized) {
+            this.childProcess = spawn(this.command, this.args, {
+                stdio: ["pipe", "pipe", "pipe"],
+                env: { ...process.env, ...this.env },
+                shell: process.platform === "win32",
+            });
 
-        this.childProcess = spawn(this.command, this.args, {
-            stdio: ["pipe", "pipe", "pipe"],
-            env: { ...process.env, ...this.env },
-            shell: process.platform === "win32",
-        });
+            this.childProcess.stderr?.on("data", (chunk: Buffer) => {
+                this.logger?.debug(`[ACP stderr] ${chunk.toString().trim()}`);
+            });
 
-        this.childProcess.stderr?.on("data", (chunk: Buffer) => {
-            this.logger?.debug(`[ACP stderr] ${chunk.toString().trim()}`);
-        });
+            this.childProcess.on("exit", (code) => {
+                this.logger?.info(`[ACP] process exited with code ${code}`);
+                this.connection = null;
+                this.initialized = false;
+                this.sessionId = null;
+                this.sessionFirstPrompt = true;
+                this.onExit?.();
+            });
 
-        this.childProcess.on("exit", (code) => {
-            this.logger?.info(`[ACP] process exited with code ${code}`);
-            this.connection = null;
-            this.initialized = false;
-            this.sessionId = null;
-            this.onExit?.();
-        });
+            const stdout = this.childProcess.stdout!;
+            const stdin = this.childProcess.stdin!;
 
-        const stdout = this.childProcess.stdout!;
-        const stdin = this.childProcess.stdin!;
+            const stream = ndJsonStream(
+                Writable.toWeb(stdin) as WritableStream<Uint8Array>,
+                Readable.toWeb(stdout) as ReadableStream<Uint8Array>,
+            );
 
-        const stream = ndJsonStream(
-            Writable.toWeb(stdin) as WritableStream<Uint8Array>,
-            Readable.toWeb(stdout) as ReadableStream<Uint8Array>,
-        );
+            const self = this;
 
-        const self = this;
-
-        this.connection = new ClientSideConnection(
-            () => ({
-                async requestPermission(params: schema.RequestPermissionRequest) {
-                    if (!self._callback.executeTool) {
+            this.connection = new ClientSideConnection(
+                () => ({
+                    async requestPermission(params: schema.RequestPermissionRequest) {
+                        if (!self._callback.executeTool) {
+                            const allowOption = params.options.find(o => o.kind === "allow_once") ?? params.options[0];
+                            return { outcome: { outcome: "selected" as const, optionId: allowOption.optionId } };
+                        }
+                        const toolCall = {
+                            id: params.toolCall.toolCallId,
+                            name: params.toolCall.title ?? "unknown",
+                            args: (params.toolCall.rawInput as Record<string, any>) ?? {},
+                        };
+                        const approval = await self._callback.executeTool(toolCall);
+                        if (approval === ToolApproval.Deny) {
+                            const rejectOption = params.options.find(o => o.kind === "reject_once");
+                            if (rejectOption) {
+                                return { outcome: { outcome: "selected" as const, optionId: rejectOption.optionId } };
+                            }
+                            return { outcome: { outcome: "cancelled" as const } };
+                        }
+                        const alwaysOption = params.options.find(o => o.kind === "allow_always");
                         const allowOption = params.options.find(o => o.kind === "allow_once") ?? params.options[0];
-                        return { outcome: { outcome: "selected" as const, optionId: allowOption.optionId } };
-                    }
-                    const toolCall = {
-                        id: params.toolCall.toolCallId,
-                        name: params.toolCall.title ?? "unknown",
-                        args: (params.toolCall.rawInput as Record<string, any>) ?? {},
-                    };
-                    const approval = await self._callback.executeTool(toolCall);
-                    if (approval === ToolApproval.Deny) {
-                        const rejectOption = params.options.find(o => o.kind === "reject_once");
-                        if (rejectOption) {
-                            return { outcome: { outcome: "selected" as const, optionId: rejectOption.optionId } };
-                        }
-                        return { outcome: { outcome: "cancelled" as const } };
-                    }
-                    const alwaysOption = params.options.find(o => o.kind === "allow_always");
-                    const allowOption = params.options.find(o => o.kind === "allow_once") ?? params.options[0];
-                    const selectedOption = (approval === ToolApproval.AlwaysArgs || approval === ToolApproval.AlwaysTool)
-                        ? (alwaysOption ?? allowOption)
-                        : allowOption;
-                    return { outcome: { outcome: "selected" as const, optionId: selectedOption.optionId } };
-                },
+                        const selectedOption = (approval === ToolApproval.AlwaysArgs || approval === ToolApproval.AlwaysTool)
+                            ? (alwaysOption ?? allowOption)
+                            : allowOption;
+                        return { outcome: { outcome: "selected" as const, optionId: selectedOption.optionId } };
+                    },
 
-                async sessionUpdate(params: schema.SessionNotification) {
-                    const update = params.update;
-                    switch (update.sessionUpdate) {
-                        case "agent_message_chunk": {
-                            const block = update.content;
-                            if (block.type === "text") {
-                                self._text += (block as schema.TextContent).text ?? "";
-                                const streamMsg: ChatMessage = { role: MessageRole.AI, content: self._text };
-                                await self._callback.onStreamMessage?.(streamMsg);
+                    async sessionUpdate(params: schema.SessionNotification) {
+                        const update = params.update;
+                        switch (update.sessionUpdate) {
+                            case "agent_message_chunk": {
+                                if (update.content.type === "text") {
+                                    self._text += (update.content as schema.TextContent).text ?? "";
+                                    await self._callback.onStreamMessage?.({ role: MessageRole.AI, content: self._text });
+                                }
+                                break;
                             }
-                            break;
-                        }
-                        case "tool_call": {
-                            const tc = update as schema.ToolCall & { sessionUpdate: string };
-                            const toolMsg: ChatMessage = {
-                                role: MessageRole.AI,
-                                content: `[Tool: ${tc.title}]`,
-                            };
-                            await self._callback.onStreamMessage?.(toolMsg);
-                            break;
-                        }
-                        case "usage_update": {
-                            const u = update as any;
-                            if (u.usage) {
-                                await self._callback.onUsage?.({
-                                    input_tokens: u.usage.inputTokens ?? 0,
-                                    output_tokens: u.usage.outputTokens ?? 0,
-                                    total_tokens: (u.usage.inputTokens ?? 0) + (u.usage.outputTokens ?? 0),
+                            case "tool_call": {
+                                const tc = update as schema.ToolCall & { sessionUpdate: string };
+                                await self.flushThinkText();
+                                await self.saverService.pushThinkMessage(self._thinkId, {
+                                    role: MessageRole.AI,
+                                    content: `[Tool: ${tc.title}]`,
+                                    tool_calls: [{ id: tc.toolCallId, name: tc.title, args: (tc.rawInput as Record<string, any>) ?? {} }],
                                 });
+                                await self._callback.onStreamMessage?.({ role: MessageRole.AI, content: `[Tool: ${tc.title}]` });
+                                break;
                             }
-                            break;
+                            case "tool_call_update": {
+                                const tu = update as schema.ToolCallUpdate & { sessionUpdate: string };
+                                if (tu.status === "completed" || tu.status === "failed") {
+                                    const raw = tu.rawOutput;
+                                    const output = raw != null ? (typeof raw === "string" ? raw : JSON.stringify(raw)) : "";
+                                    await self.saverService.pushThinkMessage(self._thinkId, {
+                                        role: MessageRole.Tool,
+                                        tool_call_id: tu.toolCallId,
+                                        content: output,
+                                        status: tu.status === "failed" ? "error" : "success",
+                                    });
+                                }
+                                break;
+                            }
+                            case "usage_update": {
+                                const u = update as any;
+                                if (u.usage) {
+                                    await self._callback.onUsage?.({
+                                        input_tokens: u.usage.inputTokens ?? 0,
+                                        output_tokens: u.usage.outputTokens ?? 0,
+                                        total_tokens: (u.usage.inputTokens ?? 0) + (u.usage.outputTokens ?? 0),
+                                    });
+                                }
+                                break;
+                            }
                         }
-                    }
-                },
-            }),
-            stream,
-        );
+                    },
+                }),
+                stream,
+            );
 
-        await this.connection.initialize({
-            protocolVersion: 1,
-            clientCapabilities: {},
-            clientInfo: { name: "sbot", version: "1.0.0" },
-        });
-        this.initialized = true;
+            await this.connection.initialize({
+                protocolVersion: 1,
+                clientCapabilities: {},
+                clientInfo: { name: "sbot", version: "1.0.0" },
+            });
+            this.initialized = true;
+        }
+
+        if (!(this.sessionMode === ACPSessionMode.Persistent && this.sessionId)) {
+            const response = await this.connection.newSession({
+                cwd: this.workPath,
+                mcpServers: [],
+            });
+            this.sessionId = response.sessionId;
+        }
     }
 
-    private async ensureSession(): Promise<void> {
-        if (this.sessionMode === ACPSessionMode.Persistent && this.sessionId) return;
+    private async flushThinkText(): Promise<void> {
+        const pending = this._text.trim();
+        if (!pending) return;
+        await this.saverService.pushThinkMessage(this._thinkId, { role: MessageRole.AI, content: pending });
+        this._text = "";
+    }
 
-        const response = await this.connection!.newSession({
-            cwd: this.workPath,
-            mcpServers: [],
-        });
-        this.sessionId = response.sessionId;
+    private formatHistory(messages: ChatMessage[]): string {
+        const lines: string[] = [];
+        for (const msg of messages) {
+            const text = contentToString(msg.content);
+            if (!text) continue;
+            const role = msg.role === MessageRole.Human ? "user"
+                       : msg.role === MessageRole.AI ? "assistant"
+                       : msg.role;
+            lines.push(`[${role}]: ${text}`);
+        }
+        return `<conversation_history>\n${lines.join("\n\n")}\n</conversation_history>`;
     }
 
     private buildPromptBlocks(query: MessageContent): schema.ContentBlock[] {
