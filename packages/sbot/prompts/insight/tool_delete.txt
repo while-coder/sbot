@@ -1,1 +1,1 @@
-Archive an insight (moves to .archive/ directory). Use when an insight is outdated, incorrect, or superseded by a better version.
+Archive an insight that is no longer useful (moves to .archive/ directory). Use when an insight is outdated, incorrect, or has been superseded by a better version. Archived insights can be recovered manually if needed.

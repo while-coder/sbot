@@ -14,28 +14,11 @@
   "main": "./dist/extension.js",
   "activationEvents": [],
   "contributes": {
-    "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "sbot",
-          "title": "sbot",
-          "icon": "media/icon.svg"
-        }
-      ]
-    },
-    "views": {
-      "sbot": [
-        {
-          "type": "webview",
-          "id": "sbot.chatView",
-          "name": "Chat"
-        }
-      ]
-    },
     "commands": [
       {
         "command": "sbot.openChat",
-        "title": "sbot: Open Chat"
+        "title": "sbot: Open Chat",
+        "icon": "media/icon.svg"
       },
       {
         "command": "sbot.selectServer",

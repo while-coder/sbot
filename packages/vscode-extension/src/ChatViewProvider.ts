@@ -14,42 +14,55 @@ const EVENT_TYPE_MAP: Record<string, string> = {
   [WebChatEventType.Usage]: 'usage',
 };
 
-export class ChatViewProvider implements vscode.WebviewViewProvider {
-  public static readonly viewType = 'sbot.chatView';
+export class ChatPanel {
+  public static readonly viewType = 'sbot.chatPanel';
 
-  private view: vscode.WebviewView | undefined;
+  private static instance: ChatPanel | undefined;
+
+  private panel: vscode.WebviewPanel;
   private client: SbotClient | undefined;
 
   private readonly globalState: vscode.Memento;
   private static readonly REMOTES_KEY = 'sbot.remotes';
   private static readonly LAST_SERVER_KEY = 'sbot.lastServer';
 
-  constructor(
+  private customBaseUrl: string | undefined;
+  private localMode = true;
+
+  private constructor(
     private readonly extensionUri: vscode.Uri,
     context: vscode.ExtensionContext,
   ) {
     this.globalState = context.globalState;
+
+    this.panel = vscode.window.createWebviewPanel(
+      ChatPanel.viewType,
+      'sbot Chat',
+      vscode.ViewColumn.One,
+      {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'dist', 'webview')],
+      },
+    );
+
+    this.panel.iconPath = vscode.Uri.joinPath(this.extensionUri, 'media', 'icon.svg');
+    this.panel.webview.html = this.getHtml(this.panel.webview);
+    this.panel.webview.onDidReceiveMessage(this.onWebviewMessage);
+    this.panel.onDidDispose(() => {
+      ChatPanel.instance = undefined;
+      this.disposeClient();
+    });
   }
 
-  resolveWebviewView(
-    webviewView: vscode.WebviewView,
-    _context: vscode.WebviewViewResolveContext,
-    _token: vscode.CancellationToken,
-  ): void {
-    this.view = webviewView;
-
-    webviewView.webview.options = {
-      enableScripts: true,
-      localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'dist', 'webview')],
-    };
-
-    webviewView.webview.html = this.getHtml(webviewView.webview);
-    webviewView.webview.onDidReceiveMessage(this.onWebviewMessage);
-    webviewView.onDidDispose(() => { this.view = undefined; });
+  static createOrShow(extensionUri: vscode.Uri, context: vscode.ExtensionContext): ChatPanel {
+    if (ChatPanel.instance) {
+      ChatPanel.instance.panel.reveal(vscode.ViewColumn.One);
+      return ChatPanel.instance;
+    }
+    ChatPanel.instance = new ChatPanel(extensionUri, context);
+    return ChatPanel.instance;
   }
-
-  private customBaseUrl: string | undefined;
-  private localMode = true;
 
   private ensureClient(): SbotClient {
     if (!this.client) {
@@ -92,9 +105,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private async handleRpc(method: string, args: any[]): Promise<any> {
     switch (method) {
       case 'getRemotes':
-        return this.globalState.get<any[]>(ChatViewProvider.REMOTES_KEY, []);
+        return this.globalState.get<any[]>(ChatPanel.REMOTES_KEY, []);
       case 'saveRemotes':
-        await this.globalState.update(ChatViewProvider.REMOTES_KEY, args[0]);
+        await this.globalState.update(ChatPanel.REMOTES_KEY, args[0]);
         return;
       case 'connectServer': {
         const baseUrl = args[0] as string;
@@ -105,11 +118,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         this.client = undefined;
         const client = this.ensureClient();
         await client.fetchSettings();
-        await this.globalState.update(ChatViewProvider.LAST_SERVER_KEY, { url: baseUrl, local });
+        await this.globalState.update(ChatPanel.LAST_SERVER_KEY, { url: baseUrl, local });
         return;
       }
       case 'getLastServer':
-        return this.globalState.get<any>(ChatViewProvider.LAST_SERVER_KEY) ?? null;
+        return this.globalState.get<any>(ChatPanel.LAST_SERVER_KEY) ?? null;
     }
     const client = this.ensureClient();
     switch (method) {
@@ -198,12 +211,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     if (vscode.workspace.workspaceFolders?.length) {
       return vscode.workspace.workspaceFolders[0].uri.fsPath;
     }
-    // fallback: deprecated but works when no folder is explicitly opened
     return (vscode.workspace as any).rootPath ?? undefined;
   }
 
   private postMessage(msg: any): void {
-    this.view?.webview.postMessage(msg);
+    this.panel.webview.postMessage(msg);
   }
 
   private getHtml(webview: vscode.Webview): string {
@@ -228,8 +240,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 </html>`;
   }
 
-  dispose(): void {
+  private disposeClient(): void {
     this.client?.dispose();
+  }
+
+  dispose(): void {
+    this.disposeClient();
+    this.panel.dispose();
   }
 }
 

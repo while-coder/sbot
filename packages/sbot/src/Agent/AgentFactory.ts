@@ -21,7 +21,7 @@ import { type StructuredToolInterface } from "@langchain/core/tools";
 import { createSchedulerTools } from "../Tools/Scheduler/index";
 import { createTodoTools } from "../Tools/Todo/index";
 import { createSessionSearchTool } from "../Tools/SessionSearch/index";
-import { config, AgentMode, SingleAgentEntry, ReactAgentEntry, GenerativeAgentEntry, ACPAgentEntry } from "../Core/Config";
+import { config, AgentMode, InsightScope, SingleAgentEntry, ReactAgentEntry, GenerativeAgentEntry, ACPAgentEntry } from "../Core/Config";
 import { loadPrompt } from "../Core/PromptLoader";
 import { globalAgentToolService, BuiltinProvider } from "./GlobalAgentToolService";
 import { globalSkillService, getSkillsDirsMap } from "./GlobalSkillService";
@@ -62,7 +62,7 @@ export class AgentFactory {
             const { mcp, skills, insight } = agentEntry;
             await this.registerSkillService(container, agentId, skills);
             await this.registerToolService(container, agentId, options.dbSessionId, mcp, agentTools);
-            if (insight) {
+            if (insight.scope !== InsightScope.Disabled) {
                 await this.registerInsightService(container, agentId, options.dbSessionId, insight.scope);
             }
         }
@@ -124,11 +124,11 @@ export class AgentFactory {
         container: ServiceContainer,
         agentName: string,
         dbSessionId: string,
-        scope?: 'agent' | 'session',
+        scope: InsightScope,
     ): Promise<void> {
-        const insightDir = scope === 'session'
-            ? config.getSessionSkillsPath(dbSessionId)
-            : config.getAgentSkillsPath(agentName);
+        const insightDir = scope === InsightScope.Session
+            ? config.getSessionInsightsPath(dbSessionId)
+            : config.getAgentInsightsPath(agentName);
 
         container.registerWithArgs(IInsightService, InsightService, {
             [T_InsightDir]: insightDir,

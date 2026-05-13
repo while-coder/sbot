@@ -1,1 +1,1 @@
-Update a file within an existing insight. Use to refine instructions, add new knowledge, or correct outdated information.
+Update a file within an existing insight. Use to refine instructions, incorporate new findings, correct inaccuracies, or add supplementary examples. Supports creating new files and subdirectories within the insight.

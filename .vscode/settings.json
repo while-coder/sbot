@@ -1,6 +1,7 @@
 {
   "typescript.tsdk": "node_modules/typescript/lib",
   "typescript.enablePromptUseWorkspaceTsdk": true,
+  "workbench.externalBrowser": "default",
   "editor.formatOnSave": false,
   "search.exclude": {
     "**/node_modules": true,

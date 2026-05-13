@@ -69,6 +69,16 @@ export interface EmbeddingConfig {
   model: string
 }
 
+export enum InsightScope {
+  Disabled = "disabled",
+  Agent    = "agent",
+  Session  = "session",
+}
+
+export interface InsightConfig {
+  scope: InsightScope
+}
+
 export enum MemoryMode {
   ReadOnly    = "read_only",
   HumanOnly   = "human_only",
@@ -155,6 +165,7 @@ export interface AgentConfig {
   systemPrompt?: string
   mcp?: string[] | '*'
   skills?: string[] | '*'
+  insight?: InsightConfig
   autoApproveTools?: string[]
   autoApproveAllTools?: boolean
   modelCallTimeout?: number
