@@ -121,21 +121,15 @@ export class AgentSqliteSaver implements IAgentSaverService {
         return (await this.getAllMessages()).map((r) => r.message);
     }
 
-    async replaceAllMessages(messages: StoredMessage[]): Promise<void> {
+    async applyCompaction(compactedIds: number[], summary: StoredMessage): Promise<void> {
+        if (compactedIds.length === 0) return;
         const txn = this.db.transaction(() => {
-            this.db.prepare("DELETE FROM messages WHERE compacted = 0").run();
-            const stmt = this.db.prepare("INSERT INTO messages (data, created_at, think_id) VALUES (?, ?, ?)");
-            for (const stored of messages) {
-                stmt.run(JSON.stringify(stored.message), stored.createdAt ?? Math.floor(Date.now() / 1000), stored.thinkId ?? null);
-            }
+            const placeholders = compactedIds.map(() => '?').join(',');
+            this.db.prepare(`UPDATE messages SET compacted = 1 WHERE id IN (${placeholders})`).run(...compactedIds);
+            this.db.prepare("INSERT INTO messages (data, created_at, think_id) VALUES (?, ?, ?)")
+                .run(JSON.stringify(summary.message), summary.createdAt ?? Math.floor(Date.now() / 1000), summary.thinkId ?? null);
         });
         txn();
-    }
-
-    async markMessagesAsCompacted(ids: number[]): Promise<void> {
-        if (ids.length === 0) return;
-        const placeholders = ids.map(() => '?').join(',');
-        this.db.prepare(`UPDATE messages SET compacted = 1 WHERE id IN (${placeholders})`).run(...ids);
     }
 
     async searchMessages(query: string, limit: number = 20): Promise<StoredMessage[]> {

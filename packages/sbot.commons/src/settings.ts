@@ -245,23 +245,6 @@ export interface ChannelConfig {
   heartbeatTools?: string[]
 }
 
-export interface HeartbeatConfig {
-  /** 显示名称 */
-  name: string
-  /** 触发间隔：cron 表达式（如 "0 0/30 * * *"）或时长简写（"30m", "2h"） */
-  expr: string
-  /** 心跳 prompt 文件路径（相对于 ~/.sbot/prompts/，如 "heartbeat/daily.md"） */
-  promptFile: string
-  /** 主执行目标 ChannelSession ID（对应 channel_session 表主键），Agent 上下文和 saver 从此 session 获取 */
-  target: number
-  /** 是否启用 */
-  enabled: boolean
-  /** 活跃时段（仅在此时段内触发），start/end 为小时数 0-23 */
-  activeHours: { start: number; end: number; timezone?: string }
-  /** AI 调用 idle tool 后是否剪枝本轮对话 */
-  pruneIdle: boolean
-}
-
 export interface Settings {
   httpPort?: number
   httpUrl?: string
@@ -279,6 +262,6 @@ export interface Settings {
   wikis?: Record<string, WikiConfig>
   savers?: Record<string, SaverConfig>
   channels?: Record<string, ChannelConfig>
-  heartbeats?: Record<string, HeartbeatConfig>
+
   agentSources?: AgentSourceEntry[]
 }

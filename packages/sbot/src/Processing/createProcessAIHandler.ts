@@ -41,14 +41,13 @@ export function createProcessAIHandler(): ProcessAIHandler {
 
         const silent: boolean = args?.silent ?? false;
         const extraAgentTools = args?.agentTools;
-        const baseTools = sessionHandler.buildAgentTools(args);
-        let agentTools = extraAgentTools?.length ? [...baseTools, ...extraAgentTools] : baseTools;
-
+        let baseTools = sessionHandler.buildAgentTools(args);
         const whitelist: string[] | undefined = args?.toolWhitelist ?? channel.tools;
-        if (whitelist?.length && agentTools?.length) {
+        if (whitelist?.length && baseTools?.length) {
             const allowedSet = new Set(whitelist);
-            agentTools = agentTools.filter(t => allowedSet.has(t.name));
+            baseTools = baseTools.filter(t => allowedSet.has(t.name));
         }
+        const agentTools = extraAgentTools?.length ? [...baseTools, ...extraAgentTools] : baseTools;
 
         const executeTool = silent
             ? async () => ToolApproval.Allow

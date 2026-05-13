@@ -88,27 +88,15 @@ export class AgentFileSaver implements IAgentSaverService {
         return (await this.getAllMessages()).map((r) => r.message);
     }
 
-    async replaceAllMessages(messages: StoredMessage[]): Promise<void> {
+    async applyCompaction(compactedIds: number[], summary: StoredMessage): Promise<void> {
+        if (compactedIds.length === 0) return;
         const file = await this.getFile();
         const compactedSet = new Set(file.compactedIds);
-        const compacted = file.messages.filter(m => compactedSet.has(m.id!));
-        const newMessages = messages.map(m => {
-            if (m.id != null) return m;
-            const id = file.nextId ?? 1;
-            file.nextId = id + 1;
-            return { ...m, id };
-        });
-        file.messages = [...compacted, ...newMessages];
-        file.thinks = {};
-        await this.writeThreadFile(file);
-    }
-
-    async markMessagesAsCompacted(ids: number[]): Promise<void> {
-        if (ids.length === 0) return;
-        const file = await this.getFile();
-        const compactedSet = new Set(file.compactedIds);
-        for (const id of ids) compactedSet.add(id);
+        for (const id of compactedIds) compactedSet.add(id);
         file.compactedIds = [...compactedSet];
+        const id = file.nextId ?? 1;
+        file.nextId = id + 1;
+        file.messages.push({ ...summary, id });
         await this.writeThreadFile(file);
     }
 

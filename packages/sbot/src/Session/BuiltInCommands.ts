@@ -170,8 +170,9 @@ export class CompactCommand implements ICommand {
             if (allMessages.length <= 1) return '消息过少，无需压缩';
 
             const result = await compactor.compact(allMessages);
-            await saver.replaceAllMessages(result.messages);
-            return `压缩完成：${allMessages.length} 条消息 → ${result.messages.length} 条`;
+            const compactedIds = allMessages.filter(m => m.id != null).map(m => m.id!);
+            await saver.applyCompaction(compactedIds, ConversationCompactor.buildPostCompactMessage(result.summary));
+            return `压缩完成：${allMessages.length} 条消息已压缩`;
         } finally {
             await saver.dispose();
         }

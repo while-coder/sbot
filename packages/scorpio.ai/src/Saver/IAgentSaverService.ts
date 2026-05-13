@@ -98,9 +98,9 @@ export interface IAgentSaverService {
     pushMessage(message: ChatMessage, options?: ChatMessageOptions): Promise<void>;
 
     /**
-     * 用新消息列表替换全部历史（用于对话 compact）
+     * 对话压缩：标记旧消息为已压缩，并将摘要插入到剩余消息之前
      */
-    replaceAllMessages(messages: StoredMessage[]): Promise<void>;
+    applyCompaction(compactedIds: number[], summary: StoredMessage): Promise<void>;
 
     /**
      * 清除当前线程的所有历史记录
@@ -140,10 +140,6 @@ export interface IAgentSaverService {
      */
     searchMessages?(query: string, limit?: number): Promise<StoredMessage[]>;
 
-    /**
-     * 将指定消息标记为已压缩（保留在 DB 中但不参与正常查询）
-     */
-    markMessagesAsCompacted?(ids: number[]): Promise<void>;
 
     // --- 生命周期 ---
 

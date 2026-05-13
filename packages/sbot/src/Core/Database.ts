@@ -92,6 +92,20 @@ export type ChannelSessionRow = {
 };
 
 
+export type HeartbeatRow = {
+  id: number;
+  name: string;
+  intervalMinutes: number;
+  promptFile: string;
+  target: number;
+  enabled: boolean;
+  activeHoursStart: number | null;
+  activeHoursEnd: number | null;
+  activeHoursTimezone: string | null;
+  lastRun: number | null;
+  createdAt: number;
+};
+
 export type UsageLogRow = {
   id: number;
   date: string;
@@ -142,6 +156,7 @@ class Database {
   public scheduler!: ModelStatic<any>;
   public usageLogs!: ModelStatic<any>;
   public todo!: ModelStatic<any>;
+  public heartbeat!: ModelStatic<any>;
 
   async init() {
     this.running = false;
@@ -647,6 +662,83 @@ class Database {
       },
     );
 
+    this.heartbeat = sequelize.define(
+      "heartbeat",
+      {
+        id: {
+          type: DataTypes.INTEGER,
+          primaryKey: true,
+          autoIncrement: true,
+          comment: "自增ID",
+        },
+        name: {
+          type: DataTypes.STRING(255),
+          allowNull: false,
+          defaultValue: "",
+          comment: "显示名称",
+        },
+        intervalMinutes: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 30,
+          comment: "执行间隔（分钟）",
+        },
+        promptFile: {
+          type: DataTypes.STRING(512),
+          allowNull: false,
+          defaultValue: "",
+          comment: "prompt 文件路径",
+        },
+        target: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
+          comment: "目标 channel_session.id",
+        },
+        enabled: {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: true,
+          comment: "是否启用",
+        },
+        activeHoursStart: {
+          type: DataTypes.INTEGER,
+          allowNull: true,
+          defaultValue: null,
+          comment: "活跃开始小时 0-23",
+        },
+        activeHoursEnd: {
+          type: DataTypes.INTEGER,
+          allowNull: true,
+          defaultValue: null,
+          comment: "活跃结束小时 0-23",
+        },
+        activeHoursTimezone: {
+          type: DataTypes.STRING(64),
+          allowNull: true,
+          defaultValue: null,
+          comment: "活跃时段时区",
+        },
+        lastRun: {
+          type: DataTypes.BIGINT,
+          allowNull: true,
+          defaultValue: null,
+          comment: "上次执行时间戳(ms)",
+        },
+        createdAt: {
+          type: DataTypes.BIGINT,
+          allowNull: false,
+          defaultValue: 0,
+          comment: "创建时间戳(ms)",
+        },
+      },
+      {
+        tableName: "heartbeat",
+        timestamps: false,
+        comment: "心跳任务表",
+      },
+    );
+
     await this.sync();
   }
 
@@ -694,6 +786,7 @@ class Database {
       await this.scheduler.sync({ alter });
       await this.todo.sync({ alter });
       await this.usageLogs.sync({ alter });
+      await this.heartbeat.sync({ alter });
 
       await this.state.update({ value: DBVersion }, { where: { key: DBVersionName } });
       logger.info("Database schema sync completed");

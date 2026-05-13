@@ -171,17 +171,8 @@ export class SingleAgentService extends AgentServiceBase {
             const savedTokens = parseInt(await this.saverService.getMetadata(METADATA_KEY_INPUT_TOKENS) ?? '0', 10);
             if (this.compactor.shouldCompact(savedTokens, allMessages, contextWindow)) {
                 const result = await this.compactor.compact(allMessages);
-                if (this.saverService.markMessagesAsCompacted) {
-                    const tailSet = new Set(result.messages.slice(1));
-                    const compactedIds = allMessages.filter(m => !tailSet.has(m) && m.id != null).map(m => m.id!);
-                    if (compactedIds.length > 0) {
-                        await this.saverService.markMessagesAsCompacted(compactedIds);
-                    }
-                    // replaceAllMessages 删除剩余 non-compacted 消息后按正确顺序重新插入 [摘要, ...tail]
-                    await this.saverService.replaceAllMessages(result.messages);
-                } else {
-                    await this.saverService.replaceAllMessages(result.messages);
-                }
+                const compactedIds = allMessages.filter(m => m.id != null).map(m => m.id!);
+                await this.saverService.applyCompaction(compactedIds, ConversationCompactor.buildPostCompactMessage(result.summary));
             }
         }
 

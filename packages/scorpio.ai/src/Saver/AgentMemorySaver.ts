@@ -29,19 +29,15 @@ export class AgentMemorySaver implements IAgentSaverService {
         }
     }
 
-    async replaceAllMessages(messages: StoredMessage[]): Promise<void> {
-        const compacted = this.messages.filter(m => this.compactedIds.has(m.id!));
-        this.messages = [...compacted, ...messages.map(m => ({ ...m, id: m.id ?? this.nextId++ }))];
+    async applyCompaction(compactedIds: number[], summary: StoredMessage): Promise<void> {
+        for (const id of compactedIds) this.compactedIds.add(id);
+        this.messages.push({ ...summary, id: summary.id ?? this.nextId++ });
     }
 
     async clearMessages(): Promise<void> {
         this.messages = [];
         this.compactedIds.clear();
         this.thinks = {};
-    }
-
-    async markMessagesAsCompacted(ids: number[]): Promise<void> {
-        for (const id of ids) this.compactedIds.add(id);
     }
 
     async searchMessages(query: string, limit: number = 20): Promise<StoredMessage[]> {

@@ -1,21 +1,28 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
-import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 
 const { t } = useI18n()
 const { show } = useToast()
 const { isMobile } = useResponsive()
 
-interface HeartbeatStatus {
-  id: string
-  nextRun: string | null
-  lastRun: string | null
-  running: boolean
+interface HeartbeatItem {
+  id: number
+  name: string
+  intervalMinutes: number
+  promptFile: string
+  target: number
   enabled: boolean
+  activeHoursStart: number | null
+  activeHoursEnd: number | null
+  activeHoursTimezone: string | null
+  lastRun: string | null
+  nextRun: string | null
+  running: boolean
+  createdAt: number
 }
 
 interface ChannelSessionOption {
@@ -25,15 +32,31 @@ interface ChannelSessionOption {
   sessionName: string
 }
 
-const heartbeats = computed(() => store.settings.heartbeats || {})
-const statusList = ref<HeartbeatStatus[]>([])
+const INTERVAL_OPTIONS = [
+  { value: 30, label: '30' },
+  { value: 60, label: '1' },
+  { value: 120, label: '2' },
+  { value: 240, label: '4' },
+  { value: 360, label: '6' },
+  { value: 720, label: '12' },
+  { value: 1440, label: '24' },
+]
+
+function intervalLabel(minutes: number): string {
+  if (minutes < 60) return `${minutes}${t('heartbeats.minutes')}`
+  const h = minutes / 60
+  if (Number.isInteger(h)) return `${h}${t('heartbeats.hours')}`
+  return `${minutes}${t('heartbeats.minutes')}`
+}
+
+const heartbeats = ref<HeartbeatItem[]>([])
 const channelSessions = ref<ChannelSessionOption[]>([])
 
 const showModal = ref(false)
-const editingId = ref<string | null>(null)
+const editingId = ref<number | null>(null)
 const form = ref({
   name: '',
-  expr: '30m',
+  intervalMinutes: 30,
   promptFile: 'heartbeat/default.md',
   target: null as number | null,
   enabled: true,
@@ -41,24 +64,7 @@ const form = ref({
   activeHoursStart: 9,
   activeHoursEnd: 22,
   activeHoursTimezone: '',
-  pruneIdle: true,
 })
-
-function getStatus(id: string): HeartbeatStatus | undefined {
-  return statusList.value.find(s => s.id === id)
-}
-
-function getNextRun(id: string): string | null {
-  return getStatus(id)?.nextRun ?? null
-}
-
-function getLastRun(id: string): string | null {
-  return getStatus(id)?.lastRun ?? null
-}
-
-function isRunning(id: string): boolean {
-  return getStatus(id)?.running ?? false
-}
 
 function sessionLabel(id: number): string {
   const s = channelSessions.value.find(s => s.id === id)
@@ -70,7 +76,7 @@ function openAdd() {
   editingId.value = null
   form.value = {
     name: '',
-    expr: '30m',
+    intervalMinutes: 30,
     promptFile: 'heartbeat/default.md',
     target: null,
     enabled: true,
@@ -78,25 +84,22 @@ function openAdd() {
     activeHoursStart: 9,
     activeHoursEnd: 22,
     activeHoursTimezone: '',
-    pruneIdle: true,
   }
   showModal.value = true
 }
 
-function openEdit(id: string) {
-  const hb = heartbeats.value[id] as any
-  editingId.value = id
+function openEdit(hb: HeartbeatItem) {
+  editingId.value = hb.id
   form.value = {
     name: hb.name || '',
-    expr: hb.expr || '30m',
+    intervalMinutes: hb.intervalMinutes || 30,
     promptFile: hb.promptFile || 'heartbeat/default.md',
     target: hb.target ?? null,
     enabled: hb.enabled !== false,
-    activeHoursEnabled: !!hb.activeHours,
-    activeHoursStart: hb.activeHours?.start ?? 9,
-    activeHoursEnd: hb.activeHours?.end ?? 22,
-    activeHoursTimezone: hb.activeHours?.timezone ?? '',
-    pruneIdle: hb.pruneIdle !== false,
+    activeHoursEnabled: hb.activeHoursStart != null && hb.activeHoursEnd != null,
+    activeHoursStart: hb.activeHoursStart ?? 9,
+    activeHoursEnd: hb.activeHoursEnd ?? 22,
+    activeHoursTimezone: hb.activeHoursTimezone ?? '',
   }
   showModal.value = true
 }
@@ -104,18 +107,19 @@ function openEdit(id: string) {
 function buildBody() {
   const body: any = {
     name: form.value.name,
-    expr: form.value.expr,
+    intervalMinutes: form.value.intervalMinutes,
     promptFile: form.value.promptFile,
     target: form.value.target,
     enabled: form.value.enabled,
-    pruneIdle: form.value.pruneIdle,
   }
   if (form.value.activeHoursEnabled) {
-    body.activeHours = {
-      start: form.value.activeHoursStart,
-      end: form.value.activeHoursEnd,
-      ...(form.value.activeHoursTimezone ? { timezone: form.value.activeHoursTimezone } : {}),
-    }
+    body.activeHoursStart = form.value.activeHoursStart
+    body.activeHoursEnd = form.value.activeHoursEnd
+    body.activeHoursTimezone = form.value.activeHoursTimezone || null
+  } else {
+    body.activeHoursStart = null
+    body.activeHoursEnd = null
+    body.activeHoursTimezone = null
   }
   return body
 }
@@ -126,44 +130,43 @@ async function save() {
   try {
     const body = buildBody()
     const id = editingId.value
-    const res = id
-      ? await apiFetch(`/api/settings/heartbeats/${encodeURIComponent(id)}`, 'PUT', body)
-      : await apiFetch('/api/settings/heartbeats', 'POST', body)
-    Object.assign(store.settings, res.data)
+    if (id != null) {
+      await apiFetch(`/api/heartbeats/${id}`, 'PUT', body)
+    } else {
+      await apiFetch('/api/heartbeats', 'POST', body)
+    }
     show(t('common.saved'))
     showModal.value = false
-    await loadStatus()
+    await loadHeartbeats()
   } catch (e: any) {
     show(e.message, 'error')
   }
 }
 
-async function remove(id: string) {
-  const hb = heartbeats.value[id] as any
-  if (!window.confirm(t('heartbeats.confirm_delete', { name: hb?.name || id }))) return
+async function remove(hb: HeartbeatItem) {
+  if (!window.confirm(t('heartbeats.confirm_delete', { name: hb.name || hb.id }))) return
   try {
-    const res = await apiFetch(`/api/settings/heartbeats/${encodeURIComponent(id)}`, 'DELETE')
-    Object.assign(store.settings, res.data)
+    await apiFetch(`/api/heartbeats/${hb.id}`, 'DELETE')
     show(t('common.deleted'))
-    await loadStatus()
+    await loadHeartbeats()
   } catch (e: any) {
     show(e.message, 'error')
   }
 }
 
-async function trigger(id: string) {
+async function trigger(hb: HeartbeatItem) {
   try {
-    await apiFetch(`/api/heartbeats/${encodeURIComponent(id)}/trigger`, 'POST')
+    await apiFetch(`/api/heartbeats/${hb.id}/trigger`, 'POST')
     show(t('heartbeats.triggered'))
   } catch (e: any) {
     show(e.message, 'error')
   }
 }
 
-async function loadStatus() {
+async function loadHeartbeats() {
   try {
     const res = await apiFetch('/api/heartbeats')
-    statusList.value = res.data || []
+    heartbeats.value = res.data || []
   } catch {}
 }
 
@@ -209,17 +212,11 @@ async function createPrompt() {
 }
 
 async function refresh() {
-  try {
-    const res = await apiFetch('/api/settings')
-    Object.assign(store.settings, res.data)
-  } catch (e: any) {
-    show(e.message, 'error')
-  }
-  await loadStatus()
+  await loadHeartbeats()
 }
 
 onMounted(async () => {
-  await Promise.all([loadStatus(), loadSessions(), loadHeartbeatPrompts()])
+  await Promise.all([loadHeartbeats(), loadSessions(), loadHeartbeatPrompts()])
 })
 </script>
 
@@ -234,7 +231,7 @@ onMounted(async () => {
         <thead>
           <tr>
             <th>{{ t('heartbeats.name') }}</th>
-            <th>{{ t('heartbeats.expr') }}</th>
+            <th>{{ t('heartbeats.interval') }}</th>
             <th>{{ t('heartbeats.target') }}</th>
             <th>{{ t('heartbeats.status') }}</th>
             <th>{{ t('heartbeats.last_run') }}</th>
@@ -243,30 +240,29 @@ onMounted(async () => {
           </tr>
         </thead>
         <tbody>
-          <tr v-if="Object.keys(heartbeats).length === 0">
+          <tr v-if="heartbeats.length === 0">
             <td colspan="7" style="text-align:center;color:#94a3b8;padding:40px">{{ t('heartbeats.empty') }}</td>
           </tr>
-          <tr v-for="(hb, id) in heartbeats" :key="id">
-            <td>{{ (hb as any).name || id }}</td>
-            <td style="font-family:monospace;font-size:12px">{{ (hb as any).expr }}</td>
-            <td style="font-size:12px">{{ sessionLabel((hb as any).target) }}</td>
+          <tr v-for="hb in heartbeats" :key="hb.id">
+            <td>{{ hb.name || hb.id }}</td>
+            <td style="font-size:12px">{{ intervalLabel(hb.intervalMinutes) }}</td>
+            <td style="font-size:12px">{{ sessionLabel(hb.target) }}</td>
             <td>
-              <span v-if="isRunning(id as string)" style="color:#f59e0b;font-weight:600">{{ t('heartbeats.running') }}</span>
-              <span v-else :style="{ color: (hb as any).enabled !== false ? '#16a34a' : '#9b9b9b' }">
-                {{ (hb as any).enabled !== false ? 'ON' : 'OFF' }}
-              </span>
+              <span v-if="!hb.enabled" style="color:#9b9b9b">{{ t('heartbeats.disabled') }}</span>
+              <span v-else-if="hb.running" style="color:#f59e0b;font-weight:600">{{ t('heartbeats.running') }}</span>
+              <span v-else style="color:#16a34a">{{ t('heartbeats.waiting') }}</span>
             </td>
             <td style="font-size:12px;color:#9b9b9b;white-space:nowrap">
-              {{ getLastRun(id as string) ? new Date(getLastRun(id as string)!).toLocaleString('zh-CN') : '-' }}
+              {{ hb.lastRun ? new Date(hb.lastRun).toLocaleString('zh-CN') : '-' }}
             </td>
             <td style="font-size:12px;color:#9b9b9b;white-space:nowrap">
-              {{ getNextRun(id as string) ? new Date(getNextRun(id as string)!).toLocaleString('zh-CN') : '-' }}
+              {{ hb.nextRun ? new Date(hb.nextRun).toLocaleString('zh-CN') : '-' }}
             </td>
             <td>
               <div class="ops-cell">
-                <button class="btn-outline btn-sm" @click="trigger(id as string)">{{ t('heartbeats.trigger') }}</button>
-                <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
-                <button class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
+                <button class="btn-outline btn-sm" @click="trigger(hb)">{{ t('heartbeats.trigger') }}</button>
+                <button class="btn-outline btn-sm" @click="openEdit(hb)">{{ t('common.edit') }}</button>
+                <button class="btn-danger btn-sm" @click="remove(hb)">{{ t('common.delete') }}</button>
               </div>
             </td>
           </tr>
@@ -275,33 +271,32 @@ onMounted(async () => {
 
       <!-- Mobile card layout -->
       <div v-else class="card-list">
-        <div v-if="Object.keys(heartbeats).length === 0" class="mobile-card-empty">{{ t('heartbeats.empty') }}</div>
-        <div v-for="(hb, id) in heartbeats" :key="id" class="mobile-card">
+        <div v-if="heartbeats.length === 0" class="mobile-card-empty">{{ t('heartbeats.empty') }}</div>
+        <div v-for="hb in heartbeats" :key="hb.id" class="mobile-card">
           <div class="mobile-card-header" style="display:flex;justify-content:space-between;align-items:center">
-            <span>{{ (hb as any).name || id }}</span>
-            <span v-if="isRunning(id as string)" style="color:#f59e0b;font-size:12px;font-weight:600">{{ t('heartbeats.running') }}</span>
-            <span v-else :style="{ color: (hb as any).enabled !== false ? '#16a34a' : '#9b9b9b', fontSize: '12px', fontWeight: 600 }">
-              {{ (hb as any).enabled !== false ? 'ON' : 'OFF' }}
-            </span>
+            <span>{{ hb.name || hb.id }}</span>
+            <span v-if="!hb.enabled" style="color:#9b9b9b;font-size:12px;font-weight:600">{{ t('heartbeats.disabled') }}</span>
+            <span v-else-if="hb.running" style="color:#f59e0b;font-size:12px;font-weight:600">{{ t('heartbeats.running') }}</span>
+            <span v-else style="color:#16a34a;font-size:12px;font-weight:600">{{ t('heartbeats.waiting') }}</span>
           </div>
           <div class="mobile-card-fields">
-            <span class="mobile-card-label">{{ t('heartbeats.expr') }}</span>
-            <span class="mobile-card-value" style="font-family:monospace;font-size:12px">{{ (hb as any).expr }}</span>
+            <span class="mobile-card-label">{{ t('heartbeats.interval') }}</span>
+            <span class="mobile-card-value" style="font-size:12px">{{ intervalLabel(hb.intervalMinutes) }}</span>
             <span class="mobile-card-label">{{ t('heartbeats.target') }}</span>
-            <span class="mobile-card-value" style="font-size:12px">{{ sessionLabel((hb as any).target) }}</span>
+            <span class="mobile-card-value" style="font-size:12px">{{ sessionLabel(hb.target) }}</span>
             <span class="mobile-card-label">{{ t('heartbeats.last_run') }}</span>
             <span class="mobile-card-value" style="font-size:12px;color:#9b9b9b">
-              {{ getLastRun(id as string) ? new Date(getLastRun(id as string)!).toLocaleString('zh-CN') : '-' }}
+              {{ hb.lastRun ? new Date(hb.lastRun).toLocaleString('zh-CN') : '-' }}
             </span>
             <span class="mobile-card-label">{{ t('heartbeats.next_run') }}</span>
             <span class="mobile-card-value" style="font-size:12px;color:#9b9b9b">
-              {{ getNextRun(id as string) ? new Date(getNextRun(id as string)!).toLocaleString('zh-CN') : '-' }}
+              {{ hb.nextRun ? new Date(hb.nextRun).toLocaleString('zh-CN') : '-' }}
             </span>
           </div>
           <div class="mobile-card-ops">
-            <button class="btn-outline btn-sm" @click="trigger(id as string)">{{ t('heartbeats.trigger') }}</button>
-            <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
-            <button class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
+            <button class="btn-outline btn-sm" @click="trigger(hb)">{{ t('heartbeats.trigger') }}</button>
+            <button class="btn-outline btn-sm" @click="openEdit(hb)">{{ t('common.edit') }}</button>
+            <button class="btn-danger btn-sm" @click="remove(hb)">{{ t('common.delete') }}</button>
           </div>
         </div>
       </div>
@@ -320,9 +315,12 @@ onMounted(async () => {
             <input v-model="form.name" />
           </div>
           <div class="form-group">
-            <label>{{ t('heartbeats.expr') }} *</label>
-            <input v-model="form.expr" placeholder="30m" />
-            <div class="hint">{{ t('heartbeats.expr_hint') }}</div>
+            <label>{{ t('heartbeats.interval') }} *</label>
+            <select v-model.number="form.intervalMinutes">
+              <option v-for="opt in INTERVAL_OPTIONS" :key="opt.value" :value="opt.value">
+                {{ opt.value < 60 ? opt.label + t('heartbeats.minutes') : opt.label + t('heartbeats.hours') }}
+              </option>
+            </select>
           </div>
           <div class="form-group">
             <label>{{ t('heartbeats.promptFile') }}</label>
@@ -375,13 +373,6 @@ onMounted(async () => {
               <input v-model="form.activeHoursTimezone" placeholder="Asia/Shanghai" />
             </div>
           </template>
-          <div class="form-group">
-            <label class="checkbox-label">
-              <input type="checkbox" v-model="form.pruneIdle" />
-              {{ t('heartbeats.pruneIdle') }}
-            </label>
-            <div class="hint">{{ t('heartbeats.pruneIdle_hint') }}</div>
-          </div>
         </div>
         <div class="modal-footer">
           <button class="btn-outline" @click="showModal = false">{{ t('common.cancel') }}</button>

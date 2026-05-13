@@ -101,33 +101,25 @@ export class AgentPostgresSaver implements IAgentSaverService {
         return (await this.getAllMessages()).map((r) => r.message);
     }
 
-    async replaceAllMessages(messages: StoredMessage[]): Promise<void> {
+    async applyCompaction(compactedIds: number[], summary: StoredMessage): Promise<void> {
+        if (compactedIds.length === 0) return;
         await this.ensureSetup();
         await this.pool.query(`BEGIN`);
         try {
-            await this.pool.query(`DELETE FROM ${this.table} WHERE compacted = 0`);
-            await this.pool.query(`DELETE FROM ${this.thinksTable}`);
-            for (const stored of messages) {
-                await this.pool.query(
-                    `INSERT INTO ${this.table} (data, created_at, think_id) VALUES ($1, $2, $3)`,
-                    [JSON.stringify(stored.message), stored.createdAt ?? Math.floor(Date.now() / 1000), stored.thinkId ?? null]
-                );
-            }
+            const placeholders = compactedIds.map((_, i) => `$${i + 1}`).join(',');
+            await this.pool.query(
+                `UPDATE ${this.table} SET compacted = 1 WHERE id IN (${placeholders})`,
+                compactedIds,
+            );
+            await this.pool.query(
+                `INSERT INTO ${this.table} (data, created_at, think_id) VALUES ($1, $2, $3)`,
+                [JSON.stringify(summary.message), summary.createdAt ?? Math.floor(Date.now() / 1000), summary.thinkId ?? null]
+            );
             await this.pool.query(`COMMIT`);
         } catch (e) {
             await this.pool.query(`ROLLBACK`);
             throw e;
         }
-    }
-
-    async markMessagesAsCompacted(ids: number[]): Promise<void> {
-        if (ids.length === 0) return;
-        await this.ensureSetup();
-        const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
-        await this.pool.query(
-            `UPDATE ${this.table} SET compacted = 1 WHERE id IN (${placeholders})`,
-            ids,
-        );
     }
 
     async searchMessages(query: string, limit: number = 20): Promise<StoredMessage[]> {

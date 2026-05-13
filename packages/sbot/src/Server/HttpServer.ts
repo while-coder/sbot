@@ -642,11 +642,7 @@ class HttpServer {
         registerSettingsCrud(app, 'savers', { label: 'Saver config', getSettings });
         registerSettingsCrud(app, 'memories', { label: 'Memory config', getSettings });
         registerSettingsCrud(app, 'wikis', { label: 'Wiki config', getSettings });
-        registerSettingsCrud(app, 'heartbeats', {
-            label: 'Heartbeat',
-            afterSave: () => heartbeatService.reloadAll(),
-            getSettings,
-        });
+        // heartbeats 已迁移到独立数据库表，CRUD 在 registerHeartbeatRoutes 中
         this.registerAgentRoutes(app);
         this.registerACPRoutes(app);
         registerSettingsCrud(app, 'channels', {
@@ -1475,10 +1471,30 @@ class HttpServer {
             return heartbeatService.getStatus();
         }));
 
+        app.post('/api/heartbeats', api(async req => {
+            return heartbeatService.create(req.body);
+        }));
+
+        app.put('/api/heartbeats/:id', api(async req => {
+            const id = Number(req.params.id);
+            if (!id) throwBad('Invalid heartbeat id');
+            const row = await heartbeatService.update(id, req.body);
+            if (!row) throwBad('Heartbeat not found');
+            return row;
+        }));
+
+        app.delete('/api/heartbeats/:id', api(async req => {
+            const id = Number(req.params.id);
+            if (!id) throwBad('Invalid heartbeat id');
+            await heartbeatService.delete(id);
+            return { deleted: true };
+        }));
+
         app.post('/api/heartbeats/:id/trigger', api(async req => {
-            const id = req.params.id as string;
-            const hbConfig = config.getHeartbeat(id);
-            if (!hbConfig) throwBad('Heartbeat config not found');
+            const id = Number(req.params.id);
+            if (!id) throwBad('Invalid heartbeat id');
+            const row = await heartbeatService.getById(id);
+            if (!row) throwBad('Heartbeat not found');
             await heartbeatService.triggerOnce(id);
             return { triggered: true };
         }));
