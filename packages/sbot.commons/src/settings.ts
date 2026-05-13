@@ -17,6 +17,11 @@ export enum AgentMode {
   ACP        = "acp",
 }
 
+export enum ACPSessionMode {
+  Persistent = "persistent",
+  Transient  = "transient",
+}
+
 export enum ModelProvider {
   OpenAI         = "openai",
   OpenAIResponse = "openai-response",
@@ -182,7 +187,7 @@ export interface AgentConfig {
   command?: string
   args?: string[]
   env?: Record<string, string>
-  sessionMode?: "transient" | "persistent"
+  sessionMode?: ACPSessionMode
   // store
   storeSource?: AgentStoreSource
 }

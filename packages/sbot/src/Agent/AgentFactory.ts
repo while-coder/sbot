@@ -1,6 +1,6 @@
 import {
     AgentServiceBase, SingleAgentService, GenerativeAgentService,
-    ACPAgentService, ACPSessionMode, T_ACPCommand, T_ACPArgs, T_ACPEnv, T_ACPSessionMode, T_ACPWorkPath,
+    ACPAgentService, T_ACPCommand, T_ACPArgs, T_ACPEnv, T_ACPSessionMode, T_ACPWorkPath,
     IModelService,
     IAgentSaverService, AgentMemorySaver, ILoggerService,
     ConversationCompactor, IConversationCompactor, T_SummaryModelService, T_CompactPromptTemplate,
@@ -21,7 +21,7 @@ import { type StructuredToolInterface } from "@langchain/core/tools";
 import { createSchedulerTools } from "../Tools/Scheduler/index";
 import { createTodoTools } from "../Tools/Todo/index";
 import { createSessionSearchTool } from "../Tools/SessionSearch/index";
-import { config, AgentMode, InsightScope, ToolAgentEntry, SingleAgentEntry, ReactAgentEntry, GenerativeAgentEntry, ACPAgentEntry } from "../Core/Config";
+import { config, AgentMode, ACPSessionMode, InsightScope, ToolAgentEntry, SingleAgentEntry, ReactAgentEntry, GenerativeAgentEntry, ACPAgentEntry } from "../Core/Config";
 import { loadPrompt } from "../Core/PromptLoader";
 import { globalAgentToolService, BuiltinProvider } from "./GlobalAgentToolService";
 import { globalSkillService, getSkillsDirsMap } from "./GlobalSkillService";

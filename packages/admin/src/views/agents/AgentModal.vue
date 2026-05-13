@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
-import { AgentMode, InsightScope } from '@/types'
+import { AgentMode, ACPSessionMode, InsightScope } from '@/types'
 import type { Agent, SubAgentRef } from '@/types'
 
 const { t } = useI18n()
@@ -12,18 +12,18 @@ const { t } = useI18n()
 const emit = defineEmits<{ saved: [] }>()
 
 const acpPresets = [
-  { label: 'Claude Code', command: 'npx', args: '-y @anthropic-ai/claude-code@latest --acp' },
-  { label: 'OpenCode', command: 'npx', args: '-y @anthropic-ai/opencode@latest --acp' },
-  { label: 'Codex', command: 'npx', args: '-y @openai/codex@latest --acp' },
-  { label: 'Cline', command: 'npx', args: '-y cline@latest --acp' },
-  { label: 'Qwen Code', command: 'npx', args: '-y qwen-agent-acp@latest' },
+  { label: 'Claude Code', command: 'npx', args: ['-y', '@anthropic-ai/claude-code@latest', '--acp'] },
+  { label: 'OpenCode', command: 'npx', args: ['-y', '@anthropic-ai/opencode@latest', '--acp'] },
+  { label: 'Codex', command: 'npx', args: ['-y', '@openai/codex@latest', '--acp'] },
+  { label: 'Cline', command: 'npx', args: ['-y', 'cline@latest', '--acp'] },
+  { label: 'Qwen Code', command: 'npx', args: ['-y', 'qwen-agent-acp@latest'] },
 ]
 
 function applyPreset(idx: number) {
   if (idx < 0) return
   const p = acpPresets[idx]
   form.value.command = p.command
-  form.value.args = p.args
+  form.value.args = [...p.args]
 }
 const { show } = useToast()
 
@@ -51,9 +51,9 @@ const form = ref({
   modelCallTimeout: undefined as number | undefined,
   // acp
   command: '',
-  args: '',
+  args: [] as string[],
   env: [] as { key: string; value: string }[],
-  sessionMode: 'persistent' as 'transient' | 'persistent',
+  sessionMode: ACPSessionMode.Persistent as ACPSessionMode,
 })
 const tempSubAgents = ref<SubAgentRef[]>([])
 
@@ -73,9 +73,9 @@ function open(id?: string) {
       autoApproveAllTools: !!(a as any).autoApproveAllTools,
       modelCallTimeout: (a as any).modelCallTimeout ?? undefined,
       command: a.command || '',
-      args: Array.isArray(a.args) ? a.args.join(' ') : '',
+      args: Array.isArray(a.args) ? [...a.args] : [],
       env: a.env ? Object.entries(a.env).map(([key, value]) => ({ key, value })) : [],
-      sessionMode: (a as any).sessionMode || 'persistent',
+      sessionMode: (a as any).sessionMode || ACPSessionMode.Persistent,
     }
     tempSubAgents.value = Array.isArray(a.agents) ? [...a.agents] : []
   } else {
@@ -84,7 +84,7 @@ function open(id?: string) {
     form.value = {
       id: '', name: '', type: AgentMode.Single, model: '', compactModel: '', compactPrompt: '',
       systemPrompt: '', insightScope: InsightScope.Disabled, autoApproveAllTools: false,
-      modelCallTimeout: undefined, command: '', args: '', env: [], sessionMode: 'persistent',
+      modelCallTimeout: undefined, command: '', args: [], env: [], sessionMode: ACPSessionMode.Persistent,
     }
   }
   showModal.value = true
@@ -117,11 +117,11 @@ async function save() {
     }
     if (type === AgentMode.ACP) {
       config.command = form.value.command.trim()
-      const argsStr = form.value.args.trim()
-      if (argsStr) config.args = argsStr.split(/\s+/)
+      const filtered = form.value.args.map(s => s.trim()).filter(Boolean)
+      if (filtered.length) config.args = filtered
       const envEntries = form.value.env.filter(e => e.key.trim())
       if (envEntries.length) config.env = Object.fromEntries(envEntries.map(e => [e.key.trim(), e.value]))
-      if (form.value.sessionMode !== 'persistent') config.sessionMode = form.value.sessionMode
+      if (form.value.sessionMode !== ACPSessionMode.Persistent) config.sessionMode = form.value.sessionMode
     }
     // 保留在专属页面配置的字段（generative/acp 模式无工具/技能，不保留）
     const existing = editingId.value ? agents.value[editingId.value] : null
@@ -271,15 +271,19 @@ defineExpose({ open })
           </div>
           <div class="form-group">
             <label>{{ t('agents.acp_args') }}</label>
-            <input v-model="form.args" :placeholder="t('agents.acp_args_placeholder')" />
-            <span style="font-size:0.78rem;color:var(--color-text-muted,#888);margin-top:2px">{{ t('agents.acp_args_hint') }}</span>
+            <div v-for="(_, i) in form.args" :key="i" style="display:flex;gap:6px;margin-bottom:4px">
+              <input v-model="form.args[i]" :placeholder="t('agents.acp_args_placeholder')" style="flex:1" />
+              <button class="btn-danger btn-sm" @click="form.args.splice(i, 1)" style="flex-shrink:0">&times;</button>
+            </div>
+            <button class="btn-outline btn-sm" @click="form.args.push('')">+ {{ t('agents.acp_args_add') }}</button>
           </div>
           <div class="form-group">
             <label>{{ t('agents.acp_session_mode') }}</label>
             <select v-model="form.sessionMode">
-              <option value="persistent">Persistent</option>
-              <option value="transient">Transient</option>
+              <option :value="ACPSessionMode.Persistent">{{ t('agents.acp_session_persistent') }}</option>
+              <option :value="ACPSessionMode.Transient">{{ t('agents.acp_session_transient') }}</option>
             </select>
+            <span style="font-size:0.78rem;color:var(--color-text-muted,#888);margin-top:2px">{{ t('agents.acp_session_mode_hint') }}</span>
           </div>
           <div class="form-group">
             <label>{{ t('agents.acp_env') }}</label>
