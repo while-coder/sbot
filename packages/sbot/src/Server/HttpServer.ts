@@ -17,7 +17,7 @@ import { installSkillFromZip } from '../SkillHub/bundle';
 import axios from 'axios';
 import { AgentStoreService } from '../AgentStore';
 import { LoggerService, log4js } from '../Core/LoggerService';
-import { database, channelThreadId, parseMemories, type ChannelSessionRow, type TodoRow, type UsageLogRow } from '../Core/Database';
+import { database, channelThreadId, parseMemories, getChannelSession, type ChannelSessionRow, type TodoRow, type UsageLogRow } from '../Core/Database';
 import { Op } from 'sequelize';
 import { sessionManager } from '../Session/SessionManager';
 import { schedulerService } from '../Scheduler/SchedulerService';
@@ -1274,7 +1274,7 @@ class HttpServer {
         };
 
         const getSessionRowByPk = async (id: string): Promise<ChannelSessionRow> => {
-            const row = await database.findByPk<ChannelSessionRow>(database.channelSession, parseInt(id));
+            const row = await getChannelSession(id);
             if (!row) { const e: any = new Error(`channel_session id=${id} not found`); e.status = 404; throw e; }
             return row;
         };

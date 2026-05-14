@@ -2,9 +2,9 @@ import "reflect-metadata";
 import { ICommand, MessageType, type ChatMessage, type MessageContent, trimContent, isEmptyContent } from "scorpio.ai";
 import { SessionManager, SessionService, ChannelMessageArgs, ChannelSessionHandler } from "channel.base";
 import { type StructuredToolInterface } from "@langchain/core/tools";
-import { WEB_CHANNEL_ID, WEB_CHANNEL_TYPE } from "sbot.commons";
+import { WEB_CHANNEL_ID, WEB_CHANNEL_TYPE, type ChannelConfig } from "sbot.commons";
 import { config } from "../Core/Config";
-import { database, ChannelSessionRow } from "../Core/Database";
+import { ChannelSessionRow, getChannelSession } from "../Core/Database";
 import { channelManager } from "../Channel/ChannelManager";
 import { createProcessAIHandler } from "../Processing/createProcessAIHandler";
 import { classifyIntent } from "../Processing/classifyIntent";
@@ -82,6 +82,15 @@ class SbotSession extends SessionService {
 
     async triggerAction(...args: any[]): Promise<void> {
         await this.channel?.onTriggerAction(...args);
+    }
+
+    async resolveSessionConfig(args: any): Promise<{ dbSession: ChannelSessionRow; channelConfig?: ChannelConfig } | undefined> {
+        const dbSession = await getChannelSession(args?.dbSessionId);
+        if (!dbSession) return undefined;
+        return {
+            dbSession,
+            channelConfig: config.getChannel(dbSession.channelId),
+        };
     }
 }
 
@@ -214,9 +223,7 @@ export class SbotSessionManager extends SessionManager {
 
     private async passIntentFilter(query: MessageContent, args: ChannelRouteArgs, threadId: string): Promise<boolean> {
         if (args?.mentionBot) return true;
-        const dbSessionId = args?.dbSessionId as number | undefined;
-        if (!dbSessionId) return true;
-        const dbSession = await database.findByPk<ChannelSessionRow>(database.channelSession, dbSessionId);
+        const dbSession = await getChannelSession(args?.dbSessionId);
         const channel = args.channelId ? config.getChannel(args.channelId) : undefined;
         const intentModel = dbSession?.intentModel != null ? dbSession.intentModel : channel?.intentModel;
         if (!intentModel) return true;

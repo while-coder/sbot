@@ -1,6 +1,6 @@
 import { CronJob } from "cron";
 import { WEB_CHANNEL_ID } from "sbot.commons";
-import { database, SchedulerRow, ChannelSessionRow, channelThreadId } from "../Core/Database";
+import { database, SchedulerRow, channelThreadId, getChannelSession } from "../Core/Database";
 import { sessionManager } from "../Session/SessionManager";
 import { LoggerService } from "../Core/LoggerService";
 import { config } from "../Core/Config";
@@ -15,14 +15,8 @@ async function executeScheduler(schedulerId: number): Promise<void> {
     const tag = `[${scheduler.id}]`;
 
     try {
-        const sessionRow = scheduler.targetId
-            ? await database.findByPk<ChannelSessionRow>(database.channelSession, parseInt(scheduler.targetId))
-            : null;
-
-        if (!sessionRow) {
-            logger.error(`Scheduler task ${tag}: targetId=${scheduler.targetId} not found`);
-            return;
-        }
+        const sessionRow = await getChannelSession(scheduler.targetId);
+        if (!sessionRow) return;
 
         const { channelId, sessionId, id: dbSessionId } = sessionRow;
         const channelConfig = config.getChannel(channelId);

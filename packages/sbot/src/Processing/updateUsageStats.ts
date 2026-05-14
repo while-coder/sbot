@@ -1,6 +1,6 @@
 import { type TokenUsage } from "scorpio.ai";
 import { WebChatEventType, WEB_CHANNEL_ID } from "sbot.commons";
-import { database, type ChannelSessionRow } from "../Core/Database";
+import { database, getChannelSession } from "../Core/Database";
 import { httpServer } from "../Server/HttpServer";
 
 export interface UsageContext {
@@ -49,7 +49,7 @@ export async function updateUsageStats(
     };
     await database.update(database.channelSession, tokenUpdate, { where: { id: dbSessionId } });
 
-    const row = await database.findByPk<ChannelSessionRow>(database.channelSession, dbSessionId);
+    const row = await getChannelSession(dbSessionId);
     if (row && row.channelId === WEB_CHANNEL_ID) {
         httpServer.broadcastToWs(JSON.stringify({
             sessionId: row.sessionId,

@@ -1,6 +1,6 @@
 import { ProcessAIHandler } from "channel.base";
 import { MessageRole, ToolApproval } from "scorpio.ai";
-import { database, ChannelSessionRow, channelThreadId, parseMemories } from "../Core/Database";
+import { channelThreadId, parseMemories, getChannelSession } from "../Core/Database";
 import { config, AgentMode } from "../Core/Config";
 import { buildExecuteTool } from "./buildExecuteTool";
 import { updateUsageStats, type UsageContext } from "./updateUsageStats";
@@ -13,7 +13,7 @@ export function createProcessAIHandler(): ProcessAIHandler {
         const dbSessionId: number = args?.dbSessionId;
         if (!dbSessionId) throw new Error("dbSessionId not specified");
 
-        const dbSession = await database.findByPk<ChannelSessionRow>(database.channelSession, dbSessionId);
+        const dbSession = await getChannelSession(dbSessionId, true);
         if (!dbSession) throw new Error(`channel_session id=${dbSessionId} not found`);
 
         const { channelId, sessionId } = dbSession;

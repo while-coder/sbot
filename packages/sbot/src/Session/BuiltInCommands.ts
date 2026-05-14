@@ -2,12 +2,13 @@ import path from "path"
 import fs from "fs/promises"
 import { Command, Arg, Option, Parsers, CommandContext, ICommand, ConversationCompactor, GlobalLoggerService } from "scorpio.ai"
 import { SessionService } from "channel.base"
+import { type ChannelConfig } from "sbot.commons"
+import { type ChannelSessionRow } from "../Core/Database"
 import { AgentRunner } from "../Agent/AgentRunner"
 import { config, AgentMode, type ToolAgentEntry } from "../Core/Config"
 
 type SbotService = SessionService & {
-    resolveSaverId(args: any): Promise<string | undefined>;
-    resolveAgentId(args: any): Promise<string | undefined>;
+    resolveSessionConfig(args: any): Promise<{ dbSession: ChannelSessionRow; channelConfig?: ChannelConfig } | undefined>;
 }
 
 @Command('log', '查看系统日志')
@@ -70,7 +71,8 @@ export class ClearCommand implements ICommand {
 
     async execute(): Promise<string> {
         const session = this._context.context as SbotService;
-        const saverId = await session.resolveSaverId(this._context.args);
+        const resolved = await session.resolveSessionConfig(this._context.args);
+        const saverId = resolved?.dbSession.saver || resolved?.channelConfig?.saver;
         if (!saverId) return '无法识别当前会话上下文，或当前会话未配置 saver';
 
         const saver = await AgentRunner.createSaverService(saverId, session.threadId);
@@ -94,10 +96,11 @@ export class CompactCommand implements ICommand {
 
     async execute(): Promise<string> {
         const session = this._context.context as SbotService;
-        const saverId = await session.resolveSaverId(this._context.args);
+        const resolved = await session.resolveSessionConfig(this._context.args);
+        const saverId = resolved?.dbSession.saver || resolved?.channelConfig?.saver;
         if (!saverId) return '无法识别当前会话，或未配置 saver';
 
-        const agentId = await session.resolveAgentId(this._context.args);
+        const agentId = resolved?.dbSession.agentId || resolved?.channelConfig?.agent;
         if (!agentId) return '无法识别当前 Agent 配置';
 
         const agentEntry = config.getAgent(agentId);

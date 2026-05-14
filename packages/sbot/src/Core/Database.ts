@@ -857,3 +857,22 @@ class Database {
   }
 }
 export const database = new Database();
+
+export async function getChannelSession(id: number | string | undefined | null, throwIfNotFound?: boolean): Promise<ChannelSessionRow | null> {
+  if (id == null) {
+    if (throwIfNotFound) throw new Error('ChannelSession id is required');
+    return null;
+  }
+  const pk = typeof id === 'string' ? parseInt(id) : id;
+  if (isNaN(pk)) {
+    if (throwIfNotFound) throw new Error(`Invalid ChannelSession id: ${id}`);
+    logger.warn(`getChannelSession: invalid id "${id}"`);
+    return null;
+  }
+  const row = await database.findByPk<ChannelSessionRow>(database.channelSession, pk);
+  if (!row) {
+    if (throwIfNotFound) throw new Error(`ChannelSession not found: ${pk}`);
+    logger.warn(`getChannelSession: id=${pk} not found`);
+  }
+  return row;
+}

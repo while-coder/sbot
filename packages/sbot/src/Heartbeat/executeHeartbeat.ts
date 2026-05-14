@@ -1,4 +1,4 @@
-import { database, HeartbeatRow, ChannelSessionRow, channelThreadId } from "../Core/Database";
+import { database, HeartbeatRow, channelThreadId, getChannelSession } from "../Core/Database";
 import { config } from "../Core/Config";
 import { loadPrompt } from "../Core/PromptLoader";
 import { LoggerService } from "../Core/LoggerService";
@@ -38,11 +38,8 @@ export async function executeHeartbeat(ctx: HeartbeatExecutionContext): Promise<
 
     const prompt = loadPrompt(hbConfig.promptFile);
 
-    const dbSession = await database.findByPk<ChannelSessionRow>(database.channelSession, hbConfig.target);
-    if (!dbSession) {
-        logger.error(`${tag} channel_session id=${hbConfig.target} not found`);
-        return;
-    }
+    const dbSession = await getChannelSession(hbConfig.target);
+    if (!dbSession) return;
     const channel = config.getChannel(dbSession.channelId);
     if (!channel) {
         logger.error(`${tag} channel config not found: ${dbSession.channelId}`);

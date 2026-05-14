@@ -117,11 +117,11 @@ function handleEvent(evt: ChatEvent) {
       break
     case ChatEventType.Queue:
       if (queuedMessages.value.length === 0 && d.pendingMessages?.length > 0) {
-        queuedMessages.value = d.pendingMessages
+        queuedMessages.value = filterPendingCommands(d.pendingMessages)
       }
       break
     case ChatEventType.Done:
-      if (d?.pendingMessages) queuedMessages.value = d.pendingMessages
+      if (d?.pendingMessages) queuedMessages.value = filterPendingCommands(d.pendingMessages)
       stopDenyTimer()
       stopAskTimer()
       pendingToolCall.value = null
@@ -284,13 +284,25 @@ function onPathConfirmed(path: string) {
 
 // ── Chat actions ──
 
+function isCommandText(text: string): boolean {
+  return text.trimStart().startsWith('/')
+}
+
+function filterPendingCommands(pending: DisplayContent[]): DisplayContent[] {
+  return pending.filter(m => !(typeof m === 'string' && isCommandText(m)))
+}
+
 function onSend(parts: ContentPart[], attachments: Attachment[]) {
   const id = activeSessionId.value
   if (!id || !hasSaver.value) return
   if (parts.length === 0 && attachments.length === 0) return
-  queuedMessages.value.push(
-    parts.map(p => p.type === 'text' ? (p as any).text : '').filter(Boolean).join('\n') || '[attachment]'
-  )
+  const textContent = parts.map(p => p.type === 'text' ? (p as any).text : '').filter(Boolean).join('\n') || '[attachment]'
+  if (typeof textContent === 'string' && isCommandText(textContent)) {
+    messages.value.push({ message: { role: MessageRole.Human, content: textContent }, createdAt: Date.now() / 1000 })
+    nextTick(() => chatAreaRef.value?.scrollToBottom(true))
+  } else {
+    queuedMessages.value.push(textContent)
+  }
   isStreaming.value = true
   props.transport.sendMessage(id, parts, attachments.length > 0 ? attachments : undefined)
 }
