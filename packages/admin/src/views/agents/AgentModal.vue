@@ -302,8 +302,8 @@ defineExpose({ open })
           </div>
         </template>
 
-        <!-- Insight (Generative/ACP 不需要) -->
-        <div class="form-group" v-if="form.type !== AgentMode.Generative && form.type !== AgentMode.ACP">
+        <!-- Insight (暂时隐藏) -->
+        <!-- <div class="form-group" v-if="form.type !== AgentMode.Generative && form.type !== AgentMode.ACP">
           <label>{{ t('agents.insight_scope') }}</label>
           <select v-model="form.insightScope">
             <option :value="InsightScope.Disabled">{{ t('agents.insight_disabled') }}</option>
@@ -311,7 +311,7 @@ defineExpose({ open })
             <option :value="InsightScope.Session">{{ t('agents.insight_session') }}</option>
           </select>
           <span style="font-size:0.78rem;color:var(--color-text-muted,#888);margin-top:2px">{{ t('agents.insight_hint') }}</span>
-        </div>
+        </div> -->
 
         <!-- autoApproveAllTools -->
         <div class="form-group" style="display:flex;align-items:center;gap:8px">
