@@ -7,12 +7,14 @@ import { config } from "../Core/Config";
 import { ChannelSessionRow, getChannelSession } from "../Core/Database";
 import { channelManager } from "../Channel/ChannelManager";
 import { createProcessAIHandler } from "../Processing/createProcessAIHandler";
-import { classifyIntent } from "../Processing/classifyIntent";
+import { MiddlewarePipeline } from "../Middleware/MiddlewarePipeline";
+import { intentFilterMiddleware } from "../Middleware/intentFilter";
+import type { MessageContext } from "../Middleware/types";
 
 import { getBuiltInCommands } from "./BuiltInCommands";
 import { WebSocketSessionHandler } from "../Channel/web/WebSocketSessionHandler";
 
-interface ChannelRouteArgs extends ChannelMessageArgs {
+export interface ChannelRouteArgs extends ChannelMessageArgs {
     channelType: string;
     channelId: string;
     dbSessionId: number;
@@ -148,9 +150,11 @@ function mergeMessageContents(items: { query: MessageContent }[]): MessageConten
 
 export class SbotSessionManager extends SessionManager {
     private mergeBuffers = new Map<string, MergeBufferEntry>();
+    readonly messagePipeline = new MiddlewarePipeline<MessageContext>();
 
     constructor() {
         super();
+        this.messagePipeline.use(intentFilterMiddleware);
     }
 
     protected createSession(threadId: string): SessionService {
@@ -216,20 +220,12 @@ export class SbotSessionManager extends SessionManager {
     }
 
     private async dispatchToSession(threadId: string, query: MessageContent, args: ChannelRouteArgs): Promise<void> {
-        if (!await this.passIntentFilter(query, args, threadId)) return;
-        const session = this.getOrCreate(threadId);
-        await session.onReceiveMessage(query, args);
-    }
-
-    private async passIntentFilter(query: MessageContent, args: ChannelRouteArgs, threadId: string): Promise<boolean> {
-        if (args?.mentionBot) return true;
-        const dbSession = await getChannelSession(args?.dbSessionId);
-        const channel = args.channelId ? config.getChannel(args.channelId) : undefined;
-        const intentModel = dbSession?.intentModel != null ? dbSession.intentModel : channel?.intentModel;
-        if (!intentModel) return true;
-        const intentPrompt = dbSession?.intentPrompt != null ? dbSession.intentPrompt : (channel?.intentPrompt ?? null);
-        const intentThreshold = dbSession?.intentThreshold != null ? dbSession.intentThreshold : (channel?.intentThreshold ?? 0.7);
-        return classifyIntent(query, intentModel, intentPrompt, intentThreshold, threadId);
+        const ctx: MessageContext = { query, args, threadId, filtered: false };
+        await this.messagePipeline.execute(ctx, async (c) => {
+            if (c.filtered) return;
+            const session = this.getOrCreate(c.threadId);
+            await session.onReceiveMessage(c.query, c.args);
+        });
     }
 
     async onReceiveWebMessage(threadId: string, query: MessageContent, sessionId: string, dbSessionId: number): Promise<void> {
