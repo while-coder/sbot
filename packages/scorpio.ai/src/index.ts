@@ -279,7 +279,9 @@ export {
   SingleAgentService,
   ReActAgentService,
   GenerativeAgentService,
-  ACPAgentService,
+  ACPAgentServiceBase,
+  TransientACPAgentService,
+  PersistentACPAgentService,
 
   // Token
   T_AgentSubNodes,
@@ -289,7 +291,6 @@ export {
   T_ACPCommand,
   T_ACPArgs,
   T_ACPEnv,
-  T_ACPSessionMode,
   T_ACPWorkPath,
 
   // 类型定义
@@ -299,7 +300,6 @@ export {
   MessageRole,
   IAgentCallback,
   AgentCancelledError,
-  ACPSessionMode,
 } from "./Agents";
 
 export type {

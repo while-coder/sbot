@@ -1,10 +1,10 @@
-import { ACPAgentService } from "scorpio.ai";
+import { PersistentACPAgentService } from "scorpio.ai";
 import { LoggerService } from "../Core/LoggerService";
 
 const logger = LoggerService.getLogger('ACPAgentPool');
 
 export interface ACPPoolEntry {
-    instance: ACPAgentService;
+    instance: PersistentACPAgentService;
     key: string;
     agentId: string;
     agentName: string;
@@ -35,33 +35,30 @@ export class ACPAgentPool {
         return ACPAgentPool.inst;
     }
 
-    async acquire(
-        key: string,
-        agentId: string,
-        agentName: string,
-        dbSessionId: string,
-        configHash: string,
-        factory: () => Promise<ACPAgentService>,
-    ): Promise<ACPAgentService> {
+    async tryGet(key: string, configHash: string): Promise<PersistentACPAgentService | null> {
         const existing = this.pool.get(key);
+        if (!existing) return null;
 
-        if (existing) {
-            if (existing.configHash !== configHash) {
-                logger.info(`Config changed for ${key}, recreating`);
-                await existing.instance.forceDispose();
-                this.pool.delete(key);
-            } else if (existing.instance.isAlive()) {
-                existing.lastAccessed = Date.now();
-                return existing.instance;
-            } else {
-                logger.warn(`Dead process for ${key}, recreating`);
-                this.pool.delete(key);
-            }
+        if (existing.configHash !== configHash) {
+            logger.info(`Config changed for ${key}, recreating`);
+            await existing.instance.forceDispose();
+            this.pool.delete(key);
+            return null;
         }
 
-        const instance = await factory();
+        if (!existing.instance.isAlive()) {
+            logger.warn(`Dead process for ${key}, recreating`);
+            this.pool.delete(key);
+            return null;
+        }
+
+        existing.lastAccessed = Date.now();
+        return existing.instance;
+    }
+
+    put(key: string, instance: PersistentACPAgentService, meta: { agentId: string; agentName: string; dbSessionId: string; configHash: string }): void {
         instance.pooled = true;
-        instance.onExit = () => {
+        instance.onPoolExit = () => {
             const entry = this.pool.get(key);
             if (entry?.instance === instance) {
                 logger.warn(`ACP process died unexpectedly: ${key}`);
@@ -69,19 +66,17 @@ export class ACPAgentPool {
             }
         };
 
-        const entry: ACPPoolEntry = {
+        this.pool.set(key, {
             instance,
             key,
-            agentId,
-            agentName,
-            dbSessionId,
-            configHash,
+            agentId: meta.agentId,
+            agentName: meta.agentName,
+            dbSessionId: meta.dbSessionId,
+            configHash: meta.configHash,
             createdAt: Date.now(),
             lastAccessed: Date.now(),
-        };
-        this.pool.set(key, entry);
+        });
         logger.info(`Cached ACP instance: ${key}`);
-        return instance;
     }
 
     async release(key: string): Promise<void> {

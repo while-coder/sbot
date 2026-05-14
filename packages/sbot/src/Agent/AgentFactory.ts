@@ -1,6 +1,6 @@
 import {
     AgentServiceBase, SingleAgentService, GenerativeAgentService,
-    ACPAgentService, T_ACPCommand, T_ACPArgs, T_ACPEnv, T_ACPSessionMode, T_ACPWorkPath,
+    TransientACPAgentService, PersistentACPAgentService, T_ACPCommand, T_ACPArgs, T_ACPEnv, T_ACPWorkPath,
     IModelService,
     IAgentSaverService, AgentMemorySaver, ILoggerService,
     ConversationCompactor, IConversationCompactor, T_SummaryModelService, T_CompactPromptTemplate,
@@ -274,6 +274,12 @@ export class AgentFactory {
     ): Promise<AgentServiceBase> {
         const workPath = options.workPath ?? process.cwd();
         const sessionMode = entry.sessionMode ?? ACPSessionMode.Persistent;
+        const acpArgs = {
+            [T_ACPCommand]: entry.command,
+            [T_ACPArgs]: entry.args ?? [],
+            [T_ACPWorkPath]: workPath,
+            ...(entry.env && { [T_ACPEnv]: entry.env }),
+        };
 
         if (sessionMode === ACPSessionMode.Persistent) {
             const pool = ACPAgentPool.getInstance();
@@ -281,30 +287,21 @@ export class AgentFactory {
             const agentName = entry.name ?? options.agentId;
             const configHash = JSON.stringify({ command: entry.command, args: entry.args ?? [], env: entry.env ?? {}, workPath });
 
-            return pool.acquire(key, options.agentId, agentName, options.dbSessionId, configHash, async () => {
-                const sub = new ServiceContainer();
-                if (container.isRegistered(ILoggerService))
-                    sub.registerInstance(ILoggerService, await container.resolve(ILoggerService));
-                if (container.isRegistered(IAgentSaverService))
-                    sub.registerInstance(IAgentSaverService, await container.resolve(IAgentSaverService));
-                sub.registerWithArgs(ACPAgentService, {
-                    [T_ACPCommand]: entry.command,
-                    [T_ACPArgs]: entry.args ?? [],
-                    [T_ACPWorkPath]: workPath,
-                    ...(entry.env && { [T_ACPEnv]: entry.env }),
-                    [T_ACPSessionMode]: ACPSessionMode.Persistent,
-                });
-                return sub.resolve<ACPAgentService>(ACPAgentService);
-            });
+            const cached = await pool.tryGet(key, configHash);
+            if (cached) return cached;
+
+            const sub = new ServiceContainer();
+            if (container.isRegistered(ILoggerService))
+                sub.registerInstance(ILoggerService, await container.resolve(ILoggerService));
+            if (container.isRegistered(IAgentSaverService))
+                sub.registerInstance(IAgentSaverService, await container.resolve(IAgentSaverService));
+            sub.registerWithArgs(PersistentACPAgentService, acpArgs);
+            const instance = await sub.resolve<PersistentACPAgentService>(PersistentACPAgentService);
+            pool.put(key, instance, { agentId: options.agentId, agentName, dbSessionId: options.dbSessionId, configHash });
+            return instance;
         }
 
-        container.registerWithArgs(ACPAgentService, {
-            [T_ACPCommand]: entry.command,
-            [T_ACPArgs]: entry.args ?? [],
-            [T_ACPWorkPath]: workPath,
-            ...(entry.env && { [T_ACPEnv]: entry.env }),
-            [T_ACPSessionMode]: ACPSessionMode.Transient,
-        });
-        return container.resolve(ACPAgentService);
+        container.registerWithArgs(TransientACPAgentService, acpArgs);
+        return container.resolve(TransientACPAgentService);
     }
 }
