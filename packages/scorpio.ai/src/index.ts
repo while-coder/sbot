@@ -219,7 +219,6 @@ export {
 
   // 类型定义
   Skill,
-  SkillMetadata,
 } from "./Skills";
 
 // ========================================

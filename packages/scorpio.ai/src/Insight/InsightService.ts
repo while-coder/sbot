@@ -87,7 +87,7 @@ export class InsightService implements IInsightService {
                     if (fs.existsSync(dir)) return createErrorResult(`Insight "${name}" already exists`);
 
                     fs.mkdirSync(dir, { recursive: true });
-                    const skillMd = `---\nname: ${name}\ndescription: ${description}\n---\n\n${safeContent}`;
+                    const skillMd = `---\nname: ${name}\ntype: insight\ndescription: ${description}\n---\n\n${safeContent}`;
                     fs.writeFileSync(path.join(dir, 'SKILL.md'), skillMd, 'utf-8');
                     this.usageTracker.createUsage(dir, 'agent');
 

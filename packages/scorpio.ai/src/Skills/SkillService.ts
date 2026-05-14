@@ -101,7 +101,8 @@ export class SkillService implements ISkillService {
       .map(s => {
         const usage = this.usageTracker.getUsage(s.path);
         const usageAttr = usage ? ` uses="${usage.useCount}" lastUsed="${usage.lastUsedAt ?? 'never'}"` : '';
-        return `  <skill name="${s.name}" path="${s.path}"${usageAttr}>${s.description}</skill>`;
+        const tag = s.type === 'insight' ? 'insight' : 'skill';
+        return `  <${tag} name="${s.name}" path="${s.path}"${usageAttr}>${s.description}</${tag}>`;
       })
       .join("\n");
 

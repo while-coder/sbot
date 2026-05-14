@@ -13,4 +13,4 @@ export { SkillService, READ_SKILL_FILE_TOOL_NAME, EXECUTE_SKILL_SCRIPT_TOOL_NAME
 export { SkillUsageTracker, type SkillUsageData } from './SkillUsageTracker';
 
 // ===== 类型定义 =====
-export { Skill, SkillMetadata } from './types';
+export { Skill } from './types';

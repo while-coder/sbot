@@ -6,7 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import yaml from 'js-yaml';
-import { Skill, SkillMetadata } from './types';
+import { Skill } from './types';
 
 /**
  * 解析单个 skill 目录中的 SKILL.md 文件
@@ -40,16 +40,17 @@ export function parseSkill(skillDir: string): Skill | null {
         const frontmatterText = frontmatterMatch[1];
 
         // 解析 YAML
-        const metadata = yaml.load(frontmatterText) as SkillMetadata;
+        const raw = yaml.load(frontmatterText) as Record<string, any>;
 
-        const name = metadata.name ?? path.basename(skillDir)
+        const name = raw.name ?? path.basename(skillDir);
 
-        // 构造 Skill 对象
         const skill: Skill = {
-            name: name,
-            description: metadata.description ?? name,
-            license: metadata.license,
-            path: skillDir
+            name,
+            description: raw.description ?? name,
+            license: raw.license,
+            path: skillDir,
+            type: raw.type,
+            metadata: raw.metadata,
         };
 
         return skill;
