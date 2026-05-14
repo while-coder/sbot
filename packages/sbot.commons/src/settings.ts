@@ -82,6 +82,8 @@ export enum InsightScope {
 
 export interface InsightConfig {
   scope: InsightScope
+  extractor?: string;
+  extractorPrompt?: string;
 }
 
 export enum MemoryMode {

@@ -10,7 +10,7 @@ export interface UsageData {
     lastViewedAt?: string;
     state: 'active' | 'stale' | 'archived';
     pinned: boolean;
-    createdBy: 'user' | 'agent';
+    createdBy: 'user' | 'agent' | 'auto';
 }
 
 const DEFAULT_USAGE: UsageData = {
@@ -52,7 +52,7 @@ export class UsageTracker {
         this.save(dirPath, data);
     }
 
-    createUsage(dirPath: string, createdBy: 'user' | 'agent'): UsageData {
+    createUsage(dirPath: string, createdBy: 'user' | 'agent' | 'auto'): UsageData {
         const data: UsageData = { ...DEFAULT_USAGE, createdAt: new Date().toISOString(), createdBy };
         this.save(dirPath, data);
         return data;

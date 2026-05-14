@@ -1,7 +1,7 @@
 import { IInsightService } from "./IInsightService";
 import { ILoggerService } from "../Logger";
 import { IEmbeddingService } from "../Embedding";
-import { inject, init, T_InsightToolCreateDesc, T_InsightToolPatchDesc, T_InsightToolDeleteDesc, T_InsightDir, T_InsightSystemPromptTemplate, T_InsightLimit, T_InsightStaleDays, T_InsightArchiveDays } from "../Core";
+import { inject, init, T_InsightToolCreateDesc, T_InsightToolPatchDesc, T_InsightToolDeleteDesc, T_InsightDir, T_InsightSystemPromptTemplate, T_InsightLimit, T_InsightStaleDays, T_InsightArchiveDays, T_InsightAutoExtract } from "../Core";
 import { DynamicStructuredTool, type StructuredToolInterface } from "@langchain/core/tools";
 import { z } from "zod";
 import yaml from "js-yaml";
@@ -18,6 +18,7 @@ import { Skill } from "../Skills/types";
 import { UsageTracker } from "../Utils/UsageTracker";
 import { PromptInjectionDetector, InjectionSeverity } from "../Utils/PromptInjectionDetector";
 import { HybridSearcher } from "../Retrieval";
+import { IInsightExtractor } from "./Extractor/IInsightExtractor";
 
 export const INSIGHT_CREATE_TOOL_NAME = 'insight_create';
 export const INSIGHT_PATCH_TOOL_NAME = 'insight_patch';
@@ -30,6 +31,7 @@ export class InsightService implements IInsightService {
     private usageTracker = new UsageTracker();
     private injectionDetector = new PromptInjectionDetector();
     private searcher!: HybridSearcher;
+    private autoExtract: boolean;
 
     constructor(
         @inject(T_InsightDir) private insightDir: string,
@@ -40,6 +42,8 @@ export class InsightService implements IInsightService {
         @inject(T_InsightLimit, { optional: true }) private insightLimit?: number,
         @inject(T_InsightStaleDays, { optional: true }) private staleDays?: number,
         @inject(T_InsightArchiveDays, { optional: true }) private archiveDays?: number,
+        @inject(T_InsightAutoExtract, { optional: true }) autoExtract?: boolean,
+        @inject(IInsightExtractor, { optional: true }) private extractor?: IInsightExtractor,
         @inject(IEmbeddingService, { optional: true }) private embeddings?: IEmbeddingService,
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
     ) {
@@ -47,6 +51,7 @@ export class InsightService implements IInsightService {
         this.insightLimit ??= 5;
         this.staleDays ??= 30;
         this.archiveDays ??= 90;
+        this.autoExtract = autoExtract !== false;
         this.searcher = new HybridSearcher({
             cachePath: path.join(this.insightDir, '.embeddings.json'),
         });
@@ -68,6 +73,59 @@ export class InsightService implements IInsightService {
 
     getInsightDir(): string {
         return this.insightDir;
+    }
+
+    async extractFromConversation(userMessage: string, assistantMessages?: string[]): Promise<void> {
+        if (!this.autoExtract || !this.extractor) return;
+        try {
+            const insights = this.getAllInsights();
+            const existingNames = insights.map(s => s.name);
+            const extracted = await this.extractor.extract(userMessage, assistantMessages ?? [], existingNames);
+
+            for (const item of extracted) {
+                const detection = this.injectionDetector.detect(item.content);
+                if (detection.severity === InjectionSeverity.BLOCK) {
+                    this.logger?.warn(`Insight extraction blocked: injection detected in "${item.name}"`);
+                    continue;
+                }
+                const safeContent = detection.severity === InjectionSeverity.WARN ? detection.sanitized : item.content;
+
+                if (item.action === 'patch' && item.patchTarget) {
+                    const existing = insights.find(s => s.name === item.patchTarget);
+                    if (existing) {
+                        const rebuilt = this.rebuildSkillMd(existing, safeContent, item.description);
+                        fs.writeFileSync(path.join(existing.path, 'SKILL.md'), rebuilt, 'utf-8');
+                        this.usageTracker.recordPatch(existing.path);
+                        if (this.embeddings) {
+                            try { await this.searcher.updateEntry(existing.name, item.description, this.embeddings); } catch { /* best-effort */ }
+                        }
+                        this.logger?.info(`Insight auto-patched: ${existing.name}`);
+                        continue;
+                    }
+                }
+
+                if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(item.name) && !/^[a-z0-9]$/.test(item.name)) {
+                    this.logger?.warn(`Insight extraction skipped: invalid name "${item.name}"`);
+                    continue;
+                }
+                const dir = path.join(this.insightDir, item.name);
+                if (fs.existsSync(dir)) {
+                    this.logger?.info(`Insight "${item.name}" already exists, skipping`);
+                    continue;
+                }
+
+                fs.mkdirSync(dir, { recursive: true });
+                const skillMd = `---\nname: ${item.name}\ntype: insight\ndescription: ${item.description}\n---\n\n${safeContent}`;
+                fs.writeFileSync(path.join(dir, 'SKILL.md'), skillMd, 'utf-8');
+                this.usageTracker.createUsage(dir, 'auto');
+                if (this.embeddings) {
+                    try { await this.searcher.updateEntry(item.name, item.description, this.embeddings); } catch { /* best-effort */ }
+                }
+                this.logger?.info(`Insight auto-created: ${item.name}`);
+            }
+        } catch (error: any) {
+            this.logger?.error(`Insight extraction failed: ${error.message}`);
+        }
     }
 
     getTools(): StructuredToolInterface[] {

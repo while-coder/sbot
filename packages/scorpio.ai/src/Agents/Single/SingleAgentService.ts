@@ -1,6 +1,6 @@
 import { StateGraph, START, END } from '../../Graph';
 import { type StructuredToolInterface } from "@langchain/core/tools";
-import { inject, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_MemorySystemPromptTemplate, T_WikiSystemPromptTemplate, T_ModelCallTimeout, T_InsightNudgeInterval, T_InsightNudgePrompt, truncate, formatTimeAgo } from "../../Core";
+import { inject, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_MemorySystemPromptTemplate, T_WikiSystemPromptTemplate, T_ModelCallTimeout, truncate, formatTimeAgo } from "../../Core";
 import { IModelService } from "../../Model";
 import { ISkillService } from "../../Skills";
 import { IInsightService } from "../../Insight";
@@ -62,9 +62,6 @@ export class SingleAgentService extends AgentServiceBase {
     protected memorySystemPromptTemplate?: string;
     protected modelCallTimeout?: number;
     protected compactor?: ConversationCompactor;
-    private insightNudgeInterval: number;
-    private insightNudgePrompt?: string;
-    private turnsSinceNudge = 0;
 
     constructor(
         @inject(IModelService) modelService: IModelService,
@@ -81,8 +78,6 @@ export class SingleAgentService extends AgentServiceBase {
         @inject(T_WikiSystemPromptTemplate, { optional: true }) protected wikiSystemPromptTemplate?: string,
         @inject(T_ModelCallTimeout, { optional: true }) modelCallTimeout?: number,
         @inject(IConversationCompactor, { optional: true }) compactor?: ConversationCompactor,
-        @inject(T_InsightNudgeInterval, { optional: true }) insightNudgeInterval?: number,
-        @inject(T_InsightNudgePrompt, { optional: true }) insightNudgePrompt?: string,
     ) {
         super(loggerService, agentSaver, memoryServices);
         this.modelService = modelService;
@@ -94,8 +89,6 @@ export class SingleAgentService extends AgentServiceBase {
         this.memorySystemPromptTemplate = memorySystemPromptTemplate;
         this.modelCallTimeout = modelCallTimeout;
         this.compactor = compactor;
-        this.insightNudgeInterval = insightNudgeInterval ?? 0;
-        this.insightNudgePrompt = insightNudgePrompt;
     }
 
     override addStaticSystemPrompts(prompts: string[]): void {
@@ -145,14 +138,6 @@ export class SingleAgentService extends AgentServiceBase {
                 dynamicParts.push(this.wikiSystemPromptTemplate.replace('{items}', items));
             }
         }
-        if (this.insightService && this.insightNudgeInterval > 0 && this.insightNudgePrompt) {
-            this.turnsSinceNudge++;
-            if (this.turnsSinceNudge >= this.insightNudgeInterval) {
-                dynamicParts.push(this.insightNudgePrompt);
-                this.turnsSinceNudge = 0;
-            }
-        }
-
         const contentBlocks: Array<{ type: string; text: string }> = [];
         const staticContent = staticParts.join("\n\n").trim();
         if (staticContent) contentBlocks.push({ type: "text", text: staticContent });
@@ -427,6 +412,18 @@ export class SingleAgentService extends AgentServiceBase {
                 } catch (error: any) {
                     this.logger?.warn(`Wiki knowledge extraction failed: ${error.message}`);
                 }
+            }
+        }
+
+        // 静默提取 insight
+        if (this.insightService) {
+            try {
+                await this.insightService.extractFromConversation(
+                    contentToString(query),
+                    aiResponses.length > 0 ? aiResponses : undefined
+                );
+            } catch (error: any) {
+                this.logger?.warn(`Insight extraction failed: ${error.message}`);
             }
         }
 

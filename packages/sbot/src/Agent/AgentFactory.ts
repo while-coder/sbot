@@ -14,8 +14,9 @@ import {
     T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc,
     T_SkillSystemPromptTemplate, T_SkillToolReadDesc, T_SkillToolListDesc, T_SkillToolExecDesc,
     T_InsightToolCreateDesc, T_InsightToolPatchDesc, T_InsightToolDeleteDesc, T_InsightDir,
-    T_InsightSystemPromptTemplate, T_InsightLimit, T_InsightNudgeInterval, T_InsightNudgePrompt,
+    T_InsightSystemPromptTemplate, T_InsightExtractorSystemPrompt, T_InsightAutoExtract,
     T_InsightStaleDays, T_InsightArchiveDays,
+    IInsightExtractor, InsightExtractor,
     T_ModelCallTimeout, T_MaxHistoryRounds,
     type CreateAgentFn,
 } from "scorpio.ai";
@@ -129,9 +130,19 @@ export class AgentFactory {
         dbSessionId: string,
         scope: InsightScope,
     ): Promise<void> {
+        const agentEntry = config.getAgent(agentName) as ToolAgentEntry;
+        const insightConfig = agentEntry.insight;
         const insightDir = scope === InsightScope.Session
             ? config.getSessionInsightsPath(dbSessionId)
             : config.getAgentInsightsPath(agentName);
+
+        if (insightConfig.extractor) {
+            const extractorModel = await config.getModelService(insightConfig.extractor, true);
+            container.registerWithArgs(IInsightExtractor, InsightExtractor, {
+                [IModelService]: extractorModel,
+                [T_InsightExtractorSystemPrompt]: loadPrompt(insightConfig.extractorPrompt ?? 'insight/extractor.txt'),
+            });
+        }
 
         container.registerWithArgs(IInsightService, InsightService, {
             [T_InsightDir]: insightDir,
@@ -141,13 +152,8 @@ export class AgentFactory {
             [T_InsightSystemPromptTemplate]: loadPrompt('insight/system.txt'),
             [T_InsightStaleDays]: 30,
             [T_InsightArchiveDays]: 90,
+            [T_InsightAutoExtract]: !!insightConfig.extractor,
         });
-
-        container.registerInstance(T_InsightNudgeInterval, 10);
-        container.registerInstance(T_InsightNudgePrompt, loadPrompt('insight/nudge.txt'));
-
-        const skillService = await container.resolve<SkillService>(ISkillService);
-        skillService.registerSkillsDir(insightDir);
     }
 
     private static readonly SESSION_TOOL_CREATORS: Record<string, (dbSessionId: string) => Promise<StructuredToolInterface[]>> = {

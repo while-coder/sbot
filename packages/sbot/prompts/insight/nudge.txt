@@ -1,1 +1,0 @@
-Review the conversation so far. If you discovered any reusable patterns, proven solutions, or domain knowledge that would be valuable in future conversations, save them using insight_create. Check existing insights first to avoid duplicates — use insight_patch to update if a similar insight already exists.

@@ -69,10 +69,10 @@ export {
   T_InsightDir,
   T_InsightSystemPromptTemplate,
   T_InsightLimit,
-  T_InsightNudgeInterval,
-  T_InsightNudgePrompt,
   T_InsightStaleDays,
   T_InsightArchiveDays,
+  T_InsightExtractorSystemPrompt,
+  T_InsightAutoExtract,
   T_WikiExtractorSystemPrompt,
   T_WikiSystemPromptTemplate,
   T_WikiAutoExtract,
@@ -244,6 +244,11 @@ export {
   INSIGHT_CREATE_TOOL_NAME,
   INSIGHT_PATCH_TOOL_NAME,
   INSIGHT_DELETE_TOOL_NAME,
+
+  // 提取器
+  IInsightExtractor,
+  InsightExtractor,
+  type ExtractedInsight,
 } from "./Insight";
 
 // ========================================
