@@ -88,16 +88,6 @@ export class AgentSqliteSaver implements IAgentSaverService {
     async pushMessage(message: ChatMessage, options?: ChatMessageOptions): Promise<void> {
         this.db.prepare("INSERT INTO messages (data, created_at, think_id) VALUES (?, ?, ?)")
             .run(JSON.stringify(message), Math.floor(Date.now() / 1000), options?.thinkId ?? null);
-
-        // 仅清理非 compacted 的超出消息
-        this.db.prepare(`
-            UPDATE messages SET compacted = 1
-            WHERE compacted = 0 AND id < (
-                SELECT id FROM messages WHERE compacted = 0
-                ORDER BY id DESC
-                LIMIT 1 OFFSET 999
-            )
-        `).run();
     }
 
     async getAllMessages(): Promise<StoredMessage[]> {

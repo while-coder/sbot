@@ -6,13 +6,12 @@ import { IAgentSaverService, ChatMessage, StoredMessage, ChatMessageOptions } fr
  */
 export class AgentMemorySaver implements IAgentSaverService {
     private messages: StoredMessage[] = [];
-    private compactedIds = new Set<number>();
     private thinks: Record<string, StoredMessage[]> = {};
     private metadata: Record<string, string> = {};
     private nextId = 1;
 
     async getAllMessages(): Promise<StoredMessage[]> {
-        return this.messages.filter(m => !this.compactedIds.has(m.id!));
+        return this.messages.filter(m => !m.compacted);
     }
 
     async getMessages(): Promise<ChatMessage[]> {
@@ -21,22 +20,18 @@ export class AgentMemorySaver implements IAgentSaverService {
 
     async pushMessage(message: ChatMessage, options?: ChatMessageOptions): Promise<void> {
         this.messages.push({ id: this.nextId++, message, createdAt: Math.floor(Date.now() / 1000), thinkId: options?.thinkId });
-        const nonCompacted = this.messages.filter(m => !this.compactedIds.has(m.id!));
-        if (nonCompacted.length > 1000) {
-            for (const m of nonCompacted.slice(0, nonCompacted.length - 1000)) {
-                this.compactedIds.add(m.id!);
-            }
-        }
     }
 
     async applyCompaction(compactedIds: number[], summary: StoredMessage): Promise<void> {
-        for (const id of compactedIds) this.compactedIds.add(id);
+        const set = new Set(compactedIds);
+        for (const m of this.messages) {
+            if (m.id != null && set.has(m.id)) m.compacted = true;
+        }
         this.messages.push({ ...summary, id: summary.id ?? this.nextId++ });
     }
 
     async clearMessages(): Promise<void> {
         this.messages = [];
-        this.compactedIds.clear();
         this.thinks = {};
     }
 

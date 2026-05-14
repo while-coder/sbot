@@ -8,10 +8,9 @@ import { T_DBPath } from "../Core/tokens";
 
 interface ThreadFile {
     messages: StoredMessage[];
-    thinks?: Record<string, StoredMessage[]>;
-    metadata?: Record<string, string>;
-    nextId?: number;
-    compactedIds?: number[];
+    thinks: Record<string, StoredMessage[]>;
+    metadata: Record<string, string>;
+    nextId: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -36,20 +35,23 @@ export class AgentFileSaver implements IAgentSaverService {
         if (this.cache) return this.cache;
         try {
             if (!existsSync(this.filePath)) {
-                this.cache = { messages: [], thinks: {}, nextId: 1, compactedIds: [] };
+                this.cache = { messages: [], thinks: {}, metadata: {}, nextId: 1 };
             } else {
                 const content = await readFile(this.filePath, "utf-8");
                 this.cache = JSON.parse(content) as ThreadFile;
-                let nextId = this.cache.nextId ?? 1;
+                if (!this.cache.messages) this.cache.messages = [];
+                if (!this.cache.thinks) this.cache.thinks = {};
+                if (!this.cache.metadata) this.cache.metadata = {};
+                if (!this.cache.nextId) this.cache.nextId = 1;
+                let nextId = this.cache.nextId;
                 for (const m of this.cache.messages) {
                     if (m.id == null) m.id = nextId++;
                 }
                 this.cache.nextId = nextId;
-                if (!this.cache.compactedIds) this.cache.compactedIds = [];
             }
         } catch (error: any) {
             this.logger?.warn(`读取文件失败: ${error.message}`);
-            this.cache = { messages: [], thinks: {}, nextId: 1, compactedIds: [] };
+            this.cache = { messages: [], thinks: {}, metadata: {}, nextId: 1 };
         }
         return this.cache!;
     }
@@ -62,26 +64,15 @@ export class AgentFileSaver implements IAgentSaverService {
 
     async pushMessage(message: ChatMessage, options?: ChatMessageOptions): Promise<void> {
         const file = await this.getFile();
-        const id = file.nextId ?? 1;
+        const id = file.nextId;
         file.nextId = id + 1;
         file.messages.push({ id, message, createdAt: Math.floor(Date.now() / 1000), thinkId: options?.thinkId });
-
-        const compactedSet = new Set(file.compactedIds);
-        const nonCompacted = file.messages.filter(m => !compactedSet.has(m.id!));
-        if (nonCompacted.length > 1000) {
-            for (const m of nonCompacted.slice(0, nonCompacted.length - 1000)) {
-                compactedSet.add(m.id!);
-            }
-            file.compactedIds = [...compactedSet];
-        }
-
         await this.writeThreadFile(file);
     }
 
     async getAllMessages(): Promise<StoredMessage[]> {
         const file = await this.getFile();
-        const compactedSet = new Set(file.compactedIds);
-        return file.messages.filter(m => !compactedSet.has(m.id!));
+        return file.messages.filter(m => !m.compacted);
     }
 
     async getMessages(): Promise<ChatMessage[]> {
@@ -91,10 +82,11 @@ export class AgentFileSaver implements IAgentSaverService {
     async applyCompaction(compactedIds: number[], summary: StoredMessage): Promise<void> {
         if (compactedIds.length === 0) return;
         const file = await this.getFile();
-        const compactedSet = new Set(file.compactedIds);
-        for (const id of compactedIds) compactedSet.add(id);
-        file.compactedIds = [...compactedSet];
-        const id = file.nextId ?? 1;
+        const set = new Set(compactedIds);
+        for (const m of file.messages) {
+            if (m.id != null && set.has(m.id)) m.compacted = true;
+        }
+        const id = file.nextId;
         file.nextId = id + 1;
         file.messages.push({ ...summary, id });
         await this.writeThreadFile(file);
@@ -119,12 +111,11 @@ export class AgentFileSaver implements IAgentSaverService {
     }
 
     async getThink(thinkId: string): Promise<StoredMessage[]> {
-        return (await this.getFile()).thinks?.[thinkId] ?? [];
+        return (await this.getFile()).thinks[thinkId] ?? [];
     }
 
     async pushThinkMessage(thinkId: string, message: ChatMessage, options?: ChatMessageOptions): Promise<void> {
         const file = await this.getFile();
-        if (!file.thinks) file.thinks = {};
         const existing = file.thinks[thinkId] ?? [];
         existing.push({ message, createdAt: Math.floor(Date.now() / 1000), thinkId: options?.thinkId });
         file.thinks[thinkId] = existing;
@@ -132,12 +123,11 @@ export class AgentFileSaver implements IAgentSaverService {
     }
 
     async getMetadata(key: string): Promise<string | undefined> {
-        return (await this.getFile()).metadata?.[key];
+        return (await this.getFile()).metadata[key];
     }
 
     async setMetadata(key: string, value: string): Promise<void> {
         const file = await this.getFile();
-        if (!file.metadata) file.metadata = {};
         file.metadata[key] = value;
         await this.writeThreadFile(file);
     }

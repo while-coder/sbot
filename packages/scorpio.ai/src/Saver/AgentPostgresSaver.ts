@@ -69,14 +69,6 @@ export class AgentPostgresSaver implements IAgentSaverService {
             `INSERT INTO ${this.table} (data, created_at, think_id) VALUES ($1, $2, $3)`,
             [JSON.stringify(message), Math.floor(Date.now() / 1000), options?.thinkId ?? null]
         );
-        await this.pool.query(`
-            UPDATE ${this.table} SET compacted = 1
-            WHERE compacted = 0 AND id < (
-                SELECT id FROM ${this.table} WHERE compacted = 0
-                ORDER BY id DESC
-                LIMIT 1 OFFSET 999
-            )
-        `);
     }
 
     async getAllMessages(): Promise<StoredMessage[]> {

@@ -1,4 +1,6 @@
-import { Command, Arg, Option, Parsers, CommandContext, ICommand, ConversationCompactor, IModelService } from "scorpio.ai"
+import path from "path"
+import fs from "fs/promises"
+import { Command, Arg, Option, Parsers, CommandContext, ICommand, ConversationCompactor, GlobalLoggerService } from "scorpio.ai"
 import { SessionService } from "channel.base"
 import { AgentRunner } from "../Agent/AgentRunner"
 import { config, AgentMode, type ToolAgentEntry } from "../Core/Config"
@@ -8,113 +10,56 @@ type SbotService = SessionService & {
     resolveAgentId(args: any): Promise<string | undefined>;
 }
 
-/**
- * /test 命令 - 测试所有装饰器功能
- *
- * 使用示例:
- * /test "hello"
- * /test "hello" 42
- * /test "hello" 42 -v
- * /test "hello" 42 -v --count 5
- * /test "hello" 42 --verbose --count 5 --mode debug
- * /test "hello" 42 -v -c 5 -m release --tags "a,b,c"
- */
-@Command('test', '测试命令 - 验证所有装饰器功能')
-export class TestCommand implements ICommand {
+@Command('log', '查看系统日志')
+export class LogCommand implements ICommand {
     _context!: CommandContext;
-    // 必需的字符串参数
-    @Arg('message', { description: '消息内容' })
-    message!: string;
 
-    // 可选的整数参数（带默认值）
-    @Arg('number', {
-        description: '数字参数',
+    @Arg('lines', {
+        description: '显示的日志行数',
         required: false,
         parser: Parsers.int,
-        default: '10'
+        default: '50'
     })
-    number!: number;
+    lines!: number;
 
-    // 布尔选项（短选项 + 长选项）
-    @Option(['-v', '--verbose'], { description: '详细输出' })
-    verbose!: boolean;
-
-    // 带值的整数选项
-    @Option(['-c', '--count <n>'], {
-        description: '重复次数',
-        parser: Parsers.int,
-        default: '1'
+    @Option(['-l', '--level <level>'], {
+        description: '过滤日志级别 (debug/info/warn/error)',
+        parser: Parsers.enum(['debug', 'info', 'warn', 'error'] as const),
     })
-    count!: number;
+    level?: string;
 
-    // 枚举选项
-    @Option(['-m', '--mode <mode>'], {
-        description: '模式（debug/release）',
-        parser: Parsers.enum(['debug', 'release'] as const),
-        default: 'debug'
+    @Option(['-d', '--date <date>'], {
+        description: '指定日期 (yyyy-MM-dd)',
     })
-    mode!: 'debug' | 'release';
-
-    // 数组选项
-    @Option(['-t', '--tags <list>'], {
-        description: '标签列表（逗号分隔）',
-        parser: Parsers.array()
-    })
-    tags?: string[];
-
-    // 浮点数选项
-    @Option(['--timeout <ms>'], {
-        description: '超时时间（秒）',
-        parser: Parsers.float,
-        default: '3.5'
-    })
-    timeout!: number;
-
-    // 使用默认字段名的选项
-    @Option()
-    force!: boolean;
-
-    // 否定选项
-    @Option(['--no-color'], { description: '禁用颜色' })
-    color!: boolean;
+    date?: string;
 
     async execute(): Promise<string> {
-        const result: string[] = [
-            '🧪 测试命令执行结果',
-            '',
-            '📝 参数 (Arguments):',
-            `  message: "${this.message}"`,
-            `  number: ${this.number} (${typeof this.number})`,
-            '',
-            '⚙️ 选项 (Options):',
-            `  verbose (-v, --verbose): ${this.verbose}`,
-            `  count (-c, --count): ${this.count} (${typeof this.count})`,
-            `  mode (-m, --mode): "${this.mode}"`,
-            `  tags (-t, --tags): ${this.tags ? `[${this.tags.join(', ')}]` : 'undefined'}`,
-            `  timeout (--timeout): ${this.timeout} (${typeof this.timeout})`,
-            `  force (--force): ${this.force}`,
-            `  color (--no-color): ${this.color}`,
-            '',
-            '👤 上下文:',
-            `  userId: ${this._context.context?.userId || 'unknown'}`,
-            '',
-        ];
+        const logsDir = config.getConfigPath("logs");
+        const dateStr = this.date ?? new Date().toISOString().slice(0, 10);
+        const logFile = path.join(logsDir, `log.${dateStr}.log`);
 
-        // 如果 verbose 模式，输出处理后的消息
-        if (this.verbose) {
-            result.push('🔍 详细信息:');
-            result.push(`  消息处理: ${this.message.toUpperCase()}`);
-            result.push(`  重复 ${this.count} 次: ${this.message.repeat(this.count)}`);
-            result.push(`  模式标记: [${this.mode.toUpperCase()}]`);
-            result.push('');
+        try {
+            const content = await fs.readFile(logFile, 'utf-8');
+            let lines = content.split('\n').filter(Boolean);
+
+            if (this.level) {
+                const levelUpper = this.level.toUpperCase();
+                lines = lines.filter(line => line.includes(`[${levelUpper}]`));
+            }
+
+            const total = lines.length;
+            lines = lines.slice(-this.lines);
+
+            if (lines.length === 0) return '没有找到匹配的日志记录';
+
+            const header = `[${dateStr}] 共 ${total} 条日志，显示最近 ${lines.length} 条：\n`;
+            return header + lines.join('\n');
+        } catch (e: any) {
+            if (e.code === 'ENOENT') return `日志文件不存在: log.${dateStr}.log`;
+            return `读取日志失败: ${e.message}`;
         }
-
-        result.push('✅ 测试完成！所有参数和选项解析正确');
-
-        return result.join('\n');
     }
 }
-
 
 /**
  * /clear 命令 - 清理当前会话的 saver 历史记录
@@ -159,14 +104,14 @@ export class CompactCommand implements ICommand {
         if (!agentEntry) return `Agent "${agentId}" 配置不存在`;
 
         if (agentEntry.type !== AgentMode.Single && agentEntry.type !== AgentMode.ReAct) return '当前 Agent 类型不支持压缩';
-        const compactModelId = (agentEntry as ToolAgentEntry).compactModel;
-        if (!compactModelId) return `没有配置压缩模型`;
+        const toolEntry = agentEntry as ToolAgentEntry;
+        const compactModelId = toolEntry.compactModel || toolEntry.model;
         const summaryModel = await config.getModelService(compactModelId);
         if (!summaryModel) return `模型 "${compactModelId}" 不可用`;
 
         const saver = await AgentRunner.createSaverService(saverId, session.threadId);
         try {
-            const compactor = new ConversationCompactor(summaryModel, undefined, undefined);
+            const compactor = new ConversationCompactor(summaryModel, toolEntry.compactPrompt, GlobalLoggerService.getLoggerService());
             const allMessages = await saver.getAllMessages();
             if (allMessages.length <= 1) return '消息过少，无需压缩';
 
@@ -185,7 +130,7 @@ export class CompactCommand implements ICommand {
  */
 export function getBuiltInCommands(): ICommand[] {
     return [
-        new TestCommand(),
+        new LogCommand(),
         new ClearCommand(),
         new CompactCommand(),
     ];

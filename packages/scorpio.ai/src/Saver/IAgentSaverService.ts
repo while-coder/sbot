@@ -67,6 +67,7 @@ export interface StoredMessage {
     message: ChatMessage;
     createdAt?: number;
     thinkId?: string;
+    compacted?: boolean;
 }
 
 // ─── Interface ───────────────────────────────────────────────────────────────
