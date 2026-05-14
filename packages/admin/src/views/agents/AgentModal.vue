@@ -257,8 +257,8 @@ defineExpose({ open })
           <span style="font-size:0.78rem;color:var(--color-text-muted,#888);margin-top:2px">{{ t('agents.compact_model_hint') }}</span>
         </div>
 
-        <!-- Compact Prompt (配置了 compactModel 时，Generative/ACP 不支持) -->
-        <div class="form-group" v-if="form.type !== AgentMode.Generative && form.type !== AgentMode.ACP && form.compactModel">
+        <!-- Compact Prompt (Generative/ACP 不支持) -->
+        <div class="form-group" v-if="form.type !== AgentMode.Generative && form.type !== AgentMode.ACP">
           <label>{{ t('agents.compact_prompt') }}</label>
           <textarea v-model="form.compactPrompt" rows="3" :placeholder="t('agents.compact_prompt_placeholder')" />
         </div>

@@ -79,12 +79,12 @@ export class ConversationCompactor {
         return { summary };
     }
 
-    static buildPostCompactMessage(summary: string): StoredMessage {
+    static buildPostCompactMessage(summary: string, continuation = true): StoredMessage {
+        const content = continuation
+            ? `[对话摘要]\n${summary}\n\n${POST_COMPACT_CONTINUATION}`
+            : `[对话摘要]\n${summary}`;
         return {
-            message: {
-                role: MessageRole.Human,
-                content: `[对话摘要]\n${summary}\n\n${POST_COMPACT_CONTINUATION}`,
-            },
+            message: { role: MessageRole.Human, content },
             createdAt: Math.floor(Date.now() / 1000),
         };
     }

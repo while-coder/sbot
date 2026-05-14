@@ -294,9 +294,8 @@ async function refresh() {
             <label>{{ t('models.thinking') }}</label>
             <select v-model="thinkingType">
               <option value="">{{ t('models.thinking_none') }}</option>
-              <option value="adaptive">adaptive</option>
-              <option value="enabled">enabled</option>
-              <option value="disabled">disabled</option>
+              <option value="adaptive">{{ t('models.thinking_adaptive') }}</option>
+              <option value="enabled">{{ t('models.thinking_enabled') }}</option>
             </select>
           </div>
           <div v-if="isAnthropic && thinkingType === 'enabled'" class="form-group">
