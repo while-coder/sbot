@@ -19,12 +19,6 @@ vars:
     <tool name="list_skill_files">List the full directory tree of a skill</tool>
     <tool name="execute_skill_script">Run a script file (.py, .sh, .js, .ts) inside the skill directory</tool>
   </tools>
-  <insight-tools>
-    <note>Items listed as &lt;insight&gt; above are agent-created insights that can be managed with these tools:</note>
-    <tool name="insight_create">Create a new insight</tool>
-    <tool name="insight_patch">Update a file within an existing insight</tool>
-    <tool name="insight_delete">Archive an insight that is no longer useful</tool>
-  </insight-tools>
   <constraints>
     <constraint>Always read SKILL.md before performing any skill-related action</constraint>
     <constraint>SKILL.md instructions are authoritative — follow them completely, do not skip or reinterpret steps</constraint>

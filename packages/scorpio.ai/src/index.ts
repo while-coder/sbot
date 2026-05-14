@@ -67,6 +67,12 @@ export {
   T_InsightToolPatchDesc,
   T_InsightToolDeleteDesc,
   T_InsightDir,
+  T_InsightSystemPromptTemplate,
+  T_InsightLimit,
+  T_InsightNudgeInterval,
+  T_InsightNudgePrompt,
+  T_InsightStaleDays,
+  T_InsightArchiveDays,
   T_WikiExtractorSystemPrompt,
   T_WikiSystemPromptTemplate,
   T_WikiAutoExtract,
@@ -213,13 +219,18 @@ export {
   EXECUTE_SKILL_SCRIPT_TOOL_NAME,
   LIST_SKILL_FILES_TOOL_NAME,
 
-  // 使用遥测
-  SkillUsageTracker,
-  type SkillUsageData,
-
   // 类型定义
   Skill,
 } from "./Skills";
+
+// ========================================
+// Retrieval - 混合检索
+// ========================================
+export {
+  HybridSearcher,
+  type SearchableItem,
+  type HybridSearchOptions,
+} from "./Retrieval";
 
 // ========================================
 // Insight - 经验洞察系统
@@ -361,3 +372,4 @@ export { contentToString, trimContent, isEmptyContent, readImageAsDataUrl, readM
 export type { MediaCategory, ContentPart } from "./Utils/contentUtils";
 export { PromptInjectionDetector, InjectionSeverity, type DetectionResult } from "./Utils/PromptInjectionDetector";
 export { withRetry } from "./Utils/withRetry";
+export { UsageTracker, type UsageData } from "./Utils/UsageTracker";

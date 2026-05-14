@@ -1,6 +1,6 @@
 import { StateGraph, START, END } from '../../Graph';
 import { type StructuredToolInterface } from "@langchain/core/tools";
-import { inject, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_MemorySystemPromptTemplate, T_WikiSystemPromptTemplate, T_ModelCallTimeout, truncate, formatTimeAgo } from "../../Core";
+import { inject, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_MemorySystemPromptTemplate, T_WikiSystemPromptTemplate, T_ModelCallTimeout, T_InsightNudgeInterval, T_InsightNudgePrompt, truncate, formatTimeAgo } from "../../Core";
 import { IModelService } from "../../Model";
 import { ISkillService } from "../../Skills";
 import { IInsightService } from "../../Insight";
@@ -62,6 +62,9 @@ export class SingleAgentService extends AgentServiceBase {
     protected memorySystemPromptTemplate?: string;
     protected modelCallTimeout?: number;
     protected compactor?: ConversationCompactor;
+    private insightNudgeInterval: number;
+    private insightNudgePrompt?: string;
+    private turnsSinceNudge = 0;
 
     constructor(
         @inject(IModelService) modelService: IModelService,
@@ -78,6 +81,8 @@ export class SingleAgentService extends AgentServiceBase {
         @inject(T_WikiSystemPromptTemplate, { optional: true }) protected wikiSystemPromptTemplate?: string,
         @inject(T_ModelCallTimeout, { optional: true }) modelCallTimeout?: number,
         @inject(IConversationCompactor, { optional: true }) compactor?: ConversationCompactor,
+        @inject(T_InsightNudgeInterval, { optional: true }) insightNudgeInterval?: number,
+        @inject(T_InsightNudgePrompt, { optional: true }) insightNudgePrompt?: string,
     ) {
         super(loggerService, agentSaver, memoryServices);
         this.modelService = modelService;
@@ -89,6 +94,8 @@ export class SingleAgentService extends AgentServiceBase {
         this.memorySystemPromptTemplate = memorySystemPromptTemplate;
         this.modelCallTimeout = modelCallTimeout;
         this.compactor = compactor;
+        this.insightNudgeInterval = insightNudgeInterval ?? 0;
+        this.insightNudgePrompt = insightNudgePrompt;
     }
 
     override addStaticSystemPrompts(prompts: string[]): void {
@@ -109,9 +116,10 @@ export class SingleAgentService extends AgentServiceBase {
 
         // ── 动态部分（每次请求可能变化） ──
         const dynamicParts: string[] = [...this.dynamicSystemPrompts];
+        const queryText = contentToString(query);
+
         if (this.memorySystemPromptTemplate) {
             const memoryLimit = 10;
-            const queryText = contentToString(query);
             const allMemories = (await Promise.all(this.memoryServices.map(mem => mem.getMemories(queryText, memoryLimit))))
                 .flat()
                 .sort((a, b) => b.decayedScore - a.decayedScore)
@@ -121,9 +129,12 @@ export class SingleAgentService extends AgentServiceBase {
                 dynamicParts.push(this.memorySystemPromptTemplate.replace('{items}', items));
             }
         }
+        if (this.insightService) {
+            const insightMessage = await this.insightService.getRelevantInsights(queryText);
+            if (insightMessage) dynamicParts.push(insightMessage);
+        }
         if (this.wikiSystemPromptTemplate && this.wikiServices?.length) {
             const wikiLimit = 5;
-            const queryText = contentToString(query);
             const results = (await Promise.all(
                 this.wikiServices.map(w => w.search(queryText, wikiLimit))
             )).flat().slice(0, wikiLimit);
@@ -132,6 +143,13 @@ export class SingleAgentService extends AgentServiceBase {
                     `  <wiki id="${r.page.id}" title="${r.page.title}" tags="${r.page.tags.join(', ')}">\n${r.page.content}\n  </wiki>`
                 ).join("\n");
                 dynamicParts.push(this.wikiSystemPromptTemplate.replace('{items}', items));
+            }
+        }
+        if (this.insightService && this.insightNudgeInterval > 0 && this.insightNudgePrompt) {
+            this.turnsSinceNudge++;
+            if (this.turnsSinceNudge >= this.insightNudgeInterval) {
+                dynamicParts.push(this.insightNudgePrompt);
+                this.turnsSinceNudge = 0;
             }
         }
 

@@ -14,6 +14,8 @@ import {
     T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc,
     T_SkillSystemPromptTemplate, T_SkillToolReadDesc, T_SkillToolListDesc, T_SkillToolExecDesc,
     T_InsightToolCreateDesc, T_InsightToolPatchDesc, T_InsightToolDeleteDesc, T_InsightDir,
+    T_InsightSystemPromptTemplate, T_InsightLimit, T_InsightNudgeInterval, T_InsightNudgePrompt,
+    T_InsightStaleDays, T_InsightArchiveDays,
     T_ModelCallTimeout, T_MaxHistoryRounds,
     type CreateAgentFn,
 } from "scorpio.ai";
@@ -136,7 +138,13 @@ export class AgentFactory {
             [T_InsightToolCreateDesc]: loadPrompt('insight/tool_create.txt'),
             [T_InsightToolPatchDesc]: loadPrompt('insight/tool_patch.txt'),
             [T_InsightToolDeleteDesc]: loadPrompt('insight/tool_delete.txt'),
+            [T_InsightSystemPromptTemplate]: loadPrompt('insight/system.txt'),
+            [T_InsightStaleDays]: 30,
+            [T_InsightArchiveDays]: 90,
         });
+
+        container.registerInstance(T_InsightNudgeInterval, 10);
+        container.registerInstance(T_InsightNudgePrompt, loadPrompt('insight/nudge.txt'));
 
         const skillService = await container.resolve<SkillService>(ISkillService);
         skillService.registerSkillsDir(insightDir);

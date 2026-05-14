@@ -33,6 +33,12 @@ export const T_InsightToolCreateDesc = Symbol("scorpio:T_InsightToolCreateDesc")
 export const T_InsightToolPatchDesc  = Symbol("scorpio:T_InsightToolPatchDesc");
 export const T_InsightToolDeleteDesc = Symbol("scorpio:T_InsightToolDeleteDesc");
 export const T_InsightDir            = Symbol("scorpio:T_InsightDir");
+export const T_InsightSystemPromptTemplate = Symbol("scorpio:T_InsightSystemPromptTemplate");
+export const T_InsightLimit          = Symbol("scorpio:T_InsightLimit");
+export const T_InsightNudgeInterval  = Symbol("scorpio:T_InsightNudgeInterval");
+export const T_InsightNudgePrompt    = Symbol("scorpio:T_InsightNudgePrompt");
+export const T_InsightStaleDays      = Symbol("scorpio:T_InsightStaleDays");
+export const T_InsightArchiveDays    = Symbol("scorpio:T_InsightArchiveDays");
 
 // Wiki tokens
 export const T_WikiExtractorSystemPrompt   = Symbol("scorpio:T_WikiExtractorSystemPrompt");

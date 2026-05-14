@@ -15,7 +15,7 @@ import {
     createSuccessResult,
     MCPToolResult
 } from "../Tools";
-import { SkillUsageTracker } from "./SkillUsageTracker";
+import { UsageTracker } from "../Utils/UsageTracker";
 
 const execAsync = promisify(exec);
 
@@ -27,7 +27,7 @@ export class SkillService implements ISkillService {
   private skillsDirs: string[] = [];
   private singleSkillDirs: string[] = [];
   private logger;
-  private usageTracker = new SkillUsageTracker();
+  private usageTracker = new UsageTracker();
 
   constructor(
     @inject(T_SkillSystemPromptTemplate) private systemPromptTemplate: string,
@@ -101,8 +101,7 @@ export class SkillService implements ISkillService {
       .map(s => {
         const usage = this.usageTracker.getUsage(s.path);
         const usageAttr = usage ? ` uses="${usage.useCount}" lastUsed="${usage.lastUsedAt ?? 'never'}"` : '';
-        const tag = s.type === 'insight' ? 'insight' : 'skill';
-        return `  <${tag} name="${s.name}" path="${s.path}"${usageAttr}>${s.description}</${tag}>`;
+        return `  <skill name="${s.name}" path="${s.path}"${usageAttr}>${s.description}</skill>`;
       })
       .join("\n");
 

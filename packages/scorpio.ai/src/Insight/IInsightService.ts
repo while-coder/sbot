@@ -5,6 +5,8 @@ export interface IInsightService {
     getInsightDir(): string;
     /** 管理工具（create/patch/delete） */
     getTools(): StructuredToolInterface[];
+    /** 根据 query 检索相关 insight，返回格式化的 system prompt 片段 */
+    getRelevantInsights(query: string, limit?: number): Promise<string | null>;
 }
 
 export const IInsightService = Symbol("IInsightService");

@@ -1,0 +1,15 @@
+---
+vars:
+  insights: 与当前对话相关的 insight 列表 (XML 格式)
+---
+<insight-context>
+  <insights>
+{insights}
+  </insights>
+  <note>Items above are agent-created insights relevant to the current query. Use them to inform your responses.</note>
+  <tools>
+    <tool name="insight_create">Create a new insight to persist reusable knowledge</tool>
+    <tool name="insight_patch">Update a file within an existing insight</tool>
+    <tool name="insight_delete">Archive an insight that is no longer useful</tool>
+  </tools>
+</insight-context>
