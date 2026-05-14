@@ -1,25 +1,30 @@
 ### 新功能
 
-- **VSCode 扩展**: 全新 VSCode 插件 — 支持在 IDE 中直接与 sbot 对话，内置服务器选择、工作目录选择，支持从 CLI 配置读取连接信息
-- **Chat UI 统一组件库**: 将聊天界面重构为独立 `chat-ui` 包，VSCode 插件、PWA、Web 三端共享同一套组件（ChatView、SessionBar、ConfigToolbar、StatusBar 等）
-- **PWA 应用**: 新增 PWA 构建支持，可离线安装使用；新增服务器连接选择器
-- **Zip 安装 Skill**: 支持通过 zip 文件上传安装 Skill 包
-- **Agent 中断信号**: Agent 执行支持中断（AbortSignal），模型调用、工具执行均可取消
-- **模型超时配置**: 支持全局和 Agent 级别的模型调用超时设置
-- **Sleep 工具**: 新增 sleep 工具，Agent 可在执行中暂停等待
-- **MP4 支持**: `readMediaFile` 支持读取 MP4 视频文件
+- **ACP Agent 支持**: 完整的 Agent Client Protocol 集成 — 支持持久化和临时两种 ACP Agent 模式、Agent 连接池管理、权限处理和 ACP 流式响应
+- **对话压缩**: 当 Token 使用量超过阈值时自动压缩对话摘要，在减少 Token 消耗的同时保持上下文连续性
+- **OneBot 渠道**: 新增渠道，支持 QQ 及其他兼容 OneBot 协议的平台
+- **小爱渠道**: 新增小米 AI 音箱渠道 — 账号登录、设备发现、TTS 播放和轮询式对话
+- **Token 用量统计**: 按模型统计 Token 使用量，管理后台提供可视化面板
+- **会话搜索工具**: 新增工具允许 Agent 搜索历史会话记录
 
 ### 架构变更
 
-- **Chat UI 组件拆分**: `ChatApp` 拆为 `ChatView`、`ChatArea`、`AskForm`、`MessageList`、`SessionBar`、`ConfigToolbar`、`StatusBar`、`ToolApprovalBar`、`ThinkDrawer` 等独立组件
-- **WebSocket 传输层**: 新增独立 `WebSocketTransport` 类，统一各端 WebSocket 连接管理
-- **IModelService 接口**: 所有模型服务方法支持 AbortSignal 参数
-- **共享资源包**: 新增 `shared-assets` 包统一管理 logo、图标等静态资源
+- **静态/动态 Prompt 系统**: Prompt 分为静态环境上下文和动态逐轮上下文，支持 frontmatter 变量声明
+- **ACP Agent 架构**: 新增 `ACPAgentServiceBase` 基类，派生 `PersistentACPAgentService`（长驻进程、Session 复用）和 `TransientACPAgentService`（按请求生命周期）
+- **混合搜索**: 新增 `HybridSearcher`，结合关键词匹配和 Embedding 语义搜索，用于技能检索
+- **模型重试代理**: `RetryModelServiceProxy` 对瞬态错误（限流、超时、连接重置）支持指数退避重试
+- **Skill 服务重构**: `SkillService` 重写，优化生命周期管理和解析逻辑
 
 ### 改进
 
-- **主题系统统一**: 新增 theme-dark、theme-light、theme-vscode、theme-pwa 主题文件，各端风格一致
-- **Lark 渠道**: 优化历史记录处理、修复消息流程、排除 at 消息干扰
-- **意图过滤**: 修复分类逻辑问题
-- **空消息过滤**: 修正空内容消息的处理
-- **附件处理**: Web UI 附件上传体验优化
+- **渠道消息合并**: 同一用户的连续消息在处理前自动合并
+- **渠道工具配置**: 渠道插件支持按需配置工具白名单
+- **渠道主动发送**: 渠道支持主动推送消息（不仅限于响应）
+- **Claude Thinking 支持**: Anthropic 模型服务支持配置扩展思考 (Extended Thinking)
+- **生成式模型自动截取**: Generative Agent 输入超出上下文窗口时自动截取
+- **图片自动缩放**: 图片在发送给模型前按可配置最大尺寸自动缩放
+- **Prompt Frontmatter**: PromptLoader 支持 YAML frontmatter 及变量元数据，供管理 API 使用
+- **管理后台**: 新增进程管理、Token 用量页面；优化渠道、Prompt、Agent 管理界面
+- **异步模块加载**: 服务端模块异步加载，加快启动速度
+- **微信扫码登录**: 微信渠道支持扫码登录
+- **缓存统计**: 模型响应缓存支持命中/未命中统计
