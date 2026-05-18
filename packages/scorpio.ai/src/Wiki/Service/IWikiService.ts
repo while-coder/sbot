@@ -5,10 +5,10 @@ import { WikiPage, WikiSearchResult } from "../Types";
  */
 export interface IWikiService {
     // CRUD
-    createPage(title: string, content: string, tags?: string[], links?: string[]): Promise<WikiPage>;
+    createPage(title: string, content: string, tags?: string[]): Promise<WikiPage>;
     getPage(id: string): Promise<WikiPage | null>;
     getPageByTitle(title: string): Promise<WikiPage | null>;
-    updatePage(id: string, updates: Partial<Pick<WikiPage, 'title' | 'content' | 'tags' | 'links'>>): Promise<WikiPage>;
+    updatePage(id: string, updates: Partial<Pick<WikiPage, 'title' | 'content' | 'tags'>>): Promise<WikiPage>;
     deletePage(id: string): Promise<void>;
 
     // Search

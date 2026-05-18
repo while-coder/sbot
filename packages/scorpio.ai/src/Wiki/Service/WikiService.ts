@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { inject } from "../../Core";
 import { IWikiDatabase } from "../Database/IWikiDatabase";
-import { WikiPage, WikiSearchResult, WikiPageSource } from "../Types";
+import { WikiPage, WikiSearchResult } from "../Types";
 import { IWikiService } from "./IWikiService";
 
 export class WikiService implements IWikiService {
@@ -15,7 +15,6 @@ export class WikiService implements IWikiService {
     title: string,
     content: string,
     tags: string[] = [],
-    links: string[] = [],
   ): Promise<WikiPage> {
     const id = uuidv4();
     const now = Date.now();
@@ -25,10 +24,7 @@ export class WikiService implements IWikiService {
       title,
       content,
       tags,
-      links,
-      metadata: {},
       version: 1,
-      source: "manual" as WikiPageSource,
       createdAt: now,
       updatedAt: now,
     };
@@ -47,7 +43,7 @@ export class WikiService implements IWikiService {
 
   async updatePage(
     id: string,
-    updates: Partial<Pick<WikiPage, "title" | "content" | "tags" | "links">>,
+    updates: Partial<Pick<WikiPage, "title" | "content" | "tags">>,
   ): Promise<WikiPage> {
     const existing = await this.db.getById(id);
     if (!existing) {

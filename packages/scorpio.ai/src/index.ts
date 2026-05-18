@@ -156,7 +156,6 @@ export {
 
   // 类型定义
   WikiPage,
-  WikiPageSource,
   WikiSearchResult,
 } from "./Wiki";
 

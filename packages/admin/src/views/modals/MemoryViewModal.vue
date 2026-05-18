@@ -11,8 +11,6 @@ const { show } = useToast()
 const visible      = ref(false)
 const memoryId     = ref('')
 const memoryConfig = ref<Partial<MemoryConfig>>({})
-const threadId     = ref<string | undefined>(undefined)
-const sessionId    = ref<string | undefined>(undefined)
 const memories     = ref<MemoryItem[]>([])
 const loading      = ref(false)
 
@@ -22,10 +20,7 @@ const adding       = ref(false)
 const autoSplit    = ref(true)
 
 function memUrl(path = '') {
-  const base = `/api/memories/${encodeURIComponent(memoryId.value)}${path}`
-  if (sessionId.value) return `${base}?sessionId=${encodeURIComponent(sessionId.value)}`
-  if (threadId.value) return `${base}?threadId=${encodeURIComponent(threadId.value)}`
-  return base
+  return `/api/memories/${encodeURIComponent(memoryId.value)}${path}`
 }
 
 async function load() {
@@ -81,27 +76,15 @@ async function confirmAdd() {
   }
 }
 
-function open(id: string, config: Partial<MemoryConfig>, thread?: string) {
+function open(id: string, config: Partial<MemoryConfig>) {
   memoryId.value     = id
   memoryConfig.value = config
-  threadId.value     = thread
-  sessionId.value    = undefined
   memories.value     = []
   visible.value      = true
   load()
 }
 
-function openSession(id: string, config: Partial<MemoryConfig>, sid: string) {
-  memoryId.value     = id
-  memoryConfig.value = config
-  threadId.value     = undefined
-  sessionId.value    = sid
-  memories.value     = []
-  visible.value      = true
-  load()
-}
-
-defineExpose({ open, openSession })
+defineExpose({ open })
 </script>
 
 <template>
@@ -112,8 +95,6 @@ defineExpose({ open, openSession })
         <div style="display:flex;align-items:center;gap:10px">
           <h3>{{ t('memories.content_title') }}</h3>
           <span class="mem-name-badge">{{ memoryConfig.name || memoryId }}</span>
-          <span v-if="memoryConfig.share" class="mem-share-badge">{{ t('memories.share') }}</span>
-          <span v-if="sessionId || threadId" class="mem-thread-badge">{{ sessionId || threadId }}</span>
           <span v-if="!loading" class="mem-count-badge">{{ t('memories.count', { count: memories.length }) }}</span>
         </div>
         <button class="modal-close" @click="visible = false">&times;</button>
@@ -190,25 +171,6 @@ defineExpose({ open, openSession })
   color: #555;
   padding: 2px 8px;
   border-radius: 4px;
-}
-.mem-share-badge {
-  font-size: 11px;
-  background: #f0fdf4;
-  color: #16a34a;
-  padding: 2px 8px;
-  border-radius: 4px;
-}
-.mem-thread-badge {
-  font-size: 11px;
-  font-family: monospace;
-  background: #eef2ff;
-  color: #6366f1;
-  padding: 2px 8px;
-  border-radius: 4px;
-  max-width: 320px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .mem-count-badge {
   font-size: 12px;

@@ -1,9 +1,4 @@
 /**
- * Wiki 页面来源
- */
-export type WikiPageSource = 'conversation' | 'manual' | 'merge';
-
-/**
  * Wiki 页面
  */
 export interface WikiPage {
@@ -11,10 +6,7 @@ export interface WikiPage {
   title: string;
   content: string;
   tags: string[];
-  links: string[];
-  metadata: Record<string, any>;
   version: number;
-  source: WikiPageSource;
   createdAt: number;
   updatedAt: number;
 }

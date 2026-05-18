@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
@@ -17,35 +17,32 @@ const wikis = computed(() => store.settings.wikis || {})
 const showModal   = ref(false)
 const editingName = ref<string | null>(null)
 const form = ref<WikiConfig>({
-  name: '', share: false,
+  name: '',
 })
 
 const wikiViewModal = ref<InstanceType<typeof WikiViewModal>>()
 
-// Expand state
-const expandedWikis = ref<Record<string, boolean>>({})
-const wikiThreadsMap = ref<Record<string, string[]>>({})
-const wikiLoading    = ref<Record<string, boolean>>({})
+const wikiCounts = ref<Record<string, number | null>>({})
 
-async function toggleExpand(id: string) {
-  expandedWikis.value[id] = !expandedWikis.value[id]
-  if (!expandedWikis.value[id]) return
-  if (id in wikiThreadsMap.value || wikiLoading.value[id]) return
-  wikiLoading.value[id] = true
-  try {
-    const res = await apiFetch(`/api/wikis/${encodeURIComponent(id)}/threads`)
-    wikiThreadsMap.value[id] = res.data || []
-  } catch (e: any) {
-    show(e.message, 'error')
-    wikiThreadsMap.value[id] = []
-  } finally {
-    wikiLoading.value[id] = false
-  }
+async function loadCounts() {
+  const ids = Object.keys(wikis.value)
+  await Promise.all(ids.map(async id => {
+    if (wikiCounts.value[id] !== undefined) return
+    try {
+      const res = await apiFetch(`/api/wikis/${encodeURIComponent(id)}`)
+      wikiCounts.value[id] = Array.isArray(res.data) ? res.data.length : 0
+    } catch {
+      wikiCounts.value[id] = null
+    }
+  }))
 }
+
+onMounted(loadCounts)
+watch(wikis, () => loadCounts(), { deep: true })
 
 function openAdd() {
   editingName.value = null
-  form.value = { name: '', share: false }
+  form.value = { name: '' }
   showModal.value = true
 }
 
@@ -54,7 +51,6 @@ function openEdit(id: string) {
   editingName.value = id
   form.value = {
     name: w.name,
-    share: !!w.share,
   }
   showModal.value = true
 }
@@ -64,7 +60,6 @@ async function save() {
   try {
     const body: WikiConfig = {
       name: form.value.name,
-      share: !!form.value.share,
     }
     const id = editingName.value
     const res = id
@@ -85,32 +80,19 @@ async function remove(id: string) {
   try {
     const res = await apiFetch(`/api/settings/wikis/${encodeURIComponent(id)}`, 'DELETE')
     Object.assign(store.settings, res.data)
+    delete wikiCounts.value[id]
     show(t('common.deleted'))
   } catch (e: any) {
     show(e.message, 'error')
   }
 }
 
-async function refreshThreads(ids: string[]) {
-  await Promise.all(ids.map(async id => {
-    wikiLoading.value[id] = true
-    try {
-      const res = await apiFetch(`/api/wikis/${encodeURIComponent(id)}/threads`)
-      wikiThreadsMap.value[id] = res.data || []
-    } catch (e: any) {
-      show(e.message, 'error')
-    } finally {
-      wikiLoading.value[id] = false
-    }
-  }))
-}
-
 async function refresh() {
   try {
     const res = await apiFetch('/api/settings')
     Object.assign(store.settings, res.data)
-    const expandedIds = Object.keys(expandedWikis.value).filter(id => expandedWikis.value[id])
-    if (expandedIds.length > 0) await refreshThreads(expandedIds)
+    wikiCounts.value = {}
+    await loadCounts()
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -126,52 +108,31 @@ async function refresh() {
     <div class="page-content">
       <table v-if="!isMobile">
         <thead>
-          <tr><th style="width:32px"></th><th>{{ t('common.name') }}</th><th>{{ t('wikis.share') }}</th><th>{{ t('common.ops') }}</th></tr>
+          <tr>
+            <th>{{ t('common.name') }}</th>
+            <th class="col-count">{{ t('wikis.pages_col') }}</th>
+            <th>{{ t('common.ops') }}</th>
+          </tr>
         </thead>
         <tbody>
           <tr v-if="Object.keys(wikis).length === 0">
-            <td colspan="4" style="text-align:center;color:#94a3b8;padding:40px">{{ t('wikis.empty') }}</td>
+            <td colspan="3" style="text-align:center;color:#94a3b8;padding:40px">{{ t('wikis.empty') }}</td>
           </tr>
-          <template v-for="(w, id) in wikis" :key="id">
-            <tr
-              @click="toggleExpand(id as string)"
-              style="cursor:pointer"
-              :style="expandedWikis[id as string] ? 'background:#f8fafc' : ''"
-            >
-              <td style="padding:6px 8px;text-align:center">
-                <span style="color:#6b6b6b;font-size:10px">{{ expandedWikis[id as string] ? '\u25BC' : '\u25B6' }}</span>
-              </td>
-              <td>{{ w.name || id }}</td>
-              <td>{{ w.share ? '\u2713' : '-' }}</td>
-              <td @click.stop>
-                <div class="ops-cell">
-                  <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
-                  <button class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
-                </div>
-              </td>
-            </tr>
-            <template v-if="expandedWikis[id as string]">
-              <tr v-if="wikiLoading[id as string]" class="thread-sub-row">
-                <td></td>
-                <td colspan="3" class="thread-sub-cell">{{ t('common.loading') }}</td>
-              </tr>
-              <!-- No threads: show the wiki itself as a viewable row -->
-              <tr v-else-if="(wikiThreadsMap[id as string] || []).length === 0" class="thread-sub-row">
-                <td></td>
-                <td colspan="2" class="thread-id-cell">{{ id }}</td>
-                <td>
-                  <button class="btn-outline btn-sm" @click="wikiViewModal?.open(id as string, w)">{{ t('common.view') }}</button>
-                </td>
-              </tr>
-              <tr v-else v-for="thread in wikiThreadsMap[id as string]" :key="thread" class="thread-sub-row">
-                <td></td>
-                <td colspan="2" class="thread-id-cell">{{ thread }}</td>
-                <td>
-                  <button class="btn-outline btn-sm" @click="wikiViewModal?.open(id as string, w, thread)">{{ t('common.view') }}</button>
-                </td>
-              </tr>
-            </template>
-          </template>
+          <tr v-for="(w, id) in wikis" :key="id">
+            <td>{{ w.name || id }}</td>
+            <td class="col-count">
+              <span v-if="wikiCounts[id as string] === undefined" class="count-loading">...</span>
+              <span v-else-if="wikiCounts[id as string] === null" class="count-error">-</span>
+              <span v-else class="count-badge">{{ wikiCounts[id as string] }}</span>
+            </td>
+            <td>
+              <div class="ops-cell">
+                <button class="btn-outline btn-sm" @click="wikiViewModal?.open(id as string, w)">{{ t('common.view') }}</button>
+                <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
+                <button class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
+              </div>
+            </td>
+          </tr>
         </tbody>
       </table>
 
@@ -179,33 +140,14 @@ async function refresh() {
       <template v-else>
         <div v-if="Object.keys(wikis).length === 0" class="mobile-card-empty">{{ t('wikis.empty') }}</div>
         <div v-for="(w, id) in wikis" :key="id" class="mobile-card">
-          <div class="mobile-card-header" @click="toggleExpand(id as string)" style="cursor:pointer;display:flex;align-items:center;gap:6px">
-            <span style="font-size:10px;color:#9b9b9b">{{ expandedWikis[id as string] ? '\u25BC' : '\u25B6' }}</span>
-            {{ w.name || id }}
-          </div>
-          <div class="mobile-card-fields">
-            <span class="mobile-card-label">{{ t('wikis.share') }}</span>
-            <span class="mobile-card-value">{{ w.share ? '\u2713' : '-' }}</span>
+          <div class="mobile-card-header">
+            <span>{{ w.name || id }}</span>
+            <span v-if="wikiCounts[id as string] != null" class="count-badge">{{ wikiCounts[id as string] }} {{ t('wikis.pages_unit') }}</span>
           </div>
           <div class="mobile-card-ops">
+            <button class="btn-outline btn-sm" @click="wikiViewModal?.open(id as string, w)">{{ t('common.view') }}</button>
             <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
             <button class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
-          </div>
-          <!-- Expanded threads -->
-          <div v-if="expandedWikis[id as string]" class="mobile-card-threads">
-            <div v-if="wikiLoading[id as string]" class="thread-sub-cell">{{ t('common.loading') }}</div>
-            <div v-else-if="(wikiThreadsMap[id as string] || []).length === 0" class="mobile-thread-row">
-              <span class="thread-id-cell">{{ id }}</span>
-              <div class="mobile-card-ops">
-                <button class="btn-outline btn-sm" @click="wikiViewModal?.open(id as string, w)">{{ t('common.view') }}</button>
-              </div>
-            </div>
-            <div v-for="thread in wikiThreadsMap[id as string] || []" :key="thread" class="mobile-thread-row">
-              <span class="thread-id-cell">{{ thread }}</span>
-              <div class="mobile-card-ops">
-                <button class="btn-outline btn-sm" @click="wikiViewModal?.open(id as string, w, thread)">{{ t('common.view') }}</button>
-              </div>
-            </div>
           </div>
         </div>
       </template>
@@ -223,12 +165,6 @@ async function refresh() {
             <label>{{ t('common.name') }} *</label>
             <input v-model="form.name" :placeholder="t('wikis.name_placeholder')" />
           </div>
-          <div class="form-group">
-            <label class="toggle-label">
-              <input type="checkbox" v-model="form.share" />
-              <span :title="t('wikis.share_hint')">{{ t('wikis.share') }}</span>
-            </label>
-          </div>
         </div>
         <div class="modal-footer">
           <button class="btn-outline" @click="showModal = false">{{ t('common.cancel') }}</button>
@@ -242,36 +178,27 @@ async function refresh() {
 </template>
 
 <style scoped>
-.thread-sub-row td {
-  background: #fafaf9;
-  border-bottom: 1px solid #f0efed;
-  padding-top: 5px;
-  padding-bottom: 5px;
+.col-count {
+  width: 80px;
+  text-align: center;
 }
-.thread-sub-cell {
-  padding: 5px 12px;
+.count-badge {
+  display: inline-block;
+  background: #e8f4f8;
+  color: #0e7490;
   font-size: 12px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 10px;
+  min-width: 24px;
+  text-align: center;
+}
+.count-loading {
   color: #94a3b8;
-  font-style: italic;
-}
-.thread-id-cell {
-  font-family: monospace;
   font-size: 12px;
-  color: #3d3d3d;
-  padding: 5px 12px;
 }
-.mobile-card-threads {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid #f0efed;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.mobile-thread-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+.count-error {
+  color: #94a3b8;
+  font-size: 12px;
 }
 </style>

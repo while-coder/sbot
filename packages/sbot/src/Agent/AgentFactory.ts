@@ -136,13 +136,11 @@ export class AgentFactory {
             ? config.getSessionInsightsPath(dbSessionId)
             : config.getAgentInsightsPath(agentName);
 
-        if (insightConfig.extractor) {
-            const extractorModel = await config.getModelService(insightConfig.extractor, true);
-            container.registerWithArgs(IInsightExtractor, InsightExtractor, {
-                [IModelService]: extractorModel,
-                [T_InsightExtractorSystemPrompt]: loadPrompt(insightConfig.extractorPrompt ?? 'insight/extractor.txt'),
-            });
-        }
+        const extractorModel = await config.getModelService(insightConfig.extractor, true);
+        container.registerWithArgs(IInsightExtractor, InsightExtractor, {
+            [IModelService]: extractorModel,
+            [T_InsightExtractorSystemPrompt]: loadPrompt('insight/extractor.txt'),
+        });
 
         container.registerWithArgs(IInsightService, InsightService, {
             [T_InsightDir]: insightDir,
@@ -217,7 +215,7 @@ export class AgentFactory {
         if (entry.compactModel) {
             container.registerWithArgs(IConversationCompactor, ConversationCompactor, {
                 [T_SummaryModelService]: await config.getModelService(entry.compactModel, true),
-                ...(entry.compactPrompt && { [T_CompactPromptTemplate]: entry.compactPrompt }),
+                [T_CompactPromptTemplate]: loadPrompt('compact/instruction.txt'),
             });
         }
 

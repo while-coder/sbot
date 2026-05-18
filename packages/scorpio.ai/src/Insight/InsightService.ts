@@ -35,11 +35,11 @@ export class InsightService implements IInsightService {
         @inject(T_InsightToolCreateDesc) private toolCreateDesc: string,
         @inject(T_InsightToolPatchDesc) private toolPatchDesc: string,
         @inject(T_InsightToolDeleteDesc) private toolDeleteDesc: string,
-        @inject(T_InsightSystemPromptTemplate, { optional: true }) private systemPromptTemplate?: string,
+        @inject(T_InsightSystemPromptTemplate) private systemPromptTemplate: string,
+        @inject(IInsightExtractor) private extractor: IInsightExtractor,
         @inject(T_InsightLimit, { optional: true }) private insightLimit?: number,
         @inject(T_InsightStaleDays, { optional: true }) private staleDays?: number,
         @inject(T_InsightArchiveDays, { optional: true }) private archiveDays?: number,
-        @inject(IInsightExtractor, { optional: true }) private extractor?: IInsightExtractor,
         @inject(IEmbeddingService, { optional: true }) private embeddings?: IEmbeddingService,
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
     ) {
@@ -54,10 +54,12 @@ export class InsightService implements IInsightService {
 
     @init()
     async initialize(): Promise<void> {
+        this.logger?.debug(`initialize: insightDir=${this.insightDir}, limit=${this.insightLimit}, staleDays=${this.staleDays}, archiveDays=${this.archiveDays}, hasEmbeddings=${!!this.embeddings}`);
         this.curate();
         if (this.embeddings) {
             try {
                 const insights = this.getAllInsights();
+                this.logger?.debug(`initialize: building embedding index for ${insights.length} insights`);
                 await this.searcher.buildIndex(insights.map(toSearchable), this.embeddings);
                 this.logger?.info(`Insight embedding index built: ${insights.length} entries`);
             } catch (e: any) {
@@ -71,11 +73,13 @@ export class InsightService implements IInsightService {
     }
 
     async extractFromConversation(userMessage: string, assistantMessages?: string[]): Promise<void> {
-        if (!this.extractor) return;
+        this.logger?.debug(`extractFromConversation: userMessage length=${userMessage.length}, assistantMessages=${assistantMessages?.length ?? 0}`);
         try {
             const insights = this.getAllInsights();
             const existingNames = insights.map(s => s.name);
+            this.logger?.debug(`extractFromConversation: existing insights=[${existingNames.join(', ')}]`);
             const extracted = await this.extractor.extract(userMessage, assistantMessages ?? [], existingNames);
+            this.logger?.debug(`extractFromConversation: extractor returned ${extracted.length} items`);
 
             for (const item of extracted) {
                 if (item.action === 'patch' && item.patchTarget) {
@@ -103,7 +107,13 @@ export class InsightService implements IInsightService {
                 }
 
                 fs.mkdirSync(dir, { recursive: true });
-                const skillMd = `---\nname: ${item.name}\ntype: insight\ndescription: ${item.description}\n---\n\n${item.content}`;
+                const skillMd = `---
+name: ${item.name}
+type: insight
+description: ${item.description}
+---
+
+${item.content}`;
                 fs.writeFileSync(path.join(dir, 'SKILL.md'), skillMd, 'utf-8');
                 this.usageTracker.createUsage(dir, 'auto');
                 if (this.embeddings) {
@@ -121,9 +131,9 @@ export class InsightService implements IInsightService {
     }
 
     async getRelevantInsights(query: string, limit?: number): Promise<string | null> {
-        if (!this.systemPromptTemplate) return null;
         const max = limit ?? this.insightLimit!;
         const insights = this.getAllInsights();
+        this.logger?.debug(`getRelevantInsights: query="${query.slice(0, 80)}", total=${insights.length}, max=${max}`);
         if (insights.length === 0) return null;
 
         let selected: Skill[];
@@ -132,6 +142,7 @@ export class InsightService implements IInsightService {
         } else {
             selected = await this.searcher.search(query, insights, toSearchable, max, this.embeddings);
         }
+        this.logger?.debug(`getRelevantInsights: selected ${selected.length} insights: [${selected.map(s => s.name).join(', ')}]`);
 
         if (selected.length === 0) return null;
         const items = selected.map(s => {
@@ -146,6 +157,7 @@ export class InsightService implements IInsightService {
 
     private curate(): void {
         const insights = this.getAllInsights();
+        this.logger?.debug(`curate: checking ${insights.length} insights for staleness/archival`);
         for (const insight of insights) {
             const usage = this.usageTracker.getUsage(insight.path);
             if (!usage || usage.pinned) continue;

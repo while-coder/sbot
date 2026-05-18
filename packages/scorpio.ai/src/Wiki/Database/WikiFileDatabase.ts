@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, unlinkSync } from "fs";
 import { join } from "path";
 import { inject, T_DBPath } from "../../Core";
-import { WikiPage, WikiPageSource } from "../Types";
+import { WikiPage } from "../Types";
 import { IWikiDatabase } from "./IWikiDatabase";
 
 export class WikiFileDatabase implements IWikiDatabase {
@@ -129,10 +129,6 @@ export class WikiFileDatabase implements IWikiDatabase {
             try { return JSON.parse(val); } catch { return []; }
         };
 
-        const parseObj = (val: any): Record<string, any> => {
-            if (!val) return {};
-            try { return JSON.parse(val); } catch { return {}; }
-        };
 
         if (!meta.id || !meta.title) return null;
 
@@ -141,10 +137,7 @@ export class WikiFileDatabase implements IWikiDatabase {
             title: String(meta.title),
             content,
             tags: parseArray(meta.tags),
-            links: parseArray(meta.links),
-            metadata: parseObj(meta.metadata),
             version: parseInt(meta.version) || 1,
-            source: (meta.source || "manual") as WikiPageSource,
             createdAt: parseInt(meta.createdAt) || Date.now(),
             updatedAt: parseInt(meta.updatedAt) || Date.now(),
         };
@@ -156,10 +149,7 @@ export class WikiFileDatabase implements IWikiDatabase {
             `id: "${page.id}"`,
             `title: "${page.title}"`,
             `tags: ${JSON.stringify(page.tags)}`,
-            `links: ${JSON.stringify(page.links)}`,
-            `metadata: ${JSON.stringify(page.metadata)}`,
             `version: ${page.version}`,
-            `source: ${page.source}`,
             `createdAt: ${page.createdAt}`,
             `updatedAt: ${page.updatedAt}`,
         ];

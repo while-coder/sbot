@@ -6,6 +6,7 @@ import { type ChannelConfig } from "sbot.commons"
 import { type ChannelSessionRow } from "../Core/Database"
 import { AgentRunner } from "../Agent/AgentRunner"
 import { config, AgentMode, type ToolAgentEntry } from "../Core/Config"
+import { loadPrompt } from "../Core/PromptLoader"
 
 type SbotService = SessionService & {
     resolveSessionConfig(args: any): Promise<{ dbSession: ChannelSessionRow; channelConfig?: ChannelConfig } | undefined>;
@@ -114,7 +115,7 @@ export class CompactCommand implements ICommand {
 
         const saver = await AgentRunner.createSaverService(saverId, session.threadId);
         try {
-            const compactor = new ConversationCompactor(summaryModel, toolEntry.compactPrompt, GlobalLoggerService.getLoggerService());
+            const compactor = new ConversationCompactor(summaryModel, loadPrompt('compact/instruction.txt'), GlobalLoggerService.getLoggerService());
             const allMessages = await saver.getAllMessages();
             if (allMessages.length <= 1) return '消息过少，无需压缩';
 

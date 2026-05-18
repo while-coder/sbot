@@ -50,9 +50,9 @@ const form = ref({
   type: AgentMode.Single as string,
   model: '',
   compactModel: '',
-  compactPrompt: '',
   systemPrompt: '',
   insightScope: InsightScope.Disabled as string,
+  insightExtractor: '',
   autoApproveAllTools: false,
   modelCallTimeout: undefined as number | undefined,
   // acp
@@ -73,9 +73,9 @@ function open(id?: string) {
       type: a.type || AgentMode.Single,
       model: a.model || '',
       compactModel: (a as any).compactModel || '',
-      compactPrompt: (a as any).compactPrompt || '',
       systemPrompt: a.systemPrompt || '',
       insightScope: (a as any).insight?.scope || InsightScope.Disabled,
+      insightExtractor: (a as any).insight?.extractor || '',
       autoApproveAllTools: !!(a as any).autoApproveAllTools,
       modelCallTimeout: (a as any).modelCallTimeout ?? undefined,
       command: a.command || '',
@@ -88,9 +88,9 @@ function open(id?: string) {
     editingId.value = null
     tempSubAgents.value = []
     form.value = {
-      id: '', name: '', type: AgentMode.Single, model: '', compactModel: '', compactPrompt: '',
-      systemPrompt: '', insightScope: InsightScope.Disabled, autoApproveAllTools: false,
-      modelCallTimeout: undefined, command: '', args: [], env: [], sessionMode: ACPSessionMode.Persistent,
+      id: '', name: '', type: AgentMode.Single, model: '', compactModel: '',
+      systemPrompt: '', insightScope: InsightScope.Disabled, insightExtractor: '',
+      autoApproveAllTools: false, modelCallTimeout: undefined, command: '', args: [], env: [], sessionMode: ACPSessionMode.Persistent,
     }
   }
   showModal.value = true
@@ -114,8 +114,14 @@ async function save() {
 
     if (type === AgentMode.Single || type === AgentMode.ReAct) {
       if (form.value.compactModel) (config as any).compactModel = form.value.compactModel
-      if (form.value.compactPrompt) (config as any).compactPrompt = form.value.compactPrompt
-      config.insight = { scope: form.value.insightScope as any }
+      if (form.value.insightScope !== InsightScope.Disabled && !form.value.insightExtractor) {
+        show(t('agents.error_insight_extractor'), 'error'); return
+      }
+      const insightCfg: any = { scope: form.value.insightScope }
+      if (form.value.insightScope !== InsightScope.Disabled) {
+        insightCfg.extractor = form.value.insightExtractor
+      }
+      config.insight = insightCfg
       if (form.value.modelCallTimeout != null && form.value.modelCallTimeout > 0) config.modelCallTimeout = form.value.modelCallTimeout
     }
     if (type === AgentMode.ReAct) {
@@ -257,12 +263,6 @@ defineExpose({ open })
           <span style="font-size:0.78rem;color:var(--color-text-muted,#888);margin-top:2px">{{ t('agents.compact_model_hint') }}</span>
         </div>
 
-        <!-- Compact Prompt (Generative/ACP 不支持) -->
-        <div class="form-group" v-if="form.type !== AgentMode.Generative && form.type !== AgentMode.ACP">
-          <label>{{ t('agents.compact_prompt') }}</label>
-          <textarea v-model="form.compactPrompt" rows="3" :placeholder="t('agents.compact_prompt_placeholder')" />
-        </div>
-
         <!-- ACP 专属字段 -->
         <template v-if="form.type === AgentMode.ACP">
           <div class="form-group">
@@ -302,16 +302,26 @@ defineExpose({ open })
           </div>
         </template>
 
-        <!-- Insight (暂时隐藏) -->
-        <!-- <div class="form-group" v-if="form.type !== AgentMode.Generative && form.type !== AgentMode.ACP">
-          <label>{{ t('agents.insight_scope') }}</label>
-          <select v-model="form.insightScope">
-            <option :value="InsightScope.Disabled">{{ t('agents.insight_disabled') }}</option>
-            <option :value="InsightScope.Agent">{{ t('agents.insight_agent') }}</option>
-            <option :value="InsightScope.Session">{{ t('agents.insight_session') }}</option>
-          </select>
-          <span style="font-size:0.78rem;color:var(--color-text-muted,#888);margin-top:2px">{{ t('agents.insight_hint') }}</span>
-        </div> -->
+        <!-- Insight -->
+        <template v-if="form.type !== AgentMode.Generative && form.type !== AgentMode.ACP">
+          <div class="form-group">
+            <label>{{ t('agents.insight_scope') }}</label>
+            <select v-model="form.insightScope">
+              <option :value="InsightScope.Disabled">{{ t('agents.insight_disabled') }}</option>
+              <option :value="InsightScope.Agent">{{ t('agents.insight_agent') }}</option>
+              <option :value="InsightScope.Session">{{ t('agents.insight_session') }}</option>
+            </select>
+            <span style="font-size:0.78rem;color:var(--color-text-muted,#888);margin-top:2px">{{ t('agents.insight_hint') }}</span>
+          </div>
+          <div class="form-group" v-if="form.insightScope !== InsightScope.Disabled">
+            <label>{{ t('agents.insight_extractor') }}</label>
+            <select v-model="form.insightExtractor">
+              <option value="">{{ t('agents.insight_extractor_placeholder') }}</option>
+              <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
+            </select>
+            <span style="font-size:0.78rem;color:var(--color-text-muted,#888);margin-top:2px">{{ t('agents.insight_extractor_hint') }}</span>
+          </div>
+        </template>
 
         <!-- autoApproveAllTools -->
         <div class="form-group" style="display:flex;align-items:center;gap:8px">

@@ -126,7 +126,7 @@ export class AgentRunner {
 
         const sub = new ServiceContainer();
         if (loggerService) sub.registerInstance(ILoggerService, loggerService);
-        const dbPath = config.getMemoryDBPath(memoryId, memoryId);
+        const dbPath = config.getMemoryDBPath(memoryId);
         sub.registerInstance(IMemoryDatabase, MemoryDatabaseManager.getInstance().acquire(dbPath));
 
         sub.registerWithArgs(IMemoryService, MemoryService, { [IEmbeddingService]: embedding });
@@ -158,7 +158,7 @@ export class AgentRunner {
         if (!wikiConfig) return null;
 
         const sub = new ServiceContainer();
-        const wikiDir = config.getWikiDBPath(wikiId, wikiId);
+        const wikiDir = config.getWikiDBPath(wikiId);
         sub.registerInstance(IWikiDatabase, WikiDatabaseManager.getInstance().acquire(wikiDir));
         sub.registerWithArgs(IWikiService, WikiService, {});
 

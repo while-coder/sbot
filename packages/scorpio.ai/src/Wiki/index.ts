@@ -18,6 +18,5 @@ export { WikiToolProvider, WIKI_SEARCH_TOOL_NAME, WIKI_READ_TOOL_NAME } from "./
 // ===== 类型定义 =====
 export {
     WikiPage,
-    WikiPageSource,
     WikiSearchResult,
 } from "./Types";

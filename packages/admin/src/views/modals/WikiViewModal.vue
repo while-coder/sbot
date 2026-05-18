@@ -10,7 +10,6 @@ interface WikiPageItem {
   title: string
   tags: string[]
   content?: string
-  source: string
   version: number
   createdAt: number
   updatedAt: number
@@ -22,26 +21,22 @@ const { show } = useToast()
 const visible    = ref(false)
 const wikiId     = ref('')
 const wikiConfig = ref<Partial<WikiConfig>>({})
-const threadId   = ref<string | undefined>(undefined)
-const sessionId  = ref<string | undefined>(undefined)
 const pages      = ref<WikiPageItem[]>([])
 const loading    = ref(false)
 
-const showAddModal      = ref(false)
-const addTitle          = ref('')
-const addContent        = ref('')
-const addTags           = ref('')
-const adding            = ref(false)
+const showEditModal     = ref(false)
+const editingPageId     = ref<string | null>(null)
+const editTitle         = ref('')
+const editContent       = ref('')
+const editTags          = ref('')
+const saving            = ref(false)
 
 const expandedPage      = ref<string | null>(null)
 const pageContents      = ref<Record<string, string>>({})
 const pageLoading       = ref<Record<string, boolean>>({})
 
 function wikiUrl(path = '') {
-  const base = `/api/wikis/${encodeURIComponent(wikiId.value)}${path}`
-  if (sessionId.value) return `${base}${path.includes('?') ? '&' : '?'}sessionId=${encodeURIComponent(sessionId.value)}`
-  if (threadId.value) return `${base}${path.includes('?') ? '&' : '?'}threadId=${encodeURIComponent(threadId.value)}`
-  return base
+  return `/api/wikis/${encodeURIComponent(wikiId.value)}${path}`
 }
 
 async function load() {
@@ -101,34 +96,61 @@ async function clearAll() {
 }
 
 function openAdd() {
-  addTitle.value   = ''
-  addContent.value = ''
-  addTags.value    = ''
-  showAddModal.value = true
+  editingPageId.value = null
+  editTitle.value     = ''
+  editContent.value   = ''
+  editTags.value      = ''
+  showEditModal.value = true
 }
 
-async function confirmAdd() {
-  if (!addTitle.value.trim()) { show(t('wikis.error_title'), 'error'); return }
-  if (!addContent.value.trim()) { show(t('wikis.error_content'), 'error'); return }
-  adding.value = true
+async function openEdit(id: string) {
+  editingPageId.value = id
+  const page = pages.value.find(p => p.id === id)
+  editTitle.value   = page?.title || ''
+  editTags.value    = page?.tags?.join(', ') || ''
+  editContent.value = ''
+  showEditModal.value = true
+  // load full content
+  if (pageContents.value[id] !== undefined) {
+    editContent.value = pageContents.value[id]
+  } else {
+    try {
+      const res = await apiFetch(wikiUrl(`/pages/${encodeURIComponent(id)}`))
+      const content = res.data?.content || ''
+      pageContents.value[id] = content
+      editContent.value = content
+    } catch (e: any) {
+      show(e.message, 'error')
+    }
+  }
+}
+
+async function confirmSave() {
+  if (!editTitle.value.trim()) { show(t('wikis.error_title'), 'error'); return }
+  if (!editContent.value.trim()) { show(t('wikis.error_content'), 'error'); return }
+  saving.value = true
   try {
-    const tags = addTags.value.trim() ? addTags.value.split(',').map(s => s.trim()).filter(Boolean) : undefined
-    await apiFetch(wikiUrl('/pages'), 'POST', { title: addTitle.value.trim(), content: addContent.value.trim(), tags })
-    show(t('common.created'))
-    showAddModal.value = false
+    const tags = editTags.value.trim() ? editTags.value.split(',').map(s => s.trim()).filter(Boolean) : undefined
+    const body = { title: editTitle.value.trim(), content: editContent.value.trim(), tags }
+    if (editingPageId.value) {
+      await apiFetch(wikiUrl(`/pages/${encodeURIComponent(editingPageId.value)}`), 'PUT', body)
+      delete pageContents.value[editingPageId.value]
+    } else {
+      await apiFetch(wikiUrl('/pages'), 'POST', body)
+    }
+    show(t('common.saved'))
+    showEditModal.value = false
     await load()
   } catch (e: any) {
     show(e.message, 'error')
   } finally {
-    adding.value = false
+    saving.value = false
   }
 }
 
-function open(id: string, config: Partial<WikiConfig>, thread?: string) {
+function open(id: string, config: Partial<WikiConfig>) {
   wikiId.value     = id
   wikiConfig.value = config
-  threadId.value   = thread
-  sessionId.value  = undefined
   pages.value      = []
   pageContents.value = {}
   expandedPage.value = null
@@ -136,19 +158,7 @@ function open(id: string, config: Partial<WikiConfig>, thread?: string) {
   load()
 }
 
-function openSession(id: string, config: Partial<WikiConfig>, sid: string) {
-  wikiId.value     = id
-  wikiConfig.value = config
-  threadId.value   = undefined
-  sessionId.value  = sid
-  pages.value      = []
-  pageContents.value = {}
-  expandedPage.value = null
-  visible.value    = true
-  load()
-}
-
-defineExpose({ open, openSession })
+defineExpose({ open })
 </script>
 
 <template>
@@ -158,8 +168,6 @@ defineExpose({ open, openSession })
         <div style="display:flex;align-items:center;gap:10px">
           <h3>{{ t('wikis.content_title') }}</h3>
           <span class="wiki-name-badge">{{ wikiConfig.name || wikiId }}</span>
-          <span v-if="wikiConfig.share" class="wiki-share-badge">{{ t('wikis.share') }}</span>
-          <span v-if="sessionId || threadId" class="wiki-thread-badge">{{ sessionId || threadId }}</span>
           <span v-if="!loading" class="wiki-count-badge">{{ t('wikis.count', { count: pages.length }) }}</span>
         </div>
         <button class="modal-close" @click="visible = false">&times;</button>
@@ -180,7 +188,6 @@ defineExpose({ open, openSession })
               <th style="width:32px"></th>
               <th>{{ t('wikis.page_title') }}</th>
               <th class="col-tags">{{ t('wikis.page_tags') }}</th>
-              <th class="col-source">{{ t('wikis.page_source') }}</th>
               <th class="col-time">{{ t('wikis.page_updated') }}</th>
               <th class="col-ops">{{ t('common.ops') }}</th>
             </tr>
@@ -189,22 +196,24 @@ defineExpose({ open, openSession })
             <template v-for="p in pages" :key="p.id">
               <tr @click="togglePage(p.id)" style="cursor:pointer" :style="expandedPage === p.id ? 'background:#f8fafc' : ''">
                 <td style="padding:6px 8px;text-align:center">
-                  <span style="color:#6b6b6b;font-size:10px">{{ expandedPage === p.id ? '\u25BC' : '\u25B6' }}</span>
+                  <span style="color:#6b6b6b;font-size:10px">{{ expandedPage === p.id ? '▼' : '▶' }}</span>
                 </td>
                 <td style="font-weight:500">{{ p.title }}</td>
                 <td class="col-tags">
                   <span v-for="tag in p.tags" :key="tag" class="wiki-tag">{{ tag }}</span>
                   <span v-if="p.tags.length === 0" style="color:#9b9b9b">-</span>
                 </td>
-                <td class="col-source">{{ p.source }}</td>
                 <td class="col-time">{{ new Date(p.updatedAt).toLocaleString() }}</td>
                 <td class="col-ops" @click.stop>
-                  <button class="btn-danger btn-sm" @click="removePage(p.id, p.title)">{{ t('common.delete') }}</button>
+                  <div class="ops-cell">
+                    <button class="btn-outline btn-sm" @click="openEdit(p.id)">{{ t('common.edit') }}</button>
+                    <button class="btn-danger btn-sm" @click="removePage(p.id, p.title)">{{ t('common.delete') }}</button>
+                  </div>
                 </td>
               </tr>
               <tr v-if="expandedPage === p.id">
                 <td></td>
-                <td colspan="5" class="page-content-cell">
+                <td colspan="4" class="page-content-cell">
                   <div v-if="pageLoading[p.id]" style="color:#94a3b8;font-style:italic">{{ t('common.loading') }}</div>
                   <pre v-else class="page-content-pre">{{ pageContents[p.id] || '' }}</pre>
                 </td>
@@ -216,31 +225,34 @@ defineExpose({ open, openSession })
     </div>
   </div>
 
-  <!-- Add page modal (nested) -->
-  <div v-if="showAddModal" class="modal-overlay" style="z-index:1100" @click.self="showAddModal = false">
-    <div class="modal-box" style="width:520px">
+  <!-- Add/Edit page modal (nested) -->
+  <div v-if="showEditModal" class="modal-overlay" style="z-index:1100" @click.self="showEditModal = false">
+    <div class="modal-box edit-modal" @keydown.ctrl.s.prevent="confirmSave" @keydown.meta.s.prevent="confirmSave">
       <div class="modal-header">
-        <h3>{{ t('wikis.add_page_title') }}</h3>
-        <button class="modal-close" @click="showAddModal = false">&times;</button>
+        <h3>{{ editingPageId ? t('wikis.edit_page_title') : t('wikis.add_page_title') }}</h3>
+        <button class="modal-close" @click="showEditModal = false">&times;</button>
       </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label>{{ t('wikis.page_title_label') }} *</label>
-          <input v-model="addTitle" :placeholder="t('wikis.page_title_placeholder')" />
+      <div class="modal-body edit-modal-body">
+        <div class="edit-meta-row">
+          <div class="form-group" style="flex:1">
+            <label>{{ t('wikis.page_title_label') }} *</label>
+            <input v-model="editTitle" :placeholder="t('wikis.page_title_placeholder')" />
+          </div>
+          <div class="form-group" style="width:200px">
+            <label>{{ t('wikis.page_tags_label') }}</label>
+            <input v-model="editTags" :placeholder="t('wikis.page_tags_placeholder')" />
+          </div>
         </div>
-        <div class="form-group">
+        <div class="form-group edit-content-group">
           <label>{{ t('wikis.page_content_label') }} *</label>
-          <textarea v-model="addContent" rows="8" :placeholder="t('wikis.page_content_placeholder')" style="resize:vertical" />
-        </div>
-        <div class="form-group">
-          <label>{{ t('wikis.page_tags_label') }}</label>
-          <input v-model="addTags" :placeholder="t('wikis.page_tags_placeholder')" />
+          <textarea v-model="editContent" class="edit-textarea" :placeholder="t('wikis.page_content_placeholder')" />
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn-outline" :disabled="adding" @click="showAddModal = false">{{ t('common.cancel') }}</button>
-        <button class="btn-primary" :disabled="adding" @click="confirmAdd">
-          {{ adding ? t('common.saving') : t('common.save') }}
+        <span class="edit-hint">Ctrl+S {{ t('common.save') }}</span>
+        <button class="btn-outline" :disabled="saving" @click="showEditModal = false">{{ t('common.cancel') }}</button>
+        <button class="btn-primary" :disabled="saving" @click="confirmSave">
+          {{ saving ? t('common.saving') : t('common.save') }}
         </button>
       </div>
     </div>
@@ -255,25 +267,6 @@ defineExpose({ open, openSession })
   color: #555;
   padding: 2px 8px;
   border-radius: 4px;
-}
-.wiki-share-badge {
-  font-size: 11px;
-  background: #f0fdf4;
-  color: #16a34a;
-  padding: 2px 8px;
-  border-radius: 4px;
-}
-.wiki-thread-badge {
-  font-size: 11px;
-  font-family: monospace;
-  background: #eef2ff;
-  color: #6366f1;
-  padding: 2px 8px;
-  border-radius: 4px;
-  max-width: 320px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .wiki-count-badge {
   font-size: 12px;
@@ -308,9 +301,8 @@ defineExpose({ open, openSession })
 }
 .wiki-table tbody tr:hover { background: #faf9f7; }
 .col-tags { width: 160px; }
-.col-source { width: 90px; color: #6b6b6b; font-size: 12px; }
 .col-time { width: 148px; white-space: nowrap; color: #6b6b6b; font-size: 12px; }
-.col-ops { width: 80px; text-align: center; white-space: nowrap; }
+.col-ops { width: 120px; text-align: center; white-space: nowrap; }
 .wiki-tag {
   display: inline-block;
   font-size: 11px;
@@ -334,5 +326,41 @@ defineExpose({ open, openSession })
   color: #3d3d3d;
   max-height: 300px;
   overflow-y: auto;
+}
+.edit-modal {
+  width: min(720px, 90vw);
+  height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+.edit-modal-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.edit-meta-row {
+  display: flex;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.edit-content-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.edit-textarea {
+  flex: 1;
+  resize: none;
+  font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  tab-size: 2;
+}
+.edit-hint {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-right: auto;
 }
 </style>

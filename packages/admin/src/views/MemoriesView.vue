@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
@@ -19,35 +19,32 @@ const embeddingOptions = computed(() =>
 const showModal   = ref(false)
 const editingName = ref<string | null>(null)
 const form = ref<MemoryConfig>({
-  name: '', embedding: '', share: false,
+  name: '', embedding: '',
 })
 
 const memoryViewModal = ref<InstanceType<typeof MemoryViewModal>>()
 
-// Expand state
-const expandedMemories = ref<Record<string, boolean>>({})
-const memoryThreadsMap = ref<Record<string, string[]>>({})
-const memoryLoading    = ref<Record<string, boolean>>({})
+const memoryCounts = ref<Record<string, number | null>>({})
 
-async function toggleExpand(id: string) {
-  expandedMemories.value[id] = !expandedMemories.value[id]
-  if (!expandedMemories.value[id]) return
-  if (id in memoryThreadsMap.value || memoryLoading.value[id]) return
-  memoryLoading.value[id] = true
-  try {
-    const res = await apiFetch(`/api/memories/${encodeURIComponent(id)}/threads`)
-    memoryThreadsMap.value[id] = res.data || []
-  } catch (e: any) {
-    show(e.message, 'error')
-    memoryThreadsMap.value[id] = []
-  } finally {
-    memoryLoading.value[id] = false
-  }
+async function loadCounts() {
+  const ids = Object.keys(memories.value)
+  await Promise.all(ids.map(async id => {
+    if (memoryCounts.value[id] !== undefined) return
+    try {
+      const res = await apiFetch(`/api/memories/${encodeURIComponent(id)}`)
+      memoryCounts.value[id] = Array.isArray(res.data) ? res.data.length : 0
+    } catch {
+      memoryCounts.value[id] = null
+    }
+  }))
 }
+
+onMounted(loadCounts)
+watch(memories, () => loadCounts(), { deep: true })
 
 function openAdd() {
   editingName.value = null
-  form.value = { name: '', embedding: '', share: false }
+  form.value = { name: '', embedding: '' }
   showModal.value = true
 }
 
@@ -57,7 +54,6 @@ function openEdit(id: string) {
   form.value = {
     name: m.name,
     embedding: m.embedding,
-    share: !!m.share,
   }
   showModal.value = true
 }
@@ -70,7 +66,6 @@ async function save() {
     const body: MemoryConfig = {
       name,
       embedding: config.embedding,
-      share: !!config.share,
     }
     const id = editingName.value
     const res = id
@@ -91,32 +86,19 @@ async function remove(id: string) {
   try {
     const res = await apiFetch(`/api/settings/memories/${encodeURIComponent(id)}`, 'DELETE')
     Object.assign(store.settings, res.data)
+    delete memoryCounts.value[id]
     show(t('common.deleted'))
   } catch (e: any) {
     show(e.message, 'error')
   }
 }
 
-async function refreshThreads(ids: string[]) {
-  await Promise.all(ids.map(async id => {
-    memoryLoading.value[id] = true
-    try {
-      const res = await apiFetch(`/api/memories/${encodeURIComponent(id)}/threads`)
-      memoryThreadsMap.value[id] = res.data || []
-    } catch (e: any) {
-      show(e.message, 'error')
-    } finally {
-      memoryLoading.value[id] = false
-    }
-  }))
-}
-
 async function refresh() {
   try {
     const res = await apiFetch('/api/settings')
     Object.assign(store.settings, res.data)
-    const expandedIds = Object.keys(expandedMemories.value).filter(id => expandedMemories.value[id])
-    if (expandedIds.length > 0) await refreshThreads(expandedIds)
+    memoryCounts.value = {}
+    await loadCounts()
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -132,52 +114,33 @@ async function refresh() {
     <div class="page-content">
       <table v-if="!isMobile">
         <thead>
-          <tr><th style="width:32px"></th><th>{{ t('common.name') }}</th><th>{{ t('memories.embedding_col') }}</th><th>{{ t('common.ops') }}</th></tr>
+          <tr>
+            <th>{{ t('common.name') }}</th>
+            <th>{{ t('memories.embedding_col') }}</th>
+            <th class="col-count">{{ t('memories.count_col') }}</th>
+            <th>{{ t('common.ops') }}</th>
+          </tr>
         </thead>
         <tbody>
           <tr v-if="Object.keys(memories).length === 0">
             <td colspan="4" style="text-align:center;color:#94a3b8;padding:40px">{{ t('memories.empty') }}</td>
           </tr>
-          <template v-for="(m, id) in memories" :key="id">
-            <tr
-              @click="toggleExpand(id as string)"
-              style="cursor:pointer"
-              :style="expandedMemories[id as string] ? 'background:#f8fafc' : ''"
-            >
-              <td style="padding:6px 8px;text-align:center">
-                <span style="color:#6b6b6b;font-size:10px">{{ expandedMemories[id as string] ? '▼' : '▶' }}</span>
-              </td>
-              <td>{{ m.name || id }}</td>
-              <td>{{ embeddingOptions.find(e => e.id === m.embedding)?.label || m.embedding || '-' }}</td>
-              <td @click.stop>
-                <div class="ops-cell">
-                  <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
-                  <button class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
-                </div>
-              </td>
-            </tr>
-            <template v-if="expandedMemories[id as string]">
-              <tr v-if="memoryLoading[id as string]" class="thread-sub-row">
-                <td></td>
-                <td colspan="3" class="thread-sub-cell">{{ t('common.loading') }}</td>
-              </tr>
-              <!-- No threads: show the memory itself as a viewable row -->
-              <tr v-else-if="(memoryThreadsMap[id as string] || []).length === 0" class="thread-sub-row">
-                <td></td>
-                <td colspan="2" class="thread-id-cell">{{ id }}</td>
-                <td>
-                  <button class="btn-outline btn-sm" @click="memoryViewModal?.open(id as string, m)">{{ t('common.view') }}</button>
-                </td>
-              </tr>
-              <tr v-else v-for="thread in memoryThreadsMap[id as string]" :key="thread" class="thread-sub-row">
-                <td></td>
-                <td colspan="2" class="thread-id-cell">{{ thread }}</td>
-                <td>
-                  <button class="btn-outline btn-sm" @click="memoryViewModal?.open(id as string, m, thread)">{{ t('common.view') }}</button>
-                </td>
-              </tr>
-            </template>
-          </template>
+          <tr v-for="(m, id) in memories" :key="id">
+            <td>{{ m.name || id }}</td>
+            <td>{{ embeddingOptions.find(e => e.id === m.embedding)?.label || m.embedding || '-' }}</td>
+            <td class="col-count">
+              <span v-if="memoryCounts[id as string] === undefined" class="count-loading">...</span>
+              <span v-else-if="memoryCounts[id as string] === null" class="count-error">-</span>
+              <span v-else class="count-badge">{{ memoryCounts[id as string] }}</span>
+            </td>
+            <td>
+              <div class="ops-cell">
+                <button class="btn-outline btn-sm" @click="memoryViewModal?.open(id as string, m)">{{ t('common.view') }}</button>
+                <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
+                <button class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
+              </div>
+            </td>
+          </tr>
         </tbody>
       </table>
 
@@ -185,34 +148,18 @@ async function refresh() {
       <template v-else>
         <div v-if="Object.keys(memories).length === 0" class="mobile-card-empty">{{ t('memories.empty') }}</div>
         <div v-for="(m, id) in memories" :key="id" class="mobile-card">
-          <div class="mobile-card-header" @click="toggleExpand(id as string)" style="cursor:pointer;display:flex;align-items:center;gap:6px">
-            <span style="font-size:10px;color:#9b9b9b">{{ expandedMemories[id as string] ? '▼' : '▶' }}</span>
-            {{ m.name || id }}
+          <div class="mobile-card-header">
+            <span>{{ m.name || id }}</span>
+            <span v-if="memoryCounts[id as string] != null" class="count-badge">{{ memoryCounts[id as string] }} {{ t('memories.items') }}</span>
           </div>
           <div class="mobile-card-fields">
             <span class="mobile-card-label">{{ t('memories.embedding_col') }}</span>
             <span class="mobile-card-value">{{ embeddingOptions.find(e => e.id === m.embedding)?.label || m.embedding || '-' }}</span>
           </div>
           <div class="mobile-card-ops">
+            <button class="btn-outline btn-sm" @click="memoryViewModal?.open(id as string, m)">{{ t('common.view') }}</button>
             <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
             <button class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
-          </div>
-          <!-- Expanded threads -->
-          <div v-if="expandedMemories[id as string]" class="mobile-card-threads">
-            <div v-if="memoryLoading[id as string]" class="thread-sub-cell">{{ t('common.loading') }}</div>
-            <!-- No threads: show the memory itself as viewable -->
-            <div v-else-if="(memoryThreadsMap[id as string] || []).length === 0" class="mobile-thread-row">
-              <span class="thread-id-cell">{{ id }}</span>
-              <div class="mobile-card-ops">
-                <button class="btn-outline btn-sm" @click="memoryViewModal?.open(id as string, m)">{{ t('common.view') }}</button>
-              </div>
-            </div>
-            <div v-for="thread in memoryThreadsMap[id as string] || []" :key="thread" class="mobile-thread-row">
-              <span class="thread-id-cell">{{ thread }}</span>
-              <div class="mobile-card-ops">
-                <button class="btn-outline btn-sm" @click="memoryViewModal?.open(id as string, m, thread)">{{ t('common.view') }}</button>
-              </div>
-            </div>
           </div>
         </div>
       </template>
@@ -236,12 +183,6 @@ async function refresh() {
               <option v-for="e in embeddingOptions" :key="e.id" :value="e.id">{{ e.label }}</option>
             </select>
           </div>
-          <div class="form-group">
-            <label class="toggle-label">
-              <input type="checkbox" v-model="form.share" />
-              <span :title="t('memories.share_hint')">{{ t('memories.share') }}</span>
-            </label>
-          </div>
         </div>
         <div class="modal-footer">
           <button class="btn-outline" @click="showModal = false">{{ t('common.cancel') }}</button>
@@ -255,36 +196,27 @@ async function refresh() {
 </template>
 
 <style scoped>
-.thread-sub-row td {
-  background: #fafaf9;
-  border-bottom: 1px solid #f0efed;
-  padding-top: 5px;
-  padding-bottom: 5px;
+.col-count {
+  width: 80px;
+  text-align: center;
 }
-.thread-sub-cell {
-  padding: 5px 12px;
+.count-badge {
+  display: inline-block;
+  background: #e8f4f8;
+  color: #0e7490;
   font-size: 12px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 10px;
+  min-width: 24px;
+  text-align: center;
+}
+.count-loading {
   color: #94a3b8;
-  font-style: italic;
-}
-.thread-id-cell {
-  font-family: monospace;
   font-size: 12px;
-  color: #3d3d3d;
-  padding: 5px 12px;
 }
-.mobile-card-threads {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid #f0efed;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.mobile-thread-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+.count-error {
+  color: #94a3b8;
+  font-size: 12px;
 }
 </style>

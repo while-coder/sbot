@@ -6,7 +6,7 @@ import os from 'os';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { WebSocket, WebSocketServer } from 'ws';
-import { AgentToolService, SkillService, ModelProvider, listThreadIds, listSubDirs, readImageAsDataUrl, isEmptyContent, resizeImageIfNeeded, setMaxImageSize, type StoredMessage, type MessageContent } from "scorpio.ai";
+import { AgentToolService, SkillService, ModelProvider, listThreadIds, isEmptyContent, resizeImageIfNeeded, setMaxImageSize, type StoredMessage, type MessageContent } from "scorpio.ai";
 import { config, isDev, isValidAgentId } from '../Core/Config';
 import { AgentRunner } from '../Agent/AgentRunner';
 import { ACPAgentPool } from '../Agent/ACPAgentPool';
@@ -1228,7 +1228,7 @@ class HttpServer {
     private registerDataRoutes(app: express.Application) {
         // ── Savers / Threads ──
         app.get('/api/savers/:saverId/threads', api(async req => {
-            return listThreadIds(config.getSaverDBDir(req.params.saverId as string), ".db", ".json");
+            return listThreadIds(config.getSaverDBPath(req.params.saverId as string), ".db", ".json");
         }));
 
         app.get('/api/savers/:saverId/threads/:threadId/history', api(async req => {
@@ -1369,9 +1369,6 @@ class HttpServer {
             return { count };
         }));
 
-        app.get('/api/memories/:memoryId/threads', api(async req => {
-            return listThreadIds(config.getMemoryDBDir(req.params.memoryId as string), ".db");
-        }));
 
         // ── Wiki ──
         app.get('/api/wikis/:wikiName', api(async req => {
@@ -1419,9 +1416,6 @@ class HttpServer {
             return svc.search(query, limit);
         }));
 
-        app.get('/api/wikis/:wikiId/threads', api(async req => {
-            return listSubDirs(config.getWikiDBDir(req.params.wikiId as string));
-        }));
     }
 
     // ===== Schedulers =====

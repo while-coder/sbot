@@ -82,8 +82,7 @@ export enum InsightScope {
 
 export interface InsightConfig {
   scope: InsightScope
-  extractor?: string;
-  extractorPrompt?: string;
+  extractor: string;
 }
 
 export interface MemoryConfig {
@@ -151,7 +150,6 @@ export interface AgentConfig {
   skills?: string[] | '*'
   insight?: InsightConfig
   compactModel?: string
-  compactPrompt?: string
   modelCallTimeout?: number
   // react
   agents?: SubAgentRef[]

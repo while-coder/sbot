@@ -44,7 +44,6 @@ export interface ToolAgentEntry extends BaseAgentEntry {
   systemPrompt?: string;       // 系统提示词（single 模式直接使用；react 模式注入所有子 Agent）
   model: string;               // 模型 UUID（single 模式为执行模型；react 模式为 Think 编排模型）
   compactModel?: string;       // 对话压缩模型 UUID（可选）
-  compactPrompt?: string;      // 对话压缩自定义提示词（可选）
   mcp?: string[] | '*';        // MCP 服务器过滤列表（对应 mcp.json 中的 key）；"*" = 加载全部
   skills?: string[] | '*';     // Skills 过滤列表（skill 名称）；"*" = 加载全部
   insight: InsightConfig;      // 经验洞察模块配置
@@ -535,27 +534,19 @@ class Config {
     }
     return {};
   }
-  getSaverDBDir(saverName: string) {
-    return this.getConfigPath(`savers/${saverName}`, true)
+  getSaverDBPath(saverId: string, saverThreadId?: string, ext?: string) {
+    if (saverThreadId) return this.getConfigPath(`savers/${saverId}/${saverThreadId}${ext}`)
+    return this.getConfigPath(`savers/${saverId}`, true)
   }
-  getSaverDBPath(saverId: string, saverThreadId: string, ext: string) {
-    return this.getConfigPath(`savers/${saverId}/${saverThreadId}${ext}`)
-  }
-  getMemoryDBDir(memoryId: string) {
-    return this.getConfigPath(`memories/${memoryId}`, true)
-  }
-  getMemoryDBPath(memoryId: string, memoryThreadId: string) {
-    return this.getConfigPath(`memories/${memoryId}/${memoryThreadId}.db`)
+  getMemoryDBPath(memoryId: string) {
+    return this.getConfigPath(`memories/${memoryId}.db`)
   }
 
   getWiki(id: string): WikiConfig | undefined {
     return this._settings.wikis?.[id.trim()];
   }
-  getWikiDBDir(wikiId: string) {
+  getWikiDBPath(wikiId: string) {
     return this.getConfigPath(`wiki/${wikiId}`, true)
-  }
-  getWikiDBPath(wikiId: string, threadId: string) {
-    return this.getConfigPath(`wiki/${wikiId}/${threadId}`, true)
   }
 
 }
