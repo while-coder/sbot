@@ -1,6 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-import { PromptInjectionDetector, InjectionSeverity } from 'scorpio.ai';
 
 export interface DiscoveredContext {
     path: string;
@@ -11,8 +10,6 @@ export interface DiscoveredContext {
 const CONTEXT_FILE_NAMES = ['.sbot.md', 'SBOT.md', 'sbot.md'];
 const MAX_FILE_SIZE = 10 * 1024; // 10KB
 const DEFAULT_MAX_LEVELS = 3;
-
-const detector = new PromptInjectionDetector();
 
 /**
  * 从 workPath 开始，向上扫描最多 maxLevels 级父目录，查找上下文文件。
@@ -61,9 +58,7 @@ function readAndValidate(filePath: string, level: number): DiscoveredContext | n
             content = fs.readFileSync(filePath, 'utf-8');
         }
 
-        const result = detector.detect(content);
-        if (result.severity === InjectionSeverity.BLOCK) return null;
-        return { path: filePath, content: result.severity === InjectionSeverity.WARN ? result.sanitized : content, level };
+        return { path: filePath, content, level };
     } catch {
         return null;
     }

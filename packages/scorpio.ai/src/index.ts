@@ -351,6 +351,5 @@ export { MessageDispatcher, MessageType, summarizeMultimodal } from "./User";
 // ========================================
 export { contentToString, trimContent, isEmptyContent, readImageAsDataUrl, readMediaAsContentPart, detectMediaType, setMaxImageSize, resizeImageIfNeeded } from "./Utils/contentUtils";
 export type { MediaCategory, ContentPart } from "./Utils/contentUtils";
-export { PromptInjectionDetector, InjectionSeverity, type DetectionResult } from "./Utils/PromptInjectionDetector";
 export { withRetry } from "./Utils/withRetry";
 export { UsageTracker, type UsageData } from "./Utils/UsageTracker";
