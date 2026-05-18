@@ -1224,11 +1224,6 @@ class HttpServer {
         }));
     }
 
-    private resolveMemoryThreadId(req: Request): string | undefined {
-        const sessionId = req.query.sessionId as string | undefined;
-        if (sessionId) return channelThreadId(WEB_CHANNEL_TYPE, WEB_CHANNEL_ID, sessionId);
-        return req.query.threadId as string | undefined;
-    }
 
     private registerDataRoutes(app: express.Application) {
         // ── Savers / Threads ──
@@ -1340,8 +1335,7 @@ class HttpServer {
 
         // ── Memories (accept ?sessionId= or ?threadId=) ──
         app.get('/api/memories/:memoryName', api(async req => {
-            const threadId = this.resolveMemoryThreadId(req);
-            const svc = await AgentRunner.createMemoryService(req.params.memoryName as string, threadId);
+            const svc = await AgentRunner.createMemoryService(req.params.memoryName as string);
             const memories = (await svc.getAllMemories()).map(m => ({
                 id: m.id,
                 content: m.content,
@@ -1356,23 +1350,20 @@ class HttpServer {
         app.post('/api/memories/:memoryName/add', api(async req => {
             const { content, autoSplit } = req.body as { content?: string; autoSplit?: boolean };
             if (!content?.trim()) { const e: any = new Error('content is required'); e.status = 400; throw e; }
-            const threadId = this.resolveMemoryThreadId(req);
-            const svc = await AgentRunner.createMemoryService(req.params.memoryName as string, threadId);
+            const svc = await AgentRunner.createMemoryService(req.params.memoryName as string);
             const ids = await svc.addMemoryDirect(content.trim(), { autoSplit });
             await svc.dispose();
             return { ids };
         }));
 
         app.delete('/api/memories/:memoryName/:memoryId', api(async req => {
-            const threadId = this.resolveMemoryThreadId(req);
-            const svc = await AgentRunner.createMemoryService(req.params.memoryName as string, threadId);
+            const svc = await AgentRunner.createMemoryService(req.params.memoryName as string);
             await svc.deleteMemory(req.params.memoryId as string);
             await svc.dispose();
         }));
 
         app.delete('/api/memories/:memoryName', api(async req => {
-            const threadId = this.resolveMemoryThreadId(req);
-            const svc = await AgentRunner.createMemoryService(req.params.memoryName as string, threadId);
+            const svc = await AgentRunner.createMemoryService(req.params.memoryName as string);
             const count = await svc.clearAll();
             await svc.dispose();
             return { count };
@@ -1384,8 +1375,7 @@ class HttpServer {
 
         // ── Wiki ──
         app.get('/api/wikis/:wikiName', api(async req => {
-            const threadId = this.resolveMemoryThreadId(req);
-            const svc = await AgentRunner.createWikiService(req.params.wikiName as string, threadId);
+            const svc = await AgentRunner.createWikiService(req.params.wikiName as string);
             const pages = await svc.getAllPages();
             return pages.map((p: any) => ({
                 id: p.id, title: p.title, tags: p.tags,
@@ -1395,8 +1385,7 @@ class HttpServer {
         }));
 
         app.get('/api/wikis/:wikiName/pages/:pageId', api(async req => {
-            const threadId = this.resolveMemoryThreadId(req);
-            const svc = await AgentRunner.createWikiService(req.params.wikiName as string, threadId);
+            const svc = await AgentRunner.createWikiService(req.params.wikiName as string);
             const page = await svc.getPage(req.params.pageId as string);
             if (!page) { const e: any = new Error('Page not found'); e.status = 404; throw e; }
             return page;
@@ -1407,20 +1396,17 @@ class HttpServer {
             if (!title?.trim() || !content?.trim()) {
                 const e: any = new Error('title and content are required'); e.status = 400; throw e;
             }
-            const threadId = this.resolveMemoryThreadId(req);
-            const svc = await AgentRunner.createWikiService(req.params.wikiName as string, threadId);
+            const svc = await AgentRunner.createWikiService(req.params.wikiName as string);
             return svc.createPage(title, content, tags);
         }));
 
         app.put('/api/wikis/:wikiName/pages/:pageId', api(async req => {
-            const threadId = this.resolveMemoryThreadId(req);
-            const svc = await AgentRunner.createWikiService(req.params.wikiName as string, threadId);
+            const svc = await AgentRunner.createWikiService(req.params.wikiName as string);
             return svc.updatePage(req.params.pageId as string, req.body);
         }));
 
         app.delete('/api/wikis/:wikiName/pages/:pageId', api(async req => {
-            const threadId = this.resolveMemoryThreadId(req);
-            const svc = await AgentRunner.createWikiService(req.params.wikiName as string, threadId);
+            const svc = await AgentRunner.createWikiService(req.params.wikiName as string);
             await svc.deletePage(req.params.pageId as string);
             return { ok: true };
         }));
@@ -1429,8 +1415,7 @@ class HttpServer {
             const query = req.query.q as string;
             const limit = parseInt(req.query.limit as string) || 5;
             if (!query?.trim()) { const e: any = new Error('q parameter is required'); e.status = 400; throw e; }
-            const threadId = this.resolveMemoryThreadId(req);
-            const svc = await AgentRunner.createWikiService(req.params.wikiName as string, threadId);
+            const svc = await AgentRunner.createWikiService(req.params.wikiName as string);
             return svc.search(query, limit);
         }));
 

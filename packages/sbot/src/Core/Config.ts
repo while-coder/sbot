@@ -412,7 +412,7 @@ class Config {
         [S1]: { name: "default", type: SaverType.Sqlite, share: false },
       },
       memories: {
-        [ME1]: { name: "default", embedding: E1, share: false },
+        [ME1]: { name: "default", embedding: E1 },
       },
       models: {
         [M1]: { name: "openai-gpt4",   provider: ModelProvider.OpenAI,     apiKey: "your-api-key", baseURL: "https://api.openai.com/v1",               model: "gpt-4" },

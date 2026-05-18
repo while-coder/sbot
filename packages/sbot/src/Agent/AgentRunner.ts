@@ -94,8 +94,8 @@ export class AgentRunner {
 
         const container = new ServiceContainer();
         container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
-        await AgentRunner.registerMemoryServices(container, memories ?? [], threadId);
-        await AgentRunner.registerWikiServices(container, wikis ?? [], threadId);
+        await AgentRunner.registerMemoryServices(container, memories ?? []);
+        await AgentRunner.registerWikiServices(container, wikis ?? []);
         await AgentRunner.registerSaverService(container, saverId, threadId);
 
         const agent = await AgentFactory.create({ agentId, container, extraPrompts, dynamicPrompts, agentTools, dbSessionId, workPath });
@@ -106,8 +106,8 @@ export class AgentRunner {
         }
     }
 
-    static async createMemoryService(memoryId: string, threadId?: string): Promise<IMemoryService> {
-        const service = await AgentRunner.buildMemoryService(memoryId, threadId ?? memoryId);
+    static async createMemoryService(memoryId: string): Promise<IMemoryService> {
+        const service = await AgentRunner.buildMemoryService(memoryId);
         if (!service) throw new Error(`Memory config "${memoryId}" not found or missing embedding`);
         return service;
     }
@@ -118,7 +118,7 @@ export class AgentRunner {
         return container.resolve<IAgentSaverService>(IAgentSaverService);
     }
 
-    private static async buildMemoryService(memoryId: string, memoryThreadId: string, loggerService?: LoggerService): Promise<IMemoryService | null> {
+    private static async buildMemoryService(memoryId: string, loggerService?: LoggerService): Promise<IMemoryService | null> {
         const memoryConfig = config.getMemory(memoryId);
         if (!memoryConfig?.embedding) return null;
 
@@ -126,8 +126,7 @@ export class AgentRunner {
 
         const sub = new ServiceContainer();
         if (loggerService) sub.registerInstance(ILoggerService, loggerService);
-        const memThreadId = memoryConfig.share ? memoryId : memoryThreadId;
-        const dbPath = config.getMemoryDBPath(memoryId, memThreadId);
+        const dbPath = config.getMemoryDBPath(memoryId, memoryId);
         sub.registerInstance(IMemoryDatabase, MemoryDatabaseManager.getInstance().acquire(dbPath));
 
         sub.registerWithArgs(IMemoryService, MemoryService, { [IEmbeddingService]: embedding });
@@ -138,10 +137,9 @@ export class AgentRunner {
     private static async registerMemoryServices(
         container: ServiceContainer,
         memories: string[],
-        memoryThreadId: string,
     ): Promise<void> {
         const loggerService = container.isRegistered(ILoggerService) ? await container.resolve<LoggerService>(ILoggerService) : undefined
-        const results = await Promise.all(memories.map(memoryId => AgentRunner.buildMemoryService(memoryId, memoryThreadId, loggerService)));
+        const results = await Promise.all(memories.map(memoryId => AgentRunner.buildMemoryService(memoryId, loggerService)));
         const services = results.filter((s): s is IMemoryService => s !== null);
         if (services.length > 0) {
             container.registerInstance(IMemoryService, services);
@@ -149,24 +147,19 @@ export class AgentRunner {
         }
     }
 
-    static async createWikiService(wikiId: string, threadId?: string): Promise<IWikiService> {
-        const service = await AgentRunner.buildWikiService(wikiId, threadId ?? wikiId);
+    static async createWikiService(wikiId: string): Promise<IWikiService> {
+        const service = await AgentRunner.buildWikiService(wikiId);
         if (!service) throw new Error(`Wiki config "${wikiId}" not found`);
         return service;
     }
 
-    private static async buildWikiService(
-        wikiId: string,
-        wikiThreadId: string,
-    ): Promise<IWikiService | null> {
+    private static async buildWikiService(wikiId: string): Promise<IWikiService | null> {
         const wikiConfig = config.getWiki(wikiId);
         if (!wikiConfig) return null;
 
         const sub = new ServiceContainer();
-        const wikiThreadIdResolved = wikiConfig.share ? wikiId : wikiThreadId;
-        const wikiDir = config.getWikiDBPath(wikiId, wikiThreadIdResolved);
+        const wikiDir = config.getWikiDBPath(wikiId, wikiId);
         sub.registerInstance(IWikiDatabase, WikiDatabaseManager.getInstance().acquire(wikiDir));
-
         sub.registerWithArgs(IWikiService, WikiService, {});
 
         return sub.resolve<IWikiService>(IWikiService);
@@ -175,12 +168,9 @@ export class AgentRunner {
     private static async registerWikiServices(
         container: ServiceContainer,
         wikis: string[],
-        wikiThreadId: string,
     ): Promise<void> {
         if (wikis.length === 0) return;
-        const results = await Promise.all(
-            wikis.map(wikiId => AgentRunner.buildWikiService(wikiId, wikiThreadId))
-        );
+        const results = await Promise.all(wikis.map(wikiId => AgentRunner.buildWikiService(wikiId)));
         const services = results.filter((s): s is IWikiService => s !== null);
         if (services.length > 0) {
             container.registerInstance(IWikiService, services);

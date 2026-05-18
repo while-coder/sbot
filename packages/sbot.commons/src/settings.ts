@@ -91,15 +91,11 @@ export interface MemoryConfig {
   name: string
   /** 记忆使用的 embedding UUID（对应 embeddings 中的 key） */
   embedding: string
-  /** 是否共享记忆（true = 所有 thread 共用同一份记忆；false = 每个 thread 独立，默认） */
-  share: boolean
 }
 
 export interface WikiConfig {
   /** 显示名称 */
   name: string
-  /** 是否共享（true = 所有 thread 共用同一份 wiki；false = 每个 thread 独立，默认） */
-  share: boolean
 }
 
 export interface SaverConfig {
