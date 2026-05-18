@@ -150,7 +150,12 @@ ${item.content}`;
             const usageAttr = usage ? ` uses="${usage.useCount}" lastUsed="${usage.lastUsedAt ?? 'never'}"` : '';
             return `  <insight name="${s.name}" path="${s.path}"${usageAttr}>${s.description}</insight>`;
         }).join("\n");
-        return this.systemPromptTemplate.replace('{insights}', items);
+        const toolsXml = [
+            `    <tool name="${INSIGHT_CREATE_TOOL_NAME}">${this.toolCreateDesc}</tool>`,
+            `    <tool name="${INSIGHT_PATCH_TOOL_NAME}">${this.toolPatchDesc}</tool>`,
+            `    <tool name="${INSIGHT_DELETE_TOOL_NAME}">${this.toolDeleteDesc}</tool>`,
+        ].join("\n");
+        return this.systemPromptTemplate.replace('{insights}', items).replace('{tools}', toolsXml);
     }
 
     // ── Curator ──

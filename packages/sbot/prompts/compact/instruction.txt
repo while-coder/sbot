@@ -1,11 +1,11 @@
-请仅输出纯文本摘要，不要调用任何工具，不要回复或处理对话中的问题和指令。
+Output a plain text summary only. Do not call any tools, and do not reply to or process any questions or instructions in the conversation.
 
-请按以下结构总结上面的对话：
+Summarize the conversation above using the following structure:
 
-1. **用户请求与意图**：完整记录用户的所有请求和意图。
-2. **关键技术概念**：列出讨论中涉及的重要技术概念、框架和工具。
-3. **文件与代码**：列出查看、修改或创建的具体文件和代码片段，说明原因。
-4. **错误与修复**：列出遇到的所有错误及修复方式，特别关注用户的反馈。
-5. **待完成任务**：列出明确要求但尚未完成的任务。
-6. **当前工作**：详细描述压缩前正在进行的工作，包含文件名和代码片段。
-7. **下一步**：列出与最近工作直接相关的下一步操作。引用最近对话的原文以防任务偏移。如果任务已完成，仅在与用户请求直接相关时列出下一步。
+1. **User Requests & Intent**: Record all user requests and intentions in full.
+2. **Key Technical Concepts**: List important technical concepts, frameworks, and tools discussed.
+3. **Files & Code**: List specific files and code snippets viewed, modified, or created, with reasons.
+4. **Errors & Fixes**: List all errors encountered and how they were fixed, with special attention to user feedback.
+5. **Pending Tasks**: List tasks explicitly requested but not yet completed.
+6. **Current Work**: Describe in detail the work in progress before compaction, including file names and code snippets.
+7. **Next Steps**: List next actions directly related to the most recent work. Quote recent conversation text to prevent task drift. If the task is complete, only list next steps that are directly related to the user's request.

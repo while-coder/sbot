@@ -14,7 +14,11 @@ const { isMobile } = useResponsive()
 
 const memories         = computed(() => store.settings.memories || {})
 const embeddingOptions = computed(() =>
-  Object.entries(store.settings.embeddings || {}).map(([id, e]) => ({ id, label: e.name || id }))
+  Object.entries(store.settings.embeddings || {}).map(([id, e]) => ({
+    id,
+    label: e.name || id,
+    detail: `${e.provider} / ${e.model}`,
+  }))
 )
 const showModal   = ref(false)
 const editingName = ref<string | null>(null)
@@ -133,7 +137,13 @@ async function refresh() {
           </tr>
           <tr v-for="(m, id) in memories" :key="id">
             <td class="cell-nowrap">{{ m.name || id }}</td>
-            <td class="cell-nowrap cell-secondary">{{ embeddingOptions.find(e => e.id === m.embedding)?.label || m.embedding || '-' }}</td>
+            <td class="cell-nowrap cell-secondary">
+              <template v-if="embeddingOptions.find(e => e.id === m.embedding)">
+                {{ embeddingOptions.find(e => e.id === m.embedding)!.label }}
+                <span class="embed-detail">{{ embeddingOptions.find(e => e.id === m.embedding)!.detail }}</span>
+              </template>
+              <template v-else>{{ m.embedding || '-' }}</template>
+            </td>
             <td class="col-center">
               <span v-if="memoryCounts[id as string] === undefined" class="count-loading">...</span>
               <span v-else-if="memoryCounts[id as string] === null" class="count-error">-</span>
@@ -160,7 +170,10 @@ async function refresh() {
           </div>
           <div class="mobile-card-fields">
             <span class="mobile-card-label">{{ t('memories.embedding_col') }}</span>
-            <span class="mobile-card-value">{{ embeddingOptions.find(e => e.id === m.embedding)?.label || m.embedding || '-' }}</span>
+            <span class="mobile-card-value">
+              {{ embeddingOptions.find(e => e.id === m.embedding)?.label || m.embedding || '-' }}
+              <span v-if="embeddingOptions.find(e => e.id === m.embedding)" class="embed-detail">{{ embeddingOptions.find(e => e.id === m.embedding)!.detail }}</span>
+            </span>
           </div>
           <div class="mobile-card-ops">
             <button class="btn-outline btn-sm" @click="memoryViewModal?.open(id as string, m)">{{ t('common.view') }}</button>
@@ -186,7 +199,8 @@ async function refresh() {
           <div class="form-group">
             <label>{{ t('memories.embedding_model') }} *</label>
             <select v-model="form.embedding">
-              <option v-for="e in embeddingOptions" :key="e.id" :value="e.id">{{ e.label }}</option>
+              <option value="" disabled>{{ t('memories.embedding_placeholder') }}</option>
+              <option v-for="e in embeddingOptions" :key="e.id" :value="e.id">{{ e.label }} ({{ e.detail }})</option>
             </select>
           </div>
         </div>
@@ -216,6 +230,11 @@ async function refresh() {
 .cell-secondary {
   color: #6b6b6b;
   font-size: 12px;
+}
+.embed-detail {
+  display: block;
+  color: #94a3b8;
+  font-size: 11px;
 }
 .ops-row {
   display: inline-flex;

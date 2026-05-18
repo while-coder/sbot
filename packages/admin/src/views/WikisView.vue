@@ -13,6 +13,13 @@ const { show } = useToast()
 const { isMobile } = useResponsive()
 
 const wikis = computed(() => store.settings.wikis || {})
+const embeddingOptions = computed(() =>
+  Object.entries(store.settings.embeddings || {}).map(([id, e]) => ({
+    id,
+    label: e.name || id,
+    detail: `${e.provider} / ${e.model}`,
+  }))
+)
 
 const showModal   = ref(false)
 const editingName = ref<string | null>(null)
@@ -42,7 +49,7 @@ watch(wikis, () => loadCounts(), { deep: true })
 
 function openAdd() {
   editingName.value = null
-  form.value = { name: '' }
+  form.value = { name: '', embedding: '' }
   showModal.value = true
 }
 
@@ -51,6 +58,7 @@ function openEdit(id: string) {
   editingName.value = id
   form.value = {
     name: w.name,
+    embedding: w.embedding,
   }
   showModal.value = true
 }
@@ -60,6 +68,7 @@ async function save() {
   try {
     const body: WikiConfig = {
       name: form.value.name,
+      embedding: form.value.embedding || undefined,
     }
     const id = editingName.value
     const res = id
@@ -109,22 +118,31 @@ async function refresh() {
       <table v-if="!isMobile" class="wiki-list-table">
         <colgroup>
           <col style="width:auto" />
+          <col style="width:140px" />
           <col style="width:70px" />
           <col style="width:180px" />
         </colgroup>
         <thead>
           <tr>
             <th>{{ t('common.name') }}</th>
+            <th>{{ t('wikis.embedding_col') }}</th>
             <th class="col-center">{{ t('wikis.pages_col') }}</th>
             <th class="col-center">{{ t('common.ops') }}</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="Object.keys(wikis).length === 0">
-            <td colspan="3" style="text-align:center;color:#94a3b8;padding:40px">{{ t('wikis.empty') }}</td>
+            <td colspan="4" style="text-align:center;color:#94a3b8;padding:40px">{{ t('wikis.empty') }}</td>
           </tr>
           <tr v-for="(w, id) in wikis" :key="id">
             <td class="cell-nowrap">{{ w.name || id }}</td>
+            <td class="cell-nowrap cell-secondary">
+              <template v-if="embeddingOptions.find(e => e.id === w.embedding)">
+                {{ embeddingOptions.find(e => e.id === w.embedding)!.label }}
+                <span class="embed-detail">{{ embeddingOptions.find(e => e.id === w.embedding)!.detail }}</span>
+              </template>
+              <template v-else>{{ w.embedding || t('wikis.embedding_none') }}</template>
+            </td>
             <td class="col-center">
               <span v-if="wikiCounts[id as string] === undefined" class="count-loading">...</span>
               <span v-else-if="wikiCounts[id as string] === null" class="count-error">-</span>
@@ -149,6 +167,13 @@ async function refresh() {
             <span>{{ w.name || id }}</span>
             <span v-if="wikiCounts[id as string] != null" class="count-badge">{{ wikiCounts[id as string] }} {{ t('wikis.pages_unit') }}</span>
           </div>
+          <div v-if="w.embedding" class="mobile-card-fields">
+            <span class="mobile-card-label">{{ t('wikis.embedding_col') }}</span>
+            <span class="mobile-card-value">
+              {{ embeddingOptions.find(e => e.id === w.embedding)?.label || w.embedding }}
+              <span v-if="embeddingOptions.find(e => e.id === w.embedding)" class="embed-detail">{{ embeddingOptions.find(e => e.id === w.embedding)!.detail }}</span>
+            </span>
+          </div>
           <div class="mobile-card-ops">
             <button class="btn-outline btn-sm" @click="wikiViewModal?.open(id as string, w)">{{ t('common.view') }}</button>
             <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
@@ -169,6 +194,13 @@ async function refresh() {
           <div class="form-group">
             <label>{{ t('common.name') }} *</label>
             <input v-model="form.name" :placeholder="t('wikis.name_placeholder')" />
+          </div>
+          <div class="form-group">
+            <label>{{ t('wikis.embedding_model') }}</label>
+            <select v-model="form.embedding">
+              <option value="">{{ t('wikis.embedding_none') }}</option>
+              <option v-for="e in embeddingOptions" :key="e.id" :value="e.id">{{ e.label }} ({{ e.detail }})</option>
+            </select>
           </div>
         </div>
         <div class="modal-footer">
@@ -193,6 +225,11 @@ async function refresh() {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.embed-detail {
+  display: block;
+  color: #94a3b8;
+  font-size: 11px;
 }
 .ops-row {
   display: inline-flex;
