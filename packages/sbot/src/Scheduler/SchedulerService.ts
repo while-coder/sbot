@@ -5,6 +5,7 @@ import { sessionManager } from "../Session/SessionManager";
 import { LoggerService } from "../Core/LoggerService";
 import { config } from "../Core/Config";
 import { channelManager } from "../Channel/ChannelManager";
+import { TimerExecutor } from "../Core/TimerExecutor";
 
 const logger = LoggerService.getLogger("SchedulerService.ts");
 
@@ -63,7 +64,7 @@ async function executeScheduler(schedulerId: number): Promise<void> {
 }
 
 class SchedulerService {
-    private jobs = new Map<number, CronJob>();
+    private executor = new TimerExecutor<CronJob>({ name: "Scheduler", stop: job => job.stop() });
 
     async start(): Promise<void> {
         const schedulers = await database.findAll<SchedulerRow>(database.scheduler, {
@@ -82,9 +83,8 @@ class SchedulerService {
         }
     }
 
-    /** 调度单个任务，返回 true 表示成功调度 */
     private async schedule(scheduler: SchedulerRow): Promise<boolean> {
-        this.cancel(scheduler.id);
+        this.executor.cancel(scheduler.id);
 
         if (!scheduler.expr?.trim()) {
             logger.error(`Scheduler task [${scheduler.id}] cron expression is empty, skipping`);
@@ -109,7 +109,7 @@ class SchedulerService {
                 start: true,
                 waitForCompletion: true,
             });
-            this.jobs.set(scheduler.id, job);
+            this.executor.set(scheduler.id, job);
             const nextRun = job.nextDate().toMillis();
             await database.update(database.scheduler, { nextRun }, { where: { id: scheduler.id } });
             logger.info(`Scheduler task [${scheduler.id}] started (${scheduler.expr}), next run: ${job.nextDate().toISO()}`);
@@ -120,41 +120,25 @@ class SchedulerService {
         }
     }
 
-    /** Returns the next scheduled timestamp (ms) for a scheduler, or null if not scheduled */
     nextDate(schedulerId: number): number | null {
-        const job = this.jobs.get(schedulerId);
+        const job = this.executor.get(schedulerId);
         if (!job) return null;
         try { return job.nextDate().toMillis(); } catch { return null; }
     }
 
-    /** 停止并移除 cron job（不操作数据库） */
-    private cancel(schedulerId: number): void {
-        const job = this.jobs.get(schedulerId);
-        if (job) {
-            job.stop();
-            this.jobs.delete(schedulerId);
-        }
-    }
-
-    /** 停止所有 cron job */
     stopAll(): void {
-        for (const [id, job] of this.jobs) {
-            job.stop();
-        }
-        this.jobs.clear();
+        this.executor.stopAll();
     }
 
-    /** 取消调度并标记为禁用（软删除） */
     async delete(schedulerId: number): Promise<void> {
-        this.cancel(schedulerId);
+        this.executor.cancel(schedulerId);
         await database.update(database.scheduler, { disabled: true }, { where: { id: schedulerId } });
     }
 
-    /** 重新从 DB 加载并重新调度（外部增删改后调用） */
     async reload(schedulerId: number): Promise<void> {
         const scheduler = await database.findByPk<SchedulerRow>(database.scheduler, schedulerId);
         if (scheduler) await this.schedule(scheduler);
-        else this.cancel(schedulerId);
+        else this.executor.cancel(schedulerId);
     }
 }
 

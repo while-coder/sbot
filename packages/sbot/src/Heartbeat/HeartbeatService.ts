@@ -2,13 +2,17 @@ import fs from "fs";
 import { database, HeartbeatRow, StateRow } from "../Core/Database";
 import { config } from "../Core/Config";
 import { LoggerService } from "../Core/LoggerService";
+import { TimerExecutor } from "../Core/TimerExecutor";
 import { executeHeartbeat, type HeartbeatExecutionContext } from "./executeHeartbeat";
 
 const logger = LoggerService.getLogger("HeartbeatService.ts");
 
 class HeartbeatService {
-    private intervals = new Map<number, ReturnType<typeof setInterval>>();
-    private running = new Set<number>();
+    private executor = new TimerExecutor<ReturnType<typeof setInterval>>({
+        name: "Heartbeat",
+        stop: h => clearInterval(h),
+        concurrencyGuard: true,
+    });
 
     async start(): Promise<void> {
         await this.migrateFromSettings();
@@ -24,8 +28,6 @@ class HeartbeatService {
     }
 
     private schedule(heartbeatId: number, intervalMinutes: number): boolean {
-        this.cancel(heartbeatId);
-
         if (intervalMinutes <= 0) {
             logger.error(`Heartbeat [${heartbeatId}] invalid interval: ${intervalMinutes} minutes`);
             return false;
@@ -33,50 +35,31 @@ class HeartbeatService {
 
         const ms = intervalMinutes * 60_000;
         const interval = setInterval(() => this.execute(heartbeatId), ms);
-        this.intervals.set(heartbeatId, interval);
+        this.executor.set(heartbeatId, interval);
         logger.info(`Heartbeat [${heartbeatId}] scheduled (interval: ${intervalMinutes}m)`);
         return true;
-    }
-
-    private cancel(heartbeatId: number): void {
-        const interval = this.intervals.get(heartbeatId);
-        if (interval) {
-            clearInterval(interval);
-            this.intervals.delete(heartbeatId);
-        }
     }
 
     private async execute(heartbeatId: number): Promise<void> {
         const row = await database.findByPk<HeartbeatRow>(database.heartbeat, heartbeatId);
         if (!row) {
             logger.warn(`Heartbeat [${heartbeatId}] not found in database, cancelling`);
-            this.cancel(heartbeatId);
+            this.executor.cancel(heartbeatId);
             return;
         }
 
-        if (this.running.has(heartbeatId)) {
-            logger.debug(`Heartbeat [${heartbeatId}] still running, skipping`);
-            return;
-        }
-
-        const ctx: HeartbeatExecutionContext = {
-            heartbeatId,
-            config: row,
-        };
-
-        this.running.add(heartbeatId);
-        try {
+        const ran = await this.executor.execute(heartbeatId, async () => {
+            const ctx: HeartbeatExecutionContext = { heartbeatId, config: row };
             await executeHeartbeat(ctx);
-        } catch (e: any) {
-            logger.error(`Heartbeat [${heartbeatId}] execution error: ${e?.message ?? e}`);
-        } finally {
-            this.running.delete(heartbeatId);
+        });
+
+        if (!ran) {
+            logger.debug(`Heartbeat [${heartbeatId}] still running, skipping`);
         }
     }
 
     stopAll(): void {
-        for (const [, interval] of this.intervals) clearInterval(interval);
-        this.intervals.clear();
+        this.executor.stopAll();
     }
 
     async reload(heartbeatId: number): Promise<void> {
@@ -84,7 +67,7 @@ class HeartbeatService {
         if (row && row.enabled) {
             this.schedule(row.id, row.intervalMinutes);
         } else {
-            this.cancel(heartbeatId);
+            this.executor.cancel(heartbeatId);
         }
     }
 
@@ -121,21 +104,21 @@ class HeartbeatService {
         await database.update(database.heartbeat, data, { where: { id } });
         const row = await database.findByPk<HeartbeatRow>(database.heartbeat, id);
         if (row) {
-            this.cancel(id);
+            this.executor.cancel(id);
             if (row.enabled) this.schedule(row.id, row.intervalMinutes);
         }
         return row;
     }
 
     async delete(id: number): Promise<void> {
-        this.cancel(id);
+        this.executor.cancel(id);
         await database.destroy(database.heartbeat, { where: { id } });
     }
 
     async getStatus(): Promise<Array<{ id: number; name: string; intervalMinutes: number; lastRun: string | null; nextRun: string | null; running: boolean; enabled: boolean }>> {
         const rows = await this.getAll();
         return rows.map(row => {
-            const running = this.running.has(row.id);
+            const running = this.executor.isRunning(row.id);
             const lastRun = row.lastRun ? new Date(Number(row.lastRun)).toISOString() : null;
             let nextRun: string | null = null;
             if (row.enabled && row.lastRun) {

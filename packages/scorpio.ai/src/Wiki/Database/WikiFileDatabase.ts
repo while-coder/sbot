@@ -15,10 +15,14 @@ export class WikiFileDatabase implements IWikiDatabase {
     // --- 查询 ---
 
     async getById(id: string): Promise<WikiPage | null> {
-        for (const page of this.readAllPages()) {
-            if (page.id === id) return page;
+        const filePath = this.pageFilePath(id);
+        if (!existsSync(filePath)) return null;
+        try {
+            const content = readFileSync(filePath, "utf-8");
+            return this.parsePage(content);
+        } catch {
+            return null;
         }
-        return null;
     }
 
     async getByTitle(title: string): Promise<WikiPage | null> {
@@ -47,19 +51,13 @@ export class WikiFileDatabase implements IWikiDatabase {
     // --- 写入 ---
 
     async insert(page: WikiPage): Promise<void> {
-        const filePath = this.pageFilePath(page.title);
+        const filePath = this.pageFilePath(page.id);
         writeFileSync(filePath, this.serializePage(page), "utf-8");
     }
 
     async update(id: string, updates: Partial<WikiPage>): Promise<void> {
         const existing = await this.getById(id);
         if (!existing) return;
-
-        // If title changed, delete old file
-        if (updates.title && updates.title !== existing.title) {
-            const oldPath = this.pageFilePath(existing.title);
-            if (existsSync(oldPath)) unlinkSync(oldPath);
-        }
 
         const merged: WikiPage = {
             ...existing,
@@ -68,14 +66,12 @@ export class WikiFileDatabase implements IWikiDatabase {
             updatedAt: updates.updatedAt ?? Date.now(),
         };
 
-        const filePath = this.pageFilePath(merged.title);
+        const filePath = this.pageFilePath(id);
         writeFileSync(filePath, this.serializePage(merged), "utf-8");
     }
 
     async delete(id: string): Promise<void> {
-        const page = await this.getById(id);
-        if (!page) return;
-        const filePath = this.pageFilePath(page.title);
+        const filePath = this.pageFilePath(id);
         if (existsSync(filePath)) unlinkSync(filePath);
     }
 
@@ -158,12 +154,7 @@ export class WikiFileDatabase implements IWikiDatabase {
         return lines.join("\n") + "\n" + page.content + "\n";
     }
 
-    private pageFilePath(title: string): string {
-        // Slugify: lowercase, replace non-alphanumeric with hyphens, collapse
-        const slug = title
-            .toLowerCase()
-            .replace(/[^a-z0-9\u4e00-\u9fff]+/gi, "-")
-            .replace(/^-+|-+$/g, "");
-        return join(this.dir, `${slug || "untitled"}.md`);
+    private pageFilePath(id: string): string {
+        return join(this.dir, `${id}.md`);
     }
 }
