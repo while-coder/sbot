@@ -2,14 +2,9 @@ import Database from "better-sqlite3";
 import { existsSync, mkdirSync } from "fs";
 import { dirname } from "path";
 import { inject, T_DBPath } from "../../Core";
-import { Memory } from "../types";
+import { Memory, MemoryResult } from "../types";
 import { IMemoryDatabase } from "./IMemoryDatabase";
 import { cosineSimilarity } from "../utils";
-
-// ─────────────────────────────────────────────────────────────────────────────
-// MemorySqliteDatabase
-// 直接读写指定的 SQLite 文件，懒初始化
-// ─────────────────────────────────────────────────────────────────────────────
 
 export class MemorySqliteDatabase implements IMemoryDatabase {
     private _db: Database.Database | undefined;
@@ -32,44 +27,16 @@ export class MemorySqliteDatabase implements IMemoryDatabase {
                     id            TEXT    PRIMARY KEY,
                     content       TEXT    NOT NULL,
                     embedding     TEXT    NOT NULL,
-                    importance    REAL    NOT NULL DEFAULT 0.5,
                     access_count  INTEGER NOT NULL DEFAULT 0,
                     last_accessed INTEGER NOT NULL,
-                    metadata      TEXT,
-                    created_at    INTEGER NOT NULL,
-                    updated_at    INTEGER NOT NULL
+                    created_at    INTEGER NOT NULL
                 );
-                CREATE INDEX IF NOT EXISTS idx_memories_prune ON memories(created_at, importance, access_count);
             `);
         }
         return this._db;
     }
 
-    // ===== 公开方法 =====
-
-    async insertMemory(memory: Memory): Promise<void> {
-        const { importance, accessCount, lastAccessed, timestamp, ...rest } = memory.metadata;
-
-        this.db.prepare(`
-            INSERT INTO memories (id, content, embedding, importance, access_count,
-                last_accessed, metadata, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(
-            memory.id,
-            memory.content,
-            JSON.stringify(memory.embedding),
-            importance,
-            accessCount,
-            lastAccessed,
-            Object.keys(rest).length > 0 ? JSON.stringify(rest) : null,
-            timestamp,
-            timestamp
-        );
-    }
-
-    async clearMemories(): Promise<number> {
-        return this.db.prepare(`DELETE FROM memories`).run().changes;
-    }
+    // ===== 查询 =====
 
     async getAllMemories(): Promise<Memory[]> {
         const rows = this.db.prepare(`SELECT * FROM memories`).all() as any[];
@@ -81,29 +48,21 @@ export class MemorySqliteDatabase implements IMemoryDatabase {
         currentTime: number,
         decayFactor: number = 0.995,
         limit: number = 10
-    ): Promise<Array<{ memory: Memory; distance: number; score: number; decayedScore: number }>> {
+    ): Promise<MemoryResult[]> {
         return this.searchSimilar(queryEmbedding, limit * 2)
             .map(result => {
-                const { metadata } = result.memory;
-                const hoursSinceCreation = (currentTime - metadata.timestamp) / 3600000;
+                const mem = result.memory;
+                const hoursSinceCreation = (currentTime - mem.createdAt) / 3600000;
                 const timeDecay = Math.pow(decayFactor, hoursSinceCreation);
                 const recencyScore = Math.pow(0.5, hoursSinceCreation / 24);
-                const accessScore = Math.log(metadata.accessCount + 1) / 10;
-                const decayedScore = result.score * timeDecay * 0.5
-                    + metadata.importance * 0.3
-                    + recencyScore * 0.1
+                const accessScore = Math.log(mem.accessCount + 1) / 10;
+                const score = result.score * timeDecay * 0.7
+                    + recencyScore * 0.2
                     + accessScore * 0.1;
-                return { ...result, decayedScore };
+                return { memory: mem, score };
             })
-            .sort((a, b) => b.decayedScore - a.decayedScore)
+            .sort((a, b) => b.score - a.score)
             .slice(0, limit);
-    }
-
-    async updateAccess(memoryId: string): Promise<void> {
-        const now = Date.now();
-        this.db.prepare(
-            `UPDATE memories SET access_count = access_count + 1, last_accessed = ?, updated_at = ? WHERE id = ?`
-        ).run(now, now, memoryId);
     }
 
     async findDuplicate(
@@ -114,21 +73,38 @@ export class MemorySqliteDatabase implements IMemoryDatabase {
         return top ? { memory: top.memory, score: top.score } : undefined;
     }
 
+    // ===== 写入 =====
+
+    async insertMemory(memory: Memory): Promise<void> {
+        this.db.prepare(`
+            INSERT INTO memories (id, content, embedding, access_count,
+                last_accessed, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `).run(
+            memory.id,
+            memory.content,
+            JSON.stringify(memory.embedding),
+            memory.accessCount,
+            memory.lastAccessed,
+            memory.createdAt
+        );
+    }
+
+    async updateAccess(memoryId: string): Promise<void> {
+        this.db.prepare(
+            `UPDATE memories SET access_count = access_count + 1, last_accessed = ? WHERE id = ?`
+        ).run(Date.now(), memoryId);
+    }
+
     async deleteMemory(id: string): Promise<void> {
         this.db.prepare(`DELETE FROM memories WHERE id = ?`).run(id);
     }
 
-    async pruneMemories(
-        maxAge: number,
-        minImportance: number = 0.3,
-        minAccessCount: number = 2
-    ): Promise<number> {
-        const cutoffTime = Date.now() - maxAge;
-        return this.db.prepare(`
-            DELETE FROM memories
-            WHERE created_at < ? AND importance < ? AND access_count < ?
-        `).run(cutoffTime, minImportance, minAccessCount).changes;
+    async clearMemories(): Promise<number> {
+        return this.db.prepare(`DELETE FROM memories`).run().changes;
     }
+
+    // ===== 生命周期 =====
 
     async dispose(): Promise<void> {
         this._db?.close();
@@ -160,18 +136,13 @@ export class MemorySqliteDatabase implements IMemoryDatabase {
     }
 
     private rowToMemory(row: any, embedding?: number[]): Memory {
-        const extraMetadata = row.metadata ? JSON.parse(row.metadata) : {};
         return {
             id: row.id,
             content: row.content,
             embedding: embedding ?? JSON.parse(row.embedding),
-            metadata: {
-                timestamp: row.created_at,
-                importance: row.importance,
-                accessCount: row.access_count,
-                lastAccessed: row.last_accessed,
-                ...extraMetadata
-            }
+            createdAt: row.created_at,
+            accessCount: row.access_count,
+            lastAccessed: row.last_accessed,
         };
     }
 }

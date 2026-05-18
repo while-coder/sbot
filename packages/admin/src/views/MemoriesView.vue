@@ -5,7 +5,6 @@ import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
-import { MemoryMode } from '@/types'
 import type { MemoryConfig } from '@/types'
 import MemoryViewModal from './modals/MemoryViewModal.vue'
 
@@ -17,15 +16,10 @@ const memories         = computed(() => store.settings.memories || {})
 const embeddingOptions = computed(() =>
   Object.entries(store.settings.embeddings || {}).map(([id, e]) => ({ id, label: e.name || id }))
 )
-const modelOptions = computed(() =>
-  Object.entries(store.settings.models || {}).map(([id, m]) => ({ id, label: m.name || id }))
-)
-
 const showModal   = ref(false)
 const editingName = ref<string | null>(null)
 const form = ref<MemoryConfig>({
-  name: '', mode: MemoryMode.HumanAndAI, maxAgeDays: undefined,
-  embedding: '', extractor: '', compressor: '', extractorPrompt: '', compressorPrompt: '', share: false,
+  name: '', embedding: '', share: false,
 })
 
 const memoryViewModal = ref<InstanceType<typeof MemoryViewModal>>()
@@ -53,7 +47,7 @@ async function toggleExpand(id: string) {
 
 function openAdd() {
   editingName.value = null
-  form.value = { name: '', mode: MemoryMode.HumanAndAI, maxAgeDays: undefined, embedding: '', extractor: '', compressor: '', extractorPrompt: '', compressorPrompt: '', share: false }
+  form.value = { name: '', embedding: '', share: false }
   showModal.value = true
 }
 
@@ -62,13 +56,7 @@ function openEdit(id: string) {
   editingName.value = id
   form.value = {
     name: m.name,
-    mode: m.mode,
-    maxAgeDays: m.maxAgeDays,
     embedding: m.embedding,
-    extractor: m.extractor,
-    compressor: m.compressor || '',
-    extractorPrompt: m.extractorPrompt || '',
-    compressorPrompt: m.compressorPrompt || '',
     share: !!m.share,
   }
   showModal.value = true
@@ -77,20 +65,13 @@ function openEdit(id: string) {
 async function save() {
   if (!form.value.name.trim())  { show(t('common.name_required'),        'error'); return }
   if (!form.value.embedding)    { show(t('memories.error_embedding'), 'error'); return }
-  if (!form.value.extractor)    { show(t('memories.error_extractor'),      'error'); return }
   try {
     const { name, ...config } = form.value
     const body: MemoryConfig = {
       name,
-      mode: config.mode,
       embedding: config.embedding,
-      extractor: config.extractor,
       share: !!config.share,
     }
-    if (config.maxAgeDays) body.maxAgeDays = config.maxAgeDays
-    if (config.compressor) body.compressor = config.compressor
-    if (config.extractorPrompt) body.extractorPrompt = config.extractorPrompt
-    if (config.compressorPrompt) body.compressorPrompt = config.compressorPrompt
     const id = editingName.value
     const res = id
       ? await apiFetch(`/api/settings/memories/${encodeURIComponent(id)}`, 'PUT', body)
@@ -151,11 +132,11 @@ async function refresh() {
     <div class="page-content">
       <table v-if="!isMobile">
         <thead>
-          <tr><th style="width:32px"></th><th>{{ t('common.name') }}</th><th>{{ t('memories.mode_col') }}</th><th>{{ t('memories.embedding_col') }}</th><th>{{ t('memories.max_days_col') }}</th><th>{{ t('common.ops') }}</th></tr>
+          <tr><th style="width:32px"></th><th>{{ t('common.name') }}</th><th>{{ t('memories.embedding_col') }}</th><th>{{ t('common.ops') }}</th></tr>
         </thead>
         <tbody>
           <tr v-if="Object.keys(memories).length === 0">
-            <td colspan="6" style="text-align:center;color:#94a3b8;padding:40px">{{ t('memories.empty') }}</td>
+            <td colspan="4" style="text-align:center;color:#94a3b8;padding:40px">{{ t('memories.empty') }}</td>
           </tr>
           <template v-for="(m, id) in memories" :key="id">
             <tr
@@ -167,9 +148,7 @@ async function refresh() {
                 <span style="color:#6b6b6b;font-size:10px">{{ expandedMemories[id as string] ? '▼' : '▶' }}</span>
               </td>
               <td>{{ m.name || id }}</td>
-              <td>{{ m.mode || '-' }}</td>
               <td>{{ embeddingOptions.find(e => e.id === m.embedding)?.label || m.embedding || '-' }}</td>
-              <td>{{ m.maxAgeDays ?? '-' }}</td>
               <td @click.stop>
                 <div class="ops-cell">
                   <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
@@ -180,19 +159,19 @@ async function refresh() {
             <template v-if="expandedMemories[id as string]">
               <tr v-if="memoryLoading[id as string]" class="thread-sub-row">
                 <td></td>
-                <td colspan="5" class="thread-sub-cell">{{ t('common.loading') }}</td>
+                <td colspan="3" class="thread-sub-cell">{{ t('common.loading') }}</td>
               </tr>
               <!-- No threads: show the memory itself as a viewable row -->
               <tr v-else-if="(memoryThreadsMap[id as string] || []).length === 0" class="thread-sub-row">
                 <td></td>
-                <td colspan="4" class="thread-id-cell">{{ id }}</td>
+                <td colspan="2" class="thread-id-cell">{{ id }}</td>
                 <td>
                   <button class="btn-outline btn-sm" @click="memoryViewModal?.open(id as string, m)">{{ t('common.view') }}</button>
                 </td>
               </tr>
               <tr v-else v-for="thread in memoryThreadsMap[id as string]" :key="thread" class="thread-sub-row">
                 <td></td>
-                <td colspan="4" class="thread-id-cell">{{ thread }}</td>
+                <td colspan="2" class="thread-id-cell">{{ thread }}</td>
                 <td>
                   <button class="btn-outline btn-sm" @click="memoryViewModal?.open(id as string, m, thread)">{{ t('common.view') }}</button>
                 </td>
@@ -211,12 +190,8 @@ async function refresh() {
             {{ m.name || id }}
           </div>
           <div class="mobile-card-fields">
-            <span class="mobile-card-label">{{ t('memories.mode_col') }}</span>
-            <span class="mobile-card-value">{{ m.mode || '-' }}</span>
             <span class="mobile-card-label">{{ t('memories.embedding_col') }}</span>
             <span class="mobile-card-value">{{ embeddingOptions.find(e => e.id === m.embedding)?.label || m.embedding || '-' }}</span>
-            <span class="mobile-card-label">{{ t('memories.max_days_col') }}</span>
-            <span class="mobile-card-value">{{ m.maxAgeDays ?? '-' }}</span>
           </div>
           <div class="mobile-card-ops">
             <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
@@ -256,44 +231,10 @@ async function refresh() {
             <input v-model="form.name" :placeholder="t('memories.name_placeholder')" />
           </div>
           <div class="form-group">
-            <label>{{ t('memories.memory_mode') }}</label>
-            <select v-model="form.mode">
-              <option :value="MemoryMode.HumanAndAI">{{ t('memories.mode_human_and_ai') }}</option>
-              <option :value="MemoryMode.HumanOnly">{{ t('memories.mode_human_only') }}</option>
-              <option :value="MemoryMode.ReadOnly">{{ t('memories.mode_read_only') }}</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>{{ t('memories.max_age_days') }}</label>
-            <input v-model.number="form.maxAgeDays" type="number" placeholder="90" />
-          </div>
-          <div class="form-group">
             <label>{{ t('memories.embedding_model') }} *</label>
             <select v-model="form.embedding">
               <option v-for="e in embeddingOptions" :key="e.id" :value="e.id">{{ e.label }}</option>
             </select>
-          </div>
-          <div class="form-group">
-            <label>{{ t('memories.extractor_model') }} *</label>
-            <select v-model="form.extractor">
-              <option value="" disabled>{{ t('common.select_placeholder') }}</option>
-              <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>{{ t('memories.extractor_prompt') }}</label>
-            <input v-model="form.extractorPrompt" :placeholder="t('memories.extractor_prompt_placeholder')" />
-          </div>
-          <div class="form-group">
-            <label>{{ t('memories.compressor_model') }}</label>
-            <select v-model="form.compressor">
-              <option value="">{{ t('common.not_use') }}</option>
-              <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>{{ t('memories.compressor_prompt') }}</label>
-            <input v-model="form.compressorPrompt" :placeholder="t('memories.compressor_prompt_placeholder')" />
           </div>
           <div class="form-group">
             <label class="toggle-label">

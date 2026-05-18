@@ -1,5 +1,8 @@
 import { WikiPage, WikiSearchResult } from "../Types";
 
+/**
+ * Wiki 服务接口（资料库模式）
+ */
 export interface IWikiService {
     // CRUD
     createPage(title: string, content: string, tags?: string[], links?: string[]): Promise<WikiPage>;
@@ -12,9 +15,6 @@ export interface IWikiService {
     search(query: string, limit?: number): Promise<WikiSearchResult[]>;
     searchByTag(tag: string, limit?: number): Promise<WikiPage[]>;
     getAllPages(): Promise<WikiPage[]>;
-
-    // Conversation auto-extraction
-    extractFromConversation(userMessage: string, assistantMessages?: string[]): Promise<WikiPage[]>;
 
     dispose(): Promise<void>;
 }

@@ -1345,10 +1345,9 @@ class HttpServer {
             const memories = (await svc.getAllMemories()).map(m => ({
                 id: m.id,
                 content: m.content,
-                importance: m.metadata.importance,
-                timestamp: m.metadata.timestamp,
-                lastAccessed: m.metadata.lastAccessed,
-                accessCount: m.metadata.accessCount,
+                createdAt: m.createdAt,
+                lastAccessed: m.lastAccessed,
+                accessCount: m.accessCount,
             }));
             await svc.dispose();
             return memories;
@@ -1362,14 +1361,6 @@ class HttpServer {
             const ids = await svc.addMemoryDirect(content.trim(), { autoSplit });
             await svc.dispose();
             return { ids };
-        }));
-
-        app.post('/api/memories/:memoryName/compress', api(async req => {
-            const threadId = this.resolveMemoryThreadId(req);
-            const svc = await AgentRunner.createMemoryService(req.params.memoryName as string, threadId);
-            const count = await svc.compressMemories();
-            await svc.dispose();
-            return { count };
         }));
 
         app.delete('/api/memories/:memoryName/:memoryId', api(async req => {

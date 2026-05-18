@@ -14,7 +14,7 @@ import {
     T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc,
     T_SkillSystemPromptTemplate, T_SkillToolReadDesc, T_SkillToolListDesc, T_SkillToolExecDesc,
     T_InsightToolCreateDesc, T_InsightToolPatchDesc, T_InsightToolDeleteDesc, T_InsightDir,
-    T_InsightSystemPromptTemplate, T_InsightExtractorSystemPrompt, T_InsightAutoExtract,
+    T_InsightSystemPromptTemplate, T_InsightExtractorSystemPrompt,
     T_InsightStaleDays, T_InsightArchiveDays,
     IInsightExtractor, InsightExtractor,
     T_ModelCallTimeout, T_MaxHistoryRounds,
@@ -152,7 +152,6 @@ export class AgentFactory {
             [T_InsightSystemPromptTemplate]: loadPrompt('insight/system.txt'),
             [T_InsightStaleDays]: 30,
             [T_InsightArchiveDays]: 90,
-            [T_InsightAutoExtract]: !!insightConfig.extractor,
         });
     }
 

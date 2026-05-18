@@ -5,18 +5,15 @@ import {
     IAgentCallback,
     ILoggerService,
     IMemoryService, IMemoryDatabase,
-    MemoryCompressor, MemoryExtractor, MemoryService,
+    MemoryService,
     IEmbeddingService,
-    IMemoryExtractor, IMemoryCompressor,
     IAgentSaverService, AgentFileSaver, AgentSqliteSaver, AgentMemorySaver,
-    T_MaxMemoryAgeDays, T_MemoryMode, T_DBPath,
-    T_ExtractorSystemPrompt, T_CompressorPromptTemplate,
+    T_DBPath,
     T_MemorySystemPromptTemplate,
     IModelService,
     IWikiService, IWikiDatabase,
-    WikiExtractor, WikiService,
-    IWikiExtractor,
-    T_WikiExtractorSystemPrompt, T_WikiAutoExtract, T_WikiSystemPromptTemplate,
+    WikiService,
+    T_WikiSystemPromptTemplate,
     type MessageContent,
 } from "scorpio.ai";
 import { loadPrompt } from "../Core/PromptLoader";
@@ -125,21 +122,15 @@ export class AgentRunner {
         const memoryConfig = config.getMemory(memoryId);
         if (!memoryConfig?.embedding) return null;
 
-        const [extractorModel, compressorModel, embedding] = await Promise.all([
-            config.getModelService(memoryConfig.extractor),
-            config.getModelService(memoryConfig.compressor),
-            config.getEmbeddingService(memoryConfig.embedding, true),
-        ]);
+        const embedding = await config.getEmbeddingService(memoryConfig.embedding, true);
 
         const sub = new ServiceContainer();
-        if (loggerService) sub.registerInstance(ILoggerService, loggerService)
-        if (extractorModel) sub.registerWithArgs(IMemoryExtractor, MemoryExtractor, { [IModelService]: extractorModel, [T_ExtractorSystemPrompt]: loadPrompt(memoryConfig.extractorPrompt ?? 'memory/extractor.txt') });
-        if (compressorModel) sub.registerWithArgs(IMemoryCompressor, MemoryCompressor, { [IModelService]: compressorModel, [T_CompressorPromptTemplate]: loadPrompt(memoryConfig.compressorPrompt ?? 'memory/compressor.txt') });
+        if (loggerService) sub.registerInstance(ILoggerService, loggerService);
         const memThreadId = memoryConfig.share ? memoryId : memoryThreadId;
         const dbPath = config.getMemoryDBPath(memoryId, memThreadId);
         sub.registerInstance(IMemoryDatabase, MemoryDatabaseManager.getInstance().acquire(dbPath));
 
-        sub.registerWithArgs(IMemoryService, MemoryService, { [IEmbeddingService]: embedding, [T_MaxMemoryAgeDays]: memoryConfig.maxAgeDays, [T_MemoryMode]: memoryConfig.mode });
+        sub.registerWithArgs(IMemoryService, MemoryService, { [IEmbeddingService]: embedding });
 
         return sub.resolve<IMemoryService>(IMemoryService);
     }
@@ -167,27 +158,16 @@ export class AgentRunner {
     private static async buildWikiService(
         wikiId: string,
         wikiThreadId: string,
-        loggerService?: LoggerService
     ): Promise<IWikiService | null> {
         const wikiConfig = config.getWiki(wikiId);
         if (!wikiConfig) return null;
 
-        const extractorModel = await config.getModelService(wikiConfig.extractor);
-
         const sub = new ServiceContainer();
-        if (loggerService) sub.registerInstance(ILoggerService, loggerService);
-        if (extractorModel) sub.registerWithArgs(IWikiExtractor, WikiExtractor, {
-            [IModelService]: extractorModel,
-            [T_WikiExtractorSystemPrompt]: loadPrompt(wikiConfig.extractorPrompt ?? 'wiki/extractor.txt'),
-        });
-
         const wikiThreadIdResolved = wikiConfig.share ? wikiId : wikiThreadId;
         const wikiDir = config.getWikiDBPath(wikiId, wikiThreadIdResolved);
         sub.registerInstance(IWikiDatabase, WikiDatabaseManager.getInstance().acquire(wikiDir));
 
-        sub.registerWithArgs(IWikiService, WikiService, {
-            [T_WikiAutoExtract]: wikiConfig.autoExtract !== false,
-        });
+        sub.registerWithArgs(IWikiService, WikiService, {});
 
         return sub.resolve<IWikiService>(IWikiService);
     }
@@ -198,11 +178,8 @@ export class AgentRunner {
         wikiThreadId: string,
     ): Promise<void> {
         if (wikis.length === 0) return;
-        const loggerService = container.isRegistered(ILoggerService)
-            ? await container.resolve<LoggerService>(ILoggerService)
-            : undefined;
         const results = await Promise.all(
-            wikis.map(wikiId => AgentRunner.buildWikiService(wikiId, wikiThreadId, loggerService))
+            wikis.map(wikiId => AgentRunner.buildWikiService(wikiId, wikiThreadId))
         );
         const services = results.filter((s): s is IWikiService => s !== null);
         if (services.length > 0) {

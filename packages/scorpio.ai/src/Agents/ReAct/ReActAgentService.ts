@@ -1,6 +1,6 @@
 import { type StructuredToolInterface } from "@langchain/core/tools";
 import { inject, ServiceContainer, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc, T_MemorySystemPromptTemplate, T_WikiSystemPromptTemplate } from "../../Core";
-import { IMemoryService, ReadOnlyMemoryService } from "../../Memory";
+import { IMemoryService } from "../../Memory";
 import { IWikiService } from "../../Wiki";
 import { IAgentSaverService, ChatMessage, ChatMessageOptions, type MessageContent } from "../../Saver";
 import { ILoggerService } from "../../Logger";
@@ -108,7 +108,7 @@ export class ReActAgentService extends SingleAgentService {
         const thinkSaver = new ThinkForwardSaver(thinkId, parentSaver);
         const subContainer = new ServiceContainer();
         subContainer.registerInstance(IAgentSaverService, thinkSaver);
-        if (this.memoryServices.length > 0) subContainer.registerInstance(IMemoryService, this.memoryServices.map(m => new ReadOnlyMemoryService(m)));
+        if (this.memoryServices.length > 0) subContainer.registerInstance(IMemoryService, this.memoryServices);
         if (this.wikiServices && this.wikiServices.length > 0) subContainer.registerInstance(IWikiService, this.wikiServices);
         if (this.memorySystemPromptTemplate) subContainer.registerInstance(T_MemorySystemPromptTemplate, this.memorySystemPromptTemplate);
         if (this.wikiSystemPromptTemplate) subContainer.registerInstance(T_WikiSystemPromptTemplate, this.wikiSystemPromptTemplate);

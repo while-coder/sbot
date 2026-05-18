@@ -1,27 +1,13 @@
 import { v4 as uuidv4 } from "uuid";
 import { inject } from "../../Core";
-import { T_WikiAutoExtract } from "../../Core";
-import { ILoggerService, ILogger } from "../../Logger";
 import { IWikiDatabase } from "../Database/IWikiDatabase";
-import { IWikiExtractor } from "../Extractor/IWikiExtractor";
 import { WikiPage, WikiSearchResult, WikiPageSource } from "../Types";
 import { IWikiService } from "./IWikiService";
-import { PromptInjectionDetector, InjectionSeverity } from "../../Utils/PromptInjectionDetector";
 
 export class WikiService implements IWikiService {
-  private logger?: ILogger;
-  private autoExtract: boolean;
-  private injectionDetector = new PromptInjectionDetector();
-
   constructor(
     @inject(IWikiDatabase) private db: IWikiDatabase,
-    @inject(IWikiExtractor) private extractor: IWikiExtractor,
-    @inject(T_WikiAutoExtract, { optional: true }) autoExtract?: boolean,
-    @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
-  ) {
-    this.logger = loggerService?.getLogger("WikiService");
-    this.autoExtract = autoExtract !== false;
-  }
+  ) {}
 
   // -- CRUD -----------------------------------------------------------------
 
@@ -101,63 +87,6 @@ export class WikiService implements IWikiService {
 
   async getAllPages(): Promise<WikiPage[]> {
     return this.db.getAll();
-  }
-
-  // -- Conversation auto-extraction -----------------------------------------
-
-  async extractFromConversation(
-    userMessage: string,
-    assistantMessages: string[] = [],
-  ): Promise<WikiPage[]> {
-    if (!this.autoExtract) return [];
-    if (!this.extractor) return [];
-
-    try {
-      const allPages = await this.db.getAll();
-      const titles = allPages.map(p => p.title);
-
-      const extracted = await this.extractor.extract(userMessage, assistantMessages, titles);
-      const result: WikiPage[] = [];
-
-      for (const item of extracted) {
-        const detection = this.injectionDetector.detect(item.content);
-        if (detection.severity === InjectionSeverity.BLOCK) {
-          this.logger?.warn(`Wiki extraction blocked: injection detected in "${item.title}"`);
-          continue;
-        }
-        if (detection.severity === InjectionSeverity.WARN) {
-          item.content = detection.sanitized;
-        }
-
-        if (item.shouldMergeWith) {
-          const existing = await this.db.getByTitle(item.shouldMergeWith);
-          if (existing) {
-            const mergedContent = existing.content + "\n\n" + item.content;
-            const mergedTags = Array.from(new Set([...existing.tags, ...item.tags]));
-            const updated = await this.updatePage(existing.id, {
-              content: mergedContent,
-              tags: mergedTags,
-            });
-            result.push(updated);
-            continue;
-          }
-        }
-
-        const page = await this.createPage(
-          item.title,
-          item.content,
-          item.tags,
-        );
-        const conversationPage: WikiPage = { ...page, source: "conversation" as WikiPageSource };
-        await this.db.update(conversationPage.id, { source: "conversation" });
-        result.push(conversationPage);
-      }
-
-      return result;
-    } catch (error: any) {
-      this.logger?.error(`Failed to extract from conversation: ${error.message}`);
-      return [];
-    }
   }
 
   // -- Lifecycle ------------------------------------------------------------

@@ -28,12 +28,3 @@ export interface WikiSearchResult {
   snippet: string;
 }
 
-/**
- * 从对话中提取的知识
- */
-export interface ExtractedKnowledge {
-  title: string;
-  content: string;
-  tags: string[];
-  shouldMergeWith?: string;
-}

@@ -1,7 +1,7 @@
 import { IInsightService } from "./IInsightService";
 import { ILoggerService } from "../Logger";
 import { IEmbeddingService } from "../Embedding";
-import { inject, init, T_InsightToolCreateDesc, T_InsightToolPatchDesc, T_InsightToolDeleteDesc, T_InsightDir, T_InsightSystemPromptTemplate, T_InsightLimit, T_InsightStaleDays, T_InsightArchiveDays, T_InsightAutoExtract } from "../Core";
+import { inject, init, T_InsightToolCreateDesc, T_InsightToolPatchDesc, T_InsightToolDeleteDesc, T_InsightDir, T_InsightSystemPromptTemplate, T_InsightLimit, T_InsightStaleDays, T_InsightArchiveDays } from "../Core";
 import { DynamicStructuredTool, type StructuredToolInterface } from "@langchain/core/tools";
 import { z } from "zod";
 import yaml from "js-yaml";
@@ -16,7 +16,6 @@ import {
 import { parseSkill, isValidSkillDirectory } from "../Skills/parser";
 import { Skill } from "../Skills/types";
 import { UsageTracker } from "../Utils/UsageTracker";
-import { PromptInjectionDetector, InjectionSeverity } from "../Utils/PromptInjectionDetector";
 import { HybridSearcher } from "../Retrieval";
 import { IInsightExtractor } from "./Extractor/IInsightExtractor";
 
@@ -29,9 +28,7 @@ const toSearchable = (s: Skill) => ({ key: s.name, text: s.description });
 export class InsightService implements IInsightService {
     private logger;
     private usageTracker = new UsageTracker();
-    private injectionDetector = new PromptInjectionDetector();
     private searcher!: HybridSearcher;
-    private autoExtract: boolean;
 
     constructor(
         @inject(T_InsightDir) private insightDir: string,
@@ -42,7 +39,6 @@ export class InsightService implements IInsightService {
         @inject(T_InsightLimit, { optional: true }) private insightLimit?: number,
         @inject(T_InsightStaleDays, { optional: true }) private staleDays?: number,
         @inject(T_InsightArchiveDays, { optional: true }) private archiveDays?: number,
-        @inject(T_InsightAutoExtract, { optional: true }) autoExtract?: boolean,
         @inject(IInsightExtractor, { optional: true }) private extractor?: IInsightExtractor,
         @inject(IEmbeddingService, { optional: true }) private embeddings?: IEmbeddingService,
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
@@ -51,7 +47,6 @@ export class InsightService implements IInsightService {
         this.insightLimit ??= 5;
         this.staleDays ??= 30;
         this.archiveDays ??= 90;
-        this.autoExtract = autoExtract !== false;
         this.searcher = new HybridSearcher({
             cachePath: path.join(this.insightDir, '.embeddings.json'),
         });
@@ -76,24 +71,17 @@ export class InsightService implements IInsightService {
     }
 
     async extractFromConversation(userMessage: string, assistantMessages?: string[]): Promise<void> {
-        if (!this.autoExtract || !this.extractor) return;
+        if (!this.extractor) return;
         try {
             const insights = this.getAllInsights();
             const existingNames = insights.map(s => s.name);
             const extracted = await this.extractor.extract(userMessage, assistantMessages ?? [], existingNames);
 
             for (const item of extracted) {
-                const detection = this.injectionDetector.detect(item.content);
-                if (detection.severity === InjectionSeverity.BLOCK) {
-                    this.logger?.warn(`Insight extraction blocked: injection detected in "${item.name}"`);
-                    continue;
-                }
-                const safeContent = detection.severity === InjectionSeverity.WARN ? detection.sanitized : item.content;
-
                 if (item.action === 'patch' && item.patchTarget) {
                     const existing = insights.find(s => s.name === item.patchTarget);
                     if (existing) {
-                        const rebuilt = this.rebuildSkillMd(existing, safeContent, item.description);
+                        const rebuilt = this.rebuildSkillMd(existing, item.content, item.description);
                         fs.writeFileSync(path.join(existing.path, 'SKILL.md'), rebuilt, 'utf-8');
                         this.usageTracker.recordPatch(existing.path);
                         if (this.embeddings) {
@@ -115,7 +103,7 @@ export class InsightService implements IInsightService {
                 }
 
                 fs.mkdirSync(dir, { recursive: true });
-                const skillMd = `---\nname: ${item.name}\ntype: insight\ndescription: ${item.description}\n---\n\n${safeContent}`;
+                const skillMd = `---\nname: ${item.name}\ntype: insight\ndescription: ${item.description}\n---\n\n${item.content}`;
                 fs.writeFileSync(path.join(dir, 'SKILL.md'), skillMd, 'utf-8');
                 this.usageTracker.createUsage(dir, 'auto');
                 if (this.embeddings) {
@@ -230,17 +218,11 @@ export class InsightService implements IInsightService {
                     if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(name) && !/^[a-z0-9]$/.test(name)) {
                         return createErrorResult("Invalid insight name: must be kebab-case (lowercase letters, numbers, hyphens)");
                     }
-                    const detection = this.injectionDetector.detect(content);
-                    if (detection.severity === InjectionSeverity.BLOCK) {
-                        return createErrorResult(`Content rejected: detected suspicious patterns: ${detection.patterns.join(', ')}`);
-                    }
-                    const safeContent = detection.severity === InjectionSeverity.WARN ? detection.sanitized : content;
-
                     const dir = path.join(this.insightDir, name);
                     if (fs.existsSync(dir)) return createErrorResult(`Insight "${name}" already exists`);
 
                     fs.mkdirSync(dir, { recursive: true });
-                    const skillMd = `---\nname: ${name}\ntype: insight\ndescription: ${description}\n---\n\n${safeContent}`;
+                    const skillMd = `---\nname: ${name}\ntype: insight\ndescription: ${description}\n---\n\n${content}`;
                     fs.writeFileSync(path.join(dir, 'SKILL.md'), skillMd, 'utf-8');
                     this.usageTracker.createUsage(dir, 'agent');
 

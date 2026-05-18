@@ -8,11 +8,6 @@ export const T_DynamicSystemPrompts = Symbol("scorpio:T_DynamicSystemPrompts");
 export const T_DBPath = Symbol("scorpio:T_DBPath");
 export const T_DBUrl = Symbol("scorpio:T_DBUrl");
 export const T_DBTable = Symbol("scorpio:T_DBTable");
-export const T_MaxMemoryAgeDays          = Symbol("scorpio:T_MaxMemoryAgeDays");
-export const T_MemoryMode                = Symbol("scorpio:T_MemoryMode");
-export const T_ExtractorSystemPrompt     = Symbol("scorpio:T_ExtractorSystemPrompt");
-
-export const T_CompressorPromptTemplate  = Symbol("scorpio:T_CompressorPromptTemplate");
 export const T_ReactSystemPromptTemplate = Symbol("scorpio:T_ReactSystemPromptTemplate");
 export const T_ReactSubNodePrompt        = Symbol("scorpio:T_ReactSubNodePrompt");
 export const T_ReactTaskToolDesc         = Symbol("scorpio:T_ReactTaskToolDesc");
@@ -38,9 +33,6 @@ export const T_InsightLimit          = Symbol("scorpio:T_InsightLimit");
 export const T_InsightStaleDays      = Symbol("scorpio:T_InsightStaleDays");
 export const T_InsightArchiveDays    = Symbol("scorpio:T_InsightArchiveDays");
 export const T_InsightExtractorSystemPrompt = Symbol("scorpio:T_InsightExtractorSystemPrompt");
-export const T_InsightAutoExtract    = Symbol("scorpio:T_InsightAutoExtract");
 
 // Wiki tokens
-export const T_WikiExtractorSystemPrompt   = Symbol("scorpio:T_WikiExtractorSystemPrompt");
 export const T_WikiSystemPromptTemplate    = Symbol("scorpio:T_WikiSystemPromptTemplate");
-export const T_WikiAutoExtract             = Symbol("scorpio:T_WikiAutoExtract");

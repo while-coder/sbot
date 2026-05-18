@@ -16,7 +16,6 @@ class ManagedMemoryDatabase implements IMemoryDatabase {
     updateAccess(...args: Parameters<IMemoryDatabase['updateAccess']>)               { return this.inner.updateAccess(...args); }
     deleteMemory(...args: Parameters<IMemoryDatabase['deleteMemory']>)               { return this.inner.deleteMemory(...args); }
     clearMemories()          { return this.inner.clearMemories(); }
-    pruneMemories(...args: Parameters<IMemoryDatabase['pruneMemories']>)             { return this.inner.pruneMemories(...args); }
 
     async dispose(): Promise<void> { /* no-op: 由 Manager 统一管理 */ }
 }

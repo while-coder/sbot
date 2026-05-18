@@ -15,7 +15,6 @@ const threadId     = ref<string | undefined>(undefined)
 const sessionId    = ref<string | undefined>(undefined)
 const memories     = ref<MemoryItem[]>([])
 const loading      = ref(false)
-const compressing  = ref(false)
 
 const showAddModal = ref(false)
 const addContent   = ref('')
@@ -82,20 +81,6 @@ async function confirmAdd() {
   }
 }
 
-async function compress() {
-  if (!window.confirm(t('memories.confirm_compress', { name: memoryConfig.value.name || memoryId.value }))) return
-  compressing.value = true
-  try {
-    const res = await apiFetch(memUrl('/compress'), 'POST')
-    show(t('memories.compress_done', { count: res.data?.count ?? 0 }))
-    await load()
-  } catch (e: any) {
-    show(e.message, 'error')
-  } finally {
-    compressing.value = false
-  }
-}
-
 function open(id: string, config: Partial<MemoryConfig>, thread?: string) {
   memoryId.value     = id
   memoryConfig.value = config
@@ -138,9 +123,6 @@ defineExpose({ open, openSession })
           {{ loading ? t('common.loading') : t('common.refresh') }}
         </button>
         <button class="btn-primary btn-sm" @click="openAdd">{{ t('memories.add_memory') }}</button>
-        <button class="btn-outline btn-sm" :disabled="compressing || memories.length === 0" @click="compress">
-          {{ compressing ? t('memories.compressing') : t('memories.compress') }}
-        </button>
         <button class="btn-danger btn-sm" style="margin-left:auto" :disabled="memories.length === 0" @click="clearAll">{{ t('memories.clear_all') }}</button>
       </div>
       <div style="flex:1;overflow-y:auto">
@@ -150,7 +132,6 @@ defineExpose({ open, openSession })
           <thead>
             <tr>
               <th class="col-content">{{ t('memories.content_col') }}</th>
-              <th class="col-score">{{ t('memories.importance_col') }}</th>
               <th class="col-time">{{ t('memories.created_col') }}</th>
               <th class="col-access">{{ t('memories.access_count_col') }}</th>
               <th class="col-time">{{ t('memories.last_accessed_col') }}</th>
@@ -160,13 +141,7 @@ defineExpose({ open, openSession })
           <tbody>
             <tr v-for="m in memories" :key="m.id">
               <td class="col-content">{{ m.content }}</td>
-              <td class="col-score">
-                <span v-if="m.importance != null" class="importance-bar">
-                  <span class="importance-fill" :style="{ width: (m.importance * 100).toFixed(0) + '%' }"></span>
-                </span>
-                <span class="importance-val">{{ m.importance != null ? m.importance.toFixed(2) : '-' }}</span>
-              </td>
-              <td class="col-time">{{ m.timestamp ? new Date(m.timestamp).toLocaleString() : '-' }}</td>
+              <td class="col-time">{{ m.createdAt ? new Date(m.createdAt).toLocaleString() : '-' }}</td>
               <td class="col-access">{{ m.accessCount ?? '-' }}</td>
               <td class="col-time">{{ m.lastAccessed ? new Date(m.lastAccessed).toLocaleString() : '-' }}</td>
               <td class="col-ops">
@@ -269,32 +244,9 @@ defineExpose({ open, openSession })
 .mem-table tbody tr:hover { background: #faf9f7; }
 
 .col-content { width: auto; white-space: normal; word-break: break-word; line-height: 1.5; }
-.col-score   { width: 110px; white-space: nowrap; }
 .col-time    { width: 148px; white-space: nowrap; color: #6b6b6b; font-size: 12px; }
 .col-access  { width: 70px; text-align: center; color: #6b6b6b; font-size: 12px; white-space: nowrap; }
 .col-ops     { width: 80px; text-align: center; white-space: nowrap; }
-
-.importance-bar {
-  display: inline-block;
-  width: 44px;
-  height: 6px;
-  background: #edecea;
-  border-radius: 3px;
-  vertical-align: middle;
-  margin-right: 6px;
-  overflow: hidden;
-}
-.importance-fill {
-  display: block;
-  height: 100%;
-  background: #6366f1;
-  border-radius: 3px;
-}
-.importance-val {
-  font-size: 12px;
-  color: #555;
-  vertical-align: middle;
-}
 .btn-spinner {
   display: inline-block;
   width: 12px;

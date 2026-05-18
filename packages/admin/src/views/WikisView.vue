@@ -13,14 +13,11 @@ const { show } = useToast()
 const { isMobile } = useResponsive()
 
 const wikis = computed(() => store.settings.wikis || {})
-const modelOptions = computed(() =>
-  Object.entries(store.settings.models || {}).map(([id, m]) => ({ id, label: m.name || id }))
-)
 
 const showModal   = ref(false)
 const editingName = ref<string | null>(null)
 const form = ref<WikiConfig>({
-  name: '', extractor: '', autoExtract: true, share: false,
+  name: '', share: false,
 })
 
 const wikiViewModal = ref<InstanceType<typeof WikiViewModal>>()
@@ -48,7 +45,7 @@ async function toggleExpand(id: string) {
 
 function openAdd() {
   editingName.value = null
-  form.value = { name: '', extractor: '', autoExtract: true, share: false }
+  form.value = { name: '', share: false }
   showModal.value = true
 }
 
@@ -57,8 +54,6 @@ function openEdit(id: string) {
   editingName.value = id
   form.value = {
     name: w.name,
-    extractor: w.extractor,
-    autoExtract: w.autoExtract !== false,
     share: !!w.share,
   }
   showModal.value = true
@@ -69,8 +64,6 @@ async function save() {
   try {
     const body: WikiConfig = {
       name: form.value.name,
-      extractor: form.value.extractor,
-      autoExtract: form.value.autoExtract,
       share: !!form.value.share,
     }
     const id = editingName.value
@@ -133,11 +126,11 @@ async function refresh() {
     <div class="page-content">
       <table v-if="!isMobile">
         <thead>
-          <tr><th style="width:32px"></th><th>{{ t('common.name') }}</th><th>{{ t('wikis.extractor_col') }}</th><th>{{ t('wikis.auto_extract') }}</th><th>{{ t('common.ops') }}</th></tr>
+          <tr><th style="width:32px"></th><th>{{ t('common.name') }}</th><th>{{ t('wikis.share') }}</th><th>{{ t('common.ops') }}</th></tr>
         </thead>
         <tbody>
           <tr v-if="Object.keys(wikis).length === 0">
-            <td colspan="5" style="text-align:center;color:#94a3b8;padding:40px">{{ t('wikis.empty') }}</td>
+            <td colspan="4" style="text-align:center;color:#94a3b8;padding:40px">{{ t('wikis.empty') }}</td>
           </tr>
           <template v-for="(w, id) in wikis" :key="id">
             <tr
@@ -149,8 +142,7 @@ async function refresh() {
                 <span style="color:#6b6b6b;font-size:10px">{{ expandedWikis[id as string] ? '\u25BC' : '\u25B6' }}</span>
               </td>
               <td>{{ w.name || id }}</td>
-              <td>{{ modelOptions.find(m => m.id === w.extractor)?.label || w.extractor || '-' }}</td>
-              <td>{{ w.autoExtract !== false ? '\u2713' : '-' }}</td>
+              <td>{{ w.share ? '\u2713' : '-' }}</td>
               <td @click.stop>
                 <div class="ops-cell">
                   <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
@@ -161,19 +153,19 @@ async function refresh() {
             <template v-if="expandedWikis[id as string]">
               <tr v-if="wikiLoading[id as string]" class="thread-sub-row">
                 <td></td>
-                <td colspan="4" class="thread-sub-cell">{{ t('common.loading') }}</td>
+                <td colspan="3" class="thread-sub-cell">{{ t('common.loading') }}</td>
               </tr>
               <!-- No threads: show the wiki itself as a viewable row -->
               <tr v-else-if="(wikiThreadsMap[id as string] || []).length === 0" class="thread-sub-row">
                 <td></td>
-                <td colspan="3" class="thread-id-cell">{{ id }}</td>
+                <td colspan="2" class="thread-id-cell">{{ id }}</td>
                 <td>
                   <button class="btn-outline btn-sm" @click="wikiViewModal?.open(id as string, w)">{{ t('common.view') }}</button>
                 </td>
               </tr>
               <tr v-else v-for="thread in wikiThreadsMap[id as string]" :key="thread" class="thread-sub-row">
                 <td></td>
-                <td colspan="3" class="thread-id-cell">{{ thread }}</td>
+                <td colspan="2" class="thread-id-cell">{{ thread }}</td>
                 <td>
                   <button class="btn-outline btn-sm" @click="wikiViewModal?.open(id as string, w, thread)">{{ t('common.view') }}</button>
                 </td>
@@ -192,10 +184,8 @@ async function refresh() {
             {{ w.name || id }}
           </div>
           <div class="mobile-card-fields">
-            <span class="mobile-card-label">{{ t('wikis.extractor_col') }}</span>
-            <span class="mobile-card-value">{{ modelOptions.find(m => m.id === w.extractor)?.label || w.extractor || '-' }}</span>
-            <span class="mobile-card-label">{{ t('wikis.auto_extract') }}</span>
-            <span class="mobile-card-value">{{ w.autoExtract !== false ? '\u2713' : '-' }}</span>
+            <span class="mobile-card-label">{{ t('wikis.share') }}</span>
+            <span class="mobile-card-value">{{ w.share ? '\u2713' : '-' }}</span>
           </div>
           <div class="mobile-card-ops">
             <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
@@ -232,19 +222,6 @@ async function refresh() {
           <div class="form-group">
             <label>{{ t('common.name') }} *</label>
             <input v-model="form.name" :placeholder="t('wikis.name_placeholder')" />
-          </div>
-          <div class="form-group">
-            <label>{{ t('wikis.extractor_model') }}</label>
-            <select v-model="form.extractor">
-              <option value="">{{ t('common.not_use') }}</option>
-              <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="toggle-label">
-              <input type="checkbox" v-model="form.autoExtract" />
-              <span :title="t('wikis.auto_extract_hint')">{{ t('wikis.auto_extract') }}</span>
-            </label>
           </div>
           <div class="form-group">
             <label class="toggle-label">

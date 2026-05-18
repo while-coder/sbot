@@ -51,10 +51,6 @@ export {
   T_DBPath,
   T_DBUrl,
   T_DBTable,
-  T_MaxMemoryAgeDays,
-  T_MemoryMode,
-  T_ExtractorSystemPrompt,
-  T_CompressorPromptTemplate,
   T_ReactSystemPromptTemplate,
   T_ReactSubNodePrompt,
   T_ReactTaskToolDesc,
@@ -72,10 +68,7 @@ export {
   T_InsightStaleDays,
   T_InsightArchiveDays,
   T_InsightExtractorSystemPrompt,
-  T_InsightAutoExtract,
-  T_WikiExtractorSystemPrompt,
   T_WikiSystemPromptTemplate,
-  T_WikiAutoExtract,
   T_ModelCallTimeout,
   T_CompactPromptTemplate,
   T_MaxHistoryRounds,
@@ -129,14 +122,9 @@ export {
 export {
   // 接口 + Symbol Token
   IMemoryService,
-  IMemoryExtractor,
-  IMemoryCompressor,
 
   // 实现类
-  ReadOnlyMemoryService,
   MemoryService,
-  MemoryExtractor,
-  MemoryCompressor,
 
   // 存储层
   IMemoryDatabase,
@@ -144,14 +132,7 @@ export {
 
   // 类型定义
   Memory,
-  MemoryMetadata,
-  MemoryRetrievalOptions,
-  MemorySearchResult,
-  MemoryMode,
-  ExtractionResult,
-  CompressionResult,
   MEMORY_SEARCH_TOOL_NAME,
-  MEMORY_ADD_TOOL_NAME,
 } from "./Memory";
 
 // ========================================
@@ -160,11 +141,9 @@ export {
 export {
   // 接口 + Symbol Token
   IWikiService,
-  IWikiExtractor,
 
   // 实现类
   WikiService,
-  WikiExtractor,
 
   // 存储层
   IWikiDatabase,
@@ -173,14 +152,12 @@ export {
   // 工具
   WikiToolProvider,
   WIKI_SEARCH_TOOL_NAME,
-  WIKI_CREATE_TOOL_NAME,
   WIKI_READ_TOOL_NAME,
 
   // 类型定义
   WikiPage,
   WikiPageSource,
   WikiSearchResult,
-  ExtractedKnowledge,
 } from "./Wiki";
 
 // ========================================

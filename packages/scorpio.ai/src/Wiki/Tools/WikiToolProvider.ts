@@ -3,7 +3,6 @@ import { DynamicStructuredTool } from "@langchain/core/tools";
 import { IWikiService } from "../Service/IWikiService";
 
 export const WIKI_SEARCH_TOOL_NAME = 'wiki_search' as const;
-export const WIKI_CREATE_TOOL_NAME = 'wiki_create' as const;
 export const WIKI_READ_TOOL_NAME = 'wiki_read' as const;
 
 export class WikiToolProvider {
@@ -12,7 +11,6 @@ export class WikiToolProvider {
         if (wikiServices.length === 0) return [];
         return [
             WikiToolProvider.createSearchTool(wikiServices),
-            WikiToolProvider.createCreateTool(wikiServices),
             WikiToolProvider.createReadTool(wikiServices),
         ];
     }
@@ -43,27 +41,6 @@ export class WikiToolProvider {
                     return `Found ${allResults.length} result(s):\n\n${lines.join("\n\n")}`;
                 } catch (e: any) {
                     return `Error searching wiki: ${e.message}`;
-                }
-            },
-        });
-    }
-
-    private static createCreateTool(wikiServices: IWikiService[]): DynamicStructuredTool {
-        return new DynamicStructuredTool({
-            name: WIKI_CREATE_TOOL_NAME,
-            description:
-                "Create a new wiki page to persist knowledge for future reference.",
-            schema: z.object({
-                title: z.string().describe("Title of the new wiki page"),
-                content: z.string().describe("Content of the wiki page"),
-                tags: z.array(z.string()).optional().describe("Tags for categorization"),
-            }),
-            func: async ({ title, content, tags }) => {
-                try {
-                    const page = await wikiServices[0].createPage(title, content, tags);
-                    return `Wiki page created successfully.\n\n- **ID:** ${page.id}\n- **Title:** ${page.title}\n- **Tags:** ${page.tags.length > 0 ? page.tags.join(", ") : "none"}`;
-                } catch (e: any) {
-                    return `Error creating wiki page: ${e.message}`;
                 }
             },
         });
@@ -102,5 +79,4 @@ export class WikiToolProvider {
             },
         });
     }
-
 }

@@ -115,10 +115,10 @@ export class SingleAgentService extends AgentServiceBase {
             const memoryLimit = 10;
             const allMemories = (await Promise.all(this.memoryServices.map(mem => mem.getMemories(queryText, memoryLimit))))
                 .flat()
-                .sort((a, b) => b.decayedScore - a.decayedScore)
+                .sort((a, b) => b.score - a.score)
                 .slice(0, memoryLimit);
             if (allMemories.length > 0) {
-                const items = allMemories.map(({ memory: m }) => `  <memory time="${formatTimeAgo(m.metadata.timestamp)}">${m.content}</memory>`).join("\n");
+                const items = allMemories.map(({ memory: m }) => `  <memory time="${formatTimeAgo(m.createdAt)}">${m.content}</memory>`).join("\n");
                 dynamicParts.push(this.memorySystemPromptTemplate.replace('{items}', items));
             }
         }
@@ -358,7 +358,6 @@ export class SingleAgentService extends AgentServiceBase {
             { messages: [], callback, systemMessage, tools, signal },
         );
 
-        // 收集 AI 响应（供记忆服务按 MemoryMode 决定是否使用）
         const aiResponses: string[] = [];
         const outputMessages: ChatMessage[] = [];
 
@@ -390,29 +389,6 @@ export class SingleAgentService extends AgentServiceBase {
             }
             // tools node 的补偿消息已全部写入 saver，配对完整后再抛出
             if (signal?.aborted) throw new AgentCancelledError();
-        }
-
-        // 保存对话到长期记忆
-        for (const mem of this.memoryServices) {
-            try {
-                await mem.memorizeConversation(contentToString(query), aiResponses.length > 0 ? aiResponses : undefined);
-            } catch (error: any) {
-                this.logger?.warn(`保存对话记忆失败: ${error.message}`);
-            }
-        }
-
-        // 保存对话到 wiki 知识库
-        if (this.wikiServices) {
-            for (const wiki of this.wikiServices) {
-                try {
-                    await wiki.extractFromConversation(
-                        contentToString(query),
-                        aiResponses.length > 0 ? aiResponses : undefined
-                    );
-                } catch (error: any) {
-                    this.logger?.warn(`Wiki knowledge extraction failed: ${error.message}`);
-                }
-            }
         }
 
         // 静默提取 insight
