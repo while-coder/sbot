@@ -97,14 +97,10 @@ export class HybridSearcher {
 
         let totalLength = 0;
         for (const { key, text } of items) {
-            const tokens = text.toLowerCase().split(/\s+/).filter(Boolean);
-            this.docLengths.set(key, tokens.length);
-            totalLength += tokens.length;
-
-            const termFreq = new Map<string, number>();
-            for (const t of tokens) {
-                termFreq.set(t, (termFreq.get(t) ?? 0) + 1);
-            }
+            const termFreq = tokenizeWithFreq(text);
+            const docLen = [...termFreq.values()].reduce((a, b) => a + b, 0);
+            this.docLengths.set(key, docLen);
+            totalLength += docLen;
 
             for (const [term, freq] of termFreq) {
                 if (!this.invertedIndex.has(term)) {
@@ -134,13 +130,12 @@ export class HybridSearcher {
 
     private updateInvertedEntry(key: string, text: string): void {
         this.removeInvertedEntry(key);
-        const tokens = text.toLowerCase().split(/\s+/).filter(Boolean);
-        this.docLengths.set(key, tokens.length);
+        const termFreq = tokenizeWithFreq(text);
+        const docLen = [...termFreq.values()].reduce((a, b) => a + b, 0);
+        this.docLengths.set(key, docLen);
         this.totalDocs = this.docLengths.size;
         this.avgDocLength = [...this.docLengths.values()].reduce((a, b) => a + b, 0) / (this.totalDocs || 1);
 
-        const termFreq = new Map<string, number>();
-        for (const t of tokens) termFreq.set(t, (termFreq.get(t) ?? 0) + 1);
         for (const [term, freq] of termFreq) {
             if (!this.invertedIndex.has(term)) this.invertedIndex.set(term, new Map());
             this.invertedIndex.get(term)!.set(key, freq);
@@ -225,8 +220,34 @@ export class HybridSearcher {
     }
 }
 
+const STOP_WORDS = new Set([
+    '的', '了', '在', '是', '我', '有', '和', '就', '不', '人', '都', '一', '一个',
+    '上', '也', '很', '到', '说', '要', '去', '你', '会', '着', '没有', '看', '好',
+    '这', '那', '他', '她', '它', '们', '被', '把', '从', '对', '与', '为', '能',
+    'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+    'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should',
+    'it', 'this', 'that', 'and', 'but', 'or', 'if', 'so',
+    'to', 'of', 'in', 'for', 'on', 'with', 'at', 'by', 'from', 'as',
+]);
+
+const segmenter = new Intl.Segmenter('zh-CN', { granularity: 'word' });
+
 function tokenize(text: string): Set<string> {
-    return new Set(text.toLowerCase().split(/\s+/).filter(Boolean));
+    const tokens = new Set<string>();
+    for (const { segment, isWordLike } of segmenter.segment(text.toLowerCase())) {
+        if (isWordLike && !STOP_WORDS.has(segment)) tokens.add(segment);
+    }
+    return tokens;
+}
+
+function tokenizeWithFreq(text: string): Map<string, number> {
+    const freq = new Map<string, number>();
+    for (const { segment, isWordLike } of segmenter.segment(text.toLowerCase())) {
+        if (isWordLike && !STOP_WORDS.has(segment)) {
+            freq.set(segment, (freq.get(segment) ?? 0) + 1);
+        }
+    }
+    return freq;
 }
 
 function calcBM25Score(
