@@ -109,6 +109,7 @@ function registerSettingsCrud(
         checkOnUpdate?: boolean;
         checkOnDelete?: boolean;
         beforeDelete?: (id: string) => void;
+        afterDelete?: (id: string) => Promise<void> | void;
         afterSave?: (id: string) => Promise<void> | void;
         createReturn?: (id: string, body: any) => any;
         getSettings?: () => any;
@@ -151,6 +152,7 @@ function registerSettingsCrud(
         if (checkOnDelete && !map[id]) throwBad(`${label} "${id}" not found`);
         delete map[id];
         config.saveSettings();
+        await opts?.afterDelete?.(id);
         await opts?.afterSave?.(id);
         return getSettings();
     }));
@@ -650,6 +652,17 @@ class HttpServer {
             checkOnUpdate: true,
             checkOnDelete: true,
             beforeDelete: (id) => { if (id === WEB_CHANNEL_ID) throwBad('Cannot delete built-in web channel'); },
+            afterDelete: async (id) => {
+                const sessions = await database.findAll<ChannelSessionRow>(database.channelSession, { where: { channelId: id } });
+                const sessionIds = sessions.map(s => s.id);
+                if (sessionIds.length > 0) {
+                    await database.destroy(database.heartbeat, { where: { target: sessionIds } });
+                }
+                await database.destroy(database.channelSession, { where: { channelId: id } });
+                await database.destroy(database.channelUser, { where: { channelId: id } });
+                await heartbeatService.reloadAll();
+                channelManager.reloadChannel(id);
+            },
             afterSave: (id) => channelManager.reloadChannel(id),
             createReturn: (id, body) => ({ id, ...body }),
             getSettings,

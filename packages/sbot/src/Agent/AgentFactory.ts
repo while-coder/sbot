@@ -8,15 +8,10 @@ import {
 import {
     IAgentToolService, AgentToolService,
     ISkillService, SkillService,
-    IInsightService, InsightService,
     ServiceContainer, T_StaticSystemPrompts, T_DynamicSystemPrompts,
     ReActAgentService, T_AgentSubNodes, T_CreateAgent, T_ThinkModelService,
     T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc,
     T_SkillSystemPromptTemplate, T_SkillToolReadDesc, T_SkillToolListDesc, T_SkillToolExecDesc,
-    T_InsightToolCreateDesc, T_InsightToolPatchDesc, T_InsightToolDeleteDesc, T_InsightDir,
-    T_InsightSystemPromptTemplate, T_InsightExtractorSystemPrompt,
-    T_InsightStaleDays, T_InsightArchiveDays,
-    IInsightExtractor, InsightExtractor,
     T_ModelCallTimeout, T_MaxHistoryRounds,
     type CreateAgentFn,
 } from "scorpio.ai";
@@ -24,7 +19,7 @@ import { type StructuredToolInterface } from "@langchain/core/tools";
 import { createSchedulerTools } from "../Tools/Scheduler/index";
 import { createTodoTools } from "../Tools/Todo/index";
 import { createSessionSearchTool } from "../Tools/SessionSearch/index";
-import { config, AgentMode, ACPSessionMode, InsightScope, ToolAgentEntry, SingleAgentEntry, ReactAgentEntry, GenerativeAgentEntry, ACPAgentEntry } from "../Core/Config";
+import { config, AgentMode, ACPSessionMode, ToolAgentEntry, SingleAgentEntry, ReactAgentEntry, GenerativeAgentEntry, ACPAgentEntry } from "../Core/Config";
 import { loadPrompt } from "../Core/PromptLoader";
 import { globalAgentToolService, BuiltinProvider } from "./GlobalAgentToolService";
 import { globalSkillService, getSkillsDirsMap } from "./GlobalSkillService";
@@ -65,9 +60,6 @@ export class AgentFactory {
             const toolEntry = agentEntry as ToolAgentEntry;
             await this.registerSkillService(container, agentId, toolEntry.skills);
             await this.registerToolService(container, agentId, options.dbSessionId, toolEntry.mcp, agentTools);
-            if (toolEntry.insight.scope !== InsightScope.Disabled) {
-                await this.registerInsightService(container, agentId, options.dbSessionId, toolEntry.insight.scope);
-            }
         }
 
         if (agentType === AgentMode.ACP) {
@@ -122,35 +114,6 @@ export class AgentFactory {
             }
         }
         skillService.registerSkillsDir(config.getAgentSkillsPath(agentName));
-    }
-
-    private static async registerInsightService(
-        container: ServiceContainer,
-        agentName: string,
-        dbSessionId: string,
-        scope: InsightScope,
-    ): Promise<void> {
-        const agentEntry = config.getAgent(agentName) as ToolAgentEntry;
-        const insightConfig = agentEntry.insight;
-        const insightDir = scope === InsightScope.Session
-            ? config.getSessionInsightsPath(dbSessionId)
-            : config.getAgentInsightsPath(agentName);
-
-        const extractorModel = await config.getModelService(insightConfig.extractor, true);
-        container.registerWithArgs(IInsightExtractor, InsightExtractor, {
-            [IModelService]: extractorModel,
-            [T_InsightExtractorSystemPrompt]: loadPrompt('insight/extractor.txt'),
-        });
-
-        container.registerWithArgs(IInsightService, InsightService, {
-            [T_InsightDir]: insightDir,
-            [T_InsightToolCreateDesc]: loadPrompt('insight/tool_create.txt'),
-            [T_InsightToolPatchDesc]: loadPrompt('insight/tool_patch.txt'),
-            [T_InsightToolDeleteDesc]: loadPrompt('insight/tool_delete.txt'),
-            [T_InsightSystemPromptTemplate]: loadPrompt('insight/system.txt'),
-            [T_InsightStaleDays]: 30,
-            [T_InsightArchiveDays]: 90,
-        });
     }
 
     private static readonly SESSION_TOOL_CREATORS: Record<string, (dbSessionId: string) => Promise<StructuredToolInterface[]>> = {

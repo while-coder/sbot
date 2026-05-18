@@ -14,10 +14,15 @@ import {
     IWikiService, IWikiDatabase,
     WikiService,
     T_WikiSystemPromptTemplate,
+    IInsightService, InsightService,
+    IInsightExtractor, InsightExtractor,
+    T_InsightDir, T_InsightToolCreateDesc, T_InsightToolPatchDesc, T_InsightToolDeleteDesc,
+    T_InsightSystemPromptTemplate, T_InsightExtractorSystemPrompt,
+    T_InsightStaleDays, T_InsightArchiveDays,
     type MessageContent,
 } from "scorpio.ai";
 import { loadPrompt } from "../Core/PromptLoader";
-import { config, SaverType } from "../Core/Config";
+import { config, SaverType, InsightScope, type ToolAgentEntry } from "../Core/Config";
 import { discoverContextFiles } from "../Core/ContextFileDiscovery";
 
 import { AgentFactory } from "./AgentFactory";
@@ -96,6 +101,7 @@ export class AgentRunner {
         container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
         await AgentRunner.registerMemoryServices(container, memories ?? []);
         await AgentRunner.registerWikiServices(container, wikis ?? []);
+        await AgentRunner.registerInsightService(container, agentId, threadId);
         await AgentRunner.registerSaverService(container, saverId, threadId);
 
         const agent = await AgentFactory.create({ agentId, container, extraPrompts, dynamicPrompts, agentTools, dbSessionId, workPath });
@@ -184,6 +190,36 @@ export class AgentRunner {
             container.registerInstance(IWikiService, services);
             container.registerInstance(T_WikiSystemPromptTemplate, loadPrompt('wiki/system.txt'));
         }
+    }
+
+    private static async registerInsightService(
+        container: ServiceContainer,
+        agentName: string,
+        threadId: string,
+    ): Promise<void> {
+        const agentEntry = config.getAgent(agentName) as ToolAgentEntry;
+        const insightConfig = agentEntry.insight;
+        if (!insightConfig || insightConfig.scope === InsightScope.Disabled) return;
+
+        const insightDir = insightConfig.scope === InsightScope.Session
+            ? config.getSessionInsightsPath(threadId)
+            : config.getAgentInsightsPath(agentName);
+
+        const extractorModel = await config.getModelService(insightConfig.extractor, true);
+        container.registerWithArgs(IInsightExtractor, InsightExtractor, {
+            [IModelService]: extractorModel,
+            [T_InsightExtractorSystemPrompt]: loadPrompt('insight/extractor.txt'),
+        });
+
+        container.registerWithArgs(IInsightService, InsightService, {
+            [T_InsightDir]: insightDir,
+            [T_InsightToolCreateDesc]: loadPrompt('insight/tool_create.txt'),
+            [T_InsightToolPatchDesc]: loadPrompt('insight/tool_patch.txt'),
+            [T_InsightToolDeleteDesc]: loadPrompt('insight/tool_delete.txt'),
+            [T_InsightSystemPromptTemplate]: loadPrompt('insight/system.txt'),
+            [T_InsightStaleDays]: 30,
+            [T_InsightArchiveDays]: 90,
+        });
     }
 
     private static async registerSaverService(

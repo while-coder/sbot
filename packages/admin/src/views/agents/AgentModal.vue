@@ -314,7 +314,7 @@ defineExpose({ open })
             <span style="font-size:0.78rem;color:var(--color-text-muted,#888);margin-top:2px">{{ t('agents.insight_hint') }}</span>
           </div>
           <div class="form-group" v-if="form.insightScope !== InsightScope.Disabled">
-            <label>{{ t('agents.insight_extractor') }}</label>
+            <label>{{ t('agents.insight_extractor') }} *</label>
             <select v-model="form.insightExtractor">
               <option value="">{{ t('agents.insight_extractor_placeholder') }}</option>
               <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>

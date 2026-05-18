@@ -391,8 +391,10 @@ export class SingleAgentService extends AgentServiceBase {
             if (signal?.aborted) throw new AgentCancelledError();
         }
 
+        console.log("----------------------------------------", this.insightService)
         // 静默提取 insight
         if (this.insightService) {
+            
             try {
                 await this.insightService.extractFromConversation(
                     contentToString(query),
