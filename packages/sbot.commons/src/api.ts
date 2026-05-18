@@ -60,8 +60,7 @@ export interface StoredMessage {
 export interface MemoryItem {
   id: string
   content: string
-  importance?: number
-  timestamp?: number
-  accessCount?: number
-  lastAccessed?: number
+  createdAt: number
+  accessCount: number
+  lastAccessed: number
 }

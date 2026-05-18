@@ -600,7 +600,7 @@ table th {
   white-space: nowrap;
 }
 table tr:hover td { background: #fafaf9; }
-.ops-cell { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.ops-cell { display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; }
 
 /* Modal */
 .modal-overlay {
@@ -1205,7 +1205,6 @@ table tr:hover td { background: #fafaf9; }
     font-size: 13px;
   }
   .ops-cell {
-    flex-wrap: wrap;
     gap: 4px;
   }
   .btn-sm {

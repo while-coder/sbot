@@ -110,22 +110,29 @@ defineExpose({ open })
         <div v-if="loading" class="modal-loading">{{ t('common.loading') }}</div>
         <div v-else-if="memories.length === 0" class="modal-empty">{{ t('memories.no_memories') }}</div>
         <table v-else class="mem-table">
+          <colgroup>
+            <col class="cg-content" />
+            <col class="cg-time" />
+            <col class="cg-access" />
+            <col class="cg-time" />
+            <col class="cg-ops" />
+          </colgroup>
           <thead>
             <tr>
-              <th class="col-content">{{ t('memories.content_col') }}</th>
-              <th class="col-time">{{ t('memories.created_col') }}</th>
-              <th class="col-access">{{ t('memories.access_count_col') }}</th>
-              <th class="col-time">{{ t('memories.last_accessed_col') }}</th>
-              <th class="col-ops">{{ t('common.ops') }}</th>
+              <th>{{ t('memories.content_col') }}</th>
+              <th>{{ t('memories.created_col') }}</th>
+              <th class="col-center">{{ t('memories.access_count_col') }}</th>
+              <th>{{ t('memories.last_accessed_col') }}</th>
+              <th class="col-center">{{ t('common.ops') }}</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="m in memories" :key="m.id">
-              <td class="col-content">{{ m.content }}</td>
-              <td class="col-time">{{ m.createdAt ? new Date(m.createdAt).toLocaleString() : '-' }}</td>
-              <td class="col-access">{{ m.accessCount ?? '-' }}</td>
-              <td class="col-time">{{ m.lastAccessed ? new Date(m.lastAccessed).toLocaleString() : '-' }}</td>
-              <td class="col-ops">
+              <td class="cell-content" :title="m.content">{{ m.content }}</td>
+              <td class="cell-nowrap cell-secondary">{{ m.createdAt ? new Date(m.createdAt).toLocaleString() : '-' }}</td>
+              <td class="cell-nowrap cell-secondary col-center">{{ m.accessCount ?? '-' }}</td>
+              <td class="cell-nowrap cell-secondary">{{ m.lastAccessed ? new Date(m.lastAccessed).toLocaleString() : '-' }}</td>
+              <td class="cell-nowrap col-center">
                 <button class="btn-danger btn-sm" @click="remove(m.id)">{{ t('common.delete') }}</button>
               </td>
             </tr>
@@ -185,30 +192,53 @@ defineExpose({ open })
 }
 .mem-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 13px;
 }
 .mem-table th,
 .mem-table td {
-  padding: 10px 14px;
+  padding: 8px 12px;
   border-bottom: 1px solid #f0efed;
-  vertical-align: top;
+  vertical-align: middle;
 }
 .mem-table th {
   background: #faf9f7;
   font-weight: 600;
   color: #6b6b6b;
   font-size: 12px;
+  white-space: nowrap;
   position: sticky;
   top: 0;
   z-index: 1;
 }
 .mem-table tbody tr:hover { background: #faf9f7; }
 
-.col-content { width: auto; white-space: normal; word-break: break-word; line-height: 1.5; }
-.col-time    { width: 148px; white-space: nowrap; color: #6b6b6b; font-size: 12px; }
-.col-access  { width: 70px; text-align: center; color: #6b6b6b; font-size: 12px; white-space: nowrap; }
-.col-ops     { width: 80px; text-align: center; white-space: nowrap; }
+/* colgroup widths */
+.cg-content { width: auto; }
+.cg-time    { width: 150px; }
+.cg-access  { width: 60px; }
+.cg-ops     { width: 70px; }
+
+/* cell styles */
+.cell-content {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cell-nowrap {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cell-secondary {
+  color: #6b6b6b;
+  font-size: 12px;
+}
+.col-center {
+  text-align: center;
+}
+
 .btn-spinner {
   display: inline-block;
   width: 12px;

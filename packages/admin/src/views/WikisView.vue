@@ -106,12 +106,17 @@ async function refresh() {
       <button class="btn-primary btn-sm" @click="openAdd">{{ t('wikis.add') }}</button>
     </div>
     <div class="page-content">
-      <table v-if="!isMobile">
+      <table v-if="!isMobile" class="wiki-list-table">
+        <colgroup>
+          <col style="width:auto" />
+          <col style="width:70px" />
+          <col style="width:180px" />
+        </colgroup>
         <thead>
           <tr>
             <th>{{ t('common.name') }}</th>
-            <th class="col-count">{{ t('wikis.pages_col') }}</th>
-            <th>{{ t('common.ops') }}</th>
+            <th class="col-center">{{ t('wikis.pages_col') }}</th>
+            <th class="col-center">{{ t('common.ops') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -119,14 +124,14 @@ async function refresh() {
             <td colspan="3" style="text-align:center;color:#94a3b8;padding:40px">{{ t('wikis.empty') }}</td>
           </tr>
           <tr v-for="(w, id) in wikis" :key="id">
-            <td>{{ w.name || id }}</td>
-            <td class="col-count">
+            <td class="cell-nowrap">{{ w.name || id }}</td>
+            <td class="col-center">
               <span v-if="wikiCounts[id as string] === undefined" class="count-loading">...</span>
               <span v-else-if="wikiCounts[id as string] === null" class="count-error">-</span>
               <span v-else class="count-badge">{{ wikiCounts[id as string] }}</span>
             </td>
-            <td>
-              <div class="ops-cell">
+            <td class="col-center">
+              <div class="ops-row">
                 <button class="btn-outline btn-sm" @click="wikiViewModal?.open(id as string, w)">{{ t('common.view') }}</button>
                 <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
                 <button class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
@@ -178,9 +183,21 @@ async function refresh() {
 </template>
 
 <style scoped>
-.col-count {
-  width: 80px;
+.wiki-list-table {
+  table-layout: fixed;
+}
+.col-center {
   text-align: center;
+}
+.cell-nowrap {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ops-row {
+  display: inline-flex;
+  gap: 6px;
+  white-space: nowrap;
 }
 .count-badge {
   display: inline-block;

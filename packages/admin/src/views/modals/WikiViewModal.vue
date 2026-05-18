@@ -183,29 +183,36 @@ defineExpose({ open })
         <div v-if="loading" class="modal-loading">{{ t('common.loading') }}</div>
         <div v-else-if="pages.length === 0" class="modal-empty">{{ t('wikis.no_pages') }}</div>
         <table v-else class="wiki-table">
+          <colgroup>
+            <col class="cg-expand" />
+            <col class="cg-title" />
+            <col class="cg-tags" />
+            <col class="cg-time" />
+            <col class="cg-ops" />
+          </colgroup>
           <thead>
             <tr>
-              <th style="width:32px"></th>
+              <th></th>
               <th>{{ t('wikis.page_title') }}</th>
-              <th class="col-tags">{{ t('wikis.page_tags') }}</th>
-              <th class="col-time">{{ t('wikis.page_updated') }}</th>
-              <th class="col-ops">{{ t('common.ops') }}</th>
+              <th>{{ t('wikis.page_tags') }}</th>
+              <th>{{ t('wikis.page_updated') }}</th>
+              <th class="col-center">{{ t('common.ops') }}</th>
             </tr>
           </thead>
           <tbody>
             <template v-for="p in pages" :key="p.id">
-              <tr @click="togglePage(p.id)" style="cursor:pointer" :style="expandedPage === p.id ? 'background:#f8fafc' : ''">
-                <td style="padding:6px 8px;text-align:center">
-                  <span style="color:#6b6b6b;font-size:10px">{{ expandedPage === p.id ? '▼' : '▶' }}</span>
+              <tr class="row-clickable" @click="togglePage(p.id)" :class="{ 'row-expanded': expandedPage === p.id }">
+                <td class="cell-expand">
+                  <span class="expand-icon">{{ expandedPage === p.id ? '▼' : '▶' }}</span>
                 </td>
-                <td style="font-weight:500">{{ p.title }}</td>
-                <td class="col-tags">
+                <td class="cell-title">{{ p.title }}</td>
+                <td class="cell-tags">
                   <span v-for="tag in p.tags" :key="tag" class="wiki-tag">{{ tag }}</span>
-                  <span v-if="p.tags.length === 0" style="color:#9b9b9b">-</span>
+                  <span v-if="p.tags.length === 0" class="cell-secondary">-</span>
                 </td>
-                <td class="col-time">{{ new Date(p.updatedAt).toLocaleString() }}</td>
-                <td class="col-ops" @click.stop>
-                  <div class="ops-cell">
+                <td class="cell-nowrap cell-secondary">{{ new Date(p.updatedAt).toLocaleString() }}</td>
+                <td class="cell-nowrap col-center" @click.stop>
+                  <div class="ops-row">
                     <button class="btn-outline btn-sm" @click="openEdit(p.id)">{{ t('common.edit') }}</button>
                     <button class="btn-danger btn-sm" @click="removePage(p.id, p.title)">{{ t('common.delete') }}</button>
                   </div>
@@ -214,7 +221,7 @@ defineExpose({ open })
               <tr v-if="expandedPage === p.id">
                 <td></td>
                 <td colspan="4" class="page-content-cell">
-                  <div v-if="pageLoading[p.id]" style="color:#94a3b8;font-style:italic">{{ t('common.loading') }}</div>
+                  <div v-if="pageLoading[p.id]" class="cell-secondary" style="font-style:italic">{{ t('common.loading') }}</div>
                   <pre v-else class="page-content-pre">{{ pageContents[p.id] || '' }}</pre>
                 </td>
               </tr>
@@ -281,28 +288,76 @@ defineExpose({ open })
 }
 .wiki-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 13px;
 }
 .wiki-table th,
 .wiki-table td {
-  padding: 10px 14px;
+  padding: 8px 12px;
   border-bottom: 1px solid #f0efed;
-  vertical-align: top;
+  vertical-align: middle;
 }
 .wiki-table th {
   background: #faf9f7;
   font-weight: 600;
   color: #6b6b6b;
   font-size: 12px;
+  white-space: nowrap;
   position: sticky;
   top: 0;
   z-index: 1;
 }
 .wiki-table tbody tr:hover { background: #faf9f7; }
-.col-tags { width: 160px; }
-.col-time { width: 148px; white-space: nowrap; color: #6b6b6b; font-size: 12px; }
-.col-ops { width: 120px; text-align: center; white-space: nowrap; }
+
+/* colgroup widths */
+.cg-expand { width: 32px; }
+.cg-title  { width: auto; }
+.cg-tags   { width: 160px; }
+.cg-time   { width: 150px; }
+.cg-ops    { width: 130px; }
+
+/* row styles */
+.row-clickable { cursor: pointer; }
+.row-expanded { background: #f8fafc; }
+
+/* cell styles */
+.cell-expand {
+  text-align: center;
+  padding: 6px 4px !important;
+}
+.expand-icon {
+  color: #6b6b6b;
+  font-size: 10px;
+}
+.cell-title {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cell-tags {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cell-nowrap {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cell-secondary {
+  color: #6b6b6b;
+  font-size: 12px;
+}
+.col-center {
+  text-align: center;
+}
+.ops-row {
+  display: inline-flex;
+  gap: 6px;
+  white-space: nowrap;
+}
 .wiki-tag {
   display: inline-block;
   font-size: 11px;
@@ -311,11 +366,11 @@ defineExpose({ open })
   padding: 1px 6px;
   border-radius: 3px;
   margin-right: 4px;
-  margin-bottom: 2px;
 }
 .page-content-cell {
   background: #fafaf9;
   padding: 12px 14px !important;
+  white-space: normal;
 }
 .page-content-pre {
   margin: 0;

@@ -112,13 +112,19 @@ async function refresh() {
       <button class="btn-primary btn-sm" @click="openAdd">{{ t('memories.add') }}</button>
     </div>
     <div class="page-content">
-      <table v-if="!isMobile">
+      <table v-if="!isMobile" class="mem-list-table">
+        <colgroup>
+          <col style="width:auto" />
+          <col style="width:180px" />
+          <col style="width:70px" />
+          <col style="width:180px" />
+        </colgroup>
         <thead>
           <tr>
             <th>{{ t('common.name') }}</th>
             <th>{{ t('memories.embedding_col') }}</th>
-            <th class="col-count">{{ t('memories.count_col') }}</th>
-            <th>{{ t('common.ops') }}</th>
+            <th class="col-center">{{ t('memories.count_col') }}</th>
+            <th class="col-center">{{ t('common.ops') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -126,15 +132,15 @@ async function refresh() {
             <td colspan="4" style="text-align:center;color:#94a3b8;padding:40px">{{ t('memories.empty') }}</td>
           </tr>
           <tr v-for="(m, id) in memories" :key="id">
-            <td>{{ m.name || id }}</td>
-            <td>{{ embeddingOptions.find(e => e.id === m.embedding)?.label || m.embedding || '-' }}</td>
-            <td class="col-count">
+            <td class="cell-nowrap">{{ m.name || id }}</td>
+            <td class="cell-nowrap cell-secondary">{{ embeddingOptions.find(e => e.id === m.embedding)?.label || m.embedding || '-' }}</td>
+            <td class="col-center">
               <span v-if="memoryCounts[id as string] === undefined" class="count-loading">...</span>
               <span v-else-if="memoryCounts[id as string] === null" class="count-error">-</span>
               <span v-else class="count-badge">{{ memoryCounts[id as string] }}</span>
             </td>
-            <td>
-              <div class="ops-cell">
+            <td class="col-center">
+              <div class="ops-row">
                 <button class="btn-outline btn-sm" @click="memoryViewModal?.open(id as string, m)">{{ t('common.view') }}</button>
                 <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
                 <button class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
@@ -196,9 +202,25 @@ async function refresh() {
 </template>
 
 <style scoped>
-.col-count {
-  width: 80px;
+.mem-list-table {
+  table-layout: fixed;
+}
+.col-center {
   text-align: center;
+}
+.cell-nowrap {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cell-secondary {
+  color: #6b6b6b;
+  font-size: 12px;
+}
+.ops-row {
+  display: inline-flex;
+  gap: 6px;
+  white-space: nowrap;
 }
 .count-badge {
   display: inline-block;
