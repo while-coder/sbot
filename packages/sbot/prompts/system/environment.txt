@@ -13,6 +13,5 @@ vars:
   <paths>
     <assets dir="{assetsDir}" url="{httpUrl}/assets/&lt;filename&gt;">IMPORTANT: This is the ONLY way to deliver files to users. Whenever you generate, export, or produce any file intended for the user (images, documents, archives, reports, etc.), you MUST save it to this directory and share the URL above. Never send raw file content inline, never use any other path or method.</assets>
     <working-directory dir="{workPath}">This is your primary workspace. By default, scope all file operations — both read and write — to this directory. Accessing or modifying files outside this directory is permitted only when the user explicitly requests it or the task cannot be completed otherwise. Always prefer operating within this directory first.</working-directory>
-
   </paths>
 </environment>

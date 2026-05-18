@@ -66,10 +66,10 @@ export class AgentRunner {
         const httpUrl = config.getHttpUrl();
         const workPath = options.workPath ?? `${assetsDir}/${threadId}`;
 
-        /** 静态 system prompts（可缓存）：init → environment */
+        /** 静态 system prompts（可缓存）：instruction → environment */
         const extraPrompts: string[] = [
-            loadPrompt('system/init.txt'),
-            loadPrompt('system/static_environment.txt', {
+            loadPrompt('system/instruction.txt'),
+            loadPrompt('system/environment.txt', {
                 timezone,
                 os: `${os.type()} ${os.release()} (${os.platform()})`,
                 assetsDir,
@@ -80,7 +80,7 @@ export class AgentRunner {
 
         /** 动态 system prompts（每次请求变化，不可缓存） */
         const dynamicPrompts: string[] = [
-            ...(extraInfo?.trim() ? [loadPrompt('system/dynamic_context.txt', { extraInfo })] : []),
+            ...(extraInfo?.trim() ? [extraInfo] : []),
         ];
 
         // 目录级上下文自动发现（.sbot.md / SBOT.md）
@@ -160,8 +160,16 @@ export class AgentRunner {
         const sub = new ServiceContainer();
         const wikiDir = config.getWikiDBPath(wikiId);
         sub.registerInstance(IWikiDatabase, WikiDatabaseManager.getInstance().acquire(wikiDir));
-        sub.registerWithArgs(IWikiService, WikiService, {});
 
+        const args: Record<string | symbol, any> = { [T_DBPath]: wikiDir };
+        if (wikiConfig.embedding) {
+            try {
+                const embedding = await config.getEmbeddingService(wikiConfig.embedding, true);
+                args[IEmbeddingService] = embedding;
+            } catch { /* embedding unavailable, graceful fallback */ }
+        }
+
+        sub.registerWithArgs(IWikiService, WikiService, args);
         return sub.resolve<IWikiService>(IWikiService);
     }
 

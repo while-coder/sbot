@@ -58,6 +58,12 @@ export class HybridSearcher {
 
     // ── Index Management ──
 
+    buildIndexWithoutEmbeddings(items: SearchableItem[]): void {
+        if (items.length === 0) { this._isReady = true; return; }
+        this.buildInvertedIndex(items);
+        this._isReady = true;
+    }
+
     async buildIndex(items: SearchableItem[], embeddings: IEmbeddingService): Promise<void> {
         if (items.length === 0) { this._isReady = true; return; }
 

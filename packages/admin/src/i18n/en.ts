@@ -409,6 +409,7 @@ export default {
     cat_wiki: 'Knowledge (Docs)',
     cat_skills: 'Skills',
     cat_tools: 'Tools',
+    cat_compact: 'Compact',
     cat_insight: 'Insight',
     cat_heartbeat: 'Heartbeat',
     create_file: 'New File',

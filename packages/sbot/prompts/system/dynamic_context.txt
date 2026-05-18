@@ -1,5 +1,0 @@
----
-vars:
-  extraInfo: 渠道注入的额外信息 (XML 片段，可为空)
----
-{extraInfo}

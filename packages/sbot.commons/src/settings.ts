@@ -95,6 +95,8 @@ export interface MemoryConfig {
 export interface WikiConfig {
   /** 显示名称 */
   name: string
+  /** 可选的 embedding 配置 ID，启用语义搜索 */
+  embedding?: string
 }
 
 export interface SaverConfig {
