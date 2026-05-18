@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
 import { useToast } from '@/composables/useToast'
+import { store } from '@/store'
 
 const { t } = useI18n()
 const { show } = useToast()
@@ -30,9 +31,45 @@ interface ChannelSessionOption {
   channelId: string
   sessionId: string
   sessionName: string
+  agentId?: string | null
 }
 
+interface ChannelGroup {
+  channelName: string
+  sessions: ChannelSessionOption[]
+}
+
+const TIMEZONE_OPTIONS = [
+  { value: 'Etc/GMT+12', offset: '-12:00', key: 'tz_baker_island' },
+  { value: 'Pacific/Pago_Pago', offset: '-11:00', key: 'tz_pago_pago' },
+  { value: 'Pacific/Honolulu', offset: '-10:00', key: 'tz_honolulu' },
+  { value: 'America/Anchorage', offset: '-9:00', key: 'tz_anchorage' },
+  { value: 'America/Los_Angeles', offset: '-8:00', key: 'tz_los_angeles' },
+  { value: 'America/Denver', offset: '-7:00', key: 'tz_denver' },
+  { value: 'America/Chicago', offset: '-6:00', key: 'tz_chicago' },
+  { value: 'America/New_York', offset: '-5:00', key: 'tz_new_york' },
+  { value: 'America/Halifax', offset: '-4:00', key: 'tz_halifax' },
+  { value: 'America/Sao_Paulo', offset: '-3:00', key: 'tz_sao_paulo' },
+  { value: 'Atlantic/South_Georgia', offset: '-2:00', key: 'tz_south_georgia' },
+  { value: 'Atlantic/Azores', offset: '-1:00', key: 'tz_azores' },
+  { value: 'UTC', offset: '+0:00', key: 'tz_utc' },
+  { value: 'Europe/Paris', offset: '+1:00', key: 'tz_paris' },
+  { value: 'Europe/Athens', offset: '+2:00', key: 'tz_athens' },
+  { value: 'Europe/Moscow', offset: '+3:00', key: 'tz_moscow' },
+  { value: 'Asia/Dubai', offset: '+4:00', key: 'tz_dubai' },
+  { value: 'Asia/Karachi', offset: '+5:00', key: 'tz_karachi' },
+  { value: 'Asia/Dhaka', offset: '+6:00', key: 'tz_dhaka' },
+  { value: 'Asia/Bangkok', offset: '+7:00', key: 'tz_bangkok' },
+  { value: 'Asia/Shanghai', offset: '+8:00', key: 'tz_shanghai' },
+  { value: 'Asia/Tokyo', offset: '+9:00', key: 'tz_tokyo' },
+  { value: 'Australia/Brisbane', offset: '+10:00', key: 'tz_brisbane' },
+  { value: 'Pacific/Noumea', offset: '+11:00', key: 'tz_noumea' },
+  { value: 'Pacific/Auckland', offset: '+12:00', key: 'tz_auckland' },
+]
+
 const INTERVAL_OPTIONS = [
+  { value: 10, label: '10' },
+  { value: 20, label: '20' },
   { value: 30, label: '30' },
   { value: 60, label: '1' },
   { value: 120, label: '2' },
@@ -52,6 +89,22 @@ function intervalLabel(minutes: number): string {
 const heartbeats = ref<HeartbeatItem[]>([])
 const channelSessions = ref<ChannelSessionOption[]>([])
 
+const groupedSessions = computed(() => {
+  const channels = store.settings.channels
+  const map = new Map<string, ChannelSessionOption[]>()
+  for (const s of channelSessions.value) {
+    if (!channels?.[s.channelId]) continue
+    const list = map.get(s.channelId) || []
+    list.push(s)
+    map.set(s.channelId, list)
+  }
+  const groups: ChannelGroup[] = []
+  for (const [id, sessions] of map) {
+    groups.push({ channelName: channels![id].name, sessions })
+  }
+  return groups
+})
+
 const showModal = ref(false)
 const editingId = ref<number | null>(null)
 const form = ref({
@@ -69,7 +122,9 @@ const form = ref({
 function sessionLabel(id: number): string {
   const s = channelSessions.value.find(s => s.id === id)
   if (!s) return `#${id}`
-  return s.sessionName || `${s.channelId} / ${s.sessionId}`
+  const name = s.sessionName || s.sessionId
+  const channelName = store.settings.channels?.[s.channelId]?.name || s.channelId
+  return `[${channelName}] ${name}`
 }
 
 function openAdd() {
@@ -338,9 +393,11 @@ onMounted(async () => {
             <label>{{ t('heartbeats.target') }} *</label>
             <select v-model="form.target">
               <option :value="null" disabled>--</option>
-              <option v-for="s in channelSessions" :key="s.id" :value="s.id">
-                {{ s.sessionName || `${s.channelId} / ${s.sessionId}` }} (#{{ s.id }})
-              </option>
+              <optgroup v-for="g in groupedSessions" :key="g.channelName" :label="g.channelName">
+                <option v-for="s in g.sessions" :key="s.id" :value="s.id">
+                  {{ s.sessionName || s.sessionId }}
+                </option>
+              </optgroup>
             </select>
             <div class="hint">{{ t('heartbeats.target_hint') }}</div>
           </div>
@@ -365,12 +422,15 @@ onMounted(async () => {
               </div>
               <div class="form-group" style="flex:1">
                 <label>{{ t('heartbeats.end_hour') }}</label>
-                <input v-model.number="form.activeHoursEnd" type="number" min="0" max="23" />
+                <input v-model.number="form.activeHoursEnd" type="number" min="0" max="24" />
               </div>
             </div>
             <div class="form-group">
               <label>{{ t('heartbeats.timezone') }}</label>
-              <input v-model="form.activeHoursTimezone" placeholder="Asia/Shanghai" />
+              <select v-model="form.activeHoursTimezone">
+                <option value="">{{ t('heartbeats.timezone_local') }}</option>
+                <option v-for="tz in TIMEZONE_OPTIONS" :key="tz.value" :value="tz.value">(UTC{{ tz.offset }}) {{ t('heartbeats.' + tz.key) }}</option>
+              </select>
             </div>
           </template>
         </div>

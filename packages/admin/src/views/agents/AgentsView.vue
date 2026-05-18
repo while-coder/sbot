@@ -503,7 +503,7 @@ async function refresh() {
             <button class="btn-outline btn-sm" @click="agentModal?.open(id as string)">{{ t('common.edit') }}</button>
             <button v-if="a.type !== 'acp'" class="btn-outline btn-sm" @click="agentMcpModal?.open(id as string)">{{ t('agents.tab_tools') }}</button>
             <button v-if="a.type !== 'acp'" class="btn-outline btn-sm" @click="agentSkillsModal?.open(id as string)">{{ t('agents.tab_skills') }}</button>
-            <!-- <button class="btn-outline btn-sm" @click="exportAgent(id as string)">{{ t('agentStore.export_btn') }}</button> -->
+            <button class="btn-outline btn-sm" @click="exportAgent(id as string)">{{ t('agentStore.export_btn') }}</button>
             <button class="btn-danger btn-sm" @click="removeAgent(id as string)">{{ t('common.delete') }}</button>
           </div>
 
