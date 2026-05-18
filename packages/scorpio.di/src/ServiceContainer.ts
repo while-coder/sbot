@@ -56,6 +56,20 @@ export class ServiceContainer {
   private registrations = new Map<InjectionToken, Registration>();
   private resolutionStack = new Set<InjectionToken>(); // 循环依赖检测
   private disposables: Array<{ instance: any; method: string | symbol }> = [];
+  private parent?: ServiceContainer;
+
+  /**
+   * 创建子作用域容器
+   *
+   * 子容器自动继承父容器的所有注册：resolve 时先查本地，本地没有则回退到父容器。
+   * 子容器可以 register 同名 token 来覆盖父容器的服务。
+   * dispose() 只清理子容器自身创建的实例，不影响父容器。
+   */
+  createScope(): ServiceContainer {
+    const child = new ServiceContainer();
+    child.parent = this;
+    return child;
+  }
 
   /**
    * 注册服务
@@ -251,13 +265,18 @@ export class ServiceContainer {
     // 2. 查找注册信息
     let registration = this.registrations.get(token);
 
-    // 3. 如果没有注册，且是带装饰器的类，则自动注册
+    // 3. 如果没有注册，且是带装饰器的类，则自动注册（注册到本地）
     if (!registration && typeof token === "function") {
       if (isInjectable(token)) {
         const lifecycle = getLifecycle(token) ?? Lifecycle.Transient;
         this.register(token, { useClass: token as Constructor<T> }, lifecycle);
         registration = this.registrations.get(token);
       }
+    }
+
+    // 4. 本地无注册，委托父容器
+    if (!registration && this.parent) {
+      return this.parent.resolve<T>(token);
     }
 
     if (!registration) {
@@ -308,9 +327,8 @@ export class ServiceContainer {
    */
   isRegistered<T>(token: InjectionToken<T>): boolean {
     if (this.registrations.has(token)) return true;
-    // 检查是否是带装饰器的类（可以自动注册）
     if (typeof token === "function" && isInjectable(token)) return true;
-    return false;
+    return this.parent?.isRegistered(token) ?? false;
   }
 
   /**
