@@ -7,7 +7,7 @@ export interface DiscoveredContext {
     level: number;
 }
 
-const CONTEXT_FILE_NAMES = ['.sbot.md', 'SBOT.md', 'sbot.md'];
+const CONTEXT_FILE_NAMES = ['SBOT.md', 'sbot.md'];
 const MAX_FILE_SIZE = 10 * 1024; // 10KB
 const DEFAULT_MAX_LEVELS = 3;
 
