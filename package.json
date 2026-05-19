@@ -31,8 +31,8 @@
     "debug:landing": "pnpm --filter sbot-landing run dev",
     "build:landing": "pnpm --filter sbot-landing run build",
 
-    "docker:sbot": "pnpm run build && node packages/sbot/scripts/docker.js build && node packages/sbot/scripts/docker.js save",
-    "docker:sbot:publish": "pnpm run build && node packages/sbot/scripts/docker.js build && node packages/sbot/scripts/docker.js publish"
+    "docker:sbot": "pnpm run build:sbot && node packages/sbot/scripts/docker.js build && node packages/sbot/scripts/docker.js save",
+    "docker:sbot:publish": "pnpm run build:sbot && node packages/sbot/scripts/docker.js build && node packages/sbot/scripts/docker.js publish"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
