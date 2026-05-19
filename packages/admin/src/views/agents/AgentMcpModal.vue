@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store, applyMcpList } from '@/store'
 import { useToast } from '@/composables/useToast'
+import { McpTransport } from '@/types'
 import type { McpEntry, McpTool } from '@/types'
 import { serverAddr } from '@/utils/mcpSchema'
 import { sourceBadgeStyle } from '@/utils/badges'
@@ -116,7 +117,7 @@ async function viewGlobalTools(id: string) {
 const showModal   = ref(false)
 const editingName = ref<string | null>(null)
 const form = ref({
-  name: '', type: 'http', url: '',
+  name: '', type: McpTransport.Http, url: '',
   headers: {} as Record<string, string>,
   command: '', args: [] as string[],
   env: {} as Record<string, string>,
@@ -138,7 +139,7 @@ function syncToForm() {
 }
 function openAdd() {
   editingName.value = null
-  form.value = { name: '', type: 'http', url: '', headers: {}, command: '', args: [], env: {}, cwd: '', toolTimeout: '', description: '' }
+  form.value = { name: '', type: McpTransport.Http, url: '', headers: {}, command: '', args: [], env: {}, cwd: '', toolTimeout: '', description: '' }
   syncFromForm()
   showModal.value = true
 }
@@ -161,7 +162,7 @@ async function save() {
   try {
     const { name, type, url, headers, command, args, env, cwd, toolTimeout, description } = form.value
     const config: McpEntry = { type, name: name.trim() } as any
-    if (type === 'http') {
+    if (type === McpTransport.Http || type === McpTransport.Sse) {
       if (!url.trim()) { show(t('mcp.error_url'), 'error'); return }
       config.url = url.trim()
       if (Object.keys(headers).length > 0) config.headers = headers
@@ -409,8 +410,8 @@ defineExpose({ open })
         </div>
         <div class="modal-body">
           <div class="form-group"><label>{{ t('common.name') }} *</label><input v-model="form.name" :placeholder="t('mcp.name_placeholder')" /></div>
-          <div class="form-group"><label>{{ t('mcp.transport_type') }} *</label><select v-model="form.type"><option value="http">{{ t('mcp.transport_http') }}</option><option value="stdio">{{ t('mcp.transport_stdio') }}</option></select></div>
-          <template v-if="form.type === 'http'">
+          <div class="form-group"><label>{{ t('mcp.transport_type') }} *</label><select v-model="form.type"><option :value="McpTransport.Http">{{ t('mcp.transport_http') }}</option><option :value="McpTransport.Sse">{{ t('mcp.transport_sse') }}</option><option :value="McpTransport.Stdio">{{ t('mcp.transport_stdio') }}</option></select></div>
+          <template v-if="form.type === McpTransport.Http || form.type === McpTransport.Sse">
             <div class="form-group"><label>{{ t('mcp.url_label') }} *</label><input v-model="form.url" placeholder="http://example.com/mcp" /></div>
             <div class="form-section">
               <div class="form-section-title">{{ t('mcp.headers_section') }}</div>

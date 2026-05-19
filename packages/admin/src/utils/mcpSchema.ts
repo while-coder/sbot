@@ -1,4 +1,5 @@
 // packages/website/src/utils/mcpSchema.ts
+import { McpTransport } from '@/types'
 import type { McpEntry } from '@/types'
 
 export function esc(s: string): string {
@@ -117,7 +118,7 @@ export function renderToolParams(schema: any): string {
 }
 
 export function serverAddr(s: McpEntry): string {
-  if (s.type === 'http') return s.url || '-'
-  if (s.type === 'stdio') return [s.command, ...(s.args || [])].join(' ')
+  if (s.type === McpTransport.Http || s.type === McpTransport.Sse) return s.url || '-'
+  if (s.type === McpTransport.Stdio) return [s.command, ...(s.args || [])].join(' ')
   return '-'
 }
