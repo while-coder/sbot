@@ -11,7 +11,7 @@ const InsightExtractionSchema = z.object({
         name: z.string().describe("Insight name in kebab-case"),
         description: z.string().describe("Brief one-line description"),
         content: z.string().describe("Markdown body content"),
-        action: z.enum(['create', 'patch']).describe("Create new or patch existing"),
+        action: z.enum(['create', 'patch', 'delete']).describe("Create new, patch existing, or delete outdated"),
         patchTarget: z.string().optional().describe("Existing insight name to patch"),
     })).describe("Extracted insights, empty array if nothing worth persisting"),
 });

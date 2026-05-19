@@ -1,14 +1,10 @@
 ---
 vars:
   insights: 与当前对话相关的 insight 列表 (XML 格式)
-  tools: 可用的 insight 工具列表 (XML 格式)
 ---
 <insight-context>
   <insights>
 {insights}
   </insights>
   <note>Items above are agent-created insights relevant to the current query. Use them to inform your responses.</note>
-  <tools>
-{tools}
-  </tools>
 </insight-context>

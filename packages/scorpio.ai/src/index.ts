@@ -59,9 +59,6 @@ export {
   T_SkillToolListDesc,
   T_SkillToolExecDesc,
   T_MemorySystemPromptTemplate,
-  T_InsightToolCreateDesc,
-  T_InsightToolPatchDesc,
-  T_InsightToolDeleteDesc,
   T_InsightDir,
   T_InsightSystemPromptTemplate,
   T_InsightLimit,
@@ -217,9 +214,6 @@ export {
 
   // 实现类
   InsightService,
-  INSIGHT_CREATE_TOOL_NAME,
-  INSIGHT_PATCH_TOOL_NAME,
-  INSIGHT_DELETE_TOOL_NAME,
 
   // 提取器
   IInsightExtractor,

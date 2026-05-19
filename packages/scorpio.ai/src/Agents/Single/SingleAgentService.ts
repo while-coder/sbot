@@ -153,7 +153,6 @@ export class SingleAgentService extends AgentServiceBase {
     protected async buildTools(_callback?: IAgentCallback, _signal?: AbortSignal): Promise<StructuredToolInterface[]> {
         const tools: StructuredToolInterface[] = await this.toolService?.getAllTools() ?? [];
         if (this.skillService) tools.push(...this.skillService.getTools());
-        if (this.insightService) tools.push(...this.insightService.getTools());
         if (this.memoryServices.length > 0) {
             tools.push(...MemoryToolProvider.getTools(this.memoryServices));
         }

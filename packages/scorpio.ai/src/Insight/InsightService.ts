@@ -1,27 +1,15 @@
 import { IInsightService } from "./IInsightService";
 import { ILoggerService } from "../Logger";
 import { IEmbeddingService } from "../Embedding";
-import { inject, init, T_InsightToolCreateDesc, T_InsightToolPatchDesc, T_InsightToolDeleteDesc, T_InsightDir, T_InsightSystemPromptTemplate, T_InsightLimit, T_InsightStaleDays, T_InsightArchiveDays } from "../Core";
-import { DynamicStructuredTool, type StructuredToolInterface } from "@langchain/core/tools";
-import { z } from "zod";
+import { inject, init, T_InsightDir, T_InsightSystemPromptTemplate, T_InsightLimit, T_InsightStaleDays, T_InsightArchiveDays } from "../Core";
 import yaml from "js-yaml";
 import fs from "fs";
 import path from "path";
-import {
-    createTextContent,
-    createErrorResult,
-    createSuccessResult,
-    MCPToolResult
-} from "../Tools";
 import { parseSkill, isValidSkillDirectory } from "../Skills/parser";
 import { Skill } from "../Skills/types";
 import { UsageTracker } from "../Utils/UsageTracker";
 import { HybridSearcher } from "../Retrieval";
 import { IInsightExtractor } from "./Extractor/IInsightExtractor";
-
-export const INSIGHT_CREATE_TOOL_NAME = 'insight_create';
-export const INSIGHT_PATCH_TOOL_NAME = 'insight_patch';
-export const INSIGHT_DELETE_TOOL_NAME = 'insight_delete';
 
 const toSearchable = (s: Skill) => ({ key: s.name, text: s.description });
 
@@ -32,9 +20,6 @@ export class InsightService implements IInsightService {
 
     constructor(
         @inject(T_InsightDir) private insightDir: string,
-        @inject(T_InsightToolCreateDesc) private toolCreateDesc: string,
-        @inject(T_InsightToolPatchDesc) private toolPatchDesc: string,
-        @inject(T_InsightToolDeleteDesc) private toolDeleteDesc: string,
         @inject(T_InsightSystemPromptTemplate) private systemPromptTemplate: string,
         @inject(IInsightExtractor) private extractor: IInsightExtractor,
         @inject(T_InsightLimit, { optional: true }) private insightLimit?: number,
@@ -82,6 +67,15 @@ export class InsightService implements IInsightService {
             this.logger?.debug(`extractFromConversation: extractor returned ${extracted.length} items`);
 
             for (const item of extracted) {
+                if (item.action === 'delete') {
+                    const existing = insights.find(s => s.name === item.name);
+                    if (existing) {
+                        this.archiveInsight(existing, this.usageTracker.getUsage(existing.path));
+                        this.logger?.info(`Insight auto-deleted: ${existing.name}`);
+                    }
+                    continue;
+                }
+
                 if (item.action === 'patch' && item.patchTarget) {
                     const existing = insights.find(s => s.name === item.patchTarget);
                     if (existing) {
@@ -126,10 +120,6 @@ ${item.content}`;
         }
     }
 
-    getTools(): StructuredToolInterface[] {
-        return [this.buildCreateTool(), this.buildPatchTool(), this.buildDeleteTool()];
-    }
-
     async getRelevantInsights(query: string, limit?: number): Promise<string | null> {
         const max = limit ?? this.insightLimit!;
         const insights = this.getAllInsights();
@@ -150,12 +140,7 @@ ${item.content}`;
             const usageAttr = usage ? ` uses="${usage.useCount}" lastUsed="${usage.lastUsedAt ?? 'never'}"` : '';
             return `  <insight name="${s.name}" path="${s.path}"${usageAttr}>${s.description}</insight>`;
         }).join("\n");
-        const toolsXml = [
-            `    <tool name="${INSIGHT_CREATE_TOOL_NAME}">${this.toolCreateDesc}</tool>`,
-            `    <tool name="${INSIGHT_PATCH_TOOL_NAME}">${this.toolPatchDesc}</tool>`,
-            `    <tool name="${INSIGHT_DELETE_TOOL_NAME}">${this.toolDeleteDesc}</tool>`,
-        ].join("\n");
-        return this.systemPromptTemplate.replace('{insights}', items).replace('{tools}', toolsXml);
+        return this.systemPromptTemplate.replace('{insights}', items);
     }
 
     // ── Curator ──
@@ -219,87 +204,7 @@ ${item.content}`;
         return insights;
     }
 
-    // ── Tools ──
-
-    private buildCreateTool(): StructuredToolInterface {
-        return new DynamicStructuredTool({
-            name: INSIGHT_CREATE_TOOL_NAME,
-            description: this.toolCreateDesc,
-            schema: z.object({
-                name: z.string().describe("Insight name in kebab-case (e.g. 'api-error-handling', 'data-pipeline-pattern')"),
-                description: z.string().describe("Brief description of this insight"),
-                content: z.string().describe("SKILL.md body content (markdown). Frontmatter will be auto-generated."),
-            }) as any,
-            func: async ({ name, description, content }: any): Promise<MCPToolResult> => {
-                try {
-                    if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(name) && !/^[a-z0-9]$/.test(name)) {
-                        return createErrorResult("Invalid insight name: must be kebab-case (lowercase letters, numbers, hyphens)");
-                    }
-                    const dir = path.join(this.insightDir, name);
-                    if (fs.existsSync(dir)) return createErrorResult(`Insight "${name}" already exists`);
-
-                    fs.mkdirSync(dir, { recursive: true });
-                    const skillMd = `---\nname: ${name}\ntype: insight\ndescription: ${description}\n---\n\n${content}`;
-                    fs.writeFileSync(path.join(dir, 'SKILL.md'), skillMd, 'utf-8');
-                    this.usageTracker.createUsage(dir, 'agent');
-
-                    if (this.embeddings) {
-                        try { await this.searcher.updateEntry(name, description, this.embeddings); } catch { /* best-effort */ }
-                    }
-                    this.logger?.info(`Insight created: ${name} at ${dir}`);
-                    return createSuccessResult(createTextContent(`Insight "${name}" created at ${dir}`));
-                } catch (error: any) {
-                    this.logger?.error(`Error creating insight ${name}: ${error.message}`);
-                    return createErrorResult(error.message);
-                }
-            }
-        });
-    }
-
-    private buildPatchTool(): StructuredToolInterface {
-        return new DynamicStructuredTool({
-            name: INSIGHT_PATCH_TOOL_NAME,
-            description: this.toolPatchDesc,
-            schema: z.object({
-                insightName: z.string().describe("Insight name (kebab-case)"),
-                filePath: z.string().describe('Relative file path within insight directory (e.g. "SKILL.md")'),
-                content: z.string().describe("New file content. For SKILL.md: body only (frontmatter is preserved automatically)"),
-                description: z.string().optional().describe("Update the insight description (only applies to SKILL.md)"),
-            }) as any,
-            func: async ({ insightName, filePath, content, description }: any): Promise<MCPToolResult> => {
-                try {
-                    const insight = this.getAllInsights().find(s => s.name === insightName);
-                    if (!insight) return createErrorResult(`Insight "${insightName}" not found`);
-
-                    const fullPath = path.join(insight.path, filePath);
-                    if (!this.isPathSafe(fullPath, insight.path)) return createErrorResult("Security error: access outside the insight directory is not allowed");
-
-                    const dir = path.dirname(fullPath);
-                    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
-                    let finalContent = content;
-                    if (filePath === 'SKILL.md') {
-                        finalContent = this.rebuildSkillMd(insight, content, description);
-                    }
-
-                    fs.writeFileSync(fullPath, finalContent, 'utf-8');
-                    this.usageTracker.recordPatch(insight.path);
-
-                    if (filePath === 'SKILL.md' && this.embeddings) {
-                        const updated = parseSkill(insight.path);
-                        if (updated) {
-                            try { await this.searcher.updateEntry(insightName, updated.description, this.embeddings); } catch { /* best-effort */ }
-                        }
-                    }
-
-                    return createSuccessResult(createTextContent(`File "${filePath}" in insight "${insightName}" updated`));
-                } catch (error: any) {
-                    this.logger?.error(`Error patching insight ${insightName}/${filePath}: ${error.message}`);
-                    return createErrorResult(error.message);
-                }
-            }
-        });
-    }
+    // ── Helpers ──
 
     private rebuildSkillMd(insight: Skill, content: string, newDescription?: string): string {
         const existing = fs.readFileSync(path.join(insight.path, 'SKILL.md'), 'utf-8');
@@ -331,45 +236,5 @@ ${item.content}`;
         const end = trimmed.indexOf('\n---', 3);
         if (end === -1) return content;
         return trimmed.slice(end + 4).trimStart();
-    }
-
-    private buildDeleteTool(): StructuredToolInterface {
-        return new DynamicStructuredTool({
-            name: INSIGHT_DELETE_TOOL_NAME,
-            description: this.toolDeleteDesc,
-            schema: z.object({
-                insightName: z.string().describe("Insight name (kebab-case)"),
-            }) as any,
-            func: async ({ insightName }: any): Promise<MCPToolResult> => {
-                try {
-                    const insight = this.getAllInsights().find(s => s.name === insightName);
-                    if (!insight) return createErrorResult(`Insight "${insightName}" not found`);
-
-                    const archiveBase = path.join(this.insightDir, '.archive');
-                    if (!fs.existsSync(archiveBase)) fs.mkdirSync(archiveBase, { recursive: true });
-
-                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                    const archiveDest = path.join(archiveBase, `${insightName}_${timestamp}`);
-                    fs.renameSync(insight.path, archiveDest);
-
-                    const usage = this.usageTracker.getUsage(archiveDest);
-                    if (usage) {
-                        usage.state = 'archived';
-                        fs.writeFileSync(path.join(archiveDest, '.usage.json'), JSON.stringify(usage, null, 2), 'utf-8');
-                    }
-
-                    this.searcher.removeEntry(insightName);
-                    this.logger?.info(`Insight archived: ${insightName} → ${archiveDest}`);
-                    return createSuccessResult(createTextContent(`Insight "${insightName}" archived to ${archiveDest}`));
-                } catch (error: any) {
-                    this.logger?.error(`Error deleting insight ${insightName}: ${error.message}`);
-                    return createErrorResult(error.message);
-                }
-            }
-        });
-    }
-
-    private isPathSafe(fullPath: string, baseDir: string): boolean {
-        return path.normalize(fullPath).startsWith(path.normalize(baseDir));
     }
 }

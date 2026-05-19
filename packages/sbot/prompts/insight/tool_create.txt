@@ -1,1 +1,0 @@
-Create a new insight to persist a reusable pattern, proven solution, or domain knowledge discovered during the current conversation. Insights are automatically loaded in future conversations to avoid repeated trial-and-error. The content should be general and transferable (not session-specific). Provide a kebab-case name, a brief description, and the SKILL.md body in markdown.

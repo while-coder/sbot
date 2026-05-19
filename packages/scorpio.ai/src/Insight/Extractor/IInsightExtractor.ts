@@ -2,7 +2,7 @@ export interface ExtractedInsight {
     name: string;
     description: string;
     content: string;
-    action: 'create' | 'patch';
+    action: 'create' | 'patch' | 'delete';
     patchTarget?: string;
 }
 

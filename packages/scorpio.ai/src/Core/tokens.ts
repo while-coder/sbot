@@ -24,9 +24,6 @@ export const T_CompactPromptTemplate      = Symbol("scorpio:T_CompactPromptTempl
 export const T_MaxHistoryRounds           = Symbol("scorpio:T_MaxHistoryRounds");
 
 // Insight tokens
-export const T_InsightToolCreateDesc = Symbol("scorpio:T_InsightToolCreateDesc");
-export const T_InsightToolPatchDesc  = Symbol("scorpio:T_InsightToolPatchDesc");
-export const T_InsightToolDeleteDesc = Symbol("scorpio:T_InsightToolDeleteDesc");
 export const T_InsightDir            = Symbol("scorpio:T_InsightDir");
 export const T_InsightSystemPromptTemplate = Symbol("scorpio:T_InsightSystemPromptTemplate");
 export const T_InsightLimit          = Symbol("scorpio:T_InsightLimit");

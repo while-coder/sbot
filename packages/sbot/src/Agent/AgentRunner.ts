@@ -16,7 +16,7 @@ import {
     T_WikiSystemPromptTemplate,
     IInsightService, InsightService,
     IInsightExtractor, InsightExtractor,
-    T_InsightDir, T_InsightToolCreateDesc, T_InsightToolPatchDesc, T_InsightToolDeleteDesc,
+    T_InsightDir,
     T_InsightSystemPromptTemplate, T_InsightExtractorSystemPrompt,
     T_InsightStaleDays, T_InsightArchiveDays,
     type MessageContent,
@@ -213,9 +213,6 @@ export class AgentRunner {
 
         container.registerWithArgs(IInsightService, InsightService, {
             [T_InsightDir]: insightDir,
-            [T_InsightToolCreateDesc]: loadPrompt('insight/tool_create.txt'),
-            [T_InsightToolPatchDesc]: loadPrompt('insight/tool_patch.txt'),
-            [T_InsightToolDeleteDesc]: loadPrompt('insight/tool_delete.txt'),
             [T_InsightSystemPromptTemplate]: loadPrompt('insight/system.txt'),
             [T_InsightStaleDays]: 30,
             [T_InsightArchiveDays]: 90,
