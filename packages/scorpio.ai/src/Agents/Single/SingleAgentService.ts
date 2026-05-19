@@ -176,13 +176,6 @@ export class SingleAgentService extends AgentServiceBase {
             ...savedHistory,
         ];
 
-        // this.logger?.debug(`tools count : ${state.tools.length} messages:${messages.length} historyMessages:${historyMessages.length}`)
-        // for (const msg of messages) {
-        //     const role = msg.constructor.name;
-        //     const contentStr = (typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)).replace(/\r?\n/g, ' ');
-        //     this.logger?.debug(`  [${role}] ${contentStr.length > 100 ? contentStr.slice(0, 100) + '…' : contentStr}`);
-        // }
-
         if (state.signal?.aborted) throw new AgentCancelledError();
 
         const mergedSignal = this.modelCallTimeout != null
@@ -357,10 +350,8 @@ export class SingleAgentService extends AgentServiceBase {
                     await this.saverService.pushMessage(message, thinkId ? { thinkId } : undefined);
 
                     if (message.role === MessageRole.AI) {
-                        const content = message.content;
-                        if (typeof content === 'string' && content) {
-                            aiResponses.push(content);
-                        }
+                        const text = contentToString(message.content);
+                        if (text) aiResponses.push(text);
                     }
 
                     if (callback.onMessage) {
@@ -373,11 +364,8 @@ export class SingleAgentService extends AgentServiceBase {
             // tools node 的补偿消息已全部写入 saver，配对完整后再抛出
             if (signal?.aborted) throw new AgentCancelledError();
         }
-
-        console.log("----------------------------------------", this.insightService)
         // 静默提取 insight
         if (this.insightService) {
-            
             try {
                 await this.insightService.extractFromConversation(
                     contentToString(query),
