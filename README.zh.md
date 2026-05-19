@@ -52,9 +52,12 @@ docker run -d \
 - **多 LLM 供应商** — OpenAI、Anthropic Claude、Google Gemini、Ollama，以及任何 OpenAI 兼容接口（Azure OpenAI、Groq、Mistral、DeepSeek 等）
 - **多 Agent 编排** — ReAct 递归任务分解 + Generative 多模态生成，Agent 可嵌套组合
 - **知识库** — 内置 Wiki 系统，支持文档自动提取和语义搜索，Agent 对话中自动引用
-- **长期记忆** — 完整的提取 → 压缩流水线，基于向量 Embedding 进行语义检索
-- **MCP 工具** — 标准 MCP 协议（stdio/HTTP），接入任意 MCP 工具生态
-- **多渠道接入** — Web UI、CLI、飞书/Lark、Slack、企业微信、微信、REST API、WebSocket
+- **长期记忆** — 基于向量 Embedding 的语义检索，持久化上下文记忆
+- **对话压缩** — Token 用量超阈值时自动摘要压缩，保持上下文连续性的同时降低消耗
+- **洞察系统** — 自动从对话中提取知识到 Wiki 和 Memory
+- **ACP Agent 支持** — Agent Client Protocol 集成，支持持久化和临时两种 Agent 模式
+- **MCP 工具** — 标准 MCP 协议（stdio/SSE），接入任意 MCP 工具生态
+- **多渠道接入** — Web UI、CLI、飞书/Lark、Slack、企业微信、微信、OneBot (QQ)、小爱音箱、REST API、WebSocket
 - **内置工具** — Shell 执行、文件系统、归档操作、媒体文件读取、Python/PowerShell 内联执行、Cron 调度、待办事项
 - **技能系统** — 可安装的 Prompt 模块，支持从 skills.sh / Clawhub 远程安装
 - **Token 用量追踪** — 内置消耗统计，实时可见
@@ -104,12 +107,10 @@ docker run -d \
 
 **5. （可选）开启 Wiki 知识库** — 侧栏 → **Wiki** → 新建
 
-内置知识库系统，可手动创建词条（标题 + 内容 + 标签），也可由 Agent 在对话中自动提取知识。自动提取需配置一个提取模型（Extractor）。创建后将 Wiki 分配给会话或渠道，Agent 对话时可通过内置工具搜索、读取和创建词条。
+内置知识库系统，可手动创建词条（标题 + 内容 + 标签），也可由洞察系统在对话中自动提取知识。创建后将 Wiki 分配给会话或渠道，Agent 对话时可通过内置工具搜索、读取和创建词条。
 
 | 字段 | 说明 |
 |------|------|
-| 提取模型 | 从对话中自动提取知识的 LLM 模型 |
-| 自动提取 | 开启后 Agent 回复时自动提取有价值的知识 |
 | 共享 | 关闭 = 每 thread 独立；开启 = 所有 thread 共享 |
 
 ---
@@ -123,8 +124,6 @@ docker run -d \
 | 模式 | `read_only` 只读 / `human_only` 仅记用户消息 / `human_and_ai` 记录双方 |
 | 最大保留天数 | 到期自动清理 |
 | 向量模型 | 用于语义检索（支持 OpenAI、Azure、Ollama） |
-| 提取模型 | 从对话中提取关键事实 |
-| 压缩模型 | 合并相似记忆，减少冗余 |
 | 共享 | 关闭 = 每 thread 独立；开启 = 所有 thread 共享 |
 
 ---
@@ -135,7 +134,7 @@ docker run -d \
 
 添加工具服务器：
 - **stdio** — 填写命令和参数（如 `npx -y some-mcp-package`）
-- **http** — 填写远程 URL 和可选请求头
+- **sse** — 填写远程 URL 和可选请求头
 
 支持全局共享服务器和 Agent 级别独立配置，故障自动重启。然后打开 Agent 编辑页 → MCP 标签页挂载所需服务器。
 
@@ -268,4 +267,4 @@ docker run -d \
 
 ## 关键词
 
-`AI Agent` `自托管` `大模型服务` `开源` `MCP` `模型上下文协议` `多智能体` `ReAct` `OpenAI` `Claude` `Ollama` `聊天机器人` `飞书` `Lark` `长期记忆` `向量检索` `TypeScript` `Node.js`
+`AI Agent` `自托管` `大模型服务` `开源` `MCP` `ACP` `模型上下文协议` `多智能体` `ReAct` `OpenAI` `Claude` `Gemini` `Ollama` `聊天机器人` `飞书` `Lark` `OneBot` `QQ` `长期记忆` `向量检索` `TypeScript` `Node.js`

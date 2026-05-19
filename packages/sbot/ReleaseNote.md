@@ -8,6 +8,7 @@
 - **XiaoAI Channel**: New channel for Xiaomi AI speakers — account login, device discovery, TTS playback, and polling-based conversation
 - **Token Usage Tracking**: Per-model token usage statistics with admin dashboard visualization
 - **Session Search Tool**: New tool allowing agents to search across session history
+- **Heartbeat System**: Configurable periodic agent self-activation — supports custom intervals, prompt templates, and target channels; managed via admin panel
 - **Middleware Pipeline**: New `MiddlewarePipeline` with intent-based filtering for session message processing
 - **Timer Executor**: Extracted `TimerExecutor` utility for unified scheduled task execution (heartbeat, scheduler, wiki indexing)
 - **Workspace Prompt Discovery**: `ContextFileDiscovery` supports loading workspace-level prompt files

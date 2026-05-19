@@ -52,9 +52,12 @@ Configuration and data are persisted in `~/.sbot` on the host.
 - **Multiple LLM providers** — OpenAI, Anthropic Claude, Google Gemini, Ollama, and any OpenAI-compatible API (Azure OpenAI, Groq, Mistral, DeepSeek, etc.)
 - **Multi-agent orchestration** — ReAct recursive task decomposition + Generative multimodal, agents can be nested and composed
 - **Knowledge base** — Built-in wiki system with automatic document extraction and semantic search, referenced by agents during conversations
-- **Long-term memory** — Full extract → compress pipeline with vector-embedding semantic search
-- **MCP tools** — Standard MCP protocol (stdio/HTTP), connect to any MCP tool ecosystem
-- **Multiple channels** — Web UI, CLI, Lark/Feishu, Slack, WeCom, WeChat, REST API, WebSocket
+- **Long-term memory** — Vector-embedding semantic search for persistent context recall
+- **Conversation compaction** — Automatic conversation summarization when token usage exceeds threshold, preserving continuity while reducing consumption
+- **Insight system** — Automatic knowledge extraction from conversations into wiki and memory
+- **ACP agent support** — Agent Client Protocol integration with persistent and transient agent modes
+- **MCP tools** — Standard MCP protocol (stdio/SSE), connect to any MCP tool ecosystem
+- **Multiple channels** — Web UI, CLI, Lark/Feishu, Slack, WeCom, WeChat, OneBot (QQ), XiaoAI, REST API, WebSocket
 - **Built-in tools** — Shell execution, file system, archive operations, media file read, Python/PowerShell inline execution, cron scheduler, todo tasks
 - **Skills** — Installable prompt modules, remote install from skills.sh / Clawhub
 - **Token usage tracking** — Built-in consumption statistics with real-time visibility
@@ -104,12 +107,10 @@ Choose a mode:
 
 **5. (Optional) Enable Wiki Knowledge Base** — sidebar → **Wiki** → New
 
-Built-in knowledge base. Create pages manually (title + content + tags) or let the agent auto-extract knowledge from conversations. Auto-extraction requires an extractor model. Assign wikis to a session or channel; agents can search, read, and create pages via built-in tools.
+Built-in knowledge base. Create pages manually (title + content + tags) or let the insight system auto-extract knowledge from conversations. Assign wikis to a session or channel; agents can search, read, and create pages via built-in tools.
 
 | Field | Description |
 |-------|-------------|
-| Extractor | LLM model for auto-extracting knowledge from conversations |
-| Auto-extract | When enabled, the agent extracts valuable knowledge after each reply |
 | Shared | Off = per-thread wiki; On = shared across all threads |
 
 ---
@@ -123,8 +124,6 @@ Requires an embedding model first (sidebar → **Embeddings** → New). Then ass
 | Mode | `read_only` / `human_only` (user messages) / `human_and_ai` (full conversation) |
 | Max age (days) | Auto-expire memories after N days |
 | Embedding | Embedding model for semantic search (OpenAI, Azure, Ollama) |
-| Extractor | Extracts key facts from conversation |
-| Compressor | Merges similar memories to reduce redundancy |
 | Shared | Off = per-thread memory; On = shared across all threads |
 
 ---
@@ -135,7 +134,7 @@ Sidebar → **MCP** → New
 
 Add a server:
 - **stdio** — command + args (e.g. `npx -y some-mcp-package`)
-- **http** — remote URL + optional headers
+- **sse** — remote URL + optional headers
 
 Supports global servers shared across all agents and per-agent overrides. Servers auto-restart on failure. Then open an agent → MCP tab to attach the servers you want it to use.
 
@@ -268,4 +267,4 @@ WeChat integration connects via the iLink Bot API, with file and image support.
 
 ## Keywords
 
-`ai agent` `self-hosted` `llm server` `open source` `mcp` `model context protocol` `multi-agent` `react agent` `openai` `claude` `anthropic` `ollama` `chatbot` `lark` `feishu` `long-term memory` `vector search` `typescript` `node.js`
+`ai agent` `self-hosted` `llm server` `open source` `mcp` `acp` `model context protocol` `multi-agent` `react agent` `openai` `claude` `anthropic` `gemini` `ollama` `chatbot` `lark` `feishu` `onebot` `qq` `long-term memory` `vector search` `typescript` `node.js`
