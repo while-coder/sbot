@@ -35,6 +35,7 @@ export class InsightService implements IInsightService {
         this.archiveDays ??= 90;
         this.searcher = new HybridSearcher({
             cachePath: path.join(this.insightDir, '.embeddings.json'),
+            embeddings: this.embeddings,
         });
     }
 
@@ -42,16 +43,6 @@ export class InsightService implements IInsightService {
     async initialize(): Promise<void> {
         this.logger?.debug(`initialize: insightDir=${this.insightDir}, limit=${this.insightLimit}, staleDays=${this.staleDays}, archiveDays=${this.archiveDays}, hasEmbeddings=${!!this.embeddings}`);
         this.curate();
-        if (this.embeddings) {
-            try {
-                const insights = this.getAllInsights();
-                this.logger?.debug(`initialize: building embedding index for ${insights.length} insights`);
-                await this.searcher.buildIndex(insights.map(toSearchable), this.embeddings);
-                this.logger?.info(`Insight embedding index built: ${insights.length} entries`);
-            } catch (e: any) {
-                this.logger?.error(`Failed to build insight embedding index: ${e.message}`);
-            }
-        }
     }
 
     async getSystemMessage(query: string): Promise<string | null> {
@@ -85,9 +76,6 @@ export class InsightService implements IInsightService {
                         const rebuilt = this.rebuildSkillMd(existing, item.content, item.description);
                         fs.writeFileSync(path.join(existing.path, 'SKILL.md'), rebuilt, 'utf-8');
                         new UsageTracker(existing.path).recordPatch();
-                        if (this.embeddings) {
-                            try { await this.searcher.updateEntry(existing.name, item.description, this.embeddings); } catch { /* best-effort */ }
-                        }
                         this.logger?.info(`Insight auto-patched: ${existing.name}`);
                         continue;
                     }
@@ -113,9 +101,6 @@ description: ${item.description}
 ${item.content}`;
                 fs.writeFileSync(path.join(dir, 'SKILL.md'), skillMd, 'utf-8');
                 new UsageTracker(dir).create();
-                if (this.embeddings) {
-                    try { await this.searcher.updateEntry(item.name, item.description, this.embeddings); } catch { /* best-effort */ }
-                }
                 this.logger?.info(`Insight auto-created: ${item.name}`);
             }
         } catch (error: any) {
@@ -133,7 +118,7 @@ ${item.content}`;
         if (insights.length <= max) {
             selected = insights;
         } else {
-            selected = await this.searcher.search(query, insights, toSearchable, max, this.embeddings);
+            selected = (await this.searcher.search(query, insights, toSearchable, max)).map(r => r.item);
         }
         this.logger?.debug(`getRelevantInsights: selected ${selected.length} insights: [${selected.map(s => s.name).join(', ')}]`);
         return selected;
@@ -172,7 +157,6 @@ ${item.content}`;
                 usage.state = 'archived';
                 fs.writeFileSync(path.join(archiveDest, '.usage.json'), JSON.stringify(usage, null, 2), 'utf-8');
             }
-            this.searcher.removeEntry(insight.name);
             this.logger?.info(`Insight auto-archived: ${insight.name} → ${archiveDest}`);
         } catch (e: any) {
             this.logger?.error(`Failed to auto-archive insight ${insight.name}: ${e.message}`);

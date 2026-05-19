@@ -3,6 +3,7 @@ vars:
   items: 相关知识库条目列表
 ---
 <wiki-knowledge>
+The following wiki pages may be relevant:
 {items}
+Use the wiki_read tool to read full page content when needed.
 </wiki-knowledge>
-The above are relevant wiki knowledge articles. Reference them when they help answer the user's question.

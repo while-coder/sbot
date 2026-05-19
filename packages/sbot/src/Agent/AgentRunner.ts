@@ -170,15 +170,8 @@ export class AgentRunner {
         sub.registerInstance(IWikiDatabase, WikiDatabaseManager.getInstance().acquire(wikiDir));
 
         const args: Record<string | symbol, any> = {
-            [T_DBPath]: wikiDir,
             [T_WikiSystemPromptTemplate]: loadPrompt('wiki/system.txt'),
         };
-        if (wikiConfig.embedding) {
-            try {
-                const embedding = await config.getEmbeddingService(wikiConfig.embedding, true);
-                args[IEmbeddingService] = embedding;
-            } catch { /* embedding unavailable, graceful fallback */ }
-        }
 
         sub.registerWithArgs(IWikiService, WikiService, args);
         return sub.resolve<IWikiService>(IWikiService);

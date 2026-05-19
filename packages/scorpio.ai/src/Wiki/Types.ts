@@ -11,12 +11,3 @@ export interface WikiPage {
   updatedAt: number;
 }
 
-/**
- * Wiki 搜索结果
- */
-export interface WikiSearchResult {
-  page: WikiPage;
-  score: number;
-  snippet: string;
-}
-

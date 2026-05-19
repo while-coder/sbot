@@ -1,15 +1,14 @@
 import { v4 as uuidv4 } from "uuid";
-import path from "path";
-import { inject, init, T_DBPath, T_WikiSystemPromptTemplate } from "../../Core";
-import { IEmbeddingService } from "../../Embedding";
+import { inject, init, T_WikiSystemPromptTemplate } from "../../Core";
 import { HybridSearcher, SearchableItem } from "../../Retrieval/HybridSearcher";
 import { IWikiDatabase } from "../Database/IWikiDatabase";
-import { WikiPage, WikiSearchResult } from "../Types";
+import { WikiPage } from "../Types";
 import { IWikiService } from "./IWikiService";
 
 const toSearchable = (page: WikiPage): SearchableItem => ({
   key: page.id,
-  text: page.title + '\n' + page.content,
+  text: page.title + '\n' + page.tags.join(' ') + '\n' + page.content,
+  embeddingText: page.title,
 });
 
 export class WikiService implements IWikiService {
@@ -17,39 +16,33 @@ export class WikiService implements IWikiService {
 
   constructor(
     @inject(IWikiDatabase) private db: IWikiDatabase,
-    @inject(T_DBPath) dbPath: string,
     @inject(T_WikiSystemPromptTemplate) private systemPromptTemplate: string,
-    @inject(IEmbeddingService, { optional: true }) private embeddings?: IEmbeddingService,
   ) {
-    this.searcher = new HybridSearcher({
-      cachePath: path.join(dbPath, '.wiki-embeddings.json'),
-    });
+    this.searcher = new HybridSearcher({});
   }
 
   @init()
-  async initialize(): Promise<void> {
-    const pages = await this.db.getAll();
-    if (pages.length === 0) return;
-    if (this.embeddings) {
-      try {
-        await this.searcher.buildIndex(pages.map(toSearchable), this.embeddings);
-      } catch { /* graceful fallback */ }
-    } else {
-      this.searcher.buildIndexWithoutEmbeddings(pages.map(toSearchable));
-    }
-  }
+  async initialize(): Promise<void> {}
 
   async getSystemMessage(query: string): Promise<string | null> {
     const results = await this.search(query, 5);
     if (results.length === 0) return null;
-    const items = results.map(r =>
-      `  <wiki id="${r.page.id}" title="${r.page.title}" tags="${r.page.tags.join(', ')}">\n${r.page.content}\n  </wiki>`
-    ).join("\n");
+
+    const items = results.map(r => {
+      const tags = r.tags.length > 0 ? ` tags="${r.tags.join(', ')}"` : '';
+      return `  <page id="${r.id}" title="${r.title}"${tags} />`;
+    }).join("\n");
     return this.systemPromptTemplate.replace('{items}', items);
   }
 
   // -- CRUD -----------------------------------------------------------------
-
+  async getPage(id: string): Promise<WikiPage | null> {
+    return this.db.getById(id);
+  }
+  async getByTags(tag: string, limit: number = 20): Promise<WikiPage[]> {
+    const pages = await this.db.getByTags([tag]);
+    return pages.slice(0, limit);
+  }
   async createPage(
     title: string,
     content: string,
@@ -69,22 +62,8 @@ export class WikiService implements IWikiService {
     };
 
     await this.db.insert(page);
-
-    if (this.embeddings) {
-      try { await this.searcher.updateEntry(id, title + '\n' + content, this.embeddings); } catch { /* best-effort */ }
-    }
-
     return page;
   }
-
-  async getPage(id: string): Promise<WikiPage | null> {
-    return this.db.getById(id);
-  }
-
-  async getPageByTitle(title: string): Promise<WikiPage | null> {
-    return this.db.getByTitle(title);
-  }
-
   async updatePage(
     id: string,
     updates: Partial<Pick<WikiPage, "title" | "content" | "tags">>,
@@ -102,47 +81,21 @@ export class WikiService implements IWikiService {
     };
 
     await this.db.update(id, updated);
-
-    if (this.embeddings) {
-      try { await this.searcher.updateEntry(id, updated.title + '\n' + updated.content, this.embeddings); } catch { /* best-effort */ }
-    }
-
     return updated;
   }
-
   async deletePage(id: string): Promise<void> {
     await this.db.delete(id);
-    this.searcher.removeEntry(id);
   }
-
-  // -- Search ---------------------------------------------------------------
-
-  async search(query: string, limit: number = 5): Promise<WikiSearchResult[]> {
-    const pages = await this.db.getAll();
-    if (pages.length === 0) return [];
-
-    const results = await this.searcher.search(
-      query,
-      pages,
-      toSearchable,
-      limit,
-      this.embeddings,
-    );
-
-    return results.map(page => ({
-      page,
-      score: 1,
-      snippet: this.createSnippet(page.content),
-    }));
-  }
-
-  async searchByTag(tag: string, limit: number = 20): Promise<WikiPage[]> {
-    const pages = await this.db.getByTags([tag]);
-    return pages.slice(0, limit);
-  }
-
   async getAllPages(): Promise<WikiPage[]> {
     return this.db.getAll();
+  }
+  // -- Search ---------------------------------------------------------------
+
+  async search(query: string, limit: number = 5): Promise<WikiPage[]> {
+    const pages = await this.db.getAll();
+    if (pages.length === 0) return [];
+    const results = await this.searcher.search(query, pages, toSearchable, limit);
+    return results.map(r => r.item);
   }
 
   // -- Lifecycle ------------------------------------------------------------
@@ -151,11 +104,4 @@ export class WikiService implements IWikiService {
     await this.db.dispose();
   }
 
-  // -- Private --------------------------------------------------------------
-
-  private createSnippet(content: string, maxLength: number = 200): string {
-    return content.length <= maxLength
-      ? content
-      : content.substring(0, maxLength) + "...";
-  }
 }

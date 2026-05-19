@@ -10,9 +10,7 @@ class ManagedWikiDatabase implements IWikiDatabase {
     constructor(private readonly inner: WikiFileDatabase) {}
 
     getById(...args: Parameters<IWikiDatabase['getById']>)                 { return this.inner.getById(...args); }
-    getByTitle(...args: Parameters<IWikiDatabase['getByTitle']>)           { return this.inner.getByTitle(...args); }
     getByTags(...args: Parameters<IWikiDatabase['getByTags']>)             { return this.inner.getByTags(...args); }
-    searchByText(...args: Parameters<IWikiDatabase['searchByText']>)       { return this.inner.searchByText(...args); }
     getAll()                                                               { return this.inner.getAll(); }
     insert(...args: Parameters<IWikiDatabase['insert']>)                   { return this.inner.insert(...args); }
     update(...args: Parameters<IWikiDatabase['update']>)                   { return this.inner.update(...args); }

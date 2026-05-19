@@ -7,9 +7,7 @@ import { WikiPage } from "../Types";
 export interface IWikiDatabase {
     // --- 查询 ---
     getById(id: string): Promise<WikiPage | null>;
-    getByTitle(title: string): Promise<WikiPage | null>;
     getByTags(tags: string[]): Promise<WikiPage[]>;
-    searchByText(query: string, limit: number): Promise<WikiPage[]>;
     getAll(): Promise<WikiPage[]>;
 
     // --- 写入 ---

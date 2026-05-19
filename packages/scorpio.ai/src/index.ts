@@ -153,7 +153,6 @@ export {
 
   // 类型定义
   WikiPage,
-  WikiSearchResult,
 } from "./Wiki";
 
 // ========================================

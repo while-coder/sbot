@@ -25,22 +25,8 @@ export class WikiFileDatabase implements IWikiDatabase {
         }
     }
 
-    async getByTitle(title: string): Promise<WikiPage | null> {
-        for (const page of this.readAllPages()) {
-            if (page.title === title) return page;
-        }
-        return null;
-    }
-
     async getByTags(tags: string[]): Promise<WikiPage[]> {
         return this.readAllPages().filter(p => tags.some(t => p.tags.includes(t)));
-    }
-
-    async searchByText(query: string, limit: number): Promise<WikiPage[]> {
-        const q = query.toLowerCase();
-        return this.readAllPages()
-            .filter(p => p.title.toLowerCase().includes(q) || p.content.toLowerCase().includes(q))
-            .slice(0, limit);
     }
 
 

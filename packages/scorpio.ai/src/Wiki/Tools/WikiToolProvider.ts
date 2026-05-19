@@ -28,17 +28,16 @@ export class WikiToolProvider {
                 try {
                     const allResults = (await Promise.all(
                         wikiServices.map(s => s.search(query, limit))
-                    )).flat().sort((a, b) => b.score - a.score).slice(0, limit);
+                    )).flat().slice(0, limit);
 
                     if (allResults.length === 0) {
                         return "No matching wiki pages found.";
                     }
-                    const lines = allResults.map((r, i) => {
-                        const tags = r.page.tags.length > 0 ? ` [${r.page.tags.join(", ")}]` : "";
-                        const score = (r.score * 100).toFixed(1);
-                        return `${i + 1}. **${r.page.title}**${tags}\n   Relevance: ${score}%\n   ${r.snippet}`;
+                    const lines = allResults.map(r => {
+                        const tags = r.tags.length > 0 ? ` tags="${r.tags.join(', ')}"` : "";
+                        return `<page id="${r.id}" title="${r.title}"${tags} />`;
                     });
-                    return `Found ${allResults.length} result(s):\n\n${lines.join("\n\n")}`;
+                    return lines.join("\n");
                 } catch (e: any) {
                     return `Error searching wiki: ${e.message}`;
                 }
@@ -50,21 +49,15 @@ export class WikiToolProvider {
         return new DynamicStructuredTool({
             name: WIKI_READ_TOOL_NAME,
             description:
-                "Read a wiki page by title or ID. Use title for human-friendly lookups.",
+                "Read a wiki page by ID. Use wiki_search to find page IDs first.",
             schema: z.object({
-                title: z.string().optional().describe("Page title to look up"),
-                id: z.string().optional().describe("Page ID to look up"),
+                id: z.string().describe("Page ID"),
             }),
-            func: async ({ title, id }) => {
+            func: async ({ id }) => {
                 try {
-                    if (!title && !id) {
-                        return "Error: at least one of title or id must be provided.";
-                    }
-
                     let page = null;
                     for (const wiki of wikiServices) {
-                        if (title) page = await wiki.getPageByTitle(title);
-                        if (!page && id) page = await wiki.getPage(id);
+                        page = await wiki.getPage(id);
                         if (page) break;
                     }
 
