@@ -231,6 +231,21 @@ Returns a map of question label → answer (string for radio/input, string[] for
             await this.larkService.sendFileMessage(LarkReceiveIdType.ChatId, sessionId, filePath, fileName);
         }),
         new DynamicStructuredTool({
+            name: '_send_message',
+            description: 'Send a message to a Lark chat or user. By default sends to the current conversation. Can also target a different chat_id or user (by union_id).',
+            schema: z.object({
+                content: z.string().describe('The message content in Markdown format.'),
+                receive_id: z.string().optional().describe('Target receive ID (chat_id or union_id). Defaults to the current chat.'),
+                receive_id_type: z.enum(['chat_id', 'union_id']).optional().describe('Type of receive_id. Defaults to "chat_id".'),
+            }),
+            func: async ({ content, receive_id, receive_id_type }) => {
+                const targetId = receive_id || sessionId;
+                const idType = (receive_id_type || 'chat_id') as LarkReceiveIdType;
+                await this.larkService.sendMarkdownMessage(idType, targetId, content);
+                return `Message sent successfully.`;
+            },
+        }),
+        new DynamicStructuredTool({
             name: '_get_message_history',
             description: 'Retrieve message history from the current Lark chat. Returns user messages in reverse chronological order (newest first).',
             schema: z.object({

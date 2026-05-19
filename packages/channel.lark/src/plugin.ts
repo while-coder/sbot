@@ -27,6 +27,7 @@ export const larkPlugin: ChannelPlugin = {
   tools: [
     { name: '_ask', label: '询问用户' },
     { name: '_send_file', label: '发送文件' },
+    { name: '_send_message', label: '发送消息' },
     { name: '_get_message_history', label: '获取消息历史' },
   ],
 
