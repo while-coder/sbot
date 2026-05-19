@@ -126,8 +126,14 @@ export interface McpBuiltin {
   description?: string
 }
 
+export enum McpTransport {
+  Http = 'http',
+  Sse = 'sse',
+  Stdio = 'stdio',
+}
+
 export interface McpEntry {
-  type: string
+  type: McpTransport
   url?: string
   headers?: Record<string, string>
   command?: string
