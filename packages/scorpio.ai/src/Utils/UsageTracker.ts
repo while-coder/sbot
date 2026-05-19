@@ -1,6 +1,12 @@
 import fs from 'fs';
 import path from 'path';
 
+export const enum UsageState {
+    Active = 'active',
+    Stale = 'stale',
+    Archived = 'archived',
+}
+
 export interface UsageData {
     useCount: number;
     viewCount: number;
@@ -8,7 +14,7 @@ export interface UsageData {
     createdAt: string;
     lastUsedAt?: string;
     lastViewedAt?: string;
-    state: 'active' | 'stale' | 'archived';
+    state: UsageState;
     pinned: boolean;
 }
 
@@ -54,7 +60,7 @@ export class UsageTracker {
             viewCount: 0,
             patchCount: 0,
             createdAt: new Date().toISOString(),
-            state: 'active',
+            state: UsageState.Active,
             pinned: false,
         };
         this.save(data);

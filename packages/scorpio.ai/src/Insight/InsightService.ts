@@ -9,7 +9,7 @@ import { parseSkill, isValidSkillDirectory } from "../Skills/parser";
 import { formatSkillItems } from "../Skills/formatSkillItems";
 import { Skill } from "../Skills/types";
 import { InsightAction } from "./Extractor/IInsightExtractor";
-import { UsageTracker } from "../Utils/UsageTracker";
+import { UsageTracker, UsageState } from "../Utils/UsageTracker";
 import { HybridSearcher } from "../Retrieval";
 import { IInsightExtractor } from "./Extractor/IInsightExtractor";
 
@@ -41,7 +41,6 @@ export class InsightService implements IInsightService {
 
     @init()
     async initialize(): Promise<void> {
-        this.logger?.debug(`initialize: insightDir=${this.insightDir}, limit=${this.insightLimit}, staleDays=${this.staleDays}, archiveDays=${this.archiveDays}, hasEmbeddings=${!!this.embeddings}`);
         this.curate();
     }
 
@@ -52,13 +51,10 @@ export class InsightService implements IInsightService {
     }
 
     async extractFromConversation(userMessage: string, assistantMessages?: string[]): Promise<void> {
-        this.logger?.debug(`extractFromConversation: userMessage length=${userMessage.length}, assistantMessages=${assistantMessages?.length ?? 0}`);
         try {
             const insights = this.getAllInsights();
             const existingNames = insights.map(s => s.name);
-            this.logger?.debug(`extractFromConversation: existing insights=[${existingNames.join(', ')}]`);
             const extracted = await this.extractor.extract(userMessage, assistantMessages ?? [], existingNames);
-            this.logger?.debug(`extractFromConversation: extractor returned ${extracted.length} items`);
 
             for (const item of extracted) {
                 if (item.action === InsightAction.Delete) {
@@ -111,7 +107,6 @@ ${item.content}`;
     async getRelevantInsights(query: string, limit?: number): Promise<Skill[]> {
         const max = limit ?? this.insightLimit!;
         const insights = this.getAllInsights();
-        this.logger?.debug(`getRelevantInsights: query="${query.slice(0, 80)}", total=${insights.length}, max=${max}`);
         if (insights.length === 0) return [];
 
         let selected: Skill[];
@@ -120,7 +115,6 @@ ${item.content}`;
         } else {
             selected = (await this.searcher.search(query, insights, toSearchable, max)).map(r => r.item);
         }
-        this.logger?.debug(`getRelevantInsights: selected ${selected.length} insights: [${selected.map(s => s.name).join(', ')}]`);
         return selected;
     }
 
@@ -128,7 +122,6 @@ ${item.content}`;
 
     private curate(): void {
         const insights = this.getAllInsights();
-        this.logger?.debug(`curate: checking ${insights.length} insights for staleness/archival`);
         for (const insight of insights) {
             const tracker = new UsageTracker(insight.path);
             const usage = tracker.get();
@@ -138,8 +131,8 @@ ${item.content}`;
 
             if (daysSince >= this.archiveDays!) {
                 this.archiveInsight(insight, usage);
-            } else if (daysSince >= this.staleDays! && usage.state === 'active') {
-                usage.state = 'stale';
+            } else if (daysSince >= this.staleDays! && usage.state === UsageState.Active) {
+                usage.state = UsageState.Stale;
                 tracker.save(usage);
                 this.logger?.info(`Insight marked stale: ${insight.name} (${Math.round(daysSince)}d inactive)`);
             }
@@ -154,7 +147,7 @@ ${item.content}`;
             const archiveDest = path.join(archiveBase, `${insight.name}_${timestamp}`);
             fs.renameSync(insight.path, archiveDest);
             if (usage) {
-                usage.state = 'archived';
+                usage.state = UsageState.Archived;
                 fs.writeFileSync(path.join(archiveDest, '.usage.json'), JSON.stringify(usage, null, 2), 'utf-8');
             }
             this.logger?.info(`Insight auto-archived: ${insight.name} → ${archiveDest}`);
@@ -176,7 +169,7 @@ ${item.content}`;
                 const insight = parseSkill(dir);
                 if (!insight) continue;
                 const usage = new UsageTracker(dir).get();
-                if (usage?.state === 'archived') continue;
+                if (usage?.state === UsageState.Archived) continue;
                 insights.push(insight);
             }
         } catch (e: any) {
