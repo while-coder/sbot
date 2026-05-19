@@ -1,5 +1,6 @@
 import { ServiceContainer } from "scorpio.di";
 import { IMemoryService } from "../Memory";
+import { IWikiService } from "../Wiki";
 import { IAgentSaverService, AgentMemorySaver, ChatMessage, ChatToolCall, MessageRole, type MessageContent, type TokenUsage } from "../Saver";
 import { ILoggerService, ILogger } from "../Logger";
 
@@ -95,15 +96,18 @@ export class AgentCancelledError extends Error {
 export abstract class AgentServiceBase {
     protected saverService: IAgentSaverService;
     protected memoryServices: IMemoryService[];
+    protected wikiServices: IWikiService[];
     protected loggerService?: ILoggerService;
     protected logger?: ILogger;
     constructor(
         loggerService?: ILoggerService,
         agentSaver?: IAgentSaverService,
         memoryServices?: IMemoryService[],
+        wikiServices?: IWikiService[],
     ) {
         this.saverService = agentSaver ?? new AgentMemorySaver();
         this.memoryServices = memoryServices ?? [];
+        this.wikiServices = wikiServices ?? [];
         this.loggerService = loggerService;
         this.logger = loggerService?.getLogger(this.constructor.name);
     }
@@ -127,6 +131,7 @@ export abstract class AgentServiceBase {
     async dispose() {
         await this.saverService.dispose();
         await Promise.all(this.memoryServices.map(m => m.dispose()));
+        await Promise.all(this.wikiServices.map(w => w.dispose()));
     }
 
 }

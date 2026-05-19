@@ -1,12 +1,14 @@
 import { IInsightService } from "./IInsightService";
 import { ILoggerService } from "../Logger";
 import { IEmbeddingService } from "../Embedding";
-import { inject, init, T_InsightDir, T_InsightSystemPromptTemplate, T_InsightLimit, T_InsightStaleDays, T_InsightArchiveDays } from "../Core";
+import { inject, init, T_InsightDir, T_InsightLimit, T_InsightStaleDays, T_InsightArchiveDays, T_InsightSystemPromptTemplate } from "../Core";
 import yaml from "js-yaml";
 import fs from "fs";
 import path from "path";
 import { parseSkill, isValidSkillDirectory } from "../Skills/parser";
+import { formatSkillItems } from "../Skills/formatSkillItems";
 import { Skill } from "../Skills/types";
+import { InsightAction } from "./Extractor/IInsightExtractor";
 import { UsageTracker } from "../Utils/UsageTracker";
 import { HybridSearcher } from "../Retrieval";
 import { IInsightExtractor } from "./Extractor/IInsightExtractor";
@@ -15,13 +17,12 @@ const toSearchable = (s: Skill) => ({ key: s.name, text: s.description });
 
 export class InsightService implements IInsightService {
     private logger;
-    private usageTracker = new UsageTracker();
     private searcher!: HybridSearcher;
 
     constructor(
         @inject(T_InsightDir) private insightDir: string,
-        @inject(T_InsightSystemPromptTemplate) private systemPromptTemplate: string,
         @inject(IInsightExtractor) private extractor: IInsightExtractor,
+        @inject(T_InsightSystemPromptTemplate) private systemPromptTemplate: string,
         @inject(T_InsightLimit, { optional: true }) private insightLimit?: number,
         @inject(T_InsightStaleDays, { optional: true }) private staleDays?: number,
         @inject(T_InsightArchiveDays, { optional: true }) private archiveDays?: number,
@@ -53,8 +54,10 @@ export class InsightService implements IInsightService {
         }
     }
 
-    getInsightDir(): string {
-        return this.insightDir;
+    async getSystemMessage(query: string): Promise<string | null> {
+        const insights = await this.getRelevantInsights(query);
+        if (insights.length === 0) return null;
+        return this.systemPromptTemplate.replace('{items}', formatSkillItems(insights));
     }
 
     async extractFromConversation(userMessage: string, assistantMessages?: string[]): Promise<void> {
@@ -67,21 +70,21 @@ export class InsightService implements IInsightService {
             this.logger?.debug(`extractFromConversation: extractor returned ${extracted.length} items`);
 
             for (const item of extracted) {
-                if (item.action === 'delete') {
+                if (item.action === InsightAction.Delete) {
                     const existing = insights.find(s => s.name === item.name);
                     if (existing) {
-                        this.archiveInsight(existing, this.usageTracker.getUsage(existing.path));
+                        this.archiveInsight(existing, new UsageTracker(existing.path).get());
                         this.logger?.info(`Insight auto-deleted: ${existing.name}`);
                     }
                     continue;
                 }
 
-                if (item.action === 'patch' && item.patchTarget) {
+                if (item.action === InsightAction.Patch && item.patchTarget) {
                     const existing = insights.find(s => s.name === item.patchTarget);
                     if (existing) {
                         const rebuilt = this.rebuildSkillMd(existing, item.content, item.description);
                         fs.writeFileSync(path.join(existing.path, 'SKILL.md'), rebuilt, 'utf-8');
-                        this.usageTracker.recordPatch(existing.path);
+                        new UsageTracker(existing.path).recordPatch();
                         if (this.embeddings) {
                             try { await this.searcher.updateEntry(existing.name, item.description, this.embeddings); } catch { /* best-effort */ }
                         }
@@ -109,7 +112,7 @@ description: ${item.description}
 
 ${item.content}`;
                 fs.writeFileSync(path.join(dir, 'SKILL.md'), skillMd, 'utf-8');
-                this.usageTracker.createUsage(dir, 'auto');
+                new UsageTracker(dir).create();
                 if (this.embeddings) {
                     try { await this.searcher.updateEntry(item.name, item.description, this.embeddings); } catch { /* best-effort */ }
                 }
@@ -120,11 +123,11 @@ ${item.content}`;
         }
     }
 
-    async getRelevantInsights(query: string, limit?: number): Promise<string | null> {
+    async getRelevantInsights(query: string, limit?: number): Promise<Skill[]> {
         const max = limit ?? this.insightLimit!;
         const insights = this.getAllInsights();
         this.logger?.debug(`getRelevantInsights: query="${query.slice(0, 80)}", total=${insights.length}, max=${max}`);
-        if (insights.length === 0) return null;
+        if (insights.length === 0) return [];
 
         let selected: Skill[];
         if (insights.length <= max) {
@@ -133,14 +136,7 @@ ${item.content}`;
             selected = await this.searcher.search(query, insights, toSearchable, max, this.embeddings);
         }
         this.logger?.debug(`getRelevantInsights: selected ${selected.length} insights: [${selected.map(s => s.name).join(', ')}]`);
-
-        if (selected.length === 0) return null;
-        const items = selected.map(s => {
-            const usage = this.usageTracker.getUsage(s.path);
-            const usageAttr = usage ? ` uses="${usage.useCount}" lastUsed="${usage.lastUsedAt ?? 'never'}"` : '';
-            return `  <insight name="${s.name}" path="${s.path}"${usageAttr}>${s.description}</insight>`;
-        }).join("\n");
-        return this.systemPromptTemplate.replace('{insights}', items);
+        return selected;
     }
 
     // ── Curator ──
@@ -149,7 +145,8 @@ ${item.content}`;
         const insights = this.getAllInsights();
         this.logger?.debug(`curate: checking ${insights.length} insights for staleness/archival`);
         for (const insight of insights) {
-            const usage = this.usageTracker.getUsage(insight.path);
+            const tracker = new UsageTracker(insight.path);
+            const usage = tracker.get();
             if (!usage || usage.pinned) continue;
             const lastActivity = usage.lastUsedAt || usage.lastViewedAt || usage.createdAt;
             const daysSince = (Date.now() - new Date(lastActivity).getTime()) / 86400000;
@@ -158,7 +155,7 @@ ${item.content}`;
                 this.archiveInsight(insight, usage);
             } else if (daysSince >= this.staleDays! && usage.state === 'active') {
                 usage.state = 'stale';
-                fs.writeFileSync(path.join(insight.path, '.usage.json'), JSON.stringify(usage, null, 2), 'utf-8');
+                tracker.save(usage);
                 this.logger?.info(`Insight marked stale: ${insight.name} (${Math.round(daysSince)}d inactive)`);
             }
         }
@@ -194,7 +191,7 @@ ${item.content}`;
                 if (!isValidSkillDirectory(dir)) continue;
                 const insight = parseSkill(dir);
                 if (!insight) continue;
-                const usage = this.usageTracker.getUsage(dir);
+                const usage = new UsageTracker(dir).get();
                 if (usage?.state === 'archived') continue;
                 insights.push(insight);
             }

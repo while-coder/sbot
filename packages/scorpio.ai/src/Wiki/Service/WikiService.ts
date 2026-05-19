@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import path from "path";
-import { inject, init, T_DBPath } from "../../Core";
+import { inject, init, T_DBPath, T_WikiSystemPromptTemplate } from "../../Core";
 import { IEmbeddingService } from "../../Embedding";
 import { HybridSearcher, SearchableItem } from "../../Retrieval/HybridSearcher";
 import { IWikiDatabase } from "../Database/IWikiDatabase";
@@ -18,6 +18,7 @@ export class WikiService implements IWikiService {
   constructor(
     @inject(IWikiDatabase) private db: IWikiDatabase,
     @inject(T_DBPath) dbPath: string,
+    @inject(T_WikiSystemPromptTemplate) private systemPromptTemplate: string,
     @inject(IEmbeddingService, { optional: true }) private embeddings?: IEmbeddingService,
   ) {
     this.searcher = new HybridSearcher({
@@ -36,6 +37,15 @@ export class WikiService implements IWikiService {
     } else {
       this.searcher.buildIndexWithoutEmbeddings(pages.map(toSearchable));
     }
+  }
+
+  async getSystemMessage(query: string): Promise<string | null> {
+    const results = await this.search(query, 5);
+    if (results.length === 0) return null;
+    const items = results.map(r =>
+      `  <wiki id="${r.page.id}" title="${r.page.title}" tags="${r.page.tags.join(', ')}">\n${r.page.content}\n  </wiki>`
+    ).join("\n");
+    return this.systemPromptTemplate.replace('{items}', items);
   }
 
   // -- CRUD -----------------------------------------------------------------

@@ -1,8 +1,14 @@
+export const enum InsightAction {
+    Create = 'create',
+    Patch = 'patch',
+    Delete = 'delete',
+}
+
 export interface ExtractedInsight {
     name: string;
     description: string;
     content: string;
-    action: 'create' | 'patch' | 'delete';
+    action: InsightAction;
     patchTarget?: string;
 }
 

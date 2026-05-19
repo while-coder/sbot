@@ -1,5 +1,6 @@
 import { Skill } from "./types";
 import { parseSkill, isValidSkillDirectory } from "./parser";
+import { formatSkillItems } from "./formatSkillItems";
 import { ISkillService } from "./ISkillService";
 import { ILoggerService } from "../Logger";
 import { inject, T_SkillSystemPromptTemplate, T_SkillToolReadDesc, T_SkillToolListDesc, T_SkillToolExecDesc } from "../Core";
@@ -27,7 +28,6 @@ export class SkillService implements ISkillService {
   private skillsDirs: string[] = [];
   private singleSkillDirs: string[] = [];
   private logger;
-  private usageTracker = new UsageTracker();
 
   constructor(
     @inject(T_SkillSystemPromptTemplate) private systemPromptTemplate: string,
@@ -81,7 +81,7 @@ export class SkillService implements ISkillService {
           continue;
         }
         // 过滤 archived 状态的 skill
-        const usage = this.usageTracker.getUsage(skillDir);
+        const usage = new UsageTracker(skillDir).get();
         if (usage?.state === 'archived') continue;
         skills.push(skill);
       } catch (e: any) {
@@ -97,15 +97,7 @@ export class SkillService implements ISkillService {
     const skills = this.getAllSkills().filter(s => s.type !== 'insight');
     if (skills.length === 0) return null;
 
-    const items = skills
-      .map(s => {
-        const usage = this.usageTracker.getUsage(s.path);
-        const usageAttr = usage ? ` uses="${usage.useCount}" lastUsed="${usage.lastUsedAt ?? 'never'}"` : '';
-        return `  <skill name="${s.name}" path="${s.path}"${usageAttr}>${s.description}</skill>`;
-      })
-      .join("\n");
-
-    return this.systemPromptTemplate.replace('{skills}', items);
+    return this.systemPromptTemplate.replace('{skills}', formatSkillItems(skills));
   }
 
   getTools(): StructuredToolInterface[] {
@@ -134,7 +126,7 @@ export class SkillService implements ISkillService {
           if (!fs.existsSync(fullPath)) return createErrorResult(`File not found: ${filePath}`);
           if (!fs.statSync(fullPath).isFile()) return createErrorResult(`Path is not a file: ${filePath}`);
 
-          this.usageTracker.recordView(skill.path);
+          new UsageTracker(skill.path).recordView();
           const content = fs.readFileSync(fullPath, "utf-8");
           return createSuccessResult(createTextContent(content));
         } catch (error: any) {
@@ -173,7 +165,7 @@ export class SkillService implements ISkillService {
             default: return createErrorResult(`Unsupported script type: ${ext}. Supported: .py, .sh, .js, .ts`);
           }
 
-          this.usageTracker.recordUse(skill.path);
+          new UsageTracker(skill.path).recordUse();
           const { stdout, stderr } = await execAsync(command, { cwd: skill.path, env: process.env, timeout: 60000, maxBuffer: 10 * 1024 * 1024 });
 
           const result = [];

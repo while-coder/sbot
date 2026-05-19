@@ -1,6 +1,6 @@
 import { StateGraph, START, END } from '../../Graph';
 import { type StructuredToolInterface } from "@langchain/core/tools";
-import { inject, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_MemorySystemPromptTemplate, T_WikiSystemPromptTemplate, T_ModelCallTimeout, truncate, formatTimeAgo } from "../../Core";
+import { inject, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ModelCallTimeout, truncate } from "../../Core";
 import { IModelService } from "../../Model";
 import { ISkillService } from "../../Skills";
 import { IInsightService } from "../../Insight";
@@ -54,39 +54,35 @@ type SingleAgentState = {
  */
 export class SingleAgentService extends AgentServiceBase {
     protected modelService: IModelService;
-    protected skillService?: ISkillService;
+    protected skillService: ISkillService;
     protected insightService?: IInsightService;
     protected toolService?: IAgentToolService;
     protected staticSystemPrompts: string[];
     protected dynamicSystemPrompts: string[];
-    protected memorySystemPromptTemplate?: string;
     protected modelCallTimeout?: number;
     protected compactor?: ConversationCompactor;
 
     constructor(
         @inject(IModelService) modelService: IModelService,
+        @inject(ISkillService) skillService: ISkillService,
         @inject(T_StaticSystemPrompts, { optional: true }) staticSystemPrompts?: string[],
         @inject(T_DynamicSystemPrompts, { optional: true }) dynamicSystemPrompts?: string[],
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
         @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
-        @inject(ISkillService, { optional: true }) skillService?: ISkillService,
         @inject(IInsightService, { optional: true }) insightService?: IInsightService,
         @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
         @inject(IMemoryService, { optional: true }) memoryServices?: IMemoryService[],
-        @inject(IWikiService, { optional: true }) protected wikiServices?: IWikiService[],
-        @inject(T_MemorySystemPromptTemplate, { optional: true }) memorySystemPromptTemplate?: string,
-        @inject(T_WikiSystemPromptTemplate, { optional: true }) protected wikiSystemPromptTemplate?: string,
+        @inject(IWikiService, { optional: true }) wikiServices?: IWikiService[],
         @inject(T_ModelCallTimeout, { optional: true }) modelCallTimeout?: number,
         @inject(IConversationCompactor, { optional: true }) compactor?: ConversationCompactor,
     ) {
-        super(loggerService, agentSaver, memoryServices);
+        super(loggerService, agentSaver, memoryServices, wikiServices);
         this.modelService = modelService;
         this.skillService = skillService;
         this.insightService = insightService;
         this.toolService = toolService;
         this.staticSystemPrompts = staticSystemPrompts ?? [];
         this.dynamicSystemPrompts = dynamicSystemPrompts ?? [];
-        this.memorySystemPromptTemplate = memorySystemPromptTemplate;
         this.modelCallTimeout = modelCallTimeout;
         this.compactor = compactor;
     }
@@ -102,40 +98,28 @@ export class SingleAgentService extends AgentServiceBase {
     protected async buildSystemMessage(query: MessageContent): Promise<ChatMessage | undefined> {
         // ── 静态部分（跨请求不变，可被 prompt caching 缓存） ──
         const staticParts: string[] = [...this.staticSystemPrompts];
-        if (this.skillService) {
-            const skillMessage = await this.skillService.getSystemMessage();
-            if (skillMessage) staticParts.push(skillMessage);
-        }
+        const skillMessage = await this.skillService.getSystemMessage();
+        if (skillMessage) staticParts.push(skillMessage);
 
         // ── 动态部分（每次请求可能变化） ──
         const dynamicParts: string[] = [...this.dynamicSystemPrompts];
         const queryText = contentToString(query);
 
-        if (this.memorySystemPromptTemplate) {
-            const memoryLimit = 10;
-            const allMemories = (await Promise.all(this.memoryServices.map(mem => mem.getMemories(queryText, memoryLimit))))
-                .flat()
-                .sort((a, b) => b.score - a.score)
-                .slice(0, memoryLimit);
-            if (allMemories.length > 0) {
-                const items = allMemories.map(({ memory: m }) => `  <memory time="${formatTimeAgo(m.createdAt)}">${m.content}</memory>`).join("\n");
-                dynamicParts.push(this.memorySystemPromptTemplate.replace('{items}', items));
-            }
-        }
         if (this.insightService) {
-            const insightMessage = await this.insightService.getRelevantInsights(queryText);
+            const insightMessage = await this.insightService.getSystemMessage(queryText);
             if (insightMessage) dynamicParts.push(insightMessage);
         }
-        if (this.wikiSystemPromptTemplate && this.wikiServices?.length) {
-            const wikiLimit = 5;
-            const results = (await Promise.all(
-                this.wikiServices.map(w => w.search(queryText, wikiLimit))
-            )).flat().slice(0, wikiLimit);
-            if (results.length > 0) {
-                const items = results.map(r =>
-                    `  <wiki id="${r.page.id}" title="${r.page.title}" tags="${r.page.tags.join(', ')}">\n${r.page.content}\n  </wiki>`
-                ).join("\n");
-                dynamicParts.push(this.wikiSystemPromptTemplate.replace('{items}', items));
+
+        if (this.memoryServices.length > 0) {
+            const memoryMessages = await Promise.all(this.memoryServices.map(mem => mem.getSystemMessage(queryText)));
+            for (const msg of memoryMessages) {
+                if (msg) dynamicParts.push(msg);
+            }
+        }
+        if (this.wikiServices.length > 0) {
+            const wikiMessages = await Promise.all(this.wikiServices.map(w => w.getSystemMessage(queryText)));
+            for (const msg of wikiMessages) {
+                if (msg) dynamicParts.push(msg);
             }
         }
         const contentBlocks: Array<{ type: string; text: string }> = [];
@@ -156,7 +140,7 @@ export class SingleAgentService extends AgentServiceBase {
         if (this.memoryServices.length > 0) {
             tools.push(...MemoryToolProvider.getTools(this.memoryServices));
         }
-        if (this.wikiServices && this.wikiServices.length > 0) {
+        if (this.wikiServices.length > 0) {
             tools.push(...WikiToolProvider.getTools(this.wikiServices));
         }
         return tools;

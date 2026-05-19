@@ -5,6 +5,11 @@ import { ModelConfig } from "./types";
 import { type ChatMessage } from "../Saver/IAgentSaverService";
 import { toChatMessage, toBaseMessages } from "../Saver/messageConverter";
 
+const enum CachePosition {
+  First = 'first',
+  Last = 'last',
+}
+
 /**
  * Anthropic 模型服务实现
  * 封装 @langchain/anthropic 的 ChatAnthropic（Claude 系列）
@@ -84,25 +89,20 @@ export class AnthropicModelService implements IModelService {
 
     for (const msg of messages) {
       if (msg instanceof SystemMessage) {
-        this.addCacheMarker(msg, 'last');
+        this.addCacheMarker(msg, CachePosition.First);
         break;
       }
-    }
-
-    const last = messages[messages.length - 1];
-    if (!(last instanceof SystemMessage)) {
-      this.addCacheMarker(last, 'first');
     }
 
     return messages;
   }
 
-  private addCacheMarker(message: BaseMessage, position: 'first' | 'last' = 'first'): void {
+  private addCacheMarker(message: BaseMessage, position = CachePosition.First): void {
     const content = message.content;
     if (typeof content === 'string') {
       message.content = [{ type: "text", text: content, cache_control: this.cacheControl }];
     } else if (Array.isArray(content) && content.length > 0) {
-      const idx = position === 'last' ? content.length - 1 : 0;
+      const idx = position === CachePosition.Last ? content.length - 1 : 0;
       content[idx] = { ...content[idx], cache_control: this.cacheControl };
     }
   }

@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import { inject } from "../../Core";
+import { inject, T_MemorySystemPromptTemplate, formatTimeAgo } from "../../Core";
 import { MemoryResult } from "../types";
 import { IMemoryDatabase } from "../Storage/IMemoryDatabase";
 import { Memory } from "../types";
@@ -14,9 +14,20 @@ export class MemoryService implements IMemoryService {
   constructor(
     @inject(IMemoryDatabase) private db: IMemoryDatabase,
     @inject(IEmbeddingService) private embeddings: IEmbeddingService,
+    @inject(T_MemorySystemPromptTemplate) private systemPromptTemplate: string,
     @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
   ) {
     this.logger = loggerService?.getLogger("MemoryService");
+  }
+
+  async getSystemMessage(query: string): Promise<string | null> {
+    const memoryLimit = 10;
+    const results = await this.getMemories(query, memoryLimit);
+    if (results.length === 0) return null;
+    const items = results
+      .map(({ memory: m }) => `  <memory time="${formatTimeAgo(m.createdAt)}">${m.content}</memory>`)
+      .join("\n");
+    return this.systemPromptTemplate.replace('{items}', items);
   }
 
   // ── Read ───────────────────────────────────────────────────────────────────

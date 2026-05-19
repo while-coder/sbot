@@ -25,11 +25,11 @@ export const T_MaxHistoryRounds           = Symbol("scorpio:T_MaxHistoryRounds")
 
 // Insight tokens
 export const T_InsightDir            = Symbol("scorpio:T_InsightDir");
-export const T_InsightSystemPromptTemplate = Symbol("scorpio:T_InsightSystemPromptTemplate");
 export const T_InsightLimit          = Symbol("scorpio:T_InsightLimit");
 export const T_InsightStaleDays      = Symbol("scorpio:T_InsightStaleDays");
 export const T_InsightArchiveDays    = Symbol("scorpio:T_InsightArchiveDays");
 export const T_InsightExtractorSystemPrompt = Symbol("scorpio:T_InsightExtractorSystemPrompt");
+export const T_InsightSystemPromptTemplate  = Symbol("scorpio:T_InsightSystemPromptTemplate");
 
 // Wiki tokens
 export const T_WikiSystemPromptTemplate    = Symbol("scorpio:T_WikiSystemPromptTemplate");

@@ -5,6 +5,10 @@ import { Memory, MemoryResult } from "../types";
  * 提供语义搜索和手动写入能力，不主动从对话中提取记忆
  */
 export interface IMemoryService {
+    // ── 系统提示词 ────────────────────────────────────────────────────────────
+
+    getSystemMessage(query: string): Promise<string | null>;
+
     // ── 读取 ──────────────────────────────────────────────────────────────────
 
     getMemories(query: string, limit?: number): Promise<MemoryResult[]>;

@@ -1,5 +1,5 @@
 import { type StructuredToolInterface } from "@langchain/core/tools";
-import { inject, ServiceContainer, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc, T_MemorySystemPromptTemplate, T_WikiSystemPromptTemplate, T_ModelCallTimeout } from "../../Core";
+import { inject, ServiceContainer, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc, T_ModelCallTimeout } from "../../Core";
 import { IMemoryService } from "../../Memory";
 import { IWikiService } from "../../Wiki";
 import { IAgentSaverService, ChatMessage, ChatMessageOptions, type MessageContent } from "../../Saver";
@@ -58,20 +58,18 @@ export class ReActAgentService extends SingleAgentService {
     @inject(T_ReactSystemPromptTemplate) private systemPromptTemplate: string,
     @inject(T_ReactSubNodePrompt) private subNodePrompt: string,
     @inject(T_ReactTaskToolDesc) private taskToolDesc: string,
+    @inject(ISkillService) skillService: ISkillService,
     @inject(T_StaticSystemPrompts, { optional: true }) staticSystemPrompts?: string[],
     @inject(T_DynamicSystemPrompts, { optional: true }) dynamicSystemPrompts?: string[],
     @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
     @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
-    @inject(ISkillService, { optional: true }) skillService?: ISkillService,
     @inject(IInsightService, { optional: true }) insightService?: IInsightService,
     @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
     @inject(IMemoryService, { optional: true }) memoryServices?: IMemoryService[],
     @inject(IWikiService, { optional: true }) wikiServices?: IWikiService[],
-    @inject(T_MemorySystemPromptTemplate, { optional: true }) memorySystemPromptTemplate?: string,
-    @inject(T_WikiSystemPromptTemplate, { optional: true }) private wikiSystemPromptTemplateValue?: string,
     @inject(T_ModelCallTimeout, { optional: true }) modelCallTimeout?: number,
   ) {
-    super(thinkModelService, staticSystemPrompts, dynamicSystemPrompts, loggerService, agentSaver, skillService, insightService, toolService, memoryServices, wikiServices, memorySystemPromptTemplate, wikiSystemPromptTemplateValue, modelCallTimeout);
+    super(thinkModelService, skillService, staticSystemPrompts, dynamicSystemPrompts, loggerService, agentSaver, insightService, toolService, memoryServices, wikiServices, modelCallTimeout);
     this.agentSubNodes = agentSubNodes;
     this.agentFactory = agentFactory;
   }
@@ -112,9 +110,7 @@ export class ReActAgentService extends SingleAgentService {
         const subContainer = new ServiceContainer();
         subContainer.registerInstance(IAgentSaverService, thinkSaver);
         if (this.memoryServices.length > 0) subContainer.registerInstance(IMemoryService, this.memoryServices);
-        if (this.wikiServices && this.wikiServices.length > 0) subContainer.registerInstance(IWikiService, this.wikiServices);
-        if (this.memorySystemPromptTemplate) subContainer.registerInstance(T_MemorySystemPromptTemplate, this.memorySystemPromptTemplate);
-        if (this.wikiSystemPromptTemplate) subContainer.registerInstance(T_WikiSystemPromptTemplate, this.wikiSystemPromptTemplate);
+        if (this.wikiServices.length > 0) subContainer.registerInstance(IWikiService, this.wikiServices);
         if (this.loggerService) subContainer.registerInstance(ILoggerService, this.loggerService);
 
         agentService = await this.agentFactory(agentId, subContainer);

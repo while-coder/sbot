@@ -4,6 +4,9 @@ import { WikiPage, WikiSearchResult } from "../Types";
  * Wiki 服务接口（资料库模式）
  */
 export interface IWikiService {
+    // 系统提示词
+    getSystemMessage(query: string): Promise<string | null>;
+
     // CRUD
     createPage(title: string, content: string, tags?: string[]): Promise<WikiPage>;
     getPage(id: string): Promise<WikiPage | null>;

@@ -17,8 +17,8 @@ import {
     IInsightService, InsightService,
     IInsightExtractor, InsightExtractor,
     T_InsightDir,
-    T_InsightSystemPromptTemplate, T_InsightExtractorSystemPrompt,
-    T_InsightStaleDays, T_InsightArchiveDays,
+    T_InsightExtractorSystemPrompt,
+    T_InsightStaleDays, T_InsightArchiveDays, T_InsightSystemPromptTemplate,
     type MessageContent,
 } from "scorpio.ai";
 import { loadPrompt } from "../Core/PromptLoader";
@@ -135,7 +135,10 @@ export class AgentRunner {
         const dbPath = config.getMemoryDBPath(memoryId);
         sub.registerInstance(IMemoryDatabase, MemoryDatabaseManager.getInstance().acquire(dbPath));
 
-        sub.registerWithArgs(IMemoryService, MemoryService, { [IEmbeddingService]: embedding });
+        sub.registerWithArgs(IMemoryService, MemoryService, {
+            [IEmbeddingService]: embedding,
+            [T_MemorySystemPromptTemplate]: loadPrompt('memory/system.txt'),
+        });
 
         return sub.resolve<IMemoryService>(IMemoryService);
     }
@@ -149,7 +152,6 @@ export class AgentRunner {
         const services = results.filter((s): s is IMemoryService => s !== null);
         if (services.length > 0) {
             container.registerInstance(IMemoryService, services);
-            container.registerInstance(T_MemorySystemPromptTemplate, loadPrompt('memory/system.txt'));
         }
     }
 
@@ -167,7 +169,10 @@ export class AgentRunner {
         const wikiDir = config.getWikiDBPath(wikiId);
         sub.registerInstance(IWikiDatabase, WikiDatabaseManager.getInstance().acquire(wikiDir));
 
-        const args: Record<string | symbol, any> = { [T_DBPath]: wikiDir };
+        const args: Record<string | symbol, any> = {
+            [T_DBPath]: wikiDir,
+            [T_WikiSystemPromptTemplate]: loadPrompt('wiki/system.txt'),
+        };
         if (wikiConfig.embedding) {
             try {
                 const embedding = await config.getEmbeddingService(wikiConfig.embedding, true);
@@ -188,7 +193,6 @@ export class AgentRunner {
         const services = results.filter((s): s is IWikiService => s !== null);
         if (services.length > 0) {
             container.registerInstance(IWikiService, services);
-            container.registerInstance(T_WikiSystemPromptTemplate, loadPrompt('wiki/system.txt'));
         }
     }
 
