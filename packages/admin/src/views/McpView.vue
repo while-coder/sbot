@@ -6,7 +6,7 @@ import { apiFetch } from '@/api'
 import { store, applyMcpList } from '@/store'
 import { useToast } from '@/composables/useToast'
 import { McpTransport } from '@/types'
-import type { McpEntry, McpTool } from '@/types'
+import type { McpEntry, McpTool, McpPrompt, McpResource, McpResourceTemplate } from '@/types'
 import { serverAddr } from '@/utils/mcpSchema'
 import McpToolsModal from '@/components/McpToolsModal.vue'
 import { sourceBadgeStyle } from '@/utils/badges'
@@ -49,16 +49,25 @@ async function load() {
 const showToolsModal = ref(false)
 const toolsTitle = ref('')
 const toolsList = ref<McpTool[]>([])
+const promptsList = ref<McpPrompt[]>([])
+const resourcesList = ref<McpResource[]>([])
+const resourceTemplatesList = ref<McpResourceTemplate[]>([])
 const toolsLoading = ref(false)
 
 async function viewTools(id: string) {
   toolsTitle.value = store.allMcps.find(m => m.id === id)?.name || id
   toolsList.value = []
+  promptsList.value = []
+  resourcesList.value = []
+  resourceTemplatesList.value = []
   toolsLoading.value = true
   showToolsModal.value = true
   try {
-    const res = await apiFetch(`/api/mcp/${encodeURIComponent(id)}/tools`, 'GET')
-    toolsList.value = res.data || []
+    const res = await apiFetch(`/api/mcp/${encodeURIComponent(id)}/details`, 'GET')
+    toolsList.value = res.data?.tools || []
+    promptsList.value = res.data?.prompts || []
+    resourcesList.value = res.data?.resources || []
+    resourceTemplatesList.value = res.data?.resourceTemplates || []
   } catch (e: any) {
     show(e.message, 'error')
     showToolsModal.value = false
@@ -115,6 +124,7 @@ const form = ref({
   command: '', args: [] as string[],
   env: {} as Record<string, string>,
   cwd: '', toolTimeout: '',
+  enablePromptTools: false, enableResourceTools: false,
 })
 const headerRows = ref<{ key: string; value: string }[]>([])
 const argsList = ref<string[]>([])
@@ -133,7 +143,7 @@ function syncToForm() {
 
 function openAdd() {
   editingId.value = null
-  form.value = { name: '', type: McpTransport.Http, url: '', headers: {}, command: '', args: [], env: {}, cwd: '', toolTimeout: '' }
+  form.value = { name: '', type: McpTransport.Http, url: '', headers: {}, command: '', args: [], env: {}, cwd: '', toolTimeout: '', enablePromptTools: false, enableResourceTools: false }
   syncFromForm()
   showModal.value = true
 }
@@ -146,6 +156,7 @@ function openEdit(id: string) {
     headers: { ...(m?.headers || {}) }, command: m?.command || '',
     args: [...(m?.args || [])], env: { ...(m?.env || {}) },
     cwd: m?.cwd || '', toolTimeout: m?.toolTimeout ? String(m.toolTimeout) : '',
+    enablePromptTools: !!m?.enablePromptTools, enableResourceTools: !!m?.enableResourceTools,
   }
   syncFromForm()
   showModal.value = true
@@ -155,7 +166,7 @@ async function save() {
   if (!form.value.name.trim()) { show(t('common.name_required'), 'error'); return }
   syncToForm()
   try {
-    const { name, type, url, headers, command, args, env, cwd, toolTimeout } = form.value
+    const { name, type, url, headers, command, args, env, cwd, toolTimeout, enablePromptTools, enableResourceTools } = form.value
     const config: McpEntry = { type, name: name.trim() } as any
     if (type === McpTransport.Http || type === McpTransport.Sse) {
       if (!url.trim()) { show(t('mcp.error_url'), 'error'); return }
@@ -169,6 +180,8 @@ async function save() {
       if (cwd.trim()) config.cwd = cwd.trim()
     }
     if (toolTimeout) config.toolTimeout = parseInt(toolTimeout)
+    if (enablePromptTools) config.enablePromptTools = true
+    if (enableResourceTools) config.enableResourceTools = true
     if (editingId.value) {
       await apiFetch(`/api/mcp/${encodeURIComponent(editingId.value)}`, 'PUT', config)
     } else {
@@ -342,6 +355,20 @@ onMounted(load)
           <div class="form-section">
             <div class="form-section-title">高级设置</div>
             <div class="form-group"><label>{{ t('mcp.tool_timeout') }}</label><input v-model="form.toolTimeout" type="number" :placeholder="t('mcp.timeout_placeholder')" /><div class="hint">{{ t('mcp.timeout_hint') }}</div></div>
+            <div class="form-group" style="flex-direction:row;align-items:center;gap:12px">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;min-width:0">
+                <input type="checkbox" v-model="form.enablePromptTools" />
+                <span>{{ t('mcp.enable_prompt_tools') }}</span>
+              </label>
+              <div class="hint" style="margin:0">{{ t('mcp.enable_prompt_tools_hint') }}</div>
+            </div>
+            <div class="form-group" style="flex-direction:row;align-items:center;gap:12px">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;min-width:0">
+                <input type="checkbox" v-model="form.enableResourceTools" />
+                <span>{{ t('mcp.enable_resource_tools') }}</span>
+              </label>
+              <div class="hint" style="margin:0">{{ t('mcp.enable_resource_tools_hint') }}</div>
+            </div>
           </div>
         </div>
         <div class="modal-footer">
@@ -355,6 +382,9 @@ onMounted(load)
       :visible="showToolsModal"
       :title="toolsTitle"
       :tools="toolsList"
+      :prompts="promptsList"
+      :resources="resourcesList"
+      :resource-templates="resourceTemplatesList"
       :loading="toolsLoading"
       :auto-approved-tools="store.settings.autoApproveTools ?? []"
       :all-approved="allToolsApproved"

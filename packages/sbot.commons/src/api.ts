@@ -8,6 +8,32 @@ export interface McpTool {
   }
 }
 
+export interface McpPromptArg {
+  name: string
+  description?: string
+  required?: boolean
+}
+
+export interface McpPrompt {
+  name: string
+  description?: string
+  arguments?: McpPromptArg[]
+}
+
+export interface McpResource {
+  uri: string
+  name: string
+  description?: string
+  mimeType?: string
+}
+
+export interface McpResourceTemplate {
+  uriTemplate: string
+  name: string
+  description?: string
+  mimeType?: string
+}
+
 export interface SkillItem {
   name: string
   description?: string

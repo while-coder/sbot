@@ -142,6 +142,8 @@ export interface McpEntry {
   env?: Record<string, string>
   cwd?: string
   toolTimeout?: number
+  enablePromptTools?: boolean
+  enableResourceTools?: boolean
   [key: string]: unknown
 }
 

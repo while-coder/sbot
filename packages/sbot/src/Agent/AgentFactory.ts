@@ -147,7 +147,10 @@ export class AgentFactory {
             }
             const globalNames = mcp.filter(n => !sessionNames.has(n));
             if (globalNames.length > 0) {
-                toolService.registerToolFactory('__global_mcp__', () => globalAgentToolService.getToolsFrom(globalNames));
+                toolService.registerToolFactory('__global_mcp__', async () => {
+                    const results = await globalAgentToolService.getProviderResultsByName(globalNames);
+                    return [...results.values()].flatMap(r => r.tools);
+                });
             }
         }
 

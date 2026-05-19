@@ -906,10 +906,16 @@ class HttpServer {
             return this.listGlobalMcps();
         }));
 
-        app.get('/api/mcp/:id/tools', api(async req => {
+        app.get('/api/mcp/:id/details', api(async req => {
             const id = req.params.id as string;
-            const tools = await globalAgentToolService.getToolsFrom([id]);
-            return tools.map((t: any) => ({ name: t.name, description: t.description, parameters: toJsonSchema(t.schema) }));
+            const results = await globalAgentToolService.getProviderResultsByName([id]);
+            const r = results.get(id);
+            return {
+                tools: (r?.tools ?? []).map((t: any) => ({ name: t.name, description: t.description, parameters: toJsonSchema(t.schema) })),
+                prompts: r?.prompts ?? [],
+                resources: r?.resources ?? [],
+                resourceTemplates: r?.resourceTemplates ?? [],
+            };
         }));
 
         // ── Agent MCP ──
@@ -946,7 +952,7 @@ class HttpServer {
             return this.listAgentMcp(agentName);
         }));
 
-        app.get('/api/agents/:name/mcp/:id/tools', api(async req => {
+        app.get('/api/agents/:name/mcp/:id/details', api(async req => {
             const agentName = req.params.name as string;
             const id = req.params.id as string;
             const servers = config.getAgentMcpServers(agentName);
@@ -955,8 +961,14 @@ class HttpServer {
             }
             const toolService = new AgentToolService();
             toolService.registerMcpServers(servers);
-            const tools = await toolService.getToolsFrom([id]);
-            return tools.map((t: any) => ({ name: t.name, description: t.description, parameters: toJsonSchema(t.schema) }));
+            const results = await toolService.getProviderResultsByName([id]);
+            const r = results.get(id);
+            return {
+                tools: (r?.tools ?? []).map((t: any) => ({ name: t.name, description: t.description, parameters: toJsonSchema(t.schema) })),
+                prompts: r?.prompts ?? [],
+                resources: r?.resources ?? [],
+                resourceTemplates: r?.resourceTemplates ?? [],
+            };
         }));
     }
 

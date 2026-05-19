@@ -33,6 +33,10 @@ export type MCPServerConfig = Connection & {
     name?: string;
     /** Provider 描述 - 扩展字段 */
     description?: string;
+    /** 启用 prompts utility tools 生成（默认不启用） */
+    enablePromptTools?: boolean;
+    /** 启用 resources utility tools 生成（默认不启用） */
+    enableResourceTools?: boolean;
 };
 
 /**

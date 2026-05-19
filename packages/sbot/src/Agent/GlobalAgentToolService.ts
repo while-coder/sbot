@@ -81,14 +81,13 @@ export function refreshGlobalAgentToolService() {
     initGlobalAgentToolService()
 }
 
-export async function refreshBuiltinTools() {
-    await globalAgentToolService.reloadProviders(
+export function refreshBuiltinTools() {
+    globalAgentToolService.resetProviders(
         BuiltinProvider.Command,
         BuiltinProvider.FileSystem,
         BuiltinProvider.WebFetch,
         BuiltinProvider.Archive,
         BuiltinProvider.Sleep,
         BuiltinProvider.Time,
-        // BuiltinProvider.GameData,
     );
 }

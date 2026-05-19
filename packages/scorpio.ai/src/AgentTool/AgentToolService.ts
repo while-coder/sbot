@@ -4,15 +4,17 @@ import { MultiServerMCPClient } from "@langchain/mcp-adapters";
 import { MCPServers } from "./MCPServerConfig";
 import { ILoggerService } from "../Logger";
 import { inject } from "../Core";
+import type { MCPPrompt, MCPPromptMessage, MCPResource, MCPResourceTemplate, ProviderResult } from "./MCPTypes";
 
-/**
- * Agent 工具服务基础实现
- * 负责工具的加载和管理
- */
+interface ProviderEntry {
+    factory: () => Promise<ProviderResult>;
+    description?: string;
+}
+
 export class AgentToolService implements IAgentToolService {
-    private providerLoadingPromises: Map<string, Promise<void>> = new Map();
-    private toolsMap: Map<string, StructuredToolInterface[]> = new Map();
-    private toolProviders: Map<string, { factory: () => Promise<StructuredToolInterface[]>; description?: string }> = new Map();
+    private providerResults: Map<string, ProviderResult> = new Map();
+    private providers: Map<string, ProviderEntry> = new Map();
+    private loadingPromises: Map<string, Promise<void>> = new Map();
     private logger;
 
     constructor(
@@ -21,127 +23,125 @@ export class AgentToolService implements IAgentToolService {
         this.logger = loggerService?.getLogger("AgentToolService");
     }
 
-    /**
-     * 注册工具工厂函数
-     * @param name 工厂名称，相同名称会覆盖已有注册
-     * @param factory 工具工厂函数，返回工具数组
-     */
     registerToolFactory(name: string, factory: () => Promise<StructuredToolInterface[]>, description?: string): void {
-        this.toolProviders.set(name, { factory, description });
-        this.providerLoadingPromises.delete(name);
-        this.toolsMap.delete(name);        // Bug 2: 清除旧工具缓存，避免重新注册后残留旧数据
+        this.providers.set(name, {
+            factory: async () => ({ tools: await factory() }),
+            description,
+        });
+        this.invalidate(name);
     }
 
-    /**
-     * 注册 MCP 服务器工具（每个 server 包装为 provider，延迟到实际使用时初始化）
-     * @param mcpServers MCP 服务器配置对象
-     */
     registerMcpServers(mcpServers: MCPServers): void {
         if (Object.keys(mcpServers).length === 0) return;
         for (const [name, cfg] of Object.entries(mcpServers)) {
-            this.toolProviders.set(name, {
+            this.providers.set(name, {
                 factory: async () => {
                     const client = new MultiServerMCPClient({ mcpServers: { [name]: cfg } });
-                    return await client.getTools();
+                    const tools: StructuredToolInterface[] = [...await client.getTools()];
+
+                    let prompts: MCPPrompt[] | undefined;
+                    let resources: MCPResource[] | undefined;
+                    let resourceTemplates: MCPResourceTemplate[] | undefined;
+
+                    const rawClient = await client.getClient(name);
+                    if (rawClient) {
+                        try { prompts = (await rawClient.listPrompts()).prompts as MCPPrompt[]; } catch {}
+                    }
+                    try { resources = (await client.listResources(name))[name]; } catch {}
+                    try { resourceTemplates = (await client.listResourceTemplates(name))[name]; } catch {}
+
+                    return {
+                        tools, prompts, resources, resourceTemplates,
+                        getPrompt: async (promptName: string, args?: Record<string, string>) => {
+                            const rc = await client.getClient(name);
+                            if (!rc) throw new Error(`MCP client for "${name}" not available`);
+                            const result = await rc.getPrompt({ name: promptName, arguments: args });
+                            return result.messages as MCPPromptMessage[];
+                        },
+                        readResource: async (uri: string) => {
+                            return await client.readResource(name, uri);
+                        },
+                        close: async () => { await client.close(); },
+                    };
                 },
                 description: cfg.description,
             });
-            this.providerLoadingPromises.delete(name);
-            this.toolsMap.delete(name);    // Bug 2: 清除旧工具缓存
+            this.invalidate(name);
         }
     }
 
-    private addToolToProvider(providerName: string, tool: StructuredToolInterface) {
-        const list = this.toolsMap.get(providerName) ?? [];
-        if (!list.some(x => x.name === tool.name)) {
-            list.push(tool);
-        }
-        this.toolsMap.set(providerName, list);
-    }
-
-    private ensureProviderLoaded(name: string): Promise<void> {
-        if (this.providerLoadingPromises.has(name)) {
-            return this.providerLoadingPromises.get(name)!;
-        }
-        const provider = this.toolProviders.get(name);
-        if (!provider) return Promise.resolve();
-
-        const promise = provider.factory().then(tools => {
-            for (const tool of tools) {
-                this.addToolToProvider(name, tool);
-            }
-        }).catch((error: any) => {
-            this.providerLoadingPromises.delete(name); // Bug 1: 失败时清除缓存，允许下次重试
-            this.logger?.error(`Failed to load tools from provider "${name}": ${error.message}`);
-        });
-
-        this.providerLoadingPromises.set(name, promise);
-        return promise;
-    }
-
-    /**
-     * 按 provider 名称按需加载，只加载用到的 provider
-     * @param providerNames 要查询的 provider 名称列表
-     */
-    async getToolsFrom(providerNames: string[]): Promise<StructuredToolInterface[]> {
-        await Promise.all(providerNames.map(name => this.ensureProviderLoaded(name)));
-        const nameSet = new Set(providerNames);
+    async getAllTools(): Promise<StructuredToolInterface[]> {
+        await this.loadAll();
         const result: StructuredToolInterface[] = [];
-        for (const [name, tools] of this.toolsMap) {
-            if (nameSet.has(name)) {
-                result.push(...tools);
-            }
+        for (const caps of this.providerResults.values()) result.push(...caps.tools);
+        return result;
+    }
+
+    async getAllProviderResults(): Promise<Map<string, ProviderResult>> {
+        await this.loadAll();
+        return new Map(this.providerResults);
+    }
+
+    async getProviderResultsByName(providerNames: string[]): Promise<Map<string, ProviderResult>> {
+        await Promise.all(providerNames.map(name => this.loadProvider(name)));
+        const result = new Map<string, ProviderResult>();
+        for (const name of providerNames) {
+            const caps = this.providerResults.get(name);
+            if (caps) result.set(name, caps);
         }
         return result;
     }
 
-    /**
-     * 获取所有可用工具（按需并发加载所有 provider）
-     */
-    async getAllTools(): Promise<StructuredToolInterface[]> {
-        await Promise.all(
-            Array.from(this.toolProviders.keys()).map(name => this.ensureProviderLoaded(name))
-        );
-        return this.flattenTools();
-    }
-
-    /**
-     * 获取所有已注册的 provider 名称
-     */
     getProviderNames(): string[] {
-        return Array.from(this.toolProviders.keys());
+        return Array.from(this.providers.keys());
     }
 
     getProviderDescription(name: string): string | undefined {
-        return this.toolProviders.get(name)?.description;
+        return this.providers.get(name)?.description;
     }
 
-    /**
-     * 重新加载指定 provider 的工具（不影响其他 provider，不断开 MCP 连接）
-     */
-    async reloadProviders(...names: string[]): Promise<void> {
+    resetProviders(...names: string[]): void {
         for (const name of names) {
-            if (!this.toolProviders.has(name)) continue;
-            this.providerLoadingPromises.delete(name);
-            this.toolsMap.delete(name);
+            if (!this.providers.has(name)) continue;
+            this.invalidate(name);
         }
-        await Promise.all(names.map(name => this.ensureProviderLoaded(name)));
     }
 
-    /**
-     * 重置工具加载状态（用于测试或重新加载）
-     */
     reset(): void {
-        this.providerLoadingPromises.clear();
-        this.toolsMap.clear();
-        this.toolProviders.clear();
+        for (const caps of this.providerResults.values()) {
+            caps.close?.().catch(() => {});
+        }
+        this.loadingPromises.clear();
+        this.providerResults.clear();
+        this.providers.clear();
     }
 
-    private flattenTools(): StructuredToolInterface[] {
-        const result: StructuredToolInterface[] = [];
-        for (const tools of this.toolsMap.values()) {
-            result.push(...tools);
-        }
-        return result;
+    private invalidate(name: string): void {
+        this.providerResults.get(name)?.close?.().catch(() => {});
+        this.providerResults.delete(name);
+        this.loadingPromises.delete(name);
+    }
+
+    private loadProvider(name: string): Promise<void> {
+        if (this.providerResults.has(name)) return Promise.resolve();
+        if (this.loadingPromises.has(name)) return this.loadingPromises.get(name)!;
+        const provider = this.providers.get(name);
+        if (!provider) return Promise.resolve();
+
+        const promise = provider.factory().then(caps => {
+            if (this.loadingPromises.get(name) !== promise) return;
+            this.providerResults.set(name, caps);
+        }).catch((error: any) => {
+            if (this.loadingPromises.get(name) !== promise) return;
+            this.loadingPromises.delete(name);
+            this.logger?.error(`Failed to load provider "${name}": ${error.message}`);
+        });
+
+        this.loadingPromises.set(name, promise);
+        return promise;
+    }
+
+    private async loadAll(): Promise<void> {
+        await Promise.all(Array.from(this.providers.keys()).map(n => this.loadProvider(n)));
     }
 }

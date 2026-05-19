@@ -1,28 +1,11 @@
 import { StructuredToolInterface } from "@langchain/core/tools";
+import type { ProviderResult } from "./MCPTypes";
 
-/**
- * Agent 工具服务接口
- * 负责工具的加载和管理
- */
 export interface IAgentToolService {
-    /**
-     * 获取所有可用工具（首次调用时加载）
-     */
     getAllTools(): Promise<StructuredToolInterface[]>;
-
-    /**
-     * 按 provider 名称过滤，返回指定 provider 的工具集合
-     */
-    getToolsFrom(providerNames: string[]): Promise<StructuredToolInterface[]>;
-
-    /**
-     * 获取所有已注册的 provider 名称
-     */
+    getAllProviderResults(): Promise<Map<string, ProviderResult>>;
+    getProviderResultsByName(providerNames: string[]): Promise<Map<string, ProviderResult>>;
     getProviderNames(): string[];
-
-    /**
-     * 获取指定 provider 的描述
-     */
     getProviderDescription(name: string): string | undefined;
 }
 
