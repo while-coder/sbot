@@ -16,7 +16,7 @@ import {
     createSuccessResult,
     MCPToolResult
 } from "../Tools";
-import { UsageTracker } from "../Utils/UsageTracker";
+import { UsageTracker, UsageState } from "../Utils/UsageTracker";
 
 const execAsync = promisify(exec);
 
@@ -82,7 +82,7 @@ export class SkillService implements ISkillService {
         }
         // 过滤 archived 状态的 skill
         const usage = new UsageTracker(skillDir).get();
-        if (usage?.state === 'archived') continue;
+        if (usage?.state === UsageState.Archived) continue;
         skills.push(skill);
       } catch (e: any) {
         this.logger?.error(`加载 skill 失败 ${skillDir}: ${e.message}`);

@@ -5,6 +5,7 @@ import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
 import { useToast } from '@/composables/useToast'
 import { store } from '@/store'
+import CreatePromptModal from '@/components/CreatePromptModal.vue'
 
 const { t } = useI18n()
 const { show } = useToast()
@@ -242,28 +243,15 @@ async function loadHeartbeatPrompts() {
 }
 
 const showCreatePrompt = ref(false)
-const newPromptName = ref('')
-const newPromptContent = ref('')
 
 function openCreatePrompt() {
-  newPromptName.value = ''
-  newPromptContent.value = ''
   showCreatePrompt.value = true
 }
 
-async function createPrompt() {
-  const name = newPromptName.value.trim()
-  if (!name) { show(t('common.name_required'), 'error'); return }
-  const filePath = `heartbeat/${name}${name.endsWith('.md') ? '' : '.md'}`
-  try {
-    await apiFetch('/api/prompts/content', 'PUT', { path: filePath, content: newPromptContent.value })
-    show(t('common.created'))
-    showCreatePrompt.value = false
-    await loadHeartbeatPrompts()
-    form.value.promptFile = filePath
-  } catch (e: any) {
-    show(e.message, 'error')
-  }
+async function onPromptCreated(filePath: string) {
+  showCreatePrompt.value = false
+  await loadHeartbeatPrompts()
+  form.value.promptFile = filePath
 }
 
 async function refresh() {
@@ -382,7 +370,7 @@ onMounted(async () => {
             <div style="display:flex;gap:6px;align-items:center">
               <select v-model="form.promptFile" style="flex:1">
                 <option v-for="p in heartbeatPrompts" :key="p.path" :value="p.path">
-                  {{ p.path }}
+                  {{ p.path.split('/').pop() }}
                 </option>
               </select>
               <button type="button" class="btn-outline btn-sm" @click="openCreatePrompt" title="+">+</button>
@@ -441,31 +429,6 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- Quick create prompt sub-dialog -->
-    <div v-if="showCreatePrompt" class="modal-overlay" style="z-index:1001" @click.self="showCreatePrompt = false">
-      <div class="modal-box" style="width:440px">
-        <div class="modal-header">
-          <h3>{{ t('heartbeats.create_prompt') }}</h3>
-          <button class="modal-close" @click="showCreatePrompt = false">&times;</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label>{{ t('heartbeats.prompt_filename') }}</label>
-            <div style="display:flex;align-items:center;gap:4px">
-              <span style="color:#9b9b9b;font-size:13px;flex-shrink:0">heartbeat/</span>
-              <input v-model="newPromptName" placeholder="my-prompt.md" style="flex:1" @keyup.enter="createPrompt" />
-            </div>
-          </div>
-          <div class="form-group">
-            <label>{{ t('heartbeats.prompt_content') }}</label>
-            <textarea v-model="newPromptContent" rows="8" style="font-family:'Consolas','Monaco',monospace;font-size:13px" />
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-outline" @click="showCreatePrompt = false">{{ t('common.cancel') }}</button>
-          <button class="btn-primary" @click="createPrompt">{{ t('common.create') }}</button>
-        </div>
-      </div>
-    </div>
+    <CreatePromptModal v-if="showCreatePrompt" prefix="heartbeat/" default-ext=".md" @created="onPromptCreated" @close="showCreatePrompt = false" />
   </div>
 </template>

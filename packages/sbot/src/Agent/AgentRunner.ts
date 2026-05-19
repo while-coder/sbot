@@ -205,7 +205,7 @@ export class AgentRunner {
         const extractorModel = await config.getModelService(insightConfig.extractor, true);
         container.registerWithArgs(IInsightExtractor, InsightExtractor, {
             [IModelService]: extractorModel,
-            [T_InsightExtractorSystemPrompt]: loadPrompt('insight/extractor.txt'),
+            [T_InsightExtractorSystemPrompt]: loadPrompt(insightConfig.extractorPromptFile),
         });
 
         container.registerWithArgs(IInsightService, InsightService, {

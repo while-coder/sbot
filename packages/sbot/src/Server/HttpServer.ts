@@ -1180,8 +1180,14 @@ class HttpServer {
                 return out;
             }
             if (prefix) {
-                const cat = tree.find(n => n.type === 'dir' && n.name === prefix);
-                return cat ? flatten(cat.children || []) : [];
+                const segments = prefix.split('/');
+                let nodes: PromptNode[] = tree;
+                for (const seg of segments) {
+                    const dir = nodes.find(n => n.type === 'dir' && n.name === seg);
+                    if (!dir || !dir.children) return [];
+                    nodes = dir.children;
+                }
+                return flatten(nodes);
             }
             return flatten(tree);
         }));

@@ -6,6 +6,7 @@ import { store } from '@/store'
 import { useToast } from '@/composables/useToast'
 import { AgentMode, ACPSessionMode, InsightScope } from '@/types'
 import type { Agent, SubAgentRef } from '@/types'
+import CreatePromptModal from '@/components/CreatePromptModal.vue'
 
 const { t } = useI18n()
 
@@ -53,6 +54,7 @@ const form = ref({
   systemPrompt: '',
   insightScope: InsightScope.Disabled as string,
   insightExtractor: '',
+  insightExtractorPromptFile: '',
   autoApproveAllTools: false,
   modelCallTimeout: undefined as number | undefined,
   // acp
@@ -76,6 +78,7 @@ function open(id?: string) {
       systemPrompt: a.systemPrompt || '',
       insightScope: (a as any).insight?.scope || InsightScope.Disabled,
       insightExtractor: (a as any).insight?.extractor || '',
+      insightExtractorPromptFile: (a as any).insight?.extractorPromptFile || '',
       autoApproveAllTools: !!(a as any).autoApproveAllTools,
       modelCallTimeout: (a as any).modelCallTimeout ?? undefined,
       command: a.command || '',
@@ -89,11 +92,12 @@ function open(id?: string) {
     tempSubAgents.value = []
     form.value = {
       id: '', name: '', type: AgentMode.Single, model: '', compactModel: '',
-      systemPrompt: '', insightScope: InsightScope.Disabled, insightExtractor: '',
+      systemPrompt: '', insightScope: InsightScope.Disabled, insightExtractor: '', insightPromptFile: '',
       autoApproveAllTools: false, modelCallTimeout: undefined, command: '', args: [], env: [], sessionMode: ACPSessionMode.Persistent,
     }
   }
   showModal.value = true
+  loadInsightPrompts()
 }
 
 async function save() {
@@ -117,9 +121,13 @@ async function save() {
       if (form.value.insightScope !== InsightScope.Disabled && !form.value.insightExtractor) {
         show(t('agents.error_insight_extractor'), 'error'); return
       }
+      if (form.value.insightScope !== InsightScope.Disabled && !form.value.insightExtractorPromptFile) {
+        show(t('agents.error_insight_prompt_file'), 'error'); return
+      }
       const insightCfg: any = { scope: form.value.insightScope }
       if (form.value.insightScope !== InsightScope.Disabled) {
         insightCfg.extractor = form.value.insightExtractor
+        insightCfg.extractorPromptFile = form.value.insightExtractorPromptFile
       }
       config.insight = insightCfg
       if (form.value.modelCallTimeout != null && form.value.modelCallTimeout > 0) config.modelCallTimeout = form.value.modelCallTimeout
@@ -205,6 +213,27 @@ function deleteSubAgent(idx: number) {
 
 function subAgentSelectOptions() {
   return agentOptions.value.filter(a => a.id !== subAgentExclude.value)
+}
+
+// ── Insight prompt files ──
+const insightPrompts = ref<{ path: string; isUserOnly?: boolean }[]>([])
+const showCreateInsightPrompt = ref(false)
+
+async function loadInsightPrompts() {
+  try {
+    const res = await apiFetch('/api/prompts/files?prefix=insight/extractor')
+    insightPrompts.value = res.data || []
+  } catch {}
+}
+
+function openCreateInsightPrompt() {
+  showCreateInsightPrompt.value = true
+}
+
+async function onInsightPromptCreated(filePath: string) {
+  showCreateInsightPrompt.value = false
+  await loadInsightPrompts()
+  form.value.insightExtractorPromptFile = filePath
 }
 
 defineExpose({ open })
@@ -321,6 +350,17 @@ defineExpose({ open })
             </select>
             <span style="font-size:0.78rem;color:var(--color-text-muted,#888);margin-top:2px">{{ t('agents.insight_extractor_hint') }}</span>
           </div>
+          <div class="form-group" v-if="form.insightScope !== InsightScope.Disabled">
+            <label>{{ t('agents.insight_prompt_file') }} *</label>
+            <div style="display:flex;gap:6px;align-items:center">
+              <select v-model="form.insightExtractorPromptFile" style="flex:1">
+                <option value="">{{ t('agents.insight_prompt_file_placeholder') }}</option>
+                <option v-for="p in insightPrompts" :key="p.path" :value="p.path">{{ p.path.split('/').pop() }}</option>
+              </select>
+              <button type="button" class="btn-outline btn-sm" @click="openCreateInsightPrompt" title="+">+</button>
+            </div>
+            <span style="font-size:0.78rem;color:var(--color-text-muted,#888);margin-top:2px">{{ t('agents.insight_prompt_file_hint') }}</span>
+          </div>
         </template>
 
         <!-- autoApproveAllTools -->
@@ -366,6 +406,8 @@ defineExpose({ open })
       </div>
     </div>
   </div>
+
+  <CreatePromptModal v-if="showCreateInsightPrompt" prefix="insight/extractor/" default-ext=".txt" @created="onInsightPromptCreated" @close="showCreateInsightPrompt = false" />
 
   <!-- Sub-agent Modal -->
   <div v-if="showSubModal" class="modal-overlay" @click.self="showSubModal = false" style="z-index:1100">
