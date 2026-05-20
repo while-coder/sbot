@@ -428,7 +428,7 @@ export class LarkService implements IChannelService {
       }
       return response.data?.user;
     } catch (error: any) {
-      this.logger?.error(`Error getting user info: ${error.message}`);
+      this.logger?.error(`Error getting user info: ${error.message}\n${error.stack}`);
     }
   }
 
@@ -444,7 +444,7 @@ export class LarkService implements IChannelService {
       }
       return response.data as LarkChatInfo;
     } catch (error: any) {
-      this.logger?.error(`Error getting chat info: ${error.message}`);
+      this.logger?.error(`Error getting chat info: ${error.message}\n${error.stack}`);
     }
   }
 
@@ -463,7 +463,7 @@ export class LarkService implements IChannelService {
         this.logger?.error(`Failed to get bot info: ${JSON.stringify(data)}`);
       }
     } catch (error: any) {
-      this.logger?.error(`Error fetching bot info: ${error.message}`);
+      this.logger?.error(`Error fetching bot info: ${error.message}\n${error.stack}`);
     }
     return this.botOpenId;
   }
