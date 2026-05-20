@@ -1,0 +1,62 @@
+/* @sbot/ui — Dark Theme
+ *
+ * 通过 html[data-theme="dark"] 重新赋值 token，无需逐类覆盖。
+ * Hex 严格 1:1 映射 admin/Layout.vue 第 1240-1358 行原有取值。
+ */
+
+html[data-theme="dark"] {
+  /* ── 中性背景 ─────────────────────────────────────────── */
+  --sui-bg:            #222;       /* card / modal-box */
+  --sui-bg-subtle:     #252525;    /* sidebar active / table th / dropdown / form-details summary / msg-tool-calls */
+  --sui-bg-soft:       #2a2a2a;    /* input bg / topbar/sidebar hover / msg-bubble.ai / chat-info-chip / mobile-card sub */
+  --sui-bg-hover:      #333;       /* lang option hover / sidebar-overlay click target / tag-item bg */
+  --sui-bg-active:     #333;
+  --sui-bg-page:       #1a1a1a;    /* body / topbar / sidebar / chat-input-bar / mobile sidebar */
+
+  /* ── 中性前景 ─────────────────────────────────────────── */
+  --sui-fg:            #e0e0e0;    /* topbar-title / modal-header h3 / sidebar active / tool-call-name */
+  --sui-fg-strong:     #fff;       /* lang option active / btn-primary hover */
+  --sui-fg-secondary:  #d4d4d4;    /* body / modal-body / td / msg-bubble.ai */
+  --sui-fg-muted:      #ccc;       /* form-group label / form-details summary / btn-outline / lang-option */
+  --sui-fg-soft:       #999;       /* sidebar-item / card-title / table th / form-section-title / chat-info-chip */
+  --sui-fg-disabled:   #777;       /* hint / mobile-card-label / modal-close (deepest gray) */
+
+  /* ── 边框 ─────────────────────────────────────────────── */
+  --sui-border:        #333;
+  --sui-border-subtle: #333;
+  --sui-border-strong: #444;       /* input border / btn-outline border / chat-info-chip border */
+  --sui-border-dashed: #555;       /* tag-add-select 虚线 */
+
+  /* ── 主色 ────────────────────────────────────────────── */
+  --sui-primary:        #e0e0e0;
+  --sui-primary-hover:  #fff;
+  --sui-on-primary:     #1a1a1a;
+
+  /* ── 危险色（基本不变，仅 toast bg） ─────────────────── */
+  --sui-danger:         #ef4444;
+  --sui-danger-hover:   #dc2626;
+
+  /* ── 信息链接（紫蓝，dark 下替换） ───────────────────── */
+  --sui-info-link:      #818cf8;
+  --sui-info-link-hover:#a5b4fc;
+
+  /* ── 工具/警告色（dark 下变深底浅字） ────────────────── */
+  --sui-tool-bg:        #2a2500;
+  --sui-on-tool-bg:     #d4b860;
+  --sui-warning-label:  #d4b860;
+  --sui-warning-bg:     #2a2500;
+  --sui-warning-fg:     #fdba74;
+  --sui-warning-chip-bg:#431407;
+
+  /* ── 阴影（dark 下加深以保持对比） ───────────────────── */
+  --sui-shadow-xs:      0 1px 2px rgba(0,0,0,0.2);
+  --sui-shadow-sm:      0 1px 3px rgba(0,0,0,0.2);
+  --sui-shadow-md:      0 4px 16px rgba(0,0,0,0.3);
+  --sui-shadow-lg:      0 8px 40px rgba(0,0,0,0.3);
+  --sui-shadow-toast:   0 4px 16px rgba(0,0,0,0.4);
+
+  /* ── 蒙层（dark 下加深） ─────────────────────────────── */
+  --sui-mask:           rgba(0,0,0,0.6);
+  --sui-mask-strong:    rgba(0,0,0,0.85);
+  --sui-mask-soft:      rgba(0,0,0,0.5);
+}
