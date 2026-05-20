@@ -10,10 +10,12 @@ import {
     IAgentSaverService, AgentFileSaver, AgentSqliteSaver, AgentMemorySaver,
     T_DBPath,
     T_MemorySystemPromptTemplate,
+    T_MemoryToolDescs,
     IModelService,
     IWikiService, IWikiDatabase,
     WikiService,
     T_WikiSystemPromptTemplate,
+    T_WikiToolDescs,
     IInsightService, InsightService,
     IInsightExtractor, InsightExtractor,
     T_InsightDir,
@@ -138,6 +140,7 @@ export class AgentRunner {
         sub.registerWithArgs(IMemoryService, MemoryService, {
             [IEmbeddingService]: embedding,
             [T_MemorySystemPromptTemplate]: loadPrompt('memory/system.txt'),
+            [T_MemoryToolDescs]: { search: loadPrompt('tools/memory/search.txt') },
         });
 
         return sub.resolve<IMemoryService>(IMemoryService);
@@ -171,6 +174,10 @@ export class AgentRunner {
 
         const args: Record<string | symbol, any> = {
             [T_WikiSystemPromptTemplate]: loadPrompt('wiki/system.txt'),
+            [T_WikiToolDescs]: {
+                search: loadPrompt('tools/wiki/search.txt'),
+                read: loadPrompt('tools/wiki/read.txt'),
+            },
         };
 
         sub.registerWithArgs(IWikiService, WikiService, args);

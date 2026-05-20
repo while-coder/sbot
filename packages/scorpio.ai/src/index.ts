@@ -68,7 +68,12 @@ export {
   T_WikiSystemPromptTemplate,
   T_ModelCallTimeout,
   T_CompactPromptTemplate,
+  T_PostCompactMessageTemplate,
+  T_PostCompactContinuation,
   T_MaxHistoryRounds,
+  T_MemoryToolDescs,
+  T_WikiToolDescs,
+  T_MCPUtilityToolDescs,
   NowDate,
   sleep,
   parseJson,
@@ -130,6 +135,7 @@ export {
   // 类型定义
   Memory,
   MEMORY_SEARCH_TOOL_NAME,
+  type MemoryToolDescs,
 } from "./Memory";
 
 // ========================================
@@ -150,6 +156,7 @@ export {
   WikiToolProvider,
   WIKI_SEARCH_TOOL_NAME,
   WIKI_READ_TOOL_NAME,
+  type WikiToolDescs,
 
   // 类型定义
   WikiPage,
@@ -179,7 +186,6 @@ export {
   // Compact
   ConversationCompactor,
   IConversationCompactor,
-  type CompactResult,
 } from "./Saver";
 
 // ========================================
@@ -254,6 +260,9 @@ export {
   // 类型定义
   MCPServerConfig,
   MCPServers,
+  createMCPUtilityTools,
+  type MCPServerCaps,
+  type MCPUtilityToolDescs,
 } from "./AgentTool";
 
 // ========================================

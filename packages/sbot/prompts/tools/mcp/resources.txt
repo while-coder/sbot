@@ -1,0 +1,1 @@
+List or read resources from MCP servers. Use action 'list' to discover available resources, or 'read' to fetch content by URI.

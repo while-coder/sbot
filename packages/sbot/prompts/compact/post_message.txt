@@ -1,0 +1,6 @@
+---
+vars:
+  summary: The compacted conversation summary text
+---
+[Conversation Summary]
+{summary}

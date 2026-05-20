@@ -20,8 +20,15 @@ export const T_MemorySystemPromptTemplate = Symbol("scorpio:T_MemorySystemPrompt
 export const T_ModelCallTimeout           = Symbol("scorpio:T_ModelCallTimeout");
 
 // Compact tokens
-export const T_CompactPromptTemplate      = Symbol("scorpio:T_CompactPromptTemplate");
-export const T_MaxHistoryRounds           = Symbol("scorpio:T_MaxHistoryRounds");
+export const T_CompactPromptTemplate         = Symbol("scorpio:T_CompactPromptTemplate");
+export const T_PostCompactMessageTemplate    = Symbol("scorpio:T_PostCompactMessageTemplate");
+export const T_PostCompactContinuation       = Symbol("scorpio:T_PostCompactContinuation");
+export const T_MaxHistoryRounds              = Symbol("scorpio:T_MaxHistoryRounds");
+
+// Tool description tokens（库内工具描述外置注入）
+export const T_MemoryToolDescs            = Symbol("scorpio:T_MemoryToolDescs");
+export const T_WikiToolDescs              = Symbol("scorpio:T_WikiToolDescs");
+export const T_MCPUtilityToolDescs        = Symbol("scorpio:T_MCPUtilityToolDescs");
 
 // Insight tokens
 export const T_InsightDir            = Symbol("scorpio:T_InsightDir");

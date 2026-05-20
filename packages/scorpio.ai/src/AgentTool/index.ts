@@ -12,3 +12,6 @@ export { AgentToolService } from "./AgentToolService";
 // ===== 类型定义 =====
 export { MCPServerConfig, MCPServers } from "./MCPServerConfig";
 export type { MCPPrompt, MCPPromptMessage, MCPResource, MCPResourceTemplate, MCPResourceContent, ProviderResult } from "./MCPTypes";
+
+// ===== Utility 工具 =====
+export { createMCPUtilityTools, type MCPServerCaps, type MCPUtilityToolDescs } from "./MCPUtilityTools";

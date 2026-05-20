@@ -1,0 +1,1 @@
+List or get prompt templates from MCP servers. Use action 'list' to discover available prompts, or 'get' to render a specific prompt by name.

@@ -115,13 +115,19 @@ export class CompactCommand implements ICommand {
 
         const saver = await AgentRunner.createSaverService(saverId, session.threadId);
         try {
-            const compactor = new ConversationCompactor(summaryModel, loadPrompt('compact/instruction.txt'), GlobalLoggerService.getLoggerService());
+            const compactor = new ConversationCompactor(
+                summaryModel,
+                loadPrompt('compact/instruction.txt'),
+                loadPrompt('compact/post_message.txt'),
+                loadPrompt('compact/post_continuation.txt'),
+                GlobalLoggerService.getLoggerService(),
+            );
             const allMessages = await saver.getAllMessages();
             if (allMessages.length <= 1) return '消息过少，无需压缩';
 
-            const result = await compactor.compact(allMessages);
+            const postMessage = await compactor.compact(allMessages, false);
             const compactedIds = allMessages.filter(m => m.id != null).map(m => m.id!);
-            await saver.applyCompaction(compactedIds, ConversationCompactor.buildPostCompactMessage(result.summary, false));
+            await saver.applyCompaction(compactedIds, postMessage);
             return `压缩完成：${allMessages.length} 条消息已压缩`;
         } finally {
             await saver.dispose();

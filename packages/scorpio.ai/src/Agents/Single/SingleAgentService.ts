@@ -161,9 +161,9 @@ export class SingleAgentService extends AgentServiceBase {
             const allMessages = await this.saverService.getAllMessages();
             const savedTokens = parseInt(await this.saverService.getMetadata(METADATA_KEY_INPUT_TOKENS) ?? '0', 10);
             if (this.compactor.shouldCompact(savedTokens, allMessages, contextWindow)) {
-                const result = await this.compactor.compact(allMessages);
+                const postMessage = await this.compactor.compact(allMessages);
                 const compactedIds = allMessages.filter(m => m.id != null).map(m => m.id!);
-                await this.saverService.applyCompaction(compactedIds, ConversationCompactor.buildPostCompactMessage(result.summary));
+                await this.saverService.applyCompaction(compactedIds, postMessage);
             }
         }
 

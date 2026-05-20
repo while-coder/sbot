@@ -10,8 +10,14 @@ export interface MCPServerCaps {
     readResource?: (uri: string) => Promise<MCPResourceContent[]>;
 }
 
+export interface MCPUtilityToolDescs {
+    prompts: string;
+    resources: string;
+}
+
 export function createMCPUtilityTools(
     servers: Map<string, MCPServerCaps>,
+    descs: MCPUtilityToolDescs,
 ): DynamicStructuredTool[] {
     const tools: DynamicStructuredTool[] = [];
 
@@ -21,7 +27,7 @@ export function createMCPUtilityTools(
     if (hasPrompts) {
         tools.push(new DynamicStructuredTool({
             name: "mcp_prompts",
-            description: "List or get prompt templates from MCP servers. Use action 'list' to discover available prompts, or 'get' to render a specific prompt by name.",
+            description: descs.prompts,
             schema: z.object({
                 action: z.enum(["list", "get"]).describe("'list' to list prompts, 'get' to render a specific prompt"),
                 name: z.string().optional().describe("Prompt name (required for 'get')"),
@@ -50,7 +56,7 @@ export function createMCPUtilityTools(
     if (hasResources) {
         tools.push(new DynamicStructuredTool({
             name: "mcp_resources",
-            description: "List or read resources from MCP servers. Use action 'list' to discover available resources, or 'read' to fetch content by URI.",
+            description: descs.resources,
             schema: z.object({
                 action: z.enum(["list", "read"]).describe("'list' to list resources, 'read' to fetch resource content"),
                 uri: z.string().optional().describe("Resource URI (required for 'read')"),

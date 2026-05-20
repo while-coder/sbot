@@ -3,7 +3,8 @@ import {
     TransientACPAgentService, PersistentACPAgentService, T_ACPCommand, T_ACPArgs, T_ACPEnv, T_ACPWorkPath,
     IModelService,
     IAgentSaverService, AgentMemorySaver, ILoggerService,
-    ConversationCompactor, IConversationCompactor, T_SummaryModelService, T_CompactPromptTemplate,
+    ConversationCompactor, IConversationCompactor, T_SummaryModelService,
+    T_CompactPromptTemplate, T_PostCompactMessageTemplate, T_PostCompactContinuation,
 } from "scorpio.ai";
 import {
     IAgentToolService, AgentToolService,
@@ -182,6 +183,8 @@ export class AgentFactory {
             container.registerWithArgs(IConversationCompactor, ConversationCompactor, {
                 [T_SummaryModelService]: await config.getModelService(entry.compactModel, true),
                 [T_CompactPromptTemplate]: loadPrompt('compact/instruction.txt'),
+                [T_PostCompactMessageTemplate]: loadPrompt('compact/post_message.txt'),
+                [T_PostCompactContinuation]: loadPrompt('compact/post_continuation.txt'),
             });
         }
 

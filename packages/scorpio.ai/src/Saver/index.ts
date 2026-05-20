@@ -27,4 +27,4 @@ export { AgentSqliteSaver } from "./AgentSqliteSaver";
 export { AgentPostgresSaver } from "./AgentPostgresSaver";
 
 // ===== Compact =====
-export { ConversationCompactor, IConversationCompactor, METADATA_KEY_INPUT_TOKENS, type CompactResult } from "./ConversationCompactor";
+export { ConversationCompactor, IConversationCompactor, METADATA_KEY_INPUT_TOKENS } from "./ConversationCompactor";
