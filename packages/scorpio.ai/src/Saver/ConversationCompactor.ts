@@ -72,7 +72,7 @@ export class ConversationCompactor {
         const summary = !result ? '' :
             typeof result.content === 'string'
                 ? result.content
-                : result.content.map(p => p.text ?? '').join('');
+                : result.content.map(p => (p.type === 'text' ? (p.text ?? '') : '')).join('');
 
         this.logger?.info(`Compact complete, summary length: ${summary.length}`);
 

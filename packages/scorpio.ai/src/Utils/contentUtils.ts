@@ -1,19 +1,23 @@
-import type { MessageContent } from "../Saver/IAgentSaverService";
+import type { ContentPart, MessageContent } from "../Saver/IAgentSaverService";
+
+type TextPart = Extract<ContentPart, { type: 'text' }>;
+const isTextPart = (p: ContentPart): p is TextPart => p.type === 'text';
 
 /** Extract a plain-text representation from MessageContent. */
 export function contentToString(content: MessageContent): string {
     if (typeof content === 'string') return content;
     if (!Array.isArray(content)) return '';
     return content
-        .filter(c => c.type === 'text' && c.text)
-        .map(c => c.text!)
+        .filter(isTextPart)
+        .map(p => p.text)
+        .filter((t): t is string => !!t)
         .join('\n');
 }
 
 /** Remove empty/whitespace-only text parts from MessageContent. */
 export function trimContent(content: MessageContent): MessageContent {
     if (typeof content === 'string') return content.trim();
-    return content.filter(p => p.type !== 'text' || p.text?.trim());
+    return content.filter(p => !isTextPart(p) || !!p.text?.trim());
 }
 
 /** Check if MessageContent is empty. */
@@ -61,8 +65,6 @@ export function detectMediaType(filePath: string): { mimeType: string; category:
     else if (mimeType === 'application/pdf') category = 'document';
     return { mimeType, category };
 }
-
-export type ContentPart = { type: string; text?: string; [key: string]: any };
 
 export let maxImageSize: number | undefined;
 

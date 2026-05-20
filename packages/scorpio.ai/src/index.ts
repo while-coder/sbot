@@ -166,6 +166,10 @@ export {
   type MessageContent,
   type TokenUsage,
 
+  // ContentPart 判别联合
+  ContentPartType,
+  type ContentPart,
+
   // 实现类
   AgentMemorySaver,
   AgentFileSaver,
@@ -343,6 +347,6 @@ export { MessageDispatcher, MessageType, summarizeMultimodal } from "./User";
 // Utils - 工具函数
 // ========================================
 export { contentToString, trimContent, isEmptyContent, readImageAsDataUrl, readMediaAsContentPart, detectMediaType, setMaxImageSize, resizeImageIfNeeded } from "./Utils/contentUtils";
-export type { MediaCategory, ContentPart } from "./Utils/contentUtils";
+export type { MediaCategory } from "./Utils/contentUtils";
 export { withRetry } from "./Utils/withRetry";
 export { UsageTracker, type UsageData } from "./Utils/UsageTracker";
