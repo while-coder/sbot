@@ -307,8 +307,10 @@ defineExpose({ open })
     <!-- ── Main modal ──────────────────────────────────────────── -->
     <SModal v-model:visible="visible" width="xl">
       <template #header>
-        <h3 class="s-modal-title">{{ agentDisplayName }} — {{ t('agents.mcp_title') }}</h3>
-        <SButton type="outline" size="sm" @click="load">{{ t('common.refresh') }}</SButton>
+        <div style="display:flex;align-items:center;gap:var(--sui-sp-4)">
+          <h3 class="s-modal-title">{{ agentDisplayName }} — {{ t('agents.mcp_title') }}</h3>
+          <SButton type="outline" size="sm" @click="load">{{ t('common.refresh') }}</SButton>
+        </div>
       </template>
 
       <!-- Tab bar -->

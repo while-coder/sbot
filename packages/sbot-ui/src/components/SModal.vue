@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, watch, onUnmounted, ref } from 'vue'
 
+defineOptions({ inheritAttrs: false })
+
 const props = withDefaults(defineProps<{
   visible: boolean
   title?: string
@@ -79,7 +81,7 @@ const overlayStyle = computed(() => ({
         @mousedown="onMousedown"
         @click="onOverlayClick"
       >
-        <div class="s-modal-box" :style="widthStyle">
+        <div v-bind="$attrs" class="s-modal-box" :style="widthStyle">
           <div v-if="$slots.header || title" class="s-modal-header">
             <slot name="header"><h3 class="s-modal-title">{{ title }}</h3></slot>
             <button type="button" class="s-modal-close" @click="close">&times;</button>

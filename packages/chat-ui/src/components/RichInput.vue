@@ -5,7 +5,6 @@ import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Image from '@tiptap/extension-image'
 import Placeholder from '@tiptap/extension-placeholder'
-import Dropcursor from '@tiptap/extension-dropcursor'
 
 const props = withDefaults(defineProps<{
   placeholder?: string
@@ -77,10 +76,10 @@ const editor = useEditor({
       orderedList: false,
       listItem: false,
       horizontalRule: false,
+      dropcursor: { color: 'var(--chatui-border-focus)', width: 2 },
     }),
     Image.configure({ inline: true, allowBase64: true }),
     Placeholder.configure({ placeholder: props.placeholder }),
-    Dropcursor.configure({ color: 'var(--chatui-border-focus)', width: 2 }),
   ],
   editorProps: {
     handleDrop: handleImageDrop,
