@@ -27,12 +27,33 @@ const activeTab     = ref('all')
 const selectedGlobals = ref<string[]>([])
 const mcpSearch     = ref('')
 
+// 每个 builtin/全局 MCP 的可选参数（K/V 字符串映射，类似 env）
+const globalParams  = ref<Record<string, Record<string, string>>>({})
+const origParams    = ref<Record<string, Record<string, string>>>({})
+
+function paramsEqual(a: Record<string, string>, b: Record<string, string>): boolean {
+  const ak = Object.keys(a), bk = Object.keys(b)
+  if (ak.length !== bk.length) return false
+  for (const k of ak) if (a[k] !== b[k]) return false
+  return true
+}
+
+function paramsCount(id: string): number {
+  return Object.keys(globalParams.value[id] || {}).length
+}
+
 const globalsChanged = computed(() => {
   if (useAllMcp.value !== origUseAll.value) return true
-  if (useAllMcp.value) return false
-  const a = [...selectedGlobals.value].sort().join(',')
-  const b = [...agentGlobals.value].sort().join(',')
-  return a !== b
+  if (!useAllMcp.value) {
+    const a = [...selectedGlobals.value].sort().join(',')
+    const b = [...agentGlobals.value].sort().join(',')
+    if (a !== b) return true
+  }
+  const allIds = new Set([...Object.keys(globalParams.value), ...Object.keys(origParams.value)])
+  for (const id of allIds) {
+    if (!paramsEqual(globalParams.value[id] || {}, origParams.value[id] || {})) return true
+  }
+  return false
 })
 
 // ── Source tabs (mirrors AgentSkillsModal pattern) ────────────────
@@ -72,6 +93,15 @@ async function load() {
     const globalsFromApi: string[] = (res.data?.globals || []).map((m: any) => m.id)
     agentGlobals.value = isAll ? [] : globalsFromApi
     selectedGlobals.value = isAll ? [] : [...globalsFromApi]
+    const initParams: Record<string, Record<string, string>> = {}
+    const rawParams = (agent as any)?.mcpParams || {}
+    for (const [name, p] of Object.entries(rawParams)) {
+      if (p && typeof p === 'object' && Object.keys(p).length > 0) {
+        initParams[name] = { ...(p as Record<string, string>) }
+      }
+    }
+    globalParams.value = initParams
+    origParams.value = JSON.parse(JSON.stringify(initParams))
     applyMcpList(globalRes.data || [])
   } catch (e: any) {
     show(e.message, 'error')
@@ -81,20 +111,57 @@ async function load() {
 async function saveGlobals() {
   try {
     const existing = (store.settings.agents || {})[agentName.value] || {}
-    const mcpValue = useAllMcp.value ? '*' : selectedGlobals.value
+    const mcpValue: any = useAllMcp.value ? '*' : [...selectedGlobals.value]
+    const validIds = useAllMcp.value
+      ? new Set(store.allMcps.map(m => m.id))
+      : new Set(selectedGlobals.value)
+    const mcpParamsValue: Record<string, Record<string, string>> = {}
+    for (const [id, p] of Object.entries(globalParams.value)) {
+      if (validIds.has(id) && p && Object.keys(p).length > 0) {
+        mcpParamsValue[id] = { ...p }
+      }
+    }
+    const payload: any = { ...existing, mcp: mcpValue }
+    if (Object.keys(mcpParamsValue).length > 0) payload.mcpParams = mcpParamsValue
+    else delete payload.mcpParams
     await apiFetch(
       `/api/agents/${encodeURIComponent(agentName.value)}`,
       'PUT',
-      { ...existing, mcp: mcpValue },
+      payload,
     )
     const settingsRes = await apiFetch('/api/settings')
     Object.assign(store.settings, settingsRes.data)
     origUseAll.value = useAllMcp.value
     agentGlobals.value = useAllMcp.value ? [] : [...selectedGlobals.value]
+    origParams.value = JSON.parse(JSON.stringify(globalParams.value))
     show(t('common.saved'))
   } catch (e: any) {
     show(e.message, 'error')
   }
+}
+
+// ── Params sub-modal (per-MCP K/V like env) ──────────────────────
+const showParamsModal = ref(false)
+const paramsEditingId = ref<string>('')
+const paramsRows      = ref<{ key: string; value: string }[]>([])
+
+function openParams(id: string) {
+  paramsEditingId.value = id
+  const cur = globalParams.value[id] || {}
+  paramsRows.value = Object.entries(cur).map(([key, value]) => ({ key, value }))
+  showParamsModal.value = true
+}
+
+function saveParams() {
+  const id = paramsEditingId.value
+  const obj = Object.fromEntries(
+    paramsRows.value.filter(r => r.key.trim()).map(r => [r.key.trim(), r.value])
+  )
+  const next = { ...globalParams.value }
+  if (Object.keys(obj).length > 0) next[id] = obj
+  else delete next[id]
+  globalParams.value = next
+  showParamsModal.value = false
 }
 
 async function viewGlobalTools(id: string) {
@@ -349,6 +416,14 @@ defineExpose({ open })
               <span :style="`flex-shrink:0;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(m.source)}`">{{ m.source }}</span>
               <span class="picker-row-name">{{ m.name }}</span>
               <span class="picker-row-desc">{{ m.description || '-' }}</span>
+              <SButton
+                type="outline"
+                size="sm"
+                :disabled="!useAllMcp && !selectedGlobals.includes(m.id)"
+                @click.prevent="openParams(m.id)"
+              >
+                {{ t('agents.mcp_params') }}<span v-if="paramsCount(m.id) > 0" class="params-badge">{{ paramsCount(m.id) }}</span>
+              </SButton>
               <SButton type="outline" size="sm" @click.prevent="viewGlobalTools(m.id)">{{ t('common.view') }}</SButton>
             </label>
           </div>
@@ -450,6 +525,24 @@ defineExpose({ open })
       </template>
     </SModal>
 
+    <!-- ── Params sub-modal (K/V like env) ─────────────────────── -->
+    <SModal v-model:visible="showParamsModal" :title="t('agents.mcp_params_title', { name: paramsEditingId })" width="md" nested>
+      <div style="font-size:var(--sui-fs-sm);color:var(--sui-fg-muted);margin-bottom:var(--sui-sp-3)">
+        {{ t('agents.mcp_params_hint') }}
+      </div>
+      <div v-for="(row, i) in paramsRows" :key="i" style="display:flex;gap:8px;margin-bottom:6px">
+        <SInput v-model="row.key" placeholder="Key" size="sm" style="flex:1" />
+        <SInput v-model="row.value" placeholder="Value" size="sm" style="flex:2" />
+        <SButton type="danger" size="sm" @click="paramsRows.splice(i,1)">×</SButton>
+      </div>
+      <SButton type="outline" size="sm" @click="paramsRows.push({key:'',value:''})">{{ t('agents.mcp_params_add') }}</SButton>
+
+      <template #footer>
+        <SButton type="outline" @click="showParamsModal = false">{{ t('common.cancel') }}</SButton>
+        <SButton type="primary" @click="saveParams">{{ t('common.confirm') }}</SButton>
+      </template>
+    </SModal>
+
     <McpToolsModal
       :visible="showToolsModal"
       :title="toolsTitle"
@@ -524,6 +617,16 @@ defineExpose({ open })
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--sui-fs-sm);
+  color: var(--sui-fg-muted);
+}
+.params-badge {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 8px;
+  background: var(--sui-bg-subtle);
   color: var(--sui-fg-muted);
 }
 </style>

@@ -1,5 +1,5 @@
 import { StructuredToolInterface } from "@langchain/core/tools";
-import { IAgentToolService } from "./IAgentToolService";
+import { IAgentToolService, type ProviderResolveEntry } from "./IAgentToolService";
 import { MultiServerMCPClient } from "@langchain/mcp-adapters";
 import { MCPServers } from "./MCPServerConfig";
 import { ILoggerService } from "../Logger";
@@ -7,8 +7,13 @@ import { inject } from "../Core";
 import type { MCPPrompt, MCPPromptMessage, MCPResource, MCPResourceTemplate, ProviderResult } from "./MCPTypes";
 
 interface ProviderEntry {
-    factory: () => Promise<ProviderResult>;
+    factory: (params?: Record<string, any>) => Promise<ProviderResult>;
     description?: string;
+}
+
+function cacheKey(name: string, params?: Record<string, any>): string {
+    if (params === undefined) return name;
+    return `${name}::${JSON.stringify(params)}`;
 }
 
 export class AgentToolService implements IAgentToolService {
@@ -23,9 +28,9 @@ export class AgentToolService implements IAgentToolService {
         this.logger = loggerService?.getLogger("AgentToolService");
     }
 
-    registerToolFactory(name: string, factory: () => Promise<StructuredToolInterface[]>, description?: string): void {
+    registerToolFactory(name: string, factory: (params?: Record<string, any>) => Promise<StructuredToolInterface[]>, description?: string): void {
         this.providers.set(name, {
-            factory: async () => ({ tools: await factory() }),
+            factory: async (params) => ({ tools: await factory(params) }),
             description,
         });
         this.invalidate(name);
@@ -83,11 +88,15 @@ export class AgentToolService implements IAgentToolService {
     }
 
     async getProviderResultsByName(providerNames: string[]): Promise<Map<string, ProviderResult>> {
-        await Promise.all(providerNames.map(name => this.loadProvider(name)));
+        return this.resolveProviders(providerNames.map(name => ({ name })));
+    }
+
+    async resolveProviders(entries: ProviderResolveEntry[]): Promise<Map<string, ProviderResult>> {
+        await Promise.all(entries.map(e => this.loadProvider(e.name, e.params)));
         const result = new Map<string, ProviderResult>();
-        for (const name of providerNames) {
-            const caps = this.providerResults.get(name);
-            if (caps) result.set(name, caps);
+        for (const e of entries) {
+            const caps = this.providerResults.get(cacheKey(e.name, e.params));
+            if (caps) result.set(e.name, caps);
         }
         return result;
     }
@@ -117,27 +126,36 @@ export class AgentToolService implements IAgentToolService {
     }
 
     private invalidate(name: string): void {
-        this.providerResults.get(name)?.close?.().catch(() => {});
-        this.providerResults.delete(name);
-        this.loadingPromises.delete(name);
+        for (const k of [...this.providerResults.keys()]) {
+            if (k === name || k.startsWith(`${name}::`)) {
+                this.providerResults.get(k)?.close?.().catch(() => {});
+                this.providerResults.delete(k);
+            }
+        }
+        for (const k of [...this.loadingPromises.keys()]) {
+            if (k === name || k.startsWith(`${name}::`)) {
+                this.loadingPromises.delete(k);
+            }
+        }
     }
 
-    private loadProvider(name: string): Promise<void> {
-        if (this.providerResults.has(name)) return Promise.resolve();
-        if (this.loadingPromises.has(name)) return this.loadingPromises.get(name)!;
+    private loadProvider(name: string, params?: Record<string, any>): Promise<void> {
+        const key = cacheKey(name, params);
+        if (this.providerResults.has(key)) return Promise.resolve();
+        if (this.loadingPromises.has(key)) return this.loadingPromises.get(key)!;
         const provider = this.providers.get(name);
         if (!provider) return Promise.resolve();
 
-        const promise = provider.factory().then(caps => {
-            if (this.loadingPromises.get(name) !== promise) return;
-            this.providerResults.set(name, caps);
+        const promise = provider.factory(params).then(caps => {
+            if (this.loadingPromises.get(key) !== promise) return;
+            this.providerResults.set(key, caps);
         }).catch((error: any) => {
-            if (this.loadingPromises.get(name) !== promise) return;
-            this.loadingPromises.delete(name);
+            if (this.loadingPromises.get(key) !== promise) return;
+            this.loadingPromises.delete(key);
             this.logger?.error(`Failed to load provider "${name}": ${error.message}`);
         });
 
-        this.loadingPromises.set(name, promise);
+        this.loadingPromises.set(key, promise);
         return promise;
     }
 

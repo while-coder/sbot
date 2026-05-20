@@ -60,7 +60,7 @@ export class AgentFactory {
         if (agentType !== AgentMode.Generative && agentType !== AgentMode.ACP) {
             const toolEntry = agentEntry as ToolAgentEntry;
             await this.registerSkillService(container, agentId, toolEntry.skills);
-            await this.registerToolService(container, agentId, options.dbSessionId, toolEntry.mcp, agentTools);
+            await this.registerToolService(container, agentId, options.dbSessionId, toolEntry.mcp, toolEntry.mcpParams, agentTools);
         }
 
         if (agentType === AgentMode.ACP) {
@@ -127,6 +127,7 @@ export class AgentFactory {
         agentName: string,
         dbSessionId: string,
         mcp?: string[] | '*',
+        mcpParams?: Record<string, Record<string, any>>,
         agentTools?: StructuredToolInterface[],
     ): Promise<void> {
         container.registerSingleton(IAgentToolService, AgentToolService);
@@ -138,7 +139,13 @@ export class AgentFactory {
             for (const [name, creator] of Object.entries(this.SESSION_TOOL_CREATORS)) {
                 toolService.registerToolFactory(name, () => creator(dbSessionId));
             }
-            toolService.registerToolFactory('__global_mcp__', () => globalAgentToolService.getAllTools());
+            // 跳过 sessionNames：它们已用真 dbSessionId 单独注册，避免 admin 展示用的 preview 实例同名冲突
+            toolService.registerToolFactory('__global_mcp__', async () => {
+                const allNames = globalAgentToolService.getProviderNames().filter(n => !sessionNames.has(n));
+                const entries = allNames.map(name => ({ name, params: mcpParams?.[name] }));
+                const results = await globalAgentToolService.resolveProviders(entries);
+                return [...results.values()].flatMap(r => r.tools);
+            });
         } else if (mcp && mcp.length > 0) {
             for (const name of mcp) {
                 const creator = this.SESSION_TOOL_CREATORS[name];
@@ -146,10 +153,12 @@ export class AgentFactory {
                     toolService.registerToolFactory(name, () => creator(dbSessionId));
                 }
             }
-            const globalNames = mcp.filter(n => !sessionNames.has(n));
-            if (globalNames.length > 0) {
+            const globalEntries = mcp
+                .filter(n => !sessionNames.has(n))
+                .map(name => ({ name, params: mcpParams?.[name] }));
+            if (globalEntries.length > 0) {
                 toolService.registerToolFactory('__global_mcp__', async () => {
-                    const results = await globalAgentToolService.getProviderResultsByName(globalNames);
+                    const results = await globalAgentToolService.resolveProviders(globalEntries);
                     return [...results.values()].flatMap(r => r.tools);
                 });
             }

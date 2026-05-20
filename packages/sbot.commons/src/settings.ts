@@ -158,6 +158,7 @@ export interface AgentConfig {
   autoApproveAllTools?: boolean
   // single / react（ToolAgent）
   mcp?: string[] | '*'
+  mcpParams?: Record<string, Record<string, string>>
   skills?: string[] | '*'
   insight?: InsightConfig
   compactModel?: string

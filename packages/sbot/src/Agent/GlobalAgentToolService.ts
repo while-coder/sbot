@@ -23,32 +23,40 @@ export enum BuiltinProvider {
 export const globalAgentToolService = new AgentToolService(GlobalLoggerService.getLoggerService());
 
 export function initGlobalAgentToolService() {
-    globalAgentToolService.registerToolFactory(BuiltinProvider.Command, async () => {
+    globalAgentToolService.registerToolFactory(BuiltinProvider.Command, async (_params) => {
         const { createCommandTools } = await import("../Tools/Command/index.js");
         return createCommandTools();
     }, '命令执行');
-    globalAgentToolService.registerToolFactory(BuiltinProvider.FileSystem, async () => {
+    globalAgentToolService.registerToolFactory(BuiltinProvider.FileSystem, async (params) => {
         const { createFileSystemTools } = await import("../Tools/FileSystem/index.js");
-        return createFileSystemTools();
+        return createFileSystemTools(params);
     }, '文件系统操作');
-    globalAgentToolService.registerToolFactory(BuiltinProvider.WebFetch, async () => {
+    globalAgentToolService.registerToolFactory(BuiltinProvider.WebFetch, async (_params) => {
         const { createWebFetchTools } = await import("../Tools/Web/index.js");
         return createWebFetchTools();
     }, 'Web 内容抓取');
-    globalAgentToolService.registerToolFactory(BuiltinProvider.Archive, async () => {
+    globalAgentToolService.registerToolFactory(BuiltinProvider.Archive, async (_params) => {
         const { createArchiveTools } = await import("../Tools/Archive/index.js");
         return createArchiveTools();
     }, 'ZIP 压缩/解压');
-    globalAgentToolService.registerToolFactory(BuiltinProvider.Sleep, async () => {
+    globalAgentToolService.registerToolFactory(BuiltinProvider.Sleep, async (_params) => {
         const { createSleepTool } = await import("../Tools/Sleep/index.js");
         return [createSleepTool()];
     }, '等待/暂停执行');
-    globalAgentToolService.registerToolFactory(BuiltinProvider.Time, async () => {
+    globalAgentToolService.registerToolFactory(BuiltinProvider.Time, async (_params) => {
         const { createTimeTool } = await import("../Tools/Time/index.js");
         return [createTimeTool()];
     }, '获取当前时间');
-    globalAgentToolService.registerToolFactory(BuiltinProvider.Scheduler, async () => [], '定时任务调度');
-    globalAgentToolService.registerToolFactory(BuiltinProvider.Todo, async () => [], '待办事项管理');
+    // Scheduler/Todo 在全局服务里只用 preview 占位 sessionId 注册，仅供 admin 展示工具 schema；
+    // 实际运行时会被 AgentFactory.SESSION_TOOL_CREATORS 用真 dbSessionId 单独注册到 per-agent 的 ToolService 上。
+    globalAgentToolService.registerToolFactory(BuiltinProvider.Scheduler, async (_params) => {
+        const { createSchedulerTools, PREVIEW_TARGET_ID } = await import("../Tools/Scheduler/index.js");
+        return createSchedulerTools(PREVIEW_TARGET_ID);
+    }, '定时任务调度');
+    globalAgentToolService.registerToolFactory(BuiltinProvider.Todo, async (_params) => {
+        const { createTodoTools, PREVIEW_TARGET_ID } = await import("../Tools/Todo/index.js");
+        return createTodoTools(PREVIEW_TARGET_ID);
+    }, '待办事项管理');
     globalAgentToolService.registerMcpServers({
         [BuiltinProvider.Playwright]: {
             "command": "npx",

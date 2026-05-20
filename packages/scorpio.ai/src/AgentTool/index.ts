@@ -5,6 +5,7 @@
 
 // ===== 接口 + Symbol Token =====
 export { IAgentToolService } from "./IAgentToolService";
+export type { ProviderResolveEntry } from "./IAgentToolService";
 
 // ===== 实现类 =====
 export { AgentToolService } from "./AgentToolService";

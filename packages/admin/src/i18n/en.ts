@@ -41,6 +41,7 @@ export default {
     save: 'Save',
     saving: 'Saving…',
     cancel: 'Cancel',
+    confirm: 'Confirm',
     delete: 'Delete',
     edit: 'Edit',
     view: 'View',
@@ -553,6 +554,10 @@ export default {
     skills_title: 'Skills Configuration',
     mcp_exclusive_tab: 'Exclusive',
     skills_exclusive_tab: 'Exclusive Skills',
+    mcp_params: 'Params',
+    mcp_params_title: '{name} - Parameters',
+    mcp_params_hint: 'Configure tool parameters as Key/Value pairs (only takes effect for builtin tools that accept params)',
+    mcp_params_add: '+ Param',
   },
   agentStore: {
     add_source: 'Add Source',

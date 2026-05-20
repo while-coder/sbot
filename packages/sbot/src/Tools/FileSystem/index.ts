@@ -35,18 +35,31 @@ import { createMkdirTool } from './operations/mkdir';
 import { createMvTool } from './operations/mv';
 import { createCpTool } from './operations/cp';
 
+export interface FileSystemToolParams {
+    /** 只读模式：仅暴露读类工具，过滤掉 write/edit/mkdir/rm/mv/cp。admin 端传字符串 "true"/"false"，所以这里要兼容两种形态 */
+    readonly?: boolean | string;
+}
+
+function parseBool(v: unknown): boolean {
+    if (typeof v === 'boolean') return v;
+    if (typeof v === 'string') return v.toLowerCase() === 'true';
+    return false;
+}
+
 /** 创建所有文件系统工具 */
-export function createFileSystemTools(): StructuredToolInterface[] {
-    return [
-        // 文件内容操作
+export function createFileSystemTools(params?: FileSystemToolParams): StructuredToolInterface[] {
+    const readTools = [
         createReadTool(),
         createReadMediaFileTool(),
-        createWriteTool(),
-        createEditFileTool(),
         createGrepFilesTool(),
-        // 文件系统操作
         createGlobTool(),
         createLsTool(),
+    ];
+    if (parseBool(params?.readonly)) return readTools;
+    return [
+        ...readTools,
+        createWriteTool(),
+        createEditFileTool(),
         createMkdirTool(),
         createRmTool(),
         createMvTool(),

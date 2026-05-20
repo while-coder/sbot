@@ -29,6 +29,7 @@ const { t } = useI18n()
 const activeTab = ref<'tools' | 'prompts' | 'resources'>('tools')
 const expandedTools = reactive(new Set<number>())
 const expandedPrompts = reactive(new Set<number>())
+const expandedResources = reactive(new Set<string>())
 
 function toggleTool(i: number) {
   if (expandedTools.has(i)) expandedTools.delete(i)
@@ -40,9 +41,15 @@ function togglePrompt(i: number) {
   else expandedPrompts.add(i)
 }
 
+function toggleResource(key: string) {
+  if (expandedResources.has(key)) expandedResources.delete(key)
+  else expandedResources.add(key)
+}
+
 function close() {
   expandedTools.clear()
   expandedPrompts.clear()
+  expandedResources.clear()
   activeTab.value = 'tools'
   emit('update:visible', false)
 }
@@ -115,27 +122,31 @@ function close() {
         <ul v-else class="tools-list">
           <li v-for="res in resources" :key="res.uri">
             <div class="tool-header">
-              <div class="tool-name" style="cursor:default">{{ res.name }}</div>
+              <div class="tool-name" :class="{ expanded: expandedResources.has(res.uri) }" @click="toggleResource(res.uri)">{{ res.name }}</div>
             </div>
             <div v-if="res.description" class="tool-desc">{{ res.description }}</div>
-            <div class="resource-meta">
-              <span class="resource-label">{{ t('mcp.resource_uri') }}:</span>
-              <code class="resource-uri">{{ res.uri }}</code>
-              <SBadge v-if="res.mimeType" variant="info" size="xs">{{ res.mimeType }}</SBadge>
+            <div class="tool-params" :class="{ show: expandedResources.has(res.uri) }">
+              <div class="resource-meta">
+                <span class="resource-label">{{ t('mcp.resource_uri') }}:</span>
+                <code class="resource-uri">{{ res.uri }}</code>
+                <SBadge v-if="res.mimeType" variant="info" size="xs">{{ res.mimeType }}</SBadge>
+              </div>
             </div>
           </li>
           <li v-for="tmpl in resourceTemplates" :key="tmpl.uriTemplate" class="resource-template-item">
             <div class="tool-header">
-              <div class="tool-name" style="cursor:default; display:inline-flex; gap:6px; align-items:center">
+              <div class="tool-name" :class="{ expanded: expandedResources.has(tmpl.uriTemplate) }" style="display:inline-flex; gap:6px; align-items:center" @click="toggleResource(tmpl.uriTemplate)">
                 {{ tmpl.name }}
                 <SBadge variant="warning" size="xs">{{ t('mcp.resource_template') }}</SBadge>
               </div>
             </div>
             <div v-if="tmpl.description" class="tool-desc">{{ tmpl.description }}</div>
-            <div class="resource-meta">
-              <span class="resource-label">{{ t('mcp.resource_uri') }}:</span>
-              <code class="resource-uri">{{ tmpl.uriTemplate }}</code>
-              <SBadge v-if="tmpl.mimeType" variant="info" size="xs">{{ tmpl.mimeType }}</SBadge>
+            <div class="tool-params" :class="{ show: expandedResources.has(tmpl.uriTemplate) }">
+              <div class="resource-meta">
+                <span class="resource-label">{{ t('mcp.resource_uri') }}:</span>
+                <code class="resource-uri">{{ tmpl.uriTemplate }}</code>
+                <SBadge v-if="tmpl.mimeType" variant="info" size="xs">{{ tmpl.mimeType }}</SBadge>
+              </div>
             </div>
           </li>
         </ul>

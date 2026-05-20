@@ -1,10 +1,16 @@
 import { StructuredToolInterface } from "@langchain/core/tools";
 import type { ProviderResult } from "./MCPTypes";
 
+export interface ProviderResolveEntry {
+    name: string;
+    params?: Record<string, any>;
+}
+
 export interface IAgentToolService {
     getAllTools(): Promise<StructuredToolInterface[]>;
     getAllProviderResults(): Promise<Map<string, ProviderResult>>;
     getProviderResultsByName(providerNames: string[]): Promise<Map<string, ProviderResult>>;
+    resolveProviders(entries: ProviderResolveEntry[]): Promise<Map<string, ProviderResult>>;
     getProviderNames(): string[];
     getProviderDescription(name: string): string | undefined;
 }

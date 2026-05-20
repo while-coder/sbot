@@ -41,6 +41,7 @@ export default {
     save: '保存',
     saving: '保存…',
     cancel: '取消',
+    confirm: '确定',
     delete: '删除',
     edit: '编辑',
     view: '查看',
@@ -553,6 +554,10 @@ export default {
     skills_title: '技能配置',
     mcp_exclusive_tab: '专属服务',
     skills_exclusive_tab: '专属技能',
+    mcp_params: '参数',
+    mcp_params_title: '{name} - 参数配置',
+    mcp_params_hint: '以 Key/Value 形式配置该工具的参数（仅对支持参数的内置工具生效）',
+    mcp_params_add: '+ 参数',
   },
   agentStore: {
     add_source: '添加源',
