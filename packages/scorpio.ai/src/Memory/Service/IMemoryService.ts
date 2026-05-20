@@ -1,4 +1,5 @@
 import { Memory, MemoryResult } from "../types";
+import { MemoryToolDescs } from "../Tools/MemoryToolProvider";
 
 /**
  * 记忆服务接口（资料库模式）
@@ -8,6 +9,10 @@ export interface IMemoryService {
     // ── 系统提示词 ────────────────────────────────────────────────────────────
 
     getSystemMessage(query: string): Promise<string | null>;
+
+    // ── 工具描述（供 MemoryToolProvider 使用） ─────────────────────────────────
+
+    getToolDescs(): MemoryToolDescs;
 
     // ── 读取 ──────────────────────────────────────────────────────────────────
 

@@ -5,20 +5,28 @@ import { IMemoryService } from "../Service/IMemoryService";
 
 export const MEMORY_SEARCH_TOOL_NAME = 'memory_search' as const;
 
+export interface MemoryToolDescs {
+    search: string;
+}
+
 export class MemoryToolProvider {
 
+    /**
+     * 创建 Memory 工具列表，描述从各 service 的 getToolDescs() 获取。
+     * 多个 service 共用同一个搜索工具，描述取自第一个 service。
+     */
     static getTools(memoryServices: IMemoryService[]): DynamicStructuredTool[] {
         if (memoryServices.length === 0) return [];
+        const descs = memoryServices[0].getToolDescs();
         return [
-            MemoryToolProvider.createSearchTool(memoryServices),
+            MemoryToolProvider.createSearchTool(memoryServices, descs.search),
         ];
     }
 
-    private static createSearchTool(memoryServices: IMemoryService[]): DynamicStructuredTool {
+    private static createSearchTool(memoryServices: IMemoryService[], description: string): DynamicStructuredTool {
         return new DynamicStructuredTool({
             name: MEMORY_SEARCH_TOOL_NAME,
-            description:
-                "Search long-term memory using semantic similarity. Use this to recall past conversations, user preferences, or previously learned facts.",
+            description,
             schema: z.object({
                 query: z.string().describe("The search query text"),
                 limit: z.number().optional().default(5).describe("Maximum number of results to return"),

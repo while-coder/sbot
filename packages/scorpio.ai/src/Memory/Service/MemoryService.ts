@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import { inject, T_MemorySystemPromptTemplate, formatTimeAgo } from "../../Core";
+import { inject, T_MemorySystemPromptTemplate, T_MemoryToolDescs, formatTimeAgo } from "../../Core";
 import { MemoryResult } from "../types";
 import { IMemoryDatabase } from "../Storage/IMemoryDatabase";
 import { Memory } from "../types";
@@ -7,6 +7,7 @@ import { IMemoryService } from "./IMemoryService";
 import { IEmbeddingService } from "../../Embedding";
 import { ILoggerService, ILogger } from "../../Logger";
 import { CharacterTextSplitter } from "@langchain/textsplitters";
+import { MemoryToolDescs } from "../Tools/MemoryToolProvider";
 
 export class MemoryService implements IMemoryService {
   private logger?: ILogger;
@@ -15,9 +16,14 @@ export class MemoryService implements IMemoryService {
     @inject(IMemoryDatabase) private db: IMemoryDatabase,
     @inject(IEmbeddingService) private embeddings: IEmbeddingService,
     @inject(T_MemorySystemPromptTemplate) private systemPromptTemplate: string,
+    @inject(T_MemoryToolDescs) private toolDescs: MemoryToolDescs,
     @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
   ) {
     this.logger = loggerService?.getLogger("MemoryService");
+  }
+
+  getToolDescs(): MemoryToolDescs {
+    return this.toolDescs;
   }
 
   async getSystemMessage(query: string): Promise<string | null> {

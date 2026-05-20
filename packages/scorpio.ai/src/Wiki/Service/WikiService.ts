@@ -1,9 +1,10 @@
 import { v4 as uuidv4 } from "uuid";
-import { inject, init, T_WikiSystemPromptTemplate } from "../../Core";
+import { inject, init, T_WikiSystemPromptTemplate, T_WikiToolDescs } from "../../Core";
 import { HybridSearcher, SearchableItem } from "../../Retrieval/HybridSearcher";
 import { IWikiDatabase } from "../Database/IWikiDatabase";
 import { WikiPage } from "../Types";
 import { IWikiService } from "./IWikiService";
+import { WikiToolDescs } from "../Tools/WikiToolProvider";
 
 const toSearchable = (page: WikiPage): SearchableItem => ({
   key: page.id,
@@ -17,12 +18,17 @@ export class WikiService implements IWikiService {
   constructor(
     @inject(IWikiDatabase) private db: IWikiDatabase,
     @inject(T_WikiSystemPromptTemplate) private systemPromptTemplate: string,
+    @inject(T_WikiToolDescs) private toolDescs: WikiToolDescs,
   ) {
     this.searcher = new HybridSearcher({});
   }
 
   @init()
   async initialize(): Promise<void> {}
+
+  getToolDescs(): WikiToolDescs {
+    return this.toolDescs;
+  }
 
   async getSystemMessage(query: string): Promise<string | null> {
     const results = await this.search(query, 5);

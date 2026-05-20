@@ -1,0 +1,1 @@
+Search the wiki knowledge base. Uses semantic similarity when available, falls back to text matching.

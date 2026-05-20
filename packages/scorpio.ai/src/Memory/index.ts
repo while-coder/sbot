@@ -14,7 +14,7 @@ export { IMemoryDatabase } from "./Storage/IMemoryDatabase";
 export { MemorySqliteDatabase } from "./Storage/MemorySqliteDatabase";
 
 // ===== 工具 =====
-export { MemoryToolProvider, MEMORY_SEARCH_TOOL_NAME } from "./Tools/MemoryToolProvider";
+export { MemoryToolProvider, MEMORY_SEARCH_TOOL_NAME, type MemoryToolDescs } from "./Tools/MemoryToolProvider";
 
 // ===== 类型定义 =====
 export {

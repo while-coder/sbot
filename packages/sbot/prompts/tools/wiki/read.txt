@@ -1,0 +1,1 @@
+Read a wiki page by ID. Use wiki_search to find page IDs first.

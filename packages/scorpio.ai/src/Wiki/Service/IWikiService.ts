@@ -1,4 +1,5 @@
 import { WikiPage } from "../Types";
+import { WikiToolDescs } from "../Tools/WikiToolProvider";
 
 /**
  * Wiki 服务接口（资料库模式）
@@ -6,6 +7,9 @@ import { WikiPage } from "../Types";
 export interface IWikiService {
     // 系统提示词
     getSystemMessage(query: string): Promise<string | null>;
+
+    // 工具描述（供 WikiToolProvider 使用）
+    getToolDescs(): WikiToolDescs;
 
     // CRUD
     getPage(id: string): Promise<WikiPage | null>;

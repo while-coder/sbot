@@ -5,21 +5,30 @@ import { IWikiService } from "../Service/IWikiService";
 export const WIKI_SEARCH_TOOL_NAME = 'wiki_search' as const;
 export const WIKI_READ_TOOL_NAME = 'wiki_read' as const;
 
+export interface WikiToolDescs {
+    search: string;
+    read: string;
+}
+
 export class WikiToolProvider {
 
+    /**
+     * 创建 Wiki 工具列表，描述从各 service 的 getToolDescs() 获取。
+     * 多个 service 共用同一组工具，描述取自第一个 service。
+     */
     static getTools(wikiServices: IWikiService[]): DynamicStructuredTool[] {
         if (wikiServices.length === 0) return [];
+        const descs = wikiServices[0].getToolDescs();
         return [
-            WikiToolProvider.createSearchTool(wikiServices),
-            WikiToolProvider.createReadTool(wikiServices),
+            WikiToolProvider.createSearchTool(wikiServices, descs.search),
+            WikiToolProvider.createReadTool(wikiServices, descs.read),
         ];
     }
 
-    private static createSearchTool(wikiServices: IWikiService[]): DynamicStructuredTool {
+    private static createSearchTool(wikiServices: IWikiService[], description: string): DynamicStructuredTool {
         return new DynamicStructuredTool({
             name: WIKI_SEARCH_TOOL_NAME,
-            description:
-                "Search the wiki knowledge base. Uses semantic similarity when available, falls back to text matching.",
+            description,
             schema: z.object({
                 query: z.string().describe("The search query text"),
                 limit: z.number().optional().default(5).describe("Maximum number of results to return"),
@@ -45,11 +54,10 @@ export class WikiToolProvider {
         });
     }
 
-    private static createReadTool(wikiServices: IWikiService[]): DynamicStructuredTool {
+    private static createReadTool(wikiServices: IWikiService[], description: string): DynamicStructuredTool {
         return new DynamicStructuredTool({
             name: WIKI_READ_TOOL_NAME,
-            description:
-                "Read a wiki page by ID. Use wiki_search to find page IDs first.",
+            description,
             schema: z.object({
                 id: z.string().describe("Page ID"),
             }),
