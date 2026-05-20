@@ -1,15 +1,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
-import { useToast, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent } from 'sbot-ui'
+import { useToast, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, STable } from 'sbot-ui'
+import type { STableColumn } from 'sbot-ui'
 import { store } from '@/store'
 import CreatePromptModal from '@/components/CreatePromptModal.vue'
 
 const { t } = useI18n()
 const { show } = useToast()
-const { isMobile } = useResponsive()
 
 interface HeartbeatItem {
   id: number
@@ -269,6 +268,20 @@ async function refresh() {
   await loadHeartbeats()
 }
 
+const heartbeatColumns = computed<STableColumn[]>(() => [
+  { key: 'name',     label: t('heartbeats.name'), primary: true },
+  { key: 'interval', label: t('heartbeats.interval') },
+  { key: 'target',   label: t('heartbeats.target') },
+  { key: 'status',   label: t('heartbeats.status') },
+  { key: 'lastRun',  label: t('heartbeats.last_run') },
+  { key: 'nextRun',  label: t('heartbeats.next_run') },
+  { key: 'ops',      label: t('common.ops'), ops: true },
+])
+
+function fmtTime(s: string | null): string {
+  return s ? new Date(s).toLocaleString('zh-CN') : '-'
+}
+
 onMounted(async () => {
   await Promise.all([loadHeartbeats(), loadSessions(), loadHeartbeatPrompts()])
 })
@@ -281,67 +294,21 @@ onMounted(async () => {
       <SButton type="primary" size="sm" @click="openAdd">{{ t('heartbeats.add') }}</SButton>
     </SPageToolbar>
     <SPageContent>
-      <table v-if="!isMobile">
-        <thead>
-          <tr>
-            <th>{{ t('heartbeats.name') }}</th>
-            <th>{{ t('heartbeats.interval') }}</th>
-            <th>{{ t('heartbeats.target') }}</th>
-            <th>{{ t('heartbeats.status') }}</th>
-            <th>{{ t('heartbeats.last_run') }}</th>
-            <th>{{ t('heartbeats.next_run') }}</th>
-            <th>{{ t('common.ops') }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="heartbeats.length === 0">
-            <td colspan="7" class="hb-empty">{{ t('heartbeats.empty') }}</td>
-          </tr>
-          <tr v-for="hb in heartbeats" :key="hb.id">
-            <td>{{ hb.name || hb.id }}</td>
-            <td class="hb-small">{{ intervalLabel(hb.intervalMinutes) }}</td>
-            <td class="hb-small">{{ sessionLabel(hb.target) }}</td>
-            <td>
-              <SBadge :variant="statusVariant(hb)">{{ statusLabel(hb) }}</SBadge>
-            </td>
-            <td class="hb-time">{{ hb.lastRun ? new Date(hb.lastRun).toLocaleString('zh-CN') : '-' }}</td>
-            <td class="hb-time">{{ hb.nextRun ? new Date(hb.nextRun).toLocaleString('zh-CN') : '-' }}</td>
-            <td>
-              <div class="ops-cell">
-                <SButton type="outline" size="sm" @click="trigger(hb)">{{ t('heartbeats.trigger') }}</SButton>
-                <SButton type="outline" size="sm" @click="openEdit(hb)">{{ t('common.edit') }}</SButton>
-                <SButton type="danger" size="sm" @click="remove(hb)">{{ t('common.delete') }}</SButton>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      <!-- Mobile card layout -->
-      <div v-else class="card-list">
-        <div v-if="heartbeats.length === 0" class="mobile-card-empty">{{ t('heartbeats.empty') }}</div>
-        <div v-for="hb in heartbeats" :key="hb.id" class="mobile-card">
-          <div class="mobile-card-header hb-card-header">
-            <span>{{ hb.name || hb.id }}</span>
-            <SBadge :variant="statusVariant(hb)">{{ statusLabel(hb) }}</SBadge>
-          </div>
-          <div class="mobile-card-fields">
-            <span class="mobile-card-label">{{ t('heartbeats.interval') }}</span>
-            <span class="mobile-card-value hb-small">{{ intervalLabel(hb.intervalMinutes) }}</span>
-            <span class="mobile-card-label">{{ t('heartbeats.target') }}</span>
-            <span class="mobile-card-value hb-small">{{ sessionLabel(hb.target) }}</span>
-            <span class="mobile-card-label">{{ t('heartbeats.last_run') }}</span>
-            <span class="mobile-card-value hb-time">{{ hb.lastRun ? new Date(hb.lastRun).toLocaleString('zh-CN') : '-' }}</span>
-            <span class="mobile-card-label">{{ t('heartbeats.next_run') }}</span>
-            <span class="mobile-card-value hb-time">{{ hb.nextRun ? new Date(hb.nextRun).toLocaleString('zh-CN') : '-' }}</span>
-          </div>
-          <div class="mobile-card-ops">
-            <SButton type="outline" size="sm" @click="trigger(hb)">{{ t('heartbeats.trigger') }}</SButton>
-            <SButton type="outline" size="sm" @click="openEdit(hb)">{{ t('common.edit') }}</SButton>
-            <SButton type="danger" size="sm" @click="remove(hb)">{{ t('common.delete') }}</SButton>
-          </div>
-        </div>
-      </div>
+      <STable :columns="heartbeatColumns" :rows="heartbeats" row-key="id" :empty-text="t('heartbeats.empty')">
+        <template #name="{ row }">{{ row.name || row.id }}</template>
+        <template #interval="{ row }"><span class="hb-small">{{ intervalLabel(row.intervalMinutes) }}</span></template>
+        <template #target="{ row }"><span class="hb-small">{{ sessionLabel(row.target) }}</span></template>
+        <template #status="{ row }">
+          <SBadge :variant="statusVariant(row)">{{ statusLabel(row) }}</SBadge>
+        </template>
+        <template #lastRun="{ row }"><span class="hb-time">{{ fmtTime(row.lastRun) }}</span></template>
+        <template #nextRun="{ row }"><span class="hb-time">{{ fmtTime(row.nextRun) }}</span></template>
+        <template #ops="{ row }">
+          <SButton type="outline" size="sm" @click="trigger(row)">{{ t('heartbeats.trigger') }}</SButton>
+          <SButton type="outline" size="sm" @click="openEdit(row)">{{ t('common.edit') }}</SButton>
+          <SButton type="danger" size="sm" @click="remove(row)">{{ t('common.delete') }}</SButton>
+        </template>
+      </STable>
     </SPageContent>
 
     <!-- Edit/Add modal -->
@@ -415,21 +382,11 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.hb-empty {
-  text-align: center;
-  color: var(--sui-fg-disabled);
-  padding: 40px;
-}
 .hb-small { font-size: var(--sui-fs-sm); }
 .hb-time {
   font-size: var(--sui-fs-sm);
   color: var(--sui-fg-disabled);
   white-space: nowrap;
-}
-.hb-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 .checkbox-label {
   display: inline-flex;

@@ -38,4 +38,8 @@ defineProps<{
   align-items: center;
   gap: var(--sui-sp-3);
 }
+.s-page-toolbar :deep(.s-select),
+.s-page-toolbar :deep(.s-input) {
+  width: auto;
+}
 </style>

@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
-import { useToast, SButton, SBadge, SPageToolbar, SPageContent } from 'sbot-ui'
+import { useToast, SButton, SBadge, SPageToolbar, SPageContent, STable } from 'sbot-ui'
+import type { STableColumn } from 'sbot-ui'
 
 const { t } = useI18n()
-const { isMobile } = useResponsive()
 const { show } = useToast()
 
 interface ProcessInfo {
@@ -22,6 +21,15 @@ interface ProcessInfo {
 const items = ref<ProcessInfo[]>([])
 const loading = ref(false)
 let timer: ReturnType<typeof setInterval> | null = null
+
+const columns = computed<STableColumn[]>(() => [
+  { key: 'agentName',    label: t('processes.agent'), primary: true },
+  { key: 'dbSessionId',  label: t('processes.session') },
+  { key: 'createdAt',    label: t('processes.created') },
+  { key: 'lastAccessed', label: t('processes.last_accessed') },
+  { key: 'status',       label: t('processes.status') },
+  { key: 'ops',          label: t('common.ops'), ops: true },
+])
 
 async function load() {
   loading.value = true
@@ -85,75 +93,33 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
       <SButton type="danger" size="sm" :disabled="!items.length" @click="stopAll">{{ t('processes.stop_all') }}</SButton>
     </SPageToolbar>
     <SPageContent>
-
-      <!-- Desktop table -->
-      <table v-if="!isMobile">
-        <thead>
-          <tr>
-            <th>{{ t('processes.agent') }}</th>
-            <th>{{ t('processes.session') }}</th>
-            <th>{{ t('processes.created') }}</th>
-            <th>{{ t('processes.last_accessed') }}</th>
-            <th>{{ t('processes.status') }}</th>
-            <th>{{ t('common.ops') }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="items.length === 0">
-            <td colspan="6" class="processes-empty">{{ t('processes.empty') }}</td>
-          </tr>
-          <tr v-for="item in items" :key="item.key">
-            <td>
-              <span class="processes-name">{{ item.agentName }}</span>
-              <SBadge variant="success" pill class="processes-acp">ACP</SBadge>
-            </td>
-            <td class="processes-session">{{ item.dbSessionId }}</td>
-            <td class="cell-time">{{ fmtTime(item.createdAt) }}<br><span class="cell-time-sub">{{ fmtDuration(item.createdAt) }}</span></td>
-            <td class="cell-time">{{ fmtTime(item.lastAccessed) }}</td>
-            <td>
-              <SBadge :variant="item.alive ? 'success' : 'danger'">{{ item.alive ? t('processes.alive') : t('processes.dead') }}</SBadge>
-            </td>
-            <td>
-              <SButton type="danger" size="sm" :disabled="!item.alive" @click="stop(item)">{{ t('processes.stop') }}</SButton>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      <!-- Mobile cards -->
-      <div v-else class="card-list">
-        <div v-for="item in items" :key="item.key" class="mobile-card">
-          <div class="mobile-card-header">
-            {{ item.agentName }}
-            <SBadge variant="success" pill class="processes-acp">ACP</SBadge>
-          </div>
-          <div class="mobile-card-fields">
-            <span class="mobile-card-label">{{ t('processes.session') }}</span>
-            <span class="mobile-card-value processes-session">{{ item.dbSessionId }}</span>
-            <span class="mobile-card-label">{{ t('processes.created') }}</span>
-            <span class="mobile-card-value cell-time">{{ fmtTime(item.createdAt) }} ({{ fmtDuration(item.createdAt) }})</span>
-            <span class="mobile-card-label">{{ t('processes.status') }}</span>
-            <span class="mobile-card-value">
-              <SBadge :variant="item.alive ? 'success' : 'danger'">{{ item.alive ? t('processes.alive') : t('processes.dead') }}</SBadge>
-            </span>
-          </div>
-          <div class="mobile-card-ops">
-            <SButton type="danger" size="sm" :disabled="!item.alive" @click="stop(item)">{{ t('processes.stop') }}</SButton>
-          </div>
-        </div>
-        <div v-if="items.length === 0" class="processes-empty">{{ t('processes.empty') }}</div>
-      </div>
-
+      <STable :columns="columns" :rows="items" row-key="key" :empty-text="t('processes.empty')">
+        <template #agentName="{ row }">
+          <span class="processes-name">{{ row.agentName }}</span>
+          <SBadge variant="success" pill class="processes-acp">ACP</SBadge>
+        </template>
+        <template #dbSessionId="{ row }">
+          <span class="processes-session">{{ row.dbSessionId }}</span>
+        </template>
+        <template #createdAt="{ row }">
+          <span class="cell-time">{{ fmtTime(row.createdAt) }}</span>
+          <span class="cell-time-sub"> ({{ fmtDuration(row.createdAt) }})</span>
+        </template>
+        <template #lastAccessed="{ row }">
+          <span class="cell-time">{{ fmtTime(row.lastAccessed) }}</span>
+        </template>
+        <template #status="{ row }">
+          <SBadge :variant="row.alive ? 'success' : 'danger'">{{ row.alive ? t('processes.alive') : t('processes.dead') }}</SBadge>
+        </template>
+        <template #ops="{ row }">
+          <SButton type="danger" size="sm" :disabled="!row.alive" @click="stop(row)">{{ t('processes.stop') }}</SButton>
+        </template>
+      </STable>
     </SPageContent>
   </div>
 </template>
 
 <style scoped>
-.processes-empty {
-  text-align: center;
-  color: var(--sui-fg-disabled);
-  padding: 40px;
-}
 .processes-name { font-weight: 500; }
 .processes-acp { margin-left: var(--sui-sp-2); }
 .processes-session {
@@ -165,6 +131,7 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
   color: var(--sui-fg-muted);
 }
 .cell-time-sub {
+  font-size: var(--sui-fs-sm);
   color: var(--sui-fg-disabled);
 }
 </style>

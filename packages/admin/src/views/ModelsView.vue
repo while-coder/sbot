@@ -179,8 +179,8 @@ async function refresh() {
     </SPageToolbar>
     <SPageContent>
       <STable :columns="modelColumns" :rows="modelRows" row-key="id" :empty-text="t('models.empty')">
-        <template #cell-name="{ row }">{{ row.name || row.id }}</template>
-        <template #cell-ops="{ row }">
+        <template #name="{ row }">{{ row.name || row.id }}</template>
+        <template #ops="{ row }">
           <SButton type="outline" size="sm" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
           <SButton type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
         </template>

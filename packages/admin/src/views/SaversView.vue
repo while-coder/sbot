@@ -1,19 +1,35 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
-import { useToast, SButton, SInput, SSelect, SModal, SFormItem, SPageToolbar, SPageContent } from 'sbot-ui'
+import { useToast, SButton, SInput, SSelect, SModal, SFormItem, SPageToolbar, SPageContent, STable } from 'sbot-ui'
+import type { STableColumn } from 'sbot-ui'
 import { SaverType } from '@/types'
 import type { SaverConfig } from '@/types'
 import SaverViewModal from './modals/SaverViewModal.vue'
 
+type SaverRow = { id: string; name: string; type: string; raw: SaverConfig }
+
 const { t } = useI18n()
 const { show } = useToast()
-const { isMobile } = useResponsive()
 
 const savers = computed(() => store.settings.savers || {})
+
+const saverRows = computed<SaverRow[]>(() =>
+  Object.entries(savers.value).map(([id, s]) => ({
+    id,
+    name: (s as any).name || id,
+    type: s.type || '-',
+    raw: s,
+  })),
+)
+
+const saverColumns = computed<STableColumn[]>(() => [
+  { key: 'name', label: t('common.name'), primary: true },
+  { key: 'type', label: t('common.type') },
+  { key: 'ops',  label: t('common.ops'), ops: true },
+])
 
 const showModal   = ref(false)
 const editingName = ref<string | null>(null)
@@ -21,14 +37,12 @@ const form = ref<{ name: string } & SaverConfig>({ name: '', type: SaverType.Fil
 
 const saverViewModal = ref<InstanceType<typeof SaverViewModal>>()
 
-const expandedSavers  = ref<Record<string, boolean>>({})
+const expandedKeys    = ref<(string | number)[]>([])
 const saverThreadsMap = ref<Record<string, string[]>>({})
 const saverLoading    = ref<Record<string, boolean>>({})
 const threadClearing  = ref<Record<string, boolean>>({})
 
-async function toggleExpand(id: string) {
-  expandedSavers.value[id] = !expandedSavers.value[id]
-  if (!expandedSavers.value[id]) return
+async function loadThreads(id: string) {
   if (id in saverThreadsMap.value || saverLoading.value[id]) return
   saverLoading.value[id] = true
   try {
@@ -40,6 +54,10 @@ async function toggleExpand(id: string) {
   } finally {
     saverLoading.value[id] = false
   }
+}
+
+function onExpand(row: SaverRow, expanded: boolean) {
+  if (expanded) loadThreads(row.id)
 }
 
 function openAdd() {
@@ -100,26 +118,15 @@ async function clearThread(saverId: string, thread: string) {
   }
 }
 
-async function refreshThreads(ids: string[]) {
-  await Promise.all(ids.map(async id => {
-    saverLoading.value[id] = true
-    try {
-      const res = await apiFetch(`/api/savers/${encodeURIComponent(id)}/threads`)
-      saverThreadsMap.value[id] = res.data || []
-    } catch (e: any) {
-      show(e.message, 'error')
-    } finally {
-      saverLoading.value[id] = false
-    }
-  }))
-}
-
 async function refresh() {
   try {
     const res = await apiFetch('/api/settings')
     Object.assign(store.settings, res.data)
-    const expandedIds = Object.keys(expandedSavers.value).filter(id => expandedSavers.value[id])
-    if (expandedIds.length > 0) await refreshThreads(expandedIds)
+    const expandedIds = expandedKeys.value.map(String)
+    if (expandedIds.length > 0) {
+      for (const id of expandedIds) delete saverThreadsMap.value[id]
+      await Promise.all(expandedIds.map(loadThreads))
+    }
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -133,93 +140,37 @@ async function refresh() {
       <SButton type="primary" size="sm" @click="openAdd">{{ t('savers.add') }}</SButton>
     </SPageToolbar>
     <SPageContent>
-      <table v-if="!isMobile">
-        <thead>
-          <tr>
-            <th style="width:32px"></th>
-            <th>{{ t('common.name') }}</th>
-            <th>{{ t('common.type') }}</th>
-            <th>{{ t('common.ops') }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="Object.keys(savers).length === 0">
-            <td colspan="4" class="savers-empty">{{ t('savers.empty') }}</td>
-          </tr>
-          <template v-for="(s, id) in savers" :key="id">
-            <tr
-              class="saver-row"
-              :class="{ 'saver-row-expanded': expandedSavers[id as string] }"
-              @click="toggleExpand(id as string)"
-            >
-              <td class="saver-expand-cell">
-                <span class="saver-expand-icon">{{ expandedSavers[id as string] ? '▼' : '▶' }}</span>
-              </td>
-              <td>{{ (s as any).name || id }}</td>
-              <td>{{ s.type || '-' }}</td>
-              <td @click.stop>
-                <div class="ops-cell">
-                  <SButton type="outline" size="sm" @click="openEdit(id as string)">{{ t('common.edit') }}</SButton>
-                  <SButton type="danger" size="sm" @click="remove(id as string)">{{ t('common.delete') }}</SButton>
-                </div>
-              </td>
-            </tr>
-            <template v-if="expandedSavers[id as string]">
-              <tr v-if="saverLoading[id as string]" class="thread-sub-row">
-                <td></td>
-                <td colspan="3" class="thread-sub-cell">{{ t('common.loading') }}</td>
-              </tr>
-              <tr v-else-if="(saverThreadsMap[id as string] || []).length === 0" class="thread-sub-row">
-                <td></td>
-                <td colspan="3" class="thread-sub-cell empty">{{ t('savers.no_sessions') }}</td>
-              </tr>
-              <tr v-for="thread in saverThreadsMap[id as string] || []" :key="thread" class="thread-sub-row">
-                <td></td>
-                <td colspan="2" class="thread-id-cell">{{ thread }}</td>
-                <td>
-                  <div class="ops-cell">
-                    <SButton type="outline" size="sm" @click="saverViewModal?.open(id as string, (s as any).name || id as string, thread)">{{ t('common.view') }}</SButton>
-                    <SButton type="danger" size="sm" :disabled="threadClearing[`${id}::${thread}`]" @click="clearThread(id as string, thread)">{{ t('savers.cleanup') }}</SButton>
-                  </div>
-                </td>
-              </tr>
-            </template>
-          </template>
-        </tbody>
-      </table>
-
-      <!-- Mobile card layout -->
-      <template v-else>
-        <div v-if="Object.keys(savers).length === 0" class="mobile-card-empty">{{ t('savers.empty') }}</div>
-        <div v-for="(s, id) in savers" :key="id" class="mobile-card">
-          <div class="mobile-card-header mobile-card-header-clickable" @click="toggleExpand(id as string)">
-            <span class="saver-expand-icon">{{ expandedSavers[id as string] ? '▼' : '▶' }}</span>
-            {{ (s as any).name || id }}
+      <STable
+        :columns="saverColumns"
+        :rows="saverRows"
+        row-key="id"
+        expandable
+        v-model:expanded-keys="expandedKeys"
+        :empty-text="t('savers.empty')"
+        @expand="onExpand"
+      >
+        <template #ops="{ row }">
+          <SButton type="outline" size="sm" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
+          <SButton type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
+        </template>
+        <template #_expanded="{ row }">
+          <div v-if="saverLoading[row.id]" class="thread-status">{{ t('common.loading') }}</div>
+          <div v-else-if="(saverThreadsMap[row.id] || []).length === 0" class="thread-status thread-status--empty">
+            {{ t('savers.no_sessions') }}
           </div>
-          <div class="mobile-card-fields">
-            <span class="mobile-card-label">{{ t('common.type') }}</span>
-            <span class="mobile-card-value">{{ s.type || '-' }}</span>
-          </div>
-          <div class="mobile-card-ops">
-            <SButton type="outline" size="sm" @click="openEdit(id as string)">{{ t('common.edit') }}</SButton>
-            <SButton type="danger" size="sm" @click="remove(id as string)">{{ t('common.delete') }}</SButton>
-          </div>
-          <div v-if="expandedSavers[id as string]" class="mobile-card-threads">
-            <div v-if="saverLoading[id as string]" class="thread-sub-cell">{{ t('common.loading') }}</div>
-            <div v-else-if="(saverThreadsMap[id as string] || []).length === 0" class="thread-sub-cell empty">{{ t('savers.no_sessions') }}</div>
-            <div v-for="thread in saverThreadsMap[id as string] || []" :key="thread" class="mobile-thread-row">
-              <span class="thread-id-cell">{{ thread }}</span>
-              <div class="mobile-card-ops">
-                <SButton type="outline" size="sm" @click="saverViewModal?.open(id as string, (s as any).name || id as string, thread)">{{ t('common.view') }}</SButton>
-                <SButton type="danger" size="sm" :disabled="threadClearing[`${id}::${thread}`]" @click="clearThread(id as string, thread)">{{ t('savers.cleanup') }}</SButton>
+          <div v-else class="thread-list">
+            <div v-for="thread in saverThreadsMap[row.id]" :key="thread" class="thread-row">
+              <span class="thread-id">{{ thread }}</span>
+              <div class="thread-ops">
+                <SButton type="outline" size="sm" @click="saverViewModal?.open(row.id, row.name, thread)">{{ t('common.view') }}</SButton>
+                <SButton type="danger" size="sm" :disabled="threadClearing[`${row.id}::${thread}`]" @click="clearThread(row.id, thread)">{{ t('savers.cleanup') }}</SButton>
               </div>
             </div>
           </div>
-        </div>
-      </template>
+        </template>
+      </STable>
     </SPageContent>
 
-    <!-- Edit/Add modal -->
     <SModal v-model:visible="showModal" :title="editingName !== null ? t('savers.edit_title') : t('savers.add_title')" width="sm">
       <SFormItem :label="t('common.name') + ' *'">
         <SInput v-model="form.name" :placeholder="t('savers.name_placeholder')" />
@@ -248,55 +199,34 @@ async function refresh() {
 </template>
 
 <style scoped>
-.savers-empty {
-  text-align: center;
-  color: var(--sui-fg-disabled);
-  padding: 40px;
-}
-.thread-sub-row td {
-  background: var(--sui-bg-subtle);
-  border-bottom: 1px solid var(--sui-border);
-  padding-top: 5px;
-  padding-bottom: 5px;
-}
-.thread-sub-cell {
-  padding: 5px 12px;
+.thread-status {
+  padding: var(--sui-sp-2) 0;
   font-size: var(--sui-fs-sm);
   color: var(--sui-fg-disabled);
-  font-style: italic;
 }
-.thread-id-cell {
-  font-family: var(--sui-font-mono);
-  font-size: var(--sui-fs-sm);
-  color: var(--sui-fg-secondary);
-  padding: 5px 12px;
-}
-.mobile-card-threads {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--sui-border);
+.thread-status--empty { font-style: italic; }
+.thread-list {
   display: flex;
   flex-direction: column;
-  gap: var(--sui-sp-3);
+  gap: var(--sui-sp-2);
 }
-.mobile-thread-row {
+.thread-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--sui-sp-3);
+  padding: var(--sui-sp-1) 0;
 }
-.mobile-card-header-clickable {
-  cursor: pointer;
+.thread-id {
+  font-family: var(--sui-font-mono);
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg-secondary);
+  word-break: break-all;
+}
+.thread-ops {
   display: flex;
-  align-items: center;
   gap: var(--sui-sp-2);
-}
-.saver-row { cursor: pointer; }
-.saver-row-expanded > td { background: var(--sui-bg-subtle); }
-.saver-expand-cell { padding: var(--sui-sp-2) var(--sui-sp-3); text-align: center; }
-.saver-expand-icon {
-  color: var(--sui-fg-muted);
-  font-size: var(--sui-fs-xs);
+  flex-shrink: 0;
 }
 .checkbox-label {
   display: inline-flex;
