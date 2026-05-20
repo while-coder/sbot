@@ -71,10 +71,12 @@ export class WebSocketTransport implements IChatTransport {
 
   private emit(event: ChatEvent) { this.handlers.forEach(h => h(event)) }
 
-  private wsSend(data: any): boolean {
-    if (this.ws?.readyState !== WebSocket.OPEN) return false
+  private wsSend(data: any): void {
+    if (this.ws?.readyState !== WebSocket.OPEN) {
+      this.emit({ type: ChatEventType.Error, data: { message: 'WebSocket is not connected' } } as ChatEvent)
+      return
+    }
     this.ws.send(JSON.stringify(data))
-    return true
   }
 
   private async api(path: string, method = 'GET', body?: unknown): Promise<any> {

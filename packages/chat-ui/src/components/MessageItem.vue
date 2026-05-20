@@ -15,6 +15,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 
 interface DisplayPart {
   type: 'text' | 'image';
@@ -29,7 +30,7 @@ const props = defineProps<{
 }>();
 
 function renderMd(text: string): string {
-  return marked.parse(text) as string;
+  return DOMPurify.sanitize(marked.parse(text) as string);
 }
 
 function resolveImageUrl(c: any): string | null {

@@ -11,6 +11,7 @@
     "./themes/*": "./src/themes/*"
   },
   "dependencies": {
+    "dompurify": "^3.4.5",
     "marked": "^18.0.2"
   },
   "devDependencies": {
@@ -18,7 +19,8 @@
     "@tiptap/extension-image": "^3.22.4",
     "@tiptap/extension-placeholder": "^3.22.4",
     "@tiptap/starter-kit": "^3.22.4",
-    "@tiptap/vue-3": "^3.22.4"
+    "@tiptap/vue-3": "^3.22.4",
+    "@types/dompurify": "^3.2.0"
   },
   "peerDependencies": {
     "vue": "^3.5.0"

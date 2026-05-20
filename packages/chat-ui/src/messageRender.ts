@@ -1,4 +1,5 @@
 import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 import { ContentPartType } from './types'
 import type { DisplayPart } from './types'
 
@@ -30,15 +31,18 @@ export function getContentParts(content: string | any[] | undefined | null): Dis
 
 export function renderMd(content: string | any[] | undefined | null): string {
   if (!content) return ''
+  let html: string
   if (Array.isArray(content)) {
-    return marked.parse(
+    html = marked.parse(
       content
         .filter((c: any) => typeof c === 'string' || c?.type === 'text')
         .map((c: any) => (typeof c === 'string' ? c : c.text ?? ''))
         .join('\n')
     ) as string
+  } else {
+    html = marked.parse(content) as string
   }
-  return marked.parse(content) as string
+  return DOMPurify.sanitize(html)
 }
 
 export function fmtTs(ts?: number): string {

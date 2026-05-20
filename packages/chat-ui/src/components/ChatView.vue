@@ -44,6 +44,8 @@ const pendingToolCall = ref<ToolCallEvent | null>(null)
 const pendingAsk = ref<AskEvent | null>(null)
 const usage = ref<UsageInfo | null>(null)
 
+let loadGeneration = 0
+
 // ── Refs ──
 
 const chatAreaRef = ref<InstanceType<typeof ChatArea>>()
@@ -176,18 +178,22 @@ async function selectSession(id: string) {
 }
 
 watch(activeSessionId, async (id) => {
+  const gen = ++loadGeneration
   resetStreamState()
   messages.value = []
   usage.value = null
   if (!id) return
-  await Promise.all([loadHistory(), loadUsage(), restoreSessionStatus()])
+  await Promise.all([loadHistory(gen), loadUsage(gen), restoreSessionStatus(gen)])
 })
 
-async function loadHistory() {
+async function loadHistory(gen?: number) {
   const id = activeSessionId.value
   if (!id) return
+  const g = gen ?? ++loadGeneration
   try {
-    messages.value = await props.transport.getHistory(id)
+    const data = await props.transport.getHistory(id)
+    if (g !== loadGeneration) return
+    messages.value = data
     await nextTick()
     chatAreaRef.value?.scrollToBottom(true)
   } catch (e) {
@@ -195,19 +201,24 @@ async function loadHistory() {
   }
 }
 
-async function loadUsage() {
+async function loadUsage(gen?: number) {
   const id = activeSessionId.value
   if (!id) { usage.value = null; return }
+  const g = gen ?? ++loadGeneration
   try {
-    usage.value = await props.transport.getUsage(id)
-  } catch { usage.value = null }
+    const data = await props.transport.getUsage(id)
+    if (g !== loadGeneration) return
+    usage.value = data
+  } catch { if (gen === loadGeneration) usage.value = null }
 }
 
-async function restoreSessionStatus() {
+async function restoreSessionStatus(gen?: number) {
   const id = activeSessionId.value
   if (!id) return
+  const g = gen ?? ++loadGeneration
   try {
     const status = await props.transport.getSessionStatus(id)
+    if (g !== loadGeneration) return
     if (!status) { isStreaming.value = false; return }
     isStreaming.value = true
     queuedMessages.value = status.pendingMessages ?? []
