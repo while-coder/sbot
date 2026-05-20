@@ -22,6 +22,9 @@ import SToast from './components/SToast.vue'
 import SInput from './components/SInput.vue'
 import STextarea from './components/STextarea.vue'
 import SSelect from './components/SSelect.vue'
+import SMultiSelect from './components/SMultiSelect.vue'
+import SRadio from './components/SRadio.vue'
+import SCheckbox from './components/SCheckbox.vue'
 import SFormItem from './components/SFormItem.vue'
 import SFormSection from './components/SFormSection.vue'
 import SFormDetails from './components/SFormDetails.vue'
@@ -30,6 +33,7 @@ import SHint from './components/SHint.vue'
 import SCard from './components/SCard.vue'
 import SPageToolbar from './components/SPageToolbar.vue'
 import SPageContent from './components/SPageContent.vue'
+import STable from './components/STable.vue'
 
 import SBadge from './components/SBadge.vue'
 import STag from './components/STag.vue'
@@ -45,11 +49,12 @@ import STreeNode from './components/STreeNode.vue'
 // ── 具名 export（方式 B：按需 import） ────────────────────
 export {
   SButton, SIconButton, SModal, SToast,
-  SInput, STextarea, SSelect, SFormItem, SFormSection, SFormDetails, SHint,
-  SCard, SPageToolbar, SPageContent,
+  SInput, STextarea, SSelect, SMultiSelect, SRadio, SCheckbox, SFormItem, SFormSection, SFormDetails, SHint,
+  SCard, SPageToolbar, SPageContent, STable,
   SBadge, STag, SChip, SCheckCard, SSwitch, STabBar, STab,
   STree, STreeNode,
 }
+export type { STableColumn } from './components/STable.vue'
 
 export { useToast } from './composables/useToast'
 export { useTheme, isDark } from './composables/useTheme'
@@ -57,8 +62,8 @@ export { useTheme, isDark } from './composables/useTheme'
 // ── 默认 export（方式 A：app.use(SbotUI) 全局注册） ───────
 const components = {
   SButton, SIconButton, SModal, SToast,
-  SInput, STextarea, SSelect, SFormItem, SFormSection, SFormDetails, SHint,
-  SCard, SPageToolbar, SPageContent,
+  SInput, STextarea, SSelect, SMultiSelect, SRadio, SCheckbox, SFormItem, SFormSection, SFormDetails, SHint,
+  SCard, SPageToolbar, SPageContent, STable,
   SBadge, STag, SChip, SCheckCard, SSwitch, STabBar, STab,
   STree, STreeNode,
 } as const
@@ -81,6 +86,9 @@ declare module 'vue' {
     SInput: typeof SInput
     STextarea: typeof STextarea
     SSelect: typeof SSelect
+    SMultiSelect: typeof SMultiSelect
+    SRadio: typeof SRadio
+    SCheckbox: typeof SCheckbox
     SFormItem: typeof SFormItem
     SFormSection: typeof SFormSection
     SFormDetails: typeof SFormDetails
@@ -88,6 +96,7 @@ declare module 'vue' {
     SCard: typeof SCard
     SPageToolbar: typeof SPageToolbar
     SPageContent: typeof SPageContent
+    STable: typeof STable
     SBadge: typeof SBadge
     STag: typeof STag
     SChip: typeof SChip

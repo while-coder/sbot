@@ -1,0 +1,47 @@
+/* sbot-ui bridge for chat-ui hosts
+ *
+ * 用于 desktop / pwa / vscode-extension 等不直接消费 sbot-ui 设计 token 的宿主。
+ * 让 sbot-ui 组件在 chat-ui 上下文中跟随当前 chat-ui 主题（含 vscode 透传）。
+ *
+ * 加载顺序（host App.vue）：
+ *   import '@sbot/chat-ui/themes/variables.css'
+ *   import '@sbot/chat-ui/themes/theme-XXX.css'
+ *   import '@sbot/chat-ui/themes/sbot-ui-bridge.css'
+ *
+ * admin 不需要加载本文件 —— 它已经直接加载 sbot-ui/tokens/index.css。
+ */
+
+@import 'sbot-ui/tokens/base.css';
+
+:root {
+  /* ── 中性背景 ─────────────────────────────────────────── */
+  --sui-bg:            var(--chatui-bg-surface);
+  --sui-bg-subtle:     var(--chatui-bg-surface);
+  --sui-bg-soft:       var(--chatui-bg-hover);
+  --sui-bg-hover:      var(--chatui-bg-hover);
+  --sui-bg-active:     var(--chatui-bg-active);
+  --sui-bg-page:       var(--chatui-bg);
+
+  /* ── 中性前景 ─────────────────────────────────────────── */
+  --sui-fg:            var(--chatui-fg);
+  --sui-fg-strong:     var(--chatui-fg-primary);
+  --sui-fg-secondary:  var(--chatui-fg-secondary);
+  --sui-fg-muted:      var(--chatui-fg-secondary);
+  --sui-fg-soft:       var(--chatui-fg-secondary);
+  --sui-fg-disabled:   var(--chatui-fg-secondary);
+
+  /* ── 边框 ─────────────────────────────────────────────── */
+  --sui-border:        var(--chatui-border);
+  --sui-border-subtle: var(--chatui-border-subtle);
+  --sui-border-strong: var(--chatui-border);
+  --sui-border-dashed: var(--chatui-border);
+
+  /* ── 主色（按钮等） ─────────────────────────────────── */
+  --sui-primary:        var(--chatui-btn-bg);
+  --sui-primary-hover:  var(--chatui-btn-hover);
+  --sui-on-primary:     var(--chatui-btn-fg);
+
+  /* ── 危险色 ──────────────────────────────────────────── */
+  --sui-danger:         var(--chatui-btn-danger);
+  --sui-danger-hover:   var(--chatui-btn-danger);
+}

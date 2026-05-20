@@ -33,25 +33,25 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutside))
 </script>
 
 <template>
-  <div ref="root" class="ms-root" :class="{ compact, open }">
-    <button type="button" class="ms-trigger" @click="open = !open">
-      <span class="ms-value">
+  <div ref="root" class="s-ms" :class="{ 's-ms--compact': compact, 's-ms--open': open }">
+    <button type="button" class="s-ms-trigger" @click="open = !open">
+      <span class="s-ms-value">
         <template v-if="selectedLabels.length">
-          <span v-for="label in selectedLabels" :key="label" class="ms-chip">{{ label }}</span>
+          <span v-for="label in selectedLabels" :key="label" class="s-ms-chip">{{ label }}</span>
         </template>
-        <span v-else class="ms-placeholder">{{ placeholder ?? '—' }}</span>
+        <span v-else class="s-ms-placeholder">{{ placeholder ?? '—' }}</span>
       </span>
-      <svg class="ms-arrow" viewBox="0 0 10 6" width="10" height="6">
+      <svg class="s-ms-arrow" viewBox="0 0 10 6" width="10" height="6">
         <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>
       </svg>
     </button>
-    <div v-if="open" class="ms-dropdown">
-      <div v-if="options.length === 0" class="ms-empty">—</div>
+    <div v-if="open" class="s-ms-dropdown">
+      <div v-if="options.length === 0" class="s-ms-empty">—</div>
       <label
         v-for="opt in options"
         :key="opt.id"
-        class="ms-option"
-        :class="{ checked: modelValue.includes(opt.id) }"
+        class="s-ms-option"
+        :class="{ 's-ms-option--checked': modelValue.includes(opt.id) }"
       >
         <input type="checkbox" :checked="modelValue.includes(opt.id)" @change="toggle(opt.id)" />
         <span>{{ opt.label }}</span>
@@ -61,12 +61,12 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutside))
 </template>
 
 <style scoped>
-.ms-root {
+.s-ms {
   position: relative;
   display: inline-flex;
   flex-direction: column;
 }
-.ms-trigger {
+.s-ms-trigger {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -80,16 +80,16 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutside))
   min-height: 32px;
   gap: 6px;
 }
-.ms-root.compact .ms-trigger { min-height: 26px; padding: 3px 6px 3px 8px; }
-.ms-trigger:hover, .ms-root.open .ms-trigger { border-color: var(--sui-border-strong); }
-.ms-value {
+.s-ms--compact .s-ms-trigger { min-height: 26px; padding: 3px 6px 3px 8px; }
+.s-ms-trigger:hover, .s-ms--open .s-ms-trigger { border-color: var(--sui-border-strong); }
+.s-ms-value {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
   flex: 1;
   min-width: 0;
 }
-.ms-chip {
+.s-ms-chip {
   background: var(--sui-fg);
   color: var(--sui-bg);
   font-size: var(--sui-fs-sm);
@@ -97,19 +97,19 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutside))
   border-radius: 99px;
   white-space: nowrap;
 }
-.ms-root.compact .ms-chip { font-size: var(--sui-fs-xs); padding: 0 6px; }
-.ms-placeholder {
+.s-ms--compact .s-ms-chip { font-size: var(--sui-fs-xs); padding: 0 6px; }
+.s-ms-placeholder {
   font-size: var(--sui-fs-md);
   color: var(--sui-fg-disabled);
   line-height: 1.6;
 }
-.ms-arrow {
+.s-ms-arrow {
   color: var(--sui-fg-muted);
   flex-shrink: 0;
   transition: transform .15s;
 }
-.ms-root.open .ms-arrow { transform: rotate(180deg); }
-.ms-dropdown {
+.s-ms--open .s-ms-arrow { transform: rotate(180deg); }
+.s-ms-dropdown {
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
@@ -123,7 +123,7 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutside))
   max-height: 200px;
   overflow-y: auto;
 }
-.ms-option {
+.s-ms-option {
   display: flex;
   align-items: center;
   gap: var(--sui-sp-3);
@@ -135,10 +135,10 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutside))
   user-select: none;
   transition: background .1s;
 }
-.ms-option:last-child { border-bottom: none; }
-.ms-option:hover { background: var(--sui-bg-hover); }
-.ms-option.checked { background: var(--sui-bg-active); font-weight: 500; }
-.ms-option input[type="checkbox"] {
+.s-ms-option:last-child { border-bottom: none; }
+.s-ms-option:hover { background: var(--sui-bg-hover); }
+.s-ms-option--checked { background: var(--sui-bg-active); font-weight: 500; }
+.s-ms-option input[type="checkbox"] {
   margin: 0;
   flex-shrink: 0;
   accent-color: var(--sui-fg);
@@ -146,7 +146,7 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutside))
   height: 14px;
   cursor: pointer;
 }
-.ms-empty {
+.s-ms-empty {
   padding: var(--sui-sp-3) var(--sui-sp-4);
   font-size: var(--sui-fs-md);
   color: var(--sui-fg-disabled);

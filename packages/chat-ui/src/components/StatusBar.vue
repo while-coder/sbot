@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { SButton, SCheckbox } from 'sbot-ui'
 import type { UsageInfo, ChatLabels } from '../types'
 import { resolveLabels } from '../labels'
 import { useCompact } from '../composables/useCompact'
@@ -267,17 +268,17 @@ function onClickOutside(e: MouseEvent) {
     </Teleport>
 
     <div class="chatui-toolbar-actions">
-      <label v-if="(compactedCount ?? 0) > 0" class="chatui-compacted-toggle" :title="L.showCompacted">
-        <input
-          type="checkbox"
-          :checked="!!showCompacted"
-          @change="emit('update:showCompacted', ($event.target as HTMLInputElement).checked)"
-        />
-        <span v-if="!isCompact">{{ L.showCompacted }}</span>
-        <span class="chatui-compacted-count">({{ compactedCount }})</span>
-      </label>
-      <button class="chatui-btn-outline chatui-btn-sm" @click="emit('refresh')">{{ L.refresh }}</button>
-      <button class="chatui-btn-danger chatui-btn-sm" :disabled="!hasSaver" @click="emit('clearHistory')">{{ L.clearHistory }}</button>
+      <span v-if="(compactedCount ?? 0) > 0" class="chatui-compacted-toggle" :title="L.showCompacted">
+        <SCheckbox
+          :model-value="!!showCompacted"
+          @update:model-value="(v) => emit('update:showCompacted', v as boolean)"
+        >
+          <span v-if="!isCompact">{{ L.showCompacted }}</span>
+          <span class="chatui-compacted-count">({{ compactedCount }})</span>
+        </SCheckbox>
+      </span>
+      <SButton type="outline" size="sm" @click="emit('refresh')">{{ L.refresh }}</SButton>
+      <SButton type="danger" size="sm" :disabled="!hasSaver" @click="emit('clearHistory')">{{ L.clearHistory }}</SButton>
     </div>
   </div>
 </template>
@@ -374,29 +375,11 @@ function onClickOutside(e: MouseEvent) {
 /* ── Buttons ── */
 .chatui-toolbar-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-shrink: 0; }
 .chatui-compacted-toggle {
-  display: inline-flex; align-items: center; gap: 4px;
+  display: inline-flex; align-items: center;
   font-size: 11px; color: var(--chatui-fg-secondary);
-  cursor: pointer; user-select: none;
-  padding: 2px 6px; border-radius: 4px;
   white-space: nowrap;
 }
-.chatui-compacted-toggle:hover { background: var(--chatui-bg-hover); }
-.chatui-compacted-toggle input[type="checkbox"] { margin: 0; cursor: pointer; }
 .chatui-compacted-count { color: var(--chatui-fg-secondary); opacity: 0.7; }
-.chatui-btn-outline {
-  padding: 4px 10px; border: 1px solid var(--chatui-border);
-  border-radius: 6px; background: transparent; cursor: pointer;
-  font-size: 12px; color: var(--chatui-fg);
-}
-.chatui-btn-outline:hover { background: var(--chatui-bg-hover); }
-.chatui-btn-sm { padding: 4px 10px; font-size: 12px; }
-.chatui-btn-danger {
-  padding: 4px 10px; border: 1px solid var(--chatui-btn-danger);
-  border-radius: 6px; background: transparent; cursor: pointer;
-  font-size: 12px; color: var(--chatui-btn-danger);
-}
-.chatui-btn-danger:hover { background: rgba(239, 68, 68, 0.08); }
-.chatui-btn-danger:disabled { opacity: 0.5; cursor: default; }
 
 /* ── Compact ── */
 .chatui-status-bar.chatui-compact { flex-wrap: wrap; padding: 4px 8px; gap: 6px; }

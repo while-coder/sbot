@@ -266,6 +266,9 @@ importers:
       marked:
         specifier: ^18.0.2
         version: 18.0.2
+      sbot-ui:
+        specifier: workspace:*
+        version: link:../sbot-ui
       vue:
         specifier: ^3.5.0
         version: 3.5.33(typescript@6.0.3)

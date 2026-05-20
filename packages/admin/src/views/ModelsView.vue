@@ -1,18 +1,27 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
-import { useToast, SButton, SInput, SSelect, SModal, SFormItem, SPageToolbar, SPageContent } from 'sbot-ui'
+import { useToast, SButton, SInput, SSelect, SModal, SFormItem, SPageToolbar, SPageContent, STable } from 'sbot-ui'
+import type { STableColumn } from 'sbot-ui'
 import { ModelProvider } from '@/types'
 import type { ModelConfig } from '@/types'
 
 const { t } = useI18n()
 const { show } = useToast()
-const { isMobile } = useResponsive()
 
 const models = computed(() => store.settings.models || {})
+const modelRows = computed(() =>
+  Object.entries(models.value).map(([id, m]) => ({ id, ...m })),
+)
+const modelColumns = computed<STableColumn[]>(() => [
+  { key: 'name',     label: t('common.name'),     primary: true },
+  { key: 'provider', label: t('common.provider') },
+  { key: 'baseURL',  label: t('common.base_url'), ellipsis: true },
+  { key: 'model',    label: t('models.model') },
+  { key: 'ops',      label: t('common.ops'), ops: true },
+])
 
 const showModal   = ref(false)
 const editingName = ref<string | null>(null)
@@ -169,52 +178,13 @@ async function refresh() {
       <SButton type="primary" size="sm" @click="openAdd">{{ t('models.add') }}</SButton>
     </SPageToolbar>
     <SPageContent>
-      <table v-if="!isMobile">
-        <thead>
-          <tr>
-            <th>{{ t('common.name') }}</th>
-            <th>{{ t('common.provider') }}</th>
-            <th>{{ t('common.base_url') }}</th>
-            <th>{{ t('models.model') }}</th>
-            <th>{{ t('common.ops') }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="Object.keys(models).length === 0">
-            <td colspan="5" class="models-empty">{{ t('models.empty') }}</td>
-          </tr>
-          <tr v-for="(m, id) in models" :key="id">
-            <td>{{ m.name || id }}</td>
-            <td>{{ m.provider }}</td>
-            <td class="models-url">{{ m.baseURL }}</td>
-            <td>{{ m.model }}</td>
-            <td>
-              <div class="ops-cell">
-                <SButton type="outline" size="sm" @click="openEdit(id as string)">{{ t('common.edit') }}</SButton>
-                <SButton type="danger" size="sm" @click="remove(id as string)">{{ t('common.delete') }}</SButton>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <div v-else class="card-list">
-        <div v-for="(m, id) in models" :key="id" class="mobile-card">
-          <div class="mobile-card-header">{{ m.name || id }}</div>
-          <div class="mobile-card-fields">
-            <span class="mobile-card-label">{{ t('common.provider') }}</span>
-            <span class="mobile-card-value">{{ m.provider }}</span>
-            <span class="mobile-card-label">{{ t('models.model') }}</span>
-            <span class="mobile-card-value">{{ m.model }}</span>
-            <span class="mobile-card-label">{{ t('common.base_url') }}</span>
-            <span class="mobile-card-value models-url-mobile">{{ m.baseURL }}</span>
-          </div>
-          <div class="mobile-card-ops">
-            <SButton type="outline" size="sm" @click="openEdit(id as string)">{{ t('common.edit') }}</SButton>
-            <SButton type="danger" size="sm" @click="remove(id as string)">{{ t('common.delete') }}</SButton>
-          </div>
-        </div>
-        <div v-if="Object.keys(models).length === 0" class="mobile-card-empty">-</div>
-      </div>
+      <STable :columns="modelColumns" :rows="modelRows" row-key="id" :empty-text="t('models.empty')">
+        <template #cell-name="{ row }">{{ row.name || row.id }}</template>
+        <template #cell-ops="{ row }">
+          <SButton type="outline" size="sm" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
+          <SButton type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
+        </template>
+      </STable>
     </SPageContent>
 
     <!-- Edit/Add modal -->
@@ -297,18 +267,6 @@ async function refresh() {
 </template>
 
 <style scoped>
-.models-empty {
-  text-align: center;
-  color: var(--sui-fg-disabled);
-  padding: 40px;
-}
-.models-url {
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.models-url-mobile { word-break: break-all; }
 .apikey-field, .model-field {
   display: flex;
   gap: var(--sui-sp-2);

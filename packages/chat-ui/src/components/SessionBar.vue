@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
+import { SButton, SInput } from 'sbot-ui'
 import type { SessionItem, ChatLabels } from '../types'
 import { resolveLabels, tpl } from '../labels'
 
@@ -20,12 +21,15 @@ const L = computed(() => resolveLabels(props.labels))
 
 const editingId = ref<string | null>(null)
 const editingName = ref('')
-const nameInputEl = ref<HTMLInputElement | null>(null)
+const nameInputEl = ref<InstanceType<typeof SInput> | null>(null)
 
 function startEdit(id: string) {
   editingId.value = id
   editingName.value = props.sessions.find(s => s.id === id)?.name || ''
-  nextTick(() => nameInputEl.value?.focus())
+  nextTick(() => {
+    const el = (nameInputEl.value as any)?.$el as HTMLElement | undefined
+    el?.querySelector('input')?.focus()
+  })
 }
 
 function commitEdit() {
@@ -48,7 +52,7 @@ function onDelete(id: string) {
 <template>
   <div class="chatui-session-bar">
     <div class="chatui-session-bar-header">
-      <button class="chatui-btn-outline chatui-btn-sm" style="width:100%" @click="emit('newSession')">{{ L.newSession }}</button>
+      <SButton type="outline" size="sm" block @click="emit('newSession')">{{ L.newSession }}</SButton>
     </div>
     <div class="chatui-session-list">
       <div
@@ -59,10 +63,11 @@ function onDelete(id: string) {
       >
         <div style="display:flex;align-items:center;gap:4px">
           <div style="flex:1;min-width:0">
-            <input
+            <SInput
               v-if="editingId === s.id"
               ref="nameInputEl"
               v-model="editingName"
+              size="sm"
               class="chatui-session-name-input"
               @click.stop
               @blur="commitEdit"
@@ -118,21 +123,8 @@ function onDelete(id: string) {
 }
 .chatui-session-item:hover .chatui-session-del-btn { color: var(--chatui-fg-secondary); }
 .chatui-session-del-btn:hover { color: var(--chatui-btn-danger) !important; }
-.chatui-session-name-input {
-  width: 100%; font-size: 13px; font-weight: 500; padding: 1px 4px;
-  border: 1px solid var(--chatui-fg); border-radius: 4px;
-  outline: none; font-family: inherit;
-  color: var(--chatui-fg); background: var(--chatui-bg-surface);
-}
 .chatui-session-empty {
   text-align: center; color: var(--chatui-fg-secondary);
   padding: 20px 8px; font-size: 12px;
 }
-.chatui-btn-outline {
-  padding: 4px 10px; border: 1px solid var(--chatui-border);
-  border-radius: 6px; background: transparent; cursor: pointer;
-  font-size: 12px; color: var(--chatui-fg);
-}
-.chatui-btn-outline:hover { background: var(--chatui-bg-hover); }
-.chatui-btn-sm { padding: 4px 10px; font-size: 12px; }
 </style>

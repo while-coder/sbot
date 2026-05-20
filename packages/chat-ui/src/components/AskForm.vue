@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { SRadio, SCheckbox, SInput, SButton } from 'sbot-ui'
 import type { AskEvent, AskAnswerPayload, ChatLabels } from '../types'
 import { AskQuestionType } from '../types'
 import { resolveLabels } from '../labels'
@@ -70,34 +71,58 @@ onUnmounted(stopTimer)
     <div v-for="(q, i) in askEvent.questions" :key="i" class="chatui-ask-question">
       <div class="chatui-ask-label">{{ q.label }}</div>
       <div v-if="q.type === AskQuestionType.Radio" class="chatui-ask-options">
-        <label v-for="opt in q.options" :key="opt" class="chatui-ask-option">
-          <input type="radio" :name="`ask_${askEvent.id}_${i}`" :value="opt" v-model="answers[i]" />
-          {{ opt }}
-        </label>
-        <label class="chatui-ask-option">
-          <input type="radio" :name="`ask_${askEvent.id}_${i}`" :value="CUSTOM_SENTINEL" v-model="answers[i]" />
-          {{ L.askOther }}
-        </label>
-        <input v-if="answers[i] === CUSTOM_SENTINEL" type="text" class="chatui-ask-input chatui-ask-custom-input"
-          v-model="customInputs[i]" :placeholder="L.askOtherPlaceholder" />
+        <SRadio
+          v-for="opt in q.options"
+          :key="opt"
+          :name="`ask_${askEvent.id}_${i}`"
+          :value="opt"
+          :label="opt"
+          v-model="(answers[i] as string)"
+        />
+        <SRadio
+          :name="`ask_${askEvent.id}_${i}`"
+          :value="CUSTOM_SENTINEL"
+          :label="L.askOther"
+          v-model="(answers[i] as string)"
+        />
+        <SInput
+          v-if="answers[i] === CUSTOM_SENTINEL"
+          class="chatui-ask-custom-input"
+          size="sm"
+          v-model="customInputs[i]"
+          :placeholder="L.askOtherPlaceholder"
+        />
       </div>
       <div v-else-if="q.type === AskQuestionType.Checkbox" class="chatui-ask-options">
-        <label v-for="opt in q.options" :key="opt" class="chatui-ask-option">
-          <input type="checkbox" :value="opt" v-model="(answers[i] as string[])" />
-          {{ opt }}
-        </label>
-        <label class="chatui-ask-option">
-          <input type="checkbox" :value="CUSTOM_SENTINEL" v-model="(answers[i] as string[])" />
-          {{ L.askOther }}
-        </label>
-        <input v-if="(answers[i] as string[])?.includes(CUSTOM_SENTINEL)" type="text" class="chatui-ask-input chatui-ask-custom-input"
-          v-model="customInputs[i]" :placeholder="L.askOtherPlaceholder" />
+        <SCheckbox
+          v-for="opt in q.options"
+          :key="opt"
+          :value="opt"
+          :label="opt"
+          v-model="(answers[i] as string[])"
+        />
+        <SCheckbox
+          :value="CUSTOM_SENTINEL"
+          :label="L.askOther"
+          v-model="(answers[i] as string[])"
+        />
+        <SInput
+          v-if="(answers[i] as string[])?.includes(CUSTOM_SENTINEL)"
+          class="chatui-ask-custom-input"
+          size="sm"
+          v-model="customInputs[i]"
+          :placeholder="L.askOtherPlaceholder"
+        />
       </div>
-      <input v-else type="text" class="chatui-ask-input" v-model="(answers[i] as string)"
-        :placeholder="q.placeholder ?? ''" />
+      <SInput
+        v-else
+        size="sm"
+        v-model="(answers[i] as string)"
+        :placeholder="q.placeholder ?? ''"
+      />
     </div>
     <div class="chatui-ask-footer">
-      <button class="chatui-btn-primary chatui-btn-sm" @click="submitAsk">{{ L.askSubmit }} ({{ countdown }}s)</button>
+      <SButton size="sm" @click="submitAsk">{{ L.askSubmit }} ({{ countdown }}s)</SButton>
     </div>
   </div>
 </template>
@@ -113,21 +138,6 @@ onUnmounted(stopTimer)
 .chatui-ask-question { display: flex; flex-direction: column; gap: 6px; }
 .chatui-ask-label { font-weight: 500; color: var(--chatui-ask-label); }
 .chatui-ask-options { display: flex; flex-direction: column; gap: 4px; }
-.chatui-ask-option { display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--chatui-fg); }
-.chatui-ask-option input { cursor: pointer; }
-.chatui-ask-input {
-  padding: 5px 8px; border: 1px solid var(--chatui-ask-border);
-  border-radius: 4px; font-size: 13px; outline: none;
-  background: var(--chatui-bg-surface); color: var(--chatui-fg);
-}
-.chatui-ask-input:focus { border-color: var(--chatui-ask-focus); }
-.chatui-ask-custom-input { margin-top: 4px; margin-left: 20px; }
+.chatui-ask-custom-input { margin-top: 4px; margin-left: 20px; width: calc(100% - 20px); }
 .chatui-ask-footer { display: flex; justify-content: flex-end; padding-top: 4px; }
-.chatui-btn-primary {
-  border: none; border-radius: 6px;
-  background: var(--chatui-btn-bg); color: var(--chatui-btn-fg);
-  cursor: pointer;
-}
-.chatui-btn-primary:hover { background: var(--chatui-btn-hover); }
-.chatui-btn-sm { padding: 4px 10px; font-size: 12px; }
 </style>

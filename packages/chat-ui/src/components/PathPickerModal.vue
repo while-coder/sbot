@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, nextTick, computed } from 'vue'
+import { SModal, SButton, SInput, SChip } from 'sbot-ui'
 import type { IChatTransport } from '../transport'
 import type { ChatLabels } from '../types'
 import { resolveLabels } from '../labels'
@@ -19,7 +20,7 @@ const pickerParent  = ref<string | null>(null)
 const pickerItems   = ref<string[]>([])
 const pickerCreating  = ref(false)
 const pickerNewName   = ref('')
-const newNameInput    = ref<HTMLInputElement | null>(null)
+const newNameInput    = ref<InstanceType<typeof SInput> | null>(null)
 const pickerQuickDirs = ref<{ label: string; path: string }[]>([])
 
 function itemLabel(p: string): string {
@@ -52,7 +53,10 @@ async function navigatePicker(dir: string): Promise<boolean> {
 function startCreate() {
   pickerCreating.value = true
   pickerNewName.value  = ''
-  nextTick(() => newNameInput.value?.focus())
+  nextTick(() => {
+    const el = (newNameInput.value as any)?.$el as HTMLElement | undefined
+    el?.querySelector('input')?.focus()
+  })
 }
 
 const cancelCreate = resetCreate
@@ -87,84 +91,68 @@ defineExpose({ open })
 </script>
 
 <template>
-  <div v-if="pickerOpen" class="chatui-modal-overlay" @click.self="pickerOpen = false">
-    <div class="chatui-modal-box chatui-picker-box">
-      <div class="chatui-modal-header">
-        <h3>{{ L.selectDirTitle }}</h3>
-        <button class="chatui-modal-close" @click="pickerOpen = false">&times;</button>
-      </div>
-
+  <SModal
+    v-model:visible="pickerOpen"
+    :title="L.selectDirTitle"
+    width="480px"
+    class="chatui-picker-modal"
+  >
+    <template #toolbar>
       <div class="chatui-picker-path-bar">{{ pickerPath || L.myComputer }}</div>
+    </template>
 
-      <div v-if="pickerQuickDirs.length" class="chatui-picker-quickdirs">
-        <button
-          v-for="d in pickerQuickDirs" :key="d.path"
-          class="chatui-picker-qd-chip"
-          :class="{ active: pickerPath === d.path }"
-          @click="navigatePicker(d.path)"
-        >{{ d.label }}</button>
-      </div>
-
-      <div class="chatui-picker-list">
-        <div v-if="pickerLoading" class="chatui-picker-empty">{{ L.loading }}</div>
-        <template v-else>
-          <div v-if="pickerParent !== null" class="chatui-picker-item chatui-picker-up" @click="navigatePicker(pickerParent!)">
-            {{ L.upDir }}
-          </div>
-          <div v-if="pickerCreating" class="chatui-picker-create-row">
-            <span class="chatui-picker-icon">▶</span>
-            <input ref="newNameInput" v-model="pickerNewName" class="chatui-picker-create-input"
-              :placeholder="L.newFolderPlaceholder" @keydown.enter="confirmCreate" @keydown.escape="cancelCreate" />
-            <button class="chatui-picker-create-btn" @click="confirmCreate">✓</button>
-            <button class="chatui-picker-create-btn chatui-picker-create-cancel" @click="cancelCreate">✕</button>
-          </div>
-          <div v-if="pickerItems.length === 0 && !pickerCreating" class="chatui-picker-empty">{{ L.noSubdirs }}</div>
-          <div v-for="item in pickerItems" :key="item" class="chatui-picker-item" @click="navigatePicker(item)">
-            <span class="chatui-picker-icon">▶</span>{{ itemLabel(item) }}
-          </div>
-        </template>
-      </div>
-
-      <div class="chatui-modal-footer">
-        <button class="chatui-btn-outline chatui-btn-sm" style="margin-right:auto" :disabled="!pickerPath || pickerCreating" @click="startCreate">{{ L.newFolder }}</button>
-        <button class="chatui-btn-outline" @click="pickerOpen = false">{{ L.cancel }}</button>
-        <button class="chatui-btn-primary" :disabled="!pickerPath" @click="confirmPicker">{{ L.selectThis }}</button>
-      </div>
+    <div v-if="pickerQuickDirs.length" class="chatui-picker-quickdirs">
+      <SChip
+        v-for="d in pickerQuickDirs" :key="d.path"
+        clickable
+        :class="{ 'chatui-picker-qd-active': pickerPath === d.path }"
+        @click="navigatePicker(d.path)"
+      >{{ d.label }}</SChip>
     </div>
-  </div>
+
+    <div class="chatui-picker-list">
+      <div v-if="pickerLoading" class="chatui-picker-empty">{{ L.loading }}</div>
+      <template v-else>
+        <div v-if="pickerParent !== null" class="chatui-picker-item chatui-picker-up" @click="navigatePicker(pickerParent!)">
+          {{ L.upDir }}
+        </div>
+        <div v-if="pickerCreating" class="chatui-picker-create-row">
+          <span class="chatui-picker-icon">▶</span>
+          <SInput
+            ref="newNameInput"
+            v-model="pickerNewName"
+            size="sm"
+            class="chatui-picker-create-input"
+            :placeholder="L.newFolderPlaceholder"
+            @keydown.enter="confirmCreate"
+            @keydown.escape="cancelCreate"
+          />
+          <SButton type="outline" size="sm" @click="confirmCreate">✓</SButton>
+          <SButton type="outline" size="sm" @click="cancelCreate">✕</SButton>
+        </div>
+        <div v-if="pickerItems.length === 0 && !pickerCreating" class="chatui-picker-empty">{{ L.noSubdirs }}</div>
+        <div v-for="item in pickerItems" :key="item" class="chatui-picker-item" @click="navigatePicker(item)">
+          <span class="chatui-picker-icon">▶</span>{{ itemLabel(item) }}
+        </div>
+      </template>
+    </div>
+
+    <template #footer>
+      <SButton type="outline" size="sm" style="margin-right:auto" :disabled="!pickerPath || pickerCreating" @click="startCreate">{{ L.newFolder }}</SButton>
+      <SButton type="outline" @click="pickerOpen = false">{{ L.cancel }}</SButton>
+      <SButton :disabled="!pickerPath" @click="confirmPicker">{{ L.selectThis }}</SButton>
+    </template>
+  </SModal>
 </template>
 
 <style scoped>
-.chatui-modal-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000;
-  display: flex; align-items: center; justify-content: center;
-}
-.chatui-modal-box {
-  background: var(--chatui-bg-surface); border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.18); max-width: 90vw;
-}
-.chatui-picker-box { width: 480px; max-height: 70vh; display: flex; flex-direction: column; }
-.chatui-modal-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 16px; border-bottom: 1px solid var(--chatui-border);
-}
-.chatui-modal-header h3 { margin: 0; font-size: 15px; font-weight: 600; color: var(--chatui-fg); }
-.chatui-modal-close {
-  background: none; border: none; font-size: 20px; cursor: pointer;
-  color: var(--chatui-fg-secondary); padding: 0 4px; line-height: 1;
-}
-.chatui-modal-close:hover { color: var(--chatui-fg); }
-.chatui-modal-footer {
-  display: flex; align-items: center; gap: 8px;
-  padding: 12px 16px; border-top: 1px solid var(--chatui-border);
-}
+.chatui-picker-modal :deep(.s-modal-body) { padding: 0; }
 .chatui-picker-path-bar {
-  padding: 7px 14px; background: var(--chatui-bg-hover);
-  border-bottom: 1px solid var(--chatui-border);
+  width: 100%;
   font-family: monospace; font-size: 12px; color: var(--chatui-fg);
-  word-break: break-all; flex-shrink: 0;
+  word-break: break-all;
 }
-.chatui-picker-list { flex: 1; overflow-y: auto; min-height: 180px; }
+.chatui-picker-list { min-height: 180px; max-height: 50vh; overflow-y: auto; }
 .chatui-picker-empty {
   text-align: center; padding: 40px;
   color: var(--chatui-fg-secondary); font-size: 13px;
@@ -181,47 +169,13 @@ defineExpose({ open })
 .chatui-picker-quickdirs {
   display: flex; flex-wrap: wrap; gap: 5px; padding: 6px 12px;
   border-bottom: 1px solid var(--chatui-border);
-  background: var(--chatui-bg-hover); flex-shrink: 0;
+  background: var(--chatui-bg-hover);
 }
-.chatui-picker-qd-chip {
-  padding: 2px 10px; font-size: 12px; border: 1px solid var(--chatui-border);
-  border-radius: 12px; background: var(--chatui-bg-surface); cursor: pointer;
-  color: var(--chatui-fg); line-height: 20px;
-}
-.chatui-picker-qd-chip:hover { background: var(--chatui-bg-active); border-color: var(--chatui-border-focus); }
-.chatui-picker-qd-chip.active { background: #ede9fe; border-color: #a78bfa; color: #5b21b6; }
+.chatui-picker-qd-active { background: var(--chatui-bg-active) !important; }
 .chatui-picker-create-row {
   display: flex; align-items: center; gap: 6px; padding: 5px 14px;
   border-bottom: 1px solid var(--chatui-border);
   background: var(--chatui-bg-hover);
 }
-.chatui-picker-create-input {
-  flex: 1; height: 26px; padding: 0 6px; font-size: 13px;
-  border: 1px solid var(--chatui-border); border-radius: 4px;
-  outline: none; background: var(--chatui-bg-surface); color: var(--chatui-fg);
-}
-.chatui-picker-create-input:focus { border-color: var(--chatui-accent); }
-.chatui-picker-create-btn {
-  background: none; border: 1px solid var(--chatui-border);
-  border-radius: 4px; width: 26px; height: 26px; cursor: pointer;
-  font-size: 13px; display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0; color: var(--chatui-fg);
-}
-.chatui-picker-create-btn:hover { background: var(--chatui-bg-hover); }
-.chatui-picker-create-cancel { color: var(--chatui-fg-secondary); }
-.chatui-btn-outline {
-  padding: 6px 14px; border: 1px solid var(--chatui-border);
-  border-radius: 6px; background: transparent; cursor: pointer;
-  font-size: 13px; color: var(--chatui-fg);
-}
-.chatui-btn-outline:hover { background: var(--chatui-bg-hover); }
-.chatui-btn-outline.chatui-btn-sm { padding: 4px 10px; font-size: 12px; }
-.chatui-btn-outline:disabled { opacity: 0.5; cursor: default; }
-.chatui-btn-primary {
-  padding: 6px 14px; border: none; border-radius: 6px;
-  background: var(--chatui-btn-bg); color: var(--chatui-btn-fg);
-  cursor: pointer; font-size: 13px;
-}
-.chatui-btn-primary:hover { background: var(--chatui-btn-hover); }
-.chatui-btn-primary:disabled { opacity: 0.5; cursor: default; }
+.chatui-picker-create-input { flex: 1; }
 </style>

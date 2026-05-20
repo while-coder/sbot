@@ -4,6 +4,7 @@ import { ChatView, ServerPicker } from '@sbot/chat-ui'
 import type { RemoteEntry } from '@sbot/chat-ui'
 import '@sbot/chat-ui/themes/variables.css'
 import '@sbot/chat-ui/themes/theme-vscode.css'
+import '@sbot/chat-ui/themes/sbot-ui-bridge.css'
 import { transport } from './composables/useChat'
 
 const DEFAULT_PORT = 5500

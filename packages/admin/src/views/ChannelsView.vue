@@ -4,12 +4,11 @@ import { useI18n } from 'vue-i18n'
 import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
-import { useToast, SButton, SModal, SInput, STextarea, SSelect, SFormItem, SFormSection, SPageToolbar, SPageContent } from 'sbot-ui'
+import { useToast, SButton, SModal, SInput, STextarea, SSelect, SFormItem, SFormSection, SPageToolbar, SPageContent, SMultiSelect } from 'sbot-ui'
 import QRCode from 'qrcode'
 import type { ChannelConfig } from '@/types'
 import SaverViewModal from './modals/SaverViewModal.vue'
 import PathPickerModal from './modals/PathPickerModal.vue'
-import MultiSelect from '@/components/MultiSelect.vue'
 
 const { t } = useI18n()
 const { isMobile } = useResponsive()
@@ -655,10 +654,10 @@ async function refresh() {
 
           <SFormSection :title="t('channels.section_resources')">
             <SFormItem :label="t('common.memory')">
-              <MultiSelect v-model="form.memories" :options="memoryOptions" />
+              <SMultiSelect v-model="form.memories" :options="memoryOptions" />
             </SFormItem>
             <SFormItem :label="t('common.wiki')">
-              <MultiSelect :model-value="form.wikis || []" :options="wikiOptions" @update:model-value="form.wikis = $event" />
+              <SMultiSelect :model-value="form.wikis || []" :options="wikiOptions" @update:model-value="form.wikis = $event" />
             </SFormItem>
             <SFormItem :label="t('directory.path_label')">
               <div class="path-row">
@@ -700,10 +699,10 @@ async function refresh() {
             </SFormItem>
             <template v-if="currentToolOptions.length > 0">
               <SFormItem :label="t('channels.tools')" :hint="t('channels.tools_hint')">
-                <MultiSelect v-model="formTools" :options="currentToolOptions" />
+                <SMultiSelect v-model="formTools" :options="currentToolOptions" />
               </SFormItem>
               <SFormItem :label="t('channels.heartbeat_tools')" :hint="t('channels.heartbeat_tools_hint')">
-                <MultiSelect v-model="formHeartbeatTools" :options="currentToolOptions" />
+                <SMultiSelect v-model="formHeartbeatTools" :options="currentToolOptions" />
               </SFormItem>
             </template>
           </SFormSection>
@@ -737,14 +736,14 @@ async function refresh() {
           </SSelect>
         </SFormItem>
         <SFormItem :label="t('common.memory')" :hint="t('channels.use_channel_memories_hint')">
-          <MultiSelect v-model="sessionForm.memories" :options="memoryOptions" />
+          <SMultiSelect v-model="sessionForm.memories" :options="memoryOptions" />
           <label class="toggle-label toggle-mt">
             <input type="checkbox" v-model="sessionForm.useChannelMemories" />
             <span>{{ t('channels.use_channel_memories') }}</span>
           </label>
         </SFormItem>
         <SFormItem :label="t('common.wiki')" :hint="t('channels.use_channel_wikis_hint')">
-          <MultiSelect v-model="sessionForm.wikis" :options="wikiOptions" />
+          <SMultiSelect v-model="sessionForm.wikis" :options="wikiOptions" />
           <label class="toggle-label toggle-mt">
             <input type="checkbox" v-model="sessionForm.useChannelWikis" />
             <span>{{ t('channels.use_channel_wikis') }}</span>

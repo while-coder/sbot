@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { SButton } from 'sbot-ui'
 import type { ToolCallEvent, ToolApprovalPayload, ToolApprovalType, ChatLabels } from '../types'
 import { resolveLabels } from '../labels'
 
@@ -51,10 +52,10 @@ onUnmounted(stopTimer)
     <div class="chatui-tool-approval-top">
       <span class="chatui-tool-approval-label">{{ L.executeTool }}<strong>{{ toolCall.name }}</strong></span>
       <div class="chatui-tool-approval-btns">
-        <button class="chatui-btn-primary chatui-btn-sm" @click="approve('allow')">{{ L.allow }}</button>
-        <button class="chatui-btn-outline chatui-btn-sm" @click="approve('alwaysArgs')">{{ L.alwaysAllowArgs }}</button>
-        <button class="chatui-btn-outline chatui-btn-sm" @click="approve('alwaysTool')">{{ L.alwaysAllowAll }}</button>
-        <button class="chatui-btn-danger chatui-btn-sm" @click="approve('deny')">{{ L.deny }} ({{ countdown }}s)</button>
+        <SButton size="sm" @click="approve('allow')">{{ L.allow }}</SButton>
+        <SButton type="outline" size="sm" @click="approve('alwaysArgs')">{{ L.alwaysAllowArgs }}</SButton>
+        <SButton type="outline" size="sm" @click="approve('alwaysTool')">{{ L.alwaysAllowAll }}</SButton>
+        <SButton type="danger" size="sm" @click="approve('deny')">{{ L.deny }} ({{ countdown }}s)</SButton>
       </div>
     </div>
     <div v-if="Object.keys(toolCall.args).length" class="chatui-tool-approval-args" @click="argsExpanded = !argsExpanded">
@@ -96,21 +97,4 @@ onUnmounted(stopTimer)
   word-break: break-all; max-height: 200px; overflow-y: auto;
   cursor: text; user-select: text;
 }
-.chatui-btn-sm { padding: 4px 10px; font-size: 12px; }
-.chatui-btn-primary {
-  border: none; border-radius: 6px;
-  background: var(--chatui-btn-bg); color: var(--chatui-btn-fg);
-  cursor: pointer;
-}
-.chatui-btn-primary:hover { background: var(--chatui-btn-hover); }
-.chatui-btn-outline {
-  border: 1px solid var(--chatui-border); border-radius: 6px;
-  background: transparent; cursor: pointer; color: var(--chatui-fg);
-}
-.chatui-btn-outline:hover { background: var(--chatui-bg-hover); }
-.chatui-btn-danger {
-  border: 1px solid var(--chatui-btn-danger); border-radius: 6px;
-  background: transparent; cursor: pointer; color: var(--chatui-btn-danger);
-}
-.chatui-btn-danger:hover { background: rgba(239, 68, 68, 0.08); }
 </style>

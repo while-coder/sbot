@@ -1,18 +1,27 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
-import { useToast, SButton, SInput, SSelect, SModal, SFormItem, SPageToolbar, SPageContent } from 'sbot-ui'
+import { useToast, SButton, SInput, SSelect, SModal, SFormItem, SPageToolbar, SPageContent, STable } from 'sbot-ui'
+import type { STableColumn } from 'sbot-ui'
 import { EmbeddingProvider } from '@/types'
 import type { EmbeddingConfig } from '@/types'
 
 const { t } = useI18n()
 const { show } = useToast()
-const { isMobile } = useResponsive()
 
 const embeddings = computed(() => store.settings.embeddings || {})
+const embeddingRows = computed(() =>
+  Object.entries(embeddings.value).map(([id, e]) => ({ id, ...e })),
+)
+const embeddingColumns = computed<STableColumn[]>(() => [
+  { key: 'name',     label: t('common.name'),     primary: true },
+  { key: 'provider', label: t('common.provider') },
+  { key: 'baseURL',  label: t('common.base_url'), ellipsis: true },
+  { key: 'model',    label: t('common.model') },
+  { key: 'ops',      label: t('common.ops'), ops: true },
+])
 
 const providerDefaults: Record<string, { baseURL: string; apiKey: string; model: string }> = {
   [EmbeddingProvider.OpenAI]:   { baseURL: 'https://api.openai.com/v1',   apiKey: 'sk-...',  model: 'text-embedding-ada-002' },
@@ -138,52 +147,13 @@ async function refresh() {
       <SButton type="primary" size="sm" @click="openAdd">{{ t('embeddings.add') }}</SButton>
     </SPageToolbar>
     <SPageContent>
-      <table v-if="!isMobile">
-        <thead>
-          <tr>
-            <th>{{ t('common.name') }}</th>
-            <th>{{ t('common.provider') }}</th>
-            <th>{{ t('common.base_url') }}</th>
-            <th>{{ t('common.model') }}</th>
-            <th>{{ t('common.ops') }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="Object.keys(embeddings).length === 0">
-            <td colspan="5" class="emb-empty">{{ t('embeddings.empty') }}</td>
-          </tr>
-          <tr v-for="(emb, id) in embeddings" :key="id">
-            <td>{{ emb.name || id }}</td>
-            <td>{{ emb.provider }}</td>
-            <td class="emb-url">{{ emb.baseURL }}</td>
-            <td>{{ emb.model }}</td>
-            <td>
-              <div class="ops-cell">
-                <SButton type="outline" size="sm" @click="openEdit(id as string)">{{ t('common.edit') }}</SButton>
-                <SButton type="danger" size="sm" @click="remove(id as string)">{{ t('common.delete') }}</SButton>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <div v-else class="card-list">
-        <div v-for="(emb, id) in embeddings" :key="id" class="mobile-card">
-          <div class="mobile-card-header">{{ emb.name || id }}</div>
-          <div class="mobile-card-fields">
-            <span class="mobile-card-label">Provider</span>
-            <span class="mobile-card-value">{{ emb.provider }}</span>
-            <span class="mobile-card-label">Model</span>
-            <span class="mobile-card-value">{{ emb.model }}</span>
-            <span class="mobile-card-label">Base URL</span>
-            <span class="mobile-card-value emb-url-mobile">{{ emb.baseURL }}</span>
-          </div>
-          <div class="mobile-card-ops">
-            <SButton type="outline" size="sm" @click="openEdit(id as string)">{{ t('common.edit') }}</SButton>
-            <SButton type="danger" size="sm" @click="remove(id as string)">{{ t('common.delete') }}</SButton>
-          </div>
-        </div>
-        <div v-if="Object.keys(embeddings).length === 0" class="mobile-card-empty">-</div>
-      </div>
+      <STable :columns="embeddingColumns" :rows="embeddingRows" row-key="id" :empty-text="t('embeddings.empty')">
+        <template #cell-name="{ row }">{{ row.name || row.id }}</template>
+        <template #cell-ops="{ row }">
+          <SButton type="outline" size="sm" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
+          <SButton type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
+        </template>
+      </STable>
     </SPageContent>
 
     <SModal v-model:visible="showModal" :title="editingName !== null ? t('embeddings.edit_title') : t('embeddings.add_title')" width="md">
@@ -239,20 +209,6 @@ async function refresh() {
 </template>
 
 <style scoped>
-.emb-empty {
-  text-align: center;
-  color: var(--sui-fg-disabled);
-  padding: 40px;
-}
-.emb-url {
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.emb-url-mobile {
-  word-break: break-all;
-}
 .apikey-field, .model-field {
   display: flex;
   gap: var(--sui-sp-2);

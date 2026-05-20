@@ -52,7 +52,6 @@ export { default as ConfigToolbar } from './components/ConfigToolbar.vue';
 export { default as StatusBar } from './components/StatusBar.vue';
 export { default as ToolApprovalBar } from './components/ToolApprovalBar.vue';
 export { default as AskForm } from './components/AskForm.vue';
-export { default as MultiSelect } from './components/MultiSelect.vue';
 export { default as PathPickerModal } from './components/PathPickerModal.vue';
 export { default as MessageList } from './components/MessageList.vue';
 export { default as RichInput } from './components/RichInput.vue';

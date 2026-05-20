@@ -5,6 +5,7 @@ import type {
   ToolCallEvent, ToolApprovalPayload, AskEvent, AskAnswerPayload,
   DisplayContent,
 } from '../types'
+import { SButton } from 'sbot-ui'
 import { resolveLabels } from '../labels'
 import { useCompact } from '../composables/useCompact'
 import { useAttachments } from '../composables/useAttachments'
@@ -152,7 +153,7 @@ defineExpose({ scrollToBottom })
 
     <!-- Stop bar -->
     <div v-if="isStreaming" class="chatui-stop-bar">
-      <button class="chatui-btn-danger chatui-btn-sm" @click="emit('abort')">{{ L.stop }}</button>
+      <SButton type="danger" size="sm" @click="emit('abort')">{{ L.stop }}</SButton>
     </div>
 
     <!-- Input bar -->
@@ -182,8 +183,8 @@ defineExpose({ scrollToBottom })
         />
       </div>
       <div class="chatui-input-actions">
-        <button v-if="showAttachments" class="chatui-btn-outline chatui-btn-sm" @click="pickFile" :title="L.addAttachment">{{ L.attachment }}</button>
-        <button class="chatui-btn-primary" :disabled="!hasSaver" @click="send">{{ L.send }}</button>
+        <SButton v-if="showAttachments" type="outline" size="sm" @click="pickFile" :title="L.addAttachment">{{ L.attachment }}</SButton>
+        <SButton :disabled="!hasSaver" @click="send">{{ L.send }}</SButton>
       </div>
     </div>
   </div>
@@ -236,27 +237,6 @@ defineExpose({ scrollToBottom })
   padding: 0; line-height: 1; flex-shrink: 0;
 }
 .chatui-attachment-remove:hover { color: var(--chatui-btn-danger); }
-
-.chatui-btn-primary {
-  padding: 6px 16px; border: none; border-radius: 6px; cursor: pointer;
-  font-size: 13px; font-weight: 500;
-  background: var(--chatui-accent); color: var(--chatui-btn-fg);
-}
-.chatui-btn-primary:hover { opacity: 0.9; }
-.chatui-btn-primary:disabled { opacity: 0.5; cursor: default; }
-.chatui-btn-outline {
-  padding: 4px 10px; border: 1px solid var(--chatui-border);
-  border-radius: 6px; background: transparent; cursor: pointer;
-  font-size: 12px; color: var(--chatui-fg);
-}
-.chatui-btn-outline:hover { background: var(--chatui-bg-hover); }
-.chatui-btn-danger {
-  padding: 4px 10px; border: 1px solid var(--chatui-btn-danger);
-  border-radius: 6px; background: transparent; cursor: pointer;
-  font-size: 12px; color: var(--chatui-btn-danger);
-}
-.chatui-btn-danger:hover { background: rgba(239, 68, 68, 0.08); }
-.chatui-btn-sm { padding: 4px 10px; font-size: 12px; }
 
 .chatui-input-bar.chatui-compact { padding: 8px; gap: 6px; }
 </style>

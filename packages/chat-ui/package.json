@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "dompurify": "^3.4.5",
-    "marked": "^18.0.2"
+    "marked": "^18.0.2",
+    "sbot-ui": "workspace:*"
   },
   "devDependencies": {
     "@tiptap/extension-dropcursor": "^3.22.4",

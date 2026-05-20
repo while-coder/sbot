@@ -5,6 +5,7 @@ import type { RemoteEntry } from '@sbot/chat-ui'
 import '@sbot/chat-ui/themes/variables.css'
 import '@sbot/chat-ui/themes/theme-dark.css'
 import '@sbot/chat-ui/themes/theme-pwa.css'
+import '@sbot/chat-ui/themes/sbot-ui-bridge.css'
 
 const DEFAULT_PORT = 5500
 const REMOTES_KEY = 'sbot-desktop-remotes'

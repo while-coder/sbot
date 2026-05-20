@@ -12,15 +12,15 @@
         <template v-if="editingIndex === i">
           <div class="edit-form">
             <label>Host</label>
-            <input v-model="editHost" placeholder="Host" />
+            <SInput v-model="editHost" size="sm" placeholder="Host" />
             <label>Port</label>
-            <input v-model.number="editPort" type="number" placeholder="Port" />
-            <label class="checkbox-label"><input v-model="editSecure" type="checkbox" /> HTTPS</label>
+            <SInput v-model.number="editPort" size="sm" type="number" placeholder="Port" />
+            <SCheckbox v-model="editSecure" label="HTTPS" />
             <label>{{ L.namePlaceholder }}</label>
-            <input v-model="editName" :placeholder="L.namePlaceholder" />
+            <SInput v-model="editName" size="sm" :placeholder="L.namePlaceholder" />
             <div class="edit-actions">
-              <button class="btn-sm btn-save" @click="onSaveEdit(i)">{{ L.save }}</button>
-              <button class="btn-sm btn-cancel" @click="editingIndex = -1">{{ L.cancel }}</button>
+              <SButton size="sm" @click="onSaveEdit(i)">{{ L.save }}</SButton>
+              <SButton type="outline" size="sm" @click="editingIndex = -1">{{ L.cancel }}</SButton>
             </div>
           </div>
         </template>
@@ -41,23 +41,24 @@
     <h3>{{ L.addRemoteServer }}</h3>
     <div class="form">
       <label>Host</label>
-      <input v-model="host" placeholder="192.168.1.100" />
+      <SInput v-model="host" size="sm" placeholder="192.168.1.100" />
 
       <label>Port</label>
-      <input v-model.number="port" type="number" placeholder="5500" />
+      <SInput v-model.number="port" size="sm" type="number" placeholder="5500" />
 
-      <label class="checkbox-label"><input v-model="secure" type="checkbox" /> HTTPS</label>
+      <SCheckbox v-model="secure" label="HTTPS" />
 
       <label>{{ L.namePlaceholder }}</label>
-      <input v-model="name" :placeholder="host ? `${host}:${port}` : ''" />
+      <SInput v-model="name" size="sm" :placeholder="host ? `${host}:${port}` : ''" />
 
-      <button class="btn-add" :disabled="!host" @click="onAdd">{{ L.add }}</button>
+      <SButton :disabled="!host" @click="onAdd" style="margin-top:4px">{{ L.add }}</SButton>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import { SInput, SButton, SCheckbox } from 'sbot-ui'
 import type { RemoteEntry, ChatLabels } from '../types';
 import { resolveLabels } from '../labels';
 
@@ -193,36 +194,10 @@ h3 {
   font-size: var(--chatui-font-size-sm);
   color: var(--chatui-fg-secondary);
 }
-.edit-form input {
-  padding: 3px 6px;
-  border: 1px solid var(--chatui-border);
-  border-radius: var(--chatui-radius-sm);
-  background: var(--chatui-bg-surface);
-  color: var(--chatui-fg);
-  font-size: var(--chatui-font-size-sm);
-}
 .edit-actions {
   display: flex;
   gap: 4px;
 }
-.btn-sm {
-  padding: 3px 8px;
-  border: none;
-  border-radius: var(--chatui-radius-sm);
-  cursor: pointer;
-  font-size: var(--chatui-font-size-sm);
-}
-.btn-save {
-  background: var(--chatui-btn-bg);
-  color: var(--chatui-btn-fg);
-}
-.btn-save:hover { background: var(--chatui-btn-hover); }
-.btn-cancel {
-  background: transparent;
-  color: var(--chatui-fg-secondary);
-  border: 1px solid var(--chatui-border);
-}
-.btn-cancel:hover { background: var(--chatui-bg-hover); }
 .divider {
   height: 1px;
   background: var(--chatui-border);
@@ -237,33 +212,4 @@ h3 {
   font-size: var(--chatui-font-size-sm);
   color: var(--chatui-fg-secondary);
 }
-.form input {
-  padding: 4px 8px;
-  border: 1px solid var(--chatui-border);
-  border-radius: var(--chatui-radius-sm);
-  background: var(--chatui-bg-surface);
-  color: var(--chatui-fg);
-  font-size: var(--chatui-font-size);
-}
-.btn-add {
-  margin-top: 4px;
-  padding: 6px 12px;
-  border: none;
-  border-radius: var(--chatui-radius-sm);
-  background: var(--chatui-btn-bg);
-  color: var(--chatui-btn-fg);
-  cursor: pointer;
-  font-size: var(--chatui-font-size);
-}
-.btn-add:hover { background: var(--chatui-btn-hover); }
-.btn-add:disabled { opacity: 0.5; cursor: default; }
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: var(--chatui-font-size-sm);
-  color: var(--chatui-fg-secondary);
-  cursor: pointer;
-}
-.checkbox-label input[type="checkbox"] { margin: 0; }
 </style>

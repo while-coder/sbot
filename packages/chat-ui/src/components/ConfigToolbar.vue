@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { SSelect, SMultiSelect, SInput, SButton, SCheckbox } from 'sbot-ui'
 import type { SessionItem, AppSettings, ChatLabels } from '../types'
 import { resolveLabels } from '../labels'
-import MultiSelect from './MultiSelect.vue'
 import { useCompact } from '../composables/useCompact'
 
 const isCompact = useCompact()
@@ -20,16 +20,28 @@ const emit = defineEmits<{
 
 const L = computed(() => resolveLabels(props.labels))
 
-function toOptions<T extends { name?: string }>(map: Record<string, T> | undefined) {
+function toMSOptions<T extends { name?: string }>(map: Record<string, T> | undefined) {
   return Object.entries(map || {}).map(([id, v]) => ({ id, label: v.name || id }))
 }
 
-const agentOptions = computed(() =>
-  Object.entries(props.settings.agents || {}).map(([id, a]) => ({ id, label: a.name || id, type: a.type || '' }))
-)
-const saverOptions  = computed(() => toOptions(props.settings.savers))
-const memoryOptions = computed(() => toOptions(props.settings.memories))
-const wikiOptions   = computed(() => toOptions(props.settings.wikis))
+const agentSelectOptions = computed(() => [
+  { value: '', label: L.value.useChannelDefault },
+  ...Object.entries(props.settings.agents || {}).map(([id, a]) => ({
+    value: id,
+    label: `${a.name || id}${a.type ? ` (${a.type})` : ''}`,
+  })),
+])
+
+const saverSelectOptions = computed(() => [
+  { value: '', label: L.value.useChannelDefault },
+  ...Object.entries(props.settings.savers || {}).map(([id, s]) => ({
+    value: id,
+    label: s.name || id,
+  })),
+])
+
+const memoryOptions = computed(() => toMSOptions(props.settings.memories))
+const wikiOptions   = computed(() => toMSOptions(props.settings.wikis))
 </script>
 
 <template>
@@ -37,37 +49,39 @@ const wikiOptions   = computed(() => toOptions(props.settings.wikis))
     <template v-if="session">
       <div class="chatui-toolbar-group">
         <label class="chatui-toolbar-label">{{ L.agent }}</label>
-        <select class="chatui-toolbar-select"
-          :value="session.agent"
-          @change="emit('updateConfig', 'agent', ($event.target as HTMLSelectElement).value)"
-        >
-          <option value="">{{ L.useChannelDefault }}</option>
-          <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }}{{ a.type ? ` (${a.type})` : '' }}</option>
-        </select>
+        <SSelect
+          size="sm"
+          :model-value="session.agent || ''"
+          :options="agentSelectOptions"
+          @update:model-value="(v) => emit('updateConfig', 'agent', v)"
+        />
       </div>
 
       <div class="chatui-toolbar-sep" />
 
       <div class="chatui-toolbar-group">
         <label class="chatui-toolbar-label">{{ L.storage }}</label>
-        <select class="chatui-toolbar-select"
-          :value="session.saver || ''"
-          @change="emit('updateConfig', 'saver', ($event.target as HTMLSelectElement).value)"
-        >
-          <option value="">{{ L.useChannelDefault }}</option>
-          <option v-for="s in saverOptions" :key="s.id" :value="s.id">{{ s.label }}</option>
-        </select>
+        <SSelect
+          size="sm"
+          :model-value="session.saver || ''"
+          :options="saverSelectOptions"
+          @update:model-value="(v) => emit('updateConfig', 'saver', v)"
+        />
       </div>
 
       <div class="chatui-toolbar-sep" />
 
       <div class="chatui-toolbar-group">
         <label class="chatui-toolbar-label">{{ L.workpath }}</label>
-        <input class="chatui-toolbar-input" :value="session.workPath || ''"
-          :placeholder="L.workpathPlaceholder" readonly
+        <SInput
+          size="sm"
+          :model-value="session.workPath || ''"
+          :placeholder="L.workpathPlaceholder"
+          readonly
           :title="session.workPath || L.workpathPlaceholder"
-          style="max-width:180px" />
-        <button class="chatui-btn-outline chatui-btn-sm" @click="emit('openPathPicker', session.workPath || '')">…</button>
+          style="max-width:180px"
+        />
+        <SButton type="outline" size="sm" @click="emit('openPathPicker', session.workPath || '')">…</SButton>
         <button v-if="session.workPath" class="chatui-toolbar-clear" @click="emit('updateConfig', 'workPath', undefined)">×</button>
       </div>
 
@@ -75,7 +89,7 @@ const wikiOptions   = computed(() => toOptions(props.settings.wikis))
 
       <div class="chatui-toolbar-group">
         <label class="chatui-toolbar-label">{{ L.memory }}</label>
-        <MultiSelect
+        <SMultiSelect
           :model-value="session.memories || []"
           :options="memoryOptions"
           compact
@@ -88,7 +102,7 @@ const wikiOptions   = computed(() => toOptions(props.settings.wikis))
 
       <div class="chatui-toolbar-group">
         <label class="chatui-toolbar-label">{{ L.wiki }}</label>
-        <MultiSelect
+        <SMultiSelect
           :model-value="session.wikis || []"
           :options="wikiOptions"
           compact
@@ -98,13 +112,11 @@ const wikiOptions   = computed(() => toOptions(props.settings.wikis))
       </div>
 
       <div class="chatui-toolbar-group" style="margin-left:auto">
-        <label class="chatui-toolbar-toggle">
-          <input type="checkbox"
-            :checked="!!session.autoApproveAllTools"
-            @change="emit('updateConfig', 'autoApproveAllTools', ($event.target as HTMLInputElement).checked)"
-          />
-          <span>{{ L.autoApproveAll }}</span>
-        </label>
+        <SCheckbox
+          :model-value="!!session.autoApproveAllTools"
+          :label="L.autoApproveAll"
+          @update:model-value="(v) => emit('updateConfig', 'autoApproveAllTools', v)"
+        />
       </div>
     </template>
     <span v-else class="chatui-toolbar-placeholder">{{ L.selectOrCreate }}</span>
@@ -123,19 +135,6 @@ const wikiOptions   = computed(() => toOptions(props.settings.wikis))
   font-size: 11px; font-weight: 600; color: var(--chatui-fg-secondary);
   text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap;
 }
-.chatui-toolbar-select {
-  font-size: 12px; padding: 3px 6px;
-  border: 1px solid var(--chatui-border); border-radius: 4px;
-  background: var(--chatui-bg-surface); color: var(--chatui-fg);
-  outline: none; font-family: inherit;
-}
-.chatui-toolbar-select:focus { border-color: var(--chatui-border-focus); }
-.chatui-toolbar-input {
-  font-size: 12px; padding: 2px 6px;
-  border: 1px solid var(--chatui-border); border-radius: 4px;
-  background: var(--chatui-bg-hover); color: var(--chatui-fg-secondary);
-  font-family: monospace; overflow: hidden; text-overflow: ellipsis; cursor: default;
-}
 .chatui-toolbar-sep {
   width: 1px; height: 18px; background: var(--chatui-border); flex-shrink: 0;
 }
@@ -144,19 +143,7 @@ const wikiOptions   = computed(() => toOptions(props.settings.wikis))
   color: var(--chatui-btn-danger); font-size: 14px;
   padding: 0 4px; line-height: 1;
 }
-.chatui-toolbar-toggle {
-  display: flex; align-items: center; gap: 4px;
-  font-size: 12px; cursor: pointer; color: var(--chatui-fg); white-space: nowrap;
-}
-.chatui-toolbar-toggle input { cursor: pointer; }
 .chatui-toolbar-placeholder { font-size: 13px; color: var(--chatui-fg-secondary); }
-.chatui-btn-outline {
-  padding: 4px 10px; border: 1px solid var(--chatui-border);
-  border-radius: 6px; background: transparent; cursor: pointer;
-  font-size: 12px; color: var(--chatui-fg);
-}
-.chatui-btn-outline:hover { background: var(--chatui-bg-hover); }
-.chatui-btn-sm { padding: 4px 10px; font-size: 12px; }
 
 .chatui-config-toolbar.chatui-compact { gap: 6px; padding: 6px 8px; }
 .chatui-compact .chatui-toolbar-sep { display: none; }
