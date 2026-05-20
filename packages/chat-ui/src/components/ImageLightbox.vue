@@ -20,7 +20,9 @@ function download() {
   if (!src.value) return
   const a = document.createElement('a')
   a.href = src.value
-  const ext = src.value.startsWith('data:image/png') ? 'png' : 'jpg'
+  // Try to parse mime from data URLs (e.g. `data:image/webp;base64,…`); fallback to `jpg`.
+  const mimeMatch = src.value.match(/^data:image\/([a-zA-Z0-9.+-]+)[;,]/)
+  const ext = mimeMatch ? mimeMatch[1].toLowerCase() : 'jpg'
   a.download = `image_${Date.now()}.${ext}`
   a.click()
 }

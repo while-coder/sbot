@@ -2,7 +2,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import type {
   ChatLabels, SessionItem, AppSettings,
-  StoredMessage, UsageInfo, ContentPart, Attachment,
+  StoredMessage, UsageInfo, UsageData, ContentPart, Attachment,
   ToolCallEvent, ToolApprovalPayload,
   AskEvent, AskAnswerPayload,
   DisplayContent, ChatEvent,
@@ -31,66 +31,54 @@ const L = computed(() => resolveLabels(props.labels))
 
 // ── Core state ──
 
-const sessions = ref<SessionItem[]>([])
-const activeSessionId = ref<string | null>(null)
-const settings = ref<AppSettings>({ agents: {}, savers: {}, memories: {}, wikis: {} })
+const sessions          = ref<SessionItem[]>([])
+const activeSessionId   = ref<string | null>(null)
+const settings          = ref<AppSettings>({ agents: {}, savers: {}, memories: {}, wikis: {} })
 
-const messages = ref<StoredMessage[]>([])
-const isStreaming = ref(false)
-const streamingContent = ref<string | any[]>('')
-const queuedMessages = ref<DisplayContent[]>([])
+const messages          = ref<StoredMessage[]>([])
+const isStreaming       = ref(false)
+const streamingContent  = ref<DisplayContent>('')
+const queuedMessages    = ref<DisplayContent[]>([])
 
-const pendingToolCall = ref<ToolCallEvent | null>(null)
-const pendingAsk = ref<AskEvent | null>(null)
-const usage = ref<UsageInfo | null>(null)
+const pendingToolCall   = ref<ToolCallEvent | null>(null)
+const pendingAsk        = ref<AskEvent | null>(null)
+const usage             = ref<UsageInfo | null>(null)
 
+/** Monotonic counter to discard stale async loads when switching sessions quickly. */
 let loadGeneration = 0
 
 // ── Refs ──
 
-const chatAreaRef = ref<InstanceType<typeof ChatArea>>()
+const chatAreaRef   = ref<InstanceType<typeof ChatArea>>()
 const pathPickerRef = ref<InstanceType<typeof PathPickerModal>>()
-const rootEl = ref<HTMLElement | null>(null)
-const isCompact = useCompactProvider(rootEl)
-const sidebarOpen = ref(false)
+const rootEl        = ref<HTMLElement | null>(null)
+const isCompact     = useCompactProvider(rootEl)
+const sidebarOpen   = ref(false)
 
 // ── Derived ──
 
-const activeSession = computed<SessionItem | null>(() => {
-  if (!activeSessionId.value) return null
-  return sessions.value.find(s => s.id === activeSessionId.value) ?? null
-})
+const activeSession = computed<SessionItem | null>(
+  () => sessions.value.find(s => s.id === activeSessionId.value) ?? null,
+)
 
 const hasSaver = computed(() => activeSession.value != null)
 
-const thinksUrlPrefix = computed(() => {
-  if (!activeSessionId.value) return null
-  return props.transport.getThinksUrlPrefix(activeSessionId.value)
+const thinksUrlPrefix = computed(() =>
+  activeSessionId.value ? props.transport.getThinksUrlPrefix(activeSessionId.value) : null,
+)
+
+const contextWindow = computed<number | undefined>(() => {
+  const agentId = activeSession.value?.agent
+  const modelId = agentId ? settings.value.agents?.[agentId]?.model : undefined
+  return modelId ? settings.value.models?.[modelId]?.contextWindow : undefined
 })
 
-const contextWindow = computed(() => {
-  const s = activeSession.value
-  if (!s?.agent) return undefined
-  const agentEntry = settings.value.agents?.[s.agent]
-  const modelId = (agentEntry as any)?.model as string | undefined
-  if (!modelId) return undefined
-  const mc = (settings.value as any).models?.[modelId]
-  return mc?.contextWindow as number | undefined
-})
-
-// ── Countdown timers ──
-
-let denyTimer: ReturnType<typeof setInterval> | null = null
-let askTimer: ReturnType<typeof setInterval> | null = null
-
-function stopDenyTimer() { if (denyTimer) { clearInterval(denyTimer); denyTimer = null } }
-function stopAskTimer() { if (askTimer) { clearInterval(askTimer); askTimer = null } }
+const fetchThinks = computed(() => props.transport.fetchThinks?.bind(props.transport))
 
 // ── Event handler ──
 
 function handleEvent(evt: ChatEvent) {
   if ('sessionId' in evt && evt.sessionId !== activeSessionId.value) return
-  const d = (evt as any).data
   switch (evt.type) {
     case ChatEventType.ConnectionStatus:
       if (!evt.online) resetStreamState()
@@ -98,73 +86,79 @@ function handleEvent(evt: ChatEvent) {
     case ChatEventType.Human:
       isStreaming.value = true
       if (queuedMessages.value.length > 0) queuedMessages.value.shift()
-      messages.value.push({ message: { role: MessageRole.Human, content: d.content }, createdAt: Date.now() / 1000 })
+      messages.value.push({ message: { role: MessageRole.Human, content: evt.data.content }, createdAt: Date.now() / 1000 })
       nextTick(() => chatAreaRef.value?.scrollToBottom(true))
       break
     case ChatEventType.Stream:
-      streamingContent.value = d.content
+      streamingContent.value = evt.data.content
       break
     case ChatEventType.Message: {
-      const msg: StoredMessage = { message: d.message, createdAt: d.createdAt ?? Date.now() / 1000 }
-      if (d.thinkId) msg.thinkId = d.thinkId
+      const { message, createdAt, thinkId } = evt.data
+      const msg: StoredMessage = { message, createdAt: createdAt ?? Date.now() / 1000 }
+      if (thinkId) msg.thinkId = thinkId
       messages.value.push(msg)
       streamingContent.value = ''
       break
     }
     case ChatEventType.ToolCall:
-      pendingToolCall.value = d as ToolCallEvent
+      pendingToolCall.value = evt.data
       break
     case ChatEventType.Ask:
-      pendingAsk.value = d as AskEvent
+      pendingAsk.value = evt.data
       break
     case ChatEventType.Queue:
-      if (queuedMessages.value.length === 0 && d.pendingMessages?.length > 0) {
-        queuedMessages.value = filterPendingCommands(d.pendingMessages)
+      // Only adopt the server's view when the client doesn't already have a local queue.
+      if (queuedMessages.value.length === 0 && evt.data.pendingMessages?.length) {
+        queuedMessages.value = filterPendingCommands(evt.data.pendingMessages)
       }
       break
     case ChatEventType.Done:
-      if (d?.pendingMessages) queuedMessages.value = filterPendingCommands(d.pendingMessages)
-      stopDenyTimer()
-      stopAskTimer()
+      if (evt.data?.pendingMessages) {
+        queuedMessages.value = filterPendingCommands(evt.data.pendingMessages)
+      }
       pendingToolCall.value = null
       pendingAsk.value = null
       if (queuedMessages.value.length === 0) isStreaming.value = false
       loadUsage()
       break
     case ChatEventType.Error:
-      isStreaming.value = false
-      stopDenyTimer()
-      stopAskTimer()
-      pendingToolCall.value = null
-      pendingAsk.value = null
-      queuedMessages.value = []
+      resetStreamState()
       break
     case ChatEventType.Usage:
-      if (usage.value) {
-        usage.value.lastInputTokens = d.inputTokens
-        usage.value.lastOutputTokens = d.outputTokens
-        usage.value.lastTotalTokens = d.totalTokens
-        usage.value.inputTokens += d.inputTokens
-        usage.value.outputTokens += d.outputTokens
-        usage.value.totalTokens += d.totalTokens
-        usage.value.cacheCreationTokens = (usage.value.cacheCreationTokens ?? 0) + (d.cacheCreationTokens ?? 0)
-        usage.value.cacheReadTokens = (usage.value.cacheReadTokens ?? 0) + (d.cacheReadTokens ?? 0)
-      } else {
-        usage.value = {
-          inputTokens: d.inputTokens, outputTokens: d.outputTokens, totalTokens: d.totalTokens,
-          lastInputTokens: d.inputTokens, lastOutputTokens: d.outputTokens, lastTotalTokens: d.totalTokens,
-          cacheCreationTokens: d.cacheCreationTokens ?? 0, cacheReadTokens: d.cacheReadTokens ?? 0,
-        }
-      }
+      usage.value = mergeUsage(usage.value, evt.data)
       break
+  }
+}
+
+function mergeUsage(prev: UsageInfo | null, d: UsageData): UsageInfo {
+  if (!prev) {
+    return {
+      inputTokens:  d.inputTokens,
+      outputTokens: d.outputTokens,
+      totalTokens:  d.totalTokens,
+      lastInputTokens:  d.inputTokens,
+      lastOutputTokens: d.outputTokens,
+      lastTotalTokens:  d.totalTokens,
+      cacheCreationTokens: d.cacheCreationTokens ?? 0,
+      cacheReadTokens:     d.cacheReadTokens ?? 0,
+    }
+  }
+  return {
+    ...prev,
+    lastInputTokens:     d.inputTokens,
+    lastOutputTokens:    d.outputTokens,
+    lastTotalTokens:     d.totalTokens,
+    inputTokens:         prev.inputTokens  + d.inputTokens,
+    outputTokens:        prev.outputTokens + d.outputTokens,
+    totalTokens:         prev.totalTokens  + d.totalTokens,
+    cacheCreationTokens: (prev.cacheCreationTokens ?? 0) + (d.cacheCreationTokens ?? 0),
+    cacheReadTokens:     (prev.cacheReadTokens     ?? 0) + (d.cacheReadTokens     ?? 0),
   }
 }
 
 function resetStreamState() {
   isStreaming.value = false
   streamingContent.value = ''
-  stopDenyTimer()
-  stopAskTimer()
   pendingToolCall.value = null
   pendingAsk.value = null
   queuedMessages.value = []
@@ -172,9 +166,8 @@ function resetStreamState() {
 
 // ── Session actions ──
 
-async function selectSession(id: string) {
-  if (activeSessionId.value === id) return
-  activeSessionId.value = id
+function selectSession(id: string) {
+  if (activeSessionId.value !== id) activeSessionId.value = id
 }
 
 watch(activeSessionId, async (id) => {
@@ -186,13 +179,12 @@ watch(activeSessionId, async (id) => {
   await Promise.all([loadHistory(gen), loadUsage(gen), restoreSessionStatus(gen)])
 })
 
-async function loadHistory(gen?: number) {
+async function loadHistory(gen = ++loadGeneration) {
   const id = activeSessionId.value
   if (!id) return
-  const g = gen ?? ++loadGeneration
   try {
     const data = await props.transport.getHistory(id)
-    if (g !== loadGeneration) return
+    if (gen !== loadGeneration) return
     messages.value = data
     await nextTick()
     chatAreaRef.value?.scrollToBottom(true)
@@ -201,24 +193,24 @@ async function loadHistory(gen?: number) {
   }
 }
 
-async function loadUsage(gen?: number) {
+async function loadUsage(gen = ++loadGeneration) {
   const id = activeSessionId.value
   if (!id) { usage.value = null; return }
-  const g = gen ?? ++loadGeneration
   try {
     const data = await props.transport.getUsage(id)
-    if (g !== loadGeneration) return
+    if (gen !== loadGeneration) return
     usage.value = data
-  } catch { if (gen === loadGeneration) usage.value = null }
+  } catch {
+    if (gen === loadGeneration) usage.value = null
+  }
 }
 
-async function restoreSessionStatus(gen?: number) {
+async function restoreSessionStatus(gen = ++loadGeneration) {
   const id = activeSessionId.value
   if (!id) return
-  const g = gen ?? ++loadGeneration
   try {
     const status = await props.transport.getSessionStatus(id)
-    if (g !== loadGeneration) return
+    if (gen !== loadGeneration) return
     if (!status) { isStreaming.value = false; return }
     isStreaming.value = true
     queuedMessages.value = status.pendingMessages ?? []
@@ -229,9 +221,7 @@ async function restoreSessionStatus(gen?: number) {
         args: status.pendingApproval.tool.args,
       }
     }
-    if (status.pendingAsk) {
-      pendingAsk.value = status.pendingAsk
-    }
+    if (status.pendingAsk) pendingAsk.value = status.pendingAsk
   } catch (e) {
     console.error('[ChatView] restoreSessionStatus', e)
   }
@@ -242,7 +232,7 @@ async function onDeleteSession(id: string) {
     await props.transport.deleteSession(id)
     sessions.value = sessions.value.filter(s => s.id !== id)
     if (activeSessionId.value === id) {
-      activeSessionId.value = sessions.value.length > 0 ? sessions.value[0].id : null
+      activeSessionId.value = sessions.value[0]?.id ?? null
     }
   } catch (e) {
     console.error('[ChatView] deleteSession', e)
@@ -259,27 +249,30 @@ async function onRenameSession(id: string, name: string) {
   }
 }
 
+function defaultSessionName(d = new Date()): string {
+  const pad = (n: number) => n.toString().padStart(2, '0')
+  return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 async function createNewSession() {
   try {
-    const d = new Date()
-    const pad = (n: number) => n.toString().padStart(2, '0')
-    const name = `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
-    const res = await props.transport.createSession({ name })
-    const list = await props.transport.listSessions()
-    sessions.value = list
+    const res = await props.transport.createSession({ name: defaultSessionName() })
+    sessions.value = await props.transport.listSessions()
     activeSessionId.value = res.id
-  } catch {}
+  } catch (e) {
+    console.error('[ChatView] createSession', e)
+  }
 }
 
 // ── Config updates ──
 
-async function onUpdateConfig(field: string, value: any) {
+async function onUpdateConfig(field: string, value: unknown) {
   const id = activeSessionId.value
   if (!id) return
   try {
-    await props.transport.updateSession(id, { [field]: value })
-    const s = sessions.value.find(s => s.id === id)
-    if (s) (s as any)[field] = value
+    await props.transport.updateSession(id, { [field]: value } as Partial<SessionItem>)
+    const s = sessions.value.find(s => s.id === id) as Record<string, unknown> | undefined
+    if (s) s[field] = value
   } catch (e) {
     console.error('[ChatView] updateConfig', e)
   }
@@ -295,24 +288,31 @@ function onPathConfirmed(path: string) {
 
 // ── Chat actions ──
 
-function isCommandText(text: string): boolean {
-  return text.trimStart().startsWith('/')
-}
+const isCommandText = (text: string) => text.trimStart().startsWith('/')
 
 function filterPendingCommands(pending: DisplayContent[]): DisplayContent[] {
   return pending.filter(m => !(typeof m === 'string' && isCommandText(m)))
+}
+
+function partsToDisplayText(parts: ContentPart[]): string {
+  const text = parts
+    .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+    .map(p => p.text)
+    .filter(Boolean)
+    .join('\n')
+  return text || '[attachment]'
 }
 
 function onSend(parts: ContentPart[], attachments: Attachment[]) {
   const id = activeSessionId.value
   if (!id || !hasSaver.value) return
   if (parts.length === 0 && attachments.length === 0) return
-  const textContent = parts.map(p => p.type === 'text' ? (p as any).text : '').filter(Boolean).join('\n') || '[attachment]'
-  if (typeof textContent === 'string' && isCommandText(textContent)) {
-    messages.value.push({ message: { role: MessageRole.Human, content: textContent }, createdAt: Date.now() / 1000 })
+  const display = partsToDisplayText(parts)
+  if (isCommandText(display)) {
+    messages.value.push({ message: { role: MessageRole.Human, content: display }, createdAt: Date.now() / 1000 })
     nextTick(() => chatAreaRef.value?.scrollToBottom(true))
   } else {
-    queuedMessages.value.push(textContent)
+    queuedMessages.value.push(display)
   }
   isStreaming.value = true
   props.transport.sendMessage(id, parts, attachments.length > 0 ? attachments : undefined)
@@ -321,7 +321,6 @@ function onSend(parts: ContentPart[], attachments: Attachment[]) {
 function onApprove(payload: ToolApprovalPayload) {
   const id = activeSessionId.value
   if (!id) return
-  stopDenyTimer()
   pendingToolCall.value = null
   props.transport.approveToolCall(id, payload)
 }
@@ -329,7 +328,6 @@ function onApprove(payload: ToolApprovalPayload) {
 function onAnswer(payload: AskAnswerPayload) {
   const id = activeSessionId.value
   if (!id) return
-  stopAskTimer()
   pendingAsk.value = null
   props.transport.answerAsk(id, payload)
 }
@@ -371,9 +369,7 @@ onMounted(async () => {
     ])
     sessions.value = s
     settings.value = cfg
-    if (s.length > 0 && !activeSessionId.value) {
-      activeSessionId.value = s[0].id
-    }
+    if (s.length > 0 && !activeSessionId.value) activeSessionId.value = s[0].id
   } catch (e) {
     console.error('[ChatView] init', e)
   }
@@ -382,11 +378,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   props.transport.offEvent(handleEvent)
   props.transport.disconnect()
-  stopDenyTimer()
-  stopAskTimer()
 })
-
-const fetchThinks = computed(() => props.transport.fetchThinks?.bind(props.transport))
 </script>
 
 <template>

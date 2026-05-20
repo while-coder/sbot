@@ -28,10 +28,14 @@ function itemLabel(p: string): string {
   return trimmed.split(/[/\\]/).filter(Boolean).pop() || p
 }
 
-async function navigatePicker(dir: string): Promise<boolean> {
+function resetCreate() {
   pickerCreating.value = false
   pickerNewName.value  = ''
-  pickerLoading.value  = true
+}
+
+async function navigatePicker(dir: string): Promise<boolean> {
+  resetCreate()
+  pickerLoading.value = true
   try {
     const res = await props.transport.listDir(dir || undefined)
     pickerPath.value   = res.path
@@ -51,10 +55,7 @@ function startCreate() {
   nextTick(() => newNameInput.value?.focus())
 }
 
-function cancelCreate() {
-  pickerCreating.value = false
-  pickerNewName.value  = ''
-}
+const cancelCreate = resetCreate
 
 async function confirmCreate() {
   const name = pickerNewName.value.trim()

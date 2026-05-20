@@ -7,7 +7,7 @@ import type {
 } from '../types'
 import { resolveLabels } from '../labels'
 import { useCompact } from '../composables/useCompact'
-const isCompact = useCompact()
+import { useAttachments } from '../composables/useAttachments'
 import MessageList from './MessageList.vue'
 import RichInput from './RichInput.vue'
 import ToolApprovalBar from './ToolApprovalBar.vue'
@@ -16,7 +16,7 @@ import AskForm from './AskForm.vue'
 const props = withDefaults(defineProps<{
   messages: StoredMessage[]
   isStreaming: boolean
-  streamingContent: string | any[]
+  streamingContent: DisplayContent
   queuedMessages?: DisplayContent[]
   pendingToolCall: ToolCallEvent | null
   pendingAsk: AskEvent | null
@@ -38,20 +38,21 @@ const emit = defineEmits<{
 }>()
 
 const L = computed(() => resolveLabels(props.labels))
+const isCompact = useCompact()
 
 const richInputRef = ref<InstanceType<typeof RichInput>>()
 const messagesEl = ref<HTMLElement | null>(null)
-const attachments = ref<Attachment[]>([])
 const fileInputEl = ref<HTMLInputElement | null>(null)
 const isDragging = ref(false)
 let dragLeaveTimer: ReturnType<typeof setTimeout> | null = null
 
+const { attachments, add: addFiles, remove: removeAttachment, drain: drainAttachments, isImageMime } = useAttachments()
+
 // ── Scrolling ──
 
 function isAtBottom(): boolean {
-  if (!messagesEl.value) return true
   const el = messagesEl.value
-  return el.scrollHeight - el.scrollTop - el.clientHeight < 60
+  return !el || el.scrollHeight - el.scrollTop - el.clientHeight < 60
 }
 
 function scrollToBottom(force = false) {
@@ -61,63 +62,20 @@ function scrollToBottom(force = false) {
 }
 
 watch(() => props.messages.length, async () => {
-  await nextTick()
-  scrollToBottom()
+  await nextTick(); scrollToBottom()
 })
-
 watch(() => props.streamingContent, async () => {
-  await nextTick()
-  scrollToBottom(true)
+  await nextTick(); scrollToBottom(true)
 })
 
 // ── Attachments ──
 
-function pickFile() {
-  fileInputEl.value?.click()
-}
-
-function isTextMime(type: string) {
-  return type.startsWith('text/') ||
-    type === 'application/json' ||
-    type === 'application/xml' ||
-    type === 'application/javascript' ||
-    type === 'application/xhtml+xml'
-}
-
-function readFile(file: File): Promise<Attachment> {
-  return new Promise((resolve) => {
-    const reader = new FileReader()
-    if (isTextMime(file.type)) {
-      reader.onload = () => resolve({ name: file.name, type: file.type, content: reader.result as string })
-      reader.readAsText(file)
-    } else {
-      reader.onload = () => resolve({ name: file.name, type: file.type, dataUrl: reader.result as string })
-      reader.readAsDataURL(file)
-    }
-  })
-}
-
-async function addFiles(files: File[]) {
-  for (const file of files) {
-    if (attachments.value.find(a => a.name === file.name)) continue
-    const att = await readFile(file)
-    attachments.value.push(att)
-  }
-}
+const pickFile = () => fileInputEl.value?.click()
 
 async function onFileChange(e: Event) {
-  const files = (e.target as HTMLInputElement).files
-  if (!files) return
-  await addFiles(Array.from(files))
-  ;(e.target as HTMLInputElement).value = ''
-}
-
-function removeAttachment(idx: number) {
-  attachments.value.splice(idx, 1)
-}
-
-function isImage(att: Attachment) {
-  return att.type.startsWith('image/')
+  const input = e.target as HTMLInputElement
+  if (input.files) await addFiles(Array.from(input.files))
+  input.value = ''
 }
 
 function onInputBarDragOver(e: DragEvent) {
@@ -136,23 +94,22 @@ function onInputBarDrop(e: DragEvent) {
   isDragging.value = false
   e.preventDefault()
   if (!e.dataTransfer?.files?.length) return
-  const nonImageFiles = Array.from(e.dataTransfer.files).filter(f => !f.type.startsWith('image/'))
-  if (nonImageFiles.length > 0) addFiles(nonImageFiles)
-}
-
-function onFilesFromEditor(files: File[]) {
-  addFiles(files)
+  // Images dropped on the input bar are handled by the editor's own drop handler; only non-images
+  // are surfaced as attachment chips here.
+  const nonImages = Array.from(e.dataTransfer.files).filter(f => !isImageMime(f.type))
+  if (nonImages.length > 0) addFiles(nonImages)
 }
 
 // ── Send ──
 
 function send() {
-  if (!richInputRef.value) return
-  const { parts } = richInputRef.value.getContent()
-  const fileAtts = attachments.value.splice(0)
-  if (parts.length === 0 && fileAtts.length === 0) return
-  richInputRef.value.clear()
-  emit('send', parts, fileAtts)
+  const input = richInputRef.value
+  if (!input) return
+  const { parts } = input.getContent()
+  const files = drainAttachments()
+  if (parts.length === 0 && files.length === 0) return
+  input.clear()
+  emit('send', parts, files)
 }
 
 onBeforeUnmount(() => {
@@ -211,7 +168,7 @@ defineExpose({ scrollToBottom })
       <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0">
         <div v-if="attachments.length > 0" class="chatui-attachments">
           <div v-for="(att, i) in attachments" :key="att.name" class="chatui-attachment-chip">
-            <img v-if="isImage(att) && att.dataUrl" :src="att.dataUrl" class="chatui-attachment-thumb" />
+            <img v-if="isImageMime(att.type) && att.dataUrl" :src="att.dataUrl" class="chatui-attachment-thumb" />
             <span v-else class="chatui-attachment-icon">📄</span>
             <span class="chatui-attachment-name">{{ att.name }}</span>
             <button class="chatui-attachment-remove" @click="removeAttachment(i)">×</button>
@@ -221,7 +178,7 @@ defineExpose({ scrollToBottom })
           ref="richInputRef"
           :placeholder="L.inputPlaceholder"
           @submit="send"
-          @files="onFilesFromEditor"
+          @files="addFiles"
         />
       </div>
       <div class="chatui-input-actions">

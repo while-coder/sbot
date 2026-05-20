@@ -1,81 +1,105 @@
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import { ContentPartType } from './types'
-import type { DisplayPart } from './types'
+import type { DisplayPart, DisplayContent } from './types'
 
-export function getContentParts(content: string | any[] | undefined | null): DisplayPart[] {
+const pad2 = (n: number) => n.toString().padStart(2, '0')
+
+function dataUrl(mime: string | undefined, base64: string | undefined): string | null {
+  if (!mime || !base64) return null
+  return `data:${mime};base64,${base64}`
+}
+
+/** Convert a heterogeneous content blob into a uniform list of DisplayPart. */
+export function getContentParts(content: DisplayContent | null | undefined): DisplayPart[] {
   if (!content) return []
-  if (typeof content === 'string') return [{ type: ContentPartType.Text, text: content }]
+  if (typeof content === 'string') {
+    return [{ type: ContentPartType.Text, text: content }]
+  }
   const parts: DisplayPart[] = []
   for (const c of content) {
     if (typeof c === 'string') {
       parts.push({ type: ContentPartType.Text, text: c })
-    } else if (c?.type === 'text' && c.text) {
-      parts.push({ type: ContentPartType.Text, text: c.text })
-    } else if (c?.type === 'image_url' && c.image_url?.url) {
-      parts.push({ type: ContentPartType.Image, url: c.image_url.url })
-    } else if (c?.type === 'inlineData' && c.inlineData?.data) {
-      parts.push({ type: ContentPartType.Image, url: `data:${c.inlineData.mimeType};base64,${c.inlineData.data}` })
-    } else if (c?.type === 'image' && c.dataUrl) {
-      parts.push({ type: ContentPartType.Image, url: c.dataUrl })
-    } else if (c?.type === 'image' && c.data && c.mimeType) {
-      parts.push({ type: ContentPartType.Image, url: `data:${c.mimeType};base64,${c.data}` })
-    } else if (c?.type === 'audio' && c.data && c.mimeType) {
-      parts.push({ type: ContentPartType.Audio, url: `data:${c.mimeType};base64,${c.data}` })
-    } else if (c?.type === 'document' && c.data && c.mimeType) {
-      parts.push({ type: ContentPartType.Image, url: `data:${c.mimeType};base64,${c.data}` })
+      continue
+    }
+    if (!c || typeof c !== 'object') continue
+    switch (c.type) {
+      case 'text':
+        if (c.text) parts.push({ type: ContentPartType.Text, text: c.text })
+        break
+      case 'image_url':
+        if (c.image_url?.url) parts.push({ type: ContentPartType.Image, url: c.image_url.url })
+        break
+      case 'inlineData': {
+        const url = dataUrl(c.inlineData?.mimeType, c.inlineData?.data)
+        if (url) parts.push({ type: ContentPartType.Image, url })
+        break
+      }
+      case 'image': {
+        const url = c.dataUrl ?? dataUrl(c.mimeType, c.data)
+        if (url) parts.push({ type: ContentPartType.Image, url })
+        break
+      }
+      case 'audio': {
+        const url = dataUrl(c.mimeType, c.data)
+        if (url) parts.push({ type: ContentPartType.Audio, url })
+        break
+      }
+      // PDF / generic binary: render the embedded image preview when possible.
+      case 'document': {
+        const url = dataUrl(c.mimeType, c.data)
+        if (url) parts.push({ type: ContentPartType.Image, url })
+        break
+      }
     }
   }
   return parts
 }
 
-export function renderMd(content: string | any[] | undefined | null): string {
+/** Concatenate all textual parts and render to sanitized HTML. */
+export function renderMd(content: DisplayContent | null | undefined): string {
   if (!content) return ''
-  let html: string
-  if (Array.isArray(content)) {
-    html = marked.parse(
-      content
-        .filter((c: any) => typeof c === 'string' || c?.type === 'text')
-        .map((c: any) => (typeof c === 'string' ? c : c.text ?? ''))
-        .join('\n')
-    ) as string
-  } else {
-    html = marked.parse(content) as string
-  }
+  const text = typeof content === 'string'
+    ? content
+    : content
+      .map((c) => (typeof c === 'string' ? c : c?.type === 'text' ? (c.text ?? '') : ''))
+      .filter(Boolean)
+      .join('\n')
+  const html = marked.parse(text) as string
   return DOMPurify.sanitize(html)
 }
 
+/** Format a unix-seconds timestamp as `HH:mm` (today), `MM/DD HH:mm` (this year), or `YYYY/MM/DD HH:mm`. */
 export function fmtTs(ts?: number): string {
   if (!ts) return ''
-  try {
-    const d = new Date(ts * 1000)
-    const now = new Date()
-    const pad = (n: number) => n.toString().padStart(2, '0')
-    const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`
-    if (d.toDateString() === now.toDateString()) return time
-    if (d.getFullYear() === now.getFullYear()) return `${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${time}`
-    return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${time}`
-  } catch { return '' }
+  const d = new Date(ts * 1000)
+  const now = new Date()
+  const time = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+  if (d.toDateString() === now.toDateString()) return time
+  if (d.getFullYear() === now.getFullYear()) {
+    return `${pad2(d.getMonth() + 1)}/${pad2(d.getDate())} ${time}`
+  }
+  return `${d.getFullYear()}/${pad2(d.getMonth() + 1)}/${pad2(d.getDate())} ${time}`
 }
 
+/** Format a unix-seconds timestamp as a date separator label. */
 export function fmtDateSep(ts: number | undefined, todayLabel: string, yesterdayLabel: string): string {
   if (!ts) return ''
-  try {
-    const d = new Date(ts * 1000)
-    const now = new Date()
-    const pad = (n: number) => n.toString().padStart(2, '0')
-    if (d.toDateString() === now.toDateString()) return todayLabel
-    const yesterday = new Date(now)
-    yesterday.setDate(now.getDate() - 1)
-    if (d.toDateString() === yesterday.toDateString()) return yesterdayLabel
-    if (d.getFullYear() === now.getFullYear())
-      return `${pad(d.getMonth() + 1)}/${pad(d.getDate())}`
-    return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())}`
-  } catch { return '' }
+  const d = new Date(ts * 1000)
+  const now = new Date()
+  if (d.toDateString() === now.toDateString()) return todayLabel
+  const yesterday = new Date(now)
+  yesterday.setDate(now.getDate() - 1)
+  if (d.toDateString() === yesterday.toDateString()) return yesterdayLabel
+  if (d.getFullYear() === now.getFullYear()) {
+    return `${pad2(d.getMonth() + 1)}/${pad2(d.getDate())}`
+  }
+  return `${d.getFullYear()}/${pad2(d.getMonth() + 1)}/${pad2(d.getDate())}`
 }
 
+/** Toggle the `.expanded` state on a tool-call header and show/hide the sibling detail panel. */
 export function toggleToolCall(el: HTMLElement): void {
   el.classList.toggle('expanded')
-  const detail = el.nextElementSibling as HTMLElement
-  if (detail) detail.classList.toggle('show')
+  const detail = el.nextElementSibling
+  detail?.classList.toggle('show')
 }

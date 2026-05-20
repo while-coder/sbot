@@ -20,18 +20,16 @@ const emit = defineEmits<{
 
 const L = computed(() => resolveLabels(props.labels))
 
+function toOptions<T extends { name?: string }>(map: Record<string, T> | undefined) {
+  return Object.entries(map || {}).map(([id, v]) => ({ id, label: v.name || id }))
+}
+
 const agentOptions = computed(() =>
   Object.entries(props.settings.agents || {}).map(([id, a]) => ({ id, label: a.name || id, type: a.type || '' }))
 )
-const saverOptions = computed(() =>
-  Object.entries(props.settings.savers || {}).map(([id, s]) => ({ id, label: s.name || id }))
-)
-const memoryOptions = computed(() =>
-  Object.entries(props.settings.memories || {}).map(([id, m]) => ({ id, label: m.name || id }))
-)
-const wikiOptions = computed(() =>
-  Object.entries(props.settings.wikis || {}).map(([id, w]) => ({ id, label: w.name || id }))
-)
+const saverOptions  = computed(() => toOptions(props.settings.savers))
+const memoryOptions = computed(() => toOptions(props.settings.memories))
+const wikiOptions   = computed(() => toOptions(props.settings.wikis))
 </script>
 
 <template>

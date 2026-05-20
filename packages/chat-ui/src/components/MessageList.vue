@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { MessageRole, ContentPartType } from '../types'
-import type { StoredMessage, ToolCall, ChatLabels } from '../types'
-import { getContentParts, renderMd, fmtTs, fmtDateSep, toggleToolCall } from '../messageRender'
+import { MessageRole } from '../types'
+import type { StoredMessage, ToolCall, ChatLabels, DisplayContent } from '../types'
+import { fmtTs, fmtDateSep, toggleToolCall } from '../messageRender'
 import { inlineArgs, resultPreview } from '../toolCallFormat'
 import { resolveLabels, tpl } from '../labels'
+import ContentParts from './_ContentParts.vue'
 import ThinkDrawer from './ThinkDrawer.vue'
 import ImageLightbox from './ImageLightbox.vue'
 
@@ -13,8 +14,8 @@ const props = withDefaults(defineProps<{
   thinksUrlPrefix?: string | null
   showDateSeparators?: boolean
   isStreaming?: boolean
-  streamingContent?: string | any[]
-  queuedMessages?: (string | any[])[]
+  streamingContent?: DisplayContent
+  queuedMessages?: DisplayContent[]
   labels?: ChatLabels
   fetchFn?: (url: string) => Promise<any>
   onThinkClick?: (thinkId: string) => void
@@ -28,48 +29,48 @@ const props = withDefaults(defineProps<{
 
 const L = computed(() => resolveLabels(props.labels))
 
-// ── Date separators ──
+function sameDay(a?: number, b?: number) {
+  if (!a || !b) return false
+  return new Date(a * 1000).toDateString() === new Date(b * 1000).toDateString()
+}
+
 function showDateSep(idx: number) {
   if (!props.showDateSeparators) return false
   const msg = props.messages[idx]
-  if (!msg.createdAt) return false
+  if (!msg?.createdAt) return false
   if (idx === 0) return true
-  const prev = props.messages[idx - 1]
-  if (!prev.createdAt) return false
-  return new Date(msg.createdAt * 1000).toDateString() !== new Date(prev.createdAt * 1000).toDateString()
+  return !sameDay(msg.createdAt, props.messages[idx - 1]?.createdAt)
 }
 
-// ── Image lightbox ──
 const lightboxRef = ref<InstanceType<typeof ImageLightbox>>()
-function openLightbox(src: string) {
-  lightboxRef.value?.open(src)
-}
+const openLightbox = (src: string) => lightboxRef.value?.open(src)
 
-// ── Think drawer ──
 const thinkDrawerRef = ref<InstanceType<typeof ThinkDrawer>>()
 function openThink(thinkId: string) {
-  if (props.onThinkClick) {
-    props.onThinkClick(thinkId)
-  } else {
-    thinkDrawerRef.value?.open(thinkId)
-  }
+  if (props.onThinkClick) props.onThinkClick(thinkId)
+  else thinkDrawerRef.value?.open(thinkId)
+}
+
+function findToolResult(toolCallId: string): StoredMessage | undefined {
+  return props.messages.find(m => m.message.role === MessageRole.Tool && m.message.tool_call_id === toolCallId)
+}
+
+/** True when the row should be skipped (tool results are rendered nested inside their AI parent). */
+function isEmbeddedTool(msg: StoredMessage): boolean {
+  return msg.message.role === MessageRole.Tool && !!msg.message.tool_call_id
 }
 </script>
 
 <template>
   <div class="chatui-messages">
-    <template v-if="messages.length === 0 && !isStreaming">
-      <div class="chatui-empty">{{ L.noHistory }}</div>
-    </template>
+    <div v-if="messages.length === 0 && !isStreaming" class="chatui-empty">{{ L.noHistory }}</div>
 
     <template v-for="(msg, idx) in messages" :key="idx">
-      <!-- Date separator -->
       <div v-if="showDateSep(idx)" class="chatui-date-sep">
         <span>{{ fmtDateSep(msg.createdAt, L.dateToday, L.dateYesterday) }}</span>
       </div>
 
-      <!-- Skip tool messages embedded in AI messages -->
-      <template v-if="!(msg.message.role === MessageRole.Tool && msg.message.tool_call_id)">
+      <template v-if="!isEmbeddedTool(msg)">
         <!-- Human message -->
         <div v-if="msg.message.role === MessageRole.Human" class="msg-row human">
           <div class="msg-bubble human">
@@ -80,15 +81,7 @@ function openThink(thinkId: string) {
                 <span>▸</span><span>{{ L.think }}</span>
               </div>
             </div>
-            <template v-for="(part, pIdx) in getContentParts(msg.message.content)" :key="pIdx">
-              <div v-if="part.type === ContentPartType.Text" class="md-content" v-html="renderMd(part.text)" />
-              <div v-else-if="part.type === ContentPartType.Image" class="inline-image">
-                <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
-              </div>
-              <div v-else-if="part.type === ContentPartType.Audio" class="inline-audio">
-                <audio controls :src="part.url" />
-              </div>
-            </template>
+            <ContentParts :content="msg.message.content" @open-image="openLightbox" />
           </div>
         </div>
 
@@ -102,49 +95,37 @@ function openThink(thinkId: string) {
                 <span>▸</span><span>{{ L.think }}</span>
               </div>
             </div>
-            <template v-for="(part, pIdx) in getContentParts(msg.message.content)" :key="pIdx">
-              <div v-if="part.type === ContentPartType.Text" class="md-content" v-html="renderMd(part.text)" />
-              <div v-else-if="part.type === ContentPartType.Image" class="inline-image">
-                <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
-              </div>
-              <div v-else-if="part.type === ContentPartType.Audio" class="inline-audio">
-                <audio controls :src="part.url" />
-              </div>
-            </template>
+            <ContentParts :content="msg.message.content" @open-image="openLightbox" />
           </div>
+
           <!-- Tool calls -->
-          <div v-if="msg.message.tool_calls && msg.message.tool_calls.length > 0" class="msg-tool-calls">
+          <div v-if="msg.message.tool_calls?.length" class="msg-tool-calls">
             <div class="msg-role has-think">
               {{ tpl(L.toolCalls, { count: msg.message.tool_calls.length }) }}
               <div v-if="msg.thinkId && thinksUrlPrefix && !msg.message.content" class="think-toggle" @click="openThink(msg.thinkId!)">
                 <span>▸</span><span>{{ L.think }}</span>
               </div>
             </div>
-            <div v-for="tc in msg.message.tool_calls" :key="(tc as ToolCall).id" class="tool-call-item">
+            <div v-for="tc in (msg.message.tool_calls as ToolCall[])" :key="tc.id" class="tool-call-item">
               <div class="tool-call-header" @click="toggleToolCall($event.currentTarget as HTMLElement)">
-                <span class="tool-call-name">{{ (tc as ToolCall).name }}</span>
-                <span v-if="inlineArgs(tc as ToolCall)" class="tool-call-inline-args">{{ inlineArgs(tc as ToolCall) }}</span>
-                <span v-if="resultPreview(messages, (tc as ToolCall).id)" class="tool-call-result-preview">↳ {{ resultPreview(messages, (tc as ToolCall).id) }}</span>
+                <span class="tool-call-name">{{ tc.name }}</span>
+                <span v-if="inlineArgs(tc)" class="tool-call-inline-args">{{ inlineArgs(tc) }}</span>
+                <span v-if="resultPreview(messages, tc.id)" class="tool-call-result-preview">↳ {{ resultPreview(messages, tc.id) }}</span>
               </div>
               <div class="tool-call-detail">
-                <div class="tool-call-args">{{ JSON.stringify((tc as ToolCall).args, null, 2) }}</div>
-                <template v-for="m2 in messages" :key="'r' + (m2.message.tool_call_id || '')">
-                  <div v-if="m2.message.role === MessageRole.Tool && m2.message.tool_call_id === (tc as ToolCall).id" class="tool-call-result">
+                <div class="tool-call-args">{{ JSON.stringify(tc.args, null, 2) }}</div>
+                <template v-if="findToolResult(tc.id) as StoredMessage | undefined">
+                  <div class="tool-call-result">
                     <div class="tool-call-result-top">
                       <div class="tool-call-result-label">{{ L.toolResult }}</div>
-                      <div v-if="m2.thinkId && thinksUrlPrefix" class="think-toggle" @click="openThink(m2.thinkId!)">
+                      <div v-if="findToolResult(tc.id)?.thinkId && thinksUrlPrefix"
+                        class="think-toggle" @click="openThink(findToolResult(tc.id)!.thinkId!)">
                         <span>▸</span><span>{{ L.think }}</span>
                       </div>
                     </div>
-                    <template v-for="(part, pIdx) in getContentParts(m2.message.content)" :key="'tr' + pIdx">
-                      <div v-if="part.type === ContentPartType.Text" class="md-content tool-result-content" v-html="renderMd(part.text)" />
-                      <div v-else-if="part.type === ContentPartType.Image" class="inline-image">
-                        <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
-                      </div>
-                      <div v-else-if="part.type === ContentPartType.Audio" class="inline-audio">
-                        <audio controls :src="part.url" />
-                      </div>
-                    </template>
+                    <ContentParts :content="findToolResult(tc.id)!.message.content"
+                      text-class="md-content tool-result-content"
+                      @open-image="openLightbox" />
                   </div>
                 </template>
               </div>
@@ -158,34 +139,18 @@ function openThink(thinkId: string) {
             <div class="msg-role-bar">
               <span class="msg-role">Tool{{ msg.message.name ? ` · ${msg.message.name}` : '' }}</span>
             </div>
-            <template v-for="(part, pIdx) in getContentParts(msg.message.content)" :key="pIdx">
-              <div v-if="part.type === ContentPartType.Text" class="md-content" v-html="renderMd(part.text)" />
-              <div v-else-if="part.type === ContentPartType.Image" class="inline-image">
-                <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
-              </div>
-              <div v-else-if="part.type === ContentPartType.Audio" class="inline-audio">
-                <audio controls :src="part.url" />
-              </div>
-            </template>
+            <ContentParts :content="msg.message.content" @open-image="openLightbox" />
           </div>
         </div>
 
-        <!-- System/other -->
+        <!-- System / other -->
         <div v-else class="msg-row ai">
           <div class="msg-bubble ai">
             <div class="msg-role-bar">
               <span class="msg-role">{{ msg.message.role }}</span>
               <span v-if="msg.createdAt" class="msg-time">{{ fmtTs(msg.createdAt) }}</span>
             </div>
-            <template v-for="(part, pIdx) in getContentParts(msg.message.content)" :key="pIdx">
-              <div v-if="part.type === ContentPartType.Text" class="md-content" v-html="renderMd(part.text)" />
-              <div v-else-if="part.type === ContentPartType.Image" class="inline-image">
-                <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
-              </div>
-              <div v-else-if="part.type === ContentPartType.Audio" class="inline-audio">
-                <audio controls :src="part.url" />
-              </div>
-            </template>
+            <ContentParts :content="msg.message.content" @open-image="openLightbox" />
           </div>
         </div>
       </template>
@@ -196,12 +161,7 @@ function openThink(thinkId: string) {
       <div class="msg-bubble ai streaming">
         <div class="msg-role-bar"><span class="msg-role">{{ L.roleAi }}</span></div>
         <template v-if="streamingContent && (typeof streamingContent === 'string' ? streamingContent : streamingContent.length)">
-          <template v-for="(part, pIdx) in getContentParts(streamingContent)" :key="pIdx">
-            <div v-if="part.type === ContentPartType.Text" class="md-content" v-html="renderMd(part.text)" />
-            <div v-else-if="part.type === ContentPartType.Image" class="inline-image">
-              <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
-            </div>
-          </template>
+          <ContentParts :content="streamingContent" :show-audio="false" @open-image="openLightbox" />
         </template>
         <span v-else class="chatui-thinking">{{ L.thinking }}</span>
       </div>
@@ -214,12 +174,7 @@ function openThink(thinkId: string) {
           <span class="msg-role">{{ L.roleUser }}</span>
           <span class="msg-queued-tag">{{ L.queued }}</span>
         </div>
-        <template v-for="(part, pIdx) in getContentParts(q)" :key="pIdx">
-          <div v-if="part.type === ContentPartType.Text" class="md-content" v-html="renderMd(part.text)" />
-          <div v-else-if="part.type === ContentPartType.Image" class="inline-image">
-            <img :src="part.url" class="inline-image-thumb" @click="openLightbox(part.url!)" />
-          </div>
-        </template>
+        <ContentParts :content="q" :show-audio="false" @open-image="openLightbox" />
       </div>
     </div>
 
@@ -319,29 +274,29 @@ function openThink(thinkId: string) {
 }
 
 /* Markdown content */
-.md-content :deep(p) { margin: 0 0 6px; }
-.md-content :deep(p:last-child) { margin-bottom: 0; }
-.md-content :deep(pre) {
+:deep(.md-content p) { margin: 0 0 6px; }
+:deep(.md-content p:last-child) { margin-bottom: 0; }
+:deep(.md-content pre) {
   background: var(--chatui-bg-code);
   padding: 8px;
   border-radius: 4px;
   overflow-x: auto;
   margin: 6px 0;
 }
-.md-content :deep(code) {
+:deep(.md-content code) {
   font-family: var(--chatui-font-family-mono);
   font-size: 0.9em;
 }
-.md-content :deep(:not(pre) > code) {
+:deep(.md-content :not(pre) > code) {
   background: var(--chatui-bg-code);
   padding: 1px 4px;
   border-radius: 3px;
 }
-.md-content :deep(ul), .md-content :deep(ol) {
+:deep(.md-content ul), :deep(.md-content ol) {
   padding-left: 20px;
   margin: 4px 0;
 }
-.md-content :deep(blockquote) {
+:deep(.md-content blockquote) {
   border-left: 3px solid var(--chatui-blockquote-border);
   padding: 2px 10px;
   margin: 4px 0;
@@ -349,17 +304,17 @@ function openThink(thinkId: string) {
 }
 
 /* Inline media */
-.inline-image { margin: 6px 0; }
-.inline-image-thumb {
+:deep(.inline-image) { margin: 6px 0; }
+:deep(.inline-image-thumb) {
   max-width: 240px;
   max-height: 240px;
   border-radius: 6px;
   cursor: pointer;
   transition: opacity 0.15s;
 }
-.inline-image-thumb:hover { opacity: 0.85; }
-.inline-audio { margin: 6px 0; }
-.inline-audio audio { max-width: 100%; border-radius: 6px; }
+:deep(.inline-image-thumb:hover) { opacity: 0.85; }
+:deep(.inline-audio) { margin: 6px 0; }
+:deep(.inline-audio audio) { max-width: 100%; border-radius: 6px; }
 
 /* Tool calls */
 .msg-tool-calls {
@@ -443,7 +398,7 @@ function openThink(thinkId: string) {
   letter-spacing: 0.04em;
   color: var(--chatui-fg-secondary);
 }
-.tool-result-content { font-size: 12px; }
+:deep(.tool-result-content) { font-size: 12px; }
 
 /* Think toggle */
 .think-toggle {

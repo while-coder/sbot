@@ -41,7 +41,8 @@ export { defaultLabels, resolveLabels, tpl } from './labels';
 export { WebSocketTransport } from './WebSocketTransport';
 
 // ── Composables ──
-export { useCompact, useCompactProvider } from './composables/useCompact';
+export { useCompact, useCompactProvider } from './composables/useCompact'
+export { useAttachments } from './composables/useAttachments';
 
 // ── Components ──
 export { default as ChatView } from './components/ChatView.vue';
@@ -54,7 +55,6 @@ export { default as AskForm } from './components/AskForm.vue';
 export { default as MultiSelect } from './components/MultiSelect.vue';
 export { default as PathPickerModal } from './components/PathPickerModal.vue';
 export { default as MessageList } from './components/MessageList.vue';
-export { default as MessageItem } from './components/MessageItem.vue';
 export { default as RichInput } from './components/RichInput.vue';
 export { default as ImageLightbox } from './components/ImageLightbox.vue';
 export { default as ThinkDrawer } from './components/ThinkDrawer.vue';

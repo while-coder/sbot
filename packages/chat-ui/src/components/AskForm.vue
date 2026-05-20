@@ -30,27 +30,31 @@ function initAnswers() {
   customInputs.value = {}
 }
 
+function stopTimer() {
+  if (timer) { clearInterval(timer); timer = null }
+}
+
 function startTimer() {
   stopTimer()
   countdown.value = props.initialCountdown
   timer = setInterval(() => { if (countdown.value > 0) countdown.value-- }, 1000)
 }
 
-function stopTimer() {
-  if (timer !== null) { clearInterval(timer); timer = null }
+function resolveCustom(i: number, v: string): string {
+  return v === CUSTOM_SENTINEL ? (customInputs.value[i] ?? '') : v
 }
 
 function submitAsk() {
   stopTimer()
   const result: Record<string, string | string[]> = {}
-  props.askEvent.questions.forEach((q, i) => {
-    let val = answers.value[i]
+  props.askEvent.questions.forEach((_q, i) => {
+    const val = answers.value[i]
     if (Array.isArray(val)) {
-      val = val.flatMap(v => v === CUSTOM_SENTINEL ? (customInputs.value[i] ? [customInputs.value[i]] : []) : [v])
-      if (val.length > 0) result[String(i)] = val
-    } else {
-      if (val === CUSTOM_SENTINEL) val = customInputs.value[i] ?? ''
-      if (val !== undefined && val !== '') result[String(i)] = val
+      const resolved = val.map(v => resolveCustom(i, v)).filter(Boolean)
+      if (resolved.length > 0) result[String(i)] = resolved
+    } else if (val !== undefined) {
+      const resolved = resolveCustom(i, val)
+      if (resolved !== '') result[String(i)] = resolved
     }
   })
   emit('submit', { askId: props.askEvent.id, answers: result })
@@ -90,7 +94,7 @@ onUnmounted(stopTimer)
           v-model="customInputs[i]" :placeholder="L.askOtherPlaceholder" />
       </div>
       <input v-else type="text" class="chatui-ask-input" v-model="(answers[i] as string)"
-        :placeholder="(q as any).placeholder ?? ''" />
+        :placeholder="q.placeholder ?? ''" />
     </div>
     <div class="chatui-ask-footer">
       <button class="chatui-btn-primary chatui-btn-sm" @click="submitAsk">{{ L.askSubmit }} ({{ countdown }}s)</button>
