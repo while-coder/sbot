@@ -39,6 +39,7 @@ const messages          = ref<StoredMessage[]>([])
 const isStreaming       = ref(false)
 const streamingContent  = ref<DisplayContent>('')
 const queuedMessages    = ref<DisplayContent[]>([])
+const showCompacted     = ref(false)
 
 const pendingToolCall   = ref<ToolCallEvent | null>(null)
 const pendingAsk        = ref<AskEvent | null>(null)
@@ -74,6 +75,11 @@ const contextWindow = computed<number | undefined>(() => {
 })
 
 const fetchThinks = computed(() => props.transport.fetchThinks?.bind(props.transport))
+
+const compactedCount = computed(() => messages.value.filter(m => m.compacted).length)
+const displayedMessages = computed<StoredMessage[]>(() =>
+  showCompacted.value ? messages.value : messages.value.filter(m => !m.compacted),
+)
 
 // ── Event handler ──
 
@@ -175,6 +181,7 @@ watch(activeSessionId, async (id) => {
   resetStreamState()
   messages.value = []
   usage.value = null
+  showCompacted.value = false
   if (!id) return
   await Promise.all([loadHistory(gen), loadUsage(gen), restoreSessionStatus(gen)])
 })
@@ -442,6 +449,8 @@ onBeforeUnmount(() => {
         :context-window="contextWindow"
         :labels="labels"
         :has-saver="hasSaver"
+        :compacted-count="compactedCount"
+        v-model:show-compacted="showCompacted"
         @refresh="onRefresh"
         @clear-history="onClearHistory"
       />
@@ -449,7 +458,7 @@ onBeforeUnmount(() => {
       <!-- Chat area -->
       <ChatArea
         ref="chatAreaRef"
-        :messages="messages"
+        :messages="displayedMessages"
         :is-streaming="isStreaming"
         :streaming-content="streamingContent"
         :queued-messages="queuedMessages"

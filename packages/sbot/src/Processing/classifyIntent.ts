@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MessageRole, truncate, type MessageContent } from "scorpio.ai";
+import { MessageRole, truncate, contentToString, type MessageContent } from "scorpio.ai";
 import { config } from "../Core/Config";
 import { LoggerService } from "../Core/LoggerService";
 
@@ -46,7 +46,7 @@ export async function classifyIntent(
 ): Promise<boolean> {
   const modelService = await config.getModelService(intentModelId);
   if (!modelService) return true;
-  let text = truncate(typeof query === 'string' ? query : query.filter(b => b.type === 'text').map(b => b.text).join('\n'), 100);
+  let text = truncate(contentToString(query), 100);
   try {
     const result = await modelService.invokeStructured<IntentResult>(IntentSchema, [
       { role: MessageRole.System, content: intentPrompt || DEFAULT_INTENT_PROMPT },

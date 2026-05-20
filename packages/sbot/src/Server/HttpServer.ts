@@ -1248,10 +1248,12 @@ class HttpServer {
 
     // ===== Data (Savers & Memories) =====
     private formatMessages(items: StoredMessage[]) {
-        return items.map(({ message: { content, role, tool_calls, tool_call_id, name }, createdAt, thinkId }) => ({
+        return items.map(({ id, message: { content, role, tool_calls, tool_call_id, name }, createdAt, thinkId, compacted }) => ({
+            id,
             message: { role, content, tool_calls, tool_call_id, name },
             createdAt,
             thinkId,
+            compacted,
         }));
     }
 
@@ -1267,7 +1269,7 @@ class HttpServer {
                 req.params.saverId as string,
                 req.params.threadId as string,
             );
-            const messages = await saver.getAllMessages();
+            const messages = await saver.getAllMessages(true);
             await saver.dispose();
             return this.formatMessages(messages);
         }));
@@ -1309,7 +1311,7 @@ class HttpServer {
             const row = await getSessionRowByPk(req.params.id as string);
             const { saverId, threadId } = resolveSessionSaver(row);
             const saver = await AgentRunner.createSaverService(saverId, threadId);
-            const messages = await saver.getAllMessages();
+            const messages = await saver.getAllMessages(true);
             await saver.dispose();
             return this.formatMessages(messages);
         }));
@@ -1342,7 +1344,7 @@ class HttpServer {
             const row = await getWebSessionRow(req.params.sessionId as string);
             const { saverId, threadId } = resolveSessionSaver(row);
             const saver = await AgentRunner.createSaverService(saverId, threadId);
-            const messages = await saver.getAllMessages();
+            const messages = await saver.getAllMessages(true);
             await saver.dispose();
             return this.formatMessages(messages);
         }));

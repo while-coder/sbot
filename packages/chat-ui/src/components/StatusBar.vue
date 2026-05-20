@@ -11,11 +11,14 @@ const props = defineProps<{
   contextWindow?: number
   labels?: ChatLabels
   hasSaver: boolean
+  compactedCount?: number
+  showCompacted?: boolean
 }>()
 
 const emit = defineEmits<{
   refresh: []
   clearHistory: []
+  'update:showCompacted': [v: boolean]
 }>()
 
 const L = computed(() => resolveLabels(props.labels))
@@ -264,6 +267,15 @@ function onClickOutside(e: MouseEvent) {
     </Teleport>
 
     <div class="chatui-toolbar-actions">
+      <label v-if="(compactedCount ?? 0) > 0" class="chatui-compacted-toggle" :title="L.showCompacted">
+        <input
+          type="checkbox"
+          :checked="!!showCompacted"
+          @change="emit('update:showCompacted', ($event.target as HTMLInputElement).checked)"
+        />
+        <span v-if="!isCompact">{{ L.showCompacted }}</span>
+        <span class="chatui-compacted-count">({{ compactedCount }})</span>
+      </label>
       <button class="chatui-btn-outline chatui-btn-sm" @click="emit('refresh')">{{ L.refresh }}</button>
       <button class="chatui-btn-danger chatui-btn-sm" :disabled="!hasSaver" @click="emit('clearHistory')">{{ L.clearHistory }}</button>
     </div>
@@ -361,6 +373,16 @@ function onClickOutside(e: MouseEvent) {
 
 /* ── Buttons ── */
 .chatui-toolbar-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-shrink: 0; }
+.chatui-compacted-toggle {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; color: var(--chatui-fg-secondary);
+  cursor: pointer; user-select: none;
+  padding: 2px 6px; border-radius: 4px;
+  white-space: nowrap;
+}
+.chatui-compacted-toggle:hover { background: var(--chatui-bg-hover); }
+.chatui-compacted-toggle input[type="checkbox"] { margin: 0; cursor: pointer; }
+.chatui-compacted-count { color: var(--chatui-fg-secondary); opacity: 0.7; }
 .chatui-btn-outline {
   padding: 4px 10px; border: 1px solid var(--chatui-border);
   border-radius: 6px; background: transparent; cursor: pointer;

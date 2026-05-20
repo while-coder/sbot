@@ -46,9 +46,12 @@ export interface ChatMessage {
 }
 
 export interface StoredMessage {
+  id?: number
   message: ChatMessage
   createdAt?: number
   thinkId?: string
+  /** true 表示该消息已被对话压缩归档；上下文不再生效，仅作为历史展示 */
+  compacted?: boolean
 }
 
 // ── Content parts ──
@@ -159,6 +162,10 @@ export interface ChatLabels {
   noSubdirs?: string
   noSaver?: string
   selectOrCreate?: string
+  /** 已压缩消息行右上角的小角标文案 */
+  compactedTag?: string
+  /** StatusBar 的「显示已压缩」复选框文案 */
+  showCompacted?: string
 }
 
 // ── Wiki option ──

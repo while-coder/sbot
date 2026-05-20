@@ -10,8 +10,8 @@ export class AgentMemorySaver implements IAgentSaverService {
     private metadata: Record<string, string> = {};
     private nextId = 1;
 
-    async getAllMessages(): Promise<StoredMessage[]> {
-        return this.messages.filter(m => !m.compacted);
+    async getAllMessages(includeCompacted = false): Promise<StoredMessage[]> {
+        return includeCompacted ? [...this.messages] : this.messages.filter(m => !m.compacted);
     }
 
     async getMessages(): Promise<ChatMessage[]> {

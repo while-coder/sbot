@@ -267,7 +267,7 @@ export class LarkService implements IChannelService {
       }
       await this.downloadMessageFile(messageId, fileKey, downloadType, filePath);
       const { part } = await readMediaAsContentPart(filePath, mediaAsFilePath);
-      result = mediaAsFilePath ? (part.text ?? '') : [part as any];
+      result = mediaAsFilePath ? (part.type === 'text' ? (part.text ?? '') : '') : [part as any];
     } else {
       return undefined;
     }

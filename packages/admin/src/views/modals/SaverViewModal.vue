@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { useToast } from '@/composables/useToast'
@@ -9,14 +9,20 @@ import type { StoredMessage } from '@sbot/chat-ui'
 const { t } = useI18n()
 const { show } = useToast()
 
-const visible    = ref(false)
-const saverId    = ref('')
-const saverName  = ref('')
-const threadId   = ref('')
-const sessionId  = ref('')
-const dbId       = ref<number | null>(null)
-const messages   = ref<StoredMessage[]>([])
-const loading    = ref(false)
+const visible       = ref(false)
+const saverId       = ref('')
+const saverName     = ref('')
+const threadId      = ref('')
+const sessionId     = ref('')
+const dbId          = ref<number | null>(null)
+const messages      = ref<StoredMessage[]>([])
+const loading       = ref(false)
+const showCompacted = ref(false)
+
+const compactedCount = computed(() => messages.value.filter(m => m.compacted).length)
+const displayedMessages = computed(() =>
+  showCompacted.value ? messages.value : messages.value.filter(m => !m.compacted)
+)
 
 function historyUrl() {
   if (dbId.value) return `/api/channel-sessions/${dbId.value}/history`
@@ -97,7 +103,11 @@ defineExpose({ open, openSession, openByDbId })
           <h3>{{ t('savers.history_title') }}</h3>
           <span class="saver-name-badge">{{ saverName }}</span>
           <span class="saver-thread-badge">{{ dbId ? `#${dbId}` : sessionId || threadId }}</span>
-          <span v-if="!loading" class="saver-count-badge">{{ t('savers.count', { count: messages.length }) }}</span>
+          <span v-if="!loading" class="saver-count-badge">
+            {{ compactedCount > 0
+              ? t('savers.count_with_compacted', { count: messages.length, compacted: compactedCount })
+              : t('savers.count', { count: messages.length }) }}
+          </span>
         </div>
         <button class="modal-close" @click="visible = false">&times;</button>
       </div>
@@ -105,12 +115,17 @@ defineExpose({ open, openSession, openByDbId })
         <button class="btn-outline btn-sm" :disabled="loading" @click="load">
           {{ loading ? t('common.loading') : t('common.refresh') }}
         </button>
+        <label v-if="compactedCount > 0" class="show-compacted-toggle">
+          <input type="checkbox" v-model="showCompacted" />
+          <span>{{ t('savers.show_compacted') }}</span>
+          <span class="show-compacted-count">({{ compactedCount }})</span>
+        </label>
         <button class="btn-danger btn-sm" style="margin-left:auto" :disabled="messages.length === 0" @click="clear">{{ t('savers.clear_history') }}</button>
       </div>
       <div style="flex:1;overflow-y:auto">
         <div v-if="loading" class="modal-loading">{{ t('common.loading') }}</div>
-        <div v-else-if="messages.length === 0" class="modal-empty">{{ t('savers.no_history') }}</div>
-        <MessageList v-else :messages="messages" :thinks-url-prefix="thinksUrl()" show-date-separators />
+        <div v-else-if="displayedMessages.length === 0" class="modal-empty">{{ t('savers.no_history') }}</div>
+        <MessageList v-else :messages="displayedMessages" :thinks-url-prefix="thinksUrl()" show-date-separators />
       </div>
     </div>
   </div>
@@ -140,6 +155,25 @@ defineExpose({ open, openSession, openByDbId })
 .saver-count-badge {
   font-size: 12px;
   color: #9b9b9b;
+}
+.show-compacted-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #475569;
+  cursor: pointer;
+  user-select: none;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.show-compacted-toggle:hover { background: #f1f5f9; }
+.show-compacted-toggle input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+}
+.show-compacted-count {
+  color: #94a3b8;
 }
 .modal-loading,
 .modal-empty {

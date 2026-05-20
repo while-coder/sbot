@@ -71,17 +71,19 @@ export class AgentPostgresSaver implements IAgentSaverService {
         );
     }
 
-    async getAllMessages(): Promise<StoredMessage[]> {
+    async getAllMessages(includeCompacted = false): Promise<StoredMessage[]> {
         await this.ensureSetup();
         try {
-            const result = await this.pool.query(
-                `SELECT id, data, created_at, think_id FROM ${this.table} WHERE compacted = 0 ORDER BY id`
-            );
+            const sql = includeCompacted
+                ? `SELECT id, data, created_at, think_id, compacted FROM ${this.table} ORDER BY id`
+                : `SELECT id, data, created_at, think_id, compacted FROM ${this.table} WHERE compacted = 0 ORDER BY id`;
+            const result = await this.pool.query(sql);
             return result.rows.map((r: any) => ({
                 id: parseInt(r.id),
                 message: JSON.parse(r.data) as ChatMessage,
                 createdAt: r.created_at,
                 thinkId: r.think_id ?? undefined,
+                compacted: r.compacted === 1 ? true : undefined,
             }));
         } catch (error: any) {
             this.logger?.warn(`获取历史消息失败: ${error.message}`);

@@ -90,16 +90,20 @@ export class AgentSqliteSaver implements IAgentSaverService {
             .run(JSON.stringify(message), Math.floor(Date.now() / 1000), options?.thinkId ?? null);
     }
 
-    async getAllMessages(): Promise<StoredMessage[]> {
+    async getAllMessages(includeCompacted = false): Promise<StoredMessage[]> {
         try {
+            const sql = includeCompacted
+                ? "SELECT id, data, created_at, think_id, compacted FROM messages ORDER BY id"
+                : "SELECT id, data, created_at, think_id, compacted FROM messages WHERE compacted = 0 ORDER BY id";
             const rows = this.db
-                .prepare("SELECT id, data, created_at, think_id FROM messages WHERE compacted = 0 ORDER BY id")
-                .all() as { id: number; data: string; created_at: number; think_id: string | null }[];
+                .prepare(sql)
+                .all() as { id: number; data: string; created_at: number; think_id: string | null; compacted: number }[];
             return rows.map((r) => ({
                 id: r.id,
                 message: JSON.parse(r.data) as ChatMessage,
                 createdAt: r.created_at,
                 thinkId: r.think_id ?? undefined,
+                compacted: r.compacted === 1 ? true : undefined,
             }));
         } catch (error: any) {
             this.logger?.warn(`获取历史消息失败: ${error.message}`);

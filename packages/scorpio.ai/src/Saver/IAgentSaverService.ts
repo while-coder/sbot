@@ -141,8 +141,11 @@ export interface IAgentSaverService {
 
     /**
      * 获取全部历史消息（含元数据），用于历史展示或内部处理
+     * @param includeCompacted 是否包含已被压缩（compacted=true）的消息，默认 false
+     *   - false：返回未压缩消息，用于 LLM 上下文/压缩判定（默认行为，向后兼容）
+     *   - true：返回包含已压缩消息在内的全部历史，用于管理端完整回溯
      */
-    getAllMessages(): Promise<StoredMessage[]>;
+    getAllMessages(includeCompacted?: boolean): Promise<StoredMessage[]>;
 
     /**
      * 获取当前线程的历史消息（未压缩部分）

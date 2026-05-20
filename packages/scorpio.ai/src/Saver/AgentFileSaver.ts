@@ -70,9 +70,9 @@ export class AgentFileSaver implements IAgentSaverService {
         await this.writeThreadFile(file);
     }
 
-    async getAllMessages(): Promise<StoredMessage[]> {
+    async getAllMessages(includeCompacted = false): Promise<StoredMessage[]> {
         const file = await this.getFile();
-        return file.messages.filter(m => !m.compacted);
+        return includeCompacted ? file.messages : file.messages.filter(m => !m.compacted);
     }
 
     async getMessages(): Promise<ChatMessage[]> {
