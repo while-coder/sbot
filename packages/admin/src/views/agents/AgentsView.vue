@@ -9,7 +9,7 @@ import AgentMcpModal from './AgentMcpModal.vue'
 import AgentSkillsModal from './AgentSkillsModal.vue'
 import McpToolsModal from '@/components/McpToolsModal.vue'
 import SkillViewerModal from '@/components/SkillViewerModal.vue'
-import type { SkillItem, McpItem, McpTool } from '@/types'
+import type { SkillItem, McpItem, McpTool, McpPrompt, McpResource, McpResourceTemplate } from '@/types'
 import { sourceBadgeStyle, badgePrivate } from '@/utils/badges'
 import { serverAddr } from '@/utils/mcpSchema'
 import { useResponsive } from '../../composables/useResponsive'
@@ -133,6 +133,9 @@ function openSkillView(agentId: string, name: string, isPrivate: boolean) {
 const showToolsModal = ref(false)
 const toolsTitle     = ref('')
 const toolsList      = ref<McpTool[]>([])
+const promptsList    = ref<McpPrompt[]>([])
+const resourcesList  = ref<McpResource[]>([])
+const resourceTemplatesList = ref<McpResourceTemplate[]>([])
 const toolsLoading   = ref(false)
 const toolsAgentId   = ref('')
 
@@ -141,6 +144,9 @@ async function openMcpView(agentId: string, id: string, isPrivate: boolean) {
     ? (getMcpServers(agentId).find(s => s.id === id)?.name || id)
     : (store.allMcps.find((m: McpItem) => m.id === id)?.name || id)
   toolsList.value    = []
+  promptsList.value  = []
+  resourcesList.value = []
+  resourceTemplatesList.value = []
   toolsLoading.value = true
   toolsAgentId.value = agentId
   showToolsModal.value = true
@@ -150,6 +156,9 @@ async function openMcpView(agentId: string, id: string, isPrivate: boolean) {
   try {
     const res = await apiFetch(url, 'GET')
     toolsList.value = res.data?.tools || []
+    promptsList.value = res.data?.prompts || []
+    resourcesList.value = res.data?.resources || []
+    resourceTemplatesList.value = res.data?.resourceTemplates || []
   } catch (e: any) {
     show(e.message, 'error')
     showToolsModal.value = false
@@ -665,6 +674,9 @@ function tabsForAgent(id: string, type: string): { key: 'config' | 'skills' | 'm
       :visible="showToolsModal"
       :title="toolsTitle"
       :tools="toolsList"
+      :prompts="promptsList"
+      :resources="resourcesList"
+      :resource-templates="resourceTemplatesList"
       :loading="toolsLoading"
       :auto-approved-tools="getAgentAutoApproveTools()"
       :all-approved="allToolsApproved"
