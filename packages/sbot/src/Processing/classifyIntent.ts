@@ -2,6 +2,7 @@ import { z } from "zod";
 import { MessageRole, truncate, contentToString, type MessageContent } from "scorpio.ai";
 import { config } from "../Core/Config";
 import { LoggerService } from "../Core/LoggerService";
+import { loadPrompt } from "../Core/PromptLoader";
 
 const logger = LoggerService.getLogger("classifyIntent.ts");
 
@@ -12,25 +13,6 @@ const IntentSchema = z.object({
 });
 
 type IntentResult = z.infer<typeof IntentSchema>;
-
-const DEFAULT_INTENT_PROMPT = `You are a group chat message intent classifier. Determine whether a message is seeking help from the AI assistant.
-
-## Should reply (shouldReply=true)
-- Open-ended questions not directed at a specific person (e.g. "Does anyone know how to...", "What does XXX mean")
-- Explicit requests for help, advice, or technical answers
-- Follow-up questions or additions to a previous AI response
-
-## Should NOT reply (shouldReply=false)
-- Conversations between members: questions directed at a specific person by name, replies to a specific person, context clearly indicates human-to-human exchange
-- Social messages: greetings, thanks, emoji reactions, polls, casual chat
-- Informational notices: group announcements, system notifications, shared links/articles/images without questions
-- Brief acknowledgments: OK, got it, thanks, +1, done, etc.
-- Commands/approvals: leave notices, meeting notices, approval workflow messages
-
-## Guiding principles
-1. Core criterion: Does the sender expect a reply from the AI?
-2. Human conversation takes priority: if the message seems directed at another person in the group, do not reply
-3. When in doubt, stay silent: if you are not confident that shouldReply should be true, always return shouldReply=false with lower confidence. Err on the side of silence.`;
 
 /**
  * Classify whether a group chat message needs an AI reply.
@@ -49,7 +31,7 @@ export async function classifyIntent(
   let text = truncate(contentToString(query), 100);
   try {
     const result = await modelService.invokeStructured<IntentResult>(IntentSchema, [
-      { role: MessageRole.System, content: intentPrompt || DEFAULT_INTENT_PROMPT },
+      { role: MessageRole.System, content: intentPrompt || loadPrompt('intent/default.txt') },
       { role: MessageRole.Human, content: query },
     ], { signal: AbortSignal.timeout(120_000) });
     const shouldReply = result.shouldReply && result.confidence >= intentThreshold;
