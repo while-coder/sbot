@@ -393,6 +393,7 @@ export default {
     cat_tools: '工具',
     cat_compact: '对话压缩',
     cat_insight: '经验洞察',
+    cat_intent: '意图过滤',
     cat_heartbeat: '心跳',
     create_file: '新建文件',
     create_title: '新建 Prompt',

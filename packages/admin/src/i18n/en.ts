@@ -393,6 +393,7 @@ export default {
     cat_tools: 'Tools',
     cat_compact: 'Compact',
     cat_insight: 'Insight',
+    cat_intent: 'Intent Filter',
     cat_heartbeat: 'Heartbeat',
     create_file: 'New File',
     create_title: 'New Prompt',

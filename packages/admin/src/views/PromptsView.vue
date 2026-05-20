@@ -24,7 +24,7 @@ function flattenTree(nodes: TreeNode[], depth = 0): { node: TreeNode; depth: num
   return result
 }
 
-const categoryOrder = ['system', 'agent', 'compact', 'memory', 'wiki', 'skills', 'insight', 'tools', 'heartbeat']
+const categoryOrder = ['system', 'agent', 'compact', 'memory', 'wiki', 'skills', 'insight', 'tools', 'intent', 'heartbeat']
 
 const categories = computed(() => {
   const map = new Map<string, TreeNode>()
@@ -258,7 +258,7 @@ onMounted(async () => {
           <span class="tree-icon">{{ collapsedCats.has(cat.key) ? '▶' : '▼' }}</span>
           <span class="tree-cat-label">{{ cat.label }}</span>
           <span v-if="cat.node.isOverride" class="tree-custom-dot" :title="t('prompts.contains_custom')"></span>
-          <button v-if="cat.key === 'heartbeat'" class="tree-add-btn" @click.stop="startCreate(cat.key)" :title="t('prompts.create_file')">+</button>
+          <button v-if="cat.key === 'heartbeat' || cat.key === 'intent'" class="tree-add-btn" @click.stop="startCreate(cat.key)" :title="t('prompts.create_file')">+</button>
         </div>
         <template v-if="!collapsedCats.has(cat.key)">
           <div v-if="creatingInCat === cat.key" class="tree-item tree-file" style="padding-left:14px;gap:3px">
