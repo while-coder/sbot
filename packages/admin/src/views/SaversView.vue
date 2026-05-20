@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
-import { useToast } from '@/composables/useToast'
+import { useToast, SButton, SInput, SSelect, SModal, SFormItem, SPageToolbar, SPageContent } from 'sbot-ui'
 import { SaverType } from '@/types'
 import type { SaverConfig } from '@/types'
 import SaverViewModal from './modals/SaverViewModal.vue'
@@ -21,7 +21,6 @@ const form = ref<{ name: string } & SaverConfig>({ name: '', type: SaverType.Fil
 
 const saverViewModal = ref<InstanceType<typeof SaverViewModal>>()
 
-// Expand state
 const expandedSavers  = ref<Record<string, boolean>>({})
 const saverThreadsMap = ref<Record<string, string[]>>({})
 const saverLoading    = ref<Record<string, boolean>>({})
@@ -92,7 +91,6 @@ async function clearThread(saverId: string, thread: string) {
   try {
     await apiFetch(`/api/savers/${encodeURIComponent(saverId)}/threads/${encodeURIComponent(thread)}/history`, 'DELETE')
     show(t('savers.cleanup_success'))
-    // 从列表中移除该 thread
     const list = saverThreadsMap.value[saverId]
     if (list) saverThreadsMap.value[saverId] = list.filter(t => t !== thread)
   } catch (e: any) {
@@ -130,34 +128,39 @@ async function refresh() {
 
 <template>
   <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
-    <div class="page-toolbar">
-      <button class="btn-outline btn-sm" @click="refresh">{{ t('common.refresh') }}</button>
-      <button class="btn-primary btn-sm" @click="openAdd">{{ t('savers.add') }}</button>
-    </div>
-    <div class="page-content">
+    <SPageToolbar>
+      <SButton type="outline" size="sm" @click="refresh">{{ t('common.refresh') }}</SButton>
+      <SButton type="primary" size="sm" @click="openAdd">{{ t('savers.add') }}</SButton>
+    </SPageToolbar>
+    <SPageContent>
       <table v-if="!isMobile">
         <thead>
-          <tr><th style="width:32px"></th><th>{{ t('common.name') }}</th><th>{{ t('common.type') }}</th><th>{{ t('common.ops') }}</th></tr>
+          <tr>
+            <th style="width:32px"></th>
+            <th>{{ t('common.name') }}</th>
+            <th>{{ t('common.type') }}</th>
+            <th>{{ t('common.ops') }}</th>
+          </tr>
         </thead>
         <tbody>
           <tr v-if="Object.keys(savers).length === 0">
-            <td colspan="4" style="text-align:center;color:#94a3b8;padding:40px">{{ t('savers.empty') }}</td>
+            <td colspan="4" class="savers-empty">{{ t('savers.empty') }}</td>
           </tr>
           <template v-for="(s, id) in savers" :key="id">
             <tr
+              class="saver-row"
+              :class="{ 'saver-row-expanded': expandedSavers[id as string] }"
               @click="toggleExpand(id as string)"
-              style="cursor:pointer"
-              :style="expandedSavers[id as string] ? 'background:#f8fafc' : ''"
             >
-              <td style="padding:6px 8px;text-align:center">
-                <span style="color:#6b6b6b;font-size:10px">{{ expandedSavers[id as string] ? '▼' : '▶' }}</span>
+              <td class="saver-expand-cell">
+                <span class="saver-expand-icon">{{ expandedSavers[id as string] ? '▼' : '▶' }}</span>
               </td>
               <td>{{ (s as any).name || id }}</td>
               <td>{{ s.type || '-' }}</td>
               <td @click.stop>
                 <div class="ops-cell">
-                  <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
-                  <button class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
+                  <SButton type="outline" size="sm" @click="openEdit(id as string)">{{ t('common.edit') }}</SButton>
+                  <SButton type="danger" size="sm" @click="remove(id as string)">{{ t('common.delete') }}</SButton>
                 </div>
               </td>
             </tr>
@@ -174,8 +177,10 @@ async function refresh() {
                 <td></td>
                 <td colspan="2" class="thread-id-cell">{{ thread }}</td>
                 <td>
-                  <button class="btn-outline btn-sm" @click="saverViewModal?.open(id as string, (s as any).name || id as string, thread)">{{ t('common.view') }}</button>
-                  <button class="btn-danger btn-sm" :disabled="threadClearing[`${id}::${thread}`]" @click="clearThread(id as string, thread)">{{ t('savers.cleanup') }}</button>
+                  <div class="ops-cell">
+                    <SButton type="outline" size="sm" @click="saverViewModal?.open(id as string, (s as any).name || id as string, thread)">{{ t('common.view') }}</SButton>
+                    <SButton type="danger" size="sm" :disabled="threadClearing[`${id}::${thread}`]" @click="clearThread(id as string, thread)">{{ t('savers.cleanup') }}</SButton>
+                  </div>
                 </td>
               </tr>
             </template>
@@ -187,8 +192,8 @@ async function refresh() {
       <template v-else>
         <div v-if="Object.keys(savers).length === 0" class="mobile-card-empty">{{ t('savers.empty') }}</div>
         <div v-for="(s, id) in savers" :key="id" class="mobile-card">
-          <div class="mobile-card-header" @click="toggleExpand(id as string)" style="cursor:pointer;display:flex;align-items:center;gap:6px">
-            <span style="font-size:10px;color:#9b9b9b">{{ expandedSavers[id as string] ? '▼' : '▶' }}</span>
+          <div class="mobile-card-header mobile-card-header-clickable" @click="toggleExpand(id as string)">
+            <span class="saver-expand-icon">{{ expandedSavers[id as string] ? '▼' : '▶' }}</span>
             {{ (s as any).name || id }}
           </div>
           <div class="mobile-card-fields">
@@ -196,94 +201,107 @@ async function refresh() {
             <span class="mobile-card-value">{{ s.type || '-' }}</span>
           </div>
           <div class="mobile-card-ops">
-            <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
-            <button class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
+            <SButton type="outline" size="sm" @click="openEdit(id as string)">{{ t('common.edit') }}</SButton>
+            <SButton type="danger" size="sm" @click="remove(id as string)">{{ t('common.delete') }}</SButton>
           </div>
-          <!-- Expanded threads -->
           <div v-if="expandedSavers[id as string]" class="mobile-card-threads">
             <div v-if="saverLoading[id as string]" class="thread-sub-cell">{{ t('common.loading') }}</div>
             <div v-else-if="(saverThreadsMap[id as string] || []).length === 0" class="thread-sub-cell empty">{{ t('savers.no_sessions') }}</div>
             <div v-for="thread in saverThreadsMap[id as string] || []" :key="thread" class="mobile-thread-row">
               <span class="thread-id-cell">{{ thread }}</span>
               <div class="mobile-card-ops">
-                <button class="btn-outline btn-sm" @click="saverViewModal?.open(id as string, (s as any).name || id as string, thread)">{{ t('common.view') }}</button>
-                <button class="btn-danger btn-sm" :disabled="threadClearing[`${id}::${thread}`]" @click="clearThread(id as string, thread)">{{ t('savers.cleanup') }}</button>
+                <SButton type="outline" size="sm" @click="saverViewModal?.open(id as string, (s as any).name || id as string, thread)">{{ t('common.view') }}</SButton>
+                <SButton type="danger" size="sm" :disabled="threadClearing[`${id}::${thread}`]" @click="clearThread(id as string, thread)">{{ t('savers.cleanup') }}</SButton>
               </div>
             </div>
           </div>
         </div>
       </template>
-    </div>
+    </SPageContent>
 
     <!-- Edit/Add modal -->
-    <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
-      <div class="modal-box" style="width:400px">
-        <div class="modal-header">
-          <h3>{{ editingName !== null ? t('savers.edit_title') : t('savers.add_title') }}</h3>
-          <button class="modal-close" @click="showModal = false">&times;</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label>{{ t('common.name') }} *</label>
-            <input v-model="form.name" :placeholder="t('savers.name_placeholder')" />
-          </div>
-          <div class="form-group">
-            <label>{{ t('savers.saver_type') }}</label>
-            <select v-model="form.type">
-              <option value="file">File {{ t('common.recommended') }}</option>
-              <option value="sqlite">SQLite</option>
-              <option value="memory">Memory</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="checkbox-label">
-              <input type="checkbox" v-model="form.share" />
-              {{ t('savers.share') }}
-            </label>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-outline" @click="showModal = false">{{ t('common.cancel') }}</button>
-          <button class="btn-primary" @click="save">{{ t('common.save') }}</button>
-        </div>
-      </div>
-    </div>
+    <SModal v-model:visible="showModal" :title="editingName !== null ? t('savers.edit_title') : t('savers.add_title')" width="sm">
+      <SFormItem :label="t('common.name') + ' *'">
+        <SInput v-model="form.name" :placeholder="t('savers.name_placeholder')" />
+      </SFormItem>
+      <SFormItem :label="t('savers.saver_type')">
+        <SSelect v-model="form.type">
+          <option value="file">File {{ t('common.recommended') }}</option>
+          <option value="sqlite">SQLite</option>
+          <option value="memory">Memory</option>
+        </SSelect>
+      </SFormItem>
+      <SFormItem>
+        <label class="checkbox-label">
+          <input v-model="form.share" type="checkbox" />
+          {{ t('savers.share') }}
+        </label>
+      </SFormItem>
+      <template #footer>
+        <SButton type="outline" @click="showModal = false">{{ t('common.cancel') }}</SButton>
+        <SButton type="primary" @click="save">{{ t('common.save') }}</SButton>
+      </template>
+    </SModal>
 
     <SaverViewModal ref="saverViewModal" />
   </div>
 </template>
 
 <style scoped>
+.savers-empty {
+  text-align: center;
+  color: var(--sui-fg-disabled);
+  padding: 40px;
+}
 .thread-sub-row td {
-  background: #fafaf9;
-  border-bottom: 1px solid #f0efed;
+  background: var(--sui-bg-subtle);
+  border-bottom: 1px solid var(--sui-border);
   padding-top: 5px;
   padding-bottom: 5px;
 }
 .thread-sub-cell {
   padding: 5px 12px;
-  font-size: 12px;
-  color: #94a3b8;
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg-disabled);
   font-style: italic;
 }
 .thread-id-cell {
-  font-family: monospace;
-  font-size: 12px;
-  color: #3d3d3d;
+  font-family: var(--sui-font-mono);
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg-secondary);
   padding: 5px 12px;
 }
 .mobile-card-threads {
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 1px solid #f0efed;
+  border-top: 1px solid var(--sui-border);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--sui-sp-3);
 }
 .mobile-thread-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--sui-sp-3);
+}
+.mobile-card-header-clickable {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--sui-sp-2);
+}
+.saver-row { cursor: pointer; }
+.saver-row-expanded > td { background: var(--sui-bg-subtle); }
+.saver-expand-cell { padding: var(--sui-sp-2) var(--sui-sp-3); text-align: center; }
+.saver-expand-icon {
+  color: var(--sui-fg-muted);
+  font-size: var(--sui-fs-xs);
+}
+.checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sui-sp-2);
+  cursor: pointer;
 }
 </style>

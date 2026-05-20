@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
-import { useToast } from '@/composables/useToast'
+import { useToast, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent } from 'sbot-ui'
 import type { WikiConfig } from '@/types'
 import WikiViewModal from './modals/WikiViewModal.vue'
 
@@ -110,11 +110,11 @@ async function refresh() {
 
 <template>
   <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
-    <div class="page-toolbar">
-      <button class="btn-outline btn-sm" @click="refresh">{{ t('common.refresh') }}</button>
-      <button class="btn-primary btn-sm" @click="openAdd">{{ t('wikis.add') }}</button>
-    </div>
-    <div class="page-content">
+    <SPageToolbar>
+      <SButton type="outline" size="sm" @click="refresh">{{ t('common.refresh') }}</SButton>
+      <SButton type="primary" size="sm" @click="openAdd">{{ t('wikis.add') }}</SButton>
+    </SPageToolbar>
+    <SPageContent>
       <table v-if="!isMobile" class="wiki-list-table">
         <colgroup>
           <col style="width:auto" />
@@ -132,7 +132,7 @@ async function refresh() {
         </thead>
         <tbody>
           <tr v-if="Object.keys(wikis).length === 0">
-            <td colspan="4" style="text-align:center;color:#94a3b8;padding:40px">{{ t('wikis.empty') }}</td>
+            <td colspan="4" class="wiki-empty">{{ t('wikis.empty') }}</td>
           </tr>
           <tr v-for="(w, id) in wikis" :key="id">
             <td class="cell-nowrap">{{ w.name || id }}</td>
@@ -144,15 +144,15 @@ async function refresh() {
               <template v-else>{{ w.embedding || t('wikis.embedding_none') }}</template>
             </td>
             <td class="col-center">
-              <span v-if="wikiCounts[id as string] === undefined" class="count-loading">...</span>
-              <span v-else-if="wikiCounts[id as string] === null" class="count-error">-</span>
-              <span v-else class="count-badge">{{ wikiCounts[id as string] }}</span>
+              <span v-if="wikiCounts[id as string] === undefined" class="count-muted">...</span>
+              <span v-else-if="wikiCounts[id as string] === null" class="count-muted">-</span>
+              <SBadge v-else variant="info" pill>{{ wikiCounts[id as string] }}</SBadge>
             </td>
             <td class="col-center">
               <div class="ops-row">
-                <button class="btn-outline btn-sm" @click="wikiViewModal?.open(id as string, w)">{{ t('common.view') }}</button>
-                <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
-                <button class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
+                <SButton type="outline" size="sm" @click="wikiViewModal?.open(id as string, w)">{{ t('common.view') }}</SButton>
+                <SButton type="outline" size="sm" @click="openEdit(id as string)">{{ t('common.edit') }}</SButton>
+                <SButton type="danger" size="sm" @click="remove(id as string)">{{ t('common.delete') }}</SButton>
               </div>
             </td>
           </tr>
@@ -165,7 +165,7 @@ async function refresh() {
         <div v-for="(w, id) in wikis" :key="id" class="mobile-card">
           <div class="mobile-card-header">
             <span>{{ w.name || id }}</span>
-            <span v-if="wikiCounts[id as string] != null" class="count-badge">{{ wikiCounts[id as string] }} {{ t('wikis.pages_unit') }}</span>
+            <SBadge v-if="wikiCounts[id as string] != null" variant="info" pill>{{ wikiCounts[id as string] }} {{ t('wikis.pages_unit') }}</SBadge>
           </div>
           <div v-if="w.embedding" class="mobile-card-fields">
             <span class="mobile-card-label">{{ t('wikis.embedding_col') }}</span>
@@ -175,40 +175,31 @@ async function refresh() {
             </span>
           </div>
           <div class="mobile-card-ops">
-            <button class="btn-outline btn-sm" @click="wikiViewModal?.open(id as string, w)">{{ t('common.view') }}</button>
-            <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
-            <button class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
+            <SButton type="outline" size="sm" @click="wikiViewModal?.open(id as string, w)">{{ t('common.view') }}</SButton>
+            <SButton type="outline" size="sm" @click="openEdit(id as string)">{{ t('common.edit') }}</SButton>
+            <SButton type="danger" size="sm" @click="remove(id as string)">{{ t('common.delete') }}</SButton>
           </div>
         </div>
       </template>
-    </div>
+    </SPageContent>
 
     <!-- Edit/Add modal -->
-    <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
-      <div class="modal-box">
-        <div class="modal-header">
-          <h3>{{ editingName !== null ? t('wikis.edit_title') : t('wikis.add_title') }}</h3>
-          <button class="modal-close" @click="showModal = false">&times;</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label>{{ t('common.name') }} *</label>
-            <input v-model="form.name" :placeholder="t('wikis.name_placeholder')" />
-          </div>
-          <div class="form-group">
-            <label>{{ t('wikis.embedding_model') }}</label>
-            <select v-model="form.embedding">
-              <option value="">{{ t('wikis.embedding_none') }}</option>
-              <option v-for="e in embeddingOptions" :key="e.id" :value="e.id">{{ e.label }} ({{ e.detail }})</option>
-            </select>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-outline" @click="showModal = false">{{ t('common.cancel') }}</button>
-          <button class="btn-primary" @click="save">{{ t('common.save') }}</button>
-        </div>
-      </div>
-    </div>
+    <SModal v-model:visible="showModal" :title="editingName !== null ? t('wikis.edit_title') : t('wikis.add_title')" width="md">
+      <SFormItem :label="t('common.name') + ' *'">
+        <SInput v-model="form.name" :placeholder="t('wikis.name_placeholder')" />
+      </SFormItem>
+      <SFormItem :label="t('wikis.embedding_model')">
+        <SSelect v-model="form.embedding">
+          <option value="">{{ t('wikis.embedding_none') }}</option>
+          <option v-for="e in embeddingOptions" :key="e.id" :value="e.id">{{ e.label }} ({{ e.detail }})</option>
+        </SSelect>
+      </SFormItem>
+
+      <template #footer>
+        <SButton type="outline" @click="showModal = false">{{ t('common.cancel') }}</SButton>
+        <SButton type="primary" @click="save">{{ t('common.save') }}</SButton>
+      </template>
+    </SModal>
 
     <WikiViewModal ref="wikiViewModal" />
   </div>
@@ -217,6 +208,11 @@ async function refresh() {
 <style scoped>
 .wiki-list-table {
   table-layout: fixed;
+}
+.wiki-empty {
+  text-align: center;
+  color: var(--sui-fg-disabled);
+  padding: 40px;
 }
 .col-center {
   text-align: center;
@@ -228,31 +224,16 @@ async function refresh() {
 }
 .embed-detail {
   display: block;
-  color: #94a3b8;
-  font-size: 11px;
+  color: var(--sui-fg-disabled);
+  font-size: var(--sui-fs-xs);
 }
 .ops-row {
   display: inline-flex;
-  gap: 6px;
+  gap: var(--sui-sp-2);
   white-space: nowrap;
 }
-.count-badge {
-  display: inline-block;
-  background: #e8f4f8;
-  color: #0e7490;
-  font-size: 12px;
-  font-weight: 500;
-  padding: 2px 8px;
-  border-radius: 10px;
-  min-width: 24px;
-  text-align: center;
-}
-.count-loading {
-  color: #94a3b8;
-  font-size: 12px;
-}
-.count-error {
-  color: #94a3b8;
-  font-size: 12px;
+.count-muted {
+  color: var(--sui-fg-disabled);
+  font-size: var(--sui-fs-sm);
 }
 </style>

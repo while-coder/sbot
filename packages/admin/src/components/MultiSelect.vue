@@ -71,9 +71,9 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutside))
   align-items: center;
   justify-content: space-between;
   padding: 5px 8px 5px 10px;
-  border: 1px solid #d4d2ce;
-  border-radius: 6px;
-  background: #fff;
+  border: 1px solid var(--sui-border);
+  border-radius: var(--sui-radius-md);
+  background: var(--sui-bg);
   cursor: pointer;
   text-align: left;
   transition: border-color .15s;
@@ -81,7 +81,7 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutside))
   gap: 6px;
 }
 .ms-root.compact .ms-trigger { min-height: 26px; padding: 3px 6px 3px 8px; }
-.ms-trigger:hover, .ms-root.open .ms-trigger { border-color: #999; }
+.ms-trigger:hover, .ms-root.open .ms-trigger { border-color: var(--sui-border-strong); }
 .ms-value {
   display: flex;
   flex-wrap: wrap;
@@ -90,21 +90,21 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutside))
   min-width: 0;
 }
 .ms-chip {
-  background: #1c1c1c;
-  color: #fff;
-  font-size: 12px;
+  background: var(--sui-fg);
+  color: var(--sui-bg);
+  font-size: var(--sui-fs-sm);
   padding: 1px 7px;
   border-radius: 99px;
   white-space: nowrap;
 }
-.ms-root.compact .ms-chip { font-size: 11px; padding: 0 6px; }
+.ms-root.compact .ms-chip { font-size: var(--sui-fs-xs); padding: 0 6px; }
 .ms-placeholder {
-  font-size: 13px;
-  color: #aaa;
+  font-size: var(--sui-fs-md);
+  color: var(--sui-fg-disabled);
   line-height: 1.6;
 }
 .ms-arrow {
-  color: #999;
+  color: var(--sui-fg-muted);
   flex-shrink: 0;
   transition: transform .15s;
 }
@@ -115,10 +115,10 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutside))
   left: 0;
   min-width: 100%;
   width: max-content;
-  background: #fff;
-  border: 1px solid #d4d2ce;
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0,0,0,.1);
+  background: var(--sui-bg);
+  border: 1px solid var(--sui-border);
+  border-radius: var(--sui-radius-md);
+  box-shadow: var(--sui-shadow-md);
   z-index: 100;
   max-height: 200px;
   overflow-y: auto;
@@ -126,29 +126,29 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutside))
 .ms-option {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--sui-sp-3);
   padding: 7px 12px;
   cursor: pointer;
-  font-size: 13px;
-  color: #1c1c1c;
-  border-bottom: 1px solid #f0eeeb;
+  font-size: var(--sui-fs-md);
+  color: var(--sui-fg);
+  border-bottom: 1px solid var(--sui-border-subtle);
   user-select: none;
   transition: background .1s;
 }
 .ms-option:last-child { border-bottom: none; }
-.ms-option:hover { background: #f8f7f6; }
-.ms-option.checked { background: #f4f4f4; font-weight: 500; }
+.ms-option:hover { background: var(--sui-bg-hover); }
+.ms-option.checked { background: var(--sui-bg-active); font-weight: 500; }
 .ms-option input[type="checkbox"] {
   margin: 0;
   flex-shrink: 0;
-  accent-color: #1c1c1c;
+  accent-color: var(--sui-fg);
   width: 14px;
   height: 14px;
   cursor: pointer;
 }
 .ms-empty {
-  padding: 8px 12px;
-  font-size: 13px;
-  color: #94a3b8;
+  padding: var(--sui-sp-3) var(--sui-sp-4);
+  font-size: var(--sui-fs-md);
+  color: var(--sui-fg-disabled);
 }
 </style>

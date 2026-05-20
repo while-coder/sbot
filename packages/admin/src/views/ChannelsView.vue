@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
-import { useToast } from '@/composables/useToast'
+import { useToast, SButton, SModal, SInput, STextarea, SSelect, SFormItem, SFormSection, SPageToolbar, SPageContent } from 'sbot-ui'
 import QRCode from 'qrcode'
 import type { ChannelConfig } from '@/types'
 import SaverViewModal from './modals/SaverViewModal.vue'
@@ -28,7 +28,6 @@ interface ChannelSessionRow {
   sessionId: string
   sessionName: string
   avatar: string
-  // 可覆盖 ChannelConfig 默认值（null = 使用频道默认值）
   agentId: string | null
   saver: string | null
   memories: string[]
@@ -39,10 +38,8 @@ interface ChannelSessionRow {
   intentModel: string | null
   intentPrompt: string | null
   intentThreshold: number | null
-  // 会话自有字段
   useChannelMemories: boolean
   useChannelWikis: boolean
-  // 运行时统计
   inputTokens: number
   outputTokens: number
   totalTokens: number
@@ -163,7 +160,6 @@ function formatTokens(n: number): string {
   return n.toLocaleString()
 }
 
-
 const showModal = ref(false)
 const editingId = ref<string | null>(null)
 const form = ref<ChannelConfig>({
@@ -174,7 +170,6 @@ const form = ref<ChannelConfig>({
 })
 const formTools = ref<string[]>([])
 const formHeartbeatTools = ref<string[]>([])
-
 
 async function loadChannelData(id: string) {
   channelLoading.value[id] = true
@@ -237,7 +232,6 @@ function formatUserInfo(raw: string) {
 
 const passwordVisible = ref<Record<string, boolean>>({})
 
-// --- Action field support (QR login etc.) ---
 const actionState = ref<Record<string, { loading: boolean; qrUrl?: string; qrLink?: string; qrType?: 'image' | 'link'; status?: string; error?: string }>>({})
 
 function clearActionState() {
@@ -274,7 +268,6 @@ async function triggerAction(key: string) {
   }
 }
 
-/** Long-polls backend until QR scan confirmed or expired */
 async function waitForQRConfirm(key: string, channelId: string | null, type: string) {
   try {
     const url = channelId
@@ -419,15 +412,15 @@ async function refresh() {
 
 <template>
   <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
-    <div class="page-toolbar">
-      <button class="btn-outline btn-sm" @click="refresh">{{ t('common.refresh') }}</button>
-      <button class="btn-primary btn-sm" @click="openAdd">{{ t('channels.add') }}</button>
-    </div>
-    <div class="page-content">
+    <SPageToolbar>
+      <SButton type="outline" size="sm" @click="refresh">{{ t('common.refresh') }}</SButton>
+      <SButton type="primary" size="sm" @click="openAdd">{{ t('channels.add') }}</SButton>
+    </SPageToolbar>
+
+    <SPageContent>
       <div v-if="!isMobile" class="channel-cards">
         <div v-if="Object.keys(channels).length === 0" class="detail-empty">{{ t('channels.empty') }}</div>
         <div v-for="(c, id) in channels" :key="id" class="channel-card" :class="{ expanded: expandedChannels[id as string] }">
-          <!-- Card header -->
           <div class="channel-card-header" @click="toggleExpand(id as string)">
             <div class="channel-card-left">
               <span class="channel-expand-icon">{{ expandedChannels[id as string] ? '▼' : '▶' }}</span>
@@ -436,11 +429,10 @@ async function refresh() {
             </div>
             <div class="channel-card-right" @click.stop>
               <span class="channel-card-agent">{{ agentOptions.find(a => a.id === c.agent)?.label || c.agent || '-' }}</span>
-              <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
-              <button v-if="!isBuiltin(id as string)" class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
+              <SButton type="outline" size="sm" @click="openEdit(id as string)">{{ t('common.edit') }}</SButton>
+              <SButton v-if="!isBuiltin(id as string)" type="danger" size="sm" @click="remove(id as string)">{{ t('common.delete') }}</SButton>
             </div>
           </div>
-          <!-- Card meta -->
           <div class="channel-card-meta">
             <span class="session-meta-id">{{ id }}</span>
             <span class="session-meta-chip">{{ t('common.storage') }}: {{ c.saver ? (saverOptions.find(s => s.id === c.saver)?.label || c.saver) : '-' }}</span>
@@ -453,7 +445,6 @@ async function refresh() {
             <span v-if="c.tools?.length" class="session-meta-chip">{{ t('channels.tools') }}: {{ c.tools.map(n => plugins.find(p => p.type === c.type)?.tools?.find(t => t.name === n)?.label || n).join(', ') }}</span>
             <span v-if="c.heartbeatTools?.length" class="session-meta-chip">{{ t('channels.heartbeat_tools') }}: {{ c.heartbeatTools.map(n => plugins.find(p => p.type === c.type)?.tools?.find(t => t.name === n)?.label || n).join(', ') }}</span>
           </div>
-          <!-- Expanded content -->
           <div v-if="expandedChannels[id as string]" class="channel-card-detail">
             <div class="detail-tab-bar">
               <button
@@ -470,7 +461,6 @@ async function refresh() {
             <div class="detail-tab-content">
               <div v-if="channelLoading[id as string]" class="detail-empty">{{ t('common.loading') }}</div>
               <template v-else>
-                <!-- Sessions tab -->
                 <template v-if="getChannelTab(id as string) === 'sessions'">
                   <div v-if="(sessionMap[id as string] || []).length === 0" class="detail-empty">{{ t('channels.no_sessions') }}</div>
                   <div v-else class="session-list">
@@ -483,9 +473,9 @@ async function refresh() {
                           <span v-if="s.totalTokens > 0" class="session-item-tokens" :title="`${t('usage.total')}: ${formatTokens(s.totalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatTokens(s.inputTokens)} / ${t('usage.output_tokens')}: ${formatTokens(s.outputTokens)}` + (s.lastTotalTokens > 0 ? `\n${t('usage.last')}: ${formatTokens(s.lastTotalTokens)} tokens` : '')">{{ formatTokens(s.totalTokens) }} tok</span>
                         </div>
                         <div class="ops-cell">
-                          <button v-if="s.saver || c.saver" class="btn-outline btn-sm" @click="saverViewModal?.openByDbId(s.id, saverOptions.find(o => o.id === (s.saver || c.saver))?.label || (s.saver || c.saver))">{{ t('channels.history') }}</button>
-                          <button class="btn-outline btn-sm" @click="openEditSession(s)">{{ t('common.edit') }}</button>
-                          <button class="btn-danger btn-sm" @click="removeSession(id as string, s)">{{ t('common.delete') }}</button>
+                          <SButton v-if="s.saver || c.saver" type="outline" size="sm" @click="saverViewModal?.openByDbId(s.id, saverOptions.find(o => o.id === (s.saver || c.saver))?.label || (s.saver || c.saver))">{{ t('channels.history') }}</SButton>
+                          <SButton type="outline" size="sm" @click="openEditSession(s)">{{ t('common.edit') }}</SButton>
+                          <SButton type="danger" size="sm" @click="removeSession(id as string, s)">{{ t('common.delete') }}</SButton>
                         </div>
                       </div>
                       <div class="session-meta">
@@ -501,7 +491,6 @@ async function refresh() {
                     </div>
                   </div>
                 </template>
-                <!-- Users tab -->
                 <template v-if="getChannelTab(id as string) === 'users'">
                   <div v-if="(userMap[id as string] || []).length === 0" class="detail-empty">{{ t('channels.no_users') }}</div>
                   <div v-else class="session-list">
@@ -513,8 +502,8 @@ async function refresh() {
                           <span class="session-meta-id">{{ u.userId }}</span>
                         </div>
                         <div class="ops-cell">
-                          <button class="btn-outline btn-sm" @click="viewUser = u">{{ t('common.view') }}</button>
-                          <button class="btn-danger btn-sm" @click="removeUser(id as string, u)">{{ t('common.delete') }}</button>
+                          <SButton type="outline" size="sm" @click="viewUser = u">{{ t('common.view') }}</SButton>
+                          <SButton type="danger" size="sm" @click="removeUser(id as string, u)">{{ t('common.delete') }}</SButton>
                         </div>
                       </div>
                     </div>
@@ -529,9 +518,9 @@ async function refresh() {
       <!-- Mobile card layout -->
       <div v-else class="card-list">
         <div v-for="(c, id) in channels" :key="id" class="mobile-card">
-          <div class="mobile-card-header" @click="toggleExpand(id as string)" style="display:flex;justify-content:space-between;cursor:pointer">
+          <div class="mobile-card-header mobile-card-header-clickable" @click="toggleExpand(id as string)">
             <span>{{ c.name }}</span>
-            <span style="font-size:10px">{{ expandedChannels[id as string] ? '▼' : '▶' }}</span>
+            <span class="mobile-expand-icon">{{ expandedChannels[id as string] ? '▼' : '▶' }}</span>
           </div>
           <div class="mobile-card-fields">
             <span class="mobile-card-label">{{ t('common.type') }}</span>
@@ -544,20 +533,18 @@ async function refresh() {
             <span class="mobile-card-value">{{ Array.isArray(c.memories) && c.memories.length ? c.memories.map(mid => memoryOptions.find(m => m.id === mid)?.label || mid).join(', ') : '-' }}</span>
           </div>
           <div class="mobile-card-ops">
-            <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
-            <button v-if="!isBuiltin(id as string)" class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
+            <SButton type="outline" size="sm" @click="openEdit(id as string)">{{ t('common.edit') }}</SButton>
+            <SButton v-if="!isBuiltin(id as string)" type="danger" size="sm" @click="remove(id as string)">{{ t('common.delete') }}</SButton>
           </div>
-          <!-- Expandable detail -->
-          <div v-if="expandedChannels[id as string]" style="margin-top:10px">
+          <div v-if="expandedChannels[id as string]" class="mobile-detail">
             <div class="detail-tab-bar">
               <button class="detail-tab-btn" :class="{ active: getChannelTab(id as string) === 'sessions' }" @click="setChannelTab(id as string, 'sessions')">{{ t('channels.sessions') }}</button>
               <button class="detail-tab-btn" :class="{ active: getChannelTab(id as string) === 'users' }" @click="setChannelTab(id as string, 'users')">{{ t('channels.users') }}</button>
             </div>
-            <!-- Sessions -->
-            <div v-if="getChannelTab(id as string) === 'sessions'" class="card-list" style="margin-top:8px">
-              <div v-for="s in (sessionMap[id as string] || [])" :key="s.id" class="mobile-card" style="border-color:#e2e8f0">
-                <div class="mobile-card-header" style="font-size:13px;display:flex;align-items:center;gap:4px">
-                  <img v-if="s.avatar" :src="s.avatar" style="width:20px;height:20px;border-radius:50%;object-fit:cover" />
+            <div v-if="getChannelTab(id as string) === 'sessions'" class="card-list mobile-sub-list">
+              <div v-for="s in (sessionMap[id as string] || [])" :key="s.id" class="mobile-card mobile-sub-card">
+                <div class="mobile-card-header mobile-sub-header">
+                  <img v-if="s.avatar" :src="s.avatar" class="mobile-sub-avatar" />
                   {{ s.sessionName || s.sessionId }}
                 </div>
                 <div class="mobile-card-fields">
@@ -566,26 +553,25 @@ async function refresh() {
                   <span class="mobile-card-label">{{ t('common.memory') }}</span>
                   <span class="mobile-card-value">{{ Array.isArray(s.memories) && s.memories.length ? s.memories.map(mid => memoryOptions.find(m => m.id === mid)?.label || mid).join(', ') : '-' }}</span>
                   <span class="mobile-card-label">Tokens</span>
-                  <span class="mobile-card-value" style="font-family:monospace;font-variant-numeric:tabular-nums" :title="s.totalTokens > 0 ? `${t('usage.total')}: ${formatTokens(s.totalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatTokens(s.inputTokens)} / ${t('usage.output_tokens')}: ${formatTokens(s.outputTokens)}` + (s.lastTotalTokens > 0 ? `\n${t('usage.last')}: ${formatTokens(s.lastTotalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatTokens(s.lastInputTokens)} / ${t('usage.output_tokens')}: ${formatTokens(s.lastOutputTokens)}` : '') : ''">{{ s.totalTokens > 0 ? formatTokens(s.totalTokens) : '-' }}</span>
+                  <span class="mobile-card-value mobile-tokens" :title="s.totalTokens > 0 ? `${t('usage.total')}: ${formatTokens(s.totalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatTokens(s.inputTokens)} / ${t('usage.output_tokens')}: ${formatTokens(s.outputTokens)}` + (s.lastTotalTokens > 0 ? `\n${t('usage.last')}: ${formatTokens(s.lastTotalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatTokens(s.lastInputTokens)} / ${t('usage.output_tokens')}: ${formatTokens(s.lastOutputTokens)}` : '') : ''">{{ s.totalTokens > 0 ? formatTokens(s.totalTokens) : '-' }}</span>
                 </div>
                 <div class="mobile-card-ops">
-                  <button class="btn-outline btn-sm" @click="openEditSession(s)">{{ t('common.edit') }}</button>
-                  <button class="btn-danger btn-sm" @click="removeSession(id as string, s)">{{ t('common.delete') }}</button>
+                  <SButton type="outline" size="sm" @click="openEditSession(s)">{{ t('common.edit') }}</SButton>
+                  <SButton type="danger" size="sm" @click="removeSession(id as string, s)">{{ t('common.delete') }}</SButton>
                 </div>
               </div>
               <div v-if="channelLoading[id as string]" class="mobile-card-empty">{{ t('common.loading') }}</div>
               <div v-else-if="!(sessionMap[id as string] || []).length" class="mobile-card-empty">-</div>
             </div>
-            <!-- Users -->
-            <div v-if="getChannelTab(id as string) === 'users'" class="card-list" style="margin-top:8px">
-              <div v-for="u in (userMap[id as string] || [])" :key="u.id" class="mobile-card" style="border-color:#e2e8f0">
-                <div class="mobile-card-header" style="font-size:13px;display:flex;align-items:center;gap:4px">
-                  <img v-if="u.avatar" :src="u.avatar" style="width:20px;height:20px;border-radius:50%;object-fit:cover" />
+            <div v-if="getChannelTab(id as string) === 'users'" class="card-list mobile-sub-list">
+              <div v-for="u in (userMap[id as string] || [])" :key="u.id" class="mobile-card mobile-sub-card">
+                <div class="mobile-card-header mobile-sub-header">
+                  <img v-if="u.avatar" :src="u.avatar" class="mobile-sub-avatar" />
                   {{ u.userName || '-' }}
                 </div>
                 <div class="mobile-card-ops">
-                  <button class="btn-outline btn-sm" @click="viewUser = u">{{ t('common.view') }}</button>
-                  <button class="btn-danger btn-sm" @click="removeUser(id as string, u)">{{ t('common.delete') }}</button>
+                  <SButton type="outline" size="sm" @click="viewUser = u">{{ t('common.view') }}</SButton>
+                  <SButton type="danger" size="sm" @click="removeUser(id as string, u)">{{ t('common.delete') }}</SButton>
                 </div>
               </div>
               <div v-if="!(userMap[id as string] || []).length" class="mobile-card-empty">-</div>
@@ -594,8 +580,9 @@ async function refresh() {
         </div>
         <div v-if="Object.keys(channels).length === 0" class="mobile-card-empty">{{ t('channels.empty') }}</div>
       </div>
-    </div>
+    </SPageContent>
 
+    <!-- Channel add/edit drawer (slide-in panel, not a centered modal) -->
     <Transition name="drawer-fade">
       <div v-if="showModal" class="drawer-overlay" @click.self="showModal = false"></div>
     </Transition>
@@ -603,290 +590,231 @@ async function refresh() {
       <div v-if="showModal" class="drawer-panel">
         <div class="drawer-header">
           <h3>{{ editingId ? t('channels.edit_title') : t('channels.add_title') }}</h3>
-          <button class="modal-close" @click="showModal = false">&times;</button>
+          <button class="drawer-close" @click="showModal = false">&times;</button>
         </div>
         <div class="drawer-body">
-          <!-- ── 基本信息 ── -->
-          <h4 class="section-title">{{ t('channels.section_basic') }}</h4>
-          <div v-if="editingId" class="form-group">
-            <label>{{ t('common.id') }}</label>
-            <input :value="editingId" disabled style="font-family:monospace;font-size:11px" />
-          </div>
-          <div class="form-group">
-            <label>{{ t('channels.display_name') }} *</label>
-            <input v-model="form.name" :placeholder="t('channels.display_name_placeholder')" />
-          </div>
-          <div class="form-group">
-            <label>{{ t('channels.channel_type') }} *</label>
-            <select v-model="form.type" @change="form.config = {}" :disabled="!!editingId">
-              <option v-for="p in plugins.filter(p => !p.builtin || editingId)" :key="p.type" :value="p.type">{{ p.label }}</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>{{ t('common.agent') }} *</label>
-            <select v-model="form.agent">
-              <option value="" disabled>{{ t('channels.select_agent') }}</option>
-              <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }} ({{ a.type }})</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>{{ t('common.storage') }} *</label>
-            <select v-model="form.saver">
-              <option value="" disabled>{{ t('channels.select_saver') }}</option>
-              <option v-for="s in saverOptions" :key="s.id" :value="s.id">{{ s.label }}</option>
-            </select>
-          </div>
+          <SFormSection :title="t('channels.section_basic')">
+            <SFormItem v-if="editingId" :label="t('common.id')">
+              <SInput :model-value="editingId" disabled class="cell-mono" />
+            </SFormItem>
+            <SFormItem :label="t('channels.display_name') + ' *'">
+              <SInput v-model="form.name" :placeholder="t('channels.display_name_placeholder')" />
+            </SFormItem>
+            <SFormItem :label="t('channels.channel_type') + ' *'">
+              <SSelect v-model="form.type" @change="form.config = {}" :disabled="!!editingId">
+                <option v-for="p in plugins.filter(p => !p.builtin || editingId)" :key="p.type" :value="p.type">{{ p.label }}</option>
+              </SSelect>
+            </SFormItem>
+            <SFormItem :label="t('common.agent') + ' *'">
+              <SSelect v-model="form.agent">
+                <option value="" disabled>{{ t('channels.select_agent') }}</option>
+                <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }} ({{ a.type }})</option>
+              </SSelect>
+            </SFormItem>
+            <SFormItem :label="t('common.storage') + ' *'">
+              <SSelect v-model="form.saver">
+                <option value="" disabled>{{ t('channels.select_saver') }}</option>
+                <option v-for="s in saverOptions" :key="s.id" :value="s.id">{{ s.label }}</option>
+              </SSelect>
+            </SFormItem>
+          </SFormSection>
 
-          <!-- ── 插件配置 ── -->
-          <template v-if="Object.keys(currentSchema).length > 0">
-            <h4 class="section-title">{{ t('channels.section_plugin') }}</h4>
+          <SFormSection v-if="Object.keys(currentSchema).length > 0" :title="t('channels.section_plugin')">
             <template v-for="(field, key) in currentSchema" :key="key">
-              <div v-if="field.type === 'qrcode'" class="form-group">
-                <label>{{ field.label }}</label>
-                <div style="display:flex;flex-direction:column;gap:8px">
-                  <button class="btn-outline" style="align-self:flex-start" :disabled="actionState[key]?.loading" @click="triggerAction(key as string)">
+              <SFormItem v-if="field.type === 'qrcode'" :label="field.label">
+                <div class="qrcode-block">
+                  <SButton type="outline" :disabled="actionState[key]?.loading" @click="triggerAction(key as string)">
                     {{ actionState[key]?.loading ? '...' : field.label }}
-                  </button>
-                  <img v-if="actionState[key]?.qrUrl" :src="actionState[key]!.qrUrl" style="width:200px;height:200px;border:1px solid #e8e6e3;border-radius:8px" />
-                  <a v-if="actionState[key]?.qrLink" :href="actionState[key]!.qrLink" target="_blank" style="font-size:11px;color:#888;align-self:flex-start">打开二维码链接</a>
-                  <span v-if="actionState[key]?.status === 'scaned'" style="font-size:12px;color:#e6a700">已扫码，请在手机上确认...</span>
-                  <span v-if="actionState[key]?.status === 'wait' && actionState[key]?.qrUrl" style="font-size:12px;color:#888">请扫描二维码</span>
-                  <span v-if="actionState[key]?.status === 'confirmed'" style="font-size:12px;color:#16a34a">登录成功</span>
-                  <span v-if="actionState[key]?.error" style="font-size:12px;color:#dc2626">{{ actionState[key]!.error }}</span>
-                  <span v-if="field.description && !actionState[key]?.qrUrl" style="font-size:11px;color:#888">{{ field.description }}</span>
+                  </SButton>
+                  <img v-if="actionState[key]?.qrUrl" :src="actionState[key]!.qrUrl" class="qr-img" />
+                  <a v-if="actionState[key]?.qrLink" :href="actionState[key]!.qrLink" target="_blank" class="qr-link">打开二维码链接</a>
+                  <span v-if="actionState[key]?.status === 'scaned'" class="qr-msg qr-msg-warn">已扫码，请在手机上确认...</span>
+                  <span v-if="actionState[key]?.status === 'wait' && actionState[key]?.qrUrl" class="qr-msg qr-msg-muted">请扫描二维码</span>
+                  <span v-if="actionState[key]?.status === 'confirmed'" class="qr-msg qr-msg-success">登录成功</span>
+                  <span v-if="actionState[key]?.error" class="qr-msg qr-msg-error">{{ actionState[key]!.error }}</span>
+                  <span v-if="field.description && !actionState[key]?.qrUrl" class="qr-msg qr-msg-muted">{{ field.description }}</span>
                 </div>
-              </div>
-              <div v-else class="form-group">
-                <label>{{ field.label }}{{ field.required ? ' *' : '' }}</label>
-                <select v-if="field.type === 'select'" v-model="form.config[key]">
+              </SFormItem>
+              <SFormItem v-else :label="field.label + (field.required ? ' *' : '')" :hint="field.type === 'boolean' ? '' : field.description">
+                <SSelect v-if="field.type === 'select'" v-model="form.config[key]">
                   <option v-for="opt in field.options" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-                </select>
+                </SSelect>
                 <label v-else-if="field.type === 'boolean'" class="toggle-label">
                   <input type="checkbox" v-model="form.config[key]" />
                   <span>{{ field.description || '' }}</span>
                 </label>
-                <input v-else-if="field.type === 'number'" type="number" v-model.number="form.config[key]" :placeholder="field.description || ''" />
+                <SInput v-else-if="field.type === 'number'" type="number" v-model.number="form.config[key]" :placeholder="field.description || ''" />
                 <div v-else-if="field.type === 'password'" class="apikey-field">
-                  <input v-model="form.config[key]" :placeholder="field.description || ''" :type="passwordVisible[key] ? 'text' : 'password'" />
+                  <SInput v-model="form.config[key]" :placeholder="field.description || ''" :type="passwordVisible[key] ? 'text' : 'password'" class="apikey-input" />
                   <button type="button" class="apikey-toggle" @click="passwordVisible[key] = !passwordVisible[key]" :title="passwordVisible[key] ? t('common.hide') : t('common.show')">{{ passwordVisible[key] ? t('common.hide') : t('common.show') }}</button>
                 </div>
-                <input v-else v-model="form.config[key]" :placeholder="field.description || ''" />
-              </div>
+                <SInput v-else v-model="form.config[key]" :placeholder="field.description || ''" />
+              </SFormItem>
             </template>
-          </template>
+          </SFormSection>
 
-          <!-- ── 资源配置 ── -->
-          <h4 class="section-title">{{ t('channels.section_resources') }}</h4>
-          <div class="form-group">
-            <label>{{ t('common.memory') }}</label>
-            <MultiSelect v-model="form.memories" :options="memoryOptions" />
-          </div>
-          <div class="form-group">
-            <label>{{ t('common.wiki') }}</label>
-            <MultiSelect :model-value="form.wikis || []" :options="wikiOptions" @update:model-value="form.wikis = $event" />
-          </div>
-          <div class="form-group">
-            <label>{{ t('directory.path_label') }}</label>
-            <div style="display:flex;gap:6px">
-              <input v-model="form.workPath" type="text" :placeholder="t('directory.path_placeholder')" style="flex:1" />
-              <button class="btn-outline btn-sm" @click="pathPicker?.open(form.workPath || '')">{{ t('directory.browse') }}</button>
-            </div>
-          </div>
+          <SFormSection :title="t('channels.section_resources')">
+            <SFormItem :label="t('common.memory')">
+              <MultiSelect v-model="form.memories" :options="memoryOptions" />
+            </SFormItem>
+            <SFormItem :label="t('common.wiki')">
+              <MultiSelect :model-value="form.wikis || []" :options="wikiOptions" @update:model-value="form.wikis = $event" />
+            </SFormItem>
+            <SFormItem :label="t('directory.path_label')">
+              <div class="path-row">
+                <SInput v-model="form.workPath" type="text" :placeholder="t('directory.path_placeholder')" class="path-input" />
+                <SButton type="outline" size="sm" @click="pathPicker?.open(form.workPath || '')">{{ t('directory.browse') }}</SButton>
+              </div>
+            </SFormItem>
+          </SFormSection>
 
-          <!-- ── 高级设置 ── -->
-          <h4 class="section-title">{{ t('channels.section_advanced') }}</h4>
-          <div class="form-group">
-            <label class="toggle-label">
-              <input type="checkbox" v-model="form.streamVerbose" />
-              <span>{{ t('channels.stream_verbose') }}</span>
-            </label>
-            <span style="font-size:11px;color:#888">{{ t('channels.stream_verbose_hint') }}</span>
-          </div>
-          <div class="form-group">
-            <label class="toggle-label">
-              <input type="checkbox" v-model="form.autoApproveAllTools" />
-              <span>{{ t('settings.auto_approve_all') }}</span>
-            </label>
-            <span style="font-size:11px;color:#888">{{ t('settings.auto_approve_all_hint') }}</span>
-          </div>
-          <div class="form-group">
-            <label>{{ t('channels.intent_model') }}</label>
-            <select v-model="form.intentModel">
-              <option value="">{{ t('common.not_use') }}</option>
-              <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-            </select>
-            <span style="font-size:11px;color:#888">{{ t('channels.intent_model_hint') }}</span>
-          </div>
-          <template v-if="form.intentModel">
-            <div class="form-group">
-              <label>{{ t('channels.intent_threshold') }}</label>
-              <input v-model.number="form.intentThreshold" type="number" min="0" max="1" step="0.1" />
-              <span style="font-size:11px;color:#888">{{ t('channels.intent_threshold_hint') }}</span>
-            </div>
-            <div class="form-group">
-              <label>{{ t('channels.intent_prompt') }}</label>
-              <textarea v-model="form.intentPrompt" rows="4" :placeholder="t('channels.intent_prompt_placeholder')" style="font-size:12px" />
-            </div>
-          </template>
-          <div class="form-group">
-            <label>{{ t('channels.merge_window') }}</label>
-            <input v-model.number="form.mergeWindow" type="number" min="0" step="100" placeholder="0" />
-            <span style="font-size:11px;color:#888">{{ t('channels.merge_window_hint') }}</span>
-          </div>
-          <template v-if="currentToolOptions.length > 0">
-            <div class="form-group">
-              <label>{{ t('channels.tools') }}</label>
-              <MultiSelect v-model="formTools" :options="currentToolOptions" />
-              <span style="font-size:11px;color:#888">{{ t('channels.tools_hint') }}</span>
-            </div>
-            <div class="form-group">
-              <label>{{ t('channels.heartbeat_tools') }}</label>
-              <MultiSelect v-model="formHeartbeatTools" :options="currentToolOptions" />
-              <span style="font-size:11px;color:#888">{{ t('channels.heartbeat_tools_hint') }}</span>
-            </div>
-          </template>
+          <SFormSection :title="t('channels.section_advanced')">
+            <SFormItem :hint="t('channels.stream_verbose_hint')">
+              <label class="toggle-label">
+                <input type="checkbox" v-model="form.streamVerbose" />
+                <span>{{ t('channels.stream_verbose') }}</span>
+              </label>
+            </SFormItem>
+            <SFormItem :hint="t('settings.auto_approve_all_hint')">
+              <label class="toggle-label">
+                <input type="checkbox" v-model="form.autoApproveAllTools" />
+                <span>{{ t('settings.auto_approve_all') }}</span>
+              </label>
+            </SFormItem>
+            <SFormItem :label="t('channels.intent_model')" :hint="t('channels.intent_model_hint')">
+              <SSelect v-model="form.intentModel">
+                <option value="">{{ t('common.not_use') }}</option>
+                <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
+              </SSelect>
+            </SFormItem>
+            <template v-if="form.intentModel">
+              <SFormItem :label="t('channels.intent_threshold')" :hint="t('channels.intent_threshold_hint')">
+                <SInput v-model.number="form.intentThreshold" type="number" />
+              </SFormItem>
+              <SFormItem :label="t('channels.intent_prompt')">
+                <STextarea v-model="form.intentPrompt" :rows="4" :placeholder="t('channels.intent_prompt_placeholder')" />
+              </SFormItem>
+            </template>
+            <SFormItem :label="t('channels.merge_window')" :hint="t('channels.merge_window_hint')">
+              <SInput v-model.number="form.mergeWindow" type="number" placeholder="0" />
+            </SFormItem>
+            <template v-if="currentToolOptions.length > 0">
+              <SFormItem :label="t('channels.tools')" :hint="t('channels.tools_hint')">
+                <MultiSelect v-model="formTools" :options="currentToolOptions" />
+              </SFormItem>
+              <SFormItem :label="t('channels.heartbeat_tools')" :hint="t('channels.heartbeat_tools_hint')">
+                <MultiSelect v-model="formHeartbeatTools" :options="currentToolOptions" />
+              </SFormItem>
+            </template>
+          </SFormSection>
         </div>
         <div class="drawer-footer">
-          <button class="btn-outline" @click="showModal = false">{{ t('common.cancel') }}</button>
-          <button class="btn-primary" @click="save">{{ t('common.save') }}</button>
+          <SButton type="outline" @click="showModal = false">{{ t('common.cancel') }}</SButton>
+          <SButton type="primary" @click="save">{{ t('common.save') }}</SButton>
         </div>
       </div>
     </Transition>
 
-    <div v-if="editingSession" class="modal-overlay" @click.self="editingSession = null">
-      <div class="modal-box" style="width:440px">
-        <div class="modal-header">
-          <h3>{{ t('channels.edit_session_title', { name: editingSession.sessionId }) }}</h3>
-          <button class="modal-close" @click="editingSession = null">&times;</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label>{{ t('channels.session_id') }}</label>
-            <input :value="editingSession.sessionId" disabled style="font-family:monospace;font-size:11px" />
+    <!-- Edit session modal -->
+    <SModal :visible="!!editingSession" :title="editingSession ? t('channels.edit_session_title', { name: editingSession.sessionId }) : ''" width="md" @update:visible="v => { if (!v) editingSession = null }">
+      <template v-if="editingSession">
+        <SFormItem :label="t('channels.session_id')">
+          <SInput :model-value="editingSession.sessionId" disabled class="cell-mono" />
+        </SFormItem>
+        <SFormItem :label="t('channels.session_name')">
+          <SInput :model-value="sessionForm.name" disabled />
+        </SFormItem>
+        <SFormItem :label="t('common.agent')">
+          <SSelect v-model="sessionForm.agentId">
+            <option value="">{{ t('channels.use_channel_default') }}</option>
+            <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }} ({{ a.type }})</option>
+          </SSelect>
+        </SFormItem>
+        <SFormItem :label="t('common.storage')">
+          <SSelect v-model="sessionForm.saver">
+            <option value="">{{ t('channels.use_channel_default') }}</option>
+            <option v-for="s in saverOptions" :key="s.id" :value="s.id">{{ s.label }}</option>
+          </SSelect>
+        </SFormItem>
+        <SFormItem :label="t('common.memory')" :hint="t('channels.use_channel_memories_hint')">
+          <MultiSelect v-model="sessionForm.memories" :options="memoryOptions" />
+          <label class="toggle-label toggle-mt">
+            <input type="checkbox" v-model="sessionForm.useChannelMemories" />
+            <span>{{ t('channels.use_channel_memories') }}</span>
+          </label>
+        </SFormItem>
+        <SFormItem :label="t('common.wiki')" :hint="t('channels.use_channel_wikis_hint')">
+          <MultiSelect v-model="sessionForm.wikis" :options="wikiOptions" />
+          <label class="toggle-label toggle-mt">
+            <input type="checkbox" v-model="sessionForm.useChannelWikis" />
+            <span>{{ t('channels.use_channel_wikis') }}</span>
+          </label>
+        </SFormItem>
+        <SFormItem :label="t('directory.path_label')" :hint="t('channels.work_path_hint')">
+          <div class="path-row">
+            <SInput v-model="sessionForm.workPath" type="text" :placeholder="t('directory.path_placeholder')" class="path-input" />
+            <SButton type="outline" size="sm" @click="pathPicker?.open(sessionForm.workPath)">{{ t('directory.browse') }}</SButton>
           </div>
-          <div class="form-group">
-            <label>{{ t('channels.session_name') }}</label>
-            <input :value="sessionForm.name" disabled />
-          </div>
-          <div class="form-group">
-            <label>{{ t('common.agent') }}</label>
-            <select v-model="sessionForm.agentId">
-              <option value="">{{ t('channels.use_channel_default') }}</option>
-              <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }} ({{ a.type }})</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>{{ t('common.storage') }}</label>
-            <select v-model="sessionForm.saver">
-              <option value="">{{ t('channels.use_channel_default') }}</option>
-              <option v-for="s in saverOptions" :key="s.id" :value="s.id">{{ s.label }}</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>{{ t('common.memory') }}</label>
-            <MultiSelect v-model="sessionForm.memories" :options="memoryOptions" />
-            <label class="toggle-label" style="margin-top:4px">
-              <input type="checkbox" v-model="sessionForm.useChannelMemories" />
-              <span>{{ t('channels.use_channel_memories') }}</span>
-            </label>
-            <span style="font-size:11px;color:#888">{{ t('channels.use_channel_memories_hint') }}</span>
-          </div>
-          <div class="form-group">
-            <label>{{ t('common.wiki') }}</label>
-            <MultiSelect v-model="sessionForm.wikis" :options="wikiOptions" />
-            <label class="toggle-label" style="margin-top:4px">
-              <input type="checkbox" v-model="sessionForm.useChannelWikis" />
-              <span>{{ t('channels.use_channel_wikis') }}</span>
-            </label>
-            <span style="font-size:11px;color:#888">{{ t('channels.use_channel_wikis_hint') }}</span>
-          </div>
-          <div class="form-group">
-            <label>{{ t('directory.path_label') }}</label>
-            <div style="display:flex;gap:6px">
-              <input v-model="sessionForm.workPath" type="text" :placeholder="t('directory.path_placeholder')" style="flex:1" />
-              <button class="btn-outline btn-sm" @click="pathPicker?.open(sessionForm.workPath)">{{ t('directory.browse') }}</button>
-            </div>
-            <span style="font-size:11px;color:#888">{{ t('channels.work_path_hint') }}</span>
-          </div>
-          <div class="form-group">
-            <label>{{ t('channels.stream_verbose') }}</label>
-            <select :value="sessionForm.streamVerbose ?? ''" @change="sessionForm.streamVerbose = ($event.target as HTMLSelectElement).value === '' ? null : ($event.target as HTMLSelectElement).value === 'true'">
-              <option value="">{{ t('channels.use_channel_default') }}</option>
-              <option value="true">{{ t('common.enabled') }}</option>
-              <option value="false">{{ t('common.disabled') }}</option>
-            </select>
-            <span style="font-size:11px;color:#888">{{ t('channels.stream_verbose_hint') }}</span>
-          </div>
-          <div class="form-group">
-            <label>{{ t('settings.auto_approve_all') }}</label>
-            <select :value="sessionForm.autoApproveAllTools ?? ''" @change="sessionForm.autoApproveAllTools = ($event.target as HTMLSelectElement).value === '' ? null : ($event.target as HTMLSelectElement).value === 'true'">
-              <option value="">{{ t('channels.use_channel_default') }}</option>
-              <option value="true">{{ t('common.enabled') }}</option>
-              <option value="false">{{ t('common.disabled') }}</option>
-            </select>
-            <span style="font-size:11px;color:#888">{{ t('settings.auto_approve_all_hint') }}</span>
-          </div>
-          <div class="form-group">
-            <label>{{ t('channels.intent_model') }}</label>
-            <select :value="sessionForm.intentModel ?? '__default__'" @change="sessionForm.intentModel = ($event.target as HTMLSelectElement).value === '__default__' ? null : ($event.target as HTMLSelectElement).value">
-              <option value="__default__">{{ t('channels.use_channel_default') }}</option>
-              <option value="">{{ t('common.not_use') }}</option>
-              <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-            </select>
-            <span style="font-size:11px;color:#888">{{ t('channels.intent_model_hint') }}</span>
-          </div>
-          <template v-if="sessionForm.intentModel">
-            <div class="form-group">
-              <label>{{ t('channels.intent_threshold') }}</label>
-              <input v-model.number="sessionForm.intentThreshold" type="number" min="0" max="1" step="0.1" />
-              <span style="font-size:11px;color:#888">{{ t('channels.intent_threshold_hint') }}</span>
-            </div>
-            <div class="form-group">
-              <label>{{ t('channels.intent_prompt') }}</label>
-              <textarea v-model="sessionForm.intentPrompt" rows="4" :placeholder="t('channels.intent_prompt_placeholder')" style="font-size:12px" />
-            </div>
-          </template>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-outline" @click="editingSession = null">{{ t('common.cancel') }}</button>
-          <button class="btn-primary" @click="saveSession">{{ t('common.save') }}</button>
-        </div>
-      </div>
-    </div>
+        </SFormItem>
+        <SFormItem :label="t('channels.stream_verbose')" :hint="t('channels.stream_verbose_hint')">
+          <SSelect :model-value="sessionForm.streamVerbose === null ? '' : String(sessionForm.streamVerbose)" @update:model-value="v => sessionForm.streamVerbose = v === '' ? null : v === 'true'">
+            <option value="">{{ t('channels.use_channel_default') }}</option>
+            <option value="true">{{ t('common.enabled') }}</option>
+            <option value="false">{{ t('common.disabled') }}</option>
+          </SSelect>
+        </SFormItem>
+        <SFormItem :label="t('settings.auto_approve_all')" :hint="t('settings.auto_approve_all_hint')">
+          <SSelect :model-value="sessionForm.autoApproveAllTools === null ? '' : String(sessionForm.autoApproveAllTools)" @update:model-value="v => sessionForm.autoApproveAllTools = v === '' ? null : v === 'true'">
+            <option value="">{{ t('channels.use_channel_default') }}</option>
+            <option value="true">{{ t('common.enabled') }}</option>
+            <option value="false">{{ t('common.disabled') }}</option>
+          </SSelect>
+        </SFormItem>
+        <SFormItem :label="t('channels.intent_model')" :hint="t('channels.intent_model_hint')">
+          <SSelect :model-value="sessionForm.intentModel ?? '__default__'" @update:model-value="v => sessionForm.intentModel = v === '__default__' ? null : String(v)">
+            <option value="__default__">{{ t('channels.use_channel_default') }}</option>
+            <option value="">{{ t('common.not_use') }}</option>
+            <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
+          </SSelect>
+        </SFormItem>
+        <template v-if="sessionForm.intentModel">
+          <SFormItem :label="t('channels.intent_threshold')" :hint="t('channels.intent_threshold_hint')">
+            <SInput v-model.number="sessionForm.intentThreshold" type="number" />
+          </SFormItem>
+          <SFormItem :label="t('channels.intent_prompt')">
+            <STextarea v-model="sessionForm.intentPrompt" :rows="4" :placeholder="t('channels.intent_prompt_placeholder')" />
+          </SFormItem>
+        </template>
+      </template>
+      <template #footer>
+        <SButton type="outline" @click="editingSession = null">{{ t('common.cancel') }}</SButton>
+        <SButton type="primary" @click="saveSession">{{ t('common.save') }}</SButton>
+      </template>
+    </SModal>
 
-    <div v-if="viewUser" class="modal-overlay" @click.self="viewUser = null">
-      <div class="modal-box wide">
-        <div class="modal-header">
-          <h3>{{ t('users.detail_title', { name: viewUser.userName || viewUser.userId }) }}</h3>
-          <button class="modal-close" @click="viewUser = null">&times;</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label>{{ t('common.id') }}</label>
-            <input :value="viewUser.id" disabled />
-          </div>
-          <div class="form-group">
-            <label>{{ t('users.user_id') }}</label>
-            <input :value="viewUser.userId" disabled />
-          </div>
-          <div class="form-group">
-            <label>{{ t('users.username') }}</label>
-            <input :value="viewUser.userName" disabled />
-          </div>
-          <div class="form-group">
-            <label>{{ t('users.channel') }}</label>
-            <input :value="viewUser.channelId" disabled />
-          </div>
-          <div class="form-group">
-            <label>{{ t('users.user_info') }}</label>
-            <textarea :value="formatUserInfo(viewUser.userInfo)" disabled rows="16" style="font-family:monospace;font-size:12px" />
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-outline" @click="viewUser = null">{{ t('common.close') }}</button>
-        </div>
-      </div>
-    </div>
+    <!-- View user modal -->
+    <SModal :visible="!!viewUser" :title="viewUser ? t('users.detail_title', { name: viewUser.userName || viewUser.userId }) : ''" width="lg" @update:visible="v => { if (!v) viewUser = null }">
+      <template v-if="viewUser">
+        <SFormItem :label="t('common.id')">
+          <SInput :model-value="String(viewUser.id)" disabled />
+        </SFormItem>
+        <SFormItem :label="t('users.user_id')">
+          <SInput :model-value="viewUser.userId" disabled />
+        </SFormItem>
+        <SFormItem :label="t('users.username')">
+          <SInput :model-value="viewUser.userName" disabled />
+        </SFormItem>
+        <SFormItem :label="t('users.channel')">
+          <SInput :model-value="viewUser.channelId" disabled />
+        </SFormItem>
+        <SFormItem :label="t('users.user_info')">
+          <STextarea :model-value="formatUserInfo(viewUser.userInfo)" disabled :rows="16" class="user-info-text" />
+        </SFormItem>
+      </template>
+      <template #footer>
+        <SButton type="outline" @click="viewUser = null">{{ t('common.close') }}</SButton>
+      </template>
+    </SModal>
 
     <SaverViewModal ref="saverViewModal" />
     <PathPickerModal ref="pathPicker" @confirm="p => { if (editingSession) sessionForm.workPath = p; else form.workPath = p }" />
@@ -894,36 +822,45 @@ async function refresh() {
 </template>
 
 <style scoped>
-.apikey-field {
-  display: flex;
-  gap: 0;
-}
-.apikey-field input {
-  flex: 1;
-  border-radius: 6px 0 0 6px;
-  border-right: none;
-}
+.cell-mono { font-family: var(--sui-font-mono); font-size: var(--sui-fs-xs); }
+.user-info-text :deep(textarea) { font-family: var(--sui-font-mono); font-size: var(--sui-fs-sm); }
+
+.apikey-field { display: flex; gap: 0; }
+.apikey-input { flex: 1; }
+.apikey-input :deep(input) { border-radius: var(--sui-radius-md) 0 0 var(--sui-radius-md); border-right: none; }
 .apikey-toggle {
   padding: 0 12px;
-  font-size: 12px;
-  background: #f4f3f1;
-  border: 1px solid #d1d0ce;
-  border-radius: 0 6px 6px 0;
+  font-size: var(--sui-fs-sm);
+  background: var(--sui-bg-hover);
+  border: 1px solid var(--sui-border-strong);
+  border-radius: 0 var(--sui-radius-md) var(--sui-radius-md) 0;
   cursor: pointer;
-  color: #555;
+  color: var(--sui-fg-muted);
   white-space: nowrap;
   transition: background .15s;
 }
-.apikey-toggle:hover { background: #eceae6; }
-.session-id-cell {
-  font-size: 13px;
-  font-weight: 500;
-  color: #2d2d2d;
-  padding: 6px 12px;
-  display: flex;
+.apikey-toggle:hover { background: var(--sui-bg-active); }
+
+.toggle-label {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--sui-sp-2);
+  cursor: pointer;
 }
+.toggle-mt { margin-top: 4px; }
+
+.path-row { display: flex; gap: var(--sui-sp-2); }
+.path-input { flex: 1; }
+
+.qrcode-block { display: flex; flex-direction: column; gap: var(--sui-sp-3); align-items: flex-start; }
+.qr-img { width: 200px; height: 200px; border: 1px solid var(--sui-border); border-radius: var(--sui-radius-lg); }
+.qr-link { font-size: var(--sui-fs-xs); color: var(--sui-fg-muted); }
+.qr-msg { font-size: var(--sui-fs-sm); }
+.qr-msg-warn { color: var(--sui-warning); }
+.qr-msg-muted { color: var(--sui-fg-muted); }
+.qr-msg-success { color: var(--sui-success); }
+.qr-msg-error { color: var(--sui-danger); }
+
 .session-avatar {
   width: 28px;
   height: 28px;
@@ -931,11 +868,12 @@ async function refresh() {
   object-fit: cover;
   flex-shrink: 0;
 }
-/* ── Detail row ── */
+
+/* Detail tab bar (sub-tabs inside expanded card) */
 .detail-tab-bar {
   display: flex;
-  border-bottom: 1px solid #e8e6e3;
-  background: #f0f4f8;
+  border-bottom: 1px solid var(--sui-border);
+  background: var(--sui-bg-subtle);
   padding: 0 20px;
 }
 .detail-tab-btn {
@@ -943,177 +881,144 @@ async function refresh() {
   border: none;
   background: none;
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--sui-fs-sm);
   font-weight: 500;
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
   transition: color .15s;
-  color: #9b9b9b;
+  color: var(--sui-fg-disabled);
+  font-family: inherit;
 }
-.detail-tab-btn:hover { color: #1c1c1c; }
-.detail-tab-btn.active { color: #1c1c1c; border-bottom-color: #1c1c1c; }
+.detail-tab-btn:hover { color: var(--sui-fg); }
+.detail-tab-btn.active { color: var(--sui-fg); border-bottom-color: var(--sui-fg); }
 .detail-tab-content {
-  padding: 12px 20px;
-  background: #f8fafc;
+  padding: var(--sui-sp-4) 20px;
+  background: var(--sui-bg-subtle);
   max-height: 400px;
   overflow: auto;
 }
 .detail-empty {
   text-align: center;
   padding: 24px;
-  color: #94a3b8;
-  font-size: 13px;
+  color: var(--sui-fg-disabled);
+  font-size: var(--sui-fs-md);
 }
-.detail-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: #fff;
-  border-radius: 6px;
-  overflow: hidden;
-  border: 1px solid #e8e6e3;
-}
-.detail-table th {
-  padding: 7px 12px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #6b7280;
-  text-transform: uppercase;
-  letter-spacing: .04em;
-  background: #f5f4f2;
-  border-bottom: 1px solid #e8e6e3;
-  text-align: left;
-}
-.detail-table td {
-  padding: 7px 12px;
-  font-size: 13px;
-  border-bottom: 1px solid #f0eeeb;
-  vertical-align: middle;
-}
-.detail-table tr:last-child td { border-bottom: none; }
-.detail-table tr:hover td { background: #fafaf9; }
-/* ── Channel cards ── */
+
+/* Channel cards */
 .channel-cards {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--sui-sp-4);
 }
 .channel-card {
-  border: 1px solid #e8e6e3;
-  border-radius: 8px;
-  background: #fff;
+  border: 1px solid var(--sui-border);
+  border-radius: var(--sui-radius-lg);
+  background: var(--sui-bg);
   overflow: hidden;
   transition: box-shadow 0.15s;
 }
-.channel-card:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-}
-.channel-card.expanded {
-  border-color: #d1d0ce;
-}
+.channel-card:hover { box-shadow: var(--sui-shadow-sm); }
+.channel-card.expanded { border-color: var(--sui-border-strong); }
 .channel-card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: var(--sui-sp-4) var(--sui-sp-5);
   cursor: pointer;
-  gap: 12px;
+  gap: var(--sui-sp-4);
 }
-.channel-card-header:hover {
-  background: #fafaf9;
-}
+.channel-card-header:hover { background: var(--sui-bg-subtle); }
 .channel-card-left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--sui-sp-3);
   min-width: 0;
 }
 .channel-expand-icon {
-  color: #6b6b6b;
+  color: var(--sui-fg-muted);
   font-size: 10px;
   flex-shrink: 0;
 }
 .channel-card-name {
-  font-size: 14px;
+  font-size: var(--sui-fs-lg);
   font-weight: 600;
-  color: #1c1c1c;
+  color: var(--sui-fg);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .channel-card-type-badge {
-  font-size: 11px;
+  font-size: var(--sui-fs-xs);
   padding: 2px 8px;
   border-radius: 10px;
-  background: #f1f5f9;
-  color: #475569;
+  background: var(--sui-bg-hover);
+  color: var(--sui-fg-secondary);
   white-space: nowrap;
   flex-shrink: 0;
 }
 .channel-card-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--sui-sp-3);
   flex-shrink: 0;
 }
 .channel-card-agent {
-  font-size: 12px;
-  color: #6b7280;
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg-muted);
   margin-right: 4px;
 }
 .channel-card-meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
-  padding: 0 16px 12px 38px;
-  font-size: 11px;
+  gap: 4px var(--sui-sp-3);
+  padding: 0 var(--sui-sp-5) var(--sui-sp-4) 38px;
+  font-size: var(--sui-fs-xs);
 }
 .channel-card-detail {
-  border-top: 1px solid #e8e6e3;
+  border-top: 1px solid var(--sui-border);
 }
-/* ── Session list (inside expanded card) ── */
+
+/* Session list (inside expanded card) */
 .session-list {
   display: flex;
   flex-direction: column;
-  gap: 0;
 }
 .session-item {
-  padding: 10px 0;
-  border-bottom: 1px solid #f0eeeb;
+  padding: var(--sui-sp-3) 0;
+  border-bottom: 1px solid var(--sui-border);
 }
-.session-item:last-child {
-  border-bottom: none;
-}
+.session-item:last-child { border-bottom: none; }
 .session-item-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: var(--sui-sp-3);
 }
 .session-item-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--sui-sp-3);
   min-width: 0;
 }
 .session-item-name {
-  font-size: 13px;
+  font-size: var(--sui-fs-md);
   font-weight: 500;
-  color: #2d2d2d;
+  color: var(--sui-fg);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 280px;
 }
 .session-item-agent {
-  font-size: 11px;
-  color: #6b7280;
+  font-size: var(--sui-fs-xs);
+  color: var(--sui-fg-muted);
   white-space: nowrap;
 }
 .session-item-tokens {
-  font-family: monospace;
-  font-size: 11px;
-  color: #9b9b9b;
+  font-family: var(--sui-font-mono);
+  font-size: var(--sui-fs-xs);
+  color: var(--sui-fg-disabled);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -1121,50 +1026,62 @@ async function refresh() {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
-  font-size: 11px;
-  margin-top: 6px;
+  gap: 4px var(--sui-sp-3);
+  font-size: var(--sui-fs-xs);
+  margin-top: var(--sui-sp-2);
   padding-left: 36px;
 }
 .session-meta-id {
-  font-family: monospace;
-  color: #b0b0b0;
+  font-family: var(--sui-font-mono);
+  color: var(--sui-fg-disabled);
 }
 .session-meta-chip {
   display: inline-flex;
   align-items: center;
   padding: 1px 7px;
   border-radius: 9px;
-  background: #f1f5f9;
-  color: #475569;
-  font-size: 11px;
+  background: var(--sui-bg-hover);
+  color: var(--sui-fg-secondary);
+  font-size: var(--sui-fs-xs);
   white-space: nowrap;
   max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.session-meta-chip.blue {
-  background: #eff6ff;
-  color: #2563eb;
+.session-meta-chip.blue { background: var(--sui-accent-soft); color: var(--sui-on-accent-soft); }
+.session-meta-chip.green { background: #ecfdf5; color: #16a34a; }
+.session-meta-chip.orange { background: #fff7ed; color: #c2410c; }
+.session-meta-chip.muted { background: var(--sui-bg-subtle); color: var(--sui-fg-disabled); }
+
+html[data-theme="dark"] .session-meta-chip.green { background: #14532d; color: #86efac; }
+html[data-theme="dark"] .session-meta-chip.orange { background: #431407; color: #fdba74; }
+
+/* Mobile detail */
+.mobile-card-header-clickable { display: flex; justify-content: space-between; cursor: pointer; }
+.mobile-expand-icon { font-size: 10px; }
+.mobile-detail { margin-top: var(--sui-sp-3); }
+.mobile-sub-list { margin-top: var(--sui-sp-2); }
+.mobile-sub-card { border-color: var(--sui-border); }
+.mobile-sub-header {
+  font-size: var(--sui-fs-md);
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
-.session-meta-chip.green {
-  background: #ecfdf5;
-  color: #16a34a;
+.mobile-sub-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  object-fit: cover;
 }
-.session-meta-chip.orange {
-  background: #fff7ed;
-  color: #c2410c;
-}
-.session-meta-chip.muted {
-  background: #f8fafc;
-  color: #94a3b8;
-}
-/* ── Drawer ── */
+.mobile-tokens { font-family: var(--sui-font-mono); font-variant-numeric: tabular-nums; }
+
+/* Drawer (slide-in panel for channel add/edit) */
 .drawer-overlay {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.3);
-  z-index: 999;
+  z-index: var(--sui-z-modal);
 }
 .drawer-panel {
   position: fixed;
@@ -1173,66 +1090,57 @@ async function refresh() {
   bottom: 0;
   width: 560px;
   max-width: 100vw;
-  background: #fff;
-  z-index: 1000;
+  background: var(--sui-bg);
+  z-index: calc(var(--sui-z-modal) + 1);
   display: flex;
   flex-direction: column;
-  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--sui-shadow-lg);
 }
 .drawer-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 24px;
-  border-bottom: 1px solid #e8e6e3;
+  padding: var(--sui-sp-5) var(--sui-sp-6);
+  border-bottom: 1px solid var(--sui-border);
   flex-shrink: 0;
 }
 .drawer-header h3 {
-  font-size: 16px;
+  font-size: var(--sui-fs-xl);
   font-weight: 600;
-  color: #1c1c1c;
+  color: var(--sui-fg);
 }
+.drawer-close {
+  border: none;
+  background: none;
+  font-size: 22px;
+  color: var(--sui-fg-muted);
+  cursor: pointer;
+  padding: 0 6px;
+  line-height: 1;
+}
+.drawer-close:hover { color: var(--sui-fg); }
 .drawer-body {
   flex: 1;
   overflow-y: auto;
-  padding: 20px 24px;
+  padding: var(--sui-sp-6);
 }
 .drawer-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  padding: 14px 24px;
-  border-top: 1px solid #e8e6e3;
+  gap: var(--sui-sp-3);
+  padding: var(--sui-sp-4) var(--sui-sp-6);
+  border-top: 1px solid var(--sui-border);
   flex-shrink: 0;
 }
-.section-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: #6b7280;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin: 20px 0 12px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid #f0eeeb;
-}
-.section-title:first-child {
-  margin-top: 0;
-}
-/* ── Drawer transitions ── */
+
 .drawer-fade-enter-active,
-.drawer-fade-leave-active {
-  transition: opacity 0.3s ease;
-}
+.drawer-fade-leave-active { transition: opacity 0.3s ease; }
 .drawer-fade-enter-from,
-.drawer-fade-leave-to {
-  opacity: 0;
-}
+.drawer-fade-leave-to { opacity: 0; }
 .drawer-slide-enter-active,
-.drawer-slide-leave-active {
-  transition: transform 0.3s ease;
-}
+.drawer-slide-leave-active { transition: transform 0.3s ease; }
 .drawer-slide-enter-from,
-.drawer-slide-leave-to {
-  transform: translateX(100%);
-}
+.drawer-slide-leave-to { transform: translateX(100%); }
+
+html[data-theme="dark"] .drawer-overlay { background: rgba(0, 0, 0, 0.55); }
 </style>

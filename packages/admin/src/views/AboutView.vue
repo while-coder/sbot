@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { marked } from 'marked'
 import { GITHUB_REPO_URL, GITHUB_ISSUES_URL, GITHUB_README_URL, GITHUB_README_ZH_URL, NPM_URL, DOCKER_URL, fetchLatestRelease, compareSemver } from 'sbot.commons'
+import { SCard, SPageToolbar, SPageContent } from 'sbot-ui'
 
 const { t, locale } = useI18n()
 
@@ -14,12 +15,10 @@ const readmeHtml = ref('')
 const loadingReadme = ref(true)
 const newRelease = ref<{ tag: string; releasenoteEn: string; releasenoteZh: string; url: string } | null>(null)
 
-// 当前已安装版本的更新内容
 const currentNoteHtml = computed(() => {
   const note = (locale.value === 'zh' ? currentNoteZh.value : currentNoteEn.value) || currentNoteEn.value
   return note ? (marked.parse(note) as string) : ''
 })
-// 最新版本的更新内容
 const latestNoteHtml = computed(() => {
   const note = (locale.value === 'zh' ? newRelease.value?.releasenoteZh : newRelease.value?.releasenoteEn) || newRelease.value?.releasenoteEn || ''
   return note ? (marked.parse(note) as string) : ''
@@ -56,69 +55,68 @@ onMounted(async () => {
 
 <template>
   <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
-    <div class="page-toolbar">
-      <span class="page-toolbar-title">{{ t('about.title') }}</span>
-      <span v-if="currentVersion" style="font-size:12px;color:#9b9b9b;font-family:monospace">v{{ currentVersion }}</span>
-    </div>
-    <div class="page-content">
-      <div style="max-width:760px">
+    <SPageToolbar :title="t('about.title')">
+      <template #actions>
+        <span v-if="currentVersion" class="about-version">v{{ currentVersion }}</span>
+      </template>
+    </SPageToolbar>
+    <SPageContent>
+      <div class="about-wrap">
 
         <!-- Project info -->
-        <div class="card" style="margin-bottom:20px">
-          <div class="card-title">{{ t('about.project_info') }}</div>
-          <table style="width:100%;font-size:13px">
+        <SCard :title="t('about.project_info')" class="about-card">
+          <table class="info-table">
             <tbody>
               <tr>
-                <td style="padding:8px 0;color:#6b6b6b;width:120px;border-bottom:1px solid #f0efed">{{ t('about.version') }}</td>
-                <td style="padding:8px 0;font-family:monospace;border-bottom:1px solid #f0efed">{{ currentVersion || '—' }}</td>
+                <td class="info-label">{{ t('about.version') }}</td>
+                <td class="info-value mono">{{ currentVersion || '—' }}</td>
               </tr>
               <tr>
-                <td style="padding:8px 0;color:#6b6b6b;border-bottom:1px solid #f0efed">{{ t('about.repository') }}</td>
-                <td style="padding:8px 0;border-bottom:1px solid #f0efed">
-                  <a :href="GITHUB_REPO_URL" target="_blank" style="color:#4f46e5;text-decoration:none;font-family:monospace;font-size:12px">{{ GITHUB_REPO_URL.replace('https://', '') }}</a>
+                <td class="info-label">{{ t('about.repository') }}</td>
+                <td class="info-value">
+                  <a :href="GITHUB_REPO_URL" target="_blank" class="info-link">{{ GITHUB_REPO_URL.replace('https://', '') }}</a>
                 </td>
               </tr>
               <tr>
-                <td style="padding:8px 0;color:#6b6b6b;border-bottom:1px solid #f0efed">{{ t('about.npm') }}</td>
-                <td style="padding:8px 0;border-bottom:1px solid #f0efed">
-                  <a :href="NPM_URL" target="_blank" style="color:#4f46e5;text-decoration:none;font-family:monospace;font-size:12px">{{ NPM_URL.replace('https://', '') }}</a>
+                <td class="info-label">{{ t('about.npm') }}</td>
+                <td class="info-value">
+                  <a :href="NPM_URL" target="_blank" class="info-link">{{ NPM_URL.replace('https://', '') }}</a>
                 </td>
               </tr>
               <tr>
-                <td style="padding:8px 0;color:#6b6b6b;border-bottom:1px solid #f0efed">{{ t('about.docker') }}</td>
-                <td style="padding:8px 0;border-bottom:1px solid #f0efed">
-                  <a :href="DOCKER_URL" target="_blank" style="color:#4f46e5;text-decoration:none;font-family:monospace;font-size:12px">{{ DOCKER_URL.replace('https://', '') }}</a>
+                <td class="info-label">{{ t('about.docker') }}</td>
+                <td class="info-value">
+                  <a :href="DOCKER_URL" target="_blank" class="info-link">{{ DOCKER_URL.replace('https://', '') }}</a>
                 </td>
               </tr>
               <tr>
-                <td style="padding:8px 0;color:#6b6b6b">{{ t('about.license') }}</td>
-                <td style="padding:8px 0">MIT</td>
+                <td class="info-label info-label-last">{{ t('about.license') }}</td>
+                <td class="info-value info-value-last">MIT</td>
               </tr>
             </tbody>
           </table>
-          <div style="margin-top:14px;padding-top:14px;border-top:1px solid #f0efed;display:flex;align-items:center;justify-content:space-between">
-            <span style="font-size:12px;color:#9b9b9b">{{ t('about.feedback_hint') }}</span>
+          <div class="feedback-row">
+            <span class="feedback-hint">{{ t('about.feedback_hint') }}</span>
             <a :href="GITHUB_ISSUES_URL" target="_blank" class="feedback-btn">
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink:0">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" class="feedback-icon">
                 <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
               </svg>
               {{ t('about.feedback') }}
             </a>
           </div>
-        </div>
+        </SCard>
 
         <!-- Release note -->
-        <div v-if="currentNoteHtml" class="releasenote-card" style="margin-bottom:20px">
-          <div class="card-title">{{ t('about.release_notes') }}</div>
+        <SCard v-if="currentNoteHtml" :title="t('about.release_notes')" class="about-card">
           <div class="releasenote-body md-content" v-html="currentNoteHtml" />
-        </div>
+        </SCard>
 
         <!-- Update banner -->
         <div v-if="newRelease" class="newRelease-banner">
           <div class="newRelease-banner-top">
-            <div style="display:flex;align-items:center;gap:10px">
+            <div class="newRelease-banner-left">
               <span class="newRelease-tag">{{ newRelease.tag }}</span>
-              <span style="font-size:13px;font-weight:600;color:#1c1c1c">{{ t('about.new_version') }}</span>
+              <span class="newRelease-title">{{ t('about.new_version') }}</span>
             </div>
             <a :href="newRelease.url" target="_blank" class="newRelease-link">{{ t('about.view_release') }}</a>
           </div>
@@ -128,122 +126,172 @@ onMounted(async () => {
         <!-- README -->
         <div v-if="loadingReadme" class="readme-loading">{{ t('about.loading') }}</div>
         <div v-else-if="readmeHtml" class="readme-wrap md-content" v-html="readmeHtml" />
-        <div v-else style="color:#9b9b9b;font-size:13px">{{ t('about.load_error') }}</div>
-
+        <div v-else class="readme-error">{{ t('about.load_error') }}</div>
       </div>
-    </div>
+    </SPageContent>
   </div>
 </template>
 
 <style scoped>
-/* Feedback button */
+.about-version {
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg-disabled);
+  font-family: var(--sui-font-mono);
+}
+.about-wrap {
+  max-width: 760px;
+}
+.about-card {
+  margin-bottom: var(--sui-sp-6);
+}
+.info-table {
+  width: 100%;
+  font-size: var(--sui-fs-md);
+}
+.info-table td {
+  padding: var(--sui-sp-3) 0;
+  border-bottom: 1px solid var(--sui-border);
+}
+.info-table .info-label-last,
+.info-table .info-value-last {
+  border-bottom: none;
+}
+.info-label {
+  color: var(--sui-fg-muted);
+  width: 120px;
+}
+.info-value.mono {
+  font-family: var(--sui-font-mono);
+}
+.info-link {
+  color: var(--sui-accent);
+  text-decoration: none;
+  font-family: var(--sui-font-mono);
+  font-size: var(--sui-fs-sm);
+}
+
+.feedback-row {
+  margin-top: var(--sui-sp-4);
+  padding-top: var(--sui-sp-4);
+  border-top: 1px solid var(--sui-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.feedback-hint {
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg-disabled);
+}
 .feedback-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--sui-sp-2);
   padding: 5px 12px;
-  border: 1px solid #d6d4d0;
-  border-radius: 6px;
-  font-size: 12px;
+  border: 1px solid var(--sui-border-strong);
+  border-radius: var(--sui-radius-md);
+  font-size: var(--sui-fs-sm);
   font-weight: 500;
-  color: #3d3d3d;
+  color: var(--sui-fg-secondary);
   text-decoration: none;
-  background: #fff;
+  background: var(--sui-bg);
   transition: background 0.12s, border-color 0.12s, color 0.12s;
   white-space: nowrap;
 }
 .feedback-btn:hover {
-  background: #1c1c1c;
-  border-color: #1c1c1c;
-  color: #fff;
+  background: var(--sui-primary);
+  border-color: var(--sui-primary);
+  color: var(--sui-on-primary);
 }
+.feedback-icon { flex-shrink: 0; }
 
-/* Release note */
-.releasenote-card {
-  border: 1px solid #e8e6e3;
-  border-radius: 8px;
-  background: #fff;
-  padding: 14px 16px;
-}
 .releasenote-body {
-  font-size: 13px;
+  font-size: var(--sui-fs-md);
   line-height: 1.75;
-  color: #3d3d3d;
-  margin-top: 10px;
+  color: var(--sui-fg-secondary);
 }
 
-/* Update banner */
 .newRelease-banner {
-  border: 1px solid #fbbf24;
-  border-radius: 8px;
-  background: #fffbeb;
-  padding: 14px 16px;
-  margin-bottom: 20px;
+  border: 1px solid var(--sui-warning);
+  border-radius: var(--sui-radius-lg);
+  background: var(--sui-warning-soft, #fffbeb);
+  padding: var(--sui-sp-4) var(--sui-sp-5);
+  margin-bottom: var(--sui-sp-6);
 }
 .newRelease-banner-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
+  margin-bottom: var(--sui-sp-3);
+}
+.newRelease-banner-left {
+  display: flex;
+  align-items: center;
+  gap: var(--sui-sp-3);
 }
 .newRelease-tag {
   display: inline-block;
   padding: 2px 8px;
-  background: #f59e0b;
+  background: var(--sui-warning);
   color: #fff;
-  border-radius: 4px;
-  font-size: 12px;
+  border-radius: var(--sui-radius-sm);
+  font-size: var(--sui-fs-sm);
   font-weight: 700;
-  font-family: monospace;
+  font-family: var(--sui-font-mono);
+}
+.newRelease-title {
+  font-size: var(--sui-fs-md);
+  font-weight: 600;
+  color: var(--sui-fg);
 }
 .newRelease-link {
-  font-size: 12px;
-  color: #4f46e5;
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-accent);
   text-decoration: none;
 }
 .newRelease-link:hover { text-decoration: underline; }
 .newRelease-body {
-  border-top: 1px solid #fde68a;
-  padding-top: 10px;
-  font-size: 13px;
+  border-top: 1px solid var(--sui-warning);
+  padding-top: var(--sui-sp-3);
+  font-size: var(--sui-fs-md);
+  opacity: 0.9;
 }
 
-/* README */
-.readme-loading {
-  color: #9b9b9b;
-  font-size: 13px;
+.readme-loading,
+.readme-error {
+  color: var(--sui-fg-disabled);
+  font-size: var(--sui-fs-md);
   padding: 40px 0;
   text-align: center;
 }
 .readme-wrap {
-  font-size: 13px;
+  font-size: var(--sui-fs-md);
   line-height: 1.75;
-  color: #1c1c1c;
+  color: var(--sui-fg);
 }
 .readme-wrap :deep(h1) {
   font-size: 20px;
   font-weight: 700;
   margin: 0 0 12px;
-  color: #1c1c1c;
+  color: var(--sui-fg);
   line-height: 1.3;
 }
 .readme-wrap :deep(h2) {
-  font-size: 15px;
+  font-size: var(--sui-fs-xl);
   font-weight: 700;
   margin: 28px 0 10px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid #e8e6e3;
-  color: #1c1c1c;
+  padding-bottom: var(--sui-sp-2);
+  border-bottom: 1px solid var(--sui-border);
+  color: var(--sui-fg);
 }
 .readme-wrap :deep(h3) {
-  font-size: 13px;
+  font-size: var(--sui-fs-md);
   font-weight: 700;
   margin: 16px 0 6px;
-  color: #3d3d3d;
+  color: var(--sui-fg-secondary);
 }
 .readme-wrap :deep(p) {
   margin: 0 0 10px;
-  color: #3d3d3d;
+  color: var(--sui-fg-secondary);
 }
 .readme-wrap :deep(ul), .readme-wrap :deep(ol) {
   margin: 0 0 10px;
@@ -251,17 +299,17 @@ onMounted(async () => {
 }
 .readme-wrap :deep(li) { margin-bottom: 4px; }
 .readme-wrap :deep(code) {
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 12px;
-  background: #f5f4f2;
+  font-family: var(--sui-font-mono);
+  font-size: var(--sui-fs-sm);
+  background: var(--sui-bg-hover);
   padding: 1px 5px;
-  border-radius: 4px;
-  color: #1c1c1c;
+  border-radius: var(--sui-radius-sm);
+  color: var(--sui-fg);
 }
 .readme-wrap :deep(pre) {
-  background: #f5f4f2;
-  border: 1px solid #e8e6e3;
-  border-radius: 6px;
+  background: var(--sui-bg-hover);
+  border: 1px solid var(--sui-border);
+  border-radius: var(--sui-radius-md);
   padding: 12px 14px;
   overflow-x: auto;
   margin: 8px 0 12px;
@@ -269,44 +317,43 @@ onMounted(async () => {
 .readme-wrap :deep(pre code) {
   background: none;
   padding: 0;
-  font-size: 12px;
-  color: #1c1c1c;
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg);
 }
 .readme-wrap :deep(a) {
-  color: #4f46e5;
+  color: var(--sui-accent);
   text-decoration: none;
 }
 .readme-wrap :deep(a:hover) { text-decoration: underline; }
 .readme-wrap :deep(hr) {
   border: none;
-  border-top: 1px solid #e8e6e3;
+  border-top: 1px solid var(--sui-border);
   margin: 20px 0;
 }
 .readme-wrap :deep(table) {
   width: 100%;
   margin: 8px 0 12px;
-  font-size: 12px;
+  font-size: var(--sui-fs-sm);
   border-collapse: collapse;
 }
 .readme-wrap :deep(table th),
 .readme-wrap :deep(table td) {
   padding: 6px 10px;
-  border: 1px solid #e8e6e3;
+  border: 1px solid var(--sui-border);
   text-align: left;
 }
 .readme-wrap :deep(table th) {
-  background: #fafaf9;
+  background: var(--sui-bg-subtle);
   font-weight: 600;
-  color: #6b6b6b;
+  color: var(--sui-fg-muted);
 }
 .readme-wrap :deep(blockquote) {
-  border-left: 3px solid #d6d4d0;
+  border-left: 3px solid var(--sui-border-strong);
   margin: 6px 0 10px;
   padding: 4px 12px;
-  color: #6b6b6b;
+  color: var(--sui-fg-muted);
   font-style: italic;
 }
-/* Badge images row */
 .readme-wrap :deep(p) img {
   height: 20px;
   vertical-align: middle;
@@ -314,7 +361,7 @@ onMounted(async () => {
 }
 
 @media (max-width: 768px) {
-  .card :deep(td a),
+  .about-card :deep(td a),
   .readme-wrap :deep(a),
   .readme-wrap :deep(code) {
     word-break: break-all;
@@ -322,7 +369,7 @@ onMounted(async () => {
   .newRelease-banner-top {
     flex-direction: column;
     align-items: flex-start;
-    gap: 8px;
+    gap: var(--sui-sp-3);
   }
 }
 </style>

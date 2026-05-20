@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import type { StoredMessage, ContentPart, Attachment } from '@sbot/chat-ui'
 import MessageList from './MessageList.vue'
 import { RichInput } from '@sbot/chat-ui'
+import { SButton } from 'sbot-ui'
 
 const { t } = useI18n()
 
@@ -162,7 +163,7 @@ defineExpose({ scrollToBottom })
 
     <!-- Stop bar -->
     <div v-if="onCancel && isStreaming" class="chat-stop-bar">
-      <button class="btn-danger btn-sm stop-btn" @click="onCancel">■ {{ t('chat.stop') }}</button>
+      <SButton type="danger" size="sm" class="stop-btn" @click="onCancel">■ {{ t('chat.stop') }}</SButton>
     </div>
 
     <!-- Input bar -->
@@ -180,14 +181,13 @@ defineExpose({ scrollToBottom })
           <div
             v-for="(att, i) in attachments"
             :key="att.name"
-            style="display:flex;align-items:center;gap:4px;padding:2px 8px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:12px;font-size:12px;color:#475569;max-width:200px"
+            class="attachment-chip"
           >
             <img v-if="isImage(att) && att.dataUrl" :src="att.dataUrl"
               style="width:18px;height:18px;object-fit:cover;border-radius:2px;flex-shrink:0" />
             <span v-else style="font-size:13px;flex-shrink:0">📄</span>
             <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ att.name }}</span>
-            <button @click="removeAttachment(i)"
-              style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:14px;padding:0;line-height:1;flex-shrink:0">×</button>
+            <button @click="removeAttachment(i)" class="attachment-chip-close">×</button>
           </div>
         </div>
         <RichInput
@@ -199,8 +199,8 @@ defineExpose({ scrollToBottom })
         />
       </div>
       <div style="display:flex;flex-direction:column;gap:6px;align-self:flex-end">
-        <button v-if="showAttachments" class="btn-outline btn-sm" @click="pickFile" :title="t('chat.add_attachment')">{{ t('chat.attachment') }}</button>
-        <button class="btn-primary" @click="send">{{ t('chat.send') }}</button>
+        <SButton v-if="showAttachments" type="outline" size="sm" :title="t('chat.add_attachment')" @click="pickFile">{{ t('chat.attachment') }}</SButton>
+        <SButton type="primary" @click="send">{{ t('chat.send') }}</SButton>
       </div>
     </div>
   </div>
@@ -208,8 +208,30 @@ defineExpose({ scrollToBottom })
 
 <style scoped>
 .chat-input-bar.drag-over {
-  outline: 2px dashed #3b82f6;
+  outline: 2px dashed var(--sui-info);
   outline-offset: -2px;
-  background: rgba(59, 130, 246, 0.05);
+  background: var(--sui-info-soft);
+}
+.attachment-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--sui-sp-1);
+  padding: 2px var(--sui-sp-3);
+  background: var(--sui-bg-soft);
+  border: 1px solid var(--sui-border);
+  border-radius: var(--sui-radius-pill);
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg-secondary);
+  max-width: 200px;
+}
+.attachment-chip-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--sui-fg-disabled);
+  font-size: var(--sui-fs-lg);
+  padding: 0;
+  line-height: 1;
+  flex-shrink: 0;
 }
 </style>

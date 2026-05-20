@@ -3,20 +3,19 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store, applyMcpList } from '@/store'
-import { useToast } from '@/composables/useToast'
+import { useToast, SButton, SCard, SPageToolbar, SPageContent } from 'sbot-ui'
 import AgentModal from './AgentModal.vue'
 import AgentMcpModal from './AgentMcpModal.vue'
 import AgentSkillsModal from './AgentSkillsModal.vue'
 import McpToolsModal from '@/components/McpToolsModal.vue'
 import SkillViewerModal from '@/components/SkillViewerModal.vue'
 import type { SkillItem, McpItem, McpTool } from '@/types'
-import { sourceBadgeStyle, BADGE_PRIVATE } from '@/utils/badges'
+import { sourceBadgeStyle, badgePrivate } from '@/utils/badges'
 import { serverAddr } from '@/utils/mcpSchema'
 import { useResponsive } from '../../composables/useResponsive'
 
 const { t } = useI18n()
 const { isMobile } = useResponsive()
-
 const { show } = useToast()
 
 const agents = computed(() => store.settings.agents || {})
@@ -29,12 +28,10 @@ const sortedAgentEntries = computed(() => {
 })
 const modelName = (id: string) => (store.settings.models?.[id] as any)?.name || id
 
-// ── Modal refs ──
 const agentModal       = ref<InstanceType<typeof AgentModal>>()
 const agentMcpModal    = ref<InstanceType<typeof AgentMcpModal>>()
 const agentSkillsModal = ref<InstanceType<typeof AgentSkillsModal>>()
 
-// ── Multi-expand state (keyed by agent id) ──
 const expandedIds   = ref<Set<string>>(new Set())
 const activeTabs    = ref<Record<string, 'config' | 'skills' | 'mcp'>>({})
 const skillsMap     = ref<Record<string, SkillItem[]>>({})
@@ -125,7 +122,6 @@ async function removeAgent(id: string) {
   }
 }
 
-// ── Skill viewer ──
 const skillViewRef = ref<InstanceType<typeof SkillViewerModal>>()
 
 function openSkillView(agentId: string, name: string, isPrivate: boolean) {
@@ -134,7 +130,6 @@ function openSkillView(agentId: string, name: string, isPrivate: boolean) {
   skillViewRef.value?.open(name, badge, apiBase)
 }
 
-// ── MCP Tools viewer ──
 const showToolsModal = ref(false)
 const toolsTitle     = ref('')
 const toolsList      = ref<McpTool[]>([])
@@ -163,7 +158,6 @@ async function openMcpView(agentId: string, id: string, isPrivate: boolean) {
   }
 }
 
-// ── Auto-approve tools (agent-level) ──
 function getAgentAutoApproveTools(): string[] {
   return ((store.settings.agents || {})[toolsAgentId.value] as any)?.autoApproveTools ?? []
 }
@@ -223,19 +217,28 @@ async function refresh() {
     show(e.message, 'error')
   }
 }
+
+function tabsForAgent(id: string, type: string): { key: 'config' | 'skills' | 'mcp'; label: string }[] {
+  const tabs: { key: 'config' | 'skills' | 'mcp'; label: string }[] = [{ key: 'config', label: t('agents.tab_config') }]
+  if (type !== 'acp') {
+    tabs.push({ key: 'skills', label: `${t('agents.tab_skills')} (${getSkills(id).length + getGlobals(id).length})` })
+    tabs.push({ key: 'mcp', label: `${t('agents.tab_tools')} (${getMcpGlobals(id).length + getMcpServers(id).length})` })
+  }
+  return tabs
+}
 </script>
 
 <template>
   <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
-    <div class="page-toolbar">
-      <button class="btn-outline btn-sm" @click="refresh">{{ t('common.refresh') }}</button>
-      <button class="btn-primary btn-sm" @click="agentModal?.open()">{{ t('agents.add') }}</button>
-    </div>
-    <div class="page-content">
+    <SPageToolbar>
+      <SButton type="outline" size="sm" @click="refresh">{{ t('common.refresh') }}</SButton>
+      <SButton type="primary" size="sm" @click="agentModal?.open()">{{ t('agents.add') }}</SButton>
+    </SPageToolbar>
+    <SPageContent>
       <table v-if="!isMobile">
         <thead>
           <tr>
-            <th style="width:32px"></th>
+            <th class="col-toggle"></th>
             <th>{{ t('agents.name_col') }}</th>
             <th>{{ t('agents.type_col') }}</th>
             <th>{{ t('agents.model_col') }}</th>
@@ -244,22 +247,21 @@ async function refresh() {
         </thead>
         <tbody>
           <tr v-if="sortedAgentEntries.length === 0">
-            <td colspan="5" style="text-align:center;color:#94a3b8;padding:40px">{{ t('agents.empty') }}</td>
+            <td colspan="5" class="agents-empty">{{ t('agents.empty') }}</td>
           </tr>
 
           <template v-for="[id, a] in sortedAgentEntries" :key="id">
-            <!-- ── Agent row ── -->
             <tr
               @click="toggleExpand(id as string)"
-              style="cursor:pointer"
-              :style="isExpanded(id as string) ? 'background:#f8fafc' : ''"
+              class="agent-row"
+              :class="{ 'agent-row-expanded': isExpanded(id as string) }"
             >
-              <td style="padding:6px 8px;text-align:center">
-                <span style="color:#6b6b6b;font-size:10px">{{ isExpanded(id as string) ? '▼' : '▶' }}</span>
+              <td class="col-toggle col-toggle-cell">
+                <span class="toggle-icon">{{ isExpanded(id as string) ? '▼' : '▶' }}</span>
               </td>
               <td>
-                <span style="font-weight:500;color:#1c1c1c">{{ (a as any).name || id }}</span>
-                <span v-if="(a as any).id" class="config-badge" style="background:#e0f2fe;color:#0369a1">{{ (a as any).id }}</span>
+                <span class="agent-name">{{ (a as any).name || id }}</span>
+                <span v-if="(a as any).id" class="config-badge config-badge-id">{{ (a as any).id }}</span>
                 <span v-if="a.skills === '*'" class="config-badge config-badge-info">{{ t('agents.tab_skills') }} *</span>
                 <span v-if="a.mcp === '*'" class="config-badge config-badge-info">{{ t('agents.tab_tools') }} *</span>
                 <span v-if="(a as any).autoApproveAllTools" class="config-badge config-badge-warn">{{ t('agents.auto_approve_all_tools') }}</span>
@@ -267,210 +269,187 @@ async function refresh() {
               <td><span :class="'agent-type-badge agent-type-' + a.type">{{ a.type }}</span></td>
               <td>
                 <template v-if="a.type === 'acp'">
-                  <span style="font-family:monospace;font-size:12px;color:#0f766e">{{ (a as any).command }}</span>
+                  <span class="acp-command">{{ (a as any).command }}</span>
                 </template>
                 <template v-else>{{ a.model ? modelName(a.model) : '-' }}</template>
               </td>
               <td @click.stop>
                 <div class="ops-cell">
-                  <button class="btn-outline btn-sm" @click="agentModal?.open(id as string)">{{ t('common.edit') }}</button>
-                  <button v-if="a.type !== 'acp'" class="btn-outline btn-sm" @click="agentMcpModal?.open(id as string)">{{ t('agents.tab_tools') }}</button>
-                  <button v-if="a.type !== 'acp'" class="btn-outline btn-sm" @click="agentSkillsModal?.open(id as string)">{{ t('agents.tab_skills') }}</button>
-                  <button class="btn-outline btn-sm" @click="exportAgent(id as string)">{{ t('agentStore.export_btn') }}</button>
-                  <button class="btn-danger btn-sm" @click="removeAgent(id as string)">{{ t('common.delete') }}</button>
+                  <SButton type="outline" size="sm" @click="agentModal?.open(id as string)">{{ t('common.edit') }}</SButton>
+                  <SButton v-if="a.type !== 'acp'" type="outline" size="sm" @click="agentMcpModal?.open(id as string)">{{ t('agents.tab_tools') }}</SButton>
+                  <SButton v-if="a.type !== 'acp'" type="outline" size="sm" @click="agentSkillsModal?.open(id as string)">{{ t('agents.tab_skills') }}</SButton>
+                  <SButton type="outline" size="sm" @click="exportAgent(id as string)">{{ t('agentStore.export_btn') }}</SButton>
+                  <SButton type="danger" size="sm" @click="removeAgent(id as string)">{{ t('common.delete') }}</SButton>
                 </div>
               </td>
             </tr>
 
-            <!-- ── Detail row (expanded) ── -->
             <tr v-if="isExpanded(id as string)">
-              <td colspan="5" style="padding:0;border-bottom:2px solid #e2e8f0">
-                <!-- Tab bar -->
-                <div style="display:flex;border-bottom:1px solid #e8e6e3;background:#f0f4f8;padding:0 20px">
+              <td colspan="5" class="agent-detail-cell">
+                <div class="agent-tab-bar">
                   <button
-                    v-for="tab in [
-                      { key: 'config', label: t('agents.tab_config') },
-                      ...(a.type !== 'acp' ? [
-                        { key: 'skills', label: `${t('agents.tab_skills')} (${getSkills(id as string).length + getGlobals(id as string).length})` },
-                        { key: 'mcp',    label: `${t('agents.tab_tools')} (${getMcpGlobals(id as string).length + getMcpServers(id as string).length})` },
-                      ] : []),
-                    ]"
+                    v-for="tab in tabsForAgent(id as string, a.type)"
                     :key="tab.key"
-                    @click="switchTab(id as string, tab.key as any)"
-                    style="padding:9px 14px;border:none;background:none;cursor:pointer;font-size:12px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s"
-                    :style="getTab(id as string) === tab.key ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
+                    @click="switchTab(id as string, tab.key)"
+                    class="agent-tab"
+                    :class="{ active: getTab(id as string) === tab.key }"
                   >{{ tab.label }}</button>
                 </div>
 
-                <!-- Tab content -->
-                <div style="padding:16px 20px;max-height:480px;overflow:auto;background:#f8fafc">
-
-                  <!-- ── Config ── -->
+                <div class="agent-tab-content">
                   <template v-if="getTab(id as string) === 'config'">
-                    <div v-if="!a" style="text-align:center;color:#94a3b8;padding:24px">{{ t('agents.not_found') }}</div>
-                    <template v-else>
-                      <div class="card">
-                        <div class="card-title">{{ t('agents.basic_info') }}</div>
-                        <table style="margin:0">
-                          <tbody>
+                    <SCard :title="t('agents.basic_info')" class="agent-info-card">
+                      <table class="agent-info-table">
+                        <tbody>
+                          <tr>
+                            <td class="info-label">{{ t('common.id') }}</td>
+                            <td class="info-value mono">{{ id }}</td>
+                          </tr>
+                          <tr v-if="(a as any).name">
+                            <td class="info-label">{{ t('common.name') }}</td>
+                            <td class="info-value">{{ (a as any).name }}</td>
+                          </tr>
+                          <tr>
+                            <td class="info-label">{{ t('common.type') }}</td>
+                            <td class="info-value"><span class="type-tag">{{ a.type }}</span></td>
+                          </tr>
+                          <template v-if="a.type === 'acp'">
                             <tr>
-                              <td style="width:140px;color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('common.id') }}</td>
-                              <td style="font-family:monospace;padding:7px 12px">{{ id }}</td>
+                              <td class="info-label">{{ t('agents.acp_command') }}</td>
+                              <td class="info-value mono">{{ (a as any).command }}</td>
                             </tr>
-                            <tr v-if="(a as any).name">
-                              <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('common.name') }}</td>
-                              <td style="padding:7px 12px">{{ (a as any).name }}</td>
+                            <tr v-if="(a as any).args?.length">
+                              <td class="info-label">{{ t('agents.acp_args') }}</td>
+                              <td class="info-value mono">{{ (a as any).args.join(' ') }}</td>
                             </tr>
                             <tr>
-                              <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('common.type') }}</td>
-                              <td style="padding:7px 12px"><span style="font-family:monospace;background:#f5f4f2;padding:1px 8px;border-radius:4px;font-size:12px">{{ a.type }}</span></td>
+                              <td class="info-label">{{ t('agents.acp_session_mode') }}</td>
+                              <td class="info-value"><span class="type-tag">{{ (a as any).sessionMode || 'persistent' }}</span></td>
                             </tr>
-                            <!-- ACP-specific rows -->
-                            <template v-if="a.type === 'acp'">
-                              <tr>
-                                <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.acp_command') }}</td>
-                                <td style="font-family:monospace;padding:7px 12px">{{ (a as any).command }}</td>
-                              </tr>
-                              <tr v-if="(a as any).args?.length">
-                                <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.acp_args') }}</td>
-                                <td style="font-family:monospace;padding:7px 12px">{{ (a as any).args.join(' ') }}</td>
-                              </tr>
-                              <tr>
-                                <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.acp_session_mode') }}</td>
-                                <td style="padding:7px 12px"><span style="font-family:monospace;background:#f5f4f2;padding:1px 8px;border-radius:4px;font-size:12px">{{ (a as any).sessionMode || 'persistent' }}</span></td>
-                              </tr>
-                              <tr v-if="(a as any).env && Object.keys((a as any).env).length">
-                                <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.acp_env') }}</td>
-                                <td style="padding:7px 12px">
-                                  <div v-for="(v, k) in (a as any).env" :key="k" style="font-family:monospace;font-size:12px">{{ k }}={{ v }}</div>
-                                </td>
-                              </tr>
-                            </template>
-                            <!-- Non-ACP rows -->
-                            <template v-else>
-                              <tr v-if="a.model">
-                                <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.model_col') }}</td>
-                                <td style="padding:7px 12px">{{ modelName(a.model) }}</td>
-                              </tr>
-                              <tr v-if="(a as any).saver">
-                                <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.storage_label') }}</td>
-                                <td style="font-family:monospace;padding:7px 12px">{{ (a as any).saver }}</td>
-                              </tr>
-                              <tr>
-                                <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.tab_skills') }}</td>
-                                <td style="padding:7px 12px">
-                                  <span v-if="a.skills === '*'" class="config-badge config-badge-info">{{ t('agents.use_all') }}</span>
-                                  <span v-else-if="Array.isArray(a.skills) && a.skills.length" style="font-size:12px;color:#475569">{{ a.skills.length }} {{ t('agents.items_selected') }}</span>
-                                  <span v-else style="font-size:12px;color:#94a3b8">-</span>
-                                </td>
-                              </tr>
-                              <tr>
-                                <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.tab_tools') }}</td>
-                                <td style="padding:7px 12px">
-                                  <span v-if="a.mcp === '*'" class="config-badge config-badge-info">{{ t('agents.use_all') }}</span>
-                                  <span v-else-if="Array.isArray(a.mcp) && a.mcp.length" style="font-size:12px;color:#475569">{{ a.mcp.length }} {{ t('agents.items_selected') }}</span>
-                                  <span v-else style="font-size:12px;color:#94a3b8">-</span>
-                                </td>
-                              </tr>
-                              <tr v-if="(a as any).autoApproveAllTools">
-                                <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.auto_approve_all_tools') }}</td>
-                                <td style="padding:7px 12px"><span class="config-badge config-badge-warn">ON</span></td>
-                              </tr>
-                            </template>
-                          </tbody>
-                        </table>
-                      </div>
+                            <tr v-if="(a as any).env && Object.keys((a as any).env).length">
+                              <td class="info-label">{{ t('agents.acp_env') }}</td>
+                              <td class="info-value">
+                                <div v-for="(v, k) in (a as any).env" :key="k" class="env-line">{{ k }}={{ v }}</div>
+                              </td>
+                            </tr>
+                          </template>
+                          <template v-else>
+                            <tr v-if="a.model">
+                              <td class="info-label">{{ t('agents.model_col') }}</td>
+                              <td class="info-value">{{ modelName(a.model) }}</td>
+                            </tr>
+                            <tr v-if="(a as any).saver">
+                              <td class="info-label">{{ t('agents.storage_label') }}</td>
+                              <td class="info-value mono">{{ (a as any).saver }}</td>
+                            </tr>
+                            <tr>
+                              <td class="info-label">{{ t('agents.tab_skills') }}</td>
+                              <td class="info-value">
+                                <span v-if="a.skills === '*'" class="config-badge config-badge-info">{{ t('agents.use_all') }}</span>
+                                <span v-else-if="Array.isArray(a.skills) && a.skills.length" class="info-count">{{ a.skills.length }} {{ t('agents.items_selected') }}</span>
+                                <span v-else class="info-dash">-</span>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td class="info-label">{{ t('agents.tab_tools') }}</td>
+                              <td class="info-value">
+                                <span v-if="a.mcp === '*'" class="config-badge config-badge-info">{{ t('agents.use_all') }}</span>
+                                <span v-else-if="Array.isArray(a.mcp) && a.mcp.length" class="info-count">{{ a.mcp.length }} {{ t('agents.items_selected') }}</span>
+                                <span v-else class="info-dash">-</span>
+                              </td>
+                            </tr>
+                            <tr v-if="(a as any).autoApproveAllTools">
+                              <td class="info-label">{{ t('agents.auto_approve_all_tools') }}</td>
+                              <td class="info-value"><span class="config-badge config-badge-warn">ON</span></td>
+                            </tr>
+                          </template>
+                        </tbody>
+                      </table>
+                    </SCard>
 
-                      <div v-if="(a as any).systemPrompt" class="card">
-                        <div class="card-title">{{ t('agents.system_prompt') }}</div>
-                        <pre style="margin:0;padding:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-family:Consolas,Monaco,monospace;font-size:12px;line-height:1.6;white-space:pre-wrap;word-break:break-word;color:#1e293b;max-height:180px;overflow:auto">{{ (a as any).systemPrompt }}</pre>
-                      </div>
+                    <SCard v-if="(a as any).systemPrompt" :title="t('agents.system_prompt')" class="agent-info-card">
+                      <pre class="agent-system-prompt">{{ (a as any).systemPrompt }}</pre>
+                    </SCard>
 
-                      <!-- react sub-agents -->
-                      <template v-if="a.type === 'react'">
-                        <div v-if="((a as any).agents as any[] | undefined)?.length" class="card">
-                          <div class="card-title">{{ t('agents.sub_agents') }}</div>
-                          <div v-for="sub in ((a as any).agents as any[])" :key="sub.id" class="sub-agent-item">
-                            <div class="sub-agent-item-header"><span class="sub-agent-item-name">{{ (agents[sub.id] as any)?.name || sub.id }}</span></div>
-                            <div class="sub-agent-item-desc">{{ sub.desc }}</div>
-                          </div>
+                    <template v-if="a.type === 'react'">
+                      <SCard v-if="((a as any).agents as any[] | undefined)?.length" :title="t('agents.sub_agents')" class="agent-info-card">
+                        <div v-for="sub in ((a as any).agents as any[])" :key="sub.id" class="sub-agent-item">
+                          <div class="sub-agent-item-header"><span class="sub-agent-item-name">{{ (agents[sub.id] as any)?.name || sub.id }}</span></div>
+                          <div class="sub-agent-item-desc">{{ sub.desc }}</div>
                         </div>
-                      </template>
+                      </SCard>
                     </template>
                   </template>
 
-                  <!-- ── Skills ── -->
                   <template v-else-if="getTab(id as string) === 'skills'">
-                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
-                      <button class="btn-outline btn-sm" @click="agentSkillsModal?.open(id as string)">{{ t('agents.manage_skills') }}</button>
-                      <div style="font-size:13px;color:#475569">{{ t('agents.agent_skills') }}</div>
+                    <div class="manage-row">
+                      <SButton type="outline" size="sm" @click="agentSkillsModal?.open(id as string)">{{ t('agents.manage_skills') }}</SButton>
+                      <div class="manage-hint">{{ t('agents.agent_skills') }}</div>
                     </div>
-                    <div v-if="getGlobals(id as string).length === 0 && getSkills(id as string).length === 0" style="text-align:center;color:#94a3b8;padding:24px">
+                    <div v-if="getGlobals(id as string).length === 0 && getSkills(id as string).length === 0" class="tab-empty">
                       {{ t('agents.no_skills') }}
-                      <div style="margin-top:10px">
-                        <button class="btn-outline btn-sm" @click="agentSkillsModal?.open(id as string)">{{ t('agents.configure_skills') }}</button>
+                      <div class="tab-empty-action">
+                        <SButton type="outline" size="sm" @click="agentSkillsModal?.open(id as string)">{{ t('agents.configure_skills') }}</SButton>
                       </div>
                     </div>
-                    <table v-else style="table-layout:fixed;width:100%">
+                    <table v-else class="agent-detail-table">
                       <colgroup>
                         <col /><col style="width:60px" /><col /><col style="width:70px" />
                       </colgroup>
                       <thead>
-                        <tr><th>{{ t('common.name') }}</th><th>来源</th><th>描述</th><th style="white-space:nowrap">{{ t('common.ops') }}</th></tr>
+                        <tr><th>{{ t('common.name') }}</th><th>来源</th><th>描述</th><th class="col-nowrap">{{ t('common.ops') }}</th></tr>
                       </thead>
                       <tbody>
                         <tr v-for="s in getGlobals(id as string)" :key="'g-' + s.name">
-                          <td style="font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.name }}</td>
+                          <td class="cell-mono cell-truncate">{{ s.name }}</td>
                           <td>
                             <span v-if="s.source" :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(s.source)}`">{{ s.source }}</span>
                           </td>
-                          <td style="color:#6b6b6b;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.description || '-' }}</td>
-                          <td style="white-space:nowrap"><button class="btn-outline btn-sm" @click="openSkillView(id as string, s.name, false)">{{ t('common.view') }}</button></td>
+                          <td class="cell-desc cell-truncate">{{ s.description || '-' }}</td>
+                          <td class="col-nowrap"><SButton type="outline" size="sm" @click="openSkillView(id as string, s.name, false)">{{ t('common.view') }}</SButton></td>
                         </tr>
                         <tr v-for="s in getSkills(id as string)" :key="s.name">
-                          <td style="font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.name }}</td>
-                          <td><span :style="BADGE_PRIVATE">{{ t('agents.skills_exclusive_tab') }}</span></td>
-                          <td style="color:#6b6b6b;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.description || '-' }}</td>
-                          <td style="white-space:nowrap"><button class="btn-outline btn-sm" @click="openSkillView(id as string, s.name, true)">{{ t('common.view') }}</button></td>
+                          <td class="cell-mono cell-truncate">{{ s.name }}</td>
+                          <td><span :style="badgePrivate()">{{ t('agents.skills_exclusive_tab') }}</span></td>
+                          <td class="cell-desc cell-truncate">{{ s.description || '-' }}</td>
+                          <td class="col-nowrap"><SButton type="outline" size="sm" @click="openSkillView(id as string, s.name, true)">{{ t('common.view') }}</SButton></td>
                         </tr>
                       </tbody>
                     </table>
                   </template>
 
-                  <!-- ── MCP ── -->
                   <template v-else-if="getTab(id as string) === 'mcp'">
-                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
-                      <button class="btn-outline btn-sm" @click="agentMcpModal?.open(id as string)">{{ t('agents.manage_tools') }}</button>
-                      <div style="font-size:13px;color:#475569">{{ t('agents.agent_mcps') }}</div>
+                    <div class="manage-row">
+                      <SButton type="outline" size="sm" @click="agentMcpModal?.open(id as string)">{{ t('agents.manage_tools') }}</SButton>
+                      <div class="manage-hint">{{ t('agents.agent_mcps') }}</div>
                     </div>
-                    <table style="table-layout:fixed;width:100%">
+                    <table class="agent-detail-table">
                       <colgroup>
                         <col /><col style="width:60px" /><col /><col style="width:180px" /><col style="width:70px" />
                       </colgroup>
                       <thead>
-                        <tr><th>{{ t('common.name') }}</th><th>来源</th><th>描述</th><th>{{ t('mcp.address_col') }}</th><th style="white-space:nowrap">{{ t('common.ops') }}</th></tr>
+                        <tr><th>{{ t('common.name') }}</th><th>来源</th><th>描述</th><th>{{ t('mcp.address_col') }}</th><th class="col-nowrap">{{ t('common.ops') }}</th></tr>
                       </thead>
                       <tbody>
                         <tr v-for="s in getMcpGlobals(id as string)" :key="'g-' + s.id">
-                          <td style="font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.name }}</td>
+                          <td class="cell-mono cell-truncate">{{ s.name }}</td>
                           <td>
                             <span v-if="s.source" :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(s.source)}`">{{ s.source }}</span>
                           </td>
-                          <td style="color:#6b6b6b;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.description || '-' }}</td>
-                          <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#94a3b8;font-size:12px">{{ serverAddr(s as any) }}</td>
-                          <td style="white-space:nowrap"><button class="btn-outline btn-sm" @click="openMcpView(id as string, s.id, false)">{{ t('common.view') }}</button></td>
+                          <td class="cell-desc cell-truncate">{{ s.description || '-' }}</td>
+                          <td class="cell-addr cell-truncate">{{ serverAddr(s as any) }}</td>
+                          <td class="col-nowrap"><SButton type="outline" size="sm" @click="openMcpView(id as string, s.id, false)">{{ t('common.view') }}</SButton></td>
                         </tr>
                         <tr v-for="s in getMcpServers(id as string)" :key="'s-' + s.id">
-                          <td style="font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.name }}</td>
+                          <td class="cell-mono cell-truncate">{{ s.name }}</td>
                           <td><span :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(t('agents.mcp_exclusive_tab'))}`">{{ t('agents.mcp_exclusive_tab') }}</span></td>
-                          <td style="color:#6b6b6b;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.description || '-' }}</td>
-                          <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px">{{ serverAddr(s as any) }}</td>
-                          <td style="white-space:nowrap"><button class="btn-outline btn-sm" @click="openMcpView(id as string, s.id, true)">{{ t('common.view') }}</button></td>
+                          <td class="cell-desc cell-truncate">{{ s.description || '-' }}</td>
+                          <td class="cell-addr-priv cell-truncate">{{ serverAddr(s as any) }}</td>
+                          <td class="col-nowrap"><SButton type="outline" size="sm" @click="openMcpView(id as string, s.id, true)">{{ t('common.view') }}</SButton></td>
                         </tr>
                       </tbody>
                     </table>
                   </template>
-
                 </div>
               </td>
             </tr>
@@ -478,230 +457,205 @@ async function refresh() {
         </tbody>
       </table>
 
-      <!-- ── Mobile card layout ── -->
       <div v-else class="card-list">
         <div v-for="[id, a] in sortedAgentEntries" :key="id" class="mobile-card">
-          <div class="mobile-card-header" @click="toggleExpand(id as string)" style="display:flex;justify-content:space-between;cursor:pointer">
+          <div class="mobile-card-header agent-mobile-header" @click="toggleExpand(id as string)">
             <span>
               {{ (a as any).name || id }}
               <span v-if="a.skills === '*'" class="config-badge config-badge-info">{{ t('agents.tab_skills') }} *</span>
               <span v-if="a.mcp === '*'" class="config-badge config-badge-info">{{ t('agents.tab_tools') }} *</span>
               <span v-if="(a as any).autoApproveAllTools" class="config-badge config-badge-warn">{{ t('agents.auto_approve_all_tools') }}</span>
             </span>
-            <span style="font-size:10px">{{ isExpanded(id as string) ? '▼' : '▶' }}</span>
+            <span class="toggle-icon">{{ isExpanded(id as string) ? '▼' : '▶' }}</span>
           </div>
           <div class="mobile-card-fields">
             <span class="mobile-card-label">{{ t('agents.type_col') }}</span>
             <span class="mobile-card-value"><span :class="'agent-type-badge agent-type-' + a.type">{{ a.type }}</span></span>
             <span class="mobile-card-label">{{ a.type === 'acp' ? t('agents.acp_command') : t('agents.model_col') }}</span>
             <span class="mobile-card-value">
-              <template v-if="a.type === 'acp'"><span style="font-family:monospace;font-size:12px;color:#0f766e">{{ (a as any).command }}</span></template>
+              <template v-if="a.type === 'acp'"><span class="acp-command">{{ (a as any).command }}</span></template>
               <template v-else>{{ a.model ? modelName(a.model) : '-' }}</template>
             </span>
           </div>
           <div class="mobile-card-ops">
-            <button class="btn-outline btn-sm" @click="agentModal?.open(id as string)">{{ t('common.edit') }}</button>
-            <button v-if="a.type !== 'acp'" class="btn-outline btn-sm" @click="agentMcpModal?.open(id as string)">{{ t('agents.tab_tools') }}</button>
-            <button v-if="a.type !== 'acp'" class="btn-outline btn-sm" @click="agentSkillsModal?.open(id as string)">{{ t('agents.tab_skills') }}</button>
-            <button class="btn-outline btn-sm" @click="exportAgent(id as string)">{{ t('agentStore.export_btn') }}</button>
-            <button class="btn-danger btn-sm" @click="removeAgent(id as string)">{{ t('common.delete') }}</button>
+            <SButton type="outline" size="sm" @click="agentModal?.open(id as string)">{{ t('common.edit') }}</SButton>
+            <SButton v-if="a.type !== 'acp'" type="outline" size="sm" @click="agentMcpModal?.open(id as string)">{{ t('agents.tab_tools') }}</SButton>
+            <SButton v-if="a.type !== 'acp'" type="outline" size="sm" @click="agentSkillsModal?.open(id as string)">{{ t('agents.tab_skills') }}</SButton>
+            <SButton type="outline" size="sm" @click="exportAgent(id as string)">{{ t('agentStore.export_btn') }}</SButton>
+            <SButton type="danger" size="sm" @click="removeAgent(id as string)">{{ t('common.delete') }}</SButton>
           </div>
 
-          <!-- Expandable detail -->
-          <div v-if="isExpanded(id as string)" style="margin-top:10px">
-            <!-- Tab bar -->
-            <div style="display:flex;border-bottom:1px solid #e8e6e3;background:#f0f4f8;padding:0 10px">
+          <div v-if="isExpanded(id as string)" class="agent-mobile-detail">
+            <div class="agent-tab-bar agent-tab-bar-mobile">
               <button
-                v-for="tab in [
-                  { key: 'config', label: t('agents.tab_config') },
-                  ...(a.type !== 'acp' ? [
-                    { key: 'skills', label: `${t('agents.tab_skills')} (${getSkills(id as string).length + getGlobals(id as string).length})` },
-                    { key: 'mcp',    label: `${t('agents.tab_tools')} (${getMcpGlobals(id as string).length + getMcpServers(id as string).length})` },
-                  ] : []),
-                ]"
+                v-for="tab in tabsForAgent(id as string, a.type)"
                 :key="tab.key"
-                @click="switchTab(id as string, tab.key as any)"
-                style="padding:9px 14px;border:none;background:none;cursor:pointer;font-size:12px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s"
-                :style="getTab(id as string) === tab.key ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
+                @click="switchTab(id as string, tab.key)"
+                class="agent-tab"
+                :class="{ active: getTab(id as string) === tab.key }"
               >{{ tab.label }}</button>
             </div>
 
-            <!-- Tab content -->
-            <div style="padding:12px 10px;max-height:480px;overflow:auto;background:#f8fafc">
-
-              <!-- ── Config ── -->
+            <div class="agent-tab-content agent-tab-content-mobile">
               <template v-if="getTab(id as string) === 'config'">
-                <div v-if="!a" style="text-align:center;color:#94a3b8;padding:24px">{{ t('agents.not_found') }}</div>
-                <template v-else>
-                  <div class="card">
-                    <div class="card-title">{{ t('agents.basic_info') }}</div>
-                    <table style="margin:0">
-                      <tbody>
+                <SCard :title="t('agents.basic_info')" class="agent-info-card">
+                  <table class="agent-info-table">
+                    <tbody>
+                      <tr>
+                        <td class="info-label">{{ t('common.id') }}</td>
+                        <td class="info-value mono">{{ id }}</td>
+                      </tr>
+                      <tr v-if="(a as any).name">
+                        <td class="info-label">{{ t('common.name') }}</td>
+                        <td class="info-value">{{ (a as any).name }}</td>
+                      </tr>
+                      <tr>
+                        <td class="info-label">{{ t('common.type') }}</td>
+                        <td class="info-value"><span class="type-tag">{{ a.type }}</span></td>
+                      </tr>
+                      <template v-if="a.type === 'acp'">
                         <tr>
-                          <td style="width:140px;color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('common.id') }}</td>
-                          <td style="font-family:monospace;padding:7px 12px">{{ id }}</td>
+                          <td class="info-label">{{ t('agents.acp_command') }}</td>
+                          <td class="info-value mono">{{ (a as any).command }}</td>
                         </tr>
-                        <tr v-if="(a as any).name">
-                          <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('common.name') }}</td>
-                          <td style="padding:7px 12px">{{ (a as any).name }}</td>
+                        <tr v-if="(a as any).args?.length">
+                          <td class="info-label">{{ t('agents.acp_args') }}</td>
+                          <td class="info-value mono">{{ (a as any).args.join(' ') }}</td>
                         </tr>
                         <tr>
-                          <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('common.type') }}</td>
-                          <td style="padding:7px 12px"><span style="font-family:monospace;background:#f5f4f2;padding:1px 8px;border-radius:4px;font-size:12px">{{ a.type }}</span></td>
+                          <td class="info-label">{{ t('agents.acp_session_mode') }}</td>
+                          <td class="info-value"><span class="type-tag">{{ (a as any).sessionMode || 'persistent' }}</span></td>
                         </tr>
-                        <!-- ACP-specific rows -->
-                        <template v-if="a.type === 'acp'">
-                          <tr>
-                            <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.acp_command') }}</td>
-                            <td style="font-family:monospace;padding:7px 12px">{{ (a as any).command }}</td>
-                          </tr>
-                          <tr v-if="(a as any).args?.length">
-                            <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.acp_args') }}</td>
-                            <td style="font-family:monospace;padding:7px 12px">{{ (a as any).args.join(' ') }}</td>
-                          </tr>
-                          <tr>
-                            <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.acp_session_mode') }}</td>
-                            <td style="padding:7px 12px"><span style="font-family:monospace;background:#f5f4f2;padding:1px 8px;border-radius:4px;font-size:12px">{{ (a as any).sessionMode || 'persistent' }}</span></td>
-                          </tr>
-                          <tr v-if="(a as any).env && Object.keys((a as any).env).length">
-                            <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.acp_env') }}</td>
-                            <td style="padding:7px 12px">
-                              <div v-for="(v, k) in (a as any).env" :key="k" style="font-family:monospace;font-size:12px">{{ k }}={{ v }}</div>
-                            </td>
-                          </tr>
-                        </template>
-                        <!-- Non-ACP rows -->
-                        <template v-else>
-                          <tr v-if="a.model">
-                            <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.model_col') }}</td>
-                            <td style="padding:7px 12px">{{ modelName(a.model) }}</td>
-                          </tr>
-                          <tr v-if="(a as any).saver">
-                            <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.storage_label') }}</td>
-                            <td style="font-family:monospace;padding:7px 12px">{{ (a as any).saver }}</td>
-                          </tr>
-                          <tr>
-                            <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.tab_skills') }}</td>
-                            <td style="padding:7px 12px">
-                              <span v-if="a.skills === '*'" class="config-badge config-badge-info">{{ t('agents.use_all') }}</span>
-                              <span v-else-if="Array.isArray(a.skills) && a.skills.length" style="font-size:12px;color:#475569">{{ a.skills.length }} {{ t('agents.items_selected') }}</span>
-                              <span v-else style="font-size:12px;color:#94a3b8">-</span>
-                            </td>
-                          </tr>
-                          <tr>
-                            <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.tab_tools') }}</td>
-                            <td style="padding:7px 12px">
-                              <span v-if="a.mcp === '*'" class="config-badge config-badge-info">{{ t('agents.use_all') }}</span>
-                              <span v-else-if="Array.isArray(a.mcp) && a.mcp.length" style="font-size:12px;color:#475569">{{ a.mcp.length }} {{ t('agents.items_selected') }}</span>
-                              <span v-else style="font-size:12px;color:#94a3b8">-</span>
-                            </td>
-                          </tr>
-                          <tr v-if="(a as any).autoApproveAllTools">
-                            <td style="color:#6b6b6b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:7px 12px">{{ t('agents.auto_approve_all_tools') }}</td>
-                            <td style="padding:7px 12px"><span class="config-badge config-badge-warn">ON</span></td>
-                          </tr>
-                        </template>
-                      </tbody>
-                    </table>
-                  </div>
+                        <tr v-if="(a as any).env && Object.keys((a as any).env).length">
+                          <td class="info-label">{{ t('agents.acp_env') }}</td>
+                          <td class="info-value">
+                            <div v-for="(v, k) in (a as any).env" :key="k" class="env-line">{{ k }}={{ v }}</div>
+                          </td>
+                        </tr>
+                      </template>
+                      <template v-else>
+                        <tr v-if="a.model">
+                          <td class="info-label">{{ t('agents.model_col') }}</td>
+                          <td class="info-value">{{ modelName(a.model) }}</td>
+                        </tr>
+                        <tr v-if="(a as any).saver">
+                          <td class="info-label">{{ t('agents.storage_label') }}</td>
+                          <td class="info-value mono">{{ (a as any).saver }}</td>
+                        </tr>
+                        <tr>
+                          <td class="info-label">{{ t('agents.tab_skills') }}</td>
+                          <td class="info-value">
+                            <span v-if="a.skills === '*'" class="config-badge config-badge-info">{{ t('agents.use_all') }}</span>
+                            <span v-else-if="Array.isArray(a.skills) && a.skills.length" class="info-count">{{ a.skills.length }} {{ t('agents.items_selected') }}</span>
+                            <span v-else class="info-dash">-</span>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td class="info-label">{{ t('agents.tab_tools') }}</td>
+                          <td class="info-value">
+                            <span v-if="a.mcp === '*'" class="config-badge config-badge-info">{{ t('agents.use_all') }}</span>
+                            <span v-else-if="Array.isArray(a.mcp) && a.mcp.length" class="info-count">{{ a.mcp.length }} {{ t('agents.items_selected') }}</span>
+                            <span v-else class="info-dash">-</span>
+                          </td>
+                        </tr>
+                        <tr v-if="(a as any).autoApproveAllTools">
+                          <td class="info-label">{{ t('agents.auto_approve_all_tools') }}</td>
+                          <td class="info-value"><span class="config-badge config-badge-warn">ON</span></td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </SCard>
 
-                  <div v-if="(a as any).systemPrompt" class="card">
-                    <div class="card-title">{{ t('agents.system_prompt') }}</div>
-                    <pre style="margin:0;padding:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-family:Consolas,Monaco,monospace;font-size:12px;line-height:1.6;white-space:pre-wrap;word-break:break-word;color:#1e293b;max-height:180px;overflow:auto">{{ (a as any).systemPrompt }}</pre>
-                  </div>
+                <SCard v-if="(a as any).systemPrompt" :title="t('agents.system_prompt')" class="agent-info-card">
+                  <pre class="agent-system-prompt">{{ (a as any).systemPrompt }}</pre>
+                </SCard>
 
-                  <!-- react sub-agents -->
-                  <template v-if="a.type === 'react'">
-                    <div v-if="((a as any).agents as any[] | undefined)?.length" class="card">
-                      <div class="card-title">{{ t('agents.sub_agents') }}</div>
-                      <div v-for="sub in ((a as any).agents as any[])" :key="sub.id" class="sub-agent-item">
-                        <div class="sub-agent-item-header"><span class="sub-agent-item-name">{{ (agents[sub.id] as any)?.name || sub.id }}</span></div>
-                        <div class="sub-agent-item-desc">{{ sub.desc }}</div>
-                      </div>
+                <template v-if="a.type === 'react'">
+                  <SCard v-if="((a as any).agents as any[] | undefined)?.length" :title="t('agents.sub_agents')" class="agent-info-card">
+                    <div v-for="sub in ((a as any).agents as any[])" :key="sub.id" class="sub-agent-item">
+                      <div class="sub-agent-item-header"><span class="sub-agent-item-name">{{ (agents[sub.id] as any)?.name || sub.id }}</span></div>
+                      <div class="sub-agent-item-desc">{{ sub.desc }}</div>
                     </div>
-                  </template>
+                  </SCard>
                 </template>
               </template>
 
-              <!-- ── Skills ── -->
               <template v-else-if="getTab(id as string) === 'skills'">
-                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
-                  <button class="btn-outline btn-sm" @click="agentSkillsModal?.open(id as string)">{{ t('agents.manage_skills') }}</button>
-                  <div style="font-size:13px;color:#475569">{{ t('agents.agent_skills') }}</div>
+                <div class="manage-row">
+                  <SButton type="outline" size="sm" @click="agentSkillsModal?.open(id as string)">{{ t('agents.manage_skills') }}</SButton>
+                  <div class="manage-hint">{{ t('agents.agent_skills') }}</div>
                 </div>
-                <div v-if="getGlobals(id as string).length === 0 && getSkills(id as string).length === 0" style="text-align:center;color:#94a3b8;padding:24px">
+                <div v-if="getGlobals(id as string).length === 0 && getSkills(id as string).length === 0" class="tab-empty">
                   {{ t('agents.no_skills') }}
-                  <div style="margin-top:10px">
-                    <button class="btn-outline btn-sm" @click="agentSkillsModal?.open(id as string)">{{ t('agents.configure_skills') }}</button>
+                  <div class="tab-empty-action">
+                    <SButton type="outline" size="sm" @click="agentSkillsModal?.open(id as string)">{{ t('agents.configure_skills') }}</SButton>
                   </div>
                 </div>
-                <table v-else style="table-layout:fixed;width:100%">
+                <table v-else class="agent-detail-table">
                   <colgroup>
                     <col /><col style="width:60px" /><col /><col style="width:70px" />
                   </colgroup>
                   <thead>
-                    <tr><th>{{ t('common.name') }}</th><th>来源</th><th>描述</th><th style="white-space:nowrap">{{ t('common.ops') }}</th></tr>
+                    <tr><th>{{ t('common.name') }}</th><th>来源</th><th>描述</th><th class="col-nowrap">{{ t('common.ops') }}</th></tr>
                   </thead>
                   <tbody>
                     <tr v-for="s in getGlobals(id as string)" :key="'g-' + s.name">
-                      <td style="font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.name }}</td>
+                      <td class="cell-mono cell-truncate">{{ s.name }}</td>
                       <td>
                         <span v-if="s.source" :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(s.source)}`">{{ s.source }}</span>
                       </td>
-                      <td style="color:#6b6b6b;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.description || '-' }}</td>
-                      <td style="white-space:nowrap"><button class="btn-outline btn-sm" @click="openSkillView(id as string, s.name, false)">{{ t('common.view') }}</button></td>
+                      <td class="cell-desc cell-truncate">{{ s.description || '-' }}</td>
+                      <td class="col-nowrap"><SButton type="outline" size="sm" @click="openSkillView(id as string, s.name, false)">{{ t('common.view') }}</SButton></td>
                     </tr>
                     <tr v-for="s in getSkills(id as string)" :key="s.name">
-                      <td style="font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.name }}</td>
-                      <td><span :style="BADGE_PRIVATE">{{ t('agents.skills_exclusive_tab') }}</span></td>
-                      <td style="color:#6b6b6b;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.description || '-' }}</td>
-                      <td style="white-space:nowrap"><button class="btn-outline btn-sm" @click="openSkillView(id as string, s.name, true)">{{ t('common.view') }}</button></td>
+                      <td class="cell-mono cell-truncate">{{ s.name }}</td>
+                      <td><span :style="badgePrivate()">{{ t('agents.skills_exclusive_tab') }}</span></td>
+                      <td class="cell-desc cell-truncate">{{ s.description || '-' }}</td>
+                      <td class="col-nowrap"><SButton type="outline" size="sm" @click="openSkillView(id as string, s.name, true)">{{ t('common.view') }}</SButton></td>
                     </tr>
                   </tbody>
                 </table>
               </template>
 
-              <!-- ── MCP ── -->
               <template v-else-if="getTab(id as string) === 'mcp'">
-                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
-                  <button class="btn-outline btn-sm" @click="agentMcpModal?.open(id as string)">{{ t('agents.manage_tools') }}</button>
-                  <div style="font-size:13px;color:#475569">{{ t('agents.agent_mcps') }}</div>
+                <div class="manage-row">
+                  <SButton type="outline" size="sm" @click="agentMcpModal?.open(id as string)">{{ t('agents.manage_tools') }}</SButton>
+                  <div class="manage-hint">{{ t('agents.agent_mcps') }}</div>
                 </div>
-                <table style="table-layout:fixed;width:100%">
+                <table class="agent-detail-table">
                   <colgroup>
                     <col /><col style="width:60px" /><col /><col style="width:180px" /><col style="width:70px" />
                   </colgroup>
                   <thead>
-                    <tr><th>{{ t('common.name') }}</th><th>来源</th><th>描述</th><th>{{ t('mcp.address_col') }}</th><th style="white-space:nowrap">{{ t('common.ops') }}</th></tr>
+                    <tr><th>{{ t('common.name') }}</th><th>来源</th><th>描述</th><th>{{ t('mcp.address_col') }}</th><th class="col-nowrap">{{ t('common.ops') }}</th></tr>
                   </thead>
                   <tbody>
                     <tr v-for="s in getMcpGlobals(id as string)" :key="'g-' + s.id">
-                      <td style="font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.name }}</td>
+                      <td class="cell-mono cell-truncate">{{ s.name }}</td>
                       <td>
                         <span v-if="s.source" :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(s.source)}`">{{ s.source }}</span>
                       </td>
-                      <td style="color:#6b6b6b;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.description || '-' }}</td>
-                      <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#94a3b8;font-size:12px">{{ serverAddr(s as any) }}</td>
-                      <td style="white-space:nowrap"><button class="btn-outline btn-sm" @click="openMcpView(id as string, s.id, false)">{{ t('common.view') }}</button></td>
+                      <td class="cell-desc cell-truncate">{{ s.description || '-' }}</td>
+                      <td class="cell-addr cell-truncate">{{ serverAddr(s as any) }}</td>
+                      <td class="col-nowrap"><SButton type="outline" size="sm" @click="openMcpView(id as string, s.id, false)">{{ t('common.view') }}</SButton></td>
                     </tr>
                     <tr v-for="s in getMcpServers(id as string)" :key="'s-' + s.id">
-                      <td style="font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.name }}</td>
+                      <td class="cell-mono cell-truncate">{{ s.name }}</td>
                       <td><span :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(t('agents.mcp_exclusive_tab'))}`">{{ t('agents.mcp_exclusive_tab') }}</span></td>
-                      <td style="color:#6b6b6b;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.description || '-' }}</td>
-                      <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px">{{ serverAddr(s as any) }}</td>
-                      <td style="white-space:nowrap"><button class="btn-outline btn-sm" @click="openMcpView(id as string, s.id, true)">{{ t('common.view') }}</button></td>
+                      <td class="cell-desc cell-truncate">{{ s.description || '-' }}</td>
+                      <td class="cell-addr-priv cell-truncate">{{ serverAddr(s as any) }}</td>
+                      <td class="col-nowrap"><SButton type="outline" size="sm" @click="openMcpView(id as string, s.id, true)">{{ t('common.view') }}</SButton></td>
                     </tr>
                   </tbody>
                 </table>
               </template>
-
             </div>
           </div>
         </div>
         <div v-if="sortedAgentEntries.length === 0" class="mobile-card-empty">-</div>
       </div>
-
-    </div>
+    </SPageContent>
 
     <AgentModal ref="agentModal" />
     <AgentMcpModal ref="agentMcpModal" />
@@ -725,45 +679,210 @@ async function refresh() {
 </template>
 
 <style scoped>
-.agent-type-badge {
-  display: inline-block;
-  font-family: monospace;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 1px 8px;
-  border-radius: 4px;
+.col-toggle { width: 32px; }
+.col-toggle-cell { padding: 6px 8px; text-align: center; }
+.col-nowrap { white-space: nowrap; }
+.toggle-icon {
+  color: var(--sui-fg-muted);
+  font-size: 10px;
 }
-.agent-type-react {
-  background: #ede9fe;
-  color: #6d28d9;
+.agent-row { cursor: pointer; }
+.agent-row-expanded > td { background: var(--sui-bg-subtle); }
+.agent-detail-cell {
+  padding: 0;
+  border-bottom: 2px solid var(--sui-border);
 }
-.agent-type-single {
-  background: #f0f4f8;
-  color: #64748b;
+.agents-empty {
+  text-align: center;
+  color: var(--sui-fg-disabled);
+  padding: 40px;
 }
-.agent-type-generative {
-  background: #fef3c7;
-  color: #b45309;
+
+.agent-name {
+  font-weight: 500;
+  color: var(--sui-fg);
 }
-.agent-type-acp {
-  background: #ccfbf1;
+.acp-command {
+  font-family: var(--sui-font-mono);
+  font-size: var(--sui-fs-sm);
   color: #0f766e;
 }
+
+.agent-type-badge {
+  display: inline-block;
+  font-family: var(--sui-font-mono);
+  font-size: var(--sui-fs-xs);
+  font-weight: 600;
+  padding: 1px 8px;
+  border-radius: var(--sui-radius-sm);
+}
+.agent-type-react { background: #ede9fe; color: #6d28d9; }
+.agent-type-single { background: #f0f4f8; color: #64748b; }
+.agent-type-generative { background: #fef3c7; color: #b45309; }
+.agent-type-acp { background: #ccfbf1; color: #0f766e; }
+
 .config-badge {
   display: inline-block;
-  font-size: 10px;
+  font-size: var(--sui-fs-xs);
   font-weight: 600;
   padding: 1px 6px;
   border-radius: 8px;
-  margin-left: 6px;
+  margin-left: var(--sui-sp-3);
   vertical-align: middle;
 }
-.config-badge-info {
-  background: #dbeafe;
-  color: #1d4ed8;
+.config-badge-id { background: #e0f2fe; color: #0369a1; }
+.config-badge-info { background: #dbeafe; color: #1d4ed8; }
+.config-badge-warn { background: #fef3c7; color: #b45309; }
+
+/* Detail tabs */
+.agent-tab-bar {
+  display: flex;
+  border-bottom: 1px solid var(--sui-border);
+  background: var(--sui-bg-subtle);
+  padding: 0 var(--sui-sp-6);
 }
-.config-badge-warn {
-  background: #fef3c7;
-  color: #b45309;
+.agent-tab-bar-mobile { padding: 0 var(--sui-sp-4); }
+.agent-tab {
+  padding: 9px 14px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: var(--sui-fs-sm);
+  font-weight: 500;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color .15s;
+  color: var(--sui-fg-disabled);
+  font-family: inherit;
 }
+.agent-tab.active { color: var(--sui-fg); border-bottom-color: var(--sui-fg); }
+.agent-tab-content {
+  padding: var(--sui-sp-5) var(--sui-sp-6);
+  max-height: 480px;
+  overflow: auto;
+  background: var(--sui-bg-subtle);
+}
+.agent-tab-content-mobile { padding: var(--sui-sp-4) var(--sui-sp-4); }
+.agent-mobile-detail { margin-top: var(--sui-sp-4); }
+.agent-mobile-header {
+  display: flex;
+  justify-content: space-between;
+  cursor: pointer;
+}
+
+/* Info table */
+.agent-info-card { margin-bottom: var(--sui-sp-4); }
+.agent-info-table { margin: 0; }
+.agent-info-table .info-label {
+  width: 140px;
+  color: var(--sui-fg-muted);
+  font-size: var(--sui-fs-sm);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  padding: 7px 12px;
+}
+.agent-info-table .info-value {
+  padding: 7px 12px;
+  color: var(--sui-fg);
+}
+.agent-info-table .info-value.mono { font-family: var(--sui-font-mono); }
+.type-tag {
+  font-family: var(--sui-font-mono);
+  background: var(--sui-bg-hover);
+  padding: 1px 8px;
+  border-radius: var(--sui-radius-sm);
+  font-size: var(--sui-fs-sm);
+}
+.env-line {
+  font-family: var(--sui-font-mono);
+  font-size: var(--sui-fs-sm);
+}
+.info-count {
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg-secondary);
+}
+.info-dash {
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg-disabled);
+}
+
+.agent-system-prompt {
+  margin: 0;
+  padding: var(--sui-sp-4);
+  background: var(--sui-bg-subtle);
+  border: 1px solid var(--sui-border);
+  border-radius: var(--sui-radius-md);
+  font-family: var(--sui-font-mono);
+  font-size: var(--sui-fs-sm);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--sui-fg);
+  max-height: 220px;
+  overflow: auto;
+}
+
+.sub-agent-item {
+  padding: var(--sui-sp-3) 0;
+  border-bottom: 1px solid var(--sui-border);
+}
+.sub-agent-item:last-child { border-bottom: none; }
+.sub-agent-item-header { margin-bottom: 2px; }
+.sub-agent-item-name {
+  font-family: var(--sui-font-mono);
+  font-weight: 600;
+  color: var(--sui-fg);
+}
+.sub-agent-item-desc {
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg-muted);
+}
+
+.manage-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sui-sp-3);
+  margin-bottom: var(--sui-sp-4);
+}
+.manage-hint {
+  font-size: var(--sui-fs-md);
+  color: var(--sui-fg-secondary);
+}
+.tab-empty {
+  text-align: center;
+  color: var(--sui-fg-disabled);
+  padding: var(--sui-sp-6);
+}
+.tab-empty-action { margin-top: var(--sui-sp-3); }
+
+.agent-detail-table {
+  table-layout: fixed;
+  width: 100%;
+}
+.cell-mono { font-family: var(--sui-font-mono); }
+.cell-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cell-desc {
+  color: var(--sui-fg-muted);
+  font-size: var(--sui-fs-md);
+}
+.cell-addr {
+  color: var(--sui-fg-disabled);
+  font-size: var(--sui-fs-sm);
+}
+.cell-addr-priv { font-size: var(--sui-fs-sm); }
+
+/* Dark theme overrides */
+html[data-theme="dark"] .agent-type-react { background: #3b2d5c; color: #c4b5fd; }
+html[data-theme="dark"] .agent-type-single { background: #2a2a2a; color: #aaa; }
+html[data-theme="dark"] .agent-type-generative { background: #422006; color: #fcd34d; }
+html[data-theme="dark"] .agent-type-acp { background: #134e4a; color: #5eead4; }
+html[data-theme="dark"] .config-badge-id { background: #0c4a6e; color: #7dd3fc; }
+html[data-theme="dark"] .config-badge-info { background: #1e3a5f; color: #93c5fd; }
+html[data-theme="dark"] .config-badge-warn { background: #422006; color: #fcd34d; }
+html[data-theme="dark"] .acp-command { color: #5eead4; }
 </style>

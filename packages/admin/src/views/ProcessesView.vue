@@ -3,7 +3,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
-import { useToast } from '@/composables/useToast'
+import { useToast, SButton, SBadge, SPageToolbar, SPageContent } from 'sbot-ui'
 
 const { t } = useI18n()
 const { isMobile } = useResponsive()
@@ -80,11 +80,11 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
 
 <template>
   <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
-    <div class="page-toolbar">
-      <button class="btn-outline btn-sm" @click="load">{{ t('common.refresh') }}</button>
-      <button class="btn-danger btn-sm" @click="stopAll" :disabled="!items.length">{{ t('processes.stop_all') }}</button>
-    </div>
-    <div class="page-content">
+    <SPageToolbar>
+      <SButton type="outline" size="sm" @click="load">{{ t('common.refresh') }}</SButton>
+      <SButton type="danger" size="sm" :disabled="!items.length" @click="stopAll">{{ t('processes.stop_all') }}</SButton>
+    </SPageToolbar>
+    <SPageContent>
 
       <!-- Desktop table -->
       <table v-if="!isMobile">
@@ -100,22 +100,21 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
         </thead>
         <tbody>
           <tr v-if="items.length === 0">
-            <td colspan="6" style="text-align:center;color:#94a3b8;padding:40px">{{ t('processes.empty') }}</td>
+            <td colspan="6" class="processes-empty">{{ t('processes.empty') }}</td>
           </tr>
           <tr v-for="item in items" :key="item.key">
             <td>
-              <span style="font-weight:500">{{ item.agentName }}</span>
-              <span class="config-badge" style="background:#ccfbf1;color:#0f766e;margin-left:6px">ACP</span>
+              <span class="processes-name">{{ item.agentName }}</span>
+              <SBadge variant="success" pill class="processes-acp">ACP</SBadge>
             </td>
-            <td style="font-family:monospace;font-size:12px">{{ item.dbSessionId }}</td>
-            <td style="font-size:12px;color:#6b6b6b">{{ fmtTime(item.createdAt) }}<br><span style="color:#94a3b8">{{ fmtDuration(item.createdAt) }}</span></td>
-            <td style="font-size:12px;color:#6b6b6b">{{ fmtTime(item.lastAccessed) }}</td>
+            <td class="processes-session">{{ item.dbSessionId }}</td>
+            <td class="cell-time">{{ fmtTime(item.createdAt) }}<br><span class="cell-time-sub">{{ fmtDuration(item.createdAt) }}</span></td>
+            <td class="cell-time">{{ fmtTime(item.lastAccessed) }}</td>
             <td>
-              <span v-if="item.alive" style="display:inline-block;font-size:11px;font-weight:600;padding:1px 8px;border-radius:4px;background:#dcfce7;color:#16a34a">{{ t('processes.alive') }}</span>
-              <span v-else style="display:inline-block;font-size:11px;font-weight:600;padding:1px 8px;border-radius:4px;background:#fee2e2;color:#dc2626">{{ t('processes.dead') }}</span>
+              <SBadge :variant="item.alive ? 'success' : 'danger'">{{ item.alive ? t('processes.alive') : t('processes.dead') }}</SBadge>
             </td>
             <td>
-              <button class="btn-danger btn-sm" @click="stop(item)" :disabled="!item.alive">{{ t('processes.stop') }}</button>
+              <SButton type="danger" size="sm" :disabled="!item.alive" @click="stop(item)">{{ t('processes.stop') }}</SButton>
             </td>
           </tr>
         </tbody>
@@ -126,37 +125,46 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
         <div v-for="item in items" :key="item.key" class="mobile-card">
           <div class="mobile-card-header">
             {{ item.agentName }}
-            <span style="font-size:10px;font-weight:600;padding:1px 6px;border-radius:8px;background:#ccfbf1;color:#0f766e;margin-left:6px">ACP</span>
+            <SBadge variant="success" pill class="processes-acp">ACP</SBadge>
           </div>
           <div class="mobile-card-fields">
             <span class="mobile-card-label">{{ t('processes.session') }}</span>
-            <span class="mobile-card-value" style="font-family:monospace;font-size:12px">{{ item.dbSessionId }}</span>
+            <span class="mobile-card-value processes-session">{{ item.dbSessionId }}</span>
             <span class="mobile-card-label">{{ t('processes.created') }}</span>
-            <span class="mobile-card-value" style="font-size:12px">{{ fmtTime(item.createdAt) }} ({{ fmtDuration(item.createdAt) }})</span>
+            <span class="mobile-card-value cell-time">{{ fmtTime(item.createdAt) }} ({{ fmtDuration(item.createdAt) }})</span>
             <span class="mobile-card-label">{{ t('processes.status') }}</span>
             <span class="mobile-card-value">
-              <span v-if="item.alive" style="font-size:11px;font-weight:600;padding:1px 8px;border-radius:4px;background:#dcfce7;color:#16a34a">{{ t('processes.alive') }}</span>
-              <span v-else style="font-size:11px;font-weight:600;padding:1px 8px;border-radius:4px;background:#fee2e2;color:#dc2626">{{ t('processes.dead') }}</span>
+              <SBadge :variant="item.alive ? 'success' : 'danger'">{{ item.alive ? t('processes.alive') : t('processes.dead') }}</SBadge>
             </span>
           </div>
           <div class="mobile-card-ops">
-            <button class="btn-danger btn-sm" @click="stop(item)" :disabled="!item.alive">{{ t('processes.stop') }}</button>
+            <SButton type="danger" size="sm" :disabled="!item.alive" @click="stop(item)">{{ t('processes.stop') }}</SButton>
           </div>
         </div>
-        <div v-if="items.length === 0" class="mobile-card-empty" style="text-align:center;color:#94a3b8;padding:40px">{{ t('processes.empty') }}</div>
+        <div v-if="items.length === 0" class="processes-empty">{{ t('processes.empty') }}</div>
       </div>
 
-    </div>
+    </SPageContent>
   </div>
 </template>
 
 <style scoped>
-.config-badge {
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 600;
-  padding: 1px 6px;
-  border-radius: 8px;
-  vertical-align: middle;
+.processes-empty {
+  text-align: center;
+  color: var(--sui-fg-disabled);
+  padding: 40px;
+}
+.processes-name { font-weight: 500; }
+.processes-acp { margin-left: var(--sui-sp-2); }
+.processes-session {
+  font-family: var(--sui-font-mono);
+  font-size: var(--sui-fs-sm);
+}
+.cell-time {
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg-muted);
+}
+.cell-time-sub {
+  color: var(--sui-fg-disabled);
 }
 </style>

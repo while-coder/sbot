@@ -2,7 +2,8 @@
 import { ref, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
-import { useToast } from '@/composables/useToast'
+import { useToast } from 'sbot-ui'
+import { SModal, SButton, SIconButton } from 'sbot-ui'
 
 const { t } = useI18n()
 const { show } = useToast()
@@ -88,130 +89,115 @@ defineExpose({ open })
 </script>
 
 <template>
-  <div v-if="pickerOpen" class="modal-overlay picker-overlay" @click.self="pickerOpen = false">
-    <div class="modal-box picker-box">
-      <div class="modal-header">
-        <h3>{{ t('directory.select_dir_title') }}</h3>
-        <button class="modal-close" @click="pickerOpen = false">&times;</button>
-      </div>
-
+  <SModal v-model:visible="pickerOpen" :title="t('directory.select_dir_title')" width="sm" nested>
+    <template #toolbar>
       <div class="picker-path-bar">
         {{ pickerPath || t('directory.my_computer') }}
       </div>
+    </template>
 
-      <div v-if="pickerQuickDirs.length" class="picker-quickdirs">
-        <button
-          v-for="d in pickerQuickDirs"
-          :key="d.path"
-          class="picker-quickdir-chip"
-          :class="{ active: pickerPath === d.path }"
-          @click="navigatePicker(d.path)"
-        >{{ d.label }}</button>
-      </div>
-
-      <div class="picker-list">
-        <div v-if="pickerLoading" class="picker-empty">{{ t('common.loading') }}</div>
-        <template v-else>
-          <div
-            v-if="pickerParent !== null"
-            class="picker-item picker-up"
-            @click="navigatePicker(pickerParent!)"
-          >
-            {{ t('directory.up_dir') }}
-          </div>
-          <div v-if="pickerCreating" class="picker-create-row">
-            <span class="picker-icon">▶</span>
-            <input
-              ref="newNameInput"
-              v-model="pickerNewName"
-              class="picker-create-input"
-              :placeholder="t('directory.new_folder_placeholder')"
-              @keydown.enter="confirmCreate"
-              @keydown.escape="cancelCreate"
-            />
-            <button class="picker-create-btn" :title="t('common.save')" @click="confirmCreate">✓</button>
-            <button class="picker-create-btn picker-create-cancel" :title="t('common.close')" @click="cancelCreate">✕</button>
-          </div>
-          <div v-if="pickerItems.length === 0 && !pickerCreating" class="picker-empty">{{ t('directory.no_subdirs') }}</div>
-          <div
-            v-for="item in pickerItems"
-            :key="item"
-            class="picker-item"
-            @click="navigatePicker(item)"
-          >
-            <span class="picker-icon">▶</span>{{ itemLabel(item) }}
-          </div>
-        </template>
-      </div>
-
-      <div class="modal-footer">
-        <button
-          class="btn-outline btn-sm"
-          style="margin-right:auto"
-          :disabled="!pickerPath || pickerCreating"
-          @click="startCreate"
-        >{{ t('directory.new_folder') }}</button>
-        <button class="btn-outline" @click="pickerOpen = false">{{ t('common.cancel') }}</button>
-        <button class="btn-primary" :disabled="!pickerPath" @click="confirmPicker">
-          {{ t('directory.select_this') }}
-        </button>
-      </div>
+    <div v-if="pickerQuickDirs.length" class="picker-quickdirs">
+      <button
+        v-for="d in pickerQuickDirs"
+        :key="d.path"
+        class="picker-quickdir-chip"
+        :class="{ active: pickerPath === d.path }"
+        @click="navigatePicker(d.path)"
+      >{{ d.label }}</button>
     </div>
-  </div>
+
+    <div class="picker-list">
+      <div v-if="pickerLoading" class="picker-empty">{{ t('common.loading') }}</div>
+      <template v-else>
+        <div
+          v-if="pickerParent !== null"
+          class="picker-item picker-up"
+          @click="navigatePicker(pickerParent!)"
+        >
+          {{ t('directory.up_dir') }}
+        </div>
+        <div v-if="pickerCreating" class="picker-create-row">
+          <span class="picker-icon">▶</span>
+          <input
+            ref="newNameInput"
+            v-model="pickerNewName"
+            class="picker-create-input"
+            :placeholder="t('directory.new_folder_placeholder')"
+            @keydown.enter="confirmCreate"
+            @keydown.escape="cancelCreate"
+          />
+          <SIconButton size="sm" variant="outline" :title="t('common.save')" @click="confirmCreate">✓</SIconButton>
+          <SIconButton size="sm" variant="outline" :title="t('common.close')" @click="cancelCreate">✕</SIconButton>
+        </div>
+        <div v-if="pickerItems.length === 0 && !pickerCreating" class="picker-empty">{{ t('directory.no_subdirs') }}</div>
+        <div
+          v-for="item in pickerItems"
+          :key="item"
+          class="picker-item"
+          @click="navigatePicker(item)"
+        >
+          <span class="picker-icon">▶</span>{{ itemLabel(item) }}
+        </div>
+      </template>
+    </div>
+
+    <template #footer>
+      <SButton
+        type="outline"
+        size="sm"
+        style="margin-right:auto"
+        :disabled="!pickerPath || pickerCreating"
+        @click="startCreate"
+      >{{ t('directory.new_folder') }}</SButton>
+      <SButton type="outline" @click="pickerOpen = false">{{ t('common.cancel') }}</SButton>
+      <SButton type="primary" :disabled="!pickerPath" @click="confirmPicker">
+        {{ t('directory.select_this') }}
+      </SButton>
+    </template>
+  </SModal>
 </template>
 
 <style scoped>
-.picker-overlay { z-index: 1001; }
-
-.picker-box {
-  width: 480px;
-  max-height: 70vh;
-  display: flex;
-  flex-direction: column;
-}
-
 .picker-path-bar {
-  padding: 7px 14px;
-  background: #f8f7f5;
-  border-bottom: 1px solid #e8e6e3;
-  font-family: monospace;
-  font-size: 12px;
-  color: #3d3d3d;
+  padding: 0;
+  font-family: var(--sui-font-mono);
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg-secondary);
   word-break: break-all;
-  flex-shrink: 0;
+  flex: 1;
 }
 
 .picker-list {
-  flex: 1;
-  overflow-y: auto;
   min-height: 180px;
+  margin: calc(-1 * var(--sui-sp-7)) calc(-1 * var(--sui-sp-8));
 }
 
 .picker-empty {
   text-align: center;
   padding: 40px;
-  color: #94a3b8;
-  font-size: 13px;
+  color: var(--sui-fg-disabled);
+  font-size: var(--sui-fs-md);
 }
 
 .picker-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  font-size: 13px;
+  gap: var(--sui-sp-2);
+  padding: var(--sui-sp-3) var(--sui-sp-6);
+  font-size: var(--sui-fs-md);
   cursor: pointer;
-  border-bottom: 1px solid #f5f4f2;
+  border-bottom: 1px solid var(--sui-bg-soft);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: var(--sui-fg-secondary);
 }
-.picker-item:hover { background: #f5f4f2; }
+.picker-item:hover { background: var(--sui-bg-soft); }
 
 .picker-up {
-  color: #6b7280;
-  font-size: 12px;
-  border-bottom: 1px solid #e8e6e3;
+  color: var(--sui-fg-muted);
+  font-size: var(--sui-fs-sm);
+  border-bottom: 1px solid var(--sui-border);
 }
 
 .picker-icon {
@@ -224,60 +210,51 @@ defineExpose({ open })
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
-  padding: 6px 12px;
-  border-bottom: 1px solid #e8e6e3;
-  background: #fafaf9;
-  flex-shrink: 0;
+  padding: var(--sui-sp-2) var(--sui-sp-5);
+  border-bottom: 1px solid var(--sui-border);
+  background: var(--sui-bg-subtle);
+  margin: calc(-1 * var(--sui-sp-7)) calc(-1 * var(--sui-sp-8)) 0;
 }
 
 .picker-quickdir-chip {
-  padding: 2px 10px;
-  font-size: 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 12px;
-  background: #fff;
+  padding: 2px var(--sui-sp-4);
+  font-size: var(--sui-fs-sm);
+  border: 1px solid var(--sui-neutral-mid);
+  border-radius: var(--sui-radius-pill);
+  background: var(--sui-bg);
   cursor: pointer;
-  color: #374151;
+  color: var(--sui-fg-secondary);
   line-height: 20px;
-  transition: background .1s, border-color .1s;
+  transition: background var(--sui-transition-base), border-color var(--sui-transition-base);
+  font-family: inherit;
 }
-.picker-quickdir-chip:hover { background: #f0efed; border-color: #9ca3af; }
-.picker-quickdir-chip.active { background: #ede9fe; border-color: #a78bfa; color: #5b21b6; }
+.picker-quickdir-chip:hover { background: var(--sui-bg-hover); border-color: var(--sui-border-strong); }
+.picker-quickdir-chip.active {
+  background: var(--sui-violet-soft);
+  border-color: var(--sui-violet);
+  color: var(--sui-violet);
+}
 
 .picker-create-row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 14px;
-  border-bottom: 1px solid #e8e6e3;
-  background: #fafaf9;
+  gap: var(--sui-sp-2);
+  padding: 5px var(--sui-sp-6);
+  border-bottom: 1px solid var(--sui-border);
+  background: var(--sui-bg-subtle);
 }
 
 .picker-create-input {
   flex: 1;
   height: 26px;
-  padding: 0 6px;
-  font-size: 13px;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
+  padding: 0 var(--sui-sp-2);
+  font-size: var(--sui-fs-md);
+  border: 1px solid var(--sui-neutral-mid);
+  border-radius: var(--sui-radius-sm);
   outline: none;
+  background: var(--sui-bg);
+  color: var(--sui-fg);
+  font-family: inherit;
 }
-.picker-create-input:focus { border-color: #6366f1; }
-
-.picker-create-btn {
-  background: none;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  width: 26px;
-  height: 26px;
-  cursor: pointer;
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  color: #374151;
-}
-.picker-create-btn:hover { background: #f5f4f2; }
-.picker-create-cancel { color: #9b9b9b; }
+.picker-create-input:focus { border-color: var(--sui-info-link); }
 </style>

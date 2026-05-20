@@ -2,15 +2,18 @@
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
-import { useToast } from '@/composables/useToast'
+import { useToast } from 'sbot-ui'
+import { SModal, SButton, SFormItem, SInput, STextarea } from 'sbot-ui'
 
 const props = defineProps<{
   prefix: string
   defaultExt?: string
+  visible: boolean
 }>()
 
 const emit = defineEmits<{
   created: [filePath: string, fileName: string]
+  'update:visible': [value: boolean]
   close: []
 }>()
 
@@ -35,32 +38,39 @@ async function create() {
     show(e.message, 'error')
   }
 }
+
+function onClose() {
+  emit('update:visible', false)
+  emit('close')
+}
 </script>
 
 <template>
-  <div class="modal-overlay" style="z-index:1100" @click.self="emit('close')">
-    <div class="modal-box" style="width:480px">
-      <div class="modal-header">
-        <h3>{{ t('prompts.create_title') }}</h3>
-        <button class="modal-close" @click="emit('close')">&times;</button>
+  <SModal :visible="visible" :title="t('prompts.create_title')" width="sm" nested @update:visible="emit('update:visible', $event)" @close="emit('close')">
+    <SFormItem :label="t('prompts.filename')">
+      <div style="display:flex;align-items:center;gap:4px">
+        <span class="prefix-hint">{{ prefix }}</span>
+        <SInput v-model="name" :placeholder="`my-prompt${ext}`" style="flex:1" @keyup.enter="create" />
       </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label>{{ t('prompts.filename') }}</label>
-          <div style="display:flex;align-items:center;gap:4px">
-            <span style="color:#9b9b9b;font-size:13px;flex-shrink:0">{{ prefix }}</span>
-            <input v-model="name" :placeholder="`my-prompt${ext}`" style="flex:1" @keyup.enter="create" />
-          </div>
-        </div>
-        <div class="form-group">
-          <label>{{ t('prompts.content') }}</label>
-          <textarea v-model="content" rows="8" style="font-family:'Consolas','Monaco',monospace;font-size:13px" />
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn-outline" @click="emit('close')">{{ t('common.cancel') }}</button>
-        <button class="btn-primary" @click="create">{{ t('common.create') }}</button>
-      </div>
-    </div>
-  </div>
+    </SFormItem>
+    <SFormItem :label="t('prompts.content')">
+      <STextarea v-model="content" :rows="8" class="content-area" />
+    </SFormItem>
+    <template #footer>
+      <SButton type="outline" @click="onClose">{{ t('common.cancel') }}</SButton>
+      <SButton type="primary" @click="create">{{ t('common.create') }}</SButton>
+    </template>
+  </SModal>
 </template>
+
+<style scoped>
+.prefix-hint {
+  color: var(--sui-fg-disabled);
+  font-size: var(--sui-fs-md);
+  flex-shrink: 0;
+}
+.content-area :deep(textarea) {
+  font-family: var(--sui-font-mono);
+  font-size: var(--sui-fs-md);
+}
+</style>

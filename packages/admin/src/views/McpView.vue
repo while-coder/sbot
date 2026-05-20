@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
 import { store, applyMcpList } from '@/store'
-import { useToast } from '@/composables/useToast'
+import { useToast, SButton, SInput, SSelect, SModal, SFormItem, SFormSection, STabBar, STab, SPageToolbar, SPageContent } from 'sbot-ui'
 import { McpTransport } from '@/types'
 import type { McpEntry, McpTool, McpPrompt, McpResource, McpResourceTemplate } from '@/types'
 import { serverAddr } from '@/utils/mcpSchema'
@@ -15,7 +15,6 @@ const { t } = useI18n()
 const { show } = useToast()
 const { isMobile } = useResponsive()
 
-// ── Search & tab filter ──
 const searchQuery = ref('')
 const activeTab = ref('all')
 
@@ -45,7 +44,6 @@ async function load() {
   }
 }
 
-// ── Tools viewer ──
 const showToolsModal = ref(false)
 const toolsTitle = ref('')
 const toolsList = ref<McpTool[]>([])
@@ -76,7 +74,6 @@ async function viewTools(id: string) {
   }
 }
 
-// ── Auto-approve tools ──
 function isAutoApproved(toolName: string): boolean {
   return (store.settings.autoApproveTools ?? []).includes(toolName)
 }
@@ -115,7 +112,6 @@ async function revokeAll() {
   await saveAutoApprove(next)
 }
 
-// ── Edit / Add modal ──
 const showModal = ref(false)
 const editingId = ref<string | null>(null)
 const form = ref({
@@ -212,48 +208,25 @@ onMounted(load)
 
 <template>
   <div style="display:flex;flex-direction:column;height:100%;overflow:hidden">
-    <div class="page-toolbar">
-      <button class="btn-outline btn-sm" @click="load">{{ t('common.refresh') }}</button>
-      <button class="btn-primary btn-sm" @click="openAdd">{{ t('mcp.add') }}</button>
-    </div>
+    <SPageToolbar>
+      <SButton type="outline" size="sm" @click="load">{{ t('common.refresh') }}</SButton>
+      <SButton type="primary" size="sm" @click="openAdd">{{ t('mcp.add') }}</SButton>
+    </SPageToolbar>
 
-    <!-- Tab bar + search -->
-    <div style="display:flex;align-items:center;padding:0 20px;border-bottom:1px solid #e8e6e3;background:#fff;gap:0;flex-shrink:0">
-      <button
-        key="all"
-        @click="activeTab = 'all'"
-        style="padding:10px 14px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s"
-        :style="activeTab === 'all' ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
-      >
-        {{ t('common.all') }}
-        <span style="margin-left:4px;font-size:11px;padding:0 5px;border-radius:10px;font-weight:600"
-          :style="activeTab === 'all' ? 'background:#1c1c1c;color:#fff' : 'background:#f0efed;color:#6b6b6b'"
-        >{{ store.allMcps.length }}</span>
-      </button>
-      <button
+    <STabBar v-model="activeTab">
+      <STab name="all" :count="store.allMcps.length">{{ t('common.all') }}</STab>
+      <STab
         v-for="src in sources"
         :key="src"
-        @click="activeTab = src"
-        style="padding:10px 14px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s"
-        :style="activeTab === src ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
-      >
-        {{ src }}
-        <span style="margin-left:4px;font-size:11px;padding:0 5px;border-radius:10px;font-weight:600"
-          :style="activeTab === src ? 'background:#1c1c1c;color:#fff' : 'background:#f0efed;color:#6b6b6b'"
-        >{{ store.allMcps.filter(m => m.source === src).length }}</span>
-      </button>
-      <div style="flex:1" />
-      <input
-        v-model="searchQuery"
-        :placeholder="t('mcp.search_placeholder')"
-        style="width:220px;padding:5px 10px;border:1px solid #e8e6e3;border-radius:6px;font-size:12px;color:#1c1c1c;outline:none;background:#fafaf9"
-        @focus="($event.target as HTMLInputElement).style.borderColor='#1c1c1c'"
-        @blur="($event.target as HTMLInputElement).style.borderColor='#e8e6e3'"
-      />
-    </div>
+        :name="src"
+        :count="store.allMcps.filter(m => m.source === src).length"
+      >{{ src }}</STab>
+      <div class="tab-bar-spacer" />
+      <SInput v-model="searchQuery" size="sm" :placeholder="t('mcp.search_placeholder')" class="mcp-search" />
+    </STabBar>
 
-    <div class="page-content">
-      <table v-if="!isMobile" style="table-layout:fixed;width:100%">
+    <SPageContent>
+      <table v-if="!isMobile" class="mcp-table">
         <colgroup>
           <col style="width:220px" />
           <col />
@@ -261,25 +234,30 @@ onMounted(load)
           <col style="width:190px" />
         </colgroup>
         <thead>
-          <tr><th>{{ t('common.name') }}</th><th>{{ t('common.description') }}</th><th>{{ t('mcp.address_col') }}</th><th>{{ t('common.ops') }}</th></tr>
+          <tr>
+            <th>{{ t('common.name') }}</th>
+            <th>{{ t('common.description') }}</th>
+            <th>{{ t('mcp.address_col') }}</th>
+            <th>{{ t('common.ops') }}</th>
+          </tr>
         </thead>
         <tbody>
           <tr v-if="filteredMcps.length === 0">
-            <td colspan="4" style="text-align:center;color:#94a3b8;padding:40px">
+            <td colspan="4" class="mcp-empty">
               {{ searchQuery.trim() ? t('mcp.no_match') : t('mcp.empty') }}
             </td>
           </tr>
           <tr v-for="m in filteredMcps" :key="m.id">
-            <td style="font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            <td class="mcp-name">
               <span :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;margin-right:6px;${sourceBadgeStyle(m.source)}`">{{ m.source }}</span>{{ m.name }}
             </td>
-            <td style="color:#64748b;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.description || '—' }}</td>
-            <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#94a3b8;font-size:12px">{{ serverAddr(m as any) || '—' }}</td>
-            <td style="white-space:nowrap">
+            <td class="mcp-desc">{{ m.description || '—' }}</td>
+            <td class="mcp-addr">{{ serverAddr(m as any) || '—' }}</td>
+            <td class="mcp-ops">
               <div class="ops-cell">
-                <button class="btn-outline btn-sm" @click="viewTools(m.id)">{{ t('common.view') }}</button>
-                <button v-if="m.source !== '内置'" class="btn-outline btn-sm" @click="openEdit(m.id)">{{ t('common.edit') }}</button>
-                <button v-if="m.source !== '内置'" class="btn-danger btn-sm" @click="remove(m.id)">{{ t('common.delete') }}</button>
+                <SButton type="outline" size="sm" @click="viewTools(m.id)">{{ t('common.view') }}</SButton>
+                <SButton v-if="m.source !== '内置'" type="outline" size="sm" @click="openEdit(m.id)">{{ t('common.edit') }}</SButton>
+                <SButton v-if="m.source !== '内置'" type="danger" size="sm" @click="remove(m.id)">{{ t('common.delete') }}</SButton>
               </div>
             </td>
           </tr>
@@ -295,88 +273,92 @@ onMounted(load)
             <span class="mobile-card-label">{{ t('common.description') }}</span>
             <span class="mobile-card-value">{{ m.description || '—' }}</span>
             <span class="mobile-card-label">{{ t('mcp.address_col') }}</span>
-            <span class="mobile-card-value" style="word-break:break-all">{{ serverAddr(m as any) || '—' }}</span>
+            <span class="mobile-card-value mcp-addr-mobile">{{ serverAddr(m as any) || '—' }}</span>
           </div>
           <div class="mobile-card-ops">
-            <button class="btn-outline btn-sm" @click="viewTools(m.id)">{{ t('common.view') }}</button>
-            <button v-if="m.source !== '内置'" class="btn-outline btn-sm" @click="openEdit(m.id)">{{ t('common.edit') }}</button>
-            <button v-if="m.source !== '内置'" class="btn-danger btn-sm" @click="remove(m.id)">{{ t('common.delete') }}</button>
+            <SButton type="outline" size="sm" @click="viewTools(m.id)">{{ t('common.view') }}</SButton>
+            <SButton v-if="m.source !== '内置'" type="outline" size="sm" @click="openEdit(m.id)">{{ t('common.edit') }}</SButton>
+            <SButton v-if="m.source !== '内置'" type="danger" size="sm" @click="remove(m.id)">{{ t('common.delete') }}</SButton>
           </div>
         </div>
         <div v-if="filteredMcps.length === 0" class="mobile-card-empty">
           {{ searchQuery.trim() ? t('mcp.no_match') : t('mcp.empty') }}
         </div>
       </div>
-    </div>
+    </SPageContent>
 
     <!-- Edit / Add MCP Modal -->
-    <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
-      <div class="modal-box">
-        <div class="modal-header">
-          <h3>{{ editingId ? t('mcp.edit_title') : t('mcp.add_title') }}</h3>
-          <button class="modal-close" @click="showModal = false">&times;</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group"><label>{{ t('common.name') }} *</label><input v-model="form.name" :placeholder="t('mcp.name_placeholder')" /></div>
-          <div class="form-group"><label>{{ t('mcp.transport_type') }} *</label><select v-model="form.type"><option :value="McpTransport.Http">{{ t('mcp.transport_http') }}</option><option :value="McpTransport.Sse">{{ t('mcp.transport_sse') }}</option><option :value="McpTransport.Stdio">{{ t('mcp.transport_stdio') }}</option></select></div>
-          <template v-if="form.type === McpTransport.Http || form.type === McpTransport.Sse">
-            <div class="form-group"><label>{{ t('mcp.url_label') }} *</label><input v-model="form.url" placeholder="http://example.com/mcp" /></div>
-            <div class="form-section">
-              <div class="form-section-title">{{ t('mcp.headers_section') }}</div>
-              <div v-for="(row, i) in headerRows" :key="i" style="display:flex;gap:8px;margin-bottom:6px">
-                <input v-model="row.key" placeholder="Key" style="flex:1;padding:4px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px" />
-                <input v-model="row.value" placeholder="Value" style="flex:2;padding:4px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px" />
-                <button class="btn-danger btn-sm" @click="headerRows.splice(i,1)">×</button>
-              </div>
-              <button class="btn-outline btn-sm" @click="headerRows.push({key:'',value:''})">+ Header</button>
-            </div>
-          </template>
-          <template v-else>
-            <div class="form-group"><label>{{ t('mcp.command_label') }} *</label><input v-model="form.command" :placeholder="t('mcp.command_placeholder')" /></div>
-            <div class="form-section">
-              <div class="form-section-title">{{ t('mcp.args_section') }}</div>
-              <div v-for="(_arg, i) in argsList" :key="i" style="display:flex;gap:8px;margin-bottom:6px">
-                <input v-model="argsList[i]" :placeholder="t('mcp.arg_placeholder')" style="flex:1;padding:4px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px" />
-                <button class="btn-danger btn-sm" @click="argsList.splice(i,1)">×</button>
-              </div>
-              <button class="btn-outline btn-sm" @click="argsList.push('')">{{ t('mcp.add_arg') }}</button>
-            </div>
-            <div class="form-section">
-              <div class="form-section-title">{{ t('mcp.env_section') }}</div>
-              <div v-for="(row, i) in envRows" :key="i" style="display:flex;gap:8px;margin-bottom:6px">
-                <input v-model="row.key" placeholder="Key" style="flex:1;padding:4px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px" />
-                <input v-model="row.value" placeholder="Value" style="flex:2;padding:4px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px" />
-                <button class="btn-danger btn-sm" @click="envRows.splice(i,1)">×</button>
-              </div>
-              <button class="btn-outline btn-sm" @click="envRows.push({key:'',value:''})">+ Env</button>
-            </div>
-            <div class="form-group"><label>{{ t('mcp.cwd_label') }}</label><input v-model="form.cwd" :placeholder="t('mcp.cwd_placeholder')" /></div>
-          </template>
-          <div class="form-section">
-            <div class="form-section-title">高级设置</div>
-            <div class="form-group"><label>{{ t('mcp.tool_timeout') }}</label><input v-model="form.toolTimeout" type="number" :placeholder="t('mcp.timeout_placeholder')" /><div class="hint">{{ t('mcp.timeout_hint') }}</div></div>
-            <div class="form-group" style="flex-direction:row;align-items:center;gap:12px">
-              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;min-width:0">
-                <input type="checkbox" v-model="form.enablePromptTools" />
-                <span>{{ t('mcp.enable_prompt_tools') }}</span>
-              </label>
-              <div class="hint" style="margin:0">{{ t('mcp.enable_prompt_tools_hint') }}</div>
-            </div>
-            <div class="form-group" style="flex-direction:row;align-items:center;gap:12px">
-              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;min-width:0">
-                <input type="checkbox" v-model="form.enableResourceTools" />
-                <span>{{ t('mcp.enable_resource_tools') }}</span>
-              </label>
-              <div class="hint" style="margin:0">{{ t('mcp.enable_resource_tools_hint') }}</div>
-            </div>
+    <SModal v-model:visible="showModal" :title="editingId ? t('mcp.edit_title') : t('mcp.add_title')" width="md">
+      <SFormItem :label="t('common.name') + ' *'">
+        <SInput v-model="form.name" :placeholder="t('mcp.name_placeholder')" />
+      </SFormItem>
+      <SFormItem :label="t('mcp.transport_type') + ' *'">
+        <SSelect v-model="form.type">
+          <option :value="McpTransport.Http">{{ t('mcp.transport_http') }}</option>
+          <option :value="McpTransport.Sse">{{ t('mcp.transport_sse') }}</option>
+          <option :value="McpTransport.Stdio">{{ t('mcp.transport_stdio') }}</option>
+        </SSelect>
+      </SFormItem>
+      <template v-if="form.type === McpTransport.Http || form.type === McpTransport.Sse">
+        <SFormItem :label="t('mcp.url_label') + ' *'">
+          <SInput v-model="form.url" placeholder="http://example.com/mcp" />
+        </SFormItem>
+        <SFormSection :title="t('mcp.headers_section')">
+          <div v-for="(row, i) in headerRows" :key="i" class="kv-row">
+            <SInput v-model="row.key" size="sm" placeholder="Key" class="kv-key" />
+            <SInput v-model="row.value" size="sm" placeholder="Value" class="kv-value" />
+            <SButton type="danger" size="sm" @click="headerRows.splice(i,1)">×</SButton>
           </div>
+          <SButton type="outline" size="sm" @click="headerRows.push({key:'',value:''})">+ Header</SButton>
+        </SFormSection>
+      </template>
+      <template v-else>
+        <SFormItem :label="t('mcp.command_label') + ' *'">
+          <SInput v-model="form.command" :placeholder="t('mcp.command_placeholder')" />
+        </SFormItem>
+        <SFormSection :title="t('mcp.args_section')">
+          <div v-for="(_arg, i) in argsList" :key="i" class="kv-row">
+            <SInput v-model="argsList[i]" size="sm" :placeholder="t('mcp.arg_placeholder')" class="kv-flex" />
+            <SButton type="danger" size="sm" @click="argsList.splice(i,1)">×</SButton>
+          </div>
+          <SButton type="outline" size="sm" @click="argsList.push('')">{{ t('mcp.add_arg') }}</SButton>
+        </SFormSection>
+        <SFormSection :title="t('mcp.env_section')">
+          <div v-for="(row, i) in envRows" :key="i" class="kv-row">
+            <SInput v-model="row.key" size="sm" placeholder="Key" class="kv-key" />
+            <SInput v-model="row.value" size="sm" placeholder="Value" class="kv-value" />
+            <SButton type="danger" size="sm" @click="envRows.splice(i,1)">×</SButton>
+          </div>
+          <SButton type="outline" size="sm" @click="envRows.push({key:'',value:''})">+ Env</SButton>
+        </SFormSection>
+        <SFormItem :label="t('mcp.cwd_label')">
+          <SInput v-model="form.cwd" :placeholder="t('mcp.cwd_placeholder')" />
+        </SFormItem>
+      </template>
+      <SFormSection title="高级设置">
+        <SFormItem :label="t('mcp.tool_timeout')" :hint="t('mcp.timeout_hint')">
+          <SInput v-model="form.toolTimeout" type="number" :placeholder="t('mcp.timeout_placeholder')" />
+        </SFormItem>
+        <div class="check-row">
+          <label class="checkbox-label">
+            <input v-model="form.enablePromptTools" type="checkbox" />
+            <span>{{ t('mcp.enable_prompt_tools') }}</span>
+          </label>
+          <span class="check-hint">{{ t('mcp.enable_prompt_tools_hint') }}</span>
         </div>
-        <div class="modal-footer">
-          <button class="btn-outline" @click="showModal = false">{{ t('common.cancel') }}</button>
-          <button class="btn-primary" @click="save">{{ t('common.save') }}</button>
+        <div class="check-row">
+          <label class="checkbox-label">
+            <input v-model="form.enableResourceTools" type="checkbox" />
+            <span>{{ t('mcp.enable_resource_tools') }}</span>
+          </label>
+          <span class="check-hint">{{ t('mcp.enable_resource_tools_hint') }}</span>
         </div>
-      </div>
-    </div>
+      </SFormSection>
+      <template #footer>
+        <SButton type="outline" @click="showModal = false">{{ t('common.cancel') }}</SButton>
+        <SButton type="primary" @click="save">{{ t('common.save') }}</SButton>
+      </template>
+    </SModal>
 
     <McpToolsModal
       :visible="showToolsModal"
@@ -395,3 +377,63 @@ onMounted(load)
     />
   </div>
 </template>
+
+<style scoped>
+.tab-bar-spacer { flex: 1; }
+.mcp-search { width: 220px; }
+.mcp-table { width: 100%; table-layout: fixed; }
+.mcp-empty {
+  text-align: center;
+  color: var(--sui-fg-disabled);
+  padding: 40px;
+}
+.mcp-name {
+  font-family: var(--sui-font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mcp-desc {
+  color: var(--sui-fg-muted);
+  font-size: var(--sui-fs-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mcp-addr {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--sui-fg-disabled);
+  font-size: var(--sui-fs-sm);
+}
+.mcp-addr-mobile { word-break: break-all; }
+.mcp-ops { white-space: nowrap; }
+
+.kv-row {
+  display: flex;
+  gap: var(--sui-sp-3);
+  align-items: center;
+  margin-bottom: var(--sui-sp-2);
+}
+.kv-key { flex: 1; }
+.kv-value { flex: 2; }
+.kv-flex { flex: 1; }
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sui-sp-4);
+  margin-bottom: var(--sui-sp-3);
+}
+.checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sui-sp-2);
+  cursor: pointer;
+}
+.check-hint {
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg-muted);
+}
+</style>

@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
-import { useToast } from '@/composables/useToast'
+import { useToast, SButton, SInput, STabBar, STab, SPageToolbar, SPageContent } from 'sbot-ui'
 import type { SkillItem } from '@/types'
 import { sourceBadgeStyle } from '@/utils/badges'
 import SkillHubModal from '@/components/SkillHubModal.vue'
@@ -16,7 +16,6 @@ const { isMobile } = useResponsive()
 
 const allSkills = ref<SkillItem[]>([])
 
-// ── Search & tab filter ──
 const searchQuery = ref('')
 const activeTab = ref('all')
 
@@ -47,7 +46,6 @@ async function load() {
   }
 }
 
-// ── View Skill modal ──────────────────────────────────────────────
 const skillViewRef = ref<InstanceType<typeof SkillViewerModal>>()
 
 function openView(name: string, badge = '') {
@@ -76,47 +74,24 @@ onMounted(load)
 
 <template>
   <div style="display:flex;flex-direction:column;height:100%;overflow:hidden">
-    <div class="page-toolbar">
-      <button class="btn-outline btn-sm" @click="load">{{ t('common.refresh') }}</button>
-      <button class="btn-primary btn-sm" @click="openAdd">{{ t('skills.add') }}</button>
-    </div>
-    <!-- Tab bar + search -->
-    <div style="display:flex;align-items:center;padding:0 20px;border-bottom:1px solid #e8e6e3;background:#fff;gap:0;flex-shrink:0">
-      <button
-        key="all"
-        @click="activeTab = 'all'"
-        style="padding:10px 14px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s"
-        :style="activeTab === 'all' ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
-      >
-        {{ t('common.all') }}
-        <span style="margin-left:4px;font-size:11px;padding:0 5px;border-radius:10px;font-weight:600"
-          :style="activeTab === 'all' ? 'background:#1c1c1c;color:#fff' : 'background:#f0efed;color:#6b6b6b'"
-        >{{ allSkills.length }}</span>
-      </button>
-      <button
+    <SPageToolbar>
+      <SButton type="outline" size="sm" @click="load">{{ t('common.refresh') }}</SButton>
+      <SButton type="primary" size="sm" @click="openAdd">{{ t('skills.add') }}</SButton>
+    </SPageToolbar>
+    <STabBar v-model="activeTab">
+      <STab name="all" :count="allSkills.length">{{ t('common.all') }}</STab>
+      <STab
         v-for="src in sources"
         :key="src"
-        @click="activeTab = src"
-        style="padding:10px 14px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s"
-        :style="activeTab === src ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
-      >
-        {{ src }}
-        <span style="margin-left:4px;font-size:11px;padding:0 5px;border-radius:10px;font-weight:600"
-          :style="activeTab === src ? 'background:#1c1c1c;color:#fff' : 'background:#f0efed;color:#6b6b6b'"
-        >{{ allSkills.filter(s => s.source === src).length }}</span>
-      </button>
-      <div style="flex:1" />
-      <input
-        v-model="searchQuery"
-        :placeholder="t('skills.search_placeholder')"
-        style="width:220px;padding:5px 10px;border:1px solid #e8e6e3;border-radius:6px;font-size:12px;color:#1c1c1c;outline:none;background:#fafaf9"
-        @focus="($event.target as HTMLInputElement).style.borderColor='#1c1c1c'"
-        @blur="($event.target as HTMLInputElement).style.borderColor='#e8e6e3'"
-      />
-    </div>
-    <div class="page-content">
-      <div style="margin-bottom:16px;padding:10px 14px;background:#f1f5f9;border-radius:6px;font-size:13px;color:#475569">
-        {{ t('skills.skills_dir') }}<code style="font-family:monospace;background:#e2e8f0;padding:2px 6px;border-radius:3px">~/.sbot/skills/</code>
+        :name="src"
+        :count="allSkills.filter(s => s.source === src).length"
+      >{{ src }}</STab>
+      <div class="tab-bar-spacer" />
+      <SInput v-model="searchQuery" size="sm" :placeholder="t('skills.search_placeholder')" class="skills-search" />
+    </STabBar>
+    <SPageContent>
+      <div class="dir-hint-panel">
+        {{ t('skills.skills_dir') }}<code class="dir-hint-code">~/.sbot/skills/</code>
       </div>
       <table v-if="!isMobile" style="table-layout:fixed;width:100%">
         <colgroup>
@@ -129,19 +104,19 @@ onMounted(load)
         </thead>
         <tbody>
           <tr v-if="filteredSkills.length === 0">
-            <td colspan="3" style="text-align:center;color:#94a3b8;padding:40px">
+            <td colspan="3" class="skills-empty">
               {{ searchQuery.trim() ? t('skills.no_match') : t('skills.empty') }}
             </td>
           </tr>
           <tr v-for="s in filteredSkills" :key="s.name">
-            <td style="font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            <td class="skills-name">
               <span :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;margin-right:6px;${sourceBadgeStyle(s.source)}`">{{ s.source }}</span>{{ s.name }}
             </td>
-            <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.description || '-' }}</td>
-            <td style="white-space:nowrap">
+            <td class="skills-desc">{{ s.description || '-' }}</td>
+            <td class="skills-ops">
               <div class="ops-cell">
-                <button class="btn-outline btn-sm" @click="openView(s.name, s.source)">{{ t('common.view') }}</button>
-                <button v-if="s.source === '全局'" class="btn-danger btn-sm" @click="remove(s.name)">{{ t('common.delete') }}</button>
+                <SButton type="outline" size="sm" @click="openView(s.name, s.source)">{{ t('common.view') }}</SButton>
+                <SButton v-if="s.source === '全局'" type="danger" size="sm" @click="remove(s.name)">{{ t('common.delete') }}</SButton>
               </div>
             </td>
           </tr>
@@ -158,15 +133,15 @@ onMounted(load)
             <span class="mobile-card-value">{{ s.description || '-' }}</span>
           </div>
           <div class="mobile-card-ops">
-            <button class="btn-outline btn-sm" @click="openView(s.name, s.source)">{{ t('common.view') }}</button>
-            <button v-if="s.source === '全局'" class="btn-danger btn-sm" @click="remove(s.name)">{{ t('common.delete') }}</button>
+            <SButton type="outline" size="sm" @click="openView(s.name, s.source)">{{ t('common.view') }}</SButton>
+            <SButton v-if="s.source === '全局'" type="danger" size="sm" @click="remove(s.name)">{{ t('common.delete') }}</SButton>
           </div>
         </div>
         <div v-if="filteredSkills.length === 0" class="mobile-card-empty">
           {{ searchQuery.trim() ? t('skills.no_match') : t('skills.empty') }}
         </div>
       </div>
-    </div>
+    </SPageContent>
 
     <SkillViewerModal ref="skillViewRef" />
 
@@ -180,3 +155,41 @@ onMounted(load)
     />
   </div>
 </template>
+
+<style scoped>
+.tab-bar-spacer { flex: 1; }
+.skills-search { width: 220px; }
+.skills-empty {
+  text-align: center;
+  color: var(--sui-fg-disabled);
+  padding: 40px;
+}
+.skills-name {
+  font-family: var(--sui-font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.skills-desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.skills-ops {
+  white-space: nowrap;
+}
+.dir-hint-panel {
+  margin-bottom: var(--sui-sp-7);
+  padding: var(--sui-sp-4) var(--sui-sp-6);
+  background: var(--sui-bg-soft);
+  border-radius: var(--sui-radius-md);
+  font-size: var(--sui-fs-md);
+  color: var(--sui-fg-secondary);
+}
+.dir-hint-code {
+  font-family: var(--sui-font-mono);
+  background: var(--sui-border);
+  padding: 2px var(--sui-sp-2);
+  border-radius: var(--sui-radius-xs);
+}
+</style>

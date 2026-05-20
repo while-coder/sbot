@@ -2,8 +2,9 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
-import { useToast } from '@/composables/useToast'
+import { useToast } from 'sbot-ui'
 import { sourceBadgeStyle } from '@/utils/badges'
+import { SModal, SButton, STree, STreeNode } from 'sbot-ui'
 
 const { t } = useI18n()
 const { show } = useToast()
@@ -95,131 +96,71 @@ defineExpose({ open })
 </script>
 
 <template>
-  <div v-if="visible" class="modal-overlay" @click.self="close">
-    <div class="modal-box skill-viewer-box">
-      <div class="modal-header">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span v-if="skillBadge" :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(skillBadge)}`">{{ skillBadge }}</span>
-          <h3 style="margin:0;font-family:monospace">{{ skillName }}</h3>
-        </div>
-        <button class="modal-close" @click="close">&times;</button>
+  <SModal v-model:visible="visible" width="xl">
+    <template #header>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span v-if="skillBadge" :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(skillBadge)}`">{{ skillBadge }}</span>
+        <h3 class="s-modal-title" style="font-family:var(--sui-font-mono)">{{ skillName }}</h3>
       </div>
+    </template>
 
-      <div class="skill-viewer-body">
-        <!-- Left: file tree -->
-        <div class="skill-tree">
-          <div class="skill-tree-header">{{ t('common.files') }}</div>
-          <div v-if="treeLoading" class="skill-tree-loading">{{ t('common.loading') }}</div>
-          <template v-else>
-            <div
-              v-for="{ node, depth } in flatTree"
-              :key="node.path"
-              class="tree-item"
-              :class="{
-                'tree-dir': node.type === 'dir',
-                'tree-file': node.type === 'file',
-                'tree-selected': selectedPath === node.path,
-              }"
-              :style="{ paddingLeft: `${10 + depth * 14}px` }"
-              @click="node.type === 'dir' ? toggleDir(node.path) : selectFile(node.path)"
-            >
-              <span class="tree-icon">{{ node.type === 'dir' ? (collapsed.has(node.path) ? '\u25B6' : '\u25BC') : '\u00B7' }}</span>
-              <span class="tree-name">{{ node.name }}</span>
-            </div>
-          </template>
-        </div>
+    <div class="skill-viewer-body">
+      <!-- Left: file tree -->
+      <STree :header="t('common.files')" class="skill-tree">
+        <div v-if="treeLoading" class="skill-tree-loading">{{ t('common.loading') }}</div>
+        <template v-else>
+          <STreeNode
+            v-for="{ node, depth } in flatTree"
+            :key="node.path"
+            :level="depth"
+            :type="node.type"
+            :selected="selectedPath === node.path"
+            :expandable="node.type === 'dir'"
+            :expanded="node.type === 'dir' && !collapsed.has(node.path)"
+            @click="node.type === 'dir' ? toggleDir(node.path) : selectFile(node.path)"
+          >
+            {{ node.name }}
+          </STreeNode>
+        </template>
+      </STree>
 
-        <!-- Right: file content -->
-        <div class="skill-content">
-          <template v-if="selectedPath">
-            <div class="skill-content-toolbar">
-              <span class="skill-file-path">{{ selectedPath }}</span>
-            </div>
-            <div v-if="fileLoading" class="skill-content-loading">{{ t('common.loading') }}</div>
-            <pre v-else class="skill-content-pre">{{ fileContent }}</pre>
-          </template>
-          <div v-else class="skill-content-empty">{{ t('skills.select_file') }}</div>
-        </div>
-      </div>
-
-      <div class="modal-footer">
-        <button class="btn-outline" @click="close">{{ t('common.close') }}</button>
+      <!-- Right: file content -->
+      <div class="skill-content">
+        <template v-if="selectedPath">
+          <div class="skill-content-toolbar">
+            <span class="skill-file-path">{{ selectedPath }}</span>
+          </div>
+          <div v-if="fileLoading" class="skill-content-loading">{{ t('common.loading') }}</div>
+          <pre v-else class="skill-content-pre">{{ fileContent }}</pre>
+        </template>
+        <div v-else class="skill-content-empty">{{ t('skills.select_file') }}</div>
       </div>
     </div>
-  </div>
+
+    <template #footer>
+      <SButton type="outline" @click="close">{{ t('common.close') }}</SButton>
+    </template>
+  </SModal>
 </template>
 
 <style scoped>
-.skill-viewer-box {
-  width: 90vw;
-  max-width: 900px;
-  height: 75vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  padding: 0;
-}
-.skill-viewer-box > .modal-header {
-  padding: 14px 20px;
-  flex-shrink: 0;
-}
-.skill-viewer-box > .modal-footer {
-  padding: 10px 20px;
-  flex-shrink: 0;
-}
-
 .skill-viewer-body {
   display: flex;
-  flex: 1;
+  height: 70vh;
   overflow: hidden;
-  border-top: 1px solid #e8e6e3;
-  border-bottom: 1px solid #e8e6e3;
+  margin: calc(-1 * var(--sui-sp-7)) calc(-1 * var(--sui-sp-8));
 }
-
-/* Tree */
 .skill-tree {
   width: 210px;
   flex-shrink: 0;
-  border-right: 1px solid #e8e6e3;
-  overflow-y: auto;
-  background: #fafaf9;
-}
-.skill-tree-header {
-  padding: 10px 12px 6px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #6b6b6b;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  border-bottom: 1px solid #e8e6e3;
 }
 .skill-tree-loading {
   padding: 20px;
   text-align: center;
-  color: #9b9b9b;
-  font-size: 13px;
+  color: var(--sui-fg-disabled);
+  font-size: var(--sui-fs-md);
 }
-.tree-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding-top: 5px;
-  padding-bottom: 5px;
-  padding-right: 8px;
-  font-size: 13px;
-  cursor: pointer;
-  user-select: none;
-  border-radius: 4px;
-  margin: 1px 4px;
-}
-.tree-item:hover { background: #ede9e6; }
-.tree-selected { background: #e8e4e0 !important; font-weight: 600; color: #1c1c1c; }
-.tree-dir { color: #3d3d3d; font-weight: 500; }
-.tree-file { color: #555; }
-.tree-icon { font-size: 9px; color: #9b9b9b; width: 12px; flex-shrink: 0; }
-.tree-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 
-/* Content */
 .skill-content {
   flex: 1;
   display: flex;
@@ -229,34 +170,34 @@ defineExpose({ open })
 .skill-content-toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  border-bottom: 1px solid #e8e6e3;
+  gap: var(--sui-sp-3);
+  padding: var(--sui-sp-3) var(--sui-sp-4);
+  border-bottom: 1px solid var(--sui-border);
   flex-shrink: 0;
-  background: #fff;
+  background: var(--sui-bg);
 }
 .skill-file-path {
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 12px;
-  color: #3d3d3d;
+  font-family: var(--sui-font-mono);
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg-secondary);
 }
 .skill-content-loading {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #9b9b9b;
-  font-size: 13px;
+  color: var(--sui-fg-disabled);
+  font-size: var(--sui-fs-md);
 }
 .skill-content-pre {
   margin: 0;
-  padding: 14px 16px;
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 12px;
+  padding: var(--sui-sp-4) var(--sui-sp-5);
+  font-family: var(--sui-font-mono);
+  font-size: var(--sui-fs-sm);
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
-  color: #1e293b;
+  color: var(--sui-fg);
   overflow: auto;
   flex: 1;
 }
@@ -265,8 +206,8 @@ defineExpose({ open })
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #9b9b9b;
-  font-size: 13px;
+  color: var(--sui-fg-disabled);
+  font-size: var(--sui-fs-md);
 }
 
 @media (max-width: 768px) {
@@ -275,7 +216,7 @@ defineExpose({ open })
     width: 100%;
     max-height: 180px;
     border-right: none;
-    border-bottom: 1px solid #e8e6e3;
+    border-bottom: 1px solid var(--sui-border);
   }
 }
 </style>

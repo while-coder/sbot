@@ -3,12 +3,13 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store, applyMcpList } from '@/store'
-import { useToast } from '@/composables/useToast'
+import { useToast } from 'sbot-ui'
 import { McpTransport } from '@/types'
 import type { McpEntry, McpTool, McpPrompt, McpResource, McpResourceTemplate } from '@/types'
 import { serverAddr } from '@/utils/mcpSchema'
 import { sourceBadgeStyle } from '@/utils/badges'
 import McpToolsModal from '@/components/McpToolsModal.vue'
+import { SModal, SButton, SInput, SSelect, SFormItem, SFormSection, STabBar, STab, SCheckCard } from 'sbot-ui'
 
 const { t } = useI18n()
 
@@ -304,173 +305,148 @@ defineExpose({ open })
 <template>
   <template v-if="visible">
     <!-- ── Main modal ──────────────────────────────────────────── -->
-    <div class="modal-overlay" @click.self="visible = false">
-      <div class="modal-box" style="width:90vw;max-width:1100px;height:82vh;display:flex;flex-direction:column;overflow:hidden;padding:0">
-        <div class="modal-header" style="padding:14px 20px;flex-shrink:0">
-          <h3>{{ agentDisplayName }} — {{ t('agents.mcp_title') }}</h3>
-          <div style="display:flex;gap:8px;align-items:center">
-            <button class="btn-outline btn-sm" @click="load">{{ t('common.refresh') }}</button>
-            <button class="modal-close" @click="visible = false">&times;</button>
-          </div>
-        </div>
+    <SModal v-model:visible="visible" width="xl">
+      <template #header>
+        <h3 class="s-modal-title">{{ agentDisplayName }} — {{ t('agents.mcp_title') }}</h3>
+        <SButton type="outline" size="sm" @click="load">{{ t('common.refresh') }}</SButton>
+      </template>
 
-        <!-- Tab bar -->
-        <div style="display:flex;border-bottom:1px solid #e8e6e3;background:#fff;padding:0 20px;flex-shrink:0">
-          <button
-            @click="activeTab = 'all'"
-            style="padding:11px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s"
-            :style="activeTab === 'all' ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
-          >
-            {{ t('common.all') }}
-            <span style="margin-left:4px;font-size:11px;padding:0 5px;border-radius:10px;font-weight:600"
-              :style="activeTab === 'all' ? 'background:#1c1c1c;color:#fff' : 'background:#f0efed;color:#6b6b6b'"
-            >{{ store.allMcps.length }}</span>
-          </button>
-          <button
+      <!-- Tab bar -->
+      <template #toolbar>
+        <STabBar v-model="activeTab" style="padding:0;border:none;background:transparent">
+          <STab name="all" :count="store.allMcps.length">{{ t('common.all') }}</STab>
+          <STab
             v-for="src in sources"
             :key="src"
-            @click="activeTab = src"
-            style="padding:11px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s"
-            :style="activeTab === src ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
-          >
-            {{ src }}
-            <span style="margin-left:4px;font-size:11px;padding:0 5px;border-radius:10px;font-weight:600"
-              :style="activeTab === src ? 'background:#1c1c1c;color:#fff' : 'background:#f0efed;color:#6b6b6b'"
-            >{{ store.allMcps.filter((m: { source?: string }) => m.source === src).length }}</span>
-          </button>
-          <button
-            @click="activeTab = t('agents.mcp_exclusive_tab')"
-            style="padding:11px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s"
-            :style="activeTab === t('agents.mcp_exclusive_tab') ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
-          >
-            {{ t('agents.mcp_exclusive_tab') }}
-            <span style="margin-left:4px;font-size:11px;padding:0 5px;border-radius:10px;font-weight:600"
-              :style="activeTab === t('agents.mcp_exclusive_tab') ? 'background:#1c1c1c;color:#fff' : 'background:#f0efed;color:#6b6b6b'"
-            >{{ Object.keys(servers).length }}</span>
-          </button>
-        </div>
+            :name="src"
+            :count="store.allMcps.filter((m: { source?: string }) => m.source === src).length"
+          >{{ src }}</STab>
+          <STab :name="t('agents.mcp_exclusive_tab')" :count="Object.keys(servers).length">{{ t('agents.mcp_exclusive_tab') }}</STab>
+        </STabBar>
+      </template>
 
-        <!-- Content -->
-        <div style="flex:1;overflow:auto;padding:16px 20px">
+      <div style="height:62vh;overflow:auto">
+        <!-- Global MCPs tab -->
+        <template v-if="activeTab !== t('agents.mcp_exclusive_tab')">
+          <div class="picker-toolbar">
+            <SCheckCard v-model="useAllMcp">{{ t('agents.use_all') }}</SCheckCard>
+            <SInput v-if="!useAllMcp" v-model="mcpSearch" :placeholder="t('mcp.search_placeholder')" size="sm" style="flex:1" />
+            <div v-else style="flex:1" />
+            <SButton type="primary" size="sm" :disabled="!globalsChanged" @click="saveGlobals">{{ t('common.save') }}</SButton>
+            <span v-if="globalsChanged" class="picker-unsaved">{{ t('common.unsaved_changes') }}</span>
+          </div>
+          <div v-if="store.allMcps.length === 0" class="picker-empty">{{ t('mcp.no_global') }}</div>
+          <div v-else class="picker-list">
+            <div v-if="filteredGlobalMcps.length === 0" class="picker-list-empty">{{ t('mcp.no_match') }}</div>
+            <label
+              v-for="m in filteredGlobalMcps" :key="m.id"
+              class="picker-row"
+              :class="{ checked: selectedGlobals.includes(m.id) }"
+            >
+              <input type="checkbox" :value="m.id" v-model="selectedGlobals" :disabled="useAllMcp" :checked="useAllMcp || selectedGlobals.includes(m.id)" />
+              <span :style="`flex-shrink:0;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(m.source)}`">{{ m.source }}</span>
+              <span class="picker-row-name">{{ m.name }}</span>
+              <span class="picker-row-desc">{{ m.description || '-' }}</span>
+              <SButton type="outline" size="sm" @click.prevent="viewGlobalTools(m.id)">{{ t('common.view') }}</SButton>
+            </label>
+          </div>
+        </template>
 
-          <!-- Global MCPs tab -->
-          <template v-if="activeTab !== t('agents.mcp_exclusive_tab')">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;flex-shrink:0;padding:4px 10px;background:#f8fafc;border:1px solid #e8e6e3;border-radius:6px">
-                <input type="checkbox" v-model="useAllMcp" style="width:14px;height:14px;cursor:pointer" />
-                {{ t('agents.use_all') }}
-              </label>
-              <input v-if="!useAllMcp" v-model="mcpSearch" :placeholder="t('mcp.search_placeholder')" style="flex:1;padding:6px 10px;border:1px solid #e8e6e3;border-radius:6px;font-size:12px;outline:none" />
-              <div v-else style="flex:1" />
-              <button class="btn-primary btn-sm" :disabled="!globalsChanged" @click="saveGlobals">{{ t('common.save') }}</button>
-              <span v-if="globalsChanged" style="font-size:12px;color:#f59e0b;white-space:nowrap">{{ t('common.unsaved_changes') }}</span>
-            </div>
-            <div v-if="store.allMcps.length === 0" style="text-align:center;color:#94a3b8;padding:40px">{{ t('mcp.no_global') }}</div>
-            <div v-else style="border:1px solid #e8e6e3;border-radius:6px;overflow:hidden">
-              <div v-if="filteredGlobalMcps.length === 0" style="padding:20px;text-align:center;color:#9b9b9b;font-size:13px">{{ t('mcp.no_match') }}</div>
-              <label
-                v-for="m in filteredGlobalMcps" :key="m.id"
-                style="display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;border-bottom:1px solid #f5f4f2;font-size:13px"
-                :style="selectedGlobals.includes(m.id) ? 'background:#fafaf9' : ''"
-              >
-                <input type="checkbox" :value="m.id" v-model="selectedGlobals" :disabled="useAllMcp" :checked="useAllMcp || selectedGlobals.includes(m.id)" style="cursor:pointer;flex-shrink:0;width:14px;height:14px" />
-                <span :style="`flex-shrink:0;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(m.source)}`">{{ m.source }}</span>
-                <span style="font-family:monospace;font-weight:500;width:200px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.name }}</span>
-                <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:#64748b">{{ m.description || '-' }}</span>
-                <button class="btn-outline btn-sm" style="flex-shrink:0;padding:2px 8px;font-size:11px" @click.prevent="viewGlobalTools(m.id)">{{ t('common.view') }}</button>
-              </label>
-            </div>
-          </template>
-
-          <!-- Private servers tab -->
-          <template v-else>
-            <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
-              <button class="btn-primary btn-sm" @click="openAdd">{{ t('mcp.add') }}</button>
-            </div>
-            <div v-if="Object.keys(servers).length === 0" style="text-align:center;color:#94a3b8;padding:40px">{{ t('mcp.no_exclusive') }}</div>
-            <table v-else style="table-layout:fixed;width:100%">
-              <colgroup>
-                <col style="width:200px" />
-                <col />
-                <col style="width:220px" />
-                <col style="width:190px" />
-              </colgroup>
-              <thead><tr><th>{{ t('common.name') }}</th><th>{{ t('common.description') }}</th><th>{{ t('mcp.address_col') }}</th><th>{{ t('common.ops') }}</th></tr></thead>
-              <tbody>
-                <tr v-for="(s, id) in servers" :key="id">
-                  <td style="font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ (s as any).name || id }}</td>
-                  <td style="color:#64748b;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ (s as any).description || '—' }}</td>
-                  <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#94a3b8;font-size:12px">{{ serverAddr(s) }}</td>
-                  <td style="white-space:nowrap">
-                    <div class="ops-cell">
-                      <button class="btn-outline btn-sm" @click="viewTools(id as string)">{{ t('common.view') }}</button>
-                      <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
-                      <button class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </template>
-        </div>
+        <!-- Private servers tab -->
+        <template v-else>
+          <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+            <SButton type="primary" size="sm" @click="openAdd">{{ t('mcp.add') }}</SButton>
+          </div>
+          <div v-if="Object.keys(servers).length === 0" class="picker-empty">{{ t('mcp.no_exclusive') }}</div>
+          <table v-else style="table-layout:fixed;width:100%">
+            <colgroup>
+              <col style="width:200px" />
+              <col />
+              <col style="width:220px" />
+              <col style="width:190px" />
+            </colgroup>
+            <thead><tr><th>{{ t('common.name') }}</th><th>{{ t('common.description') }}</th><th>{{ t('mcp.address_col') }}</th><th>{{ t('common.ops') }}</th></tr></thead>
+            <tbody>
+              <tr v-for="(s, id) in servers" :key="id">
+                <td style="font-family:var(--sui-font-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ (s as any).name || id }}</td>
+                <td style="color:var(--sui-fg-muted);font-size:var(--sui-fs-sm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ (s as any).description || '—' }}</td>
+                <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--sui-fg-disabled);font-size:var(--sui-fs-sm)">{{ serverAddr(s) }}</td>
+                <td style="white-space:nowrap">
+                  <div class="ops-cell">
+                    <SButton type="outline" size="sm" @click="viewTools(id as string)">{{ t('common.view') }}</SButton>
+                    <SButton type="outline" size="sm" @click="openEdit(id as string)">{{ t('common.edit') }}</SButton>
+                    <SButton type="danger" size="sm" @click="remove(id as string)">{{ t('common.delete') }}</SButton>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </template>
       </div>
-    </div>
+    </SModal>
 
     <!-- ── MCP Edit sub-modal ─────────────────────────────────── -->
-    <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
-      <div class="modal-box">
-        <div class="modal-header">
-          <h3>{{ editingName ? t('mcp.edit_title') : t('mcp.add_title') }}</h3>
-          <button class="modal-close" @click="showModal = false">&times;</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group"><label>{{ t('common.name') }} *</label><input v-model="form.name" :placeholder="t('mcp.name_placeholder')" /></div>
-          <div class="form-group"><label>{{ t('mcp.transport_type') }} *</label><select v-model="form.type"><option :value="McpTransport.Http">{{ t('mcp.transport_http') }}</option><option :value="McpTransport.Sse">{{ t('mcp.transport_sse') }}</option><option :value="McpTransport.Stdio">{{ t('mcp.transport_stdio') }}</option></select></div>
-          <template v-if="form.type === McpTransport.Http || form.type === McpTransport.Sse">
-            <div class="form-group"><label>{{ t('mcp.url_label') }} *</label><input v-model="form.url" placeholder="http://example.com/mcp" /></div>
-            <div class="form-section">
-              <div class="form-section-title">{{ t('mcp.headers_section') }}</div>
-              <div v-for="(row, i) in headerRows" :key="i" style="display:flex;gap:8px;margin-bottom:6px">
-                <input v-model="row.key" placeholder="Key" style="flex:1;padding:4px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px" />
-                <input v-model="row.value" placeholder="Value" style="flex:2;padding:4px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px" />
-                <button class="btn-danger btn-sm" @click="headerRows.splice(i,1)">×</button>
-              </div>
-              <button class="btn-outline btn-sm" @click="headerRows.push({key:'',value:''})">+ Header</button>
-            </div>
-          </template>
-          <template v-else>
-            <div class="form-group"><label>{{ t('mcp.command_label') }} *</label><input v-model="form.command" :placeholder="t('mcp.command_placeholder')" /></div>
-            <div class="form-section">
-              <div class="form-section-title">{{ t('mcp.args_section') }}</div>
-              <div v-for="(_arg, i) in argsList" :key="i" style="display:flex;gap:8px;margin-bottom:6px">
-                <input v-model="argsList[i]" :placeholder="t('mcp.arg_placeholder')" style="flex:1;padding:4px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px" />
-                <button class="btn-danger btn-sm" @click="argsList.splice(i,1)">×</button>
-              </div>
-              <button class="btn-outline btn-sm" @click="argsList.push('')">{{ t('mcp.add_arg') }}</button>
-            </div>
-            <div class="form-section">
-              <div class="form-section-title">{{ t('mcp.env_section') }}</div>
-              <div v-for="(row, i) in envRows" :key="i" style="display:flex;gap:8px;margin-bottom:6px">
-                <input v-model="row.key" placeholder="Key" style="flex:1;padding:4px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px" />
-                <input v-model="row.value" placeholder="Value" style="flex:2;padding:4px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px" />
-                <button class="btn-danger btn-sm" @click="envRows.splice(i,1)">×</button>
-              </div>
-              <button class="btn-outline btn-sm" @click="envRows.push({key:'',value:''})">+ Env</button>
-            </div>
-            <div class="form-group"><label>{{ t('mcp.cwd_label') }}</label><input v-model="form.cwd" :placeholder="t('mcp.cwd_placeholder')" /></div>
-          </template>
-          <div class="form-group"><label>{{ t('common.description') }}</label><input v-model="form.description" placeholder="服务描述（可选）" /></div>
-          <div class="form-section">
-            <div class="form-section-title">高级设置</div>
-            <div class="form-group"><label>{{ t('mcp.tool_timeout') }}</label><input v-model="form.toolTimeout" type="number" :placeholder="t('mcp.timeout_placeholder')" /></div>
+    <SModal v-model:visible="showModal" :title="editingName ? t('mcp.edit_title') : t('mcp.add_title')" width="md" nested>
+      <SFormItem :label="t('common.name') + ' *'">
+        <SInput v-model="form.name" :placeholder="t('mcp.name_placeholder')" />
+      </SFormItem>
+      <SFormItem :label="t('mcp.transport_type') + ' *'">
+        <SSelect v-model="form.type">
+          <option :value="McpTransport.Http">{{ t('mcp.transport_http') }}</option>
+          <option :value="McpTransport.Sse">{{ t('mcp.transport_sse') }}</option>
+          <option :value="McpTransport.Stdio">{{ t('mcp.transport_stdio') }}</option>
+        </SSelect>
+      </SFormItem>
+      <template v-if="form.type === McpTransport.Http || form.type === McpTransport.Sse">
+        <SFormItem :label="t('mcp.url_label') + ' *'">
+          <SInput v-model="form.url" placeholder="http://example.com/mcp" />
+        </SFormItem>
+        <SFormSection :title="t('mcp.headers_section')">
+          <div v-for="(row, i) in headerRows" :key="i" style="display:flex;gap:8px;margin-bottom:6px">
+            <SInput v-model="row.key" placeholder="Key" size="sm" style="flex:1" />
+            <SInput v-model="row.value" placeholder="Value" size="sm" style="flex:2" />
+            <SButton type="danger" size="sm" @click="headerRows.splice(i,1)">×</SButton>
           </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-outline" @click="showModal = false">{{ t('common.cancel') }}</button>
-          <button class="btn-primary" @click="save">{{ t('common.save') }}</button>
-        </div>
-      </div>
-    </div>
+          <SButton type="outline" size="sm" @click="headerRows.push({key:'',value:''})">+ Header</SButton>
+        </SFormSection>
+      </template>
+      <template v-else>
+        <SFormItem :label="t('mcp.command_label') + ' *'">
+          <SInput v-model="form.command" :placeholder="t('mcp.command_placeholder')" />
+        </SFormItem>
+        <SFormSection :title="t('mcp.args_section')">
+          <div v-for="(_arg, i) in argsList" :key="i" style="display:flex;gap:8px;margin-bottom:6px">
+            <SInput v-model="argsList[i]" :placeholder="t('mcp.arg_placeholder')" size="sm" style="flex:1" />
+            <SButton type="danger" size="sm" @click="argsList.splice(i,1)">×</SButton>
+          </div>
+          <SButton type="outline" size="sm" @click="argsList.push('')">{{ t('mcp.add_arg') }}</SButton>
+        </SFormSection>
+        <SFormSection :title="t('mcp.env_section')">
+          <div v-for="(row, i) in envRows" :key="i" style="display:flex;gap:8px;margin-bottom:6px">
+            <SInput v-model="row.key" placeholder="Key" size="sm" style="flex:1" />
+            <SInput v-model="row.value" placeholder="Value" size="sm" style="flex:2" />
+            <SButton type="danger" size="sm" @click="envRows.splice(i,1)">×</SButton>
+          </div>
+          <SButton type="outline" size="sm" @click="envRows.push({key:'',value:''})">+ Env</SButton>
+        </SFormSection>
+        <SFormItem :label="t('mcp.cwd_label')">
+          <SInput v-model="form.cwd" :placeholder="t('mcp.cwd_placeholder')" />
+        </SFormItem>
+      </template>
+      <SFormItem :label="t('common.description')">
+        <SInput v-model="form.description" placeholder="服务描述（可选）" />
+      </SFormItem>
+      <SFormSection title="高级设置">
+        <SFormItem :label="t('mcp.tool_timeout')">
+          <SInput v-model="form.toolTimeout" type="number" :placeholder="t('mcp.timeout_placeholder')" />
+        </SFormItem>
+      </SFormSection>
+
+      <template #footer>
+        <SButton type="outline" @click="showModal = false">{{ t('common.cancel') }}</SButton>
+        <SButton type="primary" @click="save">{{ t('common.save') }}</SButton>
+      </template>
+    </SModal>
 
     <McpToolsModal
       :visible="showToolsModal"
@@ -489,3 +465,63 @@ defineExpose({ open })
     />
   </template>
 </template>
+
+<style scoped>
+.picker-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sui-sp-3);
+  margin-bottom: var(--sui-sp-4);
+}
+.picker-unsaved {
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-warning);
+  white-space: nowrap;
+}
+.picker-empty {
+  text-align: center;
+  color: var(--sui-fg-disabled);
+  padding: 40px;
+}
+.picker-list {
+  border: 1px solid var(--sui-border);
+  border-radius: var(--sui-radius-md);
+  overflow: hidden;
+}
+.picker-list-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--sui-fg-disabled);
+  font-size: var(--sui-fs-md);
+}
+.picker-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sui-sp-4);
+  padding: var(--sui-sp-3) var(--sui-sp-5);
+  cursor: pointer;
+  border-bottom: 1px solid var(--sui-border-subtle);
+  font-size: var(--sui-fs-md);
+}
+.picker-row:last-child { border-bottom: none; }
+.picker-row.checked { background: var(--sui-bg-subtle); }
+.picker-row input[type="checkbox"] { cursor: pointer; flex-shrink: 0; width: 14px; height: 14px; }
+.picker-row-name {
+  font-family: var(--sui-font-mono);
+  font-weight: 500;
+  width: 200px;
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.picker-row-desc {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg-muted);
+}
+</style>

@@ -84,6 +84,9 @@ importers:
       qrcode:
         specifier: ^1.5.4
         version: 1.5.4
+      sbot-ui:
+        specifier: workspace:*
+        version: link:../sbot-ui
       sbot.commons:
         specifier: workspace:*
         version: link:../sbot.commons
@@ -509,6 +512,12 @@ importers:
         specifier: 'catalog:'
         version: 6.0.3
     publishDirectory: dist
+
+  packages/sbot-ui:
+    dependencies:
+      vue:
+        specifier: ^3.5.0
+        version: 3.5.33(typescript@6.0.3)
 
   packages/sbot.commons:
     devDependencies:

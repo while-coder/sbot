@@ -1,4 +1,4 @@
-/* @sbot/ui — Dark Theme
+/* sbot-ui — Dark Theme
  *
  * 通过 html[data-theme="dark"] 重新赋值 token，无需逐类覆盖。
  * Hex 严格 1:1 映射 admin/Layout.vue 第 1240-1358 行原有取值。

@@ -60,26 +60,36 @@ async function fetchFn(url: string) {
 
 <style scoped>
 .website-chatui-wrapper {
-  padding: 16px;
+  padding: var(--sui-sp-7);
 }
 </style>
 
-<!-- Non-scoped: sets chatui CSS variables on body so Teleport-ed overlays (ThinkDrawer, Lightbox) inherit them -->
+<!-- Non-scoped: sets chatui CSS variables on body so Teleport-ed overlays (ThinkDrawer, Lightbox) inherit them.
+     通用 UI 色彩走 sui token；chat 业务专属色（human/think 等紫蓝）保留 hex，由本文件单点维护。 -->
 <style>
 body {
-  --chatui-bg-human: #1c1c1c;
-  --chatui-fg-human: #fff;
-  --chatui-bg-ai: #f5f4f2;
-  --chatui-fg-ai: #1c1c1c;
-  --chatui-bg-tool: #fefce8;
-  --chatui-fg-tool: #713f12;
-  --chatui-bg-surface: #fff;
-  --chatui-bg-code: #fafaf9;
-  --chatui-fg-primary: #1c1c1c;
-  --chatui-fg-secondary: #9b9b9b;
-  --chatui-border: #e8e6e3;
+  --chatui-bg-human: var(--sui-fg);
+  --chatui-fg-human: var(--sui-on-primary);
+  --chatui-bg-ai: var(--sui-bg-soft);
+  --chatui-fg-ai: var(--sui-fg);
+  --chatui-bg-tool: var(--sui-tool-bg);
+  --chatui-fg-tool: var(--sui-on-tool-bg);
+  --chatui-bg-surface: var(--sui-bg);
+  --chatui-bg-code: var(--sui-bg-subtle);
+  --chatui-fg-primary: var(--sui-fg);
+  --chatui-fg-secondary: var(--sui-fg-disabled);
+  --chatui-border: var(--sui-border);
   --chatui-think-fg: #7c3aed;
-  --chatui-think-bg: #f5f3ff;
+  --chatui-think-bg: var(--sui-violet-bg);
   --chatui-think-border: #ddd6fe;
+}
+html[data-theme="dark"] body {
+  --chatui-bg-human: #2d4a8a;
+  --chatui-bg-tool: rgba(120, 100, 40, 0.2);
+  --chatui-fg-tool: #fbbf24;
+  --chatui-bg-code: rgba(255, 255, 255, 0.06);
+  --chatui-think-fg: #a78bfa;
+  --chatui-think-bg: rgba(167, 139, 250, 0.12);
+  --chatui-think-border: rgba(167, 139, 250, 0.3);
 }
 </style>

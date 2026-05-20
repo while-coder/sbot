@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
-import { useToast } from '@/composables/useToast'
+import { useToast, SButton, SSelect, SCard, SPageToolbar, SPageContent } from 'sbot-ui'
 import { store } from '@/store'
 import { Bar, Line } from 'vue-chartjs'
 import {
@@ -191,309 +191,290 @@ onMounted(fetchUsage)
 </script>
 
 <template>
-  <div class="page-content">
-    <div style="margin-bottom:16px">
-      <span style="font-size:12px;color:#9b9b9b">{{ t('nav.group_admin') }}</span>
-      <span style="font-size:12px;color:#9b9b9b;margin:0 6px">/</span>
-      <span style="font-size:15px;font-weight:600">{{ t('nav.token_usage') }}</span>
-    </div>
-
-    <!-- Toolbar -->
-    <div class="usage-toolbar">
+  <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
+    <SPageToolbar>
       <div class="usage-date-range">
         <input type="date" v-model="startDate" class="date-input" />
         <span class="date-sep">~</span>
         <input type="date" v-model="endDate" class="date-input" />
       </div>
-      <select v-model="filterAgentId" class="usage-select" @change="fetchUsage">
+      <SSelect v-model="filterAgentId" size="sm" class="usage-select" @change="fetchUsage">
         <option value="">{{ t('usage.all_agents') }}</option>
         <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }}</option>
-      </select>
-      <select v-model="filterModelId" class="usage-select" @change="fetchUsage">
+      </SSelect>
+      <SSelect v-model="filterModelId" size="sm" class="usage-select" @change="fetchUsage">
         <option value="">{{ t('usage.all_models') }}</option>
         <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-      </select>
-      <button class="btn-primary btn-sm" @click="fetchUsage">{{ t('common.refresh') }}</button>
-    </div>
+      </SSelect>
+      <SButton type="primary" size="sm" @click="fetchUsage">{{ t('common.refresh') }}</SButton>
+    </SPageToolbar>
 
-    <div v-if="loading" style="text-align:center;padding:60px 0;color:#94a3b8">{{ t('common.loading') }}</div>
-    <template v-else>
-      <!-- Summary Cards -->
-      <div class="summary-cards">
-        <div class="summary-card summary-card-total">
-          <div class="summary-label">{{ t('usage.total_tokens') }}</div>
-          <div class="summary-value-lg">{{ formatNumber(summary.totalTokens) }}</div>
-          <div class="summary-compact">{{ formatCompact(summary.totalTokens) }}</div>
-        </div>
-        <div class="summary-card">
-          <div class="summary-label">{{ t('usage.input_tokens') }}</div>
-          <div class="summary-value">{{ formatCompact(summary.inputTokens) }}</div>
-          <div class="summary-sub">{{ formatNumber(summary.inputTokens) }}</div>
-        </div>
-        <div class="summary-card">
-          <div class="summary-label">{{ t('usage.output_tokens') }}</div>
-          <div class="summary-value">{{ formatCompact(summary.outputTokens) }}</div>
-          <div class="summary-sub">{{ formatNumber(summary.outputTokens) }}</div>
-        </div>
-        <div class="summary-card">
-          <div class="summary-label">{{ t('usage.cache_read') }}</div>
-          <div class="summary-value" style="color:#22c55e">{{ formatCompact(summary.cacheReadTokens) }}</div>
-          <div class="summary-sub">{{ formatNumber(summary.cacheReadTokens) }}</div>
-        </div>
-        <div class="summary-card">
-          <div class="summary-label">{{ t('usage.cache_creation') }}</div>
-          <div class="summary-value">{{ formatCompact(summary.cacheCreationTokens) }}</div>
-          <div class="summary-sub">{{ formatNumber(summary.cacheCreationTokens) }}</div>
-        </div>
-      </div>
-
-      <!-- Chart Section -->
-      <div v-if="dailyData.length > 0 || chartType === 'table'" class="chart-section card">
-        <div class="chart-header">
-          <div class="card-title">{{ t('usage.daily_chart') }}</div>
-          <div class="chart-tabs">
-            <button
-              v-for="tab in chartTabs"
-              :key="tab.key"
-              class="chart-tab"
-              :class="{ active: chartType === tab.key }"
-              @click="chartType = tab.key"
-            >{{ tab.label() }}</button>
+    <SPageContent>
+      <div v-if="loading" class="usage-loading">{{ t('common.loading') }}</div>
+      <template v-else>
+        <!-- Summary Cards -->
+        <div class="summary-cards">
+          <div class="summary-card summary-card-total">
+            <div class="summary-label">{{ t('usage.total_tokens') }}</div>
+            <div class="summary-value-lg">{{ formatNumber(summary.totalTokens) }}</div>
+            <div class="summary-compact">{{ formatCompact(summary.totalTokens) }}</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">{{ t('usage.input_tokens') }}</div>
+            <div class="summary-value">{{ formatCompact(summary.inputTokens) }}</div>
+            <div class="summary-sub">{{ formatNumber(summary.inputTokens) }}</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">{{ t('usage.output_tokens') }}</div>
+            <div class="summary-value">{{ formatCompact(summary.outputTokens) }}</div>
+            <div class="summary-sub">{{ formatNumber(summary.outputTokens) }}</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">{{ t('usage.cache_read') }}</div>
+            <div class="summary-value summary-value-cache">{{ formatCompact(summary.cacheReadTokens) }}</div>
+            <div class="summary-sub">{{ formatNumber(summary.cacheReadTokens) }}</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">{{ t('usage.cache_creation') }}</div>
+            <div class="summary-value">{{ formatCompact(summary.cacheCreationTokens) }}</div>
+            <div class="summary-sub">{{ formatNumber(summary.cacheCreationTokens) }}</div>
           </div>
         </div>
 
-        <!-- Bar Chart -->
-        <div v-if="chartType === 'bar'" class="chart-canvas-wrap">
-          <Bar :data="barChartData" :options="barChartOptions" />
-        </div>
+        <!-- Chart Section -->
+        <SCard v-if="dailyData.length > 0 || chartType === 'table'" class="chart-section">
+          <div class="chart-header">
+            <div class="chart-title">{{ t('usage.daily_chart') }}</div>
+            <div class="chart-tabs">
+              <button
+                v-for="tab in chartTabs"
+                :key="tab.key"
+                class="chart-tab"
+                :class="{ active: chartType === tab.key }"
+                @click="chartType = tab.key"
+              >{{ tab.label() }}</button>
+            </div>
+          </div>
 
-        <!-- Area Chart -->
-        <div v-if="chartType === 'area'" class="chart-canvas-wrap">
-          <Line :data="areaChartData" :options="areaChartOptions" />
-        </div>
+          <div v-if="chartType === 'bar'" class="chart-canvas-wrap">
+            <Bar :data="barChartData" :options="barChartOptions" />
+          </div>
 
-        <!-- Table -->
-        <div v-if="chartType === 'table'" class="chart-table-wrap">
-          <table class="usage-table">
-            <thead>
-              <tr>
-                <th>{{ t('usage.date') }}</th>
-                <th>{{ t('usage.input_tokens') }}</th>
-                <th>{{ t('usage.output_tokens') }}</th>
-                <th>{{ t('usage.cache_read') }}</th>
-                <th>{{ t('usage.cache_creation') }}</th>
-                <th>{{ t('usage.total_tokens') }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in dailyData" :key="row.date">
-                <td>{{ row.date }}</td>
-                <td>{{ formatNumber(row.inputTokens) }}</td>
-                <td>{{ formatNumber(row.outputTokens) }}</td>
-                <td>{{ formatNumber(row.cacheReadTokens) }}</td>
-                <td>{{ formatNumber(row.cacheCreationTokens) }}</td>
-                <td style="font-weight:600">{{ formatNumber(row.totalTokens) }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+          <div v-if="chartType === 'area'" class="chart-canvas-wrap">
+            <Line :data="areaChartData" :options="areaChartOptions" />
+          </div>
 
-        <!-- Legend -->
-        <div class="chart-legend">
-          <span class="legend-item"><span class="legend-dot" :style="{ background: COLORS.input }"></span>{{ t('usage.input_tokens') }}</span>
-          <span class="legend-item"><span class="legend-dot" :style="{ background: COLORS.output }"></span>{{ t('usage.output_tokens') }}</span>
-          <span class="legend-item"><span class="legend-dot" :style="{ background: COLORS.cacheRead }"></span>{{ t('usage.cache_read') }}</span>
-          <span class="legend-item"><span class="legend-dot" :style="{ background: COLORS.cacheCreation }"></span>{{ t('usage.cache_creation') }}</span>
-        </div>
-      </div>
+          <div v-if="chartType === 'table'" class="chart-table-wrap">
+            <table class="usage-table">
+              <thead>
+                <tr>
+                  <th>{{ t('usage.date') }}</th>
+                  <th>{{ t('usage.input_tokens') }}</th>
+                  <th>{{ t('usage.output_tokens') }}</th>
+                  <th>{{ t('usage.cache_read') }}</th>
+                  <th>{{ t('usage.cache_creation') }}</th>
+                  <th>{{ t('usage.total_tokens') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in dailyData" :key="row.date">
+                  <td>{{ row.date }}</td>
+                  <td>{{ formatNumber(row.inputTokens) }}</td>
+                  <td>{{ formatNumber(row.outputTokens) }}</td>
+                  <td>{{ formatNumber(row.cacheReadTokens) }}</td>
+                  <td>{{ formatNumber(row.cacheCreationTokens) }}</td>
+                  <td class="usage-table-total">{{ formatNumber(row.totalTokens) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
-      <div v-else class="usage-empty">
-        <div style="font-size:32px;margin-bottom:8px">📊</div>
-        <div style="color:#94a3b8;font-size:13px">{{ t('usage.no_data') }}</div>
-      </div>
-    </template>
+          <div class="chart-legend">
+            <span class="legend-item"><span class="legend-dot" :style="{ background: COLORS.input }"></span>{{ t('usage.input_tokens') }}</span>
+            <span class="legend-item"><span class="legend-dot" :style="{ background: COLORS.output }"></span>{{ t('usage.output_tokens') }}</span>
+            <span class="legend-item"><span class="legend-dot" :style="{ background: COLORS.cacheRead }"></span>{{ t('usage.cache_read') }}</span>
+            <span class="legend-item"><span class="legend-dot" :style="{ background: COLORS.cacheCreation }"></span>{{ t('usage.cache_creation') }}</span>
+          </div>
+        </SCard>
+
+        <div v-else class="usage-empty">
+          <div class="usage-empty-icon">📊</div>
+          <div class="usage-empty-text">{{ t('usage.no_data') }}</div>
+        </div>
+      </template>
+    </SPageContent>
   </div>
 </template>
 
 <style scoped>
-.usage-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-}
 .usage-date-range {
   display: flex;
   align-items: center;
-  gap: 8px;
-  border: 1px solid #e8e6e3;
-  border-radius: 6px;
+  gap: var(--sui-sp-3);
+  border: 1px solid var(--sui-border);
+  border-radius: var(--sui-radius-md);
   padding: 4px 10px;
+  background: var(--sui-bg);
 }
 .date-input {
   border: none;
   outline: none;
-  font-size: 13px;
+  font-size: var(--sui-fs-md);
   font-family: inherit;
-  color: #1c1c1c;
+  color: var(--sui-fg);
   background: transparent;
   padding: 2px 4px;
 }
 .date-sep {
-  color: #9b9b9b;
-  font-size: 13px;
+  color: var(--sui-fg-disabled);
+  font-size: var(--sui-fs-md);
 }
-.usage-select {
-  border: 1px solid #e8e6e3;
-  border-radius: 6px;
-  padding: 5px 10px;
-  font-size: 13px;
-  font-family: inherit;
-  color: #1c1c1c;
-  background: #fff;
-  outline: none;
-  cursor: pointer;
+.usage-select { min-width: 140px; }
+
+.usage-loading {
+  text-align: center;
+  padding: 60px 0;
+  color: var(--sui-fg-disabled);
 }
 
 /* Summary Cards */
 .summary-cards {
   display: flex;
-  gap: 12px;
-  margin-bottom: 20px;
+  gap: var(--sui-sp-4);
+  margin-bottom: var(--sui-sp-6);
   flex-wrap: wrap;
 }
 .summary-card {
   flex: 1 1 140px;
   min-width: 130px;
-  border: 1px solid #e8e6e3;
-  border-radius: 8px;
-  padding: 16px 18px;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  border: 1px solid var(--sui-border);
+  border-radius: var(--sui-radius-lg);
+  padding: var(--sui-sp-5) var(--sui-sp-6);
+  background: var(--sui-bg);
+  box-shadow: var(--sui-shadow-sm);
 }
-.summary-card-total {
-  flex: 1 1 100%;
-}
+.summary-card-total { flex: 1 1 100%; }
 .summary-label {
-  font-size: 12px;
-  color: #9b9b9b;
-  margin-bottom: 6px;
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg-disabled);
+  margin-bottom: var(--sui-sp-2);
 }
 .summary-value-lg {
   font-size: 28px;
   font-weight: 700;
-  color: #1c1c1c;
+  color: var(--sui-fg);
   letter-spacing: -0.02em;
 }
 .summary-compact {
-  font-size: 13px;
-  color: #6b7280;
+  font-size: var(--sui-fs-md);
+  color: var(--sui-fg-muted);
   margin-top: 2px;
 }
 .summary-value {
   font-size: 22px;
   font-weight: 700;
-  color: #1c1c1c;
+  color: var(--sui-fg);
 }
+.summary-value-cache { color: var(--sui-success); }
 .summary-sub {
-  font-size: 12px;
-  color: #9b9b9b;
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg-disabled);
   margin-top: 2px;
 }
 
 /* Chart */
-.chart-section {
-  margin-bottom: 20px;
-}
+.chart-section { margin-bottom: var(--sui-sp-6); }
 .chart-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--sui-sp-3);
+}
+.chart-title {
+  font-size: var(--sui-fs-md);
+  font-weight: 600;
+  color: var(--sui-fg);
 }
 .chart-tabs {
   display: flex;
   gap: 2px;
-  background: #f5f4f2;
-  border-radius: 6px;
+  background: var(--sui-bg-hover);
+  border-radius: var(--sui-radius-md);
   padding: 2px;
 }
 .chart-tab {
   border: none;
   background: none;
   padding: 5px 14px;
-  font-size: 12px;
+  font-size: var(--sui-fs-sm);
   font-weight: 500;
   font-family: inherit;
-  color: #9b9b9b;
-  border-radius: 4px;
+  color: var(--sui-fg-disabled);
+  border-radius: var(--sui-radius-sm);
   cursor: pointer;
   transition: all 0.15s;
 }
 .chart-tab.active {
-  background: #fff;
-  color: #1c1c1c;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+  background: var(--sui-bg);
+  color: var(--sui-fg);
+  box-shadow: var(--sui-shadow-sm);
 }
 .chart-canvas-wrap {
   height: 280px;
-  margin-top: 12px;
+  margin-top: var(--sui-sp-4);
 }
+
 /* Table */
 .chart-table-wrap {
-  margin-top: 12px;
+  margin-top: var(--sui-sp-4);
   max-height: 400px;
   overflow-y: auto;
 }
 .usage-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--sui-fs-md);
 }
 .usage-table th {
   text-align: right;
-  padding: 8px 12px;
+  padding: var(--sui-sp-3) var(--sui-sp-4);
   font-weight: 600;
-  color: #6b7280;
-  font-size: 12px;
-  border-bottom: 2px solid #e8e6e3;
+  color: var(--sui-fg-muted);
+  font-size: var(--sui-fs-sm);
+  border-bottom: 2px solid var(--sui-border);
   position: sticky;
   top: 0;
-  background: #fff;
+  background: var(--sui-bg);
 }
-.usage-table th:first-child {
-  text-align: left;
-}
+.usage-table th:first-child { text-align: left; }
 .usage-table td {
   text-align: right;
-  padding: 7px 12px;
-  color: #1c1c1c;
-  border-bottom: 1px solid #f0efed;
+  padding: 7px var(--sui-sp-4);
+  color: var(--sui-fg);
+  border-bottom: 1px solid var(--sui-border);
   font-variant-numeric: tabular-nums;
 }
 .usage-table td:first-child {
   text-align: left;
-  color: #6b7280;
+  color: var(--sui-fg-muted);
 }
-.usage-table tbody tr:hover {
-  background: #fafaf9;
-}
+.usage-table tbody tr:hover { background: var(--sui-bg-subtle); }
+.usage-table-total { font-weight: 600; }
 
 /* Legend */
 .chart-legend {
   display: flex;
-  gap: 16px;
-  margin-top: 12px;
+  gap: var(--sui-sp-5);
+  margin-top: var(--sui-sp-4);
   flex-wrap: wrap;
 }
 .legend-item {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
-  color: #6b7280;
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg-muted);
 }
 .legend-dot {
   width: 8px;
@@ -506,5 +487,13 @@ onMounted(fetchUsage)
 .usage-empty {
   text-align: center;
   padding: 80px 0;
+}
+.usage-empty-icon {
+  font-size: 32px;
+  margin-bottom: var(--sui-sp-3);
+}
+.usage-empty-text {
+  color: var(--sui-fg-disabled);
+  font-size: var(--sui-fs-md);
 }
 </style>

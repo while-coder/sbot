@@ -1,5 +1,5 @@
 {
-  "name": "@sbot/ui",
+  "name": "sbot-ui",
   "version": "0.0.1",
   "private": true,
   "type": "module",

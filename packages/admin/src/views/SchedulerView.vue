@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
-import { useToast } from '@/composables/useToast'
+import { useToast, SButton, SPageToolbar, SPageContent } from 'sbot-ui'
 
 const { t } = useI18n()
 const { isMobile } = useResponsive()
@@ -109,11 +109,12 @@ onMounted(load)
 
 <template>
   <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
-    <div class="page-toolbar">
-      <span class="page-toolbar-title">{{ t('scheduler.title') }}</span>
-      <button class="btn-outline btn-sm" @click="load">{{ t('common.refresh') }}</button>
-    </div>
-    <div class="page-content">
+    <SPageToolbar :title="t('scheduler.title')">
+      <template #actions>
+        <SButton type="outline" size="sm" @click="load">{{ t('common.refresh') }}</SButton>
+      </template>
+    </SPageToolbar>
+    <SPageContent>
       <table v-if="!isMobile">
         <thead>
           <tr>
@@ -129,25 +130,25 @@ onMounted(load)
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="8" style="text-align:center;color:#9b9b9b;padding:40px">{{ t('common.loading') }}</td>
+            <td colspan="8" class="sched-empty">{{ t('common.loading') }}</td>
           </tr>
           <tr v-else-if="timers.length === 0">
-            <td colspan="8" style="text-align:center;color:#9b9b9b;padding:40px">{{ t('scheduler.empty') }}</td>
+            <td colspan="8" class="sched-empty">{{ t('scheduler.empty') }}</td>
           </tr>
           <tr v-for="t_ in timers" :key="t_.id">
-            <td style="font-family:monospace;color:#9b9b9b">{{ t_.id }}</td>
+            <td class="sched-id">{{ t_.id }}</td>
             <td>
-              <div style="font-size:13px">{{ describeExpr(t_.expr) }}</div>
-              <div style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ t_.expr }}</div>
+              <div class="sched-desc">{{ describeExpr(t_.expr) }}</div>
+              <div class="sched-expr">{{ t_.expr }}</div>
             </td>
-            <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#6b6b6b">{{ t_.message }}</td>
-            <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ targetLabel(t_) }}</td>
-            <td style="font-size:12px;font-family:monospace;color:#9b9b9b;white-space:nowrap">{{ t_.runCount }}{{ t_.maxRuns > 0 ? ` / ${t_.maxRuns}` : '' }}</td>
-            <td style="font-size:12px;color:#9b9b9b;white-space:nowrap">{{ formatLastRun(t_.lastRun) }}</td>
-            <td style="font-size:12px;color:#9b9b9b;white-space:nowrap">{{ formatNextRun(t_.nextRun) }}</td>
+            <td class="sched-message">{{ t_.message }}</td>
+            <td class="sched-target">{{ targetLabel(t_) }}</td>
+            <td class="sched-count">{{ t_.runCount }}{{ t_.maxRuns > 0 ? ` / ${t_.maxRuns}` : '' }}</td>
+            <td class="sched-time">{{ formatLastRun(t_.lastRun) }}</td>
+            <td class="sched-time">{{ formatNextRun(t_.nextRun) }}</td>
             <td>
               <div class="ops-cell">
-                <button class="btn-danger btn-sm" @click="remove(t_)">{{ t('common.delete') }}</button>
+                <SButton type="danger" size="sm" @click="remove(t_)">{{ t('common.delete') }}</SButton>
               </div>
             </td>
           </tr>
@@ -160,30 +161,73 @@ onMounted(load)
         <div v-else-if="timers.length === 0" class="mobile-card-empty">{{ t('scheduler.empty') }}</div>
         <div v-for="t_ in timers" :key="t_.id" class="mobile-card">
           <div class="mobile-card-header">
-            <span style="font-size:13px">{{ describeExpr(t_.expr) }}</span>
+            <span class="sched-desc">{{ describeExpr(t_.expr) }}</span>
           </div>
           <div class="mobile-card-fields">
             <span class="mobile-card-label">{{ t('common.id') }}</span>
-            <span class="mobile-card-value" style="font-family:monospace;color:#9b9b9b">{{ t_.id }}</span>
+            <span class="mobile-card-value sched-id">{{ t_.id }}</span>
             <span class="mobile-card-label">{{ t('scheduler.schedule_col') }}</span>
-            <span class="mobile-card-value" style="font-family:monospace;font-size:11px;color:#9b9b9b">{{ t_.expr }}</span>
+            <span class="mobile-card-value sched-expr">{{ t_.expr }}</span>
             <span class="mobile-card-label">{{ t('scheduler.message_col') }}</span>
-            <span class="mobile-card-value" style="color:#6b6b6b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ t_.message }}</span>
+            <span class="mobile-card-value sched-message">{{ t_.message }}</span>
             <span class="mobile-card-label">{{ t('scheduler.target_col') }}</span>
-            <span class="mobile-card-value" style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ targetLabel(t_) }}</span>
+            <span class="mobile-card-value sched-target">{{ targetLabel(t_) }}</span>
             <span class="mobile-card-label">{{ t('scheduler.run_count_col') }}</span>
-            <span class="mobile-card-value" style="font-family:monospace;font-size:12px;color:#9b9b9b">{{ t_.runCount }}{{ t_.maxRuns > 0 ? ` / ${t_.maxRuns}` : '' }}</span>
+            <span class="mobile-card-value sched-count">{{ t_.runCount }}{{ t_.maxRuns > 0 ? ` / ${t_.maxRuns}` : '' }}</span>
             <span class="mobile-card-label">{{ t('scheduler.last_run_col') }}</span>
-            <span class="mobile-card-value" style="font-size:12px;color:#9b9b9b">{{ formatLastRun(t_.lastRun) }}</span>
+            <span class="mobile-card-value sched-time">{{ formatLastRun(t_.lastRun) }}</span>
             <span class="mobile-card-label">{{ t('scheduler.next_run_col') }}</span>
-            <span class="mobile-card-value" style="font-size:12px;color:#9b9b9b">{{ formatNextRun(t_.nextRun) }}</span>
+            <span class="mobile-card-value sched-time">{{ formatNextRun(t_.nextRun) }}</span>
           </div>
           <div class="mobile-card-ops">
-            <button class="btn-danger btn-sm" @click="remove(t_)">{{ t('common.delete') }}</button>
+            <SButton type="danger" size="sm" @click="remove(t_)">{{ t('common.delete') }}</SButton>
           </div>
         </div>
       </div>
-    </div>
+    </SPageContent>
 
   </div>
 </template>
+
+<style scoped>
+.sched-empty {
+  text-align: center;
+  color: var(--sui-fg-disabled);
+  padding: 40px;
+}
+.sched-id {
+  font-family: var(--sui-font-mono);
+  color: var(--sui-fg-disabled);
+}
+.sched-desc { font-size: var(--sui-fs-md); }
+.sched-expr {
+  font-family: var(--sui-font-mono);
+  font-size: var(--sui-fs-xs);
+  color: var(--sui-fg-disabled);
+}
+.sched-message {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--sui-fg-muted);
+}
+.sched-target {
+  font-size: var(--sui-fs-sm);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sched-count {
+  font-size: var(--sui-fs-sm);
+  font-family: var(--sui-font-mono);
+  color: var(--sui-fg-disabled);
+  white-space: nowrap;
+}
+.sched-time {
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg-disabled);
+  white-space: nowrap;
+}
+</style>

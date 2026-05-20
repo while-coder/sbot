@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
-import { useToast } from '@/composables/useToast'
+import { useToast, SButton, SInput, SSelect, SModal, SFormItem, SPageToolbar, SPageContent } from 'sbot-ui'
 import { EmbeddingProvider } from '@/types'
 import type { EmbeddingConfig } from '@/types'
 
@@ -28,7 +28,6 @@ const isGemini = computed(() => form.value.provider === EmbeddingProvider.Gemini
 
 const canPick = computed(() => isGemini.value || isOllama.value || !!form.value.baseURL)
 
-// Model picker
 const showPicker    = ref(false)
 const pickerLoading = ref(false)
 const pickerModels  = ref<string[]>([])
@@ -134,28 +133,34 @@ async function refresh() {
 
 <template>
   <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
-    <div class="page-toolbar">
-      <button class="btn-outline btn-sm" @click="refresh">{{ t('common.refresh') }}</button>
-      <button class="btn-primary btn-sm" @click="openAdd">{{ t('embeddings.add') }}</button>
-    </div>
-    <div class="page-content">
+    <SPageToolbar>
+      <SButton type="outline" size="sm" @click="refresh">{{ t('common.refresh') }}</SButton>
+      <SButton type="primary" size="sm" @click="openAdd">{{ t('embeddings.add') }}</SButton>
+    </SPageToolbar>
+    <SPageContent>
       <table v-if="!isMobile">
         <thead>
-          <tr><th>{{ t('common.name') }}</th><th>{{ t('common.provider') }}</th><th>{{ t('common.base_url') }}</th><th>{{ t('common.model') }}</th><th>{{ t('common.ops') }}</th></tr>
+          <tr>
+            <th>{{ t('common.name') }}</th>
+            <th>{{ t('common.provider') }}</th>
+            <th>{{ t('common.base_url') }}</th>
+            <th>{{ t('common.model') }}</th>
+            <th>{{ t('common.ops') }}</th>
+          </tr>
         </thead>
         <tbody>
           <tr v-if="Object.keys(embeddings).length === 0">
-            <td colspan="5" style="text-align:center;color:#94a3b8;padding:40px">{{ t('embeddings.empty') }}</td>
+            <td colspan="5" class="emb-empty">{{ t('embeddings.empty') }}</td>
           </tr>
           <tr v-for="(emb, id) in embeddings" :key="id">
             <td>{{ emb.name || id }}</td>
             <td>{{ emb.provider }}</td>
-            <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ emb.baseURL }}</td>
+            <td class="emb-url">{{ emb.baseURL }}</td>
             <td>{{ emb.model }}</td>
             <td>
               <div class="ops-cell">
-                <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
-                <button class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
+                <SButton type="outline" size="sm" @click="openEdit(id as string)">{{ t('common.edit') }}</SButton>
+                <SButton type="danger" size="sm" @click="remove(id as string)">{{ t('common.delete') }}</SButton>
               </div>
             </td>
           </tr>
@@ -170,142 +175,98 @@ async function refresh() {
             <span class="mobile-card-label">Model</span>
             <span class="mobile-card-value">{{ emb.model }}</span>
             <span class="mobile-card-label">Base URL</span>
-            <span class="mobile-card-value" style="word-break:break-all">{{ emb.baseURL }}</span>
+            <span class="mobile-card-value emb-url-mobile">{{ emb.baseURL }}</span>
           </div>
           <div class="mobile-card-ops">
-            <button class="btn-outline btn-sm" @click="openEdit(id as string)">{{ t('common.edit') }}</button>
-            <button class="btn-danger btn-sm" @click="remove(id as string)">{{ t('common.delete') }}</button>
+            <SButton type="outline" size="sm" @click="openEdit(id as string)">{{ t('common.edit') }}</SButton>
+            <SButton type="danger" size="sm" @click="remove(id as string)">{{ t('common.delete') }}</SButton>
           </div>
         </div>
         <div v-if="Object.keys(embeddings).length === 0" class="mobile-card-empty">-</div>
       </div>
-    </div>
+    </SPageContent>
 
-    <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
-      <div class="modal-box">
-        <div class="modal-header">
-          <h3>{{ editingName !== null ? t('embeddings.edit_title') : t('embeddings.add_title') }}</h3>
-          <button class="modal-close" @click="showModal = false">&times;</button>
+    <SModal v-model:visible="showModal" :title="editingName !== null ? t('embeddings.edit_title') : t('embeddings.add_title')" width="md">
+      <SFormItem :label="t('common.name') + ' *'">
+        <SInput v-model="form.name" :placeholder="t('embeddings.name_placeholder')" />
+      </SFormItem>
+      <SFormItem :label="t('common.provider') + ' *'">
+        <SSelect v-model="form.provider">
+          <option v-for="p in Object.values(EmbeddingProvider)" :key="p" :value="p">{{ p }}</option>
+        </SSelect>
+      </SFormItem>
+      <SFormItem :label="t('common.base_url')">
+        <SInput v-model="form.baseURL" :placeholder="defaults.baseURL" />
+      </SFormItem>
+      <SFormItem v-if="!isOllama" :label="t('common.api_key') + ' *'">
+        <div class="apikey-field">
+          <SInput v-model="form.apiKey" :type="showApiKey ? 'text' : 'password'" :placeholder="defaults.apiKey" class="apikey-input" />
+          <SButton type="outline" size="sm" class="apikey-toggle" @click="showApiKey = !showApiKey">
+            {{ showApiKey ? t('common.hide') : t('common.show') }}
+          </SButton>
         </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label>{{ t('common.name') }} *</label>
-            <input v-model="form.name" :placeholder="t('embeddings.name_placeholder')" />
-          </div>
-          <div class="form-group">
-            <label>{{ t('common.provider') }} *</label>
-            <select v-model="form.provider">
-              <option v-for="p in Object.values(EmbeddingProvider)" :key="p" :value="p">{{ p }}</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>{{ t('common.base_url') }}</label>
-            <input v-model="form.baseURL" :placeholder="defaults.baseURL" />
-          </div>
-          <div v-if="!isOllama" class="form-group">
-            <label>{{ t('common.api_key') }} *</label>
-            <div class="apikey-field">
-              <input v-model="form.apiKey" :type="showApiKey ? 'text' : 'password'" :placeholder="defaults.apiKey" />
-              <button type="button" class="apikey-toggle" @click="showApiKey = !showApiKey" :title="showApiKey ? t('common.hide') : t('common.show')">
-                {{ showApiKey ? t('common.hide') : t('common.show') }}
-              </button>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>{{ t('common.model') }} *</label>
-            <div class="model-field">
-              <input v-model="form.model" :placeholder="defaults.model" />
-              <button type="button" class="model-pick-btn" @click="openPicker" :disabled="!canPick">{{ t('models.pick') }}</button>
-            </div>
-          </div>
+      </SFormItem>
+      <SFormItem :label="t('common.model') + ' *'">
+        <div class="model-field">
+          <SInput v-model="form.model" :placeholder="defaults.model" class="model-input" />
+          <SButton type="outline" size="sm" class="model-pick-btn" :disabled="!canPick" @click="openPicker">{{ t('models.pick') }}</SButton>
         </div>
-        <div class="modal-footer">
-          <button class="btn-outline" @click="showModal = false">{{ t('common.cancel') }}</button>
-          <button class="btn-primary" @click="save">{{ t('common.save') }}</button>
-        </div>
-      </div>
-    </div>
+      </SFormItem>
+      <template #footer>
+        <SButton type="outline" @click="showModal = false">{{ t('common.cancel') }}</SButton>
+        <SButton type="primary" @click="save">{{ t('common.save') }}</SButton>
+      </template>
+    </SModal>
 
     <!-- Model Picker Modal -->
-    <div v-if="showPicker" class="modal-overlay" @click.self="showPicker = false" style="z-index:1100">
-      <div class="modal-box" style="width:360px;max-height:70vh;display:flex;flex-direction:column">
-        <div class="modal-header">
-          <h3>{{ t('models.pick_title') }}</h3>
-          <button class="modal-close" @click="showPicker = false">&times;</button>
-        </div>
+    <SModal v-model:visible="showPicker" :title="t('models.pick_title')" width="sm" nested>
+      <template #toolbar>
         <div class="picker-filter-bar">
           <svg class="picker-filter-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="6.5" cy="6.5" r="4" stroke="#94a3b8" stroke-width="1.4"/>
-            <path d="M10 10l3 3" stroke="#94a3b8" stroke-width="1.4" stroke-linecap="round"/>
+            <circle cx="6.5" cy="6.5" r="4" stroke="currentColor" stroke-width="1.4"/>
+            <path d="M10 10l3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
           </svg>
           <input v-model="pickerFilter" :placeholder="t('common.filter')" class="picker-filter-input" />
         </div>
-        <div class="modal-body" style="overflow-y:auto;flex:1;padding:8px 0">
-          <div v-if="pickerLoading" style="text-align:center;padding:24px;color:#94a3b8">{{ t('common.loading') }}</div>
-          <div v-else-if="filteredModels.length === 0" style="text-align:center;padding:24px;color:#94a3b8">{{ t('models.pick_empty') }}</div>
-          <div v-for="m in filteredModels" :key="m" class="picker-item" @click="pickModel(m)">{{ m }}</div>
-        </div>
+      </template>
+      <div class="picker-list">
+        <div v-if="pickerLoading" class="picker-empty">{{ t('common.loading') }}</div>
+        <div v-else-if="filteredModels.length === 0" class="picker-empty">{{ t('models.pick_empty') }}</div>
+        <div v-for="m in filteredModels" :key="m" class="picker-item" @click="pickModel(m)">{{ m }}</div>
       </div>
-    </div>
+    </SModal>
   </div>
 </template>
 
 <style scoped>
-.apikey-field {
-  display: flex;
+.emb-empty {
+  text-align: center;
+  color: var(--sui-fg-disabled);
+  padding: 40px;
 }
-.apikey-field input {
-  flex: 1;
-  border-radius: 6px 0 0 6px;
-  border-right: none;
-}
-.apikey-toggle {
-  padding: 0 12px;
-  font-size: 12px;
-  background: #f4f3f1;
-  border: 1px solid #d1d0ce;
-  border-radius: 0 6px 6px 0;
-  cursor: pointer;
-  color: #555;
+.emb-url {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
-  transition: background .15s;
 }
-.apikey-toggle:hover {
-  background: #eceae6;
+.emb-url-mobile {
+  word-break: break-all;
 }
-.model-field {
+.apikey-field, .model-field {
   display: flex;
-  gap: 0;
+  gap: var(--sui-sp-2);
+  align-items: center;
 }
-.model-field input {
+.apikey-input, .model-input {
   flex: 1;
-  border-radius: 6px 0 0 6px;
-  border-right: none;
-}
-.model-pick-btn {
-  padding: 0 12px;
-  font-size: 12px;
-  background: #f4f3f1;
-  border: 1px solid #d1d0ce;
-  border-radius: 0 6px 6px 0;
-  cursor: pointer;
-  color: #555;
-  white-space: nowrap;
-  transition: background .15s;
-}
-.model-pick-btn:hover:not(:disabled) {
-  background: #eceae6;
-}
-.model-pick-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 .picker-filter-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  border-bottom: 1px solid #e8e6e3;
+  gap: var(--sui-sp-3);
+  width: 100%;
+  color: var(--sui-fg-muted);
 }
 .picker-filter-icon {
   width: 14px;
@@ -314,25 +275,35 @@ async function refresh() {
 }
 .picker-filter-input {
   flex: 1;
-  border: none !important;
-  outline: none !important;
+  border: none;
+  outline: none;
   background: transparent;
-  font-size: 13px;
-  color: #1c1c1c;
-  padding: 0 !important;
-  box-shadow: none !important;
+  font-size: var(--sui-fs-md);
+  color: var(--sui-fg);
+  padding: 0;
+  box-shadow: none;
 }
 .picker-filter-input::placeholder {
-  color: #94a3b8;
+  color: var(--sui-fg-disabled);
+}
+.picker-list {
+  max-height: 50vh;
+  overflow-y: auto;
+  padding: var(--sui-sp-2) 0;
+}
+.picker-empty {
+  text-align: center;
+  padding: 24px;
+  color: var(--sui-fg-disabled);
 }
 .picker-item {
-  padding: 8px 16px;
+  padding: var(--sui-sp-3) var(--sui-sp-5);
   cursor: pointer;
-  font-size: 13px;
-  border-radius: 4px;
-  margin: 0 8px;
+  font-size: var(--sui-fs-md);
+  border-radius: var(--sui-radius-sm);
+  margin: 0 var(--sui-sp-2);
 }
 .picker-item:hover {
-  background: #f4f3f1;
+  background: var(--sui-bg-hover);
 }
 </style>

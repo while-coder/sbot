@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@sbot/chat-ui": "workspace:*",
+    "sbot-ui": "workspace:*",
     "@tiptap/extension-dropcursor": "^3.22.4",
     "@tiptap/extension-image": "^3.22.4",
     "@tiptap/extension-placeholder": "^3.22.4",

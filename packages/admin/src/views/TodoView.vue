@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
-import { useToast } from '@/composables/useToast'
+import { useToast, SButton, SBadge, SPageToolbar, SPageContent } from 'sbot-ui'
 
 const { t } = useI18n()
 const { isMobile } = useResponsive()
@@ -25,10 +25,10 @@ interface TodoRow {
 const todos = ref<TodoRow[]>([])
 const loading = ref(false)
 
-const PRIORITY_BADGE: Record<string, { bg: string; color: string }> = {
-  high:   { bg: '#fee2e2', color: '#dc2626' },
-  normal: { bg: '#dbeafe', color: '#1d4ed8' },
-  low:    { bg: '#f3f4f6', color: '#6b7280' },
+function priorityVariant(p: string): 'danger' | 'info' | 'neutral' {
+  if (p === 'high') return 'danger'
+  if (p === 'low') return 'neutral'
+  return 'info'
 }
 
 async function load() {
@@ -75,11 +75,12 @@ onMounted(load)
 
 <template>
   <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
-    <div class="page-toolbar">
-      <span class="page-toolbar-title">{{ t('todo.title') }}</span>
-      <button class="btn-outline btn-sm" @click="load">{{ t('common.refresh') }}</button>
-    </div>
-    <div class="page-content">
+    <SPageToolbar :title="t('todo.title')">
+      <template #actions>
+        <SButton type="outline" size="sm" @click="load">{{ t('common.refresh') }}</SButton>
+      </template>
+    </SPageToolbar>
+    <SPageContent>
       <table v-if="!isMobile">
         <thead>
           <tr>
@@ -93,26 +94,23 @@ onMounted(load)
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="6" style="text-align:center;color:#9b9b9b;padding:40px">{{ t('common.loading') }}</td>
+            <td colspan="6" class="todo-empty">{{ t('common.loading') }}</td>
           </tr>
           <tr v-else-if="todos.length === 0">
-            <td colspan="6" style="text-align:center;color:#9b9b9b;padding:40px">{{ t('todo.empty') }}</td>
+            <td colspan="6" class="todo-empty">{{ t('todo.empty') }}</td>
           </tr>
           <tr v-for="item in todos" :key="item.id">
-            <td style="font-family:monospace;color:#9b9b9b">{{ item.id }}</td>
-            <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ item.content }}</td>
+            <td class="todo-id">{{ item.id }}</td>
+            <td class="todo-content">{{ item.content }}</td>
             <td>
-              <span
-                style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600"
-                :style="{ background: (PRIORITY_BADGE[item.priority] || PRIORITY_BADGE.normal).bg, color: (PRIORITY_BADGE[item.priority] || PRIORITY_BADGE.normal).color }"
-              >{{ item.priority }}</span>
+              <SBadge :variant="priorityVariant(item.priority)">{{ item.priority }}</SBadge>
             </td>
-            <td style="font-size:12px;color:#9b9b9b;white-space:nowrap">{{ formatTime(item.deadline) }}</td>
-            <td style="font-size:12px;color:#9b9b9b;white-space:nowrap">{{ formatTime(item.createdAt) }}</td>
+            <td class="todo-time">{{ formatTime(item.deadline) }}</td>
+            <td class="todo-time">{{ formatTime(item.createdAt) }}</td>
             <td>
               <div class="ops-cell">
-                <button class="btn-primary btn-sm" @click="markDone(item)">Done</button>
-                <button class="btn-danger btn-sm" @click="remove(item)">{{ t('common.delete') }}</button>
+                <SButton type="primary" size="sm" @click="markDone(item)">Done</SButton>
+                <SButton type="danger" size="sm" @click="remove(item)">{{ t('common.delete') }}</SButton>
               </div>
             </td>
           </tr>
@@ -124,27 +122,55 @@ onMounted(load)
         <div v-if="loading" class="mobile-card-empty">{{ t('common.loading') }}</div>
         <div v-else-if="todos.length === 0" class="mobile-card-empty">{{ t('todo.empty') }}</div>
         <div v-for="item in todos" :key="item.id" class="mobile-card">
-          <div class="mobile-card-header" style="display:flex;justify-content:space-between;align-items:center">
-            <span style="font-size:13px">{{ item.content }}</span>
-            <span
-              style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600"
-              :style="{ background: (PRIORITY_BADGE[item.priority] || PRIORITY_BADGE.normal).bg, color: (PRIORITY_BADGE[item.priority] || PRIORITY_BADGE.normal).color }"
-            >{{ item.priority }}</span>
+          <div class="mobile-card-header">
+            <span class="mobile-card-content">{{ item.content }}</span>
+            <SBadge :variant="priorityVariant(item.priority)">{{ item.priority }}</SBadge>
           </div>
           <div class="mobile-card-fields">
             <span class="mobile-card-label">{{ t('common.id') }}</span>
-            <span class="mobile-card-value" style="font-family:monospace;color:#9b9b9b">{{ item.id }}</span>
+            <span class="mobile-card-value todo-id">{{ item.id }}</span>
             <span class="mobile-card-label">{{ t('todo.deadline_col') }}</span>
-            <span class="mobile-card-value" style="font-size:12px;color:#9b9b9b">{{ formatTime(item.deadline) }}</span>
+            <span class="mobile-card-value todo-time">{{ formatTime(item.deadline) }}</span>
             <span class="mobile-card-label">{{ t('todo.created_col') }}</span>
-            <span class="mobile-card-value" style="font-size:12px;color:#9b9b9b">{{ formatTime(item.createdAt) }}</span>
+            <span class="mobile-card-value todo-time">{{ formatTime(item.createdAt) }}</span>
           </div>
           <div class="mobile-card-ops">
-            <button class="btn-primary btn-sm" @click="markDone(item)">Done</button>
-            <button class="btn-danger btn-sm" @click="remove(item)">{{ t('common.delete') }}</button>
+            <SButton type="primary" size="sm" @click="markDone(item)">Done</SButton>
+            <SButton type="danger" size="sm" @click="remove(item)">{{ t('common.delete') }}</SButton>
           </div>
         </div>
       </div>
-    </div>
+    </SPageContent>
   </div>
 </template>
+
+<style scoped>
+.todo-empty {
+  text-align: center;
+  color: var(--sui-fg-disabled);
+  padding: 40px;
+}
+.todo-id {
+  font-family: var(--sui-font-mono);
+  color: var(--sui-fg-disabled);
+}
+.todo-content {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.todo-time {
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg-disabled);
+  white-space: nowrap;
+}
+.mobile-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.mobile-card-content {
+  font-size: var(--sui-fs-md);
+}
+</style>

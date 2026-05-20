@@ -3,11 +3,12 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
-import { useToast } from '@/composables/useToast'
+import { useToast } from 'sbot-ui'
 import type { SkillItem } from '@/types'
 import { sourceBadgeStyle } from '@/utils/badges'
 import SkillHubModal from '@/components/SkillHubModal.vue'
 import SkillViewerModal from '@/components/SkillViewerModal.vue'
+import { SModal, SButton, SInput, STabBar, STab, SCheckCard } from 'sbot-ui'
 
 const { t } = useI18n()
 
@@ -141,109 +142,78 @@ defineExpose({ open })
 <template>
   <template v-if="visible">
     <!-- ── Main modal ──────────────────────────────────────────── -->
-    <div class="modal-overlay" @click.self="visible = false">
-      <div class="modal-box" style="width:90vw;max-width:1100px;height:82vh;display:flex;flex-direction:column;overflow:hidden;padding:0">
-        <div class="modal-header" style="padding:14px 20px;flex-shrink:0">
-          <h3>{{ agentDisplayName }} — {{ t('agents.skills_title') }}</h3>
-          <div style="display:flex;gap:8px;align-items:center">
-            <button class="btn-outline btn-sm" @click="load">{{ t('common.refresh') }}</button>
-            <button class="modal-close" @click="visible = false">&times;</button>
-          </div>
-        </div>
+    <SModal v-model:visible="visible" width="xl">
+      <template #header>
+        <h3 class="s-modal-title">{{ agentDisplayName }} — {{ t('agents.skills_title') }}</h3>
+        <SButton type="outline" size="sm" @click="load">{{ t('common.refresh') }}</SButton>
+      </template>
 
-        <!-- Tab bar -->
-        <div style="display:flex;border-bottom:1px solid #e8e6e3;background:#fff;padding:0 20px;flex-shrink:0">
-          <button
-            @click="activeTab = 'all'"
-            style="padding:11px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s"
-            :style="activeTab === 'all' ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
-          >
-            {{ t('common.all') }}
-            <span style="margin-left:4px;font-size:11px;padding:0 5px;border-radius:10px;font-weight:600"
-              :style="activeTab === 'all' ? 'background:#1c1c1c;color:#fff' : 'background:#f0efed;color:#6b6b6b'"
-            >{{ allGlobalSkills.length }}</span>
-          </button>
-          <button
+      <!-- Tab bar -->
+      <template #toolbar>
+        <STabBar v-model="activeTab" style="padding:0;border:none;background:transparent">
+          <STab name="all" :count="allGlobalSkills.length">{{ t('common.all') }}</STab>
+          <STab
             v-for="src in sources"
             :key="src"
-            @click="activeTab = src"
-            style="padding:11px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s"
-            :style="activeTab === src ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
-          >
-            {{ src }}
-            <span style="margin-left:4px;font-size:11px;padding:0 5px;border-radius:10px;font-weight:600"
-              :style="activeTab === src ? 'background:#1c1c1c;color:#fff' : 'background:#f0efed;color:#6b6b6b'"
-            >{{ allGlobalSkills.filter(s => s.source === src).length }}</span>
-          </button>
-          <button
-            @click="activeTab = t('agents.skills_exclusive_tab')"
-            style="padding:11px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s"
-            :style="activeTab === t('agents.skills_exclusive_tab') ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
-          >
-            {{ t('agents.skills_exclusive_tab') }}
-            <span style="margin-left:4px;font-size:11px;padding:0 5px;border-radius:10px;font-weight:600"
-              :style="activeTab === t('agents.skills_exclusive_tab') ? 'background:#1c1c1c;color:#fff' : 'background:#f0efed;color:#6b6b6b'"
-            >{{ skills.length }}</span>
-          </button>
-        </div>
+            :name="src"
+            :count="allGlobalSkills.filter(s => s.source === src).length"
+          >{{ src }}</STab>
+          <STab :name="t('agents.skills_exclusive_tab')" :count="skills.length">{{ t('agents.skills_exclusive_tab') }}</STab>
+        </STabBar>
+      </template>
 
-        <!-- Content -->
-        <div style="flex:1;overflow:auto;padding:16px 20px">
-          <!-- Global skills tab -->
-          <template v-if="activeTab !== t('agents.skills_exclusive_tab')">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;flex-shrink:0;padding:4px 10px;background:#f8fafc;border:1px solid #e8e6e3;border-radius:6px">
-                <input type="checkbox" v-model="useAllSkills" style="width:14px;height:14px;cursor:pointer" />
-                {{ t('agents.use_all') }}
-              </label>
-              <input v-if="!useAllSkills" v-model="skillSearch" :placeholder="t('skills.search_placeholder')" style="flex:1;padding:6px 10px;border:1px solid #e8e6e3;border-radius:6px;font-size:12px;outline:none" />
-              <div v-else style="flex:1" />
-              <button class="btn-primary btn-sm" :disabled="!skillsChanged" @click="saveGlobalSkills">{{ t('common.save') }}</button>
-              <span v-if="skillsChanged" style="font-size:12px;color:#f59e0b;white-space:nowrap">{{ t('common.unsaved_changes') }}</span>
-            </div>
-            <div v-if="allGlobalSkills.length === 0" style="text-align:center;color:#94a3b8;padding:40px">{{ t('skills.no_global') }}</div>
-            <div v-else style="border:1px solid #e8e6e3;border-radius:6px;overflow:hidden">
-              <div v-if="filteredGlobalSkills.length === 0" style="padding:20px;text-align:center;color:#9b9b9b;font-size:13px">{{ t('skills.no_match') }}</div>
-              <label
-                v-for="s in filteredGlobalSkills" :key="s.name"
-                style="display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;border-bottom:1px solid #f5f4f2;font-size:13px"
-                :style="selectedSkills.includes(s.name) ? 'background:#fafaf9' : ''"
-              >
-                <input type="checkbox" :value="s.name" v-model="selectedSkills" :disabled="useAllSkills" :checked="useAllSkills || selectedSkills.includes(s.name)" style="cursor:pointer;flex-shrink:0;width:14px;height:14px" />
-                <span :style="`flex-shrink:0;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(s.source)}`">{{ s.source }}</span>
-                <span style="font-family:monospace;font-weight:500;width:200px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.name }}</span>
-                <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:#64748b">{{ s.description || '-' }}</span>
-                <button class="btn-outline btn-sm" style="flex-shrink:0;padding:2px 8px;font-size:11px" @click.prevent="openView(s.name, s.source)">{{ t('common.view') }}</button>
-              </label>
-            </div>
-          </template>
+      <div style="height:62vh;overflow:auto">
+        <!-- Global skills tab -->
+        <template v-if="activeTab !== t('agents.skills_exclusive_tab')">
+          <div class="picker-toolbar">
+            <SCheckCard v-model="useAllSkills">{{ t('agents.use_all') }}</SCheckCard>
+            <SInput v-if="!useAllSkills" v-model="skillSearch" :placeholder="t('skills.search_placeholder')" size="sm" style="flex:1" />
+            <div v-else style="flex:1" />
+            <SButton type="primary" size="sm" :disabled="!skillsChanged" @click="saveGlobalSkills">{{ t('common.save') }}</SButton>
+            <span v-if="skillsChanged" class="picker-unsaved">{{ t('common.unsaved_changes') }}</span>
+          </div>
+          <div v-if="allGlobalSkills.length === 0" class="picker-empty">{{ t('skills.no_global') }}</div>
+          <div v-else class="picker-list">
+            <div v-if="filteredGlobalSkills.length === 0" class="picker-list-empty">{{ t('skills.no_match') }}</div>
+            <label
+              v-for="s in filteredGlobalSkills" :key="s.name"
+              class="picker-row"
+              :class="{ checked: selectedSkills.includes(s.name) }"
+            >
+              <input type="checkbox" :value="s.name" v-model="selectedSkills" :disabled="useAllSkills" :checked="useAllSkills || selectedSkills.includes(s.name)" />
+              <span :style="`flex-shrink:0;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(s.source)}`">{{ s.source }}</span>
+              <span class="picker-row-name">{{ s.name }}</span>
+              <span class="picker-row-desc">{{ s.description || '-' }}</span>
+              <SButton type="outline" size="sm" @click.prevent="openView(s.name, s.source)">{{ t('common.view') }}</SButton>
+            </label>
+          </div>
+        </template>
 
-          <!-- Agent-specific skills tab -->
-          <template v-else>
-            <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
-              <button class="btn-primary btn-sm" @click="openAdd">{{ t('skills.add') }}</button>
-            </div>
-            <div style="margin-bottom:12px;padding:10px 14px;background:#f1f5f9;border-radius:6px;font-size:13px;color:#475569">
-              {{ t('skills.skills_dir') }}<code style="font-family:monospace;background:#e2e8f0;padding:2px 6px;border-radius:3px">~/.sbot/agents/{{ agentName }}/skills/</code>
-            </div>
-            <div v-if="skills.length === 0" style="text-align:center;color:#94a3b8;padding:40px">{{ t('skills.no_exclusive') }}</div>
-            <table v-else>
-              <thead><tr><th>{{ t('common.name') }}</th><th>{{ t('common.description') }}</th><th>{{ t('common.ops') }}</th></tr></thead>
-              <tbody>
-                <tr v-for="s in skills" :key="s.name">
-                  <td style="font-family:monospace">{{ s.name }}</td>
-                  <td>{{ s.description || '-' }}</td>
-                  <td><div class="ops-cell">
-                    <button class="btn-outline btn-sm" @click="openView(s.name, t('agents.skills_exclusive_tab'))">{{ t('common.view') }}</button>
-                    <button class="btn-danger btn-sm" @click="remove(s.name)">{{ t('common.delete') }}</button>
-                  </div></td>
-                </tr>
-              </tbody>
-            </table>
-          </template>
-        </div>
+        <!-- Agent-specific skills tab -->
+        <template v-else>
+          <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+            <SButton type="primary" size="sm" @click="openAdd">{{ t('skills.add') }}</SButton>
+          </div>
+          <div class="dir-hint-panel">
+            {{ t('skills.skills_dir') }}<code class="dir-hint-code">~/.sbot/agents/{{ agentName }}/skills/</code>
+          </div>
+          <div v-if="skills.length === 0" class="picker-empty">{{ t('skills.no_exclusive') }}</div>
+          <table v-else>
+            <thead><tr><th>{{ t('common.name') }}</th><th>{{ t('common.description') }}</th><th>{{ t('common.ops') }}</th></tr></thead>
+            <tbody>
+              <tr v-for="s in skills" :key="s.name">
+                <td style="font-family:var(--sui-font-mono)">{{ s.name }}</td>
+                <td>{{ s.description || '-' }}</td>
+                <td><div class="ops-cell">
+                  <SButton type="outline" size="sm" @click="openView(s.name, t('agents.skills_exclusive_tab'))">{{ t('common.view') }}</SButton>
+                  <SButton type="danger" size="sm" @click="remove(s.name)">{{ t('common.delete') }}</SButton>
+                </div></td>
+              </tr>
+            </tbody>
+          </table>
+        </template>
       </div>
-    </div>
+    </SModal>
 
     <SkillViewerModal ref="skillViewRef" />
 
@@ -255,3 +225,77 @@ defineExpose({ open })
     />
   </template>
 </template>
+
+<style scoped>
+.picker-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sui-sp-3);
+  margin-bottom: var(--sui-sp-4);
+}
+.picker-unsaved {
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-warning);
+  white-space: nowrap;
+}
+.picker-empty {
+  text-align: center;
+  color: var(--sui-fg-disabled);
+  padding: 40px;
+}
+.picker-list {
+  border: 1px solid var(--sui-border);
+  border-radius: var(--sui-radius-md);
+  overflow: hidden;
+}
+.picker-list-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--sui-fg-disabled);
+  font-size: var(--sui-fs-md);
+}
+.picker-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sui-sp-4);
+  padding: var(--sui-sp-3) var(--sui-sp-5);
+  cursor: pointer;
+  border-bottom: 1px solid var(--sui-border-subtle);
+  font-size: var(--sui-fs-md);
+}
+.picker-row:last-child { border-bottom: none; }
+.picker-row.checked { background: var(--sui-bg-subtle); }
+.picker-row input[type="checkbox"] { cursor: pointer; flex-shrink: 0; width: 14px; height: 14px; }
+.picker-row-name {
+  font-family: var(--sui-font-mono);
+  font-weight: 500;
+  width: 200px;
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.picker-row-desc {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg-muted);
+}
+.dir-hint-panel {
+  margin-bottom: var(--sui-sp-4);
+  padding: var(--sui-sp-3) var(--sui-sp-5);
+  background: var(--sui-bg-soft);
+  border-radius: var(--sui-radius-md);
+  font-size: var(--sui-fs-md);
+  color: var(--sui-fg-secondary);
+}
+.dir-hint-code {
+  font-family: var(--sui-font-mono);
+  background: var(--sui-border);
+  padding: 2px var(--sui-sp-2);
+  border-radius: var(--sui-radius-xs);
+}
+</style>

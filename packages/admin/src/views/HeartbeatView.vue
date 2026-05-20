@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
-import { useToast } from '@/composables/useToast'
+import { useToast, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent } from 'sbot-ui'
 import { store } from '@/store'
 import CreatePromptModal from '@/components/CreatePromptModal.vue'
 
@@ -126,6 +126,17 @@ function sessionLabel(id: number): string {
   const name = s.sessionName || s.sessionId
   const channelName = store.settings.channels?.[s.channelId]?.name || s.channelId
   return `[${channelName}] ${name}`
+}
+
+function statusVariant(hb: HeartbeatItem): 'neutral' | 'warning' | 'success' {
+  if (!hb.enabled) return 'neutral'
+  if (hb.running) return 'warning'
+  return 'success'
+}
+function statusLabel(hb: HeartbeatItem): string {
+  if (!hb.enabled) return t('heartbeats.disabled')
+  if (hb.running) return t('heartbeats.running')
+  return t('heartbeats.waiting')
 }
 
 function openAdd() {
@@ -265,11 +276,11 @@ onMounted(async () => {
 
 <template>
   <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
-    <div class="page-toolbar">
-      <button class="btn-outline btn-sm" @click="refresh">{{ t('common.refresh') }}</button>
-      <button class="btn-primary btn-sm" @click="openAdd">{{ t('heartbeats.add') }}</button>
-    </div>
-    <div class="page-content">
+    <SPageToolbar>
+      <SButton type="outline" size="sm" @click="refresh">{{ t('common.refresh') }}</SButton>
+      <SButton type="primary" size="sm" @click="openAdd">{{ t('heartbeats.add') }}</SButton>
+    </SPageToolbar>
+    <SPageContent>
       <table v-if="!isMobile">
         <thead>
           <tr>
@@ -284,28 +295,22 @@ onMounted(async () => {
         </thead>
         <tbody>
           <tr v-if="heartbeats.length === 0">
-            <td colspan="7" style="text-align:center;color:#94a3b8;padding:40px">{{ t('heartbeats.empty') }}</td>
+            <td colspan="7" class="hb-empty">{{ t('heartbeats.empty') }}</td>
           </tr>
           <tr v-for="hb in heartbeats" :key="hb.id">
             <td>{{ hb.name || hb.id }}</td>
-            <td style="font-size:12px">{{ intervalLabel(hb.intervalMinutes) }}</td>
-            <td style="font-size:12px">{{ sessionLabel(hb.target) }}</td>
+            <td class="hb-small">{{ intervalLabel(hb.intervalMinutes) }}</td>
+            <td class="hb-small">{{ sessionLabel(hb.target) }}</td>
             <td>
-              <span v-if="!hb.enabled" style="color:#9b9b9b">{{ t('heartbeats.disabled') }}</span>
-              <span v-else-if="hb.running" style="color:#f59e0b;font-weight:600">{{ t('heartbeats.running') }}</span>
-              <span v-else style="color:#16a34a">{{ t('heartbeats.waiting') }}</span>
+              <SBadge :variant="statusVariant(hb)">{{ statusLabel(hb) }}</SBadge>
             </td>
-            <td style="font-size:12px;color:#9b9b9b;white-space:nowrap">
-              {{ hb.lastRun ? new Date(hb.lastRun).toLocaleString('zh-CN') : '-' }}
-            </td>
-            <td style="font-size:12px;color:#9b9b9b;white-space:nowrap">
-              {{ hb.nextRun ? new Date(hb.nextRun).toLocaleString('zh-CN') : '-' }}
-            </td>
+            <td class="hb-time">{{ hb.lastRun ? new Date(hb.lastRun).toLocaleString('zh-CN') : '-' }}</td>
+            <td class="hb-time">{{ hb.nextRun ? new Date(hb.nextRun).toLocaleString('zh-CN') : '-' }}</td>
             <td>
               <div class="ops-cell">
-                <button class="btn-outline btn-sm" @click="trigger(hb)">{{ t('heartbeats.trigger') }}</button>
-                <button class="btn-outline btn-sm" @click="openEdit(hb)">{{ t('common.edit') }}</button>
-                <button class="btn-danger btn-sm" @click="remove(hb)">{{ t('common.delete') }}</button>
+                <SButton type="outline" size="sm" @click="trigger(hb)">{{ t('heartbeats.trigger') }}</SButton>
+                <SButton type="outline" size="sm" @click="openEdit(hb)">{{ t('common.edit') }}</SButton>
+                <SButton type="danger" size="sm" @click="remove(hb)">{{ t('common.delete') }}</SButton>
               </div>
             </td>
           </tr>
@@ -316,119 +321,131 @@ onMounted(async () => {
       <div v-else class="card-list">
         <div v-if="heartbeats.length === 0" class="mobile-card-empty">{{ t('heartbeats.empty') }}</div>
         <div v-for="hb in heartbeats" :key="hb.id" class="mobile-card">
-          <div class="mobile-card-header" style="display:flex;justify-content:space-between;align-items:center">
+          <div class="mobile-card-header hb-card-header">
             <span>{{ hb.name || hb.id }}</span>
-            <span v-if="!hb.enabled" style="color:#9b9b9b;font-size:12px;font-weight:600">{{ t('heartbeats.disabled') }}</span>
-            <span v-else-if="hb.running" style="color:#f59e0b;font-size:12px;font-weight:600">{{ t('heartbeats.running') }}</span>
-            <span v-else style="color:#16a34a;font-size:12px;font-weight:600">{{ t('heartbeats.waiting') }}</span>
+            <SBadge :variant="statusVariant(hb)">{{ statusLabel(hb) }}</SBadge>
           </div>
           <div class="mobile-card-fields">
             <span class="mobile-card-label">{{ t('heartbeats.interval') }}</span>
-            <span class="mobile-card-value" style="font-size:12px">{{ intervalLabel(hb.intervalMinutes) }}</span>
+            <span class="mobile-card-value hb-small">{{ intervalLabel(hb.intervalMinutes) }}</span>
             <span class="mobile-card-label">{{ t('heartbeats.target') }}</span>
-            <span class="mobile-card-value" style="font-size:12px">{{ sessionLabel(hb.target) }}</span>
+            <span class="mobile-card-value hb-small">{{ sessionLabel(hb.target) }}</span>
             <span class="mobile-card-label">{{ t('heartbeats.last_run') }}</span>
-            <span class="mobile-card-value" style="font-size:12px;color:#9b9b9b">
-              {{ hb.lastRun ? new Date(hb.lastRun).toLocaleString('zh-CN') : '-' }}
-            </span>
+            <span class="mobile-card-value hb-time">{{ hb.lastRun ? new Date(hb.lastRun).toLocaleString('zh-CN') : '-' }}</span>
             <span class="mobile-card-label">{{ t('heartbeats.next_run') }}</span>
-            <span class="mobile-card-value" style="font-size:12px;color:#9b9b9b">
-              {{ hb.nextRun ? new Date(hb.nextRun).toLocaleString('zh-CN') : '-' }}
-            </span>
+            <span class="mobile-card-value hb-time">{{ hb.nextRun ? new Date(hb.nextRun).toLocaleString('zh-CN') : '-' }}</span>
           </div>
           <div class="mobile-card-ops">
-            <button class="btn-outline btn-sm" @click="trigger(hb)">{{ t('heartbeats.trigger') }}</button>
-            <button class="btn-outline btn-sm" @click="openEdit(hb)">{{ t('common.edit') }}</button>
-            <button class="btn-danger btn-sm" @click="remove(hb)">{{ t('common.delete') }}</button>
+            <SButton type="outline" size="sm" @click="trigger(hb)">{{ t('heartbeats.trigger') }}</SButton>
+            <SButton type="outline" size="sm" @click="openEdit(hb)">{{ t('common.edit') }}</SButton>
+            <SButton type="danger" size="sm" @click="remove(hb)">{{ t('common.delete') }}</SButton>
           </div>
         </div>
       </div>
-    </div>
+    </SPageContent>
 
     <!-- Edit/Add modal -->
-    <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
-      <div class="modal-box" style="width:520px;max-height:85vh;overflow-y:auto">
-        <div class="modal-header">
-          <h3>{{ editingId !== null ? t('heartbeats.edit_title') : t('heartbeats.add_title') }}</h3>
-          <button class="modal-close" @click="showModal = false">&times;</button>
+    <SModal v-model:visible="showModal" :title="editingId !== null ? t('heartbeats.edit_title') : t('heartbeats.add_title')" width="lg">
+      <SFormItem :label="t('heartbeats.name') + ' *'">
+        <SInput v-model="form.name" />
+      </SFormItem>
+      <SFormItem :label="t('heartbeats.interval') + ' *'">
+        <SSelect v-model.number="form.intervalMinutes">
+          <option v-for="opt in INTERVAL_OPTIONS" :key="opt.value" :value="opt.value">
+            {{ opt.value < 60 ? opt.label + t('heartbeats.minutes') : opt.label + t('heartbeats.hours') }}
+          </option>
+        </SSelect>
+      </SFormItem>
+      <SFormItem :label="t('heartbeats.promptFile')" :hint="t('heartbeats.promptFile_hint')">
+        <div class="prompt-field">
+          <SSelect v-model="form.promptFile" class="prompt-select">
+            <option v-for="p in heartbeatPrompts" :key="p.path" :value="p.path">
+              {{ p.path.split('/').pop() }}
+            </option>
+          </SSelect>
+          <SButton type="outline" size="sm" @click="openCreatePrompt">+</SButton>
         </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label>{{ t('heartbeats.name') }} *</label>
-            <input v-model="form.name" />
-          </div>
-          <div class="form-group">
-            <label>{{ t('heartbeats.interval') }} *</label>
-            <select v-model.number="form.intervalMinutes">
-              <option v-for="opt in INTERVAL_OPTIONS" :key="opt.value" :value="opt.value">
-                {{ opt.value < 60 ? opt.label + t('heartbeats.minutes') : opt.label + t('heartbeats.hours') }}
-              </option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>{{ t('heartbeats.promptFile') }}</label>
-            <div style="display:flex;gap:6px;align-items:center">
-              <select v-model="form.promptFile" style="flex:1">
-                <option v-for="p in heartbeatPrompts" :key="p.path" :value="p.path">
-                  {{ p.path.split('/').pop() }}
-                </option>
-              </select>
-              <button type="button" class="btn-outline btn-sm" @click="openCreatePrompt" title="+">+</button>
-            </div>
-            <div class="hint">{{ t('heartbeats.promptFile_hint') }}</div>
-          </div>
-          <div class="form-group">
-            <label>{{ t('heartbeats.target') }} *</label>
-            <select v-model="form.target">
-              <option :value="null" disabled>--</option>
-              <optgroup v-for="g in groupedSessions" :key="g.channelName" :label="g.channelName">
-                <option v-for="s in g.sessions" :key="s.id" :value="s.id">
-                  {{ s.sessionName || s.sessionId }}
-                </option>
-              </optgroup>
-            </select>
-            <div class="hint">{{ t('heartbeats.target_hint') }}</div>
-          </div>
-          <div class="form-group">
-            <label class="checkbox-label">
-              <input type="checkbox" v-model="form.enabled" />
-              {{ t('heartbeats.enabled') }}
-            </label>
-          </div>
-          <div class="form-group">
-            <label class="checkbox-label">
-              <input type="checkbox" v-model="form.activeHoursEnabled" />
-              {{ t('heartbeats.activeHours') }}
-            </label>
-            <div class="hint">{{ t('heartbeats.activeHours_hint') }}</div>
-          </div>
-          <template v-if="form.activeHoursEnabled">
-            <div style="display:flex;gap:12px">
-              <div class="form-group" style="flex:1">
-                <label>{{ t('heartbeats.start_hour') }}</label>
-                <input v-model.number="form.activeHoursStart" type="number" min="0" max="23" />
-              </div>
-              <div class="form-group" style="flex:1">
-                <label>{{ t('heartbeats.end_hour') }}</label>
-                <input v-model.number="form.activeHoursEnd" type="number" min="0" max="24" />
-              </div>
-            </div>
-            <div class="form-group">
-              <label>{{ t('heartbeats.timezone') }}</label>
-              <select v-model="form.activeHoursTimezone">
-                <option value="">{{ t('heartbeats.timezone_local') }}</option>
-                <option v-for="tz in TIMEZONE_OPTIONS" :key="tz.value" :value="tz.value">(UTC{{ tz.offset }}) {{ t('heartbeats.' + tz.key) }}</option>
-              </select>
-            </div>
-          </template>
+      </SFormItem>
+      <SFormItem :label="t('heartbeats.target') + ' *'" :hint="t('heartbeats.target_hint')">
+        <SSelect :model-value="form.target ?? ''" @update:model-value="form.target = $event === '' ? null : Number($event)">
+          <option value="" disabled>--</option>
+          <optgroup v-for="g in groupedSessions" :key="g.channelName" :label="g.channelName">
+            <option v-for="s in g.sessions" :key="s.id" :value="s.id">
+              {{ s.sessionName || s.sessionId }}
+            </option>
+          </optgroup>
+        </SSelect>
+      </SFormItem>
+      <SFormItem>
+        <label class="checkbox-label">
+          <input v-model="form.enabled" type="checkbox" />
+          {{ t('heartbeats.enabled') }}
+        </label>
+      </SFormItem>
+      <SFormItem :hint="t('heartbeats.activeHours_hint')">
+        <label class="checkbox-label">
+          <input v-model="form.activeHoursEnabled" type="checkbox" />
+          {{ t('heartbeats.activeHours') }}
+        </label>
+      </SFormItem>
+      <template v-if="form.activeHoursEnabled">
+        <div class="hour-row">
+          <SFormItem :label="t('heartbeats.start_hour')" class="hour-item">
+            <SInput v-model.number="form.activeHoursStart" type="number" min="0" max="23" />
+          </SFormItem>
+          <SFormItem :label="t('heartbeats.end_hour')" class="hour-item">
+            <SInput v-model.number="form.activeHoursEnd" type="number" min="0" max="24" />
+          </SFormItem>
         </div>
-        <div class="modal-footer">
-          <button class="btn-outline" @click="showModal = false">{{ t('common.cancel') }}</button>
-          <button class="btn-primary" @click="save">{{ t('common.save') }}</button>
-        </div>
-      </div>
-    </div>
+        <SFormItem :label="t('heartbeats.timezone')">
+          <SSelect v-model="form.activeHoursTimezone">
+            <option value="">{{ t('heartbeats.timezone_local') }}</option>
+            <option v-for="tz in TIMEZONE_OPTIONS" :key="tz.value" :value="tz.value">(UTC{{ tz.offset }}) {{ t('heartbeats.' + tz.key) }}</option>
+          </SSelect>
+        </SFormItem>
+      </template>
+      <template #footer>
+        <SButton type="outline" @click="showModal = false">{{ t('common.cancel') }}</SButton>
+        <SButton type="primary" @click="save">{{ t('common.save') }}</SButton>
+      </template>
+    </SModal>
 
-    <CreatePromptModal v-if="showCreatePrompt" prefix="heartbeat/" default-ext=".md" @created="onPromptCreated" @close="showCreatePrompt = false" />
+    <CreatePromptModal v-model:visible="showCreatePrompt" prefix="heartbeat/" default-ext=".md" @created="onPromptCreated" @close="showCreatePrompt = false" />
   </div>
 </template>
+
+<style scoped>
+.hb-empty {
+  text-align: center;
+  color: var(--sui-fg-disabled);
+  padding: 40px;
+}
+.hb-small { font-size: var(--sui-fs-sm); }
+.hb-time {
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg-disabled);
+  white-space: nowrap;
+}
+.hb-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sui-sp-2);
+  cursor: pointer;
+}
+.prompt-field {
+  display: flex;
+  gap: var(--sui-sp-2);
+  align-items: center;
+}
+.prompt-select { flex: 1; }
+.hour-row {
+  display: flex;
+  gap: var(--sui-sp-4);
+}
+.hour-item { flex: 1; }
+</style>

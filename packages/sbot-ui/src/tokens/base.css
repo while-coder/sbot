@@ -1,4 +1,4 @@
-/* @sbot/ui — Design Tokens
+/* sbot-ui — Design Tokens
  *
  * 基础 token，浅色默认值。暗色由 theme-dark.css 通过 html[data-theme="dark"] 覆盖。
  * 命名空间：--sui-*

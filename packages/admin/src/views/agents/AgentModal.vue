@@ -3,10 +3,11 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
-import { useToast } from '@/composables/useToast'
+import { useToast } from 'sbot-ui'
 import { AgentMode, ACPSessionMode, InsightScope } from '@/types'
 import type { Agent, SubAgentRef } from '@/types'
 import CreatePromptModal from '@/components/CreatePromptModal.vue'
+import { SModal, SButton, SInput, STextarea, SSelect, SFormItem, SFormSection, SHint, SCheckCard } from 'sbot-ui'
 
 const { t } = useI18n()
 
@@ -241,198 +242,173 @@ defineExpose({ open })
 
 <template>
   <!-- Agent Modal -->
-  <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
-    <div class="modal-box wide" style="max-height:90vh">
-      <div class="modal-header">
-        <h3>{{ editingId ? t('agents.edit_title') : t('agents.add_title') }}</h3>
-        <button class="modal-close" @click="showModal = false">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group" v-if="!editingId">
-          <label>ID *</label>
-          <input v-model="form.id" placeholder="ID" />
-          <span style="font-size:0.78rem;color:var(--color-text-muted,#888);margin-top:2px">{{ t('agents.id_hint') }}</span>
-        </div>
-        <div class="form-group">
-          <label>{{ t('agents.name') }} *</label>
-          <input v-model="form.name" :placeholder="t('agents.name_placeholder')" />
-        </div>
-        <div class="form-group">
-          <label>{{ t('common.type') }} *</label>
-          <select v-model="form.type">
-            <option :value="AgentMode.Single">{{ t('agents.type_single') }}</option>
-            <option :value="AgentMode.ReAct">{{ t('agents.type_react') }}</option>
-            <option :value="AgentMode.Generative">{{ t('agents.type_generative') }}</option>
-            <option :value="AgentMode.ACP">{{ t('agents.type_acp') }}</option>
-          </select>
-        </div>
+  <SModal v-model:visible="showModal" :title="editingId ? t('agents.edit_title') : t('agents.add_title')" width="lg">
+    <SFormItem v-if="!editingId" label="ID *" :hint="t('agents.id_hint')">
+      <SInput v-model="form.id" placeholder="ID" />
+    </SFormItem>
+    <SFormItem :label="t('agents.name') + ' *'">
+      <SInput v-model="form.name" :placeholder="t('agents.name_placeholder')" />
+    </SFormItem>
+    <SFormItem :label="t('common.type') + ' *'">
+      <SSelect v-model="form.type">
+        <option :value="AgentMode.Single">{{ t('agents.type_single') }}</option>
+        <option :value="AgentMode.ReAct">{{ t('agents.type_react') }}</option>
+        <option :value="AgentMode.Generative">{{ t('agents.type_generative') }}</option>
+        <option :value="AgentMode.ACP">{{ t('agents.type_acp') }}</option>
+      </SSelect>
+    </SFormItem>
 
-        <!-- 系统提示词（ACP 模式无 systemPrompt，由外部 Agent 自行管理） -->
-        <div class="form-group" v-if="form.type !== AgentMode.ACP">
-          <label>{{ t('agents.system_prompt') }}</label>
-          <textarea v-model="form.systemPrompt" rows="3" :placeholder="t('agents.system_prompt_placeholder')" />
-        </div>
+    <!-- 系统提示词（ACP 模式无 systemPrompt，由外部 Agent 自行管理） -->
+    <SFormItem v-if="form.type !== AgentMode.ACP" :label="t('agents.system_prompt')">
+      <STextarea v-model="form.systemPrompt" :rows="3" :placeholder="t('agents.system_prompt_placeholder')" />
+    </SFormItem>
 
-        <!-- Model (ACP 模式不需要本地模型) -->
-        <div class="form-group" v-if="form.type !== AgentMode.ACP">
-          <label>{{ t('agents.model_col') }} *</label>
-          <select v-model="form.model">
-            <option value="">{{ t('common.select_placeholder') }}</option>
-            <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-          </select>
-        </div>
+    <!-- Model (ACP 模式不需要本地模型) -->
+    <SFormItem v-if="form.type !== AgentMode.ACP" :label="t('agents.model_col') + ' *'">
+      <SSelect v-model="form.model">
+        <option value="">{{ t('common.select_placeholder') }}</option>
+        <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
+      </SSelect>
+    </SFormItem>
 
-        <!-- Compact Model (Generative/ACP 不支持) -->
-        <div class="form-group" v-if="form.type !== AgentMode.Generative && form.type !== AgentMode.ACP">
-          <label>{{ t('agents.compact_model') }}</label>
-          <select v-model="form.compactModel">
-            <option value="">{{ t('agents.compact_model_placeholder') }}</option>
-            <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-          </select>
-          <span style="font-size:0.78rem;color:var(--color-text-muted,#888);margin-top:2px">{{ t('agents.compact_model_hint') }}</span>
-        </div>
+    <!-- Compact Model (Generative/ACP 不支持) -->
+    <SFormItem
+      v-if="form.type !== AgentMode.Generative && form.type !== AgentMode.ACP"
+      :label="t('agents.compact_model')"
+      :hint="t('agents.compact_model_hint')"
+    >
+      <SSelect v-model="form.compactModel">
+        <option value="">{{ t('agents.compact_model_placeholder') }}</option>
+        <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
+      </SSelect>
+    </SFormItem>
 
-        <!-- ACP 专属字段 -->
-        <template v-if="form.type === AgentMode.ACP">
-          <div class="form-group">
-            <label>{{ t('agents.acp_preset') }}</label>
-            <div style="display:flex;gap:6px;flex-wrap:wrap">
-              <button v-for="(p, i) in acpPresets" :key="i" class="btn-outline btn-sm" @click="applyPreset(i)">{{ p.label }}</button>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>{{ t('agents.acp_command') }} *</label>
-            <input v-model="form.command" :placeholder="t('agents.acp_command_placeholder')" />
-          </div>
-          <div class="form-group">
-            <label>{{ t('agents.acp_args') }}</label>
-            <div v-for="(_, i) in form.args" :key="i" style="display:flex;gap:6px;margin-bottom:4px">
-              <input v-model="form.args[i]" :placeholder="t('agents.acp_args_placeholder')" style="flex:1" />
-              <button class="btn-danger btn-sm" @click="form.args.splice(i, 1)" style="flex-shrink:0">&times;</button>
-            </div>
-            <button class="btn-outline btn-sm" @click="form.args.push('')">+ {{ t('agents.acp_args_add') }}</button>
-          </div>
-          <div class="form-group">
-            <label>{{ t('agents.acp_session_mode') }}</label>
-            <select v-model="form.sessionMode">
-              <option :value="ACPSessionMode.Persistent">{{ t('agents.acp_session_persistent') }}</option>
-              <option :value="ACPSessionMode.Transient">{{ t('agents.acp_session_transient') }}</option>
-            </select>
-            <span style="font-size:0.78rem;color:var(--color-text-muted,#888);margin-top:2px">{{ t('agents.acp_session_mode_hint') }}</span>
-          </div>
-          <div class="form-group">
-            <label>{{ t('agents.acp_env') }}</label>
-            <div v-for="(item, i) in form.env" :key="i" style="display:flex;gap:6px;margin-bottom:4px">
-              <input v-model="item.key" placeholder="KEY" style="flex:1" />
-              <input v-model="item.value" placeholder="VALUE" style="flex:2" />
-              <button class="btn-danger btn-sm" @click="form.env.splice(i, 1)" style="flex-shrink:0">&times;</button>
-            </div>
-            <button class="btn-outline btn-sm" @click="form.env.push({ key: '', value: '' })">+ {{ t('agents.acp_env_add') }}</button>
-          </div>
+    <!-- ACP 专属字段 -->
+    <template v-if="form.type === AgentMode.ACP">
+      <SFormItem :label="t('agents.acp_preset')">
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <SButton v-for="(p, i) in acpPresets" :key="i" type="outline" size="sm" @click="applyPreset(i)">{{ p.label }}</SButton>
+        </div>
+      </SFormItem>
+      <SFormItem :label="t('agents.acp_command') + ' *'">
+        <SInput v-model="form.command" :placeholder="t('agents.acp_command_placeholder')" />
+      </SFormItem>
+      <SFormItem :label="t('agents.acp_args')">
+        <div v-for="(_, i) in form.args" :key="i" style="display:flex;gap:6px;margin-bottom:4px">
+          <SInput v-model="form.args[i]" :placeholder="t('agents.acp_args_placeholder')" style="flex:1" />
+          <SButton type="danger" size="sm" @click="form.args.splice(i, 1)" style="flex-shrink:0">&times;</SButton>
+        </div>
+        <SButton type="outline" size="sm" @click="form.args.push('')">+ {{ t('agents.acp_args_add') }}</SButton>
+      </SFormItem>
+      <SFormItem :label="t('agents.acp_session_mode')" :hint="t('agents.acp_session_mode_hint')">
+        <SSelect v-model="form.sessionMode">
+          <option :value="ACPSessionMode.Persistent">{{ t('agents.acp_session_persistent') }}</option>
+          <option :value="ACPSessionMode.Transient">{{ t('agents.acp_session_transient') }}</option>
+        </SSelect>
+      </SFormItem>
+      <SFormItem :label="t('agents.acp_env')">
+        <div v-for="(item, i) in form.env" :key="i" style="display:flex;gap:6px;margin-bottom:4px">
+          <SInput v-model="item.key" placeholder="KEY" style="flex:1" />
+          <SInput v-model="item.value" placeholder="VALUE" style="flex:2" />
+          <SButton type="danger" size="sm" @click="form.env.splice(i, 1)" style="flex-shrink:0">&times;</SButton>
+        </div>
+        <SButton type="outline" size="sm" @click="form.env.push({ key: '', value: '' })">+ {{ t('agents.acp_env_add') }}</SButton>
+      </SFormItem>
+    </template>
+
+    <!-- Insight -->
+    <template v-if="form.type !== AgentMode.Generative && form.type !== AgentMode.ACP">
+      <SFormItem :label="t('agents.insight_scope')" :hint="t('agents.insight_hint')">
+        <SSelect v-model="form.insightScope">
+          <option :value="InsightScope.Disabled">{{ t('agents.insight_disabled') }}</option>
+          <option :value="InsightScope.Agent">{{ t('agents.insight_agent') }}</option>
+          <option :value="InsightScope.Session">{{ t('agents.insight_session') }}</option>
+        </SSelect>
+      </SFormItem>
+      <SFormItem
+        v-if="form.insightScope !== InsightScope.Disabled"
+        :label="t('agents.insight_extractor') + ' *'"
+        :hint="t('agents.insight_extractor_hint')"
+      >
+        <SSelect v-model="form.insightExtractor">
+          <option value="">{{ t('agents.insight_extractor_placeholder') }}</option>
+          <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
+        </SSelect>
+      </SFormItem>
+      <SFormItem
+        v-if="form.insightScope !== InsightScope.Disabled"
+        :label="t('agents.insight_prompt_file') + ' *'"
+        :hint="t('agents.insight_prompt_file_hint')"
+      >
+        <div style="display:flex;gap:6px;align-items:center">
+          <SSelect v-model="form.insightExtractorPromptFile" style="flex:1">
+            <option value="">{{ t('agents.insight_prompt_file_placeholder') }}</option>
+            <option v-for="p in insightPrompts" :key="p.path" :value="p.path">{{ p.path.split('/').pop() }}</option>
+          </SSelect>
+          <SButton type="outline" size="sm" @click="openCreateInsightPrompt" title="+">+</SButton>
+        </div>
+      </SFormItem>
+    </template>
+
+    <!-- autoApproveAllTools -->
+    <SFormItem>
+      <SCheckCard v-model="form.autoApproveAllTools">{{ t('agents.auto_approve_all_tools') }}</SCheckCard>
+    </SFormItem>
+
+    <!-- modelCallTimeout (ACP/Generative 不需要) -->
+    <SFormItem
+      v-if="form.type !== AgentMode.Generative && form.type !== AgentMode.ACP"
+      :label="t('agents.model_call_timeout')"
+    >
+      <SInput v-model.number="form.modelCallTimeout" type="number" :placeholder="t('agents.model_call_timeout_placeholder')" />
+    </SFormItem>
+
+    <!-- ReAct fields -->
+    <template v-if="form.type === AgentMode.ReAct">
+      <SFormSection>
+        <template #title>
+          <span>{{ t('agents.sub_agents') }}</span>
+          <SButton type="outline" size="sm" @click="addSubAgent">{{ t('agents.add_sub') }}</SButton>
         </template>
-
-        <!-- Insight -->
-        <template v-if="form.type !== AgentMode.Generative && form.type !== AgentMode.ACP">
-          <div class="form-group">
-            <label>{{ t('agents.insight_scope') }}</label>
-            <select v-model="form.insightScope">
-              <option :value="InsightScope.Disabled">{{ t('agents.insight_disabled') }}</option>
-              <option :value="InsightScope.Agent">{{ t('agents.insight_agent') }}</option>
-              <option :value="InsightScope.Session">{{ t('agents.insight_session') }}</option>
-            </select>
-            <span style="font-size:0.78rem;color:var(--color-text-muted,#888);margin-top:2px">{{ t('agents.insight_hint') }}</span>
-          </div>
-          <div class="form-group" v-if="form.insightScope !== InsightScope.Disabled">
-            <label>{{ t('agents.insight_extractor') }} *</label>
-            <select v-model="form.insightExtractor">
-              <option value="">{{ t('agents.insight_extractor_placeholder') }}</option>
-              <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-            </select>
-            <span style="font-size:0.78rem;color:var(--color-text-muted,#888);margin-top:2px">{{ t('agents.insight_extractor_hint') }}</span>
-          </div>
-          <div class="form-group" v-if="form.insightScope !== InsightScope.Disabled">
-            <label>{{ t('agents.insight_prompt_file') }} *</label>
-            <div style="display:flex;gap:6px;align-items:center">
-              <select v-model="form.insightExtractorPromptFile" style="flex:1">
-                <option value="">{{ t('agents.insight_prompt_file_placeholder') }}</option>
-                <option v-for="p in insightPrompts" :key="p.path" :value="p.path">{{ p.path.split('/').pop() }}</option>
-              </select>
-              <button type="button" class="btn-outline btn-sm" @click="openCreateInsightPrompt" title="+">+</button>
+        <div v-for="(ref, i) in tempSubAgents" :key="i" class="sub-agent-item">
+          <div class="sub-agent-item-header">
+            <div style="display:flex;align-items:center;gap:8px;min-width:0">
+              <span class="sub-agent-item-name">{{ (agents[ref.id] as any)?.name || ref.id }}</span>
             </div>
-            <span style="font-size:0.78rem;color:var(--color-text-muted,#888);margin-top:2px">{{ t('agents.insight_prompt_file_hint') }}</span>
+            <div class="ops-cell">
+              <SButton type="outline" size="sm" @click="editSubAgent(i)">{{ t('common.edit') }}</SButton>
+              <SButton type="danger" size="sm" @click="deleteSubAgent(i)">{{ t('common.delete') }}</SButton>
+            </div>
           </div>
-        </template>
-
-        <!-- autoApproveAllTools -->
-        <div class="form-group" style="display:flex;align-items:center;gap:8px">
-          <input type="checkbox" v-model="form.autoApproveAllTools" id="autoApproveAll" style="width:14px;height:14px;cursor:pointer" />
-          <label for="autoApproveAll" style="cursor:pointer;margin:0">{{ t('agents.auto_approve_all_tools') }}</label>
+          <div class="sub-agent-item-desc">{{ ref.desc }}</div>
         </div>
+        <SHint v-if="tempSubAgents.length === 0">{{ t('agents.no_sub') }}</SHint>
+      </SFormSection>
+    </template>
 
-        <!-- modelCallTimeout (ACP/Generative 不需要) -->
-        <div class="form-group" v-if="form.type !== AgentMode.Generative && form.type !== AgentMode.ACP">
-          <label>{{ t('agents.model_call_timeout') }}</label>
-          <input type="number" v-model.number="form.modelCallTimeout" min="0" step="1" :placeholder="t('agents.model_call_timeout_placeholder')" />
-        </div>
+    <template #footer>
+      <SButton type="outline" @click="showModal = false">{{ t('common.cancel') }}</SButton>
+      <SButton type="primary" @click="save">{{ t('common.save') }}</SButton>
+    </template>
+  </SModal>
 
-        <!-- ReAct fields -->
-        <template v-if="form.type === AgentMode.ReAct">
-          <div class="form-section">
-            <div class="form-section-title">
-              {{ t('agents.sub_agents') }}
-              <button class="btn-outline btn-sm" @click="addSubAgent">{{ t('agents.add_sub') }}</button>
-            </div>
-            <div v-for="(ref, i) in tempSubAgents" :key="i" class="sub-agent-item">
-              <div class="sub-agent-item-header">
-                <div style="display:flex;align-items:center;gap:8px;min-width:0">
-                  <span class="sub-agent-item-name">{{ (agents[ref.id] as any)?.name || ref.id }}</span>
-                </div>
-                <div class="ops-cell">
-                  <button class="btn-outline btn-sm" @click="editSubAgent(i)">{{ t('common.edit') }}</button>
-                  <button class="btn-danger btn-sm" @click="deleteSubAgent(i)">{{ t('common.delete') }}</button>
-                </div>
-              </div>
-              <div class="sub-agent-item-desc">{{ ref.desc }}</div>
-            </div>
-            <div v-if="tempSubAgents.length === 0" style="color:#94a3b8;font-size:12px;padding:4px">{{ t('agents.no_sub') }}</div>
-          </div>
-        </template>
-
-
-      </div>
-      <div class="modal-footer">
-        <button class="btn-outline" @click="showModal = false">{{ t('common.cancel') }}</button>
-        <button class="btn-primary" @click="save">{{ t('common.save') }}</button>
-      </div>
-    </div>
-  </div>
-
-  <CreatePromptModal v-if="showCreateInsightPrompt" prefix="insight/extractor/" default-ext=".txt" @created="onInsightPromptCreated" @close="showCreateInsightPrompt = false" />
+  <CreatePromptModal v-model:visible="showCreateInsightPrompt" prefix="insight/extractor/" default-ext=".txt" @created="onInsightPromptCreated" @close="showCreateInsightPrompt = false" />
 
   <!-- Sub-agent Modal -->
-  <div v-if="showSubModal" class="modal-overlay" @click.self="showSubModal = false" style="z-index:1100">
-    <div class="modal-box" style="width:400px">
-      <div class="modal-header">
-        <h3>{{ subModalTitle }}</h3>
-        <button class="modal-close" @click="showSubModal = false">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label>{{ t('agents.sub_agent_label') }} *</label>
-          <select v-model="subForm.id">
-            <option value="">{{ t('common.select_placeholder') }}</option>
-            <option v-for="a in subAgentSelectOptions()" :key="a.id" :value="a.id">{{ a.label }} ({{ a.type }})</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>{{ t('agents.sub_desc_label') }} *</label>
-          <textarea v-model="subForm.desc" :placeholder="t('agents.sub_desc_placeholder')" rows="3" style="resize:vertical" />
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn-outline" @click="showSubModal = false">{{ t('common.cancel') }}</button>
-        <button class="btn-primary" @click="saveSubAgent">{{ t('common.save') }}</button>
-      </div>
-    </div>
-  </div>
+  <SModal v-model:visible="showSubModal" :title="subModalTitle" width="sm" nested>
+    <SFormItem :label="t('agents.sub_agent_label') + ' *'">
+      <SSelect v-model="subForm.id">
+        <option value="">{{ t('common.select_placeholder') }}</option>
+        <option v-for="a in subAgentSelectOptions()" :key="a.id" :value="a.id">{{ a.label }} ({{ a.type }})</option>
+      </SSelect>
+    </SFormItem>
+    <SFormItem :label="t('agents.sub_desc_label') + ' *'">
+      <STextarea v-model="subForm.desc" :placeholder="t('agents.sub_desc_placeholder')" :rows="3" resize="vertical" />
+    </SFormItem>
+
+    <template #footer>
+      <SButton type="outline" @click="showSubModal = false">{{ t('common.cancel') }}</SButton>
+      <SButton type="primary" @click="saveSubAgent">{{ t('common.save') }}</SButton>
+    </template>
+  </SModal>
 </template>

@@ -2,7 +2,7 @@
 import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
-import { useToast } from '@/composables/useToast'
+import { useToast, SButton, SSelect, SInput, SPageToolbar } from 'sbot-ui'
 
 const { t } = useI18n()
 const { show } = useToast()
@@ -104,35 +104,33 @@ onUnmounted(() => stopAutoRefresh())
 
 <template>
   <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
-    <div class="page-toolbar">
-      <span class="page-toolbar-title">{{ t('logs.title') }}</span>
-      <select v-model="selectedFile" style="font-size:12px;padding:3px 8px;border:1px solid #e8e6e3;border-radius:4px;font-family:monospace">
+    <SPageToolbar :title="t('logs.title')">
+      <SSelect v-model="selectedFile" size="sm" class="logs-file-select">
         <option v-for="f in files" :key="f" :value="f">{{ f }}</option>
-      </select>
-      <select v-model="levelFilter" @change="loadContent()" style="font-size:12px;padding:3px 8px;border:1px solid #e8e6e3;border-radius:4px">
+      </SSelect>
+      <SSelect v-model="levelFilter" size="sm" @change="loadContent()">
         <option value="">{{ t('logs.all_levels') }}</option>
         <option v-for="lv in levels.slice(1)" :key="lv" :value="lv">{{ lv }}</option>
-      </select>
-      <input v-model="keyword" @keyup.enter="loadContent()" :placeholder="t('logs.search_placeholder')"
-        style="font-size:12px;padding:3px 8px;border:1px solid #e8e6e3;border-radius:4px;width:180px" />
-      <select v-model.number="tailCount" @change="loadContent()" style="font-size:12px;padding:3px 8px;border:1px solid #e8e6e3;border-radius:4px">
+      </SSelect>
+      <SInput v-model="keyword" size="sm" :placeholder="t('logs.search_placeholder')" class="logs-keyword" @keyup.enter="loadContent()" />
+      <SSelect v-model.number="tailCount" size="sm" @change="loadContent()">
         <option :value="200">{{ t('logs.last_n', { n: 200 }) }}</option>
         <option :value="500">{{ t('logs.last_n', { n: 500 }) }}</option>
         <option :value="1000">{{ t('logs.last_n', { n: 1000 }) }}</option>
         <option :value="0">{{ t('logs.all_lines') }}</option>
-      </select>
-      <button class="btn-outline btn-sm" @click="loadContent()">{{ t('common.refresh') }}</button>
+      </SSelect>
+      <SButton type="outline" size="sm" @click="loadContent()">{{ t('common.refresh') }}</SButton>
       <label class="auto-refresh-toggle">
         <input type="checkbox" v-model="autoRefresh" />
         <span>{{ t('logs.auto_refresh') }}</span>
       </label>
-      <select v-if="autoRefresh" v-model.number="refreshInterval" style="font-size:12px;padding:3px 8px;border:1px solid #e8e6e3;border-radius:4px">
+      <SSelect v-if="autoRefresh" v-model.number="refreshInterval" size="sm">
         <option v-for="sec in intervalOptions" :key="sec" :value="sec">{{ t('logs.every_n_seconds', { n: sec }) }}</option>
-      </select>
-    </div>
+      </SSelect>
+    </SPageToolbar>
     <div ref="logRef" class="log-viewer">
-      <div v-if="loading" style="padding:20px;color:#9b9b9b;text-align:center">{{ t('common.loading') }}</div>
-      <div v-else-if="!lines.length" style="padding:20px;color:#9b9b9b;text-align:center">{{ t('logs.empty') }}</div>
+      <div v-if="loading" class="log-empty">{{ t('common.loading') }}</div>
+      <div v-else-if="!lines.length" class="log-empty">{{ t('logs.empty') }}</div>
       <template v-else>
         <div v-for="(line, i) in lines" :key="i" class="log-line" :class="lineClass(line)">{{ line }}</div>
       </template>
@@ -145,9 +143,9 @@ onUnmounted(() => stopAutoRefresh())
   flex: 1;
   overflow-y: auto;
   background: #1c1c1c;
-  padding: 12px 16px;
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: 12px;
+  padding: var(--sui-sp-5) var(--sui-sp-7);
+  font-family: var(--sui-font-mono);
+  font-size: var(--sui-fs-sm);
   line-height: 1.6;
 }
 .log-line {
@@ -155,12 +153,19 @@ onUnmounted(() => stopAutoRefresh())
   white-space: pre-wrap;
   word-break: break-all;
 }
+.log-empty {
+  padding: var(--sui-sp-8);
+  color: var(--sui-fg-disabled);
+  text-align: center;
+}
+.logs-file-select :deep(select) { font-family: var(--sui-font-mono); }
+.logs-keyword { width: 180px; }
 .auto-refresh-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: #666;
+  gap: var(--sui-sp-1);
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg-muted);
   cursor: pointer;
   user-select: none;
 }
@@ -170,14 +175,6 @@ onUnmounted(() => stopAutoRefresh())
 .log-debug { color: #9ca3af; }
 
 @media (max-width: 768px) {
-  :deep(.page-toolbar) {
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-  :deep(.page-toolbar) select,
-  :deep(.page-toolbar) input {
-    min-width: 0;
-    flex: 1 1 calc(50% - 4px);
-  }
+  .logs-keyword { flex: 1 1 calc(50% - 4px); width: auto; }
 }
 </style>

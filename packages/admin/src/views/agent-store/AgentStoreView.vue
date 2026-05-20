@@ -1,16 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useResponsive } from '../../composables/useResponsive'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
-import { useToast } from '@/composables/useToast'
+import { useToast, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent } from 'sbot-ui'
 
 const { t } = useI18n()
 const { show } = useToast()
-const { isMobile } = useResponsive()
 
-// ── Types ──
 interface AgentPackageVersion {
   version: string
   agent: { type: string; model?: string; systemPrompt?: string; skills?: string[]; agents?: { id: string }[]; mcp?: string[]; [k: string]: any }
@@ -39,14 +36,12 @@ interface AgentSourceEntry {
   name?: string
 }
 
-// ── State ──
 const agents = ref<BrowsedAgent[]>([])
 const sources = ref<AgentSourceEntry[]>([])
 const loading = ref(false)
 const searchQuery = ref('')
 const selectedSource = ref('__all__')
 
-// ── Computed ──
 const filteredAgents = computed(() => {
   let list = agents.value
   if (selectedSource.value !== '__all__') {
@@ -77,7 +72,6 @@ function isInstalled(pkgId: string): boolean {
   return pkgId in (store.settings.agents ?? {})
 }
 
-// ── Data loading ──
 async function loadSources() {
   try {
     const res = await apiFetch('/api/agent-store/list')
@@ -118,7 +112,7 @@ async function loadAgents() {
     } else {
       agents.value = results
     }
-  } catch (e: any) {
+  } catch {
     show(t('agentStore.fetch_error'), 'error')
   } finally {
     loading.value = false
@@ -130,7 +124,6 @@ async function reload() {
   await loadAgents()
 }
 
-// ── Source management modal ──
 const showSourceModal = ref(false)
 const sourceUrl = ref('')
 const sourceName = ref('')
@@ -172,7 +165,6 @@ async function removeSource(index: number) {
   }
 }
 
-// ── Install ──
 const showInstallModal = ref(false)
 const installTarget = ref<BrowsedAgent | null>(null)
 const installOverwrite = ref(false)
@@ -243,7 +235,6 @@ async function confirmInstall() {
   }
 }
 
-// ── Load from file (temporary source) ──
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const tempSourceName = ref('')
 const tempSourceAgents = ref<BrowsedAgent[]>([])
@@ -260,7 +251,6 @@ function onFileSelected(ev: Event) {
   reader.onload = () => {
     try {
       const data = JSON.parse(reader.result as string)
-      // Accept source format: { name?, agents: [...] }
       const sourceAgents: AgentPackage[] = Array.isArray(data.agents) ? data.agents : []
       if (!sourceAgents.length) {
         show(t('agentStore.no_agents'), 'error')
@@ -275,7 +265,6 @@ function onFileSelected(ev: Event) {
         installed: isInstalled(pkg.id),
         pkg,
       }))
-      // Merge into agents list
       agents.value = [...agents.value.filter(a => !a.sourceUrl.startsWith('__file__:')), ...tempSourceAgents.value]
       selectedSource.value = sourceUrl
     } catch {
@@ -293,16 +282,14 @@ function closeTempSource() {
   selectedSource.value = '__all__'
 }
 
-// ── Init ──
 onMounted(reload)
 </script>
 
 <template>
   <div style="display:flex;flex-direction:column;height:100%;overflow:hidden">
-    <!-- Toolbar -->
-    <div class="page-toolbar">
-      <button class="btn-outline btn-sm" @click="openAddSource">{{ t('agentStore.add_source') }}</button>
-      <button class="btn-primary btn-sm" @click="triggerFileLoad">{{ t('agentStore.import_file') }}</button>
+    <SPageToolbar>
+      <SButton type="outline" size="sm" @click="openAddSource">{{ t('agentStore.add_source') }}</SButton>
+      <SButton type="primary" size="sm" @click="triggerFileLoad">{{ t('agentStore.import_file') }}</SButton>
       <input
         ref="fileInputRef"
         type="file"
@@ -310,118 +297,79 @@ onMounted(reload)
         style="display:none"
         @change="onFileSelected"
       />
-    </div>
+    </SPageToolbar>
 
     <!-- Source tabs + Search -->
-    <div style="display:flex;align-items:center;padding:0 20px;border-bottom:1px solid #e8e6e3;background:#fff;gap:0;flex-shrink:0;flex-wrap:wrap">
+    <div class="src-tab-bar">
       <button
+        class="src-tab"
+        :class="{ active: selectedSource === '__all__' }"
         @click="selectedSource = '__all__'"
-        style="padding:10px 14px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s"
-        :style="selectedSource === '__all__' ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
       >
         {{ t('agentStore.source_all') }}
-        <span style="margin-left:4px;font-size:11px;padding:0 5px;border-radius:10px;font-weight:600"
-          :style="selectedSource === '__all__' ? 'background:#1c1c1c;color:#fff' : 'background:#f0efed;color:#6b6b6b'"
-        >{{ agents.length }}</span>
+        <span class="src-tab-count" :class="{ active: selectedSource === '__all__' }">{{ agents.length }}</span>
       </button>
       <button
         v-for="(src, idx) in sources"
         :key="src.url"
+        class="src-tab"
+        :class="{ active: selectedSource === src.url }"
         @click="selectedSource = src.url"
-        style="padding:10px 14px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s;display:flex;align-items:center;gap:4px"
-        :style="selectedSource === src.url ? 'color:#1c1c1c;border-bottom-color:#1c1c1c' : 'color:#9b9b9b'"
       >
         {{ src.name || src.url }}
-        <span style="margin-left:4px;font-size:11px;padding:0 5px;border-radius:10px;font-weight:600"
-          :style="selectedSource === src.url ? 'background:#1c1c1c;color:#fff' : 'background:#f0efed;color:#6b6b6b'"
-        >{{ agents.filter(a => a.sourceUrl === src.url).length }}</span>
-        <span
-          @click.stop="removeSource(idx)"
-          style="margin-left:2px;font-size:14px;color:#9b9b9b;cursor:pointer;line-height:1"
-          title="Remove source"
-        >&times;</span>
+        <span class="src-tab-count" :class="{ active: selectedSource === src.url }">{{ agents.filter(a => a.sourceUrl === src.url).length }}</span>
+        <span class="src-tab-close" @click.stop="removeSource(idx)" title="Remove source">&times;</span>
       </button>
-      <!-- Temp file source tab -->
       <button
         v-if="tempSourceName"
+        class="src-tab src-tab-temp"
+        :class="{ active: selectedSource === '__file__:' + tempSourceName }"
         @click="selectedSource = '__file__:' + tempSourceName"
-        style="padding:10px 14px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s;display:flex;align-items:center;gap:4px"
-        :style="selectedSource === '__file__:' + tempSourceName ? 'color:#e67e22;border-bottom-color:#e67e22' : 'color:#e67e22;opacity:.6'"
       >
         {{ tempSourceName }}
-        <span style="margin-left:4px;font-size:11px;padding:0 5px;border-radius:10px;font-weight:600"
-          :style="selectedSource === '__file__:' + tempSourceName ? 'background:#e67e22;color:#fff' : 'background:#fef3c7;color:#e67e22'"
-        >{{ tempSourceAgents.length }}</span>
-        <span
-          @click.stop="closeTempSource"
-          style="margin-left:2px;font-size:14px;color:#e67e22;cursor:pointer;line-height:1"
-          title="Close"
-        >&times;</span>
+        <span class="src-tab-count src-tab-count-temp" :class="{ active: selectedSource === '__file__:' + tempSourceName }">{{ tempSourceAgents.length }}</span>
+        <span class="src-tab-close src-tab-close-temp" @click.stop="closeTempSource" title="Close">&times;</span>
       </button>
-      <div style="flex:1" />
-      <input
-        v-model="searchQuery"
-        :placeholder="t('agentStore.search_placeholder')"
-        style="width:220px;padding:5px 10px;border:1px solid #e8e6e3;border-radius:6px;font-size:12px;color:#1c1c1c;outline:none;background:#fafaf9"
-        @focus="($event.target as HTMLInputElement).style.borderColor='#1c1c1c'"
-        @blur="($event.target as HTMLInputElement).style.borderColor='#e8e6e3'"
-      />
+      <div class="src-tab-spacer" />
+      <SInput v-model="searchQuery" size="sm" :placeholder="t('agentStore.search_placeholder')" class="src-search-input" />
     </div>
 
-    <!-- Content area -->
-    <div class="page-content">
-      <!-- Loading -->
-      <div v-if="loading" style="text-align:center;color:#94a3b8;padding:60px;font-size:14px">
-        {{ t('agentStore.loading') }}
+    <SPageContent>
+      <div v-if="loading" class="store-loading">{{ t('agentStore.loading') }}</div>
+
+      <div v-else-if="sources.length === 0 && agents.length === 0" class="store-empty-hint">
+        <div class="store-empty-text">{{ t('agentStore.no_sources') }}</div>
+        <div class="store-empty-sub">{{ t('agentStore.add_source_hint') }}</div>
+        <SButton type="primary" size="sm" class="store-empty-action" @click="openAddSource">{{ t('agentStore.add_source') }}</SButton>
       </div>
 
-      <!-- No sources hint -->
-      <div v-else-if="sources.length === 0 && agents.length === 0" style="text-align:center;padding:60px;color:#94a3b8">
-        <div style="font-size:14px;margin-bottom:8px">{{ t('agentStore.no_sources') }}</div>
-        <div style="font-size:13px">{{ t('agentStore.add_source_hint') }}</div>
-        <button class="btn-primary btn-sm" style="margin-top:16px" @click="openAddSource">{{ t('agentStore.add_source') }}</button>
-      </div>
-
-      <!-- No agents -->
-      <div v-else-if="filteredAgents.length === 0" style="text-align:center;padding:60px;color:#94a3b8;font-size:14px">
+      <div v-else-if="filteredAgents.length === 0" class="store-loading">
         {{ t('agentStore.no_agents') }}
       </div>
 
-      <!-- Agent grid -->
       <div v-else class="store-grid">
         <div v-for="a in filteredAgents" :key="a.sourceUrl + ':' + a.pkg.id" class="store-card">
-          <!-- Header -->
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px">
-            <div style="flex:1;min-width:0">
-              <div style="font-size:14px;font-weight:600;color:#1c1c1c;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ a.pkg.name }}</div>
-              <div style="font-family:monospace;font-size:11px;color:#9b9b9b;margin-top:2px">{{ a.pkg.id }}</div>
+          <div class="store-card-head">
+            <div class="store-card-head-text">
+              <div class="store-card-name">{{ a.pkg.name }}</div>
+              <div class="store-card-id">{{ a.pkg.id }}</div>
             </div>
             <span :class="'agent-type-badge agent-type-' + a.pkg.versions[0]?.agent.type">{{ a.pkg.versions[0]?.agent.type }}</span>
           </div>
 
-          <!-- Version & Author -->
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px;color:#6b6b6b">
+          <div class="store-card-meta">
             <span>v{{ a.pkg.versions[0]?.version }}</span>
-            <span v-if="a.pkg.versions.length > 1" style="color:#9b9b9b">({{ a.pkg.versions.length }} versions)</span>
-            <span v-if="a.pkg.author" style="color:#9b9b9b">@{{ a.pkg.author }}</span>
+            <span v-if="a.pkg.versions.length > 1" class="store-card-meta-sub">({{ a.pkg.versions.length }} versions)</span>
+            <span v-if="a.pkg.author" class="store-card-meta-sub">@{{ a.pkg.author }}</span>
           </div>
 
-          <!-- Description -->
-          <div style="font-size:13px;color:#475569;line-height:1.5;margin-bottom:10px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;min-height:39px">
-            {{ a.pkg.description || '-' }}
+          <div class="store-card-desc">{{ a.pkg.description || '-' }}</div>
+
+          <div v-if="a.pkg.tags?.length" class="store-card-tags">
+            <span v-for="tag in a.pkg.tags" :key="tag" class="store-card-tag">{{ tag }}</span>
           </div>
 
-          <!-- Tags -->
-          <div v-if="a.pkg.tags?.length" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px">
-            <span
-              v-for="tag in a.pkg.tags"
-              :key="tag"
-              style="font-size:10px;padding:1px 6px;border-radius:8px;background:#f0efed;color:#6b6b6b;font-weight:500"
-            >{{ tag }}</span>
-          </div>
-
-          <!-- Requires -->
-          <div style="font-size:12px;color:#9b9b9b;margin-bottom:12px">
+          <div class="store-card-requires">
             <template v-if="a.pkg.versions[0] && depsTotal(a.pkg.versions[0].agent) > 0">
               {{ t('agentStore.requires') }}: {{ depsSummary(a.pkg.versions[0].agent) }}
             </template>
@@ -430,177 +378,221 @@ onMounted(reload)
             </template>
           </div>
 
-          <!-- Action button -->
-          <div style="display:flex;gap:6px">
-            <template v-if="a.installed">
-              <span class="store-installed-badge">{{ t('agentStore.installed') }}</span>
-            </template>
-            <template v-else>
-              <button class="btn-primary btn-sm" @click="openInstall(a)">{{ t('agentStore.install') }}</button>
-            </template>
+          <div class="store-card-actions">
+            <SBadge v-if="a.installed" variant="success">{{ t('agentStore.installed') }}</SBadge>
+            <SButton v-else type="primary" size="sm" @click="openInstall(a)">{{ t('agentStore.install') }}</SButton>
           </div>
         </div>
       </div>
-    </div>
+    </SPageContent>
 
-    <!-- ── Add Source Modal ── -->
-    <div v-if="showSourceModal" class="modal-overlay" @click.self="showSourceModal = false">
-      <div class="modal-box">
-        <div class="modal-header">
-          <h3>{{ t('agentStore.add_source') }}</h3>
-          <button class="modal-close" @click="showSourceModal = false">&times;</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label>{{ t('agentStore.source_url') }}</label>
-            <input
-              v-model="sourceUrl"
-              placeholder="https://example.com/agents.json"
-              @keydown.enter="addSource"
-            />
+    <!-- Add Source Modal -->
+    <SModal v-model:visible="showSourceModal" :title="t('agentStore.add_source')" width="md">
+      <SFormItem :label="t('agentStore.source_url')">
+        <SInput v-model="sourceUrl" placeholder="https://example.com/agents.json" @keydown.enter="addSource" />
+      </SFormItem>
+      <SFormItem :label="t('agentStore.source_name')">
+        <SInput v-model="sourceName" :placeholder="t('agentStore.source_name')" @keydown.enter="addSource" />
+      </SFormItem>
+      <div v-if="sources.length > 0" class="src-list-wrap">
+        <div class="src-list-label">{{ t('agentStore.source_all') }}</div>
+        <div v-for="(src, idx) in sources" :key="src.url" class="src-list-item">
+          <div class="src-list-item-text">
+            <div class="src-list-item-name">{{ src.name || src.url }}</div>
+            <div v-if="src.name" class="src-list-item-url">{{ src.url }}</div>
           </div>
-          <div class="form-group">
-            <label>{{ t('agentStore.source_name') }}</label>
-            <input
-              v-model="sourceName"
-              :placeholder="t('agentStore.source_name')"
-              @keydown.enter="addSource"
-            />
-          </div>
-          <!-- Existing sources list -->
-          <div v-if="sources.length > 0" style="margin-top:16px;border-top:1px solid #e8e6e3;padding-top:12px">
-            <div style="font-size:12px;font-weight:600;color:#6b6b6b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">
-              {{ t('agentStore.source_all') }}
-            </div>
-            <div v-for="(src, idx) in sources" :key="src.url" style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f0efed">
-              <div style="flex:1;min-width:0">
-                <div style="font-size:13px;font-weight:500;color:#1c1c1c;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ src.name || src.url }}</div>
-                <div v-if="src.name" style="font-size:11px;color:#9b9b9b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ src.url }}</div>
-              </div>
-              <button class="btn-danger btn-sm" @click="removeSource(idx)">{{ t('common.delete') }}</button>
-            </div>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-outline" @click="showSourceModal = false">{{ t('common.cancel') }}</button>
-          <button class="btn-primary" :disabled="sourceAdding || !sourceUrl.trim()" @click="addSource">
-            {{ sourceAdding ? t('agentStore.loading') : t('agentStore.add_source') }}
-          </button>
+          <SButton type="danger" size="sm" @click="removeSource(idx)">{{ t('common.delete') }}</SButton>
         </div>
       </div>
-    </div>
+      <template #footer>
+        <SButton type="outline" @click="showSourceModal = false">{{ t('common.cancel') }}</SButton>
+        <SButton type="primary" :disabled="sourceAdding || !sourceUrl.trim()" @click="addSource">
+          {{ sourceAdding ? t('agentStore.loading') : t('agentStore.add_source') }}
+        </SButton>
+      </template>
+    </SModal>
 
-    <!-- ── Install Confirm Modal ── -->
-    <div v-if="showInstallModal && installTarget" class="modal-overlay" @click.self="showInstallModal = false">
-      <div class="modal-box">
-        <div class="modal-header">
-          <h3>{{ t('agentStore.install') }}</h3>
-          <button class="modal-close" @click="showInstallModal = false">&times;</button>
+    <!-- Install Confirm Modal -->
+    <SModal v-if="installTarget" v-model:visible="showInstallModal" :title="t('agentStore.install')" width="md">
+      <div class="install-head">
+        <div class="install-head-row">
+          <span class="install-pkg-name">{{ installTarget.pkg.name }}</span>
+          <span v-if="installTarget.pkg.versions[selectedVersionIndex]" :class="'agent-type-badge agent-type-' + installTarget.pkg.versions[selectedVersionIndex].agent.type">{{ installTarget.pkg.versions[selectedVersionIndex].agent.type }}</span>
         </div>
-        <div class="modal-body">
-          <div style="margin-bottom:12px">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-              <span style="font-family:monospace;font-size:15px;font-weight:600;color:#1e293b">{{ installTarget.pkg.name }}</span>
-              <span v-if="installTarget.pkg.versions[selectedVersionIndex]" :class="'agent-type-badge agent-type-' + installTarget.pkg.versions[selectedVersionIndex].agent.type">{{ installTarget.pkg.versions[selectedVersionIndex].agent.type }}</span>
-            </div>
-            <div style="font-size:12px;color:#9b9b9b;font-family:monospace">{{ installTarget.pkg.id }} v{{ installTarget.pkg.versions[selectedVersionIndex]?.version }}</div>
-          </div>
-          <!-- Version selector (multi-version) -->
-          <div v-if="installTarget.pkg.versions.length > 1" class="form-group" style="margin-bottom:12px">
-            <label style="font-size:12px;font-weight:600;color:#6b6b6b;margin-bottom:4px;display:block">{{ t('agentStore.select_version') }}</label>
-            <select v-model="selectedVersionIndex" style="width:100%;padding:6px 10px;border:1px solid #e8e6e3;border-radius:6px;font-size:13px;color:#1c1c1c;background:#fafaf9">
-              <option v-for="(ver, idx) in installTarget.pkg.versions" :key="idx" :value="idx">
-                v{{ ver.version }}{{ idx === 0 ? ' (latest)' : '' }}
-              </option>
-            </select>
-          </div>
-          <div v-if="installTarget.pkg.description" style="font-size:13px;color:#475569;margin-bottom:12px;line-height:1.5">{{ installTarget.pkg.description }}</div>
-          <div v-if="installTarget.pkg.versions[selectedVersionIndex] && depsTotal(installTarget.pkg.versions[selectedVersionIndex].agent) > 0" style="padding:10px 12px;background:#f1f5f9;border-radius:6px;font-size:13px;color:#475569;margin-bottom:12px">
-            {{ t('agentStore.requires') }}: {{ depsSummary(installTarget.pkg.versions[selectedVersionIndex].agent) }}
-          </div>
-          <div v-if="installTarget.installed" style="padding:10px 12px;background:#fef3c7;border-radius:6px;font-size:13px;color:#92400e;margin-bottom:12px">
-            {{ t('agentStore.confirm_overwrite', { id: installTarget.pkg.id }) }}
-          </div>
-          <label v-if="installTarget.installed" style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
-            <input type="checkbox" v-model="installOverwrite" />
-            {{ t('agentStore.confirm_overwrite', { id: installTarget.pkg.id }) }}
-          </label>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-outline" @click="showInstallModal = false">{{ t('common.cancel') }}</button>
-          <button
-            class="btn-primary"
-            :disabled="installing || (installTarget.installed && !installOverwrite)"
-            @click="confirmInstall"
-          >
-            {{ installing ? t('agentStore.loading') : t('agentStore.install') }}
-          </button>
-        </div>
+        <div class="install-pkg-id">{{ installTarget.pkg.id }} v{{ installTarget.pkg.versions[selectedVersionIndex]?.version }}</div>
       </div>
-    </div>
-
+      <SFormItem v-if="installTarget.pkg.versions.length > 1" :label="t('agentStore.select_version')">
+        <SSelect v-model.number="selectedVersionIndex">
+          <option v-for="(ver, idx) in installTarget.pkg.versions" :key="idx" :value="idx">
+            v{{ ver.version }}{{ idx === 0 ? ' (latest)' : '' }}
+          </option>
+        </SSelect>
+      </SFormItem>
+      <div v-if="installTarget.pkg.description" class="install-desc">{{ installTarget.pkg.description }}</div>
+      <div v-if="installTarget.pkg.versions[selectedVersionIndex] && depsTotal(installTarget.pkg.versions[selectedVersionIndex].agent) > 0" class="install-info-panel">
+        {{ t('agentStore.requires') }}: {{ depsSummary(installTarget.pkg.versions[selectedVersionIndex].agent) }}
+      </div>
+      <div v-if="installTarget.installed" class="install-warn-panel">
+        {{ t('agentStore.confirm_overwrite', { id: installTarget.pkg.id }) }}
+      </div>
+      <label v-if="installTarget.installed" class="install-overwrite-label">
+        <input type="checkbox" v-model="installOverwrite" />
+        {{ t('agentStore.confirm_overwrite', { id: installTarget.pkg.id }) }}
+      </label>
+      <template #footer>
+        <SButton type="outline" @click="showInstallModal = false">{{ t('common.cancel') }}</SButton>
+        <SButton
+          type="primary"
+          :disabled="installing || (installTarget.installed && !installOverwrite)"
+          @click="confirmInstall"
+        >
+          {{ installing ? t('agentStore.loading') : t('agentStore.install') }}
+        </SButton>
+      </template>
+    </SModal>
   </div>
 </template>
 
 <style scoped>
+.store-loading {
+  text-align: center;
+  color: var(--sui-fg-disabled);
+  padding: 60px;
+  font-size: var(--sui-fs-lg);
+}
+.store-empty-hint {
+  text-align: center;
+  padding: 60px;
+  color: var(--sui-fg-disabled);
+}
+.store-empty-text { font-size: var(--sui-fs-lg); margin-bottom: var(--sui-sp-3); }
+.store-empty-sub { font-size: var(--sui-fs-md); }
+.store-empty-action { margin-top: var(--sui-sp-5); }
+
 .store-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
+  gap: var(--sui-sp-5);
 }
-
 .store-card {
   position: relative;
-  border: 1px solid #e8e6e3;
-  border-radius: 8px;
-  padding: 16px 20px;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--sui-border);
+  border-radius: var(--sui-radius-lg);
+  padding: var(--sui-sp-5) var(--sui-sp-6);
+  background: var(--sui-bg);
+  box-shadow: var(--sui-shadow-sm);
   transition: box-shadow 0.15s, border-color 0.15s;
 }
 .store-card:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  border-color: #d6d4d0;
-}
-
-.store-installed-badge {
-  display: inline-flex;
-  align-items: center;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 3px 10px;
-  border-radius: 4px;
-  background: #dcfce7;
-  color: #166534;
+  box-shadow: var(--sui-shadow-md);
+  border-color: var(--sui-border-strong);
 }
 
 .agent-type-badge {
   display: inline-block;
-  font-family: monospace;
-  font-size: 11px;
+  font-family: var(--sui-font-mono);
+  font-size: var(--sui-fs-xs);
   font-weight: 600;
   padding: 1px 8px;
-  border-radius: 4px;
+  border-radius: var(--sui-radius-sm);
   flex-shrink: 0;
 }
-.agent-type-react {
-  background: #ede9fe;
-  color: #6d28d9;
-}
-.agent-type-single {
-  background: #f0f4f8;
-  color: #64748b;
-}
+.agent-type-react { background: #ede9fe; color: #6d28d9; }
+.agent-type-single { background: var(--sui-bg-soft); color: var(--sui-fg-muted); }
 
 @media (max-width: 1024px) {
-  .store-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
+  .store-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 768px) {
+  .store-grid { grid-template-columns: 1fr; }
 }
 
-@media (max-width: 768px) {
-  .store-grid {
-    grid-template-columns: 1fr;
-  }
+/* Source tabs */
+.src-tab-bar {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--sui-sp-6);
+  border-bottom: 1px solid var(--sui-border);
+  background: var(--sui-bg);
+  flex-shrink: 0;
+  flex-wrap: wrap;
 }
+.src-tab-spacer { flex: 1; }
+.src-tab {
+  padding: 10px 14px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: var(--sui-fs-md);
+  font-weight: 500;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--sui-fg-disabled);
+  transition: color .15s;
+  font-family: inherit;
+}
+.src-tab.active { color: var(--sui-fg); border-bottom-color: var(--sui-fg); }
+.src-tab-count {
+  margin-left: 4px;
+  font-size: var(--sui-fs-xs);
+  padding: 0 5px;
+  border-radius: 10px;
+  font-weight: 600;
+  background: var(--sui-bg-soft);
+  color: var(--sui-fg-muted);
+}
+.src-tab-count.active { background: var(--sui-fg); color: var(--sui-bg); }
+.src-tab-close {
+  margin-left: 2px;
+  font-size: 14px;
+  color: var(--sui-fg-disabled);
+  cursor: pointer;
+  line-height: 1;
+}
+.src-tab-temp { color: var(--sui-warning); opacity: .6; }
+.src-tab-temp.active { color: var(--sui-warning); opacity: 1; border-bottom-color: var(--sui-warning); }
+.src-tab-count-temp { background: #fef3c7; color: #b45309; }
+.src-tab-count-temp.active { background: var(--sui-warning); color: #fff; }
+.src-tab-close-temp { color: var(--sui-warning); }
+.src-search-input { width: 220px; }
+
+/* Card body */
+.store-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sui-sp-3); margin-bottom: var(--sui-sp-3); }
+.store-card-head-text { flex: 1; min-width: 0; }
+.store-card-name { font-size: var(--sui-fs-lg); font-weight: 600; color: var(--sui-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.store-card-id { font-family: var(--sui-font-mono); font-size: var(--sui-fs-xs); color: var(--sui-fg-disabled); margin-top: 2px; }
+.store-card-meta { display: flex; align-items: center; gap: var(--sui-sp-3); margin-bottom: var(--sui-sp-3); font-size: var(--sui-fs-sm); color: var(--sui-fg-muted); }
+.store-card-meta-sub { color: var(--sui-fg-disabled); }
+.store-card-desc { font-size: var(--sui-fs-md); color: var(--sui-fg-secondary); line-height: 1.5; margin-bottom: 10px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; min-height: 39px; }
+.store-card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+.store-card-tag { font-size: var(--sui-fs-xs); padding: 1px 6px; border-radius: 8px; background: var(--sui-bg-soft); color: var(--sui-fg-muted); font-weight: 500; }
+.store-card-requires { font-size: var(--sui-fs-sm); color: var(--sui-fg-disabled); margin-bottom: var(--sui-sp-4); }
+.store-card-actions { display: flex; gap: var(--sui-sp-2); }
+
+/* Source list (in modal) */
+.src-list-wrap { margin-top: var(--sui-sp-5); border-top: 1px solid var(--sui-border); padding-top: var(--sui-sp-4); }
+.src-list-label { font-size: var(--sui-fs-sm); font-weight: 600; color: var(--sui-fg-muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: var(--sui-sp-3); }
+.src-list-item { display: flex; align-items: center; gap: var(--sui-sp-3); padding: var(--sui-sp-2) 0; border-bottom: 1px solid var(--sui-border); }
+.src-list-item-text { flex: 1; min-width: 0; }
+.src-list-item-name { font-size: var(--sui-fs-md); font-weight: 500; color: var(--sui-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.src-list-item-url { font-size: var(--sui-fs-xs); color: var(--sui-fg-disabled); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Install modal */
+.install-head { margin-bottom: var(--sui-sp-4); }
+.install-head-row { display: flex; align-items: center; gap: var(--sui-sp-3); margin-bottom: 4px; }
+.install-pkg-name { font-family: var(--sui-font-mono); font-size: var(--sui-fs-xl); font-weight: 600; color: var(--sui-fg); }
+.install-pkg-id { font-size: var(--sui-fs-sm); color: var(--sui-fg-disabled); font-family: var(--sui-font-mono); }
+.install-desc { font-size: var(--sui-fs-md); color: var(--sui-fg-secondary); margin-bottom: var(--sui-sp-4); line-height: 1.5; }
+.install-info-panel { padding: 10px 12px; background: var(--sui-bg-subtle); border-radius: var(--sui-radius-md); font-size: var(--sui-fs-md); color: var(--sui-fg-secondary); margin-bottom: var(--sui-sp-4); }
+.install-warn-panel { padding: 10px 12px; background: #fef3c7; border-radius: var(--sui-radius-md); font-size: var(--sui-fs-md); color: #92400e; margin-bottom: var(--sui-sp-4); }
+.install-overwrite-label { display: flex; align-items: center; gap: var(--sui-sp-3); font-size: var(--sui-fs-md); cursor: pointer; }
+
+/* Dark theme */
+html[data-theme="dark"] .agent-type-react { background: #3b2d5c; color: #c4b5fd; }
+html[data-theme="dark"] .src-tab-count-temp { background: #422006; color: #fdba74; }
+html[data-theme="dark"] .install-warn-panel { background: #422006; color: #fcd34d; }
 </style>

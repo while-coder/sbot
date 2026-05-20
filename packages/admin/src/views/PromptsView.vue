@@ -2,7 +2,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
-import { useToast } from '@/composables/useToast'
+import { useToast } from 'sbot-ui'
+import { SButton, SIconButton, SBadge, SChip, STree, STreeNode } from 'sbot-ui'
 
 const { t } = useI18n()
 const { show } = useToast()
@@ -251,65 +252,74 @@ onMounted(async () => {
 <template>
   <div class="prompts-layout">
     <!-- Left: file tree -->
-    <div class="prompts-tree">
-      <div class="prompts-tree-header">{{ t('prompts.header') }}</div>
+    <STree :header="t('prompts.header')" class="prompts-tree">
       <template v-for="cat in categories" :key="cat.key">
-        <div class="tree-category" @click="toggleCat(cat.key)">
-          <span class="tree-icon">{{ collapsedCats.has(cat.key) ? '▶' : '▼' }}</span>
-          <span class="tree-cat-label">{{ cat.label }}</span>
-          <span v-if="cat.node.isOverride" class="tree-custom-dot" :title="t('prompts.contains_custom')"></span>
-          <button v-if="cat.key === 'heartbeat' || cat.key === 'intent'" class="tree-add-btn" @click.stop="startCreate(cat.key)" :title="t('prompts.create_file')">+</button>
-        </div>
+        <STreeNode
+          type="category"
+          :expandable="true"
+          :expanded="!collapsedCats.has(cat.key)"
+          @click="toggleCat(cat.key)"
+        >
+          {{ cat.label }}
+          <template #suffix>
+            <span v-if="cat.node.isOverride" class="prompts-dot" :title="t('prompts.contains_custom')" />
+          </template>
+          <template v-if="cat.key === 'heartbeat' || cat.key === 'intent'" #actions>
+            <SIconButton size="xs" variant="outline" :title="t('prompts.create_file')" @click.stop="startCreate(cat.key)">+</SIconButton>
+          </template>
+        </STreeNode>
         <template v-if="!collapsedCats.has(cat.key)">
-          <div v-if="creatingInCat === cat.key" class="tree-item tree-file" style="padding-left:14px;gap:3px">
+          <div v-if="creatingInCat === cat.key" class="prompts-new-row">
             <input
               v-model="newFileName"
-              class="tree-new-input"
+              class="prompts-new-input"
               :placeholder="t('prompts.create_file')"
               @keyup.enter="confirmCreate(cat.key)"
               @keyup.escape="cancelCreate"
             />
-            <button class="tree-inline-btn" @click="confirmCreate(cat.key)">&#10003;</button>
-            <button class="tree-inline-btn" @click="cancelCreate">&#10005;</button>
+            <SIconButton size="xs" @click="confirmCreate(cat.key)">&#10003;</SIconButton>
+            <SIconButton size="xs" @click="cancelCreate">&#10005;</SIconButton>
           </div>
-          <div
+          <STreeNode
             v-for="{ node, depth } in flattenChildren(cat.node)"
             :key="node.path"
-            class="tree-item"
-            :class="{
-              'tree-dir': node.type === 'dir',
-              'tree-file': node.type === 'file',
-              'tree-selected': selectedPath === node.path,
-            }"
-            :style="{ paddingLeft: `${14 + depth * 14}px` }"
+            :type="node.type === 'dir' ? 'dir' : 'file'"
+            :level="depth + 1"
+            :selected="selectedPath === node.path"
             @click="node.type === 'dir' ? toggleDir(node.path) : selectFile(node.path)"
           >
-            <span class="tree-icon">{{ node.type === 'dir' ? (collapsed.has(node.path) ? '▶' : '▼') : '·' }}</span>
-            <span class="tree-name">{{ node.name }}</span>
-            <span v-if="node.isOverride && !node.isUserOnly" class="tree-custom-dot" :title="node.type === 'dir' ? t('prompts.contains_custom') : t('prompts.custom_title')"></span>
-            <span v-if="node.isUserOnly" class="tree-user-badge" :title="t('prompts.user_only')">&#9679;</span>
-            <button v-if="node.isUserOnly && node.type === 'file'" class="tree-delete-btn" @click.stop="deleteFile(node.path)" :title="t('common.delete')">&times;</button>
-          </div>
+            <template #icon>
+              <span>{{ node.type === 'dir' ? (collapsed.has(node.path) ? '▶' : '▼') : '·' }}</span>
+            </template>
+            {{ node.name }}
+            <template #suffix>
+              <span v-if="node.isOverride && !node.isUserOnly" class="prompts-dot" :title="node.type === 'dir' ? t('prompts.contains_custom') : t('prompts.custom_title')" />
+              <span v-if="node.isUserOnly" class="prompts-user-badge" :title="t('prompts.user_only')">&#9679;</span>
+            </template>
+            <template v-if="node.isUserOnly && node.type === 'file'" #actions>
+              <SIconButton size="xs" variant="plain" danger class="s-tree-node__hover-only" :title="t('common.delete')" @click.stop="deleteFile(node.path)">&times;</SIconButton>
+            </template>
+          </STreeNode>
         </template>
       </template>
-    </div>
+    </STree>
 
     <!-- Right: editor -->
     <div class="prompts-editor">
       <template v-if="selectedPath">
         <div class="prompts-editor-toolbar">
           <span class="prompts-file-path">{{ selectedPath }}</span>
-          <span v-if="isOverride" class="prompts-badge-custom">{{ t('prompts.badge_custom') }}</span>
-          <span v-else class="prompts-badge-default">{{ t('prompts.badge_default') }}</span>
+          <SBadge v-if="isOverride" variant="info" pill>{{ t('prompts.badge_custom') }}</SBadge>
+          <SBadge v-else variant="neutral" pill>{{ t('prompts.badge_default') }}</SBadge>
           <span style="flex:1" />
-          <button class="btn-outline btn-sm" :disabled="!isOverride || isUserOnly" @click="reset">{{ t('prompts.reset') }}</button>
-          <button class="btn-primary btn-sm" :disabled="saving || !isDirty" @click="save">
+          <SButton type="outline" size="sm" :disabled="!isOverride || isUserOnly" @click="reset">{{ t('prompts.reset') }}</SButton>
+          <SButton type="primary" size="sm" :disabled="saving || !isDirty" :loading="saving" @click="save">
             {{ saving ? t('prompts.saving') : t('prompts.save') }}
-          </button>
+          </SButton>
         </div>
         <div v-if="vars.length" class="prompts-vars-bar">
           <span class="prompts-vars-label">{{ t('prompts.vars_label') }}</span>
-          <span v-for="v in vars" :key="v.name" class="prompts-var-chip" :title="v.description">{{ '{' + v.name + '}' }}</span>
+          <SChip v-for="v in vars" :key="v.name" variant="warning" :title="v.description">{{ '{' + v.name + '}' }}</SChip>
         </div>
         <div v-if="loading" class="prompts-loading">{{ t('prompts.loading') }}</div>
         <div v-else class="prompts-editor-body">
@@ -334,122 +344,42 @@ onMounted(async () => {
   height: 100%;
   overflow: hidden;
 }
-
-/* Tree */
 .prompts-tree {
   width: 210px;
   flex-shrink: 0;
-  border-right: 1px solid #e8e6e3;
-  overflow-y: auto;
-  background: #fafaf9;
 }
-.prompts-tree-header {
-  padding: 10px 12px 6px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #6b6b6b;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  border-bottom: 1px solid #e8e6e3;
-}
-.tree-category {
+
+.prompts-new-row {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 7px 10px 5px;
-  font-size: 12px;
-  font-weight: 700;
-  color: #4a4a4a;
-  cursor: pointer;
-  user-select: none;
-  border-bottom: 1px solid #ece8e4;
-  margin-top: 2px;
+  gap: 3px;
+  padding: 4px 8px 4px 28px;
 }
-.tree-category:first-child { margin-top: 0; }
-.tree-category:hover { background: #f0ece8; }
-.tree-cat-label { flex: 1; }
-.tree-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding-top: 5px;
-  padding-bottom: 5px;
-  padding-right: 8px;
-  font-size: 13px;
-  cursor: pointer;
-  user-select: none;
-  border-radius: 4px;
-  margin: 1px 4px;
+.prompts-new-input {
+  flex: 1;
+  font-size: var(--sui-fs-sm);
+  padding: 2px var(--sui-sp-2);
+  border: 1px solid var(--sui-border-strong);
+  border-radius: var(--sui-radius-xs);
+  outline: none;
+  min-width: 0;
+  background: var(--sui-bg);
+  color: var(--sui-fg);
 }
-.tree-item:hover { background: #ede9e6; }
-.tree-selected { background: #e8e4e0 !important; font-weight: 600; color: #1c1c1c; }
-.tree-dir { color: #3d3d3d; font-weight: 500; }
-.tree-file { color: #555; }
-.tree-icon { font-size: 9px; color: #9b9b9b; width: 12px; flex-shrink: 0; }
-.tree-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-.tree-custom-dot {
+.prompts-new-input:focus { border-color: var(--sui-info); }
+
+.prompts-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #3b82f6;
-  flex-shrink: 0;
-  margin-left: auto;
+  background: var(--sui-info);
+  display: inline-block;
 }
-.tree-user-badge {
+.prompts-user-badge {
   font-size: 6px;
-  color: #16a34a;
-  flex-shrink: 0;
-  margin-left: auto;
+  color: var(--sui-success-fg);
 }
-.tree-add-btn {
-  margin-left: auto;
-  background: none;
-  border: 1px solid #d0ccc8;
-  border-radius: 4px;
-  width: 20px;
-  height: 20px;
-  font-size: 14px;
-  line-height: 1;
-  color: #6b6b6b;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.tree-add-btn:hover { background: #e8e4e0; color: #1c1c1c; }
-.tree-new-input {
-  flex: 1;
-  font-size: 12px;
-  padding: 2px 6px;
-  border: 1px solid #d0ccc8;
-  border-radius: 3px;
-  outline: none;
-  min-width: 0;
-}
-.tree-new-input:focus { border-color: #3b82f6; }
-.tree-inline-btn {
-  background: none;
-  border: none;
-  font-size: 13px;
-  cursor: pointer;
-  color: #6b6b6b;
-  padding: 0 2px;
-}
-.tree-inline-btn:hover { color: #1c1c1c; }
-.tree-delete-btn {
-  background: none;
-  border: none;
-  font-size: 15px;
-  cursor: pointer;
-  color: #9b9b9b;
-  padding: 0 2px;
-  flex-shrink: 0;
-  display: none;
-}
-.tree-item:hover .tree-delete-btn { display: block; }
-.tree-delete-btn:hover { color: #dc2626; }
 
-/* Editor */
 .prompts-editor {
   flex: 1;
   display: flex;
@@ -459,65 +389,41 @@ onMounted(async () => {
 .prompts-editor-toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  border-bottom: 1px solid #e8e6e3;
+  gap: var(--sui-sp-3);
+  padding: var(--sui-sp-3) var(--sui-sp-6);
+  border-bottom: 1px solid var(--sui-border);
   flex-shrink: 0;
-  background: #fff;
+  background: var(--sui-bg);
 }
 .prompts-file-path {
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 12px;
-  color: #3d3d3d;
-}
-.prompts-badge-custom {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 1px 7px;
-  border-radius: 10px;
-  background: #dbeafe;
-  color: #1d4ed8;
-}
-.prompts-badge-default {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 1px 7px;
-  border-radius: 10px;
-  background: #f3f4f6;
-  color: #6b7280;
+  font-family: var(--sui-font-mono);
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg-secondary);
 }
 .prompts-vars-bar {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 14px;
-  border-bottom: 1px solid #e8e6e3;
+  gap: var(--sui-sp-2);
+  padding: 5px var(--sui-sp-6);
+  border-bottom: 1px solid var(--sui-border);
   flex-shrink: 0;
-  background: #fffbf5;
+  background: var(--sui-warning-bg);
   flex-wrap: wrap;
 }
 .prompts-vars-label {
-  font-size: 11px;
+  font-size: var(--sui-fs-xs);
   font-weight: 600;
-  color: #8b6c2a;
+  color: var(--sui-warning-label);
   margin-right: 2px;
 }
-.prompts-var-chip {
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 11px;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: #fff3e0;
-  color: #c05c00;
-  cursor: default;
-}
-.prompts-loading {
+.prompts-loading,
+.prompts-empty {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #9b9b9b;
-  font-size: 13px;
+  color: var(--sui-fg-disabled);
+  font-size: var(--sui-fs-md);
 }
 .prompts-editor-body {
   position: relative;
@@ -528,9 +434,9 @@ onMounted(async () => {
 .prompts-textarea {
   position: absolute;
   inset: 0;
-  padding: 14px 16px;
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 13px;
+  padding: var(--sui-sp-6) var(--sui-sp-7);
+  font-family: var(--sui-font-mono);
+  font-size: var(--sui-fs-md);
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
@@ -540,8 +446,8 @@ onMounted(async () => {
 .prompts-highlight {
   overflow: hidden;
   pointer-events: none;
-  color: #1c1c1c;
-  background: #fff;
+  color: var(--sui-fg);
+  background: var(--sui-bg);
 }
 .prompts-textarea {
   border: none;
@@ -549,22 +455,14 @@ onMounted(async () => {
   resize: none;
   overflow: auto;
   color: transparent;
-  caret-color: #1c1c1c;
+  caret-color: var(--sui-fg);
   background: transparent;
 }
 :deep(.tpl-var) {
-  color: #c05c00;
-  background: #fff3e0;
+  color: var(--sui-warning-fg);
+  background: var(--sui-warning-chip-bg);
   border-radius: 3px;
   font-style: normal;
-}
-.prompts-empty {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #9b9b9b;
-  font-size: 13px;
 }
 
 @media (max-width: 768px) {
@@ -572,8 +470,6 @@ onMounted(async () => {
   .prompts-tree {
     width: 100%;
     max-height: 200px;
-    border-right: none;
-    border-bottom: 1px solid #e8e6e3;
   }
   .prompts-editor { width: 100%; }
 }
