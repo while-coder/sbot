@@ -55,10 +55,6 @@ function close() {
   thinkStack.value = []
 }
 
-function onNestedThink(thinkId: string) {
-  open(thinkId)
-}
-
 defineExpose({ open })
 </script>
 
@@ -94,7 +90,7 @@ defineExpose({ open })
                 :thinks-url-prefix="thinksUrlPrefix"
                 :labels="labels"
                 :fetch-fn="fetchFn"
-                :on-think-click="onNestedThink"
+                :on-think-click="open"
               />
             </template>
           </div>

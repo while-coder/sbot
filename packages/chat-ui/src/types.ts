@@ -22,6 +22,9 @@ export interface MemoryOption { id: string; name: string }
 
 // ── Message types ──
 
+/** Multimodal message content: a plain string or a list of content parts (text/image_url/…). */
+export type DisplayContent = string | any[]
+
 export enum MessageRole {
   Human = 'human',
   AI    = 'ai',
@@ -36,7 +39,7 @@ export interface ToolCall {
 
 export interface ChatMessage {
   role: MessageRole | string
-  content?: string | any[]
+  content?: DisplayContent
   tool_calls?: ToolCall[]
   tool_call_id?: string
   name?: string
@@ -231,9 +234,6 @@ export interface AskAnswerPayload {
   askId: string
   answers: Record<string, string | string[]>
 }
-
-// ── Queued messages ──
-export type DisplayContent = string | any[]
 
 // ── Directory browser ──
 export interface DirListResult {

@@ -37,10 +37,10 @@ export class WebSocketTransport implements IChatTransport {
 
   connect(): void {
     if (this.ws?.readyState === WebSocket.CONNECTING || this.ws?.readyState === WebSocket.OPEN) return
+    if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null }
     const url = this._baseUrl ? new URL(this._baseUrl) : location
     const proto = url.protocol === 'https:' ? 'wss:' : 'ws:'
-    const host = url.host
-    const ws = new WebSocket(`${proto}//${host}/ws/chat`)
+    const ws = new WebSocket(`${proto}//${url.host}/ws/chat`)
     this.ws = ws
     ws.onopen = () => {
       this.emit({ type: ChatEventType.ConnectionStatus, online: true } as ChatEvent)
@@ -48,9 +48,8 @@ export class WebSocketTransport implements IChatTransport {
     ws.onmessage = (e: MessageEvent) => {
       let msg: any
       try { msg = JSON.parse(e.data as string) } catch { return }
-      const type = msg.type as string
-      if (SESSION_EVENT_TYPES.has(type)) {
-        this.emit({ type, sessionId: msg.sessionId, data: msg.data } as ChatEvent)
+      if (msg && SESSION_EVENT_TYPES.has(msg.type)) {
+        this.emit({ type: msg.type, sessionId: msg.sessionId, data: msg.data } as ChatEvent)
       }
     }
     ws.onclose = () => {
@@ -58,7 +57,6 @@ export class WebSocketTransport implements IChatTransport {
       this.emit({ type: ChatEventType.ConnectionStatus, online: false } as ChatEvent)
       this.reconnectTimer = setTimeout(() => this.connect(), 3000)
     }
-    ws.onerror = () => {}
   }
 
   disconnect(): void {

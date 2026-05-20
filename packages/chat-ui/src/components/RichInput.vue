@@ -28,7 +28,7 @@ function fileToDataUrl(file: File): Promise<string> {
   })
 }
 
-function handleImageDrop(view: any, event: DragEvent, _slice: any, moved: boolean): boolean {
+function handleImageDrop(_view: any, event: DragEvent, _slice: any, moved: boolean): boolean {
   if (moved || !event.dataTransfer?.files?.length) return false
   const allFiles = Array.from(event.dataTransfer.files)
   const images = allFiles.filter(f => f.type.startsWith('image/'))
@@ -44,7 +44,7 @@ function handleImageDrop(view: any, event: DragEvent, _slice: any, moved: boolea
   return true
 }
 
-function handleImagePaste(view: any, event: ClipboardEvent): boolean {
+function handleImagePaste(_view: any, event: ClipboardEvent): boolean {
   const items = Array.from(event.clipboardData?.items ?? [])
   const fileItems = items.filter(i => i.kind === 'file')
   if (fileItems.length === 0) return false

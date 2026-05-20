@@ -18,14 +18,14 @@ const countdown = ref(props.initialCountdown)
 const argsExpanded = ref(false)
 let timer: ReturnType<typeof setInterval> | null = null
 
+function stopTimer() {
+  if (timer) { clearInterval(timer); timer = null }
+}
+
 function startTimer() {
   stopTimer()
   countdown.value = props.initialCountdown
   timer = setInterval(() => { if (countdown.value > 0) countdown.value-- }, 1000)
-}
-
-function stopTimer() {
-  if (timer !== null) { clearInterval(timer); timer = null }
 }
 
 function approve(type: ToolApprovalType) {
@@ -34,7 +34,7 @@ function approve(type: ToolApprovalType) {
 }
 
 function formatArgVal(v: unknown): string {
-  if (v === null || v === undefined) return 'null'
+  if (v == null) return 'null'
   if (typeof v === 'string') return v.length > 80 ? v.slice(0, 80) + '…' : v
   if (typeof v === 'number' || typeof v === 'boolean') return String(v)
   if (Array.isArray(v)) return `[${v.length} items]`
