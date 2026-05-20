@@ -20,8 +20,7 @@ interface HeartbeatItem {
   activeHoursStart: number | null
   activeHoursEnd: number | null
   activeHoursTimezone: string | null
-  lastRun: string | null
-  nextRun: string | null
+  lastRun: number | null
   running: boolean
   createdAt: number
 }
@@ -278,8 +277,13 @@ const heartbeatColumns = computed<STableColumn[]>(() => [
   { key: 'ops',      label: t('common.ops'), ops: true },
 ])
 
-function fmtTime(s: string | null): string {
+function fmtTime(s: string | number | null): string {
   return s ? new Date(s).toLocaleString('zh-CN') : '-'
+}
+
+function nextRunOf(hb: HeartbeatItem): number | null {
+  if (!hb.enabled || !hb.lastRun) return null
+  return hb.lastRun + hb.intervalMinutes * 60_000
 }
 
 onMounted(async () => {
@@ -302,7 +306,7 @@ onMounted(async () => {
           <SBadge :variant="statusVariant(row)">{{ statusLabel(row) }}</SBadge>
         </template>
         <template #lastRun="{ row }"><span class="hb-time">{{ fmtTime(row.lastRun) }}</span></template>
-        <template #nextRun="{ row }"><span class="hb-time">{{ fmtTime(row.nextRun) }}</span></template>
+        <template #nextRun="{ row }"><span class="hb-time">{{ fmtTime(nextRunOf(row)) }}</span></template>
         <template #ops="{ row }">
           <SButton type="outline" size="sm" @click="trigger(row)">{{ t('heartbeats.trigger') }}</SButton>
           <SButton type="outline" size="sm" @click="openEdit(row)">{{ t('common.edit') }}</SButton>

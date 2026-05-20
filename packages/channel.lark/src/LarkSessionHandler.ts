@@ -4,7 +4,7 @@ import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import {
   ChannelSessionHandler, ToolCallStatus, SessionService, createAskTool, createSendFileTool,
-  GlobalLoggerService, AskQuestionType, summarizeMultimodal, AgentCancelledError,
+  GlobalLoggerService, AskQuestionType, summarizeMultimodal, AgentCancelledError, ToolApproval,
   type StructuredToolInterface,
   type ChannelMessageArgs, type ChatMessage, type ChatToolCall, type AskToolParams, type MessageType, type MessageContent,
 } from "channel.base";
@@ -128,11 +128,14 @@ export class LarkSessionHandler extends ChannelSessionHandler {
   }
 
   protected async enterApproval(approvalId: string, remainSec: number, toolCall: ChatToolCall): Promise<void> {
+    const allowOnTimeout = remainSec > 0 && this.approvalTimeoutValue === ToolApproval.Allow;
+    const denyOnTimeout = remainSec > 0 && this.approvalTimeoutValue !== ToolApproval.Allow;
+    const suffix = (active: boolean) => active ? ` (${remainSec}s)` : '';
     await this.provider?.insertElement(undefined,
-      this.buildButton(`Allow ${toolCall.name}`, "primary_filled", ToolCallStatus.Allow, EL_TOOL_CALL_ALLOW, approvalId),
+      this.buildButton(`Allow ${toolCall.name}${suffix(allowOnTimeout)}`, "primary_filled", ToolCallStatus.Allow, EL_TOOL_CALL_ALLOW, approvalId),
       this.buildButton(`Always allow ${toolCall.name} (same args)`, "primary", ToolCallStatus.AlwaysArgs, EL_TOOL_CALL_ALWAYS_ARGS, approvalId),
       this.buildButton(`Always allow ${toolCall.name} (all args)`, "primary", ToolCallStatus.AlwaysTool, EL_TOOL_CALL_ALWAYS_TOOL, approvalId),
-      this.buildButton(`Deny (${remainSec}s)`, "danger_filled", ToolCallStatus.Deny, EL_TOOL_CALL_DENY, approvalId),
+      this.buildButton(`Deny${suffix(denyOnTimeout)}`, "danger_filled", ToolCallStatus.Deny, EL_TOOL_CALL_DENY, approvalId),
     );
   }
 
@@ -193,7 +196,7 @@ export class LarkSessionHandler extends ChannelSessionHandler {
     formElements.push({
       tag: 'button',
       name: 'submitBtn',
-      text: { tag: 'plain_text', content: `提交 (${remainSec}s)` },
+      text: { tag: 'plain_text', content: remainSec > 0 ? `提交 (${remainSec}s)` : '提交' },
       type: 'primary',
       width: 'default',
       form_action_type: 'submit',

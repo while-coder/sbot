@@ -4,20 +4,20 @@ import { SButton } from 'sbot-ui'
 import type { ToolCallEvent, ToolApprovalPayload, ToolApprovalType, ChatLabels } from '../types'
 import { resolveLabels } from '../labels'
 
-const props = withDefaults(defineProps<{
+const props = defineProps<{
   toolCall: ToolCallEvent
   labels?: ChatLabels
-  initialCountdown?: number
-}>(), {
-  initialCountdown: 300,
-})
+}>()
 
 const emit = defineEmits<{ approve: [payload: ToolApprovalPayload] }>()
 const L = computed(() => resolveLabels(props.labels))
 
-const countdown = ref(props.initialCountdown)
+const countdown = ref(0)
 const argsExpanded = ref(false)
 let timer: ReturnType<typeof setInterval> | null = null
+
+const hasCountdown = computed(() => (props.toolCall.remainSec ?? 0) > 0)
+const timeoutOn = computed<ToolApprovalType>(() => props.toolCall.timeoutValue === 'allow' ? 'allow' : 'deny')
 
 function stopTimer() {
   if (timer) { clearInterval(timer); timer = null }
@@ -25,7 +25,8 @@ function stopTimer() {
 
 function startTimer() {
   stopTimer()
-  countdown.value = props.initialCountdown
+  countdown.value = props.toolCall.remainSec ?? 0
+  if (countdown.value <= 0) return
   timer = setInterval(() => { if (countdown.value > 0) countdown.value-- }, 1000)
 }
 
@@ -52,10 +53,10 @@ onUnmounted(stopTimer)
     <div class="chatui-tool-approval-top">
       <span class="chatui-tool-approval-label">{{ L.executeTool }}<strong>{{ toolCall.name }}</strong></span>
       <div class="chatui-tool-approval-btns">
-        <SButton size="sm" @click="approve('allow')">{{ L.allow }}</SButton>
+        <SButton size="sm" @click="approve('allow')">{{ L.allow }}<span v-if="hasCountdown && timeoutOn === 'allow'"> ({{ countdown }}s)</span></SButton>
         <SButton type="outline" size="sm" @click="approve('alwaysArgs')">{{ L.alwaysAllowArgs }}</SButton>
         <SButton type="outline" size="sm" @click="approve('alwaysTool')">{{ L.alwaysAllowAll }}</SButton>
-        <SButton type="danger" size="sm" @click="approve('deny')">{{ L.deny }} ({{ countdown }}s)</SButton>
+        <SButton type="danger" size="sm" @click="approve('deny')">{{ L.deny }}<span v-if="hasCountdown && timeoutOn === 'deny'"> ({{ countdown }}s)</span></SButton>
       </div>
     </div>
     <div v-if="Object.keys(toolCall.args).length" class="chatui-tool-approval-args" @click="argsExpanded = !argsExpanded">

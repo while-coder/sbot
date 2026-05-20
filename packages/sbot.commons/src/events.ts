@@ -38,8 +38,8 @@ export type AskQuestionSpec =
 export interface HumanData    { content: DisplayContent }
 export interface StreamData   { content: DisplayContent }
 export interface MessageData  { message: ChatMessage; thinkId?: string; createdAt: number }
-export interface ToolCallData { approvalId: string; toolCallId?: string; name: string; args: Record<string, any> }
-export interface AskData      { id: string; title?: string; questions: AskQuestionSpec[] }
+export interface ToolCallData { approvalId: string; toolCallId?: string; name: string; args: Record<string, any>; remainSec?: number; timeoutValue?: 'allow' | 'deny' }
+export interface AskData      { id: string; title?: string; questions: AskQuestionSpec[]; remainSec?: number }
 export interface DoneData     { pendingMessages?: DisplayContent[] }
 export interface ErrorData    { message: string }
 export interface QueueData    { pendingMessages: DisplayContent[] }

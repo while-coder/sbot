@@ -214,6 +214,9 @@ export interface SessionConfig {
   autoApproveAllTools?: boolean
 }
 
+/** Approval 超时返回值 */
+export type ApprovalTimeoutValue = 'allow' | 'deny'
+
 export interface ChannelConfig {
   // ── 频道基础配置（不可被会话覆盖） ──
   /** 显示名称 */
@@ -238,6 +241,14 @@ export interface ChannelConfig {
   streamVerbose?: boolean
   /** 自动批准所有工具调用 */
   autoApproveAllTools?: boolean
+  /** Approval 等待超时（秒），<=0 或不设置则不超时 */
+  approvalTimeout?: number
+  /** Approval 超时后的默认结果，默认 'deny' */
+  approvalTimeoutValue?: ApprovalTimeoutValue
+  /** Ask 等待超时（秒），<=0 或不设置则不超时 */
+  askTimeout?: number
+  /** Ask 超时抛回 LLM 的错误信息，默认 'User did not answer within the allotted time' */
+  askTimeoutMessage?: string
   /** 意图识别模型 UUID */
   intentModel?: string
   /** 自定义意图过滤 prompt */

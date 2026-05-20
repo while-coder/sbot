@@ -14,12 +14,18 @@ export interface AskInfo {
     title?: string;
     questions: AskToolParams['questions'];
     startedAt: Date;
+    /** 剩余秒数；0 表示无超时 */
+    remainSec: number;
 }
 
 export interface ApprovalInfo {
     id: string;
     tool: ChatToolCall;
     startedAt: Date;
+    /** 剩余秒数；0 表示无超时 */
+    remainSec: number;
+    /** 超时后默认动作（'allow' | 'deny'）；无超时时为 undefined */
+    timeoutValue?: 'allow' | 'deny';
 }
 
 export interface SessionInfo {
@@ -39,6 +45,8 @@ interface PendingApprovalEntry {
     type: PendingType.Approval;
     id: string;
     startedAt: Date;
+    timeoutAt: number;          // 0 表示无超时
+    timeoutValue: ToolApproval;
     timer?: ReturnType<typeof setTimeout>;
     resolve: (approval: ToolApproval) => void;
     tool: ChatToolCall;
@@ -48,6 +56,7 @@ interface PendingAskEntry {
     type: PendingType.Ask;
     id: string;
     startedAt: Date;
+    timeoutAt: number;          // 0 表示无超时
     timer?: ReturnType<typeof setTimeout>;
     resolve: (result: AskResponse | string) => void;
     title?: string;
@@ -109,15 +118,24 @@ export abstract class SessionService extends MessageDispatcher {
 
     getInfo(): SessionInfo {
         const p = this.pending;
+        const computeRemainSec = (timeoutAt: number): number =>
+            timeoutAt > 0 ? Math.max(0, Math.ceil((timeoutAt - Date.now()) / 1000)) : 0;
         return {
             threadId: this.threadId,
             startedAt: this.startedAt,
             status: this.status,
             pendingApproval: p?.type === PendingType.Approval
-                ? { id: p.id, tool: p.tool, startedAt: p.startedAt }
+                ? {
+                    id: p.id, tool: p.tool, startedAt: p.startedAt,
+                    remainSec: computeRemainSec(p.timeoutAt),
+                    timeoutValue: p.timeoutAt > 0 ? (p.timeoutValue === ToolApproval.Allow ? 'allow' : 'deny') : undefined,
+                }
                 : undefined,
             pendingAsk: p?.type === PendingType.Ask
-                ? { id: p.id, title: p.title, questions: p.questions, startedAt: p.startedAt }
+                ? {
+                    id: p.id, title: p.title, questions: p.questions, startedAt: p.startedAt,
+                    remainSec: computeRemainSec(p.timeoutAt),
+                }
                 : undefined,
             pendingMessages: this.messageQueue.map(m => m.query),
         };
@@ -125,7 +143,7 @@ export abstract class SessionService extends MessageDispatcher {
 
     // ── Approval ──
 
-    enterApproval(toolCall: ChatToolCall, timeoutMs: number): { id: string; promise: Promise<ToolApproval> } {
+    enterApproval(toolCall: ChatToolCall, timeoutMs: number, timeoutValue: ToolApproval): { id: string; promise: Promise<ToolApproval> } {
         this.cancelPending();
         const id = `tc-${Date.now()}`;
         let resolve!: (approval: ToolApproval) => void;
@@ -135,9 +153,10 @@ export abstract class SessionService extends MessageDispatcher {
                 this.pending = null;
                 this._syncStatus();
             }
-            resolve(ToolApproval.Deny);
+            resolve(timeoutValue);
         }, timeoutMs) : undefined;
-        this.pending = { type: PendingType.Approval, id, tool: toolCall, startedAt: new Date(), resolve, timer };
+        const timeoutAt = timeoutMs > 0 ? Date.now() + timeoutMs : 0;
+        this.pending = { type: PendingType.Approval, id, tool: toolCall, startedAt: new Date(), timeoutAt, timeoutValue, resolve, timer };
         this._syncStatus();
         return { id, promise };
     }
@@ -164,7 +183,7 @@ export abstract class SessionService extends MessageDispatcher {
 
     // ── Ask ──
 
-    enterAsk(params: AskToolParams, timeoutMs: number): { id: string; promise: Promise<AskResponse> } {
+    enterAsk(params: AskToolParams, timeoutMs: number, timeoutMessage: string): { id: string; promise: Promise<AskResponse> } {
         this.cancelPending();
         const id = `ask-${Date.now()}`;
         let resolve!: (result: AskResponse | string) => void;
@@ -176,9 +195,10 @@ export abstract class SessionService extends MessageDispatcher {
                 this.pending = null;
                 this._syncStatus();
             }
-            resolve('User did not answer within the allotted time');
+            resolve(timeoutMessage);
         }, timeoutMs) : undefined;
-        this.pending = { type: PendingType.Ask, id, title: params.title, questions: params.questions, startedAt: new Date(), resolve, timer };
+        const timeoutAt = timeoutMs > 0 ? Date.now() + timeoutMs : 0;
+        this.pending = { type: PendingType.Ask, id, title: params.title, questions: params.questions, startedAt: new Date(), timeoutAt, resolve, timer };
         this._syncStatus();
         return { id, promise };
     }

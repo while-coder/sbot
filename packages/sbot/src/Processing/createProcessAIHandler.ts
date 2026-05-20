@@ -37,7 +37,16 @@ export function createProcessAIHandler(): ProcessAIHandler {
         const workPath = dbSession.workPath ?? channel.workPath;
         const autoApproveAllTools = dbSession.autoApproveAllTools ?? channel.autoApproveAllTools ?? false;
         const streamVerbose = dbSession.streamVerbose ?? channel.streamVerbose ?? false;
+        const approvalTimeout = dbSession.approvalTimeout ?? channel.approvalTimeout ?? 0;
+        const approvalTimeoutValue = dbSession.approvalTimeoutValue ?? channel.approvalTimeoutValue;
+        const askTimeout = dbSession.askTimeout ?? channel.askTimeout ?? 0;
+        const askTimeoutMessage = dbSession.askTimeoutMessage ?? channel.askTimeoutMessage;
         const threadId = channelThreadId(channel.type, channelId, sessionId);
+
+        sessionHandler.approvalTimeoutMs = approvalTimeout > 0 ? approvalTimeout * 1000 : 0;
+        sessionHandler.approvalTimeoutValue = approvalTimeoutValue === 'allow' ? ToolApproval.Allow : ToolApproval.Deny;
+        sessionHandler.askTimeoutMs = askTimeout > 0 ? askTimeout * 1000 : 0;
+        if (askTimeoutMessage) sessionHandler.askTimeoutMessage = askTimeoutMessage;
 
         const silent: boolean = args?.silent ?? false;
         const extraAgentTools = args?.agentTools;

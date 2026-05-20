@@ -226,6 +226,8 @@ async function restoreSessionStatus(gen = ++loadGeneration) {
         approvalId: status.pendingApproval.id,
         name: status.pendingApproval.tool.name,
         args: status.pendingApproval.tool.args,
+        remainSec: status.pendingApproval.remainSec,
+        timeoutValue: status.pendingApproval.timeoutValue,
       }
     }
     if (status.pendingAsk) pendingAsk.value = status.pendingAsk

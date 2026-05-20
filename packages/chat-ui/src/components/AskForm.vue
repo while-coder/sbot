@@ -5,13 +5,10 @@ import type { AskEvent, AskAnswerPayload, ChatLabels } from '../types'
 import { AskQuestionType } from '../types'
 import { resolveLabels } from '../labels'
 
-const props = withDefaults(defineProps<{
+const props = defineProps<{
   askEvent: AskEvent
   labels?: ChatLabels
-  initialCountdown?: number
-}>(), {
-  initialCountdown: 600,
-})
+}>()
 
 const emit = defineEmits<{ submit: [payload: AskAnswerPayload] }>()
 const L = computed(() => resolveLabels(props.labels))
@@ -19,8 +16,10 @@ const L = computed(() => resolveLabels(props.labels))
 const CUSTOM_SENTINEL = '__custom__'
 const answers = ref<Record<number, string | string[]>>({})
 const customInputs = ref<Record<number, string>>({})
-const countdown = ref(props.initialCountdown)
+const countdown = ref(0)
 let timer: ReturnType<typeof setInterval> | null = null
+
+const hasCountdown = computed(() => (props.askEvent.remainSec ?? 0) > 0)
 
 function initAnswers() {
   const init: Record<number, string | string[]> = {}
@@ -37,7 +36,8 @@ function stopTimer() {
 
 function startTimer() {
   stopTimer()
-  countdown.value = props.initialCountdown
+  countdown.value = props.askEvent.remainSec ?? 0
+  if (countdown.value <= 0) return
   timer = setInterval(() => { if (countdown.value > 0) countdown.value-- }, 1000)
 }
 
@@ -122,7 +122,7 @@ onUnmounted(stopTimer)
       />
     </div>
     <div class="chatui-ask-footer">
-      <SButton size="sm" @click="submitAsk">{{ L.askSubmit }} ({{ countdown }}s)</SButton>
+      <SButton size="sm" @click="submitAsk">{{ L.askSubmit }}<span v-if="hasCountdown"> ({{ countdown }}s)</span></SButton>
     </div>
   </div>
 </template>

@@ -207,6 +207,10 @@ export interface ToolCallEvent {
   toolCallId?: string
   name: string
   args: Record<string, any>
+  /** 剩余秒数；缺省/0 表示无超时，不显示倒计时 */
+  remainSec?: number
+  /** 超时后默认动作；与 remainSec 配套 */
+  timeoutValue?: 'allow' | 'deny'
 }
 
 export type ToolApprovalType = 'allow' | 'alwaysArgs' | 'alwaysTool' | 'deny'
@@ -235,6 +239,8 @@ export interface AskEvent {
   title?: string
   questions: AskQuestionSpec[]
   startedAt?: string
+  /** 剩余秒数；缺省/0 表示无超时，不显示倒计时 */
+  remainSec?: number
 }
 
 export interface AskAnswerPayload {
@@ -269,6 +275,8 @@ export interface SessionStatus {
     id: string
     tool: { id?: string; name: string; args: Record<string, any> }
     startedAt: string
+    remainSec?: number
+    timeoutValue?: 'allow' | 'deny'
   }
   pendingAsk?: AskEvent & { startedAt: string }
   pendingMessages?: DisplayContent[]

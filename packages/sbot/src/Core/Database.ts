@@ -73,6 +73,10 @@ export type ChannelSessionRow = {
   workPath: string | null;
   streamVerbose: boolean | null;
   autoApproveAllTools: boolean | null;
+  approvalTimeout: number | null;
+  approvalTimeoutValue: 'allow' | 'deny' | null;
+  askTimeout: number | null;
+  askTimeoutMessage: string | null;
   intentModel: string | null;
   intentPrompt: string | null;
   intentThreshold: number | null;
@@ -387,6 +391,30 @@ class Database {
           allowNull: true,
           defaultValue: null,
           comment: "是否自动批准所有工具，null = 使用 ChannelConfig 默认值",
+        },
+        approvalTimeout: {
+          type: DataTypes.INTEGER,
+          allowNull: true,
+          defaultValue: null,
+          comment: "Approval 等待超时（秒），null = 使用 ChannelConfig 默认值",
+        },
+        approvalTimeoutValue: {
+          type: DataTypes.STRING(8),
+          allowNull: true,
+          defaultValue: null,
+          comment: "Approval 超时默认结果 (allow|deny)，null = 使用 ChannelConfig 默认值",
+        },
+        askTimeout: {
+          type: DataTypes.INTEGER,
+          allowNull: true,
+          defaultValue: null,
+          comment: "Ask 等待超时（秒），null = 使用 ChannelConfig 默认值",
+        },
+        askTimeoutMessage: {
+          type: DataTypes.TEXT,
+          allowNull: true,
+          defaultValue: null,
+          comment: "Ask 超时抛回 LLM 的错误信息，null = 使用 ChannelConfig 默认值",
         },
         inputTokens: {
           type: DataTypes.INTEGER,

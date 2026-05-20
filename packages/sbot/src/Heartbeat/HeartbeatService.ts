@@ -115,17 +115,9 @@ class HeartbeatService {
         await database.destroy(database.heartbeat, { where: { id } });
     }
 
-    async getStatus(): Promise<Array<{ id: number; name: string; intervalMinutes: number; lastRun: string | null; nextRun: string | null; running: boolean; enabled: boolean }>> {
+    async getStatus(): Promise<Array<HeartbeatRow & { running: boolean }>> {
         const rows = await this.getAll();
-        return rows.map(row => {
-            const running = this.executor.isRunning(row.id);
-            const lastRun = row.lastRun ? new Date(Number(row.lastRun)).toISOString() : null;
-            let nextRun: string | null = null;
-            if (row.enabled && row.lastRun) {
-                nextRun = new Date(Number(row.lastRun) + row.intervalMinutes * 60_000).toISOString();
-            }
-            return { id: row.id, name: row.name, intervalMinutes: row.intervalMinutes, lastRun, nextRun, running, enabled: row.enabled };
-        });
+        return rows.map(row => ({ ...row, running: this.executor.isRunning(row.id) }));
     }
 
     // ── 从旧 settings.json 一次性迁移 ──

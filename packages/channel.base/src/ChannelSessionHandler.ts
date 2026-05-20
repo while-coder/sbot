@@ -3,7 +3,6 @@ import {
   ChatToolCall,
   MessageRole,
   MessageType,
-  NowDate,
   ToolApproval,
   type MessageContent,
 } from "scorpio.ai";
@@ -57,13 +56,14 @@ export abstract class ChannelSessionHandler {
   protected abstract enterAsk(askId: string, remainSec: number, params: AskToolParams): Promise<void>;
   protected abstract exitAsk(askId: string): Promise<void>;
 
-  protected getApprovalTimeout(): number {
-    return 0;
-  }
+  /** 由上层（如 createProcessAIHandler）按 agent 配置写入；默认 0=不超时 */
+  approvalTimeoutMs = 0;
+  approvalTimeoutValue: ToolApproval = ToolApproval.Deny;
+
   async executeApproval(toolCall: ChatToolCall): Promise<ToolApproval> {
-    const timeout = this.getApprovalTimeout();
-    const { id, promise } = this.session.enterApproval(toolCall, timeout);
-    const remainSec = timeout > 0 ? Math.floor((NowDate() + timeout - NowDate()) / 1000) : 0;
+    const timeout = this.approvalTimeoutMs;
+    const { id, promise } = this.session.enterApproval(toolCall, timeout, this.approvalTimeoutValue);
+    const remainSec = timeout > 0 ? Math.floor(timeout / 1000) : 0;
     try {
       await this.enterApproval(id, remainSec, toolCall);
       return await promise;
@@ -80,13 +80,14 @@ export abstract class ChannelSessionHandler {
     this.session.exitApproval(id, statusToApproval[status] ?? ToolApproval.Deny);
   }
 
-  protected getAskTimeout(): number {
-    return 0;
-  }
+  /** 由上层（如 createProcessAIHandler）按 agent 配置写入；默认 0=不超时 */
+  askTimeoutMs = 0;
+  askTimeoutMessage = 'User did not answer within the allotted time';
+
   async executeAsk(params: AskToolParams): Promise<AskResponse> {
-    const timeout = this.getAskTimeout();
-    const { id, promise } = this.session.enterAsk(params, timeout);
-    const remainSec = timeout > 0 ? Math.floor((NowDate() + timeout - NowDate()) / 1000) : 0;
+    const timeout = this.askTimeoutMs;
+    const { id, promise } = this.session.enterAsk(params, timeout, this.askTimeoutMessage);
+    const remainSec = timeout > 0 ? Math.floor(timeout / 1000) : 0;
     try {
       await this.enterAsk(id, remainSec, params);
       return await promise;

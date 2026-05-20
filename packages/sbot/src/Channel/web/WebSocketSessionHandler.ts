@@ -2,6 +2,7 @@ import "reflect-metadata";
 import { ChatMessage, MessageType, type MessageContent } from "scorpio.ai";
 import {
     ChannelSessionHandler, ToolCallStatus, SessionService, AskQuestionType, createAskTool,
+    ToolApproval,
     type StructuredToolInterface, type AskToolParams,
     type ChannelMessageArgs, type ChatToolCall,
 } from "channel.base";
@@ -56,16 +57,26 @@ export class WebSocketSessionHandler extends ChannelSessionHandler {
 
     // ── Approval / Ask ──
 
-    protected async enterApproval(approvalId: string, _remainSec: number, toolCall: ChatToolCall): Promise<void> {
-        this.emit(WebChatEventType.ToolCall, { approvalId, toolCallId: toolCall.id, name: toolCall.name, args: toolCall.args });
+    protected async enterApproval(approvalId: string, remainSec: number, toolCall: ChatToolCall): Promise<void> {
+        const timeoutValue = remainSec > 0
+            ? (this.approvalTimeoutValue === ToolApproval.Allow ? 'allow' : 'deny')
+            : undefined;
+        this.emit(WebChatEventType.ToolCall, {
+            approvalId, toolCallId: toolCall.id, name: toolCall.name, args: toolCall.args,
+            remainSec: remainSec > 0 ? remainSec : undefined,
+            timeoutValue,
+        });
     }
 
     protected async exitApproval(_approvalId: string): Promise<void> {
         // WebSocket clients manage their own UI — no cleanup needed
     }
 
-    protected async enterAsk(askId: string, _remainSec: number, params: AskToolParams): Promise<void> {
-        this.emit(WebChatEventType.Ask, { id: askId, title: params.title, questions: params.questions as any });
+    protected async enterAsk(askId: string, remainSec: number, params: AskToolParams): Promise<void> {
+        this.emit(WebChatEventType.Ask, {
+            id: askId, title: params.title, questions: params.questions as any,
+            remainSec: remainSec > 0 ? remainSec : undefined,
+        });
     }
 
     protected async exitAsk(_askId: string): Promise<void> {

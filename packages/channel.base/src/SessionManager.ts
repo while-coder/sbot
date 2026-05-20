@@ -50,10 +50,10 @@ export abstract class SessionManager {
 
     // ── Delegation to session (by threadId) ──
 
-    enterApproval(threadId: string, toolCall: ChatToolCall, timeoutMs: number): { id: string; promise: Promise<ToolApproval> } {
+    enterApproval(threadId: string, toolCall: ChatToolCall, timeoutMs: number, timeoutValue: ToolApproval): { id: string; promise: Promise<ToolApproval> } {
         const session = this.sessions.get(threadId);
         if (!session) return { id: '', promise: Promise.reject(new Error('Session not found')) };
-        return session.enterApproval(toolCall, timeoutMs);
+        return session.enterApproval(toolCall, timeoutMs, timeoutValue);
     }
 
     exitApproval(threadId: string, id: string, approval: ToolApproval): boolean {
@@ -66,10 +66,10 @@ export abstract class SessionManager {
         this.sessions.get(threadId)?.exitAllApprovals();
     }
 
-    enterAsk(threadId: string, params: AskToolParams, timeoutMs: number): { id: string; promise: Promise<AskResponse> } {
+    enterAsk(threadId: string, params: AskToolParams, timeoutMs: number, timeoutMessage: string): { id: string; promise: Promise<AskResponse> } {
         const session = this.sessions.get(threadId);
         if (!session) return { id: '', promise: Promise.reject(new Error('Session not found')) };
-        return session.enterAsk(params, timeoutMs);
+        return session.enterAsk(params, timeoutMs, timeoutMessage);
     }
 
     exitAsk(threadId: string, id: string, result: Record<string, string | string[] | boolean | undefined> | string): boolean {
