@@ -6,7 +6,7 @@ import { apiFetch } from '@/api'
 import { store } from '@/store'
 import { useToast, SButton, SModal, SInput, STextarea, SSelect, SFormItem, SFormSection, SPageToolbar, SPageContent, SMultiSelect } from 'sbot-ui'
 import QRCode from 'qrcode'
-import type { ChannelConfig } from '@/types'
+import { ApprovalTimeoutValue, type ChannelConfig } from '@/types'
 import SaverViewModal from './modals/SaverViewModal.vue'
 import PathPickerModal from './modals/PathPickerModal.vue'
 
@@ -35,7 +35,7 @@ interface ChannelSessionRow {
   streamVerbose: boolean | null
   autoApproveAllTools: boolean | null
   approvalTimeout: number | null
-  approvalTimeoutValue: 'allow' | 'deny' | null
+  approvalTimeoutValue: ApprovalTimeoutValue | null
   askTimeout: number | null
   askTimeoutMessage: string | null
   intentModel: string | null
@@ -103,7 +103,7 @@ const channelLoading   = ref<Record<string, boolean>>({})
 const viewUser         = ref<UserRow | null>(null)
 
 const editingSession   = ref<ChannelSessionRow | null>(null)
-const sessionForm      = ref<{ name: string; agentId: string; saver: string; memories: string[]; wikis: string[]; useChannelMemories: boolean; useChannelWikis: boolean; workPath: string; intentModel: string | null; intentPrompt: string; intentThreshold: number; streamVerbose: boolean | null; autoApproveAllTools: boolean | null; approvalTimeout: number | null; approvalTimeoutValue: 'allow' | 'deny' | null; askTimeout: number | null; askTimeoutMessage: string }>({ name: '', agentId: '', saver: '', memories: [], wikis: [], useChannelMemories: false, useChannelWikis: false, workPath: '', intentModel: null, intentPrompt: '', intentThreshold: 0.7, streamVerbose: null, autoApproveAllTools: null, approvalTimeout: null, approvalTimeoutValue: null, askTimeout: null, askTimeoutMessage: '' })
+const sessionForm      = ref<{ name: string; agentId: string; saver: string; memories: string[]; wikis: string[]; useChannelMemories: boolean; useChannelWikis: boolean; workPath: string; intentModel: string | null; intentPrompt: string; intentThreshold: number; streamVerbose: boolean | null; autoApproveAllTools: boolean | null; approvalTimeout: number | null; approvalTimeoutValue: ApprovalTimeoutValue | null; askTimeout: number | null; askTimeoutMessage: string }>({ name: '', agentId: '', saver: '', memories: [], wikis: [], useChannelMemories: false, useChannelWikis: false, workPath: '', intentModel: null, intentPrompt: '', intentThreshold: 0.7, streamVerbose: null, autoApproveAllTools: null, approvalTimeout: null, approvalTimeoutValue: null, askTimeout: null, askTimeoutMessage: '' })
 
 function openEditSession(s: ChannelSessionRow) {
   editingSession.value = s
