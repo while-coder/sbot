@@ -1,4 +1,5 @@
 import type { ChatMessage } from './api'
+import { ApprovalTimeoutValue } from './settings'
 
 /** Client → Server WS message types */
 export enum WsCommandType {
@@ -38,7 +39,7 @@ export type AskQuestionSpec =
 export interface HumanData    { content: DisplayContent }
 export interface StreamData   { content: DisplayContent }
 export interface MessageData  { message: ChatMessage; thinkId?: string; createdAt: number }
-export interface ToolCallData { approvalId: string; toolCallId?: string; name: string; args: Record<string, any>; remainSec?: number; timeoutValue?: 'allow' | 'deny' }
+export interface ToolCallData { approvalId: string; toolCallId?: string; name: string; args: Record<string, any>; remainSec?: number; timeoutValue?: ApprovalTimeoutValue }
 export interface AskData      { id: string; title?: string; questions: AskQuestionSpec[]; remainSec?: number }
 export interface DoneData     { pendingMessages?: DisplayContent[] }
 export interface ErrorData    { message: string }

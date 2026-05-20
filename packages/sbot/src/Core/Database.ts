@@ -1,5 +1,6 @@
 import { DataTypes, type FindOptions, type ModelStatic, type UpdateOptions, Sequelize } from "sequelize";
 import { sleep } from "scorpio.ai/Core";
+import { ApprovalTimeoutValue } from "sbot.commons";
 import { config } from "./Config";
 import { LoggerService } from "./LoggerService";
 
@@ -74,7 +75,7 @@ export type ChannelSessionRow = {
   streamVerbose: boolean | null;
   autoApproveAllTools: boolean | null;
   approvalTimeout: number | null;
-  approvalTimeoutValue: 'allow' | 'deny' | null;
+  approvalTimeoutValue: ApprovalTimeoutValue | null;
   askTimeout: number | null;
   askTimeoutMessage: string | null;
   intentModel: string | null;

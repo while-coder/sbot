@@ -4,7 +4,7 @@ import { channelThreadId, parseMemories, getChannelSession } from "../Core/Datab
 import { config, AgentMode } from "../Core/Config";
 import { buildExecuteTool } from "./buildExecuteTool";
 import { updateUsageStats, type UsageContext } from "./updateUsageStats";
-import { WebChatEventType, WEB_CHANNEL_ID } from "sbot.commons";
+import { WebChatEventType, WEB_CHANNEL_ID, ApprovalTimeoutValue } from "sbot.commons";
 import { httpServer } from "../Server/HttpServer";
 import { AgentRunner } from "../Agent/AgentRunner";
 
@@ -44,7 +44,7 @@ export function createProcessAIHandler(): ProcessAIHandler {
         const threadId = channelThreadId(channel.type, channelId, sessionId);
 
         sessionHandler.approvalTimeoutMs = approvalTimeout > 0 ? approvalTimeout * 1000 : 0;
-        sessionHandler.approvalTimeoutValue = approvalTimeoutValue === 'allow' ? ToolApproval.Allow : ToolApproval.Deny;
+        sessionHandler.approvalTimeoutValue = approvalTimeoutValue === ApprovalTimeoutValue.Allow ? ToolApproval.Allow : ToolApproval.Deny;
         sessionHandler.askTimeoutMs = askTimeout > 0 ? askTimeout * 1000 : 0;
         if (askTimeoutMessage) sessionHandler.askTimeoutMessage = askTimeoutMessage;
 

@@ -215,7 +215,10 @@ export interface SessionConfig {
 }
 
 /** Approval 超时返回值 */
-export type ApprovalTimeoutValue = 'allow' | 'deny'
+export enum ApprovalTimeoutValue {
+  Allow = 'allow',
+  Deny  = 'deny',
+}
 
 export interface ChannelConfig {
   // ── 频道基础配置（不可被会话覆盖） ──

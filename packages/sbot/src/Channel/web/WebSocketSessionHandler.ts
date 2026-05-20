@@ -6,7 +6,7 @@ import {
     type StructuredToolInterface, type AskToolParams,
     type ChannelMessageArgs, type ChatToolCall,
 } from "channel.base";
-import { WebChatEventType, WsCommandType } from 'sbot.commons';
+import { WebChatEventType, WsCommandType, ApprovalTimeoutValue } from 'sbot.commons';
 import { httpServer } from "../../Server/HttpServer";
 
 const WEB_ASK_PROMPT = `Ask the user one or more structured questions and wait for their response. Use this tool whenever you need clarification, a decision, or input before proceeding.
@@ -59,7 +59,7 @@ export class WebSocketSessionHandler extends ChannelSessionHandler {
 
     protected async enterApproval(approvalId: string, remainSec: number, toolCall: ChatToolCall): Promise<void> {
         const timeoutValue = remainSec > 0
-            ? (this.approvalTimeoutValue === ToolApproval.Allow ? 'allow' : 'deny')
+            ? (this.approvalTimeoutValue === ToolApproval.Allow ? ApprovalTimeoutValue.Allow : ApprovalTimeoutValue.Deny)
             : undefined;
         this.emit(WebChatEventType.ToolCall, {
             approvalId, toolCallId: toolCall.id, name: toolCall.name, args: toolCall.args,

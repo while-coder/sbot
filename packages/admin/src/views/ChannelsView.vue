@@ -122,7 +122,7 @@ async function saveSession() {
   const validWikiIds = new Set(wikiOptions.value.map(w => w.id))
   const wikis = sessionForm.value.wikis.filter(id => validWikiIds.has(id))
   try {
-    await apiFetch(`/api/channel-sessions/${s.id}`, 'PUT', {
+    const sessionPayload = {
       sessionName: sessionForm.value.name.trim(),
       agentId: sessionForm.value.agentId,
       saver: sessionForm.value.saver || null,
@@ -136,22 +136,13 @@ async function saveSession() {
       intentThreshold: sessionForm.value.intentModel ? sessionForm.value.intentThreshold : null,
       streamVerbose: sessionForm.value.streamVerbose,
       autoApproveAllTools: sessionForm.value.autoApproveAllTools,
-    })
-    Object.assign(s, {
-      sessionName: sessionForm.value.name.trim(),
-      agentId: sessionForm.value.agentId,
-      saver: sessionForm.value.saver || null,
-      memories,
-      wikis,
-      useChannelMemories: sessionForm.value.useChannelMemories,
-      useChannelWikis: sessionForm.value.useChannelWikis,
-      workPath: sessionForm.value.workPath.trim() || null,
-      intentModel: sessionForm.value.intentModel ?? null,
-      intentPrompt: sessionForm.value.intentPrompt.trim() || null,
-      intentThreshold: sessionForm.value.intentModel ? sessionForm.value.intentThreshold : null,
-      streamVerbose: sessionForm.value.streamVerbose,
-      autoApproveAllTools: sessionForm.value.autoApproveAllTools,
-    })
+      approvalTimeout: sessionForm.value.approvalTimeout ?? null,
+      approvalTimeoutValue: sessionForm.value.approvalTimeoutValue ?? null,
+      askTimeout: sessionForm.value.askTimeout ?? null,
+      askTimeoutMessage: sessionForm.value.askTimeoutMessage.trim() || null,
+    }
+    await apiFetch(`/api/channel-sessions/${s.id}`, 'PUT', sessionPayload)
+    Object.assign(s, sessionPayload)
     show(t('common.saved'))
     editingSession.value = null
   } catch (e: any) {
@@ -168,6 +159,8 @@ const editingId = ref<string | null>(null)
 const form = ref<ChannelConfig>({
   name: '', type: '', config: {}, agent: '', saver: '', memories: [],
   workPath: '', streamVerbose: false, autoApproveAllTools: false,
+  approvalTimeout: 0, approvalTimeoutValue: 'deny',
+  askTimeout: 0, askTimeoutMessage: '',
   intentModel: '', intentPrompt: '', intentThreshold: 0.7,
   mergeWindow: 0,
 })
@@ -308,7 +301,7 @@ function openAdd() {
   editingId.value = null
   clearActionState()
   const defaultType = plugins.value.find(p => !p.builtin)?.type || ''
-  form.value = { name: '', type: defaultType, config: {}, agent: '', saver: '', memories: [], wikis: [], workPath: '', streamVerbose: false, autoApproveAllTools: false, intentModel: '', intentPrompt: '', intentThreshold: 0.7, mergeWindow: 0 }
+  form.value = { name: '', type: defaultType, config: {}, agent: '', saver: '', memories: [], wikis: [], workPath: '', streamVerbose: false, autoApproveAllTools: false, approvalTimeout: 0, approvalTimeoutValue: 'deny', askTimeout: 0, askTimeoutMessage: '', intentModel: '', intentPrompt: '', intentThreshold: 0.7, mergeWindow: 0 }
   formTools.value = []
   formHeartbeatTools.value = []
   showModal.value = true
@@ -318,7 +311,7 @@ function openEdit(id: string) {
   const c = channels.value[id]
   editingId.value = id
   clearActionState()
-  form.value = { name: c.name, type: c.type, config: { ...c.config }, agent: c.agent, saver: c.saver, memories: c.memories || [], wikis: (c as any).wikis || [], workPath: c.workPath || '', streamVerbose: !!c.streamVerbose, autoApproveAllTools: !!c.autoApproveAllTools, intentModel: c.intentModel || '', intentPrompt: c.intentPrompt || '', intentThreshold: c.intentThreshold ?? 0.7, mergeWindow: c.mergeWindow || 0 }
+  form.value = { name: c.name, type: c.type, config: { ...c.config }, agent: c.agent, saver: c.saver, memories: c.memories || [], wikis: (c as any).wikis || [], workPath: c.workPath || '', streamVerbose: !!c.streamVerbose, autoApproveAllTools: !!c.autoApproveAllTools, approvalTimeout: c.approvalTimeout ?? 0, approvalTimeoutValue: c.approvalTimeoutValue ?? 'deny', askTimeout: c.askTimeout ?? 0, askTimeoutMessage: c.askTimeoutMessage || '', intentModel: c.intentModel || '', intentPrompt: c.intentPrompt || '', intentThreshold: c.intentThreshold ?? 0.7, mergeWindow: c.mergeWindow || 0 }
   formTools.value = [...(c.tools ?? [])]
   formHeartbeatTools.value = [...(c.heartbeatTools ?? [])]
   showModal.value = true
@@ -352,6 +345,10 @@ async function save() {
       workPath: form.value.workPath?.trim() || undefined,
       streamVerbose: form.value.streamVerbose || undefined,
       autoApproveAllTools: form.value.autoApproveAllTools || undefined,
+      approvalTimeout: form.value.approvalTimeout && form.value.approvalTimeout > 0 ? form.value.approvalTimeout : undefined,
+      approvalTimeoutValue: form.value.approvalTimeout && form.value.approvalTimeout > 0 ? form.value.approvalTimeoutValue : undefined,
+      askTimeout: form.value.askTimeout && form.value.askTimeout > 0 ? form.value.askTimeout : undefined,
+      askTimeoutMessage: form.value.askTimeoutMessage?.trim() || undefined,
       intentModel: form.value.intentModel || undefined,
       intentPrompt: form.value.intentPrompt?.trim() || undefined,
       intentThreshold: form.value.intentModel ? form.value.intentThreshold : undefined,
@@ -698,6 +695,21 @@ async function refresh() {
                 <STextarea v-model="form.intentPrompt" :rows="4" :placeholder="t('channels.intent_prompt_placeholder')" />
               </SFormItem>
             </template>
+            <SFormItem :label="t('channels.approval_timeout')" :hint="t('channels.approval_timeout_hint')">
+              <SInput v-model.number="form.approvalTimeout" type="number" placeholder="0" />
+            </SFormItem>
+            <SFormItem v-if="form.approvalTimeout && form.approvalTimeout > 0" :label="t('channels.approval_timeout_value')">
+              <SSelect v-model="form.approvalTimeoutValue">
+                <option value="deny">{{ t('channels.approval_timeout_value_deny') }}</option>
+                <option value="allow">{{ t('channels.approval_timeout_value_allow') }}</option>
+              </SSelect>
+            </SFormItem>
+            <SFormItem :label="t('channels.ask_timeout')" :hint="t('channels.ask_timeout_hint')">
+              <SInput v-model.number="form.askTimeout" type="number" placeholder="0" />
+            </SFormItem>
+            <SFormItem v-if="form.askTimeout && form.askTimeout > 0" :label="t('channels.ask_timeout_message')" :hint="t('channels.ask_timeout_message_hint')">
+              <SInput v-model="form.askTimeoutMessage" type="text" />
+            </SFormItem>
             <SFormItem :label="t('channels.merge_window')" :hint="t('channels.merge_window_hint')">
               <SInput v-model.number="form.mergeWindow" type="number" placeholder="0" />
             </SFormItem>
@@ -772,6 +784,22 @@ async function refresh() {
             <option value="true">{{ t('common.enabled') }}</option>
             <option value="false">{{ t('common.disabled') }}</option>
           </SSelect>
+        </SFormItem>
+        <SFormItem :label="t('channels.approval_timeout')" :hint="t('channels.approval_timeout_hint') + ' (' + t('channels.use_channel_default') + ': -1)'">
+          <SInput :model-value="sessionForm.approvalTimeout ?? -1" type="number" @update:model-value="v => sessionForm.approvalTimeout = (v === '' || v === null || Number(v) < 0) ? null : Number(v)" />
+        </SFormItem>
+        <SFormItem v-if="sessionForm.approvalTimeout != null && sessionForm.approvalTimeout > 0" :label="t('channels.approval_timeout_value')">
+          <SSelect :model-value="sessionForm.approvalTimeoutValue ?? ''" @update:model-value="v => sessionForm.approvalTimeoutValue = (v === '' ? null : v as 'allow' | 'deny')">
+            <option value="">{{ t('channels.use_channel_default') }}</option>
+            <option value="deny">{{ t('channels.approval_timeout_value_deny') }}</option>
+            <option value="allow">{{ t('channels.approval_timeout_value_allow') }}</option>
+          </SSelect>
+        </SFormItem>
+        <SFormItem :label="t('channels.ask_timeout')" :hint="t('channels.ask_timeout_hint') + ' (' + t('channels.use_channel_default') + ': -1)'">
+          <SInput :model-value="sessionForm.askTimeout ?? -1" type="number" @update:model-value="v => sessionForm.askTimeout = (v === '' || v === null || Number(v) < 0) ? null : Number(v)" />
+        </SFormItem>
+        <SFormItem v-if="sessionForm.askTimeout != null && sessionForm.askTimeout > 0" :label="t('channels.ask_timeout_message')" :hint="t('channels.ask_timeout_message_hint')">
+          <SInput v-model="sessionForm.askTimeoutMessage" type="text" />
         </SFormItem>
         <SFormItem :label="t('channels.intent_model')" :hint="t('channels.intent_model_hint')">
           <SSelect :model-value="sessionForm.intentModel ?? '__default__'" @update:model-value="v => sessionForm.intentModel = v === '__default__' ? null : String(v)">
