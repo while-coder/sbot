@@ -202,6 +202,11 @@ export interface UsageData {
 }
 
 // ── Tool approval ──
+export enum ApprovalTimeoutValue {
+  Allow = 'allow',
+  Deny  = 'deny',
+}
+
 export interface ToolCallEvent {
   approvalId: string
   toolCallId?: string
@@ -210,14 +215,19 @@ export interface ToolCallEvent {
   /** 剩余秒数；缺省/0 表示无超时，不显示倒计时 */
   remainSec?: number
   /** 超时后默认动作；与 remainSec 配套 */
-  timeoutValue?: 'allow' | 'deny'
+  timeoutValue?: ApprovalTimeoutValue
 }
 
-export type ToolApprovalType = 'allow' | 'alwaysArgs' | 'alwaysTool' | 'deny'
+export enum ToolApproval {
+  Allow      = 'allow',
+  AlwaysArgs = 'alwaysArgs',
+  AlwaysTool = 'alwaysTool',
+  Deny       = 'deny',
+}
 
 export interface ToolApprovalPayload {
   approvalId: string
-  approval: ToolApprovalType
+  approval: ToolApproval
 }
 
 // ── Ask form ──
@@ -276,7 +286,7 @@ export interface SessionStatus {
     tool: { id?: string; name: string; args: Record<string, any> }
     startedAt: string
     remainSec?: number
-    timeoutValue?: 'allow' | 'deny'
+    timeoutValue?: ApprovalTimeoutValue
   }
   pendingAsk?: AskEvent & { startedAt: string }
   pendingMessages?: DisplayContent[]

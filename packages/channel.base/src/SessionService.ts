@@ -9,6 +9,11 @@ export enum SessionStatus {
     WaitingAsk = 'waiting_ask',
 }
 
+export enum ApprovalTimeoutValue {
+    Allow = 'allow',
+    Deny  = 'deny',
+}
+
 export interface AskInfo {
     id: string;
     title?: string;
@@ -24,8 +29,8 @@ export interface ApprovalInfo {
     startedAt: Date;
     /** 剩余秒数；0 表示无超时 */
     remainSec: number;
-    /** 超时后默认动作（'allow' | 'deny'）；无超时时为 undefined */
-    timeoutValue?: 'allow' | 'deny';
+    /** 超时后默认动作；无超时时为 undefined */
+    timeoutValue?: ApprovalTimeoutValue;
 }
 
 export interface SessionInfo {
@@ -128,7 +133,7 @@ export abstract class SessionService extends MessageDispatcher {
                 ? {
                     id: p.id, tool: p.tool, startedAt: p.startedAt,
                     remainSec: computeRemainSec(p.timeoutAt),
-                    timeoutValue: p.timeoutAt > 0 ? (p.timeoutValue === ToolApproval.Allow ? 'allow' : 'deny') : undefined,
+                    timeoutValue: p.timeoutAt > 0 ? (p.timeoutValue === ToolApproval.Allow ? ApprovalTimeoutValue.Allow : ApprovalTimeoutValue.Deny) : undefined,
                 }
                 : undefined,
             pendingAsk: p?.type === PendingType.Ask

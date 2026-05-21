@@ -16,7 +16,6 @@ export type {
   UsageInfo,
   UsageData,
   ToolCallEvent,
-  ToolApprovalType,
   ToolApprovalPayload,
   AskQuestionSpec,
   AskEvent,
@@ -29,7 +28,7 @@ export type {
   ChatEvent,
 } from './types';
 
-export { MessageRole, ContentPartType, AskQuestionType, ChatEventType } from './types';
+export { MessageRole, ContentPartType, AskQuestionType, ChatEventType, ToolApproval } from './types';
 
 export type { IChatTransport } from './transport';
 

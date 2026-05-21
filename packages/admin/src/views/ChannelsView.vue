@@ -159,7 +159,7 @@ const editingId = ref<string | null>(null)
 const form = ref<ChannelConfig>({
   name: '', type: '', config: {}, agent: '', saver: '', memories: [],
   workPath: '', streamVerbose: false, autoApproveAllTools: false,
-  approvalTimeout: 0, approvalTimeoutValue: 'deny',
+  approvalTimeout: 0, approvalTimeoutValue: ApprovalTimeoutValue.Deny,
   askTimeout: 0, askTimeoutMessage: '',
   intentModel: '', intentPrompt: '', intentThreshold: 0.7,
   mergeWindow: 0,
@@ -301,7 +301,7 @@ function openAdd() {
   editingId.value = null
   clearActionState()
   const defaultType = plugins.value.find(p => !p.builtin)?.type || ''
-  form.value = { name: '', type: defaultType, config: {}, agent: '', saver: '', memories: [], wikis: [], workPath: '', streamVerbose: false, autoApproveAllTools: false, approvalTimeout: 0, approvalTimeoutValue: 'deny', askTimeout: 0, askTimeoutMessage: '', intentModel: '', intentPrompt: '', intentThreshold: 0.7, mergeWindow: 0 }
+  form.value = { name: '', type: defaultType, config: {}, agent: '', saver: '', memories: [], wikis: [], workPath: '', streamVerbose: false, autoApproveAllTools: false, approvalTimeout: 0, approvalTimeoutValue: ApprovalTimeoutValue.Deny, askTimeout: 0, askTimeoutMessage: '', intentModel: '', intentPrompt: '', intentThreshold: 0.7, mergeWindow: 0 }
   formTools.value = []
   formHeartbeatTools.value = []
   showModal.value = true
@@ -311,7 +311,7 @@ function openEdit(id: string) {
   const c = channels.value[id]
   editingId.value = id
   clearActionState()
-  form.value = { name: c.name, type: c.type, config: { ...c.config }, agent: c.agent, saver: c.saver, memories: c.memories || [], wikis: (c as any).wikis || [], workPath: c.workPath || '', streamVerbose: !!c.streamVerbose, autoApproveAllTools: !!c.autoApproveAllTools, approvalTimeout: c.approvalTimeout ?? 0, approvalTimeoutValue: c.approvalTimeoutValue ?? 'deny', askTimeout: c.askTimeout ?? 0, askTimeoutMessage: c.askTimeoutMessage || '', intentModel: c.intentModel || '', intentPrompt: c.intentPrompt || '', intentThreshold: c.intentThreshold ?? 0.7, mergeWindow: c.mergeWindow || 0 }
+  form.value = { name: c.name, type: c.type, config: { ...c.config }, agent: c.agent, saver: c.saver, memories: c.memories || [], wikis: (c as any).wikis || [], workPath: c.workPath || '', streamVerbose: !!c.streamVerbose, autoApproveAllTools: !!c.autoApproveAllTools, approvalTimeout: c.approvalTimeout ?? 0, approvalTimeoutValue: c.approvalTimeoutValue ?? ApprovalTimeoutValue.Deny, askTimeout: c.askTimeout ?? 0, askTimeoutMessage: c.askTimeoutMessage || '', intentModel: c.intentModel || '', intentPrompt: c.intentPrompt || '', intentThreshold: c.intentThreshold ?? 0.7, mergeWindow: c.mergeWindow || 0 }
   formTools.value = [...(c.tools ?? [])]
   formHeartbeatTools.value = [...(c.heartbeatTools ?? [])]
   showModal.value = true
@@ -700,8 +700,8 @@ async function refresh() {
             </SFormItem>
             <SFormItem v-if="form.approvalTimeout && form.approvalTimeout > 0" :label="t('channels.approval_timeout_value')">
               <SSelect v-model="form.approvalTimeoutValue">
-                <option value="deny">{{ t('channels.approval_timeout_value_deny') }}</option>
-                <option value="allow">{{ t('channels.approval_timeout_value_allow') }}</option>
+                <option :value="ApprovalTimeoutValue.Deny">{{ t('channels.approval_timeout_value_deny') }}</option>
+                <option :value="ApprovalTimeoutValue.Allow">{{ t('channels.approval_timeout_value_allow') }}</option>
               </SSelect>
             </SFormItem>
             <SFormItem :label="t('channels.ask_timeout')" :hint="t('channels.ask_timeout_hint')">
@@ -730,98 +730,107 @@ async function refresh() {
       </div>
     </Transition>
 
-    <!-- Edit session modal -->
-    <SModal :visible="!!editingSession" :title="editingSession ? t('channels.edit_session_title', { name: editingSession.sessionId }) : ''" width="md" @update:visible="v => { if (!v) editingSession = null }">
-      <template v-if="editingSession">
-        <SFormItem :label="t('channels.session_id')">
-          <SInput :model-value="editingSession.sessionId" disabled class="cell-mono" />
-        </SFormItem>
-        <SFormItem :label="t('channels.session_name')">
-          <SInput :model-value="sessionForm.name" disabled />
-        </SFormItem>
-        <SFormItem :label="t('common.agent')">
-          <SSelect v-model="sessionForm.agentId">
-            <option value="">{{ t('channels.use_channel_default') }}</option>
-            <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }} ({{ a.type }})</option>
-          </SSelect>
-        </SFormItem>
-        <SFormItem :label="t('common.storage')">
-          <SSelect v-model="sessionForm.saver">
-            <option value="">{{ t('channels.use_channel_default') }}</option>
-            <option v-for="s in saverOptions" :key="s.id" :value="s.id">{{ s.label }}</option>
-          </SSelect>
-        </SFormItem>
-        <SFormItem :label="t('common.memory')" :hint="t('channels.use_channel_memories_hint')">
-          <SMultiSelect v-model="sessionForm.memories" :options="memoryOptions" />
-          <label class="toggle-label toggle-mt">
-            <input type="checkbox" v-model="sessionForm.useChannelMemories" />
-            <span>{{ t('channels.use_channel_memories') }}</span>
-          </label>
-        </SFormItem>
-        <SFormItem :label="t('common.wiki')" :hint="t('channels.use_channel_wikis_hint')">
-          <SMultiSelect v-model="sessionForm.wikis" :options="wikiOptions" />
-          <label class="toggle-label toggle-mt">
-            <input type="checkbox" v-model="sessionForm.useChannelWikis" />
-            <span>{{ t('channels.use_channel_wikis') }}</span>
-          </label>
-        </SFormItem>
-        <SFormItem :label="t('directory.path_label')" :hint="t('channels.work_path_hint')">
-          <div class="path-row">
-            <SInput v-model="sessionForm.workPath" type="text" :placeholder="t('directory.path_placeholder')" class="path-input" />
-            <SButton type="outline" size="sm" @click="pathPicker?.open(sessionForm.workPath)">{{ t('directory.browse') }}</SButton>
-          </div>
-        </SFormItem>
-        <SFormItem :label="t('channels.stream_verbose')" :hint="t('channels.stream_verbose_hint')">
-          <SSelect :model-value="sessionForm.streamVerbose === null ? '' : String(sessionForm.streamVerbose)" @update:model-value="v => sessionForm.streamVerbose = v === '' ? null : v === 'true'">
-            <option value="">{{ t('channels.use_channel_default') }}</option>
-            <option value="true">{{ t('common.enabled') }}</option>
-            <option value="false">{{ t('common.disabled') }}</option>
-          </SSelect>
-        </SFormItem>
-        <SFormItem :label="t('settings.auto_approve_all')" :hint="t('settings.auto_approve_all_hint')">
-          <SSelect :model-value="sessionForm.autoApproveAllTools === null ? '' : String(sessionForm.autoApproveAllTools)" @update:model-value="v => sessionForm.autoApproveAllTools = v === '' ? null : v === 'true'">
-            <option value="">{{ t('channels.use_channel_default') }}</option>
-            <option value="true">{{ t('common.enabled') }}</option>
-            <option value="false">{{ t('common.disabled') }}</option>
-          </SSelect>
-        </SFormItem>
-        <SFormItem :label="t('channels.approval_timeout')" :hint="t('channels.approval_timeout_hint') + ' (' + t('channels.use_channel_default') + ': -1)'">
-          <SInput :model-value="sessionForm.approvalTimeout ?? -1" type="number" @update:model-value="v => sessionForm.approvalTimeout = (v === '' || v === null || Number(v) < 0) ? null : Number(v)" />
-        </SFormItem>
-        <SFormItem v-if="sessionForm.approvalTimeout != null && sessionForm.approvalTimeout > 0" :label="t('channels.approval_timeout_value')">
-          <SSelect :model-value="sessionForm.approvalTimeoutValue ?? ''" @update:model-value="v => sessionForm.approvalTimeoutValue = (v === '' ? null : v as 'allow' | 'deny')">
-            <option value="">{{ t('channels.use_channel_default') }}</option>
-            <option value="deny">{{ t('channels.approval_timeout_value_deny') }}</option>
-            <option value="allow">{{ t('channels.approval_timeout_value_allow') }}</option>
-          </SSelect>
-        </SFormItem>
-        <SFormItem :label="t('channels.ask_timeout')" :hint="t('channels.ask_timeout_hint') + ' (' + t('channels.use_channel_default') + ': -1)'">
-          <SInput :model-value="sessionForm.askTimeout ?? -1" type="number" @update:model-value="v => sessionForm.askTimeout = (v === '' || v === null || Number(v) < 0) ? null : Number(v)" />
-        </SFormItem>
-        <SFormItem v-if="sessionForm.askTimeout != null && sessionForm.askTimeout > 0" :label="t('channels.ask_timeout_message')" :hint="t('channels.ask_timeout_message_hint')">
-          <SInput v-model="sessionForm.askTimeoutMessage" type="text" />
-        </SFormItem>
-        <SFormItem :label="t('channels.intent_model')" :hint="t('channels.intent_model_hint')">
-          <SSelect :model-value="sessionForm.intentModel ?? '__default__'" @update:model-value="v => sessionForm.intentModel = v === '__default__' ? null : String(v)">
-            <option value="__default__">{{ t('channels.use_channel_default') }}</option>
-            <option value="">{{ t('common.not_use') }}</option>
-            <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-          </SSelect>
-        </SFormItem>
-        <template v-if="sessionForm.intentModel">
-          <SFormItem :label="t('channels.intent_threshold')" :hint="t('channels.intent_threshold_hint')">
-            <SInput v-model.number="sessionForm.intentThreshold" type="number" />
+    <!-- Edit session drawer -->
+    <Transition name="drawer-fade">
+      <div v-if="editingSession" class="drawer-overlay" @click.self="editingSession = null"></div>
+    </Transition>
+    <Transition name="drawer-slide">
+      <div v-if="editingSession" class="drawer-panel">
+        <div class="drawer-header">
+          <h3>{{ t('channels.edit_session_title', { name: editingSession.sessionId }) }}</h3>
+          <button class="drawer-close" @click="editingSession = null">&times;</button>
+        </div>
+        <div class="drawer-body">
+          <SFormItem :label="t('channels.session_id')">
+            <SInput :model-value="editingSession.sessionId" disabled class="cell-mono" />
           </SFormItem>
-          <SFormItem :label="t('channels.intent_prompt')">
-            <STextarea v-model="sessionForm.intentPrompt" :rows="4" :placeholder="t('channels.intent_prompt_placeholder')" />
+          <SFormItem :label="t('channels.session_name')">
+            <SInput :model-value="sessionForm.name" disabled />
           </SFormItem>
-        </template>
-      </template>
-      <template #footer>
-        <SButton type="outline" @click="editingSession = null">{{ t('common.cancel') }}</SButton>
-        <SButton type="primary" @click="saveSession">{{ t('common.save') }}</SButton>
-      </template>
-    </SModal>
+          <SFormItem :label="t('common.agent')">
+            <SSelect v-model="sessionForm.agentId">
+              <option value="">{{ t('channels.use_channel_default') }}</option>
+              <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }} ({{ a.type }})</option>
+            </SSelect>
+          </SFormItem>
+          <SFormItem :label="t('common.storage')">
+            <SSelect v-model="sessionForm.saver">
+              <option value="">{{ t('channels.use_channel_default') }}</option>
+              <option v-for="s in saverOptions" :key="s.id" :value="s.id">{{ s.label }}</option>
+            </SSelect>
+          </SFormItem>
+          <SFormItem :label="t('common.memory')" :hint="t('channels.use_channel_memories_hint')">
+            <SMultiSelect v-model="sessionForm.memories" :options="memoryOptions" />
+            <label class="toggle-label toggle-mt">
+              <input type="checkbox" v-model="sessionForm.useChannelMemories" />
+              <span>{{ t('channels.use_channel_memories') }}</span>
+            </label>
+          </SFormItem>
+          <SFormItem :label="t('common.wiki')" :hint="t('channels.use_channel_wikis_hint')">
+            <SMultiSelect v-model="sessionForm.wikis" :options="wikiOptions" />
+            <label class="toggle-label toggle-mt">
+              <input type="checkbox" v-model="sessionForm.useChannelWikis" />
+              <span>{{ t('channels.use_channel_wikis') }}</span>
+            </label>
+          </SFormItem>
+          <SFormItem :label="t('directory.path_label')" :hint="t('channels.work_path_hint')">
+            <div class="path-row">
+              <SInput v-model="sessionForm.workPath" type="text" :placeholder="t('directory.path_placeholder')" class="path-input" />
+              <SButton type="outline" size="sm" @click="pathPicker?.open(sessionForm.workPath)">{{ t('directory.browse') }}</SButton>
+            </div>
+          </SFormItem>
+          <SFormItem :label="t('channels.stream_verbose')" :hint="t('channels.stream_verbose_hint')">
+            <SSelect :model-value="sessionForm.streamVerbose === null ? '' : String(sessionForm.streamVerbose)" @update:model-value="v => sessionForm.streamVerbose = v === '' ? null : v === 'true'">
+              <option value="">{{ t('channels.use_channel_default') }}</option>
+              <option value="true">{{ t('common.enabled') }}</option>
+              <option value="false">{{ t('common.disabled') }}</option>
+            </SSelect>
+          </SFormItem>
+          <SFormItem :label="t('settings.auto_approve_all')" :hint="t('settings.auto_approve_all_hint')">
+            <SSelect :model-value="sessionForm.autoApproveAllTools === null ? '' : String(sessionForm.autoApproveAllTools)" @update:model-value="v => sessionForm.autoApproveAllTools = v === '' ? null : v === 'true'">
+              <option value="">{{ t('channels.use_channel_default') }}</option>
+              <option value="true">{{ t('common.enabled') }}</option>
+              <option value="false">{{ t('common.disabled') }}</option>
+            </SSelect>
+          </SFormItem>
+          <SFormItem :label="t('channels.approval_timeout')" :hint="t('channels.approval_timeout_hint') + ' (' + t('channels.use_channel_default') + ': 0)'">
+            <SInput :model-value="sessionForm.approvalTimeout ?? 0" type="number" @update:model-value="v => sessionForm.approvalTimeout = (v === '' || v === null || Number(v) <= 0) ? null : Number(v)" />
+          </SFormItem>
+          <SFormItem v-if="sessionForm.approvalTimeout != null && sessionForm.approvalTimeout > 0" :label="t('channels.approval_timeout_value')">
+            <SSelect :model-value="sessionForm.approvalTimeoutValue ?? ''" @update:model-value="v => sessionForm.approvalTimeoutValue = (v === '' ? null : v as ApprovalTimeoutValue)">
+              <option value="">{{ t('channels.use_channel_default') }}</option>
+              <option :value="ApprovalTimeoutValue.Deny">{{ t('channels.approval_timeout_value_deny') }}</option>
+              <option :value="ApprovalTimeoutValue.Allow">{{ t('channels.approval_timeout_value_allow') }}</option>
+            </SSelect>
+          </SFormItem>
+          <SFormItem :label="t('channels.ask_timeout')" :hint="t('channels.ask_timeout_hint') + ' (' + t('channels.use_channel_default') + ': 0)'">
+            <SInput :model-value="sessionForm.askTimeout ?? 0" type="number" @update:model-value="v => sessionForm.askTimeout = (v === '' || v === null || Number(v) <= 0) ? null : Number(v)" />
+          </SFormItem>
+          <SFormItem v-if="sessionForm.askTimeout != null && sessionForm.askTimeout > 0" :label="t('channels.ask_timeout_message')" :hint="t('channels.ask_timeout_message_hint')">
+            <SInput v-model="sessionForm.askTimeoutMessage" type="text" />
+          </SFormItem>
+          <SFormItem :label="t('channels.intent_model')" :hint="t('channels.intent_model_hint')">
+            <SSelect :model-value="sessionForm.intentModel ?? '__default__'" @update:model-value="v => sessionForm.intentModel = v === '__default__' ? null : String(v)">
+              <option value="__default__">{{ t('channels.use_channel_default') }}</option>
+              <option value="">{{ t('common.not_use') }}</option>
+              <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
+            </SSelect>
+          </SFormItem>
+          <template v-if="sessionForm.intentModel">
+            <SFormItem :label="t('channels.intent_threshold')" :hint="t('channels.intent_threshold_hint')">
+              <SInput v-model.number="sessionForm.intentThreshold" type="number" />
+            </SFormItem>
+            <SFormItem :label="t('channels.intent_prompt')">
+              <STextarea v-model="sessionForm.intentPrompt" :rows="4" :placeholder="t('channels.intent_prompt_placeholder')" />
+            </SFormItem>
+          </template>
+        </div>
+        <div class="drawer-footer">
+          <SButton type="outline" @click="editingSession = null">{{ t('common.cancel') }}</SButton>
+          <SButton type="primary" @click="saveSession">{{ t('common.save') }}</SButton>
+        </div>
+      </div>
+    </Transition>
 
     <!-- View user modal -->
     <SModal :visible="!!viewUser" :title="viewUser ? t('users.detail_title', { name: viewUser.userName || viewUser.userId }) : ''" width="lg" @update:visible="v => { if (!v) viewUser = null }">
