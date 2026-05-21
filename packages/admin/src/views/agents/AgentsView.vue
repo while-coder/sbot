@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store, applyMcpList } from '@/store'
-import { useToast, SButton, SCard, SPageToolbar, SPageContent, STable, SInfoTable, SInfoRow, type STableColumn } from 'sbot-ui'
+import { useToast, SButton, SCard, SPageToolbar, SPageContent, STable, SInfoTable, SInfoRow, SModal, SInput, type STableColumn } from 'sbot-ui'
 import AgentModal from './AgentModal.vue'
 import AgentMcpModal from './AgentMcpModal.vue'
 import AgentSkillsModal from './AgentSkillsModal.vue'
@@ -246,7 +246,7 @@ const mcpCols = computed<STableColumn[]>(() => [
   { key: 'source', label: '来源',                  width: '80px' },
   { key: 'desc',   label: '描述',                  ellipsis: true },
   { key: 'addr',   label: t('mcp.address_col'),   width: '200px', ellipsis: true },
-  { key: 'ops',    label: t('common.ops'),        ops: true, width: '90px' },
+  { key: 'ops',    label: t('common.ops'),        ops: true, width: '180px' },
 ])
 
 type SkillRow = SkillItem & { _key: string; _private: boolean }
@@ -263,6 +263,56 @@ function mcpRows(id: string): McpRow[] {
     ...getMcpGlobals(id).map(m => ({ ...m, _key: 'g-' + m.id, _private: false })),
     ...getMcpServers(id).map(m => ({ ...m, _key: 's-' + m.id, _private: true  })),
   ]
+}
+
+// ── MCP params editor (mirrors AgentMcpModal) ────────────────────
+const showParamsModal = ref(false)
+const paramsAgentId   = ref('')
+const paramsMcpId     = ref('')
+const paramsRows      = ref<{ key: string; value: string }[]>([])
+
+function getAgentMcpParams(agentId: string, mcpId: string): Record<string, string> {
+  const agent = (store.settings.agents || {})[agentId] as any
+  return agent?.mcpParams?.[mcpId] || {}
+}
+
+function paramsCount(agentId: string, mcpId: string): number {
+  return Object.keys(getAgentMcpParams(agentId, mcpId)).length
+}
+
+function openMcpParams(agentId: string, mcpId: string) {
+  paramsAgentId.value = agentId
+  paramsMcpId.value   = mcpId
+  paramsRows.value    = Object.entries(getAgentMcpParams(agentId, mcpId)).map(([key, value]) => ({ key, value }))
+  showParamsModal.value = true
+}
+
+async function saveMcpParams() {
+  try {
+    const agentId  = paramsAgentId.value
+    const mcpId    = paramsMcpId.value
+    const existing = (store.settings.agents || {})[agentId] || {}
+    const obj = Object.fromEntries(
+      paramsRows.value.filter(r => r.key.trim()).map(r => [r.key.trim(), r.value])
+    )
+    const nextParams = { ...((existing as any).mcpParams || {}) }
+    if (Object.keys(obj).length > 0) nextParams[mcpId] = obj
+    else delete nextParams[mcpId]
+    const payload: any = { ...existing }
+    if (Object.keys(nextParams).length > 0) payload.mcpParams = nextParams
+    else delete payload.mcpParams
+    await apiFetch(
+      `/api/agents/${encodeURIComponent(agentId)}`,
+      'PUT',
+      payload,
+    )
+    const settingsRes = await apiFetch('/api/settings')
+    Object.assign(store.settings, settingsRes.data)
+    show(t('common.saved'))
+    showParamsModal.value = false
+  } catch (e: any) {
+    show(e.message, 'error')
+  }
 }
 </script>
 
@@ -413,6 +463,9 @@ function mcpRows(id: string): McpRow[] {
                 <template #desc="{ row: s }"><span class="cell-desc">{{ s.description || '-' }}</span></template>
                 <template #addr="{ row: s }"><span :class="s._private ? 'cell-addr-priv' : 'cell-addr'">{{ serverAddr(s as any) }}</span></template>
                 <template #ops="{ row: s }">
+                  <SButton v-if="!s._private" type="outline" size="sm" @click="openMcpParams(row.id, s.id)">
+                    {{ t('agents.mcp_params') }}<span v-if="paramsCount(row.id, s.id) > 0" class="params-badge">{{ paramsCount(row.id, s.id) }}</span>
+                  </SButton>
                   <SButton type="outline" size="sm" @click="openMcpView(row.id, s.id, s._private)">{{ t('common.view') }}</SButton>
                 </template>
               </STable>
@@ -444,6 +497,21 @@ function mcpRows(id: string): McpRow[] {
     />
 
     <SkillViewerModal ref="skillViewRef" />
+
+    <SModal v-model:visible="showParamsModal" :title="t('agents.mcp_params_title', { name: paramsMcpId })" width="md">
+      <div class="params-hint">{{ t('agents.mcp_params_hint') }}</div>
+      <div v-for="(row, i) in paramsRows" :key="i" class="params-row">
+        <SInput v-model="row.key" placeholder="Key" size="sm" style="flex:1" />
+        <SInput v-model="row.value" placeholder="Value" size="sm" style="flex:2" />
+        <SButton type="danger" size="sm" @click="paramsRows.splice(i,1)">×</SButton>
+      </div>
+      <SButton type="outline" size="sm" @click="paramsRows.push({key:'',value:''})">{{ t('agents.mcp_params_add') }}</SButton>
+
+      <template #footer>
+        <SButton type="outline" @click="showParamsModal = false">{{ t('common.cancel') }}</SButton>
+        <SButton type="primary" @click="saveMcpParams">{{ t('common.confirm') }}</SButton>
+      </template>
+    </SModal>
   </div>
 </template>
 
@@ -588,6 +656,27 @@ function mcpRows(id: string): McpRow[] {
   font-size: var(--sui-fs-sm);
 }
 .cell-addr-priv { font-size: var(--sui-fs-sm); }
+
+.params-badge {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 8px;
+  background: var(--sui-bg-subtle);
+  color: var(--sui-fg-muted);
+}
+.params-hint {
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg-muted);
+  margin-bottom: var(--sui-sp-3);
+}
+.params-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+}
 
 /* Dark theme overrides */
 html[data-theme="dark"] .agent-type-react { background: #3b2d5c; color: #c4b5fd; }

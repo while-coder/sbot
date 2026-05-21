@@ -49,6 +49,13 @@ const exclusiveColumns = computed<STableColumn[]>(() => [
   { key: 'ops',         label: t('common.ops'), ops: true },
 ])
 
+const globalColumns = computed<STableColumn[]>(() => [
+  { key: 'select',      label: '',                      width: '40px' },
+  { key: 'name',        label: t('common.name'),        primary: true, width: '280px' },
+  { key: 'description', label: t('common.description'), ellipsis: true },
+  { key: 'ops',         label: t('common.ops'),         ops: true, width: '90px' },
+])
+
 const filteredGlobalSkills = computed(() => {
   const list = activeTab.value === 'all'
     ? allGlobalSkills.value
@@ -57,6 +64,14 @@ const filteredGlobalSkills = computed(() => {
   if (!q) return list
   return list.filter(s => s.name.toLowerCase().includes(q) || (s.description || '').toLowerCase().includes(q))
 })
+
+const globalEmptyText = computed(() =>
+  allGlobalSkills.value.length === 0 ? t('skills.no_global') : t('skills.no_match'),
+)
+
+function globalRowClass(row: SkillItem): string {
+  return selectedSkills.value.includes(row.name) ? 'is-checked' : ''
+}
 
 function apiBase() {
   return `/api/agents/${encodeURIComponent(agentName.value)}/skills`
@@ -180,21 +195,35 @@ defineExpose({ open })
             <SButton type="primary" size="sm" :disabled="!skillsChanged" @click="saveGlobalSkills">{{ t('common.save') }}</SButton>
             <span v-if="skillsChanged" class="picker-unsaved">{{ t('common.unsaved_changes') }}</span>
           </div>
-          <div v-if="allGlobalSkills.length === 0" class="picker-empty">{{ t('skills.no_global') }}</div>
-          <div v-else class="picker-list">
-            <div v-if="filteredGlobalSkills.length === 0" class="picker-list-empty">{{ t('skills.no_match') }}</div>
-            <label
-              v-for="s in filteredGlobalSkills" :key="s.name"
-              class="picker-row"
-              :class="{ checked: selectedSkills.includes(s.name) }"
-            >
-              <input type="checkbox" :value="s.name" v-model="selectedSkills" :disabled="useAllSkills" :checked="useAllSkills || selectedSkills.includes(s.name)" />
-              <span :style="`flex-shrink:0;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(s.source)}`">{{ s.source }}</span>
-              <span class="picker-row-name">{{ s.name }}</span>
-              <span class="picker-row-desc">{{ s.description || '-' }}</span>
-              <SButton type="outline" size="sm" @click.prevent="openView(s.name, s.source)">{{ t('common.view') }}</SButton>
-            </label>
-          </div>
+          <STable
+            :columns="globalColumns"
+            :rows="filteredGlobalSkills"
+            row-key="name"
+            :empty-text="globalEmptyText"
+            :row-class-name="globalRowClass"
+          >
+            <template #select="{ row }">
+              <input
+                type="checkbox"
+                :value="row.name"
+                v-model="selectedSkills"
+                :disabled="useAllSkills"
+                :checked="useAllSkills || selectedSkills.includes(row.name)"
+              />
+            </template>
+            <template #name="{ row }">
+              <div class="name-cell">
+                <span :style="`flex-shrink:0;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(row.source)}`">{{ row.source }}</span>
+                <span style="font-family:var(--sui-font-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ row.name }}</span>
+              </div>
+            </template>
+            <template #description="{ row }">
+              <span style="color:var(--sui-fg-muted);font-size:var(--sui-fs-sm)">{{ row.description || '-' }}</span>
+            </template>
+            <template #ops="{ row }">
+              <SButton type="outline" size="sm" @click="openView(row.name, row.source)">{{ t('common.view') }}</SButton>
+            </template>
+          </STable>
         </template>
 
         <!-- Agent-specific skills tab -->
@@ -249,51 +278,13 @@ defineExpose({ open })
   color: var(--sui-warning);
   white-space: nowrap;
 }
-.picker-empty {
-  text-align: center;
-  color: var(--sui-fg-disabled);
-  padding: 40px;
-}
-.picker-list {
-  border: 1px solid var(--sui-border);
-  border-radius: var(--sui-radius-md);
-  overflow: hidden;
-}
-.picker-list-empty {
-  padding: 20px;
-  text-align: center;
-  color: var(--sui-fg-disabled);
-  font-size: var(--sui-fs-md);
-}
-.picker-row {
+:deep(tr.is-checked > td) { background: var(--sui-bg-subtle); }
+:deep(input[type="checkbox"]) { cursor: pointer; width: 14px; height: 14px; }
+.name-cell {
   display: flex;
   align-items: center;
-  gap: var(--sui-sp-4);
-  padding: var(--sui-sp-3) var(--sui-sp-5);
-  cursor: pointer;
-  border-bottom: 1px solid var(--sui-border-subtle);
-  font-size: var(--sui-fs-md);
-}
-.picker-row:last-child { border-bottom: none; }
-.picker-row.checked { background: var(--sui-bg-subtle); }
-.picker-row input[type="checkbox"] { cursor: pointer; flex-shrink: 0; width: 14px; height: 14px; }
-.picker-row-name {
-  font-family: var(--sui-font-mono);
-  font-weight: 500;
-  width: 200px;
-  flex-shrink: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.picker-row-desc {
-  flex: 1;
+  gap: var(--sui-sp-3);
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--sui-fs-sm);
-  color: var(--sui-fg-muted);
 }
 .dir-hint-panel {
   margin-bottom: var(--sui-sp-4);

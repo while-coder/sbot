@@ -85,6 +85,21 @@ const exclusiveColumns = computed<STableColumn[]>(() => [
   { key: 'ops',         label: t('common.ops'),         ops: true,     width: '190px' },
 ])
 
+const globalColumns = computed<STableColumn[]>(() => [
+  { key: 'select',      label: '',                      width: '40px' },
+  { key: 'name',        label: t('common.name'),        primary: true, width: '280px' },
+  { key: 'description', label: t('common.description'), ellipsis: true },
+  { key: 'ops',         label: t('common.ops'),         ops: true, width: '210px' },
+])
+
+const globalEmptyText = computed(() =>
+  store.allMcps.length === 0 ? t('mcp.no_global') : t('mcp.no_match'),
+)
+
+function globalRowClass(row: { id: string }): string {
+  return selectedGlobals.value.includes(row.id) ? 'is-checked' : ''
+}
+
 function apiBase() {
   return `/api/agents/${encodeURIComponent(agentName.value)}/mcp`
 }
@@ -415,29 +430,45 @@ defineExpose({ open })
             <SButton type="primary" size="sm" :disabled="!globalsChanged" @click="saveGlobals">{{ t('common.save') }}</SButton>
             <span v-if="globalsChanged" class="picker-unsaved">{{ t('common.unsaved_changes') }}</span>
           </div>
-          <div v-if="store.allMcps.length === 0" class="picker-empty">{{ t('mcp.no_global') }}</div>
-          <div v-else class="picker-list">
-            <div v-if="filteredGlobalMcps.length === 0" class="picker-list-empty">{{ t('mcp.no_match') }}</div>
-            <label
-              v-for="m in filteredGlobalMcps" :key="m.id"
-              class="picker-row"
-              :class="{ checked: selectedGlobals.includes(m.id) }"
-            >
-              <input type="checkbox" :value="m.id" v-model="selectedGlobals" :disabled="useAllMcp" :checked="useAllMcp || selectedGlobals.includes(m.id)" />
-              <span :style="`flex-shrink:0;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(m.source)}`">{{ m.source }}</span>
-              <span class="picker-row-name">{{ m.name }}</span>
-              <span class="picker-row-desc">{{ m.description || '-' }}</span>
-              <SButton
-                type="outline"
-                size="sm"
-                :disabled="!useAllMcp && !selectedGlobals.includes(m.id)"
-                @click.prevent="openParams(m.id)"
-              >
-                {{ t('agents.mcp_params') }}<span v-if="paramsCount(m.id) > 0" class="params-badge">{{ paramsCount(m.id) }}</span>
-              </SButton>
-              <SButton type="outline" size="sm" @click.prevent="viewGlobalTools(m.id)">{{ t('common.view') }}</SButton>
-            </label>
-          </div>
+          <STable
+            :columns="globalColumns"
+            :rows="filteredGlobalMcps"
+            row-key="id"
+            :empty-text="globalEmptyText"
+            :row-class-name="globalRowClass"
+          >
+            <template #select="{ row }">
+              <input
+                type="checkbox"
+                :value="row.id"
+                v-model="selectedGlobals"
+                :disabled="useAllMcp"
+                :checked="useAllMcp || selectedGlobals.includes(row.id)"
+              />
+            </template>
+            <template #name="{ row }">
+              <div class="name-cell">
+                <span :style="`flex-shrink:0;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(row.source)}`">{{ row.source }}</span>
+                <span style="font-family:var(--sui-font-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ row.name }}</span>
+              </div>
+            </template>
+            <template #description="{ row }">
+              <span style="color:var(--sui-fg-muted);font-size:var(--sui-fs-sm)">{{ row.description || '-' }}</span>
+            </template>
+            <template #ops="{ row }">
+              <div class="ops-cell">
+                <SButton
+                  type="outline"
+                  size="sm"
+                  :disabled="!useAllMcp && !selectedGlobals.includes(row.id)"
+                  @click="openParams(row.id)"
+                >
+                  {{ t('agents.mcp_params') }}<span v-if="paramsCount(row.id) > 0" class="params-badge">{{ paramsCount(row.id) }}</span>
+                </SButton>
+                <SButton type="outline" size="sm" @click="viewGlobalTools(row.id)">{{ t('common.view') }}</SButton>
+              </div>
+            </template>
+          </STable>
         </template>
 
         <!-- Private servers tab -->
@@ -583,51 +614,13 @@ defineExpose({ open })
   color: var(--sui-warning);
   white-space: nowrap;
 }
-.picker-empty {
-  text-align: center;
-  color: var(--sui-fg-disabled);
-  padding: 40px;
-}
-.picker-list {
-  border: 1px solid var(--sui-border);
-  border-radius: var(--sui-radius-md);
-  overflow: hidden;
-}
-.picker-list-empty {
-  padding: 20px;
-  text-align: center;
-  color: var(--sui-fg-disabled);
-  font-size: var(--sui-fs-md);
-}
-.picker-row {
+:deep(tr.is-checked > td) { background: var(--sui-bg-subtle); }
+:deep(input[type="checkbox"]) { cursor: pointer; width: 14px; height: 14px; }
+.name-cell {
   display: flex;
   align-items: center;
-  gap: var(--sui-sp-4);
-  padding: var(--sui-sp-3) var(--sui-sp-5);
-  cursor: pointer;
-  border-bottom: 1px solid var(--sui-border-subtle);
-  font-size: var(--sui-fs-md);
-}
-.picker-row:last-child { border-bottom: none; }
-.picker-row.checked { background: var(--sui-bg-subtle); }
-.picker-row input[type="checkbox"] { cursor: pointer; flex-shrink: 0; width: 14px; height: 14px; }
-.picker-row-name {
-  font-family: var(--sui-font-mono);
-  font-weight: 500;
-  width: 200px;
-  flex-shrink: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.picker-row-desc {
-  flex: 1;
+  gap: var(--sui-sp-3);
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--sui-fs-sm);
-  color: var(--sui-fg-muted);
 }
 .params-badge {
   display: inline-block;
