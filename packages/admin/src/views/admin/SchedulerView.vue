@@ -1,17 +1,19 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { useToast, SButton, SPageToolbar, SPageContent, STable } from 'sbot-ui'
+import { useToast, SButton, SBadge, SPageToolbar, SPageContent, STable } from 'sbot-ui'
 import type { STableColumn } from 'sbot-ui'
+import { store } from '@/shared/store'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 interface SchedulerRow {
   id: number
   expr: string
   message: string
   targetId: string | null
+  aiProcess: boolean
   lastRun: number | null
   nextRun: number | null
   runCount: number
@@ -22,19 +24,32 @@ interface ChannelSessionRow {
   id: number
   channelId: string
   sessionId: string
+  sessionName?: string | null
 }
 
-type UIType = 'daily' | 'weekly' | 'monthly' | 'interval' | 'hourly' | 'custom'
+type UIType = 'daily' | 'weekly' | 'monthly' | 'once' | 'interval' | 'hourly' | 'custom'
+
+const TYPE_VARIANT: Record<UIType, 'info' | 'accent' | 'success' | 'warning' | 'neutral'> = {
+  interval: 'info',
+  hourly:   'accent',
+  daily:    'success',
+  weekly:   'warning',
+  monthly:  'warning',
+  once:     'accent',
+  custom:   'neutral',
+}
 
 const { show } = useToast()
 const timers = ref<SchedulerRow[]>([])
 const channelSessions = ref<ChannelSessionRow[]>([])
 const loading = ref(false)
+const now = ref(Date.now())
 
 const columns = computed<STableColumn[]>(() => [
   { key: 'id',       label: t('common.id') },
   { key: 'schedule', label: t('scheduler.schedule_col'), primary: true },
   { key: 'message',  label: t('scheduler.message_col') },
+  { key: 'mode',     label: t('scheduler.mode_col') },
   { key: 'target',   label: t('scheduler.target_col') },
   { key: 'runCount', label: t('scheduler.run_count_col') },
   { key: 'lastRun',  label: t('scheduler.last_run_col') },
@@ -42,35 +57,85 @@ const columns = computed<STableColumn[]>(() => [
   { key: 'ops',      label: t('common.ops'), ops: true },
 ])
 
-function detectUIType(expr: string): UIType {
+interface CronFields { s: string; m: string; h: string; dom: string; mon: string; dow: string }
+
+function parseCron(expr: string): CronFields | null {
   const p = expr.trim().split(/\s+/)
-  if (p.length !== 5) return 'custom'
-  const [m, h, dom, mon, dow] = p
-  if (/^\*\/\d+$/.test(m) && h === '*' && dom === '*' && mon === '*' && dow === '*') return 'interval'
-  if (/^\d+$/.test(m)     && h === '*' && dom === '*' && mon === '*' && dow === '*') return 'hourly'
-  if (/^\d+$/.test(m) && /^\d+$/.test(h) && dom === '*' && mon === '*' && /^\d$/.test(dow)) return 'weekly'
-  if (/^\d+$/.test(m) && /^\d+$/.test(h) && /^\d+$/.test(dom) && mon === '*' && dow === '*') return 'monthly'
-  if (/^\d+$/.test(m) && /^\d+$/.test(h) && dom === '*' && mon === '*' && dow === '*') return 'daily'
+  if (p.length === 6) return { s: p[0], m: p[1], h: p[2], dom: p[3], mon: p[4], dow: p[5] }
+  if (p.length === 5) return { s: '0', m: p[0], h: p[1], dom: p[2], mon: p[3], dow: p[4] }
+  return null
+}
+
+function detectUIType(expr: string): UIType {
+  const f = parseCron(expr)
+  if (!f) return 'custom'
+  const { s, m, h, dom, mon, dow } = f
+  const allRest = dom === '*' && mon === '*' && dow === '*'
+  if (/^\*\/\d+$/.test(s) && m === '*' && h === '*' && allRest) return 'interval'
+  if (s === '0' && /^\*\/\d+$/.test(m) && h === '*' && allRest)  return 'interval'
+  if (s === '0' && m === '0' && /^\*\/\d+$/.test(h) && allRest)  return 'interval'
+  if (/^\d+$/.test(s) && /^\d+$/.test(m) && h === '*' && allRest) return 'hourly'
+  if (/^\d+$/.test(s) && /^\d+$/.test(m) && /^\d+$/.test(h)) {
+    if (dom === '*' && mon === '*' && /^\d$/.test(dow))                              return 'weekly'
+    if (/^\d+$/.test(dom) && /^\d+$/.test(mon) && dow === '*')                       return 'once'
+    if (/^\d+$/.test(dom) && mon === '*' && dow === '*')                             return 'monthly'
+    if (allRest)                                                                      return 'daily'
+  }
   return 'custom'
 }
 
 function describeExpr(expr: string): string {
-  const uiType = detectUIType(expr)
-  const p = expr.trim().split(/\s+/)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  if (uiType === 'interval') return t('scheduler.cron_every_n_minutes', { n: p[0].slice(2) })
-  if (uiType === 'hourly')   return t('scheduler.cron_hourly')
-  if (uiType === 'daily')    return t('scheduler.cron_daily', { hour: pad(parseInt(p[1])), minute: pad(parseInt(p[0])) })
-  if (uiType === 'weekly')   return t('scheduler.cron_weekly', { day: t(`scheduler.weekday_${p[4]}`), hour: pad(parseInt(p[1])), minute: pad(parseInt(p[0])) })
-  if (uiType === 'monthly')  return `每月${p[2]}日 ${pad(parseInt(p[1]))}:${pad(parseInt(p[0]))}`
+  const f = parseCron(expr)
+  if (!f) return expr
+  const { s, m, h, dom, mon, dow } = f
+  const pad = (v: string) => String(parseInt(v)).padStart(2, '0')
+  const allRest = dom === '*' && mon === '*' && dow === '*'
+
+  if (/^\*\/\d+$/.test(s) && m === '*' && h === '*' && allRest)
+    return t('scheduler.cron_every_n_seconds', { n: s.slice(2) })
+  if (s === '0' && /^\*\/\d+$/.test(m) && h === '*' && allRest)
+    return t('scheduler.cron_every_n_minutes', { n: m.slice(2) })
+  if (s === '0' && m === '0' && /^\*\/\d+$/.test(h) && allRest)
+    return t('scheduler.cron_every_n_hours', { n: h.slice(2) })
+
+  if (/^\d+$/.test(s) && /^\d+$/.test(m) && h === '*' && allRest) {
+    if (s === '0' && m === '0') return t('scheduler.cron_hourly')
+    if (s === '0')              return t('scheduler.cron_hourly_at', { minute: pad(m) })
+    return t('scheduler.cron_hourly_at_sec', { minute: pad(m), second: pad(s) })
+  }
+
+  if (/^\d+$/.test(s) && /^\d+$/.test(m) && /^\d+$/.test(h)) {
+    const time = s === '0'
+      ? `${pad(h)}:${pad(m)}`
+      : `${pad(h)}:${pad(m)}:${pad(s)}`
+    if (dom === '*' && mon === '*' && /^\d$/.test(dow))
+      return t('scheduler.cron_weekly', { day: t(`scheduler.weekday_${dow}`), time })
+    if (/^\d+$/.test(dom) && /^\d+$/.test(mon) && dow === '*')
+      return t('scheduler.cron_once', { month: parseInt(mon), day: parseInt(dom), time })
+    if (/^\d+$/.test(dom) && mon === '*' && dow === '*')
+      return t('scheduler.cron_monthly', { day: dom, time })
+    if (allRest)
+      return t('scheduler.cron_daily', { time })
+  }
+
   return expr
 }
 
-function targetLabel(row: SchedulerRow): string {
-  if (row.targetId == null) return '-'
+interface TargetInfo { text: string; title: string; mapped: boolean; placeholder: boolean }
+
+function targetInfo(row: SchedulerRow): TargetInfo {
+  if (row.targetId == null) {
+    const text = t('scheduler.target_global')
+    return { text, title: text, mapped: false, placeholder: true }
+  }
   const id = parseInt(row.targetId)
   const s = channelSessions.value.find(s => s.id === id)
-  return s ? s.sessionId : row.targetId
+  if (s) {
+    const name = s.sessionName || s.sessionId
+    const channelName = store.settings.channels?.[s.channelId]?.name || s.channelId
+    return { text: `[${channelName}] ${name}`, title: s.sessionId, mapped: true, placeholder: false }
+  }
+  return { text: `#${row.targetId}`, title: row.targetId, mapped: false, placeholder: false }
 }
 
 async function load() {
@@ -89,15 +154,32 @@ async function load() {
   }
 }
 
-function formatLastRun(ts: number | null): string {
-  if (!ts) return t('scheduler.not_run')
-  return new Date(ts).toLocaleString('zh-CN')
+const rtf = computed(() => new Intl.RelativeTimeFormat(
+  locale.value === 'zh' ? 'zh-CN' : 'en',
+  { numeric: 'auto' },
+))
+
+function formatRelative(ts: number): string {
+  const diff = ts - now.value
+  const abs = Math.abs(diff)
+  const SEC = 1000, MIN = 60 * SEC, HOUR = 60 * MIN, DAY = 24 * HOUR
+  if (abs < 30 * SEC) return t('scheduler.just_now')
+  if (abs < HOUR)     return rtf.value.format(Math.round(diff / MIN), 'minute')
+  if (abs < DAY)      return rtf.value.format(Math.round(diff / HOUR), 'hour')
+  return rtf.value.format(Math.round(diff / DAY), 'day')
 }
 
-function formatNextRun(ts: number | null): string {
-  if (!ts) return '-'
-  return new Date(ts).toLocaleString('zh-CN')
+function formatAbsolute(ts: number): string {
+  return new Date(ts).toLocaleString(locale.value === 'zh' ? 'zh-CN' : undefined)
 }
+
+function isImminent(ts: number | null): boolean {
+  if (!ts) return false
+  const diff = ts - now.value
+  return diff > 0 && diff < 60_000
+}
+
+let tickHandle: ReturnType<typeof setInterval> | null = null
 
 async function remove(row: SchedulerRow) {
   if (!confirm(t('scheduler.confirm_delete', { id: row.id }))) return
@@ -110,7 +192,14 @@ async function remove(row: SchedulerRow) {
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  tickHandle = setInterval(() => { now.value = Date.now() }, 30_000)
+})
+
+onUnmounted(() => {
+  if (tickHandle) clearInterval(tickHandle)
+})
 </script>
 
 <template>
@@ -129,18 +218,64 @@ onMounted(load)
         :loading-text="t('common.loading')"
         :empty-text="t('scheduler.empty')"
       >
-        <template #id="{ row }"><span class="sched-id">{{ row.id }}</span></template>
+        <template #id="{ row }"><span class="sched-id">#{{ row.id }}</span></template>
+
         <template #schedule="{ row }">
-          <div class="sched-desc">{{ describeExpr(row.expr) }}</div>
-          <div class="sched-expr">{{ row.expr }}</div>
+          <div class="sched-schedule" :title="row.expr">
+            <SBadge :variant="TYPE_VARIANT[detectUIType(row.expr)]" pill>
+              {{ t(`scheduler.type_${detectUIType(row.expr)}`) }}
+            </SBadge>
+            <span class="sched-desc">{{ describeExpr(row.expr) }}</span>
+          </div>
         </template>
-        <template #message="{ row }"><span class="sched-message">{{ row.message }}</span></template>
-        <template #target="{ row }"><span class="sched-target">{{ targetLabel(row) }}</span></template>
+
+        <template #message="{ row }">
+          <span class="sched-message" :title="row.message">{{ row.message }}</span>
+        </template>
+
+        <template #mode="{ row }">
+          <SBadge :variant="row.aiProcess ? 'accent' : 'neutral'">
+            {{ row.aiProcess ? t('scheduler.mode_ai') : t('scheduler.mode_raw') }}
+          </SBadge>
+        </template>
+
+        <template #target="{ row }">
+          <span
+            class="sched-target"
+            :class="{
+              'sched-target--placeholder': targetInfo(row).placeholder,
+              'sched-target--unmapped': !targetInfo(row).mapped && !targetInfo(row).placeholder,
+            }"
+            :title="targetInfo(row).title"
+          >{{ targetInfo(row).text }}</span>
+        </template>
+
         <template #runCount="{ row }">
-          <span class="sched-count">{{ row.runCount }}{{ row.maxRuns > 0 ? ` / ${row.maxRuns}` : '' }}</span>
+          <SBadge v-if="row.maxRuns > 0" variant="warning">
+            {{ row.runCount }} / {{ row.maxRuns }}
+          </SBadge>
+          <span v-else class="sched-count">{{ row.runCount }}</span>
         </template>
-        <template #lastRun="{ row }"><span class="sched-time">{{ formatLastRun(row.lastRun) }}</span></template>
-        <template #nextRun="{ row }"><span class="sched-time">{{ formatNextRun(row.nextRun) }}</span></template>
+
+        <template #lastRun="{ row }">
+          <span
+            v-if="row.lastRun"
+            class="sched-time"
+            :title="formatAbsolute(row.lastRun)"
+          >{{ formatRelative(row.lastRun) }}</span>
+          <span v-else class="sched-time sched-time--muted">{{ t('scheduler.not_run') }}</span>
+        </template>
+
+        <template #nextRun="{ row }">
+          <span
+            v-if="row.nextRun"
+            class="sched-time"
+            :class="{ 'sched-time--imminent': isImminent(row.nextRun) }"
+            :title="formatAbsolute(row.nextRun)"
+          >{{ formatRelative(row.nextRun) }}</span>
+          <span v-else class="sched-time sched-time--muted">-</span>
+        </template>
+
         <template #ops="{ row }">
           <SButton type="danger" size="sm" @click="remove(row)">{{ t('common.delete') }}</SButton>
         </template>
@@ -154,39 +289,64 @@ onMounted(load)
   font-family: var(--sui-font-mono);
   color: var(--sui-fg-disabled);
 }
-.sched-desc { font-size: var(--sui-fs-md); }
-.sched-expr {
-  font-family: var(--sui-font-mono);
-  font-size: var(--sui-fs-xs);
-  color: var(--sui-fg-disabled);
+.sched-schedule {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sui-sp-2);
+  cursor: help;
+}
+.sched-desc {
+  font-size: var(--sui-fs-md);
+  color: var(--sui-fg);
 }
 .sched-message {
   display: inline-block;
-  max-width: 180px;
+  max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--sui-fg-muted);
+  color: var(--sui-fg-secondary);
   vertical-align: bottom;
 }
 .sched-target {
   display: inline-block;
   font-size: var(--sui-fs-sm);
-  max-width: 160px;
+  max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   vertical-align: bottom;
+  color: var(--sui-fg-secondary);
+}
+.sched-target--placeholder {
+  color: var(--sui-fg-disabled);
+  font-style: italic;
+}
+.sched-target--unmapped {
+  font-family: var(--sui-font-mono);
+  color: var(--sui-fg-disabled);
 }
 .sched-count {
   font-size: var(--sui-fs-sm);
   font-family: var(--sui-font-mono);
-  color: var(--sui-fg-disabled);
+  color: var(--sui-fg-secondary);
   white-space: nowrap;
 }
 .sched-time {
   font-size: var(--sui-fs-sm);
-  color: var(--sui-fg-disabled);
+  color: var(--sui-fg-secondary);
   white-space: nowrap;
+  cursor: help;
+}
+.sched-time--muted {
+  color: var(--sui-fg-disabled);
+  cursor: default;
+}
+.sched-time--imminent {
+  color: var(--sui-on-info-soft);
+  background: var(--sui-info-soft);
+  padding: 1px var(--sui-sp-2);
+  border-radius: var(--sui-radius-sm);
+  font-weight: 600;
 }
 </style>

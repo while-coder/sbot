@@ -160,7 +160,7 @@ function openEdit(hb: HeartbeatItem) {
     intervalMinutes: hb.intervalMinutes || 30,
     promptFile: hb.promptFile || 'heartbeat/default.md',
     target: hb.target ?? null,
-    enabled: hb.enabled !== false,
+    enabled: Boolean(hb.enabled),
     activeHoursEnabled: hb.activeHoursStart != null && hb.activeHoursEnd != null,
     activeHoursStart: hb.activeHoursStart ?? 9,
     activeHoursEnd: hb.activeHoursEnd ?? 22,
@@ -268,17 +268,29 @@ async function refresh() {
 }
 
 const heartbeatColumns = computed<STableColumn[]>(() => [
-  { key: 'name',     label: t('heartbeats.name'), primary: true },
-  { key: 'interval', label: t('heartbeats.interval') },
-  { key: 'target',   label: t('heartbeats.target') },
-  { key: 'status',   label: t('heartbeats.status') },
-  { key: 'lastRun',  label: t('heartbeats.last_run') },
-  { key: 'nextRun',  label: t('heartbeats.next_run') },
-  { key: 'ops',      label: t('common.ops'), ops: true },
+  { key: 'name',        label: t('heartbeats.name'), primary: true },
+  { key: 'interval',    label: t('heartbeats.interval') },
+  { key: 'activeHours', label: t('heartbeats.activeHours') },
+  { key: 'target',      label: t('heartbeats.target') },
+  { key: 'status',      label: t('heartbeats.status') },
+  { key: 'lastRun',     label: t('heartbeats.last_run') },
+  { key: 'nextRun',     label: t('heartbeats.next_run') },
+  { key: 'ops',         label: t('common.ops'), ops: true },
 ])
 
 function fmtTime(s: string | number | null): string {
   return s ? new Date(s).toLocaleString('zh-CN') : '-'
+}
+
+function activeHoursLabel(hb: HeartbeatItem): string {
+  if (hb.activeHoursStart == null || hb.activeHoursEnd == null) return '—'
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${pad(hb.activeHoursStart)}:00 - ${pad(hb.activeHoursEnd)}:00`
+}
+
+function activeHoursTitle(hb: HeartbeatItem): string {
+  if (hb.activeHoursStart == null || hb.activeHoursEnd == null) return ''
+  return hb.activeHoursTimezone || t('heartbeats.timezone_local')
 }
 
 function nextRunOf(hb: HeartbeatItem): number | null {
@@ -301,6 +313,9 @@ onMounted(async () => {
       <STable :columns="heartbeatColumns" :rows="heartbeats" row-key="id" :empty-text="t('heartbeats.empty')">
         <template #name="{ row }">{{ row.name || row.id }}</template>
         <template #interval="{ row }"><span class="hb-small">{{ intervalLabel(row.intervalMinutes) }}</span></template>
+        <template #activeHours="{ row }">
+          <span class="hb-small" :title="activeHoursTitle(row)">{{ activeHoursLabel(row) }}</span>
+        </template>
         <template #target="{ row }"><span class="hb-small">{{ sessionLabel(row.target) }}</span></template>
         <template #status="{ row }">
           <SBadge :variant="statusVariant(row)">{{ statusLabel(row) }}</SBadge>
