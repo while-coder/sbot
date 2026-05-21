@@ -49,19 +49,22 @@ docker run -d \
 - **模块化组合** — 模型、记忆、工具、渠道、技能均为独立模块，自由搭配搭建 Agent，无固定套路
 - **一条命令部署** — `npm install -g` 或 `docker run`，跨平台原生运行，无额外系统依赖
 - **全 Web UI 管理** — 所有配置在浏览器中完成，无需手动编辑文件
-- **多 LLM 供应商** — OpenAI、Anthropic Claude、Google Gemini、Ollama，以及任何 OpenAI 兼容接口（Azure OpenAI、Groq、Mistral、DeepSeek 等）
-- **多 Agent 编排** — ReAct 递归任务分解 + Generative 多模态生成，Agent 可嵌套组合
-- **知识库** — 内置 Wiki 系统，支持文档自动提取和语义搜索，Agent 对话中自动引用
-- **长期记忆** — 基于向量 Embedding 的语义检索，持久化上下文记忆
-- **对话压缩** — Token 用量超阈值时自动摘要压缩，保持上下文连续性的同时降低消耗
-- **洞察系统** — 自动从对话中提取知识到 Wiki 和 Memory
+- **多 LLM 供应商** — OpenAI、Anthropic Claude、Google Gemini、Ollama，以及任何 OpenAI 兼容接口（Azure OpenAI、Groq、Mistral、DeepSeek 等）；网络抖动自动指数退避重试
+- **多 Agent 编排** — Single、ReAct（递归任务分解）、Generative（多模态生成）三种模式，Agent 可嵌套组合
 - **ACP Agent 支持** — Agent Client Protocol 集成，支持持久化和临时两种 Agent 模式
-- **MCP 工具** — 标准 MCP 协议（stdio/SSE），接入任意 MCP 工具生态
+- **知识库** — 内置 Wiki 系统，关键词与语义混合检索，Agent 对话中自动引用
+- **长期记忆** — 基于向量 Embedding 的语义检索（OpenAI、Google、Ollama、Cohere、VoyageAI），持久化上下文记忆
+- **对话压缩** — Token 用量超阈值时自动摘要压缩，保持上下文连续性的同时降低消耗
+- **Insight 洞察** — 按 Agent 配置的静默后置提取器，将用户偏好、项目事实、经验教训沉淀为可复用的 Markdown 笔记，并按使用情况自动标记陈旧、归档过期
+- **心跳唤醒** — 可配置定时提示词，让 Agent 在任意渠道周期性主动发起任务
+- **MCP 工具** — 标准 MCP 协议（stdio/SSE），接入任意 MCP 工具生态；支持全局与 Agent 级独立配置，故障自动重启
 - **多渠道接入** — Web UI、CLI、飞书/Lark、Slack、企业微信、微信、OneBot (QQ)、小爱音箱、REST API、WebSocket
-- **内置工具** — Shell 执行、文件系统、归档操作、媒体文件读取、Python/PowerShell 内联执行、Cron 调度、待办事项
-- **技能系统** — 可安装的 Prompt 模块，支持从 skills.sh / Clawhub 远程安装
-- **Token 用量追踪** — 内置消耗统计，实时可见
-- **灵活配置** — 单个 `settings.json`，支持全局和会话两级覆盖
+- **内置工具** — Shell 执行、文件系统、归档操作、媒体文件读取、Python/PowerShell 内联执行、Web 抓取/下载、Cron 调度、待办事项
+- **技能系统** — 可安装的 Prompt 模块，支持从 Clawhub、skills.sh、skillhub.cn 远程安装
+- **Agent 商店** — 浏览并一键安装预打包 Agent（含模型、Prompt、工具、技能、MCP 服务器配置），支持自定义源
+- **Token 用量追踪** — 按模型统计消耗，模型响应缓存命中率可视化
+- **无人值守安全** — 渠道支持审批超时与提问超时配置，长时间运行更可靠
+- **灵活配置** — 单个 `settings.json`，支持全局和会话两级覆盖；提示词热更新无需重启
 
 ---
 
@@ -107,24 +110,43 @@ docker run -d \
 
 **5. （可选）开启 Wiki 知识库** — 侧栏 → **Wiki** → 新建
 
-内置知识库系统，可手动创建词条（标题 + 内容 + 标签），也可由洞察系统在对话中自动提取知识。创建后将 Wiki 分配给会话或渠道，Agent 对话时可通过内置工具搜索、读取和创建词条。
+内置知识库系统，可手动创建词条（标题 + 内容 + 标签）。创建后将 Wiki 分配给会话或渠道，Agent 对话时可通过内置工具搜索、读取、写入和更新词条。可选填 Embedding 模型以启用语义检索（不填则退回纯关键词检索）。
 
 | 字段 | 说明 |
 |------|------|
-| 共享 | 关闭 = 每 thread 独立；开启 = 所有 thread 共享 |
+| 名称 | Wiki 标识 |
+| 向量模型 | 可选，启用语义检索；不填则使用关键词匹配 |
 
 ---
 
 **6. （可选）开启 Memory** — 侧栏 → **记忆** → 新建
 
-需先创建 Embedding 模型（侧栏 → **向量模型** → 新建）。创建后将 Memory 分配给会话或渠道。
+Agent 可通过工具调用读写的向量库。需先创建 Embedding 模型（侧栏 → **向量模型** → 新建），然后将 Memory 分配给会话或渠道。检索时按时间衰减加权，写入时自动去重。
 
 | 字段 | 说明 |
 |------|------|
-| 模式 | `read_only` 只读 / `human_only` 仅记用户消息 / `human_and_ai` 记录双方 |
-| 最大保留天数 | 到期自动清理 |
-| 向量模型 | 用于语义检索（支持 OpenAI、Azure、Ollama） |
-| 共享 | 关闭 = 每 thread 独立；开启 = 所有 thread 共享 |
+| 名称 | Memory 标识 |
+| 向量模型 | 用于语义检索（OpenAI、Google、Ollama、Cohere、VoyageAI） |
+
+---
+
+**7.（可选）为 Agent 启用 Insight** — Agent 编辑页 → Insight 区块
+
+Insight 是 Agent 级别的静默后置提取器，每轮对话结束后自动运行，将持久价值的知识（用户偏好、项目事实、经验教训）沉淀为可复用的 Markdown 笔记（存放在 `~/.sbot/insights/` 下的 `SKILL.md` 文件）。后续对话开始时，相关 Insight 会通过关键词 + 语义混合检索自动注入到系统提示词中。
+
+| 字段 | 说明 |
+|------|------|
+| Scope | `Disabled` 关闭 / `Per Agent` 该 Agent 跨会话共享 / `Per Session` 按 thread 隔离 |
+| 提取模型 | 用于运行后置提取的模型（一般选成本低、速度快的小模型） |
+| 提取提示词 | 来自 `~/.sbot/prompts/insight/extractor/` 的提示词文件，决定提取内容 |
+
+提取器会根据对话演进对 Insight 执行 `create`（新增）、`patch`（修订）、`delete`（移除）操作。长期未用（默认 30 天）的 Insight 会被标记为陈旧，超期未用（默认 90 天）的会自动归档。
+
+---
+
+**8.（可选）安装预打包 Agent** — 侧栏 → **Agent 商店**
+
+从配置好的注册源浏览并安装 Agent。每个安装包内含模型选择、系统提示词、技能与 MCP 服务器配置，一键导入即用。可在 **设置** 中添加自定义注册源 URL。
 
 ---
 
@@ -144,7 +166,7 @@ docker run -d \
 
 侧栏 → **技能**
 
-技能文件（Markdown 格式）存储在 `~/.sbot/skills/`，可在技能页面从 Clawhub、skills.sh 等远程平台搜索并安装，也可手动放入文件夹。在 Agent 编辑页 → 技能标签页中选择要加载的技能，不选则全部加载。
+技能文件（Markdown 格式）存储在 `~/.sbot/skills/`，可在技能页面从 Clawhub、skills.sh、skillhub.cn 等远程平台搜索并安装，也可手动放入文件夹。在 Agent 编辑页 → 技能标签页中选择要加载的技能，不选则全部加载。
 
 ---
 
@@ -153,6 +175,14 @@ docker run -d \
 侧栏 → **提示词**
 
 查看和编辑任意内置提示词（系统提示、Agent 提示、工具描述等），保存后存储在 `~/.sbot/prompts/` 并覆盖默认值，立即生效无需重启。支持 `{varName}` 占位符，运行时自动替换。
+
+---
+
+### 心跳唤醒（主动激活）
+
+侧栏 → **心跳**
+
+为 Agent 配置周期性提示词，按固定间隔自动唤醒——适合监控、每日汇总、定时主动推送等场景。每条心跳指向具体的渠道或会话并执行一段提示词模板。一次性任务可结合调度器工具使用。
 
 ---
 
@@ -242,11 +272,16 @@ docker run -d \
 - 按模式匹配查找文件（glob）
 - 目录列举、创建、删除、移动、复制
 - 媒体文件读取（图片等）
+- 支持按 Agent 启用只读模式
 
 **归档工具**
 - 压缩与解压归档文件
 - 列举归档内容
 - 直接读取归档内部文件
+
+**Web 工具**
+- 抓取网页 URL 并转换为干净的 Markdown
+- 从网络下载文件
 
 **调度器**
 - 标准 6 字段 Cron 表达式（秒 分 时 日 月 周），服务重启后任务自动恢复

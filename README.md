@@ -49,19 +49,22 @@ Configuration and data are persisted in `~/.sbot` on the host.
 - **Modular composition** — Models, memory, tools, channels, and skills are independent building blocks you mix and match to assemble agents
 - **One-command deployment** — `npm install -g` or `docker run`, native cross-platform with no extra system dependencies
 - **Full Web UI management** — All configuration done in the browser, no manual file editing required
-- **Multiple LLM providers** — OpenAI, Anthropic Claude, Google Gemini, Ollama, and any OpenAI-compatible API (Azure OpenAI, Groq, Mistral, DeepSeek, etc.)
-- **Multi-agent orchestration** — ReAct recursive task decomposition + Generative multimodal, agents can be nested and composed
-- **Knowledge base** — Built-in wiki system with automatic document extraction and semantic search, referenced by agents during conversations
-- **Long-term memory** — Vector-embedding semantic search for persistent context recall
-- **Conversation compaction** — Automatic conversation summarization when token usage exceeds threshold, preserving continuity while reducing consumption
-- **Insight system** — Automatic knowledge extraction from conversations into wiki and memory
+- **Multiple LLM providers** — OpenAI, Anthropic Claude, Google Gemini, Ollama, and any OpenAI-compatible API (Azure OpenAI, Groq, Mistral, DeepSeek, etc.); automatic retry with exponential backoff on transient failures
+- **Multi-agent orchestration** — Single, ReAct (recursive task decomposition), and Generative (multimodal) modes; agents can be nested and composed
 - **ACP agent support** — Agent Client Protocol integration with persistent and transient agent modes
-- **MCP tools** — Standard MCP protocol (stdio/SSE), connect to any MCP tool ecosystem
+- **Knowledge base** — Built-in wiki system with hybrid keyword + semantic search, referenced by agents during conversations
+- **Long-term memory** — Vector-embedding semantic search for persistent context recall (OpenAI, Google, Ollama, Cohere, VoyageAI)
+- **Conversation compaction** — Automatic conversation summarization when token usage exceeds threshold, preserving continuity while reducing consumption
+- **Insight system** — Per-agent silent post-turn extractor that distills user preferences and lessons learned into reusable Markdown notes; auto-marks notes stale and archives them based on usage
+- **Heartbeat** — Configurable periodic self-activation lets agents run scheduled prompts proactively across any channel
+- **MCP tools** — Standard MCP protocol (stdio/SSE), connect to any MCP tool ecosystem; per-agent and global servers with auto-restart
 - **Multiple channels** — Web UI, CLI, Lark/Feishu, Slack, WeCom, WeChat, OneBot (QQ), XiaoAI, REST API, WebSocket
-- **Built-in tools** — Shell execution, file system, archive operations, media file read, Python/PowerShell inline execution, cron scheduler, todo tasks
-- **Skills** — Installable prompt modules, remote install from skills.sh / Clawhub
-- **Token usage tracking** — Built-in consumption statistics with real-time visibility
-- **Flexible config** — Global and per-session overrides from a single `settings.json`
+- **Built-in tools** — Shell execution, file system, archive operations, media file read, Python/PowerShell inline execution, web fetch/download, cron scheduler, todo
+- **Skills** — Installable prompt modules with remote install from Clawhub, skills.sh, and skillhub.cn
+- **Agent Store** — Browse and install pre-packaged agents (model + prompt + tools + skills + MCP servers) from configurable sources
+- **Token usage tracking** — Per-model consumption statistics, model response caching with hit/miss metrics
+- **Unattended-session safety** — Configurable approval and ask timeouts on channels for autonomous operation
+- **Flexible config** — Global and per-session overrides from a single `settings.json`; customizable prompts with hot reload
 
 ---
 
@@ -107,24 +110,43 @@ Choose a mode:
 
 **5. (Optional) Enable Wiki Knowledge Base** — sidebar → **Wiki** → New
 
-Built-in knowledge base. Create pages manually (title + content + tags) or let the insight system auto-extract knowledge from conversations. Assign wikis to a session or channel; agents can search, read, and create pages via built-in tools.
+Built-in knowledge base. Create pages manually (title + content + tags). Assign wikis to a session or channel; agents can search, read, write, and update pages via built-in tools. An optional embedding model enables semantic search alongside keyword matching.
 
 | Field | Description |
 |-------|-------------|
-| Shared | Off = per-thread wiki; On = shared across all threads |
+| Name | Wiki identifier |
+| Embedding | Optional — enables semantic search; without it, falls back to keyword search |
 
 ---
 
 **6. (Optional) Enable Memory** — sidebar → **Memories** → New
 
-Requires an embedding model first (sidebar → **Embeddings** → New). Then assign the memory to a session or channel.
+A vector store the agent can write to and search via tool calls. Requires an embedding model first (sidebar → **Embeddings** → New), then assign the memory to a session or channel. Entries are time-decay weighted on retrieval and de-duplicated on insert.
 
 | Field | Description |
 |-------|-------------|
-| Mode | `read_only` / `human_only` (user messages) / `human_and_ai` (full conversation) |
-| Max age (days) | Auto-expire memories after N days |
-| Embedding | Embedding model for semantic search (OpenAI, Azure, Ollama) |
-| Shared | Off = per-thread memory; On = shared across all threads |
+| Name | Memory identifier |
+| Embedding | Embedding model for semantic search (OpenAI, Google, Ollama, Cohere, VoyageAI) |
+
+---
+
+**7. (Optional) Enable Insight on an agent** — Agent edit page → Insight section
+
+Insight is a silent post-turn extractor that runs after every conversation turn and distills durable knowledge — user preferences, project facts, lessons learned — into reusable Markdown notes (`SKILL.md` files under `~/.sbot/insights/`). Relevant insights are auto-injected back into the system prompt on subsequent turns via hybrid keyword + semantic search.
+
+| Field | Description |
+|-------|-------------|
+| Scope | `Disabled` / `Per Agent` (shared across all sessions of this agent) / `Per Session` (isolated per thread) |
+| Extraction Model | Model used to run the post-turn extraction (typically a cheap, fast model) |
+| Extraction Prompt | Prompt file from `~/.sbot/prompts/insight/extractor/` controlling what is extracted |
+
+The extractor can `create`, `patch`, or `delete` insights based on conversation evolution. Stale notes (default 30 days unused) are marked, and unused notes (default 90 days) are auto-archived.
+
+---
+
+**8. (Optional) Install pre-packaged agents** — sidebar → **Agent Store**
+
+Browse and install agents from configurable registries. Each package bundles model selection, system prompt, skills, and MCP server configuration in one click. Add custom registry URLs in **Settings**.
 
 ---
 
@@ -144,7 +166,7 @@ Supports global servers shared across all agents and per-agent overrides. Server
 
 Sidebar → **Skills**
 
-Skill files (Markdown) are stored in `~/.sbot/skills/`. Search and install from remote hubs (Clawhub, skills.sh) on the Skills page, or drop files manually. In an agent → Skills tab, select specific skills to load, or leave empty to load all.
+Skill files (Markdown) are stored in `~/.sbot/skills/`. Search and install from remote hubs (Clawhub, skills.sh, skillhub.cn) on the Skills page, or drop files manually. In an agent → Skills tab, select specific skills to load, or leave empty to load all.
 
 ---
 
@@ -153,6 +175,14 @@ Skill files (Markdown) are stored in `~/.sbot/skills/`. Search and install from 
 Sidebar → **Prompts**
 
 View and edit any built-in prompt (system prompts, agent prompts, tool descriptions, etc.). Saved overrides are stored in `~/.sbot/prompts/` and take precedence over the defaults, effective immediately without restart. Supports `{varName}` placeholders substituted at runtime.
+
+---
+
+### Heartbeat (Proactive Activation)
+
+Sidebar → **Heartbeat**
+
+Configure periodic prompts that wake an agent on a fixed interval — useful for monitoring, daily summaries, or scheduled outreach. Each heartbeat targets a specific channel or session and runs a prompt template. Combine with the Scheduler tool for one-off tasks.
 
 ---
 
@@ -242,11 +272,16 @@ WeChat integration connects via the iLink Bot API, with file and image support.
 - Find files by pattern (glob)
 - Directory listing, create, remove, move, copy
 - Read media files (images, etc.)
+- Optional read-only mode per agent
 
 **Archive**
 - Compress and extract archive files
 - List archive contents
 - Read files directly from within archives
+
+**Web**
+- Fetch URLs and convert HTML to clean Markdown
+- Download files from the web
 
 **Scheduler**
 - Standard 6-field cron expressions (`second minute hour day month weekday`), persisted across restarts

@@ -12,6 +12,9 @@
 - **Middleware Pipeline**: New `MiddlewarePipeline` with intent-based filtering for session message processing
 - **Timer Executor**: Extracted `TimerExecutor` utility for unified scheduled task execution (heartbeat, scheduler, wiki indexing)
 - **Workspace Prompt Discovery**: `ContextFileDiscovery` supports loading workspace-level prompt files
+- **Parameterized Built-in Tools**: Built-in tool providers (FileSystem, Scheduler, Todo, MCP) accept per-agent parameters via `mcpParams` — e.g. FileSystem `readonly` mode to expose only read tools
+- **Channel Approval / Ask Timeout**: New `approvalTimeout`, `approvalTimeoutValue` (allow/deny), `askTimeout`, `askTimeoutMessage` settings on `ChannelConfig` and `ChannelSession` for unattended-session safety
+- **SkillHub.cn Provider**: New `SkillhubCnSkillHubService` for the skillhub.cn registry, joining the existing Clawhub and skills.sh providers
 
 ### Architecture Changes
 
@@ -23,6 +26,9 @@
 - **Skill Service Refactor**: `SkillService` rewritten with cleaner lifecycle and parsing logic
 - **DI Parent Scope**: `ServiceContainer` supports parent scope resolution for hierarchical DI
 - **Agent Insight Integration**: Insight extraction moved from agent service internals to `AgentRunner` orchestration layer
+- **Shared UI Library (`sbot-ui`)**: New package extracting reusable Vue components (`SButton`, `SCard`, `SModal`, `STable`, `STree`, `STab`, `SInput`, `SSelect`, `SSwitch`, `SToast`, etc.) plus design tokens and dark theme — consumed by admin and chat-ui
+- **Admin Refactor on `sbot-ui`**: Admin panel rebuilt on top of the shared component library — modals reorganized under `components/modals/`, legacy bespoke widgets removed
+- **Tool & Prompt Externalization**: Built-in tool descriptions and intent / compact prompts moved out of source code into `prompts/` text files (`intent/default.txt`, `compact/post_message.txt`, `compact/post_continuation.txt`, `tools/{sleep,time,mcp,memory,wiki}/*.txt`) and loaded via `loadPrompt`
 
 ### Improvements
 
@@ -40,4 +46,6 @@
 - **Cache Statistics**: Model response caching with hit/miss statistics
 - **Lark Session Handler**: Added session handling support for Lark channel
 - **Wiki Auto-Context**: Wiki service injects relevant entries into dynamic context automatically
-- **Code Cleanup**: Removed `PromptInjectionDetector`, unused i18n entries, and legacy memory/wiki types
+- **Chat UI Refresh**: Reworked `ChatView`, `ChatArea`, `MessageList`, `AskForm`, and `ConfigToolbar` for cleaner layout and unified styling on top of `sbot-ui`
+- **Configurable Image Max Size**: `maxImageSize` setting controls auto-scaling threshold for outbound images
+- **Code Cleanup**: Removed `PromptInjectionDetector`, unused i18n entries, legacy memory/wiki types, and admin's bespoke `MultiSelect`/`Toast`/`McpToolsModal`/`SkillHubModal` (replaced by `sbot-ui` equivalents)

@@ -92,13 +92,15 @@ export class AgentFileSaver implements IAgentSaverService {
         await this.writeThreadFile(file);
     }
 
-    async searchMessages(query: string, limit: number = 20): Promise<StoredMessage[]> {
+    async searchMessages(query: string[][], limit: number = 20): Promise<StoredMessage[]> {
+        if (query.length === 0 || query.some(g => g.length === 0)) return [];
+        const groups = query.map(g => g.map(t => t.toLowerCase()));
         const file = await this.getFile();
-        const lower = query.toLowerCase();
         return file.messages
             .filter(m => {
                 const c = m.message.content;
-                return (typeof c === 'string' ? c : JSON.stringify(c)).toLowerCase().includes(lower);
+                const text = (typeof c === 'string' ? c : JSON.stringify(c)).toLowerCase();
+                return groups.every(group => group.some(t => text.includes(t)));
             })
             .slice(-limit);
     }

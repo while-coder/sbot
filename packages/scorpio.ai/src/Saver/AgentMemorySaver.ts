@@ -35,12 +35,14 @@ export class AgentMemorySaver implements IAgentSaverService {
         this.thinks = {};
     }
 
-    async searchMessages(query: string, limit: number = 20): Promise<StoredMessage[]> {
-        const lower = query.toLowerCase();
+    async searchMessages(query: string[][], limit: number = 20): Promise<StoredMessage[]> {
+        if (query.length === 0 || query.some(g => g.length === 0)) return [];
+        const groups = query.map(g => g.map(t => t.toLowerCase()));
         return this.messages
             .filter(m => {
                 const c = m.message.content;
-                return (typeof c === 'string' ? c : JSON.stringify(c)).toLowerCase().includes(lower);
+                const text = (typeof c === 'string' ? c : JSON.stringify(c)).toLowerCase();
+                return groups.every(group => group.some(t => text.includes(t)));
             })
             .slice(-limit);
     }

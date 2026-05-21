@@ -12,6 +12,9 @@
 - **中间件管道**: 新增 `MiddlewarePipeline`，支持基于意图的会话消息过滤
 - **计时器执行器**: 抽取 `TimerExecutor` 统一调度工具（心跳、定时任务、Wiki 索引）
 - **工作区提示词发现**: `ContextFileDiscovery` 支持加载工作区级别的 prompt 文件
+- **内置工具参数化**: 内置工具提供器（FileSystem、Scheduler、Todo、MCP）支持通过 `mcpParams` 传入按 Agent 配置的参数 — 例如 FileSystem `readonly` 模式仅暴露只读工具
+- **渠道审批 / 提问超时**: `ChannelConfig` 与 `ChannelSession` 新增 `approvalTimeout`、`approvalTimeoutValue` (allow/deny)、`askTimeout`、`askTimeoutMessage`，保障无人值守会话安全
+- **SkillHub.cn 服务商**: 新增 `SkillhubCnSkillHubService`，与现有 Clawhub、skills.sh 共同覆盖 skillhub.cn 仓库
 
 ### 架构变更
 
@@ -23,6 +26,9 @@
 - **Skill 服务重构**: `SkillService` 重写，优化生命周期管理和解析逻辑
 - **DI 父作用域**: `ServiceContainer` 支持父级作用域解析，实现层级式依赖注入
 - **Agent 洞察集成**: 洞察提取从 Agent 服务内部移至 `AgentRunner` 编排层
+- **共享 UI 组件库 (`sbot-ui`)**: 新增 package，抽取可复用 Vue 组件（`SButton`、`SCard`、`SModal`、`STable`、`STree`、`STab`、`SInput`、`SSelect`、`SSwitch`、`SToast` 等），附带设计 Token 和深色主题，供 admin 与 chat-ui 共用
+- **管理后台基于 `sbot-ui` 重构**: 管理后台基于共享组件库重建，弹窗统一收敛至 `components/modals/`，移除冗余的自定义控件
+- **工具与提示词外置**: 内置工具描述、意图分类、压缩提示词从源码迁移到 `prompts/` 下的文本文件（`intent/default.txt`、`compact/post_message.txt`、`compact/post_continuation.txt`、`tools/{sleep,time,mcp,memory,wiki}/*.txt`），统一通过 `loadPrompt` 加载
 
 ### 改进
 
@@ -40,4 +46,6 @@
 - **缓存统计**: 模型响应缓存支持命中/未命中统计
 - **飞书会话处理**: 飞书渠道新增 Session 处理支持
 - **Wiki 自动上下文**: Wiki 服务自动将相关条目注入动态上下文
-- **代码清理**: 移除 `PromptInjectionDetector`、无用 i18n 条目及历史遗留的 memory/wiki 类型
+- **聊天 UI 重整**: `ChatView`、`ChatArea`、`MessageList`、`AskForm`、`ConfigToolbar` 基于 `sbot-ui` 重写，布局更清晰、样式统一
+- **图片最大尺寸可配置**: 通过 `maxImageSize` 配置出站图片自动缩放阈值
+- **代码清理**: 移除 `PromptInjectionDetector`、无用 i18n 条目、历史遗留的 memory/wiki 类型，以及管理后台自定义的 `MultiSelect`/`Toast`/`McpToolsModal`/`SkillHubModal`（已由 `sbot-ui` 替代）

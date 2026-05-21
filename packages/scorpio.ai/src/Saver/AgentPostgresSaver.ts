@@ -116,15 +116,28 @@ export class AgentPostgresSaver implements IAgentSaverService {
         }
     }
 
-    async searchMessages(query: string, limit: number = 20): Promise<StoredMessage[]> {
+    async searchMessages(query: string[][], limit: number = 20): Promise<StoredMessage[]> {
+        if (query.length === 0 || query.some(g => g.length === 0)) return [];
         await this.ensureSetup();
+        const params: any[] = [];
+        const groupExprs = query.map(group => {
+            const orExprs = group.map(term => {
+                params.push(term);
+                return `plainto_tsquery('simple', $${params.length})`;
+            });
+            return `(${orExprs.join(' || ')})`;
+        });
+        const tsq = groupExprs.join(' && ');
+        params.push(limit);
         try {
             const result = await this.pool.query(
-                `SELECT id, data, created_at, think_id FROM ${this.table}
-                 WHERE to_tsvector('simple', data) @@ plainto_tsquery('simple', $1)
-                 ORDER BY ts_rank(to_tsvector('simple', data), plainto_tsquery('simple', $1)) DESC
-                 LIMIT $2`,
-                [query, limit],
+                `WITH q AS (SELECT (${tsq}) AS query)
+                 SELECT m.id, m.data, m.created_at, m.think_id
+                 FROM ${this.table} m, q
+                 WHERE to_tsvector('simple', m.data) @@ q.query
+                 ORDER BY ts_rank(to_tsvector('simple', m.data), q.query) DESC
+                 LIMIT $${params.length}`,
+                params,
             );
             return result.rows.map((r: any) => ({
                 id: parseInt(r.id),

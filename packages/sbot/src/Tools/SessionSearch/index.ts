@@ -1,39 +1,45 @@
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
-import { createTextContent, createErrorResult, createSuccessResult, type MCPToolResult, type IAgentSaverService, MessageRole } from 'scorpio.ai';
+import { createTextContent, createErrorResult, createSuccessResult, type MCPToolResult, type IAgentSaverService } from 'scorpio.ai';
 import { loadPrompt } from '../../Core/PromptLoader';
 
 export const SESSION_SEARCH_TOOL_NAME = 'session_search' as const;
 
-export function createSessionSearchTool(saver: IAgentSaverService): StructuredToolInterface {
+const MAX_PREVIEW_LEN = 500;
+
+export type SearchableSaver = IAgentSaverService & Required<Pick<IAgentSaverService, 'searchMessages'>>;
+
+export function createSessionSearchTool(saver: SearchableSaver): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: SESSION_SEARCH_TOOL_NAME,
         description: loadPrompt('tools/session_search/search.txt'),
         schema: z.object({
-            query: z.string().describe('Search query (supports FTS5 syntax: AND, OR, NOT, phrase "...", prefix*)'),
+            query: z.array(z.array(z.string().min(1)).min(1)).min(1)
+                .describe('CNF query: outer array = AND, inner array = OR. e.g. [["error","fail"],["deploy"]] means (error OR fail) AND deploy'),
             limit: z.number().optional().describe('Max results (default 20)'),
         }) as any,
         func: async ({ query, limit }: any): Promise<MCPToolResult> => {
-            if (!saver.searchMessages) {
-                return createErrorResult('Session search not available for this saver type');
-            }
             try {
                 const results = await saver.searchMessages(query, limit ?? 20);
                 if (results.length === 0) {
                     return createSuccessResult(createTextContent('No results found.'));
                 }
                 const formatted = results.map((r, i) => {
-                    const time = new Date((r.createdAt ?? 0) * 1000).toISOString();
+                    const time = r.createdAt ? new Date(r.createdAt * 1000).toISOString() : 'unknown';
                     const role = r.message.role ?? 'unknown';
-                    const content = typeof r.message.content === 'string'
-                        ? r.message.content
-                        : JSON.stringify(r.message.content);
-                    const preview = content.length > 500 ? content.slice(0, 500) + '...' : content;
+                    const raw = r.message.content;
+                    const content = typeof raw === 'string'
+                        ? raw
+                        : Array.isArray(raw)
+                            ? raw.filter((p: any) => p?.type === 'text').map((p: any) => p.text).join('\n')
+                                || JSON.stringify(raw)
+                            : JSON.stringify(raw);
+                    const preview = content.length > MAX_PREVIEW_LEN ? content.slice(0, MAX_PREVIEW_LEN) + '...' : content;
                     return `<result index="${i + 1}" role="${role}" time="${time}">\n${preview}\n</result>`;
                 }).join('\n');
                 return createSuccessResult(createTextContent(`Found ${results.length} results:\n${formatted}`));
             } catch (e: any) {
-                return createErrorResult(`Search failed: ${e.message}`);
+                return createErrorResult(`Search failed for query=${JSON.stringify(query)}: ${e.message}`);
             }
         },
     });

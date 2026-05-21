@@ -126,7 +126,10 @@ export class AgentSqliteSaver implements IAgentSaverService {
         txn();
     }
 
-    async searchMessages(query: string, limit: number = 20): Promise<StoredMessage[]> {
+    async searchMessages(query: string[][], limit: number = 20): Promise<StoredMessage[]> {
+        if (query.length === 0 || query.some(g => g.length === 0)) return [];
+        const escape = (t: string) => `"${t.replace(/"/g, '""')}"`;
+        const fts = query.map(group => `(${group.map(escape).join(' OR ')})`).join(' AND ');
         try {
             const rows = this.db.prepare(`
                 SELECT m.id, m.data, m.created_at, m.think_id
@@ -135,7 +138,7 @@ export class AgentSqliteSaver implements IAgentSaverService {
                 WHERE messages_fts MATCH ?
                 ORDER BY rank
                 LIMIT ?
-            `).all(query, limit) as { id: number; data: string; created_at: number; think_id: string | null }[];
+            `).all(fts, limit) as { id: number; data: string; created_at: number; think_id: string | null }[];
             return rows.map((r) => ({
                 id: r.id,
                 message: JSON.parse(r.data) as ChatMessage,

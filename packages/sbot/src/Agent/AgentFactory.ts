@@ -19,7 +19,7 @@ import {
 import { type StructuredToolInterface } from "@langchain/core/tools";
 import { createSchedulerTools } from "../Tools/Scheduler/index";
 import { createTodoTools } from "../Tools/Todo/index";
-import { createSessionSearchTool } from "../Tools/SessionSearch/index";
+import { createSessionSearchTool, type SearchableSaver } from "../Tools/SessionSearch/index";
 import { config, AgentMode, ACPSessionMode, ToolAgentEntry, SingleAgentEntry, ReactAgentEntry, GenerativeAgentEntry, ACPAgentEntry } from "../Core/Config";
 import { loadPrompt } from "../Core/PromptLoader";
 import { globalAgentToolService, BuiltinProvider } from "./GlobalAgentToolService";
@@ -172,8 +172,8 @@ export class AgentFactory {
         toolService.registerToolFactory('__session_search__', async () => {
             if (!container.isRegistered(IAgentSaverService)) return [];
             const saver = await container.resolve<IAgentSaverService>(IAgentSaverService);
-            if (!('searchMessages' in saver)) return [];
-            return [createSessionSearchTool(saver)];
+            if (typeof saver.searchMessages !== 'function') return [];
+            return [createSessionSearchTool(saver as SearchableSaver)];
         });
 
         toolService.registerMcpServers(config.getAgentMcpServers(agentName));
