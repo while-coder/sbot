@@ -233,6 +233,37 @@ function tabsForAgent(id: string, type: string): { key: 'config' | 'skills' | 'm
   }
   return tabs
 }
+
+const skillCols = computed<STableColumn[]>(() => [
+  { key: 'name',   label: t('common.name'),  primary: true, ellipsis: true },
+  { key: 'source', label: '来源',             width: '80px' },
+  { key: 'desc',   label: '描述',             ellipsis: true },
+  { key: 'ops',    label: t('common.ops'),   ops: true, width: '90px' },
+])
+
+const mcpCols = computed<STableColumn[]>(() => [
+  { key: 'name',   label: t('common.name'),       primary: true, ellipsis: true },
+  { key: 'source', label: '来源',                  width: '80px' },
+  { key: 'desc',   label: '描述',                  ellipsis: true },
+  { key: 'addr',   label: t('mcp.address_col'),   width: '200px', ellipsis: true },
+  { key: 'ops',    label: t('common.ops'),        ops: true, width: '90px' },
+])
+
+type SkillRow = SkillItem & { _key: string; _private: boolean }
+function skillRows(id: string): SkillRow[] {
+  return [
+    ...getGlobals(id).map(s => ({ ...s, _key: 'g-' + s.name, _private: false })),
+    ...getSkills(id).map(s  => ({ ...s, _key: 's-' + s.name, _private: true  })),
+  ]
+}
+
+type McpRow = McpItem & { _key: string; _private: boolean }
+function mcpRows(id: string): McpRow[] {
+  return [
+    ...getMcpGlobals(id).map(m => ({ ...m, _key: 'g-' + m.id, _private: false })),
+    ...getMcpServers(id).map(m => ({ ...m, _key: 's-' + m.id, _private: true  })),
+  ]
+}
 </script>
 
 <template>
@@ -349,36 +380,23 @@ function tabsForAgent(id: string, type: string): { key: 'config' | 'skills' | 'm
                 <SButton type="outline" size="sm" @click="agentSkillsModal?.open(row.id)">{{ t('agents.manage_skills') }}</SButton>
                 <div class="manage-hint">{{ t('agents.agent_skills') }}</div>
               </div>
-              <div v-if="getGlobals(row.id).length === 0 && getSkills(row.id).length === 0" class="tab-empty">
-                {{ t('agents.no_skills') }}
-                <div class="tab-empty-action">
-                  <SButton type="outline" size="sm" @click="agentSkillsModal?.open(row.id)">{{ t('agents.configure_skills') }}</SButton>
-                </div>
-              </div>
-              <table v-else class="agent-detail-table">
-                <colgroup>
-                  <col /><col style="width:60px" /><col /><col style="width:70px" />
-                </colgroup>
-                <thead>
-                  <tr><th>{{ t('common.name') }}</th><th>来源</th><th>描述</th><th class="col-nowrap">{{ t('common.ops') }}</th></tr>
-                </thead>
-                <tbody>
-                  <tr v-for="s in getGlobals(row.id)" :key="'g-' + s.name">
-                    <td class="cell-mono cell-truncate">{{ s.name }}</td>
-                    <td>
-                      <span v-if="s.source" :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(s.source)}`">{{ s.source }}</span>
-                    </td>
-                    <td class="cell-desc cell-truncate">{{ s.description || '-' }}</td>
-                    <td class="col-nowrap"><SButton type="outline" size="sm" @click="openSkillView(row.id, s.name, false)">{{ t('common.view') }}</SButton></td>
-                  </tr>
-                  <tr v-for="s in getSkills(row.id)" :key="s.name">
-                    <td class="cell-mono cell-truncate">{{ s.name }}</td>
-                    <td><span :style="badgePrivate()">{{ t('agents.skills_exclusive_tab') }}</span></td>
-                    <td class="cell-desc cell-truncate">{{ s.description || '-' }}</td>
-                    <td class="col-nowrap"><SButton type="outline" size="sm" @click="openSkillView(row.id, s.name, true)">{{ t('common.view') }}</SButton></td>
-                  </tr>
-                </tbody>
-              </table>
+              <STable :columns="skillCols" :rows="skillRows(row.id)" row-key="_key">
+                <template #name="{ row: s }"><span class="cell-mono">{{ s.name }}</span></template>
+                <template #source="{ row: s }">
+                  <span v-if="s._private" :style="badgePrivate()">{{ t('agents.skills_exclusive_tab') }}</span>
+                  <span v-else-if="s.source" :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(s.source)}`">{{ s.source }}</span>
+                </template>
+                <template #desc="{ row: s }"><span class="cell-desc">{{ s.description || '-' }}</span></template>
+                <template #ops="{ row: s }">
+                  <SButton type="outline" size="sm" @click="openSkillView(row.id, s.name, s._private)">{{ t('common.view') }}</SButton>
+                </template>
+                <template #_empty>
+                  <div>{{ t('agents.no_skills') }}</div>
+                  <div class="tab-empty-action">
+                    <SButton type="outline" size="sm" @click="agentSkillsModal?.open(row.id)">{{ t('agents.configure_skills') }}</SButton>
+                  </div>
+                </template>
+              </STable>
             </template>
 
             <template v-else-if="getTab(row.id) === 'mcp'">
@@ -386,32 +404,18 @@ function tabsForAgent(id: string, type: string): { key: 'config' | 'skills' | 'm
                 <SButton type="outline" size="sm" @click="agentMcpModal?.open(row.id)">{{ t('agents.manage_tools') }}</SButton>
                 <div class="manage-hint">{{ t('agents.agent_mcps') }}</div>
               </div>
-              <table class="agent-detail-table">
-                <colgroup>
-                  <col /><col style="width:60px" /><col /><col style="width:180px" /><col style="width:70px" />
-                </colgroup>
-                <thead>
-                  <tr><th>{{ t('common.name') }}</th><th>来源</th><th>描述</th><th>{{ t('mcp.address_col') }}</th><th class="col-nowrap">{{ t('common.ops') }}</th></tr>
-                </thead>
-                <tbody>
-                  <tr v-for="s in getMcpGlobals(row.id)" :key="'g-' + s.id">
-                    <td class="cell-mono cell-truncate">{{ s.name }}</td>
-                    <td>
-                      <span v-if="s.source" :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(s.source)}`">{{ s.source }}</span>
-                    </td>
-                    <td class="cell-desc cell-truncate">{{ s.description || '-' }}</td>
-                    <td class="cell-addr cell-truncate">{{ serverAddr(s as any) }}</td>
-                    <td class="col-nowrap"><SButton type="outline" size="sm" @click="openMcpView(row.id, s.id, false)">{{ t('common.view') }}</SButton></td>
-                  </tr>
-                  <tr v-for="s in getMcpServers(row.id)" :key="'s-' + s.id">
-                    <td class="cell-mono cell-truncate">{{ s.name }}</td>
-                    <td><span :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(t('agents.mcp_exclusive_tab'))}`">{{ t('agents.mcp_exclusive_tab') }}</span></td>
-                    <td class="cell-desc cell-truncate">{{ s.description || '-' }}</td>
-                    <td class="cell-addr-priv cell-truncate">{{ serverAddr(s as any) }}</td>
-                    <td class="col-nowrap"><SButton type="outline" size="sm" @click="openMcpView(row.id, s.id, true)">{{ t('common.view') }}</SButton></td>
-                  </tr>
-                </tbody>
-              </table>
+              <STable :columns="mcpCols" :rows="mcpRows(row.id)" row-key="_key">
+                <template #name="{ row: s }"><span class="cell-mono">{{ s.name }}</span></template>
+                <template #source="{ row: s }">
+                  <span v-if="s._private" :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(t('agents.mcp_exclusive_tab'))}`">{{ t('agents.mcp_exclusive_tab') }}</span>
+                  <span v-else-if="s.source" :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(s.source)}`">{{ s.source }}</span>
+                </template>
+                <template #desc="{ row: s }"><span class="cell-desc">{{ s.description || '-' }}</span></template>
+                <template #addr="{ row: s }"><span :class="s._private ? 'cell-addr-priv' : 'cell-addr'">{{ serverAddr(s as any) }}</span></template>
+                <template #ops="{ row: s }">
+                  <SButton type="outline" size="sm" @click="openMcpView(row.id, s.id, s._private)">{{ t('common.view') }}</SButton>
+                </template>
+              </STable>
             </template>
           </div>
         </template>
@@ -444,8 +448,6 @@ function tabsForAgent(id: string, type: string): { key: 'config' | 'skills' | 'm
 </template>
 
 <style scoped>
-.col-nowrap { white-space: nowrap; }
-
 .agent-name {
   font-weight: 500;
   color: var(--sui-fg);
@@ -574,23 +576,9 @@ function tabsForAgent(id: string, type: string): { key: 'config' | 'skills' | 'm
   font-size: var(--sui-fs-md);
   color: var(--sui-fg-secondary);
 }
-.tab-empty {
-  text-align: center;
-  color: var(--sui-fg-disabled);
-  padding: var(--sui-sp-6);
-}
 .tab-empty-action { margin-top: var(--sui-sp-3); }
 
-.agent-detail-table {
-  table-layout: fixed;
-  width: 100%;
-}
 .cell-mono { font-family: var(--sui-font-mono); }
-.cell-truncate {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .cell-desc {
   color: var(--sui-fg-muted);
   font-size: var(--sui-fs-md);
