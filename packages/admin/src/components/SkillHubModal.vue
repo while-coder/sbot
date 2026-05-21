@@ -5,7 +5,7 @@ import axios from 'axios'
 import { apiFetch } from '@/api'
 import { useToast } from 'sbot-ui'
 import { badgeClawhub, badgeSkillssh } from '@/utils/badges'
-import { SModal, SButton, SInput, STabBar, STab, SCheckCard } from 'sbot-ui'
+import { SModal, SButton, SInput, STabBar, STab, SCheckCard, STable, type STableColumn } from 'sbot-ui'
 
 interface HubSkillResult {
   id: string
@@ -58,6 +58,19 @@ const zipInstallUrl = computed(() => props.installApiUrl.replace(/\/install$/, '
 const showInstall = ref(false)
 const installing = ref(false)
 const selected = ref<HubSkillResult | null>(null)
+
+const hubColumns = computed<STableColumn[]>(() => [
+  { key: 'name',        label: t('common.name'),            primary: true, ellipsis: true, width: '180px' },
+  { key: 'description', label: t('common.description'),     ellipsis: true },
+  { key: 'popularity',  label: t('skills.popularity_col'),  width: '80px' },
+  { key: 'source',      label: t('skills.source_col'),      width: '90px' },
+  { key: 'link',        label: t('skills.link_col'),        width: '50px' },
+  { key: 'ops',         label: t('common.ops'),             ops: true,     width: '90px' },
+])
+
+function hubRowKey(row: HubSkillResult): string {
+  return row.provider + ':' + row.id
+}
 const overwrite = ref(false)
 
 function open() {
@@ -250,40 +263,35 @@ defineExpose({ open })
         <div style="flex:1;overflow-y:auto;min-height:0">
           <div v-if="hubSearching" class="hub-empty-text">{{ t('skills.searching') }}</div>
           <template v-else-if="hubSearched">
-            <div v-if="hubResults.length === 0" class="hub-empty-text">{{ t('skills.no_search_result') }}</div>
-            <table v-else style="width:100%;table-layout:fixed">
-              <colgroup>
-                <col style="width:180px" />
-                <col />
-                <col style="width:80px" />
-                <col style="width:90px" />
-                <col style="width:50px" />
-                <col style="width:90px" />
-              </colgroup>
-              <thead>
-                <tr><th>{{ t('common.name') }}</th><th>{{ t('common.description') }}</th><th>{{ t('skills.popularity_col') }}</th><th>{{ t('skills.source_col') }}</th><th>{{ t('skills.link_col') }}</th><th>{{ t('common.ops') }}</th></tr>
-              </thead>
-              <tbody>
-                <tr v-for="s in hubResults" :key="s.provider + ':' + s.id">
-                  <td style="font-family:var(--sui-font-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.name || s.id }}</td>
-                  <td style="color:var(--sui-fg-secondary);font-size:var(--sui-fs-md);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.description || '-' }}</td>
-                  <td style="font-size:var(--sui-fs-sm);color:var(--sui-fg-disabled);white-space:nowrap">
-                    <template v-if="s.installs != null">{{ s.installs >= 1000 ? (s.installs / 1000).toFixed(1) + 'K' : s.installs }} installs</template>
-                    <template v-else-if="s.score != null">{{ s.score.toFixed(1) }}</template>
-                    <template v-else>-</template>
-                  </td>
-                  <td>
-                    <span :style="s.provider === 'skills.sh' ? badgeSkillssh() : badgeClawhub()">{{ s.provider === 'skills.sh' ? 'Skills.sh' : 'ClawHub' }}</span>
-                  </td>
-                  <td>
-                    <a :href="s.sourceUrl" target="_blank" rel="noopener" class="hub-link" title="Open">&#x2197;</a>
-                  </td>
-                  <td style="white-space:nowrap">
-                    <SButton type="primary" size="sm" @click="openInstall(s)">{{ t('skills.install_title') }}</SButton>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+            <STable
+              :columns="hubColumns"
+              :rows="hubResults"
+              :row-key="hubRowKey"
+              :empty-text="t('skills.no_search_result')"
+            >
+              <template #name="{ row }">
+                <span style="font-family:var(--sui-font-mono)">{{ row.name || row.id }}</span>
+              </template>
+              <template #description="{ row }">
+                <span style="color:var(--sui-fg-secondary)">{{ row.description || '-' }}</span>
+              </template>
+              <template #popularity="{ row }">
+                <span style="font-size:var(--sui-fs-sm);color:var(--sui-fg-disabled);white-space:nowrap">
+                  <template v-if="row.installs != null">{{ row.installs >= 1000 ? (row.installs / 1000).toFixed(1) + 'K' : row.installs }} installs</template>
+                  <template v-else-if="row.score != null">{{ row.score.toFixed(1) }}</template>
+                  <template v-else>-</template>
+                </span>
+              </template>
+              <template #source="{ row }">
+                <span :style="row.provider === 'skills.sh' ? badgeSkillssh() : badgeClawhub()">{{ row.provider === 'skills.sh' ? 'Skills.sh' : 'ClawHub' }}</span>
+              </template>
+              <template #link="{ row }">
+                <a :href="row.sourceUrl" target="_blank" rel="noopener" class="hub-link" title="Open">&#x2197;</a>
+              </template>
+              <template #ops="{ row }">
+                <SButton type="primary" size="sm" @click="openInstall(row)">{{ t('skills.install_title') }}</SButton>
+              </template>
+            </STable>
           </template>
           <div v-else class="hub-empty-text" style="padding:60px">
             输入关键词搜索 Skill Hub

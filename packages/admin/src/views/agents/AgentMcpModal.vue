@@ -9,7 +9,7 @@ import type { McpEntry, McpTool, McpPrompt, McpResource, McpResourceTemplate } f
 import { serverAddr } from '@/utils/mcpSchema'
 import { sourceBadgeStyle } from '@/utils/badges'
 import McpToolsModal from '@/components/McpToolsModal.vue'
-import { SModal, SButton, SInput, SSelect, SFormItem, SFormSection, STabBar, STab, SCheckCard } from 'sbot-ui'
+import { SModal, SButton, SInput, SSelect, SFormItem, SFormSection, STabBar, STab, SCheckCard, STable, type STableColumn } from 'sbot-ui'
 
 const { t } = useI18n()
 
@@ -73,6 +73,17 @@ const filteredGlobalMcps = computed(() => {
     (m.name || '').toLowerCase().includes(q) || (m.description || '').toLowerCase().includes(q)
   )
 })
+
+const serversList = computed(() =>
+  Object.entries(servers.value).map(([id, s]) => ({ id, ...(s as any) })),
+)
+
+const exclusiveColumns = computed<STableColumn[]>(() => [
+  { key: 'name',        label: t('common.name'),        primary: true, ellipsis: true, width: '200px' },
+  { key: 'description', label: t('common.description'), ellipsis: true },
+  { key: 'address',     label: t('mcp.address_col'),    ellipsis: true, width: '220px' },
+  { key: 'ops',         label: t('common.ops'),         ops: true,     width: '190px' },
+])
 
 function apiBase() {
   return `/api/agents/${encodeURIComponent(agentName.value)}/mcp`
@@ -434,30 +445,29 @@ defineExpose({ open })
           <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
             <SButton type="primary" size="sm" @click="openAdd">{{ t('mcp.add') }}</SButton>
           </div>
-          <div v-if="Object.keys(servers).length === 0" class="picker-empty">{{ t('mcp.no_exclusive') }}</div>
-          <table v-else style="table-layout:fixed;width:100%">
-            <colgroup>
-              <col style="width:200px" />
-              <col />
-              <col style="width:220px" />
-              <col style="width:190px" />
-            </colgroup>
-            <thead><tr><th>{{ t('common.name') }}</th><th>{{ t('common.description') }}</th><th>{{ t('mcp.address_col') }}</th><th>{{ t('common.ops') }}</th></tr></thead>
-            <tbody>
-              <tr v-for="(s, id) in servers" :key="id">
-                <td style="font-family:var(--sui-font-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ (s as any).name || id }}</td>
-                <td style="color:var(--sui-fg-muted);font-size:var(--sui-fs-sm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ (s as any).description || '—' }}</td>
-                <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--sui-fg-disabled);font-size:var(--sui-fs-sm)">{{ serverAddr(s) }}</td>
-                <td style="white-space:nowrap">
-                  <div class="ops-cell">
-                    <SButton type="outline" size="sm" @click="viewTools(id as string)">{{ t('common.view') }}</SButton>
-                    <SButton type="outline" size="sm" @click="openEdit(id as string)">{{ t('common.edit') }}</SButton>
-                    <SButton type="danger" size="sm" @click="remove(id as string)">{{ t('common.delete') }}</SButton>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          <STable
+            :columns="exclusiveColumns"
+            :rows="serversList"
+            row-key="id"
+            :empty-text="t('mcp.no_exclusive')"
+          >
+            <template #name="{ row }">
+              <span style="font-family:var(--sui-font-mono)">{{ row.name || row.id }}</span>
+            </template>
+            <template #description="{ row }">
+              <span style="color:var(--sui-fg-muted);font-size:var(--sui-fs-sm)">{{ row.description || '—' }}</span>
+            </template>
+            <template #address="{ row }">
+              <span style="color:var(--sui-fg-disabled);font-size:var(--sui-fs-sm)">{{ serverAddr(row) }}</span>
+            </template>
+            <template #ops="{ row }">
+              <div class="ops-cell">
+                <SButton type="outline" size="sm" @click="viewTools(row.id)">{{ t('common.view') }}</SButton>
+                <SButton type="outline" size="sm" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
+                <SButton type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
+              </div>
+            </template>
+          </STable>
         </template>
       </div>
     </SModal>

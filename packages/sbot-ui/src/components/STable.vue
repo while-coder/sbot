@@ -224,7 +224,7 @@ function rowCls(row: T, idx: number): string {
 .s-table-cell--ops {
   white-space: nowrap;
 }
-.s-table-status {
+.s-table td.s-table-status {
   text-align: center;
   color: var(--sui-fg-disabled);
   padding: 40px;

@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
-import { useToast, SButton, SInput, STabBar, STab, SPageToolbar, SPageContent } from 'sbot-ui'
+import { useToast, SButton, SInput, STabBar, STab, SPageToolbar, SPageContent, STable, type STableColumn } from 'sbot-ui'
 import type { SkillItem } from '@/types'
 import { sourceBadgeStyle } from '@/utils/badges'
 import SkillHubModal from '@/components/SkillHubModal.vue'
@@ -12,12 +11,17 @@ import SkillViewerModal from '@/components/SkillViewerModal.vue'
 
 const { t } = useI18n()
 const { show } = useToast()
-const { isMobile } = useResponsive()
 
 const allSkills = ref<SkillItem[]>([])
 
 const searchQuery = ref('')
 const activeTab = ref('all')
+
+const columns = computed<STableColumn[]>(() => [
+  { key: 'name',        label: t('common.name'),        primary: true, ellipsis: true, width: '240px' },
+  { key: 'description', label: t('common.description'), ellipsis: true },
+  { key: 'ops',         label: t('common.ops'),         ops: true,     width: '120px' },
+])
 
 const sources = computed(() => {
   const seen = new Set<string>()
@@ -93,54 +97,24 @@ onMounted(load)
       <div class="dir-hint-panel">
         {{ t('skills.skills_dir') }}<code class="dir-hint-code">~/.sbot/skills/</code>
       </div>
-      <table v-if="!isMobile" style="table-layout:fixed;width:100%">
-        <colgroup>
-          <col style="width:240px" />
-          <col />
-          <col style="width:120px" />
-        </colgroup>
-        <thead>
-          <tr><th>{{ t('common.name') }}</th><th>{{ t('common.description') }}</th><th>{{ t('common.ops') }}</th></tr>
-        </thead>
-        <tbody>
-          <tr v-if="filteredSkills.length === 0">
-            <td colspan="3" class="skills-empty">
-              {{ searchQuery.trim() ? t('skills.no_match') : t('skills.empty') }}
-            </td>
-          </tr>
-          <tr v-for="s in filteredSkills" :key="s.name">
-            <td class="skills-name">
-              <span :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;margin-right:6px;${sourceBadgeStyle(s.source)}`">{{ s.source }}</span>{{ s.name }}
-            </td>
-            <td class="skills-desc">{{ s.description || '-' }}</td>
-            <td class="skills-ops">
-              <div class="ops-cell">
-                <SButton type="outline" size="sm" @click="openView(s.name, s.source)">{{ t('common.view') }}</SButton>
-                <SButton v-if="s.source === '全局'" type="danger" size="sm" @click="remove(s.name)">{{ t('common.delete') }}</SButton>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <div v-else class="card-list">
-        <div v-for="s in filteredSkills" :key="s.name" class="mobile-card">
-          <div class="mobile-card-header">
-            <span :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;margin-right:6px;${sourceBadgeStyle(s.source)}`">{{ s.source }}</span>
-            {{ s.name }}
+      <STable
+        :columns="columns"
+        :rows="filteredSkills"
+        row-key="name"
+        :empty-text="searchQuery.trim() ? t('skills.no_match') : t('skills.empty')"
+      >
+        <template #name="{ row }">
+          <span :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;margin-right:6px;${sourceBadgeStyle(row.source)}`">{{ row.source }}</span>
+          <span style="font-family:var(--sui-font-mono)">{{ row.name }}</span>
+        </template>
+        <template #description="{ row }">{{ row.description || '-' }}</template>
+        <template #ops="{ row }">
+          <div class="ops-cell">
+            <SButton type="outline" size="sm" @click="openView(row.name, row.source)">{{ t('common.view') }}</SButton>
+            <SButton v-if="row.source === '全局'" type="danger" size="sm" @click="remove(row.name)">{{ t('common.delete') }}</SButton>
           </div>
-          <div class="mobile-card-fields">
-            <span class="mobile-card-label">{{ t('common.description') }}</span>
-            <span class="mobile-card-value">{{ s.description || '-' }}</span>
-          </div>
-          <div class="mobile-card-ops">
-            <SButton type="outline" size="sm" @click="openView(s.name, s.source)">{{ t('common.view') }}</SButton>
-            <SButton v-if="s.source === '全局'" type="danger" size="sm" @click="remove(s.name)">{{ t('common.delete') }}</SButton>
-          </div>
-        </div>
-        <div v-if="filteredSkills.length === 0" class="mobile-card-empty">
-          {{ searchQuery.trim() ? t('skills.no_match') : t('skills.empty') }}
-        </div>
-      </div>
+        </template>
+      </STable>
     </SPageContent>
 
     <SkillViewerModal ref="skillViewRef" />
@@ -159,25 +133,6 @@ onMounted(load)
 <style scoped>
 .tab-bar-spacer { flex: 1; }
 .skills-search { width: 220px; }
-.skills-empty {
-  text-align: center;
-  color: var(--sui-fg-disabled);
-  padding: 40px;
-}
-.skills-name {
-  font-family: var(--sui-font-mono);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.skills-desc {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.skills-ops {
-  white-space: nowrap;
-}
 .dir-hint-panel {
   margin-bottom: var(--sui-sp-7);
   padding: var(--sui-sp-4) var(--sui-sp-6);

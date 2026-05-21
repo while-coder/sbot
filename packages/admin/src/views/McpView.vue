@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
 import { store, applyMcpList } from '@/store'
-import { useToast, SButton, SInput, SSelect, SModal, SFormItem, SFormSection, STabBar, STab, SPageToolbar, SPageContent } from 'sbot-ui'
+import { useToast, SButton, SInput, SSelect, SModal, SFormItem, SFormSection, STabBar, STab, SPageToolbar, SPageContent, STable, type STableColumn } from 'sbot-ui'
 import { McpTransport } from '@/types'
 import type { McpEntry, McpTool, McpPrompt, McpResource, McpResourceTemplate } from '@/types'
 import { serverAddr } from '@/utils/mcpSchema'
@@ -13,10 +12,16 @@ import { sourceBadgeStyle } from '@/utils/badges'
 
 const { t } = useI18n()
 const { show } = useToast()
-const { isMobile } = useResponsive()
 
 const searchQuery = ref('')
 const activeTab = ref('all')
+
+const columns = computed<STableColumn[]>(() => [
+  { key: 'name',        label: t('common.name'),        primary: true, ellipsis: true, width: '220px' },
+  { key: 'description', label: t('common.description'), ellipsis: true },
+  { key: 'address',     label: t('mcp.address_col'),    ellipsis: true, width: '260px' },
+  { key: 'ops',         label: t('common.ops'),         ops: true,     width: '190px' },
+])
 
 const sources = computed(() => {
   const seen = new Set<string>()
@@ -226,65 +231,30 @@ onMounted(load)
     </STabBar>
 
     <SPageContent>
-      <table v-if="!isMobile" class="mcp-table">
-        <colgroup>
-          <col style="width:220px" />
-          <col />
-          <col style="width:260px" />
-          <col style="width:190px" />
-        </colgroup>
-        <thead>
-          <tr>
-            <th>{{ t('common.name') }}</th>
-            <th>{{ t('common.description') }}</th>
-            <th>{{ t('mcp.address_col') }}</th>
-            <th>{{ t('common.ops') }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="filteredMcps.length === 0">
-            <td colspan="4" class="mcp-empty">
-              {{ searchQuery.trim() ? t('mcp.no_match') : t('mcp.empty') }}
-            </td>
-          </tr>
-          <tr v-for="m in filteredMcps" :key="m.id">
-            <td class="mcp-name">
-              <span :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;margin-right:6px;${sourceBadgeStyle(m.source)}`">{{ m.source }}</span>{{ m.name }}
-            </td>
-            <td class="mcp-desc">{{ m.description || '—' }}</td>
-            <td class="mcp-addr">{{ serverAddr(m as any) || '—' }}</td>
-            <td class="mcp-ops">
-              <div class="ops-cell">
-                <SButton type="outline" size="sm" @click="viewTools(m.id)">{{ t('common.view') }}</SButton>
-                <SButton v-if="m.source !== '内置'" type="outline" size="sm" @click="openEdit(m.id)">{{ t('common.edit') }}</SButton>
-                <SButton v-if="m.source !== '内置'" type="danger" size="sm" @click="remove(m.id)">{{ t('common.delete') }}</SButton>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <div v-else class="card-list">
-        <div v-for="m in filteredMcps" :key="m.id" class="mobile-card">
-          <div class="mobile-card-header">
-            <span :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;margin-right:6px;${sourceBadgeStyle(m.source)}`">{{ m.source }}</span>
-            {{ m.name }}
+      <STable
+        :columns="columns"
+        :rows="filteredMcps"
+        row-key="id"
+        :empty-text="searchQuery.trim() ? t('mcp.no_match') : t('mcp.empty')"
+      >
+        <template #name="{ row }">
+          <span :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;margin-right:6px;${sourceBadgeStyle(row.source)}`">{{ row.source }}</span>
+          <span style="font-family:var(--sui-font-mono)">{{ row.name }}</span>
+        </template>
+        <template #description="{ row }">
+          <span class="mcp-desc">{{ row.description || '—' }}</span>
+        </template>
+        <template #address="{ row }">
+          <span class="mcp-addr">{{ serverAddr(row as any) || '—' }}</span>
+        </template>
+        <template #ops="{ row }">
+          <div class="ops-cell">
+            <SButton type="outline" size="sm" @click="viewTools(row.id)">{{ t('common.view') }}</SButton>
+            <SButton v-if="row.source !== '内置'" type="outline" size="sm" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
+            <SButton v-if="row.source !== '内置'" type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
           </div>
-          <div class="mobile-card-fields">
-            <span class="mobile-card-label">{{ t('common.description') }}</span>
-            <span class="mobile-card-value">{{ m.description || '—' }}</span>
-            <span class="mobile-card-label">{{ t('mcp.address_col') }}</span>
-            <span class="mobile-card-value mcp-addr-mobile">{{ serverAddr(m as any) || '—' }}</span>
-          </div>
-          <div class="mobile-card-ops">
-            <SButton type="outline" size="sm" @click="viewTools(m.id)">{{ t('common.view') }}</SButton>
-            <SButton v-if="m.source !== '内置'" type="outline" size="sm" @click="openEdit(m.id)">{{ t('common.edit') }}</SButton>
-            <SButton v-if="m.source !== '内置'" type="danger" size="sm" @click="remove(m.id)">{{ t('common.delete') }}</SButton>
-          </div>
-        </div>
-        <div v-if="filteredMcps.length === 0" class="mobile-card-empty">
-          {{ searchQuery.trim() ? t('mcp.no_match') : t('mcp.empty') }}
-        </div>
-      </div>
+        </template>
+      </STable>
     </SPageContent>
 
     <!-- Edit / Add MCP Modal -->
@@ -381,34 +351,14 @@ onMounted(load)
 <style scoped>
 .tab-bar-spacer { flex: 1; }
 .mcp-search { width: 220px; }
-.mcp-table { width: 100%; table-layout: fixed; }
-.mcp-empty {
-  text-align: center;
-  color: var(--sui-fg-disabled);
-  padding: 40px;
-}
-.mcp-name {
-  font-family: var(--sui-font-mono);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .mcp-desc {
   color: var(--sui-fg-muted);
   font-size: var(--sui-fs-sm);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .mcp-addr {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   color: var(--sui-fg-disabled);
   font-size: var(--sui-fs-sm);
 }
-.mcp-addr-mobile { word-break: break-all; }
-.mcp-ops { white-space: nowrap; }
 
 .kv-row {
   display: flex;

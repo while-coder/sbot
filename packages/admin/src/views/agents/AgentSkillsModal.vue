@@ -8,7 +8,7 @@ import type { SkillItem } from '@/types'
 import { sourceBadgeStyle } from '@/utils/badges'
 import SkillHubModal from '@/components/SkillHubModal.vue'
 import SkillViewerModal from '@/components/SkillViewerModal.vue'
-import { SModal, SButton, SInput, STabBar, STab, SCheckCard } from 'sbot-ui'
+import { SModal, SButton, SInput, STabBar, STab, SCheckCard, STable, type STableColumn } from 'sbot-ui'
 
 const { t } = useI18n()
 
@@ -42,6 +42,12 @@ const sources = computed(() => {
   for (const s of allGlobalSkills.value) if (s.source) seen.add(s.source)
   return Array.from(seen)
 })
+
+const exclusiveColumns = computed<STableColumn[]>(() => [
+  { key: 'name',        label: t('common.name'), primary: true },
+  { key: 'description', label: t('common.description') },
+  { key: 'ops',         label: t('common.ops'), ops: true },
+])
 
 const filteredGlobalSkills = computed(() => {
   const list = activeTab.value === 'all'
@@ -197,20 +203,23 @@ defineExpose({ open })
           <div class="dir-hint-panel">
             {{ t('skills.skills_dir') }}<code class="dir-hint-code">~/.sbot/agents/{{ agentName }}/skills/</code>
           </div>
-          <div v-if="skills.length === 0" class="picker-empty">{{ t('skills.no_exclusive') }}</div>
-          <table v-else>
-            <thead><tr><th>{{ t('common.name') }}</th><th>{{ t('common.description') }}</th><th>{{ t('common.ops') }}</th></tr></thead>
-            <tbody>
-              <tr v-for="s in skills" :key="s.name">
-                <td style="font-family:var(--sui-font-mono)">{{ s.name }}</td>
-                <td>{{ s.description || '-' }}</td>
-                <td><div class="ops-cell">
-                  <SButton type="outline" size="sm" @click="openView(s.name, t('agents.skills_exclusive_tab'))">{{ t('common.view') }}</SButton>
-                  <SButton type="danger" size="sm" @click="remove(s.name)">{{ t('common.delete') }}</SButton>
-                </div></td>
-              </tr>
-            </tbody>
-          </table>
+          <STable
+            :columns="exclusiveColumns"
+            :rows="skills"
+            row-key="name"
+            :empty-text="t('skills.no_exclusive')"
+          >
+            <template #name="{ row }">
+              <span style="font-family:var(--sui-font-mono)">{{ row.name }}</span>
+            </template>
+            <template #description="{ row }">{{ row.description || '-' }}</template>
+            <template #ops="{ row }">
+              <div class="ops-cell">
+                <SButton type="outline" size="sm" @click="openView(row.name, t('agents.skills_exclusive_tab'))">{{ t('common.view') }}</SButton>
+                <SButton type="danger" size="sm" @click="remove(row.name)">{{ t('common.delete') }}</SButton>
+              </div>
+            </template>
+          </STable>
         </template>
       </div>
     </SModal>

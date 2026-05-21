@@ -1,13 +1,21 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { useToast } from 'sbot-ui'
-import { SModal, SButton, SBadge, SFormItem, STextarea, SCheckCard } from 'sbot-ui'
+import { SModal, SButton, SBadge, SFormItem, STextarea, SCheckCard, STable, type STableColumn } from 'sbot-ui'
 import type { MemoryItem, MemoryConfig } from '@/types'
 
 const { t } = useI18n()
 const { show } = useToast()
+
+const columns = computed<STableColumn[]>(() => [
+  { key: 'content',      label: t('memories.content_col'),        primary: true, ellipsis: true },
+  { key: 'createdAt',    label: t('memories.created_col'),        width: '150px', ellipsis: true },
+  { key: 'accessCount',  label: t('memories.access_count_col'),   width: '60px',  align: 'center' },
+  { key: 'lastAccessed', label: t('memories.last_accessed_col'),  width: '150px', ellipsis: true },
+  { key: 'ops',          label: t('common.ops'),                  width: '70px',  align: 'center', ops: true },
+])
 
 const visible      = ref(false)
 const memoryId     = ref('')
@@ -108,37 +116,30 @@ defineExpose({ open })
       </SButton>
     </template>
 
-    <div v-if="loading" class="modal-loading">{{ t('common.loading') }}</div>
-    <div v-else-if="memories.length === 0" class="modal-empty">{{ t('memories.no_memories') }}</div>
-    <table v-else class="mem-table">
-      <colgroup>
-        <col class="cg-content" />
-        <col class="cg-time" />
-        <col class="cg-access" />
-        <col class="cg-time" />
-        <col class="cg-ops" />
-      </colgroup>
-      <thead>
-        <tr>
-          <th>{{ t('memories.content_col') }}</th>
-          <th>{{ t('memories.created_col') }}</th>
-          <th class="col-center">{{ t('memories.access_count_col') }}</th>
-          <th>{{ t('memories.last_accessed_col') }}</th>
-          <th class="col-center">{{ t('common.ops') }}</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="m in memories" :key="m.id">
-          <td class="cell-content" :title="m.content">{{ m.content }}</td>
-          <td class="cell-nowrap cell-secondary">{{ m.createdAt ? new Date(m.createdAt).toLocaleString() : '-' }}</td>
-          <td class="cell-nowrap cell-secondary col-center">{{ m.accessCount ?? '-' }}</td>
-          <td class="cell-nowrap cell-secondary">{{ m.lastAccessed ? new Date(m.lastAccessed).toLocaleString() : '-' }}</td>
-          <td class="cell-nowrap col-center">
-            <SButton type="danger" size="sm" @click="remove(m.id)">{{ t('common.delete') }}</SButton>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+    <STable
+      :columns="columns"
+      :rows="memories"
+      row-key="id"
+      :loading="loading"
+      :loading-text="t('common.loading')"
+      :empty-text="t('memories.no_memories')"
+    >
+      <template #content="{ row }">
+        <span :title="row.content">{{ row.content }}</span>
+      </template>
+      <template #createdAt="{ row }">
+        <span class="cell-secondary">{{ row.createdAt ? new Date(row.createdAt).toLocaleString() : '-' }}</span>
+      </template>
+      <template #accessCount="{ row }">
+        <span class="cell-secondary">{{ row.accessCount ?? '-' }}</span>
+      </template>
+      <template #lastAccessed="{ row }">
+        <span class="cell-secondary">{{ row.lastAccessed ? new Date(row.lastAccessed).toLocaleString() : '-' }}</span>
+      </template>
+      <template #ops="{ row }">
+        <SButton type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
+      </template>
+    </STable>
   </SModal>
 
   <!-- Add memory modal (nested) -->
@@ -161,53 +162,8 @@ defineExpose({ open })
   font-size: var(--sui-fs-sm);
   color: var(--sui-fg-disabled);
 }
-.modal-loading,
-.modal-empty {
-  text-align: center;
-  color: var(--sui-fg-disabled);
-  padding: 60px 0;
-  font-size: var(--sui-fs-lg);
-}
-.mem-table {
-  width: 100%;
-  table-layout: fixed;
-  border-collapse: collapse;
-  font-size: var(--sui-fs-md);
-}
-.mem-table th,
-.mem-table td {
-  padding: var(--sui-sp-3) var(--sui-sp-5);
-  border-bottom: 1px solid var(--sui-border);
-  vertical-align: middle;
-}
-.mem-table th {
-  background: var(--sui-bg-subtle);
-  font-weight: 600;
-  color: var(--sui-fg-muted);
-  font-size: var(--sui-fs-sm);
-  white-space: nowrap;
-  position: sticky;
-  top: 0;
-  z-index: 1;
-}
-.mem-table tbody tr:hover { background: var(--sui-bg-subtle); }
-
-.cg-content { width: auto; }
-.cg-time    { width: 150px; }
-.cg-access  { width: 60px; }
-.cg-ops     { width: 70px; }
-
-.cell-content,
-.cell-nowrap {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .cell-secondary {
   color: var(--sui-fg-muted);
   font-size: var(--sui-fs-sm);
-}
-.col-center {
-  text-align: center;
 }
 </style>

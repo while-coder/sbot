@@ -1,18 +1,25 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
-import { useToast, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent } from 'sbot-ui'
+import { useToast, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, STable, type STableColumn } from 'sbot-ui'
 import type { MemoryConfig } from '@/types'
 import MemoryViewModal from './modals/MemoryViewModal.vue'
 
 const { t } = useI18n()
 const { show } = useToast()
-const { isMobile } = useResponsive()
 
 const memories         = computed(() => store.settings.memories || {})
+const memoryList       = computed(() =>
+  Object.entries(memories.value).map(([id, m]) => ({ id, ...m })),
+)
+const columns = computed<STableColumn[]>(() => [
+  { key: 'name',      label: t('common.name'),            primary: true },
+  { key: 'embedding', label: t('memories.embedding_col'), width: '180px' },
+  { key: 'count',     label: t('memories.count_col'),     width: '70px',  align: 'center' },
+  { key: 'ops',       label: t('common.ops'),             ops: true,      width: '180px', align: 'center' },
+])
 const embeddingOptions = computed(() =>
   Object.entries(store.settings.embeddings || {}).map(([id, e]) => ({
     id,
@@ -116,72 +123,37 @@ async function refresh() {
       <SButton type="primary" size="sm" @click="openAdd">{{ t('memories.add') }}</SButton>
     </SPageToolbar>
     <SPageContent>
-      <table v-if="!isMobile" class="mem-list-table">
-        <colgroup>
-          <col style="width:auto" />
-          <col style="width:180px" />
-          <col style="width:70px" />
-          <col style="width:180px" />
-        </colgroup>
-        <thead>
-          <tr>
-            <th>{{ t('common.name') }}</th>
-            <th>{{ t('memories.embedding_col') }}</th>
-            <th class="col-center">{{ t('memories.count_col') }}</th>
-            <th class="col-center">{{ t('common.ops') }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="Object.keys(memories).length === 0">
-            <td colspan="4" class="mem-empty">{{ t('memories.empty') }}</td>
-          </tr>
-          <tr v-for="(m, id) in memories" :key="id">
-            <td class="cell-nowrap">{{ m.name || id }}</td>
-            <td class="cell-nowrap cell-secondary">
-              <template v-if="embeddingOptions.find(e => e.id === m.embedding)">
-                {{ embeddingOptions.find(e => e.id === m.embedding)!.label }}
-                <span class="embed-detail">{{ embeddingOptions.find(e => e.id === m.embedding)!.detail }}</span>
-              </template>
-              <template v-else>{{ m.embedding || '-' }}</template>
-            </td>
-            <td class="col-center">
-              <span v-if="memoryCounts[id as string] === undefined" class="count-muted">...</span>
-              <span v-else-if="memoryCounts[id as string] === null" class="count-muted">-</span>
-              <SBadge v-else variant="info" pill>{{ memoryCounts[id as string] }}</SBadge>
-            </td>
-            <td class="col-center">
-              <div class="ops-row">
-                <SButton type="outline" size="sm" @click="memoryViewModal?.open(id as string, m)">{{ t('common.view') }}</SButton>
-                <SButton type="outline" size="sm" @click="openEdit(id as string)">{{ t('common.edit') }}</SButton>
-                <SButton type="danger" size="sm" @click="remove(id as string)">{{ t('common.delete') }}</SButton>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      <!-- Mobile card layout -->
-      <template v-else>
-        <div v-if="Object.keys(memories).length === 0" class="mobile-card-empty">{{ t('memories.empty') }}</div>
-        <div v-for="(m, id) in memories" :key="id" class="mobile-card">
-          <div class="mobile-card-header">
-            <span>{{ m.name || id }}</span>
-            <SBadge v-if="memoryCounts[id as string] != null" variant="info" pill>{{ memoryCounts[id as string] }} {{ t('memories.items') }}</SBadge>
+      <STable
+        :columns="columns"
+        :rows="memoryList"
+        row-key="id"
+        :empty-text="t('memories.empty')"
+      >
+        <template #name="{ row }">{{ row.name || row.id }}</template>
+        <template #embedding="{ row }">
+          <div class="embed-cell">
+            <template v-if="embeddingOptions.find(e => e.id === row.embedding)">
+              <div class="embed-label">{{ embeddingOptions.find(e => e.id === row.embedding)!.label }}</div>
+              <div class="embed-detail">{{ embeddingOptions.find(e => e.id === row.embedding)!.detail }}</div>
+            </template>
+            <template v-else>
+              <div class="embed-label">{{ row.embedding || '-' }}</div>
+            </template>
           </div>
-          <div class="mobile-card-fields">
-            <span class="mobile-card-label">{{ t('memories.embedding_col') }}</span>
-            <span class="mobile-card-value">
-              {{ embeddingOptions.find(e => e.id === m.embedding)?.label || m.embedding || '-' }}
-              <span v-if="embeddingOptions.find(e => e.id === m.embedding)" class="embed-detail">{{ embeddingOptions.find(e => e.id === m.embedding)!.detail }}</span>
-            </span>
+        </template>
+        <template #count="{ row }">
+          <span v-if="memoryCounts[row.id] === undefined" class="count-muted">...</span>
+          <span v-else-if="memoryCounts[row.id] === null" class="count-muted">-</span>
+          <SBadge v-else variant="info" pill>{{ memoryCounts[row.id] }}</SBadge>
+        </template>
+        <template #ops="{ row }">
+          <div class="ops-row">
+            <SButton type="outline" size="sm" @click="memoryViewModal?.open(row.id, row)">{{ t('common.view') }}</SButton>
+            <SButton type="outline" size="sm" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
+            <SButton type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
           </div>
-          <div class="mobile-card-ops">
-            <SButton type="outline" size="sm" @click="memoryViewModal?.open(id as string, m)">{{ t('common.view') }}</SButton>
-            <SButton type="outline" size="sm" @click="openEdit(id as string)">{{ t('common.edit') }}</SButton>
-            <SButton type="danger" size="sm" @click="remove(id as string)">{{ t('common.delete') }}</SButton>
-          </div>
-        </div>
-      </template>
+        </template>
+      </STable>
     </SPageContent>
 
     <SModal v-model:visible="showModal" :title="editingName !== null ? t('memories.edit_title') : t('memories.add_title')" width="md">
@@ -205,28 +177,20 @@ async function refresh() {
 </template>
 
 <style scoped>
-.mem-list-table {
-  table-layout: fixed;
+.embed-cell {
+  min-width: 0;
 }
-.mem-empty {
-  text-align: center;
-  color: var(--sui-fg-disabled);
-  padding: 40px;
-}
-.col-center {
-  text-align: center;
-}
-.cell-nowrap {
+.embed-label,
+.embed-detail {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.cell-secondary {
+.embed-label {
   color: var(--sui-fg-muted);
   font-size: var(--sui-fs-sm);
 }
 .embed-detail {
-  display: block;
   color: var(--sui-fg-disabled);
   font-size: var(--sui-fs-xs);
 }

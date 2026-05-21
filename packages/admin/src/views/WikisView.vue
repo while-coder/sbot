@@ -1,18 +1,25 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useResponsive } from '../composables/useResponsive'
 import { apiFetch } from '@/api'
 import { store } from '@/store'
-import { useToast, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent } from 'sbot-ui'
+import { useToast, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, STable, type STableColumn } from 'sbot-ui'
 import type { WikiConfig } from '@/types'
 import WikiViewModal from './modals/WikiViewModal.vue'
 
 const { t } = useI18n()
 const { show } = useToast()
-const { isMobile } = useResponsive()
 
 const wikis = computed(() => store.settings.wikis || {})
+const wikiList = computed(() =>
+  Object.entries(wikis.value).map(([id, w]) => ({ id, ...w })),
+)
+const columns = computed<STableColumn[]>(() => [
+  { key: 'name',      label: t('common.name'),         primary: true },
+  { key: 'embedding', label: t('wikis.embedding_col'), width: '140px' },
+  { key: 'pages',     label: t('wikis.pages_col'),     width: '70px',  align: 'center' },
+  { key: 'ops',       label: t('common.ops'),          ops: true,      width: '180px', align: 'center' },
+])
 const embeddingOptions = computed(() =>
   Object.entries(store.settings.embeddings || {}).map(([id, e]) => ({
     id,
@@ -115,72 +122,37 @@ async function refresh() {
       <SButton type="primary" size="sm" @click="openAdd">{{ t('wikis.add') }}</SButton>
     </SPageToolbar>
     <SPageContent>
-      <table v-if="!isMobile" class="wiki-list-table">
-        <colgroup>
-          <col style="width:auto" />
-          <col style="width:140px" />
-          <col style="width:70px" />
-          <col style="width:180px" />
-        </colgroup>
-        <thead>
-          <tr>
-            <th>{{ t('common.name') }}</th>
-            <th>{{ t('wikis.embedding_col') }}</th>
-            <th class="col-center">{{ t('wikis.pages_col') }}</th>
-            <th class="col-center">{{ t('common.ops') }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="Object.keys(wikis).length === 0">
-            <td colspan="4" class="wiki-empty">{{ t('wikis.empty') }}</td>
-          </tr>
-          <tr v-for="(w, id) in wikis" :key="id">
-            <td class="cell-nowrap">{{ w.name || id }}</td>
-            <td class="cell-nowrap cell-secondary">
-              <template v-if="embeddingOptions.find(e => e.id === w.embedding)">
-                {{ embeddingOptions.find(e => e.id === w.embedding)!.label }}
-                <span class="embed-detail">{{ embeddingOptions.find(e => e.id === w.embedding)!.detail }}</span>
-              </template>
-              <template v-else>{{ w.embedding || t('wikis.embedding_none') }}</template>
-            </td>
-            <td class="col-center">
-              <span v-if="wikiCounts[id as string] === undefined" class="count-muted">...</span>
-              <span v-else-if="wikiCounts[id as string] === null" class="count-muted">-</span>
-              <SBadge v-else variant="info" pill>{{ wikiCounts[id as string] }}</SBadge>
-            </td>
-            <td class="col-center">
-              <div class="ops-row">
-                <SButton type="outline" size="sm" @click="wikiViewModal?.open(id as string, w)">{{ t('common.view') }}</SButton>
-                <SButton type="outline" size="sm" @click="openEdit(id as string)">{{ t('common.edit') }}</SButton>
-                <SButton type="danger" size="sm" @click="remove(id as string)">{{ t('common.delete') }}</SButton>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      <!-- Mobile card layout -->
-      <template v-else>
-        <div v-if="Object.keys(wikis).length === 0" class="mobile-card-empty">{{ t('wikis.empty') }}</div>
-        <div v-for="(w, id) in wikis" :key="id" class="mobile-card">
-          <div class="mobile-card-header">
-            <span>{{ w.name || id }}</span>
-            <SBadge v-if="wikiCounts[id as string] != null" variant="info" pill>{{ wikiCounts[id as string] }} {{ t('wikis.pages_unit') }}</SBadge>
+      <STable
+        :columns="columns"
+        :rows="wikiList"
+        row-key="id"
+        :empty-text="t('wikis.empty')"
+      >
+        <template #name="{ row }">{{ row.name || row.id }}</template>
+        <template #embedding="{ row }">
+          <div class="embed-cell">
+            <template v-if="embeddingOptions.find(e => e.id === row.embedding)">
+              <div class="embed-label">{{ embeddingOptions.find(e => e.id === row.embedding)!.label }}</div>
+              <div class="embed-detail">{{ embeddingOptions.find(e => e.id === row.embedding)!.detail }}</div>
+            </template>
+            <template v-else>
+              <div class="embed-label">{{ row.embedding || t('wikis.embedding_none') }}</div>
+            </template>
           </div>
-          <div v-if="w.embedding" class="mobile-card-fields">
-            <span class="mobile-card-label">{{ t('wikis.embedding_col') }}</span>
-            <span class="mobile-card-value">
-              {{ embeddingOptions.find(e => e.id === w.embedding)?.label || w.embedding }}
-              <span v-if="embeddingOptions.find(e => e.id === w.embedding)" class="embed-detail">{{ embeddingOptions.find(e => e.id === w.embedding)!.detail }}</span>
-            </span>
+        </template>
+        <template #pages="{ row }">
+          <span v-if="wikiCounts[row.id] === undefined" class="count-muted">...</span>
+          <span v-else-if="wikiCounts[row.id] === null" class="count-muted">-</span>
+          <SBadge v-else variant="info" pill>{{ wikiCounts[row.id] }}</SBadge>
+        </template>
+        <template #ops="{ row }">
+          <div class="ops-row">
+            <SButton type="outline" size="sm" @click="wikiViewModal?.open(row.id, row)">{{ t('common.view') }}</SButton>
+            <SButton type="outline" size="sm" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
+            <SButton type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
           </div>
-          <div class="mobile-card-ops">
-            <SButton type="outline" size="sm" @click="wikiViewModal?.open(id as string, w)">{{ t('common.view') }}</SButton>
-            <SButton type="outline" size="sm" @click="openEdit(id as string)">{{ t('common.edit') }}</SButton>
-            <SButton type="danger" size="sm" @click="remove(id as string)">{{ t('common.delete') }}</SButton>
-          </div>
-        </div>
-      </template>
+        </template>
+      </STable>
     </SPageContent>
 
     <!-- Edit/Add modal -->
@@ -206,24 +178,20 @@ async function refresh() {
 </template>
 
 <style scoped>
-.wiki-list-table {
-  table-layout: fixed;
+.embed-cell {
+  min-width: 0;
 }
-.wiki-empty {
-  text-align: center;
-  color: var(--sui-fg-disabled);
-  padding: 40px;
-}
-.col-center {
-  text-align: center;
-}
-.cell-nowrap {
+.embed-label,
+.embed-detail {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.embed-label {
+  color: var(--sui-fg-muted);
+  font-size: var(--sui-fs-sm);
+}
 .embed-detail {
-  display: block;
   color: var(--sui-fg-disabled);
   font-size: var(--sui-fs-xs);
 }
