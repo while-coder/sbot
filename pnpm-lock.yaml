@@ -122,6 +122,28 @@ importers:
         specifier: ^3.2.7
         version: 3.2.7(typescript@6.0.3)
 
+  packages/app:
+    dependencies:
+      '@sbot/chat-ui':
+        specifier: workspace:*
+        version: link:../chat-ui
+    devDependencies:
+      '@tauri-apps/cli':
+        specifier: ^2
+        version: 2.11.1
+      '@vitejs/plugin-vue':
+        specifier: ^6.0.6
+        version: 6.0.6(vite@8.0.9(@types/node@25.6.0)(esbuild@0.28.0)(terser@5.46.2)(tsx@4.21.0)(yaml@2.8.3))(vue@3.5.33(typescript@6.0.3))
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vite:
+        specifier: ^8.0.9
+        version: 8.0.9(@types/node@25.6.0)(esbuild@0.28.0)(terser@5.46.2)(tsx@4.21.0)(yaml@2.8.3)
+      vue:
+        specifier: ^3.5.33
+        version: 3.5.33(typescript@6.0.3)
+
   packages/channel.base:
     dependencies:
       '@langchain/core':
@@ -352,28 +374,6 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
-
-  packages/desktop:
-    dependencies:
-      '@sbot/chat-ui':
-        specifier: workspace:*
-        version: link:../chat-ui
-    devDependencies:
-      '@tauri-apps/cli':
-        specifier: ^2
-        version: 2.11.1
-      '@vitejs/plugin-vue':
-        specifier: ^6.0.6
-        version: 6.0.6(vite@8.0.9(@types/node@25.6.0)(esbuild@0.28.0)(terser@5.46.2)(tsx@4.21.0)(yaml@2.8.3))(vue@3.5.33(typescript@6.0.3))
-      typescript:
-        specifier: 'catalog:'
-        version: 6.0.3
-      vite:
-        specifier: ^8.0.9
-        version: 8.0.9(@types/node@25.6.0)(esbuild@0.28.0)(terser@5.46.2)(tsx@4.21.0)(yaml@2.8.3)
-      vue:
-        specifier: ^3.5.33
-        version: 3.5.33(typescript@6.0.3)
 
   packages/landing:
     devDependencies:

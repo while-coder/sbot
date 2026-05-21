@@ -2459,7 +2459,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sbot-desktop"
+name = "sbot-app"
 version = "0.0.1"
 dependencies = [
  "serde",

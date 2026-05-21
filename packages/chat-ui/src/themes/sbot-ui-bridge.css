@@ -11,7 +11,7 @@
  * admin 不需要加载本文件 —— 它已经直接加载 sbot-ui/tokens/index.css。
  */
 
-@import 'sbot-ui/tokens/base.css';
+@import '../../../sbot-ui/src/tokens/base.css';
 
 :root {
   /* ── 中性背景 ─────────────────────────────────────────── */

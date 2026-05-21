@@ -22,8 +22,19 @@
     "build:vscode": "pnpm run build:deps && pnpm run assets && pnpm --filter sbot-vscode run build",
     "install:vscode": "pnpm run build:vscode && pnpm --filter sbot-vscode run install-ext",
 
-    "build:desktop": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/desktop run build",
-    "debug:desktop": "pnpm run assets && pnpm --filter @sbot/desktop run dev",
+    "debug:desktop": "pnpm run assets && pnpm --filter @sbot/app run dev",
+
+    "build:macos": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/app run macos:build",
+    "build:windows": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/app run windows:build",
+    "build:linux": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/app run linux:build",
+
+    "init:android": "pnpm --filter @sbot/app run android:init",
+    "debug:android": "pnpm run assets && pnpm --filter @sbot/app run android:dev",
+    "build:android": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/app run android:build",
+
+    "init:ios": "pnpm --filter @sbot/app run ios:init",
+    "debug:ios": "pnpm run assets && pnpm --filter @sbot/app run ios:dev",
+    "build:ios": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/app run ios:build",
 
     "debug:pwa": "pnpm run assets && pnpm --filter @sbot/pwa run dev",
     "build:pwa": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/pwa run build",
