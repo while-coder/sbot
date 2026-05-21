@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { store, applyMcpList } from '@/store'
-import { useToast, SButton, SCard, SPageToolbar, SPageContent } from 'sbot-ui'
+import { useToast, SButton, SCard, SPageToolbar, SPageContent, STable, SInfoTable, SInfoRow, type STableColumn } from 'sbot-ui'
 import AgentModal from './AgentModal.vue'
 import AgentMcpModal from './AgentMcpModal.vue'
 import AgentSkillsModal from './AgentSkillsModal.vue'
@@ -12,32 +12,36 @@ import SkillViewerModal from '@/components/SkillViewerModal.vue'
 import type { SkillItem, McpItem, McpTool, McpPrompt, McpResource, McpResourceTemplate } from '@/types'
 import { sourceBadgeStyle, badgePrivate } from '@/utils/badges'
 import { serverAddr } from '@/utils/mcpSchema'
-import { useResponsive } from '../../composables/useResponsive'
 
 const { t } = useI18n()
-const { isMobile } = useResponsive()
 const { show } = useToast()
 
 const agents = computed(() => store.settings.agents || {})
-const sortedAgentEntries = computed(() => {
-  const entries = Object.entries(agents.value)
-  return entries.sort(([, a], [, b]) => {
-    const order = (type: string) => type === 'react' ? 0 : type === 'single' ? 1 : type === 'acp' ? 2 : type === 'generative' ? 3 : 4
-    return order(a.type) - order(b.type)
-  })
+type AgentRow = Record<string, any> & { id: string }
+const sortedAgentRows = computed<AgentRow[]>(() => {
+  const order = (type: string) => type === 'react' ? 0 : type === 'single' ? 1 : type === 'acp' ? 2 : type === 'generative' ? 3 : 4
+  return Object.entries(agents.value)
+    .map(([id, a]) => ({ id, ...(a as any) }))
+    .sort((a, b) => order(a.type) - order(b.type))
 })
 const modelName = (id: string) => (store.settings.models?.[id] as any)?.name || id
+
+const columns = computed<STableColumn[]>(() => [
+  { key: 'name',  label: t('agents.name_col'),  primary: true, ellipsis: true },
+  { key: 'type',  label: t('agents.type_col'),  width: '120px' },
+  { key: 'model', label: t('agents.model_col'), ellipsis: true },
+  { key: 'ops',   label: t('common.ops'),       ops: true, width: '380px' },
+])
 
 const agentModal       = ref<InstanceType<typeof AgentModal>>()
 const agentMcpModal    = ref<InstanceType<typeof AgentMcpModal>>()
 const agentSkillsModal = ref<InstanceType<typeof AgentSkillsModal>>()
 
-const expandedIds   = ref<Set<string>>(new Set())
+const expandedIds   = ref<string[]>([])
 const activeTabs    = ref<Record<string, 'config' | 'skills' | 'mcp'>>({})
 const skillsMap     = ref<Record<string, SkillItem[]>>({})
 const mcpServersMap = ref<Record<string, McpItem[]>>({})
 
-function isExpanded(id: string) { return expandedIds.value.has(id) }
 function getTab(id: string): 'config' | 'skills' | 'mcp' { return activeTabs.value[id] ?? 'config' }
 function getSkills(id: string)  { return skillsMap.value[id]     ?? [] }
 function getGlobals(id: string) {
@@ -73,15 +77,10 @@ async function loadMcp(id: string) {
   }
 }
 
-async function toggleExpand(id: string) {
-  if (expandedIds.value.has(id)) {
-    expandedIds.value.delete(id)
-    expandedIds.value = new Set(expandedIds.value)
-    return
-  }
-  expandedIds.value = new Set([...expandedIds.value, id])
-  if (!activeTabs.value[id]) activeTabs.value[id] = 'config'
-  await Promise.all([loadSkills(id), loadMcp(id)])
+async function onExpand(row: AgentRow, expanded: boolean) {
+  if (!expanded) return
+  if (!activeTabs.value[row.id]) activeTabs.value[row.id] = 'config'
+  await Promise.all([loadSkills(row.id), loadMcp(row.id)])
 }
 
 function switchTab(id: string, tab: 'config' | 'skills' | 'mcp') {
@@ -114,8 +113,7 @@ async function removeAgent(id: string) {
     await apiFetch(`/api/agents/${encodeURIComponent(id)}`, 'DELETE')
     const settingsRes = await apiFetch('/api/settings')
     Object.assign(store.settings, settingsRes.data)
-    expandedIds.value.delete(id)
-    expandedIds.value = new Set(expandedIds.value)
+    expandedIds.value = expandedIds.value.filter(x => x !== id)
     show(t('common.deleted'))
   } catch (e: any) {
     show(e.message, 'error')
@@ -220,7 +218,7 @@ async function refresh() {
     const skillRes = await apiFetch('/api/skills')
     store.allSkills = skillRes.data || []
     await Promise.all(
-      [...expandedIds.value].flatMap(id => [loadSkills(id), loadMcp(id)])
+      expandedIds.value.flatMap(id => [loadSkills(id), loadMcp(id)])
     )
   } catch (e: any) {
     show(e.message, 'error')
@@ -244,426 +242,181 @@ function tabsForAgent(id: string, type: string): { key: 'config' | 'skills' | 'm
       <SButton type="primary" size="sm" @click="agentModal?.open()">{{ t('agents.add') }}</SButton>
     </SPageToolbar>
     <SPageContent>
-      <table v-if="!isMobile">
-        <thead>
-          <tr>
-            <th class="col-toggle"></th>
-            <th>{{ t('agents.name_col') }}</th>
-            <th>{{ t('agents.type_col') }}</th>
-            <th>{{ t('agents.model_col') }}</th>
-            <th>{{ t('common.ops') }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="sortedAgentEntries.length === 0">
-            <td colspan="5" class="agents-empty">{{ t('agents.empty') }}</td>
-          </tr>
+      <STable
+        :columns="columns"
+        :rows="sortedAgentRows"
+        row-key="id"
+        expandable
+        v-model:expandedKeys="expandedIds"
+        :empty-text="t('agents.empty')"
+        @expand="onExpand"
+      >
+        <template #name="{ row }">
+          <span class="agent-name">{{ row.name || row.id }}</span>
+          <span v-if="row.id" class="config-badge config-badge-id">{{ row.id }}</span>
+          <span v-if="row.skills === '*'" class="config-badge config-badge-info">{{ t('agents.tab_skills') }} *</span>
+          <span v-if="row.mcp === '*'" class="config-badge config-badge-info">{{ t('agents.tab_tools') }} *</span>
+          <span v-if="row.autoApproveAllTools" class="config-badge config-badge-warn">{{ t('agents.auto_approve_all_tools') }}</span>
+        </template>
 
-          <template v-for="[id, a] in sortedAgentEntries" :key="id">
-            <tr
-              @click="toggleExpand(id as string)"
-              class="agent-row"
-              :class="{ 'agent-row-expanded': isExpanded(id as string) }"
-            >
-              <td class="col-toggle col-toggle-cell">
-                <span class="toggle-icon">{{ isExpanded(id as string) ? '▼' : '▶' }}</span>
-              </td>
-              <td>
-                <span class="agent-name">{{ (a as any).name || id }}</span>
-                <span v-if="(a as any).id" class="config-badge config-badge-id">{{ (a as any).id }}</span>
-                <span v-if="a.skills === '*'" class="config-badge config-badge-info">{{ t('agents.tab_skills') }} *</span>
-                <span v-if="a.mcp === '*'" class="config-badge config-badge-info">{{ t('agents.tab_tools') }} *</span>
-                <span v-if="(a as any).autoApproveAllTools" class="config-badge config-badge-warn">{{ t('agents.auto_approve_all_tools') }}</span>
-              </td>
-              <td><span :class="'agent-type-badge agent-type-' + a.type">{{ a.type }}</span></td>
-              <td>
-                <template v-if="a.type === 'acp'">
-                  <span class="acp-command">{{ (a as any).command }}</span>
-                </template>
-                <template v-else>{{ a.model ? modelName(a.model) : '-' }}</template>
-              </td>
-              <td @click.stop>
-                <div class="ops-cell">
-                  <SButton type="outline" size="sm" @click="agentModal?.open(id as string)">{{ t('common.edit') }}</SButton>
-                  <SButton v-if="a.type !== 'acp'" type="outline" size="sm" @click="agentMcpModal?.open(id as string)">{{ t('agents.tab_tools') }}</SButton>
-                  <SButton v-if="a.type !== 'acp'" type="outline" size="sm" @click="agentSkillsModal?.open(id as string)">{{ t('agents.tab_skills') }}</SButton>
-                  <SButton type="outline" size="sm" @click="exportAgent(id as string)">{{ t('agentStore.export_btn') }}</SButton>
-                  <SButton type="danger" size="sm" @click="removeAgent(id as string)">{{ t('common.delete') }}</SButton>
-                </div>
-              </td>
-            </tr>
+        <template #type="{ row }">
+          <span :class="'agent-type-badge agent-type-' + row.type">{{ row.type }}</span>
+        </template>
 
-            <tr v-if="isExpanded(id as string)">
-              <td colspan="5" class="agent-detail-cell">
-                <div class="agent-tab-bar">
-                  <button
-                    v-for="tab in tabsForAgent(id as string, a.type)"
-                    :key="tab.key"
-                    @click="switchTab(id as string, tab.key)"
-                    class="agent-tab"
-                    :class="{ active: getTab(id as string) === tab.key }"
-                  >{{ tab.label }}</button>
-                </div>
-
-                <div class="agent-tab-content">
-                  <template v-if="getTab(id as string) === 'config'">
-                    <SCard :title="t('agents.basic_info')" class="agent-info-card">
-                      <table class="agent-info-table">
-                        <tbody>
-                          <tr>
-                            <td class="info-label">{{ t('common.id') }}</td>
-                            <td class="info-value mono">{{ id }}</td>
-                          </tr>
-                          <tr v-if="(a as any).name">
-                            <td class="info-label">{{ t('common.name') }}</td>
-                            <td class="info-value">{{ (a as any).name }}</td>
-                          </tr>
-                          <tr>
-                            <td class="info-label">{{ t('common.type') }}</td>
-                            <td class="info-value"><span class="type-tag">{{ a.type }}</span></td>
-                          </tr>
-                          <template v-if="a.type === 'acp'">
-                            <tr>
-                              <td class="info-label">{{ t('agents.acp_command') }}</td>
-                              <td class="info-value mono">{{ (a as any).command }}</td>
-                            </tr>
-                            <tr v-if="(a as any).args?.length">
-                              <td class="info-label">{{ t('agents.acp_args') }}</td>
-                              <td class="info-value mono">{{ (a as any).args.join(' ') }}</td>
-                            </tr>
-                            <tr>
-                              <td class="info-label">{{ t('agents.acp_session_mode') }}</td>
-                              <td class="info-value"><span class="type-tag">{{ (a as any).sessionMode || 'persistent' }}</span></td>
-                            </tr>
-                            <tr v-if="(a as any).env && Object.keys((a as any).env).length">
-                              <td class="info-label">{{ t('agents.acp_env') }}</td>
-                              <td class="info-value">
-                                <div v-for="(v, k) in (a as any).env" :key="k" class="env-line">{{ k }}={{ v }}</div>
-                              </td>
-                            </tr>
-                          </template>
-                          <template v-else>
-                            <tr v-if="a.model">
-                              <td class="info-label">{{ t('agents.model_col') }}</td>
-                              <td class="info-value">{{ modelName(a.model) }}</td>
-                            </tr>
-                            <tr v-if="(a as any).saver">
-                              <td class="info-label">{{ t('agents.storage_label') }}</td>
-                              <td class="info-value mono">{{ (a as any).saver }}</td>
-                            </tr>
-                            <tr>
-                              <td class="info-label">{{ t('agents.tab_skills') }}</td>
-                              <td class="info-value">
-                                <span v-if="a.skills === '*'" class="config-badge config-badge-info">{{ t('agents.use_all') }}</span>
-                                <span v-else-if="Array.isArray(a.skills) && a.skills.length" class="info-count">{{ a.skills.length }} {{ t('agents.items_selected') }}</span>
-                                <span v-else class="info-dash">-</span>
-                              </td>
-                            </tr>
-                            <tr>
-                              <td class="info-label">{{ t('agents.tab_tools') }}</td>
-                              <td class="info-value">
-                                <span v-if="a.mcp === '*'" class="config-badge config-badge-info">{{ t('agents.use_all') }}</span>
-                                <span v-else-if="Array.isArray(a.mcp) && a.mcp.length" class="info-count">{{ a.mcp.length }} {{ t('agents.items_selected') }}</span>
-                                <span v-else class="info-dash">-</span>
-                              </td>
-                            </tr>
-                            <tr v-if="(a as any).autoApproveAllTools">
-                              <td class="info-label">{{ t('agents.auto_approve_all_tools') }}</td>
-                              <td class="info-value"><span class="config-badge config-badge-warn">ON</span></td>
-                            </tr>
-                          </template>
-                        </tbody>
-                      </table>
-                    </SCard>
-
-                    <SCard v-if="(a as any).systemPrompt" :title="t('agents.system_prompt')" class="agent-info-card">
-                      <pre class="agent-system-prompt">{{ (a as any).systemPrompt }}</pre>
-                    </SCard>
-
-                    <template v-if="a.type === 'react'">
-                      <SCard v-if="((a as any).agents as any[] | undefined)?.length" :title="t('agents.sub_agents')" class="agent-info-card">
-                        <div v-for="sub in ((a as any).agents as any[])" :key="sub.id" class="sub-agent-item">
-                          <div class="sub-agent-item-header"><span class="sub-agent-item-name">{{ (agents[sub.id] as any)?.name || sub.id }}</span></div>
-                          <div class="sub-agent-item-desc">{{ sub.desc }}</div>
-                        </div>
-                      </SCard>
-                    </template>
-                  </template>
-
-                  <template v-else-if="getTab(id as string) === 'skills'">
-                    <div class="manage-row">
-                      <SButton type="outline" size="sm" @click="agentSkillsModal?.open(id as string)">{{ t('agents.manage_skills') }}</SButton>
-                      <div class="manage-hint">{{ t('agents.agent_skills') }}</div>
-                    </div>
-                    <div v-if="getGlobals(id as string).length === 0 && getSkills(id as string).length === 0" class="tab-empty">
-                      {{ t('agents.no_skills') }}
-                      <div class="tab-empty-action">
-                        <SButton type="outline" size="sm" @click="agentSkillsModal?.open(id as string)">{{ t('agents.configure_skills') }}</SButton>
-                      </div>
-                    </div>
-                    <table v-else class="agent-detail-table">
-                      <colgroup>
-                        <col /><col style="width:60px" /><col /><col style="width:70px" />
-                      </colgroup>
-                      <thead>
-                        <tr><th>{{ t('common.name') }}</th><th>来源</th><th>描述</th><th class="col-nowrap">{{ t('common.ops') }}</th></tr>
-                      </thead>
-                      <tbody>
-                        <tr v-for="s in getGlobals(id as string)" :key="'g-' + s.name">
-                          <td class="cell-mono cell-truncate">{{ s.name }}</td>
-                          <td>
-                            <span v-if="s.source" :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(s.source)}`">{{ s.source }}</span>
-                          </td>
-                          <td class="cell-desc cell-truncate">{{ s.description || '-' }}</td>
-                          <td class="col-nowrap"><SButton type="outline" size="sm" @click="openSkillView(id as string, s.name, false)">{{ t('common.view') }}</SButton></td>
-                        </tr>
-                        <tr v-for="s in getSkills(id as string)" :key="s.name">
-                          <td class="cell-mono cell-truncate">{{ s.name }}</td>
-                          <td><span :style="badgePrivate()">{{ t('agents.skills_exclusive_tab') }}</span></td>
-                          <td class="cell-desc cell-truncate">{{ s.description || '-' }}</td>
-                          <td class="col-nowrap"><SButton type="outline" size="sm" @click="openSkillView(id as string, s.name, true)">{{ t('common.view') }}</SButton></td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </template>
-
-                  <template v-else-if="getTab(id as string) === 'mcp'">
-                    <div class="manage-row">
-                      <SButton type="outline" size="sm" @click="agentMcpModal?.open(id as string)">{{ t('agents.manage_tools') }}</SButton>
-                      <div class="manage-hint">{{ t('agents.agent_mcps') }}</div>
-                    </div>
-                    <table class="agent-detail-table">
-                      <colgroup>
-                        <col /><col style="width:60px" /><col /><col style="width:180px" /><col style="width:70px" />
-                      </colgroup>
-                      <thead>
-                        <tr><th>{{ t('common.name') }}</th><th>来源</th><th>描述</th><th>{{ t('mcp.address_col') }}</th><th class="col-nowrap">{{ t('common.ops') }}</th></tr>
-                      </thead>
-                      <tbody>
-                        <tr v-for="s in getMcpGlobals(id as string)" :key="'g-' + s.id">
-                          <td class="cell-mono cell-truncate">{{ s.name }}</td>
-                          <td>
-                            <span v-if="s.source" :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(s.source)}`">{{ s.source }}</span>
-                          </td>
-                          <td class="cell-desc cell-truncate">{{ s.description || '-' }}</td>
-                          <td class="cell-addr cell-truncate">{{ serverAddr(s as any) }}</td>
-                          <td class="col-nowrap"><SButton type="outline" size="sm" @click="openMcpView(id as string, s.id, false)">{{ t('common.view') }}</SButton></td>
-                        </tr>
-                        <tr v-for="s in getMcpServers(id as string)" :key="'s-' + s.id">
-                          <td class="cell-mono cell-truncate">{{ s.name }}</td>
-                          <td><span :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(t('agents.mcp_exclusive_tab'))}`">{{ t('agents.mcp_exclusive_tab') }}</span></td>
-                          <td class="cell-desc cell-truncate">{{ s.description || '-' }}</td>
-                          <td class="cell-addr-priv cell-truncate">{{ serverAddr(s as any) }}</td>
-                          <td class="col-nowrap"><SButton type="outline" size="sm" @click="openMcpView(id as string, s.id, true)">{{ t('common.view') }}</SButton></td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </template>
-                </div>
-              </td>
-            </tr>
+        <template #model="{ row }">
+          <template v-if="row.type === 'acp'">
+            <span class="acp-command">{{ row.command }}</span>
           </template>
-        </tbody>
-      </table>
+          <template v-else>{{ row.model ? modelName(row.model) : '-' }}</template>
+        </template>
 
-      <div v-else class="card-list">
-        <div v-for="[id, a] in sortedAgentEntries" :key="id" class="mobile-card">
-          <div class="mobile-card-header agent-mobile-header" @click="toggleExpand(id as string)">
-            <span>
-              {{ (a as any).name || id }}
-              <span v-if="a.skills === '*'" class="config-badge config-badge-info">{{ t('agents.tab_skills') }} *</span>
-              <span v-if="a.mcp === '*'" class="config-badge config-badge-info">{{ t('agents.tab_tools') }} *</span>
-              <span v-if="(a as any).autoApproveAllTools" class="config-badge config-badge-warn">{{ t('agents.auto_approve_all_tools') }}</span>
-            </span>
-            <span class="toggle-icon">{{ isExpanded(id as string) ? '▼' : '▶' }}</span>
+        <template #ops="{ row }">
+          <div class="ops-cell">
+            <SButton type="outline" size="sm" @click="agentModal?.open(row.id)">{{ t('common.edit') }}</SButton>
+            <SButton v-if="row.type !== 'acp'" type="outline" size="sm" @click="agentMcpModal?.open(row.id)">{{ t('agents.tab_tools') }}</SButton>
+            <SButton v-if="row.type !== 'acp'" type="outline" size="sm" @click="agentSkillsModal?.open(row.id)">{{ t('agents.tab_skills') }}</SButton>
+            <SButton type="outline" size="sm" @click="exportAgent(row.id)">{{ t('agentStore.export_btn') }}</SButton>
+            <SButton type="danger" size="sm" @click="removeAgent(row.id)">{{ t('common.delete') }}</SButton>
           </div>
-          <div class="mobile-card-fields">
-            <span class="mobile-card-label">{{ t('agents.type_col') }}</span>
-            <span class="mobile-card-value"><span :class="'agent-type-badge agent-type-' + a.type">{{ a.type }}</span></span>
-            <span class="mobile-card-label">{{ a.type === 'acp' ? t('agents.acp_command') : t('agents.model_col') }}</span>
-            <span class="mobile-card-value">
-              <template v-if="a.type === 'acp'"><span class="acp-command">{{ (a as any).command }}</span></template>
-              <template v-else>{{ a.model ? modelName(a.model) : '-' }}</template>
-            </span>
-          </div>
-          <div class="mobile-card-ops">
-            <SButton type="outline" size="sm" @click="agentModal?.open(id as string)">{{ t('common.edit') }}</SButton>
-            <SButton v-if="a.type !== 'acp'" type="outline" size="sm" @click="agentMcpModal?.open(id as string)">{{ t('agents.tab_tools') }}</SButton>
-            <SButton v-if="a.type !== 'acp'" type="outline" size="sm" @click="agentSkillsModal?.open(id as string)">{{ t('agents.tab_skills') }}</SButton>
-            <SButton type="outline" size="sm" @click="exportAgent(id as string)">{{ t('agentStore.export_btn') }}</SButton>
-            <SButton type="danger" size="sm" @click="removeAgent(id as string)">{{ t('common.delete') }}</SButton>
+        </template>
+
+        <template #_expanded="{ row }">
+          <div class="agent-tab-bar">
+            <button
+              v-for="tab in tabsForAgent(row.id, row.type)"
+              :key="tab.key"
+              @click="switchTab(row.id, tab.key)"
+              class="agent-tab"
+              :class="{ active: getTab(row.id) === tab.key }"
+            >{{ tab.label }}</button>
           </div>
 
-          <div v-if="isExpanded(id as string)" class="agent-mobile-detail">
-            <div class="agent-tab-bar agent-tab-bar-mobile">
-              <button
-                v-for="tab in tabsForAgent(id as string, a.type)"
-                :key="tab.key"
-                @click="switchTab(id as string, tab.key)"
-                class="agent-tab"
-                :class="{ active: getTab(id as string) === tab.key }"
-              >{{ tab.label }}</button>
-            </div>
+          <div class="agent-tab-content">
+            <template v-if="getTab(row.id) === 'config'">
+              <SCard :title="t('agents.basic_info')" class="agent-info-card">
+                <SInfoTable variant="compact" label-width="140px">
+                  <SInfoRow :label="t('common.id')" mono>{{ row.id }}</SInfoRow>
+                  <SInfoRow v-if="row.name" :label="t('common.name')">{{ row.name }}</SInfoRow>
+                  <SInfoRow :label="t('common.type')">
+                    <span class="type-tag">{{ row.type }}</span>
+                  </SInfoRow>
+                  <template v-if="row.type === 'acp'">
+                    <SInfoRow :label="t('agents.acp_command')" mono>{{ row.command }}</SInfoRow>
+                    <SInfoRow v-if="row.args?.length" :label="t('agents.acp_args')" mono>{{ row.args.join(' ') }}</SInfoRow>
+                    <SInfoRow :label="t('agents.acp_session_mode')">
+                      <span class="type-tag">{{ row.sessionMode || 'persistent' }}</span>
+                    </SInfoRow>
+                    <SInfoRow v-if="row.env && Object.keys(row.env).length" :label="t('agents.acp_env')">
+                      <div v-for="(v, k) in row.env" :key="k" class="env-line">{{ k }}={{ v }}</div>
+                    </SInfoRow>
+                  </template>
+                  <template v-else>
+                    <SInfoRow v-if="row.model" :label="t('agents.model_col')">{{ modelName(row.model) }}</SInfoRow>
+                    <SInfoRow v-if="row.saver" :label="t('agents.storage_label')" mono>{{ row.saver }}</SInfoRow>
+                    <SInfoRow :label="t('agents.tab_skills')">
+                      <span v-if="row.skills === '*'" class="config-badge config-badge-info">{{ t('agents.use_all') }}</span>
+                      <span v-else-if="Array.isArray(row.skills) && row.skills.length" class="info-count">{{ row.skills.length }} {{ t('agents.items_selected') }}</span>
+                      <span v-else class="info-dash">-</span>
+                    </SInfoRow>
+                    <SInfoRow :label="t('agents.tab_tools')">
+                      <span v-if="row.mcp === '*'" class="config-badge config-badge-info">{{ t('agents.use_all') }}</span>
+                      <span v-else-if="Array.isArray(row.mcp) && row.mcp.length" class="info-count">{{ row.mcp.length }} {{ t('agents.items_selected') }}</span>
+                      <span v-else class="info-dash">-</span>
+                    </SInfoRow>
+                    <SInfoRow v-if="row.autoApproveAllTools" :label="t('agents.auto_approve_all_tools')">
+                      <span class="config-badge config-badge-warn">ON</span>
+                    </SInfoRow>
+                  </template>
+                </SInfoTable>
+              </SCard>
 
-            <div class="agent-tab-content agent-tab-content-mobile">
-              <template v-if="getTab(id as string) === 'config'">
-                <SCard :title="t('agents.basic_info')" class="agent-info-card">
-                  <table class="agent-info-table">
-                    <tbody>
-                      <tr>
-                        <td class="info-label">{{ t('common.id') }}</td>
-                        <td class="info-value mono">{{ id }}</td>
-                      </tr>
-                      <tr v-if="(a as any).name">
-                        <td class="info-label">{{ t('common.name') }}</td>
-                        <td class="info-value">{{ (a as any).name }}</td>
-                      </tr>
-                      <tr>
-                        <td class="info-label">{{ t('common.type') }}</td>
-                        <td class="info-value"><span class="type-tag">{{ a.type }}</span></td>
-                      </tr>
-                      <template v-if="a.type === 'acp'">
-                        <tr>
-                          <td class="info-label">{{ t('agents.acp_command') }}</td>
-                          <td class="info-value mono">{{ (a as any).command }}</td>
-                        </tr>
-                        <tr v-if="(a as any).args?.length">
-                          <td class="info-label">{{ t('agents.acp_args') }}</td>
-                          <td class="info-value mono">{{ (a as any).args.join(' ') }}</td>
-                        </tr>
-                        <tr>
-                          <td class="info-label">{{ t('agents.acp_session_mode') }}</td>
-                          <td class="info-value"><span class="type-tag">{{ (a as any).sessionMode || 'persistent' }}</span></td>
-                        </tr>
-                        <tr v-if="(a as any).env && Object.keys((a as any).env).length">
-                          <td class="info-label">{{ t('agents.acp_env') }}</td>
-                          <td class="info-value">
-                            <div v-for="(v, k) in (a as any).env" :key="k" class="env-line">{{ k }}={{ v }}</div>
-                          </td>
-                        </tr>
-                      </template>
-                      <template v-else>
-                        <tr v-if="a.model">
-                          <td class="info-label">{{ t('agents.model_col') }}</td>
-                          <td class="info-value">{{ modelName(a.model) }}</td>
-                        </tr>
-                        <tr v-if="(a as any).saver">
-                          <td class="info-label">{{ t('agents.storage_label') }}</td>
-                          <td class="info-value mono">{{ (a as any).saver }}</td>
-                        </tr>
-                        <tr>
-                          <td class="info-label">{{ t('agents.tab_skills') }}</td>
-                          <td class="info-value">
-                            <span v-if="a.skills === '*'" class="config-badge config-badge-info">{{ t('agents.use_all') }}</span>
-                            <span v-else-if="Array.isArray(a.skills) && a.skills.length" class="info-count">{{ a.skills.length }} {{ t('agents.items_selected') }}</span>
-                            <span v-else class="info-dash">-</span>
-                          </td>
-                        </tr>
-                        <tr>
-                          <td class="info-label">{{ t('agents.tab_tools') }}</td>
-                          <td class="info-value">
-                            <span v-if="a.mcp === '*'" class="config-badge config-badge-info">{{ t('agents.use_all') }}</span>
-                            <span v-else-if="Array.isArray(a.mcp) && a.mcp.length" class="info-count">{{ a.mcp.length }} {{ t('agents.items_selected') }}</span>
-                            <span v-else class="info-dash">-</span>
-                          </td>
-                        </tr>
-                        <tr v-if="(a as any).autoApproveAllTools">
-                          <td class="info-label">{{ t('agents.auto_approve_all_tools') }}</td>
-                          <td class="info-value"><span class="config-badge config-badge-warn">ON</span></td>
-                        </tr>
-                      </template>
-                    </tbody>
-                  </table>
-                </SCard>
+              <SCard v-if="row.systemPrompt" :title="t('agents.system_prompt')" class="agent-info-card">
+                <pre class="agent-system-prompt">{{ row.systemPrompt }}</pre>
+              </SCard>
 
-                <SCard v-if="(a as any).systemPrompt" :title="t('agents.system_prompt')" class="agent-info-card">
-                  <pre class="agent-system-prompt">{{ (a as any).systemPrompt }}</pre>
-                </SCard>
-
-                <template v-if="a.type === 'react'">
-                  <SCard v-if="((a as any).agents as any[] | undefined)?.length" :title="t('agents.sub_agents')" class="agent-info-card">
-                    <div v-for="sub in ((a as any).agents as any[])" :key="sub.id" class="sub-agent-item">
-                      <div class="sub-agent-item-header"><span class="sub-agent-item-name">{{ (agents[sub.id] as any)?.name || sub.id }}</span></div>
-                      <div class="sub-agent-item-desc">{{ sub.desc }}</div>
-                    </div>
-                  </SCard>
-                </template>
-              </template>
-
-              <template v-else-if="getTab(id as string) === 'skills'">
-                <div class="manage-row">
-                  <SButton type="outline" size="sm" @click="agentSkillsModal?.open(id as string)">{{ t('agents.manage_skills') }}</SButton>
-                  <div class="manage-hint">{{ t('agents.agent_skills') }}</div>
-                </div>
-                <div v-if="getGlobals(id as string).length === 0 && getSkills(id as string).length === 0" class="tab-empty">
-                  {{ t('agents.no_skills') }}
-                  <div class="tab-empty-action">
-                    <SButton type="outline" size="sm" @click="agentSkillsModal?.open(id as string)">{{ t('agents.configure_skills') }}</SButton>
+              <template v-if="row.type === 'react'">
+                <SCard v-if="(row.agents as any[] | undefined)?.length" :title="t('agents.sub_agents')" class="agent-info-card">
+                  <div v-for="sub in (row.agents as any[])" :key="sub.id" class="sub-agent-item">
+                    <div class="sub-agent-item-header"><span class="sub-agent-item-name">{{ (agents[sub.id] as any)?.name || sub.id }}</span></div>
+                    <div class="sub-agent-item-desc">{{ sub.desc }}</div>
                   </div>
-                </div>
-                <table v-else class="agent-detail-table">
-                  <colgroup>
-                    <col /><col style="width:60px" /><col /><col style="width:70px" />
-                  </colgroup>
-                  <thead>
-                    <tr><th>{{ t('common.name') }}</th><th>来源</th><th>描述</th><th class="col-nowrap">{{ t('common.ops') }}</th></tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="s in getGlobals(id as string)" :key="'g-' + s.name">
-                      <td class="cell-mono cell-truncate">{{ s.name }}</td>
-                      <td>
-                        <span v-if="s.source" :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(s.source)}`">{{ s.source }}</span>
-                      </td>
-                      <td class="cell-desc cell-truncate">{{ s.description || '-' }}</td>
-                      <td class="col-nowrap"><SButton type="outline" size="sm" @click="openSkillView(id as string, s.name, false)">{{ t('common.view') }}</SButton></td>
-                    </tr>
-                    <tr v-for="s in getSkills(id as string)" :key="s.name">
-                      <td class="cell-mono cell-truncate">{{ s.name }}</td>
-                      <td><span :style="badgePrivate()">{{ t('agents.skills_exclusive_tab') }}</span></td>
-                      <td class="cell-desc cell-truncate">{{ s.description || '-' }}</td>
-                      <td class="col-nowrap"><SButton type="outline" size="sm" @click="openSkillView(id as string, s.name, true)">{{ t('common.view') }}</SButton></td>
-                    </tr>
-                  </tbody>
-                </table>
+                </SCard>
               </template>
+            </template>
 
-              <template v-else-if="getTab(id as string) === 'mcp'">
-                <div class="manage-row">
-                  <SButton type="outline" size="sm" @click="agentMcpModal?.open(id as string)">{{ t('agents.manage_tools') }}</SButton>
-                  <div class="manage-hint">{{ t('agents.agent_mcps') }}</div>
+            <template v-else-if="getTab(row.id) === 'skills'">
+              <div class="manage-row">
+                <SButton type="outline" size="sm" @click="agentSkillsModal?.open(row.id)">{{ t('agents.manage_skills') }}</SButton>
+                <div class="manage-hint">{{ t('agents.agent_skills') }}</div>
+              </div>
+              <div v-if="getGlobals(row.id).length === 0 && getSkills(row.id).length === 0" class="tab-empty">
+                {{ t('agents.no_skills') }}
+                <div class="tab-empty-action">
+                  <SButton type="outline" size="sm" @click="agentSkillsModal?.open(row.id)">{{ t('agents.configure_skills') }}</SButton>
                 </div>
-                <table class="agent-detail-table">
-                  <colgroup>
-                    <col /><col style="width:60px" /><col /><col style="width:180px" /><col style="width:70px" />
-                  </colgroup>
-                  <thead>
-                    <tr><th>{{ t('common.name') }}</th><th>来源</th><th>描述</th><th>{{ t('mcp.address_col') }}</th><th class="col-nowrap">{{ t('common.ops') }}</th></tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="s in getMcpGlobals(id as string)" :key="'g-' + s.id">
-                      <td class="cell-mono cell-truncate">{{ s.name }}</td>
-                      <td>
-                        <span v-if="s.source" :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(s.source)}`">{{ s.source }}</span>
-                      </td>
-                      <td class="cell-desc cell-truncate">{{ s.description || '-' }}</td>
-                      <td class="cell-addr cell-truncate">{{ serverAddr(s as any) }}</td>
-                      <td class="col-nowrap"><SButton type="outline" size="sm" @click="openMcpView(id as string, s.id, false)">{{ t('common.view') }}</SButton></td>
-                    </tr>
-                    <tr v-for="s in getMcpServers(id as string)" :key="'s-' + s.id">
-                      <td class="cell-mono cell-truncate">{{ s.name }}</td>
-                      <td><span :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(t('agents.mcp_exclusive_tab'))}`">{{ t('agents.mcp_exclusive_tab') }}</span></td>
-                      <td class="cell-desc cell-truncate">{{ s.description || '-' }}</td>
-                      <td class="cell-addr-priv cell-truncate">{{ serverAddr(s as any) }}</td>
-                      <td class="col-nowrap"><SButton type="outline" size="sm" @click="openMcpView(id as string, s.id, true)">{{ t('common.view') }}</SButton></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </template>
-            </div>
+              </div>
+              <table v-else class="agent-detail-table">
+                <colgroup>
+                  <col /><col style="width:60px" /><col /><col style="width:70px" />
+                </colgroup>
+                <thead>
+                  <tr><th>{{ t('common.name') }}</th><th>来源</th><th>描述</th><th class="col-nowrap">{{ t('common.ops') }}</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="s in getGlobals(row.id)" :key="'g-' + s.name">
+                    <td class="cell-mono cell-truncate">{{ s.name }}</td>
+                    <td>
+                      <span v-if="s.source" :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(s.source)}`">{{ s.source }}</span>
+                    </td>
+                    <td class="cell-desc cell-truncate">{{ s.description || '-' }}</td>
+                    <td class="col-nowrap"><SButton type="outline" size="sm" @click="openSkillView(row.id, s.name, false)">{{ t('common.view') }}</SButton></td>
+                  </tr>
+                  <tr v-for="s in getSkills(row.id)" :key="s.name">
+                    <td class="cell-mono cell-truncate">{{ s.name }}</td>
+                    <td><span :style="badgePrivate()">{{ t('agents.skills_exclusive_tab') }}</span></td>
+                    <td class="cell-desc cell-truncate">{{ s.description || '-' }}</td>
+                    <td class="col-nowrap"><SButton type="outline" size="sm" @click="openSkillView(row.id, s.name, true)">{{ t('common.view') }}</SButton></td>
+                  </tr>
+                </tbody>
+              </table>
+            </template>
+
+            <template v-else-if="getTab(row.id) === 'mcp'">
+              <div class="manage-row">
+                <SButton type="outline" size="sm" @click="agentMcpModal?.open(row.id)">{{ t('agents.manage_tools') }}</SButton>
+                <div class="manage-hint">{{ t('agents.agent_mcps') }}</div>
+              </div>
+              <table class="agent-detail-table">
+                <colgroup>
+                  <col /><col style="width:60px" /><col /><col style="width:180px" /><col style="width:70px" />
+                </colgroup>
+                <thead>
+                  <tr><th>{{ t('common.name') }}</th><th>来源</th><th>描述</th><th>{{ t('mcp.address_col') }}</th><th class="col-nowrap">{{ t('common.ops') }}</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="s in getMcpGlobals(row.id)" :key="'g-' + s.id">
+                    <td class="cell-mono cell-truncate">{{ s.name }}</td>
+                    <td>
+                      <span v-if="s.source" :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(s.source)}`">{{ s.source }}</span>
+                    </td>
+                    <td class="cell-desc cell-truncate">{{ s.description || '-' }}</td>
+                    <td class="cell-addr cell-truncate">{{ serverAddr(s as any) }}</td>
+                    <td class="col-nowrap"><SButton type="outline" size="sm" @click="openMcpView(row.id, s.id, false)">{{ t('common.view') }}</SButton></td>
+                  </tr>
+                  <tr v-for="s in getMcpServers(row.id)" :key="'s-' + s.id">
+                    <td class="cell-mono cell-truncate">{{ s.name }}</td>
+                    <td><span :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(t('agents.mcp_exclusive_tab'))}`">{{ t('agents.mcp_exclusive_tab') }}</span></td>
+                    <td class="cell-desc cell-truncate">{{ s.description || '-' }}</td>
+                    <td class="cell-addr-priv cell-truncate">{{ serverAddr(s as any) }}</td>
+                    <td class="col-nowrap"><SButton type="outline" size="sm" @click="openMcpView(row.id, s.id, true)">{{ t('common.view') }}</SButton></td>
+                  </tr>
+                </tbody>
+              </table>
+            </template>
           </div>
-        </div>
-        <div v-if="sortedAgentEntries.length === 0" class="mobile-card-empty">-</div>
-      </div>
+        </template>
+      </STable>
+
     </SPageContent>
 
     <AgentModal ref="agentModal" />
@@ -691,24 +444,7 @@ function tabsForAgent(id: string, type: string): { key: 'config' | 'skills' | 'm
 </template>
 
 <style scoped>
-.col-toggle { width: 32px; }
-.col-toggle-cell { padding: 6px 8px; text-align: center; }
 .col-nowrap { white-space: nowrap; }
-.toggle-icon {
-  color: var(--sui-fg-muted);
-  font-size: 10px;
-}
-.agent-row { cursor: pointer; }
-.agent-row-expanded > td { background: var(--sui-bg-subtle); }
-.agent-detail-cell {
-  padding: 0;
-  border-bottom: 2px solid var(--sui-border);
-}
-.agents-empty {
-  text-align: center;
-  color: var(--sui-fg-disabled);
-  padding: 40px;
-}
 
 .agent-name {
   font-weight: 500;
@@ -753,7 +489,6 @@ function tabsForAgent(id: string, type: string): { key: 'config' | 'skills' | 'm
   background: var(--sui-bg-subtle);
   padding: 0 var(--sui-sp-6);
 }
-.agent-tab-bar-mobile { padding: 0 var(--sui-sp-4); }
 .agent-tab {
   padding: 9px 14px;
   border: none;
@@ -774,31 +509,9 @@ function tabsForAgent(id: string, type: string): { key: 'config' | 'skills' | 'm
   overflow: auto;
   background: var(--sui-bg-subtle);
 }
-.agent-tab-content-mobile { padding: var(--sui-sp-4) var(--sui-sp-4); }
-.agent-mobile-detail { margin-top: var(--sui-sp-4); }
-.agent-mobile-header {
-  display: flex;
-  justify-content: space-between;
-  cursor: pointer;
-}
 
 /* Info table */
 .agent-info-card { margin-bottom: var(--sui-sp-4); }
-.agent-info-table { margin: 0; }
-.agent-info-table .info-label {
-  width: 140px;
-  color: var(--sui-fg-muted);
-  font-size: var(--sui-fs-sm);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .04em;
-  padding: 7px 12px;
-}
-.agent-info-table .info-value {
-  padding: 7px 12px;
-  color: var(--sui-fg);
-}
-.agent-info-table .info-value.mono { font-family: var(--sui-font-mono); }
 .type-tag {
   font-family: var(--sui-font-mono);
   background: var(--sui-bg-hover);

@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/api'
 import { marked } from 'marked'
 import { GITHUB_REPO_URL, GITHUB_ISSUES_URL, GITHUB_README_URL, GITHUB_README_ZH_URL, NPM_URL, DOCKER_URL, fetchLatestRelease, compareSemver } from 'sbot.commons'
-import { SCard, SPageToolbar, SPageContent } from 'sbot-ui'
+import { SCard, SPageToolbar, SPageContent, SInfoTable, SInfoRow } from 'sbot-ui'
 
 const { t, locale } = useI18n()
 
@@ -65,36 +65,19 @@ onMounted(async () => {
 
         <!-- Project info -->
         <SCard :title="t('about.project_info')" class="about-card">
-          <table class="info-table">
-            <tbody>
-              <tr>
-                <td class="info-label">{{ t('about.version') }}</td>
-                <td class="info-value mono">{{ currentVersion || '—' }}</td>
-              </tr>
-              <tr>
-                <td class="info-label">{{ t('about.repository') }}</td>
-                <td class="info-value">
-                  <a :href="GITHUB_REPO_URL" target="_blank" class="info-link">{{ GITHUB_REPO_URL.replace('https://', '') }}</a>
-                </td>
-              </tr>
-              <tr>
-                <td class="info-label">{{ t('about.npm') }}</td>
-                <td class="info-value">
-                  <a :href="NPM_URL" target="_blank" class="info-link">{{ NPM_URL.replace('https://', '') }}</a>
-                </td>
-              </tr>
-              <tr>
-                <td class="info-label">{{ t('about.docker') }}</td>
-                <td class="info-value">
-                  <a :href="DOCKER_URL" target="_blank" class="info-link">{{ DOCKER_URL.replace('https://', '') }}</a>
-                </td>
-              </tr>
-              <tr>
-                <td class="info-label info-label-last">{{ t('about.license') }}</td>
-                <td class="info-value info-value-last">MIT</td>
-              </tr>
-            </tbody>
-          </table>
+          <SInfoTable>
+            <SInfoRow :label="t('about.version')" mono>{{ currentVersion || '—' }}</SInfoRow>
+            <SInfoRow :label="t('about.repository')">
+              <a :href="GITHUB_REPO_URL" target="_blank" class="info-link">{{ GITHUB_REPO_URL.replace('https://', '') }}</a>
+            </SInfoRow>
+            <SInfoRow :label="t('about.npm')">
+              <a :href="NPM_URL" target="_blank" class="info-link">{{ NPM_URL.replace('https://', '') }}</a>
+            </SInfoRow>
+            <SInfoRow :label="t('about.docker')">
+              <a :href="DOCKER_URL" target="_blank" class="info-link">{{ DOCKER_URL.replace('https://', '') }}</a>
+            </SInfoRow>
+            <SInfoRow :label="t('about.license')">MIT</SInfoRow>
+          </SInfoTable>
           <div class="feedback-row">
             <span class="feedback-hint">{{ t('about.feedback_hint') }}</span>
             <a :href="GITHUB_ISSUES_URL" target="_blank" class="feedback-btn">
@@ -143,25 +126,6 @@ onMounted(async () => {
 }
 .about-card {
   margin-bottom: var(--sui-sp-6);
-}
-.info-table {
-  width: 100%;
-  font-size: var(--sui-fs-md);
-}
-.info-table td {
-  padding: var(--sui-sp-3) 0;
-  border-bottom: 1px solid var(--sui-border);
-}
-.info-table .info-label-last,
-.info-table .info-value-last {
-  border-bottom: none;
-}
-.info-label {
-  color: var(--sui-fg-muted);
-  width: 120px;
-}
-.info-value.mono {
-  font-family: var(--sui-font-mono);
 }
 .info-link {
   color: var(--sui-accent);

@@ -34,6 +34,8 @@ import SCard from './components/SCard.vue'
 import SPageToolbar from './components/SPageToolbar.vue'
 import SPageContent from './components/SPageContent.vue'
 import STable from './components/STable.vue'
+import SInfoTable from './components/SInfoTable.vue'
+import SInfoRow from './components/SInfoRow.vue'
 
 import SBadge from './components/SBadge.vue'
 import STag from './components/STag.vue'
@@ -50,7 +52,7 @@ import STreeNode from './components/STreeNode.vue'
 export {
   SButton, SIconButton, SModal, SToast,
   SInput, STextarea, SSelect, SMultiSelect, SRadio, SCheckbox, SFormItem, SFormSection, SFormDetails, SHint,
-  SCard, SPageToolbar, SPageContent, STable,
+  SCard, SPageToolbar, SPageContent, STable, SInfoTable, SInfoRow,
   SBadge, STag, SChip, SCheckCard, SSwitch, STabBar, STab,
   STree, STreeNode,
 }
@@ -63,7 +65,7 @@ export { useTheme, isDark } from './composables/useTheme'
 const components = {
   SButton, SIconButton, SModal, SToast,
   SInput, STextarea, SSelect, SMultiSelect, SRadio, SCheckbox, SFormItem, SFormSection, SFormDetails, SHint,
-  SCard, SPageToolbar, SPageContent, STable,
+  SCard, SPageToolbar, SPageContent, STable, SInfoTable, SInfoRow,
   SBadge, STag, SChip, SCheckCard, SSwitch, STabBar, STab,
   STree, STreeNode,
 } as const
@@ -97,6 +99,8 @@ declare module 'vue' {
     SPageToolbar: typeof SPageToolbar
     SPageContent: typeof SPageContent
     STable: typeof STable
+    SInfoTable: typeof SInfoTable
+    SInfoRow: typeof SInfoRow
     SBadge: typeof SBadge
     STag: typeof STag
     SChip: typeof SChip
