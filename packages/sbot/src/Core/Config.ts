@@ -45,6 +45,7 @@ export interface ToolAgentEntry extends BaseAgentEntry {
   model: string;               // 模型 UUID（single 模式为执行模型；react 模式为 Think 编排模型）
   compactModel?: string;       // 对话压缩模型 UUID（可选）
   mcp?: string[] | '*';        // MCP 服务器过滤列表（对应 mcp.json 中的 key）；"*" = 加载全部
+  mcpExclude?: string[];       // 在 mcp = "*" 时排除掉指定 provider 名（对显式列表无效）
   mcpParams?: Record<string, Record<string, any>>; // 按 provider 名分组的参数；'*' 与显式列表均可使用
   skills?: string[] | '*';     // Skills 过滤列表（skill 名称）；"*" = 加载全部
   insight: InsightConfig;      // 经验洞察模块配置

@@ -158,6 +158,7 @@ export interface AgentConfig {
   autoApproveAllTools?: boolean
   // single / react（ToolAgent）
   mcp?: string[] | '*'
+  mcpExclude?: string[]
   mcpParams?: Record<string, Record<string, string>>
   skills?: string[] | '*'
   insight?: InsightConfig
@@ -179,7 +180,7 @@ export interface AgentConfig {
 /** 单个版本的配置快照 */
 export interface AgentPackageVersion {
   version: string
-  agent: Omit<AgentConfig, 'storeSource' | 'mcp' | 'skills' | 'autoApproveTools' | 'autoApproveAllTools' | 'model'>
+  agent: Omit<AgentConfig, 'storeSource' | 'mcp' | 'mcpExclude' | 'skills' | 'autoApproveTools' | 'autoApproveAllTools' | 'model'>
 }
 
 /** 智能体包 = 元信息 + 版本列表（index 0 = 最新版） */
@@ -260,9 +261,9 @@ export interface ChannelConfig {
   intentThreshold?: number
   /** 消息合并窗口（毫秒），同一会话在此时间内的连续消息会合并后再处理。0 或不设置表示不合并 */
   mergeWindow?: number
-  /** 日常对话工具白名单，不设置则全部可用 */
+  /** 日常对话工具白名单。不设置：全部可用；空数组：屏蔽全部；非空：仅白名单内可用 */
   tools?: string[]
-  /** 心跳可用工具白名单 */
+  /** 心跳工具白名单。不设置：全部可用；空数组：屏蔽全部；非空：仅白名单内可用 */
   heartbeatTools?: string[]
 }
 

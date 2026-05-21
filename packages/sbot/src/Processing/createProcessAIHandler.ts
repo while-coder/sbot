@@ -52,7 +52,7 @@ export function createProcessAIHandler(): ProcessAIHandler {
         const extraAgentTools = args?.agentTools;
         let baseTools = sessionHandler.buildAgentTools(args);
         const whitelist: string[] | undefined = args?.toolWhitelist ?? channel.tools;
-        if (whitelist?.length && baseTools?.length) {
+        if (whitelist !== undefined && baseTools?.length) {
             const allowedSet = new Set(whitelist);
             baseTools = baseTools.filter(t => allowedSet.has(t.name));
         }

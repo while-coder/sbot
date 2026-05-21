@@ -60,7 +60,7 @@ export class AgentFactory {
         if (agentType !== AgentMode.Generative && agentType !== AgentMode.ACP) {
             const toolEntry = agentEntry as ToolAgentEntry;
             await this.registerSkillService(container, agentId, toolEntry.skills);
-            await this.registerToolService(container, agentId, options.dbSessionId, toolEntry.mcp, toolEntry.mcpParams, agentTools);
+            await this.registerToolService(container, agentId, options.dbSessionId, toolEntry.mcp, toolEntry.mcpParams, agentTools, toolEntry.mcpExclude);
         }
 
         if (agentType === AgentMode.ACP) {
@@ -117,9 +117,15 @@ export class AgentFactory {
         skillService.registerSkillsDir(config.getAgentSkillsPath(agentName));
     }
 
-    private static readonly SESSION_TOOL_CREATORS: Record<string, (dbSessionId: string) => Promise<StructuredToolInterface[]>> = {
-        [BuiltinProvider.Scheduler]: (id) => Promise.resolve(createSchedulerTools(id)),
-        [BuiltinProvider.Todo]: (id) => Promise.resolve(createTodoTools(id)),
+    private static readonly SESSION_TOOL_CREATORS: Record<string, (ctx: { dbSessionId: string; container: ServiceContainer }) => Promise<StructuredToolInterface[]>> = {
+        [BuiltinProvider.Scheduler]: ({ dbSessionId }) => Promise.resolve(createSchedulerTools(dbSessionId)),
+        [BuiltinProvider.Todo]: ({ dbSessionId }) => Promise.resolve(createTodoTools(dbSessionId)),
+        [BuiltinProvider.SessionSearch]: async ({ container }) => {
+            if (!container.isRegistered(IAgentSaverService)) return [];
+            const saver = await container.resolve<IAgentSaverService>(IAgentSaverService);
+            if (typeof saver.searchMessages !== 'function') return [];
+            return [createSessionSearchTool(saver as SearchableSaver)];
+        },
     };
 
     private static async registerToolService(
@@ -129,19 +135,22 @@ export class AgentFactory {
         mcp?: string[] | '*',
         mcpParams?: Record<string, Record<string, any>>,
         agentTools?: StructuredToolInterface[],
+        mcpExclude?: string[],
     ): Promise<void> {
         container.registerSingleton(IAgentToolService, AgentToolService);
         const toolService = await container.resolve<AgentToolService>(IAgentToolService);
 
         const sessionNames = new Set(Object.keys(this.SESSION_TOOL_CREATORS));
+        const excludeSet = new Set(mcpExclude ?? []);
 
         if (mcp === '*') {
             for (const [name, creator] of Object.entries(this.SESSION_TOOL_CREATORS)) {
-                toolService.registerToolFactory(name, () => creator(dbSessionId));
+                if (excludeSet.has(name)) continue;
+                toolService.registerToolFactory(name, () => creator({ dbSessionId, container }));
             }
             // 跳过 sessionNames：它们已用真 dbSessionId 单独注册，避免 admin 展示用的 preview 实例同名冲突
             toolService.registerToolFactory('__global_mcp__', async () => {
-                const allNames = globalAgentToolService.getProviderNames().filter(n => !sessionNames.has(n));
+                const allNames = globalAgentToolService.getProviderNames().filter(n => !sessionNames.has(n) && !excludeSet.has(n));
                 const entries = allNames.map(name => ({ name, params: mcpParams?.[name] }));
                 const results = await globalAgentToolService.resolveProviders(entries);
                 return [...results.values()].flatMap(r => r.tools);
@@ -150,7 +159,7 @@ export class AgentFactory {
             for (const name of mcp) {
                 const creator = this.SESSION_TOOL_CREATORS[name];
                 if (creator) {
-                    toolService.registerToolFactory(name, () => creator(dbSessionId));
+                    toolService.registerToolFactory(name, () => creator({ dbSessionId, container }));
                 }
             }
             const globalEntries = mcp
@@ -167,14 +176,6 @@ export class AgentFactory {
         if (agentTools?.length) {
             toolService.registerToolFactory('__channel__', () => Promise.resolve(agentTools));
         }
-
-        // 跨会话搜索工具（需 saver 支持 FTS5）
-        toolService.registerToolFactory('__session_search__', async () => {
-            if (!container.isRegistered(IAgentSaverService)) return [];
-            const saver = await container.resolve<IAgentSaverService>(IAgentSaverService);
-            if (typeof saver.searchMessages !== 'function') return [];
-            return [createSessionSearchTool(saver as SearchableSaver)];
-        });
 
         toolService.registerMcpServers(config.getAgentMcpServers(agentName));
     }

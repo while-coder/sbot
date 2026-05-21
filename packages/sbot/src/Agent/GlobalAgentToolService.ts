@@ -12,6 +12,7 @@ export enum BuiltinProvider {
 
     Scheduler = 'builtin_scheduler',
     Todo = 'builtin_todo',
+    SessionSearch = 'builtin_session_search',
 
     Playwright = 'builtin_playwright',
     ChromeDevTools = 'builtin_chrome-devtools-mcp',
@@ -57,6 +58,10 @@ export function initGlobalAgentToolService() {
         const { createTodoTools, PREVIEW_TARGET_ID } = await import("../Tools/Todo/index.js");
         return createTodoTools(PREVIEW_TARGET_ID);
     }, '待办事项管理');
+    globalAgentToolService.registerToolFactory(BuiltinProvider.SessionSearch, async (_params) => {
+        const { createSessionSearchTool } = await import("../Tools/SessionSearch/index.js");
+        return [createSessionSearchTool(null)];
+    }, '历史会话全文搜索');
     globalAgentToolService.registerMcpServers({
         [BuiltinProvider.Playwright]: {
             "command": "npx",

@@ -37,7 +37,7 @@ function extractContent(raw: unknown): string {
     return lines.join('\n');
 }
 
-export function createSessionSearchTool(saver: SearchableSaver): StructuredToolInterface {
+export function createSessionSearchTool(saver: SearchableSaver | null): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: SESSION_SEARCH_TOOL_NAME,
         description: loadPrompt('tools/session_search/search.txt'),
@@ -50,6 +50,9 @@ export function createSessionSearchTool(saver: SearchableSaver): StructuredToolI
             limit: z.number().optional().describe('Max results (default 20)'),
         }) as any,
         func: async ({ query, limit }: any): Promise<MCPToolResult> => {
+            if (!saver) {
+                return createErrorResult('Session search is not available: saver does not support full-text search.');
+            }
             try {
                 const results = await saver.searchMessages(query.all, limit ?? 20);
                 if (results.length === 0) {

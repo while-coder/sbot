@@ -25,6 +25,8 @@ const origUseAll    = ref(false)
 const agentGlobals  = ref<string[]>([])
 const activeTab     = ref('all')
 const selectedGlobals = ref<string[]>([])
+const mcpExclude    = ref<string[]>([])
+const origExclude   = ref<string[]>([])
 const mcpSearch     = ref('')
 
 // 每个 builtin/全局 MCP 的可选参数（K/V 字符串映射，类似 env）
@@ -48,6 +50,10 @@ const globalsChanged = computed(() => {
     const a = [...selectedGlobals.value].sort().join(',')
     const b = [...agentGlobals.value].sort().join(',')
     if (a !== b) return true
+  } else {
+    const a = [...mcpExclude.value].sort().join(',')
+    const b = [...origExclude.value].sort().join(',')
+    if (a !== b) return true
   }
   const allIds = new Set([...Object.keys(globalParams.value), ...Object.keys(origParams.value)])
   for (const id of allIds) {
@@ -55,6 +61,25 @@ const globalsChanged = computed(() => {
   }
   return false
 })
+
+function isEnabled(id: string): boolean {
+  return useAllMcp.value
+    ? !mcpExclude.value.includes(id)
+    : selectedGlobals.value.includes(id)
+}
+
+function toggleEnabled(id: string, enabled: boolean) {
+  if (useAllMcp.value) {
+    if (enabled) mcpExclude.value = mcpExclude.value.filter(n => n !== id)
+    else if (!mcpExclude.value.includes(id)) mcpExclude.value = [...mcpExclude.value, id]
+  } else {
+    if (enabled) {
+      if (!selectedGlobals.value.includes(id)) selectedGlobals.value = [...selectedGlobals.value, id]
+    } else {
+      selectedGlobals.value = selectedGlobals.value.filter(n => n !== id)
+    }
+  }
+}
 
 // ── Source tabs (mirrors AgentSkillsModal pattern) ────────────────
 const sources = computed(() => {
@@ -97,7 +122,7 @@ const globalEmptyText = computed(() =>
 )
 
 function globalRowClass(row: { id: string }): string {
-  return selectedGlobals.value.includes(row.id) ? 'is-checked' : ''
+  return isEnabled(row.id) ? 'is-checked' : ''
 }
 
 function apiBase() {
@@ -119,6 +144,9 @@ async function load() {
     const globalsFromApi: string[] = (res.data?.globals || []).map((m: any) => m.id)
     agentGlobals.value = isAll ? [] : globalsFromApi
     selectedGlobals.value = isAll ? [] : [...globalsFromApi]
+    const rawExclude: string[] = Array.isArray((agent as any)?.mcpExclude) ? [...(agent as any).mcpExclude] : []
+    mcpExclude.value = rawExclude
+    origExclude.value = [...rawExclude]
     const initParams: Record<string, Record<string, string>> = {}
     const rawParams = (agent as any)?.mcpParams || {}
     for (const [name, p] of Object.entries(rawParams)) {
@@ -138,8 +166,9 @@ async function saveGlobals() {
   try {
     const existing = (store.settings.agents || {})[agentName.value] || {}
     const mcpValue: any = useAllMcp.value ? '*' : [...selectedGlobals.value]
+    const excludeSet = useAllMcp.value ? new Set(mcpExclude.value) : new Set<string>()
     const validIds = useAllMcp.value
-      ? new Set(store.allMcps.map(m => m.id))
+      ? new Set(store.allMcps.map(m => m.id).filter(id => !excludeSet.has(id)))
       : new Set(selectedGlobals.value)
     const mcpParamsValue: Record<string, Record<string, string>> = {}
     for (const [id, p] of Object.entries(globalParams.value)) {
@@ -150,6 +179,8 @@ async function saveGlobals() {
     const payload: any = { ...existing, mcp: mcpValue }
     if (Object.keys(mcpParamsValue).length > 0) payload.mcpParams = mcpParamsValue
     else delete payload.mcpParams
+    if (useAllMcp.value && mcpExclude.value.length > 0) payload.mcpExclude = [...mcpExclude.value]
+    else delete payload.mcpExclude
     await apiFetch(
       `/api/agents/${encodeURIComponent(agentName.value)}`,
       'PUT',
@@ -159,6 +190,7 @@ async function saveGlobals() {
     Object.assign(store.settings, settingsRes.data)
     origUseAll.value = useAllMcp.value
     agentGlobals.value = useAllMcp.value ? [] : [...selectedGlobals.value]
+    origExclude.value = useAllMcp.value ? [...mcpExclude.value] : []
     origParams.value = JSON.parse(JSON.stringify(globalParams.value))
     show(t('common.saved'))
   } catch (e: any) {
@@ -386,6 +418,8 @@ function open(name: string) {
   servers.value         = {}
   agentGlobals.value    = []
   selectedGlobals.value = []
+  mcpExclude.value      = []
+  origExclude.value     = []
   activeTab.value       = 'all'
   mcpSearch.value       = ''
   visible.value         = true
@@ -425,11 +459,11 @@ defineExpose({ open })
         <template v-if="activeTab !== t('agents.mcp_exclusive_tab')">
           <div class="picker-toolbar">
             <SCheckCard v-model="useAllMcp">{{ t('agents.use_all') }}</SCheckCard>
-            <SInput v-if="!useAllMcp" v-model="mcpSearch" :placeholder="t('mcp.search_placeholder')" size="sm" style="flex:1" />
-            <div v-else style="flex:1" />
+            <SInput v-model="mcpSearch" :placeholder="t('mcp.search_placeholder')" size="sm" style="flex:1" />
             <SButton type="primary" size="sm" :disabled="!globalsChanged" @click="saveGlobals">{{ t('common.save') }}</SButton>
             <span v-if="globalsChanged" class="picker-unsaved">{{ t('common.unsaved_changes') }}</span>
           </div>
+          <div v-if="useAllMcp" class="picker-hint">{{ t('agents.mcp_exclude_hint') }}</div>
           <STable
             :columns="globalColumns"
             :rows="filteredGlobalMcps"
@@ -440,10 +474,8 @@ defineExpose({ open })
             <template #select="{ row }">
               <input
                 type="checkbox"
-                :value="row.id"
-                v-model="selectedGlobals"
-                :disabled="useAllMcp"
-                :checked="useAllMcp || selectedGlobals.includes(row.id)"
+                :checked="isEnabled(row.id)"
+                @change="toggleEnabled(row.id, ($event.target as HTMLInputElement).checked)"
               />
             </template>
             <template #name="{ row }">
@@ -460,7 +492,7 @@ defineExpose({ open })
                 <SButton
                   type="outline"
                   size="sm"
-                  :disabled="!useAllMcp && !selectedGlobals.includes(row.id)"
+                  :disabled="!isEnabled(row.id)"
                   @click="openParams(row.id)"
                 >
                   {{ t('agents.mcp_params') }}<span v-if="paramsCount(row.id) > 0" class="params-badge">{{ paramsCount(row.id) }}</span>
@@ -613,6 +645,11 @@ defineExpose({ open })
   font-size: var(--sui-fs-sm);
   color: var(--sui-warning);
   white-space: nowrap;
+}
+.picker-hint {
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg-muted);
+  margin: -8px 0 var(--sui-sp-3);
 }
 :deep(tr.is-checked > td) { background: var(--sui-bg-subtle); }
 :deep(input[type="checkbox"]) { cursor: pointer; width: 14px; height: 14px; }

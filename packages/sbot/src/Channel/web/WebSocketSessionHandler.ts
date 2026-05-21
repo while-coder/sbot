@@ -21,6 +21,10 @@ Returns a map of question label → answer (string for radio/input, string[] for
 export { WebChatEventType } from 'sbot.commons';
 export type { WebChatEvent } from 'sbot.commons';
 
+export const WEB_CHANNEL_TOOLS: { name: string; label: string }[] = [
+    { name: '_ask', label: '询问用户' },
+];
+
 export class WebSocketSessionHandler extends ChannelSessionHandler {
 
     constructor(session: SessionService) {

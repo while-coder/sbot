@@ -164,8 +164,22 @@ const form = ref<ChannelConfig>({
   intentModel: '', intentPrompt: '', intentThreshold: 0.7,
   mergeWindow: 0,
 })
+type ToolMode = 'default' | 'whitelist' | 'block'
 const formTools = ref<string[]>([])
 const formHeartbeatTools = ref<string[]>([])
+const formToolsMode = ref<ToolMode>('default')
+const formHeartbeatToolsMode = ref<ToolMode>('default')
+
+function toolsToMode(arr: string[] | undefined): ToolMode {
+  if (arr === undefined) return 'default'
+  if (arr.length === 0) return 'block'
+  return 'whitelist'
+}
+function modeToTools(mode: ToolMode, arr: string[]): string[] | undefined {
+  if (mode === 'default') return undefined
+  if (mode === 'block') return []
+  return arr
+}
 
 async function loadChannelData(id: string) {
   channelLoading.value[id] = true
@@ -304,6 +318,8 @@ function openAdd() {
   form.value = { name: '', type: defaultType, config: {}, agent: '', saver: '', memories: [], wikis: [], workPath: '', streamVerbose: false, autoApproveAllTools: false, approvalTimeout: 0, approvalTimeoutValue: ApprovalTimeoutValue.Deny, askTimeout: 0, askTimeoutMessage: '', intentModel: '', intentPrompt: '', intentThreshold: 0.7, mergeWindow: 0 }
   formTools.value = []
   formHeartbeatTools.value = []
+  formToolsMode.value = 'default'
+  formHeartbeatToolsMode.value = 'default'
   showModal.value = true
 }
 
@@ -314,6 +330,8 @@ function openEdit(id: string) {
   form.value = { name: c.name, type: c.type, config: { ...c.config }, agent: c.agent, saver: c.saver, memories: c.memories || [], wikis: (c as any).wikis || [], workPath: c.workPath || '', streamVerbose: !!c.streamVerbose, autoApproveAllTools: !!c.autoApproveAllTools, approvalTimeout: c.approvalTimeout ?? 0, approvalTimeoutValue: c.approvalTimeoutValue ?? ApprovalTimeoutValue.Deny, askTimeout: c.askTimeout ?? 0, askTimeoutMessage: c.askTimeoutMessage || '', intentModel: c.intentModel || '', intentPrompt: c.intentPrompt || '', intentThreshold: c.intentThreshold ?? 0.7, mergeWindow: c.mergeWindow || 0 }
   formTools.value = [...(c.tools ?? [])]
   formHeartbeatTools.value = [...(c.heartbeatTools ?? [])]
+  formToolsMode.value = toolsToMode(c.tools)
+  formHeartbeatToolsMode.value = toolsToMode(c.heartbeatTools)
   showModal.value = true
 }
 
@@ -321,6 +339,8 @@ async function save() {
   if (!form.value.name.trim()) { show(t('common.name_required'), 'error'); return }
   if (!form.value.agent) { show(t('channels.select_agent'), 'error'); return }
   if (!form.value.saver) { show(t('channels.select_saver'), 'error'); return }
+  if (formToolsMode.value === 'whitelist' && formTools.value.length === 0) { show(t('channels.tools_whitelist_empty'), 'error'); return }
+  if (formHeartbeatToolsMode.value === 'whitelist' && formHeartbeatTools.value.length === 0) { show(t('channels.tools_whitelist_empty'), 'error'); return }
   try {
     const validMemIds = new Set(memoryOptions.value.map(m => m.id))
     const validWikiIds = new Set(wikiOptions.value.map(w => w.id))
@@ -353,8 +373,8 @@ async function save() {
       intentPrompt: form.value.intentPrompt?.trim() || undefined,
       intentThreshold: form.value.intentModel ? form.value.intentThreshold : undefined,
       mergeWindow: form.value.mergeWindow || undefined,
-      tools: formTools.value.length ? formTools.value : undefined,
-      heartbeatTools: formHeartbeatTools.value.length ? formHeartbeatTools.value : undefined,
+      tools: modeToTools(formToolsMode.value, formTools.value),
+      heartbeatTools: modeToTools(formHeartbeatToolsMode.value, formHeartbeatTools.value),
     }
 
     if (editingId.value) {
@@ -442,8 +462,8 @@ async function refresh() {
             <span class="session-meta-chip" :class="c.streamVerbose ? 'green' : 'muted'">{{ t('channels.stream_verbose') }}: {{ c.streamVerbose ? t('common.enabled') : t('common.disabled') }}</span>
             <span class="session-meta-chip" :class="c.autoApproveAllTools ? 'orange' : 'muted'">{{ t('settings.auto_approve_all') }}: {{ c.autoApproveAllTools ? t('common.enabled') : t('common.disabled') }}</span>
             <span class="session-meta-chip" :class="c.intentModel ? '' : 'muted'">{{ t('channels.intent_model') }}: {{ c.intentModel ? (modelOptions.find(m => m.id === c.intentModel)?.label || c.intentModel) : t('common.not_configured') }}</span>
-            <span v-if="c.tools?.length" class="session-meta-chip">{{ t('channels.tools') }}: {{ c.tools.map(n => plugins.find(p => p.type === c.type)?.tools?.find(t => t.name === n)?.label || n).join(', ') }}</span>
-            <span v-if="c.heartbeatTools?.length" class="session-meta-chip">{{ t('channels.heartbeat_tools') }}: {{ c.heartbeatTools.map(n => plugins.find(p => p.type === c.type)?.tools?.find(t => t.name === n)?.label || n).join(', ') }}</span>
+            <span v-if="c.tools !== undefined" class="session-meta-chip" :class="c.tools.length ? '' : 'orange'">{{ t('channels.tools') }}: {{ c.tools.length ? c.tools.map(n => plugins.find(p => p.type === c.type)?.tools?.find(t => t.name === n)?.label || n).join(', ') : t('channels.tools_blocked') }}</span>
+            <span v-if="c.heartbeatTools !== undefined" class="session-meta-chip" :class="c.heartbeatTools.length ? '' : 'orange'">{{ t('channels.heartbeat_tools') }}: {{ c.heartbeatTools.length ? c.heartbeatTools.map(n => plugins.find(p => p.type === c.type)?.tools?.find(t => t.name === n)?.label || n).join(', ') : t('channels.tools_blocked') }}</span>
           </div>
           <div v-if="expandedChannels[id as string]" class="channel-card-detail">
             <div class="detail-tab-bar">
@@ -715,10 +735,20 @@ async function refresh() {
             </SFormItem>
             <template v-if="currentToolOptions.length > 0">
               <SFormItem :label="t('channels.tools')" :hint="t('channels.tools_hint')">
-                <SMultiSelect v-model="formTools" :options="currentToolOptions" />
+                <SSelect v-model="formToolsMode">
+                  <option value="default">{{ t('channels.tools_mode_default') }}</option>
+                  <option value="whitelist">{{ t('channels.tools_mode_whitelist') }}</option>
+                  <option value="block">{{ t('channels.tools_mode_block') }}</option>
+                </SSelect>
+                <SMultiSelect v-if="formToolsMode === 'whitelist'" v-model="formTools" :options="currentToolOptions" />
               </SFormItem>
               <SFormItem :label="t('channels.heartbeat_tools')" :hint="t('channels.heartbeat_tools_hint')">
-                <SMultiSelect v-model="formHeartbeatTools" :options="currentToolOptions" />
+                <SSelect v-model="formHeartbeatToolsMode">
+                  <option value="default">{{ t('channels.tools_mode_default') }}</option>
+                  <option value="whitelist">{{ t('channels.tools_mode_whitelist') }}</option>
+                  <option value="block">{{ t('channels.tools_mode_block') }}</option>
+                </SSelect>
+                <SMultiSelect v-if="formHeartbeatToolsMode === 'whitelist'" v-model="formHeartbeatTools" :options="currentToolOptions" />
               </SFormItem>
             </template>
           </SFormSection>

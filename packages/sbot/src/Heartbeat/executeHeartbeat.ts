@@ -46,7 +46,7 @@ export async function executeHeartbeat(ctx: HeartbeatExecutionContext): Promise<
         return;
     }
 
-    const toolWhitelist = channel.heartbeatTools ?? [];
+    const toolWhitelist = channel.heartbeatTools;
     const threadId = channelThreadId(channel.type, dbSession.channelId, dbSession.sessionId);
 
     await new Promise<void>((resolve, reject) => {
