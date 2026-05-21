@@ -14,13 +14,16 @@ export function createSessionSearchTool(saver: SearchableSaver): StructuredToolI
         name: SESSION_SEARCH_TOOL_NAME,
         description: loadPrompt('tools/session_search/search.txt'),
         schema: z.object({
-            query: z.array(z.array(z.string().min(1)).min(1)).min(1)
-                .describe('CNF query: outer array = AND, inner array = OR. e.g. [["error","fail"],["deploy"]] means (error OR fail) AND deploy'),
+            query: z.object({
+                all: z.array(
+                    z.array(z.string().min(1)).min(1)
+                ).min(1).describe('Array of OR-groups; all groups must match (AND). A single-term group is a 1-element array, e.g. [["error","fail"], ["deploy"]] means (error OR fail) AND deploy.'),
+            }),
             limit: z.number().optional().describe('Max results (default 20)'),
         }) as any,
         func: async ({ query, limit }: any): Promise<MCPToolResult> => {
             try {
-                const results = await saver.searchMessages(query, limit ?? 20);
+                const results = await saver.searchMessages(query.all, limit ?? 20);
                 if (results.length === 0) {
                     return createSuccessResult(createTextContent('No results found.'));
                 }

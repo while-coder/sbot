@@ -1,12 +1,12 @@
 Search past conversation history. Use this tool to recall earlier discussions, find specific information mentioned in previous sessions, or locate relevant context from past interactions.
 
-Query format: CNF (Conjunctive Normal Form) — a 2D array of keywords.
-- Outer array: AND between groups (all groups must match)
-- Inner array: OR within a group (any keyword in the group matches)
+Query format: { all: string[][] } — an array of OR-groups; every group must match (AND).
+- Each group is an array of keywords; any keyword in the group satisfies that group.
+- A single-keyword requirement is a 1-element group.
 
 Examples:
-- [["deployment"]] — messages containing "deployment"
-- [["database"], ["migration"]] — messages containing both "database" AND "migration"
-- [["error", "fail", "exception"], ["deploy"]] — messages containing ("error" OR "fail" OR "exception") AND "deploy"
+- { all: [["deployment"]] } — messages containing "deployment"
+- { all: [["database"], ["migration"]] } — messages containing both "database" AND "migration"
+- { all: [["error", "fail", "exception"], ["deploy"]] } — messages containing ("error" OR "fail" OR "exception") AND "deploy"
 
 Returns matching messages with timestamps and roles, ranked by relevance when supported by the backend, otherwise by recency.
