@@ -98,6 +98,7 @@ export class AgentFileSaver implements IAgentSaverService {
         const file = await this.getFile();
         return file.messages
             .filter(m => {
+                if (!m.compacted) return false;
                 const c = m.message.content;
                 const text = (typeof c === 'string' ? c : JSON.stringify(c)).toLowerCase();
                 return groups.every(group => group.some(t => text.includes(t)));

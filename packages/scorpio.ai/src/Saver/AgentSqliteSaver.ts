@@ -135,7 +135,7 @@ export class AgentSqliteSaver implements IAgentSaverService {
                 SELECT m.id, m.data, m.created_at, m.think_id
                 FROM messages_fts fts
                 JOIN messages m ON m.id = fts.rowid
-                WHERE messages_fts MATCH ?
+                WHERE messages_fts MATCH ? AND m.compacted = 1
                 ORDER BY rank
                 LIMIT ?
             `).all(fts, limit) as { id: number; data: string; created_at: number; think_id: string | null }[];
@@ -144,6 +144,7 @@ export class AgentSqliteSaver implements IAgentSaverService {
                 message: JSON.parse(r.data) as ChatMessage,
                 createdAt: r.created_at,
                 thinkId: r.think_id ?? undefined,
+                compacted: true,
             }));
         } catch (error: any) {
             this.logger?.warn(`FTS5 搜索失败: ${error.message}`);

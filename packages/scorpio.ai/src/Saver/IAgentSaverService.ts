@@ -200,7 +200,8 @@ export interface IAgentSaverService {
     // --- 会话搜索 ---
 
     /**
-     * 全文搜索历史消息（含已压缩消息）。
+     * 全文搜索已压缩的历史消息（compacted = true）。
+     * 未压缩的消息仍在 LLM 上下文中，无需通过此接口检索。
      * 查询采用 CNF 形式：外层数组为 AND，内层数组为 OR。
      * 例如 [["error","fail"],["deploy"]] 表示 (error OR fail) AND deploy。
      * 任意内层为空数组或外层为空时返回空结果。

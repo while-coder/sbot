@@ -134,7 +134,7 @@ export class AgentPostgresSaver implements IAgentSaverService {
                 `WITH q AS (SELECT (${tsq}) AS query)
                  SELECT m.id, m.data, m.created_at, m.think_id
                  FROM ${this.table} m, q
-                 WHERE to_tsvector('simple', m.data) @@ q.query
+                 WHERE to_tsvector('simple', m.data) @@ q.query AND m.compacted = 1
                  ORDER BY ts_rank(to_tsvector('simple', m.data), q.query) DESC
                  LIMIT $${params.length}`,
                 params,
@@ -144,6 +144,7 @@ export class AgentPostgresSaver implements IAgentSaverService {
                 message: JSON.parse(r.data) as ChatMessage,
                 createdAt: r.created_at,
                 thinkId: r.think_id ?? undefined,
+                compacted: true,
             }));
         } catch (error: any) {
             this.logger?.warn(`Postgres FTS 搜索失败: ${error.message}`);

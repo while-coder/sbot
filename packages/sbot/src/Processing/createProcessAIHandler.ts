@@ -36,7 +36,7 @@ export function createProcessAIHandler(): ProcessAIHandler {
             : sessionWikis;
         const workPath = dbSession.workPath ?? channel.workPath;
         const autoApproveAllTools = dbSession.autoApproveAllTools ?? channel.autoApproveAllTools ?? false;
-        const streamVerbose = dbSession.streamVerbose ?? channel.streamVerbose ?? false;
+        const streamVerbose = dbSession.streamVerbose ?? channel.streamVerbose ?? (channelId === WEB_CHANNEL_ID);
         const approvalTimeout = dbSession.approvalTimeout ?? channel.approvalTimeout ?? 0;
         const approvalTimeoutValue = dbSession.approvalTimeoutValue ?? channel.approvalTimeoutValue;
         const askTimeout = dbSession.askTimeout ?? channel.askTimeout ?? 0;

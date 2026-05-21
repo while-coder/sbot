@@ -40,6 +40,7 @@ export class AgentMemorySaver implements IAgentSaverService {
         const groups = query.map(g => g.map(t => t.toLowerCase()));
         return this.messages
             .filter(m => {
+                if (!m.compacted) return false;
                 const c = m.message.content;
                 const text = (typeof c === 'string' ? c : JSON.stringify(c)).toLowerCase();
                 return groups.every(group => group.some(t => text.includes(t)));

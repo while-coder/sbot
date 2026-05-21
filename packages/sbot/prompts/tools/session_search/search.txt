@@ -1,4 +1,4 @@
-Search past conversation history. Use this tool to recall earlier discussions, find specific information mentioned in previous sessions, or locate relevant context from past interactions.
+Search compacted (summarized-out) conversation history. Recent messages are still in your active context — only use this tool to retrieve original content from earlier turns that have been compressed into summaries and are no longer visible in the current context.
 
 Query format: { all: string[][] } — an array of OR-groups; every group must match (AND).
 - Each group is an array of keywords; any keyword in the group satisfies that group.
