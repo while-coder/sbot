@@ -264,7 +264,7 @@ onMounted(async () => {
           <template #suffix>
             <span v-if="cat.node.isOverride" class="prompts-dot" :title="t('prompts.contains_custom')" />
           </template>
-          <template v-if="cat.key === 'heartbeat' || cat.key === 'intent'" #actions>
+          <template v-if="cat.key === 'heartbeat'" #actions>
             <SIconButton size="xs" variant="outline" :title="t('prompts.create_file')" @click.stop="startCreate(cat.key)">+</SIconButton>
           </template>
         </STreeNode>
