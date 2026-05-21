@@ -9,6 +9,34 @@ const MAX_PREVIEW_LEN = 500;
 
 export type SearchableSaver = IAgentSaverService & Required<Pick<IAgentSaverService, 'searchMessages'>>;
 
+function extractContent(raw: unknown): string {
+    if (raw == null) return '';
+    if (typeof raw === 'string') return raw;
+    if (!Array.isArray(raw)) return JSON.stringify(raw);
+
+    const lines: string[] = [];
+    for (const part of raw) {
+        if (!part || typeof part !== 'object') continue;
+        const p = part as any;
+        switch (p.type) {
+            case 'text':
+                if (p.text) lines.push(p.text);
+                break;
+            case 'tool_use':
+                lines.push(`[tool_call: ${p.name ?? 'unknown'}(${JSON.stringify(p.input ?? {})})]`);
+                break;
+            case 'tool_result':
+                lines.push(`[tool_result: ${typeof p.content === 'string' ? p.content : JSON.stringify(p.content)}]`);
+                break;
+            case 'input_json_delta':
+            case 'thinking':
+                // streaming chunks / internal-only — skip
+                break;
+        }
+    }
+    return lines.join('\n');
+}
+
 export function createSessionSearchTool(saver: SearchableSaver): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: SESSION_SEARCH_TOOL_NAME,
@@ -30,17 +58,11 @@ export function createSessionSearchTool(saver: SearchableSaver): StructuredToolI
                 const formatted = results.map((r, i) => {
                     const time = r.createdAt ? new Date(r.createdAt * 1000).toISOString() : 'unknown';
                     const role = r.message.role ?? 'unknown';
-                    const raw = r.message.content;
-                    const content = typeof raw === 'string'
-                        ? raw
-                        : Array.isArray(raw)
-                            ? raw.filter((p: any) => p?.type === 'text').map((p: any) => p.text).join('\n')
-                                || JSON.stringify(raw)
-                            : JSON.stringify(raw);
-                    const preview = content.length > MAX_PREVIEW_LEN ? content.slice(0, MAX_PREVIEW_LEN) + '...' : content;
-                    return `<result index="${i + 1}" role="${role}" time="${time}">\n${preview}\n</result>`;
-                }).join('\n');
-                return createSuccessResult(createTextContent(`Found ${results.length} results:\n${formatted}`));
+                    const content = extractContent(r.message.content) || '(empty)';
+                    const preview = content.length > MAX_PREVIEW_LEN ? content.slice(0, MAX_PREVIEW_LEN) + '…' : content;
+                    return `### Result ${i + 1} · ${role} · ${time}\n\n${preview}`;
+                }).join('\n\n---\n\n');
+                return createSuccessResult(createTextContent(`Found ${results.length} results:\n\n${formatted}`));
             } catch (e: any) {
                 return createErrorResult(`Search failed for query=${JSON.stringify(query)}: ${e.message}`);
             }
