@@ -1,6 +1,6 @@
 // packages/website/src/utils/mcpSchema.ts
-import { McpTransport } from '@/types'
-import type { McpEntry } from '@/types'
+import { McpTransport } from '@/shared/types'
+import type { McpEntry } from '@/shared/types'
 
 export function esc(s: string): string {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')

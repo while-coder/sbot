@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { MessageList as ChatUiMessageList } from '@sbot/chat-ui'
 import type { StoredMessage, ChatLabels } from '@sbot/chat-ui'
-import { apiFetch } from '@/api'
+import { apiFetch } from '@/shared/api'
 
 const { t } = useI18n()
 
