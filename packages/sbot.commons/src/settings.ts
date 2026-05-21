@@ -273,9 +273,13 @@ export interface Settings {
   autoApproveAllTools?: boolean
   /** 启动后立即执行的命令行列表，依次同步执行 */
   startupCommands?: string[]
+  /** 下次检查更新的时间戳（ms），0 或 undefined 表示立即检查 */
+  checkUpdateTime?: number
+  /** 图片最大尺寸（px），max(width,height) 超过此值时按比例缩小；不设置则不压缩 */
+  maxImageSize?: number
   /** Channel 插件列表（npm 包名或本地路径） */
   plugins?: string[]
-  /** @deprecated 迁移后由 ~/.sbot/agents/ 目录管理，API 响应中动态注入 */
+  /** 由 ~/.sbot/agents/ 目录管理，API 响应中由服务端动态注入；不写入 settings.json */
   agents?: Record<string, AgentConfig>
   models?: Record<string, ModelConfig>
   embeddings?: Record<string, EmbeddingConfig>
