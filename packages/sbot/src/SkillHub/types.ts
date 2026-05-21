@@ -6,6 +6,7 @@ import { URLSearchParams } from 'url';
 export enum SkillHubProvider {
   Clawhub = 'clawhub',
   SkillsSh = 'skills.sh',
+  SkillhubCn = 'skillhub.cn',
 }
 
 export interface HubSkillResult {
