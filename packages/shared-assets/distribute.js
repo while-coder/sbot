@@ -21,10 +21,10 @@ for (const [dest, config] of Object.entries(entries)) {
     const iconPng = path.resolve(destDir, "icon.png");
     fs.cpSync(src, iconPng);
     console.log(`${config.source} -> ${path.relative(baseDir, iconPng)}`);
-    const desktopDir = path.resolve(destDir, "../..");
-    console.log(`Running tauri icon in ${path.relative(baseDir, desktopDir)}...`);
+    const appDir = path.resolve(destDir, "../..");
+    console.log(`Running tauri icon in ${path.relative(baseDir, appDir)}...`);
     execSync(`npx tauri icon ${path.resolve(destDir, "icon.png")}`, {
-      cwd: desktopDir,
+      cwd: appDir,
       stdio: "inherit",
     });
     continue;
