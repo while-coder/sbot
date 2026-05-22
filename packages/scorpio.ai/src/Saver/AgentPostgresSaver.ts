@@ -1,5 +1,11 @@
 import { Pool } from "pg";
-import { IAgentSaverService, ChatMessage, StoredMessage, ChatMessageOptions } from "./IAgentSaverService";
+import {
+    IAgentSaverService,
+    ChatMessage,
+    StoredMessage,
+    ChatMessageOptions,
+    MessageKind,
+} from "./IAgentSaverService";
 import { ILoggerService, ILogger } from "../Logger";
 import { inject } from "scorpio.di";
 import { T_DBUrl, T_DBTable } from "../Core/tokens";
@@ -56,7 +62,7 @@ export class AgentPostgresSaver implements IAgentSaverService {
                 ON ${this.thinksTable} (think_id);
         `);
         try {
-            await this.pool.query(`ALTER TABLE ${this.table} ADD COLUMN compacted INTEGER NOT NULL DEFAULT 0`);
+            await this.pool.query(`ALTER TABLE ${this.table} ADD COLUMN kind TEXT`);
         } catch { /* column already exists */ }
         await this.pool.query(
             `CREATE INDEX IF NOT EXISTS idx_${this.table}_fts ON ${this.table} USING gin(to_tsvector('simple', data))`
@@ -66,24 +72,30 @@ export class AgentPostgresSaver implements IAgentSaverService {
     async pushMessage(message: ChatMessage, options?: ChatMessageOptions): Promise<void> {
         await this.ensureSetup();
         await this.pool.query(
-            `INSERT INTO ${this.table} (data, created_at, think_id) VALUES ($1, $2, $3)`,
-            [JSON.stringify(message), Math.floor(Date.now() / 1000), options?.thinkId ?? null]
+            `INSERT INTO ${this.table} (data, created_at, think_id, kind) VALUES ($1, $2, $3, $4)`,
+            [
+                JSON.stringify(message),
+                Math.floor(Date.now() / 1000),
+                options?.thinkId ?? null,
+                options?.kind ?? MessageKind.Normal,
+            ]
         );
     }
 
-    async getAllMessages(includeCompacted = false): Promise<StoredMessage[]> {
+    async getAllMessages(includeAll = false): Promise<StoredMessage[]> {
         await this.ensureSetup();
         try {
-            const sql = includeCompacted
-                ? `SELECT id, data, created_at, think_id, compacted FROM ${this.table} ORDER BY id`
-                : `SELECT id, data, created_at, think_id, compacted FROM ${this.table} WHERE compacted = 0 ORDER BY id`;
+            const filter = includeAll
+                ? ""
+                : ` WHERE kind IS NULL OR kind = 'normal'`;
+            const sql = `SELECT id, data, created_at, think_id, kind FROM ${this.table}${filter} ORDER BY id`;
             const result = await this.pool.query(sql);
             return result.rows.map((r: any) => ({
                 id: parseInt(r.id),
                 message: JSON.parse(r.data) as ChatMessage,
                 createdAt: r.created_at,
                 thinkId: r.think_id ?? undefined,
-                compacted: r.compacted === 1 ? true : undefined,
+                kind: (r.kind as MessageKind | null) ?? MessageKind.Normal,
             }));
         } catch (error: any) {
             this.logger?.warn(`获取历史消息失败: ${error.message}`);
@@ -102,12 +114,17 @@ export class AgentPostgresSaver implements IAgentSaverService {
         try {
             const placeholders = compactedIds.map((_, i) => `$${i + 1}`).join(',');
             await this.pool.query(
-                `UPDATE ${this.table} SET compacted = 1 WHERE id IN (${placeholders})`,
+                `UPDATE ${this.table} SET kind = 'archive' WHERE id IN (${placeholders})`,
                 compactedIds,
             );
             await this.pool.query(
-                `INSERT INTO ${this.table} (data, created_at, think_id) VALUES ($1, $2, $3)`,
-                [JSON.stringify(summary.message), summary.createdAt ?? Math.floor(Date.now() / 1000), summary.thinkId ?? null]
+                `INSERT INTO ${this.table} (data, created_at, think_id, kind) VALUES ($1, $2, $3, $4)`,
+                [
+                    JSON.stringify(summary.message),
+                    summary.createdAt ?? Math.floor(Date.now() / 1000),
+                    summary.thinkId ?? null,
+                    summary.kind,
+                ]
             );
             await this.pool.query(`COMMIT`);
         } catch (e) {
@@ -116,7 +133,7 @@ export class AgentPostgresSaver implements IAgentSaverService {
         }
     }
 
-    async searchMessages(query: string[][], limit: number = 20): Promise<StoredMessage[]> {
+    async searchArchive(query: string[][], limit: number = 20): Promise<StoredMessage[]> {
         if (query.length === 0 || query.some(g => g.length === 0)) return [];
         await this.ensureSetup();
         const params: any[] = [];
@@ -134,7 +151,7 @@ export class AgentPostgresSaver implements IAgentSaverService {
                 `WITH q AS (SELECT (${tsq}) AS query)
                  SELECT m.id, m.data, m.created_at, m.think_id
                  FROM ${this.table} m, q
-                 WHERE to_tsvector('simple', m.data) @@ q.query AND m.compacted = 1
+                 WHERE to_tsvector('simple', m.data) @@ q.query AND m.kind = 'archive'
                  ORDER BY ts_rank(to_tsvector('simple', m.data), q.query) DESC
                  LIMIT $${params.length}`,
                 params,
@@ -144,7 +161,7 @@ export class AgentPostgresSaver implements IAgentSaverService {
                 message: JSON.parse(r.data) as ChatMessage,
                 createdAt: r.created_at,
                 thinkId: r.think_id ?? undefined,
-                compacted: true,
+                kind: MessageKind.Archive,
             }));
         } catch (error: any) {
             this.logger?.warn(`Postgres FTS 搜索失败: ${error.message}`);
@@ -168,6 +185,7 @@ export class AgentPostgresSaver implements IAgentSaverService {
                 message: JSON.parse(r.data) as ChatMessage,
                 createdAt: r.created_at,
                 thinkId: r.nested_think_id ?? undefined,
+                kind: MessageKind.Normal,
             }));
         } catch (error: any) {
             this.logger?.warn(`获取 think 消息失败: ${error.message}`);

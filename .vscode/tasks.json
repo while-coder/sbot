@@ -14,7 +14,7 @@
       },
       "problemMatcher": "$tsc"
     },
-{
+    {
       "label": "debug:sbot",
       "type": "shell",
       "command": "pnpm run debug:sbot",

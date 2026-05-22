@@ -1,4 +1,5 @@
 import { ChildProcess, spawn } from "child_process";
+import { existsSync, mkdirSync } from "fs";
 import { Readable, Writable } from "stream";
 import { ClientSideConnection, ndJsonStream } from "@agentclientprotocol/sdk";
 import type * as schema from "@agentclientprotocol/sdk";
@@ -45,6 +46,9 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
         this.args = args;
         this.env = env ?? {};
         this.workPath = workPath;
+        if (workPath && !existsSync(workPath)) {
+            mkdirSync(workPath, { recursive: true });
+        }
     }
 
     // ── stream ───────────────────────────────────────────────────────────
@@ -125,6 +129,7 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
             stdio: ["pipe", "pipe", "pipe"],
             env: { ...process.env, ...this.env },
             shell: process.platform === "win32",
+            windowsHide: true,
         });
 
         this.childProcess.stderr?.on("data", (chunk: Buffer) => {

@@ -5,6 +5,7 @@ import { apiFetch } from '@/shared/api'
 import { useToast } from 'sbot-ui'
 import { SModal, SButton, SBadge } from 'sbot-ui'
 import MessageList from '@/components/MessageList.vue'
+import { MessageKind } from '@sbot/chat-ui'
 import type { StoredMessage } from '@sbot/chat-ui'
 
 const { t } = useI18n()
@@ -18,11 +19,11 @@ const sessionId     = ref('')
 const dbId          = ref<number | null>(null)
 const messages      = ref<StoredMessage[]>([])
 const loading       = ref(false)
-const showCompacted = ref(false)
+const showArchived = ref(false)
 
-const compactedCount = computed(() => messages.value.filter(m => m.compacted).length)
+const archivedCount = computed(() => messages.value.filter(m => m.kind === MessageKind.Archive).length)
 const displayedMessages = computed(() =>
-  showCompacted.value ? messages.value : messages.value.filter(m => !m.compacted)
+  showArchived.value ? messages.value : messages.value.filter(m => m.kind !== MessageKind.Archive)
 )
 
 function historyUrl() {
@@ -104,8 +105,8 @@ defineExpose({ open, openSession, openByDbId })
         <SBadge variant="neutral" size="sm">{{ saverName }}</SBadge>
         <span class="saver-thread-badge">{{ dbId ? `#${dbId}` : sessionId || threadId }}</span>
         <span v-if="!loading" class="saver-count-badge">
-          {{ compactedCount > 0
-            ? t('savers.count_with_compacted', { count: messages.length, compacted: compactedCount })
+          {{ archivedCount > 0
+            ? t('savers.count_with_archived', { count: messages.length, archived: archivedCount })
             : t('savers.count', { count: messages.length }) }}
         </span>
       </div>
@@ -115,10 +116,10 @@ defineExpose({ open, openSession, openByDbId })
       <SButton type="outline" size="sm" :disabled="loading" @click="load">
         {{ loading ? t('common.loading') : t('common.refresh') }}
       </SButton>
-      <label v-if="compactedCount > 0" class="show-compacted-toggle">
-        <input type="checkbox" v-model="showCompacted" />
-        <span>{{ t('savers.show_compacted') }}</span>
-        <span class="show-compacted-count">({{ compactedCount }})</span>
+      <label v-if="archivedCount > 0" class="show-archived-toggle">
+        <input type="checkbox" v-model="showArchived" />
+        <span>{{ t('savers.show_archived') }}</span>
+        <span class="show-archived-count">({{ archivedCount }})</span>
       </label>
       <SButton type="danger" size="sm" style="margin-left:auto" :disabled="messages.length === 0" @click="clear">
         {{ t('savers.clear_history') }}
@@ -148,7 +149,7 @@ defineExpose({ open, openSession, openByDbId })
   font-size: var(--sui-fs-sm);
   color: var(--sui-fg-disabled);
 }
-.show-compacted-toggle {
+.show-archived-toggle {
   display: inline-flex;
   align-items: center;
   gap: var(--sui-sp-1);
@@ -159,9 +160,9 @@ defineExpose({ open, openSession, openByDbId })
   padding: 2px var(--sui-sp-3);
   border-radius: var(--sui-radius-sm);
 }
-.show-compacted-toggle:hover { background: var(--sui-bg-soft); }
-.show-compacted-toggle input[type="checkbox"] { margin: 0; cursor: pointer; }
-.show-compacted-count { color: var(--sui-fg-disabled); }
+.show-archived-toggle:hover { background: var(--sui-bg-soft); }
+.show-archived-toggle input[type="checkbox"] { margin: 0; cursor: pointer; }
+.show-archived-count { color: var(--sui-fg-disabled); }
 .modal-loading,
 .modal-empty {
   text-align: center;

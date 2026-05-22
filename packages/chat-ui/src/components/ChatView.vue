@@ -7,7 +7,7 @@ import type {
   AskEvent, AskAnswerPayload,
   DisplayContent, ChatEvent,
 } from '../types'
-import { MessageRole, ChatEventType } from '../types'
+import { MessageRole, ChatEventType, MessageKind } from '../types'
 import type { IChatTransport } from '../transport'
 import { resolveLabels } from '../labels'
 import { useCompactProvider } from '../composables/useCompact'
@@ -39,7 +39,7 @@ const messages          = ref<StoredMessage[]>([])
 const isStreaming       = ref(false)
 const streamingContent  = ref<DisplayContent>('')
 const queuedMessages    = ref<DisplayContent[]>([])
-const showCompacted     = ref(false)
+const showArchived      = ref(false)
 
 const pendingToolCall   = ref<ToolCallEvent | null>(null)
 const pendingAsk        = ref<AskEvent | null>(null)
@@ -76,9 +76,9 @@ const contextWindow = computed<number | undefined>(() => {
 
 const fetchThinks = computed(() => props.transport.fetchThinks?.bind(props.transport))
 
-const compactedCount = computed(() => messages.value.filter(m => m.compacted).length)
+const archivedCount = computed(() => messages.value.filter(m => m.kind === MessageKind.Archive).length)
 const displayedMessages = computed<StoredMessage[]>(() =>
-  showCompacted.value ? messages.value : messages.value.filter(m => !m.compacted),
+  showArchived.value ? messages.value : messages.value.filter(m => m.kind !== MessageKind.Archive),
 )
 
 // ── Event handler ──
@@ -92,7 +92,7 @@ function handleEvent(evt: ChatEvent) {
     case ChatEventType.Human:
       isStreaming.value = true
       if (queuedMessages.value.length > 0) queuedMessages.value.shift()
-      messages.value.push({ message: { role: MessageRole.Human, content: evt.data.content }, createdAt: Date.now() / 1000 })
+      messages.value.push({ message: { role: MessageRole.Human, content: evt.data.content }, createdAt: Date.now() / 1000, kind: MessageKind.Normal })
       nextTick(() => chatAreaRef.value?.scrollToBottom(true))
       break
     case ChatEventType.Stream:
@@ -100,7 +100,7 @@ function handleEvent(evt: ChatEvent) {
       break
     case ChatEventType.Message: {
       const { message, createdAt, thinkId } = evt.data
-      const msg: StoredMessage = { message, createdAt: createdAt ?? Date.now() / 1000 }
+      const msg: StoredMessage = { message, createdAt: createdAt ?? Date.now() / 1000, kind: MessageKind.Normal }
       if (thinkId) msg.thinkId = thinkId
       messages.value.push(msg)
       streamingContent.value = ''
@@ -318,7 +318,7 @@ function onSend(parts: ContentPart[], attachments: Attachment[]) {
   if (parts.length === 0 && attachments.length === 0) return
   const display = partsToDisplayText(parts)
   if (isCommandText(display)) {
-    messages.value.push({ message: { role: MessageRole.Human, content: display }, createdAt: Date.now() / 1000 })
+    messages.value.push({ message: { role: MessageRole.Human, content: display }, createdAt: Date.now() / 1000, kind: MessageKind.Normal })
     nextTick(() => chatAreaRef.value?.scrollToBottom(true))
   } else {
     queuedMessages.value.push(display)
@@ -451,8 +451,8 @@ onBeforeUnmount(() => {
         :context-window="contextWindow"
         :labels="labels"
         :has-saver="hasSaver"
-        :compacted-count="compactedCount"
-        v-model:show-compacted="showCompacted"
+        :archived-count="archivedCount"
+        v-model:show-archived="showArchived"
         @refresh="onRefresh"
         @clear-history="onClearHistory"
       />

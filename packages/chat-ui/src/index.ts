@@ -28,7 +28,7 @@ export type {
   ChatEvent,
 } from './types';
 
-export { MessageRole, ContentPartType, AskQuestionType, ChatEventType, ToolApproval } from './types';
+export { MessageRole, MessageKind, ContentPartType, AskQuestionType, ChatEventType, ToolApproval } from './types';
 
 export type { IChatTransport } from './transport';
 

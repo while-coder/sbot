@@ -15,8 +15,8 @@ const emit = defineEmits<{ saved: [] }>()
 
 const acpPresets = [
   { label: 'Claude Code', command: 'npx', args: ['-y', '@agentclientprotocol/claude-agent-acp@latest'], envKeys: ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL'] },
-  { label: 'OpenCode', command: 'opencode', args: ['acp'], envKeys: ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL'] },
-  { label: 'Codex', command: 'npx', args: ['-y', '@openai/codex@latest', '--acp'], envKeys: ['OPENAI_API_KEY', 'OPENAI_BASE_URL'] },
+  { label: 'OpenCode', command: 'opencode', args: ['acp'], envKeys: ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL', 'OPENAI_API_KEY', 'OPENAI_BASE_URL'] },
+  { label: 'Codex', command: 'npx', args: ['-y', '@agentclientprotocol/codex-acp@latest'], envKeys: ['OPENAI_API_KEY', 'OPENAI_BASE_URL'] },
   { label: 'Cline', command: 'npx', args: ['-y', 'cline@latest', '--acp'], envKeys: ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL', 'OPENAI_API_KEY', 'OPENAI_BASE_URL'] },
   { label: 'Qwen Code', command: 'npx', args: ['-y', 'qwen-agent-acp@latest'], envKeys: ['DASHSCOPE_API_KEY', 'DASHSCOPE_BASE_URL'] },
 ]

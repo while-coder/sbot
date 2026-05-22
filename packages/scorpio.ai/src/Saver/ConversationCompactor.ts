@@ -3,7 +3,7 @@ import { IModelService } from "../Model";
 import { ILoggerService, ILogger } from "../Logger";
 import { T_CompactPromptTemplate, T_PostCompactMessageTemplate, T_PostCompactContinuation } from "../Core/tokens";
 import { T_SummaryModelService } from "../Agents/AgentServiceBase";
-import { ChatMessage, MessageRole, StoredMessage } from "./IAgentSaverService";
+import { ChatMessage, MessageKind, MessageRole, StoredMessage } from "./IAgentSaverService";
 import { estimateMessageTokens } from "./messageSerializer";
 
 const COMPACT_THRESHOLD = 0.7;
@@ -73,6 +73,7 @@ export class ConversationCompactor {
         return {
             message: { role: MessageRole.Human, content },
             createdAt: Math.floor(Date.now() / 1000),
+            kind: MessageKind.Normal,
         };
     }
 }

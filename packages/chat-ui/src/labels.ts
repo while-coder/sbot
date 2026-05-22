@@ -78,8 +78,8 @@ export const defaultLabels: Required<ChatLabels> = {
   noSubdirs: '没有子目录',
   noSaver: '未配置存储，无法发送',
   selectOrCreate: '← 请选择或创建会话',
-  compactedTag: '已压缩',
-  showCompacted: '显示已压缩',
+  archivedTag: '已归档',
+  showArchived: '显示已归档',
 }
 
 export function resolveLabels(partial?: ChatLabels): Required<ChatLabels> {

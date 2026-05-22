@@ -12,14 +12,14 @@ const props = defineProps<{
   contextWindow?: number
   labels?: ChatLabels
   hasSaver: boolean
-  compactedCount?: number
-  showCompacted?: boolean
+  archivedCount?: number
+  showArchived?: boolean
 }>()
 
 const emit = defineEmits<{
   refresh: []
   clearHistory: []
-  'update:showCompacted': [v: boolean]
+  'update:showArchived': [v: boolean]
 }>()
 
 const L = computed(() => resolveLabels(props.labels))
@@ -268,13 +268,13 @@ function onClickOutside(e: MouseEvent) {
     </Teleport>
 
     <div class="chatui-toolbar-actions">
-      <span v-if="(compactedCount ?? 0) > 0" class="chatui-compacted-toggle" :title="L.showCompacted">
+      <span v-if="(archivedCount ?? 0) > 0" class="chatui-archived-toggle" :title="L.showArchived">
         <SCheckbox
-          :model-value="!!showCompacted"
-          @update:model-value="(v) => emit('update:showCompacted', v as boolean)"
+          :model-value="!!showArchived"
+          @update:model-value="(v) => emit('update:showArchived', v as boolean)"
         >
-          <span v-if="!isCompact">{{ L.showCompacted }}</span>
-          <span class="chatui-compacted-count">({{ compactedCount }})</span>
+          <span v-if="!isCompact">{{ L.showArchived }}</span>
+          <span class="chatui-archived-count">({{ archivedCount }})</span>
         </SCheckbox>
       </span>
       <SButton type="outline" size="sm" @click="emit('refresh')">{{ L.refresh }}</SButton>
@@ -374,12 +374,12 @@ function onClickOutside(e: MouseEvent) {
 
 /* ── Buttons ── */
 .chatui-toolbar-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-shrink: 0; }
-.chatui-compacted-toggle {
+.chatui-archived-toggle {
   display: inline-flex; align-items: center;
   font-size: 11px; color: var(--chatui-fg-secondary);
   white-space: nowrap;
 }
-.chatui-compacted-count { color: var(--chatui-fg-secondary); opacity: 0.7; }
+.chatui-archived-count { color: var(--chatui-fg-secondary); opacity: 0.7; }
 
 /* ── Compact ── */
 .chatui-status-bar.chatui-compact { flex-wrap: wrap; padding: 4px 8px; gap: 6px; }

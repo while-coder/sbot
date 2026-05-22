@@ -1,7 +1,13 @@
 import Database from "better-sqlite3";
 import { existsSync, mkdirSync } from "fs";
 import { dirname } from "path";
-import { IAgentSaverService, ChatMessage, StoredMessage, ChatMessageOptions } from "./IAgentSaverService";
+import {
+    IAgentSaverService,
+    ChatMessage,
+    StoredMessage,
+    ChatMessageOptions,
+    MessageKind,
+} from "./IAgentSaverService";
 import { ILoggerService, ILogger } from "../Logger";
 import { inject } from "scorpio.di";
 import { T_DBPath } from "../Core/tokens";
@@ -51,9 +57,9 @@ export class AgentSqliteSaver implements IAgentSaverService {
                 CREATE INDEX IF NOT EXISTS idx_thinks_think_id ON thinks (think_id);
             `);
 
-            // Schema 迁移：添加 compacted 列
+            // Schema 迁移：添加 kind 列（缺省 NULL 视作 Normal）
             try {
-                this._db.exec(`ALTER TABLE messages ADD COLUMN compacted INTEGER NOT NULL DEFAULT 0`);
+                this._db.exec(`ALTER TABLE messages ADD COLUMN kind TEXT`);
             } catch { /* 列已存在，忽略 */ }
 
             // FTS5 全文搜索索引
@@ -86,24 +92,30 @@ export class AgentSqliteSaver implements IAgentSaverService {
     }
 
     async pushMessage(message: ChatMessage, options?: ChatMessageOptions): Promise<void> {
-        this.db.prepare("INSERT INTO messages (data, created_at, think_id) VALUES (?, ?, ?)")
-            .run(JSON.stringify(message), Math.floor(Date.now() / 1000), options?.thinkId ?? null);
+        this.db.prepare("INSERT INTO messages (data, created_at, think_id, kind) VALUES (?, ?, ?, ?)")
+            .run(
+                JSON.stringify(message),
+                Math.floor(Date.now() / 1000),
+                options?.thinkId ?? null,
+                options?.kind ?? MessageKind.Normal,
+            );
     }
 
-    async getAllMessages(includeCompacted = false): Promise<StoredMessage[]> {
+    async getAllMessages(includeAll = false): Promise<StoredMessage[]> {
         try {
-            const sql = includeCompacted
-                ? "SELECT id, data, created_at, think_id, compacted FROM messages ORDER BY id"
-                : "SELECT id, data, created_at, think_id, compacted FROM messages WHERE compacted = 0 ORDER BY id";
+            const filter = includeAll
+                ? ""
+                : " WHERE kind IS NULL OR kind = 'normal'";
+            const sql = `SELECT id, data, created_at, think_id, kind FROM messages${filter} ORDER BY id`;
             const rows = this.db
                 .prepare(sql)
-                .all() as { id: number; data: string; created_at: number; think_id: string | null; compacted: number }[];
+                .all() as { id: number; data: string; created_at: number; think_id: string | null; kind: string | null }[];
             return rows.map((r) => ({
                 id: r.id,
                 message: JSON.parse(r.data) as ChatMessage,
                 createdAt: r.created_at,
                 thinkId: r.think_id ?? undefined,
-                compacted: r.compacted === 1 ? true : undefined,
+                kind: (r.kind as MessageKind | null) ?? MessageKind.Normal,
             }));
         } catch (error: any) {
             this.logger?.warn(`获取历史消息失败: ${error.message}`);
@@ -119,14 +131,19 @@ export class AgentSqliteSaver implements IAgentSaverService {
         if (compactedIds.length === 0) return;
         const txn = this.db.transaction(() => {
             const placeholders = compactedIds.map(() => '?').join(',');
-            this.db.prepare(`UPDATE messages SET compacted = 1 WHERE id IN (${placeholders})`).run(...compactedIds);
-            this.db.prepare("INSERT INTO messages (data, created_at, think_id) VALUES (?, ?, ?)")
-                .run(JSON.stringify(summary.message), summary.createdAt ?? Math.floor(Date.now() / 1000), summary.thinkId ?? null);
+            this.db.prepare(`UPDATE messages SET kind = 'archive' WHERE id IN (${placeholders})`).run(...compactedIds);
+            this.db.prepare("INSERT INTO messages (data, created_at, think_id, kind) VALUES (?, ?, ?, ?)")
+                .run(
+                    JSON.stringify(summary.message),
+                    summary.createdAt ?? Math.floor(Date.now() / 1000),
+                    summary.thinkId ?? null,
+                    summary.kind,
+                );
         });
         txn();
     }
 
-    async searchMessages(query: string[][], limit: number = 20): Promise<StoredMessage[]> {
+    async searchArchive(query: string[][], limit: number = 20): Promise<StoredMessage[]> {
         if (query.length === 0 || query.some(g => g.length === 0)) return [];
         const escape = (t: string) => `"${t.replace(/"/g, '""')}"`;
         const fts = query.map(group => `(${group.map(escape).join(' OR ')})`).join(' AND ');
@@ -135,7 +152,7 @@ export class AgentSqliteSaver implements IAgentSaverService {
                 SELECT m.id, m.data, m.created_at, m.think_id
                 FROM messages_fts fts
                 JOIN messages m ON m.id = fts.rowid
-                WHERE messages_fts MATCH ? AND m.compacted = 1
+                WHERE messages_fts MATCH ? AND m.kind = 'archive'
                 ORDER BY rank
                 LIMIT ?
             `).all(fts, limit) as { id: number; data: string; created_at: number; think_id: string | null }[];
@@ -144,7 +161,7 @@ export class AgentSqliteSaver implements IAgentSaverService {
                 message: JSON.parse(r.data) as ChatMessage,
                 createdAt: r.created_at,
                 thinkId: r.think_id ?? undefined,
-                compacted: true,
+                kind: MessageKind.Archive,
             }));
         } catch (error: any) {
             this.logger?.warn(`FTS5 搜索失败: ${error.message}`);
@@ -165,6 +182,7 @@ export class AgentSqliteSaver implements IAgentSaverService {
                 message: JSON.parse(r.data) as ChatMessage,
                 createdAt: r.created_at,
                 thinkId: r.nested_think_id ?? undefined,
+                kind: MessageKind.Normal,
             }));
         } catch (error: any) {
             this.logger?.warn(`获取 think 消息失败: ${error.message}`);

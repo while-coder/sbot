@@ -45,13 +45,27 @@ export interface ChatMessage {
   name?: string
 }
 
+/**
+ * 与 scorpio.ai 的 `MessageKind` 保持一致；只列出 UI 关心的取值。
+ * - Normal    : 正常历史
+ * - Archive   : 已归档（压缩摘要替代后的旧消息）
+ * - Exception : 异常记录（不进入 LLM 上下文）
+ * - Command   : 指令型回调输出（不进入 LLM 上下文）
+ */
+export enum MessageKind {
+  Normal    = 'normal',
+  Archive   = 'archive',
+  Exception = 'exception',
+  Command   = 'command',
+}
+
 export interface StoredMessage {
   id?: number
   message: ChatMessage
   createdAt?: number
   thinkId?: string
-  /** true 表示该消息已被对话压缩归档；上下文不再生效，仅作为历史展示 */
-  compacted?: boolean
+  /** 记录种类。`Archive` 默认在前端隐藏。 */
+  kind: MessageKind | string
 }
 
 // ── Content parts ──
@@ -162,10 +176,10 @@ export interface ChatLabels {
   noSubdirs?: string
   noSaver?: string
   selectOrCreate?: string
-  /** 已压缩消息行右上角的小角标文案 */
-  compactedTag?: string
-  /** StatusBar 的「显示已压缩」复选框文案 */
-  showCompacted?: string
+  /** 已归档消息行右上角的小角标文案 */
+  archivedTag?: string
+  /** StatusBar 的「显示已归档」复选框文案 */
+  showArchived?: string
 }
 
 // ── Wiki option ──

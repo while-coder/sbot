@@ -7,6 +7,7 @@
 export {
     IAgentSaverService,
     MessageRole,
+    MessageKind,
     ContentPartType,
     type StoredMessage,
     type ChatMessage,

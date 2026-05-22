@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { MessageRole } from '../types'
+import { MessageRole, MessageKind } from '../types'
 import type { StoredMessage, ToolCall, ChatLabels, DisplayContent } from '../types'
+
+function isArchived(m: StoredMessage): boolean {
+  return m.kind === MessageKind.Archive
+}
 import { fmtTs, fmtDateSep, toggleToolCall } from '../messageRender'
 import { inlineArgs, resultPreview } from '../toolCallFormat'
 import { resolveLabels, tpl } from '../labels'
@@ -72,11 +76,11 @@ function isEmbeddedTool(msg: StoredMessage): boolean {
 
       <template v-if="!isEmbeddedTool(msg)">
         <!-- Human message -->
-        <div v-if="msg.message.role === MessageRole.Human" class="msg-row human" :class="{ compacted: msg.compacted }">
+        <div v-if="msg.message.role === MessageRole.Human" class="msg-row human" :class="{ archived: isArchived(msg) }">
           <div class="msg-bubble human">
             <div class="msg-role-bar">
               <span class="msg-role">{{ L.roleUser }}</span>
-              <span v-if="msg.compacted" class="msg-compacted-tag">{{ L.compactedTag }}</span>
+              <span v-if="isArchived(msg)" class="msg-archived-tag">{{ L.archivedTag }}</span>
               <span v-if="msg.createdAt" class="msg-time">{{ fmtTs(msg.createdAt) }}</span>
               <div v-if="msg.thinkId && thinksUrlPrefix" class="think-toggle think-toggle-human" @click="openThink(msg.thinkId!)">
                 <span>▸</span><span>{{ L.think }}</span>
@@ -87,11 +91,11 @@ function isEmbeddedTool(msg: StoredMessage): boolean {
         </div>
 
         <!-- AI message -->
-        <div v-else-if="msg.message.role === MessageRole.AI" class="msg-row ai" :class="{ compacted: msg.compacted }">
+        <div v-else-if="msg.message.role === MessageRole.AI" class="msg-row ai" :class="{ archived: isArchived(msg) }">
           <div v-if="msg.message.content" class="msg-bubble ai">
             <div class="msg-role-bar">
               <span class="msg-role">{{ L.roleAi }}</span>
-              <span v-if="msg.compacted" class="msg-compacted-tag">{{ L.compactedTag }}</span>
+              <span v-if="isArchived(msg)" class="msg-archived-tag">{{ L.archivedTag }}</span>
               <span v-if="msg.createdAt" class="msg-time">{{ fmtTs(msg.createdAt) }}</span>
               <div v-if="msg.thinkId && thinksUrlPrefix" class="think-toggle" @click="openThink(msg.thinkId!)">
                 <span>▸</span><span>{{ L.think }}</span>
@@ -104,7 +108,7 @@ function isEmbeddedTool(msg: StoredMessage): boolean {
           <div v-if="msg.message.tool_calls?.length" class="msg-tool-calls">
             <div class="msg-role has-think">
               {{ tpl(L.toolCalls, { count: msg.message.tool_calls.length }) }}
-              <span v-if="msg.compacted && !msg.message.content" class="msg-compacted-tag">{{ L.compactedTag }}</span>
+              <span v-if="isArchived(msg) && !msg.message.content" class="msg-archived-tag">{{ L.archivedTag }}</span>
               <div v-if="msg.thinkId && thinksUrlPrefix && !msg.message.content" class="think-toggle" @click="openThink(msg.thinkId!)">
                 <span>▸</span><span>{{ L.think }}</span>
               </div>
@@ -137,22 +141,22 @@ function isEmbeddedTool(msg: StoredMessage): boolean {
         </div>
 
         <!-- Tool message (standalone, no tool_call_id) -->
-        <div v-else-if="msg.message.role === MessageRole.Tool" class="msg-row ai" :class="{ compacted: msg.compacted }">
+        <div v-else-if="msg.message.role === MessageRole.Tool" class="msg-row ai" :class="{ archived: isArchived(msg) }">
           <div class="msg-bubble tool">
             <div class="msg-role-bar">
               <span class="msg-role">Tool{{ msg.message.name ? ` · ${msg.message.name}` : '' }}</span>
-              <span v-if="msg.compacted" class="msg-compacted-tag">{{ L.compactedTag }}</span>
+              <span v-if="isArchived(msg)" class="msg-archived-tag">{{ L.archivedTag }}</span>
             </div>
             <ContentParts :content="msg.message.content" @open-image="openLightbox" />
           </div>
         </div>
 
         <!-- System / other -->
-        <div v-else class="msg-row ai" :class="{ compacted: msg.compacted }">
+        <div v-else class="msg-row ai" :class="{ archived: isArchived(msg) }">
           <div class="msg-bubble ai">
             <div class="msg-role-bar">
               <span class="msg-role">{{ msg.message.role }}</span>
-              <span v-if="msg.compacted" class="msg-compacted-tag">{{ L.compactedTag }}</span>
+              <span v-if="isArchived(msg)" class="msg-archived-tag">{{ L.archivedTag }}</span>
               <span v-if="msg.createdAt" class="msg-time">{{ fmtTs(msg.createdAt) }}</span>
             </div>
             <ContentParts :content="msg.message.content" @open-image="openLightbox" />
@@ -444,15 +448,15 @@ function isEmbeddedTool(msg: StoredMessage): boolean {
   font-style: italic;
 }
 
-/* Compacted (历史快照) */
-.msg-row.compacted { opacity: 0.55; }
-.msg-row.compacted .msg-bubble,
-.msg-row.compacted .msg-tool-calls {
+/* Archived (历史快照) */
+.msg-row.archived { opacity: 0.55; }
+.msg-row.archived .msg-bubble,
+.msg-row.archived .msg-tool-calls {
   filter: grayscale(0.6);
   border-left: 3px solid #cbd5e1;
 }
-.msg-row.compacted:hover { opacity: 0.85; }
-.msg-compacted-tag {
+.msg-row.archived:hover { opacity: 0.85; }
+.msg-archived-tag {
   font-size: 10px;
   font-weight: 600;
   color: #64748b;

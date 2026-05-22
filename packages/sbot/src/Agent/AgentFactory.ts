@@ -123,7 +123,7 @@ export class AgentFactory {
         [BuiltinProvider.SessionSearch]: async ({ container }) => {
             if (!container.isRegistered(IAgentSaverService)) return [];
             const saver = await container.resolve<IAgentSaverService>(IAgentSaverService);
-            if (typeof saver.searchMessages !== 'function') return [];
+            if (typeof saver.searchArchive !== 'function') return [];
             return [createSessionSearchTool(saver as SearchableSaver)];
         },
     };

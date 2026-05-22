@@ -7,7 +7,7 @@ export const SESSION_SEARCH_TOOL_NAME = 'session_search' as const;
 
 const MAX_PREVIEW_LEN = 500;
 
-export type SearchableSaver = IAgentSaverService & Required<Pick<IAgentSaverService, 'searchMessages'>>;
+export type SearchableSaver = IAgentSaverService & Required<Pick<IAgentSaverService, 'searchArchive'>>;
 
 function extractContent(raw: unknown): string {
     if (raw == null) return '';
@@ -54,7 +54,7 @@ export function createSessionSearchTool(saver: SearchableSaver | null): Structur
                 return createErrorResult('Session search is not available: saver does not support full-text search.');
             }
             try {
-                const results = await saver.searchMessages(query.all, limit ?? 20);
+                const results = await saver.searchArchive(query.all, limit ?? 20);
                 if (results.length === 0) {
                     return createSuccessResult(createTextContent('No results found.'));
                 }

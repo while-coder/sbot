@@ -1248,12 +1248,12 @@ class HttpServer {
 
     // ===== Data (Savers & Memories) =====
     private formatMessages(items: StoredMessage[]) {
-        return items.map(({ id, message: { content, role, tool_calls, tool_call_id, name }, createdAt, thinkId, compacted }) => ({
+        return items.map(({ id, message: { content, role, tool_calls, tool_call_id, name }, createdAt, thinkId, kind }) => ({
             id,
             message: { role, content, tool_calls, tool_call_id, name },
             createdAt,
             thinkId,
-            compacted,
+            kind,
         }));
     }
 

@@ -118,16 +118,35 @@ export type MessageContent = ChatMessage['content'];
 export interface ChatMessageOptions {
     /** 关联的 think 记录 ID（由 ReAct 子 Agent 执行时携带） */
     thinkId?: string;
+    /** 记录种类，缺省 {@link MessageKind.Normal}；用于落库非 LLM 上下文消息（如 Command/Exception） */
+    kind?: MessageKind;
 }
 
 // ─── Storage row wrapper ─────────────────────────────────────────────────────
+
+/**
+ * 持久化记录的种类。
+ * - Normal    : 进入 LLM 上下文的正常历史
+ * - Archive   : 已压缩归档（被摘要替代后不再进入上下文）
+ * - Exception : 运行/工具异常，落库以便回溯，但不进入上下文
+ * - Command   : `/command` 等指令型回调输出，落库以便展示，但不进入上下文
+ *
+ * 缺省值视作 Normal。
+ */
+export enum MessageKind {
+    Normal    = 'normal',
+    Archive   = 'archive',
+    Exception = 'exception',
+    Command   = 'command',
+}
 
 export interface StoredMessage {
     id?: number;
     message: ChatMessage;
     createdAt?: number;
     thinkId?: string;
-    compacted?: boolean;
+    /** 记录种类。Saver 在落库/读取时都必须显式赋值。 */
+    kind: MessageKind;
 }
 
 // ─── Interface ───────────────────────────────────────────────────────────────
@@ -141,14 +160,17 @@ export interface IAgentSaverService {
 
     /**
      * 获取全部历史消息（含元数据），用于历史展示或内部处理
-     * @param includeCompacted 是否包含已被压缩（compacted=true）的消息，默认 false
-     *   - false：返回未压缩消息，用于 LLM 上下文/压缩判定（默认行为，向后兼容）
-     *   - true：返回包含已压缩消息在内的全部历史，用于管理端完整回溯
+     * @param includeAll 是否包含非 Normal 的消息（Archive / Exception / Command）。默认 false。
+     *   - false：仅返回 `kind === Normal` 或缺省的消息，用于 LLM 上下文/压缩判定
+     *   - true：返回所有消息，用于管理端完整回溯
+     *
+     * 历史参数名 `includeCompacted` 的语义已扩展为「是否包含全部非 Normal 消息」，
+     * 保留布尔签名以兼容旧调用方。
      */
-    getAllMessages(includeCompacted?: boolean): Promise<StoredMessage[]>;
+    getAllMessages(includeAll?: boolean): Promise<StoredMessage[]>;
 
     /**
-     * 获取当前线程的历史消息（未压缩部分）
+     * 获取当前线程的历史消息（仅 Normal 部分，可送入 LLM）
      */
     getMessages(): Promise<ChatMessage[]>;
 
@@ -162,7 +184,7 @@ export interface IAgentSaverService {
     pushMessage(message: ChatMessage, options?: ChatMessageOptions): Promise<void>;
 
     /**
-     * 对话压缩：标记旧消息为已压缩，并将摘要插入到剩余消息之前
+     * 对话压缩：将旧消息标记为 {@link MessageKind.Archive}，并把摘要作为新的 Normal 消息追加。
      */
     applyCompaction(compactedIds: number[], summary: StoredMessage): Promise<void>;
 
@@ -200,13 +222,13 @@ export interface IAgentSaverService {
     // --- 会话搜索 ---
 
     /**
-     * 全文搜索已压缩的历史消息（compacted = true）。
-     * 未压缩的消息仍在 LLM 上下文中，无需通过此接口检索。
+     * 全文搜索已归档（{@link MessageKind.Archive}）的历史消息。
+     * Normal 消息仍在 LLM 上下文中，无需通过此接口检索。
      * 查询采用 CNF 形式：外层数组为 AND，内层数组为 OR。
      * 例如 [["error","fail"],["deploy"]] 表示 (error OR fail) AND deploy。
      * 任意内层为空数组或外层为空时返回空结果。
      */
-    searchMessages?(query: string[][], limit?: number): Promise<StoredMessage[]>;
+    searchArchive?(query: string[][], limit?: number): Promise<StoredMessage[]>;
 
 
     // --- 生命周期 ---
@@ -222,3 +244,4 @@ export interface IAgentSaverService {
  * 使用 Symbol 确保唯一性，避免命名冲突
  */
 export const IAgentSaverService = Symbol("IAgentSaverService");
+

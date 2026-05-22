@@ -1,7 +1,13 @@
 import { readFile, writeFile, unlink, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import { dirname } from "path";
-import { IAgentSaverService, ChatMessage, StoredMessage, ChatMessageOptions } from "./IAgentSaverService";
+import {
+    IAgentSaverService,
+    ChatMessage,
+    StoredMessage,
+    ChatMessageOptions,
+    MessageKind,
+} from "./IAgentSaverService";
 import { ILoggerService, ILogger } from "../Logger";
 import { inject } from "scorpio.di";
 import { T_DBPath } from "../Core/tokens";
@@ -46,6 +52,7 @@ export class AgentFileSaver implements IAgentSaverService {
                 let nextId = this.cache.nextId;
                 for (const m of this.cache.messages) {
                     if (m.id == null) m.id = nextId++;
+                    if (!m.kind) m.kind = MessageKind.Normal;
                 }
                 this.cache.nextId = nextId;
             }
@@ -66,13 +73,21 @@ export class AgentFileSaver implements IAgentSaverService {
         const file = await this.getFile();
         const id = file.nextId;
         file.nextId = id + 1;
-        file.messages.push({ id, message, createdAt: Math.floor(Date.now() / 1000), thinkId: options?.thinkId });
+        file.messages.push({
+            id,
+            message,
+            createdAt: Math.floor(Date.now() / 1000),
+            thinkId: options?.thinkId,
+            kind: options?.kind ?? MessageKind.Normal,
+        });
         await this.writeThreadFile(file);
     }
 
-    async getAllMessages(includeCompacted = false): Promise<StoredMessage[]> {
+    async getAllMessages(includeAll = false): Promise<StoredMessage[]> {
         const file = await this.getFile();
-        return includeCompacted ? file.messages : file.messages.filter(m => !m.compacted);
+        return includeAll
+            ? [...file.messages]
+            : file.messages.filter(m => m.kind === MessageKind.Normal);
     }
 
     async getMessages(): Promise<ChatMessage[]> {
@@ -84,7 +99,7 @@ export class AgentFileSaver implements IAgentSaverService {
         const file = await this.getFile();
         const set = new Set(compactedIds);
         for (const m of file.messages) {
-            if (m.id != null && set.has(m.id)) m.compacted = true;
+            if (m.id != null && set.has(m.id)) m.kind = MessageKind.Archive;
         }
         const id = file.nextId;
         file.nextId = id + 1;
@@ -92,13 +107,13 @@ export class AgentFileSaver implements IAgentSaverService {
         await this.writeThreadFile(file);
     }
 
-    async searchMessages(query: string[][], limit: number = 20): Promise<StoredMessage[]> {
+    async searchArchive(query: string[][], limit: number = 20): Promise<StoredMessage[]> {
         if (query.length === 0 || query.some(g => g.length === 0)) return [];
         const groups = query.map(g => g.map(t => t.toLowerCase()));
         const file = await this.getFile();
         return file.messages
             .filter(m => {
-                if (!m.compacted) return false;
+                if (m.kind !== MessageKind.Archive) return false;
                 const c = m.message.content;
                 const text = (typeof c === 'string' ? c : JSON.stringify(c)).toLowerCase();
                 return groups.every(group => group.some(t => text.includes(t)));
@@ -120,7 +135,12 @@ export class AgentFileSaver implements IAgentSaverService {
     async pushThinkMessage(thinkId: string, message: ChatMessage, options?: ChatMessageOptions): Promise<void> {
         const file = await this.getFile();
         const existing = file.thinks[thinkId] ?? [];
-        existing.push({ message, createdAt: Math.floor(Date.now() / 1000), thinkId: options?.thinkId });
+        existing.push({
+            message,
+            createdAt: Math.floor(Date.now() / 1000),
+            thinkId: options?.thinkId,
+            kind: options?.kind ?? MessageKind.Normal,
+        });
         file.thinks[thinkId] = existing;
         await this.writeThreadFile(file);
     }
