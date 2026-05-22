@@ -16,17 +16,73 @@
 ### npm
 
 ```bash
+# Install
 npm install -g @qingfeng346/sbot
+
+# Start (foreground), then open http://localhost:5500
 sbot
-# Open http://localhost:5500
+
+# Start in the background (survives terminal close)
+sbot -d
+
+# Start on a specific port (when 5500 is taken; -p and -d can be combined)
+sbot -p 3000
+sbot -d -p 3000
+
+# Save the port only, do not start
+sbot port 3000
 ```
 
-If port 5500 is already in use, change it with:
+Full command reference:
+
+| Command | Description |
+|---------|-------------|
+| `sbot` | Start the service (foreground) |
+| `sbot -d` / `--daemon` | Start in the background (survives terminal close) |
+| `sbot -p <port>` / `--port` | Start on the given port, e.g. `sbot -p 3000` |
+| `sbot port <port>` | Save the port without starting |
+| `sbot stop` | Stop the running service |
+| `sbot status` | Show running state, port, auto-start, version, config directory |
+| `sbot -v` / `--version` | Show version and check for updates |
+| `sbot startup enable` | Enable launch at boot |
+| `sbot startup disable` | Disable launch at boot |
+| `sbot startup status` | Check auto-start status |
+
+<details>
+<summary>Permission error on macOS (EACCES)?</summary>
+
+If `npm install -g` fails with `EACCES: permission denied`, **don't fix it with `sudo`** — it leads to tangled file ownership later. The clean fix is to point npm at a directory inside your home folder, so global installs never touch system paths.
+
+**One-liner** (recommended, auto-detects zsh / bash — paste the whole block into your terminal):
 
 ```bash
-sbot port 3000        # save port and exit
-sbot --port 3000      # save port and start
+mkdir -p ~/.npm-global && \
+npm config set prefix '~/.npm-global' && \
+RC_FILE=$([ "${SHELL##*/}" = "bash" ] && echo ~/.bash_profile || echo ~/.zshrc) && \
+grep -q '.npm-global/bin' "$RC_FILE" 2>/dev/null || echo 'export PATH=~/.npm-global/bin:$PATH' >> "$RC_FILE" && \
+source "$RC_FILE" && \
+echo "✓ Done. You can now run: npm install -g @qingfeng346/sbot"
 ```
+
+**Manual steps** (if you want to understand each step):
+
+```bash
+# 1. Create a user-level global directory
+mkdir ~/.npm-global
+
+# 2. Point npm to it (so global installs go here instead of system paths)
+npm config set prefix '~/.npm-global'
+
+# 3. Add it to your PATH so the shell can find global commands
+#    zsh (default on macOS):
+echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.zshrc && source ~/.zshrc
+#    bash:
+echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bash_profile && source ~/.bash_profile
+```
+
+Then re-run `npm install -g @qingfeng346/sbot`.
+
+</details>
 
 ### Docker
 
@@ -41,6 +97,34 @@ docker run -d \
 ```
 
 Configuration and data are persisted in `~/.sbot` on the host.
+
+### Docker Compose
+
+For long-running deployments where you want pinned versions and one-command upgrades. Create `docker-compose.yml`:
+
+```yaml
+services:
+  sbot:
+    image: qingfeng346/sbot
+    container_name: sbot
+    ports:
+      - "5500:5500"
+    volumes:
+      - ~/.sbot:/root/.sbot
+    environment:
+      - TZ=Asia/Shanghai
+      - LOG_LEVEL=INFO
+    restart: unless-stopped
+```
+
+Common commands:
+
+```bash
+docker compose up -d            # start in background
+docker compose logs -f          # follow logs
+docker compose down             # stop & remove container (data stays in ~/.sbot)
+docker compose pull && docker compose up -d   # upgrade to latest image
+```
 
 ---
 

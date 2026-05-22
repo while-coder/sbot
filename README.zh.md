@@ -16,17 +16,72 @@
 ### npm
 
 ```bash
+# 安装
 npm install -g @qingfeng346/sbot
+
+# 启动（前台），随后访问 http://localhost:5500
 sbot
-# 打开 http://localhost:5500
+
+# 后台启动（关闭终端不退出）
+sbot -d
+
+# 指定端口启动（5500 被占用时使用）
+sbot -p 3000
+
+# 仅保存端口，不启动服务
+sbot port 3000
 ```
 
-如果 5500 端口被占用，可修改端口：
+完整命令列表：
+
+| 命令 | 说明 |
+|------|------|
+| `sbot` | 启动服务（前台） |
+| `sbot -d` / `--daemon` | 后台启动（关闭终端不退出） |
+| `sbot -p <port>` / `--port` | 指定端口启动，如 `sbot -p 3000` |
+| `sbot port <port>` | 仅修改并保存端口，不启动服务 |
+| `sbot stop` | 关闭正在运行的服务 |
+| `sbot status` | 查看运行状态、端口、自启动、版本、配置目录 |
+| `sbot -v` / `--version` | 查看版本并检查更新 |
+| `sbot startup enable` | 开启开机自启动 |
+| `sbot startup disable` | 取消开机自启动 |
+| `sbot startup status` | 查看开机自启动状态 |
+
+<details>
+<summary>macOS 安装时报权限错误（EACCES）？</summary>
+
+执行 `npm install -g` 时如果报 `EACCES: permission denied`，**不建议用 `sudo` 强行安装**——之后很容易出现各种文件归属混乱。推荐做法是在用户目录下另建一个全局包目录，把 npm 装到这里，从根源上避开系统目录的权限限制。
+
+**一键脚本**（推荐，自动识别 zsh / bash，复制整段粘贴到终端回车即可）：
 
 ```bash
-sbot port 3000        # 保存端口并退出
-sbot --port 3000      # 保存端口并启动
+mkdir -p ~/.npm-global && \
+npm config set prefix '~/.npm-global' && \
+RC_FILE=$([ "${SHELL##*/}" = "bash" ] && echo ~/.bash_profile || echo ~/.zshrc) && \
+grep -q '.npm-global/bin' "$RC_FILE" 2>/dev/null || echo 'export PATH=~/.npm-global/bin:$PATH' >> "$RC_FILE" && \
+source "$RC_FILE" && \
+echo "✓ 完成，现在可以执行: npm install -g @qingfeng346/sbot"
 ```
+
+**手动步骤**（想了解每一步在做什么时使用）：
+
+```bash
+# 1. 创建用户级全局目录
+mkdir ~/.npm-global
+
+# 2. 让 npm 指向这个目录（全局包装到这里，不再写入系统路径）
+npm config set prefix '~/.npm-global'
+
+# 3. 把它加入 PATH，这样终端才能找到全局命令
+#    zsh（macOS 默认终端）：
+echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.zshrc && source ~/.zshrc
+#    bash：
+echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bash_profile && source ~/.bash_profile
+```
+
+完成后重新执行 `npm install -g @qingfeng346/sbot` 即可。
+
+</details>
 
 ### Docker
 
@@ -41,6 +96,34 @@ docker run -d \
 ```
 
 配置和数据持久化在宿主机的 `~/.sbot` 目录中。
+
+### Docker Compose
+
+适合长期运行、希望版本受控、便于一键升级的场景。新建 `docker-compose.yml`：
+
+```yaml
+services:
+  sbot:
+    image: qingfeng346/sbot
+    container_name: sbot
+    ports:
+      - "5500:5500"
+    volumes:
+      - ~/.sbot:/root/.sbot
+    environment:
+      - TZ=Asia/Shanghai
+      - LOG_LEVEL=INFO
+    restart: unless-stopped
+```
+
+常用命令：
+
+```bash
+docker compose up -d            # 后台启动
+docker compose logs -f          # 查看日志
+docker compose down             # 停止并移除容器（数据保留在 ~/.sbot）
+docker compose pull && docker compose up -d   # 升级到最新镜像
+```
 
 ---
 
