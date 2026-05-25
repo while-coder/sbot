@@ -455,7 +455,11 @@ onBeforeUnmount(() => {
         v-model:show-archived="showArchived"
         @refresh="onRefresh"
         @clear-history="onClearHistory"
-      />
+      >
+        <template #actions-prepend>
+          <slot name="status-actions" :session="activeSession" />
+        </template>
+      </StatusBar>
 
       <!-- Chat area -->
       <ChatArea

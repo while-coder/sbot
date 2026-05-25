@@ -277,6 +277,7 @@ function onClickOutside(e: MouseEvent) {
           <span class="chatui-archived-count">({{ archivedCount }})</span>
         </SCheckbox>
       </span>
+      <slot name="actions-prepend" />
       <SButton type="outline" size="sm" @click="emit('refresh')">{{ L.refresh }}</SButton>
       <SButton type="danger" size="sm" :disabled="!hasSaver" @click="emit('clearHistory')">{{ L.clearHistory }}</SButton>
     </div>

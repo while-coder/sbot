@@ -24,6 +24,7 @@ const routes = [
   { path: '/heartbeats', component: () => import('@/views/admin/HeartbeatView.vue') },
   { path: '/scheduler', component: () => import('@/views/admin/SchedulerView.vue') },
   { path: '/todo', component: () => import('@/views/admin/TodoView.vue') },
+  { path: '/explorer', component: () => import('@/views/admin/ExplorerView.vue') },
   { path: '/logs', component: () => import('@/views/admin/LogsView.vue') },
   { path: '/token-usage', component: () => import('@/views/admin/TokenUsageView.vue') },
   { path: '/about', component: () => import('@/views/admin/AboutView.vue') },

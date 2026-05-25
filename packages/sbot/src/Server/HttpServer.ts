@@ -852,6 +852,53 @@ class HttpServer {
             fs.mkdirSync(target, { recursive: true });
             return { path: target };
         }));
+
+        // 资源管理器：列出指定目录下的文件 + 子目录（单层，懒加载）
+        app.get('/api/fs/tree', api(req => {
+            const dir = (req.query.dir as string) ?? '';
+            if (!dir.trim()) throwBad('dir is required');
+            const target = path.resolve(dir.trim());
+            if (!fs.existsSync(target) || !fs.statSync(target).isDirectory()) throwBad(`Path does not exist: ${target}`);
+
+            let entries: fs.Dirent[] = [];
+            try { entries = fs.readdirSync(target, { withFileTypes: true }); } catch { /* 无权限时返回空 */ }
+
+            const dirs: { name: string; path: string; type: 'dir' }[] = [];
+            const files: { name: string; path: string; type: 'file'; size: number }[] = [];
+            for (const e of entries) {
+                const full = path.join(target, e.name);
+                if (e.isDirectory()) {
+                    dirs.push({ name: e.name, path: full, type: 'dir' });
+                } else if (e.isFile()) {
+                    let size = 0;
+                    try { size = fs.statSync(full).size; } catch { /* ignore */ }
+                    files.push({ name: e.name, path: full, type: 'file', size });
+                }
+            }
+            dirs.sort((a, b) => a.name.localeCompare(b.name));
+            files.sort((a, b) => a.name.localeCompare(b.name));
+            return { path: target, items: [...dirs, ...files] };
+        }));
+
+        // 资源管理器：读取指定文件内容（限制大小，二进制返回标记）
+        app.get('/api/fs/read', api(req => {
+            const filePath = (req.query.path as string) ?? '';
+            if (!filePath.trim()) throwBad('path is required');
+            const target = path.resolve(filePath.trim());
+            if (!fs.existsSync(target) || !fs.statSync(target).isFile()) throwBad(`File not found: ${target}`);
+
+            const stat = fs.statSync(target);
+            const MAX_SIZE = 2 * 1024 * 1024; // 2MB
+            if (stat.size > MAX_SIZE) {
+                return { path: target, size: stat.size, isBinary: false, tooLarge: true, content: '' };
+            }
+            const buf = fs.readFileSync(target);
+            const isBinary = buf.includes(0);
+            if (isBinary) {
+                return { path: target, size: stat.size, isBinary: true, tooLarge: false, content: '' };
+            }
+            return { path: target, size: stat.size, isBinary: false, tooLarge: false, content: buf.toString('utf-8') };
+        }));
     }
 
     // ===== MCP =====
@@ -1527,17 +1574,35 @@ class HttpServer {
 
     // ===== Todos =====
     private registerTodoRoutes(app: express.Application) {
-        // 列出所有 session 的 todo（聚合 sessions/*/todos.json）
-        app.get('/api/todos', api(async () => {
-            const sessions = await database.findAll<ChannelSessionRow>(database.channelSession, {});
+        // 把 channel_session 行转换成 todo 文件实际写入时使用的 threadId。
+        // TodoService 里写入路径是 config.getSessionTodoPath(threadId)，
+        // 其中 threadId = channelThreadId(channelType, channelId, sessionId)（见 AgentRunner）。
+        const sessionThreadId = (s: ChannelSessionRow): string => {
+            const channelType = config.getChannel(s.channelId)?.type ?? s.channelId;
+            return channelThreadId(channelType, s.channelId, s.sessionId);
+        };
+
+        // 列出 todo（默认 pending，跨所有 session）
+        // 支持 query:
+        //   dbSessionId=过滤单个 session（数据库主键）
+        //   sessionId=过滤 web channel 下的 session（UUID 字符串）
+        //   status=pending|done|all
+        app.get('/api/todos', api(async req => {
+            const dbSessionIdQ = req.query.dbSessionId as string | undefined;
+            const sessionIdQ   = req.query.sessionId   as string | undefined;
+            const statusQ = (req.query.status as string | undefined) ?? 'pending';
+            const where: any = {};
+            if (dbSessionIdQ) where.id = parseInt(dbSessionIdQ, 10);
+            else if (sessionIdQ) { where.channelId = WEB_CHANNEL_ID; where.sessionId = sessionIdQ; }
+            const sessions = await database.findAll<ChannelSessionRow>(database.channelSession, { where });
             const all: any[] = [];
             for (const s of sessions) {
-                const filePath = config.getSessionTodoPath(String(s.id));
+                const filePath = config.getSessionTodoPath(sessionThreadId(s));
                 try {
                     const buf = await fsp.readFile(filePath, 'utf-8');
                     const data = JSON.parse(buf);
                     for (const t of data.todos ?? []) {
-                        all.push({ ...t, dbSessionId: s.id, sessionName: s.sessionName });
+                        all.push({ ...t, dbSessionId: s.id, sessionName: s.sessionName, channelId: s.channelId });
                     }
                 } catch (e: any) {
                     if (e.code !== 'ENOENT') {
@@ -1545,14 +1610,22 @@ class HttpServer {
                     }
                 }
             }
-            return all.filter(t => t.status === 'pending');
+            if (statusQ === 'all') return all;
+            return all.filter(t => t.status === statusQ);
         }));
+
+        const resolveTodoFilePath = async (dbSessionId: string): Promise<string> => {
+            const row = await getChannelSession(dbSessionId);
+            if (!row) { const e: any = new Error(`channel_session id=${dbSessionId} not found`); e.status = 404; throw e; }
+            return config.getSessionTodoPath(sessionThreadId(row));
+        };
 
         app.patch('/api/todos/:dbSessionId/:id', api(async req => {
             const dbSessionId = req.params.dbSessionId as string;
             const id = parseInt(req.params.id as string, 10);
             if (isNaN(id)) throwBad('Invalid id');
-            await mutateTodoFile(config.getSessionTodoPath(dbSessionId), data => {
+            const filePath = await resolveTodoFilePath(dbSessionId);
+            await mutateTodoFile(filePath, data => {
                 const t = data.todos.find((x: any) => x.id === id);
                 if (!t) throwBad('Todo not found');
                 t.status = 'done';
@@ -1564,7 +1637,8 @@ class HttpServer {
             const dbSessionId = req.params.dbSessionId as string;
             const id = parseInt(req.params.id as string, 10);
             if (isNaN(id)) throwBad('Invalid id');
-            await mutateTodoFile(config.getSessionTodoPath(dbSessionId), data => {
+            const filePath = await resolveTodoFilePath(dbSessionId);
+            await mutateTodoFile(filePath, data => {
                 const idx = data.todos.findIndex((x: any) => x.id === id);
                 if (idx < 0) throwBad('Todo not found');
                 data.todos.splice(idx, 1);

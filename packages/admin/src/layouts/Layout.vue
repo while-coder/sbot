@@ -68,6 +68,7 @@ const menuGroups = computed(() => [
       { label: t('nav.scheduler'), key: '/scheduler' },
       { label: t('nav.todo'), key: '/todo' },
       { label: t('nav.token_usage'), key: '/token-usage' },
+      { label: t('nav.explorer'), key: '/explorer' },
       { label: t('nav.logs'), key: '/logs' },
       { label: t('nav.about'), key: '/about' },
     ],

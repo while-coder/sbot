@@ -8,6 +8,7 @@ import { useToast, SButton, SModal, SInput, STextarea, SSelect, SFormItem, SForm
 import QRCode from 'qrcode'
 import { ApprovalTimeoutValue, type ChannelConfig } from '@/shared/types'
 import SaverViewModal from '@/components/modals/SaverViewModal.vue'
+import TodoListModal from '@/components/modals/TodoListModal.vue'
 import PathPickerModal from './PathPickerModal.vue'
 
 const { t } = useI18n()
@@ -90,6 +91,7 @@ const wikiOptions   = computed(() => Object.entries(store.settings.wikis    || {
 const modelOptions  = computed(() => Object.entries(store.settings.models   || {}).map(([id, m]) => ({ id, label: (m as any).name  || id })))
 
 const saverViewModal = ref<InstanceType<typeof SaverViewModal>>()
+const todoListModal  = ref<InstanceType<typeof TodoListModal>>()
 const pathPicker     = ref<InstanceType<typeof PathPickerModal>>()
 
 const expandedChannels  = ref<Record<string, boolean>>({})
@@ -494,6 +496,7 @@ async function refresh() {
                         </div>
                         <div class="ops-cell">
                           <SButton v-if="s.saver || c.saver" type="outline" size="sm" @click="saverViewModal?.openByDbId(s.id, saverOptions.find(o => o.id === (s.saver || c.saver))?.label || (s.saver || c.saver))">{{ t('channels.history') }}</SButton>
+                          <SButton type="outline" size="sm" @click="todoListModal?.open(s.id, s.sessionName || s.sessionId)">{{ t('todo.title') }}</SButton>
                           <SButton type="outline" size="sm" @click="openEditSession(s)">{{ t('common.edit') }}</SButton>
                           <SButton type="danger" size="sm" @click="removeSession(id as string, s)">{{ t('common.delete') }}</SButton>
                         </div>
@@ -576,6 +579,7 @@ async function refresh() {
                   <span class="mobile-card-value mobile-tokens" :title="s.totalTokens > 0 ? `${t('usage.total')}: ${formatTokens(s.totalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatTokens(s.inputTokens)} / ${t('usage.output_tokens')}: ${formatTokens(s.outputTokens)}` + (s.lastTotalTokens > 0 ? `\n${t('usage.last')}: ${formatTokens(s.lastTotalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatTokens(s.lastInputTokens)} / ${t('usage.output_tokens')}: ${formatTokens(s.lastOutputTokens)}` : '') : ''">{{ s.totalTokens > 0 ? formatTokens(s.totalTokens) : '-' }}</span>
                 </div>
                 <div class="mobile-card-ops">
+                  <SButton type="outline" size="sm" @click="todoListModal?.open(s.id, s.sessionName || s.sessionId)">{{ t('todo.title') }}</SButton>
                   <SButton type="outline" size="sm" @click="openEditSession(s)">{{ t('common.edit') }}</SButton>
                   <SButton type="danger" size="sm" @click="removeSession(id as string, s)">{{ t('common.delete') }}</SButton>
                 </div>
@@ -887,6 +891,7 @@ async function refresh() {
     </SModal>
 
     <SaverViewModal ref="saverViewModal" />
+    <TodoListModal ref="todoListModal" />
     <PathPickerModal ref="pathPicker" @confirm="p => { if (editingSession) sessionForm.workPath = p; else form.workPath = p }" />
   </div>
 </template>

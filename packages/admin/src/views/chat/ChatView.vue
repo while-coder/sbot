@@ -1,16 +1,34 @@
 <script setup lang="ts">
+import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ChatView, WebSocketTransport } from '@sbot/chat-ui'
+import type { SessionItem } from '@sbot/chat-ui'
 import '@sbot/chat-ui/themes/variables.css'
 // Light theme is loaded as the base (sets all --chatui-* on :root).
 // Admin's <html data-theme="dark"> overrides happen via the rules in the non-scoped
 // <style> block below (and in MessageList.vue), so we avoid a duplicate full dark import here.
 import '@sbot/chat-ui/themes/theme-light.css'
+import { SButton } from 'sbot-ui'
+import TodoListModal from '@/components/modals/TodoListModal.vue'
 
+const { t } = useI18n()
 const transport = new WebSocketTransport()
+const todoListModal = ref<InstanceType<typeof TodoListModal>>()
+
+function openTodos(session: SessionItem) {
+  todoListModal.value?.openBySessionId(session.id, session.name || session.id)
+}
 </script>
 
 <template>
-  <ChatView :transport="transport" :show-attachments="true" />
+  <ChatView :transport="transport" :show-attachments="true">
+    <template #status-actions="{ session }">
+      <SButton v-if="session" type="outline" size="sm" @click="openTodos(session)">
+        {{ t('todo.title') }}
+      </SButton>
+    </template>
+  </ChatView>
+  <TodoListModal ref="todoListModal" />
 </template>
 
 <!--
