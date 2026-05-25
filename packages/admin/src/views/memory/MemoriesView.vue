@@ -3,12 +3,13 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
-import { useToast, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, STable, type STableColumn } from 'sbot-ui'
+import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, STable, type STableColumn } from 'sbot-ui'
 import type { MemoryConfig } from '@/shared/types'
 import MemoryViewModal from './MemoryViewModal.vue'
 
 const { t } = useI18n()
 const { show } = useToast()
+const { confirm } = useConfirm()
 
 const memories         = computed(() => store.settings.memories || {})
 const memoryList       = computed(() =>
@@ -93,7 +94,7 @@ async function save() {
 async function remove(id: string) {
   const m = memories.value[id]
   const label = m.name || id
-  if (!window.confirm(t('memories.confirm_delete', { name: label }))) return
+  if (!await confirm(t('memories.confirm_delete', { name: label }), { danger: true })) return
   try {
     const res = await apiFetch(`/api/settings/memories/${encodeURIComponent(id)}`, 'DELETE')
     Object.assign(store.settings, res.data)

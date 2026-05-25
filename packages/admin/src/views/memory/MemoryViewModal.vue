@@ -2,12 +2,13 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { useToast } from 'sbot-ui'
+import { useToast, useConfirm } from 'sbot-ui'
 import { SModal, SButton, SBadge, SFormItem, STextarea, SCheckCard, STable, type STableColumn } from 'sbot-ui'
 import type { MemoryItem, MemoryConfig } from '@/shared/types'
 
 const { t } = useI18n()
 const { show } = useToast()
+const { confirm } = useConfirm()
 
 const columns = computed<STableColumn[]>(() => [
   { key: 'content',      label: t('memories.content_col'),        primary: true, ellipsis: true },
@@ -55,7 +56,7 @@ async function remove(id: string) {
 }
 
 async function clearAll() {
-  if (!window.confirm(t('memories.confirm_clear', { name: memoryConfig.value.name || memoryId.value }))) return
+  if (!await confirm(t('memories.confirm_clear', { name: memoryConfig.value.name || memoryId.value }), { danger: true })) return
   try {
     await apiFetch(memUrl(), 'DELETE')
     memories.value = []

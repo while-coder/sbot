@@ -200,6 +200,26 @@ export interface ChatLabels {
   explorerTooLarge?: string
   /** Explorer 切换显示的按钮/工具提示 */
   explorerToggle?: string
+  /** Explorer 文件列表模式 */
+  explorerFiles?: string
+  /** Explorer Git 状态模式 */
+  explorerGit?: string
+  /** Explorer Git 无变更提示 */
+  explorerGitNoChanges?: string
+  /** Explorer Git 未选中文件时的占位文案 */
+  explorerGitSelectFile?: string
+  /** Explorer Git diff 为空提示 */
+  explorerGitNoDiff?: string
+  /** Explorer Git 单栏 diff */
+  explorerUnifiedDiff?: string
+  /** Explorer Git 双栏 diff */
+  explorerSplitDiff?: string
+  /** Explorer Git 双栏基础版本 */
+  explorerBaseVersion?: string
+  /** Explorer Git 双栏本地修改 */
+  explorerLocalVersion?: string
+  /** Explorer Git 是否显示完整文件内容 */
+  explorerFullDiff?: string
 }
 
 // ── Wiki option ──
@@ -325,6 +345,27 @@ export interface FsReadResult {
   mimeType: string
   content: string
   dataUrl?: string
+}
+
+// ── Git status (Explorer) ──
+export interface GitStatusItem {
+  path: string
+  oldPath?: string
+  status: string
+  staged: boolean
+  unstaged: boolean
+  untracked: boolean
+}
+
+export interface GitStatusResult {
+  root: string
+  items: GitStatusItem[]
+}
+
+export interface GitDiffResult {
+  root: string
+  path: string
+  diff: string
 }
 
 // ── App settings ──

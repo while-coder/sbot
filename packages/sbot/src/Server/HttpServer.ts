@@ -5,6 +5,8 @@ import fs from 'fs';
 import fsp from 'fs/promises';
 import os from 'os';
 import { randomUUID } from 'crypto';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import { z } from 'zod';
 import { WebSocket, WebSocketServer } from 'ws';
 import { AgentToolService, SkillService, ModelProvider, listThreadIds, isEmptyContent, resizeImageIfNeeded, setMaxImageSize, type StoredMessage, type MessageContent } from "scorpio.ai";
@@ -28,6 +30,7 @@ import { WsCommandType, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE } from 'sbot.commons';
 import { getModelMeta, getKnownModels } from './modelCatalog';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
+const execFileAsync = promisify(execFile);
 
 async function fetchAndSaveContextWindow(modelId: string): Promise<void> {
     const mc = config.getModel(modelId);
@@ -160,6 +163,68 @@ function safeRelPath(relPath: string | undefined): string {
     const normalized = path.normalize(relPath.trim()).replace(/\\/g, '/');
     if (normalized.startsWith('..') || path.isAbsolute(normalized)) throwBad('Invalid path');
     return normalized;
+}
+
+function isPathInside(base: string, target: string): boolean {
+    const rel = path.relative(base, target);
+    return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+}
+
+async function runGit(cwd: string, args: string[]): Promise<string> {
+    const { stdout } = await execFileAsync('git', ['-C', cwd, ...args], {
+        encoding: 'utf8',
+        windowsHide: true,
+        timeout: 10000,
+        maxBuffer: 30 * 1024 * 1024,
+    });
+    return String(stdout);
+}
+
+async function resolveGitRoot(dir: string): Promise<string | null> {
+    try {
+        const root = (await runGit(dir, ['rev-parse', '--show-toplevel'])).trim();
+        return root ? path.resolve(root) : null;
+    } catch {
+        return null;
+    }
+}
+
+function parseGitStatus(output: string) {
+    const records = output.split('\0').filter(Boolean);
+    const items: {
+        path: string;
+        oldPath?: string;
+        status: string;
+        staged: boolean;
+        unstaged: boolean;
+        untracked: boolean;
+    }[] = [];
+
+    for (let i = 0; i < records.length; i++) {
+        const rec = records[i];
+        if (rec.length < 4) continue;
+
+        const x = rec[0] ?? ' ';
+        const y = rec[1] ?? ' ';
+        const status = `${x}${y}`;
+        const itemPath = rec.slice(3);
+        let oldPath: string | undefined;
+
+        if ((x === 'R' || x === 'C' || y === 'R' || y === 'C') && i + 1 < records.length) {
+            oldPath = records[++i];
+        }
+
+        items.push({
+            path: itemPath,
+            oldPath,
+            status,
+            staged: x !== ' ' && x !== '?' && x !== '!',
+            unstaged: y !== ' ' && y !== '!',
+            untracked: status === '??',
+        });
+    }
+
+    return items;
 }
 
 async function mutateTodoFile(filePath: string, mutator: (data: any) => void): Promise<void> {
@@ -953,6 +1018,53 @@ class HttpServer {
                 return { path: target, size: stat.size, tooLarge: false, contentType: 'binary', mimeType: 'application/octet-stream', content: '' };
             }
             return { path: target, size: stat.size, tooLarge: false, contentType: 'text', mimeType: 'text/plain', content: buf.toString('utf-8') };
+        }));
+
+        app.get('/api/git/status', api(async req => {
+            const root = (req.query.root as string) ?? '';
+            if (!root.trim()) throwBad('root is required');
+            const { target } = resolveExistingDir(root.trim());
+            const gitRoot = await resolveGitRoot(target);
+            if (!gitRoot) return { root: target, items: [] };
+
+            const stdout = await runGit(gitRoot, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
+            return { root: gitRoot, items: parseGitStatus(stdout) };
+        }));
+
+        app.get('/api/git/diff', api(async req => {
+            const root = (req.query.root as string) ?? '';
+            const rel = (req.query.path as string) ?? '';
+            const full = req.query.full === '1' || req.query.full === 'true';
+            if (!root.trim()) throwBad('root is required');
+            const { target } = resolveExistingDir(root.trim());
+            const gitRoot = await resolveGitRoot(target);
+            if (!gitRoot) return { root: target, path: rel, diff: '' };
+
+            const relPath = safeRelPath(rel);
+            const absPath = path.resolve(gitRoot, relPath);
+            if (!isPathInside(gitRoot, absPath)) throwBad('Invalid path');
+
+            const diffArgs = ['diff', '--no-ext-diff', '--text', '--find-renames'];
+            if (full) diffArgs.push('--unified=999999');
+            diffArgs.push('HEAD', '--', relPath);
+            let diff = await runGit(gitRoot, diffArgs);
+            if (!diff.trim()) {
+                const isTracked = await runGit(gitRoot, ['ls-files', '--error-unmatch', '--', relPath])
+                    .then(() => true)
+                    .catch(() => false);
+
+                if (!isTracked && fs.existsSync(absPath)) {
+                    const stat = fs.statSync(absPath);
+                    if (stat.isFile() && stat.size <= MAX_FILE_READ_SIZE) {
+                        const buf = fs.readFileSync(absPath);
+                        diff = `Untracked file: ${relPath}\n\n${buf.includes(0) ? '[binary file]' : buf.toString('utf-8')}`;
+                    } else if (stat.isFile()) {
+                        diff = `Untracked file: ${relPath}\n\n[file too large: ${stat.size} bytes]`;
+                    }
+                }
+            }
+
+            return { root: gitRoot, path: relPath, diff };
         }));
     }
 

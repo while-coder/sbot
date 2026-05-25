@@ -3,13 +3,14 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
-import { useToast, SButton, SInput, SSelect, SModal, SFormItem, SPageToolbar, SPageContent, STable } from 'sbot-ui'
+import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SPageToolbar, SPageContent, STable } from 'sbot-ui'
 import type { STableColumn } from 'sbot-ui'
 import { EmbeddingProvider } from '@/shared/types'
 import type { EmbeddingConfig } from '@/shared/types'
 
 const { t } = useI18n()
 const { show } = useToast()
+const { confirm } = useConfirm()
 
 const embeddings = computed(() => store.settings.embeddings || {})
 const embeddingRows = computed(() =>
@@ -120,7 +121,7 @@ async function save() {
 async function remove(id: string) {
   const e = embeddings.value[id]
   const label = e.name || id
-  if (!window.confirm(t('embeddings.confirm_delete', { name: label }))) return
+  if (!await confirm(t('embeddings.confirm_delete', { name: label }), { danger: true })) return
   try {
     const res = await apiFetch(`/api/settings/embeddings/${encodeURIComponent(id)}`, 'DELETE')
     Object.assign(store.settings, res.data)

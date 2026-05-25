@@ -91,6 +91,16 @@ export const defaultLabels: Required<ChatLabels> = {
   explorerBinaryFile: '二进制文件，无法预览',
   explorerTooLarge: '文件过大 ({size})，无法预览',
   explorerToggle: '资源管理器',
+  explorerFiles: '文件',
+  explorerGit: 'Git',
+  explorerGitNoChanges: '没有 Git 变更',
+  explorerGitSelectFile: '请选择左侧变更文件',
+  explorerGitNoDiff: '没有可显示的文件变化',
+  explorerUnifiedDiff: '单栏',
+  explorerSplitDiff: '双栏',
+  explorerBaseVersion: '基础版本',
+  explorerLocalVersion: '本地修改',
+  explorerFullDiff: '完整内容',
 }
 
 export function resolveLabels(partial?: ChatLabels): Required<ChatLabels> {

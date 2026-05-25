@@ -230,7 +230,7 @@ async function confirmCreate(category: string) {
 }
 
 async function deleteFile(filePath: string) {
-  if (!window.confirm(t('prompts.confirm_delete', { name: filePath }))) return
+  if (!await confirm(t('prompts.confirm_delete', { name: filePath }), { danger: true })) return
   try {
     await apiFetch(`/api/prompts/content?path=${encodeURIComponent(filePath)}`, 'DELETE')
     show(t('common.deleted'))

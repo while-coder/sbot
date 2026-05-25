@@ -3,12 +3,13 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
-import { useToast, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, STable, type STableColumn } from 'sbot-ui'
+import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, STable, type STableColumn } from 'sbot-ui'
 import type { WikiConfig } from '@/shared/types'
 import WikiViewModal from './WikiViewModal.vue'
 
 const { t } = useI18n()
 const { show } = useToast()
+const { confirm } = useConfirm()
 
 const wikis = computed(() => store.settings.wikis || {})
 const wikiList = computed(() =>
@@ -92,7 +93,7 @@ async function save() {
 async function remove(id: string) {
   const w = wikis.value[id]
   const label = w.name || id
-  if (!window.confirm(t('wikis.confirm_delete', { name: label }))) return
+  if (!await confirm(t('wikis.confirm_delete', { name: label }), { danger: true })) return
   try {
     const res = await apiFetch(`/api/settings/wikis/${encodeURIComponent(id)}`, 'DELETE')
     Object.assign(store.settings, res.data)

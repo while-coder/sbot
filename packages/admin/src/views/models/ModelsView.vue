@@ -3,13 +3,14 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
-import { useToast, SButton, SInput, SSelect, SModal, SFormItem, SPageToolbar, SPageContent, STable } from 'sbot-ui'
+import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SPageToolbar, SPageContent, STable } from 'sbot-ui'
 import type { STableColumn } from 'sbot-ui'
 import { ModelProvider } from '@/shared/types'
 import type { ModelConfig } from '@/shared/types'
 
 const { t } = useI18n()
 const { show } = useToast()
+const { confirm } = useConfirm()
 
 const models = computed(() => store.settings.models || {})
 const modelRows = computed(() =>
@@ -151,7 +152,7 @@ async function save() {
 async function remove(id: string) {
   const m = models.value[id]
   const label = m.name || id
-  if (!window.confirm(t('models.confirm_delete', { name: label }))) return
+  if (!await confirm(t('models.confirm_delete', { name: label }), { danger: true })) return
   try {
     const res = await apiFetch(`/api/settings/models/${encodeURIComponent(id)}`, 'DELETE')
     Object.assign(store.settings, res.data)

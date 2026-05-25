@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { useToast } from 'sbot-ui'
+import { useToast, useConfirm } from 'sbot-ui'
 import { SModal, SButton, SBadge, SFormItem, SInput, STextarea, STable, type STableColumn } from 'sbot-ui'
 import type { WikiConfig } from '@/shared/types'
 
@@ -18,6 +18,7 @@ interface WikiPageItem {
 
 const { t } = useI18n()
 const { show } = useToast()
+const { confirm } = useConfirm()
 
 const visible    = ref(false)
 const wikiId     = ref('')
@@ -85,7 +86,7 @@ async function togglePage(id: string) {
 }
 
 async function removePage(id: string, title: string) {
-  if (!window.confirm(t('wikis.confirm_delete_page', { name: title }))) return
+  if (!await confirm(t('wikis.confirm_delete_page', { name: title }), { danger: true })) return
   try {
     await apiFetch(wikiUrl(`/pages/${encodeURIComponent(id)}`), 'DELETE')
     show(t('common.deleted'))
@@ -96,7 +97,7 @@ async function removePage(id: string, title: string) {
 }
 
 async function clearAll() {
-  if (!window.confirm(t('wikis.confirm_clear', { name: wikiConfig.value.name || wikiId.value }))) return
+  if (!await confirm(t('wikis.confirm_clear', { name: wikiConfig.value.name || wikiId.value }), { danger: true })) return
   try {
     for (const p of pages.value) {
       await apiFetch(wikiUrl(`/pages/${encodeURIComponent(p.id)}`), 'DELETE')

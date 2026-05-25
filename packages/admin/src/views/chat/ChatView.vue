@@ -89,6 +89,16 @@ html[data-theme="dark"] {
   --chatui-usage-total: #e0e0e0;
   --chatui-usage-track: rgba(255, 255, 255, 0.1);
 
+  --chatui-diff-meta-bg: #22272e;
+  --chatui-diff-meta-fg: #adbac7;
+  --chatui-diff-hunk-bg: rgba(56, 139, 253, 0.16);
+  --chatui-diff-hunk-fg: #79c0ff;
+  --chatui-diff-add-bg: rgba(46, 160, 67, 0.22);
+  --chatui-diff-add-fg: #7ee787;
+  --chatui-diff-del-bg: rgba(248, 81, 73, 0.18);
+  --chatui-diff-del-fg: #ffa198;
+  --chatui-diff-line-no: #8b949e;
+
   --chatui-blockquote-border: #555555;
   --chatui-chip-bg: #528bff;
   --chatui-chip-fg: #ffffff;

@@ -59,6 +59,17 @@
   --chatui-usage-total: #1c1c1c;
   --chatui-usage-track: #e2e8f0;
 
+  /* ── Diff ── */
+  --chatui-diff-meta-bg: #f6f8fa;
+  --chatui-diff-meta-fg: #57606a;
+  --chatui-diff-hunk-bg: #eaf2ff;
+  --chatui-diff-hunk-fg: #0969da;
+  --chatui-diff-add-bg: #dafbe1;
+  --chatui-diff-add-fg: #116329;
+  --chatui-diff-del-bg: #ffebe9;
+  --chatui-diff-del-fg: #b42318;
+  --chatui-diff-line-no: #57606a;
+
   /* ── Misc ── */
   --chatui-blockquote-border: #d1d5db;
   --chatui-chip-bg: #1c1c1c;

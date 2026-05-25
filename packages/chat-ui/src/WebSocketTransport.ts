@@ -16,6 +16,8 @@ import {
   type QuickDir,
   type FsTreeResult,
   type FsReadResult,
+  type GitStatusResult,
+  type GitDiffResult,
 } from './types'
 
 type EventHandler = (event: ChatEvent) => void
@@ -196,6 +198,17 @@ export class WebSocketTransport implements IChatTransport {
   async readFile(path: string): Promise<FsReadResult> {
     const res = await this.api(`/api/fs/read?path=${encodeURIComponent(path)}`)
     return res.data ?? res ?? { path, size: 0, tooLarge: false, contentType: 'text', mimeType: 'text/plain', content: '' }
+  }
+
+  async gitStatus(root: string): Promise<GitStatusResult> {
+    const res = await this.api(`/api/git/status?root=${encodeURIComponent(root)}`)
+    return res.data ?? res ?? { root, items: [] }
+  }
+
+  async gitDiff(root: string, path: string, fullContent = false): Promise<GitDiffResult> {
+    const qs = `root=${encodeURIComponent(root)}&path=${encodeURIComponent(path)}${fullContent ? '&full=1' : ''}`
+    const res = await this.api(`/api/git/diff?${qs}`)
+    return res.data ?? res ?? { root, path, diff: '' }
   }
 
   // ── Thinks ──

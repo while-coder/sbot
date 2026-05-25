@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store, applyMcpList } from '@/shared/store'
-import { useToast, SButton, SInput, SSelect, SModal, SFormItem, SFormSection, STabBar, STab, SPageToolbar, SPageContent, STable, type STableColumn } from 'sbot-ui'
+import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SFormSection, STabBar, STab, SPageToolbar, SPageContent, STable, type STableColumn } from 'sbot-ui'
 import { McpTransport } from '@/shared/types'
 import type { McpEntry, McpTool, McpPrompt, McpResource, McpResourceTemplate } from '@/shared/types'
 import { serverAddr } from '@/utils/mcpSchema'
@@ -12,6 +12,7 @@ import { sourceBadgeStyle } from '@/utils/badges'
 
 const { t } = useI18n()
 const { show } = useToast()
+const { confirm } = useConfirm()
 
 const searchQuery = ref('')
 const activeTab = ref('all')
@@ -198,7 +199,7 @@ async function save() {
 
 async function remove(id: string) {
   const displayName = store.allMcps.find(m => m.id === id)?.name || id
-  if (!confirm(t('mcp.confirm_delete', { name: displayName }))) return
+  if (!await confirm(t('mcp.confirm_delete', { name: displayName }), { danger: true })) return
   try {
     await apiFetch(`/api/mcp/${encodeURIComponent(id)}`, 'DELETE')
     show(t('common.deleted'))

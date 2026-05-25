@@ -62,6 +62,17 @@
   --chatui-usage-op: #555555;
   --chatui-usage-track: rgba(255, 255, 255, 0.1);
 
+  /* ── Diff ── */
+  --chatui-diff-meta-bg: var(--vscode-diffEditor-unchangedRegionBackground, var(--vscode-editor-background, #1e1e1e));
+  --chatui-diff-meta-fg: var(--vscode-descriptionForeground, #858585);
+  --chatui-diff-hunk-bg: var(--vscode-editor-selectionBackground, rgba(38, 79, 120, 0.28));
+  --chatui-diff-hunk-fg: var(--vscode-textLink-foreground, #3794ff);
+  --chatui-diff-add-bg: var(--vscode-diffEditor-insertedTextBackground, rgba(156, 204, 44, 0.2));
+  --chatui-diff-add-fg: #7ee787;
+  --chatui-diff-del-bg: var(--vscode-diffEditor-removedTextBackground, rgba(255, 0, 0, 0.2));
+  --chatui-diff-del-fg: #ffa198;
+  --chatui-diff-line-no: var(--vscode-editorLineNumber-foreground, #858585);
+
   /* ── Misc ── */
   --chatui-blockquote-border: var(--vscode-textBlockQuote-border, #555555);
   --chatui-chip-bg: var(--vscode-button-background, #0e639c);

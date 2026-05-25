@@ -3,7 +3,7 @@ import type {
   SessionItem, CreateSessionOpts, StoredMessage,
   UsageInfo, AppSettings, SessionStatus,
   ToolApprovalPayload, AskAnswerPayload,
-  DirListResult, QuickDir, FsTreeResult, FsReadResult, ChatEvent,
+  DirListResult, QuickDir, FsTreeResult, FsReadResult, GitStatusResult, GitDiffResult, ChatEvent,
 } from './types';
 
 export interface IChatTransport {
@@ -36,6 +36,8 @@ export interface IChatTransport {
 
   listTree(dir: string): Promise<FsTreeResult>
   readFile(path: string): Promise<FsReadResult>
+  gitStatus(root: string): Promise<GitStatusResult>
+  gitDiff(root: string, path: string, fullContent?: boolean): Promise<GitDiffResult>
 
   getThinksUrlPrefix(sessionId: string): string | null
   fetchThinks?(url: string): Promise<any>
