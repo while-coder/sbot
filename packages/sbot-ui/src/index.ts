@@ -18,6 +18,7 @@ import SButton from './components/SButton.vue'
 import SIconButton from './components/SIconButton.vue'
 import SModal from './components/SModal.vue'
 import SToast from './components/SToast.vue'
+import SConfirm from './components/SConfirm.vue'
 
 import SInput from './components/SInput.vue'
 import STextarea from './components/STextarea.vue'
@@ -50,7 +51,7 @@ import STreeNode from './components/STreeNode.vue'
 
 // ── 具名 export（方式 B：按需 import） ────────────────────
 export {
-  SButton, SIconButton, SModal, SToast,
+  SButton, SIconButton, SModal, SToast, SConfirm,
   SInput, STextarea, SSelect, SMultiSelect, SRadio, SCheckbox, SFormItem, SFormSection, SFormDetails, SHint,
   SCard, SPageToolbar, SPageContent, STable, SInfoTable, SInfoRow,
   SBadge, STag, SChip, SCheckCard, SSwitch, STabBar, STab,
@@ -60,10 +61,12 @@ export type { STableColumn } from './components/STable.vue'
 
 export { useToast } from './composables/useToast'
 export { useTheme, isDark } from './composables/useTheme'
+export { useConfirm } from './composables/useConfirm'
+export type { ConfirmOptions } from './composables/useConfirm'
 
 // ── 默认 export（方式 A：app.use(SbotUI) 全局注册） ───────
 const components = {
-  SButton, SIconButton, SModal, SToast,
+  SButton, SIconButton, SModal, SToast, SConfirm,
   SInput, STextarea, SSelect, SMultiSelect, SRadio, SCheckbox, SFormItem, SFormSection, SFormDetails, SHint,
   SCard, SPageToolbar, SPageContent, STable, SInfoTable, SInfoRow,
   SBadge, STag, SChip, SCheckCard, SSwitch, STabBar, STab,
@@ -85,6 +88,7 @@ declare module 'vue' {
     SIconButton: typeof SIconButton
     SModal: typeof SModal
     SToast: typeof SToast
+    SConfirm: typeof SConfirm
     SInput: typeof SInput
     STextarea: typeof STextarea
     SSelect: typeof SSelect

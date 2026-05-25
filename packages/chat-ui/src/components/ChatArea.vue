@@ -3,7 +3,7 @@ import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import type {
   StoredMessage, ContentPart, Attachment, ChatLabels,
   ToolCallEvent, ToolApprovalPayload, AskEvent, AskAnswerPayload,
-  DisplayContent,
+  DisplayContent, UsageInfo,
 } from '../types'
 import { SButton } from 'sbot-ui'
 import { resolveLabels } from '../labels'
@@ -26,9 +26,12 @@ const props = withDefaults(defineProps<{
   showAttachments?: boolean
   hasSaver: boolean
   fetchThinks?: (url: string) => Promise<any>
+  usage?: UsageInfo | null
+  contextWindow?: number
 }>(), {
   showAttachments: false,
   thinksUrlPrefix: null,
+  usage: null,
 })
 
 const emit = defineEmits<{
@@ -48,6 +51,30 @@ const isDragging = ref(false)
 let dragLeaveTimer: ReturnType<typeof setTimeout> | null = null
 
 const { attachments, add: addFiles, remove: removeAttachment, drain: drainAttachments, isImageMime } = useAttachments()
+
+const contextPercent = computed(() => {
+  if (!props.contextWindow || !props.usage?.lastInputTokens) return null
+  return Math.min(100, Math.round(props.usage.lastInputTokens / props.contextWindow * 100))
+})
+
+const cachePercent = computed(() => {
+  if (!props.usage) return null
+  const read = props.usage.cacheReadTokens ?? 0
+  if (read === 0) return null
+  const total = props.usage.inputTokens + read + (props.usage.cacheCreationTokens ?? 0)
+  if (total === 0) return null
+  return Math.round(read / total * 100)
+})
+
+function fmtCompact(n: number): string {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M'
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K'
+  return String(n)
+}
+
+function fmtFull(n: number): string {
+  return n.toLocaleString()
+}
 
 // ── Scrolling ──
 
@@ -156,6 +183,26 @@ defineExpose({ scrollToBottom })
       <SButton type="danger" size="sm" @click="emit('abort')">{{ L.stop }}</SButton>
     </div>
 
+    <!-- Compact usage strip -->
+    <div
+      v-if="isCompact && usage && usage.totalTokens > 0"
+      class="chatui-input-usage-strip"
+      :title="`Last: ${fmtFull(usage.lastTotalTokens)} / Total: ${fmtFull(usage.totalTokens)} tokens`"
+    >
+      <span v-if="contextPercent != null" class="chatui-input-usage-chip chatui-input-usage-chip--context">
+        {{ contextPercent }}% context
+      </span>
+      <span class="chatui-input-usage-chip">
+        Last {{ fmtCompact(usage.lastTotalTokens) }}
+      </span>
+      <span class="chatui-input-usage-chip">
+        Total {{ fmtCompact(usage.totalTokens) }}
+      </span>
+      <span v-if="cachePercent != null" class="chatui-input-usage-chip chatui-input-usage-chip--cache">
+        Cache {{ cachePercent }}%
+      </span>
+    </div>
+
     <!-- Input bar -->
     <div
       class="chatui-input-bar"
@@ -200,6 +247,34 @@ defineExpose({ scrollToBottom })
 .chatui-stop-bar {
   display: flex; justify-content: center; padding: 6px;
   border-top: 1px solid var(--chatui-border); flex-shrink: 0;
+}
+.chatui-input-usage-strip {
+  display: flex; align-items: center; justify-content: flex-end; gap: 6px;
+  min-height: 28px;
+  padding: 4px 8px;
+  border-top: 1px solid var(--chatui-border-subtle);
+  background: var(--chatui-bg-surface);
+  color: var(--chatui-fg-secondary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.chatui-input-usage-chip {
+  display: inline-flex; align-items: center;
+  min-height: 20px;
+  padding: 0 7px;
+  border: 1px solid var(--chatui-border-subtle);
+  border-radius: 999px;
+  background: var(--chatui-bg);
+  white-space: nowrap;
+}
+.chatui-input-usage-chip--context {
+  color: var(--chatui-fg);
+}
+.chatui-input-usage-chip--cache {
+  color: var(--chatui-usage-cache, #22c55e);
 }
 .chatui-input-bar {
   display: flex; gap: 8px; padding: 10px 16px;

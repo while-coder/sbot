@@ -4,11 +4,14 @@ import { SButton, SInput } from 'sbot-ui'
 import type { SessionItem, ChatLabels } from '../types'
 import { resolveLabels, tpl } from '../labels'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   sessions: SessionItem[]
   activeSessionId: string | null
   labels?: ChatLabels
-}>()
+  showHeader?: boolean
+}>(), {
+  showHeader: true,
+})
 
 const emit = defineEmits<{
   select: [id: string]
@@ -51,7 +54,7 @@ function onDelete(id: string) {
 
 <template>
   <div class="chatui-session-bar">
-    <div class="chatui-session-bar-header">
+    <div v-if="showHeader" class="chatui-session-bar-header">
       <SButton type="outline" size="sm" block @click="emit('newSession')">{{ L.newSession }}</SButton>
     </div>
     <div class="chatui-session-list">

@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
-import { useToast, SButton, SInput, SSelect, SModal, SFormItem, SPageToolbar, SPageContent, STable } from 'sbot-ui'
+import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SPageToolbar, SPageContent, STable } from 'sbot-ui'
 import type { STableColumn } from 'sbot-ui'
 import { SaverType } from '@/shared/types'
 import type { SaverConfig } from '@/shared/types'
@@ -13,6 +13,7 @@ type SaverRow = { id: string; name: string; type: string; raw: SaverConfig }
 
 const { t } = useI18n()
 const { show } = useToast()
+const { confirm } = useConfirm()
 
 const savers = computed(() => store.settings.savers || {})
 
@@ -92,7 +93,7 @@ async function save() {
 async function remove(id: string) {
   const s = savers.value[id]
   const label = (s as any).name || id
-  if (!window.confirm(t('savers.confirm_delete', { name: label }))) return
+  if (!await confirm(t('savers.confirm_delete', { name: label }), { danger: true })) return
   try {
     const res = await apiFetch(`/api/settings/savers/${encodeURIComponent(id)}`, 'DELETE')
     Object.assign(store.settings, res.data)
@@ -103,7 +104,7 @@ async function remove(id: string) {
 }
 
 async function clearThread(saverId: string, thread: string) {
-  if (!window.confirm(t('savers.cleanup_confirm', { name: thread }))) return
+  if (!await confirm(t('savers.cleanup_confirm', { name: thread }), { danger: true })) return
   const key = `${saverId}::${thread}`
   threadClearing.value[key] = true
   try {

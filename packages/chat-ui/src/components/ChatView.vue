@@ -54,9 +54,13 @@ let loadGeneration = 0
 const chatAreaRef   = ref<InstanceType<typeof ChatArea>>()
 const pathPickerRef = ref<InstanceType<typeof PathPickerModal>>()
 const rootEl        = ref<HTMLElement | null>(null)
+const contentEl     = ref<HTMLElement | null>(null)
 const isCompact     = useCompactProvider(rootEl)
 const sidebarOpen   = ref(false)
+const settingsOpen  = ref(false)
 const explorerOpen  = ref(false)
+const explorerWidth = ref(420)
+const explorerResizing = ref(false)
 
 // ── Derived ──
 
@@ -81,6 +85,12 @@ const fetchThinks = computed(() => props.transport.fetchThinks?.bind(props.trans
 const archivedCount = computed(() => messages.value.filter(m => m.kind === MessageKind.Archive).length)
 const displayedMessages = computed<StoredMessage[]>(() =>
   showArchived.value ? messages.value : messages.value.filter(m => m.kind !== MessageKind.Archive),
+)
+
+const explorerPaneStyle = computed(() =>
+  isCompact.value || props.alwaysCompact
+    ? undefined
+    : { width: `${explorerWidth.value}px` },
 )
 
 // ── Event handler ──
@@ -178,6 +188,51 @@ function selectSession(id: string) {
   if (activeSessionId.value !== id) activeSessionId.value = id
 }
 
+function toggleSidebar() {
+  sidebarOpen.value = !sidebarOpen.value
+  if (sidebarOpen.value) settingsOpen.value = false
+}
+
+function toggleSettings() {
+  settingsOpen.value = !settingsOpen.value
+  if (settingsOpen.value) sidebarOpen.value = false
+}
+
+function toggleExplorer() {
+  explorerOpen.value = !explorerOpen.value
+  if (explorerOpen.value && (isCompact.value || props.alwaysCompact)) {
+    sidebarOpen.value = false
+    settingsOpen.value = false
+  }
+}
+
+function clampExplorerWidth(width: number): number {
+  const contentWidth = contentEl.value?.clientWidth ?? 0
+  if (contentWidth <= 0) return Math.max(280, width)
+  const min = Math.min(280, Math.max(220, contentWidth * 0.35))
+  const max = Math.max(min, contentWidth * 0.7)
+  return Math.min(max, Math.max(min, width))
+}
+
+function startExplorerResize(e: PointerEvent) {
+  if (isCompact.value || props.alwaysCompact) return
+  e.preventDefault()
+  explorerResizing.value = true
+  window.addEventListener('pointermove', onExplorerResize)
+  window.addEventListener('pointerup', stopExplorerResize, { once: true })
+}
+
+function onExplorerResize(e: PointerEvent) {
+  if (!explorerResizing.value || !contentEl.value) return
+  const rect = contentEl.value.getBoundingClientRect()
+  explorerWidth.value = clampExplorerWidth(rect.right - e.clientX)
+}
+
+function stopExplorerResize() {
+  explorerResizing.value = false
+  window.removeEventListener('pointermove', onExplorerResize)
+}
+
 watch(activeSessionId, async (id) => {
   const gen = ++loadGeneration
   resetStreamState()
@@ -270,6 +325,8 @@ async function createNewSession() {
     const res = await props.transport.createSession({ name: defaultSessionName() })
     sessions.value = await props.transport.listSessions()
     activeSessionId.value = res.id
+    sidebarOpen.value = false
+    settingsOpen.value = false
   } catch (e) {
     console.error('[ChatView] createSession', e)
   }
@@ -389,6 +446,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   props.transport.offEvent(handleEvent)
   props.transport.disconnect()
+  window.removeEventListener('pointermove', onExplorerResize)
 })
 </script>
 
@@ -397,27 +455,91 @@ onBeforeUnmount(() => {
     <!-- Compact mode (narrow screen or alwaysCompact): hamburger + drawer -->
     <template v-if="isCompact || alwaysCompact">
       <div class="chatui-compact-header">
-        <button class="chatui-hamburger" @click="sidebarOpen = !sidebarOpen">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-            <rect x="2" y="4" width="16" height="2" rx="1"/>
-            <rect x="2" y="9" width="16" height="2" rx="1"/>
-            <rect x="2" y="14" width="16" height="2" rx="1"/>
-          </svg>
-        </button>
         <span class="chatui-compact-title">{{ activeSession?.name || activeSession?.id?.slice(0, 8) || '' }}</span>
+        <div class="chatui-compact-actions">
+          <button
+            class="chatui-compact-action"
+            :class="{ 'chatui-compact-action--active': sidebarOpen }"
+            :title="L.sessionList"
+            @click="toggleSidebar"
+          >
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+              <path d="M5 6h10"/>
+              <path d="M5 10h10"/>
+              <path d="M5 14h10"/>
+            </svg>
+          </button>
+          <button
+            class="chatui-compact-action"
+            :class="{ 'chatui-compact-action--active': settingsOpen }"
+            :title="L.settings"
+            @click="toggleSettings"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9.59 3.94c.09-.54.56-.94 1.11-.94h2.6c.55 0 1.02.4 1.11.94l.21 1.28c.06.37.31.69.64.87l.22.13c.33.2.72.26 1.08.12l1.22-.46c.51-.19 1.09.01 1.37.49l1.3 2.25c.27.48.16 1.08-.26 1.43l-1 .83c-.3.24-.44.61-.43.99a7.72 7.72 0 0 1 0 .26c-.01.38.13.75.43.99l1 .83c.42.35.53.95.26 1.43l-1.3 2.25c-.28.48-.86.68-1.37.49l-1.22-.46c-.36-.13-.75-.07-1.08.12l-.22.13c-.33.18-.58.5-.64.87l-.21 1.28c-.09.54-.56.94-1.11.94h-2.6c-.55 0-1.02-.4-1.11-.94l-.21-1.28c-.06-.37-.31-.69-.64-.87l-.22-.13c-.33-.2-.72-.26-1.08-.12l-1.22.46c-.51.19-1.09-.01-1.37-.49l-1.3-2.25a1.13 1.13 0 0 1 .26-1.43l1-.83c.3-.24.44-.61.43-.99a7.72 7.72 0 0 1 0-.26c.01-.38-.13-.75-.43-.99l-1-.83a1.13 1.13 0 0 1-.26-1.43l1.3-2.25c.28-.48.86-.68 1.37-.49l1.22.46c.36.13.75.07 1.08-.12l.22-.13c.33-.18.58-.5.64-.87l.21-1.28Z"/>
+              <path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
+            </svg>
+          </button>
+          <button class="chatui-compact-action" :title="L.newSession" @click="createNewSession">
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M11 4H5.5A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16h9a1.5 1.5 0 0 0 1.5-1.5V9"/>
+              <path d="M13.5 3.8 16.2 6.5"/>
+              <path d="m8.8 11.2 6.7-6.7"/>
+            </svg>
+          </button>
+        </div>
       </div>
       <Transition name="chatui-drawer">
-        <div v-if="sidebarOpen" class="chatui-drawer-backdrop" @click="sidebarOpen = false">
-          <div class="chatui-drawer" @click.stop>
+        <div v-if="sidebarOpen" class="chatui-compact-popover-backdrop" @click="sidebarOpen = false">
+          <div class="chatui-compact-popover chatui-session-popover" @click.stop>
             <SessionBar
               :sessions="sessions"
               :active-session-id="activeSessionId"
               :labels="labels"
+              :show-header="false"
               @select="(id: string) => { selectSession(id); sidebarOpen = false }"
               @delete="onDeleteSession"
               @rename="onRenameSession"
               @new-session="createNewSession"
             />
+          </div>
+        </div>
+      </Transition>
+      <Transition name="chatui-drawer">
+        <div v-if="settingsOpen" class="chatui-compact-popover-backdrop" @click="settingsOpen = false">
+          <div class="chatui-compact-popover chatui-settings-popover" @click.stop>
+            <ConfigToolbar
+              :session="activeSession"
+              :settings="settings"
+              :labels="labels"
+              @update-config="onUpdateConfig"
+              @open-path-picker="onOpenPathPicker"
+            />
+            <StatusBar
+              v-if="activeSessionId"
+              :usage="usage"
+              :context-window="contextWindow"
+              :labels="labels"
+              :has-saver="hasSaver"
+              :archived-count="archivedCount"
+              v-model:show-archived="showArchived"
+              @refresh="onRefresh"
+              @clear-history="onClearHistory"
+            >
+              <template #actions-prepend>
+                <slot name="status-actions" :session="activeSession" />
+                <button
+                  class="chatui-explorer-toggle"
+                  :class="{ 'chatui-explorer-toggle--active': explorerOpen }"
+                  :title="L.explorerToggle"
+                  @click="toggleExplorer"
+                >
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 5v7.5A1.5 1.5 0 0 1 12.5 14h-9A1.5 1.5 0 0 1 2 12.5v-9z"/>
+                  </svg>
+                </button>
+              </template>
+            </StatusBar>
           </div>
         </div>
       </Transition>
@@ -439,6 +561,7 @@ onBeforeUnmount(() => {
     <div class="chatui-main">
       <!-- Config toolbar -->
       <ConfigToolbar
+        v-if="!(isCompact || alwaysCompact)"
         :session="activeSession"
         :settings="settings"
         :labels="labels"
@@ -448,7 +571,7 @@ onBeforeUnmount(() => {
 
       <!-- Status bar -->
       <StatusBar
-        v-if="activeSessionId"
+        v-if="activeSessionId && !(isCompact || alwaysCompact)"
         :usage="usage"
         :context-window="contextWindow"
         :labels="labels"
@@ -464,7 +587,7 @@ onBeforeUnmount(() => {
             class="chatui-explorer-toggle"
             :class="{ 'chatui-explorer-toggle--active': explorerOpen }"
             :title="L.explorerToggle"
-            @click="explorerOpen = !explorerOpen"
+            @click="toggleExplorer"
           >
             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
               <path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 5v7.5A1.5 1.5 0 0 1 12.5 14h-9A1.5 1.5 0 0 1 2 12.5v-9z"/>
@@ -474,7 +597,7 @@ onBeforeUnmount(() => {
       </StatusBar>
 
       <!-- Chat area + optional Explorer -->
-      <div class="chatui-content">
+      <div ref="contentEl" class="chatui-content" :class="{ 'chatui-explorer-resizing': explorerResizing }">
         <ChatArea
           ref="chatAreaRef"
           class="chatui-chatarea"
@@ -489,12 +612,24 @@ onBeforeUnmount(() => {
           :show-attachments="showAttachments"
           :has-saver="hasSaver"
           :fetch-thinks="fetchThinks"
+          :usage="usage"
+          :context-window="contextWindow"
           @send="onSend"
           @approve="onApprove"
           @answer="onAnswer"
           @abort="onAbort"
         />
-        <div v-if="explorerOpen" class="chatui-explorer-pane">
+        <div v-if="explorerOpen" class="chatui-explorer-pane" :style="explorerPaneStyle">
+          <div
+            v-if="!(isCompact || alwaysCompact)"
+            class="chatui-explorer-resizer"
+            :title="L.explorerToggle"
+            @pointerdown="startExplorerResize"
+          />
+          <div v-if="isCompact || alwaysCompact" class="chatui-explorer-panel-header">
+            <span class="chatui-explorer-panel-title">{{ L.explorerToggle }}</span>
+            <button class="chatui-explorer-panel-close" :title="L.close" @click="explorerOpen = false">×</button>
+          </div>
           <Explorer :transport="transport" :root="activeSession?.workPath" :labels="labels" />
         </div>
       </div>
@@ -517,9 +652,11 @@ onBeforeUnmount(() => {
   font-size: var(--chatui-font-size);
   color: var(--chatui-fg);
   background: var(--chatui-bg);
+  position: relative;
 }
 .chatui-root.chatui-compact {
   flex-direction: column;
+  --chatui-compact-header-height: 36px;
 }
 .chatui-main {
   flex: 1; display: flex; flex-direction: column; overflow: hidden;
@@ -529,26 +666,102 @@ onBeforeUnmount(() => {
 /* Chat area + Explorer side-by-side */
 .chatui-content {
   flex: 1; display: flex; overflow: hidden; min-height: 0;
+  position: relative;
+}
+.chatui-explorer-resizing,
+.chatui-explorer-resizing * {
+  cursor: col-resize !important;
+  user-select: none;
 }
 .chatui-chatarea {
   flex: 1; min-width: 0;
 }
 .chatui-explorer-pane {
-  width: 50%;
   min-width: 280px;
   max-width: 70%;
   border-left: 1px solid var(--chatui-border);
   display: flex;
+  flex-direction: column;
   overflow: hidden;
+  background: var(--chatui-bg);
+  position: relative;
+  flex-shrink: 0;
 }
-.chatui-explorer-pane > * { flex: 1; min-width: 0; }
+.chatui-explorer-pane > .chatui-explorer { flex: 1; min-width: 0; }
+.chatui-explorer-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  width: 8px;
+  z-index: 3;
+  cursor: col-resize;
+  touch-action: none;
+}
+.chatui-explorer-resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 1px;
+  background: transparent;
+  transition: background 0.15s;
+}
+.chatui-explorer-resizer:hover::after,
+.chatui-explorer-resizing .chatui-explorer-resizer::after {
+  background: var(--chatui-border-focus, var(--chatui-accent));
+}
+.chatui-explorer-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 8px 0 12px;
+  border-bottom: 1px solid var(--chatui-border);
+  background: var(--chatui-bg-surface);
+  flex-shrink: 0;
+}
+.chatui-explorer-panel-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--chatui-fg);
+}
+.chatui-explorer-panel-close {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--chatui-fg-secondary);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+}
+.chatui-explorer-panel-close:hover {
+  background: var(--chatui-bg-hover);
+  color: var(--chatui-fg);
+}
 
 .chatui-explorer-toggle {
   display: inline-flex; align-items: center; justify-content: center;
-  background: none; border: 1px solid var(--chatui-border); cursor: pointer;
+  background: transparent; border: 1px solid var(--chatui-border); cursor: pointer;
   color: var(--chatui-fg-secondary);
-  padding: 3px 6px; border-radius: 4px;
+  width: 26px;
+  min-width: 26px;
+  padding: 0;
+  border-radius: 4px;
   height: 24px;
+  font: inherit;
+  line-height: 1;
   transition: background 0.15s, color 0.15s;
 }
 .chatui-explorer-toggle:hover {
@@ -561,63 +774,115 @@ onBeforeUnmount(() => {
   border-color: var(--chatui-border-focus, var(--chatui-accent));
 }
 
-/* Compact: stack explorer below chat */
-.chatui-root.chatui-compact .chatui-content { flex-direction: column; }
+/* Compact: explorer overlays the chat content instead of shrinking it. */
 .chatui-root.chatui-compact .chatui-explorer-pane {
-  width: 100%; max-width: none; min-width: 0;
-  border-left: none; border-top: 1px solid var(--chatui-border);
-  height: 50%;
+  position: absolute;
+  inset: 0;
+  z-index: 80;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  height: 100%;
+  border-left: none;
+  border-top: none;
+  box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.22);
 }
 
 /* Compact header */
 .chatui-compact-header {
   display: flex; align-items: center; gap: 8px;
-  padding: 8px 12px;
+  height: var(--chatui-compact-header-height);
+  padding: 0 10px 0 12px;
   border-bottom: 1px solid var(--chatui-border);
   background: var(--chatui-bg-surface);
   flex-shrink: 0;
 }
-.chatui-hamburger {
-  background: none; border: none; cursor: pointer;
-  color: var(--chatui-fg); padding: 4px; display: flex;
-  border-radius: 4px;
-  flex-shrink: 0;
-}
-.chatui-hamburger:hover { background: var(--chatui-bg-hover); }
 .chatui-compact-title {
   font-size: 13px; font-weight: 600; color: var(--chatui-fg);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   min-width: 0;
+  flex: 1;
+}
+.chatui-compact-actions {
+  display: inline-flex; align-items: center; gap: 4px;
+  flex-shrink: 0;
+}
+.chatui-compact-action {
+  width: 26px; height: 26px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: none; cursor: pointer;
+  color: var(--chatui-fg-secondary);
+  border-radius: 5px;
+  padding: 0;
+  transition: background 0.15s, color 0.15s;
+}
+.chatui-compact-action:hover {
+  background: var(--chatui-bg-hover);
+  color: var(--chatui-fg);
+}
+.chatui-compact-action--active {
+  background: var(--chatui-bg-active);
+  color: var(--chatui-fg);
 }
 
-/* Drawer overlay (drawer mode) */
-.chatui-drawer-backdrop {
-  position: fixed; inset: 0; z-index: 99;
-  background: rgba(0, 0, 0, 0.4);
+/* Compact popovers */
+.chatui-compact-popover-backdrop {
+  position: absolute;
+  top: var(--chatui-compact-header-height);
+  left: 0; right: 0; bottom: 0;
+  z-index: 99;
+  background: rgba(0, 0, 0, 0.22);
 }
-.chatui-drawer {
-  position: fixed; top: 0; left: 0; bottom: 0;
-  width: 240px; z-index: 100;
+.chatui-compact-popover {
+  position: absolute;
+  top: 8px; left: 8px; right: 8px;
+  max-height: min(70vh, calc(100% - 16px));
+  z-index: 100;
+  border: 1px solid var(--chatui-border);
+  border-radius: 8px;
+  background: var(--chatui-bg-surface);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+  overflow: hidden;
 }
-.chatui-drawer :deep(.chatui-session-bar) {
-  width: 100%; height: 100%;
+.chatui-session-popover :deep(.chatui-session-bar) {
+  width: 100%;
+  max-height: min(320px, calc(100vh - 80px));
+  border-right: none;
+}
+.chatui-settings-popover {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+.chatui-settings-popover :deep(.chatui-config-toolbar) {
+  border-bottom: 1px solid var(--chatui-border-subtle);
+  padding: 8px;
+}
+.chatui-settings-popover :deep(.chatui-status-bar) {
+  border-bottom: none;
+  padding: 8px;
+}
+.chatui-settings-popover :deep(.chatui-toolbar-actions) {
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
-/* Drawer transitions */
+/* Compact popover transitions */
 .chatui-drawer-enter-active,
 .chatui-drawer-leave-active {
   transition: opacity 0.25s ease;
 }
-.chatui-drawer-enter-active .chatui-drawer,
-.chatui-drawer-leave-active .chatui-drawer {
-  transition: transform 0.25s ease;
+.chatui-drawer-enter-active .chatui-compact-popover,
+.chatui-drawer-leave-active .chatui-compact-popover {
+  transition: transform 0.25s ease, opacity 0.25s ease;
 }
 .chatui-drawer-enter-from,
 .chatui-drawer-leave-to {
   opacity: 0;
 }
-.chatui-drawer-enter-from .chatui-drawer,
-.chatui-drawer-leave-to .chatui-drawer {
-  transform: translateX(-100%);
+.chatui-drawer-enter-from .chatui-compact-popover,
+.chatui-drawer-leave-to .chatui-compact-popover {
+  opacity: 0;
+  transform: translateY(-8px);
 }
 </style>

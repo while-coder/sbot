@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
-import { useToast, SButton, SInput, STabBar, STab, SPageToolbar, SPageContent, STable, type STableColumn } from 'sbot-ui'
+import { useToast, useConfirm, SButton, SInput, STabBar, STab, SPageToolbar, SPageContent, STable, type STableColumn } from 'sbot-ui'
 import type { SkillItem } from '@/shared/types'
 import { sourceBadgeStyle } from '@/utils/badges'
 import SkillHubModal from '@/components/modals/SkillHubModal.vue'
@@ -11,6 +11,7 @@ import SkillViewerModal from '@/components/modals/SkillViewerModal.vue'
 
 const { t } = useI18n()
 const { show } = useToast()
+const { confirm } = useConfirm()
 
 const allSkills = ref<SkillItem[]>([])
 
@@ -57,7 +58,7 @@ function openView(name: string, badge = '') {
 }
 
 async function remove(name: string) {
-  if (!confirm(t('skills.confirm_delete', { name }))) return
+  if (!await confirm(t('skills.confirm_delete', { name }), { danger: true })) return
   try {
     await apiFetch(`/api/skills/${encodeURIComponent(name)}`, 'DELETE')
     show(t('common.deleted'))

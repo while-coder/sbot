@@ -102,7 +102,23 @@ function throwBad(msg: string): never {
 }
 
 /** 资源管理器 / 文件读取最大字节数 */
-const MAX_FILE_READ_SIZE = 2 * 1024 * 1024;
+const MAX_FILE_READ_SIZE = 10 * 1024 * 1024;
+
+/** 资源管理器：图片文件最大字节数（base64 内联返回） */
+const MAX_IMAGE_READ_SIZE = 32 * 1024 * 1024;
+
+/** 支持预览的图片扩展名 → MIME */
+const IMAGE_MIME_BY_EXT: Record<string, string> = {
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.bmp': 'image/bmp',
+    '.svg': 'image/svg+xml',
+    '.ico': 'image/x-icon',
+    '.avif': 'image/avif',
+};
 
 /** 目录优先、再按名称排序 */
 function dirFirstByName(a: { isDirectory(): boolean; name: string }, b: { isDirectory(): boolean; name: string }) {
@@ -903,16 +919,40 @@ class HttpServer {
             const filePath = (req.query.path as string) ?? '';
             if (!filePath.trim()) throwBad('path is required');
             const { target, stat } = resolveExistingFile(filePath.trim());
+            const imageMimeType = IMAGE_MIME_BY_EXT[path.extname(target).toLowerCase()];
+
+            if (imageMimeType) {
+                if (stat.size > MAX_IMAGE_READ_SIZE) {
+                    return {
+                        path: target,
+                        size: stat.size,
+                        tooLarge: true,
+                        contentType: 'image',
+                        mimeType: imageMimeType,
+                        content: '',
+                    };
+                }
+                const buf = fs.readFileSync(target);
+                return {
+                    path: target,
+                    size: stat.size,
+                    tooLarge: false,
+                    contentType: 'image',
+                    mimeType: imageMimeType,
+                    content: '',
+                    dataUrl: `data:${imageMimeType};base64,${buf.toString('base64')}`,
+                };
+            }
 
             if (stat.size > MAX_FILE_READ_SIZE) {
-                return { path: target, size: stat.size, isBinary: false, tooLarge: true, content: '' };
+                return { path: target, size: stat.size, tooLarge: true, contentType: 'text', mimeType: 'text/plain', content: '' };
             }
             const buf = fs.readFileSync(target);
-            const isBinary = buf.includes(0);
-            if (isBinary) {
-                return { path: target, size: stat.size, isBinary: true, tooLarge: false, content: '' };
+            const hasNulByte = buf.includes(0);
+            if (hasNulByte) {
+                return { path: target, size: stat.size, tooLarge: false, contentType: 'binary', mimeType: 'application/octet-stream', content: '' };
             }
-            return { path: target, size: stat.size, isBinary: false, tooLarge: false, content: buf.toString('utf-8') };
+            return { path: target, size: stat.size, tooLarge: false, contentType: 'text', mimeType: 'text/plain', content: buf.toString('utf-8') };
         }));
     }
 

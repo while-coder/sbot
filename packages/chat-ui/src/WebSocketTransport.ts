@@ -195,7 +195,7 @@ export class WebSocketTransport implements IChatTransport {
 
   async readFile(path: string): Promise<FsReadResult> {
     const res = await this.api(`/api/fs/read?path=${encodeURIComponent(path)}`)
-    return res.data ?? res ?? { path, size: 0, isBinary: false, tooLarge: false, content: '' }
+    return res.data ?? res ?? { path, size: 0, tooLarge: false, contentType: 'text', mimeType: 'text/plain', content: '' }
   }
 
   // ── Thinks ──

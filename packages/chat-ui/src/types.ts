@@ -130,6 +130,8 @@ export interface ChatLabels {
   save?: string
   cancel?: string
   add?: string
+  sessionList?: string
+  settings?: string
   selectSession?: string
   noSession?: string
   newSession?: string
@@ -318,9 +320,11 @@ export interface FsTreeResult {
 export interface FsReadResult {
   path: string
   size: number
-  isBinary: boolean
   tooLarge: boolean
+  contentType: 'text' | 'image' | 'binary'
+  mimeType: string
   content: string
+  dataUrl?: string
 }
 
 // ── App settings ──

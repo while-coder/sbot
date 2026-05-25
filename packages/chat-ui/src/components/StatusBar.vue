@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { SButton, SCheckbox } from 'sbot-ui'
+import { SCheckbox } from 'sbot-ui'
 import type { UsageInfo, ChatLabels } from '../types'
 import { resolveLabels } from '../labels'
 import { useCompact } from '../composables/useCompact'
@@ -278,8 +278,28 @@ function onClickOutside(e: MouseEvent) {
         </SCheckbox>
       </span>
       <slot name="actions-prepend" />
-      <SButton type="outline" size="sm" @click="emit('refresh')">{{ L.refresh }}</SButton>
-      <SButton type="danger" size="sm" :disabled="!hasSaver" @click="emit('clearHistory')">{{ L.clearHistory }}</SButton>
+      <button type="button" class="chatui-status-action" :title="L.refresh" :aria-label="L.refresh" @click="emit('refresh')">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M13.3 6A5.5 5.5 0 1 0 14 8"/>
+          <path d="M13.5 2.8V6h-3.2"/>
+        </svg>
+      </button>
+      <button
+        type="button"
+        class="chatui-status-action chatui-status-action--danger"
+        :title="L.clearHistory"
+        :aria-label="L.clearHistory"
+        :disabled="!hasSaver"
+        @click="emit('clearHistory')"
+      >
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M2.5 4h11"/>
+          <path d="M6.5 2.5h3"/>
+          <path d="M4 4.5 4.7 13a1.2 1.2 0 0 0 1.2 1h4.2a1.2 1.2 0 0 0 1.2-1l.7-8.5"/>
+          <path d="M6.8 7v4"/>
+          <path d="M9.2 7v4"/>
+        </svg>
+      </button>
     </div>
   </div>
 </template>
@@ -375,6 +395,45 @@ function onClickOutside(e: MouseEvent) {
 
 /* ── Buttons ── */
 .chatui-toolbar-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-shrink: 0; }
+.chatui-status-action,
+.chatui-toolbar-actions :slotted(.chatui-explorer-toggle) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  min-width: 26px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--chatui-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--chatui-fg-secondary);
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.chatui-status-action:hover:not(:disabled),
+.chatui-toolbar-actions :slotted(.chatui-explorer-toggle:hover) {
+  background: var(--chatui-bg-hover);
+  color: var(--chatui-fg);
+}
+.chatui-status-action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.chatui-status-action--danger {
+  color: var(--chatui-btn-danger);
+}
+.chatui-status-action--danger:hover:not(:disabled) {
+  color: var(--chatui-btn-danger);
+  border-color: var(--chatui-btn-danger);
+}
+.chatui-toolbar-actions :slotted(.chatui-explorer-toggle--active) {
+  background: var(--chatui-bg-active);
+  color: var(--chatui-fg);
+  border-color: var(--chatui-border-focus, var(--chatui-accent));
+}
 .chatui-archived-toggle {
   display: inline-flex; align-items: center;
   font-size: 11px; color: var(--chatui-fg-secondary);

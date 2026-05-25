@@ -1,7 +1,7 @@
 import { ref, onMounted, onBeforeUnmount, provide, inject, type Ref, type InjectionKey } from 'vue'
 
 const COMPACT_KEY: InjectionKey<Ref<boolean>> = Symbol('chatui-compact')
-const COMPACT_BREAKPOINT = 600
+const COMPACT_BREAKPOINT = 768
 
 export function useCompactProvider(el: Ref<HTMLElement | null>) {
   const isCompact = ref(false)

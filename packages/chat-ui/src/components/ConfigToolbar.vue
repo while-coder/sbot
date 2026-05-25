@@ -111,7 +111,7 @@ const wikiOptions   = computed(() => toMSOptions(props.settings.wikis))
         />
       </div>
 
-      <div class="chatui-toolbar-group" style="margin-left:auto">
+      <div class="chatui-toolbar-group chatui-toolbar-group--toggle" style="margin-left:auto">
         <SCheckbox
           :model-value="!!session.autoApproveAllTools"
           :label="L.autoApproveAll"
@@ -145,7 +145,42 @@ const wikiOptions   = computed(() => toMSOptions(props.settings.wikis))
 }
 .chatui-toolbar-placeholder { font-size: 13px; color: var(--chatui-fg-secondary); }
 
-.chatui-config-toolbar.chatui-compact { gap: 6px; padding: 6px 8px; }
+.chatui-config-toolbar.chatui-compact {
+  align-items: stretch;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 8px;
+  padding: 8px;
+}
 .chatui-compact .chatui-toolbar-sep { display: none; }
-.chatui-compact .chatui-toolbar-group { flex-wrap: wrap; }
+.chatui-compact .chatui-toolbar-group {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto auto;
+  align-items: center;
+  width: 100%;
+  gap: 6px;
+  flex-shrink: 1;
+}
+.chatui-compact .chatui-toolbar-group--toggle {
+  display: flex;
+  margin-left: 0 !important;
+  min-height: 28px;
+}
+.chatui-compact .chatui-toolbar-label {
+  text-align: right;
+}
+.chatui-compact :deep(.s-select),
+.chatui-compact :deep(.s-input),
+.chatui-compact :deep(.s-ms) {
+  width: 100%;
+  min-width: 0 !important;
+  max-width: none !important;
+}
+.chatui-compact :deep(.s-ms-trigger) {
+  width: 100%;
+}
+.chatui-compact .chatui-toolbar-clear {
+  min-width: 24px;
+  min-height: 24px;
+}
 </style>

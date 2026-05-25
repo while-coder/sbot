@@ -32,6 +32,8 @@ export const defaultLabels: Required<ChatLabels> = {
   save: '保存',
   cancel: '取消',
   add: '添加',
+  sessionList: '会话列表',
+  settings: '设置',
   selectSession: '选择会话',
   noSession: '请先选择或创建会话',
   newSession: '新建会话',
