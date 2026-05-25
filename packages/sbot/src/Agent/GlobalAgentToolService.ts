@@ -11,7 +11,6 @@ export enum BuiltinProvider {
     Time = 'builtin_time',
 
     Scheduler = 'builtin_scheduler',
-    Todo = 'builtin_todo',
     SessionSearch = 'builtin_session_search',
 
     Playwright = 'builtin_playwright',
@@ -48,16 +47,12 @@ export function initGlobalAgentToolService() {
         const { createTimeTool } = await import("../Tools/Time/index.js");
         return [createTimeTool()];
     }, '获取当前时间');
-    // Scheduler/Todo 在全局服务里只用 preview 占位 sessionId 注册，仅供 admin 展示工具 schema；
+    // Scheduler 在全局服务里只用 preview 占位 sessionId 注册，仅供 admin 展示工具 schema；
     // 实际运行时会被 AgentFactory.SESSION_TOOL_CREATORS 用真 dbSessionId 单独注册到 per-agent 的 ToolService 上。
     globalAgentToolService.registerToolFactory(BuiltinProvider.Scheduler, async (_params) => {
         const { createSchedulerTools, PREVIEW_TARGET_ID } = await import("../Tools/Scheduler/index.js");
         return createSchedulerTools(PREVIEW_TARGET_ID);
     }, '定时任务调度');
-    globalAgentToolService.registerToolFactory(BuiltinProvider.Todo, async (_params) => {
-        const { createTodoTools, PREVIEW_TARGET_ID } = await import("../Tools/Todo/index.js");
-        return createTodoTools(PREVIEW_TARGET_ID);
-    }, '待办事项管理');
     globalAgentToolService.registerToolFactory(BuiltinProvider.SessionSearch, async (_params) => {
         const { createSessionSearchTool } = await import("../Tools/SessionSearch/index.js");
         return [createSessionSearchTool(null)];

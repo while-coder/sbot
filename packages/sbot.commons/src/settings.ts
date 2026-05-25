@@ -86,6 +86,17 @@ export interface InsightConfig {
   extractorPromptFile: string;
 }
 
+export enum TodoScope {
+  Disabled = "disabled",
+  Session  = "session",
+}
+
+export interface TodoConfig {
+  scope: TodoScope
+  extractor: string
+  extractorPromptFile?: string
+}
+
 export interface MemoryConfig {
   /** 显示名称 */
   name: string
@@ -162,6 +173,7 @@ export interface AgentConfig {
   mcpParams?: Record<string, Record<string, string>>
   skills?: string[] | '*'
   insight?: InsightConfig
+  todo?: TodoConfig
   compactModel?: string
   modelCallTimeout?: number
   // react

@@ -32,18 +32,6 @@ export type SchedulerRow = {
   disabled: boolean;               // 是否已禁用（软删除）
 };
 
-export type TodoRow = {
-  id: number;
-  targetId: string;
-  content: string;
-  status: string;
-  priority: string;
-  deadline: number | null;
-  schedulerId: number | null;
-  doneAt: number | null;
-  createdAt: number;
-};
-
 export type StateRow = {
   key: string;
   value: string;
@@ -160,7 +148,6 @@ class Database {
   public channelSession!: ModelStatic<any>;
   public scheduler!: ModelStatic<any>;
   public usageLogs!: ModelStatic<any>;
-  public todo!: ModelStatic<any>;
   public heartbeat!: ModelStatic<any>;
 
   async init() {
@@ -538,71 +525,6 @@ class Database {
       },
     );
 
-    this.todo = sequelize.define(
-      "todo",
-      {
-        id: {
-          type: DataTypes.INTEGER,
-          primaryKey: true,
-          autoIncrement: true,
-          comment: "自增ID",
-        },
-        targetId: {
-          type: DataTypes.TEXT,
-          allowNull: false,
-          defaultValue: "",
-          comment: "目标 channel_session.id",
-        },
-        content: {
-          type: DataTypes.TEXT,
-          allowNull: false,
-          defaultValue: "",
-          comment: "任务描述",
-        },
-        status: {
-          type: DataTypes.STRING(16),
-          allowNull: false,
-          defaultValue: "pending",
-          comment: "任务状态 (pending | done)",
-        },
-        priority: {
-          type: DataTypes.STRING(16),
-          allowNull: false,
-          defaultValue: "normal",
-          comment: "优先级 (low | normal | high)",
-        },
-        deadline: {
-          type: DataTypes.BIGINT,
-          allowNull: true,
-          defaultValue: null,
-          comment: "截止时间戳(ms)",
-        },
-        schedulerId: {
-          type: DataTypes.INTEGER,
-          allowNull: true,
-          defaultValue: null,
-          comment: "关联的 scheduler.id（deadline 提醒）",
-        },
-        doneAt: {
-          type: DataTypes.BIGINT,
-          allowNull: true,
-          defaultValue: null,
-          comment: "完成时间戳(ms)",
-        },
-        createdAt: {
-          type: DataTypes.BIGINT,
-          allowNull: false,
-          defaultValue: 0,
-          comment: "创建时间戳(ms)",
-        },
-      },
-      {
-        tableName: "todo",
-        timestamps: false,
-        comment: "待办任务表",
-      },
-    );
-
     this.usageLogs = sequelize.define(
       "usage_logs",
       {
@@ -813,7 +735,6 @@ class Database {
       await this.channelUser.sync({ alter });
       await this.channelSession.sync({ alter });
       await this.scheduler.sync({ alter });
-      await this.todo.sync({ alter });
       await this.usageLogs.sync({ alter });
       await this.heartbeat.sync({ alter });
 

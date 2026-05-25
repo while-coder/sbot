@@ -6,9 +6,9 @@ import { ModelProvider } from "scorpio.ai/Model/types";
 import type { EmbeddingConfig } from "scorpio.ai/Embedding/types";
 import { EmbeddingProvider } from "scorpio.ai/Embedding/types";
 export type { AgentSubNode } from "scorpio.ai";
-import { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, InsightScope, SaverConfig, MemoryConfig, WikiConfig, ChannelConfig, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE, type InsightConfig, type AgentStoreSource, type AgentSourceEntry } from "sbot.commons";
-export { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, InsightScope, SaverConfig, MemoryConfig, WikiConfig, ChannelConfig } from "sbot.commons";
-export type { InsightConfig } from "sbot.commons";
+import { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, InsightScope, TodoScope, SaverConfig, MemoryConfig, WikiConfig, ChannelConfig, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE, type InsightConfig, type TodoConfig, type AgentStoreSource, type AgentSourceEntry } from "sbot.commons";
+export { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, InsightScope, TodoScope, SaverConfig, MemoryConfig, WikiConfig, ChannelConfig } from "sbot.commons";
+export type { InsightConfig, TodoConfig } from "sbot.commons";
 
 export const isDev = process.env.NODE_ENV === 'development';
 export type { AgentSourceEntry } from "sbot.commons";
@@ -49,6 +49,7 @@ export interface ToolAgentEntry extends BaseAgentEntry {
   mcpParams?: Record<string, Record<string, any>>; // 按 provider 名分组的参数；'*' 与显式列表均可使用
   skills?: string[] | '*';     // Skills 过滤列表（skill 名称）；"*" = 加载全部
   insight: InsightConfig;      // 经验洞察模块配置
+  todo?: TodoConfig;           // Todo 抽取配置（不设置 = 不启用）
   modelCallTimeout?: number;   // 单次模型调用超时（秒），不设置则不超时
 }
 
@@ -522,6 +523,9 @@ class Config {
   }
   getSessionInsightsPath(dbSessionId: string) {
     return this.getConfigPath(`sessions/${dbSessionId}/insights`, true)
+  }
+  getSessionTodoPath(dbSessionId: string) {
+    return this.getConfigPath(`sessions/${dbSessionId}/todos.json`)
   }
   getAgentMcpServers(agentName: string): MCPServers {
     const mcpConfigPath = this.getConfigPath(`agents/${agentName}/mcp.json`);

@@ -4,6 +4,7 @@ import { inject, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ModelCallTimeo
 import { IModelService } from "../../Model";
 import { ISkillService } from "../../Skills";
 import { IInsightService } from "../../Insight";
+import { ITodoService, TodoToolProvider } from "../../Todo";
 import { IMemoryService, MemoryToolProvider } from "../../Memory";
 import { IWikiService } from "../../Wiki";
 import { WikiToolProvider } from "../../Wiki";
@@ -56,6 +57,7 @@ export class SingleAgentService extends AgentServiceBase {
     protected modelService: IModelService;
     protected skillService: ISkillService;
     protected insightService?: IInsightService;
+    protected todoService?: ITodoService;
     protected toolService?: IAgentToolService;
     protected staticSystemPrompts: string[];
     protected dynamicSystemPrompts: string[];
@@ -70,6 +72,7 @@ export class SingleAgentService extends AgentServiceBase {
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
         @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
         @inject(IInsightService, { optional: true }) insightService?: IInsightService,
+        @inject(ITodoService, { optional: true }) todoService?: ITodoService,
         @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
         @inject(IMemoryService, { optional: true }) memoryServices?: IMemoryService[],
         @inject(IWikiService, { optional: true }) wikiServices?: IWikiService[],
@@ -80,6 +83,7 @@ export class SingleAgentService extends AgentServiceBase {
         this.modelService = modelService;
         this.skillService = skillService;
         this.insightService = insightService;
+        this.todoService = todoService;
         this.toolService = toolService;
         this.staticSystemPrompts = staticSystemPrompts ?? [];
         this.dynamicSystemPrompts = dynamicSystemPrompts ?? [];
@@ -142,6 +146,9 @@ export class SingleAgentService extends AgentServiceBase {
         }
         if (this.wikiServices.length > 0) {
             tools.push(...WikiToolProvider.getTools(this.wikiServices));
+        }
+        if (this.todoService) {
+            tools.push(...TodoToolProvider.getTools(this.todoService));
         }
         return tools;
     }
@@ -364,15 +371,22 @@ export class SingleAgentService extends AgentServiceBase {
             // tools node 的补偿消息已全部写入 saver，配对完整后再抛出
             if (signal?.aborted) throw new AgentCancelledError();
         }
-        // 静默提取 insight
+        // 静默并行提取 insight 和 todo（互不影响）
+        const queryText = contentToString(query);
+        const aiText = aiResponses.length > 0 ? aiResponses : undefined;
+        const extractTasks: Promise<unknown>[] = [];
         if (this.insightService) {
-            try {
-                await this.insightService.extractFromConversation(
-                    contentToString(query),
-                    aiResponses.length > 0 ? aiResponses : undefined
-                );
-            } catch (error: any) {
-                this.logger?.warn(`Insight extraction failed: ${error.message}`);
+            extractTasks.push(this.insightService.extractFromConversation(queryText, aiText));
+        }
+        if (this.todoService) {
+            extractTasks.push(this.todoService.extractFromConversation(queryText, aiText));
+        }
+        if (extractTasks.length > 0) {
+            const results = await Promise.allSettled(extractTasks);
+            for (const r of results) {
+                if (r.status === 'rejected') {
+                    this.logger?.warn(`Background extraction failed: ${(r.reason as Error)?.message}`);
+                }
             }
         }
 

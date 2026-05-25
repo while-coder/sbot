@@ -29,6 +29,7 @@
 - **共享 UI 组件库 (`sbot-ui`)**: 新增 package，抽取可复用 Vue 组件（`SButton`、`SCard`、`SModal`、`STable`、`STree`、`STab`、`SInput`、`SSelect`、`SSwitch`、`SToast` 等），附带设计 Token 和深色主题，供 admin 与 chat-ui 共用
 - **管理后台基于 `sbot-ui` 重构**: 管理后台基于共享组件库重建，弹窗统一收敛至 `components/modals/`，移除冗余的自定义控件
 - **工具与提示词外置**: 内置工具描述、意图分类、压缩提示词从源码迁移到 `prompts/` 下的文本文件（`intent/default.txt`、`compact/post_message.txt`、`compact/post_continuation.txt`、`tools/{sleep,time,mcp,memory,wiki}/*.txt`），统一通过 `loadPrompt` 加载
+- **Todo 事后总结重构**: Todo 不再通过显式 LLM 工具创建/修改 —— 仅暴露只读的 `todo_list` 工具。新增 `TodoExtractor` 与 `InsightExtractor` 并行运行，在每轮对话后从自然语言中静默提取 create / patch / done / delete 操作。存储从 SQLite `todo` 表改为按会话独立的 JSON 文件 `~/.sbot/sessions/<dbSessionId>/todos.json`，移除与 Scheduler 的耦合。`AgentConfig` 新增 `TodoConfig`，通过 `scope: TodoScope`（`disabled` | `session`）控制启用
 
 ### 改进
 

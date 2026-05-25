@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import http from 'http';
 import path from 'path';
 import fs from 'fs';
+import fsp from 'fs/promises';
 import os from 'os';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
@@ -17,7 +18,7 @@ import { installSkillFromZip } from '../SkillHub/bundle';
 import axios from 'axios';
 import { AgentStoreService } from '../AgentStore';
 import { LoggerService, log4js } from '../Core/LoggerService';
-import { database, channelThreadId, parseMemories, getChannelSession, type ChannelSessionRow, type TodoRow, type UsageLogRow } from '../Core/Database';
+import { database, channelThreadId, parseMemories, getChannelSession, type ChannelSessionRow, type UsageLogRow } from '../Core/Database';
 import { Op } from 'sequelize';
 import { sessionManager } from '../Session/SessionManager';
 import { schedulerService } from '../Scheduler/SchedulerService';
@@ -98,6 +99,22 @@ function toJsonSchema(schema: any): any {
 /** 统一 400 异常 */
 function throwBad(msg: string): never {
     const e: any = new Error(msg); e.status = 400; throw e;
+}
+
+async function mutateTodoFile(filePath: string, mutator: (data: any) => void): Promise<void> {
+    const buf = await fsp.readFile(filePath, 'utf-8').catch(() => '{"todos":[],"nextId":1}');
+    const data = JSON.parse(buf);
+    if (!Array.isArray(data.todos)) data.todos = [];
+    if (typeof data.nextId !== 'number') data.nextId = 1;
+    mutator(data);
+    const tmp = `${filePath}.tmp`;
+    try {
+        await fsp.writeFile(tmp, JSON.stringify(data, null, 2), 'utf-8');
+        await fsp.rename(tmp, filePath);
+    } catch (e) {
+        await fsp.unlink(tmp).catch(() => {});
+        throw e;
+    }
 }
 
 /** 注册标准 Settings CRUD 路由 (POST/PUT/DELETE) */
@@ -1510,34 +1527,48 @@ class HttpServer {
 
     // ===== Todos =====
     private registerTodoRoutes(app: express.Application) {
+        // 列出所有 session 的 todo（聚合 sessions/*/todos.json）
         app.get('/api/todos', api(async () => {
-            return await database.findAll<TodoRow>(database.todo, {
-                where: { status: 'pending' },
-                order: [['createdAt', 'DESC']],
+            const sessions = await database.findAll<ChannelSessionRow>(database.channelSession, {});
+            const all: any[] = [];
+            for (const s of sessions) {
+                const filePath = config.getSessionTodoPath(String(s.id));
+                try {
+                    const buf = await fsp.readFile(filePath, 'utf-8');
+                    const data = JSON.parse(buf);
+                    for (const t of data.todos ?? []) {
+                        all.push({ ...t, dbSessionId: s.id, sessionName: s.sessionName });
+                    }
+                } catch (e: any) {
+                    if (e.code !== 'ENOENT') {
+                        // ignore — corrupt todos files shouldn't break admin list
+                    }
+                }
+            }
+            return all.filter(t => t.status === 'pending');
+        }));
+
+        app.patch('/api/todos/:dbSessionId/:id', api(async req => {
+            const dbSessionId = req.params.dbSessionId as string;
+            const id = parseInt(req.params.id as string, 10);
+            if (isNaN(id)) throwBad('Invalid id');
+            await mutateTodoFile(config.getSessionTodoPath(dbSessionId), data => {
+                const t = data.todos.find((x: any) => x.id === id);
+                if (!t) throwBad('Todo not found');
+                t.status = 'done';
+                t.doneAt = new Date().toISOString();
             });
         }));
 
-        app.patch('/api/todos/:id', api(async req => {
+        app.delete('/api/todos/:dbSessionId/:id', api(async req => {
+            const dbSessionId = req.params.dbSessionId as string;
             const id = parseInt(req.params.id as string, 10);
             if (isNaN(id)) throwBad('Invalid id');
-            const todo = await database.findByPk<TodoRow>(database.todo, id);
-            if (!todo) throwBad('Todo not found');
-            const now = Date.now();
-            await database.update(database.todo, { status: 'done', doneAt: now }, { where: { id } });
-            if (todo.schedulerId) {
-                try { await schedulerService.delete(todo.schedulerId); } catch {}
-            }
-        }));
-
-        app.delete('/api/todos/:id', api(async req => {
-            const id = parseInt(req.params.id as string, 10);
-            if (isNaN(id)) throwBad('Invalid id');
-            const todo = await database.findByPk<TodoRow>(database.todo, id);
-            if (!todo) throwBad('Todo not found');
-            if (todo.schedulerId) {
-                try { await schedulerService.delete(todo.schedulerId); } catch {}
-            }
-            await database.destroy(database.todo, { where: { id } });
+            await mutateTodoFile(config.getSessionTodoPath(dbSessionId), data => {
+                const idx = data.todos.findIndex((x: any) => x.id === id);
+                if (idx < 0) throwBad('Todo not found');
+                data.todos.splice(idx, 1);
+            });
         }));
     }
 

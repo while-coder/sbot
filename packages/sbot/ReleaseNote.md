@@ -29,6 +29,7 @@
 - **Shared UI Library (`sbot-ui`)**: New package extracting reusable Vue components (`SButton`, `SCard`, `SModal`, `STable`, `STree`, `STab`, `SInput`, `SSelect`, `SSwitch`, `SToast`, etc.) plus design tokens and dark theme — consumed by admin and chat-ui
 - **Admin Refactor on `sbot-ui`**: Admin panel rebuilt on top of the shared component library — modals reorganized under `components/modals/`, legacy bespoke widgets removed
 - **Tool & Prompt Externalization**: Built-in tool descriptions and intent / compact prompts moved out of source code into `prompts/` text files (`intent/default.txt`, `compact/post_message.txt`, `compact/post_continuation.txt`, `tools/{sleep,time,mcp,memory,wiki}/*.txt`) and loaded via `loadPrompt`
+- **Todo Extraction Redesign**: Todos are no longer manipulated via explicit LLM tools — only a read-only `todo_list` tool is exposed. A new `TodoExtractor` runs in parallel with `InsightExtractor` after each turn and silently extracts create / patch / done / delete actions from natural conversation. Storage moved from SQLite `todo` table to per-session JSON files at `~/.sbot/sessions/<dbSessionId>/todos.json`. Scheduler integration removed. New `TodoConfig` on `AgentConfig` with `scope: TodoScope` (`disabled` | `session`)
 
 ### Improvements
 

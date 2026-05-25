@@ -74,6 +74,9 @@ export {
   T_MemoryToolDescs,
   T_WikiToolDescs,
   T_MCPUtilityToolDescs,
+  T_TodoFilePath,
+  T_TodoExtractorSystemPrompt,
+  T_TodoToolDescs,
   NowDate,
   sleep,
   parseJson,
@@ -229,6 +232,32 @@ export {
   InsightExtractor,
   type ExtractedInsight,
 } from "./Insight";
+
+// ========================================
+// Todo - 待办事项系统
+// ========================================
+export {
+  // 接口 + Symbol Token
+  ITodoService,
+
+  // 实现类
+  TodoService,
+
+  // 提取器
+  ITodoExtractor,
+  TodoExtractor,
+  TodoActionType,
+  type Todo,
+  type TodoStatus,
+  type TodoPriority,
+  type TodoListFilter,
+  type TodoAction,
+
+  // 工具
+  TodoToolProvider,
+  TODO_LIST_TOOL_NAME,
+  type TodoToolDescs,
+} from "./Todo";
 
 // ========================================
 // Command - 命令系统

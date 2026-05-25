@@ -10,15 +10,14 @@ const { show } = useToast()
 
 interface TodoRow {
   id: number
-  type: string | null
-  targetId: string | null
+  dbSessionId: number
+  sessionName: string
   content: string
   status: string
   priority: string
-  deadline: number | null
-  schedulerId: number | null
-  doneAt: number | null
-  createdAt: number
+  deadline: string | null
+  doneAt: string | null
+  createdAt: string
 }
 
 const todos = ref<TodoRow[]>([])
@@ -51,7 +50,7 @@ async function load() {
   }
 }
 
-function formatTime(ts: number | null): string {
+function formatTime(ts: string | null): string {
   if (!ts) return t('todo.no_deadline')
   return new Date(ts).toLocaleString('zh-CN')
 }
@@ -59,7 +58,7 @@ function formatTime(ts: number | null): string {
 async function markDone(row: TodoRow) {
   if (!confirm(t('todo.confirm_done', { id: row.id }))) return
   try {
-    await apiFetch(`/api/todos/${row.id}`, 'PATCH')
+    await apiFetch(`/api/todos/${row.dbSessionId}/${row.id}`, 'PATCH')
     show('Done')
     await load()
   } catch (e: any) {
@@ -70,7 +69,7 @@ async function markDone(row: TodoRow) {
 async function remove(row: TodoRow) {
   if (!confirm(t('todo.confirm_delete', { id: row.id }))) return
   try {
-    await apiFetch(`/api/todos/${row.id}`, 'DELETE')
+    await apiFetch(`/api/todos/${row.dbSessionId}/${row.id}`, 'DELETE')
     show(t('common.deleted'))
     await load()
   } catch (e: any) {

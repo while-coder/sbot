@@ -21,10 +21,15 @@ import {
     T_InsightDir,
     T_InsightExtractorSystemPrompt,
     T_InsightStaleDays, T_InsightArchiveDays, T_InsightSystemPromptTemplate,
+    ITodoService, TodoService,
+    ITodoExtractor, TodoExtractor,
+    T_TodoFilePath,
+    T_TodoExtractorSystemPrompt,
+    T_TodoToolDescs,
     type MessageContent,
 } from "scorpio.ai";
 import { loadPrompt } from "../Core/PromptLoader";
-import { config, SaverType, InsightScope, type ToolAgentEntry } from "../Core/Config";
+import { config, SaverType, InsightScope, TodoScope, type ToolAgentEntry } from "../Core/Config";
 import { discoverContextFiles } from "../Core/ContextFileDiscovery";
 
 import { AgentFactory } from "./AgentFactory";
@@ -104,6 +109,7 @@ export class AgentRunner {
         await AgentRunner.registerMemoryServices(container, memories ?? []);
         await AgentRunner.registerWikiServices(container, wikis ?? []);
         await AgentRunner.registerInsightService(container, agentId, threadId);
+        await AgentRunner.registerTodoService(container, agentId, threadId);
         await AgentRunner.registerSaverService(container, saverId, threadId);
 
         const agent = await AgentFactory.create({ agentId, container, extraPrompts, dynamicPrompts, agentTools, dbSessionId, workPath });
@@ -220,6 +226,29 @@ export class AgentRunner {
             [T_InsightSystemPromptTemplate]: loadPrompt('insight/system.txt'),
             [T_InsightStaleDays]: 30,
             [T_InsightArchiveDays]: 90,
+        });
+    }
+
+    private static async registerTodoService(
+        container: ServiceContainer,
+        agentName: string,
+        threadId: string,
+    ): Promise<void> {
+        const agentEntry = config.getAgent(agentName) as ToolAgentEntry;
+        const todoConfig = agentEntry.todo;
+        if (!todoConfig || todoConfig.scope === TodoScope.Disabled) return;
+
+        const filePath = config.getSessionTodoPath(threadId);
+
+        const extractorModel = await config.getModelService(todoConfig.extractor, true);
+        container.registerWithArgs(ITodoExtractor, TodoExtractor, {
+            [IModelService]: extractorModel,
+            [T_TodoExtractorSystemPrompt]: loadPrompt(todoConfig.extractorPromptFile ?? 'todo/extractor/default.txt'),
+        });
+
+        container.registerWithArgs(ITodoService, TodoService, {
+            [T_TodoFilePath]: filePath,
+            [T_TodoToolDescs]: { list: loadPrompt('tools/todo/list.txt') },
         });
     }
 

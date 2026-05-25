@@ -8,6 +8,7 @@ import { IModelService } from "../../Model";
 import { type AgentServiceBase, IAgentCallback, AgentSubNode, CreateAgentFn, T_CreateAgent, MessageRole } from "../AgentServiceBase";
 import { ISkillService } from "../../Skills";
 import { IInsightService } from "../../Insight";
+import { ITodoService } from "../../Todo";
 import { IAgentToolService } from "../../AgentTool";
 import { AgentMemorySaver } from "../../Saver/AgentMemorySaver";
 import { SingleAgentService } from "../Single/SingleAgentService";
@@ -64,12 +65,13 @@ export class ReActAgentService extends SingleAgentService {
     @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
     @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
     @inject(IInsightService, { optional: true }) insightService?: IInsightService,
+    @inject(ITodoService, { optional: true }) todoService?: ITodoService,
     @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
     @inject(IMemoryService, { optional: true }) memoryServices?: IMemoryService[],
     @inject(IWikiService, { optional: true }) wikiServices?: IWikiService[],
     @inject(T_ModelCallTimeout, { optional: true }) modelCallTimeout?: number,
   ) {
-    super(thinkModelService, skillService, staticSystemPrompts, dynamicSystemPrompts, loggerService, agentSaver, insightService, toolService, memoryServices, wikiServices, modelCallTimeout);
+    super(thinkModelService, skillService, staticSystemPrompts, dynamicSystemPrompts, loggerService, agentSaver, insightService, todoService, toolService, memoryServices, wikiServices, modelCallTimeout);
     this.agentSubNodes = agentSubNodes;
     this.agentFactory = agentFactory;
   }

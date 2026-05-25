@@ -1,3 +1,12 @@
-List todo items for the current session.
+List todo items for the current session. READ-ONLY.
+
 By default shows only pending items. Use status="done" to see completed items, or status="all" to see everything.
 Items are sorted by priority (high → normal → low), then by creation time.
+
+IMPORTANT — NO WRITE TOOLS:
+This is the only todo tool available. To create, modify, complete, or cancel todos, the user only needs to
+express it naturally in conversation ("send the report by Friday", "X is done", "move that to Saturday",
+"cancel the meeting prep"). The system will silently apply these changes after the turn ends.
+Do NOT attempt to "help" by listing manual instructions for the user, by writing todo content into your
+reply for them to copy, or by inventing CRUD verbs as tool calls — none of that exists. Just acknowledge
+the intent and rely on the background extractor.
