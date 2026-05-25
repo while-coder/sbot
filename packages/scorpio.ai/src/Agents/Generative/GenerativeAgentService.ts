@@ -50,37 +50,42 @@ export class GenerativeAgentService extends AgentServiceBase {
     override async stream(query: MessageContent, callback: IAgentCallback, signal?: AbortSignal): Promise<ChatMessage[]> {
         await this.saverService.pushMessage({ role: MessageRole.Human, content: query });
 
-        const savedHistory = await this.saverService.getMessages();
-        if (!savedHistory || savedHistory.length === 0) {
-            throw new Error('historyMessages is empty, cannot call model');
+        try {
+            const savedHistory = await this.saverService.getMessages();
+            if (!savedHistory || savedHistory.length === 0) {
+                throw new Error('historyMessages is empty, cannot call model');
+            }
+
+            const history = this.truncateHistory(savedHistory);
+
+            const contentBlocks: Array<{ type: "text"; text: string }> = [];
+            const staticContent = this.staticSystemPrompts.join('\n\n').trim();
+            if (staticContent) contentBlocks.push({ type: "text", text: staticContent });
+            const dynamicContent = this.dynamicSystemPrompts.join('\n\n').trim();
+            if (dynamicContent) contentBlocks.push({ type: "text", text: dynamicContent });
+            const messages: ChatMessage[] = [
+                ...(contentBlocks.length > 0 ? [{ role: MessageRole.System, content: contentBlocks }] : []),
+                ...history,
+            ];
+
+            if (signal?.aborted) throw new AgentCancelledError();
+            const result = await this.modelService.invoke(messages);
+
+            if (result.usage) {
+                await callback?.onUsage?.(result.usage);
+                delete result.usage;
+            }
+
+            GenerativeAgentService.normalizeMessageContent(result);
+
+            await this.saverService.pushMessage(result);
+            if (callback.onMessage) await callback.onMessage(result);
+
+            return [result];
+        } catch (err) {
+            await this.recordException(err);
+            throw err;
         }
-
-        const history = this.truncateHistory(savedHistory);
-
-        const contentBlocks: Array<{ type: "text"; text: string }> = [];
-        const staticContent = this.staticSystemPrompts.join('\n\n').trim();
-        if (staticContent) contentBlocks.push({ type: "text", text: staticContent });
-        const dynamicContent = this.dynamicSystemPrompts.join('\n\n').trim();
-        if (dynamicContent) contentBlocks.push({ type: "text", text: dynamicContent });
-        const messages: ChatMessage[] = [
-            ...(contentBlocks.length > 0 ? [{ role: MessageRole.System, content: contentBlocks }] : []),
-            ...history,
-        ];
-
-        if (signal?.aborted) throw new AgentCancelledError();
-        const result = await this.modelService.invoke(messages);
-
-        if (result.usage) {
-            await callback?.onUsage?.(result.usage);
-            delete result.usage;
-        }
-
-        GenerativeAgentService.normalizeMessageContent(result);
-
-        await this.saverService.pushMessage(result);
-        if (callback.onMessage) await callback.onMessage(result);
-
-        return [result];
     }
 
     /**

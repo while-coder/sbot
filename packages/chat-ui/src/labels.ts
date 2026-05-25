@@ -80,6 +80,8 @@ export const defaultLabels: Required<ChatLabels> = {
   selectOrCreate: '← 请选择或创建会话',
   archivedTag: '已归档',
   showArchived: '显示已归档',
+  commandTag: '命令',
+  exceptionTag: '异常',
 }
 
 export function resolveLabels(partial?: ChatLabels): Required<ChatLabels> {

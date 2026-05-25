@@ -53,7 +53,7 @@ export abstract class MessageDispatcher {
             try {
                 this.logger?.info(`开始处理[${logSuffix}]: ${queryText} (剩余队列: ${this.messageQueue.length})`);
                 if (messageType === MessageType.Command) {
-                    await this.processCommand((query as string).substring(1), args);
+                    await this.processCommand(query as string, args);
                 } else {
                     await this.processAI(query, args);
                 }
@@ -101,7 +101,8 @@ export abstract class MessageDispatcher {
             CommandRegistry.register(cmd, program, context);
         }
 
-        const argv = CommandRegistry.parse(query);
+        const stripped = query.startsWith('/') ? query.substring(1) : query;
+        const argv = CommandRegistry.parse(stripped);
 
         try {
             await program.parseAsync(argv, { from: 'user' });
@@ -123,13 +124,13 @@ export abstract class MessageDispatcher {
         ].join('\n');
 
         if (allContent) {
-            await this.onCommandResult(allContent, args);
+            await this.onCommandResult(query, allContent, args);
         }
     }
     protected abstract onProcessStart(query: MessageContent, args: any, messageType: MessageType): Promise<string | void>;
     protected abstract processAI(query: MessageContent, args: any): Promise<void>;
     protected abstract getAllCommands(): Promise<ICommand[]>;
-    protected abstract onCommandResult(content: string, args: any): Promise<void>;
+    protected abstract onCommandResult(query: string, content: string, args: any): Promise<void>;
     /** 每条消息处理完毕后（无论成功或失败）调用，error 存在时表示处理出错 */
     protected abstract onProcessEnd(query: MessageContent, args: any, messageType: MessageType, error?: any): Promise<void>;
     

@@ -36,6 +36,8 @@ const labels = computed<ChatLabels>(() => ({
   download: t('common.download'),
   close: t('common.close'),
   archivedTag: t('savers.archived_tag'),
+  commandTag: t('savers.command_tag'),
+  exceptionTag: t('savers.exception_tag'),
 }))
 
 async function fetchFn(url: string) {

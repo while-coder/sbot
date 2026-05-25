@@ -1,7 +1,7 @@
 import { ServiceContainer } from "scorpio.di";
 import { IMemoryService } from "../Memory";
 import { IWikiService } from "../Wiki";
-import { IAgentSaverService, AgentMemorySaver, ChatMessage, ChatToolCall, MessageRole, type MessageContent, type TokenUsage } from "../Saver";
+import { IAgentSaverService, AgentMemorySaver, ChatMessage, ChatToolCall, MessageKind, MessageRole, type MessageContent, type TokenUsage } from "../Saver";
 import { ILoggerService, ILogger } from "../Logger";
 
 
@@ -125,6 +125,25 @@ export abstract class AgentServiceBase {
     }
 
     abstract stream(query: MessageContent, callback: IAgentCallback, signal?: AbortSignal): Promise<ChatMessage[]>;
+
+    /**
+     * 将运行/工具异常以 {@link MessageKind.Exception} 形式落库，便于回溯。
+     * 取消（{@link AgentCancelledError}）不记录；落库失败仅日志告警，不影响原始 error 的传播。
+     */
+    protected async recordException(error: unknown, options?: { thinkId?: string }): Promise<void> {
+        if (error instanceof AgentCancelledError) return;
+        const e = error as { name?: string; message?: string };
+        const text = `[${e?.name ?? 'Error'}] ${e?.message ?? String(error)}`;
+        try {
+            await this.saverService.pushMessage(
+                { role: MessageRole.System, content: text },
+                { kind: MessageKind.Exception, ...(options?.thinkId ? { thinkId: options.thinkId } : {}) },
+            );
+        } catch (saveErr: any) {
+            this.logger?.warn(`Failed to record exception to saver: ${saveErr?.message ?? saveErr}`);
+        }
+    }
+
     /**
      * 释放资源
      */

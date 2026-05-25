@@ -75,6 +75,7 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
             return await this.collectResponse(response, callback);
         } catch (e) {
             this.onStreamError(e);
+            await this.recordException(e, this._thinkId ? { thinkId: this._thinkId } : undefined);
             throw e;
         } finally {
             signal?.removeEventListener("abort", onCancel);

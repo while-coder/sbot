@@ -241,6 +241,8 @@ export default {
     history_cleared: '历史已清除',
     show_archived: '显示已归档消息',
     archived_tag: '已归档',
+    command_tag: '命令',
+    exception_tag: '异常',
   },
   memories: {
     add: '+ 添加碎片知识库',

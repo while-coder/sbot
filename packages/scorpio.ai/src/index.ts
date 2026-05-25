@@ -171,6 +171,7 @@ export {
 export {
   // 接口 + Symbol Token
   IAgentSaverService,
+  MessageKind,
   type StoredMessage,
   type ChatToolCall,
   type MessageContent,

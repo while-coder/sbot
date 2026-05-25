@@ -103,8 +103,8 @@ export class WebSocketTransport implements IChatTransport {
   }
 
   async deleteSession(sessionId: string): Promise<void> {
-    await this.api(`/api/settings/sessions/${encodeURIComponent(sessionId)}`, 'DELETE')
     await this.api(`/api/sessions/${encodeURIComponent(sessionId)}/history`, 'DELETE').catch(() => {})
+    await this.api(`/api/settings/sessions/${encodeURIComponent(sessionId)}`, 'DELETE')
   }
 
   async updateSession(sessionId: string, patch: Partial<SessionItem>): Promise<void> {

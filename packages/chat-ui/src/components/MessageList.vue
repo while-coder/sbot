@@ -6,6 +6,19 @@ import type { StoredMessage, ToolCall, ChatLabels, DisplayContent } from '../typ
 function isArchived(m: StoredMessage): boolean {
   return m.kind === MessageKind.Archive
 }
+function isCommand(m: StoredMessage): boolean {
+  return m.kind === MessageKind.Command
+}
+function isException(m: StoredMessage): boolean {
+  return m.kind === MessageKind.Exception
+}
+function rowKindClass(m: StoredMessage) {
+  return {
+    archived:  isArchived(m),
+    command:   isCommand(m),
+    exception: isException(m),
+  }
+}
 import { fmtTs, fmtDateSep, toggleToolCall } from '../messageRender'
 import { inlineArgs, resultPreview } from '../toolCallFormat'
 import { resolveLabels, tpl } from '../labels'
@@ -76,11 +89,13 @@ function isEmbeddedTool(msg: StoredMessage): boolean {
 
       <template v-if="!isEmbeddedTool(msg)">
         <!-- Human message -->
-        <div v-if="msg.message.role === MessageRole.Human" class="msg-row human" :class="{ archived: isArchived(msg) }">
+        <div v-if="msg.message.role === MessageRole.Human" class="msg-row human" :class="rowKindClass(msg)">
           <div class="msg-bubble human">
             <div class="msg-role-bar">
               <span class="msg-role">{{ L.roleUser }}</span>
               <span v-if="isArchived(msg)" class="msg-archived-tag">{{ L.archivedTag }}</span>
+              <span v-if="isCommand(msg)" class="msg-kind-tag msg-kind-command">{{ L.commandTag }}</span>
+              <span v-if="isException(msg)" class="msg-kind-tag msg-kind-exception">{{ L.exceptionTag }}</span>
               <span v-if="msg.createdAt" class="msg-time">{{ fmtTs(msg.createdAt) }}</span>
               <div v-if="msg.thinkId && thinksUrlPrefix" class="think-toggle think-toggle-human" @click="openThink(msg.thinkId!)">
                 <span>▸</span><span>{{ L.think }}</span>
@@ -91,11 +106,13 @@ function isEmbeddedTool(msg: StoredMessage): boolean {
         </div>
 
         <!-- AI message -->
-        <div v-else-if="msg.message.role === MessageRole.AI" class="msg-row ai" :class="{ archived: isArchived(msg) }">
+        <div v-else-if="msg.message.role === MessageRole.AI" class="msg-row ai" :class="rowKindClass(msg)">
           <div v-if="msg.message.content" class="msg-bubble ai">
             <div class="msg-role-bar">
               <span class="msg-role">{{ L.roleAi }}</span>
               <span v-if="isArchived(msg)" class="msg-archived-tag">{{ L.archivedTag }}</span>
+              <span v-if="isCommand(msg)" class="msg-kind-tag msg-kind-command">{{ L.commandTag }}</span>
+              <span v-if="isException(msg)" class="msg-kind-tag msg-kind-exception">{{ L.exceptionTag }}</span>
               <span v-if="msg.createdAt" class="msg-time">{{ fmtTs(msg.createdAt) }}</span>
               <div v-if="msg.thinkId && thinksUrlPrefix" class="think-toggle" @click="openThink(msg.thinkId!)">
                 <span>▸</span><span>{{ L.think }}</span>
@@ -109,6 +126,8 @@ function isEmbeddedTool(msg: StoredMessage): boolean {
             <div class="msg-role has-think">
               {{ tpl(L.toolCalls, { count: msg.message.tool_calls.length }) }}
               <span v-if="isArchived(msg) && !msg.message.content" class="msg-archived-tag">{{ L.archivedTag }}</span>
+              <span v-if="isCommand(msg) && !msg.message.content" class="msg-kind-tag msg-kind-command">{{ L.commandTag }}</span>
+              <span v-if="isException(msg) && !msg.message.content" class="msg-kind-tag msg-kind-exception">{{ L.exceptionTag }}</span>
               <div v-if="msg.thinkId && thinksUrlPrefix && !msg.message.content" class="think-toggle" @click="openThink(msg.thinkId!)">
                 <span>▸</span><span>{{ L.think }}</span>
               </div>
@@ -141,22 +160,26 @@ function isEmbeddedTool(msg: StoredMessage): boolean {
         </div>
 
         <!-- Tool message (standalone, no tool_call_id) -->
-        <div v-else-if="msg.message.role === MessageRole.Tool" class="msg-row ai" :class="{ archived: isArchived(msg) }">
+        <div v-else-if="msg.message.role === MessageRole.Tool" class="msg-row ai" :class="rowKindClass(msg)">
           <div class="msg-bubble tool">
             <div class="msg-role-bar">
               <span class="msg-role">Tool{{ msg.message.name ? ` · ${msg.message.name}` : '' }}</span>
               <span v-if="isArchived(msg)" class="msg-archived-tag">{{ L.archivedTag }}</span>
+              <span v-if="isCommand(msg)" class="msg-kind-tag msg-kind-command">{{ L.commandTag }}</span>
+              <span v-if="isException(msg)" class="msg-kind-tag msg-kind-exception">{{ L.exceptionTag }}</span>
             </div>
             <ContentParts :content="msg.message.content" @open-image="openLightbox" />
           </div>
         </div>
 
         <!-- System / other -->
-        <div v-else class="msg-row ai" :class="{ archived: isArchived(msg) }">
+        <div v-else class="msg-row ai" :class="rowKindClass(msg)">
           <div class="msg-bubble ai">
             <div class="msg-role-bar">
               <span class="msg-role">{{ msg.message.role }}</span>
               <span v-if="isArchived(msg)" class="msg-archived-tag">{{ L.archivedTag }}</span>
+              <span v-if="isCommand(msg)" class="msg-kind-tag msg-kind-command">{{ L.commandTag }}</span>
+              <span v-if="isException(msg)" class="msg-kind-tag msg-kind-exception">{{ L.exceptionTag }}</span>
               <span v-if="msg.createdAt" class="msg-time">{{ fmtTs(msg.createdAt) }}</span>
             </div>
             <ContentParts :content="msg.message.content" @open-image="openLightbox" />
@@ -467,6 +490,47 @@ function isEmbeddedTool(msg: StoredMessage): boolean {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   white-space: nowrap;
+}
+
+/* Command (指令型回调) — 不进入 LLM 上下文，仅作为旁路记录展示 */
+.msg-row.command .msg-bubble,
+.msg-row.command .msg-tool-calls {
+  border-left: 3px solid #818cf8;
+}
+.msg-row.command .msg-bubble.ai,
+.msg-row.command .msg-bubble.tool,
+.msg-row.command .msg-tool-calls {
+  background: rgba(99, 102, 241, 0.06);
+}
+.msg-kind-tag {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.msg-kind-command {
+  color: #4338ca;
+  background: #e0e7ff;
+  border: 1px solid #c7d2fe;
+}
+
+/* Exception (异常记录) — 标红警示 */
+.msg-row.exception .msg-bubble,
+.msg-row.exception .msg-tool-calls {
+  border-left: 3px solid #f87171;
+}
+.msg-row.exception .msg-bubble.ai,
+.msg-row.exception .msg-bubble.tool,
+.msg-row.exception .msg-tool-calls {
+  background: rgba(239, 68, 68, 0.06);
+}
+.msg-kind-exception {
+  color: #b91c1c;
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
 }
 
 /* Thinking indicator */

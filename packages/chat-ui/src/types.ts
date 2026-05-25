@@ -180,6 +180,10 @@ export interface ChatLabels {
   archivedTag?: string
   /** StatusBar 的「显示已归档」复选框文案 */
   showArchived?: string
+  /** 命令型消息行右上角的小角标文案 */
+  commandTag?: string
+  /** 异常型消息行右上角的小角标文案 */
+  exceptionTag?: string
 }
 
 // ── Wiki option ──

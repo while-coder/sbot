@@ -325,51 +325,56 @@ export class SingleAgentService extends AgentServiceBase {
         // 将本次用户消息压入历史
         await this.saverService.pushMessage({ role: MessageRole.Human, content: query });
 
-        const [systemMessage, tools] = await Promise.all([
-            this.buildSystemMessage(query),
-            this.buildTools(callback, signal),
-        ]);
-
-        const graph = new StateGraph<SingleAgentState>()
-            .addNode(GraphNodeType.AGENT, this.callModelNode.bind(this))
-            .addNode(GraphNodeType.TOOLS, this.callToolsNode.bind(this))
-            .addEdge(START, GraphNodeType.AGENT)
-            .addConditionalEdges(GraphNodeType.AGENT, this.agentNext.bind(this))
-            .addEdge(GraphNodeType.TOOLS, GraphNodeType.AGENT);
-        // this.logger?.info(`开始执行 Agent ${query}  system: ${systemMessage?.content}`);
-        const graphStream = graph.stream(
-            { messages: [], callback, systemMessage, tools, signal },
-        );
-
         const aiResponses: string[] = [];
         const outputMessages: ChatMessage[] = [];
 
-        // 处理流式输出，每条输出消息压入历史
-        for await (const update of graphStream) {
-            for (const [, nodeOutput] of Object.entries(update)) {
-                const messages: ChatMessage[] = (nodeOutput as any).messages || [];
+        try {
+            const [systemMessage, tools] = await Promise.all([
+                this.buildSystemMessage(query),
+                this.buildTools(callback, signal),
+            ]);
 
-                for (const message of messages) {
-                    outputMessages.push(message);
-                    // 压入历史：从 additional_kwargs 中取出 thinkId 作为独立参数，不存入消息体
-                    const thinkId = message.additional_kwargs?.thinkId as string | undefined;
-                    if (thinkId) delete message.additional_kwargs!.thinkId;
-                    await this.saverService.pushMessage(message, thinkId ? { thinkId } : undefined);
+            const graph = new StateGraph<SingleAgentState>()
+                .addNode(GraphNodeType.AGENT, this.callModelNode.bind(this))
+                .addNode(GraphNodeType.TOOLS, this.callToolsNode.bind(this))
+                .addEdge(START, GraphNodeType.AGENT)
+                .addConditionalEdges(GraphNodeType.AGENT, this.agentNext.bind(this))
+                .addEdge(GraphNodeType.TOOLS, GraphNodeType.AGENT);
+            // this.logger?.info(`开始执行 Agent ${query}  system: ${systemMessage?.content}`);
+            const graphStream = graph.stream(
+                { messages: [], callback, systemMessage, tools, signal },
+            );
 
-                    if (message.role === MessageRole.AI) {
-                        const text = contentToString(message.content);
-                        if (text) aiResponses.push(text);
-                    }
+            // 处理流式输出，每条输出消息压入历史
+            for await (const update of graphStream) {
+                for (const [, nodeOutput] of Object.entries(update)) {
+                    const messages: ChatMessage[] = (nodeOutput as any).messages || [];
 
-                    if (callback.onMessage) {
-                        if (thinkId) message.additional_kwargs = { ...message.additional_kwargs, thinkId };
-                        await callback.onMessage(message);
-                        if (thinkId && message.additional_kwargs) delete message.additional_kwargs.thinkId;
+                    for (const message of messages) {
+                        outputMessages.push(message);
+                        // 压入历史：从 additional_kwargs 中取出 thinkId 作为独立参数，不存入消息体
+                        const thinkId = message.additional_kwargs?.thinkId as string | undefined;
+                        if (thinkId) delete message.additional_kwargs!.thinkId;
+                        await this.saverService.pushMessage(message, thinkId ? { thinkId } : undefined);
+
+                        if (message.role === MessageRole.AI) {
+                            const text = contentToString(message.content);
+                            if (text) aiResponses.push(text);
+                        }
+
+                        if (callback.onMessage) {
+                            if (thinkId) message.additional_kwargs = { ...message.additional_kwargs, thinkId };
+                            await callback.onMessage(message);
+                            if (thinkId && message.additional_kwargs) delete message.additional_kwargs.thinkId;
+                        }
                     }
                 }
+                // tools node 的补偿消息已全部写入 saver，配对完整后再抛出
+                if (signal?.aborted) throw new AgentCancelledError();
             }
-            // tools node 的补偿消息已全部写入 saver，配对完整后再抛出
-            if (signal?.aborted) throw new AgentCancelledError();
+        } catch (err) {
+            await this.recordException(err);
+            throw err;
         }
         // 静默并行提取 insight 和 todo（互不影响）
         const queryText = contentToString(query);

@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { ICommand, MessageType, type ChatMessage, type MessageContent, trimContent, isEmptyContent } from "scorpio.ai";
+import { ICommand, MessageType, MessageRole, MessageKind, type ChatMessage, type MessageContent, trimContent, isEmptyContent } from "scorpio.ai";
 import { SessionManager, SessionService, ChannelMessageArgs, ChannelSessionHandler } from "channel.base";
 import { type StructuredToolInterface } from "@langchain/core/tools";
 import { WEB_CHANNEL_ID, WEB_CHANNEL_TYPE, type ChannelConfig } from "sbot.commons";
@@ -7,6 +7,7 @@ import { config } from "../Core/Config";
 import { ChannelSessionRow, getChannelSession } from "../Core/Database";
 import { channelManager } from "../Channel/ChannelManager";
 import { createProcessAIHandler } from "../Processing/createProcessAIHandler";
+import { AgentRunner } from "../Agent/AgentRunner";
 import { MiddlewarePipeline } from "../Middleware/MiddlewarePipeline";
 import { intentFilterMiddleware } from "../Middleware/intentFilter";
 import type { MessageContext } from "../Middleware/types";
@@ -62,7 +63,18 @@ class SbotSession extends SessionService {
         await this.getChannel(args).processAI(query, args);
     }
 
-    protected async onCommandResult(content: string, args: ChannelRouteArgs): Promise<void> {
+    protected async onCommandResult(query: string, content: string, args: ChannelRouteArgs): Promise<void> {
+        const resolved = await this.resolveSessionConfig(args);
+        const saverId = resolved?.dbSession.saver || resolved?.channelConfig?.saver;
+        if (saverId) {
+            const saver = await AgentRunner.createSaverService(saverId, this.threadId);
+            try {
+                await saver.pushMessage({ role: MessageRole.Human, content: query }, { kind: MessageKind.Command });
+                await saver.pushMessage({ role: MessageRole.AI, content, isCommand: true }, { kind: MessageKind.Command });
+            } finally {
+                await saver.dispose();
+            }
+        }
         await this.getChannel(args).onCommandResult(content, args);
     }
 

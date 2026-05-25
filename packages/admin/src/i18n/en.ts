@@ -241,6 +241,8 @@ export default {
     history_cleared: 'History cleared',
     show_archived: 'Show archived',
     archived_tag: 'Archived',
+    command_tag: 'Command',
+    exception_tag: 'Exception',
   },
   memories: {
     add: '+ Add Snippet Knowledge',
