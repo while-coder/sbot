@@ -1,93 +1,52 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { apiFetch } from '@/shared/api'
-import { useToast, SButton, SBadge, SSelect, SPageToolbar, SPageContent, STable } from 'sbot-ui'
+import { SButton, SBadge, SSelect, SPageToolbar, SPageContent, STable } from 'sbot-ui'
 import type { STableColumn } from 'sbot-ui'
+import { useTodos, isOverdue, type Todo } from '@/composables/useTodos'
 
 const { t } = useI18n()
-const { show } = useToast()
 
-interface TodoRow {
-  id: number
-  dbSessionId: number
-  sessionName: string
-  channelId: string
-  content: string
-  status: 'pending' | 'done'
-  priority: 'low' | 'normal' | 'high'
-  deadline: string | null
-  doneAt: string | null
-  createdAt: string
-}
-
-const todos = ref<TodoRow[]>([])
-const loading = ref(false)
-const statusFilter = ref<'pending' | 'done' | 'all'>('pending')
+const {
+  loading,
+  statusFilter,
+  sortedTodos,
+  pendingCount,
+  doneCount,
+  overdueCount,
+  load,
+  markDone,
+  remove,
+  priorityLabel,
+  statusLabel,
+  formatTime,
+} = useTodos({ buildQuery: () => '' })  // empty query = list all sessions
 
 const columns = computed<STableColumn[]>(() => {
   const base: STableColumn[] = [
-    { key: 'id',          label: t('common.id') },
-    { key: 'session',     label: t('todo.session_col') },
-    { key: 'content',     label: t('todo.content_col'), primary: true },
-    { key: 'priority',    label: t('todo.priority_col') },
-    { key: 'deadline',    label: t('todo.deadline_col') },
-    { key: 'createdAt',   label: t('todo.created_col') },
+    { key: 'id',        label: t('common.id') },
+    { key: 'session',   label: t('todo.session_col') },
+    { key: 'content',   label: t('todo.content_col'), primary: true },
+    { key: 'priority',  label: t('todo.priority_col') },
+    { key: 'deadline',  label: t('todo.deadline_col') },
+    { key: 'createdAt', label: t('todo.created_col') },
   ]
   if (statusFilter.value !== 'pending') {
     base.push({ key: 'status', label: t('todo.status_col') })
+    base.push({ key: 'doneAt', label: t('todo.done_at') })
   }
   base.push({ key: 'ops', label: t('common.ops'), ops: true })
   return base
 })
 
-function priorityVariant(p: string): 'danger' | 'info' | 'neutral' {
+function priorityVariantOf(p: Todo['priority']): 'danger' | 'info' | 'neutral' {
   if (p === 'high') return 'danger'
-  if (p === 'low') return 'neutral'
+  if (p === 'low')  return 'neutral'
   return 'info'
 }
 
-function statusVariant(s: string): 'success' | 'info' {
+function statusVariantOf(s: Todo['status']): 'success' | 'info' {
   return s === 'done' ? 'success' : 'info'
-}
-
-async function load() {
-  loading.value = true
-  try {
-    const res = await apiFetch(`/api/todos?status=${statusFilter.value}`)
-    todos.value = res.data || []
-  } catch (e: any) {
-    show(e.message, 'error')
-  } finally {
-    loading.value = false
-  }
-}
-
-function formatTime(ts: string | null): string {
-  if (!ts) return t('todo.no_deadline')
-  return new Date(ts).toLocaleString('zh-CN')
-}
-
-async function markDone(row: TodoRow) {
-  if (!window.confirm(t('todo.confirm_done', { id: row.id }))) return
-  try {
-    await apiFetch(`/api/todos/${row.dbSessionId}/${row.id}`, 'PATCH')
-    show(t('common.saved'))
-    await load()
-  } catch (e: any) {
-    show(e.message, 'error')
-  }
-}
-
-async function remove(row: TodoRow) {
-  if (!window.confirm(t('todo.confirm_delete', { id: row.id }))) return
-  try {
-    await apiFetch(`/api/todos/${row.dbSessionId}/${row.id}`, 'DELETE')
-    show(t('common.deleted'))
-    await load()
-  } catch (e: any) {
-    show(e.message, 'error')
-  }
 }
 
 onMounted(load)
@@ -96,6 +55,11 @@ onMounted(load)
 <template>
   <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
     <SPageToolbar :title="t('todo.title')">
+      <span v-if="!loading" class="todo-counts">
+        <SBadge variant="info" size="sm">{{ t('todo.count_pending', { n: pendingCount }) }}</SBadge>
+        <SBadge v-if="overdueCount > 0" variant="danger" size="sm">{{ t('todo.overdue') }} {{ overdueCount }}</SBadge>
+        <SBadge v-if="doneCount > 0" variant="success" size="sm">{{ t('todo.count_done', { n: doneCount }) }}</SBadge>
+      </span>
       <template #actions>
         <SSelect v-model="statusFilter" size="sm" style="width:140px" @change="load">
           <option value="pending">{{ t('todo.filter_pending') }}</option>
@@ -108,7 +72,7 @@ onMounted(load)
     <SPageContent>
       <STable
         :columns="columns"
-        :rows="todos"
+        :rows="sortedTodos"
         row-key="id"
         :loading="loading"
         :loading-text="t('common.loading')"
@@ -123,12 +87,20 @@ onMounted(load)
           <span class="todo-content" :class="{ 'todo-content-done': row.status === 'done' }">{{ row.content }}</span>
         </template>
         <template #priority="{ row }">
-          <SBadge :variant="priorityVariant(row.priority)">{{ row.priority }}</SBadge>
+          <SBadge :variant="priorityVariantOf(row.priority)">{{ priorityLabel(row.priority) }}</SBadge>
         </template>
-        <template #deadline="{ row }"><span class="todo-time">{{ formatTime(row.deadline) }}</span></template>
+        <template #deadline="{ row }">
+          <span class="todo-time" :class="{ 'todo-time-overdue': isOverdue(row) }">
+            <span v-if="isOverdue(row)" class="todo-overdue-icon">⚠</span>
+            {{ formatTime(row.deadline) }}
+          </span>
+        </template>
         <template #createdAt="{ row }"><span class="todo-time">{{ formatTime(row.createdAt) }}</span></template>
         <template #status="{ row }">
-          <SBadge :variant="statusVariant(row.status)">{{ row.status }}</SBadge>
+          <SBadge :variant="statusVariantOf(row.status)">{{ statusLabel(row.status) }}</SBadge>
+        </template>
+        <template #doneAt="{ row }">
+          <span class="todo-time todo-time-done">{{ row.doneAt ? formatTime(row.doneAt) : '-' }}</span>
         </template>
         <template #ops="{ row }">
           <SButton v-if="row.status === 'pending'" type="primary" size="sm" @click="markDone(row)">{{ t('todo.mark_done') }}</SButton>
@@ -140,6 +112,11 @@ onMounted(load)
 </template>
 
 <style scoped>
+.todo-counts {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sui-sp-2);
+}
 .todo-id {
   font-family: var(--sui-font-mono);
   color: var(--sui-fg-disabled);
@@ -170,5 +147,15 @@ onMounted(load)
   font-size: var(--sui-fs-sm);
   color: var(--sui-fg-disabled);
   white-space: nowrap;
+}
+.todo-time-overdue {
+  color: var(--sui-danger);
+  font-weight: 500;
+}
+.todo-time-done {
+  color: var(--sui-success);
+}
+.todo-overdue-icon {
+  margin-right: 2px;
 }
 </style>

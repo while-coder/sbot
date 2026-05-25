@@ -184,6 +184,20 @@ export interface ChatLabels {
   commandTag?: string
   /** 异常型消息行右上角的小角标文案 */
   exceptionTag?: string
+  /** Explorer 文件树根目录未设置时的占位文案 */
+  explorerNoRoot?: string
+  /** Explorer 文件树根目录提示 */
+  explorerPickRootHint?: string
+  /** Explorer 文件树空目录文案 */
+  explorerEmptyDir?: string
+  /** Explorer 未选中文件时的占位文案 */
+  explorerSelectFile?: string
+  /** Explorer 二进制文件提示 */
+  explorerBinaryFile?: string
+  /** Explorer 文件过大提示，模板变量 {size} */
+  explorerTooLarge?: string
+  /** Explorer 切换显示的按钮/工具提示 */
+  explorerToggle?: string
 }
 
 // ── Wiki option ──
@@ -286,6 +300,27 @@ export interface DirListResult {
 export interface QuickDir {
   label: string
   path: string
+}
+
+// ── Filesystem tree (Explorer) ──
+export interface FsTreeItem {
+  name: string
+  path: string
+  type: 'dir' | 'file'
+  size?: number
+}
+
+export interface FsTreeResult {
+  path: string
+  items: FsTreeItem[]
+}
+
+export interface FsReadResult {
+  path: string
+  size: number
+  isBinary: boolean
+  tooLarge: boolean
+  content: string
 }
 
 // ── App settings ──

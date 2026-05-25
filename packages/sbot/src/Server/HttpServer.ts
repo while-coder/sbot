@@ -101,6 +101,51 @@ function throwBad(msg: string): never {
     const e: any = new Error(msg); e.status = 400; throw e;
 }
 
+/** 资源管理器 / 文件读取最大字节数 */
+const MAX_FILE_READ_SIZE = 2 * 1024 * 1024;
+
+/** 目录优先、再按名称排序 */
+function dirFirstByName(a: { isDirectory(): boolean; name: string }, b: { isDirectory(): boolean; name: string }) {
+    if (a.isDirectory() !== b.isDirectory()) return a.isDirectory() ? -1 : 1;
+    return a.name.localeCompare(b.name);
+}
+
+/**
+ * 解析用户传入路径并校验为存在的目录。返回 stat 一并避免重复 syscall。
+ * 路径不存在或不是目录时抛 400。
+ */
+function resolveExistingDir(input: string): { target: string; stat: fs.Stats } {
+    const target = path.resolve(input);
+    let stat: fs.Stats;
+    try { stat = fs.statSync(target); }
+    catch { throwBad(`Path does not exist: ${target}`); }
+    if (!stat.isDirectory()) throwBad(`Path does not exist: ${target}`);
+    return { target, stat };
+}
+
+/**
+ * 解析用户传入路径并校验为存在的文件。
+ * 路径不存在或不是文件时抛 400。
+ */
+function resolveExistingFile(input: string): { target: string; stat: fs.Stats } {
+    const target = path.resolve(input);
+    let stat: fs.Stats;
+    try { stat = fs.statSync(target); }
+    catch { throwBad(`File not found: ${target}`); }
+    if (!stat.isFile()) throwBad(`File not found: ${target}`);
+    return { target, stat };
+}
+
+/**
+ * 安全相对路径校验：拒绝绝对路径与 .. 越界。供 prompts/skills 等需要拼接基准目录的接口使用。
+ */
+function safeRelPath(relPath: string | undefined): string {
+    if (!relPath?.trim()) throwBad('path is required');
+    const normalized = path.normalize(relPath.trim()).replace(/\\/g, '/');
+    if (normalized.startsWith('..') || path.isAbsolute(normalized)) throwBad('Invalid path');
+    return normalized;
+}
+
 async function mutateTodoFile(filePath: string, mutator: (data: any) => void): Promise<void> {
     const buf = await fsp.readFile(filePath, 'utf-8').catch(() => '{"todos":[],"nextId":1}');
     const data = JSON.parse(buf);
@@ -182,20 +227,9 @@ const PROMPTS_DIR = path.resolve(__dirname, '../../prompts');
 
 type PromptNode = { name: string; type: 'file' | 'dir'; path: string; isOverride?: boolean; isUserOnly?: boolean; children?: PromptNode[] };
 
-function safePromptRelPath(relPath: string): string {
-    if (!relPath?.trim()) throwBad('path is required');
-    const normalized = path.normalize(relPath.trim()).replace(/\\/g, '/');
-    if (normalized.startsWith('..') || path.isAbsolute(normalized)) throwBad('Invalid path');
-    return normalized;
-}
-
 function buildPromptTree(dir: string, basePath = '', userBaseDir = ''): PromptNode[] {
     if (!fs.existsSync(dir)) return [];
-    const entries = fs.readdirSync(dir, { withFileTypes: true })
-        .sort((a, b) => {
-            if (a.isDirectory() !== b.isDirectory()) return a.isDirectory() ? -1 : 1;
-            return a.name.localeCompare(b.name);
-        });
+    const entries = fs.readdirSync(dir, { withFileTypes: true }).sort(dirFirstByName);
     const result: PromptNode[] = [];
     const seen = new Set<string>();
     for (const entry of entries) {
@@ -215,10 +249,7 @@ function buildPromptTree(dir: string, basePath = '', userBaseDir = ''): PromptNo
         if (fs.existsSync(userDir)) {
             const userEntries = fs.readdirSync(userDir, { withFileTypes: true })
                 .filter(e => !seen.has(e.name))
-                .sort((a, b) => {
-                    if (a.isDirectory() !== b.isDirectory()) return a.isDirectory() ? -1 : 1;
-                    return a.name.localeCompare(b.name);
-                });
+                .sort(dirFirstByName);
             for (const entry of userEntries) {
                 const relPath = basePath ? `${basePath}/${entry.name}` : entry.name;
                 if (entry.isDirectory()) {
@@ -322,11 +353,7 @@ type SkillTreeNode = { name: string; type: 'file' | 'dir'; path: string; childre
 
 function buildSkillTree(dir: string, basePath = ''): SkillTreeNode[] {
     if (!fs.existsSync(dir)) return [];
-    const entries = fs.readdirSync(dir, { withFileTypes: true })
-        .sort((a, b) => {
-            if (a.isDirectory() !== b.isDirectory()) return a.isDirectory() ? -1 : 1;
-            return a.name.localeCompare(b.name);
-        });
+    const entries = fs.readdirSync(dir, { withFileTypes: true }).sort(dirFirstByName);
     const result: SkillTreeNode[] = [];
     for (const entry of entries) {
         const relPath = basePath ? `${basePath}/${entry.name}` : entry.name;
@@ -337,13 +364,6 @@ function buildSkillTree(dir: string, basePath = ''): SkillTreeNode[] {
         }
     }
     return result;
-}
-
-function safeSkillFilePath(filePath: string): string {
-    if (!filePath?.trim()) { const e: any = new Error('path is required'); e.status = 400; throw e; }
-    const normalized = path.normalize(filePath.trim()).replace(/\\/g, '/');
-    if (normalized.startsWith('..') || path.isAbsolute(normalized)) { const e: any = new Error('Invalid path'); e.status = 400; throw e; }
-    return normalized;
 }
 
 /** 统一异常包装：捕获异常并返回标准 JSON 响应 */
@@ -812,8 +832,7 @@ class HttpServer {
                 return { path: '', parent: null, items };
             }
 
-            const target = path.resolve(dir || os.homedir());
-            if (!fs.existsSync(target) || !fs.statSync(target).isDirectory()) throwBad(`Path does not exist: ${target}`);
+            const { target } = resolveExistingDir(dir || os.homedir());
 
             const up = path.dirname(target);
             const parent: string | null = (up === target)
@@ -857,8 +876,7 @@ class HttpServer {
         app.get('/api/fs/tree', api(req => {
             const dir = (req.query.dir as string) ?? '';
             if (!dir.trim()) throwBad('dir is required');
-            const target = path.resolve(dir.trim());
-            if (!fs.existsSync(target) || !fs.statSync(target).isDirectory()) throwBad(`Path does not exist: ${target}`);
+            const { target } = resolveExistingDir(dir.trim());
 
             let entries: fs.Dirent[] = [];
             try { entries = fs.readdirSync(target, { withFileTypes: true }); } catch { /* 无权限时返回空 */ }
@@ -884,12 +902,9 @@ class HttpServer {
         app.get('/api/fs/read', api(req => {
             const filePath = (req.query.path as string) ?? '';
             if (!filePath.trim()) throwBad('path is required');
-            const target = path.resolve(filePath.trim());
-            if (!fs.existsSync(target) || !fs.statSync(target).isFile()) throwBad(`File not found: ${target}`);
+            const { target, stat } = resolveExistingFile(filePath.trim());
 
-            const stat = fs.statSync(target);
-            const MAX_SIZE = 2 * 1024 * 1024; // 2MB
-            if (stat.size > MAX_SIZE) {
+            if (stat.size > MAX_FILE_READ_SIZE) {
                 return { path: target, size: stat.size, isBinary: false, tooLarge: true, content: '' };
             }
             const buf = fs.readFileSync(target);
@@ -1075,7 +1090,7 @@ class HttpServer {
             const name = req.params.name as string;
             const skill = globalSkillService.getAllSkills().find((s: any) => s.name === name);
             if (!skill) { const e: any = new Error(`Skill "${name}" not found`); e.status = 404; throw e; }
-            const filePath = safeSkillFilePath(req.query.path as string);
+            const filePath = safeRelPath(req.query.path as string);
             const fullPath = path.join(skill.path, filePath);
             if (!fs.existsSync(fullPath) || !fs.statSync(fullPath).isFile()) {
                 const e: any = new Error(`File "${filePath}" not found`); e.status = 404; throw e;
@@ -1138,7 +1153,7 @@ class HttpServer {
             svc.registerSkillsDir(skillsDir);
             const skill = svc.getAllSkills().find(s => s.name === req.params.skillName);
             if (!skill) { const e: any = new Error(`Skill "${req.params.skillName}" not found`); e.status = 404; throw e; }
-            const filePath = safeSkillFilePath(req.query.path as string);
+            const filePath = safeRelPath(req.query.path as string);
             const fullPath = path.join(skill.path, filePath);
             if (!fs.existsSync(fullPath) || !fs.statSync(fullPath).isFile()) {
                 const e: any = new Error(`File "${filePath}" not found`); e.status = 404; throw e;
@@ -1269,7 +1284,7 @@ class HttpServer {
         }));
 
         app.get('/api/prompts/content', api(req => {
-            const relPath = safePromptRelPath(req.query.path as string);
+            const relPath = safeRelPath(req.query.path as string);
             const userPath = config.getConfigPath(`prompts/${relPath}`);
             const defaultPath = path.join(PROMPTS_DIR, relPath);
             let content: string;
@@ -1294,7 +1309,7 @@ class HttpServer {
 
         app.put('/api/prompts/content', api(async req => {
             const { path: relPath, content } = req.body;
-            const safe = safePromptRelPath(relPath);
+            const safe = safeRelPath(relPath);
             const userPath = config.getConfigPath(`prompts/${safe}`);
             fs.writeFileSync(userPath, content ?? '', 'utf-8');
             await refreshBuiltinTools();
@@ -1302,7 +1317,7 @@ class HttpServer {
         }));
 
         app.delete('/api/prompts/content', api(async req => {
-            const relPath = safePromptRelPath(req.query.path as string);
+            const relPath = safeRelPath(req.query.path as string);
             const userPath = config.getConfigPath(`prompts/${relPath}`);
             if (fs.existsSync(userPath)) fs.unlinkSync(userPath);
             await refreshBuiltinTools();

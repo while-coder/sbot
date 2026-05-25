@@ -14,6 +14,8 @@ import {
   type AskAnswerPayload,
   type DirListResult,
   type QuickDir,
+  type FsTreeResult,
+  type FsReadResult,
 } from './types'
 
 type EventHandler = (event: ChatEvent) => void
@@ -184,6 +186,16 @@ export class WebSocketTransport implements IChatTransport {
   async mkdir(path: string): Promise<{ path: string }> {
     const res = await this.api('/api/fs/mkdir', 'POST', { path })
     return res.data ?? res ?? { path }
+  }
+
+  async listTree(dir: string): Promise<FsTreeResult> {
+    const res = await this.api(`/api/fs/tree?dir=${encodeURIComponent(dir)}`)
+    return res.data ?? res ?? { path: dir, items: [] }
+  }
+
+  async readFile(path: string): Promise<FsReadResult> {
+    const res = await this.api(`/api/fs/read?path=${encodeURIComponent(path)}`)
+    return res.data ?? res ?? { path, size: 0, isBinary: false, tooLarge: false, content: '' }
   }
 
   // ── Thinks ──

@@ -1,100 +1,41 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { apiFetch } from '@/shared/api'
-import { useToast, SModal, SButton, SBadge, SSelect } from 'sbot-ui'
+import { SModal, SButton, SBadge, SSelect } from 'sbot-ui'
+import { useTodos, isOverdue, type Todo } from '@/composables/useTodos'
 
 const { t } = useI18n()
-const { show } = useToast()
 
-interface TodoRow {
-  id: number
-  dbSessionId: number
-  sessionName: string
-  channelId: string
-  content: string
-  status: 'pending' | 'done'
-  priority: 'low' | 'normal' | 'high'
-  deadline: string | null
-  doneAt: string | null
-  createdAt: string
-}
+const visible       = ref(false)
+const dbSessionId   = ref<number | null>(null)
+const sessionIdRef  = ref<string | null>(null)
+const sessionLabel  = ref('')
 
-const visible        = ref(false)
-const dbSessionId    = ref<number | null>(null)
-const sessionIdRef   = ref<string | null>(null)
-const sessionLabel   = ref('')
-const todos          = ref<TodoRow[]>([])
-const loading        = ref(false)
-const statusFilter   = ref<'pending' | 'done' | 'all'>('pending')
+const {
+  todos,
+  loading,
+  statusFilter,
+  sortedTodos,
+  pendingCount,
+  doneCount,
+  overdueCount,
+  load,
+  markDone,
+  remove,
+  priorityLabel,
+  formatTime,
+} = useTodos({
+  buildQuery: () => {
+    if (dbSessionId.value != null) return `dbSessionId=${dbSessionId.value}`
+    if (sessionIdRef.value)         return `sessionId=${encodeURIComponent(sessionIdRef.value)}`
+    return null
+  },
+})
 
-const pendingCount = computed(() => todos.value.filter(t => t.status === 'pending').length)
-const doneCount    = computed(() => todos.value.filter(t => t.status === 'done').length)
-
-function priorityVariant(p: string): 'danger' | 'info' | 'neutral' {
+function priorityVariantOf(p: Todo['priority']): 'danger' | 'info' | 'neutral' {
   if (p === 'high') return 'danger'
   if (p === 'low')  return 'neutral'
   return 'info'
-}
-
-function priorityRank(p: string): number {
-  if (p === 'high')   return 0
-  if (p === 'normal') return 1
-  return 2
-}
-
-const sortedTodos = computed(() =>
-  [...todos.value].sort((a, b) => {
-    if (a.status !== b.status) return a.status === 'pending' ? -1 : 1
-    const pr = priorityRank(a.priority) - priorityRank(b.priority)
-    if (pr !== 0) return pr
-    return (a.createdAt || '').localeCompare(b.createdAt || '')
-  }),
-)
-
-function formatTime(ts: string | null): string {
-  if (!ts) return t('todo.no_deadline')
-  return new Date(ts).toLocaleString('zh-CN')
-}
-
-async function load() {
-  const q = dbSessionId.value != null
-    ? `dbSessionId=${dbSessionId.value}`
-    : sessionIdRef.value
-      ? `sessionId=${encodeURIComponent(sessionIdRef.value)}`
-      : null
-  if (!q) return
-  loading.value = true
-  try {
-    const res = await apiFetch(`/api/todos?${q}&status=${statusFilter.value}`)
-    todos.value = res.data || []
-  } catch (e: any) {
-    show(e.message, 'error')
-  } finally {
-    loading.value = false
-  }
-}
-
-async function markDone(row: TodoRow) {
-  if (!window.confirm(t('todo.confirm_done', { id: row.id }))) return
-  try {
-    await apiFetch(`/api/todos/${row.dbSessionId}/${row.id}`, 'PATCH')
-    show(t('common.saved'))
-    await load()
-  } catch (e: any) {
-    show(e.message, 'error')
-  }
-}
-
-async function remove(row: TodoRow) {
-  if (!window.confirm(t('todo.confirm_delete', { id: row.id }))) return
-  try {
-    await apiFetch(`/api/todos/${row.dbSessionId}/${row.id}`, 'DELETE')
-    show(t('common.deleted'))
-    await load()
-  } catch (e: any) {
-    show(e.message, 'error')
-  }
 }
 
 function open(id: number, label: string) {
@@ -123,12 +64,13 @@ defineExpose({ open, openBySessionId })
 <template>
   <SModal v-model:visible="visible" width="lg">
     <template #header>
-      <div style="display:flex;align-items:center;gap:10px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <h3 class="s-modal-title">{{ t('todo.title') }}</h3>
         <SBadge variant="neutral" size="sm">{{ sessionLabel }}</SBadge>
-        <span v-if="!loading" class="todo-count-badge">
-          {{ t('todo.count_pending', { n: pendingCount }) }}
-          <span v-if="doneCount > 0" class="todo-count-done">/ {{ t('todo.count_done', { n: doneCount }) }}</span>
+        <span v-if="!loading" class="todo-counts">
+          <SBadge variant="info" size="sm">{{ t('todo.count_pending', { n: pendingCount }) }}</SBadge>
+          <SBadge v-if="overdueCount > 0" variant="danger" size="sm">{{ t('todo.overdue') }} {{ overdueCount }}</SBadge>
+          <SBadge v-if="doneCount > 0" variant="success" size="sm">{{ t('todo.count_done', { n: doneCount }) }}</SBadge>
         </span>
       </div>
     </template>
@@ -147,14 +89,22 @@ defineExpose({ open, openBySessionId })
     <div v-if="loading" class="modal-loading">{{ t('common.loading') }}</div>
     <div v-else-if="sortedTodos.length === 0" class="modal-empty">{{ t('todo.empty') }}</div>
     <ul v-else class="todo-list">
-      <li v-for="row in sortedTodos" :key="row.id" class="todo-row" :class="{ done: row.status === 'done' }">
+      <li
+        v-for="row in sortedTodos"
+        :key="row.id"
+        class="todo-row"
+        :class="{ done: row.status === 'done', overdue: isOverdue(row) }"
+      >
         <div class="todo-row-main">
           <span class="todo-row-id">#{{ row.id }}</span>
-          <SBadge :variant="priorityVariant(row.priority)" size="sm">{{ row.priority }}</SBadge>
+          <SBadge :variant="priorityVariantOf(row.priority)" size="sm">{{ priorityLabel(row.priority) }}</SBadge>
           <span class="todo-row-content">{{ row.content }}</span>
         </div>
         <div class="todo-row-meta">
-          <span v-if="row.deadline" class="todo-row-time">⏰ {{ formatTime(row.deadline) }}</span>
+          <span v-if="row.deadline" class="todo-row-time" :class="{ 'todo-row-overdue': isOverdue(row) }">
+            <span v-if="isOverdue(row)" class="todo-overdue-icon">⚠</span>
+            ⏰ {{ formatTime(row.deadline) }}
+          </span>
           <span class="todo-row-time">{{ formatTime(row.createdAt) }}</span>
           <span v-if="row.status === 'done' && row.doneAt" class="todo-row-time todo-row-done-at">✓ {{ formatTime(row.doneAt) }}</span>
         </div>
@@ -168,8 +118,11 @@ defineExpose({ open, openBySessionId })
 </template>
 
 <style scoped>
-.todo-count-badge { font-size: var(--sui-fs-sm); color: var(--sui-fg-disabled); }
-.todo-count-done  { margin-left: 4px; }
+.todo-counts {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sui-sp-2);
+}
 
 .modal-loading,
 .modal-empty {
@@ -231,7 +184,12 @@ defineExpose({ open, openBySessionId })
   color: var(--sui-fg-disabled);
   white-space: nowrap;
 }
+.todo-row-overdue {
+  color: var(--sui-danger);
+  font-weight: 500;
+}
 .todo-row-done-at { color: var(--sui-success); }
+.todo-overdue-icon { margin-right: 2px; }
 .todo-row-ops {
   grid-column: 2;
   grid-row: 1 / span 2;

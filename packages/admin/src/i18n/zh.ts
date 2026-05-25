@@ -490,6 +490,13 @@ export default {
     filter_all: '全部',
     count_pending: '{n} 待办',
     count_done: '{n} 已完成',
+    priority_high: '高',
+    priority_normal: '中',
+    priority_low: '低',
+    status_pending: '未完成',
+    status_done: '已完成',
+    overdue: '已逾期',
+    done_at: '完成于',
   },
   users: {
     detail_title: '用户详情 — {name}',

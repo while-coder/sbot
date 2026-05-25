@@ -23,6 +23,9 @@ export type {
   DisplayContent,
   DirListResult,
   QuickDir,
+  FsTreeItem,
+  FsTreeResult,
+  FsReadResult,
   AppSettings,
   SessionStatus,
   ChatEvent,
@@ -57,3 +60,4 @@ export { default as RichInput } from './components/RichInput.vue';
 export { default as ImageLightbox } from './components/ImageLightbox.vue';
 export { default as ThinkDrawer } from './components/ThinkDrawer.vue';
 export { default as ServerPicker } from './components/ServerPicker.vue';
+export { default as Explorer } from './components/Explorer.vue';

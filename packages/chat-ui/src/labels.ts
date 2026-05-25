@@ -82,6 +82,13 @@ export const defaultLabels: Required<ChatLabels> = {
   showArchived: '显示已归档',
   commandTag: '命令',
   exceptionTag: '异常',
+  explorerNoRoot: '未设置目录',
+  explorerPickRootHint: '请先选择工作目录',
+  explorerEmptyDir: '空目录',
+  explorerSelectFile: '请选择左侧文件',
+  explorerBinaryFile: '二进制文件，无法预览',
+  explorerTooLarge: '文件过大 ({size})，无法预览',
+  explorerToggle: '资源管理器',
 }
 
 export function resolveLabels(partial?: ChatLabels): Required<ChatLabels> {

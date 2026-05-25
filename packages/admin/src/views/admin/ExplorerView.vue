@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { SButton, SPageToolbar } from 'sbot-ui'
-import Explorer from '@/components/Explorer.vue'
+import { Explorer, WebSocketTransport } from '@sbot/chat-ui'
 import PathPickerModal from '@/views/chat/PathPickerModal.vue'
 
 const { t } = useI18n()
@@ -10,6 +10,7 @@ const { t } = useI18n()
 const STORAGE_KEY = 'explorer-root-path'
 const root = ref<string>('')
 const picker = ref<InstanceType<typeof PathPickerModal> | null>(null)
+const transport = new WebSocketTransport()
 
 function openPicker() {
   picker.value?.open(root.value)
@@ -35,7 +36,7 @@ onMounted(() => {
       </SButton>
     </SPageToolbar>
 
-    <Explorer :root="root" />
+    <Explorer :transport="transport" :root="root" />
 
     <PathPickerModal ref="picker" @confirm="onPicked" />
   </div>

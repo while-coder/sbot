@@ -3,7 +3,7 @@ import type {
   SessionItem, CreateSessionOpts, StoredMessage,
   UsageInfo, AppSettings, SessionStatus,
   ToolApprovalPayload, AskAnswerPayload,
-  DirListResult, QuickDir, ChatEvent,
+  DirListResult, QuickDir, FsTreeResult, FsReadResult, ChatEvent,
 } from './types';
 
 export interface IChatTransport {
@@ -33,6 +33,9 @@ export interface IChatTransport {
   listDir(dir?: string): Promise<DirListResult>
   quickDirs(): Promise<QuickDir[]>
   mkdir(path: string): Promise<{ path: string }>
+
+  listTree(dir: string): Promise<FsTreeResult>
+  readFile(path: string): Promise<FsReadResult>
 
   getThinksUrlPrefix(sessionId: string): string | null
   fetchThinks?(url: string): Promise<any>

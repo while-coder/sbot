@@ -490,6 +490,13 @@ export default {
     filter_all: 'All',
     count_pending: '{n} pending',
     count_done: '{n} done',
+    priority_high: 'High',
+    priority_normal: 'Normal',
+    priority_low: 'Low',
+    status_pending: 'Pending',
+    status_done: 'Done',
+    overdue: 'Overdue',
+    done_at: 'Done at',
   },
   users: {
     detail_title: 'User Details — {name}',

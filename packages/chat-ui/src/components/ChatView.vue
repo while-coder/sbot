@@ -16,6 +16,7 @@ import ConfigToolbar from './ConfigToolbar.vue'
 import StatusBar from './StatusBar.vue'
 import ChatArea from './ChatArea.vue'
 import PathPickerModal from './PathPickerModal.vue'
+import Explorer from './Explorer.vue'
 
 const props = withDefaults(defineProps<{
   transport: IChatTransport
@@ -55,6 +56,7 @@ const pathPickerRef = ref<InstanceType<typeof PathPickerModal>>()
 const rootEl        = ref<HTMLElement | null>(null)
 const isCompact     = useCompactProvider(rootEl)
 const sidebarOpen   = ref(false)
+const explorerOpen  = ref(false)
 
 // ── Derived ──
 
@@ -458,28 +460,44 @@ onBeforeUnmount(() => {
       >
         <template #actions-prepend>
           <slot name="status-actions" :session="activeSession" />
+          <button
+            class="chatui-explorer-toggle"
+            :class="{ 'chatui-explorer-toggle--active': explorerOpen }"
+            :title="L.explorerToggle"
+            @click="explorerOpen = !explorerOpen"
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 5v7.5A1.5 1.5 0 0 1 12.5 14h-9A1.5 1.5 0 0 1 2 12.5v-9z"/>
+            </svg>
+          </button>
         </template>
       </StatusBar>
 
-      <!-- Chat area -->
-      <ChatArea
-        ref="chatAreaRef"
-        :messages="displayedMessages"
-        :is-streaming="isStreaming"
-        :streaming-content="streamingContent"
-        :queued-messages="queuedMessages"
-        :pending-tool-call="pendingToolCall"
-        :pending-ask="pendingAsk"
-        :thinks-url-prefix="thinksUrlPrefix"
-        :labels="labels"
-        :show-attachments="showAttachments"
-        :has-saver="hasSaver"
-        :fetch-thinks="fetchThinks"
-        @send="onSend"
-        @approve="onApprove"
-        @answer="onAnswer"
-        @abort="onAbort"
-      />
+      <!-- Chat area + optional Explorer -->
+      <div class="chatui-content">
+        <ChatArea
+          ref="chatAreaRef"
+          class="chatui-chatarea"
+          :messages="displayedMessages"
+          :is-streaming="isStreaming"
+          :streaming-content="streamingContent"
+          :queued-messages="queuedMessages"
+          :pending-tool-call="pendingToolCall"
+          :pending-ask="pendingAsk"
+          :thinks-url-prefix="thinksUrlPrefix"
+          :labels="labels"
+          :show-attachments="showAttachments"
+          :has-saver="hasSaver"
+          :fetch-thinks="fetchThinks"
+          @send="onSend"
+          @approve="onApprove"
+          @answer="onAnswer"
+          @abort="onAbort"
+        />
+        <div v-if="explorerOpen" class="chatui-explorer-pane">
+          <Explorer :transport="transport" :root="activeSession?.workPath" :labels="labels" />
+        </div>
+      </div>
     </div>
 
     <!-- Modals -->
@@ -506,6 +524,49 @@ onBeforeUnmount(() => {
 .chatui-main {
   flex: 1; display: flex; flex-direction: column; overflow: hidden;
   min-width: 0;
+}
+
+/* Chat area + Explorer side-by-side */
+.chatui-content {
+  flex: 1; display: flex; overflow: hidden; min-height: 0;
+}
+.chatui-chatarea {
+  flex: 1; min-width: 0;
+}
+.chatui-explorer-pane {
+  width: 50%;
+  min-width: 280px;
+  max-width: 70%;
+  border-left: 1px solid var(--chatui-border);
+  display: flex;
+  overflow: hidden;
+}
+.chatui-explorer-pane > * { flex: 1; min-width: 0; }
+
+.chatui-explorer-toggle {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: 1px solid var(--chatui-border); cursor: pointer;
+  color: var(--chatui-fg-secondary);
+  padding: 3px 6px; border-radius: 4px;
+  height: 24px;
+  transition: background 0.15s, color 0.15s;
+}
+.chatui-explorer-toggle:hover {
+  background: var(--chatui-bg-hover);
+  color: var(--chatui-fg);
+}
+.chatui-explorer-toggle--active {
+  background: var(--chatui-bg-active);
+  color: var(--chatui-fg);
+  border-color: var(--chatui-border-focus, var(--chatui-accent));
+}
+
+/* Compact: stack explorer below chat */
+.chatui-root.chatui-compact .chatui-content { flex-direction: column; }
+.chatui-root.chatui-compact .chatui-explorer-pane {
+  width: 100%; max-width: none; min-width: 0;
+  border-left: none; border-top: 1px solid var(--chatui-border);
+  height: 50%;
 }
 
 /* Compact header */
