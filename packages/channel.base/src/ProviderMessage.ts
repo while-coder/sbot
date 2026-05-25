@@ -51,7 +51,7 @@ export function parseMessages2Text(messages: ChatMessage[]): string {
     if (msg.role === MessageRole.Human) continue;
     if (msg.role === MessageRole.Tool) continue; // rendered inline with tool_calls
 
-    if (msg.isCommand || msg.role === MessageRole.AI) {
+    if (msg.role === MessageRole.AI) {
       const text = contentToText(msg.content);
       if (text) parts.push(text);
 

@@ -88,7 +88,6 @@ export type ContentPart =
  * - human   : 用户输入
  * - ai      : 模型输出（可含 tool_calls）
  * - tool    : 工具执行结果（含 tool_call_id）
- * - isCommand: true 时表示 AI 执行的指令结果（非对话内容，用于回调展示）
  */
 export interface ChatMessage {
     role: MessageRole;
@@ -106,8 +105,6 @@ export interface ChatMessage {
     additional_kwargs?: Record<string, any>;
     /** 模型返回的 token 用量（仅 AI 消息，不持久化） */
     usage?: TokenUsage;
-    /** 标记为 Command 结果（指令型回调，不保存至历史） */
-    isCommand?: boolean;
 }
 
 /** Reusable alias for ChatMessage.content — text or multimodal content parts. */

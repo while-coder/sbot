@@ -70,7 +70,7 @@ class SbotSession extends SessionService {
             const saver = await AgentRunner.createSaverService(saverId, this.threadId);
             try {
                 await saver.pushMessage({ role: MessageRole.Human, content: query }, { kind: MessageKind.Command });
-                await saver.pushMessage({ role: MessageRole.AI, content, isCommand: true }, { kind: MessageKind.Command });
+                await saver.pushMessage({ role: MessageRole.AI, content }, { kind: MessageKind.Command });
             } finally {
                 await saver.dispose();
             }

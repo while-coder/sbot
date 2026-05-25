@@ -30,7 +30,7 @@ export abstract class ChannelSessionHandler {
   abstract onProcessStart(query: MessageContent, args: ChannelMessageArgs, messageType: MessageType): Promise<string | void>;
   abstract onProcessEnd(query: MessageContent, args: ChannelMessageArgs, messageType: MessageType, error?: any): Promise<void>;
   async onCommandResult(content: string, args: ChannelMessageArgs): Promise<void> {
-    return this.onChatMessage({ role: MessageRole.AI, content, isCommand: true }, args);
+    return this.onChatMessage({ role: MessageRole.AI, content }, args);
   }
   private _processAIHandler?: ProcessAIHandler;
 
