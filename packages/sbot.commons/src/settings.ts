@@ -82,8 +82,8 @@ export enum InsightScope {
 
 export interface InsightConfig {
   scope: InsightScope
-  extractor: string;
-  extractorPromptFile: string;
+  extractor: string
+  extractorPromptFile?: string
 }
 
 export enum TodoScope {

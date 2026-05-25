@@ -131,13 +131,10 @@ async function save() {
       if (form.value.insightScope !== InsightScope.Disabled && !form.value.insightExtractor) {
         show(t('agents.error_insight_extractor'), 'error'); return
       }
-      if (form.value.insightScope !== InsightScope.Disabled && !form.value.insightExtractorPromptFile) {
-        show(t('agents.error_insight_prompt_file'), 'error'); return
-      }
       const insightCfg: any = { scope: form.value.insightScope }
       if (form.value.insightScope !== InsightScope.Disabled) {
         insightCfg.extractor = form.value.insightExtractor
-        insightCfg.extractorPromptFile = form.value.insightExtractorPromptFile
+        if (form.value.insightExtractorPromptFile) insightCfg.extractorPromptFile = form.value.insightExtractorPromptFile
       }
       config.insight = insightCfg
 
@@ -378,12 +375,12 @@ defineExpose({ open })
       </SFormItem>
       <SFormItem
         v-if="form.insightScope !== InsightScope.Disabled"
-        :label="t('agents.insight_prompt_file') + ' *'"
+        :label="t('agents.insight_prompt_file')"
         :hint="t('agents.insight_prompt_file_hint')"
       >
         <div style="display:flex;gap:6px;align-items:center">
           <SSelect v-model="form.insightExtractorPromptFile" style="flex:1">
-            <option value="">{{ t('agents.insight_prompt_file_placeholder') }}</option>
+            <option value="">{{ t('agents.insight_prompt_file_default') }}</option>
             <option v-for="p in insightPrompts" :key="p.path" :value="p.path">{{ p.path.split('/').pop() }}</option>
           </SSelect>
           <SButton type="outline" size="sm" @click="openCreateInsightPrompt" title="+">+</SButton>
