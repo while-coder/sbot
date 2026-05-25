@@ -93,6 +93,10 @@ export const defaultLabels: Required<ChatLabels> = {
   explorerToggle: '资源管理器',
   explorerFiles: '文件',
   explorerGit: 'Git',
+  explorerGitBranch: '当前分支',
+  explorerGitChanges: '变更',
+  explorerGitDefaultGroup: 'Default',
+  explorerGitStaged: '待提交',
   explorerGitNoChanges: '没有 Git 变更',
   explorerGitSelectFile: '请选择左侧变更文件',
   explorerGitNoDiff: '没有可显示的文件变化',
@@ -101,6 +105,9 @@ export const defaultLabels: Required<ChatLabels> = {
   explorerBaseVersion: '基础版本',
   explorerLocalVersion: '本地修改',
   explorerFullDiff: '完整内容',
+  explorerCopyPath: '复制路径',
+  explorerCopyDiff: '复制 Diff',
+  explorerCopied: '已复制',
 }
 
 export function resolveLabels(partial?: ChatLabels): Required<ChatLabels> {

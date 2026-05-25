@@ -1028,7 +1028,12 @@ class HttpServer {
             if (!gitRoot) return { root: target, items: [] };
 
             const stdout = await runGit(gitRoot, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
-            return { root: gitRoot, items: parseGitStatus(stdout) };
+            let branch = (await runGit(gitRoot, ['rev-parse', '--abbrev-ref', 'HEAD']).catch(() => '')).trim();
+            if (branch === 'HEAD') {
+                const short = (await runGit(gitRoot, ['rev-parse', '--short', 'HEAD']).catch(() => '')).trim();
+                branch = short ? `detached:${short}` : branch;
+            }
+            return { root: gitRoot, branch, items: parseGitStatus(stdout) };
         }));
 
         app.get('/api/git/diff', api(async req => {

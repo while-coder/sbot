@@ -2,11 +2,12 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { useToast, SButton, SBadge, SPageToolbar, SPageContent, STable } from 'sbot-ui'
+import { useToast, useConfirm, SButton, SBadge, SPageToolbar, SPageContent, STable } from 'sbot-ui'
 import type { STableColumn } from 'sbot-ui'
 
 const { t } = useI18n()
 const { show } = useToast()
+const { confirm } = useConfirm()
 
 interface ProcessInfo {
   key: string
@@ -44,7 +45,7 @@ async function load() {
 }
 
 async function stop(item: ProcessInfo) {
-  if (!window.confirm(t('processes.confirm_stop', { name: item.agentName }))) return
+  if (!await confirm(t('processes.confirm_stop', { name: item.agentName }), { danger: true })) return
   try {
     await apiFetch(`/api/acp-sessions/${encodeURIComponent(item.key)}`, 'DELETE')
     show(t('processes.stopped'))
@@ -56,7 +57,7 @@ async function stop(item: ProcessInfo) {
 
 async function stopAll() {
   if (!items.value.length) return
-  if (!window.confirm(t('processes.confirm_stop_all'))) return
+  if (!await confirm(t('processes.confirm_stop_all'), { danger: true })) return
   try {
     await apiFetch('/api/acp-sessions', 'DELETE')
     show(t('processes.stopped'))

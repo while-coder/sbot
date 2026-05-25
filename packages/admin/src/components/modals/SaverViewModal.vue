@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { useToast } from 'sbot-ui'
+import { useToast, useConfirm } from 'sbot-ui'
 import { SModal, SButton, SBadge } from 'sbot-ui'
 import MessageList from '@/components/MessageList.vue'
 import { MessageKind } from '@sbot/chat-ui'
@@ -10,6 +10,7 @@ import type { StoredMessage } from '@sbot/chat-ui'
 
 const { t } = useI18n()
 const { show } = useToast()
+const { confirm } = useConfirm()
 
 const visible       = ref(false)
 const saverId       = ref('')
@@ -51,7 +52,7 @@ async function load() {
 }
 
 async function clear() {
-  if (!window.confirm(t('savers.clear_confirm'))) return
+  if (!await confirm(t('savers.clear_confirm'), { danger: true })) return
   try {
     await apiFetch(historyUrl(), 'DELETE')
     show(t('savers.history_cleared'))

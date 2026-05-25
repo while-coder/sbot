@@ -2,11 +2,12 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { useToast, SButton, SBadge, SPageToolbar, SPageContent, STable } from 'sbot-ui'
+import { useToast, useConfirm, SButton, SBadge, SPageToolbar, SPageContent, STable } from 'sbot-ui'
 import type { STableColumn } from 'sbot-ui'
 import { store } from '@/shared/store'
 
 const { t, locale } = useI18n()
+const { confirm } = useConfirm()
 
 interface SchedulerRow {
   id: number
@@ -182,7 +183,7 @@ function isImminent(ts: number | null): boolean {
 let tickHandle: ReturnType<typeof setInterval> | null = null
 
 async function remove(row: SchedulerRow) {
-  if (!confirm(t('scheduler.confirm_delete', { id: row.id }))) return
+  if (!await confirm(t('scheduler.confirm_delete', { id: row.id }), { danger: true })) return
   try {
     await apiFetch(`/api/schedulers/${row.id}`, 'DELETE')
     show(t('common.deleted'))

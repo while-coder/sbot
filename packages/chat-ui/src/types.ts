@@ -204,6 +204,14 @@ export interface ChatLabels {
   explorerFiles?: string
   /** Explorer Git 状态模式 */
   explorerGit?: string
+  /** Explorer Git 当前分支 */
+  explorerGitBranch?: string
+  /** Explorer Git 变更分组 */
+  explorerGitChanges?: string
+  /** Explorer Git 默认分组 */
+  explorerGitDefaultGroup?: string
+  /** Explorer Git 待提交分组 */
+  explorerGitStaged?: string
   /** Explorer Git 无变更提示 */
   explorerGitNoChanges?: string
   /** Explorer Git 未选中文件时的占位文案 */
@@ -220,6 +228,12 @@ export interface ChatLabels {
   explorerLocalVersion?: string
   /** Explorer Git 是否显示完整文件内容 */
   explorerFullDiff?: string
+  /** Explorer Git 复制路径 */
+  explorerCopyPath?: string
+  /** Explorer Git 复制 Diff */
+  explorerCopyDiff?: string
+  /** Explorer Git 已复制 */
+  explorerCopied?: string
 }
 
 // ── Wiki option ──
@@ -359,6 +373,7 @@ export interface GitStatusItem {
 
 export interface GitStatusResult {
   root: string
+  branch?: string
   items: GitStatusItem[]
 }
 

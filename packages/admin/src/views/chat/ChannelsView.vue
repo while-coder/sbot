@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useResponsive } from '@/composables/useResponsive'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
-import { useToast, SButton, SModal, SInput, STextarea, SSelect, SFormItem, SFormSection, SPageToolbar, SPageContent, SMultiSelect } from 'sbot-ui'
+import { useToast, useConfirm, SButton, SModal, SInput, STextarea, SSelect, SFormItem, SFormSection, SPageToolbar, SPageContent, SMultiSelect } from 'sbot-ui'
 import QRCode from 'qrcode'
 import { ApprovalTimeoutValue, type ChannelConfig } from '@/shared/types'
 import SaverViewModal from '@/components/modals/SaverViewModal.vue'
@@ -13,6 +13,7 @@ import PathPickerModal from './PathPickerModal.vue'
 
 const { t } = useI18n()
 const { isMobile } = useResponsive()
+const { confirm } = useConfirm()
 
 interface PluginInfo {
   type: string
@@ -215,7 +216,7 @@ async function refreshSessions(ids: string[]) {
 }
 
 async function removeSession(channelId: string, session: ChannelSessionRow) {
-  if (!window.confirm(t('channels.confirm_delete_session', { name: session.sessionId }))) return
+  if (!await confirm(t('channels.confirm_delete_session', { name: session.sessionId }), { danger: true })) return
   try {
     await apiFetch(`/api/channel-sessions/${session.id}`, 'DELETE')
     const list = sessionMap.value[channelId]
@@ -227,7 +228,7 @@ async function removeSession(channelId: string, session: ChannelSessionRow) {
 }
 
 async function removeUser(channelId: string, user: UserRow) {
-  if (!window.confirm(t('users.confirm_delete', { name: user.userName || user.userId }))) return
+  if (!await confirm(t('users.confirm_delete', { name: user.userName || user.userId }), { danger: true })) return
   try {
     await apiFetch(`/api/channel-users/${user.id}`, 'DELETE')
     const list = userMap.value[channelId]
@@ -406,7 +407,7 @@ function isBuiltin(id: string): boolean {
 async function remove(id: string) {
   const c = channels.value[id]
   const label = c?.name || id
-  if (!window.confirm(t('channels.confirm_delete', { name: label }))) return
+  if (!await confirm(t('channels.confirm_delete', { name: label }), { danger: true })) return
   try {
     await apiFetch(`/api/settings/channels/${id}`, 'DELETE')
     if (c?.saver) {

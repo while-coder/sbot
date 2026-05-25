@@ -14,6 +14,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   count: [value: number]
+  branch: [value: string]
   refreshing: [value: boolean]
 }>()
 
@@ -202,6 +203,7 @@ async function loadGitStatus(): Promise<void> {
   try {
     const res = await props.transport.gitStatus(rootPath)
     gitItems.value = res.items || []
+    emit('branch', res.branch || '')
     if (selectedGitPath.value && !gitItems.value.some(item => item.path === selectedGitPath.value)) {
       selectedGitPath.value = ''
       selectedGitStatus.value = ''
@@ -210,6 +212,7 @@ async function loadGitStatus(): Promise<void> {
   } catch (e: any) {
     gitErrMsg.value = e?.message || String(e)
     gitItems.value = []
+    emit('branch', '')
   } finally {
     gitLoading.value = false
   }
@@ -247,6 +250,7 @@ async function refresh(): Promise<void> {
 
 watch(() => props.root, async (val) => {
   gitItems.value = []
+  emit('branch', '')
   selectedGitPath.value = ''
   selectedGitStatus.value = ''
   gitDiff.value = ''
@@ -313,6 +317,15 @@ onBeforeUnmount(() => {
 <template>
   <div ref="explorerEl" class="chatui-git-explorer" :class="{ 'chatui-git-explorer--resizing': resizing }">
     <STree class="chatui-explorer-tree" :style="treeStyle">
+      <template #header>
+        <div class="chatui-git-list-title">
+          <span>{{ L.explorerGitChanges }} ({{ gitItems.length }})</span>
+        </div>
+        <div class="chatui-git-group-title">
+          <span class="chatui-git-group-caret">▾</span>
+          <span>{{ L.explorerGitDefaultGroup }}</span>
+        </div>
+      </template>
       <div v-if="!props.root" class="chatui-explorer-empty-tip">{{ L.explorerPickRootHint }}</div>
       <div v-else-if="gitLoading && gitItems.length === 0" class="chatui-explorer-empty-tip">{{ L.loading }}</div>
       <div v-else-if="gitErrMsg && gitItems.length === 0" class="chatui-explorer-empty-tip chatui-explorer-error">{{ gitErrMsg }}</div>
@@ -336,6 +349,11 @@ onBeforeUnmount(() => {
           </span>
         </button>
       </template>
+      <div class="chatui-git-staged">
+        <div class="chatui-git-list-title">
+          <span>{{ L.explorerGitStaged }} (0)</span>
+        </div>
+      </div>
     </STree>
 
     <div
@@ -347,17 +365,20 @@ onBeforeUnmount(() => {
     <div class="chatui-explorer-viewer">
       <template v-if="selectedGitPath">
         <div class="chatui-explorer-toolbar chatui-explorer-toolbar--git">
-          <div class="chatui-explorer-git-toolbar-main">
+          <div class="chatui-explorer-git-toolbar-left">
+            <span class="chatui-explorer-encoding">UTF-8⌄</span>
             <span class="chatui-explorer-path">{{ selectedGitPath }}</span>
             <span class="chatui-explorer-meta">{{ selectedGitStatus }}</span>
           </div>
-          <SSwitch v-model="showFullDiff" class="chatui-explorer-full-diff-switch">
-            {{ L.explorerFullDiff }}
-          </SSwitch>
           <STabBar v-model="diffViewMode" class="chatui-explorer-diff-tabs">
             <STab name="unified">{{ L.explorerUnifiedDiff }}</STab>
             <STab name="split">{{ L.explorerSplitDiff }}</STab>
           </STabBar>
+          <div class="chatui-explorer-git-toolbar-right">
+            <SSwitch v-model="showFullDiff" class="chatui-explorer-full-diff-switch">
+              {{ L.explorerFullDiff }}
+            </SSwitch>
+          </div>
         </div>
         <div v-if="gitDiffLoading" class="chatui-explorer-state">{{ L.loading }}</div>
         <div v-else-if="gitErrMsg" class="chatui-explorer-state chatui-explorer-error">{{ gitErrMsg }}</div>
@@ -417,6 +438,8 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
   min-width: 180px;
   max-width: calc(100% - 240px);
+  border-right: 1px solid var(--chatui-border);
+  background: var(--chatui-bg-surface);
 }
 .chatui-explorer-splitter {
   width: 8px;
@@ -452,6 +475,38 @@ onBeforeUnmount(() => {
   font-size: 12px;
   text-align: center;
 }
+.chatui-git-list-title {
+  min-height: 28px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  color: var(--chatui-fg);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  border-bottom: 1px solid var(--chatui-border);
+}
+.chatui-git-group-title {
+  min-height: 24px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--chatui-fg-secondary);
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.chatui-git-group-caret {
+  color: var(--chatui-fg);
+  font-size: 11px;
+  line-height: 1;
+}
+.chatui-git-staged {
+  margin-top: 10px;
+  border-top: 1px solid var(--chatui-border);
+}
 .chatui-explorer-git-item {
   width: 100%;
   min-height: 30px;
@@ -470,7 +525,7 @@ onBeforeUnmount(() => {
   color: var(--chatui-fg);
 }
 .chatui-explorer-git-item--selected {
-  background: var(--chatui-bg-hover);
+  background: var(--chatui-selection-bg, var(--chatui-bg-hover));
   color: var(--chatui-fg);
 }
 .chatui-explorer-git-status {
@@ -544,27 +599,36 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 .chatui-explorer-toolbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto minmax(180px, 1fr);
   align-items: center;
   gap: 10px;
-  padding: 6px 14px;
+  min-height: 36px;
+  padding: 4px 10px;
   border-bottom: 1px solid var(--chatui-border);
   flex-shrink: 0;
   background: var(--chatui-bg-surface);
 }
 .chatui-explorer-toolbar--git {
-  flex-wrap: wrap;
   gap: 6px 10px;
 }
-.chatui-explorer-git-toolbar-main {
-  flex: 1 1 220px;
+.chatui-explorer-git-toolbar-left,
+.chatui-explorer-git-toolbar-right {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+}
+.chatui-explorer-git-toolbar-right {
+  justify-content: flex-end;
+}
+.chatui-explorer-encoding {
+  flex-shrink: 0;
+  color: var(--chatui-fg-secondary);
+  font-family: monospace;
+  font-size: 12px;
 }
 .chatui-explorer-path {
-  flex: 1;
   min-width: 0;
   font-family: monospace;
   font-size: 12px;
@@ -586,28 +650,33 @@ onBeforeUnmount(() => {
   font-size: 12px;
 }
 .chatui-explorer-diff-tabs {
+  justify-self: center;
   display: inline-flex;
   flex-shrink: 0;
-  padding: 2px;
-  border: 1px solid var(--chatui-border);
-  border-radius: 5px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
   background: var(--chatui-bg);
 }
 .chatui-explorer-diff-tabs :deep(.s-tab) {
   height: 24px;
   padding: 0 8px;
-  border-bottom: none;
-  border-radius: 3px;
+  border: 1px solid var(--chatui-border);
+  border-radius: 0;
   color: var(--chatui-fg-secondary);
   font-size: 12px;
+}
+.chatui-explorer-diff-tabs :deep(.s-tab + .s-tab) {
+  margin-left: -1px;
 }
 .chatui-explorer-diff-tabs :deep(.s-tab:hover:not(.s-tab--disabled)) {
   background: var(--chatui-bg-hover);
   color: var(--chatui-fg);
 }
 .chatui-explorer-diff-tabs :deep(.s-tab--active) {
-  background: var(--chatui-bg-hover);
-  color: var(--chatui-fg);
+  background: var(--chatui-accent);
+  border-color: var(--chatui-accent);
+  color: var(--chatui-accent-fg, #fff);
 }
 .chatui-explorer-state {
   flex: 1;

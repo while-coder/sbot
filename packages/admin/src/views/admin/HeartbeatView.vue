@@ -2,13 +2,14 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { useToast, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, STable } from 'sbot-ui'
+import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, STable } from 'sbot-ui'
 import type { STableColumn } from 'sbot-ui'
 import { store } from '@/shared/store'
 import CreatePromptModal from '@/components/modals/CreatePromptModal.vue'
 
 const { t } = useI18n()
 const { show } = useToast()
+const { confirm } = useConfirm()
 
 interface HeartbeatItem {
   id: number
@@ -209,7 +210,7 @@ async function save() {
 }
 
 async function remove(hb: HeartbeatItem) {
-  if (!window.confirm(t('heartbeats.confirm_delete', { name: hb.name || hb.id }))) return
+  if (!await confirm(t('heartbeats.confirm_delete', { name: hb.name || hb.id }), { danger: true })) return
   try {
     await apiFetch(`/api/heartbeats/${hb.id}`, 'DELETE')
     show(t('common.deleted'))

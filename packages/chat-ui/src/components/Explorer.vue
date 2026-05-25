@@ -18,9 +18,14 @@ const mode = ref<'files' | 'git'>('files')
 const refreshKey = ref(0)
 const refreshing = ref(false)
 const gitCount = ref(0)
+const gitBranch = ref('')
 
 watch(mode, () => {
   refreshing.value = false
+})
+
+watch(() => props.root, () => {
+  gitBranch.value = ''
 })
 
 function refresh() {
@@ -46,8 +51,14 @@ function refresh() {
         @click="refresh"
       >↻</button>
     </div>
-    <div class="chatui-explorer-root" :title="props.root || L.explorerNoRoot">
-      {{ props.root || L.explorerNoRoot }}
+    <div
+      class="chatui-explorer-root"
+      :title="mode === 'git' && gitBranch ? `${props.root || L.explorerNoRoot}  ${L.explorerGitBranch}: ${gitBranch}` : props.root || L.explorerNoRoot"
+    >
+      <span class="chatui-explorer-root-path">{{ props.root || L.explorerNoRoot }}</span>
+      <span v-if="mode === 'git' && gitBranch" class="chatui-explorer-root-branch">
+        {{ gitBranch }}
+      </span>
     </div>
 
     <FileExplorer
@@ -65,6 +76,7 @@ function refresh() {
       :labels="labels"
       :refresh-key="refreshKey"
       @count="gitCount = $event"
+      @branch="gitBranch = $event"
       @refreshing="refreshing = $event"
     />
   </div>
@@ -111,15 +123,37 @@ function refresh() {
 .chatui-explorer-root {
   width: 100%;
   padding: 0 10px 5px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
   border-bottom: 1px solid var(--chatui-border);
   background: var(--chatui-bg-surface);
   color: var(--chatui-fg-secondary);
   font-family: monospace;
   font-size: 11px;
   flex-shrink: 0;
+}
+.chatui-explorer-root-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chatui-explorer-root-branch {
+  max-width: 120px;
+  height: 16px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 1px solid var(--chatui-border);
+  border-radius: 3px;
+  background: var(--chatui-bg);
+  color: var(--chatui-fg);
+  font-weight: 600;
 }
 .chatui-explorer-refresh {
   flex-shrink: 0;
