@@ -45,7 +45,8 @@ export class InsightExtractor implements IInsightExtractor {
             const { results } = await this.modelService.invokeStructured<{ results: ExtractedInsight[] }>(InsightExtractionSchema, messages);
             return results;
         } catch (error: any) {
-            this.logger?.warn(`Insight extraction failed: ${error.message}`);
+            const detail = error?.response?.data ? ` body=${JSON.stringify(error.response.data)}` : '';
+            this.logger?.warn(`Insight extraction failed: ${error.message}${detail}`);
             return [];
         }
     }

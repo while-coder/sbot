@@ -53,7 +53,8 @@ export class OpenAIModelService implements IModelService {
 
   async invokeStructured<T = any>(schema: any, prompt: string | ChatMessage[], options?: { signal?: AbortSignal }): Promise<T> {
     const input = typeof prompt === 'string' ? prompt : toBaseMessages(prompt);
-    return this.model!.withStructuredOutput(schema).invoke(input, options?.signal ? { signal: options.signal } : undefined) as Promise<T>;
+    const structured = this.model!.withStructuredOutput(schema, { method: "functionCalling" });
+    return structured.invoke(input, options?.signal ? { signal: options.signal } : undefined) as Promise<T>;
   }
 
   async stream(messages: string | ChatMessage[], options?: { signal?: AbortSignal }): Promise<AsyncIterable<ChatMessage>> {

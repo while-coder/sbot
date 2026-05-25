@@ -54,7 +54,8 @@ export class TodoExtractor implements ITodoExtractor {
             );
             return actions;
         } catch (error: any) {
-            this.logger?.warn(`Todo extraction failed: ${error.message}`);
+            const detail = error?.response?.data ? ` body=${JSON.stringify(error.response.data)}` : '';
+            this.logger?.warn(`Todo extraction failed: ${error.message}${detail}`);
             return [];
         }
     }

@@ -515,17 +515,14 @@ class Config {
   getAgentSkillsPath(agentName: string) {
     return this.getConfigPath(`agents/${agentName}/skills`, true)
   }
-  getSessionSkillsPath(dbSessionId: string) {
-    return this.getConfigPath(`sessions/${dbSessionId}/skills`, true)
-  }
   getAgentInsightsPath(agentName: string) {
     return this.getConfigPath(`agents/${agentName}/insights`, true)
   }
-  getSessionInsightsPath(dbSessionId: string) {
-    return this.getConfigPath(`sessions/${dbSessionId}/insights`, true)
+  getSessionInsightsPath(sessionId: string) {
+    return this.getConfigPath(`sessions/${sessionId}/insights`, true)
   }
-  getSessionTodoPath(dbSessionId: string) {
-    return this.getConfigPath(`sessions/${dbSessionId}/todos.json`)
+  getSessionTodoPath(sessionId: string) {
+    return this.getConfigPath(`sessions/${sessionId}/todos.json`)
   }
   getAgentMcpServers(agentName: string): MCPServers {
     const mcpConfigPath = this.getConfigPath(`agents/${agentName}/mcp.json`);
