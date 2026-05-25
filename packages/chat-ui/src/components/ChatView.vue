@@ -181,7 +181,7 @@ watch(activeSessionId, async (id) => {
   resetStreamState()
   messages.value = []
   usage.value = null
-  showCompacted.value = false
+  showArchived.value = false
   if (!id) return
   await Promise.all([loadHistory(gen), loadUsage(gen), restoreSessionStatus(gen)])
 })

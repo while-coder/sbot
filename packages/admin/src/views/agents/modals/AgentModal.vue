@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { useToast } from 'sbot-ui'
-import { AgentMode, ACPSessionMode, InsightScope } from '@/shared/types'
+import { AgentMode, ACPSessionMode, InsightScope, TodoScope } from '@/shared/types'
 import type { Agent, SubAgentRef } from '@/shared/types'
 import CreatePromptModal from '@/components/modals/CreatePromptModal.vue'
 import { SModal, SButton, SInput, STextarea, SSelect, SFormItem, SFormSection, SHint, SCheckCard } from 'sbot-ui'
@@ -56,6 +56,9 @@ const form = ref({
   insightScope: InsightScope.Disabled as string,
   insightExtractor: '',
   insightExtractorPromptFile: '',
+  todoScope: TodoScope.Disabled as string,
+  todoExtractor: '',
+  todoExtractorPromptFile: '',
   autoApproveAllTools: false,
   modelCallTimeout: undefined as number | undefined,
   // acp
@@ -80,6 +83,9 @@ function open(id?: string) {
       insightScope: (a as any).insight?.scope || InsightScope.Disabled,
       insightExtractor: (a as any).insight?.extractor || '',
       insightExtractorPromptFile: (a as any).insight?.extractorPromptFile || '',
+      todoScope: (a as any).todo?.scope || TodoScope.Disabled,
+      todoExtractor: (a as any).todo?.extractor || '',
+      todoExtractorPromptFile: (a as any).todo?.extractorPromptFile || '',
       autoApproveAllTools: !!(a as any).autoApproveAllTools,
       modelCallTimeout: (a as any).modelCallTimeout ?? undefined,
       command: a.command || '',
@@ -93,12 +99,15 @@ function open(id?: string) {
     tempSubAgents.value = []
     form.value = {
       id: '', name: '', type: AgentMode.Single, model: '', compactModel: '',
-      systemPrompt: '', insightScope: InsightScope.Disabled, insightExtractor: '', insightPromptFile: '',
+      systemPrompt: '',
+      insightScope: InsightScope.Disabled, insightExtractor: '', insightExtractorPromptFile: '',
+      todoScope: TodoScope.Disabled, todoExtractor: '', todoExtractorPromptFile: '',
       autoApproveAllTools: false, modelCallTimeout: undefined, command: '', args: [], env: [], sessionMode: ACPSessionMode.Persistent,
     }
   }
   showModal.value = true
   loadInsightPrompts()
+  loadTodoPrompts()
 }
 
 async function save() {
@@ -131,6 +140,17 @@ async function save() {
         insightCfg.extractorPromptFile = form.value.insightExtractorPromptFile
       }
       config.insight = insightCfg
+
+      if (form.value.todoScope !== TodoScope.Disabled && !form.value.todoExtractor) {
+        show(t('agents.error_todo_extractor'), 'error'); return
+      }
+      const todoCfg: any = { scope: form.value.todoScope }
+      if (form.value.todoScope !== TodoScope.Disabled) {
+        todoCfg.extractor = form.value.todoExtractor
+        if (form.value.todoExtractorPromptFile) todoCfg.extractorPromptFile = form.value.todoExtractorPromptFile
+      }
+      config.todo = todoCfg
+
       if (form.value.modelCallTimeout != null && form.value.modelCallTimeout > 0) config.modelCallTimeout = form.value.modelCallTimeout
     }
     if (type === AgentMode.ReAct) {
@@ -235,6 +255,27 @@ async function onInsightPromptCreated(filePath: string) {
   showCreateInsightPrompt.value = false
   await loadInsightPrompts()
   form.value.insightExtractorPromptFile = filePath
+}
+
+// ── Todo prompt files ──
+const todoPrompts = ref<{ path: string; isUserOnly?: boolean }[]>([])
+const showCreateTodoPrompt = ref(false)
+
+async function loadTodoPrompts() {
+  try {
+    const res = await apiFetch('/api/prompts/files?prefix=todo/extractor')
+    todoPrompts.value = res.data || []
+  } catch {}
+}
+
+function openCreateTodoPrompt() {
+  showCreateTodoPrompt.value = true
+}
+
+async function onTodoPromptCreated(filePath: string) {
+  showCreateTodoPrompt.value = false
+  await loadTodoPrompts()
+  form.value.todoExtractorPromptFile = filePath
 }
 
 defineExpose({ open })
@@ -348,6 +389,37 @@ defineExpose({ open })
           <SButton type="outline" size="sm" @click="openCreateInsightPrompt" title="+">+</SButton>
         </div>
       </SFormItem>
+
+      <!-- Todo -->
+      <SFormItem :label="t('agents.todo_scope')" :hint="t('agents.todo_hint')">
+        <SSelect v-model="form.todoScope">
+          <option :value="TodoScope.Disabled">{{ t('agents.todo_disabled') }}</option>
+          <option :value="TodoScope.Session">{{ t('agents.todo_session') }}</option>
+        </SSelect>
+      </SFormItem>
+      <SFormItem
+        v-if="form.todoScope !== TodoScope.Disabled"
+        :label="t('agents.todo_extractor') + ' *'"
+        :hint="t('agents.todo_extractor_hint')"
+      >
+        <SSelect v-model="form.todoExtractor">
+          <option value="">{{ t('agents.todo_extractor_placeholder') }}</option>
+          <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
+        </SSelect>
+      </SFormItem>
+      <SFormItem
+        v-if="form.todoScope !== TodoScope.Disabled"
+        :label="t('agents.todo_prompt_file')"
+        :hint="t('agents.todo_prompt_file_hint')"
+      >
+        <div style="display:flex;gap:6px;align-items:center">
+          <SSelect v-model="form.todoExtractorPromptFile" style="flex:1">
+            <option value="">{{ t('agents.todo_prompt_file_default') }}</option>
+            <option v-for="p in todoPrompts" :key="p.path" :value="p.path">{{ p.path.split('/').pop() }}</option>
+          </SSelect>
+          <SButton type="outline" size="sm" @click="openCreateTodoPrompt" title="+">+</SButton>
+        </div>
+      </SFormItem>
     </template>
 
     <!-- autoApproveAllTools -->
@@ -393,6 +465,7 @@ defineExpose({ open })
   </SModal>
 
   <CreatePromptModal v-model:visible="showCreateInsightPrompt" prefix="insight/extractor/" default-ext=".txt" @created="onInsightPromptCreated" @close="showCreateInsightPrompt = false" />
+  <CreatePromptModal v-model:visible="showCreateTodoPrompt" prefix="todo/extractor/" default-ext=".txt" @created="onTodoPromptCreated" @close="showCreateTodoPrompt = false" />
 
   <!-- Sub-agent Modal -->
   <SModal v-model:visible="showSubModal" :title="subModalTitle" width="sm" nested>
