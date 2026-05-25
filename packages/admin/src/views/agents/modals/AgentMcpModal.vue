@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store, applyMcpList } from '@/shared/store'
-import { useToast } from 'sbot-ui'
+import { useToast, useConfirm } from 'sbot-ui'
 import { McpTransport } from '@/shared/types'
 import type { McpEntry, McpTool, McpPrompt, McpResource, McpResourceTemplate } from '@/shared/types'
 import { serverAddr } from '@/utils/mcpSchema'
@@ -14,6 +14,7 @@ import { SModal, SButton, SInput, SSelect, SFormItem, SFormSection, STabBar, STa
 const { t } = useI18n()
 
 const { show } = useToast()
+const { confirm } = useConfirm()
 
 const visible    = ref(false)
 const agentName  = ref('')
@@ -321,7 +322,7 @@ async function save() {
 }
 async function remove(id: string) {
   const displayName = (servers.value[id] as any)?.name || id
-  if (!window.confirm(t('mcp.confirm_delete', { name: displayName }))) return
+  if (!await confirm(t('mcp.confirm_delete', { name: displayName }), { danger: true })) return
   try {
     await apiFetch(`${apiBase()}/${encodeURIComponent(id)}`, 'DELETE')
     show(t('common.deleted'))

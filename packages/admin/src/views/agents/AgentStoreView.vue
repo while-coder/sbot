@@ -3,10 +3,11 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
-import { useToast, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent } from 'sbot-ui'
+import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent } from 'sbot-ui'
 
 const { t } = useI18n()
 const { show } = useToast()
+const { confirm } = useConfirm()
 
 interface AgentPackageVersion {
   version: string
@@ -155,7 +156,7 @@ async function addSource() {
 }
 
 async function removeSource(index: number) {
-  if (!confirm(t('agentStore.source_removed') + '?')) return
+  if (!await confirm(t('agentStore.source_removed') + '?', { danger: true })) return
   try {
     await apiFetch('/api/agent-store/remove', 'POST', { index })
     show(t('agentStore.source_removed'))

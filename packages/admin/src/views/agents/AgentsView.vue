@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store, applyMcpList } from '@/shared/store'
-import { useToast, SButton, SCard, SPageToolbar, SPageContent, STable, SInfoTable, SInfoRow, SModal, SInput, type STableColumn } from 'sbot-ui'
+import { useToast, useConfirm, SButton, SCard, SPageToolbar, SPageContent, STable, SInfoTable, SInfoRow, SModal, SInput, type STableColumn } from 'sbot-ui'
 import AgentModal from './modals/AgentModal.vue'
 import AgentMcpModal from './modals/AgentMcpModal.vue'
 import AgentSkillsModal from './modals/AgentSkillsModal.vue'
@@ -15,6 +15,7 @@ import { serverAddr } from '@/utils/mcpSchema'
 
 const { t } = useI18n()
 const { show } = useToast()
+const { confirm } = useConfirm()
 
 const agents = computed(() => store.settings.agents || {})
 type AgentRow = Record<string, any> & { id: string }
@@ -108,7 +109,7 @@ async function exportAgent(id: string) {
 
 async function removeAgent(id: string) {
   const label = (agents.value[id] as any)?.name || id
-  if (!window.confirm(t('agents.confirm_delete', { name: label }))) return
+  if (!await confirm(t('agents.confirm_delete', { name: label }), { danger: true })) return
   try {
     await apiFetch(`/api/agents/${encodeURIComponent(id)}`, 'DELETE')
     const settingsRes = await apiFetch('/api/settings')

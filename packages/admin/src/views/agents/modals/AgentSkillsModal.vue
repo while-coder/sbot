@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
-import { useToast } from 'sbot-ui'
+import { useToast, useConfirm } from 'sbot-ui'
 import type { SkillItem } from '@/shared/types'
 import { sourceBadgeStyle } from '@/utils/badges'
 import SkillHubModal from '@/components/modals/SkillHubModal.vue'
@@ -14,6 +14,7 @@ const { t } = useI18n()
 
 const emit = defineEmits<{ saved: [agentName: string] }>()
 const { show } = useToast()
+const { confirm } = useConfirm()
 
 const visible    = ref(false)
 const agentName  = ref('')
@@ -128,7 +129,7 @@ function openView(name: string, badge = '') {
 }
 
 async function remove(name: string) {
-  if (!window.confirm(t('skills.confirm_delete', { name }))) return
+  if (!await confirm(t('skills.confirm_delete', { name }), { danger: true })) return
   try {
     await apiFetch(`${apiBase()}/${encodeURIComponent(name)}`, 'DELETE')
     show(t('common.deleted'))

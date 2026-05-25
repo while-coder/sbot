@@ -61,3 +61,5 @@ export { default as ImageLightbox } from './components/ImageLightbox.vue';
 export { default as ThinkDrawer } from './components/ThinkDrawer.vue';
 export { default as ServerPicker } from './components/ServerPicker.vue';
 export { default as Explorer } from './components/Explorer.vue';
+export { default as FileExplorer } from './components/FileExplorer.vue';
+export { default as GitExplorer } from './components/GitExplorer.vue';

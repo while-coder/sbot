@@ -1,6 +1,6 @@
 import { ref, computed, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useToast } from 'sbot-ui'
+import { useToast, useConfirm } from 'sbot-ui'
 import { apiFetch } from '@/shared/api'
 
 export type TodoStatus   = 'pending' | 'done'
@@ -20,12 +20,12 @@ export interface Todo {
   createdAt: string
 }
 
-export type ConfirmFn = (message: string) => boolean | Promise<boolean>
+export type ConfirmFn = (message: string, options?: { danger?: boolean }) => boolean | Promise<boolean>
 
-// Centralized confirm wrapper. Currently delegates to window.confirm to stay
-// consistent with the rest of admin (~25 call sites). When the project moves
-// to an SModal-based confirm, this is the single point to update.
-export const adminConfirm: ConfirmFn = (msg) => window.confirm(msg)
+export const adminConfirm: ConfirmFn = (msg, options) => {
+  const { confirm } = useConfirm()
+  return confirm(msg, options)
+}
 
 export function priorityVariant(p: TodoPriority): 'danger' | 'info' | 'neutral' {
   if (p === 'high') return 'danger'
@@ -109,7 +109,7 @@ export function useTodos(opts: UseTodosOptions) {
   }
 
   async function remove(row: Todo) {
-    if (!await confirm(t('todo.confirm_delete', { id: row.id }))) return
+    if (!await confirm(t('todo.confirm_delete', { id: row.id }), { danger: true })) return
     try {
       await apiFetch(`/api/todos/${row.dbSessionId}/${row.id}`, 'DELETE')
       show(t('common.deleted'))

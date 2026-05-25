@@ -3,13 +3,14 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
-import { useToast } from 'sbot-ui'
+import { useToast, useConfirm } from 'sbot-ui'
 import { AgentMode, ACPSessionMode, InsightScope, TodoScope } from '@/shared/types'
 import type { Agent, SubAgentRef } from '@/shared/types'
 import CreatePromptModal from '@/components/modals/CreatePromptModal.vue'
 import { SModal, SButton, SInput, STextarea, SSelect, SFormItem, SFormSection, SHint, SCheckCard } from 'sbot-ui'
 
 const { t } = useI18n()
+const { confirm } = useConfirm()
 
 const emit = defineEmits<{ saved: [] }>()
 
@@ -223,8 +224,8 @@ function saveSubAgent() {
   show(t('agents.sub_updated'))
 }
 
-function deleteSubAgent(idx: number) {
-  if (!window.confirm(t('agents.confirm_delete_sub'))) return
+async function deleteSubAgent(idx: number) {
+  if (!await confirm(t('agents.confirm_delete_sub'), { danger: true })) return
   tempSubAgents.value.splice(idx, 1)
   show(t('agents.sub_deleted'))
 }
