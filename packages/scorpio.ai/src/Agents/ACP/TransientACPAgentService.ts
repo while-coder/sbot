@@ -20,19 +20,10 @@ export class TransientACPAgentService extends ACPAgentServiceBase {
     }
 
     protected override async preparePrompt(query: MessageContent): Promise<schema.ContentBlock[]> {
-        const blocks: schema.ContentBlock[] = [];
-        const history = await this.saverService.getMessages();
-        if (history.length > 0) blocks.push({ type: "text", text: this.formatHistory(history) });
-        blocks.push(...this.toContentBlocks(query));
-        return blocks;
+        return this.buildPrompt(query, true);
     }
 
     protected override async onStreamFinally(): Promise<void> {
-        if (this.sessionId) {
-            await this.connection!.closeSession({ sessionId: this.sessionId }).catch(e => {
-                this.logger?.debug(`[ACP] closeSession ignored: ${e?.message ?? e}`);
-            });
-            this.sessionId = null;
-        }
+        await this.closeCurrentSession();
     }
 }

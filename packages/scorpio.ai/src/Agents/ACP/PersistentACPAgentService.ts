@@ -34,16 +34,9 @@ export class PersistentACPAgentService extends ACPAgentServiceBase {
     }
 
     protected override async preparePrompt(query: MessageContent): Promise<schema.ContentBlock[]> {
-        const isFirst = this.sessionFirstPrompt;
+        const includeHistory = this.sessionFirstPrompt;
         this.sessionFirstPrompt = false;
-
-        const blocks: schema.ContentBlock[] = [];
-        if (isFirst) {
-            const history = await this.saverService.getMessages();
-            if (history.length > 0) blocks.push({ type: "text", text: this.formatHistory(history) });
-        }
-        blocks.push(...this.toContentBlocks(query));
-        return blocks;
+        return this.buildPrompt(query, includeHistory);
     }
 
     protected override onProcessExit(_code: number | null): void {

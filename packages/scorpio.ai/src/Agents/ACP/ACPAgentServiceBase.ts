@@ -16,6 +16,13 @@ export const T_ACPArgs = Symbol("scorpio:T_ACPArgs");
 export const T_ACPEnv = Symbol("scorpio:T_ACPEnv");
 export const T_ACPWorkPath = Symbol("scorpio:T_ACPWorkPath");
 
+interface ACPStreamState {
+    callback: IAgentCallback;
+    text: string;
+    thinkId: string;
+    usageReported: boolean;
+}
+
 export abstract class ACPAgentServiceBase extends AgentServiceBase {
     protected command: string;
     protected args: string[];
@@ -27,10 +34,7 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
     protected sessionId: string | null = null;
     protected initialized = false;
 
-    private _callback: IAgentCallback = {};
-    private _text = "";
-    private _thinkId = "";
-    private _usageReported = false;
+    private readonly activeStreams = new Map<string, ACPStreamState>();
 
     constructor(
         command: string,
@@ -60,26 +64,30 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
         const prompt = await this.preparePrompt(query);
         await this.saverService.pushMessage({ role: MessageRole.Human, content: query });
 
-        this._callback = callback;
-        this._text = "";
-        this._thinkId = uuidv4();
-        this._usageReported = false;
+        const sessionId = this.sessionId!;
+        const state: ACPStreamState = {
+            callback,
+            text: "",
+            thinkId: uuidv4(),
+            usageReported: false,
+        };
+        this.activeStreams.set(sessionId, state);
 
         const onCancel = () => {
-            if (this.sessionId && this.connection) this.connection.cancel({ sessionId: this.sessionId });
+            if (this.connection) this.connection.cancel({ sessionId });
         };
         signal?.addEventListener("abort", onCancel, { once: true });
 
         try {
-            const response = await this.connection!.prompt({ sessionId: this.sessionId!, prompt });
-            return await this.collectResponse(response, callback);
+            const response = await this.connection!.prompt({ sessionId, prompt });
+            return await this.collectResponse(response, state);
         } catch (e) {
             this.onStreamError(e);
-            await this.recordException(e, this._thinkId ? { thinkId: this._thinkId } : undefined);
+            await this.recordException(e, { thinkId: state.thinkId });
             throw e;
         } finally {
             signal?.removeEventListener("abort", onCancel);
-            this._callback = {};
+            this.activeStreams.delete(sessionId);
             await this.onStreamFinally();
         }
     }
@@ -90,12 +98,7 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
     // ── dispose ──────────────────────────────────────────────────────────
 
     async forceDispose() {
-        if (this.sessionId && this.connection) {
-            await this.connection.closeSession({ sessionId: this.sessionId }).catch(e => {
-                this.logger?.debug(`[ACP] closeSession ignored: ${e?.message ?? e}`);
-            });
-            this.sessionId = null;
-        }
+        await this.closeCurrentSession();
         if (this.childProcess) {
             this.childProcess.kill();
             this.childProcess = null;
@@ -170,24 +173,40 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
 
     protected abstract preparePrompt(query: MessageContent): Promise<schema.ContentBlock[]>;
 
-    private async collectResponse(response: { usage?: schema.Usage | null }, callback: IAgentCallback): Promise<ChatMessage[]> {
+    protected async buildPrompt(query: MessageContent, includeHistory: boolean): Promise<schema.ContentBlock[]> {
+        const blocks: schema.ContentBlock[] = [];
+        if (includeHistory) {
+            const history = await this.saverService.getMessages();
+            if (history.length > 0) blocks.push({ type: "text", text: this.formatHistory(history) });
+        }
+        blocks.push(...this.toContentBlocks(query));
+        return blocks;
+    }
+
+    protected async closeCurrentSession(): Promise<void> {
+        const sessionId = this.sessionId;
+        if (!sessionId || !this.connection) return;
+
+        await this.connection.closeSession({ sessionId }).catch(e => {
+            this.logger?.debug(`[ACP] closeSession ignored: ${e?.message ?? e}`);
+        });
+        if (this.sessionId === sessionId) this.sessionId = null;
+    }
+
+    private async collectResponse(response: { usage?: schema.Usage | null }, state: ACPStreamState): Promise<ChatMessage[]> {
         const messages: ChatMessage[] = [];
-        if (this._text.trim()) {
+        if (state.text.trim()) {
             const msg: ChatMessage = {
                 role: MessageRole.AI,
-                content: this._text.trim(),
-                additional_kwargs: { thinkId: this._thinkId },
+                content: state.text.trim(),
+                additional_kwargs: { thinkId: state.thinkId },
             };
             messages.push(msg);
-            await callback.onMessage?.(msg);
-            await this.saverService.pushMessage(msg, { thinkId: this._thinkId });
+            await state.callback.onMessage?.(msg);
+            await this.saverService.pushMessage(msg, { thinkId: state.thinkId });
         }
-        if (response.usage && !this._usageReported) {
-            await callback.onUsage?.({
-                input_tokens: response.usage.inputTokens ?? 0,
-                output_tokens: response.usage.outputTokens ?? 0,
-                total_tokens: (response.usage.inputTokens ?? 0) + (response.usage.outputTokens ?? 0),
-            });
+        if (response.usage && !state.usageReported) {
+            await state.callback.onUsage?.(this.toTokenUsage(response.usage));
         }
         return messages;
     }
@@ -195,7 +214,8 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
     // ── ACP session handlers ─────────────────────────────────────────────
 
     private async handlePermission(params: schema.RequestPermissionRequest) {
-        if (!this._callback.executeTool) {
+        const callback = this.activeStreams.get(params.sessionId)?.callback;
+        if (!callback?.executeTool) {
             const opt = params.options.find(o => o.kind === "allow_once") ?? params.options[0];
             return { outcome: { outcome: "selected" as const, optionId: opt.optionId } };
         }
@@ -205,7 +225,7 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
             name: params.toolCall.title ?? "unknown",
             args: (params.toolCall.rawInput as Record<string, any>) ?? {},
         };
-        const approval = await this._callback.executeTool(toolCall);
+        const approval = await callback.executeTool(toolCall);
 
         if (approval === ToolApproval.Deny) {
             const reject = params.options.find(o => o.kind === "reject_once");
@@ -222,50 +242,47 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
     }
 
     private async handleSessionUpdate(params: schema.SessionNotification) {
+        const state = this.activeStreams.get(params.sessionId);
+        if (!state) return;
+
         const update = params.update;
         switch (update.sessionUpdate) {
             case "agent_message_chunk": {
                 if (update.content.type === "text") {
-                    this._text += (update.content as schema.TextContent).text ?? "";
-                    await this._callback.onStreamMessage?.({ role: MessageRole.AI, content: this._text });
+                    state.text += (update.content as schema.TextContent).text ?? "";
+                    await state.callback.onStreamMessage?.({ role: MessageRole.AI, content: state.text });
                 }
                 break;
             }
             case "tool_call": {
-                const tc = update as schema.ToolCall & { sessionUpdate: string };
-                await this.flushThinkText();
-                await this.saverService.pushThinkMessage(this._thinkId, {
+                await this.flushThinkText(state);
+                await this.saverService.pushThinkMessage(state.thinkId, {
                     role: MessageRole.AI,
-                    content: `[Tool: ${tc.title}]`,
-                    tool_calls: [{ id: tc.toolCallId, name: tc.title, args: (tc.rawInput as Record<string, any>) ?? {} }],
+                    content: `[Tool: ${update.title}]`,
+                    tool_calls: [{ id: update.toolCallId, name: update.title, args: (update.rawInput as Record<string, any>) ?? {} }],
                 });
-                await this._callback.onStreamMessage?.({ role: MessageRole.AI, content: `[Tool: ${tc.title}]` });
+                await state.callback.onStreamMessage?.({ role: MessageRole.AI, content: `[Tool: ${update.title}]` });
                 break;
             }
             case "tool_call_update": {
-                const tu = update as schema.ToolCallUpdate & { sessionUpdate: string };
-                if (tu.status === "completed" || tu.status === "failed") {
-                    const raw = tu.rawOutput;
+                if (update.status === "completed" || update.status === "failed") {
+                    const raw = update.rawOutput;
                     const output = raw != null ? (typeof raw === "string" ? raw : JSON.stringify(raw)) : "";
-                    await this.saverService.pushThinkMessage(this._thinkId, {
+                    await this.saverService.pushThinkMessage(state.thinkId, {
                         role: MessageRole.Tool,
-                        tool_call_id: tu.toolCallId,
+                        tool_call_id: update.toolCallId,
                         content: output,
-                        status: tu.status === "failed" ? "error" : "success",
+                        status: update.status === "failed" ? "error" : "success",
                     });
-                    await this._callback.onStreamMessage?.({ role: MessageRole.Tool, content: output, tool_call_id: tu.toolCallId });
+                    await state.callback.onStreamMessage?.({ role: MessageRole.Tool, content: output, tool_call_id: update.toolCallId });
                 }
                 break;
             }
             case "usage_update": {
-                const u = update as any;
-                if (u.usage) {
-                    this._usageReported = true;
-                    await this._callback.onUsage?.({
-                        input_tokens: u.usage.inputTokens ?? 0,
-                        output_tokens: u.usage.outputTokens ?? 0,
-                        total_tokens: (u.usage.inputTokens ?? 0) + (u.usage.outputTokens ?? 0),
-                    });
+                const usage = (update as { usage?: schema.Usage | null }).usage;
+                if (usage) {
+                    state.usageReported = true;
+                    await state.callback.onUsage?.(this.toTokenUsage(usage));
                 }
                 break;
             }
@@ -274,11 +291,21 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
 
     // ── utilities ────────────────────────────────────────────────────────
 
-    private async flushThinkText(): Promise<void> {
-        const pending = this._text.trim();
+    private async flushThinkText(state: ACPStreamState): Promise<void> {
+        const pending = state.text.trim();
         if (!pending) return;
-        await this.saverService.pushThinkMessage(this._thinkId, { role: MessageRole.AI, content: pending });
-        this._text = "";
+        await this.saverService.pushThinkMessage(state.thinkId, { role: MessageRole.AI, content: pending });
+        state.text = "";
+    }
+
+    private toTokenUsage(usage: schema.Usage) {
+        const input_tokens = usage.inputTokens ?? 0;
+        const output_tokens = usage.outputTokens ?? 0;
+        return {
+            input_tokens,
+            output_tokens,
+            total_tokens: input_tokens + output_tokens,
+        };
     }
 
     protected formatHistory(messages: ChatMessage[]): string {
