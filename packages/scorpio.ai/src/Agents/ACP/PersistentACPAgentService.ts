@@ -4,7 +4,7 @@ import { IAgentSaverService } from "../../Saver";
 import { ILoggerService } from "../../Logger";
 import { IMemoryService } from "../../Memory";
 import type { MessageContent } from "../../Saver/IAgentSaverService";
-import { ACPAgentServiceBase, T_ACPCommand, T_ACPArgs, T_ACPEnv, T_ACPWorkPath } from "./ACPAgentServiceBase";
+import { ACPAgentServiceBase, T_ACPCommand, T_ACPArgs, T_ACPEnv, T_ACPWorkPath, T_ACPInitTimeout } from "./ACPAgentServiceBase";
 
 export class PersistentACPAgentService extends ACPAgentServiceBase {
     private _pooled = false;
@@ -21,12 +21,13 @@ export class PersistentACPAgentService extends ACPAgentServiceBase {
         @inject(T_ACPCommand) command: string,
         @inject(T_ACPArgs) args: string[],
         @inject(T_ACPWorkPath) workPath: string,
+        @inject(T_ACPInitTimeout) initTimeoutMs: number,
         @inject(T_ACPEnv, { optional: true }) env?: Record<string, string>,
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
         @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
         @inject(IMemoryService, { optional: true }) memoryServices?: IMemoryService[],
     ) {
-        super(command, args, workPath, env, loggerService, agentSaver, memoryServices);
+        super(command, args, workPath, env, initTimeoutMs, loggerService, agentSaver, memoryServices);
     }
 
     isAlive(): boolean {

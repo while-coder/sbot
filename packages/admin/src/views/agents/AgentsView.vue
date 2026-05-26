@@ -388,6 +388,7 @@ async function saveMcpParams() {
                     <SInfoRow :label="t('agents.acp_session_mode')">
                       <span class="type-tag">{{ row.sessionMode || 'persistent' }}</span>
                     </SInfoRow>
+                    <SInfoRow v-if="row.initTimeout" :label="t('agents.acp_init_timeout')">{{ row.initTimeout }}s</SInfoRow>
                     <SInfoRow v-if="row.env && Object.keys(row.env).length" :label="t('agents.acp_env')">
                       <div v-for="(v, k) in row.env" :key="k" class="env-line">{{ k }}={{ v }}</div>
                     </SInfoRow>

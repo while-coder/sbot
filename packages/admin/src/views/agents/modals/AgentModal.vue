@@ -67,6 +67,7 @@ const form = ref({
   args: [] as string[],
   env: [] as { key: string; value: string }[],
   sessionMode: ACPSessionMode.Persistent as ACPSessionMode,
+  initTimeout: undefined as number | undefined,
 })
 const tempSubAgents = ref<SubAgentRef[]>([])
 
@@ -93,6 +94,7 @@ function open(id?: string) {
       args: Array.isArray(a.args) ? [...a.args] : [],
       env: a.env ? Object.entries(a.env).map(([key, value]) => ({ key, value })) : [],
       sessionMode: (a as any).sessionMode || ACPSessionMode.Persistent,
+      initTimeout: (a as any).initTimeout ?? undefined,
     }
     tempSubAgents.value = Array.isArray(a.agents) ? [...a.agents] : []
   } else {
@@ -103,7 +105,7 @@ function open(id?: string) {
       systemPrompt: '',
       insightScope: InsightScope.Disabled, insightExtractor: '', insightExtractorPromptFile: '',
       todoScope: TodoScope.Disabled, todoExtractor: '', todoExtractorPromptFile: '',
-      autoApproveAllTools: false, modelCallTimeout: undefined, command: '', args: [], env: [], sessionMode: ACPSessionMode.Persistent,
+      autoApproveAllTools: false, modelCallTimeout: undefined, command: '', args: [], env: [], sessionMode: ACPSessionMode.Persistent, initTimeout: undefined,
     }
   }
   showModal.value = true
@@ -161,6 +163,7 @@ async function save() {
       const envEntries = form.value.env.filter(e => e.key.trim())
       if (envEntries.length) config.env = Object.fromEntries(envEntries.map(e => [e.key.trim(), e.value]))
       if (form.value.sessionMode !== ACPSessionMode.Persistent) config.sessionMode = form.value.sessionMode
+      if (form.value.initTimeout != null && form.value.initTimeout > 0) config.initTimeout = form.value.initTimeout
     }
     // 保留在专属页面配置的字段（generative/acp 模式无工具/技能，不保留）
     const existing = editingId.value ? agents.value[editingId.value] : null
@@ -344,6 +347,9 @@ defineExpose({ open })
           <option :value="ACPSessionMode.Persistent">{{ t('agents.acp_session_persistent') }}</option>
           <option :value="ACPSessionMode.Transient">{{ t('agents.acp_session_transient') }}</option>
         </SSelect>
+      </SFormItem>
+      <SFormItem :label="t('agents.acp_init_timeout')" :hint="t('agents.acp_init_timeout_hint')">
+        <SInput v-model.number="form.initTimeout" type="number" :placeholder="t('agents.acp_init_timeout_placeholder')" />
       </SFormItem>
       <SFormItem :label="t('agents.acp_env')">
         <div v-for="(item, i) in form.env" :key="i" style="display:flex;gap:6px;margin-bottom:4px">

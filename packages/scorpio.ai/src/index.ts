@@ -320,6 +320,7 @@ export {
   T_ACPArgs,
   T_ACPEnv,
   T_ACPWorkPath,
+  T_ACPInitTimeout,
 
   // 类型定义
   GraphNodeType,

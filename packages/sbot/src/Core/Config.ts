@@ -87,6 +87,7 @@ export interface ACPAgentEntry extends BaseAgentEntry {
   args?: string[];
   env?: Record<string, string>;
   sessionMode?: ACPSessionMode;
+  initTimeout?: number;        // ACP 进程初始化超时（秒），不设置或 <=0 表示不超时
 }
 
 /**

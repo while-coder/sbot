@@ -185,6 +185,8 @@ export interface AgentConfig {
   args?: string[]
   env?: Record<string, string>
   sessionMode?: ACPSessionMode
+  /** ACP process initialization timeout in seconds. <=0 or unset = no timeout. */
+  initTimeout?: number
   // store
   storeSource?: AgentStoreSource
 }

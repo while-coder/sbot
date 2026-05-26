@@ -15,9 +15,7 @@ export const T_ACPCommand = Symbol("scorpio:T_ACPCommand");
 export const T_ACPArgs = Symbol("scorpio:T_ACPArgs");
 export const T_ACPEnv = Symbol("scorpio:T_ACPEnv");
 export const T_ACPWorkPath = Symbol("scorpio:T_ACPWorkPath");
-
-const ACP_INIT_TIMEOUT_MS = 30_000;
-const ACP_CLOSE_SESSION_TIMEOUT_MS = 5_000;
+export const T_ACPInitTimeout = Symbol("scorpio:T_ACPInitTimeout");
 
 interface ACPStreamState {
     callback: IAgentCallback;
@@ -31,6 +29,7 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
     protected args: string[];
     protected env: Record<string, string>;
     protected workPath: string;
+    protected initTimeoutMs: number;
 
     protected childProcess: ChildProcess | null = null;
     protected connection: ClientSideConnection | null = null;
@@ -43,7 +42,8 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
         command: string,
         args: string[],
         workPath: string,
-        env?: Record<string, string>,
+        env: Record<string, string> | undefined,
+        initTimeoutMs: number,
         loggerService?: ILoggerService,
         agentSaver?: IAgentSaverService,
         memoryServices?: IMemoryService[],
@@ -53,6 +53,7 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
         this.args = args;
         this.env = env ?? {};
         this.workPath = workPath;
+        this.initTimeoutMs = initTimeoutMs;
         if (workPath && !existsSync(workPath)) {
             mkdirSync(workPath, { recursive: true });
         }
@@ -180,18 +181,17 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
         childProcess.once("error", onStartupError);
 
         try {
-            await this.withTimeout(
-                Promise.race([
-                    this.connection.initialize({
-                        protocolVersion: 1,
-                        clientCapabilities: {},
-                        clientInfo: { name: "sbot", version: "1.0.0" },
-                    }),
-                    startupError,
-                ]),
-                ACP_INIT_TIMEOUT_MS,
-                `ACP initialize timed out after ${ACP_INIT_TIMEOUT_MS}ms`,
-            );
+            const initialize = Promise.race([
+                this.connection.initialize({
+                    protocolVersion: 1,
+                    clientCapabilities: {},
+                    clientInfo: { name: "sbot", version: "1.0.0" },
+                }),
+                startupError,
+            ]);
+            await (this.initTimeoutMs > 0
+                ? this.withTimeout(initialize, this.initTimeoutMs, `ACP initialize timed out after ${this.initTimeoutMs}ms`)
+                : initialize);
             this.initialized = true;
         } catch (e) {
             childProcess.kill();
@@ -223,11 +223,7 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
         const sessionId = this.sessionId;
         if (!sessionId || !this.connection) return;
 
-        await this.withTimeout(
-            this.connection.closeSession({ sessionId }),
-            ACP_CLOSE_SESSION_TIMEOUT_MS,
-            `ACP closeSession timed out after ${ACP_CLOSE_SESSION_TIMEOUT_MS}ms`,
-        ).catch(e => {
+        await this.connection.closeSession({ sessionId }).catch(e => {
             this.logger?.debug(`[ACP] closeSession ignored: ${e?.message ?? e}`);
         });
         if (this.sessionId === sessionId) this.sessionId = null;

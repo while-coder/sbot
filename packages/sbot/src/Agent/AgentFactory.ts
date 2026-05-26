@@ -1,6 +1,6 @@
 import {
     AgentServiceBase, SingleAgentService, GenerativeAgentService,
-    TransientACPAgentService, PersistentACPAgentService, T_ACPCommand, T_ACPArgs, T_ACPEnv, T_ACPWorkPath,
+    TransientACPAgentService, PersistentACPAgentService, T_ACPCommand, T_ACPArgs, T_ACPEnv, T_ACPWorkPath, T_ACPInitTimeout,
     IModelService,
     IAgentSaverService, AgentMemorySaver, ILoggerService,
     ConversationCompactor, IConversationCompactor, T_SummaryModelService,
@@ -262,10 +262,12 @@ export class AgentFactory {
     ): Promise<AgentServiceBase> {
         const workPath = options.workPath ?? process.cwd();
         const sessionMode = entry.sessionMode ?? ACPSessionMode.Persistent;
+        const initTimeoutMs = (entry.initTimeout ?? 0) * 1000;
         const acpArgs = {
             [T_ACPCommand]: entry.command,
             [T_ACPArgs]: entry.args ?? [],
             [T_ACPWorkPath]: workPath,
+            [T_ACPInitTimeout]: initTimeoutMs,
             ...(entry.env && { [T_ACPEnv]: entry.env }),
         };
 
@@ -273,7 +275,7 @@ export class AgentFactory {
             const pool = ACPAgentPool.getInstance();
             const key = `${options.agentId}:${options.dbSessionId}`;
             const agentName = entry.name ?? options.agentId;
-            const configHash = JSON.stringify({ command: entry.command, args: entry.args ?? [], env: entry.env ?? {}, workPath });
+            const configHash = JSON.stringify({ command: entry.command, args: entry.args ?? [], env: entry.env ?? {}, workPath, initTimeout: initTimeoutMs });
 
             const cached = await pool.tryGet(key, configHash);
             if (cached) return cached;
