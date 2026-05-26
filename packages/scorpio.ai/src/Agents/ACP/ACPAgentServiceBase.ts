@@ -374,7 +374,7 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
                        : msg.role;
             items.push(`<history role="${role}">${parts.map(p => this.escapeXml(p)).join("\n")}</history>`);
         }
-        return `<historys>\n${items.join("\n")}\n</historys>`;
+        return `<historys>\n${items.join("\n")}\n</historys>\n`;
     }
 
     protected toContentBlocks(query: MessageContent): schema.ContentBlock[] {
