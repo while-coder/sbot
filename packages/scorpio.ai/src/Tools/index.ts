@@ -11,6 +11,7 @@ export {
     MCPImageUrlContent,
     MCPContent,
     MCPToolResult,
+    MCPToolResultMeta,
     createTextContent,
     createImageContent,
     createAudioContent,
@@ -25,6 +26,7 @@ export {
     createTaskTool,
     TASK_TOOL_NAME,
     type TaskToolParams,
+    type TaskToolRunResult,
     type RunTaskFn,
 } from './TaskTool';
 

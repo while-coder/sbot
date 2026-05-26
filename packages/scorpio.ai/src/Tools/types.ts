@@ -71,6 +71,14 @@ export type MCPContent = MCPTextContent | MCPImageContent | MCPAudioContent | MC
 export type MCPToolResult = {
     content: MCPContent[];
     isError?: boolean;
+    _meta?: MCPToolResultMeta;
+};
+
+/**
+ * 工具执行的系统侧元数据。
+ * 不作为模型上下文内容，仅供 Agent/Saver/UI 关联执行轨迹。
+ */
+export type MCPToolResultMeta = {
     thinkId?: string;
 };
 
