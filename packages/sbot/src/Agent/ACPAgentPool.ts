@@ -49,6 +49,9 @@ export class ACPAgentPool {
         if (!existing.instance.isAlive()) {
             logger.warn(`Dead process for ${key}, recreating`);
             this.pool.delete(key);
+            await existing.instance.forceDispose().catch(e => {
+                logger.warn(`Failed to dispose dead ACP instance ${key}: ${e?.message ?? e}`);
+            });
             return null;
         }
 
@@ -63,6 +66,9 @@ export class ACPAgentPool {
             if (entry?.instance === instance) {
                 logger.warn(`ACP process died unexpectedly: ${key}`);
                 this.pool.delete(key);
+                void instance.forceDispose().catch(e => {
+                    logger.warn(`Failed to dispose exited ACP instance ${key}: ${e?.message ?? e}`);
+                });
             }
         };
 

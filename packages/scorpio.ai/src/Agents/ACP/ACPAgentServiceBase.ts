@@ -16,6 +16,9 @@ export const T_ACPArgs = Symbol("scorpio:T_ACPArgs");
 export const T_ACPEnv = Symbol("scorpio:T_ACPEnv");
 export const T_ACPWorkPath = Symbol("scorpio:T_ACPWorkPath");
 
+const ACP_INIT_TIMEOUT_MS = 30_000;
+const ACP_CLOSE_SESSION_TIMEOUT_MS = 5_000;
+
 interface ACPStreamState {
     callback: IAgentCallback;
     text: string;
@@ -61,10 +64,14 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
         if (signal?.aborted) throw new AgentCancelledError();
         await this.ensureReady();
 
+        const sessionId = this.sessionId!;
+        if (this.activeStreams.has(sessionId)) {
+            throw new Error(`ACP session ${sessionId} is already processing a prompt`);
+        }
+
         const prompt = await this.preparePrompt(query);
         await this.saverService.pushMessage({ role: MessageRole.Human, content: query });
 
-        const sessionId = this.sessionId!;
         const state: ACPStreamState = {
             callback,
             text: "",
@@ -78,11 +85,14 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
         };
         signal?.addEventListener("abort", onCancel, { once: true });
 
+        let promptCompleted = false;
         try {
             const response = await this.connection!.prompt({ sessionId, prompt });
+            promptCompleted = true;
+            this.onPromptSuccess();
             return await this.collectResponse(response, state);
         } catch (e) {
-            this.onStreamError(e);
+            if (!promptCompleted) this.onStreamError(e);
             await this.recordException(e, { thinkId: state.thinkId });
             throw e;
         } finally {
@@ -93,6 +103,7 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
     }
 
     protected onStreamError(_e: unknown): void {}
+    protected onPromptSuccess(): void {}
     protected async onStreamFinally(): Promise<void> {}
 
     // ── dispose ──────────────────────────────────────────────────────────
@@ -129,18 +140,20 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
     private async ensureConnection(): Promise<void> {
         if (this.connection && this.initialized) return;
 
-        this.childProcess = spawn(this.command, this.args, {
+        const childProcess = spawn(this.command, this.args, {
             stdio: ["pipe", "pipe", "pipe"],
+            cwd: this.workPath || undefined,
             env: { ...process.env, ...this.env },
             shell: process.platform === "win32",
             windowsHide: true,
         });
+        this.childProcess = childProcess;
 
-        this.childProcess.stderr?.on("data", (chunk: Buffer) => {
+        childProcess.stderr?.on("data", (chunk: Buffer) => {
             this.logger?.debug(`[ACP stderr] ${chunk.toString().trim()}`);
         });
 
-        this.childProcess.on("exit", (code) => {
+        childProcess.on("exit", (code) => {
             this.logger?.info(`[ACP] process exited with code ${code}`);
             this.connection = null;
             this.initialized = false;
@@ -149,8 +162,8 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
         });
 
         const stream = ndJsonStream(
-            Writable.toWeb(this.childProcess.stdin!) as WritableStream<Uint8Array>,
-            Readable.toWeb(this.childProcess.stdout!) as ReadableStream<Uint8Array>,
+            Writable.toWeb(childProcess.stdin!) as WritableStream<Uint8Array>,
+            Readable.toWeb(childProcess.stdout!) as ReadableStream<Uint8Array>,
         );
 
         this.connection = new ClientSideConnection(
@@ -161,12 +174,35 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
             stream,
         );
 
-        await this.connection.initialize({
-            protocolVersion: 1,
-            clientCapabilities: {},
-            clientInfo: { name: "sbot", version: "1.0.0" },
-        });
-        this.initialized = true;
+        let rejectStartup!: (error: Error) => void;
+        const startupError = new Promise<never>((_, reject) => { rejectStartup = reject; });
+        const onStartupError = (error: Error) => rejectStartup(error);
+        childProcess.once("error", onStartupError);
+
+        try {
+            await this.withTimeout(
+                Promise.race([
+                    this.connection.initialize({
+                        protocolVersion: 1,
+                        clientCapabilities: {},
+                        clientInfo: { name: "sbot", version: "1.0.0" },
+                    }),
+                    startupError,
+                ]),
+                ACP_INIT_TIMEOUT_MS,
+                `ACP initialize timed out after ${ACP_INIT_TIMEOUT_MS}ms`,
+            );
+            this.initialized = true;
+        } catch (e) {
+            childProcess.kill();
+            this.childProcess = null;
+            this.connection = null;
+            this.initialized = false;
+            this.sessionId = null;
+            throw e;
+        } finally {
+            childProcess.off("error", onStartupError);
+        }
     }
 
     // ── prompt / response helpers ────────────────────────────────────────
@@ -187,7 +223,11 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
         const sessionId = this.sessionId;
         if (!sessionId || !this.connection) return;
 
-        await this.connection.closeSession({ sessionId }).catch(e => {
+        await this.withTimeout(
+            this.connection.closeSession({ sessionId }),
+            ACP_CLOSE_SESSION_TIMEOUT_MS,
+            `ACP closeSession timed out after ${ACP_CLOSE_SESSION_TIMEOUT_MS}ms`,
+        ).catch(e => {
             this.logger?.debug(`[ACP] closeSession ignored: ${e?.message ?? e}`);
         });
         if (this.sessionId === sessionId) this.sessionId = null;
@@ -308,6 +348,18 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
         };
     }
 
+    private async withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const timeout = new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+        });
+        try {
+            return await Promise.race([promise, timeout]);
+        } finally {
+            if (timer) clearTimeout(timer);
+        }
+    }
+
     protected formatHistory(messages: ChatMessage[]): string {
         const items: string[] = [];
         for (const msg of messages) {
@@ -317,14 +369,14 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
             } else if (Array.isArray(msg.content)) {
                 for (const block of msg.content) {
                     if (block.type === "text" && block.text?.trim()) parts.push(block.text.trim());
-                    else if (block.type === "image_url" || block.type === "image") parts.push("<image />");
+                    else if (block.type === "image_url" || block.type === "image") parts.push("[image]");
                 }
             }
             if (!parts.length) continue;
             const role = msg.role === MessageRole.Human ? "user"
                        : msg.role === MessageRole.AI ? "assistant"
                        : msg.role;
-            items.push(`<history role="${role}">${parts.join("\n")}</history>`);
+            items.push(`<history role="${role}">${parts.map(p => this.escapeXml(p)).join("\n")}</history>`);
         }
         return `<historys>\n${items.join("\n")}\n</historys>`;
     }
@@ -333,10 +385,42 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
         if (typeof query === "string") return [{ type: "text", text: query }];
         return (query as Array<{ type: string; text?: string; [k: string]: any }>).map(block => {
             if (block.type === "text") return { type: "text" as const, text: block.text ?? "" };
-            if (block.type === "image_url" || block.type === "image") {
-                return { type: "image" as const, data: block.image_url?.url ?? block.data ?? "", mimeType: block.mimeType ?? "image/png" };
-            }
+            if (block.type === "image_url" || block.type === "image") return this.toImageContent(block);
             return { type: "text" as const, text: JSON.stringify(block) };
         });
+    }
+
+    private toImageContent(block: { type: string; text?: string; image_url?: { url?: string }; data?: string; mimeType?: string; [k: string]: any }): schema.ContentBlock {
+        const source = block.image_url?.url ?? block.data ?? "";
+        const dataUrl = source.match(/^data:([^;,]+)?;base64,(.*)$/);
+        if (dataUrl) {
+            return {
+                type: "image",
+                data: dataUrl[2],
+                mimeType: block.mimeType ?? dataUrl[1] ?? "image/png",
+            };
+        }
+        if (block.image_url?.url) {
+            return {
+                type: "image",
+                data: "",
+                uri: block.image_url.url,
+                mimeType: block.mimeType ?? "image/png",
+            };
+        }
+        return {
+            type: "image",
+            data: source,
+            mimeType: block.mimeType ?? "image/png",
+        };
+    }
+
+    private escapeXml(text: string): string {
+        return text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&apos;");
     }
 }
