@@ -5,6 +5,7 @@ import {
     IAgentSaverService,
     ChatMessage,
     StoredMessage,
+    NewStoredMessage,
     ChatMessageOptions,
     MessageKind,
 } from "./IAgentSaverService";
@@ -50,9 +51,21 @@ export class AgentFileSaver implements IAgentSaverService {
                 if (!this.cache.metadata) this.cache.metadata = {};
                 if (!this.cache.nextId) this.cache.nextId = 1;
                 let nextId = this.cache.nextId;
+                const now = Math.floor(Date.now() / 1000);
                 for (const m of this.cache.messages) {
                     if (m.id == null) m.id = nextId++;
+                    else nextId = Math.max(nextId, m.id + 1);
+                    if (m.createdAt == null) m.createdAt = now;
                     if (!m.kind) m.kind = MessageKind.Normal;
+                }
+                this.cache.nextId = nextId;
+                for (const items of Object.values(this.cache.thinks)) {
+                    for (const m of items) {
+                        if (m.id == null) m.id = nextId++;
+                        else nextId = Math.max(nextId, m.id + 1);
+                        if (m.createdAt == null) m.createdAt = now;
+                        if (!m.kind) m.kind = MessageKind.Normal;
+                    }
                 }
                 this.cache.nextId = nextId;
             }
@@ -94,16 +107,20 @@ export class AgentFileSaver implements IAgentSaverService {
         return (await this.getAllMessages()).map((r) => r.message);
     }
 
-    async applyCompaction(compactedIds: number[], summary: StoredMessage): Promise<void> {
+    async applyCompaction(compactedIds: number[], summary: NewStoredMessage): Promise<void> {
         if (compactedIds.length === 0) return;
         const file = await this.getFile();
         const set = new Set(compactedIds);
         for (const m of file.messages) {
-            if (m.id != null && set.has(m.id)) m.kind = MessageKind.Archive;
+            if (set.has(m.id)) m.kind = MessageKind.Archive;
         }
         const id = file.nextId;
         file.nextId = id + 1;
-        file.messages.push({ ...summary, id });
+        file.messages.push({
+            ...summary,
+            id,
+            createdAt: Math.floor(Date.now() / 1000),
+        });
         await this.writeThreadFile(file);
     }
 
@@ -135,7 +152,10 @@ export class AgentFileSaver implements IAgentSaverService {
     async pushThinkMessage(thinkId: string, message: ChatMessage, options?: ChatMessageOptions): Promise<void> {
         const file = await this.getFile();
         const existing = file.thinks[thinkId] ?? [];
+        const id = file.nextId;
+        file.nextId = id + 1;
         existing.push({
+            id,
             message,
             createdAt: Math.floor(Date.now() / 1000),
             thinkId: options?.thinkId,

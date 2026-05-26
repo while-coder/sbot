@@ -5,6 +5,7 @@ import {
     IAgentSaverService,
     ChatMessage,
     StoredMessage,
+    NewStoredMessage,
     ChatMessageOptions,
     MessageKind,
 } from "./IAgentSaverService";
@@ -127,7 +128,7 @@ export class AgentSqliteSaver implements IAgentSaverService {
         return (await this.getAllMessages()).map((r) => r.message);
     }
 
-    async applyCompaction(compactedIds: number[], summary: StoredMessage): Promise<void> {
+    async applyCompaction(compactedIds: number[], summary: NewStoredMessage): Promise<void> {
         if (compactedIds.length === 0) return;
         const txn = this.db.transaction(() => {
             const placeholders = compactedIds.map(() => '?').join(',');
@@ -135,7 +136,7 @@ export class AgentSqliteSaver implements IAgentSaverService {
             this.db.prepare("INSERT INTO messages (data, created_at, think_id, kind) VALUES (?, ?, ?, ?)")
                 .run(
                     JSON.stringify(summary.message),
-                    summary.createdAt ?? Math.floor(Date.now() / 1000),
+                    Math.floor(Date.now() / 1000),
                     summary.thinkId ?? null,
                     summary.kind,
                 );
@@ -176,9 +177,10 @@ export class AgentSqliteSaver implements IAgentSaverService {
     async getThink(thinkId: string): Promise<StoredMessage[]> {
         try {
             const rows = this.db
-                .prepare("SELECT data, created_at, nested_think_id FROM thinks WHERE think_id = ? ORDER BY id")
-                .all(thinkId) as { data: string; created_at: number; nested_think_id: string | null }[];
+                .prepare("SELECT id, data, created_at, nested_think_id FROM thinks WHERE think_id = ? ORDER BY id")
+                .all(thinkId) as { id: number; data: string; created_at: number; nested_think_id: string | null }[];
             return rows.map((r) => ({
+                id: r.id,
                 message: JSON.parse(r.data) as ChatMessage,
                 createdAt: r.created_at,
                 thinkId: r.nested_think_id ?? undefined,

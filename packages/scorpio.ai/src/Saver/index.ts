@@ -10,6 +10,7 @@ export {
     MessageKind,
     ContentPartType,
     type StoredMessage,
+    type NewStoredMessage,
     type ChatMessage,
     type ChatToolCall,
     type ChatMessageOptions,

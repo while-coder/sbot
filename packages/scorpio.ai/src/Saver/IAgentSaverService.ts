@@ -138,9 +138,16 @@ export enum MessageKind {
 }
 
 export interface StoredMessage {
-    id?: number;
+    id: number;
     message: ChatMessage;
-    createdAt?: number;
+    createdAt: number;
+    thinkId?: string;
+    /** 记录种类。Saver 在落库/读取时都必须显式赋值。 */
+    kind: MessageKind;
+}
+
+export interface NewStoredMessage {
+    message: ChatMessage;
     thinkId?: string;
     /** 记录种类。Saver 在落库/读取时都必须显式赋值。 */
     kind: MessageKind;
@@ -183,7 +190,7 @@ export interface IAgentSaverService {
     /**
      * 对话压缩：将旧消息标记为 {@link MessageKind.Archive}，并把摘要作为新的 Normal 消息追加。
      */
-    applyCompaction(compactedIds: number[], summary: StoredMessage): Promise<void>;
+    applyCompaction(compactedIds: number[], summary: NewStoredMessage): Promise<void>;
 
     /**
      * 清除当前线程的所有历史记录

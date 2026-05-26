@@ -2,6 +2,7 @@ import {
     IAgentSaverService,
     ChatMessage,
     StoredMessage,
+    NewStoredMessage,
     ChatMessageOptions,
     MessageKind,
 } from "./IAgentSaverService";
@@ -36,12 +37,17 @@ export class AgentMemorySaver implements IAgentSaverService {
         });
     }
 
-    async applyCompaction(compactedIds: number[], summary: StoredMessage): Promise<void> {
+    async applyCompaction(compactedIds: number[], summary: NewStoredMessage): Promise<void> {
         const set = new Set(compactedIds);
         for (const m of this.messages) {
-            if (m.id != null && set.has(m.id)) m.kind = MessageKind.Archive;
+            if (set.has(m.id)) m.kind = MessageKind.Archive;
         }
-        this.messages.push({ ...summary, id: summary.id ?? this.nextId++, kind: summary.kind });
+        this.messages.push({
+            ...summary,
+            id: this.nextId++,
+            createdAt: Math.floor(Date.now() / 1000),
+            kind: summary.kind,
+        });
     }
 
     async clearMessages(): Promise<void> {
@@ -69,6 +75,7 @@ export class AgentMemorySaver implements IAgentSaverService {
     async pushThinkMessage(thinkId: string, message: ChatMessage, options?: ChatMessageOptions): Promise<void> {
         const existing = this.thinks[thinkId] ?? [];
         existing.push({
+            id: this.nextId++,
             message,
             createdAt: Math.floor(Date.now() / 1000),
             thinkId: options?.thinkId,

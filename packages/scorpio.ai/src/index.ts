@@ -173,6 +173,7 @@ export {
   IAgentSaverService,
   MessageKind,
   type StoredMessage,
+  type NewStoredMessage,
   type ChatToolCall,
   type MessageContent,
   type TokenUsage,
@@ -347,11 +348,13 @@ export {
   MCPImageUrlContent,
   MCPContent,
   MCPToolResult,
+  MCPToolResultMeta,
 
   // TaskTool
   createTaskTool,
   TASK_TOOL_NAME,
   type TaskToolParams,
+  type TaskToolRunResult,
   type RunTaskFn,
 
   // 工具函数

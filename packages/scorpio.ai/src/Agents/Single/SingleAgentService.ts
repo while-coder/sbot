@@ -169,7 +169,7 @@ export class SingleAgentService extends AgentServiceBase {
             const savedTokens = parseInt(await this.saverService.getMetadata(METADATA_KEY_INPUT_TOKENS) ?? '0', 10);
             if (this.compactor.shouldCompact(savedTokens, allMessages, contextWindow)) {
                 const postMessage = await this.compactor.compact(allMessages);
-                const compactedIds = allMessages.filter(m => m.id != null).map(m => m.id!);
+                const compactedIds = allMessages.map(m => m.id);
                 await this.saverService.applyCompaction(compactedIds, postMessage);
             }
         }
@@ -271,7 +271,7 @@ export class SingleAgentService extends AgentServiceBase {
                     `执行工具 ${tool.name}\n  参数: ${truncate(JSON.stringify(parsedArgs), 200)}\n  结果: ${truncate(resultStr, 200)}`
                 );
 
-                const thinkId = mcpResult.thinkId;
+                const thinkId = mcpResult._meta?.thinkId;
                 // 将 MCP 结果转为 MessageContent：单条纯文本直接用 string，否则转为多模态数组
                 const content: MessageContent = !mcpResult.isError && mcpResult.content.length === 1 && mcpResult.content[0].type === MCPContentType.Text
                     ? mcpResult.content[0].text

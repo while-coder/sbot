@@ -3,6 +3,7 @@ import {
     IAgentSaverService,
     ChatMessage,
     StoredMessage,
+    NewStoredMessage,
     ChatMessageOptions,
     MessageKind,
 } from "./IAgentSaverService";
@@ -107,7 +108,7 @@ export class AgentPostgresSaver implements IAgentSaverService {
         return (await this.getAllMessages()).map((r) => r.message);
     }
 
-    async applyCompaction(compactedIds: number[], summary: StoredMessage): Promise<void> {
+    async applyCompaction(compactedIds: number[], summary: NewStoredMessage): Promise<void> {
         if (compactedIds.length === 0) return;
         await this.ensureSetup();
         await this.pool.query(`BEGIN`);
@@ -121,7 +122,7 @@ export class AgentPostgresSaver implements IAgentSaverService {
                 `INSERT INTO ${this.table} (data, created_at, think_id, kind) VALUES ($1, $2, $3, $4)`,
                 [
                     JSON.stringify(summary.message),
-                    summary.createdAt ?? Math.floor(Date.now() / 1000),
+                    Math.floor(Date.now() / 1000),
                     summary.thinkId ?? null,
                     summary.kind,
                 ]
@@ -178,10 +179,11 @@ export class AgentPostgresSaver implements IAgentSaverService {
         await this.ensureSetup();
         try {
             const result = await this.pool.query(
-                `SELECT data, created_at, nested_think_id FROM ${this.thinksTable} WHERE think_id = $1 ORDER BY id`,
+                `SELECT id, data, created_at, nested_think_id FROM ${this.thinksTable} WHERE think_id = $1 ORDER BY id`,
                 [thinkId]
             );
-            return result.rows.map((r: { data: string; created_at: number; nested_think_id: string | null }) => ({
+            return result.rows.map((r: { id: string; data: string; created_at: number; nested_think_id: string | null }) => ({
+                id: parseInt(r.id),
                 message: JSON.parse(r.data) as ChatMessage,
                 createdAt: r.created_at,
                 thinkId: r.nested_think_id ?? undefined,

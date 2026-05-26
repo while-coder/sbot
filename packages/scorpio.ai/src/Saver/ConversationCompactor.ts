@@ -3,7 +3,7 @@ import { IModelService } from "../Model";
 import { ILoggerService, ILogger } from "../Logger";
 import { T_CompactPromptTemplate, T_PostCompactMessageTemplate, T_PostCompactContinuation } from "../Core/tokens";
 import { T_SummaryModelService } from "../Agents/AgentServiceBase";
-import { ChatMessage, MessageKind, MessageRole, StoredMessage } from "./IAgentSaverService";
+import { ChatMessage, MessageKind, MessageRole, NewStoredMessage, StoredMessage } from "./IAgentSaverService";
 import { estimateMessageTokens } from "./messageSerializer";
 
 const COMPACT_THRESHOLD = 0.7;
@@ -47,7 +47,7 @@ export class ConversationCompactor {
      * 调用模型生成摘要，并按模板包装成可直接写入 saver 的压缩后消息。
      * @param continuation true（默认）追加续作指令，让 Agent 自动接续；false 仅保留摘要正文。
      */
-    async compact(messages: StoredMessage[], continuation = true): Promise<StoredMessage> {
+    async compact(messages: StoredMessage[], continuation = true): Promise<NewStoredMessage> {
         const chatMessages: ChatMessage[] = [
             ...messages.map(s => s.message),
             { role: MessageRole.Human, content: this.compactInstruction },
@@ -72,7 +72,6 @@ export class ConversationCompactor {
         const content = continuation ? `${body}\n\n${this.postContinuation}` : body;
         return {
             message: { role: MessageRole.Human, content },
-            createdAt: Math.floor(Date.now() / 1000),
             kind: MessageKind.Normal,
         };
     }
