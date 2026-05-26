@@ -59,6 +59,7 @@ const isCompact     = useCompactProvider(rootEl)
 const sidebarOpen   = ref(false)
 const settingsOpen  = ref(false)
 const explorerOpen  = ref(false)
+const explorerTouched = ref(false)
 const explorerWidth = ref(420)
 const explorerResizing = ref(false)
 
@@ -91,6 +92,10 @@ const explorerPaneStyle = computed(() =>
   isCompact.value || props.alwaysCompact
     ? undefined
     : { width: `${explorerWidth.value}px` },
+)
+
+const shouldAutoOpenExplorer = computed(() =>
+  Boolean(activeSession.value?.workPath) && !isCompact.value && !props.alwaysCompact,
 )
 
 // ── Event handler ──
@@ -199,6 +204,7 @@ function toggleSettings() {
 }
 
 function toggleExplorer() {
+  explorerTouched.value = true
   explorerOpen.value = !explorerOpen.value
   if (explorerOpen.value && (isCompact.value || props.alwaysCompact)) {
     sidebarOpen.value = false
@@ -234,6 +240,7 @@ function stopExplorerResize() {
 }
 
 watch(activeSessionId, async (id) => {
+  explorerTouched.value = false
   const gen = ++loadGeneration
   resetStreamState()
   messages.value = []
@@ -242,6 +249,10 @@ watch(activeSessionId, async (id) => {
   if (!id) return
   await Promise.all([loadHistory(gen), loadUsage(gen), restoreSessionStatus(gen)])
 })
+
+watch(shouldAutoOpenExplorer, (value) => {
+  if (!explorerTouched.value) explorerOpen.value = value
+}, { immediate: true })
 
 async function loadHistory(gen = ++loadGeneration) {
   const id = activeSessionId.value

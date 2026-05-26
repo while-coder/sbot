@@ -206,12 +206,6 @@ export interface ChatLabels {
   explorerGit?: string
   /** Explorer Git 当前分支 */
   explorerGitBranch?: string
-  /** Explorer Git 变更分组 */
-  explorerGitChanges?: string
-  /** Explorer Git 默认分组 */
-  explorerGitDefaultGroup?: string
-  /** Explorer Git 待提交分组 */
-  explorerGitStaged?: string
   /** Explorer Git 无变更提示 */
   explorerGitNoChanges?: string
   /** Explorer Git 未选中文件时的占位文案 */

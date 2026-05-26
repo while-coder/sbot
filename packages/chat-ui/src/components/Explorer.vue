@@ -4,6 +4,15 @@ import { STab, STabBar } from 'sbot-ui'
 import type { IChatTransport } from '../transport'
 import type { ChatLabels } from '../types'
 import { resolveLabels } from '../labels'
+import {
+  defaultExplorerViewState,
+  loadExplorerViewState,
+  mergeExplorerViewState,
+  saveExplorerViewState,
+  type ExplorerFilesViewState,
+  type ExplorerGitViewState,
+  type ExplorerViewState,
+} from '../composables/useExplorerViewState'
 import FileExplorer from './FileExplorer.vue'
 import GitExplorer from './GitExplorer.vue'
 
@@ -15,18 +24,44 @@ const props = defineProps<{
 
 const L = computed(() => resolveLabels(props.labels))
 const mode = ref<'files' | 'git'>('files')
+const viewState = ref<ExplorerViewState>(defaultExplorerViewState())
 const refreshKey = ref(0)
 const refreshing = ref(false)
 const gitCount = ref(0)
 const gitBranch = ref('')
 
-watch(mode, () => {
+watch(mode, (value) => {
   refreshing.value = false
+  persistViewState({ mode: value })
 })
 
-watch(() => props.root, () => {
+watch(() => props.root, (root) => {
   gitBranch.value = ''
-})
+  viewState.value = loadExplorerViewState(root)
+  mode.value = viewState.value.mode
+}, { immediate: true })
+
+function persistViewState(patch: Partial<ExplorerViewState>) {
+  if (!props.root) return
+  viewState.value = mergeExplorerViewState(viewState.value, patch)
+  saveExplorerViewState(props.root, viewState.value)
+}
+
+function updateFilesViewState(patch: Partial<ExplorerFilesViewState>) {
+  persistViewState({ files: patch as ExplorerFilesViewState })
+}
+
+function updateGitViewState(patch: Partial<ExplorerGitViewState>) {
+  persistViewState({ git: patch as ExplorerGitViewState })
+}
+
+function updateTreeWidth(value: number) {
+  persistViewState({ treeWidth: value })
+}
+
+function updateTreeHeight(value: number) {
+  persistViewState({ treeHeight: value })
+}
 
 function refresh() {
   if (!props.root || refreshing.value) return
@@ -67,7 +102,13 @@ function refresh() {
       :root="root"
       :labels="labels"
       :refresh-key="refreshKey"
+      :tree-width="viewState.treeWidth"
+      :tree-height="viewState.treeHeight"
+      :view-state="viewState.files"
       @refreshing="refreshing = $event"
+      @tree-width="updateTreeWidth"
+      @tree-height="updateTreeHeight"
+      @view-state="updateFilesViewState"
     />
     <GitExplorer
       v-else
@@ -75,9 +116,15 @@ function refresh() {
       :root="root"
       :labels="labels"
       :refresh-key="refreshKey"
+      :tree-width="viewState.treeWidth"
+      :tree-height="viewState.treeHeight"
+      :view-state="viewState.git"
       @count="gitCount = $event"
       @branch="gitBranch = $event"
       @refreshing="refreshing = $event"
+      @tree-width="updateTreeWidth"
+      @tree-height="updateTreeHeight"
+      @view-state="updateGitViewState"
     />
   </div>
 </template>

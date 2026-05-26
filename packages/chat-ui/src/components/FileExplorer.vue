@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, watch, computed, onBeforeUnmount } from 'vue'
+import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue'
 import { STree, STreeNode } from 'sbot-ui'
 import type { IChatTransport } from '../transport'
 import type { ChatLabels, FsTreeItem } from '../types'
+import type { ExplorerFilesViewState } from '../composables/useExplorerViewState'
 import { resolveLabels, tpl } from '../labels'
 import ImageLightbox from './ImageLightbox.vue'
 
@@ -11,10 +12,16 @@ const props = defineProps<{
   root?: string
   labels?: ChatLabels
   refreshKey?: number
+  treeWidth?: number
+  treeHeight?: number
+  viewState?: ExplorerFilesViewState
 }>()
 
 const emit = defineEmits<{
   refreshing: [value: boolean]
+  'tree-width': [value: number]
+  'tree-height': [value: number]
+  'view-state': [value: Partial<ExplorerFilesViewState>]
 }>()
 
 const L = computed(() => resolveLabels(props.labels))
@@ -38,14 +45,15 @@ const fileLoading = ref(false)
 const errMsg = ref('')
 const imageLightbox = ref<InstanceType<typeof ImageLightbox> | null>(null)
 const explorerEl = ref<HTMLElement | null>(null)
-const treeSize = ref(260)
+const treeWidth = ref(props.treeWidth ?? 260)
+const treeHeight = ref(props.treeHeight ?? 220)
 const resizing = ref(false)
 const resizeMode = ref<'horizontal' | 'vertical'>('horizontal')
 
 const treeStyle = computed(() =>
   resizeMode.value === 'vertical'
-    ? { height: `${treeSize.value}px` }
-    : { width: `${treeSize.value}px` },
+    ? { height: `${treeHeight.value}px` }
+    : { width: `${treeWidth.value}px` },
 )
 
 function fmtSize(n: number): string {
@@ -87,11 +95,13 @@ async function toggleDir(dir: string): Promise<void> {
     if (state.expanded && !state.loaded) await loadDir(dir)
   }
   dirStates.value = new Map(dirStates.value)
+  emitViewState()
 }
 
 async function selectFile(item: FsTreeItem): Promise<void> {
   if (selectedPath.value === item.path) return
   selectedPath.value = item.path
+  emitViewState()
   fileContent.value = ''
   fileDataUrl.value = ''
   fileContentType.value = 'text'
@@ -113,6 +123,54 @@ async function selectFile(item: FsTreeItem): Promise<void> {
   } finally {
     fileLoading.value = false
   }
+}
+
+function emitViewState(): void {
+  emit('view-state', {
+    expandedPaths: getExpandedPaths(),
+    selectedPath: selectedPath.value,
+  })
+}
+
+function getExpandedPaths(): string[] {
+  const paths: string[] = []
+  for (const [path, state] of dirStates.value) {
+    if (state.expanded) paths.push(path)
+  }
+  return paths
+}
+
+function findLoadedItem(path: string): FsTreeItem | undefined {
+  for (const state of dirStates.value.values()) {
+    const item = state.items.find(item => item.path === path)
+    if (item) return item
+  }
+}
+
+async function restoreExpandedDirs(rootPath: string, expandedPaths: string[]): Promise<void> {
+  const expanded = new Set([rootPath, ...expandedPaths])
+  await loadDir(rootPath)
+  const rootState = dirStates.value.get(rootPath)
+  if (!rootState) return
+  rootState.expanded = true
+
+  const queue: string[] = [rootPath]
+  while (queue.length > 0) {
+    const cur = queue.shift()!
+    const state = dirStates.value.get(cur)
+    if (!state) continue
+    for (const item of state.items) {
+      if (item.type === 'dir' && expanded.has(item.path)) {
+        await loadDir(item.path)
+        const sub = dirStates.value.get(item.path)
+        if (sub) {
+          sub.expanded = true
+          queue.push(item.path)
+        }
+      }
+    }
+  }
+  dirStates.value = new Map(dirStates.value)
 }
 
 type FlatRow = { item: FsTreeItem; depth: number }
@@ -149,14 +207,40 @@ watch(() => props.root, async (val) => {
   fileMimeType.value = ''
   errMsg.value = ''
   if (val) {
-    await loadDir(val)
-    const s = dirStates.value.get(val)
-    if (s) {
-      s.expanded = true
-      dirStates.value = new Map(dirStates.value)
+    await restoreExpandedDirs(val, props.viewState?.expandedPaths ?? [])
+    const savedSelectedPath = props.viewState?.selectedPath || ''
+    if (savedSelectedPath) {
+      const item = findLoadedItem(savedSelectedPath)
+      if (item?.type === 'file') {
+        await selectFile(item)
+      } else {
+        emitViewState()
+      }
+    } else {
+      emitViewState()
     }
   }
 }, { immediate: true })
+
+watch(() => props.treeWidth, (value) => {
+  if (typeof value === 'number' && Number.isFinite(value) && value !== treeWidth.value) {
+    treeWidth.value = value
+  }
+})
+
+watch(() => props.treeHeight, (value) => {
+  if (typeof value === 'number' && Number.isFinite(value) && value !== treeHeight.value) {
+    treeHeight.value = value
+  }
+})
+
+watch(treeWidth, (value) => {
+  emit('tree-width', value)
+})
+
+watch(treeHeight, (value) => {
+  emit('tree-height', value)
+})
 
 watch(() => props.refreshKey, async (val, oldVal) => {
   if (val === oldVal) return
@@ -197,6 +281,7 @@ async function refresh(): Promise<void> {
       }
     }
     dirStates.value = new Map(dirStates.value)
+    emitViewState()
   } finally {
     emit('refreshing', false)
   }
@@ -216,20 +301,25 @@ function openImagePreview(): void {
   if (imageSrc.value) imageLightbox.value?.open(imageSrc.value)
 }
 
-function clampTreeSize(size: number): number {
+function clampTreeSize(size: number, mode = resizeMode.value): number {
   const root = explorerEl.value
   if (!root) return Math.max(180, size)
-  const total = resizeMode.value === 'vertical' ? root.clientHeight : root.clientWidth
+  const total = mode === 'vertical' ? root.clientHeight : root.clientWidth
   if (total <= 0) return Math.max(180, size)
-  const min = resizeMode.value === 'vertical' ? 140 : 180
-  const max = Math.max(min, total - (resizeMode.value === 'vertical' ? 180 : 240))
+  const min = mode === 'vertical' ? 140 : 180
+  const max = Math.max(min, total - (mode === 'vertical' ? 180 : 240))
   return Math.min(max, Math.max(min, size))
 }
 
 function syncResizeMode() {
   const width = explorerEl.value?.clientWidth ?? window.innerWidth
-  resizeMode.value = width <= 768 ? 'vertical' : 'horizontal'
-  treeSize.value = clampTreeSize(treeSize.value)
+  const nextMode = width <= 768 ? 'vertical' : 'horizontal'
+  resizeMode.value = nextMode
+  if (nextMode === 'vertical') {
+    treeHeight.value = clampTreeSize(treeHeight.value, nextMode)
+  } else {
+    treeWidth.value = clampTreeSize(treeWidth.value, nextMode)
+  }
 }
 
 function startTreeResize(e: PointerEvent) {
@@ -246,7 +336,11 @@ function onTreeResize(e: PointerEvent) {
   const next = resizeMode.value === 'vertical'
     ? e.clientY - rect.top
     : e.clientX - rect.left
-  treeSize.value = clampTreeSize(next)
+  if (resizeMode.value === 'vertical') {
+    treeHeight.value = clampTreeSize(next)
+  } else {
+    treeWidth.value = clampTreeSize(next)
+  }
 }
 
 function stopTreeResize() {
@@ -256,6 +350,12 @@ function stopTreeResize() {
 
 onBeforeUnmount(() => {
   window.removeEventListener('pointermove', onTreeResize)
+  window.removeEventListener('resize', syncResizeMode)
+})
+
+onMounted(() => {
+  syncResizeMode()
+  window.addEventListener('resize', syncResizeMode)
 })
 </script>
 

@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, watch, computed, onBeforeUnmount } from 'vue'
-import { STab, STabBar, STree, SSwitch } from 'sbot-ui'
+import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue'
+import { SBadge, STab, STabBar, STree, STreeNode, SSwitch } from 'sbot-ui'
 import type { IChatTransport } from '../transport'
 import type { ChatLabels, GitStatusItem } from '../types'
+import type { ExplorerGitViewState } from '../composables/useExplorerViewState'
 import { resolveLabels } from '../labels'
 
 const props = defineProps<{
@@ -10,12 +11,18 @@ const props = defineProps<{
   root?: string
   labels?: ChatLabels
   refreshKey?: number
+  treeWidth?: number
+  treeHeight?: number
+  viewState?: ExplorerGitViewState
 }>()
 
 const emit = defineEmits<{
   count: [value: number]
   branch: [value: string]
   refreshing: [value: boolean]
+  'tree-width': [value: number]
+  'tree-height': [value: number]
+  'view-state': [value: Partial<ExplorerGitViewState>]
 }>()
 
 const L = computed(() => resolveLabels(props.labels))
@@ -26,18 +33,20 @@ const gitDiffLoading = ref(false)
 const gitErrMsg = ref('')
 const selectedGitPath = ref('')
 const selectedGitStatus = ref('')
+const selectedGitKind = ref('')
 const gitDiff = ref('')
-const diffViewMode = ref<'unified' | 'split'>('unified')
-const showFullDiff = ref(false)
+const diffViewMode = ref<'unified' | 'split'>(props.viewState?.diffViewMode ?? 'unified')
+const showFullDiff = ref(props.viewState?.showFullDiff ?? false)
 const explorerEl = ref<HTMLElement | null>(null)
-const treeSize = ref(260)
+const treeWidth = ref(props.treeWidth ?? 260)
+const treeHeight = ref(props.treeHeight ?? 220)
 const resizing = ref(false)
 const resizeMode = ref<'horizontal' | 'vertical'>('horizontal')
 
 const treeStyle = computed(() =>
   resizeMode.value === 'vertical'
-    ? { height: `${treeSize.value}px` }
-    : { width: `${treeSize.value}px` },
+    ? { height: `${treeHeight.value}px` }
+    : { width: `${treeWidth.value}px` },
 )
 
 const gitDiffLines = computed(() => gitDiff.value ? gitDiff.value.replace(/\r?\n$/, '').split(/\r?\n/) : [])
@@ -66,6 +75,14 @@ function gitStatusLabel(item: GitStatusItem): string {
 
 function gitStatusKind(item: GitStatusItem): string {
   return gitStatusView(item).kind
+}
+
+function gitStatusBadgeVariant(kind: string): 'info' | 'warning' | 'success' | 'danger' | 'neutral' {
+  if (kind === 'added') return 'success'
+  if (kind === 'deleted') return 'danger'
+  if (kind === 'modified' || kind === 'copied') return 'info'
+  if (kind === 'renamed' || kind === 'conflict') return 'warning'
+  return 'neutral'
 }
 
 function gitStatusView(item: GitStatusItem): { label: string; kind: string } {
@@ -207,7 +224,9 @@ async function loadGitStatus(): Promise<void> {
     if (selectedGitPath.value && !gitItems.value.some(item => item.path === selectedGitPath.value)) {
       selectedGitPath.value = ''
       selectedGitStatus.value = ''
+      selectedGitKind.value = ''
       gitDiff.value = ''
+      emitViewState()
     }
   } catch (e: any) {
     gitErrMsg.value = e?.message || String(e)
@@ -222,6 +241,8 @@ async function selectGitItem(item: GitStatusItem, force = false): Promise<void> 
   if (!force && selectedGitPath.value === item.path && gitDiff.value) return
   selectedGitPath.value = item.path
   selectedGitStatus.value = gitStatusLabel(item)
+  selectedGitKind.value = gitStatusKind(item)
+  emitViewState()
   gitDiff.value = ''
   gitErrMsg.value = ''
   gitDiffLoading.value = true
@@ -233,6 +254,14 @@ async function selectGitItem(item: GitStatusItem, force = false): Promise<void> 
   } finally {
     gitDiffLoading.value = false
   }
+}
+
+function emitViewState(): void {
+  emit('view-state', {
+    selectedPath: selectedGitPath.value,
+    diffViewMode: diffViewMode.value,
+    showFullDiff: showFullDiff.value,
+  })
 }
 
 async function refresh(): Promise<void> {
@@ -253,10 +282,42 @@ watch(() => props.root, async (val) => {
   emit('branch', '')
   selectedGitPath.value = ''
   selectedGitStatus.value = ''
+  selectedGitKind.value = ''
   gitDiff.value = ''
   gitErrMsg.value = ''
-  if (val) await loadGitStatus()
+  diffViewMode.value = props.viewState?.diffViewMode ?? 'unified'
+  showFullDiff.value = props.viewState?.showFullDiff ?? false
+  if (val) {
+    await loadGitStatus()
+    const savedSelectedPath = props.viewState?.selectedPath || ''
+    const item = savedSelectedPath ? gitItems.value.find(item => item.path === savedSelectedPath) : undefined
+    if (item) {
+      await selectGitItem(item)
+    } else {
+      emitViewState()
+    }
+  }
 }, { immediate: true })
+
+watch(() => props.treeWidth, (value) => {
+  if (typeof value === 'number' && Number.isFinite(value) && value !== treeWidth.value) {
+    treeWidth.value = value
+  }
+})
+
+watch(() => props.treeHeight, (value) => {
+  if (typeof value === 'number' && Number.isFinite(value) && value !== treeHeight.value) {
+    treeHeight.value = value
+  }
+})
+
+watch(treeWidth, (value) => {
+  emit('tree-width', value)
+})
+
+watch(treeHeight, (value) => {
+  emit('tree-height', value)
+})
 
 watch(() => props.refreshKey, async (val, oldVal) => {
   if (val === oldVal) return
@@ -265,26 +326,36 @@ watch(() => props.refreshKey, async (val, oldVal) => {
 
 watch(gitItems, (items) => emit('count', items.length), { immediate: true })
 
+watch(diffViewMode, () => {
+  emitViewState()
+})
+
 watch(showFullDiff, async () => {
+  emitViewState()
   if (!selectedGitPath.value) return
   const item = gitItems.value.find(i => i.path === selectedGitPath.value)
   if (item) await selectGitItem(item, true)
 })
 
-function clampTreeSize(size: number): number {
+function clampTreeSize(size: number, mode = resizeMode.value): number {
   const root = explorerEl.value
   if (!root) return Math.max(180, size)
-  const total = resizeMode.value === 'vertical' ? root.clientHeight : root.clientWidth
+  const total = mode === 'vertical' ? root.clientHeight : root.clientWidth
   if (total <= 0) return Math.max(180, size)
-  const min = resizeMode.value === 'vertical' ? 140 : 180
-  const max = Math.max(min, total - (resizeMode.value === 'vertical' ? 180 : 240))
+  const min = mode === 'vertical' ? 140 : 180
+  const max = Math.max(min, total - (mode === 'vertical' ? 180 : 240))
   return Math.min(max, Math.max(min, size))
 }
 
 function syncResizeMode() {
   const width = explorerEl.value?.clientWidth ?? window.innerWidth
-  resizeMode.value = width <= 768 ? 'vertical' : 'horizontal'
-  treeSize.value = clampTreeSize(treeSize.value)
+  const nextMode = width <= 768 ? 'vertical' : 'horizontal'
+  resizeMode.value = nextMode
+  if (nextMode === 'vertical') {
+    treeHeight.value = clampTreeSize(treeHeight.value, nextMode)
+  } else {
+    treeWidth.value = clampTreeSize(treeWidth.value, nextMode)
+  }
 }
 
 function startTreeResize(e: PointerEvent) {
@@ -301,7 +372,11 @@ function onTreeResize(e: PointerEvent) {
   const next = resizeMode.value === 'vertical'
     ? e.clientY - rect.top
     : e.clientX - rect.left
-  treeSize.value = clampTreeSize(next)
+  if (resizeMode.value === 'vertical') {
+    treeHeight.value = clampTreeSize(next)
+  } else {
+    treeWidth.value = clampTreeSize(next)
+  }
 }
 
 function stopTreeResize() {
@@ -311,49 +386,45 @@ function stopTreeResize() {
 
 onBeforeUnmount(() => {
   window.removeEventListener('pointermove', onTreeResize)
+  window.removeEventListener('resize', syncResizeMode)
+})
+
+onMounted(() => {
+  syncResizeMode()
+  window.addEventListener('resize', syncResizeMode)
 })
 </script>
 
 <template>
   <div ref="explorerEl" class="chatui-git-explorer" :class="{ 'chatui-git-explorer--resizing': resizing }">
     <STree class="chatui-explorer-tree" :style="treeStyle">
-      <template #header>
-        <div class="chatui-git-list-title">
-          <span>{{ L.explorerGitChanges }} ({{ gitItems.length }})</span>
-        </div>
-        <div class="chatui-git-group-title">
-          <span class="chatui-git-group-caret">▾</span>
-          <span>{{ L.explorerGitDefaultGroup }}</span>
-        </div>
-      </template>
       <div v-if="!props.root" class="chatui-explorer-empty-tip">{{ L.explorerPickRootHint }}</div>
       <div v-else-if="gitLoading && gitItems.length === 0" class="chatui-explorer-empty-tip">{{ L.loading }}</div>
       <div v-else-if="gitErrMsg && gitItems.length === 0" class="chatui-explorer-empty-tip chatui-explorer-error">{{ gitErrMsg }}</div>
       <div v-else-if="gitItems.length === 0" class="chatui-explorer-empty-tip">{{ L.explorerGitNoChanges }}</div>
       <template v-else>
-        <button
+        <STreeNode
           v-for="item in gitItems"
           :key="item.path"
-          class="chatui-explorer-git-item"
-          :class="{ 'chatui-explorer-git-item--selected': selectedGitPath === item.path }"
-          type="button"
+          type="file"
+          :level="0"
+          :selected="selectedGitPath === item.path"
           :title="item.oldPath ? `${item.oldPath} -> ${item.path}` : item.path"
           @click="selectGitItem(item)"
         >
-          <span
-            class="chatui-explorer-git-status"
-            :class="`chatui-explorer-git-status--${gitStatusKind(item)}`"
-          >{{ gitStatusLabel(item) }}</span>
+          <template #icon>
+            <span class="chatui-explorer-git-dot" />
+          </template>
           <span class="chatui-explorer-git-path">
             <span v-if="item.oldPath" class="chatui-explorer-git-old">{{ item.oldPath }} -> </span>{{ item.path }}
           </span>
-        </button>
+          <template #suffix>
+            <SBadge :variant="gitStatusBadgeVariant(gitStatusKind(item))" size="xs">
+              {{ gitStatusLabel(item) }}
+            </SBadge>
+          </template>
+        </STreeNode>
       </template>
-      <div class="chatui-git-staged">
-        <div class="chatui-git-list-title">
-          <span>{{ L.explorerGitStaged }} (0)</span>
-        </div>
-      </div>
     </STree>
 
     <div
@@ -366,9 +437,16 @@ onBeforeUnmount(() => {
       <template v-if="selectedGitPath">
         <div class="chatui-explorer-toolbar chatui-explorer-toolbar--git">
           <div class="chatui-explorer-git-toolbar-left">
-            <span class="chatui-explorer-encoding">UTF-8⌄</span>
+            <span class="chatui-explorer-encoding">UTF-8</span>
             <span class="chatui-explorer-path">{{ selectedGitPath }}</span>
-            <span class="chatui-explorer-meta">{{ selectedGitStatus }}</span>
+            <SBadge
+              v-if="selectedGitKind"
+              :variant="gitStatusBadgeVariant(selectedGitKind)"
+              size="xs"
+              pill
+            >
+              {{ selectedGitStatus }}
+            </SBadge>
           </div>
           <STabBar v-model="diffViewMode" class="chatui-explorer-diff-tabs">
             <STab name="unified">{{ L.explorerUnifiedDiff }}</STab>
@@ -438,8 +516,6 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
   min-width: 180px;
   max-width: calc(100% - 240px);
-  border-right: 1px solid var(--chatui-border);
-  background: var(--chatui-bg-surface);
 }
 .chatui-explorer-splitter {
   width: 8px;
@@ -475,108 +551,12 @@ onBeforeUnmount(() => {
   font-size: 12px;
   text-align: center;
 }
-.chatui-git-list-title {
-  min-height: 28px;
-  padding: 0 10px;
-  display: flex;
-  align-items: center;
-  color: var(--chatui-fg);
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: none;
-  letter-spacing: 0;
-  border-bottom: 1px solid var(--chatui-border);
-}
-.chatui-git-group-title {
-  min-height: 24px;
-  padding: 0 10px;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--chatui-fg-secondary);
-  font-size: 12px;
-  text-transform: none;
-  letter-spacing: 0;
-}
-.chatui-git-group-caret {
-  color: var(--chatui-fg);
-  font-size: 11px;
-  line-height: 1;
-}
-.chatui-git-staged {
-  margin-top: 10px;
-  border-top: 1px solid var(--chatui-border);
-}
-.chatui-explorer-git-item {
-  width: 100%;
-  min-height: 30px;
-  padding: 5px 8px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border: none;
-  background: transparent;
-  color: var(--chatui-fg-secondary);
-  text-align: left;
-  cursor: pointer;
-}
-.chatui-explorer-git-item:hover {
-  background: var(--chatui-bg-hover);
-  color: var(--chatui-fg);
-}
-.chatui-explorer-git-item--selected {
-  background: var(--chatui-selection-bg, var(--chatui-bg-hover));
-  color: var(--chatui-fg);
-}
-.chatui-explorer-git-status {
-  width: 28px;
-  height: 18px;
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--chatui-border);
-  border-radius: 3px;
-  font-family: monospace;
-  font-size: 10px;
-  line-height: 1;
-  color: var(--chatui-fg-secondary);
-  background: var(--chatui-bg-surface);
-}
-.chatui-explorer-git-status--added {
-  border-color: rgba(34, 197, 94, 0.55);
-  background: rgba(34, 197, 94, 0.12);
-  color: #16a34a;
-}
-.chatui-explorer-git-status--deleted {
-  border-color: rgba(239, 68, 68, 0.55);
-  background: rgba(239, 68, 68, 0.12);
-  color: #dc2626;
-}
-.chatui-explorer-git-status--modified {
-  border-color: rgba(37, 99, 235, 0.55);
-  background: rgba(37, 99, 235, 0.12);
-  color: #2563eb;
-}
-.chatui-explorer-git-status--renamed {
-  border-color: rgba(147, 51, 234, 0.55);
-  background: rgba(147, 51, 234, 0.12);
-  color: #9333ea;
-}
-.chatui-explorer-git-status--copied {
-  border-color: rgba(8, 145, 178, 0.55);
-  background: rgba(8, 145, 178, 0.12);
-  color: #0891b2;
-}
-.chatui-explorer-git-status--conflict {
-  border-color: rgba(202, 138, 4, 0.6);
-  background: rgba(202, 138, 4, 0.14);
-  color: #ca8a04;
-}
-.chatui-explorer-git-status--unknown {
-  border-color: rgba(148, 163, 184, 0.55);
-  background: rgba(148, 163, 184, 0.12);
-  color: var(--chatui-fg-secondary);
+.chatui-explorer-git-dot {
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--chatui-fg-secondary);
 }
 .chatui-explorer-git-path {
   flex: 1;
@@ -600,7 +580,7 @@ onBeforeUnmount(() => {
 }
 .chatui-explorer-toolbar {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) auto minmax(180px, 1fr);
+  grid-template-columns: minmax(180px, 1fr) auto minmax(150px, 1fr);
   align-items: center;
   gap: 10px;
   min-height: 36px;
@@ -629,18 +609,14 @@ onBeforeUnmount(() => {
   font-size: 12px;
 }
 .chatui-explorer-path {
+  flex: 1;
   min-width: 0;
   font-family: monospace;
   font-size: 12px;
-  color: var(--chatui-fg-secondary);
+  color: var(--chatui-fg);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.chatui-explorer-meta {
-  font-size: 11px;
-  color: var(--chatui-fg-secondary);
-  flex-shrink: 0;
 }
 .chatui-explorer-full-diff-switch {
   flex-shrink: 0;
@@ -656,27 +632,29 @@ onBeforeUnmount(() => {
   padding: 0;
   border: none;
   border-radius: 0;
-  background: var(--chatui-bg);
+  background: transparent;
 }
 .chatui-explorer-diff-tabs :deep(.s-tab) {
   height: 24px;
   padding: 0 8px;
-  border: 1px solid var(--chatui-border);
+  border: none;
+  border-bottom: 2px solid transparent;
   border-radius: 0;
   color: var(--chatui-fg-secondary);
   font-size: 12px;
+  font-weight: 500;
+  margin-bottom: 0;
 }
 .chatui-explorer-diff-tabs :deep(.s-tab + .s-tab) {
-  margin-left: -1px;
+  margin-left: 2px;
 }
 .chatui-explorer-diff-tabs :deep(.s-tab:hover:not(.s-tab--disabled)) {
-  background: var(--chatui-bg-hover);
   color: var(--chatui-fg);
 }
 .chatui-explorer-diff-tabs :deep(.s-tab--active) {
-  background: var(--chatui-accent);
-  border-color: var(--chatui-accent);
-  color: var(--chatui-accent-fg, #fff);
+  background: transparent;
+  border-bottom-color: var(--chatui-fg);
+  color: var(--chatui-fg);
 }
 .chatui-explorer-state {
   flex: 1;
@@ -842,6 +820,16 @@ onBeforeUnmount(() => {
   }
   .chatui-git-explorer--resizing .chatui-explorer-splitter {
     cursor: row-resize;
+  }
+  .chatui-explorer-toolbar {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+  .chatui-explorer-diff-tabs {
+    justify-self: start;
+  }
+  .chatui-explorer-git-toolbar-right {
+    justify-content: flex-start;
   }
 }
 </style>

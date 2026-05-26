@@ -44,4 +44,19 @@
   /* ── 危险色 ──────────────────────────────────────────── */
   --sui-danger:         var(--chatui-btn-danger);
   --sui-danger-hover:   var(--chatui-btn-danger);
+  --sui-danger-soft:    var(--chatui-diff-del-bg);
+  --sui-on-danger-soft: var(--chatui-diff-del-fg);
+  --sui-danger-strong:  var(--chatui-btn-danger);
+
+  /* ── 信息 / 状态语义色 ───────────────────────────────── */
+  --sui-info:            var(--chatui-accent);
+  --sui-info-soft:       var(--chatui-diff-hunk-bg);
+  --sui-on-info-soft:    var(--chatui-diff-hunk-fg);
+  --sui-warning-soft:    var(--chatui-approval-bg);
+  --sui-on-warning-soft: var(--chatui-approval-key);
+  --sui-success-soft:    var(--chatui-diff-add-bg);
+  --sui-on-success-soft: var(--chatui-diff-add-fg);
+  --sui-tool-bg:         var(--chatui-bg-tool);
+  --sui-on-tool-bg:      var(--chatui-fg-tool);
+  --sui-neutral-mid:     var(--chatui-border);
 }
