@@ -326,20 +326,45 @@ async function onRenameSession(id: string, name: string) {
   }
 }
 
-function defaultSessionName(d = new Date()): string {
-  const pad = (n: number) => n.toString().padStart(2, '0')
-  return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
 async function createNewSession() {
   try {
-    const res = await props.transport.createSession({ name: defaultSessionName() })
+    const res = await props.transport.createSession({ name: '' })
     sessions.value = await props.transport.listSessions()
     activeSessionId.value = res.id
     sidebarOpen.value = false
     settingsOpen.value = false
   } catch (e) {
     console.error('[ChatView] createSession', e)
+  }
+}
+
+function sessionTitleFromFirstMessage(text: string): string | null {
+  const normalized = text
+    .replace(/\s+/g, ' ')
+    .replace(/^#{1,6}\s+/, '')
+    .replace(/^>\s+/, '')
+    .replace(/^[-*+]\s+/, '')
+    .replace(/^\d+[.)]\s+/, '')
+    .trim()
+
+  if (!normalized || normalized === '[attachment]') return L.value.attachment
+  return normalized.length > 40 ? `${normalized.slice(0, 40)}…` : normalized
+}
+
+async function renameSessionFromFirstMessage(id: string, text: string) {
+  const session = sessions.value.find(s => s.id === id)
+  if (!session || session.name?.trim()) return
+
+  const title = sessionTitleFromFirstMessage(text)
+  if (!title || title === session.name) return
+
+  const previousName = session.name
+  session.name = title
+  try {
+    await props.transport.updateSession(id, { name: title })
+  } catch (e) {
+    session.name = previousName
+    console.error('[ChatView] autoRenameSession', e)
   }
 }
 
@@ -391,6 +416,7 @@ function onSend(parts: ContentPart[], attachments: Attachment[]) {
     messages.value.push({ message: { role: MessageRole.Human, content: display }, createdAt: Date.now() / 1000, kind: MessageKind.Normal })
     nextTick(() => chatAreaRef.value?.scrollToBottom(true))
   } else {
+    void renameSessionFromFirstMessage(id, display)
     queuedMessages.value.push(display)
   }
   isStreaming.value = true
@@ -466,7 +492,7 @@ onBeforeUnmount(() => {
     <!-- Compact mode (narrow screen or alwaysCompact): hamburger + drawer -->
     <template v-if="isCompact || alwaysCompact">
       <div class="chatui-compact-header">
-        <span class="chatui-compact-title">{{ activeSession?.name || activeSession?.id?.slice(0, 8) || '' }}</span>
+        <span class="chatui-compact-title">{{ activeSession?.name || L.untitledSession }}</span>
         <div class="chatui-compact-actions">
           <button
             class="chatui-compact-action"

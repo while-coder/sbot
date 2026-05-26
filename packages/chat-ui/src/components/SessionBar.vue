@@ -45,7 +45,7 @@ function commitEdit() {
 
 function onDelete(id: string) {
   const s = props.sessions.find(s => s.id === id)
-  const label = s?.name || id.slice(0, 8) + '…'
+  const label = s?.name || L.value.untitledSession
   if (window.confirm(tpl(L.value.confirmDeleteSession, { name: label }))) {
     emit('delete', id)
   }
@@ -82,7 +82,7 @@ function onDelete(id: string) {
               class="chatui-session-item-name"
               @dblclick.stop="startEdit(s.id)"
               :title="L.editSessionNameHint"
-            >{{ s.name || s.id.slice(0, 8) + '…' }}</div>
+            >{{ s.name || L.untitledSession }}</div>
             <div v-if="s.workPath" class="chatui-session-item-path" :title="s.workPath">{{ s.workPath }}</div>
           </div>
           <button class="chatui-session-del-btn" @click.stop="onDelete(s.id)">×</button>

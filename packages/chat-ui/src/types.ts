@@ -135,6 +135,7 @@ export interface ChatLabels {
   selectSession?: string
   noSession?: string
   newSession?: string
+  untitledSession?: string
   createSession?: string
   confirmDeleteSession?: string
   sessionDeleted?: string

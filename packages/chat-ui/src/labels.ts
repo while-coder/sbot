@@ -37,6 +37,7 @@ export const defaultLabels: Required<ChatLabels> = {
   selectSession: '选择会话',
   noSession: '请先选择或创建会话',
   newSession: '新建会话',
+  untitledSession: '新会话',
   createSession: '创建会话',
   confirmDeleteSession: '确定删除会话 "{name}"?',
   sessionDeleted: '会话已删除',
