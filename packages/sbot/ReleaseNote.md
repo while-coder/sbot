@@ -1,7 +1,5 @@
 # Release Notes
 
-## Changes Since 0.1.3
-
 This release focuses on a UI refresh, a cleaner admin/runtime structure, richer chat workspace tooling, a redesigned todo pipeline, and more configurable channel and agent behavior.
 
 ### Highlights
