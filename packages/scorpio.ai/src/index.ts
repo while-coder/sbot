@@ -355,7 +355,6 @@ export {
   createTaskTool,
   TASK_TOOL_NAME,
   type TaskToolParams,
-  type TaskToolRunResult,
   type RunTaskFn,
 
   // 工具函数

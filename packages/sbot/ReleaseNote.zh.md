@@ -1,52 +1,48 @@
-### 新功能
+# 发布说明
 
-- **ACP Agent 支持**: 完整的 Agent Client Protocol 集成 — 支持持久化和临时两种 ACP Agent 模式、Agent 连接池管理、权限处理和 ACP 流式响应
-- **MCP 工具管理**: MCP 服务器配置支持 SSE 传输协议，新增实用工具 (`MCPUtilityTools`)，管理后台增强 MCP 工具查看及 Agent 级 MCP 绑定
-- **洞察系统重构**: 重建 `InsightService` — 简化提取流程，集成 `UsageTracker`，移除冗余的 prompt 工具调用，改为直接服务调用
-- **对话压缩**: 当 Token 使用量超过阈值时自动压缩对话摘要，在减少 Token 消耗的同时保持上下文连续性
-- **OneBot 渠道**: 新增渠道，支持 QQ 及其他兼容 OneBot 协议的平台
-- **小爱渠道**: 新增小米 AI 音箱渠道 — 账号登录、设备发现、TTS 播放和轮询式对话
-- **Token 用量统计**: 按模型统计 Token 使用量，管理后台提供可视化面板
-- **会话搜索工具**: 新增工具允许 Agent 搜索历史会话记录
-- **心跳系统**: 可配置的 Agent 定时自激活 — 支持自定义间隔、提示词模板和目标渠道，通过管理后台统一管理
-- **中间件管道**: 新增 `MiddlewarePipeline`，支持基于意图的会话消息过滤
-- **计时器执行器**: 抽取 `TimerExecutor` 统一调度工具（心跳、定时任务、Wiki 索引）
-- **工作区提示词发现**: `ContextFileDiscovery` 支持加载工作区级别的 prompt 文件
-- **内置工具参数化**: 内置工具提供器（FileSystem、Scheduler、Todo、MCP）支持通过 `mcpParams` 传入按 Agent 配置的参数 — 例如 FileSystem `readonly` 模式仅暴露只读工具
-- **渠道审批 / 提问超时**: `ChannelConfig` 与 `ChannelSession` 新增 `approvalTimeout`、`approvalTimeoutValue` (allow/deny)、`askTimeout`、`askTimeoutMessage`，保障无人值守会话安全
-- **SkillHub.cn 服务商**: 新增 `SkillhubCnSkillHubService`，与现有 Clawhub、skills.sh 共同覆盖 skillhub.cn 仓库
+本次更新重点：UI 刷新、更清晰的管理后台与运行时结构、更强的聊天工作区能力、重构的 Todo 流程，以及更灵活的渠道与 Agent 配置。
 
-### 架构变更
+### 重点变化
 
-- **静态/动态 Prompt 系统**: Prompt 分为静态环境上下文和动态逐轮上下文，支持 frontmatter 变量声明；目录重新组织（`static_environment.txt` → `environment.txt`、`init.txt` → `instruction.txt`）
-- **ACP Agent 架构**: 新增 `ACPAgentServiceBase` 基类，派生 `PersistentACPAgentService`（长驻进程、Session 复用）和 `TransientACPAgentService`（按请求生命周期）
-- **Memory / Wiki 精简**: 移除 `MemoryCompressor`、`MemoryExtractor`、`WikiExtractor`、`ReadOnlyMemoryService`；将记忆和 Wiki 整合为基于 `HybridSearcher` 的轻量 CRUD 服务
-- **HybridSearcher 增强**: 重写 `HybridSearcher`，结合关键词匹配和 Embedding 语义搜索，支持可配置策略、优化评分机制及 Wiki 自动索引
-- **模型重试代理**: `RetryModelServiceProxy` 对瞬态错误（限流、超时、连接重置）支持指数退避重试
-- **Skill 服务重构**: `SkillService` 重写，优化生命周期管理和解析逻辑
-- **DI 父作用域**: `ServiceContainer` 支持父级作用域解析，实现层级式依赖注入
-- **Agent 洞察集成**: 洞察提取从 Agent 服务内部移至 `AgentRunner` 编排层
-- **共享 UI 组件库 (`sbot-ui`)**: 新增 package，抽取可复用 Vue 组件（`SButton`、`SCard`、`SModal`、`STable`、`STree`、`STab`、`SInput`、`SSelect`、`SSwitch`、`SToast` 等），附带设计 Token 和深色主题，供 admin 与 chat-ui 共用
-- **管理后台基于 `sbot-ui` 重构**: 管理后台基于共享组件库重建，弹窗统一收敛至 `components/modals/`，移除冗余的自定义控件
-- **工具与提示词外置**: 内置工具描述、意图分类、压缩提示词从源码迁移到 `prompts/` 下的文本文件（`intent/default.txt`、`compact/post_message.txt`、`compact/post_continuation.txt`、`tools/{sleep,time,mcp,memory,wiki}/*.txt`），统一通过 `loadPrompt` 加载
-- **Todo 事后总结重构**: Todo 不再通过显式 LLM 工具创建/修改 —— 仅暴露只读的 `todo_list` 工具。新增 `TodoExtractor` 与 `InsightExtractor` 并行运行，在每轮对话后从自然语言中静默提取 create / patch / done / delete 操作。存储从 SQLite `todo` 表改为按会话独立的 JSON 文件 `~/.sbot/sessions/<dbSessionId>/todos.json`，移除与 Scheduler 的耦合。`AgentConfig` 新增 `TodoConfig`，通过 `scope: TodoScope`（`disabled` | `session`）控制启用
+- 重建管理后台，采用按领域组织的导航和共享组件。
+- chat-ui 新增文件浏览器与 Git 浏览器，提升工作区查看和操作体验。
+- Todo 改为基于每轮对话后的自动提取，并使用会话级存储。
+- 意图分类、工具描述、对话压缩等 prompt 外置，可在运行时定制。
+- 渠道审批/提问流程和 Agent 内置工具的参数化更加灵活。
 
-### 改进
+### 新增
 
-- **MCP SSE 支持**: MCP 服务器连接除 stdio 外新增 Server-Sent Events 传输支持
-- **渠道消息合并**: 同一用户的连续消息在处理前自动合并
-- **渠道工具配置**: 渠道插件支持按需配置工具白名单
-- **渠道主动发送**: 渠道支持主动推送消息（不仅限于响应）
-- **Claude Thinking 支持**: Anthropic 模型服务支持配置扩展思考 (Extended Thinking)
-- **生成式模型自动截取**: Generative Agent 输入超出上下文窗口时自动截取
-- **图片自动缩放**: 图片在发送给模型前按可配置最大尺寸自动缩放
-- **Prompt Frontmatter**: PromptLoader 支持 YAML frontmatter 及变量元数据，供管理 API 使用
-- **管理后台**: 新增进程管理、Token 用量页面；重新设计 Memory/Wiki 管理页面（详情弹窗、批量操作）；心跳配置编辑；Agent Prompt 分配与创建
-- **异步模块加载**: 服务端模块异步加载，加快启动速度
-- **微信扫码登录**: 微信渠道支持扫码登录
-- **缓存统计**: 模型响应缓存支持命中/未命中统计
-- **飞书会话处理**: 飞书渠道新增 Session 处理支持
-- **Wiki 自动上下文**: Wiki 服务自动将相关条目注入动态上下文
-- **聊天 UI 重整**: `ChatView`、`ChatArea`、`MessageList`、`AskForm`、`ConfigToolbar` 基于 `sbot-ui` 重写，布局更清晰、样式统一
-- **图片最大尺寸可配置**: 通过 `maxImageSize` 配置出站图片自动缩放阈值
-- **代码清理**: 移除 `PromptInjectionDetector`、无用 i18n 条目、历史遗留的 memory/wiki 类型，以及管理后台自定义的 `MultiSelect`/`Toast`/`McpToolsModal`/`SkillHubModal`（已由 `sbot-ui` 替代）
+- chat-ui 文件浏览器和 Git 浏览器（文件树、内容预览、Git 状态/差异）。
+- chat-ui 会话命名与重命名。
+- `scorpio.ai` 新增 Todo 自动提取服务，取代原有的显式 create/done 工具。
+- SkillHub.cn 仓库支持。
+- 渠道审批与提问超时配置。
+- Agent 内置工具按需传参（含 FileSystem 只读模式）。
+- 意图分类 prompt 外置。
+- 扩充 `sbot-ui` 组件集合（表格、弹窗、表单、Tab、树、工具栏、确认框等），完善设计 Token 与深色主题。
+
+### 变更
+
+- 管理后台视图按 admin、agents、chat、memory、models、runtime、savers 重新组织。
+- admin 与 chat-ui 切换到 `sbot-ui` 组件，移除自建的弹窗、表格、输入框和下拉选择。
+- 重整 chat-ui 布局与消息列表，优化工具调用展示与内容片段渲染。
+- 重构管理后台的调度器（Scheduler）视图，提供更丰富的任务与心跳管理。
+- 优化会话搜索工具（session_search）的 prompt 与参数。
+- 优化 ACP 代理服务的生命周期管理与稳定性。
+- 规范 file、memory、SQLite、Postgres saver 接口。
+- 内置工具描述（memory、wiki、sleep、time、mcp、session_search）迁移到运行时加载的 prompt 文件。
+- `packages/desktop` 更名为 `packages/app`，并更新 Tauri 元数据。
+- 改进 WebSocket 会话处理与消息分发。
+- 更新中英文 README，使其匹配当前包结构和功能状态。
+
+### 移除
+
+- 移除旧的显式 Todo create/done 工具及数据库内的 todo 表结构。
+- 移除已由 `sbot-ui` 替代的旧管理后台控件。
+- 清理过期的生成产物和构建产物。
+
+### 维护
+
+- 升级 `ws` 并刷新 lockfile 相关条目。
+- 更新 workspace 构建配置、shared assets 和 PWA docs 资源。
+- 新增 `maxImageSize`，支持配置出站图片缩放阈值。
