@@ -4,6 +4,7 @@ import { IChannelService, ChannelSessionHandler, SessionService, NowDate, parseJ
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
+import util from 'util';
 
 function removeMentions(content: MessageContent, mentions: Array<{ key: string }>): MessageContent {
   if (!mentions?.length) return content;
@@ -287,8 +288,9 @@ export class LarkService implements IChannelService {
     filter?: (message: any) => boolean;
   }): Promise<LarkHistoryMessage[]> {
     const limit = options?.limit ?? 20;
+    let iter: any;
     try {
-      const iter = await this.larkClient.im.v1.message.listWithIterator({
+      iter = await this.larkClient.im.v1.message.listWithIterator({
         params: {
           container_id_type: 'chat',
           container_id: containerId,
@@ -316,7 +318,7 @@ export class LarkService implements IChannelService {
       }
       return result;
     } catch (error: any) {
-      this.logger?.error(`Error getting message history: ${error.message}`);
+      this.logger?.error(`Error getting message history: ${error.message}\n${error.stack}\niter: ${util.inspect(iter, { depth: null, breakLength: Infinity })}`);
       return [];
     }
   }
