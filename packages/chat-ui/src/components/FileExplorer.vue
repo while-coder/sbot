@@ -430,6 +430,7 @@ onMounted(() => {
   flex-shrink: 0;
   min-width: 180px;
   max-width: calc(100% - 240px);
+  height: 100%;
 }
 .chatui-explorer-splitter {
   width: 8px;
