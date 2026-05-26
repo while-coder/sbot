@@ -48,7 +48,9 @@ const richInputRef = ref<InstanceType<typeof RichInput>>()
 const messagesEl = ref<HTMLElement | null>(null)
 const fileInputEl = ref<HTMLInputElement | null>(null)
 const isDragging = ref(false)
+const shouldStickToBottom = ref(true)
 let dragLeaveTimer: ReturnType<typeof setTimeout> | null = null
+let scrollFrame = 0
 
 const { attachments, add: addFiles, remove: removeAttachment, drain: drainAttachments, isImageMime } = useAttachments()
 
@@ -83,17 +85,26 @@ function isAtBottom(): boolean {
   return !el || el.scrollHeight - el.scrollTop - el.clientHeight < 60
 }
 
+function updateStickToBottom() {
+  shouldStickToBottom.value = isAtBottom()
+}
+
 function scrollToBottom(force = false) {
-  if (messagesEl.value && (force || isAtBottom())) {
-    messagesEl.value.scrollTop = messagesEl.value.scrollHeight
-  }
+  if (!messagesEl.value || (!force && !shouldStickToBottom.value)) return
+  if (scrollFrame) cancelAnimationFrame(scrollFrame)
+  scrollFrame = requestAnimationFrame(() => {
+    if (messagesEl.value && (force || shouldStickToBottom.value)) {
+      messagesEl.value.scrollTop = messagesEl.value.scrollHeight
+    }
+    scrollFrame = 0
+  })
 }
 
 watch(() => props.messages.length, async () => {
   await nextTick(); scrollToBottom()
 })
 watch(() => props.streamingContent, async () => {
-  await nextTick(); scrollToBottom(true)
+  await nextTick(); scrollToBottom()
 })
 
 // ── Attachments ──
@@ -142,6 +153,7 @@ function send() {
 
 onBeforeUnmount(() => {
   if (dragLeaveTimer) clearTimeout(dragLeaveTimer)
+  if (scrollFrame) cancelAnimationFrame(scrollFrame)
 })
 
 defineExpose({ scrollToBottom })
@@ -166,7 +178,7 @@ defineExpose({ scrollToBottom })
     />
 
     <!-- Messages -->
-    <div ref="messagesEl" class="chatui-messages-scroll">
+    <div ref="messagesEl" class="chatui-messages-scroll" @scroll.passive="updateStickToBottom">
       <MessageList
         :messages="messages"
         :thinks-url-prefix="thinksUrlPrefix"

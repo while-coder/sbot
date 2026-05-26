@@ -19,11 +19,8 @@ export function inlineArgs(tc: ToolCall): string {
   return keys.map((k) => `${k}=${truncate(stringify(obj[k]), 40)}`).join('  ')
 }
 
-/** Find the tool-result message for `toolCallId` and produce a short single-line preview. */
-export function resultPreview(messages: StoredMessage[], toolCallId: string): string {
-  const msg = messages.find(
-    (m) => m.message.role === MessageRole.Tool && m.message.tool_call_id === toolCallId,
-  )
+/** Produce a short single-line preview for a tool-result message. */
+export function resultPreviewFromMessage(msg: StoredMessage | undefined): string {
   const raw = msg?.message.content
   if (!raw) return ''
 
@@ -52,4 +49,12 @@ export function resultPreview(messages: StoredMessage[], toolCallId: string): st
   const media = mediaTags.join(' ')
   const combined = [media, text].filter(Boolean).join(' ')
   return combined ? truncate(combined, 80) : ''
+}
+
+/** Find the tool-result message for `toolCallId` and produce a short single-line preview. */
+export function resultPreview(messages: StoredMessage[], toolCallId: string): string {
+  const msg = messages.find(
+    (m) => m.message.role === MessageRole.Tool && m.message.tool_call_id === toolCallId,
+  )
+  return resultPreviewFromMessage(msg)
 }

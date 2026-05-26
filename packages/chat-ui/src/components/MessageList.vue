@@ -19,8 +19,8 @@ function rowKindClass(m: StoredMessage) {
     exception: isException(m),
   }
 }
-import { fmtTs, fmtDateSep, toggleToolCall } from '../messageRender'
-import { inlineArgs, resultPreview } from '../toolCallFormat'
+import { fmtTs, fmtDateSep } from '../messageRender'
+import { inlineArgs, resultPreviewFromMessage } from '../toolCallFormat'
 import { resolveLabels, tpl } from '../labels'
 import ContentParts from './_ContentParts.vue'
 import ThinkDrawer from './ThinkDrawer.vue'
@@ -46,6 +46,51 @@ const props = withDefaults(defineProps<{
 
 const L = computed(() => resolveLabels(props.labels))
 
+const toolResultMap = computed(() => {
+  const map = new Map<string, StoredMessage>()
+  for (const msg of props.messages) {
+    if (msg.message.role === MessageRole.Tool && msg.message.tool_call_id) {
+      map.set(msg.message.tool_call_id, msg)
+    }
+  }
+  return map
+})
+
+const toolResultPreviewMap = computed(() => {
+  const map = new Map<string, string>()
+  for (const [toolCallId, msg] of toolResultMap.value) {
+    const preview = resultPreviewFromMessage(msg)
+    if (preview) map.set(toolCallId, preview)
+  }
+  return map
+})
+
+const expandedToolCalls = ref<Set<string>>(new Set())
+
+function messageKey(msg: StoredMessage, idx: number): string {
+  if (msg.id != null) return `id:${msg.id}`
+  const message = msg.message
+  const role = String(message.role)
+  const createdAt = msg.createdAt ?? 'na'
+  const toolCallId = 'tool_call_id' in message ? (message.tool_call_id ?? '') : ''
+  const toolCallIds = 'tool_calls' in message && message.tool_calls
+    ? message.tool_calls.map((tc: ToolCall) => tc.id).join(',')
+    : ''
+  const thinkId = msg.thinkId ?? ''
+  return [role, createdAt, msg.kind, toolCallId, toolCallIds, thinkId, idx].join(':')
+}
+
+function isToolCallExpanded(id: string): boolean {
+  return expandedToolCalls.value.has(id)
+}
+
+function toggleToolCall(id: string): void {
+  const next = new Set(expandedToolCalls.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  expandedToolCalls.value = next
+}
+
 function sameDay(a?: number, b?: number) {
   if (!a || !b) return false
   return new Date(a * 1000).toDateString() === new Date(b * 1000).toDateString()
@@ -69,7 +114,7 @@ function openThink(thinkId: string) {
 }
 
 function findToolResult(toolCallId: string): StoredMessage | undefined {
-  return props.messages.find(m => m.message.role === MessageRole.Tool && m.message.tool_call_id === toolCallId)
+  return toolResultMap.value.get(toolCallId)
 }
 
 /** True when the row should be skipped (tool results are rendered nested inside their AI parent). */
@@ -82,7 +127,7 @@ function isEmbeddedTool(msg: StoredMessage): boolean {
   <div class="chatui-messages">
     <div v-if="messages.length === 0 && !isStreaming" class="chatui-empty">{{ L.noHistory }}</div>
 
-    <template v-for="(msg, idx) in messages" :key="idx">
+    <template v-for="(msg, idx) in messages" :key="messageKey(msg, idx)">
       <div v-if="showDateSep(idx)" class="chatui-date-sep">
         <span>{{ fmtDateSep(msg.createdAt, L.dateToday, L.dateYesterday) }}</span>
       </div>
@@ -133,14 +178,20 @@ function isEmbeddedTool(msg: StoredMessage): boolean {
               </div>
             </div>
             <div v-for="tc in (msg.message.tool_calls as ToolCall[])" :key="tc.id" class="tool-call-item">
-              <div class="tool-call-header" @click="toggleToolCall($event.currentTarget as HTMLElement)">
+              <button
+                type="button"
+                class="tool-call-header"
+                :class="{ expanded: isToolCallExpanded(tc.id) }"
+                :aria-expanded="isToolCallExpanded(tc.id)"
+                @click="toggleToolCall(tc.id)"
+              >
                 <span class="tool-call-name">{{ tc.name }}</span>
                 <span v-if="inlineArgs(tc)" class="tool-call-inline-args">{{ inlineArgs(tc) }}</span>
-                <span v-if="resultPreview(messages, tc.id)" class="tool-call-result-preview">↳ {{ resultPreview(messages, tc.id) }}</span>
-              </div>
-              <div class="tool-call-detail">
+                <span v-if="toolResultPreviewMap.get(tc.id)" class="tool-call-result-preview">↳ {{ toolResultPreviewMap.get(tc.id) }}</span>
+              </button>
+              <div class="tool-call-detail" :class="{ show: isToolCallExpanded(tc.id) }">
                 <div class="tool-call-args">{{ JSON.stringify(tc.args, null, 2) }}</div>
-                <template v-if="findToolResult(tc.id) as StoredMessage | undefined">
+                <template v-if="findToolResult(tc.id)">
                   <div class="tool-call-result">
                     <div class="tool-call-result-top">
                       <div class="tool-call-result-label">{{ L.toolResult }}</div>
@@ -370,12 +421,18 @@ function isEmbeddedTool(msg: StoredMessage): boolean {
   overflow: hidden;
 }
 .tool-call-header {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
   padding: 6px 10px;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 8px;
   font-weight: 500;
+  font: inherit;
+  text-align: left;
   user-select: none;
 }
 .tool-call-header::after {

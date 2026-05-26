@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { ContentPartType } from '../types'
-import type { DisplayContent } from '../types'
+import type { DisplayContent, DisplayPart } from '../types'
 import { getContentParts, renderMd } from '../messageRender'
+
+type RenderedDisplayPart = DisplayPart & { html?: string }
 
 const props = withDefaults(defineProps<{
   content: DisplayContent | null | undefined
@@ -15,12 +17,18 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{ openImage: [url: string] }>()
 
-const parts = computed(() => getContentParts(props.content))
+const renderedParts = computed<RenderedDisplayPart[]>(() =>
+  getContentParts(props.content).map((part) => (
+    part.type === ContentPartType.Text
+      ? { ...part, html: renderMd(part.text ?? '') }
+      : part
+  )),
+)
 </script>
 
 <template>
-  <template v-for="(part, idx) in parts" :key="idx">
-    <div v-if="part.type === ContentPartType.Text" :class="textClass" v-html="renderMd(part.text)" />
+  <template v-for="(part, idx) in renderedParts" :key="idx">
+    <div v-if="part.type === ContentPartType.Text" :class="textClass" v-html="part.html" />
     <div v-else-if="part.type === ContentPartType.Image" class="inline-image">
       <img :src="part.url" class="inline-image-thumb" @click="emit('openImage', part.url!)" />
     </div>
