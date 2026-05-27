@@ -122,10 +122,8 @@ async function saveGlobalSkills() {
 // ── View modal ────────────────────────────────────────────────────
 const skillViewRef = ref<InstanceType<typeof SkillViewerModal>>()
 
-function openView(name: string, badge = '') {
-  const isGlobal = badge !== t('agents.skills_exclusive_tab')
-  const base = isGlobal ? '/api/skills' : apiBase()
-  skillViewRef.value?.open(name, badge, base)
+function openView(row: SkillItem, badge = row.source || '') {
+  skillViewRef.value?.open(row.name, badge, row.id || '')
 }
 
 async function remove(name: string) {
@@ -222,7 +220,7 @@ defineExpose({ open })
               <span style="color:var(--sui-fg-muted);font-size:var(--sui-fs-sm)">{{ row.description || '-' }}</span>
             </template>
             <template #ops="{ row }">
-              <SButton type="outline" size="sm" @click="openView(row.name, row.source)">{{ t('common.view') }}</SButton>
+              <SButton type="outline" size="sm" @click="openView(row, row.source)">{{ t('common.view') }}</SButton>
             </template>
           </STable>
         </template>
@@ -247,7 +245,7 @@ defineExpose({ open })
             <template #description="{ row }">{{ row.description || '-' }}</template>
             <template #ops="{ row }">
               <div class="ops-cell">
-                <SButton type="outline" size="sm" @click="openView(row.name, t('agents.skills_exclusive_tab'))">{{ t('common.view') }}</SButton>
+                <SButton type="outline" size="sm" @click="openView(row, t('agents.skills_exclusive_tab'))">{{ t('common.view') }}</SButton>
                 <SButton type="danger" size="sm" @click="remove(row.name)">{{ t('common.delete') }}</SButton>
               </div>
             </template>

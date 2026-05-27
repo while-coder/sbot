@@ -53,8 +53,8 @@ async function load() {
 
 const skillViewRef = ref<InstanceType<typeof SkillViewerModal>>()
 
-function openView(name: string, badge = '') {
-  skillViewRef.value?.open(name, badge)
+function openView(row: SkillItem) {
+  skillViewRef.value?.open(row.name, row.source || '', row.id || '')
 }
 
 async function remove(name: string) {
@@ -111,7 +111,7 @@ onMounted(load)
         <template #description="{ row }">{{ row.description || '-' }}</template>
         <template #ops="{ row }">
           <div class="ops-cell">
-            <SButton type="outline" size="sm" @click="openView(row.name, row.source)">{{ t('common.view') }}</SButton>
+            <SButton type="outline" size="sm" @click="openView(row)">{{ t('common.view') }}</SButton>
             <SButton v-if="row.source === '全局'" type="danger" size="sm" @click="remove(row.name)">{{ t('common.delete') }}</SButton>
           </div>
         </template>

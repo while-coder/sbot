@@ -1,4 +1,4 @@
-import type { IChatTransport, ChatEvent, ContentPart, Attachment, SessionItem, CreateSessionOpts, StoredMessage, UsageInfo, AppSettings, SessionStatus, ToolApprovalPayload, AskAnswerPayload, DirListResult, QuickDir, RemoteEntry } from '@sbot/chat-ui'
+import type { IChatTransport, ChatEvent, ContentPart, Attachment, SessionItem, CreateSessionOpts, StoredMessage, UsageInfo, AppSettings, SessionStatus, ToolApprovalPayload, AskAnswerPayload, DirListResult, QuickDir, FsTreeResult, FsReadResult, GitStatusResult, GitDiffResult, RemoteEntry } from '@sbot/chat-ui'
 
 declare function acquireVsCodeApi(): { postMessage(msg: any): void }
 const vscode = acquireVsCodeApi()
@@ -58,9 +58,14 @@ export class VsCodeTransport implements IChatTransport {
   getSettings(): Promise<AppSettings> { return rpc('getSettings') }
   getSessionStatus(sessionId: string): Promise<SessionStatus | null> { return rpc('getSessionStatus', sessionId) }
 
-  listDir(dir?: string): Promise<DirListResult> { return rpc('listDir', dir) }
+  listDir(rootId: string, path = ''): Promise<DirListResult> { return rpc('listDir', rootId, path) }
   quickDirs(): Promise<QuickDir[]> { return rpc('quickDirs') }
-  mkdir(path: string): Promise<{ path: string }> { return rpc('mkdir', path) }
+  mkdir(rootId: string, path: string): Promise<{ rootId: string; path: string }> { return rpc('mkdir', rootId, path) }
+  listTree(rootId: string, path = ''): Promise<FsTreeResult> { return rpc('listTree', rootId, path) }
+  readFile(rootId: string, path = ''): Promise<FsReadResult> { return rpc('readFile', rootId, path) }
+  getRawFileUrl(_rootId: string, _path = ''): string { return '' }
+  gitStatus(root: string): Promise<GitStatusResult> { return rpc('gitStatus', root) }
+  gitDiff(root: string, path: string, fullContent = false): Promise<GitDiffResult> { return rpc('gitDiff', root, path, fullContent) }
 
   getThinksUrlPrefix(sessionId: string): string | null { return `/api/sessions/${encodeURIComponent(sessionId)}/thinks` }
   async fetchThinks(url: string): Promise<any> { return rpc('fetchThinks', url) }

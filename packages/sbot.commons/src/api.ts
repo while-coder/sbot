@@ -35,6 +35,7 @@ export interface McpResourceTemplate {
 }
 
 export interface SkillItem {
+  id?: string
   name: string
   description?: string
   content?: string

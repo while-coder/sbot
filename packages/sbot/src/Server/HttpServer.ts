@@ -3,7 +3,6 @@ import http from 'http';
 import path from 'path';
 import fs from 'fs';
 import fsp from 'fs/promises';
-import os from 'os';
 import { randomUUID } from 'crypto';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
@@ -28,9 +27,11 @@ import { heartbeatService } from '../Heartbeat/HeartbeatService';
 import { channelManager } from '../Channel/ChannelManager';
 import { WsCommandType, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE } from 'sbot.commons';
 import { getModelMeta, getKnownModels } from './modelCatalog';
+import { FsApi } from './FsApi';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
 const execFileAsync = promisify(execFile);
+const fsApi = new FsApi();
 
 async function fetchAndSaveContextWindow(modelId: string): Promise<void> {
     const mc = config.getModel(modelId);
@@ -107,22 +108,6 @@ function throwBad(msg: string): never {
 /** 资源管理器 / 文件读取最大字节数 */
 const MAX_FILE_READ_SIZE = 10 * 1024 * 1024;
 
-/** 资源管理器：图片文件最大字节数（base64 内联返回） */
-const MAX_IMAGE_READ_SIZE = 32 * 1024 * 1024;
-
-/** 支持预览的图片扩展名 → MIME */
-const IMAGE_MIME_BY_EXT: Record<string, string> = {
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.gif': 'image/gif',
-    '.webp': 'image/webp',
-    '.bmp': 'image/bmp',
-    '.svg': 'image/svg+xml',
-    '.ico': 'image/x-icon',
-    '.avif': 'image/avif',
-};
-
 /** 目录优先、再按名称排序 */
 function dirFirstByName(a: { isDirectory(): boolean; name: string }, b: { isDirectory(): boolean; name: string }) {
     if (a.isDirectory() !== b.isDirectory()) return a.isDirectory() ? -1 : 1;
@@ -139,19 +124,6 @@ function resolveExistingDir(input: string): { target: string; stat: fs.Stats } {
     try { stat = fs.statSync(target); }
     catch { throwBad(`Path does not exist: ${target}`); }
     if (!stat.isDirectory()) throwBad(`Path does not exist: ${target}`);
-    return { target, stat };
-}
-
-/**
- * 解析用户传入路径并校验为存在的文件。
- * 路径不存在或不是文件时抛 400。
- */
-function resolveExistingFile(input: string): { target: string; stat: fs.Stats } {
-    const target = path.resolve(input);
-    let stat: fs.Stats;
-    try { stat = fs.statSync(target); }
-    catch { throwBad(`File not found: ${target}`); }
-    if (!stat.isFile()) throwBad(`File not found: ${target}`);
     return { target, stat };
 }
 
@@ -401,20 +373,12 @@ function listSkills(skillsDir: string) {
     if (!fs.existsSync(skillsDir)) return [];
     const svc = new SkillService("", "", "", "");
     svc.registerSkillsDir(skillsDir);
-    return svc.getAllSkills().map(s => ({ name: s.name, description: s.description }));
-}
-
-function getSkill(skillsDir: string, name: string) {
-    if (!fs.existsSync(skillsDir)) {
-        const e: any = new Error(`Skill "${name}" not found`); e.status = 404; throw e;
-    }
-    const svc = new SkillService("", "", "", "");
-    svc.registerSkillsDir(skillsDir);
-    const skill = svc.getAllSkills().find(s => s.name === name);
-    if (!skill) {
-        const e: any = new Error(`Skill "${name}" not found`); e.status = 404; throw e;
-    }
-    return { name, content: fs.readFileSync(path.join(skill.path, 'SKILL.md'), 'utf-8') };
+    return svc.getAllSkills().map(s => ({
+        id: fsApi.getOrCreateRoot(s.path),
+        name: s.name,
+        description: s.description,
+        dirName: path.basename(s.path),
+    }));
 }
 
 function saveSkill(skillsDir: string, name: string, content: string) {
@@ -430,21 +394,13 @@ function deleteSkill(skillsDir: string, name: string) {
     return { name };
 }
 
-type SkillTreeNode = { name: string; type: 'file' | 'dir'; path: string; children?: SkillTreeNode[] };
-
-function buildSkillTree(dir: string, basePath = ''): SkillTreeNode[] {
-    if (!fs.existsSync(dir)) return [];
-    const entries = fs.readdirSync(dir, { withFileTypes: true }).sort(dirFirstByName);
-    const result: SkillTreeNode[] = [];
-    for (const entry of entries) {
-        const relPath = basePath ? `${basePath}/${entry.name}` : entry.name;
-        if (entry.isDirectory()) {
-            result.push({ name: entry.name, type: 'dir', path: relPath, children: buildSkillTree(path.join(dir, entry.name), relPath) });
-        } else if (entry.isFile()) {
-            result.push({ name: entry.name, type: 'file', path: relPath });
-        }
-    }
-    return result;
+function parseRangeQuery(req: Request): { offset?: number; limit?: number } {
+    const offset = req.query.offset != null ? Number(req.query.offset) : undefined;
+    const limit = req.query.limit != null ? Number(req.query.limit) : undefined;
+    return {
+        offset: Number.isFinite(offset as number) ? offset : undefined,
+        limit: Number.isFinite(limit as number) ? limit : undefined,
+    };
 }
 
 /** 统一异常包装：捕获异常并返回标准 JSON 响应 */
@@ -801,6 +757,7 @@ class HttpServer {
                 memories: parseMemories(r.memories),
                 wikis: parseMemories(r.wikis),
                 workPath: r.workPath || undefined,
+                workRootId: fsApi.tryGetOrCreateRoot(r.workPath),
                 autoApproveAllTools: r.autoApproveAllTools || undefined,
             }));
         }));
@@ -902,123 +859,52 @@ class HttpServer {
     // ===== Filesystem =====
     private registerFilesystemRoutes(app: express.Application) {
         app.get('/api/fs/list', api(req => {
-            const dir = (req.query.dir as string) ?? '';
-
-            if (!dir && process.platform === 'win32') {
-                const items: string[] = [];
-                for (let c = 65; c <= 90; c++) {
-                    const d = String.fromCharCode(c) + ':\\';
-                    try { if (fs.statSync(d).isDirectory()) items.push(d); } catch { /* 不存在跳过 */ }
-                }
-                return { path: '', parent: null, items };
-            }
-
-            const { target } = resolveExistingDir(dir || os.homedir());
-
-            const up = path.dirname(target);
-            const parent: string | null = (up === target)
-                ? (process.platform === 'win32' ? '' : null)
-                : up;
-
-            let entries: fs.Dirent[] = [];
-            try { entries = fs.readdirSync(target, { withFileTypes: true }); } catch { /* 无权限时返回空 */ }
-
-            const items = entries
-                .filter(e => e.isDirectory())
-                .map(e => path.join(target, e.name))
-                .sort((a, b) => a.localeCompare(b));
-
-            return { path: target, parent, items };
+            const rootId = req.query.rootId as string | undefined;
+            const relPath = req.query.path as string | undefined;
+            return fsApi.listDir(rootId, relPath);
         }));
 
-        app.get('/api/fs/quickdirs', api(() => {
-            const home = os.homedir();
-            const candidates = [
-                { label: '主目录', path: home },
-                { label: '桌面',   path: path.join(home, 'Desktop') },
-                { label: '文档',   path: path.join(home, 'Documents') },
-                { label: '下载',   path: path.join(home, 'Downloads') },
-            ];
-            return candidates.filter(d => {
-                try { return fs.statSync(d.path).isDirectory(); } catch { return false; }
-            });
-        }));
+        app.get('/api/fs/quickdirs', api(() => fsApi.quickDirs()));
 
         app.post('/api/fs/mkdir', api(req => {
-            const { path: dirPath } = req.body;
-            if (!dirPath?.trim()) throwBad('path is required');
-            const target = path.resolve(dirPath.trim());
-            if (fs.existsSync(target)) throwBad(`Already exists: ${target}`);
-            fs.mkdirSync(target, { recursive: true });
-            return { path: target };
+            const { rootId, path: dirPath } = req.body || {};
+            return fsApi.mkdir(rootId, dirPath);
         }));
 
-        // 资源管理器：列出指定目录下的文件 + 子目录（单层，懒加载）
-        app.get('/api/fs/tree', api(req => {
-            const dir = (req.query.dir as string) ?? '';
-            if (!dir.trim()) throwBad('dir is required');
-            const { target } = resolveExistingDir(dir.trim());
+        app.post('/api/fs/entry', api(req => {
+            const { rootId, path: filePath, content } = req.body || {};
+            return fsApi.createFile(rootId, filePath, content ?? '');
+        }));
 
-            let entries: fs.Dirent[] = [];
-            try { entries = fs.readdirSync(target, { withFileTypes: true }); } catch { /* 无权限时返回空 */ }
+        app.get('/api/fs/entry', api(req => {
+            const rootId = req.query.rootId as string | undefined;
+            const entryType = (req.query.type as string | undefined) || '';
+            const recursive = req.query.recursive === '1' || req.query.recursive === 'true';
+            if (entryType === 'tree') return fsApi.listTree(rootId, req.query.path as string | undefined, recursive);
+            if (entryType === 'read') {
+                return fsApi.readFile(rootId, req.query.path as string, {
+                    ...parseRangeQuery(req),
+                    chunk: req.query.offset != null || req.query.limit != null,
+                });
+            }
+            throwBad('type must be "tree" or "read"');
+        }));
 
-            const dirs: { name: string; path: string; type: 'dir' }[] = [];
-            const files: { name: string; path: string; type: 'file'; size: number }[] = [];
-            for (const e of entries) {
-                const full = path.join(target, e.name);
-                if (e.isDirectory()) {
-                    dirs.push({ name: e.name, path: full, type: 'dir' });
-                } else if (e.isFile()) {
-                    let size = 0;
-                    try { size = fs.statSync(full).size; } catch { /* ignore */ }
-                    files.push({ name: e.name, path: full, type: 'file', size });
+        // 资源管理器：直接下载文件原始内容
+        app.get('/api/fs/entry/raw', (req, res) => {
+            try {
+                const rootId = req.query.rootId as string | undefined;
+                const filePath = safeRelPath(req.query.path as string);
+                const { target } = fsApi.resolve(rootId, filePath);
+                if (!fs.existsSync(target) || !fs.statSync(target).isFile()) {
+                    res.status(404).json({ ok: false, message: `File "${filePath}" not found` });
+                    return;
                 }
+                res.sendFile(path.resolve(target));
+            } catch (e: any) {
+                res.status(e?.status ?? 404).json({ ok: false, message: e?.message ?? 'not found' });
             }
-            dirs.sort((a, b) => a.name.localeCompare(b.name));
-            files.sort((a, b) => a.name.localeCompare(b.name));
-            return { path: target, items: [...dirs, ...files] };
-        }));
-
-        // 资源管理器：读取指定文件内容（限制大小，二进制返回标记）
-        app.get('/api/fs/read', api(req => {
-            const filePath = (req.query.path as string) ?? '';
-            if (!filePath.trim()) throwBad('path is required');
-            const { target, stat } = resolveExistingFile(filePath.trim());
-            const imageMimeType = IMAGE_MIME_BY_EXT[path.extname(target).toLowerCase()];
-
-            if (imageMimeType) {
-                if (stat.size > MAX_IMAGE_READ_SIZE) {
-                    return {
-                        path: target,
-                        size: stat.size,
-                        tooLarge: true,
-                        contentType: 'image',
-                        mimeType: imageMimeType,
-                        content: '',
-                    };
-                }
-                const buf = fs.readFileSync(target);
-                return {
-                    path: target,
-                    size: stat.size,
-                    tooLarge: false,
-                    contentType: 'image',
-                    mimeType: imageMimeType,
-                    content: '',
-                    dataUrl: `data:${imageMimeType};base64,${buf.toString('base64')}`,
-                };
-            }
-
-            if (stat.size > MAX_FILE_READ_SIZE) {
-                return { path: target, size: stat.size, tooLarge: true, contentType: 'text', mimeType: 'text/plain', content: '' };
-            }
-            const buf = fs.readFileSync(target);
-            const hasNulByte = buf.includes(0);
-            if (hasNulByte) {
-                return { path: target, size: stat.size, tooLarge: false, contentType: 'binary', mimeType: 'application/octet-stream', content: '' };
-            }
-            return { path: target, size: stat.size, tooLarge: false, contentType: 'text', mimeType: 'text/plain', content: buf.toString('utf-8') };
-        }));
+        });
 
         app.get('/api/git/status', api(async req => {
             const root = (req.query.root as string) ?? '';
@@ -1223,36 +1109,14 @@ class HttpServer {
                         break;
                     }
                 }
-                return { name: s.name, description: s.description, source, dirName: path.basename(s.path) };
+                return {
+                    id: fsApi.getOrCreateRoot(s.path),
+                    name: s.name,
+                    description: s.description,
+                    source,
+                    dirName: path.basename(s.path),
+                };
             });
-        }));
-
-        app.get('/api/skills/:name', api(req => {
-            const name = req.params.name as string;
-            const skill = globalSkillService.getAllSkills().find((s: any) => s.name === name);
-            if (!skill) {
-                const e: any = new Error(`Skill "${name}" not found`); e.status = 404; throw e;
-            }
-            return { name, content: fs.readFileSync(path.join(skill.path, 'SKILL.md'), 'utf-8') };
-        }));
-
-        app.get('/api/skills/:name/tree', api(req => {
-            const name = req.params.name as string;
-            const skill = globalSkillService.getAllSkills().find((s: any) => s.name === name);
-            if (!skill) { const e: any = new Error(`Skill "${name}" not found`); e.status = 404; throw e; }
-            return buildSkillTree(skill.path);
-        }));
-
-        app.get('/api/skills/:name/file', api(req => {
-            const name = req.params.name as string;
-            const skill = globalSkillService.getAllSkills().find((s: any) => s.name === name);
-            if (!skill) { const e: any = new Error(`Skill "${name}" not found`); e.status = 404; throw e; }
-            const filePath = safeRelPath(req.query.path as string);
-            const fullPath = path.join(skill.path, filePath);
-            if (!fs.existsSync(fullPath) || !fs.statSync(fullPath).isFile()) {
-                const e: any = new Error(`File "${filePath}" not found`); e.status = 404; throw e;
-            }
-            return { path: filePath, content: fs.readFileSync(fullPath, 'utf-8') };
         }));
 
         app.delete('/api/skills/:name', api(req => {
@@ -1283,39 +1147,18 @@ class HttpServer {
                         break;
                     }
                 }
-                return { name: s.name, description: s.description, source, dirName: path.basename(s.path) };
+                return {
+                    id: fsApi.getOrCreateRoot(s.path),
+                    name: s.name,
+                    description: s.description,
+                    source,
+                    dirName: path.basename(s.path),
+                };
             });
             return {
                 globals,
                 skills: listSkills(config.getAgentSkillsPath(agentName)).map((s: any) => ({ ...s, source: 'agent' })),
             };
-        }));
-
-        app.get('/api/agents/:name/skills/:skillName', api(req =>
-            getSkill(config.getAgentSkillsPath(req.params.name as string), req.params.skillName as string)
-        ));
-
-        app.get('/api/agents/:name/skills/:skillName/tree', api(req => {
-            const skillsDir = config.getAgentSkillsPath(req.params.name as string);
-            const svc = new SkillService("", "", "", "");
-            svc.registerSkillsDir(skillsDir);
-            const skill = svc.getAllSkills().find(s => s.name === req.params.skillName);
-            if (!skill) { const e: any = new Error(`Skill "${req.params.skillName}" not found`); e.status = 404; throw e; }
-            return buildSkillTree(skill.path);
-        }));
-
-        app.get('/api/agents/:name/skills/:skillName/file', api(req => {
-            const skillsDir = config.getAgentSkillsPath(req.params.name as string);
-            const svc = new SkillService("", "", "", "");
-            svc.registerSkillsDir(skillsDir);
-            const skill = svc.getAllSkills().find(s => s.name === req.params.skillName);
-            if (!skill) { const e: any = new Error(`Skill "${req.params.skillName}" not found`); e.status = 404; throw e; }
-            const filePath = safeRelPath(req.query.path as string);
-            const fullPath = path.join(skill.path, filePath);
-            if (!fs.existsSync(fullPath) || !fs.statSync(fullPath).isFile()) {
-                const e: any = new Error(`File "${filePath}" not found`); e.status = 404; throw e;
-            }
-            return { path: filePath, content: fs.readFileSync(fullPath, 'utf-8') };
         }));
 
         app.put('/api/agents/:name/skills/:skillName', api(req => {
@@ -1496,40 +1339,19 @@ class HttpServer {
 
     private registerDataRoutes(app: express.Application) {
         // ── Savers / Threads ──
-        app.get('/api/savers/:saverId/threads', api(async req => {
-            return listThreadIds(config.getSaverDBPath(req.params.saverId as string), ".db", ".json");
-        }));
+        app.get('/api/savers/:saverId/threads', api(async req =>
+            listThreadIds(config.getSaverDBPath(req.params.saverId as string), ".db", ".json")
+        ));
 
-        app.get('/api/savers/:saverId/threads/:threadId/history', api(async req => {
-            const saver = await AgentRunner.createSaverService(
-                req.params.saverId as string,
-                req.params.threadId as string,
-            );
-            const messages = await saver.getAllMessages(true);
-            await saver.dispose();
-            return this.formatMessages(messages);
-        }));
+        // ── Saver/thread 公共助手：自动 dispose ──
+        type SaverFn<T> = (saver: Awaited<ReturnType<typeof AgentRunner.createSaverService>>) => Promise<T>;
+        const withSaver = async <T>(saverId: string, threadId: string, fn: SaverFn<T>): Promise<T> => {
+            const saver = await AgentRunner.createSaverService(saverId, threadId);
+            try { return await fn(saver); }
+            finally { await saver.dispose(); }
+        };
 
-        app.delete('/api/savers/:saverId/threads/:threadId/history', api(async req => {
-            const saver = await AgentRunner.createSaverService(
-                req.params.saverId as string,
-                req.params.threadId as string,
-            );
-            await saver.clearMessages();
-            await saver.dispose();
-        }));
-
-        app.get('/api/savers/:saverId/threads/:threadId/thinks/:thinkId', api(async req => {
-            const saver = await AgentRunner.createSaverService(
-                req.params.saverId as string,
-                req.params.threadId as string,
-            );
-            const messages = await saver.getThink(req.params.thinkId as string);
-            await saver.dispose();
-            return this.formatMessages(messages);
-        }));
-
-        // ── Channel-session history (generic, by DB PK) ──
+        // ── Channel session 解析 ──
         const resolveSessionSaver = (row: ChannelSessionRow): { saverId: string; threadId: string } => {
             const saverId = row.saver || config.getChannel(row.channelId)?.saver;
             if (!saverId) throwBad(`Session id=${row.id} has no saver configured`);
@@ -1543,64 +1365,40 @@ class HttpServer {
             return row;
         };
 
-        app.get('/api/channel-sessions/:id/history', api(async req => {
-            const row = await getSessionRowByPk(req.params.id as string);
-            const { saverId, threadId } = resolveSessionSaver(row);
-            const saver = await AgentRunner.createSaverService(saverId, threadId);
-            const messages = await saver.getAllMessages(true);
-            await saver.dispose();
-            return this.formatMessages(messages);
-        }));
-
-        app.delete('/api/channel-sessions/:id/history', api(async req => {
-            const row = await getSessionRowByPk(req.params.id as string);
-            const { saverId, threadId } = resolveSessionSaver(row);
-            const saver = await AgentRunner.createSaverService(saverId, threadId);
-            await saver.clearMessages();
-            await saver.dispose();
-        }));
-
-        app.get('/api/channel-sessions/:id/thinks/:thinkId', api(async req => {
-            const row = await getSessionRowByPk(req.params.id as string);
-            const { saverId, threadId } = resolveSessionSaver(row);
-            const saver = await AgentRunner.createSaverService(saverId, threadId);
-            const messages = await saver.getThink(req.params.thinkId as string);
-            await saver.dispose();
-            return this.formatMessages(messages);
-        }));
-
-        // ── Legacy compat: /api/sessions/:sessionId/* (web channel UUID-based) ──
         const getWebSessionRow = async (sessionId: string): Promise<ChannelSessionRow> => {
             const row = await database.findOne<ChannelSessionRow>(database.channelSession, { where: { channelId: WEB_CHANNEL_ID, sessionId } });
             if (!row) { const e: any = new Error(`Session "${sessionId}" not found`); e.status = 404; throw e; }
             return row;
         };
 
-        app.get('/api/sessions/:sessionId/history', api(async req => {
-            const row = await getWebSessionRow(req.params.sessionId as string);
-            const { saverId, threadId } = resolveSessionSaver(row);
-            const saver = await AgentRunner.createSaverService(saverId, threadId);
-            const messages = await saver.getAllMessages(true);
-            await saver.dispose();
-            return this.formatMessages(messages);
-        }));
+        // ── 注册 history+thinks 三件套 ──
+        type SaverResolver = (req: Request) => Promise<{ saverId: string; threadId: string }> | { saverId: string; threadId: string };
+        const registerSaverThreadRoutes = (basePath: string, resolve: SaverResolver) => {
+            app.get(`${basePath}/history`, api(async req => {
+                const { saverId, threadId } = await resolve(req);
+                return withSaver(saverId, threadId, async s => this.formatMessages(await s.getAllMessages(true)));
+            }));
+            app.delete(`${basePath}/history`, api(async req => {
+                const { saverId, threadId } = await resolve(req);
+                await withSaver(saverId, threadId, s => s.clearMessages());
+            }));
+            app.get(`${basePath}/thinks/:thinkId`, api(async req => {
+                const { saverId, threadId } = await resolve(req);
+                return withSaver(saverId, threadId, async s => this.formatMessages(await s.getThink(req.params.thinkId as string)));
+            }));
+        };
 
-        app.delete('/api/sessions/:sessionId/history', api(async req => {
-            const row = await getWebSessionRow(req.params.sessionId as string);
-            const { saverId, threadId } = resolveSessionSaver(row);
-            const saver = await AgentRunner.createSaverService(saverId, threadId);
-            await saver.clearMessages();
-            await saver.dispose();
+        registerSaverThreadRoutes('/api/savers/:saverId/threads/:threadId', req => ({
+            saverId: req.params.saverId as string,
+            threadId: req.params.threadId as string,
         }));
-
-        app.get('/api/sessions/:sessionId/thinks/:thinkId', api(async req => {
-            const row = await getWebSessionRow(req.params.sessionId as string);
-            const { saverId, threadId } = resolveSessionSaver(row);
-            const saver = await AgentRunner.createSaverService(saverId, threadId);
-            const messages = await saver.getThink(req.params.thinkId as string);
-            await saver.dispose();
-            return this.formatMessages(messages);
-        }));
+        registerSaverThreadRoutes('/api/channel-sessions/:id', async req =>
+            resolveSessionSaver(await getSessionRowByPk(req.params.id as string))
+        );
+        // Legacy compat: /api/sessions/:sessionId/* (web channel UUID-based)
+        registerSaverThreadRoutes('/api/sessions/:sessionId', async req =>
+            resolveSessionSaver(await getWebSessionRow(req.params.sessionId as string))
+        );
 
         // ── Memories (accept ?sessionId= or ?threadId=) ──
         app.get('/api/memories/:memoryName', api(async req => {

@@ -120,8 +120,8 @@ export class SbotClient {
 
   // ── Filesystem ──
 
-  async listDir(dir?: string): Promise<any> {
-    const qs = dir ? `?dir=${encodeURIComponent(dir)}` : '';
+  async listDir(rootId: string, filePath = ''): Promise<any> {
+    const qs = `?rootId=${encodeURIComponent(rootId)}&path=${encodeURIComponent(filePath)}`;
     const res = await this.http.get(`/api/fs/list${qs}`);
     return res.data.data ?? res.data;
   }
@@ -131,9 +131,34 @@ export class SbotClient {
     return res.data.data ?? res.data ?? [];
   }
 
-  async mkdir(path: string): Promise<{ path: string }> {
-    const res = await this.http.post('/api/fs/mkdir', { path });
-    return res.data.data ?? res.data ?? { path };
+  async mkdir(rootId: string, filePath: string): Promise<{ rootId: string; path: string }> {
+    const res = await this.http.post('/api/fs/mkdir', { rootId, path: filePath });
+    return res.data.data ?? res.data ?? { rootId, path: filePath };
+  }
+
+  async listTree(rootId: string, filePath = ''): Promise<any> {
+    const res = await this.http.get('/api/fs/entry', { params: { type: 'tree', rootId, path: filePath } });
+    return res.data.data ?? res.data;
+  }
+
+  async readFile(rootId: string, filePath = ''): Promise<any> {
+    const res = await this.http.get('/api/fs/entry', { params: { type: 'read', rootId, path: filePath } });
+    return res.data.data ?? res.data;
+  }
+
+  getRawFileUrl(rootId: string, filePath = ''): string {
+    const qs = new URLSearchParams({ rootId, path: filePath });
+    return `${this.baseUrl}/api/fs/entry/raw?${qs.toString()}`;
+  }
+
+  async gitStatus(root: string): Promise<any> {
+    const res = await this.http.get('/api/git/status', { params: { root } });
+    return res.data.data ?? res.data;
+  }
+
+  async gitDiff(root: string, filePath: string, fullContent = false): Promise<any> {
+    const res = await this.http.get('/api/git/diff', { params: { root, path: filePath, full: fullContent ? '1' : undefined } });
+    return res.data.data ?? res.data;
   }
 
   // ── Thinks ──

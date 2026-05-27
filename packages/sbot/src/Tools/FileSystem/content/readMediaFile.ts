@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { LoggerService } from '../../../Core/LoggerService';
 import {
     createTextContent, createImageContent, createAudioContent, createDocumentContent,
-    createErrorResult, createSuccessResult, resizeImageIfNeeded, type MCPToolResult,
+    createErrorResult, createSuccessResult, resizeImageIfNeeded, detectImageMimeType, type MCPToolResult,
 } from 'scorpio.ai';
 import { checkFile, formatSize } from '../utils';
 import { loadPrompt } from '../../../Core/PromptLoader';
@@ -68,7 +68,7 @@ export function createReadMediaFileTool(): StructuredToolInterface {
                     if (resized.length > MAX_SIZE) {
                         return createErrorResult(`Image too large after resize: ${formatSize(resized.length)}, maximum is ${MAX_SIZE_LABEL}`);
                     }
-                    return createSuccessResult(createImageContent(resized.toString('base64'), mimeType));
+                    return createSuccessResult(createImageContent(resized.toString('base64'), detectImageMimeType(resized)));
                 }
 
                 if (stat.size > MAX_SIZE) {

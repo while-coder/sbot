@@ -513,10 +513,11 @@ onMounted(() => {
   user-select: none;
 }
 .chatui-explorer-tree {
-  flex-shrink: 0;
+  flex: 0 0 auto;
+  align-self: stretch;
   min-width: 180px;
   max-width: calc(100% - 240px);
-  height: 100%;
+  min-height: 0;
 }
 .chatui-explorer-splitter {
   width: 8px;

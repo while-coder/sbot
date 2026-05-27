@@ -13,6 +13,7 @@ export interface SessionItem {
   memories: string[]
   wikis?: string[]
   workPath?: string
+  workRootId?: string
   autoApproveAllTools?: boolean
 }
 
@@ -199,6 +200,8 @@ export interface ChatLabels {
   explorerBinaryFile?: string
   /** Explorer 文件过大提示，模板变量 {size} */
   explorerTooLarge?: string
+  /** Explorer 下载完整文件按钮文案 */
+  explorerDownload?: string
   /** Explorer 切换显示的按钮/工具提示 */
   explorerToggle?: string
   /** Explorer 文件列表模式 */
@@ -323,6 +326,7 @@ export interface AskAnswerPayload {
 
 // ── Directory browser ──
 export interface DirListResult {
+  rootId: string
   path: string
   parent: string | null
   items: string[]
@@ -331,6 +335,7 @@ export interface DirListResult {
 export interface QuickDir {
   label: string
   path: string
+  rootId: string
 }
 
 // ── Filesystem tree (Explorer) ──
@@ -342,6 +347,8 @@ export interface FsTreeItem {
 }
 
 export interface FsTreeResult {
+  id?: string
+  rootId?: string
   path: string
   items: FsTreeItem[]
 }

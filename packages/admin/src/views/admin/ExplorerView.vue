@@ -9,6 +9,7 @@ const { t } = useI18n()
 
 const STORAGE_KEY = 'explorer-root-path'
 const root = ref<string>('')
+const rootId = ref<string>('')
 const picker = ref<InstanceType<typeof PathPickerModal> | null>(null)
 const transport = new WebSocketTransport()
 
@@ -16,8 +17,9 @@ function openPicker() {
   picker.value?.open(root.value)
 }
 
-function onPicked(p: string) {
+function onPicked(p: string, id: string) {
   root.value = p
+  rootId.value = id
   localStorage.setItem(STORAGE_KEY, p)
 }
 
@@ -36,7 +38,7 @@ onMounted(() => {
       </SButton>
     </SPageToolbar>
 
-    <Explorer :transport="transport" :root="root" />
+    <Explorer :transport="transport" :root="root" :root-id="rootId" />
 
     <PathPickerModal ref="picker" @confirm="onPicked" />
   </div>

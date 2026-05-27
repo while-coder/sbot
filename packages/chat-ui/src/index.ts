@@ -63,3 +63,4 @@ export { default as ServerPicker } from './components/ServerPicker.vue';
 export { default as Explorer } from './components/Explorer.vue';
 export { default as FileExplorer } from './components/FileExplorer.vue';
 export { default as GitExplorer } from './components/GitExplorer.vue';
+export { default as CodeViewer } from './components/CodeViewer.vue';

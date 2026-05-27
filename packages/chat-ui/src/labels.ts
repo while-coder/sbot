@@ -91,6 +91,7 @@ export const defaultLabels: Required<ChatLabels> = {
   explorerSelectFile: '请选择左侧文件',
   explorerBinaryFile: '二进制文件，无法预览',
   explorerTooLarge: '文件过大 ({size})，无法预览',
+  explorerDownload: '下载完整文件',
   explorerToggle: '资源管理器',
   explorerFiles: '文件',
   explorerGit: 'Git',

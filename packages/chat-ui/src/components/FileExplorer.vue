@@ -6,10 +6,12 @@ import type { ChatLabels, FsTreeItem } from '../types'
 import type { ExplorerFilesViewState } from '../composables/useExplorerViewState'
 import { resolveLabels, tpl } from '../labels'
 import ImageLightbox from './ImageLightbox.vue'
+import CodeViewer from './CodeViewer.vue'
 
 const props = defineProps<{
   transport: IChatTransport
   root?: string
+  rootId?: string
   labels?: ChatLabels
   refreshKey?: number
   treeWidth?: number
@@ -34,6 +36,7 @@ type DirState = {
 }
 
 const dirStates = ref<Map<string, DirState>>(new Map())
+const rootId = ref('')
 const selectedPath = ref('')
 const fileContent = ref('')
 const fileDataUrl = ref('')
@@ -49,6 +52,7 @@ const treeWidth = ref(props.treeWidth ?? 260)
 const treeHeight = ref(props.treeHeight ?? 220)
 const resizing = ref(false)
 const resizeMode = ref<'horizontal' | 'vertical'>('horizontal')
+const hasRoot = computed(() => !!props.rootId)
 
 const treeStyle = computed(() =>
   resizeMode.value === 'vertical'
@@ -64,6 +68,7 @@ function fmtSize(n: number): string {
 }
 
 async function loadDir(dir: string): Promise<void> {
+  if (!rootId.value) return
   let state = dirStates.value.get(dir)
   if (!state) {
     state = { loaded: false, loading: false, expanded: false, items: [] }
@@ -73,7 +78,7 @@ async function loadDir(dir: string): Promise<void> {
   state.loading = true
   errMsg.value = ''
   try {
-    const res = await props.transport.listTree(dir)
+    const res = await props.transport.listTree(rootId.value, dir)
     state.items = res.items || []
     state.loaded = true
   } catch (e: any) {
@@ -111,7 +116,7 @@ async function selectFile(item: FsTreeItem): Promise<void> {
   fileLoading.value = true
   errMsg.value = ''
   try {
-    const res = await props.transport.readFile(item.path)
+    const res = await props.transport.readFile(rootId.value, item.path)
     fileContent.value = res.content ?? ''
     fileDataUrl.value = res.dataUrl ?? ''
     fileContentType.value = res.contentType
@@ -147,14 +152,14 @@ function findLoadedItem(path: string): FsTreeItem | undefined {
   }
 }
 
-async function restoreExpandedDirs(rootPath: string, expandedPaths: string[]): Promise<void> {
-  const expanded = new Set([rootPath, ...expandedPaths])
-  await loadDir(rootPath)
-  const rootState = dirStates.value.get(rootPath)
+async function restoreExpandedDirs(expandedPaths: string[]): Promise<void> {
+  const expanded = new Set(['', ...expandedPaths])
+  await loadDir('')
+  const rootState = dirStates.value.get('')
   if (!rootState) return
   rootState.expanded = true
 
-  const queue: string[] = [rootPath]
+  const queue: string[] = ['']
   while (queue.length > 0) {
     const cur = queue.shift()!
     const state = dirStates.value.get(cur)
@@ -189,25 +194,27 @@ function flattenChildren(parent: string, depth: number): FlatRow[] {
 }
 
 const rootRows = computed<FlatRow[]>(() => {
-  if (!props.root) return []
-  return flattenChildren(props.root, 0)
+  if (!hasRoot.value || !rootId.value) return []
+  return flattenChildren('', 0)
 })
 
 const rootLoading = computed(() => {
-  if (!props.root) return false
-  return dirStates.value.get(props.root)?.loading ?? false
+  if (!hasRoot.value || !rootId.value) return false
+  return dirStates.value.get('')?.loading ?? false
 })
 
-watch(() => props.root, async (val) => {
+watch(() => props.rootId, async (providedRootId) => {
   dirStates.value = new Map()
+  rootId.value = ''
   selectedPath.value = ''
   fileContent.value = ''
   fileDataUrl.value = ''
   fileContentType.value = 'text'
   fileMimeType.value = ''
   errMsg.value = ''
-  if (val) {
-    await restoreExpandedDirs(val, props.viewState?.expandedPaths ?? [])
+  if (providedRootId) {
+    rootId.value = providedRootId
+    await restoreExpandedDirs(props.viewState?.expandedPaths ?? [])
     const savedSelectedPath = props.viewState?.selectedPath || ''
     if (savedSelectedPath) {
       const item = findLoadedItem(savedSelectedPath)
@@ -248,8 +255,7 @@ watch(() => props.refreshKey, async (val, oldVal) => {
 })
 
 async function refresh(): Promise<void> {
-  const rootPath = props.root
-  if (!rootPath) return
+  if (!hasRoot.value || !rootId.value) return
   emit('refreshing', true)
   errMsg.value = ''
   try {
@@ -259,12 +265,12 @@ async function refresh(): Promise<void> {
     }
 
     dirStates.value = new Map()
-    await loadDir(rootPath)
-    const rootState = dirStates.value.get(rootPath)
+    await loadDir('')
+    const rootState = dirStates.value.get('')
     if (!rootState) return
     rootState.expanded = true
 
-    const queue: string[] = [rootPath]
+    const queue: string[] = ['']
     while (queue.length > 0) {
       const cur = queue.shift()!
       const state = dirStates.value.get(cur)
@@ -287,15 +293,14 @@ async function refresh(): Promise<void> {
   }
 }
 
-const fileLang = computed(() => {
-  const p = selectedPath.value
-  const i = p.lastIndexOf('.')
-  return i > 0 ? p.slice(i + 1).toLowerCase() : ''
-})
-
 const isImageFile = computed(() => fileContentType.value === 'image')
 const isUnsupportedBinary = computed(() => fileContentType.value === 'binary')
 const imageSrc = computed(() => fileDataUrl.value || fileContent.value)
+const rawDownloadHref = computed(() =>
+  selectedPath.value && rootId.value && typeof props.transport.getRawFileUrl === 'function'
+    ? props.transport.getRawFileUrl(rootId.value, selectedPath.value)
+    : '',
+)
 
 function openImagePreview(): void {
   if (imageSrc.value) imageLightbox.value?.open(imageSrc.value)
@@ -362,7 +367,7 @@ onMounted(() => {
 <template>
   <div ref="explorerEl" class="chatui-file-explorer" :class="{ 'chatui-file-explorer--resizing': resizing }">
     <STree class="chatui-explorer-tree" :style="treeStyle">
-      <div v-if="!props.root" class="chatui-explorer-empty-tip">{{ L.explorerPickRootHint }}</div>
+      <div v-if="!hasRoot" class="chatui-explorer-empty-tip">{{ L.explorerPickRootHint }}</div>
       <div v-else-if="rootLoading && rootRows.length === 0" class="chatui-explorer-empty-tip">{{ L.loading }}</div>
       <div v-else-if="rootRows.length === 0" class="chatui-explorer-empty-tip">{{ L.explorerEmptyDir }}</div>
       <template v-else>
@@ -394,19 +399,35 @@ onMounted(() => {
         <div class="chatui-explorer-toolbar">
           <span class="chatui-explorer-path">{{ selectedPath }}</span>
           <span class="chatui-explorer-meta">{{ fmtSize(fileSize) }}</span>
+          <a
+            v-if="selectedPath && rawDownloadHref"
+            class="chatui-explorer-download"
+            :href="rawDownloadHref"
+            target="_blank"
+            rel="noopener"
+            :title="L.explorerDownload || 'Download'"
+          >↓</a>
         </div>
         <div v-if="fileLoading" class="chatui-explorer-state">{{ L.loading }}</div>
         <div v-else-if="errMsg" class="chatui-explorer-state chatui-explorer-error">{{ errMsg }}</div>
         <div v-else-if="fileTooLarge" class="chatui-explorer-state">
-          {{ tpl(L.explorerTooLarge, { size: fmtSize(fileSize) }) }}
+          <div>{{ tpl(L.explorerTooLarge, { size: fmtSize(fileSize) }) }}</div>
+          <a v-if="rawDownloadHref" class="chatui-explorer-link" :href="rawDownloadHref" target="_blank" rel="noopener">
+            {{ L.explorerDownload || 'Download full file' }}
+          </a>
         </div>
         <div v-else-if="isImageFile && imageSrc" class="chatui-explorer-image-wrap">
           <button class="chatui-explorer-image-button" :title="fileMimeType || selectedPath" @click="openImagePreview">
             <img :src="imageSrc" :alt="selectedPath" class="chatui-explorer-image" />
           </button>
         </div>
-        <div v-else-if="isUnsupportedBinary" class="chatui-explorer-state">{{ L.explorerBinaryFile }}</div>
-        <pre v-else class="chatui-explorer-content" :data-lang="fileLang">{{ fileContent }}</pre>
+        <div v-else-if="isUnsupportedBinary" class="chatui-explorer-state">
+          <div>{{ L.explorerBinaryFile }}</div>
+          <a v-if="rawDownloadHref" class="chatui-explorer-link" :href="rawDownloadHref" target="_blank" rel="noopener">
+            {{ L.explorerDownload || 'Download file' }}
+          </a>
+        </div>
+        <CodeViewer v-else :content="fileContent" :path="selectedPath" class="chatui-explorer-content" />
       </template>
       <div v-else class="chatui-explorer-state">{{ L.explorerSelectFile }}</div>
     </div>
@@ -427,10 +448,11 @@ onMounted(() => {
   user-select: none;
 }
 .chatui-explorer-tree {
-  flex-shrink: 0;
+  flex: 0 0 auto;
+  align-self: stretch;
   min-width: 180px;
   max-width: calc(100% - 240px);
-  height: 100%;
+  min-height: 0;
 }
 .chatui-explorer-splitter {
   width: 8px;
@@ -498,11 +520,37 @@ onMounted(() => {
   color: var(--chatui-fg-secondary);
   flex-shrink: 0;
 }
+.chatui-explorer-download {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  text-decoration: none;
+  color: var(--chatui-fg-secondary);
+  font-size: 14px;
+  transition: background 0.15s, color 0.15s;
+}
+.chatui-explorer-download:hover {
+  background: var(--chatui-bg-hover, var(--chatui-bg-soft));
+  color: var(--chatui-fg);
+}
+.chatui-explorer-link {
+  display: inline-block;
+  margin-top: 8px;
+  color: var(--chatui-link, #2563eb);
+  font-size: 12px;
+  text-decoration: underline;
+}
 .chatui-explorer-state {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 4px;
   color: var(--chatui-fg-secondary);
   font-size: 13px;
   padding: 24px;
@@ -514,15 +562,9 @@ onMounted(() => {
 }
 .chatui-explorer-content {
   flex: 1;
-  overflow: auto;
-  margin: 0;
-  padding: 12px 16px;
-  font-family: monospace;
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--chatui-fg);
+  min-height: 0;
+  overflow: hidden;
   background: var(--chatui-bg);
-  white-space: pre;
 }
 .chatui-explorer-image-wrap {
   flex: 1;

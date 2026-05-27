@@ -123,10 +123,9 @@ async function removeAgent(id: string) {
 
 const skillViewRef = ref<InstanceType<typeof SkillViewerModal>>()
 
-function openSkillView(agentId: string, name: string, isPrivate: boolean) {
-  const badge = isPrivate ? t('agents.skills_exclusive_tab') : ''
-  const apiBase = isPrivate ? `/api/agents/${encodeURIComponent(agentId)}/skills` : '/api/skills'
-  skillViewRef.value?.open(name, badge, apiBase)
+function openSkillView(skill: SkillItem, isPrivate: boolean) {
+  const badge = isPrivate ? t('agents.skills_exclusive_tab') : (skill.source || '')
+  skillViewRef.value?.open(skill.name, badge, skill.id || '')
 }
 
 const showToolsModal = ref(false)
@@ -440,7 +439,7 @@ async function saveMcpParams() {
                 </template>
                 <template #desc="{ row: s }"><span class="cell-desc">{{ s.description || '-' }}</span></template>
                 <template #ops="{ row: s }">
-                  <SButton type="outline" size="sm" @click="openSkillView(row.id, s.name, s._private)">{{ t('common.view') }}</SButton>
+                  <SButton type="outline" size="sm" @click="openSkillView(s, s._private)">{{ t('common.view') }}</SButton>
                 </template>
                 <template #_empty>
                   <div>{{ t('agents.no_skills') }}</div>

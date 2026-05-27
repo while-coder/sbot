@@ -11,17 +11,38 @@ const props = defineProps<{
 }>()
 
 const L = computed(() => resolveLabels(props.labels))
-const emit = defineEmits<{ confirm: [path: string] }>()
+const emit = defineEmits<{ confirm: [path: string, rootId: string] }>()
 
 const pickerOpen    = ref(false)
 const pickerLoading = ref(false)
 const pickerPath    = ref('')
+const pickerRelPath = ref('')
+const pickerRootPath = ref('')
+const pickerRootId  = ref('')
 const pickerParent  = ref<string | null>(null)
 const pickerItems   = ref<string[]>([])
 const pickerCreating  = ref(false)
 const pickerNewName   = ref('')
 const newNameInput    = ref<InstanceType<typeof SInput> | null>(null)
-const pickerQuickDirs = ref<{ label: string; path: string }[]>([])
+const pickerQuickDirs = ref<{ label: string; path: string; rootId: string }[]>([])
+
+function normalizeDisplayPath(p: string): string {
+  return p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+}
+
+function relativeToRoot(rootPath: string, targetPath: string): string | null {
+  const root = normalizeDisplayPath(rootPath)
+  const target = normalizeDisplayPath(targetPath)
+  if (target === root) return ''
+  if (target.startsWith(`${root}/`)) return target.slice(root.length + 1)
+  return null
+}
+
+function joinDisplayPath(rootPath: string, relPath: string): string {
+  if (!relPath) return rootPath
+  const sep = rootPath.includes('\\') ? '\\' : '/'
+  return `${rootPath.replace(/[\\/]+$/, '')}${sep}${relPath.replace(/\//g, sep)}`
+}
 
 function itemLabel(p: string): string {
   if (/^[A-Za-z]:[/\\]?$/.test(p)) return p.replace(/[/\\]$/, '') + '\\'
@@ -34,12 +55,16 @@ function resetCreate() {
   pickerNewName.value  = ''
 }
 
-async function navigatePicker(dir: string): Promise<boolean> {
+async function navigatePicker(rootId: string, relPath = '', rootPath?: string): Promise<boolean> {
+  if (!rootId) return false
   resetCreate()
   pickerLoading.value = true
   try {
-    const res = await props.transport.listDir(dir || undefined)
-    pickerPath.value   = res.path
+    const res = await props.transport.listDir(rootId, relPath)
+    if (rootPath) pickerRootPath.value = rootPath
+    pickerRootId.value = res.rootId
+    pickerRelPath.value = res.path
+    pickerPath.value   = joinDisplayPath(pickerRootPath.value, res.path)
     pickerParent.value = res.parent
     pickerItems.value  = res.items
     return true
@@ -63,28 +88,42 @@ const cancelCreate = resetCreate
 
 async function confirmCreate() {
   const name = pickerNewName.value.trim()
-  if (!name) return
+  if (!name || !pickerRootId.value) return
   try {
-    const res = await props.transport.mkdir(`${pickerPath.value}/${name}`)
-    await navigatePicker(res.path)
+    const path = pickerRelPath.value ? `${pickerRelPath.value}/${name}` : name
+    const res = await props.transport.mkdir(pickerRootId.value, path)
+    await navigatePicker(res.rootId, res.path)
   } catch { /* handled by transport */ }
 }
 
 async function open(initialPath = '') {
   pickerPath.value      = ''
+  pickerRelPath.value   = ''
+  pickerRootPath.value  = ''
+  pickerRootId.value    = ''
   pickerParent.value    = null
   pickerItems.value     = []
   pickerQuickDirs.value = []
   pickerOpen.value      = true
-  props.transport.quickDirs().then(dirs => { pickerQuickDirs.value = dirs }).catch(() => {})
-  if (initialPath && await navigatePicker(initialPath)) return
-  await navigatePicker('')
+  const dirs = await props.transport.quickDirs().catch(() => [])
+  pickerQuickDirs.value = dirs
+  let matched: { label: string; path: string; rootId: string; relPath: string } | undefined
+  if (initialPath) {
+    for (const dir of dirs) {
+      const relPath = relativeToRoot(dir.path, initialPath)
+      if (relPath === null) continue
+      if (!matched || dir.path.length > matched.path.length) matched = { ...dir, relPath }
+    }
+  }
+  if (matched && await navigatePicker(matched.rootId, matched.relPath, matched.path)) return
+  const first = dirs[0]
+  if (first) await navigatePicker(first.rootId, '', first.path)
 }
 
 function confirmPicker() {
   if (!pickerPath.value) return
   pickerOpen.value = false
-  emit('confirm', pickerPath.value)
+  emit('confirm', pickerPath.value, pickerRootId.value)
 }
 
 defineExpose({ open })
@@ -106,14 +145,14 @@ defineExpose({ open })
         v-for="d in pickerQuickDirs" :key="d.path"
         clickable
         :class="{ 'chatui-picker-qd-active': pickerPath === d.path }"
-        @click="navigatePicker(d.path)"
+        @click="navigatePicker(d.rootId, '', d.path)"
       >{{ d.label }}</SChip>
     </div>
 
     <div class="chatui-picker-list">
       <div v-if="pickerLoading" class="chatui-picker-empty">{{ L.loading }}</div>
       <template v-else>
-        <div v-if="pickerParent !== null" class="chatui-picker-item chatui-picker-up" @click="navigatePicker(pickerParent!)">
+        <div v-if="pickerParent !== null" class="chatui-picker-item chatui-picker-up" @click="navigatePicker(pickerRootId, pickerParent!)">
           {{ L.upDir }}
         </div>
         <div v-if="pickerCreating" class="chatui-picker-create-row">
@@ -131,7 +170,7 @@ defineExpose({ open })
           <SButton type="outline" size="sm" @click="cancelCreate">✕</SButton>
         </div>
         <div v-if="pickerItems.length === 0 && !pickerCreating" class="chatui-picker-empty">{{ L.noSubdirs }}</div>
-        <div v-for="item in pickerItems" :key="item" class="chatui-picker-item" @click="navigatePicker(item)">
+        <div v-for="item in pickerItems" :key="item" class="chatui-picker-item" @click="navigatePicker(pickerRootId, item)">
           <span class="chatui-picker-icon">▶</span>{{ itemLabel(item) }}
         </div>
       </template>

@@ -174,8 +174,8 @@ export class WebSocketTransport implements IChatTransport {
 
   // ── Filesystem ──
 
-  async listDir(dir?: string): Promise<DirListResult> {
-    const qs = dir ? `?dir=${encodeURIComponent(dir)}` : ''
+  async listDir(rootId: string, path = ''): Promise<DirListResult> {
+    const qs = `?rootId=${encodeURIComponent(rootId)}&path=${encodeURIComponent(path)}`
     const res = await this.api(`/api/fs/list${qs}`)
     return res.data ?? res
   }
@@ -185,19 +185,25 @@ export class WebSocketTransport implements IChatTransport {
     return res.data ?? res ?? []
   }
 
-  async mkdir(path: string): Promise<{ path: string }> {
-    const res = await this.api('/api/fs/mkdir', 'POST', { path })
-    return res.data ?? res ?? { path }
+  async mkdir(rootId: string, path: string): Promise<{ rootId: string; path: string }> {
+    const res = await this.api('/api/fs/mkdir', 'POST', { rootId, path })
+    return res.data ?? res ?? { rootId, path }
   }
 
-  async listTree(dir: string): Promise<FsTreeResult> {
-    const res = await this.api(`/api/fs/tree?dir=${encodeURIComponent(dir)}`)
-    return res.data ?? res ?? { path: dir, items: [] }
+  async listTree(rootId: string, path = ''): Promise<FsTreeResult> {
+    const qs = `type=tree&rootId=${encodeURIComponent(rootId)}&path=${encodeURIComponent(path)}`
+    const res = await this.api(`/api/fs/entry?${qs}`)
+    return res.data ?? res ?? { path, items: [] }
   }
 
-  async readFile(path: string): Promise<FsReadResult> {
-    const res = await this.api(`/api/fs/read?path=${encodeURIComponent(path)}`)
+  async readFile(rootId: string, path = ''): Promise<FsReadResult> {
+    const qs = `type=read&rootId=${encodeURIComponent(rootId)}&path=${encodeURIComponent(path)}`
+    const res = await this.api(`/api/fs/entry?${qs}`)
     return res.data ?? res ?? { path, size: 0, tooLarge: false, contentType: 'text', mimeType: 'text/plain', content: '' }
+  }
+
+  getRawFileUrl(rootId: string, path = ''): string {
+    return `${this._baseUrl}/api/fs/entry/raw?rootId=${encodeURIComponent(rootId)}&path=${encodeURIComponent(path)}`
   }
 
   async gitStatus(root: string): Promise<GitStatusResult> {

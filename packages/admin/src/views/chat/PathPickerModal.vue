@@ -8,17 +8,38 @@ import { SModal, SButton, SIconButton } from 'sbot-ui'
 const { t } = useI18n()
 const { show } = useToast()
 
-const emit = defineEmits<{ confirm: [path: string] }>()
+const emit = defineEmits<{ confirm: [path: string, rootId: string] }>()
 
 const pickerOpen    = ref(false)
 const pickerLoading = ref(false)
 const pickerPath    = ref('')
+const pickerRelPath = ref('')
+const pickerRootPath = ref('')
+const pickerRootId  = ref('')
 const pickerParent  = ref<string | null>(null)
 const pickerItems   = ref<string[]>([])
 const pickerCreating  = ref(false)
 const pickerNewName   = ref('')
 const newNameInput    = ref<HTMLInputElement | null>(null)
-const pickerQuickDirs = ref<{ label: string; path: string }[]>([])
+const pickerQuickDirs = ref<{ label: string; path: string; rootId: string }[]>([])
+
+function normalizeDisplayPath(p: string): string {
+  return p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+}
+
+function relativeToRoot(rootPath: string, targetPath: string): string | null {
+  const root = normalizeDisplayPath(rootPath)
+  const target = normalizeDisplayPath(targetPath)
+  if (target === root) return ''
+  if (target.startsWith(`${root}/`)) return target.slice(root.length + 1)
+  return null
+}
+
+function joinDisplayPath(rootPath: string, relPath: string): string {
+  if (!relPath) return rootPath
+  const sep = rootPath.includes('\\') ? '\\' : '/'
+  return `${rootPath.replace(/[\\/]+$/, '')}${sep}${relPath.replace(/\//g, sep)}`
+}
 
 function itemLabel(p: string): string {
   if (/^[A-Za-z]:[/\\]?$/.test(p)) return p.replace(/[/\\]$/, '') + '\\'
@@ -26,19 +47,23 @@ function itemLabel(p: string): string {
   return trimmed.split(/[/\\]/).filter(Boolean).pop() || p
 }
 
-async function navigatePicker(dir: string): Promise<boolean> {
+async function navigatePicker(rootId: string, relPath = '', rootPath?: string): Promise<boolean> {
+  if (!rootId) return false
   pickerCreating.value = false
   pickerNewName.value  = ''
   pickerLoading.value  = true
   try {
-    const q = dir ? `?dir=${encodeURIComponent(dir)}` : ''
+    const q = `?rootId=${encodeURIComponent(rootId)}&path=${encodeURIComponent(relPath)}`
     const res = await apiFetch(`/api/fs/list${q}`)
-    pickerPath.value   = res.data.path
+    if (rootPath) pickerRootPath.value = rootPath
+    pickerRootId.value = res.data.rootId
+    pickerRelPath.value = res.data.path
+    pickerPath.value   = joinDisplayPath(pickerRootPath.value, res.data.path)
     pickerParent.value = res.data.parent
     pickerItems.value  = res.data.items
     return true
   } catch (e: any) {
-    if (dir) show(e.message, 'error')
+    if (relPath || rootPath) show(e.message, 'error')
     return false
   } finally {
     pickerLoading.value = false
@@ -58,10 +83,11 @@ function cancelCreate() {
 
 async function confirmCreate() {
   const name = pickerNewName.value.trim()
-  if (!name) return
+  if (!name || !pickerRootId.value) return
   try {
-    const res = await apiFetch('/api/fs/mkdir', 'POST', { path: `${pickerPath.value}/${name}` })
-    await navigatePicker(res.data.path)
+    const path = pickerRelPath.value ? `${pickerRelPath.value}/${name}` : name
+    const res = await apiFetch('/api/fs/mkdir', 'POST', { rootId: pickerRootId.value, path })
+    await navigatePicker(res.data.rootId, res.data.path)
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -69,20 +95,33 @@ async function confirmCreate() {
 
 async function open(initialPath = '') {
   pickerPath.value      = ''
+  pickerRelPath.value   = ''
+  pickerRootPath.value  = ''
+  pickerRootId.value    = ''
   pickerParent.value    = null
   pickerItems.value     = []
   pickerQuickDirs.value = []
   pickerOpen.value      = true
-  apiFetch('/api/fs/quickdirs').then(r => { pickerQuickDirs.value = r.data ?? [] }).catch(() => {})
-  if (initialPath && await navigatePicker(initialPath)) return
-  await navigatePicker('')
+  const dirs = await apiFetch('/api/fs/quickdirs').then(r => r.data ?? []).catch(() => [])
+  pickerQuickDirs.value = dirs
+  let matched: { label: string; path: string; rootId: string; relPath: string } | undefined
+  if (initialPath) {
+    for (const dir of dirs) {
+      const relPath = relativeToRoot(dir.path, initialPath)
+      if (relPath === null) continue
+      if (!matched || dir.path.length > matched.path.length) matched = { ...dir, relPath }
+    }
+  }
+  if (matched && await navigatePicker(matched.rootId, matched.relPath, matched.path)) return
+  const first = dirs[0]
+  if (first) await navigatePicker(first.rootId, '', first.path)
 }
 
 function confirmPicker() {
   const selected = pickerPath.value
   if (!selected) return
   pickerOpen.value = false
-  emit('confirm', selected)
+  emit('confirm', selected, pickerRootId.value)
 }
 
 defineExpose({ open })
@@ -102,7 +141,7 @@ defineExpose({ open })
         :key="d.path"
         class="picker-quickdir-chip"
         :class="{ active: pickerPath === d.path }"
-        @click="navigatePicker(d.path)"
+        @click="navigatePicker(d.rootId, '', d.path)"
       >{{ d.label }}</button>
     </div>
 
@@ -112,7 +151,7 @@ defineExpose({ open })
         <div
           v-if="pickerParent !== null"
           class="picker-item picker-up"
-          @click="navigatePicker(pickerParent!)"
+          @click="navigatePicker(pickerRootId, pickerParent!)"
         >
           {{ t('directory.up_dir') }}
         </div>
@@ -134,7 +173,7 @@ defineExpose({ open })
           v-for="item in pickerItems"
           :key="item"
           class="picker-item"
-          @click="navigatePicker(item)"
+          @click="navigatePicker(pickerRootId, item)"
         >
           <span class="picker-icon">▶</span>{{ itemLabel(item) }}
         </div>
