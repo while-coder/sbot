@@ -166,7 +166,7 @@ export class SkillService implements ISkillService {
           }
 
           new UsageTracker(skill.path).recordUse();
-          const { stdout, stderr } = await execAsync(command, { cwd: skill.path, env: process.env, timeout: 60000, maxBuffer: 10 * 1024 * 1024 });
+          const { stdout, stderr } = await execAsync(command, { cwd: path.dirname(fullPath), env: process.env, timeout: 60000, maxBuffer: 10 * 1024 * 1024 });
 
           const result = [];
           if (stdout.trim()) result.push(createTextContent(stdout.trim()));
