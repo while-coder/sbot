@@ -348,7 +348,7 @@ function clampTreeSize(size: number, mode = resizeMode.value): number {
 }
 
 function syncResizeMode() {
-  const width = explorerEl.value?.clientWidth ?? window.innerWidth
+  const width = window.innerWidth
   const nextMode = width <= 768 ? 'vertical' : 'horizontal'
   resizeMode.value = nextMode
   if (nextMode === 'vertical') {
@@ -396,7 +396,14 @@ onMounted(() => {
 </script>
 
 <template>
-  <div ref="explorerEl" class="chatui-git-explorer" :class="{ 'chatui-git-explorer--resizing': resizing }">
+  <div
+    ref="explorerEl"
+    class="chatui-git-explorer"
+    :class="{
+      'chatui-git-explorer--resizing': resizing,
+      'chatui-git-explorer--vertical': resizeMode === 'vertical',
+    }"
+  >
     <STree class="chatui-explorer-tree" :style="treeStyle">
       <div v-if="!props.root" class="chatui-explorer-empty-tip">{{ L.explorerPickRootHint }}</div>
       <div v-else-if="gitLoading && gitItems.length === 0" class="chatui-explorer-empty-tip">{{ L.loading }}</div>
@@ -797,41 +804,40 @@ onMounted(() => {
   color: var(--chatui-diff-add-fg, #116329);
 }
 
-@media (max-width: 768px) {
-  .chatui-git-explorer { flex-direction: column; }
-  .chatui-explorer-tree {
-    width: 100% !important;
-    min-width: 0;
-    max-width: none;
-    min-height: 140px;
-    max-height: calc(100% - 180px);
-  }
-  .chatui-explorer-splitter {
-    width: 100%;
-    height: 8px;
-    margin: -4px 0;
-    cursor: row-resize;
-  }
-  .chatui-explorer-splitter::after {
-    top: 3px;
-    bottom: auto;
-    left: 0;
-    right: 0;
-    width: auto;
-    height: 1px;
-  }
-  .chatui-git-explorer--resizing .chatui-explorer-splitter {
-    cursor: row-resize;
-  }
-  .chatui-explorer-toolbar {
-    grid-template-columns: 1fr;
-    align-items: stretch;
-  }
-  .chatui-explorer-diff-tabs {
-    justify-self: start;
-  }
-  .chatui-explorer-git-toolbar-right {
-    justify-content: flex-start;
-  }
+.chatui-git-explorer--vertical { flex-direction: column; }
+.chatui-git-explorer--vertical .chatui-explorer-tree {
+  width: 100% !important;
+  min-width: 0;
+  max-width: none;
+  min-height: 140px;
+  max-height: calc(100% - 180px);
+  align-self: auto;
+}
+.chatui-git-explorer--vertical .chatui-explorer-splitter {
+  width: 100%;
+  height: 8px;
+  margin: -4px 0;
+  cursor: row-resize;
+}
+.chatui-git-explorer--vertical .chatui-explorer-splitter::after {
+  top: 3px;
+  bottom: auto;
+  left: 0;
+  right: 0;
+  width: auto;
+  height: 1px;
+}
+.chatui-git-explorer--vertical.chatui-git-explorer--resizing .chatui-explorer-splitter {
+  cursor: row-resize;
+}
+.chatui-git-explorer--vertical .chatui-explorer-toolbar {
+  grid-template-columns: 1fr;
+  align-items: stretch;
+}
+.chatui-git-explorer--vertical .chatui-explorer-diff-tabs {
+  justify-self: start;
+}
+.chatui-git-explorer--vertical .chatui-explorer-git-toolbar-right {
+  justify-content: flex-start;
 }
 </style>

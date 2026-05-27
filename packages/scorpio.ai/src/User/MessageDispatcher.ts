@@ -3,6 +3,7 @@ import { CommandContext, CommandRegistry, ICommand } from "../Command";
 import { AgentCancelledError } from "../Agents/AgentServiceBase";
 import { GlobalLoggerService, ILogger } from "../Logger";
 import type { MessageContent } from "../Saver/IAgentSaverService";
+import { truncateForLog } from "../Utils/contentUtils";
 
 export enum MessageType { Command = 'command', AI = 'ai' }
 
@@ -62,7 +63,7 @@ export abstract class MessageDispatcher {
                 if (e instanceof AgentCancelledError) {
                     this.logger?.info(`处理已取消[${logSuffix}]: ${queryText}`);
                 } else {
-                    this.logger?.error(`处理出错[${logSuffix}]: ${queryText} : ${e.message}\n${e.stack}`);
+                    this.logger?.error(`处理出错[${logSuffix}]: ${queryText} : ${truncateForLog(e.message)}\n${truncateForLog(e.stack)}`);
                 }
                 error = e;
             } finally {

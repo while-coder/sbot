@@ -27,6 +27,12 @@ export function isEmptyContent(content: MessageContent): boolean {
     return content.length === 0;
 }
 
+/** Truncate a string for safe logging (avoids dumping huge payloads like base64). */
+export function truncateForLog(s: string | undefined, maxLength = 2000): string {
+    if (!s) return '';
+    return s.length > maxLength ? s.slice(0, maxLength) + `...[truncated ${s.length - maxLength} chars]` : s;
+}
+
 /** Detect image MIME type from magic bytes. */
 export function detectImageMimeType(buffer: Buffer): string {
     if (buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) return 'image/jpeg';

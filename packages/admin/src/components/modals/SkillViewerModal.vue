@@ -62,6 +62,8 @@ defineExpose({ open })
 <style scoped>
 .skill-viewer-body {
   height: 70vh;
+  display: flex;
+  min-height: 0;
   overflow: hidden;
   margin: calc(-1 * var(--sui-sp-7)) calc(-1 * var(--sui-sp-8));
 }

@@ -15,7 +15,7 @@ import { ILoggerService } from "../../Logger";
 import { normalizeToMCPResult, MCPContentType, type MCPToolResult } from '../../Tools';
 import { AgentServiceBase, GraphNodeType, ToolApproval, IAgentCallback, AgentCancelledError, DEFAULT_MAX_HISTORY_TOKENS, ChatMessage, MessageRole, type TokenUsage } from "../AgentServiceBase";
 import type { MessageContent } from "../../Saver/IAgentSaverService";
-import { contentToString } from "../../Utils/contentUtils";
+import { contentToString, truncateForLog } from "../../Utils/contentUtils";
 
 export {
     GraphNodeType,
@@ -293,7 +293,7 @@ export class SingleAgentService extends AgentServiceBase {
                     additional_kwargs: thinkId ? { thinkId } : undefined,
                 });
             } catch (error: any) {
-                toolMessages.push({ role: MessageRole.Tool, tool_call_id: toolCall.id || "", content: `Execute Tool ${toolCall.name} Error: ${error.message}`, status: "error" });
+                toolMessages.push({ role: MessageRole.Tool, tool_call_id: toolCall.id || "", content: `Execute Tool ${toolCall.name} Error: ${truncateForLog(error.message)}`, status: "error" });
             }
         }
 

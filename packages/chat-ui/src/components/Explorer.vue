@@ -136,8 +136,14 @@ function refresh() {
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 0;
   overflow: hidden;
   background: var(--chatui-bg);
+}
+.chatui-explorer > :deep(.chatui-file-explorer),
+.chatui-explorer > :deep(.chatui-git-explorer) {
+  flex: 1 1 0;
+  min-height: 0;
 }
 .chatui-explorer-header {
   display: flex;

@@ -146,7 +146,7 @@ function isEmbeddedTool(msg: StoredMessage): boolean {
                 <span>▸</span><span>{{ L.think }}</span>
               </div>
             </div>
-            <ContentParts :content="msg.message.content" @open-image="openLightbox" />
+            <ContentParts :content="msg.message.content" plain @open-image="openLightbox" />
           </div>
         </div>
 
@@ -186,8 +186,10 @@ function isEmbeddedTool(msg: StoredMessage): boolean {
                 @click="toggleToolCall(tc.id)"
               >
                 <span class="tool-call-name">{{ tc.name }}</span>
-                <span v-if="inlineArgs(tc)" class="tool-call-inline-args">{{ inlineArgs(tc) }}</span>
-                <span v-if="toolResultPreviewMap.get(tc.id)" class="tool-call-result-preview">↳ {{ toolResultPreviewMap.get(tc.id) }}</span>
+                <span class="tool-call-summary">
+                  <span v-if="inlineArgs(tc)" class="tool-call-inline-args" :title="inlineArgs(tc)">{{ inlineArgs(tc) }}</span>
+                  <span v-if="toolResultPreviewMap.get(tc.id)" class="tool-call-result-preview" :title="toolResultPreviewMap.get(tc.id)">↳ {{ toolResultPreviewMap.get(tc.id) }}</span>
+                </span>
               </button>
               <div class="tool-call-detail" :class="{ show: isToolCallExpanded(tc.id) }">
                 <div class="tool-call-args">{{ JSON.stringify(tc.args, null, 2) }}</div>
@@ -427,33 +429,58 @@ function isEmbeddedTool(msg: StoredMessage): boolean {
   color: inherit;
   padding: 6px 10px;
   cursor: pointer;
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
   gap: 8px;
   font-weight: 500;
   font: inherit;
   text-align: left;
   user-select: none;
+  min-width: 0;
 }
 .tool-call-header::after {
   content: '▶';
   font-size: 10px;
   color: var(--chatui-fg-secondary);
-  margin-left: auto;
+  align-self: center;
 }
 .tool-call-header.expanded::after { content: '▼'; }
 .tool-call-name {
   font-family: monospace;
   font-size: 12px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--chatui-bg-code, var(--chatui-bg-soft));
+  color: var(--chatui-fg);
+  white-space: nowrap;
+  align-self: center;
+}
+.tool-call-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow: hidden;
+  padding-top: 2px;
 }
 .tool-call-inline-args {
   font-family: monospace;
   font-size: 11px;
   color: var(--chatui-fg-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 .tool-call-result-preview {
   font-size: 11px;
   color: var(--chatui-fg-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  opacity: 0.85;
 }
 .tool-call-header.expanded .tool-call-result-preview { display: none; }
 .tool-call-detail { display: none; }
