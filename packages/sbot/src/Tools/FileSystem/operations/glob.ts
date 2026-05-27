@@ -1,4 +1,4 @@
-import fs from 'fs';
+import fsAsync from 'fs/promises';
 import path from 'path';
 import { spawn } from 'child_process';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
@@ -11,6 +11,9 @@ import { loadPrompt } from '../../../Core/PromptLoader';
 const logger = LoggerService.getLogger('Tools/FileSystem/operations/glob.ts');
 
 const LIMIT = 100;
+
+// rg 默认排除目录（gitignore 语法）
+const RG_EXCLUDE_ARGS = [...EXCLUDE_DIRS].map(d => `--glob=!${d}`);
 
 // ─── glob 模式 → RegExp（支持 ** / * / ?）────────────────────────────────────
 function hasPathPattern(pattern: string): boolean {
@@ -39,62 +42,102 @@ function globToRegex(pattern: string): RegExp {
     return new RegExp('^' + re + '$', 'i');
 }
 
-// ─── ripgrep 搜索（--files 模式）──────────────────────────────────────────────
+// ─── ripgrep 搜索（流式 + 达到上限即终止）──────────────────────────────────
 function searchWithRg(dir: string, pattern: string, includeHidden: boolean): Promise<Array<{ path: string; mtime: number }>> {
     return new Promise((resolve, reject) => {
-        const args = ['--files', '--glob=!.git/*', `--iglob=${pattern}`];
+        const args = ['--files', ...RG_EXCLUDE_ARGS, `--iglob=${pattern}`];
         if (includeHidden) args.push('--hidden');
         args.push(dir);
 
         const proc = spawn('rg', args);
-        let stdout = '';
+        const files: Array<{ path: string; mtime: number }> = [];
+        let killed = false;
+        let buffer = '';
         let stderr = '';
-        proc.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
-        proc.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
-        proc.on('error', reject);
-        proc.on('close', code => {
-            if (code === 1) return resolve([]);
-            if (code === 2 && !stdout.trim()) return reject(new Error(`ripgrep: ${stderr.trim()}`));
-            const files: Array<{ path: string; mtime: number }> = [];
-            for (const line of stdout.trim().split(/\r?\n/)) {
-                if (!line) continue;
-                let mtime = 0;
-                try { mtime = fs.statSync(line).mtimeMs; } catch { /* skip */ }
-                files.push({ path: line, mtime });
+        let pending = 0;
+        let submitted = 0;
+        let closed = false;
+        let exitCode: number | null = null;
+
+        const stop = () => {
+            if (killed) return;
+            killed = true;
+            try { proc.kill('SIGTERM'); } catch { /* ignore */ }
+        };
+
+        const tryResolve = () => {
+            if (closed && pending === 0) {
+                if (!killed && exitCode !== 0 && exitCode !== 1 && files.length === 0) {
+                    return reject(new Error(`ripgrep: ${stderr.trim() || `exit ${exitCode}`}`));
+                }
+                resolve(files);
             }
-            resolve(files);
+        };
+
+        const processLine = (line: string): boolean => {
+            if (!line) return true;
+            if (submitted >= LIMIT) return false;
+            submitted++;
+            pending++;
+            fsAsync.stat(line)
+                .then(s => { files.push({ path: line, mtime: s.mtimeMs }); })
+                .catch(() => { files.push({ path: line, mtime: 0 }); })
+                .finally(() => { pending--; tryResolve(); });
+            return submitted < LIMIT;
+        };
+
+        proc.stdout.on('data', (d: Buffer) => {
+            if (killed) return;
+            buffer += d.toString();
+            let idx;
+            while ((idx = buffer.indexOf('\n')) !== -1) {
+                const line = buffer.slice(0, idx).replace(/\r$/, '');
+                buffer = buffer.slice(idx + 1);
+                if (!processLine(line)) { stop(); return; }
+            }
+        });
+        proc.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
+        proc.on('error', e => reject(e));
+        proc.on('close', code => {
+            if (!killed && buffer) processLine(buffer.replace(/\r$/, ''));
+            closed = true;
+            exitCode = code;
+            tryResolve();
         });
     });
 }
 
-// ─── Node.js fallback ─────────────────────────────────────────────────────────
-function searchWithNodeJs(dir: string, pattern: string, includeHidden: boolean): Array<{ path: string; mtime: number }> {
+// ─── Node.js fallback（全异步，避免阻塞事件循环）────────────────────────────
+async function searchWithNodeJs(dir: string, pattern: string, includeHidden: boolean): Promise<Array<{ path: string; mtime: number }>> {
     const useFullPath = hasPathPattern(pattern);
     const regex = globToRegex(pattern);
     const results: Array<{ path: string; mtime: number }> = [];
 
-    function walk(d: string) {
-        try {
-            for (const entry of fs.readdirSync(d, { withFileTypes: true })) {
-                if (!includeHidden && entry.name.startsWith('.')) continue;
-                const full = path.join(d, entry.name);
-                if (entry.isDirectory()) {
-                    if (EXCLUDE_DIRS.has(entry.name)) continue;
-                    walk(full);
-                } else if (entry.isFile()) {
-                    const testStr = useFullPath
-                        ? path.relative(dir, full).replace(/\\/g, '/')
-                        : entry.name;
-                    if (regex.test(testStr)) {
-                        let mtime = 0;
-                        try { mtime = fs.statSync(full).mtimeMs; } catch { /* skip */ }
-                        results.push({ path: full, mtime });
-                    }
+    async function walk(d: string): Promise<boolean> {
+        let entries;
+        try { entries = await fsAsync.readdir(d, { withFileTypes: true }); }
+        catch (e: any) { logger.warn(`Cannot access ${d}: ${e.message}`); return true; }
+        for (const entry of entries) {
+            if (results.length >= LIMIT) return false;
+            if (!includeHidden && entry.name.startsWith('.')) continue;
+            const full = path.join(d, entry.name);
+            if (entry.isDirectory()) {
+                if (EXCLUDE_DIRS.has(entry.name)) continue;
+                if (!await walk(full)) return false;
+            } else if (entry.isFile()) {
+                const testStr = useFullPath
+                    ? path.relative(dir, full).replace(/\\/g, '/')
+                    : entry.name;
+                if (regex.test(testStr)) {
+                    let mtime = 0;
+                    try { mtime = (await fsAsync.stat(full)).mtimeMs; } catch { /* skip */ }
+                    results.push({ path: full, mtime });
                 }
             }
-        } catch (e: any) { logger.warn(`Cannot access ${d}: ${e.message}`); }
+        }
+        return true;
     }
-    walk(dir);
+    await walk(dir);
     return results;
 }
 
@@ -118,7 +161,7 @@ export function createGlobTool(): StructuredToolInterface {
                 if (await checkRg()) {
                     files = await searchWithRg(abs, pattern, includeHidden);
                 } else {
-                    files = searchWithNodeJs(abs, pattern, includeHidden);
+                    files = await searchWithNodeJs(abs, pattern, includeHidden);
                 }
 
                 files.sort((a, b) => b.mtime - a.mtime);
