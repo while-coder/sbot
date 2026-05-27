@@ -52,7 +52,8 @@ export class WebSocketSessionHandler extends ChannelSessionHandler {
 
     async onChatMessage(message: ChatMessage, _args: ChannelMessageArgs): Promise<void> {
         const thinkId = message.additional_kwargs?.thinkId as string | undefined;
-        this.emit(WebChatEventType.Message, { message, thinkId, createdAt: Date.now() / 1000 });
+        const taskId = message.additional_kwargs?.taskId as string | undefined;
+        this.emit(WebChatEventType.Message, { message, thinkId, taskId, createdAt: Date.now() / 1000 });
     }
 
     async onStreamMessage(message: ChatMessage, _args: ChannelMessageArgs): Promise<void> {

@@ -427,7 +427,7 @@ export type ChatEvent =
   | { type: ChatEventType.ConnectionStatus; online: boolean }
   | { type: ChatEventType.Human; sessionId: string; data: { content: DisplayContent } }
   | { type: ChatEventType.Stream; sessionId: string; data: { content: DisplayContent } }
-  | { type: ChatEventType.Message; sessionId: string; data: { message: ChatMessage; thinkId?: string; createdAt: number } }
+  | { type: ChatEventType.Message; sessionId: string; data: { message: ChatMessage; thinkId?: string; taskId?: string; createdAt: number } }
   | { type: ChatEventType.ToolCall; sessionId: string; data: ToolCallEvent }
   | { type: ChatEventType.Ask; sessionId: string; data: AskEvent }
   | { type: ChatEventType.Queue; sessionId: string; data: { pendingMessages: DisplayContent[] } }
