@@ -271,6 +271,7 @@ export class SingleAgentService extends AgentServiceBase {
                 this.logger?.info(`执行工具结束 ${tool.name} 结果: ${truncate(resultStr, 300)}`);
 
                 const thinkId = mcpResult._meta?.thinkId;
+                const taskId = mcpResult._meta?.taskId;
                 // 将 MCP 结果转为 MessageContent：单条纯文本直接用 string，否则转为多模态数组
                 const content: MessageContent = !mcpResult.isError && mcpResult.content.length === 1 && mcpResult.content[0].type === MCPContentType.Text
                     ? mcpResult.content[0].text
@@ -285,12 +286,15 @@ export class SingleAgentService extends AgentServiceBase {
                         return item;
                     });
 
+                const extra: Record<string, unknown> = {};
+                if (thinkId) extra.thinkId = thinkId;
+                if (taskId) extra.taskId = taskId;
                 toolMessages.push({
                     role: MessageRole.Tool,
                     tool_call_id: toolCall.id || "",
                     content,
                     status: mcpResult.isError ? "error" : "success",
-                    additional_kwargs: thinkId ? { thinkId } : undefined,
+                    additional_kwargs: Object.keys(extra).length > 0 ? extra : undefined,
                 });
             } catch (error: any) {
                 toolMessages.push({ role: MessageRole.Tool, tool_call_id: toolCall.id || "", content: `Execute Tool ${toolCall.name} Error: ${truncateForLog(error.message)}`, status: "error" });
@@ -351,10 +355,13 @@ export class SingleAgentService extends AgentServiceBase {
 
                     for (const message of messages) {
                         outputMessages.push(message);
-                        // 压入历史：从 additional_kwargs 中取出 thinkId 作为独立参数，不存入消息体
+                        // 压入历史：从 additional_kwargs 中取出 thinkId / taskId 作为独立参数，不存入消息体
                         const thinkId = message.additional_kwargs?.thinkId as string | undefined;
+                        const taskId = message.additional_kwargs?.taskId as string | undefined;
                         if (thinkId) delete message.additional_kwargs!.thinkId;
-                        await this.saverService.pushMessage(message, thinkId ? { thinkId } : undefined);
+                        if (taskId) delete message.additional_kwargs!.taskId;
+                        const pushOptions = thinkId || taskId ? { thinkId, taskId } : undefined;
+                        await this.saverService.pushMessage(message, pushOptions);
 
                         if (message.role === MessageRole.AI) {
                             const text = contentToString(message.content);
@@ -362,9 +369,16 @@ export class SingleAgentService extends AgentServiceBase {
                         }
 
                         if (callback.onMessage) {
-                            if (thinkId) message.additional_kwargs = { ...message.additional_kwargs, thinkId };
+                            if (thinkId || taskId) {
+                                message.additional_kwargs = { ...message.additional_kwargs };
+                                if (thinkId) message.additional_kwargs.thinkId = thinkId;
+                                if (taskId) message.additional_kwargs.taskId = taskId;
+                            }
                             await callback.onMessage(message);
-                            if (thinkId && message.additional_kwargs) delete message.additional_kwargs.thinkId;
+                            if (message.additional_kwargs) {
+                                if (thinkId) delete message.additional_kwargs.thinkId;
+                                if (taskId) delete message.additional_kwargs.taskId;
+                            }
                         }
                     }
                 }

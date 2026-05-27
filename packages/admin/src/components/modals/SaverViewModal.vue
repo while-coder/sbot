@@ -39,6 +39,12 @@ function thinksUrl() {
   return `/api/savers/${encodeURIComponent(saverId.value)}/threads/${encodeURIComponent(threadId.value)}/thinks`
 }
 
+function tasksUrl() {
+  if (dbId.value) return `/api/channel-sessions/${dbId.value}/tasks`
+  if (sessionId.value) return `/api/sessions/${encodeURIComponent(sessionId.value)}/tasks`
+  return `/api/savers/${encodeURIComponent(saverId.value)}/threads/${encodeURIComponent(threadId.value)}/tasks`
+}
+
 async function load() {
   loading.value = true
   try {
@@ -129,7 +135,7 @@ defineExpose({ open, openSession, openByDbId })
 
     <div v-if="loading" class="modal-loading">{{ t('common.loading') }}</div>
     <div v-else-if="displayedMessages.length === 0" class="modal-empty">{{ t('savers.no_history') }}</div>
-    <MessageList v-else :messages="displayedMessages" :thinks-url-prefix="thinksUrl()" show-date-separators />
+    <MessageList v-else :messages="displayedMessages" :thinks-url-prefix="thinksUrl()" :tasks-url-prefix="tasksUrl()" show-date-separators />
   </SModal>
 </template>
 

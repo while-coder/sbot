@@ -10,12 +10,14 @@ const { t } = useI18n()
 const props = withDefaults(defineProps<{
   messages: StoredMessage[]
   thinksUrlPrefix?: string | null
+  tasksUrlPrefix?: string | null
   showDateSeparators?: boolean
   isStreaming?: boolean
   streamingContent?: string | any[]
   queuedMessages?: (string | any[])[]
 }>(), {
   thinksUrlPrefix: null,
+  tasksUrlPrefix: null,
   showDateSeparators: false,
   isStreaming: false,
   streamingContent: '',
@@ -50,6 +52,7 @@ async function fetchFn(url: string) {
     <ChatUiMessageList
       :messages="messages"
       :thinks-url-prefix="thinksUrlPrefix"
+      :tasks-url-prefix="tasksUrlPrefix"
       :show-date-separators="showDateSeparators"
       :is-streaming="isStreaming"
       :streaming-content="streamingContent"

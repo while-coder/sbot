@@ -118,6 +118,7 @@ export class AgentFileSaver implements IAgentSaverService {
             message,
             createdAt: Math.floor(Date.now() / 1000),
             thinkId: options?.thinkId,
+            taskId: options?.taskId,
             kind: options?.kind ?? MessageKind.Normal,
         });
         await this.writeThreadFile(file);

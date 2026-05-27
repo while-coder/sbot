@@ -22,6 +22,7 @@ const props = withDefaults(defineProps<{
   pendingToolCall: ToolCallEvent | null
   pendingAsk: AskEvent | null
   thinksUrlPrefix?: string | null
+  tasksUrlPrefix?: string | null
   labels?: ChatLabels
   showAttachments?: boolean
   hasSaver: boolean
@@ -31,6 +32,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   showAttachments: false,
   thinksUrlPrefix: null,
+  tasksUrlPrefix: null,
   usage: null,
 })
 
@@ -182,6 +184,7 @@ defineExpose({ scrollToBottom })
       <MessageList
         :messages="messages"
         :thinks-url-prefix="thinksUrlPrefix"
+        :tasks-url-prefix="tasksUrlPrefix"
         :is-streaming="isStreaming"
         :streaming-content="streamingContent"
         :queued-messages="queuedMessages"

@@ -78,6 +78,11 @@ export class AgentSqliteSaver implements IAgentSaverService {
                 this._db.exec(`ALTER TABLE messages ADD COLUMN kind TEXT`);
             } catch { /* 列已存在，忽略 */ }
 
+            // Schema 迁移：添加 task_id 列（用于 UI 在 think 与 task 视图间切换）
+            try {
+                this._db.exec(`ALTER TABLE messages ADD COLUMN task_id TEXT`);
+            } catch { /* 列已存在，忽略 */ }
+
             // FTS5 全文搜索索引
             this._db.exec(`
                 CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
@@ -108,12 +113,13 @@ export class AgentSqliteSaver implements IAgentSaverService {
     }
 
     async pushMessage(message: ChatMessage, options?: ChatMessageOptions): Promise<void> {
-        this.db.prepare("INSERT INTO messages (data, created_at, think_id, kind) VALUES (?, ?, ?, ?)")
+        this.db.prepare("INSERT INTO messages (data, created_at, think_id, kind, task_id) VALUES (?, ?, ?, ?, ?)")
             .run(
                 JSON.stringify(message),
                 Math.floor(Date.now() / 1000),
                 options?.thinkId ?? null,
                 options?.kind ?? MessageKind.Normal,
+                options?.taskId ?? null,
             );
     }
 
@@ -122,15 +128,16 @@ export class AgentSqliteSaver implements IAgentSaverService {
             const filter = includeAll
                 ? ""
                 : " WHERE kind IS NULL OR kind = 'normal'";
-            const sql = `SELECT id, data, created_at, think_id, kind FROM messages${filter} ORDER BY id`;
+            const sql = `SELECT id, data, created_at, think_id, kind, task_id FROM messages${filter} ORDER BY id`;
             const rows = this.db
                 .prepare(sql)
-                .all() as { id: number; data: string; created_at: number; think_id: string | null; kind: string | null }[];
+                .all() as { id: number; data: string; created_at: number; think_id: string | null; kind: string | null; task_id: string | null }[];
             return rows.map((r) => ({
                 id: r.id,
                 message: JSON.parse(r.data) as ChatMessage,
                 createdAt: r.created_at,
                 thinkId: r.think_id ?? undefined,
+                taskId: r.task_id ?? undefined,
                 kind: (r.kind as MessageKind | null) ?? MessageKind.Normal,
             }));
         } catch (error: any) {
@@ -148,12 +155,13 @@ export class AgentSqliteSaver implements IAgentSaverService {
         const txn = this.db.transaction(() => {
             const placeholders = compactedIds.map(() => '?').join(',');
             this.db.prepare(`UPDATE messages SET kind = 'archive' WHERE id IN (${placeholders})`).run(...compactedIds);
-            this.db.prepare("INSERT INTO messages (data, created_at, think_id, kind) VALUES (?, ?, ?, ?)")
+            this.db.prepare("INSERT INTO messages (data, created_at, think_id, kind, task_id) VALUES (?, ?, ?, ?, ?)")
                 .run(
                     JSON.stringify(summary.message),
                     Math.floor(Date.now() / 1000),
                     summary.thinkId ?? null,
                     summary.kind,
+                    summary.taskId ?? null,
                 );
         });
         txn();
@@ -165,18 +173,19 @@ export class AgentSqliteSaver implements IAgentSaverService {
         const fts = query.map(group => `(${group.map(escape).join(' OR ')})`).join(' AND ');
         try {
             const rows = this.db.prepare(`
-                SELECT m.id, m.data, m.created_at, m.think_id
+                SELECT m.id, m.data, m.created_at, m.think_id, m.task_id
                 FROM messages_fts fts
                 JOIN messages m ON m.id = fts.rowid
                 WHERE messages_fts MATCH ? AND m.kind = 'archive'
                 ORDER BY rank
                 LIMIT ?
-            `).all(fts, limit) as { id: number; data: string; created_at: number; think_id: string | null }[];
+            `).all(fts, limit) as { id: number; data: string; created_at: number; think_id: string | null; task_id: string | null }[];
             return rows.map((r) => ({
                 id: r.id,
                 message: JSON.parse(r.data) as ChatMessage,
                 createdAt: r.created_at,
                 thinkId: r.think_id ?? undefined,
+                taskId: r.task_id ?? undefined,
                 kind: MessageKind.Archive,
             }));
         } catch (error: any) {

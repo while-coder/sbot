@@ -80,6 +80,7 @@ export type MCPToolResult = {
  */
 export type MCPToolResultMeta = {
     thinkId?: string;
+    taskId?: string;
 };
 
 /**

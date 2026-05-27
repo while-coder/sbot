@@ -223,6 +223,10 @@ export class WebSocketTransport implements IChatTransport {
     return `${this._baseUrl}/api/sessions/${encodeURIComponent(sessionId)}/thinks`
   }
 
+  getTasksUrlPrefix(sessionId: string): string | null {
+    return `${this._baseUrl}/api/sessions/${encodeURIComponent(sessionId)}/tasks`
+  }
+
   async fetchThinks(url: string): Promise<any> {
     const res = await fetch(url)
     if (!res.ok) throw new Error(res.statusText)

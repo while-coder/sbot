@@ -75,6 +75,10 @@ const thinksUrlPrefix = computed(() =>
   activeSessionId.value ? props.transport.getThinksUrlPrefix(activeSessionId.value) : null,
 )
 
+const tasksUrlPrefix = computed(() =>
+  activeSessionId.value ? (props.transport.getTasksUrlPrefix?.(activeSessionId.value) ?? null) : null,
+)
+
 const contextWindow = computed<number | undefined>(() => {
   const agentId = activeSession.value?.agent
   const modelId = agentId ? settings.value.agents?.[agentId]?.model : undefined
@@ -651,6 +655,7 @@ onBeforeUnmount(() => {
           :pending-tool-call="pendingToolCall"
           :pending-ask="pendingAsk"
           :thinks-url-prefix="thinksUrlPrefix"
+          :tasks-url-prefix="tasksUrlPrefix"
           :labels="labels"
           :show-attachments="showAttachments"
           :has-saver="hasSaver"

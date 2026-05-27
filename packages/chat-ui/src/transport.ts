@@ -42,5 +42,6 @@ export interface IChatTransport {
   gitDiff(root: string, path: string, fullContent?: boolean): Promise<GitDiffResult>
 
   getThinksUrlPrefix(sessionId: string): string | null
+  getTasksUrlPrefix?(sessionId: string): string | null
   fetchThinks?(url: string): Promise<any>
 }

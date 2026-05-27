@@ -83,6 +83,9 @@ export class AgentPostgresSaver implements IAgentSaverService {
         try {
             await this.pool.query(`ALTER TABLE ${this.table} ADD COLUMN kind TEXT`);
         } catch { /* column already exists */ }
+        try {
+            await this.pool.query(`ALTER TABLE ${this.table} ADD COLUMN task_id TEXT`);
+        } catch { /* column already exists */ }
         await this.pool.query(
             `CREATE INDEX IF NOT EXISTS idx_${this.table}_fts ON ${this.table} USING gin(to_tsvector('simple', data))`
         );
@@ -91,12 +94,13 @@ export class AgentPostgresSaver implements IAgentSaverService {
     async pushMessage(message: ChatMessage, options?: ChatMessageOptions): Promise<void> {
         await this.ensureSetup();
         await this.pool.query(
-            `INSERT INTO ${this.table} (data, created_at, think_id, kind) VALUES ($1, $2, $3, $4)`,
+            `INSERT INTO ${this.table} (data, created_at, think_id, kind, task_id) VALUES ($1, $2, $3, $4, $5)`,
             [
                 JSON.stringify(message),
                 Math.floor(Date.now() / 1000),
                 options?.thinkId ?? null,
                 options?.kind ?? MessageKind.Normal,
+                options?.taskId ?? null,
             ]
         );
     }
@@ -107,13 +111,14 @@ export class AgentPostgresSaver implements IAgentSaverService {
             const filter = includeAll
                 ? ""
                 : ` WHERE kind IS NULL OR kind = 'normal'`;
-            const sql = `SELECT id, data, created_at, think_id, kind FROM ${this.table}${filter} ORDER BY id`;
+            const sql = `SELECT id, data, created_at, think_id, kind, task_id FROM ${this.table}${filter} ORDER BY id`;
             const result = await this.pool.query(sql);
             return result.rows.map((r: any) => ({
                 id: parseInt(r.id),
                 message: JSON.parse(r.data) as ChatMessage,
                 createdAt: r.created_at,
                 thinkId: r.think_id ?? undefined,
+                taskId: r.task_id ?? undefined,
                 kind: (r.kind as MessageKind | null) ?? MessageKind.Normal,
             }));
         } catch (error: any) {
@@ -137,12 +142,13 @@ export class AgentPostgresSaver implements IAgentSaverService {
                 compactedIds,
             );
             await this.pool.query(
-                `INSERT INTO ${this.table} (data, created_at, think_id, kind) VALUES ($1, $2, $3, $4)`,
+                `INSERT INTO ${this.table} (data, created_at, think_id, kind, task_id) VALUES ($1, $2, $3, $4, $5)`,
                 [
                     JSON.stringify(summary.message),
                     Math.floor(Date.now() / 1000),
                     summary.thinkId ?? null,
                     summary.kind,
+                    summary.taskId ?? null,
                 ]
             );
             await this.pool.query(`COMMIT`);
@@ -168,7 +174,7 @@ export class AgentPostgresSaver implements IAgentSaverService {
         try {
             const result = await this.pool.query(
                 `WITH q AS (SELECT (${tsq}) AS query)
-                 SELECT m.id, m.data, m.created_at, m.think_id
+                 SELECT m.id, m.data, m.created_at, m.think_id, m.task_id
                  FROM ${this.table} m, q
                  WHERE to_tsvector('simple', m.data) @@ q.query AND m.kind = 'archive'
                  ORDER BY ts_rank(to_tsvector('simple', m.data), q.query) DESC
@@ -180,6 +186,7 @@ export class AgentPostgresSaver implements IAgentSaverService {
                 message: JSON.parse(r.data) as ChatMessage,
                 createdAt: r.created_at,
                 thinkId: r.think_id ?? undefined,
+                taskId: r.task_id ?? undefined,
                 kind: MessageKind.Archive,
             }));
         } catch (error: any) {

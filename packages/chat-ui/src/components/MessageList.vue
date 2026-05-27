@@ -29,15 +29,17 @@ import ImageLightbox from './ImageLightbox.vue'
 const props = withDefaults(defineProps<{
   messages: StoredMessage[]
   thinksUrlPrefix?: string | null
+  tasksUrlPrefix?: string | null
   showDateSeparators?: boolean
   isStreaming?: boolean
   streamingContent?: DisplayContent
   queuedMessages?: DisplayContent[]
   labels?: ChatLabels
   fetchFn?: (url: string) => Promise<any>
-  onThinkClick?: (thinkId: string) => void
+  onThinkClick?: (thinkId: string, taskId?: string) => void
 }>(), {
   thinksUrlPrefix: null,
+  tasksUrlPrefix: null,
   showDateSeparators: false,
   isStreaming: false,
   streamingContent: '',
@@ -108,9 +110,9 @@ const lightboxRef = ref<InstanceType<typeof ImageLightbox>>()
 const openLightbox = (src: string) => lightboxRef.value?.open(src)
 
 const thinkDrawerRef = ref<InstanceType<typeof ThinkDrawer>>()
-function openThink(thinkId: string) {
-  if (props.onThinkClick) props.onThinkClick(thinkId)
-  else thinkDrawerRef.value?.open(thinkId)
+function openThink(thinkId: string, taskId?: string) {
+  if (props.onThinkClick) props.onThinkClick(thinkId, taskId)
+  else thinkDrawerRef.value?.open(thinkId, taskId)
 }
 
 function findToolResult(toolCallId: string): StoredMessage | undefined {
@@ -142,7 +144,7 @@ function isEmbeddedTool(msg: StoredMessage): boolean {
               <span v-if="isCommand(msg)" class="msg-kind-tag msg-kind-command">{{ L.commandTag }}</span>
               <span v-if="isException(msg)" class="msg-kind-tag msg-kind-exception">{{ L.exceptionTag }}</span>
               <span v-if="msg.createdAt" class="msg-time">{{ fmtTs(msg.createdAt) }}</span>
-              <div v-if="msg.thinkId && thinksUrlPrefix" class="think-toggle think-toggle-human" @click="openThink(msg.thinkId!)">
+              <div v-if="msg.thinkId && thinksUrlPrefix" class="think-toggle think-toggle-human" @click="openThink(msg.thinkId!, msg.taskId)">
                 <span>▸</span><span>{{ L.think }}</span>
               </div>
             </div>
@@ -159,7 +161,7 @@ function isEmbeddedTool(msg: StoredMessage): boolean {
               <span v-if="isCommand(msg)" class="msg-kind-tag msg-kind-command">{{ L.commandTag }}</span>
               <span v-if="isException(msg)" class="msg-kind-tag msg-kind-exception">{{ L.exceptionTag }}</span>
               <span v-if="msg.createdAt" class="msg-time">{{ fmtTs(msg.createdAt) }}</span>
-              <div v-if="msg.thinkId && thinksUrlPrefix" class="think-toggle" @click="openThink(msg.thinkId!)">
+              <div v-if="msg.thinkId && thinksUrlPrefix" class="think-toggle" @click="openThink(msg.thinkId!, msg.taskId)">
                 <span>▸</span><span>{{ L.think }}</span>
               </div>
             </div>
@@ -173,7 +175,7 @@ function isEmbeddedTool(msg: StoredMessage): boolean {
               <span v-if="isArchived(msg) && !msg.message.content" class="msg-archived-tag">{{ L.archivedTag }}</span>
               <span v-if="isCommand(msg) && !msg.message.content" class="msg-kind-tag msg-kind-command">{{ L.commandTag }}</span>
               <span v-if="isException(msg) && !msg.message.content" class="msg-kind-tag msg-kind-exception">{{ L.exceptionTag }}</span>
-              <div v-if="msg.thinkId && thinksUrlPrefix && !msg.message.content" class="think-toggle" @click="openThink(msg.thinkId!)">
+              <div v-if="msg.thinkId && thinksUrlPrefix && !msg.message.content" class="think-toggle" @click="openThink(msg.thinkId!, msg.taskId)">
                 <span>▸</span><span>{{ L.think }}</span>
               </div>
             </div>
@@ -198,7 +200,7 @@ function isEmbeddedTool(msg: StoredMessage): boolean {
                     <div class="tool-call-result-top">
                       <div class="tool-call-result-label">{{ L.toolResult }}</div>
                       <div v-if="findToolResult(tc.id)?.thinkId && thinksUrlPrefix"
-                        class="think-toggle" @click="openThink(findToolResult(tc.id)!.thinkId!)">
+                        class="think-toggle" @click="openThink(findToolResult(tc.id)!.thinkId!, findToolResult(tc.id)!.taskId)">
                         <span>▸</span><span>{{ L.think }}</span>
                       </div>
                     </div>
@@ -267,6 +269,7 @@ function isEmbeddedTool(msg: StoredMessage): boolean {
       v-if="thinksUrlPrefix"
       ref="thinkDrawerRef"
       :thinks-url-prefix="thinksUrlPrefix"
+      :tasks-url-prefix="tasksUrlPrefix"
       :labels="labels"
       :fetch-fn="fetchFn"
     />

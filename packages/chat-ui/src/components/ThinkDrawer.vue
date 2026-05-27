@@ -6,16 +6,29 @@ import MessageList from './MessageList.vue'
 
 const props = withDefaults(defineProps<{
   thinksUrlPrefix: string
+  tasksUrlPrefix?: string | null
   labels?: ChatLabels
   fetchFn?: (url: string) => Promise<any>
 }>(), {
+  tasksUrlPrefix: null,
   fetchFn: undefined,
 })
 
 const L = computed(() => resolveLabels(props.labels))
 
+interface ThinkLayer {
+  id: string
+  messages: StoredMessage[]
+  loading: boolean
+  taskId: string | null
+  view: 'think' | 'task'
+  taskMessages: StoredMessage[]
+  taskLoading: boolean
+  taskLoaded: boolean
+}
+
 const visible = ref(false)
-const thinkStack = ref<{ id: string; messages: StoredMessage[]; loading: boolean }[]>([])
+const thinkStack = ref<ThinkLayer[]>([])
 const drawerEl = ref<HTMLElement | null>(null)
 
 function doFetch(url: string): Promise<any> {
@@ -23,17 +36,27 @@ function doFetch(url: string): Promise<any> {
   return fetch(url).then(r => r.json())
 }
 
-async function open(thinkId: string) {
+async function open(thinkId: string, taskId?: string) {
   const existing = thinkStack.value.find(s => s.id === thinkId)
   if (existing) return
 
-  thinkStack.value.push({ id: thinkId, messages: [] as StoredMessage[], loading: true })
+  thinkStack.value.push({
+    id: thinkId,
+    messages: [],
+    loading: true,
+    taskId: taskId ?? null,
+    view: 'think',
+    taskMessages: [],
+    taskLoading: false,
+    taskLoaded: false,
+  })
   visible.value = true
 
   const layer = thinkStack.value[thinkStack.value.length - 1]
   try {
     const res = await doFetch(`${props.thinksUrlPrefix}/${encodeURIComponent(thinkId)}`)
-    layer.messages = res.data || []
+    const payload = res.data
+    layer.messages = Array.isArray(payload) ? payload : (payload?.messages || [])
   } catch {
     layer.messages = []
   } finally {
@@ -45,6 +68,27 @@ async function open(thinkId: string) {
   }
 }
 
+async function loadTask(layer: ThinkLayer) {
+  if (!layer.taskId || !props.tasksUrlPrefix || layer.taskLoaded || layer.taskLoading) return
+  layer.taskLoading = true
+  try {
+    const res = await doFetch(`${props.tasksUrlPrefix}/${encodeURIComponent(layer.taskId)}`)
+    const payload = res.data
+    layer.taskMessages = Array.isArray(payload) ? payload : (payload?.messages || [])
+    layer.taskLoaded = true
+  } catch {
+    layer.taskMessages = []
+  } finally {
+    layer.taskLoading = false
+  }
+}
+
+async function setView(layer: ThinkLayer, view: 'think' | 'task') {
+  if (layer.view === view) return
+  layer.view = view
+  if (view === 'task') await loadTask(layer)
+}
+
 function popLayer() {
   thinkStack.value.pop()
   if (thinkStack.value.length === 0) visible.value = false
@@ -54,6 +98,22 @@ function close() {
   visible.value = false
   thinkStack.value = []
 }
+
+const currentLayer = computed(() => thinkStack.value[thinkStack.value.length - 1])
+const currentMessages = computed(() => {
+  const l = currentLayer.value
+  if (!l) return []
+  return l.view === 'task' ? l.taskMessages : l.messages
+})
+const currentLoading = computed(() => {
+  const l = currentLayer.value
+  if (!l) return false
+  return l.view === 'task' ? l.taskLoading : l.loading
+})
+const showTabs = computed(() => {
+  const l = currentLayer.value
+  return !!(l && l.taskId && props.tasksUrlPrefix)
+})
 
 defineExpose({ open })
 </script>
@@ -72,6 +132,27 @@ defineExpose({ open })
             <button class="think-drawer-close" @click="close">×</button>
           </div>
 
+          <div v-if="showTabs && currentLayer" class="think-drawer-tabs">
+            <button
+              type="button"
+              class="think-drawer-tab"
+              :class="{ active: currentLayer.view === 'think' }"
+              @click="setView(currentLayer, 'think')"
+            >
+              {{ L.think }}
+              <span class="tab-count">{{ currentLayer.messages.length }}</span>
+            </button>
+            <button
+              type="button"
+              class="think-drawer-tab"
+              :class="{ active: currentLayer.view === 'task' }"
+              @click="setView(currentLayer, 'task')"
+            >
+              Task
+              <span v-if="currentLayer.taskLoaded" class="tab-count">{{ currentLayer.taskMessages.length }}</span>
+            </button>
+          </div>
+
           <div v-if="thinkStack.length > 1" class="think-drawer-breadcrumb">
             <span v-for="(layer, i) in thinkStack" :key="layer.id" class="think-breadcrumb-item">
               <span v-if="i > 0" class="think-breadcrumb-sep">›</span>
@@ -80,14 +161,15 @@ defineExpose({ open })
           </div>
 
           <div class="think-drawer-body">
-            <template v-if="thinkStack.length > 0">
-              <div v-if="thinkStack[thinkStack.length - 1].loading" class="think-drawer-loading">
+            <template v-if="currentLayer">
+              <div v-if="currentLoading" class="think-drawer-loading">
                 {{ L.loading }}
               </div>
               <MessageList
                 v-else
-                :messages="thinkStack[thinkStack.length - 1].messages"
+                :messages="currentMessages"
                 :thinks-url-prefix="thinksUrlPrefix"
+                :tasks-url-prefix="tasksUrlPrefix"
                 :labels="labels"
                 :fetch-fn="fetchFn"
                 :on-think-click="open"
@@ -156,6 +238,45 @@ defineExpose({ open })
 .think-drawer-close:hover {
   background: var(--chatui-bg-hover);
   color: var(--chatui-fg-primary);
+}
+.think-drawer-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--chatui-border-subtle);
+  flex-shrink: 0;
+}
+.think-drawer-tab {
+  flex: 0 0 auto;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--chatui-fg-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.think-drawer-tab:hover {
+  background: var(--chatui-bg-hover);
+  color: var(--chatui-fg-primary);
+}
+.think-drawer-tab.active {
+  background: var(--chatui-bg-active);
+  color: var(--chatui-fg-primary);
+  border-color: var(--chatui-border);
+}
+.think-drawer-tab .tab-count {
+  font-size: 11px;
+  color: var(--chatui-fg-secondary);
+  background: var(--chatui-bg-hover);
+  border-radius: 8px;
+  padding: 0 6px;
+}
+.think-drawer-tab.active .tab-count {
+  background: var(--chatui-bg-surface);
 }
 .think-drawer-breadcrumb {
   display: flex;

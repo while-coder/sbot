@@ -1327,11 +1327,12 @@ class HttpServer {
 
     // ===== Data (Savers & Memories) =====
     private formatMessages(items: StoredMessage[]) {
-        return items.map(({ id, message: { content, role, tool_calls, tool_call_id, name }, createdAt, thinkId, kind }) => ({
+        return items.map(({ id, message: { content, role, tool_calls, tool_call_id, name }, createdAt, thinkId, taskId, kind }) => ({
             id,
             message: { role, content, tool_calls, tool_call_id, name },
             createdAt,
             thinkId,
+            taskId,
             kind,
         }));
     }
@@ -1385,6 +1386,12 @@ class HttpServer {
             app.get(`${basePath}/thinks/:thinkId`, api(async req => {
                 const { saverId, threadId } = await resolve(req);
                 return withSaver(saverId, threadId, async s => this.formatMessages(await s.getThink(req.params.thinkId as string)));
+            }));
+            app.get(`${basePath}/tasks/:taskId`, api(async req => {
+                const { saverId, threadId } = await resolve(req);
+                const taskId = req.params.taskId as string;
+                const includeAll = req.query.includeAll === '1' || req.query.includeAll === 'true';
+                return withSaver(saverId, threadId, async s => this.formatMessages(await s.getTaskMessages(taskId, includeAll)));
             }));
         };
 

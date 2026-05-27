@@ -65,6 +65,8 @@ export interface StoredMessage {
   message: ChatMessage
   createdAt?: number
   thinkId?: string
+  /** 该消息所属的子 agent task（若有）。供 UI 在 ThinkDrawer 切换 task 视图。 */
+  taskId?: string
   /** 记录种类。`Archive` 默认在前端隐藏。 */
   kind: MessageKind | string
 }

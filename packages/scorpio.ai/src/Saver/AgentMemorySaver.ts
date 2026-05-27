@@ -48,6 +48,7 @@ export class AgentMemorySaver implements IAgentSaverService {
             message,
             createdAt: Math.floor(Date.now() / 1000),
             thinkId: options?.thinkId,
+            taskId: options?.taskId,
             kind: options?.kind ?? MessageKind.Normal,
         });
     }

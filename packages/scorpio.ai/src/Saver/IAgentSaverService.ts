@@ -115,6 +115,8 @@ export type MessageContent = ChatMessage['content'];
 export interface ChatMessageOptions {
     /** 关联的 think 记录 ID（由 ReAct 子 Agent 执行时携带） */
     thinkId?: string;
+    /** 关联的 task ID（即子 Agent 的持久会话身份）。由 ReAct task 工具结果携带，UI 用来在 think 与 task 视图间切换。 */
+    taskId?: string;
     /** 记录种类，缺省 {@link MessageKind.Normal}；用于落库非 LLM 上下文消息（如 Command/Exception） */
     kind?: MessageKind;
 }
@@ -142,6 +144,8 @@ export interface StoredMessage {
     message: ChatMessage;
     createdAt: number;
     thinkId?: string;
+    /** 该消息所属的子 agent task（若有）。供 UI 在 ThinkDrawer 切换 task 视图。 */
+    taskId?: string;
     /** 记录种类。Saver 在落库/读取时都必须显式赋值。 */
     kind: MessageKind;
 }
@@ -149,6 +153,7 @@ export interface StoredMessage {
 export interface NewStoredMessage {
     message: ChatMessage;
     thinkId?: string;
+    taskId?: string;
     /** 记录种类。Saver 在落库/读取时都必须显式赋值。 */
     kind: MessageKind;
 }
