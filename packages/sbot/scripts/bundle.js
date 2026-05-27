@@ -15,8 +15,18 @@ const nativeExternals = [
   'sharp',
   'pg',
   'pg-native',
+  'pg-hstore',
+  'mysql',
+  'mysql2',
+  'mariadb',
+  'tedious',
+  'oracledb',
+  'ibm_db',
+  'snowflake-sdk',
   'cpu-features',
   'ssh2',
+  // sbot 自身：AutoStart.ts 用 require.resolve 在运行时定位 bin
+  '@qingfeng346/sbot',
 ];
 
 // workspace 包路径（在 postbuild 中会被复制到 node_modules）
