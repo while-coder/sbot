@@ -262,13 +262,13 @@ export class SingleAgentService extends AgentServiceBase {
                 }
                 // 执行工具（LLM 有时会将数组/对象参数 JSON 序列化成字符串，先做一次反解析）
                 const parsedArgs = SingleAgentService.parseStringArgs(toolCall.args);
-                this.logger?.info(`开始执行工具 ${tool.name}\n  参数: ${truncate(JSON.stringify(parsedArgs), 300)}`);
+                this.logger?.info(`开始执行工具 ${tool.name} 参数: ${truncate(JSON.stringify(parsedArgs), 300)}`);
                 const result = await raceCancel(tool.invoke(parsedArgs), state.signal);
 
                 // 标准化为 MCP 格式（自动检测和转换各种格式）
                 let mcpResult = normalizeToMCPResult(result);
                 const resultStr = JSON.stringify(mcpResult);
-                this.logger?.info(`执行工具结束 ${tool.name}\n  结果: ${truncate(resultStr, 300)}`);
+                this.logger?.info(`执行工具结束 ${tool.name} 结果: ${truncate(resultStr, 300)}`);
 
                 const thinkId = mcpResult._meta?.thinkId;
                 // 将 MCP 结果转为 MessageContent：单条纯文本直接用 string，否则转为多模态数组

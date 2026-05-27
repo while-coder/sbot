@@ -36,7 +36,7 @@ defineExpose({ open })
 </script>
 
 <template>
-  <SModal v-model:visible="visible" width="xl">
+  <SModal v-model:visible="visible" width="xl" class="skill-viewer-modal">
     <template #header>
       <div style="display:flex;align-items:center;gap:8px">
         <span v-if="skillBadge" :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(skillBadge)}`">{{ skillBadge }}</span>
@@ -60,11 +60,20 @@ defineExpose({ open })
 </template>
 
 <style scoped>
+.skill-viewer-modal :deep(.s-modal-box) {
+  height: 88vh;
+}
+.skill-viewer-modal :deep(.s-modal-body) {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
 .skill-viewer-body {
-  height: 70vh;
+  flex: 1;
   display: flex;
   min-height: 0;
+  min-width: 0;
   overflow: hidden;
-  margin: calc(-1 * var(--sui-sp-7)) calc(-1 * var(--sui-sp-8));
 }
 </style>
