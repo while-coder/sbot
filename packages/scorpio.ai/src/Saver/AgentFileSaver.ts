@@ -13,9 +13,15 @@ import { ILoggerService, ILogger } from "../Logger";
 import { inject } from "scorpio.di";
 import { T_DBPath } from "../Core/tokens";
 
+interface TaskEntry {
+    messages: StoredMessage[];
+    metadata: Record<string, string>;
+}
+
 interface ThreadFile {
     messages: StoredMessage[];
     thinks: Record<string, StoredMessage[]>;
+    tasks: Record<string, TaskEntry>;
     metadata: Record<string, string>;
     nextId: number;
 }
@@ -42,12 +48,13 @@ export class AgentFileSaver implements IAgentSaverService {
         if (this.cache) return this.cache;
         try {
             if (!existsSync(this.filePath)) {
-                this.cache = { messages: [], thinks: {}, metadata: {}, nextId: 1 };
+                this.cache = { messages: [], thinks: {}, tasks: {}, metadata: {}, nextId: 1 };
             } else {
                 const content = await readFile(this.filePath, "utf-8");
                 this.cache = JSON.parse(content) as ThreadFile;
                 if (!this.cache.messages) this.cache.messages = [];
                 if (!this.cache.thinks) this.cache.thinks = {};
+                if (!this.cache.tasks) this.cache.tasks = {};
                 if (!this.cache.metadata) this.cache.metadata = {};
                 if (!this.cache.nextId) this.cache.nextId = 1;
                 let nextId = this.cache.nextId;
@@ -68,12 +75,32 @@ export class AgentFileSaver implements IAgentSaverService {
                     }
                 }
                 this.cache.nextId = nextId;
+                for (const entry of Object.values(this.cache.tasks)) {
+                    if (!entry.messages) entry.messages = [];
+                    if (!entry.metadata) entry.metadata = {};
+                    for (const m of entry.messages) {
+                        if (m.id == null) m.id = nextId++;
+                        else nextId = Math.max(nextId, m.id + 1);
+                        if (m.createdAt == null) m.createdAt = now;
+                        if (!m.kind) m.kind = MessageKind.Normal;
+                    }
+                }
+                this.cache.nextId = nextId;
             }
         } catch (error: any) {
             this.logger?.warn(`读取文件失败: ${error.message}`);
-            this.cache = { messages: [], thinks: {}, metadata: {}, nextId: 1 };
+            this.cache = { messages: [], thinks: {}, tasks: {}, metadata: {}, nextId: 1 };
         }
         return this.cache!;
+    }
+
+    private getOrCreateTask(file: ThreadFile, taskId: string): TaskEntry {
+        let entry = file.tasks[taskId];
+        if (!entry) {
+            entry = { messages: [], metadata: {} };
+            file.tasks[taskId] = entry;
+        }
+        return entry;
     }
 
     private async writeThreadFile(file: ThreadFile): Promise<void> {
@@ -172,6 +199,69 @@ export class AgentFileSaver implements IAgentSaverService {
     async setMetadata(key: string, value: string): Promise<void> {
         const file = await this.getFile();
         file.metadata[key] = value;
+        await this.writeThreadFile(file);
+    }
+
+    // --- Task scope ---
+
+    async getTaskMessages(taskId: string, includeAll = false): Promise<StoredMessage[]> {
+        const file = await this.getFile();
+        const entry = file.tasks[taskId];
+        if (!entry) return [];
+        return includeAll
+            ? [...entry.messages]
+            : entry.messages.filter(m => m.kind === MessageKind.Normal);
+    }
+
+    async pushTaskMessage(taskId: string, message: ChatMessage, options?: ChatMessageOptions): Promise<void> {
+        const file = await this.getFile();
+        const entry = this.getOrCreateTask(file, taskId);
+        const id = file.nextId;
+        file.nextId = id + 1;
+        entry.messages.push({
+            id,
+            message,
+            createdAt: Math.floor(Date.now() / 1000),
+            thinkId: options?.thinkId,
+            kind: options?.kind ?? MessageKind.Normal,
+        });
+        await this.writeThreadFile(file);
+    }
+
+    async applyTaskCompaction(taskId: string, compactedIds: number[], summary: NewStoredMessage): Promise<void> {
+        const file = await this.getFile();
+        const entry = this.getOrCreateTask(file, taskId);
+        const set = new Set(compactedIds);
+        for (const m of entry.messages) {
+            if (set.has(m.id)) m.kind = MessageKind.Archive;
+        }
+        const id = file.nextId;
+        file.nextId = id + 1;
+        entry.messages.push({
+            ...summary,
+            id,
+            createdAt: Math.floor(Date.now() / 1000),
+        });
+        await this.writeThreadFile(file);
+    }
+
+    async clearTask(taskId: string): Promise<void> {
+        const file = await this.getFile();
+        if (file.tasks[taskId]) {
+            delete file.tasks[taskId];
+            await this.writeThreadFile(file);
+        }
+    }
+
+    async getTaskMetadata(taskId: string, key: string): Promise<string | undefined> {
+        const file = await this.getFile();
+        return file.tasks[taskId]?.metadata[key];
+    }
+
+    async setTaskMetadata(taskId: string, key: string, value: string): Promise<void> {
+        const file = await this.getFile();
+        const entry = this.getOrCreateTask(file, taskId);
+        entry.metadata[key] = value;
         await this.writeThreadFile(file);
     }
 

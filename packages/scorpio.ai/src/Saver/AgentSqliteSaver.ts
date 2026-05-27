@@ -55,7 +55,22 @@ export class AgentSqliteSaver implements IAgentSaverService {
                     key   TEXT PRIMARY KEY,
                     value TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS tasks (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    task_id    TEXT    NOT NULL,
+                    data       TEXT    NOT NULL,
+                    created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+                    think_id   TEXT,
+                    kind       TEXT
+                );
+                CREATE TABLE IF NOT EXISTS task_metadata (
+                    task_id TEXT NOT NULL,
+                    key     TEXT NOT NULL,
+                    value   TEXT NOT NULL,
+                    PRIMARY KEY (task_id, key)
+                );
                 CREATE INDEX IF NOT EXISTS idx_thinks_think_id ON thinks (think_id);
+                CREATE INDEX IF NOT EXISTS idx_tasks_task_id ON tasks (task_id);
             `);
 
             // Schema 迁移：添加 kind 列（缺省 NULL 视作 Normal）
@@ -204,6 +219,75 @@ export class AgentSqliteSaver implements IAgentSaverService {
 
     async setMetadata(key: string, value: string): Promise<void> {
         this.db.prepare("INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)").run(key, value);
+    }
+
+    // --- Task scope ---
+
+    async getTaskMessages(taskId: string, includeAll = false): Promise<StoredMessage[]> {
+        try {
+            const filter = includeAll
+                ? ""
+                : " AND (kind IS NULL OR kind = 'normal')";
+            const sql = `SELECT id, data, created_at, think_id, kind FROM tasks WHERE task_id = ?${filter} ORDER BY id`;
+            const rows = this.db
+                .prepare(sql)
+                .all(taskId) as { id: number; data: string; created_at: number; think_id: string | null; kind: string | null }[];
+            return rows.map((r) => ({
+                id: r.id,
+                message: JSON.parse(r.data) as ChatMessage,
+                createdAt: r.created_at,
+                thinkId: r.think_id ?? undefined,
+                kind: (r.kind as MessageKind | null) ?? MessageKind.Normal,
+            }));
+        } catch (error: any) {
+            this.logger?.warn(`获取 task 历史失败: ${error.message}`);
+            return [];
+        }
+    }
+
+    async pushTaskMessage(taskId: string, message: ChatMessage, options?: ChatMessageOptions): Promise<void> {
+        this.db.prepare("INSERT INTO tasks (task_id, data, created_at, think_id, kind) VALUES (?, ?, ?, ?, ?)")
+            .run(
+                taskId,
+                JSON.stringify(message),
+                Math.floor(Date.now() / 1000),
+                options?.thinkId ?? null,
+                options?.kind ?? MessageKind.Normal,
+            );
+    }
+
+    async applyTaskCompaction(taskId: string, compactedIds: number[], summary: NewStoredMessage): Promise<void> {
+        if (compactedIds.length === 0) return;
+        const txn = this.db.transaction(() => {
+            const placeholders = compactedIds.map(() => '?').join(',');
+            this.db.prepare(`UPDATE tasks SET kind = 'archive' WHERE task_id = ? AND id IN (${placeholders})`).run(taskId, ...compactedIds);
+            this.db.prepare("INSERT INTO tasks (task_id, data, created_at, think_id, kind) VALUES (?, ?, ?, ?, ?)")
+                .run(
+                    taskId,
+                    JSON.stringify(summary.message),
+                    Math.floor(Date.now() / 1000),
+                    summary.thinkId ?? null,
+                    summary.kind,
+                );
+        });
+        txn();
+    }
+
+    async clearTask(taskId: string): Promise<void> {
+        const txn = this.db.transaction(() => {
+            this.db.prepare("DELETE FROM tasks WHERE task_id = ?").run(taskId);
+            this.db.prepare("DELETE FROM task_metadata WHERE task_id = ?").run(taskId);
+        });
+        txn();
+    }
+
+    async getTaskMetadata(taskId: string, key: string): Promise<string | undefined> {
+        const row = this.db.prepare("SELECT value FROM task_metadata WHERE task_id = ? AND key = ?").get(taskId, key) as { value: string } | undefined;
+        return row?.value;
+    }
+
+    async setTaskMetadata(taskId: string, key: string, value: string): Promise<void> {
+        this.db.prepare("INSERT OR REPLACE INTO task_metadata (task_id, key, value) VALUES (?, ?, ?)").run(taskId, key, value);
     }
 
     async dispose(): Promise<void> {

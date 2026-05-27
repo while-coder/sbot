@@ -24,6 +24,8 @@ export class AgentPostgresSaver implements IAgentSaverService {
     private readonly table: string;
     private get thinksTable() { return `${this.table}_thinks`; }
     private get metadataTable() { return `${this.table}_metadata`; }
+    private get tasksTable() { return `${this.table}_tasks`; }
+    private get taskMetadataTable() { return `${this.table}_task_metadata`; }
 
     constructor(
         @inject(T_DBTable) table: string,
@@ -59,8 +61,24 @@ export class AgentPostgresSaver implements IAgentSaverService {
                 key   TEXT PRIMARY KEY,
                 value TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS ${this.tasksTable} (
+                id         BIGSERIAL PRIMARY KEY,
+                task_id    TEXT      NOT NULL,
+                data       TEXT      NOT NULL,
+                created_at BIGINT    NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT,
+                think_id   TEXT,
+                kind       TEXT
+            );
+            CREATE TABLE IF NOT EXISTS ${this.taskMetadataTable} (
+                task_id TEXT NOT NULL,
+                key     TEXT NOT NULL,
+                value   TEXT NOT NULL,
+                PRIMARY KEY (task_id, key)
+            );
             CREATE INDEX IF NOT EXISTS idx_${this.table}_thinks_think_id
                 ON ${this.thinksTable} (think_id);
+            CREATE INDEX IF NOT EXISTS idx_${this.table}_tasks_task_id
+                ON ${this.tasksTable} (task_id);
         `);
         try {
             await this.pool.query(`ALTER TABLE ${this.table} ADD COLUMN kind TEXT`);
@@ -216,6 +234,100 @@ export class AgentPostgresSaver implements IAgentSaverService {
         await this.pool.query(
             `INSERT INTO ${this.metadataTable} (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2`,
             [key, value]
+        );
+    }
+
+    // --- Task scope ---
+
+    async getTaskMessages(taskId: string, includeAll = false): Promise<StoredMessage[]> {
+        await this.ensureSetup();
+        try {
+            const filter = includeAll
+                ? ""
+                : ` AND (kind IS NULL OR kind = 'normal')`;
+            const sql = `SELECT id, data, created_at, think_id, kind FROM ${this.tasksTable} WHERE task_id = $1${filter} ORDER BY id`;
+            const result = await this.pool.query(sql, [taskId]);
+            return result.rows.map((r: any) => ({
+                id: parseInt(r.id),
+                message: JSON.parse(r.data) as ChatMessage,
+                createdAt: r.created_at,
+                thinkId: r.think_id ?? undefined,
+                kind: (r.kind as MessageKind | null) ?? MessageKind.Normal,
+            }));
+        } catch (error: any) {
+            this.logger?.warn(`获取 task 历史失败: ${error.message}`);
+            return [];
+        }
+    }
+
+    async pushTaskMessage(taskId: string, message: ChatMessage, options?: ChatMessageOptions): Promise<void> {
+        await this.ensureSetup();
+        await this.pool.query(
+            `INSERT INTO ${this.tasksTable} (task_id, data, created_at, think_id, kind) VALUES ($1, $2, $3, $4, $5)`,
+            [
+                taskId,
+                JSON.stringify(message),
+                Math.floor(Date.now() / 1000),
+                options?.thinkId ?? null,
+                options?.kind ?? MessageKind.Normal,
+            ]
+        );
+    }
+
+    async applyTaskCompaction(taskId: string, compactedIds: number[], summary: NewStoredMessage): Promise<void> {
+        if (compactedIds.length === 0) return;
+        await this.ensureSetup();
+        await this.pool.query(`BEGIN`);
+        try {
+            const placeholders = compactedIds.map((_, i) => `$${i + 2}`).join(',');
+            await this.pool.query(
+                `UPDATE ${this.tasksTable} SET kind = 'archive' WHERE task_id = $1 AND id IN (${placeholders})`,
+                [taskId, ...compactedIds],
+            );
+            await this.pool.query(
+                `INSERT INTO ${this.tasksTable} (task_id, data, created_at, think_id, kind) VALUES ($1, $2, $3, $4, $5)`,
+                [
+                    taskId,
+                    JSON.stringify(summary.message),
+                    Math.floor(Date.now() / 1000),
+                    summary.thinkId ?? null,
+                    summary.kind,
+                ]
+            );
+            await this.pool.query(`COMMIT`);
+        } catch (e) {
+            await this.pool.query(`ROLLBACK`);
+            throw e;
+        }
+    }
+
+    async clearTask(taskId: string): Promise<void> {
+        await this.ensureSetup();
+        await this.pool.query(`BEGIN`);
+        try {
+            await this.pool.query(`DELETE FROM ${this.tasksTable} WHERE task_id = $1`, [taskId]);
+            await this.pool.query(`DELETE FROM ${this.taskMetadataTable} WHERE task_id = $1`, [taskId]);
+            await this.pool.query(`COMMIT`);
+        } catch (e) {
+            await this.pool.query(`ROLLBACK`);
+            throw e;
+        }
+    }
+
+    async getTaskMetadata(taskId: string, key: string): Promise<string | undefined> {
+        await this.ensureSetup();
+        const result = await this.pool.query(
+            `SELECT value FROM ${this.taskMetadataTable} WHERE task_id = $1 AND key = $2`,
+            [taskId, key]
+        );
+        return result.rows[0]?.value;
+    }
+
+    async setTaskMetadata(taskId: string, key: string, value: string): Promise<void> {
+        await this.ensureSetup();
+        await this.pool.query(
+            `INSERT INTO ${this.taskMetadataTable} (task_id, key, value) VALUES ($1, $2, $3) ON CONFLICT (task_id, key) DO UPDATE SET value = $3`,
+            [taskId, key, value]
         );
     }
 

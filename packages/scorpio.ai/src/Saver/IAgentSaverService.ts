@@ -234,6 +234,40 @@ export interface IAgentSaverService {
      */
     searchArchive?(query: string[][], limit?: number): Promise<StoredMessage[]>;
 
+    // --- Task scope (subagent persistent sessions) ---
+
+    /**
+     * 读取指定 taskId 的子 Agent 会话历史。
+     * @param includeAll 与 {@link getAllMessages} 同义，默认 false 仅返回 Normal。
+     * 不存在则返回空数组。
+     */
+    getTaskMessages(taskId: string, includeAll?: boolean): Promise<StoredMessage[]>;
+
+    /**
+     * 向指定 taskId 追加一条子 Agent 消息。
+     */
+    pushTaskMessage(taskId: string, message: ChatMessage, options?: ChatMessageOptions): Promise<void>;
+
+    /**
+     * 对子 Agent 会话执行压缩：将旧消息标记为 {@link MessageKind.Archive} 并追加摘要。
+     */
+    applyTaskCompaction(taskId: string, compactedIds: number[], summary: NewStoredMessage): Promise<void>;
+
+    /**
+     * 清空指定 taskId 的子 Agent 会话历史与元数据。
+     */
+    clearTask(taskId: string): Promise<void>;
+
+    /**
+     * 读取 task 作用域的元数据（如压缩判定用的 lastInputTokens）。
+     */
+    getTaskMetadata(taskId: string, key: string): Promise<string | undefined>;
+
+    /**
+     * 写入 task 作用域的元数据。
+     */
+    setTaskMetadata(taskId: string, key: string, value: string): Promise<void>;
+
 
     // --- 生命周期 ---
 

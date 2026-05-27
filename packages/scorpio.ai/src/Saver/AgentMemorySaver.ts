@@ -7,6 +7,11 @@ import {
     MessageKind,
 } from "./IAgentSaverService";
 
+interface TaskEntry {
+    messages: StoredMessage[];
+    metadata: Record<string, string>;
+}
+
 /**
  * 纯内存实现的 AgentSaver，不持久化。
  * 适用于临时会话、单次任务或测试场景。
@@ -14,8 +19,18 @@ import {
 export class AgentMemorySaver implements IAgentSaverService {
     private messages: StoredMessage[] = [];
     private thinks: Record<string, StoredMessage[]> = {};
+    private tasks: Record<string, TaskEntry> = {};
     private metadata: Record<string, string> = {};
     private nextId = 1;
+
+    private getOrCreateTask(taskId: string): TaskEntry {
+        let entry = this.tasks[taskId];
+        if (!entry) {
+            entry = { messages: [], metadata: {} };
+            this.tasks[taskId] = entry;
+        }
+        return entry;
+    }
 
     async getAllMessages(includeAll = false): Promise<StoredMessage[]> {
         return includeAll
@@ -90,6 +105,54 @@ export class AgentMemorySaver implements IAgentSaverService {
 
     async setMetadata(key: string, value: string): Promise<void> {
         this.metadata[key] = value;
+    }
+
+    // --- Task scope ---
+
+    async getTaskMessages(taskId: string, includeAll = false): Promise<StoredMessage[]> {
+        const entry = this.tasks[taskId];
+        if (!entry) return [];
+        return includeAll
+            ? [...entry.messages]
+            : entry.messages.filter(m => m.kind === MessageKind.Normal);
+    }
+
+    async pushTaskMessage(taskId: string, message: ChatMessage, options?: ChatMessageOptions): Promise<void> {
+        const entry = this.getOrCreateTask(taskId);
+        entry.messages.push({
+            id: this.nextId++,
+            message,
+            createdAt: Math.floor(Date.now() / 1000),
+            thinkId: options?.thinkId,
+            kind: options?.kind ?? MessageKind.Normal,
+        });
+    }
+
+    async applyTaskCompaction(taskId: string, compactedIds: number[], summary: NewStoredMessage): Promise<void> {
+        const entry = this.getOrCreateTask(taskId);
+        const set = new Set(compactedIds);
+        for (const m of entry.messages) {
+            if (set.has(m.id)) m.kind = MessageKind.Archive;
+        }
+        entry.messages.push({
+            ...summary,
+            id: this.nextId++,
+            createdAt: Math.floor(Date.now() / 1000),
+            kind: summary.kind,
+        });
+    }
+
+    async clearTask(taskId: string): Promise<void> {
+        delete this.tasks[taskId];
+    }
+
+    async getTaskMetadata(taskId: string, key: string): Promise<string | undefined> {
+        return this.tasks[taskId]?.metadata[key];
+    }
+
+    async setTaskMetadata(taskId: string, key: string, value: string): Promise<void> {
+        const entry = this.getOrCreateTask(taskId);
+        entry.metadata[key] = value;
     }
 
     async dispose(): Promise<void> {}

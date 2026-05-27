@@ -27,6 +27,7 @@ export { AgentMemorySaver } from "./AgentMemorySaver";
 export { AgentFileSaver } from "./AgentFileSaver";
 export { AgentSqliteSaver } from "./AgentSqliteSaver";
 export { AgentPostgresSaver } from "./AgentPostgresSaver";
+export { TaskBackedSaver } from "./TaskBackedSaver";
 
 // ===== Compact =====
 export { ConversationCompactor, IConversationCompactor, METADATA_KEY_INPUT_TOKENS } from "./ConversationCompactor";

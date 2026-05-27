@@ -2,38 +2,18 @@ import { type StructuredToolInterface } from "@langchain/core/tools";
 import { inject, ServiceContainer, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc, T_ModelCallTimeout } from "../../Core";
 import { IMemoryService } from "../../Memory";
 import { IWikiService } from "../../Wiki";
-import { IAgentSaverService, ChatMessage, ChatMessageOptions, type MessageContent } from "../../Saver";
+import { IAgentSaverService, TaskBackedSaver, type MessageContent } from "../../Saver";
 import { ILoggerService } from "../../Logger";
 import { IModelService } from "../../Model";
-import { type AgentServiceBase, IAgentCallback, AgentSubNode, CreateAgentFn, T_CreateAgent, MessageRole } from "../AgentServiceBase";
+import { type AgentServiceBase, IAgentCallback, AgentSubNode, CreateAgentFn, T_CreateAgent, MessageRole, ChatMessage } from "../AgentServiceBase";
 import { ISkillService } from "../../Skills";
 import { IInsightService } from "../../Insight";
 import { ITodoService } from "../../Todo";
 import { IAgentToolService } from "../../AgentTool";
-import { AgentMemorySaver } from "../../Saver/AgentMemorySaver";
 import { SingleAgentService } from "../Single/SingleAgentService";
 import { createTaskTool, type RunTaskFn } from "../../Tools";
 import { MCPContentType, createTextContent, createImageContent, createAudioContent, createErrorResult, type MCPContent } from "../../Tools/types";
 import { v4 as uuidv4 } from "uuid";
-
-// ── ThinkForwardSaver ────────────────────────────────────────
-
-/**
- * 包装 AgentMemorySaver，每次 pushMessage 时同步转发到父 saver 的 think 记录
- */
-class ThinkForwardSaver extends AgentMemorySaver {
-  constructor(private thinkId: string, private parentSaver: IAgentSaverService) { super(); }
-
-  override async pushMessage(message: ChatMessage, options?: ChatMessageOptions): Promise<void> {
-    await super.pushMessage(message, options);
-    await this.parentSaver.pushThinkMessage(this.thinkId, message);
-  }
-
-  override async pushThinkMessage(thinkId: string, message: ChatMessage, options?: ChatMessageOptions): Promise<void> {
-    await super.pushThinkMessage(thinkId, message, options);
-    await this.parentSaver.pushThinkMessage(thinkId, message, options);
-  }
-}
 
 // ── Tokens ────────────────────────────────────────────────────
 
@@ -103,14 +83,15 @@ export class ReActAgentService extends SingleAgentService {
     if (!callback) return [];
     const { onMessage: _, ...subCallback } = callback;
 
-    const runFn: RunTaskFn = async ({ agentId, task, systemPrompt }) => {
+    const runFn: RunTaskFn = async ({ agentId, task, systemPrompt, taskId }) => {
       let agentService: AgentServiceBase | null = null;
       const thinkId = uuidv4();
+      const resolvedTaskId = taskId ?? uuidv4();
       try {
         const parentSaver = this.saverService;
-        const thinkSaver = new ThinkForwardSaver(thinkId, parentSaver);
+        const taskSaver = new TaskBackedSaver(resolvedTaskId, thinkId, parentSaver);
         const subContainer = new ServiceContainer();
-        subContainer.registerInstance(IAgentSaverService, thinkSaver);
+        subContainer.registerInstance(IAgentSaverService, taskSaver);
         if (this.memoryServices.length > 0) subContainer.registerInstance(IMemoryService, this.memoryServices);
         if (this.wikiServices.length > 0) subContainer.registerInstance(IWikiService, this.wikiServices);
         if (this.loggerService) subContainer.registerInstance(ILoggerService, this.loggerService);
@@ -128,6 +109,8 @@ export class ReActAgentService extends SingleAgentService {
           if (messages[i].role === MessageRole.AI && messages[i].content) { lastAI = messages[i]; break; }
         }
         const content: MCPContent[] = [];
+        // 把 task_id 作为首段文本注入，让 LLM 在后续调用中可显式传 taskId 续接
+        content.push(createTextContent(`task_id: ${resolvedTaskId} (pass this back as taskId to resume the same sub-agent session)`));
         if (lastAI) {
           if (typeof lastAI.content === 'string') {
             if (lastAI.content.trim()) content.push(createTextContent(lastAI.content));
@@ -143,10 +126,9 @@ export class ReActAgentService extends SingleAgentService {
             }
           }
         }
-        if (content.length === 0) content.push(createTextContent(''));
-        return { content, _meta: { thinkId } };
+        return { content, _meta: { thinkId, taskId: resolvedTaskId } };
       } catch (error: any) {
-        return { ...createErrorResult(`Execution failed: ${error.message}`), _meta: { thinkId } };
+        return { ...createErrorResult(`Execution failed: ${error.message}`), _meta: { thinkId, taskId: resolvedTaskId } };
       } finally {
         await agentService?.dispose();
       }
