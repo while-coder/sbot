@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import * as fs from "fs";
+if (fs.existsSync(__filename + ".map")) process.setSourceMapsEnabled?.(true);
 import { Command } from "commander";
 import { spawn, execSync } from "child_process";
 import http from "http";
