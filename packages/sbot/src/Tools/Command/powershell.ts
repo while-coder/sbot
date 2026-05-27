@@ -1,54 +1,31 @@
-import fs from 'fs';
-import os from 'os';
-import path from 'path';
-import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
-import { createErrorResult } from 'scorpio.ai';
+import { type StructuredToolInterface } from '@langchain/core/tools';
 import { loadPrompt } from '../../Core/PromptLoader';
-import { scriptFileSchema, scriptCodeSchema, resolvePsInterpreter, validatePath, resolveWorkingDir, runCommand } from './utils';
+import { createScriptCodeTool, isCommandAvailable } from './utils';
 
-export function createPsScriptTool(): StructuredToolInterface | null {
-    const ps = resolvePsInterpreter();
-    if (!ps) return null;
-    return new DynamicStructuredTool({
-        name:        'execute_ps_script',
-        description: loadPrompt(`tools/command/ps_script_${ps.interpreter}.txt`),
-        schema: scriptFileSchema as any,
-        func: async ({ scriptPath, args = [], workingDir, timeout = 60000 }: any) => {
-            const pv = validatePath(scriptPath);
-            if (!pv.valid) return createErrorResult(pv.error!);
-            const absScript = pv.absolutePath!;
-            if (!fs.existsSync(absScript))        return createErrorResult(`Script not found: ${absScript}`);
-            if (!fs.statSync(absScript).isFile()) return createErrorResult(`Path is not a file: ${absScript}`);
-            const { cwd, error: cwdError } = resolveWorkingDir(workingDir, workingDir);
-            if (cwdError) return createErrorResult(cwdError);
-            const argStr  = args.length ? ' ' + args.join(' ') : '';
-            const preStr  = ps.preArgs ? ` ${ps.preArgs}` : '';
-            const command = `${ps.interpreter}${preStr} "${absScript}"${argStr}`;
-            return runCommand(command, cwd!, timeout, 'execute_ps_script');
-        },
-    });
+interface PsInterpreter {
+    interpreter: string;
+    preArgs:     string[];
+}
+
+// -NoProfile 跳过 $PROFILE 加载，避免冷启动 2~5 s 的看似假死。
+// -File 让脚本路径与 args 的传递行为在 pwsh 与 powershell 之间保持一致。
+let _psInterpreter: PsInterpreter | null | undefined;
+function resolvePsInterpreter(): PsInterpreter | null {
+    if (_psInterpreter !== undefined) return _psInterpreter;
+    if (isCommandAvailable('pwsh'))            _psInterpreter = { interpreter: 'pwsh',       preArgs: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File'] };
+    else if (isCommandAvailable('powershell')) _psInterpreter = { interpreter: 'powershell', preArgs: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File'] };
+    else                                       _psInterpreter = null;
+    return _psInterpreter;
 }
 
 export function createPsCodeTool(): StructuredToolInterface | null {
     const ps = resolvePsInterpreter();
     if (!ps) return null;
-    return new DynamicStructuredTool({
+    return createScriptCodeTool({
         name:        'execute_ps_code',
         description: loadPrompt(`tools/command/ps_code_${ps.interpreter}.txt`),
-        schema: scriptCodeSchema as any,
-        func: async ({ code, args = [], workingDir, timeout = 60000 }: any) => {
-            const tmpFile = path.join(os.tmpdir(), `sbot_script_${Date.now()}.ps1`);
-            fs.writeFileSync(tmpFile, code, 'utf-8');
-            try {
-                const { cwd, error: cwdError } = resolveWorkingDir(workingDir, workingDir);
-                if (cwdError) return createErrorResult(cwdError);
-                const argStr  = args.length ? ' ' + args.join(' ') : '';
-                const preStr  = ps.preArgs ? ` ${ps.preArgs}` : '';
-                const command = `${ps.interpreter}${preStr} "${tmpFile}"${argStr}`;
-                return await runCommand(command, cwd!, timeout, 'execute_ps_code');
-            } finally {
-                try { fs.unlinkSync(tmpFile); } catch { /* ignore */ }
-            }
-        },
+        interpreter: ps.interpreter,
+        preArgs:     ps.preArgs,
+        ext:         '.ps1',
     });
 }
