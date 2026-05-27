@@ -107,28 +107,50 @@ onBeforeUnmount(() => {
 function getContent(): { parts: ContentPart[] } {
   if (!editor.value) return { parts: [] }
   const parts: ContentPart[] = []
+  let textBuffer = ''
+  let firstBlock = true
+
+  const flushText = () => {
+    if (textBuffer.length > 0) {
+      parts.push({ type: 'text', text: textBuffer })
+      textBuffer = ''
+    }
+  }
 
   editor.value.state.doc.forEach((node) => {
     if (node.type.name === 'paragraph' || node.type.name === 'text') {
-      const textFragments: string[] = []
+      if (!firstBlock) textBuffer += '\n'
+      firstBlock = false
       node.forEach((child) => {
         if (child.type.name === 'image' && child.attrs.src) {
-          const t = textFragments.join('').trim()
-          if (t) parts.push({ type: 'text', text: t })
-          textFragments.length = 0
+          flushText()
           if (child.attrs.src.startsWith('data:')) {
             parts.push({ type: 'image', dataUrl: child.attrs.src })
           }
+        } else if (child.type.name === 'hardBreak') {
+          textBuffer += '\n'
         } else {
-          textFragments.push(child.textContent)
+          textBuffer += child.textContent
         }
       })
-      const t = textFragments.join('').trim()
-      if (t) parts.push({ type: 'text', text: t })
     } else if (node.type.name === 'image' && node.attrs.src?.startsWith('data:')) {
+      flushText()
       parts.push({ type: 'image', dataUrl: node.attrs.src })
+      firstBlock = false
     }
   })
+
+  flushText()
+
+  if (parts.length > 0 && parts[0].type === 'text') {
+    parts[0].text = parts[0].text.replace(/^\s+/, '')
+    if (parts[0].text === '') parts.shift()
+  }
+  if (parts.length > 0 && parts[parts.length - 1].type === 'text') {
+    const last = parts[parts.length - 1] as { type: 'text'; text: string }
+    last.text = last.text.replace(/\s+$/, '')
+    if (last.text === '') parts.pop()
+  }
 
   return { parts }
 }
