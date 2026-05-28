@@ -31,6 +31,7 @@ interface ChannelSessionOption {
   channelId: string
   sessionId: string
   sessionName: string
+  autoSessionName: string
   agentId?: string | null
 }
 
@@ -122,7 +123,7 @@ const form = ref({
 function sessionLabel(id: number): string {
   const s = channelSessions.value.find(s => s.id === id)
   if (!s) return `#${id}`
-  const name = s.sessionName || s.sessionId
+  const name = s.sessionName || s.autoSessionName || s.sessionId
   const channelName = store.settings.channels?.[s.channelId]?.name || s.channelId
   return `[${channelName}] ${name}`
 }
@@ -358,7 +359,7 @@ onMounted(async () => {
           <option value="" disabled>--</option>
           <optgroup v-for="g in groupedSessions" :key="g.channelName" :label="g.channelName">
             <option v-for="s in g.sessions" :key="s.id" :value="s.id">
-              {{ s.sessionName || s.sessionId }}
+              {{ s.sessionName || s.autoSessionName || s.sessionId }}
             </option>
           </optgroup>
         </SSelect>

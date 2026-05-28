@@ -751,7 +751,7 @@ class HttpServer {
             });
             return rows.map(r => ({
                 id: r.sessionId,
-                name: r.sessionName,
+                name: r.sessionName || r.autoSessionName,
                 agent: r.agentId || '',
                 saver: r.saver || '',
                 memories: parseMemories(r.memories),
@@ -1591,7 +1591,7 @@ class HttpServer {
                     const buf = await fsp.readFile(filePath, 'utf-8');
                     const data = JSON.parse(buf);
                     for (const t of data.todos ?? []) {
-                        all.push({ ...t, dbSessionId: s.id, sessionName: s.sessionName, channelId: s.channelId });
+                        all.push({ ...t, dbSessionId: s.id, sessionName: s.sessionName || s.autoSessionName, channelId: s.channelId });
                     }
                 } catch (e: any) {
                     if (e.code !== 'ENOENT') {

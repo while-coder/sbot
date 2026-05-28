@@ -51,7 +51,8 @@ export type ChannelSessionRow = {
   id: number;
   channelId: string;
   sessionId: string;
-  sessionName: string;
+  sessionName: string;          // 用户自定义名（空 = 跟随 autoSessionName）
+  autoSessionName: string;      // 渠道自动获取的名字，doInitSession 维护
   avatar: string;
 
   // ── 可覆盖 ChannelConfig 默认值的字段（null = 使用频道默认值） ──
@@ -300,7 +301,13 @@ class Database {
           type: DataTypes.STRING(255),
           allowNull: false,
           defaultValue: "",
-          comment: "会话名称",
+          comment: "用户自定义会话名称（空字符串表示使用 autoSessionName）",
+        },
+        autoSessionName: {
+          type: DataTypes.STRING(255),
+          allowNull: false,
+          defaultValue: "",
+          comment: "渠道自动获取的会话名称",
         },
         avatar: {
           type: DataTypes.STRING(512),

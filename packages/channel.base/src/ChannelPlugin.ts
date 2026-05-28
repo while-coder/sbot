@@ -16,7 +16,7 @@ export interface InitSessionContext {
   userInfo: string;
   userAvatar?: string;
   sessionId: string;
-  sessionName: string;
+  sessionName?: string;
   sessionAvatar?: string;
   sendUpdate?: (msg: string) => Promise<void>;
 }

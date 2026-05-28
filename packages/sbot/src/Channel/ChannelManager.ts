@@ -83,11 +83,12 @@ async function doInitSession(channelId: string, ctx: import("channel.base").Init
         await database.update(database.channelUser, userData, { where: { channelId, userId } });
     }
 
-    const sessionData: Record<string, any> = { sessionName };
+    const sessionData: Record<string, any> = {};
+    if (sessionName != null) sessionData.autoSessionName = sessionName;
     if (sessionAvatar !== undefined) sessionData.avatar = sessionAvatar;
     const [dbSession, sessionCreated] = await database.findOrCreate<ChannelSessionRow>(database.channelSession, {
         where: { channelId, sessionId },
-        defaults: sessionData,
+        defaults: { ...sessionData, sessionName: '' },
     });
     if (!sessionCreated && hasChanged(dbSession as any, sessionData)) {
         await database.update(database.channelSession, sessionData, { where: { channelId, sessionId } });

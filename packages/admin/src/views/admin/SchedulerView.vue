@@ -26,6 +26,7 @@ interface ChannelSessionRow {
   channelId: string
   sessionId: string
   sessionName?: string | null
+  autoSessionName?: string | null
 }
 
 type UIType = 'daily' | 'weekly' | 'monthly' | 'once' | 'interval' | 'hourly' | 'custom'
@@ -132,7 +133,7 @@ function targetInfo(row: SchedulerRow): TargetInfo {
   const id = parseInt(row.targetId)
   const s = channelSessions.value.find(s => s.id === id)
   if (s) {
-    const name = s.sessionName || s.sessionId
+    const name = s.sessionName || s.autoSessionName || s.sessionId
     const channelName = store.settings.channels?.[s.channelId]?.name || s.channelId
     return { text: `[${channelName}] ${name}`, title: s.sessionId, mapped: true, placeholder: false }
   }
