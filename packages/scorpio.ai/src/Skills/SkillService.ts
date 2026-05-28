@@ -13,8 +13,7 @@ import {
     createErrorResult,
     createSuccessResult,
     MCPToolResult,
-    runProgram,
-    isCommandAvailable,
+    runShellCommand,
 } from "../Tools";
 import { UsageTracker, UsageState } from "../Utils/UsageTracker";
 
@@ -141,12 +140,12 @@ export class SkillService implements ISkillService {
       description: this.toolExecDesc!,
       schema: z.object({
         skillName:  z.string().describe("Skill name (kebab-case)"),
-        scriptPath: z.string().describe('Relative path to the script, e.g. "scripts/process.py". Confirm via list_skill_files first.'),
-        args:       z.array(z.string()).optional().describe("Arguments to pass to the script"),
-        stdin:      z.any().optional().describe('Data to pipe into the script via stdin. Prefer a string; objects/arrays are auto-serialized to JSON.'),
+        command:    z.string().min(1).describe('Shell command or multi-line script to run inside the skill, e.g. "python scripts/process.py --in data.json", "npm install && npm run build". Relative paths resolve against workingDir.'),
+        workingDir: z.string().optional().describe('Optional sub-directory inside the skill to use as cwd, relative to the skill root (e.g. "scripts"). Defaults to the skill root. Use this for scripts that assume their own directory as cwd.'),
+        stdin:      z.any().optional().describe('Data to pipe into the command via stdin. Prefer a string; objects/arrays are auto-serialized to JSON.'),
         timeout:    z.number().optional().default(60000).describe('Timeout in milliseconds, default 60000 (60 s)'),
       }) as any,
-      func: async ({ skillName, scriptPath, args = [], stdin, timeout = 60000 }: any): Promise<MCPToolResult> => {
+      func: async ({ skillName, command, workingDir, stdin, timeout = 60000 }: any): Promise<MCPToolResult> => {
         // schema 用 z.any() 是为了同时满足两点：(1) Zod v4 的 toJSONSchema 不接受 transform/preprocess；
         // (2) 模型偶尔不遵守 string 约束、直接塞 object/array。这里在 func 入口统一序列化兜底。
         if (stdin != null && typeof stdin !== 'string') stdin = JSON.stringify(stdin);
@@ -154,49 +153,23 @@ export class SkillService implements ISkillService {
           const skill = this.getAllSkills().find(s => s.name === skillName);
           if (!skill) return createErrorResult(`Skill "${skillName}" not found`);
 
-          const fullPath = path.join(skill.path, scriptPath);
-          if (!this.isPathSafe(fullPath, skill.path)) return createErrorResult("Security error: executing scripts outside the skill directory is not allowed");
-          if (!fs.existsSync(fullPath)) return createErrorResult(`Script not found: ${scriptPath}`);
-
-          const ext = path.extname(scriptPath).toLowerCase();
-          // 一律走 runProgram + 解释器调用：免 shell 转义，且不要求脚本本身有 +x。
-          // python 解释器名按平台双探测：现代 Linux 通常只有 python3，Windows 多为 python。
-          let interpreter: string;
-          let interpreterArgs: string[] = [];
-          switch (ext) {
-            case ".py":
-              interpreter = isCommandAvailable("python") ? "python" : "python3";
-              break;
-            case ".js": interpreter = "node";    break;
-            case ".ts": interpreter = "ts-node"; break;
-            case ".sh": interpreter = "bash";    break;
-            case ".ps1":
-              // pwsh 是 PowerShell 7+ 的跨平台名，优先用；回退到 Windows 自带的 powershell。
-              // -NoProfile 避免加载用户 profile，-ExecutionPolicy Bypass 绕开默认 Restricted 策略。
-              interpreter = isCommandAvailable("pwsh") ? "pwsh" : "powershell";
-              interpreterArgs = ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"];
-              break;
-            case ".cmd":
-              // .cmd 不是可执行文件，必须由 cmd.exe 解释；只在 Windows 上有意义。
-              if (process.platform !== "win32") return createErrorResult(`${ext} scripts are only supported on Windows`);
-              interpreter = "cmd";
-              interpreterArgs = ["/c"];
-              break;
-            default:
-              return createErrorResult(`Unsupported script type: ${ext}. Supported: .py, .sh, .js, .ts, .ps1, .cmd`);
+          // 默认 cwd = skill 根；workingDir 用 path.resolve 处理，绝对路径会覆盖 base，
+          // 再用 isPathSafe 兜底拦截 ".."/绝对路径越权，保持 skill 边界。
+          const cwd = workingDir ? path.resolve(skill.path, workingDir) : skill.path;
+          if (!this.isPathSafe(cwd, skill.path)) {
+            return createErrorResult("Security error: workingDir must be inside the skill directory");
           }
-          if (!isCommandAvailable(interpreter)) {
-            return createErrorResult(`Interpreter "${interpreter}" not found in PATH`);
+          if (!fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) {
+            return createErrorResult(`Working directory not found: ${cwd}`);
           }
 
           new UsageTracker(skill.path).recordUse();
-          const cwd = path.dirname(fullPath);
-          const label = `skill ${skillName}/${scriptPath}`;
-          this.logger?.info(`执行 skill 脚本 ${skillName}/${scriptPath} cwd=${cwd}`);
+          const label = `skill ${skillName}`;
+          this.logger?.info(`执行 skill ${skillName} (cwd=${cwd}): ${command}`);
 
-          return await runProgram(interpreter, [...interpreterArgs, fullPath, ...args], cwd, timeout, label, stdin);
+          return await runShellCommand(command, cwd, timeout, label, stdin);
         } catch (error: any) {
-          this.logger?.error(`Error executing skill script ${skillName}/${scriptPath}: ${error.message}`);
+          this.logger?.error(`Error executing skill ${skillName}: ${error.message}`);
           return createErrorResult(`Error: ${error.message}`);
         }
       }
@@ -236,23 +209,21 @@ export class SkillService implements ISkillService {
     return path.normalize(fullPath).startsWith(path.normalize(baseDir));
   }
 
-  private getDirectoryStructure(dirPath: string, prefix = ""): string[] {
+  // 扁平化输出相对路径，例如 "SKILL.md" / "scripts/run.sh"。统一用 "/" 作分隔符，跨平台一致；
+  // 空目录不输出（对 LLM 决策不构成行为面）；按 localeCompare 稳定排序，便于 diff 复现。
+  private getDirectoryStructure(dirPath: string, relPrefix = ""): string[] {
     const items: string[] = [];
-    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
-    entries.forEach((entry, index) => {
-      if (entry.name === '.usage.json') return;
-      const isLast = index === entries.length - 1;
-      const marker = isLast ? "└─" : "├─";
-      const nextPrefix = prefix + (isLast ? "  " : "│ ");
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true })
+      .filter(e => e.name !== '.usage.json')
+      .sort((a, b) => a.name.localeCompare(b.name));
+    for (const entry of entries) {
+      const rel = relPrefix ? `${relPrefix}/${entry.name}` : entry.name;
       if (entry.isDirectory()) {
-        items.push(`${prefix}${marker} ${entry.name}/`);
-        items.push(...this.getDirectoryStructure(path.join(dirPath, entry.name), nextPrefix));
+        items.push(...this.getDirectoryStructure(path.join(dirPath, entry.name), rel));
       } else {
-        const stat = fs.statSync(path.join(dirPath, entry.name));
-        const sizeStr = stat.size > 1024 ? `${(stat.size / 1024).toFixed(1)}KB` : `${stat.size}B`;
-        items.push(`${prefix}${marker} ${entry.name} (${sizeStr})`);
+        items.push(rel);
       }
-    });
+    }
     return items;
   }
 }

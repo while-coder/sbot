@@ -1,1 +1,1 @@
-Execute a script in a skill directory (Python, Shell, Node.js, TypeScript). Runs with the skill directory as cwd. Use list_skill_files first to confirm the script path.
+Execute a shell command (or multi-line script) inside a skill directory. Default cwd is the skill root; pass workingDir (relative sub-path) for scripts that assume their own directory as cwd. Any executable on PATH works (python, node, bash, pwsh, cmd, npm, pip, ...). Use list_skill_files first to confirm paths referenced in the command.
