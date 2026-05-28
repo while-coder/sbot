@@ -150,6 +150,19 @@ export class SbotClient {
     return res.data.data ?? res.data;
   }
 
+  async writeFile(filePath: string, content: string, expectedMtime?: number): Promise<{ path: string; size: number; mtime: number }> {
+    try {
+      const res = await this.http.put('/api/fs/entry', { path: filePath, content, expectedMtime });
+      return res.data.data ?? res.data;
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const msg = err?.response?.data?.message ?? err?.message ?? 'writeFile failed';
+      const e: any = new Error(msg);
+      if (status) e.status = status;
+      throw e;
+    }
+  }
+
   getRawFileUrl(filePath: string): string {
     return `${this.baseUrl}/api/fs/entry/raw?path=${encodeURIComponent(filePath)}`;
   }

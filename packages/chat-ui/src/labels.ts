@@ -107,6 +107,12 @@ export const defaultLabels: Required<ChatLabels> = {
   explorerCopyPath: '复制路径',
   explorerCopyDiff: '复制 Diff',
   explorerCopied: '已复制',
+  explorerEdit: '编辑',
+  explorerEditSave: '保存',
+  explorerEditCancel: '取消',
+  explorerEditDirty: '未保存',
+  explorerEditDiscardConfirm: '当前文件有未保存修改，确定要丢弃？',
+  explorerEditStaleConfirm: '文件已被外部修改，是否重新加载并丢弃当前编辑？',
 }
 
 export function resolveLabels(partial?: ChatLabels): Required<ChatLabels> {

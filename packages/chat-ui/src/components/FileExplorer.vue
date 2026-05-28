@@ -16,7 +16,13 @@ const props = defineProps<{
   treeWidth?: number
   treeHeight?: number
   viewState?: ExplorerFilesViewState
+  /** 是否启用文本文件编辑功能；默认 false（只读） */
+  editable?: boolean
+  /** 可编辑的最大文件大小，默认 1MB */
+  maxEditSize?: number
 }>()
+
+const MAX_EDIT_SIZE_DEFAULT = 1024 * 1024
 
 const emit = defineEmits<{
   refreshing: [value: boolean]
@@ -41,9 +47,24 @@ const fileDataUrl = ref('')
 const fileContentType = ref<'text' | 'image' | 'binary'>('text')
 const fileMimeType = ref('')
 const fileSize = ref(0)
+const fileMtime = ref<number | undefined>(undefined)
 const fileTooLarge = ref(false)
 const fileLoading = ref(false)
 const errMsg = ref('')
+
+const editing = ref(false)
+const draftContent = ref('')
+const originalContent = ref('')
+const saving = ref(false)
+
+const isDirty = computed(() => editing.value && draftContent.value !== originalContent.value)
+const canEdit = computed(() =>
+  !!props.editable
+  && !!selectedPath.value
+  && fileContentType.value === 'text'
+  && !fileTooLarge.value
+  && fileSize.value <= (props.maxEditSize ?? MAX_EDIT_SIZE_DEFAULT),
+)
 const imageLightbox = ref<InstanceType<typeof ImageLightbox> | null>(null)
 const explorerEl = ref<HTMLElement | null>(null)
 const treeWidth = ref(props.treeWidth ?? 260)
@@ -104,28 +125,100 @@ async function toggleDir(dir: string): Promise<void> {
 
 async function selectFile(item: FsTreeItem): Promise<void> {
   if (selectedPath.value === item.path) return
-  selectedPath.value = item.path
+  if (!confirmDiscardDirty()) return
+  await loadFile(item.path, item.size ?? 0)
+}
+
+async function loadFile(path: string, fallbackSize = 0): Promise<void> {
+  selectedPath.value = path
   emitViewState()
   fileContent.value = ''
   fileDataUrl.value = ''
   fileContentType.value = 'text'
   fileMimeType.value = ''
-  fileSize.value = item.size ?? 0
+  fileSize.value = fallbackSize
+  fileMtime.value = undefined
   fileTooLarge.value = false
   fileLoading.value = true
   errMsg.value = ''
+  resetEditState()
   try {
-    const res = await props.transport.readFile(item.path)
+    const res = await props.transport.readFile(path)
     fileContent.value = res.content ?? ''
     fileDataUrl.value = res.dataUrl ?? ''
     fileContentType.value = res.contentType
     fileMimeType.value = res.mimeType ?? ''
     fileSize.value = res.size ?? 0
+    fileMtime.value = res.mtime
     fileTooLarge.value = !!res.tooLarge
   } catch (e: any) {
     errMsg.value = e?.message || String(e)
   } finally {
     fileLoading.value = false
+  }
+}
+
+function resetEditState(): void {
+  editing.value = false
+  draftContent.value = ''
+  originalContent.value = ''
+  saving.value = false
+}
+
+function confirmDiscardDirty(): boolean {
+  if (!isDirty.value) return true
+  return window.confirm(L.value.explorerEditDiscardConfirm)
+}
+
+function startEdit(): void {
+  if (!canEdit.value || editing.value) return
+  draftContent.value = fileContent.value
+  originalContent.value = fileContent.value
+  editing.value = true
+  errMsg.value = ''
+}
+
+function cancelEdit(): void {
+  if (!editing.value) return
+  if (!confirmDiscardDirty()) return
+  resetEditState()
+}
+
+async function saveEdit(): Promise<void> {
+  if (!editing.value || saving.value) return
+  if (!selectedPath.value) return
+  saving.value = true
+  errMsg.value = ''
+  try {
+    const res = await props.transport.writeFile(selectedPath.value, draftContent.value, fileMtime.value)
+    fileContent.value = draftContent.value
+    originalContent.value = draftContent.value
+    fileMtime.value = res.mtime
+    fileSize.value = res.size
+    editing.value = false
+  } catch (e: any) {
+    if (e?.status === 409 || /STALE_MTIME/i.test(e?.message ?? '')) {
+      if (window.confirm(L.value.explorerEditStaleConfirm)) {
+        const path = selectedPath.value
+        resetEditState()
+        await loadFile(path, fileSize.value)
+      }
+    } else {
+      errMsg.value = e?.message || String(e)
+    }
+  } finally {
+    saving.value = false
+  }
+}
+
+function onEditorKeydown(e: KeyboardEvent): void {
+  if (!editing.value) return
+  if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+    e.preventDefault()
+    void saveEdit()
+  } else if (e.key === 'Escape') {
+    e.preventDefault()
+    cancelEdit()
   }
 }
 
@@ -211,7 +304,9 @@ watch(() => props.root, async (providedRoot) => {
   fileDataUrl.value = ''
   fileContentType.value = 'text'
   fileMimeType.value = ''
+  fileMtime.value = undefined
   errMsg.value = ''
+  resetEditState()
   if (providedRoot) {
     await restoreExpandedDirs(props.viewState?.expandedPaths ?? [])
     const savedSelectedPath = props.viewState?.selectedPath || ''
@@ -400,13 +495,34 @@ onMounted(() => {
       @pointerdown="startTreeResize"
     />
 
-    <div class="chatui-explorer-viewer">
+    <div class="chatui-explorer-viewer" @keydown="onEditorKeydown">
       <template v-if="selectedPath">
         <div class="chatui-explorer-toolbar">
           <span class="chatui-explorer-path">{{ selectedPath }}</span>
           <span class="chatui-explorer-meta">{{ fmtSize(fileSize) }}</span>
+          <span v-if="isDirty" class="chatui-explorer-dirty" :title="L.explorerEditDirty">●</span>
+          <button
+            v-if="canEdit && !editing"
+            class="chatui-explorer-action"
+            :title="L.explorerEdit"
+            @click="startEdit"
+          >✎</button>
+          <button
+            v-if="editing"
+            class="chatui-explorer-action chatui-explorer-action--primary"
+            :disabled="saving || !isDirty"
+            :title="L.explorerEditSave"
+            @click="saveEdit"
+          >{{ saving ? L.loading : L.explorerEditSave }}</button>
+          <button
+            v-if="editing"
+            class="chatui-explorer-action"
+            :disabled="saving"
+            :title="L.explorerEditCancel"
+            @click="cancelEdit"
+          >{{ L.explorerEditCancel }}</button>
           <a
-            v-if="selectedPath && rawDownloadHref"
+            v-if="!editing && selectedPath && rawDownloadHref"
             class="chatui-explorer-download"
             :href="rawDownloadHref"
             target="_blank"
@@ -433,6 +549,14 @@ onMounted(() => {
             {{ L.explorerDownload || 'Download file' }}
           </a>
         </div>
+        <CodeViewer
+          v-else-if="editing"
+          editable
+          :content="draftContent"
+          :path="selectedPath"
+          class="chatui-explorer-content"
+          @update:content="draftContent = $event"
+        />
         <CodeViewer v-else :content="fileContent" :path="selectedPath" class="chatui-explorer-content" />
       </template>
       <div v-else class="chatui-explorer-state">{{ L.explorerSelectFile }}</div>
@@ -542,6 +666,41 @@ onMounted(() => {
 .chatui-explorer-download:hover {
   background: var(--chatui-bg-hover, var(--chatui-bg-soft));
   color: var(--chatui-fg);
+}
+.chatui-explorer-dirty {
+  flex-shrink: 0;
+  color: var(--chatui-accent, #f59e0b);
+  font-size: 12px;
+  line-height: 1;
+}
+.chatui-explorer-action {
+  flex-shrink: 0;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--chatui-border);
+  background: var(--chatui-bg);
+  color: var(--chatui-fg);
+  font-size: 12px;
+  line-height: 1;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.chatui-explorer-action:hover:not(:disabled) {
+  background: var(--chatui-bg-hover, var(--chatui-bg-soft));
+}
+.chatui-explorer-action:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.chatui-explorer-action--primary {
+  background: var(--chatui-accent, #2563eb);
+  border-color: var(--chatui-accent, #2563eb);
+  color: #fff;
+}
+.chatui-explorer-action--primary:hover:not(:disabled) {
+  filter: brightness(1.05);
+  background: var(--chatui-accent, #2563eb);
 }
 .chatui-explorer-link {
   display: inline-block;

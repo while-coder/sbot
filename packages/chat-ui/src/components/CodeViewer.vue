@@ -18,6 +18,12 @@ const props = defineProps<{
   dark?: boolean
   /** 长行是否自动换行；默认开 */
   lineWrap?: boolean
+  /** 是否允许编辑；默认 false（只读） */
+  editable?: boolean
+}>()
+
+const emit = defineEmits<{
+  'update:content': [value: string]
 }>()
 
 // ── 暗色跟随 ──
@@ -55,8 +61,8 @@ function pickLanguage(p: string): Extension | null {
 
 const extensions = computed<Extension[]>(() => {
   const exts: Extension[] = [
-    EditorState.readOnly.of(true),
-    EditorView.editable.of(false),
+    EditorState.readOnly.of(!props.editable),
+    EditorView.editable.of(!!props.editable),
   ]
   if (props.lineWrap !== false) exts.push(EditorView.lineWrapping)
   const lang = pickLanguage(props.path ?? '')
@@ -64,6 +70,10 @@ const extensions = computed<Extension[]>(() => {
   if (isDark.value) exts.push(oneDark)
   return exts
 })
+
+function onUpdateModelValue(value: string) {
+  if (props.editable) emit('update:content', value)
+}
 </script>
 
 <template>
@@ -73,6 +83,7 @@ const extensions = computed<Extension[]>(() => {
     :indent-with-tab="false"
     :tab-size="2"
     class="chatui-code-viewer"
+    @update:model-value="onUpdateModelValue"
   />
 </template>
 

@@ -3,7 +3,7 @@ import type {
   SessionItem, CreateSessionOpts, StoredMessage,
   UsageInfo, AppSettings, SessionStatus,
   ToolApprovalPayload, AskAnswerPayload,
-  DirListResult, DriveEntry, QuickDir, FsTreeResult, FsReadResult, GitStatusResult, GitDiffResult, ChatEvent,
+  DirListResult, DriveEntry, QuickDir, FsTreeResult, FsReadResult, FsWriteResult, GitStatusResult, GitDiffResult, ChatEvent,
 } from './types';
 
 export interface IChatTransport {
@@ -37,6 +37,8 @@ export interface IChatTransport {
 
   listTree(path: string): Promise<FsTreeResult>
   readFile(path: string): Promise<FsReadResult>
+  /** 覆写文本文件；expectedMtime 用于并发冲突检测（不传则强制覆写） */
+  writeFile(path: string, content: string, expectedMtime?: number): Promise<FsWriteResult>
   /** 返回可直接下载/在新标签页打开的原始文件 URL；用于 tooLarge 或 binary 等无法在 viewer 中显示的场景 */
   getRawFileUrl(path: string): string
   gitStatus(root: string): Promise<GitStatusResult>

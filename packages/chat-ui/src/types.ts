@@ -233,6 +233,18 @@ export interface ChatLabels {
   explorerCopyDiff?: string
   /** Explorer Git 已复制 */
   explorerCopied?: string
+  /** Explorer 编辑按钮 */
+  explorerEdit?: string
+  /** Explorer 编辑保存按钮 */
+  explorerEditSave?: string
+  /** Explorer 编辑取消按钮 */
+  explorerEditCancel?: string
+  /** Explorer 编辑模式下脏标记（未保存）文案 */
+  explorerEditDirty?: string
+  /** Explorer 编辑模式下放弃修改的确认文案 */
+  explorerEditDiscardConfirm?: string
+  /** Explorer 编辑模式下文件被外部修改时的重载确认文案 */
+  explorerEditStaleConfirm?: string
 }
 
 // ── Wiki option ──
@@ -358,11 +370,19 @@ export interface FsTreeResult {
 export interface FsReadResult {
   path: string
   size: number
+  /** 文件最近修改时间（ms 级），用于编辑保存时的并发冲突检测 */
+  mtime?: number
   tooLarge: boolean
   contentType: 'text' | 'image' | 'binary'
   mimeType: string
   content: string
   dataUrl?: string
+}
+
+export interface FsWriteResult {
+  path: string
+  size: number
+  mtime: number
 }
 
 // ── Git status (Explorer) ──

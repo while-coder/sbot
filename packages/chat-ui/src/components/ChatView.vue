@@ -673,7 +673,7 @@ onBeforeUnmount(() => {
             <span class="chatui-explorer-panel-title">{{ L.explorerToggle }}</span>
             <button class="chatui-explorer-panel-close" :title="L.close" @click="explorerOpen = false">×</button>
           </div>
-          <Explorer :transport="transport" :root="activeSession?.workPath" :labels="labels" />
+          <Explorer :transport="transport" :root="activeSession?.workPath" :labels="labels" editable />
         </div>
       </div>
     </div>

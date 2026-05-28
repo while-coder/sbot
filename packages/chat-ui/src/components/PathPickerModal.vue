@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, nextTick, computed } from 'vue'
+import { ref, nextTick, computed, watch } from 'vue'
 import { SModal, SButton, SInput, SChip } from 'sbot-ui'
 import type { IChatTransport } from '../transport'
 import type { ChatLabels, DriveEntry, QuickDir } from '../types'
@@ -26,6 +26,9 @@ const pickerQuickDirs = ref<QuickDir[]>([])
 const pickerCreating  = ref(false)
 const pickerNewName   = ref('')
 const newNameInput    = ref<InstanceType<typeof SInput> | null>(null)
+const pathInput       = ref('')
+
+watch(() => pickerPath.value, v => { pathInput.value = v })
 
 const pickerDriveMode = computed(() => !pickerPath.value)
 const isDriveRoot     = computed(() => /^[A-Za-z]:[/\\]?$/.test(pickerPath.value))
@@ -136,7 +139,13 @@ defineExpose({ open })
     class="chatui-picker-modal"
   >
     <template #toolbar>
-      <div class="chatui-picker-path-bar">{{ pickerPath || L.myComputer }}</div>
+      <SInput
+        v-model="pathInput"
+        size="sm"
+        class="chatui-picker-path-bar"
+        :placeholder="L.myComputer"
+        @keydown.enter="navigate(String(pathInput).trim())"
+      />
     </template>
 
     <div v-if="pickerQuickDirs.length" class="chatui-picker-quickdirs">
@@ -195,10 +204,8 @@ defineExpose({ open })
 
 <style scoped>
 .chatui-picker-modal :deep(.s-modal-body) { padding: 0; }
-.chatui-picker-path-bar {
-  width: 100%;
-  font-family: monospace; font-size: 12px; color: var(--chatui-fg);
-  word-break: break-all;
+.chatui-picker-path-bar :deep(input) {
+  font-family: monospace; font-size: 12px;
 }
 .chatui-picker-list { min-height: 180px; max-height: 50vh; overflow-y: auto; }
 .chatui-picker-empty {

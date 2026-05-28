@@ -53,6 +53,7 @@ defineExpose({ open })
         :transport="transport"
         :root="skillPath"
         :view-state="initialViewState"
+        editable
       />
     </div>
 

@@ -192,16 +192,18 @@ export class FsApi {
     private readFilePreview(absPath: string) {
         if (!fs.existsSync(absPath) || !fs.statSync(absPath).isFile()) throwNotFound(`File not found: ${absPath}`);
         const stat = fs.statSync(absPath);
+        const mtime = stat.mtimeMs;
         const imageMimeType = IMAGE_MIME_BY_EXT[path.extname(absPath).toLowerCase()];
 
         if (imageMimeType) {
             if (stat.size > MAX_IMAGE_READ_SIZE) {
-                return { path: absPath, size: stat.size, tooLarge: true, contentType: 'image', mimeType: imageMimeType, content: '' };
+                return { path: absPath, size: stat.size, mtime, tooLarge: true, contentType: 'image', mimeType: imageMimeType, content: '' };
             }
             const buf = fs.readFileSync(absPath);
             return {
                 path: absPath,
                 size: stat.size,
+                mtime,
                 tooLarge: false,
                 contentType: 'image',
                 mimeType: imageMimeType,
@@ -211,12 +213,48 @@ export class FsApi {
         }
 
         if (stat.size > MAX_FILE_READ_SIZE) {
-            return { path: absPath, size: stat.size, tooLarge: true, contentType: 'text', mimeType: 'text/plain', content: '' };
+            return { path: absPath, size: stat.size, mtime, tooLarge: true, contentType: 'text', mimeType: 'text/plain', content: '' };
         }
         const buf = fs.readFileSync(absPath);
         if (buf.includes(0)) {
-            return { path: absPath, size: stat.size, tooLarge: false, contentType: 'binary', mimeType: 'application/octet-stream', content: '' };
+            return { path: absPath, size: stat.size, mtime, tooLarge: false, contentType: 'binary', mimeType: 'application/octet-stream', content: '' };
         }
-        return { path: absPath, size: stat.size, tooLarge: false, contentType: 'text', mimeType: 'text/plain', content: buf.toString('utf-8') };
+        return { path: absPath, size: stat.size, mtime, tooLarge: false, contentType: 'text', mimeType: 'text/plain', content: buf.toString('utf-8') };
+    }
+
+    writeFile(absPath: string | undefined, content: string, opts: { expectedMtime?: number } = {}) {
+        const target = requireAbsPath(absPath);
+        if (!fs.existsSync(target)) throwNotFound(`File not found: ${target}`);
+        const stat = fs.statSync(target);
+        if (!stat.isFile()) throwBad(`Not a file: ${target}`);
+
+        if (opts.expectedMtime != null && Math.abs(stat.mtimeMs - opts.expectedMtime) > 1) {
+            const e: any = new Error(`STALE_MTIME: file changed externally (expected ${opts.expectedMtime}, actual ${stat.mtimeMs})`);
+            e.status = 409;
+            throw e;
+        }
+
+        const original = fs.readFileSync(target);
+        let normalized = content;
+        if (!original.includes(0)) {
+            const text = original.toString('utf-8');
+            const crlf = (text.match(/\r\n/g) || []).length;
+            const lf = (text.match(/\n/g) || []).length - crlf;
+            if (crlf > lf) {
+                normalized = content.replace(/\r?\n/g, '\r\n');
+            }
+        }
+
+        const tmp = `${target}.${process.pid}.${Date.now()}.tmp`;
+        try {
+            fs.writeFileSync(tmp, normalized, 'utf-8');
+            fs.renameSync(tmp, target);
+        } catch (e) {
+            try { fs.unlinkSync(tmp); } catch { /* ignore */ }
+            throw e;
+        }
+
+        const newStat = fs.statSync(target);
+        return { path: target, size: newStat.size, mtime: newStat.mtimeMs };
     }
 }

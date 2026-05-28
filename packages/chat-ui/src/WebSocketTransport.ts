@@ -17,6 +17,7 @@ import {
   type QuickDir,
   type FsTreeResult,
   type FsReadResult,
+  type FsWriteResult,
   type GitStatusResult,
   type GitDiffResult,
 } from './types'
@@ -89,7 +90,9 @@ export class WebSocketTransport implements IChatTransport {
     const res = await fetch(url, opts)
     if (!res.ok) {
       const err = await res.json().catch(() => ({ message: res.statusText }))
-      throw new Error(err.message || err.error || res.statusText)
+      const e: any = new Error(err.message || err.error || res.statusText)
+      e.status = res.status
+      throw e
     }
     const text = await res.text()
     return text ? JSON.parse(text) : undefined
@@ -203,6 +206,11 @@ export class WebSocketTransport implements IChatTransport {
   async readFile(path: string): Promise<FsReadResult> {
     const res = await this.api(`/api/fs/entry?type=read&path=${encodeURIComponent(path)}`)
     return res.data ?? res ?? { path, size: 0, tooLarge: false, contentType: 'text', mimeType: 'text/plain', content: '' }
+  }
+
+  async writeFile(path: string, content: string, expectedMtime?: number): Promise<FsWriteResult> {
+    const res = await this.api('/api/fs/entry', 'PUT', { path, content, expectedMtime })
+    return res.data ?? res
   }
 
   getRawFileUrl(path: string): string {

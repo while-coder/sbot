@@ -870,6 +870,11 @@ class HttpServer {
             return fsApi.createFile(filePath, content ?? '');
         }));
 
+        app.put('/api/fs/entry', express.json({ limit: '2mb' }), api(req => {
+            const { path: filePath, content, expectedMtime } = req.body || {};
+            return fsApi.writeFile(filePath, content ?? '', { expectedMtime });
+        }));
+
         app.get('/api/fs/entry', api(req => {
             const filePath = req.query.path as string | undefined;
             const entryType = (req.query.type as string | undefined) || '';

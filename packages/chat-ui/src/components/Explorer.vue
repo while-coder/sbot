@@ -20,6 +20,8 @@ const props = defineProps<{
   transport: IChatTransport
   root?: string
   labels?: ChatLabels
+  /** 是否启用 FileExplorer 的文本编辑能力；默认 false（只读） */
+  editable?: boolean
 }>()
 
 const L = computed(() => resolveLabels(props.labels))
@@ -105,6 +107,7 @@ function refresh() {
       :tree-width="viewState.treeWidth"
       :tree-height="viewState.treeHeight"
       :view-state="viewState.files"
+      :editable="props.editable"
       @refreshing="refreshing = $event"
       @tree-width="updateTreeWidth"
       @tree-height="updateTreeHeight"
