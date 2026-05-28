@@ -14,7 +14,6 @@ import {
     createSuccessResult,
     MCPToolResult,
     runProgram,
-    runShellCommand,
     isCommandAvailable,
 } from "../Tools";
 import { UsageTracker, UsageState } from "../Utils/UsageTracker";
@@ -144,10 +143,13 @@ export class SkillService implements ISkillService {
         skillName:  z.string().describe("Skill name (kebab-case)"),
         scriptPath: z.string().describe('Relative path to the script, e.g. "scripts/process.py". Confirm via list_skill_files first.'),
         args:       z.array(z.string()).optional().describe("Arguments to pass to the script"),
-        stdin:      z.string().optional().describe('Data to pipe into the script via stdin (use when payload is large or contains special characters, e.g. JSON)'),
+        stdin:      z.any().optional().describe('Data to pipe into the script via stdin. Prefer a string; objects/arrays are auto-serialized to JSON.'),
         timeout:    z.number().optional().default(60000).describe('Timeout in milliseconds, default 60000 (60 s)'),
       }) as any,
       func: async ({ skillName, scriptPath, args = [], stdin, timeout = 60000 }: any): Promise<MCPToolResult> => {
+        // schema 用 z.any() 是为了同时满足两点：(1) Zod v4 的 toJSONSchema 不接受 transform/preprocess；
+        // (2) 模型偶尔不遵守 string 约束、直接塞 object/array。这里在 func 入口统一序列化兜底。
+        if (stdin != null && typeof stdin !== 'string') stdin = JSON.stringify(stdin);
         try {
           const skill = this.getAllSkills().find(s => s.name === skillName);
           if (!skill) return createErrorResult(`Skill "${skillName}" not found`);
@@ -157,21 +159,20 @@ export class SkillService implements ISkillService {
           if (!fs.existsSync(fullPath)) return createErrorResult(`Script not found: ${scriptPath}`);
 
           const ext = path.extname(scriptPath).toLowerCase();
-          // .sh 走 shell（脚本本身可能依赖 shell 语法）；其他走 runProgram 数组传参，免转义。
+          // 一律走 runProgram + 解释器调用：免 shell 转义，且不要求脚本本身有 +x。
           // python 解释器名按平台双探测：现代 Linux 通常只有 python3，Windows 多为 python。
           let interpreter: string;
-          let useShell = false;
           switch (ext) {
             case ".py":
               interpreter = isCommandAvailable("python") ? "python" : "python3";
               break;
             case ".js": interpreter = "node";    break;
             case ".ts": interpreter = "ts-node"; break;
-            case ".sh": interpreter = "";        useShell = true; break;
+            case ".sh": interpreter = "bash";    break;
             default:
               return createErrorResult(`Unsupported script type: ${ext}. Supported: .py, .sh, .js, .ts`);
           }
-          if (!useShell && !isCommandAvailable(interpreter)) {
+          if (!isCommandAvailable(interpreter)) {
             return createErrorResult(`Interpreter "${interpreter}" not found in PATH`);
           }
 
@@ -180,11 +181,6 @@ export class SkillService implements ISkillService {
           const label = `skill ${skillName}/${scriptPath}`;
           this.logger?.info(`执行 skill 脚本 ${skillName}/${scriptPath} cwd=${cwd}`);
 
-          if (useShell) {
-            // .sh：拼一段 shell 命令，args 数组用 single-quote 包裹避免 injection。
-            const quoted = [fullPath, ...args].map((s: string) => `'${String(s).replace(/'/g, `'\\''`)}'`).join(" ");
-            return await runShellCommand(quoted, cwd, timeout, label, stdin);
-          }
           return await runProgram(interpreter, [fullPath, ...args], cwd, timeout, label, stdin);
         } catch (error: any) {
           this.logger?.error(`Error executing skill script ${skillName}/${scriptPath}: ${error.message}`);
