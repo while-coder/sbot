@@ -78,10 +78,10 @@ export function createReadMediaFileTool(): StructuredToolInterface {
                 const buffer = await fsAsync.readFile(abs);
 
                 switch (category) {
-                    case 'audio':
-                        return createSuccessResult(createAudioContent(buffer.toString('base64'), mimeType));
-                    case 'document':
-                        return createSuccessResult(createDocumentContent(buffer.toString('base64'), mimeType));
+                    // case 'audio':
+                    //     return createSuccessResult(createAudioContent(buffer.toString('base64'), mimeType));
+                    // case 'document':
+                    //     return createSuccessResult(createDocumentContent(buffer.toString('base64'), mimeType));
                     default:
                         return createSuccessResult(
                             createTextContent(`mimeType: ${mimeType}\nsize: ${formatSize(stat.size)}\nbase64: ${buffer.toString('base64')}`),

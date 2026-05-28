@@ -12,7 +12,7 @@ import { ITodoService } from "../../Todo";
 import { IAgentToolService } from "../../AgentTool";
 import { SingleAgentService } from "../Single/SingleAgentService";
 import { createTaskTool, type RunTaskFn } from "../../Tools";
-import { MCPContentType, createTextContent, createImageContent, createAudioContent, createErrorResult, type MCPContent } from "../../Tools/types";
+import { MCPContentType, createTextContent, createImageContent, /* createAudioContent, */ createErrorResult, type MCPContent } from "../../Tools/types";
 import { v4 as uuidv4 } from "uuid";
 
 // ── Tokens ────────────────────────────────────────────────────
@@ -121,9 +121,10 @@ export class ReActAgentService extends SingleAgentService {
                 content.push(createTextContent(part.text));
               } else if (part.type === MCPContentType.Image && part.data) {
                 content.push(createImageContent(part.data, part.mimeType));
-              } else if (part.type === MCPContentType.Audio && part.data) {
-                content.push(createAudioContent(part.data, part.mimeType));
               }
+              // } else if (part.type === MCPContentType.Audio && part.data) {
+              //   content.push(createAudioContent(part.data, part.mimeType));
+              // }
             }
           }
         }

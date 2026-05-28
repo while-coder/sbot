@@ -114,17 +114,17 @@ export async function readMediaAsContentPart(filePath: string, mediaAsFilePath =
             const resized = await resizeImageIfNeeded(buffer);
             return { part: { type: 'image_url', image_url: { url: `data:${detectImageMimeType(resized)};base64,${resized.toString('base64')}` } }, category };
         }
-        case 'audio':
-            return { part: { type: 'audio', data: buffer.toString('base64'), mimeType }, category };
-        case 'document':
-            return { part: { type: 'document', data: buffer.toString('base64'), mimeType }, category };
-        case 'video': {
-            const name = filePath.slice(filePath.lastIndexOf('/') + 1) || filePath.slice(filePath.lastIndexOf('\\') + 1);
-            return { part: { type: 'text', text: `[video: ${name}] (${mimeType}, ${buffer.length} bytes)` }, category };
-        }
+        // case 'audio':
+        //     return { part: { type: 'audio', data: buffer.toString('base64'), mimeType }, category };
+        // case 'document':
+        //     return { part: { type: 'document', data: buffer.toString('base64'), mimeType }, category };
+        // case 'video': {
+        //     const name = filePath.slice(filePath.lastIndexOf('/') + 1) || filePath.slice(filePath.lastIndexOf('\\') + 1);
+        //     return { part: { type: 'text', text: `[video: ${name}] (${mimeType}, ${buffer.length} bytes)` }, category };
+        // }
         default: {
             const name = filePath.slice(filePath.lastIndexOf('/') + 1) || filePath.slice(filePath.lastIndexOf('\\') + 1);
-            return { part: { type: 'text', text: `[file: ${name}](${filePath})` }, category };
+            return { part: { type: 'text', text: `[${category}: ${name}] (${mimeType}, ${buffer.length} bytes)` }, category };
         }
     }
 }
