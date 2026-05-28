@@ -242,6 +242,9 @@ defineExpose({ open })
   min-height: 180px;
   margin: calc(-1 * var(--sui-sp-7)) calc(-1 * var(--sui-sp-8));
 }
+.picker-quickdirs + .picker-list {
+  margin-top: 0;
+}
 
 .picker-empty {
   text-align: center;
