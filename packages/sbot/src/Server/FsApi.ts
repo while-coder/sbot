@@ -1,7 +1,6 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { randomUUID } from 'crypto';
 
 type FsTreeNode = { name: string; type: 'file' | 'dir'; path: string; size?: number; children?: FsTreeNode[] };
 type ReadFileOptions = { offset?: number; limit?: number; chunk?: boolean };
@@ -40,122 +39,127 @@ function dirFirstByName(a: { isDirectory(): boolean; name: string }, b: { isDire
     return a.name.localeCompare(b.name);
 }
 
-function safeRelPath(relPath: string | undefined): string {
-    if (!relPath?.trim()) throwBad('path is required');
-    const normalized = path.normalize(relPath.trim()).replace(/\\/g, '/');
-    if (normalized.startsWith('..') || path.isAbsolute(normalized)) throwBad('Invalid path');
-    return normalized;
+function requireAbsPath(p: string | undefined | null): string {
+    if (!p?.trim()) throwBad('path is required');
+    const abs = path.resolve(p.trim());
+    return abs;
 }
 
-function safeOptionalRelPath(relPath: string | undefined): string {
-    if (!relPath?.trim()) return '';
-    const normalized = path.normalize(relPath.trim()).replace(/\\/g, '/');
-    if (normalized === '.') return '';
-    if (normalized.startsWith('..') || path.isAbsolute(normalized)) throwBad('Invalid path');
-    return normalized;
-}
-
-function isPathInside(base: string, target: string): boolean {
-    const rel = path.relative(base, target);
-    return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
-}
-
-class ManagedFileRoot {
-    constructor(readonly id: string, readonly rootPath: string) {}
-
-    resolve(relPath?: string): { relPath: string; target: string } {
-        const safe = safeOptionalRelPath(relPath);
-        const target = path.resolve(this.rootPath, safe);
-        if (!isPathInside(this.rootPath, target)) throwBad('Invalid path');
-
-        if (fs.existsSync(target)) {
-            const rootReal = fs.realpathSync(this.rootPath);
-            const targetReal = fs.realpathSync(target);
-            if (!isPathInside(rootReal, targetReal)) throwBad('Invalid path');
+export class FsApi {
+    listDir(absPath: string | undefined) {
+        const target = requireAbsPath(absPath);
+        if (!fs.existsSync(target) || !fs.statSync(target).isDirectory()) {
+            throwNotFound(`Directory not found: ${target}`);
         }
-
-        return { relPath: safe, target };
-    }
-
-    listDir(relPath?: string) {
-        const { relPath: safe, target } = this.resolve(relPath);
-        if (!fs.existsSync(target) || !fs.statSync(target).isDirectory()) throwBad(`Path does not exist: ${safe || '.'}`);
-        const up = path.posix.dirname(safe);
-        const parent: string | null = safe ? (up === '.' ? '' : up) : null;
+        const up = path.dirname(target);
+        const parent: string | null = up === target ? null : up;
 
         let entries: fs.Dirent[] = [];
-        try { entries = fs.readdirSync(target, { withFileTypes: true }); } catch { /* ignore permission errors */ }
+        try { entries = fs.readdirSync(target, { withFileTypes: true }); } catch { /* permission errors */ }
 
         const items = entries
             .filter(e => e.isDirectory())
-            .map(e => safe ? `${safe}/${e.name}` : e.name)
+            .map(e => path.join(target, e.name))
             .sort((a, b) => a.localeCompare(b));
 
-        return { rootId: this.id, path: safe, parent, items };
+        return { path: target, parent, items };
     }
 
-    listTree(relPath?: string, recursive = false) {
-        const { relPath: safe, target } = this.resolve(relPath);
+    listTree(absPath: string | undefined, recursive = false) {
+        const target = requireAbsPath(absPath);
         if (!fs.existsSync(target) || !fs.statSync(target).isDirectory()) {
-            throwNotFound(`Directory "${safe || '.'}" not found`);
+            throwNotFound(`Directory not found: ${target}`);
         }
-        return { id: this.id, rootId: this.id, path: safe, items: this.listTreeFromDir(target, safe, recursive) };
+        return { path: target, items: this.listTreeFromDir(target, recursive) };
     }
 
-    readFile(relPath: string | undefined, opts: ReadFileOptions = {}) {
-        const { relPath: safe, target } = this.resolve(relPath);
+    readFile(absPath: string | undefined, opts: ReadFileOptions = {}) {
+        const target = requireAbsPath(absPath);
         if (opts.chunk || opts.offset != null || opts.limit != null) {
-            return this.readFileChunk(target, safe, opts);
+            return this.readFileChunk(target, opts);
         }
-        return this.readFilePreview(target, safe);
+        return this.readFilePreview(target);
     }
 
-    createFile(relPath: string | undefined, content = '') {
-        const filePath = safeRelPath(relPath);
-        const { target } = this.resolve(filePath);
-        if (fs.existsSync(target)) throwBad(`Already exists: ${filePath}`);
-        const parent = path.dirname(target);
-        if (!isPathInside(this.rootPath, parent)) throwBad('Invalid path');
-        fs.mkdirSync(parent, { recursive: true });
+    createFile(absPath: string | undefined, content = '') {
+        const target = requireAbsPath(absPath);
+        if (fs.existsSync(target)) throwBad(`Already exists: ${target}`);
+        fs.mkdirSync(path.dirname(target), { recursive: true });
         fs.writeFileSync(target, content, 'utf-8');
-        const stat = fs.statSync(target);
-        return { rootId: this.id, path: filePath, size: stat.size };
+        return { path: target, size: fs.statSync(target).size };
     }
 
-    mkdir(relPath: string | undefined) {
-        if (!relPath?.trim()) throwBad('path is required');
-        const { relPath: safe, target } = this.resolve(relPath);
-        if (fs.existsSync(target)) throwBad(`Already exists: ${safe}`);
+    mkdir(absPath: string | undefined) {
+        const target = requireAbsPath(absPath);
+        if (fs.existsSync(target)) throwBad(`Already exists: ${target}`);
         fs.mkdirSync(target, { recursive: true });
-        return { rootId: this.id, path: safe };
+        return { path: target };
     }
 
-    private listTreeFromDir(dir: string, basePath = '', recursive = false): FsTreeNode[] {
+    resolve(absPath: string | undefined): { path: string } {
+        return { path: requireAbsPath(absPath) };
+    }
+
+    quickDirs() {
+        const home = os.homedir();
+        const candidates = [
+            { label: '主目录', path: home },
+            { label: '桌面', path: path.join(home, 'Desktop') },
+            { label: '文档', path: path.join(home, 'Documents') },
+            { label: '下载', path: path.join(home, 'Downloads') },
+        ];
+        const result: { label: string; path: string }[] = [];
+
+        if (process.platform === 'win32') {
+            result.push({ label: '我的电脑', path: '' });
+        } else {
+            try { if (fs.statSync('/').isDirectory()) result.push({ label: '根目录', path: '/' }); } catch { /* ignore */ }
+        }
+
+        for (const c of candidates) {
+            try { if (fs.statSync(c.path).isDirectory()) result.push({ label: c.label, path: c.path }); } catch { /* ignore */ }
+        }
+        return result;
+    }
+
+    listDrives() {
+        const drives: { label: string; path: string }[] = [];
+        if (process.platform === 'win32') {
+            for (let code = 'C'.charCodeAt(0); code <= 'Z'.charCodeAt(0); code++) {
+                const letter = String.fromCharCode(code);
+                const p = `${letter}:\\`;
+                try { if (!fs.statSync(p).isDirectory()) continue; } catch { continue; }
+                drives.push({ label: `${letter}盘`, path: p });
+            }
+        } else {
+            try { if (fs.statSync('/').isDirectory()) drives.push({ label: '根目录', path: '/' }); } catch { /* ignore */ }
+        }
+        return drives;
+    }
+
+    private listTreeFromDir(dir: string, recursive = false): FsTreeNode[] {
         if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return [];
         let entries: fs.Dirent[] = [];
         try { entries = fs.readdirSync(dir, { withFileTypes: true }).sort(dirFirstByName); } catch { return []; }
 
         const result: FsTreeNode[] = [];
         for (const entry of entries) {
-            const relPath = basePath ? `${basePath}/${entry.name}` : entry.name;
             const full = path.join(dir, entry.name);
             if (entry.isDirectory()) {
-                const node: FsTreeNode = { name: entry.name, type: 'dir', path: relPath };
-                if (recursive) node.children = this.listTreeFromDir(full, relPath, true);
+                const node: FsTreeNode = { name: entry.name, type: 'dir', path: full };
+                if (recursive) node.children = this.listTreeFromDir(full, true);
                 result.push(node);
             } else if (entry.isFile()) {
                 let size = 0;
                 try { size = fs.statSync(full).size; } catch { /* ignore */ }
-                result.push({ name: entry.name, type: 'file', path: relPath, size });
+                result.push({ name: entry.name, type: 'file', path: full, size });
             }
         }
         return result;
     }
 
-    private readFileChunk(absPath: string, displayPath: string, opts: ReadFileOptions = {}) {
-        if (!fs.existsSync(absPath) || !fs.statSync(absPath).isFile()) {
-            throwNotFound(`File "${displayPath}" not found`);
-        }
+    private readFileChunk(absPath: string, opts: ReadFileOptions = {}) {
+        if (!fs.existsSync(absPath) || !fs.statSync(absPath).isFile()) throwNotFound(`File not found: ${absPath}`);
         const size = fs.statSync(absPath).size;
         const offset = Math.max(0, Math.min(opts.offset ?? 0, size));
         const limit = opts.limit && opts.limit > 0 ? Math.min(opts.limit, FILE_VIEW_MAX_CHUNK) : FILE_VIEW_DEFAULT_CHUNK;
@@ -171,11 +175,11 @@ class ManagedFileRoot {
         if (offset === 0) {
             const sniff = buf.subarray(0, Math.min(readLen, 8192));
             if (sniff.includes(0)) {
-                return { path: displayPath, size, offset: 0, length: 0, binary: true, content: '', hasMore: false };
+                return { path: absPath, size, offset: 0, length: 0, binary: true, content: '', hasMore: false };
             }
         }
         return {
-            path: displayPath,
+            path: absPath,
             size,
             offset,
             length: readLen,
@@ -185,20 +189,18 @@ class ManagedFileRoot {
         };
     }
 
-    private readFilePreview(absPath: string, displayPath: string) {
-        if (!fs.existsSync(absPath) || !fs.statSync(absPath).isFile()) {
-            throwNotFound(`File "${displayPath}" not found`);
-        }
+    private readFilePreview(absPath: string) {
+        if (!fs.existsSync(absPath) || !fs.statSync(absPath).isFile()) throwNotFound(`File not found: ${absPath}`);
         const stat = fs.statSync(absPath);
         const imageMimeType = IMAGE_MIME_BY_EXT[path.extname(absPath).toLowerCase()];
 
         if (imageMimeType) {
             if (stat.size > MAX_IMAGE_READ_SIZE) {
-                return { path: displayPath, size: stat.size, tooLarge: true, contentType: 'image', mimeType: imageMimeType, content: '' };
+                return { path: absPath, size: stat.size, tooLarge: true, contentType: 'image', mimeType: imageMimeType, content: '' };
             }
             const buf = fs.readFileSync(absPath);
             return {
-                path: displayPath,
+                path: absPath,
                 size: stat.size,
                 tooLarge: false,
                 contentType: 'image',
@@ -209,118 +211,12 @@ class ManagedFileRoot {
         }
 
         if (stat.size > MAX_FILE_READ_SIZE) {
-            return { path: displayPath, size: stat.size, tooLarge: true, contentType: 'text', mimeType: 'text/plain', content: '' };
+            return { path: absPath, size: stat.size, tooLarge: true, contentType: 'text', mimeType: 'text/plain', content: '' };
         }
         const buf = fs.readFileSync(absPath);
         if (buf.includes(0)) {
-            return { path: displayPath, size: stat.size, tooLarge: false, contentType: 'binary', mimeType: 'application/octet-stream', content: '' };
+            return { path: absPath, size: stat.size, tooLarge: false, contentType: 'binary', mimeType: 'application/octet-stream', content: '' };
         }
-        return { path: displayPath, size: stat.size, tooLarge: false, contentType: 'text', mimeType: 'text/plain', content: buf.toString('utf-8') };
-    }
-}
-
-export class FsApi {
-    private readonly rootIdToFile = new Map<string, ManagedFileRoot>();
-    private readonly rootPathToId = new Map<string, string>();
-
-    getOrCreateRoot(rootPath: string): string {
-        const normalized = path.resolve(rootPath);
-        let stat: fs.Stats;
-        try { stat = fs.statSync(normalized); }
-        catch { throwBad(`Path does not exist: ${normalized}`); }
-        if (!stat.isDirectory()) throwBad(`Path is not a directory: ${normalized}`);
-
-        const existingId = this.rootPathToId.get(normalized);
-        if (existingId && this.rootIdToFile.has(existingId)) return existingId;
-
-        const id = randomUUID();
-        this.rootPathToId.set(normalized, id);
-        this.rootIdToFile.set(id, new ManagedFileRoot(id, normalized));
-        return id;
-    }
-
-    tryGetOrCreateRoot(rootPath: string | null | undefined): string | undefined {
-        if (!rootPath) return undefined;
-        try { return this.getOrCreateRoot(rootPath); }
-        catch { return undefined; }
-    }
-
-    listDir(rootId: string | undefined, relPath?: string) {
-        return this.getRoot(rootId).listDir(relPath);
-    }
-
-    listTree(rootId: string | undefined, relPath?: string, recursive = false) {
-        return this.getRoot(rootId).listTree(relPath, recursive);
-    }
-
-    readFile(rootId: string | undefined, relPath: string | undefined, opts: ReadFileOptions = {}) {
-        return this.getRoot(rootId).readFile(relPath, opts);
-    }
-
-    createFile(rootId: string | undefined, relPath: string | undefined, content = '') {
-        return this.getRoot(rootId).createFile(relPath, content);
-    }
-
-    mkdir(rootId: string | undefined, relPath: string | undefined) {
-        return this.getRoot(rootId).mkdir(relPath);
-    }
-
-    resolve(rootId: string | undefined, relPath?: string): { rootId: string; relPath: string; target: string } {
-        const root = this.getRoot(rootId);
-        const resolved = root.resolve(relPath);
-        return { rootId: root.id, ...resolved };
-    }
-
-    quickDirs() {
-        const home = os.homedir();
-        const candidates = [
-            { label: '主目录', path: home },
-            { label: '桌面', path: path.join(home, 'Desktop') },
-            { label: '文档', path: path.join(home, 'Documents') },
-            { label: '下载', path: path.join(home, 'Downloads') },
-        ];
-        const drives = this.listDrives();
-        const result: { label: string; rootId: string; relPath: string }[] = [];
-        for (const c of candidates) {
-            try { if (!fs.statSync(c.path).isDirectory()) continue; } catch { continue; }
-            let drive: typeof drives[number] | undefined;
-            for (const dr of drives) {
-                const rel = path.relative(dr.path, c.path);
-                if (rel.startsWith('..') || path.isAbsolute(rel)) continue;
-                if (!drive || dr.path.length > drive.path.length) drive = dr;
-            }
-            if (!drive) continue;
-            const relPath = path.relative(drive.path, c.path).replace(/\\/g, '/');
-            result.push({ label: c.label, rootId: drive.rootId, relPath });
-        }
-        return result;
-    }
-
-    listDrives() {
-        const drives: { label: string; path: string; rootId: string }[] = [];
-        if (process.platform === 'win32') {
-            for (let code = 'C'.charCodeAt(0); code <= 'Z'.charCodeAt(0); code++) {
-                const letter = String.fromCharCode(code);
-                const p = `${letter}:\\`;
-                try {
-                    if (!fs.statSync(p).isDirectory()) continue;
-                } catch { continue; }
-                drives.push({ label: `${letter}盘`, path: p, rootId: this.getOrCreateRoot(p) });
-            }
-        } else {
-            try {
-                if (fs.statSync('/').isDirectory()) {
-                    drives.push({ label: '根目录', path: '/', rootId: this.getOrCreateRoot('/') });
-                }
-            } catch { /* ignore */ }
-        }
-        return drives;
-    }
-
-    private getRoot(rootId: string | undefined): ManagedFileRoot {
-        if (!rootId?.trim()) throwBad('rootId is required');
-        const root = this.rootIdToFile.get(rootId.trim());
-        if (!root) throwNotFound('File root not found');
-        return root;
+        return { path: absPath, size: stat.size, tooLarge: false, contentType: 'text', mimeType: 'text/plain', content: buf.toString('utf-8') };
     }
 }

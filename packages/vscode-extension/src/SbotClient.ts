@@ -120,9 +120,8 @@ export class SbotClient {
 
   // ── Filesystem ──
 
-  async listDir(rootId: string, filePath = ''): Promise<any> {
-    const qs = `?rootId=${encodeURIComponent(rootId)}&path=${encodeURIComponent(filePath)}`;
-    const res = await this.http.get(`/api/fs/list${qs}`);
+  async listDir(filePath: string): Promise<any> {
+    const res = await this.http.get(`/api/fs/list?path=${encodeURIComponent(filePath)}`);
     return res.data.data ?? res.data;
   }
 
@@ -136,24 +135,23 @@ export class SbotClient {
     return res.data.data ?? res.data ?? [];
   }
 
-  async mkdir(rootId: string, filePath: string): Promise<{ rootId: string; path: string }> {
-    const res = await this.http.post('/api/fs/mkdir', { rootId, path: filePath });
-    return res.data.data ?? res.data ?? { rootId, path: filePath };
+  async mkdir(filePath: string): Promise<{ path: string }> {
+    const res = await this.http.post('/api/fs/mkdir', { path: filePath });
+    return res.data.data ?? res.data ?? { path: filePath };
   }
 
-  async listTree(rootId: string, filePath = ''): Promise<any> {
-    const res = await this.http.get('/api/fs/entry', { params: { type: 'tree', rootId, path: filePath } });
+  async listTree(filePath: string): Promise<any> {
+    const res = await this.http.get('/api/fs/entry', { params: { type: 'tree', path: filePath } });
     return res.data.data ?? res.data;
   }
 
-  async readFile(rootId: string, filePath = ''): Promise<any> {
-    const res = await this.http.get('/api/fs/entry', { params: { type: 'read', rootId, path: filePath } });
+  async readFile(filePath: string): Promise<any> {
+    const res = await this.http.get('/api/fs/entry', { params: { type: 'read', path: filePath } });
     return res.data.data ?? res.data;
   }
 
-  getRawFileUrl(rootId: string, filePath = ''): string {
-    const qs = new URLSearchParams({ rootId, path: filePath });
-    return `${this.baseUrl}/api/fs/entry/raw?${qs.toString()}`;
+  getRawFileUrl(filePath: string): string {
+    return `${this.baseUrl}/api/fs/entry/raw?path=${encodeURIComponent(filePath)}`;
   }
 
   async gitStatus(root: string): Promise<any> {

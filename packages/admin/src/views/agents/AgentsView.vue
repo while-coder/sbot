@@ -125,7 +125,7 @@ const skillViewRef = ref<InstanceType<typeof SkillViewerModal>>()
 
 function openSkillView(skill: SkillItem, isPrivate: boolean) {
   const badge = isPrivate ? t('agents.skills_exclusive_tab') : (skill.source || '')
-  skillViewRef.value?.open(skill.name, badge, skill.id || '')
+  skillViewRef.value?.open(skill.name, badge, skill.path || '')
 }
 
 const showToolsModal = ref(false)

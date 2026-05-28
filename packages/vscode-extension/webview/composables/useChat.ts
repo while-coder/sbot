@@ -58,13 +58,13 @@ export class VsCodeTransport implements IChatTransport {
   getSettings(): Promise<AppSettings> { return rpc('getSettings') }
   getSessionStatus(sessionId: string): Promise<SessionStatus | null> { return rpc('getSessionStatus', sessionId) }
 
-  listDir(rootId: string, path = ''): Promise<DirListResult> { return rpc('listDir', rootId, path) }
+  listDir(path: string): Promise<DirListResult> { return rpc('listDir', path) }
   quickDirs(): Promise<QuickDir[]> { return rpc('quickDirs') }
   listDrives(): Promise<DriveEntry[]> { return rpc('listDrives') }
-  mkdir(rootId: string, path: string): Promise<{ rootId: string; path: string }> { return rpc('mkdir', rootId, path) }
-  listTree(rootId: string, path = ''): Promise<FsTreeResult> { return rpc('listTree', rootId, path) }
-  readFile(rootId: string, path = ''): Promise<FsReadResult> { return rpc('readFile', rootId, path) }
-  getRawFileUrl(_rootId: string, _path = ''): string { return '' }
+  mkdir(path: string): Promise<{ path: string }> { return rpc('mkdir', path) }
+  listTree(path: string): Promise<FsTreeResult> { return rpc('listTree', path) }
+  readFile(path: string): Promise<FsReadResult> { return rpc('readFile', path) }
+  getRawFileUrl(_path: string): string { return '' }
   gitStatus(root: string): Promise<GitStatusResult> { return rpc('gitStatus', root) }
   gitDiff(root: string, path: string, fullContent = false): Promise<GitDiffResult> { return rpc('gitDiff', root, path, fullContent) }
 

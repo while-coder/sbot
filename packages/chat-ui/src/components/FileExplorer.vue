@@ -11,7 +11,6 @@ import CodeViewer from './CodeViewer.vue'
 const props = defineProps<{
   transport: IChatTransport
   root?: string
-  rootId?: string
   labels?: ChatLabels
   refreshKey?: number
   treeWidth?: number
@@ -36,7 +35,6 @@ type DirState = {
 }
 
 const dirStates = ref<Map<string, DirState>>(new Map())
-const rootId = ref('')
 const selectedPath = ref('')
 const fileContent = ref('')
 const fileDataUrl = ref('')
@@ -52,7 +50,8 @@ const treeWidth = ref(props.treeWidth ?? 260)
 const treeHeight = ref(props.treeHeight ?? 220)
 const resizing = ref(false)
 const resizeMode = ref<'horizontal' | 'vertical'>('horizontal')
-const hasRoot = computed(() => !!props.rootId)
+const hasRoot = computed(() => !!props.root)
+const rootPath = computed(() => props.root || '')
 
 const treeStyle = computed(() =>
   resizeMode.value === 'vertical'
@@ -68,7 +67,7 @@ function fmtSize(n: number): string {
 }
 
 async function loadDir(dir: string): Promise<void> {
-  if (!rootId.value) return
+  if (!dir) return
   let state = dirStates.value.get(dir)
   if (!state) {
     state = { loaded: false, loading: false, expanded: false, items: [] }
@@ -78,7 +77,7 @@ async function loadDir(dir: string): Promise<void> {
   state.loading = true
   errMsg.value = ''
   try {
-    const res = await props.transport.listTree(rootId.value, dir)
+    const res = await props.transport.listTree(dir)
     state.items = res.items || []
     state.loaded = true
   } catch (e: any) {
@@ -116,7 +115,7 @@ async function selectFile(item: FsTreeItem): Promise<void> {
   fileLoading.value = true
   errMsg.value = ''
   try {
-    const res = await props.transport.readFile(rootId.value, item.path)
+    const res = await props.transport.readFile(item.path)
     fileContent.value = res.content ?? ''
     fileDataUrl.value = res.dataUrl ?? ''
     fileContentType.value = res.contentType
@@ -153,13 +152,15 @@ function findLoadedItem(path: string): FsTreeItem | undefined {
 }
 
 async function restoreExpandedDirs(expandedPaths: string[]): Promise<void> {
-  const expanded = new Set(['', ...expandedPaths])
-  await loadDir('')
-  const rootState = dirStates.value.get('')
+  const root = rootPath.value
+  if (!root) return
+  const expanded = new Set([root, ...expandedPaths])
+  await loadDir(root)
+  const rootState = dirStates.value.get(root)
   if (!rootState) return
   rootState.expanded = true
 
-  const queue: string[] = ['']
+  const queue: string[] = [root]
   while (queue.length > 0) {
     const cur = queue.shift()!
     const state = dirStates.value.get(cur)
@@ -194,26 +195,24 @@ function flattenChildren(parent: string, depth: number): FlatRow[] {
 }
 
 const rootRows = computed<FlatRow[]>(() => {
-  if (!hasRoot.value || !rootId.value) return []
-  return flattenChildren('', 0)
+  if (!hasRoot.value) return []
+  return flattenChildren(rootPath.value, 0)
 })
 
 const rootLoading = computed(() => {
-  if (!hasRoot.value || !rootId.value) return false
-  return dirStates.value.get('')?.loading ?? false
+  if (!hasRoot.value) return false
+  return dirStates.value.get(rootPath.value)?.loading ?? false
 })
 
-watch(() => props.rootId, async (providedRootId) => {
+watch(() => props.root, async (providedRoot) => {
   dirStates.value = new Map()
-  rootId.value = ''
   selectedPath.value = ''
   fileContent.value = ''
   fileDataUrl.value = ''
   fileContentType.value = 'text'
   fileMimeType.value = ''
   errMsg.value = ''
-  if (providedRootId) {
-    rootId.value = providedRootId
+  if (providedRoot) {
     await restoreExpandedDirs(props.viewState?.expandedPaths ?? [])
     const savedSelectedPath = props.viewState?.selectedPath || ''
     if (savedSelectedPath) {
@@ -255,7 +254,7 @@ watch(() => props.refreshKey, async (val, oldVal) => {
 })
 
 async function refresh(): Promise<void> {
-  if (!hasRoot.value || !rootId.value) return
+  if (!hasRoot.value) return
   emit('refreshing', true)
   errMsg.value = ''
   try {
@@ -265,12 +264,12 @@ async function refresh(): Promise<void> {
     }
 
     dirStates.value = new Map()
-    await loadDir('')
-    const rootState = dirStates.value.get('')
+    await loadDir(rootPath.value)
+    const rootState = dirStates.value.get(rootPath.value)
     if (!rootState) return
     rootState.expanded = true
 
-    const queue: string[] = ['']
+    const queue: string[] = [rootPath.value]
     while (queue.length > 0) {
       const cur = queue.shift()!
       const state = dirStates.value.get(cur)
@@ -297,8 +296,8 @@ const isImageFile = computed(() => fileContentType.value === 'image')
 const isUnsupportedBinary = computed(() => fileContentType.value === 'binary')
 const imageSrc = computed(() => fileDataUrl.value || fileContent.value)
 const rawDownloadHref = computed(() =>
-  selectedPath.value && rootId.value && typeof props.transport.getRawFileUrl === 'function'
-    ? props.transport.getRawFileUrl(rootId.value, selectedPath.value)
+  selectedPath.value && typeof props.transport.getRawFileUrl === 'function'
+    ? props.transport.getRawFileUrl(selectedPath.value)
     : '',
 )
 

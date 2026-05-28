@@ -11,40 +11,35 @@ const props = defineProps<{
 }>()
 
 const L = computed(() => resolveLabels(props.labels))
-const emit = defineEmits<{ confirm: [path: string, rootId: string] }>()
+const emit = defineEmits<{
+  confirm: [path: string]
+  error: [message: string]
+}>()
 
 const pickerOpen      = ref(false)
 const pickerLoading   = ref(false)
-const pickerRootId    = ref('')            // '' = 驱动器选择态
-const pickerRelPath   = ref('')
-const pickerItems     = ref<string[]>([])
+const pickerPath      = ref('')              // '' 表示驱动器选择态
+const pickerParent    = ref<string | null>(null)
+const pickerItems     = ref<string[]>([])    // 绝对路径
 const pickerDrives    = ref<DriveEntry[]>([])
 const pickerQuickDirs = ref<QuickDir[]>([])
 const pickerCreating  = ref(false)
 const pickerNewName   = ref('')
 const newNameInput    = ref<InstanceType<typeof SInput> | null>(null)
 
-const pickerDriveMode = computed(() => !pickerRootId.value)
-const pickerRootPath  = computed(() => pickerDrives.value.find(d => d.rootId === pickerRootId.value)?.path ?? '')
-const pickerPath      = computed(() => pickerRootId.value ? joinDisplayPath(pickerRootPath.value, pickerRelPath.value) : '')
-const pickerParent    = computed<string | null>(() => {
-  if (!pickerRootId.value || !pickerRelPath.value) return null
-  const i = pickerRelPath.value.lastIndexOf('/')
-  return i < 0 ? '' : pickerRelPath.value.slice(0, i)
-})
+const pickerDriveMode = computed(() => !pickerPath.value)
+const isDriveRoot     = computed(() => /^[A-Za-z]:[/\\]?$/.test(pickerPath.value))
 const canGoUp = computed(() =>
-  !pickerDriveMode.value && (pickerParent.value !== null || pickerDrives.value.length > 1)
+  !pickerDriveMode.value && (pickerParent.value !== null || isDriveRoot.value),
 )
-
-function joinDisplayPath(rootPath: string, relPath: string): string {
-  if (!relPath) return rootPath
-  const sep = rootPath.includes('\\') ? '\\' : '/'
-  return `${rootPath.replace(/[\\/]+$/, '')}${sep}${relPath.replace(/\//g, sep)}`
-}
 
 function itemLabel(p: string): string {
   if (/^[A-Za-z]:[/\\]?$/.test(p)) return p.replace(/[/\\]$/, '') + '\\'
   return p.replace(/[/\\]+$/, '').split(/[/\\]/).filter(Boolean).pop() || p
+}
+
+function pathSep(p: string): string {
+  return p.includes('\\') ? '\\' : '/'
 }
 
 function resetCreate() {
@@ -54,22 +49,23 @@ function resetCreate() {
 
 function enterDriveMode() {
   resetCreate()
-  pickerRootId.value  = ''
-  pickerRelPath.value = ''
-  pickerItems.value   = []
+  pickerPath.value   = ''
+  pickerParent.value = null
+  pickerItems.value  = []
 }
 
-async function navigate(rootId: string, relPath = ''): Promise<boolean> {
-  if (!rootId) return false
+async function navigate(absPath: string): Promise<boolean> {
+  if (!absPath) { enterDriveMode(); return true }
   resetCreate()
   pickerLoading.value = true
   try {
-    const res = await props.transport.listDir(rootId, relPath)
-    pickerRootId.value  = res.rootId
-    pickerRelPath.value = res.path
-    pickerItems.value   = res.items
+    const res = await props.transport.listDir(absPath)
+    pickerPath.value   = res.path
+    pickerParent.value = res.parent
+    pickerItems.value  = res.items
     return true
-  } catch {
+  } catch (e: any) {
+    emit('error', e?.message ?? String(e))
     return false
   } finally {
     pickerLoading.value = false
@@ -77,8 +73,8 @@ async function navigate(rootId: string, relPath = ''): Promise<boolean> {
 }
 
 function navigateUp() {
-  if (pickerParent.value !== null) navigate(pickerRootId.value, pickerParent.value)
-  else if (pickerDrives.value.length > 1) enterDriveMode()
+  if (pickerParent.value !== null) navigate(pickerParent.value)
+  else if (isDriveRoot.value) enterDriveMode()
 }
 
 function startCreate() {
@@ -94,28 +90,15 @@ const cancelCreate = resetCreate
 
 async function confirmCreate() {
   const name = pickerNewName.value.trim()
-  if (!name || !pickerRootId.value) return
+  if (!name || !pickerPath.value) return
+  const sep = pathSep(pickerPath.value)
+  const newPath = `${pickerPath.value.replace(/[\\/]+$/, '')}${sep}${name}`
   try {
-    const path = pickerRelPath.value ? `${pickerRelPath.value}/${name}` : name
-    const res = await props.transport.mkdir(pickerRootId.value, path)
-    await navigate(res.rootId, res.path)
-  } catch { /* handled by transport */ }
-}
-
-function resolveInitialPath(absPath: string): { rootId: string; relPath: string } | null {
-  const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
-  const target = norm(absPath)
-  let best: { drive: DriveEntry; rel: string } | null = null
-  for (const d of pickerDrives.value) {
-    const root = norm(d.path)
-    let rel: string | null = null
-    if (target === root) rel = ''
-    else if (root === '' && target.startsWith('/')) rel = target.slice(1)
-    else if (target.startsWith(`${root}/`)) rel = target.slice(root.length + 1)
-    if (rel === null) continue
-    if (!best || d.path.length > best.drive.path.length) best = { drive: d, rel }
+    await props.transport.mkdir(newPath)
+    await navigate(newPath)
+  } catch (e: any) {
+    emit('error', e?.message ?? String(e))
   }
-  return best ? { rootId: best.drive.rootId, relPath: best.rel } : null
 }
 
 async function open(initialPath = '') {
@@ -131,18 +114,15 @@ async function open(initialPath = '') {
   pickerDrives.value    = drives
   pickerQuickDirs.value = quicks
 
-  if (initialPath) {
-    const m = resolveInitialPath(initialPath)
-    if (m && await navigate(m.rootId, m.relPath)) return
-  }
-  if (drives.length === 1) await navigate(drives[0].rootId, '')
+  if (initialPath && await navigate(initialPath)) return
+  if (drives.length === 1) await navigate(drives[0].path)
   // 多盘符：保持 driveMode 让用户选
 }
 
 function confirmPicker() {
   if (!pickerPath.value) return
   pickerOpen.value = false
-  emit('confirm', pickerPath.value, pickerRootId.value)
+  emit('confirm', pickerPath.value)
 }
 
 defineExpose({ open })
@@ -161,10 +141,10 @@ defineExpose({ open })
 
     <div v-if="pickerQuickDirs.length" class="chatui-picker-quickdirs">
       <SChip
-        v-for="d in pickerQuickDirs" :key="`${d.rootId}/${d.relPath}`"
+        v-for="d in pickerQuickDirs" :key="d.label"
         clickable
-        :class="{ 'chatui-picker-qd-active': d.rootId === pickerRootId && d.relPath === pickerRelPath }"
-        @click="navigate(d.rootId, d.relPath)"
+        :class="{ 'chatui-picker-qd-active': d.path === pickerPath || (!d.path && pickerDriveMode) }"
+        @click="navigate(d.path)"
       >{{ d.label }}</SChip>
     </div>
 
@@ -175,7 +155,7 @@ defineExpose({ open })
         <div
           v-for="d in pickerDrives" :key="d.path"
           class="chatui-picker-item"
-          @click="navigate(d.rootId, '')"
+          @click="navigate(d.path)"
         >
           <span class="chatui-picker-icon">▶</span>{{ d.label }}
         </div>
@@ -199,7 +179,7 @@ defineExpose({ open })
           <SButton type="outline" size="sm" @click="cancelCreate">✕</SButton>
         </div>
         <div v-if="pickerItems.length === 0 && !pickerCreating" class="chatui-picker-empty">{{ L.noSubdirs }}</div>
-        <div v-for="item in pickerItems" :key="item" class="chatui-picker-item" @click="navigate(pickerRootId, item)">
+        <div v-for="item in pickerItems" :key="item" class="chatui-picker-item" @click="navigate(item)">
           <span class="chatui-picker-icon">▶</span>{{ itemLabel(item) }}
         </div>
       </template>

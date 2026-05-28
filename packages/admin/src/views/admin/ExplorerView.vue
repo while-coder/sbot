@@ -1,25 +1,35 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { SButton, SPageToolbar } from 'sbot-ui'
-import { Explorer, WebSocketTransport } from '@sbot/chat-ui'
-import PathPickerModal from '@/views/chat/PathPickerModal.vue'
+import { SButton, SPageToolbar, useToast } from 'sbot-ui'
+import { Explorer, WebSocketTransport, PathPickerModal } from '@sbot/chat-ui'
 
 const { t } = useI18n()
+const { show } = useToast()
 
 const STORAGE_KEY = 'explorer-root-path'
 const root = ref<string>('')
-const rootId = ref<string>('')
 const picker = ref<InstanceType<typeof PathPickerModal> | null>(null)
 const transport = new WebSocketTransport()
+
+const pickerLabels = computed(() => ({
+  selectDirTitle: t('directory.select_dir_title'),
+  myComputer: t('directory.my_computer'),
+  upDir: t('directory.up_dir'),
+  newFolder: t('directory.new_folder'),
+  newFolderPlaceholder: t('directory.new_folder_placeholder'),
+  selectThis: t('directory.select_this'),
+  noSubdirs: t('directory.no_subdirs'),
+  loading: t('common.loading'),
+  cancel: t('common.cancel'),
+}))
 
 function openPicker() {
   picker.value?.open(root.value)
 }
 
-function onPicked(p: string, id: string) {
+function onPicked(p: string) {
   root.value = p
-  rootId.value = id
   localStorage.setItem(STORAGE_KEY, p)
 }
 
@@ -38,9 +48,15 @@ onMounted(() => {
       </SButton>
     </SPageToolbar>
 
-    <Explorer :transport="transport" :root="root" :root-id="rootId" />
+    <Explorer :transport="transport" :root="root" />
 
-    <PathPickerModal ref="picker" @confirm="onPicked" />
+    <PathPickerModal
+      ref="picker"
+      :transport="transport"
+      :labels="pickerLabels"
+      @confirm="onPicked"
+      @error="msg => show(msg, 'error')"
+    />
   </div>
 </template>
 

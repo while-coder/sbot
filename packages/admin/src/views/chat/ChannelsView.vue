@@ -9,7 +9,7 @@ import QRCode from 'qrcode'
 import { ApprovalTimeoutValue, type ChannelConfig } from '@/shared/types'
 import SaverViewModal from '@/components/modals/SaverViewModal.vue'
 import TodoListModal from '@/components/modals/TodoListModal.vue'
-import PathPickerModal from './PathPickerModal.vue'
+import { PathPickerModal, WebSocketTransport } from '@sbot/chat-ui'
 
 const { t } = useI18n()
 const { isMobile } = useResponsive()
@@ -63,6 +63,19 @@ interface UserRow {
 }
 
 const { show } = useToast()
+
+const pickerTransport = new WebSocketTransport()
+const pickerLabels = computed(() => ({
+  selectDirTitle: t('directory.select_dir_title'),
+  myComputer: t('directory.my_computer'),
+  upDir: t('directory.up_dir'),
+  newFolder: t('directory.new_folder'),
+  newFolderPlaceholder: t('directory.new_folder_placeholder'),
+  selectThis: t('directory.select_this'),
+  noSubdirs: t('directory.no_subdirs'),
+  loading: t('common.loading'),
+  cancel: t('common.cancel'),
+}))
 
 const plugins = ref<PluginInfo[]>([])
 
@@ -893,7 +906,13 @@ async function refresh() {
 
     <SaverViewModal ref="saverViewModal" />
     <TodoListModal ref="todoListModal" />
-    <PathPickerModal ref="pathPicker" @confirm="p => { if (editingSession) sessionForm.workPath = p; else form.workPath = p }" />
+    <PathPickerModal
+      ref="pathPicker"
+      :transport="pickerTransport"
+      :labels="pickerLabels"
+      @confirm="p => { if (editingSession) sessionForm.workPath = p; else form.workPath = p }"
+      @error="msg => show(msg, 'error')"
+    />
   </div>
 </template>
 

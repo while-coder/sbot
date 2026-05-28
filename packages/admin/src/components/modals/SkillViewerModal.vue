@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast, SModal, SButton } from 'sbot-ui'
 import { FileExplorer, WebSocketTransport } from '@sbot/chat-ui'
@@ -11,19 +11,22 @@ const { show } = useToast()
 const visible = ref(false)
 const skillName = ref('')
 const skillBadge = ref('')
-const skillRootId = ref('')
+const skillPath = ref('')
 const viewerKey = ref(0)
 const transport = new WebSocketTransport()
-const initialViewState = { expandedPaths: [], selectedPath: 'SKILL.md' }
+const initialViewState = computed(() => ({
+  expandedPaths: [],
+  selectedPath: skillPath.value ? `${skillPath.value.replace(/[\\/]+$/, '')}${skillPath.value.includes('\\') ? '\\' : '/'}SKILL.md` : '',
+}))
 
-function open(name: string, badge: string, rootId: string) {
-  if (!rootId) {
-    show('Missing skill file root id', 'error')
+function open(name: string, badge: string, path: string) {
+  if (!path) {
+    show('Missing skill path', 'error')
     return
   }
   skillName.value = name
   skillBadge.value = badge
-  skillRootId.value = rootId
+  skillPath.value = path
   viewerKey.value += 1
   visible.value = true
 }
@@ -48,7 +51,7 @@ defineExpose({ open })
       <FileExplorer
         :key="viewerKey"
         :transport="transport"
-        :root-id="skillRootId"
+        :root="skillPath"
         :view-state="initialViewState"
       />
     </div>

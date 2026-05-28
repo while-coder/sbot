@@ -160,17 +160,17 @@ export class ChatPanel {
       case 'getSessionStatus':
         return client.getSessionStatus(args[0]);
       case 'listDir':
-        return client.listDir(args[0], args[1]);
+        return client.listDir(args[0]);
       case 'quickDirs':
         return client.quickDirs();
       case 'listDrives':
         return client.listDrives();
       case 'mkdir':
-        return client.mkdir(args[0], args[1]);
+        return client.mkdir(args[0]);
       case 'listTree':
-        return client.listTree(args[0], args[1]);
+        return client.listTree(args[0]);
       case 'readFile':
-        return client.readFile(args[0], args[1]);
+        return client.readFile(args[0]);
       case 'gitStatus':
         return client.gitStatus(args[0]);
       case 'gitDiff':

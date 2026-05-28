@@ -13,7 +13,6 @@ export interface SessionItem {
   memories: string[]
   wikis?: string[]
   workPath?: string
-  workRootId?: string
   autoApproveAllTools?: boolean
 }
 
@@ -328,35 +327,30 @@ export interface AskAnswerPayload {
 
 // ── Directory browser ──
 export interface DirListResult {
-  rootId: string
-  path: string
-  parent: string | null
-  items: string[]
+  path: string                // 当前绝对路径
+  parent: string | null       // 父绝对路径（文件系统根时为 null）
+  items: string[]             // 子目录的绝对路径
 }
 
 export interface DriveEntry {
   label: string
-  path: string      // 绝对路径
-  rootId: string
+  path: string                // 绝对路径
 }
 
 export interface QuickDir {
   label: string
-  rootId: string    // 所属 drive 的 rootId
-  relPath: string   // drive 内的相对路径
+  path: string                // 绝对路径（空字符串表示"我的电脑"虚拟态）
 }
 
 // ── Filesystem tree (Explorer) ──
 export interface FsTreeItem {
   name: string
-  path: string
+  path: string                // 绝对路径
   type: 'dir' | 'file'
   size?: number
 }
 
 export interface FsTreeResult {
-  id?: string
-  rootId?: string
   path: string
   items: FsTreeItem[]
 }

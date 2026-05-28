@@ -374,7 +374,7 @@ function listSkills(skillsDir: string) {
     const svc = new SkillService("", "", "", "");
     svc.registerSkillsDir(skillsDir);
     return svc.getAllSkills().map(s => ({
-        id: fsApi.getOrCreateRoot(s.path),
+        path: s.path,
         name: s.name,
         description: s.description,
         dirName: path.basename(s.path),
@@ -757,7 +757,6 @@ class HttpServer {
                 memories: parseMemories(r.memories),
                 wikis: parseMemories(r.wikis),
                 workPath: r.workPath || undefined,
-                workRootId: fsApi.tryGetOrCreateRoot(r.workPath),
                 autoApproveAllTools: r.autoApproveAllTools || undefined,
             }));
         }));
@@ -858,33 +857,26 @@ class HttpServer {
 
     // ===== Filesystem =====
     private registerFilesystemRoutes(app: express.Application) {
-        app.get('/api/fs/list', api(req => {
-            const rootId = req.query.rootId as string | undefined;
-            const relPath = req.query.path as string | undefined;
-            return fsApi.listDir(rootId, relPath);
-        }));
+        app.get('/api/fs/list', api(req => fsApi.listDir(req.query.path as string | undefined)));
 
         app.get('/api/fs/quickdirs', api(() => fsApi.quickDirs()));
 
         app.get('/api/fs/drives', api(() => fsApi.listDrives()));
 
-        app.post('/api/fs/mkdir', api(req => {
-            const { rootId, path: dirPath } = req.body || {};
-            return fsApi.mkdir(rootId, dirPath);
-        }));
+        app.post('/api/fs/mkdir', api(req => fsApi.mkdir((req.body || {}).path)));
 
         app.post('/api/fs/entry', api(req => {
-            const { rootId, path: filePath, content } = req.body || {};
-            return fsApi.createFile(rootId, filePath, content ?? '');
+            const { path: filePath, content } = req.body || {};
+            return fsApi.createFile(filePath, content ?? '');
         }));
 
         app.get('/api/fs/entry', api(req => {
-            const rootId = req.query.rootId as string | undefined;
+            const filePath = req.query.path as string | undefined;
             const entryType = (req.query.type as string | undefined) || '';
             const recursive = req.query.recursive === '1' || req.query.recursive === 'true';
-            if (entryType === 'tree') return fsApi.listTree(rootId, req.query.path as string | undefined, recursive);
+            if (entryType === 'tree') return fsApi.listTree(filePath, recursive);
             if (entryType === 'read') {
-                return fsApi.readFile(rootId, req.query.path as string, {
+                return fsApi.readFile(filePath, {
                     ...parseRangeQuery(req),
                     chunk: req.query.offset != null || req.query.limit != null,
                 });
@@ -895,11 +887,10 @@ class HttpServer {
         // 资源管理器：直接下载文件原始内容
         app.get('/api/fs/entry/raw', (req, res) => {
             try {
-                const rootId = req.query.rootId as string | undefined;
-                const filePath = safeRelPath(req.query.path as string);
-                const { target } = fsApi.resolve(rootId, filePath);
+                const filePath = req.query.path as string | undefined;
+                const { path: target } = fsApi.resolve(filePath);
                 if (!fs.existsSync(target) || !fs.statSync(target).isFile()) {
-                    res.status(404).json({ ok: false, message: `File "${filePath}" not found` });
+                    res.status(404).json({ ok: false, message: `File not found: ${target}` });
                     return;
                 }
                 res.sendFile(path.resolve(target));
@@ -1112,7 +1103,7 @@ class HttpServer {
                     }
                 }
                 return {
-                    id: fsApi.getOrCreateRoot(s.path),
+                    path: s.path,
                     name: s.name,
                     description: s.description,
                     source,
@@ -1150,7 +1141,7 @@ class HttpServer {
                     }
                 }
                 return {
-                    id: fsApi.getOrCreateRoot(s.path),
+                    path: s.path,
                     name: s.name,
                     description: s.description,
                     source,

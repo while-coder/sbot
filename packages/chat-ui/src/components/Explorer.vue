@@ -19,7 +19,6 @@ import GitExplorer from './GitExplorer.vue'
 const props = defineProps<{
   transport: IChatTransport
   root?: string
-  rootId?: string
   labels?: ChatLabels
 }>()
 
@@ -101,7 +100,6 @@ function refresh() {
       v-if="mode === 'files'"
       :transport="transport"
       :root="root"
-      :root-id="rootId"
       :labels="labels"
       :refresh-key="refreshKey"
       :tree-width="viewState.treeWidth"

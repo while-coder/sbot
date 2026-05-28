@@ -381,10 +381,7 @@ async function onUpdateConfig(field: string, value: unknown) {
   try {
     await props.transport.updateSession(id, { [field]: value } as Partial<SessionItem>)
     const s = sessions.value.find(s => s.id === id) as Record<string, unknown> | undefined
-    if (s) {
-      s[field] = value
-      if (field === 'workPath') s.workRootId = undefined
-    }
+    if (s) s[field] = value
   } catch (e) {
     console.error('[ChatView] updateConfig', e)
   }
@@ -394,11 +391,8 @@ function onOpenPathPicker(currentPath: string) {
   pathPickerRef.value?.open(currentPath)
 }
 
-async function onPathConfirmed(path: string, rootId: string) {
+async function onPathConfirmed(path: string) {
   await onUpdateConfig('workPath', path || undefined)
-  const id = activeSessionId.value
-  const s = sessions.value.find(s => s.id === id)
-  if (s) s.workRootId = rootId || undefined
 }
 
 // ── Chat actions ──
@@ -679,7 +673,7 @@ onBeforeUnmount(() => {
             <span class="chatui-explorer-panel-title">{{ L.explorerToggle }}</span>
             <button class="chatui-explorer-panel-close" :title="L.close" @click="explorerOpen = false">×</button>
           </div>
-          <Explorer :transport="transport" :root="activeSession?.workPath" :root-id="activeSession?.workRootId" :labels="labels" />
+          <Explorer :transport="transport" :root="activeSession?.workPath" :labels="labels" />
         </div>
       </div>
     </div>

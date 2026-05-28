@@ -30,15 +30,15 @@ export interface IChatTransport {
   getSettings(): Promise<AppSettings>
   getSessionStatus(sessionId: string): Promise<SessionStatus | null>
 
-  listDir(rootId: string, path?: string): Promise<DirListResult>
+  listDir(path: string): Promise<DirListResult>
   quickDirs(): Promise<QuickDir[]>
   listDrives(): Promise<DriveEntry[]>
-  mkdir(rootId: string, path: string): Promise<{ rootId: string; path: string }>
+  mkdir(path: string): Promise<{ path: string }>
 
-  listTree(rootId: string, path?: string): Promise<FsTreeResult>
-  readFile(rootId: string, path?: string): Promise<FsReadResult>
+  listTree(path: string): Promise<FsTreeResult>
+  readFile(path: string): Promise<FsReadResult>
   /** 返回可直接下载/在新标签页打开的原始文件 URL；用于 tooLarge 或 binary 等无法在 viewer 中显示的场景 */
-  getRawFileUrl(rootId: string, path?: string): string
+  getRawFileUrl(path: string): string
   gitStatus(root: string): Promise<GitStatusResult>
   gitDiff(root: string, path: string, fullContent?: boolean): Promise<GitDiffResult>
 

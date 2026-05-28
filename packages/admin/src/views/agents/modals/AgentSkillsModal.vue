@@ -123,7 +123,7 @@ async function saveGlobalSkills() {
 const skillViewRef = ref<InstanceType<typeof SkillViewerModal>>()
 
 function openView(row: SkillItem, badge = row.source || '') {
-  skillViewRef.value?.open(row.name, badge, row.id || '')
+  skillViewRef.value?.open(row.name, badge, row.path || '')
 }
 
 async function remove(name: string) {

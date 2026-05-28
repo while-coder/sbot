@@ -54,7 +54,7 @@ async function load() {
 const skillViewRef = ref<InstanceType<typeof SkillViewerModal>>()
 
 function openView(row: SkillItem) {
-  skillViewRef.value?.open(row.name, row.source || '', row.id || '')
+  skillViewRef.value?.open(row.name, row.source || '', row.path || '')
 }
 
 async function remove(name: string) {
