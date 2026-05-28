@@ -14,6 +14,9 @@ import {
     createSuccessResult,
     MCPToolResult,
     runShellCommand,
+    formatWalkTree,
+    DEFAULT_WALK_MAX_DEPTH,
+    DEFAULT_WALK_LIMIT,
 } from "../Tools";
 import { UsageTracker, UsageState } from "../Utils/UsageTracker";
 
@@ -183,9 +186,11 @@ export class SkillService implements ISkillService {
       schema: z.object({
         skillName: z.string().describe("Skill name (kebab-case)"),
         subPath:   z.string().optional().describe('Sub-directory to list, relative to the skill root (e.g. "scripts", "references"). Defaults to the skill root.'),
-        depth:     z.number().int().min(1).max(5).optional().default(1).describe('How many levels deep to list. 1 = only the current directory (default); 2 = include immediate sub-directory contents; max 5.'),
+        maxDepth:  z.number().int().positive().optional().default(DEFAULT_WALK_MAX_DEPTH).describe(`Max recursion depth (1 = direct children only). Default ${DEFAULT_WALK_MAX_DEPTH}`),
+        limit:     z.number().int().positive().optional().default(DEFAULT_WALK_LIMIT).describe(`Stop after this many entries (files + directories). Default ${DEFAULT_WALK_LIMIT}`),
+        ignore:    z.array(z.string()).optional().describe('Additional directory/file names to ignore'),
       }) as any,
-      func: async ({ skillName, subPath = "", depth = 1 }: any): Promise<MCPToolResult> => {
+      func: async ({ skillName, subPath = "", maxDepth = DEFAULT_WALK_MAX_DEPTH, limit = DEFAULT_WALK_LIMIT, ignore = [] }: any): Promise<MCPToolResult> => {
         try {
           const skill = this.getAllSkills().find(s => s.name === skillName);
           if (!skill) return createErrorResult(`Skill "${skillName}" not found`);
@@ -194,8 +199,8 @@ export class SkillService implements ISkillService {
           if (!this.isPathSafe(fullPath, skill.path)) return createErrorResult("Security error: access outside the skill directory is not allowed");
           if (!fs.existsSync(fullPath)) return createErrorResult(`Directory not found: ${subPath || "/"}`);
 
-          const structure = this.getDirectoryStructure(fullPath, depth);
-          return createSuccessResult(createTextContent(structure.join("\n")));
+          const ignoreSet = new Set<string>([...SkillService.IGNORED_NAMES, ...(ignore ?? [])]);
+          return createSuccessResult(createTextContent(formatWalkTree(fullPath, { maxDepth, limit, ignore: ignoreSet })));
         } catch (error: any) {
           this.logger?.error(`Error listing skill files ${skillName}/${subPath}: ${error.message}`);
           return createErrorResult(error.message);
@@ -210,8 +215,8 @@ export class SkillService implements ISkillService {
     return path.normalize(fullPath).startsWith(path.normalize(baseDir));
   }
 
-  // 只列当前目录，不递归。emoji 区分目录/文件，目录前置便于 LLM 一眼识别可下钻的路径。
-  // 仍然过滤一批构建产物 / VCS / IDE / 内部缓存噪音，避免顶层就出现 node_modules 这类条目。
+  // 扁平路径列表：目录用 `/` 后缀标识，省 token、无歧义。目录优先排序便于 LLM 识别可下钻路径。
+  // 过滤构建产物 / VCS / IDE / 内部缓存噪音，避免顶层出现 node_modules 这类条目。
   private static readonly IGNORED_NAMES = new Set([
     '.usage.json',
     // VCS
@@ -227,24 +232,4 @@ export class SkillService implements ISkillService {
     // skill 自身的运行时/缓存/临时目录（约定俗成的 dot-prefixed 内部目录）
     '.runtime', '.cache', '.tmp', '.temp', '.local',
   ]);
-  private getDirectoryStructure(dirPath: string, depth: number, relPrefix = ""): string[] {
-    if (depth <= 0) return [];
-    const entries = fs.readdirSync(dirPath, { withFileTypes: true })
-      .filter(e => !SkillService.IGNORED_NAMES.has(e.name));
-    // 目录优先 + 同类内按 localeCompare：LLM 扫一眼上半截就知道有哪些子目录可下钻。
-    entries.sort((a, b) => {
-      const ad = a.isDirectory() ? 0 : 1;
-      const bd = b.isDirectory() ? 0 : 1;
-      return ad !== bd ? ad - bd : a.name.localeCompare(b.name);
-    });
-    const items: string[] = [];
-    for (const entry of entries) {
-      const rel = relPrefix ? `${relPrefix}/${entry.name}` : entry.name;
-      items.push(`${entry.isDirectory() ? '📁' : '📄'} ${rel}`);
-      if (entry.isDirectory() && depth > 1) {
-        items.push(...this.getDirectoryStructure(path.join(dirPath, entry.name), depth - 1, rel));
-      }
-    }
-    return items;
-  }
 }

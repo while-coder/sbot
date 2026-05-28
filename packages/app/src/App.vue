@@ -1,14 +1,19 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ChatView, ServerPicker, WebSocketTransport } from '@sbot/chat-ui'
 import type { RemoteEntry } from '@sbot/chat-ui'
+import ThemeMenu from './ThemeMenu.vue'
 import '@sbot/chat-ui/themes/variables.css'
-import '@sbot/chat-ui/themes/theme-dark.css'
+import lightThemeCSS from '@sbot/chat-ui/themes/theme-light.css?inline'
+import darkThemeCSS from '@sbot/chat-ui/themes/theme-dark.css?inline'
 import '@sbot/chat-ui/themes/theme-pwa.css'
 import '@sbot/chat-ui/themes/sbot-ui-bridge.css'
 
 const DEFAULT_PORT = 5500
 const REMOTES_KEY = 'sbot-app-remotes'
+const THEME_KEY = 'sbot-app-theme'
+
+type ThemeMode = 'system' | 'light' | 'dark'
 
 function loadRemotes(): RemoteEntry[] {
   try { return JSON.parse(localStorage.getItem(REMOTES_KEY) || '[]') }
@@ -22,6 +27,34 @@ const remotes = ref<RemoteEntry[]>(loadRemotes())
 const phase = ref<'server-pick' | 'chat'>('server-pick')
 const transport = ref<WebSocketTransport | null>(null)
 const currentBaseUrl = ref('')
+
+const themeMode = ref<ThemeMode>(((): ThemeMode => {
+  const v = localStorage.getItem(THEME_KEY)
+  return v === 'light' || v === 'dark' || v === 'system' ? v : 'system'
+})())
+
+const mq = window.matchMedia('(prefers-color-scheme: dark)')
+const themeStyleEl = document.createElement('style')
+themeStyleEl.id = 'sbot-app-theme'
+document.head.appendChild(themeStyleEl)
+
+const resolvedTheme = computed<'light' | 'dark'>(() =>
+  themeMode.value === 'system' ? (mq.matches ? 'dark' : 'light') : themeMode.value,
+)
+
+function applyTheme(t: 'light' | 'dark') {
+  themeStyleEl.textContent = t === 'dark' ? darkThemeCSS : lightThemeCSS
+  document.documentElement.dataset.theme = t
+}
+
+watch(resolvedTheme, applyTheme, { immediate: true })
+watch(themeMode, (m) => localStorage.setItem(THEME_KEY, m))
+
+function onSystemChange() {
+  if (themeMode.value === 'system') applyTheme(resolvedTheme.value)
+}
+onMounted(() => mq.addEventListener('change', onSystemChange))
+onUnmounted(() => mq.removeEventListener('change', onSystemChange))
 
 function selectServer(baseUrl: string) {
   transport.value = new WebSocketTransport(baseUrl)
@@ -70,6 +103,10 @@ function removeRemote(index: number) {
 
 <template>
   <div class="desktop-app">
+    <div v-if="phase === 'server-pick'" class="theme-menu-floating">
+      <ThemeMenu :mode="themeMode" @update="(m) => themeMode = m" />
+    </div>
+
     <template v-if="phase === 'server-pick'">
       <ServerPicker
         :remotes="remotes"
@@ -83,6 +120,7 @@ function removeRemote(index: number) {
     <template v-else-if="transport">
       <div class="desktop-server-bar">
         <span class="desktop-server-url">{{ currentBaseUrl }}</span>
+        <ThemeMenu :mode="themeMode" @update="(m) => themeMode = m" />
         <button class="desktop-server-switch" @click="switchServer">切换服务器</button>
       </div>
       <ChatView :transport="transport" :show-attachments="true" />
@@ -95,8 +133,8 @@ function removeRemote(index: number) {
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 14px;
-  color: var(--chatui-fg, #e8e6e3);
-  background: var(--chatui-bg, #1a1a2e);
+  color: var(--chatui-fg);
+  background: var(--chatui-bg);
   overflow: hidden;
 }
 </style>
@@ -111,32 +149,38 @@ body {
 .desktop-server-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   padding: 6px 12px;
-  background: var(--chatui-bg-surface, #252540);
-  border-bottom: 1px solid var(--chatui-border, #3a3a5c);
+  background: var(--chatui-bg-surface);
+  border-bottom: 1px solid var(--chatui-border);
   flex-shrink: 0;
   font-size: 12px;
 }
 .desktop-server-url {
-  color: var(--chatui-fg-secondary, #888);
+  flex: 1;
+  color: var(--chatui-fg-secondary);
   font-family: monospace;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .desktop-server-switch {
-  margin-left: 8px;
   padding: 2px 10px;
-  border: 1px solid var(--chatui-border, #3a3a5c);
+  border: 1px solid var(--chatui-border);
   border-radius: 4px;
   background: transparent;
   cursor: pointer;
   font-size: 12px;
-  color: var(--chatui-fg, #e8e6e3);
+  color: var(--chatui-fg);
   flex-shrink: 0;
 }
 .desktop-server-switch:hover {
-  background: var(--chatui-bg-hover, #2f2f4a);
+  background: var(--chatui-bg-hover);
+}
+.theme-menu-floating {
+  position: fixed;
+  top: 8px;
+  right: 12px;
+  z-index: 10;
 }
 </style>

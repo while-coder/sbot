@@ -378,6 +378,15 @@ export {
   scriptCodeSchema,
   type ScriptCodeToolOptions,
   MAX_OUTPUT_BYTES,
+
+  // 文件系统遍历
+  walkTree,
+  formatWalkSummary,
+  formatWalkTree,
+  DEFAULT_WALK_MAX_DEPTH,
+  DEFAULT_WALK_LIMIT,
+  type WalkTreeOptions,
+  type WalkTreeResult,
 } from "./Tools";
 
 // ========================================
