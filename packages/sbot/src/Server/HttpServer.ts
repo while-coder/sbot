@@ -898,7 +898,13 @@ class HttpServer {
                     res.status(404).json({ ok: false, message: `File not found: ${target}` });
                     return;
                 }
-                res.sendFile(path.resolve(target));
+                const fileName = path.basename(target);
+                const encoded = encodeURIComponent(fileName);
+                res.setHeader(
+                    'Content-Disposition',
+                    `inline; filename="${fileName.replace(/"/g, '\\"')}"; filename*=UTF-8''${encoded}`,
+                );
+                res.sendFile(path.resolve(target), { dotfiles: 'allow' });
             } catch (e: any) {
                 res.status(e?.status ?? 404).json({ ok: false, message: e?.message ?? 'not found' });
             }

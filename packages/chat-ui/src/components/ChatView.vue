@@ -62,6 +62,8 @@ const explorerOpen  = ref(false)
 const explorerTouched = ref(false)
 const explorerWidth = ref(420)
 const explorerResizing = ref(false)
+const sessionBarWidth = ref(180)
+const sessionBarResizing = ref(false)
 
 // ── Derived ──
 
@@ -242,6 +244,32 @@ function onExplorerResize(e: PointerEvent) {
 function stopExplorerResize() {
   explorerResizing.value = false
   window.removeEventListener('pointermove', onExplorerResize)
+}
+
+function clampSessionBarWidth(width: number): number {
+  const rootWidth = rootEl.value?.clientWidth ?? 0
+  const min = 140
+  const max = rootWidth > 0 ? Math.max(min, rootWidth * 0.5) : 480
+  return Math.min(max, Math.max(min, width))
+}
+
+function startSessionBarResize(e: PointerEvent) {
+  if (isCompact.value || props.alwaysCompact) return
+  e.preventDefault()
+  sessionBarResizing.value = true
+  window.addEventListener('pointermove', onSessionBarResize)
+  window.addEventListener('pointerup', stopSessionBarResize, { once: true })
+}
+
+function onSessionBarResize(e: PointerEvent) {
+  if (!sessionBarResizing.value || !rootEl.value) return
+  const rect = rootEl.value.getBoundingClientRect()
+  sessionBarWidth.value = clampSessionBarWidth(e.clientX - rect.left)
+}
+
+function stopSessionBarResize() {
+  sessionBarResizing.value = false
+  window.removeEventListener('pointermove', onSessionBarResize)
 }
 
 watch(activeSessionId, async (id) => {
@@ -490,11 +518,12 @@ onBeforeUnmount(() => {
   props.transport.offEvent(handleEvent)
   props.transport.disconnect()
   window.removeEventListener('pointermove', onExplorerResize)
+  window.removeEventListener('pointermove', onSessionBarResize)
 })
 </script>
 
 <template>
-  <div ref="rootEl" class="chatui-root" :class="{ 'chatui-compact': isCompact || alwaysCompact }">
+  <div ref="rootEl" class="chatui-root" :class="{ 'chatui-compact': isCompact || alwaysCompact, 'chatui-session-resizing': sessionBarResizing }">
     <!-- Compact mode (narrow screen or alwaysCompact): hamburger + drawer -->
     <template v-if="isCompact || alwaysCompact">
       <div class="chatui-compact-header">
@@ -589,16 +618,23 @@ onBeforeUnmount(() => {
     </template>
 
     <!-- Non-compact: static sidebar -->
-    <SessionBar
-      v-else
-      :sessions="sessions"
-      :active-session-id="activeSessionId"
-      :labels="labels"
-      @select="selectSession"
-      @delete="onDeleteSession"
-      @rename="onRenameSession"
-      @new-session="createNewSession"
-    />
+    <template v-else>
+      <SessionBar
+        :sessions="sessions"
+        :active-session-id="activeSessionId"
+        :labels="labels"
+        :width="sessionBarWidth"
+        @select="selectSession"
+        @delete="onDeleteSession"
+        @rename="onRenameSession"
+        @new-session="createNewSession"
+      />
+      <div
+        class="chatui-session-resizer"
+        :class="{ 'chatui-session-resizer--active': sessionBarResizing }"
+        @pointerdown="startSessionBarResize"
+      />
+    </template>
 
     <!-- Right panel -->
     <div class="chatui-main">
@@ -716,6 +752,35 @@ onBeforeUnmount(() => {
 .chatui-explorer-resizing * {
   cursor: col-resize !important;
   user-select: none;
+}
+.chatui-root.chatui-session-resizing,
+.chatui-root.chatui-session-resizing * {
+  cursor: col-resize !important;
+  user-select: none;
+}
+.chatui-session-resizer {
+  width: 4px;
+  margin-left: -2px;
+  margin-right: -2px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 3;
+  cursor: col-resize;
+  touch-action: none;
+}
+.chatui-session-resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 1px;
+  width: 1px;
+  background: transparent;
+  transition: background 0.15s;
+}
+.chatui-session-resizer:hover::after,
+.chatui-session-resizer--active::after {
+  background: var(--chatui-border-focus, var(--chatui-accent));
 }
 .chatui-chatarea {
   flex: 1; min-width: 0;

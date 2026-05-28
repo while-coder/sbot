@@ -9,9 +9,14 @@ const props = withDefaults(defineProps<{
   activeSessionId: string | null
   labels?: ChatLabels
   showHeader?: boolean
+  width?: number
 }>(), {
   showHeader: true,
 })
+
+const barStyle = computed(() =>
+  props.width != null ? { width: `${props.width}px` } : undefined,
+)
 
 const emit = defineEmits<{
   select: [id: string]
@@ -53,7 +58,7 @@ function onDelete(id: string) {
 </script>
 
 <template>
-  <div class="chatui-session-bar">
+  <div class="chatui-session-bar" :style="barStyle">
     <div v-if="showHeader" class="chatui-session-bar-header">
       <SButton type="outline" size="sm" block @click="emit('newSession')">{{ L.newSession }}</SButton>
     </div>

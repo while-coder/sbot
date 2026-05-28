@@ -135,7 +135,7 @@ async function refresh() {
 </script>
 
 <template>
-  <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
+  <div style="width:100%;height:100%;display:flex;flex-direction:column;overflow:hidden">
     <SPageToolbar>
       <SButton type="outline" size="sm" @click="refresh">{{ t('common.refresh') }}</SButton>
       <SButton type="primary" size="sm" @click="openAdd">{{ t('savers.add') }}</SButton>

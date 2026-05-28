@@ -10,13 +10,19 @@ import '@sbot/chat-ui/themes/variables.css'
 import '@sbot/chat-ui/themes/theme-light.css'
 import { SButton } from 'sbot-ui'
 import TodoListModal from '@/components/modals/TodoListModal.vue'
+import SchedulerListModal from '@/components/modals/SchedulerListModal.vue'
 
 const { t } = useI18n()
 const transport = new WebSocketTransport()
 const todoListModal = ref<InstanceType<typeof TodoListModal>>()
+const schedulerListModal = ref<InstanceType<typeof SchedulerListModal>>()
 
 function openTodos(session: SessionItem) {
   todoListModal.value?.openBySessionId(session.id, session.name || session.id)
+}
+
+function openSchedulers(session: SessionItem) {
+  schedulerListModal.value?.openBySessionId(session.id, session.name || session.id)
 }
 </script>
 
@@ -26,9 +32,13 @@ function openTodos(session: SessionItem) {
       <SButton v-if="session" type="outline" size="sm" @click="openTodos(session)">
         {{ t('todo.title') }}
       </SButton>
+      <SButton v-if="session" type="outline" size="sm" @click="openSchedulers(session)">
+        {{ t('scheduler.title') }}
+      </SButton>
     </template>
   </ChatView>
   <TodoListModal ref="todoListModal" />
+  <SchedulerListModal ref="schedulerListModal" />
 </template>
 
 <!--

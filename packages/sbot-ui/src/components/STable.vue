@@ -97,6 +97,7 @@ function rowCls(row: T, idx: number): string {
           <th
             v-for="col in columns"
             :key="col.key"
+            :class="{ 's-table-th--ops': col.ops }"
             :style="{ width: col.width, textAlign: col.align }"
           >{{ col.label }}</th>
         </tr>
@@ -191,7 +192,7 @@ function rowCls(row: T, idx: number): string {
 </template>
 
 <style scoped>
-.s-table-root { width: 100%; }
+.s-table-root { width: 100%; display: block; }
 
 .s-table {
   width: 100%;
@@ -221,8 +222,10 @@ function rowCls(row: T, idx: number): string {
   white-space: nowrap;
 }
 .s-table-cell--ops :deep(> *) { display: inline-flex; }
-.s-table-cell--ops {
+.s-table-cell--ops,
+.s-table-th--ops {
   white-space: nowrap;
+  width: 1%;
 }
 .s-table td.s-table-status {
   text-align: center;

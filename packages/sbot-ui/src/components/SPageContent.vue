@@ -16,6 +16,8 @@ withDefaults(defineProps<{
 .s-page-content {
   overflow-y: auto;
   flex: 1;
+  width: 100%;
+  min-width: 0;
 }
 .s-page-content--padded {
   padding: var(--sui-sp-8);

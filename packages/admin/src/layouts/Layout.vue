@@ -16,6 +16,48 @@ const { show } = useToast()
 const { isMobile } = useResponsive()
 const sidebarOpen = ref(false)
 
+// Desktop sidebar: collapse + resize (persisted to localStorage)
+const SIDEBAR_MIN = 140
+const SIDEBAR_MAX = 360
+const SIDEBAR_DEFAULT = 168
+const sidebarCollapsed = ref(localStorage.getItem('sbot-sidebar-collapsed') === '1')
+const sidebarWidth = ref((() => {
+  const v = parseInt(localStorage.getItem('sbot-sidebar-width') || '', 10)
+  if (Number.isFinite(v) && v >= SIDEBAR_MIN && v <= SIDEBAR_MAX) return v
+  return SIDEBAR_DEFAULT
+})())
+const sidebarStyle = computed(() => isMobile.value ? {} : { width: `${sidebarWidth.value}px` })
+
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value
+  localStorage.setItem('sbot-sidebar-collapsed', sidebarCollapsed.value ? '1' : '0')
+}
+
+let resizing = false
+function onResizeStart(e: MouseEvent) {
+  if (isMobile.value || sidebarCollapsed.value) return
+  e.preventDefault()
+  resizing = true
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+  window.addEventListener('mousemove', onResizeMove)
+  window.addEventListener('mouseup', onResizeEnd)
+}
+function onResizeMove(e: MouseEvent) {
+  if (!resizing) return
+  const w = Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, e.clientX))
+  sidebarWidth.value = w
+}
+function onResizeEnd() {
+  if (!resizing) return
+  resizing = false
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+  window.removeEventListener('mousemove', onResizeMove)
+  window.removeEventListener('mouseup', onResizeEnd)
+  localStorage.setItem('sbot-sidebar-width', String(sidebarWidth.value))
+}
+
 const menuGroups = computed(() => [
   {
     group: t('nav.chat'),
@@ -61,13 +103,23 @@ const menuGroups = computed(() => [
     ],
   },
   {
-    group: t('nav.group_admin'),
+    group: t('nav.group_monitor'),
     items: [
       { label: t('nav.processes'), key: '/processes' },
       { label: t('nav.heartbeats'), key: '/heartbeats' },
+      { label: t('nav.token_usage'), key: '/token-usage' },
+    ],
+  },
+  {
+    group: t('nav.group_tasks'),
+    items: [
       { label: t('nav.scheduler'), key: '/scheduler' },
       { label: t('nav.todo'), key: '/todo' },
-      { label: t('nav.token_usage'), key: '/token-usage' },
+    ],
+  },
+  {
+    group: t('nav.group_system'),
+    items: [
       { label: t('nav.explorer'), key: '/explorer' },
       { label: t('nav.logs'), key: '/logs' },
       { label: t('nav.about'), key: '/about' },
@@ -194,6 +246,14 @@ onUnmounted(() => {
     <div class="topbar">
       <div class="topbar-left">
         <button v-if="isMobile" class="hamburger-btn" @click="sidebarOpen = !sidebarOpen">&#9776;</button>
+        <button
+          v-else
+          class="sidebar-toggle-btn"
+          :title="sidebarCollapsed ? t('nav.sidebar_expand') : t('nav.sidebar_collapse')"
+          @click="toggleSidebar"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9" y1="4" x2="9" y2="20"/></svg>
+        </button>
         <div class="topbar-title">{{ t('nav.app_title') }}</div>
       </div>
       <div class="topbar-right">
@@ -224,7 +284,12 @@ onUnmounted(() => {
     </div>
     <div class="app-body">
       <div v-if="isMobile && sidebarOpen" class="sidebar-overlay" @click="sidebarOpen = false"></div>
-      <div class="sidebar" :class="{ 'sidebar-open': sidebarOpen, 'sidebar-mobile': isMobile }">
+      <div
+        v-show="isMobile || !sidebarCollapsed"
+        class="sidebar"
+        :class="{ 'sidebar-open': sidebarOpen, 'sidebar-mobile': isMobile }"
+        :style="sidebarStyle"
+      >
         <template v-for="group in menuGroups" :key="group.group">
           <div class="sidebar-group-label">{{ group.group }}</div>
           <div
@@ -238,6 +303,7 @@ onUnmounted(() => {
             <span v-if="item.key === '/about' && hasUpdate" class="update-dot"></span>
           </div>
         </template>
+        <div v-if="!isMobile" class="sidebar-resize-handle" @mousedown="onResizeStart"></div>
       </div>
       <div class="main-content">
         <RouterView />
@@ -362,6 +428,40 @@ body {
   padding: var(--sui-sp-3);
   flex-shrink: 0;
   overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+}
+.sidebar-resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 4px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 10;
+  background: transparent;
+  transition: background var(--sui-transition-fast);
+}
+.sidebar-resize-handle:hover,
+.sidebar-resize-handle:active {
+  background: var(--sui-primary);
+  opacity: 0.4;
+}
+.sidebar-toggle-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: var(--sui-sp-2);
+  border-radius: var(--sui-radius-md);
+  color: var(--sui-fg-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--sui-transition-base), color var(--sui-transition-base);
+}
+.sidebar-toggle-btn:hover {
+  background: var(--sui-bg-soft);
+  color: var(--sui-fg);
 }
 .sidebar-group-label {
   padding: var(--sui-sp-7) var(--sui-sp-3) 5px;
