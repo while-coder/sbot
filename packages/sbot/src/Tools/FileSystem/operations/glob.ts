@@ -11,6 +11,9 @@ import { loadPrompt } from '../../../Core/PromptLoader';
 const logger = LoggerService.getLogger('Tools/FileSystem/operations/glob.ts');
 
 const LIMIT = 100;
+const DEFAULT_TIMEOUT_SEC = 30;
+
+interface GlobSearchResult { files: Array<{ path: string; mtime: number }>; truncated: boolean; }
 
 // rg 默认排除目录（gitignore 语法）
 const RG_EXCLUDE_ARGS = [...EXCLUDE_DIRS].map(d => `--glob=!${d}`);
@@ -43,7 +46,7 @@ function globToRegex(pattern: string): RegExp {
 }
 
 // ─── ripgrep 搜索（流式 + 达到上限即终止）──────────────────────────────────
-function searchWithRg(dir: string, pattern: string, includeHidden: boolean): Promise<Array<{ path: string; mtime: number }>> {
+function searchWithRg(dir: string, pattern: string, includeHidden: boolean, timeoutMs: number): Promise<GlobSearchResult> {
     return new Promise((resolve, reject) => {
         const args = ['--files', ...RG_EXCLUDE_ARGS, `--iglob=${pattern}`];
         if (includeHidden) args.push('--hidden');
@@ -52,6 +55,7 @@ function searchWithRg(dir: string, pattern: string, includeHidden: boolean): Pro
         const proc = spawn('rg', args);
         const files: Array<{ path: string; mtime: number }> = [];
         let killed = false;
+        let timedOut = false;
         let buffer = '';
         let stderr = '';
         let pending = 0;
@@ -59,23 +63,27 @@ function searchWithRg(dir: string, pattern: string, includeHidden: boolean): Pro
         let closed = false;
         let exitCode: number | null = null;
 
-        const stop = () => {
+        const stop = (timeout = false) => {
             if (killed) return;
             killed = true;
+            if (timeout) timedOut = true;
             try { proc.kill('SIGTERM'); } catch { /* ignore */ }
         };
+
+        const timer = setTimeout(() => stop(true), timeoutMs);
 
         const tryResolve = () => {
             if (closed && pending === 0) {
                 if (!killed && exitCode !== 0 && exitCode !== 1 && files.length === 0) {
                     return reject(new Error(`ripgrep: ${stderr.trim() || `exit ${exitCode}`}`));
                 }
-                resolve(files);
+                if (timedOut) logger.warn(`ripgrep glob timed out after ${timeoutMs}ms; returning ${files.length} files`);
+                resolve({ files, truncated: timedOut });
             }
         };
 
         const processLine = (line: string): boolean => {
-            if (!line) return true;
+            if (!line || killed) return !killed;
             if (submitted >= LIMIT) return false;
             submitted++;
             pending++;
@@ -97,8 +105,9 @@ function searchWithRg(dir: string, pattern: string, includeHidden: boolean): Pro
             }
         });
         proc.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
-        proc.on('error', e => reject(e));
+        proc.on('error', e => { clearTimeout(timer); reject(e); });
         proc.on('close', code => {
+            clearTimeout(timer);
             if (!killed && buffer) processLine(buffer.replace(/\r$/, ''));
             closed = true;
             exitCode = code;
@@ -108,17 +117,20 @@ function searchWithRg(dir: string, pattern: string, includeHidden: boolean): Pro
 }
 
 // ─── Node.js fallback（全异步，避免阻塞事件循环）────────────────────────────
-async function searchWithNodeJs(dir: string, pattern: string, includeHidden: boolean): Promise<Array<{ path: string; mtime: number }>> {
+async function searchWithNodeJs(dir: string, pattern: string, includeHidden: boolean, timeoutMs: number): Promise<GlobSearchResult> {
     const useFullPath = hasPathPattern(pattern);
     const regex = globToRegex(pattern);
     const results: Array<{ path: string; mtime: number }> = [];
+    const deadline = Date.now() + timeoutMs;
+    const expired = () => Date.now() >= deadline;
 
     async function walk(d: string): Promise<boolean> {
+        if (expired()) return false;
         let entries;
         try { entries = await fsAsync.readdir(d, { withFileTypes: true }); }
         catch (e: any) { logger.warn(`Cannot access ${d}: ${e.message}`); return true; }
         for (const entry of entries) {
-            if (results.length >= LIMIT) return false;
+            if (results.length >= LIMIT || expired()) return false;
             if (!includeHidden && entry.name.startsWith('.')) continue;
             const full = path.join(d, entry.name);
             if (entry.isDirectory()) {
@@ -138,7 +150,9 @@ async function searchWithNodeJs(dir: string, pattern: string, includeHidden: boo
         return true;
     }
     await walk(dir);
-    return results;
+    const timedOut = expired();
+    if (timedOut) logger.warn(`Node.js glob timed out after ${timeoutMs}ms; returning ${results.length} files`);
+    return { files: results, truncated: timedOut };
 }
 
 // ─── Tool 定义 ────────────────────────────────────────────────────────────────
@@ -152,21 +166,20 @@ export function createGlobTool(): StructuredToolInterface {
             pattern: z.string().describe('Glob pattern, e.g. **/*.ts, src/**/*.test.js, *.json'),
             path: z.string().describe('Absolute path of the directory to search'),
             includeHidden: z.boolean().optional().default(false).describe('Include hidden files, default false'),
+            timeoutSec: z.number().positive().optional().default(DEFAULT_TIMEOUT_SEC).describe(`Search timeout in seconds; on timeout returns partial results marked truncated. Default ${DEFAULT_TIMEOUT_SEC}`),
         }) as any,
-        func: async ({ pattern, path: searchPath, includeHidden = false }: any): Promise<MCPToolResult> => {
+        func: async ({ pattern, path: searchPath, includeHidden = false, timeoutSec = DEFAULT_TIMEOUT_SEC }: any): Promise<MCPToolResult> => {
             try {
                 const abs = checkDir(searchPath);
-                let files: Array<{ path: string; mtime: number }>;
-
-                if (await checkRg()) {
-                    files = await searchWithRg(abs, pattern, includeHidden);
-                } else {
-                    files = await searchWithNodeJs(abs, pattern, includeHidden);
-                }
+                const timeoutMs = Math.round(timeoutSec * 1000);
+                const search = await checkRg()
+                    ? await searchWithRg(abs, pattern, includeHidden, timeoutMs)
+                    : await searchWithNodeJs(abs, pattern, includeHidden, timeoutMs);
+                let files = search.files;
+                let truncated = search.truncated;
 
                 files.sort((a, b) => b.mtime - a.mtime);
 
-                let truncated = false;
                 if (files.length > LIMIT) {
                     files = files.slice(0, LIMIT);
                     truncated = true;

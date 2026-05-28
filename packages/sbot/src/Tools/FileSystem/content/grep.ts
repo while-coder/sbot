@@ -15,6 +15,7 @@ const MAX_LINE_LENGTH = 2000;
 const DEFAULT_MAX_MATCHES = 100;
 const MAX_FILE_SIZE = 1 * 1024 * 1024; // 1MB - skip large files in Node.js fallback
 const MAX_COLUMNS = 4096;
+const DEFAULT_TIMEOUT_SEC = 30;
 
 // ─── 类型 ─────────────────────────────────────────────────────────────────────
 interface MatchLine { lineNum: number; text: string; }
@@ -32,6 +33,7 @@ function searchWithRg(
     includeHidden: boolean,
     fileGlob: string | undefined,
     maxMatches: number,
+    timeoutMs: number,
 ): Promise<SearchResult> {
     return new Promise((resolve, reject) => {
         const args = ['--json', `--max-columns=${MAX_COLUMNS}`, ...RG_EXCLUDE_ARGS];
@@ -45,16 +47,20 @@ function searchWithRg(
         const fileOrder: string[] = [];
         let totalMatches = 0;
         let reachedLimit = false;
+        let timedOut = false;
         let killed = false;
         let buffer = '';
         let stderr = '';
 
-        const stop = (limit: boolean) => {
+        const stop = (limit: boolean, timeout = false) => {
             if (killed) return;
             killed = true;
             if (limit) reachedLimit = true;
+            if (timeout) timedOut = true;
             try { proc.kill('SIGTERM'); } catch { /* ignore */ }
         };
+
+        const timer = setTimeout(() => stop(true, true), timeoutMs);
 
         const processLine = (line: string): boolean => {
             if (!line) return true;
@@ -91,13 +97,15 @@ function searchWithRg(
             if (buffer.length > 10 * MAX_COLUMNS) buffer = '';
         });
         proc.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
-        proc.on('error', e => { reject(e); });
+        proc.on('error', e => { clearTimeout(timer); reject(e); });
         proc.on('close', code => {
+            clearTimeout(timer);
             if (!killed && buffer) processLine(buffer.replace(/\r$/, ''));
             // code 1 = 无匹配；被 kill 时 code/signal 不可靠，按 totalMatches 判断
             if (!killed && code !== 0 && code !== 1 && totalMatches === 0) {
                 return reject(new Error(`ripgrep: ${stderr.trim() || `exit ${code}`}`));
             }
+            if (timedOut) logger.warn(`ripgrep timed out after ${timeoutMs}ms; returning ${totalMatches} matches`);
             const results = fileOrder.map(fp => byFile.get(fp)!);
             results.sort((a, b) => b.mtime - a.mtime);
             resolve({ results, reachedLimit });
@@ -125,15 +133,20 @@ async function searchWithNodeJs(
     includeHidden: boolean,
     maxFileSize: number,
     maxMatches: number,
+    timeoutMs: number,
 ): Promise<SearchResult> {
     const searchRegex = useRegex ? new RegExp(pattern) : null;
+    const deadline = Date.now() + timeoutMs;
+    const expired = () => Date.now() >= deadline;
 
     const allFiles: Array<{ path: string; mtime: number }> = [];
     async function walk(d: string): Promise<void> {
+        if (expired()) return;
         let entries;
         try { entries = await fsAsync.readdir(d, { withFileTypes: true }); }
         catch (e: any) { logger.warn(`Cannot access ${d}: ${e.message}`); return; }
         for (const entry of entries) {
+            if (expired()) return;
             if (!includeHidden && entry.name.startsWith('.')) continue;
             const full = path.join(d, entry.name);
             if (entry.isDirectory()) {
@@ -155,6 +168,7 @@ async function searchWithNodeJs(
     let reachedLimit = false;
 
     outer: for (const { path: fp, mtime } of allFiles) {
+        if (expired()) { reachedLimit = true; break; }
         if (await isBinaryAsync(fp)) continue;
         try {
             const fileMatches: MatchLine[] = [];
@@ -176,6 +190,8 @@ async function searchWithNodeJs(
         } catch { /* skip unreadable */ }
     }
 
+    if (expired() && !reachedLimit) reachedLimit = true;
+    if (Date.now() >= deadline) logger.warn(`Node.js grep timed out after ${timeoutMs}ms; returning ${totalMatches} matches`);
     return { results, reachedLimit };
 }
 
@@ -211,17 +227,19 @@ export function createGrepFilesTool(): StructuredToolInterface {
             useRegex: z.boolean().optional().default(false).describe('Treat pattern as a regex, default false (literal search)'),
             includeHidden: z.boolean().optional().default(false).describe('Include hidden files (starting with .), default false'),
             maxMatches: z.number().optional().default(DEFAULT_MAX_MATCHES).describe('Maximum number of matching lines across all files, default 100'),
+            timeoutSec: z.number().positive().optional().default(DEFAULT_TIMEOUT_SEC).describe(`Search timeout in seconds; on timeout returns partial results marked truncated. Default ${DEFAULT_TIMEOUT_SEC}`),
         }) as any,
-        func: async ({ path: searchPath, pattern, glob, useRegex = false, includeHidden = false, maxMatches = DEFAULT_MAX_MATCHES }: any): Promise<MCPToolResult> => {
+        func: async ({ path: searchPath, pattern, glob, useRegex = false, includeHidden = false, maxMatches = DEFAULT_MAX_MATCHES, timeoutSec = DEFAULT_TIMEOUT_SEC }: any): Promise<MCPToolResult> => {
             try {
                 const abs = checkDir(searchPath);
+                const timeoutMs = Math.round(timeoutSec * 1000);
                 let result: SearchResult;
 
                 if (await checkRg()) {
-                    result = await searchWithRg(abs, pattern, useRegex, includeHidden, glob, maxMatches);
+                    result = await searchWithRg(abs, pattern, useRegex, includeHidden, glob, maxMatches, timeoutMs);
                 } else {
                     const fileRegex = globToRegex(glob ?? '*');
-                    result = await searchWithNodeJs(abs, pattern, fileRegex, useRegex, includeHidden, MAX_FILE_SIZE, maxMatches);
+                    result = await searchWithNodeJs(abs, pattern, fileRegex, useRegex, includeHidden, MAX_FILE_SIZE, maxMatches, timeoutMs);
                 }
 
                 if (result.results.length === 0) return createSuccessResult(createTextContent('No matches found'));
