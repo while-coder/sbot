@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue'
-import { STree, STreeNode } from 'sbot-ui'
+import { STree, STreeNode, SIconButton } from 'sbot-ui'
 import type { IChatTransport } from '../transport'
 import type { ChatLabels, FsTreeItem } from '../types'
 import type { ExplorerFilesViewState } from '../composables/useExplorerViewState'
@@ -501,12 +501,21 @@ onMounted(() => {
           <span class="chatui-explorer-path">{{ selectedPath }}</span>
           <span class="chatui-explorer-meta">{{ fmtSize(fileSize) }}</span>
           <span v-if="isDirty" class="chatui-explorer-dirty" :title="L.explorerEditDirty">●</span>
-          <button
+          <SIconButton
+            v-if="rawDownloadHref"
+            variant="outline"
+            size="sm"
+            :href="rawDownloadHref"
+            target="_blank"
+            :title="L.explorerDownload || 'Download'"
+          >⤓</SIconButton>
+          <SIconButton
             v-if="canEdit && !editing"
-            class="chatui-explorer-action"
+            variant="outline"
+            size="sm"
             :title="L.explorerEdit"
             @click="startEdit"
-          >✎</button>
+          >✎</SIconButton>
           <button
             v-if="editing"
             class="chatui-explorer-action chatui-explorer-action--primary"
@@ -521,14 +530,6 @@ onMounted(() => {
             :title="L.explorerEditCancel"
             @click="cancelEdit"
           >{{ L.explorerEditCancel }}</button>
-          <a
-            v-if="!editing && selectedPath && rawDownloadHref"
-            class="chatui-explorer-download"
-            :href="rawDownloadHref"
-            target="_blank"
-            rel="noopener"
-            :title="L.explorerDownload || 'Download'"
-          >↓</a>
         </div>
         <div v-if="fileLoading" class="chatui-explorer-state">{{ L.loading }}</div>
         <div v-else-if="errMsg" class="chatui-explorer-state chatui-explorer-error">{{ errMsg }}</div>
@@ -649,23 +650,6 @@ onMounted(() => {
   font-size: 11px;
   color: var(--chatui-fg-secondary);
   flex-shrink: 0;
-}
-.chatui-explorer-download {
-  flex-shrink: 0;
-  width: 22px;
-  height: 22px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  text-decoration: none;
-  color: var(--chatui-fg-secondary);
-  font-size: 14px;
-  transition: background 0.15s, color 0.15s;
-}
-.chatui-explorer-download:hover {
-  background: var(--chatui-bg-hover, var(--chatui-bg-soft));
-  color: var(--chatui-fg);
 }
 .chatui-explorer-dirty {
   flex-shrink: 0;
