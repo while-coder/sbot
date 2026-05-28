@@ -182,9 +182,10 @@ export class SkillService implements ISkillService {
       description: this.toolListDesc!,
       schema: z.object({
         skillName: z.string().describe("Skill name (kebab-case)"),
-        subPath: z.string().optional().describe('Optional sub-path, e.g. "scripts", "references"')
+        subPath:   z.string().optional().describe('Sub-directory to list, relative to the skill root (e.g. "scripts", "references"). Defaults to the skill root.'),
+        depth:     z.number().int().min(1).max(5).optional().default(1).describe('How many levels deep to list. 1 = only the current directory (default); 2 = include immediate sub-directory contents; max 5.'),
       }) as any,
-      func: async ({ skillName, subPath = "" }: any): Promise<MCPToolResult> => {
+      func: async ({ skillName, subPath = "", depth = 1 }: any): Promise<MCPToolResult> => {
         try {
           const skill = this.getAllSkills().find(s => s.name === skillName);
           if (!skill) return createErrorResult(`Skill "${skillName}" not found`);
@@ -193,7 +194,7 @@ export class SkillService implements ISkillService {
           if (!this.isPathSafe(fullPath, skill.path)) return createErrorResult("Security error: access outside the skill directory is not allowed");
           if (!fs.existsSync(fullPath)) return createErrorResult(`Directory not found: ${subPath || "/"}`);
 
-          const structure = this.getDirectoryStructure(fullPath);
+          const structure = this.getDirectoryStructure(fullPath, depth);
           return createSuccessResult(createTextContent(structure.join("\n")));
         } catch (error: any) {
           this.logger?.error(`Error listing skill files ${skillName}/${subPath}: ${error.message}`);
@@ -209,19 +210,39 @@ export class SkillService implements ISkillService {
     return path.normalize(fullPath).startsWith(path.normalize(baseDir));
   }
 
-  // 扁平化输出相对路径，例如 "SKILL.md" / "scripts/run.sh"。统一用 "/" 作分隔符，跨平台一致；
-  // 空目录不输出（对 LLM 决策不构成行为面）；按 localeCompare 稳定排序，便于 diff 复现。
-  private getDirectoryStructure(dirPath: string, relPrefix = ""): string[] {
-    const items: string[] = [];
+  // 只列当前目录，不递归。emoji 区分目录/文件，目录前置便于 LLM 一眼识别可下钻的路径。
+  // 仍然过滤一批构建产物 / VCS / IDE / 内部缓存噪音，避免顶层就出现 node_modules 这类条目。
+  private static readonly IGNORED_NAMES = new Set([
+    '.usage.json',
+    // VCS
+    '.git', '.svn', '.hg',
+    // Node
+    'node_modules', 'coverage', '.next', '.nuxt', '.turbo',
+    // Python
+    '__pycache__', '.venv', 'venv', '.pytest_cache', '.mypy_cache', '.tox', '.ruff_cache',
+    // 其他构建产物
+    'target', '.gradle',
+    // IDE / OS
+    '.idea', '.vscode', '.DS_Store', 'Thumbs.db',
+    // skill 自身的运行时/缓存/临时目录（约定俗成的 dot-prefixed 内部目录）
+    '.runtime', '.cache', '.tmp', '.temp', '.local',
+  ]);
+  private getDirectoryStructure(dirPath: string, depth: number, relPrefix = ""): string[] {
+    if (depth <= 0) return [];
     const entries = fs.readdirSync(dirPath, { withFileTypes: true })
-      .filter(e => e.name !== '.usage.json')
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .filter(e => !SkillService.IGNORED_NAMES.has(e.name));
+    // 目录优先 + 同类内按 localeCompare：LLM 扫一眼上半截就知道有哪些子目录可下钻。
+    entries.sort((a, b) => {
+      const ad = a.isDirectory() ? 0 : 1;
+      const bd = b.isDirectory() ? 0 : 1;
+      return ad !== bd ? ad - bd : a.name.localeCompare(b.name);
+    });
+    const items: string[] = [];
     for (const entry of entries) {
       const rel = relPrefix ? `${relPrefix}/${entry.name}` : entry.name;
-      if (entry.isDirectory()) {
-        items.push(...this.getDirectoryStructure(path.join(dirPath, entry.name), rel));
-      } else {
-        items.push(rel);
+      items.push(`${entry.isDirectory() ? '📁' : '📄'} ${rel}`);
+      if (entry.isDirectory() && depth > 1) {
+        items.push(...this.getDirectoryStructure(path.join(dirPath, entry.name), depth - 1, rel));
       }
     }
     return items;

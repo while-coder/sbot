@@ -1,1 +1,1 @@
-List the directory tree of a skill. Use to discover available files and resources.
+List files inside a skill directory. 📁 marks sub-directories, 📄 marks files; sub-directories are listed first. Defaults to the skill root and depth=1 (current level only). Pass subPath to drill into a sub-directory, or depth (1-5) to expand more levels at once. Common build/cache/runtime directories (node_modules, .git, __pycache__, .runtime, etc.) are filtered out.
