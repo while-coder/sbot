@@ -379,7 +379,8 @@ async function onUpdateConfig(field: string, value: unknown) {
   const id = activeSessionId.value
   if (!id) return
   try {
-    await props.transport.updateSession(id, { [field]: value } as Partial<SessionItem>)
+    const wireValue = value === undefined ? null : value
+    await props.transport.updateSession(id, { [field]: wireValue } as Partial<SessionItem>)
     const s = sessions.value.find(s => s.id === id) as Record<string, unknown> | undefined
     if (s) s[field] = value
   } catch (e) {
