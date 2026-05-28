@@ -29,3 +29,16 @@ export {
     type RunTaskFn,
 } from './TaskTool';
 
+export {
+    runProgram,
+    runShellCommand,
+    resolveShell,
+    isCommandAvailable,
+    validatePath,
+    resolveWorkingDir,
+    createScriptCodeTool,
+    scriptCodeSchema,
+    type ScriptCodeToolOptions,
+    MAX_OUTPUT_BYTES,
+} from './Process';
+

@@ -366,6 +366,18 @@ export {
   createErrorResult,
   isMCPToolResult,
   normalizeToMCPResult,
+
+  // Process - 子进程执行框架
+  runProgram,
+  runShellCommand,
+  resolveShell,
+  isCommandAvailable,
+  validatePath,
+  resolveWorkingDir,
+  createScriptCodeTool,
+  scriptCodeSchema,
+  type ScriptCodeToolOptions,
+  MAX_OUTPUT_BYTES,
 } from "./Tools";
 
 // ========================================

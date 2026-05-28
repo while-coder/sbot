@@ -8,17 +8,16 @@ import { DynamicStructuredTool, type StructuredToolInterface } from "@langchain/
 import { z } from "zod";
 import fs from "fs";
 import path from "path";
-import { exec } from "child_process";
-import { promisify } from "util";
 import {
     createTextContent,
     createErrorResult,
     createSuccessResult,
-    MCPToolResult
+    MCPToolResult,
+    runProgram,
+    runShellCommand,
+    isCommandAvailable,
 } from "../Tools";
 import { UsageTracker, UsageState } from "../Utils/UsageTracker";
-
-const execAsync = promisify(exec);
 
 export const READ_SKILL_FILE_TOOL_NAME = 'read_skill_file';
 export const EXECUTE_SKILL_SCRIPT_TOOL_NAME = 'execute_skill_script';
@@ -142,11 +141,13 @@ export class SkillService implements ISkillService {
       name: EXECUTE_SKILL_SCRIPT_TOOL_NAME,
       description: this.toolExecDesc!,
       schema: z.object({
-        skillName: z.string().describe("Skill name (kebab-case)"),
+        skillName:  z.string().describe("Skill name (kebab-case)"),
         scriptPath: z.string().describe('Relative path to the script, e.g. "scripts/process.py". Confirm via list_skill_files first.'),
-        args: z.array(z.string()).optional().describe("Arguments to pass to the script")
+        args:       z.array(z.string()).optional().describe("Arguments to pass to the script"),
+        stdin:      z.string().optional().describe('Data to pipe into the script via stdin (use when payload is large or contains special characters, e.g. JSON)'),
+        timeout:    z.number().optional().default(60000).describe('Timeout in milliseconds, default 60000 (60 s)'),
       }) as any,
-      func: async ({ skillName, scriptPath, args = [] }: any): Promise<MCPToolResult> => {
+      func: async ({ skillName, scriptPath, args = [], stdin, timeout = 60000 }: any): Promise<MCPToolResult> => {
         try {
           const skill = this.getAllSkills().find(s => s.name === skillName);
           if (!skill) return createErrorResult(`Skill "${skillName}" not found`);
@@ -156,30 +157,38 @@ export class SkillService implements ISkillService {
           if (!fs.existsSync(fullPath)) return createErrorResult(`Script not found: ${scriptPath}`);
 
           const ext = path.extname(scriptPath).toLowerCase();
-          let command = "";
+          // .sh 走 shell（脚本本身可能依赖 shell 语法）；其他走 runProgram 数组传参，免转义。
+          // python 解释器名按平台双探测：现代 Linux 通常只有 python3，Windows 多为 python。
+          let interpreter: string;
+          let useShell = false;
           switch (ext) {
-            case ".py":  command = `python "${fullPath}" ${args.join(" ")}`; break;
-            case ".sh":  command = `bash "${fullPath}" ${args.join(" ")}`; break;
-            case ".js":  command = `node "${fullPath}" ${args.join(" ")}`; break;
-            case ".ts":  command = `ts-node "${fullPath}" ${args.join(" ")}`; break;
-            default: return createErrorResult(`Unsupported script type: ${ext}. Supported: .py, .sh, .js, .ts`);
+            case ".py":
+              interpreter = isCommandAvailable("python") ? "python" : "python3";
+              break;
+            case ".js": interpreter = "node";    break;
+            case ".ts": interpreter = "ts-node"; break;
+            case ".sh": interpreter = "";        useShell = true; break;
+            default:
+              return createErrorResult(`Unsupported script type: ${ext}. Supported: .py, .sh, .js, .ts`);
+          }
+          if (!useShell && !isCommandAvailable(interpreter)) {
+            return createErrorResult(`Interpreter "${interpreter}" not found in PATH`);
           }
 
           new UsageTracker(skill.path).recordUse();
           const cwd = path.dirname(fullPath);
+          const label = `skill ${skillName}/${scriptPath}`;
           this.logger?.info(`执行 skill 脚本 ${skillName}/${scriptPath} cwd=${cwd}`);
-          const { stdout, stderr } = await execAsync(command, { cwd, env: process.env, timeout: 60000, maxBuffer: 10 * 1024 * 1024 });
 
-          const result = [];
-          if (stdout.trim()) result.push(createTextContent(stdout.trim()));
-          if (stderr.trim()) result.push(createTextContent(`stderr:\n${stderr.trim()}`));
-          return createSuccessResult(...result);
+          if (useShell) {
+            // .sh：拼一段 shell 命令，args 数组用 single-quote 包裹避免 injection。
+            const quoted = [fullPath, ...args].map((s: string) => `'${String(s).replace(/'/g, `'\\''`)}'`).join(" ");
+            return await runShellCommand(quoted, cwd, timeout, label, stdin);
+          }
+          return await runProgram(interpreter, [fullPath, ...args], cwd, timeout, label, stdin);
         } catch (error: any) {
           this.logger?.error(`Error executing skill script ${skillName}/${scriptPath}: ${error.message}`);
-          const errorDetails = [createTextContent(`Error: ${error.message}`)];
-          if (error.stdout?.trim()) errorDetails.push(createTextContent(`stdout:\n${error.stdout.trim()}`));
-          if (error.stderr?.trim()) errorDetails.push(createTextContent(`stderr:\n${error.stderr.trim()}`));
-          return { content: errorDetails, isError: true };
+          return createErrorResult(`Error: ${error.message}`);
         }
       }
     });

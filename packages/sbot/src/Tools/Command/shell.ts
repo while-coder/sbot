@@ -11,12 +11,13 @@ export function createShellTool(): StructuredToolInterface {
         schema: z.object({
             command:    z.string().min(1).describe('Command or multi-line shell script to run, e.g. "git status", "npm install && npm run build", or a newline-separated script'),
             workingDir: z.string().describe('Absolute path of the working directory'),
+            stdin:      z.string().optional().describe('Data to pipe into the command via stdin (use when payload is large or contains special characters, e.g. JSON)'),
             timeout:    z.number().optional().default(60000).describe('Timeout in milliseconds, default 60000 (60 s)'),
         }) as any,
-        func: async ({ command, workingDir, timeout = 60000 }: any) => {
+        func: async ({ command, workingDir, stdin, timeout = 60000 }: any) => {
             const { cwd, error } = await resolveWorkingDir(workingDir);
             if (error) return createErrorResult(error);
-            return runShellCommand(command, cwd!, timeout, `command "${command}"`);
+            return runShellCommand(command, cwd!, timeout, `command "${command}"`, stdin);
         },
     });
 }
