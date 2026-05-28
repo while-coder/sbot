@@ -110,7 +110,8 @@ export class ReActAgentService extends SingleAgentService {
         }
         const content: MCPContent[] = [];
         // 把 task_id 作为首段文本注入，让 LLM 在后续调用中可显式传 taskId 续接
-        content.push(createTextContent(`task_id: ${resolvedTaskId} (pass this back as taskId to resume the same sub-agent session)`));
+        // 使用方式由 _task 工具的 schema/desc 和 react_task.txt 教学，不在此处重复
+        content.push(createTextContent(`task_id: ${resolvedTaskId}`));
         if (lastAI) {
           if (typeof lastAI.content === 'string') {
             if (lastAI.content.trim()) content.push(createTextContent(lastAI.content));
