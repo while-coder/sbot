@@ -793,8 +793,11 @@ async function refresh() {
           <SFormItem :label="t('channels.session_id')">
             <SInput :model-value="editingSession.sessionId" disabled class="cell-mono" />
           </SFormItem>
+          <SFormItem :label="t('channels.auto_session_name')">
+            <SInput :model-value="editingSession.autoSessionName" disabled />
+          </SFormItem>
           <SFormItem :label="t('channels.session_name')">
-            <SInput :model-value="sessionForm.name" disabled />
+            <SInput v-model="sessionForm.name" :placeholder="t('channels.session_name_placeholder')" />
           </SFormItem>
           <SFormItem :label="t('common.agent')">
             <SSelect v-model="sessionForm.agentId">

@@ -135,6 +135,8 @@ export default {
     select_saver: '请选择存储配置',
     session_id: '会话 ID',
     session_name: '会话名称',
+    auto_session_name: '自动名称',
+    session_name_placeholder: '留空则使用自动名称',
     confirm_delete_session: '确定要删除会话 "{name}" 吗?',
     confirm_delete: '确定要删除频道 "{name}" 吗?',
     use_channel_memories: '使用渠道知识(碎片)',

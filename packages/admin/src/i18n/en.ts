@@ -135,6 +135,8 @@ export default {
     select_saver: 'Select Storage',
     session_id: 'Session ID',
     session_name: 'Session Name',
+    auto_session_name: 'Auto Name',
+    session_name_placeholder: 'Leave empty to use auto name',
     confirm_delete_session: 'Delete session "{name}"?',
     confirm_delete: 'Delete channel "{name}"?',
     use_channel_memories: 'Use channel snippets',
