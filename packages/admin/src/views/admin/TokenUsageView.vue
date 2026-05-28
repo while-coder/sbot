@@ -216,8 +216,8 @@ onMounted(fetchUsage)
         <div class="summary-cards">
           <div class="summary-card summary-card-total">
             <div class="summary-label">{{ t('usage.total_tokens') }}</div>
-            <div class="summary-value-lg">{{ formatNumber(summary.totalTokens) }}</div>
-            <div class="summary-compact">{{ formatCompact(summary.totalTokens) }}</div>
+            <div class="summary-value-lg">{{ formatCompact(summary.totalTokens) }}</div>
+            <div class="summary-compact">{{ formatNumber(summary.totalTokens) }}</div>
           </div>
           <div class="summary-card">
             <div class="summary-label">{{ t('usage.input_tokens') }}</div>
