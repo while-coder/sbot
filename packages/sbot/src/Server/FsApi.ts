@@ -286,6 +286,27 @@ export class FsApi {
             .map(d => ({ ...d, rootId: this.getOrCreateRoot(d.path) }));
     }
 
+    listDrives() {
+        const drives: { label: string; path: string; rootId: string }[] = [];
+        if (process.platform === 'win32') {
+            for (let code = 'C'.charCodeAt(0); code <= 'Z'.charCodeAt(0); code++) {
+                const letter = String.fromCharCode(code);
+                const p = `${letter}:\\`;
+                try {
+                    if (!fs.statSync(p).isDirectory()) continue;
+                } catch { continue; }
+                drives.push({ label: `${letter}盘`, path: p, rootId: this.getOrCreateRoot(p) });
+            }
+        } else {
+            try {
+                if (fs.statSync('/').isDirectory()) {
+                    drives.push({ label: '根目录', path: '/', rootId: this.getOrCreateRoot('/') });
+                }
+            } catch { /* ignore */ }
+        }
+        return drives;
+    }
+
     private getRoot(rootId: string | undefined): ManagedFileRoot {
         if (!rootId?.trim()) throwBad('rootId is required');
         const root = this.rootIdToFile.get(rootId.trim());

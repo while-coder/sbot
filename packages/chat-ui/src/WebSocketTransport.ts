@@ -185,6 +185,11 @@ export class WebSocketTransport implements IChatTransport {
     return res.data ?? res ?? []
   }
 
+  async listDrives(): Promise<QuickDir[]> {
+    const res = await this.api('/api/fs/drives')
+    return res.data ?? res ?? []
+  }
+
   async mkdir(rootId: string, path: string): Promise<{ rootId: string; path: string }> {
     const res = await this.api('/api/fs/mkdir', 'POST', { rootId, path })
     return res.data ?? res ?? { rootId, path }

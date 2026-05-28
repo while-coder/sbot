@@ -866,6 +866,8 @@ class HttpServer {
 
         app.get('/api/fs/quickdirs', api(() => fsApi.quickDirs()));
 
+        app.get('/api/fs/drives', api(() => fsApi.listDrives()));
+
         app.post('/api/fs/mkdir', api(req => {
             const { rootId, path: dirPath } = req.body || {};
             return fsApi.mkdir(rootId, dirPath);

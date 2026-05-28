@@ -60,6 +60,7 @@ export class VsCodeTransport implements IChatTransport {
 
   listDir(rootId: string, path = ''): Promise<DirListResult> { return rpc('listDir', rootId, path) }
   quickDirs(): Promise<QuickDir[]> { return rpc('quickDirs') }
+  listDrives(): Promise<QuickDir[]> { return rpc('listDrives') }
   mkdir(rootId: string, path: string): Promise<{ rootId: string; path: string }> { return rpc('mkdir', rootId, path) }
   listTree(rootId: string, path = ''): Promise<FsTreeResult> { return rpc('listTree', rootId, path) }
   readFile(rootId: string, path = ''): Promise<FsReadResult> { return rpc('readFile', rootId, path) }

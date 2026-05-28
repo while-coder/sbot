@@ -163,6 +163,8 @@ export class ChatPanel {
         return client.listDir(args[0], args[1]);
       case 'quickDirs':
         return client.quickDirs();
+      case 'listDrives':
+        return client.listDrives();
       case 'mkdir':
         return client.mkdir(args[0], args[1]);
       case 'listTree':

@@ -131,6 +131,11 @@ export class SbotClient {
     return res.data.data ?? res.data ?? [];
   }
 
+  async listDrives(): Promise<any[]> {
+    const res = await this.http.get('/api/fs/drives');
+    return res.data.data ?? res.data ?? [];
+  }
+
   async mkdir(rootId: string, filePath: string): Promise<{ rootId: string; path: string }> {
     const res = await this.http.post('/api/fs/mkdir', { rootId, path: filePath });
     return res.data.data ?? res.data ?? { rootId, path: filePath };

@@ -32,6 +32,7 @@ export interface IChatTransport {
 
   listDir(rootId: string, path?: string): Promise<DirListResult>
   quickDirs(): Promise<QuickDir[]>
+  listDrives(): Promise<QuickDir[]>
   mkdir(rootId: string, path: string): Promise<{ rootId: string; path: string }>
 
   listTree(rootId: string, path?: string): Promise<FsTreeResult>
