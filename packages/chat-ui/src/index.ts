@@ -22,6 +22,7 @@ export type {
   AskAnswerPayload,
   DisplayContent,
   DirListResult,
+  DriveEntry,
   QuickDir,
   FsTreeItem,
   FsTreeResult,

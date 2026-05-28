@@ -13,6 +13,7 @@ import {
   type ToolApprovalPayload,
   type AskAnswerPayload,
   type DirListResult,
+  type DriveEntry,
   type QuickDir,
   type FsTreeResult,
   type FsReadResult,
@@ -185,7 +186,7 @@ export class WebSocketTransport implements IChatTransport {
     return res.data ?? res ?? []
   }
 
-  async listDrives(): Promise<QuickDir[]> {
+  async listDrives(): Promise<DriveEntry[]> {
     const res = await this.api('/api/fs/drives')
     return res.data ?? res ?? []
   }

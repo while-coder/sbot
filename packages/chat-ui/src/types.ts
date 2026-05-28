@@ -334,10 +334,16 @@ export interface DirListResult {
   items: string[]
 }
 
+export interface DriveEntry {
+  label: string
+  path: string      // 绝对路径
+  rootId: string
+}
+
 export interface QuickDir {
   label: string
-  path: string
-  rootId: string
+  rootId: string    // 所属 drive 的 rootId
+  relPath: string   // drive 内的相对路径
 }
 
 // ── Filesystem tree (Explorer) ──

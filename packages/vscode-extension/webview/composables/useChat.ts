@@ -1,4 +1,4 @@
-import type { IChatTransport, ChatEvent, ContentPart, Attachment, SessionItem, CreateSessionOpts, StoredMessage, UsageInfo, AppSettings, SessionStatus, ToolApprovalPayload, AskAnswerPayload, DirListResult, QuickDir, FsTreeResult, FsReadResult, GitStatusResult, GitDiffResult, RemoteEntry } from '@sbot/chat-ui'
+import type { IChatTransport, ChatEvent, ContentPart, Attachment, SessionItem, CreateSessionOpts, StoredMessage, UsageInfo, AppSettings, SessionStatus, ToolApprovalPayload, AskAnswerPayload, DirListResult, DriveEntry, QuickDir, FsTreeResult, FsReadResult, GitStatusResult, GitDiffResult, RemoteEntry } from '@sbot/chat-ui'
 
 declare function acquireVsCodeApi(): { postMessage(msg: any): void }
 const vscode = acquireVsCodeApi()
@@ -60,7 +60,7 @@ export class VsCodeTransport implements IChatTransport {
 
   listDir(rootId: string, path = ''): Promise<DirListResult> { return rpc('listDir', rootId, path) }
   quickDirs(): Promise<QuickDir[]> { return rpc('quickDirs') }
-  listDrives(): Promise<QuickDir[]> { return rpc('listDrives') }
+  listDrives(): Promise<DriveEntry[]> { return rpc('listDrives') }
   mkdir(rootId: string, path: string): Promise<{ rootId: string; path: string }> { return rpc('mkdir', rootId, path) }
   listTree(rootId: string, path = ''): Promise<FsTreeResult> { return rpc('listTree', rootId, path) }
   readFile(rootId: string, path = ''): Promise<FsReadResult> { return rpc('readFile', rootId, path) }

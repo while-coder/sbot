@@ -279,11 +279,21 @@ export class FsApi {
             { label: '文档', path: path.join(home, 'Documents') },
             { label: '下载', path: path.join(home, 'Downloads') },
         ];
-        return candidates
-            .filter(d => {
-                try { return fs.statSync(d.path).isDirectory(); } catch { return false; }
-            })
-            .map(d => ({ ...d, rootId: this.getOrCreateRoot(d.path) }));
+        const drives = this.listDrives();
+        const result: { label: string; rootId: string; relPath: string }[] = [];
+        for (const c of candidates) {
+            try { if (!fs.statSync(c.path).isDirectory()) continue; } catch { continue; }
+            let drive: typeof drives[number] | undefined;
+            for (const dr of drives) {
+                const rel = path.relative(dr.path, c.path);
+                if (rel.startsWith('..') || path.isAbsolute(rel)) continue;
+                if (!drive || dr.path.length > drive.path.length) drive = dr;
+            }
+            if (!drive) continue;
+            const relPath = path.relative(drive.path, c.path).replace(/\\/g, '/');
+            result.push({ label: c.label, rootId: drive.rootId, relPath });
+        }
+        return result;
     }
 
     listDrives() {

@@ -3,7 +3,7 @@ import type {
   SessionItem, CreateSessionOpts, StoredMessage,
   UsageInfo, AppSettings, SessionStatus,
   ToolApprovalPayload, AskAnswerPayload,
-  DirListResult, QuickDir, FsTreeResult, FsReadResult, GitStatusResult, GitDiffResult, ChatEvent,
+  DirListResult, DriveEntry, QuickDir, FsTreeResult, FsReadResult, GitStatusResult, GitDiffResult, ChatEvent,
 } from './types';
 
 export interface IChatTransport {
@@ -32,7 +32,7 @@ export interface IChatTransport {
 
   listDir(rootId: string, path?: string): Promise<DirListResult>
   quickDirs(): Promise<QuickDir[]>
-  listDrives(): Promise<QuickDir[]>
+  listDrives(): Promise<DriveEntry[]>
   mkdir(rootId: string, path: string): Promise<{ rootId: string; path: string }>
 
   listTree(rootId: string, path?: string): Promise<FsTreeResult>

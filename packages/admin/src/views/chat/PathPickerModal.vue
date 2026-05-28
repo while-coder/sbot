@@ -1,39 +1,40 @@
 <script setup lang="ts">
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { useToast } from 'sbot-ui'
 import { SModal, SButton, SIconButton } from 'sbot-ui'
+
+interface DriveEntry { label: string; path: string; rootId: string }
+interface QuickDir   { label: string; rootId: string; relPath: string }
 
 const { t } = useI18n()
 const { show } = useToast()
 
 const emit = defineEmits<{ confirm: [path: string, rootId: string] }>()
 
-const pickerOpen    = ref(false)
-const pickerLoading = ref(false)
-const pickerPath    = ref('')
-const pickerRelPath = ref('')
-const pickerRootPath = ref('')
-const pickerRootId  = ref('')
-const pickerParent  = ref<string | null>(null)
-const pickerItems   = ref<string[]>([])
+const pickerOpen      = ref(false)
+const pickerLoading   = ref(false)
+const pickerRootId    = ref('')
+const pickerRelPath   = ref('')
+const pickerItems     = ref<string[]>([])
+const pickerDrives    = ref<DriveEntry[]>([])
+const pickerQuickDirs = ref<QuickDir[]>([])
 const pickerCreating  = ref(false)
 const pickerNewName   = ref('')
 const newNameInput    = ref<HTMLInputElement | null>(null)
-const pickerQuickDirs = ref<{ label: string; path: string; rootId: string }[]>([])
 
-function normalizeDisplayPath(p: string): string {
-  return p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
-}
-
-function relativeToRoot(rootPath: string, targetPath: string): string | null {
-  const root = normalizeDisplayPath(rootPath)
-  const target = normalizeDisplayPath(targetPath)
-  if (target === root) return ''
-  if (target.startsWith(`${root}/`)) return target.slice(root.length + 1)
-  return null
-}
+const pickerDriveMode = computed(() => !pickerRootId.value)
+const pickerRootPath  = computed(() => pickerDrives.value.find(d => d.rootId === pickerRootId.value)?.path ?? '')
+const pickerPath      = computed(() => pickerRootId.value ? joinDisplayPath(pickerRootPath.value, pickerRelPath.value) : '')
+const pickerParent    = computed<string | null>(() => {
+  if (!pickerRootId.value || !pickerRelPath.value) return null
+  const i = pickerRelPath.value.lastIndexOf('/')
+  return i < 0 ? '' : pickerRelPath.value.slice(0, i)
+})
+const canGoUp = computed(() =>
+  !pickerDriveMode.value && (pickerParent.value !== null || pickerDrives.value.length > 1)
+)
 
 function joinDisplayPath(rootPath: string, relPath: string): string {
   if (!relPath) return rootPath
@@ -43,31 +44,43 @@ function joinDisplayPath(rootPath: string, relPath: string): string {
 
 function itemLabel(p: string): string {
   if (/^[A-Za-z]:[/\\]?$/.test(p)) return p.replace(/[/\\]$/, '') + '\\'
-  const trimmed = p.replace(/[/\\]+$/, '')
-  return trimmed.split(/[/\\]/).filter(Boolean).pop() || p
+  return p.replace(/[/\\]+$/, '').split(/[/\\]/).filter(Boolean).pop() || p
 }
 
-async function navigatePicker(rootId: string, relPath = '', rootPath?: string): Promise<boolean> {
-  if (!rootId) return false
+function resetCreate() {
   pickerCreating.value = false
   pickerNewName.value  = ''
-  pickerLoading.value  = true
+}
+
+function enterDriveMode() {
+  resetCreate()
+  pickerRootId.value  = ''
+  pickerRelPath.value = ''
+  pickerItems.value   = []
+}
+
+async function navigate(rootId: string, relPath = ''): Promise<boolean> {
+  if (!rootId) return false
+  resetCreate()
+  pickerLoading.value = true
   try {
     const q = `?rootId=${encodeURIComponent(rootId)}&path=${encodeURIComponent(relPath)}`
     const res = await apiFetch(`/api/fs/list${q}`)
-    if (rootPath) pickerRootPath.value = rootPath
-    pickerRootId.value = res.data.rootId
+    pickerRootId.value  = res.data.rootId
     pickerRelPath.value = res.data.path
-    pickerPath.value   = joinDisplayPath(pickerRootPath.value, res.data.path)
-    pickerParent.value = res.data.parent
-    pickerItems.value  = res.data.items
+    pickerItems.value   = res.data.items
     return true
   } catch (e: any) {
-    if (relPath || rootPath) show(e.message, 'error')
+    if (relPath) show(e.message, 'error')
     return false
   } finally {
     pickerLoading.value = false
   }
+}
+
+function navigateUp() {
+  if (pickerParent.value !== null) navigate(pickerRootId.value, pickerParent.value)
+  else if (pickerDrives.value.length > 1) enterDriveMode()
 }
 
 function startCreate() {
@@ -76,10 +89,7 @@ function startCreate() {
   nextTick(() => newNameInput.value?.focus())
 }
 
-function cancelCreate() {
-  pickerCreating.value = false
-  pickerNewName.value  = ''
-}
+const cancelCreate = resetCreate
 
 async function confirmCreate() {
   const name = pickerNewName.value.trim()
@@ -87,41 +97,52 @@ async function confirmCreate() {
   try {
     const path = pickerRelPath.value ? `${pickerRelPath.value}/${name}` : name
     const res = await apiFetch('/api/fs/mkdir', 'POST', { rootId: pickerRootId.value, path })
-    await navigatePicker(res.data.rootId, res.data.path)
+    await navigate(res.data.rootId, res.data.path)
   } catch (e: any) {
     show(e.message, 'error')
   }
 }
 
+function resolveInitialPath(absPath: string): { rootId: string; relPath: string } | null {
+  const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+  const target = norm(absPath)
+  let best: { drive: DriveEntry; rel: string } | null = null
+  for (const d of pickerDrives.value) {
+    const root = norm(d.path)
+    let rel: string | null = null
+    if (target === root) rel = ''
+    else if (root === '' && target.startsWith('/')) rel = target.slice(1)
+    else if (target.startsWith(`${root}/`)) rel = target.slice(root.length + 1)
+    if (rel === null) continue
+    if (!best || d.path.length > best.drive.path.length) best = { drive: d, rel }
+  }
+  return best ? { rootId: best.drive.rootId, relPath: best.rel } : null
+}
+
 async function open(initialPath = '') {
-  pickerPath.value      = ''
-  pickerRelPath.value   = ''
-  pickerRootPath.value  = ''
-  pickerRootId.value    = ''
-  pickerParent.value    = null
-  pickerItems.value     = []
+  enterDriveMode()
+  pickerDrives.value    = []
   pickerQuickDirs.value = []
   pickerOpen.value      = true
-  const dirs = await apiFetch('/api/fs/quickdirs').then(r => r.data ?? []).catch(() => [])
-  pickerQuickDirs.value = dirs
-  let matched: { label: string; path: string; rootId: string; relPath: string } | undefined
+
+  const [drives, quicks] = await Promise.all([
+    apiFetch('/api/fs/drives').then(r => r.data ?? []).catch(() => []) as Promise<DriveEntry[]>,
+    apiFetch('/api/fs/quickdirs').then(r => r.data ?? []).catch(() => []) as Promise<QuickDir[]>,
+  ])
+  pickerDrives.value    = drives
+  pickerQuickDirs.value = quicks
+
   if (initialPath) {
-    for (const dir of dirs) {
-      const relPath = relativeToRoot(dir.path, initialPath)
-      if (relPath === null) continue
-      if (!matched || dir.path.length > matched.path.length) matched = { ...dir, relPath }
-    }
+    const m = resolveInitialPath(initialPath)
+    if (m && await navigate(m.rootId, m.relPath)) return
   }
-  if (matched && await navigatePicker(matched.rootId, matched.relPath, matched.path)) return
-  const first = dirs[0]
-  if (first) await navigatePicker(first.rootId, '', first.path)
+  if (drives.length === 1) await navigate(drives[0].rootId, '')
 }
 
 function confirmPicker() {
-  const selected = pickerPath.value
-  if (!selected) return
+  if (!pickerPath.value) return
   pickerOpen.value = false
-  emit('confirm', selected, pickerRootId.value)
+  emit('confirm', pickerPath.value, pickerRootId.value)
 }
 
 defineExpose({ open })
@@ -138,20 +159,31 @@ defineExpose({ open })
     <div v-if="pickerQuickDirs.length" class="picker-quickdirs">
       <button
         v-for="d in pickerQuickDirs"
-        :key="d.path"
+        :key="`${d.rootId}/${d.relPath}`"
         class="picker-quickdir-chip"
-        :class="{ active: pickerPath === d.path }"
-        @click="navigatePicker(d.rootId, '', d.path)"
+        :class="{ active: d.rootId === pickerRootId && d.relPath === pickerRelPath }"
+        @click="navigate(d.rootId, d.relPath)"
       >{{ d.label }}</button>
     </div>
 
     <div class="picker-list">
       <div v-if="pickerLoading" class="picker-empty">{{ t('common.loading') }}</div>
+      <template v-else-if="pickerDriveMode">
+        <div v-if="pickerDrives.length === 0" class="picker-empty">{{ t('directory.no_subdirs') }}</div>
+        <div
+          v-for="d in pickerDrives"
+          :key="d.path"
+          class="picker-item"
+          @click="navigate(d.rootId, '')"
+        >
+          <span class="picker-icon">▶</span>{{ d.label }}
+        </div>
+      </template>
       <template v-else>
         <div
-          v-if="pickerParent !== null"
+          v-if="canGoUp"
           class="picker-item picker-up"
-          @click="navigatePicker(pickerRootId, pickerParent!)"
+          @click="navigateUp()"
         >
           {{ t('directory.up_dir') }}
         </div>
@@ -173,7 +205,7 @@ defineExpose({ open })
           v-for="item in pickerItems"
           :key="item"
           class="picker-item"
-          @click="navigatePicker(pickerRootId, item)"
+          @click="navigate(pickerRootId, item)"
         >
           <span class="picker-icon">▶</span>{{ itemLabel(item) }}
         </div>
