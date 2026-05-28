@@ -58,10 +58,12 @@ export class MemoryService implements IMemoryService {
 
   // ── Write ──────────────────────────────────────────────────────────────────
 
-  async addMemoryDirect(content: string, options?: { autoSplit?: boolean }): Promise<string[]> {
+  async addMemoryDirect(content: string, options?: { autoSplit?: boolean; chunkSize?: number }): Promise<string[]> {
     const shouldSplit = options?.autoSplit !== false;
+    const chunkSize = options?.chunkSize && options.chunkSize > 0 ? options.chunkSize : 500;
+    const chunkOverlap = Math.min(50, Math.floor(chunkSize / 10));
     const chunks = shouldSplit
-      ? await new CharacterTextSplitter({ chunkSize: 500, chunkOverlap: 50 }).splitText(content)
+      ? await new CharacterTextSplitter({ chunkSize, chunkOverlap }).splitText(content)
       : [content];
     const embeddings = await this.embeddings.embedDocuments(chunks);
     const ids: string[] = [];
@@ -69,6 +71,13 @@ export class MemoryService implements IMemoryService {
       ids.push(await this.addMemory(chunks[i], embeddings[i]));
     }
     return ids;
+  }
+
+  async updateMemoryDirect(memoryId: string, content: string): Promise<void> {
+    const trimmed = content.trim();
+    if (!trimmed) throw new Error("content is required");
+    const [embedding] = await this.embeddings.embedDocuments([trimmed]);
+    await this.db.updateMemory(memoryId, trimmed, embedding);
   }
 
   // ── Maintenance ────────────────────────────────────────────────────────────

@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { useToast, useConfirm } from 'sbot-ui'
-import { SModal, SButton, SBadge, SFormItem, STextarea, SCheckCard, STable, type STableColumn } from 'sbot-ui'
+import { SModal, SButton, SBadge, SFormItem, SInput, STextarea, SCheckCard, STable, type STableColumn } from 'sbot-ui'
 import type { MemoryItem, MemoryConfig } from '@/shared/types'
 
 const { t } = useI18n()
@@ -15,7 +15,7 @@ const columns = computed<STableColumn[]>(() => [
   { key: 'createdAt',    label: t('memories.created_col'),        width: '150px', ellipsis: true },
   { key: 'accessCount',  label: t('memories.access_count_col'),   width: '60px',  align: 'center' },
   { key: 'lastAccessed', label: t('memories.last_accessed_col'),  width: '150px', ellipsis: true },
-  { key: 'ops',          label: t('common.ops'),                  width: '70px',  align: 'center', ops: true },
+  { key: 'ops',          label: t('common.ops'),                  width: '140px', align: 'center', ops: true },
 ])
 
 const visible      = ref(false)
@@ -28,6 +28,12 @@ const showAddModal = ref(false)
 const addContent   = ref('')
 const adding       = ref(false)
 const autoSplit    = ref(true)
+const chunkSize    = ref(500)
+
+const showEditModal = ref(false)
+const editId        = ref('')
+const editContent   = ref('')
+const saving        = ref(false)
 
 function memUrl(path = '') {
   return `/api/memories/${encodeURIComponent(memoryId.value)}${path}`
@@ -68,6 +74,7 @@ async function clearAll() {
 function openAdd() {
   addContent.value   = ''
   autoSplit.value    = true
+  chunkSize.value    = 500
   showAddModal.value = true
 }
 
@@ -75,7 +82,11 @@ async function confirmAdd() {
   if (!addContent.value.trim()) { show(t('memories.error_content'), 'error'); return }
   adding.value = true
   try {
-    const res = await apiFetch(memUrl('/add'), 'POST', { content: addContent.value.trim(), autoSplit: autoSplit.value })
+    const res = await apiFetch(memUrl('/add'), 'POST', {
+      content: addContent.value.trim(),
+      autoSplit: autoSplit.value,
+      chunkSize: autoSplit.value ? chunkSize.value : undefined,
+    })
     show(t('memories.added_count', { count: res.data?.ids?.length ?? 0 }))
     showAddModal.value = false
     await load()
@@ -83,6 +94,27 @@ async function confirmAdd() {
     show(e.message, 'error')
   } finally {
     adding.value = false
+  }
+}
+
+function openEdit(row: MemoryItem) {
+  editId.value        = row.id
+  editContent.value   = row.content
+  showEditModal.value = true
+}
+
+async function confirmEdit() {
+  if (!editContent.value.trim()) { show(t('memories.error_content'), 'error'); return }
+  saving.value = true
+  try {
+    await apiFetch(memUrl(`/${encodeURIComponent(editId.value)}`), 'PUT', { content: editContent.value.trim() })
+    show(t('common.saved'))
+    showEditModal.value = false
+    await load()
+  } catch (e: any) {
+    show(e.message, 'error')
+  } finally {
+    saving.value = false
   }
 }
 
@@ -138,6 +170,7 @@ defineExpose({ open })
         <span class="cell-secondary">{{ row.lastAccessed ? new Date(row.lastAccessed).toLocaleString() : '-' }}</span>
       </template>
       <template #ops="{ row }">
+        <SButton type="outline" size="sm" @click="openEdit(row)">{{ t('common.edit') }}</SButton>
         <SButton type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
       </template>
     </STable>
@@ -149,10 +182,26 @@ defineExpose({ open })
       <STextarea v-model="addContent" :rows="7" :placeholder="t('memories.memory_placeholder')" />
     </SFormItem>
     <SCheckCard v-model="autoSplit" style="margin-top:8px">{{ t('memories.auto_split') }}</SCheckCard>
+    <SFormItem v-if="autoSplit" :label="t('memories.chunk_size')" style="margin-top:8px">
+      <SInput v-model.number="chunkSize" type="number" min="50" :placeholder="t('memories.chunk_size_placeholder')" />
+    </SFormItem>
     <template #footer>
       <SButton type="outline" :disabled="adding" @click="showAddModal = false">{{ t('common.cancel') }}</SButton>
       <SButton type="primary" :disabled="adding" :loading="adding" @click="confirmAdd">
         {{ adding ? t('memories.adding') : t('memories.add_btn') }}
+      </SButton>
+    </template>
+  </SModal>
+
+  <!-- Edit memory modal (nested) -->
+  <SModal v-model:visible="showEditModal" :title="t('memories.edit_memory_title')" width="sm" nested>
+    <SFormItem :label="t('memories.memory_content')">
+      <STextarea v-model="editContent" :rows="7" :placeholder="t('memories.memory_placeholder')" />
+    </SFormItem>
+    <template #footer>
+      <SButton type="outline" :disabled="saving" @click="showEditModal = false">{{ t('common.cancel') }}</SButton>
+      <SButton type="primary" :disabled="saving" :loading="saving" @click="confirmEdit">
+        {{ saving ? t('common.saving') : t('common.save') }}
       </SButton>
     </template>
   </SModal>

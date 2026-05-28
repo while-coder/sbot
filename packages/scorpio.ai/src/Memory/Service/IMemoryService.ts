@@ -25,8 +25,14 @@ export interface IMemoryService {
     /**
      * 直接插入一段完整记忆，跳过 Extractor
      * 大文本会自动按字符切割后分批插入（可通过 options.autoSplit 禁用）
+     * 默认 chunkSize=500，可通过 options.chunkSize 自定义
      */
-    addMemoryDirect(content: string, options?: { autoSplit?: boolean }): Promise<string[]>;
+    addMemoryDirect(content: string, options?: { autoSplit?: boolean; chunkSize?: number }): Promise<string[]>;
+
+    /**
+     * 更新已有条目的内容，重新生成向量
+     */
+    updateMemoryDirect(memoryId: string, content: string): Promise<void>;
 
     // ── 维护 ──────────────────────────────────────────────────────────────────
 

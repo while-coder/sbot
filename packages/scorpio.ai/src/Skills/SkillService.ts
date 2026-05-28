@@ -162,6 +162,7 @@ export class SkillService implements ISkillService {
           // 一律走 runProgram + 解释器调用：免 shell 转义，且不要求脚本本身有 +x。
           // python 解释器名按平台双探测：现代 Linux 通常只有 python3，Windows 多为 python。
           let interpreter: string;
+          let interpreterArgs: string[] = [];
           switch (ext) {
             case ".py":
               interpreter = isCommandAvailable("python") ? "python" : "python3";
@@ -169,8 +170,20 @@ export class SkillService implements ISkillService {
             case ".js": interpreter = "node";    break;
             case ".ts": interpreter = "ts-node"; break;
             case ".sh": interpreter = "bash";    break;
+            case ".ps1":
+              // pwsh 是 PowerShell 7+ 的跨平台名，优先用；回退到 Windows 自带的 powershell。
+              // -NoProfile 避免加载用户 profile，-ExecutionPolicy Bypass 绕开默认 Restricted 策略。
+              interpreter = isCommandAvailable("pwsh") ? "pwsh" : "powershell";
+              interpreterArgs = ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"];
+              break;
+            case ".cmd":
+              // .cmd 不是可执行文件，必须由 cmd.exe 解释；只在 Windows 上有意义。
+              if (process.platform !== "win32") return createErrorResult(`${ext} scripts are only supported on Windows`);
+              interpreter = "cmd";
+              interpreterArgs = ["/c"];
+              break;
             default:
-              return createErrorResult(`Unsupported script type: ${ext}. Supported: .py, .sh, .js, .ts`);
+              return createErrorResult(`Unsupported script type: ${ext}. Supported: .py, .sh, .js, .ts, .ps1, .cmd`);
           }
           if (!isCommandAvailable(interpreter)) {
             return createErrorResult(`Interpreter "${interpreter}" not found in PATH`);
@@ -181,7 +194,7 @@ export class SkillService implements ISkillService {
           const label = `skill ${skillName}/${scriptPath}`;
           this.logger?.info(`执行 skill 脚本 ${skillName}/${scriptPath} cwd=${cwd}`);
 
-          return await runProgram(interpreter, [fullPath, ...args], cwd, timeout, label, stdin);
+          return await runProgram(interpreter, [...interpreterArgs, fullPath, ...args], cwd, timeout, label, stdin);
         } catch (error: any) {
           this.logger?.error(`Error executing skill script ${skillName}/${scriptPath}: ${error.message}`);
           return createErrorResult(`Error: ${error.message}`);

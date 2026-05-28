@@ -90,6 +90,12 @@ export class MemorySqliteDatabase implements IMemoryDatabase {
         );
     }
 
+    async updateMemory(id: string, content: string, embedding: number[]): Promise<void> {
+        this.db.prepare(`
+            UPDATE memories SET content = ?, embedding = ? WHERE id = ?
+        `).run(content, JSON.stringify(embedding), id);
+    }
+
     async updateAccess(memoryId: string): Promise<void> {
         this.db.prepare(
             `UPDATE memories SET access_count = access_count + 1, last_accessed = ? WHERE id = ?`

@@ -24,6 +24,8 @@ export interface IMemoryDatabase {
 
     insertMemory(memory: Memory): Promise<void>;
 
+    updateMemory(id: string, content: string, embedding: number[]): Promise<void>;
+
     updateAccess(memoryId: string): Promise<void>;
 
     deleteMemory(id: string): Promise<void>;

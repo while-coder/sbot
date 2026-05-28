@@ -13,6 +13,7 @@ class ManagedMemoryDatabase implements IMemoryDatabase {
     searchWithTimeDecay(...args: Parameters<IMemoryDatabase['searchWithTimeDecay']>) { return this.inner.searchWithTimeDecay(...args); }
     findDuplicate(...args: Parameters<IMemoryDatabase['findDuplicate']>)             { return this.inner.findDuplicate(...args); }
     insertMemory(...args: Parameters<IMemoryDatabase['insertMemory']>)               { return this.inner.insertMemory(...args); }
+    updateMemory(...args: Parameters<IMemoryDatabase['updateMemory']>)               { return this.inner.updateMemory(...args); }
     updateAccess(...args: Parameters<IMemoryDatabase['updateAccess']>)               { return this.inner.updateAccess(...args); }
     deleteMemory(...args: Parameters<IMemoryDatabase['deleteMemory']>)               { return this.inner.deleteMemory(...args); }
     clearMemories()          { return this.inner.clearMemories(); }

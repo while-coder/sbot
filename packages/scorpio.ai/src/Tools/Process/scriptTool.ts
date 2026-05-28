@@ -13,7 +13,7 @@ export const scriptCodeSchema = z.object({
     code:       z.string().describe('Script source code to execute; written to a temp file automatically'),
     workingDir: z.string().describe('Absolute path of the working directory for the script'),
     args:       z.array(z.string()).optional().describe('Command-line arguments to pass to the script'),
-    stdin:      z.string().optional().describe('Data to pipe into the script via stdin (use when args are too large or contain special characters, e.g. JSON payload)'),
+    stdin:      z.any().optional().describe('Data to pipe into the script via stdin. Prefer a string; objects/arrays are auto-serialized to JSON.'),
     timeout:    z.number().optional().default(60000).describe('Timeout in milliseconds, default 60000 (60 s)'),
 });
 
@@ -32,6 +32,9 @@ export function createScriptCodeTool({ name, description, interpreter, preArgs =
         description,
         schema: scriptCodeSchema as any,
         func: async ({ code, args = [], workingDir, stdin, timeout = 60000 }: any): Promise<MCPToolResult> => {
+            // schema 用 z.any() 是为了同时满足两点：(1) Zod v4 的 toJSONSchema 不接受 transform/preprocess；
+            // (2) 模型偶尔不遵守 string 约束、直接塞 object/array。这里在 func 入口统一序列化兜底。
+            if (stdin != null && typeof stdin !== 'string') stdin = JSON.stringify(stdin);
             // 加随机后缀防止毫秒级并发同名碰撞导致互相 unlink。
             const tmpFile = path.join(os.tmpdir(), `sbot_script_${Date.now()}_${crypto.randomBytes(6).toString('hex')}${ext}`);
             try {

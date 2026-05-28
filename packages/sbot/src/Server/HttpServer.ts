@@ -1420,12 +1420,20 @@ class HttpServer {
         }));
 
         app.post('/api/memories/:memoryName/add', api(async req => {
-            const { content, autoSplit } = req.body as { content?: string; autoSplit?: boolean };
+            const { content, autoSplit, chunkSize } = req.body as { content?: string; autoSplit?: boolean; chunkSize?: number };
             if (!content?.trim()) { const e: any = new Error('content is required'); e.status = 400; throw e; }
             const svc = await AgentRunner.createMemoryService(req.params.memoryName as string);
-            const ids = await svc.addMemoryDirect(content.trim(), { autoSplit });
+            const ids = await svc.addMemoryDirect(content.trim(), { autoSplit, chunkSize });
             await svc.dispose();
             return { ids };
+        }));
+
+        app.put('/api/memories/:memoryName/:memoryId', api(async req => {
+            const { content } = req.body as { content?: string };
+            if (!content?.trim()) { const e: any = new Error('content is required'); e.status = 400; throw e; }
+            const svc = await AgentRunner.createMemoryService(req.params.memoryName as string);
+            await svc.updateMemoryDirect(req.params.memoryId as string, content.trim());
+            await svc.dispose();
         }));
 
         app.delete('/api/memories/:memoryName/:memoryId', api(async req => {
