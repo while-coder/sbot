@@ -16,6 +16,7 @@ export class OpenAIModelService implements IModelService {
   constructor(protected config: ModelConfig) {}
 
   get contextWindow(): number | undefined { return this.config.contextWindow; }
+  get maxTools(): number | undefined { return this.config.maxTools; }
 
   protected buildChatOpenAIOptions(): ConstructorParameters<typeof ChatOpenAI>[0] {
     return {

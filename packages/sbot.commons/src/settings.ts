@@ -54,6 +54,7 @@ export interface ModelConfig {
   temperature?: number
   maxTokens?: number
   contextWindow?: number
+  maxTools?: number
   anthropic?: AnthropicConfig
   gemini?: GeminiConfig
 }

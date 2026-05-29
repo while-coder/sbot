@@ -15,6 +15,7 @@ export class GeminiModelService implements IModelService {
   constructor(private config: ModelConfig) {}
 
   get contextWindow(): number | undefined { return this.config.contextWindow; }
+  get maxTools(): number | undefined { return this.config.maxTools; }
 
   async initialize(): Promise<void> {
     const opts: Record<string, any> = {

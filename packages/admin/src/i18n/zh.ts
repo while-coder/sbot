@@ -210,6 +210,7 @@ export default {
     pick_empty: '未找到可用模型',
     api_version: 'API 版本',
     context_window: '上下文窗口',
+    max_tools: '最大工具数',
     thinking: '思考模式',
     thinking_none: '默认（关闭）',
     thinking_adaptive: '自适应（按需思考）',
@@ -481,6 +482,9 @@ export default {
     target_global: '全局',
     just_now: '刚刚',
     confirm_delete: '确定要删除计时器 #{id} 吗?',
+    edit_title: '编辑计时器',
+    message_required: '请填写目标消息',
+    target_required: '请选择目标会话',
   },
   todo: {
     title: '待办事项',

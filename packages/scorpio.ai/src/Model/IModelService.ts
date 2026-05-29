@@ -32,6 +32,12 @@ export interface IModelService {
   readonly contextWindow?: number;
 
   /**
+   * 单次请求允许携带的最大工具数量。超过此值时按声明顺序截断并打 warn。
+   * 部分 OpenAI 兼容端点（豆包、Qwen 等）对工具数量有硬上限，超过会返回 400 无 body。
+   */
+  readonly maxTools?: number;
+
+  /**
    * 清理资源 — 释放模型实例占用的资源
    */
   dispose(): Promise<void>;

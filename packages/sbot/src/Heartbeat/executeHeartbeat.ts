@@ -1,9 +1,7 @@
-import { database, HeartbeatRow, channelThreadId, getChannelSession } from "../Core/Database";
-import { config } from "../Core/Config";
+import { database, HeartbeatRow } from "../Core/Database";
 import { loadPrompt } from "../Core/PromptLoader";
 import { LoggerService } from "../Core/LoggerService";
-import { sessionManager } from "../Session/SessionManager";
-
+import { dispatchToSession } from "../Core/dispatchToSession";
 
 const logger = LoggerService.getLogger("executeHeartbeat.ts");
 
@@ -38,31 +36,16 @@ export async function executeHeartbeat(ctx: HeartbeatExecutionContext): Promise<
 
     const prompt = loadPrompt(hbConfig.promptFile);
 
-    const dbSession = await getChannelSession(hbConfig.target);
-    if (!dbSession) return;
-    const channel = config.getChannel(dbSession.channelId);
-    if (!channel) {
-        logger.error(`${tag} channel config not found: ${dbSession.channelId}`);
-        return;
-    }
-
-    const toolWhitelist = channel.heartbeatTools;
-    const threadId = channelThreadId(channel.type, dbSession.channelId, dbSession.sessionId);
-
-    await new Promise<void>((resolve, reject) => {
-        sessionManager.onReceiveChannelMessage(threadId, prompt, {
-            channelType: channel.type,
-            channelId: dbSession.channelId,
-            dbSessionId: hbConfig.target,
-            sessionId: dbSession.sessionId,
-            silent: true,
-            toolWhitelist,
-            onComplete: (error?: any) => {
-                if (error) reject(error);
-                else resolve();
-            },
-        });
+    const result = await dispatchToSession({
+        targetId: hbConfig.target,
+        message: prompt,
+        aiProcess: true,
+        silent: true,
+        toolWhitelist: ch => ch.heartbeatTools,
+        awaitCompletion: true,
+        tag,
     });
+    if (!result.ok) return;
 
     await database.update(database.heartbeat, { lastRun: Date.now() }, { where: { id: heartbeatId } });
 }

@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { useToast, useConfirm, SButton, SBadge, SPageToolbar, SPageContent, STable } from 'sbot-ui'
+import { useToast, useConfirm, SButton, SBadge, SPageToolbar, SPageContent, STable, SModal, SFormItem, SSelect } from 'sbot-ui'
 import type { STableColumn } from 'sbot-ui'
 import { store } from '@/shared/store'
 
@@ -29,6 +29,12 @@ interface ChannelSessionRow {
   autoSessionName?: string | null
 }
 
+interface ChannelGroup {
+  channelId: string
+  channelName: string
+  sessions: ChannelSessionRow[]
+}
+
 type UIType = 'daily' | 'weekly' | 'monthly' | 'once' | 'interval' | 'hourly' | 'custom'
 
 const TYPE_VARIANT: Record<UIType, 'info' | 'accent' | 'success' | 'warning' | 'neutral'> = {
@@ -46,6 +52,59 @@ const timers = ref<SchedulerRow[]>([])
 const channelSessions = ref<ChannelSessionRow[]>([])
 const loading = ref(false)
 const now = ref(Date.now())
+
+const groupedSessions = computed<ChannelGroup[]>(() => {
+  const channels = store.settings.channels
+  const map = new Map<string, ChannelSessionRow[]>()
+  for (const s of channelSessions.value) {
+    const list = map.get(s.channelId) || []
+    list.push(s)
+    map.set(s.channelId, list)
+  }
+  const groups: ChannelGroup[] = []
+  for (const [channelId, sessions] of map) {
+    const channelName = channels?.[channelId]?.name || channelId
+    groups.push({ channelId, channelName, sessions })
+  }
+  return groups
+})
+
+const showModal = ref(false)
+const editingId = ref<number | null>(null)
+const form = ref({
+  message: '',
+  targetId: null as number | null,
+  aiProcess: true,
+})
+
+function openEdit(row: SchedulerRow) {
+  editingId.value = row.id
+  form.value = {
+    message: row.message || '',
+    targetId: row.targetId != null ? parseInt(row.targetId) : null,
+    aiProcess: Boolean(row.aiProcess),
+  }
+  showModal.value = true
+}
+
+async function save() {
+  const id = editingId.value
+  if (id == null) return
+  if (!form.value.message.trim()) { show(t('scheduler.message_required'), 'error'); return }
+  if (form.value.targetId == null) { show(t('scheduler.target_required'), 'error'); return }
+  try {
+    await apiFetch(`/api/schedulers/${id}`, 'PUT', {
+      message: form.value.message.trim(),
+      targetId: String(form.value.targetId),
+      aiProcess: form.value.aiProcess,
+    })
+    show(t('common.saved'))
+    showModal.value = false
+    await load()
+  } catch (e: any) {
+    show(e?.message || String(e), 'error')
+  }
+}
 
 const columns = computed<STableColumn[]>(() => [
   { key: 'id',       label: t('common.id') },
@@ -279,10 +338,37 @@ onUnmounted(() => {
         </template>
 
         <template #ops="{ row }">
+          <SButton type="outline" size="sm" @click="openEdit(row)">{{ t('common.edit') }}</SButton>
           <SButton type="danger" size="sm" @click="remove(row)">{{ t('common.delete') }}</SButton>
         </template>
       </STable>
     </SPageContent>
+
+    <SModal v-model:visible="showModal" :title="t('scheduler.edit_title')" width="lg">
+      <SFormItem :label="t('scheduler.message_col') + ' *'">
+        <textarea v-model="form.message" class="sched-textarea" rows="4" spellcheck="false" />
+      </SFormItem>
+      <SFormItem :label="t('scheduler.target_col') + ' *'">
+        <SSelect :model-value="form.targetId ?? ''" @update:model-value="form.targetId = $event === '' ? null : Number($event)">
+          <option value="" disabled>--</option>
+          <optgroup v-for="g in groupedSessions" :key="g.channelId" :label="g.channelName">
+            <option v-for="s in g.sessions" :key="s.id" :value="s.id">
+              {{ s.sessionName || s.autoSessionName || s.sessionId }}
+            </option>
+          </optgroup>
+        </SSelect>
+      </SFormItem>
+      <SFormItem :label="t('scheduler.mode_col')">
+        <SSelect :model-value="form.aiProcess ? '1' : '0'" @update:model-value="form.aiProcess = $event === '1'">
+          <option value="1">{{ t('scheduler.mode_ai') }}</option>
+          <option value="0">{{ t('scheduler.mode_raw') }}</option>
+        </SSelect>
+      </SFormItem>
+      <template #footer>
+        <SButton type="outline" @click="showModal = false">{{ t('common.cancel') }}</SButton>
+        <SButton type="primary" @click="save">{{ t('common.save') }}</SButton>
+      </template>
+    </SModal>
   </div>
 </template>
 
@@ -350,5 +436,21 @@ onUnmounted(() => {
   padding: 1px var(--sui-sp-2);
   border-radius: var(--sui-radius-sm);
   font-weight: 600;
+}
+.sched-textarea {
+  width: 100%;
+  font-family: inherit;
+  font-size: var(--sui-fs-md);
+  padding: var(--sui-sp-2) var(--sui-sp-3);
+  background: var(--sui-bg);
+  color: var(--sui-fg);
+  border: 1px solid var(--sui-border);
+  border-radius: var(--sui-radius-sm);
+  resize: vertical;
+  box-sizing: border-box;
+}
+.sched-textarea:focus {
+  outline: none;
+  border-color: var(--sui-accent);
 }
 </style>

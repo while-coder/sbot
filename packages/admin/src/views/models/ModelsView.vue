@@ -28,7 +28,7 @@ const showModal   = ref(false)
 const editingName = ref<string | null>(null)
 const showApiKey  = ref(false)
 const form = ref<ModelConfig>({
-  name: '', provider: ModelProvider.OpenAI, baseURL: '', apiKey: '', model: '', temperature: undefined, maxTokens: undefined, contextWindow: undefined,
+  name: '', provider: ModelProvider.OpenAI, baseURL: '', apiKey: '', model: '', temperature: undefined, maxTokens: undefined, contextWindow: undefined, maxTools: undefined,
 })
 
 const isOllama     = computed(() => form.value.provider === ModelProvider.Ollama)
@@ -94,7 +94,7 @@ function pickModel(m: string) {
 function openAdd() {
   editingName.value = null
   showApiKey.value  = false
-  form.value = { name: '', provider: ModelProvider.OpenAI, baseURL: '', apiKey: '', model: '', temperature: undefined, maxTokens: undefined, contextWindow: undefined }
+  form.value = { name: '', provider: ModelProvider.OpenAI, baseURL: '', apiKey: '', model: '', temperature: undefined, maxTokens: undefined, contextWindow: undefined, maxTools: undefined }
   showModal.value = true
 }
 
@@ -111,6 +111,7 @@ function openEdit(id: string) {
     temperature: m.temperature,
     maxTokens: m.maxTokens,
     contextWindow: m.contextWindow,
+    maxTools: m.maxTools,
     anthropic: m.anthropic ? { ...m.anthropic } : undefined,
     gemini: m.gemini ? { ...m.gemini } : undefined,
   }
@@ -127,6 +128,7 @@ async function save() {
     if (body.temperature === undefined || body.temperature === null) delete body.temperature
     if (body.maxTokens === undefined || body.maxTokens === null) delete body.maxTokens
     if (body.contextWindow === undefined || body.contextWindow === null) delete body.contextWindow
+    if (body.maxTools === undefined || body.maxTools === null) delete body.maxTools
     if (body.anthropic) {
       if (!body.anthropic.thinking) delete body.anthropic.thinking
       else if (body.anthropic.thinking.type !== 'enabled') delete body.anthropic.thinking.budgetTokens
@@ -224,6 +226,9 @@ async function refresh() {
       </SFormItem>
       <SFormItem :label="t('models.max_tokens')">
         <SInput v-model.number="form.maxTokens" type="number" step="1" :placeholder="t('models.no_limit')" />
+      </SFormItem>
+      <SFormItem :label="t('models.max_tools')">
+        <SInput v-model.number="form.maxTools" type="number" step="1" :placeholder="t('models.no_limit')" />
       </SFormItem>
       <SFormItem v-if="isAnthropic" :label="t('models.thinking')">
         <SSelect v-model="thinkingType">

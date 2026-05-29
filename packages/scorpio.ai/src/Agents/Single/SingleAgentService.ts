@@ -150,7 +150,30 @@ export class SingleAgentService extends AgentServiceBase {
         if (this.todoService) {
             tools.push(...TodoToolProvider.getTools(this.todoService));
         }
-        return tools;
+
+        // 同名工具会被 OpenAI 兼容端点判为非法请求（400），按首次出现去重
+        const unique = new Map<string, StructuredToolInterface>();
+        const duplicates = new Set<string>();
+        for (const tool of tools) {
+            if (unique.has(tool.name)) {
+                duplicates.add(tool.name);
+            } else {
+                unique.set(tool.name, tool);
+            }
+        }
+        if (duplicates.size > 0) {
+            this.logger?.warn(`检测到同名工具，已去重保留首个: ${[...duplicates].join(', ')}`);
+        }
+        const deduped = [...unique.values()];
+
+        // maxTools：部分端点（豆包、Qwen 等）对工具数量有硬上限，超过即 400 无 body
+        const maxTools = this.modelService.maxTools;
+        if (maxTools != null && deduped.length > maxTools) {
+            const dropped = deduped.slice(maxTools).map(t => t.name);
+            this.logger?.warn(`工具数量 ${deduped.length} 超过模型 maxTools=${maxTools}，已按声明顺序截断，丢弃: ${dropped.join(', ')}`);
+            return deduped.slice(0, maxTools);
+        }
+        return deduped;
     }
 
     /**
@@ -190,23 +213,28 @@ export class SingleAgentService extends AgentServiceBase {
             : state.signal;
 
         let lastChunk: ChatMessage | undefined;
-        const stream = await this.modelService.stream(messages, { signal: mergedSignal });
-
         const emitStream = async () => {
             if (!callback?.onStreamMessage || !lastChunk) return;
             await callback.onStreamMessage(lastChunk);
         };
-        let lastStreamCallTime = 0;
-        for await (const chunk of stream) {
-            if (mergedSignal?.aborted) throw new AgentCancelledError();
-            lastChunk = chunk;
-            const now = Date.now();
-            if (now - lastStreamCallTime >= 200) {
-                lastStreamCallTime = now;
-                await emitStream();
+        try {
+            const stream = await this.modelService.stream(messages, { signal: mergedSignal });
+            let lastStreamCallTime = 0;
+            for await (const chunk of stream) {
+                if (mergedSignal?.aborted) throw new AgentCancelledError();
+                lastChunk = chunk;
+                const now = Date.now();
+                if (now - lastStreamCallTime >= 200) {
+                    lastStreamCallTime = now;
+                    await emitStream();
+                }
             }
+            await emitStream();
+        } catch (err: any) {
+            if (err instanceof AgentCancelledError) throw err;
+            this.logger?.error(`模型调用失败 status=${err?.status ?? '?'} message=${err?.message}\n${SingleAgentService.dumpRequest(messages, state.tools)}`);
+            throw err;
         }
-        await emitStream();
         if (!lastChunk) return { messages: [] };
 
         if (lastChunk.usage) {
@@ -302,6 +330,23 @@ export class SingleAgentService extends AgentServiceBase {
         }
 
         return { messages: toolMessages };
+    }
+
+    /** 模型调用 400/500 时把消息序列与工具列表摘要打到日志，便于定位（如同名工具 / 空 content / tool_calls 与 ToolMessage 不配对等） */
+    private static dumpRequest(messages: ChatMessage[], tools: StructuredToolInterface[]): string {
+        const msgLines = messages.map((m, i) => {
+            const role = m.role;
+            const contentInfo = typeof m.content === 'string'
+                ? `text(${m.content.length})`
+                : Array.isArray(m.content)
+                    ? `parts[${m.content.length}]:${m.content.map((p: any) => p?.type ?? typeof p).join(',')}`
+                    : `empty`;
+            const tc = m.tool_calls?.length ? ` tool_calls=[${m.tool_calls.map(c => `${c.name}#${c.id ?? ''}`).join(',')}]` : '';
+            const tcid = m.tool_call_id ? ` tool_call_id=${m.tool_call_id}` : '';
+            return `  [${i}] ${role} ${contentInfo}${tc}${tcid}`;
+        }).join('\n');
+        const toolNames = tools.map(t => t.name).join(', ');
+        return `messages(${messages.length}):\n${msgLines}\ntools(${tools.length}): ${toolNames}`;
     }
 
     /** LLM 有时将数组/对象参数 JSON 序列化成字符串，此函数将顶层字符串值中的 JSON 反解析回来 */

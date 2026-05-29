@@ -16,6 +16,7 @@ export class OllamaModelService implements IModelService {
   constructor(private config: ModelConfig) {}
 
   get contextWindow(): number | undefined { return this.config.contextWindow; }
+  get maxTools(): number | undefined { return this.config.maxTools; }
 
   async initialize(): Promise<void> {
     this.model = new ChatOllama({

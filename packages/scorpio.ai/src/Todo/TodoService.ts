@@ -25,7 +25,6 @@ export class TodoService implements ITodoService {
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
     ) {
         this.logger = loggerService?.getLogger("TodoService");
-        this.logger?.debug(`TodoService initialized: filePath=${filePath}, extractor=${!!extractor}`);
     }
 
     getToolDescs(): TodoToolDescs {
@@ -33,19 +32,16 @@ export class TodoService implements ITodoService {
     }
 
     async list(filter?: TodoListFilter): Promise<Todo[]> {
-        this.logger?.debug(`list called: filter=${JSON.stringify(filter ?? {})}`);
         const data = await this.read();
         const status = filter?.status ?? TodoStatus.Pending;
         let items = data.todos;
         if (status !== 'all') items = items.filter(t => t.status === status);
         if (filter?.priority) items = items.filter(t => t.priority === filter.priority);
-        const result = items.sort((a, b) => {
+        return items.sort((a, b) => {
             const dp = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
             if (dp !== 0) return dp;
             return a.createdAt.localeCompare(b.createdAt);
         });
-        this.logger?.debug(`list result: total=${data.todos.length}, filtered=${result.length}`);
-        return result;
     }
 
     async formatForLLM(filter?: TodoListFilter): Promise<string> {
@@ -63,11 +59,7 @@ export class TodoService implements ITodoService {
     }
 
     async extractFromConversation(userMessage: string, assistantMessages?: string[]): Promise<void> {
-        if (!this.extractor) {
-            this.logger?.debug(`extractFromConversation skipped: no extractor configured`);
-            return;
-        }
-        this.logger?.debug(`extractFromConversation start: userMsgLen=${userMessage.length}, assistantMsgs=${assistantMessages?.length ?? 0}`);
+        if (!this.extractor) return;
         try {
             const data = await this.read();
             const actions = await this.extractor.extract(
@@ -75,7 +67,6 @@ export class TodoService implements ITodoService {
                 assistantMessages ?? [],
                 data.todos,
             );
-            this.logger?.debug(`extractor returned ${actions.length} action(s)`);
             if (actions.length === 0) return;
 
             for (const a of actions) {
@@ -115,7 +106,6 @@ export class TodoService implements ITodoService {
             }
 
             await this.write(data);
-            this.logger?.debug(`extractFromConversation done: applied ${actions.length} action(s)`);
         } catch (error: any) {
             this.logger?.error(`Todo extraction failed: ${error.message}`);
         }
@@ -125,17 +115,12 @@ export class TodoService implements ITodoService {
         try {
             const buf = await fsp.readFile(this.filePath, 'utf-8');
             const parsed = JSON.parse(buf) as Partial<TodoFile>;
-            const file = {
+            return {
                 todos: Array.isArray(parsed.todos) ? parsed.todos : [],
                 nextId: typeof parsed.nextId === 'number' ? parsed.nextId : 1,
             };
-            this.logger?.debug(`read: ${file.todos.length} todo(s), nextId=${file.nextId}`);
-            return file;
         } catch (e: any) {
-            if (e.code === 'ENOENT') {
-                this.logger?.debug(`read: file not found at ${this.filePath}, returning empty`);
-                return { todos: [], nextId: 1 };
-            }
+            if (e.code === 'ENOENT') return { todos: [], nextId: 1 };
             this.logger?.warn(`Failed to read todos at ${this.filePath}: ${e.message}; returning empty`);
             return { todos: [], nextId: 1 };
         }
@@ -148,7 +133,6 @@ export class TodoService implements ITodoService {
         try {
             await fsp.writeFile(tmp, JSON.stringify(data, null, 2), 'utf-8');
             await fsp.rename(tmp, this.filePath);
-            this.logger?.debug(`write: ${data.todos.length} todo(s), nextId=${data.nextId} -> ${this.filePath}`);
         } catch (e) {
             await fsp.unlink(tmp).catch(() => {});
             throw e;

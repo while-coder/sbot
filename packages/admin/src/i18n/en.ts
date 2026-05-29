@@ -210,6 +210,7 @@ export default {
     pick_empty: 'No models available',
     api_version: 'API Version',
     context_window: 'Context Window',
+    max_tools: 'Max Tools',
     thinking: 'Thinking',
     thinking_none: 'Default (off)',
     thinking_adaptive: 'Adaptive (think when needed)',
@@ -481,6 +482,9 @@ export default {
     target_global: 'Global',
     just_now: 'just now',
     confirm_delete: 'Delete timer #{id}?',
+    edit_title: 'Edit Timer',
+    message_required: 'Message is required',
+    target_required: 'Please select a target session',
   },
   todo: {
     title: 'Todos',

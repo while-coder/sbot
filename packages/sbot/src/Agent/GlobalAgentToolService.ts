@@ -14,7 +14,6 @@ export enum BuiltinProvider {
     SessionSearch = 'builtin_session_search',
 
     Playwright = 'builtin_playwright',
-    ChromeDevTools = 'builtin_chrome-devtools-mcp',
     Markitdown = 'builtin_markitdown',
     Exa = 'builtin_exa',
     // GameData = 'builtin_gamedata'
@@ -62,12 +61,6 @@ export function initGlobalAgentToolService() {
             "command": "npx",
             "args": ["@playwright/mcp@latest"],
             "description": "Playwright 浏览器自动化",
-        },
-        [BuiltinProvider.ChromeDevTools]: {
-            "type": "stdio",
-            "command": "npx",
-            "args": ["-y", "chrome-devtools-mcp@latest"],
-            "description": "Chrome DevTools 调试",
         },
         [BuiltinProvider.Markitdown]: {
             "type": "stdio",

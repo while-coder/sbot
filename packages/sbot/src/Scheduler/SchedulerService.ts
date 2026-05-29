@@ -1,11 +1,8 @@
 import { CronJob } from "cron";
-import { WEB_CHANNEL_ID } from "sbot.commons";
-import { database, SchedulerRow, channelThreadId, getChannelSession } from "../Core/Database";
-import { sessionManager } from "../Session/SessionManager";
+import { database, SchedulerRow } from "../Core/Database";
 import { LoggerService } from "../Core/LoggerService";
-import { config } from "../Core/Config";
-import { channelManager } from "../Channel/ChannelManager";
 import { TimerExecutor } from "../Core/TimerExecutor";
+import { dispatchToSession } from "../Core/dispatchToSession";
 
 const logger = LoggerService.getLogger("SchedulerService.ts");
 
@@ -16,38 +13,15 @@ async function executeScheduler(schedulerId: number): Promise<void> {
     const tag = `[${scheduler.id}]`;
 
     try {
-        const sessionRow = await getChannelSession(scheduler.targetId);
-        if (!sessionRow) return;
-
-        const { channelId, sessionId, id: dbSessionId } = sessionRow;
-        const channelConfig = config.getChannel(channelId);
-        const channelType = channelConfig?.type;
-        if (!channelType) {
-            logger.warn(`Scheduler task ${tag} unknown channel type for channelId=${channelId}`);
-            return;
+        const result = await dispatchToSession({
+            targetId: scheduler.targetId,
+            message: scheduler.message,
+            aiProcess: scheduler.aiProcess,
+            tag: `Scheduler task ${tag}`,
+        });
+        if (result.ok) {
+            logger.info(`Scheduler task ${tag} fired (${result.channelType}), session ${result.sessionId}, aiProcess=${scheduler.aiProcess}`);
         }
-
-        if (scheduler.aiProcess) {
-            if (channelId === WEB_CHANNEL_ID) {
-                const threadId = channelThreadId(channelType, channelId, sessionId);
-                await sessionManager.onReceiveWebMessage(threadId, scheduler.message, sessionId, dbSessionId);
-            } else {
-                const threadId = channelThreadId(channelType, channelId, sessionId);
-                await sessionManager.onReceiveChannelMessage(threadId, scheduler.message, {
-                    channelType,
-                    channelId,
-                    dbSessionId,
-                    sessionId,
-                });
-            }
-        } else {
-            if (channelId === WEB_CHANNEL_ID) {
-                logger.warn(`Scheduler task ${tag} non-aiProcess for web channel is not supported`);
-            } else {
-                await channelManager.sendText(channelId, sessionId, scheduler.message);
-            }
-        }
-        logger.info(`Scheduler task ${tag} fired (${channelType}), session ${sessionId}, aiProcess=${scheduler.aiProcess}`);
     } catch (e: any) {
         logger.error(`Scheduler task ${tag} failed: ${e?.message ?? e}`);
     }
@@ -133,6 +107,16 @@ class SchedulerService {
     async delete(schedulerId: number): Promise<void> {
         this.executor.cancel(schedulerId);
         await database.update(database.scheduler, { disabled: true }, { where: { id: schedulerId } });
+    }
+
+    async update(schedulerId: number, patch: Partial<Pick<SchedulerRow, "message" | "targetId" | "aiProcess">>): Promise<SchedulerRow | null> {
+        const fields: Partial<SchedulerRow> = {};
+        if (patch.message != null)   fields.message   = patch.message;
+        if (patch.targetId != null)  fields.targetId  = patch.targetId;
+        if (patch.aiProcess != null) fields.aiProcess = patch.aiProcess;
+        if (Object.keys(fields).length === 0) return database.findByPk<SchedulerRow>(database.scheduler, schedulerId);
+        await database.update(database.scheduler, fields, { where: { id: schedulerId } });
+        return database.findByPk<SchedulerRow>(database.scheduler, schedulerId);
     }
 
     async reload(schedulerId: number): Promise<void> {
