@@ -106,7 +106,7 @@ export class AgentFileSaver implements IAgentSaverService {
     private async writeThreadFile(file: ThreadFile): Promise<void> {
         const dir = dirname(this.filePath);
         if (!existsSync(dir)) await mkdir(dir, { recursive: true });
-        await writeFile(this.filePath, JSON.stringify(file), "utf-8");
+        await writeFile(this.filePath, JSON.stringify(file, null, 2), "utf-8");
     }
 
     async pushMessage(message: ChatMessage, options?: ChatMessageOptions): Promise<void> {
