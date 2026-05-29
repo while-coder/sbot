@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@sbot/chat-ui": "workspace:*",
+    "sbot-ui": "workspace:*",
     "sbot.commons": "workspace:*"
   },
   "devDependencies": {

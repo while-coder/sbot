@@ -44,6 +44,8 @@ export const defaultLabels: Required<ChatLabels> = {
   emptySession: '暂无会话',
   createSessionHint: '点击上方新建',
   editSessionNameHint: '双击编辑名称',
+  sessionSearchPlaceholder: '搜索会话…',
+  sessionNoMatch: '没有匹配的会话',
   agent: 'Agent',
   storage: '存储',
   workpath: '工作目录',

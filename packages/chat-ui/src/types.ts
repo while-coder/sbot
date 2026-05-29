@@ -144,6 +144,8 @@ export interface ChatLabels {
   emptySession?: string
   createSessionHint?: string
   editSessionNameHint?: string
+  sessionSearchPlaceholder?: string
+  sessionNoMatch?: string
   agent?: string
   storage?: string
   workpath?: string

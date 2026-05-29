@@ -416,6 +416,9 @@ importers:
       '@sbot/chat-ui':
         specifier: workspace:*
         version: link:../chat-ui
+      sbot-ui:
+        specifier: workspace:*
+        version: link:../sbot-ui
       sbot.commons:
         specifier: workspace:*
         version: link:../sbot.commons
@@ -669,6 +672,9 @@ importers:
       axios:
         specifier: 'catalog:'
         version: 1.15.2
+      sbot-ui:
+        specifier: workspace:*
+        version: link:../sbot-ui
       sbot.commons:
         specifier: workspace:*
         version: link:../sbot.commons

@@ -17,6 +17,7 @@ import StatusBar from './StatusBar.vue'
 import ChatArea from './ChatArea.vue'
 import PathPickerModal from './PathPickerModal.vue'
 import Explorer from './Explorer.vue'
+import { useConfirm } from 'sbot-ui'
 
 const props = withDefaults(defineProps<{
   transport: IChatTransport
@@ -29,6 +30,7 @@ const props = withDefaults(defineProps<{
 })
 
 const L = computed(() => resolveLabels(props.labels))
+const { confirm } = useConfirm()
 
 // ── Core state ──
 
@@ -64,6 +66,9 @@ const explorerWidth = ref(420)
 const explorerResizing = ref(false)
 const sessionBarWidth = ref(180)
 const sessionBarResizing = ref(false)
+const sessionSearch = ref('')
+const sessionHighlightIndex = ref(0)
+const sessionSearchInputEl = ref<HTMLInputElement | null>(null)
 
 // ── Derived ──
 
@@ -88,6 +93,23 @@ const contextWindow = computed<number | undefined>(() => {
 })
 
 const fetchThinks = computed(() => props.transport.fetchThinks?.bind(props.transport))
+
+const filteredSessions = computed<SessionItem[]>(() => {
+  const q = sessionSearch.value.trim().toLowerCase()
+  if (!q) return sessions.value
+  return sessions.value.filter(s => {
+    const name = (s.name || '').toLowerCase()
+    const path = (s.workPath || '').toLowerCase()
+    return name.includes(q) || path.includes(q)
+  })
+})
+
+const highlightedSessionId = computed<string | null>(() => {
+  const list = filteredSessions.value
+  if (list.length === 0) return null
+  const idx = Math.min(Math.max(sessionHighlightIndex.value, 0), list.length - 1)
+  return list[idx]?.id ?? null
+})
 
 const archivedCount = computed(() => messages.value.filter(m => m.kind === MessageKind.Archive).length)
 const displayedMessages = computed<StoredMessage[]>(() =>
@@ -202,7 +224,55 @@ function selectSession(id: string) {
 
 function toggleSidebar() {
   sidebarOpen.value = !sidebarOpen.value
-  if (sidebarOpen.value) settingsOpen.value = false
+  if (sidebarOpen.value) {
+    settingsOpen.value = false
+    resetSessionSearch()
+    nextTick(() => sessionSearchInputEl.value?.focus())
+  }
+}
+
+function resetSessionSearch() {
+  sessionSearch.value = ''
+  const list = sessions.value
+  const activeIdx = list.findIndex(s => s.id === activeSessionId.value)
+  sessionHighlightIndex.value = activeIdx >= 0 ? activeIdx : 0
+}
+
+function onSessionSearchInput() {
+  sessionHighlightIndex.value = 0
+}
+
+function moveSessionHighlight(delta: number) {
+  const len = filteredSessions.value.length
+  if (len === 0) return
+  const next = (sessionHighlightIndex.value + delta + len) % len
+  sessionHighlightIndex.value = next
+  nextTick(() => {
+    const id = filteredSessions.value[next]?.id
+    if (!id) return
+    const el = document.querySelector(`.chatui-session-popover [data-session-id="${id}"]`)
+    el?.scrollIntoView({ block: 'nearest' })
+  })
+}
+
+function onSessionSearchKeydown(e: KeyboardEvent) {
+  if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    moveSessionHighlight(1)
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    moveSessionHighlight(-1)
+  } else if (e.key === 'Enter') {
+    e.preventDefault()
+    const id = highlightedSessionId.value
+    if (id) {
+      selectSession(id)
+      sidebarOpen.value = false
+    }
+  } else if (e.key === 'Escape') {
+    e.preventDefault()
+    sidebarOpen.value = false
+  }
 }
 
 function toggleSettings() {
@@ -487,7 +557,10 @@ async function onRefresh() {
 
 async function onClearHistory() {
   const id = activeSessionId.value
-  if (!id || !window.confirm(L.value.confirmClearHistory)) return
+  if (!id || !await confirm(L.value.confirmClearHistory, {
+    danger: true,
+    cancelText: L.value.cancel,
+  })) return
   try {
     await props.transport.clearHistory(id)
     messages.value = []
@@ -564,11 +637,34 @@ onBeforeUnmount(() => {
       <Transition name="chatui-drawer">
         <div v-if="sidebarOpen" class="chatui-compact-popover-backdrop" @click="sidebarOpen = false">
           <div class="chatui-compact-popover chatui-session-popover" @click.stop>
+            <div class="chatui-session-popover-search">
+              <svg class="chatui-session-popover-search-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+                <circle cx="7" cy="7" r="4.5"/>
+                <path d="m10.5 10.5 3 3"/>
+              </svg>
+              <input
+                ref="sessionSearchInputEl"
+                v-model="sessionSearch"
+                type="text"
+                class="chatui-session-popover-search-input"
+                :placeholder="L.sessionSearchPlaceholder"
+                @input="onSessionSearchInput"
+                @keydown="onSessionSearchKeydown"
+              />
+              <button
+                v-if="sessionSearch"
+                class="chatui-session-popover-search-clear"
+                :title="L.cancel"
+                @click="sessionSearch = ''; onSessionSearchInput(); sessionSearchInputEl?.focus()"
+              >×</button>
+            </div>
             <SessionBar
-              :sessions="sessions"
+              :sessions="filteredSessions"
               :active-session-id="activeSessionId"
+              :highlighted-session-id="highlightedSessionId"
               :labels="labels"
               :show-header="false"
+              :empty-message="sessionSearch ? L.sessionNoMatch : undefined"
               @select="(id: string) => { selectSession(id); sidebarOpen = false }"
               @delete="onDeleteSession"
               @rename="onRenameSession"
@@ -953,10 +1049,61 @@ onBeforeUnmount(() => {
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
   overflow: hidden;
 }
+.chatui-session-popover {
+  display: flex;
+  flex-direction: column;
+}
 .chatui-session-popover :deep(.chatui-session-bar) {
   width: 100%;
-  max-height: min(320px, calc(100vh - 80px));
+  max-height: min(320px, calc(100vh - 140px));
   border-right: none;
+  flex: 1;
+  min-height: 0;
+}
+.chatui-session-popover-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--chatui-border-subtle, var(--chatui-border));
+  background: var(--chatui-bg-surface);
+  flex-shrink: 0;
+}
+.chatui-session-popover-search-icon {
+  flex-shrink: 0;
+  color: var(--chatui-fg-secondary);
+}
+.chatui-session-popover-search-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  color: var(--chatui-fg);
+  padding: 4px 0;
+}
+.chatui-session-popover-search-input::placeholder {
+  color: var(--chatui-fg-secondary);
+}
+.chatui-session-popover-search-clear {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--chatui-fg-secondary);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.chatui-session-popover-search-clear:hover {
+  background: var(--chatui-bg-hover);
+  color: var(--chatui-fg);
 }
 .chatui-settings-popover {
   display: flex;

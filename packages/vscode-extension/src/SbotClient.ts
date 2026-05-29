@@ -81,8 +81,8 @@ export class SbotClient {
   }
 
   async deleteSession(sessionId: string): Promise<void> {
-    await this.http.delete(`/api/settings/sessions/${encodeURIComponent(sessionId)}`);
     await this.http.delete(`/api/sessions/${encodeURIComponent(sessionId)}/history`).catch(() => {});
+    await this.http.delete(`/api/settings/sessions/${encodeURIComponent(sessionId)}`);
   }
 
   async updateSession(sessionId: string, patch: Record<string, any>): Promise<void> {

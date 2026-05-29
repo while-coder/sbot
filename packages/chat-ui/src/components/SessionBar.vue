@@ -1,17 +1,20 @@
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
-import { SButton, SInput } from 'sbot-ui'
+import { SButton, SInput, useConfirm } from 'sbot-ui'
 import type { SessionItem, ChatLabels } from '../types'
 import { resolveLabels, tpl } from '../labels'
 
 const props = withDefaults(defineProps<{
   sessions: SessionItem[]
   activeSessionId: string | null
+  highlightedSessionId?: string | null
   labels?: ChatLabels
   showHeader?: boolean
   width?: number
+  emptyMessage?: string
 }>(), {
   showHeader: true,
+  highlightedSessionId: null,
 })
 
 const barStyle = computed(() =>
@@ -26,6 +29,7 @@ const emit = defineEmits<{
 }>()
 
 const L = computed(() => resolveLabels(props.labels))
+const { confirm } = useConfirm()
 
 const editingId = ref<string | null>(null)
 const editingName = ref('')
@@ -48,10 +52,13 @@ function commitEdit() {
   if (val) emit('rename', id, val)
 }
 
-function onDelete(id: string) {
+async function onDelete(id: string) {
   const s = props.sessions.find(s => s.id === id)
   const label = s?.name || L.value.untitledSession
-  if (window.confirm(tpl(L.value.confirmDeleteSession, { name: label }))) {
+  if (await confirm(tpl(L.value.confirmDeleteSession, { name: label }), {
+    danger: true,
+    cancelText: L.value.cancel,
+  })) {
     emit('delete', id)
   }
 }
@@ -66,7 +73,8 @@ function onDelete(id: string) {
       <div
         v-for="s in sessions" :key="s.id"
         class="chatui-session-item"
-        :class="{ active: activeSessionId === s.id }"
+        :class="{ active: activeSessionId === s.id, highlighted: highlightedSessionId === s.id }"
+        :data-session-id="s.id"
         @click="emit('select', s.id)"
       >
         <div style="display:flex;align-items:center;gap:4px">
@@ -94,7 +102,8 @@ function onDelete(id: string) {
         </div>
       </div>
       <div v-if="sessions.length === 0" class="chatui-session-empty">
-        {{ L.emptySession }}<br>{{ L.createSessionHint }}
+        <template v-if="emptyMessage">{{ emptyMessage }}</template>
+        <template v-else>{{ L.emptySession }}<br>{{ L.createSessionHint }}</template>
       </div>
     </div>
   </div>
@@ -116,6 +125,11 @@ function onDelete(id: string) {
 }
 .chatui-session-item:hover { background: var(--chatui-bg-hover); }
 .chatui-session-item.active { background: var(--chatui-bg-active); }
+.chatui-session-item.highlighted {
+  background: var(--chatui-bg-hover);
+  box-shadow: inset 0 0 0 1px var(--chatui-border-focus, var(--chatui-accent));
+}
+.chatui-session-item.active.highlighted { background: var(--chatui-bg-active); }
 .chatui-session-item-name {
   font-size: 13px; font-weight: 500; color: var(--chatui-fg);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;

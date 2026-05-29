@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { ChatView, ServerPicker } from '@sbot/chat-ui'
 import type { RemoteEntry } from '@sbot/chat-ui'
+import { SConfirm } from 'sbot-ui'
 import '@sbot/chat-ui/themes/variables.css'
 import '@sbot/chat-ui/themes/theme-vscode.css'
 import '@sbot/chat-ui/themes/sbot-ui-bridge.css'
@@ -15,8 +16,7 @@ const currentBaseUrl = ref('')
 
 onMounted(async () => {
   remotes.value = await transport.getRemotes()
-  const last = await transport.getLastServer()
-  if (last?.url) selectServer(last.url, !!last.local)
+  selectLocal()
 })
 
 const connectError = ref('')
@@ -29,6 +29,7 @@ async function selectServer(baseUrl: string, local = false) {
     phase.value = 'chat'
   } catch (e: any) {
     connectError.value = `无法连接服务器 ${baseUrl}`
+    phase.value = 'server-pick'
   }
 }
 
@@ -86,6 +87,7 @@ async function removeRemote(index: number) {
       <ChatView :transport="transport" always-compact />
     </template>
   </div>
+  <SConfirm default-confirm-text="确定" default-cancel-text="取消" />
 </template>
 
 <style>

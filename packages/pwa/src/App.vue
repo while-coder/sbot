@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { ChatView, ServerPicker, WebSocketTransport } from '@sbot/chat-ui'
 import type { RemoteEntry } from '@sbot/chat-ui'
+import { SConfirm } from 'sbot-ui'
 import '@sbot/chat-ui/themes/variables.css'
 import '@sbot/chat-ui/themes/theme-dark.css'
 import '@sbot/chat-ui/themes/theme-pwa.css'
@@ -89,6 +90,7 @@ function removeRemote(index: number) {
       <ChatView :transport="transport" :show-attachments="true" />
     </template>
   </div>
+  <SConfirm default-confirm-text="确定" default-cancel-text="取消" />
 </template>
 
 <style scoped>

@@ -54,6 +54,7 @@
   "dependencies": {
     "@sbot/chat-ui": "workspace:*",
     "axios": "catalog:",
+    "sbot-ui": "workspace:*",
     "sbot.commons": "workspace:*",
     "ws": "catalog:"
   },
