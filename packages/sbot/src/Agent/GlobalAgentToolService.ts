@@ -1,5 +1,4 @@
-import { AgentToolService } from "scorpio.ai/AgentTool";
-import { GlobalLoggerService } from "scorpio.ai/Logger";
+import { AgentToolService, GlobalLoggerService } from "scorpio.ai";
 import { config } from "../Core/Config.js";
 
 export enum BuiltinProvider {

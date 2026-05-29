@@ -4,25 +4,6 @@
   "description": "Scorpio AI - Core AI infrastructure library",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "exports": {
-    ".": "./dist/index.js",
-    "./Core": "./dist/Core/index.js",
-    "./Logger": "./dist/Logger/index.js",
-    "./Model": "./dist/Model/index.js",
-    "./Model/types": "./dist/Model/types.js",
-    "./Embedding": "./dist/Embedding/index.js",
-    "./Embedding/types": "./dist/Embedding/types.js",
-    "./Memory": "./dist/Memory/index.js",
-    "./Wiki": "./dist/Wiki/index.js",
-    "./Saver": "./dist/Saver/index.js",
-    "./Skills": "./dist/Skills/index.js",
-    "./Command": "./dist/Command/index.js",
-    "./AgentTool": "./dist/AgentTool/index.js",
-    "./Agents": "./dist/Agents/index.js",
-    "./Tools": "./dist/Tools/index.js",
-    "./User": "./dist/User/index.js",
-    "./Utils": "./dist/Utils/contentUtils.js"
-  },
   "scripts": {
     "build": "rimraf dist && tsc -b --force"
   },

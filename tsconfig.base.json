@@ -13,7 +13,7 @@
     "sourceMap": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "moduleResolution": "bundler",
+    "moduleResolution": "node",
     "composite": true
   }
 }

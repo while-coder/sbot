@@ -1,7 +1,6 @@
 import os from 'os';
 import path from 'path';
-import { GlobalLoggerService } from "scorpio.ai/Logger";
-import { SkillService } from "scorpio.ai/Skills";
+import { GlobalLoggerService, SkillService } from "scorpio.ai";
 import { config } from "../Core/Config.js";
 import { loadPrompt } from "../Core/PromptLoader";
 

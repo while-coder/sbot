@@ -1,5 +1,5 @@
 import { DataTypes, type FindOptions, type ModelStatic, type UpdateOptions, Sequelize } from "sequelize";
-import { sleep } from "scorpio.ai/Core";
+import { sleep } from "scorpio.ai";
 import { ApprovalTimeoutValue } from "sbot.commons";
 import { config } from "./Config";
 import { LoggerService } from "./LoggerService";

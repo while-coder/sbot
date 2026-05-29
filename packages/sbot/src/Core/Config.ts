@@ -1,10 +1,8 @@
 import os from "os";
 import path from "path";
 import fs from "fs";
-import type { ModelConfig, MCPServers, IModelService, IEmbeddingService, AgentSubNode } from "scorpio.ai";
-import { ModelProvider } from "scorpio.ai/Model/types";
-import type { EmbeddingConfig } from "scorpio.ai/Embedding/types";
-import { EmbeddingProvider } from "scorpio.ai/Embedding/types";
+import type { ModelConfig, MCPServers, IModelService, IEmbeddingService, AgentSubNode, EmbeddingConfig } from "scorpio.ai";
+import { ModelProvider, EmbeddingProvider } from "scorpio.ai";
 export type { AgentSubNode } from "scorpio.ai";
 import { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, InsightScope, TodoScope, SaverConfig, MemoryConfig, WikiConfig, ChannelConfig, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE, type InsightConfig, type TodoConfig, type AgentStoreSource, type AgentSourceEntry } from "sbot.commons";
 export { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, InsightScope, TodoScope, SaverConfig, MemoryConfig, WikiConfig, ChannelConfig } from "sbot.commons";
@@ -309,7 +307,7 @@ class Config {
       if (throwError) throw new Error(`Model config "${id}" not found`);
       return undefined;
     }
-    const { ModelServiceFactory } = await import("scorpio.ai/Model");
+    const { ModelServiceFactory } = await import("scorpio.ai");
     return ModelServiceFactory.getModelService(modelConfig);
   }
 
@@ -319,7 +317,7 @@ class Config {
       if (throwError) throw new Error(`Embedding config "${name}" not found`);
       return undefined;
     }
-    const { EmbeddingServiceFactory } = await import("scorpio.ai/Embedding");
+    const { EmbeddingServiceFactory } = await import("scorpio.ai");
     return EmbeddingServiceFactory.getEmbeddingService(embeddingConfig);
   }
 
