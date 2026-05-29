@@ -1,16 +1,19 @@
 import * as vscode from 'vscode';
-import { ChatPanel } from './ChatViewProvider';
+import { ChatViewProvider } from './ChatViewProvider';
 
 export function activate(context: vscode.ExtensionContext) {
-  let panel: ChatPanel | undefined;
+  const provider = new ChatViewProvider(context.extensionUri, context);
 
   context.subscriptions.push(
+    provider,
+    vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, provider, {
+      webviewOptions: { retainContextWhenHidden: true },
+    }),
     vscode.commands.registerCommand('sbot.openChat', () => {
-      panel = ChatPanel.createOrShow(context.extensionUri, context);
+      provider.show();
     }),
     vscode.commands.registerCommand('sbot.selectServer', () => {
-      if (!panel) panel = ChatPanel.createOrShow(context.extensionUri, context);
-      panel.selectServer();
+      provider.selectServer();
     }),
   );
 }

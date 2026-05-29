@@ -12,8 +12,30 @@
     "Chat"
   ],
   "main": "./dist/extension.js",
-  "activationEvents": [],
+  "activationEvents": [
+    "onView:sbot.chatView",
+    "onCommand:sbot.openChat",
+    "onCommand:sbot.selectServer"
+  ],
   "contributes": {
+    "viewsContainers": {
+      "secondarySidebar": [
+        {
+          "id": "sbotSecondaryViewContainer",
+          "title": "SBOT",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "sbotSecondaryViewContainer": [
+        {
+          "type": "webview",
+          "id": "sbot.chatView",
+          "name": "SBOT"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "sbot.openChat",

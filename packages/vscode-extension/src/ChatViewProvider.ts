@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'node:path';
 import { WebChatEventType, WsCommandType, type WebChatEvent } from 'sbot.commons';
 import { SbotClient } from './SbotClient';
 
@@ -14,54 +15,52 @@ const EVENT_TYPE_MAP: Record<string, string> = {
   [WebChatEventType.Usage]: 'usage',
 };
 
-export class ChatPanel {
-  public static readonly viewType = 'sbot.chatPanel';
+export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
+  public static readonly viewType = 'sbot.chatView';
 
-  private static instance: ChatPanel | undefined;
-
-  private panel: vscode.WebviewPanel;
+  private view: vscode.WebviewView | undefined;
   private client: SbotClient | undefined;
+  private viewDisposables: vscode.Disposable[] = [];
 
   private readonly globalState: vscode.Memento;
   private static readonly REMOTES_KEY = 'sbot.remotes';
   private static readonly LAST_SERVER_KEY = 'sbot.lastServer';
 
   private customBaseUrl: string | undefined;
-  private localMode = true;
 
-  private constructor(
+  constructor(
     private readonly extensionUri: vscode.Uri,
     context: vscode.ExtensionContext,
   ) {
     this.globalState = context.globalState;
-
-    this.panel = vscode.window.createWebviewPanel(
-      ChatPanel.viewType,
-      'sbot Chat',
-      vscode.ViewColumn.Beside,
-      {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-        localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'dist', 'webview')],
-      },
-    );
-
-    this.panel.iconPath = vscode.Uri.joinPath(this.extensionUri, 'media', 'icon.svg');
-    this.panel.webview.html = this.getHtml(this.panel.webview);
-    this.panel.webview.onDidReceiveMessage(this.onWebviewMessage);
-    this.panel.onDidDispose(() => {
-      ChatPanel.instance = undefined;
-      this.disposeClient();
-    });
   }
 
-  static createOrShow(extensionUri: vscode.Uri, context: vscode.ExtensionContext): ChatPanel {
-    if (ChatPanel.instance) {
-      ChatPanel.instance.panel.reveal(vscode.ViewColumn.Beside);
-      return ChatPanel.instance;
+  resolveWebviewView(webviewView: vscode.WebviewView): void {
+    this.viewDisposables.forEach(d => d.dispose());
+    this.viewDisposables = [];
+
+    this.view = webviewView;
+    webviewView.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'dist', 'webview')],
+    };
+    webviewView.title = 'SBOT';
+    webviewView.webview.html = this.getHtml(webviewView.webview);
+    webviewView.webview.onDidReceiveMessage(this.onWebviewMessage, undefined, this.viewDisposables);
+    webviewView.onDidDispose(() => {
+      if (this.view === webviewView) this.view = undefined;
+      this.disposeClient();
+      this.viewDisposables.forEach(d => d.dispose());
+      this.viewDisposables = [];
+    }, undefined, this.viewDisposables);
+  }
+
+  show(): void {
+    if (this.view) {
+      this.view.show();
+      return;
     }
-    ChatPanel.instance = new ChatPanel(extensionUri, context);
-    return ChatPanel.instance;
+    void vscode.commands.executeCommand(`${ChatViewProvider.viewType}.focus`);
   }
 
   private ensureClient(): SbotClient {
@@ -74,6 +73,7 @@ export class ChatPanel {
   }
 
   async selectServer(): Promise<void> {
+    this.show();
     const current = this.client?.baseUrl ?? '';
     const input = await vscode.window.showInputBox({
       title: 'sbot Server URL',
@@ -105,44 +105,36 @@ export class ChatPanel {
   private async handleRpc(method: string, args: any[]): Promise<any> {
     switch (method) {
       case 'getRemotes':
-        return this.globalState.get<any[]>(ChatPanel.REMOTES_KEY, []);
+        return this.globalState.get<any[]>(ChatViewProvider.REMOTES_KEY, []);
       case 'saveRemotes':
-        await this.globalState.update(ChatPanel.REMOTES_KEY, args[0]);
+        await this.globalState.update(ChatViewProvider.REMOTES_KEY, args[0]);
         return;
       case 'connectServer': {
         const baseUrl = args[0] as string;
         const local = args[1] ?? false;
         this.customBaseUrl = baseUrl;
-        this.localMode = !!local;
         this.client?.dispose();
         this.client = undefined;
         const client = this.ensureClient();
         await client.fetchSettings();
-        await this.globalState.update(ChatPanel.LAST_SERVER_KEY, { url: baseUrl, local });
+        await this.globalState.update(ChatViewProvider.LAST_SERVER_KEY, { url: baseUrl, local });
         return;
       }
       case 'getLastServer':
-        return this.globalState.get<any>(ChatPanel.LAST_SERVER_KEY) ?? null;
+        return this.globalState.get<any>(ChatViewProvider.LAST_SERVER_KEY) ?? null;
     }
     const client = this.ensureClient();
     switch (method) {
       case 'listSessions': {
         const all = await client.fetchSessions();
-        console.log('[sbot] listSessions: localMode=', this.localMode, 'cwd=', this.getWorkspaceFolder(), 'total=', all.length);
-        if (!this.isLocal()) return all;
         const cwd = this.getWorkspaceFolder();
         if (!cwd) return all;
-        const cwdLower = cwd.toLowerCase();
-        const filtered = all.filter((s: any) => s.workPath && s.workPath.toLowerCase() === cwdLower);
-        console.log('[sbot] listSessions filtered:', filtered.length);
-        return filtered;
+        return all.filter((s: any) => this.isSamePath(s.workPath, cwd));
       }
       case 'createSession': {
         const opts = { ...args[0] };
-        if (this.isLocal()) {
-          const wsFolder = this.getWorkspaceFolder();
-          if (wsFolder) opts.workPath = wsFolder;
-        }
+        const wsFolder = this.getWorkspaceFolder();
+        if (wsFolder) opts.workPath = wsFolder;
         return client.createSessionNew(opts);
       }
       case 'deleteSession':
@@ -213,19 +205,36 @@ export class ChatPanel {
     });
   };
 
-  private isLocal(): boolean {
-    return this.localMode;
-  }
-
   private getWorkspaceFolder(): string | undefined {
+    const activeUri = vscode.window.activeTextEditor?.document.uri;
+    if (activeUri?.scheme === 'file') {
+      const folder = vscode.workspace.getWorkspaceFolder(activeUri);
+      if (folder) return folder.uri.fsPath;
+      return path.dirname(activeUri.fsPath);
+    }
     if (vscode.workspace.workspaceFolders?.length) {
       return vscode.workspace.workspaceFolders[0].uri.fsPath;
     }
     return (vscode.workspace as any).rootPath ?? undefined;
   }
 
+  private isSamePath(a: unknown, b: string): boolean {
+    if (typeof a !== 'string' || !a.trim()) return false;
+    return this.normalizeFsPath(a) === this.normalizeFsPath(b);
+  }
+
+  private normalizeFsPath(value: string): string {
+    const normalized = path.normalize(value.trim());
+    const root = path.parse(normalized).root;
+    let result = normalized;
+    while (result.length > root.length && /[\\/]$/.test(result)) {
+      result = result.slice(0, -1);
+    }
+    return process.platform === 'win32' ? result.toLowerCase() : result;
+  }
+
   private postMessage(msg: any): void {
-    this.panel.webview.postMessage(msg);
+    this.view?.webview.postMessage(msg);
   }
 
   private getHtml(webview: vscode.Webview): string {
@@ -256,7 +265,8 @@ export class ChatPanel {
 
   dispose(): void {
     this.disposeClient();
-    this.panel.dispose();
+    this.viewDisposables.forEach(d => d.dispose());
+    this.viewDisposables = [];
   }
 }
 
