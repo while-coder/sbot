@@ -27,6 +27,8 @@ const remotes = ref<RemoteEntry[]>(loadRemotes())
 const phase = ref<'server-pick' | 'chat'>('server-pick')
 const transport = ref<WebSocketTransport | null>(null)
 const currentBaseUrl = ref('')
+const connectError = ref('')
+const connecting = ref(false)
 
 const themeMode = ref<ThemeMode>(((): ThemeMode => {
   const v = localStorage.getItem(THEME_KEY)
@@ -56,15 +58,28 @@ function onSystemChange() {
 onMounted(() => mq.addEventListener('change', onSystemChange))
 onUnmounted(() => mq.removeEventListener('change', onSystemChange))
 
-function selectServer(baseUrl: string) {
-  transport.value = new WebSocketTransport(baseUrl)
-  currentBaseUrl.value = baseUrl
-  phase.value = 'chat'
+async function selectServer(baseUrl: string) {
+  if (connecting.value) return
+  connectError.value = ''
+  connecting.value = true
+  const nextTransport = new WebSocketTransport(baseUrl)
+  try {
+    await nextTransport.getSettings()
+    transport.value = nextTransport
+    currentBaseUrl.value = baseUrl
+    phase.value = 'chat'
+  } catch {
+    nextTransport.disconnect()
+    connectError.value = `无法连接服务器 ${baseUrl}`
+  } finally {
+    connecting.value = false
+  }
 }
 
 function switchServer() {
   transport.value?.disconnect()
   transport.value = null
+  connectError.value = ''
   phase.value = 'server-pick'
 }
 
@@ -108,6 +123,8 @@ function removeRemote(index: number) {
     </div>
 
     <template v-if="phase === 'server-pick'">
+      <div v-if="connectError" class="desktop-connect-error">{{ connectError }}</div>
+      <div v-if="connecting" class="desktop-connect-status">正在连接服务器...</div>
       <ServerPicker
         :remotes="remotes"
         @select-local="selectLocal"
@@ -182,5 +199,23 @@ body {
   top: 8px;
   right: 12px;
   z-index: 10;
+}
+.desktop-connect-error,
+.desktop-connect-status {
+  padding: 8px 12px;
+  margin: 8px 12px 0;
+  border-radius: 4px;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.desktop-connect-error {
+  color: var(--chatui-btn-danger, #d14343);
+  background: var(--chatui-bg-surface);
+  border: 1px solid var(--chatui-btn-danger, #d14343);
+}
+.desktop-connect-status {
+  color: var(--chatui-fg-secondary);
+  background: var(--chatui-bg-surface);
+  border: 1px solid var(--chatui-border);
 }
 </style>

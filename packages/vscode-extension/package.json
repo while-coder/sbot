@@ -31,7 +31,16 @@
         "key": "ctrl+shift+b",
         "mac": "cmd+shift+b"
       }
-    ]
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "sbot.openChat",
+          "group": "navigation@100",
+          "when": "resourceScheme == file || resourceScheme == untitled"
+        }
+      ]
+    }
   },
   "scripts": {
     "build": "pnpm run build:ext && pnpm run build:webview",

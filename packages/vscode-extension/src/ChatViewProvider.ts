@@ -38,7 +38,7 @@ export class ChatPanel {
     this.panel = vscode.window.createWebviewPanel(
       ChatPanel.viewType,
       'sbot Chat',
-      vscode.ViewColumn.One,
+      vscode.ViewColumn.Beside,
       {
         enableScripts: true,
         retainContextWhenHidden: true,
@@ -57,7 +57,7 @@ export class ChatPanel {
 
   static createOrShow(extensionUri: vscode.Uri, context: vscode.ExtensionContext): ChatPanel {
     if (ChatPanel.instance) {
-      ChatPanel.instance.panel.reveal(vscode.ViewColumn.One);
+      ChatPanel.instance.panel.reveal(vscode.ViewColumn.Beside);
       return ChatPanel.instance;
     }
     ChatPanel.instance = new ChatPanel(extensionUri, context);
