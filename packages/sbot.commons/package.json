@@ -3,14 +3,8 @@
   "version": "0.0.1",
   "description": "Shared TypeScript interfaces and types for sbot packages",
   "main": "dist/index.js",
+  "module": "esm/index.js",
   "types": "dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./esm/index.js",
-      "require": "./dist/index.js"
-    }
-  },
   "scripts": {
     "build": "rimraf dist esm && tsc -b --force && tsc -p tsconfig.esm.json && echo {\"type\":\"module\"} > esm/package.json"
   },
