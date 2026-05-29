@@ -12,6 +12,7 @@ Return an array of actions. Each action has:
 - User explicitly states an actionable task with a clear deliverable ("send the report by Friday", "remind me to call mom")
 - User mentions something they need to do later, not what they're doing now
 - Skip vague intentions ("I should learn React someday") and statements of fact
+- Skip tasks that have already been handled within the current conversation — if the user mentioned doing something and also indicated it was already done, completed, or resolved in the same turn (or earlier in the conversation context), do NOT create a todo for it. Todos are for future work, not historical record-keeping.
 
 ## When to mark done
 - User explicitly says they finished an existing item, OR clearly references work covered by an existing todo
