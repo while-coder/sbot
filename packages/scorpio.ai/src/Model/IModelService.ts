@@ -1,10 +1,16 @@
 import { type ChatMessage } from "../Saver/IAgentSaverService";
+import { ModelConfig } from "./types";
 
 /**
  * 模型服务接口
  * 定义模型服务的标准接口，不依赖任何 LLM 框架类型
  */
 export interface IModelService {
+  /**
+   * 模型配置（contextWindow / maxTools 等读自此处）
+   */
+  readonly config: ModelConfig;
+
   /**
    * 简单文本调用 — 发送 prompt 字符串或消息列表，返回 AI 消息
    */
@@ -25,17 +31,6 @@ export interface IModelService {
    * 流式调用，返回逐步累积的消息块序列
    */
   stream(messages: string | ChatMessage[], options?: { signal?: AbortSignal }): Promise<AsyncIterable<ChatMessage>>;
-
-  /**
-   * 模型上下文窗口大小（token 数），用于历史消息截断
-   */
-  readonly contextWindow?: number;
-
-  /**
-   * 单次请求允许携带的最大工具数量。超过此值时按声明顺序截断并打 warn。
-   * 部分 OpenAI 兼容端点（豆包、Qwen 等）对工具数量有硬上限，超过会返回 400 无 body。
-   */
-  readonly maxTools?: number;
 
   /**
    * 清理资源 — 释放模型实例占用的资源

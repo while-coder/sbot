@@ -13,10 +13,7 @@ export class OllamaModelService implements IModelService {
   private model?: ChatOllama;
   private boundModel?: any;
 
-  constructor(private config: ModelConfig) {}
-
-  get contextWindow(): number | undefined { return this.config.contextWindow; }
-  get maxTools(): number | undefined { return this.config.maxTools; }
+  constructor(public readonly config: ModelConfig) {}
 
   async initialize(): Promise<void> {
     this.model = new ChatOllama({

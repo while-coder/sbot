@@ -19,14 +19,11 @@ export class AnthropicModelService implements IModelService {
   private boundModel?: any;
   private cacheControl?: { type: "ephemeral" };
 
-  constructor(private config: ModelConfig) {
+  constructor(public readonly config: ModelConfig) {
     if (config.anthropic?.promptCaching) {
       this.cacheControl = { type: "ephemeral" };
     }
   }
-
-  get contextWindow(): number | undefined { return this.config.contextWindow; }
-  get maxTools(): number | undefined { return this.config.maxTools; }
 
   async initialize(): Promise<void> {
     this.model = new ChatAnthropic({

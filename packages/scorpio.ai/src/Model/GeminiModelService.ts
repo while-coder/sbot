@@ -12,10 +12,7 @@ export class GeminiModelService implements IModelService {
   private model?: ChatGoogleGenerativeAI;
   private boundModel?: any;
 
-  constructor(private config: ModelConfig) {}
-
-  get contextWindow(): number | undefined { return this.config.contextWindow; }
-  get maxTools(): number | undefined { return this.config.maxTools; }
+  constructor(public readonly config: ModelConfig) {}
 
   async initialize(): Promise<void> {
     const opts: Record<string, any> = {

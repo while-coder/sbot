@@ -167,7 +167,7 @@ export class SingleAgentService extends AgentServiceBase {
         const deduped = [...unique.values()];
 
         // maxTools：部分端点（豆包、Qwen 等）对工具数量有硬上限，超过即 400 无 body
-        const maxTools = this.modelService.maxTools;
+        const maxTools = this.modelService.config.maxTools;
         if (maxTools != null && deduped.length > maxTools) {
             const dropped = deduped.slice(maxTools).map(t => t.name);
             this.logger?.warn(`工具数量 ${deduped.length} 超过模型 maxTools=${maxTools}，已按声明顺序截断，丢弃: ${dropped.join(', ')}`);
@@ -186,7 +186,7 @@ export class SingleAgentService extends AgentServiceBase {
         }
 
         // 自动 compact：input_tokens 超过阈值时压缩早期消息
-        const contextWindow = this.modelService.contextWindow ?? DEFAULT_MAX_HISTORY_TOKENS;
+        const contextWindow = this.modelService.config.contextWindow ?? DEFAULT_MAX_HISTORY_TOKENS;
         if (this.compactor) {
             const allMessages = await this.saverService.getAllMessages();
             const savedTokens = parseInt(await this.saverService.getMetadata(METADATA_KEY_INPUT_TOKENS) ?? '0', 10);

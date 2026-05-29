@@ -13,10 +13,7 @@ export class OpenAIModelService implements IModelService {
   protected model?: ChatOpenAI;
   private boundModel?: any;
 
-  constructor(protected config: ModelConfig) {}
-
-  get contextWindow(): number | undefined { return this.config.contextWindow; }
-  get maxTools(): number | undefined { return this.config.maxTools; }
+  constructor(public readonly config: ModelConfig) {}
 
   protected buildChatOpenAIOptions(): ConstructorParameters<typeof ChatOpenAI>[0] {
     return {
