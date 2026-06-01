@@ -2,7 +2,7 @@ import "reflect-metadata";
 import { ICommand, MessageType, MessageRole, MessageKind, type ChatMessage, type MessageContent, trimContent, isEmptyContent } from "scorpio.ai";
 import { SessionManager, SessionService, ChannelMessageArgs, ChannelSessionHandler } from "channel.base";
 import { type StructuredToolInterface } from "@langchain/core/tools";
-import { WEB_CHANNEL_ID, WEB_CHANNEL_TYPE, type ChannelConfig } from "sbot.commons";
+import { WEB_CHANNEL_ID, type ChannelConfig } from "sbot.commons";
 import { config } from "../Core/Config";
 import { ChannelSessionRow, getChannelSession } from "../Core/Database";
 import { channelManager } from "../Channel/ChannelManager";
@@ -238,18 +238,6 @@ export class SbotSessionManager extends SessionManager {
             const session = this.getOrCreate(c.threadId);
             await session.onReceiveMessage(c.query, c.args);
         });
-    }
-
-    async onReceiveWebMessage(threadId: string, query: MessageContent, sessionId: string, dbSessionId: number): Promise<void> {
-        query = trimContent(query);
-        if (isEmptyContent(query)) return;
-        const args: ChannelRouteArgs = {
-            channelType: WEB_CHANNEL_TYPE,
-            channelId: WEB_CHANNEL_ID,
-            dbSessionId,
-            sessionId,
-        };
-        await this.onReceiveChannelMessage(threadId, query, args);
     }
 
     // ── Trigger action routing ──

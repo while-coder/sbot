@@ -518,7 +518,12 @@ class HttpServer {
                             if (isEmptyContent(enriched)) break;
                             const row = await database.findOne<ChannelSessionRow>(database.channelSession, { where: { channelId: WEB_CHANNEL_ID, sessionId: sid } });
                             if (!row) throw new Error(`Web session "${sid}" not found`);
-                            sessionManager.onReceiveWebMessage(threadId, enriched, sid, row.id);
+                            sessionManager.onReceiveChannelMessage(threadId, enriched, {
+                                channelType: WEB_CHANNEL_TYPE,
+                                channelId: WEB_CHANNEL_ID,
+                                dbSessionId: row.id,
+                                sessionId: sid,
+                            });
                             break;
                         }
                         case WsCommandType.Approval:
