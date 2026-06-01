@@ -211,6 +211,11 @@ export class ChannelManager {
     getChannel(channelId: string) { return config.getChannel(channelId); }
     getService(channelId: string) { return this.services.get(channelId); }
 
+    /** 由内置 channel（WEB_CHANNEL_ID）等不走 plugin 路径的 service 主动注册。dispose 时统一回收。 */
+    registerService(channelId: string, service: IChannelService): void {
+        this.services.set(channelId, service);
+    }
+
     async sendText(channelId: string, sessionId: string, text: string): Promise<boolean> {
         const service = this.services.get(channelId);
         if (!service) return false;

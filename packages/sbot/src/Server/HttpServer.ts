@@ -7,8 +7,7 @@ import { randomUUID } from 'crypto';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { z } from 'zod';
-import { WebSocket, WebSocketServer } from 'ws';
-import { AgentToolService, SkillService, ModelProvider, listThreadIds, isEmptyContent, resizeImageIfNeeded, setMaxImageSize, type StoredMessage, type MessageContent } from "scorpio.ai";
+import { AgentToolService, SkillService, ModelProvider, listThreadIds, setMaxImageSize, type StoredMessage } from "scorpio.ai";
 import { config, isDev, isValidAgentId } from '../Core/Config';
 import { AgentRunner } from '../Agent/AgentRunner';
 import { ACPAgentPool } from '../Agent/ACPAgentPool';
@@ -25,9 +24,10 @@ import { sessionManager } from '../Session/SessionManager';
 import { schedulerService } from '../Scheduler/SchedulerService';
 import { heartbeatService } from '../Heartbeat/HeartbeatService';
 import { channelManager } from '../Channel/ChannelManager';
-import { WsCommandType, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE } from 'sbot.commons';
+import { WEB_CHANNEL_ID } from 'sbot.commons';
 import { getModelMeta, getKnownModels } from './modelCatalog';
 import { FsApi } from './FsApi';
+import { webService } from '../Channel/web/WebService';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
 const execFileAsync = promisify(execFile);
@@ -317,57 +317,6 @@ function buildPromptTree(dir: string, basePath = '', userBaseDir = ''): PromptNo
     return result;
 }
 
-// ===== 附件处理 =====
-type AttachmentInput = { name: string; dataUrl?: string; content?: string };
-type ContentPartInput = { type: 'text'; text: string } | { type: 'image'; dataUrl: string };
-
-function isImageDataUrl(dataUrl: string): boolean {
-    return /^data:image\//.test(dataUrl);
-}
-
-/**
- * Build MessageContent from ordered parts (interleaved text/image) + file attachments.
- * Parts preserve the interleaved order from the editor.
- * File attachments (non-inline) are appended at the end.
- */
-async function processMessage(parts: ContentPartInput[], attachments: AttachmentInput[] | undefined, uploadDir: string): Promise<MessageContent> {
-    const msgParts: Array<{ type: string; text?: string; [key: string]: any }> = [];
-    let hasImage = false;
-
-    for (const p of parts) {
-        if (p.type === 'text') {
-            msgParts.push({ type: 'text', text: p.text });
-        } else if (p.type === 'image' && p.dataUrl) {
-            const url = await resizeImageIfNeeded(p.dataUrl);
-            msgParts.push({ type: 'image_url', image_url: { url } });
-            hasImage = true;
-        }
-    }
-
-    // Append file attachments (non-inline files from the attachment picker)
-    if (attachments?.length) {
-        for (const att of attachments) {
-            if (att.dataUrl && isImageDataUrl(att.dataUrl)) {
-                const url = await resizeImageIfNeeded(att.dataUrl);
-                msgParts.push({ type: 'image_url', image_url: { url } });
-                hasImage = true;
-            } else if (att.dataUrl) {
-                const filePath = path.join(uploadDir, `${randomUUID()}-${att.name}`);
-                fs.writeFileSync(filePath, Buffer.from(att.dataUrl.replace(/^data:[^;]+;base64,/, ''), 'base64'));
-                msgParts.push({ type: 'text', text: `[file: ${att.name}](${filePath})` });
-            } else if (att.content != null) {
-                const filePath = path.join(uploadDir, `${randomUUID()}-${att.name}`);
-                fs.writeFileSync(filePath, att.content);
-                msgParts.push({ type: 'text', text: `[file: ${att.name}](${filePath})` });
-            }
-        }
-    }
-
-    if (msgParts.length === 0) return '';
-    if (!hasImage) return msgParts.map(p => p.text!).join('\n');
-    return msgParts;
-}
-
 // ===== Skills 辅助函数 =====
 function listSkills(skillsDir: string) {
     if (!fs.existsSync(skillsDir)) return [];
@@ -422,14 +371,7 @@ function api(fn: (req: Request, res: Response) => any) {
 class HttpServer {
     private readonly skillHubService = new SkillHubService();
     private readonly agentStoreService = new AgentStoreService();
-    private readonly wsClients = new Set<WebSocket>();
     private server?: http.Server;
-
-    broadcastToWs(data: string): void {
-        for (const ws of this.wsClients) {
-            if (ws.readyState === WebSocket.OPEN) ws.send(data);
-        }
-    }
 
     async shutdown(): Promise<void> {
         logger.info('Shutting down services...');
@@ -437,8 +379,6 @@ class HttpServer {
             schedulerService.stopAll();
             await ACPAgentPool.getInstance().disposeAll();
             await channelManager.dispose();
-            for (const ws of this.wsClients) ws.close();
-            this.wsClients.clear();
             if (this.server) {
                 await new Promise<void>((resolve, reject) =>
                     this.server!.close(err => err ? reject(err) : resolve()),
@@ -499,45 +439,11 @@ class HttpServer {
         this.registerUserRoutes(app);
         this.registerChatRoutes(app);
 
-        // HTTP + WebSocket 服务
+        // HTTP + WebSocket 服务：把 ws 升级路径与 web channel 运行时交给 WebService，
+        // 然后注册到 channelManager，让消息出路与 dispose 生命周期与其他 channel 对齐
         const server = this.server = http.createServer(app);
-
-        const wss = new WebSocketServer({ server, path: '/ws/chat' });
-        wss.on('connection', (ws) => {
-            this.wsClients.add(ws);
-            ws.on('close', () => { this.wsClients.delete(ws); });
-            ws.on('message', async (data) => {
-                try {
-                    const msg = JSON.parse(data.toString()) as { type?: string; [key: string]: any };
-                    const sid = msg.sessionId as string | undefined;
-                    if (!sid) throw new Error('sessionId is required');
-                    // 与 channel plugin 路径对齐：先 ensure session+profile，再交给 sessionManager
-                    const { session, profile } = await ensureChannelSession(WEB_CHANNEL_ID, sid);
-                    const threadId = String(profile.id);
-                    switch (msg.type) {
-                        case WsCommandType.Query: {
-                            const enriched = await processMessage(msg.parts ?? [], msg.attachments, uploadDir);
-                            if (isEmptyContent(enriched)) break;
-                            sessionManager.onReceiveChannelMessage(threadId, enriched, {
-                                channelType: WEB_CHANNEL_TYPE,
-                                channelId: WEB_CHANNEL_ID,
-                                dbSessionId: session.id,
-                                sessionId: sid,
-                            });
-                            break;
-                        }
-                        case WsCommandType.Approval:
-                        case WsCommandType.Ask:
-                        case WsCommandType.Abort: {
-                            sessionManager.onTriggerChannelAction(threadId, msg.type!, msg).catch(e => logger.error(`ws trigger error: ${e?.message ?? e}`));
-                            break;
-                        }
-                    }
-                } catch (e: any) {
-                    logger.error(`ws message error: ${e?.message ?? e}`);
-                }
-            });
-        });
+        webService.attach(server, uploadDir);
+        channelManager.registerService(WEB_CHANNEL_ID, webService);
 
         server.listen(port, () => {
             logger.info(`HTTP server started, admin UI available at: http://127.0.0.1:${port}`);

@@ -5,7 +5,7 @@ import { config, AgentMode } from "../Core/Config";
 import { buildExecuteTool } from "./buildExecuteTool";
 import { updateUsageStats, type UsageContext } from "./updateUsageStats";
 import { WebChatEventType, WEB_CHANNEL_ID, ApprovalTimeoutValue } from "sbot.commons";
-import { httpServer } from "../Server/HttpServer";
+import { webService } from "../Channel/web/WebService";
 import { AgentRunner } from "../Agent/AgentRunner";
 
 export function createProcessAIHandler(): ProcessAIHandler {
@@ -22,7 +22,7 @@ export function createProcessAIHandler(): ProcessAIHandler {
         if (!channel) throw new Error(`Channel config not found: ${channelId}`);
 
         if (channelId === WEB_CHANNEL_ID) {
-            httpServer.broadcastToWs(JSON.stringify({ sessionId, type: WebChatEventType.Human, data: { content: query } }));
+            webService.broadcast(JSON.stringify({ sessionId, type: WebChatEventType.Human, data: { content: query } }));
         }
 
         const agentId = resolved.agentId;

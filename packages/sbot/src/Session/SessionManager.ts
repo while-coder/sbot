@@ -2,7 +2,6 @@ import "reflect-metadata";
 import { ICommand, MessageType, MessageRole, MessageKind, type ChatMessage, type MessageContent, trimContent, isEmptyContent } from "scorpio.ai";
 import { SessionManager, SessionService, ChannelMessageArgs, ChannelSessionHandler } from "channel.base";
 import { type StructuredToolInterface } from "@langchain/core/tools";
-import { WEB_CHANNEL_ID } from "sbot.commons";
 import { config } from "../Core/Config";
 import { getEffectiveSession, type EffectiveSession } from "../Core/Database";
 import { channelManager } from "../Channel/ChannelManager";
@@ -13,7 +12,6 @@ import { intentFilterMiddleware } from "../Middleware/intentFilter";
 import type { MessageContext } from "../Middleware/types";
 
 import { getBuiltInCommands } from "./BuiltInCommands";
-import { WebSocketSessionHandler } from "../Channel/web/WebSocketSessionHandler";
 
 export interface ChannelRouteArgs extends ChannelMessageArgs {
     channelType: string;
@@ -170,19 +168,13 @@ export class SbotSessionManager extends SessionManager {
     }
 
     createChannel(type: string, session: SessionService, channelId?: string): ChannelSessionHandler {
-        if (channelId === WEB_CHANNEL_ID) {
-            const sessionHandler = new WebSocketSessionHandler(session);
-            sessionHandler.setProcessAIHandler(processAIHandler);
-            return sessionHandler;
-        } else {
-            const service = channelId ? channelManager.getService(channelId) : undefined;
-            if (!service) {
-                throw new Error(`Channel service "${channelId}" not found`);
-            }
-            const sessionHandler = service.createSessionHandler(session);
-            sessionHandler.setProcessAIHandler(processAIHandler);
-            return sessionHandler;
+        const service = channelId ? channelManager.getService(channelId) : undefined;
+        if (!service) {
+            throw new Error(`Channel service "${channelId}" not found`);
         }
+        const sessionHandler = service.createSessionHandler(session);
+        sessionHandler.setProcessAIHandler(processAIHandler);
+        return sessionHandler;
     }
 
     // ── Channel entry points ──

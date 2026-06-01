@@ -7,7 +7,7 @@ import {
     type ChannelMessageArgs, type ChatToolCall,
 } from "channel.base";
 import { WebChatEventType, WsCommandType, ApprovalTimeoutValue } from 'sbot.commons';
-import { httpServer } from "../../Server/HttpServer";
+import { webService } from "./WebService";
 
 const WEB_ASK_PROMPT = `Ask the user one or more structured questions and wait for their response. Use this tool whenever you need clarification, a decision, or input before proceeding.
 
@@ -122,6 +122,6 @@ export class WebSocketSessionHandler extends ChannelSessionHandler {
     // ── Emit helpers ──
 
     private emit(type: WebChatEventType, data: Record<string, any>): void {
-        httpServer.broadcastToWs(JSON.stringify({ sessionId: this.sessionId, type, data }));
+        webService.broadcast(JSON.stringify({ sessionId: this.sessionId, type, data }));
     }
 }

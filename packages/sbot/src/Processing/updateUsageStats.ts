@@ -1,7 +1,7 @@
 import { type TokenUsage } from "scorpio.ai";
 import { WebChatEventType, WEB_CHANNEL_ID } from "sbot.commons";
 import { database, getChannelSession } from "../Core/Database";
-import { httpServer } from "../Server/HttpServer";
+import { webService } from "../Channel/web/WebService";
 
 export interface UsageContext {
     agentId: string;
@@ -55,7 +55,7 @@ export async function updateUsageStats(
 
     const row = await getChannelSession(dbSessionId);
     if (row && row.channelId === WEB_CHANNEL_ID) {
-        httpServer.broadcastToWs(JSON.stringify({
+        webService.broadcast(JSON.stringify({
             sessionId: row.sessionId,
             type: WebChatEventType.Usage,
             data: { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens, totalTokens: usage.total_tokens, cacheCreationTokens: cacheCreation, cacheReadTokens: cacheRead },
