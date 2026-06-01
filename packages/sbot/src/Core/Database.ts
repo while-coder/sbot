@@ -179,6 +179,11 @@ class Database {
         idle: 20000,
       },
       query: {
+        // ⚠️ raw: true 让所有 find* 跳过 Sequelize 的类型转换，BOOLEAN 列从 SQLite
+        // 直接以 INTEGER 0/1（或 null）返回 —— 不是 false/true。
+        // 后果：消费 Row 的代码不能用 `=== true`/`=== false`/`String(v) === "true"`
+        // 这类严格比较；用真值检查（`if (v)`、`v ? a : b`、`!!v`）或显式 `Boolean(v)` 归一化。
+        // 写回数据库不受影响（Sequelize 在 update/create 仍会校验列类型）。
         raw: true,
       },
       define: {
