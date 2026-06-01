@@ -207,6 +207,8 @@ async function loadChannelData(id: string) {
     ])
     sessionMap.value[id] = (sessRes.data || []).map((s: any) => ({
       ...s, memories: s.memories || [], useChannelMemories: !!s.useChannelMemories, useChannelWikis: !!s.useChannelWikis,
+      streamVerbose: s.streamVerbose == null ? null : !!s.streamVerbose,
+      autoApproveAllTools: s.autoApproveAllTools == null ? null : !!s.autoApproveAllTools,
     }))
     userMap.value[id]    = userRes.data || []
   } catch (e: any) {
