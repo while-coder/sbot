@@ -48,7 +48,7 @@ onMounted(() => {
       </SButton>
     </SPageToolbar>
 
-    <Explorer :transport="transport" :root="root" />
+    <Explorer :transport="transport" :root="root" editable />
 
     <PathPickerModal
       ref="picker"
