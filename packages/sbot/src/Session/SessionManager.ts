@@ -254,14 +254,9 @@ export class SbotSessionManager extends SessionManager {
 
     // ── Trigger action routing ──
 
-    async onChannelTriggerAction(threadId: string, args: any): Promise<void> {
+    async onTriggerChannelAction(threadId: string, ...args: any[]): Promise<void> {
         const session = this.getSession(threadId) as SbotSession | undefined;
-        await session?.triggerAction(args);
-    }
-
-    async onWebTriggerAction(threadId: string, type: string, msg: Record<string, any>): Promise<void> {
-        const session = this.getSession(threadId) as SbotSession | undefined;
-        await session?.triggerAction(type, msg);
+        await session?.triggerAction(...args);
     }
 }
 

@@ -146,7 +146,7 @@ export class ChannelManager {
                 onReceiveMessage: (session, query, args) =>
                     sessionManager.onReceiveChannelMessage(channelThreadId(plugin.type, channelId, session.sessionId), query, { ...args, channelType: plugin.type, channelId, dbSessionId: session.dbSessionId }),
                 onTriggerAction: (session, args) =>
-                    sessionManager.onChannelTriggerAction(channelThreadId(plugin.type, channelId, session.sessionId), { ...args, channelType: plugin.type, channelId }),
+                    sessionManager.onTriggerChannelAction(channelThreadId(plugin.type, channelId, session.sessionId), { ...args, channelType: plugin.type, channelId }),
             };
             const service = await plugin.init(ctx);
             if (service) {
