@@ -912,47 +912,65 @@ export async function getChannelSession(id: number | string | undefined | null, 
   return row;
 }
 
-export async function getSessionProfile(id: number | string | undefined | null): Promise<SessionProfileRow | null> {
-  if (id == null) return null;
-  const pk = typeof id === 'string' ? parseInt(id) : id;
-  if (isNaN(pk) || pk <= 0) return null;
-  return database.findByPk<SessionProfileRow>(database.sessionProfile, pk);
+export async function getSessionProfile(id: number): Promise<SessionProfileRow | null> {
+  if (id <= 0) return null;
+  return database.findByPk<SessionProfileRow>(database.sessionProfile, id);
 }
 
 /**
- * 创建一个新 ChannelSession，并配套创建一个 auto profile，最后把 session.profileId 指向它。
- * 用于"明确创建新 session"的入口（admin 新建 web session 等）。
- * 已存在的 session 路径请用 findOrCreate + getOrCreateAutoProfile 组合。
+ * 确保 (channelId, sessionId) 对应的 ChannelSession 存在并关联 auto profile。
+ * - findOrCreate session（按 channelId + sessionId）
+ * - 已存在时按需更新 sessionData 中的字段（autoSessionName/avatar/sessionName 等）
+ * - 自动建/找到 auto profile（已有 profile 不会被覆盖）
+ *
+ * 同一个入口覆盖三类调用：
+ * - channel plugin doInitSession: 仅传 autoSessionName/avatar
+ * - admin 新建 web session: 传 sessionName，初始配置由调用方在返回后 update profile
+ * - ws 收消息时 ensure: 仅传 (channelId, sessionId)
  */
-export async function createSessionWithAutoProfile(
-  sessionData: Partial<ChannelSessionRow> & { channelId: string; sessionId: string },
-  profileSeed?: Partial<SessionProfileRow>,
-): Promise<{ session: ChannelSessionRow; profile: SessionProfileRow }> {
+export async function ensureChannelSession(
+  channelId: string,
+  sessionId: string,
+  opts?: {
+    sessionName?: string;
+    autoSessionName?: string | null;
+    sessionAvatar?: string;
+  },
+): Promise<{ session: ChannelSessionRow; profile: SessionProfileRow; created: boolean }> {
   const now = Date.now();
-  const session = await database.create<ChannelSessionRow>(database.channelSession, {
-    sessionName: '', autoSessionName: '', avatar: '',
-    profileId: 0, createdAt: now,
-    ...sessionData,
-  });
-  const profile = await database.create<SessionProfileRow>(database.sessionProfile, {
-    name: '', autoForSessionId: (session as any).id, createdAt: now,
-    ...(profileSeed ?? {}),
-  });
-  await database.update(database.channelSession, { profileId: (profile as any).id }, { where: { id: (session as any).id } });
-  (session as any).profileId = (profile as any).id;
-  return { session: session as any, profile: profile as any };
-}
+  const sessionData: Record<string, any> = {};
+  if (opts?.autoSessionName != null) sessionData.autoSessionName = opts.autoSessionName;
+  if (opts?.sessionAvatar !== undefined) sessionData.avatar = opts.sessionAvatar;
 
-/** 找到 session 自己的 auto profile（autoForSessionId == sessionId），不存在则懒创建 */
-export async function getOrCreateAutoProfile(sessionId: number): Promise<SessionProfileRow> {
-  const existing = await database.findOne<SessionProfileRow>(database.sessionProfile, { where: { autoForSessionId: sessionId } });
-  if (existing) return existing;
-  const created = await database.create<SessionProfileRow>(database.sessionProfile, {
-    name: '',
-    autoForSessionId: sessionId,
-    createdAt: Date.now(),
+  const [session, sessionCreated] = await database.findOrCreate<ChannelSessionRow>(database.channelSession, {
+    where: { channelId, sessionId },
+    defaults: { ...sessionData, sessionName: opts?.sessionName ?? '', profileId: 0, createdAt: now },
   });
-  return created;
+
+  if (!sessionCreated) {
+    // 已存在 session：仅更新与传入 sessionData 不同的字段（避免无谓写）
+    const changed: Record<string, any> = {};
+    for (const k of Object.keys(sessionData)) {
+      if ((session as any)[k] !== sessionData[k]) changed[k] = sessionData[k];
+    }
+    if (Object.keys(changed).length > 0) {
+      await database.update(database.channelSession, changed, { where: { channelId, sessionId } });
+      Object.assign(session as any, changed);
+    }
+  }
+
+  let profile = await getSessionProfile((session as any).profileId);
+  if (!profile) {
+    profile = await database.create<SessionProfileRow>(database.sessionProfile, {
+      name: '',
+      autoForSessionId: (session as any).id,
+      createdAt: now,
+    });
+    await database.update(database.channelSession, { profileId: (profile as any).id }, { where: { id: (session as any).id } });
+    (session as any).profileId = (profile as any).id;
+  }
+
+  return { session: session as any, profile: profile!, created: sessionCreated };
 }
 
 /** 4 级回退后简化为 2 层：profile.field ?? channel.field ?? hardcoded */
@@ -989,13 +1007,9 @@ export async function getEffectiveSession(
 ): Promise<EffectiveSession | undefined> {
   const session = await getChannelSession(id, throwIfNotFound);
   if (!session) return undefined;
-  let profile = session.profileId > 0 ? await getSessionProfile(session.profileId) : null;
-  if (!profile) {
-    // 旧数据 / 异常状态：profileId 缺失或对应 profile 已删，懒补一个 auto profile
-    profile = await getOrCreateAutoProfile(session.id);
-    await database.update(database.channelSession, { profileId: profile.id }, { where: { id: session.id } });
-    session.profileId = profile.id;
-  }
+  // session 创建路径（ensureChannelSession）保证 profileId > 0；找不到 profile 视为数据异常
+  const profile = await getSessionProfile(session.profileId);
+  if (!profile) throw new Error(`SessionProfile not found: session.id=${session.id}, profileId=${session.profileId}`);
   const channel = config.getChannel(session.channelId);
 
   const useChannelMemories = profile.memories != null ? !!profile.useChannelMemories : false;

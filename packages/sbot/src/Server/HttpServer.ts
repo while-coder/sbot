@@ -19,12 +19,12 @@ import { installSkillFromZip } from '../SkillHub/bundle';
 import axios from 'axios';
 import { AgentStoreService } from '../AgentStore';
 import { LoggerService, log4js } from '../Core/LoggerService';
-import { database, parseMemories, getChannelSession, getSessionProfile, getOrCreateAutoProfile, getEffectiveSession, createSessionWithAutoProfile, type ChannelSessionRow, type SessionProfileRow, type UsageLogRow } from '../Core/Database';
+import { database, parseMemories, getChannelSession, getSessionProfile, getEffectiveSession, ensureChannelSession, type ChannelSessionRow, type SessionProfileRow, type UsageLogRow } from '../Core/Database';
 import { Op } from 'sequelize';
 import { sessionManager } from '../Session/SessionManager';
 import { schedulerService } from '../Scheduler/SchedulerService';
 import { heartbeatService } from '../Heartbeat/HeartbeatService';
-import { channelManager, ensureChannelSession } from '../Channel/ChannelManager';
+import { channelManager } from '../Channel/ChannelManager';
 import { WsCommandType, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE } from 'sbot.commons';
 import { getModelMeta, getKnownModels } from './modelCatalog';
 import { FsApi } from './FsApi';
@@ -512,8 +512,8 @@ class HttpServer {
                     const sid = msg.sessionId as string | undefined;
                     if (!sid) throw new Error('sessionId is required');
                     // 与 channel plugin 路径对齐：先 ensure session+profile，再交给 sessionManager
-                    const row = await ensureChannelSession(WEB_CHANNEL_ID, sid);
-                    const threadId = String(row.profileId);
+                    const { session, profile } = await ensureChannelSession(WEB_CHANNEL_ID, sid);
+                    const threadId = String(profile.id);
                     switch (msg.type) {
                         case WsCommandType.Query: {
                             const enriched = await processMessage(msg.parts ?? [], msg.attachments, uploadDir);
@@ -521,7 +521,7 @@ class HttpServer {
                             sessionManager.onReceiveChannelMessage(threadId, enriched, {
                                 channelType: WEB_CHANNEL_TYPE,
                                 channelId: WEB_CHANNEL_ID,
-                                dbSessionId: row.id,
+                                dbSessionId: session.id,
                                 sessionId: sid,
                             });
                             break;
@@ -773,16 +773,16 @@ class HttpServer {
         app.post('/api/settings/sessions', api(async req => {
             const body = req.body;
             const sid = randomUUID();
-            await createSessionWithAutoProfile(
-                { channelId: WEB_CHANNEL_ID, sessionId: sid, sessionName: body.name ?? '' },
-                {
-                    agentId: body.agent || null,
-                    saver: body.saver || null,
-                    memories: body.memories ? JSON.stringify(body.memories) : null,
-                    wikis: body.wikis ? JSON.stringify(body.wikis) : null,
-                    workPath: body.workPath ?? null,
-                },
-            );
+            const { profile } = await ensureChannelSession(WEB_CHANNEL_ID, sid, {
+                sessionName: body.name ?? '',
+            });
+            await database.update(database.sessionProfile, {
+                agentId: body.agent || null,
+                saver: body.saver || null,
+                memories: body.memories ? JSON.stringify(body.memories) : null,
+                wikis: body.wikis ? JSON.stringify(body.wikis) : null,
+                workPath: body.workPath ?? null,
+            }, { where: { id: profile.id } });
             return { id: sid };
         }));
 
@@ -795,9 +795,8 @@ class HttpServer {
             if (body.name !== undefined) {
                 await database.update(database.channelSession, { sessionName: body.name }, { where: { channelId: WEB_CHANNEL_ID, sessionId } });
             }
-            const profile = existing!.profileId > 0 ? await getSessionProfile(existing!.profileId) : null;
-            const target = profile ?? await getOrCreateAutoProfile(existing!.id);
-            if (!profile) await database.update(database.channelSession, { profileId: target.id }, { where: { id: existing!.id } });
+            const profile = await getSessionProfile(existing!.profileId);
+            if (!profile) throwBad(`Session "${sessionId}" has no associated profile`);
             const profileUpdate: Record<string, any> = {};
             if (body.agent !== undefined) profileUpdate.agentId = body.agent || null;
             if (body.saver !== undefined) profileUpdate.saver = body.saver || null;
@@ -806,7 +805,7 @@ class HttpServer {
             if (body.workPath !== undefined) profileUpdate.workPath = body.workPath;
             if (body.autoApproveAllTools !== undefined) profileUpdate.autoApproveAllTools = !!body.autoApproveAllTools;
             if (Object.keys(profileUpdate).length > 0) {
-                await database.update(database.sessionProfile, profileUpdate, { where: { id: target.id } });
+                await database.update(database.sessionProfile, profileUpdate, { where: { id: profile!.id } });
             }
             return { id: sessionId };
         }));
@@ -1746,15 +1745,16 @@ class HttpServer {
             return { profileId: (created as any).id };
         }));
 
-        // 切回独立：session.profileId 指回 auto profile（不存在则建）
+        // 切回独立：session.profileId 指回 session 自己的 auto profile（fork-profile 时保留）
         app.post('/api/channel-sessions/:id/detach-profile', api(async req => {
             const id = parseInt(req.params.id as string, 10);
             if (isNaN(id)) throwBad('Invalid id');
             const session = await getChannelSession(id, true);
             if (!session) throwBad(`channel_session id=${id} not found`);
-            const auto = await getOrCreateAutoProfile(id);
-            await database.update(database.channelSession, { profileId: auto.id }, { where: { id } });
-            return { profileId: auto.id };
+            const auto = await database.findOne<SessionProfileRow>(database.sessionProfile, { where: { autoForSessionId: id } });
+            if (!auto) throwBad(`Session id=${id} has no auto profile to detach to`);
+            await database.update(database.channelSession, { profileId: auto!.id }, { where: { id } });
+            return { profileId: auto!.id };
         }));
 
         app.get('/api/channel-sessions/:id/effective-config', api(async req => {

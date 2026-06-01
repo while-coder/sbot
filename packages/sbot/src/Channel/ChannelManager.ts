@@ -1,5 +1,5 @@
 import { ChannelPlugin, ChannelPluginContext, IChannelService, ChannelSessionInfo } from "channel.base";
-import { ChannelUserRow, database, type ChannelSessionRow, getOrCreateAutoProfile, getChannelSession } from "../Core/Database";
+import { ChannelUserRow, database, type ChannelSessionRow, getChannelSession, ensureChannelSession } from "../Core/Database";
 import { NowDate } from "scorpio.ai";
 import { Op } from "sequelize";
 import { sessionManager } from "../Session/SessionManager";
@@ -70,37 +70,6 @@ function hasChanged(row: Record<string, any>, data: Record<string, any>): boolea
     return Object.keys(data).some(k => row[k] !== data[k]);
 }
 
-/**
- * 确保 channel_session 行存在并关联 auto profile。
- * - findOrCreate session（按 channelId + sessionId）
- * - 已存在时按需更新 autoSessionName / avatar
- * - 自动建 / 找到 auto profile，确保 session.profileId > 0
- *
- * web channel 直接调用此 helper；channel plugin 的 doInitSession 在调用此 helper 前还会维护 channel_user。
- */
-export async function ensureChannelSession(
-    channelId: string,
-    sessionId: string,
-    opts?: { autoSessionName?: string | null; sessionAvatar?: string },
-): Promise<ChannelSessionRow> {
-    const sessionData: Record<string, any> = {};
-    if (opts?.autoSessionName != null) sessionData.autoSessionName = opts.autoSessionName;
-    if (opts?.sessionAvatar !== undefined) sessionData.avatar = opts.sessionAvatar;
-    const [dbSession, sessionCreated] = await database.findOrCreate<ChannelSessionRow>(database.channelSession, {
-        where: { channelId, sessionId },
-        defaults: { ...sessionData, sessionName: '', profileId: 0, createdAt: Date.now() },
-    });
-    if (!sessionCreated && hasChanged(dbSession as any, sessionData)) {
-        await database.update(database.channelSession, sessionData, { where: { channelId, sessionId } });
-    }
-    if (!(dbSession as any).profileId || (dbSession as any).profileId <= 0) {
-        const auto = await getOrCreateAutoProfile((dbSession as any).id);
-        await database.update(database.channelSession, { profileId: auto.id }, { where: { id: (dbSession as any).id } });
-        (dbSession as any).profileId = auto.id;
-    }
-    return dbSession as any;
-}
-
 async function doInitSession(channelId: string, ctx: import("channel.base").InitSessionContext): Promise<{ dbUserId: number; dbSessionId: number }> {
     const { userId, userName, userInfo, sessionId, sessionName, sendUpdate, userAvatar, sessionAvatar } = ctx;
     const userData: Record<string, any> = { userName, userInfo };
@@ -113,7 +82,10 @@ async function doInitSession(channelId: string, ctx: import("channel.base").Init
         await database.update(database.channelUser, userData, { where: { channelId, userId } });
     }
 
-    const dbSession = await ensureChannelSession(channelId, sessionId, { autoSessionName: sessionName ?? null, sessionAvatar });
+    const { session: dbSession } = await ensureChannelSession(channelId, sessionId, {
+        autoSessionName: sessionName ?? null,
+        sessionAvatar,
+    });
 
     if (sendUpdate) checkForUpdate(sendUpdate).catch(() => {});
     return { dbUserId: (dbUser as any).id, dbSessionId: dbSession.id };

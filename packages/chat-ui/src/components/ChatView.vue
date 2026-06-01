@@ -36,8 +36,6 @@ const { confirm } = useConfirm()
 
 const sessions          = ref<SessionItem[]>([])
 const activeSessionId   = ref<string | null>(null)
-// 未持久化的"虚拟" session：点 New 时创建，发首条消息后由 ws 端 ensureChannelSession 真正落库
-const pendingSession    = ref<SessionItem | null>(null)
 const settings          = ref<AppSettings>({ agents: {}, savers: {}, memories: {}, wikis: {} })
 
 const messages          = ref<StoredMessage[]>([])
@@ -74,18 +72,8 @@ const sessionSearchInputEl = ref<HTMLInputElement | null>(null)
 
 // ── Derived ──
 
-// pendingSession 在前，已持久化的 sessions 在后；切换/搜索/活动会话查找都基于这个合并列表
-const allSessions = computed<SessionItem[]>(() => {
-  const list: SessionItem[] = []
-  if (pendingSession.value) list.push(pendingSession.value)
-  for (const s of sessions.value) {
-    if (s.id !== pendingSession.value?.id) list.push(s)
-  }
-  return list
-})
-
 const activeSession = computed<SessionItem | null>(
-  () => allSessions.value.find(s => s.id === activeSessionId.value) ?? null,
+  () => sessions.value.find(s => s.id === activeSessionId.value) ?? null,
 )
 
 const hasSaver = computed(() => activeSession.value != null)
@@ -108,8 +96,8 @@ const fetchThinks = computed(() => props.transport.fetchThinks?.bind(props.trans
 
 const filteredSessions = computed<SessionItem[]>(() => {
   const q = sessionSearch.value.trim().toLowerCase()
-  if (!q) return allSessions.value
-  return allSessions.value.filter(s => {
+  if (!q) return sessions.value
+  return sessions.value.filter(s => {
     const name = (s.name || '').toLowerCase()
     const path = (s.workPath || '').toLowerCase()
     return name.includes(q) || path.includes(q)
@@ -142,10 +130,6 @@ const shouldAutoOpenExplorer = computed(() =>
 
 function handleEvent(evt: ChatEvent) {
   if ('sessionId' in evt && evt.sessionId !== activeSessionId.value) return
-  // pending session 收到任何 backend 事件即说明 ws 端已 ensureChannelSession，可以拉真实列表替换
-  if ('sessionId' in evt && pendingSession.value && evt.sessionId === pendingSession.value.id) {
-    persistPendingIfNeeded(evt.sessionId)
-  }
   switch (evt.type) {
     case ChatEventType.ConnectionStatus:
       if (!evt.online) resetStreamState()
@@ -445,38 +429,15 @@ async function onRenameSession(id: string, name: string) {
   }
 }
 
-// codex 风格：点 New 只在前端创建虚拟 session，发首条消息时由 ws 后端 ensureChannelSession 真正落库。
-// 切走/刷新前未发任何消息 → pending 直接丢弃，DB 不留垃圾行。
-function createNewSession() {
-  // 已有未发消息的 pending → 直接复用，避免连点产生多个未持久化项
-  if (pendingSession.value) {
-    activeSessionId.value = pendingSession.value.id
+async function createNewSession() {
+  try {
+    const res = await props.transport.createSession({ name: '' })
+    sessions.value = await props.transport.listSessions()
+    activeSessionId.value = res.id
     sidebarOpen.value = false
     settingsOpen.value = false
-    return
-  }
-  const id = (typeof crypto !== 'undefined' && typeof (crypto as any).randomUUID === 'function')
-    ? (crypto as any).randomUUID()
-    : `pending-${Date.now()}-${Math.random().toString(16).slice(2)}`
-  pendingSession.value = { id, name: '', agent: '', saver: '', memories: [] }
-  activeSessionId.value = id
-  sidebarOpen.value = false
-  settingsOpen.value = false
-}
-
-// pending session 收到第一条 backend 事件后，调用 listSessions 刷新（把 pending 替换为真实）
-async function persistPendingIfNeeded(eventSessionId: string) {
-  const pid = pendingSession.value?.id
-  if (!pid || pid !== eventSessionId) return
-  try {
-    const list = await props.transport.listSessions()
-    const matched = list.find(s => s.id === pid)
-    if (matched) {
-      sessions.value = list
-      pendingSession.value = null
-    }
   } catch (e) {
-    console.error('[ChatView] listSessions after persist', e)
+    console.error('[ChatView] createSession', e)
   }
 }
 
