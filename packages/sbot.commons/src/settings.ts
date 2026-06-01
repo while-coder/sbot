@@ -162,6 +162,7 @@ export interface McpEntry {
 export interface AgentConfig {
   name?: string
   type: AgentMode | string
+  tags?: string[]
   // 所有模式（ACP 除外）
   model?: string
   systemPrompt?: string

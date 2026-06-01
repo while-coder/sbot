@@ -40,6 +40,8 @@ import SInfoRow from './components/SInfoRow.vue'
 
 import SBadge from './components/SBadge.vue'
 import STag from './components/STag.vue'
+import STagInput from './components/STagInput.vue'
+import STagFilter from './components/STagFilter.vue'
 import SChip from './components/SChip.vue'
 import SCheckCard from './components/SCheckCard.vue'
 import SSwitch from './components/SSwitch.vue'
@@ -54,7 +56,7 @@ export {
   SButton, SIconButton, SModal, SToast, SConfirm,
   SInput, STextarea, SSelect, SMultiSelect, SRadio, SCheckbox, SFormItem, SFormSection, SFormDetails, SHint,
   SCard, SPageToolbar, SPageContent, STable, SInfoTable, SInfoRow,
-  SBadge, STag, SChip, SCheckCard, SSwitch, STabBar, STab,
+  SBadge, STag, STagInput, STagFilter, SChip, SCheckCard, SSwitch, STabBar, STab,
   STree, STreeNode,
 }
 export type { STableColumn } from './components/STable.vue'
@@ -69,7 +71,7 @@ const components = {
   SButton, SIconButton, SModal, SToast, SConfirm,
   SInput, STextarea, SSelect, SMultiSelect, SRadio, SCheckbox, SFormItem, SFormSection, SFormDetails, SHint,
   SCard, SPageToolbar, SPageContent, STable, SInfoTable, SInfoRow,
-  SBadge, STag, SChip, SCheckCard, SSwitch, STabBar, STab,
+  SBadge, STag, STagInput, STagFilter, SChip, SCheckCard, SSwitch, STabBar, STab,
   STree, STreeNode,
 } as const
 
@@ -107,6 +109,8 @@ declare module 'vue' {
     SInfoRow: typeof SInfoRow
     SBadge: typeof SBadge
     STag: typeof STag
+    STagInput: typeof STagInput
+    STagFilter: typeof STagFilter
     SChip: typeof SChip
     SCheckCard: typeof SCheckCard
     SSwitch: typeof SSwitch

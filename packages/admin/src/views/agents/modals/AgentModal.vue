@@ -7,7 +7,7 @@ import { useToast, useConfirm } from 'sbot-ui'
 import { AgentMode, ACPSessionMode, InsightScope, TodoScope } from '@/shared/types'
 import type { Agent, SubAgentRef } from '@/shared/types'
 import CreatePromptModal from '@/components/modals/CreatePromptModal.vue'
-import { SModal, SButton, SInput, STextarea, SSelect, SFormItem, SFormSection, SHint, SCheckCard } from 'sbot-ui'
+import { SModal, SButton, SInput, STextarea, SSelect, SFormItem, SFormSection, SHint, SCheckCard, STagInput } from 'sbot-ui'
 
 const { t } = useI18n()
 const { confirm } = useConfirm()
@@ -37,6 +37,14 @@ function applyPreset(idx: number) {
 const { show } = useToast()
 
 const agents      = computed(() => store.settings.agents || {})
+const allTagSuggestions = computed(() => {
+  const set = new Set<string>()
+  for (const a of Object.values(store.settings.agents || {})) {
+    const tags = (a as any).tags
+    if (Array.isArray(tags)) for (const t of tags) if (t) set.add(t)
+  }
+  return Array.from(set).sort()
+})
 const modelOptions  = computed(() =>
   Object.entries(store.settings.models || {}).map(([id, m]) => ({ id, label: m.name || id }))
 )
@@ -50,6 +58,7 @@ const editingId  = ref<string | null>(null)
 const form = ref({
   id: '',
   name: '',
+  tags: [] as string[],
   type: AgentMode.Single as string,
   model: '',
   compactModel: '',
@@ -78,6 +87,7 @@ function open(id?: string) {
     form.value = {
       id: id,
       name: (a as any).name || '',
+      tags: Array.isArray((a as any).tags) ? [...(a as any).tags] : [],
       type: a.type || AgentMode.Single,
       model: a.model || '',
       compactModel: (a as any).compactModel || '',
@@ -101,7 +111,7 @@ function open(id?: string) {
     editingId.value = null
     tempSubAgents.value = []
     form.value = {
-      id: '', name: '', type: AgentMode.Single, model: '', compactModel: '',
+      id: '', name: '', tags: [], type: AgentMode.Single, model: '', compactModel: '',
       systemPrompt: '',
       insightScope: InsightScope.Disabled, insightExtractor: '', insightExtractorPromptFile: '',
       todoScope: TodoScope.Disabled, todoExtractor: '', todoExtractorPromptFile: '',
@@ -174,6 +184,7 @@ async function save() {
     }
 
     if (form.value.name.trim()) (config as any).name = form.value.name.trim()
+    if (form.value.tags.length > 0) (config as any).tags = [...form.value.tags]
     const id = editingId.value
     if (id) {
       await apiFetch(`/api/agents/${encodeURIComponent(id)}`, 'PUT', config)
@@ -290,6 +301,14 @@ defineExpose({ open })
     </SFormItem>
     <SFormItem :label="t('agents.name') + ' *'">
       <SInput v-model="form.name" :placeholder="t('agents.name_placeholder')" />
+    </SFormItem>
+    <SFormItem :label="t('agents.tags')" :hint="t('agents.tags_hint')">
+      <STagInput
+        v-model="form.tags"
+        :placeholder="t('agents.tags_placeholder')"
+        :suggestions="allTagSuggestions"
+        @invalid="(reason) => reason === 'duplicate' ? show(t('agents.tags_duplicate'), 'warning') : null"
+      />
     </SFormItem>
     <SFormItem :label="t('common.type') + ' *'">
       <SSelect v-model="form.type">

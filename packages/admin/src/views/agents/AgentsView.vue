@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store, applyMcpList } from '@/shared/store'
-import { useToast, useConfirm, SButton, SCard, SPageToolbar, SPageContent, STable, SInfoTable, SInfoRow, SModal, SInput, type STableColumn } from 'sbot-ui'
+import { useToast, useConfirm, SButton, SCard, SPageToolbar, SPageContent, STable, SInfoTable, SInfoRow, SModal, SInput, STagFilter, type STableColumn } from 'sbot-ui'
 import AgentModal from './modals/AgentModal.vue'
 import AgentMcpModal from './modals/AgentMcpModal.vue'
 import AgentSkillsModal from './modals/AgentSkillsModal.vue'
@@ -24,6 +24,25 @@ const sortedAgentRows = computed<AgentRow[]>(() => {
   return Object.entries(agents.value)
     .map(([id, a]) => ({ id, ...(a as any) }))
     .sort((a, b) => order(a.type) - order(b.type))
+})
+
+const allTags = computed<string[]>(() => {
+  const set = new Set<string>()
+  for (const a of Object.values(agents.value)) {
+    const tags = (a as any).tags
+    if (Array.isArray(tags)) for (const t of tags) if (t) set.add(t)
+  }
+  return Array.from(set).sort()
+})
+
+const activeTagFilters = ref<string[]>([])
+const filteredAgentRows = computed<AgentRow[]>(() => {
+  if (activeTagFilters.value.length === 0) return sortedAgentRows.value
+  return sortedAgentRows.value.filter(row => {
+    const rowTags: string[] = Array.isArray(row.tags) ? row.tags : []
+    // AND 过滤：所选标签都需命中
+    return activeTagFilters.value.every(t => rowTags.includes(t))
+  })
 })
 const modelName = (id: string) => (store.settings.models?.[id] as any)?.name || id
 
@@ -321,11 +340,15 @@ async function saveMcpParams() {
     <SPageToolbar>
       <SButton type="outline" size="sm" @click="refresh">{{ t('common.refresh') }}</SButton>
       <SButton type="primary" size="sm" @click="agentModal?.open()">{{ t('agents.add') }}</SButton>
+      <div v-if="allTags.length" class="agents-tag-filter">
+        <span class="agents-tag-filter-label">{{ t('agents.filter_by_tag') }}</span>
+        <STagFilter v-model="activeTagFilters" :options="allTags" />
+      </div>
     </SPageToolbar>
     <SPageContent>
       <STable
         :columns="columns"
-        :rows="sortedAgentRows"
+        :rows="filteredAgentRows"
         row-key="id"
         expandable
         v-model:expandedKeys="expandedIds"
@@ -338,6 +361,12 @@ async function saveMcpParams() {
           <span v-if="row.skills === '*'" class="config-badge config-badge-info">{{ t('agents.tab_skills') }} *</span>
           <span v-if="row.mcp === '*'" class="config-badge config-badge-info">{{ t('agents.tab_tools') }} *</span>
           <span v-if="row.autoApproveAllTools" class="config-badge config-badge-warn">{{ t('agents.auto_approve_all_tools') }}</span>
+          <span
+            v-for="tag in (row.tags || [])"
+            :key="tag"
+            class="config-badge config-badge-tag"
+            :class="{ 'config-badge-tag-active': activeTagFilters.includes(tag) }"
+          >{{ tag }}</span>
         </template>
 
         <template #type="{ row }">
@@ -552,6 +581,20 @@ async function saveMcpParams() {
 .config-badge-id { background: #e0f2fe; color: #0369a1; }
 .config-badge-info { background: #dbeafe; color: #1d4ed8; }
 .config-badge-warn { background: #fef3c7; color: #b45309; }
+.config-badge-tag { background: #f1f5f9; color: #475569; }
+.config-badge-tag-active { background: #1f2937; color: #f9fafb; }
+
+.agents-tag-filter {
+  display: flex;
+  align-items: center;
+  gap: var(--sui-sp-3);
+  margin-left: var(--sui-sp-4);
+  flex-wrap: wrap;
+}
+.agents-tag-filter-label {
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg-muted);
+}
 
 /* Detail tabs */
 .agent-tab-bar {
@@ -687,5 +730,7 @@ html[data-theme="dark"] .agent-type-acp { background: #134e4a; color: #5eead4; }
 html[data-theme="dark"] .config-badge-id { background: #0c4a6e; color: #7dd3fc; }
 html[data-theme="dark"] .config-badge-info { background: #1e3a5f; color: #93c5fd; }
 html[data-theme="dark"] .config-badge-warn { background: #422006; color: #fcd34d; }
+html[data-theme="dark"] .config-badge-tag { background: #334155; color: #cbd5e1; }
+html[data-theme="dark"] .config-badge-tag-active { background: #e5e7eb; color: #1f2937; }
 html[data-theme="dark"] .acp-command { color: #5eead4; }
 </style>

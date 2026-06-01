@@ -31,6 +31,7 @@ export interface NamedEmbeddingConfig extends EmbeddingConfig {
 export interface BaseAgentEntry {
   name?: string;               // 显示名称（可选，便于识别）
   type: AgentMode;
+  tags?: string[];             // 分类标签，便于在管理界面过滤
   autoApproveTools?: string[]; // 自动批准的工具列表（无需用户确认）
   autoApproveAllTools?: boolean; // 自动批准所有工具（无需用户确认）
 }
