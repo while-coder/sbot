@@ -10,6 +10,7 @@ import { ApprovalTimeoutValue, type ChannelConfig } from '@/shared/types'
 import SaverViewModal from '@/components/modals/SaverViewModal.vue'
 import TodoListModal from '@/components/modals/TodoListModal.vue'
 import { PathPickerModal, WebSocketTransport } from '@sbot/chat-ui'
+import SessionConfigOverridesEditor, { type SessionOverrides, type ConfigSource } from '@/components/SessionConfigOverridesEditor.vue'
 
 const { t } = useI18n()
 const { isMobile } = useResponsive()
@@ -30,28 +31,15 @@ interface ChannelSessionRow {
   sessionName: string
   autoSessionName: string
   avatar: string
-  agentId: string | null
-  saver: string | null
-  memories: string[]
-  wikis: string[]
-  workPath: string | null
-  streamVerbose: boolean | null
-  autoApproveAllTools: boolean | null
-  approvalTimeout: number | null
-  approvalTimeoutValue: ApprovalTimeoutValue | null
-  askTimeout: number | null
-  askTimeoutMessage: string | null
-  intentModel: string | null
-  intentPrompt: string | null
-  intentThreshold: number | null
-  useChannelMemories: boolean
-  useChannelWikis: boolean
-  inputTokens: number
-  outputTokens: number
-  totalTokens: number
-  lastInputTokens: number
-  lastOutputTokens: number
-  lastTotalTokens: number
+  profileId: number
+  createdAt: number
+}
+
+interface ProfileOption {
+  id: number
+  name: string
+  autoForSessionId: number | null
+  sessionCount?: number
 }
 
 interface UserRow {
@@ -119,47 +107,198 @@ const userMap          = ref<Record<string, UserRow[]>>({})
 const channelLoading   = ref<Record<string, boolean>>({})
 const viewUser         = ref<UserRow | null>(null)
 
-const editingSession   = ref<ChannelSessionRow | null>(null)
-const sessionForm      = ref<{ name: string; agentId: string; saver: string; memories: string[]; wikis: string[]; useChannelMemories: boolean; useChannelWikis: boolean; workPath: string; intentModel: string | null; intentPrompt: string; intentThreshold: number; streamVerbose: boolean | null; autoApproveAllTools: boolean | null; approvalTimeout: number | null; approvalTimeoutValue: ApprovalTimeoutValue | null; askTimeout: number | null; askTimeoutMessage: string }>({ name: '', agentId: '', saver: '', memories: [], wikis: [], useChannelMemories: false, useChannelWikis: false, workPath: '', intentModel: null, intentPrompt: '', intentThreshold: 0.7, streamVerbose: null, autoApproveAllTools: null, approvalTimeout: null, approvalTimeoutValue: null, askTimeout: null, askTimeoutMessage: '' })
+const editingSession = ref<ChannelSessionRow | null>(null)
 
-function openEditSession(s: ChannelSessionRow) {
+interface ProfileFull extends ProfileOption {
+  agentId?: string | null
+  saver?: string | null
+  memories?: string | null
+  wikis?: string | null
+  useChannelMemories?: boolean | null
+  useChannelWikis?: boolean | null
+  workPath?: string | null
+  streamVerbose?: boolean | null
+  autoApproveAllTools?: boolean | null
+  approvalTimeout?: number | null
+  approvalTimeoutValue?: ApprovalTimeoutValue | null
+  askTimeout?: number | null
+  askTimeoutMessage?: string | null
+  intentModel?: string | null
+  intentPrompt?: string | null
+  intentThreshold?: number | null
+}
+
+const editingProfile = ref<ProfileFull | null>(null)
+const visibleProfiles = ref<ProfileOption[]>([])
+const effectiveSources = ref<Partial<Record<keyof SessionOverrides, ConfigSource>>>({})
+const effectiveResolved = ref<Partial<Record<keyof SessionOverrides, any>>>({})
+
+const sessionForm = ref<{ name: string; overrides: SessionOverrides }>({
+  name: '',
+  overrides: emptyOverrides(),
+})
+
+function emptyOverrides(): SessionOverrides {
+  return {
+    agentId: null, saver: null, memories: null, wikis: null,
+    useChannelMemories: null, useChannelWikis: null,
+    workPath: null, streamVerbose: null, autoApproveAllTools: null,
+    approvalTimeout: null, approvalTimeoutValue: null,
+    askTimeout: null, askTimeoutMessage: null,
+    intentModel: null, intentPrompt: null, intentThreshold: null,
+  }
+}
+
+function parseList(raw: string | null | undefined): string[] {
+  if (!raw) return []
+  try { const v = JSON.parse(raw); return Array.isArray(v) ? v : [] } catch { return [] }
+}
+
+function profileToOverrides(p: ProfileFull): SessionOverrides {
+  const toTriBool = (v: any): boolean | null => v == null ? null : !!v
+  return {
+    agentId: p.agentId ?? null,
+    saver: p.saver ?? null,
+    memories: p.memories == null ? null : parseList(p.memories),
+    wikis: p.wikis == null ? null : parseList(p.wikis),
+    useChannelMemories: toTriBool(p.useChannelMemories),
+    useChannelWikis: toTriBool(p.useChannelWikis),
+    workPath: p.workPath ?? null,
+    streamVerbose: toTriBool(p.streamVerbose),
+    autoApproveAllTools: toTriBool(p.autoApproveAllTools),
+    approvalTimeout: p.approvalTimeout ?? null,
+    approvalTimeoutValue: p.approvalTimeoutValue ?? null,
+    askTimeout: p.askTimeout ?? null,
+    askTimeoutMessage: p.askTimeoutMessage ?? null,
+    intentModel: p.intentModel ?? null,
+    intentPrompt: p.intentPrompt ?? null,
+    intentThreshold: p.intentThreshold ?? null,
+  }
+}
+
+const isCurrentProfileShared = computed(() => {
+  const p = editingProfile.value
+  return !!p && p.autoForSessionId == null && (p.sessionCount ?? 1) > 1
+})
+const isCurrentProfileAuto = computed(() => !!editingProfile.value?.autoForSessionId)
+
+async function loadVisibleProfiles() {
+  try {
+    const res = await apiFetch('/api/session-profiles')
+    visibleProfiles.value = (res.data || []) as ProfileOption[]
+  } catch { visibleProfiles.value = [] }
+}
+
+async function loadProfileFull(profileId: number): Promise<ProfileFull | null> {
+  try {
+    const res = await apiFetch(`/api/session-profiles/${profileId}`)
+    return res.data as ProfileFull
+  } catch { return null }
+}
+
+async function loadEffective(sessionId: number) {
+  try {
+    const res = await apiFetch(`/api/channel-sessions/${sessionId}/effective-config`)
+    const d = res.data as any
+    effectiveResolved.value = d?.resolved ?? {}
+    effectiveSources.value = d?.sources ?? {}
+    return d
+  } catch {
+    effectiveResolved.value = {}
+    effectiveSources.value = {}
+    return null
+  }
+}
+
+async function openEditSession(s: ChannelSessionRow) {
   editingSession.value = s
-  const rawMem = s.memories
-  const memArr = Array.isArray(rawMem) ? rawMem : typeof rawMem === 'string' ? (() => { try { const p = JSON.parse(rawMem); return Array.isArray(p) ? p : [] } catch { return [] } })() : []
-  const rawWiki = (s as any).wikis
-  const wikiArr = Array.isArray(rawWiki) ? rawWiki : typeof rawWiki === 'string' ? (() => { try { const p = JSON.parse(rawWiki); return Array.isArray(p) ? p : [] } catch { return [] } })() : []
-  sessionForm.value = { name: s.sessionName || '', agentId: s.agentId || '', saver: s.saver || '', memories: memArr, wikis: wikiArr, useChannelMemories: !!s.useChannelMemories, useChannelWikis: !!s.useChannelWikis, workPath: s.workPath || '', intentModel: s.intentModel ?? null, intentPrompt: s.intentPrompt || '', intentThreshold: s.intentThreshold ?? 0.7, streamVerbose: s.streamVerbose, autoApproveAllTools: s.autoApproveAllTools, approvalTimeout: s.approvalTimeout, approvalTimeoutValue: s.approvalTimeoutValue, askTimeout: s.askTimeout, askTimeoutMessage: s.askTimeoutMessage || '' }
+  sessionForm.value = { name: s.sessionName || '', overrides: emptyOverrides() }
+  await loadVisibleProfiles()
+  const eff = await loadEffective(s.id)
+  if (eff?.profile) {
+    // 用 GET /api/session-profiles/:id 拿 sessionCount，方便共享提示
+    const pid = (eff.profile as any).id
+    const full = await loadProfileFull(pid)
+    if (full) {
+      // 计算 sessionCount（visibleProfiles 不含 auto profile，对共享 visible 才有 sessionCount）
+      const vp = visibleProfiles.value.find(v => v.id === pid)
+      full.sessionCount = vp?.sessionCount ?? ((full as any).sessions?.length ?? 1)
+      editingProfile.value = full
+      sessionForm.value.overrides = profileToOverrides(full)
+    } else {
+      editingProfile.value = null
+    }
+  }
+}
+
+async function selectProfile(targetId: number | 'default') {
+  const s = editingSession.value
+  if (!s) return
+  try {
+    if (targetId === 'default') {
+      await apiFetch(`/api/channel-sessions/${s.id}/detach-profile`, 'POST', {})
+      show(t('channels.profile_detach_done'))
+    } else {
+      await apiFetch(`/api/channel-sessions/${s.id}`, 'PUT', { profileId: targetId })
+    }
+    await openEditSession(s)
+  } catch (e: any) {
+    show(e.message, 'error')
+  }
+}
+
+async function cloneProfileFromCurrent() {
+  const s = editingSession.value
+  if (!s) return
+  try {
+    const name = `${s.sessionName || s.sessionId}-profile`
+    await apiFetch(`/api/channel-sessions/${s.id}/clone-profile`, 'POST', { name })
+    show(t('channels.profile_clone_done'))
+    await openEditSession(s)
+  } catch (e: any) {
+    show(e.message, 'error')
+  }
 }
 
 async function saveSession() {
   const s = editingSession.value
-  if (!s) return
+  const p = editingProfile.value
+  if (!s || !p) return
+
+  // 共享 profile 编辑警告
+  if (isCurrentProfileShared.value) {
+    const ok = await confirm(t('channels.profile_shared_warn', { n: p.sessionCount }), { danger: true })
+    if (!ok) return
+  }
+
   const validMemIds = new Set(memoryOptions.value.map(m => m.id))
-  const memories = sessionForm.value.memories.filter(id => validMemIds.has(id))
   const validWikiIds = new Set(wikiOptions.value.map(w => w.id))
-  const wikis = sessionForm.value.wikis.filter(id => validWikiIds.has(id))
+  const o = sessionForm.value.overrides
+  const profilePayload = {
+    agentId: o.agentId,
+    saver: o.saver,
+    memories: o.memories == null ? null : o.memories.filter(id => validMemIds.has(id)),
+    wikis: o.wikis == null ? null : o.wikis.filter(id => validWikiIds.has(id)),
+    useChannelMemories: o.useChannelMemories,
+    useChannelWikis: o.useChannelWikis,
+    workPath: o.workPath,
+    streamVerbose: o.streamVerbose,
+    autoApproveAllTools: o.autoApproveAllTools,
+    approvalTimeout: o.approvalTimeout,
+    approvalTimeoutValue: o.approvalTimeoutValue,
+    askTimeout: o.askTimeout,
+    askTimeoutMessage: o.askTimeoutMessage,
+    intentModel: o.intentModel,
+    intentPrompt: o.intentModel == null ? null : o.intentPrompt,
+    intentThreshold: o.intentModel == null ? null : o.intentThreshold,
+  }
+
   try {
-    const sessionPayload = {
-      sessionName: sessionForm.value.name.trim(),
-      agentId: sessionForm.value.agentId,
-      saver: sessionForm.value.saver || null,
-      memories,
-      wikis,
-      useChannelMemories: sessionForm.value.useChannelMemories,
-      useChannelWikis: sessionForm.value.useChannelWikis,
-      workPath: sessionForm.value.workPath.trim() || null,
-      intentModel: sessionForm.value.intentModel ?? null,
-      intentPrompt: sessionForm.value.intentPrompt.trim() || null,
-      intentThreshold: sessionForm.value.intentModel ? sessionForm.value.intentThreshold : null,
-      streamVerbose: sessionForm.value.streamVerbose,
-      autoApproveAllTools: sessionForm.value.autoApproveAllTools,
-      approvalTimeout: sessionForm.value.approvalTimeout ?? null,
-      approvalTimeoutValue: sessionForm.value.approvalTimeoutValue ?? null,
-      askTimeout: sessionForm.value.askTimeout ?? null,
-      askTimeoutMessage: sessionForm.value.askTimeoutMessage.trim() || null,
-    }
-    await apiFetch(`/api/channel-sessions/${s.id}`, 'PUT', sessionPayload)
-    Object.assign(s, sessionPayload)
+    // session 自身只能改 sessionName / avatar
+    await apiFetch(`/api/channel-sessions/${s.id}`, 'PUT', { sessionName: sessionForm.value.name.trim() })
+    // 配置字段写到 profile
+    await apiFetch(`/api/session-profiles/${p.id}`, 'PUT', profilePayload)
+    s.sessionName = sessionForm.value.name.trim()
     show(t('common.saved'))
     editingSession.value = null
   } catch (e: any) {
@@ -801,83 +940,36 @@ async function refresh() {
           <SFormItem :label="t('channels.session_name')">
             <SInput v-model="sessionForm.name" :placeholder="t('channels.session_name_placeholder')" />
           </SFormItem>
-          <SFormItem :label="t('common.agent')">
-            <SSelect v-model="sessionForm.agentId">
-              <option value="">{{ t('channels.use_channel_default') }}</option>
-              <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }} ({{ a.type }})</option>
+
+          <SFormItem :label="t('channels.profile')" :hint="t('channels.profile_hint')">
+            <SSelect
+              :model-value="isCurrentProfileAuto ? 'default' : String(editingProfile?.id ?? '')"
+              @update:model-value="v => selectProfile(v === 'default' ? 'default' : Number(v))"
+            >
+              <option value="default">{{ t('channels.profile_none') }}</option>
+              <option v-for="p in visibleProfiles" :key="p.id" :value="String(p.id)">
+                {{ p.name }}{{ p.sessionCount && p.sessionCount > 1 ? ` (${p.sessionCount})` : '' }}
+              </option>
             </SSelect>
-          </SFormItem>
-          <SFormItem :label="t('common.storage')">
-            <SSelect v-model="sessionForm.saver">
-              <option value="">{{ t('channels.use_channel_default') }}</option>
-              <option v-for="s in saverOptions" :key="s.id" :value="s.id">{{ s.label }}</option>
-            </SSelect>
-          </SFormItem>
-          <SFormItem :label="t('common.memory')" :hint="t('channels.use_channel_memories_hint')">
-            <SMultiSelect v-model="sessionForm.memories" :options="memoryOptions" />
-            <label class="toggle-label toggle-mt">
-              <input type="checkbox" v-model="sessionForm.useChannelMemories" />
-              <span>{{ t('channels.use_channel_memories') }}</span>
-            </label>
-          </SFormItem>
-          <SFormItem :label="t('common.wiki')" :hint="t('channels.use_channel_wikis_hint')">
-            <SMultiSelect v-model="sessionForm.wikis" :options="wikiOptions" />
-            <label class="toggle-label toggle-mt">
-              <input type="checkbox" v-model="sessionForm.useChannelWikis" />
-              <span>{{ t('channels.use_channel_wikis') }}</span>
-            </label>
-          </SFormItem>
-          <SFormItem :label="t('directory.path_label')" :hint="t('channels.work_path_hint')">
-            <div class="path-row">
-              <SInput v-model="sessionForm.workPath" type="text" :placeholder="t('directory.path_placeholder')" class="path-input" />
-              <SButton type="outline" size="sm" @click="pathPicker?.open(sessionForm.workPath)">{{ t('directory.browse') }}</SButton>
+            <div class="profile-actions">
+              <SButton v-if="isCurrentProfileAuto" type="outline" size="sm" @click="cloneProfileFromCurrent">{{ t('channels.profile_clone') }}</SButton>
+              <SButton v-else type="outline" size="sm" @click="selectProfile('default')">{{ t('channels.profile_detach') }}</SButton>
+            </div>
+            <div v-if="isCurrentProfileShared && editingProfile" class="profile-shared-hint">
+              ⓘ {{ t('channels.profile_shared_with', { n: (editingProfile.sessionCount ?? 1) - 1 }) }}
             </div>
           </SFormItem>
-          <SFormItem :label="t('channels.stream_verbose')" :hint="t('channels.stream_verbose_hint')">
-            <SSelect :model-value="sessionForm.streamVerbose === null ? '' : String(sessionForm.streamVerbose)" @update:model-value="v => sessionForm.streamVerbose = v === '' ? null : v === 'true'">
-              <option value="">{{ t('channels.use_channel_default') }}</option>
-              <option value="true">{{ t('common.enabled') }}</option>
-              <option value="false">{{ t('common.disabled') }}</option>
-            </SSelect>
-          </SFormItem>
-          <SFormItem :label="t('settings.auto_approve_all')" :hint="t('settings.auto_approve_all_hint')">
-            <SSelect :model-value="sessionForm.autoApproveAllTools === null ? '' : String(sessionForm.autoApproveAllTools)" @update:model-value="v => sessionForm.autoApproveAllTools = v === '' ? null : v === 'true'">
-              <option value="">{{ t('channels.use_channel_default') }}</option>
-              <option value="true">{{ t('common.enabled') }}</option>
-              <option value="false">{{ t('common.disabled') }}</option>
-            </SSelect>
-          </SFormItem>
-          <SFormItem :label="t('channels.approval_timeout')" :hint="t('channels.approval_timeout_hint') + ' (' + t('channels.use_channel_default') + ': 0)'">
-            <SInput :model-value="sessionForm.approvalTimeout ?? 0" type="number" @update:model-value="v => sessionForm.approvalTimeout = (v === '' || v === null || Number(v) <= 0) ? null : Number(v)" />
-          </SFormItem>
-          <SFormItem v-if="sessionForm.approvalTimeout != null && sessionForm.approvalTimeout > 0" :label="t('channels.approval_timeout_value')">
-            <SSelect :model-value="sessionForm.approvalTimeoutValue ?? ''" @update:model-value="v => sessionForm.approvalTimeoutValue = (v === '' ? null : v as ApprovalTimeoutValue)">
-              <option value="">{{ t('channels.use_channel_default') }}</option>
-              <option :value="ApprovalTimeoutValue.Deny">{{ t('channels.approval_timeout_value_deny') }}</option>
-              <option :value="ApprovalTimeoutValue.Allow">{{ t('channels.approval_timeout_value_allow') }}</option>
-            </SSelect>
-          </SFormItem>
-          <SFormItem :label="t('channels.ask_timeout')" :hint="t('channels.ask_timeout_hint') + ' (' + t('channels.use_channel_default') + ': 0)'">
-            <SInput :model-value="sessionForm.askTimeout ?? 0" type="number" @update:model-value="v => sessionForm.askTimeout = (v === '' || v === null || Number(v) <= 0) ? null : Number(v)" />
-          </SFormItem>
-          <SFormItem v-if="sessionForm.askTimeout != null && sessionForm.askTimeout > 0" :label="t('channels.ask_timeout_message')" :hint="t('channels.ask_timeout_message_hint')">
-            <SInput v-model="sessionForm.askTimeoutMessage" type="text" />
-          </SFormItem>
-          <SFormItem :label="t('channels.intent_model')" :hint="t('channels.intent_model_hint')">
-            <SSelect :model-value="sessionForm.intentModel ?? '__default__'" @update:model-value="v => sessionForm.intentModel = v === '__default__' ? null : String(v)">
-              <option value="__default__">{{ t('channels.use_channel_default') }}</option>
-              <option value="">{{ t('common.not_use') }}</option>
-              <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-            </SSelect>
-          </SFormItem>
-          <template v-if="sessionForm.intentModel">
-            <SFormItem :label="t('channels.intent_threshold')" :hint="t('channels.intent_threshold_hint')">
-              <SInput v-model.number="sessionForm.intentThreshold" type="number" />
-            </SFormItem>
-            <SFormItem :label="t('channels.intent_prompt')">
-              <STextarea v-model="sessionForm.intentPrompt" :rows="4" :placeholder="t('channels.intent_prompt_placeholder')" />
-            </SFormItem>
-          </template>
+
+          <SessionConfigOverridesEditor
+            v-model="sessionForm.overrides"
+            :sources="effectiveSources"
+            :resolved="effectiveResolved"
+            :agent-options="agentOptions"
+            :saver-options="saverOptions"
+            :memory-options="memoryOptions"
+            :wiki-options="wikiOptions"
+            :model-options="modelOptions"
+          />
         </div>
         <div class="drawer-footer">
           <SButton type="outline" @click="editingSession = null">{{ t('common.cancel') }}</SButton>
@@ -924,6 +1016,8 @@ async function refresh() {
 
 <style scoped>
 .cell-mono { font-family: var(--sui-font-mono); font-size: var(--sui-fs-xs); }
+.profile-actions { display: flex; gap: var(--sui-sp-2); margin-top: var(--sui-sp-2); }
+.profile-shared-hint { margin-top: var(--sui-sp-2); font-size: var(--sui-fs-sm); color: var(--sui-fg-muted); }
 .user-info-text :deep(textarea) { font-family: var(--sui-font-mono); font-size: var(--sui-fs-sm); }
 
 .apikey-field { display: flex; gap: 0; }

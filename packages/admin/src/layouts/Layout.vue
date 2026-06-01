@@ -64,6 +64,7 @@ const menuGroups = computed(() => [
     items: [
       { label: t('nav.chat'), key: '/chat' },
       { label: t('nav.channels'), key: '/channels' },
+      { label: t('nav.session_profiles'), key: '/session-profiles' },
     ],
   },
   {

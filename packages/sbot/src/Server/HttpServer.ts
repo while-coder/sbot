@@ -19,12 +19,12 @@ import { installSkillFromZip } from '../SkillHub/bundle';
 import axios from 'axios';
 import { AgentStoreService } from '../AgentStore';
 import { LoggerService, log4js } from '../Core/LoggerService';
-import { database, channelThreadId, parseMemories, getChannelSession, type ChannelSessionRow, type UsageLogRow } from '../Core/Database';
+import { database, parseMemories, getChannelSession, getSessionProfile, getOrCreateAutoProfile, getEffectiveSession, createSessionWithAutoProfile, type ChannelSessionRow, type SessionProfileRow, type UsageLogRow } from '../Core/Database';
 import { Op } from 'sequelize';
 import { sessionManager } from '../Session/SessionManager';
 import { schedulerService } from '../Scheduler/SchedulerService';
 import { heartbeatService } from '../Heartbeat/HeartbeatService';
-import { channelManager } from '../Channel/ChannelManager';
+import { channelManager, ensureChannelSession } from '../Channel/ChannelManager';
 import { WsCommandType, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE } from 'sbot.commons';
 import { getModelMeta, getKnownModels } from './modelCatalog';
 import { FsApi } from './FsApi';
@@ -511,13 +511,13 @@ class HttpServer {
                     const msg = JSON.parse(data.toString()) as { type?: string; [key: string]: any };
                     const sid = msg.sessionId as string | undefined;
                     if (!sid) throw new Error('sessionId is required');
-                    const threadId = channelThreadId(WEB_CHANNEL_TYPE, WEB_CHANNEL_ID, sid);
+                    // 与 channel plugin 路径对齐：先 ensure session+profile，再交给 sessionManager
+                    const row = await ensureChannelSession(WEB_CHANNEL_ID, sid);
+                    const threadId = String(row.profileId);
                     switch (msg.type) {
                         case WsCommandType.Query: {
                             const enriched = await processMessage(msg.parts ?? [], msg.attachments, uploadDir);
                             if (isEmptyContent(enriched)) break;
-                            const row = await database.findOne<ChannelSessionRow>(database.channelSession, { where: { channelId: WEB_CHANNEL_ID, sessionId: sid } });
-                            if (!row) throw new Error(`Web session "${sid}" not found`);
                             sessionManager.onReceiveChannelMessage(threadId, enriched, {
                                 channelType: WEB_CHANNEL_TYPE,
                                 channelId: WEB_CHANNEL_ID,
@@ -619,7 +619,7 @@ class HttpServer {
             return { summary, daily: Array.from(dailyMap.values()) };
         }));
 
-        // 按 threadId 或 sessionId 查询 token 用量
+        // 按 threadId 或 sessionId 查询 token 用量（统计存在 profile，按 session.profileId 反查）
         app.get('/api/thread-usage', api(async req => {
             const threads = (req.query.threads as string || '').split(',').filter(Boolean);
             const sessions = (req.query.sessions as string || '').split(',').filter(Boolean);
@@ -627,7 +627,9 @@ class HttpServer {
             if (threads.length > 0) Object.assign(result, await database.loadThreadUsages(threads));
             for (const sid of sessions) {
                 const row = await database.findOne<ChannelSessionRow>(database.channelSession, { where: { channelId: WEB_CHANNEL_ID, sessionId: sid } });
-                if (row) result[sid] = { inputTokens: row.inputTokens, outputTokens: row.outputTokens, totalTokens: row.totalTokens, lastInputTokens: row.lastInputTokens, lastOutputTokens: row.lastOutputTokens, lastTotalTokens: row.lastTotalTokens };
+                if (!row) continue;
+                const profile = await getSessionProfile(row.profileId);
+                if (profile) result[sid] = { inputTokens: profile.inputTokens, outputTokens: profile.outputTokens, totalTokens: profile.totalTokens, lastInputTokens: profile.lastInputTokens, lastOutputTokens: profile.lastOutputTokens, lastTotalTokens: profile.lastTotalTokens };
             }
             return result;
         }));
@@ -746,41 +748,41 @@ class HttpServer {
             createReturn: (id, body) => ({ id, ...body }),
             getSettings,
         });
-        app.get('/api/sessions', api(async req => {
-            const workPath = req.query.workPath as string | undefined;
-            const where: any = { channelId: WEB_CHANNEL_ID };
-            if (workPath) where.workPath = workPath;
+        app.get('/api/sessions', api(async () => {
             const rows = await database.findAll<ChannelSessionRow>(database.channelSession, {
-                where,
+                where: { channelId: WEB_CHANNEL_ID },
                 order: [['createdAt', 'DESC']],
             });
-            return rows.map(r => ({
-                id: r.sessionId,
-                name: r.sessionName || r.autoSessionName,
-                agent: r.agentId || '',
-                saver: r.saver || '',
-                memories: parseMemories(r.memories),
-                wikis: parseMemories(r.wikis),
-                workPath: r.workPath || undefined,
-                autoApproveAllTools: r.autoApproveAllTools || undefined,
-            }));
+            const result: any[] = [];
+            for (const r of rows) {
+                const profile = await getSessionProfile(r.profileId);
+                result.push({
+                    id: r.sessionId,
+                    name: r.sessionName || r.autoSessionName,
+                    agent: profile?.agentId || '',
+                    saver: profile?.saver || '',
+                    memories: parseMemories(profile?.memories ?? null),
+                    wikis: parseMemories(profile?.wikis ?? null),
+                    workPath: profile?.workPath || undefined,
+                    autoApproveAllTools: profile?.autoApproveAllTools || undefined,
+                });
+            }
+            return result;
         }));
 
         app.post('/api/settings/sessions', api(async req => {
-            const now = Date.now();
             const body = req.body;
             const sid = randomUUID();
-            await database.create<ChannelSessionRow>(database.channelSession, {
-                channelId: WEB_CHANNEL_ID,
-                sessionId: sid,
-                sessionName: body.name ?? '',
-                agentId: body.agent || null,
-                saver: body.saver || null,
-                memories: body.memories ? JSON.stringify(body.memories) : null,
-                wikis: body.wikis ? JSON.stringify(body.wikis) : null,
-                workPath: body.workPath ?? null,
-                createdAt: now,
-            });
+            await createSessionWithAutoProfile(
+                { channelId: WEB_CHANNEL_ID, sessionId: sid, sessionName: body.name ?? '' },
+                {
+                    agentId: body.agent || null,
+                    saver: body.saver || null,
+                    memories: body.memories ? JSON.stringify(body.memories) : null,
+                    wikis: body.wikis ? JSON.stringify(body.wikis) : null,
+                    workPath: body.workPath ?? null,
+                },
+            );
             return { id: sid };
         }));
 
@@ -789,15 +791,23 @@ class HttpServer {
             const existing = await database.findOne<ChannelSessionRow>(database.channelSession, { where: { channelId: WEB_CHANNEL_ID, sessionId } });
             if (!existing) throwBad(`Session "${sessionId}" not found`);
             const body = req.body;
-            await database.update(database.channelSession, {
-                sessionName: body.name ?? existing.sessionName,
-                agentId: body.agent !== undefined ? (body.agent || null) : existing.agentId,
-                saver: body.saver !== undefined ? (body.saver || null) : existing.saver,
-                memories: body.memories !== undefined ? (body.memories ? JSON.stringify(body.memories) : null) : existing.memories,
-                wikis: body.wikis !== undefined ? (body.wikis ? JSON.stringify(body.wikis) : null) : existing.wikis,
-                workPath: body.workPath !== undefined ? body.workPath : existing.workPath,
-                autoApproveAllTools: body.autoApproveAllTools !== undefined ? !!body.autoApproveAllTools : existing.autoApproveAllTools,
-            }, { where: { channelId: WEB_CHANNEL_ID, sessionId } });
+            // sessionName 写 session；其他配置字段写 profile
+            if (body.name !== undefined) {
+                await database.update(database.channelSession, { sessionName: body.name }, { where: { channelId: WEB_CHANNEL_ID, sessionId } });
+            }
+            const profile = existing!.profileId > 0 ? await getSessionProfile(existing!.profileId) : null;
+            const target = profile ?? await getOrCreateAutoProfile(existing!.id);
+            if (!profile) await database.update(database.channelSession, { profileId: target.id }, { where: { id: existing!.id } });
+            const profileUpdate: Record<string, any> = {};
+            if (body.agent !== undefined) profileUpdate.agentId = body.agent || null;
+            if (body.saver !== undefined) profileUpdate.saver = body.saver || null;
+            if (body.memories !== undefined) profileUpdate.memories = body.memories ? JSON.stringify(body.memories) : null;
+            if (body.wikis !== undefined) profileUpdate.wikis = body.wikis ? JSON.stringify(body.wikis) : null;
+            if (body.workPath !== undefined) profileUpdate.workPath = body.workPath;
+            if (body.autoApproveAllTools !== undefined) profileUpdate.autoApproveAllTools = !!body.autoApproveAllTools;
+            if (Object.keys(profileUpdate).length > 0) {
+                await database.update(database.sessionProfile, profileUpdate, { where: { id: target.id } });
+            }
             return { id: sessionId };
         }));
 
@@ -1362,11 +1372,12 @@ class HttpServer {
         };
 
         // ── Channel session 解析 ──
-        const resolveSessionSaver = (row: ChannelSessionRow): { saverId: string; threadId: string } => {
-            const saverId = row.saver || config.getChannel(row.channelId)?.saver;
+        const resolveSessionSaver = async (row: ChannelSessionRow): Promise<{ saverId: string; threadId: string }> => {
+            const profile = await getSessionProfile(row.profileId);
+            const saverId = profile?.saver || config.getChannel(row.channelId)?.saver;
             if (!saverId) throwBad(`Session id=${row.id} has no saver configured`);
-            const channelType = config.getChannel(row.channelId)?.type ?? row.channelId;
-            return { saverId, threadId: channelThreadId(channelType, row.channelId, row.sessionId) };
+            const threadId = profile ? String(profile.id) : row.sessionId;
+            return { saverId: saverId!, threadId };
         };
 
         const getSessionRowByPk = async (id: string): Promise<ChannelSessionRow> => {
@@ -1409,11 +1420,11 @@ class HttpServer {
             threadId: req.params.threadId as string,
         }));
         registerSaverThreadRoutes('/api/channel-sessions/:id', async req =>
-            resolveSessionSaver(await getSessionRowByPk(req.params.id as string))
+            await resolveSessionSaver(await getSessionRowByPk(req.params.id as string))
         );
         // Legacy compat: /api/sessions/:sessionId/* (web channel UUID-based)
         registerSaverThreadRoutes('/api/sessions/:sessionId', async req =>
-            resolveSessionSaver(await getWebSessionRow(req.params.sessionId as string))
+            await resolveSessionSaver(await getWebSessionRow(req.params.sessionId as string))
         );
 
         // ── Memories (accept ?sessionId= or ?threadId=) ──
@@ -1588,13 +1599,9 @@ class HttpServer {
 
     // ===== Todos =====
     private registerTodoRoutes(app: express.Application) {
-        // 把 channel_session 行转换成 todo 文件实际写入时使用的 threadId。
-        // TodoService 里写入路径是 config.getSessionTodoPath(threadId)，
-        // 其中 threadId = channelThreadId(channelType, channelId, sessionId)（见 AgentRunner）。
-        const sessionThreadId = (s: ChannelSessionRow): string => {
-            const channelType = config.getChannel(s.channelId)?.type ?? s.channelId;
-            return channelThreadId(channelType, s.channelId, s.sessionId);
-        };
+        // 把 channel_session 行转换成 todo 文件实际写入时使用的 threadId（= String(profile.id)）
+        const sessionThreadId = (s: ChannelSessionRow): string =>
+            s.profileId > 0 ? String(s.profileId) : s.sessionId;
 
         // 列出 todo（默认 pending，跨所有 session）
         // 支持 query:
@@ -1683,17 +1690,157 @@ class HttpServer {
             return await database.findAll(database.channelSession, { where });
         }));
 
+        // session 编辑：只接收 sessionName / avatar / profileId；其他配置由 PUT /api/session-profiles/:id 单独修改
         app.put('/api/channel-sessions/:id', api(async req => {
             const id = parseInt(req.params.id as string, 10);
-            if (isNaN(id)) { const e: any = new Error('Invalid id'); e.status = 400; throw e; }
-            const { sessionName, agentId, saver, memories, wikis, useChannelMemories, useChannelWikis, workPath, intentModel, intentPrompt, intentThreshold, streamVerbose, autoApproveAllTools } = req.body;
-            await database.update(database.channelSession, { sessionName, agentId, saver: saver || null, memories: JSON.stringify(memories || []), wikis: JSON.stringify(wikis || []), useChannelMemories: !!useChannelMemories, useChannelWikis: !!useChannelWikis, workPath: workPath || null, intentModel: intentModel ?? null, intentPrompt: intentModel == null ? null : (intentPrompt || null), intentThreshold: intentModel == null ? null : (intentThreshold ?? null), streamVerbose: streamVerbose ?? null, autoApproveAllTools: autoApproveAllTools ?? null }, { where: { id } });
+            if (isNaN(id)) throwBad('Invalid id');
+            const { sessionName, avatar, profileId } = req.body as Record<string, any>;
+            const update: Record<string, any> = {};
+            if (sessionName !== undefined) update.sessionName = sessionName;
+            if (avatar !== undefined) update.avatar = avatar;
+            if (profileId !== undefined) {
+                const targetId = Number(profileId);
+                if (!targetId || targetId <= 0) throwBad('Invalid profileId');
+                const target = await getSessionProfile(targetId);
+                if (!target) throwBad(`Profile id=${targetId} not found`);
+                if (target.autoForSessionId != null && target.autoForSessionId !== id) {
+                    throwBad(`Profile id=${targetId} is auto profile of another session`);
+                }
+                update.profileId = targetId;
+            }
+            await database.update(database.channelSession, update, { where: { id } });
+        }));
+
+        // 把当前 profile 配置复制成新 visible profile，session.profileId 切到新的
+        // 原 auto profile 保留（autoForSessionId 仍指向当前 session）
+        app.post('/api/channel-sessions/:id/clone-profile', api(async req => {
+            const id = parseInt(req.params.id as string, 10);
+            if (isNaN(id)) throwBad('Invalid id');
+            const { name } = (req.body ?? {}) as { name?: string };
+            const session = await getChannelSession(id, true);
+            if (!session) throwBad(`channel_session id=${id} not found`);
+            const current = await getSessionProfile(session!.profileId);
+            const profileName = (name && name.trim()) || `${session!.sessionName || session!.sessionId}-profile`;
+            const created = await database.create<SessionProfileRow>(database.sessionProfile, {
+                name: profileName,
+                autoForSessionId: null,
+                agentId: current?.agentId ?? null,
+                saver: current?.saver ?? null,
+                memories: current?.memories ?? null,
+                wikis: current?.wikis ?? null,
+                useChannelMemories: current?.useChannelMemories ?? null,
+                useChannelWikis: current?.useChannelWikis ?? null,
+                workPath: current?.workPath ?? null,
+                streamVerbose: current?.streamVerbose ?? null,
+                autoApproveAllTools: current?.autoApproveAllTools ?? null,
+                approvalTimeout: current?.approvalTimeout ?? null,
+                approvalTimeoutValue: current?.approvalTimeoutValue ?? null,
+                askTimeout: current?.askTimeout ?? null,
+                askTimeoutMessage: current?.askTimeoutMessage ?? null,
+                intentModel: current?.intentModel ?? null,
+                intentPrompt: current?.intentPrompt ?? null,
+                intentThreshold: current?.intentThreshold ?? null,
+                createdAt: Date.now(),
+            });
+            await database.update(database.channelSession, { profileId: (created as any).id }, { where: { id } });
+            return { profileId: (created as any).id };
+        }));
+
+        // 切回独立：session.profileId 指回 auto profile（不存在则建）
+        app.post('/api/channel-sessions/:id/detach-profile', api(async req => {
+            const id = parseInt(req.params.id as string, 10);
+            if (isNaN(id)) throwBad('Invalid id');
+            const session = await getChannelSession(id, true);
+            if (!session) throwBad(`channel_session id=${id} not found`);
+            const auto = await getOrCreateAutoProfile(id);
+            await database.update(database.channelSession, { profileId: auto.id }, { where: { id } });
+            return { profileId: auto.id };
+        }));
+
+        app.get('/api/channel-sessions/:id/effective-config', api(async req => {
+            const id = parseInt(req.params.id as string, 10);
+            if (isNaN(id)) throwBad('Invalid id');
+            const eff = await getEffectiveSession(id, true);
+            if (!eff) { const e: any = new Error(`channel_session id=${id} not found`); e.status = 404; throw e; }
+            return eff;
         }));
 
         app.delete('/api/channel-sessions/:id', api(async req => {
             const id = parseInt(req.params.id as string, 10);
-            if (isNaN(id)) { const e: any = new Error('Invalid id'); e.status = 400; throw e; }
+            if (isNaN(id)) throwBad('Invalid id');
+            // 级联删除该 session 的 auto profile（visible profile 不删）
+            await database.destroy(database.sessionProfile, { where: { autoForSessionId: id } });
             await database.destroy(database.channelSession, { where: { id } });
+        }));
+
+        // ── Session Profiles（仅 visible，autoForSessionId == null） ──
+        app.get('/api/session-profiles', api(async () => {
+            const profiles = await database.findAll<SessionProfileRow>(database.sessionProfile, { where: { autoForSessionId: null } });
+            const result = await Promise.all(profiles.map(async (p: any) => {
+                const sessionCount = await database.count(database.channelSession, { where: { profileId: p.id } });
+                return { ...p, sessionCount };
+            }));
+            return result;
+        }));
+
+        app.get('/api/session-profiles/:id', api(async req => {
+            const id = parseInt(req.params.id as string, 10);
+            if (isNaN(id)) throwBad('Invalid id');
+            const profile = await getSessionProfile(id);
+            if (!profile) { const e: any = new Error(`SessionProfile id=${id} not found`); e.status = 404; throw e; }
+            const sessions = await database.findAll<ChannelSessionRow>(database.channelSession, { where: { profileId: id } });
+            return { ...profile, sessions };
+        }));
+
+        app.post('/api/session-profiles', api(async req => {
+            const { name } = req.body as Record<string, any>;
+            if (!name) throwBad('name is required');
+            const created = await database.create<SessionProfileRow>(database.sessionProfile, {
+                name: String(name),
+                autoForSessionId: null,
+                createdAt: Date.now(),
+            });
+            return created;
+        }));
+
+        app.put('/api/session-profiles/:id', api(async req => {
+            const id = parseInt(req.params.id as string, 10);
+            if (isNaN(id)) throwBad('Invalid id');
+            const b = req.body as Record<string, any>;
+            const memSer = b.memories === undefined ? undefined : (b.memories === null ? null : JSON.stringify(b.memories || []));
+            const wikiSer = b.wikis === undefined ? undefined : (b.wikis === null ? null : JSON.stringify(b.wikis || []));
+            const update: Record<string, any> = {
+                name: b.name,
+                agentId: b.agentId === undefined ? undefined : (b.agentId || null),
+                saver: b.saver === undefined ? undefined : (b.saver || null),
+                memories: memSer,
+                wikis: wikiSer,
+                useChannelMemories: b.useChannelMemories === undefined ? undefined : (b.useChannelMemories === null ? null : !!b.useChannelMemories),
+                useChannelWikis: b.useChannelWikis === undefined ? undefined : (b.useChannelWikis === null ? null : !!b.useChannelWikis),
+                workPath: b.workPath === undefined ? undefined : (b.workPath || null),
+                streamVerbose: b.streamVerbose === undefined ? undefined : (b.streamVerbose ?? null),
+                autoApproveAllTools: b.autoApproveAllTools === undefined ? undefined : (b.autoApproveAllTools ?? null),
+                approvalTimeout: b.approvalTimeout === undefined ? undefined : (b.approvalTimeout ?? null),
+                approvalTimeoutValue: b.approvalTimeoutValue === undefined ? undefined : (b.approvalTimeoutValue ?? null),
+                askTimeout: b.askTimeout === undefined ? undefined : (b.askTimeout ?? null),
+                askTimeoutMessage: b.askTimeoutMessage === undefined ? undefined : (b.askTimeoutMessage || null),
+                intentModel: b.intentModel === undefined ? undefined : (b.intentModel ?? null),
+                intentPrompt: b.intentPrompt === undefined ? undefined : (b.intentPrompt || null),
+                intentThreshold: b.intentThreshold === undefined ? undefined : (b.intentThreshold ?? null),
+            };
+            for (const k of Object.keys(update)) if (update[k] === undefined) delete update[k];
+            await database.update(database.sessionProfile, update, { where: { id } });
+        }));
+
+        app.delete('/api/session-profiles/:id', api(async req => {
+            const id = parseInt(req.params.id as string, 10);
+            if (isNaN(id)) throwBad('Invalid id');
+            const profile = await getSessionProfile(id);
+            if (!profile) throwBad(`Profile id=${id} not found`);
+            if (profile!.autoForSessionId != null) throwBad('Cannot delete an auto profile directly');
+            const refCount = await database.count(database.channelSession, { where: { profileId: id } });
+            if (refCount > 0) throwBad(`Profile id=${id} is still referenced by ${refCount} session(s)`);
+            await database.destroy(database.sessionProfile, { where: { id } });
         }));
 
         app.post('/api/channels/:channelId/send', api(async req => {
@@ -1815,10 +1962,11 @@ class HttpServer {
 
     // ===== Chat =====
     private registerChatRoutes(app: express.Application) {
-        app.get('/api/session-status', (req, res) => {
+        app.get('/api/session-status', async (req, res) => {
             const { sessionId } = req.query as { sessionId?: string };
             if (!sessionId) { res.status(400).json({ error: 'sessionId is required' }); return; }
-            const threadId = channelThreadId(WEB_CHANNEL_TYPE, WEB_CHANNEL_ID, sessionId);
+            const row = await database.findOne<ChannelSessionRow>(database.channelSession, { where: { channelId: WEB_CHANNEL_ID, sessionId } });
+            const threadId = row && row.profileId > 0 ? String(row.profileId) : sessionId;
             const info = sessionManager.getInfo(threadId);
             if (!info) { res.json(null); return; }
             res.json(info);

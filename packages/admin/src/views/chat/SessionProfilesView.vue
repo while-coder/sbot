@@ -1,0 +1,292 @@
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { apiFetch } from '@/shared/api'
+import { store } from '@/shared/store'
+import { useToast, useConfirm, SButton, SInput, SFormItem, SPageToolbar, SPageContent, STable } from 'sbot-ui'
+import type { STableColumn } from 'sbot-ui'
+import { ApprovalTimeoutValue } from 'sbot.commons'
+import SessionConfigOverridesEditor, { type SessionOverrides } from '@/components/SessionConfigOverridesEditor.vue'
+
+interface ProfileRow {
+  id: number
+  name: string
+  autoForSessionId: number | null
+  agentId: string | null
+  saver: string | null
+  memories: string | null
+  wikis: string | null
+  useChannelMemories: boolean | null
+  useChannelWikis: boolean | null
+  workPath: string | null
+  streamVerbose: boolean | null
+  autoApproveAllTools: boolean | null
+  approvalTimeout: number | null
+  approvalTimeoutValue: ApprovalTimeoutValue | null
+  askTimeout: number | null
+  askTimeoutMessage: string | null
+  intentModel: string | null
+  intentPrompt: string | null
+  intentThreshold: number | null
+  inputTokens: number
+  outputTokens: number
+  totalTokens: number
+  createdAt: number
+  sessionCount?: number
+}
+
+const { t } = useI18n()
+const { show } = useToast()
+const { confirm } = useConfirm()
+
+const profiles = ref<ProfileRow[]>([])
+
+const agentOptions = computed(() => Object.entries(store.settings.agents || {}).map(([id, a]) => ({ id, label: (a as any).name || id, type: (a as any).type || '' })))
+const saverOptions = computed(() => Object.entries(store.settings.savers || {}).map(([id, s]) => ({ id, label: (s as any).name || id })))
+const memoryOptions = computed(() => Object.entries(store.settings.memories || {}).map(([id, m]: [string, any]) => ({ id, label: m.name || id })))
+const wikiOptions = computed(() => Object.entries(store.settings.wikis || {}).map(([id, w]) => ({ id, label: (w as any).name || id })))
+const modelOptions = computed(() => Object.entries(store.settings.models || {}).map(([id, m]) => ({ id, label: (m as any).name || id })))
+
+async function loadAll() {
+  try {
+    const res = await apiFetch('/api/session-profiles')
+    profiles.value = (res.data || []) as ProfileRow[]
+  } catch (e: any) {
+    show(e.message, 'error')
+  }
+}
+
+onMounted(loadAll)
+
+const columns = computed<STableColumn[]>(() => [
+  { key: 'name',         label: t('session_profiles.name'), primary: true },
+  { key: 'agent',        label: t('common.agent') },
+  { key: 'saver',        label: t('common.storage') },
+  { key: 'sessionCount', label: '#' },
+  { key: 'ops',          label: t('common.ops'), ops: true },
+])
+
+const editing = ref<ProfileRow | null>(null)
+const isCreating = ref(false)
+
+interface ProfileForm {
+  name: string
+  overrides: SessionOverrides
+}
+
+function emptyOverrides(): SessionOverrides {
+  return {
+    agentId: null, saver: null, memories: null, wikis: null,
+    useChannelMemories: null, useChannelWikis: null,
+    workPath: null, streamVerbose: null, autoApproveAllTools: null,
+    approvalTimeout: null, approvalTimeoutValue: null,
+    askTimeout: null, askTimeoutMessage: null,
+    intentModel: null, intentPrompt: null, intentThreshold: null,
+  }
+}
+
+function emptyForm(): ProfileForm {
+  return { name: '', overrides: emptyOverrides() }
+}
+
+const form = ref<ProfileForm>(emptyForm())
+
+function parseList(raw: string | null): string[] {
+  if (!raw) return []
+  try { const v = JSON.parse(raw); return Array.isArray(v) ? v : [] } catch { return [] }
+}
+
+function openAdd() {
+  isCreating.value = true
+  editing.value = { id: 0, name: '' } as ProfileRow
+  form.value = emptyForm()
+}
+
+function openEdit(p: ProfileRow) {
+  isCreating.value = false
+  editing.value = p
+  const toTriBool = (v: any): boolean | null => v == null ? null : !!v
+  form.value = {
+    name: p.name || '',
+    overrides: {
+      agentId: p.agentId,
+      saver: p.saver,
+      memories: p.memories == null ? null : parseList(p.memories),
+      wikis: p.wikis == null ? null : parseList(p.wikis),
+      useChannelMemories: toTriBool(p.useChannelMemories),
+      useChannelWikis: toTriBool(p.useChannelWikis),
+      workPath: p.workPath,
+      streamVerbose: toTriBool(p.streamVerbose),
+      autoApproveAllTools: toTriBool(p.autoApproveAllTools),
+      approvalTimeout: p.approvalTimeout,
+      approvalTimeoutValue: p.approvalTimeoutValue,
+      askTimeout: p.askTimeout,
+      askTimeoutMessage: p.askTimeoutMessage,
+      intentModel: p.intentModel ?? null,
+      intentPrompt: p.intentPrompt,
+      intentThreshold: p.intentThreshold,
+    },
+  }
+}
+
+async function save() {
+  const f = form.value
+  if (!f.name.trim()) { show(t('common.name_required'), 'error'); return }
+
+  // 编辑时若被多 session 共享，弹警告
+  if (!isCreating.value && editing.value) {
+    const count = editing.value.sessionCount ?? 0
+    if (count > 1) {
+      const ok = await confirm(t('channels.profile_shared_warn', { n: count }), { danger: true })
+      if (!ok) return
+    }
+  }
+
+  try {
+    if (isCreating.value) {
+      const created = await apiFetch('/api/session-profiles', 'POST', { name: f.name.trim() })
+      await apiFetch(`/api/session-profiles/${(created.data as any).id}`, 'PUT', buildPayload(f))
+    } else {
+      if (!editing.value) return
+      await apiFetch(`/api/session-profiles/${editing.value.id}`, 'PUT', buildPayload(f))
+    }
+    show(t('common.saved'))
+    editing.value = null
+    await loadAll()
+  } catch (e: any) {
+    show(e.message, 'error')
+  }
+}
+
+function buildPayload(f: ProfileForm): Record<string, any> {
+  const o = f.overrides
+  const validMem = new Set(memoryOptions.value.map(m => m.id))
+  const validWiki = new Set(wikiOptions.value.map(w => w.id))
+  return {
+    name: f.name.trim(),
+    agentId: o.agentId,
+    saver: o.saver,
+    memories: o.memories == null ? null : o.memories.filter(id => validMem.has(id)),
+    wikis: o.wikis == null ? null : o.wikis.filter(id => validWiki.has(id)),
+    useChannelMemories: o.useChannelMemories,
+    useChannelWikis: o.useChannelWikis,
+    workPath: o.workPath,
+    streamVerbose: o.streamVerbose,
+    autoApproveAllTools: o.autoApproveAllTools,
+    approvalTimeout: o.approvalTimeout,
+    approvalTimeoutValue: o.approvalTimeoutValue,
+    askTimeout: o.askTimeout,
+    askTimeoutMessage: o.askTimeoutMessage,
+    intentModel: o.intentModel,
+    intentPrompt: o.intentModel == null ? null : o.intentPrompt,
+    intentThreshold: o.intentModel == null ? null : o.intentThreshold,
+  }
+}
+
+async function remove(p: ProfileRow) {
+  if ((p.sessionCount ?? 0) > 0) {
+    show(t('session_profiles.delete_in_use', { n: p.sessionCount }), 'error')
+    return
+  }
+  if (!await confirm(t('session_profiles.confirm_delete', { name: p.name }), { danger: true })) return
+  try {
+    await apiFetch(`/api/session-profiles/${p.id}`, 'DELETE')
+    show(t('common.deleted'))
+    await loadAll()
+  } catch (e: any) {
+    show(e.message, 'error')
+  }
+}
+</script>
+
+<template>
+  <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
+    <SPageToolbar>
+      <SButton type="outline" size="sm" @click="loadAll">{{ t('common.refresh') }}</SButton>
+      <SButton type="primary" size="sm" @click="openAdd">{{ t('session_profiles.add') }}</SButton>
+    </SPageToolbar>
+    <SPageContent>
+      <STable :columns="columns" :rows="profiles" row-key="id" :empty-text="t('session_profiles.empty')">
+        <template #agent="{ row }">
+          <span v-if="row.agentId">{{ agentOptions.find(a => a.id === row.agentId)?.label || row.agentId }}</span>
+          <span v-else style="color: var(--sui-fg-disabled)">—</span>
+        </template>
+        <template #saver="{ row }">
+          <span v-if="row.saver">{{ saverOptions.find(s => s.id === row.saver)?.label || row.saver }}</span>
+          <span v-else style="color: var(--sui-fg-disabled)">—</span>
+        </template>
+        <template #sessionCount="{ row }">
+          <span v-if="row.sessionCount">{{ t('session_profiles.used_by_n', { n: row.sessionCount }) }}</span>
+          <span v-else style="color: var(--sui-fg-disabled)">{{ t('session_profiles.used_by_none') }}</span>
+        </template>
+        <template #ops="{ row }">
+          <SButton type="outline" size="sm" @click="openEdit(row)">{{ t('common.edit') }}</SButton>
+          <SButton type="danger" size="sm" :disabled="(row.sessionCount ?? 0) > 0" @click="remove(row)">{{ t('common.delete') }}</SButton>
+        </template>
+      </STable>
+    </SPageContent>
+
+    <Transition name="drawer-fade">
+      <div v-if="editing" class="drawer-overlay" @click.self="editing = null"></div>
+    </Transition>
+    <Transition name="drawer-slide">
+      <div v-if="editing" class="drawer-panel">
+        <div class="drawer-header">
+          <h3>{{ isCreating ? t('session_profiles.add_title') : t('session_profiles.edit_title', { name: editing.name }) }}</h3>
+          <button class="drawer-close" @click="editing = null">&times;</button>
+        </div>
+        <div class="drawer-body">
+          <SFormItem :label="t('session_profiles.name') + ' *'">
+            <SInput v-model="form.name" :placeholder="t('session_profiles.name_placeholder')" />
+          </SFormItem>
+
+          <SessionConfigOverridesEditor
+            v-model="form.overrides"
+            :agent-options="agentOptions"
+            :saver-options="saverOptions"
+            :memory-options="memoryOptions"
+            :wiki-options="wikiOptions"
+            :model-options="modelOptions"
+          />
+        </div>
+        <div class="drawer-footer">
+          <SButton type="outline" @click="editing = null">{{ t('common.cancel') }}</SButton>
+          <SButton type="primary" @click="save">{{ t('common.save') }}</SButton>
+        </div>
+      </div>
+    </Transition>
+  </div>
+</template>
+
+<style scoped>
+.drawer-overlay {
+  position: fixed; inset: 0;
+  background: var(--sui-mask-soft);
+  z-index: 100;
+}
+.drawer-panel {
+  position: fixed; top: 0; right: 0; bottom: 0;
+  width: 520px; max-width: 100vw;
+  background: var(--sui-bg);
+  border-left: 1px solid var(--sui-border);
+  display: flex; flex-direction: column;
+  z-index: 101;
+}
+.drawer-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--sui-sp-5) var(--sui-sp-7);
+  border-bottom: 1px solid var(--sui-border);
+}
+.drawer-header h3 { margin: 0; font-size: var(--sui-fs-lg); }
+.drawer-close { background: none; border: none; cursor: pointer; font-size: 24px; color: var(--sui-fg-muted); }
+.drawer-body { flex: 1; overflow-y: auto; padding: var(--sui-sp-5) var(--sui-sp-7); }
+.drawer-footer {
+  display: flex; gap: var(--sui-sp-3); justify-content: flex-end;
+  padding: var(--sui-sp-5) var(--sui-sp-7);
+  border-top: 1px solid var(--sui-border);
+}
+.drawer-fade-enter-active, .drawer-fade-leave-active { transition: opacity 0.2s; }
+.drawer-fade-enter-from, .drawer-fade-leave-to { opacity: 0; }
+.drawer-slide-enter-active, .drawer-slide-leave-active { transition: transform 0.25s ease; }
+.drawer-slide-enter-from, .drawer-slide-leave-to { transform: translateX(100%); }
+</style>

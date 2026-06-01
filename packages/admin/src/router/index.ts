@@ -5,6 +5,7 @@ const routes = [
   // 聊天
   { path: '/chat', component: () => import('@/views/chat/ChatView.vue') },
   { path: '/channels', component: () => import('@/views/chat/ChannelsView.vue') },
+  { path: '/session-profiles', component: () => import('@/views/chat/SessionProfilesView.vue') },
   // 基础
   { path: '/settings', component: () => import('@/views/SettingsView.vue') },
   // 模型

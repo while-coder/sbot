@@ -2,9 +2,9 @@ import "reflect-metadata";
 import { ICommand, MessageType, MessageRole, MessageKind, type ChatMessage, type MessageContent, trimContent, isEmptyContent } from "scorpio.ai";
 import { SessionManager, SessionService, ChannelMessageArgs, ChannelSessionHandler } from "channel.base";
 import { type StructuredToolInterface } from "@langchain/core/tools";
-import { WEB_CHANNEL_ID, type ChannelConfig } from "sbot.commons";
+import { WEB_CHANNEL_ID } from "sbot.commons";
 import { config } from "../Core/Config";
-import { ChannelSessionRow, getChannelSession } from "../Core/Database";
+import { getEffectiveSession, type EffectiveSession } from "../Core/Database";
 import { channelManager } from "../Channel/ChannelManager";
 import { createProcessAIHandler } from "../Processing/createProcessAIHandler";
 import { AgentRunner } from "../Agent/AgentRunner";
@@ -64,8 +64,8 @@ class SbotSession extends SessionService {
     }
 
     protected async onCommandResult(query: string, content: string, args: ChannelRouteArgs): Promise<void> {
-        const resolved = await this.resolveSessionConfig(args);
-        const saverId = resolved?.dbSession.saver || resolved?.channelConfig?.saver;
+        const eff = await this.resolveSessionConfig(args);
+        const saverId = eff?.resolved.saver;
         if (saverId) {
             const saver = await AgentRunner.createSaverService(saverId, this.threadId);
             try {
@@ -98,13 +98,9 @@ class SbotSession extends SessionService {
         await this.channel?.onTriggerAction(...args);
     }
 
-    async resolveSessionConfig(args: any): Promise<{ dbSession: ChannelSessionRow; channelConfig?: ChannelConfig } | undefined> {
-        const dbSession = await getChannelSession(args?.dbSessionId);
-        if (!dbSession) return undefined;
-        return {
-            dbSession,
-            channelConfig: config.getChannel(dbSession.channelId),
-        };
+    async resolveSessionConfig(args: any): Promise<EffectiveSession | undefined> {
+        if (args?.dbSessionId == null) return undefined;
+        return await getEffectiveSession(args.dbSessionId);
     }
 }
 

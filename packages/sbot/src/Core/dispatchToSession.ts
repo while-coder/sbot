@@ -2,7 +2,7 @@ import type { ChannelConfig } from "sbot.commons";
 import { WEB_CHANNEL_ID } from "sbot.commons";
 import { config } from "./Config";
 import { LoggerService } from "./LoggerService";
-import { channelThreadId, getChannelSession } from "./Database";
+import { getEffectiveSession } from "./Database";
 import { channelManager } from "../Channel/ChannelManager";
 import { sessionManager } from "../Session/SessionManager";
 
@@ -27,11 +27,16 @@ export interface DispatchResult {
 export async function dispatchToSession(opts: DispatchToSessionOptions): Promise<DispatchResult> {
     const { targetId, message, aiProcess, silent, toolWhitelist, awaitCompletion, tag } = opts;
 
-    const sessionRow = await getChannelSession(targetId);
-    if (!sessionRow) {
+    if (targetId == null) {
+        logger.warn(`${tag} target session id missing`);
+        return { ok: false };
+    }
+    const eff = await getEffectiveSession(targetId);
+    if (!eff) {
         logger.warn(`${tag} target session not found (id=${targetId})`);
         return { ok: false };
     }
+    const { session: sessionRow, resolved } = eff;
     const { channelId, sessionId, id: dbSessionId } = sessionRow;
 
     const channelConfig = config.getChannel(channelId);
@@ -50,7 +55,7 @@ export async function dispatchToSession(opts: DispatchToSessionOptions): Promise
         return { ok: true, channelType, sessionId };
     }
 
-    const threadId = channelThreadId(channelType, channelId, sessionId);
+    const threadId = resolved.threadKey;  // = String(profile.id)
     const resolvedWhitelist = typeof toolWhitelist === "function" ? toolWhitelist(channelConfig) : toolWhitelist;
     const args = { channelType, channelId, dbSessionId, sessionId, silent, toolWhitelist: resolvedWhitelist };
     if (awaitCompletion) {

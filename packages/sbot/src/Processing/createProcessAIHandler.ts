@@ -1,6 +1,6 @@
 import { ProcessAIHandler } from "channel.base";
 import { MessageRole, ToolApproval } from "scorpio.ai";
-import { channelThreadId, parseMemories, getChannelSession } from "../Core/Database";
+import { getEffectiveSession } from "../Core/Database";
 import { config, AgentMode } from "../Core/Config";
 import { buildExecuteTool } from "./buildExecuteTool";
 import { updateUsageStats, type UsageContext } from "./updateUsageStats";
@@ -13,9 +13,10 @@ export function createProcessAIHandler(): ProcessAIHandler {
         const dbSessionId: number = args?.dbSessionId;
         if (!dbSessionId) throw new Error("dbSessionId not specified");
 
-        const dbSession = await getChannelSession(dbSessionId, true);
-        if (!dbSession) throw new Error(`channel_session id=${dbSessionId} not found`);
+        const eff = await getEffectiveSession(dbSessionId, true);
+        if (!eff) throw new Error(`channel_session id=${dbSessionId} not found`);
 
+        const { session: dbSession, profile, resolved } = eff;
         const { channelId, sessionId } = dbSession;
         const channel = config.getChannel(channelId);
         if (!channel) throw new Error(`Channel config not found: ${channelId}`);
@@ -24,24 +25,18 @@ export function createProcessAIHandler(): ProcessAIHandler {
             httpServer.broadcastToWs(JSON.stringify({ sessionId, type: WebChatEventType.Human, data: { content: query } }));
         }
 
-        const agentId = dbSession.agentId || channel.agent;
-        const saverId = dbSession.saver || channel.saver;
-        const sessionMemories = parseMemories(dbSession.memories);
-        const memories = dbSession.useChannelMemories
-            ? [...(channel.memories ?? []), ...sessionMemories]
-            : sessionMemories;
-        const sessionWikis = parseMemories(dbSession.wikis);
-        const wikis = dbSession.useChannelWikis
-            ? [...(channel.wikis ?? []), ...sessionWikis]
-            : sessionWikis;
-        const workPath = dbSession.workPath ?? channel.workPath;
-        const autoApproveAllTools = dbSession.autoApproveAllTools ?? channel.autoApproveAllTools ?? false;
-        const streamVerbose = dbSession.streamVerbose ?? channel.streamVerbose ?? (channelId === WEB_CHANNEL_ID);
-        const approvalTimeout = dbSession.approvalTimeout ?? channel.approvalTimeout ?? 0;
-        const approvalTimeoutValue = dbSession.approvalTimeoutValue ?? channel.approvalTimeoutValue;
-        const askTimeout = dbSession.askTimeout ?? channel.askTimeout ?? 0;
-        const askTimeoutMessage = dbSession.askTimeoutMessage ?? channel.askTimeoutMessage;
-        const threadId = channelThreadId(channel.type, channelId, sessionId);
+        const agentId = resolved.agentId;
+        const saverId = resolved.saver;
+        const memories = resolved.memories;
+        const wikis = resolved.wikis;
+        const workPath = resolved.workPath;
+        const autoApproveAllTools = resolved.autoApproveAllTools ?? false;
+        const streamVerbose = resolved.streamVerbose ?? (channelId === WEB_CHANNEL_ID);
+        const approvalTimeout = resolved.approvalTimeout ?? 0;
+        const approvalTimeoutValue = resolved.approvalTimeoutValue;
+        const askTimeout = resolved.askTimeout ?? 0;
+        const askTimeoutMessage = resolved.askTimeoutMessage;
+        const threadId = resolved.threadKey;  // = String(profile.id)
 
         sessionHandler.approvalTimeoutMs = approvalTimeout > 0 ? approvalTimeout * 1000 : 0;
         sessionHandler.approvalTimeoutValue = approvalTimeoutValue === ApprovalTimeoutValue.Allow ? ToolApproval.Allow : ToolApproval.Deny;
@@ -79,9 +74,10 @@ export function createProcessAIHandler(): ProcessAIHandler {
             usageContext = { agentId, agentName: agentId, modelId: '', modelName: '', provider: '', channelId };
         }
 
+        const profileId = profile.id;
         const onUsage = async (usage: any) => {
             if (!silent) sessionHandler.session.recordUsage(usage);
-            await updateUsageStats(usage, dbSessionId, usageContext);
+            await updateUsageStats(usage, dbSessionId, profileId, usageContext);
         };
 
         const onMessage = silent

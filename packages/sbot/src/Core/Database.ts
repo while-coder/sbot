@@ -12,12 +12,8 @@ export type MessageRow = {
   expireTime: number;
 };
 
-// ── threadId 工厂函数 ──
-
-/** 频道模式 threadId */
-export function channelThreadId(channelType: string, channelId: string, sessionId: string): string {
-  return `${channelType}_${channelId}_${sessionId}`
-}
+// thread id = String(profile.id)。saver / SessionService Map 都按这个 key 索引。
+// 多个 ChannelSession 共享同一 SessionProfile 即共享 thread（跨 channel 也共享）。
 
 // ⚠️ aiProcess / disabled 运行时是 0/1（受 raw:true 影响，见上方 query 配置注释）。
 // 仅可用真值检查，禁止 `=== true` / `=== false`。
@@ -48,24 +44,46 @@ export type ChannelUserRow = {
   userInfo: string;  // 用户信息
 };
 
-// ⚠️ useChannelMemories / useChannelWikis / streamVerbose / autoApproveAllTools
-// 运行时是 0/1/null（受 raw:true 影响，见上方 query 配置注释）。
-// 仅可用真值检查，禁止 `=== true` / `=== false` / `String(v) === "true"`；
-// 三态字段进入 UI 前需用 `v == null ? null : !!v` 归一化（参考 admin/ChannelsView 的 sessionMap 加载）。
+/**
+ * Session 表只保留"标识"信息：
+ * - 所有可覆盖配置字段（agent/saver/memories/wikis/...）都在 SessionProfileRow 上
+ * - token 统计也在 profile 上（共享 profile 的 session 共享统计）
+ * - 每个 session 对应一个 SessionProfile：
+ *   - 默认是 auto profile（autoForSessionId == session.id），admin 不可见
+ *   - 用户可手动切到一个 visible profile（共享配置 + thread）
+ */
 export type ChannelSessionRow = {
-  // ── 会话标识 ──
   id: number;
   channelId: string;
   sessionId: string;
   sessionName: string;          // 用户自定义名（空 = 跟随 autoSessionName）
   autoSessionName: string;      // 渠道自动获取的名字，doInitSession 维护
   avatar: string;
+  profileId: number;            // 关联的 SessionProfile（NOT NULL，doInitSession 自动建 auto profile 并指向）
+  createdAt: number;
+};
+
+/**
+ * SessionProfile：会话配置 + thread + token 统计的载体。
+ * - autoForSessionId 非 null：此 profile 是某 session 的 auto profile（admin 列表过滤掉）
+ * - autoForSessionId 为 null：visible profile，可被多个 session 共享
+ * - thread id = String(profile.id)
+ *
+ * ⚠️ 三态布尔（useChannelMemories/Wikis/streamVerbose/autoApproveAllTools）运行时是 0/1/null。
+ */
+export type SessionProfileRow = {
+  id: number;
+  name: string;
+  autoForSessionId: number | null;
 
   // ── 可覆盖 ChannelConfig 默认值的字段（null = 使用频道默认值） ──
   agentId: string | null;
   saver: string | null;
-  memories: string | null;           // JSON 字符串，使用 parseMemories() 解析
-  wikis: string | null;              // JSON 字符串，使用 parseMemories() 解析
+  
+  useChannelMemories: boolean | null;
+  memories: string | null;           // JSON 字符串
+  useChannelWikis: boolean | null;
+  wikis: string | null;              // JSON 字符串
   workPath: string | null;
   streamVerbose: boolean | null;
   autoApproveAllTools: boolean | null;
@@ -77,10 +95,6 @@ export type ChannelSessionRow = {
   intentPrompt: string | null;
   intentThreshold: number | null;
 
-  // ── 会话自有字段 ──
-  useChannelMemories: boolean;       // 是否合并渠道级 memories
-  useChannelWikis: boolean;          // 是否合并渠道级 wikis
-
   // ── 运行时统计 ──
   inputTokens: number;
   outputTokens: number;
@@ -88,6 +102,7 @@ export type ChannelSessionRow = {
   lastInputTokens: number;
   lastOutputTokens: number;
   lastTotalTokens: number;
+
   createdAt: number;
 };
 
@@ -118,7 +133,8 @@ export type UsageLogRow = {
   modelName: string;
   provider: string;
   channelId: string;
-  sessionId: number;
+  sessionId: number;        // channel_session.id，区分发送方
+  profileId: number;        // session_profile.id，profile/thread 维度聚合
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
@@ -155,6 +171,7 @@ class Database {
   public state!: ModelStatic<any>;
   public channelUser!: ModelStatic<any>;
   public channelSession!: ModelStatic<any>;
+  public sessionProfile!: ModelStatic<any>;
   public scheduler!: ModelStatic<any>;
   public usageLogs!: ModelStatic<any>;
   public heartbeat!: ModelStatic<any>;
@@ -328,23 +345,65 @@ class Database {
           defaultValue: "",
           comment: "会话头像URL",
         },
+        profileId: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
+          comment: "关联的 SessionProfile.id（doInitSession 自动建 auto profile）",
+        },
+        createdAt: {
+          type: DataTypes.BIGINT,
+          allowNull: false,
+          defaultValue: 0,
+          comment: "创建时间戳(ms)",
+        },
+      },
+      {
+        tableName: "channel_session",
+        timestamps: false,
+        comment: "频道会话表",
+        indexes: [{ fields: ["profileId"] }],
+      },
+    );
+
+    this.sessionProfile = sequelize.define(
+      "session_profile",
+      {
+        id: {
+          type: DataTypes.INTEGER,
+          primaryKey: true,
+          autoIncrement: true,
+          comment: "自增ID",
+        },
+        name: {
+          type: DataTypes.STRING(255),
+          allowNull: false,
+          defaultValue: "",
+          comment: "Profile 显示名称（auto profile 可为空）",
+        },
+        autoForSessionId: {
+          type: DataTypes.INTEGER,
+          allowNull: true,
+          defaultValue: null,
+          comment: "非 null = 此 profile 是某 session 的 auto profile（admin 列表过滤掉）",
+        },
         agentId: {
           type: DataTypes.STRING(255),
           allowNull: true,
           defaultValue: null,
-          comment: "Agent UUID，null = 使用 ChannelConfig 默认值",
+          comment: "Agent UUID，null = 跟随 ChannelConfig",
         },
         saver: {
           type: DataTypes.STRING(255),
           allowNull: true,
           defaultValue: null,
-          comment: "Saver UUID，null = 使用 ChannelConfig 默认值",
+          comment: "Saver UUID，null = 跟随 ChannelConfig",
         },
         memories: {
           type: DataTypes.TEXT,
           allowNull: true,
           defaultValue: null,
-          comment: "Memory UUID 列表（JSON 字符串，读取时用 parseMemories() 解析）",
+          comment: "Memory UUID 列表（JSON 字符串）",
         },
         wikis: {
           type: DataTypes.TEXT,
@@ -354,15 +413,15 @@ class Database {
         },
         useChannelMemories: {
           type: DataTypes.BOOLEAN,
-          allowNull: false,
-          defaultValue: false,
-          comment: "是否使用渠道级记忆",
+          allowNull: true,
+          defaultValue: null,
+          comment: "是否合并渠道级 memories",
         },
         useChannelWikis: {
           type: DataTypes.BOOLEAN,
-          allowNull: false,
-          defaultValue: false,
-          comment: "是否使用渠道级知识库",
+          allowNull: true,
+          defaultValue: null,
+          comment: "是否合并渠道级 wikis",
         },
         workPath: {
           type: DataTypes.STRING(1024),
@@ -370,59 +429,59 @@ class Database {
           defaultValue: null,
           comment: "工作目录路径",
         },
-        intentModel: {
-          type: DataTypes.STRING(255),
-          allowNull: true,
-          defaultValue: null,
-          comment: "意图识别模型 UUID，非空即启用意图过滤",
-        },
-        intentPrompt: {
-          type: DataTypes.TEXT,
-          allowNull: true,
-          defaultValue: null,
-          comment: "自定义意图过滤 prompt，null 使用内置默认",
-        },
-        intentThreshold: {
-          type: DataTypes.FLOAT,
-          allowNull: true,
-          defaultValue: null,
-          comment: "意图识别置信度阈值 (0-1)，null = 使用 ChannelConfig 默认值",
-        },
         streamVerbose: {
           type: DataTypes.BOOLEAN,
           allowNull: true,
           defaultValue: null,
-          comment: "是否输出中间消息和流式输出，null = 使用 ChannelConfig 默认值",
+          comment: "是否输出中间消息和流式输出",
         },
         autoApproveAllTools: {
           type: DataTypes.BOOLEAN,
           allowNull: true,
           defaultValue: null,
-          comment: "是否自动批准所有工具，null = 使用 ChannelConfig 默认值",
+          comment: "是否自动批准所有工具",
         },
         approvalTimeout: {
           type: DataTypes.INTEGER,
           allowNull: true,
           defaultValue: null,
-          comment: "Approval 等待超时（秒），null = 使用 ChannelConfig 默认值",
+          comment: "Approval 等待超时（秒）",
         },
         approvalTimeoutValue: {
           type: DataTypes.STRING(8),
           allowNull: true,
           defaultValue: null,
-          comment: "Approval 超时默认结果 (allow|deny)，null = 使用 ChannelConfig 默认值",
+          comment: "Approval 超时默认结果",
         },
         askTimeout: {
           type: DataTypes.INTEGER,
           allowNull: true,
           defaultValue: null,
-          comment: "Ask 等待超时（秒），null = 使用 ChannelConfig 默认值",
+          comment: "Ask 等待超时（秒）",
         },
         askTimeoutMessage: {
           type: DataTypes.TEXT,
           allowNull: true,
           defaultValue: null,
-          comment: "Ask 超时抛回 LLM 的错误信息，null = 使用 ChannelConfig 默认值",
+          comment: "Ask 超时抛回 LLM 的错误信息",
+        },
+        intentModel: {
+          type: DataTypes.STRING(255),
+          allowNull: true,
+          defaultValue: null,
+          comment: "意图识别模型 UUID",
+        },
+        intentPrompt: {
+          type: DataTypes.TEXT,
+          allowNull: true,
+          defaultValue: null,
+          comment: "自定义意图过滤 prompt",
+        },
+        intentThreshold: {
+          type: DataTypes.FLOAT,
+          allowNull: true,
+          defaultValue: null,
+          comment: "意图识别置信度阈值 (0-1)",
         },
         inputTokens: {
           type: DataTypes.INTEGER,
@@ -468,9 +527,10 @@ class Database {
         },
       },
       {
-        tableName: "channel_session",
+        tableName: "session_profile",
         timestamps: false,
-        comment: "频道会话表",
+        comment: "Session Profile 表（共享配置 + thread + token 统计）",
+        indexes: [{ fields: ["autoForSessionId"], unique: true }],
       },
     );
 
@@ -592,6 +652,11 @@ class Database {
           defaultValue: "",
         },
         sessionId: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
+        },
+        profileId: {
           type: DataTypes.INTEGER,
           allowNull: false,
           defaultValue: 0,
@@ -753,6 +818,7 @@ class Database {
 
       await this.message.sync({ alter });
       await this.channelUser.sync({ alter });
+      await this.sessionProfile.sync({ alter });
       await this.channelSession.sync({ alter });
       await this.scheduler.sync({ alter });
       await this.usageLogs.sync({ alter });
@@ -809,6 +875,7 @@ class Database {
     return this.withLock(() => this.sequelize.query(sql, options));
   }
 
+  /** tid = String(profile.id)，token 统计直接在 profile 表 */
   async loadThreadUsages(channelThreadIds: string[]): Promise<Record<string, ThreadUsage>> {
     const result: Record<string, ThreadUsage> = {};
     const pick = (r: any): ThreadUsage => ({
@@ -816,11 +883,9 @@ class Database {
       lastInputTokens: r.lastInputTokens, lastOutputTokens: r.lastOutputTokens, lastTotalTokens: r.lastTotalTokens,
     });
     for (const tid of channelThreadIds) {
-      const parts = tid.split('_');
-      if (parts.length < 3) continue;
-      const sessionId = parts[parts.length - 1];
-      const channelId = parts.slice(1, -1).join('_');
-      const row = await this.findOne<ChannelSessionRow>(this.channelSession, { where: { channelId, sessionId } });
+      const profileId = parseInt(tid, 10);
+      if (isNaN(profileId)) continue;
+      const row = await this.findByPk<SessionProfileRow>(this.sessionProfile, profileId);
       if (row) result[tid] = pick(row);
     }
     return result;
@@ -845,4 +910,116 @@ export async function getChannelSession(id: number | string | undefined | null, 
     logger.warn(`getChannelSession: id=${pk} not found`);
   }
   return row;
+}
+
+export async function getSessionProfile(id: number | string | undefined | null): Promise<SessionProfileRow | null> {
+  if (id == null) return null;
+  const pk = typeof id === 'string' ? parseInt(id) : id;
+  if (isNaN(pk) || pk <= 0) return null;
+  return database.findByPk<SessionProfileRow>(database.sessionProfile, pk);
+}
+
+/**
+ * 创建一个新 ChannelSession，并配套创建一个 auto profile，最后把 session.profileId 指向它。
+ * 用于"明确创建新 session"的入口（admin 新建 web session 等）。
+ * 已存在的 session 路径请用 findOrCreate + getOrCreateAutoProfile 组合。
+ */
+export async function createSessionWithAutoProfile(
+  sessionData: Partial<ChannelSessionRow> & { channelId: string; sessionId: string },
+  profileSeed?: Partial<SessionProfileRow>,
+): Promise<{ session: ChannelSessionRow; profile: SessionProfileRow }> {
+  const now = Date.now();
+  const session = await database.create<ChannelSessionRow>(database.channelSession, {
+    sessionName: '', autoSessionName: '', avatar: '',
+    profileId: 0, createdAt: now,
+    ...sessionData,
+  });
+  const profile = await database.create<SessionProfileRow>(database.sessionProfile, {
+    name: '', autoForSessionId: (session as any).id, createdAt: now,
+    ...(profileSeed ?? {}),
+  });
+  await database.update(database.channelSession, { profileId: (profile as any).id }, { where: { id: (session as any).id } });
+  (session as any).profileId = (profile as any).id;
+  return { session: session as any, profile: profile as any };
+}
+
+/** 找到 session 自己的 auto profile（autoForSessionId == sessionId），不存在则懒创建 */
+export async function getOrCreateAutoProfile(sessionId: number): Promise<SessionProfileRow> {
+  const existing = await database.findOne<SessionProfileRow>(database.sessionProfile, { where: { autoForSessionId: sessionId } });
+  if (existing) return existing;
+  const created = await database.create<SessionProfileRow>(database.sessionProfile, {
+    name: '',
+    autoForSessionId: sessionId,
+    createdAt: Date.now(),
+  });
+  return created;
+}
+
+/** 4 级回退后简化为 2 层：profile.field ?? channel.field ?? hardcoded */
+export interface EffectiveSessionResolved {
+  agentId: string;
+  saver: string;
+  threadKey: string;
+  memories: string[];
+  wikis: string[];
+  workPath?: string;
+  streamVerbose?: boolean;
+  autoApproveAllTools?: boolean;
+  approvalTimeout?: number;
+  approvalTimeoutValue?: ApprovalTimeoutValue;
+  askTimeout?: number;
+  askTimeoutMessage?: string;
+  intentModel?: string;
+  intentPrompt?: string;
+  intentThreshold?: number;
+}
+
+export interface EffectiveSession {
+  session: ChannelSessionRow;
+  profile: SessionProfileRow;
+  resolved: EffectiveSessionResolved;
+}
+
+/** 加载 session + 它指向的 profile + channel 默认，合并出有效配置（profile.field ?? channel.field） */
+export async function getEffectiveSession(id: number | string, throwIfNotFound: true): Promise<EffectiveSession>;
+export async function getEffectiveSession(id: number | string): Promise<EffectiveSession | undefined>;
+export async function getEffectiveSession(
+  id: number | string,
+  throwIfNotFound?: boolean,
+): Promise<EffectiveSession | undefined> {
+  const session = await getChannelSession(id, throwIfNotFound);
+  if (!session) return undefined;
+  let profile = session.profileId > 0 ? await getSessionProfile(session.profileId) : null;
+  if (!profile) {
+    // 旧数据 / 异常状态：profileId 缺失或对应 profile 已删，懒补一个 auto profile
+    profile = await getOrCreateAutoProfile(session.id);
+    await database.update(database.channelSession, { profileId: profile.id }, { where: { id: session.id } });
+    session.profileId = profile.id;
+  }
+  const channel = config.getChannel(session.channelId);
+
+  const useChannelMemories = profile.memories != null ? !!profile.useChannelMemories : false;
+  const useChannelWikis = profile.wikis != null ? !!profile.useChannelWikis : false;
+  const ownMems = profile.memories != null ? parseMemories(profile.memories) : [];
+  const ownWikis = profile.wikis != null ? parseMemories(profile.wikis) : [];
+
+  const resolved: EffectiveSessionResolved = {
+    agentId: profile.agentId ?? channel?.agent ?? '',
+    saver: profile.saver ?? channel?.saver ?? '',
+    threadKey: String(profile.id),
+    memories: useChannelMemories ? [...(channel?.memories ?? []), ...ownMems] : ownMems,
+    wikis: useChannelWikis ? [...(channel?.wikis ?? []), ...ownWikis] : ownWikis,
+    workPath: profile.workPath ?? channel?.workPath ?? undefined,
+    streamVerbose: profile.streamVerbose ?? channel?.streamVerbose ?? undefined,
+    autoApproveAllTools: profile.autoApproveAllTools ?? channel?.autoApproveAllTools ?? undefined,
+    approvalTimeout: profile.approvalTimeout ?? channel?.approvalTimeout ?? undefined,
+    approvalTimeoutValue: profile.approvalTimeoutValue ?? channel?.approvalTimeoutValue ?? undefined,
+    askTimeout: profile.askTimeout ?? channel?.askTimeout ?? undefined,
+    askTimeoutMessage: profile.askTimeoutMessage ?? channel?.askTimeoutMessage ?? undefined,
+    intentModel: profile.intentModel ?? channel?.intentModel ?? undefined,
+    intentPrompt: profile.intentPrompt ?? channel?.intentPrompt ?? undefined,
+    intentThreshold: profile.intentThreshold ?? channel?.intentThreshold ?? undefined,
+  };
+
+  return { session, profile, resolved };
 }
