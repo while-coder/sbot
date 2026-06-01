@@ -19,6 +19,8 @@ export function channelThreadId(channelType: string, channelId: string, sessionI
   return `${channelType}_${channelId}_${sessionId}`
 }
 
+// ⚠️ aiProcess / disabled 运行时是 0/1（受 raw:true 影响，见上方 query 配置注释）。
+// 仅可用真值检查，禁止 `=== true` / `=== false`。
 export type SchedulerRow = {
   id: number;
   expr: string;                    // cron 表达式，如 "0 9 * * *"
@@ -46,6 +48,10 @@ export type ChannelUserRow = {
   userInfo: string;  // 用户信息
 };
 
+// ⚠️ useChannelMemories / useChannelWikis / streamVerbose / autoApproveAllTools
+// 运行时是 0/1/null（受 raw:true 影响，见上方 query 配置注释）。
+// 仅可用真值检查，禁止 `=== true` / `=== false` / `String(v) === "true"`；
+// 三态字段进入 UI 前需用 `v == null ? null : !!v` 归一化（参考 admin/ChannelsView 的 sessionMap 加载）。
 export type ChannelSessionRow = {
   // ── 会话标识 ──
   id: number;
@@ -86,6 +92,8 @@ export type ChannelSessionRow = {
 };
 
 
+// ⚠️ enabled 运行时是 0/1（受 raw:true 影响，见上方 query 配置注释）。
+// 仅可用真值检查，禁止 `=== true` / `=== false`。
 export type HeartbeatRow = {
   id: number;
   name: string;
