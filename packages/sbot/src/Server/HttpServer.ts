@@ -18,7 +18,7 @@ import { installSkillFromZip } from '../SkillHub/bundle';
 import axios from 'axios';
 import { AgentStoreService } from '../AgentStore';
 import { LoggerService, log4js } from '../Core/LoggerService';
-import { database, parseMemories, getChannelSession, getSessionProfile, getEffectiveSession, ensureChannelSession, type ChannelSessionRow, type SessionProfileRow, type UsageLogRow } from '../Core/Database';
+import { database, parseMemories, getChannelSession, getSessionProfile, getEffectiveSession, ensureChannelSession, type ChannelSessionRow, type SessionProfileRow, type SchedulerRow, type UsageLogRow } from '../Core/Database';
 import { Op } from 'sequelize';
 import { sessionManager } from '../Session/SessionManager';
 import { schedulerService } from '../Scheduler/SchedulerService';
@@ -84,7 +84,7 @@ async function fetchAndSaveContextWindow(modelId: string): Promise<void> {
         }
     }
     if (contextWindow != null || maxOutputTokens != null) {
-        const map = (config.settings as any).models;
+        const map = config.settings.models;
         if (map?.[modelId]) {
             if (contextWindow != null) map[modelId].contextWindow = contextWindow;
             if (maxOutputTokens != null && !map[modelId].maxTokens) map[modelId].maxTokens = maxOutputTokens;
@@ -104,6 +104,12 @@ function toJsonSchema(schema: any): any {
 /** 统一 400 异常 */
 function throwBad(msg: string): never {
     const e: any = new Error(msg); e.status = 400; throw e;
+}
+
+/** 兼容 sequelize Model 与 plain 对象，统一转 JSON 可序列化的纯对象 */
+function toPlain<T>(row: T): T {
+    const r = row as { toJSON?: () => T };
+    return typeof r.toJSON === 'function' ? r.toJSON() : row;
 }
 
 /** 资源管理器 / 文件读取最大字节数 */
@@ -236,9 +242,9 @@ function registerSettingsCrud(
     const checkOnDelete = opts?.checkOnDelete ?? false;
     const getSettings = opts?.getSettings ?? (() => config.settings);
     const getSection = (): Record<string, any> => {
-        const s = config.settings as any;
+        const s = config.settings as Record<string, Record<string, any> | undefined>;
         if (!s[section]) s[section] = {};
-        return s[section];
+        return s[section]!;
     };
 
     app.post(`/api/settings/${section}`, api(async req => {
@@ -459,7 +465,7 @@ class HttpServer {
     // ===== System =====
     private registerSystemRoutes(app: express.Application) {
         app.get('/api/about', api(() =>
-            ({ version: config.pkg.version, name: config.pkg.name, description: config.pkg.description, releasenoteEn: (config.pkg as any).releasenoteEn || '', releasenoteZh: (config.pkg as any).releasenoteZh || '' })
+            ({ version: config.pkg.version, name: config.pkg.name, description: config.pkg.description, releasenoteEn: config.pkg.releasenoteEn || '', releasenoteZh: config.pkg.releasenoteZh || '' })
         ));
 
         app.post('/api/reload', api(() => {
@@ -580,7 +586,7 @@ class HttpServer {
                     const res = await fetch(`${base}/v1/models`, { headers });
                     if (!res.ok) throw new Error(`${res.status}`);
                     const data: any = await res.json();
-                    return (data.data as any[] || []).map((m: any) => m.id as string);
+                    return (data.data || []).map((m: any) => m.id as string);
                 } catch {
                     return getKnownModels(ModelProvider.Anthropic);
                 }
@@ -595,7 +601,7 @@ class HttpServer {
                     const res = await fetch(`${base}/${ver}/models`, { headers });
                     if (!res.ok) throw new Error(`${res.status}`);
                     const data: any = await res.json();
-                    return (data.models as any[] || []).map((m: any) => (m.name as string).replace(/^models\//, ''));
+                    return (data.models || []).map((m: any) => (m.name as string).replace(/^models\//, ''));
                 } catch {
                     const imageModels = getKnownModels(ModelProvider.GeminiImage);
                     const textModels = getKnownModels(ModelProvider.Gemini);
@@ -612,7 +618,7 @@ class HttpServer {
                 const res = await fetch(`${base}/api/tags`);
                 if (!res.ok) throwBad(`Ollama request failed: ${res.status}`);
                 const data: any = await res.json();
-                return (data.models as any[] || []).map((m: any) => m.name as string);
+                return (data.models || []).map((m: any) => m.name as string);
             } else {
                 // OpenAI-compatible
                 const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -620,7 +626,7 @@ class HttpServer {
                 const res = await fetch(`${base}/models`, { headers });
                 if (!res.ok) throwBad(`Models request failed: ${res.status}`);
                 const data: any = await res.json();
-                return (data.data as any[] || [])
+                return (data.data || [])
                     .sort((a: any, b: any) => (b.created ?? 0) - (a.created ?? 0))
                     .map((m: any) => m.id as string);
             }
@@ -897,9 +903,9 @@ class HttpServer {
                 source: '内置',
             })),
             ...Object.entries(config.getGlobalMcpServers()).map(([id, s]) => ({
-                ...(s as any), id,
-                name: (s as any).name || id,
-                description: (s as any).description || '',
+                ...s, id,
+                name: s.name || id,
+                description: s.description || '',
                 source: '全局',
             })),
         ];
@@ -916,9 +922,9 @@ class HttpServer {
                 .map(id => allGlobals.find(m => m.id === id))
                 .filter((m): m is NonNullable<typeof m> => !!m);
         const servers = Object.entries(config.getAgentMcpServers(agentName)).map(([id, s]) => ({
-            ...(s as any), id,
-            name: (s as any).name || id,
-            description: (s as any).description || '',
+            ...s, id,
+            name: s.name || id,
+            description: s.description || '',
             source: '专属',
         }));
         return { globals, servers };
@@ -1433,10 +1439,10 @@ class HttpServer {
     // ===== Schedulers =====
     private registerSchedulerRoutes(app: express.Application) {
         app.get('/api/schedulers', api(async () => {
-            const schedulers = await database.findAll(database.scheduler, { where: { disabled: false } });
-            return (schedulers as any[]).map(s => ({
-                ...(s.toJSON ? s.toJSON() : s),
-                nextRun: schedulerService.nextDate((s as any).id),
+            const schedulers = await database.findAll<SchedulerRow>(database.scheduler, { where: { disabled: false } });
+            return schedulers.map(s => ({
+                ...toPlain(s),
+                nextRun: schedulerService.nextDate(s.id),
             }));
         }));
 
@@ -1457,7 +1463,7 @@ class HttpServer {
             if (typeof body.aiProcess === 'boolean') patch.aiProcess = body.aiProcess;
             const row = await schedulerService.update(id, patch);
             if (!row) throwBad('Scheduler not found');
-            return { ...((row as any).toJSON ? (row as any).toJSON() : row), nextRun: schedulerService.nextDate(id) };
+            return { ...toPlain(row), nextRun: schedulerService.nextDate(id) };
         }));
 
         app.delete('/api/schedulers/:id', api(async req => {
@@ -1652,8 +1658,8 @@ class HttpServer {
                 intentThreshold: current?.intentThreshold ?? null,
                 createdAt: Date.now(),
             });
-            await database.update(database.channelSession, { profileId: (created as any).id }, { where: { id } });
-            return { profileId: (created as any).id };
+            await database.update(database.channelSession, { profileId: created.id }, { where: { id } });
+            return { profileId: created.id };
         }));
 
         // 切回独立：session.profileId 指回 session 自己的 auto profile（clone-profile 时保留）
@@ -1671,8 +1677,8 @@ class HttpServer {
                     createdAt: Date.now(),
                 });
             }
-            await database.update(database.channelSession, { profileId: (auto as any).id }, { where: { id } });
-            return { profileId: (auto as any).id };
+            await database.update(database.channelSession, { profileId: auto.id }, { where: { id } });
+            return { profileId: auto.id };
         }));
 
         app.get('/api/channel-sessions/:id/effective-config', api(async req => {

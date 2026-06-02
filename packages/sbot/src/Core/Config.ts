@@ -133,7 +133,7 @@ export function isValidAgentId(id: string): boolean {
 class Config {
   private _configDir: string;
   private _settings: Settings = {};
-  readonly pkg: { version: string; name: string; description: string; releasenote: string };
+  readonly pkg: { version: string; name: string; description: string; releasenoteEn?: string; releasenoteZh?: string };
 
   constructor() {
     this.pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '../../package.json'), 'utf8'));

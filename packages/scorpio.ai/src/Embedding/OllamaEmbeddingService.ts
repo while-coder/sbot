@@ -7,7 +7,7 @@ import { EmbeddingConfig } from "./types";
  * 封装 @langchain/ollama 的 OllamaEmbeddings，支持本地部署模型
  */
 export class OllamaEmbeddingService implements IEmbeddingService {
-  private embeddings!: OllamaEmbeddings;
+  private embeddings: OllamaEmbeddings | undefined;
 
   constructor(private config: EmbeddingConfig) {}
 
@@ -19,14 +19,14 @@ export class OllamaEmbeddingService implements IEmbeddingService {
   }
 
   async cleanup(): Promise<void> {
-    (this as any).embeddings = undefined;
+    this.embeddings = undefined;
   }
 
   async embedQuery(text: string): Promise<number[]> {
-    return await this.embeddings.embedQuery(text);
+    return await this.embeddings!.embedQuery(text);
   }
 
   async embedDocuments(documents: string[]): Promise<number[][]> {
-    return await this.embeddings.embedDocuments(documents);
+    return await this.embeddings!.embedDocuments(documents);
   }
 }

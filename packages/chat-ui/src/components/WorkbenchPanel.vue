@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import type { IChatTransport } from '../transport'
 import type { ChatLabels } from '../types'
 import { resolveLabels } from '../labels'
@@ -12,6 +12,11 @@ import {
   type ExplorerGitViewState,
   type ExplorerViewState,
 } from '../composables/useExplorerViewState'
+import {
+  loadWorkbenchTabsState,
+  saveWorkbenchTabsState,
+  type WorkbenchTabsState,
+} from '../composables/useWorkbenchTabsState'
 import FileExplorer from './FileExplorer.vue'
 import GitExplorer from './GitExplorer.vue'
 import Terminal from './Terminal.vue'
@@ -49,6 +54,12 @@ const props = withDefaults(defineProps<{
   editable?: boolean
   /** session = singletons + shared root (ChatView). workbench = multi + per-tab root (ExplorerView). */
   mode?: 'session' | 'workbench'
+  /**
+   * Opaque scope for tab-state persistence. Tabs and active selection are
+   * stored per key in localStorage. ChatView passes the session id; ExplorerView
+   * passes a fixed key. Empty/undefined disables persistence entirely.
+   */
+  persistKey?: string
 }>(), {
   mode: 'session',
 })
@@ -159,10 +170,14 @@ function addTab(type: ViewType) {
   tabs.value.push(tab)
   activeTabId.value = id
   addMenuOpen.value = false
+  scheduleSave()
 }
 
 function selectTab(id: string) {
-  if (activeTabId.value !== id) activeTabId.value = id
+  if (activeTabId.value !== id) {
+    activeTabId.value = id
+    scheduleSave()
+  }
 }
 
 function closeTab(id: string) {
@@ -172,6 +187,7 @@ function closeTab(id: string) {
   if (activeTabId.value === id) {
     activeTabId.value = tabs.value[idx]?.id ?? tabs.value[idx - 1]?.id ?? ''
   }
+  scheduleSave()
 }
 
 function toggleAddMenu() {
@@ -196,55 +212,127 @@ watch(() => props.root, (root) => {
     tab.gitBranch = ''
   }
 })
+
+/**
+ * Tab persistence: scoped by props.persistKey. Terminal tabs restore as fresh
+ * sessions — we can't rehydrate the underlying pty, only re-open one with the
+ * same title and cwd.
+ */
+let saveTimer: ReturnType<typeof setTimeout> | null = null
+let suppressSave = false
+
+function applyState(state: WorkbenchTabsState) {
+  suppressSave = true
+  tabs.value = state.tabs.map(t => ({
+    id: t.id,
+    type: t.type,
+    root: props.mode === 'session' ? props.root : t.root,
+    title: t.title,
+    refreshKey: 0,
+    refreshing: false,
+  }))
+  activeTabId.value = state.activeTabId && tabs.value.some(t => t.id === state.activeTabId)
+    ? state.activeTabId
+    : (tabs.value[0]?.id ?? '')
+  nextTabSeq = state.nextTabSeq
+  nextTerminalSeq = state.nextTerminalSeq
+  // Allow next microtask's reactive flush to settle before re-enabling saves.
+  queueMicrotask(() => { suppressSave = false })
+}
+
+function scheduleSave() {
+  if (suppressSave) return
+  if (!props.persistKey) return
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = setTimeout(flushSave, 200)
+}
+
+function flushSave() {
+  saveTimer = null
+  if (!props.persistKey) return
+  saveWorkbenchTabsState(props.persistKey, {
+    tabs: tabs.value.map(t => ({
+      id: t.id,
+      type: t.type,
+      root: t.root,
+      title: t.title,
+    })),
+    activeTabId: activeTabId.value,
+    nextTabSeq,
+    nextTerminalSeq,
+  })
+}
+
+onMounted(() => {
+  if (props.persistKey) applyState(loadWorkbenchTabsState(props.persistKey))
+})
+
+watch(() => props.persistKey, (next, prev) => {
+  // Flush any pending writes against the previous key before switching scope.
+  if (saveTimer) {
+    clearTimeout(saveTimer)
+    saveTimer = null
+    if (prev) {
+      saveWorkbenchTabsState(prev, {
+        tabs: tabs.value.map(t => ({ id: t.id, type: t.type, root: t.root, title: t.title })),
+        activeTabId: activeTabId.value,
+        nextTabSeq,
+        nextTerminalSeq,
+      })
+    }
+  }
+  if (next) applyState(loadWorkbenchTabsState(next))
+  else applyState({ tabs: [], activeTabId: '', nextTabSeq: 0, nextTerminalSeq: 0 })
+})
 </script>
 
 <template>
-  <div ref="containerEl" class="chatui-right-panel">
-    <div class="chatui-rp-tabs">
-      <div class="chatui-rp-tablist">
+  <div ref="containerEl" class="chatui-workbench-panel">
+    <div class="chatui-wb-tabs">
+      <div class="chatui-wb-tablist">
         <button
           v-for="tab in tabs"
           :key="tab.id"
           type="button"
-          class="chatui-rp-tab"
-          :class="{ 'chatui-rp-tab--active': tab.id === activeTabId }"
+          class="chatui-wb-tab"
+          :class="{ 'chatui-wb-tab--active': tab.id === activeTabId }"
           :title="tabTooltip(tab)"
           @click="selectTab(tab.id)"
         >
-          <span class="chatui-rp-tab-label">{{ tabLabel(tab) }}</span>
+          <span class="chatui-wb-tab-label">{{ tabLabel(tab) }}</span>
           <span
-            class="chatui-rp-tab-close"
+            class="chatui-wb-tab-close"
             :title="L.close"
             role="button"
             @click.stop="closeTab(tab.id)"
           >×</span>
         </button>
       </div>
-      <div class="chatui-rp-actions">
+      <div class="chatui-wb-actions">
         <button
           v-if="showRefresh && activeRoot"
           type="button"
-          class="chatui-rp-action"
-          :class="{ 'chatui-rp-action--spinning': activeTab?.refreshing }"
+          class="chatui-wb-action"
+          :class="{ 'chatui-wb-action--spinning': activeTab?.refreshing }"
           :disabled="activeTab?.refreshing"
           :title="L.refresh"
           @click="refresh"
         >↻</button>
-        <div class="chatui-rp-add-wrap">
+        <div class="chatui-wb-add-wrap">
           <button
             type="button"
-            class="chatui-rp-action chatui-rp-add"
-            :class="{ 'chatui-rp-action--active': addMenuOpen }"
+            class="chatui-wb-action chatui-wb-add"
+            :class="{ 'chatui-wb-action--active': addMenuOpen }"
             :disabled="availableTypes.length === 0"
             :title="L.add"
             @click="toggleAddMenu"
           >+</button>
-          <div v-if="addMenuOpen && availableTypes.length > 0" class="chatui-rp-menu">
+          <div v-if="addMenuOpen && availableTypes.length > 0" class="chatui-wb-menu">
             <button
               v-for="type in availableTypes"
               :key="type"
               type="button"
-              class="chatui-rp-menu-item"
+              class="chatui-wb-menu-item"
               @click="addTab(type)"
             >
               {{ VIEW_DEFS[type].label() }}
@@ -256,21 +344,21 @@ watch(() => props.root, (root) => {
 
     <div
       v-if="showRoot && activeRoot"
-      class="chatui-rp-root"
+      class="chatui-wb-root"
       :title="activeTab?.type === 'git' && activeTab?.gitBranch ? `${activeRoot}  ${L.explorerGitBranch}: ${activeTab.gitBranch}` : activeRoot"
     >
-      <span class="chatui-rp-root-path">{{ activeRoot }}</span>
-      <span v-if="activeTab?.type === 'git' && activeTab?.gitBranch" class="chatui-rp-root-branch">
+      <span class="chatui-wb-root-path">{{ activeRoot }}</span>
+      <span v-if="activeTab?.type === 'git' && activeTab?.gitBranch" class="chatui-wb-root-branch">
         {{ activeTab.gitBranch }}
       </span>
     </div>
 
-    <div v-if="!activeTab" class="chatui-rp-empty">
-      <div class="chatui-rp-empty-text">{{ L.rightPanelToggle }}</div>
+    <div v-if="!activeTab" class="chatui-wb-empty">
+      <div class="chatui-wb-empty-text">{{ L.rightPanelToggle }}</div>
       <button
         v-if="availableTypes.length > 0"
         type="button"
-        class="chatui-rp-empty-add"
+        class="chatui-wb-empty-add"
         @click="toggleAddMenu"
       >＋ {{ L.add }}</button>
     </div>
@@ -326,7 +414,7 @@ watch(() => props.root, (root) => {
 </template>
 
 <style scoped>
-.chatui-right-panel {
+.chatui-workbench-panel {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -334,14 +422,14 @@ watch(() => props.root, (root) => {
   overflow: hidden;
   background: var(--chatui-bg);
 }
-.chatui-right-panel > :deep(.chatui-file-explorer),
-.chatui-right-panel > :deep(.chatui-git-explorer) {
+.chatui-workbench-panel > :deep(.chatui-file-explorer),
+.chatui-workbench-panel > :deep(.chatui-git-explorer) {
   flex: 1 1 0;
   min-height: 0;
 }
 
 /* Tab bar */
-.chatui-rp-tabs {
+.chatui-wb-tabs {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -352,7 +440,7 @@ watch(() => props.root, (root) => {
   background: var(--chatui-bg-surface);
   flex-shrink: 0;
 }
-.chatui-rp-tablist {
+.chatui-wb-tablist {
   display: flex;
   align-items: flex-end;
   gap: 4px;
@@ -361,9 +449,9 @@ watch(() => props.root, (root) => {
   overflow-x: auto;
   scrollbar-width: none;
 }
-.chatui-rp-tablist::-webkit-scrollbar { display: none; }
+.chatui-wb-tablist::-webkit-scrollbar { display: none; }
 
-.chatui-rp-tab {
+.chatui-wb-tab {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -382,23 +470,23 @@ watch(() => props.root, (root) => {
   flex-shrink: 0;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
-.chatui-rp-tab:hover:not(.chatui-rp-tab--active) {
+.chatui-wb-tab:hover:not(.chatui-wb-tab--active) {
   background: var(--chatui-bg-hover);
   color: var(--chatui-fg);
 }
-.chatui-rp-tab--active {
+.chatui-wb-tab--active {
   background: var(--chatui-bg);
   color: var(--chatui-fg);
   border-color: var(--chatui-border);
   margin-bottom: -1px;
 }
-.chatui-rp-tab-label {
+.chatui-wb-tab-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
 }
-.chatui-rp-tab-close {
+.chatui-wb-tab-close {
   width: 16px;
   height: 16px;
   display: inline-flex;
@@ -411,20 +499,20 @@ watch(() => props.root, (root) => {
   opacity: 0.55;
   flex-shrink: 0;
 }
-.chatui-rp-tab-close:hover {
+.chatui-wb-tab-close:hover {
   background: var(--chatui-bg-active);
   opacity: 1;
 }
 
 /* Actions on the right */
-.chatui-rp-actions {
+.chatui-wb-actions {
   display: inline-flex;
   align-items: center;
   gap: 2px;
   flex-shrink: 0;
   padding-bottom: 2px;
 }
-.chatui-rp-action {
+.chatui-wb-action {
   width: 22px;
   height: 22px;
   display: inline-flex;
@@ -439,34 +527,34 @@ watch(() => props.root, (root) => {
   border-radius: 4px;
   transition: background 0.15s, color 0.15s;
 }
-.chatui-rp-action:hover:not(:disabled) {
+.chatui-wb-action:hover:not(:disabled) {
   background: var(--chatui-bg-hover);
   color: var(--chatui-fg);
 }
-.chatui-rp-action:disabled {
+.chatui-wb-action:disabled {
   cursor: default;
   opacity: 0.45;
 }
-.chatui-rp-action--active {
+.chatui-wb-action--active {
   background: var(--chatui-bg-active);
   color: var(--chatui-fg);
 }
-.chatui-rp-action--spinning {
-  animation: chatui-rp-spin 0.8s linear infinite;
+.chatui-wb-action--spinning {
+  animation: chatui-wb-spin 0.8s linear infinite;
 }
-@keyframes chatui-rp-spin {
+@keyframes chatui-wb-spin {
   to { transform: rotate(360deg); }
 }
-.chatui-rp-add {
+.chatui-wb-add {
   font-size: 16px;
   font-weight: 600;
 }
 
 /* Add menu */
-.chatui-rp-add-wrap {
+.chatui-wb-add-wrap {
   position: relative;
 }
-.chatui-rp-menu {
+.chatui-wb-menu {
   position: absolute;
   top: calc(100% + 4px);
   right: 0;
@@ -480,7 +568,7 @@ watch(() => props.root, (root) => {
   display: flex;
   flex-direction: column;
 }
-.chatui-rp-menu-item {
+.chatui-wb-menu-item {
   text-align: left;
   padding: 6px 10px;
   border: none;
@@ -491,12 +579,12 @@ watch(() => props.root, (root) => {
   font-size: 12px;
   color: var(--chatui-fg);
 }
-.chatui-rp-menu-item:hover {
+.chatui-wb-menu-item:hover {
   background: var(--chatui-bg-hover);
 }
 
 /* Root path bar */
-.chatui-rp-root {
+.chatui-wb-root {
   width: 100%;
   padding: 4px 10px 5px;
   display: flex;
@@ -510,13 +598,13 @@ watch(() => props.root, (root) => {
   font-size: 11px;
   flex-shrink: 0;
 }
-.chatui-rp-root-path {
+.chatui-wb-root-path {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.chatui-rp-root-branch {
+.chatui-wb-root-branch {
   max-width: 120px;
   height: 16px;
   padding: 0 5px;
@@ -533,7 +621,7 @@ watch(() => props.root, (root) => {
 }
 
 /* Empty state */
-.chatui-rp-empty {
+.chatui-wb-empty {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -543,10 +631,10 @@ watch(() => props.root, (root) => {
   color: var(--chatui-fg-secondary);
   font-size: 12px;
 }
-.chatui-rp-empty-text {
+.chatui-wb-empty-text {
   opacity: 0.7;
 }
-.chatui-rp-empty-add {
+.chatui-wb-empty-add {
   padding: 6px 14px;
   border: 1px solid var(--chatui-border);
   border-radius: 6px;
@@ -556,7 +644,7 @@ watch(() => props.root, (root) => {
   font: inherit;
   font-size: 12px;
 }
-.chatui-rp-empty-add:hover {
+.chatui-wb-empty-add:hover {
   background: var(--chatui-bg-hover);
 }
 </style>

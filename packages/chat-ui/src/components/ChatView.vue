@@ -16,7 +16,7 @@ import ConfigToolbar from './ConfigToolbar.vue'
 import StatusBar from './StatusBar.vue'
 import ChatArea from './ChatArea.vue'
 import PathPickerModal from './PathPickerModal.vue'
-import RightPanel from './RightPanel.vue'
+import WorkbenchPanel from './WorkbenchPanel.vue'
 import { useConfirm } from 'sbot-ui'
 
 const props = withDefaults(defineProps<{
@@ -797,7 +797,13 @@ onBeforeUnmount(() => {
             <span class="chatui-right-panel-title">{{ L.rightPanelToggle }}</span>
             <button class="chatui-right-panel-close" :title="L.close" @click="rightPanelOpen = false">×</button>
           </div>
-          <RightPanel :transport="transport" :root="activeSession?.workPath" :labels="labels" editable />
+          <WorkbenchPanel
+            :transport="transport"
+            :root="activeSession?.workPath"
+            :labels="labels"
+            :persist-key="activeSessionId ?? undefined"
+            editable
+          />
         </div>
       </div>
     </div>

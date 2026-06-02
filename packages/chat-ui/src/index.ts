@@ -61,7 +61,7 @@ export { default as RichInput } from './components/RichInput.vue';
 export { default as ImageLightbox } from './components/ImageLightbox.vue';
 export { default as ThinkDrawer } from './components/ThinkDrawer.vue';
 export { default as ServerPicker } from './components/ServerPicker.vue';
-export { default as RightPanel } from './components/RightPanel.vue';
+export { default as WorkbenchPanel } from './components/WorkbenchPanel.vue';
 export { default as Terminal } from './components/Terminal.vue';
 export { default as FileExplorer } from './components/FileExplorer.vue';
 export { default as GitExplorer } from './components/GitExplorer.vue';

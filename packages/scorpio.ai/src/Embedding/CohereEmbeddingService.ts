@@ -3,7 +3,7 @@ import { IEmbeddingService } from "./IEmbeddingService";
 import { EmbeddingConfig } from "./types";
 
 export class CohereEmbeddingService implements IEmbeddingService {
-  private embeddings!: CohereEmbeddings;
+  private embeddings: CohereEmbeddings | undefined;
 
   constructor(private config: EmbeddingConfig) {}
 
@@ -19,14 +19,14 @@ export class CohereEmbeddingService implements IEmbeddingService {
   }
 
   async cleanup(): Promise<void> {
-    (this as any).embeddings = undefined;
+    this.embeddings = undefined;
   }
 
   async embedQuery(text: string): Promise<number[]> {
-    return await this.embeddings.embedQuery(text);
+    return await this.embeddings!.embedQuery(text);
   }
 
   async embedDocuments(documents: string[]): Promise<number[][]> {
-    return await this.embeddings.embedDocuments(documents);
+    return await this.embeddings!.embedDocuments(documents);
   }
 }

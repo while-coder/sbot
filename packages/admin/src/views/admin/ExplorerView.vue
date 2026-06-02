@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { SButton, SPageToolbar, useToast } from 'sbot-ui'
-import { RightPanel, WebSocketTransport, PathPickerModal } from '@sbot/chat-ui'
+import { WorkbenchPanel, WebSocketTransport, PathPickerModal } from '@sbot/chat-ui'
 
 const { t } = useI18n()
 const { show } = useToast()
@@ -53,9 +53,10 @@ onMounted(() => {
       </SButton>
     </SPageToolbar>
 
-    <RightPanel
+    <WorkbenchPanel
       class="explorer-panel"
       mode="workbench"
+      persist-key="admin-explorer"
       :transport="transport"
       :root="root"
       :labels="panelLabels"

@@ -78,7 +78,7 @@ async function doInitSession(channelId: string, ctx: import("channel.base").Init
         where: { channelId, userId },
         defaults: userData,
     });
-    if (!userCreated && hasChanged(dbUser as any, userData)) {
+    if (!userCreated && hasChanged(dbUser, userData)) {
         await database.update(database.channelUser, userData, { where: { channelId, userId } });
     }
 
@@ -88,7 +88,7 @@ async function doInitSession(channelId: string, ctx: import("channel.base").Init
     });
 
     if (sendUpdate) checkForUpdate(sendUpdate).catch(() => {});
-    return { dbUserId: (dbUser as any).id, dbSessionId: dbSession.id };
+    return { dbUserId: dbUser.id, dbSessionId: dbSession.id };
 }
 
 // ── ChannelManager ────────────────────────────────────────────────────────────
@@ -139,7 +139,7 @@ export class ChannelManager {
                 onReceiveMessage: async (session, query, args) =>
                     sessionManager.onReceiveChannelMessage(query, { ...args, channelType: plugin.type, channelId, dbSessionId: session.dbSessionId }),
                 onTriggerAction: async (session, args) =>
-                    sessionManager.onTriggerChannelAction(session.dbSessionId, { ...args, channelType: plugin.type, channelId }),
+                    sessionManager.onTriggerChannelAction(session.dbSessionId, args),
             };
             const service = await plugin.init(ctx);
             if (service) {

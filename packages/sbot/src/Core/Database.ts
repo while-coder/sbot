@@ -951,26 +951,26 @@ export async function ensureChannelSession(
     // 已存在 session：仅更新与传入 sessionData 不同的字段（避免无谓写）
     const changed: Record<string, any> = {};
     for (const k of Object.keys(sessionData)) {
-      if ((session as any)[k] !== sessionData[k]) changed[k] = sessionData[k];
+      if (session[k as keyof ChannelSessionRow] !== sessionData[k]) changed[k] = sessionData[k];
     }
     if (Object.keys(changed).length > 0) {
       await database.update(database.channelSession, changed, { where: { channelId, sessionId } });
-      Object.assign(session as any, changed);
+      Object.assign(session, changed);
     }
   }
 
-  let profile = await getSessionProfile((session as any).profileId);
+  let profile = await getSessionProfile(session.profileId);
   if (!profile) {
     profile = await database.create<SessionProfileRow>(database.sessionProfile, {
       name: '',
-      autoForSessionId: (session as any).id,
+      autoForSessionId: session.id,
       createdAt: now,
     });
-    await database.update(database.channelSession, { profileId: (profile as any).id }, { where: { id: (session as any).id } });
-    (session as any).profileId = (profile as any).id;
+    await database.update(database.channelSession, { profileId: profile.id }, { where: { id: session.id } });
+    session.profileId = profile.id;
   }
 
-  return { session: session as any, profile: profile!, created: sessionCreated };
+  return { session, profile, created: sessionCreated };
 }
 
 /** 4 级回退后简化为 2 层：profile.field ?? channel.field ?? hardcoded */

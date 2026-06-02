@@ -4,7 +4,7 @@ import { EmbeddingConfig } from "./types";
 
 // Voyage AI 提供 OpenAI 兼容的 embedding API
 export class VoyageAIEmbeddingService implements IEmbeddingService {
-  private embeddings!: OpenAIEmbeddings;
+  private embeddings: OpenAIEmbeddings | undefined;
 
   constructor(private config: EmbeddingConfig) {}
 
@@ -23,14 +23,14 @@ export class VoyageAIEmbeddingService implements IEmbeddingService {
   }
 
   async cleanup(): Promise<void> {
-    (this as any).embeddings = undefined;
+    this.embeddings = undefined;
   }
 
   async embedQuery(text: string): Promise<number[]> {
-    return await this.embeddings.embedQuery(text);
+    return await this.embeddings!.embedQuery(text);
   }
 
   async embedDocuments(documents: string[]): Promise<number[][]> {
-    return await this.embeddings.embedDocuments(documents);
+    return await this.embeddings!.embedDocuments(documents);
   }
 }
