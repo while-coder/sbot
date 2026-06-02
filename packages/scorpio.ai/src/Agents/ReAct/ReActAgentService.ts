@@ -59,9 +59,10 @@ export class ReActAgentService extends SingleAgentService {
   // ── Overrides ────────────────────────────────────────────────
 
   protected override async buildSystemMessage(query: MessageContent): Promise<ChatMessage | undefined> {
-    const agentsDesc = this.agentSubNodes.map(a =>
-      `  <agent id="${a.id}">${a.desc}</agent>`
-    ).join('\n');
+    const agentsDesc = this.agentSubNodes.map(a => {
+      const nameAttr = a.name ? ` name="${a.name}"` : '';
+      return `  <agent id="${a.id}"${nameAttr}>${a.desc}</agent>`;
+    }).join('\n');
     const reactPrompt = this.systemPromptTemplate.replace('{agents}', agentsDesc);
 
     const parentMsg = await super.buildSystemMessage(query);

@@ -239,9 +239,18 @@ export class AgentFactory {
         if (!entry.model) {
             throw new Error("ReAct mode: model not configured");
         }
-        
+
+        const enrichedSubNodes = agentSubNodes.map(node => {
+            try {
+                const target = config.getAgent(node.id);
+                return target.name ? { ...node, name: target.name } : node;
+            } catch {
+                return node;
+            }
+        });
+
         container.registerWithArgs(ReActAgentService, {
-            [T_AgentSubNodes]: agentSubNodes,
+            [T_AgentSubNodes]: enrichedSubNodes,
             [T_CreateAgent]: createAgentFn,
             [T_ThinkModelService]: await config.getModelService(entry.model, true),
             [T_StaticSystemPrompts]: systemPrompts,

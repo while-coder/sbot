@@ -64,7 +64,7 @@ export interface SingleAgentEntry extends ToolAgentEntry {
  */
 export interface ReactAgentEntry extends ToolAgentEntry {
   type: AgentMode.ReAct;
-  agents: AgentSubNode[];      // 子 Agent 引用列表（name 字段为 agent UUID）
+  agents: AgentSubNode[];      // 子 Agent 引用列表（id 为目标 agent 的 UUID，name 为可选短标识，desc 为能力描述）
 }
 
 /**
