@@ -6,7 +6,7 @@
   "module": "esm/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "rimraf dist esm && tsc -b --force && tsc -p tsconfig.esm.json && echo {\"type\":\"module\"} > esm/package.json"
+    "build": "rimraf dist esm && tsc -b --force && tsc -p tsconfig.esm.json && echo '{\"type\":\"module\"}' > esm/package.json"
   },
   "private": true,
   "devDependencies": {
