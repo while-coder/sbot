@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { SButton, SPageToolbar, useToast } from 'sbot-ui'
-import { Explorer, WebSocketTransport, PathPickerModal } from '@sbot/chat-ui'
+import { RightPanel, WebSocketTransport, PathPickerModal } from '@sbot/chat-ui'
 
 const { t } = useI18n()
 const { show } = useToast()
@@ -12,7 +12,9 @@ const root = ref<string>('')
 const picker = ref<InstanceType<typeof PathPickerModal> | null>(null)
 const transport = new WebSocketTransport()
 
-const pickerLabels = computed(() => ({
+// Mapping admin's i18n keys → chat-ui's flat ChatLabels surface so the panel
+// renders in the same locale as the surrounding admin UI.
+const panelLabels = computed(() => ({
   selectDirTitle: t('directory.select_dir_title'),
   myComputer: t('directory.my_computer'),
   upDir: t('directory.up_dir'),
@@ -22,6 +24,9 @@ const pickerLabels = computed(() => ({
   noSubdirs: t('directory.no_subdirs'),
   loading: t('common.loading'),
   cancel: t('common.cancel'),
+  add: t('common.add'),
+  close: t('common.close'),
+  refresh: t('common.refresh'),
 }))
 
 function openPicker() {
@@ -48,12 +53,19 @@ onMounted(() => {
       </SButton>
     </SPageToolbar>
 
-    <Explorer :transport="transport" :root="root" editable />
+    <RightPanel
+      class="explorer-panel"
+      mode="workbench"
+      :transport="transport"
+      :root="root"
+      :labels="panelLabels"
+      editable
+    />
 
     <PathPickerModal
       ref="picker"
       :transport="transport"
-      :labels="pickerLabels"
+      :labels="panelLabels"
       @confirm="onPicked"
       @error="msg => show(msg, 'error')"
     />
@@ -66,6 +78,10 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+.explorer-panel {
+  flex: 1;
+  min-height: 0;
 }
 .explorer-root-display {
   font-family: var(--sui-font-mono);

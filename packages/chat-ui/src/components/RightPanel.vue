@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import type { IChatTransport } from '../transport'
 import type { ChatLabels } from '../types'
 import { resolveLabels } from '../labels'
@@ -21,16 +21,37 @@ type ViewType = 'files' | 'git' | 'terminal'
 interface ViewTab {
   id: string
   type: ViewType
-  /** Display title shown in the tab strip (used for multi-instance views like terminals). */
+  /**
+   * Captured at creation time in workbench mode so subsequent changes to the
+   * panel-level default root don't yank the rug from under existing tabs.
+   * Falls back to props.root in session mode.
+   */
+  root?: string
   title?: string
+  /** Cached so we can show "● 5" in the Git tab strip. */
+  gitCount?: number
+  /** Cached so the root bar can show the current branch when this tab is active. */
+  gitBranch?: string
+  /** Per-tab refresh tick so refresh button only re-fetches the active tab. */
+  refreshKey?: number
+  refreshing?: boolean
 }
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   transport: IChatTransport
+  /**
+   * In session mode this is the single root for files/git/terminal.
+   * In workbench mode this becomes the *default* root applied to newly added tabs;
+   * existing tabs keep whatever root they captured at creation time.
+   */
   root?: string
   labels?: ChatLabels
   editable?: boolean
-}>()
+  /** session = singletons + shared root (ChatView). workbench = multi + per-tab root (ExplorerView). */
+  mode?: 'session' | 'workbench'
+}>(), {
+  mode: 'session',
+})
 
 const L = computed(() => resolveLabels(props.labels))
 
@@ -39,80 +60,101 @@ const activeTabId = ref<string>('')
 const addMenuOpen = ref(false)
 const containerEl = ref<HTMLElement | null>(null)
 
-const viewState = ref<ExplorerViewState>(defaultExplorerViewState())
-const refreshKey = ref(0)
-const refreshing = ref(false)
-const gitCount = ref(0)
-const gitBranch = ref('')
+/**
+ * Per-root view-state cache. Keyed by root path so multiple workbench tabs
+ * pointing at the same root share state, while different roots stay isolated.
+ * loadExplorerViewState already reads from localStorage by root, so we just
+ * ensure each unique root is fetched once.
+ */
+const viewStates = reactive<Map<string, ExplorerViewState>>(new Map())
 
 let nextTabSeq = 0
 let nextTerminalSeq = 0
 
 interface ViewDef {
   label: () => string
-  /** Allow multiple tabs of this type at once. */
-  multi: boolean
-  /** Whether this view uses the shared root path bar / refresh button. */
+  multi: (mode: 'session' | 'workbench') => boolean
   rooted: boolean
 }
 
 const VIEW_DEFS: Record<ViewType, ViewDef> = {
-  files:    { label: () => L.value.explorerFiles, multi: false, rooted: true  },
-  git:      { label: () => L.value.explorerGit,   multi: false, rooted: true  },
-  terminal: { label: () => L.value.terminal,      multi: true,  rooted: false },
+  files:    { label: () => L.value.explorerFiles, multi: m => m === 'workbench', rooted: true  },
+  git:      { label: () => L.value.explorerGit,   multi: m => m === 'workbench', rooted: true  },
+  terminal: { label: () => L.value.terminal,      multi: () => true,             rooted: false },
 }
 
 const activeTab = computed(() => tabs.value.find(t => t.id === activeTabId.value) ?? null)
+const activeRoot = computed(() => activeTab.value?.root ?? props.root)
 
 const availableTypes = computed<ViewType[]>(() => {
-  const singletons = new Set(tabs.value.filter(t => !VIEW_DEFS[t.type].multi).map(t => t.type))
-  return (Object.keys(VIEW_DEFS) as ViewType[]).filter(t => VIEW_DEFS[t].multi || !singletons.has(t))
+  const singletons = new Set(
+    tabs.value.filter(t => !VIEW_DEFS[t.type].multi(props.mode)).map(t => t.type),
+  )
+  return (Object.keys(VIEW_DEFS) as ViewType[])
+    .filter(t => VIEW_DEFS[t].multi(props.mode) || !singletons.has(t))
 })
 
-const showRoot = computed(() => Boolean(activeTab.value && props.root && VIEW_DEFS[activeTab.value.type].rooted))
+const showRoot = computed(() => Boolean(activeTab.value && activeRoot.value && VIEW_DEFS[activeTab.value.type].rooted))
 const showRefresh = computed(() => Boolean(activeTab.value && VIEW_DEFS[activeTab.value.type].rooted))
 
+function basename(p: string): string {
+  if (!p) return ''
+  const trimmed = p.replace(/[/\\]+$/, '')
+  const idx = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'))
+  return idx >= 0 ? trimmed.slice(idx + 1) : trimmed
+}
+
 function tabLabel(tab: ViewTab): string {
-  return tab.title ?? VIEW_DEFS[tab.type].label()
+  if (tab.title) return tab.title
+  const base = VIEW_DEFS[tab.type].label()
+  // In workbench mode, suffix the path basename so multiple Files/Git tabs are
+  // distinguishable at a glance.
+  if (props.mode === 'workbench' && tab.root && VIEW_DEFS[tab.type].rooted) {
+    const name = basename(tab.root)
+    if (name) return `${base} · ${name}`
+  }
+  return base
 }
 
-watch(() => props.root, (root) => {
-  gitBranch.value = ''
-  viewState.value = loadExplorerViewState(root)
-}, { immediate: true })
-
-function persistViewState(patch: Partial<ExplorerViewState>) {
-  if (!props.root) return
-  viewState.value = mergeExplorerViewState(viewState.value, patch)
-  saveExplorerViewState(props.root, viewState.value)
+function tabTooltip(tab: ViewTab): string {
+  return tab.root ? `${tabLabel(tab)}\n${tab.root}` : tabLabel(tab)
 }
 
-function updateFilesViewState(patch: Partial<ExplorerFilesViewState>) {
-  persistViewState({ files: patch as ExplorerFilesViewState })
+function getViewState(root: string | undefined): ExplorerViewState {
+  if (!root) return defaultExplorerViewState()
+  let state = viewStates.get(root)
+  if (!state) {
+    state = loadExplorerViewState(root)
+    viewStates.set(root, state)
+  }
+  return state
 }
 
-function updateGitViewState(patch: Partial<ExplorerGitViewState>) {
-  persistViewState({ git: patch as ExplorerGitViewState })
-}
-
-function updateTreeWidth(value: number) {
-  persistViewState({ treeWidth: value })
-}
-
-function updateTreeHeight(value: number) {
-  persistViewState({ treeHeight: value })
+function persistViewState(root: string | undefined, patch: Partial<ExplorerViewState>) {
+  if (!root) return
+  const next = mergeExplorerViewState(getViewState(root), patch)
+  viewStates.set(root, next)
+  saveExplorerViewState(root, next)
 }
 
 function refresh() {
-  if (!props.root || refreshing.value) return
-  refreshing.value = true
-  refreshKey.value += 1
+  const tab = activeTab.value
+  if (!tab || tab.refreshing) return
+  if (VIEW_DEFS[tab.type].rooted && !(tab.root ?? props.root)) return
+  tab.refreshing = true
+  tab.refreshKey = (tab.refreshKey ?? 0) + 1
 }
 
 function addTab(type: ViewType) {
   if (!availableTypes.value.includes(type)) return
   const id = `${type}-${++nextTabSeq}`
-  const tab: ViewTab = { id, type }
+  const tab: ViewTab = {
+    id,
+    type,
+    root: VIEW_DEFS[type].rooted || type === 'terminal' ? props.root : undefined,
+    refreshKey: 0,
+    refreshing: false,
+  }
   if (type === 'terminal') tab.title = `${L.value.terminal} ${++nextTerminalSeq}`
   tabs.value.push(tab)
   activeTabId.value = id
@@ -120,10 +162,7 @@ function addTab(type: ViewType) {
 }
 
 function selectTab(id: string) {
-  if (activeTabId.value !== id) {
-    activeTabId.value = id
-    refreshing.value = false
-  }
+  if (activeTabId.value !== id) activeTabId.value = id
 }
 
 function closeTab(id: string) {
@@ -132,7 +171,6 @@ function closeTab(id: string) {
   tabs.value.splice(idx, 1)
   if (activeTabId.value === id) {
     activeTabId.value = tabs.value[idx]?.id ?? tabs.value[idx - 1]?.id ?? ''
-    refreshing.value = false
   }
 }
 
@@ -149,6 +187,15 @@ watch(addMenuOpen, (open) => {
   if (open) document.addEventListener('mousedown', onDocClick)
   else document.removeEventListener('mousedown', onDocClick)
 })
+
+// Session mode: keep tabs synced when the bound root changes.
+watch(() => props.root, (root) => {
+  if (props.mode !== 'session') return
+  for (const tab of tabs.value) {
+    if (VIEW_DEFS[tab.type].rooted || tab.type === 'terminal') tab.root = root
+    tab.gitBranch = ''
+  }
+})
 </script>
 
 <template>
@@ -161,7 +208,7 @@ watch(addMenuOpen, (open) => {
           type="button"
           class="chatui-rp-tab"
           :class="{ 'chatui-rp-tab--active': tab.id === activeTabId }"
-          :title="tabLabel(tab)"
+          :title="tabTooltip(tab)"
           @click="selectTab(tab.id)"
         >
           <span class="chatui-rp-tab-label">{{ tabLabel(tab) }}</span>
@@ -175,11 +222,11 @@ watch(addMenuOpen, (open) => {
       </div>
       <div class="chatui-rp-actions">
         <button
-          v-if="showRefresh && props.root"
+          v-if="showRefresh && activeRoot"
           type="button"
           class="chatui-rp-action"
-          :class="{ 'chatui-rp-action--spinning': refreshing }"
-          :disabled="refreshing"
+          :class="{ 'chatui-rp-action--spinning': activeTab?.refreshing }"
+          :disabled="activeTab?.refreshing"
           :title="L.refresh"
           @click="refresh"
         >↻</button>
@@ -208,13 +255,13 @@ watch(addMenuOpen, (open) => {
     </div>
 
     <div
-      v-if="showRoot"
+      v-if="showRoot && activeRoot"
       class="chatui-rp-root"
-      :title="activeTab?.type === 'git' && gitBranch ? `${props.root}  ${L.explorerGitBranch}: ${gitBranch}` : props.root"
+      :title="activeTab?.type === 'git' && activeTab?.gitBranch ? `${activeRoot}  ${L.explorerGitBranch}: ${activeTab.gitBranch}` : activeRoot"
     >
-      <span class="chatui-rp-root-path">{{ props.root }}</span>
-      <span v-if="activeTab?.type === 'git' && gitBranch" class="chatui-rp-root-branch">
-        {{ gitBranch }}
+      <span class="chatui-rp-root-path">{{ activeRoot }}</span>
+      <span v-if="activeTab?.type === 'git' && activeTab?.gitBranch" class="chatui-rp-root-branch">
+        {{ activeTab.gitBranch }}
       </span>
     </div>
 
@@ -238,40 +285,40 @@ watch(addMenuOpen, (open) => {
         v-if="tab.type === 'files'"
         v-show="tab.id === activeTabId"
         :transport="transport"
-        :root="root"
+        :root="tab.root"
         :labels="labels"
-        :refresh-key="refreshKey"
-        :tree-width="viewState.treeWidth"
-        :tree-height="viewState.treeHeight"
-        :view-state="viewState.files"
+        :refresh-key="tab.refreshKey"
+        :tree-width="getViewState(tab.root).treeWidth"
+        :tree-height="getViewState(tab.root).treeHeight"
+        :view-state="getViewState(tab.root).files"
         :editable="props.editable"
-        @refreshing="refreshing = $event"
-        @tree-width="updateTreeWidth"
-        @tree-height="updateTreeHeight"
-        @view-state="updateFilesViewState"
+        @refreshing="tab.refreshing = $event"
+        @tree-width="persistViewState(tab.root, { treeWidth: $event })"
+        @tree-height="persistViewState(tab.root, { treeHeight: $event })"
+        @view-state="persistViewState(tab.root, { files: $event as ExplorerFilesViewState })"
       />
       <GitExplorer
         v-else-if="tab.type === 'git'"
         v-show="tab.id === activeTabId"
         :transport="transport"
-        :root="root"
+        :root="tab.root"
         :labels="labels"
-        :refresh-key="refreshKey"
-        :tree-width="viewState.treeWidth"
-        :tree-height="viewState.treeHeight"
-        :view-state="viewState.git"
-        @count="gitCount = $event"
-        @branch="gitBranch = $event"
-        @refreshing="refreshing = $event"
-        @tree-width="updateTreeWidth"
-        @tree-height="updateTreeHeight"
-        @view-state="updateGitViewState"
+        :refresh-key="tab.refreshKey"
+        :tree-width="getViewState(tab.root).treeWidth"
+        :tree-height="getViewState(tab.root).treeHeight"
+        :view-state="getViewState(tab.root).git"
+        @count="tab.gitCount = $event"
+        @branch="tab.gitBranch = $event"
+        @refreshing="tab.refreshing = $event"
+        @tree-width="persistViewState(tab.root, { treeWidth: $event })"
+        @tree-height="persistViewState(tab.root, { treeHeight: $event })"
+        @view-state="persistViewState(tab.root, { git: $event as ExplorerGitViewState })"
       />
       <Terminal
         v-else-if="tab.type === 'terminal'"
         v-show="tab.id === activeTabId"
         :transport="transport"
-        :cwd="root"
+        :cwd="tab.root"
         :labels="labels"
       />
     </template>

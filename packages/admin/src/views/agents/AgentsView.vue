@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store, applyMcpList } from '@/shared/store'
-import { useToast, useConfirm, SButton, SCard, SPageToolbar, SPageContent, STable, SInfoTable, SInfoRow, SModal, SInput, STagFilter, type STableColumn } from 'sbot-ui'
+import { useToast, useConfirm, SButton, SCard, SPageToolbar, SPageContent, STable, SInfoTable, SInfoRow, SModal, SInput, SSelect, STagFilter, type STableColumn } from 'sbot-ui'
 import AgentModal from './modals/AgentModal.vue'
 import AgentMcpModal from './modals/AgentMcpModal.vue'
 import AgentSkillsModal from './modals/AgentSkillsModal.vue'
@@ -19,11 +19,34 @@ const { confirm } = useConfirm()
 
 const agents = computed(() => store.settings.agents || {})
 type AgentRow = Record<string, any> & { id: string }
+
+type SortKey = 'default' | 'name-asc' | 'name-desc' | 'type-asc' | 'type-desc' | 'model-asc' | 'model-desc'
+const sortBy = ref<SortKey>('default')
+const sortOptions = computed(() => [
+  { label: t('agents.sort_default'),   value: 'default' },
+  { label: t('agents.sort_name_asc'),  value: 'name-asc' },
+  { label: t('agents.sort_name_desc'), value: 'name-desc' },
+  { label: t('agents.sort_type_asc'),  value: 'type-asc' },
+  { label: t('agents.sort_type_desc'), value: 'type-desc' },
+  { label: t('agents.sort_model_asc'),  value: 'model-asc' },
+  { label: t('agents.sort_model_desc'), value: 'model-desc' },
+])
+
 const sortedAgentRows = computed<AgentRow[]>(() => {
-  const order = (type: string) => type === 'react' ? 0 : type === 'single' ? 1 : type === 'acp' ? 2 : type === 'generative' ? 3 : 4
-  return Object.entries(agents.value)
-    .map(([id, a]) => ({ id, ...(a as any) }))
-    .sort((a, b) => order(a.type) - order(b.type))
+  const typeOrder = (type: string) => type === 'react' ? 0 : type === 'single' ? 1 : type === 'acp' ? 2 : type === 'generative' ? 3 : 4
+  const rows = Object.entries(agents.value).map(([id, a]) => ({ id, ...(a as any) }))
+  const cmp = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base' })
+  const nameOf = (r: AgentRow) => r.name || r.id || ''
+  const modelOf = (r: AgentRow) => r.type === 'acp' ? (r.command || '') : (r.model ? modelName(r.model) : '')
+  switch (sortBy.value) {
+    case 'name-asc':   return rows.sort((a, b) =>  cmp(nameOf(a), nameOf(b)))
+    case 'name-desc':  return rows.sort((a, b) => -cmp(nameOf(a), nameOf(b)))
+    case 'type-asc':   return rows.sort((a, b) => typeOrder(a.type) - typeOrder(b.type) || cmp(nameOf(a), nameOf(b)))
+    case 'type-desc':  return rows.sort((a, b) => typeOrder(b.type) - typeOrder(a.type) || cmp(nameOf(a), nameOf(b)))
+    case 'model-asc':  return rows.sort((a, b) =>  cmp(modelOf(a), modelOf(b)) || cmp(nameOf(a), nameOf(b)))
+    case 'model-desc': return rows.sort((a, b) => -cmp(modelOf(a), modelOf(b)) || cmp(nameOf(a), nameOf(b)))
+    default:           return rows.sort((a, b) => typeOrder(a.type) - typeOrder(b.type))
+  }
 })
 
 const allTags = computed<string[]>(() => {
@@ -340,6 +363,10 @@ async function saveMcpParams() {
     <SPageToolbar>
       <SButton type="outline" size="sm" @click="refresh">{{ t('common.refresh') }}</SButton>
       <SButton type="primary" size="sm" @click="agentModal?.open()">{{ t('agents.add') }}</SButton>
+      <div class="agents-sort">
+        <span class="agents-sort-label">{{ t('agents.sort_label') }}</span>
+        <SSelect v-model="sortBy" size="sm" :options="sortOptions" />
+      </div>
       <div v-if="allTags.length" class="agents-tag-filter">
         <span class="agents-tag-filter-label">{{ t('agents.filter_by_tag') }}</span>
         <STagFilter v-model="activeTagFilters" :options="allTags" />
@@ -594,6 +621,21 @@ async function saveMcpParams() {
 .agents-tag-filter-label {
   font-size: var(--sui-fs-sm);
   color: var(--sui-fg-muted);
+}
+.agents-sort {
+  display: flex;
+  align-items: center;
+  gap: var(--sui-sp-2);
+  margin-left: var(--sui-sp-4);
+}
+.agents-sort-label {
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg-muted);
+  white-space: nowrap;
+}
+.agents-sort :deep(.s-select) {
+  width: auto;
+  min-width: 120px;
 }
 
 /* Detail tabs */

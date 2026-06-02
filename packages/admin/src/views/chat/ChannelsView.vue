@@ -129,6 +129,7 @@ interface ProfileFull extends ProfileOption {
 }
 
 const editingProfile = ref<ProfileFull | null>(null)
+const originalOverrides = ref<SessionOverrides | null>(null)
 const visibleProfiles = ref<ProfileOption[]>([])
 const effectiveSources = ref<Partial<Record<keyof SessionOverrides, ConfigSource>>>({})
 const effectiveResolved = ref<Partial<Record<keyof SessionOverrides, any>>>({})
@@ -213,6 +214,7 @@ async function loadEffective(sessionId: number) {
 async function openEditSession(s: ChannelSessionRow) {
   editingSession.value = s
   sessionForm.value = { name: s.sessionName || '', overrides: emptyOverrides() }
+  originalOverrides.value = null
   await loadVisibleProfiles()
   const eff = await loadEffective(s.id)
   if (eff?.profile) {
@@ -225,6 +227,7 @@ async function openEditSession(s: ChannelSessionRow) {
       full.sessionCount = vp?.sessionCount ?? ((full as any).sessions?.length ?? 1)
       editingProfile.value = full
       sessionForm.value.overrides = profileToOverrides(full)
+      originalOverrides.value = profileToOverrides(full)
     } else {
       editingProfile.value = null
     }
@@ -265,12 +268,6 @@ async function saveSession() {
   const p = editingProfile.value
   if (!s || !p) return
 
-  // 共享 profile 编辑警告
-  if (isCurrentProfileShared.value) {
-    const ok = await confirm(t('channels.profile_shared_warn', { n: p.sessionCount }), { danger: true })
-    if (!ok) return
-  }
-
   const validMemIds = new Set(memoryOptions.value.map(m => m.id))
   const validWikiIds = new Set(wikiOptions.value.map(w => w.id))
   const o = sessionForm.value.overrides
@@ -293,11 +290,43 @@ async function saveSession() {
     intentThreshold: o.intentModel == null ? null : o.intentThreshold,
   }
 
+  // 比较 profile 是否有变化（含清洗：原始 memories/wikis 不过滤，与清洗后的 payload 对比，
+  // 这样一旦原始数据带了已失效 id，就会被识别为"变化"，存盘后顺带洗掉脏数据）
+  const orig = originalOverrides.value
+  const originalEquivalent = orig == null ? null : {
+    agentId: orig.agentId,
+    saver: orig.saver,
+    memories: orig.memories,
+    wikis: orig.wikis,
+    useChannelMemories: orig.useChannelMemories,
+    useChannelWikis: orig.useChannelWikis,
+    workPath: orig.workPath,
+    streamVerbose: orig.streamVerbose,
+    autoApproveAllTools: orig.autoApproveAllTools,
+    approvalTimeout: orig.approvalTimeout,
+    approvalTimeoutValue: orig.approvalTimeoutValue,
+    askTimeout: orig.askTimeout,
+    askTimeoutMessage: orig.askTimeoutMessage,
+    intentModel: orig.intentModel,
+    intentPrompt: orig.intentModel == null ? null : orig.intentPrompt,
+    intentThreshold: orig.intentModel == null ? null : orig.intentThreshold,
+  }
+  const profileChanged = originalEquivalent == null
+    || JSON.stringify(profilePayload) !== JSON.stringify(originalEquivalent)
+
+  // 共享 profile 且确有变更时才弹警告
+  if (profileChanged && isCurrentProfileShared.value) {
+    const ok = await confirm(t('channels.profile_shared_warn', { n: p.sessionCount }), { danger: true })
+    if (!ok) return
+  }
+
   try {
     // session 自身只能改 sessionName / avatar
     await apiFetch(`/api/channel-sessions/${s.id}`, 'PUT', { sessionName: sessionForm.value.name.trim() })
-    // 配置字段写到 profile
-    await apiFetch(`/api/session-profiles/${p.id}`, 'PUT', profilePayload)
+    // 配置字段写到 profile（无变化则跳过）
+    if (profileChanged) {
+      await apiFetch(`/api/session-profiles/${p.id}`, 'PUT', profilePayload)
+    }
     s.sessionName = sessionForm.value.name.trim()
     show(t('common.saved'))
     editingSession.value = null
