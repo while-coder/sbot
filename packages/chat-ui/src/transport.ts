@@ -47,4 +47,15 @@ export interface IChatTransport {
   getThinksUrlPrefix(sessionId: string): string | null
   getTasksUrlPrefix?(sessionId: string): string | null
   fetchThinks?(url: string): Promise<any>
+
+  /** List shells available on the server. */
+  listShells?(): Promise<ShellOption[]>
+  /** Open a fresh WebSocket bound to a single pty session. The caller owns its lifecycle. */
+  openPty?(): WebSocket
+}
+
+export interface ShellOption {
+  id: string
+  label: string
+  path: string
 }

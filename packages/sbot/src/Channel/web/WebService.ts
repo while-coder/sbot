@@ -71,7 +71,15 @@ export class WebService implements IChannelService {
     private wss?: WebSocketServer;
 
     attach(server: http.Server, uploadDir: string): void {
-        const wss = this.wss = new WebSocketServer({ server, path: '/ws/chat' });
+        // noServer + manual upgrade routing: with `{ server, path }`, this WSS would
+        // also respond 400 to upgrades for paths it doesn't own (e.g. /ws/pty),
+        // corrupting the 101 already sent by the other WSS on the same server.
+        const wss = this.wss = new WebSocketServer({ noServer: true });
+        server.on('upgrade', (req, socket, head) => {
+            const pathname = (req.url ?? '').split('?')[0];
+            if (pathname !== '/ws/chat') return;
+            wss.handleUpgrade(req, socket, head, ws => wss.emit('connection', ws, req));
+        });
         wss.on('connection', (ws) => {
             this.wsClients.add(ws);
             ws.on('close', () => { this.wsClients.delete(ws); });

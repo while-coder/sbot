@@ -60,9 +60,9 @@ const contentEl     = ref<HTMLElement | null>(null)
 const isCompact     = useCompactProvider(rootEl)
 const sidebarOpen   = ref(false)
 const settingsOpen  = ref(false)
-const explorerOpen  = ref(false)
-const explorerWidth = ref(420)
-const explorerResizing = ref(false)
+const rightPanelOpen  = ref(false)
+const rightPanelWidth = ref(420)
+const rightPanelResizing = ref(false)
 const sessionBarWidth = ref(180)
 const sessionBarResizing = ref(false)
 const sessionSearch = ref('')
@@ -115,10 +115,10 @@ const displayedMessages = computed<StoredMessage[]>(() =>
   showArchived.value ? messages.value : messages.value.filter(m => m.kind !== MessageKind.Archive),
 )
 
-const explorerPaneStyle = computed(() =>
+const rightPanelStyle = computed(() =>
   isCompact.value || props.alwaysCompact
     ? undefined
-    : { width: `${explorerWidth.value}px` },
+    : { width: `${rightPanelWidth.value}px` },
 )
 
 // ── Event handler ──
@@ -275,15 +275,15 @@ function toggleSettings() {
   if (settingsOpen.value) sidebarOpen.value = false
 }
 
-function toggleExplorer() {
-  explorerOpen.value = !explorerOpen.value
-  if (explorerOpen.value && (isCompact.value || props.alwaysCompact)) {
+function toggleRightPanel() {
+  rightPanelOpen.value = !rightPanelOpen.value
+  if (rightPanelOpen.value && (isCompact.value || props.alwaysCompact)) {
     sidebarOpen.value = false
     settingsOpen.value = false
   }
 }
 
-function clampExplorerWidth(width: number): number {
+function clampRightPanelWidth(width: number): number {
   const contentWidth = contentEl.value?.clientWidth ?? 0
   if (contentWidth <= 0) return Math.max(280, width)
   const min = Math.min(280, Math.max(220, contentWidth * 0.35))
@@ -291,23 +291,23 @@ function clampExplorerWidth(width: number): number {
   return Math.min(max, Math.max(min, width))
 }
 
-function startExplorerResize(e: PointerEvent) {
+function startRightPanelResize(e: PointerEvent) {
   if (isCompact.value || props.alwaysCompact) return
   e.preventDefault()
-  explorerResizing.value = true
-  window.addEventListener('pointermove', onExplorerResize)
-  window.addEventListener('pointerup', stopExplorerResize, { once: true })
+  rightPanelResizing.value = true
+  window.addEventListener('pointermove', onRightPanelResize)
+  window.addEventListener('pointerup', stopRightPanelResize, { once: true })
 }
 
-function onExplorerResize(e: PointerEvent) {
-  if (!explorerResizing.value || !contentEl.value) return
+function onRightPanelResize(e: PointerEvent) {
+  if (!rightPanelResizing.value || !contentEl.value) return
   const rect = contentEl.value.getBoundingClientRect()
-  explorerWidth.value = clampExplorerWidth(rect.right - e.clientX)
+  rightPanelWidth.value = clampRightPanelWidth(rect.right - e.clientX)
 }
 
-function stopExplorerResize() {
-  explorerResizing.value = false
-  window.removeEventListener('pointermove', onExplorerResize)
+function stopRightPanelResize() {
+  rightPanelResizing.value = false
+  window.removeEventListener('pointermove', onRightPanelResize)
 }
 
 function clampSessionBarWidth(width: number): number {
@@ -579,7 +579,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   props.transport.offEvent(handleEvent)
   props.transport.disconnect()
-  window.removeEventListener('pointermove', onExplorerResize)
+  window.removeEventListener('pointermove', onRightPanelResize)
   window.removeEventListener('pointermove', onSessionBarResize)
 })
 </script>
@@ -686,13 +686,14 @@ onBeforeUnmount(() => {
               <template #actions-prepend>
                 <slot name="status-actions" :session="activeSession" />
                 <button
-                  class="chatui-explorer-toggle"
-                  :class="{ 'chatui-explorer-toggle--active': explorerOpen }"
-                  :title="L.explorerToggle"
-                  @click="toggleExplorer"
+                  class="chatui-right-panel-toggle"
+                  :class="{ 'chatui-right-panel-toggle--active': rightPanelOpen }"
+                  :title="L.rightPanelToggle"
+                  @click="toggleRightPanel"
                 >
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 5v7.5A1.5 1.5 0 0 1 12.5 14h-9A1.5 1.5 0 0 1 2 12.5v-9z"/>
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="3" width="12" height="10" rx="1.5"/>
+                    <line x1="10" y1="3" x2="10" y2="13"/>
                   </svg>
                 </button>
               </template>
@@ -748,20 +749,21 @@ onBeforeUnmount(() => {
         <template #actions-prepend>
           <slot name="status-actions" :session="activeSession" />
           <button
-            class="chatui-explorer-toggle"
-            :class="{ 'chatui-explorer-toggle--active': explorerOpen }"
-            :title="L.explorerToggle"
-            @click="toggleExplorer"
+            class="chatui-right-panel-toggle"
+            :class="{ 'chatui-right-panel-toggle--active': rightPanelOpen }"
+            :title="L.rightPanelToggle"
+            @click="toggleRightPanel"
           >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 5v7.5A1.5 1.5 0 0 1 12.5 14h-9A1.5 1.5 0 0 1 2 12.5v-9z"/>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="3" width="12" height="10" rx="1.5"/>
+              <line x1="10" y1="3" x2="10" y2="13"/>
             </svg>
           </button>
         </template>
       </StatusBar>
 
-      <!-- Chat area + optional Explorer -->
-      <div ref="contentEl" class="chatui-content" :class="{ 'chatui-explorer-resizing': explorerResizing }">
+      <!-- Chat area + optional right panel -->
+      <div ref="contentEl" class="chatui-content" :class="{ 'chatui-right-panel-resizing': rightPanelResizing }">
         <ChatArea
           ref="chatAreaRef"
           class="chatui-chatarea"
@@ -784,16 +786,16 @@ onBeforeUnmount(() => {
           @answer="onAnswer"
           @abort="onAbort"
         />
-        <div v-if="explorerOpen" class="chatui-explorer-pane" :style="explorerPaneStyle">
+        <div v-if="rightPanelOpen" class="chatui-right-panel-pane" :style="rightPanelStyle">
           <div
             v-if="!(isCompact || alwaysCompact)"
-            class="chatui-explorer-resizer"
-            :title="L.explorerToggle"
-            @pointerdown="startExplorerResize"
+            class="chatui-right-panel-resizer"
+            :title="L.rightPanelToggle"
+            @pointerdown="startRightPanelResize"
           />
-          <div v-if="isCompact || alwaysCompact" class="chatui-explorer-panel-header">
-            <span class="chatui-explorer-panel-title">{{ L.explorerToggle }}</span>
-            <button class="chatui-explorer-panel-close" :title="L.close" @click="explorerOpen = false">×</button>
+          <div v-if="isCompact || alwaysCompact" class="chatui-right-panel-header">
+            <span class="chatui-right-panel-title">{{ L.rightPanelToggle }}</span>
+            <button class="chatui-right-panel-close" :title="L.close" @click="rightPanelOpen = false">×</button>
           </div>
           <RightPanel :transport="transport" :root="activeSession?.workPath" :labels="labels" editable />
         </div>
@@ -828,13 +830,13 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
-/* Chat area + Explorer side-by-side */
+/* Chat area + right panel side-by-side */
 .chatui-content {
   flex: 1; display: flex; overflow: hidden; min-height: 0;
   position: relative;
 }
-.chatui-explorer-resizing,
-.chatui-explorer-resizing * {
+.chatui-right-panel-resizing,
+.chatui-right-panel-resizing * {
   cursor: col-resize !important;
   user-select: none;
 }
@@ -870,7 +872,7 @@ onBeforeUnmount(() => {
 .chatui-chatarea {
   flex: 1; min-width: 0;
 }
-.chatui-explorer-pane {
+.chatui-right-panel-pane {
   min-width: 280px;
   max-width: 70%;
   border-left: 1px solid var(--chatui-border);
@@ -881,8 +883,8 @@ onBeforeUnmount(() => {
   position: relative;
   flex-shrink: 0;
 }
-.chatui-explorer-pane > .chatui-explorer { flex: 1; min-width: 0; }
-.chatui-explorer-resizer {
+.chatui-right-panel-pane > :deep(.chatui-right-panel) { flex: 1; min-width: 0; }
+.chatui-right-panel-resizer {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -892,7 +894,7 @@ onBeforeUnmount(() => {
   cursor: col-resize;
   touch-action: none;
 }
-.chatui-explorer-resizer::after {
+.chatui-right-panel-resizer::after {
   content: '';
   position: absolute;
   top: 0;
@@ -902,11 +904,11 @@ onBeforeUnmount(() => {
   background: transparent;
   transition: background 0.15s;
 }
-.chatui-explorer-resizer:hover::after,
-.chatui-explorer-resizing .chatui-explorer-resizer::after {
+.chatui-right-panel-resizer:hover::after,
+.chatui-right-panel-resizing .chatui-right-panel-resizer::after {
   background: var(--chatui-border-focus, var(--chatui-accent));
 }
-.chatui-explorer-panel-header {
+.chatui-right-panel-header {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -916,7 +918,7 @@ onBeforeUnmount(() => {
   background: var(--chatui-bg-surface);
   flex-shrink: 0;
 }
-.chatui-explorer-panel-title {
+.chatui-right-panel-title {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -926,7 +928,7 @@ onBeforeUnmount(() => {
   font-weight: 600;
   color: var(--chatui-fg);
 }
-.chatui-explorer-panel-close {
+.chatui-right-panel-close {
   width: 24px;
   height: 24px;
   display: inline-flex;
@@ -940,12 +942,12 @@ onBeforeUnmount(() => {
   font-size: 18px;
   line-height: 1;
 }
-.chatui-explorer-panel-close:hover {
+.chatui-right-panel-close:hover {
   background: var(--chatui-bg-hover);
   color: var(--chatui-fg);
 }
 
-.chatui-explorer-toggle {
+.chatui-right-panel-toggle {
   display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: 1px solid var(--chatui-border); cursor: pointer;
   color: var(--chatui-fg-secondary);
@@ -958,18 +960,18 @@ onBeforeUnmount(() => {
   line-height: 1;
   transition: background 0.15s, color 0.15s;
 }
-.chatui-explorer-toggle:hover {
+.chatui-right-panel-toggle:hover {
   background: var(--chatui-bg-hover);
   color: var(--chatui-fg);
 }
-.chatui-explorer-toggle--active {
+.chatui-right-panel-toggle--active {
   background: var(--chatui-bg-active);
   color: var(--chatui-fg);
   border-color: var(--chatui-border-focus, var(--chatui-accent));
 }
 
-/* Compact: explorer overlays the chat content instead of shrinking it. */
-.chatui-root.chatui-compact .chatui-explorer-pane {
+/* Compact: right panel overlays the chat content instead of shrinking it. */
+.chatui-root.chatui-compact .chatui-right-panel-pane {
   position: absolute;
   inset: 0;
   z-index: 80;

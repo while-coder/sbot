@@ -28,6 +28,7 @@ import { WEB_CHANNEL_ID } from 'sbot.commons';
 import { getModelMeta, getKnownModels } from './modelCatalog';
 import { FsApi } from './FsApi';
 import { webService } from '../Channel/web/WebService';
+import { ptyService, listShells } from '../Channel/web/PtyService';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
 const execFileAsync = promisify(execFile);
@@ -379,6 +380,7 @@ class HttpServer {
             schedulerService.stopAll();
             await ACPAgentPool.getInstance().disposeAll();
             await channelManager.dispose();
+            ptyService.dispose();
             if (this.server) {
                 await new Promise<void>((resolve, reject) =>
                     this.server!.close(err => err ? reject(err) : resolve()),
@@ -439,10 +441,13 @@ class HttpServer {
         this.registerUserRoutes(app);
         this.registerChatRoutes(app);
 
+        app.get('/api/pty/shells', api(() => listShells()));
+
         // HTTP + WebSocket 服务：把 ws 升级路径与 web channel 运行时交给 WebService，
         // 然后注册到 channelManager，让消息出路与 dispose 生命周期与其他 channel 对齐
         const server = this.server = http.createServer(app);
         webService.attach(server, uploadDir);
+        ptyService.attach(server);
         channelManager.registerService(WEB_CHANNEL_ID, webService);
 
         server.listen(port, () => {

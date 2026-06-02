@@ -14,12 +14,15 @@ import {
 } from '../composables/useExplorerViewState'
 import FileExplorer from './FileExplorer.vue'
 import GitExplorer from './GitExplorer.vue'
+import Terminal from './Terminal.vue'
 
-type ViewType = 'files' | 'git'
+type ViewType = 'files' | 'git' | 'terminal'
 
 interface ViewTab {
   id: string
   type: ViewType
+  /** Display title shown in the tab strip (used for multi-instance views like terminals). */
+  title?: string
 }
 
 const props = defineProps<{
@@ -43,20 +46,35 @@ const gitCount = ref(0)
 const gitBranch = ref('')
 
 let nextTabSeq = 0
+let nextTerminalSeq = 0
 
-const VIEW_LABELS: Record<ViewType, () => string> = {
-  files: () => L.value.explorerFiles,
-  git:   () => L.value.explorerGit,
+interface ViewDef {
+  label: () => string
+  /** Allow multiple tabs of this type at once. */
+  multi: boolean
+  /** Whether this view uses the shared root path bar / refresh button. */
+  rooted: boolean
+}
+
+const VIEW_DEFS: Record<ViewType, ViewDef> = {
+  files:    { label: () => L.value.explorerFiles, multi: false, rooted: true  },
+  git:      { label: () => L.value.explorerGit,   multi: false, rooted: true  },
+  terminal: { label: () => L.value.terminal,      multi: true,  rooted: false },
 }
 
 const activeTab = computed(() => tabs.value.find(t => t.id === activeTabId.value) ?? null)
 
 const availableTypes = computed<ViewType[]>(() => {
-  const open = new Set(tabs.value.map(t => t.type))
-  return (Object.keys(VIEW_LABELS) as ViewType[]).filter(t => !open.has(t))
+  const singletons = new Set(tabs.value.filter(t => !VIEW_DEFS[t.type].multi).map(t => t.type))
+  return (Object.keys(VIEW_DEFS) as ViewType[]).filter(t => VIEW_DEFS[t].multi || !singletons.has(t))
 })
 
-const showRoot = computed(() => Boolean(activeTab.value && props.root))
+const showRoot = computed(() => Boolean(activeTab.value && props.root && VIEW_DEFS[activeTab.value.type].rooted))
+const showRefresh = computed(() => Boolean(activeTab.value && VIEW_DEFS[activeTab.value.type].rooted))
+
+function tabLabel(tab: ViewTab): string {
+  return tab.title ?? VIEW_DEFS[tab.type].label()
+}
 
 watch(() => props.root, (root) => {
   gitBranch.value = ''
@@ -94,7 +112,9 @@ function refresh() {
 function addTab(type: ViewType) {
   if (!availableTypes.value.includes(type)) return
   const id = `${type}-${++nextTabSeq}`
-  tabs.value.push({ id, type })
+  const tab: ViewTab = { id, type }
+  if (type === 'terminal') tab.title = `${L.value.terminal} ${++nextTerminalSeq}`
+  tabs.value.push(tab)
   activeTabId.value = id
   addMenuOpen.value = false
 }
@@ -141,10 +161,10 @@ watch(addMenuOpen, (open) => {
           type="button"
           class="chatui-rp-tab"
           :class="{ 'chatui-rp-tab--active': tab.id === activeTabId }"
-          :title="VIEW_LABELS[tab.type]()"
+          :title="tabLabel(tab)"
           @click="selectTab(tab.id)"
         >
-          <span class="chatui-rp-tab-label">{{ VIEW_LABELS[tab.type]() }}</span>
+          <span class="chatui-rp-tab-label">{{ tabLabel(tab) }}</span>
           <span
             class="chatui-rp-tab-close"
             :title="L.close"
@@ -155,7 +175,7 @@ watch(addMenuOpen, (open) => {
       </div>
       <div class="chatui-rp-actions">
         <button
-          v-if="props.root && activeTab"
+          v-if="showRefresh && props.root"
           type="button"
           class="chatui-rp-action"
           :class="{ 'chatui-rp-action--spinning': refreshing }"
@@ -180,7 +200,7 @@ watch(addMenuOpen, (open) => {
               class="chatui-rp-menu-item"
               @click="addTab(type)"
             >
-              {{ VIEW_LABELS[type]() }}
+              {{ VIEW_DEFS[type].label() }}
             </button>
           </div>
         </div>
@@ -199,7 +219,7 @@ watch(addMenuOpen, (open) => {
     </div>
 
     <div v-if="!activeTab" class="chatui-rp-empty">
-      <div class="chatui-rp-empty-text">{{ L.explorerToggle }}</div>
+      <div class="chatui-rp-empty-text">{{ L.rightPanelToggle }}</div>
       <button
         v-if="availableTypes.length > 0"
         type="button"
@@ -208,37 +228,53 @@ watch(addMenuOpen, (open) => {
       >＋ {{ L.add }}</button>
     </div>
 
-    <FileExplorer
-      v-else-if="activeTab.type === 'files'"
-      :transport="transport"
-      :root="root"
-      :labels="labels"
-      :refresh-key="refreshKey"
-      :tree-width="viewState.treeWidth"
-      :tree-height="viewState.treeHeight"
-      :view-state="viewState.files"
-      :editable="props.editable"
-      @refreshing="refreshing = $event"
-      @tree-width="updateTreeWidth"
-      @tree-height="updateTreeHeight"
-      @view-state="updateFilesViewState"
-    />
-    <GitExplorer
-      v-else-if="activeTab.type === 'git'"
-      :transport="transport"
-      :root="root"
-      :labels="labels"
-      :refresh-key="refreshKey"
-      :tree-width="viewState.treeWidth"
-      :tree-height="viewState.treeHeight"
-      :view-state="viewState.git"
-      @count="gitCount = $event"
-      @branch="gitBranch = $event"
-      @refreshing="refreshing = $event"
-      @tree-width="updateTreeWidth"
-      @tree-height="updateTreeHeight"
-      @view-state="updateGitViewState"
-    />
+    <!--
+      All open tabs render simultaneously, gated by v-show. This is what keeps
+      a terminal session alive when the user briefly switches to Files/Git and
+      back; unmounting would kill the pty.
+    -->
+    <template v-for="tab in tabs" :key="tab.id">
+      <FileExplorer
+        v-if="tab.type === 'files'"
+        v-show="tab.id === activeTabId"
+        :transport="transport"
+        :root="root"
+        :labels="labels"
+        :refresh-key="refreshKey"
+        :tree-width="viewState.treeWidth"
+        :tree-height="viewState.treeHeight"
+        :view-state="viewState.files"
+        :editable="props.editable"
+        @refreshing="refreshing = $event"
+        @tree-width="updateTreeWidth"
+        @tree-height="updateTreeHeight"
+        @view-state="updateFilesViewState"
+      />
+      <GitExplorer
+        v-else-if="tab.type === 'git'"
+        v-show="tab.id === activeTabId"
+        :transport="transport"
+        :root="root"
+        :labels="labels"
+        :refresh-key="refreshKey"
+        :tree-width="viewState.treeWidth"
+        :tree-height="viewState.treeHeight"
+        :view-state="viewState.git"
+        @count="gitCount = $event"
+        @branch="gitBranch = $event"
+        @refreshing="refreshing = $event"
+        @tree-width="updateTreeWidth"
+        @tree-height="updateTreeHeight"
+        @view-state="updateGitViewState"
+      />
+      <Terminal
+        v-else-if="tab.type === 'terminal'"
+        v-show="tab.id === activeTabId"
+        :transport="transport"
+        :cwd="root"
+        :labels="labels"
+      />
+    </template>
   </div>
 </template>
 

@@ -207,6 +207,16 @@ export interface ChatLabels {
   explorerDownload?: string
   /** Explorer 切换显示的按钮/工具提示 */
   explorerToggle?: string
+  /** 右侧面板切换显示的按钮/工具提示 */
+  rightPanelToggle?: string
+  /** 终端视图标题 */
+  terminal?: string
+  /** 终端 Shell 选择下拉的 title */
+  terminalShell?: string
+  /** 终端未检测到可用 shell 的占位文案 */
+  terminalNoShell?: string
+  /** 终端重连按钮 title */
+  terminalReconnect?: string
   /** Explorer 文件列表模式 */
   explorerFiles?: string
   /** Explorer Git 状态模式 */

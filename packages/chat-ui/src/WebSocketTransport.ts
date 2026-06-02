@@ -1,4 +1,4 @@
-import type { IChatTransport } from './transport'
+import type { IChatTransport, ShellOption } from './transport'
 import {
   ChatEventType,
   type ChatEvent,
@@ -242,5 +242,18 @@ export class WebSocketTransport implements IChatTransport {
     const res = await fetch(url)
     if (!res.ok) throw new Error(res.statusText)
     return res.json()
+  }
+
+  // ── Pty (terminal) ──
+
+  async listShells(): Promise<ShellOption[]> {
+    const res = await this.api('/api/pty/shells')
+    return res?.data ?? res ?? []
+  }
+
+  openPty(): WebSocket {
+    const url = this._baseUrl ? new URL(this._baseUrl) : location
+    const proto = url.protocol === 'https:' ? 'wss:' : 'ws:'
+    return new WebSocket(`${proto}//${url.host}/ws/pty`)
   }
 }
