@@ -325,6 +325,7 @@ export class SingleAgentService extends AgentServiceBase {
                     additional_kwargs: Object.keys(extra).length > 0 ? extra : undefined,
                 });
             } catch (error: any) {
+                this.logger?.info(`执行工具错误 ${toolCall.name} 错误: ${truncateForLog(error.message)}`);
                 toolMessages.push({ role: MessageRole.Tool, tool_call_id: toolCall.id || "", content: `Execute Tool ${toolCall.name} Error: ${truncateForLog(error.message)}`, status: "error" });
             }
         }
