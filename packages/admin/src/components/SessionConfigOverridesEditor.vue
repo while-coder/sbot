@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { SInput, STextarea, SSelect, SFormItem, SMultiSelect } from 'sbot-ui'
+import { SInput, STextarea, SSelect, SFormItem, SMultiSelect, SButton } from 'sbot-ui'
 import { ApprovalTimeoutValue } from 'sbot.commons'
 
 /**
@@ -45,10 +44,10 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:modelValue', v: SessionOverrides): void
+  (e: 'browse-path'): void
 }>()
 
 const { t } = useI18n()
-const showAdvanced = ref(false)
 
 function update<K extends keyof SessionOverrides>(key: K, val: SessionOverrides[K]) {
   emit('update:modelValue', { ...props.modelValue, [key]: val })
@@ -121,59 +120,58 @@ const fmtApprovalValue = (v: any) => v === ApprovalTimeoutValue.Allow ? t('chann
     </SFormItem>
 
     <SFormItem :label="t('directory.path_label')" :hint="inheritLabel('workPath')">
-      <SInput :model-value="modelValue.workPath ?? ''" type="text" @update:model-value="v => update('workPath', String(v).trim() ? String(v) : null)" />
+      <div class="path-row">
+        <SInput :model-value="modelValue.workPath ?? ''" type="text" class="path-input" @update:model-value="v => update('workPath', String(v).trim() ? String(v) : null)" />
+        <SButton type="outline" size="sm" @click="emit('browse-path')">{{ t('directory.browse') }}</SButton>
+      </div>
     </SFormItem>
 
-    <button class="advanced-toggle" type="button" @click="showAdvanced = !showAdvanced">
-      {{ showAdvanced ? t('channels.section_advanced_hide') : t('channels.section_advanced_show', { n: 7 }) }}
-    </button>
+    <h4 class="form-section-title">{{ t('channels.section_advanced') }}</h4>
 
-    <template v-if="showAdvanced">
-      <SFormItem :label="t('channels.stream_verbose')" :hint="inheritLabel('streamVerbose', fmtBool) || t('channels.stream_verbose_hint')">
-        <SSelect :model-value="modelValue.streamVerbose === null ? '' : String(modelValue.streamVerbose)" @update:model-value="v => update('streamVerbose', v === '' ? null : v === 'true')">
-          <option value="">{{ t('channels.use_channel_default') }}</option>
-          <option value="true">{{ t('common.enabled') }}</option>
-          <option value="false">{{ t('common.disabled') }}</option>
-        </SSelect>
+    <SFormItem :label="t('channels.stream_verbose')" :hint="inheritLabel('streamVerbose', fmtBool) || t('channels.stream_verbose_hint')">
+      <SSelect :model-value="modelValue.streamVerbose === null ? '' : String(modelValue.streamVerbose)" @update:model-value="v => update('streamVerbose', v === '' ? null : v === 'true')">
+        <option value="">{{ t('channels.use_channel_default') }}</option>
+        <option value="true">{{ t('common.enabled') }}</option>
+        <option value="false">{{ t('common.disabled') }}</option>
+      </SSelect>
+    </SFormItem>
+    <SFormItem :label="t('settings.auto_approve_all')" :hint="inheritLabel('autoApproveAllTools', fmtBool) || t('settings.auto_approve_all_hint')">
+      <SSelect :model-value="modelValue.autoApproveAllTools === null ? '' : String(modelValue.autoApproveAllTools)" @update:model-value="v => update('autoApproveAllTools', v === '' ? null : v === 'true')">
+        <option value="">{{ t('channels.use_channel_default') }}</option>
+        <option value="true">{{ t('common.enabled') }}</option>
+        <option value="false">{{ t('common.disabled') }}</option>
+      </SSelect>
+    </SFormItem>
+    <SFormItem :label="t('channels.approval_timeout')" :hint="inheritLabel('approvalTimeout') || t('channels.approval_timeout_hint')">
+      <SInput :model-value="modelValue.approvalTimeout ?? ''" type="number" placeholder="0" @update:model-value="v => update('approvalTimeout', (v === '' || v === null || Number(v) <= 0) ? null : Number(v))" />
+    </SFormItem>
+    <SFormItem v-if="modelValue.approvalTimeout != null && modelValue.approvalTimeout > 0" :label="t('channels.approval_timeout_value')" :hint="inheritLabel('approvalTimeoutValue', fmtApprovalValue)">
+      <SSelect :model-value="modelValue.approvalTimeoutValue ?? ''" @update:model-value="v => update('approvalTimeoutValue', v === '' ? null : v as ApprovalTimeoutValue)">
+        <option value="">{{ t('channels.use_channel_default') }}</option>
+        <option :value="ApprovalTimeoutValue.Deny">{{ t('channels.approval_timeout_value_deny') }}</option>
+        <option :value="ApprovalTimeoutValue.Allow">{{ t('channels.approval_timeout_value_allow') }}</option>
+      </SSelect>
+    </SFormItem>
+    <SFormItem :label="t('channels.ask_timeout')" :hint="inheritLabel('askTimeout') || t('channels.ask_timeout_hint')">
+      <SInput :model-value="modelValue.askTimeout ?? ''" type="number" placeholder="0" @update:model-value="v => update('askTimeout', (v === '' || v === null || Number(v) <= 0) ? null : Number(v))" />
+    </SFormItem>
+    <SFormItem v-if="modelValue.askTimeout != null && modelValue.askTimeout > 0" :label="t('channels.ask_timeout_message')" :hint="inheritLabel('askTimeoutMessage') || t('channels.ask_timeout_message_hint')">
+      <SInput :model-value="modelValue.askTimeoutMessage ?? ''" type="text" @update:model-value="v => update('askTimeoutMessage', String(v).trim() ? String(v) : null)" />
+    </SFormItem>
+    <SFormItem :label="t('channels.intent_model')" :hint="inheritLabel('intentModel', fmtModel) || t('channels.intent_model_hint')">
+      <SSelect :model-value="modelValue.intentModel ?? '__default__'" @update:model-value="v => update('intentModel', v === '__default__' ? null : String(v))">
+        <option value="__default__">{{ t('channels.use_channel_default') }}</option>
+        <option value="">{{ t('common.not_use') }}</option>
+        <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
+      </SSelect>
+    </SFormItem>
+    <template v-if="modelValue.intentModel">
+      <SFormItem :label="t('channels.intent_threshold')" :hint="inheritLabel('intentThreshold') || t('channels.intent_threshold_hint')">
+        <SInput :model-value="modelValue.intentThreshold ?? ''" type="number" placeholder="0.7" @update:model-value="v => update('intentThreshold', v === '' || v === null ? null : Number(v))" />
       </SFormItem>
-      <SFormItem :label="t('settings.auto_approve_all')" :hint="inheritLabel('autoApproveAllTools', fmtBool) || t('settings.auto_approve_all_hint')">
-        <SSelect :model-value="modelValue.autoApproveAllTools === null ? '' : String(modelValue.autoApproveAllTools)" @update:model-value="v => update('autoApproveAllTools', v === '' ? null : v === 'true')">
-          <option value="">{{ t('channels.use_channel_default') }}</option>
-          <option value="true">{{ t('common.enabled') }}</option>
-          <option value="false">{{ t('common.disabled') }}</option>
-        </SSelect>
+      <SFormItem :label="t('channels.intent_prompt')" :hint="inheritLabel('intentPrompt')">
+        <STextarea :model-value="modelValue.intentPrompt ?? ''" :rows="4" :placeholder="t('channels.intent_prompt_placeholder')" @update:model-value="v => update('intentPrompt', String(v).trim() ? String(v) : null)" />
       </SFormItem>
-      <SFormItem :label="t('channels.approval_timeout')" :hint="inheritLabel('approvalTimeout') || t('channels.approval_timeout_hint')">
-        <SInput :model-value="modelValue.approvalTimeout ?? ''" type="number" placeholder="0" @update:model-value="v => update('approvalTimeout', (v === '' || v === null || Number(v) <= 0) ? null : Number(v))" />
-      </SFormItem>
-      <SFormItem v-if="modelValue.approvalTimeout != null && modelValue.approvalTimeout > 0" :label="t('channels.approval_timeout_value')" :hint="inheritLabel('approvalTimeoutValue', fmtApprovalValue)">
-        <SSelect :model-value="modelValue.approvalTimeoutValue ?? ''" @update:model-value="v => update('approvalTimeoutValue', v === '' ? null : v as ApprovalTimeoutValue)">
-          <option value="">{{ t('channels.use_channel_default') }}</option>
-          <option :value="ApprovalTimeoutValue.Deny">{{ t('channels.approval_timeout_value_deny') }}</option>
-          <option :value="ApprovalTimeoutValue.Allow">{{ t('channels.approval_timeout_value_allow') }}</option>
-        </SSelect>
-      </SFormItem>
-      <SFormItem :label="t('channels.ask_timeout')" :hint="inheritLabel('askTimeout') || t('channels.ask_timeout_hint')">
-        <SInput :model-value="modelValue.askTimeout ?? ''" type="number" placeholder="0" @update:model-value="v => update('askTimeout', (v === '' || v === null || Number(v) <= 0) ? null : Number(v))" />
-      </SFormItem>
-      <SFormItem v-if="modelValue.askTimeout != null && modelValue.askTimeout > 0" :label="t('channels.ask_timeout_message')" :hint="inheritLabel('askTimeoutMessage') || t('channels.ask_timeout_message_hint')">
-        <SInput :model-value="modelValue.askTimeoutMessage ?? ''" type="text" @update:model-value="v => update('askTimeoutMessage', String(v).trim() ? String(v) : null)" />
-      </SFormItem>
-      <SFormItem :label="t('channels.intent_model')" :hint="inheritLabel('intentModel', fmtModel) || t('channels.intent_model_hint')">
-        <SSelect :model-value="modelValue.intentModel ?? '__default__'" @update:model-value="v => update('intentModel', v === '__default__' ? null : String(v))">
-          <option value="__default__">{{ t('channels.use_channel_default') }}</option>
-          <option value="">{{ t('common.not_use') }}</option>
-          <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-        </SSelect>
-      </SFormItem>
-      <template v-if="modelValue.intentModel">
-        <SFormItem :label="t('channels.intent_threshold')" :hint="inheritLabel('intentThreshold') || t('channels.intent_threshold_hint')">
-          <SInput :model-value="modelValue.intentThreshold ?? ''" type="number" placeholder="0.7" @update:model-value="v => update('intentThreshold', v === '' || v === null ? null : Number(v))" />
-        </SFormItem>
-        <SFormItem :label="t('channels.intent_prompt')" :hint="inheritLabel('intentPrompt')">
-          <STextarea :model-value="modelValue.intentPrompt ?? ''" :rows="4" :placeholder="t('channels.intent_prompt_placeholder')" @update:model-value="v => update('intentPrompt', String(v).trim() ? String(v) : null)" />
-        </SFormItem>
-      </template>
     </template>
   </div>
 </template>
@@ -189,20 +187,11 @@ const fmtApprovalValue = (v: any) => v === ApprovalTimeoutValue.Allow ? t('chann
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-.advanced-toggle {
-  display: block;
-  width: 100%;
-  margin: var(--sui-sp-5) 0 var(--sui-sp-3);
-  padding: var(--sui-sp-3) var(--sui-sp-4);
-  background: var(--sui-bg-subtle);
-  border: 1px dashed var(--sui-border);
-  border-radius: var(--sui-radius-md);
-  color: var(--sui-fg-secondary);
-  font-size: var(--sui-fs-sm);
-  cursor: pointer;
-  text-align: center;
-  transition: background var(--sui-transition-fast);
+.path-row {
+  display: flex;
+  gap: var(--sui-sp-2);
+  align-items: stretch;
 }
-.advanced-toggle:hover { background: var(--sui-bg-hover); color: var(--sui-fg); }
+.path-input { flex: 1; }
 .nested-form-item { margin-top: var(--sui-sp-3); }
 </style>

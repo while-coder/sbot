@@ -969,6 +969,7 @@ async function refresh() {
             :memory-options="memoryOptions"
             :wiki-options="wikiOptions"
             :model-options="modelOptions"
+            @browse-path="pathPicker?.open(sessionForm.overrides.workPath || '')"
           />
         </div>
         <div class="drawer-footer">
@@ -1008,7 +1009,7 @@ async function refresh() {
       ref="pathPicker"
       :transport="pickerTransport"
       :labels="pickerLabels"
-      @confirm="p => { if (editingSession) sessionForm.workPath = p; else form.workPath = p }"
+      @confirm="p => { if (editingSession) sessionForm.overrides.workPath = p; else form.workPath = p }"
       @error="msg => show(msg, 'error')"
     />
   </div>

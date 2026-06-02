@@ -16,7 +16,7 @@ import ConfigToolbar from './ConfigToolbar.vue'
 import StatusBar from './StatusBar.vue'
 import ChatArea from './ChatArea.vue'
 import PathPickerModal from './PathPickerModal.vue'
-import Explorer from './Explorer.vue'
+import RightPanel from './RightPanel.vue'
 import { useConfirm } from 'sbot-ui'
 
 const props = withDefaults(defineProps<{
@@ -61,7 +61,6 @@ const isCompact     = useCompactProvider(rootEl)
 const sidebarOpen   = ref(false)
 const settingsOpen  = ref(false)
 const explorerOpen  = ref(false)
-const explorerTouched = ref(false)
 const explorerWidth = ref(420)
 const explorerResizing = ref(false)
 const sessionBarWidth = ref(180)
@@ -120,10 +119,6 @@ const explorerPaneStyle = computed(() =>
   isCompact.value || props.alwaysCompact
     ? undefined
     : { width: `${explorerWidth.value}px` },
-)
-
-const shouldAutoOpenExplorer = computed(() =>
-  Boolean(activeSession.value?.workPath) && !isCompact.value && !props.alwaysCompact,
 )
 
 // ── Event handler ──
@@ -281,7 +276,6 @@ function toggleSettings() {
 }
 
 function toggleExplorer() {
-  explorerTouched.value = true
   explorerOpen.value = !explorerOpen.value
   if (explorerOpen.value && (isCompact.value || props.alwaysCompact)) {
     sidebarOpen.value = false
@@ -343,7 +337,6 @@ function stopSessionBarResize() {
 }
 
 watch(activeSessionId, async (id) => {
-  explorerTouched.value = false
   const gen = ++loadGeneration
   resetStreamState()
   messages.value = []
@@ -352,10 +345,6 @@ watch(activeSessionId, async (id) => {
   if (!id) return
   await Promise.all([loadHistory(gen), loadUsage(gen), restoreSessionStatus(gen)])
 })
-
-watch(shouldAutoOpenExplorer, (value) => {
-  if (!explorerTouched.value) explorerOpen.value = value
-}, { immediate: true })
 
 async function loadHistory(gen = ++loadGeneration) {
   const id = activeSessionId.value
@@ -806,7 +795,7 @@ onBeforeUnmount(() => {
             <span class="chatui-explorer-panel-title">{{ L.explorerToggle }}</span>
             <button class="chatui-explorer-panel-close" :title="L.close" @click="explorerOpen = false">×</button>
           </div>
-          <Explorer :transport="transport" :root="activeSession?.workPath" :labels="labels" editable />
+          <RightPanel :transport="transport" :root="activeSession?.workPath" :labels="labels" editable />
         </div>
       </div>
     </div>

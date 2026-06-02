@@ -1651,16 +1651,23 @@ class HttpServer {
             return { profileId: (created as any).id };
         }));
 
-        // 切回独立：session.profileId 指回 session 自己的 auto profile（fork-profile 时保留）
+        // 切回独立：session.profileId 指回 session 自己的 auto profile（clone-profile 时保留）
+        // 若不存在 auto profile（旧数据或异常清理），自动补建一个空 auto profile
         app.post('/api/channel-sessions/:id/detach-profile', api(async req => {
             const id = parseInt(req.params.id as string, 10);
             if (isNaN(id)) throwBad('Invalid id');
             const session = await getChannelSession(id, true);
             if (!session) throwBad(`channel_session id=${id} not found`);
-            const auto = await database.findOne<SessionProfileRow>(database.sessionProfile, { where: { autoForSessionId: id } });
-            if (!auto) throwBad(`Session id=${id} has no auto profile to detach to`);
-            await database.update(database.channelSession, { profileId: auto!.id }, { where: { id } });
-            return { profileId: auto!.id };
+            let auto = await database.findOne<SessionProfileRow>(database.sessionProfile, { where: { autoForSessionId: id } });
+            if (!auto) {
+                auto = await database.create<SessionProfileRow>(database.sessionProfile, {
+                    name: '',
+                    autoForSessionId: id,
+                    createdAt: Date.now(),
+                });
+            }
+            await database.update(database.channelSession, { profileId: (auto as any).id }, { where: { id } });
+            return { profileId: (auto as any).id };
         }));
 
         app.get('/api/channel-sessions/:id/effective-config', api(async req => {

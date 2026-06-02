@@ -6,6 +6,7 @@ import { store } from '@/shared/store'
 import { useToast, useConfirm, SButton, SInput, SFormItem, SPageToolbar, SPageContent, STable } from 'sbot-ui'
 import type { STableColumn } from 'sbot-ui'
 import { ApprovalTimeoutValue } from 'sbot.commons'
+import { PathPickerModal, WebSocketTransport } from '@sbot/chat-ui'
 import SessionConfigOverridesEditor, { type SessionOverrides } from '@/components/SessionConfigOverridesEditor.vue'
 
 interface ProfileRow {
@@ -38,6 +39,20 @@ interface ProfileRow {
 const { t } = useI18n()
 const { show } = useToast()
 const { confirm } = useConfirm()
+
+const pickerTransport = new WebSocketTransport()
+const pickerLabels = computed(() => ({
+  selectDirTitle: t('directory.select_dir_title'),
+  myComputer: t('directory.my_computer'),
+  upDir: t('directory.up_dir'),
+  newFolder: t('directory.new_folder'),
+  newFolderPlaceholder: t('directory.new_folder_placeholder'),
+  selectThis: t('directory.select_this'),
+  noSubdirs: t('directory.no_subdirs'),
+  loading: t('common.loading'),
+  cancel: t('common.cancel'),
+}))
+const pathPicker = ref<InstanceType<typeof PathPickerModal>>()
 
 const profiles = ref<ProfileRow[]>([])
 
@@ -247,6 +262,7 @@ async function remove(p: ProfileRow) {
             :memory-options="memoryOptions"
             :wiki-options="wikiOptions"
             :model-options="modelOptions"
+            @browse-path="pathPicker?.open(form.overrides.workPath || '')"
           />
         </div>
         <div class="drawer-footer">
@@ -255,6 +271,14 @@ async function remove(p: ProfileRow) {
         </div>
       </div>
     </Transition>
+
+    <PathPickerModal
+      ref="pathPicker"
+      :transport="pickerTransport"
+      :labels="pickerLabels"
+      @confirm="p => { form.overrides.workPath = p }"
+      @error="msg => show(msg, 'error')"
+    />
   </div>
 </template>
 
