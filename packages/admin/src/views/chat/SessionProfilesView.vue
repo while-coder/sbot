@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
-import { useToast, useConfirm, SButton, SInput, SFormItem, SPageToolbar, SPageContent, STable } from 'sbot-ui'
+import { useToast, useConfirm, SButton, SInput, SFormItem, SPageToolbar, SPageContent, STable, SModal } from 'sbot-ui'
 import type { STableColumn } from 'sbot-ui'
 import { ApprovalTimeoutValue } from 'sbot.commons'
 import { PathPickerModal, WebSocketTransport } from '@sbot/chat-ui'
@@ -55,6 +55,39 @@ const pickerLabels = computed(() => ({
 const pathPicker = ref<InstanceType<typeof PathPickerModal>>()
 
 const profiles = ref<ProfileRow[]>([])
+
+interface SessionLite {
+  id: number
+  channelId: string
+  sessionId: string
+  sessionName: string
+  autoSessionName: string
+}
+const sessionsModalVisible = ref(false)
+const sessionsModalProfile = ref<ProfileRow | null>(null)
+const sessionsModalRows = ref<SessionLite[]>([])
+const sessionsModalLoading = ref(false)
+
+const channelLabel = (channelId: string): string => {
+  const c = (store.settings.channels as Record<string, any> | undefined)?.[channelId]
+  return c?.name || channelId
+}
+
+async function openSessions(p: ProfileRow) {
+  if (!(p.sessionCount ?? 0)) return
+  sessionsModalProfile.value = p
+  sessionsModalRows.value = []
+  sessionsModalVisible.value = true
+  sessionsModalLoading.value = true
+  try {
+    const res = await apiFetch(`/api/session-profiles/${p.id}`)
+    sessionsModalRows.value = ((res.data as any)?.sessions || []) as SessionLite[]
+  } catch (e: any) {
+    show(e.message, 'error')
+  } finally {
+    sessionsModalLoading.value = false
+  }
+}
 
 const agentOptions = computed(() => Object.entries(store.settings.agents || {}).map(([id, a]) => ({ id, label: (a as any).name || id, type: (a as any).type || '' })))
 const saverOptions = computed(() => Object.entries(store.settings.savers || {}).map(([id, s]) => ({ id, label: (s as any).name || id })))
@@ -231,7 +264,9 @@ async function remove(p: ProfileRow) {
           <span v-else style="color: var(--sui-fg-disabled)">—</span>
         </template>
         <template #sessionCount="{ row }">
-          <span v-if="row.sessionCount">{{ t('session_profiles.used_by_n', { n: row.sessionCount }) }}</span>
+          <a v-if="row.sessionCount" href="#" class="session-count-link" @click.prevent="openSessions(row)">
+            {{ t('session_profiles.used_by_n', { n: row.sessionCount }) }}
+          </a>
           <span v-else style="color: var(--sui-fg-disabled)">{{ t('session_profiles.used_by_none') }}</span>
         </template>
         <template #ops="{ row }">
@@ -279,6 +314,22 @@ async function remove(p: ProfileRow) {
       @confirm="p => { form.overrides.workPath = p }"
       @error="msg => show(msg, 'error')"
     />
+
+    <SModal v-model:visible="sessionsModalVisible" width="md">
+      <template #header>
+        <h3 class="s-modal-title">
+          {{ t('session_profiles.sessions_modal_title', { name: sessionsModalProfile?.name || '' }) }}
+        </h3>
+      </template>
+      <div v-if="sessionsModalLoading" class="modal-loading">{{ t('common.loading') }}</div>
+      <div v-else-if="sessionsModalRows.length === 0" class="modal-empty">{{ t('session_profiles.used_by_none') }}</div>
+      <ul v-else class="sess-list">
+        <li v-for="s in sessionsModalRows" :key="s.id" class="sess-row">
+          <span class="sess-channel">{{ channelLabel(s.channelId) }}</span>
+          <span class="sess-name">{{ s.sessionName || s.autoSessionName || s.sessionId }}</span>
+        </li>
+      </ul>
+    </SModal>
   </div>
 </template>
 
@@ -313,4 +364,18 @@ async function remove(p: ProfileRow) {
 .drawer-fade-enter-from, .drawer-fade-leave-to { opacity: 0; }
 .drawer-slide-enter-active, .drawer-slide-leave-active { transition: transform 0.25s ease; }
 .drawer-slide-enter-from, .drawer-slide-leave-to { transform: translateX(100%); }
+
+.session-count-link { color: var(--sui-fg-link, var(--sui-accent)); text-decoration: none; cursor: pointer; }
+.session-count-link:hover { text-decoration: underline; }
+
+.modal-loading, .modal-empty { padding: var(--sui-sp-6); text-align: center; color: var(--sui-fg-muted); }
+.sess-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sui-sp-2); }
+.sess-row {
+  display: flex; align-items: center; gap: var(--sui-sp-3);
+  padding: var(--sui-sp-3) var(--sui-sp-4);
+  border: 1px solid var(--sui-border);
+  border-radius: var(--sui-radius);
+}
+.sess-channel { color: var(--sui-fg-muted); font-size: var(--sui-fs-sm); min-width: 120px; }
+.sess-name { flex: 1; }
 </style>

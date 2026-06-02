@@ -209,6 +209,7 @@ export default {
     name_placeholder: '便于识别的名字',
     used_by_n: '{n} 个会话使用',
     used_by_none: '暂未被使用',
+    sessions_modal_title: '使用 Profile "{name}" 的会话',
   },
   settings: {
     http_port: 'HTTP 端口',

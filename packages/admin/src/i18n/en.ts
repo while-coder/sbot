@@ -209,6 +209,7 @@ export default {
     name_placeholder: 'a recognizable name',
     used_by_n: 'used by {n} session(s)',
     used_by_none: 'not in use',
+    sessions_modal_title: 'Sessions using profile "{name}"',
   },
   settings: {
     http_port: 'HTTP Port',
