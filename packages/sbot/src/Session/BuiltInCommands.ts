@@ -3,7 +3,7 @@ import fs from "fs/promises"
 import { Command, Arg, Option, Parsers, CommandContext, ICommand, ConversationCompactor, GlobalLoggerService } from "scorpio.ai"
 import { SessionService } from "channel.base"
 import { type EffectiveSession } from "../Core/Database"
-import { AgentRunner } from "../Agent/AgentRunner"
+import { SaverPool } from "../Agent/SaverPool"
 import { config, AgentMode, type ToolAgentEntry } from "../Core/Config"
 import { loadPrompt } from "../Core/PromptLoader"
 
@@ -71,18 +71,22 @@ export class ClearCommand implements ICommand {
 
     async execute(): Promise<string> {
         const session = this._context.context as SbotService;
-        const eff = await session.resolveSessionConfig(this._context.args);
-        const saverId = eff?.resolved.saver;
-        if (!saverId) return '无法识别当前会话上下文，或当前会话未配置 saver';
+        const dbSessionId = this._context.args?.dbSessionId;
+        if (dbSessionId == null) return '无法识别当前会话上下文';
 
-        const saver = await AgentRunner.createSaverService(saverId, session.threadId);
+        let handle;
         try {
-            await saver.clearMessages();
+            handle = await SaverPool.getInstance().acquireByDBSessionId(dbSessionId);
+        } catch (e: any) {
+            return `无法获取 saver: ${e?.message ?? e}`;
+        }
+        try {
+            await handle.saver.clearMessages();
             session.settings = {};
             session.saveSettings();
             return '历史记录已清理';
         } finally {
-            await saver.dispose();
+            await handle.release();
         }
     }
 }
@@ -96,10 +100,10 @@ export class CompactCommand implements ICommand {
 
     async execute(): Promise<string> {
         const session = this._context.context as SbotService;
-        const eff = await session.resolveSessionConfig(this._context.args);
-        const saverId = eff?.resolved.saver;
-        if (!saverId) return '无法识别当前会话，或未配置 saver';
+        const dbSessionId = this._context.args?.dbSessionId;
+        if (dbSessionId == null) return '无法识别当前会话上下文';
 
+        const eff = await session.resolveSessionConfig(this._context.args);
         const agentId = eff?.resolved.agentId;
         if (!agentId) return '无法识别当前 Agent 配置';
 
@@ -112,7 +116,12 @@ export class CompactCommand implements ICommand {
         const summaryModel = await config.getModelService(compactModelId);
         if (!summaryModel) return `模型 "${compactModelId}" 不可用`;
 
-        const saver = await AgentRunner.createSaverService(saverId, session.threadId);
+        let handle;
+        try {
+            handle = await SaverPool.getInstance().acquireByDBSessionId(dbSessionId);
+        } catch (e: any) {
+            return `无法获取 saver: ${e?.message ?? e}`;
+        }
         try {
             const compactor = new ConversationCompactor(
                 summaryModel,
@@ -121,15 +130,15 @@ export class CompactCommand implements ICommand {
                 loadPrompt('compact/post_continuation.txt'),
                 GlobalLoggerService.getLoggerService(),
             );
-            const allMessages = await saver.getAllMessages();
+            const allMessages = await handle.saver.getAllMessages();
             if (allMessages.length <= 1) return '消息过少，无需压缩';
 
             const postMessage = await compactor.compact(allMessages, false);
             const compactedIds = allMessages.map(m => m.id);
-            await saver.applyCompaction(compactedIds, postMessage);
+            await handle.saver.applyCompaction(compactedIds, postMessage);
             return `压缩完成：${allMessages.length} 条消息已压缩`;
         } finally {
-            await saver.dispose();
+            await handle.release();
         }
     }
 }

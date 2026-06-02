@@ -7,8 +7,7 @@ import {
     IMemoryService, IMemoryDatabase,
     MemoryService,
     IEmbeddingService,
-    IAgentSaverService, AgentFileSaver, AgentSqliteSaver, AgentMemorySaver,
-    T_DBPath,
+    IAgentSaverService,
     T_MemorySystemPromptTemplate,
     T_MemoryToolDescs,
     IModelService,
@@ -29,7 +28,7 @@ import {
     type MessageContent,
 } from "scorpio.ai";
 import { loadPrompt } from "../Core/PromptLoader";
-import { config, SaverType, InsightScope, TodoScope, type ToolAgentEntry } from "../Core/Config";
+import { config, InsightScope, TodoScope, type ToolAgentEntry } from "../Core/Config";
 import { discoverContextFiles } from "../Core/ContextFileDiscovery";
 
 import { AgentFactory } from "./AgentFactory";
@@ -37,8 +36,7 @@ import { LoggerService } from "../Core/LoggerService";
 import { sessionManager } from "../Session/SessionManager";
 import { MemoryDatabaseManager } from "./MemoryDatabaseManager";
 import { WikiDatabaseManager } from "./WikiDatabaseManager";
-
-const logger = LoggerService.getLogger('AgentRunner.ts');
+import { SaverPool } from "./SaverPool";
 
 export interface AgentRunOptions {
     /** 用户输入的消息 */
@@ -110,13 +108,16 @@ export class AgentRunner {
         await AgentRunner.registerWikiServices(container, wikis ?? []);
         await AgentRunner.registerInsightService(container, agentId, threadId);
         await AgentRunner.registerTodoService(container, agentId, threadId);
-        await AgentRunner.registerSaverService(container, saverId, threadId);
+
+        const saverHandle = await SaverPool.getInstance().acquire(saverId, threadId);
+        container.registerInstance(IAgentSaverService, saverHandle.saver);
 
         const agent = await AgentFactory.create({ agentId, container, extraPrompts, dynamicPrompts, agentTools, dbSessionId, workPath });
         try {
             await agent.stream(query, callbacks, signal);
         } finally {
             await agent.dispose();
+            await saverHandle.release();
         }
     }
 
@@ -124,12 +125,6 @@ export class AgentRunner {
         const service = await AgentRunner.buildMemoryService(memoryId);
         if (!service) throw new Error(`Memory config "${memoryId}" not found or missing embedding`);
         return service;
-    }
-
-    static async createSaverService(saverId: string, threadId: string): Promise<IAgentSaverService> {
-        const container = new ServiceContainer();
-        await AgentRunner.registerSaverService(container, saverId, threadId);
-        return container.resolve<IAgentSaverService>(IAgentSaverService);
     }
 
     private static async buildMemoryService(memoryId: string, loggerService?: LoggerService): Promise<IMemoryService | null> {
@@ -250,29 +245,5 @@ export class AgentRunner {
             [T_TodoFilePath]: filePath,
             [T_TodoToolDescs]: { list: loadPrompt('tools/todo/list.txt') },
         });
-    }
-
-    private static async registerSaverService(
-        container: ServiceContainer,
-        saverId: string,
-        saverThreadId: string,
-    ): Promise<void> {
-        if (container.isRegistered(IAgentSaverService)) return
-        const saverConfig = config.getSaver(saverId);
-        if (saverConfig === undefined) {
-            return;
-        }
-
-        if (saverConfig.type === SaverType.Memory) {
-            container.registerSingleton(IAgentSaverService, AgentMemorySaver);
-        } else if (saverConfig.type === SaverType.File) {
-            container.registerWithArgs(IAgentSaverService, AgentFileSaver, {
-                [T_DBPath]: config.getSaverDBPath(saverId, saverThreadId, '.json'),
-            });
-        } else {
-            container.registerWithArgs(IAgentSaverService, AgentSqliteSaver, {
-                [T_DBPath]: config.getSaverDBPath(saverId, saverThreadId, '.db'),
-            });
-        }
     }
 }

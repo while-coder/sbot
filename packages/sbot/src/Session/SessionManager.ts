@@ -6,7 +6,7 @@ import { config } from "../Core/Config";
 import { getChannelSession, getEffectiveSession, type EffectiveSession } from "../Core/Database";
 import { channelManager } from "../Channel/ChannelManager";
 import { createProcessAIHandler } from "../Processing/createProcessAIHandler";
-import { AgentRunner } from "../Agent/AgentRunner";
+import { SaverPool } from "../Agent/SaverPool";
 import { MiddlewarePipeline } from "../Middleware/MiddlewarePipeline";
 import { intentFilterMiddleware } from "../Middleware/intentFilter";
 import type { MessageContext } from "../Middleware/types";
@@ -62,15 +62,17 @@ class SbotSession extends SessionService {
     }
 
     protected async onCommandResult(query: string, content: string, args: ChannelRouteArgs): Promise<void> {
-        const eff = await this.resolveSessionConfig(args);
-        const saverId = eff?.resolved.saver;
-        if (saverId) {
-            const saver = await AgentRunner.createSaverService(saverId, this.threadId);
+        if (args.dbSessionId != null) {
             try {
-                await saver.pushMessage({ role: MessageRole.Human, content: query }, { kind: MessageKind.Command });
-                await saver.pushMessage({ role: MessageRole.AI, content }, { kind: MessageKind.Command });
-            } finally {
-                await saver.dispose();
+                const handle = await SaverPool.getInstance().acquireByDBSessionId(args.dbSessionId);
+                try {
+                    await handle.saver.pushMessage({ role: MessageRole.Human, content: query }, { kind: MessageKind.Command });
+                    await handle.saver.pushMessage({ role: MessageRole.AI, content }, { kind: MessageKind.Command });
+                } finally {
+                    await handle.release();
+                }
+            } catch {
+                // saver 未配置或解析失败，跳过持久化（与原行为一致）
             }
         }
         await this.getChannel(args).onCommandResult(content, args);

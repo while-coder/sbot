@@ -7,9 +7,10 @@ import { randomUUID } from 'crypto';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { z } from 'zod';
-import { AgentToolService, SkillService, ModelProvider, listThreadIds, setMaxImageSize, type StoredMessage } from "scorpio.ai";
+import { AgentToolService, SkillService, ModelProvider, listThreadIds, setMaxImageSize, IAgentSaverService, type StoredMessage } from "scorpio.ai";
 import { config, isDev, isValidAgentId } from '../Core/Config';
 import { AgentRunner } from '../Agent/AgentRunner';
+import { SaverPool } from '../Agent/SaverPool';
 import { ACPAgentPool } from '../Agent/ACPAgentPool';
 import { globalAgentToolService, refreshGlobalAgentToolService, refreshBuiltinTools, BuiltinProvider } from '../Agent/GlobalAgentToolService';
 import { globalSkillService, refreshGlobalSkillService, getSkillsDirsMap } from '../Agent/GlobalSkillService';
@@ -1279,12 +1280,12 @@ class HttpServer {
             listThreadIds(config.getSaverDBPath(req.params.saverId as string), ".db", ".json")
         ));
 
-        // ── Saver/thread 公共助手：自动 dispose ──
-        type SaverFn<T> = (saver: Awaited<ReturnType<typeof AgentRunner.createSaverService>>) => Promise<T>;
+        // ── Saver/thread 公共助手：通过 SaverPool 复用同 dbPath 实例 ──
+        type SaverFn<T> = (saver: IAgentSaverService) => Promise<T>;
         const withSaver = async <T>(saverId: string, threadId: string, fn: SaverFn<T>): Promise<T> => {
-            const saver = await AgentRunner.createSaverService(saverId, threadId);
-            try { return await fn(saver); }
-            finally { await saver.dispose(); }
+            const handle = await SaverPool.getInstance().acquire(saverId, threadId);
+            try { return await fn(handle.saver); }
+            finally { await handle.release(); }
         };
 
         // ── Channel session 解析 ──
