@@ -88,13 +88,12 @@ export class WebService implements IChannelService {
                     const msg = JSON.parse(data.toString()) as { type?: string;[key: string]: any };
                     const sid = msg.sessionId as string | undefined;
                     if (!sid) throw new Error('sessionId is required');
-                    const { session, profile } = await ensureChannelSession(WEB_CHANNEL_ID, sid);
-                    const threadId = String(profile.id);
+                    const { session } = await ensureChannelSession(WEB_CHANNEL_ID, sid);
                     switch (msg.type) {
                         case WsCommandType.Query: {
                             const enriched = await processMessage(msg.parts ?? [], msg.attachments, uploadDir);
                             if (isEmptyContent(enriched)) break;
-                            sessionManager.onReceiveChannelMessage(threadId, enriched, {
+                            sessionManager.onReceiveChannelMessage(enriched, {
                                 channelType: WEB_CHANNEL_TYPE,
                                 channelId: WEB_CHANNEL_ID,
                                 dbSessionId: session.id,
@@ -105,7 +104,7 @@ export class WebService implements IChannelService {
                         case WsCommandType.Approval:
                         case WsCommandType.Ask:
                         case WsCommandType.Abort: {
-                            sessionManager.onTriggerChannelAction(threadId, msg.type!, msg).catch(e => logger.error(`ws trigger error: ${e?.message ?? e}`));
+                            sessionManager.onTriggerChannelAction(session.id, msg.type!, msg).catch(e => logger.error(`ws trigger error: ${e?.message ?? e}`));
                             break;
                         }
                     }

@@ -3,7 +3,7 @@ import { ICommand, MessageType, MessageRole, MessageKind, type ChatMessage, type
 import { SessionManager, SessionService, ChannelMessageArgs, ChannelSessionHandler } from "channel.base";
 import { type StructuredToolInterface } from "@langchain/core/tools";
 import { config } from "../Core/Config";
-import { getEffectiveSession, type EffectiveSession } from "../Core/Database";
+import { getChannelSession, getEffectiveSession, type EffectiveSession } from "../Core/Database";
 import { channelManager } from "../Channel/ChannelManager";
 import { createProcessAIHandler } from "../Processing/createProcessAIHandler";
 import { AgentRunner } from "../Agent/AgentRunner";
@@ -177,11 +177,20 @@ export class SbotSessionManager extends SessionManager {
         return sessionHandler;
     }
 
+    // thread id 在每次消息进入时按 dbSessionId 现查一次 profile.id —— 用户切换 profile 后立即生效
+    // session 一定先经 doInitSession / ensureChannelSession 创建并建好 auto profile，所以 profileId > 0 由调用链保证
+    private async resolveThreadId(dbSessionId: number): Promise<string> {
+        const session = await getChannelSession(dbSessionId, true);
+        return String(session!.profileId);
+    }
+
     // ── Channel entry points ──
 
-    async onReceiveChannelMessage(threadId: string, query: MessageContent, args: ChannelRouteArgs): Promise<void> {
+    async onReceiveChannelMessage(query: MessageContent, args: ChannelRouteArgs): Promise<void> {
         query = trimContent(query);
         if (isEmptyContent(query)) return;
+
+        const threadId = await this.resolveThreadId(args.dbSessionId);
 
         // 静默模式和命令消息跳过意图过滤和消息合并，直接透传
         if (args.silent || (typeof query === 'string' && query.trimStart().startsWith('/'))) {
@@ -230,7 +239,8 @@ export class SbotSessionManager extends SessionManager {
 
     // ── Trigger action routing ──
 
-    async onTriggerChannelAction(threadId: string, ...args: any[]): Promise<void> {
+    async onTriggerChannelAction(dbSessionId: number, ...args: any[]): Promise<void> {
+        const threadId = await this.resolveThreadId(dbSessionId);
         const session = this.getSession(threadId) as SbotSession | undefined;
         await session?.triggerAction(...args);
     }

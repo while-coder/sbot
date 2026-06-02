@@ -36,7 +36,7 @@ export async function dispatchToSession(opts: DispatchToSessionOptions): Promise
         logger.warn(`${tag} target session not found (id=${targetId})`);
         return { ok: false };
     }
-    const { session: sessionRow, resolved } = eff;
+    const { session: sessionRow } = eff;
     const { channelId, sessionId, id: dbSessionId } = sessionRow;
 
     const channelConfig = config.getChannel(channelId);
@@ -55,18 +55,17 @@ export async function dispatchToSession(opts: DispatchToSessionOptions): Promise
         return { ok: true, channelType, sessionId };
     }
 
-    const threadId = resolved.threadKey;  // = String(profile.id)
     const resolvedWhitelist = typeof toolWhitelist === "function" ? toolWhitelist(channelConfig) : toolWhitelist;
     const args = { channelType, channelId, dbSessionId, sessionId, silent, toolWhitelist: resolvedWhitelist };
     if (awaitCompletion) {
         await new Promise<void>((resolve, reject) => {
-            sessionManager.onReceiveChannelMessage(threadId, message, {
+            sessionManager.onReceiveChannelMessage(message, {
                 ...args,
                 onComplete: (err?: any) => err ? reject(err) : resolve(),
             });
         });
     } else {
-        await sessionManager.onReceiveChannelMessage(threadId, message, args);
+        await sessionManager.onReceiveChannelMessage(message, args);
     }
     return { ok: true, channelType, sessionId };
 }

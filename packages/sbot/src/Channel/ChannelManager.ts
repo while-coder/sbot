@@ -1,5 +1,5 @@
 import { ChannelPlugin, ChannelPluginContext, IChannelService, ChannelSessionInfo } from "channel.base";
-import { ChannelUserRow, database, type ChannelSessionRow, getChannelSession, ensureChannelSession } from "../Core/Database";
+import { ChannelUserRow, database, type ChannelSessionRow, ensureChannelSession } from "../Core/Database";
 import { NowDate } from "scorpio.ai";
 import { Op } from "sequelize";
 import { sessionManager } from "../Session/SessionManager";
@@ -91,13 +91,6 @@ async function doInitSession(channelId: string, ctx: import("channel.base").Init
     return { dbUserId: (dbUser as any).id, dbSessionId: dbSession.id };
 }
 
-// thread id 在每次消息进入时按 dbSessionId 现查一次 profile.id —— 用户切换 profile 后立即生效
-// session 一定先经 doInitSession / ensureChannelSession 创建并建好 auto profile，所以 profileId > 0 由调用链保证
-async function resolveThreadId(dbSessionId: number): Promise<string> {
-    const session = await getChannelSession(dbSessionId, true);
-    return String(session!.profileId);
-}
-
 // ── ChannelManager ────────────────────────────────────────────────────────────
 
 export class ChannelManager {
@@ -144,9 +137,9 @@ export class ChannelManager {
                     return { channelId, userId: initCtx.userId, sessionId: initCtx.sessionId, dbUserId, dbSessionId };
                 },
                 onReceiveMessage: async (session, query, args) =>
-                    sessionManager.onReceiveChannelMessage(await resolveThreadId(session.dbSessionId), query, { ...args, channelType: plugin.type, channelId, dbSessionId: session.dbSessionId }),
+                    sessionManager.onReceiveChannelMessage(query, { ...args, channelType: plugin.type, channelId, dbSessionId: session.dbSessionId }),
                 onTriggerAction: async (session, args) =>
-                    sessionManager.onTriggerChannelAction(await resolveThreadId(session.dbSessionId), { ...args, channelType: plugin.type, channelId }),
+                    sessionManager.onTriggerChannelAction(session.dbSessionId, { ...args, channelType: plugin.type, channelId }),
             };
             const service = await plugin.init(ctx);
             if (service) {
