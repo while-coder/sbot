@@ -9,6 +9,7 @@ import QRCode from 'qrcode'
 import { ApprovalTimeoutValue, type ChannelConfig } from '@/shared/types'
 import SaverViewModal from '@/components/modals/SaverViewModal.vue'
 import TodoListModal from '@/components/modals/TodoListModal.vue'
+import SchedulerListModal from '@/components/modals/SchedulerListModal.vue'
 import { PathPickerModal, WebSocketTransport } from '@sbot/chat-ui'
 import SessionConfigOverridesEditor, { type SessionOverrides, type ConfigSource } from '@/components/SessionConfigOverridesEditor.vue'
 
@@ -93,9 +94,10 @@ const memoryOptions = computed(() => Object.entries(store.settings.memories  || 
 const wikiOptions   = computed(() => Object.entries(store.settings.wikis    || {}).map(([id, w]) => ({ id, label: (w as any).name  || id })))
 const modelOptions  = computed(() => Object.entries(store.settings.models   || {}).map(([id, m]) => ({ id, label: (m as any).name  || id })))
 
-const saverViewModal = ref<InstanceType<typeof SaverViewModal>>()
-const todoListModal  = ref<InstanceType<typeof TodoListModal>>()
-const pathPicker     = ref<InstanceType<typeof PathPickerModal>>()
+const saverViewModal     = ref<InstanceType<typeof SaverViewModal>>()
+const todoListModal      = ref<InstanceType<typeof TodoListModal>>()
+const schedulerListModal = ref<InstanceType<typeof SchedulerListModal>>()
+const pathPicker         = ref<InstanceType<typeof PathPickerModal>>()
 
 const expandedChannels  = ref<Record<string, boolean>>({})
 const channelTabs       = ref<Record<string, 'sessions' | 'users'>>({})
@@ -682,6 +684,7 @@ async function refresh() {
                         <div class="ops-cell">
                           <SButton v-if="s.saver || c.saver" type="outline" size="sm" @click="saverViewModal?.openByDbId(s.id, saverOptions.find(o => o.id === (s.saver || c.saver))?.label || (s.saver || c.saver))">{{ t('channels.history') }}</SButton>
                           <SButton type="outline" size="sm" @click="todoListModal?.open(s.id, s.sessionName || s.autoSessionName || s.sessionId)">{{ t('todo.title') }}</SButton>
+                          <SButton type="outline" size="sm" @click="schedulerListModal?.open(s.id, s.sessionName || s.autoSessionName || s.sessionId)">{{ t('scheduler.title') }}</SButton>
                           <SButton type="outline" size="sm" @click="openEditSession(s)">{{ t('common.edit') }}</SButton>
                           <SButton type="danger" size="sm" @click="removeSession(id as string, s)">{{ t('common.delete') }}</SButton>
                         </div>
@@ -765,6 +768,7 @@ async function refresh() {
                 </div>
                 <div class="mobile-card-ops">
                   <SButton type="outline" size="sm" @click="todoListModal?.open(s.id, s.sessionName || s.autoSessionName || s.sessionId)">{{ t('todo.title') }}</SButton>
+                  <SButton type="outline" size="sm" @click="schedulerListModal?.open(s.id, s.sessionName || s.autoSessionName || s.sessionId)">{{ t('scheduler.title') }}</SButton>
                   <SButton type="outline" size="sm" @click="openEditSession(s)">{{ t('common.edit') }}</SButton>
                   <SButton type="danger" size="sm" @click="removeSession(id as string, s)">{{ t('common.delete') }}</SButton>
                 </div>
@@ -1034,6 +1038,7 @@ async function refresh() {
 
     <SaverViewModal ref="saverViewModal" />
     <TodoListModal ref="todoListModal" />
+    <SchedulerListModal ref="schedulerListModal" />
     <PathPickerModal
       ref="pathPicker"
       :transport="pickerTransport"
