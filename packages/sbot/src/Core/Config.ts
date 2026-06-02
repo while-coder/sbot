@@ -411,7 +411,7 @@ class Config {
     const example: Settings = {
       startupCommands: ["echo 'sbot initializing...'"],
       savers: {
-        [S1]: { name: "default", type: SaverType.Sqlite, share: false },
+        [S1]: { name: "default", type: SaverType.Sqlite },
       },
       memories: {
         [ME1]: { name: "default", embedding: E1 },

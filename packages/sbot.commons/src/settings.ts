@@ -117,8 +117,6 @@ export interface SaverConfig {
   name: string
   /** 存储类型：file | sqlite | memory */
   type: SaverType
-  /** 是否共享存储（true = 所有 session 共用同一份存储；false = 每个 session 独立，默认） */
-  share: boolean
 }
 
 export interface SubAgentRef {

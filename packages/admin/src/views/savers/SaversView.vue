@@ -34,7 +34,7 @@ const saverColumns = computed<STableColumn[]>(() => [
 
 const showModal   = ref(false)
 const editingName = ref<string | null>(null)
-const form = ref<{ name: string } & SaverConfig>({ name: '', type: SaverType.File, share: false })
+const form = ref<{ name: string } & SaverConfig>({ name: '', type: SaverType.File })
 
 const saverViewModal = ref<InstanceType<typeof SaverViewModal>>()
 
@@ -63,14 +63,14 @@ function onExpand(row: SaverRow, expanded: boolean) {
 
 function openAdd() {
   editingName.value = null
-  form.value = { name: '', type: SaverType.File, share: false }
+  form.value = { name: '', type: SaverType.File }
   showModal.value = true
 }
 
 function openEdit(id: string) {
   const s = savers.value[id]
   editingName.value = id
-  form.value = { name: (s as any).name || '', type: s.type || SaverType.File, share: s.share ?? false }
+  form.value = { name: (s as any).name || '', type: s.type || SaverType.File }
   showModal.value = true
 }
 
@@ -183,12 +183,6 @@ async function refresh() {
           <option value="memory">Memory</option>
         </SSelect>
       </SFormItem>
-      <SFormItem>
-        <label class="checkbox-label">
-          <input v-model="form.share" type="checkbox" />
-          {{ t('savers.share') }}
-        </label>
-      </SFormItem>
       <template #footer>
         <SButton type="outline" @click="showModal = false">{{ t('common.cancel') }}</SButton>
         <SButton type="primary" @click="save">{{ t('common.save') }}</SButton>
@@ -228,11 +222,5 @@ async function refresh() {
   display: flex;
   gap: var(--sui-sp-2);
   flex-shrink: 0;
-}
-.checkbox-label {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sui-sp-2);
-  cursor: pointer;
 }
 </style>
