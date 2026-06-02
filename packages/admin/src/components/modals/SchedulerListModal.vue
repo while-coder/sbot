@@ -3,7 +3,6 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { useToast, useConfirm, SModal, SButton, SBadge } from 'sbot-ui'
-import { WEB_CHANNEL_ID } from 'sbot.commons'
 import { TYPE_VARIANT, detectUIType, describeExpr, type SchedulerRow } from '@/utils/scheduler'
 
 const { t, locale } = useI18n()
@@ -12,13 +11,12 @@ const { confirm } = useConfirm()
 
 interface ChannelSessionRow {
   id: number
-  channelId: string
-  sessionId: string
+  profileId: number
 }
 
 const visible      = ref(false)
 const dbSessionId  = ref<number | null>(null)
-const sessionIdRef = ref<string | null>(null)
+const profileIdRef = ref<string | null>(null)
 const sessionLabel = ref('')
 const loading      = ref(false)
 const all          = ref<SchedulerRow[]>([])
@@ -39,12 +37,12 @@ async function load() {
   try {
     const [timersRes, sessionsRes] = await Promise.all([
       apiFetch('/api/schedulers'),
-      apiFetch(`/api/channel-sessions?channelId=${encodeURIComponent(WEB_CHANNEL_ID)}`),
+      apiFetch('/api/channel-sessions'),
     ])
     all.value = timersRes.data || []
-    if (dbSessionId.value == null && sessionIdRef.value) {
+    if (dbSessionId.value == null && profileIdRef.value) {
       const sessions: ChannelSessionRow[] = sessionsRes.data || []
-      const row = sessions.find(s => s.channelId === WEB_CHANNEL_ID && s.sessionId === sessionIdRef.value)
+      const row = sessions.find(s => String(s.profileId) === profileIdRef.value)
       dbSessionId.value = row?.id ?? null
     }
   } catch (e: any) {
@@ -67,23 +65,23 @@ async function remove(row: SchedulerRow) {
 
 function open(id: number, label: string) {
   dbSessionId.value  = id
-  sessionIdRef.value = null
+  profileIdRef.value = null
   sessionLabel.value = label
   all.value          = []
   visible.value      = true
   load()
 }
 
-function openBySessionId(sid: string, label: string) {
+function openByProfileId(profileId: string, label: string) {
   dbSessionId.value  = null
-  sessionIdRef.value = sid
+  profileIdRef.value = profileId
   sessionLabel.value = label
   all.value          = []
   visible.value      = true
   load()
 }
 
-defineExpose({ open, openBySessionId })
+defineExpose({ open, openByProfileId })
 </script>
 
 <template>

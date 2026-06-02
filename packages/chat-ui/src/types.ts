@@ -7,6 +7,7 @@ export interface RemoteEntry {
 
 export interface SessionItem {
   id: string
+  profileId?: string
   name?: string
   agent: string
   saver: string
@@ -457,12 +458,12 @@ export enum ChatEventType {
 
 export type ChatEvent =
   | { type: ChatEventType.ConnectionStatus; online: boolean }
-  | { type: ChatEventType.Human; sessionId: string; data: { content: DisplayContent } }
-  | { type: ChatEventType.Stream; sessionId: string; data: { content: DisplayContent } }
-  | { type: ChatEventType.Message; sessionId: string; data: { message: ChatMessage; thinkId?: string; taskId?: string; createdAt: number } }
-  | { type: ChatEventType.ToolCall; sessionId: string; data: ToolCallEvent }
-  | { type: ChatEventType.Ask; sessionId: string; data: AskEvent }
-  | { type: ChatEventType.Queue; sessionId: string; data: { pendingMessages: DisplayContent[] } }
-  | { type: ChatEventType.Done; sessionId: string; data: { pendingMessages?: DisplayContent[] } }
-  | { type: ChatEventType.Error; sessionId: string; data: { message: string } }
-  | { type: ChatEventType.Usage; sessionId: string; data: UsageData }
+  | { type: ChatEventType.Human; profileId: string; data: { content: DisplayContent } }
+  | { type: ChatEventType.Stream; profileId: string; data: { content: DisplayContent } }
+  | { type: ChatEventType.Message; profileId: string; data: { message: ChatMessage; thinkId?: string; taskId?: string; createdAt: number } }
+  | { type: ChatEventType.ToolCall; profileId: string; data: ToolCallEvent }
+  | { type: ChatEventType.Ask; profileId: string; data: AskEvent }
+  | { type: ChatEventType.Queue; profileId: string; data: { pendingMessages: DisplayContent[] } }
+  | { type: ChatEventType.Done; profileId: string; data: { pendingMessages?: DisplayContent[] } }
+  | { type: ChatEventType.Error; profileId: string; data: { message: string } }
+  | { type: ChatEventType.Usage; profileId: string; data: UsageData }

@@ -6,7 +6,7 @@ import {
   type WebChatEvent,
 } from 'sbot.commons';
 
-export type WsListener = (event: WebChatEvent & { sessionId?: string }) => void;
+export type WsListener = (event: WebChatEvent) => void;
 
 function getServerBaseUrl(): string {
   const { readFileSync, existsSync } = require('node:fs');
@@ -80,40 +80,40 @@ export class SbotClient {
     return { id: res.data.data?.id ?? res.data.id };
   }
 
-  async deleteSession(sessionId: string): Promise<void> {
-    await this.http.delete(`/api/sessions/${encodeURIComponent(sessionId)}/history`).catch(() => {});
-    await this.http.delete(`/api/settings/sessions/${encodeURIComponent(sessionId)}`);
+  async deleteSession(profileId: string): Promise<void> {
+    await this.http.delete(`/api/sessions/${encodeURIComponent(profileId)}/history`).catch(() => {});
+    await this.http.delete(`/api/settings/sessions/${encodeURIComponent(profileId)}`);
   }
 
-  async updateSession(sessionId: string, patch: Record<string, any>): Promise<void> {
-    await this.http.put(`/api/settings/sessions/${encodeURIComponent(sessionId)}`, patch);
+  async updateSession(profileId: string, patch: Record<string, any>): Promise<void> {
+    await this.http.put(`/api/settings/sessions/${encodeURIComponent(profileId)}`, patch);
   }
 
   // ── Messages ──
 
-  async fetchHistory(sessionId: string): Promise<any[]> {
-    const res = await this.http.get(`/api/sessions/${encodeURIComponent(sessionId)}/history`);
+  async fetchHistory(profileId: string): Promise<any[]> {
+    const res = await this.http.get(`/api/sessions/${encodeURIComponent(profileId)}/history`);
     return res.data.data ?? res.data ?? [];
   }
 
-  async clearHistory(sessionId: string): Promise<void> {
-    await this.http.delete(`/api/sessions/${encodeURIComponent(sessionId)}/history`);
+  async clearHistory(profileId: string): Promise<void> {
+    await this.http.delete(`/api/sessions/${encodeURIComponent(profileId)}/history`);
   }
 
   // ── Usage ──
 
-  async getUsage(sessionId: string): Promise<any> {
+  async getUsage(profileId: string): Promise<any> {
     try {
-      const res = await this.http.get(`/api/thread-usage?sessions=${encodeURIComponent(sessionId)}`);
-      return res.data.data?.[sessionId] ?? null;
+      const res = await this.http.get(`/api/thread-usage?sessions=${encodeURIComponent(profileId)}`);
+      return res.data.data?.[profileId] ?? null;
     } catch { return null; }
   }
 
   // ── Session status ──
 
-  async getSessionStatus(sessionId: string): Promise<any> {
+  async getSessionStatus(profileId: string): Promise<any> {
     try {
-      const res = await this.http.get(`/api/session-status?sessionId=${encodeURIComponent(sessionId)}`);
+      const res = await this.http.get(`/api/session-status?profileId=${encodeURIComponent(profileId)}`);
       return res.data ?? null;
     } catch { return null; }
   }
@@ -186,14 +186,14 @@ export class SbotClient {
 
   // ── WebSocket commands ──
 
-  send(sessionId: string, msg: Record<string, any>): void {
+  send(profileId: string, msg: Record<string, any>): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ ...msg, sessionId }));
+      this.ws.send(JSON.stringify({ ...msg, profileId }));
     }
   }
 
-  sendParts(sessionId: string, parts: any[], attachments?: any[]): void {
-    this.send(sessionId, {
+  sendParts(profileId: string, parts: any[], attachments?: any[]): void {
+    this.send(profileId, {
       type: WsCommandType.Query,
       parts,
       attachments: attachments?.length ? attachments : undefined,

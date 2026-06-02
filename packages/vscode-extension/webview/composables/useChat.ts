@@ -42,21 +42,21 @@ export class VsCodeTransport implements IChatTransport {
 
   listSessions(): Promise<SessionItem[]> { return rpc('listSessions') }
   createSession(opts: CreateSessionOpts): Promise<{ id: string }> { return rpc('createSession', opts) }
-  deleteSession(sessionId: string): Promise<void> { return rpc('deleteSession', sessionId) }
-  updateSession(sessionId: string, patch: Partial<SessionItem>): Promise<void> { return rpc('updateSession', sessionId, patch) }
+  deleteSession(profileId: string): Promise<void> { return rpc('deleteSession', profileId) }
+  updateSession(profileId: string, patch: Partial<SessionItem>): Promise<void> { return rpc('updateSession', profileId, patch) }
 
-  sendMessage(sessionId: string, parts: ContentPart[], attachments?: Attachment[]): void { cmd('sendMessage', sessionId, parts, attachments) }
-  getHistory(sessionId: string): Promise<StoredMessage[]> { return rpc('getHistory', sessionId) }
-  clearHistory(sessionId: string): Promise<void> { return rpc('clearHistory', sessionId) }
+  sendMessage(profileId: string, parts: ContentPart[], attachments?: Attachment[]): void { cmd('sendMessage', profileId, parts, attachments) }
+  getHistory(profileId: string): Promise<StoredMessage[]> { return rpc('getHistory', profileId) }
+  clearHistory(profileId: string): Promise<void> { return rpc('clearHistory', profileId) }
 
-  getUsage(sessionId: string): Promise<UsageInfo | null> { return rpc('getUsage', sessionId) }
+  getUsage(profileId: string): Promise<UsageInfo | null> { return rpc('getUsage', profileId) }
 
-  approveToolCall(sessionId: string, payload: ToolApprovalPayload): void { cmd('approveToolCall', sessionId, payload) }
-  answerAsk(sessionId: string, payload: AskAnswerPayload): void { cmd('answerAsk', sessionId, payload) }
-  abort(sessionId: string): void { cmd('abort', sessionId) }
+  approveToolCall(profileId: string, payload: ToolApprovalPayload): void { cmd('approveToolCall', profileId, payload) }
+  answerAsk(profileId: string, payload: AskAnswerPayload): void { cmd('answerAsk', profileId, payload) }
+  abort(profileId: string): void { cmd('abort', profileId) }
 
   getSettings(): Promise<AppSettings> { return rpc('getSettings') }
-  getSessionStatus(sessionId: string): Promise<SessionStatus | null> { return rpc('getSessionStatus', sessionId) }
+  getSessionStatus(profileId: string): Promise<SessionStatus | null> { return rpc('getSessionStatus', profileId) }
 
   listDir(path: string): Promise<DirListResult> { return rpc('listDir', path) }
   quickDirs(): Promise<QuickDir[]> { return rpc('quickDirs') }
@@ -68,7 +68,7 @@ export class VsCodeTransport implements IChatTransport {
   gitStatus(root: string): Promise<GitStatusResult> { return rpc('gitStatus', root) }
   gitDiff(root: string, path: string, fullContent = false): Promise<GitDiffResult> { return rpc('gitDiff', root, path, fullContent) }
 
-  getThinksUrlPrefix(sessionId: string): string | null { return `/api/sessions/${encodeURIComponent(sessionId)}/thinks` }
+  getThinksUrlPrefix(profileId: string): string | null { return `/api/sessions/${encodeURIComponent(profileId)}/thinks` }
   async fetchThinks(url: string): Promise<any> { return rpc('fetchThinks', url) }
 
   getRemotes(): Promise<RemoteEntry[]> { return rpc('getRemotes') }

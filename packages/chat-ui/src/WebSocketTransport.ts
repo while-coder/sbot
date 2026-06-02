@@ -55,7 +55,8 @@ export class WebSocketTransport implements IChatTransport {
       let msg: any
       try { msg = JSON.parse(e.data as string) } catch { return }
       if (msg && SESSION_EVENT_TYPES.has(msg.type)) {
-        this.emit({ type: msg.type, sessionId: msg.sessionId, data: msg.data } as ChatEvent)
+        const profileId = msg.profileId
+        if (profileId) this.emit({ type: msg.type, profileId: String(profileId), data: msg.data } as ChatEvent)
       }
     }
     ws.onclose = () => {
@@ -110,56 +111,56 @@ export class WebSocketTransport implements IChatTransport {
     return { id: res.id ?? res.data?.id }
   }
 
-  async deleteSession(sessionId: string): Promise<void> {
-    await this.api(`/api/sessions/${encodeURIComponent(sessionId)}/history`, 'DELETE').catch(() => {})
-    await this.api(`/api/settings/sessions/${encodeURIComponent(sessionId)}`, 'DELETE')
+  async deleteSession(profileId: string): Promise<void> {
+    await this.api(`/api/sessions/${encodeURIComponent(profileId)}/history`, 'DELETE').catch(() => {})
+    await this.api(`/api/settings/sessions/${encodeURIComponent(profileId)}`, 'DELETE')
   }
 
-  async updateSession(sessionId: string, patch: Partial<SessionItem>): Promise<void> {
-    await this.api(`/api/settings/sessions/${encodeURIComponent(sessionId)}`, 'PUT', patch)
+  async updateSession(profileId: string, patch: Partial<SessionItem>): Promise<void> {
+    await this.api(`/api/settings/sessions/${encodeURIComponent(profileId)}`, 'PUT', patch)
   }
 
   // ── Messages ──
 
-  sendMessage(sessionId: string, parts: ContentPart[], attachments?: Attachment[]): void {
+  sendMessage(profileId: string, parts: ContentPart[], attachments?: Attachment[]): void {
     this.wsSend({
       type: 'query',
-      sessionId,
+      profileId,
       parts,
       attachments: attachments?.length ? attachments : undefined,
     })
   }
 
-  async getHistory(sessionId: string): Promise<StoredMessage[]> {
-    const res = await this.api(`/api/sessions/${encodeURIComponent(sessionId)}/history`)
+  async getHistory(profileId: string): Promise<StoredMessage[]> {
+    const res = await this.api(`/api/sessions/${encodeURIComponent(profileId)}/history`)
     return res.data ?? res ?? []
   }
 
-  async clearHistory(sessionId: string): Promise<void> {
-    await this.api(`/api/sessions/${encodeURIComponent(sessionId)}/history`, 'DELETE')
+  async clearHistory(profileId: string): Promise<void> {
+    await this.api(`/api/sessions/${encodeURIComponent(profileId)}/history`, 'DELETE')
   }
 
   // ── Usage ──
 
-  async getUsage(sessionId: string): Promise<UsageInfo | null> {
+  async getUsage(profileId: string): Promise<UsageInfo | null> {
     try {
-      const res = await this.api(`/api/thread-usage?sessions=${encodeURIComponent(sessionId)}`)
-      return res.data?.[sessionId] ?? null
+      const res = await this.api(`/api/thread-usage?sessions=${encodeURIComponent(profileId)}`)
+      return res.data?.[profileId] ?? null
     } catch { return null }
   }
 
   // ── Tool approval / Ask / Abort ──
 
-  approveToolCall(sessionId: string, payload: ToolApprovalPayload): void {
-    this.wsSend({ type: 'approval', sessionId, id: payload.approvalId, approval: payload.approval })
+  approveToolCall(profileId: string, payload: ToolApprovalPayload): void {
+    this.wsSend({ type: 'approval', profileId, id: payload.approvalId, approval: payload.approval })
   }
 
-  answerAsk(sessionId: string, payload: AskAnswerPayload): void {
-    this.wsSend({ type: 'ask', sessionId, id: payload.askId, answers: payload.answers })
+  answerAsk(profileId: string, payload: AskAnswerPayload): void {
+    this.wsSend({ type: 'ask', profileId, id: payload.askId, answers: payload.answers })
   }
 
-  abort(sessionId: string): void {
-    this.wsSend({ type: 'abort', sessionId })
+  abort(profileId: string): void {
+    this.wsSend({ type: 'abort', profileId })
   }
 
   // ── Settings ──
@@ -169,9 +170,9 @@ export class WebSocketTransport implements IChatTransport {
     return res.data ?? res ?? { agents: {}, savers: {}, memories: {}, wikis: {} }
   }
 
-  async getSessionStatus(sessionId: string): Promise<SessionStatus | null> {
+  async getSessionStatus(profileId: string): Promise<SessionStatus | null> {
     try {
-      const res = await this.api(`/api/session-status?sessionId=${encodeURIComponent(sessionId)}`)
+      const res = await this.api(`/api/session-status?profileId=${encodeURIComponent(profileId)}`)
       return res ?? null
     } catch { return null }
   }
@@ -230,12 +231,12 @@ export class WebSocketTransport implements IChatTransport {
 
   // ── Thinks ──
 
-  getThinksUrlPrefix(sessionId: string): string | null {
-    return `${this._baseUrl}/api/sessions/${encodeURIComponent(sessionId)}/thinks`
+  getThinksUrlPrefix(profileId: string): string | null {
+    return `${this._baseUrl}/api/sessions/${encodeURIComponent(profileId)}/thinks`
   }
 
-  getTasksUrlPrefix(sessionId: string): string | null {
-    return `${this._baseUrl}/api/sessions/${encodeURIComponent(sessionId)}/tasks`
+  getTasksUrlPrefix(profileId: string): string | null {
+    return `${this._baseUrl}/api/sessions/${encodeURIComponent(profileId)}/tasks`
   }
 
   async fetchThinks(url: string): Promise<any> {

@@ -8,8 +8,9 @@ export type TodoPriority = 'low' | 'normal' | 'high'
 export type StatusFilter = TodoStatus | 'all'
 
 export interface Todo {
+  key?: string
   id: number
-  dbSessionId: number
+  profileId: number
   sessionName: string
   channelId: string
   content: string
@@ -100,7 +101,7 @@ export function useTodos(opts: UseTodosOptions) {
   async function markDone(row: Todo) {
     if (!await confirm(t('todo.confirm_done', { id: row.id }))) return
     try {
-      await apiFetch(`/api/todos/${row.dbSessionId}/${row.id}`, 'PATCH')
+      await apiFetch(`/api/todos/${row.profileId}/${row.id}`, 'PATCH')
       show(t('common.saved'))
       await load()
     } catch (e: any) {
@@ -111,7 +112,7 @@ export function useTodos(opts: UseTodosOptions) {
   async function remove(row: Todo) {
     if (!await confirm(t('todo.confirm_delete', { id: row.id }), { danger: true })) return
     try {
-      await apiFetch(`/api/todos/${row.dbSessionId}/${row.id}`, 'DELETE')
+      await apiFetch(`/api/todos/${row.profileId}/${row.id}`, 'DELETE')
       show(t('common.deleted'))
       await load()
     } catch (e: any) {

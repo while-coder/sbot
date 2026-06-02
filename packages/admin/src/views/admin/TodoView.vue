@@ -73,14 +73,14 @@ onMounted(load)
       <STable
         :columns="columns"
         :rows="sortedTodos"
-        row-key="id"
+        row-key="key"
         :loading="loading"
         :loading-text="t('common.loading')"
         :empty-text="t('todo.empty')"
       >
         <template #id="{ row }"><span class="todo-id">#{{ row.id }}</span></template>
         <template #session="{ row }">
-          <span class="todo-session">{{ row.sessionName || `#${row.dbSessionId}` }}</span>
+          <span class="todo-session">{{ row.sessionName || `#${row.profileId}` }}</span>
           <span v-if="row.channelId" class="todo-channel">{{ row.channelId }}</span>
         </template>
         <template #content="{ row }">

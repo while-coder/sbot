@@ -14,21 +14,21 @@ export interface IChatTransport {
 
   listSessions(): Promise<SessionItem[]>
   createSession(opts: CreateSessionOpts): Promise<{ id: string }>
-  deleteSession(sessionId: string): Promise<void>
-  updateSession(sessionId: string, patch: Partial<SessionItem>): Promise<void>
+  deleteSession(profileId: string): Promise<void>
+  updateSession(profileId: string, patch: Partial<SessionItem>): Promise<void>
 
-  sendMessage(sessionId: string, parts: ContentPart[], attachments?: Attachment[]): void
-  getHistory(sessionId: string): Promise<StoredMessage[]>
-  clearHistory(sessionId: string): Promise<void>
+  sendMessage(profileId: string, parts: ContentPart[], attachments?: Attachment[]): void
+  getHistory(profileId: string): Promise<StoredMessage[]>
+  clearHistory(profileId: string): Promise<void>
 
-  getUsage(sessionId: string): Promise<UsageInfo | null>
+  getUsage(profileId: string): Promise<UsageInfo | null>
 
-  approveToolCall(sessionId: string, payload: ToolApprovalPayload): void
-  answerAsk(sessionId: string, payload: AskAnswerPayload): void
-  abort(sessionId: string): void
+  approveToolCall(profileId: string, payload: ToolApprovalPayload): void
+  answerAsk(profileId: string, payload: AskAnswerPayload): void
+  abort(profileId: string): void
 
   getSettings(): Promise<AppSettings>
-  getSessionStatus(sessionId: string): Promise<SessionStatus | null>
+  getSessionStatus(profileId: string): Promise<SessionStatus | null>
 
   listDir(path: string): Promise<DirListResult>
   quickDirs(): Promise<QuickDir[]>
@@ -44,8 +44,8 @@ export interface IChatTransport {
   gitStatus(root: string): Promise<GitStatusResult>
   gitDiff(root: string, path: string, fullContent?: boolean): Promise<GitDiffResult>
 
-  getThinksUrlPrefix(sessionId: string): string | null
-  getTasksUrlPrefix?(sessionId: string): string | null
+  getThinksUrlPrefix(profileId: string): string | null
+  getTasksUrlPrefix?(profileId: string): string | null
   fetchThinks?(url: string): Promise<any>
 
   /** List shells available on the server. */

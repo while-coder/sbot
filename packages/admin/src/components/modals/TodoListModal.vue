@@ -7,8 +7,7 @@ import { useTodos, isOverdue, type Todo } from '@/composables/useTodos'
 const { t } = useI18n()
 
 const visible       = ref(false)
-const dbSessionId   = ref<number | null>(null)
-const sessionIdRef  = ref<string | null>(null)
+const profileIdRef  = ref<string | null>(null)
 const sessionLabel  = ref('')
 
 const {
@@ -26,8 +25,7 @@ const {
   formatTime,
 } = useTodos({
   buildQuery: () => {
-    if (dbSessionId.value != null) return `dbSessionId=${dbSessionId.value}`
-    if (sessionIdRef.value)         return `sessionId=${encodeURIComponent(sessionIdRef.value)}`
+    if (profileIdRef.value)         return `profileId=${encodeURIComponent(profileIdRef.value)}`
     return null
   },
 })
@@ -38,9 +36,8 @@ function priorityVariantOf(p: Todo['priority']): 'danger' | 'info' | 'neutral' {
   return 'info'
 }
 
-function open(id: number, label: string) {
-  dbSessionId.value  = id
-  sessionIdRef.value = null
+function openByProfileId(profileId: string, label: string) {
+  profileIdRef.value = profileId
   sessionLabel.value = label
   todos.value        = []
   statusFilter.value = 'pending'
@@ -48,17 +45,7 @@ function open(id: number, label: string) {
   load()
 }
 
-function openBySessionId(sid: string, label: string) {
-  dbSessionId.value  = null
-  sessionIdRef.value = sid
-  sessionLabel.value = label
-  todos.value        = []
-  statusFilter.value = 'pending'
-  visible.value      = true
-  load()
-}
-
-defineExpose({ open, openBySessionId })
+defineExpose({ openByProfileId })
 </script>
 
 <template>

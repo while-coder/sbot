@@ -15,6 +15,14 @@ import { acpRoutes } from './acp';
 import type { RouteContext } from './types';
 
 export class SettingsRoutes {
+    private async getWebSessionByProfileId(id: string): Promise<ChannelSessionRow | null> {
+        const profileId = Number(id);
+        if (!Number.isInteger(profileId) || profileId <= 0) return null;
+        return database.findOne<ChannelSessionRow>(database.channelSession, {
+            where: { channelId: WEB_CHANNEL_ID, profileId },
+        });
+    }
+
     register(app: express.Application, ctx: RouteContext): void {
         app.get('/api/settings', api(() => ctx.settingsWithAgents()));
 
@@ -133,10 +141,14 @@ export class SettingsRoutes {
                 order: [['createdAt', 'DESC']],
             });
             const result: any[] = [];
+            const seenProfileIds = new Set<number>();
             for (const r of rows) {
+                if (seenProfileIds.has(r.profileId)) continue;
+                seenProfileIds.add(r.profileId);
                 const profile = await getSessionProfile(r.profileId);
                 result.push({
-                    id: r.sessionId,
+                    id: String(r.profileId),
+                    profileId: String(r.profileId),
                     name: r.sessionName || r.autoSessionName,
                     agent: profile?.agentId || '',
                     saver: profile?.saver || '',
@@ -162,20 +174,20 @@ export class SettingsRoutes {
                 wikis: body.wikis ? JSON.stringify(body.wikis) : null,
                 workPath: body.workPath ?? null,
             }, { where: { id: profile.id } });
-            return { id: sid };
+            return { id: String(profile.id), profileId: String(profile.id) };
         }));
 
         app.put('/api/settings/sessions/:id', api(async req => {
-            const sessionId = req.params.id as string;
-            const existing = await database.findOne<ChannelSessionRow>(database.channelSession, { where: { channelId: WEB_CHANNEL_ID, sessionId } });
-            if (!existing) throwBad(`Session "${sessionId}" not found`);
+            const id = req.params.id as string;
+            const existing = await this.getWebSessionByProfileId(id);
+            if (!existing) throwBad(`Session "${id}" not found`);
             const body = req.body;
             // sessionName 写 session；其他配置字段写 profile
             if (body.name !== undefined) {
-                await database.update(database.channelSession, { sessionName: body.name }, { where: { channelId: WEB_CHANNEL_ID, sessionId } });
+                await database.update(database.channelSession, { sessionName: body.name }, { where: { id: existing!.id } });
             }
             const profile = await getSessionProfile(existing!.profileId);
-            if (!profile) throwBad(`Session "${sessionId}" has no associated profile`);
+            if (!profile) throwBad(`Session "${id}" has no associated profile`);
             const profileUpdate: Record<string, any> = {};
             if (body.agent !== undefined) profileUpdate.agentId = body.agent || null;
             if (body.saver !== undefined) profileUpdate.saver = body.saver || null;
@@ -186,12 +198,21 @@ export class SettingsRoutes {
             if (Object.keys(profileUpdate).length > 0) {
                 await database.update(database.sessionProfile, profileUpdate, { where: { id: profile!.id } });
             }
-            return { id: sessionId };
+            return { id: String(profile!.id), profileId: String(profile!.id) };
         }));
 
         app.delete('/api/settings/sessions/:id', api(async req => {
-            const sessionId = req.params.id as string;
-            await database.destroy(database.channelSession, { where: { channelId: WEB_CHANNEL_ID, sessionId } });
+            const id = req.params.id as string;
+            const existing = await this.getWebSessionByProfileId(id);
+            if (!existing) return { success: true };
+            const profile = await getSessionProfile(existing.profileId);
+            await database.destroy(database.channelSession, { where: { id: existing.id } });
+            if (profile?.autoForSessionId === existing.id) {
+                const refCount = await database.count(database.channelSession, { where: { profileId: profile.id } });
+                if (refCount === 0) {
+                    await database.destroy(database.sessionProfile, { where: { id: profile.id } });
+                }
+            }
             return { success: true };
         }));
     }

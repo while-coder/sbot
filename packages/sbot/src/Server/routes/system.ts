@@ -5,8 +5,7 @@ import { config } from '../../Core/Config';
 import { LoggerService } from '../../Core/LoggerService';
 import { refreshGlobalSkillService } from '../../Agent/GlobalSkillService';
 import { refreshGlobalAgentToolService } from '../../Agent/GlobalAgentToolService';
-import { database, getSessionProfile, type ChannelSessionRow, type UsageLogRow } from '../../Core/Database';
-import { WEB_CHANNEL_ID } from 'sbot.commons';
+import { database, getSessionProfile, type UsageLogRow } from '../../Core/Database';
 import { api, throwBad } from '../utils';
 import type { RouteContext } from './types';
 
@@ -86,16 +85,15 @@ export class SystemRoutes {
             return { summary, daily: Array.from(dailyMap.values()) };
         }));
 
-        // 按 threadId 或 sessionId 查询 token 用量（统计存在 profile，按 session.profileId 反查）
+        // 按 threadId/profileId 查询 token 用量。
         app.get('/api/thread-usage', api(async req => {
             const threads = (req.query.threads as string || '').split(',').filter(Boolean);
             const sessions = (req.query.sessions as string || '').split(',').filter(Boolean);
             const result: Record<string, any> = {};
             if (threads.length > 0) Object.assign(result, await database.loadThreadUsages(threads));
             for (const sid of sessions) {
-                const row = await database.findOne<ChannelSessionRow>(database.channelSession, { where: { channelId: WEB_CHANNEL_ID, sessionId: sid } });
-                if (!row) continue;
-                const profile = await getSessionProfile(row.profileId);
+                const profileId = Number(sid);
+                const profile = Number.isInteger(profileId) && profileId > 0 ? await getSessionProfile(profileId) : null;
                 if (profile) result[sid] = { inputTokens: profile.inputTokens, outputTokens: profile.outputTokens, totalTokens: profile.totalTokens, lastInputTokens: profile.lastInputTokens, lastOutputTokens: profile.lastOutputTokens, lastTotalTokens: profile.lastTotalTokens };
             }
             return result;

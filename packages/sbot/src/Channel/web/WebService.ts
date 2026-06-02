@@ -6,7 +6,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { isEmptyContent, resizeImageIfNeeded, type MessageContent } from "scorpio.ai";
 import { IChannelService, ChannelSessionHandler, SessionService } from "channel.base";
 import { WsCommandType, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE } from 'sbot.commons';
-import { ensureChannelSession } from "../../Core/Database";
+import { database, type ChannelSessionRow } from "../../Core/Database";
 import { sessionManager } from "../../Session/SessionManager";
 import { LoggerService } from "../../Core/LoggerService";
 import { WebSocketSessionHandler } from "./WebSocketSessionHandler";
@@ -70,43 +70,72 @@ export class WebService implements IChannelService {
     private readonly wsClients = new Set<WebSocket>();
     private wss?: WebSocketServer;
 
+    private async resolveIncomingSession(msg: Record<string, any>): Promise<{ session: ChannelSessionRow; profileId: string; channelSessionId: string }> {
+        const rawProfileId = msg.profileId as string | number | undefined;
+        if (rawProfileId === undefined || rawProfileId === null || rawProfileId === '') throw new Error('profileId is required');
+        const profileId = Number(rawProfileId);
+        if (!Number.isInteger(profileId) || profileId <= 0) throw new Error('Invalid profileId');
+        const session = await database.findOne<ChannelSessionRow>(database.channelSession, {
+            where: { channelId: WEB_CHANNEL_ID, profileId },
+        });
+        if (!session) throw new Error(`profileId ${profileId} is not bound to a web session`);
+        return { session, profileId: String(session.profileId), channelSessionId: session.sessionId };
+    }
+
     attach(server: http.Server, uploadDir: string): void {
+        logger.info(`attach: uploadDir=${uploadDir}`);
         // noServer + manual upgrade routing: with `{ server, path }`, this WSS would
         // also respond 400 to upgrades for paths it doesn't own (e.g. /ws/pty),
         // corrupting the 101 already sent by the other WSS on the same server.
         const wss = this.wss = new WebSocketServer({ noServer: true });
         server.on('upgrade', (req, socket, head) => {
             const pathname = (req.url ?? '').split('?')[0];
+            logger.debug(`upgrade: path=${pathname} from=${req.socket.remoteAddress}:${req.socket.remotePort}`);
             if (pathname !== '/ws/chat') return;
             wss.handleUpgrade(req, socket, head, ws => wss.emit('connection', ws, req));
         });
-        wss.on('connection', (ws) => {
+        wss.on('connection', (ws, req: http.IncomingMessage) => {
             this.wsClients.add(ws);
-            ws.on('close', () => { this.wsClients.delete(ws); });
+            const peer = `${req?.socket?.remoteAddress}:${req?.socket?.remotePort}`;
+            logger.info(`ws connected: peer=${peer} clients=${this.wsClients.size}`);
+            ws.on('close', (code, reason) => {
+                this.wsClients.delete(ws);
+                logger.info(`ws closed: peer=${peer} code=${code} reason=${reason?.toString() || ''} clients=${this.wsClients.size}`);
+            });
+            ws.on('error', e => logger.warn(`ws socket error: peer=${peer} err=${e?.message ?? e}`));
             ws.on('message', async (data) => {
                 try {
-                    const msg = JSON.parse(data.toString()) as { type?: string;[key: string]: any };
-                    const sid = msg.sessionId as string | undefined;
-                    if (!sid) throw new Error('sessionId is required');
-                    const { session } = await ensureChannelSession(WEB_CHANNEL_ID, sid);
+                    const raw = data.toString();
+                    const msg = JSON.parse(raw) as { type?: string;[key: string]: any };
+                    const { session, profileId, channelSessionId } = await this.resolveIncomingSession(msg);
+                    logger.debug(`ws recv: type=${msg.type} profileId=${profileId} channelSessionId=${channelSessionId} bytes=${raw.length}`);
                     switch (msg.type) {
                         case WsCommandType.Query: {
+                            const partsCount = msg.parts?.length ?? 0;
+                            const attCount = msg.attachments?.length ?? 0;
                             const enriched = await processMessage(msg.parts ?? [], msg.attachments, uploadDir);
-                            if (isEmptyContent(enriched)) break;
+                            if (isEmptyContent(enriched)) {
+                                logger.debug(`ws query empty: profileId=${profileId} parts=${partsCount} attachments=${attCount}`);
+                                break;
+                            }
+                            logger.debug(`ws query dispatch: profileId=${profileId} dbSessionId=${session.id} parts=${partsCount} attachments=${attCount} enrichedType=${typeof enriched === 'string' ? 'text' : 'parts'}`);
                             sessionManager.onReceiveChannelMessage(enriched, {
                                 channelType: WEB_CHANNEL_TYPE,
                                 channelId: WEB_CHANNEL_ID,
                                 dbSessionId: session.id,
-                                sessionId: sid,
+                                sessionId: channelSessionId,
                             });
                             break;
                         }
                         case WsCommandType.Approval:
                         case WsCommandType.Ask:
                         case WsCommandType.Abort: {
+                            logger.debug(`ws action: type=${msg.type} profileId=${profileId} dbSessionId=${session.id}`);
                             sessionManager.onTriggerChannelAction(session.id, msg.type!, msg).catch(e => logger.error(`ws trigger error: ${e?.message ?? e}`));
                             break;
                         }
+                        default:
+                            logger.warn(`ws recv: unknown type=${msg.type} profileId=${profileId}`);
                     }
                 } catch (e: any) {
                     logger.error(`ws message error: ${e?.message ?? e}`);
@@ -116,9 +145,11 @@ export class WebService implements IChannelService {
     }
 
     broadcast(data: string): void {
+        let sent = 0;
         for (const ws of this.wsClients) {
-            if (ws.readyState === WebSocket.OPEN) ws.send(data);
+            if (ws.readyState === WebSocket.OPEN) { ws.send(data); sent++; }
         }
+        logger.debug(`broadcast: sent=${sent}/${this.wsClients.size} bytes=${data.length}`);
     }
 
     // ── IChannelService ──
@@ -140,6 +171,7 @@ export class WebService implements IChannelService {
     }
 
     dispose(): void {
+        logger.info(`dispose: closing ${this.wsClients.size} clients`);
         for (const ws of this.wsClients) {
             try { ws.close(); } catch (_) { /* ignore */ }
         }

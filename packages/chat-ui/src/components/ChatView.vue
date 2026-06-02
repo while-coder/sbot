@@ -124,7 +124,7 @@ const rightPanelStyle = computed(() =>
 // ── Event handler ──
 
 function handleEvent(evt: ChatEvent) {
-  if ('sessionId' in evt && evt.sessionId !== activeSessionId.value) return
+  if ('profileId' in evt && evt.profileId !== activeSessionId.value) return
   switch (evt.type) {
     case ChatEventType.ConnectionStatus:
       if (!evt.online) resetStreamState()

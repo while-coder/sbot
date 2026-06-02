@@ -59,7 +59,7 @@ export type WebChatEventDataMap = {
 }
 
 export type WebChatEvent<T extends WebChatEventType = WebChatEventType> = {
-  sessionId: string
+  profileId: string
   type: T
   data: WebChatEventDataMap[T]
 }

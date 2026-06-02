@@ -31,9 +31,10 @@ export class DataRoutes {
 
     private async resolveSessionSaver(row: ChannelSessionRow): Promise<{ saverId: string; threadId: string }> {
         const profile = await getSessionProfile(row.profileId);
+        if (!profile) throwBad(`Session id=${row.id} has no associated profile`);
         const saverId = profile?.saver || config.getChannel(row.channelId)?.saver;
         if (!saverId) throwBad(`Session id=${row.id} has no saver configured`);
-        const threadId = profile ? String(profile.id) : row.sessionId;
+        const threadId = String(profile.id);
         return { saverId: saverId!, threadId };
     }
 
@@ -43,9 +44,13 @@ export class DataRoutes {
         return row;
     }
 
-    private async getWebSessionRow(sessionId: string): Promise<ChannelSessionRow> {
-        const row = await database.findOne<ChannelSessionRow>(database.channelSession, { where: { channelId: WEB_CHANNEL_ID, sessionId } });
-        if (!row) { const e: any = new Error(`Session "${sessionId}" not found`); e.status = 404; throw e; }
+    private async getWebSessionRowByProfileId(id: string): Promise<ChannelSessionRow> {
+        const profileId = Number(id);
+        if (!Number.isInteger(profileId) || profileId <= 0) {
+            const e: any = new Error(`Invalid profileId "${id}"`); e.status = 400; throw e;
+        }
+        const row = await database.findOne<ChannelSessionRow>(database.channelSession, { where: { channelId: WEB_CHANNEL_ID, profileId } });
+        if (!row) { const e: any = new Error(`Profile "${id}" is not bound to a web session`); e.status = 404; throw e; }
         return row;
     }
 
@@ -84,12 +89,11 @@ export class DataRoutes {
         this.registerSaverThreadRoutes(app, '/api/channel-sessions/:id', async req =>
             await this.resolveSessionSaver(await this.getSessionRowByPk(req.params.id as string))
         );
-        // Legacy compat: /api/sessions/:sessionId/* (web channel UUID-based)
-        this.registerSaverThreadRoutes(app, '/api/sessions/:sessionId', async req =>
-            await this.resolveSessionSaver(await this.getWebSessionRow(req.params.sessionId as string))
+        this.registerSaverThreadRoutes(app, '/api/sessions/:profileId', async req =>
+            await this.resolveSessionSaver(await this.getWebSessionRowByProfileId(req.params.profileId as string))
         );
 
-        // ── Memories (accept ?sessionId= or ?threadId=) ──
+        // ── Memories ──
         app.get('/api/memories/:memoryName', api(async req => {
             const svc = await AgentRunner.createMemoryService(req.params.memoryName as string);
             const memories = (await svc.getAllMemories()).map(m => ({

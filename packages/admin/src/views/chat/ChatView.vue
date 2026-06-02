@@ -18,11 +18,11 @@ const todoListModal = ref<InstanceType<typeof TodoListModal>>()
 const schedulerListModal = ref<InstanceType<typeof SchedulerListModal>>()
 
 function openTodos(session: SessionItem) {
-  todoListModal.value?.openBySessionId(session.id, session.name || session.id)
+  todoListModal.value?.openByProfileId(session.id, session.name || session.id)
 }
 
 function openSchedulers(session: SessionItem) {
-  schedulerListModal.value?.openBySessionId(session.id, session.name || session.id)
+  schedulerListModal.value?.openByProfileId(session.id, session.name || session.id)
 }
 </script>
 

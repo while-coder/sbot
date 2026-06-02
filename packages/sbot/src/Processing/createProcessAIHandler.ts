@@ -17,12 +17,12 @@ export function createProcessAIHandler(): ProcessAIHandler {
         if (!eff) throw new Error(`channel_session id=${dbSessionId} not found`);
 
         const { session: dbSession, profile, resolved } = eff;
-        const { channelId, sessionId } = dbSession;
+        const { channelId } = dbSession;
         const channel = config.getChannel(channelId);
         if (!channel) throw new Error(`Channel config not found: ${channelId}`);
 
         if (channelId === WEB_CHANNEL_ID) {
-            webService.broadcast(JSON.stringify({ sessionId, type: WebChatEventType.Human, data: { content: query } }));
+            webService.broadcast(JSON.stringify({ profileId: String(profile.id), type: WebChatEventType.Human, data: { content: query } }));
         }
 
         const agentId = resolved.agentId;

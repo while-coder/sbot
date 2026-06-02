@@ -196,12 +196,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
     }
   }
 
-  private onServerEvent = (event: WebChatEvent & { sessionId?: string }) => {
+  private onServerEvent = (event: WebChatEvent) => {
     const chatType = EVENT_TYPE_MAP[event.type];
     if (!chatType) return;
     this.postMessage({
       type: 'event',
-      event: { type: chatType, data: event.data },
+      event: { type: chatType, profileId: event.profileId, data: event.data },
     });
   };
 

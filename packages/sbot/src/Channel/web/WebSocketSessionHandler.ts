@@ -27,36 +27,37 @@ export const WEB_CHANNEL_TOOLS: { name: string; label: string }[] = [
 
 export class WebSocketSessionHandler extends ChannelSessionHandler {
 
+    // Web ChatView 以 profileId 作为唯一线程键；channel sessionId 只留在渠道内部寻址。
+    private currentProfileId = '';
+
     constructor(session: SessionService) {
         super(session);
-    }
-
-    private get sessionId(): string {
-        const tid = this.session.threadId;
-        const prefix = 'web_web_';
-        return tid.startsWith(prefix) ? tid.slice(prefix.length) : tid;
     }
 
     // ── Message lifecycle ──
 
     async onProcessStart(_query: MessageContent, args: ChannelMessageArgs, _messageType: MessageType): Promise<void> {
+        this.currentProfileId = this.session.threadId;
         this.emit(WebChatEventType.Queue, { pendingMessages: args?.pendingMessages ?? [] });
     }
 
     async onProcessEnd(_query: MessageContent, args: ChannelMessageArgs, _messageType: MessageType, error?: any): Promise<void> {
+        this.currentProfileId = this.session.threadId;
         if (error) {
             this.emit(WebChatEventType.Error, { message: error.message });
         }
         this.emit(WebChatEventType.Done, { pendingMessages: args?.pendingMessages ?? [] });
     }
 
-    async onChatMessage(message: ChatMessage, _args: ChannelMessageArgs): Promise<void> {
+    async onChatMessage(message: ChatMessage, args: ChannelMessageArgs): Promise<void> {
+        this.currentProfileId = this.session.threadId;
         const thinkId = message.additional_kwargs?.thinkId as string | undefined;
         const taskId = message.additional_kwargs?.taskId as string | undefined;
         this.emit(WebChatEventType.Message, { message, thinkId, taskId, createdAt: Date.now() / 1000 });
     }
 
-    async onStreamMessage(message: ChatMessage, _args: ChannelMessageArgs): Promise<void> {
+    async onStreamMessage(message: ChatMessage, args: ChannelMessageArgs): Promise<void> {
+        this.currentProfileId = this.session.threadId;
         this.emit(WebChatEventType.Stream, { content: message.content ?? '' });
     }
 
@@ -122,6 +123,6 @@ export class WebSocketSessionHandler extends ChannelSessionHandler {
     // ── Emit helpers ──
 
     private emit(type: WebChatEventType, data: Record<string, any>): void {
-        webService.broadcast(JSON.stringify({ sessionId: this.sessionId, type, data }));
+        webService.broadcast(JSON.stringify({ profileId: this.currentProfileId || this.session.threadId, type, data }));
     }
 }
