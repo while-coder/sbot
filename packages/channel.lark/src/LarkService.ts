@@ -464,7 +464,7 @@ export class LarkService implements IChannelService {
       const data = await response.json() as any;
       if (data.code === 0 && data.bot?.open_id) {
         this.botOpenId = data.bot.open_id;
-        this.logger?.info(`Bot open_id: ${this.botOpenId}`);
+        this.logger?.debug(`Bot open_id: ${this.botOpenId}`);
       } else {
         this.logger?.error(`Failed to get bot info: ${JSON.stringify(data)}`);
       }

@@ -3,7 +3,7 @@ import { ICommand, MessageType, MessageRole, MessageKind, type ChatMessage, type
 import { SessionManager, SessionService, ChannelMessageArgs, ChannelSessionHandler } from "channel.base";
 import { type StructuredToolInterface } from "@langchain/core/tools";
 import { config } from "../Core/Config";
-import { getChannelSession, getEffectiveSession, type EffectiveSession } from "../Core/Database";
+import { channelDataService, type EffectiveSession } from "./ChannelDataService";
 import { channelManager } from "../Channel/ChannelManager";
 import { createProcessAIHandler } from "../Processing/createProcessAIHandler";
 import { SaverPool } from "../Agent/SaverPool";
@@ -100,7 +100,7 @@ class SbotSession extends SessionService {
 
     async resolveSessionConfig(args: any): Promise<EffectiveSession | undefined> {
         if (args?.dbSessionId == null) return undefined;
-        return await getEffectiveSession(args.dbSessionId);
+        return await channelDataService.getEffective(args.dbSessionId);
     }
 }
 
@@ -180,9 +180,9 @@ export class SbotSessionManager extends SessionManager {
     }
 
     // thread id 在每次消息进入时按 dbSessionId 现查一次 profile.id —— 用户切换 profile 后立即生效
-    // session 一定先经 doInitSession / ensureChannelSession 创建并建好 auto profile，所以 profileId > 0 由调用链保证
+    // session 一定先经 doInitSession / channelDataService.ensureSession 创建并建好 auto profile，所以 profileId > 0 由调用链保证
     private async resolveThreadId(dbSessionId: number): Promise<string> {
-        const session = await getChannelSession(dbSessionId, true);
+        const session = await channelDataService.getSession(dbSessionId, true);
         return String(session!.profileId);
     }
 

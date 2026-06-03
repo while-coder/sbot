@@ -3,7 +3,8 @@ import { listThreadIds, IAgentSaverService, type StoredMessage } from 'scorpio.a
 import { config } from '../../Core/Config';
 import { AgentRunner } from '../../Agent/AgentRunner';
 import { SaverPool } from '../../Agent/SaverPool';
-import { database, getChannelSession, getSessionProfile, type ChannelSessionRow } from '../../Core/Database';
+import { database, type ChannelSessionRow } from '../../Core/Database';
+import { channelDataService } from '../../Session/ChannelDataService';
 import { WEB_CHANNEL_ID } from 'sbot.commons';
 import { api, throwBad } from '../utils';
 import type { RouteContext } from './types';
@@ -30,7 +31,7 @@ export class DataRoutes {
     }
 
     private async resolveSessionSaver(row: ChannelSessionRow): Promise<{ saverId: string; threadId: string }> {
-        const profile = await getSessionProfile(row.profileId);
+        const profile = await channelDataService.getProfile(row.profileId);
         if (!profile) throwBad(`Session id=${row.id} has no associated profile`);
         const saverId = profile?.saver || config.getChannel(row.channelId)?.saver;
         if (!saverId) throwBad(`Session id=${row.id} has no saver configured`);
@@ -39,7 +40,7 @@ export class DataRoutes {
     }
 
     private async getSessionRowByPk(id: string): Promise<ChannelSessionRow> {
-        const row = await getChannelSession(id);
+        const row = await channelDataService.getSession(id);
         if (!row) { const e: any = new Error(`channel_session id=${id} not found`); e.status = 404; throw e; }
         return row;
     }

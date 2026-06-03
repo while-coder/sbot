@@ -1,5 +1,6 @@
 import { CronJob } from "cron";
-import { database, SchedulerRow, ChannelSessionRow, getChannelSession, getSessionProfile } from "../Core/Database";
+import { database, SchedulerRow, ChannelSessionRow } from "../Core/Database";
+import { channelDataService } from "../Session/ChannelDataService";
 import { LoggerService } from "../Core/LoggerService";
 import { TimerExecutor } from "../Core/TimerExecutor";
 import { dispatchToSession } from "../Core/dispatchToSession";
@@ -16,12 +17,12 @@ const logger = LoggerService.getLogger("SchedulerService.ts");
 async function resolveDeliverySession(scheduler: SchedulerRow): Promise<ChannelSessionRow | null> {
     const profileId = scheduler.profileId;
     if (!profileId || profileId <= 0) return null;
-    const profile = await getSessionProfile(profileId);
+    const profile = await channelDataService.getProfile(profileId);
     if (!profile) return null;
 
     const tag = `[${scheduler.id}]`;
     const primary = scheduler.channelSessionId > 0
-        ? await getChannelSession(scheduler.channelSessionId)
+        ? await channelDataService.getSession(scheduler.channelSessionId)
         : null;
     if (primary && primary.profileId === profileId) return primary;
 
@@ -194,7 +195,7 @@ class SchedulerService {
         if (patch.aiProcess != null) fields.aiProcess = patch.aiProcess;
         if (patch.channelSessionId != null) {
             // 改投递目标时 profileId 必须同步到新 session 的 profile，否则 list/delete 工具按 profileId 过滤会失配
-            const session = await getChannelSession(patch.channelSessionId, true);
+            const session = await channelDataService.getSession(patch.channelSessionId, true);
             fields.channelSessionId = patch.channelSessionId;
             fields.profileId = session!.profileId;
         }

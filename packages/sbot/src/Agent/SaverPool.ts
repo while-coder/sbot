@@ -9,7 +9,7 @@ import {
 } from "scorpio.ai";
 import { config, SaverType } from "../Core/Config";
 import { LoggerService } from "../Core/LoggerService";
-import { getChannelSession, getSessionProfile } from "../Core/Database";
+import { channelDataService } from "../Session/ChannelDataService";
 
 const logger = LoggerService.getLogger('SaverPool');
 
@@ -65,9 +65,9 @@ export class SaverPool {
     }
 
     async acquireByDBSessionId(dbSessionId: number | string): Promise<PooledSaver> {
-        const session = await getChannelSession(dbSessionId, true);
+        const session = await channelDataService.getSession(dbSessionId, true);
         if (!session) throw new Error(`ChannelSession not found: ${dbSessionId}`);
-        const profile = await getSessionProfile(session.profileId);
+        const profile = await channelDataService.getProfile(session.profileId);
         const saverId = profile?.saver || config.getChannel(session.channelId)?.saver;
         if (!saverId) throw new Error(`Session id=${session.id} has no saver configured`);
         const threadId = profile ? String(profile.id) : session.sessionId;

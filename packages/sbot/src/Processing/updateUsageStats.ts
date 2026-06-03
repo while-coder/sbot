@@ -1,6 +1,7 @@
 import { type TokenUsage } from "scorpio.ai";
 import { WebChatEventType, WEB_CHANNEL_ID } from "sbot.commons";
-import { database, getChannelSession } from "../Core/Database";
+import { database } from "../Core/Database";
+import { channelDataService } from "../Session/ChannelDataService";
 import { webService } from "../Channel/web/WebService";
 
 export interface UsageContext {
@@ -53,7 +54,7 @@ export async function updateUsageStats(
     };
     await database.update(database.sessionProfile, tokenUpdate, { where: { id: profileId } });
 
-    const row = await getChannelSession(dbSessionId);
+    const row = await channelDataService.getSession(dbSessionId);
     if (row && row.channelId === WEB_CHANNEL_ID) {
         webService.broadcast(JSON.stringify({
             profileId: String(profileId),

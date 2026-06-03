@@ -1,8 +1,9 @@
 import { ChannelPlugin, ChannelPluginContext, IChannelService, ChannelSessionInfo } from "channel.base";
-import { ChannelUserRow, database, type ChannelSessionRow, ensureChannelSession } from "../Core/Database";
+import { ChannelUserRow, database, type ChannelSessionRow } from "../Core/Database";
 import { NowDate } from "scorpio.ai";
 import { Op } from "sequelize";
 import { sessionManager } from "../Session/SessionManager";
+import { channelDataService } from "../Session/ChannelDataService";
 import { LoggerService } from "../Core/LoggerService";
 import { config } from "../Core/Config";
 import { compareSemver, fetchLatestRelease, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE } from "sbot.commons";
@@ -82,7 +83,7 @@ async function doInitSession(channelId: string, ctx: import("channel.base").Init
         await database.update(database.channelUser, userData, { where: { channelId, userId } });
     }
 
-    const { session: dbSession } = await ensureChannelSession(channelId, sessionId, {
+    const { session: dbSession } = await channelDataService.ensureSession(channelId, sessionId, {
         autoSessionName: sessionName ?? null,
         sessionAvatar,
     });

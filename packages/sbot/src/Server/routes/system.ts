@@ -5,7 +5,8 @@ import { config } from '../../Core/Config';
 import { LoggerService } from '../../Core/LoggerService';
 import { refreshGlobalSkillService } from '../../Agent/GlobalSkillService';
 import { refreshGlobalAgentToolService } from '../../Agent/GlobalAgentToolService';
-import { database, getSessionProfile, type UsageLogRow } from '../../Core/Database';
+import { database, type UsageLogRow } from '../../Core/Database';
+import { channelDataService } from '../../Session/ChannelDataService';
 import { api, throwBad } from '../utils';
 import type { RouteContext } from './types';
 
@@ -93,7 +94,7 @@ export class SystemRoutes {
             if (threads.length > 0) Object.assign(result, await database.loadThreadUsages(threads));
             for (const sid of sessions) {
                 const profileId = Number(sid);
-                const profile = Number.isInteger(profileId) && profileId > 0 ? await getSessionProfile(profileId) : null;
+                const profile = Number.isInteger(profileId) && profileId > 0 ? await channelDataService.getProfile(profileId) : null;
                 if (profile) result[sid] = { inputTokens: profile.inputTokens, outputTokens: profile.outputTokens, totalTokens: profile.totalTokens, lastInputTokens: profile.lastInputTokens, lastOutputTokens: profile.lastOutputTokens, lastTotalTokens: profile.lastTotalTokens };
             }
             return result;

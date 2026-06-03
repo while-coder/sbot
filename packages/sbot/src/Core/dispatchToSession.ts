@@ -2,7 +2,7 @@ import type { ChannelConfig } from "sbot.commons";
 import { WEB_CHANNEL_ID } from "sbot.commons";
 import { config } from "./Config";
 import { LoggerService } from "./LoggerService";
-import { getEffectiveSession } from "./Database";
+import { channelDataService } from "../Session/ChannelDataService";
 import { channelManager } from "../Channel/ChannelManager";
 import { sessionManager } from "../Session/SessionManager";
 
@@ -31,7 +31,7 @@ export async function dispatchToSession(opts: DispatchToSessionOptions): Promise
         logger.warn(`${tag} target session id missing`);
         return { ok: false };
     }
-    const eff = await getEffectiveSession(targetId);
+    const eff = await channelDataService.getEffective(targetId);
     if (!eff) {
         logger.warn(`${tag} target session not found (id=${targetId})`);
         return { ok: false };
