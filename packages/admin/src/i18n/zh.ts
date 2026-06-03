@@ -533,6 +533,8 @@ export default {
     edit_title: '编辑计时器',
     message_required: '请填写目标消息',
     target_required: '请选择目标会话',
+    trigger: '手动触发',
+    triggered: '已触发',
   },
   todo: {
     title: '待办事项',

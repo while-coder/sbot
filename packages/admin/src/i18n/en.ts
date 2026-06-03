@@ -533,6 +533,8 @@ export default {
     edit_title: 'Edit Timer',
     message_required: 'Message is required',
     target_required: 'Please select a target session',
+    trigger: 'Trigger',
+    triggered: 'Triggered',
   },
   todo: {
     title: 'Todos',

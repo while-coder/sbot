@@ -165,6 +165,16 @@ async function remove(row: SchedulerRow) {
   }
 }
 
+async function trigger(row: SchedulerRow) {
+  try {
+    await apiFetch(`/api/schedulers/${row.id}/trigger`, 'POST')
+    show(t('scheduler.triggered'))
+    await load()
+  } catch (e: any) {
+    show(e.message, 'error')
+  }
+}
+
 onMounted(() => {
   load()
   tickHandle = setInterval(() => { now.value = Date.now() }, 30_000)
@@ -250,6 +260,7 @@ onUnmounted(() => {
         </template>
 
         <template #ops="{ row }">
+          <SButton type="outline" size="sm" @click="trigger(row)">{{ t('scheduler.trigger') }}</SButton>
           <SButton type="outline" size="sm" @click="openEdit(row)">{{ t('common.edit') }}</SButton>
           <SButton type="danger" size="sm" @click="remove(row)">{{ t('common.delete') }}</SButton>
         </template>

@@ -37,6 +37,15 @@ export class SchedulerRoutes {
             if (isNaN(id)) throwBad('Invalid id');
             await schedulerService.delete(id);
         }));
+
+        app.post('/api/schedulers/:id/trigger', api(async req => {
+            const id = parseInt(req.params.id as string, 10);
+            if (isNaN(id)) throwBad('Invalid id');
+            const row = await schedulerService.findByPk(id);
+            if (!row) throwBad('Scheduler not found');
+            await schedulerService.triggerOnce(id);
+            return { triggered: true };
+        }));
     }
 }
 

@@ -217,6 +217,10 @@ class SchedulerService {
         if (scheduler) await this.schedule(scheduler);
         else this.executor.cancel(schedulerId);
     }
+
+    async triggerOnce(schedulerId: number): Promise<void> {
+        await executeScheduler(schedulerId);
+    }
 }
 
 export const schedulerService = new SchedulerService();
