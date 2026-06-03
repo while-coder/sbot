@@ -38,7 +38,7 @@ export type AskQuestionSpec =
 
 export interface HumanData    { content: DisplayContent }
 export interface StreamData   { content: DisplayContent }
-export interface MessageData  { message: ChatMessage; thinkId?: string; taskId?: string; createdAt: number }
+export interface MessageData  { message: ChatMessage; thinkId?: string; taskId?: string; createdAt: number; kind?: string }
 export interface ToolCallData { approvalId: string; toolCallId?: string; name: string; args: Record<string, any>; remainSec?: number; timeoutValue?: ApprovalTimeoutValue }
 export interface AskData      { id: string; title?: string; questions: AskQuestionSpec[]; remainSec?: number }
 export interface DoneData     { pendingMessages?: DisplayContent[] }

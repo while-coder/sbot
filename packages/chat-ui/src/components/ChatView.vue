@@ -139,8 +139,8 @@ function handleEvent(evt: ChatEvent) {
       streamingContent.value = evt.data.content
       break
     case ChatEventType.Message: {
-      const { message, createdAt, thinkId, taskId } = evt.data
-      const msg: StoredMessage = { message, createdAt: createdAt ?? Date.now() / 1000, kind: MessageKind.Normal }
+      const { message, createdAt, thinkId, taskId, kind } = evt.data
+      const msg: StoredMessage = { message, createdAt: createdAt ?? Date.now() / 1000, kind: kind ?? MessageKind.Normal }
       if (thinkId) msg.thinkId = thinkId
       if (taskId) msg.taskId = taskId
       messages.value.push(msg)

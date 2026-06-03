@@ -460,7 +460,7 @@ export type ChatEvent =
   | { type: ChatEventType.ConnectionStatus; online: boolean }
   | { type: ChatEventType.Human; profileId: string; data: { content: DisplayContent } }
   | { type: ChatEventType.Stream; profileId: string; data: { content: DisplayContent } }
-  | { type: ChatEventType.Message; profileId: string; data: { message: ChatMessage; thinkId?: string; taskId?: string; createdAt: number } }
+  | { type: ChatEventType.Message; profileId: string; data: { message: ChatMessage; thinkId?: string; taskId?: string; createdAt: number; kind?: string } }
   | { type: ChatEventType.ToolCall; profileId: string; data: ToolCallEvent }
   | { type: ChatEventType.Ask; profileId: string; data: AskEvent }
   | { type: ChatEventType.Queue; profileId: string; data: { pendingMessages: DisplayContent[] } }

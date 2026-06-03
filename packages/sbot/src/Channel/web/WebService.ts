@@ -3,11 +3,12 @@ import path from 'path';
 import http from 'http';
 import { randomUUID } from 'crypto';
 import { WebSocket, WebSocketServer } from 'ws';
-import { isEmptyContent, resizeImageIfNeeded, type MessageContent } from "scorpio.ai";
+import { isEmptyContent, resizeImageIfNeeded, MessageRole, MessageKind, type ChatMessage, type MessageContent } from "scorpio.ai";
 import { IChannelService, ChannelSessionHandler, SessionService } from "channel.base";
-import { WsCommandType, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE } from 'sbot.commons';
+import { WsCommandType, WebChatEventType, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE } from 'sbot.commons';
 import { database, type ChannelSessionRow } from "../../Core/Database";
 import { sessionManager } from "../../Session/SessionManager";
+import { SaverPool } from "../../Agent/SaverPool";
 import { LoggerService } from "../../Core/LoggerService";
 import { WebSocketSessionHandler } from "./WebSocketSessionHandler";
 
@@ -69,6 +70,8 @@ async function processMessage(parts: ContentPartInput[], attachments: Attachment
 export class WebService implements IChannelService {
     private readonly wsClients = new Set<WebSocket>();
     private wss?: WebSocketServer;
+    /** sendFile(Buffer) 落盘的服务端外发文件目录。与用户上传的临时 attachments 目录分开，避免被一并清理。 */
+    private outgoingDir?: string;
 
     private async resolveIncomingSession(msg: Record<string, any>): Promise<{ session: ChannelSessionRow; profileId: string; channelSessionId: string }> {
         const rawProfileId = msg.profileId as string | number | undefined;
@@ -82,8 +85,9 @@ export class WebService implements IChannelService {
         return { session, profileId: String(session.profileId), channelSessionId: session.sessionId };
     }
 
-    attach(server: http.Server, uploadDir: string): void {
-        logger.info(`attach: uploadDir=${uploadDir}`);
+    attach(server: http.Server, uploadDir: string, outgoingDir: string): void {
+        this.outgoingDir = outgoingDir;
+        logger.info(`attach: uploadDir=${uploadDir} outgoingDir=${outgoingDir}`);
         // noServer + manual upgrade routing: with `{ server, path }`, this WSS would
         // also respond 400 to upgrades for paths it doesn't own (e.g. /ws/pty),
         // corrupting the 101 already sent by the other WSS on the same server.
@@ -158,16 +162,57 @@ export class WebService implements IChannelService {
         return new WebSocketSessionHandler(session);
     }
 
-    async sendText(_sessionId: string, _text: string): Promise<void> {
-        // Web channel 没有"原文直发"路径，输出统一通过 WebSocketSessionHandler 经 ws 广播给前端。
+    async sendText(sessionId: string, text: string): Promise<void> {
+        await this.pushOutgoing(sessionId, text);
     }
 
-    async sendFile(_sessionId: string, _file: string | Buffer, _fileName?: string): Promise<void> {
-        // 同上：web 没有独立的文件直发通道。
+    async sendFile(sessionId: string, file: string | Buffer, fileName?: string): Promise<void> {
+        let filePath: string;
+        let displayName: string;
+        if (typeof file === 'string') {
+            filePath = file;
+            displayName = fileName ?? path.basename(file);
+        } else {
+            if (!this.outgoingDir) throw new Error('WebService.sendFile: outgoingDir not initialized (attach() not called)');
+            const name = fileName ?? 'file';
+            filePath = path.join(this.outgoingDir, `${randomUUID()}-${name}`);
+            fs.writeFileSync(filePath, file);
+            displayName = name;
+        }
+        await this.pushOutgoing(sessionId, `[file: ${displayName}](${filePath})`);
     }
 
     async sendNative(_sessionId: string, _payload: any): Promise<void> {
         // 同上。
+    }
+
+    /**
+     * 把服务端主动外发的消息以 {@link MessageKind.Command} 写进 saver 并向已连接的 ws 客户端广播。
+     * Saver 落库保证刷新后仍可见；广播让在线客户端立刻显示。两步彼此独立，单边失败不影响另一边。
+     */
+    private async pushOutgoing(sessionId: string, content: string): Promise<void> {
+        const row = await database.findOne<ChannelSessionRow>(database.channelSession, {
+            where: { channelId: WEB_CHANNEL_ID, sessionId },
+        });
+        if (!row) {
+            logger.warn(`pushOutgoing: web session not found (sessionId=${sessionId})`);
+            return;
+        }
+        const message: ChatMessage = { role: MessageRole.AI, content };
+
+        try {
+            const handle = await SaverPool.getInstance().acquireByDBSessionId(row.id);
+            try { await handle.saver.pushMessage(message, { kind: MessageKind.Command }); }
+            finally { await handle.release(); }
+        } catch (e: any) {
+            logger.warn(`pushOutgoing: saver push failed (dbSessionId=${row.id}): ${e?.message ?? e}`);
+        }
+
+        this.broadcast(JSON.stringify({
+            profileId: String(row.profileId),
+            type: WebChatEventType.Message,
+            data: { message, createdAt: Date.now() / 1000, kind: MessageKind.Command },
+        }));
     }
 
     dispose(): void {

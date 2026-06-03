@@ -1,5 +1,4 @@
 import type { ChannelConfig } from "sbot.commons";
-import { WEB_CHANNEL_ID } from "sbot.commons";
 import { config } from "./Config";
 import { LoggerService } from "./LoggerService";
 import { channelDataService } from "../Session/ChannelDataService";
@@ -46,10 +45,6 @@ export async function triggerSession(opts: TriggerSessionOptions): Promise<Trigg
     }
 
     if (!aiProcess) {
-        if (channelId === WEB_CHANNEL_ID) {
-            logger.warn(`${tag} raw mode is not supported for web channel`);
-            return { ok: false, channelType, sessionId };
-        }
         await channelManager.sendText(channelId, sessionId, message);
         return { ok: true, channelType, sessionId };
     }
