@@ -3,7 +3,7 @@ import { database, SchedulerRow, ChannelSessionRow } from "../Core/Database";
 import { channelDataService } from "../Session/ChannelDataService";
 import { LoggerService } from "../Core/LoggerService";
 import { TimerExecutor } from "../Core/TimerExecutor";
-import { dispatchToSession } from "../Core/dispatchToSession";
+import { triggerSession } from "../Core/triggerSession";
 
 const logger = LoggerService.getLogger("SchedulerService.ts");
 
@@ -56,7 +56,7 @@ async function executeScheduler(schedulerId: number): Promise<void> {
             logger.error(`Scheduler task ${tag} aborted: profile id=${scheduler.profileId} has no usable session`);
             return;
         }
-        const result = await dispatchToSession({
+        const result = await triggerSession({
             targetId: session.id,
             message: scheduler.message,
             aiProcess: scheduler.aiProcess,

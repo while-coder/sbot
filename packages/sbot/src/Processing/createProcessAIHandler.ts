@@ -1,5 +1,5 @@
 import { ProcessAIHandler } from "channel.base";
-import { MessageRole, ToolApproval } from "scorpio.ai";
+import { MessageRole, ToolApproval, type TokenUsage, type ChatMessage } from "scorpio.ai";
 import { channelDataService } from "../Session/ChannelDataService";
 import { config, AgentMode } from "../Core/Config";
 import { buildExecuteTool } from "./buildExecuteTool";
@@ -43,7 +43,7 @@ export function createProcessAIHandler(): ProcessAIHandler {
         sessionHandler.askTimeoutMs = askTimeout > 0 ? askTimeout * 1000 : 0;
         if (askTimeoutMessage) sessionHandler.askTimeoutMessage = askTimeoutMessage;
 
-        const silent: boolean = args?.silent ?? false;
+        const headless: boolean = args?.headless ?? false;
         const extraAgentTools = args?.agentTools;
         let baseTools = sessionHandler.buildAgentTools(args);
         const whitelist: string[] | undefined = args?.toolWhitelist ?? channel.tools;
@@ -53,7 +53,7 @@ export function createProcessAIHandler(): ProcessAIHandler {
         }
         const agentTools = extraAgentTools?.length ? [...baseTools, ...extraAgentTools] : baseTools;
 
-        const executeTool = silent
+        const executeTool = headless
             ? async () => ToolApproval.Allow
             : buildExecuteTool(sessionHandler.session, agentId, autoApproveAllTools, (tc) => sessionHandler.executeApproval(tc));
 
@@ -75,16 +75,15 @@ export function createProcessAIHandler(): ProcessAIHandler {
         }
 
         const profileId = profile.id;
-        const onUsage = async (usage: any) => {
-            if (!silent) sessionHandler.session.recordUsage(usage);
+        const onUsage = async (usage: TokenUsage) => {
             await updateUsageStats(usage, dbSessionId, profileId, usageContext);
         };
 
-        const onMessage = silent
-            ? async (msg: any) => { args?.onMessage?.(msg); }
+        const onMessage = headless
+            ? async (msg: ChatMessage) => { args?.onMessage?.(msg); }
             : streamVerbose
-                ? (msg: any) => sessionHandler.onChatMessage(msg, args)
-                : (msg: any) => {
+                ? (msg: ChatMessage) => sessionHandler.onChatMessage(msg, args)
+                : (msg: ChatMessage) => {
                     if (msg.role === MessageRole.AI && !msg.tool_calls?.length) {
                         return sessionHandler.onChatMessage(msg, args);
                     }
@@ -92,7 +91,7 @@ export function createProcessAIHandler(): ProcessAIHandler {
                 };
 
         const onStreamMessage = streamVerbose
-            ? (msg: any) => sessionHandler.onStreamMessage(msg, args)
+            ? (msg: ChatMessage) => sessionHandler.onStreamMessage(msg, args)
             : undefined;
 
         const callbacks = { onMessage, onStreamMessage, executeTool, onUsage };

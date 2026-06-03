@@ -18,7 +18,7 @@ export interface ChannelRouteArgs extends ChannelMessageArgs {
     channelId: string;
     dbSessionId: number;
     mentionBot?: boolean;
-    silent?: boolean;
+    headless?: boolean;
     agentTools?: StructuredToolInterface[];
     toolWhitelist?: string[];
     onMessage?: (msg: ChatMessage) => void;
@@ -50,7 +50,7 @@ class SbotSession extends SessionService {
     }
 
     protected async onProcessStart(query: MessageContent, args: ChannelRouteArgs, messageType: MessageType): Promise<string | void> {
-        if (!args.silent) {
+        if (!args.headless) {
             await this.getChannel(args).onProcessStart(query, this.argsWithQueue(args), messageType);
         }
         const channelName = config.getChannel(args.channelId)?.name;
@@ -79,7 +79,7 @@ class SbotSession extends SessionService {
     }
 
     protected async onProcessEnd(query: MessageContent, args: ChannelRouteArgs, messageType: MessageType, error?: any): Promise<void> {
-        if (!args.silent) {
+        if (!args.headless) {
             await this.getChannel(args).onProcessEnd(query, this.argsWithQueue(args), messageType, error);
         }
         if (args.onComplete) {
@@ -194,8 +194,8 @@ export class SbotSessionManager extends SessionManager {
 
         const threadId = await this.resolveThreadId(args.dbSessionId);
 
-        // 静默模式和命令消息跳过意图过滤和消息合并，直接透传
-        if (args.silent || (typeof query === 'string' && query.trimStart().startsWith('/'))) {
+        // headless（程序化触发）和命令消息跳过意图过滤和消息合并，直接透传
+        if (args.headless || (typeof query === 'string' && query.trimStart().startsWith('/'))) {
             const session = this.getOrCreate(threadId);
             await session.onReceiveMessage(query, args);
             return;

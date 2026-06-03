@@ -6,26 +6,25 @@ import { channelDataService } from "../Session/ChannelDataService";
 import { channelManager } from "../Channel/ChannelManager";
 import { sessionManager } from "../Session/SessionManager";
 
-const logger = LoggerService.getLogger("dispatchToSession.ts");
+const logger = LoggerService.getLogger("triggerSession.ts");
 
-export interface DispatchToSessionOptions {
+export interface TriggerSessionOptions {
     targetId: number | string | null;
     message: string;
     aiProcess: boolean;
-    silent?: boolean;
     toolWhitelist?: string[] | ((channel: ChannelConfig) => string[] | undefined);
     awaitCompletion?: boolean;
     tag: string;
 }
 
-export interface DispatchResult {
+export interface TriggerSessionResult {
     ok: boolean;
     channelType?: string;
     sessionId?: string;
 }
 
-export async function dispatchToSession(opts: DispatchToSessionOptions): Promise<DispatchResult> {
-    const { targetId, message, aiProcess, silent, toolWhitelist, awaitCompletion, tag } = opts;
+export async function triggerSession(opts: TriggerSessionOptions): Promise<TriggerSessionResult> {
+    const { targetId, message, aiProcess, toolWhitelist, awaitCompletion, tag } = opts;
 
     if (targetId == null) {
         logger.warn(`${tag} target session id missing`);
@@ -56,7 +55,7 @@ export async function dispatchToSession(opts: DispatchToSessionOptions): Promise
     }
 
     const resolvedWhitelist = typeof toolWhitelist === "function" ? toolWhitelist(channelConfig) : toolWhitelist;
-    const args = { channelType, channelId, dbSessionId, sessionId, silent, toolWhitelist: resolvedWhitelist };
+    const args = { channelType, channelId, dbSessionId, sessionId, headless: true, toolWhitelist: resolvedWhitelist };
     if (awaitCompletion) {
         await new Promise<void>((resolve, reject) => {
             sessionManager.onReceiveChannelMessage(message, {

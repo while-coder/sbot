@@ -1,7 +1,7 @@
 import { database, HeartbeatRow } from "../Core/Database";
 import { loadPrompt } from "../Core/PromptLoader";
 import { LoggerService } from "../Core/LoggerService";
-import { dispatchToSession } from "../Core/dispatchToSession";
+import { triggerSession } from "../Core/triggerSession";
 
 const logger = LoggerService.getLogger("executeHeartbeat.ts");
 
@@ -36,11 +36,10 @@ export async function executeHeartbeat(ctx: HeartbeatExecutionContext): Promise<
 
     const prompt = loadPrompt(hbConfig.promptFile);
 
-    const result = await dispatchToSession({
+    const result = await triggerSession({
         targetId: hbConfig.target,
         message: prompt,
         aiProcess: true,
-        silent: true,
         toolWhitelist: ch => ch.heartbeatTools,
         awaitCompletion: true,
         tag,
