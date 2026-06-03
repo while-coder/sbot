@@ -36,7 +36,7 @@ export function getServerBaseUrl(): string {
 export interface SbotSettings {
   agents?: Settings['agents'];
   savers?: Settings['savers'];
-  memories?: Settings['memories'];
+  notes?: Settings['notes'];
 }
 
 export interface SessionItem {
@@ -44,7 +44,7 @@ export interface SessionItem {
   name?: string;
   agent: string;
   saver: string;
-  memories: string[];
+  notes: string[];
   workPath?: string;
 }
 
@@ -183,11 +183,11 @@ export class SbotClient {
   }
 
   /** Create a session on the server and return its ID */
-  async createSession(agentId: string, saverId: string, memoryIds: string[], workPath: string): Promise<string> {
+  async createSession(agentId: string, saverId: string, noteIds: string[], workPath: string): Promise<string> {
     const body: any = {
       agent: agentId,
       saver: saverId,
-      memories: memoryIds,
+      notes: noteIds,
       workPath,
       name: workPath.replace(/[/\\]+$/, '').split(/[/\\]/).pop() || workPath,
     };

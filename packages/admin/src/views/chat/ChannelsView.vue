@@ -27,7 +27,7 @@ interface PluginInfo {
 
 // 形状对齐 packages/sbot ChannelSessionWithProfile：
 // channel_session 行 + 关联 profile 的字段（profile 字段 null = 沿用 channel 默认）。
-// memories/wikis 后端已从 JSON 字符串解析为 string[]，null = profile 未覆盖。
+// notes/wikis 后端已从 JSON 字符串解析为 string[]，null = profile 未覆盖。
 interface ChannelSessionRow {
   id: number
   channelId: string
@@ -40,9 +40,9 @@ interface ChannelSessionRow {
   // ── 来自 profile（null = 沿用 channel）──
   agentId: string | null
   saver: string | null
-  memories: string[] | null
+  notes: string[] | null
   wikis: string[] | null
-  useChannelMemories: boolean | null
+  useChannelNotes: boolean | null
   useChannelWikis: boolean | null
   workPath: string | null
   streamVerbose: boolean | null
@@ -117,7 +117,7 @@ const currentToolOptions = computed(() => {
 const channels = computed(() => store.settings.channels || {})
 const agentOptions  = computed(() => Object.entries(store.settings.agents   || {}).map(([id, a]) => ({ id, label: (a as any).name  || id, type: (a as any).type || '' })))
 const saverOptions  = computed(() => Object.entries(store.settings.savers   || {}).map(([id, s]) => ({ id, label: (s as any).name  || id })))
-const memoryOptions = computed(() => Object.entries(store.settings.memories  || {}).map(([id, m]) => ({ id, label: m.name  || id })))
+const noteOptions   = computed(() => Object.entries(store.settings.notes     || {}).map(([id, n]) => ({ id, label: n.name  || id })))
 const wikiOptions   = computed(() => Object.entries(store.settings.wikis    || {}).map(([id, w]) => ({ id, label: (w as any).name  || id })))
 const modelOptions  = computed(() => Object.entries(store.settings.models   || {}).map(([id, m]) => ({ id, label: (m as any).name  || id })))
 
@@ -141,9 +141,9 @@ const editingSession = ref<ChannelSessionRow | null>(null)
 interface ProfileFull extends ProfileOption {
   agentId?: string | null
   saver?: string | null
-  memories?: string | null
+  notes?: string | null
   wikis?: string | null
-  useChannelMemories?: boolean | null
+  useChannelNotes?: boolean | null
   useChannelWikis?: boolean | null
   workPath?: string | null
   streamVerbose?: boolean | null
@@ -170,8 +170,8 @@ const sessionForm = ref<{ name: string; overrides: SessionOverrides }>({
 
 function emptyOverrides(): SessionOverrides {
   return {
-    agentId: null, saver: null, memories: null, wikis: null,
-    useChannelMemories: null, useChannelWikis: null,
+    agentId: null, saver: null, notes: null, wikis: null,
+    useChannelNotes: null, useChannelWikis: null,
     workPath: null, streamVerbose: null, autoApproveAllTools: null,
     approvalTimeout: null, approvalTimeoutValue: null,
     askTimeout: null, askTimeoutMessage: null,
@@ -189,9 +189,9 @@ function profileToOverrides(p: ProfileFull): SessionOverrides {
   return {
     agentId: p.agentId ?? null,
     saver: p.saver ?? null,
-    memories: p.memories == null ? null : parseList(p.memories),
+    notes: p.notes == null ? null : parseList(p.notes),
     wikis: p.wikis == null ? null : parseList(p.wikis),
-    useChannelMemories: toTriBool(p.useChannelMemories),
+    useChannelNotes: toTriBool(p.useChannelNotes),
     useChannelWikis: toTriBool(p.useChannelWikis),
     workPath: p.workPath ?? null,
     streamVerbose: toTriBool(p.streamVerbose),
@@ -296,15 +296,15 @@ async function saveSession() {
   const p = editingProfile.value
   if (!s || !p) return
 
-  const validMemIds = new Set(memoryOptions.value.map(m => m.id))
+  const validNoteIds = new Set(noteOptions.value.map(n => n.id))
   const validWikiIds = new Set(wikiOptions.value.map(w => w.id))
   const o = sessionForm.value.overrides
   const profilePayload = {
     agentId: o.agentId,
     saver: o.saver,
-    memories: o.memories == null ? null : o.memories.filter(id => validMemIds.has(id)),
+    notes: o.notes == null ? null : o.notes.filter(id => validNoteIds.has(id)),
     wikis: o.wikis == null ? null : o.wikis.filter(id => validWikiIds.has(id)),
-    useChannelMemories: o.useChannelMemories,
+    useChannelNotes: o.useChannelNotes,
     useChannelWikis: o.useChannelWikis,
     workPath: o.workPath,
     streamVerbose: o.streamVerbose,
@@ -318,15 +318,15 @@ async function saveSession() {
     intentThreshold: o.intentModel == null ? null : o.intentThreshold,
   }
 
-  // 比较 profile 是否有变化（含清洗：原始 memories/wikis 不过滤，与清洗后的 payload 对比，
+  // 比较 profile 是否有变化（含清洗：原始 notes/wikis 不过滤，与清洗后的 payload 对比，
   // 这样一旦原始数据带了已失效 id，就会被识别为"变化"，存盘后顺带洗掉脏数据）
   const orig = originalOverrides.value
   const originalEquivalent = orig == null ? null : {
     agentId: orig.agentId,
     saver: orig.saver,
-    memories: orig.memories,
+    notes: orig.notes,
     wikis: orig.wikis,
-    useChannelMemories: orig.useChannelMemories,
+    useChannelNotes: orig.useChannelNotes,
     useChannelWikis: orig.useChannelWikis,
     workPath: orig.workPath,
     streamVerbose: orig.streamVerbose,
@@ -370,7 +370,7 @@ function formatTokens(n: number): string {
 const showModal = ref(false)
 const editingId = ref<string | null>(null)
 const form = ref<ChannelConfig>({
-  name: '', type: '', config: {}, agent: '', saver: '', memories: [],
+  name: '', type: '', config: {}, agent: '', saver: '', notes: [],
   workPath: '', streamVerbose: false, autoApproveAllTools: false,
   approvalTimeout: 0, approvalTimeoutValue: ApprovalTimeoutValue.Deny,
   askTimeout: 0, askTimeoutMessage: '',
@@ -402,7 +402,7 @@ async function loadChannelData(id: string) {
       apiFetch(`/api/channel-users?channelId=${encodeURIComponent(id)}`),
     ])
     sessionMap.value[id] = (sessRes.data || []).map((s: any) => ({
-      ...s, memories: s.memories || [], useChannelMemories: !!s.useChannelMemories, useChannelWikis: !!s.useChannelWikis,
+      ...s, notes: s.notes || [], useChannelNotes: !!s.useChannelNotes, useChannelWikis: !!s.useChannelWikis,
       streamVerbose: s.streamVerbose == null ? null : !!s.streamVerbose,
       autoApproveAllTools: s.autoApproveAllTools == null ? null : !!s.autoApproveAllTools,
     }))
@@ -530,7 +530,7 @@ function openAdd() {
   editingId.value = null
   clearActionState()
   const defaultType = plugins.value.find(p => !p.builtin)?.type || ''
-  form.value = { name: '', type: defaultType, config: {}, agent: '', saver: '', memories: [], wikis: [], workPath: '', streamVerbose: false, autoApproveAllTools: false, approvalTimeout: 0, approvalTimeoutValue: ApprovalTimeoutValue.Deny, askTimeout: 0, askTimeoutMessage: '', intentModel: '', intentPrompt: '', intentThreshold: 0.7, mergeWindow: 0 }
+  form.value = { name: '', type: defaultType, config: {}, agent: '', saver: '', notes: [], wikis: [], workPath: '', streamVerbose: false, autoApproveAllTools: false, approvalTimeout: 0, approvalTimeoutValue: ApprovalTimeoutValue.Deny, askTimeout: 0, askTimeoutMessage: '', intentModel: '', intentPrompt: '', intentThreshold: 0.7, mergeWindow: 0 }
   formTools.value = []
   formHeartbeatTools.value = []
   formToolsMode.value = 'default'
@@ -542,7 +542,7 @@ function openEdit(id: string) {
   const c = channels.value[id]
   editingId.value = id
   clearActionState()
-  form.value = { name: c.name, type: c.type, config: { ...c.config }, agent: c.agent, saver: c.saver, memories: c.memories || [], wikis: (c as any).wikis || [], workPath: c.workPath || '', streamVerbose: !!c.streamVerbose, autoApproveAllTools: !!c.autoApproveAllTools, approvalTimeout: c.approvalTimeout ?? 0, approvalTimeoutValue: c.approvalTimeoutValue ?? ApprovalTimeoutValue.Deny, askTimeout: c.askTimeout ?? 0, askTimeoutMessage: c.askTimeoutMessage || '', intentModel: c.intentModel || '', intentPrompt: c.intentPrompt || '', intentThreshold: c.intentThreshold ?? 0.7, mergeWindow: c.mergeWindow || 0 }
+  form.value = { name: c.name, type: c.type, config: { ...c.config }, agent: c.agent, saver: c.saver, notes: c.notes || [], wikis: (c as any).wikis || [], workPath: c.workPath || '', streamVerbose: !!c.streamVerbose, autoApproveAllTools: !!c.autoApproveAllTools, approvalTimeout: c.approvalTimeout ?? 0, approvalTimeoutValue: c.approvalTimeoutValue ?? ApprovalTimeoutValue.Deny, askTimeout: c.askTimeout ?? 0, askTimeoutMessage: c.askTimeoutMessage || '', intentModel: c.intentModel || '', intentPrompt: c.intentPrompt || '', intentThreshold: c.intentThreshold ?? 0.7, mergeWindow: c.mergeWindow || 0 }
   formTools.value = [...(c.tools ?? [])]
   formHeartbeatTools.value = [...(c.heartbeatTools ?? [])]
   formToolsMode.value = toolsToMode(c.tools)
@@ -557,7 +557,7 @@ async function save() {
   if (formToolsMode.value === 'whitelist' && formTools.value.length === 0) { show(t('channels.tools_whitelist_empty'), 'error'); return }
   if (formHeartbeatToolsMode.value === 'whitelist' && formHeartbeatTools.value.length === 0) { show(t('channels.tools_whitelist_empty'), 'error'); return }
   try {
-    const validMemIds = new Set(memoryOptions.value.map(m => m.id))
+    const validNoteIds = new Set(noteOptions.value.map(n => n.id))
     const validWikiIds = new Set(wikiOptions.value.map(w => w.id))
     const processedConfig: Record<string, any> = {}
     const schema = currentSchema.value
@@ -574,7 +574,7 @@ async function save() {
       type: form.value.type,
       agent: form.value.agent,
       saver: form.value.saver,
-      memories: form.value.memories.filter(id => validMemIds.has(id)),
+      notes: form.value.notes.filter(id => validNoteIds.has(id)),
       wikis: (form.value.wikis || []).filter(id => validWikiIds.has(id)),
       config: processedConfig,
       workPath: form.value.workPath?.trim() || undefined,
@@ -671,7 +671,7 @@ async function refresh() {
           <div class="channel-card-meta">
             <span class="session-meta-id">{{ id }}</span>
             <span class="session-meta-chip">{{ t('common.storage') }}: {{ c.saver ? (saverOptions.find(s => s.id === c.saver)?.label || c.saver) : '-' }}</span>
-            <span class="session-meta-chip" :class="Array.isArray(c.memories) && c.memories.length ? '' : 'muted'">{{ t('common.memory') }}: {{ Array.isArray(c.memories) && c.memories.length ? c.memories.map(mid => memoryOptions.find(m => m.id === mid)?.label || mid).join(', ') : t('common.not_configured') }}</span>
+            <span class="session-meta-chip" :class="Array.isArray(c.notes) && c.notes.length ? '' : 'muted'">{{ t('common.note') }}: {{ Array.isArray(c.notes) && c.notes.length ? c.notes.map(nid => noteOptions.find(n => n.id === nid)?.label || nid).join(', ') : t('common.not_configured') }}</span>
             <span class="session-meta-chip" :class="Array.isArray((c as any).wikis) && (c as any).wikis.length ? '' : 'muted'">{{ t('common.wiki') }}: {{ Array.isArray((c as any).wikis) && (c as any).wikis.length ? (c as any).wikis.map((wid: string) => wikiOptions.find(w => w.id === wid)?.label || wid).join(', ') : t('common.not_configured') }}</span>
             <span class="session-meta-chip" :class="c.workPath ? 'blue' : 'muted'">{{ t('directory.path_label') }}: {{ c.workPath || t('common.not_configured') }}</span>
             <span class="session-meta-chip" :class="c.streamVerbose ? 'green' : 'muted'">{{ t('channels.stream_verbose') }}: {{ c.streamVerbose ? t('common.enabled') : t('common.disabled') }}</span>
@@ -717,8 +717,8 @@ async function refresh() {
                       </div>
                       <div class="session-meta">
                         <span class="session-meta-id">{{ s.sessionId }}</span>
-                        <span v-if="Array.isArray(s.memories) && s.memories.length" class="session-meta-chip">{{ t('common.memory') }}: {{ s.memories.map(mid => memoryOptions.find(m => m.id === mid)?.label || mid).join(', ') }}</span>
-                        <span v-if="s.useChannelMemories" class="session-meta-chip green">{{ t('channels.use_channel_memories') }}</span>
+                        <span v-if="Array.isArray(s.notes) && s.notes.length" class="session-meta-chip">{{ t('common.note') }}: {{ s.notes.map(nid => noteOptions.find(n => n.id === nid)?.label || nid).join(', ') }}</span>
+                        <span v-if="s.useChannelNotes" class="session-meta-chip green">{{ t('channels.use_channel_notes') }}</span>
                         <span v-if="s.useChannelWikis" class="session-meta-chip green">{{ t('channels.use_channel_wikis') }}</span>
                         <span v-if="s.workPath" class="session-meta-chip">{{ t('directory.path_label') }}: {{ s.workPath }}</span>
                         <span class="session-meta-chip" :class="s.streamVerbose === true ? 'green' : 'muted'">{{ t('channels.stream_verbose') }}: {{ s.streamVerbose === true ? t('common.enabled') : s.streamVerbose === false ? t('common.disabled') : t('channels.use_channel_default') }}</span>
@@ -766,8 +766,8 @@ async function refresh() {
             <span class="mobile-card-value">{{ agentOptions.find(a => a.id === c.agent)?.label || c.agent || '-' }}</span>
             <span class="mobile-card-label">{{ t('common.storage') }}</span>
             <span class="mobile-card-value">{{ c.saver ? (saverOptions.find(s => s.id === c.saver)?.label || c.saver) : '-' }}</span>
-            <span class="mobile-card-label">{{ t('common.memory') }}</span>
-            <span class="mobile-card-value">{{ Array.isArray(c.memories) && c.memories.length ? c.memories.map(mid => memoryOptions.find(m => m.id === mid)?.label || mid).join(', ') : '-' }}</span>
+            <span class="mobile-card-label">{{ t('common.note') }}</span>
+            <span class="mobile-card-value">{{ Array.isArray(c.notes) && c.notes.length ? c.notes.map(nid => noteOptions.find(n => n.id === nid)?.label || nid).join(', ') : '-' }}</span>
           </div>
           <div class="mobile-card-ops">
             <SButton type="outline" size="sm" @click="openEdit(id as string)">{{ t('common.edit') }}</SButton>
@@ -787,8 +787,8 @@ async function refresh() {
                 <div class="mobile-card-fields">
                   <span class="mobile-card-label">{{ t('common.agent') }}</span>
                   <span class="mobile-card-value">{{ agentOptions.find(a => a.id === s.agentId)?.label || s.agentId || '-' }}</span>
-                  <span class="mobile-card-label">{{ t('common.memory') }}</span>
-                  <span class="mobile-card-value">{{ Array.isArray(s.memories) && s.memories.length ? s.memories.map(mid => memoryOptions.find(m => m.id === mid)?.label || mid).join(', ') : '-' }}</span>
+                  <span class="mobile-card-label">{{ t('common.note') }}</span>
+                  <span class="mobile-card-value">{{ Array.isArray(s.notes) && s.notes.length ? s.notes.map(nid => noteOptions.find(n => n.id === nid)?.label || nid).join(', ') : '-' }}</span>
                   <span class="mobile-card-label">Tokens</span>
                   <span class="mobile-card-value mobile-tokens" :title="s.totalTokens > 0 ? `${t('usage.total')}: ${formatTokens(s.totalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatTokens(s.inputTokens)} / ${t('usage.output_tokens')}: ${formatTokens(s.outputTokens)}` + (s.lastTotalTokens > 0 ? `\n${t('usage.last')}: ${formatTokens(s.lastTotalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatTokens(s.lastInputTokens)} / ${t('usage.output_tokens')}: ${formatTokens(s.lastOutputTokens)}` : '') : ''">{{ s.totalTokens > 0 ? formatTokens(s.totalTokens) : '-' }}</span>
                 </div>
@@ -893,8 +893,8 @@ async function refresh() {
           </SFormSection>
 
           <SFormSection :title="t('channels.section_resources')">
-            <SFormItem :label="t('common.memory')">
-              <SMultiSelect v-model="form.memories" :options="memoryOptions" />
+            <SFormItem :label="t('common.note')">
+              <SMultiSelect v-model="form.notes" :options="noteOptions" />
             </SFormItem>
             <SFormItem :label="t('common.wiki')">
               <SMultiSelect :model-value="form.wikis || []" :options="wikiOptions" @update:model-value="form.wikis = $event" />
@@ -1025,7 +1025,7 @@ async function refresh() {
             :resolved="effectiveResolved"
             :agent-options="agentOptions"
             :saver-options="saverOptions"
-            :memory-options="memoryOptions"
+            :note-options="noteOptions"
             :wiki-options="wikiOptions"
             :model-options="modelOptions"
             @browse-path="pathPicker?.open(sessionForm.overrides.workPath || '')"

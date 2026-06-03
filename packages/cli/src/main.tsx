@@ -106,12 +106,12 @@ function Boot({ baseUrl, workPath, onBack }: BootProps) {
   const handleWizardComplete = async (
     agentId: string,
     saverId: string,
-    memoryIds: string[],
+    noteIds: string[],
     agentName: string,
     saverName: string,
   ) => {
     try {
-      const sessionId = await client.createSession(agentId, saverId, memoryIds, workPath);
+      const sessionId = await client.createSession(agentId, saverId, noteIds, workPath);
       globalStore.setState({ sessionId, agentName, saverName });
       setState({ phase: 'chat' });
     } catch (e: any) {

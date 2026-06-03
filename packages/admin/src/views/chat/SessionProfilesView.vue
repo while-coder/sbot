@@ -15,9 +15,9 @@ interface ProfileRow {
   autoForSessionId: number | null
   agentId: string | null
   saver: string | null
-  memories: string | null
+  notes: string | null
   wikis: string | null
-  useChannelMemories: boolean | null
+  useChannelNotes: boolean | null
   useChannelWikis: boolean | null
   workPath: string | null
   streamVerbose: boolean | null
@@ -91,7 +91,7 @@ async function openSessions(p: ProfileRow) {
 
 const agentOptions = computed(() => Object.entries(store.settings.agents || {}).map(([id, a]) => ({ id, label: (a as any).name || id, type: (a as any).type || '' })))
 const saverOptions = computed(() => Object.entries(store.settings.savers || {}).map(([id, s]) => ({ id, label: (s as any).name || id })))
-const memoryOptions = computed(() => Object.entries(store.settings.memories || {}).map(([id, m]: [string, any]) => ({ id, label: m.name || id })))
+const noteOptions = computed(() => Object.entries(store.settings.notes || {}).map(([id, n]: [string, any]) => ({ id, label: n.name || id })))
 const wikiOptions = computed(() => Object.entries(store.settings.wikis || {}).map(([id, w]) => ({ id, label: (w as any).name || id })))
 const modelOptions = computed(() => Object.entries(store.settings.models || {}).map(([id, m]) => ({ id, label: (m as any).name || id })))
 
@@ -124,8 +124,8 @@ interface ProfileForm {
 
 function emptyOverrides(): SessionOverrides {
   return {
-    agentId: null, saver: null, memories: null, wikis: null,
-    useChannelMemories: null, useChannelWikis: null,
+    agentId: null, saver: null, notes: null, wikis: null,
+    useChannelNotes: null, useChannelWikis: null,
     workPath: null, streamVerbose: null, autoApproveAllTools: null,
     approvalTimeout: null, approvalTimeoutValue: null,
     askTimeout: null, askTimeoutMessage: null,
@@ -159,9 +159,9 @@ function openEdit(p: ProfileRow) {
     overrides: {
       agentId: p.agentId,
       saver: p.saver,
-      memories: p.memories == null ? null : parseList(p.memories),
+      notes: p.notes == null ? null : parseList(p.notes),
       wikis: p.wikis == null ? null : parseList(p.wikis),
-      useChannelMemories: toTriBool(p.useChannelMemories),
+      useChannelNotes: toTriBool(p.useChannelNotes),
       useChannelWikis: toTriBool(p.useChannelWikis),
       workPath: p.workPath,
       streamVerbose: toTriBool(p.streamVerbose),
@@ -208,15 +208,15 @@ async function save() {
 
 function buildPayload(f: ProfileForm): Record<string, any> {
   const o = f.overrides
-  const validMem = new Set(memoryOptions.value.map(m => m.id))
+  const validNote = new Set(noteOptions.value.map(n => n.id))
   const validWiki = new Set(wikiOptions.value.map(w => w.id))
   return {
     name: f.name.trim(),
     agentId: o.agentId,
     saver: o.saver,
-    memories: o.memories == null ? null : o.memories.filter(id => validMem.has(id)),
+    notes: o.notes == null ? null : o.notes.filter(id => validNote.has(id)),
     wikis: o.wikis == null ? null : o.wikis.filter(id => validWiki.has(id)),
-    useChannelMemories: o.useChannelMemories,
+    useChannelNotes: o.useChannelNotes,
     useChannelWikis: o.useChannelWikis,
     workPath: o.workPath,
     streamVerbose: o.streamVerbose,
@@ -294,7 +294,7 @@ async function remove(p: ProfileRow) {
             v-model="form.overrides"
             :agent-options="agentOptions"
             :saver-options="saverOptions"
-            :memory-options="memoryOptions"
+            :note-options="noteOptions"
             :wiki-options="wikiOptions"
             :model-options="modelOptions"
             @browse-path="pathPicker?.open(form.overrides.workPath || '')"

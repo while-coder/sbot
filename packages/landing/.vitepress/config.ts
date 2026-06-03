@@ -26,7 +26,7 @@ export default defineConfig({
           { text: 'Tools', link: '/guide/tools' },
           { text: 'MCP', link: '/guide/mcp' },
           { text: 'Skills', link: '/guide/skills' },
-          { text: 'Memory', link: '/guide/memory' },
+          { text: 'Notes', link: '/guide/note' },
           { text: 'Wiki', link: '/guide/wiki' },
         ],
       },

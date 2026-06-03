@@ -4,7 +4,7 @@ import { theme } from '../colors.js';
 import { useKeypress, type Key } from '../hooks/useKeypress.js';
 import type { SbotSettings } from '../../api/sbotClient.js';
 
-type WizardStep = 'agent' | 'saver' | 'memory';
+type WizardStep = 'agent' | 'saver' | 'note';
 
 interface NamedItem {
   id: string;
@@ -13,7 +13,7 @@ interface NamedItem {
 
 interface CreateSessionWizardProps {
   settings: SbotSettings;
-  onComplete: (agentId: string, saverId: string, memoryIds: string[], agentName: string, saverName: string) => void;
+  onComplete: (agentId: string, saverId: string, noteIds: string[], agentName: string, saverName: string) => void;
 }
 
 interface SelectListProps {
@@ -49,34 +49,34 @@ const SelectList: React.FC<SelectListProps> = ({ title, items, selectedIndex, ch
 export const CreateSessionWizard: React.FC<CreateSessionWizardProps> = ({ settings, onComplete }) => {
   const agentItems: NamedItem[] = Object.entries(settings.agents ?? {}).map(([id, a]) => ({ id, name: a.name ?? id }));
   const saverItems: NamedItem[] = Object.entries(settings.savers ?? {}).map(([id, s]) => ({ id, name: s.name ?? id }));
-  const memoryItems: NamedItem[] = Object.entries(settings.memories ?? {}).map(([id, m]) => ({ id, name: m.name ?? id }));
+  const noteItems: NamedItem[] = Object.entries(settings.notes ?? {}).map(([id, n]) => ({ id, name: n.name ?? id }));
 
   const [step, setStep] = useState<WizardStep>('agent');
   const [agentIdx, setAgentIdx] = useState(0);
   const [saverIdx, setSaverIdx] = useState(0);
-  const [memoryIdx, setMemoryIdx] = useState(0);
-  const [checkedMemories, setCheckedMemories] = useState<Set<number>>(new Set());
+  const [noteIdx, setNoteIdx] = useState(0);
+  const [checkedNotes, setCheckedNotes] = useState<Set<number>>(new Set());
 
   const handleKeypress = useCallback(
     (key: Key) => {
-      if (step === 'memory') {
-        // Multi-select mode for memory
+      if (step === 'note') {
+        // Multi-select mode for notes
         if (key.name === 'up') {
-          setMemoryIdx(i => Math.max(0, i - 1));
+          setNoteIdx(i => Math.max(0, i - 1));
         } else if (key.name === 'down') {
-          setMemoryIdx(i => Math.min(memoryItems.length - 1, i + 1));
+          setNoteIdx(i => Math.min(noteItems.length - 1, i + 1));
         } else if (key.name === 'space') {
-          setCheckedMemories(prev => {
+          setCheckedNotes(prev => {
             const next = new Set(prev);
-            if (next.has(memoryIdx)) next.delete(memoryIdx);
-            else next.add(memoryIdx);
+            if (next.has(noteIdx)) next.delete(noteIdx);
+            else next.add(noteIdx);
             return next;
           });
         } else if (key.name === 'return') {
           const agent = agentItems[agentIdx]!;
           const saver = saverItems[saverIdx]!;
-          const memoryIds = [...checkedMemories].map(i => memoryItems[i]!.id);
-          onComplete(agent.id, saver.id, memoryIds, agent.name, saver.name);
+          const noteIds = [...checkedNotes].map(i => noteItems[i]!.id);
+          onComplete(agent.id, saver.id, noteIds, agent.name, saver.name);
         }
         return;
       }
@@ -95,35 +95,35 @@ export const CreateSessionWizard: React.FC<CreateSessionWizardProps> = ({ settin
       } else if (key.name === 'return') {
         if (step === 'agent') setStep('saver');
         else if (step === 'saver') {
-          if (memoryItems.length === 0) {
-            // No memories configured, skip memory step
+          if (noteItems.length === 0) {
+            // No notes configured, skip note step
             const agent = agentItems[agentIdx]!;
             const saver = saverItems[saverIdx]!;
             onComplete(agent.id, saver.id, [], agent.name, saver.name);
           } else {
-            setStep('memory');
+            setStep('note');
           }
         }
       }
     },
-    [step, agentIdx, saverIdx, memoryIdx, checkedMemories, agentItems, saverItems, memoryItems, onComplete],
+    [step, agentIdx, saverIdx, noteIdx, checkedNotes, agentItems, saverItems, noteItems, onComplete],
   );
 
   useKeypress(handleKeypress, { isActive: true });
 
   const stepNum = step === 'agent' ? 1 : step === 'saver' ? 2 : 3;
-  const totalSteps = memoryItems.length > 0 ? 3 : 2;
+  const totalSteps = noteItems.length > 0 ? 3 : 2;
 
-  if (step === 'memory') {
+  if (step === 'note') {
     return (
       <Box flexDirection="column" paddingX={2} paddingY={1}>
         <Text bold color={theme.text.accent}>New Session Setup</Text>
         <Text color={theme.text.secondary}>↑↓ navigate  Space toggle  Enter confirm</Text>
         <SelectList
-          title={`Step ${stepNum}/${totalSteps} — Select Memories`}
-          items={memoryItems}
-          selectedIndex={memoryIdx}
-          checkedIndices={checkedMemories}
+          title={`Step ${stepNum}/${totalSteps} — Select Notes`}
+          items={noteItems}
+          selectedIndex={noteIdx}
+          checkedIndices={checkedNotes}
         />
       </Box>
     );
