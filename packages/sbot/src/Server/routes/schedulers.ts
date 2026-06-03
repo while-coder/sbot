@@ -1,5 +1,4 @@
 import express from 'express';
-import { database, type SchedulerRow } from '../../Core/Database';
 import { schedulerService } from '../../Scheduler/SchedulerService';
 import { api, throwBad, toPlain } from '../utils';
 import type { RouteContext } from './types';
@@ -7,11 +6,8 @@ import type { RouteContext } from './types';
 export class SchedulerRoutes {
     register(app: express.Application, _ctx: RouteContext): void {
         app.get('/api/schedulers', api(async () => {
-            const schedulers = await database.findAll<SchedulerRow>(database.scheduler, { where: { disabled: false } });
-            return schedulers.map(s => ({
-                ...toPlain(s),
-                nextRun: schedulerService.nextDate(s.id),
-            }));
+            const rows = await schedulerService.list();
+            return rows.map(r => ({ ...toPlain(r), nextRun: r.nextRun }));
         }));
 
         app.put('/api/schedulers/:id', api(async req => {

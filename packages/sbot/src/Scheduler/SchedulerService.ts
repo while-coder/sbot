@@ -146,16 +146,35 @@ class SchedulerService {
         this.executor.stopAll();
     }
 
+    /** 列出 scheduler，附 nextRun。disabled 默认排除 */
+    async list(opts?: { includeDisabled?: boolean }): Promise<(SchedulerRow & { nextRun: number | null })[]> {
+        const where = opts?.includeDisabled ? {} : { disabled: false };
+        const rows = await database.findAll<SchedulerRow>(database.scheduler, { where });
+        return rows.map(r => ({ ...(r as any), nextRun: this.nextDate(r.id) }));
+    }
+
     async delete(schedulerId: number): Promise<void> {
         this.executor.cancel(schedulerId);
         await database.update(database.scheduler, { disabled: true }, { where: { id: schedulerId } });
     }
 
+    /** 删除 profile 名下所有 scheduler（cancel cron + 硬删行）—— profile/session 删除时调用 */
+    async cascadeDeleteByProfile(profileId: number): Promise<void> {
+        const rows = await database.findAll<SchedulerRow>(database.scheduler, { where: { profileId } });
+        for (const r of rows) this.executor.cancel(r.id);
+        await database.destroy(database.scheduler, { where: { profileId } });
+    }
+
     async update(schedulerId: number, patch: Partial<Pick<SchedulerRow, "message" | "channelSessionId" | "aiProcess">>): Promise<SchedulerRow | null> {
         const fields: Partial<SchedulerRow> = {};
-        if (patch.message != null)          fields.message          = patch.message;
-        if (patch.channelSessionId != null) fields.channelSessionId = patch.channelSessionId;
-        if (patch.aiProcess != null)        fields.aiProcess        = patch.aiProcess;
+        if (patch.message != null)   fields.message   = patch.message;
+        if (patch.aiProcess != null) fields.aiProcess = patch.aiProcess;
+        if (patch.channelSessionId != null) {
+            // 改投递目标时 profileId 必须同步到新 session 的 profile，否则 list/delete 工具按 profileId 过滤会失配
+            const session = await getChannelSession(patch.channelSessionId, true);
+            fields.channelSessionId = patch.channelSessionId;
+            fields.profileId = session!.profileId;
+        }
         if (Object.keys(fields).length === 0) return database.findByPk<SchedulerRow>(database.scheduler, schedulerId);
         await database.update(database.scheduler, fields, { where: { id: schedulerId } });
         return database.findByPk<SchedulerRow>(database.scheduler, schedulerId);
