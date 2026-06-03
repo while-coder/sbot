@@ -25,6 +25,9 @@ interface PluginInfo {
   tools?: { name: string; label: string }[]
 }
 
+// 形状对齐 packages/sbot ChannelSessionWithProfile：
+// channel_session 行 + 关联 profile 的字段（profile 字段 null = 沿用 channel 默认）。
+// memories/wikis 后端已从 JSON 字符串解析为 string[]，null = profile 未覆盖。
 interface ChannelSessionRow {
   id: number
   channelId: string
@@ -34,6 +37,30 @@ interface ChannelSessionRow {
   avatar: string
   profileId: number
   createdAt: number
+  // ── 来自 profile（null = 沿用 channel）──
+  agentId: string | null
+  saver: string | null
+  memories: string[] | null
+  wikis: string[] | null
+  useChannelMemories: boolean | null
+  useChannelWikis: boolean | null
+  workPath: string | null
+  streamVerbose: boolean | null
+  autoApproveAllTools: boolean | null
+  approvalTimeout: number | null
+  approvalTimeoutValue: number | null
+  askTimeout: number | null
+  askTimeoutMessage: string | null
+  intentModel: string | null
+  intentPrompt: string | null
+  intentThreshold: number | null
+  // ── token 统计 ──
+  inputTokens: number
+  outputTokens: number
+  totalTokens: number
+  lastInputTokens: number
+  lastOutputTokens: number
+  lastTotalTokens: number
 }
 
 interface ProfileOption {

@@ -3,10 +3,11 @@ import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
-import { useToast, SButton, SInput, STextarea, SCard, SFormItem, SCheckCard, SPageToolbar, SPageContent } from 'sbot-ui'
+import { useToast, useConfirm, SButton, SInput, STextarea, SCard, SFormItem, SCheckCard, SPageToolbar, SPageContent } from 'sbot-ui'
 const { t } = useI18n()
 
 const { show } = useToast()
+const { confirm } = useConfirm()
 
 const httpPort = ref<number | ''>('')
 const httpUrl = ref('')
@@ -89,6 +90,90 @@ async function save() {
     show(e.message, 'error')
   }
 }
+
+// ── Cleanup orphans ─────────────────────────────────────────────
+
+interface CleanupReport {
+  dryRun: boolean
+  orphanChannelSessions: Array<{ id: number; channelId: string; sessionId: string; sessionName: string }>
+  orphanChannelUsers: Array<{ id: number; channelId: string; userId: string; userName: string }>
+  orphanAutoProfiles: Array<{ id: number; autoForSessionId: number; name: string }>
+  orphanSchedulers: Array<{ id: number; profileId: number; channelSessionId: number; reason: string }>
+  orphanHeartbeats: Array<{ id: number; target: number; name: string }>
+  emptyVisibleProfiles: Array<{ id: number; name: string }>
+  disabledSchedulers: Array<{ id: number; profileId: number; channelSessionId: number }>
+}
+
+const cleanupReport = ref<CleanupReport | null>(null)
+const cleanupLoading = ref(false)
+const cleanupExpand = ref<Record<string, boolean>>({})
+
+const cleanupCategories = computed<Array<{ key: keyof CleanupReport; label: string; cleaned: boolean; items: any[] }>>(() => {
+  const r = cleanupReport.value
+  if (!r) return []
+  return [
+    { key: 'orphanChannelSessions', label: t('settings.cleanup_orphan_sessions'),  cleaned: true,  items: r.orphanChannelSessions },
+    { key: 'orphanChannelUsers',    label: t('settings.cleanup_orphan_users'),     cleaned: true,  items: r.orphanChannelUsers },
+    { key: 'orphanAutoProfiles',    label: t('settings.cleanup_orphan_auto_profiles'), cleaned: true, items: r.orphanAutoProfiles },
+    { key: 'orphanSchedulers',      label: t('settings.cleanup_orphan_schedulers'), cleaned: true,  items: r.orphanSchedulers },
+    { key: 'orphanHeartbeats',      label: t('settings.cleanup_orphan_heartbeats'), cleaned: true,  items: r.orphanHeartbeats },
+    { key: 'disabledSchedulers',    label: t('settings.cleanup_disabled_schedulers'), cleaned: true, items: r.disabledSchedulers ?? [] },
+    { key: 'emptyVisibleProfiles',  label: t('settings.cleanup_empty_profiles'),   cleaned: false, items: r.emptyVisibleProfiles },
+  ]
+})
+
+const cleanableCount = computed(() =>
+  cleanupCategories.value
+    .filter(c => c.cleaned)
+    .reduce((sum, c) => sum + c.items.length, 0)
+)
+
+async function scanCleanup() {
+  cleanupLoading.value = true
+  try {
+    const res = await apiFetch('/api/admin/cleanup-orphans', 'POST', {})
+    cleanupReport.value = res.data as CleanupReport
+  } catch (e: any) {
+    show(e.message, 'error')
+  } finally {
+    cleanupLoading.value = false
+  }
+}
+
+async function applyCleanup() {
+  if (cleanableCount.value === 0) return
+  if (!await confirm(t('settings.cleanup_confirm', { n: cleanableCount.value }), { danger: true })) return
+  cleanupLoading.value = true
+  try {
+    const res = await apiFetch('/api/admin/cleanup-orphans?apply=1', 'POST', {})
+    cleanupReport.value = res.data as CleanupReport
+    show(t('settings.cleanup_done'))
+  } catch (e: any) {
+    show(e.message, 'error')
+  } finally {
+    cleanupLoading.value = false
+  }
+}
+
+function fmtItem(category: string, item: any): string {
+  switch (category) {
+    case 'orphanChannelSessions':
+      return `#${item.id} channel="${item.channelId}" sessionId="${item.sessionId}" name="${item.sessionName || ''}"`
+    case 'orphanChannelUsers':
+      return `#${item.id} channel="${item.channelId}" user="${item.userId}" name="${item.userName || ''}"`
+    case 'orphanAutoProfiles':
+      return `#${item.id} autoForSessionId=${item.autoForSessionId} name="${item.name || ''}"`
+    case 'orphanSchedulers':
+      return `#${item.id} profileId=${item.profileId} channelSessionId=${item.channelSessionId} (${item.reason})`
+    case 'orphanHeartbeats':
+      return `#${item.id} target=${item.target} name="${item.name || ''}"`
+    case 'emptyVisibleProfiles':
+      return `#${item.id} name="${item.name || ''}"`
+    case 'disabledSchedulers':
+      return `#${item.id} profileId=${item.profileId} channelSessionId=${item.channelSessionId}`
+  }
+  return JSON.stringify(item)
+}
 </script>
 
 <template>
@@ -138,6 +223,50 @@ async function save() {
           <SButton type="text" size="sm" :title="t('common.delete')" class="startup-cmd-remove" @click="removeStartupCommand(index)">✕</SButton>
         </div>
         <SButton type="outline" size="sm" @click="addStartupCommand">{{ t('settings.startup_commands_add') }}</SButton>
+      </SCard>
+      <SCard :title="t('settings.cleanup_orphans')">
+        <div class="form-hint">{{ t('settings.cleanup_orphans_hint') }}</div>
+        <div class="cleanup-actions">
+          <SButton type="outline" size="sm" :disabled="cleanupLoading" @click="scanCleanup">
+            {{ cleanupReport ? t('settings.cleanup_rescan') : t('settings.cleanup_scan') }}
+          </SButton>
+          <SButton
+            v-if="cleanupReport && cleanableCount > 0"
+            type="primary"
+            size="sm"
+            :disabled="cleanupLoading"
+            @click="applyCleanup"
+          >
+            {{ t('settings.cleanup_apply', { n: cleanableCount }) }}
+          </SButton>
+        </div>
+        <div v-if="cleanupReport" class="cleanup-report">
+          <div v-if="cleanableCount === 0 && (cleanupReport.emptyVisibleProfiles?.length ?? 0) === 0" class="cleanup-empty">
+            ✓ {{ t('settings.cleanup_clean') }}
+          </div>
+          <div
+            v-for="cat in cleanupCategories"
+            :key="cat.key"
+            class="cleanup-cat"
+            :class="{ 'cleanup-cat-empty': cat.items.length === 0 }"
+          >
+            <div class="cleanup-cat-head" @click="cleanupExpand[cat.key] = !cleanupExpand[cat.key]">
+              <span class="cleanup-cat-toggle">{{ cleanupExpand[cat.key] ? '▼' : '▶' }}</span>
+              <span class="cleanup-cat-label">{{ cat.label }}</span>
+              <span class="cleanup-cat-count" :class="{ 'cleanup-cat-count-zero': cat.items.length === 0 }">
+                {{ cat.items.length }}
+              </span>
+              <span v-if="!cat.cleaned && cat.items.length > 0" class="cleanup-cat-tag">
+                {{ t('settings.cleanup_listed_only') }}
+              </span>
+            </div>
+            <div v-if="cleanupExpand[cat.key] && cat.items.length > 0" class="cleanup-cat-items">
+              <div v-for="(item, idx) in cat.items" :key="idx" class="cleanup-cat-item">
+                {{ fmtItem(cat.key, item) }}
+              </div>
+            </div>
+          </div>
+        </div>
       </SCard>
     </SPageContent>
   </div>
@@ -201,5 +330,91 @@ async function save() {
 
 @media (max-width: 768px) {
   .inline-form { flex-direction: column; }
+}
+
+.cleanup-actions {
+  display: flex;
+  gap: var(--sui-sp-3);
+  margin-bottom: var(--sui-sp-3);
+}
+.cleanup-report {
+  margin-top: var(--sui-sp-3);
+  border: 1px solid var(--sui-border);
+  border-radius: var(--sui-radius-md);
+  background: var(--sui-bg-soft);
+}
+.cleanup-empty {
+  padding: var(--sui-sp-3);
+  color: var(--sui-success);
+  font-size: var(--sui-fs-sm);
+}
+.cleanup-cat {
+  border-bottom: 1px solid var(--sui-border);
+}
+.cleanup-cat:last-child {
+  border-bottom: none;
+}
+.cleanup-cat-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sui-sp-2);
+  padding: var(--sui-sp-2) var(--sui-sp-3);
+  cursor: pointer;
+  user-select: none;
+  font-size: var(--sui-fs-sm);
+}
+.cleanup-cat-empty .cleanup-cat-head {
+  cursor: default;
+  color: var(--sui-fg-muted);
+}
+.cleanup-cat-toggle {
+  width: 12px;
+  font-size: var(--sui-fs-xs);
+  color: var(--sui-fg-muted);
+}
+.cleanup-cat-empty .cleanup-cat-toggle {
+  visibility: hidden;
+}
+.cleanup-cat-label {
+  flex: 1;
+}
+.cleanup-cat-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  padding: 0 6px;
+  height: 20px;
+  border-radius: 10px;
+  background: var(--sui-warning-soft);
+  color: var(--sui-warning-fg);
+  font-size: var(--sui-fs-xs);
+  font-weight: 600;
+}
+.cleanup-cat-count-zero {
+  background: var(--sui-bg-active);
+  color: var(--sui-fg-muted);
+  font-weight: normal;
+}
+.cleanup-cat-tag {
+  font-size: var(--sui-fs-xs);
+  color: var(--sui-fg-muted);
+  font-style: italic;
+}
+.cleanup-cat-items {
+  background: var(--sui-bg);
+  border-top: 1px solid var(--sui-border);
+  max-height: 300px;
+  overflow-y: auto;
+}
+.cleanup-cat-item {
+  padding: 4px var(--sui-sp-3) 4px 28px;
+  font-family: var(--sui-font-mono);
+  font-size: var(--sui-fs-xs);
+  color: var(--sui-fg);
+  border-bottom: 1px solid var(--sui-border-soft, var(--sui-border));
+}
+.cleanup-cat-item:last-child {
+  border-bottom: none;
 }
 </style>

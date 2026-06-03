@@ -32,6 +32,12 @@ export class SystemRoutes {
             return { message: 'Shutting down...' };
         }));
 
+        // 清理跨表引用孤儿数据。默认 dryRun：只返回报告不删，?apply=1 才真正清。
+        app.post('/api/admin/cleanup-orphans', api(async req => {
+            const apply = req.query.apply === '1' || req.body?.apply === true;
+            return channelDataService.cleanupOrphans({ dryRun: !apply });
+        }));
+
         app.get('/api/proxy', api(async (req, res) => {
             const url = req.query.url as string | undefined;
             if (!url?.trim()) throwBad('Missing url');

@@ -5,6 +5,8 @@ import {
     type ChannelSessionRow,
     type SessionProfileRow,
     type ChannelUserRow,
+    type SchedulerRow,
+    type HeartbeatRow,
 } from "../Core/Database";
 import { config } from "../Core/Config";
 import { LoggerService } from "../Core/LoggerService";
@@ -187,9 +189,50 @@ export class ChannelDataService {
 
     // ── channel_session CRUD ─────────────────────────────────────────────────
 
-    async listSessions(channelId?: string): Promise<ChannelSessionRow[]> {
+    /**
+     * 列出 sessions，并把 session.profileId 指向的 profile 字段（含 token 统计）
+     * 平铺到每条记录上 —— admin UI 显示需要 agentId/saver/memories/tokens 等，
+     * 这些都是 profile 字段。memories/wikis 解析后返回 string[] | null。
+     *
+     * Profile 字段值的语义：null = 沿用 channel 默认；非 null = profile 已覆盖。
+     */
+    async listSessions(channelId?: string): Promise<ChannelSessionWithProfile[]> {
         const where = channelId ? { channelId } : undefined;
-        return database.findAll<ChannelSessionRow>(database.channelSession, { where });
+        const sessions = await database.findAll<ChannelSessionRow>(database.channelSession, { where });
+        if (sessions.length === 0) return [];
+        const profileIds = [...new Set(sessions.map(s => s.profileId))];
+        const profiles = await database.findAll<SessionProfileRow>(database.sessionProfile, {
+            where: { id: profileIds },
+        });
+        const profileMap = new Map(profiles.map(p => [p.id, p]));
+        return sessions.map(s => {
+            const p = profileMap.get(s.profileId);
+            return {
+                ...s,
+                agentId: p?.agentId ?? null,
+                saver: p?.saver ?? null,
+                memories: p?.memories != null ? parseMemories(p.memories) : null,
+                wikis: p?.wikis != null ? parseMemories(p.wikis) : null,
+                useChannelMemories: p?.useChannelMemories ?? null,
+                useChannelWikis: p?.useChannelWikis ?? null,
+                workPath: p?.workPath ?? null,
+                streamVerbose: p?.streamVerbose ?? null,
+                autoApproveAllTools: p?.autoApproveAllTools ?? null,
+                approvalTimeout: p?.approvalTimeout ?? null,
+                approvalTimeoutValue: p?.approvalTimeoutValue ?? null,
+                askTimeout: p?.askTimeout ?? null,
+                askTimeoutMessage: p?.askTimeoutMessage ?? null,
+                intentModel: p?.intentModel ?? null,
+                intentPrompt: p?.intentPrompt ?? null,
+                intentThreshold: p?.intentThreshold ?? null,
+                inputTokens: p?.inputTokens ?? 0,
+                outputTokens: p?.outputTokens ?? 0,
+                totalTokens: p?.totalTokens ?? 0,
+                lastInputTokens: p?.lastInputTokens ?? 0,
+                lastOutputTokens: p?.lastOutputTokens ?? 0,
+                lastTotalTokens: p?.lastTotalTokens ?? 0,
+            };
+        });
     }
 
     /** 仅允许改 sessionName / avatar / profileId（其他配置写 profile，由 updateProfile 负责） */
@@ -421,6 +464,212 @@ export class ChannelDataService {
         }
         return { profileId: profile.id };
     }
+
+    // ── cleanup orphans（手动维护工具） ──────────────────────────────────────
+
+    /**
+     * 扫描所有跨表引用孤儿，dryRun=true 只列出，dryRun=false 实际清理。
+     *
+     * 检查项：
+     * - channel_session.channelId 不在 config.settings.channels（channel 已删除但 session 残留）
+     * - channel_user.channelId 不在 config.settings.channels
+     * - sessionProfile.autoForSessionId 不存在或指向已是孤儿的 session
+     * - scheduler.profileId 不存在或为 0
+     * - heartbeat.target 不存在
+     * - visible profile（autoForSessionId=null）但无任何 session 引用 —— 仅列出，不删
+     *
+     * 注意：empty visible profile 仅列出。用户可能正在准备复用一个空 profile，自动删除会损失意图。
+     */
+    async cleanupOrphans(opts: { dryRun?: boolean } = {}): Promise<CleanupReport> {
+        const dryRun = !!opts.dryRun;
+
+        const [allSessions, allProfiles, allSchedulers, allHeartbeats, allChannelUsers] = await Promise.all([
+            database.findAll<ChannelSessionRow>(database.channelSession),
+            database.findAll<SessionProfileRow>(database.sessionProfile),
+            database.findAll<SchedulerRow>(database.scheduler),
+            database.findAll<HeartbeatRow>(database.heartbeat),
+            database.findAll<ChannelUserRow>(database.channelUser),
+        ]);
+
+        const sessionIds = new Set(allSessions.map(s => s.id));
+        const profileIds = new Set(allProfiles.map(p => p.id));
+        const configChannelIds = new Set(Object.keys(config.settings.channels || {}));
+        const profileIdsWithSessions = new Set(allSessions.map(s => s.profileId));
+
+        // 1. channel 已不在 config 的 session
+        const orphanChannelSessions = allSessions.filter(s => !configChannelIds.has(s.channelId));
+        const orphanChannelSessionIds = new Set(orphanChannelSessions.map(s => s.id));
+
+        // 2. channel 已不在 config 的 user
+        const orphanChannelUsers = allChannelUsers.filter(u => !configChannelIds.has(u.channelId));
+
+        // 3. auto profile 指向不存在的 / 即将清理的 session
+        const orphanAutoProfiles = allProfiles.filter(p => {
+            if (p.autoForSessionId == null) return false;
+            if (!sessionIds.has(p.autoForSessionId)) return true;
+            return orphanChannelSessionIds.has(p.autoForSessionId);
+        });
+
+        // 4. scheduler.profileId 缺失 / 失效
+        const orphanSchedulers = allSchedulers.flatMap<SchedulerRow & { reason: string }>(s => {
+            let reason: string | null = null;
+            if (!s.profileId || s.profileId <= 0) reason = "profileId missing";
+            else if (!profileIds.has(s.profileId)) reason = `profileId=${s.profileId} not found`;
+            return reason ? [{ ...s, reason }] : [];
+        });
+
+        // 5. heartbeat.target 不存在或将随孤儿 channel 清掉
+        const orphanHeartbeats = allHeartbeats.filter(h =>
+            !sessionIds.has(h.target) || orphanChannelSessionIds.has(h.target)
+        );
+
+        // 6. 无 session 引用的 visible profile（仅报告，不删）
+        const emptyVisibleProfiles = allProfiles.filter(p =>
+            p.autoForSessionId == null && !profileIdsWithSessions.has(p.id)
+        );
+
+        // 7. 残留 disabled=true 的 scheduler（旧版软删遗留——现在所有删除路径都硬删）
+        const disabledSchedulers = allSchedulers.filter(s => !!s.disabled);
+
+        if (!dryRun) {
+            // Step 1：失效 channel 整套清掉（顺带清这些 channel 名下的 session/user/auto profile/scheduler/heartbeat）
+            const orphanChannelIds = new Set<string>();
+            for (const s of orphanChannelSessions) orphanChannelIds.add(s.channelId);
+            for (const u of orphanChannelUsers) orphanChannelIds.add(u.channelId);
+            for (const cid of orphanChannelIds) {
+                await this.deleteChannel(cid);
+            }
+
+            // Step 2：剩下的孤儿 auto profile（指向从未存在的 sessionId）
+            for (const p of orphanAutoProfiles) {
+                if (orphanChannelSessionIds.has(p.autoForSessionId!)) continue; // 已被 Step 1 清
+                const stillExists = await database.findByPk<SessionProfileRow>(database.sessionProfile, p.id);
+                if (!stillExists) continue;
+                await schedulerService.cascadeDeleteByProfile(p.id);
+                await database.destroy(database.sessionProfile, { where: { id: p.id } });
+            }
+
+            // Step 3：profileId 失效的孤儿 scheduler（重扫一次，避开上面已清的）
+            const refreshedProfileIds = new Set(
+                (await database.findAll<SessionProfileRow>(database.sessionProfile)).map(p => p.id),
+            );
+            const remainingOrphanSchedulerIds: number[] = [];
+            for (const s of orphanSchedulers) {
+                if (!s.profileId || s.profileId <= 0 || !refreshedProfileIds.has(s.profileId)) {
+                    const stillExists = await database.findByPk<SchedulerRow>(database.scheduler, s.id);
+                    if (stillExists) remainingOrphanSchedulerIds.push(s.id);
+                }
+            }
+            await schedulerService.cascadeDeleteByIds(remainingOrphanSchedulerIds);
+
+            // Step 4：target 失效的孤儿 heartbeat（重扫一次）
+            const refreshedSessionIds = new Set(
+                (await database.findAll<ChannelSessionRow>(database.channelSession)).map(s => s.id),
+            );
+            const remainingOrphanHeartbeatIds: number[] = [];
+            for (const h of orphanHeartbeats) {
+                if (!refreshedSessionIds.has(h.target)) {
+                    const stillExists = await database.findByPk<HeartbeatRow>(database.heartbeat, h.id);
+                    if (stillExists) remainingOrphanHeartbeatIds.push(h.id);
+                }
+            }
+            if (remainingOrphanHeartbeatIds.length > 0) {
+                await database.destroy(database.heartbeat, { where: { id: remainingOrphanHeartbeatIds } });
+                await heartbeatService.reloadAll();
+            }
+
+            // Step 5：残留 disabled=true 的 scheduler 行（重扫一次，前面 step 可能已带走一些）
+            const remainingDisabledIds: number[] = [];
+            for (const s of disabledSchedulers) {
+                const stillExists = await database.findByPk<SchedulerRow>(database.scheduler, s.id);
+                if (stillExists && stillExists.disabled) remainingDisabledIds.push(s.id);
+            }
+            await schedulerService.cascadeDeleteByIds(remainingDisabledIds);
+
+            const counts = {
+                channels: orphanChannelIds.size,
+                sessions: orphanChannelSessions.length,
+                users: orphanChannelUsers.length,
+                autoProfiles: orphanAutoProfiles.length,
+                schedulers: remainingOrphanSchedulerIds.length + orphanChannelSessions.length, // 近似
+                heartbeats: remainingOrphanHeartbeatIds.length + orphanHeartbeats.length, // 近似
+                disabledSchedulers: remainingDisabledIds.length,
+            };
+            logger.info(`cleanupOrphans applied: channels=${counts.channels}, sessions=${counts.sessions}, users=${counts.users}, autoProfiles=${counts.autoProfiles}, disabledSchedulers=${counts.disabledSchedulers}`);
+        }
+
+        return {
+            dryRun,
+            orphanChannelSessions: orphanChannelSessions.map(s => ({
+                id: s.id, channelId: s.channelId, sessionId: s.sessionId, sessionName: s.sessionName,
+            })),
+            orphanChannelUsers: orphanChannelUsers.map(u => ({
+                id: u.id, channelId: u.channelId, userId: u.userId, userName: u.userName,
+            })),
+            orphanAutoProfiles: orphanAutoProfiles.map(p => ({
+                id: p.id, autoForSessionId: p.autoForSessionId!, name: p.name,
+            })),
+            orphanSchedulers: orphanSchedulers.map(s => ({
+                id: s.id, profileId: s.profileId, channelSessionId: s.channelSessionId, reason: s.reason,
+            })),
+            orphanHeartbeats: orphanHeartbeats.map(h => ({
+                id: h.id, target: h.target, name: h.name,
+            })),
+            emptyVisibleProfiles: emptyVisibleProfiles.map(p => ({
+                id: p.id, name: p.name,
+            })),
+            disabledSchedulers: disabledSchedulers.map(s => ({
+                id: s.id, profileId: s.profileId, channelSessionId: s.channelSessionId,
+            })),
+        };
+    }
+}
+
+// ── listSessions 响应类型 ─────────────────────────────────────────────────────
+
+/**
+ * channel_session 行 + 它指向的 profile 字段（admin UI 需要展示 agent/saver/memories/tokens 等）。
+ * profile 字段：null = 沿用 channel 默认；非 null = profile 已覆盖。
+ * memories/wikis 已从 JSON 字符串解析为 string[]，null = 未覆盖。
+ */
+export interface ChannelSessionWithProfile extends ChannelSessionRow {
+    agentId: string | null;
+    saver: string | null;
+    memories: string[] | null;
+    wikis: string[] | null;
+    useChannelMemories: boolean | null;
+    useChannelWikis: boolean | null;
+    workPath: string | null;
+    streamVerbose: boolean | null;
+    autoApproveAllTools: boolean | null;
+    approvalTimeout: number | null;
+    approvalTimeoutValue: ApprovalTimeoutValue | null;
+    askTimeout: number | null;
+    askTimeoutMessage: string | null;
+    intentModel: string | null;
+    intentPrompt: string | null;
+    intentThreshold: number | null;
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    lastInputTokens: number;
+    lastOutputTokens: number;
+    lastTotalTokens: number;
+}
+
+// ── cleanup report ────────────────────────────────────────────────────────────
+
+export interface CleanupReport {
+    dryRun: boolean;
+    orphanChannelSessions: Array<{ id: number; channelId: string; sessionId: string; sessionName: string }>;
+    orphanChannelUsers: Array<{ id: number; channelId: string; userId: string; userName: string }>;
+    orphanAutoProfiles: Array<{ id: number; autoForSessionId: number; name: string }>;
+    orphanSchedulers: Array<{ id: number; profileId: number; channelSessionId: number; reason: string }>;
+    orphanHeartbeats: Array<{ id: number; target: number; name: string }>;
+    /** 仅列出，cleanupOrphans 不会删；用户决定是否手删 */
+    emptyVisibleProfiles: Array<{ id: number; name: string }>;
+    /** 残留 disabled=true 的 scheduler 行（旧版软删遗留，apply 时硬删） */
+    disabledSchedulers: Array<{ id: number; profileId: number; channelSessionId: number }>;
 }
 
 export const channelDataService = new ChannelDataService();

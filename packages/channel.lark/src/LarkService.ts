@@ -286,7 +286,7 @@ export class LarkService implements IChannelService {
     endTime?: string;
     limit?: number;
     filter?: (message: any) => boolean;
-  }): Promise<LarkHistoryMessage[]> {
+  }): Promise<{ items: LarkHistoryMessage[]; hasMore: boolean }> {
     const limit = options?.limit ?? 20;
     let currentPage: any;
     let currentItem: any;
@@ -300,7 +300,7 @@ export class LarkService implements IChannelService {
           sort_type: 'ByCreateTimeDesc',
         },
       });
-      const result: LarkHistoryMessage[] = [];
+      const items: LarkHistoryMessage[] = [];
       for await (const page of iter) {
         currentPage = page;
         for (const item of page?.items ?? []) {
@@ -310,20 +310,20 @@ export class LarkService implements IChannelService {
           if (options?.filter && !options.filter(item)) continue;
           const content = await this.parseMessageContent(item.message_id ?? '', item.msg_type ?? '', item.body?.content ?? '', item.mentions, true);
           if (content == null) continue;
-          result.push({
+          items.push({
             message_id: item.message_id ?? '',
             msg_type: item.msg_type ?? '',
             sender_id: item.sender?.id ?? '',
             create_time: item.create_time ?? '',
             content,
           });
-          if (result.length >= limit) return result;
+          if (items.length >= limit) return { items, hasMore: true };
         }
       }
-      return result;
+      return { items, hasMore: false };
     } catch (error: any) {
       this.logger?.error(`Error getting message history: ${error.message}\n${error.stack}\ncurrentItem: ${JSON.stringify(currentItem, null, 2)}\ncurrentPage: ${JSON.stringify(currentPage, null, 2)}`);
-      return [];
+      return { items: [], hasMore: false };
     }
   }
 

@@ -31,7 +31,7 @@ export type SchedulerRow = {
   nextRun: number | null;          // 下次预计执行时间戳
   runCount: number;                // 已执行次数
   maxRuns: number;                 // 最大执行次数（0 表示不限制）
-  disabled: boolean;               // 是否已禁用（软删除）
+  disabled: boolean;               // ⚠ 历史遗留：旧版 delete()/maxRuns 用此做软删，现已全部改硬删；保留列仅为兼容旧 DB 行（runtime 仍按 disabled=false 过滤），cleanupOrphans 会清掉残留 disabled=true 的行。下次 schema migration 可移除。
 };
 
 export type StateRow = {

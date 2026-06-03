@@ -114,8 +114,9 @@ class SchedulerService {
         }
 
         if (scheduler.maxRuns > 0 && (scheduler.runCount ?? 0) >= scheduler.maxRuns) {
-            logger.info(`Scheduler task [${scheduler.id}] reached max runs, disabling`);
-            await database.update(database.scheduler, { disabled: true }, { where: { id: scheduler.id } });
+            logger.info(`Scheduler task [${scheduler.id}] reached max runs, deleting`);
+            this.executor.cancel(scheduler.id);
+            await database.destroy(database.scheduler, { where: { id: scheduler.id } });
             return false;
         }
 
@@ -179,7 +180,7 @@ class SchedulerService {
 
     async delete(schedulerId: number): Promise<void> {
         this.executor.cancel(schedulerId);
-        await database.update(database.scheduler, { disabled: true }, { where: { id: schedulerId } });
+        await database.destroy(database.scheduler, { where: { id: schedulerId } });
     }
 
     /** 删除 profile 名下所有 scheduler（cancel cron + 硬删行）—— profile/session 删除时调用 */
@@ -187,6 +188,13 @@ class SchedulerService {
         const rows = await database.findAll<SchedulerRow>(database.scheduler, { where: { profileId } });
         for (const r of rows) this.executor.cancel(r.id);
         await database.destroy(database.scheduler, { where: { profileId } });
+    }
+
+    /** 按 id 列表硬删 scheduler（cancel cron + destroy）—— cleanupOrphans 在 profileId 失效时使用 */
+    async cascadeDeleteByIds(ids: number[]): Promise<void> {
+        if (ids.length === 0) return;
+        for (const id of ids) this.executor.cancel(id);
+        await database.destroy(database.scheduler, { where: { id: ids } });
     }
 
     async update(schedulerId: number, patch: Partial<Pick<SchedulerRow, "message" | "channelSessionId" | "aiProcess">>): Promise<SchedulerRow | null> {
