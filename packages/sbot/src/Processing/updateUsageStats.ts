@@ -56,7 +56,7 @@ export async function updateUsageStats(
     const row = await getChannelSession(dbSessionId);
     if (row && row.channelId === WEB_CHANNEL_ID) {
         webService.broadcast(JSON.stringify({
-            sessionId: row.sessionId,
+            profileId: String(profileId),
             type: WebChatEventType.Usage,
             data: { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens, totalTokens: usage.total_tokens, cacheCreationTokens: cacheCreation, cacheReadTokens: cacheRead },
         }));

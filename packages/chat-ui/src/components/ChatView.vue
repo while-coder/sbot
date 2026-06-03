@@ -35,7 +35,7 @@ const { confirm } = useConfirm()
 // ── Core state ──
 
 const sessions          = ref<SessionItem[]>([])
-const activeSessionId   = ref<string | null>(null)
+const activeProfileId   = ref<string | null>(null)
 const settings          = ref<AppSettings>({ agents: {}, savers: {}, memories: {}, wikis: {} })
 
 const messages          = ref<StoredMessage[]>([])
@@ -72,17 +72,17 @@ const sessionSearchInputEl = ref<HTMLInputElement | null>(null)
 // ── Derived ──
 
 const activeSession = computed<SessionItem | null>(
-  () => sessions.value.find(s => s.id === activeSessionId.value) ?? null,
+  () => sessions.value.find(s => s.id === activeProfileId.value) ?? null,
 )
 
 const hasSaver = computed(() => activeSession.value != null)
 
 const thinksUrlPrefix = computed(() =>
-  activeSessionId.value ? props.transport.getThinksUrlPrefix(activeSessionId.value) : null,
+  activeProfileId.value ? props.transport.getThinksUrlPrefix(activeProfileId.value) : null,
 )
 
 const tasksUrlPrefix = computed(() =>
-  activeSessionId.value ? (props.transport.getTasksUrlPrefix?.(activeSessionId.value) ?? null) : null,
+  activeProfileId.value ? (props.transport.getTasksUrlPrefix?.(activeProfileId.value) ?? null) : null,
 )
 
 const contextWindow = computed<number | undefined>(() => {
@@ -103,7 +103,7 @@ const filteredSessions = computed<SessionItem[]>(() => {
   })
 })
 
-const highlightedSessionId = computed<string | null>(() => {
+const highlightedProfileId = computed<string | null>(() => {
   const list = filteredSessions.value
   if (list.length === 0) return null
   const idx = Math.min(Math.max(sessionHighlightIndex.value, 0), list.length - 1)
@@ -124,7 +124,7 @@ const rightPanelStyle = computed(() =>
 // ── Event handler ──
 
 function handleEvent(evt: ChatEvent) {
-  if ('profileId' in evt && evt.profileId !== activeSessionId.value) return
+  if ('profileId' in evt && evt.profileId !== activeProfileId.value) return
   switch (evt.type) {
     case ChatEventType.ConnectionStatus:
       if (!evt.online) resetStreamState()
@@ -214,7 +214,7 @@ function resetStreamState() {
 // ── Session actions ──
 
 function selectSession(id: string) {
-  if (activeSessionId.value !== id) activeSessionId.value = id
+  if (activeProfileId.value !== id) activeProfileId.value = id
 }
 
 function toggleSidebar() {
@@ -229,7 +229,7 @@ function toggleSidebar() {
 function resetSessionSearch() {
   sessionSearch.value = ''
   const list = sessions.value
-  const activeIdx = list.findIndex(s => s.id === activeSessionId.value)
+  const activeIdx = list.findIndex(s => s.id === activeProfileId.value)
   sessionHighlightIndex.value = activeIdx >= 0 ? activeIdx : 0
 }
 
@@ -245,7 +245,7 @@ function moveSessionHighlight(delta: number) {
   nextTick(() => {
     const id = filteredSessions.value[next]?.id
     if (!id) return
-    const el = document.querySelector(`.chatui-session-popover [data-session-id="${id}"]`)
+    const el = document.querySelector(`.chatui-session-popover [data-profile-id="${id}"]`)
     el?.scrollIntoView({ block: 'nearest' })
   })
 }
@@ -259,7 +259,7 @@ function onSessionSearchKeydown(e: KeyboardEvent) {
     moveSessionHighlight(-1)
   } else if (e.key === 'Enter') {
     e.preventDefault()
-    const id = highlightedSessionId.value
+    const id = highlightedProfileId.value
     if (id) {
       selectSession(id)
       sidebarOpen.value = false
@@ -336,7 +336,7 @@ function stopSessionBarResize() {
   window.removeEventListener('pointermove', onSessionBarResize)
 }
 
-watch(activeSessionId, async (id) => {
+watch(activeProfileId, async (id) => {
   const gen = ++loadGeneration
   resetStreamState()
   messages.value = []
@@ -347,7 +347,7 @@ watch(activeSessionId, async (id) => {
 })
 
 async function loadHistory(gen = ++loadGeneration) {
-  const id = activeSessionId.value
+  const id = activeProfileId.value
   if (!id) return
   try {
     const data = await props.transport.getHistory(id)
@@ -361,7 +361,7 @@ async function loadHistory(gen = ++loadGeneration) {
 }
 
 async function loadUsage(gen = ++loadGeneration) {
-  const id = activeSessionId.value
+  const id = activeProfileId.value
   if (!id) { usage.value = null; return }
   try {
     const data = await props.transport.getUsage(id)
@@ -373,7 +373,7 @@ async function loadUsage(gen = ++loadGeneration) {
 }
 
 async function restoreSessionStatus(gen = ++loadGeneration) {
-  const id = activeSessionId.value
+  const id = activeProfileId.value
   if (!id) return
   try {
     const status = await props.transport.getSessionStatus(id)
@@ -400,8 +400,8 @@ async function onDeleteSession(id: string) {
   try {
     await props.transport.deleteSession(id)
     sessions.value = sessions.value.filter(s => s.id !== id)
-    if (activeSessionId.value === id) {
-      activeSessionId.value = sessions.value[0]?.id ?? null
+    if (activeProfileId.value === id) {
+      activeProfileId.value = sessions.value[0]?.id ?? null
     }
   } catch (e) {
     console.error('[ChatView] deleteSession', e)
@@ -422,7 +422,7 @@ async function createNewSession() {
   try {
     const res = await props.transport.createSession({ name: '' })
     sessions.value = await props.transport.listSessions()
-    activeSessionId.value = res.id
+    activeProfileId.value = res.id
     sidebarOpen.value = false
     settingsOpen.value = false
   } catch (e) {
@@ -463,7 +463,7 @@ async function renameSessionFromFirstMessage(id: string, text: string) {
 // ── Config updates ──
 
 async function onUpdateConfig(field: string, value: unknown) {
-  const id = activeSessionId.value
+  const id = activeProfileId.value
   if (!id) return
   try {
     const wireValue = value === undefined ? null : value
@@ -501,7 +501,7 @@ function partsToDisplayText(parts: ContentPart[]): string {
 }
 
 function onSend(parts: ContentPart[], attachments: Attachment[]) {
-  const id = activeSessionId.value
+  const id = activeProfileId.value
   if (!id || !hasSaver.value) return
   if (parts.length === 0 && attachments.length === 0) return
   const display = partsToDisplayText(parts)
@@ -517,21 +517,21 @@ function onSend(parts: ContentPart[], attachments: Attachment[]) {
 }
 
 function onApprove(payload: ToolApprovalPayload) {
-  const id = activeSessionId.value
+  const id = activeProfileId.value
   if (!id) return
   pendingToolCall.value = null
   props.transport.approveToolCall(id, payload)
 }
 
 function onAnswer(payload: AskAnswerPayload) {
-  const id = activeSessionId.value
+  const id = activeProfileId.value
   if (!id) return
   pendingAsk.value = null
   props.transport.answerAsk(id, payload)
 }
 
 function onAbort() {
-  const id = activeSessionId.value
+  const id = activeProfileId.value
   if (!id) return
   props.transport.abort(id)
   isStreaming.value = false
@@ -545,7 +545,7 @@ async function onRefresh() {
 }
 
 async function onClearHistory() {
-  const id = activeSessionId.value
+  const id = activeProfileId.value
   if (!id || !await confirm(L.value.confirmClearHistory, {
     danger: true,
     cancelText: L.value.cancel,
@@ -570,7 +570,7 @@ onMounted(async () => {
     ])
     sessions.value = s
     settings.value = cfg
-    if (s.length > 0 && !activeSessionId.value) activeSessionId.value = s[0].id
+    if (s.length > 0 && !activeProfileId.value) activeProfileId.value = s[0].id
   } catch (e) {
     console.error('[ChatView] init', e)
   }
@@ -649,8 +649,8 @@ onBeforeUnmount(() => {
             </div>
             <SessionBar
               :sessions="filteredSessions"
-              :active-session-id="activeSessionId"
-              :highlighted-session-id="highlightedSessionId"
+              :active-profile-id="activeProfileId"
+              :highlighted-profile-id="highlightedProfileId"
               :labels="labels"
               :show-header="false"
               :empty-message="sessionSearch ? L.sessionNoMatch : undefined"
@@ -673,7 +673,7 @@ onBeforeUnmount(() => {
               @open-path-picker="onOpenPathPicker"
             />
             <StatusBar
-              v-if="activeSessionId"
+              v-if="activeProfileId"
               :usage="usage"
               :context-window="contextWindow"
               :labels="labels"
@@ -707,7 +707,7 @@ onBeforeUnmount(() => {
     <template v-else>
       <SessionBar
         :sessions="sessions"
-        :active-session-id="activeSessionId"
+        :active-profile-id="activeProfileId"
         :labels="labels"
         :width="sessionBarWidth"
         @select="selectSession"
@@ -736,7 +736,7 @@ onBeforeUnmount(() => {
 
       <!-- Status bar -->
       <StatusBar
-        v-if="activeSessionId && !(isCompact || alwaysCompact)"
+        v-if="activeProfileId && !(isCompact || alwaysCompact)"
         :usage="usage"
         :context-window="contextWindow"
         :labels="labels"
@@ -801,7 +801,7 @@ onBeforeUnmount(() => {
             :transport="transport"
             :root="activeSession?.workPath"
             :labels="labels"
-            :persist-key="activeSessionId ?? undefined"
+            :persist-key="activeProfileId ?? undefined"
             editable
           />
         </div>

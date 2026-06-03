@@ -6,15 +6,15 @@ import { resolveLabels, tpl } from '../labels'
 
 const props = withDefaults(defineProps<{
   sessions: SessionItem[]
-  activeSessionId: string | null
-  highlightedSessionId?: string | null
+  activeProfileId: string | null
+  highlightedProfileId?: string | null
   labels?: ChatLabels
   showHeader?: boolean
   width?: number
   emptyMessage?: string
 }>(), {
   showHeader: true,
-  highlightedSessionId: null,
+  highlightedProfileId: null,
 })
 
 const barStyle = computed(() =>
@@ -73,8 +73,8 @@ async function onDelete(id: string) {
       <div
         v-for="s in sessions" :key="s.id"
         class="chatui-session-item"
-        :class="{ active: activeSessionId === s.id, highlighted: highlightedSessionId === s.id }"
-        :data-session-id="s.id"
+        :class="{ active: activeProfileId === s.id, highlighted: highlightedProfileId === s.id }"
+        :data-profile-id="s.id"
         @click="emit('select', s.id)"
       >
         <div style="display:flex;align-items:center;gap:4px">

@@ -16,7 +16,6 @@ const visible       = ref(false)
 const saverId       = ref('')
 const saverName     = ref('')
 const threadId      = ref('')
-const sessionId     = ref('')
 const dbId          = ref<number | null>(null)
 const messages      = ref<StoredMessage[]>([])
 const loading       = ref(false)
@@ -29,19 +28,16 @@ const displayedMessages = computed(() =>
 
 function historyUrl() {
   if (dbId.value) return `/api/channel-sessions/${dbId.value}/history`
-  if (sessionId.value) return `/api/sessions/${encodeURIComponent(sessionId.value)}/history`
   return `/api/savers/${encodeURIComponent(saverId.value)}/threads/${encodeURIComponent(threadId.value)}/history`
 }
 
 function thinksUrl() {
   if (dbId.value) return `/api/channel-sessions/${dbId.value}/thinks`
-  if (sessionId.value) return `/api/sessions/${encodeURIComponent(sessionId.value)}/thinks`
   return `/api/savers/${encodeURIComponent(saverId.value)}/threads/${encodeURIComponent(threadId.value)}/thinks`
 }
 
 function tasksUrl() {
   if (dbId.value) return `/api/channel-sessions/${dbId.value}/tasks`
-  if (sessionId.value) return `/api/sessions/${encodeURIComponent(sessionId.value)}/tasks`
   return `/api/savers/${encodeURIComponent(saverId.value)}/threads/${encodeURIComponent(threadId.value)}/tasks`
 }
 
@@ -72,18 +68,6 @@ function open(id: string, name: string, thread: string) {
   saverId.value   = id
   saverName.value = name
   threadId.value  = thread
-  sessionId.value = ''
-  dbId.value      = null
-  messages.value  = []
-  visible.value   = true
-  load()
-}
-
-function openSession(sid: string, name: string) {
-  saverId.value   = ''
-  saverName.value = name
-  threadId.value  = ''
-  sessionId.value = sid
   dbId.value      = null
   messages.value  = []
   visible.value   = true
@@ -94,14 +78,13 @@ function openByDbId(id: number, name: string) {
   saverId.value   = ''
   saverName.value = name
   threadId.value  = ''
-  sessionId.value = ''
   dbId.value      = id
   messages.value  = []
   visible.value   = true
   load()
 }
 
-defineExpose({ open, openSession, openByDbId })
+defineExpose({ open, openByDbId })
 </script>
 
 <template>
@@ -110,7 +93,7 @@ defineExpose({ open, openSession, openByDbId })
       <div style="display:flex;align-items:center;gap:10px">
         <h3 class="s-modal-title">{{ t('savers.history_title') }}</h3>
         <SBadge variant="neutral" size="sm">{{ saverName }}</SBadge>
-        <span class="saver-thread-badge">{{ dbId ? `#${dbId}` : sessionId || threadId }}</span>
+        <span class="saver-thread-badge">{{ dbId ? `#${dbId}` : threadId }}</span>
         <span v-if="!loading" class="saver-count-badge">
           {{ archivedCount > 0
             ? t('savers.count_with_archived', { count: messages.length, archived: archivedCount })
