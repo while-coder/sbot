@@ -288,9 +288,10 @@ export class LarkService implements IChannelService {
     filter?: (message: any) => boolean;
   }): Promise<LarkHistoryMessage[]> {
     const limit = options?.limit ?? 20;
-    let iter: any;
+    let currentPage: any;
+    let currentItem: any;
     try {
-      iter = await this.larkClient.im.v1.message.listWithIterator({
+      const iter = await this.larkClient.im.v1.message.listWithIterator({
         params: {
           container_id_type: 'chat',
           container_id: containerId,
@@ -301,7 +302,9 @@ export class LarkService implements IChannelService {
       });
       const result: LarkHistoryMessage[] = [];
       for await (const page of iter) {
+        currentPage = page;
         for (const item of page?.items ?? []) {
+          currentItem = item;
           if (item.sender?.sender_type === 'app') continue;
           if (options?.filter && !options.filter(item)) continue;
           const content = await this.parseMessageContent(item.message_id ?? '', item.msg_type ?? '', item.body?.content ?? '', item.mentions, true);
@@ -318,7 +321,7 @@ export class LarkService implements IChannelService {
       }
       return result;
     } catch (error: any) {
-      this.logger?.error(`Error getting message history: ${error.message}\n${error.stack}\niter: ${util.inspect(iter, { depth: null, breakLength: Infinity })}`);
+      this.logger?.error(`Error getting message history: ${error.message}\n${error.stack}\ncurrentItem: ${JSON.stringify(currentItem, null, 2)}\ncurrentPage: ${JSON.stringify(currentPage, null, 2)}`);
       return [];
     }
   }
