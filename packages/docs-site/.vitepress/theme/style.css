@@ -1,9 +1,9 @@
 .home-container {
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
   min-height: calc(100vh - 64px);
-  padding: 2rem;
+  padding: 3rem 2rem 4rem;
 }
 
 .home-card {
@@ -20,7 +20,9 @@
 .home-title {
   font-size: 3.5rem;
   font-weight: 700;
+  line-height: 1.2;
   margin: 0;
+  padding: 0.1em 0;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
