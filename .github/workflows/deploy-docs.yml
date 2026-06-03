@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'packages/landing/**'
+      - 'packages/docs-site/**'
       - '.github/workflows/deploy-docs.yml'
   workflow_dispatch:
 
@@ -30,7 +30,7 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter sbot-landing run build
+      - run: pnpm --filter sbot-docs run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

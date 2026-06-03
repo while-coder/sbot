@@ -5,15 +5,17 @@
       <h1 class="home-title">sbot</h1>
       <p class="home-tagline">Self-hosted AI Agent Server</p>
       <p class="home-desc">
-        Open-source, modular AI agent framework. Models, memory, tools, and channels
-        are independent building blocks you mix and match — no vendor lock-in.
+        Open-source, modular AI agent framework. Models, memory, tools, channels,
+        and skills are independent building blocks you mix and match — run on your
+        own server with multi-channel integrations, MCP/ACP support, and a built-in
+        Web UI. No vendor lock-in.
       </p>
       <div class="home-install" @click="copyInstall">
         <code>{{ installCmd }}</code>
         <span class="home-copy-hint">{{ copied ? '✓ Copied' : 'Click to copy' }}</span>
       </div>
       <div class="home-actions">
-        <a href="/guide/getting-started" class="home-btn home-btn-primary">Get Started →</a>
+        <a href="/sbot/guide/getting-started" class="home-btn home-btn-primary">Get Started →</a>
         <a href="https://github.com/while-coder/sbot" target="_blank" class="home-btn home-btn-secondary">GitHub</a>
         <a href="https://www.npmjs.com/package/@qingfeng346/sbot" target="_blank" class="home-btn home-btn-secondary">npm</a>
       </div>
@@ -23,6 +25,13 @@
         <img src="https://img.shields.io/badge/node-%3E%3D18-brightgreen" alt="Node.js" />
         <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License" />
       </div>
+      <ul class="home-highlights">
+        <li><strong>Multi-provider</strong> — OpenAI · Claude · Gemini · Ollama · any OpenAI-compatible API</li>
+        <li><strong>Multi-channel</strong> — Web · CLI · Lark · Slack · WeCom · WeChat · OneBot · XiaoAI · REST · WS</li>
+        <li><strong>Multi-mode agents</strong> — Single · ReAct · Generative, plus ACP integration</li>
+        <li><strong>Long-term recall</strong> — Notes (vector) · Wiki (hybrid keyword + semantic) · Insight</li>
+        <li><strong>Proactive runtime</strong> — Heartbeat · cron Scheduler · Todo · Ask</li>
+      </ul>
     </div>
   </div>
 </template>

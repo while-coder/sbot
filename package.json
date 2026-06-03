@@ -37,8 +37,8 @@
     "debug:ios": "pnpm run assets && pnpm --filter @sbot/app run ios:dev",
     "build:ios": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/app run ios:build",
 
-    "debug:landing": "pnpm --filter sbot-landing run dev",
-    "build:landing": "pnpm --filter sbot-landing run build",
+    "debug:docs": "pnpm --filter sbot-docs run dev",
+    "build:docs": "pnpm --filter sbot-docs run build",
 
     "docker:sbot": "pnpm run build:sbot && node packages/sbot/scripts/docker.js build && node packages/sbot/scripts/docker.js save",
     "docker:sbot:publish": "pnpm run build:sbot && node packages/sbot/scripts/docker.js build && node packages/sbot/scripts/docker.js publish"

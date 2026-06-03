@@ -1,0 +1,21 @@
+# Features
+
+- **Modular composition** — Models, memory, tools, channels, and skills are independent building blocks you mix and match to assemble agents
+- **One-command deployment** — `npm install -g` or `docker run`, native cross-platform with no extra system dependencies
+- **Full Web UI management** — All configuration done in the browser, no manual file editing required
+- **Multiple LLM providers** — OpenAI, Anthropic Claude, Google Gemini, Ollama, and any OpenAI-compatible API (Azure OpenAI, Groq, Mistral, DeepSeek, etc.); automatic retry with exponential backoff on transient failures
+- **Multi-agent orchestration** — Single, ReAct (recursive task decomposition), and Generative (multimodal) modes; agents can be nested and composed
+- **ACP agent support** — Agent Client Protocol integration with persistent and transient agent modes
+- **Knowledge base** — Built-in wiki with hybrid keyword + semantic search, referenced by agents during conversations
+- **Long-term memory** — Vector-embedding semantic search for persistent context recall (OpenAI, Google, Ollama, Cohere, VoyageAI)
+- **Conversation compaction** — Automatic conversation summarization when token usage exceeds threshold, preserving continuity while reducing consumption
+- **Insight system** — Per-agent silent post-turn extractor that distills user preferences and lessons learned into reusable Markdown notes; auto-marks notes stale and archives them based on usage
+- **Heartbeat** — Configurable periodic self-activation lets agents run scheduled prompts proactively across any channel
+- **MCP tools** — Standard MCP protocol (stdio/SSE), connect to any MCP tool ecosystem; per-agent and global servers with auto-restart
+- **Multiple channels** — Web UI, CLI, Lark/Feishu, Slack, WeCom, WeChat, OneBot (QQ), XiaoAI, REST API, WebSocket
+- **Built-in tools** — Shell execution, file system, archive operations, media file read, Python/PowerShell inline execution, web fetch/download, cron scheduler, todo, ask
+- **Skills** — Installable prompt modules with remote install from Clawhub, skills.sh, and skillhub.cn
+- **Agent Store** — Browse and install pre-packaged agents (model + prompt + tools + skills + MCP servers) from configurable sources
+- **Token usage tracking** — Per-model consumption statistics, model response caching with hit/miss metrics
+- **Unattended-session safety** — Configurable approval and ask timeouts on channels for autonomous operation
+- **Flexible config** — Global and per-session overrides from a single `settings.json`; customizable prompts with hot reload
