@@ -40,7 +40,6 @@ export async function executeHeartbeat(ctx: HeartbeatExecutionContext): Promise<
         targetId: hbConfig.target,
         message: prompt,
         aiProcess: true,
-        toolWhitelist: ch => ch.heartbeatTools,
         awaitCompletion: true,
         tag,
     });

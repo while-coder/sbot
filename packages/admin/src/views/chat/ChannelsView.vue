@@ -379,9 +379,9 @@ const form = ref<ChannelConfig>({
 })
 type ToolMode = 'default' | 'whitelist' | 'block'
 const formTools = ref<string[]>([])
-const formHeartbeatTools = ref<string[]>([])
+const formTriggerTools = ref<string[]>([])
 const formToolsMode = ref<ToolMode>('default')
-const formHeartbeatToolsMode = ref<ToolMode>('default')
+const formTriggerToolsMode = ref<ToolMode>('default')
 
 function toolsToMode(arr: string[] | undefined): ToolMode {
   if (arr === undefined) return 'default'
@@ -532,9 +532,9 @@ function openAdd() {
   const defaultType = plugins.value.find(p => !p.builtin)?.type || ''
   form.value = { name: '', type: defaultType, config: {}, agent: '', saver: '', notes: [], wikis: [], workPath: '', streamVerbose: false, autoApproveAllTools: false, approvalTimeout: 0, approvalTimeoutValue: ApprovalTimeoutValue.Deny, askTimeout: 0, askTimeoutMessage: '', intentModel: '', intentPrompt: '', intentThreshold: 0.7, mergeWindow: 0 }
   formTools.value = []
-  formHeartbeatTools.value = []
+  formTriggerTools.value = []
   formToolsMode.value = 'default'
-  formHeartbeatToolsMode.value = 'default'
+  formTriggerToolsMode.value = 'default'
   showModal.value = true
 }
 
@@ -544,9 +544,9 @@ function openEdit(id: string) {
   clearActionState()
   form.value = { name: c.name, type: c.type, config: { ...c.config }, agent: c.agent, saver: c.saver, notes: c.notes || [], wikis: (c as any).wikis || [], workPath: c.workPath || '', streamVerbose: !!c.streamVerbose, autoApproveAllTools: !!c.autoApproveAllTools, approvalTimeout: c.approvalTimeout ?? 0, approvalTimeoutValue: c.approvalTimeoutValue ?? ApprovalTimeoutValue.Deny, askTimeout: c.askTimeout ?? 0, askTimeoutMessage: c.askTimeoutMessage || '', intentModel: c.intentModel || '', intentPrompt: c.intentPrompt || '', intentThreshold: c.intentThreshold ?? 0.7, mergeWindow: c.mergeWindow || 0 }
   formTools.value = [...(c.tools ?? [])]
-  formHeartbeatTools.value = [...(c.heartbeatTools ?? [])]
+  formTriggerTools.value = [...(c.triggerTools ?? [])]
   formToolsMode.value = toolsToMode(c.tools)
-  formHeartbeatToolsMode.value = toolsToMode(c.heartbeatTools)
+  formTriggerToolsMode.value = toolsToMode(c.triggerTools)
   showModal.value = true
 }
 
@@ -555,7 +555,7 @@ async function save() {
   if (!form.value.agent) { show(t('channels.select_agent'), 'error'); return }
   if (!form.value.saver) { show(t('channels.select_saver'), 'error'); return }
   if (formToolsMode.value === 'whitelist' && formTools.value.length === 0) { show(t('channels.tools_whitelist_empty'), 'error'); return }
-  if (formHeartbeatToolsMode.value === 'whitelist' && formHeartbeatTools.value.length === 0) { show(t('channels.tools_whitelist_empty'), 'error'); return }
+  if (formTriggerToolsMode.value === 'whitelist' && formTriggerTools.value.length === 0) { show(t('channels.tools_whitelist_empty'), 'error'); return }
   try {
     const validNoteIds = new Set(noteOptions.value.map(n => n.id))
     const validWikiIds = new Set(wikiOptions.value.map(w => w.id))
@@ -589,7 +589,7 @@ async function save() {
       intentThreshold: form.value.intentModel ? form.value.intentThreshold : undefined,
       mergeWindow: form.value.mergeWindow || undefined,
       tools: modeToTools(formToolsMode.value, formTools.value),
-      heartbeatTools: modeToTools(formHeartbeatToolsMode.value, formHeartbeatTools.value),
+      triggerTools: modeToTools(formTriggerToolsMode.value, formTriggerTools.value),
     }
 
     if (editingId.value) {
@@ -678,7 +678,7 @@ async function refresh() {
             <span class="session-meta-chip" :class="c.autoApproveAllTools ? 'orange' : 'muted'">{{ t('settings.auto_approve_all') }}: {{ c.autoApproveAllTools ? t('common.enabled') : t('common.disabled') }}</span>
             <span class="session-meta-chip" :class="c.intentModel ? '' : 'muted'">{{ t('channels.intent_model') }}: {{ c.intentModel ? (modelOptions.find(m => m.id === c.intentModel)?.label || c.intentModel) : t('common.not_configured') }}</span>
             <span v-if="c.tools !== undefined" class="session-meta-chip" :class="c.tools.length ? '' : 'orange'">{{ t('channels.tools') }}: {{ c.tools.length ? c.tools.map(n => plugins.find(p => p.type === c.type)?.tools?.find(t => t.name === n)?.label || n).join(', ') : t('channels.tools_blocked') }}</span>
-            <span v-if="c.heartbeatTools !== undefined" class="session-meta-chip" :class="c.heartbeatTools.length ? '' : 'orange'">{{ t('channels.heartbeat_tools') }}: {{ c.heartbeatTools.length ? c.heartbeatTools.map(n => plugins.find(p => p.type === c.type)?.tools?.find(t => t.name === n)?.label || n).join(', ') : t('channels.tools_blocked') }}</span>
+            <span v-if="c.triggerTools !== undefined" class="session-meta-chip" :class="c.triggerTools.length ? '' : 'orange'">{{ t('channels.trigger_tools') }}: {{ c.triggerTools.length ? c.triggerTools.map(n => plugins.find(p => p.type === c.type)?.tools?.find(t => t.name === n)?.label || n).join(', ') : t('channels.tools_blocked') }}</span>
           </div>
           <div v-if="expandedChannels[id as string]" class="channel-card-detail">
             <div class="detail-tab-bar">
@@ -961,13 +961,13 @@ async function refresh() {
                 </SSelect>
                 <SMultiSelect v-if="formToolsMode === 'whitelist'" v-model="formTools" :options="currentToolOptions" />
               </SFormItem>
-              <SFormItem :label="t('channels.heartbeat_tools')" :hint="t('channels.heartbeat_tools_hint')">
-                <SSelect v-model="formHeartbeatToolsMode">
+              <SFormItem :label="t('channels.trigger_tools')" :hint="t('channels.trigger_tools_hint')">
+                <SSelect v-model="formTriggerToolsMode">
                   <option value="default">{{ t('channels.tools_mode_default') }}</option>
                   <option value="whitelist">{{ t('channels.tools_mode_whitelist') }}</option>
                   <option value="block">{{ t('channels.tools_mode_block') }}</option>
                 </SSelect>
-                <SMultiSelect v-if="formHeartbeatToolsMode === 'whitelist'" v-model="formHeartbeatTools" :options="currentToolOptions" />
+                <SMultiSelect v-if="formTriggerToolsMode === 'whitelist'" v-model="formTriggerTools" :options="currentToolOptions" />
               </SFormItem>
             </template>
           </SFormSection>
