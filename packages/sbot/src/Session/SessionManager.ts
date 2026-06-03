@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { ICommand, MessageType, MessageRole, MessageKind, type ChatMessage, type MessageContent, trimContent, isEmptyContent } from "scorpio.ai";
+import { ICommand, MessageType, MessageRole, MessageKind, type MessageContent, trimContent, isEmptyContent } from "scorpio.ai";
 import { SessionManager, SessionService, ChannelMessageArgs, ChannelSessionHandler } from "channel.base";
 import { type StructuredToolInterface } from "@langchain/core/tools";
 import { config } from "../Core/Config";
@@ -21,7 +21,6 @@ export interface ChannelRouteArgs extends ChannelMessageArgs {
     headless?: boolean;
     agentTools?: StructuredToolInterface[];
     toolWhitelist?: string[];
-    onMessage?: (msg: ChatMessage) => void;
     onComplete?: (error?: any) => void;
 }
 
@@ -50,9 +49,7 @@ class SbotSession extends SessionService {
     }
 
     protected async onProcessStart(query: MessageContent, args: ChannelRouteArgs, messageType: MessageType): Promise<string | void> {
-        if (!args.headless) {
-            await this.getChannel(args).onProcessStart(query, this.argsWithQueue(args), messageType);
-        }
+        await this.getChannel(args).onProcessStart(query, this.argsWithQueue(args), messageType);
         const channelName = config.getChannel(args.channelId)?.name;
         return [args.channelType, channelName ?? args.channelId, this.threadId].filter(Boolean).join('/');
     }
@@ -79,9 +76,7 @@ class SbotSession extends SessionService {
     }
 
     protected async onProcessEnd(query: MessageContent, args: ChannelRouteArgs, messageType: MessageType, error?: any): Promise<void> {
-        if (!args.headless) {
-            await this.getChannel(args).onProcessEnd(query, this.argsWithQueue(args), messageType, error);
-        }
+        await this.getChannel(args).onProcessEnd(query, this.argsWithQueue(args), messageType, error);
         if (args.onComplete) {
             args.onComplete(error);
         }

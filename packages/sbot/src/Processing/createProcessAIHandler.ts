@@ -79,18 +79,17 @@ export function createProcessAIHandler(): ProcessAIHandler {
             await updateUsageStats(usage, dbSessionId, profileId, usageContext);
         };
 
-        const onMessage = headless
-            ? async (msg: ChatMessage) => { args?.onMessage?.(msg); }
-            : streamVerbose
-                ? (msg: ChatMessage) => sessionHandler.onChatMessage(msg, args)
-                : (msg: ChatMessage) => {
-                    if (msg.role === MessageRole.AI && !msg.tool_calls?.length) {
-                        return sessionHandler.onChatMessage(msg, args);
-                    }
-                    return Promise.resolve();
-                };
+        const verbose = streamVerbose && !headless;
+        const onMessage = verbose
+            ? (msg: ChatMessage) => sessionHandler.onChatMessage(msg, args)
+            : (msg: ChatMessage) => {
+                if (msg.role === MessageRole.AI && !msg.tool_calls?.length) {
+                    return sessionHandler.onChatMessage(msg, args);
+                }
+                return Promise.resolve();
+            };
 
-        const onStreamMessage = streamVerbose
+        const onStreamMessage = verbose
             ? (msg: ChatMessage) => sessionHandler.onStreamMessage(msg, args)
             : undefined;
 
