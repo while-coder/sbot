@@ -1,7 +1,6 @@
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
-import { database, SchedulerRow } from '../../Core/Database';
 import { schedulerService } from '../../Scheduler/SchedulerService';
 import { LoggerService } from '../../Core/LoggerService';
 import { loadPrompt } from '../../Core/PromptLoader';
@@ -45,21 +44,17 @@ export function createSchedulerCreateTool(channelSessionId: number, profileId: n
                 if (!expr?.trim())    return createErrorResult('expr is required');
                 if (!message?.trim()) return createErrorResult('message is required');
 
-                const row = await database.create<SchedulerRow>(database.scheduler, {
+                const row = await schedulerService.create({
                     channelSessionId,   // 创建时投递偏好；触发时若失效再按 profileId 自愈
                     profileId,
-                    expr:     expr.trim(),
-                    message:  message.trim(),
+                    expr: expr.trim(),
+                    message: message.trim(),
                     aiProcess: aiProcess ?? true,
-                    lastRun:  null,
-                    runCount: 0,
-                    maxRuns:  maxRuns ?? 0,
+                    maxRuns: maxRuns ?? 0,
                 });
-                await schedulerService.reload((row as any).id);
-                const r = row as any;
-                const maxLabel = r.maxRuns ? `max ${r.maxRuns}` : 'unlimited';
+                const maxLabel = row.maxRuns ? `max ${row.maxRuns}` : 'unlimited';
                 return createSuccessResult(createTextContent(
-                    `Created task id=${r.id}\n  expr: ${r.expr}\n  runs: ${maxLabel}\n  message: ${r.message}`,
+                    `Created task id=${row.id}\n  expr: ${row.expr}\n  runs: ${maxLabel}\n  message: ${row.message}`,
                 ));
             } catch (e: any) {
                 logger.error(`scheduler_create failed: ${e.message}`);

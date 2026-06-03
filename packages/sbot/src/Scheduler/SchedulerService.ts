@@ -146,11 +146,35 @@ class SchedulerService {
         this.executor.stopAll();
     }
 
-    /** 列出 scheduler，附 nextRun。disabled 默认排除 */
-    async list(opts?: { includeDisabled?: boolean }): Promise<(SchedulerRow & { nextRun: number | null })[]> {
-        const where = opts?.includeDisabled ? {} : { disabled: false };
+    /** 列出 scheduler，附 nextRun。disabled 默认排除；可按 profileId 过滤 */
+    async list(opts?: { profileId?: number; includeDisabled?: boolean }): Promise<(SchedulerRow & { nextRun: number | null })[]> {
+        const where: Record<string, any> = {};
+        if (opts?.profileId != null) where.profileId = opts.profileId;
+        if (!opts?.includeDisabled) where.disabled = false;
         const rows = await database.findAll<SchedulerRow>(database.scheduler, { where });
         return rows.map(r => ({ ...(r as any), nextRun: this.nextDate(r.id) }));
+    }
+
+    findByPk(schedulerId: number): Promise<SchedulerRow | null> {
+        return database.findByPk<SchedulerRow>(database.scheduler, schedulerId);
+    }
+
+    /** 工具/路由创建 scheduler 的统一入口：写表 + 注册 cron */
+    async create(data: {
+        channelSessionId: number;
+        profileId: number;
+        expr: string;
+        message: string;
+        aiProcess: boolean;
+        maxRuns: number;
+    }): Promise<SchedulerRow> {
+        const row = await database.create<SchedulerRow>(database.scheduler, {
+            ...data,
+            lastRun: null,
+            runCount: 0,
+        });
+        await this.schedule(row as SchedulerRow);
+        return row;
     }
 
     async delete(schedulerId: number): Promise<void> {

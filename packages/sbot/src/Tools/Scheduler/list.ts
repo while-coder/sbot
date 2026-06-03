@@ -1,7 +1,7 @@
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
-import { database, SchedulerRow } from '../../Core/Database';
+import { schedulerService } from '../../Scheduler/SchedulerService';
 import { LoggerService } from '../../Core/LoggerService';
 import { loadPrompt } from '../../Core/PromptLoader';
 import { SCHEDULER_LIST_TOOL_NAME } from './index';
@@ -15,15 +15,13 @@ export function createSchedulerListTool(profileId: number): StructuredToolInterf
         schema: z.object({}) as any,
         func: async (_args: any): Promise<MCPToolResult> => {
             try {
-                const timers = await database.findAll<SchedulerRow>(database.scheduler, {
-                    where: { profileId, disabled: false },
-                });
+                const timers = await schedulerService.list({ profileId });
 
                 if (timers.length === 0) {
                     return createSuccessResult(createTextContent('No scheduled tasks'));
                 }
 
-                const lines = timers.map((t: any) => {
+                const lines = timers.map(t => {
                     const maxLabel = t.maxRuns ? `${t.runCount}/${t.maxRuns}` : `${t.runCount}`;
                     const next = t.nextRun ? new Date(t.nextRun).toLocaleString() : '-';
                     return `id=${t.id}  expr="${t.expr}"  runs=${maxLabel}  next=${next}\n  message: ${t.message}`;

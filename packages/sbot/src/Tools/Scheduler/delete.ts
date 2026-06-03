@@ -1,7 +1,6 @@
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
-import { database, SchedulerRow } from '../../Core/Database';
 import { schedulerService } from '../../Scheduler/SchedulerService';
 import { LoggerService } from '../../Core/LoggerService';
 import { loadPrompt } from '../../Core/PromptLoader';
@@ -18,9 +17,8 @@ export function createSchedulerDeleteTool(profileId: number): StructuredToolInte
         }) as any,
         func: async ({ id }: any): Promise<MCPToolResult> => {
             try {
-                const existing = await database.findByPk<SchedulerRow>(database.scheduler, id);
-                if (!existing) return createErrorResult(`Scheduled task id=${id} not found`);
-                const ex = existing as SchedulerRow;
+                const ex = await schedulerService.findByPk(id);
+                if (!ex) return createErrorResult(`Scheduled task id=${id} not found`);
                 if (ex.profileId !== profileId) {
                     return createErrorResult(
                         `Permission denied: task id=${id} does not belong to current thread (profileId=${profileId})`
