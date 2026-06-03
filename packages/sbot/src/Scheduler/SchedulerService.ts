@@ -146,11 +146,10 @@ class SchedulerService {
         this.executor.stopAll();
     }
 
-    /** 列出 scheduler，附 nextRun。disabled 默认排除；可按 profileId 过滤 */
-    async list(opts?: { profileId?: number; includeDisabled?: boolean }): Promise<(SchedulerRow & { nextRun: number | null })[]> {
-        const where: Record<string, any> = {};
-        if (opts?.profileId != null) where.profileId = opts.profileId;
-        if (!opts?.includeDisabled) where.disabled = false;
+    /** 列出未禁用 scheduler，附 nextRun。可按 profileId 过滤 */
+    async list(profileId?: number): Promise<(SchedulerRow & { nextRun: number | null })[]> {
+        const where: Record<string, any> = { disabled: false };
+        if (profileId != null) where.profileId = profileId;
         const rows = await database.findAll<SchedulerRow>(database.scheduler, { where });
         return rows.map(r => ({ ...(r as any), nextRun: this.nextDate(r.id) }));
     }

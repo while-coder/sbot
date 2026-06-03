@@ -5,8 +5,10 @@ import type { RouteContext } from './types';
 
 export class SchedulerRoutes {
     register(app: express.Application, _ctx: RouteContext): void {
-        app.get('/api/schedulers', api(async () => {
-            const rows = await schedulerService.list();
+        app.get('/api/schedulers', api(async req => {
+            const profileId = req.query.profileId != null ? Number(req.query.profileId) : undefined;
+            if (profileId != null && !Number.isInteger(profileId)) throwBad('Invalid profileId');
+            const rows = await schedulerService.list(profileId);
             return rows.map(r => ({ ...toPlain(r), nextRun: r.nextRun }));
         }));
 

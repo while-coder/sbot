@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { useToast, useConfirm, SModal, SButton, SBadge } from 'sbot-ui'
@@ -9,24 +9,11 @@ const { t, locale } = useI18n()
 const { show } = useToast()
 const { confirm } = useConfirm()
 
-interface ChannelSessionRow {
-  id: number
-  profileId: number
-}
-
 const visible      = ref(false)
-const dbSessionId  = ref<number | null>(null)
 const profileIdRef = ref<string | null>(null)
 const sessionLabel = ref('')
 const loading      = ref(false)
-const all          = ref<SchedulerRow[]>([])
-
-const filtered = computed(() => {
-  // scheduler 按 profileId 绑（同 profile 的所有 session 共享视图）
-  const pid = profileIdRef.value ? Number(profileIdRef.value) : null
-  if (!pid) return []
-  return all.value.filter(r => r.profileId === pid)
-})
+const rows         = ref<SchedulerRow[]>([])
 
 function formatTime(ts: number | null): string {
   if (!ts) return '-'
@@ -34,22 +21,11 @@ function formatTime(ts: number | null): string {
 }
 
 async function load() {
+  if (!profileIdRef.value) return
   loading.value = true
   try {
-    const [timersRes, sessionsRes] = await Promise.all([
-      apiFetch('/api/schedulers'),
-      apiFetch('/api/channel-sessions'),
-    ])
-    all.value = timersRes.data || []
-    const sessions: ChannelSessionRow[] = sessionsRes.data || []
-    // 任一入口都最终归位到 profileId 上做过滤
-    if (profileIdRef.value == null && dbSessionId.value != null) {
-      const row = sessions.find(s => s.id === dbSessionId.value)
-      profileIdRef.value = row ? String(row.profileId) : null
-    } else if (dbSessionId.value == null && profileIdRef.value) {
-      const row = sessions.find(s => String(s.profileId) === profileIdRef.value)
-      dbSessionId.value = row?.id ?? null
-    }
+    const res = await apiFetch(`/api/schedulers?profileId=${encodeURIComponent(profileIdRef.value)}`)
+    rows.value = res.data || []
   } catch (e: any) {
     show(e?.message || String(e), 'error')
   } finally {
@@ -68,25 +44,15 @@ async function remove(row: SchedulerRow) {
   }
 }
 
-function open(id: number, label: string) {
-  dbSessionId.value  = id
-  profileIdRef.value = null
-  sessionLabel.value = label
-  all.value          = []
-  visible.value      = true
-  load()
-}
-
 function openByProfileId(profileId: string, label: string) {
-  dbSessionId.value  = null
   profileIdRef.value = profileId
   sessionLabel.value = label
-  all.value          = []
+  rows.value         = []
   visible.value      = true
   load()
 }
 
-defineExpose({ open, openByProfileId })
+defineExpose({ openByProfileId })
 </script>
 
 <template>
@@ -105,9 +71,9 @@ defineExpose({ open, openByProfileId })
     </template>
 
     <div v-if="loading" class="modal-loading">{{ t('common.loading') }}</div>
-    <div v-else-if="filtered.length === 0" class="modal-empty">{{ t('scheduler.empty') }}</div>
+    <div v-else-if="rows.length === 0" class="modal-empty">{{ t('scheduler.empty') }}</div>
     <ul v-else class="sched-list">
-      <li v-for="row in filtered" :key="row.id" class="sched-row">
+      <li v-for="row in rows" :key="row.id" class="sched-row">
         <div class="sched-row-main">
           <span class="sched-row-id">#{{ row.id }}</span>
           <SBadge :variant="TYPE_VARIANT[detectUIType(row.expr)]" size="sm" pill>

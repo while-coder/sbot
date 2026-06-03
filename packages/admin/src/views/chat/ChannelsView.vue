@@ -684,7 +684,7 @@ async function refresh() {
                         <div class="ops-cell">
                           <SButton v-if="s.saver || c.saver" type="outline" size="sm" @click="saverViewModal?.openByDbId(s.id, saverOptions.find(o => o.id === (s.saver || c.saver))?.label || (s.saver || c.saver))">{{ t('channels.history') }}</SButton>
                           <SButton type="outline" size="sm" @click="todoListModal?.openByProfileId(String(s.profileId), s.sessionName || s.autoSessionName || s.sessionId)">{{ t('todo.title') }}</SButton>
-                          <SButton type="outline" size="sm" @click="schedulerListModal?.open(s.id, s.sessionName || s.autoSessionName || s.sessionId)">{{ t('scheduler.title') }}</SButton>
+                          <SButton type="outline" size="sm" @click="schedulerListModal?.openByProfileId(String(s.profileId), s.sessionName || s.autoSessionName || s.sessionId)">{{ t('scheduler.title') }}</SButton>
                           <SButton type="outline" size="sm" @click="openEditSession(s)">{{ t('common.edit') }}</SButton>
                           <SButton type="danger" size="sm" @click="removeSession(id as string, s)">{{ t('common.delete') }}</SButton>
                         </div>
@@ -768,7 +768,7 @@ async function refresh() {
                 </div>
                 <div class="mobile-card-ops">
                   <SButton type="outline" size="sm" @click="todoListModal?.openByProfileId(String(s.profileId), s.sessionName || s.autoSessionName || s.sessionId)">{{ t('todo.title') }}</SButton>
-                  <SButton type="outline" size="sm" @click="schedulerListModal?.open(s.id, s.sessionName || s.autoSessionName || s.sessionId)">{{ t('scheduler.title') }}</SButton>
+                  <SButton type="outline" size="sm" @click="schedulerListModal?.openByProfileId(String(s.profileId), s.sessionName || s.autoSessionName || s.sessionId)">{{ t('scheduler.title') }}</SButton>
                   <SButton type="outline" size="sm" @click="openEditSession(s)">{{ t('common.edit') }}</SButton>
                   <SButton type="danger" size="sm" @click="removeSession(id as string, s)">{{ t('common.delete') }}</SButton>
                 </div>

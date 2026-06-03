@@ -15,7 +15,7 @@ export function createSchedulerListTool(profileId: number): StructuredToolInterf
         schema: z.object({}) as any,
         func: async (_args: any): Promise<MCPToolResult> => {
             try {
-                const timers = await schedulerService.list({ profileId });
+                const timers = await schedulerService.list(profileId);
 
                 if (timers.length === 0) {
                     return createSuccessResult(createTextContent('No scheduled tasks'));
