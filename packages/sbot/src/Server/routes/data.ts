@@ -90,7 +90,7 @@ export class DataRoutes {
         this.registerSaverThreadRoutes(app, '/api/channel-sessions/:id', async req =>
             await this.resolveSessionSaver(await this.getSessionRowByPk(req.params.id as string))
         );
-        this.registerSaverThreadRoutes(app, '/api/sessions/:profileId', async req =>
+        this.registerSaverThreadRoutes(app, '/api/profiles/:profileId', async req =>
             await this.resolveSessionSaver(await this.getWebSessionRowByProfileId(req.params.profileId as string))
         );
 

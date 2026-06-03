@@ -207,7 +207,7 @@ async function init() {
       apiFetch('/api/mcp'),
       apiFetch('/api/skills'),
       apiFetch('/api/about'),
-      apiFetch('/api/sessions'),
+      apiFetch('/api/profiles'),
     ])
     Object.assign(store.settings, settingsRes.data)
     // Convert sessions array to Record<id, SessionConfig>

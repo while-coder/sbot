@@ -68,7 +68,7 @@ export class VsCodeTransport implements IChatTransport {
   gitStatus(root: string): Promise<GitStatusResult> { return rpc('gitStatus', root) }
   gitDiff(root: string, path: string, fullContent = false): Promise<GitDiffResult> { return rpc('gitDiff', root, path, fullContent) }
 
-  getThinksUrlPrefix(profileId: string): string | null { return `/api/sessions/${encodeURIComponent(profileId)}/thinks` }
+  getThinksUrlPrefix(profileId: string): string | null { return `/api/profiles/${encodeURIComponent(profileId)}/thinks` }
   async fetchThinks(url: string): Promise<any> { return rpc('fetchThinks', url) }
 
   getRemotes(): Promise<RemoteEntry[]> { return rpc('getRemotes') }

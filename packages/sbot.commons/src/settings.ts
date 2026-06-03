@@ -78,7 +78,7 @@ export interface EmbeddingConfig {
 export enum InsightScope {
   Disabled = "disabled",
   Agent    = "agent",
-  Session  = "session",
+  Profile  = "profile",
 }
 
 export interface InsightConfig {
@@ -89,7 +89,7 @@ export interface InsightConfig {
 
 export enum TodoScope {
   Disabled = "disabled",
-  Session  = "session",
+  Profile  = "profile",
 }
 
 export interface TodoConfig {

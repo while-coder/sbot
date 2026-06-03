@@ -518,11 +518,11 @@ class Config {
   getAgentInsightsPath(agentName: string) {
     return this.getConfigPath(`agents/${agentName}/insights`, true)
   }
-  getSessionInsightsPath(sessionId: string) {
-    return this.getConfigPath(`sessions/${sessionId}/insights`, true)
+  getProfileInsightsPath(profileId: string) {
+    return this.getConfigPath(`profiles/${profileId}/insights`, true)
   }
-  getSessionTodoPath(sessionId: string) {
-    return this.getConfigPath(`sessions/${sessionId}/todos.json`)
+  getProfileTodoPath(profileId: string) {
+    return this.getConfigPath(`profiles/${profileId}/todos.json`)
   }
   getAgentMcpServers(agentName: string): MCPServers {
     const mcpConfigPath = this.getConfigPath(`agents/${agentName}/mcp.json`);

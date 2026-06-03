@@ -102,22 +102,22 @@ export class WebSocketTransport implements IChatTransport {
   // ── Sessions ──
 
   async listSessions(): Promise<SessionItem[]> {
-    const res = await this.api('/api/sessions')
+    const res = await this.api('/api/profiles')
     return res.data ?? res ?? []
   }
 
   async createSession(opts: CreateSessionOpts): Promise<{ id: string }> {
-    const res = await this.api('/api/settings/sessions', 'POST', opts)
+    const res = await this.api('/api/settings/profiles', 'POST', opts)
     return { id: res.id ?? res.data?.id }
   }
 
   async deleteSession(profileId: string): Promise<void> {
-    await this.api(`/api/sessions/${encodeURIComponent(profileId)}/history`, 'DELETE').catch(() => {})
-    await this.api(`/api/settings/sessions/${encodeURIComponent(profileId)}`, 'DELETE')
+    await this.api(`/api/profiles/${encodeURIComponent(profileId)}/history`, 'DELETE').catch(() => {})
+    await this.api(`/api/settings/profiles/${encodeURIComponent(profileId)}`, 'DELETE')
   }
 
   async updateSession(profileId: string, patch: Partial<SessionItem>): Promise<void> {
-    await this.api(`/api/settings/sessions/${encodeURIComponent(profileId)}`, 'PUT', patch)
+    await this.api(`/api/settings/profiles/${encodeURIComponent(profileId)}`, 'PUT', patch)
   }
 
   // ── Messages ──
@@ -132,12 +132,12 @@ export class WebSocketTransport implements IChatTransport {
   }
 
   async getHistory(profileId: string): Promise<StoredMessage[]> {
-    const res = await this.api(`/api/sessions/${encodeURIComponent(profileId)}/history`)
+    const res = await this.api(`/api/profiles/${encodeURIComponent(profileId)}/history`)
     return res.data ?? res ?? []
   }
 
   async clearHistory(profileId: string): Promise<void> {
-    await this.api(`/api/sessions/${encodeURIComponent(profileId)}/history`, 'DELETE')
+    await this.api(`/api/profiles/${encodeURIComponent(profileId)}/history`, 'DELETE')
   }
 
   // ── Usage ──
@@ -232,11 +232,11 @@ export class WebSocketTransport implements IChatTransport {
   // ── Thinks ──
 
   getThinksUrlPrefix(profileId: string): string | null {
-    return `${this._baseUrl}/api/sessions/${encodeURIComponent(profileId)}/thinks`
+    return `${this._baseUrl}/api/profiles/${encodeURIComponent(profileId)}/thinks`
   }
 
   getTasksUrlPrefix(profileId: string): string | null {
-    return `${this._baseUrl}/api/sessions/${encodeURIComponent(profileId)}/tasks`
+    return `${this._baseUrl}/api/profiles/${encodeURIComponent(profileId)}/tasks`
   }
 
   async fetchThinks(url: string): Promise<any> {

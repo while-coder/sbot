@@ -71,33 +71,33 @@ export class SbotClient {
   // ── Sessions ──
 
   async fetchSessions(): Promise<any[]> {
-    const res = await this.http.get('/api/sessions');
+    const res = await this.http.get('/api/profiles');
     return res.data.data ?? res.data ?? [];
   }
 
   async createSessionNew(opts: { agent: string; saver: string; memories?: string[]; wikis?: string[]; name?: string; workPath?: string }): Promise<{ id: string }> {
-    const res = await this.http.post('/api/settings/sessions', opts);
+    const res = await this.http.post('/api/settings/profiles', opts);
     return { id: res.data.data?.id ?? res.data.id };
   }
 
   async deleteSession(profileId: string): Promise<void> {
-    await this.http.delete(`/api/sessions/${encodeURIComponent(profileId)}/history`).catch(() => {});
-    await this.http.delete(`/api/settings/sessions/${encodeURIComponent(profileId)}`);
+    await this.http.delete(`/api/profiles/${encodeURIComponent(profileId)}/history`).catch(() => {});
+    await this.http.delete(`/api/settings/profiles/${encodeURIComponent(profileId)}`);
   }
 
   async updateSession(profileId: string, patch: Record<string, any>): Promise<void> {
-    await this.http.put(`/api/settings/sessions/${encodeURIComponent(profileId)}`, patch);
+    await this.http.put(`/api/settings/profiles/${encodeURIComponent(profileId)}`, patch);
   }
 
   // ── Messages ──
 
   async fetchHistory(profileId: string): Promise<any[]> {
-    const res = await this.http.get(`/api/sessions/${encodeURIComponent(profileId)}/history`);
+    const res = await this.http.get(`/api/profiles/${encodeURIComponent(profileId)}/history`);
     return res.data.data ?? res.data ?? [];
   }
 
   async clearHistory(profileId: string): Promise<void> {
-    await this.http.delete(`/api/sessions/${encodeURIComponent(profileId)}/history`);
+    await this.http.delete(`/api/profiles/${encodeURIComponent(profileId)}/history`);
   }
 
   // ── Usage ──

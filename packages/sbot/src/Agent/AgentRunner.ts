@@ -206,8 +206,8 @@ export class AgentRunner {
         const insightConfig = agentEntry.insight;
         if (!insightConfig || insightConfig.scope === InsightScope.Disabled) return;
 
-        const insightDir = insightConfig.scope === InsightScope.Session
-            ? config.getSessionInsightsPath(threadId)
+        const insightDir = insightConfig.scope === InsightScope.Profile
+            ? config.getProfileInsightsPath(threadId)
             : config.getAgentInsightsPath(agentName);
 
         const extractorModel = await config.getModelService(insightConfig.extractor, true);
@@ -233,7 +233,7 @@ export class AgentRunner {
         const todoConfig = agentEntry.todo;
         if (!todoConfig || todoConfig.scope === TodoScope.Disabled) return;
 
-        const filePath = config.getSessionTodoPath(threadId);
+        const filePath = config.getProfileTodoPath(threadId);
 
         const extractorModel = await config.getModelService(todoConfig.extractor, true);
         container.registerWithArgs(ITodoExtractor, TodoExtractor, {

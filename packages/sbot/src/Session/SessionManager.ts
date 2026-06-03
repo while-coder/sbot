@@ -34,7 +34,7 @@ class SbotSession extends SessionService {
     private channel?: ChannelSessionHandler;
 
     constructor(threadId: string, manager: SbotSessionManager) {
-        super(threadId, config.getConfigPath(`sessions/${threadId}/settings.json`));
+        super(threadId, config.getConfigPath(`profiles/${threadId}/settings.json`));
         this.manager = manager;
     }
 

@@ -386,7 +386,7 @@ defineExpose({ open })
         <SSelect v-model="form.insightScope">
           <option :value="InsightScope.Disabled">{{ t('agents.insight_disabled') }}</option>
           <option :value="InsightScope.Agent">{{ t('agents.insight_agent') }}</option>
-          <option :value="InsightScope.Session">{{ t('agents.insight_session') }}</option>
+          <option :value="InsightScope.Profile">{{ t('agents.insight_profile') }}</option>
         </SSelect>
       </SFormItem>
       <SFormItem
@@ -417,7 +417,7 @@ defineExpose({ open })
       <SFormItem :label="t('agents.todo_scope')" :hint="t('agents.todo_hint')">
         <SSelect v-model="form.todoScope">
           <option :value="TodoScope.Disabled">{{ t('agents.todo_disabled') }}</option>
-          <option :value="TodoScope.Session">{{ t('agents.todo_session') }}</option>
+          <option :value="TodoScope.Profile">{{ t('agents.todo_profile') }}</option>
         </SSelect>
       </SFormItem>
       <SFormItem

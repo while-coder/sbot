@@ -120,7 +120,7 @@ export class SettingsRoutes {
             createReturn: (id, body) => ({ id, ...body }),
             getSettings,
         });
-        app.get('/api/sessions', api(async () => {
+        app.get('/api/profiles', api(async () => {
             const rows = await database.findAll<ChannelSessionRow>(database.channelSession, {
                 where: { channelId: WEB_CHANNEL_ID },
                 order: [['createdAt', 'DESC']],
@@ -146,13 +146,13 @@ export class SettingsRoutes {
             return result;
         }));
 
-        app.post('/api/settings/sessions', api(async req => {
+        app.post('/api/settings/profiles', api(async req => {
             const sid = randomUUID();
             const { profile } = await channelDataService.createWebSession(WEB_CHANNEL_ID, sid, req.body);
             return { id: String(profile.id), profileId: String(profile.id) };
         }));
 
-        app.put('/api/settings/sessions/:id', api(async req => {
+        app.put('/api/settings/profiles/:id', api(async req => {
             const id = req.params.id as string;
             const existing = await channelDataService.getWebSessionByProfileId(id, WEB_CHANNEL_ID);
             if (!existing) throwBad(`Session "${id}" not found`);
@@ -160,7 +160,7 @@ export class SettingsRoutes {
             return { id: String(profileId), profileId: String(profileId) };
         }));
 
-        app.delete('/api/settings/sessions/:id', api(async req => {
+        app.delete('/api/settings/profiles/:id', api(async req => {
             const id = req.params.id as string;
             const existing = await channelDataService.getWebSessionByProfileId(id, WEB_CHANNEL_ID);
             if (!existing) return { success: true };

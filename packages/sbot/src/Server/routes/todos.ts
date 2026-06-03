@@ -7,15 +7,10 @@ import { api, throwBad } from '../utils';
 import type { RouteContext } from './types';
 
 export class TodoRoutes {
-    // 把 channel_session 行转换成 todo 文件实际写入时使用的 threadId（= String(profile.id)）
-    private sessionThreadId(s: ChannelSessionRow): string {
-        return String(s.profileId);
-    }
-
     private resolveTodoFilePath(profileId: string): string {
         const id = Number(profileId);
         if (!Number.isInteger(id) || id <= 0) throwBad('Invalid profileId');
-        return config.getSessionTodoPath(String(id));
+        return config.getProfileTodoPath(String(id));
     }
 
     register(app: express.Application, _ctx: RouteContext): void {
@@ -34,7 +29,7 @@ export class TodoRoutes {
             for (const s of sessions) {
                 if (seenProfileIds.has(s.profileId)) continue;
                 seenProfileIds.add(s.profileId);
-                const filePath = config.getSessionTodoPath(this.sessionThreadId(s));
+                const filePath = config.getProfileTodoPath(String(s.profileId));
                 try {
                     const buf = await fsp.readFile(filePath, 'utf-8');
                     const data = JSON.parse(buf);

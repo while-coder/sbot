@@ -177,7 +177,7 @@ export class SbotClient {
   /** Fetch sessions filtered by workPath */
   async fetchSessions(workPath: string): Promise<SessionItem[]> {
     const res = await this.http.get<{ data: SessionItem[] }>(
-      '/api/sessions', { params: { workPath } },
+      '/api/profiles', { params: { workPath } },
     );
     return res.data.data;
   }
@@ -191,7 +191,7 @@ export class SbotClient {
       workPath,
       name: workPath.replace(/[/\\]+$/, '').split(/[/\\]/).pop() || workPath,
     };
-    const res = await this.http.post<{ data: { id: string } }>('/api/settings/sessions', body);
+    const res = await this.http.post<{ data: { id: string } }>('/api/settings/profiles', body);
     return res.data.data.id;
   }
 
