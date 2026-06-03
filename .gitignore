@@ -4,3 +4,4 @@
 /.sbot
 dev-dist
 tsconfig.tsbuildinfo
+/docs

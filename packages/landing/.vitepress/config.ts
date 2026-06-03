@@ -4,7 +4,7 @@ export default defineConfig({
   title: 'sbot',
   description: 'Self-hosted AI Agent Server',
   outDir: '../../docs',
-  base: '/',
+  base: '/sbot/',
   head: [
     ['link', { rel: 'icon', href: '/logo.svg' }],
   ],
