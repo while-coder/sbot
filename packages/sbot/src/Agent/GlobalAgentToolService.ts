@@ -45,11 +45,11 @@ export function initGlobalAgentToolService() {
         const { createTimeTool } = await import("../Tools/Time/index.js");
         return [createTimeTool()];
     }, '获取当前时间');
-    // Scheduler 在全局服务里只用 preview 占位 sessionId 注册，仅供 admin 展示工具 schema；
-    // 实际运行时会被 AgentFactory.SESSION_TOOL_CREATORS 用真 dbSessionId 单独注册到 per-agent 的 ToolService 上。
+    // Scheduler 在全局服务里只用 preview 占位 ID 注册，仅供 admin 展示工具 schema；
+    // 实际运行时会被 AgentFactory.SESSION_TOOL_CREATORS 用真 channelSessionId/profileId 单独注册到 per-agent 的 ToolService 上。
     globalAgentToolService.registerToolFactory(BuiltinProvider.Scheduler, async (_params) => {
-        const { createSchedulerTools, PREVIEW_TARGET_ID } = await import("../Tools/Scheduler/index.js");
-        return createSchedulerTools(PREVIEW_TARGET_ID);
+        const { createSchedulerTools } = await import("../Tools/Scheduler/index.js");
+        return createSchedulerTools(0, 0);
     }, '定时任务调度');
     globalAgentToolService.registerToolFactory(BuiltinProvider.SessionSearch, async (_params) => {
         const { createSessionSearchTool } = await import("../Tools/SessionSearch/index.js");

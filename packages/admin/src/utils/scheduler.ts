@@ -5,7 +5,8 @@ export interface SchedulerRow {
   id: number
   expr: string
   message: string
-  targetId: string | null
+  channelSessionId: number
+  profileId: number
   aiProcess: boolean
   lastRun: number | null
   nextRun: number | null

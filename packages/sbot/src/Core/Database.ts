@@ -21,7 +21,8 @@ export type SchedulerRow = {
   id: number;
   expr: string;                    // cron 表达式，如 "0 9 * * *"
   message: string;                 // 消息文本
-  targetId: string;                // channel_session.id (string)
+  channelSessionId: number;        // 投递目标 channel_session.id；session 失效时会在 profile 内自愈
+  profileId: number;               // 归属 profile（= 创建时所在 thread）；list/delete/触发配置都按它
   aiProcess: boolean;              // true=交给AI处理后回复, false=直接发送原文不经AI
   lastRun: number | null;          // 上次执行时间戳
   nextRun: number | null;          // 下次预计执行时间戳
@@ -555,11 +556,17 @@ class Database {
           defaultValue: "",
           comment: "发送的文字消息",
         },
-        targetId: {
-          type: DataTypes.TEXT,
+        channelSessionId: {
+          type: DataTypes.INTEGER,
           allowNull: false,
-          defaultValue: "",
-          comment: "目标 channel_session.id",
+          defaultValue: 0,
+          comment: "投递目标 channel_session.id（自愈：失效时按 profileId 找替代）",
+        },
+        profileId: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
+          comment: "归属 SessionProfile.id（创建时所在 thread）",
         },
         aiProcess: {
           type: DataTypes.BOOLEAN,
@@ -804,6 +811,39 @@ class Database {
     }
   }
 
+  /**
+   * scheduler 表旧版本字段是 targetId(TEXT)，存 channel_session.id 的字符串形式。
+   * 新版本拆为 channelSessionId(INT) + profileId(INT)。
+   * 在 sync({alter:true}) 重建表丢列之前，把数据搬过去。
+   * 已迁移的库（没 targetId 列）跳过。
+   */
+  private async migrateSchedulerColumns() {
+    const [cols] = await this.sequelize.query("PRAGMA table_info(scheduler)") as [any[], any];
+    const names = new Set(cols.map((c: any) => c.name));
+    if (!names.has("targetId")) return;
+
+    if (!names.has("channelSessionId")) {
+      await this.sequelize.query("ALTER TABLE scheduler ADD COLUMN channelSessionId INTEGER NOT NULL DEFAULT 0");
+    }
+    if (!names.has("profileId")) {
+      await this.sequelize.query("ALTER TABLE scheduler ADD COLUMN profileId INTEGER NOT NULL DEFAULT 0");
+    }
+    await this.sequelize.query(`
+      UPDATE scheduler
+      SET channelSessionId = CAST(targetId AS INTEGER)
+      WHERE channelSessionId = 0 AND targetId != ''
+    `);
+    await this.sequelize.query(`
+      UPDATE scheduler
+      SET profileId = COALESCE(
+        (SELECT cs.profileId FROM channel_session cs WHERE cs.id = scheduler.channelSessionId),
+        0
+      )
+      WHERE profileId = 0 AND channelSessionId > 0
+    `);
+    logger.info("Scheduler table migrated: targetId -> channelSessionId + profileId");
+  }
+
   async sync() {
     return this.withLock(async () => {
       await this.state.sync({ alter: true });
@@ -820,6 +860,9 @@ class Database {
       await this.channelUser.sync({ alter });
       await this.sessionProfile.sync({ alter });
       await this.channelSession.sync({ alter });
+      // scheduler 旧 schema 把 channel_session.id 存在 targetId(TEXT) 里。
+      // 新 schema 拆成 channelSessionId(INT) + profileId(INT)。在 sync 重建表前先迁移数据。
+      await this.migrateSchedulerColumns();
       await this.scheduler.sync({ alter });
       await this.usageLogs.sync({ alter });
       await this.heartbeat.sync({ alter });

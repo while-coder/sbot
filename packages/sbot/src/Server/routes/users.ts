@@ -2,6 +2,7 @@ import express from 'express';
 import { config } from '../../Core/Config';
 import { database, getChannelSession, getSessionProfile, getEffectiveSession, type ChannelSessionRow, type SessionProfileRow } from '../../Core/Database';
 import { channelManager } from '../../Channel/ChannelManager';
+import { schedulerService } from '../../Scheduler/SchedulerService';
 import { api, throwBad } from '../utils';
 import type { RouteContext } from './types';
 
@@ -158,6 +159,13 @@ export class UserRoutes {
         app.delete('/api/channel-sessions/:id', api(async req => {
             const id = parseInt(req.params.id as string, 10);
             if (isNaN(id)) throwBad('Invalid id');
+            // auto profile 会被级联删 —— 上面挂的 scheduler 也跟着销毁
+            const auto = await database.findOne<SessionProfileRow>(database.sessionProfile, { where: { autoForSessionId: id } });
+            if (auto) {
+                const rows = await database.findAll<{ id: number }>(database.scheduler, { where: { profileId: auto.id } });
+                for (const r of rows) await schedulerService.delete(r.id);
+                await database.destroy(database.scheduler, { where: { profileId: auto.id } });
+            }
             // 级联删除该 session 的 auto profile（visible profile 不删）
             await database.destroy(database.sessionProfile, { where: { autoForSessionId: id } });
             await database.destroy(database.channelSession, { where: { id } });
@@ -230,6 +238,10 @@ export class UserRoutes {
             if (profile!.autoForSessionId != null) throwBad('Cannot delete an auto profile directly');
             const refCount = await database.count(database.channelSession, { where: { profileId: id } });
             if (refCount > 0) throwBad(`Profile id=${id} is still referenced by ${refCount} session(s)`);
+            // 级联删除 profile 名下的 scheduler（取消 cron + 删行）
+            const schedRows = await database.findAll<{ id: number }>(database.scheduler, { where: { profileId: id } });
+            for (const r of schedRows) await schedulerService.delete(r.id);
+            await database.destroy(database.scheduler, { where: { profileId: id } });
             await database.destroy(database.sessionProfile, { where: { id } });
         }));
 

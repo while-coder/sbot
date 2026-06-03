@@ -9,7 +9,7 @@ import { SCHEDULER_DELETE_TOOL_NAME } from './index';
 
 const logger = LoggerService.getLogger('Tools/Scheduler/delete.ts');
 
-export function createSchedulerDeleteTool(targetId: string): StructuredToolInterface {
+export function createSchedulerDeleteTool(profileId: number): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: SCHEDULER_DELETE_TOOL_NAME,
         description: loadPrompt('tools/scheduler/delete.txt'),
@@ -20,10 +20,10 @@ export function createSchedulerDeleteTool(targetId: string): StructuredToolInter
             try {
                 const existing = await database.findByPk<SchedulerRow>(database.scheduler, id);
                 if (!existing) return createErrorResult(`Scheduled task id=${id} not found`);
-                const ex = existing as any;
-                if (ex.targetId !== targetId) {
+                const ex = existing as SchedulerRow;
+                if (ex.profileId !== profileId) {
                     return createErrorResult(
-                        `Permission denied: task id=${id} does not belong to current session (targetId=${targetId})`
+                        `Permission denied: task id=${id} does not belong to current thread (profileId=${profileId})`
                     );
                 }
                 await schedulerService.delete(id);

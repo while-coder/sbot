@@ -22,9 +22,10 @@ const loading      = ref(false)
 const all          = ref<SchedulerRow[]>([])
 
 const filtered = computed(() => {
-  if (dbSessionId.value == null) return []
-  const target = String(dbSessionId.value)
-  return all.value.filter(r => r.targetId === target)
+  // scheduler 按 profileId 绑（同 profile 的所有 session 共享视图）
+  const pid = profileIdRef.value ? Number(profileIdRef.value) : null
+  if (!pid) return []
+  return all.value.filter(r => r.profileId === pid)
 })
 
 function formatTime(ts: number | null): string {
@@ -40,8 +41,12 @@ async function load() {
       apiFetch('/api/channel-sessions'),
     ])
     all.value = timersRes.data || []
-    if (dbSessionId.value == null && profileIdRef.value) {
-      const sessions: ChannelSessionRow[] = sessionsRes.data || []
+    const sessions: ChannelSessionRow[] = sessionsRes.data || []
+    // 任一入口都最终归位到 profileId 上做过滤
+    if (profileIdRef.value == null && dbSessionId.value != null) {
+      const row = sessions.find(s => s.id === dbSessionId.value)
+      profileIdRef.value = row ? String(row.profileId) : null
+    } else if (dbSessionId.value == null && profileIdRef.value) {
       const row = sessions.find(s => String(s.profileId) === profileIdRef.value)
       dbSessionId.value = row?.id ?? null
     }

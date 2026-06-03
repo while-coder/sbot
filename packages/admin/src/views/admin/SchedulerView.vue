@@ -50,7 +50,7 @@ const showModal = ref(false)
 const editingId = ref<number | null>(null)
 const form = ref({
   message: '',
-  targetId: null as number | null,
+  channelSessionId: null as number | null,
   aiProcess: true,
 })
 
@@ -58,7 +58,7 @@ function openEdit(row: SchedulerRow) {
   editingId.value = row.id
   form.value = {
     message: row.message || '',
-    targetId: row.targetId != null ? parseInt(row.targetId) : null,
+    channelSessionId: row.channelSessionId || null,
     aiProcess: Boolean(row.aiProcess),
   }
   showModal.value = true
@@ -68,11 +68,11 @@ async function save() {
   const id = editingId.value
   if (id == null) return
   if (!form.value.message.trim()) { show(t('scheduler.message_required'), 'error'); return }
-  if (form.value.targetId == null) { show(t('scheduler.target_required'), 'error'); return }
+  if (form.value.channelSessionId == null) { show(t('scheduler.target_required'), 'error'); return }
   try {
     await apiFetch(`/api/schedulers/${id}`, 'PUT', {
       message: form.value.message.trim(),
-      targetId: String(form.value.targetId),
+      channelSessionId: form.value.channelSessionId,
       aiProcess: form.value.aiProcess,
     })
     show(t('common.saved'))
@@ -98,18 +98,17 @@ const columns = computed<STableColumn[]>(() => [
 interface TargetInfo { text: string; title: string; mapped: boolean; placeholder: boolean }
 
 function targetInfo(row: SchedulerRow): TargetInfo {
-  if (row.targetId == null) {
+  if (!row.channelSessionId) {
     const text = t('scheduler.target_global')
     return { text, title: text, mapped: false, placeholder: true }
   }
-  const id = parseInt(row.targetId)
-  const s = channelSessions.value.find(s => s.id === id)
+  const s = channelSessions.value.find(s => s.id === row.channelSessionId)
   if (s) {
     const name = s.sessionName || s.autoSessionName || s.sessionId
     const channelName = store.settings.channels?.[s.channelId]?.name || s.channelId
     return { text: `[${channelName}] ${name}`, title: s.sessionId, mapped: true, placeholder: false }
   }
-  return { text: `#${row.targetId}`, title: row.targetId, mapped: false, placeholder: false }
+  return { text: `#${row.channelSessionId}`, title: String(row.channelSessionId), mapped: false, placeholder: false }
 }
 
 async function load() {
@@ -262,7 +261,7 @@ onUnmounted(() => {
         <textarea v-model="form.message" class="sched-textarea" rows="4" spellcheck="false" />
       </SFormItem>
       <SFormItem :label="t('scheduler.target_col') + ' *'">
-        <SSelect :model-value="form.targetId ?? ''" @update:model-value="form.targetId = $event === '' ? null : Number($event)">
+        <SSelect :model-value="form.channelSessionId ?? ''" @update:model-value="form.channelSessionId = $event === '' ? null : Number($event)">
           <option value="" disabled>--</option>
           <optgroup v-for="g in groupedSessions" :key="g.channelId" :label="g.channelName">
             <option v-for="s in g.sessions" :key="s.id" :value="s.id">
