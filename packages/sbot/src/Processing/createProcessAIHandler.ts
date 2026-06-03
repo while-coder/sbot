@@ -27,7 +27,7 @@ export function createProcessAIHandler(): ProcessAIHandler {
 
         const agentId = resolved.agentId;
         const saverId = resolved.saver;
-        const memories = resolved.memories;
+        const notes = resolved.notes;
         const wikis = resolved.wikis;
         const workPath = resolved.workPath;
         const autoApproveAllTools = resolved.autoApproveAllTools ?? false;
@@ -105,7 +105,7 @@ export function createProcessAIHandler(): ProcessAIHandler {
             threadId,
             dbSessionId: String(dbSessionId),
             extraInfo: args?.extraInfo ?? '',
-            memories,
+            notes,
             wikis,
             workPath,
             agentTools,

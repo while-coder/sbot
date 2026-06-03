@@ -1,64 +1,64 @@
 import { v4 as uuidv4 } from "uuid";
-import { inject, T_MemorySystemPromptTemplate, T_MemoryToolDescs, formatTimeAgo } from "../../Core";
-import { MemoryResult } from "../types";
-import { IMemoryDatabase } from "../Storage/IMemoryDatabase";
-import { Memory } from "../types";
-import { IMemoryService } from "./IMemoryService";
+import { inject, T_NoteSystemPromptTemplate, T_NoteToolDescs, formatTimeAgo } from "../../Core";
+import { NoteResult } from "../types";
+import { INoteDatabase } from "../Storage/INoteDatabase";
+import { Note } from "../types";
+import { INoteService } from "./INoteService";
 import { IEmbeddingService } from "../../Embedding";
 import { ILoggerService, ILogger } from "../../Logger";
 import { CharacterTextSplitter } from "@langchain/textsplitters";
-import { MemoryToolDescs } from "../Tools/MemoryToolProvider";
+import { NoteToolDescs } from "../Tools/NoteToolProvider";
 
-export class MemoryService implements IMemoryService {
+export class NoteService implements INoteService {
   private logger?: ILogger;
 
   constructor(
-    @inject(IMemoryDatabase) private db: IMemoryDatabase,
+    @inject(INoteDatabase) private db: INoteDatabase,
     @inject(IEmbeddingService) private embeddings: IEmbeddingService,
-    @inject(T_MemorySystemPromptTemplate) private systemPromptTemplate: string,
-    @inject(T_MemoryToolDescs) private toolDescs: MemoryToolDescs,
+    @inject(T_NoteSystemPromptTemplate) private systemPromptTemplate: string,
+    @inject(T_NoteToolDescs) private toolDescs: NoteToolDescs,
     @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
   ) {
-    this.logger = loggerService?.getLogger("MemoryService");
+    this.logger = loggerService?.getLogger("NoteService");
   }
 
-  getToolDescs(): MemoryToolDescs {
+  getToolDescs(): NoteToolDescs {
     return this.toolDescs;
   }
 
   async getSystemMessage(query: string): Promise<string | null> {
-    const memoryLimit = 10;
-    const results = await this.getMemories(query, memoryLimit);
+    const noteLimit = 10;
+    const results = await this.getNotes(query, noteLimit);
     if (results.length === 0) return null;
     const items = results
-      .map(({ memory: m }) => `  <memory time="${formatTimeAgo(m.createdAt)}">${m.content}</memory>`)
+      .map(({ note: n }) => `  <note time="${formatTimeAgo(n.createdAt)}">${n.content}</note>`)
       .join("\n");
     return this.systemPromptTemplate.replace('{items}', items);
   }
 
   // ── Read ───────────────────────────────────────────────────────────────────
 
-  async getMemories(query: string, limit: number = 10): Promise<MemoryResult[]> {
+  async getNotes(query: string, limit: number = 10): Promise<NoteResult[]> {
     try {
       const queryEmbedding = await this.embeddings.embedQuery(query);
       const results = await this.db.searchWithTimeDecay(queryEmbedding, Date.now(), 0.995, limit);
       for (const result of results) {
-        await this.db.updateAccess(result.memory.id);
+        await this.db.updateAccess(result.note.id);
       }
       return results;
     } catch (error: any) {
-      this.logger?.warn(`Failed to retrieve memories: ${error.message}`);
+      this.logger?.warn(`Failed to retrieve notes: ${error.message}`);
       return [];
     }
   }
 
-  async getAllMemories(): Promise<Memory[]> {
-    return this.db.getAllMemories();
+  async getAllNotes(): Promise<Note[]> {
+    return this.db.getAllNotes();
   }
 
   // ── Write ──────────────────────────────────────────────────────────────────
 
-  async addMemoryDirect(content: string, options?: { autoSplit?: boolean; chunkSize?: number }): Promise<string[]> {
+  async addNoteDirect(content: string, options?: { autoSplit?: boolean; chunkSize?: number }): Promise<string[]> {
     const shouldSplit = options?.autoSplit !== false;
     const chunkSize = options?.chunkSize && options.chunkSize > 0 ? options.chunkSize : 500;
     const chunkOverlap = Math.min(50, Math.floor(chunkSize / 10));
@@ -68,27 +68,27 @@ export class MemoryService implements IMemoryService {
     const embeddings = await this.embeddings.embedDocuments(chunks);
     const ids: string[] = [];
     for (let i = 0; i < chunks.length; i++) {
-      ids.push(await this.addMemory(chunks[i], embeddings[i]));
+      ids.push(await this.addNote(chunks[i], embeddings[i]));
     }
     return ids;
   }
 
-  async updateMemoryDirect(memoryId: string, content: string): Promise<void> {
+  async updateNoteDirect(noteId: string, content: string): Promise<void> {
     const trimmed = content.trim();
     if (!trimmed) throw new Error("content is required");
     const [embedding] = await this.embeddings.embedDocuments([trimmed]);
-    await this.db.updateMemory(memoryId, trimmed, embedding);
+    await this.db.updateNote(noteId, trimmed, embedding);
   }
 
   // ── Maintenance ────────────────────────────────────────────────────────────
 
-  async deleteMemory(memoryId: string): Promise<void> {
-    await this.db.deleteMemory(memoryId);
+  async deleteNote(noteId: string): Promise<void> {
+    await this.db.deleteNote(noteId);
   }
 
   async clearAll(): Promise<number> {
-    const count = await this.db.clearMemories();
-    this.logger?.info(`Cleared ${count} memories`);
+    const count = await this.db.clearNotes();
+    this.logger?.info(`Cleared ${count} notes`);
     return count;
   }
 
@@ -100,17 +100,17 @@ export class MemoryService implements IMemoryService {
 
   // ── Private ────────────────────────────────────────────────────────────────
 
-  private async addMemory(
+  private async addNote(
     content: string,
     embedding: number[]
   ): Promise<string> {
     const duplicate = await this.db.findDuplicate(embedding, 0.85);
-    if (duplicate && duplicate.memory.content === content) {
-      await this.db.updateAccess(duplicate.memory.id);
-      return duplicate.memory.id;
+    if (duplicate && duplicate.note.content === content) {
+      await this.db.updateAccess(duplicate.note.id);
+      return duplicate.note.id;
     }
 
-    const memory: Memory = {
+    const note: Note = {
       id: uuidv4(),
       content,
       embedding,
@@ -119,7 +119,7 @@ export class MemoryService implements IMemoryService {
       lastAccessed: Date.now(),
     };
 
-    await this.db.insertMemory(memory);
-    return memory.id;
+    await this.db.insertNote(note);
+    return note.id;
   }
 }

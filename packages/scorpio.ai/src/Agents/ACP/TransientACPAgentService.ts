@@ -2,7 +2,7 @@ import type * as schema from "@agentclientprotocol/sdk";
 import { inject } from "../../Core";
 import { IAgentSaverService } from "../../Saver";
 import { ILoggerService } from "../../Logger";
-import { IMemoryService } from "../../Memory";
+import { INoteService } from "../../Note";
 import type { MessageContent } from "../../Saver/IAgentSaverService";
 import { ACPAgentServiceBase, T_ACPCommand, T_ACPArgs, T_ACPEnv, T_ACPWorkPath, T_ACPInitTimeout } from "./ACPAgentServiceBase";
 
@@ -15,9 +15,9 @@ export class TransientACPAgentService extends ACPAgentServiceBase {
         @inject(T_ACPEnv, { optional: true }) env?: Record<string, string>,
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
         @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
-        @inject(IMemoryService, { optional: true }) memoryServices?: IMemoryService[],
+        @inject(INoteService, { optional: true }) noteServices?: INoteService[],
     ) {
-        super(command, args, workPath, env, initTimeoutMs, loggerService, agentSaver, memoryServices);
+        super(command, args, workPath, env, initTimeoutMs, loggerService, agentSaver, noteServices);
     }
 
     protected override async preparePrompt(query: MessageContent): Promise<schema.ContentBlock[]> {

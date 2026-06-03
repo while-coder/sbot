@@ -1,0 +1,8 @@
+---
+vars:
+  items: 格式化的笔记条目列表
+---
+<user-notes>
+{items}
+</user-notes>
+Refer to the above notes when relevant to personalise your responses.

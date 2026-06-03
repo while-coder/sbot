@@ -6,7 +6,7 @@
  * - Core: 通用 Token
  * - Model: LLM 模型服务
  * - Embedding: 文本嵌入服务
- * - Memory: 长期记忆系统
+ * - Note: 笔记/资料库系统（向量检索）
  * - Saver: Agent 状态持久化
  * - Skills: 技能系统
  * - Command: 命令系统（装饰器、解析器）
@@ -58,7 +58,7 @@ export {
   T_SkillToolReadDesc,
   T_SkillToolListDesc,
   T_SkillToolExecDesc,
-  T_MemorySystemPromptTemplate,
+  T_NoteSystemPromptTemplate,
   T_InsightDir,
   T_InsightLimit,
   T_InsightStaleDays,
@@ -71,7 +71,7 @@ export {
   T_PostCompactMessageTemplate,
   T_PostCompactContinuation,
   T_MaxHistoryRounds,
-  T_MemoryToolDescs,
+  T_NoteToolDescs,
   T_WikiToolDescs,
   T_MCPUtilityToolDescs,
   T_TodoFilePath,
@@ -122,24 +122,24 @@ export {
 } from "./Embedding";
 
 // ========================================
-// Memory - 记忆系统
+// Note - 笔记/资料库系统
 // ========================================
 export {
   // 接口 + Symbol Token
-  IMemoryService,
+  INoteService,
 
   // 实现类
-  MemoryService,
+  NoteService,
 
   // 存储层
-  IMemoryDatabase,
-  MemorySqliteDatabase,
+  INoteDatabase,
+  NoteSqliteDatabase,
 
   // 类型定义
-  Memory,
-  MEMORY_SEARCH_TOOL_NAME,
-  type MemoryToolDescs,
-} from "./Memory";
+  Note,
+  NOTE_SEARCH_TOOL_NAME,
+  type NoteToolDescs,
+} from "./Note";
 
 // ========================================
 // Wiki - 知识库系统

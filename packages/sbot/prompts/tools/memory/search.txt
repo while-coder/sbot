@@ -1,1 +1,0 @@
-Search long-term memory using semantic similarity. Use this to recall past conversations, user preferences, or previously learned facts.

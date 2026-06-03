@@ -94,45 +94,45 @@ export class DataRoutes {
             await this.resolveSessionSaver(await this.getWebSessionRowByProfileId(req.params.profileId as string))
         );
 
-        // ── Memories ──
-        app.get('/api/memories/:memoryName', api(async req => {
-            const svc = await AgentRunner.createMemoryService(req.params.memoryName as string);
-            const memories = (await svc.getAllMemories()).map(m => ({
-                id: m.id,
-                content: m.content,
-                createdAt: m.createdAt,
-                lastAccessed: m.lastAccessed,
-                accessCount: m.accessCount,
+        // ── Notes ──
+        app.get('/api/notes/:noteName', api(async req => {
+            const svc = await AgentRunner.createNoteService(req.params.noteName as string);
+            const notes = (await svc.getAllNotes()).map(n => ({
+                id: n.id,
+                content: n.content,
+                createdAt: n.createdAt,
+                lastAccessed: n.lastAccessed,
+                accessCount: n.accessCount,
             }));
             await svc.dispose();
-            return memories;
+            return notes;
         }));
 
-        app.post('/api/memories/:memoryName/add', api(async req => {
+        app.post('/api/notes/:noteName/add', api(async req => {
             const { content, autoSplit, chunkSize } = req.body as { content?: string; autoSplit?: boolean; chunkSize?: number };
             if (!content?.trim()) { const e: any = new Error('content is required'); e.status = 400; throw e; }
-            const svc = await AgentRunner.createMemoryService(req.params.memoryName as string);
-            const ids = await svc.addMemoryDirect(content.trim(), { autoSplit, chunkSize });
+            const svc = await AgentRunner.createNoteService(req.params.noteName as string);
+            const ids = await svc.addNoteDirect(content.trim(), { autoSplit, chunkSize });
             await svc.dispose();
             return { ids };
         }));
 
-        app.put('/api/memories/:memoryName/:memoryId', api(async req => {
+        app.put('/api/notes/:noteName/:noteId', api(async req => {
             const { content } = req.body as { content?: string };
             if (!content?.trim()) { const e: any = new Error('content is required'); e.status = 400; throw e; }
-            const svc = await AgentRunner.createMemoryService(req.params.memoryName as string);
-            await svc.updateMemoryDirect(req.params.memoryId as string, content.trim());
+            const svc = await AgentRunner.createNoteService(req.params.noteName as string);
+            await svc.updateNoteDirect(req.params.noteId as string, content.trim());
             await svc.dispose();
         }));
 
-        app.delete('/api/memories/:memoryName/:memoryId', api(async req => {
-            const svc = await AgentRunner.createMemoryService(req.params.memoryName as string);
-            await svc.deleteMemory(req.params.memoryId as string);
+        app.delete('/api/notes/:noteName/:noteId', api(async req => {
+            const svc = await AgentRunner.createNoteService(req.params.noteName as string);
+            await svc.deleteNote(req.params.noteId as string);
             await svc.dispose();
         }));
 
-        app.delete('/api/memories/:memoryName', api(async req => {
-            const svc = await AgentRunner.createMemoryService(req.params.memoryName as string);
+        app.delete('/api/notes/:noteName', api(async req => {
+            const svc = await AgentRunner.createNoteService(req.params.noteName as string);
             const count = await svc.clearAll();
             await svc.dispose();
             return { count };

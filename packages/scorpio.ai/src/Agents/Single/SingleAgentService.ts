@@ -5,7 +5,7 @@ import { IModelService } from "../../Model";
 import { ISkillService } from "../../Skills";
 import { IInsightService } from "../../Insight";
 import { ITodoService, TodoToolProvider } from "../../Todo";
-import { IMemoryService, MemoryToolProvider } from "../../Memory";
+import { INoteService, NoteToolProvider } from "../../Note";
 import { IWikiService } from "../../Wiki";
 import { WikiToolProvider } from "../../Wiki";
 import { IAgentSaverService } from "../../Saver";
@@ -74,12 +74,12 @@ export class SingleAgentService extends AgentServiceBase {
         @inject(IInsightService, { optional: true }) insightService?: IInsightService,
         @inject(ITodoService, { optional: true }) todoService?: ITodoService,
         @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
-        @inject(IMemoryService, { optional: true }) memoryServices?: IMemoryService[],
+        @inject(INoteService, { optional: true }) noteServices?: INoteService[],
         @inject(IWikiService, { optional: true }) wikiServices?: IWikiService[],
         @inject(T_ModelCallTimeout, { optional: true }) modelCallTimeout?: number,
         @inject(IConversationCompactor, { optional: true }) compactor?: ConversationCompactor,
     ) {
-        super(loggerService, agentSaver, memoryServices, wikiServices);
+        super(loggerService, agentSaver, noteServices, wikiServices);
         this.modelService = modelService;
         this.skillService = skillService;
         this.insightService = insightService;
@@ -114,9 +114,9 @@ export class SingleAgentService extends AgentServiceBase {
             if (insightMessage) dynamicParts.push(insightMessage);
         }
 
-        if (this.memoryServices.length > 0) {
-            const memoryMessages = await Promise.all(this.memoryServices.map(mem => mem.getSystemMessage(queryText)));
-            for (const msg of memoryMessages) {
+        if (this.noteServices.length > 0) {
+            const noteMessages = await Promise.all(this.noteServices.map(n => n.getSystemMessage(queryText)));
+            for (const msg of noteMessages) {
                 if (msg) dynamicParts.push(msg);
             }
         }
@@ -136,13 +136,13 @@ export class SingleAgentService extends AgentServiceBase {
     }
 
     /**
-     * 构建本轮所有可用工具（toolService + 记忆 + skill）
+     * 构建本轮所有可用工具（toolService + 笔记 + skill）
      */
     protected async buildTools(_callback?: IAgentCallback, _signal?: AbortSignal): Promise<StructuredToolInterface[]> {
         const tools: StructuredToolInterface[] = await this.toolService?.getAllTools() ?? [];
         if (this.skillService) tools.push(...this.skillService.getTools());
-        if (this.memoryServices.length > 0) {
-            tools.push(...MemoryToolProvider.getTools(this.memoryServices));
+        if (this.noteServices.length > 0) {
+            tools.push(...NoteToolProvider.getTools(this.noteServices));
         }
         if (this.wikiServices.length > 0) {
             tools.push(...WikiToolProvider.getTools(this.wikiServices));

@@ -3,7 +3,7 @@ import { MCPContentType } from "../../Tools/types";
 import { IModelService } from "../../Model";
 import { IAgentSaverService } from "../../Saver";
 import { ILoggerService } from "../../Logger";
-import { IMemoryService } from "../../Memory";
+import { INoteService } from "../../Note";
 import { AgentServiceBase, IAgentCallback, AgentCancelledError, ChatMessage, MessageRole } from "../AgentServiceBase";
 
 import type { MessageContent } from "../../Saver/IAgentSaverService";
@@ -14,7 +14,7 @@ const DEFAULT_MAX_HISTORY_ROUNDS = 5;
 
 /**
  * 纯生成式 Agent（图片/音频/视频等）
- * 无工具循环、无 system message 构建、无 memory/wiki 保存，单次模型调用后直接返回。
+ * 无工具循环、无 system message 构建、无 note/wiki 保存，单次模型调用后直接返回。
  * 使用滑动窗口保留最近 N 轮对话，避免二进制数据（图片/音频）撑爆 context window。
  */
 export class GenerativeAgentService extends AgentServiceBase {
@@ -29,10 +29,10 @@ export class GenerativeAgentService extends AgentServiceBase {
         @inject(T_DynamicSystemPrompts, { optional: true }) dynamicSystemPrompts?: string[],
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
         @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
-        @inject(IMemoryService, { optional: true }) memoryServices?: IMemoryService[],
+        @inject(INoteService, { optional: true }) noteServices?: INoteService[],
         @inject(T_MaxHistoryRounds, { optional: true }) maxHistoryRounds?: number,
     ) {
-        super(loggerService, agentSaver, memoryServices);
+        super(loggerService, agentSaver, noteServices);
         this.modelService = modelService;
         this.staticSystemPrompts = staticSystemPrompts ?? [];
         this.dynamicSystemPrompts = dynamicSystemPrompts ?? [];

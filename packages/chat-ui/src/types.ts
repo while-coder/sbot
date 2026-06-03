@@ -11,7 +11,7 @@ export interface SessionItem {
   name?: string
   agent: string
   saver: string
-  memories: string[]
+  notes: string[]
   wikis?: string[]
   workPath?: string
   autoApproveAllTools?: boolean
@@ -19,7 +19,7 @@ export interface SessionItem {
 
 export interface AgentOption { id: string; name?: string }
 export interface SaverOption { id: string; name: string }
-export interface MemoryOption { id: string; name: string }
+export interface NoteOption { id: string; name: string }
 
 // ── Message types ──
 
@@ -151,7 +151,7 @@ export interface ChatLabels {
   storage?: string
   workpath?: string
   workpathPlaceholder?: string
-  memory?: string
+  note?: string
   wiki?: string
   autoApproveAll?: string
   useChannelDefault?: string
@@ -267,7 +267,7 @@ export interface WikiOption { id: string; name: string }
 export interface CreateSessionOpts {
   agent?: string
   saver?: string
-  memories?: string[]
+  notes?: string[]
   wikis?: string[]
   name?: string
   workPath?: string
@@ -424,7 +424,7 @@ export interface GitDiffResult {
 export interface AppSettings {
   agents: Record<string, { name?: string; type?: string; model?: string }>
   savers: Record<string, { name: string }>
-  memories: Record<string, { name: string; share?: boolean }>
+  notes: Record<string, { name: string; share?: boolean }>
   wikis: Record<string, { name: string }>
   models?: Record<string, { contextWindow?: number }>
 }

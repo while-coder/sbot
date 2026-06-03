@@ -36,7 +36,7 @@ const { confirm } = useConfirm()
 
 const sessions          = ref<SessionItem[]>([])
 const activeProfileId   = ref<string | null>(null)
-const settings          = ref<AppSettings>({ agents: {}, savers: {}, memories: {}, wikis: {} })
+const settings          = ref<AppSettings>({ agents: {}, savers: {}, notes: {}, wikis: {} })
 
 const messages          = ref<StoredMessage[]>([])
 const isStreaming       = ref(false)

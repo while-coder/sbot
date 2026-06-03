@@ -5,14 +5,14 @@ import { ApprovalTimeoutValue } from 'sbot.commons'
 
 /**
  * profile 上的可覆盖配置字段。null = 跟随 ChannelConfig 默认值。
- * memories/wikis 使用数组形式（提交时父组件负责 JSON.stringify）。
+ * notes/wikis 使用数组形式（提交时父组件负责 JSON.stringify）。
  */
 export interface SessionOverrides {
   agentId: string | null
   saver: string | null
-  memories: string[] | null
+  notes: string[] | null
   wikis: string[] | null
-  useChannelMemories: boolean | null
+  useChannelNotes: boolean | null
   useChannelWikis: boolean | null
   workPath: string | null
   streamVerbose: boolean | null
@@ -37,7 +37,7 @@ const props = defineProps<{
   resolved?: Partial<Record<keyof SessionOverrides, any>>
   agentOptions: Option[]
   saverOptions: Option[]
-  memoryOptions: Option[]
+  noteOptions: Option[]
   wikiOptions: Option[]
   modelOptions: Option[]
 }>()
@@ -97,10 +97,10 @@ const fmtApprovalValue = (v: any) => v === ApprovalTimeoutValue.Allow ? t('chann
       </SSelect>
     </SFormItem>
 
-    <SFormItem :label="t('common.memory')" :hint="inheritLabel('memories', fmtList)">
-      <SMultiSelect :model-value="modelValue.memories ?? []" :options="memoryOptions" @update:model-value="v => update('memories', v as string[])" />
-      <SFormItem :label="t('channels.use_channel_memories')" :hint="t('channels.use_channel_memories_hint')" class="nested-form-item">
-        <SSelect :model-value="modelValue.useChannelMemories === null ? '' : String(modelValue.useChannelMemories)" @update:model-value="v => update('useChannelMemories', v === '' ? null : v === 'true')">
+    <SFormItem :label="t('common.note')" :hint="inheritLabel('notes', fmtList)">
+      <SMultiSelect :model-value="modelValue.notes ?? []" :options="noteOptions" @update:model-value="v => update('notes', v as string[])" />
+      <SFormItem :label="t('channels.use_channel_notes')" :hint="t('channels.use_channel_notes_hint')" class="nested-form-item">
+        <SSelect :model-value="modelValue.useChannelNotes === null ? '' : String(modelValue.useChannelNotes)" @update:model-value="v => update('useChannelNotes', v === '' ? null : v === 'true')">
           <option value="">{{ t('channels.use_channel_default') }}</option>
           <option value="true">{{ t('common.enabled') }}</option>
           <option value="false">{{ t('common.disabled') }}</option>

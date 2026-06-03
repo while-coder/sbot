@@ -50,7 +50,7 @@ export type ChannelUserRow = {
 
 /**
  * Session 表只保留"标识"信息：
- * - 所有可覆盖配置字段（agent/saver/memories/wikis/...）都在 SessionProfileRow 上
+ * - 所有可覆盖配置字段（agent/saver/notes/wikis/...）都在 SessionProfileRow 上
  * - token 统计也在 profile 上（共享 profile 的 session 共享统计）
  * - 每个 session 对应一个 SessionProfile：
  *   - 默认是 auto profile（autoForSessionId == session.id），admin 不可见
@@ -73,7 +73,7 @@ export type ChannelSessionRow = {
  * - autoForSessionId 为 null：visible profile，可被多个 session 共享
  * - thread id = String(profile.id)
  *
- * ⚠️ 三态布尔（useChannelMemories/Wikis/streamVerbose/autoApproveAllTools）运行时是 0/1/null。
+ * ⚠️ 三态布尔（useChannelNotes/Wikis/streamVerbose/autoApproveAllTools）运行时是 0/1/null。
  */
 export type SessionProfileRow = {
   id: number;
@@ -84,8 +84,8 @@ export type SessionProfileRow = {
   agentId: string | null;
   saver: string | null;
   
-  useChannelMemories: boolean | null;
-  memories: string | null;           // JSON 字符串
+  useChannelNotes: boolean | null;
+  notes: string | null;              // JSON 字符串
   useChannelWikis: boolean | null;
   wikis: string | null;              // JSON 字符串
   workPath: string | null;
@@ -151,8 +151,8 @@ export type ThreadUsage = {
   lastInputTokens: number; lastOutputTokens: number; lastTotalTokens: number;
 };
 
-/** 解析 DB 中存储的 memories 字段（JSON 字符串 → string[]） */
-export function parseMemories(raw: string | null | undefined): string[] {
+/** 解析 DB 中存储的 notes 字段（JSON 字符串 → string[]） */
+export function parseNotes(raw: string | null | undefined): string[] {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
@@ -403,11 +403,11 @@ class Database {
           defaultValue: null,
           comment: "Saver UUID，null = 跟随 ChannelConfig",
         },
-        memories: {
+        notes: {
           type: DataTypes.TEXT,
           allowNull: true,
           defaultValue: null,
-          comment: "Memory UUID 列表（JSON 字符串）",
+          comment: "Note UUID 列表（JSON 字符串）",
         },
         wikis: {
           type: DataTypes.TEXT,
@@ -415,11 +415,11 @@ class Database {
           defaultValue: null,
           comment: "Wiki UUID 列表（JSON 字符串）",
         },
-        useChannelMemories: {
+        useChannelNotes: {
           type: DataTypes.BOOLEAN,
           allowNull: true,
           defaultValue: null,
-          comment: "是否合并渠道级 memories",
+          comment: "是否合并渠道级 notes",
         },
         useChannelWikis: {
           type: DataTypes.BOOLEAN,

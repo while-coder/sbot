@@ -1,8 +1,0 @@
----
-vars:
-  items: 格式化的记忆条目列表
----
-<user-memories>
-{items}
-</user-memories>
-Refer to the above memories when relevant to personalise your responses.

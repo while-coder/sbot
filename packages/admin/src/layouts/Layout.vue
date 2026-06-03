@@ -91,7 +91,7 @@ const menuGroups = computed(() => [
     group: t('nav.group_storage'),
     items: [
       { label: t('nav.savers'), key: '/savers' },
-      { label: t('nav.memories'), key: '/memories' },
+      { label: t('nav.notes'), key: '/notes' },
       { label: t('nav.wikis'), key: '/wikis' },
     ],
   },
@@ -132,7 +132,7 @@ const activeKey = computed(() => {
   const p = route.path
   if (p.startsWith('/agents/')) return '/agents'
 if (p.startsWith('/savers/') && p.endsWith('/view')) return '/savers'
-  if (p.startsWith('/memories/') && p.endsWith('/view')) return '/memories'
+  if (p.startsWith('/notes/') && p.endsWith('/view')) return '/notes'
   return p
 })
 

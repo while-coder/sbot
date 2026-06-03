@@ -15,7 +15,7 @@ export const T_SkillSystemPromptTemplate = Symbol("scorpio:T_SkillSystemPromptTe
 export const T_SkillToolReadDesc         = Symbol("scorpio:T_SkillToolReadDesc");
 export const T_SkillToolListDesc         = Symbol("scorpio:T_SkillToolListDesc");
 export const T_SkillToolExecDesc         = Symbol("scorpio:T_SkillToolExecDesc");
-export const T_MemorySystemPromptTemplate = Symbol("scorpio:T_MemorySystemPromptTemplate");
+export const T_NoteSystemPromptTemplate = Symbol("scorpio:T_NoteSystemPromptTemplate");
 
 export const T_ModelCallTimeout           = Symbol("scorpio:T_ModelCallTimeout");
 
@@ -26,7 +26,7 @@ export const T_PostCompactContinuation       = Symbol("scorpio:T_PostCompactCont
 export const T_MaxHistoryRounds              = Symbol("scorpio:T_MaxHistoryRounds");
 
 // Tool description tokens（库内工具描述外置注入）
-export const T_MemoryToolDescs            = Symbol("scorpio:T_MemoryToolDescs");
+export const T_NoteToolDescs              = Symbol("scorpio:T_NoteToolDescs");
 export const T_WikiToolDescs              = Symbol("scorpio:T_WikiToolDescs");
 export const T_MCPUtilityToolDescs        = Symbol("scorpio:T_MCPUtilityToolDescs");
 export const T_TodoToolDescs              = Symbol("scorpio:T_TodoToolDescs");

@@ -1,0 +1,1 @@
+Search the note repository using semantic similarity. Use this to recall past conversations, user preferences, or previously learned facts.

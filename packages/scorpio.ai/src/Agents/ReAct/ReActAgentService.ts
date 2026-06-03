@@ -1,6 +1,6 @@
 import { type StructuredToolInterface } from "@langchain/core/tools";
 import { inject, ServiceContainer, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc, T_ModelCallTimeout } from "../../Core";
-import { IMemoryService } from "../../Memory";
+import { INoteService } from "../../Note";
 import { IWikiService } from "../../Wiki";
 import { IAgentSaverService, TaskBackedSaver, type MessageContent } from "../../Saver";
 import { ILoggerService } from "../../Logger";
@@ -26,7 +26,7 @@ export const T_ThinkModelService = Symbol("scorpio:T_ThinkModelService");
  * ReAct 多 Agent 编排服务，继承 SingleAgentService。
  *
  * 将子 Agent 封装为工具，由 thinkModel 驱动标准的 agent → tools → agent 循环。
- * 重写 buildSystemMessage / buildTools，其余流程（saver、memory、StateGraph 循环）复用父类。
+ * 重写 buildSystemMessage / buildTools，其余流程（saver、note、StateGraph 循环）复用父类。
  */
 export class ReActAgentService extends SingleAgentService {
   private agentSubNodes: AgentSubNode[];
@@ -47,11 +47,11 @@ export class ReActAgentService extends SingleAgentService {
     @inject(IInsightService, { optional: true }) insightService?: IInsightService,
     @inject(ITodoService, { optional: true }) todoService?: ITodoService,
     @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
-    @inject(IMemoryService, { optional: true }) memoryServices?: IMemoryService[],
+    @inject(INoteService, { optional: true }) noteServices?: INoteService[],
     @inject(IWikiService, { optional: true }) wikiServices?: IWikiService[],
     @inject(T_ModelCallTimeout, { optional: true }) modelCallTimeout?: number,
   ) {
-    super(thinkModelService, skillService, staticSystemPrompts, dynamicSystemPrompts, loggerService, agentSaver, insightService, todoService, toolService, memoryServices, wikiServices, modelCallTimeout);
+    super(thinkModelService, skillService, staticSystemPrompts, dynamicSystemPrompts, loggerService, agentSaver, insightService, todoService, toolService, noteServices, wikiServices, modelCallTimeout);
     this.agentSubNodes = agentSubNodes;
     this.agentFactory = agentFactory;
   }
@@ -93,7 +93,7 @@ export class ReActAgentService extends SingleAgentService {
         const taskSaver = new TaskBackedSaver(resolvedTaskId, thinkId, parentSaver);
         const subContainer = new ServiceContainer();
         subContainer.registerInstance(IAgentSaverService, taskSaver);
-        if (this.memoryServices.length > 0) subContainer.registerInstance(IMemoryService, this.memoryServices);
+        if (this.noteServices.length > 0) subContainer.registerInstance(INoteService, this.noteServices);
         if (this.wikiServices.length > 0) subContainer.registerInstance(IWikiService, this.wikiServices);
         if (this.loggerService) subContainer.registerInstance(ILoggerService, this.loggerService);
 

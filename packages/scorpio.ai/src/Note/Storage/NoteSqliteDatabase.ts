@@ -2,11 +2,11 @@ import Database from "better-sqlite3";
 import { existsSync, mkdirSync } from "fs";
 import { dirname } from "path";
 import { inject, T_DBPath } from "../../Core";
-import { Memory, MemoryResult } from "../types";
-import { IMemoryDatabase } from "./IMemoryDatabase";
+import { Note, NoteResult } from "../types";
+import { INoteDatabase } from "./INoteDatabase";
 import { cosineSimilarity } from "../utils";
 
-export class MemorySqliteDatabase implements IMemoryDatabase {
+export class NoteSqliteDatabase implements INoteDatabase {
     private _db: Database.Database | undefined;
     private readonly dbPath: string;
 
@@ -23,7 +23,7 @@ export class MemorySqliteDatabase implements IMemoryDatabase {
             this._db = new Database(this.dbPath);
             this._db.pragma("journal_mode = WAL");
             this._db.exec(`
-                CREATE TABLE IF NOT EXISTS memories (
+                CREATE TABLE IF NOT EXISTS notes (
                     id            TEXT    PRIMARY KEY,
                     content       TEXT    NOT NULL,
                     embedding     TEXT    NOT NULL,
@@ -38,9 +38,9 @@ export class MemorySqliteDatabase implements IMemoryDatabase {
 
     // ===== 查询 =====
 
-    async getAllMemories(): Promise<Memory[]> {
-        const rows = this.db.prepare(`SELECT * FROM memories`).all() as any[];
-        return rows.map(row => this.rowToMemory(row));
+    async getAllNotes(): Promise<Note[]> {
+        const rows = this.db.prepare(`SELECT * FROM notes`).all() as any[];
+        return rows.map(row => this.rowToNote(row));
     }
 
     async searchWithTimeDecay(
@@ -48,18 +48,18 @@ export class MemorySqliteDatabase implements IMemoryDatabase {
         currentTime: number,
         decayFactor: number = 0.995,
         limit: number = 10
-    ): Promise<MemoryResult[]> {
+    ): Promise<NoteResult[]> {
         return this.searchSimilar(queryEmbedding, limit * 2)
             .map(result => {
-                const mem = result.memory;
-                const hoursSinceCreation = (currentTime - mem.createdAt) / 3600000;
+                const n = result.note;
+                const hoursSinceCreation = (currentTime - n.createdAt) / 3600000;
                 const timeDecay = Math.pow(decayFactor, hoursSinceCreation);
                 const recencyScore = Math.pow(0.5, hoursSinceCreation / 24);
-                const accessScore = Math.log(mem.accessCount + 1) / 10;
+                const accessScore = Math.log(n.accessCount + 1) / 10;
                 const score = result.score * timeDecay * 0.7
                     + recencyScore * 0.2
                     + accessScore * 0.1;
-                return { memory: mem, score };
+                return { note: n, score };
             })
             .sort((a, b) => b.score - a.score)
             .slice(0, limit);
@@ -68,46 +68,46 @@ export class MemorySqliteDatabase implements IMemoryDatabase {
     async findDuplicate(
         queryEmbedding: number[],
         threshold: number = 0.85
-    ): Promise<{ memory: Memory; score: number } | undefined> {
+    ): Promise<{ note: Note; score: number } | undefined> {
         const [top] = this.searchSimilar(queryEmbedding, 1, threshold);
-        return top ? { memory: top.memory, score: top.score } : undefined;
+        return top ? { note: top.note, score: top.score } : undefined;
     }
 
     // ===== 写入 =====
 
-    async insertMemory(memory: Memory): Promise<void> {
+    async insertNote(note: Note): Promise<void> {
         this.db.prepare(`
-            INSERT INTO memories (id, content, embedding, access_count,
+            INSERT INTO notes (id, content, embedding, access_count,
                 last_accessed, created_at)
             VALUES (?, ?, ?, ?, ?, ?)
         `).run(
-            memory.id,
-            memory.content,
-            JSON.stringify(memory.embedding),
-            memory.accessCount,
-            memory.lastAccessed,
-            memory.createdAt
+            note.id,
+            note.content,
+            JSON.stringify(note.embedding),
+            note.accessCount,
+            note.lastAccessed,
+            note.createdAt
         );
     }
 
-    async updateMemory(id: string, content: string, embedding: number[]): Promise<void> {
+    async updateNote(id: string, content: string, embedding: number[]): Promise<void> {
         this.db.prepare(`
-            UPDATE memories SET content = ?, embedding = ? WHERE id = ?
+            UPDATE notes SET content = ?, embedding = ? WHERE id = ?
         `).run(content, JSON.stringify(embedding), id);
     }
 
-    async updateAccess(memoryId: string): Promise<void> {
+    async updateAccess(noteId: string): Promise<void> {
         this.db.prepare(
-            `UPDATE memories SET access_count = access_count + 1, last_accessed = ? WHERE id = ?`
-        ).run(Date.now(), memoryId);
+            `UPDATE notes SET access_count = access_count + 1, last_accessed = ? WHERE id = ?`
+        ).run(Date.now(), noteId);
     }
 
-    async deleteMemory(id: string): Promise<void> {
-        this.db.prepare(`DELETE FROM memories WHERE id = ?`).run(id);
+    async deleteNote(id: string): Promise<void> {
+        this.db.prepare(`DELETE FROM notes WHERE id = ?`).run(id);
     }
 
-    async clearMemories(): Promise<number> {
-        return this.db.prepare(`DELETE FROM memories`).run().changes;
+    async clearNotes(): Promise<number> {
+        return this.db.prepare(`DELETE FROM notes`).run().changes;
     }
 
     // ===== 生命周期 =====
@@ -122,8 +122,8 @@ export class MemorySqliteDatabase implements IMemoryDatabase {
         queryEmbedding: number[],
         limit: number = 10,
         minSimilarity: number = 0.3
-    ): Array<{ memory: Memory; distance: number; score: number }> {
-        const rows = this.db.prepare(`SELECT * FROM memories`).all() as any[];
+    ): Array<{ note: Note; distance: number; score: number }> {
+        const rows = this.db.prepare(`SELECT * FROM notes`).all() as any[];
 
         let normQ = 0;
         for (const v of queryEmbedding) normQ += v * v;
@@ -134,14 +134,14 @@ export class MemorySqliteDatabase implements IMemoryDatabase {
                 const embedding: number[] = JSON.parse(row.embedding);
                 const score = cosineSimilarity(queryEmbedding, embedding, normQ);
                 if (score < minSimilarity) return null;
-                return { memory: this.rowToMemory(row, embedding), distance: 1 - score, score };
+                return { note: this.rowToNote(row, embedding), distance: 1 - score, score };
             })
             .filter((r): r is NonNullable<typeof r> => r !== null)
             .sort((a, b) => b.score - a.score)
             .slice(0, limit);
     }
 
-    private rowToMemory(row: any, embedding?: number[]): Memory {
+    private rowToNote(row: any, embedding?: number[]): Note {
         return {
             id: row.id,
             content: row.content,

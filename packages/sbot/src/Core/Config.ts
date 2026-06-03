@@ -4,8 +4,8 @@ import fs from "fs";
 import type { ModelConfig, MCPServers, IModelService, IEmbeddingService, AgentSubNode, EmbeddingConfig } from "scorpio.ai";
 import { ModelProvider, EmbeddingProvider } from "scorpio.ai";
 export type { AgentSubNode } from "scorpio.ai";
-import { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, InsightScope, TodoScope, SaverConfig, MemoryConfig, WikiConfig, ChannelConfig, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE, type InsightConfig, type TodoConfig, type AgentStoreSource, type AgentSourceEntry } from "sbot.commons";
-export { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, InsightScope, TodoScope, SaverConfig, MemoryConfig, WikiConfig, ChannelConfig } from "sbot.commons";
+import { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, InsightScope, TodoScope, SaverConfig, NoteConfig, WikiConfig, ChannelConfig, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE, type InsightConfig, type TodoConfig, type AgentStoreSource, type AgentSourceEntry } from "sbot.commons";
+export { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, InsightScope, TodoScope, SaverConfig, NoteConfig, WikiConfig, ChannelConfig } from "sbot.commons";
 export type { InsightConfig, TodoConfig } from "sbot.commons";
 
 export const isDev = process.env.NODE_ENV === 'development';
@@ -105,7 +105,7 @@ export interface Settings {
   models?: Record<string, NamedModelConfig>;
   embeddings?: Record<string, NamedEmbeddingConfig>;
   savers?: Record<string, SaverConfig>;
-  memories?: Record<string, MemoryConfig>;
+  notes?: Record<string, NoteConfig>;
   wikis?: Record<string, WikiConfig>;
   channels?: Record<string, ChannelConfig>;
   plugins?: string[];
@@ -116,7 +116,7 @@ export interface Settings {
 const SETTINGS_KEYS: ReadonlySet<string> = new Set(Object.keys({
   httpPort: true, httpUrl: true, autoApproveTools: true, autoApproveAllTools: true,
   startupCommands: true, checkUpdateTime: true, maxImageSize: true,
-  models: true, embeddings: true, savers: true, memories: true, wikis: true, channels: true,
+  models: true, embeddings: true, savers: true, notes: true, wikis: true, channels: true,
   plugins: true, agentSources: true,
 } satisfies Record<keyof Settings, true>));
 
@@ -288,9 +288,9 @@ class Config {
     return this._settings.savers[id.trim()];
   }
 
-  getMemory(id: string): MemoryConfig | undefined {
-    if (!this._settings.memories) return undefined;
-    return this._settings.memories[id.trim()];
+  getNote(id: string): NoteConfig | undefined {
+    if (!this._settings.notes) return undefined;
+    return this._settings.notes[id.trim()];
   }
 
   getChannel(id: string): ChannelConfig | undefined {
@@ -357,7 +357,7 @@ class Config {
         config: {},
         agent: '',
         saver: '',
-        memories: [],
+        notes: [],
       };
       this.saveSettings();
     }
@@ -413,7 +413,7 @@ class Config {
       savers: {
         [S1]: { name: "default", type: SaverType.Sqlite },
       },
-      memories: {
+      notes: {
         [ME1]: { name: "default", embedding: E1 },
       },
       models: {
@@ -541,8 +541,8 @@ class Config {
     if (saverThreadId) return this.getConfigPath(`savers/${saverId}/${saverThreadId}${ext}`)
     return this.getConfigPath(`savers/${saverId}`, true)
   }
-  getMemoryDBPath(memoryId: string) {
-    return this.getConfigPath(`memories/${memoryId}.db`)
+  getNoteDBPath(noteId: string) {
+    return this.getConfigPath(`notes/${noteId}.db`)
   }
 
   getWiki(id: string): WikiConfig | undefined {

@@ -1,7 +1,7 @@
 /**
- * 记忆接口
+ * 笔记接口
  */
-export interface Memory {
+export interface Note {
   id: string;
   content: string;
   embedding: number[];
@@ -11,9 +11,9 @@ export interface Memory {
 }
 
 /**
- * 记忆搜索结果
+ * 笔记搜索结果
  */
-export interface MemoryResult {
-  memory: Memory;
+export interface NoteResult {
+  note: Note;
   score: number;
 }

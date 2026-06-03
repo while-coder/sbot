@@ -98,10 +98,10 @@ export interface TodoConfig {
   extractorPromptFile?: string
 }
 
-export interface MemoryConfig {
+export interface NoteConfig {
   /** 显示名称 */
   name: string
-  /** 记忆使用的 embedding UUID（对应 embeddings 中的 key） */
+  /** 笔记使用的 embedding UUID（对应 embeddings 中的 key） */
   embedding: string
 }
 
@@ -219,8 +219,8 @@ export interface SessionConfig {
   agent: string
   /** 使用的 Saver 配置 UUID（对应 savers 中的 key） */
   saver: string
-  /** 使用的记忆配置 UUID 列表（对应 memories 中的 key） */
-  memories: string[]
+  /** 使用的笔记配置 UUID 列表（对应 notes 中的 key） */
+  notes: string[]
   /** 使用的 Wiki 配置 UUID 列表（对应 wikis 中的 key） */
   wikis?: string[]
   /** 工作目录路径（有值时为目录模式，Agent 文件操作限定在此目录） */
@@ -249,8 +249,8 @@ export interface ChannelConfig {
   agent: string
   /** Saver 配置 UUID（对应 savers 中的 key） */
   saver: string
-  /** 记忆配置 UUID 列表（对应 memories 中的 key） */
-  memories: string[]
+  /** 笔记配置 UUID 列表（对应 notes 中的 key） */
+  notes: string[]
   /** Wiki 配置 UUID 列表（对应 wikis 中的 key） */
   wikis?: string[]
   /** 工作目录路径 */
@@ -298,7 +298,7 @@ export interface Settings {
   agents?: Record<string, AgentConfig>
   models?: Record<string, ModelConfig>
   embeddings?: Record<string, EmbeddingConfig>
-  memories?: Record<string, MemoryConfig>
+  notes?: Record<string, NoteConfig>
   wikis?: Record<string, WikiConfig>
   savers?: Record<string, SaverConfig>
   channels?: Record<string, ChannelConfig>

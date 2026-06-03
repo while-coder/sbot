@@ -2,7 +2,7 @@ import express from 'express';
 import { randomUUID } from 'crypto';
 import { ModelProvider, setMaxImageSize } from 'scorpio.ai';
 import { config } from '../../Core/Config';
-import { database, parseMemories, type ChannelSessionRow } from '../../Core/Database';
+import { database, parseNotes, type ChannelSessionRow } from '../../Core/Database';
 import { channelDataService } from '../../Session/ChannelDataService';
 import { channelManager } from '../../Channel/ChannelManager';
 import { WEB_CHANNEL_ID } from 'sbot.commons';
@@ -102,7 +102,7 @@ export class SettingsRoutes {
         });
         settingsCrudHelper.register(app, 'embeddings', { label: 'Embedding', getSettings });
         settingsCrudHelper.register(app, 'savers', { label: 'Saver config', getSettings });
-        settingsCrudHelper.register(app, 'memories', { label: 'Memory config', getSettings });
+        settingsCrudHelper.register(app, 'notes', { label: 'Note config', getSettings });
         settingsCrudHelper.register(app, 'wikis', { label: 'Wiki config', getSettings });
         // heartbeats 已迁移到独立数据库表，CRUD 在 HeartbeatRoutes 中
         agentRoutes.register(app, ctx);
@@ -137,8 +137,8 @@ export class SettingsRoutes {
                     name: r.sessionName || r.autoSessionName,
                     agent: profile?.agentId || '',
                     saver: profile?.saver || '',
-                    memories: parseMemories(profile?.memories ?? null),
-                    wikis: parseMemories(profile?.wikis ?? null),
+                    notes: parseNotes(profile?.notes ?? null),
+                    wikis: parseNotes(profile?.wikis ?? null),
                     workPath: profile?.workPath || undefined,
                     autoApproveAllTools: profile?.autoApproveAllTools || undefined,
                 });

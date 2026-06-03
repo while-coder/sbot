@@ -1,5 +1,5 @@
 import { IEmbeddingService } from "../Embedding";
-import { cosineSimilarity } from "../Memory/utils";
+import { cosineSimilarity } from "../Note/utils";
 import fs from "fs";
 
 export interface SearchableItem {

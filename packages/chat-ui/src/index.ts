@@ -3,7 +3,7 @@ export type {
   SessionItem,
   AgentOption,
   SaverOption,
-  MemoryOption,
+  NoteOption,
   StoredMessage,
   ContentPart,
   Attachment,

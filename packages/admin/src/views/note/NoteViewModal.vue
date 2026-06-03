@@ -4,25 +4,25 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { useToast, useConfirm } from 'sbot-ui'
 import { SModal, SButton, SBadge, SFormItem, SInput, STextarea, SCheckCard, STable, type STableColumn } from 'sbot-ui'
-import type { MemoryItem, MemoryConfig } from '@/shared/types'
+import type { NoteItem, NoteConfig } from '@/shared/types'
 
 const { t } = useI18n()
 const { show } = useToast()
 const { confirm } = useConfirm()
 
 const columns = computed<STableColumn[]>(() => [
-  { key: 'content',      label: t('memories.content_col'),        primary: true, ellipsis: true },
-  { key: 'createdAt',    label: t('memories.created_col'),        width: '150px', ellipsis: true },
-  { key: 'accessCount',  label: t('memories.access_count_col'),   width: '60px',  align: 'center' },
-  { key: 'lastAccessed', label: t('memories.last_accessed_col'),  width: '150px', ellipsis: true },
-  { key: 'ops',          label: t('common.ops'),                  width: '140px', align: 'center', ops: true },
+  { key: 'content',      label: t('notes.content_col'),        primary: true, ellipsis: true },
+  { key: 'createdAt',    label: t('notes.created_col'),        width: '150px', ellipsis: true },
+  { key: 'accessCount',  label: t('notes.access_count_col'),   width: '60px',  align: 'center' },
+  { key: 'lastAccessed', label: t('notes.last_accessed_col'),  width: '150px', ellipsis: true },
+  { key: 'ops',          label: t('common.ops'),               width: '140px', align: 'center', ops: true },
 ])
 
-const visible      = ref(false)
-const memoryId     = ref('')
-const memoryConfig = ref<Partial<MemoryConfig>>({})
-const memories     = ref<MemoryItem[]>([])
-const loading      = ref(false)
+const visible    = ref(false)
+const noteId     = ref('')
+const noteConfig = ref<Partial<NoteConfig>>({})
+const notes      = ref<NoteItem[]>([])
+const loading    = ref(false)
 
 const showAddModal = ref(false)
 const addContent   = ref('')
@@ -35,15 +35,15 @@ const editId        = ref('')
 const editContent   = ref('')
 const saving        = ref(false)
 
-function memUrl(path = '') {
-  return `/api/memories/${encodeURIComponent(memoryId.value)}${path}`
+function noteUrl(path = '') {
+  return `/api/notes/${encodeURIComponent(noteId.value)}${path}`
 }
 
 async function load() {
   loading.value = true
   try {
-    const res = await apiFetch(memUrl())
-    memories.value = res.data || []
+    const res = await apiFetch(noteUrl())
+    notes.value = res.data || []
   } catch (e: any) {
     show(e.message, 'error')
   } finally {
@@ -53,7 +53,7 @@ async function load() {
 
 async function remove(id: string) {
   try {
-    await apiFetch(memUrl(`/${encodeURIComponent(id)}`), 'DELETE')
+    await apiFetch(noteUrl(`/${encodeURIComponent(id)}`), 'DELETE')
     show(t('common.deleted'))
     await load()
   } catch (e: any) {
@@ -62,10 +62,10 @@ async function remove(id: string) {
 }
 
 async function clearAll() {
-  if (!await confirm(t('memories.confirm_clear', { name: memoryConfig.value.name || memoryId.value }), { danger: true })) return
+  if (!await confirm(t('notes.confirm_clear', { name: noteConfig.value.name || noteId.value }), { danger: true })) return
   try {
-    await apiFetch(memUrl(), 'DELETE')
-    memories.value = []
+    await apiFetch(noteUrl(), 'DELETE')
+    notes.value = []
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -79,15 +79,15 @@ function openAdd() {
 }
 
 async function confirmAdd() {
-  if (!addContent.value.trim()) { show(t('memories.error_content'), 'error'); return }
+  if (!addContent.value.trim()) { show(t('notes.error_content'), 'error'); return }
   adding.value = true
   try {
-    const res = await apiFetch(memUrl('/add'), 'POST', {
+    const res = await apiFetch(noteUrl('/add'), 'POST', {
       content: addContent.value.trim(),
       autoSplit: autoSplit.value,
       chunkSize: autoSplit.value ? chunkSize.value : undefined,
     })
-    show(t('memories.added_count', { count: res.data?.ids?.length ?? 0 }))
+    show(t('notes.added_count', { count: res.data?.ids?.length ?? 0 }))
     showAddModal.value = false
     await load()
   } catch (e: any) {
@@ -97,17 +97,17 @@ async function confirmAdd() {
   }
 }
 
-function openEdit(row: MemoryItem) {
+function openEdit(row: NoteItem) {
   editId.value        = row.id
   editContent.value   = row.content
   showEditModal.value = true
 }
 
 async function confirmEdit() {
-  if (!editContent.value.trim()) { show(t('memories.error_content'), 'error'); return }
+  if (!editContent.value.trim()) { show(t('notes.error_content'), 'error'); return }
   saving.value = true
   try {
-    await apiFetch(memUrl(`/${encodeURIComponent(editId.value)}`), 'PUT', { content: editContent.value.trim() })
+    await apiFetch(noteUrl(`/${encodeURIComponent(editId.value)}`), 'PUT', { content: editContent.value.trim() })
     show(t('common.saved'))
     showEditModal.value = false
     await load()
@@ -118,11 +118,11 @@ async function confirmEdit() {
   }
 }
 
-function open(id: string, config: Partial<MemoryConfig>) {
-  memoryId.value     = id
-  memoryConfig.value = config
-  memories.value     = []
-  visible.value      = true
+function open(id: string, config: Partial<NoteConfig>) {
+  noteId.value     = id
+  noteConfig.value = config
+  notes.value      = []
+  visible.value    = true
   load()
 }
 
@@ -133,9 +133,9 @@ defineExpose({ open })
   <SModal v-model:visible="visible" width="xl">
     <template #header>
       <div style="display:flex;align-items:center;gap:10px">
-        <h3 class="s-modal-title">{{ t('memories.content_title') }}</h3>
-        <SBadge variant="neutral" size="sm">{{ memoryConfig.name || memoryId }}</SBadge>
-        <span v-if="!loading" class="mem-count-badge">{{ t('memories.count', { count: memories.length }) }}</span>
+        <h3 class="s-modal-title">{{ t('notes.content_title') }}</h3>
+        <SBadge variant="neutral" size="sm">{{ noteConfig.name || noteId }}</SBadge>
+        <span v-if="!loading" class="note-count-badge">{{ t('notes.count', { count: notes.length }) }}</span>
       </div>
     </template>
 
@@ -143,19 +143,19 @@ defineExpose({ open })
       <SButton type="outline" size="sm" :disabled="loading" @click="load">
         {{ loading ? t('common.loading') : t('common.refresh') }}
       </SButton>
-      <SButton type="primary" size="sm" @click="openAdd">{{ t('memories.add_memory') }}</SButton>
-      <SButton type="danger" size="sm" style="margin-left:auto" :disabled="memories.length === 0" @click="clearAll">
-        {{ t('memories.clear_all') }}
+      <SButton type="primary" size="sm" @click="openAdd">{{ t('notes.add_note') }}</SButton>
+      <SButton type="danger" size="sm" style="margin-left:auto" :disabled="notes.length === 0" @click="clearAll">
+        {{ t('notes.clear_all') }}
       </SButton>
     </template>
 
     <STable
       :columns="columns"
-      :rows="memories"
+      :rows="notes"
       row-key="id"
       :loading="loading"
       :loading-text="t('common.loading')"
-      :empty-text="t('memories.no_memories')"
+      :empty-text="t('notes.no_notes')"
     >
       <template #content="{ row }">
         <span :title="row.content">{{ row.content }}</span>
@@ -176,27 +176,27 @@ defineExpose({ open })
     </STable>
   </SModal>
 
-  <!-- Add memory modal (nested) -->
-  <SModal v-model:visible="showAddModal" :title="t('memories.add_memory_title')" width="sm" nested>
-    <SFormItem :label="t('memories.memory_content')">
-      <STextarea v-model="addContent" :rows="7" :placeholder="t('memories.memory_placeholder')" />
+  <!-- Add note modal (nested) -->
+  <SModal v-model:visible="showAddModal" :title="t('notes.add_note_title')" width="sm" nested>
+    <SFormItem :label="t('notes.note_content')">
+      <STextarea v-model="addContent" :rows="7" :placeholder="t('notes.note_placeholder')" />
     </SFormItem>
-    <SCheckCard v-model="autoSplit" style="margin-top:8px">{{ t('memories.auto_split') }}</SCheckCard>
-    <SFormItem v-if="autoSplit" :label="t('memories.chunk_size')" style="margin-top:8px">
-      <SInput v-model.number="chunkSize" type="number" min="50" :placeholder="t('memories.chunk_size_placeholder')" />
+    <SCheckCard v-model="autoSplit" style="margin-top:8px">{{ t('notes.auto_split') }}</SCheckCard>
+    <SFormItem v-if="autoSplit" :label="t('notes.chunk_size')" style="margin-top:8px">
+      <SInput v-model.number="chunkSize" type="number" min="50" :placeholder="t('notes.chunk_size_placeholder')" />
     </SFormItem>
     <template #footer>
       <SButton type="outline" :disabled="adding" @click="showAddModal = false">{{ t('common.cancel') }}</SButton>
       <SButton type="primary" :disabled="adding" :loading="adding" @click="confirmAdd">
-        {{ adding ? t('memories.adding') : t('memories.add_btn') }}
+        {{ adding ? t('notes.adding') : t('notes.add_btn') }}
       </SButton>
     </template>
   </SModal>
 
-  <!-- Edit memory modal (nested) -->
-  <SModal v-model:visible="showEditModal" :title="t('memories.edit_memory_title')" width="sm" nested>
-    <SFormItem :label="t('memories.memory_content')">
-      <STextarea v-model="editContent" :rows="7" :placeholder="t('memories.memory_placeholder')" />
+  <!-- Edit note modal (nested) -->
+  <SModal v-model:visible="showEditModal" :title="t('notes.edit_note_title')" width="sm" nested>
+    <SFormItem :label="t('notes.note_content')">
+      <STextarea v-model="editContent" :rows="7" :placeholder="t('notes.note_placeholder')" />
     </SFormItem>
     <template #footer>
       <SButton type="outline" :disabled="saving" @click="showEditModal = false">{{ t('common.cancel') }}</SButton>
@@ -208,7 +208,7 @@ defineExpose({ open })
 </template>
 
 <style scoped>
-.mem-count-badge {
+.note-count-badge {
   font-size: var(--sui-fs-sm);
   color: var(--sui-fg-disabled);
 }

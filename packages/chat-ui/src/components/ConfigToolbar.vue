@@ -40,8 +40,8 @@ const saverSelectOptions = computed(() => [
   })),
 ])
 
-const memoryOptions = computed(() => toMSOptions(props.settings.memories))
-const wikiOptions   = computed(() => toMSOptions(props.settings.wikis))
+const noteOptions = computed(() => toMSOptions(props.settings.notes))
+const wikiOptions = computed(() => toMSOptions(props.settings.wikis))
 </script>
 
 <template>
@@ -88,13 +88,13 @@ const wikiOptions   = computed(() => toMSOptions(props.settings.wikis))
       <div class="chatui-toolbar-sep" />
 
       <div class="chatui-toolbar-group">
-        <label class="chatui-toolbar-label">{{ L.memory }}</label>
+        <label class="chatui-toolbar-label">{{ L.note }}</label>
         <SMultiSelect
-          :model-value="session.memories || []"
-          :options="memoryOptions"
+          :model-value="session.notes || []"
+          :options="noteOptions"
           compact
           style="min-width:140px"
-          @update:model-value="emit('updateConfig', 'memories', $event)"
+          @update:model-value="emit('updateConfig', 'notes', $event)"
         />
       </div>
 

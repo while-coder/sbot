@@ -85,7 +85,7 @@ export interface StoredMessage {
   thinkId?: string
 }
 
-export interface MemoryItem {
+export interface NoteItem {
   id: string
   content: string
   createdAt: number

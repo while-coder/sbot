@@ -4,12 +4,12 @@ import {
     ServiceContainer,
     IAgentCallback,
     ILoggerService,
-    IMemoryService, IMemoryDatabase,
-    MemoryService,
+    INoteService, INoteDatabase,
+    NoteService,
     IEmbeddingService,
     IAgentSaverService,
-    T_MemorySystemPromptTemplate,
-    T_MemoryToolDescs,
+    T_NoteSystemPromptTemplate,
+    T_NoteToolDescs,
     IModelService,
     IWikiService, IWikiDatabase,
     WikiService,
@@ -34,7 +34,7 @@ import { discoverContextFiles } from "../Core/ContextFileDiscovery";
 import { AgentFactory } from "./AgentFactory";
 import { LoggerService } from "../Core/LoggerService";
 import { sessionManager } from "../Session/SessionManager";
-import { MemoryDatabaseManager } from "./MemoryDatabaseManager";
+import { NoteDatabaseManager } from "./NoteDatabaseManager";
 import { WikiDatabaseManager } from "./WikiDatabaseManager";
 import { SaverPool } from "./SaverPool";
 
@@ -51,8 +51,8 @@ export interface AgentRunOptions {
     threadId: string;
     /** 注入 environment 块的额外信息（用户信息等特定渠道独有字段） */
     extraInfo: string;
-    /** 记忆服务配置 ID 列表，不传则不启用记忆 */
-    memories?: string[];
+    /** 笔记服务配置 ID 列表，不传则不启用笔记 */
+    notes?: string[];
     /** Wiki 知识库配置 ID 列表 */
     wikis?: string[];
     /** Agent 文件操作根目录，不传则默认为 assets/{threadId} */
@@ -65,7 +65,7 @@ export interface AgentRunOptions {
 
 export class AgentRunner {
     static async run(options: AgentRunOptions): Promise<void> {
-        const { query, callbacks, agentId, saverId, threadId, dbSessionId, extraInfo, memories, wikis, agentTools } = options;
+        const { query, callbacks, agentId, saverId, threadId, dbSessionId, extraInfo, notes, wikis, agentTools } = options;
         if (!agentId.trim())   throw new Error("agent not specified");
         if (!saverId.trim())   throw new Error("saver not specified");
         if (!threadId.trim())  throw new Error("threadId not specified");
@@ -104,7 +104,7 @@ export class AgentRunner {
 
         const container = new ServiceContainer();
         container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
-        await AgentRunner.registerMemoryServices(container, memories ?? []);
+        await AgentRunner.registerNoteServices(container, notes ?? []);
         await AgentRunner.registerWikiServices(container, wikis ?? []);
         await AgentRunner.registerInsightService(container, agentId, threadId);
         await AgentRunner.registerTodoService(container, agentId, threadId);
@@ -121,41 +121,41 @@ export class AgentRunner {
         }
     }
 
-    static async createMemoryService(memoryId: string): Promise<IMemoryService> {
-        const service = await AgentRunner.buildMemoryService(memoryId);
-        if (!service) throw new Error(`Memory config "${memoryId}" not found or missing embedding`);
+    static async createNoteService(noteId: string): Promise<INoteService> {
+        const service = await AgentRunner.buildNoteService(noteId);
+        if (!service) throw new Error(`Note config "${noteId}" not found or missing embedding`);
         return service;
     }
 
-    private static async buildMemoryService(memoryId: string, loggerService?: LoggerService): Promise<IMemoryService | null> {
-        const memoryConfig = config.getMemory(memoryId);
-        if (!memoryConfig?.embedding) return null;
+    private static async buildNoteService(noteId: string, loggerService?: LoggerService): Promise<INoteService | null> {
+        const noteConfig = config.getNote(noteId);
+        if (!noteConfig?.embedding) return null;
 
-        const embedding = await config.getEmbeddingService(memoryConfig.embedding, true);
+        const embedding = await config.getEmbeddingService(noteConfig.embedding, true);
 
         const sub = new ServiceContainer();
         if (loggerService) sub.registerInstance(ILoggerService, loggerService);
-        const dbPath = config.getMemoryDBPath(memoryId);
-        sub.registerInstance(IMemoryDatabase, MemoryDatabaseManager.getInstance().acquire(dbPath));
+        const dbPath = config.getNoteDBPath(noteId);
+        sub.registerInstance(INoteDatabase, NoteDatabaseManager.getInstance().acquire(dbPath));
 
-        sub.registerWithArgs(IMemoryService, MemoryService, {
+        sub.registerWithArgs(INoteService, NoteService, {
             [IEmbeddingService]: embedding,
-            [T_MemorySystemPromptTemplate]: loadPrompt('memory/system.txt'),
-            [T_MemoryToolDescs]: { search: loadPrompt('tools/memory/search.txt') },
+            [T_NoteSystemPromptTemplate]: loadPrompt('note/system.txt'),
+            [T_NoteToolDescs]: { search: loadPrompt('tools/note/search.txt') },
         });
 
-        return sub.resolve<IMemoryService>(IMemoryService);
+        return sub.resolve<INoteService>(INoteService);
     }
 
-    private static async registerMemoryServices(
+    private static async registerNoteServices(
         container: ServiceContainer,
-        memories: string[],
+        notes: string[],
     ): Promise<void> {
         const loggerService = container.isRegistered(ILoggerService) ? await container.resolve<LoggerService>(ILoggerService) : undefined
-        const results = await Promise.all(memories.map(memoryId => AgentRunner.buildMemoryService(memoryId, loggerService)));
-        const services = results.filter((s): s is IMemoryService => s !== null);
+        const results = await Promise.all(notes.map(noteId => AgentRunner.buildNoteService(noteId, loggerService)));
+        const services = results.filter((s): s is INoteService => s !== null);
         if (services.length > 0) {
-            container.registerInstance(IMemoryService, services);
+            container.registerInstance(INoteService, services);
         }
     }
 

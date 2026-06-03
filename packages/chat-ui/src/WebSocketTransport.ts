@@ -167,7 +167,7 @@ export class WebSocketTransport implements IChatTransport {
 
   async getSettings(): Promise<AppSettings> {
     const res = await this.api('/api/settings')
-    return res.data ?? res ?? { agents: {}, savers: {}, memories: {}, wikis: {} }
+    return res.data ?? res ?? { agents: {}, savers: {}, notes: {}, wikis: {} }
   }
 
   async getSessionStatus(profileId: string): Promise<SessionStatus | null> {

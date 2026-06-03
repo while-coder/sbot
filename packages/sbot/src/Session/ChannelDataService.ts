@@ -1,7 +1,7 @@
 import { ApprovalTimeoutValue } from "sbot.commons";
 import {
     database,
-    parseMemories,
+    parseNotes,
     type ChannelSessionRow,
     type SessionProfileRow,
     type ChannelUserRow,
@@ -22,7 +22,7 @@ export interface EffectiveSessionResolved {
     agentId: string;
     saver: string;
     threadKey: string;
-    memories: string[];
+    notes: string[];
     wikis: string[];
     workPath?: string;
     streamVerbose?: boolean;
@@ -110,16 +110,16 @@ export class ChannelDataService {
         if (!profile) throw new Error(`SessionProfile not found: session.id=${session.id}, profileId=${session.profileId}`);
         const channel = config.getChannel(session.channelId);
 
-        const useChannelMemories = profile.memories != null ? !!profile.useChannelMemories : false;
+        const useChannelNotes = profile.notes != null ? !!profile.useChannelNotes : false;
         const useChannelWikis = profile.wikis != null ? !!profile.useChannelWikis : false;
-        const ownMems = profile.memories != null ? parseMemories(profile.memories) : [];
-        const ownWikis = profile.wikis != null ? parseMemories(profile.wikis) : [];
+        const ownNotes = profile.notes != null ? parseNotes(profile.notes) : [];
+        const ownWikis = profile.wikis != null ? parseNotes(profile.wikis) : [];
 
         const resolved: EffectiveSessionResolved = {
             agentId: profile.agentId ?? channel?.agent ?? "",
             saver: profile.saver ?? channel?.saver ?? "",
             threadKey: String(profile.id),
-            memories: useChannelMemories ? [...(channel?.memories ?? []), ...ownMems] : ownMems,
+            notes: useChannelNotes ? [...(channel?.notes ?? []), ...ownNotes] : ownNotes,
             wikis: useChannelWikis ? [...(channel?.wikis ?? []), ...ownWikis] : ownWikis,
             workPath: profile.workPath ?? channel?.workPath ?? undefined,
             streamVerbose: profile.streamVerbose ?? channel?.streamVerbose ?? undefined,
@@ -191,8 +191,8 @@ export class ChannelDataService {
 
     /**
      * 列出 sessions，并把 session.profileId 指向的 profile 字段（含 token 统计）
-     * 平铺到每条记录上 —— admin UI 显示需要 agentId/saver/memories/tokens 等，
-     * 这些都是 profile 字段。memories/wikis 解析后返回 string[] | null。
+     * 平铺到每条记录上 —— admin UI 显示需要 agentId/saver/notes/tokens 等，
+     * 这些都是 profile 字段。notes/wikis 解析后返回 string[] | null。
      *
      * Profile 字段值的语义：null = 沿用 channel 默认；非 null = profile 已覆盖。
      */
@@ -211,9 +211,9 @@ export class ChannelDataService {
                 ...s,
                 agentId: p?.agentId ?? null,
                 saver: p?.saver ?? null,
-                memories: p?.memories != null ? parseMemories(p.memories) : null,
-                wikis: p?.wikis != null ? parseMemories(p.wikis) : null,
-                useChannelMemories: p?.useChannelMemories ?? null,
+                notes: p?.notes != null ? parseNotes(p.notes) : null,
+                wikis: p?.wikis != null ? parseNotes(p.wikis) : null,
+                useChannelNotes: p?.useChannelNotes ?? null,
                 useChannelWikis: p?.useChannelWikis ?? null,
                 workPath: p?.workPath ?? null,
                 streamVerbose: p?.streamVerbose ?? null,
@@ -298,19 +298,19 @@ export class ChannelDataService {
     }
 
     /**
-     * 更新 profile 字段。memories/wikis 调用方传 string[] | null，本方法负责 JSON 序列化。
+     * 更新 profile 字段。notes/wikis 调用方传 string[] | null，本方法负责 JSON 序列化。
      * undefined = 不动；null = 清空；值 = 写入。
      */
     async updateProfile(id: number, body: Record<string, any>): Promise<void> {
-        const memSer = body.memories === undefined ? undefined : (body.memories === null ? null : JSON.stringify(body.memories || []));
+        const noteSer = body.notes === undefined ? undefined : (body.notes === null ? null : JSON.stringify(body.notes || []));
         const wikiSer = body.wikis === undefined ? undefined : (body.wikis === null ? null : JSON.stringify(body.wikis || []));
         const update = pickDefined({
             name: body.name,
             agentId: body.agentId === undefined ? undefined : (body.agentId || null),
             saver: body.saver === undefined ? undefined : (body.saver || null),
-            memories: memSer,
+            notes: noteSer,
             wikis: wikiSer,
-            useChannelMemories: body.useChannelMemories === undefined ? undefined : (body.useChannelMemories === null ? null : !!body.useChannelMemories),
+            useChannelNotes: body.useChannelNotes === undefined ? undefined : (body.useChannelNotes === null ? null : !!body.useChannelNotes),
             useChannelWikis: body.useChannelWikis === undefined ? undefined : (body.useChannelWikis === null ? null : !!body.useChannelWikis),
             workPath: body.workPath === undefined ? undefined : (body.workPath || null),
             streamVerbose: body.streamVerbose === undefined ? undefined : (body.streamVerbose ?? null),
@@ -350,9 +350,9 @@ export class ChannelDataService {
             autoForSessionId: null,
             agentId: current?.agentId ?? null,
             saver: current?.saver ?? null,
-            memories: current?.memories ?? null,
+            notes: current?.notes ?? null,
             wikis: current?.wikis ?? null,
-            useChannelMemories: current?.useChannelMemories ?? null,
+            useChannelNotes: current?.useChannelNotes ?? null,
             useChannelWikis: current?.useChannelWikis ?? null,
             workPath: current?.workPath ?? null,
             streamVerbose: current?.streamVerbose ?? null,
@@ -438,7 +438,7 @@ export class ChannelDataService {
         await database.update(database.sessionProfile, {
             agentId: body.agent || null,
             saver: body.saver || null,
-            memories: body.memories ? JSON.stringify(body.memories) : null,
+            notes: body.notes ? JSON.stringify(body.notes) : null,
             wikis: body.wikis ? JSON.stringify(body.wikis) : null,
             workPath: body.workPath ?? null,
         }, { where: { id: profile.id } });
@@ -455,7 +455,7 @@ export class ChannelDataService {
         const profileUpdate: Record<string, any> = {};
         if (body.agent !== undefined) profileUpdate.agentId = body.agent || null;
         if (body.saver !== undefined) profileUpdate.saver = body.saver || null;
-        if (body.memories !== undefined) profileUpdate.memories = body.memories ? JSON.stringify(body.memories) : null;
+        if (body.notes !== undefined) profileUpdate.notes = body.notes ? JSON.stringify(body.notes) : null;
         if (body.wikis !== undefined) profileUpdate.wikis = body.wikis ? JSON.stringify(body.wikis) : null;
         if (body.workPath !== undefined) profileUpdate.workPath = body.workPath;
         if (body.autoApproveAllTools !== undefined) profileUpdate.autoApproveAllTools = !!body.autoApproveAllTools;
@@ -628,16 +628,16 @@ export class ChannelDataService {
 // ── listSessions 响应类型 ─────────────────────────────────────────────────────
 
 /**
- * channel_session 行 + 它指向的 profile 字段（admin UI 需要展示 agent/saver/memories/tokens 等）。
+ * channel_session 行 + 它指向的 profile 字段（admin UI 需要展示 agent/saver/notes/tokens 等）。
  * profile 字段：null = 沿用 channel 默认；非 null = profile 已覆盖。
- * memories/wikis 已从 JSON 字符串解析为 string[]，null = 未覆盖。
+ * notes/wikis 已从 JSON 字符串解析为 string[]，null = 未覆盖。
  */
 export interface ChannelSessionWithProfile extends ChannelSessionRow {
     agentId: string | null;
     saver: string | null;
-    memories: string[] | null;
+    notes: string[] | null;
     wikis: string[] | null;
-    useChannelMemories: boolean | null;
+    useChannelNotes: boolean | null;
     useChannelWikis: boolean | null;
     workPath: string | null;
     streamVerbose: boolean | null;
