@@ -306,6 +306,7 @@ export class LarkService implements IChannelService {
         for (const item of page?.items ?? []) {
           currentItem = item;
           if (item.sender?.sender_type === 'app') continue;
+          if (item.deleted === true) continue;
           if (options?.filter && !options.filter(item)) continue;
           const content = await this.parseMessageContent(item.message_id ?? '', item.msg_type ?? '', item.body?.content ?? '', item.mentions, true);
           if (content == null) continue;
