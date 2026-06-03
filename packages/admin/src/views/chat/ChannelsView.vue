@@ -217,6 +217,7 @@ async function openEditSession(s: ChannelSessionRow) {
   editingSession.value = s
   sessionForm.value = { name: s.sessionName || '', overrides: emptyOverrides() }
   originalOverrides.value = null
+  editingProfile.value = null
   await loadVisibleProfiles()
   const eff = await loadEffective(s.id)
   if (eff?.profile) {
@@ -230,8 +231,6 @@ async function openEditSession(s: ChannelSessionRow) {
       editingProfile.value = full
       sessionForm.value.overrides = profileToOverrides(full)
       originalOverrides.value = profileToOverrides(full)
-    } else {
-      editingProfile.value = null
     }
   }
 }
