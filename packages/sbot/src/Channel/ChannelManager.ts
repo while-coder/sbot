@@ -210,36 +210,75 @@ export class ChannelManager {
         this.services.set(channelId, service);
     }
 
-    async sendText(channelId: string, sessionId: string, text: string): Promise<boolean> {
-        const service = this.services.get(channelId);
-        if (!service) return false;
-        await service.sendText(sessionId, text);
-        return true;
-    }
-
     async sendTextToSession(dbSessionId: number, text: string): Promise<boolean> {
         try {
             const row = await database.findOne<ChannelSessionRow>(database.channelSession, { where: { id: dbSessionId } });
             if (!row) return false;
-            return this.sendText(row.channelId, row.sessionId, text);
+            const service = this.services.get(row.channelId);
+            if (!service?.sendTextToSession) return false;
+            await service.sendTextToSession(row.sessionId, text);
+            return true;
         } catch (e) {
             logger.warn(`sendTextToSession(${dbSessionId}) failed: ${e}`);
             return false;
         }
     }
 
-    async sendFile(channelId: string, sessionId: string, file: string | Buffer, fileName?: string): Promise<boolean> {
-        const service = this.services.get(channelId);
-        if (!service) return false;
-        await service.sendFile(sessionId, file, fileName);
-        return true;
+    async sendFileToSession(dbSessionId: number, file: string | Buffer, fileName?: string): Promise<boolean> {
+        try {
+            const row = await database.findOne<ChannelSessionRow>(database.channelSession, { where: { id: dbSessionId } });
+            if (!row) return false;
+            const service = this.services.get(row.channelId);
+            if (!service?.sendFileToSession) return false;
+            await service.sendFileToSession(row.sessionId, file, fileName);
+            return true;
+        } catch (e) {
+            logger.warn(`sendFileToSession(${dbSessionId}) failed: ${e}`);
+            return false;
+        }
     }
 
-    async sendNative(channelId: string, sessionId: string, payload: any): Promise<boolean> {
+    async sendTextToDbUser(dbUserId: number, text: string): Promise<boolean> {
+        try {
+            const row = await database.findOne<ChannelUserRow>(database.channelUser, { where: { id: dbUserId } });
+            if (!row) return false;
+            const service = this.services.get(row.channelId);
+            if (!service?.sendTextToUser) return false;
+            await service.sendTextToUser(row.userId, text);
+            return true;
+        } catch (e) {
+            logger.warn(`sendTextToDbUser(${dbUserId}) failed: ${e}`);
+            return false;
+        }
+    }
+
+    async sendFileToDbUser(dbUserId: number, file: string | Buffer, fileName?: string): Promise<boolean> {
+        try {
+            const row = await database.findOne<ChannelUserRow>(database.channelUser, { where: { id: dbUserId } });
+            if (!row) return false;
+            const service = this.services.get(row.channelId);
+            if (!service?.sendFileToUser) return false;
+            await service.sendFileToUser(row.userId, file, fileName);
+            return true;
+        } catch (e) {
+            logger.warn(`sendFileToDbUser(${dbUserId}) failed: ${e}`);
+            return false;
+        }
+    }
+
+    /**
+     * 返回某 channel 当前 service 的发送能力 token 列表（text / file / text_user / file_user）。
+     * 未启动或类型未知返回空数组。
+     */
+    getChannelCapabilities(channelId: string): string[] {
         const service = this.services.get(channelId);
-        if (!service) return false;
-        await service.sendNative(sessionId, payload);
-        return true;
+        if (!service) return [];
+        const caps: string[] = [];
+        if (service.sendTextToSession) caps.push('text');
+        if (service.sendFileToSession) caps.push('file');
+        if (service.sendTextToUser)    caps.push('text_user');
+        if (service.sendFileToUser)    caps.push('file_user');
+        return caps;
     }
 
     async loadPlugin(moduleOrPath: string): Promise<ChannelPlugin | undefined> {

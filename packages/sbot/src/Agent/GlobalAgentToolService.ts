@@ -11,6 +11,7 @@ export enum BuiltinProvider {
 
     Scheduler = 'builtin_scheduler',
     SessionSearch = 'builtin_session_search',
+    Channel = 'builtin_channel',
 
     Playwright = 'builtin_playwright',
     Markitdown = 'builtin_markitdown',
@@ -55,6 +56,12 @@ export function initGlobalAgentToolService() {
         const { createSessionSearchTool } = await import("../Tools/SessionSearch/index.js");
         return [createSessionSearchTool(null)];
     }, '历史会话全文搜索');
+    // Channel 在全局服务里只用 preview 占位（无 currentChannelId）注册，仅供 admin 展示工具 schema；
+    // 实际运行时会被 AgentFactory.SESSION_TOOL_CREATORS 用真 channelId 单独注册到 per-agent 的 ToolService 上。
+    globalAgentToolService.registerToolFactory(BuiltinProvider.Channel, async (_params) => {
+        const { createChannelTools } = await import("../Tools/Channel/index.js");
+        return createChannelTools();
+    }, '查询/发消息/发文件 跨 channel 会话');
     globalAgentToolService.registerMcpServers({
         [BuiltinProvider.Playwright]: {
             "command": "npx",

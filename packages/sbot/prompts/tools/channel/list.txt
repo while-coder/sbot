@@ -1,0 +1,19 @@
+Discover channels, sessions, and users known to this bot. Reads from the bot's local config / database — no platform API permission required.
+
+- type="channel":          list all configured channels (id, type, name, caps). channel_id is ignored.
+- type="session":          list sessions in channel_id; defaults to all channels. Entries with current="1" are on the same channel as the current conversation — prefer them when names collide.
+- type="user":             list users in channel_id; defaults to all channels.
+- type="session_and_user": list both sessions and users (under the same channel_id / name_pattern filter) in a single call. Use when you don't yet know whether to address a session or a user.
+
+caps (only on <channel>) is a comma-separated capability set. Tokens:
+  text       — channel_send_message works on sessions of this channel
+  file       — channel_send_file works on sessions of this channel
+  text_user  — direct text to a user is supported on this channel
+  file_user  — direct file to a user is supported on this channel
+A token NOT listed means the corresponding call will fail; do not attempt it.
+Empty caps usually means the channel is configured but not currently running.
+A <session>/<user> inherits caps from its channel — list type="channel" first when you need to verify capability.
+
+Note: sessions/users only include those the bot has actually interacted with (or that an admin has manually registered).
+
+Use this tool to discover ids to pass into channel_send_message / channel_send_file.

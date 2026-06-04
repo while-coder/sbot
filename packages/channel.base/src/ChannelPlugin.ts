@@ -2,11 +2,26 @@ import { type MessageContent } from "scorpio.ai";
 import { ChannelSessionHandler } from "./ChannelSessionHandler";
 import { SessionService } from "./SessionService";
 
+/** Capability tokens advertised by a running IChannelService instance. Mirrors which optional send methods are implemented. */
+export enum ChannelCapability {
+  Text     = 'text',
+  File     = 'file',
+  TextUser = 'text_user',
+  FileUser = 'file_user',
+}
+
 export interface IChannelService {
   createSessionHandler(session: SessionService): ChannelSessionHandler;
-  sendText(sessionId: string, text: string): Promise<void>;
-  sendFile(sessionId: string, file: string | Buffer, fileName?: string): Promise<void>;
-  sendNative(sessionId: string, payload: any): Promise<void>;
+  /**
+   * All four send methods are optional. Implement only what the underlying platform
+   * actually supports — leave the rest off so callers (e.g. channel_list_data, Tools)
+   * can advertise real capabilities and avoid silent no-ops.
+   * `userId` in *ToUser variants is the channel-native id (e.g. open_id, qq, userid).
+   */
+  sendTextToSession?(sessionId: string, text: string): Promise<void>;
+  sendFileToSession?(sessionId: string, file: string | Buffer, fileName?: string): Promise<void>;
+  sendTextToUser?(userId: string, text: string): Promise<void>;
+  sendFileToUser?(userId: string, file: string | Buffer, fileName?: string): Promise<void>;
   dispose(): void;
 }
 

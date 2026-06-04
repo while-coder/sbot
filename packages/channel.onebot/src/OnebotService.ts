@@ -56,13 +56,13 @@ export class OnebotService implements IChannelService {
     return { userId: Number(parts[2]) };
   }
 
-  async sendText(sessionId: string, text: string): Promise<void> {
+  async sendTextToSession(sessionId: string, text: string): Promise<void> {
     await this.sendTextMessage(this.parseSessionTarget(sessionId), text);
   }
 
-  async sendFile(_sessionId: string, _file: string | Buffer, _fileName?: string): Promise<void> {}
-
-  async sendNative(_sessionId: string, _payload: any): Promise<void> {}
+  async sendTextToUser(userId: string, text: string): Promise<void> {
+    await this.sendTextMessage({ userId: Number(userId) }, text);
+  }
 
   dispose() {
     for (const ws of this.connections) {

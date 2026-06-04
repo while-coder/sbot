@@ -1,0 +1,7 @@
+Send a markdown message to a known session or user. Use channel_list_data first to discover the target id.
+
+Parameters:
+- type="session": id is the dbSessionId (the <session id="..."> attribute). Requires the session's channel caps to contain "text".
+- type="user":    id is the dbUserId    (the <user id="..."> attribute).    Requires the user's channel caps to contain "text_user".
+
+If the required cap is not advertised by the channel, the call will fail — do not attempt it.

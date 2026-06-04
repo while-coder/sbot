@@ -19,6 +19,7 @@ import {
 import { type StructuredToolInterface } from "@langchain/core/tools";
 import { createSchedulerTools } from "../Tools/Scheduler/index";
 import { createSessionSearchTool, type SearchableSaver } from "../Tools/SessionSearch/index";
+import { createChannelTools } from "../Tools/Channel/index";
 import { channelDataService } from "../Session/ChannelDataService";
 import { config, AgentMode, ACPSessionMode, ToolAgentEntry, SingleAgentEntry, ReactAgentEntry, GenerativeAgentEntry, ACPAgentEntry } from "../Core/Config";
 import { loadPrompt } from "../Core/PromptLoader";
@@ -130,6 +131,12 @@ export class AgentFactory {
             const saver = await container.resolve<IAgentSaverService>(IAgentSaverService);
             if (typeof saver.searchArchive !== 'function') return [];
             return [createSessionSearchTool(saver as SearchableSaver)];
+        },
+        [BuiltinProvider.Channel]: async ({ dbSessionId }) => {
+            const id = parseInt(dbSessionId, 10);
+            if (!id) return createChannelTools();
+            const session = await channelDataService.getSession(id);
+            return createChannelTools(session?.channelId);
         },
     };
 

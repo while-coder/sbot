@@ -58,16 +58,20 @@ export class WecomService implements IChannelService {
     return new WecomSessionHandler(session, this);
   }
 
-  async sendText(sessionId: string, text: string): Promise<void> {
+  async sendTextToSession(sessionId: string, text: string): Promise<void> {
     await this.sendMessage(sessionId, { msgtype: 'markdown', markdown: { content: text } } as any);
   }
 
-  async sendFile(sessionId: string, file: string | Buffer, fileName?: string): Promise<void> {
+  async sendFileToSession(sessionId: string, file: string | Buffer, fileName?: string): Promise<void> {
     await this.sendFileMessage(sessionId, file, fileName);
   }
 
-  async sendNative(sessionId: string, payload: any): Promise<void> {
-    await this.sendMessage(sessionId, payload);
+  async sendTextToUser(userId: string, text: string): Promise<void> {
+    await this.sendMessage(userId, { msgtype: 'markdown', markdown: { content: text } } as any);
+  }
+
+  async sendFileToUser(userId: string, file: string | Buffer, fileName?: string): Promise<void> {
+    await this.sendFileMessage(userId, file, fileName);
   }
 
   dispose() {

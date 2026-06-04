@@ -43,15 +43,13 @@ export class XiaoaiService implements IChannelService {
     return new XiaoaiSessionHandler(session, this);
   }
 
-  async sendText(_sessionId: string, text: string): Promise<void> {
+  async sendTextToSession(_sessionId: string, text: string): Promise<void> {
     if (!this.authed || !this.deviceId) return;
     await speak(this.authed, this.deviceId, text, {
       chunkLimit: this.options.textChunkLimit,
       volume: this.options.volume,
     });
   }
-  async sendFile(_sessionId: string, _file: string | Buffer, _fileName?: string): Promise<void> {}
-  async sendNative(_sessionId: string, _payload: any): Promise<void> {}
 
   getAuthedAccount(): AuthedAccount | undefined {
     return this.authed;

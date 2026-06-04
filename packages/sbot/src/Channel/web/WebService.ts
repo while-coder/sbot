@@ -162,11 +162,11 @@ export class WebService implements IChannelService {
         return new WebSocketSessionHandler(session);
     }
 
-    async sendText(sessionId: string, text: string): Promise<void> {
+    async sendTextToSession(sessionId: string, text: string): Promise<void> {
         await this.pushOutgoing(sessionId, text);
     }
 
-    async sendFile(sessionId: string, file: string | Buffer, fileName?: string): Promise<void> {
+    async sendFileToSession(sessionId: string, file: string | Buffer, fileName?: string): Promise<void> {
         let filePath: string;
         let displayName: string;
         if (typeof file === 'string') {
@@ -180,10 +180,6 @@ export class WebService implements IChannelService {
             displayName = name;
         }
         await this.pushOutgoing(sessionId, `[file: ${displayName}](${filePath})`);
-    }
-
-    async sendNative(_sessionId: string, _payload: any): Promise<void> {
-        // 同上。
     }
 
     /**

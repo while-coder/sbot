@@ -96,19 +96,6 @@ export interface LarkHistoryMessage {
   content: MessageContent;
 }
 
-export interface LarkChatListItem {
-  chat_id: string;
-  avatar?: string;
-  name?: string;
-  description?: string;
-  owner_id?: string;
-  owner_id_type?: string;
-  external?: boolean;
-  tenant_key?: string;
-  labels?: string[];
-  chat_status?: 'normal' | 'dissolved' | 'dissolved_save';
-}
-
 export interface LarkServiceOptions {
   appId: string;
   appSecret: string;
@@ -161,17 +148,20 @@ export class LarkService implements IChannelService {
     return new LarkSessionHandler(session, this);
   }
 
-  async sendText(sessionId: string, text: string): Promise<void> {
+  async sendTextToSession(sessionId: string, text: string): Promise<void> {
     await this.sendMarkdownMessage(LarkReceiveIdType.ChatId, sessionId, text);
   }
 
-  async sendFile(sessionId: string, file: string | Buffer, fileName?: string): Promise<void> {
+  async sendFileToSession(sessionId: string, file: string | Buffer, fileName?: string): Promise<void> {
     await this.sendFileMessage(LarkReceiveIdType.ChatId, sessionId, file, fileName);
   }
 
-  async sendNative(sessionId: string, payload: any): Promise<void> {
-    const content = typeof payload === 'string' ? payload : JSON.stringify(payload);
-    await this.sendMessage(LarkReceiveIdType.ChatId, sessionId, 'interactive', content);
+  async sendTextToUser(userId: string, text: string): Promise<void> {
+    await this.sendMarkdownMessage(this.userIdType as unknown as LarkReceiveIdType, userId, text);
+  }
+
+  async sendFileToUser(userId: string, file: string | Buffer, fileName?: string): Promise<void> {
+    await this.sendFileMessage(this.userIdType as unknown as LarkReceiveIdType, userId, file, fileName);
   }
 
   dispose() {
@@ -337,51 +327,6 @@ export class LarkService implements IChannelService {
       return { items, hasMore: false };
     } catch (error: any) {
       this.logger?.error(`Error getting message history: ${error.message}\n${error.stack}\ncurrentItem: ${JSON.stringify(currentItem, null, 2)}\ncurrentPage: ${JSON.stringify(currentPage, null, 2)}`);
-      return { items: [], hasMore: false };
-    }
-  }
-
-  /** https://open.feishu.cn/document/server-docs/group/chat/list */
-  async getChatList(options?: {
-    limit?: number;
-    sortType?: 'ByCreateTimeAsc' | 'ByActiveTimeDesc';
-    filter?: (chat: any) => boolean;
-  }): Promise<{ items: LarkChatListItem[]; hasMore: boolean }> {
-    const limit = options?.limit ?? 100;
-    let currentPage: any;
-    let currentItem: any;
-    try {
-      const iter = await this.larkClient.im.v1.chat.listWithIterator({
-        params: {
-          user_id_type: this.userIdType as any,
-          sort_type: options?.sortType ?? 'ByActiveTimeDesc',
-        },
-      });
-      const items: LarkChatListItem[] = [];
-      for await (const page of iter) {
-        currentPage = page;
-        for (const item of page?.items ?? []) {
-          currentItem = item;
-          if (item.chat_status && item.chat_status !== 'normal') continue;
-          if (options?.filter && !options.filter(item)) continue;
-          items.push({
-            chat_id: item.chat_id ?? '',
-            avatar: item.avatar,
-            name: item.name,
-            description: item.description,
-            owner_id: item.owner_id,
-            owner_id_type: item.owner_id_type,
-            external: item.external,
-            tenant_key: item.tenant_key,
-            labels: item.labels,
-            chat_status: item.chat_status,
-          });
-          if (items.length >= limit) return { items, hasMore: true };
-        }
-      }
-      return { items, hasMore: false };
-    } catch (error: any) {
-      this.logger?.error(`Error getting chat list: ${error.message}\n${error.stack}\ncurrentItem: ${JSON.stringify(currentItem, null, 2)}\ncurrentPage: ${JSON.stringify(currentPage, null, 2)}`);
       return { items: [], hasMore: false };
     }
   }

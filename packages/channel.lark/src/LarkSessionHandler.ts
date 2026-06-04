@@ -3,7 +3,7 @@ import { LarkChatType, LarkReceiveIdType, LarkService } from "./LarkService";
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import {
-  ChannelSessionHandler, ToolCallStatus, SessionService, createAskTool, createSendFileTool,
+  ChannelSessionHandler, ToolCallStatus, SessionService, createAskTool,
   GlobalLoggerService, AskQuestionType, summarizeMultimodal, AgentCancelledError, ToolApproval,
   type StructuredToolInterface,
   type ChannelMessageArgs, type ChatMessage, type ChatToolCall, type AskToolParams, type MessageType, type MessageContent,
@@ -224,55 +224,11 @@ Question types:
 - input: free-text entry with an optional placeholder
 
 Returns a map of question label → answer (string for radio/input, string[] for checkbox).`;
-  static readonly SEND_FILE_PROMPT = 'Send a local file to the current Lark conversation. Use this tool to deliver any generated or exported file (documents, archives, reports, images, etc.) directly to the user via Lark.';
 
   buildAgentTools(args: ChannelMessageArgs): StructuredToolInterface[] {
     const { sessionId, userOpenId } = args as LarkMessageArgs;
     return [
         createAskTool((params: AskToolParams) => this.executeAsk(params), LarkSessionHandler.ASK_PROMPT, [AskQuestionType.Radio, AskQuestionType.Checkbox, AskQuestionType.Input]),
-        createSendFileTool(LarkSessionHandler.SEND_FILE_PROMPT, async (filePath: string, fileName: string) => {
-            await this.larkService.sendFileMessage(LarkReceiveIdType.ChatId, sessionId, filePath, fileName);
-        }),
-        new DynamicStructuredTool({
-            name: '_send_message',
-            description: 'Send a message to a Lark chat or user. By default sends to the current conversation. Can also target a different chat_id or user (by union_id).',
-            schema: z.object({
-                content: z.string().describe('The message content in Markdown format.'),
-                receive_id: z.string().optional().describe('Target receive ID (chat_id or union_id). Defaults to the current chat.'),
-                receive_id_type: z.enum(['chat_id', 'union_id']).optional().describe('Type of receive_id. Defaults to "chat_id".'),
-            }),
-            func: async ({ content, receive_id, receive_id_type }) => {
-                const targetId = receive_id || sessionId;
-                const idType = (receive_id_type || 'chat_id') as LarkReceiveIdType;
-                try {
-                    await this.larkService.sendMarkdownMessage(idType, targetId, content);
-                    return `<send-message status="success" receive_id="${targetId}" receive_id_type="${idType}" />`;
-                } catch (e: any) {
-                    return `<send-message status="failed" receive_id="${targetId}" receive_id_type="${idType}" error="${(e?.message ?? String(e)).replace(/"/g, '&quot;')}" />`;
-                }
-            },
-        }),
-        new DynamicStructuredTool({
-            name: '_get_chat_list',
-            description: 'List all Lark groups the bot has joined. Returns chat_id, name, description, and other metadata for each group. Useful for broadcasting or for the user to pick a target chat.',
-            schema: z.object({
-                limit: z.number().optional().describe('Max number of chats to return (default 100).'),
-                sort_type: z.enum(['ByCreateTimeAsc', 'ByActiveTimeDesc']).optional().describe('Sort order. Defaults to "ByActiveTimeDesc".'),
-                name_keyword: z.string().optional().describe('If set, only return chats whose name contains this substring (case-insensitive).'),
-            }),
-            func: async ({ limit, sort_type, name_keyword }) => {
-                const kw = name_keyword?.toLowerCase();
-                const { items, hasMore } = await this.larkService.getChatList({
-                    limit,
-                    sortType: sort_type,
-                    filter: kw ? (c) => (c.name ?? '').toLowerCase().includes(kw) : undefined,
-                });
-                const lines = items.map((c) =>
-                    `<chat id="${c.chat_id}" name="${c.name ?? ''}" external="${c.external ?? false}">${c.description ?? ''}</chat>`
-                );
-                return `<chat-list count="${items.length}" has_more="${hasMore}">\n${lines.join('\n')}\n</chat-list>`;
-            },
-        }),
         new DynamicStructuredTool({
             name: '_get_message_history',
             description: 'Retrieve message history from the current Lark chat in reverse chronological order (newest first). To paginate older messages, pass the previous response\'s "oldest_time" attribute as the next call\'s "end_time".',
