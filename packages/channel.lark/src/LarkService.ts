@@ -108,9 +108,9 @@ export interface LarkServiceOptions {
 
 
 export class LarkService implements IChannelService {
-  // 速率限制：1000 次/分钟、50 次/秒，固定间隔 65ms
+  // 速率限制：1000 次/分钟、50 次/秒，固定间隔 200ms
   private lastCallTime = 0;
-  private readonly callInterval = 65; // ms
+  private readonly callInterval = 200; // ms
   private larkConfig: { appId: string, appSecret: string};
   private larkClient: Lark.Client;
   private larkWsClient: Lark.WSClient;
