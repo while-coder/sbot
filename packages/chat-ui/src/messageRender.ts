@@ -5,6 +5,30 @@ import type { DisplayPart, DisplayContent } from './types'
 
 const pad2 = (n: number) => n.toString().padStart(2, '0')
 
+const KNOWN_HTML_TAGS = new Set([
+  'a', 'abbr', 'address', 'article', 'aside', 'b', 'bdi', 'bdo', 'blockquote', 'br',
+  'caption', 'cite', 'code', 'col', 'colgroup', 'dd', 'del', 'details', 'dfn',
+  'div', 'dl', 'dt', 'em', 'figcaption', 'figure', 'footer', 'h1', 'h2', 'h3',
+  'h4', 'h5', 'h6', 'header', 'hgroup', 'hr', 'i', 'img', 'input', 'ins', 'kbd',
+  'li', 'main', 'mark', 'nav', 'ol', 'p', 'picture', 'pre', 'q', 'rp', 'rt',
+  'ruby', 's', 'samp', 'section', 'small', 'source', 'span', 'strong', 'sub',
+  'summary', 'sup', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'time',
+  'tr', 'u', 'ul', 'var', 'wbr',
+])
+
+/**
+ * Escape `<` of any tag whose name is not a known HTML element so XML-like
+ * payloads (e.g. tool outputs containing `<channels>` or `<aaa />`) survive
+ * marked + DOMPurify and render as literal text instead of being stripped.
+ * Auto-link forms like `<https://x>` are left alone via the `[\s/>]` lookahead.
+ */
+function escapeUnknownHtmlTags(text: string): string {
+  return text.replace(/<(\/?)([a-zA-Z][a-zA-Z0-9-]*)(?=[\s/>])/g, (match, slash, tagName) => {
+    if (KNOWN_HTML_TAGS.has(tagName.toLowerCase())) return match
+    return `&lt;${slash}${tagName}`
+  })
+}
+
 function dataUrl(mime: string | undefined, base64: string | undefined): string | null {
   if (!mime || !base64) return null
   return `data:${mime};base64,${base64}`
@@ -65,7 +89,7 @@ export function renderMd(content: DisplayContent | null | undefined): string {
       .map((c) => (typeof c === 'string' ? c : c?.type === 'text' ? (c.text ?? '') : ''))
       .filter(Boolean)
       .join('\n')
-  const html = marked.parse(text) as string
+  const html = marked.parse(escapeUnknownHtmlTags(text)) as string
   return DOMPurify.sanitize(html)
 }
 

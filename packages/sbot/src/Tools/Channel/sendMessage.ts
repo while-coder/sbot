@@ -23,12 +23,12 @@ export function createChannelSendMessageTool(): StructuredToolInterface {
             }
             try {
                 const ok = type === ChannelTargetType.User
-                    ? await channelManager.sendTextToDbUser(id, content)
+                    ? await channelManager.sendTextToUser(id, content)
                     : await channelManager.sendTextToSession(id, content);
                 if (!ok) {
                     return createErrorResult(`Send failed: type=${type} id=${id} unreachable or capability not supported.`);
                 }
-                return createSuccessResult(createTextContent(`<send-message status="success" type="${type}" id="${id}" />`));
+                return createSuccessResult(createTextContent('ok'));
             } catch (e: any) {
                 logger.error(`${CHANNEL_SEND_MESSAGE_TOOL_NAME} failed: ${e.message}`);
                 return createErrorResult(`Send failed: ${e.message}`);

@@ -518,6 +518,8 @@ function isEmbeddedTool(msg: StoredMessage): boolean {
   color: var(--chatui-fg-secondary);
 }
 :deep(.tool-result-content) { font-size: 12px; }
+/* Preserve whitespace so XML-like tool payloads keep indentation/newlines. */
+:deep(.tool-result-content p) { white-space: pre-wrap; }
 
 /* Think toggle */
 .think-toggle {

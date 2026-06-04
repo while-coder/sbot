@@ -238,7 +238,7 @@ export class ChannelManager {
         }
     }
 
-    async sendTextToDbUser(dbUserId: number, text: string): Promise<boolean> {
+    async sendTextToUser(dbUserId: number, text: string): Promise<boolean> {
         try {
             const row = await database.findOne<ChannelUserRow>(database.channelUser, { where: { id: dbUserId } });
             if (!row) return false;
@@ -247,12 +247,12 @@ export class ChannelManager {
             await service.sendTextToUser(row.userId, text);
             return true;
         } catch (e) {
-            logger.warn(`sendTextToDbUser(${dbUserId}) failed: ${e}`);
+            logger.warn(`sendTextToUser(${dbUserId}) failed: ${e}`);
             return false;
         }
     }
 
-    async sendFileToDbUser(dbUserId: number, file: string | Buffer, fileName?: string): Promise<boolean> {
+    async sendFileToUser(dbUserId: number, file: string | Buffer, fileName?: string): Promise<boolean> {
         try {
             const row = await database.findOne<ChannelUserRow>(database.channelUser, { where: { id: dbUserId } });
             if (!row) return false;
@@ -261,7 +261,7 @@ export class ChannelManager {
             await service.sendFileToUser(row.userId, file, fileName);
             return true;
         } catch (e) {
-            logger.warn(`sendFileToDbUser(${dbUserId}) failed: ${e}`);
+            logger.warn(`sendFileToUser(${dbUserId}) failed: ${e}`);
             return false;
         }
     }
