@@ -2,7 +2,7 @@ import {
   ChannelPlugin, ChannelPluginContext, IChannelService, ConfigFieldType,
   type MessageContent,
 } from "channel.base";
-import { LarkService, LarkReceiveIdType, LarkUserIdType, type LarkUserInfo, type LarkChatInfo } from "./LarkService";
+import { LarkService, LarkReceiveIdType, LarkUserIdType, type LarkUserInfo, type LarkChatInfo, type LarkDomain } from "./LarkService";
 import { LarkMessageArgs, LarkActionArgs } from "./LarkSessionHandler";
 
 function buildLarkExtraInfo(userInfo: LarkUserInfo | undefined, chatId?: string, messageId?: string): string {
@@ -17,9 +17,15 @@ function buildLarkExtraInfo(userInfo: LarkUserInfo | undefined, chatId?: string,
 }
 export const larkPlugin: ChannelPlugin = {
   type: "lark",
-  label: "飞书",
+  label: "飞书 / Lark",
 
   configSchema: {
+    domain:    { label: '部署域',     type: ConfigFieldType.Select, required: true, default: 'feishu',
+                 description: '飞书（国内 open.feishu.cn）或 Lark（海外 open.larksuite.com）',
+                 options: [
+                   { label: '飞书（国内）', value: 'feishu' },
+                   { label: 'Lark（海外）', value: 'lark' },
+                 ] },
     appId:     { label: 'App ID',     type: ConfigFieldType.String, required: true, description: 'Lark app ID' },
     appSecret: { label: 'App Secret', type: ConfigFieldType.Password, required: true, description: 'Lark app secret' },
   },
@@ -37,6 +43,7 @@ export const larkPlugin: ChannelPlugin = {
     const service = new LarkService({
       appId: config.appId,
       appSecret: config.appSecret,
+      domain: (config.domain as LarkDomain) ?? 'feishu',
       logger,
       userIdType: LarkUserIdType.UnionId,
       filterEvent,

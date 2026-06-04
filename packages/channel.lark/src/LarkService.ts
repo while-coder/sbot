@@ -96,9 +96,14 @@ export interface LarkHistoryMessage {
   content: MessageContent;
 }
 
+/** 部署域：feishu = 国内飞书 (open.feishu.cn)，lark = 海外 Lark (open.larksuite.com) */
+export type LarkDomain = 'feishu' | 'lark';
+
 export interface LarkServiceOptions {
   appId: string;
   appSecret: string;
+  /** 默认 'feishu' */
+  domain?: LarkDomain;
   userIdType: LarkUserIdType;
   logger?: ILogger;
   filterEvent: (eventId: string) => Promise<boolean>;
@@ -112,6 +117,7 @@ export class LarkService implements IChannelService {
   private lastCallTime = 0;
   private readonly callInterval = 200; // ms
   private larkConfig: { appId: string, appSecret: string};
+  private domain: LarkDomain;
   private larkClient: Lark.Client;
   private larkWsClient: Lark.WSClient;
   private logger?: ILogger;
@@ -132,6 +138,8 @@ export class LarkService implements IChannelService {
     this.userIdType = options.userIdType;
     this.logger = options.logger;
     this.larkConfig = { appId: options.appId, appSecret: options.appSecret };
+    this.domain = options.domain ?? 'feishu';
+    const sdkDomain = this.domain === 'lark' ? Lark.Domain.Lark : Lark.Domain.Feishu;
     this.loggerLevel = Lark.LoggerLevel.warn;
     this.larkLogger = options.logger ? {
       trace: (msg: string, ...args: any[]) => options.logger?.debug(msg, ...args),
@@ -140,8 +148,8 @@ export class LarkService implements IChannelService {
       warn:  (msg: string, ...args: any[]) => options.logger?.warn(msg, ...args),
       error: (msg: string, ...args: any[]) => options.logger?.error(msg, ...args),
     } : undefined;
-    this.larkClient = new Lark.Client({ ...this.larkConfig, logger: this.larkLogger, loggerLevel: this.loggerLevel });
-    this.larkWsClient = new Lark.WSClient({ ...this.larkConfig, logger: this.larkLogger, loggerLevel: this.loggerLevel });
+    this.larkClient = new Lark.Client({ ...this.larkConfig, domain: sdkDomain, logger: this.larkLogger, loggerLevel: this.loggerLevel });
+    this.larkWsClient = new Lark.WSClient({ ...this.larkConfig, domain: sdkDomain, logger: this.larkLogger, loggerLevel: this.loggerLevel });
   }
 
   createSessionHandler(session: SessionService): ChannelSessionHandler {
@@ -462,10 +470,10 @@ export class LarkService implements IChannelService {
     if (this.botOpenId) return this.botOpenId;
     try {
       const token = await this.getTenantAccessToken();
-      const response = await fetch('https://open.feishu.cn/open-apis/bot/v3/info/', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await response.json() as any;
+      const data = await this.larkClient.request({
+        method: 'GET',
+        url: '/open-apis/bot/v3/info',
+      }, Lark.withTenantToken(token)) as any;
       if (data.code === 0 && data.bot?.open_id) {
         this.botOpenId = data.bot.open_id;
         this.logger?.debug(`Bot open_id: ${this.botOpenId}`);
