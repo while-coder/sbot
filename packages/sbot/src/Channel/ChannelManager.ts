@@ -94,6 +94,8 @@ async function doInitSession(channelId: string, ctx: import("channel.base").Init
 
 // ── ChannelManager ────────────────────────────────────────────────────────────
 
+export type SendResult = { ok: true } | { ok: false; error: string };
+
 export class ChannelManager {
     private pluginLoader = new PluginLoader();
     private plugins = new Map<string, ChannelPlugin>();
@@ -210,59 +212,63 @@ export class ChannelManager {
         this.services.set(channelId, service);
     }
 
-    async sendTextToSession(dbSessionId: number, text: string): Promise<boolean> {
+    async sendTextToSession(dbSessionId: number, text: string): Promise<SendResult> {
         try {
             const row = await database.findOne<ChannelSessionRow>(database.channelSession, { where: { id: dbSessionId } });
-            if (!row) return false;
+            if (!row) return { ok: false, error: `session not found: dbSessionId=${dbSessionId}` };
             const service = this.services.get(row.channelId);
-            if (!service?.sendTextToSession) return false;
+            if (!service?.sendTextToSession) return { ok: false, error: `channel ${row.channelId} does not support sendTextToSession` };
             await service.sendTextToSession(row.sessionId, text);
-            return true;
-        } catch (e) {
+            return { ok: true };
+        } catch (e: any) {
+            const error = e?.message ?? String(e);
             logger.warn(`sendTextToSession(${dbSessionId}) failed: ${e}`);
-            return false;
+            return { ok: false, error };
         }
     }
 
-    async sendFileToSession(dbSessionId: number, file: string | Buffer, fileName?: string): Promise<boolean> {
+    async sendFileToSession(dbSessionId: number, file: string | Buffer, fileName?: string): Promise<SendResult> {
         try {
             const row = await database.findOne<ChannelSessionRow>(database.channelSession, { where: { id: dbSessionId } });
-            if (!row) return false;
+            if (!row) return { ok: false, error: `session not found: dbSessionId=${dbSessionId}` };
             const service = this.services.get(row.channelId);
-            if (!service?.sendFileToSession) return false;
+            if (!service?.sendFileToSession) return { ok: false, error: `channel ${row.channelId} does not support sendFileToSession` };
             await service.sendFileToSession(row.sessionId, file, fileName);
-            return true;
-        } catch (e) {
+            return { ok: true };
+        } catch (e: any) {
+            const error = e?.message ?? String(e);
             logger.warn(`sendFileToSession(${dbSessionId}) failed: ${e}`);
-            return false;
+            return { ok: false, error };
         }
     }
 
-    async sendTextToUser(dbUserId: number, text: string): Promise<boolean> {
+    async sendTextToUser(dbUserId: number, text: string): Promise<SendResult> {
         try {
             const row = await database.findOne<ChannelUserRow>(database.channelUser, { where: { id: dbUserId } });
-            if (!row) return false;
+            if (!row) return { ok: false, error: `user not found: dbUserId=${dbUserId}` };
             const service = this.services.get(row.channelId);
-            if (!service?.sendTextToUser) return false;
+            if (!service?.sendTextToUser) return { ok: false, error: `channel ${row.channelId} does not support sendTextToUser` };
             await service.sendTextToUser(row.userId, text);
-            return true;
-        } catch (e) {
+            return { ok: true };
+        } catch (e: any) {
+            const error = e?.message ?? String(e);
             logger.warn(`sendTextToUser(${dbUserId}) failed: ${e}`);
-            return false;
+            return { ok: false, error };
         }
     }
 
-    async sendFileToUser(dbUserId: number, file: string | Buffer, fileName?: string): Promise<boolean> {
+    async sendFileToUser(dbUserId: number, file: string | Buffer, fileName?: string): Promise<SendResult> {
         try {
             const row = await database.findOne<ChannelUserRow>(database.channelUser, { where: { id: dbUserId } });
-            if (!row) return false;
+            if (!row) return { ok: false, error: `user not found: dbUserId=${dbUserId}` };
             const service = this.services.get(row.channelId);
-            if (!service?.sendFileToUser) return false;
+            if (!service?.sendFileToUser) return { ok: false, error: `channel ${row.channelId} does not support sendFileToUser` };
             await service.sendFileToUser(row.userId, file, fileName);
-            return true;
-        } catch (e) {
+            return { ok: true };
+        } catch (e: any) {
+            const error = e?.message ?? String(e);
             logger.warn(`sendFileToUser(${dbUserId}) failed: ${e}`);
-            return false;
+            return { ok: false, error };
         }
     }
 

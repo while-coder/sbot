@@ -25,11 +25,11 @@ export function createChannelSendFileTool(): StructuredToolInterface {
             }
             const name = file_name ?? path.basename(file_path);
             try {
-                const ok = type === ChannelTargetType.User
+                const r = type === ChannelTargetType.User
                     ? await channelManager.sendFileToUser(id, file_path, name)
                     : await channelManager.sendFileToSession(id, file_path, name);
-                if (!ok) {
-                    return createErrorResult(`Send failed: type=${type} id=${id} unreachable or capability not supported.`);
+                if (!r.ok) {
+                    return createErrorResult(`Send failed: type=${type} id=${id}: ${r.error}`);
                 }
                 return createSuccessResult(createTextContent('ok'));
             } catch (e: any) {

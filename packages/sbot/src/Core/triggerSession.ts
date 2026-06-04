@@ -43,7 +43,8 @@ export async function triggerSession(opts: TriggerSessionOptions): Promise<Trigg
     }
 
     if (!aiProcess) {
-        await channelManager.sendTextToSession(dbSessionId, message);
+        const r = await channelManager.sendTextToSession(dbSessionId, message);
+        if (!r.ok) return { ok: false };
         return { ok: true, channelType, sessionId };
     }
 
