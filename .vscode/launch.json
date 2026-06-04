@@ -19,7 +19,9 @@
         "${workspaceFolder}/packages/channel.wecom/dist/**/*.js",
         "${workspaceFolder}/packages/channel.wechat/dist/**/*.js",
         "${workspaceFolder}/packages/channel.onebot/dist/**/*.js",
-        "${workspaceFolder}/packages/channel.xiaoai/dist/**/*.js"
+        "${workspaceFolder}/packages/channel.xiaoai/dist/**/*.js",
+        "${workspaceFolder}/packages/channel.dingtalk/dist/**/*.js",
+        "${workspaceFolder}/packages/channel.qq/dist/**/*.js"
       ],
       "env": { "NODE_ENV": "development" },
       "cwd": "${workspaceFolder}/packages/sbot",
