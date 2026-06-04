@@ -29,6 +29,7 @@ export const larkPlugin: ChannelPlugin = {
     { name: '_send_file', label: '发送文件' },
     { name: '_send_message', label: '发送消息' },
     { name: '_get_message_history', label: '获取消息历史' },
+    { name: '_get_chat_list', label: '获取群组列表' },
   ],
 
   async init(ctx: ChannelPluginContext): Promise<IChannelService | undefined> {

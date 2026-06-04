@@ -249,6 +249,27 @@ Returns a map of question label → answer (string for radio/input, string[] for
             },
         }),
         new DynamicStructuredTool({
+            name: '_get_chat_list',
+            description: 'List all Lark groups the bot has joined. Returns chat_id, name, description, and other metadata for each group. Useful for broadcasting or for the user to pick a target chat.',
+            schema: z.object({
+                limit: z.number().optional().describe('Max number of chats to return (default 100).'),
+                sort_type: z.enum(['ByCreateTimeAsc', 'ByActiveTimeDesc']).optional().describe('Sort order. Defaults to "ByActiveTimeDesc".'),
+                name_keyword: z.string().optional().describe('If set, only return chats whose name contains this substring (case-insensitive).'),
+            }),
+            func: async ({ limit, sort_type, name_keyword }) => {
+                const kw = name_keyword?.toLowerCase();
+                const { items, hasMore } = await this.larkService.getChatList({
+                    limit,
+                    sortType: sort_type,
+                    filter: kw ? (c) => (c.name ?? '').toLowerCase().includes(kw) : undefined,
+                });
+                const lines = items.map((c) =>
+                    `<chat id="${c.chat_id}" name="${c.name ?? ''}" external="${c.external ?? false}">${c.description ?? ''}</chat>`
+                );
+                return `<chat-list count="${items.length}" has_more="${hasMore}">\n${lines.join('\n')}\n</chat-list>`;
+            },
+        }),
+        new DynamicStructuredTool({
             name: '_get_message_history',
             description: 'Retrieve message history from the current Lark chat in reverse chronological order (newest first). To paginate older messages, pass the previous response\'s "oldest_time" attribute as the next call\'s "end_time".',
             schema: z.object({
