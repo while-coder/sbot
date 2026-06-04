@@ -4,19 +4,19 @@ export abstract class AbstractChatProvider {
   protected messages: ChatMessage[] = [];
   protected streamMessage: ChatMessage | undefined;
 
-  async addAIMessage(message: ChatMessage): Promise<void> {
+  addAIMessage(message: ChatMessage): void {
     this.messages.push(message);
-    await this.onMessagesUpdated();
+    this.onMessagesUpdated();
   }
 
-  async setMessage(content: string): Promise<void> {
+  setMessage(content: string): void {
     this.messages = [{ role: MessageRole.AI, content }];
-    await this.onMessagesUpdated();
+    this.onMessagesUpdated();
   }
 
-  async setStreamMessage(message: ChatMessage): Promise<void> {
+  setStreamMessage(message: ChatMessage): void {
     this.streamMessage = message;
-    await this.onMessagesUpdated();
+    this.onMessagesUpdated();
   }
 
   resetStreamMessage(): void {
@@ -30,5 +30,5 @@ export abstract class AbstractChatProvider {
     return this.messages;
   }
 
-  protected abstract onMessagesUpdated(): Promise<void>;
+  protected abstract onMessagesUpdated(): void;
 }

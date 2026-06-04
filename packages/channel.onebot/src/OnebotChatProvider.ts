@@ -11,7 +11,7 @@ export class OnebotChatProvider extends AbstractChatProvider {
     super();
   }
 
-  protected async onMessagesUpdated(): Promise<void> {}
+  protected onMessagesUpdated(): void {}
 
   async finish(): Promise<void> {
     const text = parseMessages2Text(this.messages);

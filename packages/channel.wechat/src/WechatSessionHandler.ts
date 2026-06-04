@@ -23,20 +23,18 @@ export class WechatSessionHandler extends ChannelSessionHandler {
   }
 
   async onProcessEnd(_query: MessageContent, _args: ChannelMessageArgs, _messageType: MessageType, error?: any): Promise<void> {
-    if (error && this.provider) {
-      await this.provider.setMessage(`处理出错: ${error.message}`);
+    if (error) {
+      this.provider?.setMessage(`处理出错: ${error.message}`);
     }
     await this.provider?.finish();
   }
 
   async onStreamMessage(message: ChatMessage, _args: ChannelMessageArgs): Promise<void> {
-    await this.provider?.setStreamMessage(message);
+    this.provider?.setStreamMessage(message);
   }
 
   async onChatMessage(message: ChatMessage, _args: ChannelMessageArgs): Promise<void> {
-    if (this.provider) {
-      await this.provider.addAIMessage(message);
-    }
+    this.provider?.addAIMessage(message);
   }
 
   // --- Approval: auto-allow (no interactive UI in personal WeChat) ---

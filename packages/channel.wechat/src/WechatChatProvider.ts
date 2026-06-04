@@ -10,7 +10,7 @@ export class WechatChatProvider extends AbstractChatProvider {
     super();
   }
 
-  protected async onMessagesUpdated(): Promise<void> {
+  protected onMessagesUpdated(): void {
     // Accumulates messages — sends on finish()
   }
 

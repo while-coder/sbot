@@ -23,8 +23,8 @@ export class OnebotSessionHandler extends ChannelSessionHandler {
   }
 
   async onProcessEnd(_query: MessageContent, _args: ChannelMessageArgs, _messageType: MessageType, error?: any): Promise<void> {
-    if (error && this.provider) {
-      await this.provider.setMessage(`处理出错: ${error.message}`);
+    if (error) {
+      this.provider?.setMessage(`处理出错: ${error.message}`);
     }
     await this.provider?.finish();
   }
@@ -32,9 +32,7 @@ export class OnebotSessionHandler extends ChannelSessionHandler {
   async onStreamMessage(_message: ChatMessage, _args: ChannelMessageArgs): Promise<void> {}
 
   async onChatMessage(message: ChatMessage, _args: any): Promise<void> {
-    if (this.provider) {
-      await this.provider.addAIMessage(message);
-    }
+    this.provider?.addAIMessage(message);
   }
 
   protected async enterApproval(approvalId: string): Promise<void> {

@@ -23,21 +23,18 @@ export class LarkChatProvider extends AbstractChatProvider {
     return this;
   }
 
-  addTextMessage(content: string) {
-    this.messages.push({ role: MessageRole.AI, content });
-    this.onMessagesUpdated();
-  }
-
   deleteElement(...element_id: string[]) {
+    let changed = false;
     for (let id of element_id) {
       for (let i = 0; i < this.elements.length; i++) {
         if (this.elements[i].element_id === id) {
           this.elements.splice(i, 1);
+          changed = true;
           break
         }
       }
     }
-    this.updateCardMessage()
+    if (changed) this.updateCardMessage()
   }
   insertElement(index: number | undefined, ...elements: any[]) {
     for (let element of elements) {
@@ -60,7 +57,7 @@ export class LarkChatProvider extends AbstractChatProvider {
     this.updateCardMessage()
   }
 
-  protected async onMessagesUpdated(): Promise<void> {
+  protected onMessagesUpdated(): void {
     const messages = this.getDisplayMessages();
     this.insertElement(0, {
       tag: "markdown",

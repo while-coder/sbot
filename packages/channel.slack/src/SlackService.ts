@@ -23,6 +23,9 @@ export class SlackService implements IChannelService {
   private logger?: ILogger;
   private onReceiveMessage: SlackServiceOptions["onReceiveMessage"];
   private onTriggerAction: SlackServiceOptions["onTriggerAction"];
+  // 速率限制：chat.update 全局排队，固定间隔 300ms
+  private lastCallTime = 0;
+  private readonly callInterval = 300;
 
   constructor(options: SlackServiceOptions) {
     this.logger = options.logger;
@@ -70,6 +73,10 @@ export class SlackService implements IChannelService {
     text: string,
     blocks?: any[],
   ): Promise<void> {
+    while ((Date.now() - this.lastCallTime) < this.callInterval) {
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    this.lastCallTime = Date.now();
     await this.app.client.chat.update({
       channel,
       ts,

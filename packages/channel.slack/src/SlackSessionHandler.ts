@@ -36,20 +36,17 @@ export class SlackSessionHandler extends ChannelSessionHandler {
 
   async onProcessEnd(_query: MessageContent, _args: ChannelMessageArgs, _messageType: MessageType, error?: any): Promise<void> {
     if (error) {
-      getLogger()?.error(error.stack ?? error.message);
-      if (this.provider) {
-        await this.provider.setMessage(`Error generating reply: ${error.message}`);
-      }
+      this.provider?.setMessage(`Error generating reply: ${error.message}`);
     }
   }
 
   async onStreamMessage(message: ChatMessage, _args: any): Promise<void> {
-    await this.provider?.setStreamMessage(message);
+    this.provider?.setStreamMessage(message);
   }
 
   async onChatMessage(message: ChatMessage, _args: any): Promise<void> {
     this.provider?.resetStreamMessage();
-    await this.provider?.addAIMessage(message);
+    this.provider?.addAIMessage(message);
   }
 
   private buildApprovalBlocks(toolCall: ChatToolCall, id: string, remainSec: number): any[] {
@@ -73,11 +70,11 @@ export class SlackSessionHandler extends ChannelSessionHandler {
   }
 
   protected async enterApproval(approvalId: string, remainSec: number, toolCall: ChatToolCall): Promise<void> {
-    await this.provider?.setApprovalBlocks(this.buildApprovalBlocks(toolCall, approvalId, remainSec));
+    this.provider?.setApprovalBlocks(this.buildApprovalBlocks(toolCall, approvalId, remainSec));
   }
 
   protected async exitApproval(_approvalId: string): Promise<void> {
-    await this.provider?.clearApprovalBlocks();
+    this.provider?.clearApprovalBlocks();
   }
 
   protected async enterAsk(askId: string, remainSec: number, params: AskToolParams): Promise<void> {
@@ -129,11 +126,11 @@ export class SlackSessionHandler extends ChannelSessionHandler {
         value: JSON.stringify({ id: askId }),
       }],
     });
-    await this.provider?.setAskBlocks(inputBlocks);
+    this.provider?.setAskBlocks(inputBlocks);
   }
 
   protected async exitAsk(_askId: string): Promise<void> {
-    await this.provider?.clearAskBlocks();
+    this.provider?.clearAskBlocks();
   }
 
   async onTriggerAction(args: SlackActionArgs): Promise<void> {

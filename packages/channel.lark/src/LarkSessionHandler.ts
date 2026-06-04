@@ -21,6 +21,7 @@ const EL_TOOL_CALL_ALWAYS_TOOL = 'toolCallAlwaysTool';
 const EL_TOOL_CALL_DENY = 'toolCallDeny';
 const EL_ASK_FORM = 'askForm';
 const EL_ABORT_BTN = 'abortBtn';
+const EL_THINKING = 'thinking';
 
 export interface LarkMessageArgs extends ChannelMessageArgs {
   event_id: string;
@@ -54,23 +55,24 @@ export class LarkSessionHandler extends ChannelSessionHandler {
     } else {
       this.provider = await new LarkChatProvider(this.larkService).initReplay(message_id);
     }
-    await this.sendAbortButton();
+    this.sendThinkingPlaceholder();
+    this.sendAbortButton();
   }
 
-  async onProcessEnd(_query: MessageContent, _args: any, _messageType: MessageType, error?: any): Promise<void> {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    await this.clearAbortButton();
-    if (error && this.provider) {
-      if (error instanceof AgentCancelledError || error?.name === 'AbortError' || error?.name === 'TimeoutError') {
-        await this.provider.setMessage('已中断');
-      } else {
-        await this.provider.setMessage(`Error generating reply: ${error.message}\n${error.stack}`);
-      }
-    }
+  protected sendThinkingPlaceholder(): void {
+    this.provider?.insertElement(undefined, {
+      tag: "markdown",
+      element_id: EL_THINKING,
+      content: "Thinking...",
+      text_align: "left",
+      text_size: "normal",
+    });
   }
-
-  protected async sendAbortButton(): Promise<void> {
-    await this.provider?.insertElement(undefined, {
+  protected clearThinkingPlaceholder(): void {
+    this.provider?.deleteElement(EL_THINKING);
+  }
+  protected sendAbortButton(): void {
+    this.provider?.insertElement(undefined, {
       tag: "button",
       text: { tag: "plain_text", content: "■ 中断" },
       type: "danger",
@@ -84,17 +86,32 @@ export class LarkSessionHandler extends ChannelSessionHandler {
       element_id: EL_ABORT_BTN,
     });
   }
-  protected async clearAbortButton(): Promise<void> {
-    await this.provider?.deleteElement(EL_ABORT_BTN);
+  protected clearAbortButton(): void {
+    this.provider?.deleteElement(EL_ABORT_BTN);
+  }
+
+  async onProcessEnd(_query: MessageContent, _args: any, _messageType: MessageType, error?: any): Promise<void> {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    this.clearThinkingPlaceholder()
+    this.clearAbortButton();
+    if (error && this.provider) {
+      if (error instanceof AgentCancelledError || error?.name === 'AbortError' || error?.name === 'TimeoutError') {
+        this.provider.setMessage('已中断');
+      } else {
+        this.provider.setMessage(`Error generating reply: ${error.message}\n${error.stack}`);
+      }
+    }
   }
 
   async onStreamMessage(message: ChatMessage, _args: ChannelMessageArgs): Promise<void> {
-    await this.provider?.setStreamMessage(message);
+    this.clearThinkingPlaceholder();
+    this.provider?.setStreamMessage(message);
   }
 
   async onChatMessage(message: ChatMessage, args: ChannelMessageArgs): Promise<void> {
-    this.provider!.resetStreamMessage();
-    await this.provider?.addAIMessage(message);
+    this.clearThinkingPlaceholder();
+    this.provider?.resetStreamMessage();
+    this.provider?.addAIMessage(message);
     await this.sendInlineImages(message, args);
   }
 
