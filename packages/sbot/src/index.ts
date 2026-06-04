@@ -179,6 +179,7 @@ async function main() {
     const { initGlobalSkillService } = await import("./Agent/GlobalSkillService");
     const { schedulerService } = await import("./Scheduler/SchedulerService");
     const { heartbeatService } = await import("./Heartbeat/HeartbeatService");
+    const { tunnelService } = await import("./Tunnel");
 
     const logger = LoggerService.getLogger('index.ts');
     logger.info("=========================Starting===========================")
@@ -210,6 +211,7 @@ async function main() {
         await httpServer.start()
         await schedulerService.start()
         await heartbeatService.start()
+        await tunnelService.startAll(config.getHttpPort())
 
         logger.info("=========================Started successfully=============")
     } catch (e) {

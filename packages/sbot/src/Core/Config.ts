@@ -4,9 +4,9 @@ import fs from "fs";
 import type { ModelConfig, MCPServers, IModelService, IEmbeddingService, AgentSubNode, EmbeddingConfig } from "scorpio.ai";
 import { ModelProvider, EmbeddingProvider } from "scorpio.ai";
 export type { AgentSubNode } from "scorpio.ai";
-import { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, InsightScope, TodoScope, SaverConfig, NoteConfig, WikiConfig, ChannelConfig, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE, type InsightConfig, type TodoConfig, type AgentStoreSource, type AgentSourceEntry } from "sbot.commons";
+import { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, InsightScope, TodoScope, SaverConfig, NoteConfig, WikiConfig, ChannelConfig, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE, type InsightConfig, type TodoConfig, type AgentStoreSource, type AgentSourceEntry, type TunnelConfig } from "sbot.commons";
 export { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, InsightScope, TodoScope, SaverConfig, NoteConfig, WikiConfig, ChannelConfig } from "sbot.commons";
-export type { InsightConfig, TodoConfig } from "sbot.commons";
+export type { InsightConfig, TodoConfig, TunnelConfig } from "sbot.commons";
 
 export const isDev = process.env.NODE_ENV === 'development';
 export type { AgentSourceEntry } from "sbot.commons";
@@ -110,6 +110,7 @@ export interface Settings {
   channels?: Record<string, ChannelConfig>;
   plugins?: string[];
   agentSources?: AgentSourceEntry[];
+  tunnel?: TunnelConfig[];
 }
 
 // Record<keyof Settings, true> 保证与接口同步：漏写或多写都会编译报错
@@ -117,7 +118,7 @@ const SETTINGS_KEYS: ReadonlySet<string> = new Set(Object.keys({
   httpPort: true, httpUrl: true, autoApproveTools: true, autoApproveAllTools: true,
   startupCommands: true, checkUpdateTime: true, maxImageSize: true,
   models: true, embeddings: true, savers: true, notes: true, wikis: true, channels: true,
-  plugins: true, agentSources: true,
+  plugins: true, agentSources: true, tunnel: true,
 } satisfies Record<keyof Settings, true>));
 
 /**

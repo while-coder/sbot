@@ -192,6 +192,7 @@ export class LarkService implements IChannelService {
       return response.data;
     } catch (error) {
       this.logger?.error("Error sending message:", error);
+      throw error;
     }
   }
   async sendMarkdownMessage(receiveIdType: LarkReceiveIdType, receiveId: string, text: string, header: any | undefined = undefined) {

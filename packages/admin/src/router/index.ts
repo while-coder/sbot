@@ -21,6 +21,7 @@ const routes = [
   { path: '/skills', component: () => import('@/views/runtime/SkillsView.vue') },
   { path: '/prompts', component: () => import('@/views/runtime/PromptsView.vue') },
   // 管理
+  { path: '/tunnel', component: () => import('@/views/admin/TunnelView.vue') },
   { path: '/processes', component: () => import('@/views/admin/ProcessesView.vue') },
   { path: '/heartbeats', component: () => import('@/views/admin/HeartbeatView.vue') },
   { path: '/scheduler', component: () => import('@/views/admin/SchedulerView.vue') },

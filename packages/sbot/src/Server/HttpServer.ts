@@ -9,6 +9,7 @@ import { LoggerService, log4js } from '../Core/LoggerService';
 import { database } from '../Core/Database';
 import { schedulerService } from '../Scheduler/SchedulerService';
 import { channelManager } from '../Channel/ChannelManager';
+import { tunnelService } from '../Tunnel';
 import { WEB_CHANNEL_ID } from 'sbot.commons';
 import { webService } from '../Channel/web/WebService';
 import { ptyService, listShells } from '../Channel/web/PtyService';
@@ -30,6 +31,7 @@ import { todoRoutes } from './routes/todos';
 import { userRoutes } from './routes/users';
 import { logRoutes } from './routes/logs';
 import { chatRoutes } from './routes/chat';
+import { tunnelRoutes } from './routes/tunnel';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
 
@@ -45,6 +47,9 @@ class HttpServer {
             await ACPAgentPool.getInstance().disposeAll();
             await channelManager.dispose();
             ptyService.dispose();
+            try { await tunnelService.stopAll(); } catch (e: any) {
+                logger.warn(`tunnel stop error: ${e?.message ?? e}`);
+            }
             if (this.server) {
                 await new Promise<void>((resolve, reject) =>
                     this.server!.close(err => err ? reject(err) : resolve()),
@@ -114,6 +119,7 @@ class HttpServer {
         logRoutes.register(app, ctx);
         userRoutes.register(app, ctx);
         chatRoutes.register(app, ctx);
+        tunnelRoutes.register(app, ctx);
 
         app.get('/api/pty/shells', api(() => listShells()));
 

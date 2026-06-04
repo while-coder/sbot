@@ -53,7 +53,7 @@ export const larkPlugin: ChannelPlugin = {
           userInfo: JSON.stringify(userInfo ?? {}),
           sessionId: args.sessionId,
           sessionName,
-          sendUpdate: (msg: string) => service.sendMarkdownMessage(LarkReceiveIdType.ChatId, args.sessionId, msg).then(() => {}),
+          sendUpdate: (msg: string) => service.sendMarkdownMessage(LarkReceiveIdType.ChatId, args.sessionId, msg).then(() => {}, () => {}),
           userAvatar: userInfo?.avatar?.avatar_origin,
           sessionAvatar: chatInfo?.avatar || '',
         });

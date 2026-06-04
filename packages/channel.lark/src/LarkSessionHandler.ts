@@ -244,8 +244,12 @@ Returns a map of question label → answer (string for radio/input, string[] for
             func: async ({ content, receive_id, receive_id_type }) => {
                 const targetId = receive_id || sessionId;
                 const idType = (receive_id_type || 'chat_id') as LarkReceiveIdType;
-                await this.larkService.sendMarkdownMessage(idType, targetId, content);
-                return `Message sent successfully.`;
+                try {
+                    await this.larkService.sendMarkdownMessage(idType, targetId, content);
+                    return `<send-message status="success" receive_id="${targetId}" receive_id_type="${idType}" />`;
+                } catch (e: any) {
+                    return `<send-message status="failed" receive_id="${targetId}" receive_id_type="${idType}" error="${(e?.message ?? String(e)).replace(/"/g, '&quot;')}" />`;
+                }
             },
         }),
         new DynamicStructuredTool({
