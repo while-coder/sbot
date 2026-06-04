@@ -1,4 +1,4 @@
-import { ChannelPlugin, ChannelPluginContext, IChannelService, ChannelSessionInfo } from "channel.base";
+import { ChannelPlugin, ChannelPluginContext, IChannelService, ChannelSessionInfo, ChannelCapability } from "channel.base";
 import { ChannelUserRow, database, type ChannelSessionRow } from "../Core/Database";
 import { NowDate } from "scorpio.ai";
 import { Op } from "sequelize";
@@ -267,17 +267,16 @@ export class ChannelManager {
     }
 
     /**
-     * 返回某 channel 当前 service 的发送能力 token 列表（text / file / text_user / file_user）。
-     * 未启动或类型未知返回空数组。
+     * 返回某 channel 当前 service 的发送能力。未启动或类型未知返回空数组。
      */
-    getChannelCapabilities(channelId: string): string[] {
+    getChannelCapabilities(channelId: string): ChannelCapability[] {
         const service = this.services.get(channelId);
         if (!service) return [];
-        const caps: string[] = [];
-        if (service.sendTextToSession) caps.push('text');
-        if (service.sendFileToSession) caps.push('file');
-        if (service.sendTextToUser)    caps.push('text_user');
-        if (service.sendFileToUser)    caps.push('file_user');
+        const caps: ChannelCapability[] = [];
+        if (service.sendTextToSession) caps.push(ChannelCapability.Text);
+        if (service.sendFileToSession) caps.push(ChannelCapability.File);
+        if (service.sendTextToUser)    caps.push(ChannelCapability.TextUser);
+        if (service.sendFileToUser)    caps.push(ChannelCapability.FileUser);
         return caps;
     }
 

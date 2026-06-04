@@ -35,12 +35,13 @@ async function buildSessionsBlock(scope: string, queryChannelId: string | undefi
     return `<sessions channel_id="${scope}" count="${filtered.length}" total="${sessions.length}">\n${lines.join('\n')}\n</sessions>`;
 }
 
-async function buildUsersBlock(scope: string, queryChannelId: string | undefined, matcher: (s: string) => boolean): Promise<string> {
+async function buildUsersBlock(scope: string, queryChannelId: string | undefined, matcher: (s: string) => boolean, currentChannelId?: string): Promise<string> {
     const users = await channelDataService.listChannelUsers(queryChannelId);
     const filtered = users.filter(u => matcher(u.userName ?? ''));
-    const lines = filtered.map(u =>
-        `  <user id="${u.id}" channel_id="${u.channelId}" user_id="${u.userId}" name="${escapeAttr(u.userName ?? '')}" />`
-    );
+    const lines = filtered.map(u => {
+        const currentAttr = currentChannelId && u.channelId === currentChannelId ? ' current="1"' : '';
+        return `  <user id="${u.id}"${currentAttr} channel_id="${u.channelId}" user_id="${u.userId}" name="${escapeAttr(u.userName ?? '')}" />`;
+    });
     return `<users channel_id="${scope}" count="${filtered.length}" total="${users.length}">\n${lines.join('\n')}\n</users>`;
 }
 
@@ -77,12 +78,12 @@ export function createChannelListTool(currentChannelId?: string): StructuredTool
                     return createSuccessResult(createTextContent(await buildSessionsBlock(scope, queryChannelId, matcher, currentChannelId)));
                 }
                 if (type === ChannelListType.User) {
-                    return createSuccessResult(createTextContent(await buildUsersBlock(scope, queryChannelId, matcher)));
+                    return createSuccessResult(createTextContent(await buildUsersBlock(scope, queryChannelId, matcher, currentChannelId)));
                 }
                 // ChannelListType.SessionAndUser
                 const [sessionsBlock, usersBlock] = await Promise.all([
                     buildSessionsBlock(scope, queryChannelId, matcher, currentChannelId),
-                    buildUsersBlock(scope, queryChannelId, matcher),
+                    buildUsersBlock(scope, queryChannelId, matcher, currentChannelId),
                 ]);
                 return createSuccessResult(createTextContent(`${sessionsBlock}\n${usersBlock}`));
             } catch (e: any) {

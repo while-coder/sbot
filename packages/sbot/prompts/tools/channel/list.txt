@@ -1,9 +1,11 @@
 Discover channels, sessions, and users known to this bot. Reads from the bot's local config / database — no platform API permission required.
 
 - type="channel":          list all configured channels (id, type, name, caps). channel_id is ignored.
-- type="session":          list sessions in channel_id; defaults to all channels. Entries with current="1" are on the same channel as the current conversation — prefer them when names collide.
+- type="session":          list sessions in channel_id; defaults to all channels.
 - type="user":             list users in channel_id; defaults to all channels.
 - type="session_and_user": list both sessions and users (under the same channel_id / name_pattern filter) in a single call. Use when you don't yet know whether to address a session or a user.
+
+current="1" on a <session>/<user> means the entry lives on the same channel that THIS conversation is happening on — e.g. if the user is talking to you via Lark right now, every Lark session/user gets current="1". When the user mentions a name without specifying which channel and the name exists on multiple channels, prefer the current="1" entry — it's almost always what they meant.
 
 caps (only on <channel>) is a comma-separated capability set. Tokens:
   text       — channel_send_message works on sessions of this channel
