@@ -467,6 +467,31 @@ importers:
         specifier: ^3.5.33
         version: 3.5.33(typescript@6.0.3)
 
+  packages/helper:
+    dependencies:
+      '@tauri-apps/api':
+        specifier: ^2
+        version: 2.11.0
+      vue:
+        specifier: ^3.5.33
+        version: 3.5.33(typescript@6.0.3)
+      vue-router:
+        specifier: ^4.4.5
+        version: 4.6.4(vue@3.5.33(typescript@6.0.3))
+    devDependencies:
+      '@tauri-apps/cli':
+        specifier: ^2
+        version: 2.11.1
+      '@vitejs/plugin-vue':
+        specifier: ^6.0.6
+        version: 6.0.6(vite@8.0.9(@types/node@25.6.0)(esbuild@0.28.0)(terser@5.46.2)(tsx@4.21.0)(yaml@2.8.3))(vue@3.5.33(typescript@6.0.3))
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vite:
+        specifier: ^8.0.9
+        version: 8.0.9(@types/node@25.6.0)(esbuild@0.28.0)(terser@5.46.2)(tsx@4.21.0)(yaml@2.8.3)
+
   packages/sbot:
     dependencies:
       '@langchain/core':
@@ -2410,6 +2435,9 @@ packages:
 
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
+
+  '@tauri-apps/api@2.11.0':
+    resolution: {integrity: sha512-7CinYODhky9lmO23xHnUFv0Xt43fbtWMyxZcLcRBlFkcgXKuEirBvHpmtJ89YMhyeGcq20Wuc47Fa4XjyniywA==}
 
   '@tauri-apps/cli-darwin-arm64@2.11.1':
     resolution: {integrity: sha512-6eEKMBXsQPCuM1EmvrjT2+aBuxWQuFdKdW8pzNuNQtpq45nEEpBlD5gr8pUeAyOU1DQKlkFaEc/MPBxb/Pfjtg==}
@@ -5173,6 +5201,11 @@ packages:
     peerDependencies:
       vue: ^3.0.0
 
+  vue-router@4.6.4:
+    resolution: {integrity: sha512-Hz9q5sa33Yhduglwz6g9skT8OBPii+4bFn88w6J+J4MfEo4KRRpmiNG/hHHkdbRFlLBOqxN8y8gf2Fb0MTUgVg==}
+    peerDependencies:
+      vue: ^3.5.0
+
   vue-router@5.0.6:
     resolution: {integrity: sha512-9+kmUTGbKMyW9Asoy98IXXYIzrTMT7JDAdpDDeEkorHvybpUvBI2wsrSM5jFOXrFydpzRFJ9vAh+80DN2PGu9w==}
     peerDependencies:
@@ -7242,6 +7275,8 @@ snapshots:
       tslib: 2.8.1
 
   '@standard-schema/spec@1.1.0': {}
+
+  '@tauri-apps/api@2.11.0': {}
 
   '@tauri-apps/cli-darwin-arm64@2.11.1':
     optional: true
@@ -10231,6 +10266,11 @@ snapshots:
       '@intlify/core-base': 11.3.2
       '@intlify/devtools-types': 11.3.2
       '@intlify/shared': 11.3.2
+      '@vue/devtools-api': 6.6.4
+      vue: 3.5.33(typescript@6.0.3)
+
+  vue-router@4.6.4(vue@3.5.33(typescript@6.0.3)):
+    dependencies:
       '@vue/devtools-api': 6.6.4
       vue: 3.5.33(typescript@6.0.3)
 

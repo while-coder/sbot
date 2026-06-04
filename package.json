@@ -25,6 +25,11 @@
 
     "debug:desktop": "pnpm run assets && pnpm --filter @sbot/app run dev",
 
+    "debug:helper": "pnpm --filter @sbot/helper run dev",
+    "build:helper:macos": "pnpm --filter @sbot/helper run macos:build",
+    "build:helper:windows": "pnpm --filter @sbot/helper run windows:build",
+    "build:helper:linux": "pnpm --filter @sbot/helper run linux:build",
+
     "build:macos": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/app run macos:build",
     "build:windows": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/app run windows:build",
     "build:linux": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/app run linux:build",

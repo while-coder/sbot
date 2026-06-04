@@ -19,8 +19,17 @@ export const xiaoaiPlugin: ChannelPlugin = {
     password: {
       label: '密码',
       type: ConfigFieldType.Password,
-      required: true,
-      description: '小米账号密码',
+      description: '小米账号密码（推荐用辅助工具登录，免填密码）',
+    },
+    passToken: {
+      label: 'passToken',
+      type: ConfigFieldType.Password,
+      description: '小米 passToken，由辅助工具登录后导出',
+    },
+    deviceId: {
+      label: 'deviceId',
+      type: ConfigFieldType.String,
+      description: 'PassportSDK 设备 ID，由辅助工具一并导出',
     },
     device: {
       label: '设备名称',
@@ -52,12 +61,16 @@ export const xiaoaiPlugin: ChannelPlugin = {
 
     const userId = config.userId?.trim();
     const password = config.password?.trim();
+    const passToken = config.passToken?.trim();
+    const deviceId = config.deviceId?.trim();
     const device = config.device?.trim();
-    if (!userId || !password || !device) return undefined;
+    if (!userId || !device || (!password && !passToken)) return undefined;
 
     const service = new XiaoaiService({
       userId,
       password,
+      passToken,
+      deviceId,
       device,
       heartbeat: Number(config.heartbeat) || 1000,
       textChunkLimit: Number(config.textChunkLimit) || 200,

@@ -17,7 +17,9 @@ export interface XiaoaiMessageArgs extends ChannelMessageArgs {
 
 export interface XiaoaiServiceOptions {
   userId: string;
-  password: string;
+  password?: string;
+  passToken?: string;
+  deviceId?: string;
   device: string;
   heartbeat: number;
   textChunkLimit: number;
@@ -64,10 +66,10 @@ export class XiaoaiService implements IChannelService {
   }
 
   async start(): Promise<void> {
-    const { userId, password, device } = this.options;
+    const { userId, password, passToken, deviceId, device } = this.options;
 
     this.logger?.info(`XiaoAi logging in: ${userId}`);
-    this.authed = await login({ userId, password });
+    this.authed = await login({ userId, password: password ?? '', passToken, deviceId });
     this.logger?.info(`XiaoAi logged in: ${userId}`);
 
     const allDevices = await getDeviceList(this.authed);

@@ -1,0 +1,23 @@
+{
+  "name": "@sbot/helper",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tauri dev",
+    "macos:build": "tauri build",
+    "windows:build": "tauri build",
+    "linux:build": "tauri build"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2",
+    "vue": "^3.5.33",
+    "vue-router": "^4.4.5"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "@vitejs/plugin-vue": "^6.0.6",
+    "typescript": "catalog:",
+    "vite": "^8.0.9"
+  }
+}
