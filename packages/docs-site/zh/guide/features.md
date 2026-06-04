@@ -1,0 +1,21 @@
+# 核心特性
+
+- **模块化组合** —— 模型、记忆、工具、渠道、技能均为独立模块，可自由搭配组装 Agent
+- **一条命令部署** —— `npm install -g` 或 `docker run`，跨平台原生运行，无额外系统依赖
+- **全 Web UI 管理** —— 所有配置在浏览器中完成，无需手动编辑文件
+- **多 LLM 供应商** —— OpenAI、Anthropic Claude、Google Gemini、Ollama，以及任何 OpenAI 兼容接口（Azure OpenAI、Groq、Mistral、DeepSeek 等）；网络抖动自动指数退避重试
+- **多 Agent 编排** —— Single、ReAct（递归任务分解）、Generative（多模态）三种模式，Agent 可嵌套组合
+- **ACP Agent 支持** —— Agent Client Protocol 集成，支持持久化与临时两种 Agent 模式
+- **知识库** —— 内置 Wiki，支持关键词与语义混合检索，Agent 对话中自动引用
+- **长期记忆** —— 基于向量 Embedding 的语义检索，持久化上下文召回（OpenAI、Google、Ollama、Cohere、VoyageAI）
+- **对话压缩** —— Token 用量超阈值时自动摘要早期消息，保持上下文连续性同时降低消耗
+- **Insight 系统** —— Agent 级别的静默后置提取器，将用户偏好和经验教训沉淀为可复用的 Markdown 笔记；按使用情况自动标记陈旧、归档过期
+- **心跳唤醒** —— 可配置的周期性自激活，让 Agent 在任意渠道主动执行预定提示词
+- **MCP 工具** —— 标准 MCP 协议（stdio / SSE），接入任意 MCP 工具生态；支持 Agent 级与全局服务器，故障自动重启
+- **多渠道** —— Web UI、CLI、飞书 / Lark、Slack、企业微信、微信、OneBot（QQ）、小爱、REST API、WebSocket
+- **内置工具** —— Shell 执行、文件系统、归档操作、媒体文件读取、Python / PowerShell 内联执行、Web 抓取 / 下载、Cron 调度器、待办、提问
+- **技能系统** —— 可安装的 Prompt 模块，支持从 Clawhub、skills.sh、skillhub.cn 远程安装
+- **Agent 商店** —— 浏览并一键安装预打包 Agent（模型 + 提示词 + 工具 + 技能 + MCP 服务器），支持自定义源
+- **Token 用量追踪** —— 按模型统计消耗，模型响应缓存命中率可视化
+- **无人值守安全** —— 渠道支持审批与提问超时配置，长时间自主运行更可靠
+- **灵活配置** —— 单个 `settings.json` 支持全局与会话两级覆盖；提示词热更新无需重启
