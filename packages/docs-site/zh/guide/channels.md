@@ -12,7 +12,9 @@
 | Slack | Bot Token（`xoxb-...`）、App Token（`xapp-...`） |
 | 企业微信 WeCom | Bot ID、Secret |
 | 微信 WeChat | 扫码登录（凭据自动获取） |
-| OneBot（QQ） | WS Host、WS Port、可选 Access Token |
+| 钉钉 DingTalk | Client ID、Client Secret |
+| QQ（官方 Bot） | App ID、Client Secret |
+| OneBot（QQ 完整协议） | WS Host、WS Port、可选 Access Token |
 | 小爱 XiaoAI | 小米账号 ID、密码、设备名称 |
 
 ## Lark / 飞书
@@ -81,6 +83,87 @@
 3. 认证成功后凭据自动保存，渠道立即上线
 
 微信渠道基于 iLink Bot API 接入，支持文件和图片的收发。
+
+## 钉钉 DingTalk
+
+通过钉钉官方 **Stream 模式** 长连接接入，无需公网 IP / Webhook 服务器。
+
+### 申请后台参数
+
+1. 打开 [钉钉开放平台](https://open-dev.dingtalk.com/)
+2. 进入 **应用开发 → 企业内部应用 → 创建应用**
+3. 在 **应用能力 → 添加应用能力** 中添加 **机器人**
+4. 在机器人设置中：
+   - **消息接收模式** 选择 **Stream 模式**（流式接收）
+   - 发布机器人
+5. 在 **应用发布 → 版本管理与发布** 中创建一个新版本，填好基础信息后保存并发布
+6. 回到 **基础信息 → 凭证与基础信息**，复制：
+   - **Client ID**（即 AppKey）
+   - **Client Secret**（即 AppSecret）
+
+### 在 sbot 中创建渠道
+
+在 Web UI → **渠道** 中创建 DingTalk 渠道，填入：
+
+| 字段 | 说明 |
+|------|------|
+| Client ID | 应用的 Client ID（AppKey） |
+| Client Secret | 应用的 Client Secret（AppSecret） |
+| 群聊回复时 @ 发送者 | 可选，群聊回复是否 @ 提问者 |
+
+### 与机器人对话
+
+- **单聊**：在钉钉的搜索框搜索机器人名称 → 找到机器人 → 直接对话
+- **群聊**：在群设置 → 机器人 → 添加机器人，添加后在群里 @ 机器人 即可触发
+
+### 已知限制（标准模式）
+
+- 钉钉普通 markdown 消息**无法原地编辑**，因此 Agent 流式输出会**累积到结束时一次性发出**（无打字机效果）。
+- 不支持卡片按钮 / 表单回调（如需 Allow / Deny 审批按钮、Ask 表单交互，需切换 AI Card 模式，配置 `card_template_id` 后实现，本仓库尚未集成）。
+- 暂不支持图片 / 文件的收发（钉钉 Open API 路径需另接 access_token + 阿里云 SDK）。
+
+## QQ（官方开放平台 Bot）
+
+直接对接 [QQ 开放平台](https://q.qq.com/) 的官方 Bot WebSocket Gateway，**不需要 NapCat / Lagrange**。如需个人号或更完整的 QQ 协议，请使用 OneBot 渠道。
+
+### 申请后台参数
+
+1. 打开 [QQ 开放平台](https://q.qq.com/)
+2. 创建 **机器人应用** → 进入应用编辑页面
+3. **回调配置**：
+   - 在 **单聊事件** 中勾选 **C2C 消息事件**
+   - 在 **群事件** 中勾选 **群消息事件 / AT 事件**
+   - 确认配置
+4. **沙箱配置 → 消息列表配置项**：点击 **添加成员**，把自己加进去
+5. **开发管理** 页面获取：
+   - **AppID**
+   - **AppSecret**（即 Client Secret）
+6. **IP 白名单**：添加运行 sbot 的服务器公网 IP（在终端执行 `curl ifconfig.me` 查看）。
+   > 提示：使用魔搭创空间部署可填 `47.92.200.108`
+7. 在沙箱配置中用 QQ 扫码，把机器人加到消息列表
+
+### 在 sbot 中创建渠道
+
+在 Web UI → **渠道** 中创建 QQ 渠道，填入：
+
+| 字段 | 说明 |
+|------|------|
+| App ID | QQ 机器人 App ID |
+| Client Secret | QQ 机器人 AppSecret |
+| 群聊回复时 @ 发送者 | 可选 |
+
+### 与机器人对话
+
+- **C2C 私聊**：通过沙箱测试列表中的 QQ 私聊，直接发消息
+- **群聊**：把机器人添加到测试群后，在群中 **@机器人** 即可触发
+
+### 已知限制（标准模式）
+
+- **文本消息中不允许包含 URL**（QQ 平台限制）；本实现自动将 URL 替换为 `[链接已省略]`，不会让消息被驳回。
+- 官方 Bot API **不支持原地编辑消息**，Agent 流式输出累积到结束时一次性发出。
+- **不支持 Markdown 模板**（需在 QQ 平台单独申请 Markdown 权限和模板 ID）。
+- **不支持卡片按钮 / 表单**：审批 / Ask 在 QQ 模式下没有交互 UI（按超时策略处理）。如需完整 QQ 体验请考虑 OneBot 渠道。
+- 同一 `msg_id` 下的回复 **`msg_seq` 必须自增**，本实现已自动处理。
 
 ## OneBot（QQ / Telegram 桥接 等）
 

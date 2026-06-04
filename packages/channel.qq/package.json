@@ -1,0 +1,22 @@
+{
+  "name": "channel.qq",
+  "version": "0.0.1",
+  "description": "QQ Bot Open Platform channel integration (WebSocket Gateway)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "rimraf dist && tsc -b --force"
+  },
+  "dependencies": {
+    "axios": "catalog:",
+    "channel.base": "workspace:*",
+    "ws": "catalog:"
+  },
+  "private": true,
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/ws": "catalog:",
+    "rimraf": "catalog:",
+    "typescript": "catalog:"
+  }
+}

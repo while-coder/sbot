@@ -1,0 +1,21 @@
+{
+  "name": "channel.dingtalk",
+  "version": "0.0.1",
+  "description": "DingTalk channel integration (Stream mode)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "rimraf dist && tsc -b --force"
+  },
+  "dependencies": {
+    "axios": "catalog:",
+    "channel.base": "workspace:*",
+    "dingtalk-stream": "^2.1.6-beta.1"
+  },
+  "private": true,
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "rimraf": "catalog:",
+    "typescript": "catalog:"
+  }
+}
