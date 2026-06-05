@@ -6,22 +6,20 @@ const getLogger = () => GlobalLoggerService.getLogger('DingtalkChatProvider.ts')
 /**
  * 钉钉普通 markdown 消息不支持原地编辑，因此 Provider 仅做：
  *   - 在 onProcessStart 时不主动发"Processing..."（避免刷屏）；
- *   - 累积输出，在 onProcessEnd 时一次性 sessionWebhook 发出最终 markdown。
+ *   - 累积输出，在 onProcessEnd 时一次性通过 OpenAPI 发出最终 markdown。
  *
  * 流式过程中并不更新会话——交由调用方 throttle 控制；调用方可显式 flush()。
  */
 export class DingtalkChatProvider extends AbstractChatProvider {
   private sessionId = '';
   private sent = false;
-  private atUsers: string[] = [];
 
   constructor(private dingtalkService: DingtalkService) {
     super();
   }
 
-  init(sessionId: string, atUsers?: string[]): this {
+  init(sessionId: string): this {
     this.sessionId = sessionId;
-    this.atUsers = atUsers ?? [];
     return this;
   }
 
@@ -32,7 +30,7 @@ export class DingtalkChatProvider extends AbstractChatProvider {
     try {
       const text = parseMessages2Text(this.getDisplayMessages()).trim();
       if (!text) return;
-      await this.dingtalkService.sendMarkdown(this.sessionId, text, this.atUsers);
+      await this.dingtalkService.sendMarkdown(this.sessionId, text);
     } catch (e: any) {
       getLogger()?.error(`flush exception: ${e.message || e}`, e.stack);
     }

@@ -1,22 +1,21 @@
-import axios from 'axios';
 import { DWClient, EventAck, type DWClientDownStream, type EventAckData } from 'dingtalk-stream';
 import {
   IChannelService, ChannelSessionHandler, SessionService,
   type ILogger, type MessageContent,
 } from 'channel.base';
-import { DingtalkSessionHandler, type DingtalkMessageArgs, type DingtalkActionArgs } from './DingtalkSessionHandler';
+import { DingtalkSessionHandler, type DingtalkMessageArgs } from './DingtalkSessionHandler';
+import { DingtalkOpenApi } from './DingtalkOpenApi';
 
 const TOPIC_ROBOT = '/v1.0/im/bot/messages/get';
+const TITLE_LEN = 12;
 
-/** 维护 sessionWebhook 与对话信息（含过期时间） */
+/** 会话元数据（仅内存，进程重启后随入站消息自然重建）。OpenAPI 发送只需这些字段。 */
 interface SessionEntry {
   conversationId: string;
   conversationType: '1' | '2';   // 1 = 单聊, 2 = 群聊
-  sessionWebhook: string;
-  sessionWebhookExpiredTime: number;
-  senderStaffId: string;
-  robotCode: string;
+  senderStaffId: string;          // 群聊时记录最近一次 @机器人 的人
   lastMsgId: string;
+  updatedAt: number;
 }
 
 /** 入站机器人消息（DingTalk Stream） */
@@ -40,8 +39,6 @@ interface RobotIncoming {
 export interface DingtalkServiceOptions {
   clientId: string;
   clientSecret: string;
-  /** 群聊场景下回复时是否 @ 发送者，默认 false */
-  atSenderOnReply?: boolean;
   logger?: ILogger;
   filterEvent: (eventId: string) => Promise<boolean>;
   onReceiveMessage: (
@@ -49,16 +46,13 @@ export interface DingtalkServiceOptions {
     args: DingtalkMessageArgs,
     query: MessageContent,
   ) => Promise<void>;
-  onTriggerAction: (
-    userId: string,
-    args: DingtalkActionArgs,
-  ) => Promise<void>;
 }
 
 export class DingtalkService implements IChannelService {
   private client: DWClient;
   private logger?: ILogger;
   private opts: DingtalkServiceOptions;
+  private openApi: DingtalkOpenApi;
   private sessions = new Map<string, SessionEntry>();
 
   constructor(options: DingtalkServiceOptions) {
@@ -70,6 +64,7 @@ export class DingtalkService implements IChannelService {
       keepAlive: true,
       debug: false,
     });
+    this.openApi = new DingtalkOpenApi(options.clientId, options.clientSecret, options.logger);
   }
 
   createSessionHandler(session: SessionService): ChannelSessionHandler {
@@ -81,13 +76,8 @@ export class DingtalkService implements IChannelService {
   }
 
   async sendTextToUser(userId: string, text: string): Promise<void> {
-    // userId 为 senderStaffId；只能向最近发过消息的私聊用户回写。
-    const entry = this.findSessionByStaffId(userId);
-    if (!entry) {
-      this.logger?.warn(`Dingtalk sendTextToUser: no session for userId=${userId}`);
-      return;
-    }
-    await this.sendMarkdown(entry.conversationId, text);
+    // userId 为 senderStaffId；OpenAPI 直接 batchSend 即可，不依赖历史会话
+    await this.openApi.sendMarkdownToUser([userId], makeTitle(text), text);
   }
 
   dispose(): void {
@@ -102,39 +92,23 @@ export class DingtalkService implements IChannelService {
     this.logger?.info('Dingtalk Stream connected');
   }
 
-  /** 通过 sessionWebhook 发送 markdown 消息 */
-  async sendMarkdown(sessionId: string, text: string, atUsers?: string[]): Promise<void> {
+  /** 通过 Open API 发送 markdown 消息，群/单聊由 entry 决定 */
+  async sendMarkdown(sessionId: string, text: string): Promise<void> {
     const entry = this.sessions.get(sessionId);
     if (!entry) {
       this.logger?.warn(`Dingtalk sendMarkdown: unknown session ${sessionId}`);
       return;
     }
-    if (entry.sessionWebhookExpiredTime && entry.sessionWebhookExpiredTime < Date.now()) {
-      this.logger?.warn(`Dingtalk sendMarkdown: sessionWebhook expired for ${sessionId}`);
-      return;
-    }
-    const isGroup = entry.conversationType === '2';
-    const at = isGroup && atUsers?.length
-      ? { atUserIds: atUsers, isAtAll: false }
-      : undefined;
-    const payload: any = {
-      msgtype: 'markdown',
-      markdown: { title: 'AI', text },
-      ...(at ? { at } : {}),
-    };
+    const title = makeTitle(text);
     try {
-      await axios.post(entry.sessionWebhook, payload, {
-        headers: { 'Content-Type': 'application/json' },
-        timeout: 15000,
-      });
+      if (entry.conversationType === '2') {
+        await this.openApi.sendMarkdownToGroup(entry.conversationId, title, text);
+      } else {
+        await this.openApi.sendMarkdownToUser([entry.senderStaffId], title, text);
+      }
     } catch (e: any) {
       this.logger?.error(`Dingtalk sendMarkdown failed: ${e.message}`);
     }
-  }
-
-  /** 私下与 Handler 共享 session 信息 */
-  getSession(sessionId: string): SessionEntry | undefined {
-    return this.sessions.get(sessionId);
   }
 
   /** 处理 IM 机器人消息 */
@@ -157,17 +131,15 @@ export class DingtalkService implements IChannelService {
   private async processRobotMessage(payload: RobotIncoming): Promise<void> {
     if (!await this.opts.filterEvent(`dingtalk_message_${payload.msgId}`)) return;
 
-    const { conversationId, conversationType, senderStaffId, senderNick, sessionWebhook, sessionWebhookExpiredTime, robotCode, msgId } = payload;
+    const { conversationId, conversationType, senderStaffId, senderNick, msgId } = payload;
     const sessionId = conversationId;
 
     this.sessions.set(sessionId, {
       conversationId,
       conversationType,
-      sessionWebhook,
-      sessionWebhookExpiredTime,
       senderStaffId,
-      robotCode,
       lastMsgId: msgId,
+      updatedAt: Date.now(),
     });
 
     if (payload.msgtype !== 'text' || !payload.text?.content) {
@@ -185,16 +157,14 @@ export class DingtalkService implements IChannelService {
       conversationType,
       senderStaffId,
       senderNick,
-      robotCode,
-      atSenderOnReply: this.opts.atSenderOnReply ?? false,
     };
     await this.opts.onReceiveMessage(senderStaffId, args, query);
   }
 
-  private findSessionByStaffId(staffId: string): SessionEntry | undefined {
-    for (const entry of this.sessions.values()) {
-      if (entry.senderStaffId === staffId && entry.conversationType === '1') return entry;
-    }
-    return undefined;
-  }
+}
+
+function makeTitle(text: string): string {
+  const trimmed = text.replace(/\s+/g, ' ').trim();
+  if (!trimmed) return 'AI';
+  return trimmed.length > TITLE_LEN ? trimmed.slice(0, TITLE_LEN) + '…' : trimmed;
 }

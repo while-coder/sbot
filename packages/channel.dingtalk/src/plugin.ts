@@ -3,7 +3,7 @@ import {
   type MessageContent,
 } from 'channel.base';
 import { DingtalkService } from './DingtalkService';
-import type { DingtalkMessageArgs, DingtalkActionArgs } from './DingtalkSessionHandler';
+import type { DingtalkMessageArgs } from './DingtalkSessionHandler';
 
 function buildDingtalkExtraInfo(senderStaffId: string, senderNick: string, conversationType: '1' | '2'): string {
   return `<dingtalk-user>
@@ -26,21 +26,17 @@ export const dingtalkPlugin: ChannelPlugin = {
       label: 'Client Secret', type: ConfigFieldType.Password, required: true,
       description: '钉钉应用 Client Secret（即 AppSecret）',
     },
-    atSenderOnReply: {
-      label: '群聊回复时 @ 发送者', type: ConfigFieldType.Boolean, default: false,
-      description: '群聊场景下回复时是否 @ 提问者',
-    },
   },
 
   async init(ctx: ChannelPluginContext): Promise<IChannelService | undefined> {
-    const { config, logger, filterEvent, initSession, onReceiveMessage, onTriggerAction } = ctx;
+    const { config, logger, filterEvent, initSession, onReceiveMessage } = ctx;
 
     if (!config.clientId?.trim() || !config.clientSecret?.trim()) return undefined;
 
+    const clientId = config.clientId.trim();
     const service = new DingtalkService({
-      clientId: config.clientId,
+      clientId,
       clientSecret: config.clientSecret,
-      atSenderOnReply: config.atSenderOnReply === true,
       logger,
       filterEvent,
       onReceiveMessage: async (userId: string, args: DingtalkMessageArgs, query: MessageContent) => {
@@ -56,16 +52,6 @@ export const dingtalkPlugin: ChannelPlugin = {
           ...args,
           extraInfo: buildDingtalkExtraInfo(args.senderStaffId, args.senderNick, args.conversationType),
         });
-      },
-      onTriggerAction: async (userId: string, args: DingtalkActionArgs) => {
-        const session = await initSession({
-          userId,
-          userName: userId,
-          userInfo: JSON.stringify({ staffId: userId }),
-          sessionId: args.sessionId,
-          sessionName: args.sessionId,
-        });
-        await onTriggerAction(session, args);
       },
     });
     await service.start();
