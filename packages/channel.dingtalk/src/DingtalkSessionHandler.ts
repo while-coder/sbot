@@ -1,10 +1,9 @@
 import { DingtalkChatProvider } from './DingtalkChatProvider';
 import { DingtalkService } from './DingtalkService';
 import {
-  ChannelSessionHandler, ToolCallStatus, SessionService, createAskTool,
-  GlobalLoggerService, AskQuestionType,
-  type StructuredToolInterface,
-  type ChannelMessageArgs, type ChatMessage, type ChatToolCall, type AskToolParams, type MessageType, type MessageContent,
+  ChannelSessionHandler, ToolCallStatus, SessionService,
+  GlobalLoggerService, ToolApproval,
+  type ChannelMessageArgs, type ChatMessage, type ChatToolCall, type AskToolParams, type AskResponse, type MessageType, type MessageContent,
 } from 'channel.base';
 
 const getLogger = () => GlobalLoggerService.getLogger('DingtalkSessionHandler.ts');
@@ -21,7 +20,7 @@ export interface DingtalkMessageArgs extends ChannelMessageArgs {
 
 export interface DingtalkActionArgs {
   sessionId: string;
-  /** 业务 code, e.g. ToolCallStatus 值 / "ask_submit" */
+  /** 业务 code, e.g. ToolCallStatus 值 */
   code: string;
   data?: any;
 }
@@ -29,8 +28,8 @@ export interface DingtalkActionArgs {
 /**
  * DingTalk 标准模式：
  *  - 接收 Stream 推送，回复走 sessionWebhook 单次 markdown；
- *  - 审批 / Ask 暂以"无按钮"方式工作（钉钉 Markdown 不支持回调按钮，需 AI Card 模板）。
- *    如需交互，需切换 AI Card 模式或额外接入 webhook 接收 ActionCard 跳转回调。
+ *  - 钉钉 Markdown 不支持回调按钮，因此 Ask / Approval 无 UI：
+ *    Ask 不向 AI 暴露；Approval 自动放行（与 channel.wechat 一致），避免无限等待卡死。
  */
 export class DingtalkSessionHandler extends ChannelSessionHandler {
   provider: DingtalkChatProvider | undefined;
@@ -60,20 +59,22 @@ export class DingtalkSessionHandler extends ChannelSessionHandler {
     this.provider?.addAIMessage(message);
   }
 
-  protected async enterApproval(_approvalId: string, _remainSec: number, toolCall: ChatToolCall): Promise<void> {
-    // 无按钮支持：直接告知用户工具请求，超时按 approvalTimeoutValue 处理
-    getLogger()?.info(`Dingtalk approval requested for tool=${toolCall.name} (no button UI; will timeout)`);
+  // --- Approval: auto-allow (no interactive UI in DingTalk markdown mode) ---
+
+  async executeApproval(_toolCall: ChatToolCall): Promise<ToolApproval> {
+    return ToolApproval.Allow;
   }
 
-  protected async exitApproval(_approvalId: string): Promise<void> {
-    // 无 UI 元素需要清理
+  protected async enterApproval(_approvalId: string, _remainSec: number, _toolCall: ChatToolCall): Promise<void> {}
+  protected async exitApproval(_approvalId: string): Promise<void> {}
+
+  // --- Ask: not supported in DingTalk markdown mode ---
+
+  async executeAsk(_params: AskToolParams): Promise<AskResponse> {
+    throw new Error('DingTalk channel does not support the ask tool in markdown mode');
   }
 
-  protected async enterAsk(_askId: string, _remainSec: number, _params: AskToolParams): Promise<void> {
-    // 无按钮支持：Ask 在钉钉 markdown 模式下不可交互
-    getLogger()?.warn('Dingtalk Ask not supported in markdown mode');
-  }
-
+  protected async enterAsk(_askId: string, _remainSec: number, _params: AskToolParams): Promise<void> {}
   protected async exitAsk(_askId: string): Promise<void> {}
 
   async onTriggerAction(args: DingtalkActionArgs): Promise<void> {
@@ -87,27 +88,6 @@ export class DingtalkSessionHandler extends ChannelSessionHandler {
       if (data?.id) this.resolveApproval(data.id, code as ToolCallStatus);
       return;
     }
-    if (code === 'ask_submit' && data?.id) {
-      this.resolveAsk(data.id, data.answers ?? {});
-      return;
-    }
     getLogger()?.warn(`Unhandled Dingtalk action: ${code}`);
-  }
-
-  static readonly ASK_PROMPT = `Ask the user one or more structured questions and wait for their response. Use this tool whenever you need clarification, a decision, or input before proceeding.
-
-Question types:
-- radio: single-choice selection from a fixed list (optionally with a custom "Other" option)
-- checkbox: multi-choice selection from a fixed list (optionally with a custom "Other" option)
-- input: free-text entry with an optional placeholder
-
-Returns a map of question label → answer (string for radio/input, string[] for checkbox).`;
-
-  buildAgentTools(_args: ChannelMessageArgs): StructuredToolInterface[] {
-    return [createAskTool(
-      (params: AskToolParams) => this.executeAsk(params),
-      DingtalkSessionHandler.ASK_PROMPT,
-      [AskQuestionType.Input],
-    )];
   }
 }

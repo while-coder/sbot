@@ -4,7 +4,7 @@ import { AbstractChatProvider, parseMessages2Text, GlobalLoggerService } from 'c
 const getLogger = () => GlobalLoggerService.getLogger('DingtalkChatProvider.ts');
 
 /**
- * 钉钉无法原地编辑普通 markdown 消息（除非走 AI Card），因此 Provider 仅做：
+ * 钉钉普通 markdown 消息不支持原地编辑，因此 Provider 仅做：
  *   - 在 onProcessStart 时不主动发"Processing..."（避免刷屏）；
  *   - 累积输出，在 onProcessEnd 时一次性 sessionWebhook 发出最终 markdown。
  *

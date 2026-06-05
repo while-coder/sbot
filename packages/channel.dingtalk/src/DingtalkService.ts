@@ -7,7 +7,6 @@ import {
 import { DingtalkSessionHandler, type DingtalkMessageArgs, type DingtalkActionArgs } from './DingtalkSessionHandler';
 
 const TOPIC_ROBOT = '/v1.0/im/bot/messages/get';
-const TOPIC_CARD = '/v1.0/card/instances/callback';
 
 /** 维护 sessionWebhook 与对话信息（含过期时间） */
 interface SessionEntry {
@@ -99,7 +98,6 @@ export class DingtalkService implements IChannelService {
   /** 注册 Stream 监听并连接 */
   async start(): Promise<void> {
     this.client.registerCallbackListener(TOPIC_ROBOT, (msg) => this.handleRobotMessage(msg));
-    this.client.registerCallbackListener(TOPIC_CARD, (msg) => this.handleCardCallback(msg));
     await this.client.connect();
     this.logger?.info('Dingtalk Stream connected');
   }
@@ -131,34 +129,6 @@ export class DingtalkService implements IChannelService {
       });
     } catch (e: any) {
       this.logger?.error(`Dingtalk sendMarkdown failed: ${e.message}`);
-    }
-  }
-
-  /** 通过 sessionWebhook 发送 ActionCard（带按钮，用于审批 / Ask 等） */
-  async sendActionCard(
-    sessionId: string,
-    title: string,
-    text: string,
-    buttons: Array<{ title: string; actionURL: string }>,
-  ): Promise<void> {
-    const entry = this.sessions.get(sessionId);
-    if (!entry) return;
-    const payload: any = {
-      msgtype: 'actionCard',
-      actionCard: {
-        title,
-        text,
-        btnOrientation: '0',
-        btns: buttons.map(b => ({ title: b.title, actionURL: b.actionURL })),
-      },
-    };
-    try {
-      await axios.post(entry.sessionWebhook, payload, {
-        headers: { 'Content-Type': 'application/json' },
-        timeout: 15000,
-      });
-    } catch (e: any) {
-      this.logger?.error(`Dingtalk sendActionCard failed: ${e.message}`);
     }
   }
 
@@ -219,17 +189,6 @@ export class DingtalkService implements IChannelService {
       atSenderOnReply: this.opts.atSenderOnReply ?? false,
     };
     await this.opts.onReceiveMessage(senderStaffId, args, query);
-  }
-
-  /** 处理卡片按钮回调（ActionCard 不支持，AI Card 才会触发；此处保留扩展点） */
-  private handleCardCallback(msg: DWClientDownStream): EventAckData {
-    try {
-      const payload = JSON.parse(msg.data || '{}');
-      this.logger?.info(`Dingtalk card callback: ${JSON.stringify(payload).slice(0, 300)}`);
-    } catch (e: any) {
-      this.logger?.error(`Dingtalk card callback parse failed: ${e.message}`);
-    }
-    return { status: EventAck.SUCCESS };
   }
 
   private findSessionByStaffId(staffId: string): SessionEntry | undefined {
