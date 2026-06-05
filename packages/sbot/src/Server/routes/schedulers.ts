@@ -16,7 +16,7 @@ export class SchedulerRoutes {
             const id = parseInt(req.params.id as string, 10);
             if (isNaN(id)) throwBad('Invalid id');
             const body = req.body || {};
-            const patch: { message?: string; channelSessionId?: number; aiProcess?: boolean } = {};
+            const patch: { message?: string; channelSessionId?: number; aiProcess?: boolean; enabled?: boolean } = {};
             if (typeof body.message === 'string') {
                 if (!body.message.trim()) throwBad('message is required');
                 patch.message = body.message.trim();
@@ -27,6 +27,7 @@ export class SchedulerRoutes {
                 patch.channelSessionId = cid;
             }
             if (typeof body.aiProcess === 'boolean') patch.aiProcess = body.aiProcess;
+            if (typeof body.enabled === 'boolean') patch.enabled = body.enabled;
             const row = await schedulerService.update(id, patch);
             if (!row) throwBad('Scheduler not found');
             return { ...toPlain(row), nextRun: schedulerService.nextDate(id) };

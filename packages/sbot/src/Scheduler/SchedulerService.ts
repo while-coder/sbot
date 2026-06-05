@@ -46,7 +46,7 @@ async function resolveDeliverySession(scheduler: SchedulerRow): Promise<ChannelS
 
 async function executeScheduler(schedulerId: number): Promise<void> {
     const scheduler = await database.findByPk<SchedulerRow>(database.scheduler, schedulerId);
-    if (!scheduler || scheduler.disabled) return;
+    if (!scheduler || !scheduler.enabled) return;
 
     const tag = `[${scheduler.id}]`;
 
@@ -85,7 +85,8 @@ class SchedulerService {
 
     async start(): Promise<void> {
         const schedulers = await database.findAll<SchedulerRow>(database.scheduler, {
-            where: { disabled: false },
+            where: { enabled: true },
+            order: [['id', 'ASC']],
         });
         let loaded = 0;
         const now = Date.now();
@@ -108,8 +109,9 @@ class SchedulerService {
             return false;
         }
 
-        if (scheduler.disabled) {
-            logger.info(`Scheduler task [${scheduler.id}] is disabled, skipping`);
+        if (!scheduler.enabled) {
+            logger.info(`Scheduler task [${scheduler.id}] is not enabled, skipping`);
+            await database.update(database.scheduler, { nextRun: null }, { where: { id: scheduler.id } });
             return false;
         }
 
@@ -148,12 +150,12 @@ class SchedulerService {
         this.executor.stopAll();
     }
 
-    /** 列出未禁用 scheduler，附 nextRun。可按 profileId 过滤 */
+    /** 列出所有 scheduler，附 nextRun。可按 profileId 过滤 */
     async list(profileId?: number): Promise<(SchedulerRow & { nextRun: number | null })[]> {
-        const where: Record<string, any> = { disabled: false };
+        const where: Record<string, any> = {};
         if (profileId != null) where.profileId = profileId;
-        const rows = await database.findAll<SchedulerRow>(database.scheduler, { where });
-        return rows.map(r => ({ ...(r as any), nextRun: this.nextDate(r.id) }));
+        const rows = await database.findAll<SchedulerRow>(database.scheduler, { where, order: [['id', 'ASC']] });
+        return rows.map(r => ({ ...(r as any), nextRun: r.enabled ? (this.nextDate(r.id) ?? r.nextRun) : null }));
     }
 
     findByPk(schedulerId: number): Promise<SchedulerRow | null> {
@@ -171,8 +173,11 @@ class SchedulerService {
     }): Promise<SchedulerRow> {
         const row = await database.create<SchedulerRow>(database.scheduler, {
             ...data,
+            enabled: true,
             lastRun: null,
+            nextRun: null,
             runCount: 0,
+            createdAt: Date.now(),
         });
         await this.schedule(row as SchedulerRow);
         return row;
@@ -197,10 +202,11 @@ class SchedulerService {
         await database.destroy(database.scheduler, { where: { id: ids } });
     }
 
-    async update(schedulerId: number, patch: Partial<Pick<SchedulerRow, "message" | "channelSessionId" | "aiProcess">>): Promise<SchedulerRow | null> {
+    async update(schedulerId: number, patch: Partial<Pick<SchedulerRow, "message" | "channelSessionId" | "aiProcess" | "enabled">>): Promise<SchedulerRow | null> {
         const fields: Partial<SchedulerRow> = {};
         if (patch.message != null)   fields.message   = patch.message;
         if (patch.aiProcess != null) fields.aiProcess = patch.aiProcess;
+        if (patch.enabled != null)   fields.enabled   = patch.enabled;
         if (patch.channelSessionId != null) {
             // 改投递目标时 profileId 必须同步到新 session 的 profile，否则 list/delete 工具按 profileId 过滤会失配
             const session = await channelDataService.getSession(patch.channelSessionId, true);
@@ -209,6 +215,7 @@ class SchedulerService {
         }
         if (Object.keys(fields).length === 0) return database.findByPk<SchedulerRow>(database.scheduler, schedulerId);
         await database.update(database.scheduler, fields, { where: { id: schedulerId } });
+        if (fields.enabled != null) await this.reload(schedulerId);
         return database.findByPk<SchedulerRow>(database.scheduler, schedulerId);
     }
 

@@ -241,7 +241,6 @@ export default {
     cleanup_orphan_auto_profiles: 'Orphan auto profile (points to a missing session)',
     cleanup_orphan_schedulers: 'Orphan scheduler (profileId no longer valid)',
     cleanup_orphan_heartbeats: 'Orphan heartbeat (target session missing)',
-    cleanup_disabled_schedulers: 'Stale disabled schedulers (legacy soft-delete leftover)',
     cleanup_empty_profiles: 'Empty visible profile (no session references)',
   },
   models: {
@@ -497,6 +496,7 @@ export default {
     not_run: 'Not run',
     schedule_col: 'Schedule',
     message_col: 'Message',
+    status_col: 'Status',
     mode_col: 'Mode',
     mode_ai: 'AI',
     mode_raw: 'Raw',

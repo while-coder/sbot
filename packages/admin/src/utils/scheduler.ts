@@ -8,10 +8,12 @@ export interface SchedulerRow {
   channelSessionId: number
   profileId: number
   aiProcess: boolean
+  enabled: boolean
   lastRun: number | null
   nextRun: number | null
   runCount: number
   maxRuns: number
+  createdAt: number
 }
 
 export type UIType = 'daily' | 'weekly' | 'monthly' | 'once' | 'interval' | 'hourly' | 'custom'

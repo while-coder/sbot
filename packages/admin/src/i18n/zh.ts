@@ -241,7 +241,6 @@ export default {
     cleanup_orphan_auto_profiles: '孤儿 auto profile（指向已不存在的 session）',
     cleanup_orphan_schedulers: '孤儿 scheduler（profileId 已失效）',
     cleanup_orphan_heartbeats: '孤儿 heartbeat（target session 已不存在）',
-    cleanup_disabled_schedulers: '残留 disabled=true 的 scheduler（旧版软删遗留）',
     cleanup_empty_profiles: '空 visible profile（无 session 引用）',
   },
   models: {
@@ -497,6 +496,7 @@ export default {
     not_run: '未运行',
     schedule_col: '计划',
     message_col: '消息',
+    status_col: '状态',
     mode_col: '处理类型',
     mode_ai: 'AI 处理',
     mode_raw: '直发原文',

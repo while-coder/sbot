@@ -52,6 +52,7 @@ const form = ref({
   message: '',
   channelSessionId: null as number | null,
   aiProcess: true,
+  enabled: true,
 })
 
 function openEdit(row: SchedulerRow) {
@@ -60,6 +61,7 @@ function openEdit(row: SchedulerRow) {
     message: row.message || '',
     channelSessionId: row.channelSessionId || null,
     aiProcess: Boolean(row.aiProcess),
+    enabled: Boolean(row.enabled),
   }
   showModal.value = true
 }
@@ -74,6 +76,7 @@ async function save() {
       message: form.value.message.trim(),
       channelSessionId: form.value.channelSessionId,
       aiProcess: form.value.aiProcess,
+      enabled: form.value.enabled,
     })
     show(t('common.saved'))
     showModal.value = false
@@ -87,6 +90,7 @@ const columns = computed<STableColumn[]>(() => [
   { key: 'id',       label: t('common.id') },
   { key: 'schedule', label: t('scheduler.schedule_col'), primary: true },
   { key: 'message',  label: t('scheduler.message_col') },
+  { key: 'status',   label: t('scheduler.status_col') },
   { key: 'mode',     label: t('scheduler.mode_col') },
   { key: 'target',   label: t('scheduler.target_col') },
   { key: 'runCount', label: t('scheduler.run_count_col') },
@@ -222,6 +226,12 @@ onUnmounted(() => {
           </SBadge>
         </template>
 
+        <template #status="{ row }">
+          <SBadge :variant="row.enabled ? 'success' : 'neutral'">
+            {{ row.enabled ? t('common.enabled') : t('common.disabled') }}
+          </SBadge>
+        </template>
+
         <template #target="{ row }">
           <span
             class="sched-target"
@@ -260,7 +270,7 @@ onUnmounted(() => {
         </template>
 
         <template #ops="{ row }">
-          <SButton type="outline" size="sm" @click="trigger(row)">{{ t('scheduler.trigger') }}</SButton>
+          <SButton type="outline" size="sm" :disabled="!row.enabled" @click="trigger(row)">{{ t('scheduler.trigger') }}</SButton>
           <SButton type="outline" size="sm" @click="openEdit(row)">{{ t('common.edit') }}</SButton>
           <SButton type="danger" size="sm" @click="remove(row)">{{ t('common.delete') }}</SButton>
         </template>
@@ -286,6 +296,12 @@ onUnmounted(() => {
           <option value="1">{{ t('scheduler.mode_ai') }}</option>
           <option value="0">{{ t('scheduler.mode_raw') }}</option>
         </SSelect>
+      </SFormItem>
+      <SFormItem>
+        <label class="checkbox-label">
+          <input v-model="form.enabled" type="checkbox" />
+          {{ t('common.enabled') }}
+        </label>
       </SFormItem>
       <template #footer>
         <SButton type="outline" @click="showModal = false">{{ t('common.cancel') }}</SButton>
@@ -375,5 +391,11 @@ onUnmounted(() => {
 .sched-textarea:focus {
   outline: none;
   border-color: var(--sui-accent);
+}
+.checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sui-sp-2);
+  cursor: pointer;
 }
 </style>

@@ -9,7 +9,8 @@ import { LoggerService } from "./LoggerService";
 
 const logger = LoggerService.getLogger("Database.ts");
 const DBVersionName = "db_version";
-const DBVersion: string = config.pkg.version;
+const DBSchemaVersion = "scheduler-enabled-createdAt";
+const DBVersion: string = `${config.pkg.version}:${DBSchemaVersion}`;
 export type MessageRow = {
   id: string;
   expireTime: number;
@@ -18,7 +19,7 @@ export type MessageRow = {
 // thread id = String(profile.id)。saver / SessionService Map 都按这个 key 索引。
 // 多个 ChannelSession 共享同一 SessionProfile 即共享 thread（跨 channel 也共享）。
 
-// ⚠️ aiProcess / disabled 运行时是 0/1（受 raw:true 影响，见上方 query 配置注释）。
+// ⚠️ aiProcess / enabled 运行时是 0/1（受 raw:true 影响，见上方 query 配置注释）。
 // 仅可用真值检查，禁止 `=== true` / `=== false`。
 export type SchedulerRow = {
   id: number;
@@ -27,11 +28,28 @@ export type SchedulerRow = {
   channelSessionId: number;        // 投递目标 channel_session.id；session 失效时会在 profile 内自愈
   profileId: number;               // 归属 profile（= 创建时所在 thread）；list/delete/触发配置都按它
   aiProcess: boolean;              // true=交给AI处理后回复, false=直接发送原文不经AI
+  enabled: boolean;                // 是否启用
   lastRun: number | null;          // 上次执行时间戳
   nextRun: number | null;          // 下次预计执行时间戳
   runCount: number;                // 已执行次数
   maxRuns: number;                 // 最大执行次数（0 表示不限制）
-  disabled: boolean;               // ⚠ 历史遗留：旧版 delete()/maxRuns 用此做软删，现已全部改硬删；保留列仅为兼容旧 DB 行（runtime 仍按 disabled=false 过滤），cleanupOrphans 会清掉残留 disabled=true 的行。下次 schema migration 可移除。
+  createdAt: number;               // 创建时间戳(ms)
+};
+
+// ⚠️ enabled 运行时是 0/1（受 raw:true 影响，见上方 query 配置注释）。
+// 仅可用真值检查，禁止 `=== true` / `=== false`。
+export type HeartbeatRow = {
+  id: number;
+  name: string;
+  intervalMinutes: number;
+  promptFile: string;
+  target: number;
+  enabled: boolean;
+  activeHoursStart: number | null;
+  activeHoursEnd: number | null;
+  activeHoursTimezone: string | null;
+  lastRun: number | null;
+  createdAt: number;
 };
 
 export type StateRow = {
@@ -107,23 +125,6 @@ export type SessionProfileRow = {
   lastOutputTokens: number;
   lastTotalTokens: number;
 
-  createdAt: number;
-};
-
-
-// ⚠️ enabled 运行时是 0/1（受 raw:true 影响，见上方 query 配置注释）。
-// 仅可用真值检查，禁止 `=== true` / `=== false`。
-export type HeartbeatRow = {
-  id: number;
-  name: string;
-  intervalMinutes: number;
-  promptFile: string;
-  target: number;
-  enabled: boolean;
-  activeHoursStart: number | null;
-  activeHoursEnd: number | null;
-  activeHoursTimezone: string | null;
-  lastRun: number | null;
   createdAt: number;
 };
 
@@ -577,17 +578,17 @@ class Database {
           defaultValue: true,
           comment: "true=交给AI处理后回复, false=直接发送原文",
         },
+        enabled: {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: true,
+          comment: "是否启用",
+        },
         lastRun: {
           type: DataTypes.BIGINT,
           allowNull: true,
           defaultValue: null,
           comment: "上次执行时间戳",
-        },
-        runCount: {
-          type: DataTypes.INTEGER,
-          allowNull: false,
-          defaultValue: 0,
-          comment: "已执行次数",
         },
         nextRun: {
           type: DataTypes.BIGINT,
@@ -595,17 +596,23 @@ class Database {
           defaultValue: null,
           comment: "下次预计执行时间戳",
         },
+        runCount: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
+          comment: "已执行次数",
+        },
         maxRuns: {
           type: DataTypes.INTEGER,
           allowNull: false,
           defaultValue: 0,
           comment: "最大执行次数（0 表示不限制）",
         },
-        disabled: {
-          type: DataTypes.BOOLEAN,
+        createdAt: {
+          type: DataTypes.BIGINT,
           allowNull: false,
-          defaultValue: false,
-          comment: "是否已禁用（软删除）",
+          defaultValue: 0,
+          comment: "创建时间戳(ms)",
         },
       },
       {
@@ -830,6 +837,7 @@ class Database {
       await this.channelUser.sync({ alter });
       await this.sessionProfile.sync({ alter });
       await this.channelSession.sync({ alter });
+      await this.migrateSchedulerDisabledColumn(alter);
       await this.scheduler.sync({ alter });
       await this.usageLogs.sync({ alter });
       await this.heartbeat.sync({ alter });
@@ -837,6 +845,21 @@ class Database {
       await this.state.update({ value: DBVersion }, { where: { key: DBVersionName } });
       logger.info("Database schema sync completed");
     });
+  }
+
+  private async migrateSchedulerDisabledColumn(alter: boolean): Promise<void> {
+    if (!alter) return;
+    let columns: Record<string, any>;
+    try {
+      columns = await this.sequelize.getQueryInterface().describeTable("scheduler");
+    } catch {
+      return;
+    }
+    if (!columns.disabled) return;
+    await this.sequelize.query("DELETE FROM scheduler WHERE disabled = 1");
+    if (!columns.enabled) {
+      await this.sequelize.query("ALTER TABLE scheduler ADD COLUMN enabled TINYINT(1) NOT NULL DEFAULT 1");
+    }
   }
 
   async findAll<T>(db: ModelStatic<any>, options?: FindOptions): Promise<T[]> {

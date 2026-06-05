@@ -24,7 +24,8 @@ export function createSchedulerListTool(profileId: number): StructuredToolInterf
                 const lines = timers.map(t => {
                     const maxLabel = t.maxRuns ? `${t.runCount}/${t.maxRuns}` : `${t.runCount}`;
                     const next = t.nextRun ? new Date(t.nextRun).toLocaleString() : '-';
-                    return `id=${t.id}  expr="${t.expr}"  runs=${maxLabel}  next=${next}\n  message: ${t.message}`;
+                    const status = t.enabled ? 'enabled' : 'disabled';
+                    return `id=${t.id}  status=${status}  expr="${t.expr}"  runs=${maxLabel}  next=${next}\n  message: ${t.message}`;
                 });
 
                 return createSuccessResult(createTextContent(`${timers.length} tasks:\n\n${lines.join('\n\n')}`));

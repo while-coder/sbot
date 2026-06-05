@@ -528,9 +528,6 @@ export class ChannelDataService {
             p.autoForSessionId == null && !profileIdsWithSessions.has(p.id)
         );
 
-        // 7. 残留 disabled=true 的 scheduler（旧版软删遗留——现在所有删除路径都硬删）
-        const disabledSchedulers = allSchedulers.filter(s => !!s.disabled);
-
         if (!dryRun) {
             // Step 1：失效 channel 整套清掉（顺带清这些 channel 名下的 session/user/auto profile/scheduler/heartbeat）
             const orphanChannelIds = new Set<string>();
@@ -578,14 +575,6 @@ export class ChannelDataService {
                 await heartbeatService.reloadAll();
             }
 
-            // Step 5：残留 disabled=true 的 scheduler 行（重扫一次，前面 step 可能已带走一些）
-            const remainingDisabledIds: number[] = [];
-            for (const s of disabledSchedulers) {
-                const stillExists = await database.findByPk<SchedulerRow>(database.scheduler, s.id);
-                if (stillExists && stillExists.disabled) remainingDisabledIds.push(s.id);
-            }
-            await schedulerService.cascadeDeleteByIds(remainingDisabledIds);
-
             const counts = {
                 channels: orphanChannelIds.size,
                 sessions: orphanChannelSessions.length,
@@ -593,9 +582,8 @@ export class ChannelDataService {
                 autoProfiles: orphanAutoProfiles.length,
                 schedulers: remainingOrphanSchedulerIds.length + orphanChannelSessions.length, // 近似
                 heartbeats: remainingOrphanHeartbeatIds.length + orphanHeartbeats.length, // 近似
-                disabledSchedulers: remainingDisabledIds.length,
             };
-            logger.info(`cleanupOrphans applied: channels=${counts.channels}, sessions=${counts.sessions}, users=${counts.users}, autoProfiles=${counts.autoProfiles}, disabledSchedulers=${counts.disabledSchedulers}`);
+            logger.info(`cleanupOrphans applied: channels=${counts.channels}, sessions=${counts.sessions}, users=${counts.users}, autoProfiles=${counts.autoProfiles}, schedulers=${counts.schedulers}, heartbeats=${counts.heartbeats}`);
         }
 
         return {
@@ -617,9 +605,6 @@ export class ChannelDataService {
             })),
             emptyVisibleProfiles: emptyVisibleProfiles.map(p => ({
                 id: p.id, name: p.name,
-            })),
-            disabledSchedulers: disabledSchedulers.map(s => ({
-                id: s.id, profileId: s.profileId, channelSessionId: s.channelSessionId,
             })),
         };
     }
@@ -668,8 +653,6 @@ export interface CleanupReport {
     orphanHeartbeats: Array<{ id: number; target: number; name: string }>;
     /** 仅列出，cleanupOrphans 不会删；用户决定是否手删 */
     emptyVisibleProfiles: Array<{ id: number; name: string }>;
-    /** 残留 disabled=true 的 scheduler 行（旧版软删遗留，apply 时硬删） */
-    disabledSchedulers: Array<{ id: number; profileId: number; channelSessionId: number }>;
 }
 
 export const channelDataService = new ChannelDataService();

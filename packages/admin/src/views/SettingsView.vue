@@ -101,7 +101,6 @@ interface CleanupReport {
   orphanSchedulers: Array<{ id: number; profileId: number; channelSessionId: number; reason: string }>
   orphanHeartbeats: Array<{ id: number; target: number; name: string }>
   emptyVisibleProfiles: Array<{ id: number; name: string }>
-  disabledSchedulers: Array<{ id: number; profileId: number; channelSessionId: number }>
 }
 
 const cleanupReport = ref<CleanupReport | null>(null)
@@ -117,7 +116,6 @@ const cleanupCategories = computed<Array<{ key: keyof CleanupReport; label: stri
     { key: 'orphanAutoProfiles',    label: t('settings.cleanup_orphan_auto_profiles'), cleaned: true, items: r.orphanAutoProfiles },
     { key: 'orphanSchedulers',      label: t('settings.cleanup_orphan_schedulers'), cleaned: true,  items: r.orphanSchedulers },
     { key: 'orphanHeartbeats',      label: t('settings.cleanup_orphan_heartbeats'), cleaned: true,  items: r.orphanHeartbeats },
-    { key: 'disabledSchedulers',    label: t('settings.cleanup_disabled_schedulers'), cleaned: true, items: r.disabledSchedulers ?? [] },
     { key: 'emptyVisibleProfiles',  label: t('settings.cleanup_empty_profiles'),   cleaned: false, items: r.emptyVisibleProfiles },
   ]
 })
@@ -169,8 +167,6 @@ function fmtItem(category: string, item: any): string {
       return `#${item.id} target=${item.target} name="${item.name || ''}"`
     case 'emptyVisibleProfiles':
       return `#${item.id} name="${item.name || ''}"`
-    case 'disabledSchedulers':
-      return `#${item.id} profileId=${item.profileId} channelSessionId=${item.channelSessionId}`
   }
   return JSON.stringify(item)
 }

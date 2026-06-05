@@ -76,6 +76,9 @@ defineExpose({ openByProfileId })
       <li v-for="row in rows" :key="row.id" class="sched-row">
         <div class="sched-row-main">
           <span class="sched-row-id">#{{ row.id }}</span>
+          <SBadge :variant="row.enabled ? 'success' : 'neutral'" size="sm">
+            {{ row.enabled ? t('common.enabled') : t('common.disabled') }}
+          </SBadge>
           <SBadge :variant="TYPE_VARIANT[detectUIType(row.expr)]" size="sm" pill>
             {{ t(`scheduler.type_${detectUIType(row.expr)}`) }}
           </SBadge>
