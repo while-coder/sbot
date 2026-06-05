@@ -1,4 +1,5 @@
 import os from 'os';
+import { existsSync, mkdirSync } from 'fs';
 import { type StructuredToolInterface } from '@langchain/core/tools';
 import {
     ServiceContainer,
@@ -75,6 +76,7 @@ export class AgentRunner {
         const assetsDir = config.getConfigPath('assets', true);
         const httpUrl = config.getHttpUrl();
         const workPath = options.workPath ?? `${assetsDir}/${threadId}`;
+        if (!existsSync(workPath)) mkdirSync(workPath, { recursive: true });
 
         /** 静态 system prompts（可缓存）：instruction → environment */
         const extraPrompts: string[] = [

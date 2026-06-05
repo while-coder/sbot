@@ -1,5 +1,4 @@
 import { ChildProcess, spawn } from "child_process";
-import { existsSync, mkdirSync } from "fs";
 import { Readable, Writable } from "stream";
 import { ClientSideConnection, ndJsonStream } from "@agentclientprotocol/sdk";
 import type * as schema from "@agentclientprotocol/sdk";
@@ -54,9 +53,6 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
         this.env = env ?? {};
         this.workPath = workPath;
         this.initTimeoutMs = initTimeoutMs;
-        if (workPath && !existsSync(workPath)) {
-            mkdirSync(workPath, { recursive: true });
-        }
     }
 
     // ── stream ───────────────────────────────────────────────────────────
