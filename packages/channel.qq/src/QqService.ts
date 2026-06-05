@@ -4,7 +4,7 @@ import {
   IChannelService, ChannelSessionHandler, SessionService,
   type ILogger, type MessageContent,
 } from 'channel.base';
-import { QqSessionHandler, type QqMessageArgs, type QqActionArgs } from './QqSessionHandler';
+import { QqSessionHandler, type QqMessageArgs } from './QqSessionHandler';
 
 // ── 协议常量 ─────────────────────────────────────────────────────────
 const TOKEN_URL = 'https://bots.qq.com/app/getAppAccessToken';
@@ -48,10 +48,6 @@ export interface QqServiceOptions {
     userId: string,
     args: QqMessageArgs,
     query: MessageContent,
-  ) => Promise<void>;
-  onTriggerAction?: (
-    userId: string,
-    args: QqActionArgs,
   ) => Promise<void>;
 }
 

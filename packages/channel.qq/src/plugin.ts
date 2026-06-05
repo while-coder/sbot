@@ -3,7 +3,7 @@ import {
   type MessageContent,
 } from 'channel.base';
 import { QqService } from './QqService';
-import type { QqMessageArgs, QqActionArgs } from './QqSessionHandler';
+import type { QqMessageArgs } from './QqSessionHandler';
 
 function buildQqExtraInfo(args: QqMessageArgs): string {
   return `<qq-user>
@@ -31,12 +31,8 @@ export const qqPlugin: ChannelPlugin = {
     },
   },
 
-  tools: [
-    { name: '_ask', label: '询问用户' },
-  ],
-
   async init(ctx: ChannelPluginContext): Promise<IChannelService | undefined> {
-    const { config, logger, filterEvent, initSession, onReceiveMessage, onTriggerAction } = ctx;
+    const { config, logger, filterEvent, initSession, onReceiveMessage } = ctx;
 
     if (!config.appId?.trim() || !config.clientSecret?.trim()) return undefined;
 
@@ -59,16 +55,6 @@ export const qqPlugin: ChannelPlugin = {
           ...args,
           extraInfo: buildQqExtraInfo(args),
         });
-      },
-      onTriggerAction: async (userId: string, args: QqActionArgs) => {
-        const session = await initSession({
-          userId,
-          userName: userId,
-          userInfo: JSON.stringify({ userOpenId: userId }),
-          sessionId: args.sessionId,
-          sessionName: args.sessionId,
-        });
-        await onTriggerAction(session, args);
       },
     });
     await service.start();
