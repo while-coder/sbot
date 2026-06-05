@@ -79,7 +79,8 @@ export class MessagePoller {
       this.backoffs.delete(deviceId);
     } catch (e: any) {
       const prev = this.backoffs.get(deviceId);
-      nextDelay = Math.min((prev ?? this.heartbeat) * 2, BACKOFF_MAX_MS);
+      const base = prev ?? Math.max(this.heartbeat, 1000);
+      nextDelay = Math.min(Math.max(base * 2, this.heartbeat), BACKOFF_MAX_MS);
       this.backoffs.set(deviceId, nextDelay);
       this.logger?.error(
         `XiaoAi poll error (${state.deviceName}): ${e.message}, retrying in ${nextDelay}ms`,

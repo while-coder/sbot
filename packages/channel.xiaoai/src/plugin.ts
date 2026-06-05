@@ -22,6 +22,14 @@ function resolveCredential(config: Record<string, any>, mode: XiaoaiAuthMode): s
   return mode === 'passToken' ? readString(config.passToken) : readString(config.password);
 }
 
+const HEARTBEAT_MIN_MS = 500;
+const HEARTBEAT_DEFAULT_MS = 5000;
+
+function resolveHeartbeat(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= HEARTBEAT_MIN_MS ? n : HEARTBEAT_DEFAULT_MS;
+}
+
 export const xiaoaiPlugin: ChannelPlugin = {
   type: 'xiaoai',
   label: '小爱同学',
@@ -96,7 +104,7 @@ export const xiaoaiPlugin: ChannelPlugin = {
       credential,
       loginDeviceId,
       deviceName,
-      heartbeat: Number(config.heartbeat) || 5000,
+      heartbeat: resolveHeartbeat(config.heartbeat),
       textChunkLimit: Number(config.textChunkLimit) || 200,
       volume: config.volume ? Number(config.volume) : undefined,
       logger,
