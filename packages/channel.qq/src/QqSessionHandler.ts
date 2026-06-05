@@ -10,7 +10,6 @@ export interface QqMessageArgs extends ChannelMessageArgs {
   chatType: 'c2c' | 'group';
   userOpenId: string;
   groupOpenId?: string;
-  atSenderOnReply: boolean;
 }
 
 /**

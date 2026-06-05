@@ -25,10 +25,6 @@ export const qqPlugin: ChannelPlugin = {
       label: 'Client Secret', type: ConfigFieldType.Password, required: true,
       description: 'QQ 开放平台机器人 AppSecret（即 Client Secret）',
     },
-    atSenderOnReply: {
-      label: '群聊回复时 @ 发送者', type: ConfigFieldType.Boolean, default: false,
-      description: '群聊回复时是否 @ 提问者（QQ 官方 Bot API 不直接支持，目前仅作为 metadata）',
-    },
   },
 
   async init(ctx: ChannelPluginContext): Promise<IChannelService | undefined> {
@@ -39,7 +35,6 @@ export const qqPlugin: ChannelPlugin = {
     const service = new QqService({
       appId: config.appId,
       clientSecret: config.clientSecret,
-      atSenderOnReply: config.atSenderOnReply === true,
       logger,
       filterEvent,
       onReceiveMessage: async (userId: string, args: QqMessageArgs, query: MessageContent) => {

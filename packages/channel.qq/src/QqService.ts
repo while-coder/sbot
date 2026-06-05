@@ -38,10 +38,6 @@ function sanitizeText(text: string): string {
 export interface QqServiceOptions {
   appId: string;
   clientSecret: string;
-  /** 群聊回复时是否 @ 发送者，默认 true */
-  atSenderOnReply?: boolean;
-  /** 沙箱 / 正式：默认 false=正式，true=sandbox */
-  sandbox?: boolean;
   logger?: ILogger;
   filterEvent: (eventId: string) => Promise<boolean>;
   onReceiveMessage: (
@@ -322,7 +318,6 @@ export class QqService implements IChannelService {
         sessionId, msgId,
         chatType: 'c2c',
         userOpenId,
-        atSenderOnReply: this.opts.atSenderOnReply ?? false,
       };
       await this.opts.onReceiveMessage(userOpenId, args, text);
       return;
@@ -343,7 +338,6 @@ export class QqService implements IChannelService {
         chatType: 'group',
         groupOpenId,
         userOpenId: memberOpenId,
-        atSenderOnReply: this.opts.atSenderOnReply ?? false,
       };
       await this.opts.onReceiveMessage(memberOpenId, args, text);
       return;
