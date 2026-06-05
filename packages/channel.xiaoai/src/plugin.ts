@@ -2,8 +2,25 @@ import {
   ChannelPlugin, ChannelPluginContext, IChannelService, ConfigFieldType,
   type MessageContent,
 } from 'channel.base';
-import { XiaoaiService } from './XiaoaiService';
+import { XiaoaiService, type XiaoaiAuthMode } from './XiaoaiService';
 import type { XiaoaiMessageArgs } from './XiaoaiService';
+
+function readString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function resolveAuthMode(config: Record<string, any>): XiaoaiAuthMode {
+  if (config.mode === 'password' || config.mode === 'passToken') return config.mode;
+  if (readString(config.passToken)) return 'passToken';
+  if (readString(config.password)) return 'password';
+  return 'passToken';
+}
+
+function resolveCredential(config: Record<string, any>, mode: XiaoaiAuthMode): string {
+  const credential = readString(config.credential);
+  if (credential) return credential;
+  return mode === 'passToken' ? readString(config.passToken) : readString(config.password);
+}
 
 export const xiaoaiPlugin: ChannelPlugin = {
   type: 'xiaoai',
@@ -16,26 +33,33 @@ export const xiaoaiPlugin: ChannelPlugin = {
       required: true,
       description: '小米账号 ID',
     },
-    password: {
-      label: '密码',
-      type: ConfigFieldType.Password,
-      description: '小米账号密码（推荐用辅助工具登录，免填密码）',
+    mode: {
+      label: '登录方式',
+      type: ConfigFieldType.Select,
+      required: true,
+      default: 'passToken',
+      description: '推荐使用辅助工具导出的 passToken',
+      options: [
+        { label: 'passToken（推荐）', value: 'passToken' },
+        { label: '密码', value: 'password' },
+      ],
     },
-    passToken: {
-      label: 'passToken',
+    credential: {
+      label: '密码 / passToken',
       type: ConfigFieldType.Password,
-      description: '小米 passToken，由辅助工具登录后导出',
+      required: true,
+      description: '按登录方式填写小米账号密码或辅助工具导出的 passToken',
     },
-    deviceId: {
-      label: 'deviceId',
+    loginDeviceId: {
+      label: '登录设备 ID',
       type: ConfigFieldType.String,
-      description: 'PassportSDK 设备 ID，由辅助工具一并导出',
+      description: 'PassportSDK deviceId，由辅助工具一并导出；留空则随机生成',
     },
-    device: {
-      label: '设备名称',
+    deviceName: {
+      label: '音箱名称',
       type: ConfigFieldType.String,
       required: true,
-      description: '音箱设备名称（需与米家中一致）',
+      description: '米家中的小爱音箱名称',
     },
     heartbeat: {
       label: '轮询间隔 (ms)',
@@ -59,19 +83,19 @@ export const xiaoaiPlugin: ChannelPlugin = {
   async init(ctx: ChannelPluginContext): Promise<IChannelService | undefined> {
     const { config, logger, filterEvent, initSession, onReceiveMessage } = ctx;
 
-    const userId = config.userId?.trim();
-    const password = config.password?.trim();
-    const passToken = config.passToken?.trim();
-    const deviceId = config.deviceId?.trim();
-    const device = config.device?.trim();
-    if (!userId || !device || (!password && !passToken)) return undefined;
+    const userId = readString(config.userId);
+    const mode = resolveAuthMode(config);
+    const credential = resolveCredential(config, mode);
+    const loginDeviceId = readString(config.loginDeviceId) || readString(config.deviceId);
+    const deviceName = readString(config.deviceName) || readString(config.device);
+    if (!userId || !deviceName || !credential) return undefined;
 
     const service = new XiaoaiService({
       userId,
-      password,
-      passToken,
-      deviceId,
-      device,
+      mode,
+      credential,
+      loginDeviceId,
+      deviceName,
       heartbeat: Number(config.heartbeat) || 1000,
       textChunkLimit: Number(config.textChunkLimit) || 200,
       volume: config.volume ? Number(config.volume) : undefined,

@@ -13,7 +13,7 @@ Select the channel type and fill in the credentials, then assign agent + saver +
 | WeCom | Bot ID, Secret |
 | WeChat | QR code login (credentials auto-populated) |
 | OneBot (QQ) | WS Host, WS Port, optional Access Token |
-| XiaoAI | Mi account ID, Password, Device name |
+| XiaoAI | Mi account ID, Login credential, Speaker name |
 
 ## Lark / Feishu
 
@@ -106,7 +106,9 @@ Talk to your XiaoAi smart speaker as a sbot channel.
 | Field | Description |
 |-------|-------------|
 | 小米 ID | Your Mi account ID |
-| 密码 | Mi account password |
-| 设备名称 | Target device name (matches a device in your account) |
+| 登录方式 | `passToken` from the helper tool, or Mi account password |
+| 密码 / passToken | The credential matching the selected login mode |
+| 登录设备 ID | Optional PassportSDK `deviceId` from the helper tool |
+| 音箱名称 | Target speaker name (matches a device in your Mi account) |
 
 2. The bot logs in to Mi Cloud, listens for voice messages on the device, and replies via TTS through the speaker

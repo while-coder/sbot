@@ -14,7 +14,7 @@ const tools: Tool[] = [
   {
     key: 'xiaoai-login',
     label: '小爱登录',
-    description: '登录小米账号，导出 sbot channel.xiaoai 所需的 userId / passToken / deviceId / device',
+    description: '登录小米账号，导出 sbot channel.xiaoai 所需的 userId / passToken / loginDeviceId / deviceName',
     route: '/xiaoai-login',
   },
 ]

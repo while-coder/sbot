@@ -459,32 +459,6 @@ const passwordVisible = ref<Record<string, boolean>>({})
 
 const actionState = ref<Record<string, { loading: boolean; qrUrl?: string; qrLink?: string; qrType?: 'image' | 'link'; status?: string; error?: string }>>({})
 
-const pasteJson = ref('')
-const pasteError = ref('')
-
-function applyPasteJson() {
-  pasteError.value = ''
-  const raw = pasteJson.value.trim()
-  if (!raw) { pasteError.value = '请粘贴 JSON 后再点击'; return }
-  let obj: any
-  try { obj = JSON.parse(raw) } catch (e: any) { pasteError.value = `JSON 解析失败: ${e.message}`; return }
-  if (typeof obj !== 'object' || obj === null || Array.isArray(obj)) { pasteError.value = '需要一个 JSON 对象'; return }
-  const schema = currentSchema.value
-  let applied = 0
-  const skipped: string[] = []
-  for (const [k, v] of Object.entries(obj)) {
-    if (k in schema) {
-      form.value.config[k] = v as any
-      applied++
-    } else {
-      skipped.push(k)
-    }
-  }
-  if (applied === 0) { pasteError.value = `无可用字段（schema 内不存在: ${skipped.join(', ')}）`; return }
-  pasteJson.value = ''
-  show(`已填入 ${applied} 个字段${skipped.length ? `（忽略 ${skipped.join(', ')}）` : ''}`)
-}
-
 function clearActionState() {
   actionState.value = {}
 }
@@ -885,16 +859,6 @@ async function refresh() {
           </SFormSection>
 
           <SFormSection v-if="Object.keys(currentSchema).length > 0" :title="t('channels.section_plugin')">
-            <SFormItem label="粘贴凭据 JSON">
-              <details class="paste-json-block">
-                <summary>从辅助工具导入</summary>
-                <STextarea v-model="pasteJson" :rows="6" placeholder='{"userId":"...","passToken":"...","deviceId":"...","device":"客厅小爱"}' />
-                <div class="paste-json-actions">
-                  <SButton type="outline" size="sm" @click="applyPasteJson">解析并填入</SButton>
-                  <span v-if="pasteError" class="qr-msg qr-msg-error">{{ pasteError }}</span>
-                </div>
-              </details>
-            </SFormItem>
             <template v-for="(field, key) in currentSchema" :key="key">
               <SFormItem v-if="field.type === 'qrcode'" :label="field.label">
                 <div class="qrcode-block">
@@ -1152,10 +1116,6 @@ async function refresh() {
 .qr-msg-muted { color: var(--sui-fg-muted); }
 .qr-msg-success { color: var(--sui-success); }
 .qr-msg-error { color: var(--sui-danger); }
-
-.paste-json-block summary { cursor: pointer; font-size: var(--sui-fs-sm); color: var(--sui-fg-muted); margin-bottom: var(--sui-sp-2); }
-.paste-json-block[open] summary { color: var(--sui-fg); }
-.paste-json-actions { display: flex; align-items: center; gap: var(--sui-sp-3); margin-top: var(--sui-sp-2); }
 
 .session-avatar {
   width: 28px;

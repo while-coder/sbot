@@ -9,6 +9,8 @@ import { speak } from './speaker';
 import type { AuthedAccount } from './mi/types';
 import { XiaoaiSessionHandler } from './XiaoaiSessionHandler';
 
+export type XiaoaiAuthMode = 'password' | 'passToken';
+
 export interface XiaoaiMessageArgs extends ChannelMessageArgs {
   accountUserId: string;
   deviceId: string;
@@ -17,10 +19,10 @@ export interface XiaoaiMessageArgs extends ChannelMessageArgs {
 
 export interface XiaoaiServiceOptions {
   userId: string;
-  password?: string;
-  passToken?: string;
-  deviceId?: string;
-  device: string;
+  mode: XiaoaiAuthMode;
+  credential: string;
+  loginDeviceId?: string;
+  deviceName: string;
   heartbeat: number;
   textChunkLimit: number;
   volume?: number;
@@ -32,7 +34,7 @@ export interface XiaoaiServiceOptions {
 export class XiaoaiService implements IChannelService {
   private authed: AuthedAccount | undefined;
   private poller: MessagePoller | undefined;
-  private deviceId: string = '';
+  private speakerDeviceId: string = '';
   private logger?: ILogger;
   private options: XiaoaiServiceOptions;
 
@@ -46,8 +48,8 @@ export class XiaoaiService implements IChannelService {
   }
 
   async sendTextToSession(_sessionId: string, text: string): Promise<void> {
-    if (!this.authed || !this.deviceId) return;
-    await speak(this.authed, this.deviceId, text, {
+    if (!this.authed || !this.speakerDeviceId) return;
+    await speak(this.authed, this.speakerDeviceId, text, {
       chunkLimit: this.options.textChunkLimit,
       volume: this.options.volume,
     });
@@ -66,19 +68,21 @@ export class XiaoaiService implements IChannelService {
   }
 
   async start(): Promise<void> {
-    const { userId, password, passToken, deviceId, device } = this.options;
+    const { userId, mode, credential, loginDeviceId, deviceName } = this.options;
+    const password = mode === 'password' ? credential : '';
+    const passToken = mode === 'passToken' ? credential : undefined;
 
     this.logger?.info(`XiaoAi logging in: ${userId}`);
-    this.authed = await login({ userId, password: password ?? '', passToken, deviceId });
+    this.authed = await login({ userId, password, passToken, deviceId: loginDeviceId });
     this.logger?.info(`XiaoAi logged in: ${userId}`);
 
     const allDevices = await getDeviceList(this.authed);
     this.logger?.info(`XiaoAi found ${allDevices.length} devices`);
 
-    const matched = findDeviceByName(allDevices, device);
+    const matched = findDeviceByName(allDevices, deviceName);
     if (!matched) {
       const available = allDevices.map((d) => d.name).join(', ');
-      throw new Error(`Device "${device}" not found. Available: ${available}`);
+      throw new Error(`Device "${deviceName}" not found. Available: ${available}`);
     }
 
     this.poller = new MessagePoller(
@@ -87,8 +91,8 @@ export class XiaoaiService implements IChannelService {
       (msg) => this.handleMessage(msg),
       this.logger,
     );
-    this.deviceId = matched.deviceID;
-    this.poller.startDevice(matched.deviceID, device);
+    this.speakerDeviceId = matched.deviceID;
+    this.poller.startDevice(matched.deviceID, deviceName);
   }
 
   private async handleMessage(msg: PollingMessage): Promise<void> {

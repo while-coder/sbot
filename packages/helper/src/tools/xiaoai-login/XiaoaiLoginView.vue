@@ -121,6 +121,13 @@ async function switchAccount() {
             {{ copiedKey === 'passToken' ? '已复制 ✓' : '复制' }}
           </button>
         </div>
+        <div class="field">
+          <span class="field-label">deviceId</span>
+          <code class="field-value">{{ creds.deviceId }}</code>
+          <button class="copy-btn" @click="copyValue('deviceId', creds.deviceId)">
+            {{ copiedKey === 'deviceId' ? '已复制 ✓' : '复制' }}
+          </button>
+        </div>
       </div>
 
       <div class="field-group">
