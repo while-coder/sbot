@@ -9,6 +9,7 @@ export type { ProviderResolveEntry } from "./IAgentToolService";
 
 // ===== 实现类 =====
 export { AgentToolService } from "./AgentToolService";
+export { RecoverableMcpClient, isStaleMcpConnectionError } from "./RecoverableMcpClient";
 
 // ===== 类型定义 =====
 export { MCPServerConfig, MCPServers } from "./MCPServerConfig";

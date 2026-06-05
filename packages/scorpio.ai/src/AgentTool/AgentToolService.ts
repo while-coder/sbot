@@ -1,10 +1,10 @@
 import { StructuredToolInterface } from "@langchain/core/tools";
 import { IAgentToolService, type ProviderResolveEntry } from "./IAgentToolService";
-import { MultiServerMCPClient } from "@langchain/mcp-adapters";
 import { MCPServers } from "./MCPServerConfig";
 import { ILoggerService } from "../Logger";
 import { inject } from "../Core";
 import type { MCPPrompt, MCPPromptMessage, MCPResource, MCPResourceTemplate, ProviderResult } from "./MCPTypes";
+import { RecoverableMcpClient } from "./RecoverableMcpClient";
 
 interface ProviderEntry {
     factory: (params?: Record<string, any>) => Promise<ProviderResult>;
@@ -41,30 +41,39 @@ export class AgentToolService implements IAgentToolService {
         for (const [name, cfg] of Object.entries(mcpServers)) {
             this.providers.set(name, {
                 factory: async () => {
-                    const client = new MultiServerMCPClient({ mcpServers: { [name]: cfg } });
-                    const tools: StructuredToolInterface[] = [...await client.getTools()];
+                    const client = new RecoverableMcpClient(name, cfg, this.logger);
+                    const tools = await client.getTools();
 
                     let prompts: MCPPrompt[] | undefined;
                     let resources: MCPResource[] | undefined;
                     let resourceTemplates: MCPResourceTemplate[] | undefined;
 
-                    const rawClient = await client.getClient(name);
-                    if (rawClient) {
-                        try { prompts = (await rawClient.listPrompts()).prompts as MCPPrompt[]; } catch {}
-                    }
-                    try { resources = (await client.listResources(name))[name]; } catch {}
-                    try { resourceTemplates = (await client.listResourceTemplates(name))[name]; } catch {}
+                    try {
+                        prompts = await client.runOperation(async (c) => {
+                            const rc = await c.getClient(name);
+                            if (!rc) return undefined as MCPPrompt[] | undefined;
+                            return (await rc.listPrompts()).prompts as MCPPrompt[];
+                        });
+                    } catch {}
+                    try {
+                        resources = await client.runOperation(async (c) => (await c.listResources(name))[name]);
+                    } catch {}
+                    try {
+                        resourceTemplates = await client.runOperation(async (c) => (await c.listResourceTemplates(name))[name]);
+                    } catch {}
 
                     return {
                         tools, prompts, resources, resourceTemplates,
                         getPrompt: async (promptName: string, args?: Record<string, string>) => {
-                            const rc = await client.getClient(name);
-                            if (!rc) throw new Error(`MCP client for "${name}" not available`);
-                            const result = await rc.getPrompt({ name: promptName, arguments: args });
-                            return result.messages as MCPPromptMessage[];
+                            return client.runOperation(async (c) => {
+                                const rc = await c.getClient(name);
+                                if (!rc) throw new Error(`MCP client for "${name}" not available`);
+                                const result = await rc.getPrompt({ name: promptName, arguments: args });
+                                return result.messages as MCPPromptMessage[];
+                            });
                         },
                         readResource: async (uri: string) => {
-                            return await client.readResource(name, uri);
+                            return client.runOperation(async (c) => c.readResource(name, uri));
                         },
                         close: async () => { await client.close(); },
                     };

@@ -18,6 +18,7 @@ export const T_SkillToolExecDesc         = Symbol("scorpio:T_SkillToolExecDesc")
 export const T_NoteSystemPromptTemplate = Symbol("scorpio:T_NoteSystemPromptTemplate");
 
 export const T_ModelCallTimeout           = Symbol("scorpio:T_ModelCallTimeout");
+export const T_ToolOverflowDir            = Symbol("scorpio:T_ToolOverflowDir");
 
 // Compact tokens
 export const T_CompactPromptTemplate         = Symbol("scorpio:T_CompactPromptTemplate");

@@ -52,3 +52,8 @@ export {
     type WalkTreeResult,
 } from './walkTree';
 
+export {
+    truncateMCPToolResult,
+    type TruncateToolResultOptions,
+} from './truncateToolResult';
+

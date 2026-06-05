@@ -67,6 +67,7 @@ export {
   T_InsightSystemPromptTemplate,
   T_WikiSystemPromptTemplate,
   T_ModelCallTimeout,
+  T_ToolOverflowDir,
   T_CompactPromptTemplate,
   T_PostCompactMessageTemplate,
   T_PostCompactContinuation,
