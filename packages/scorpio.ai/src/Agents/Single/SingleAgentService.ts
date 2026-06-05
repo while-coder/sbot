@@ -1,6 +1,6 @@
 import { StateGraph, START, END } from '../../Graph';
 import { type StructuredToolInterface } from "@langchain/core/tools";
-import { inject, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ModelCallTimeout, truncate } from "../../Core";
+import { inject, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ModelCallTimeout, T_ToolOverflowDir, truncate } from "../../Core";
 import { IModelService } from "../../Model";
 import { ISkillService } from "../../Skills";
 import { IInsightService } from "../../Insight";
@@ -12,7 +12,7 @@ import { IAgentSaverService } from "../../Saver";
 import { ConversationCompactor, IConversationCompactor, METADATA_KEY_INPUT_TOKENS } from "../../Saver/ConversationCompactor";
 import { IAgentToolService } from "../../AgentTool";
 import { ILoggerService } from "../../Logger";
-import { normalizeToMCPResult, MCPContentType, type MCPToolResult } from '../../Tools';
+import { normalizeToMCPResult, truncateMCPToolResult, MCPContentType, type MCPToolResult } from '../../Tools';
 import { AgentServiceBase, GraphNodeType, ToolApproval, IAgentCallback, AgentCancelledError, DEFAULT_MAX_HISTORY_TOKENS, ChatMessage, MessageRole, type TokenUsage } from "../AgentServiceBase";
 import type { MessageContent } from "../../Saver/IAgentSaverService";
 import { contentToString, truncateForLog } from "../../Utils/contentUtils";
@@ -63,6 +63,7 @@ export class SingleAgentService extends AgentServiceBase {
     protected dynamicSystemPrompts: string[];
     protected modelCallTimeout?: number;
     protected compactor?: ConversationCompactor;
+    protected toolOverflowDir?: string;
 
     constructor(
         @inject(IModelService) modelService: IModelService,
@@ -78,6 +79,7 @@ export class SingleAgentService extends AgentServiceBase {
         @inject(IWikiService, { optional: true }) wikiServices?: IWikiService[],
         @inject(T_ModelCallTimeout, { optional: true }) modelCallTimeout?: number,
         @inject(IConversationCompactor, { optional: true }) compactor?: ConversationCompactor,
+        @inject(T_ToolOverflowDir, { optional: true }) toolOverflowDir?: string,
     ) {
         super(loggerService, agentSaver, noteServices, wikiServices);
         this.modelService = modelService;
@@ -89,6 +91,7 @@ export class SingleAgentService extends AgentServiceBase {
         this.dynamicSystemPrompts = dynamicSystemPrompts ?? [];
         this.modelCallTimeout = modelCallTimeout;
         this.compactor = compactor;
+        this.toolOverflowDir = toolOverflowDir;
     }
 
     override addStaticSystemPrompts(prompts: string[]): void {
@@ -295,6 +298,21 @@ export class SingleAgentService extends AgentServiceBase {
 
                 // 标准化为 MCP 格式（自动检测和转换各种格式）
                 let mcpResult = normalizeToMCPResult(result);
+
+                // 单条 result 过大时 head+tail 截断 + 溢出落盘，防止 token 一下被打爆。
+                // 失败降级为不带路径的截断；spillDir 未注入则跳过整个步骤。
+                if (this.toolOverflowDir) {
+                    try {
+                        mcpResult = await truncateMCPToolResult(mcpResult, {
+                            spillDir: this.toolOverflowDir,
+                            toolCallId: toolCall.id ?? `noid-${Date.now()}-${i}`,
+                            toolName: tool.name,
+                        });
+                    } catch (err: any) {
+                        this.logger?.warn(`工具结果截断失败 ${tool.name}: ${err?.message ?? err}`);
+                    }
+                }
+
                 const resultStr = JSON.stringify(mcpResult);
                 this.logger?.info(`执行工具结束 ${tool.name} 结果: ${truncate(resultStr, 300)}`);
 

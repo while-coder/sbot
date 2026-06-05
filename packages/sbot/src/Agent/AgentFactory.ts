@@ -5,6 +5,7 @@ import {
     IAgentSaverService, AgentMemorySaver, ILoggerService,
     ConversationCompactor, IConversationCompactor, T_SummaryModelService,
     T_CompactPromptTemplate, T_PostCompactMessageTemplate, T_PostCompactContinuation,
+    T_ToolOverflowDir,
 } from "scorpio.ai";
 import {
     IAgentToolService, AgentToolService,
@@ -213,6 +214,7 @@ export class AgentFactory {
         container.registerWithArgs(SingleAgentService, {
             [IModelService]: await config.getModelService(entry.model, true),
             [T_StaticSystemPrompts]: systemPrompts,
+            [T_ToolOverflowDir]: config.getConfigPath("tool-overflow", true),
             ...(entry.modelCallTimeout != null && { [T_ModelCallTimeout]: entry.modelCallTimeout * 1000 }),
         });
         return container.resolve(SingleAgentService);
