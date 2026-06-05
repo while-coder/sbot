@@ -101,7 +101,38 @@ pub async fn xiaoai_open_login(app: AppHandle) -> Result<XiaoaiCreds, String> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Command 2: list mina devices using the captured passToken.
+// Command 2: clear webview cookies / storage so the next login can use a
+// different Xiaomi account. Without this, the embedded WebView would silently
+// reuse the previous session.
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn xiaoai_logout(app: AppHandle) -> Result<(), String> {
+    if let Some(existing) = app.get_webview_window(LOGIN_WINDOW_LABEL) {
+        existing.close().ok();
+        sleep(Duration::from_millis(200)).await;
+    }
+
+    let window = WebviewWindowBuilder::new(
+        &app,
+        LOGIN_WINDOW_LABEL,
+        WebviewUrl::External("about:blank".parse().unwrap()),
+    )
+    .visible(false)
+    .inner_size(100.0, 100.0)
+    .build()
+    .map_err(|e| format!("create logout webview failed: {e}"))?;
+
+    let result = window.clear_all_browsing_data();
+    sleep(Duration::from_millis(100)).await;
+    window.close().ok();
+
+    result.map_err(|e| format!("clear browsing data failed: {e}"))?;
+    Ok(())
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Command 3: list mina devices using the captured passToken.
 //   1. /pass/serviceLogin with passToken cookie → get { location, nonce, ssecurity }
 //   2. Walk redirect chain → harvest serviceToken cookie
 //   3. GET https://api2.mina.mi.com/admin/v2/device_list with serviceToken

@@ -6,6 +6,7 @@ pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             tools::xiaoai_login::xiaoai_open_login,
+            tools::xiaoai_login::xiaoai_logout,
             tools::xiaoai_login::xiaoai_list_devices,
         ])
         .run(tauri::generate_context!())
