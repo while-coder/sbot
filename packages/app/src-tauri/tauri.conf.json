@@ -26,7 +26,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis", "app", "dmg", "deb", "appimage"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -39,9 +39,6 @@
         "installMode": "both",
         "languages": ["SimpChinese", "English", "TradChinese"],
         "displayLanguageSelector": true
-      },
-      "wix": {
-        "language": ["zh-CN", "en-US", "zh-TW"]
       }
     }
   }

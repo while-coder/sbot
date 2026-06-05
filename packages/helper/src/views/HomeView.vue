@@ -17,6 +17,12 @@ const tools: Tool[] = [
     description: '登录小米账号，导出 sbot channel.xiaoai 所需的 userId / passToken / loginDeviceId / deviceName',
     route: '/xiaoai-login',
   },
+  {
+    key: 'keystore-gen',
+    label: 'Keystore 生成',
+    description: '生成 Android APK 签名 keystore（PKCS12），自动给出 GitHub Actions 所需的 4 个 secret',
+    route: '/keystore-gen',
+  },
 ]
 </script>
 
