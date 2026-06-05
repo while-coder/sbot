@@ -23,24 +23,23 @@
     "build:vscode": "pnpm run build:deps && pnpm run assets && pnpm --filter sbot-vscode run build",
     "install:vscode": "pnpm run build:vscode && pnpm --filter sbot-vscode run install-ext",
 
-    "debug:desktop": "pnpm run assets && pnpm --filter @sbot/app run dev",
+    "debug:app": "pnpm run assets && pnpm --filter @sbot/app run dev",
+    "build:app:macos": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/app run macos:build",
+    "build:app:windows": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/app run windows:build",
+    "build:app:linux": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/app run linux:build",
+
+    "init:app:android": "pnpm --filter @sbot/app run android:init",
+    "debug:app:android": "pnpm run assets && pnpm --filter @sbot/app run android:dev",
+    "build:app:android": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/app run android:build",
+
+    "init:app:ios": "pnpm --filter @sbot/app run ios:init",
+    "debug:app:ios": "pnpm run assets && pnpm --filter @sbot/app run ios:dev",
+    "build:app:ios": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/app run ios:build",
 
     "debug:helper": "pnpm --filter @sbot/helper run dev",
     "build:helper:macos": "pnpm --filter @sbot/helper run macos:build",
     "build:helper:windows": "pnpm --filter @sbot/helper run windows:build",
     "build:helper:linux": "pnpm --filter @sbot/helper run linux:build",
-
-    "build:macos": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/app run macos:build",
-    "build:windows": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/app run windows:build",
-    "build:linux": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/app run linux:build",
-
-    "init:android": "pnpm --filter @sbot/app run android:init",
-    "debug:android": "pnpm run assets && pnpm --filter @sbot/app run android:dev",
-    "build:android": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/app run android:build",
-
-    "init:ios": "pnpm --filter @sbot/app run ios:init",
-    "debug:ios": "pnpm run assets && pnpm --filter @sbot/app run ios:dev",
-    "build:ios": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/app run ios:build",
 
     "debug:docs": "pnpm --filter sbot-docs run dev",
     "build:docs": "pnpm --filter sbot-docs run build",
