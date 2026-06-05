@@ -64,7 +64,7 @@ export const xiaoaiPlugin: ChannelPlugin = {
     heartbeat: {
       label: '轮询间隔 (ms)',
       type: ConfigFieldType.Number,
-      default: 1000,
+      default: 5000,
       description: '消息轮询间隔毫秒数',
     },
     textChunkLimit: {
@@ -96,7 +96,7 @@ export const xiaoaiPlugin: ChannelPlugin = {
       credential,
       loginDeviceId,
       deviceName,
-      heartbeat: Number(config.heartbeat) || 1000,
+      heartbeat: Number(config.heartbeat) || 5000,
       textChunkLimit: Number(config.textChunkLimit) || 200,
       volume: config.volume ? Number(config.volume) : undefined,
       logger,
