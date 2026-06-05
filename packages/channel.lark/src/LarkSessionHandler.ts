@@ -41,9 +41,7 @@ export interface LarkActionArgs {
   form_value: any;
 }
 
-export class LarkSessionHandler extends ChannelSessionHandler {
-  provider: LarkChatProvider | undefined;
-
+export class LarkSessionHandler extends ChannelSessionHandler<LarkChatProvider> {
   constructor(session: SessionService, private larkService: LarkService) {
     super(session);
   }
@@ -242,7 +240,7 @@ Question types:
 
 Returns a map of question label → answer (string for radio/input, string[] for checkbox).`;
 
-  buildAgentTools(args: ChannelMessageArgs): StructuredToolInterface[] {
+  async buildAgentTools(args: ChannelMessageArgs): Promise<StructuredToolInterface[]> {
     const { sessionId, userOpenId } = args as LarkMessageArgs;
     return [
         createAskTool((params: AskToolParams) => this.executeAsk(params), LarkSessionHandler.ASK_PROMPT, [AskQuestionType.Radio, AskQuestionType.Checkbox, AskQuestionType.Input]),

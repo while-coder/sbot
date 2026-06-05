@@ -45,7 +45,7 @@ export function createProcessAIHandler(): ProcessAIHandler {
 
         const headless: boolean = args?.headless ?? false;
         const extraAgentTools = args?.agentTools;
-        let baseTools = sessionHandler.buildAgentTools(args);
+        let baseTools = await sessionHandler.buildAgentTools(args);
         const whitelist: string[] | undefined = args?.toolWhitelist ?? channel.tools;
         if (whitelist !== undefined && baseTools?.length) {
             const allowedSet = new Set(whitelist);

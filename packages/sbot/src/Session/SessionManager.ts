@@ -72,7 +72,7 @@ class SbotSession extends SessionService {
                 // saver 未配置或解析失败，跳过持久化（与原行为一致）
             }
         }
-        await this.getChannel(args).onCommandResult(content, args);
+        await this.getChannel(args).onChatMessage({ role: MessageRole.AI, content }, args);
     }
 
     protected async onProcessEnd(query: MessageContent, args: ChannelRouteArgs, messageType: MessageType, error?: any): Promise<void> {

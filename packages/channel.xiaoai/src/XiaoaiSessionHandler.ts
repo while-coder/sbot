@@ -1,14 +1,12 @@
 import {
-  ChannelSessionHandler, ToolCallStatus, SessionService,
+  ChannelSessionHandler, SessionService,
   type ChannelMessageArgs,
-  type ChatMessage, type MessageContent, type MessageType,
+  type MessageContent, type MessageType,
 } from 'channel.base';
 import { XiaoaiChatProvider } from './XiaoaiChatProvider';
 import type { XiaoaiService, XiaoaiMessageArgs } from './XiaoaiService';
 
-export class XiaoaiSessionHandler extends ChannelSessionHandler {
-  protected provider: XiaoaiChatProvider | undefined;
-
+export class XiaoaiSessionHandler extends ChannelSessionHandler<XiaoaiChatProvider> {
   constructor(session: SessionService, private service: XiaoaiService) {
     super(session);
   }
@@ -31,17 +29,4 @@ export class XiaoaiSessionHandler extends ChannelSessionHandler {
     await this.provider?.finish();
   }
 
-  async onStreamMessage(_message: ChatMessage, _args: ChannelMessageArgs): Promise<void> {}
-
-  async onChatMessage(message: ChatMessage, _args: ChannelMessageArgs): Promise<void> {
-    this.provider?.addAIMessage(message);
-  }
-
-  protected async enterApproval(approvalId: string): Promise<void> {
-    this.resolveApproval(approvalId, ToolCallStatus.Allow);
-  }
-
-  protected async exitApproval(): Promise<void> {}
-  protected async enterAsk(): Promise<void> {}
-  protected async exitAsk(): Promise<void> {}
 }

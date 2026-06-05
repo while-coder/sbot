@@ -1,18 +1,14 @@
 import {
-  ChannelSessionHandler, SessionService, GlobalLoggerService, ToolApproval,
+  ChannelSessionHandler, SessionService,
   createSendFileTool,
   type StructuredToolInterface,
-  type ChatMessage, type ChatToolCall, type AskToolParams, type MessageType,
+  type MessageType,
   type ChannelMessageArgs, type MessageContent,
 } from "channel.base";
 import { WechatChatProvider } from "./WechatChatProvider";
 import type { WechatService, WechatMessageArgs } from "./WechatService";
 
-const getLogger = () => GlobalLoggerService.getLogger("WechatSessionHandler.ts");
-
-export class WechatSessionHandler extends ChannelSessionHandler {
-  private provider: WechatChatProvider | undefined;
-
+export class WechatSessionHandler extends ChannelSessionHandler<WechatChatProvider> {
   constructor(session: SessionService, private wechatService: WechatService) {
     super(session);
   }
@@ -29,37 +25,11 @@ export class WechatSessionHandler extends ChannelSessionHandler {
     await this.provider?.finish();
   }
 
-  async onStreamMessage(message: ChatMessage, _args: ChannelMessageArgs): Promise<void> {
-    this.provider?.setStreamMessage(message);
-  }
-
-  async onChatMessage(message: ChatMessage, _args: ChannelMessageArgs): Promise<void> {
-    this.provider?.addAIMessage(message);
-  }
-
-  // --- Approval: auto-allow (no interactive UI in personal WeChat) ---
-
-  protected async enterApproval(_approvalId: string, _remainSec: number, _toolCall: ChatToolCall): Promise<void> {
-    // No interactive card support — auto-allow all tool calls
-  }
-
-  /** Override executeApproval to auto-allow since WeChat has no card UI */
-  async executeApproval(_toolCall: ChatToolCall): Promise<ToolApproval> {
-    return ToolApproval.Allow;
-  }
-
-  protected async exitApproval(_approvalId: string): Promise<void> {}
-
-  // --- Ask: not supported for MVP ---
-
-  protected async enterAsk(_askId: string, _remainSec: number, _params: AskToolParams): Promise<void> {}
-  protected async exitAsk(_askId: string): Promise<void> {}
-
   // --- Agent tools ---
 
   static readonly SEND_FILE_PROMPT = "Send a local file or image to the current WeChat conversation. Use this tool to deliver any generated or exported file (documents, archives, reports, images, charts, etc.) directly to the user via WeChat.";
 
-  buildAgentTools(args: ChannelMessageArgs): StructuredToolInterface[] {
+  async buildAgentTools(args: ChannelMessageArgs): Promise<StructuredToolInterface[]> {
     const userId = (args as WechatMessageArgs).fromUserId ?? args.sessionId;
     return [
       createSendFileTool(WechatSessionHandler.SEND_FILE_PROMPT, async (filePath: string, fileName: string) => {

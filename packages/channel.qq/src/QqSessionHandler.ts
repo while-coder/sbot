@@ -1,8 +1,8 @@
 import { QqChatProvider } from './QqChatProvider';
 import { QqService } from './QqService';
 import {
-  ChannelSessionHandler, ToolCallStatus, SessionService,
-  type ChannelMessageArgs, type ChatMessage, type ChatToolCall, type AskToolParams, type MessageType, type MessageContent,
+  ChannelSessionHandler, SessionService,
+  type ChannelMessageArgs, type MessageType, type MessageContent,
 } from 'channel.base';
 
 export interface QqMessageArgs extends ChannelMessageArgs {
@@ -20,9 +20,7 @@ export interface QqMessageArgs extends ChannelMessageArgs {
  *  - 文本中所有 URL 自动替换为 [链接已省略]（QQ 平台限制）；
  *  - 由于平台不支持卡片按钮 / 表单，Ask 不向 AI 暴露；Approval 不进入交互等待。
  */
-export class QqSessionHandler extends ChannelSessionHandler {
-  provider: QqChatProvider | undefined;
-
+export class QqSessionHandler extends ChannelSessionHandler<QqChatProvider> {
   constructor(session: SessionService, private qqService: QqService) {
     super(session);
   }
@@ -39,20 +37,4 @@ export class QqSessionHandler extends ChannelSessionHandler {
     await this.provider?.flush();
   }
 
-  async onStreamMessage(message: ChatMessage, _args: any): Promise<void> {
-    this.provider?.setStreamMessage(message);
-  }
-
-  async onChatMessage(message: ChatMessage, _args: any): Promise<void> {
-    this.provider?.resetStreamMessage();
-    this.provider?.addAIMessage(message);
-  }
-
-  protected async enterApproval(approvalId: string, _remainSec: number, _toolCall: ChatToolCall): Promise<void> {
-    this.resolveApproval(approvalId, ToolCallStatus.Allow);
-  }
-
-  protected async exitApproval(_approvalId: string): Promise<void> {}
-  protected async enterAsk(_askId: string, _remainSec: number, _params: AskToolParams): Promise<void> {}
-  protected async exitAsk(_askId: string): Promise<void> {}
 }

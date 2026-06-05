@@ -1,8 +1,8 @@
 import {
-  ChannelSessionHandler, ToolCallStatus, SessionService, createSendFileTool,
+  ChannelSessionHandler, SessionService, createSendFileTool,
   type StructuredToolInterface,
   type ChannelMessageArgs,
-  type ChatMessage, type MessageContent, type MessageType,
+  type MessageContent, type MessageType,
 } from 'channel.base';
 import { WecomChatProvider } from './WecomChatProvider';
 import type { WecomService, WecomMessageArgs, WecomActionArgs } from './WecomService';
@@ -10,9 +10,7 @@ import type { WecomService, WecomMessageArgs, WecomActionArgs } from './WecomSer
 export { ToolCallStatus } from 'channel.base';
 export type { WecomMessageArgs, WecomActionArgs } from './WecomService';
 
-export class WecomSessionHandler extends ChannelSessionHandler {
-  protected provider: WecomChatProvider | undefined;
-
+export class WecomSessionHandler extends ChannelSessionHandler<WecomChatProvider> {
   constructor(session: SessionService, private wecomService: WecomService) {
     super(session);
   }
@@ -29,30 +27,13 @@ export class WecomSessionHandler extends ChannelSessionHandler {
     await this.provider?.finish();
   }
 
-
-
-  async onStreamMessage(_message: ChatMessage, _args: ChannelMessageArgs): Promise<void> {}
-
-  async onChatMessage(message: ChatMessage, _args: any): Promise<void> {
-    this.provider?.addAIMessage(message);
-  }
-
-  protected async enterApproval(approvalId: string): Promise<void> {
-    this.resolveApproval(approvalId, ToolCallStatus.Allow);
-  }
-
-  protected async exitApproval(): Promise<void> {}
-
-  protected async enterAsk(): Promise<void> {}
-  protected async exitAsk(): Promise<void> {}
-
   async onTriggerAction(_args: WecomActionArgs): Promise<void> {}
 
   // --- Agent tools ---
 
   static readonly SEND_FILE_PROMPT = 'Send a local file to the current WeCom conversation. Use this tool to deliver any generated or exported file (documents, archives, reports, images, etc.) directly to the user via WeCom.';
 
-  buildAgentTools(args: ChannelMessageArgs): StructuredToolInterface[] {
+  async buildAgentTools(args: ChannelMessageArgs): Promise<StructuredToolInterface[]> {
     const { sessionId } = args;
     return [
       createSendFileTool(WecomSessionHandler.SEND_FILE_PROMPT, async (filePath: string, fileName: string) => {
