@@ -1,40 +1,41 @@
 # Release Notes
 
-This release introduces a shared SessionProfile model that decouples session identity from runtime configuration, splits the monolithic HTTP server into focused route modules, adds a pooled saver layer, and brings a built-in terminal to the web channel.
+This release expands sbot's reach: three new chat channels, a built-in tunnel so the local server can be exposed to the internet without a separate reverse proxy, a desktop helper for channel logins that need an embedded browser, and a more resilient MCP integration.
 
-### Highlights
+### New channels
 
-- New `SessionProfile` table holds all overridable config, the thread id, and token stats — multiple sessions (across channels) can share one profile and therefore share a thread.
-- `HttpServer` (~1800 lines) was split into `routes/` and `helpers/` modules for maintainability.
-- New `SaverPool` reference-counts saver instances by dbPath so concurrent access to the same file/DB goes through a single handle.
-- Web channel gained a WebSocket-backed `PtyService` (terminal) with auto shell detection on Windows/macOS/Linux.
+- **Xiaoai (Mi smart speaker)** — talk to your bot through a Mi/Xiaoai speaker, with configurable polling interval.
+- **DingTalk** — first-class DingTalk channel for enterprise group chat.
+- **QQ via OneBot v11** — connect any OneBot-compatible QQ bot framework.
 
-### Added
+### Built-in tunnel
 
-- `SessionProfile` entity carrying agent/saver/memories/wikis/workPath/intent/auto-approve overrides plus token stats; `ChannelSession` is now identity-only and references a profile via `profileId`.
-- Auto profile created per session (`autoForSessionId`); users can switch a session to a visible profile to share thread and config across sessions and channels.
-- Admin `SessionProfilesView` for managing visible profiles, plus `SessionConfigOverridesEditor` shared between channel and profile editors.
-- `SaverPool` (`Agent/SaverPool.ts`): per-dbPath singleton with refcount and lazy dispose; Memory savers are not pooled.
-- `Channel/web/PtyService.ts`: WebSocket PTY service backed by `node-pty`, with platform-aware shell discovery (PowerShell, cmd, pwsh 7, Git Bash, WSL on Windows; bash/zsh/fish on Unix).
-- `Channel/web/WebService.ts`: extracted Web-channel message composition (interleaved text/image parts, attachment file persistence, image auto-resize) out of `HttpServer`.
-- `Server/routes/` modules: `acp`, `agentStore`, `agents`, `chat`, `data`, `filesystem`, `heartbeats`, `logs`, `mcp`, `prompts`, `schedulers`, `settings`, `skillHub`, `skills`, `system`, `todos`, `users`.
-- `Server/helpers/` modules: `git`, `modelInfo`, `promptTree`, `settingsCrud`, `skillsHelpers`, `todoFile`.
-- `tags` field on `BaseAgentEntry` for filtering agents in the admin UI.
-- `name` field on `AgentSubNode` for clearer sub-agent identification.
-- `node-pty` dependency for the new terminal service.
+A new tunnel service exposes the local server to the public internet from the admin UI, with three providers to choose from: Cloudflare Quick (zero-config), Cloudflare Token (your own named tunnel), and Localtunnel. The required `cloudflared` binary is downloaded automatically on first use.
 
-### Changed
+### Helper desktop app
 
-- `UsageLogRow` now records both `sessionId` (sender) and `profileId` (aggregation key) so token stats roll up by profile/thread.
-- `threadId` is now resolved per incoming message from `session.profileId` — switching a session's profile takes effect on the next message without restart.
-- `SessionManager.onReceiveChannelMessage` and `onTriggerChannelAction` now take `dbSessionId` instead of a precomputed `threadId`.
-- `AgentRunner` consumes savers from `SaverPool` instead of creating its own; saver lifecycle is tied to refcount, not session.
-- `ChannelManager` and `Database` updated to read overridable config off the linked `SessionProfile` rather than the session row.
-- `HttpServer` reduced to wiring/middleware; per-area handlers live in the new `routes/` modules.
-- Removed `saver.share` mode now that pooling handles instance sharing.
-- Cleaned up `as any` casts across `Channel`, `Core`, and `Server` modules.
+A new Tauri-based desktop helper handles channel logins that require an embedded browser. The first flow it ships is Xiaoai cookie login — sign in once in the helper window and sbot picks up the session.
 
-### Maintenance
+### More reliable MCP
 
-- Added `node-pty ^1.1.0` to dependencies.
-- Database migration adds `session_profile` table and `profileId` columns on `channel_session` / `usage_logs` (with backfill for existing rows).
+Remote MCP servers (HTTP / SSE / streamable HTTP) often drop sessions when restarted or under network instability. sbot now detects these stale connections and transparently reconnects, so tool calls keep working without surfacing transient failures to the agent.
+
+### Tool output handling
+
+Oversized tool outputs are now truncated before they reach the model, with per-agent control over the limit. The `read` file tool has been reworked alongside this so large files behave predictably in long conversations.
+
+### Lark improvements
+
+Added a get-group-list capability for managing Lark group conversations from the agent.
+
+### Scheduler
+
+Scheduled jobs can now be disabled without deleting them, making it easier to pause and resume recurring tasks.
+
+### Unified channel tools
+
+Every channel now exposes the same set of tools to the agent — list channels/sessions/users, send a message, send a file — so multi-channel agents behave consistently regardless of which platform they're talking to.
+
+### Documentation
+
+The documentation site has been overhauled with a refreshed theme and a complete Chinese translation covering every guide page (Agents, Channels, Tools, MCP, Memory, Skills, Wiki, Heartbeat, Insight, Note, Savers, and more).

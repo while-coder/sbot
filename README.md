@@ -142,7 +142,7 @@ docker compose pull && docker compose up -d   # upgrade to latest image
 - **Insight system** — Per-agent silent post-turn extractor that distills user preferences and lessons learned into reusable Markdown notes; auto-marks notes stale and archives them based on usage
 - **Heartbeat** — Configurable periodic self-activation lets agents run scheduled prompts proactively across any channel
 - **MCP tools** — Standard MCP protocol (stdio/SSE), connect to any MCP tool ecosystem; per-agent and global servers with auto-restart
-- **Multiple channels** — Web UI, CLI, Lark/Feishu, Slack, WeCom, WeChat, OneBot (QQ), XiaoAI, REST API, WebSocket
+- **Multiple channels** — Web UI, CLI, Lark/Feishu, Slack, WeCom, WeChat, DingTalk, QQ (official bot), OneBot (v11 reverse WebSocket), XiaoAI, REST API, WebSocket
 - **Built-in tools** — Shell execution, file system, archive operations, media file read, Python/PowerShell inline execution, web fetch/download, cron scheduler, todo
 - **Skills** — Installable prompt modules with remote install from Clawhub, skills.sh, and skillhub.cn
 - **Agent Store** — Browse and install pre-packaged agents (model + prompt + tools + skills + MCP servers) from configurable sources
@@ -280,6 +280,9 @@ In **Channels → New**, select the type and fill in the credentials, then assig
 | Slack | Bot Token (`xoxb-...`), App Token (`xapp-...`) |
 | WeCom | Bot ID, Secret |
 | WeChat | QR code login (credentials auto-populated) |
+| DingTalk | Client ID, Client Secret (a.k.a. AppKey / AppSecret, Stream mode) |
+| QQ | App ID, Client Secret (QQ Bot Open Platform, WebSocket Gateway) |
+| OneBot | WS port (default 6700), optional Access Token; reverse WebSocket, pairs with NapCat / go-cqhttp |
 
 **Setting up Lark / Feishu:**
 1. Create a bot app in the [Feishu Developer Console](https://open.feishu.cn) (or [Lark Developer Console](https://open.larksuite.com/) for international)
@@ -374,7 +377,8 @@ WeChat integration connects via the iLink Bot API, with file and image support.
 - Manageable via the Web UI or by asking the agent directly
 
 **Todo**
-- Agents can create, complete, and query todo tasks
+- A post-turn extractor automatically detects todos from conversations and applies `create` / `patch` / `done` / `delete` actions
+- Agents can query current todos via the `todo_list` tool (read-only)
 - Web UI provides a Todo management page
 
 **Ask**
