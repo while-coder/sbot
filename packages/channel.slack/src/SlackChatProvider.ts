@@ -6,8 +6,6 @@ const getLogger = () => GlobalLoggerService.getLogger("SlackChatProvider.ts");
 export class SlackChatProvider extends AbstractChatProvider {
   private channel: string = "";
   private ts: string = "";
-  private approvalBlocks: any[] | undefined;
-  private askBlocks: any[] | undefined;
 
   constructor(private slackService: SlackService) {
     super();
@@ -25,26 +23,6 @@ export class SlackChatProvider extends AbstractChatProvider {
     return this;
   }
 
-  setApprovalBlocks(blocks: any[]): void {
-    this.approvalBlocks = blocks;
-    this.flushUpdate();
-  }
-
-  clearApprovalBlocks(): void {
-    this.approvalBlocks = undefined;
-    this.flushUpdate();
-  }
-
-  setAskBlocks(blocks: any[]): void {
-    this.askBlocks = blocks;
-    this.flushUpdate();
-  }
-
-  clearAskBlocks(): void {
-    this.askBlocks = undefined;
-    this.flushUpdate();
-  }
-
   protected onMessagesUpdated(): void {
     this.flushUpdate();
   }
@@ -56,8 +34,6 @@ export class SlackChatProvider extends AbstractChatProvider {
         text: { type: "mrkdwn", text: text || "…" },
       },
     ];
-    if (this.approvalBlocks) blocks.push(...this.approvalBlocks);
-    if (this.askBlocks) blocks.push(...this.askBlocks);
     return blocks;
   }
 

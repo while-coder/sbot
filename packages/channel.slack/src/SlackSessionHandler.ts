@@ -1,13 +1,9 @@
 import { SlackChatProvider } from "./SlackChatProvider";
 import { SlackService } from "./SlackService";
 import {
-  ChannelSessionHandler, ToolCallStatus, SessionService, createAskTool,
-  GlobalLoggerService, AskQuestionType,
-  type StructuredToolInterface,
-  type ChannelMessageArgs, type ChatMessage, type ChatToolCall, type AskToolParams, type MessageType, type MessageContent,
+  ChannelSessionHandler, SessionService,
+  type ChannelMessageArgs, type MessageType, type MessageContent,
 } from "channel.base";
-
-const getLogger = () => GlobalLoggerService.getLogger("SlackSessionHandler.ts");
 
 export interface SlackMessageArgs extends ChannelMessageArgs {
   eventId: string;
@@ -15,16 +11,7 @@ export interface SlackMessageArgs extends ChannelMessageArgs {
   threadTs?: string;
 }
 
-export interface SlackActionArgs {
-  sessionId: string;
-  messageTs: string;
-  actionId: string;
-  value?: any;
-}
-
-export class SlackSessionHandler extends ChannelSessionHandler {
-  provider: SlackChatProvider | undefined;
-
+export class SlackSessionHandler extends ChannelSessionHandler<SlackChatProvider> {
   constructor(session: SessionService, private slackService: SlackService) {
     super(session);
   }
@@ -38,134 +25,5 @@ export class SlackSessionHandler extends ChannelSessionHandler {
     if (error) {
       this.provider?.setMessage(`Error generating reply: ${error.message}`);
     }
-  }
-
-  async onStreamMessage(message: ChatMessage, _args: any): Promise<void> {
-    this.provider?.setStreamMessage(message);
-  }
-
-  async onChatMessage(message: ChatMessage, _args: any): Promise<void> {
-    this.provider?.resetStreamMessage();
-    this.provider?.addAIMessage(message);
-  }
-
-  private buildApprovalBlocks(toolCall: ChatToolCall, id: string, remainSec: number): any[] {
-    const makeButton = (text: string, actionId: string, style?: string) => ({
-      type: "button",
-      text: { type: "plain_text", text },
-      action_id: actionId,
-      value: JSON.stringify({ id, approval: actionId }),
-      ...(style ? { style } : {}),
-    });
-    return [{
-      type: "actions",
-      block_id: "toolCallActions",
-      elements: [
-        makeButton(`Allow ${toolCall.name}`, ToolCallStatus.Allow, "primary"),
-        makeButton(`Always allow ${toolCall.name} (same args)`, ToolCallStatus.AlwaysArgs),
-        makeButton(`Always allow ${toolCall.name} (all args)`, ToolCallStatus.AlwaysTool),
-        makeButton(`Deny (${remainSec}s)`, ToolCallStatus.Deny, "danger"),
-      ],
-    }];
-  }
-
-  protected async enterApproval(approvalId: string, remainSec: number, toolCall: ChatToolCall): Promise<void> {
-    this.provider?.setApprovalBlocks(this.buildApprovalBlocks(toolCall, approvalId, remainSec));
-  }
-
-  protected async exitApproval(_approvalId: string): Promise<void> {
-    this.provider?.clearApprovalBlocks();
-  }
-
-  protected async enterAsk(askId: string, remainSec: number, params: AskToolParams): Promise<void> {
-    const inputBlocks: any[] = [];
-    if (params.title) {
-      inputBlocks.push({ type: "section", text: { type: "mrkdwn", text: `*${params.title}*` } });
-    }
-    for (let i = 0; i < params.questions.length; i++) {
-      const q = params.questions[i];
-      const blockId = `${i}`;
-      if (q.type === AskQuestionType.Radio) {
-        inputBlocks.push({
-          type: "input", block_id: blockId,
-          label: { type: "plain_text", text: q.label },
-          element: {
-            type: "static_select", action_id: blockId,
-            placeholder: { type: "plain_text", text: "Select..." },
-            options: q.options.map((o: string) => ({ text: { type: "plain_text", text: o }, value: o })),
-          },
-        });
-      } else if (q.type === AskQuestionType.Checkbox) {
-        inputBlocks.push({
-          type: "input", block_id: blockId,
-          label: { type: "plain_text", text: q.label },
-          element: {
-            type: "multi_static_select", action_id: blockId,
-            placeholder: { type: "plain_text", text: "Select..." },
-            options: q.options.map((o: string) => ({ text: { type: "plain_text", text: o }, value: o })),
-          },
-        });
-      } else {
-        inputBlocks.push({
-          type: "input", block_id: blockId,
-          label: { type: "plain_text", text: q.label },
-          element: {
-            type: "plain_text_input", action_id: blockId,
-            ...(q.placeholder ? { placeholder: { type: "plain_text", text: q.placeholder } } : {}),
-          },
-        });
-      }
-    }
-    inputBlocks.push({
-      type: "actions", block_id: "askSubmit",
-      elements: [{
-        type: "button",
-        text: { type: "plain_text", text: `Submit (${remainSec}s)` },
-        style: "primary",
-        action_id: `ask_submit_${askId}`,
-        value: JSON.stringify({ id: askId }),
-      }],
-    });
-    this.provider?.setAskBlocks(inputBlocks);
-  }
-
-  protected async exitAsk(_askId: string): Promise<void> {
-    this.provider?.clearAskBlocks();
-  }
-
-  async onTriggerAction(args: SlackActionArgs): Promise<void> {
-    const { actionId, value } = args;
-
-    if (
-      actionId === ToolCallStatus.Allow ||
-      actionId === ToolCallStatus.AlwaysArgs ||
-      actionId === ToolCallStatus.AlwaysTool ||
-      actionId === ToolCallStatus.Deny
-    ) {
-      if (value?.id) this.resolveApproval(value.id, actionId as ToolCallStatus);
-      return;
-    }
-
-    if (actionId.startsWith("ask_submit_")) {
-      if (value?.id && value?.answers) {
-        this.resolveAsk(value.id, value.answers);
-      }
-      return;
-    }
-
-    getLogger()?.warn(`Unhandled Slack action: ${actionId}`);
-  }
-
-  static readonly ASK_PROMPT = `Ask the user one or more structured questions and wait for their response. Use this tool whenever you need clarification, a decision, or input before proceeding.
-
-Question types:
-- radio: single-choice selection from a fixed list (optionally with a custom "Other" option)
-- checkbox: multi-choice selection from a fixed list (optionally with a custom "Other" option)
-- input: free-text entry with an optional placeholder
-
-Returns a map of question label → answer (string for radio/input, string[] for checkbox).`;
-
-  buildAgentTools(_args: ChannelMessageArgs): StructuredToolInterface[] {
-    return [createAskTool((params: AskToolParams) => this.executeAsk(params), SlackSessionHandler.ASK_PROMPT)];
   }
 }

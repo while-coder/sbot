@@ -3,7 +3,7 @@ import {
   type MessageContent,
 } from "channel.base";
 import { SlackService } from "./SlackService";
-import { SlackMessageArgs, SlackActionArgs } from "./SlackSessionHandler";
+import { SlackMessageArgs } from "./SlackSessionHandler";
 
 function buildSlackExtraInfo(userInfo: any): string {
   if (!userInfo) return '';
@@ -22,12 +22,8 @@ export const slackPlugin: ChannelPlugin = {
     appToken: { label: 'App Token', type: ConfigFieldType.Password, required: true, description: 'Slack app-level token (xapp-...)' },
   },
 
-  tools: [
-    { name: '_ask', label: '询问用户' },
-  ],
-
   async init(ctx: ChannelPluginContext): Promise<IChannelService | undefined> {
-    const { config, logger, initSession, onReceiveMessage, onTriggerAction } = ctx;
+    const { config, logger, initSession, onReceiveMessage } = ctx;
 
     if (!config.botToken?.trim() || !config.appToken?.trim()) return undefined;
 
@@ -45,16 +41,6 @@ export const slackPlugin: ChannelPlugin = {
           sendUpdate: (msg: string) => service.sendMessage(args.sessionId, msg, args.threadTs).then(() => {}),
         });
         await onReceiveMessage(session, query, { ...args, extraInfo: buildSlackExtraInfo(userInfo) });
-      },
-      onTriggerAction: async (userId: string, args: SlackActionArgs) => {
-        const session = await initSession({
-          userId,
-          userName: '',
-          userInfo: '',
-          sessionId: args.sessionId,
-          sessionName: args.sessionId,
-        });
-        await onTriggerAction(session, args);
       },
     });
     await service.registerEventHandlers();
