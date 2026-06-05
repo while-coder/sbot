@@ -84,7 +84,7 @@ export class WebSocketSessionHandler extends ChannelSessionHandler {
 
     // ── Agent tools ──
 
-    buildAgentTools(_args: ChannelMessageArgs): StructuredToolInterface[] {
+    async buildAgentTools(_args: ChannelMessageArgs): Promise<StructuredToolInterface[]> {
         return [
             createAskTool((params: AskToolParams) => this.executeAsk(params), WEB_ASK_PROMPT, [AskQuestionType.Radio, AskQuestionType.Checkbox, AskQuestionType.Input]),
         ];
