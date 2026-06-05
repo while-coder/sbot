@@ -3,9 +3,10 @@ IMPORTANT: Do NOT use read to search for content inside files. Use grep first to
 
 mode (default "line"):
 - "line": offset = 1-indexed start line; limit = max lines (default 2000). Example: offset=50 limit=40 reads lines 50–89.
-- "byte": offset = 0-indexed start byte; limit = max bytes (capped at 50KB). Use this for tool-overflow spill files — the truncation marker gives exact byte ranges, plug them in directly.
+- "char": offset = 0-indexed start char (Unicode codepoint); limit = max chars (capped at 50000). Use this for tool-overflow spill files — the truncation marker gives exact char ranges, plug them in directly.
 - "endLine": offset = number of lines back from EOF where the read starts; defaults to limit. Pass just limit=N to read the last N lines.
-- "endByte": offset = number of bytes back from EOF; defaults to limit. Pass just limit=N to read the last N bytes.
+- "endChar": offset = number of chars back from EOF; defaults to limit. Pass just limit=N to read the last N chars.
+- Only char mode accepts offset=0. For line, endLine, and endChar, offset must be >= 1 when provided.
 
 - Returns "Did you mean?" suggestions when the file is not found.
 - Automatically detects and rejects binary files; use read_media_file for binary files.

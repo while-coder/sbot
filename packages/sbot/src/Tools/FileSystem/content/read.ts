@@ -1,8 +1,6 @@
 import fs from 'fs';
 import fsAsync from 'fs/promises';
 import path from 'path';
-import { createReadStream } from 'fs';
-import { createInterface } from 'readline';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import { LoggerService } from '../../../Core/LoggerService';
@@ -13,9 +11,10 @@ import { loadPrompt } from '../../../Core/PromptLoader';
 const logger = LoggerService.getLogger('Tools/FileSystem/content/read.ts');
 
 const DEFAULT_LINE_LIMIT = 2000;
-const MAX_LINE = 2000;
-const MAX_BYTES = 50 * 1024;
-const DEFAULT_BYTE_LIMIT = MAX_BYTES;
+const MAX_LINE_CHARS = 2000;
+const MAX_LINE_OUTPUT_BYTES = 50 * 1024;
+const MAX_CHARS = 50000;
+const DEFAULT_CHAR_LIMIT = MAX_CHARS;
 
 const BINARY_EXTS = new Set([
     '.zip', '.tar', '.gz', '.exe', '.dll', '.so', '.class', '.jar', '.war',
@@ -25,9 +24,9 @@ const BINARY_EXTS = new Set([
 
 enum ReadMode {
     Line = 'line',
-    Byte = 'byte',
+    Char = 'char',
     EndLine = 'endLine',
-    EndByte = 'endByte',
+    EndChar = 'endChar',
 }
 
 async function isBinaryFile(filepath: string, fileSize: number): Promise<boolean> {
@@ -50,119 +49,99 @@ async function isBinaryFile(filepath: string, fileSize: number): Promise<boolean
     }
 }
 
-async function countLines(filepath: string): Promise<number> {
-    const stream = createReadStream(filepath, { encoding: 'utf8' });
-    const rl = createInterface({ input: stream, crlfDelay: Infinity });
-    let count = 0;
-    try {
-        for await (const _ of rl) count++;
-    } finally {
-        rl.close();
-        stream.destroy();
-    }
-    return count;
+// 按 \n / \r\n 拆行；行为对齐 readline：尾随换行不产生空行，空文件返回空数组
+function splitLines(text: string): string[] {
+    if (text === '') return [];
+    const lines = text.split(/\r?\n/);
+    if (lines[lines.length - 1] === '') lines.pop();
+    return lines;
 }
 
-async function readByLines(abs: string, startLine: number, limit: number, totalHint?: number): Promise<MCPToolResult> {
-    const stream = createReadStream(abs, { encoding: 'utf8' });
-    const rl = createInterface({ input: stream, crlfDelay: Infinity });
-    const start = startLine - 1;
+// 单行字符（codepoint）超长时截断；ASCII 行用 text.length 快速短路（UTF-16 单元数 ≥ codepoint 数）
+function truncateLine(text: string): string {
+    if (text.length <= MAX_LINE_CHARS) return text;
+    const chars = Array.from(text);
+    if (chars.length <= MAX_LINE_CHARS) return text;
+    return chars.slice(0, MAX_LINE_CHARS).join('') + `... (line truncated to ${MAX_LINE_CHARS} chars)`;
+}
+
+/**
+ * 在 lines[from, end) 范围内组装输出，应用单行字符截断和总输出字节上限。
+ * from / end 均为 0-indexed；end 可超出 lines.length，自动夹断。
+ */
+function readLines(lines: string[], from: number, end: number): MCPToolResult {
+    const total = lines.length;
+    // 起点超出文件范围才算越界；from === total 在空文件 + offset=1 时合法（输出空内容 + EOF 提示）
+    if (from > 0 && from >= total) {
+        return createErrorResult(`Offset ${from + 1} is out of range for this file (${total} lines)`);
+    }
+
+    const stopAt = Math.min(end, total);
     const raw: string[] = [];
-    let bytes = 0;
-    let lineCount = 0;
-    let truncatedByBytes = false;
-    let hasMoreLines = false;
-    try {
-        for await (const text of rl) {
-            lineCount++;
-            if (lineCount <= start) continue;
-            if (raw.length >= limit) { hasMoreLines = true; continue; }
-            const line = text.length > MAX_LINE ? text.substring(0, MAX_LINE) + `... (line truncated to ${MAX_LINE} chars)` : text;
-            const size = Buffer.byteLength(line, 'utf-8') + (raw.length > 0 ? 1 : 0);
-            if (bytes + size > MAX_BYTES) { truncatedByBytes = true; hasMoreLines = true; break; }
-            raw.push(line);
-            bytes += size;
-        }
-    } finally {
-        rl.close();
-        stream.destroy();
+    let outputBytes = 0;
+    let sizeCapped = false;
+    for (let i = from; i < stopAt; i++) {
+        const line = truncateLine(lines[i]);
+        const size = Buffer.byteLength(line, 'utf-8') + (raw.length > 0 ? 1 : 0);
+        if (outputBytes + size > MAX_LINE_OUTPUT_BYTES) { sizeCapped = true; break; }
+        raw.push(line);
+        outputBytes += size;
     }
 
-    if (lineCount < start && !(lineCount === 0 && start === 0)) {
-        return createErrorResult(`Offset ${startLine} is out of range for this file (${lineCount} lines)`);
-    }
-
+    const startLine = from + 1;
     const lastReadLine = startLine + raw.length - 1;
     const nextOffset = lastReadLine + 1;
-    const completelyRead = !hasMoreLines && !truncatedByBytes;
-    // truncatedByBytes 时主流程提前 break，lineCount 不是文件总行数；其他情况下 lineCount 才等于总数
-    const totalKnown = totalHint != null || !truncatedByBytes;
-    const total = totalHint ?? lineCount;
-
     const parts: string[] = [];
 
     // 前置：起点之前没有读到的行
-    if (startLine > 1) {
-        const before = startLine - 1;
-        parts.push(`(Above: ${before} earlier line${before === 1 ? '' : 's'} (1-${before}) not read. Use mode="line" offset=1 limit=${before} to read them.)`);
+    if (from > 0) {
+        parts.push(`(Above: ${from} earlier line${from === 1 ? '' : 's'} (1-${from}) not read. Use mode="line" offset=1 limit=${from} to read them.)`);
     }
 
     parts.push(raw.join('\n'));
 
-    // 后置：终点之后没有读到的行
-    if (completelyRead) {
+    // 后置：基于实际读到的位置 + 文件总行数
+    if (sizeCapped) {
+        const after = total - lastReadLine;
+        parts.push(`(Below: output capped at ${MAX_LINE_OUTPUT_BYTES / 1024}KB after reading lines ${startLine}-${lastReadLine}; ${after} more line${after === 1 ? '' : 's'} (${nextOffset}-${total}) not read. Use mode="line" offset=${nextOffset} to continue.)`);
+    } else if (lastReadLine >= total) {
         parts.push(`(End of file - total ${total} lines)`);
-    } else if (totalKnown) {
+    } else {
         const after = total - lastReadLine;
         parts.push(`(Below: ${after} more line${after === 1 ? '' : 's'} (${nextOffset}-${total}) not read. Use mode="line" offset=${nextOffset} to continue.)`);
-    } else {
-        parts.push(`(Below: output capped at ${MAX_BYTES / 1024}KB after reading lines ${startLine}-${lastReadLine}; more lines follow, total unknown. Use mode="line" offset=${nextOffset} to continue.)`);
     }
 
     return createSuccessResult(createTextContent(parts.join('\n\n')));
 }
 
-async function readByBytes(abs: string, position: number, want: number, fileSize: number): Promise<MCPToolResult> {
-    if (position > fileSize) {
-        return createErrorResult(`Byte offset ${position} is past end of file (size ${fileSize})`);
-    }
-    let text: string;
-    let bytesRead: number;
-    const fh = await fsAsync.open(abs, 'r');
-    try {
-        const buf = Buffer.alloc(want);
-        ({ bytesRead } = await fh.read(buf, 0, want, position));
-        // 对齐 UTF-8 字符边界，避免半截多字节字符
-        let s = 0, e = bytesRead;
-        while (s < e && (buf[s] & 0xC0) === 0x80) s++;
-        while (e > s && (buf[e - 1] & 0xC0) === 0x80) e--;
-        text = buf.subarray(s, e).toString('utf8');
-    } finally {
-        await fh.close();
+/** 在 chars[from, end) 范围内拼接输出，end 可超出 chars.length，自动夹断 */
+function readChars(chars: string[], from: number, end: number): MCPToolResult {
+    const total = chars.length;
+    if (from > total) {
+        return createErrorResult(`Char offset ${from} is past end of file (length ${total})`);
     }
 
-    const nextPos = position + bytesRead;
+    const stopAt = Math.min(end, total);
+    const text = chars.slice(from, stopAt).join('');
     const parts: string[] = [];
 
-    // 前置：起点之前未读的字节
-    if (position > 0) {
-        parts.push(`(Above: ${position} earlier byte${position === 1 ? '' : 's'} (0-${position - 1}) not read. Use mode="byte" offset=0 limit=${position} to read them.)`);
+    if (from > 0) {
+        parts.push(`(Above: ${from} earlier char${from === 1 ? '' : 's'} (0-${from - 1}) not read. Use mode="char" offset=0 limit=${from} to read them.)`);
     }
 
     parts.push(text);
 
-    // 后置：终点之后未读的字节
-    if (nextPos >= fileSize) {
-        parts.push(`(End of file at byte ${fileSize})`);
+    if (stopAt >= total) {
+        parts.push(`(End of file at char ${total})`);
     } else {
-        const after = fileSize - nextPos;
-        parts.push(`(Below: ${after} more byte${after === 1 ? '' : 's'} (${nextPos}-${fileSize - 1}) not read. Use mode="byte" offset=${nextPos} to continue.)`);
+        const after = total - stopAt;
+        parts.push(`(Below: ${after} more char${after === 1 ? '' : 's'} (${stopAt}-${total - 1}) not read. Use mode="char" offset=${stopAt} to continue.)`);
     }
 
     return createSuccessResult(createTextContent(parts.join('\n\n')));
 }
 
-/** 读取文件，支持 line/byte 模式以及从末尾计数（endLine/endByte） */
+/** 读取文件，支持 line/char 模式以及从末尾计数（endLine/endChar） */
 export function createReadTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'read',
@@ -170,11 +149,11 @@ export function createReadTool(): StructuredToolInterface {
         schema: z.object({
             filePath: z.string().describe('Absolute path to the file'),
             mode: z.enum(ReadMode).optional()
-                .describe('line/byte: from start. endLine/endByte: from EOF. Default "line".'),
+                .describe('line/char: from start. endLine/endChar: from EOF. Default "line".'),
             offset: z.number().int().min(0).optional()
-                .describe('line: 1-indexed start line. byte: 0-indexed start byte. endLine/endByte: distance from EOF where read starts (defaults to limit so "last N" works with just limit).'),
+                .describe('line: 1-indexed start line. char: 0-indexed start char. endLine/endChar: distance from EOF where read starts (defaults to limit so "last N" works with just limit).'),
             limit: z.number().int().positive().optional()
-                .describe(`Max lines (line/endLine, default ${DEFAULT_LINE_LIMIT}) or max bytes (byte/endByte, capped at ${MAX_BYTES / 1024}KB).`),
+                .describe(`Max lines (line/endLine, default ${DEFAULT_LINE_LIMIT}) or max chars (char/endChar, capped at ${MAX_CHARS}).`),
         }) as any,
         func: async ({ filePath, mode, offset, limit }: any): Promise<MCPToolResult> => {
             try {
@@ -202,25 +181,35 @@ export function createReadTool(): StructuredToolInterface {
                 }
 
                 const m: ReadMode = mode ?? ReadMode.Line;
+                const text = await fsAsync.readFile(abs, 'utf8');
 
-                if (m === ReadMode.Byte || m === ReadMode.EndByte) {
-                    const want = Math.min(limit ?? DEFAULT_BYTE_LIMIT, MAX_BYTES);
-                    const position = m === ReadMode.EndByte
-                        ? Math.max(0, stat.size - (offset ?? want))
+                if (m === ReadMode.Char || m === ReadMode.EndChar) {
+                    if (m === ReadMode.EndChar && offset != null && offset < 1) {
+                        return createErrorResult('Offset must be >= 1 for endChar mode. Omit offset to read the last limit chars.');
+                    }
+                    const want = Math.min(limit ?? DEFAULT_CHAR_LIMIT, MAX_CHARS);
+                    const chars = Array.from(text);
+                    const from = m === ReadMode.EndChar
+                        ? Math.max(0, chars.length - (offset ?? want))
                         : (offset ?? 0);
-                    return readByBytes(abs, position, want, stat.size);
+                    return readChars(chars, from, from + want);
                 }
 
                 const lim = limit ?? DEFAULT_LINE_LIMIT;
-                let startLine: number;
-                let totalHint: number | undefined;
+                const lines = splitLines(text);
+                let from: number;
                 if (m === ReadMode.EndLine) {
-                    totalHint = await countLines(abs);
-                    startLine = Math.max(1, totalHint - (offset ?? lim) + 1);
+                    if (offset != null && offset < 1) {
+                        return createErrorResult('Offset must be >= 1 for endLine mode. Omit offset to read the last limit lines.');
+                    }
+                    from = Math.max(0, lines.length - (offset ?? lim));
                 } else {
-                    startLine = offset ?? 1;
+                    if (offset != null && offset < 1) {
+                        return createErrorResult('Offset must be >= 1 for line mode.');
+                    }
+                    from = (offset ?? 1) - 1;
                 }
-                return readByLines(abs, startLine, lim, totalHint);
+                return readLines(lines, from, from + lim);
             } catch (e: any) {
                 logger.error(`read ${filePath}: ${e.message}`);
                 return createErrorResult(e.message);
