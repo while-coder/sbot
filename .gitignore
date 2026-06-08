@@ -6,7 +6,12 @@ dev-dist
 tsconfig.tsbuildinfo
 /docs
 
-# Android signing — never commit
+# Secrets — never commit (release.jks, keystore.properties, tauri-updater.key, etc.)
+/secrets/
+
+# Belt-and-suspenders: catch stray secret files anywhere in the tree
 *.jks
 *.keystore
 keystore.properties
+tauri-updater.key
+tauri-updater.key.pub

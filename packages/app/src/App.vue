@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ChatView, ServerPicker, WebSocketTransport } from '@sbot/chat-ui'
 import type { RemoteEntry } from '@sbot/chat-ui'
 import ThemeMenu from './ThemeMenu.vue'
+import UpdaterDialog from './UpdaterDialog.vue'
 import '@sbot/chat-ui/themes/variables.css'
 import lightThemeCSS from '@sbot/chat-ui/themes/theme-light.css?inline'
 import darkThemeCSS from '@sbot/chat-ui/themes/theme-dark.css?inline'
@@ -118,6 +119,7 @@ function removeRemote(index: number) {
 
 <template>
   <div class="desktop-app">
+    <UpdaterDialog />
     <div v-if="phase === 'server-pick'" class="theme-menu-floating">
       <ThemeMenu :mode="themeMode" @update="(m) => themeMode = m" />
     </div>

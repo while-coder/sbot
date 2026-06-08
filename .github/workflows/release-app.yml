@@ -80,6 +80,24 @@ jobs:
           updaterJsonPreferNsis: true
           args: ${{ matrix.args }}
 
+  publish-manifest:
+    needs: release-desktop
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync app manifest to updater channel
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release download "$TAG" -R "$REPO" -p "latest.json" -O latest-app.json
+          gh release view updater -R "$REPO" >/dev/null 2>&1 || \
+            gh release create updater -R "$REPO" \
+              --title "Updater Manifests" \
+              --notes "Auto-maintained by CI. Hosts updater JSON for app and helper." \
+              --latest=false
+          gh release upload updater latest-app.json -R "$REPO" --clobber
+
   release-android:
     runs-on: ubuntu-latest
     steps:

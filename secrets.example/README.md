@@ -38,11 +38,11 @@ keytool -genkeypair -v \
 ### 2. Tauri Updater
 
 ```bash
-pnpm --filter @sbot/helper exec tauri signer generate \
+pnpm --filter @sbot/app exec tauri signer generate \
   -w ../../secrets/tauri-updater.key -p "" --ci
 ```
 
-公钥已写入 `packages/helper/src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey`，
+公钥已写入 `packages/app/src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey`，
 更换密钥后需要同步替换。
 
 ## CI 配置

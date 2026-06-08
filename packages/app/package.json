@@ -16,7 +16,9 @@
     "ios:build": "tauri ios build"
   },
   "dependencies": {
-    "@sbot/chat-ui": "workspace:*"
+    "@sbot/chat-ui": "workspace:*",
+    "@tauri-apps/plugin-updater": "^2",
+    "@tauri-apps/plugin-process": "^2"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
