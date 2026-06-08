@@ -30,7 +30,7 @@ import {
 } from "scorpio.ai";
 import { loadPrompt } from "../Core/PromptLoader";
 import { config, InsightScope, TodoScope, type ToolAgentEntry } from "../Core/Config";
-import { loadWorkspaceContext } from "../Core/ContextFileDiscovery";
+import { loadWorkspaceContext } from "../Core/WorkspaceContext";
 
 import { AgentFactory } from "./AgentFactory";
 import { LoggerService } from "../Core/LoggerService";
