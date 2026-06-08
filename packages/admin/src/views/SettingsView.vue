@@ -15,6 +15,8 @@ const maxImageSize = ref<number | ''>('')
 const autoApproveAllTools = ref(false)
 const autoApproveToolsText = ref('')
 const startupCommands = ref<string[]>([])
+const contextFileNames = ref<string[]>([])
+const contextMaxLevels = ref<number | ''>('')
 
 watch(() => store.settings, (s) => {
   httpPort.value = s.httpPort ?? ''
@@ -23,6 +25,8 @@ watch(() => store.settings, (s) => {
   autoApproveAllTools.value = s.autoApproveAllTools ?? false
   autoApproveToolsText.value = (s.autoApproveTools ?? []).join(', ')
   startupCommands.value = [...(s.startupCommands ?? [])]
+  contextFileNames.value = [...(s.contextFileNames ?? [])]
+  contextMaxLevels.value = s.contextMaxLevels ?? ''
 }, { immediate: true, deep: true })
 
 function addStartupCommand() {
@@ -30,6 +34,12 @@ function addStartupCommand() {
 }
 function removeStartupCommand(index: number) {
   startupCommands.value.splice(index, 1)
+}
+function addContextFileName() {
+  contextFileNames.value.push('')
+}
+function removeContextFileName(index: number) {
+  contextFileNames.value.splice(index, 1)
 }
 
 // ── Drag & Drop ──────────────────────────────────────────────────
@@ -76,6 +86,12 @@ async function save() {
       .map(s => s.trim())
       .filter(Boolean)
     const cmds = startupCommands.value.filter(s => s.trim())
+    const ctxNames = contextFileNames.value.map(s => s.trim()).filter(Boolean)
+    const ctxLevels = contextMaxLevels.value === '' ? undefined : Number(contextMaxLevels.value)
+    if (ctxLevels !== undefined && (!Number.isInteger(ctxLevels) || ctxLevels < 1 || ctxLevels > 5)) {
+      show(t('settings.context_max_levels_invalid'), 'error')
+      return
+    }
     const res = await apiFetch('/api/settings/general', 'PUT', {
       httpPort: httpPort.value === '' ? undefined : Number(httpPort.value),
       httpUrl: httpUrl.value.trim() || undefined,
@@ -83,6 +99,8 @@ async function save() {
       autoApproveAllTools: autoApproveAllTools.value,
       autoApproveTools: tools,
       startupCommands: cmds,
+      contextFileNames: ctxNames,
+      contextMaxLevels: ctxLevels ?? null,
     })
     Object.assign(store.settings, res.data)
     show(t('common.saved'))
@@ -194,6 +212,19 @@ function fmtItem(category: string, item: any): string {
           </SFormItem>
         </div>
       </SCard>
+      <SCard :title="t('settings.context_discovery')">
+        <div class="form-hint">{{ t('settings.context_discovery_hint') }}</div>
+        <SFormItem :label="t('settings.context_file_names')" :hint="t('settings.context_file_names_hint')">
+          <div v-for="(_, index) in contextFileNames" :key="index" class="ctx-file-row">
+            <SInput v-model="contextFileNames[index]" type="text" :placeholder="t('settings.context_file_names_placeholder')" />
+            <SButton type="text" size="sm" :title="t('common.delete')" @click="removeContextFileName(index)">✕</SButton>
+          </div>
+          <SButton type="outline" size="sm" @click="addContextFileName">{{ t('settings.context_file_names_add') }}</SButton>
+        </SFormItem>
+        <SFormItem :label="t('settings.context_max_levels')" :hint="t('settings.context_max_levels_hint')">
+          <SInput v-model.number="contextMaxLevels" type="number" placeholder="3" min="1" max="5" />
+        </SFormItem>
+      </SCard>
       <SCard :title="t('settings.tool_approval')">
         <SCheckCard v-model="autoApproveAllTools">
           {{ t('settings.auto_approve_all') }}
@@ -290,6 +321,15 @@ function fmtItem(category: string, item: any): string {
   margin-bottom: var(--sui-sp-3);
   border-radius: var(--sui-radius-sm);
   transition: background 0.15s, opacity 0.15s;
+}
+.ctx-file-row {
+  display: flex;
+  gap: var(--sui-sp-2);
+  align-items: center;
+  margin-bottom: var(--sui-sp-2);
+}
+.ctx-file-row > :deep(*:first-child) {
+  flex: 1;
 }
 .startup-cmd-item.dragging {
   opacity: 0.4;

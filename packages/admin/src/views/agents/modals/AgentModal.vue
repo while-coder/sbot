@@ -70,6 +70,8 @@ const form = ref({
   todoExtractor: '',
   todoExtractorPromptFile: '',
   autoApproveAllTools: false,
+  disableWorkspaceContext: false,
+  disableWorkspaceSkills: false,
   modelCallTimeout: undefined as number | undefined,
   // acp
   command: '',
@@ -99,6 +101,8 @@ function open(id?: string) {
       todoExtractor: (a as any).todo?.extractor || '',
       todoExtractorPromptFile: (a as any).todo?.extractorPromptFile || '',
       autoApproveAllTools: !!(a as any).autoApproveAllTools,
+      disableWorkspaceContext: !!(a as any).disableWorkspaceContext,
+      disableWorkspaceSkills: !!(a as any).disableWorkspaceSkills,
       modelCallTimeout: (a as any).modelCallTimeout ?? undefined,
       command: a.command || '',
       args: Array.isArray(a.args) ? [...a.args] : [],
@@ -115,7 +119,7 @@ function open(id?: string) {
       systemPrompt: '',
       insightScope: InsightScope.Disabled, insightExtractor: '', insightExtractorPromptFile: '',
       todoScope: TodoScope.Disabled, todoExtractor: '', todoExtractorPromptFile: '',
-      autoApproveAllTools: false, modelCallTimeout: undefined, command: '', args: [], env: [], sessionMode: ACPSessionMode.Persistent, initTimeout: undefined,
+      autoApproveAllTools: false, disableWorkspaceContext: false, disableWorkspaceSkills: false, modelCallTimeout: undefined, command: '', args: [], env: [], sessionMode: ACPSessionMode.Persistent, initTimeout: undefined,
     }
   }
   showModal.value = true
@@ -138,6 +142,8 @@ async function save() {
     if (type !== AgentMode.ACP) config.model = form.value.model
     if (type !== AgentMode.ACP && form.value.systemPrompt) config.systemPrompt = form.value.systemPrompt
     if (form.value.autoApproveAllTools) (config as any).autoApproveAllTools = true
+    if (form.value.disableWorkspaceContext) (config as any).disableWorkspaceContext = true
+    if (form.value.disableWorkspaceSkills) (config as any).disableWorkspaceSkills = true
 
     if (type === AgentMode.Single || type === AgentMode.ReAct) {
       if (form.value.compactModel) (config as any).compactModel = form.value.compactModel
@@ -448,6 +454,19 @@ defineExpose({ open })
     <!-- autoApproveAllTools -->
     <SFormItem>
       <SCheckCard v-model="form.autoApproveAllTools">{{ t('agents.auto_approve_all_tools') }}</SCheckCard>
+    </SFormItem>
+
+    <!-- disableWorkspaceContext (ACP / Generative 都适用) -->
+    <SFormItem :hint="t('agents.disable_workspace_context_hint')">
+      <SCheckCard v-model="form.disableWorkspaceContext">{{ t('agents.disable_workspace_context') }}</SCheckCard>
+    </SFormItem>
+
+    <!-- disableWorkspaceSkills（仅 Single / ReAct，工具型 agent 才有 skills） -->
+    <SFormItem
+      v-if="form.type !== AgentMode.Generative && form.type !== AgentMode.ACP"
+      :hint="t('agents.disable_workspace_skills_hint')"
+    >
+      <SCheckCard v-model="form.disableWorkspaceSkills">{{ t('agents.disable_workspace_skills') }}</SCheckCard>
     </SFormItem>
 
     <!-- modelCallTimeout (ACP/Generative 不需要) -->

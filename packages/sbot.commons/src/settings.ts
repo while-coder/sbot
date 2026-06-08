@@ -167,6 +167,10 @@ export interface AgentConfig {
   // 所有模式
   autoApproveTools?: string[]
   autoApproveAllTools?: boolean
+  /** 关闭工作目录上下文文件（SBOT.md / AGENTS.md 等）的自动注入 */
+  disableWorkspaceContext?: boolean
+  /** 关闭工作目录 .skills/ 子目录下 skill 的自动导入 */
+  disableWorkspaceSkills?: boolean
   // single / react（ToolAgent）
   mcp?: string[] | '*'
   mcpExclude?: string[]
@@ -292,6 +296,10 @@ export interface Settings {
   checkUpdateTime?: number
   /** 图片最大尺寸（px），max(width,height) 超过此值时按比例缩小；不设置则不压缩 */
   maxImageSize?: number
+  /** 工作目录上下文文件名列表（按优先级排列），不设置则使用默认 ['SBOT.md','sbot.md','AGENTS.md','agents.md'] */
+  contextFileNames?: string[]
+  /** 向上扫描上下文文件的最大父目录层级，默认 3，有效范围 1-5 */
+  contextMaxLevels?: number
   /** Channel 插件列表（npm 包名或本地路径） */
   plugins?: string[]
   /** 由 ~/.sbot/agents/ 目录管理，API 响应中由服务端动态注入；不写入 settings.json */

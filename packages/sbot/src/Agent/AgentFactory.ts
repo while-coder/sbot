@@ -17,6 +17,7 @@ import {
     T_ModelCallTimeout, T_MaxHistoryRounds,
     type CreateAgentFn,
 } from "scorpio.ai";
+import path from "path";
 import { type StructuredToolInterface } from "@langchain/core/tools";
 import { createSchedulerTools } from "../Tools/Scheduler/index";
 import { createSessionSearchTool, type SearchableSaver } from "../Tools/SessionSearch/index";
@@ -61,7 +62,8 @@ export class AgentFactory {
 
         if (agentType !== AgentMode.Generative && agentType !== AgentMode.ACP) {
             const toolEntry = agentEntry as ToolAgentEntry;
-            await this.registerSkillService(container, agentId, toolEntry.skills);
+            const workspaceSkillPath = toolEntry.disableWorkspaceSkills ? undefined : options.workPath;
+            await this.registerSkillService(container, agentId, toolEntry.skills, workspaceSkillPath);
             await this.registerToolService(container, agentId, options.dbSessionId, toolEntry.mcp, toolEntry.mcpParams, agentTools, toolEntry.mcpExclude);
         }
 
@@ -78,7 +80,7 @@ export class AgentFactory {
         }
 
         const createAgentFn: CreateAgentFn = (name, subContainer) =>
-            AgentFactory.create({ agentId: name, container: subContainer, extraPrompts, dynamicPrompts, agentTools, dbSessionId: options.dbSessionId });
+            AgentFactory.create({ agentId: name, container: subContainer, extraPrompts, dynamicPrompts, agentTools, dbSessionId: options.dbSessionId, workPath: options.workPath });
 
         switch (agentType) {
             case AgentMode.ReAct:
@@ -97,6 +99,7 @@ export class AgentFactory {
         container: ServiceContainer,
         agentName: string,
         skills?: string[] | '*',
+        workPath?: string,
     ): Promise<void> {
         container.registerWithArgs(ISkillService, SkillService, {
             [T_SkillSystemPromptTemplate]: loadPrompt('skills/system.txt'),
@@ -117,6 +120,10 @@ export class AgentFactory {
             }
         }
         skillService.registerSkillsDir(config.getAgentSkillsPath(agentName));
+        // 工作目录级 skills 自动导入：<workPath>/.skills/ 下每个子目录视为一个 skill
+        if (workPath) {
+            skillService.registerSkillsDir(path.join(workPath, '.skills'));
+        }
     }
 
     private static readonly SESSION_TOOL_CREATORS: Record<string, (ctx: { dbSessionId: string; container: ServiceContainer }) => Promise<StructuredToolInterface[]>> = {

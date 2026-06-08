@@ -30,7 +30,7 @@ import {
 } from "scorpio.ai";
 import { loadPrompt } from "../Core/PromptLoader";
 import { config, InsightScope, TodoScope, type ToolAgentEntry } from "../Core/Config";
-import { discoverContextFiles } from "../Core/ContextFileDiscovery";
+import { loadWorkspaceContext } from "../Core/ContextFileDiscovery";
 
 import { AgentFactory } from "./AgentFactory";
 import { LoggerService } from "../Core/LoggerService";
@@ -95,13 +95,16 @@ export class AgentRunner {
             ...(extraInfo?.trim() ? [extraInfo] : []),
         ];
 
-        // 目录级上下文自动发现（.sbot.md / SBOT.md）
-        const contextFiles = discoverContextFiles(workPath);
-        if (contextFiles.length > 0) {
-            const contextContent = contextFiles
-                .map(c => `<workspace-context source="${c.path}">\n${c.content}\n</workspace-context>`)
-                .join('\n');
-            dynamicPrompts.push(contextContent);
+        // 目录级上下文自动发现（SBOT.md / AGENTS.md 等），可由 agent 配置 disableWorkspaceContext 关闭
+        const agentEntry = config.getAgent(agentId);
+        if (!agentEntry.disableWorkspaceContext) {
+            const contextFiles = loadWorkspaceContext(workPath, config.settings.contextFileNames, config.settings.contextMaxLevels);
+            if (contextFiles.length > 0) {
+                const contextContent = contextFiles
+                    .map(c => `<workspace-context source="${c.path}">\n${c.content}\n</workspace-context>`)
+                    .join('\n');
+                dynamicPrompts.push(contextContent);
+            }
         }
 
         const container = new ServiceContainer();
