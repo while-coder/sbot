@@ -13,10 +13,10 @@ val tauriProperties = Properties().apply {
     }
 }
 
-// Read signing config from `keystore.properties` (local dev) or env vars (CI).
+// Read signing config from `<repo>/secrets/keystore.properties` (local dev) or env vars (CI).
 // File takes precedence; CI sets ANDROID_KEYSTORE_PATH/PASSWORD/KEY_ALIAS/KEY_PASSWORD.
+val ksFile = rootProject.file("../../../../../secrets/keystore.properties")
 val keystoreProperties = Properties().apply {
-    val ksFile = file("keystore.properties")
     if (ksFile.exists()) {
         ksFile.inputStream().use { load(it) }
     }
@@ -40,7 +40,11 @@ android {
         create("release") {
             val storeFilePath = signingProp("storeFile", "ANDROID_KEYSTORE_PATH")
             if (!storeFilePath.isNullOrBlank()) {
-                storeFile = file(storeFilePath)
+                // File-based path resolves relative to keystore.properties; env-based path is absolute.
+                storeFile = if (keystoreProperties.getProperty("storeFile").isNullOrBlank())
+                    file(storeFilePath)
+                else
+                    ksFile.parentFile.resolve(storeFilePath)
                 storePassword = signingProp("storePassword", "ANDROID_KEYSTORE_PASSWORD")
                 keyAlias = signingProp("keyAlias", "ANDROID_KEY_ALIAS")
                 keyPassword = signingProp("keyPassword", "ANDROID_KEY_PASSWORD")
