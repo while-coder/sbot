@@ -202,14 +202,12 @@ export class AgentFactory {
         systemPrompts: string[],
     ): Promise<AgentServiceBase> {
 
-        if (entry.compactModel) {
-            container.registerWithArgs(IConversationCompactor, ConversationCompactor, {
-                [T_SummaryModelService]: await config.getModelService(entry.compactModel, true),
-                [T_CompactPromptTemplate]: loadPrompt('compact/instruction.txt'),
-                [T_PostCompactMessageTemplate]: loadPrompt('compact/post_message.txt'),
-                [T_PostCompactContinuation]: loadPrompt('compact/post_continuation.txt'),
-            });
-        }
+        container.registerWithArgs(IConversationCompactor, ConversationCompactor, {
+            [T_SummaryModelService]: await config.getModelService(entry.compactModel || entry.model, true),
+            [T_CompactPromptTemplate]: loadPrompt('compact/instruction.txt'),
+            [T_PostCompactMessageTemplate]: loadPrompt('compact/post_message.txt'),
+            [T_PostCompactContinuation]: loadPrompt('compact/post_continuation.txt'),
+        });
 
         container.registerWithArgs(SingleAgentService, {
             [IModelService]: await config.getModelService(entry.model, true),
