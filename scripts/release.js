@@ -74,7 +74,16 @@ function main() {
   const pkgPath = path.join(root, cfg.pkgJson);
 
   const conf = readJson(confPath);
-  const currentVersion = conf.version;
+  const pkg = fs.existsSync(pkgPath) ? readJson(pkgPath) : null;
+
+  // tauri.conf.json's version may be the literal "../package.json" — treat package.json as source of truth
+  const confUsesPkgJson = conf.version === '../package.json';
+  const currentVersion = (pkg && pkg.version) || (confUsesPkgJson ? null : conf.version);
+
+  if (!currentVersion || !SEMVER_RE.test(currentVersion)) {
+    console.error(`error: cannot resolve current version from ${cfg.pkgJson} or ${cfg.tauriConf}`);
+    process.exit(1);
+  }
 
   let nextVersion = currentVersion;
   let mutate = false;
@@ -109,18 +118,23 @@ function main() {
       console.error('error: working tree not clean — commit or stash before bumping version');
       process.exit(1);
     }
-    conf.version = nextVersion;
-    writeJson(confPath, conf);
 
-    if (fs.existsSync(pkgPath)) {
-      const pkg = readJson(pkgPath);
-      if (pkg.version !== undefined) {
-        pkg.version = nextVersion;
-        writeJson(pkgPath, pkg);
-      }
+    const filesToAdd = [];
+
+    if (pkg && pkg.version !== undefined) {
+      pkg.version = nextVersion;
+      writeJson(pkgPath, pkg);
+      filesToAdd.push(cfg.pkgJson);
     }
 
-    run(`git add "${cfg.tauriConf}" "${cfg.pkgJson}"`);
+    // only write tauri.conf.json if it carries a literal version (not "../package.json")
+    if (!confUsesPkgJson) {
+      conf.version = nextVersion;
+      writeJson(confPath, conf);
+      filesToAdd.push(cfg.tauriConf);
+    }
+
+    run(`git add ${filesToAdd.map((f) => `"${f}"`).join(' ')}`);
     run(`git commit -m "chore(${target}): release v${nextVersion}"`);
   }
 
