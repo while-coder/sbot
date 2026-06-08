@@ -23,6 +23,12 @@ const tools: Tool[] = [
     description: '生成 Android APK 签名 keystore（PKCS12），自动给出 GitHub Actions 所需的 4 个 secret',
     route: '/keystore-gen',
   },
+  {
+    key: 'codec',
+    label: '编解码工具',
+    description: 'Base64 / URL / Hex / HTML / Unicode / JSON 转换，MD5 与 SHA-1/256/512 哈希，UUID、时间戳与字节大小',
+    route: '/codec',
+  },
 ]
 </script>
 
