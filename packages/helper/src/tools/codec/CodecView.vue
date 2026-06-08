@@ -185,16 +185,16 @@ const tabs: { key: Tab; label: string }[] = [
 
     <!-- ===== Text Tab ===== -->
     <div v-if="activeTab === 'text'" class="panel">
-      <section class="card">
+      <section class="card io-card">
         <div class="io-grid">
-          <div>
+          <div class="io-col">
             <div class="label-row">
               <span class="label">输入</span>
               <button class="link-btn" @click="textInput = ''">清空</button>
             </div>
             <textarea v-model="textInput" class="textarea" rows="8" placeholder="在此粘贴或输入文本…" />
           </div>
-          <div>
+          <div class="io-col">
             <div class="label-row">
               <span class="label">输出</span>
               <span class="actions-inline">
@@ -209,107 +209,109 @@ const tabs: { key: Tab; label: string }[] = [
         </div>
       </section>
 
-      <section class="card">
-        <h3 class="group-title">Base64</h3>
-        <div class="btn-row">
-          <button class="btn" @click="safeRun(() => stringToBase64(textInput))">字符串 → Base64</button>
-          <button class="btn" @click="safeRun(() => base64ToString(textInput))">Base64 → 字符串</button>
-          <button class="btn btn-outline" @click="safeRun(() => base64ToBase64Url(textInput))">Base64 → URL-safe</button>
-          <button class="btn btn-outline" @click="safeRun(() => base64UrlToBase64(textInput))">URL-safe → Base64</button>
-        </div>
-      </section>
+      <div class="op-grid">
+        <section class="card op-card">
+          <h3 class="group-title">Base64</h3>
+          <div class="btn-col">
+            <button class="btn" @click="safeRun(() => stringToBase64(textInput))">字符串 → Base64</button>
+            <button class="btn" @click="safeRun(() => base64ToString(textInput))">Base64 → 字符串</button>
+            <button class="btn btn-outline" @click="safeRun(() => base64ToBase64Url(textInput))">Base64 → URL-safe</button>
+            <button class="btn btn-outline" @click="safeRun(() => base64UrlToBase64(textInput))">URL-safe → Base64</button>
+          </div>
+        </section>
 
-      <section class="card">
-        <h3 class="group-title">URL</h3>
-        <div class="btn-row">
-          <button class="btn" @click="safeRun(() => urlEncode(textInput))">URL Encode</button>
-          <button class="btn" @click="safeRun(() => urlDecode(textInput))">URL Decode</button>
-        </div>
-      </section>
+        <section class="card op-card">
+          <h3 class="group-title">URL</h3>
+          <div class="btn-col">
+            <button class="btn" @click="safeRun(() => urlEncode(textInput))">URL Encode</button>
+            <button class="btn" @click="safeRun(() => urlDecode(textInput))">URL Decode</button>
+          </div>
+        </section>
 
-      <section class="card">
-        <h3 class="group-title">Hex</h3>
-        <div class="btn-row">
-          <button class="btn" @click="safeRun(() => stringToHex(textInput))">字符串 → Hex</button>
-          <button class="btn" @click="safeRun(() => hexToString(textInput))">Hex → 字符串</button>
-        </div>
-      </section>
+        <section class="card op-card">
+          <h3 class="group-title">Hex</h3>
+          <div class="btn-col">
+            <button class="btn" @click="safeRun(() => stringToHex(textInput))">字符串 → Hex</button>
+            <button class="btn" @click="safeRun(() => hexToString(textInput))">Hex → 字符串</button>
+          </div>
+        </section>
 
-      <section class="card">
-        <h3 class="group-title">HTML</h3>
-        <div class="btn-row">
-          <button class="btn" @click="safeRun(() => htmlEncode(textInput))">HTML Escape</button>
-          <button class="btn" @click="safeRun(() => htmlDecode(textInput))">HTML Unescape</button>
-        </div>
-      </section>
+        <section class="card op-card">
+          <h3 class="group-title">HTML</h3>
+          <div class="btn-col">
+            <button class="btn" @click="safeRun(() => htmlEncode(textInput))">HTML Escape</button>
+            <button class="btn" @click="safeRun(() => htmlDecode(textInput))">HTML Unescape</button>
+          </div>
+        </section>
 
-      <section class="card">
-        <h3 class="group-title">Unicode</h3>
-        <div class="btn-row">
-          <button class="btn" @click="safeRun(() => unicodeEscape(textInput))">Unicode Escape</button>
-          <button class="btn" @click="safeRun(() => unicodeUnescape(textInput))">Unicode Unescape</button>
-        </div>
-      </section>
+        <section class="card op-card">
+          <h3 class="group-title">Unicode</h3>
+          <div class="btn-col">
+            <button class="btn" @click="safeRun(() => unicodeEscape(textInput))">Unicode Escape</button>
+            <button class="btn" @click="safeRun(() => unicodeUnescape(textInput))">Unicode Unescape</button>
+          </div>
+        </section>
 
-      <section class="card">
-        <h3 class="group-title">JSON</h3>
-        <div class="btn-row">
-          <button class="btn" @click="safeRun(() => jsonFormat(textInput))">美化</button>
-          <button class="btn" @click="safeRun(() => jsonMinify(textInput))">压缩</button>
-        </div>
-      </section>
+        <section class="card op-card">
+          <h3 class="group-title">JSON</h3>
+          <div class="btn-col">
+            <button class="btn" @click="safeRun(() => jsonFormat(textInput))">美化</button>
+            <button class="btn" @click="safeRun(() => jsonMinify(textInput))">压缩</button>
+          </div>
+        </section>
+      </div>
     </div>
 
     <!-- ===== File Tab ===== -->
     <div v-if="activeTab === 'file'" class="panel">
-      <section class="card">
-        <h3 class="group-title">文件 → Base64</h3>
-        <div class="row">
-          <input type="file" @change="onFilePicked" />
-          <span v-if="fileInfo" class="meta">{{ fileInfo }}</span>
-          <button class="btn" :disabled="!filePicked || fileBase64Loading" @click="doFileToBase64">
-            {{ fileBase64Loading ? '编码中…' : '编码' }}
-          </button>
-        </div>
-        <textarea v-model="fileBase64" class="textarea" rows="8" readonly placeholder="编码结果将显示在此处" />
-        <div v-if="fileBase64" class="row">
-          <button class="link-btn" @click="copyValue('fb64', fileBase64)">
-            {{ copiedKey === 'fb64' ? '已复制 ✓' : '复制' }}
-          </button>
-          <button class="link-btn" @click="downloadText(fileBase64, (filePicked?.name || 'file') + '.b64.txt')">
-            另存为 .b64.txt
-          </button>
-        </div>
-      </section>
+      <div class="file-grid">
+        <section class="card">
+          <h3 class="group-title">文件 → Base64</h3>
+          <div class="row">
+            <input type="file" @change="onFilePicked" />
+            <button class="btn" :disabled="!filePicked || fileBase64Loading" @click="doFileToBase64">
+              {{ fileBase64Loading ? '编码中…' : '编码' }}
+            </button>
+          </div>
+          <div v-if="fileInfo" class="meta meta-block">{{ fileInfo }}</div>
+          <textarea v-model="fileBase64" class="textarea" rows="8" readonly placeholder="编码结果将显示在此处" />
+          <div v-if="fileBase64" class="row">
+            <button class="link-btn" @click="copyValue('fb64', fileBase64)">
+              {{ copiedKey === 'fb64' ? '已复制 ✓' : '复制' }}
+            </button>
+            <button class="link-btn" @click="downloadText(fileBase64, (filePicked?.name || 'file') + '.b64.txt')">
+              另存为 .b64.txt
+            </button>
+          </div>
+        </section>
 
-      <section class="card">
-        <h3 class="group-title">Base64 → 文件</h3>
-        <textarea v-model="decodeBase64Input" class="textarea" rows="6" placeholder="在此粘贴 Base64 文本（可包含 data URL 头）" />
-        <div class="row" style="margin-top:8px">
-          <input v-model="decodeFilename" class="input" placeholder="filename.bin" style="flex:0 0 240px" />
-          <button class="btn" :disabled="!decodeBase64Input" @click="doBase64ToFile">下载文件</button>
-        </div>
-      </section>
+        <section class="card">
+          <h3 class="group-title">Base64 → 文件</h3>
+          <textarea v-model="decodeBase64Input" class="textarea" rows="8" placeholder="在此粘贴 Base64 文本（可包含 data URL 头）" />
+          <div class="row row-spaced">
+            <input v-model="decodeFilename" class="input filename-input" placeholder="filename.bin" />
+            <button class="btn" :disabled="!decodeBase64Input" @click="doBase64ToFile">下载文件</button>
+          </div>
+        </section>
+      </div>
     </div>
 
     <!-- ===== Hash Tab ===== -->
     <div v-if="activeTab === 'hash'" class="panel">
       <section class="card">
-        <h3 class="group-title">算法</h3>
-        <select v-model="hashAlgo" class="input" style="flex:0 0 200px">
-          <option value="md5">MD5</option>
-          <option value="sha1">SHA-1</option>
-          <option value="sha256">SHA-256</option>
-          <option value="sha512">SHA-512</option>
-        </select>
-      </section>
-
-      <section class="card">
-        <h3 class="group-title">字符串哈希</h3>
+        <div class="row row-between">
+          <h3 class="group-title group-title-inline">字符串哈希</h3>
+          <select v-model="hashAlgo" class="input algo-select">
+            <option value="md5">MD5</option>
+            <option value="sha1">SHA-1</option>
+            <option value="sha256">SHA-256</option>
+            <option value="sha512">SHA-512</option>
+          </select>
+        </div>
         <textarea v-model="hashInput" class="textarea" rows="4" placeholder="在此输入要哈希的字符串…" />
-        <div class="row" style="margin-top:8px">
+        <div class="row row-spaced">
           <button class="btn" @click="doHashString">计算</button>
-          <input v-model="hashOutput" readonly class="input mono" style="flex:1" />
+          <input v-model="hashOutput" readonly class="input mono input-grow" />
           <button v-if="hashOutput" class="link-btn" @click="copyValue('hashStr', hashOutput)">
             {{ copiedKey === 'hashStr' ? '已复制 ✓' : '复制' }}
           </button>
@@ -320,13 +322,13 @@ const tabs: { key: Tab; label: string }[] = [
         <h3 class="group-title">文件哈希</h3>
         <div class="row">
           <input type="file" @change="onHashFilePicked" />
-          <span v-if="hashFileInfo" class="meta">{{ hashFileInfo }}</span>
           <button class="btn" :disabled="!hashFilePicked || hashFileBusy" @click="doHashFile">
             {{ hashFileBusy ? '计算中…' : '计算' }}
           </button>
         </div>
-        <input v-if="hashFileResult" v-model="hashFileResult" readonly class="input mono" style="margin-top:8px" />
-        <div v-if="hashFileResult" class="row">
+        <div v-if="hashFileInfo" class="meta meta-block">{{ hashFileInfo }}</div>
+        <div v-if="hashFileResult" class="row row-spaced">
+          <input v-model="hashFileResult" readonly class="input mono input-grow" />
           <button class="link-btn" @click="copyValue('hashFile', hashFileResult)">
             {{ copiedKey === 'hashFile' ? '已复制 ✓' : '复制' }}
           </button>
@@ -340,7 +342,7 @@ const tabs: { key: Tab; label: string }[] = [
         <h3 class="group-title">UUID</h3>
         <div class="row">
           <button class="btn" @click="genUuid">生成</button>
-          <input v-model="generatedUuid" readonly class="input mono" style="flex:1" />
+          <input v-model="generatedUuid" readonly class="input mono input-grow" />
           <button v-if="generatedUuid" class="link-btn" @click="copyValue('uuid', generatedUuid)">
             {{ copiedKey === 'uuid' ? '已复制 ✓' : '复制' }}
           </button>
@@ -349,27 +351,33 @@ const tabs: { key: Tab; label: string }[] = [
 
       <section class="card">
         <h3 class="group-title">时间戳</h3>
-        <div class="row">
-          <span class="meta">秒级时间戳</span>
-          <input v-model="tsInput" class="input" placeholder="1733654400" style="flex:0 0 200px" />
-          <button class="btn" @click="tsToDate">→ 日期</button>
-          <input v-model="tsOutputDate" readonly class="input" style="flex:1" />
-        </div>
-        <div class="row" style="margin-top:8px">
-          <span class="meta">日期</span>
-          <input v-model="dateInput" class="input" placeholder="2026-01-01 12:00:00" style="flex:0 0 200px" />
-          <button class="btn" @click="dateToTs">→ 时间戳</button>
-          <button class="btn btn-outline" @click="nowTs">当前时间</button>
-          <input v-model="tsOutput" readonly class="input mono" style="flex:1" />
+        <div class="ts-grid">
+          <div class="ts-col">
+            <div class="label">秒级时间戳 → 日期</div>
+            <div class="row">
+              <input v-model="tsInput" class="input input-grow" placeholder="1733654400" />
+              <button class="btn" @click="tsToDate">转换</button>
+            </div>
+            <input v-model="tsOutputDate" readonly class="input" placeholder="日期" />
+          </div>
+          <div class="ts-col">
+            <div class="label">日期 → 秒级时间戳</div>
+            <div class="row">
+              <input v-model="dateInput" class="input input-grow" placeholder="2026-01-01 12:00:00" />
+              <button class="btn" @click="dateToTs">转换</button>
+              <button class="btn btn-outline" @click="nowTs">当前</button>
+            </div>
+            <input v-model="tsOutput" readonly class="input mono" placeholder="时间戳" />
+          </div>
         </div>
       </section>
 
       <section class="card">
         <h3 class="group-title">字节大小</h3>
         <div class="row">
-          <input v-model="bytesInput" class="input" placeholder="1048576" style="flex:0 0 200px" />
+          <input v-model="bytesInput" class="input input-grow" placeholder="1048576" />
           <button class="btn" @click="fmtBytes">格式化</button>
-          <input v-model="bytesOutput" readonly class="input" style="flex:1" />
+          <input v-model="bytesOutput" readonly class="input input-grow" />
         </div>
       </section>
     </div>
@@ -379,7 +387,7 @@ const tabs: { key: Tab; label: string }[] = [
 </template>
 
 <style scoped>
-.codec { max-width: 900px; margin: 0 auto; }
+.codec { max-width: 1100px; margin: 0 auto; }
 .lead { color: var(--fg-muted); margin-bottom: 16px; }
 
 .tab-bar {
@@ -418,12 +426,16 @@ const tabs: { key: Tab; label: string }[] = [
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
+.group-title-inline { margin: 0; }
 
+/* Text 面板：IO + 操作网格 */
+.io-card { padding: 16px; }
 .io-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
+.io-col { display: flex; flex-direction: column; }
 .label-row {
   display: flex;
   align-items: center;
@@ -437,14 +449,43 @@ const tabs: { key: Tab; label: string }[] = [
 }
 .actions-inline { display: inline-flex; gap: 8px; }
 
-.btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.op-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.op-card { padding: 12px 14px; }
+.btn-col { display: flex; flex-direction: column; gap: 6px; }
+
+/* File 面板 */
+.file-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* Hash 面板 */
+.algo-select { flex: 0 0 140px; }
+
+/* Misc 面板 */
+.ts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.ts-col { display: flex; flex-direction: column; gap: 8px; }
+
+/* 通用行布局 */
 .row {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
-.row + .row { margin-top: 8px; }
+.row-spaced { margin-top: 8px; }
+.row-between { justify-content: space-between; margin-bottom: 12px; }
+.input-grow { flex: 1 1 0; min-width: 0; }
+.filename-input { flex: 0 0 240px; }
 
 .input {
   padding: 6px 10px;
@@ -466,6 +507,7 @@ const tabs: { key: Tab; label: string }[] = [
   color: var(--fg);
   font: 13px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
   resize: vertical;
+  box-sizing: border-box;
 }
 .textarea:focus { outline: none; border-color: var(--primary); }
 
@@ -504,10 +546,17 @@ const tabs: { key: Tab; label: string }[] = [
   color: var(--fg-muted);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
 }
+.meta-block { margin: 8px 0; }
 
 .error { color: var(--danger); margin: 12px 0 0; font-size: 13px; }
 
+@media (max-width: 960px) {
+  .op-grid { grid-template-columns: repeat(2, 1fr); }
+}
 @media (max-width: 700px) {
-  .io-grid { grid-template-columns: 1fr; }
+  .io-grid,
+  .file-grid,
+  .ts-grid,
+  .op-grid { grid-template-columns: 1fr; }
 }
 </style>

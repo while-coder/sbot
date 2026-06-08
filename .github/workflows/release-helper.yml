@@ -17,7 +17,7 @@ jobs:
           - platform: macos-latest
             args: '--target aarch64-apple-darwin'
             rust-target: aarch64-apple-darwin
-          - platform: macos-13
+          - platform: macos-latest
             args: '--target x86_64-apple-darwin'
             rust-target: x86_64-apple-darwin
           - platform: ubuntu-22.04
@@ -82,6 +82,7 @@ jobs:
 
   publish-manifest:
     needs: release
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - name: Sync helper manifest to updater channel
@@ -90,7 +91,10 @@ jobs:
           REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
         run: |
-          gh release download "$TAG" -R "$REPO" -p "latest.json" -O latest-helper.json
+          if ! gh release download "$TAG" -R "$REPO" -p "latest.json" -O latest-helper.json; then
+            echo "::error::latest.json not found on release $TAG — no platform produced an updater manifest"
+            exit 1
+          fi
           gh release view updater -R "$REPO" >/dev/null 2>&1 || \
             gh release create updater -R "$REPO" \
               --title "Updater Manifests" \
