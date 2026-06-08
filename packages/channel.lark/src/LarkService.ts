@@ -247,10 +247,23 @@ export class LarkService implements IChannelService {
     }
     this.lastCallTime = Date.now()
     // this.logger?.debug(`updateCardMessage: messageId=${messageId}, elements=${JSON.stringify(elements)}`);
-    return await this.larkClient.im.message.patch({
-      path: { message_id: messageId },
-      data: { content: this.buildCardJson(elements, header) },
-    });
+    try {
+      return await this.larkClient.im.message.patch({
+        path: { message_id: messageId },
+        data: { content: this.buildCardJson(elements, header) },
+      });
+    } catch (error: any) {
+      const responseData = error?.response?.data ? `\nresponse: ${JSON.stringify(error.response.data)}` : '';
+      this.logger?.error(`Failed to updateCardMessage: ${error.message}${responseData}\n${error.stack}`);
+      try {
+        await this.larkClient.im.message.patch({
+          path: { message_id: messageId },
+          data: { content: this.buildMarkdownContent(`消息更新失败: ${error.message}`, header) },
+        });
+      } catch (fallbackError: any) {
+        this.logger?.error(`Failed to patch error card: ${fallbackError.message}`);
+      }
+    }
   }
 
   async parseMessageContent(messageId: string, messageType: string, content: string, mentions?: Array<{ key: string }>, mediaAsFilePath = false): Promise<MessageContent | undefined> {
