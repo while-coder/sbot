@@ -105,7 +105,6 @@ export interface Settings {
   checkUpdateTime?: number;    // 下次检查更新的时间戳（ms），0 或 undefined 表示立即检查
   maxImageSize?: number;       // 图片最大尺寸（px），max(width,height) 超过此值时按比例缩小；不设置则不压缩
   contextFileNames?: string[]; // 工作目录上下文文件名列表（按优先级排列），不设置则使用默认 ['SBOT.md','sbot.md','AGENTS.md','agents.md']
-  contextMaxLevels?: number;   // 向上扫描上下文文件的最大父目录层级，默认 3
   models?: Record<string, NamedModelConfig>;
   embeddings?: Record<string, NamedEmbeddingConfig>;
   savers?: Record<string, SaverConfig>;
@@ -120,7 +119,7 @@ export interface Settings {
 // Record<keyof Settings, true> 保证与接口同步：漏写或多写都会编译报错
 const SETTINGS_KEYS: ReadonlySet<string> = new Set(Object.keys({
   httpPort: true, httpUrl: true, autoApproveTools: true, autoApproveAllTools: true,
-  startupCommands: true, checkUpdateTime: true, maxImageSize: true, contextFileNames: true, contextMaxLevels: true,
+  startupCommands: true, checkUpdateTime: true, maxImageSize: true, contextFileNames: true,
   models: true, embeddings: true, savers: true, notes: true, wikis: true, channels: true,
   plugins: true, agentSources: true, tunnel: true,
 } satisfies Record<keyof Settings, true>));

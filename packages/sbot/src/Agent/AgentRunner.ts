@@ -98,7 +98,7 @@ export class AgentRunner {
         // 目录级上下文自动发现（SBOT.md / AGENTS.md 等），可由 agent 配置 disableWorkspaceContext 关闭
         const agentEntry = config.getAgent(agentId);
         if (!agentEntry.disableWorkspaceContext) {
-            const contextFiles = loadWorkspaceContext(workPath, config.settings.contextFileNames, config.settings.contextMaxLevels);
+            const contextFiles = loadWorkspaceContext(workPath, config.settings.contextFileNames);
             if (contextFiles.length > 0) {
                 const contextContent = contextFiles
                     .map(c => `<workspace-context source="${c.path}">\n${c.content}\n</workspace-context>`)

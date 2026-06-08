@@ -19,7 +19,7 @@ export class SettingsRoutes {
         app.get('/api/settings', api(() => ctx.settingsWithAgents()));
 
         app.put('/api/settings/general', api(req => {
-            const { httpPort, httpUrl, maxImageSize, autoApproveTools, autoApproveAllTools, startupCommands, contextFileNames, contextMaxLevels } = req.body;
+            const { httpPort, httpUrl, maxImageSize, autoApproveTools, autoApproveAllTools, startupCommands, contextFileNames } = req.body;
             if (httpPort !== undefined) config.settings.httpPort = httpPort || undefined;
             if (httpUrl !== undefined) config.settings.httpUrl = httpUrl || undefined;
             if (maxImageSize !== undefined) {
@@ -35,15 +35,6 @@ export class SettingsRoutes {
                     .map(s => typeof s === 'string' ? s.trim() : '')
                     .filter(Boolean);
                 config.settings.contextFileNames = cleaned.length > 0 ? cleaned : undefined;
-            }
-            if (contextMaxLevels !== undefined) {
-                if (contextMaxLevels === null || contextMaxLevels === '') {
-                    config.settings.contextMaxLevels = undefined;
-                } else {
-                    const n = Number(contextMaxLevels);
-                    if (!Number.isInteger(n) || n < 1 || n > 5) throwBad('contextMaxLevels must be an integer in [1, 5]');
-                    config.settings.contextMaxLevels = n;
-                }
             }
             config.saveSettings();
             return ctx.settingsWithAgents();

@@ -298,8 +298,6 @@ export interface Settings {
   maxImageSize?: number
   /** 工作目录上下文文件名列表（按优先级排列），不设置则使用默认 ['SBOT.md','sbot.md','AGENTS.md','agents.md'] */
   contextFileNames?: string[]
-  /** 向上扫描上下文文件的最大父目录层级，默认 3，有效范围 1-5 */
-  contextMaxLevels?: number
   /** Channel 插件列表（npm 包名或本地路径） */
   plugins?: string[]
   /** 由 ~/.sbot/agents/ 目录管理，API 响应中由服务端动态注入；不写入 settings.json */

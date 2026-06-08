@@ -16,7 +16,6 @@ const autoApproveAllTools = ref(false)
 const autoApproveToolsText = ref('')
 const startupCommands = ref<string[]>([])
 const contextFileNames = ref<string[]>([])
-const contextMaxLevels = ref<number | ''>('')
 
 watch(() => store.settings, (s) => {
   httpPort.value = s.httpPort ?? ''
@@ -26,7 +25,6 @@ watch(() => store.settings, (s) => {
   autoApproveToolsText.value = (s.autoApproveTools ?? []).join(', ')
   startupCommands.value = [...(s.startupCommands ?? [])]
   contextFileNames.value = [...(s.contextFileNames ?? [])]
-  contextMaxLevels.value = s.contextMaxLevels ?? ''
 }, { immediate: true, deep: true })
 
 function addStartupCommand() {
@@ -87,11 +85,6 @@ async function save() {
       .filter(Boolean)
     const cmds = startupCommands.value.filter(s => s.trim())
     const ctxNames = contextFileNames.value.map(s => s.trim()).filter(Boolean)
-    const ctxLevels = contextMaxLevels.value === '' ? undefined : Number(contextMaxLevels.value)
-    if (ctxLevels !== undefined && (!Number.isInteger(ctxLevels) || ctxLevels < 1 || ctxLevels > 5)) {
-      show(t('settings.context_max_levels_invalid'), 'error')
-      return
-    }
     const res = await apiFetch('/api/settings/general', 'PUT', {
       httpPort: httpPort.value === '' ? undefined : Number(httpPort.value),
       httpUrl: httpUrl.value.trim() || undefined,
@@ -100,7 +93,6 @@ async function save() {
       autoApproveTools: tools,
       startupCommands: cmds,
       contextFileNames: ctxNames,
-      contextMaxLevels: ctxLevels ?? null,
     })
     Object.assign(store.settings, res.data)
     show(t('common.saved'))
@@ -220,9 +212,6 @@ function fmtItem(category: string, item: any): string {
             <SButton type="text" size="sm" :title="t('common.delete')" @click="removeContextFileName(index)">✕</SButton>
           </div>
           <SButton type="outline" size="sm" @click="addContextFileName">{{ t('settings.context_file_names_add') }}</SButton>
-        </SFormItem>
-        <SFormItem :label="t('settings.context_max_levels')" :hint="t('settings.context_max_levels_hint')">
-          <SInput v-model.number="contextMaxLevels" type="number" placeholder="3" min="1" max="5" />
         </SFormItem>
       </SCard>
       <SCard :title="t('settings.tool_approval')">
