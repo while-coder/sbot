@@ -27,6 +27,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
   private static readonly LAST_SERVER_KEY = 'sbot.lastServer';
 
   private customBaseUrl: string | undefined;
+  private isLocalServer = false;
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -113,6 +114,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
         const baseUrl = args[0] as string;
         const local = args[1] ?? false;
         this.customBaseUrl = baseUrl;
+        this.isLocalServer = local;
         this.client?.dispose();
         this.client = undefined;
         const client = this.ensureClient();
@@ -175,7 +177,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
       case 'disconnect':
         break;
       case 'sendMessage':
-        client.sendParts(args[0], args[1], args[2], this.getWorkspaceFolder());
+        client.sendParts(args[0], args[1], args[2], this.isLocalServer ? this.getWorkspaceFolder() : undefined);
         break;
       case 'approveToolCall':
         client.send(args[0], { type: WsCommandType.Approval, id: args[1].approvalId, approval: args[1].approval });
