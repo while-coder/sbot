@@ -5,3 +5,8 @@
 dev-dist
 tsconfig.tsbuildinfo
 /docs
+
+# Android signing — never commit
+*.jks
+*.keystore
+keystore.properties

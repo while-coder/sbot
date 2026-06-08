@@ -1,4 +1,20 @@
 dist/
 node_modules/
 src-tauri/target/
-src-tauri/gen/
+
+# Local-only Android signing keystore — never commit
+secrets/
+
+# Tauri generated — gen/android/ stays committed for signing config customizations.
+# Build artifacts and IDE/local files inside it are ignored below.
+src-tauri/gen/schemas/
+src-tauri/gen/ios/
+src-tauri/gen/android/.gradle/
+src-tauri/gen/android/.idea/
+src-tauri/gen/android/.kotlin/
+src-tauri/gen/android/local.properties
+src-tauri/gen/android/build/
+src-tauri/gen/android/app/build/
+src-tauri/gen/android/app/.cxx/
+src-tauri/gen/android/buildSrc/build/
+src-tauri/gen/android/**/keystore.properties
