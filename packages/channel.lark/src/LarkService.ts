@@ -239,7 +239,7 @@ export class LarkService implements IChannelService {
     }], header);
   }
 
-  async updateCardMessage(messageId: string, elements: any[], header?: any) {
+  async updateCardMessage(messageId: string, elements: any[], header?: any, fallbackToFile = false) {
     if (elements.length === 0) return;
 
     while ((Date.now() - this.lastCallTime) < this.callInterval) {
@@ -255,6 +255,21 @@ export class LarkService implements IChannelService {
     } catch (error: any) {
       const responseData = error?.response?.data ? `\nresponse: ${JSON.stringify(error.response.data)}` : '';
       this.logger?.error(`Failed to updateCardMessage: ${error.message}${responseData}\n${error.stack}`);
+      if (fallbackToFile) {
+        try {
+          const content = elements
+            .filter(el => el?.tag === 'markdown' && typeof el.content === 'string')
+            .map(el => el.content)
+            .join('\n\n');
+          if (content.trim()) {
+            const fileKey = await this.uploadFile(Buffer.from(content, 'utf-8'), `message_${Date.now()}.md`);
+            await this.replyMessage(messageId, "file", false, JSON.stringify({ file_key: fileKey }));
+          }
+        } catch (fallbackError: any) {
+          this.logger?.error(`Failed to send fallback file: ${fallbackError.message}\n${fallbackError.stack}`);
+        }
+        return;
+      }
       try {
         await this.larkClient.im.message.patch({
           path: { message_id: messageId },

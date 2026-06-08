@@ -7,6 +7,7 @@ export class LarkChatProvider extends AbstractChatProvider {
   messageId: string | null = null;
   header: any | undefined;
   elements: any[] = [];
+  isFinalMessage = false;
 
   constructor(private larkService: LarkService) {
     super();
@@ -69,12 +70,11 @@ export class LarkChatProvider extends AbstractChatProvider {
   }
 
   private updateCardMessage() {
-    try {
-      if (this.messageId) {
-        this.larkService.updateCardMessage(this.messageId, this.elements, this.header);
-      }
-    } catch (e: any) {
-      getLogger()?.error(`updateCardMessage exception: ${e.message || e}`, e.stack);
-    }
+    if (!this.messageId) return;
+    const fallbackToFile = this.isFinalMessage;
+    this.isFinalMessage = false;
+    this.larkService
+      .updateCardMessage(this.messageId, this.elements, this.header, fallbackToFile)
+      .catch((e: any) => getLogger()?.error(`updateCardMessage exception: ${e.message || e}`, e.stack));
   }
 }

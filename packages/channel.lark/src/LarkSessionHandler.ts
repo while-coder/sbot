@@ -90,6 +90,7 @@ export class LarkSessionHandler extends ChannelSessionHandler<LarkChatProvider> 
 
   async onProcessEnd(_query: MessageContent, _args: any, _messageType: MessageType, error?: any): Promise<void> {
     await new Promise(resolve => setTimeout(resolve, 1000));
+    if (this.provider) this.provider.isFinalMessage = true;
     this.clearThinkingPlaceholder()
     this.clearAbortButton();
     if (error && this.provider) {
