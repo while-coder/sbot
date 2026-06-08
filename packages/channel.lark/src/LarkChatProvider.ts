@@ -71,10 +71,10 @@ export class LarkChatProvider extends AbstractChatProvider {
 
   private updateCardMessage() {
     if (!this.messageId) return;
-    const fallbackToFile = this.isFinalMessage;
+    const replyFileOnFailure = this.isFinalMessage;
     this.isFinalMessage = false;
     this.larkService
-      .updateCardMessage(this.messageId, this.elements, this.header, fallbackToFile)
+      .updateCardMessage(this.messageId, this.elements, this.header, replyFileOnFailure)
       .catch((e: any) => getLogger()?.error(`updateCardMessage exception: ${e.message || e}`, e.stack));
   }
 }
