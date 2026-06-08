@@ -192,11 +192,12 @@ export class SbotClient {
     }
   }
 
-  sendParts(profileId: string, parts: any[], attachments?: any[]): void {
+  sendParts(profileId: string, parts: any[], attachments?: any[], workPath?: string): void {
     this.send(profileId, {
       type: WsCommandType.Query,
       parts,
       attachments: attachments?.length ? attachments : undefined,
+      ...(workPath ? { workPath } : {}),
     });
   }
 

@@ -125,18 +125,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
     }
     const client = this.ensureClient();
     switch (method) {
-      case 'listSessions': {
-        const all = await client.fetchSessions();
-        const cwd = this.getWorkspaceFolder();
-        if (!cwd) return all;
-        return all.filter((s: any) => this.isSamePath(s.workPath, cwd));
-      }
-      case 'createSession': {
-        const opts = { ...args[0] };
-        const wsFolder = this.getWorkspaceFolder();
-        if (wsFolder) opts.workPath = wsFolder;
-        return client.createSessionNew(opts);
-      }
+      case 'listSessions':
+        return client.fetchSessions();
+      case 'createSession':
+        // workPath 不再在创建时绑；首条消息会带上当前 workspace folder，server 按消息粒度覆盖
+        return client.createSessionNew(args[0]);
       case 'deleteSession':
         return client.deleteSession(args[0]);
       case 'updateSession':
@@ -182,7 +175,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
       case 'disconnect':
         break;
       case 'sendMessage':
-        client.sendParts(args[0], args[1], args[2]);
+        client.sendParts(args[0], args[1], args[2], this.getWorkspaceFolder());
         break;
       case 'approveToolCall':
         client.send(args[0], { type: WsCommandType.Approval, id: args[1].approvalId, approval: args[1].approval });
@@ -216,21 +209,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
       return vscode.workspace.workspaceFolders[0].uri.fsPath;
     }
     return (vscode.workspace as any).rootPath ?? undefined;
-  }
-
-  private isSamePath(a: unknown, b: string): boolean {
-    if (typeof a !== 'string' || !a.trim()) return false;
-    return this.normalizeFsPath(a) === this.normalizeFsPath(b);
-  }
-
-  private normalizeFsPath(value: string): string {
-    const normalized = path.normalize(value.trim());
-    const root = path.parse(normalized).root;
-    let result = normalized;
-    while (result.length > root.length && /[\\/]$/.test(result)) {
-      result = result.slice(0, -1);
-    }
-    return process.platform === 'win32' ? result.toLowerCase() : result;
   }
 
   private postMessage(msg: any): void {

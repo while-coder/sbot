@@ -6,7 +6,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { isEmptyContent, resizeImageIfNeeded, MessageRole, MessageKind, type ChatMessage, type MessageContent } from "scorpio.ai";
 import { IChannelService, ChannelSessionHandler, SessionService } from "channel.base";
 import { WsCommandType, WebChatEventType, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE } from 'sbot.commons';
-import { database, type ChannelSessionRow } from "../../Core/Database";
+import { database, type ChannelSessionRow, type SessionProfileRow } from "../../Core/Database";
 import { sessionManager } from "../../Session/SessionManager";
 import { SaverPool } from "../../Agent/SaverPool";
 import { LoggerService } from "../../Core/LoggerService";
@@ -117,6 +117,15 @@ export class WebService implements IChannelService {
                         case WsCommandType.Query: {
                             const partsCount = msg.parts?.length ?? 0;
                             const attCount = msg.attachments?.length ?? 0;
+                            // 客户端（如 vscode 插件）可在每次 Query 携带 workPath，按消息粒度
+                            // 覆盖 profile.workPath；vscode 借此免去按 cwd 过滤会话和建会话时绑路径
+                            if (typeof msg.workPath === 'string' && msg.workPath.trim()) {
+                                const profile = await database.findByPk<SessionProfileRow>(database.sessionProfile, session.profileId);
+                                if (profile && profile.workPath !== msg.workPath) {
+                                    await database.update(database.sessionProfile, { workPath: msg.workPath }, { where: { id: session.profileId } });
+                                    logger.debug(`ws workPath override: profileId=${session.profileId} "${profile.workPath ?? ''}" -> "${msg.workPath}"`);
+                                }
+                            }
                             const enriched = await processMessage(msg.parts ?? [], msg.attachments, uploadDir);
                             if (isEmptyContent(enriched)) {
                                 logger.debug(`ws query empty: profileId=${profileId} parts=${partsCount} attachments=${attCount}`);
