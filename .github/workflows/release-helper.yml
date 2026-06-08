@@ -64,6 +64,23 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Extract release notes
+        id: notes
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#helper-v}"
+          BODY=$(awk -v v="$VERSION" '
+            $1 == "##" && $2 == v { capture=1; next }
+            capture && $1 == "##" { exit }
+            capture { print }
+          ' packages/helper/CHANGELOG.md)
+          [ -z "$BODY" ] && BODY="Release $VERSION"
+          {
+            echo "body<<RELEASE_NOTES_EOF"
+            echo "$BODY"
+            echo "RELEASE_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -73,7 +90,7 @@ jobs:
           projectPath: packages/helper
           tagName: helper-v__VERSION__
           releaseName: 'sbot-helper v__VERSION__'
-          releaseBody: 'See assets below to download and install this version.'
+          releaseBody: ${{ steps.notes.outputs.body }}
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: true

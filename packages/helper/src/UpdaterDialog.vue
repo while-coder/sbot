@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, shallowRef } from 'vue'
 import { check, type Update } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
 
 type Phase = 'idle' | 'available' | 'downloading' | 'ready' | 'error'
 
 const phase = ref<Phase>('idle')
-const update = ref<Update | null>(null)
+const update = shallowRef<Update | null>(null)
 const error = ref('')
 const downloaded = ref(0)
 const total = ref(0)
