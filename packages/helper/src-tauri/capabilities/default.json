@@ -7,6 +7,8 @@
     "core:default",
     "core:window:allow-close",
     "dialog:allow-save",
-    "dialog:allow-message"
+    "dialog:allow-message",
+    "process:default",
+    "updater:default"
   ]
 }

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useRoute, useRouter } from 'vue-router'
 import { computed } from 'vue'
+import UpdaterDialog from './UpdaterDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -9,6 +10,7 @@ const isHome = computed(() => route.path === '/')
 
 <template>
   <div class="app">
+    <UpdaterDialog />
     <header class="app-bar">
       <button v-if="!isHome" class="back" @click="router.push('/')">← 返回</button>
       <h1 class="title">sbot 辅助工具</h1>
