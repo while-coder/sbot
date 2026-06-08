@@ -157,7 +157,7 @@ function reset() {
     <section v-if="phase === 'idle'" class="card">
       <div class="field-row">
         <label class="field-label">Alias</label>
-        <input v-model="alias" class="input" placeholder="例如 sbot" />
+        <input v-model="alias" class="input" placeholder="例如 myapp" />
       </div>
 
       <div class="field-row">
@@ -202,7 +202,7 @@ function reset() {
         <div v-if="showAdvanced" class="advanced-fields">
           <div class="field-row">
             <label class="field-label">CN（必填）</label>
-            <input v-model="commonName" class="input" placeholder="例如 sbot" />
+            <input v-model="commonName" class="input" placeholder="例如 myapp" />
           </div>
           <div class="field-row">
             <label class="field-label">OU 部门</label>
