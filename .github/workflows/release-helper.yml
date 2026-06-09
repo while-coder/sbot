@@ -118,3 +118,4 @@ jobs:
               --notes "Auto-maintained by CI. Hosts updater JSON for app and helper." \
               --latest=false
           gh release upload updater latest-helper.json -R "$REPO" --clobber
+          gh release delete-asset "$TAG" latest.json -R "$REPO" --yes || true
