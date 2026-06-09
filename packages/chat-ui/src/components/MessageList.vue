@@ -123,6 +123,18 @@ function findToolResult(toolCallId: string): StoredMessage | undefined {
 function isEmbeddedTool(msg: StoredMessage): boolean {
   return msg.message.role === MessageRole.Tool && !!msg.message.tool_call_id
 }
+
+function contentCharLen(content?: DisplayContent): number {
+  if (!content) return 0
+  if (typeof content === 'string') return content.length
+  let n = 0
+  for (const p of content) {
+    if (p && typeof p === 'object' && p.type === 'text' && typeof p.text === 'string') {
+      n += p.text.length
+    }
+  }
+  return n
+}
 </script>
 
 <template>
@@ -161,6 +173,7 @@ function isEmbeddedTool(msg: StoredMessage): boolean {
               <span v-if="isCommand(msg)" class="msg-kind-tag msg-kind-command">{{ L.commandTag }}</span>
               <span v-if="isException(msg)" class="msg-kind-tag msg-kind-exception">{{ L.exceptionTag }}</span>
               <span v-if="msg.createdAt" class="msg-time">{{ fmtTs(msg.createdAt) }}</span>
+              <span class="msg-char-len" :title="`${contentCharLen(msg.message.content)} chars`">{{ contentCharLen(msg.message.content) }} chars</span>
               <div v-if="msg.thinkId && thinksUrlPrefix" class="think-toggle" @click="openThink(msg.thinkId!, msg.taskId)">
                 <span>▸</span><span>{{ L.think }}</span>
               </div>
@@ -359,6 +372,12 @@ function isEmbeddedTool(msg: StoredMessage): boolean {
   font-size: 10px;
   color: var(--chatui-fg-secondary);
   white-space: nowrap;
+}
+.msg-char-len {
+  font-size: 10px;
+  color: var(--chatui-fg-secondary);
+  white-space: nowrap;
+  opacity: 0.8;
 }
 
 /* Markdown content */

@@ -1,8 +1,8 @@
 import { type StructuredToolInterface } from "@langchain/core/tools";
-import { inject, ServiceContainer, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc, T_ModelCallTimeout } from "../../Core";
+import { inject, ServiceContainer, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc, T_ModelCallTimeout, T_ToolOverflowDir } from "../../Core";
 import { INoteService } from "../../Note";
 import { IWikiService } from "../../Wiki";
-import { IAgentSaverService, TaskBackedSaver, type MessageContent } from "../../Saver";
+import { IAgentSaverService, TaskBackedSaver, ConversationCompactor, IConversationCompactor, type MessageContent } from "../../Saver";
 import { ILoggerService } from "../../Logger";
 import { IModelService } from "../../Model";
 import { type AgentServiceBase, IAgentCallback, AgentSubNode, CreateAgentFn, T_CreateAgent, MessageRole, ChatMessage } from "../AgentServiceBase";
@@ -50,8 +50,10 @@ export class ReActAgentService extends SingleAgentService {
     @inject(INoteService, { optional: true }) noteServices?: INoteService[],
     @inject(IWikiService, { optional: true }) wikiServices?: IWikiService[],
     @inject(T_ModelCallTimeout, { optional: true }) modelCallTimeout?: number,
+    @inject(IConversationCompactor, { optional: true }) compactor?: ConversationCompactor,
+    @inject(T_ToolOverflowDir, { optional: true }) toolOverflowDir?: string,
   ) {
-    super(thinkModelService, skillService, staticSystemPrompts, dynamicSystemPrompts, loggerService, agentSaver, insightService, todoService, toolService, noteServices, wikiServices, modelCallTimeout);
+    super(thinkModelService, skillService, staticSystemPrompts, dynamicSystemPrompts, loggerService, agentSaver, insightService, todoService, toolService, noteServices, wikiServices, modelCallTimeout, compactor, toolOverflowDir);
     this.agentSubNodes = agentSubNodes;
     this.agentFactory = agentFactory;
   }
