@@ -3,10 +3,25 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { WebSocketServer, WebSocket } from 'ws';
-import * as pty from 'node-pty';
+import type * as PtyTypes from '@lydell/node-pty';
 import { LoggerService } from '../../Core/LoggerService';
 
 const logger = LoggerService.getLogger('PtyService.ts');
+
+let ptyMod: typeof PtyTypes | null = null;
+let ptyLoadError: string | null = null;
+
+function loadPty(): typeof PtyTypes | null {
+    if (ptyMod) return ptyMod;
+    if (ptyLoadError) return null;
+    try {
+        ptyMod = require('@lydell/node-pty') as typeof PtyTypes;
+    } catch (e: any) {
+        ptyLoadError = e?.message ?? String(e);
+        logger.warn(`@lydell/node-pty unavailable, terminal feature disabled: ${ptyLoadError}`);
+    }
+    return ptyMod;
+}
 
 export interface ShellOption {
     /** Stable id, used by client when requesting `open`. */
@@ -138,7 +153,7 @@ export class PtyService {
     }
 
     private handleConnection(ws: WebSocket): void {
-        let term: pty.IPty | null = null;
+        let term: PtyTypes.IPty | null = null;
         let opened = false;
         let exited = false;
 
@@ -166,6 +181,12 @@ export class PtyService {
             if (msg.type === 'open') {
                 if (opened) return;
                 opened = true;
+                const mod = loadPty();
+                if (!mod) {
+                    sendControl({ type: 'error', message: `Terminal feature unavailable on this server: ${ptyLoadError}` });
+                    ws.close();
+                    return;
+                }
                 const shells = listShells();
                 const requested = msg.shell?.trim();
                 const shellPath = requested && fileExists(requested) ? requested : defaultShell(shells);
@@ -174,21 +195,10 @@ export class PtyService {
                 const rows = Math.max(2, Math.min(200, msg.rows ?? 24));
                 const env: NodeJS.ProcessEnv = { ...process.env, ...msg.env, TERM: 'xterm-256color' };
                 try {
-                    // useConpty: false on Windows — ConPTY requires the parent to have
-                    // a real console window. When sbot runs under VS Code's Launch
-                    // configuration (or any debugger / service host without a console),
-                    // ConPTY initialization deadlocks and pty.spawn never returns.
-                    // Falling back to winpty (bundled with node-pty) works in those
-                    // contexts at the cost of some ANSI fidelity. Set SBOT_PTY_CONPTY=1
-                    // to force ConPTY when running in a real terminal.
-                    const useConpty = process.platform === 'win32'
-                        ? process.env.SBOT_PTY_CONPTY === '1'
-                        : undefined;
-                    term = pty.spawn(shellPath, [], {
+                    term = mod.spawn(shellPath, [], {
                         name: 'xterm-256color',
                         cols, rows, cwd, env,
-                        ...(useConpty !== undefined ? { useConpty } : {}),
-                    } as any);
+                    });
                 } catch (e: any) {
                     logger.error(`pty.spawn failed (shell=${shellPath}): ${e?.message ?? e}`);
                     sendControl({ type: 'error', message: `Failed to spawn shell: ${e?.message ?? e}` });

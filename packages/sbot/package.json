@@ -36,6 +36,7 @@
   },
   "dependencies": {
     "@langchain/core": "catalog:",
+    "@lydell/node-pty": "^1.1.0",
     "adm-zip": "^0.5.17",
     "axios": "catalog:",
     "channel.base": "workspace:*",
@@ -54,7 +55,6 @@
     "express": "^5.2.1",
     "localtunnel": "^2.0.2",
     "log4js": "^6.9.1",
-    "node-pty": "^1.1.0",
     "reflect-metadata": "catalog:",
     "sbot.commons": "workspace:*",
     "scorpio.ai": "workspace:*",
