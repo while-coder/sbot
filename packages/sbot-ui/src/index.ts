@@ -37,6 +37,7 @@ import SPageContent from './components/SPageContent.vue'
 import STable from './components/STable.vue'
 import SInfoTable from './components/SInfoTable.vue'
 import SInfoRow from './components/SInfoRow.vue'
+import SEntityList from './components/SEntityList.vue'
 
 import SBadge from './components/SBadge.vue'
 import STag from './components/STag.vue'
@@ -55,7 +56,7 @@ import STreeNode from './components/STreeNode.vue'
 export {
   SButton, SIconButton, SModal, SToast, SConfirm,
   SInput, STextarea, SSelect, SMultiSelect, SRadio, SCheckbox, SFormItem, SFormSection, SFormDetails, SHint,
-  SCard, SPageToolbar, SPageContent, STable, SInfoTable, SInfoRow,
+  SCard, SPageToolbar, SPageContent, STable, SInfoTable, SInfoRow, SEntityList,
   SBadge, STag, STagInput, STagFilter, SChip, SCheckCard, SSwitch, STabBar, STab,
   STree, STreeNode,
 }
@@ -70,7 +71,7 @@ export type { ConfirmOptions } from './composables/useConfirm'
 const components = {
   SButton, SIconButton, SModal, SToast, SConfirm,
   SInput, STextarea, SSelect, SMultiSelect, SRadio, SCheckbox, SFormItem, SFormSection, SFormDetails, SHint,
-  SCard, SPageToolbar, SPageContent, STable, SInfoTable, SInfoRow,
+  SCard, SPageToolbar, SPageContent, STable, SInfoTable, SInfoRow, SEntityList,
   SBadge, STag, STagInput, STagFilter, SChip, SCheckCard, SSwitch, STabBar, STab,
   STree, STreeNode,
 } as const
@@ -107,6 +108,7 @@ declare module 'vue' {
     STable: typeof STable
     SInfoTable: typeof SInfoTable
     SInfoRow: typeof SInfoRow
+    SEntityList: typeof SEntityList
     SBadge: typeof SBadge
     STag: typeof STag
     STagInput: typeof STagInput

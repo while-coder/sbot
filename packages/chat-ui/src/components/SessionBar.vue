@@ -10,10 +10,12 @@ const props = withDefaults(defineProps<{
   highlightedProfileId?: string | null
   labels?: ChatLabels
   showHeader?: boolean
+  searchable?: boolean
   width?: number
   emptyMessage?: string
 }>(), {
   showHeader: true,
+  searchable: false,
   highlightedProfileId: null,
 })
 
@@ -34,6 +36,22 @@ const { confirm } = useConfirm()
 const editingId = ref<string | null>(null)
 const editingName = ref('')
 const nameInputEl = ref<InstanceType<typeof SInput> | null>(null)
+
+const searchQuery = ref('')
+const displayedSessions = computed<SessionItem[]>(() => {
+  if (!props.searchable) return props.sessions
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return props.sessions
+  return props.sessions.filter(s => {
+    const name = (s.name || '').toLowerCase()
+    const path = (s.workPath || '').toLowerCase()
+    return name.includes(q) || path.includes(q)
+  })
+})
+const resolvedEmptyMessage = computed(() => {
+  if (props.searchable && searchQuery.value.trim()) return L.value.sessionNoMatch
+  return props.emptyMessage
+})
 
 function startEdit(id: string) {
   editingId.value = id
@@ -69,9 +87,27 @@ async function onDelete(id: string) {
     <div v-if="showHeader" class="chatui-session-bar-header">
       <SButton type="outline" size="sm" block @click="emit('newSession')">{{ L.newSession }}</SButton>
     </div>
+    <div v-if="searchable" class="chatui-session-bar-search">
+      <svg class="chatui-session-bar-search-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <circle cx="7" cy="7" r="4.5"/>
+        <path d="m10.5 10.5 3 3"/>
+      </svg>
+      <input
+        v-model="searchQuery"
+        type="text"
+        class="chatui-session-bar-search-input"
+        :placeholder="L.sessionSearchPlaceholder"
+      />
+      <button
+        v-if="searchQuery"
+        class="chatui-session-bar-search-clear"
+        :title="L.cancel"
+        @click="searchQuery = ''"
+      >×</button>
+    </div>
     <div class="chatui-session-list">
       <div
-        v-for="s in sessions" :key="s.id"
+        v-for="s in displayedSessions" :key="s.id"
         class="chatui-session-item"
         :class="{ active: activeProfileId === s.id, highlighted: highlightedProfileId === s.id }"
         :data-profile-id="s.id"
@@ -101,8 +137,8 @@ async function onDelete(id: string) {
           <button class="chatui-session-del-btn" @click.stop="onDelete(s.id)">×</button>
         </div>
       </div>
-      <div v-if="sessions.length === 0" class="chatui-session-empty">
-        <template v-if="emptyMessage">{{ emptyMessage }}</template>
+      <div v-if="displayedSessions.length === 0" class="chatui-session-empty">
+        <template v-if="resolvedEmptyMessage">{{ resolvedEmptyMessage }}</template>
         <template v-else>{{ L.emptySession }}<br>{{ L.createSessionHint }}</template>
       </div>
     </div>
@@ -117,6 +153,32 @@ async function onDelete(id: string) {
 }
 .chatui-session-bar-header {
   padding: 6px 8px; border-bottom: 1px solid var(--chatui-border); flex-shrink: 0;
+}
+.chatui-session-bar-search {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--chatui-border-subtle, var(--chatui-border));
+  flex-shrink: 0;
+}
+.chatui-session-bar-search-icon {
+  flex-shrink: 0; color: var(--chatui-fg-secondary);
+}
+.chatui-session-bar-search-input {
+  flex: 1; min-width: 0;
+  border: none; outline: none; background: transparent;
+  font: inherit; color: var(--chatui-fg);
+  padding: 2px 0;
+}
+.chatui-session-bar-search-input::placeholder { color: var(--chatui-fg-secondary); }
+.chatui-session-bar-search-clear {
+  width: 18px; height: 18px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; border-radius: 4px; background: transparent;
+  color: var(--chatui-fg-secondary);
+  font-size: 14px; line-height: 1; cursor: pointer; flex-shrink: 0;
+}
+.chatui-session-bar-search-clear:hover {
+  background: var(--chatui-bg-hover); color: var(--chatui-fg);
 }
 .chatui-session-list { flex: 1; overflow-y: auto; padding: 4px; }
 .chatui-session-item {

@@ -710,6 +710,7 @@ onBeforeUnmount(() => {
         :active-profile-id="activeProfileId"
         :labels="labels"
         :width="sessionBarWidth"
+        searchable
         @select="selectSession"
         @delete="onDeleteSession"
         @rename="onRenameSession"

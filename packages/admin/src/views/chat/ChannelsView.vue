@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useResponsive } from '@/composables/useResponsive'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
-import { useToast, useConfirm, SButton, SModal, SInput, STextarea, SSelect, SFormItem, SFormSection, SPageToolbar, SPageContent, SMultiSelect } from 'sbot-ui'
+import { useToast, useConfirm, SButton, SModal, SInput, STextarea, SSelect, SFormItem, SFormSection, SPageToolbar, SPageContent, SMultiSelect, SEntityList, STabBar, STab } from 'sbot-ui'
 import QRCode from 'qrcode'
 import { ApprovalTimeoutValue, type ChannelConfig } from '@/shared/types'
 import SaverViewModal from '@/components/modals/SaverViewModal.vue'
@@ -14,7 +13,6 @@ import { PathPickerModal, WebSocketTransport } from '@sbot/chat-ui'
 import SessionConfigOverridesEditor, { type SessionOverrides, type ConfigSource } from '@/components/SessionConfigOverridesEditor.vue'
 
 const { t } = useI18n()
-const { isMobile } = useResponsive()
 const { confirm } = useConfirm()
 
 interface PluginInfo {
@@ -115,6 +113,8 @@ const currentToolOptions = computed(() => {
 })
 
 const channels = computed(() => store.settings.channels || {})
+const channelList = computed(() => Object.entries(channels.value).map(([id, c]) => ({ id, ...(c as ChannelConfig) })))
+type ChannelEntry = ChannelConfig & { id: string }
 const agentOptions  = computed(() => Object.entries(store.settings.agents   || {}).map(([id, a]) => ({ id, label: (a as any).name  || id, type: (a as any).type || '' })))
 const saverOptions  = computed(() => Object.entries(store.settings.savers   || {}).map(([id, s]) => ({ id, label: (s as any).name  || id })))
 const noteOptions   = computed(() => Object.entries(store.settings.notes     || {}).map(([id, n]) => ({ id, label: n.name  || id })))
@@ -126,7 +126,7 @@ const todoListModal      = ref<InstanceType<typeof TodoListModal>>()
 const schedulerListModal = ref<InstanceType<typeof SchedulerListModal>>()
 const pathPicker         = ref<InstanceType<typeof PathPickerModal>>()
 
-const expandedChannels  = ref<Record<string, boolean>>({})
+const expandedChannels  = ref<string[]>([])
 const channelTabs       = ref<Record<string, 'sessions' | 'users'>>({})
 
 function getChannelTab(id: string): 'sessions' | 'users' { return channelTabs.value[id] ?? 'sessions' }
@@ -418,11 +418,10 @@ async function loadChannelData(id: string) {
   }
 }
 
-async function toggleExpand(id: string) {
-  expandedChannels.value[id] = !expandedChannels.value[id]
-  if (!expandedChannels.value[id]) return
-  if ((id in sessionMap.value) || channelLoading.value[id]) return
-  await loadChannelData(id)
+async function onChannelExpand(item: ChannelEntry, expanded: boolean) {
+  if (!expanded) return
+  if ((item.id in sessionMap.value) || channelLoading.value[item.id]) return
+  await loadChannelData(item.id)
 }
 
 async function refreshSessions(ids: string[]) {
@@ -639,8 +638,7 @@ async function refresh() {
     const res = await apiFetch('/api/settings')
     Object.assign(store.settings, res.data)
     await loadPlugins()
-    const expandedIds = Object.keys(expandedChannels.value).filter(id => expandedChannels.value[id])
-    if (expandedIds.length > 0) await refreshSessions(expandedIds)
+    if (expandedChannels.value.length > 0) await refreshSessions(expandedChannels.value)
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -655,151 +653,68 @@ async function refresh() {
     </SPageToolbar>
 
     <SPageContent>
-      <div v-if="!isMobile" class="channel-cards">
-        <div v-if="Object.keys(channels).length === 0" class="detail-empty">{{ t('channels.empty') }}</div>
-        <div v-for="(c, id) in channels" :key="id" class="channel-card" :class="{ expanded: expandedChannels[id as string] }">
-          <div class="channel-card-header" @click="toggleExpand(id as string)">
-            <div class="channel-card-left">
-              <span class="channel-expand-icon">{{ expandedChannels[id as string] ? '▼' : '▶' }}</span>
-              <span class="channel-card-name">{{ c.name }}</span>
-              <span class="channel-card-type-badge">{{ plugins.find(p => p.type === c.type)?.label || c.type }}</span>
-            </div>
-            <div class="channel-card-right" @click.stop>
-              <span class="channel-card-agent">{{ agentOptions.find(a => a.id === c.agent)?.label || c.agent || '-' }}</span>
-              <SButton type="outline" size="sm" @click="openEdit(id as string)">{{ t('common.edit') }}</SButton>
-              <SButton v-if="!isBuiltin(id as string)" type="danger" size="sm" @click="remove(id as string)">{{ t('common.delete') }}</SButton>
-            </div>
-          </div>
-          <div class="channel-card-meta">
-            <span class="session-meta-id">{{ id }}</span>
-            <span class="session-meta-chip">{{ t('common.storage') }}: {{ c.saver ? (saverOptions.find(s => s.id === c.saver)?.label || c.saver) : '-' }}</span>
-            <span class="session-meta-chip" :class="Array.isArray(c.notes) && c.notes.length ? '' : 'muted'">{{ t('common.note') }}: {{ Array.isArray(c.notes) && c.notes.length ? c.notes.map(nid => noteOptions.find(n => n.id === nid)?.label || nid).join(', ') : t('common.not_configured') }}</span>
-            <span class="session-meta-chip" :class="Array.isArray((c as any).wikis) && (c as any).wikis.length ? '' : 'muted'">{{ t('common.wiki') }}: {{ Array.isArray((c as any).wikis) && (c as any).wikis.length ? (c as any).wikis.map((wid: string) => wikiOptions.find(w => w.id === wid)?.label || wid).join(', ') : t('common.not_configured') }}</span>
-            <span class="session-meta-chip" :class="c.workPath ? 'blue' : 'muted'">{{ t('directory.path_label') }}: {{ c.workPath || t('common.not_configured') }}</span>
-            <span class="session-meta-chip" :class="c.streamVerbose ? 'green' : 'muted'">{{ t('channels.stream_verbose') }}: {{ c.streamVerbose ? t('common.enabled') : t('common.disabled') }}</span>
-            <span class="session-meta-chip" :class="c.autoApproveAllTools ? 'orange' : 'muted'">{{ t('settings.auto_approve_all') }}: {{ c.autoApproveAllTools ? t('common.enabled') : t('common.disabled') }}</span>
-            <span class="session-meta-chip" :class="c.intentModel ? '' : 'muted'">{{ t('channels.intent_model') }}: {{ c.intentModel ? (modelOptions.find(m => m.id === c.intentModel)?.label || c.intentModel) : t('common.not_configured') }}</span>
-            <span v-if="c.tools !== undefined" class="session-meta-chip" :class="c.tools.length ? '' : 'orange'">{{ t('channels.tools') }}: {{ c.tools.length ? c.tools.map(n => plugins.find(p => p.type === c.type)?.tools?.find(t => t.name === n)?.label || n).join(', ') : t('channels.tools_blocked') }}</span>
-            <span v-if="c.triggerTools !== undefined" class="session-meta-chip" :class="c.triggerTools.length ? '' : 'orange'">{{ t('channels.trigger_tools') }}: {{ c.triggerTools.length ? c.triggerTools.map(n => plugins.find(p => p.type === c.type)?.tools?.find(t => t.name === n)?.label || n).join(', ') : t('channels.tools_blocked') }}</span>
-          </div>
-          <div v-if="expandedChannels[id as string]" class="channel-card-detail">
-            <div class="detail-tab-bar">
-              <button
-                v-for="tab in [
-                  { key: 'sessions', label: `${t('channels.sessions')} (${(sessionMap[id as string] || []).length})` },
-                  { key: 'users',    label: `${t('channels.users')} (${(userMap[id as string] || []).length})` },
-                ]"
-                :key="tab.key"
-                class="detail-tab-btn"
-                :class="{ active: getChannelTab(id as string) === tab.key }"
-                @click="setChannelTab(id as string, tab.key as 'sessions' | 'users')"
-              >{{ tab.label }}</button>
-            </div>
-            <div class="detail-tab-content">
-              <div v-if="channelLoading[id as string]" class="detail-empty">{{ t('common.loading') }}</div>
-              <template v-else>
-                <template v-if="getChannelTab(id as string) === 'sessions'">
-                  <div v-if="(sessionMap[id as string] || []).length === 0" class="detail-empty">{{ t('channels.no_sessions') }}</div>
-                  <div v-else class="session-list">
-                    <div v-for="s in sessionMap[id as string] || []" :key="s.id" class="session-item">
-                      <div class="session-item-header">
-                        <div class="session-item-left">
-                          <img v-if="s.avatar" :src="s.avatar" class="session-avatar" />
-                          <span class="session-item-name">{{ s.sessionName || s.autoSessionName || s.sessionId }}</span>
-                          <span v-if="agentOptions.find(a => a.id === s.agentId)" class="session-item-agent">{{ agentOptions.find(a => a.id === s.agentId)?.label }}</span>
-                          <span v-if="s.totalTokens > 0" class="session-item-tokens" :title="`${t('usage.total')}: ${formatTokens(s.totalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatTokens(s.inputTokens)} / ${t('usage.output_tokens')}: ${formatTokens(s.outputTokens)}` + (s.lastTotalTokens > 0 ? `\n${t('usage.last')}: ${formatTokens(s.lastTotalTokens)} tokens` : '')">{{ formatTokens(s.totalTokens) }} tok</span>
-                        </div>
-                        <div class="ops-cell">
-                          <SButton v-if="s.saver || c.saver" type="outline" size="sm" @click="saverViewModal?.openByDbId(s.id, saverOptions.find(o => o.id === (s.saver || c.saver))?.label || (s.saver || c.saver))">{{ t('channels.history') }}</SButton>
-                          <SButton type="outline" size="sm" @click="todoListModal?.openByProfileId(String(s.profileId), s.sessionName || s.autoSessionName || s.sessionId)">{{ t('todo.title') }}</SButton>
-                          <SButton type="outline" size="sm" @click="schedulerListModal?.openByProfileId(String(s.profileId), s.sessionName || s.autoSessionName || s.sessionId)">{{ t('scheduler.title') }}</SButton>
-                          <SButton type="outline" size="sm" @click="openEditSession(s)">{{ t('common.edit') }}</SButton>
-                          <SButton type="danger" size="sm" @click="removeSession(id as string, s)">{{ t('common.delete') }}</SButton>
-                        </div>
-                      </div>
-                      <div class="session-meta">
-                        <span class="session-meta-id">{{ s.sessionId }}</span>
-                        <span v-if="s.saver" class="session-meta-chip">{{ t('common.storage') }}: {{ saverOptions.find(o => o.id === s.saver)?.label || s.saver }}</span>
-                        <span v-if="Array.isArray(s.notes) && s.notes.length" class="session-meta-chip">{{ t('common.note') }}: {{ s.notes.map(nid => noteOptions.find(n => n.id === nid)?.label || nid).join(', ') }}</span>
-                        <span v-if="Array.isArray(s.wikis) && s.wikis.length" class="session-meta-chip">{{ t('common.wiki') }}: {{ s.wikis.map(wid => wikiOptions.find(w => w.id === wid)?.label || wid).join(', ') }}</span>
-                        <span v-if="s.useChannelNotes" class="session-meta-chip green">{{ t('channels.use_channel_notes') }}</span>
-                        <span v-if="s.useChannelWikis" class="session-meta-chip green">{{ t('channels.use_channel_wikis') }}</span>
-                        <span v-if="s.workPath" class="session-meta-chip blue">{{ t('directory.path_label') }}: {{ s.workPath }}</span>
-                        <span v-if="s.streamVerbose != null" class="session-meta-chip" :class="s.streamVerbose ? 'green' : 'muted'">{{ t('channels.stream_verbose') }}: {{ s.streamVerbose ? t('common.enabled') : t('common.disabled') }}</span>
-                        <span v-if="s.autoApproveAllTools != null" class="session-meta-chip" :class="s.autoApproveAllTools ? 'orange' : 'muted'">{{ t('settings.auto_approve_all') }}: {{ s.autoApproveAllTools ? t('common.enabled') : t('common.disabled') }}</span>
-                        <span v-if="s.approvalTimeout != null && s.approvalTimeout > 0" class="session-meta-chip">{{ t('channels.approval_timeout') }}: {{ s.approvalTimeout }} / {{ s.approvalTimeoutValue === ApprovalTimeoutValue.Allow ? t('channels.approval_timeout_value_allow') : t('channels.approval_timeout_value_deny') }}</span>
-                        <span v-if="s.askTimeout != null && s.askTimeout > 0" class="session-meta-chip">{{ t('channels.ask_timeout') }}: {{ s.askTimeout }}</span>
-                        <span v-if="s.intentModel" class="session-meta-chip">{{ t('channels.intent_model') }}: {{ modelOptions.find(m => m.id === s.intentModel)?.label || s.intentModel }}{{ s.intentThreshold != null ? ` · ${s.intentThreshold}` : '' }}</span>
-                      </div>
-                    </div>
-                  </div>
+      <SEntityList
+        :items="channelList"
+        row-key="id"
+        expandable
+        :expanded-keys="expandedChannels"
+        @update:expanded-keys="expandedChannels = ($event as string[])"
+        @expand="onChannelExpand"
+        :empty-text="t('channels.empty')"
+      >
+        <template #title="{ item: c }">
+          <span class="channel-card-name">{{ c.name }}</span>
+          <span class="channel-card-type-badge">{{ plugins.find(p => p.type === c.type)?.label || c.type }}</span>
+        </template>
+        <template #aside="{ item: c }">
+          <span class="channel-card-agent">{{ agentOptions.find(a => a.id === c.agent)?.label || c.agent || '-' }}</span>
+        </template>
+        <template #ops="{ item: c }">
+          <SButton type="outline" size="sm" @click="openEdit(c.id)">{{ t('common.edit') }}</SButton>
+          <SButton v-if="!isBuiltin(c.id)" type="danger" size="sm" @click="remove(c.id)">{{ t('common.delete') }}</SButton>
+        </template>
+        <template #meta="{ item: c }">
+          <span class="session-meta-id">{{ c.id }}</span>
+          <span class="session-meta-chip">{{ t('common.storage') }}: {{ c.saver ? (saverOptions.find(s => s.id === c.saver)?.label || c.saver) : '-' }}</span>
+          <span class="session-meta-chip" :class="Array.isArray(c.notes) && c.notes.length ? '' : 'muted'">{{ t('common.note') }}: {{ Array.isArray(c.notes) && c.notes.length ? c.notes.map(nid => noteOptions.find(n => n.id === nid)?.label || nid).join(', ') : t('common.not_configured') }}</span>
+          <span class="session-meta-chip" :class="Array.isArray((c as any).wikis) && (c as any).wikis.length ? '' : 'muted'">{{ t('common.wiki') }}: {{ Array.isArray((c as any).wikis) && (c as any).wikis.length ? (c as any).wikis.map((wid: string) => wikiOptions.find(w => w.id === wid)?.label || wid).join(', ') : t('common.not_configured') }}</span>
+          <span class="session-meta-chip" :class="c.workPath ? 'blue' : 'muted'">{{ t('directory.path_label') }}: {{ c.workPath || t('common.not_configured') }}</span>
+          <span class="session-meta-chip" :class="c.streamVerbose ? 'green' : 'muted'">{{ t('channels.stream_verbose') }}: {{ c.streamVerbose ? t('common.enabled') : t('common.disabled') }}</span>
+          <span class="session-meta-chip" :class="c.autoApproveAllTools ? 'orange' : 'muted'">{{ t('settings.auto_approve_all') }}: {{ c.autoApproveAllTools ? t('common.enabled') : t('common.disabled') }}</span>
+          <span class="session-meta-chip" :class="c.intentModel ? '' : 'muted'">{{ t('channels.intent_model') }}: {{ c.intentModel ? (modelOptions.find(m => m.id === c.intentModel)?.label || c.intentModel) : t('common.not_configured') }}</span>
+          <span v-if="c.tools !== undefined" class="session-meta-chip" :class="c.tools.length ? '' : 'orange'">{{ t('channels.tools') }}: {{ c.tools.length ? c.tools.map(n => plugins.find(p => p.type === c.type)?.tools?.find(t => t.name === n)?.label || n).join(', ') : t('channels.tools_blocked') }}</span>
+          <span v-if="c.triggerTools !== undefined" class="session-meta-chip" :class="c.triggerTools.length ? '' : 'orange'">{{ t('channels.trigger_tools') }}: {{ c.triggerTools.length ? c.triggerTools.map(n => plugins.find(p => p.type === c.type)?.tools?.find(t => t.name === n)?.label || n).join(', ') : t('channels.tools_blocked') }}</span>
+        </template>
+        <template #expanded="{ item: c }">
+          <STabBar :model-value="getChannelTab(c.id)" @update:model-value="setChannelTab(c.id, $event as 'sessions' | 'users')" variant="underline">
+            <STab name="sessions" :count="(sessionMap[c.id] || []).length">{{ t('channels.sessions') }}</STab>
+            <STab name="users" :count="(userMap[c.id] || []).length">{{ t('channels.users') }}</STab>
+          </STabBar>
+          <div class="channel-detail-body">
+            <div v-if="channelLoading[c.id]" class="detail-empty">{{ t('common.loading') }}</div>
+            <template v-else>
+              <SEntityList
+                v-if="getChannelTab(c.id) === 'sessions'"
+                :items="sessionMap[c.id] || []"
+                row-key="id"
+                variant="sub"
+                :empty-text="t('channels.no_sessions')"
+              >
+                <template #title="{ item: s }">
+                  <img v-if="s.avatar" :src="s.avatar" class="session-avatar" />
+                  <span class="session-item-name">{{ s.sessionName || s.autoSessionName || s.sessionId }}</span>
+                  <span v-if="agentOptions.find(a => a.id === s.agentId)" class="session-item-agent">{{ agentOptions.find(a => a.id === s.agentId)?.label }}</span>
+                  <span v-if="s.totalTokens > 0" class="session-item-tokens" :title="`${t('usage.total')}: ${formatTokens(s.totalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatTokens(s.inputTokens)} / ${t('usage.output_tokens')}: ${formatTokens(s.outputTokens)}` + (s.lastTotalTokens > 0 ? `\n${t('usage.last')}: ${formatTokens(s.lastTotalTokens)} tokens` : '')">{{ formatTokens(s.totalTokens) }} tok</span>
                 </template>
-                <template v-if="getChannelTab(id as string) === 'users'">
-                  <div v-if="(userMap[id as string] || []).length === 0" class="detail-empty">{{ t('channels.no_users') }}</div>
-                  <div v-else class="session-list">
-                    <div v-for="u in userMap[id as string] || []" :key="u.id" class="session-item">
-                      <div class="session-item-header">
-                        <div class="session-item-left">
-                          <img v-if="u.avatar" :src="u.avatar" class="session-avatar" />
-                          <span class="session-item-name">{{ u.userName || '-' }}</span>
-                          <span class="session-meta-id">{{ u.userId }}</span>
-                        </div>
-                        <div class="ops-cell">
-                          <SButton type="outline" size="sm" @click="viewUser = u">{{ t('common.view') }}</SButton>
-                          <SButton type="danger" size="sm" @click="removeUser(id as string, u)">{{ t('common.delete') }}</SButton>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                <template #ops="{ item: s }">
+                  <SButton v-if="s.saver || c.saver" type="outline" size="sm" @click="saverViewModal?.openByDbId(s.id, saverOptions.find(o => o.id === (s.saver || c.saver))?.label || (s.saver || c.saver))">{{ t('channels.history') }}</SButton>
+                  <SButton type="outline" size="sm" @click="todoListModal?.openByProfileId(String(s.profileId), s.sessionName || s.autoSessionName || s.sessionId)">{{ t('todo.title') }}</SButton>
+                  <SButton type="outline" size="sm" @click="schedulerListModal?.openByProfileId(String(s.profileId), s.sessionName || s.autoSessionName || s.sessionId)">{{ t('scheduler.title') }}</SButton>
+                  <SButton type="outline" size="sm" @click="openEditSession(s)">{{ t('common.edit') }}</SButton>
+                  <SButton type="danger" size="sm" @click="removeSession(c.id, s)">{{ t('common.delete') }}</SButton>
                 </template>
-              </template>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Mobile card layout -->
-      <div v-else class="card-list">
-        <div v-for="(c, id) in channels" :key="id" class="mobile-card">
-          <div class="mobile-card-header mobile-card-header-clickable" @click="toggleExpand(id as string)">
-            <div class="mobile-card-title">
-              <span class="mobile-card-name">{{ c.name }}</span>
-              <span class="channel-card-type-badge">{{ plugins.find(p => p.type === c.type)?.label || c.type }}</span>
-            </div>
-            <span class="mobile-expand-icon">{{ expandedChannels[id as string] ? '▼' : '▶' }}</span>
-          </div>
-          <div class="mobile-meta-chips">
-            <span class="session-meta-id">{{ id }}</span>
-            <span class="session-meta-chip">{{ t('common.agent') }}: {{ agentOptions.find(a => a.id === c.agent)?.label || c.agent || '-' }}</span>
-            <span class="session-meta-chip">{{ t('common.storage') }}: {{ c.saver ? (saverOptions.find(s => s.id === c.saver)?.label || c.saver) : '-' }}</span>
-            <span class="session-meta-chip" :class="Array.isArray(c.notes) && c.notes.length ? '' : 'muted'">{{ t('common.note') }}: {{ Array.isArray(c.notes) && c.notes.length ? c.notes.map(nid => noteOptions.find(n => n.id === nid)?.label || nid).join(', ') : t('common.not_configured') }}</span>
-            <span class="session-meta-chip" :class="Array.isArray((c as any).wikis) && (c as any).wikis.length ? '' : 'muted'">{{ t('common.wiki') }}: {{ Array.isArray((c as any).wikis) && (c as any).wikis.length ? (c as any).wikis.map((wid: string) => wikiOptions.find(w => w.id === wid)?.label || wid).join(', ') : t('common.not_configured') }}</span>
-            <span class="session-meta-chip" :class="c.workPath ? 'blue' : 'muted'">{{ t('directory.path_label') }}: {{ c.workPath || t('common.not_configured') }}</span>
-            <span class="session-meta-chip" :class="c.streamVerbose ? 'green' : 'muted'">{{ t('channels.stream_verbose') }}: {{ c.streamVerbose ? t('common.enabled') : t('common.disabled') }}</span>
-            <span class="session-meta-chip" :class="c.autoApproveAllTools ? 'orange' : 'muted'">{{ t('settings.auto_approve_all') }}: {{ c.autoApproveAllTools ? t('common.enabled') : t('common.disabled') }}</span>
-            <span class="session-meta-chip" :class="c.intentModel ? '' : 'muted'">{{ t('channels.intent_model') }}: {{ c.intentModel ? (modelOptions.find(m => m.id === c.intentModel)?.label || c.intentModel) : t('common.not_configured') }}</span>
-            <span v-if="c.tools !== undefined" class="session-meta-chip" :class="c.tools.length ? '' : 'orange'">{{ t('channels.tools') }}: {{ c.tools.length ? c.tools.map(n => plugins.find(p => p.type === c.type)?.tools?.find(t => t.name === n)?.label || n).join(', ') : t('channels.tools_blocked') }}</span>
-            <span v-if="c.triggerTools !== undefined" class="session-meta-chip" :class="c.triggerTools.length ? '' : 'orange'">{{ t('channels.trigger_tools') }}: {{ c.triggerTools.length ? c.triggerTools.map(n => plugins.find(p => p.type === c.type)?.tools?.find(t => t.name === n)?.label || n).join(', ') : t('channels.tools_blocked') }}</span>
-          </div>
-          <div class="mobile-card-ops">
-            <SButton type="outline" size="sm" @click="openEdit(id as string)">{{ t('common.edit') }}</SButton>
-            <SButton v-if="!isBuiltin(id as string)" type="danger" size="sm" @click="remove(id as string)">{{ t('common.delete') }}</SButton>
-          </div>
-          <div v-if="expandedChannels[id as string]" class="mobile-detail">
-            <div class="detail-tab-bar">
-              <button class="detail-tab-btn" :class="{ active: getChannelTab(id as string) === 'sessions' }" @click="setChannelTab(id as string, 'sessions')">{{ t('channels.sessions') }}</button>
-              <button class="detail-tab-btn" :class="{ active: getChannelTab(id as string) === 'users' }" @click="setChannelTab(id as string, 'users')">{{ t('channels.users') }}</button>
-            </div>
-            <div v-if="getChannelTab(id as string) === 'sessions'" class="card-list mobile-sub-list">
-              <div v-for="s in (sessionMap[id as string] || [])" :key="s.id" class="mobile-card mobile-sub-card">
-                <div class="mobile-card-header mobile-sub-header">
-                  <img v-if="s.avatar" :src="s.avatar" class="mobile-sub-avatar" />
-                  {{ s.sessionName || s.autoSessionName || s.sessionId }}
-                </div>
-                <div class="mobile-meta-chips">
+                <template #meta="{ item: s }">
                   <span class="session-meta-id">{{ s.sessionId }}</span>
-                  <span v-if="agentOptions.find(a => a.id === s.agentId)" class="session-meta-chip">{{ t('common.agent') }}: {{ agentOptions.find(a => a.id === s.agentId)?.label }}</span>
-                  <span v-if="s.totalTokens > 0" class="session-meta-chip mobile-tokens" :title="`${t('usage.total')}: ${formatTokens(s.totalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatTokens(s.inputTokens)} / ${t('usage.output_tokens')}: ${formatTokens(s.outputTokens)}` + (s.lastTotalTokens > 0 ? `\n${t('usage.last')}: ${formatTokens(s.lastTotalTokens)} tokens` : '')">{{ formatTokens(s.totalTokens) }} tok</span>
                   <span v-if="s.saver" class="session-meta-chip">{{ t('common.storage') }}: {{ saverOptions.find(o => o.id === s.saver)?.label || s.saver }}</span>
                   <span v-if="Array.isArray(s.notes) && s.notes.length" class="session-meta-chip">{{ t('common.note') }}: {{ s.notes.map(nid => noteOptions.find(n => n.id === nid)?.label || nid).join(', ') }}</span>
                   <span v-if="Array.isArray(s.wikis) && s.wikis.length" class="session-meta-chip">{{ t('common.wiki') }}: {{ s.wikis.map(wid => wikiOptions.find(w => w.id === wid)?.label || wid).join(', ') }}</span>
@@ -811,34 +726,29 @@ async function refresh() {
                   <span v-if="s.approvalTimeout != null && s.approvalTimeout > 0" class="session-meta-chip">{{ t('channels.approval_timeout') }}: {{ s.approvalTimeout }} / {{ s.approvalTimeoutValue === ApprovalTimeoutValue.Allow ? t('channels.approval_timeout_value_allow') : t('channels.approval_timeout_value_deny') }}</span>
                   <span v-if="s.askTimeout != null && s.askTimeout > 0" class="session-meta-chip">{{ t('channels.ask_timeout') }}: {{ s.askTimeout }}</span>
                   <span v-if="s.intentModel" class="session-meta-chip">{{ t('channels.intent_model') }}: {{ modelOptions.find(m => m.id === s.intentModel)?.label || s.intentModel }}{{ s.intentThreshold != null ? ` · ${s.intentThreshold}` : '' }}</span>
-                </div>
-                <div class="mobile-card-ops">
-                  <SButton type="outline" size="sm" @click="todoListModal?.openByProfileId(String(s.profileId), s.sessionName || s.autoSessionName || s.sessionId)">{{ t('todo.title') }}</SButton>
-                  <SButton type="outline" size="sm" @click="schedulerListModal?.openByProfileId(String(s.profileId), s.sessionName || s.autoSessionName || s.sessionId)">{{ t('scheduler.title') }}</SButton>
-                  <SButton type="outline" size="sm" @click="openEditSession(s)">{{ t('common.edit') }}</SButton>
-                  <SButton type="danger" size="sm" @click="removeSession(id as string, s)">{{ t('common.delete') }}</SButton>
-                </div>
-              </div>
-              <div v-if="channelLoading[id as string]" class="mobile-card-empty">{{ t('common.loading') }}</div>
-              <div v-else-if="!(sessionMap[id as string] || []).length" class="mobile-card-empty">-</div>
-            </div>
-            <div v-if="getChannelTab(id as string) === 'users'" class="card-list mobile-sub-list">
-              <div v-for="u in (userMap[id as string] || [])" :key="u.id" class="mobile-card mobile-sub-card">
-                <div class="mobile-card-header mobile-sub-header">
-                  <img v-if="u.avatar" :src="u.avatar" class="mobile-sub-avatar" />
-                  {{ u.userName || '-' }}
-                </div>
-                <div class="mobile-card-ops">
+                </template>
+              </SEntityList>
+              <SEntityList
+                v-else
+                :items="userMap[c.id] || []"
+                row-key="id"
+                variant="sub"
+                :empty-text="t('channels.no_users')"
+              >
+                <template #title="{ item: u }">
+                  <img v-if="u.avatar" :src="u.avatar" class="session-avatar" />
+                  <span class="session-item-name">{{ u.userName || '-' }}</span>
+                  <span class="session-meta-id">{{ u.userId }}</span>
+                </template>
+                <template #ops="{ item: u }">
                   <SButton type="outline" size="sm" @click="viewUser = u">{{ t('common.view') }}</SButton>
-                  <SButton type="danger" size="sm" @click="removeUser(id as string, u)">{{ t('common.delete') }}</SButton>
-                </div>
-              </div>
-              <div v-if="!(userMap[id as string] || []).length" class="mobile-card-empty">-</div>
-            </div>
+                  <SButton type="danger" size="sm" @click="removeUser(c.id, u)">{{ t('common.delete') }}</SButton>
+                </template>
+              </SEntityList>
+            </template>
           </div>
-        </div>
-        <div v-if="Object.keys(channels).length === 0" class="mobile-card-empty">{{ t('channels.empty') }}</div>
-      </div>
+        </template>
+      </SEntityList>
     </SPageContent>
 
     <!-- Channel add/edit drawer (slide-in panel, not a centered modal) -->
@@ -1145,76 +1055,21 @@ async function refresh() {
   flex-shrink: 0;
 }
 
-/* Detail tab bar (sub-tabs inside expanded card) */
-.detail-tab-bar {
-  display: flex;
-  border-bottom: 1px solid var(--sui-border);
-  background: var(--sui-bg-subtle);
-  padding: 0 20px;
-}
-.detail-tab-btn {
-  padding: 9px 14px;
-  border: none;
-  background: none;
-  cursor: pointer;
-  font-size: var(--sui-fs-sm);
-  font-weight: 500;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  transition: color .15s;
-  color: var(--sui-fg-disabled);
-  font-family: inherit;
-}
-.detail-tab-btn:hover { color: var(--sui-fg); }
-.detail-tab-btn.active { color: var(--sui-fg); border-bottom-color: var(--sui-fg); }
-.detail-tab-content {
-  padding: var(--sui-sp-4) 20px;
+/* Channel detail body — wraps tab content inside the expanded panel */
+.channel-detail-body {
+  padding: var(--sui-sp-4) var(--sui-sp-5);
   background: var(--sui-bg-subtle);
   max-height: 400px;
   overflow: auto;
 }
 .detail-empty {
   text-align: center;
-  padding: 24px;
+  padding: var(--sui-sp-6);
   color: var(--sui-fg-disabled);
   font-size: var(--sui-fs-md);
 }
 
-/* Channel cards */
-.channel-cards {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sui-sp-4);
-}
-.channel-card {
-  border: 1px solid var(--sui-border);
-  border-radius: var(--sui-radius-lg);
-  background: var(--sui-bg);
-  overflow: hidden;
-  transition: box-shadow 0.15s;
-}
-.channel-card:hover { box-shadow: var(--sui-shadow-sm); }
-.channel-card.expanded { border-color: var(--sui-border-strong); }
-.channel-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--sui-sp-4) var(--sui-sp-5);
-  cursor: pointer;
-  gap: var(--sui-sp-4);
-}
-.channel-card-header:hover { background: var(--sui-bg-subtle); }
-.channel-card-left {
-  display: flex;
-  align-items: center;
-  gap: var(--sui-sp-3);
-  min-width: 0;
-}
-.channel-expand-icon {
-  color: var(--sui-fg-muted);
-  font-size: 10px;
-  flex-shrink: 0;
-}
+/* Slot content reused inside SEntityList title/aside/meta */
 .channel-card-name {
   font-size: var(--sui-fs-lg);
   font-weight: 600;
@@ -1232,50 +1087,10 @@ async function refresh() {
   white-space: nowrap;
   flex-shrink: 0;
 }
-.channel-card-right {
-  display: flex;
-  align-items: center;
-  gap: var(--sui-sp-3);
-  flex-shrink: 0;
-}
 .channel-card-agent {
   font-size: var(--sui-fs-sm);
   color: var(--sui-fg-muted);
   margin-right: 4px;
-}
-.channel-card-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px var(--sui-sp-3);
-  padding: 0 var(--sui-sp-5) var(--sui-sp-4) 38px;
-  font-size: var(--sui-fs-xs);
-}
-.channel-card-detail {
-  border-top: 1px solid var(--sui-border);
-}
-
-/* Session list (inside expanded card) */
-.session-list {
-  display: flex;
-  flex-direction: column;
-}
-.session-item {
-  padding: var(--sui-sp-3) 0;
-  border-bottom: 1px solid var(--sui-border);
-}
-.session-item:last-child { border-bottom: none; }
-.session-item-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sui-sp-3);
-}
-.session-item-left {
-  display: flex;
-  align-items: center;
-  gap: var(--sui-sp-3);
-  min-width: 0;
 }
 .session-item-name {
   font-size: var(--sui-fs-md);
@@ -1297,15 +1112,6 @@ async function refresh() {
   color: var(--sui-fg-disabled);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-}
-.session-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px var(--sui-sp-3);
-  font-size: var(--sui-fs-xs);
-  margin-top: var(--sui-sp-2);
-  padding-left: 36px;
 }
 .session-meta-id {
   font-family: var(--sui-font-mono);
@@ -1332,36 +1138,10 @@ async function refresh() {
 html[data-theme="dark"] .session-meta-chip.green { background: #14532d; color: #86efac; }
 html[data-theme="dark"] .session-meta-chip.orange { background: #431407; color: #fdba74; }
 
-/* Mobile detail */
-.mobile-card-header-clickable { display: flex; justify-content: space-between; align-items: center; gap: var(--sui-sp-2); cursor: pointer; }
-.mobile-card-title { display: flex; align-items: center; gap: var(--sui-sp-2); min-width: 0; flex: 1; flex-wrap: wrap; }
-.mobile-card-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mobile-expand-icon { font-size: 10px; flex-shrink: 0; }
-.mobile-detail { margin-top: var(--sui-sp-3); }
-.mobile-sub-list { margin-top: var(--sui-sp-2); }
-.mobile-sub-card { border-color: var(--sui-border); }
-.mobile-sub-header {
-  font-size: var(--sui-fs-md);
-  display: flex;
-  align-items: center;
-  gap: 4px;
+@media (max-width: 768px) {
+  .channel-detail-body { padding: var(--sui-sp-3) var(--sui-sp-4); }
+  .session-meta-chip { max-width: 100%; }
 }
-.mobile-sub-avatar {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  object-fit: cover;
-}
-.mobile-tokens { font-family: var(--sui-font-mono); font-variant-numeric: tabular-nums; }
-.mobile-meta-chips {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px var(--sui-sp-2);
-  font-size: var(--sui-fs-xs);
-  margin-bottom: var(--sui-sp-3);
-}
-.mobile-meta-chips .session-meta-chip { max-width: 100%; }
 
 /* Drawer (slide-in panel for channel add/edit) */
 .drawer-overlay {
