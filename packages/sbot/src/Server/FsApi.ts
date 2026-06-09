@@ -4,6 +4,7 @@ import os from 'os';
 
 type FsTreeNode = { name: string; type: 'file' | 'dir'; path: string; size?: number; children?: FsTreeNode[] };
 type ReadFileOptions = { offset?: number; limit?: number; chunk?: boolean };
+const fsp = fs.promises;
 
 const MAX_FILE_READ_SIZE = 10 * 1024 * 1024;
 const MAX_IMAGE_READ_SIZE = 32 * 1024 * 1024;
@@ -45,17 +46,27 @@ function requireAbsPath(p: string | undefined | null): string {
     return abs;
 }
 
+async function statOrNull(p: string): Promise<fs.Stats | null> {
+    try {
+        return await fsp.stat(p);
+    } catch (e: any) {
+        if (e?.code === 'ENOENT' || e?.code === 'ENOTDIR' || e?.code === 'EACCES' || e?.code === 'EPERM') return null;
+        throw e;
+    }
+}
+
 export class FsApi {
-    listDir(absPath: string | undefined) {
+    async listDir(absPath: string | undefined) {
         const target = requireAbsPath(absPath);
-        if (!fs.existsSync(target) || !fs.statSync(target).isDirectory()) {
+        const stat = await statOrNull(target);
+        if (!stat?.isDirectory()) {
             throwNotFound(`Directory not found: ${target}`);
         }
         const up = path.dirname(target);
         const parent: string | null = up === target ? null : up;
 
         let entries: fs.Dirent[] = [];
-        try { entries = fs.readdirSync(target, { withFileTypes: true }); } catch { /* permission errors */ }
+        try { entries = await fsp.readdir(target, { withFileTypes: true }); } catch { /* permission errors */ }
 
         const items = entries
             .filter(e => e.isDirectory())
@@ -65,15 +76,16 @@ export class FsApi {
         return { path: target, parent, items };
     }
 
-    listTree(absPath: string | undefined, recursive = false) {
+    async listTree(absPath: string | undefined, recursive = false) {
         const target = requireAbsPath(absPath);
-        if (!fs.existsSync(target) || !fs.statSync(target).isDirectory()) {
+        const stat = await statOrNull(target);
+        if (!stat?.isDirectory()) {
             throwNotFound(`Directory not found: ${target}`);
         }
-        return { path: target, items: this.listTreeFromDir(target, recursive) };
+        return { path: target, items: await this.listTreeFromDir(target, recursive) };
     }
 
-    readFile(absPath: string | undefined, opts: ReadFileOptions = {}) {
+    async readFile(absPath: string | undefined, opts: ReadFileOptions = {}) {
         const target = requireAbsPath(absPath);
         if (opts.chunk || opts.offset != null || opts.limit != null) {
             return this.readFileChunk(target, opts);
@@ -81,33 +93,35 @@ export class FsApi {
         return this.readFilePreview(target);
     }
 
-    createFile(absPath: string | undefined, content = '') {
+    async createFile(absPath: string | undefined, content = '') {
         const target = requireAbsPath(absPath);
-        if (fs.existsSync(target)) throwBad(`Already exists: ${target}`);
-        fs.mkdirSync(path.dirname(target), { recursive: true });
-        fs.writeFileSync(target, content, 'utf-8');
-        return { path: target, size: fs.statSync(target).size };
+        if (await statOrNull(target)) throwBad(`Already exists: ${target}`);
+        await fsp.mkdir(path.dirname(target), { recursive: true });
+        await fsp.writeFile(target, content, 'utf-8');
+        return { path: target, size: (await fsp.stat(target)).size };
     }
 
-    mkdir(absPath: string | undefined) {
+    async mkdir(absPath: string | undefined) {
         const target = requireAbsPath(absPath);
-        if (fs.existsSync(target)) throwBad(`Already exists: ${target}`);
-        fs.mkdirSync(target, { recursive: true });
+        if (await statOrNull(target)) throwBad(`Already exists: ${target}`);
+        await fsp.mkdir(target, { recursive: true });
         return { path: target };
     }
 
-    deleteEntry(absPath: string | undefined) {
+    async deleteEntry(absPath: string | undefined) {
         const target = requireAbsPath(absPath);
         const parsed = path.parse(target);
         if (parsed.root === target) throwBad(`Refusing to delete filesystem root: ${target}`);
-        if (!fs.existsSync(target)) throwNotFound(`Path not found: ${target}`);
-        fs.rmSync(target, { recursive: true, force: true });
+        const stat = await statOrNull(target);
+        if (!stat) throwNotFound(`Path not found: ${target}`);
+        await fsp.rm(target, { recursive: true, force: true });
         return { path: target };
     }
 
-    uploadFile(parentDir: string | undefined, filename: string | undefined, content: Buffer) {
+    async uploadFile(parentDir: string | undefined, filename: string | undefined, sourcePath: string) {
         const parent = requireAbsPath(parentDir);
-        if (!fs.existsSync(parent) || !fs.statSync(parent).isDirectory()) {
+        const parentStat = await statOrNull(parent);
+        if (!parentStat?.isDirectory()) {
             throwNotFound(`Directory not found: ${parent}`);
         }
         const name = (filename ?? '').trim();
@@ -116,9 +130,18 @@ export class FsApi {
             throwBad(`Invalid filename: ${filename}`);
         }
         const target = path.join(parent, name);
-        if (fs.existsSync(target)) throwBad(`Already exists: ${target}`);
-        fs.writeFileSync(target, content);
-        return { path: target, size: content.length };
+        if (await statOrNull(target)) throwBad(`Already exists: ${target}`);
+        try {
+            await fsp.rename(sourcePath, target);
+        } catch (e: any) {
+            if (e?.code === 'EXDEV') {
+                await fsp.copyFile(sourcePath, target);
+                await fsp.unlink(sourcePath);
+            } else {
+                throw e;
+            }
+        }
+        return { path: target, size: (await fsp.stat(target)).size };
     }
 
     resolve(absPath: string | undefined): { path: string } {
@@ -162,39 +185,41 @@ export class FsApi {
         return drives;
     }
 
-    private listTreeFromDir(dir: string, recursive = false): FsTreeNode[] {
-        if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return [];
+    private async listTreeFromDir(dir: string, recursive = false): Promise<FsTreeNode[]> {
+        const stat = await statOrNull(dir);
+        if (!stat?.isDirectory()) return [];
         let entries: fs.Dirent[] = [];
-        try { entries = fs.readdirSync(dir, { withFileTypes: true }).sort(dirFirstByName); } catch { return []; }
+        try { entries = (await fsp.readdir(dir, { withFileTypes: true })).sort(dirFirstByName); } catch { return []; }
 
         const result: FsTreeNode[] = [];
         for (const entry of entries) {
             const full = path.join(dir, entry.name);
             if (entry.isDirectory()) {
                 const node: FsTreeNode = { name: entry.name, type: 'dir', path: full };
-                if (recursive) node.children = this.listTreeFromDir(full, true);
+                if (recursive) node.children = await this.listTreeFromDir(full, true);
                 result.push(node);
             } else if (entry.isFile()) {
                 let size = 0;
-                try { size = fs.statSync(full).size; } catch { /* ignore */ }
+                try { size = (await fsp.stat(full)).size; } catch { /* ignore */ }
                 result.push({ name: entry.name, type: 'file', path: full, size });
             }
         }
         return result;
     }
 
-    private readFileChunk(absPath: string, opts: ReadFileOptions = {}) {
-        if (!fs.existsSync(absPath) || !fs.statSync(absPath).isFile()) throwNotFound(`File not found: ${absPath}`);
-        const size = fs.statSync(absPath).size;
+    private async readFileChunk(absPath: string, opts: ReadFileOptions = {}) {
+        const stat = await statOrNull(absPath);
+        if (!stat?.isFile()) throwNotFound(`File not found: ${absPath}`);
+        const size = stat.size;
         const offset = Math.max(0, Math.min(opts.offset ?? 0, size));
         const limit = opts.limit && opts.limit > 0 ? Math.min(opts.limit, FILE_VIEW_MAX_CHUNK) : FILE_VIEW_DEFAULT_CHUNK;
         const readLen = Math.min(limit, size - offset);
 
         const buf = Buffer.alloc(readLen);
         if (readLen > 0) {
-            const fd = fs.openSync(absPath, 'r');
-            try { fs.readSync(fd, buf, 0, readLen, offset); }
-            finally { fs.closeSync(fd); }
+            const file = await fsp.open(absPath, 'r');
+            try { await file.read(buf, 0, readLen, offset); }
+            finally { await file.close(); }
         }
 
         if (offset === 0) {
@@ -214,9 +239,9 @@ export class FsApi {
         };
     }
 
-    private readFilePreview(absPath: string) {
-        if (!fs.existsSync(absPath) || !fs.statSync(absPath).isFile()) throwNotFound(`File not found: ${absPath}`);
-        const stat = fs.statSync(absPath);
+    private async readFilePreview(absPath: string) {
+        const stat = await statOrNull(absPath);
+        if (!stat?.isFile()) throwNotFound(`File not found: ${absPath}`);
         const mtime = stat.mtimeMs;
         const imageMimeType = IMAGE_MIME_BY_EXT[path.extname(absPath).toLowerCase()];
 
@@ -224,7 +249,7 @@ export class FsApi {
             if (stat.size > MAX_IMAGE_READ_SIZE) {
                 return { path: absPath, size: stat.size, mtime, tooLarge: true, contentType: 'image', mimeType: imageMimeType, content: '' };
             }
-            const buf = fs.readFileSync(absPath);
+            const buf = await fsp.readFile(absPath);
             return {
                 path: absPath,
                 size: stat.size,
@@ -240,17 +265,17 @@ export class FsApi {
         if (stat.size > MAX_FILE_READ_SIZE) {
             return { path: absPath, size: stat.size, mtime, tooLarge: true, contentType: 'text', mimeType: 'text/plain', content: '' };
         }
-        const buf = fs.readFileSync(absPath);
+        const buf = await fsp.readFile(absPath);
         if (buf.includes(0)) {
             return { path: absPath, size: stat.size, mtime, tooLarge: false, contentType: 'binary', mimeType: 'application/octet-stream', content: '' };
         }
         return { path: absPath, size: stat.size, mtime, tooLarge: false, contentType: 'text', mimeType: 'text/plain', content: buf.toString('utf-8') };
     }
 
-    writeFile(absPath: string | undefined, content: string, opts: { expectedMtime?: number } = {}) {
+    async writeFile(absPath: string | undefined, content: string, opts: { expectedMtime?: number } = {}) {
         const target = requireAbsPath(absPath);
-        if (!fs.existsSync(target)) throwNotFound(`File not found: ${target}`);
-        const stat = fs.statSync(target);
+        const stat = await statOrNull(target);
+        if (!stat) throwNotFound(`File not found: ${target}`);
         if (!stat.isFile()) throwBad(`Not a file: ${target}`);
 
         if (opts.expectedMtime != null && Math.abs(stat.mtimeMs - opts.expectedMtime) > 1) {
@@ -259,7 +284,7 @@ export class FsApi {
             throw e;
         }
 
-        const original = fs.readFileSync(target);
+        const original = await fsp.readFile(target);
         let normalized = content;
         if (!original.includes(0)) {
             const text = original.toString('utf-8');
@@ -272,14 +297,14 @@ export class FsApi {
 
         const tmp = `${target}.${process.pid}.${Date.now()}.tmp`;
         try {
-            fs.writeFileSync(tmp, normalized, 'utf-8');
-            fs.renameSync(tmp, target);
+            await fsp.writeFile(tmp, normalized, 'utf-8');
+            await fsp.rename(tmp, target);
         } catch (e) {
-            try { fs.unlinkSync(tmp); } catch { /* ignore */ }
+            try { await fsp.unlink(tmp); } catch { /* ignore */ }
             throw e;
         }
 
-        const newStat = fs.statSync(target);
+        const newStat = await fsp.stat(target);
         return { path: target, size: newStat.size, mtime: newStat.mtimeMs };
     }
 }

@@ -1,5 +1,6 @@
 import express from 'express';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import multer from 'multer';
 import { FsApi } from '../FsApi';
@@ -12,7 +13,7 @@ export class FilesystemRoutes {
 
     register(app: express.Application, _ctx: RouteContext): void {
         const fsApi = this.fsApi;
-        const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
+        const upload = multer({ dest: os.tmpdir() });
 
         app.get('/api/fs/list', api(req => fsApi.listDir(req.query.path as string | undefined)));
 
@@ -24,11 +25,15 @@ export class FilesystemRoutes {
 
         app.delete('/api/fs/entry', api(req => fsApi.deleteEntry(req.query.path as string | undefined)));
 
-        app.post('/api/fs/upload', upload.single('file'), api(req => {
+        app.post('/api/fs/upload', upload.single('file'), api(async req => {
             const dir = (req.body?.dir ?? req.query.dir) as string | undefined;
-            const file = (req as unknown as { file?: { originalname: string; buffer: Buffer } }).file;
+            const file = (req as unknown as { file?: { originalname: string; path: string } }).file;
             if (!file) throwBad('file is required');
-            return fsApi.uploadFile(dir, file.originalname, file.buffer);
+            try {
+                return await fsApi.uploadFile(dir, file.originalname, file.path);
+            } finally {
+                try { await fs.promises.unlink(file.path); } catch {}
+            }
         }));
 
         app.post('/api/fs/entry', api(req => {
@@ -56,11 +61,12 @@ export class FilesystemRoutes {
         }));
 
         // 资源管理器：直接下载文件原始内容
-        app.get('/api/fs/entry/raw', (req, res) => {
+        app.get('/api/fs/entry/raw', async (req, res) => {
             try {
                 const filePath = req.query.path as string | undefined;
                 const { path: target } = fsApi.resolve(filePath);
-                if (!fs.existsSync(target) || !fs.statSync(target).isFile()) {
+                const stat = await fs.promises.stat(target).catch(() => null);
+                if (!stat?.isFile()) {
                     res.status(404).json({ ok: false, message: `File not found: ${target}` });
                     return;
                 }

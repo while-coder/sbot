@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue'
-import { STree, STreeNode, SIconButton } from 'sbot-ui'
+import { STree, STreeNode, SIconButton, SModal, SInput, SButton, useConfirm } from 'sbot-ui'
 import type { IChatTransport } from '../transport'
 import type { ChatLabels, FsTreeItem } from '../types'
 import type { ExplorerFilesViewState } from '../composables/useExplorerViewState'
@@ -32,6 +32,7 @@ const emit = defineEmits<{
 }>()
 
 const L = computed(() => resolveLabels(props.labels))
+const { confirm } = useConfirm()
 
 type DirState = {
   loaded: boolean
@@ -55,6 +56,11 @@ const errMsg = ref('')
 const fileInputEl = ref<HTMLInputElement | null>(null)
 const uploadTargetDir = ref('')
 const busy = ref(false)
+
+const newFolderVisible = ref(false)
+const newFolderName = ref('')
+const newFolderParentDir = ref('')
+const newFolderInputEl = ref<InstanceType<typeof SInput> | null>(null)
 
 const editing = ref(false)
 const draftContent = ref('')
@@ -116,23 +122,53 @@ function operationFailed(e: any): void {
   errMsg.value = tpl(L.value.explorerOperationFailed, { message: e?.message ?? String(e) })
 }
 
-async function handleNewFolder(parentDir: string): Promise<void> {
+function handleNewFolder(parentDir: string): void {
   if (!parentDir || busy.value) return
-  const name = window.prompt(L.value.explorerNewFolderPlaceholder)
-  if (!name || !name.trim()) return
+  newFolderParentDir.value = parentDir
+  newFolderName.value = ''
+  newFolderVisible.value = true
+  void Promise.resolve().then(() => {
+    const inst = newFolderInputEl.value as any
+    const node = inst?.$el ?? inst
+    const input = node?.tagName === 'INPUT' ? node : node?.querySelector?.('input')
+    input?.focus?.()
+  })
+}
+
+async function submitNewFolder(): Promise<void> {
+  const parent = newFolderParentDir.value
+  const name = newFolderName.value.trim()
+  if (!parent || !name || busy.value) return
   busy.value = true
   errMsg.value = ''
   try {
-    await props.transport.mkdir(joinPath(parentDir, name.trim()))
-    const parentState = dirStates.value.get(parentDir)
+    await props.transport.mkdir(joinPath(parent, name))
+    const parentState = dirStates.value.get(parent)
     if (parentState && !parentState.expanded) parentState.expanded = true
-    await refreshDir(parentDir)
+    await refreshDir(parent)
     dirStates.value = new Map(dirStates.value)
     emitViewState()
+    closeNewFolderDialog()
   } catch (e: any) {
     operationFailed(e)
   } finally {
     busy.value = false
+  }
+}
+
+function closeNewFolderDialog(): void {
+  newFolderVisible.value = false
+  newFolderName.value = ''
+  newFolderParentDir.value = ''
+}
+
+function onNewFolderKeydown(e: KeyboardEvent): void {
+  if (e.key === 'Enter') {
+    e.preventDefault()
+    void submitNewFolder()
+  } else if (e.key === 'Escape') {
+    e.preventDefault()
+    closeNewFolderDialog()
   }
 }
 
@@ -181,7 +217,13 @@ async function onFilesSelected(e: Event): Promise<void> {
 
 async function handleDelete(item: FsTreeItem): Promise<void> {
   if (busy.value) return
-  if (!window.confirm(tpl(L.value.explorerConfirmDelete, { name: item.name }))) return
+  const ok = await confirm({
+    message: tpl(L.value.explorerConfirmDelete, { name: item.name }),
+    confirmText: L.value.explorerDelete,
+    cancelText: L.value.cancel,
+    danger: true,
+  })
+  if (!ok) return
   busy.value = true
   errMsg.value = ''
   try {
@@ -249,7 +291,7 @@ async function toggleDir(dir: string): Promise<void> {
 
 async function selectFile(item: FsTreeItem): Promise<void> {
   if (selectedPath.value === item.path) return
-  if (!confirmDiscardDirty()) return
+  if (!(await confirmDiscardDirty())) return
   await loadFile(item.path, item.size ?? 0)
 }
 
@@ -289,9 +331,13 @@ function resetEditState(): void {
   saving.value = false
 }
 
-function confirmDiscardDirty(): boolean {
+async function confirmDiscardDirty(): Promise<boolean> {
   if (!isDirty.value) return true
-  return window.confirm(L.value.explorerEditDiscardConfirm)
+  return await confirm({
+    message: L.value.explorerEditDiscardConfirm,
+    cancelText: L.value.cancel,
+    danger: true,
+  })
 }
 
 function startEdit(): void {
@@ -302,9 +348,9 @@ function startEdit(): void {
   errMsg.value = ''
 }
 
-function cancelEdit(): void {
+async function cancelEdit(): Promise<void> {
   if (!editing.value) return
-  if (!confirmDiscardDirty()) return
+  if (!(await confirmDiscardDirty())) return
   resetEditState()
 }
 
@@ -322,7 +368,12 @@ async function saveEdit(): Promise<void> {
     editing.value = false
   } catch (e: any) {
     if (e?.status === 409 || /STALE_MTIME/i.test(e?.message ?? '')) {
-      if (window.confirm(L.value.explorerEditStaleConfirm)) {
+      const reload = await confirm({
+        message: L.value.explorerEditStaleConfirm,
+        cancelText: L.value.cancel,
+        danger: true,
+      })
+      if (reload) {
         const path = selectedPath.value
         resetEditState()
         await loadFile(path, fileSize.value)
@@ -592,7 +643,7 @@ onMounted(() => {
     }"
   >
     <div class="chatui-explorer-tree-wrap" :style="treeStyle">
-      <div v-if="editable && hasRoot" class="chatui-explorer-tree-toolbar">
+      <!-- <div v-if="editable && hasRoot" class="chatui-explorer-tree-toolbar">
         <SIconButton
           variant="outline"
           size="sm"
@@ -607,7 +658,7 @@ onMounted(() => {
           :disabled="busy"
           @click="handleUpload(rootPath)"
         >⤒</SIconButton>
-      </div>
+      </div> -->
       <STree class="chatui-explorer-tree">
         <div v-if="!hasRoot" class="chatui-explorer-empty-tip">{{ L.explorerPickRootHint }}</div>
         <div v-else-if="rootLoading && rootRows.length === 0" class="chatui-explorer-empty-tip">{{ L.loading }}</div>
@@ -742,6 +793,28 @@ onMounted(() => {
       <div v-else class="chatui-explorer-state">{{ L.explorerSelectFile }}</div>
     </div>
     <ImageLightbox ref="imageLightbox" :labels="props.labels" />
+    <SModal
+      :visible="newFolderVisible"
+      :title="L.explorerNewFolder"
+      width="sm"
+      :close-on-overlay="false"
+      @close="closeNewFolderDialog"
+    >
+      <div v-if="newFolderParentDir" class="chatui-explorer-newfolder-parent" :title="newFolderParentDir">
+        {{ newFolderParentDir }}
+      </div>
+      <SInput
+        ref="newFolderInputEl"
+        v-model="newFolderName"
+        :placeholder="L.explorerNewFolderPlaceholder"
+        autofocus
+        @keydown="onNewFolderKeydown"
+      />
+      <template #footer>
+        <SButton type="outline" :disabled="busy" @click="closeNewFolderDialog">{{ L.cancel }}</SButton>
+        <SButton :disabled="busy || !newFolderName.trim()" @click="submitNewFolder">{{ L.create }}</SButton>
+      </template>
+    </SModal>
   </div>
 </template>
 
@@ -978,5 +1051,14 @@ onMounted(() => {
 }
 .chatui-file-explorer--vertical .chatui-explorer-image {
   max-height: calc(100vh - 320px);
+}
+.chatui-explorer-newfolder-parent {
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--chatui-fg-secondary);
+  margin-bottom: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>
