@@ -120,6 +120,14 @@ export const defaultLabels: Required<ChatLabels> = {
   explorerEditDirty: '未保存',
   explorerEditDiscardConfirm: '当前文件有未保存修改，确定要丢弃？',
   explorerEditStaleConfirm: '文件已被外部修改，是否重新加载并丢弃当前编辑？',
+  explorerNewFolder: '新建文件夹',
+  explorerNewSubfolder: '新建子文件夹',
+  explorerNewFolderPlaceholder: '文件夹名称',
+  explorerUpload: '上传文件',
+  explorerUploadHere: '上传到此目录',
+  explorerDelete: '删除',
+  explorerConfirmDelete: '确定删除 "{name}"？该操作不可撤销。',
+  explorerOperationFailed: '操作失败：{message}',
 }
 
 export function resolveLabels(partial?: ChatLabels): Required<ChatLabels> {

@@ -27,6 +27,14 @@ const panelLabels = computed(() => ({
   add: t('common.add'),
   close: t('common.close'),
   refresh: t('common.refresh'),
+  explorerNewFolder: t('explorer.new_folder'),
+  explorerNewSubfolder: t('explorer.new_subfolder'),
+  explorerNewFolderPlaceholder: t('explorer.new_folder_placeholder'),
+  explorerUpload: t('explorer.upload'),
+  explorerUploadHere: t('explorer.upload_here'),
+  explorerDelete: t('explorer.delete'),
+  explorerConfirmDelete: t('explorer.confirm_delete'),
+  explorerOperationFailed: t('explorer.operation_failed'),
 }))
 
 function openPicker() {

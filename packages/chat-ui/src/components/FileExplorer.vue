@@ -52,6 +52,10 @@ const fileTooLarge = ref(false)
 const fileLoading = ref(false)
 const errMsg = ref('')
 
+const fileInputEl = ref<HTMLInputElement | null>(null)
+const uploadTargetDir = ref('')
+const busy = ref(false)
+
 const editing = ref(false)
 const draftContent = ref('')
 const originalContent = ref('')
@@ -85,6 +89,126 @@ function fmtSize(n: number): string {
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
   if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`
   return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`
+}
+
+function joinPath(parent: string, name: string): string {
+  if (!parent) return name
+  const usesBackslash = parent.includes('\\') && !parent.startsWith('/')
+  const sep = usesBackslash ? '\\' : '/'
+  return parent.endsWith('/') || parent.endsWith('\\') ? parent + name : parent + sep + name
+}
+
+function findParentDir(p: string): string {
+  for (const [dir, state] of dirStates.value) {
+    if (state.items.some(it => it.path === p)) return dir
+  }
+  return ''
+}
+
+async function refreshDir(dir: string): Promise<void> {
+  if (!dir) return
+  const state = dirStates.value.get(dir)
+  if (state) state.loaded = false
+  await loadDir(dir)
+}
+
+function operationFailed(e: any): void {
+  errMsg.value = tpl(L.value.explorerOperationFailed, { message: e?.message ?? String(e) })
+}
+
+async function handleNewFolder(parentDir: string): Promise<void> {
+  if (!parentDir || busy.value) return
+  const name = window.prompt(L.value.explorerNewFolderPlaceholder)
+  if (!name || !name.trim()) return
+  busy.value = true
+  errMsg.value = ''
+  try {
+    await props.transport.mkdir(joinPath(parentDir, name.trim()))
+    const parentState = dirStates.value.get(parentDir)
+    if (parentState && !parentState.expanded) parentState.expanded = true
+    await refreshDir(parentDir)
+    dirStates.value = new Map(dirStates.value)
+    emitViewState()
+  } catch (e: any) {
+    operationFailed(e)
+  } finally {
+    busy.value = false
+  }
+}
+
+function handleUpload(parentDir: string): void {
+  if (!parentDir || busy.value) return
+  uploadTargetDir.value = parentDir
+  const input = fileInputEl.value
+  if (!input) return
+  input.value = ''
+  input.click()
+}
+
+async function onFilesSelected(e: Event): Promise<void> {
+  const input = e.target as HTMLInputElement
+  const files = input.files
+  const target = uploadTargetDir.value
+  if (!files || files.length === 0 || !target) {
+    input.value = ''
+    return
+  }
+  busy.value = true
+  errMsg.value = ''
+  try {
+    const failures: string[] = []
+    await Promise.all(Array.from(files).map(async (f) => {
+      try {
+        await props.transport.uploadFile(target, f)
+      } catch (err: any) {
+        failures.push(`${f.name}: ${err?.message ?? String(err)}`)
+      }
+    }))
+    const parentState = dirStates.value.get(target)
+    if (parentState && !parentState.expanded) parentState.expanded = true
+    await refreshDir(target)
+    dirStates.value = new Map(dirStates.value)
+    emitViewState()
+    if (failures.length > 0) {
+      operationFailed({ message: failures.join('\n') })
+    }
+  } finally {
+    input.value = ''
+    uploadTargetDir.value = ''
+    busy.value = false
+  }
+}
+
+async function handleDelete(item: FsTreeItem): Promise<void> {
+  if (busy.value) return
+  if (!window.confirm(tpl(L.value.explorerConfirmDelete, { name: item.name }))) return
+  busy.value = true
+  errMsg.value = ''
+  try {
+    await props.transport.deleteEntry(item.path)
+    const sep = item.path.includes('\\') && !item.path.startsWith('/') ? '\\' : '/'
+    const prefix = item.path.endsWith(sep) ? item.path : item.path + sep
+    if (selectedPath.value === item.path || selectedPath.value.startsWith(prefix)) {
+      selectedPath.value = ''
+      fileContent.value = ''
+      fileDataUrl.value = ''
+      fileContentType.value = 'text'
+      fileMimeType.value = ''
+      fileSize.value = 0
+      fileMtime.value = undefined
+      fileTooLarge.value = false
+      resetEditState()
+    }
+    if (item.type === 'dir') dirStates.value.delete(item.path)
+    const parent = findParentDir(item.path)
+    if (parent) await refreshDir(parent)
+    dirStates.value = new Map(dirStates.value)
+    emitViewState()
+  } catch (e: any) {
+    operationFailed(e)
+  } finally {
+    busy.value = false
+  }
 }
 
 async function loadDir(dir: string): Promise<void> {
@@ -467,27 +591,82 @@ onMounted(() => {
       'chatui-file-explorer--vertical': resizeMode === 'vertical',
     }"
   >
-    <STree class="chatui-explorer-tree" :style="treeStyle">
-      <div v-if="!hasRoot" class="chatui-explorer-empty-tip">{{ L.explorerPickRootHint }}</div>
-      <div v-else-if="rootLoading && rootRows.length === 0" class="chatui-explorer-empty-tip">{{ L.loading }}</div>
-      <div v-else-if="rootRows.length === 0" class="chatui-explorer-empty-tip">{{ L.explorerEmptyDir }}</div>
-      <template v-else>
-        <STreeNode
-          v-for="{ item, depth } in rootRows"
-          :key="item.path"
-          :type="item.type === 'dir' ? 'dir' : 'file'"
-          :level="depth"
-          :selected="selectedPath === item.path"
-          @click="item.type === 'dir' ? toggleDir(item.path) : selectFile(item)"
-        >
-          <template #icon>
-            <span v-if="item.type === 'dir'">{{ dirStates.get(item.path)?.expanded ? '▼' : '▶' }}</span>
-            <span v-else>·</span>
-          </template>
-          {{ item.name }}
-        </STreeNode>
-      </template>
-    </STree>
+    <div class="chatui-explorer-tree-wrap" :style="treeStyle">
+      <div v-if="editable && hasRoot" class="chatui-explorer-tree-toolbar">
+        <SIconButton
+          variant="outline"
+          size="sm"
+          :title="L.explorerNewFolder"
+          :disabled="busy"
+          @click="handleNewFolder(rootPath)"
+        >＋</SIconButton>
+        <SIconButton
+          variant="outline"
+          size="sm"
+          :title="L.explorerUpload"
+          :disabled="busy"
+          @click="handleUpload(rootPath)"
+        >⤒</SIconButton>
+      </div>
+      <STree class="chatui-explorer-tree">
+        <div v-if="!hasRoot" class="chatui-explorer-empty-tip">{{ L.explorerPickRootHint }}</div>
+        <div v-else-if="rootLoading && rootRows.length === 0" class="chatui-explorer-empty-tip">{{ L.loading }}</div>
+        <div v-else-if="rootRows.length === 0" class="chatui-explorer-empty-tip">{{ L.explorerEmptyDir }}</div>
+        <template v-else>
+          <STreeNode
+            v-for="{ item, depth } in rootRows"
+            :key="item.path"
+            :type="item.type === 'dir' ? 'dir' : 'file'"
+            :level="depth"
+            :selected="selectedPath === item.path"
+            @click="item.type === 'dir' ? toggleDir(item.path) : selectFile(item)"
+          >
+            <template #icon>
+              <span v-if="item.type === 'dir'">{{ dirStates.get(item.path)?.expanded ? '▼' : '▶' }}</span>
+              <span v-else>·</span>
+            </template>
+            {{ item.name }}
+            <template v-if="editable" #actions>
+              <SIconButton
+                v-if="item.type === 'dir'"
+                class="s-tree-node__hover-only"
+                size="xs"
+                variant="plain"
+                :title="L.explorerNewSubfolder"
+                :disabled="busy"
+                @click="handleNewFolder(item.path)"
+              >＋</SIconButton>
+              <SIconButton
+                v-if="item.type === 'dir'"
+                class="s-tree-node__hover-only"
+                size="xs"
+                variant="plain"
+                :title="L.explorerUploadHere"
+                :disabled="busy"
+                @click="handleUpload(item.path)"
+              >⤒</SIconButton>
+              <SIconButton
+                class="s-tree-node__hover-only"
+                size="xs"
+                variant="plain"
+                danger
+                :title="L.explorerDelete"
+                :disabled="busy"
+                @click="handleDelete(item)"
+              >×</SIconButton>
+            </template>
+          </STreeNode>
+        </template>
+      </STree>
+      <input
+        v-if="editable"
+        ref="fileInputEl"
+        type="file"
+        multiple
+        class="chatui-explorer-file-input"
+        @change="onFilesSelected"
+      />
+    </div>
 
     <div
       class="chatui-explorer-splitter"
@@ -578,12 +757,32 @@ onMounted(() => {
 .chatui-file-explorer--resizing * {
   user-select: none;
 }
-.chatui-explorer-tree {
+.chatui-explorer-tree-wrap {
   flex: 0 0 auto;
   align-self: stretch;
   min-width: 180px;
   max-width: calc(100% - 240px);
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.chatui-explorer-tree {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.chatui-explorer-tree-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--chatui-border);
+  background: var(--chatui-bg-surface);
+  flex-shrink: 0;
+}
+.chatui-explorer-file-input {
+  display: none;
 }
 .chatui-explorer-splitter {
   width: 8px;
@@ -752,7 +951,7 @@ onMounted(() => {
 }
 
 .chatui-file-explorer--vertical { flex-direction: column; }
-.chatui-file-explorer--vertical .chatui-explorer-tree {
+.chatui-file-explorer--vertical .chatui-explorer-tree-wrap {
   width: 100% !important;
   min-width: 0;
   max-width: none;

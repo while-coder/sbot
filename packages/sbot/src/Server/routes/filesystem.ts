@@ -1,6 +1,7 @@
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
+import multer from 'multer';
 import { FsApi } from '../FsApi';
 import { gitHelper } from '../helpers/git';
 import { api, throwBad, parseRangeQuery, resolveExistingDir, safeRelPath, isPathInside, MAX_FILE_READ_SIZE } from '../utils';
@@ -11,6 +12,7 @@ export class FilesystemRoutes {
 
     register(app: express.Application, _ctx: RouteContext): void {
         const fsApi = this.fsApi;
+        const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
         app.get('/api/fs/list', api(req => fsApi.listDir(req.query.path as string | undefined)));
 
@@ -19,6 +21,15 @@ export class FilesystemRoutes {
         app.get('/api/fs/drives', api(() => fsApi.listDrives()));
 
         app.post('/api/fs/mkdir', api(req => fsApi.mkdir((req.body || {}).path)));
+
+        app.delete('/api/fs/entry', api(req => fsApi.deleteEntry(req.query.path as string | undefined)));
+
+        app.post('/api/fs/upload', upload.single('file'), api(req => {
+            const dir = (req.body?.dir ?? req.query.dir) as string | undefined;
+            const file = (req as unknown as { file?: { originalname: string; buffer: Buffer } }).file;
+            if (!file) throwBad('file is required');
+            return fsApi.uploadFile(dir, file.originalname, file.buffer);
+        }));
 
         app.post('/api/fs/entry', api(req => {
             const { path: filePath, content } = req.body || {};

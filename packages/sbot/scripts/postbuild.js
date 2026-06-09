@@ -111,6 +111,17 @@ while (localQueue.length > 0) {
   }
 }
 
+const isRelease = outputDir === 'dist';
+
+// release 模式：bundledDependencies 必须同时出现在 dependencies 里，
+// 否则 npm pack 会静默跳过这些包，tarball 里就没有 node_modules/<pkg>/
+if (isRelease) {
+  for (const [name, pkgDir] of Object.entries(localPackages)) {
+    const pkgJson = JSON.parse(fs.readFileSync(path.join(pkgDir, 'package.json'), 'utf-8'));
+    allDeps[name] = pkgJson.version || '0.0.1';
+  }
+}
+
 // 按名称排序
 const sortedDeps = {};
 for (const key of Object.keys(allDeps).sort()) {
@@ -125,8 +136,6 @@ const publishBin = {};
 for (const [k, v] of Object.entries(selfPkg.bin || {})) {
   publishBin[k] = toPublishPath(v);
 }
-
-const isRelease = outputDir === 'dist';
 
 const distPkg = {
   name: selfPkg.name,
@@ -145,7 +154,7 @@ const distPkg = {
   ...(isRelease ? { bundledDependencies: Object.keys(localPackages) } : {}),
 };
 fs.writeFileSync(path.join(distDir, 'package.json'), JSON.stringify(distPkg, null, 2));
-console.log(`${outputDir}/package.json: ${Object.keys(sortedDeps).length} external dependencies`);
+console.log(`${outputDir}/package.json: ${Object.keys(sortedDeps).length} dependencies (${Object.keys(localPackages).length} bundled)`);
 
 // release 模式：复制本地包的编译产物到 node_modules/<pkgName>/
 if (isRelease) {

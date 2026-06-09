@@ -199,6 +199,27 @@ export class WebSocketTransport implements IChatTransport {
     return res.data ?? res ?? { path }
   }
 
+  async deleteEntry(path: string): Promise<{ path: string }> {
+    const res = await this.api(`/api/fs/entry?path=${encodeURIComponent(path)}`, 'DELETE')
+    return res.data ?? res ?? { path }
+  }
+
+  async uploadFile(parentDir: string, file: File): Promise<{ path: string; size: number }> {
+    const fd = new FormData()
+    fd.append('dir', parentDir)
+    fd.append('file', file, file.name)
+    const r = await fetch(`${this._baseUrl}/api/fs/upload`, { method: 'POST', body: fd })
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({ message: r.statusText }))
+      const e: any = new Error(err.message || err.error || r.statusText)
+      e.status = r.status
+      throw e
+    }
+    const text = await r.text()
+    const json = text ? JSON.parse(text) : undefined
+    return json?.data ?? json
+  }
+
   async listTree(path: string): Promise<FsTreeResult> {
     const res = await this.api(`/api/fs/entry?type=tree&path=${encodeURIComponent(path)}`)
     return res.data ?? res ?? { path, items: [] }

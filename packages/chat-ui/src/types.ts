@@ -258,6 +258,22 @@ export interface ChatLabels {
   explorerEditDiscardConfirm?: string
   /** Explorer 编辑模式下文件被外部修改时的重载确认文案 */
   explorerEditStaleConfirm?: string
+  /** Explorer 顶部工具栏：新建文件夹按钮 */
+  explorerNewFolder?: string
+  /** Explorer 行级：新建子文件夹按钮 title */
+  explorerNewSubfolder?: string
+  /** Explorer 新建文件夹的输入提示文案（用于 prompt() 标题） */
+  explorerNewFolderPlaceholder?: string
+  /** Explorer 顶部工具栏：上传文件按钮 */
+  explorerUpload?: string
+  /** Explorer 行级：上传到此目录按钮 title */
+  explorerUploadHere?: string
+  /** Explorer 行级：删除按钮 title */
+  explorerDelete?: string
+  /** Explorer 删除前的二次确认文案，模板变量 {name} */
+  explorerConfirmDelete?: string
+  /** Explorer 写操作失败时的统一前缀，模板变量 {message} */
+  explorerOperationFailed?: string
 }
 
 // ── Wiki option ──

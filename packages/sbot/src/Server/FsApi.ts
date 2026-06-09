@@ -96,6 +96,31 @@ export class FsApi {
         return { path: target };
     }
 
+    deleteEntry(absPath: string | undefined) {
+        const target = requireAbsPath(absPath);
+        const parsed = path.parse(target);
+        if (parsed.root === target) throwBad(`Refusing to delete filesystem root: ${target}`);
+        if (!fs.existsSync(target)) throwNotFound(`Path not found: ${target}`);
+        fs.rmSync(target, { recursive: true, force: true });
+        return { path: target };
+    }
+
+    uploadFile(parentDir: string | undefined, filename: string | undefined, content: Buffer) {
+        const parent = requireAbsPath(parentDir);
+        if (!fs.existsSync(parent) || !fs.statSync(parent).isDirectory()) {
+            throwNotFound(`Directory not found: ${parent}`);
+        }
+        const name = (filename ?? '').trim();
+        if (!name) throwBad('filename is required');
+        if (name !== path.basename(name) || name.includes('/') || name.includes('\\') || name === '.' || name === '..') {
+            throwBad(`Invalid filename: ${filename}`);
+        }
+        const target = path.join(parent, name);
+        if (fs.existsSync(target)) throwBad(`Already exists: ${target}`);
+        fs.writeFileSync(target, content);
+        return { path: target, size: content.length };
+    }
+
     resolve(absPath: string | undefined): { path: string } {
         return { path: requireAbsPath(absPath) };
     }
