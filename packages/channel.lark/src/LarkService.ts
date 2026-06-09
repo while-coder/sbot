@@ -257,12 +257,12 @@ export class LarkService implements IChannelService {
         data: { content: this.buildCardJson(elements, header) },
       });
     } catch (error: any) {
-      const responseData = error?.response?.data ? `\nresponse: ${JSON.stringify(error.response.data)}` : '';
+      const responseData = error?.response?.data ? `\nresponse: ${JSON.stringify(error.response.data, null, 2)}` : '';
       this.logger?.error(`Failed to updateCardMessage: ${error.message}${responseData}\n${error.stack}`);
       try {
         await this.larkClient.im.message.patch({
           path: { message_id: messageId },
-          data: { content: this.buildMarkdownContent(`消息更新失败: ${error.message}`, header) },
+          data: { content: this.buildMarkdownContent(`消息更新失败: ${error.message}${responseData}`, header) },
         });
       } catch (fallbackError: any) {
         this.logger?.error(`Failed to patch error card: ${fallbackError.message}`);
