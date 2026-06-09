@@ -270,6 +270,24 @@ export interface ChatLabels {
   explorerUploadHere?: string
   /** Explorer 上传进度文案，模板变量 {current}/{total}/{name} */
   explorerUploadProgress?: string
+  /** Explorer 上传冲突弹窗标题 */
+  explorerUploadConflictTitle?: string
+  /** Explorer 单个上传冲突提示，模板变量 {name} */
+  explorerUploadConflictSingle?: string
+  /** Explorer 多个上传冲突提示，模板变量 {count} */
+  explorerUploadConflictMultiple?: string
+  /** Explorer 上传冲突列表省略提示，模板变量 {count} */
+  explorerUploadConflictMore?: string
+  /** Explorer 上传冲突：覆盖按钮 */
+  explorerUploadOverwrite?: string
+  /** Explorer 上传冲突：跳过按钮 */
+  explorerUploadSkip?: string
+  /** Explorer 上传冲突：取消上传按钮 */
+  explorerUploadCancel?: string
+  /** Explorer 上传完成摘要，模板变量 {uploaded}/{skipped}/{failed} */
+  explorerUploadSummary?: string
+  /** Explorer 上传跳过目录冲突提示，模板变量 {names} */
+  explorerUploadSkippedDirectories?: string
   /** Explorer 行级：删除按钮 title */
   explorerDelete?: string
   /** Explorer 删除前的二次确认文案，模板变量 {name} */

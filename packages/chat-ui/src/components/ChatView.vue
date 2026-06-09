@@ -32,6 +32,8 @@ const props = withDefaults(defineProps<{
 const L = computed(() => resolveLabels(props.labels))
 const { confirm } = useConfirm()
 
+const CHAT_VIEW_STATE_KEY = 'sbot:chatview:state:v1'
+
 // ── Core state ──
 
 const sessions          = ref<SessionItem[]>([])
@@ -60,7 +62,7 @@ const contentEl     = ref<HTMLElement | null>(null)
 const isCompact     = useCompactProvider(rootEl)
 const sidebarOpen   = ref(false)
 const settingsOpen  = ref(false)
-const rightPanelOpen  = ref(false)
+const rightPanelOpen  = ref(loadRightPanelOpenState())
 const rightPanelWidth = ref(420)
 const rightPanelResizing = ref(false)
 const sessionBarWidth = ref(180)
@@ -217,6 +219,10 @@ function selectSession(id: string) {
   if (activeProfileId.value !== id) activeProfileId.value = id
 }
 
+function setSidebarOpen(open: boolean) {
+  sidebarOpen.value = open
+}
+
 function toggleSidebar() {
   sidebarOpen.value = !sidebarOpen.value
   if (sidebarOpen.value) {
@@ -275,8 +281,13 @@ function toggleSettings() {
   if (settingsOpen.value) sidebarOpen.value = false
 }
 
+function setRightPanelOpen(open: boolean, persist = true) {
+  rightPanelOpen.value = open
+  if (persist && !(isCompact.value || props.alwaysCompact)) saveRightPanelOpenState(open)
+}
+
 function toggleRightPanel() {
-  rightPanelOpen.value = !rightPanelOpen.value
+  setRightPanelOpen(!rightPanelOpen.value)
   if (rightPanelOpen.value && (isCompact.value || props.alwaysCompact)) {
     sidebarOpen.value = false
     settingsOpen.value = false
@@ -345,6 +356,10 @@ watch(activeProfileId, async (id) => {
   if (!id) return
   await Promise.all([loadHistory(gen), loadUsage(gen), restoreSessionStatus(gen)])
 })
+
+watch(() => isCompact.value || props.alwaysCompact, (compact) => {
+  rightPanelOpen.value = compact ? false : loadRightPanelOpenState()
+}, { immediate: true })
 
 async function loadHistory(gen = ++loadGeneration) {
   const id = activeProfileId.value
@@ -582,6 +597,27 @@ onBeforeUnmount(() => {
   window.removeEventListener('pointermove', onRightPanelResize)
   window.removeEventListener('pointermove', onSessionBarResize)
 })
+
+function loadRightPanelOpenState(): boolean {
+  if (typeof localStorage === 'undefined') return false
+  try {
+    const raw = localStorage.getItem(CHAT_VIEW_STATE_KEY)
+    if (!raw) return false
+    const parsed = JSON.parse(raw) as { version?: number; rightPanelOpen?: unknown }
+    return parsed.version === 1 && parsed.rightPanelOpen === true
+  } catch {
+    return false
+  }
+}
+
+function saveRightPanelOpenState(open: boolean): void {
+  if (typeof localStorage === 'undefined') return
+  try {
+    localStorage.setItem(CHAT_VIEW_STATE_KEY, JSON.stringify({ version: 1, rightPanelOpen: open }))
+  } catch {
+    // Non-fatal: panel open state is only a convenience preference.
+  }
+}
 </script>
 
 <template>
@@ -624,7 +660,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
       <Transition name="chatui-drawer">
-        <div v-if="sidebarOpen" class="chatui-compact-popover-backdrop" @click="sidebarOpen = false">
+        <div v-if="sidebarOpen" class="chatui-compact-popover-backdrop" @click="setSidebarOpen(false)">
           <div class="chatui-compact-popover chatui-session-popover" @click.stop>
             <div class="chatui-session-popover-search">
               <svg class="chatui-session-popover-search-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
@@ -654,7 +690,7 @@ onBeforeUnmount(() => {
               :labels="labels"
               :show-header="false"
               :empty-message="sessionSearch ? L.sessionNoMatch : undefined"
-              @select="(id: string) => { selectSession(id); sidebarOpen = false }"
+              @select="(id: string) => { selectSession(id); setSidebarOpen(false) }"
               @delete="onDeleteSession"
               @rename="onRenameSession"
               @new-session="createNewSession"
@@ -796,7 +832,7 @@ onBeforeUnmount(() => {
           />
           <div v-if="isCompact || alwaysCompact" class="chatui-right-panel-header">
             <span class="chatui-right-panel-title">{{ L.rightPanelToggle }}</span>
-            <button class="chatui-right-panel-close" :title="L.close" @click="rightPanelOpen = false">×</button>
+            <button class="chatui-right-panel-close" :title="L.close" @click="setRightPanelOpen(false, false)">×</button>
           </div>
           <WorkbenchPanel
             :transport="transport"

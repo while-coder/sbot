@@ -4,6 +4,7 @@ import os from 'os';
 
 type FsTreeNode = { name: string; type: 'file' | 'dir'; path: string; size?: number; children?: FsTreeNode[] };
 type ReadFileOptions = { offset?: number; limit?: number; chunk?: boolean };
+type UploadFileOptions = { overwrite?: boolean };
 const fsp = fs.promises;
 
 const MAX_FILE_READ_SIZE = 10 * 1024 * 1024;
@@ -32,6 +33,12 @@ function throwBad(msg: string): never {
 function throwNotFound(msg: string): never {
     const e: any = new Error(msg);
     e.status = 404;
+    throw e;
+}
+
+function throwConflict(msg: string): never {
+    const e: any = new Error(msg);
+    e.status = 409;
     throw e;
 }
 
@@ -118,7 +125,7 @@ export class FsApi {
         return { path: target };
     }
 
-    async uploadFile(parentDir: string | undefined, filename: string | undefined, sourcePath: string) {
+    async uploadFile(parentDir: string | undefined, filename: string | undefined, sourcePath: string, opts: UploadFileOptions = {}) {
         const parent = requireAbsPath(parentDir);
         const parentStat = await statOrNull(parent);
         if (!parentStat?.isDirectory()) {
@@ -130,7 +137,11 @@ export class FsApi {
             throwBad(`Invalid filename: ${filename}`);
         }
         const target = path.join(parent, name);
-        if (await statOrNull(target)) throwBad(`Already exists: ${target}`);
+        const targetStat = await statOrNull(target);
+        if (targetStat) {
+            if (!targetStat.isFile()) throwBad(`Cannot overwrite non-file entry: ${target}`);
+            if (!opts.overwrite) throwConflict(`Already exists: ${target}`);
+        }
         try {
             await fsp.rename(sourcePath, target);
         } catch (e: any) {

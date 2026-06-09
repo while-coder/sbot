@@ -27,10 +27,12 @@ export class FilesystemRoutes {
 
         app.post('/api/fs/upload', upload.single('file'), api(async req => {
             const dir = (req.body?.dir ?? req.query.dir) as string | undefined;
+            const overwriteValue = req.body?.overwrite ?? req.query.overwrite;
+            const overwrite = overwriteValue === true || overwriteValue === '1' || overwriteValue === 'true';
             const file = (req as unknown as { file?: { originalname: string; path: string } }).file;
             if (!file) throwBad('file is required');
             try {
-                return await fsApi.uploadFile(dir, file.originalname, file.path);
+                return await fsApi.uploadFile(dir, file.originalname, file.path, { overwrite });
             } finally {
                 try { await fs.promises.unlink(file.path); } catch {}
             }

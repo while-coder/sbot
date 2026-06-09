@@ -1,4 +1,4 @@
-import type { IChatTransport, ChatEvent, ContentPart, Attachment, SessionItem, CreateSessionOpts, StoredMessage, UsageInfo, AppSettings, SessionStatus, ToolApprovalPayload, AskAnswerPayload, DirListResult, DriveEntry, QuickDir, FsTreeResult, FsReadResult, GitStatusResult, GitDiffResult, RemoteEntry } from '@sbot/chat-ui'
+import type { IChatTransport, ChatEvent, ContentPart, Attachment, SessionItem, CreateSessionOpts, StoredMessage, UsageInfo, AppSettings, SessionStatus, ToolApprovalPayload, AskAnswerPayload, DirListResult, DriveEntry, QuickDir, FsTreeResult, FsReadResult, GitStatusResult, GitDiffResult, RemoteEntry, FsUploadOptions } from '@sbot/chat-ui'
 
 declare function acquireVsCodeApi(): { postMessage(msg: any): void }
 const vscode = acquireVsCodeApi()
@@ -63,7 +63,7 @@ export class VsCodeTransport implements IChatTransport {
   listDrives(): Promise<DriveEntry[]> { return rpc('listDrives') }
   mkdir(path: string): Promise<{ path: string }> { return rpc('mkdir', path) }
   deleteEntry(path: string): Promise<{ path: string }> { return rpc('deleteEntry', path) }
-  uploadFile(_parentDir: string, _file: File, _onProgress?: (progress: { loaded: number; total: number; percent: number }) => void): Promise<{ path: string; size: number }> {
+  uploadFile(_parentDir: string, _file: File, _options?: FsUploadOptions): Promise<{ path: string; size: number }> {
     return Promise.reject(new Error('uploadFile is not supported in vscode webview'))
   }
   listTree(path: string): Promise<FsTreeResult> { return rpc('listTree', path) }

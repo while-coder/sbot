@@ -83,10 +83,14 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
       placeHolder: 'http://localhost:5500',
     });
     if (!input) return;
+    const local = isLocalBaseUrl(input);
     this.customBaseUrl = input;
+    this.isLocalServer = local;
     this.client?.dispose();
     this.client = undefined;
-    this.ensureClient();
+    const client = this.ensureClient();
+    await client.fetchSettings();
+    await this.globalState.update(ChatViewProvider.LAST_SERVER_KEY, { url: input, local });
   }
 
   private onWebviewMessage = async (msg: any) => {
@@ -112,7 +116,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
         return;
       case 'connectServer': {
         const baseUrl = args[0] as string;
-        const local = args[1] ?? false;
+        const local = Boolean(args[1]) || isLocalBaseUrl(baseUrl);
         this.customBaseUrl = baseUrl;
         this.isLocalServer = local;
         this.client?.dispose();
@@ -255,4 +259,13 @@ function getNonce(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   for (let i = 0; i < 32; i++) text += chars.charAt(Math.floor(Math.random() * chars.length));
   return text;
+}
+
+function isLocalBaseUrl(baseUrl: string): boolean {
+  try {
+    const { hostname } = new URL(baseUrl);
+    return hostname === 'localhost' || hostname === '127.0.0.1';
+  } catch {
+    return false;
+  }
 }

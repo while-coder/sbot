@@ -48,6 +48,16 @@ type UploadState = {
   total: number
   percent: number
 }
+type UploadConflictChoice = 'overwrite' | 'skip' | 'cancel'
+type UploadConflictState = {
+  visible: boolean
+  names: string[]
+  resolve: ((choice: UploadConflictChoice) => void) | null
+}
+type PlannedUpload = {
+  file: File
+  overwrite: boolean
+}
 
 const dirStates = ref<Map<string, DirState>>(new Map())
 const selectedPath = ref('')
@@ -64,6 +74,8 @@ const errMsg = ref('')
 const fileInputEl = ref<HTMLInputElement | null>(null)
 const uploadTargetDir = ref('')
 const uploadState = ref<UploadState | null>(null)
+const uploadNotice = ref('')
+const uploadConflict = ref<UploadConflictState>({ visible: false, names: [], resolve: null })
 const busy = ref(false)
 
 const newFolderVisible = ref(false)
@@ -99,6 +111,13 @@ const treeStyle = computed(() =>
     : { width: `${treeWidth.value}px` },
 )
 const uploadProgressStyle = computed(() => ({ width: `${uploadState.value?.percent ?? 0}%` }))
+const uploadConflictPreviewNames = computed(() => uploadConflict.value.names.slice(0, 8))
+const uploadConflictMoreCount = computed(() => Math.max(0, uploadConflict.value.names.length - uploadConflictPreviewNames.value.length))
+const uploadConflictMessage = computed(() => {
+  const names = uploadConflict.value.names
+  if (names.length === 1) return tpl(L.value.explorerUploadConflictSingle, { name: names[0] })
+  return tpl(L.value.explorerUploadConflictMultiple, { count: names.length })
+})
 
 function fmtSize(n: number): string {
   if (n < 1024) return `${n} B`
@@ -130,6 +149,37 @@ async function refreshDir(dir: string): Promise<void> {
 
 function operationFailed(e: any): void {
   errMsg.value = tpl(L.value.explorerOperationFailed, { message: e?.message ?? String(e) })
+}
+
+async function loadUploadTargetItems(dir: string): Promise<FsTreeItem[]> {
+  const res = await props.transport.listTree(dir)
+  let state = dirStates.value.get(dir)
+  if (!state) {
+    state = { loaded: true, loading: false, expanded: true, items: [] }
+    dirStates.value.set(dir, state)
+  }
+  state.items = res.items ?? []
+  state.loaded = true
+  state.loading = false
+  dirStates.value = new Map(dirStates.value)
+  return state.items
+}
+
+function requestUploadConflictChoice(files: File[]): Promise<UploadConflictChoice> {
+  if (files.length === 0) return Promise.resolve('skip')
+  return new Promise((resolve) => {
+    uploadConflict.value = {
+      visible: true,
+      names: files.map(file => file.name),
+      resolve,
+    }
+  })
+}
+
+function settleUploadConflict(choice: UploadConflictChoice): void {
+  const resolve = uploadConflict.value.resolve
+  uploadConflict.value = { visible: false, names: [], resolve: null }
+  resolve?.(choice)
 }
 
 function handleNewFolder(parentDir: string): void {
@@ -201,31 +251,61 @@ async function onFilesSelected(e: Event): Promise<void> {
   }
   busy.value = true
   errMsg.value = ''
+  uploadNotice.value = ''
   try {
     const failures: string[] = []
-    const fileList = Array.from(files)
-    const totalBytes = fileList.reduce((sum, f) => sum + Math.max(1, f.size), 0)
+    const allFiles = Array.from(files)
+    const targetItems = await loadUploadTargetItems(target)
+    const existingByName = new Map(targetItems.map(item => [item.name, item]))
+    const planned: PlannedUpload[] = []
+    const conflicts: File[] = []
+    const skippedNames: string[] = []
+    const skippedDirectoryNames: string[] = []
+
+    for (const file of allFiles) {
+      const existing = existingByName.get(file.name)
+      if (!existing) {
+        planned.push({ file, overwrite: false })
+      } else if (existing.type === 'dir') {
+        skippedNames.push(file.name)
+        skippedDirectoryNames.push(file.name)
+      } else {
+        conflicts.push(file)
+      }
+    }
+
+    if (conflicts.length > 0) {
+      const choice = await requestUploadConflictChoice(conflicts)
+      if (choice === 'cancel') return
+      if (choice === 'overwrite') {
+        planned.push(...conflicts.map(file => ({ file, overwrite: true })))
+      } else {
+        skippedNames.push(...conflicts.map(file => file.name))
+      }
+    }
+
+    const totalBytes = planned.reduce((sum, item) => sum + Math.max(1, item.file.size), 0)
     let completedBytes = 0
 
-    for (let i = 0; i < fileList.length; i++) {
-      const f = fileList[i]
+    for (let i = 0; i < planned.length; i++) {
+      const { file: f, overwrite } = planned[i]
       const fileBytes = Math.max(1, f.size)
       const updateProgress = (progress?: FsUploadProgress) => {
         const fileLoaded = Math.min(fileBytes, Math.max(0, progress?.loaded ?? 0))
-        const loaded = Math.min(totalBytes, completedBytes + fileLoaded)
+        const loaded = totalBytes > 0 ? Math.min(totalBytes, completedBytes + fileLoaded) : 0
         uploadState.value = {
           fileName: f.name,
           fileIndex: i + 1,
-          fileCount: fileList.length,
+          fileCount: planned.length,
           loaded,
           total: totalBytes,
-          percent: Math.round((loaded / totalBytes) * 100),
+          percent: totalBytes > 0 ? Math.round((loaded / totalBytes) * 100) : 100,
         }
       }
 
       updateProgress()
       try {
-        await props.transport.uploadFile(target, f, updateProgress)
+        await props.transport.uploadFile(target, f, { overwrite, onProgress: updateProgress })
       } catch (err: any) {
         failures.push(`${f.name}: ${err?.message ?? String(err)}`)
       }
@@ -238,9 +318,21 @@ async function onFilesSelected(e: Event): Promise<void> {
     await refreshDir(target)
     dirStates.value = new Map(dirStates.value)
     emitViewState()
+    const uploadedCount = planned.length - failures.length
+    if (uploadedCount > 0 || skippedNames.length > 0 || failures.length > 0) {
+      const lines = [
+        tpl(L.value.explorerUploadSummary, { uploaded: uploadedCount, skipped: skippedNames.length, failed: failures.length }),
+      ]
+      if (skippedDirectoryNames.length > 0) {
+        lines.push(tpl(L.value.explorerUploadSkippedDirectories, { names: skippedDirectoryNames.join(', ') }))
+      }
+      uploadNotice.value = lines.join('\n')
+    }
     if (failures.length > 0) {
       operationFailed({ message: failures.join('\n') })
     }
+  } catch (e: any) {
+    operationFailed(e)
   } finally {
     input.value = ''
     uploadTargetDir.value = ''
@@ -515,6 +607,10 @@ watch(() => props.root, async (providedRoot) => {
   fileMimeType.value = ''
   fileMtime.value = undefined
   errMsg.value = ''
+  uploadTargetDir.value = ''
+  uploadState.value = null
+  uploadNotice.value = ''
+  settleUploadConflict('cancel')
   resetEditState()
   if (providedRoot) {
     await restoreExpandedDirs(props.viewState?.expandedPaths ?? [])
@@ -707,6 +803,7 @@ onMounted(() => {
           <div class="chatui-explorer-upload-fill" :style="uploadProgressStyle" />
         </div>
       </div>
+      <div v-else-if="uploadNotice" class="chatui-explorer-upload-notice">{{ uploadNotice }}</div>
       <STree class="chatui-explorer-tree">
         <div v-if="!hasRoot" class="chatui-explorer-empty-tip">{{ L.explorerPickRootHint }}</div>
         <div v-else-if="rootLoading && rootRows.length === 0" class="chatui-explorer-empty-tip">{{ L.loading }}</div>
@@ -842,6 +939,26 @@ onMounted(() => {
     </div>
     <ImageLightbox ref="imageLightbox" :labels="props.labels" />
     <SModal
+      :visible="uploadConflict.visible"
+      :title="L.explorerUploadConflictTitle"
+      width="sm"
+      :close-on-overlay="false"
+      @close="settleUploadConflict('cancel')"
+    >
+      <div class="chatui-explorer-conflict-message">{{ uploadConflictMessage }}</div>
+      <ul class="chatui-explorer-conflict-list">
+        <li v-for="(name, index) in uploadConflictPreviewNames" :key="`${name}-${index}`" :title="name">{{ name }}</li>
+      </ul>
+      <div v-if="uploadConflictMoreCount > 0" class="chatui-explorer-conflict-more">
+        {{ tpl(L.explorerUploadConflictMore, { count: uploadConflictMoreCount }) }}
+      </div>
+      <template #footer>
+        <SButton type="outline" @click="settleUploadConflict('cancel')">{{ L.explorerUploadCancel }}</SButton>
+        <SButton @click="settleUploadConflict('skip')">{{ L.explorerUploadSkip }}</SButton>
+        <SButton type="danger" @click="settleUploadConflict('overwrite')">{{ L.explorerUploadOverwrite }}</SButton>
+      </template>
+    </SModal>
+    <SModal
       :visible="newFolderVisible"
       :title="L.explorerNewFolder"
       width="sm"
@@ -948,6 +1065,16 @@ onMounted(() => {
   border-radius: inherit;
   background: var(--chatui-accent, #2563eb);
   transition: width 0.12s ease;
+}
+.chatui-explorer-upload-notice {
+  flex-shrink: 0;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--chatui-border);
+  background: var(--chatui-bg-surface);
+  color: var(--chatui-fg-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
 }
 .chatui-explorer-splitter {
   width: 8px;
@@ -1152,5 +1279,38 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.chatui-explorer-conflict-message {
+  color: var(--sui-fg);
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+.chatui-explorer-conflict-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 180px;
+  overflow: auto;
+  border: 1px solid var(--sui-border);
+  border-radius: var(--sui-radius-md);
+  background: var(--sui-bg-soft);
+}
+.chatui-explorer-conflict-list li {
+  padding: 6px 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--sui-fg-secondary);
+  border-bottom: 1px solid var(--sui-border);
+}
+.chatui-explorer-conflict-list li:last-child {
+  border-bottom: none;
+}
+.chatui-explorer-conflict-more {
+  margin-top: 8px;
+  color: var(--sui-fg-secondary);
+  font-size: 12px;
 }
 </style>

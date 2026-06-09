@@ -28,7 +28,7 @@
       "skipFiles": ["<node_internals>/**"]
     },
     {
-      "name": "Run sbot Extension",
+      "name": "Launch sbot Extension",
       "type": "extensionHost",
       "request": "launch",
       "args": [

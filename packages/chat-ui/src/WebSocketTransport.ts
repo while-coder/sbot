@@ -1,4 +1,4 @@
-import type { FsUploadProgress, IChatTransport, ShellOption } from './transport'
+import type { FsUploadOptions, IChatTransport, ShellOption } from './transport'
 import {
   ChatEventType,
   type ChatEvent,
@@ -204,10 +204,11 @@ export class WebSocketTransport implements IChatTransport {
     return res.data ?? res ?? { path }
   }
 
-  async uploadFile(parentDir: string, file: File, onProgress?: (progress: FsUploadProgress) => void): Promise<{ path: string; size: number }> {
+  async uploadFile(parentDir: string, file: File, options: FsUploadOptions = {}): Promise<{ path: string; size: number }> {
     const fd = new FormData()
     fd.append('dir', parentDir)
     fd.append('file', file, file.name)
+    if (options.overwrite) fd.append('overwrite', '1')
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest()
       xhr.open('POST', `${this._baseUrl}/api/fs/upload`)
@@ -216,7 +217,7 @@ export class WebSocketTransport implements IChatTransport {
         const total = evt.lengthComputable ? evt.total : file.size
         const loaded = Math.min(evt.loaded, total || evt.loaded)
         const percent = total > 0 ? Math.round((loaded / total) * 100) : 100
-        onProgress?.({ loaded, total, percent })
+        options.onProgress?.({ loaded, total, percent })
       }
 
       xhr.onload = () => {
@@ -233,7 +234,7 @@ export class WebSocketTransport implements IChatTransport {
           reject(e)
           return
         }
-        onProgress?.({ loaded: file.size, total: file.size, percent: 100 })
+        options.onProgress?.({ loaded: file.size, total: file.size, percent: 100 })
         resolve(json?.data ?? json)
       }
       xhr.onerror = () => reject(new Error('Upload failed'))
