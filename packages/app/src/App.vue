@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ChatView, ServerPicker, WebSocketTransport } from '@sbot/chat-ui'
 import type { RemoteEntry } from '@sbot/chat-ui'
+import { SConfirm, SToast } from 'sbot-ui'
 import ThemeMenu from './ThemeMenu.vue'
 import UpdaterDialog from './UpdaterDialog.vue'
 import '@sbot/chat-ui/themes/variables.css'
@@ -120,6 +121,8 @@ function removeRemote(index: number) {
 <template>
   <div class="desktop-app">
     <UpdaterDialog />
+    <SToast />
+    <SConfirm default-confirm-text="确定" default-cancel-text="取消" />
     <div v-if="phase === 'server-pick'" class="theme-menu-floating">
       <ThemeMenu :mode="themeMode" @update="(m) => themeMode = m" />
     </div>
