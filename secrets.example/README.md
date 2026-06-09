@@ -88,6 +88,7 @@ pnpm --filter @sbot/app exec tauri signer generate \
 | `NPM_TOKEN` | npm 发布 | 见下方 [npm](#npm_token) |
 | `DOCKERHUB_USERNAME` | Docker Hub 用户名 | Docker Hub 账号 |
 | `DOCKERHUB_TOKEN` | Docker Hub PAT | 见下方 [Docker Hub](#dockerhub_token) |
+| `VSCE_PAT` | VSCode 插件市场发布 token | 见下方 [VSCE_PAT](#vsce_pat) |
 
 ### 生成 base64
 
@@ -115,6 +116,28 @@ Docker Hub 登录用户名（不是邮箱），即 `hub.docker.com/u/<username>`
 3. 复制 token（只显示一次）
 
 CI 一律用 PAT，不要用账号密码。
+
+### `VSCE_PAT`
+
+发布 VSCode 插件到 Marketplace 用。Publisher 在 [marketplace.visualstudio.com/manage/publishers](https://marketplace.visualstudio.com/manage/publishers/) 注册，但 token 必须从 Azure DevOps 申请。
+
+**前置条件**：必须有一个 Azure DevOps organization。没有 org 时所有 PAT 入口都会 404。
+
+1. 打开 https://aex.dev.azure.com/me 看自己有没有 org：
+   - **有**：记下 org 名（当前账号的 org 是 `qingfeng346`）
+   - **没有**：页面会引导建一个；名字随便填，Region 选 `Asia Pacific`，建完会跳到 `https://dev.azure.com/<org>`
+2. 打开 PAT 页面：https://dev.azure.com/qingfeng346/_usersSettings/tokens
+   （URL 必须带 org 名，缺了就 404；其他 org 把 `qingfeng346` 替换掉即可）
+3. 点 **+ New Token**，填：
+   - **Name**：随便，比如 `vsce-publish`
+   - **Organization**：下拉选 **All accessible organizations**（关键，否则 vsce 报 401）
+   - **Expiration**：按需，最长 1 年
+   - **Scopes**：选 **Custom defined** → 默认列表里没有 Marketplace，点底部 **Show all scopes** 展开 → 找到 **Marketplace** → 勾 `Manage`
+4. **Create** → 立即复制 token（只显示一次，关掉就没了）
+
+Publisher 必须先在 Marketplace 创建好（当前为 `while`），且 [packages/vscode-extension/package.json](../packages/vscode-extension/package.json) 的 `publisher` 字段要与之匹配。
+
+token 过期后 `Release App` workflow 的 `publish-vscode` job 会失败，重新申请 PAT 并更新 secret 即可。
 
 ---
 

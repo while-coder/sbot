@@ -201,3 +201,62 @@ jobs:
         with:
           name: sbot-android-apk
           path: artifacts/*.apk
+
+  publish-vscode:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build extension
+        run: pnpm run build:vscode
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          PKG_VERSION=$(node -p "require('./packages/vscode-extension/package.json').version")
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG_VERSION="${GITHUB_REF_NAME#app-v}"
+            if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+              echo "::error::Tag version ($TAG_VERSION) does not match packages/vscode-extension/package.json version ($PKG_VERSION) — run pnpm run release:app to keep them in sync"
+              exit 1
+            fi
+          fi
+          echo "version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Package VSIX
+        working-directory: packages/vscode-extension
+        run: npx --yes @vscode/vsce package --no-dependencies --out "sbot-vscode-${{ steps.version.outputs.version }}.vsix"
+
+      - name: Publish to VS Marketplace
+        if: github.event_name == 'push'
+        working-directory: packages/vscode-extension
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: npx --yes @vscode/vsce publish --no-dependencies --packagePath "sbot-vscode-${{ steps.version.outputs.version }}.vsix"
+
+      - name: Attach VSIX to release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: packages/vscode-extension/sbot-vscode-${{ steps.version.outputs.version }}.vsix
+          draft: true
+
+      - name: Upload VSIX as artifact
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbot-vscode-vsix
+          path: packages/vscode-extension/sbot-vscode-${{ steps.version.outputs.version }}.vsix

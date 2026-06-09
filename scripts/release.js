@@ -8,6 +8,7 @@ const TARGETS = {
     tagPrefix: 'app-v',
     tauriConf: 'packages/app/src-tauri/tauri.conf.json',
     pkgJson: 'packages/app/package.json',
+    companionPkgJsons: ['packages/vscode-extension/package.json'],
   },
   helper: {
     tagPrefix: 'helper-v',
@@ -127,7 +128,15 @@ function main() {
     (releaseNotes.zh !== undefined && pkg.releasenoteZh !== releaseNotes.zh)
   );
 
-  const mutate = versionChanged || notesChanged;
+  // companion pkg.json files that should track the main version (e.g. vscode-extension follows app)
+  const companions = (cfg.companionPkgJsons || []).map((rel) => {
+    const p = path.join(root, rel);
+    const json = readJson(p);
+    return { rel, path: p, json, outOfSync: json.version !== nextVersion };
+  });
+  const companionsChanged = companions.some((c) => c.outOfSync);
+
+  const mutate = versionChanged || notesChanged || companionsChanged;
   const tag = `${cfg.tagPrefix}${nextVersion}`;
 
   console.log(`target  : ${target}`);
@@ -165,9 +174,20 @@ function main() {
       filesToAdd.push(cfg.tauriConf);
     }
 
+    for (const c of companions) {
+      if (c.outOfSync) {
+        c.json.version = nextVersion;
+        writeJson(c.path, c.json);
+        filesToAdd.push(c.rel);
+        console.log(`companion: bumped ${c.rel} → ${nextVersion}`);
+      }
+    }
+
     const commitMsg = versionChanged
       ? `chore(${target}): release v${nextVersion}`
-      : `chore(${target}): sync release notes for v${nextVersion}`;
+      : notesChanged
+        ? `chore(${target}): sync release notes for v${nextVersion}`
+        : `chore(${target}): sync companion versions for v${nextVersion}`;
 
     run(`git add ${filesToAdd.map((f) => `"${f}"`).join(' ')}`);
     run(`git commit -m "${commitMsg}"`);
