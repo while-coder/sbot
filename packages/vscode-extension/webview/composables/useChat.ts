@@ -63,7 +63,7 @@ export class VsCodeTransport implements IChatTransport {
   listDrives(): Promise<DriveEntry[]> { return rpc('listDrives') }
   mkdir(path: string): Promise<{ path: string }> { return rpc('mkdir', path) }
   deleteEntry(path: string): Promise<{ path: string }> { return rpc('deleteEntry', path) }
-  uploadFile(_parentDir: string, _file: File): Promise<{ path: string; size: number }> {
+  uploadFile(_parentDir: string, _file: File, _onProgress?: (progress: { loaded: number; total: number; percent: number }) => void): Promise<{ path: string; size: number }> {
     return Promise.reject(new Error('uploadFile is not supported in vscode webview'))
   }
   listTree(path: string): Promise<FsTreeResult> { return rpc('listTree', path) }

@@ -125,6 +125,7 @@ export const defaultLabels: Required<ChatLabels> = {
   explorerNewFolderPlaceholder: '文件夹名称',
   explorerUpload: '上传文件',
   explorerUploadHere: '上传到此目录',
+  explorerUploadProgress: '上传中 {current}/{total}：{name}',
   explorerDelete: '删除',
   explorerConfirmDelete: '确定删除 "{name}"？该操作不可撤销。',
   explorerOperationFailed: '操作失败：{message}',

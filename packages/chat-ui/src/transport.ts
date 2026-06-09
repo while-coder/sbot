@@ -37,7 +37,7 @@ export interface IChatTransport {
   /** 删除文件或目录（目录递归删除） */
   deleteEntry(path: string): Promise<{ path: string }>
   /** 上传单个文件到指定父目录；目标已存在则失败 */
-  uploadFile(parentDir: string, file: File): Promise<{ path: string; size: number }>
+  uploadFile(parentDir: string, file: File, onProgress?: (progress: FsUploadProgress) => void): Promise<{ path: string; size: number }>
 
   listTree(path: string): Promise<FsTreeResult>
   readFile(path: string): Promise<FsReadResult>
@@ -56,6 +56,12 @@ export interface IChatTransport {
   listShells?(): Promise<ShellOption[]>
   /** Open a fresh WebSocket bound to a single pty session. The caller owns its lifecycle. */
   openPty?(): WebSocket
+}
+
+export interface FsUploadProgress {
+  loaded: number
+  total: number
+  percent: number
 }
 
 export interface ShellOption {

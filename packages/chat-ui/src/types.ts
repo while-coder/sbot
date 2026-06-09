@@ -268,6 +268,8 @@ export interface ChatLabels {
   explorerUpload?: string
   /** Explorer 行级：上传到此目录按钮 title */
   explorerUploadHere?: string
+  /** Explorer 上传进度文案，模板变量 {current}/{total}/{name} */
+  explorerUploadProgress?: string
   /** Explorer 行级：删除按钮 title */
   explorerDelete?: string
   /** Explorer 删除前的二次确认文案，模板变量 {name} */

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue'
 import { STree, STreeNode, SIconButton, SModal, SInput, SButton, useConfirm } from 'sbot-ui'
-import type { IChatTransport } from '../transport'
+import type { FsUploadProgress, IChatTransport } from '../transport'
 import type { ChatLabels, FsTreeItem } from '../types'
 import type { ExplorerFilesViewState } from '../composables/useExplorerViewState'
 import { resolveLabels, tpl } from '../labels'
@@ -40,6 +40,14 @@ type DirState = {
   expanded: boolean
   items: FsTreeItem[]
 }
+type UploadState = {
+  fileName: string
+  fileIndex: number
+  fileCount: number
+  loaded: number
+  total: number
+  percent: number
+}
 
 const dirStates = ref<Map<string, DirState>>(new Map())
 const selectedPath = ref('')
@@ -55,6 +63,7 @@ const errMsg = ref('')
 
 const fileInputEl = ref<HTMLInputElement | null>(null)
 const uploadTargetDir = ref('')
+const uploadState = ref<UploadState | null>(null)
 const busy = ref(false)
 
 const newFolderVisible = ref(false)
@@ -89,6 +98,7 @@ const treeStyle = computed(() =>
     ? { height: `${treeHeight.value}px` }
     : { width: `${treeWidth.value}px` },
 )
+const uploadProgressStyle = computed(() => ({ width: `${uploadState.value?.percent ?? 0}%` }))
 
 function fmtSize(n: number): string {
   if (n < 1024) return `${n} B`
@@ -193,13 +203,36 @@ async function onFilesSelected(e: Event): Promise<void> {
   errMsg.value = ''
   try {
     const failures: string[] = []
-    await Promise.all(Array.from(files).map(async (f) => {
+    const fileList = Array.from(files)
+    const totalBytes = fileList.reduce((sum, f) => sum + Math.max(1, f.size), 0)
+    let completedBytes = 0
+
+    for (let i = 0; i < fileList.length; i++) {
+      const f = fileList[i]
+      const fileBytes = Math.max(1, f.size)
+      const updateProgress = (progress?: FsUploadProgress) => {
+        const fileLoaded = Math.min(fileBytes, Math.max(0, progress?.loaded ?? 0))
+        const loaded = Math.min(totalBytes, completedBytes + fileLoaded)
+        uploadState.value = {
+          fileName: f.name,
+          fileIndex: i + 1,
+          fileCount: fileList.length,
+          loaded,
+          total: totalBytes,
+          percent: Math.round((loaded / totalBytes) * 100),
+        }
+      }
+
+      updateProgress()
       try {
-        await props.transport.uploadFile(target, f)
+        await props.transport.uploadFile(target, f, updateProgress)
       } catch (err: any) {
         failures.push(`${f.name}: ${err?.message ?? String(err)}`)
       }
-    }))
+      completedBytes += fileBytes
+      updateProgress({ loaded: fileBytes, total: fileBytes, percent: 100 })
+    }
+
     const parentState = dirStates.value.get(target)
     if (parentState && !parentState.expanded) parentState.expanded = true
     await refreshDir(target)
@@ -211,6 +244,7 @@ async function onFilesSelected(e: Event): Promise<void> {
   } finally {
     input.value = ''
     uploadTargetDir.value = ''
+    uploadState.value = null
     busy.value = false
   }
 }
@@ -659,6 +693,20 @@ onMounted(() => {
           @click="handleUpload(rootPath)"
         >⤒</SIconButton>
       </div> -->
+      <div v-if="uploadState" class="chatui-explorer-upload">
+        <div class="chatui-explorer-upload-row">
+          <span class="chatui-explorer-upload-name" :title="uploadState.fileName">
+            {{ tpl(L.explorerUploadProgress, { current: uploadState.fileIndex, total: uploadState.fileCount, name: uploadState.fileName }) }}
+          </span>
+          <span class="chatui-explorer-upload-percent">{{ uploadState.percent }}%</span>
+        </div>
+        <div
+          class="chatui-explorer-upload-bar"
+          :title="`${fmtSize(uploadState.loaded)} / ${fmtSize(uploadState.total)}`"
+        >
+          <div class="chatui-explorer-upload-fill" :style="uploadProgressStyle" />
+        </div>
+      </div>
       <STree class="chatui-explorer-tree">
         <div v-if="!hasRoot" class="chatui-explorer-empty-tip">{{ L.explorerPickRootHint }}</div>
         <div v-else-if="rootLoading && rootRows.length === 0" class="chatui-explorer-empty-tip">{{ L.loading }}</div>
@@ -856,6 +904,50 @@ onMounted(() => {
 }
 .chatui-explorer-file-input {
   display: none;
+}
+.chatui-explorer-upload {
+  flex-shrink: 0;
+  padding: 7px 10px 8px;
+  border-bottom: 1px solid var(--chatui-border);
+  background: var(--chatui-bg-surface);
+}
+.chatui-explorer-upload-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-bottom: 5px;
+}
+.chatui-explorer-upload-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--chatui-fg-secondary);
+  font-size: 12px;
+}
+.chatui-explorer-upload-percent {
+  flex-shrink: 0;
+  min-width: 38px;
+  text-align: right;
+  color: var(--chatui-fg);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.chatui-explorer-upload-bar {
+  width: 100%;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--chatui-bg-soft);
+}
+.chatui-explorer-upload-fill {
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  background: var(--chatui-accent, #2563eb);
+  transition: width 0.12s ease;
 }
 .chatui-explorer-splitter {
   width: 8px;

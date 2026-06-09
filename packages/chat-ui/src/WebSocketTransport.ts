@@ -1,4 +1,4 @@
-import type { IChatTransport, ShellOption } from './transport'
+import type { FsUploadProgress, IChatTransport, ShellOption } from './transport'
 import {
   ChatEventType,
   type ChatEvent,
@@ -204,20 +204,42 @@ export class WebSocketTransport implements IChatTransport {
     return res.data ?? res ?? { path }
   }
 
-  async uploadFile(parentDir: string, file: File): Promise<{ path: string; size: number }> {
+  async uploadFile(parentDir: string, file: File, onProgress?: (progress: FsUploadProgress) => void): Promise<{ path: string; size: number }> {
     const fd = new FormData()
     fd.append('dir', parentDir)
     fd.append('file', file, file.name)
-    const r = await fetch(`${this._baseUrl}/api/fs/upload`, { method: 'POST', body: fd })
-    if (!r.ok) {
-      const err = await r.json().catch(() => ({ message: r.statusText }))
-      const e: any = new Error(err.message || err.error || r.statusText)
-      e.status = r.status
-      throw e
-    }
-    const text = await r.text()
-    const json = text ? JSON.parse(text) : undefined
-    return json?.data ?? json
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', `${this._baseUrl}/api/fs/upload`)
+
+      xhr.upload.onprogress = (evt) => {
+        const total = evt.lengthComputable ? evt.total : file.size
+        const loaded = Math.min(evt.loaded, total || evt.loaded)
+        const percent = total > 0 ? Math.round((loaded / total) * 100) : 100
+        onProgress?.({ loaded, total, percent })
+      }
+
+      xhr.onload = () => {
+        const text = xhr.responseText || ''
+        let json: any
+        try {
+          json = text ? JSON.parse(text) : undefined
+        } catch {
+          json = undefined
+        }
+        if (xhr.status < 200 || xhr.status >= 300) {
+          const e: any = new Error(json?.message || json?.error || xhr.statusText)
+          e.status = xhr.status
+          reject(e)
+          return
+        }
+        onProgress?.({ loaded: file.size, total: file.size, percent: 100 })
+        resolve(json?.data ?? json)
+      }
+      xhr.onerror = () => reject(new Error('Upload failed'))
+      xhr.onabort = () => reject(new Error('Upload aborted'))
+      xhr.send(fd)
+    })
   }
 
   async listTree(path: string): Promise<FsTreeResult> {
