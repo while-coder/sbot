@@ -29,7 +29,7 @@ android {
     compileSdk = 36
     namespace = "com.sbot.app"
     defaultConfig {
-        manifestPlaceholders["usesCleartextTraffic"] = "false"
+        manifestPlaceholders["usesCleartextTraffic"] = "true"
         applicationId = "com.sbot.app"
         minSdk = 24
         targetSdk = 36

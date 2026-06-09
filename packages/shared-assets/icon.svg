@@ -1,22 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-  <!-- Antenna -->
-  <line x1="12" y1="2" x2="12" y2="5"/>
-  <circle cx="12" cy="2" r="1" fill="currentColor" stroke="none"/>
-
-  <!-- Head -->
-  <rect x="4" y="5" width="16" height="12" rx="3"/>
-
-  <!-- Ears -->
-  <rect x="1" y="9" width="2.5" height="4" rx="1.25"/>
-  <rect x="20.5" y="9" width="2.5" height="4" rx="1.25"/>
-
-  <!-- Eyes -->
-  <rect x="7.5" y="9" width="3" height="2.5" rx="0.75" fill="currentColor" stroke="none"/>
-  <rect x="13.5" y="9" width="3" height="2.5" rx="0.75" fill="currentColor" stroke="none"/>
-
-  <!-- Mouth S-shape -->
-  <path d="M9.5 13.5 Q9.5 12.5 10.5 12.5 L13.5 12.5 Q14.5 12.5 14.5 13.5 Q14.5 14.5 13.5 14.5 L10.5 14.5 Q9.5 14.5 9.5 15.5" fill="none"/>
-
-  <!-- Body hint -->
-  <path d="M7 17 L7 20 Q7 21 8 21 L16 21 Q17 21 17 20 L17 17" fill="none"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path fill="#F2F2F2" d="M10.9 3.9a1.1 1.1 0 1 1 2.2 0V6h-2.2V3.9Z"/>
+  <circle cx="12" cy="2.6" r="1.4" fill="#F2F2F2"/>
+  <path fill="#F2F2F2" d="M1.6 10.1c0-.8.6-1.4 1.4-1.4h1.2v6.6H3c-.8 0-1.4-.6-1.4-1.4v-3.8ZM19.8 8.7H21c.8 0 1.4.6 1.4 1.4v3.8c0 .8-.6 1.4-1.4 1.4h-1.2V8.7Z"/>
+  <path fill="#F2F2F2" fill-rule="evenodd" d="M5.9 6.4h12.2c1.5 0 2.7 1.2 2.7 2.7v6.1c0 1.5-1.2 2.7-2.7 2.7H5.9c-1.5 0-2.7-1.2-2.7-2.7V9.1c0-1.5 1.2-2.7 2.7-2.7Zm1.8 4c-.5 0-.9.4-.9.9v1.2c0 .5.4.9.9.9h2.5c.5 0 .9-.4.9-.9v-1.2c0-.5-.4-.9-.9-.9H7.7Zm6 0c-.5 0-.9.4-.9.9v1.2c0 .5.4.9.9.9h2.5c.5 0 .9-.4.9-.9v-1.2c0-.5-.4-.9-.9-.9h-2.5Zm-4.2 4.5a.7.7 0 0 0 0 1.4h5a.7.7 0 0 0 0-1.4h-5Z" clip-rule="evenodd"/>
+  <path fill="#F2F2F2" d="M7.1 18.6h9.8v1.3c0 1.2-1 2.1-2.1 2.1H9.2c-1.2 0-2.1-1-2.1-2.1v-1.3Z"/>
 </svg>
