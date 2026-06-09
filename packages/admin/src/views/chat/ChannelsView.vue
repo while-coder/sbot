@@ -48,7 +48,7 @@ interface ChannelSessionRow {
   streamVerbose: boolean | null
   autoApproveAllTools: boolean | null
   approvalTimeout: number | null
-  approvalTimeoutValue: number | null
+  approvalTimeoutValue: ApprovalTimeoutValue | null
   askTimeout: number | null
   askTimeoutMessage: string | null
   intentModel: string | null
@@ -354,6 +354,8 @@ async function saveSession() {
     // 配置字段写到 profile（无变化则跳过）
     if (profileChanged) {
       await apiFetch(`/api/session-profiles/${p.id}`, 'PUT', profilePayload)
+      // 同步内存行，避免列表保留旧值
+      Object.assign(s, profilePayload)
     }
     s.sessionName = sessionForm.value.name.trim()
     show(t('common.saved'))
@@ -717,13 +719,17 @@ async function refresh() {
                       </div>
                       <div class="session-meta">
                         <span class="session-meta-id">{{ s.sessionId }}</span>
+                        <span v-if="s.saver" class="session-meta-chip">{{ t('common.storage') }}: {{ saverOptions.find(o => o.id === s.saver)?.label || s.saver }}</span>
                         <span v-if="Array.isArray(s.notes) && s.notes.length" class="session-meta-chip">{{ t('common.note') }}: {{ s.notes.map(nid => noteOptions.find(n => n.id === nid)?.label || nid).join(', ') }}</span>
+                        <span v-if="Array.isArray(s.wikis) && s.wikis.length" class="session-meta-chip">{{ t('common.wiki') }}: {{ s.wikis.map(wid => wikiOptions.find(w => w.id === wid)?.label || wid).join(', ') }}</span>
                         <span v-if="s.useChannelNotes" class="session-meta-chip green">{{ t('channels.use_channel_notes') }}</span>
                         <span v-if="s.useChannelWikis" class="session-meta-chip green">{{ t('channels.use_channel_wikis') }}</span>
-                        <span v-if="s.workPath" class="session-meta-chip">{{ t('directory.path_label') }}: {{ s.workPath }}</span>
-                        <span class="session-meta-chip" :class="s.streamVerbose === true ? 'green' : 'muted'">{{ t('channels.stream_verbose') }}: {{ s.streamVerbose === true ? t('common.enabled') : s.streamVerbose === false ? t('common.disabled') : t('channels.use_channel_default') }}</span>
-                        <span class="session-meta-chip" :class="s.autoApproveAllTools === true ? 'orange' : 'muted'">{{ t('settings.auto_approve_all') }}: {{ s.autoApproveAllTools === true ? t('common.enabled') : s.autoApproveAllTools === false ? t('common.disabled') : t('channels.use_channel_default') }}</span>
-                        <span v-if="s.intentModel" class="session-meta-chip">{{ t('channels.intent_model') }}: {{ modelOptions.find(m => m.id === s.intentModel)?.label || s.intentModel }}</span>
+                        <span v-if="s.workPath" class="session-meta-chip blue">{{ t('directory.path_label') }}: {{ s.workPath }}</span>
+                        <span v-if="s.streamVerbose != null" class="session-meta-chip" :class="s.streamVerbose ? 'green' : 'muted'">{{ t('channels.stream_verbose') }}: {{ s.streamVerbose ? t('common.enabled') : t('common.disabled') }}</span>
+                        <span v-if="s.autoApproveAllTools != null" class="session-meta-chip" :class="s.autoApproveAllTools ? 'orange' : 'muted'">{{ t('settings.auto_approve_all') }}: {{ s.autoApproveAllTools ? t('common.enabled') : t('common.disabled') }}</span>
+                        <span v-if="s.approvalTimeout != null && s.approvalTimeout > 0" class="session-meta-chip">{{ t('channels.approval_timeout') }}: {{ s.approvalTimeout }} / {{ s.approvalTimeoutValue === ApprovalTimeoutValue.Allow ? t('channels.approval_timeout_value_allow') : t('channels.approval_timeout_value_deny') }}</span>
+                        <span v-if="s.askTimeout != null && s.askTimeout > 0" class="session-meta-chip">{{ t('channels.ask_timeout') }}: {{ s.askTimeout }}</span>
+                        <span v-if="s.intentModel" class="session-meta-chip">{{ t('channels.intent_model') }}: {{ modelOptions.find(m => m.id === s.intentModel)?.label || s.intentModel }}{{ s.intentThreshold != null ? ` · ${s.intentThreshold}` : '' }}</span>
                       </div>
                     </div>
                   </div>
@@ -756,18 +762,24 @@ async function refresh() {
       <div v-else class="card-list">
         <div v-for="(c, id) in channels" :key="id" class="mobile-card">
           <div class="mobile-card-header mobile-card-header-clickable" @click="toggleExpand(id as string)">
-            <span>{{ c.name }}</span>
+            <div class="mobile-card-title">
+              <span class="mobile-card-name">{{ c.name }}</span>
+              <span class="channel-card-type-badge">{{ plugins.find(p => p.type === c.type)?.label || c.type }}</span>
+            </div>
             <span class="mobile-expand-icon">{{ expandedChannels[id as string] ? '▼' : '▶' }}</span>
           </div>
-          <div class="mobile-card-fields">
-            <span class="mobile-card-label">{{ t('common.type') }}</span>
-            <span class="mobile-card-value">{{ plugins.find(p => p.type === c.type)?.label || c.type }}</span>
-            <span class="mobile-card-label">{{ t('common.agent') }}</span>
-            <span class="mobile-card-value">{{ agentOptions.find(a => a.id === c.agent)?.label || c.agent || '-' }}</span>
-            <span class="mobile-card-label">{{ t('common.storage') }}</span>
-            <span class="mobile-card-value">{{ c.saver ? (saverOptions.find(s => s.id === c.saver)?.label || c.saver) : '-' }}</span>
-            <span class="mobile-card-label">{{ t('common.note') }}</span>
-            <span class="mobile-card-value">{{ Array.isArray(c.notes) && c.notes.length ? c.notes.map(nid => noteOptions.find(n => n.id === nid)?.label || nid).join(', ') : '-' }}</span>
+          <div class="mobile-meta-chips">
+            <span class="session-meta-id">{{ id }}</span>
+            <span class="session-meta-chip">{{ t('common.agent') }}: {{ agentOptions.find(a => a.id === c.agent)?.label || c.agent || '-' }}</span>
+            <span class="session-meta-chip">{{ t('common.storage') }}: {{ c.saver ? (saverOptions.find(s => s.id === c.saver)?.label || c.saver) : '-' }}</span>
+            <span class="session-meta-chip" :class="Array.isArray(c.notes) && c.notes.length ? '' : 'muted'">{{ t('common.note') }}: {{ Array.isArray(c.notes) && c.notes.length ? c.notes.map(nid => noteOptions.find(n => n.id === nid)?.label || nid).join(', ') : t('common.not_configured') }}</span>
+            <span class="session-meta-chip" :class="Array.isArray((c as any).wikis) && (c as any).wikis.length ? '' : 'muted'">{{ t('common.wiki') }}: {{ Array.isArray((c as any).wikis) && (c as any).wikis.length ? (c as any).wikis.map((wid: string) => wikiOptions.find(w => w.id === wid)?.label || wid).join(', ') : t('common.not_configured') }}</span>
+            <span class="session-meta-chip" :class="c.workPath ? 'blue' : 'muted'">{{ t('directory.path_label') }}: {{ c.workPath || t('common.not_configured') }}</span>
+            <span class="session-meta-chip" :class="c.streamVerbose ? 'green' : 'muted'">{{ t('channels.stream_verbose') }}: {{ c.streamVerbose ? t('common.enabled') : t('common.disabled') }}</span>
+            <span class="session-meta-chip" :class="c.autoApproveAllTools ? 'orange' : 'muted'">{{ t('settings.auto_approve_all') }}: {{ c.autoApproveAllTools ? t('common.enabled') : t('common.disabled') }}</span>
+            <span class="session-meta-chip" :class="c.intentModel ? '' : 'muted'">{{ t('channels.intent_model') }}: {{ c.intentModel ? (modelOptions.find(m => m.id === c.intentModel)?.label || c.intentModel) : t('common.not_configured') }}</span>
+            <span v-if="c.tools !== undefined" class="session-meta-chip" :class="c.tools.length ? '' : 'orange'">{{ t('channels.tools') }}: {{ c.tools.length ? c.tools.map(n => plugins.find(p => p.type === c.type)?.tools?.find(t => t.name === n)?.label || n).join(', ') : t('channels.tools_blocked') }}</span>
+            <span v-if="c.triggerTools !== undefined" class="session-meta-chip" :class="c.triggerTools.length ? '' : 'orange'">{{ t('channels.trigger_tools') }}: {{ c.triggerTools.length ? c.triggerTools.map(n => plugins.find(p => p.type === c.type)?.tools?.find(t => t.name === n)?.label || n).join(', ') : t('channels.tools_blocked') }}</span>
           </div>
           <div class="mobile-card-ops">
             <SButton type="outline" size="sm" @click="openEdit(id as string)">{{ t('common.edit') }}</SButton>
@@ -784,13 +796,21 @@ async function refresh() {
                   <img v-if="s.avatar" :src="s.avatar" class="mobile-sub-avatar" />
                   {{ s.sessionName || s.autoSessionName || s.sessionId }}
                 </div>
-                <div class="mobile-card-fields">
-                  <span class="mobile-card-label">{{ t('common.agent') }}</span>
-                  <span class="mobile-card-value">{{ agentOptions.find(a => a.id === s.agentId)?.label || s.agentId || '-' }}</span>
-                  <span class="mobile-card-label">{{ t('common.note') }}</span>
-                  <span class="mobile-card-value">{{ Array.isArray(s.notes) && s.notes.length ? s.notes.map(nid => noteOptions.find(n => n.id === nid)?.label || nid).join(', ') : '-' }}</span>
-                  <span class="mobile-card-label">Tokens</span>
-                  <span class="mobile-card-value mobile-tokens" :title="s.totalTokens > 0 ? `${t('usage.total')}: ${formatTokens(s.totalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatTokens(s.inputTokens)} / ${t('usage.output_tokens')}: ${formatTokens(s.outputTokens)}` + (s.lastTotalTokens > 0 ? `\n${t('usage.last')}: ${formatTokens(s.lastTotalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatTokens(s.lastInputTokens)} / ${t('usage.output_tokens')}: ${formatTokens(s.lastOutputTokens)}` : '') : ''">{{ s.totalTokens > 0 ? formatTokens(s.totalTokens) : '-' }}</span>
+                <div class="mobile-meta-chips">
+                  <span class="session-meta-id">{{ s.sessionId }}</span>
+                  <span v-if="agentOptions.find(a => a.id === s.agentId)" class="session-meta-chip">{{ t('common.agent') }}: {{ agentOptions.find(a => a.id === s.agentId)?.label }}</span>
+                  <span v-if="s.totalTokens > 0" class="session-meta-chip mobile-tokens" :title="`${t('usage.total')}: ${formatTokens(s.totalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatTokens(s.inputTokens)} / ${t('usage.output_tokens')}: ${formatTokens(s.outputTokens)}` + (s.lastTotalTokens > 0 ? `\n${t('usage.last')}: ${formatTokens(s.lastTotalTokens)} tokens` : '')">{{ formatTokens(s.totalTokens) }} tok</span>
+                  <span v-if="s.saver" class="session-meta-chip">{{ t('common.storage') }}: {{ saverOptions.find(o => o.id === s.saver)?.label || s.saver }}</span>
+                  <span v-if="Array.isArray(s.notes) && s.notes.length" class="session-meta-chip">{{ t('common.note') }}: {{ s.notes.map(nid => noteOptions.find(n => n.id === nid)?.label || nid).join(', ') }}</span>
+                  <span v-if="Array.isArray(s.wikis) && s.wikis.length" class="session-meta-chip">{{ t('common.wiki') }}: {{ s.wikis.map(wid => wikiOptions.find(w => w.id === wid)?.label || wid).join(', ') }}</span>
+                  <span v-if="s.useChannelNotes" class="session-meta-chip green">{{ t('channels.use_channel_notes') }}</span>
+                  <span v-if="s.useChannelWikis" class="session-meta-chip green">{{ t('channels.use_channel_wikis') }}</span>
+                  <span v-if="s.workPath" class="session-meta-chip blue">{{ t('directory.path_label') }}: {{ s.workPath }}</span>
+                  <span v-if="s.streamVerbose != null" class="session-meta-chip" :class="s.streamVerbose ? 'green' : 'muted'">{{ t('channels.stream_verbose') }}: {{ s.streamVerbose ? t('common.enabled') : t('common.disabled') }}</span>
+                  <span v-if="s.autoApproveAllTools != null" class="session-meta-chip" :class="s.autoApproveAllTools ? 'orange' : 'muted'">{{ t('settings.auto_approve_all') }}: {{ s.autoApproveAllTools ? t('common.enabled') : t('common.disabled') }}</span>
+                  <span v-if="s.approvalTimeout != null && s.approvalTimeout > 0" class="session-meta-chip">{{ t('channels.approval_timeout') }}: {{ s.approvalTimeout }} / {{ s.approvalTimeoutValue === ApprovalTimeoutValue.Allow ? t('channels.approval_timeout_value_allow') : t('channels.approval_timeout_value_deny') }}</span>
+                  <span v-if="s.askTimeout != null && s.askTimeout > 0" class="session-meta-chip">{{ t('channels.ask_timeout') }}: {{ s.askTimeout }}</span>
+                  <span v-if="s.intentModel" class="session-meta-chip">{{ t('channels.intent_model') }}: {{ modelOptions.find(m => m.id === s.intentModel)?.label || s.intentModel }}{{ s.intentThreshold != null ? ` · ${s.intentThreshold}` : '' }}</span>
                 </div>
                 <div class="mobile-card-ops">
                   <SButton type="outline" size="sm" @click="todoListModal?.openByProfileId(String(s.profileId), s.sessionName || s.autoSessionName || s.sessionId)">{{ t('todo.title') }}</SButton>
@@ -1313,8 +1333,10 @@ html[data-theme="dark"] .session-meta-chip.green { background: #14532d; color: #
 html[data-theme="dark"] .session-meta-chip.orange { background: #431407; color: #fdba74; }
 
 /* Mobile detail */
-.mobile-card-header-clickable { display: flex; justify-content: space-between; cursor: pointer; }
-.mobile-expand-icon { font-size: 10px; }
+.mobile-card-header-clickable { display: flex; justify-content: space-between; align-items: center; gap: var(--sui-sp-2); cursor: pointer; }
+.mobile-card-title { display: flex; align-items: center; gap: var(--sui-sp-2); min-width: 0; flex: 1; flex-wrap: wrap; }
+.mobile-card-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mobile-expand-icon { font-size: 10px; flex-shrink: 0; }
 .mobile-detail { margin-top: var(--sui-sp-3); }
 .mobile-sub-list { margin-top: var(--sui-sp-2); }
 .mobile-sub-card { border-color: var(--sui-border); }
@@ -1331,6 +1353,15 @@ html[data-theme="dark"] .session-meta-chip.orange { background: #431407; color: 
   object-fit: cover;
 }
 .mobile-tokens { font-family: var(--sui-font-mono); font-variant-numeric: tabular-nums; }
+.mobile-meta-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--sui-sp-2);
+  font-size: var(--sui-fs-xs);
+  margin-bottom: var(--sui-sp-3);
+}
+.mobile-meta-chips .session-meta-chip { max-width: 100%; }
 
 /* Drawer (slide-in panel for channel add/edit) */
 .drawer-overlay {
