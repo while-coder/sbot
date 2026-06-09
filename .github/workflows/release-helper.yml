@@ -102,6 +102,27 @@ jobs:
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
+      - name: Force release body from CHANGELOG
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          VERSION="${TAG#helper-v}"
+          BODY=$(awk -v v="$VERSION" '
+            $1 == "##" && $2 == v { capture=1; next }
+            capture && $1 == "##" { exit }
+            capture { print }
+          ' packages/helper/CHANGELOG.md)
+          [ -z "$BODY" ] && BODY="Release $VERSION"
+          # tauri-action only sets the body when first creating the release; if an earlier
+          # run already created the draft, its body is stuck on whatever was there. Force it.
+          gh release edit "$TAG" -R "$REPO" --notes "$BODY"
+
       - name: Sync helper manifest to updater channel
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
