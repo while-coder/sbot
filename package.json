@@ -41,6 +41,7 @@
     "build:helper:windows": "pnpm --filter @sbot/helper run windows:build",
     "build:helper:linux": "pnpm --filter @sbot/helper run linux:build",
 
+    "release:sbot": "node scripts/release.js sbot",
     "release:app": "node scripts/release.js app",
     "release:helper": "node scripts/release.js helper",
 
