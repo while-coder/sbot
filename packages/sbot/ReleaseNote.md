@@ -1,6 +1,10 @@
 # Release Notes
 
-This release expands sbot's reach: three new chat channels, a built-in tunnel so the local server can be exposed to the internet without a separate reverse proxy, a desktop helper for channel logins that need an embedded browser, and a more resilient MCP integration.
+This release significantly expands sbot's surface: a new workflow engine, three new chat channels, a built-in tunnel that exposes the local server to the internet without a separate reverse proxy, a cross-platform desktop & Android Helper app for channel logins that need an embedded browser, and a more resilient MCP integration.
+
+### Workflow engine
+
+A new workflow system lets you orchestrate multi-step agent tasks with deterministic control flow. Workflow errors are now captured and surfaced cleanly instead of crashing the run.
 
 ### New channels
 
@@ -12,9 +16,21 @@ This release expands sbot's reach: three new chat channels, a built-in tunnel so
 
 A new tunnel service exposes the local server to the public internet from the admin UI, with three providers to choose from: Cloudflare Quick (zero-config), Cloudflare Token (your own named tunnel), and Localtunnel. The required `cloudflared` binary is downloaded automatically on first use.
 
-### Helper desktop app
+### Helper desktop & Android app
 
-A new Tauri-based desktop helper handles channel logins that require an embedded browser. The first flow it ships is Xiaoai cookie login — sign in once in the helper window and sbot picks up the session.
+A new Tauri-based Helper app handles channel logins that require an embedded browser, now available on desktop **and** Android. It ships with built-in auto-update, signed release builds, and the first supported login flow — Xiaoai cookie login: sign in once in the Helper window and sbot picks up the session.
+
+### WebSocket transport
+
+sbot now exposes a WebSocket interface alongside the existing HTTP API, enabling lower-latency push from server to client and powering the new admin UI live updates.
+
+### VSCode session integration
+
+When sbot is launched from VSCode, the working directory of the active session is now tracked and updated automatically — switching files or workspaces is reflected in the agent's context without manual intervention.
+
+### Message compression
+
+Long conversations are now compressed before being sent to the model, keeping context usage down on extended chats without losing the thread.
 
 ### More reliable MCP
 
@@ -22,11 +38,11 @@ Remote MCP servers (HTTP / SSE / streamable HTTP) often drop sessions when resta
 
 ### Tool output handling
 
-Oversized tool outputs are now truncated before they reach the model, with per-agent control over the limit. The `read` file tool has been reworked alongside this so large files behave predictably in long conversations.
+Oversized tool outputs are now truncated before they reach the model, with per-agent control over the limit. The `read` file tool has been reworked alongside this so large files behave predictably in long conversations. Working-path handling has also been hardened.
 
 ### Lark improvements
 
-Added a get-group-list capability for managing Lark group conversations from the agent.
+Card-update failures (timeouts, message-too-old, etc.) are now caught — and when configured, the reply automatically falls back to sending a file instead of dropping the response.
 
 ### Scheduler
 
