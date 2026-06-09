@@ -173,7 +173,6 @@ function contentCharLen(content?: DisplayContent): number {
               <span v-if="isCommand(msg)" class="msg-kind-tag msg-kind-command">{{ L.commandTag }}</span>
               <span v-if="isException(msg)" class="msg-kind-tag msg-kind-exception">{{ L.exceptionTag }}</span>
               <span v-if="msg.createdAt" class="msg-time">{{ fmtTs(msg.createdAt) }}</span>
-              <span class="msg-char-len" :title="`${contentCharLen(msg.message.content)} chars`">{{ contentCharLen(msg.message.content) }} chars</span>
               <div v-if="msg.thinkId && thinksUrlPrefix" class="think-toggle" @click="openThink(msg.thinkId!, msg.taskId)">
                 <span>▸</span><span>{{ L.think }}</span>
               </div>
@@ -212,6 +211,7 @@ function contentCharLen(content?: DisplayContent): number {
                   <div class="tool-call-result">
                     <div class="tool-call-result-top">
                       <div class="tool-call-result-label">{{ L.toolResult }}</div>
+                      <span class="msg-char-len" :title="`${contentCharLen(findToolResult(tc.id)!.message.content)} chars`">{{ contentCharLen(findToolResult(tc.id)!.message.content) }} chars</span>
                       <div v-if="findToolResult(tc.id)?.thinkId && thinksUrlPrefix"
                         class="think-toggle" @click="openThink(findToolResult(tc.id)!.thinkId!, findToolResult(tc.id)!.taskId)">
                         <span>▸</span><span>{{ L.think }}</span>

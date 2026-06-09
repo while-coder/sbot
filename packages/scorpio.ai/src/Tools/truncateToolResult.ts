@@ -11,17 +11,18 @@ export interface TruncateToolResultOptions {
 }
 
 /**
- * 对单条 tool result 中的文本块做 head+tail 截断；超限部分整段写入 spillDir
- * 下的临时文件，截断标记中带上文件绝对路径，便于人工/工具回查。
+ * 对单条 tool result 中的文本块做头部保留；完整文本写入 spillDir
+ * 下的临时文件，并在正文后追加 read 工具风格的 Below + truncated 提示。
  *
  * - 仅处理 MCPContentType.Text 块；image/audio/document 块原样保留
  * - 单个 text 块字符数 ≤ MAX_CHARS 时不动
- * - 落盘失败时降级为不带路径的截断，保证主链路不中断
+ * - 落盘失败时降级为不带路径的 Below 提示，保证主链路不中断
  */
 export async function truncateMCPToolResult(
     result: MCPToolResult,
     opts: TruncateToolResultOptions,
 ): Promise<MCPToolResult> {
+    const { toolName, toolCallId, spillDir } = opts;
     let touched = false;
     const newContent: MCPContent[] = [];
     let textBlockIdx = 0;
@@ -39,51 +40,45 @@ export async function truncateMCPToolResult(
             continue;
         }
         const fullText = block.text;
-        const allChars = Array.from(fullText);
-        const fullLen = allChars.length;
+        const chars = Array.from(fullText);
+        const fullLen = chars.length;
         if (fullLen <= MAX_CHARS) {
             newContent.push(block);
             textBlockIdx++;
             continue;
         }
 
-        const filename = `${sanitizeName(opts.toolName)}-${sanitizeName(opts.toolCallId)}-${textBlockIdx}.txt`;
-        const filePath = path.join(opts.spillDir, filename);
+        const filename = `${sanitizeName(toolName)}-${sanitizeName(toolCallId)}-${textBlockIdx}.txt`;
+        const filePath = path.join(spillDir, filename);
         let spillNote: string;
         try {
             await fs.writeFile(filePath, fullText, 'utf8');
-            spillNote = `full output saved to ${filePath}`;
+            spillNote = `full file saved to: ${filePath}`;
         } catch (err: any) {
             spillNote = `spill failed: ${err?.message ?? err}`;
         }
 
         newContent.push({
             type: MCPContentType.Text,
-            text: headTailWithMarker(allChars, fullLen, MAX_CHARS, spillNote),
+            text: headWithMarker(chars, MAX_CHARS, spillNote),
         });
         touched = true;
         textBlockIdx++;
     }
 
-    if (!touched) return result;
+    if (!touched) {
+        return result;
+    }
     return { ...result, content: newContent };
 }
 
-function headTailWithMarker(allChars: string[], fullLen: number, maxChars: number, note: string): string {
-    // 上界估算：所有数字都用 fullLen 占位，实际 marker 一定 ≤ 这个长度（其他三个数都 ≤ fullLen）
-    const markerEstimate = `\n\n…[truncated: chars ${fullLen}..${fullLen} of ${fullLen} omitted (${fullLen} chars); ${note}]…\n\n`;
-    const markerLen = Array.from(markerEstimate).length;
-    const budget = Math.max(0, maxChars - markerLen);
-    const headBudget = Math.floor(budget / 2);
-    const tailBudget = budget - headBudget;
+function headWithMarker(chars: string[], maxChars: number, note: string): string {
+    const fullLen = chars.length;
+    const head = Math.min(maxChars, fullLen);
+    // 暴露字符区间，方便有 read 工具的 LLM 直接 mode="char" offset=head 回查缺失部分。
+    const marker = `(Below: truncated chars (${head}-${fullLen}) not returned, ${note})`;
 
-    const head = allChars.slice(0, headBudget).join('');
-    const tail = allChars.slice(fullLen - tailBudget).join('');
-    const omitted = fullLen - headBudget - tailBudget;
-    const tailStart = fullLen - tailBudget;
-    // 暴露字符区间，方便有 read 工具的 LLM 直接 mode="char" offset=headBudget limit=omitted 精准捞缺失部分
-    const marker = `\n\n…[truncated: chars ${headBudget}..${tailStart} of ${fullLen} omitted (${omitted} chars); ${note}]…\n\n`;
-    return head + marker + tail;
+    return `${chars.slice(0, head).join('')}\n\n${marker}`;
 }
 
 function sanitizeName(s: string): string {

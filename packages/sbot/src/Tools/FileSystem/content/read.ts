@@ -11,8 +11,6 @@ import { loadPrompt } from '../../../Core/PromptLoader';
 const logger = LoggerService.getLogger('Tools/FileSystem/content/read.ts');
 
 const DEFAULT_LINE_LIMIT = 2000;
-const MAX_LINE_CHARS = 2000;
-const MAX_LINE_OUTPUT_BYTES = 50 * 1024;
 const MAX_CHARS = 50000;
 const DEFAULT_CHAR_LIMIT = MAX_CHARS;
 
@@ -49,93 +47,79 @@ async function isBinaryFile(filepath: string, fileSize: number): Promise<boolean
     }
 }
 
-// 按 \n / \r\n 拆行；行为对齐 readline：尾随换行不产生空行，空文件返回空数组
-function splitLines(text: string): string[] {
-    if (text === '') return [];
-    const lines = text.split(/\r?\n/);
-    if (lines[lines.length - 1] === '') lines.pop();
-    return lines;
-}
-
-// 单行字符（codepoint）超长时截断；ASCII 行用 text.length 快速短路（UTF-16 单元数 ≥ codepoint 数）
-function truncateLine(text: string): string {
-    if (text.length <= MAX_LINE_CHARS) return text;
-    const chars = Array.from(text);
-    if (chars.length <= MAX_LINE_CHARS) return text;
-    return chars.slice(0, MAX_LINE_CHARS).join('') + `... (line truncated to ${MAX_LINE_CHARS} chars)`;
-}
-
 /**
- * 在 lines[from, end) 范围内组装输出，应用单行字符截断和总输出字节上限。
- * from / end 均为 0-indexed；end 可超出 lines.length，自动夹断。
+ * 按 \n / \r\n 拆行，并记录每行在原始 text 中的起始 char offset。
+ * - 行内不含行尾换行符；尾随换行不产生空行（与 readline 一致）
+ * - starts[i] 是 lines[i] 在 text 中的起点（UTF-16 索引）
  */
-function readLines(lines: string[], from: number, end: number): MCPToolResult {
+function indexLines(text: string): { lines: string[], starts: number[] } {
+    const lines: string[] = [];
+    const starts: number[] = [];
+    if (text === '') return { lines, starts };
+    let lineStart = 0;
+    for (let i = 0; i < text.length; i++) {
+        if (text[i] === '\n') {
+            const lineEnd = i > 0 && text[i - 1] === '\r' ? i - 1 : i;
+            lines.push(text.slice(lineStart, lineEnd));
+            starts.push(lineStart);
+            lineStart = i + 1;
+        }
+    }
+    if (lineStart < text.length) {
+        lines.push(text.slice(lineStart));
+        starts.push(lineStart);
+    }
+    return { lines, starts };
+}
+
+/** 在 lines[from, stopAt) 范围内组装行格式输出（已假定整体 char 量在预算内） */
+function readLines(lines: string[], from: number, stopAt: number): MCPToolResult {
     const total = lines.length;
     // 起点超出文件范围才算越界；from === total 在空文件 + offset=1 时合法（输出空内容 + EOF 提示）
     if (from > 0 && from >= total) {
         return createErrorResult(`Offset ${from + 1} is out of range for this file (${total} lines)`);
     }
 
-    const stopAt = Math.min(end, total);
-    const raw: string[] = [];
-    let outputBytes = 0;
-    let sizeCapped = false;
-    for (let i = from; i < stopAt; i++) {
-        const line = truncateLine(lines[i]);
-        const size = Buffer.byteLength(line, 'utf-8') + (raw.length > 0 ? 1 : 0);
-        if (outputBytes + size > MAX_LINE_OUTPUT_BYTES) { sizeCapped = true; break; }
-        raw.push(line);
-        outputBytes += size;
-    }
-
-    const startLine = from + 1;
-    const lastReadLine = startLine + raw.length - 1;
-    const nextOffset = lastReadLine + 1;
+    const raw = lines.slice(from, stopAt);
+    const lastReadLine = from + raw.length;
     const parts: string[] = [];
 
-    // 前置：起点之前没有读到的行
     if (from > 0) {
-        parts.push(`(Above: ${from} earlier line${from === 1 ? '' : 's'} (1-${from}) not read. Use mode="line" offset=1 limit=${from} to read them.)`);
+        parts.push(`(Above: lines (1-${from}) not read)`);
     }
 
     parts.push(raw.join('\n'));
 
-    // 后置：基于实际读到的位置 + 文件总行数
-    if (sizeCapped) {
-        const after = total - lastReadLine;
-        parts.push(`(Below: output capped at ${MAX_LINE_OUTPUT_BYTES / 1024}KB after reading lines ${startLine}-${lastReadLine}; ${after} more line${after === 1 ? '' : 's'} (${nextOffset}-${total}) not read. Use mode="line" offset=${nextOffset} to continue.)`);
-    } else if (lastReadLine >= total) {
-        parts.push(`(End of file - total ${total} lines)`);
+    if (lastReadLine >= total) {
+        parts.push(`(End of file - ${total} lines total)`);
     } else {
-        const after = total - lastReadLine;
-        parts.push(`(Below: ${after} more line${after === 1 ? '' : 's'} (${nextOffset}-${total}) not read. Use mode="line" offset=${nextOffset} to continue.)`);
+        parts.push(`(Below: lines (${lastReadLine + 1}-${total}) not read)`);
     }
 
     return createSuccessResult(createTextContent(parts.join('\n\n')));
 }
 
-/** 在 chars[from, end) 范围内拼接输出，end 可超出 chars.length，自动夹断 */
-function readChars(chars: string[], from: number, end: number): MCPToolResult {
-    const total = chars.length;
+/** 在 text[from, end) 范围内拼接 char 格式输出，end 可超出 text.length，自动夹断 */
+function readChars(text: string, from: number, end: number, prefixNote?: string): MCPToolResult {
+    const total = text.length;
     if (from > total) {
         return createErrorResult(`Char offset ${from} is past end of file (length ${total})`);
     }
 
     const stopAt = Math.min(end, total);
-    const text = chars.slice(from, stopAt).join('');
     const parts: string[] = [];
 
+    if (prefixNote) parts.push(prefixNote);
     if (from > 0) {
-        parts.push(`(Above: ${from} earlier char${from === 1 ? '' : 's'} (0-${from - 1}) not read. Use mode="char" offset=0 limit=${from} to read them.)`);
+        parts.push(`(Above: chars (0-${from - 1}) not read)`);
     }
 
-    parts.push(text);
+    parts.push(text.slice(from, stopAt));
 
     if (stopAt >= total) {
-        parts.push(`(End of file at char ${total})`);
+        parts.push(`(End of file - ${total} chars total)`);
     } else {
-        const after = total - stopAt;
-        parts.push(`(Below: ${after} more char${after === 1 ? '' : 's'} (${stopAt}-${total - 1}) not read. Use mode="char" offset=${stopAt} to continue.)`);
+        parts.push(`(Below: chars (${stopAt}-${total - 1}) not read)`);
     }
 
     return createSuccessResult(createTextContent(parts.join('\n\n')));
@@ -151,9 +135,17 @@ export function createReadTool(): StructuredToolInterface {
             mode: z.enum(ReadMode).optional()
                 .describe('line/char: from start. endLine/endChar: from EOF. Default "line".'),
             offset: z.number().int().min(0).optional()
-                .describe('line: 1-indexed start line. char: 0-indexed start char. endLine/endChar: distance from EOF where read starts (defaults to limit so "last N" works with just limit).'),
+                .describe('line: 1-indexed start line (>=1). char: 0-indexed start char (>=0). endLine/endChar: 1-indexed distance from EOF (>=1, defaults to limit so "last N" works with just limit).'),
             limit: z.number().int().positive().optional()
                 .describe(`Max lines (line/endLine, default ${DEFAULT_LINE_LIMIT}) or max chars (char/endChar, capped at ${MAX_CHARS}).`),
+        }).superRefine((data, ctx) => {
+            if (data.offset !== undefined && data.offset < 1 && (data.mode ?? ReadMode.Line) !== ReadMode.Char) {
+                ctx.addIssue({
+                    code: 'custom',
+                    path: ['offset'],
+                    message: `offset must be >= 1 in ${data.mode ?? ReadMode.Line} mode (only char mode accepts 0)`,
+                });
+            }
         }) as any,
         func: async ({ filePath, mode, offset, limit }: any): Promise<MCPToolResult> => {
             try {
@@ -184,32 +176,33 @@ export function createReadTool(): StructuredToolInterface {
                 const text = await fsAsync.readFile(abs, 'utf8');
 
                 if (m === ReadMode.Char || m === ReadMode.EndChar) {
-                    if (m === ReadMode.EndChar && offset != null && offset < 1) {
-                        return createErrorResult('Offset must be >= 1 for endChar mode. Omit offset to read the last limit chars.');
-                    }
                     const want = Math.min(limit ?? DEFAULT_CHAR_LIMIT, MAX_CHARS);
-                    const chars = Array.from(text);
                     const from = m === ReadMode.EndChar
-                        ? Math.max(0, chars.length - (offset ?? want))
+                        ? Math.max(0, text.length - (offset ?? want))
                         : (offset ?? 0);
-                    return readChars(chars, from, from + want);
+                    return readChars(text, from, from + want);
                 }
 
                 const lim = limit ?? DEFAULT_LINE_LIMIT;
-                const lines = splitLines(text);
-                let from: number;
-                if (m === ReadMode.EndLine) {
-                    if (offset != null && offset < 1) {
-                        return createErrorResult('Offset must be >= 1 for endLine mode. Omit offset to read the last limit lines.');
-                    }
-                    from = Math.max(0, lines.length - (offset ?? lim));
-                } else {
-                    if (offset != null && offset < 1) {
-                        return createErrorResult('Offset must be >= 1 for line mode.');
-                    }
-                    from = (offset ?? 1) - 1;
+                const { lines, starts } = indexLines(text);
+                const from = m === ReadMode.EndLine
+                    ? Math.max(0, lines.length - (offset ?? lim))
+                    : (offset ?? 1) - 1;
+                const stopAt = Math.min(from + lim, lines.length);
+
+                // 请求的行范围在原始 text 中对应的 char 量超过 MAX_CHARS 时，
+                // 整体降级为 char 格式输出，让 LLM 通过 mode="char" offset=N 续读未读部分
+                const charStart = starts[from] ?? text.length;
+                const charEnd = stopAt < lines.length ? starts[stopAt] : text.length;
+                if (charEnd - charStart > MAX_CHARS) {
+                    return readChars(
+                        text,
+                        charStart,
+                        charStart + MAX_CHARS,
+                        `(Note: requested lines (${from + 1}-${stopAt}) exceed ${MAX_CHARS} chars; switched to char view)`,
+                    );
                 }
-                return readLines(lines, from, from + lim);
+                return readLines(lines, from, stopAt);
             } catch (e: any) {
                 logger.error(`read ${filePath}: ${e.message}`);
                 return createErrorResult(e.message);

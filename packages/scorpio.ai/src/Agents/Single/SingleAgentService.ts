@@ -12,7 +12,7 @@ import { IAgentSaverService } from "../../Saver";
 import { ConversationCompactor, IConversationCompactor, METADATA_KEY_INPUT_TOKENS } from "../../Saver/ConversationCompactor";
 import { IAgentToolService } from "../../AgentTool";
 import { ILoggerService } from "../../Logger";
-import { normalizeToMCPResult, truncateMCPToolResult, MCPContentType, type MCPToolResult } from '../../Tools';
+import { normalizeToMCPResult, truncateMCPToolResult, MCPContentType } from '../../Tools';
 import { AgentServiceBase, GraphNodeType, ToolApproval, IAgentCallback, AgentCancelledError, DEFAULT_MAX_HISTORY_TOKENS, ChatMessage, MessageRole, type TokenUsage } from "../AgentServiceBase";
 import type { MessageContent } from "../../Saver/IAgentSaverService";
 import { contentToString, truncateForLog } from "../../Utils/contentUtils";
@@ -299,18 +299,25 @@ export class SingleAgentService extends AgentServiceBase {
                 // 标准化为 MCP 格式（自动检测和转换各种格式）
                 let mcpResult = normalizeToMCPResult(result);
 
-                // 单条 result 过大时 head+tail 截断 + 溢出落盘，防止 token 一下被打爆。
+                // 单条 result 过大时纯头部截断 + 溢出落盘，防止 token 一下被打爆。
                 // 失败降级为不带路径的截断；spillDir 未注入则跳过整个步骤。
                 if (this.toolOverflowDir) {
+                    const beforeBlocks = mcpResult.content.length;
+                    const beforeChars = mcpResult.content.reduce((sum, b) => sum + (b.type === MCPContentType.Text && typeof b.text === 'string' ? b.text.length : 0), 0);
+                    this.logger?.debug(`调用 truncateMCPToolResult ${tool.name} blocks=${beforeBlocks} totalTextChars=${beforeChars} spillDir=${this.toolOverflowDir}`);
                     try {
                         mcpResult = await truncateMCPToolResult(mcpResult, {
                             spillDir: this.toolOverflowDir,
                             toolCallId: toolCall.id ?? `noid-${Date.now()}-${i}`,
                             toolName: tool.name,
                         });
+                        const afterChars = mcpResult.content.reduce((sum, b) => sum + (b.type === MCPContentType.Text && typeof b.text === 'string' ? b.text.length : 0), 0);
+                        this.logger?.debug(`truncateMCPToolResult 返回 ${tool.name} totalTextChars=${beforeChars}->${afterChars}`);
                     } catch (err: any) {
                         this.logger?.warn(`工具结果截断失败 ${tool.name}: ${err?.message ?? err}`);
                     }
+                } else {
+                    this.logger?.debug(`跳过 truncateMCPToolResult ${tool.name}：toolOverflowDir 未配置`);
                 }
 
                 const resultStr = JSON.stringify(mcpResult);
