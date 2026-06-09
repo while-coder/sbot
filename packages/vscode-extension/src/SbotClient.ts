@@ -7,6 +7,8 @@ import {
 } from 'sbot.commons';
 
 export type WsListener = (event: WebChatEvent) => void;
+export type VscodeUploadFilePayload = { name: string; type?: string; size?: number; dataUrl: string };
+type UploadFileOptions = { overwrite?: boolean };
 
 function getServerBaseUrl(): string {
   const { readFileSync, existsSync } = require('node:fs');
@@ -21,6 +23,48 @@ function getServerBaseUrl(): string {
     }
   } catch { /* use default */ }
   return `http://localhost:${DEFAULT_PORT}`;
+}
+
+function escapeMultipartHeader(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\r|\n/g, ' ');
+}
+
+function decodeDataUrl(dataUrl: string): Buffer {
+  const comma = dataUrl.indexOf(',');
+  if (comma < 0 || !/;base64/i.test(dataUrl.slice(0, comma))) {
+    throw new Error('Invalid upload payload');
+  }
+  return Buffer.from(dataUrl.slice(comma + 1), 'base64');
+}
+
+function buildMultipartUploadBody(
+  parentDir: string,
+  file: VscodeUploadFilePayload,
+  opts: UploadFileOptions,
+): { body: Buffer; boundary: string } {
+  const boundary = `----sbot-vscode-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const chunks: Buffer[] = [];
+  const append = (text: string) => chunks.push(Buffer.from(text, 'utf-8'));
+  const appendField = (name: string, value: string) => {
+    append(`--${boundary}\r\n`);
+    append(`Content-Disposition: form-data; name="${escapeMultipartHeader(name)}"\r\n\r\n`);
+    append(`${value}\r\n`);
+  };
+
+  appendField('dir', parentDir);
+  if (opts.overwrite) appendField('overwrite', '1');
+
+  const data = decodeDataUrl(file.dataUrl);
+  append(`--${boundary}\r\n`);
+  append(
+    `Content-Disposition: form-data; name="file"; filename="${escapeMultipartHeader(file.name)}"\r\n` +
+    `Content-Type: ${file.type || 'application/octet-stream'}\r\n\r\n`,
+  );
+  chunks.push(data);
+  append('\r\n');
+  append(`--${boundary}--\r\n`);
+
+  return { body: Buffer.concat(chunks), boundary };
 }
 
 export class SbotClient {
@@ -138,6 +182,30 @@ export class SbotClient {
   async mkdir(filePath: string): Promise<{ path: string }> {
     const res = await this.http.post('/api/fs/mkdir', { path: filePath });
     return res.data.data ?? res.data ?? { path: filePath };
+  }
+
+  async deleteEntry(filePath: string): Promise<{ path: string }> {
+    const res = await this.http.delete('/api/fs/entry', { params: { path: filePath } });
+    return res.data.data ?? res.data ?? { path: filePath };
+  }
+
+  async uploadFile(parentDir: string, file: VscodeUploadFilePayload, opts: UploadFileOptions = {}): Promise<{ path: string; size: number }> {
+    try {
+      const { body, boundary } = buildMultipartUploadBody(parentDir, file, opts);
+      const res = await this.http.post('/api/fs/upload', body, {
+        headers: {
+          'Content-Type': `multipart/form-data; boundary=${boundary}`,
+          'Content-Length': body.length,
+        },
+      });
+      return res.data.data ?? res.data;
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const msg = err?.response?.data?.message ?? err?.message ?? 'uploadFile failed';
+      const e: any = new Error(msg);
+      if (status) e.status = status;
+      throw e;
+    }
   }
 
   async listTree(filePath: string): Promise<any> {

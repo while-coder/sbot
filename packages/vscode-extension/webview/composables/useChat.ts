@@ -1,9 +1,10 @@
-import type { IChatTransport, ChatEvent, ContentPart, Attachment, SessionItem, CreateSessionOpts, StoredMessage, UsageInfo, AppSettings, SessionStatus, ToolApprovalPayload, AskAnswerPayload, DirListResult, DriveEntry, QuickDir, FsTreeResult, FsReadResult, GitStatusResult, GitDiffResult, RemoteEntry, FsUploadOptions } from '@sbot/chat-ui'
+import type { IChatTransport, ChatEvent, ContentPart, Attachment, SessionItem, CreateSessionOpts, StoredMessage, UsageInfo, AppSettings, SessionStatus, ToolApprovalPayload, AskAnswerPayload, DirListResult, DriveEntry, QuickDir, FsTreeResult, FsReadResult, FsWriteResult, GitStatusResult, GitDiffResult, RemoteEntry, FsUploadOptions, FsUploadProgress } from '@sbot/chat-ui'
 
 declare function acquireVsCodeApi(): { postMessage(msg: any): void }
 const vscode = acquireVsCodeApi()
 
 type EventHandler = (event: ChatEvent) => void
+type VscodeUploadFilePayload = { name: string; type: string; size: number; dataUrl: string }
 
 let rpcId = 0
 const pending = new Map<number, { resolve: (v: any) => void; reject: (e: Error) => void }>()
@@ -32,6 +33,22 @@ function rpc(method: string, ...args: any[]): Promise<any> {
 
 function cmd(method: string, ...args: any[]) {
   vscode.postMessage({ type: 'cmd', method, args: JSON.parse(JSON.stringify(args)) })
+}
+
+function readFileAsDataUrl(file: File, onProgress?: (progress: FsUploadProgress) => void): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onprogress = (evt) => {
+      const total = evt.lengthComputable ? evt.total : file.size
+      const loaded = Math.min(evt.loaded, total || evt.loaded)
+      const percent = total > 0 ? Math.min(95, Math.round((loaded / total) * 95)) : 95
+      onProgress?.({ loaded, total, percent })
+    }
+    reader.onload = () => resolve(String(reader.result ?? ''))
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'))
+    reader.onabort = () => reject(new Error('File read aborted'))
+    reader.readAsDataURL(file)
+  })
 }
 
 export class VsCodeTransport implements IChatTransport {
@@ -63,11 +80,21 @@ export class VsCodeTransport implements IChatTransport {
   listDrives(): Promise<DriveEntry[]> { return rpc('listDrives') }
   mkdir(path: string): Promise<{ path: string }> { return rpc('mkdir', path) }
   deleteEntry(path: string): Promise<{ path: string }> { return rpc('deleteEntry', path) }
-  uploadFile(_parentDir: string, _file: File, _options?: FsUploadOptions): Promise<{ path: string; size: number }> {
-    return Promise.reject(new Error('uploadFile is not supported in vscode webview'))
+  async uploadFile(parentDir: string, file: File, options: FsUploadOptions = {}): Promise<{ path: string; size: number }> {
+    options.onProgress?.({ loaded: 0, total: file.size, percent: 0 })
+    const payload: VscodeUploadFilePayload = {
+      name: file.name,
+      type: file.type,
+      size: file.size,
+      dataUrl: await readFileAsDataUrl(file, options.onProgress),
+    }
+    const result = await rpc('uploadFile', parentDir, payload, { overwrite: Boolean(options.overwrite) })
+    options.onProgress?.({ loaded: file.size, total: file.size, percent: 100 })
+    return result
   }
   listTree(path: string): Promise<FsTreeResult> { return rpc('listTree', path) }
   readFile(path: string): Promise<FsReadResult> { return rpc('readFile', path) }
+  writeFile(path: string, content: string, expectedMtime?: number): Promise<FsWriteResult> { return rpc('writeFile', path, content, expectedMtime) }
   getRawFileUrl(_path: string): string { return '' }
   gitStatus(root: string): Promise<GitStatusResult> { return rpc('gitStatus', root) }
   gitDiff(root: string, path: string, fullContent = false): Promise<GitDiffResult> { return rpc('gitDiff', root, path, fullContent) }

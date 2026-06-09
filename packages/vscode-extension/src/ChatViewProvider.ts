@@ -158,10 +158,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
         return client.listDrives();
       case 'mkdir':
         return client.mkdir(args[0]);
+      case 'deleteEntry':
+        return client.deleteEntry(args[0]);
+      case 'uploadFile':
+        return client.uploadFile(args[0], args[1], args[2]);
       case 'listTree':
         return client.listTree(args[0]);
       case 'readFile':
         return client.readFile(args[0]);
+      case 'writeFile':
+        return client.writeFile(args[0], args[1], args[2]);
       case 'gitStatus':
         return client.gitStatus(args[0]);
       case 'gitDiff':
