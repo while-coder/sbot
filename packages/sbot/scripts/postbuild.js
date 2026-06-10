@@ -142,9 +142,10 @@ const distPkg = {
   bin: publishBin,
   engines: selfPkg.engines || { node: '>=18' },
   dependencies: sortedDeps,
+  ...(isRelease ? { bundledDependencies: Object.keys(localPackages) } : {}),
 };
 fs.writeFileSync(path.join(distDir, 'package.json'), JSON.stringify(distPkg, null, 2));
-console.log(`${outputDir}/package.json: ${Object.keys(sortedDeps).length} dependencies (${Object.keys(localPackages).length} bundled)`);
+console.log(`${outputDir}/package.json: ${Object.keys(sortedDeps).length} dependencies, ${Object.keys(localPackages).length} local packages`);
 
 // release 模式：复制本地包的编译产物到 node_modules/<pkgName>/
 if (isRelease) {
