@@ -113,15 +113,6 @@ while (localQueue.length > 0) {
 
 const isRelease = outputDir === 'dist';
 
-// release 模式：bundledDependencies 必须同时出现在 dependencies 里，
-// 否则 npm pack 会静默跳过这些包，tarball 里就没有 node_modules/<pkg>/
-if (isRelease) {
-  for (const [name, pkgDir] of Object.entries(localPackages)) {
-    const pkgJson = JSON.parse(fs.readFileSync(path.join(pkgDir, 'package.json'), 'utf-8'));
-    allDeps[name] = pkgJson.version || '0.0.1';
-  }
-}
-
 // 按名称排序
 const sortedDeps = {};
 for (const key of Object.keys(allDeps).sort()) {
@@ -151,7 +142,6 @@ const distPkg = {
   bin: publishBin,
   engines: selfPkg.engines || { node: '>=18' },
   dependencies: sortedDeps,
-  ...(isRelease ? { bundledDependencies: Object.keys(localPackages) } : {}),
 };
 fs.writeFileSync(path.join(distDir, 'package.json'), JSON.stringify(distPkg, null, 2));
 console.log(`${outputDir}/package.json: ${Object.keys(sortedDeps).length} dependencies (${Object.keys(localPackages).length} bundled)`);
