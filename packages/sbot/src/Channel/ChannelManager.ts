@@ -1,6 +1,6 @@
 import { ChannelPlugin, ChannelPluginContext, IChannelService, ChannelSessionInfo, ChannelCapability } from "channel.base";
 import { ChannelUserRow, database, type ChannelSessionRow } from "../Core/Database";
-import { NowDate } from "scorpio.ai";
+import { TimeUtils } from "scorpio.ai";
 import { Op } from "sequelize";
 import { sessionManager } from "../Session/SessionManager";
 import { channelDataService } from "../Session/ChannelDataService";
@@ -20,7 +20,7 @@ const ExpireTime = HourMilliseconds * 24 * 3;
 let checkTime = 0;
 
 async function filterEvent(eventId: string): Promise<boolean> {
-    const now = NowDate();
+    const now = TimeUtils.now();
     if (now >= checkTime) {
         checkTime = now + CheckInterval;
         await database.destroy(database.message, { where: { expireTime: { [Op.lt]: now } } });
@@ -33,7 +33,7 @@ async function filterEvent(eventId: string): Promise<boolean> {
 // ── 更新检查 ──────────────────────────────────────────────────────────────────
 
 async function checkForUpdate(sendMessage: (msg: string) => Promise<void>): Promise<void> {
-    const now = NowDate();
+    const now = TimeUtils.now();
     const checkUpdateTime = config.settings.checkUpdateTime ?? 0;
     if (now < checkUpdateTime) return;
 

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { DynamicStructuredTool } from "@langchain/core/tools";
-import { formatTimeAgo } from "../../Core";
+import { TimeUtils } from "../../Utils/TimeUtils";
 import { INoteService } from "../Service/INoteService";
 
 export const NOTE_SEARCH_TOOL_NAME = 'note_search' as const;
@@ -45,7 +45,7 @@ export class NoteToolProvider {
                     }
 
                     const lines = allResults.map((r, i) => {
-                        const time = formatTimeAgo(r.note.createdAt);
+                        const time = TimeUtils.formatTimeAgo(r.note.createdAt);
                         const score = (r.score * 100).toFixed(1);
                         return `${i + 1}. [${time}] ${r.note.content} (relevance: ${score}%)`;
                     });

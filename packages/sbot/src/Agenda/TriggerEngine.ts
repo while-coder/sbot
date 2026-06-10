@@ -5,7 +5,7 @@ import {
     AgendaTriggerAction,
     computeNextAfterFire,
     DEFAULT_GRACE_MS,
-    MAX_TIMEOUT_MS,
+    TimeUtils,
     type IAgendaStore,
     type IAgendaTriggerEngine,
     type AgendaItem,
@@ -84,7 +84,7 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
         const delay = Math.max(0, nextFireAt - Date.now());
         const handle = setTimeout(() => {
             void this.onTimer(triggerId);
-        }, Math.min(delay, MAX_TIMEOUT_MS));
+        }, Math.min(delay, TimeUtils.MAX_TIMEOUT_MS));
         this.executor.set(triggerId, handle);
     }
 

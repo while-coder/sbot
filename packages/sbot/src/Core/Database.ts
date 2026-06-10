@@ -1,5 +1,5 @@
 import { DataTypes, type FindOptions, type ModelStatic, type UpdateOptions, Sequelize } from "sequelize";
-import { sleep } from "scorpio.ai";
+import { TimeUtils } from "scorpio.ai";
 import { ApprovalTimeoutValue } from "sbot.commons";
 import { config } from "./Config";
 import { LoggerService } from "./LoggerService";
@@ -737,7 +737,7 @@ class Database {
   private async wait() {
     if (this.dbConfig?.type === "sqlite") {
       while (this.running) {
-        await sleep(1);
+        await TimeUtils.sleep(1);
       }
       this.running = true;
     }

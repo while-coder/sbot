@@ -1,6 +1,6 @@
 import * as Lark from "@larksuiteoapi/node-sdk";
 import { LarkActionArgs, LarkMessageArgs, LarkSessionHandler } from "./LarkSessionHandler";
-import { IChannelService, ChannelSessionHandler, SessionService, NowDate, parseJson, readMediaAsContentPart, type ILogger, type MessageContent } from "channel.base";
+import { IChannelService, ChannelSessionHandler, SessionService, TimeUtils, parseJson, readMediaAsContentPart, type ILogger, type MessageContent } from "channel.base";
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
@@ -370,7 +370,7 @@ export class LarkService implements IChannelService {
   }
 
   private async getTenantAccessToken(): Promise<string> {
-    if (this.tenantAccessToken && NowDate() < this.tokenExpireTime) {
+    if (this.tenantAccessToken && TimeUtils.now() < this.tokenExpireTime) {
       return this.tenantAccessToken;
     }
     try {
@@ -386,7 +386,7 @@ export class LarkService implements IChannelService {
       }
 
       this.tenantAccessToken = response.tenant_access_token;
-      this.tokenExpireTime = NowDate() + (response.expire - 300) * 1000;
+      this.tokenExpireTime = TimeUtils.now() + (response.expire - 300) * 1000;
       return this.tenantAccessToken;
     } catch (error: any) {
       this.logger?.error(`Failed to get tenant_access_token: ${error.message}`);

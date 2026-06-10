@@ -28,7 +28,8 @@ import {
 } from "../Extractor/IAgendaExtractor";
 import { IAgendaTriggerEngine } from "../TriggerEngine/IAgendaTriggerEngine";
 import { IAgendaStore } from "../Storage/IAgendaStore";
-import { computeInitialNextFire, formatWhen, parseAt, relativeToMs } from "../time";
+import { TimeUtils } from "../../Utils/TimeUtils";
+import { computeInitialNextFire, relativeToMs } from "../time";
 import { type AgendaToolDescs, IAgendaService } from "./IAgendaService";
 
 export class AgendaService implements IAgendaService {
@@ -104,7 +105,7 @@ export class AgendaService implements IAgendaService {
         if (patch.category != null) fields.category = patch.category;
         if (patch.priority != null) fields.priority = patch.priority;
         if (patch.completionMode != null) fields.completionMode = patch.completionMode;
-        if (patch.dueAt !== undefined) fields.dueAt = patch.dueAt === null ? null : parseAt(patch.dueAt);
+        if (patch.dueAt !== undefined) fields.dueAt = patch.dueAt === null ? null : TimeUtils.parseAt(patch.dueAt);
 
         const data = await this.agendaStore.updateItem(id, fields);
         const updatedItem = data?.item;
@@ -215,8 +216,8 @@ export class AgendaService implements IAgendaService {
         if (items.length === 0) return "No agenda items.";
         const lines = items.map(item => {
             const next = AgendaService.firstNextFire(item);
-            const due = item.dueAt ? ` due=${formatWhen(item.dueAt)}` : '';
-            const nextText = next ? ` next=${formatWhen(next)}` : '';
+            const due = item.dueAt ? ` due=${TimeUtils.formatWhen(item.dueAt)}` : '';
+            const nextText = next ? ` next=${TimeUtils.formatWhen(next)}` : '';
             const occ = item.occurrences?.filter(o => o.status === AgendaOccurrenceStatus.Pending).length ?? 0;
             const occText = occ > 0 ? ` pending_occurrences=${occ}` : '';
             return `#${item.id} [${item.status}/${item.category}/${item.priority}/${item.completionMode}] ${item.content}${due}${nextText}${occText}`;
@@ -256,7 +257,7 @@ export class AgendaService implements IAgendaService {
 
         if (args.at) {
             kind = AgendaTriggerKind.Absolute;
-            expr = new Date(parseAt(args.at)).toISOString();
+            expr = new Date(TimeUtils.parseAt(args.at)).toISOString();
             nextFireAt = computeInitialNextFire(kind, expr, now, args.timezone);
         } else if (args.after) {
             kind = AgendaTriggerKind.Absolute;
@@ -314,7 +315,7 @@ export class AgendaService implements IAgendaService {
     }
 
     private inferDueAt(args: AgendaCreateArgs): number | null {
-        if (args.at) return parseAt(args.at);
+        if (args.at) return TimeUtils.parseAt(args.at);
         if (args.after) return Date.now() + relativeToMs(args.after);
         return null;
     }

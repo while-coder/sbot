@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
-import { inject, T_NoteSystemPromptTemplate, T_NoteToolDescs, formatTimeAgo } from "../../Core";
+import { inject, T_NoteSystemPromptTemplate, T_NoteToolDescs } from "../../Core";
+import { TimeUtils } from "../../Utils/TimeUtils";
 import { NoteResult } from "../types";
 import { INoteDatabase } from "../Storage/INoteDatabase";
 import { Note } from "../types";
@@ -31,7 +32,7 @@ export class NoteService implements INoteService {
     const results = await this.getNotes(query, noteLimit);
     if (results.length === 0) return null;
     const items = results
-      .map(({ note: n }) => `  <note time="${formatTimeAgo(n.createdAt)}">${n.content}</note>`)
+      .map(({ note: n }) => `  <note time="${TimeUtils.formatTimeAgo(n.createdAt)}">${n.content}</note>`)
       .join("\n");
     return this.systemPromptTemplate.replace('{items}', items);
   }
