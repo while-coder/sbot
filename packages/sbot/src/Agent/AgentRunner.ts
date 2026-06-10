@@ -24,10 +24,10 @@ import {
     IAgendaService,
     AgendaService,
     IAgendaStore,
-    IAgendaScheduler,
-    IAgendaSyncExtractor,
-    AgendaSyncExtractor,
-    T_AgendaSyncSystemPrompt,
+    IAgendaTriggerEngine,
+    IAgendaExtractor,
+    AgendaExtractor,
+    T_AgendaExtractorSystemPrompt,
     T_AgendaProfileId,
     T_AgendaChannelSessionId,
     T_AgendaToolDescs,
@@ -281,7 +281,7 @@ export class AgentRunner {
         if (!agendaConfig?.enabled) return;
 
         const syncModelId = agendaConfig.syncModel;
-        let extractor: IAgendaSyncExtractor | undefined;
+        let extractor: IAgendaExtractor | undefined;
         if (syncModelId) {
             const extractorModel = await config.getModelService(syncModelId, true);
             const sub = new ServiceContainer();
@@ -289,9 +289,9 @@ export class AgentRunner {
                 sub.registerInstance(ILoggerService, await container.resolve(ILoggerService));
             }
             sub.registerInstance(IModelService, extractorModel);
-            sub.registerInstance(T_AgendaSyncSystemPrompt, loadPrompt(agendaConfig.syncPromptFile ?? 'agenda/sync/default.txt'));
-            sub.registerSingleton(IAgendaSyncExtractor, AgendaSyncExtractor);
-            extractor = await sub.resolve<IAgendaSyncExtractor>(IAgendaSyncExtractor);
+            sub.registerInstance(T_AgendaExtractorSystemPrompt, loadPrompt(agendaConfig.syncPromptFile ?? 'agenda/sync/default.txt'));
+            sub.registerSingleton(IAgendaExtractor, AgendaExtractor);
+            extractor = await sub.resolve<IAgendaExtractor>(IAgendaExtractor);
         }
 
         const profileId = parseInt(threadId, 10);
@@ -310,9 +310,9 @@ export class AgentRunner {
                 skipNext: loadPrompt('agenda/tools/skip_next.txt'),
             },
             [IAgendaStore]: agendaStore,
-            [IAgendaScheduler]: agendaTriggerEngine,
+            [IAgendaTriggerEngine]: agendaTriggerEngine,
         };
-        if (extractor) args[IAgendaSyncExtractor] = extractor;
+        if (extractor) args[IAgendaExtractor] = extractor;
         container.registerWithArgs(IAgendaService, AgendaService, args);
     }
 }

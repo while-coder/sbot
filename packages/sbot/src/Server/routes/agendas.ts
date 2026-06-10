@@ -4,7 +4,7 @@ import {
     AgendaPriority,
     AgendaService,
     AgendaStatus,
-    IAgendaScheduler,
+    IAgendaTriggerEngine,
     IAgendaStore,
     ILoggerService,
     ServiceContainer,
@@ -138,7 +138,7 @@ export class AgendaRoutes {
             [T_AgendaChannelSessionId]: channelSessionId,
             [T_AgendaToolDescs]: ADMIN_DESCS,
             [IAgendaStore]: agendaStore,
-            [IAgendaScheduler]: agendaTriggerEngine,
+            [IAgendaTriggerEngine]: agendaTriggerEngine,
         });
         return container.resolve(AgendaService);
     }
