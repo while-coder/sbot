@@ -141,17 +141,36 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
             }
 
             // 一次性 absolute 触发投递失败时延后重试，避免提醒在临时通道异常下永久丢失。
-            // 距原计划超过 deadline 仍未送达则放弃（走正常 advance 流程，trigger 被禁用）。
+            // expr 在 absolute trigger 中是创建时写入的 ISO 字符串，重试不会改写它；
+            // 因此用 parseAt(expr) 作为"原计划时刻"，距离 deadline 超过 30 分钟则放弃。
+            // 放弃时只禁用 trigger，item 保持 Pending（避免投递失败被误标为完成）。
             if (!delivered && freshTrigger.kind === AgendaTriggerKind.Absolute && freshTrigger.maxFires === 1) {
-                const originalAt = this.parseAbsoluteExpr(freshTrigger.expr) ?? scheduledAt;
-                const retryAt = Date.now() + ABSOLUTE_RETRY_INTERVAL_MS;
-                if (retryAt - originalAt < ABSOLUTE_RETRY_DEADLINE_MS) {
-                    await this.store.updateTrigger(freshTrigger.id, { nextFireAt: retryAt });
-                    this.schedule(freshTrigger.id, retryAt);
-                    logger.warn(`Agenda trigger [${freshTrigger.id}] delivery failed, retry at ${new Date(retryAt).toISOString()}`);
+                const originalAt = this.parseAbsoluteExpr(freshTrigger.expr);
+                if (originalAt != null) {
+                    const retryAt = Date.now() + ABSOLUTE_RETRY_INTERVAL_MS;
+                    if (retryAt - originalAt < ABSOLUTE_RETRY_DEADLINE_MS) {
+                        await this.store.updateTrigger(freshTrigger.id, { nextFireAt: retryAt });
+                        this.schedule(freshTrigger.id, retryAt);
+                        logger.warn(`Agenda trigger [${freshTrigger.id}] delivery failed, retry at ${new Date(retryAt).toISOString()}`);
+                        return;
+                    }
+                    await this.store.updateTrigger(freshTrigger.id, {
+                        enabled: false,
+                        nextFireAt: null,
+                        skipNextFireAt: null,
+                        skipFireCount: null,
+                    });
+                    logger.warn(`Agenda trigger [${freshTrigger.id}] delivery failed past retry deadline; giving up`);
                     return;
                 }
-                logger.warn(`Agenda trigger [${freshTrigger.id}] delivery failed past retry deadline; giving up`);
+                await this.store.updateTrigger(freshTrigger.id, {
+                    enabled: false,
+                    nextFireAt: null,
+                    skipNextFireAt: null,
+                    skipFireCount: null,
+                });
+                logger.warn(`Agenda trigger [${freshTrigger.id}] delivery failed; expr unparseable, giving up`);
+                return;
             }
 
             // 仅在投递成功时记录 occurrence，避免失败积累虚假 pending 条目。

@@ -108,9 +108,11 @@ export class AgendaService implements IAgendaService {
         if (patch.dueAt !== undefined) {
             fields.dueAt = patch.dueAt === null ? null : TimeUtils.parseAt(patch.dueAt);
         } else if (this.hasSchedulePatch(patch)) {
-            // 调度变更但未显式指定 dueAt：与 create 流程保持一致，依据新调度推导 dueAt
-            // (at/after → 触发时刻；every/cron → null)
-            fields.dueAt = this.inferDueAt({ content: '', at: patch.at, after: patch.after });
+            // 调度变更但未显式指定 dueAt：与 create 保持一致，依据新调度推导 dueAt。
+            // at/after → 触发时刻；every/cron → null。共用同一个 now 以与下方 createTriggerIfNeeded 对齐。
+            if (patch.at) fields.dueAt = TimeUtils.parseAt(patch.at);
+            else if (patch.after) fields.dueAt = now + relativeToMs(patch.after);
+            else fields.dueAt = null;
         }
 
         const data = await this.agendaStore.updateItem(id, fields);
