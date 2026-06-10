@@ -2,8 +2,8 @@
   "name": "@qingfeng346/sbot",
   "version": "0.1.8",
   "description": "Self-hosted AI agent server. Open-source alternative to OpenAI, Claude, and Gemini interfaces. Run LLM agents locally with MCP tool support, memory, multi-channel integrations (Lark/Feishu), and a built-in web UI.",
-  "releasenoteEn": "### test",
-  "releasenoteZh": "### 测试",
+  "releasenoteEn": "This release includes the following main changes:\n\n### Added\n\n1. Added file upload, file/folder deletion, folder creation, and direct file editing in the file explorer.\n2. Added session search in the chat sidebar.\n\n### Improved\n\n1. Improved upload conflict handling with clear overwrite, skip, or cancel choices.\n2. Improved the chat UI by remembering the right-side workbench panel state on desktop layouts.\n3. Improved the Channels page so channels, sessions, and users are easier to view consistently.\n4. Improved app release packaging.\n5. Improved bundled dependency handling during release packaging.\n\n### Fixed\n\n1. Fixed an issue where the built-in terminal could be unavailable on some machines.\n2. Fixed terminal failure feedback so sbot now reports a clear error instead of silently failing.",
+  "releasenoteZh": "本次主要更新如下：\n\n### 新增\n\n1. 文件浏览器新增上传文件、删除文件/文件夹、新建文件夹、直接编辑文件功能。\n2. 聊天侧边栏新增会话搜索功能。\n\n### 优化\n\n1. 优化文件上传同名冲突处理，可以选择覆盖、跳过或取消。\n2. 优化聊天界面，桌面布局下会记住右侧工作台面板的打开状态。\n3. 优化渠道管理页面，查看渠道、会话和用户时更统一、更清晰。\n4. 优化 app 发布打包流程。\n5. 优化 release 打包时本地依赖的处理，降低漏打包风险。\n\n### 修复\n\n1. 修复内置终端功能在某些机器上不可用的问题。\n2. 修复终端能力加载失败时提示不清晰的问题，现在会给出明确错误信息。",
   "license": "MIT",
   "repository": {
     "type": "git",
