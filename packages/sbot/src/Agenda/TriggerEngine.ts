@@ -6,29 +6,38 @@ import {
     computeNextAfterFire,
     DEFAULT_GRACE_MS,
     MAX_TIMEOUT_MS,
-    type AgendaItemRow,
-    type AgendaTriggerRow,
+    type IAgendaStore,
+    type IAgendaTriggerEngine,
+    type AgendaItem,
+    type AgendaTrigger,
 } from "scorpio.ai";
 import { LoggerService } from "../Core/LoggerService";
 import { TimerExecutor } from "../Core/TimerExecutor";
 import { triggerSession } from "../Core/triggerSession";
-import { agendaStorePool } from "./AgendaStorePool";
 import { resolveAgendaDelivery } from "./Delivery";
 
 const logger = LoggerService.getLogger("Agenda/TriggerEngine.ts");
 
-class AgendaTriggerEngine {
+/**
+ * 单 profile 的触发器运行时。绑定一个 profileId + store，
+ * 内部 timer 池仅追踪该 profile 的 trigger，跨 profile 操作由 AgendaTriggerEnginePool 协调。
+ */
+export class AgendaTriggerEngine implements IAgendaTriggerEngine {
     private executor = new TimerExecutor<NodeJS.Timeout>({ name: "AgendaTrigger", stop: handle => clearTimeout(handle), concurrencyGuard: true });
     private started = false;
 
+    constructor(
+        private readonly profileId: number,
+        private readonly store: IAgendaStore,
+    ) {}
+
     async start(): Promise<void> {
         this.started = true;
-        const profileIds = await agendaStorePool.listAllProfileIds();
-        const triggers = await agendaStorePool.listEnabledTriggersAcross(profileIds);
+        const triggers = await this.store.listEnabledTriggers();
         for (const trigger of triggers) {
             await this.reload(trigger.id);
         }
-        logger.info(`Agenda trigger engine started, loaded ${triggers.length} trigger(s)`);
+        logger.info(`Agenda trigger engine [profile=${this.profileId}] started, loaded ${triggers.length} trigger(s)`);
     }
 
     stopAll(): void {
@@ -42,14 +51,12 @@ class AgendaTriggerEngine {
 
     async reload(triggerId: number): Promise<void> {
         this.executor.cancel(triggerId);
-        const store = agendaStorePool.storeForTriggerId(triggerId);
-        if (!store) return;
-        const found = await store.findTrigger(triggerId);
+        const found = await this.store.findTrigger(triggerId);
         const trigger = found?.trigger;
         const item = found?.data.item;
         if (!trigger || !trigger.enabled || !item) return;
         if (item.status !== AgendaStatus.Pending) {
-            await store.updateTrigger(trigger.id, { enabled: false, nextFireAt: null });
+            await this.store.updateTrigger(trigger.id, { enabled: false, nextFireAt: null });
             return;
         }
 
@@ -57,20 +64,18 @@ class AgendaTriggerEngine {
         const now = Date.now();
         if (!nextFireAt || nextFireAt <= now - DEFAULT_GRACE_MS) {
             if (trigger.kind === 'absolute' && nextFireAt) {
-                await this.markMissed(store, trigger, nextFireAt);
+                await this.markMissed(trigger, nextFireAt);
                 return;
             }
             nextFireAt = computeNextAfterFire(trigger, now);
-            await store.updateTrigger(trigger.id, { nextFireAt, enabled: nextFireAt != null });
+            await this.store.updateTrigger(trigger.id, { nextFireAt, enabled: nextFireAt != null });
         }
         if (!nextFireAt) return;
         this.schedule(trigger.id, nextFireAt);
     }
 
     async reloadItem(itemId: number): Promise<void> {
-        const store = agendaStorePool.storeForItemId(itemId);
-        if (!store) return;
-        const record = await store.findItem(itemId);
+        const record = await this.store.findItem(itemId);
         for (const trigger of record?.triggers ?? []) await this.reload(trigger.id);
     }
 
@@ -84,9 +89,7 @@ class AgendaTriggerEngine {
     }
 
     private async onTimer(triggerId: number): Promise<void> {
-        const store = agendaStorePool.storeForTriggerId(triggerId);
-        if (!store) return;
-        const found = await store.findTrigger(triggerId);
+        const found = await this.store.findTrigger(triggerId);
         const trigger = found?.trigger;
         if (!trigger || !trigger.enabled || !trigger.nextFireAt) return;
         const now = Date.now();
@@ -97,22 +100,20 @@ class AgendaTriggerEngine {
         await this.fire(trigger);
     }
 
-    async fire(trigger: AgendaTriggerRow): Promise<void> {
+    async fire(trigger: AgendaTrigger): Promise<void> {
         await this.executor.execute(trigger.id, async () => {
-            const store = agendaStorePool.storeForTriggerId(trigger.id);
-            if (!store) return;
-            const found = await store.findTrigger(trigger.id);
+            const found = await this.store.findTrigger(trigger.id);
             const freshTrigger = found?.trigger;
             const item = found?.data.item;
             if (!freshTrigger || !freshTrigger.enabled || !item) return;
             if (item.status !== AgendaStatus.Pending) {
-                await store.updateTrigger(freshTrigger.id, { enabled: false, nextFireAt: null });
+                await this.store.updateTrigger(freshTrigger.id, { enabled: false, nextFireAt: null });
                 return;
             }
 
             const scheduledAt = freshTrigger.nextFireAt ?? Date.now();
             if (this.shouldSkip(freshTrigger, scheduledAt)) {
-                await this.advanceAfterFire(store, freshTrigger, item, scheduledAt, false);
+                await this.advanceAfterFire(freshTrigger, item, scheduledAt, false);
                 return;
             }
 
@@ -132,7 +133,7 @@ class AgendaTriggerEngine {
             }
 
             if (item.completionMode === AgendaCompletionMode.Occurrence) {
-                await store.appendOccurrence(item.id, {
+                await this.store.appendOccurrence(item.id, {
                     itemId: item.id,
                     scheduledAt,
                     status: AgendaOccurrenceStatus.Pending,
@@ -140,23 +141,23 @@ class AgendaTriggerEngine {
                 });
             }
 
-            await this.advanceAfterFire(store, freshTrigger, item, scheduledAt, true);
+            await this.advanceAfterFire(freshTrigger, item, scheduledAt, true);
         });
     }
 
-    private buildMessage(item: AgendaItemRow, trigger: AgendaTriggerRow): string {
+    private buildMessage(item: AgendaItem, trigger: AgendaTrigger): string {
         const message = trigger.message || item.content;
         if (trigger.action === AgendaTriggerAction.Notify) return `提醒：${message} (#${item.id})`;
         return message;
     }
 
-    private shouldSkip(trigger: AgendaTriggerRow, scheduledAt: number): boolean {
+    private shouldSkip(trigger: AgendaTrigger, scheduledAt: number): boolean {
         if (trigger.skipFireCount != null) return trigger.skipFireCount === (trigger.fireCount ?? 0);
         return Boolean(trigger.skipNextFireAt && Math.abs(trigger.skipNextFireAt - scheduledAt) < 60 * 1000);
     }
 
-    private async markMissed(store: ReturnType<typeof agendaStorePool.get>, trigger: AgendaTriggerRow, scheduledAt: number): Promise<void> {
-        await store.updateTrigger(trigger.id, {
+    private async markMissed(trigger: AgendaTrigger, scheduledAt: number): Promise<void> {
+        await this.store.updateTrigger(trigger.id, {
             enabled: false,
             nextFireAt: null,
             skipNextFireAt: null,
@@ -165,14 +166,14 @@ class AgendaTriggerEngine {
         logger.warn(`Agenda trigger [${trigger.id}] missed scheduled fire at ${new Date(scheduledAt).toISOString()} beyond grace window`);
     }
 
-    private async advanceAfterFire(store: ReturnType<typeof agendaStorePool.get>, trigger: AgendaTriggerRow, item: AgendaItemRow, scheduledAt: number, countFire: boolean): Promise<void> {
+    private async advanceAfterFire(trigger: AgendaTrigger, item: AgendaItem, scheduledAt: number, countFire: boolean): Promise<void> {
         const now = Date.now();
         const fireCount = countFire ? (trigger.fireCount ?? 0) + 1 : trigger.fireCount ?? 0;
         const maxReached = trigger.maxFires > 0 && fireCount >= trigger.maxFires;
         const nextFireAt = maxReached ? null : computeNextAfterFire({ ...trigger, fireCount }, now);
         const enabled = Boolean(nextFireAt);
 
-        await store.updateTrigger(trigger.id, {
+        await this.store.updateTrigger(trigger.id, {
             fireCount,
             lastFiredAt: countFire ? now : trigger.lastFiredAt,
             nextFireAt,
@@ -182,7 +183,7 @@ class AgendaTriggerEngine {
         });
 
         if (countFire && item.completionMode === AgendaCompletionMode.None && !enabled) {
-            await store.updateItem(item.id, {
+            await this.store.updateItem(item.id, {
                 status: AgendaStatus.Done,
                 doneAt: now,
                 updatedAt: now,
@@ -193,5 +194,3 @@ class AgendaTriggerEngine {
         logger.info(`Agenda trigger [${trigger.id}] advanced from ${new Date(scheduledAt).toISOString()} to ${nextFireAt ? new Date(nextFireAt).toISOString() : 'disabled'}`);
     }
 }
-
-export const agendaTriggerEngine = new AgendaTriggerEngine();

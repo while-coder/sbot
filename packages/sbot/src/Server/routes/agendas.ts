@@ -13,7 +13,7 @@ import {
     type AgendaListFilter,
     type AgendaToolDescs,
 } from 'scorpio.ai';
-import { agendaStorePool, agendaTriggerEngine } from '../../Agenda';
+import { agendaStorePool, agendaTriggerEnginePool } from '../../Agenda';
 import type { ChannelSessionRow } from '../../Core/Database';
 import { database } from '../../Core/Database';
 import { LoggerService } from '../../Core/LoggerService';
@@ -91,7 +91,8 @@ export class AgendaRoutes {
             const store = agendaStorePool.storeForItemId(id);
             const deleted = store ? await store.deleteItem(id) : null;
             if (!deleted) throwBad('Agenda item not found');
-            for (const trigger of deleted.triggers) agendaTriggerEngine.cancel(trigger.id);
+            const engine = agendaTriggerEnginePool.get(deleted.item.profileId);
+            for (const trigger of deleted.triggers) engine.cancel(trigger.id);
             return { id };
         }));
     }
@@ -134,7 +135,7 @@ export class AgendaRoutes {
             [T_AgendaChannelSessionId]: channelSessionId,
             [T_AgendaToolDescs]: ADMIN_DESCS,
             [IAgendaStore]: agendaStorePool.get(profileId),
-            [IAgendaTriggerEngine]: agendaTriggerEngine,
+            [IAgendaTriggerEngine]: agendaTriggerEnginePool.get(profileId),
         });
         return container.resolve(AgendaService);
     }

@@ -12,14 +12,13 @@ import {
     AgendaTriggerKind,
     type AgendaCreateArgs,
     type AgendaCreateResult,
-    type AgendaItemRow,
+    type AgendaItem,
     type AgendaItemView,
     type AgendaListFilter,
-    type AgendaOccurrenceRow,
+    type AgendaOccurrence,
     type AgendaRecord,
-    type AgendaStoredItemRow,
+    type AgendaStoredItem,
     type AgendaTrigger,
-    type AgendaTriggerRow,
     type AgendaUpdatePatch,
 } from "../types";
 import {
@@ -105,7 +104,7 @@ export class AgendaService implements IAgendaService {
         const item = await this.requireOwnedItem(id);
         if (!item) return null;
         const now = Date.now();
-        const fields: Partial<AgendaStoredItemRow> = { updatedAt: now };
+        const fields: Partial<AgendaStoredItem> = { updatedAt: now };
         if (patch.content != null && patch.content.trim()) fields.content = patch.content.trim();
         if (patch.category != null) fields.category = patch.category;
         if (patch.priority != null) fields.priority = patch.priority;
@@ -117,13 +116,13 @@ export class AgendaService implements IAgendaService {
         if (!updatedItem) return null;
 
         if (this.hasSchedulePatch(patch)) {
-            const category = updatedItem.category as AgendaCategory;
+            const category = updatedItem.category;
             const action = patch.action ?? (category === AgendaCategory.Automation ? AgendaTriggerAction.Invoke : AgendaTriggerAction.Notify);
             const trigger = await this.createTriggerIfNeeded(updatedItem, {
                 content: updatedItem.content,
                 category,
-                priority: updatedItem.priority as AgendaPriority,
-                completionMode: updatedItem.completionMode as AgendaCompletionMode,
+                priority: updatedItem.priority,
+                completionMode: updatedItem.completionMode,
                 at: patch.at,
                 after: patch.after,
                 every: patch.every,
@@ -135,7 +134,7 @@ export class AgendaService implements IAgendaService {
             await this.disableItemTriggers(id, trigger?.id);
             if (trigger) await this.triggerEngine.reload(trigger.id);
         } else if (this.hasTriggerFieldPatch(patch)) {
-            const triggerFields: Partial<AgendaTriggerRow> = {};
+            const triggerFields: Partial<AgendaTrigger> = {};
             if (patch.timezone !== undefined) triggerFields.timezone = patch.timezone;
             if (patch.action !== undefined) triggerFields.action = patch.action;
             if (patch.message !== undefined) triggerFields.message = patch.message?.trim() || null;
@@ -254,7 +253,7 @@ export class AgendaService implements IAgendaService {
         }
     }
 
-    private async createTriggerIfNeeded(item: AgendaItemRow, args: AgendaCreateArgs, action: AgendaTriggerAction, now: number): Promise<AgendaTriggerRow | null> {
+    private async createTriggerIfNeeded(item: AgendaItem, args: AgendaCreateArgs, action: AgendaTriggerAction, now: number): Promise<AgendaTrigger | null> {
         let kind: AgendaTriggerKind | null = null;
         let expr = '';
         let nextFireAt: number | null = null;
@@ -342,7 +341,7 @@ export class AgendaService implements IAgendaService {
         return value.replace(/\s+/g, '').toLowerCase();
     }
 
-    private async requireOwnedItem(id: number): Promise<AgendaItemRow | null> {
+    private async requireOwnedItem(id: number): Promise<AgendaItem | null> {
         const record = await this.agendaStore.findItem(id);
         return record?.item ?? null;
     }
@@ -355,22 +354,9 @@ export class AgendaService implements IAgendaService {
     static buildView(record: AgendaRecord): AgendaItemView {
         return {
             ...record.item,
-            status: record.item.status as AgendaStatus,
-            priority: record.item.priority as AgendaPriority,
-            category: record.item.category as AgendaCategory,
-            completionMode: record.item.completionMode as AgendaCompletionMode,
-            source: record.item.source as AgendaSource,
-            triggers: record.triggers.map(t => ({
-                ...t,
-                kind: t.kind as AgendaTriggerKind,
-                action: t.action as AgendaTriggerAction,
-                enabled: Boolean(t.enabled),
-            })) as AgendaTrigger[],
-            occurrences: record.occurrences.map(o => ({
-                ...o,
-                status: o.status as AgendaOccurrenceStatus,
-            })),
-        } as AgendaItemView;
+            triggers: record.triggers.map(t => ({ ...t, enabled: Boolean(t.enabled) })),
+            occurrences: record.occurrences,
+        };
     }
 
     private static matchesFilter(item: AgendaItemView, filter?: AgendaListFilter): boolean {
@@ -394,7 +380,7 @@ export class AgendaService implements IAgendaService {
         return values[0] ?? null;
     }
 
-    private async firstPendingOccurrence(itemId: number): Promise<AgendaOccurrenceRow | null> {
+    private async firstPendingOccurrence(itemId: number): Promise<AgendaOccurrence | null> {
         const record = await this.agendaStore.findItem(itemId);
         return record?.occurrences
             .filter(o => o.status === AgendaOccurrenceStatus.Pending)

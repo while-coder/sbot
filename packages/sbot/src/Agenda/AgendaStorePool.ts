@@ -1,5 +1,5 @@
 import path from "path";
-import { AgendaStore, type AgendaRecord, type AgendaTriggerRow } from "scorpio.ai";
+import { AgendaStore, type AgendaRecord, type AgendaTrigger } from "scorpio.ai";
 import type { SessionProfileRow } from "../Core/Database";
 import { database } from "../Core/Database";
 import { config } from "../Core/Config";
@@ -26,7 +26,11 @@ class AgendaStorePool {
     }
 
     remove(profileId: number): void {
-        this.cache.delete(profileId);
+        const store = this.cache.get(profileId);
+        if (store) {
+            store.dispose();
+            this.cache.delete(profileId);
+        }
     }
 
     storeForItemId(itemId: number): AgendaStore | null {
@@ -42,7 +46,7 @@ class AgendaStorePool {
         return this.storeForItemId(itemId)?.findItem(itemId) ?? null;
     }
 
-    async findTrigger(triggerId: number): Promise<{ data: AgendaRecord; trigger: AgendaTriggerRow } | null> {
+    async findTrigger(triggerId: number): Promise<{ data: AgendaRecord; trigger: AgendaTrigger } | null> {
         return this.storeForTriggerId(triggerId)?.findTrigger(triggerId) ?? null;
     }
 
@@ -51,8 +55,8 @@ class AgendaStorePool {
         return profiles.map(p => p.id).filter(id => Number.isInteger(id) && id > 0);
     }
 
-    async listEnabledTriggersAcross(profileIds: number[]): Promise<AgendaTriggerRow[]> {
-        const all: AgendaTriggerRow[] = [];
+    async listEnabledTriggersAcross(profileIds: number[]): Promise<AgendaTrigger[]> {
+        const all: AgendaTrigger[] = [];
         for (const id of profileIds) all.push(...await this.get(id).listEnabledTriggers());
         return all.sort((a, b) => a.id - b.id);
     }
@@ -61,6 +65,11 @@ class AgendaStorePool {
         const all: AgendaRecord[] = [];
         for (const id of profileIds) all.push(...await this.get(id).listItems());
         return all.sort((a, b) => a.item.profileId - b.item.profileId || a.item.id - b.item.id);
+    }
+
+    disposeAll(): void {
+        for (const store of this.cache.values()) store.dispose();
+        this.cache.clear();
     }
 }
 

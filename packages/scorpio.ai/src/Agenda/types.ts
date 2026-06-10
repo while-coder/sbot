@@ -104,7 +104,7 @@ export interface AgendaCreateResult {
     existed: boolean;
 }
 
-// ===== Domain entities =====
+// ===== Entities =====
 
 export interface AgendaItem {
     id: number;
@@ -153,60 +153,17 @@ export interface AgendaItemView extends AgendaItem {
     occurrences?: AgendaOccurrence[];
 }
 
-// ===== DB row types (storage layer) =====
-
-export type AgendaItemRow = {
-    id: number;
-    profileId: number;
-    content: string;
-    status: string;
-    priority: string;
-    category: string;
-    completionMode: string;
-    dueAt: number | null;
-    source: string;
-    createdAt: number;
-    updatedAt: number;
-    doneAt: number | null;
-};
-
-export type AgendaStoredItemRow = Omit<AgendaItemRow, "profileId">;
-
-export type AgendaTriggerRow = {
-    id: number;
-    itemId: number;
-    kind: string;
-    expr: string;
-    timezone: string | null;
-    action: string;
-    message: string | null;
-    channelHint: number;
-    enabled: boolean;
-    fireCount: number;
-    maxFires: number;
-    lastFiredAt: number | null;
-    nextFireAt: number | null;
-    skipNextFireAt: number | null;
-    skipFireCount: number | null;
-    createdAt: number;
-};
-
-export type AgendaOccurrenceRow = {
-    id: number;
-    itemId: number;
-    scheduledAt: number;
-    status: string;
-    doneAt: number | null;
-};
+/** items 表实际列形状（不含 profileId 列；profileId 由 store 绑定时补） */
+export type AgendaStoredItem = Omit<AgendaItem, "profileId">;
 
 export interface AgendaRecord {
-    item: AgendaItemRow;
-    triggers: AgendaTriggerRow[];
-    occurrences: AgendaOccurrenceRow[];
+    item: AgendaItem;
+    triggers: AgendaTrigger[];
+    occurrences: AgendaOccurrence[];
 }
 
 export interface AgendaRecordInput {
-    item: AgendaStoredItemRow;
-    triggers: AgendaTriggerRow[];
-    occurrences: AgendaOccurrenceRow[];
+    item: AgendaStoredItem;
+    triggers: AgendaTrigger[];
+    occurrences: AgendaOccurrence[];
 }

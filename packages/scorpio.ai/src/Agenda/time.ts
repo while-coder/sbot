@@ -1,5 +1,5 @@
 import { CronJob } from "cron";
-import { AgendaTriggerKind, type AgendaRelativeTime, type AgendaTriggerRow } from "./types";
+import { AgendaTriggerKind, type AgendaRelativeTime, type AgendaTrigger } from "./types";
 
 export const DEFAULT_GRACE_MS = 24 * 60 * 60 * 1000;
 export const MAX_TIMEOUT_MS = 2_147_483_647;
@@ -33,7 +33,7 @@ export function computeInitialNextFire(kind: AgendaTriggerKind, expr: string, no
     return computeCronNext(expr, timezone);
 }
 
-export function computeNextAfterFire(trigger: AgendaTriggerRow, now = Date.now()): number | null {
+export function computeNextAfterFire(trigger: AgendaTrigger, now = Date.now()): number | null {
     if (trigger.kind === AgendaTriggerKind.Absolute) return null;
     if (trigger.kind === AgendaTriggerKind.Interval) {
         const interval = parseInt(trigger.expr, 10);

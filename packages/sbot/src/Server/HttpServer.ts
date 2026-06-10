@@ -7,7 +7,7 @@ import { SkillHubService } from '../SkillHub';
 import { AgentStoreService } from '../AgentStore';
 import { LoggerService, log4js } from '../Core/LoggerService';
 import { database } from '../Core/Database';
-import { agendaTriggerEngine } from '../Agenda';
+import { agendaStorePool, agendaTriggerEnginePool } from '../Agenda';
 import { channelManager } from '../Channel/ChannelManager';
 import { tunnelService } from '../Tunnel';
 import { WEB_CHANNEL_ID } from 'sbot.commons';
@@ -42,7 +42,8 @@ class HttpServer {
     async shutdown(): Promise<void> {
         logger.info('Shutting down services...');
         try {
-            agendaTriggerEngine.stopAll();
+            agendaTriggerEnginePool.stopAll();
+            agendaStorePool.disposeAll();
             await ACPAgentPool.getInstance().disposeAll();
             await channelManager.dispose();
             ptyService.dispose();

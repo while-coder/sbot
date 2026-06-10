@@ -10,7 +10,7 @@ import {
 import { config } from "../Core/Config";
 import { LoggerService } from "../Core/LoggerService";
 import { heartbeatService } from "../Heartbeat/HeartbeatService";
-import { agendaStorePool, agendaTriggerEngine } from "../Agenda";
+import { agendaStorePool, agendaTriggerEnginePool } from "../Agenda";
 
 const logger = LoggerService.getLogger("ChannelDataService.ts");
 
@@ -139,15 +139,15 @@ function resolveInsightConfig(profileRaw: string | null | undefined, channelValu
  * 不进入：纯单点 findByPk / findOne by 唯一键（直接走 database 即可）。
  *
  * 跨服务依赖（由本类调用，反向不允许）：
- * - agendaTriggerEngine —— agenda 触发器运行时自治
+ * - agendaTriggerEnginePool —— agenda 触发器运行时自治（per-profile）
  * - heartbeatService.reloadAll —— heartbeat 自治
  * - channelManager.reloadChannel —— channel 运行时自治（在 routes 层调用，避开循环）
  */
 export class ChannelDataService {
     private async deleteAgendaByProfile(profileId: number): Promise<void> {
-        const triggerIds = await agendaStorePool.get(profileId).deleteAll();
+        agendaTriggerEnginePool.remove(profileId);
+        await agendaStorePool.get(profileId).deleteAll();
         agendaStorePool.remove(profileId);
-        for (const id of triggerIds) agendaTriggerEngine.cancel(id);
     }
 
     // ── reads ────────────────────────────────────────────────────────────────

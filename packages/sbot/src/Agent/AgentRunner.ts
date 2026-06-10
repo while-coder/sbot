@@ -42,7 +42,7 @@ import { sessionManager } from "../Session/SessionManager";
 import { NoteDatabaseManager } from "./NoteDatabaseManager";
 import { WikiDatabaseManager } from "./WikiDatabaseManager";
 import { SaverPool } from "./SaverPool";
-import { agendaStorePool, agendaTriggerEngine } from "../Agenda";
+import { agendaStorePool, agendaTriggerEnginePool } from "../Agenda";
 
 export interface AgentRunOptions {
     /** 用户输入的消息 */
@@ -308,7 +308,7 @@ export class AgentRunner {
                 skipNext: loadPrompt('agenda/tools/skip_next.txt'),
             },
             [IAgendaStore]: agendaStorePool.get(profileId),
-            [IAgendaTriggerEngine]: agendaTriggerEngine,
+            [IAgendaTriggerEngine]: agendaTriggerEnginePool.get(profileId),
         };
         if (extractor) args[IAgendaExtractor] = extractor;
         container.registerWithArgs(IAgendaService, AgendaService, args);

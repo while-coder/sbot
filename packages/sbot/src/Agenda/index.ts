@@ -1,2 +1,2 @@
 export { agendaStorePool } from "./AgendaStorePool";
-export { agendaTriggerEngine } from "./TriggerEngine";
+export { agendaTriggerEnginePool } from "./AgendaTriggerEnginePool";

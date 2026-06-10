@@ -1,9 +1,9 @@
 import type {
-    AgendaOccurrenceRow,
+    AgendaOccurrence,
     AgendaRecord,
     AgendaRecordInput,
-    AgendaStoredItemRow,
-    AgendaTriggerRow,
+    AgendaStoredItem,
+    AgendaTrigger,
 } from "../types";
 
 /**
@@ -13,15 +13,15 @@ import type {
 export interface IAgendaStore {
     listItems(): Promise<AgendaRecord[]>;
     findItem(itemId: number): Promise<AgendaRecord | null>;
-    findTrigger(triggerId: number): Promise<{ data: AgendaRecord; trigger: AgendaTriggerRow } | null>;
-    listEnabledTriggers(): Promise<AgendaTriggerRow[]>;
+    findTrigger(triggerId: number): Promise<{ data: AgendaRecord; trigger: AgendaTrigger } | null>;
+    listEnabledTriggers(): Promise<AgendaTrigger[]>;
     createItem(build: (id: number) => AgendaRecordInput): Promise<AgendaRecord>;
-    updateItem(itemId: number, fields: Partial<AgendaStoredItemRow>): Promise<AgendaRecord | null>;
-    updateTrigger(triggerId: number, fields: Partial<AgendaTriggerRow>): Promise<AgendaRecord | null>;
-    updateActiveTriggersByItem(itemId: number, fields: Partial<AgendaTriggerRow>, exceptTriggerId?: number): Promise<number[]>;
-    appendTrigger(itemId: number, trigger: Omit<AgendaTriggerRow, "id">): Promise<AgendaTriggerRow | null>;
-    appendOccurrence(itemId: number, occurrence: Omit<AgendaOccurrenceRow, "id">): Promise<AgendaOccurrenceRow | null>;
-    updateOccurrence(occurrenceId: number, fields: Partial<AgendaOccurrenceRow>): Promise<AgendaRecord | null>;
+    updateItem(itemId: number, fields: Partial<AgendaStoredItem>): Promise<AgendaRecord | null>;
+    updateTrigger(triggerId: number, fields: Partial<AgendaTrigger>): Promise<AgendaRecord | null>;
+    updateActiveTriggersByItem(itemId: number, fields: Partial<AgendaTrigger>, exceptTriggerId?: number): Promise<number[]>;
+    appendTrigger(itemId: number, trigger: Omit<AgendaTrigger, "id">): Promise<AgendaTrigger | null>;
+    appendOccurrence(itemId: number, occurrence: Omit<AgendaOccurrence, "id">): Promise<AgendaOccurrence | null>;
+    updateOccurrence(occurrenceId: number, fields: Partial<AgendaOccurrence>): Promise<AgendaRecord | null>;
     deleteItem(itemId: number): Promise<AgendaRecord | null>;
     deleteAll(): Promise<number[]>;
 }

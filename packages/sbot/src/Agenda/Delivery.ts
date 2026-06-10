@@ -1,4 +1,4 @@
-import type { AgendaItemRow, AgendaTriggerRow } from "scorpio.ai";
+import type { AgendaItem, AgendaTrigger } from "scorpio.ai";
 import type { ChannelSessionRow } from "../Core/Database";
 import { database } from "../Core/Database";
 import { LoggerService } from "../Core/LoggerService";
@@ -7,7 +7,7 @@ import { agendaStorePool } from "./AgendaStorePool";
 
 const logger = LoggerService.getLogger("Agenda/Delivery.ts");
 
-export async function resolveAgendaDelivery(item: AgendaItemRow, trigger: AgendaTriggerRow): Promise<ChannelSessionRow | null> {
+export async function resolveAgendaDelivery(item: AgendaItem, trigger: AgendaTrigger): Promise<ChannelSessionRow | null> {
     const profileId = item.profileId;
     if (!profileId || profileId <= 0) return null;
     const profile = await channelDataService.getProfile(profileId);
