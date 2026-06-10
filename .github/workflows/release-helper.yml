@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  release-desktop:
     strategy:
       fail-fast: false
       matrix:
@@ -98,7 +98,7 @@ jobs:
           args: ${{ matrix.args }}
 
   publish-manifest:
-    needs: release
+    needs: release-desktop
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
