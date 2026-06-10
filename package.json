@@ -8,7 +8,6 @@
 
     "debug:sbot": "pnpm run build:deps && pnpm run assets && pnpm --filter sbot-admin run build && pnpm --filter @qingfeng346/sbot run debug",
     "build:sbot": "pnpm run build:deps && pnpm run assets && pnpm --filter sbot-admin run build && pnpm --filter @qingfeng346/sbot run build",
-    "build:sbot:bundle": "pnpm run build:deps && pnpm run assets && pnpm --filter sbot-admin run build && pnpm --filter @qingfeng346/sbot run build:bundle",
     "publish:sbot": "pnpm run build:sbot && pnpm --filter @qingfeng346/sbot publish --no-git-checks --access public",
     "link:sbot": "pnpm run build:sbot && npm link packages/sbot/dist",
     "unlink:sbot": "npm unlink -g @qingfeng346/sbot",
