@@ -1,5 +1,5 @@
 import { CronJob } from "cron";
-import { AgendaTriggerKind, type AgendaRelativeTime, type AgendaTrigger } from "./types";
+import { AgendaTimeUnit, AgendaTriggerKind, type AgendaRelativeTime, type AgendaTrigger } from "./types";
 
 export const DEFAULT_GRACE_MS = 24 * 60 * 60 * 1000;
 export const MAX_TIMEOUT_MS = 2_147_483_647;
@@ -7,10 +7,10 @@ export const MAX_TIMEOUT_MS = 2_147_483_647;
 export function relativeToMs(value: AgendaRelativeTime): number {
     const amount = Math.max(1, Math.floor(value.amount));
     switch (value.unit) {
-        case 'minute': return amount * 60 * 1000;
-        case 'hour': return amount * 60 * 60 * 1000;
-        case 'day': return amount * 24 * 60 * 60 * 1000;
-        case 'week': return amount * 7 * 24 * 60 * 60 * 1000;
+        case AgendaTimeUnit.Minute: return amount * 60 * 1000;
+        case AgendaTimeUnit.Hour:   return amount * 60 * 60 * 1000;
+        case AgendaTimeUnit.Day:    return amount * 24 * 60 * 60 * 1000;
+        case AgendaTimeUnit.Week:   return amount * 7 * 24 * 60 * 60 * 1000;
         default: throw new Error(`Unsupported time unit: ${(value as any).unit}`);
     }
 }

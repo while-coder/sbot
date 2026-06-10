@@ -3,8 +3,10 @@ import { z } from "zod";
 import {
     AgendaCategory,
     AgendaCompletionMode,
+    AgendaListView,
     AgendaPriority,
     AgendaStatus,
+    AgendaTimeUnit,
     AgendaTriggerAction,
     type AgendaCreateArgs,
     type AgendaListFilter,
@@ -21,7 +23,7 @@ export const AGENDA_SKIP_NEXT_TOOL_NAME = 'agenda_skip_next' as const;
 
 const RelativeTimeSchema = z.object({
     amount: z.number().describe('Positive amount'),
-    unit: z.enum(['minute', 'hour', 'day', 'week']).describe('Time unit'),
+    unit: z.enum(AgendaTimeUnit).describe('Time unit'),
 });
 
 export class AgendaToolProvider {
@@ -64,7 +66,7 @@ export class AgendaToolProvider {
                     status: z.enum([AgendaStatus.Pending, AgendaStatus.Done, AgendaStatus.Cancelled, 'all']).optional(),
                     category: z.enum(AgendaCategory).optional(),
                     priority: z.enum(AgendaPriority).optional(),
-                    view: z.enum(['todo', 'upcoming', 'routine', 'automation', 'all']).optional(),
+                    view: z.enum(AgendaListView).optional(),
                     limit: z.number().optional(),
                 }),
                 func: async (filter: AgendaListFilter) => {

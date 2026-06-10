@@ -8,6 +8,7 @@ import {
     AgendaCategory,
     AgendaCompletionMode,
     AgendaPriority,
+    AgendaTimeUnit,
     AgendaTriggerAction,
     type AgendaItemView,
 } from "../types";
@@ -15,7 +16,7 @@ import { type AgendaAction, AgendaActionType, IAgendaExtractor } from "./IAgenda
 
 const RelativeTimeSchema = z.object({
     amount: z.number(),
-    unit: z.enum(['minute', 'hour', 'day', 'week']),
+    unit: z.enum(AgendaTimeUnit),
 });
 
 const CreateArgsSchema = z.object({

@@ -264,6 +264,8 @@ export {
   AgendaTriggerKind,
   AgendaTriggerAction,
   AgendaOccurrenceStatus,
+  AgendaListView,
+  AgendaTimeUnit,
   type AgendaCreateArgs,
   type AgendaCreateResult,
   type AgendaRelativeTime,

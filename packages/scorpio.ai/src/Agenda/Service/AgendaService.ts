@@ -4,6 +4,7 @@ import { ILoggerService, type ILogger } from "../../Logger";
 import {
     AgendaCategory,
     AgendaCompletionMode,
+    AgendaListView,
     AgendaOccurrenceStatus,
     AgendaPriority,
     AgendaSource,
@@ -226,7 +227,7 @@ export class AgendaService implements IAgendaService {
     async extractFromConversation(userMessage: string, assistantMessages?: string[]): Promise<void> {
         if (!this.extractor) return;
         try {
-            const existing = await this.list({ status: 'all', view: 'all', limit: 80 });
+            const existing = await this.list({ status: 'all', view: AgendaListView.All, limit: 80 });
             const actions = await this.extractor.extract(userMessage, assistantMessages ?? [], existing);
             if (actions.length === 0) return;
             for (const action of actions) await this.applyAction(action);
@@ -358,11 +359,11 @@ export class AgendaService implements IAgendaService {
         if (status !== 'all' && item.status !== status) return false;
         if (filter?.category && item.category !== filter.category) return false;
         if (filter?.priority && item.priority !== filter.priority) return false;
-        const view = filter?.view ?? 'todo';
-        if (view === 'all') return true;
-        if (view === 'routine') return item.category === AgendaCategory.Routine;
-        if (view === 'automation') return item.category === AgendaCategory.Automation || item.triggers.some(t => t.action !== AgendaTriggerAction.Notify);
-        if (view === 'upcoming') return item.triggers.some(t => t.enabled && t.nextFireAt);
+        const view = filter?.view ?? AgendaListView.Todo;
+        if (view === AgendaListView.All) return true;
+        if (view === AgendaListView.Routine) return item.category === AgendaCategory.Routine;
+        if (view === AgendaListView.Automation) return item.category === AgendaCategory.Automation || item.triggers.some(t => t.action !== AgendaTriggerAction.Notify);
+        if (view === AgendaListView.Upcoming) return item.triggers.some(t => t.enabled && t.nextFireAt);
         return item.category !== AgendaCategory.Automation;
     }
 

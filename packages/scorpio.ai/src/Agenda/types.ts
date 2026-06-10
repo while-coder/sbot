@@ -51,9 +51,22 @@ export enum AgendaOccurrenceStatus {
     Skipped = 'skipped',
 }
 
+export enum AgendaListView {
+    Todo = 'todo',
+    Upcoming = 'upcoming',
+    Routine = 'routine',
+    Automation = 'automation',
+    All = 'all',
+}
+
 // ===== DTOs =====
 
-export type AgendaTimeUnit = 'minute' | 'hour' | 'day' | 'week';
+export enum AgendaTimeUnit {
+    Minute = 'minute',
+    Hour = 'hour',
+    Day = 'day',
+    Week = 'week',
+}
 
 export interface AgendaRelativeTime {
     amount: number;
@@ -94,7 +107,7 @@ export interface AgendaListFilter {
     status?: AgendaStatus | 'all';
     category?: AgendaCategory;
     priority?: AgendaPriority;
-    view?: 'todo' | 'upcoming' | 'routine' | 'automation' | 'all';
+    view?: AgendaListView;
     limit?: number;
 }
 
