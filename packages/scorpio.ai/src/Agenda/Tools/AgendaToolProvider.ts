@@ -6,11 +6,11 @@ import {
     AgendaPriority,
     AgendaStatus,
     AgendaTriggerAction,
-    IAgendaService,
     type AgendaCreateArgs,
     type AgendaListFilter,
     type AgendaUpdatePatch,
-} from "../IAgendaService";
+} from "../types";
+import { IAgendaService } from "../Service/IAgendaService";
 
 export const AGENDA_CREATE_TOOL_NAME = 'agenda_create' as const;
 export const AGENDA_LIST_TOOL_NAME = 'agenda_list' as const;

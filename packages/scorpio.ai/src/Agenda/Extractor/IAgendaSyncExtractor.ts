@@ -2,7 +2,7 @@ import type {
     AgendaCreateArgs,
     AgendaItemView,
     AgendaUpdatePatch,
-} from "../IAgendaService";
+} from "../types";
 
 export enum AgendaSyncActionType {
     Create = 'create',

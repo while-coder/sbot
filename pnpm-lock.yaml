@@ -524,6 +524,9 @@ importers:
       axios:
         specifier: 'catalog:'
         version: 1.17.0(debug@4.4.3)
+      better-sqlite3:
+        specifier: ^12.9.0
+        version: 12.9.0
       channel.base:
         specifier: workspace:*
         version: link:../channel.base
@@ -606,6 +609,9 @@ importers:
       '@types/adm-zip':
         specifier: ^0.5.8
         version: 0.5.8
+      '@types/better-sqlite3':
+        specifier: ^7.6.13
+        version: 7.6.13
       '@types/diff':
         specifier: ^8.0.0
         version: 8.0.0
@@ -688,6 +694,9 @@ importers:
       commander:
         specifier: 'catalog:'
         version: 15.0.0
+      cron:
+        specifier: ^4.4.0
+        version: 4.4.0
       js-yaml:
         specifier: ^4.1.1
         version: 4.1.1

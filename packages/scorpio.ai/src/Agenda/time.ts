@@ -1,6 +1,5 @@
 import { CronJob } from "cron";
-import { AgendaTriggerKind, type AgendaRelativeTime } from "scorpio.ai";
-import type { AgendaTriggerRow } from "./types";
+import { AgendaTriggerKind, type AgendaRelativeTime, type AgendaTriggerRow } from "./types";
 
 export const DEFAULT_GRACE_MS = 24 * 60 * 60 * 1000;
 export const MAX_TIMEOUT_MS = 2_147_483_647;

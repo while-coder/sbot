@@ -10,7 +10,7 @@ import {
     AgendaPriority,
     AgendaTriggerAction,
     type AgendaItemView,
-} from "../IAgendaService";
+} from "../types";
 import { type AgendaSyncAction, AgendaSyncActionType, IAgendaSyncExtractor } from "./IAgendaSyncExtractor";
 
 const RelativeTimeSchema = z.object({

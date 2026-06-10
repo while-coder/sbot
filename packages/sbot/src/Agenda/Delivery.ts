@@ -1,9 +1,9 @@
+import type { AgendaItemRow, AgendaTriggerRow } from "scorpio.ai";
 import type { ChannelSessionRow } from "../Core/Database";
 import { database } from "../Core/Database";
 import { LoggerService } from "../Core/LoggerService";
 import { channelDataService } from "../Session/ChannelDataService";
 import { agendaStore } from "./AgendaStore";
-import type { AgendaItemRow, AgendaTriggerRow } from "./types";
 
 const logger = LoggerService.getLogger("Agenda/Delivery.ts");
 

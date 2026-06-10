@@ -1,4 +1,10 @@
-export * from "./IAgendaService";
+export * from "./types";
+export * from "./time";
+export { IAgendaService, type AgendaToolDescs } from "./Service/IAgendaService";
+export { AgendaService } from "./Service/AgendaService";
+export { IAgendaStore } from "./Storage/IAgendaStore";
+export { AgendaStore } from "./Storage/AgendaStore";
+export { IAgendaScheduler } from "./Scheduler/IAgendaScheduler";
 export * from "./Extractor/IAgendaSyncExtractor";
 export * from "./Extractor/AgendaSyncExtractor";
 export * from "./Tools/AgendaToolProvider";

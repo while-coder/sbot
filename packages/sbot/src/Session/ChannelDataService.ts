@@ -10,8 +10,7 @@ import {
 import { config } from "../Core/Config";
 import { LoggerService } from "../Core/LoggerService";
 import { heartbeatService } from "../Heartbeat/HeartbeatService";
-import { agendaTriggerEngine } from "../Agenda";
-import { agendaStore } from "../Agenda/AgendaStore";
+import { agendaStore, agendaTriggerEngine } from "../Agenda";
 
 const logger = LoggerService.getLogger("ChannelDataService.ts");
 

@@ -1,3 +1,5 @@
+// ===== Enums =====
+
 export enum AgendaStatus {
     Pending = 'pending',
     Done = 'done',
@@ -49,6 +51,8 @@ export enum AgendaOccurrenceStatus {
     Skipped = 'skipped',
 }
 
+// ===== DTOs =====
+
 export type AgendaTimeUnit = 'minute' | 'hour' | 'day' | 'week';
 
 export interface AgendaRelativeTime {
@@ -93,6 +97,14 @@ export interface AgendaListFilter {
     view?: 'todo' | 'upcoming' | 'routine' | 'automation' | 'all';
     limit?: number;
 }
+
+export interface AgendaCreateResult {
+    item: AgendaItemView;
+    created: boolean;
+    existed: boolean;
+}
+
+// ===== Domain entities =====
 
 export interface AgendaItem {
     id: number;
@@ -145,31 +157,82 @@ export interface AgendaItemView extends AgendaItem {
     occurrences?: AgendaOccurrence[];
 }
 
-export interface AgendaCreateResult {
-    item: AgendaItemView;
-    created: boolean;
-    existed: boolean;
+// ===== DB row types (storage layer) =====
+
+export type AgendaItemRow = {
+    id: number;
+    profileId: number;
+    content: string;
+    status: string;
+    priority: string;
+    category: string;
+    completionMode: string;
+    dueAt: number | null;
+    source: string;
+    lastTouchedTurnId: string | null;
+    createdAt: number;
+    updatedAt: number;
+    doneAt: number | null;
+};
+
+export type AgendaStoredItemRow = Omit<AgendaItemRow, "profileId">;
+
+export type AgendaTriggerRow = {
+    id: number;
+    itemId: number;
+    kind: string;
+    expr: string;
+    timezone: string | null;
+    action: string;
+    message: string | null;
+    channelHint: number;
+    enabled: boolean;
+    fireCount: number;
+    maxFires: number;
+    lastFiredAt: number | null;
+    nextFireAt: number | null;
+    graceWindowMs: number;
+    skipNextFireAt: number | null;
+    skipFireCount: number | null;
+    createdAt: number;
+};
+
+export type AgendaOccurrenceRow = {
+    id: number;
+    itemId: number;
+    triggerId: number;
+    scheduledAt: number;
+    status: string;
+    doneAt: number | null;
+    createdAt: number;
+};
+
+export type AgendaFireLogRow = {
+    id: number;
+    itemId: number;
+    triggerId: number;
+    firedAt: number;
+    action: string;
+    channelSessionId: number | null;
+    ok: boolean;
+    errorMessage: string | null;
+};
+
+export interface AgendaRecord {
+    item: AgendaItemRow;
+    triggers: AgendaTriggerRow[];
+    occurrences: AgendaOccurrenceRow[];
+    fireLogs: AgendaFireLogRow[];
 }
 
-export interface AgendaToolDescs {
-    create: string;
-    list: string;
-    update: string;
-    complete: string;
-    cancel: string;
-    skipNext: string;
+export interface AgendaRecordInput {
+    item: AgendaStoredItemRow;
+    triggers: AgendaTriggerRow[];
+    occurrences: AgendaOccurrenceRow[];
+    fireLogs: AgendaFireLogRow[];
 }
 
-export interface IAgendaService {
-    getToolDescs(): AgendaToolDescs;
-    create(args: AgendaCreateArgs): Promise<AgendaCreateResult>;
-    list(filter?: AgendaListFilter): Promise<AgendaItemView[]>;
-    update(id: number, patch: AgendaUpdatePatch): Promise<AgendaItemView | null>;
-    complete(id: number): Promise<AgendaItemView | null>;
-    cancel(id: number): Promise<AgendaItemView | null>;
-    skipNext(id: number): Promise<AgendaItemView | null>;
-    formatForLLM(filter?: AgendaListFilter): Promise<string>;
-    extractFromConversation(userMessage: string, assistantMessages?: string[]): Promise<void>;
+export interface AgendaRecordRef {
+    dbPath: string;
+    data: AgendaRecord;
 }
-
-export const IAgendaService = Symbol("IAgendaService");

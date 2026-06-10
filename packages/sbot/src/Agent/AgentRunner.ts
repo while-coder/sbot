@@ -22,9 +22,15 @@ import {
     T_InsightExtractorSystemPrompt,
     T_InsightStaleDays, T_InsightArchiveDays, T_InsightSystemPromptTemplate,
     IAgendaService,
+    AgendaService,
+    IAgendaStore,
+    IAgendaScheduler,
     IAgendaSyncExtractor,
     AgendaSyncExtractor,
     T_AgendaSyncSystemPrompt,
+    T_AgendaProfileId,
+    T_AgendaChannelSessionId,
+    T_AgendaToolDescs,
     type MessageContent,
 } from "scorpio.ai";
 import { loadPrompt } from "../Core/PromptLoader";
@@ -37,7 +43,7 @@ import { sessionManager } from "../Session/SessionManager";
 import { NoteDatabaseManager } from "./NoteDatabaseManager";
 import { WikiDatabaseManager } from "./WikiDatabaseManager";
 import { SaverPool } from "./SaverPool";
-import { AgendaService } from "../Agenda";
+import { agendaStore, agendaTriggerEngine } from "../Agenda";
 
 export interface AgentRunOptions {
     /** 用户输入的消息 */
@@ -292,10 +298,10 @@ export class AgentRunner {
         const channelSessionId = parseInt(dbSessionId, 10);
         if (!profileId || !channelSessionId) return;
 
-        const service = new AgendaService(
-            profileId,
-            channelSessionId,
-            {
+        const args: Record<string | symbol, any> = {
+            [T_AgendaProfileId]: profileId,
+            [T_AgendaChannelSessionId]: channelSessionId,
+            [T_AgendaToolDescs]: {
                 create: loadPrompt('agenda/tools/create.txt'),
                 list: loadPrompt('agenda/tools/list.txt'),
                 update: loadPrompt('agenda/tools/update.txt'),
@@ -303,8 +309,10 @@ export class AgentRunner {
                 cancel: loadPrompt('agenda/tools/cancel.txt'),
                 skipNext: loadPrompt('agenda/tools/skip_next.txt'),
             },
-            extractor,
-        );
-        container.registerInstance(IAgendaService, service);
+            [IAgendaStore]: agendaStore,
+            [IAgendaScheduler]: agendaTriggerEngine,
+        };
+        if (extractor) args[IAgendaSyncExtractor] = extractor;
+        container.registerWithArgs(IAgendaService, AgendaService, args);
     }
 }

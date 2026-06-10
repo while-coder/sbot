@@ -19,6 +19,7 @@
     "@langchain/textsplitters": "^1.0.1",
     "better-sqlite3": "^12.9.0",
     "commander": "catalog:",
+    "cron": "^4.4.0",
     "js-yaml": "^4.1.1",
     "langchain": "^1.3.3",
     "pg": "^8.20.0",

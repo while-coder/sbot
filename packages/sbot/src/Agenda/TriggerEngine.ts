@@ -3,14 +3,23 @@ import {
     AgendaOccurrenceStatus,
     AgendaStatus,
     AgendaTriggerAction,
+    computeNextAfterFire,
+    MAX_TIMEOUT_MS,
+    type AgendaItemRow,
+    type AgendaTriggerRow,
 } from "scorpio.ai";
+import type { SessionProfileRow } from "../Core/Database";
+import { database } from "../Core/Database";
 import { LoggerService } from "../Core/LoggerService";
 import { TimerExecutor } from "../Core/TimerExecutor";
 import { triggerSession } from "../Core/triggerSession";
 import { agendaStore } from "./AgendaStore";
 import { resolveAgendaDelivery } from "./Delivery";
-import { computeNextAfterFire, MAX_TIMEOUT_MS } from "./time";
-import type { AgendaItemRow, AgendaTriggerRow } from "./types";
+
+async function listAllProfileIds(): Promise<number[]> {
+    const profiles = await database.findAll<SessionProfileRow>(database.sessionProfile);
+    return profiles.map(p => p.id).filter(id => Number.isInteger(id) && id > 0);
+}
 
 const logger = LoggerService.getLogger("Agenda/TriggerEngine.ts");
 
@@ -20,7 +29,8 @@ class AgendaTriggerEngine {
 
     async start(): Promise<void> {
         this.started = true;
-        const triggers = await agendaStore.listEnabledTriggers();
+        const profileIds = await listAllProfileIds();
+        const triggers = await agendaStore.listEnabledTriggers(profileIds);
         for (const trigger of triggers) {
             await this.reload(trigger.id);
         }

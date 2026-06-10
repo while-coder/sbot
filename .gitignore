@@ -5,6 +5,7 @@
 dev-dist
 tsconfig.tsbuildinfo
 /docs
+/.codegraph
 
 # Secrets — never commit (release.jks, keystore.properties, tauri-updater.key, etc.)
 /secrets/

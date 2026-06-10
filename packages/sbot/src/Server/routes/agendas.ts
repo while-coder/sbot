@@ -2,14 +2,22 @@ import express from 'express';
 import {
     AgendaCategory,
     AgendaPriority,
+    AgendaService,
     AgendaStatus,
+    IAgendaScheduler,
+    IAgendaStore,
+    ILoggerService,
+    ServiceContainer,
+    T_AgendaChannelSessionId,
+    T_AgendaProfileId,
+    T_AgendaToolDescs,
     type AgendaListFilter,
     type AgendaToolDescs,
 } from 'scorpio.ai';
-import { AgendaService } from '../../Agenda';
-import { agendaStore } from '../../Agenda/AgendaStore';
-import type { ChannelSessionRow } from '../../Core/Database';
+import { agendaStore, agendaTriggerEngine } from '../../Agenda';
+import type { ChannelSessionRow, SessionProfileRow } from '../../Core/Database';
 import { database } from '../../Core/Database';
+import { LoggerService } from '../../Core/LoggerService';
 import { api, throwBad } from '../utils';
 import type { RouteContext } from './types';
 
@@ -34,17 +42,18 @@ export class AgendaRoutes {
             const profileId = num(req.query.profileId);
             if (req.query.profileId != null && !profileId) throwBad('Invalid profileId');
             if (profileId) {
-                const service = new AgendaService(profileId, await this.resolveChannelSessionId(profileId), ADMIN_DESCS);
+                const service = await this.createService(profileId, await this.resolveChannelSessionId(profileId));
                 return service.list(this.parseFilter(req.query));
             }
-            return AgendaService.listAll(this.parseFilter(req.query));
+            const profileIds = await this.listAllProfileIds();
+            return (await this.createService(0, 0)).listAll(profileIds, this.parseFilter(req.query));
         }));
 
         app.post('/api/agendas', api(async req => {
             const body = req.body || {};
             const profileId = Number(body.profileId);
             if (!Number.isInteger(profileId) || profileId <= 0) throwBad('Invalid profileId');
-            const service = new AgendaService(profileId, await this.resolveChannelSessionId(profileId, body.channelSessionId), ADMIN_DESCS);
+            const service = await this.createService(profileId, await this.resolveChannelSessionId(profileId, body.channelSessionId));
             return service.create({
                 content: String(body.content ?? ''),
                 category: body.category,
@@ -65,7 +74,7 @@ export class AgendaRoutes {
             if (!Number.isInteger(id) || id <= 0) throwBad('Invalid id');
             const item = (await agendaStore.findByItemId(id))?.data.item;
             if (!item) throwBad('Agenda item not found');
-            const service = new AgendaService(item.profileId, await this.resolveChannelSessionId(item.profileId), ADMIN_DESCS);
+            const service = await this.createService(item.profileId, await this.resolveChannelSessionId(item.profileId));
             const updated = await service.update(id, req.body || {});
             if (!updated) throwBad('Agenda item not found');
             return updated;
@@ -78,7 +87,7 @@ export class AgendaRoutes {
         app.delete('/api/agendas/:id', api(async req => {
             const id = Number(req.params.id);
             if (!Number.isInteger(id) || id <= 0) throwBad('Invalid id');
-            const deleted = await AgendaService.delete(id);
+            const deleted = await (await this.createService(0, 0)).delete(id);
             if (!deleted) throwBad('Agenda item not found');
             return { id };
         }));
@@ -86,7 +95,7 @@ export class AgendaRoutes {
         app.get('/api/agendas/:id/fire-logs', api(async req => {
             const id = Number(req.params.id);
             if (!Number.isInteger(id) || id <= 0) throwBad('Invalid id');
-            return AgendaService.fireLogs(id);
+            return (await this.createService(0, 0)).fireLogs(id);
         }));
     }
 
@@ -115,10 +124,28 @@ export class AgendaRoutes {
         if (!Number.isInteger(id) || id <= 0) throwBad('Invalid id');
         const item = (await agendaStore.findByItemId(id))?.data.item;
         if (!item) throwBad('Agenda item not found');
-        const service = new AgendaService(item.profileId, await this.resolveChannelSessionId(item.profileId), ADMIN_DESCS);
+        const service = await this.createService(item.profileId, await this.resolveChannelSessionId(item.profileId));
         if (action === 'complete') return service.complete(id);
         if (action === 'cancel') return service.cancel(id);
         return service.skipNext(id);
+    }
+
+    private async createService(profileId: number, channelSessionId: number): Promise<AgendaService> {
+        const container = new ServiceContainer();
+        container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
+        container.registerWithArgs(AgendaService, {
+            [T_AgendaProfileId]: profileId,
+            [T_AgendaChannelSessionId]: channelSessionId,
+            [T_AgendaToolDescs]: ADMIN_DESCS,
+            [IAgendaStore]: agendaStore,
+            [IAgendaScheduler]: agendaTriggerEngine,
+        });
+        return container.resolve(AgendaService);
+    }
+
+    private async listAllProfileIds(): Promise<number[]> {
+        const profiles = await database.findAll<SessionProfileRow>(database.sessionProfile);
+        return profiles.map(p => p.id).filter(id => Number.isInteger(id) && id > 0);
     }
 
     private async resolveChannelSessionId(profileId: number, preferred?: unknown): Promise<number> {
