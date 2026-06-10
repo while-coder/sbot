@@ -3,6 +3,7 @@ import {
     AgendaOccurrenceStatus,
     AgendaStatus,
     AgendaTriggerAction,
+    AgendaTriggerKind,
     computeNextAfterFire,
     DEFAULT_GRACE_MS,
     TimeUtils,
@@ -17,6 +18,11 @@ import { triggerSession } from "../Core/triggerSession";
 import { resolveAgendaDelivery } from "./Delivery";
 
 const logger = LoggerService.getLogger("Agenda/TriggerEngine.ts");
+
+/** Absolute（一次性）触发投递失败后的重试间隔。 */
+const ABSOLUTE_RETRY_INTERVAL_MS = 5 * 60 * 1000;
+/** 距原定时刻超过该窗口仍未投递成功则放弃，避免无限重试。 */
+const ABSOLUTE_RETRY_DEADLINE_MS = 30 * 60 * 1000;
 
 /**
  * 单 profile 的触发器运行时。绑定一个 profileId + store，
@@ -117,6 +123,7 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
                 return;
             }
 
+            let delivered = false;
             const delivery = await resolveAgendaDelivery(item, freshTrigger);
             try {
                 if (!delivery) throw new Error("no delivery session");
@@ -127,12 +134,28 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
                     aiProcess: freshTrigger.action === AgendaTriggerAction.Invoke,
                     tag: `Agenda trigger [${freshTrigger.id}]`,
                 });
+                delivered = result.ok;
                 if (!result.ok) logger.warn(`Agenda trigger [${freshTrigger.id}] delivery failed`);
             } catch (e: any) {
                 logger.warn(`Agenda trigger [${freshTrigger.id}] failed: ${e?.message ?? String(e)}`);
             }
 
-            if (item.completionMode === AgendaCompletionMode.Occurrence) {
+            // 一次性 absolute 触发投递失败时延后重试，避免提醒在临时通道异常下永久丢失。
+            // 距原计划超过 deadline 仍未送达则放弃（走正常 advance 流程，trigger 被禁用）。
+            if (!delivered && freshTrigger.kind === AgendaTriggerKind.Absolute && freshTrigger.maxFires === 1) {
+                const originalAt = this.parseAbsoluteExpr(freshTrigger.expr) ?? scheduledAt;
+                const retryAt = Date.now() + ABSOLUTE_RETRY_INTERVAL_MS;
+                if (retryAt - originalAt < ABSOLUTE_RETRY_DEADLINE_MS) {
+                    await this.store.updateTrigger(freshTrigger.id, { nextFireAt: retryAt });
+                    this.schedule(freshTrigger.id, retryAt);
+                    logger.warn(`Agenda trigger [${freshTrigger.id}] delivery failed, retry at ${new Date(retryAt).toISOString()}`);
+                    return;
+                }
+                logger.warn(`Agenda trigger [${freshTrigger.id}] delivery failed past retry deadline; giving up`);
+            }
+
+            // 仅在投递成功时记录 occurrence，避免失败积累虚假 pending 条目。
+            if (delivered && item.completionMode === AgendaCompletionMode.Occurrence) {
                 await this.store.appendOccurrence(item.id, {
                     itemId: item.id,
                     scheduledAt,
@@ -143,6 +166,11 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
 
             await this.advanceAfterFire(freshTrigger, item, scheduledAt, true);
         });
+    }
+
+    private parseAbsoluteExpr(expr: string): number | null {
+        try { return TimeUtils.parseAt(expr); }
+        catch { return null; }
     }
 
     private buildMessage(item: AgendaItem, trigger: AgendaTrigger): string {

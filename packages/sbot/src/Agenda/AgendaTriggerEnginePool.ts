@@ -1,8 +1,11 @@
 import { agendaStorePool } from "./AgendaStorePool";
+import { LoggerService } from "../Core/LoggerService";
 import { AgendaTriggerEngine } from "./TriggerEngine";
 
 const ITEM_ID_FACTOR = 1_000_000;
 const CHILD_ID_FACTOR = 1_000;
+
+const logger = LoggerService.getLogger("Agenda/AgendaTriggerEnginePool.ts");
 
 /**
  * 维护 profileId → 单 profile AgendaTriggerEngine 的映射。
@@ -40,7 +43,12 @@ class AgendaTriggerEnginePool {
     async startAll(): Promise<void> {
         const profileIds = await agendaStorePool.listAllProfileIds();
         for (const profileId of profileIds) {
-            await this.get(profileId).start();
+            try {
+                await this.get(profileId).start();
+            } catch (e: any) {
+                // 单个 profile 启动失败（如 sqlite 文件损坏）不应阻塞其他 profile 的调度。
+                logger.warn(`Agenda trigger engine [profile=${profileId}] start failed: ${e?.message ?? String(e)}`);
+            }
         }
     }
 

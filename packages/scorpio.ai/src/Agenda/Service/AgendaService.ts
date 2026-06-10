@@ -105,7 +105,13 @@ export class AgendaService implements IAgendaService {
         if (patch.category != null) fields.category = patch.category;
         if (patch.priority != null) fields.priority = patch.priority;
         if (patch.completionMode != null) fields.completionMode = patch.completionMode;
-        if (patch.dueAt !== undefined) fields.dueAt = patch.dueAt === null ? null : TimeUtils.parseAt(patch.dueAt);
+        if (patch.dueAt !== undefined) {
+            fields.dueAt = patch.dueAt === null ? null : TimeUtils.parseAt(patch.dueAt);
+        } else if (this.hasSchedulePatch(patch)) {
+            // 调度变更但未显式指定 dueAt：与 create 流程保持一致，依据新调度推导 dueAt
+            // (at/after → 触发时刻；every/cron → null)
+            fields.dueAt = this.inferDueAt({ content: '', at: patch.at, after: patch.after });
+        }
 
         const data = await this.agendaStore.updateItem(id, fields);
         const updatedItem = data?.item;
@@ -127,8 +133,11 @@ export class AgendaService implements IAgendaService {
                 action,
                 message: patch.message ?? undefined,
             }, action, now);
-            await this.disableItemTriggers(id, trigger?.id);
-            if (trigger) await this.triggerEngine.reload(trigger.id);
+            // 仅在新触发器创建成功时替换旧触发器；否则视为无效输入，不破坏现有调度
+            if (trigger) {
+                await this.disableItemTriggers(id, trigger.id);
+                await this.triggerEngine.reload(trigger.id);
+            }
         } else if (this.hasTriggerFieldPatch(patch)) {
             const triggerFields: Partial<AgendaTrigger> = {};
             if (patch.timezone !== undefined) triggerFields.timezone = patch.timezone;
@@ -138,8 +147,6 @@ export class AgendaService implements IAgendaService {
             const activeTriggers = record?.triggers.filter(t => t.enabled) ?? [];
             for (const trigger of activeTriggers) await this.agendaStore.updateTrigger(trigger.id, triggerFields);
             await this.triggerEngine.reloadItem(id);
-        } else {
-            await this.triggerEngine.reloadItem(id);
         }
         return this.getView(id);
     }
@@ -148,6 +155,8 @@ export class AgendaService implements IAgendaService {
         const item = await this.requireOwnedItem(id);
         if (!item) return null;
         const now = Date.now();
+        // Occurrence 模式：只消费一次 pending occurrence，不影响 routine 主体。
+        // 没有 pending occurrence 时视为 no-op；用户若要终止整条 routine，应使用 cancel。
         if (item.completionMode === AgendaCompletionMode.Occurrence) {
             const occ = await this.firstPendingOccurrence(id);
             if (occ) {
@@ -155,8 +164,8 @@ export class AgendaService implements IAgendaService {
                     status: AgendaOccurrenceStatus.Done,
                     doneAt: now,
                 });
-                return this.getView(id);
             }
+            return this.getView(id);
         }
         await this.agendaStore.updateItem(id, {
             status: AgendaStatus.Done,
@@ -304,7 +313,8 @@ export class AgendaService implements IAgendaService {
     }
 
     private inferCategory(args: AgendaCreateArgs): AgendaCategory {
-        if (args.action === AgendaTriggerAction.Invoke || args.action === AgendaTriggerAction.Send) return AgendaCategory.Automation;
+        // Automation 仅指由 Invoke 触发的 AI 自动化任务；Send/Notify 都属于"提醒"语义。
+        if (args.action === AgendaTriggerAction.Invoke) return AgendaCategory.Automation;
         if (args.every || args.cron) return AgendaCategory.Routine;
         if (args.at || args.after) return AgendaCategory.Reminder;
         return AgendaCategory.Todo;
