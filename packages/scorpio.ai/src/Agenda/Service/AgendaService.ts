@@ -17,7 +17,6 @@ import {
     type AgendaListFilter,
     type AgendaOccurrence,
     type AgendaRecord,
-    type AgendaStoredItem,
     type AgendaTrigger,
     type AgendaUpdatePatch,
 } from "../types";
@@ -61,23 +60,18 @@ export class AgendaService implements IAgendaService {
         const existing = await this.findNearDuplicate(content, dueAt);
         if (existing) return { item: existing, created: false, existed: true };
 
-        const record = await this.agendaStore.createItem(id => ({
-            item: {
-                id,
-                content,
-                status: AgendaStatus.Pending,
-                priority: args.priority ?? AgendaPriority.Normal,
-                category,
-                completionMode,
-                dueAt,
-                source: args.source ?? AgendaSource.Tool,
-                createdAt: now,
-                updatedAt: now,
-                doneAt: null,
-            },
-            triggers: [],
-            occurrences: [],
-        }));
+        const record = await this.agendaStore.createItem({
+            content,
+            status: AgendaStatus.Pending,
+            priority: args.priority ?? AgendaPriority.Normal,
+            category,
+            completionMode,
+            dueAt,
+            source: args.source ?? AgendaSource.Tool,
+            createdAt: now,
+            updatedAt: now,
+            doneAt: null,
+        });
 
         const trigger = await this.createTriggerIfNeeded(record.item, args, action, now);
         if (trigger) await this.triggerEngine.reload(trigger.id);
@@ -104,7 +98,7 @@ export class AgendaService implements IAgendaService {
         const item = await this.requireOwnedItem(id);
         if (!item) return null;
         const now = Date.now();
-        const fields: Partial<AgendaStoredItem> = { updatedAt: now };
+        const fields: Partial<AgendaItem> = { updatedAt: now };
         if (patch.content != null && patch.content.trim()) fields.content = patch.content.trim();
         if (patch.category != null) fields.category = patch.category;
         if (patch.priority != null) fields.priority = patch.priority;

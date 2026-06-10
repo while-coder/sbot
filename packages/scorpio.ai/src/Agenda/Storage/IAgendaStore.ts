@@ -1,8 +1,7 @@
 import type {
+    AgendaItem,
     AgendaOccurrence,
     AgendaRecord,
-    AgendaRecordInput,
-    AgendaStoredItem,
     AgendaTrigger,
 } from "../types";
 
@@ -15,8 +14,8 @@ export interface IAgendaStore {
     findItem(itemId: number): Promise<AgendaRecord | null>;
     findTrigger(triggerId: number): Promise<{ data: AgendaRecord; trigger: AgendaTrigger } | null>;
     listEnabledTriggers(): Promise<AgendaTrigger[]>;
-    createItem(build: (id: number) => AgendaRecordInput): Promise<AgendaRecord>;
-    updateItem(itemId: number, fields: Partial<AgendaStoredItem>): Promise<AgendaRecord | null>;
+    createItem(item: Omit<AgendaItem, "id" | "profileId">): Promise<AgendaRecord>;
+    updateItem(itemId: number, fields: Partial<AgendaItem>): Promise<AgendaRecord | null>;
     updateTrigger(triggerId: number, fields: Partial<AgendaTrigger>): Promise<AgendaRecord | null>;
     updateActiveTriggersByItem(itemId: number, fields: Partial<AgendaTrigger>, exceptTriggerId?: number): Promise<number[]>;
     appendTrigger(itemId: number, trigger: Omit<AgendaTrigger, "id">): Promise<AgendaTrigger | null>;

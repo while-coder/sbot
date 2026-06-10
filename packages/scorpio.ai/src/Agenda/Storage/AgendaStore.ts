@@ -9,8 +9,6 @@ import type {
     AgendaItem,
     AgendaOccurrence,
     AgendaRecord,
-    AgendaRecordInput,
-    AgendaStoredItem,
     AgendaTrigger,
 } from "../types";
 
@@ -42,6 +40,7 @@ export class AgendaStore implements IAgendaStore {
             this._db.exec(`
                 CREATE TABLE IF NOT EXISTS items (
                     id                INTEGER PRIMARY KEY,
+                    profileId         INTEGER NOT NULL,
                     content           TEXT    NOT NULL,
                     status            TEXT    NOT NULL,
                     priority          TEXT    NOT NULL,
@@ -104,13 +103,12 @@ export class AgendaStore implements IAgendaStore {
     }
 
     private readAgendaRecordFromDb(itemId: number): AgendaRecord | null {
-        const storedItem = this.db.prepare("SELECT * FROM items WHERE id = ?").get(itemId) as AgendaStoredItem | undefined;
-        if (!storedItem) return null;
-        return this.buildAgendaRecord(storedItem);
+        const item = this.db.prepare("SELECT * FROM items WHERE id = ?").get(itemId) as AgendaItem | undefined;
+        if (!item) return null;
+        return this.buildAgendaRecord(item);
     }
 
-    private buildAgendaRecord(storedItem: AgendaStoredItem): AgendaRecord {
-        const item = { ...storedItem, profileId: this.profileId };
+    private buildAgendaRecord(item: AgendaItem): AgendaRecord {
         const triggers = (this.db.prepare("SELECT * FROM triggers WHERE itemId = ? ORDER BY id").all(item.id) as any[]).map(row => ({
             ...row,
             enabled: Boolean(row.enabled),
@@ -119,38 +117,21 @@ export class AgendaStore implements IAgendaStore {
         return { item, triggers, occurrences };
     }
 
-    private insertAgendaRecord(data: AgendaRecord): void {
+    private insertItem(item: AgendaItem): void {
         this.db.prepare(`
             INSERT INTO items (
-                id, content, status, priority, category, completionMode,
+                id, profileId, content, status, priority, category, completionMode,
                 dueAt, source, createdAt, updatedAt, doneAt
             ) VALUES (
-                @id, @content, @status, @priority, @category, @completionMode,
+                @id, @profileId, @content, @status, @priority, @category, @completionMode,
                 @dueAt, @source, @createdAt, @updatedAt, @doneAt
             )
-        `).run(this.toStoredItem(data.item));
-        const insertTrigger = this.db.prepare(`
-            INSERT INTO triggers (
-                id, itemId, kind, expr, timezone, action, message, channelHint, enabled,
-                fireCount, maxFires, lastFiredAt, nextFireAt, skipNextFireAt,
-                skipFireCount, createdAt
-            ) VALUES (
-                @id, @itemId, @kind, @expr, @timezone, @action, @message, @channelHint, @enabled,
-                @fireCount, @maxFires, @lastFiredAt, @nextFireAt, @skipNextFireAt,
-                @skipFireCount, @createdAt
-            )
-        `);
-        for (const trigger of data.triggers) insertTrigger.run({ ...trigger, enabled: trigger.enabled ? 1 : 0 });
-        const insertOccurrence = this.db.prepare(`
-            INSERT INTO occurrences (id, itemId, scheduledAt, status, doneAt)
-            VALUES (@id, @itemId, @scheduledAt, @status, @doneAt)
-        `);
-        for (const occurrence of data.occurrences) insertOccurrence.run(occurrence);
+        `).run(item);
     }
 
     async listItems(): Promise<AgendaRecord[]> {
         if (!existsSync(this.dbPath)) return [];
-        const items = this.db.prepare("SELECT * FROM items ORDER BY id").all() as AgendaStoredItem[];
+        const items = this.db.prepare("SELECT * FROM items ORDER BY id").all() as AgendaItem[];
         return items.map(item => this.buildAgendaRecord(item));
     }
 
@@ -173,20 +154,15 @@ export class AgendaStore implements IAgendaStore {
         return triggers.sort((a, b) => a.id - b.id);
     }
 
-    async createItem(build: (id: number) => AgendaRecordInput): Promise<AgendaRecord> {
+    async createItem(item: Omit<AgendaItem, "id" | "profileId">): Promise<AgendaRecord> {
         return this.withLock(async () => {
-            const id = this.nextItemIdInDb();
-            const input = build(id);
-            const data: AgendaRecord = {
-                ...input,
-                item: { ...input.item, profileId: this.profileId },
-            };
-            this.db.transaction(() => this.insertAgendaRecord(data))();
-            return data;
+            const fullItem: AgendaItem = { id: this.nextItemIdInDb(), profileId: this.profileId, ...item };
+            this.insertItem(fullItem);
+            return { item: fullItem, triggers: [], occurrences: [] };
         });
     }
 
-    async updateItem(itemId: number, fields: Partial<AgendaStoredItem>): Promise<AgendaRecord | null> {
+    async updateItem(itemId: number, fields: Partial<AgendaItem>): Promise<AgendaRecord | null> {
         return this.withLock(async () => {
             if (!existsSync(this.dbPath)) return null;
             this.updateById("items", itemId, fields);
@@ -309,10 +285,5 @@ export class AgendaStore implements IAgendaStore {
 
     private hasItem(itemId: number): boolean {
         return Boolean(this.db.prepare("SELECT 1 FROM items WHERE id = ?").get(itemId));
-    }
-
-    private toStoredItem(item: AgendaItem): AgendaStoredItem {
-        const { profileId: _profileId, ...stored } = item;
-        return stored;
     }
 }

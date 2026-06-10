@@ -153,17 +153,8 @@ export interface AgendaItemView extends AgendaItem {
     occurrences?: AgendaOccurrence[];
 }
 
-/** items 表实际列形状（不含 profileId 列；profileId 由 store 绑定时补） */
-export type AgendaStoredItem = Omit<AgendaItem, "profileId">;
-
 export interface AgendaRecord {
     item: AgendaItem;
-    triggers: AgendaTrigger[];
-    occurrences: AgendaOccurrence[];
-}
-
-export interface AgendaRecordInput {
-    item: AgendaStoredItem;
     triggers: AgendaTrigger[];
     occurrences: AgendaOccurrence[];
 }
