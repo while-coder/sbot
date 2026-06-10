@@ -36,6 +36,8 @@ export function createProcessAIHandler(): ProcessAIHandler {
         const approvalTimeoutValue = resolved.approvalTimeoutValue;
         const askTimeout = resolved.askTimeout ?? 0;
         const askTimeoutMessage = resolved.askTimeoutMessage;
+        const disableWorkspaceContext = resolved.disableWorkspaceContext ?? false;
+        const disableWorkspaceSkills = resolved.disableWorkspaceSkills ?? false;
         const threadId = resolved.threadKey;  // = String(profile.id)
 
         sessionHandler.approvalTimeoutMs = approvalTimeout > 0 ? approvalTimeout * 1000 : 0;
@@ -106,7 +108,11 @@ export function createProcessAIHandler(): ProcessAIHandler {
             notes,
             wikis,
             workPath,
+            disableWorkspaceContext,
+            disableWorkspaceSkills,
             agentTools,
+            insightConfig: resolved.insight,
+            agendaConfig: resolved.agenda,
         });
     };
 }

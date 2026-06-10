@@ -1,0 +1,1 @@
+Skip the next trigger for an agenda item while keeping the recurring item active. Use this for requests like "skip tomorrow's reminder" or "not this time".

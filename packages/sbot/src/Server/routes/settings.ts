@@ -14,6 +14,16 @@ import { agentRoutes } from './agents';
 import { acpRoutes } from './acp';
 import type { RouteContext } from './types';
 
+function parseAgenda(raw: string | null | undefined) {
+    if (!raw) return null;
+    try { return JSON.parse(raw); } catch { return null; }
+}
+
+function parseInsight(raw: string | null | undefined) {
+    if (!raw) return null;
+    try { return JSON.parse(raw); } catch { return null; }
+}
+
 export class SettingsRoutes {
     register(app: express.Application, ctx: RouteContext): void {
         app.get('/api/settings', api(() => ctx.settingsWithAgents()));
@@ -148,6 +158,10 @@ export class SettingsRoutes {
                     wikis: parseNotes(profile?.wikis ?? null),
                     workPath: profile?.workPath || undefined,
                     autoApproveAllTools: profile?.autoApproveAllTools || undefined,
+                    disableWorkspaceContext: profile?.disableWorkspaceContext ?? undefined,
+                    disableWorkspaceSkills: profile?.disableWorkspaceSkills ?? undefined,
+                    insight: parseInsight(profile?.insight),
+                    agenda: parseAgenda(profile?.agenda),
                 });
             }
             return result;

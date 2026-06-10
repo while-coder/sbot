@@ -8,7 +8,7 @@ import { IModelService } from "../../Model";
 import { type AgentServiceBase, IAgentCallback, AgentSubNode, CreateAgentFn, T_CreateAgent, MessageRole, ChatMessage } from "../AgentServiceBase";
 import { ISkillService } from "../../Skills";
 import { IInsightService } from "../../Insight";
-import { ITodoService } from "../../Todo";
+import { IAgendaService } from "../../Agenda";
 import { IAgentToolService } from "../../AgentTool";
 import { SingleAgentService } from "../Single/SingleAgentService";
 import { createTaskTool, type RunTaskFn } from "../../Tools";
@@ -45,7 +45,7 @@ export class ReActAgentService extends SingleAgentService {
     @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
     @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
     @inject(IInsightService, { optional: true }) insightService?: IInsightService,
-    @inject(ITodoService, { optional: true }) todoService?: ITodoService,
+    @inject(IAgendaService, { optional: true }) agendaService?: IAgendaService,
     @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
     @inject(INoteService, { optional: true }) noteServices?: INoteService[],
     @inject(IWikiService, { optional: true }) wikiServices?: IWikiService[],
@@ -53,7 +53,7 @@ export class ReActAgentService extends SingleAgentService {
     @inject(IConversationCompactor, { optional: true }) compactor?: ConversationCompactor,
     @inject(T_ToolOverflowDir, { optional: true }) toolOverflowDir?: string,
   ) {
-    super(thinkModelService, skillService, staticSystemPrompts, dynamicSystemPrompts, loggerService, agentSaver, insightService, todoService, toolService, noteServices, wikiServices, modelCallTimeout, compactor, toolOverflowDir);
+    super(thinkModelService, skillService, staticSystemPrompts, dynamicSystemPrompts, loggerService, agentSaver, insightService, agendaService, toolService, noteServices, wikiServices, modelCallTimeout, compactor, toolOverflowDir);
     this.agentSubNodes = agentSubNodes;
     this.agentFactory = agentFactory;
   }

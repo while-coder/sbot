@@ -1,17 +1,17 @@
-import { ApprovalTimeoutValue } from "sbot.commons";
+import { ApprovalTimeoutValue, type AgendaConfig, type InsightConfig } from "sbot.commons";
 import {
     database,
     parseNotes,
     type ChannelSessionRow,
     type SessionProfileRow,
     type ChannelUserRow,
-    type SchedulerRow,
     type HeartbeatRow,
 } from "../Core/Database";
 import { config } from "../Core/Config";
 import { LoggerService } from "../Core/LoggerService";
-import { schedulerService } from "../Scheduler/SchedulerService";
 import { heartbeatService } from "../Heartbeat/HeartbeatService";
+import { agendaTriggerEngine } from "../Agenda";
+import { agendaStore } from "../Agenda/AgendaStore";
 
 const logger = LoggerService.getLogger("ChannelDataService.ts");
 
@@ -27,6 +27,8 @@ export interface EffectiveSessionResolved {
     workPath?: string;
     streamVerbose?: boolean;
     autoApproveAllTools?: boolean;
+    disableWorkspaceContext?: boolean;
+    disableWorkspaceSkills?: boolean;
     approvalTimeout?: number;
     approvalTimeoutValue?: ApprovalTimeoutValue;
     askTimeout?: number;
@@ -34,6 +36,8 @@ export interface EffectiveSessionResolved {
     intentModel?: string;
     intentPrompt?: string;
     intentThreshold?: number;
+    insight?: InsightConfig | null;
+    agenda?: AgendaConfig | null;
 }
 
 export interface EffectiveSession {
@@ -59,6 +63,70 @@ function pickDefined<T extends Record<string, any>>(obj: T): Partial<T> {
     return out;
 }
 
+function normalizeAgendaConfig(value: any): AgendaConfig | null {
+    if (!value || typeof value !== "object") return null;
+    if (value.enabled !== true && value.enabled !== false) return null;
+    const agenda: AgendaConfig = { enabled: value.enabled };
+    if (value.syncModel) agenda.syncModel = String(value.syncModel);
+    if (value.syncPromptFile) agenda.syncPromptFile = String(value.syncPromptFile);
+    return agenda;
+}
+
+function parseAgendaConfig(raw: string | null | undefined): AgendaConfig | null {
+    if (!raw) return null;
+    try {
+        return normalizeAgendaConfig(JSON.parse(raw));
+    } catch {
+        return null;
+    }
+}
+
+function serializeAgendaConfig(value: any): string | null {
+    const agenda = normalizeAgendaConfig(value);
+    return agenda ? JSON.stringify(agenda) : null;
+}
+
+function resolveAgendaConfig(profileRaw: string | null | undefined, channelValue: any): AgendaConfig | null {
+    const profile = parseAgendaConfig(profileRaw);
+    if (profile?.enabled === false) return null;
+    if (profile?.enabled === true) return profile;
+    const channel = normalizeAgendaConfig(channelValue);
+    return channel?.enabled ? channel : null;
+}
+
+function normalizeInsightConfig(value: any): InsightConfig | null {
+    if (!value || typeof value !== "object") return null;
+    if (value.enabled !== true && value.enabled !== false) return null;
+    const insight: InsightConfig = {
+        enabled: value.enabled,
+        extractor: value.extractor ? String(value.extractor) : "",
+    };
+    if (value.extractorPromptFile) insight.extractorPromptFile = String(value.extractorPromptFile);
+    return insight;
+}
+
+function parseInsightConfig(raw: string | null | undefined): InsightConfig | null {
+    if (!raw) return null;
+    try {
+        return normalizeInsightConfig(JSON.parse(raw));
+    } catch {
+        return null;
+    }
+}
+
+function serializeInsightConfig(value: any): string | null {
+    const insight = normalizeInsightConfig(value);
+    return insight ? JSON.stringify(insight) : null;
+}
+
+function resolveInsightConfig(profileRaw: string | null | undefined, channelValue: any): InsightConfig | null {
+    const profile = parseInsightConfig(profileRaw);
+    if (profile?.enabled === false) return null;
+    if (profile?.enabled === true) return profile;
+    const channel = normalizeInsightConfig(channelValue);
+    return channel?.enabled ? channel : null;
+}
+
 // ── ChannelDataService ────────────────────────────────────────────────────────
 
 /**
@@ -72,11 +140,16 @@ function pickDefined<T extends Record<string, any>>(obj: T): Partial<T> {
  * 不进入：纯单点 findByPk / findOne by 唯一键（直接走 database 即可）。
  *
  * 跨服务依赖（由本类调用，反向不允许）：
- * - schedulerService.cascadeDeleteByProfile —— scheduler 自治
+ * - agendaTriggerEngine —— agenda 触发器运行时自治
  * - heartbeatService.reloadAll —— heartbeat 自治
  * - channelManager.reloadChannel —— channel 运行时自治（在 routes 层调用，避开循环）
  */
 export class ChannelDataService {
+    private async deleteAgendaByProfile(profileId: number): Promise<void> {
+        const triggerIds = await agendaStore.deleteProfile(profileId);
+        for (const id of triggerIds) agendaTriggerEngine.cancel(id);
+    }
+
     // ── reads ────────────────────────────────────────────────────────────────
 
     async getSession(id: number | string | undefined | null, throwIfNotFound?: boolean): Promise<ChannelSessionRow | null> {
@@ -124,6 +197,8 @@ export class ChannelDataService {
             workPath: profile.workPath ?? channel?.workPath ?? undefined,
             streamVerbose: profile.streamVerbose ?? channel?.streamVerbose ?? undefined,
             autoApproveAllTools: profile.autoApproveAllTools ?? channel?.autoApproveAllTools ?? undefined,
+            disableWorkspaceContext: profile.disableWorkspaceContext ?? channel?.disableWorkspaceContext ?? undefined,
+            disableWorkspaceSkills: profile.disableWorkspaceSkills ?? channel?.disableWorkspaceSkills ?? undefined,
             approvalTimeout: profile.approvalTimeout ?? channel?.approvalTimeout ?? undefined,
             approvalTimeoutValue: profile.approvalTimeoutValue ?? channel?.approvalTimeoutValue ?? undefined,
             askTimeout: profile.askTimeout ?? channel?.askTimeout ?? undefined,
@@ -131,6 +206,8 @@ export class ChannelDataService {
             intentModel: profile.intentModel ?? channel?.intentModel ?? undefined,
             intentPrompt: profile.intentPrompt ?? channel?.intentPrompt ?? undefined,
             intentThreshold: profile.intentThreshold ?? channel?.intentThreshold ?? undefined,
+            insight: resolveInsightConfig(profile.insight, channel?.insight),
+            agenda: resolveAgendaConfig(profile.agenda, channel?.agenda),
         };
 
         return { session, profile, resolved };
@@ -218,6 +295,8 @@ export class ChannelDataService {
                 workPath: p?.workPath ?? null,
                 streamVerbose: p?.streamVerbose ?? null,
                 autoApproveAllTools: p?.autoApproveAllTools ?? null,
+                disableWorkspaceContext: p?.disableWorkspaceContext ?? null,
+                disableWorkspaceSkills: p?.disableWorkspaceSkills ?? null,
                 approvalTimeout: p?.approvalTimeout ?? null,
                 approvalTimeoutValue: p?.approvalTimeoutValue ?? null,
                 askTimeout: p?.askTimeout ?? null,
@@ -225,6 +304,8 @@ export class ChannelDataService {
                 intentModel: p?.intentModel ?? null,
                 intentPrompt: p?.intentPrompt ?? null,
                 intentThreshold: p?.intentThreshold ?? null,
+                insight: parseInsightConfig(p?.insight),
+                agenda: parseAgendaConfig(p?.agenda),
                 inputTokens: p?.inputTokens ?? 0,
                 outputTokens: p?.outputTokens ?? 0,
                 totalTokens: p?.totalTokens ?? 0,
@@ -257,13 +338,13 @@ export class ChannelDataService {
     /**
      * 删 session 级联：
      * - 该 session 的 auto profile（visible profile 共享，不动）
-     * - 上述 auto profile 名下的 scheduler（schedulerService.cascadeDeleteByProfile）
+     * - 上述 auto profile 名下的 agenda
      * - heartbeat where target = sessionId
      * - heartbeat 服务 reload
      */
     async deleteSession(id: number): Promise<void> {
         const auto = await database.findOne<SessionProfileRow>(database.sessionProfile, { where: { autoForSessionId: id } });
-        if (auto) await schedulerService.cascadeDeleteByProfile(auto.id);
+        if (auto) await this.deleteAgendaByProfile(auto.id);
         await database.destroy(database.sessionProfile, { where: { autoForSessionId: id } });
         await database.destroy(database.heartbeat, { where: { target: id } });
         await database.destroy(database.channelSession, { where: { id } });
@@ -304,6 +385,8 @@ export class ChannelDataService {
     async updateProfile(id: number, body: Record<string, any>): Promise<void> {
         const noteSer = body.notes === undefined ? undefined : (body.notes === null ? null : JSON.stringify(body.notes || []));
         const wikiSer = body.wikis === undefined ? undefined : (body.wikis === null ? null : JSON.stringify(body.wikis || []));
+        const insightSer = body.insight === undefined ? undefined : serializeInsightConfig(body.insight);
+        const agendaSer = body.agenda === undefined ? undefined : serializeAgendaConfig(body.agenda);
         const update = pickDefined({
             name: body.name,
             agentId: body.agentId === undefined ? undefined : (body.agentId || null),
@@ -315,6 +398,8 @@ export class ChannelDataService {
             workPath: body.workPath === undefined ? undefined : (body.workPath || null),
             streamVerbose: body.streamVerbose === undefined ? undefined : (body.streamVerbose ?? null),
             autoApproveAllTools: body.autoApproveAllTools === undefined ? undefined : (body.autoApproveAllTools ?? null),
+            disableWorkspaceContext: body.disableWorkspaceContext === undefined ? undefined : (body.disableWorkspaceContext ?? null),
+            disableWorkspaceSkills: body.disableWorkspaceSkills === undefined ? undefined : (body.disableWorkspaceSkills ?? null),
             approvalTimeout: body.approvalTimeout === undefined ? undefined : (body.approvalTimeout ?? null),
             approvalTimeoutValue: body.approvalTimeoutValue === undefined ? undefined : (body.approvalTimeoutValue ?? null),
             askTimeout: body.askTimeout === undefined ? undefined : (body.askTimeout ?? null),
@@ -322,19 +407,21 @@ export class ChannelDataService {
             intentModel: body.intentModel === undefined ? undefined : (body.intentModel ?? null),
             intentPrompt: body.intentPrompt === undefined ? undefined : (body.intentPrompt || null),
             intentThreshold: body.intentThreshold === undefined ? undefined : (body.intentThreshold ?? null),
+            insight: insightSer,
+            agenda: agendaSer,
         });
         if (Object.keys(update).length === 0) return;
         await database.update(database.sessionProfile, update, { where: { id } });
     }
 
-    /** 仅删 visible profile，校验：非 auto + 无 session 引用；级联 scheduler */
+    /** 仅删 visible profile，校验：非 auto + 无 session 引用；级联 agenda */
     async deleteVisibleProfile(id: number): Promise<void> {
         const profile = await this.getProfile(id);
         if (!profile) throw new Error(`Profile id=${id} not found`);
         if (profile.autoForSessionId != null) throw new Error("Cannot delete an auto profile directly");
         const refCount = await database.count(database.channelSession, { where: { profileId: id } });
         if (refCount > 0) throw new Error(`Profile id=${id} is still referenced by ${refCount} session(s)`);
-        await schedulerService.cascadeDeleteByProfile(id);
+        await this.deleteAgendaByProfile(id);
         await database.destroy(database.sessionProfile, { where: { id } });
     }
 
@@ -357,6 +444,8 @@ export class ChannelDataService {
             workPath: current?.workPath ?? null,
             streamVerbose: current?.streamVerbose ?? null,
             autoApproveAllTools: current?.autoApproveAllTools ?? null,
+            disableWorkspaceContext: current?.disableWorkspaceContext ?? null,
+            disableWorkspaceSkills: current?.disableWorkspaceSkills ?? null,
             approvalTimeout: current?.approvalTimeout ?? null,
             approvalTimeoutValue: current?.approvalTimeoutValue ?? null,
             askTimeout: current?.askTimeout ?? null,
@@ -364,6 +453,8 @@ export class ChannelDataService {
             intentModel: current?.intentModel ?? null,
             intentPrompt: current?.intentPrompt ?? null,
             intentThreshold: current?.intentThreshold ?? null,
+            insight: current?.insight ?? null,
+            agenda: current?.agenda ?? null,
             createdAt: Date.now(),
         });
         await database.update(database.channelSession, { profileId: created.id }, { where: { id: sessionId } });
@@ -389,7 +480,7 @@ export class ChannelDataService {
 
     /**
      * 删 channel 级联：
-     * - 这些 session 的 auto profile + 名下 scheduler（visible profile 共享不动）
+     * - 这些 session 的 auto profile + 名下 agenda（visible profile 共享不动）
      * - heartbeat where target ∈ sessionIds
      * - channel_session / channel_user 行
      * - heartbeat 服务 reload（channelManager.reloadChannel 由 routes 层在 settingsCrud 流程里完成）
@@ -400,7 +491,7 @@ export class ChannelDataService {
         if (sessionIds.length > 0) {
             await database.destroy(database.heartbeat, { where: { target: sessionIds } });
             const autoProfiles = await database.findAll<SessionProfileRow>(database.sessionProfile, { where: { autoForSessionId: sessionIds } });
-            for (const p of autoProfiles) await schedulerService.cascadeDeleteByProfile(p.id);
+            for (const p of autoProfiles) await this.deleteAgendaByProfile(p.id);
             await database.destroy(database.sessionProfile, { where: { autoForSessionId: sessionIds } });
         }
         await database.destroy(database.channelSession, { where: { channelId } });
@@ -441,6 +532,10 @@ export class ChannelDataService {
             notes: body.notes ? JSON.stringify(body.notes) : null,
             wikis: body.wikis ? JSON.stringify(body.wikis) : null,
             workPath: body.workPath ?? null,
+            disableWorkspaceContext: body.disableWorkspaceContext ?? null,
+            disableWorkspaceSkills: body.disableWorkspaceSkills ?? null,
+            insight: serializeInsightConfig(body.insight),
+            agenda: serializeAgendaConfig(body.agenda),
         }, { where: { id: profile.id } });
         return { session, profile };
     }
@@ -459,6 +554,10 @@ export class ChannelDataService {
         if (body.wikis !== undefined) profileUpdate.wikis = body.wikis ? JSON.stringify(body.wikis) : null;
         if (body.workPath !== undefined) profileUpdate.workPath = body.workPath;
         if (body.autoApproveAllTools !== undefined) profileUpdate.autoApproveAllTools = !!body.autoApproveAllTools;
+        if (body.disableWorkspaceContext !== undefined) profileUpdate.disableWorkspaceContext = body.disableWorkspaceContext ?? null;
+        if (body.disableWorkspaceSkills !== undefined) profileUpdate.disableWorkspaceSkills = body.disableWorkspaceSkills ?? null;
+        if (body.insight !== undefined) profileUpdate.insight = serializeInsightConfig(body.insight);
+        if (body.agenda !== undefined) profileUpdate.agenda = serializeAgendaConfig(body.agenda);
         if (Object.keys(profileUpdate).length > 0) {
             await database.update(database.sessionProfile, profileUpdate, { where: { id: profile.id } });
         }
@@ -474,7 +573,6 @@ export class ChannelDataService {
      * - channel_session.channelId 不在 config.settings.channels（channel 已删除但 session 残留）
      * - channel_user.channelId 不在 config.settings.channels
      * - sessionProfile.autoForSessionId 不存在或指向已是孤儿的 session
-     * - scheduler.profileId 不存在或为 0
      * - heartbeat.target 不存在
      * - visible profile（autoForSessionId=null）但无任何 session 引用 —— 仅列出，不删
      *
@@ -483,16 +581,14 @@ export class ChannelDataService {
     async cleanupOrphans(opts: { dryRun?: boolean } = {}): Promise<CleanupReport> {
         const dryRun = !!opts.dryRun;
 
-        const [allSessions, allProfiles, allSchedulers, allHeartbeats, allChannelUsers] = await Promise.all([
+        const [allSessions, allProfiles, allHeartbeats, allChannelUsers] = await Promise.all([
             database.findAll<ChannelSessionRow>(database.channelSession),
             database.findAll<SessionProfileRow>(database.sessionProfile),
-            database.findAll<SchedulerRow>(database.scheduler),
             database.findAll<HeartbeatRow>(database.heartbeat),
             database.findAll<ChannelUserRow>(database.channelUser),
         ]);
 
         const sessionIds = new Set(allSessions.map(s => s.id));
-        const profileIds = new Set(allProfiles.map(p => p.id));
         const configChannelIds = new Set(Object.keys(config.settings.channels || {}));
         const profileIdsWithSessions = new Set(allSessions.map(s => s.profileId));
 
@@ -510,26 +606,18 @@ export class ChannelDataService {
             return orphanChannelSessionIds.has(p.autoForSessionId);
         });
 
-        // 4. scheduler.profileId 缺失 / 失效
-        const orphanSchedulers = allSchedulers.flatMap<SchedulerRow & { reason: string }>(s => {
-            let reason: string | null = null;
-            if (!s.profileId || s.profileId <= 0) reason = "profileId missing";
-            else if (!profileIds.has(s.profileId)) reason = `profileId=${s.profileId} not found`;
-            return reason ? [{ ...s, reason }] : [];
-        });
-
-        // 5. heartbeat.target 不存在或将随孤儿 channel 清掉
+        // 4. heartbeat.target 不存在或将随孤儿 channel 清掉
         const orphanHeartbeats = allHeartbeats.filter(h =>
             !sessionIds.has(h.target) || orphanChannelSessionIds.has(h.target)
         );
 
-        // 6. 无 session 引用的 visible profile（仅报告，不删）
+        // 5. 无 session 引用的 visible profile（仅报告，不删）
         const emptyVisibleProfiles = allProfiles.filter(p =>
             p.autoForSessionId == null && !profileIdsWithSessions.has(p.id)
         );
 
         if (!dryRun) {
-            // Step 1：失效 channel 整套清掉（顺带清这些 channel 名下的 session/user/auto profile/scheduler/heartbeat）
+            // Step 1：失效 channel 整套清掉（顺带清这些 channel 名下的 session/user/auto profile/agenda/heartbeat）
             const orphanChannelIds = new Set<string>();
             for (const s of orphanChannelSessions) orphanChannelIds.add(s.channelId);
             for (const u of orphanChannelUsers) orphanChannelIds.add(u.channelId);
@@ -542,24 +630,11 @@ export class ChannelDataService {
                 if (orphanChannelSessionIds.has(p.autoForSessionId!)) continue; // 已被 Step 1 清
                 const stillExists = await database.findByPk<SessionProfileRow>(database.sessionProfile, p.id);
                 if (!stillExists) continue;
-                await schedulerService.cascadeDeleteByProfile(p.id);
+                await this.deleteAgendaByProfile(p.id);
                 await database.destroy(database.sessionProfile, { where: { id: p.id } });
             }
 
-            // Step 3：profileId 失效的孤儿 scheduler（重扫一次，避开上面已清的）
-            const refreshedProfileIds = new Set(
-                (await database.findAll<SessionProfileRow>(database.sessionProfile)).map(p => p.id),
-            );
-            const remainingOrphanSchedulerIds: number[] = [];
-            for (const s of orphanSchedulers) {
-                if (!s.profileId || s.profileId <= 0 || !refreshedProfileIds.has(s.profileId)) {
-                    const stillExists = await database.findByPk<SchedulerRow>(database.scheduler, s.id);
-                    if (stillExists) remainingOrphanSchedulerIds.push(s.id);
-                }
-            }
-            await schedulerService.cascadeDeleteByIds(remainingOrphanSchedulerIds);
-
-            // Step 4：target 失效的孤儿 heartbeat（重扫一次）
+            // Step 3：target 失效的孤儿 heartbeat（重扫一次）
             const refreshedSessionIds = new Set(
                 (await database.findAll<ChannelSessionRow>(database.channelSession)).map(s => s.id),
             );
@@ -580,10 +655,9 @@ export class ChannelDataService {
                 sessions: orphanChannelSessions.length,
                 users: orphanChannelUsers.length,
                 autoProfiles: orphanAutoProfiles.length,
-                schedulers: remainingOrphanSchedulerIds.length + orphanChannelSessions.length, // 近似
                 heartbeats: remainingOrphanHeartbeatIds.length + orphanHeartbeats.length, // 近似
             };
-            logger.info(`cleanupOrphans applied: channels=${counts.channels}, sessions=${counts.sessions}, users=${counts.users}, autoProfiles=${counts.autoProfiles}, schedulers=${counts.schedulers}, heartbeats=${counts.heartbeats}`);
+            logger.info(`cleanupOrphans applied: channels=${counts.channels}, sessions=${counts.sessions}, users=${counts.users}, autoProfiles=${counts.autoProfiles}, heartbeats=${counts.heartbeats}`);
         }
 
         return {
@@ -596,9 +670,6 @@ export class ChannelDataService {
             })),
             orphanAutoProfiles: orphanAutoProfiles.map(p => ({
                 id: p.id, autoForSessionId: p.autoForSessionId!, name: p.name,
-            })),
-            orphanSchedulers: orphanSchedulers.map(s => ({
-                id: s.id, profileId: s.profileId, channelSessionId: s.channelSessionId, reason: s.reason,
             })),
             orphanHeartbeats: orphanHeartbeats.map(h => ({
                 id: h.id, target: h.target, name: h.name,
@@ -627,6 +698,8 @@ export interface ChannelSessionWithProfile extends ChannelSessionRow {
     workPath: string | null;
     streamVerbose: boolean | null;
     autoApproveAllTools: boolean | null;
+    disableWorkspaceContext: boolean | null;
+    disableWorkspaceSkills: boolean | null;
     approvalTimeout: number | null;
     approvalTimeoutValue: ApprovalTimeoutValue | null;
     askTimeout: number | null;
@@ -634,6 +707,8 @@ export interface ChannelSessionWithProfile extends ChannelSessionRow {
     intentModel: string | null;
     intentPrompt: string | null;
     intentThreshold: number | null;
+    insight: InsightConfig | null;
+    agenda: AgendaConfig | null;
     inputTokens: number;
     outputTokens: number;
     totalTokens: number;
@@ -649,7 +724,6 @@ export interface CleanupReport {
     orphanChannelSessions: Array<{ id: number; channelId: string; sessionId: string; sessionName: string }>;
     orphanChannelUsers: Array<{ id: number; channelId: string; userId: string; userName: string }>;
     orphanAutoProfiles: Array<{ id: number; autoForSessionId: number; name: string }>;
-    orphanSchedulers: Array<{ id: number; profileId: number; channelSessionId: number; reason: string }>;
     orphanHeartbeats: Array<{ id: number; target: number; name: string }>;
     /** 仅列出，cleanupOrphans 不会删；用户决定是否手删 */
     emptyVisibleProfiles: Array<{ id: number; name: string }>;

@@ -75,9 +75,7 @@ export {
   T_NoteToolDescs,
   T_WikiToolDescs,
   T_MCPUtilityToolDescs,
-  T_TodoFilePath,
-  T_TodoExtractorSystemPrompt,
-  T_TodoToolDescs,
+  T_AgendaSyncSystemPrompt,
   NowDate,
   sleep,
   parseJson,
@@ -237,30 +235,39 @@ export {
 } from "./Insight";
 
 // ========================================
-// Todo - 待办事项系统
+// Agenda - 统一事项系统
 // ========================================
 export {
-  // 接口 + Symbol Token
-  ITodoService,
-
-  // 实现类
-  TodoService,
-
-  // 提取器
-  ITodoExtractor,
-  TodoExtractor,
-  TodoActionType,
-  type Todo,
-  type TodoStatus,
-  type TodoPriority,
-  type TodoListFilter,
-  type TodoAction,
-
-  // 工具
-  TodoToolProvider,
-  TODO_LIST_TOOL_NAME,
-  type TodoToolDescs,
-} from "./Todo";
+  IAgendaService,
+  AgendaSyncExtractor,
+  IAgendaSyncExtractor,
+  AgendaToolProvider,
+  AGENDA_CREATE_TOOL_NAME,
+  AGENDA_LIST_TOOL_NAME,
+  AGENDA_UPDATE_TOOL_NAME,
+  AGENDA_COMPLETE_TOOL_NAME,
+  AGENDA_CANCEL_TOOL_NAME,
+  AGENDA_SKIP_NEXT_TOOL_NAME,
+  AgendaStatus,
+  AgendaPriority,
+  AgendaCategory,
+  AgendaCompletionMode,
+  AgendaSource,
+  AgendaTriggerKind,
+  AgendaTriggerAction,
+  AgendaOccurrenceStatus,
+  type AgendaCreateArgs,
+  type AgendaCreateResult,
+  type AgendaRelativeTime,
+  type AgendaUpdatePatch,
+  type AgendaListFilter,
+  type AgendaItem,
+  type AgendaTrigger,
+  type AgendaOccurrence,
+  type AgendaItemView,
+  type AgendaToolDescs,
+  type AgendaSyncAction,
+} from "./Agenda";
 
 // ========================================
 // Command - 命令系统

@@ -19,7 +19,6 @@ import {
 } from "scorpio.ai";
 import path from "path";
 import { type StructuredToolInterface } from "@langchain/core/tools";
-import { createSchedulerTools } from "../Tools/Scheduler/index";
 import { createSessionSearchTool, type SearchableSaver } from "../Tools/SessionSearch/index";
 import { createChannelTools } from "../Tools/Channel/index";
 import { channelDataService } from "../Session/ChannelDataService";
@@ -39,12 +38,14 @@ export interface AgentCreateOptions {
     extraPrompts: string[];
     /** 每次请求变化的动态 system prompt（如 currentTime），不可缓存 */
     dynamicPrompts?: string[];
-    /** 归属会话 DB 主键（channel_session.id），用于绑定 scheduler/todo 工具 */
+    /** 归属会话 DB 主键（channel_session.id），用于绑定 agenda 等会话工具 */
     dbSessionId: string;
     /** 动态注册到 Agent 的工具列表 */
     agentTools?: StructuredToolInterface[];
     /** Agent 文件操作根目录（ACP 模式作为 cwd 传给外部 agent） */
     workPath?: string;
+    /** 关闭工作目录 .skills/ 子目录下 skill 的自动导入 */
+    disableWorkspaceSkills?: boolean;
 }
 
 /**
@@ -62,7 +63,7 @@ export class AgentFactory {
 
         if (agentType !== AgentMode.Generative && agentType !== AgentMode.ACP) {
             const toolEntry = agentEntry as ToolAgentEntry;
-            const workspaceSkillPath = toolEntry.disableWorkspaceSkills ? undefined : options.workPath;
+            const workspaceSkillPath = options.disableWorkspaceSkills ? undefined : options.workPath;
             await this.registerSkillService(container, agentId, toolEntry.skills, workspaceSkillPath);
             await this.registerToolService(container, agentId, options.dbSessionId, toolEntry.mcp, toolEntry.mcpParams, agentTools, toolEntry.mcpExclude);
         }
@@ -80,7 +81,16 @@ export class AgentFactory {
         }
 
         const createAgentFn: CreateAgentFn = (name, subContainer) =>
-            AgentFactory.create({ agentId: name, container: subContainer, extraPrompts, dynamicPrompts, agentTools, dbSessionId: options.dbSessionId, workPath: options.workPath });
+            AgentFactory.create({
+                agentId: name,
+                container: subContainer,
+                extraPrompts,
+                dynamicPrompts,
+                agentTools,
+                dbSessionId: options.dbSessionId,
+                workPath: options.workPath,
+                disableWorkspaceSkills: options.disableWorkspaceSkills,
+            });
 
         switch (agentType) {
             case AgentMode.ReAct:
@@ -127,13 +137,6 @@ export class AgentFactory {
     }
 
     private static readonly SESSION_TOOL_CREATORS: Record<string, (ctx: { dbSessionId: string; container: ServiceContainer }) => Promise<StructuredToolInterface[]>> = {
-        [BuiltinProvider.Scheduler]: async ({ dbSessionId }) => {
-            const id = parseInt(dbSessionId, 10);
-            if (!id) return [];
-            const session = await channelDataService.getSession(id);
-            if (!session) return [];
-            return createSchedulerTools(id, session.profileId);
-        },
         [BuiltinProvider.SessionSearch]: async ({ container }) => {
             if (!container.isRegistered(IAgentSaverService)) return [];
             const saver = await container.resolve<IAgentSaverService>(IAgentSaverService);

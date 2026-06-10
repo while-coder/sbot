@@ -4,7 +4,7 @@ import { inject, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ModelCallTimeo
 import { IModelService } from "../../Model";
 import { ISkillService } from "../../Skills";
 import { IInsightService } from "../../Insight";
-import { ITodoService, TodoToolProvider } from "../../Todo";
+import { IAgendaService, AgendaToolProvider } from "../../Agenda";
 import { INoteService, NoteToolProvider } from "../../Note";
 import { IWikiService } from "../../Wiki";
 import { WikiToolProvider } from "../../Wiki";
@@ -57,7 +57,7 @@ export class SingleAgentService extends AgentServiceBase {
     protected modelService: IModelService;
     protected skillService: ISkillService;
     protected insightService?: IInsightService;
-    protected todoService?: ITodoService;
+    protected agendaService?: IAgendaService;
     protected toolService?: IAgentToolService;
     protected staticSystemPrompts: string[];
     protected dynamicSystemPrompts: string[];
@@ -73,7 +73,7 @@ export class SingleAgentService extends AgentServiceBase {
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
         @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
         @inject(IInsightService, { optional: true }) insightService?: IInsightService,
-        @inject(ITodoService, { optional: true }) todoService?: ITodoService,
+        @inject(IAgendaService, { optional: true }) agendaService?: IAgendaService,
         @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
         @inject(INoteService, { optional: true }) noteServices?: INoteService[],
         @inject(IWikiService, { optional: true }) wikiServices?: IWikiService[],
@@ -85,7 +85,7 @@ export class SingleAgentService extends AgentServiceBase {
         this.modelService = modelService;
         this.skillService = skillService;
         this.insightService = insightService;
-        this.todoService = todoService;
+        this.agendaService = agendaService;
         this.toolService = toolService;
         this.staticSystemPrompts = staticSystemPrompts ?? [];
         this.dynamicSystemPrompts = dynamicSystemPrompts ?? [];
@@ -150,8 +150,8 @@ export class SingleAgentService extends AgentServiceBase {
         if (this.wikiServices.length > 0) {
             tools.push(...WikiToolProvider.getTools(this.wikiServices));
         }
-        if (this.todoService) {
-            tools.push(...TodoToolProvider.getTools(this.todoService));
+        if (this.agendaService) {
+            tools.push(...AgendaToolProvider.getTools(this.agendaService));
         }
 
         // 同名工具会被 OpenAI 兼容端点判为非法请求（400），按首次出现去重
@@ -460,15 +460,15 @@ export class SingleAgentService extends AgentServiceBase {
             await this.recordException(err);
             throw err;
         }
-        // 静默并行提取 insight 和 todo（互不影响）
+        // 静默并行提取 insight 和 agenda（互不影响）
         const queryText = contentToString(query);
         const aiText = aiResponses.length > 0 ? aiResponses : undefined;
         const extractTasks: Promise<unknown>[] = [];
         if (this.insightService) {
             extractTasks.push(this.insightService.extractFromConversation(queryText, aiText));
         }
-        if (this.todoService) {
-            extractTasks.push(this.todoService.extractFromConversation(queryText, aiText));
+        if (this.agendaService) {
+            extractTasks.push(this.agendaService.extractFromConversation(queryText, aiText));
         }
         if (extractTasks.length > 0) {
             const results = await Promise.allSettled(extractTasks);

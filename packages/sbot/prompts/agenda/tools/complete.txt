@@ -1,0 +1,1 @@
+Mark an agenda item as complete. Use this when the user says a todo/task is done, finished, completed, or no longer pending because they did it.

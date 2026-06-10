@@ -7,7 +7,7 @@ import { SkillHubService } from '../SkillHub';
 import { AgentStoreService } from '../AgentStore';
 import { LoggerService, log4js } from '../Core/LoggerService';
 import { database } from '../Core/Database';
-import { schedulerService } from '../Scheduler/SchedulerService';
+import { agendaTriggerEngine } from '../Agenda';
 import { channelManager } from '../Channel/ChannelManager';
 import { tunnelService } from '../Tunnel';
 import { WEB_CHANNEL_ID } from 'sbot.commons';
@@ -25,9 +25,8 @@ import { skillHubRoutes } from './routes/skillHub';
 import { agentStoreRoutes } from './routes/agentStore';
 import { promptRoutes } from './routes/prompts';
 import { dataRoutes } from './routes/data';
-import { schedulerRoutes } from './routes/schedulers';
+import { agendaRoutes } from './routes/agendas';
 import { heartbeatRoutes } from './routes/heartbeats';
-import { todoRoutes } from './routes/todos';
 import { userRoutes } from './routes/users';
 import { logRoutes } from './routes/logs';
 import { chatRoutes } from './routes/chat';
@@ -43,7 +42,7 @@ class HttpServer {
     async shutdown(): Promise<void> {
         logger.info('Shutting down services...');
         try {
-            schedulerService.stopAll();
+            agendaTriggerEngine.stopAll();
             await ACPAgentPool.getInstance().disposeAll();
             await channelManager.dispose();
             ptyService.dispose();
@@ -113,9 +112,8 @@ class HttpServer {
         agentStoreRoutes.register(app, ctx);
         promptRoutes.register(app, ctx);
         dataRoutes.register(app, ctx);
-        schedulerRoutes.register(app, ctx);
+        agendaRoutes.register(app, ctx);
         heartbeatRoutes.register(app, ctx);
-        todoRoutes.register(app, ctx);
         logRoutes.register(app, ctx);
         userRoutes.register(app, ctx);
         chatRoutes.register(app, ctx);

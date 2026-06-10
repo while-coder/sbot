@@ -9,7 +9,7 @@ import { LoggerService } from "./LoggerService";
 
 const logger = LoggerService.getLogger("Database.ts");
 const DBVersionName = "db_version";
-const DBSchemaVersion = "scheduler-enabled-createdAt";
+const DBSchemaVersion = "profile-runtime-v1";
 const DBVersion: string = `${config.pkg.version}:${DBSchemaVersion}`;
 export type MessageRow = {
   id: string;
@@ -18,23 +18,6 @@ export type MessageRow = {
 
 // thread id = String(profile.id)。saver / SessionService Map 都按这个 key 索引。
 // 多个 ChannelSession 共享同一 SessionProfile 即共享 thread（跨 channel 也共享）。
-
-// ⚠️ aiProcess / enabled 运行时是 0/1（受 raw:true 影响，见上方 query 配置注释）。
-// 仅可用真值检查，禁止 `=== true` / `=== false`。
-export type SchedulerRow = {
-  id: number;
-  expr: string;                    // cron 表达式，如 "0 9 * * *"
-  message: string;                 // 消息文本
-  channelSessionId: number;        // 投递目标 channel_session.id；session 失效时会在 profile 内自愈
-  profileId: number;               // 归属 profile（= 创建时所在 thread）；list/delete/触发配置都按它
-  aiProcess: boolean;              // true=交给AI处理后回复, false=直接发送原文不经AI
-  enabled: boolean;                // 是否启用
-  lastRun: number | null;          // 上次执行时间戳
-  nextRun: number | null;          // 下次预计执行时间戳
-  runCount: number;                // 已执行次数
-  maxRuns: number;                 // 最大执行次数（0 表示不限制）
-  createdAt: number;               // 创建时间戳(ms)
-};
 
 // ⚠️ enabled 运行时是 0/1（受 raw:true 影响，见上方 query 配置注释）。
 // 仅可用真值检查，禁止 `=== true` / `=== false`。
@@ -91,7 +74,7 @@ export type ChannelSessionRow = {
  * - autoForSessionId 为 null：visible profile，可被多个 session 共享
  * - thread id = String(profile.id)
  *
- * ⚠️ 三态布尔（useChannelNotes/Wikis/streamVerbose/autoApproveAllTools）运行时是 0/1/null。
+ * ⚠️ 三态布尔（useChannelNotes/Wikis/streamVerbose/autoApproveAllTools/disableWorkspace*）运行时是 0/1/null。
  */
 export type SessionProfileRow = {
   id: number;
@@ -101,21 +84,29 @@ export type SessionProfileRow = {
   // ── 可覆盖 ChannelConfig 默认值的字段（null = 使用频道默认值） ──
   agentId: string | null;
   saver: string | null;
-  
+  workPath: string | null;
+
   useChannelNotes: boolean | null;
   notes: string | null;              // JSON 字符串
   useChannelWikis: boolean | null;
   wikis: string | null;              // JSON 字符串
-  workPath: string | null;
+
   streamVerbose: boolean | null;
   autoApproveAllTools: boolean | null;
+  disableWorkspaceContext: boolean | null;
+  disableWorkspaceSkills: boolean | null;
+
   approvalTimeout: number | null;
   approvalTimeoutValue: ApprovalTimeoutValue | null;
   askTimeout: number | null;
   askTimeoutMessage: string | null;
+
   intentModel: string | null;
   intentPrompt: string | null;
   intentThreshold: number | null;
+
+  insight: string | null;           // JSON 字符串，Insight 配置
+  agenda: string | null;            // JSON 字符串，Agenda 同步配置
 
   // ── 运行时统计 ──
   inputTokens: number;
@@ -177,7 +168,6 @@ class Database {
   public channelUser!: ModelStatic<any>;
   public channelSession!: ModelStatic<any>;
   public sessionProfile!: ModelStatic<any>;
-  public scheduler!: ModelStatic<any>;
   public usageLogs!: ModelStatic<any>;
   public heartbeat!: ModelStatic<any>;
 
@@ -404,17 +394,11 @@ class Database {
           defaultValue: null,
           comment: "Saver UUID，null = 跟随 ChannelConfig",
         },
-        notes: {
-          type: DataTypes.TEXT,
+        workPath: {
+          type: DataTypes.STRING(1024),
           allowNull: true,
           defaultValue: null,
-          comment: "Note UUID 列表（JSON 字符串）",
-        },
-        wikis: {
-          type: DataTypes.TEXT,
-          allowNull: true,
-          defaultValue: null,
-          comment: "Wiki UUID 列表（JSON 字符串）",
+          comment: "工作目录路径",
         },
         useChannelNotes: {
           type: DataTypes.BOOLEAN,
@@ -422,17 +406,23 @@ class Database {
           defaultValue: null,
           comment: "是否合并渠道级 notes",
         },
+        notes: {
+          type: DataTypes.TEXT,
+          allowNull: true,
+          defaultValue: null,
+          comment: "Note UUID 列表（JSON 字符串）",
+        },
         useChannelWikis: {
           type: DataTypes.BOOLEAN,
           allowNull: true,
           defaultValue: null,
           comment: "是否合并渠道级 wikis",
         },
-        workPath: {
-          type: DataTypes.STRING(1024),
+        wikis: {
+          type: DataTypes.TEXT,
           allowNull: true,
           defaultValue: null,
-          comment: "工作目录路径",
+          comment: "Wiki UUID 列表（JSON 字符串）",
         },
         streamVerbose: {
           type: DataTypes.BOOLEAN,
@@ -445,6 +435,18 @@ class Database {
           allowNull: true,
           defaultValue: null,
           comment: "是否自动批准所有工具",
+        },
+        disableWorkspaceContext: {
+          type: DataTypes.BOOLEAN,
+          allowNull: true,
+          defaultValue: null,
+          comment: "是否关闭工作目录上下文自动注入",
+        },
+        disableWorkspaceSkills: {
+          type: DataTypes.BOOLEAN,
+          allowNull: true,
+          defaultValue: null,
+          comment: "是否关闭工作目录 Skill 自动导入",
         },
         approvalTimeout: {
           type: DataTypes.INTEGER,
@@ -487,6 +489,18 @@ class Database {
           allowNull: true,
           defaultValue: null,
           comment: "意图识别置信度阈值 (0-1)",
+        },
+        insight: {
+          type: DataTypes.TEXT,
+          allowNull: true,
+          defaultValue: null,
+          comment: "Insight 配置（JSON 字符串）",
+        },
+        agenda: {
+          type: DataTypes.TEXT,
+          allowNull: true,
+          defaultValue: null,
+          comment: "Agenda 同步配置（JSON 字符串）",
         },
         inputTokens: {
           type: DataTypes.INTEGER,
@@ -536,89 +550,6 @@ class Database {
         timestamps: false,
         comment: "Session Profile 表（共享配置 + thread + token 统计）",
         indexes: [{ fields: ["autoForSessionId"], unique: true }],
-      },
-    );
-
-    this.scheduler = sequelize.define(
-      "scheduler",
-      {
-        id: {
-          type: DataTypes.INTEGER,
-          primaryKey: true,
-          autoIncrement: true,
-          comment: "自增ID",
-        },
-        expr: {
-          type: DataTypes.TEXT,
-          allowNull: false,
-          defaultValue: "",
-          comment: "cron 表达式",
-        },
-        message: {
-          type: DataTypes.TEXT,
-          allowNull: false,
-          defaultValue: "",
-          comment: "发送的文字消息",
-        },
-        channelSessionId: {
-          type: DataTypes.INTEGER,
-          allowNull: false,
-          defaultValue: 0,
-          comment: "投递目标 channel_session.id（自愈：失效时按 profileId 找替代）",
-        },
-        profileId: {
-          type: DataTypes.INTEGER,
-          allowNull: false,
-          defaultValue: 0,
-          comment: "归属 SessionProfile.id（创建时所在 thread）",
-        },
-        aiProcess: {
-          type: DataTypes.BOOLEAN,
-          allowNull: false,
-          defaultValue: true,
-          comment: "true=交给AI处理后回复, false=直接发送原文",
-        },
-        enabled: {
-          type: DataTypes.BOOLEAN,
-          allowNull: false,
-          defaultValue: true,
-          comment: "是否启用",
-        },
-        lastRun: {
-          type: DataTypes.BIGINT,
-          allowNull: true,
-          defaultValue: null,
-          comment: "上次执行时间戳",
-        },
-        nextRun: {
-          type: DataTypes.BIGINT,
-          allowNull: true,
-          defaultValue: null,
-          comment: "下次预计执行时间戳",
-        },
-        runCount: {
-          type: DataTypes.INTEGER,
-          allowNull: false,
-          defaultValue: 0,
-          comment: "已执行次数",
-        },
-        maxRuns: {
-          type: DataTypes.INTEGER,
-          allowNull: false,
-          defaultValue: 0,
-          comment: "最大执行次数（0 表示不限制）",
-        },
-        createdAt: {
-          type: DataTypes.BIGINT,
-          allowNull: false,
-          defaultValue: 0,
-          comment: "创建时间戳(ms)",
-        },
-      },
-      {
-        tableName: "scheduler",
-        timestamps: false,
-        comment: "计时器表",
       },
     );
 
@@ -837,28 +768,19 @@ class Database {
       await this.channelUser.sync({ alter });
       await this.sessionProfile.sync({ alter });
       await this.channelSession.sync({ alter });
-      await this.migrateSchedulerDisabledColumn(alter);
-      await this.scheduler.sync({ alter });
       await this.usageLogs.sync({ alter });
       await this.heartbeat.sync({ alter });
+      await this.dropLegacyAgendaTables();
 
       await this.state.update({ value: DBVersion }, { where: { key: DBVersionName } });
       logger.info("Database schema sync completed");
     });
   }
 
-  private async migrateSchedulerDisabledColumn(alter: boolean): Promise<void> {
-    if (!alter) return;
-    let columns: Record<string, any>;
-    try {
-      columns = await this.sequelize.getQueryInterface().describeTable("scheduler");
-    } catch {
-      return;
-    }
-    if (!columns.disabled) return;
-    await this.sequelize.query("DELETE FROM scheduler WHERE disabled = 1");
-    if (!columns.enabled) {
-      await this.sequelize.query("ALTER TABLE scheduler ADD COLUMN enabled TINYINT(1) NOT NULL DEFAULT 1");
+  private async dropLegacyAgendaTables(): Promise<void> {
+    const tables = ["scheduler", "agenda_item", "agenda_trigger", "agenda_occurrence", "agenda_fire_log"];
+    for (const table of tables) {
+      await this.sequelize.query(`DROP TABLE IF EXISTS ${table}`);
     }
   }
 

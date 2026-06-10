@@ -177,7 +177,7 @@ async function main() {
     const { httpServer } = await import("./Server/HttpServer");
     const { initGlobalAgentToolService } = await import("./Agent/GlobalAgentToolService");
     const { initGlobalSkillService } = await import("./Agent/GlobalSkillService");
-    const { schedulerService } = await import("./Scheduler/SchedulerService");
+    const { agendaTriggerEngine } = await import("./Agenda");
     const { heartbeatService } = await import("./Heartbeat/HeartbeatService");
     const { tunnelService } = await import("./Tunnel");
 
@@ -209,7 +209,7 @@ async function main() {
         initGlobalSkillService()
         await channelManager.init()
         await httpServer.start()
-        await schedulerService.start()
+        await agendaTriggerEngine.start()
         await heartbeatService.start()
         await tunnelService.startAll(config.getHttpPort())
 

@@ -115,8 +115,7 @@ const menuGroups = computed(() => [
   {
     group: t('nav.group_tasks'),
     items: [
-      { label: t('nav.scheduler'), key: '/scheduler' },
-      { label: t('nav.todo'), key: '/todo' },
+      { label: t('nav.agenda'), key: '/agenda' },
     ],
   },
   {

@@ -1,8 +1,8 @@
 This is an automated heartbeat — a periodic self-check triggered by the system, not a message from the user. Decide whether anything requires proactive action right now.
 
 ## What to check
-- Overdue or upcoming todos
-- Due or missed scheduled reminders
+- Overdue or upcoming agenda items
+- Due or missed reminders
 - Follow-ups implied by recent conversation context
 - Important items in memory that you committed to but have not yet acted on
 

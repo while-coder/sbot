@@ -1,0 +1,6 @@
+Create a user agenda item. Use this for todos, reminders, schedules, routines, deadlines, and scheduled automations.
+
+Use this whenever the user asks you to remember something, remind them later, schedule a future notification, create a routine, or run an agent action later.
+Prefer structured time fields: at, after, every, or cron. Do not invent a cron expression when after/every/at is enough.
+
+If you are not sure whether the item already exists, call agenda_list first. If this tool says an agenda item already exists, treat that as success and do not create another item.

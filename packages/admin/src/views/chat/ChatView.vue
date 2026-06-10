@@ -9,36 +9,26 @@ import '@sbot/chat-ui/themes/variables.css'
 // <style> block below (and in MessageList.vue), so we avoid a duplicate full dark import here.
 import '@sbot/chat-ui/themes/theme-light.css'
 import { SButton } from 'sbot-ui'
-import TodoListModal from '@/components/modals/TodoListModal.vue'
-import SchedulerListModal from '@/components/modals/SchedulerListModal.vue'
+import AgendaListModal from '@/components/modals/AgendaListModal.vue'
 
 const { t } = useI18n()
 const transport = new WebSocketTransport()
-const todoListModal = ref<InstanceType<typeof TodoListModal>>()
-const schedulerListModal = ref<InstanceType<typeof SchedulerListModal>>()
+const agendaListModal = ref<InstanceType<typeof AgendaListModal>>()
 
-function openTodos(session: SessionItem) {
-  todoListModal.value?.openByProfileId(session.id, session.name || session.id)
-}
-
-function openSchedulers(session: SessionItem) {
-  schedulerListModal.value?.openByProfileId(session.id, session.name || session.id)
+function openAgenda(session: SessionItem) {
+  agendaListModal.value?.openByProfileId(session.id, session.name || session.id)
 }
 </script>
 
 <template>
   <ChatView :transport="transport" :show-attachments="true">
     <template #status-actions="{ session }">
-      <SButton v-if="session" type="outline" size="sm" @click="openTodos(session)">
-        {{ t('todo.title') }}
-      </SButton>
-      <SButton v-if="session" type="outline" size="sm" @click="openSchedulers(session)">
-        {{ t('scheduler.title') }}
+      <SButton v-if="session" type="outline" size="sm" @click="openAgenda(session)">
+        {{ t('agenda.title') }}
       </SButton>
     </template>
   </ChatView>
-  <TodoListModal ref="todoListModal" />
-  <SchedulerListModal ref="schedulerListModal" />
+  <AgendaListModal ref="agendaListModal" />
 </template>
 
 <!--

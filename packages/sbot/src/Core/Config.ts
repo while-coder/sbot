@@ -4,9 +4,9 @@ import fs from "fs";
 import type { ModelConfig, MCPServers, IModelService, IEmbeddingService, AgentSubNode, EmbeddingConfig } from "scorpio.ai";
 import { ModelProvider, EmbeddingProvider } from "scorpio.ai";
 export type { AgentSubNode } from "scorpio.ai";
-import { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, InsightScope, TodoScope, SaverConfig, NoteConfig, WikiConfig, ChannelConfig, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE, type InsightConfig, type TodoConfig, type AgentStoreSource, type AgentSourceEntry, type TunnelConfig } from "sbot.commons";
-export { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, InsightScope, TodoScope, SaverConfig, NoteConfig, WikiConfig, ChannelConfig } from "sbot.commons";
-export type { InsightConfig, TodoConfig, TunnelConfig } from "sbot.commons";
+import { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, SaverConfig, NoteConfig, WikiConfig, ChannelConfig, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE, type AgentStoreSource, type AgentSourceEntry, type TunnelConfig } from "sbot.commons";
+export { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, SaverConfig, NoteConfig, WikiConfig, ChannelConfig } from "sbot.commons";
+export type { InsightConfig, AgendaConfig, TunnelConfig } from "sbot.commons";
 
 export const isDev = process.env.NODE_ENV === 'development';
 export type { AgentSourceEntry } from "sbot.commons";
@@ -34,8 +34,6 @@ export interface BaseAgentEntry {
   tags?: string[];             // 分类标签，便于在管理界面过滤
   autoApproveTools?: string[]; // 自动批准的工具列表（无需用户确认）
   autoApproveAllTools?: boolean; // 自动批准所有工具（无需用户确认）
-  disableWorkspaceContext?: boolean; // 关闭工作目录上下文文件（SBOT.md / AGENTS.md 等）的自动注入
-  disableWorkspaceSkills?: boolean;  // 关闭工作目录 .skills/ 子目录下 skill 的自动导入
 }
 
 /**
@@ -49,8 +47,6 @@ export interface ToolAgentEntry extends BaseAgentEntry {
   mcpExclude?: string[];       // 在 mcp = "*" 时排除掉指定 provider 名（对显式列表无效）
   mcpParams?: Record<string, Record<string, any>>; // 按 provider 名分组的参数；'*' 与显式列表均可使用
   skills?: string[] | '*';     // Skills 过滤列表（skill 名称）；"*" = 加载全部
-  insight: InsightConfig;      // 经验洞察模块配置
-  todo?: TodoConfig;           // Todo 抽取配置（不设置 = 不启用）
   modelCallTimeout?: number;   // 单次模型调用超时（秒），不设置则不超时
 }
 
@@ -519,14 +515,11 @@ class Config {
   getAgentSkillsPath(agentName: string) {
     return this.getConfigPath(`agents/${agentName}/skills`, true)
   }
-  getAgentInsightsPath(agentName: string) {
-    return this.getConfigPath(`agents/${agentName}/insights`, true)
-  }
   getProfileInsightsPath(profileId: string) {
     return this.getConfigPath(`profiles/${profileId}/insights`, true)
   }
-  getProfileTodoPath(profileId: string) {
-    return this.getConfigPath(`profiles/${profileId}/todos.json`)
+  getProfileAgendaPath(profileId: string) {
+    return this.getConfigPath(`profiles/${profileId}/agendas`, true)
   }
   getAgentMcpServers(agentName: string): MCPServers {
     const mcpConfigPath = this.getConfigPath(`agents/${agentName}/mcp.json`);

@@ -30,7 +30,7 @@ export const T_MaxHistoryRounds              = Symbol("scorpio:T_MaxHistoryRound
 export const T_NoteToolDescs              = Symbol("scorpio:T_NoteToolDescs");
 export const T_WikiToolDescs              = Symbol("scorpio:T_WikiToolDescs");
 export const T_MCPUtilityToolDescs        = Symbol("scorpio:T_MCPUtilityToolDescs");
-export const T_TodoToolDescs              = Symbol("scorpio:T_TodoToolDescs");
+export const T_AgendaSyncSystemPrompt     = Symbol("scorpio:T_AgendaSyncSystemPrompt");
 
 // Insight tokens
 export const T_InsightDir            = Symbol("scorpio:T_InsightDir");
@@ -42,7 +42,3 @@ export const T_InsightSystemPromptTemplate  = Symbol("scorpio:T_InsightSystemPro
 
 // Wiki tokens
 export const T_WikiSystemPromptTemplate    = Symbol("scorpio:T_WikiSystemPromptTemplate");
-
-// Todo tokens
-export const T_TodoFilePath                = Symbol("scorpio:T_TodoFilePath");
-export const T_TodoExtractorSystemPrompt   = Symbol("scorpio:T_TodoExtractorSystemPrompt");

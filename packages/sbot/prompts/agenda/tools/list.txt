@@ -1,0 +1,4 @@
+List the user's agenda items, including todos, reminders, scheduled tasks, routines, deadlines, upcoming notifications, and automations.
+
+Use this whenever the user asks what they need to do, what reminders they have, what is scheduled, what is pending, or what is coming up.
+Default view should answer "待办/what do I have to do" and include todos, reminders, routines, and upcoming non-automation items. Use view=upcoming when the user specifically asks for scheduled future triggers.

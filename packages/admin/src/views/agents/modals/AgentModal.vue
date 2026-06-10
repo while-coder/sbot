@@ -4,9 +4,8 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { useToast, useConfirm } from 'sbot-ui'
-import { AgentMode, ACPSessionMode, InsightScope, TodoScope } from '@/shared/types'
-import type { Agent, SubAgentRef } from '@/shared/types'
-import CreatePromptModal from '@/components/modals/CreatePromptModal.vue'
+import { AgentMode, ACPSessionMode } from '@/shared/types'
+import type { AgentConfig, SubAgentRef } from '@/shared/types'
 import { SModal, SButton, SInput, STextarea, SSelect, SFormItem, SFormSection, SHint, SCheckCard, STagInput } from 'sbot-ui'
 
 const { t } = useI18n()
@@ -63,15 +62,7 @@ const form = ref({
   model: '',
   compactModel: '',
   systemPrompt: '',
-  insightScope: InsightScope.Disabled as string,
-  insightExtractor: '',
-  insightExtractorPromptFile: '',
-  todoScope: TodoScope.Disabled as string,
-  todoExtractor: '',
-  todoExtractorPromptFile: '',
   autoApproveAllTools: false,
-  disableWorkspaceContext: false,
-  disableWorkspaceSkills: false,
   modelCallTimeout: undefined as number | undefined,
   // acp
   command: '',
@@ -94,15 +85,7 @@ function open(id?: string) {
       model: a.model || '',
       compactModel: (a as any).compactModel || '',
       systemPrompt: a.systemPrompt || '',
-      insightScope: (a as any).insight?.scope || InsightScope.Disabled,
-      insightExtractor: (a as any).insight?.extractor || '',
-      insightExtractorPromptFile: (a as any).insight?.extractorPromptFile || '',
-      todoScope: (a as any).todo?.scope || TodoScope.Disabled,
-      todoExtractor: (a as any).todo?.extractor || '',
-      todoExtractorPromptFile: (a as any).todo?.extractorPromptFile || '',
       autoApproveAllTools: !!(a as any).autoApproveAllTools,
-      disableWorkspaceContext: !!(a as any).disableWorkspaceContext,
-      disableWorkspaceSkills: !!(a as any).disableWorkspaceSkills,
       modelCallTimeout: (a as any).modelCallTimeout ?? undefined,
       command: a.command || '',
       args: Array.isArray(a.args) ? [...a.args] : [],
@@ -117,14 +100,10 @@ function open(id?: string) {
     form.value = {
       id: '', name: '', tags: [], type: AgentMode.Single, model: '', compactModel: '',
       systemPrompt: '',
-      insightScope: InsightScope.Disabled, insightExtractor: '', insightExtractorPromptFile: '',
-      todoScope: TodoScope.Disabled, todoExtractor: '', todoExtractorPromptFile: '',
-      autoApproveAllTools: false, disableWorkspaceContext: false, disableWorkspaceSkills: false, modelCallTimeout: undefined, command: '', args: [], env: [], sessionMode: ACPSessionMode.Persistent, initTimeout: undefined,
+      autoApproveAllTools: false, modelCallTimeout: undefined, command: '', args: [], env: [], sessionMode: ACPSessionMode.Persistent, initTimeout: undefined,
     }
   }
   showModal.value = true
-  loadInsightPrompts()
-  loadTodoPrompts()
 }
 
 async function save() {
@@ -137,36 +116,14 @@ async function save() {
     show(t('agents.error_sub_agents'), 'error'); return
   }
   try {
-    const config: Agent = { type }
+    const config: AgentConfig = { type }
 
     if (type !== AgentMode.ACP) config.model = form.value.model
     if (type !== AgentMode.ACP && form.value.systemPrompt) config.systemPrompt = form.value.systemPrompt
     if (form.value.autoApproveAllTools) (config as any).autoApproveAllTools = true
-    if (form.value.disableWorkspaceContext) (config as any).disableWorkspaceContext = true
-    if (form.value.disableWorkspaceSkills) (config as any).disableWorkspaceSkills = true
 
     if (type === AgentMode.Single || type === AgentMode.ReAct) {
       if (form.value.compactModel) (config as any).compactModel = form.value.compactModel
-      if (form.value.insightScope !== InsightScope.Disabled && !form.value.insightExtractor) {
-        show(t('agents.error_insight_extractor'), 'error'); return
-      }
-      const insightCfg: any = { scope: form.value.insightScope }
-      if (form.value.insightScope !== InsightScope.Disabled) {
-        insightCfg.extractor = form.value.insightExtractor
-        if (form.value.insightExtractorPromptFile) insightCfg.extractorPromptFile = form.value.insightExtractorPromptFile
-      }
-      config.insight = insightCfg
-
-      if (form.value.todoScope !== TodoScope.Disabled && !form.value.todoExtractor) {
-        show(t('agents.error_todo_extractor'), 'error'); return
-      }
-      const todoCfg: any = { scope: form.value.todoScope }
-      if (form.value.todoScope !== TodoScope.Disabled) {
-        todoCfg.extractor = form.value.todoExtractor
-        if (form.value.todoExtractorPromptFile) todoCfg.extractorPromptFile = form.value.todoExtractorPromptFile
-      }
-      config.todo = todoCfg
-
       if (form.value.modelCallTimeout != null && form.value.modelCallTimeout > 0) config.modelCallTimeout = form.value.modelCallTimeout
     }
     if (type === AgentMode.ReAct) {
@@ -254,48 +211,6 @@ function subAgentSelectOptions() {
   return agentOptions.value.filter(a => a.id !== subAgentExclude.value)
 }
 
-// ── Insight prompt files ──
-const insightPrompts = ref<{ path: string; isUserOnly?: boolean }[]>([])
-const showCreateInsightPrompt = ref(false)
-
-async function loadInsightPrompts() {
-  try {
-    const res = await apiFetch('/api/prompts/files?prefix=insight/extractor')
-    insightPrompts.value = res.data || []
-  } catch {}
-}
-
-function openCreateInsightPrompt() {
-  showCreateInsightPrompt.value = true
-}
-
-async function onInsightPromptCreated(filePath: string) {
-  showCreateInsightPrompt.value = false
-  await loadInsightPrompts()
-  form.value.insightExtractorPromptFile = filePath
-}
-
-// ── Todo prompt files ──
-const todoPrompts = ref<{ path: string; isUserOnly?: boolean }[]>([])
-const showCreateTodoPrompt = ref(false)
-
-async function loadTodoPrompts() {
-  try {
-    const res = await apiFetch('/api/prompts/files?prefix=todo/extractor')
-    todoPrompts.value = res.data || []
-  } catch {}
-}
-
-function openCreateTodoPrompt() {
-  showCreateTodoPrompt.value = true
-}
-
-async function onTodoPromptCreated(filePath: string) {
-  showCreateTodoPrompt.value = false
-  await loadTodoPrompts()
-  form.value.todoExtractorPromptFile = filePath
-}
-
 defineExpose({ open })
 </script>
 
@@ -313,7 +228,7 @@ defineExpose({ open })
         v-model="form.tags"
         :placeholder="t('agents.tags_placeholder')"
         :suggestions="allTagSuggestions"
-        @invalid="(reason) => reason === 'duplicate' ? show(t('agents.tags_duplicate'), 'warning') : null"
+        @invalid="(reason) => reason === 'duplicate' ? show(t('agents.tags_duplicate')) : null"
       />
     </SFormItem>
     <SFormItem :label="t('common.type') + ' *'">
@@ -386,87 +301,9 @@ defineExpose({ open })
       </SFormItem>
     </template>
 
-    <!-- Insight -->
-    <template v-if="form.type !== AgentMode.Generative && form.type !== AgentMode.ACP">
-      <SFormItem :label="t('agents.insight_scope')" :hint="t('agents.insight_hint')">
-        <SSelect v-model="form.insightScope">
-          <option :value="InsightScope.Disabled">{{ t('agents.insight_disabled') }}</option>
-          <option :value="InsightScope.Agent">{{ t('agents.insight_agent') }}</option>
-          <option :value="InsightScope.Profile">{{ t('agents.insight_profile') }}</option>
-        </SSelect>
-      </SFormItem>
-      <SFormItem
-        v-if="form.insightScope !== InsightScope.Disabled"
-        :label="t('agents.insight_extractor') + ' *'"
-        :hint="t('agents.insight_extractor_hint')"
-      >
-        <SSelect v-model="form.insightExtractor">
-          <option value="">{{ t('agents.insight_extractor_placeholder') }}</option>
-          <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-        </SSelect>
-      </SFormItem>
-      <SFormItem
-        v-if="form.insightScope !== InsightScope.Disabled"
-        :label="t('agents.insight_prompt_file')"
-        :hint="t('agents.insight_prompt_file_hint')"
-      >
-        <div style="display:flex;gap:6px;align-items:center">
-          <SSelect v-model="form.insightExtractorPromptFile" style="flex:1">
-            <option value="">{{ t('agents.insight_prompt_file_default') }}</option>
-            <option v-for="p in insightPrompts" :key="p.path" :value="p.path">{{ p.path.split('/').pop() }}</option>
-          </SSelect>
-          <SButton type="outline" size="sm" @click="openCreateInsightPrompt" title="+">+</SButton>
-        </div>
-      </SFormItem>
-
-      <!-- Todo -->
-      <SFormItem :label="t('agents.todo_scope')" :hint="t('agents.todo_hint')">
-        <SSelect v-model="form.todoScope">
-          <option :value="TodoScope.Disabled">{{ t('agents.todo_disabled') }}</option>
-          <option :value="TodoScope.Profile">{{ t('agents.todo_profile') }}</option>
-        </SSelect>
-      </SFormItem>
-      <SFormItem
-        v-if="form.todoScope !== TodoScope.Disabled"
-        :label="t('agents.todo_extractor') + ' *'"
-        :hint="t('agents.todo_extractor_hint')"
-      >
-        <SSelect v-model="form.todoExtractor">
-          <option value="">{{ t('agents.todo_extractor_placeholder') }}</option>
-          <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-        </SSelect>
-      </SFormItem>
-      <SFormItem
-        v-if="form.todoScope !== TodoScope.Disabled"
-        :label="t('agents.todo_prompt_file')"
-        :hint="t('agents.todo_prompt_file_hint')"
-      >
-        <div style="display:flex;gap:6px;align-items:center">
-          <SSelect v-model="form.todoExtractorPromptFile" style="flex:1">
-            <option value="">{{ t('agents.todo_prompt_file_default') }}</option>
-            <option v-for="p in todoPrompts" :key="p.path" :value="p.path">{{ p.path.split('/').pop() }}</option>
-          </SSelect>
-          <SButton type="outline" size="sm" @click="openCreateTodoPrompt" title="+">+</SButton>
-        </div>
-      </SFormItem>
-    </template>
-
     <!-- autoApproveAllTools -->
     <SFormItem>
       <SCheckCard v-model="form.autoApproveAllTools">{{ t('agents.auto_approve_all_tools') }}</SCheckCard>
-    </SFormItem>
-
-    <!-- disableWorkspaceContext (ACP / Generative 都适用) -->
-    <SFormItem :hint="t('agents.disable_workspace_context_hint')">
-      <SCheckCard v-model="form.disableWorkspaceContext">{{ t('agents.disable_workspace_context') }}</SCheckCard>
-    </SFormItem>
-
-    <!-- disableWorkspaceSkills（仅 Single / ReAct，工具型 agent 才有 skills） -->
-    <SFormItem
-      v-if="form.type !== AgentMode.Generative && form.type !== AgentMode.ACP"
-      :hint="t('agents.disable_workspace_skills_hint')"
-    >
-      <SCheckCard v-model="form.disableWorkspaceSkills">{{ t('agents.disable_workspace_skills') }}</SCheckCard>
     </SFormItem>
 
     <!-- modelCallTimeout (ACP/Generative 不需要) -->
@@ -505,9 +342,6 @@ defineExpose({ open })
       <SButton type="primary" @click="save">{{ t('common.save') }}</SButton>
     </template>
   </SModal>
-
-  <CreatePromptModal v-model:visible="showCreateInsightPrompt" prefix="insight/extractor/" default-ext=".txt" @created="onInsightPromptCreated" @close="showCreateInsightPrompt = false" />
-  <CreatePromptModal v-model:visible="showCreateTodoPrompt" prefix="todo/extractor/" default-ext=".txt" @created="onTodoPromptCreated" @close="showCreateTodoPrompt = false" />
 
   <!-- Sub-agent Modal -->
   <SModal v-model:visible="showSubModal" :title="subModalTitle" width="sm" nested>

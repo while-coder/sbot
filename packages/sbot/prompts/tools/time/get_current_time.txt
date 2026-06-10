@@ -1,1 +1,0 @@
-Get the current date and time with timezone information.

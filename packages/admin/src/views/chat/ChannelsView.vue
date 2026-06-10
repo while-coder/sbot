@@ -3,14 +3,14 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
-import { useToast, useConfirm, SButton, SModal, SInput, STextarea, SSelect, SFormItem, SFormSection, SPageToolbar, SPageContent, SMultiSelect, SEntityList, STabBar, STab } from 'sbot-ui'
+import { useToast, useConfirm, SButton, SModal, SInput, STextarea, SSelect, SFormItem, SFormSection, SFormDetails, SPageToolbar, SPageContent, SMultiSelect, SEntityList, STabBar, STab } from 'sbot-ui'
 import QRCode from 'qrcode'
-import { ApprovalTimeoutValue, type ChannelConfig } from '@/shared/types'
+import { ApprovalTimeoutValue, type AgendaConfig, type ChannelConfig, type InsightConfig } from '@/shared/types'
 import SaverViewModal from '@/components/modals/SaverViewModal.vue'
-import TodoListModal from '@/components/modals/TodoListModal.vue'
-import SchedulerListModal from '@/components/modals/SchedulerListModal.vue'
+import AgendaListModal from '@/components/modals/AgendaListModal.vue'
 import { PathPickerModal, WebSocketTransport } from '@sbot/chat-ui'
 import SessionConfigOverridesEditor, { type SessionOverrides, type ConfigSource } from '@/components/SessionConfigOverridesEditor.vue'
+import SessionDataConfigEditor, { type DataConfigValue } from '@/components/SessionDataConfigEditor.vue'
 
 const { t } = useI18n()
 const { confirm } = useConfirm()
@@ -45,6 +45,8 @@ interface ChannelSessionRow {
   workPath: string | null
   streamVerbose: boolean | null
   autoApproveAllTools: boolean | null
+  disableWorkspaceContext: boolean | null
+  disableWorkspaceSkills: boolean | null
   approvalTimeout: number | null
   approvalTimeoutValue: ApprovalTimeoutValue | null
   askTimeout: number | null
@@ -52,6 +54,8 @@ interface ChannelSessionRow {
   intentModel: string | null
   intentPrompt: string | null
   intentThreshold: number | null
+  insight: InsightConfig | null
+  agenda: AgendaConfig | null
   // ── token 统计 ──
   inputTokens: number
   outputTokens: number
@@ -122,8 +126,7 @@ const wikiOptions   = computed(() => Object.entries(store.settings.wikis    || {
 const modelOptions  = computed(() => Object.entries(store.settings.models   || {}).map(([id, m]) => ({ id, label: (m as any).name  || id })))
 
 const saverViewModal     = ref<InstanceType<typeof SaverViewModal>>()
-const todoListModal      = ref<InstanceType<typeof TodoListModal>>()
-const schedulerListModal = ref<InstanceType<typeof SchedulerListModal>>()
+const agendaListModal    = ref<InstanceType<typeof AgendaListModal>>()
 const pathPicker         = ref<InstanceType<typeof PathPickerModal>>()
 
 const expandedChannels  = ref<string[]>([])
@@ -148,6 +151,8 @@ interface ProfileFull extends ProfileOption {
   workPath?: string | null
   streamVerbose?: boolean | null
   autoApproveAllTools?: boolean | null
+  disableWorkspaceContext?: boolean | null
+  disableWorkspaceSkills?: boolean | null
   approvalTimeout?: number | null
   approvalTimeoutValue?: ApprovalTimeoutValue | null
   askTimeout?: number | null
@@ -155,6 +160,8 @@ interface ProfileFull extends ProfileOption {
   intentModel?: string | null
   intentPrompt?: string | null
   intentThreshold?: number | null
+  insight?: string | null
+  agenda?: string | null
 }
 
 const editingProfile = ref<ProfileFull | null>(null)
@@ -173,15 +180,56 @@ function emptyOverrides(): SessionOverrides {
     agentId: null, saver: null, notes: null, wikis: null,
     useChannelNotes: null, useChannelWikis: null,
     workPath: null, streamVerbose: null, autoApproveAllTools: null,
+    disableWorkspaceContext: null, disableWorkspaceSkills: null,
     approvalTimeout: null, approvalTimeoutValue: null,
     askTimeout: null, askTimeoutMessage: null,
     intentModel: null, intentPrompt: null, intentThreshold: null,
+    insight: null,
+    agenda: null,
   }
 }
 
 function parseList(raw: string | null | undefined): string[] {
   if (!raw) return []
   try { const v = JSON.parse(raw); return Array.isArray(v) ? v : [] } catch { return [] }
+}
+
+function parseAgenda(raw: string | null | undefined): AgendaConfig | null {
+  if (!raw) return null
+  try { const v = JSON.parse(raw); return v && typeof v === 'object' ? v as AgendaConfig : null } catch { return null }
+}
+
+function parseInsight(raw: string | null | undefined): InsightConfig | null {
+  if (!raw) return null
+  try { const v = JSON.parse(raw); return v && typeof v === 'object' ? v as InsightConfig : null } catch { return null }
+}
+
+function normalizeAgenda(raw: AgendaConfig | null): AgendaConfig | null {
+  if (!raw) return null
+  return {
+    enabled: !!raw.enabled,
+    syncModel: raw.syncModel || '',
+    syncPromptFile: raw.syncPromptFile || undefined,
+  }
+}
+
+function normalizeInsight(raw: InsightConfig | null): InsightConfig | null {
+  if (!raw) return null
+  return {
+    enabled: !!raw.enabled,
+    extractor: raw.extractor || '',
+    extractorPromptFile: raw.extractorPromptFile || undefined,
+  }
+}
+
+function normalizeChannelAgenda(raw: AgendaConfig | null | undefined): AgendaConfig | null {
+  const agenda = normalizeAgenda(raw ?? null)
+  return agenda?.enabled ? agenda : null
+}
+
+function normalizeChannelInsight(raw: InsightConfig | null | undefined): InsightConfig | null {
+  const insight = normalizeInsight(raw ?? null)
+  return insight?.enabled ? insight : null
 }
 
 function profileToOverrides(p: ProfileFull): SessionOverrides {
@@ -196,6 +244,8 @@ function profileToOverrides(p: ProfileFull): SessionOverrides {
     workPath: p.workPath ?? null,
     streamVerbose: toTriBool(p.streamVerbose),
     autoApproveAllTools: toTriBool(p.autoApproveAllTools),
+    disableWorkspaceContext: toTriBool(p.disableWorkspaceContext),
+    disableWorkspaceSkills: toTriBool(p.disableWorkspaceSkills),
     approvalTimeout: p.approvalTimeout ?? null,
     approvalTimeoutValue: p.approvalTimeoutValue ?? null,
     askTimeout: p.askTimeout ?? null,
@@ -203,6 +253,8 @@ function profileToOverrides(p: ProfileFull): SessionOverrides {
     intentModel: p.intentModel ?? null,
     intentPrompt: p.intentPrompt ?? null,
     intentThreshold: p.intentThreshold ?? null,
+    insight: parseInsight(p.insight),
+    agenda: parseAgenda(p.agenda),
   }
 }
 
@@ -299,6 +351,9 @@ async function saveSession() {
   const validNoteIds = new Set(noteOptions.value.map(n => n.id))
   const validWikiIds = new Set(wikiOptions.value.map(w => w.id))
   const o = sessionForm.value.overrides
+  if (o.insight?.enabled && !o.insight.extractor) {
+    show(t('agents.error_insight_extractor'), 'error'); return
+  }
   const profilePayload = {
     agentId: o.agentId,
     saver: o.saver,
@@ -309,6 +364,8 @@ async function saveSession() {
     workPath: o.workPath,
     streamVerbose: o.streamVerbose,
     autoApproveAllTools: o.autoApproveAllTools,
+    disableWorkspaceContext: o.disableWorkspaceContext,
+    disableWorkspaceSkills: o.disableWorkspaceSkills,
     approvalTimeout: o.approvalTimeout,
     approvalTimeoutValue: o.approvalTimeoutValue,
     askTimeout: o.askTimeout,
@@ -316,6 +373,8 @@ async function saveSession() {
     intentModel: o.intentModel,
     intentPrompt: o.intentModel == null ? null : o.intentPrompt,
     intentThreshold: o.intentModel == null ? null : o.intentThreshold,
+    insight: normalizeInsight(o.insight),
+    agenda: normalizeAgenda(o.agenda),
   }
 
   // 比较 profile 是否有变化（含清洗：原始 notes/wikis 不过滤，与清洗后的 payload 对比，
@@ -331,6 +390,8 @@ async function saveSession() {
     workPath: orig.workPath,
     streamVerbose: orig.streamVerbose,
     autoApproveAllTools: orig.autoApproveAllTools,
+    disableWorkspaceContext: orig.disableWorkspaceContext,
+    disableWorkspaceSkills: orig.disableWorkspaceSkills,
     approvalTimeout: orig.approvalTimeout,
     approvalTimeoutValue: orig.approvalTimeoutValue,
     askTimeout: orig.askTimeout,
@@ -338,6 +399,8 @@ async function saveSession() {
     intentModel: orig.intentModel,
     intentPrompt: orig.intentModel == null ? null : orig.intentPrompt,
     intentThreshold: orig.intentModel == null ? null : orig.intentThreshold,
+    insight: normalizeInsight(orig.insight),
+    agenda: normalizeAgenda(orig.agenda),
   }
   const profileChanged = originalEquivalent == null
     || JSON.stringify(profilePayload) !== JSON.stringify(originalEquivalent)
@@ -374,16 +437,70 @@ const editingId = ref<string | null>(null)
 const form = ref<ChannelConfig>({
   name: '', type: '', config: {}, agent: '', saver: '', notes: [],
   workPath: '', streamVerbose: false, autoApproveAllTools: false,
+  disableWorkspaceContext: false, disableWorkspaceSkills: false,
   approvalTimeout: 0, approvalTimeoutValue: ApprovalTimeoutValue.Deny,
   askTimeout: 0, askTimeoutMessage: '',
   intentModel: '', intentPrompt: '', intentThreshold: 0.7,
   mergeWindow: 0,
+})
+
+const channelDataConfig = computed<DataConfigValue>({
+  get: () => ({
+    agentId: form.value.agent || null,
+    saver: form.value.saver || null,
+    notes: form.value.notes || [],
+    wikis: form.value.wikis || [],
+    useChannelNotes: null,
+    useChannelWikis: null,
+    workPath: form.value.workPath || null,
+    streamVerbose: form.value.streamVerbose ?? false,
+    autoApproveAllTools: form.value.autoApproveAllTools ?? false,
+    disableWorkspaceContext: form.value.disableWorkspaceContext ?? false,
+    disableWorkspaceSkills: form.value.disableWorkspaceSkills ?? false,
+    approvalTimeout: form.value.approvalTimeout && form.value.approvalTimeout > 0 ? form.value.approvalTimeout : null,
+    approvalTimeoutValue: form.value.approvalTimeoutValue ?? ApprovalTimeoutValue.Deny,
+    askTimeout: form.value.askTimeout && form.value.askTimeout > 0 ? form.value.askTimeout : null,
+    askTimeoutMessage: form.value.askTimeoutMessage || null,
+    intentModel: form.value.intentModel || null,
+    intentPrompt: form.value.intentPrompt || null,
+    intentThreshold: form.value.intentThreshold ?? 0.7,
+    insight: (form.value as any).insight ?? null,
+    agenda: (form.value as any).agenda ?? null,
+  }),
+  set: (v) => {
+    form.value.agent = v.agentId || ''
+    form.value.saver = v.saver || ''
+    form.value.notes = v.notes ?? []
+    form.value.wikis = v.wikis ?? []
+    form.value.workPath = v.workPath || ''
+    form.value.streamVerbose = !!v.streamVerbose
+    form.value.autoApproveAllTools = !!v.autoApproveAllTools
+    form.value.disableWorkspaceContext = !!v.disableWorkspaceContext
+    form.value.disableWorkspaceSkills = !!v.disableWorkspaceSkills
+    form.value.approvalTimeout = v.approvalTimeout ?? 0
+    form.value.approvalTimeoutValue = v.approvalTimeoutValue ?? ApprovalTimeoutValue.Deny
+    form.value.askTimeout = v.askTimeout ?? 0
+    form.value.askTimeoutMessage = v.askTimeoutMessage || ''
+    form.value.intentModel = v.intentModel || ''
+    form.value.intentPrompt = v.intentPrompt || ''
+    form.value.intentThreshold = v.intentThreshold ?? 0.7
+    ;(form.value as any).insight = v.insight ?? undefined
+    ;(form.value as any).agenda = v.agenda ?? undefined
+  },
 })
 type ToolMode = 'default' | 'whitelist' | 'block'
 const formTools = ref<string[]>([])
 const formTriggerTools = ref<string[]>([])
 const formToolsMode = ref<ToolMode>('default')
 const formTriggerToolsMode = ref<ToolMode>('default')
+
+const channelAdvancedBadge = computed(() => {
+  let n = 0
+  if (form.value.mergeWindow && form.value.mergeWindow > 0) n++
+  if (formToolsMode.value !== 'default') n++
+  if (formTriggerToolsMode.value !== 'default') n++
+  return n || ''
+})
 
 function toolsToMode(arr: string[] | undefined): ToolMode {
   if (arr === undefined) return 'default'
@@ -531,7 +648,7 @@ function openAdd() {
   editingId.value = null
   clearActionState()
   const defaultType = plugins.value.find(p => !p.builtin)?.type || ''
-  form.value = { name: '', type: defaultType, config: {}, agent: '', saver: '', notes: [], wikis: [], workPath: '', streamVerbose: false, autoApproveAllTools: false, approvalTimeout: 0, approvalTimeoutValue: ApprovalTimeoutValue.Deny, askTimeout: 0, askTimeoutMessage: '', intentModel: '', intentPrompt: '', intentThreshold: 0.7, mergeWindow: 0 }
+  form.value = { name: '', type: defaultType, config: {}, agent: '', saver: '', notes: [], wikis: [], workPath: '', streamVerbose: false, autoApproveAllTools: false, disableWorkspaceContext: false, disableWorkspaceSkills: false, approvalTimeout: 0, approvalTimeoutValue: ApprovalTimeoutValue.Deny, askTimeout: 0, askTimeoutMessage: '', intentModel: '', intentPrompt: '', intentThreshold: 0.7, mergeWindow: 0 }
   formTools.value = []
   formTriggerTools.value = []
   formToolsMode.value = 'default'
@@ -543,7 +660,7 @@ function openEdit(id: string) {
   const c = channels.value[id]
   editingId.value = id
   clearActionState()
-  form.value = { name: c.name, type: c.type, config: { ...c.config }, agent: c.agent, saver: c.saver, notes: c.notes || [], wikis: (c as any).wikis || [], workPath: c.workPath || '', streamVerbose: !!c.streamVerbose, autoApproveAllTools: !!c.autoApproveAllTools, approvalTimeout: c.approvalTimeout ?? 0, approvalTimeoutValue: c.approvalTimeoutValue ?? ApprovalTimeoutValue.Deny, askTimeout: c.askTimeout ?? 0, askTimeoutMessage: c.askTimeoutMessage || '', intentModel: c.intentModel || '', intentPrompt: c.intentPrompt || '', intentThreshold: c.intentThreshold ?? 0.7, mergeWindow: c.mergeWindow || 0 }
+  form.value = { name: c.name, type: c.type, config: { ...c.config }, agent: c.agent, saver: c.saver, notes: c.notes || [], wikis: (c as any).wikis || [], workPath: c.workPath || '', streamVerbose: !!c.streamVerbose, autoApproveAllTools: !!c.autoApproveAllTools, disableWorkspaceContext: !!c.disableWorkspaceContext, disableWorkspaceSkills: !!c.disableWorkspaceSkills, approvalTimeout: c.approvalTimeout ?? 0, approvalTimeoutValue: c.approvalTimeoutValue ?? ApprovalTimeoutValue.Deny, askTimeout: c.askTimeout ?? 0, askTimeoutMessage: c.askTimeoutMessage || '', intentModel: c.intentModel || '', intentPrompt: c.intentPrompt || '', intentThreshold: c.intentThreshold ?? 0.7, mergeWindow: c.mergeWindow || 0, insight: (c as any).insight ?? undefined, agenda: (c as any).agenda ?? undefined }
   formTools.value = [...(c.tools ?? [])]
   formTriggerTools.value = [...(c.triggerTools ?? [])]
   formToolsMode.value = toolsToMode(c.tools)
@@ -555,6 +672,11 @@ async function save() {
   if (!form.value.name.trim()) { show(t('common.name_required'), 'error'); return }
   if (!form.value.agent) { show(t('channels.select_agent'), 'error'); return }
   if (!form.value.saver) { show(t('channels.select_saver'), 'error'); return }
+  const channelInsight = normalizeChannelInsight((form.value as any).insight ?? null)
+  const channelAgenda = normalizeChannelAgenda((form.value as any).agenda ?? null)
+  if (channelInsight?.enabled && !channelInsight.extractor) {
+    show(t('agents.error_insight_extractor'), 'error'); return
+  }
   if (formToolsMode.value === 'whitelist' && formTools.value.length === 0) { show(t('channels.tools_whitelist_empty'), 'error'); return }
   if (formTriggerToolsMode.value === 'whitelist' && formTriggerTools.value.length === 0) { show(t('channels.tools_whitelist_empty'), 'error'); return }
   try {
@@ -581,6 +703,8 @@ async function save() {
       workPath: form.value.workPath?.trim() || undefined,
       streamVerbose: form.value.streamVerbose || undefined,
       autoApproveAllTools: form.value.autoApproveAllTools || undefined,
+      disableWorkspaceContext: form.value.disableWorkspaceContext || undefined,
+      disableWorkspaceSkills: form.value.disableWorkspaceSkills || undefined,
       approvalTimeout: form.value.approvalTimeout && form.value.approvalTimeout > 0 ? form.value.approvalTimeout : undefined,
       approvalTimeoutValue: form.value.approvalTimeout && form.value.approvalTimeout > 0 ? form.value.approvalTimeoutValue : undefined,
       askTimeout: form.value.askTimeout && form.value.askTimeout > 0 ? form.value.askTimeout : undefined,
@@ -589,6 +713,8 @@ async function save() {
       intentPrompt: form.value.intentPrompt?.trim() || undefined,
       intentThreshold: form.value.intentModel ? form.value.intentThreshold : undefined,
       mergeWindow: form.value.mergeWindow || undefined,
+      insight: channelInsight,
+      agenda: channelAgenda,
       tools: modeToTools(formToolsMode.value, formTools.value),
       triggerTools: modeToTools(formTriggerToolsMode.value, formTriggerTools.value),
     }
@@ -708,8 +834,7 @@ async function refresh() {
                 </template>
                 <template #ops="{ item: s }">
                   <SButton v-if="s.saver || c.saver" type="outline" size="sm" @click="saverViewModal?.openByDbId(s.id, saverOptions.find(o => o.id === (s.saver || c.saver))?.label || (s.saver || c.saver))">{{ t('channels.history') }}</SButton>
-                  <SButton type="outline" size="sm" @click="todoListModal?.openByProfileId(String(s.profileId), s.sessionName || s.autoSessionName || s.sessionId)">{{ t('todo.title') }}</SButton>
-                  <SButton type="outline" size="sm" @click="schedulerListModal?.openByProfileId(String(s.profileId), s.sessionName || s.autoSessionName || s.sessionId)">{{ t('scheduler.title') }}</SButton>
+                  <SButton type="outline" size="sm" @click="agendaListModal?.openByProfileId(String(s.profileId), s.sessionName || s.autoSessionName || s.sessionId)">{{ t('agenda.title') }}</SButton>
                   <SButton type="outline" size="sm" @click="openEditSession(s)">{{ t('common.edit') }}</SButton>
                   <SButton type="danger" size="sm" @click="removeSession(c.id, s)">{{ t('common.delete') }}</SButton>
                 </template>
@@ -774,18 +899,6 @@ async function refresh() {
                 <option v-for="p in plugins.filter(p => !p.builtin || editingId)" :key="p.type" :value="p.type">{{ p.label }}</option>
               </SSelect>
             </SFormItem>
-            <SFormItem :label="t('common.agent') + ' *'">
-              <SSelect v-model="form.agent">
-                <option value="" disabled>{{ t('channels.select_agent') }}</option>
-                <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }} ({{ a.type }})</option>
-              </SSelect>
-            </SFormItem>
-            <SFormItem :label="t('common.storage') + ' *'">
-              <SSelect v-model="form.saver">
-                <option value="" disabled>{{ t('channels.select_saver') }}</option>
-                <option v-for="s in saverOptions" :key="s.id" :value="s.id">{{ s.label }}</option>
-              </SSelect>
-            </SFormItem>
           </SFormSection>
 
           <SFormSection v-if="Object.keys(currentSchema).length > 0" :title="t('channels.section_plugin')">
@@ -822,63 +935,19 @@ async function refresh() {
             </template>
           </SFormSection>
 
-          <SFormSection :title="t('channels.section_resources')">
-            <SFormItem :label="t('common.note')">
-              <SMultiSelect v-model="form.notes" :options="noteOptions" />
-            </SFormItem>
-            <SFormItem :label="t('common.wiki')">
-              <SMultiSelect :model-value="form.wikis || []" :options="wikiOptions" @update:model-value="form.wikis = $event" />
-            </SFormItem>
-            <SFormItem :label="t('directory.path_label')">
-              <div class="path-row">
-                <SInput v-model="form.workPath" type="text" :placeholder="t('directory.path_placeholder')" class="path-input" />
-                <SButton type="outline" size="sm" @click="pathPicker?.open(form.workPath || '')">{{ t('directory.browse') }}</SButton>
-              </div>
-            </SFormItem>
-          </SFormSection>
+          <SessionDataConfigEditor
+            v-model="channelDataConfig"
+            mode="channel"
+            :default-open-sections="['common', 'resources']"
+            :agent-options="agentOptions"
+            :saver-options="saverOptions"
+            :note-options="noteOptions"
+            :wiki-options="wikiOptions"
+            :model-options="modelOptions"
+            @browse-path="pathPicker?.open(channelDataConfig.workPath || '')"
+          />
 
-          <SFormSection :title="t('channels.section_advanced')">
-            <SFormItem :hint="t('channels.stream_verbose_hint')">
-              <label class="toggle-label">
-                <input type="checkbox" v-model="form.streamVerbose" />
-                <span>{{ t('channels.stream_verbose') }}</span>
-              </label>
-            </SFormItem>
-            <SFormItem :hint="t('settings.auto_approve_all_hint')">
-              <label class="toggle-label">
-                <input type="checkbox" v-model="form.autoApproveAllTools" />
-                <span>{{ t('settings.auto_approve_all') }}</span>
-              </label>
-            </SFormItem>
-            <SFormItem :label="t('channels.intent_model')" :hint="t('channels.intent_model_hint')">
-              <SSelect v-model="form.intentModel">
-                <option value="">{{ t('common.not_use') }}</option>
-                <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-              </SSelect>
-            </SFormItem>
-            <template v-if="form.intentModel">
-              <SFormItem :label="t('channels.intent_threshold')" :hint="t('channels.intent_threshold_hint')">
-                <SInput v-model.number="form.intentThreshold" type="number" />
-              </SFormItem>
-              <SFormItem :label="t('channels.intent_prompt')">
-                <STextarea v-model="form.intentPrompt" :rows="4" :placeholder="t('channels.intent_prompt_placeholder')" />
-              </SFormItem>
-            </template>
-            <SFormItem :label="t('channels.approval_timeout')" :hint="t('channels.approval_timeout_hint')">
-              <SInput v-model.number="form.approvalTimeout" type="number" placeholder="0" />
-            </SFormItem>
-            <SFormItem v-if="form.approvalTimeout && form.approvalTimeout > 0" :label="t('channels.approval_timeout_value')">
-              <SSelect v-model="form.approvalTimeoutValue">
-                <option :value="ApprovalTimeoutValue.Deny">{{ t('channels.approval_timeout_value_deny') }}</option>
-                <option :value="ApprovalTimeoutValue.Allow">{{ t('channels.approval_timeout_value_allow') }}</option>
-              </SSelect>
-            </SFormItem>
-            <SFormItem :label="t('channels.ask_timeout')" :hint="t('channels.ask_timeout_hint')">
-              <SInput v-model.number="form.askTimeout" type="number" placeholder="0" />
-            </SFormItem>
-            <SFormItem v-if="form.askTimeout && form.askTimeout > 0" :label="t('channels.ask_timeout_message')" :hint="t('channels.ask_timeout_message_hint')">
-              <SInput v-model="form.askTimeoutMessage" type="text" />
-            </SFormItem>
+          <SFormDetails :summary="t('channels.section_channel_advanced')" :badge="channelAdvancedBadge">
             <SFormItem :label="t('channels.merge_window')" :hint="t('channels.merge_window_hint')">
               <SInput v-model.number="form.mergeWindow" type="number" placeholder="0" />
             </SFormItem>
@@ -900,7 +969,7 @@ async function refresh() {
                 <SMultiSelect v-if="formTriggerToolsMode === 'whitelist'" v-model="formTriggerTools" :options="currentToolOptions" />
               </SFormItem>
             </template>
-          </SFormSection>
+          </SFormDetails>
         </div>
         <div class="drawer-footer">
           <SButton type="outline" @click="showModal = false">{{ t('common.cancel') }}</SButton>
@@ -951,6 +1020,7 @@ async function refresh() {
 
           <SessionConfigOverridesEditor
             v-model="sessionForm.overrides"
+            :default-open-sections="['common']"
             :sources="effectiveSources"
             :resolved="effectiveResolved"
             :agent-options="agentOptions"
@@ -993,8 +1063,7 @@ async function refresh() {
     </SModal>
 
     <SaverViewModal ref="saverViewModal" />
-    <TodoListModal ref="todoListModal" />
-    <SchedulerListModal ref="schedulerListModal" />
+    <AgendaListModal ref="agendaListModal" />
     <PathPickerModal
       ref="pathPicker"
       :transport="pickerTransport"

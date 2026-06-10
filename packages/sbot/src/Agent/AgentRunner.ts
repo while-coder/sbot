@@ -21,15 +21,14 @@ import {
     T_InsightDir,
     T_InsightExtractorSystemPrompt,
     T_InsightStaleDays, T_InsightArchiveDays, T_InsightSystemPromptTemplate,
-    ITodoService, TodoService,
-    ITodoExtractor, TodoExtractor,
-    T_TodoFilePath,
-    T_TodoExtractorSystemPrompt,
-    T_TodoToolDescs,
+    IAgendaService,
+    IAgendaSyncExtractor,
+    AgendaSyncExtractor,
+    T_AgendaSyncSystemPrompt,
     type MessageContent,
 } from "scorpio.ai";
 import { loadPrompt } from "../Core/PromptLoader";
-import { config, InsightScope, TodoScope, type ToolAgentEntry } from "../Core/Config";
+import { config, type AgendaConfig, type InsightConfig } from "../Core/Config";
 import { loadWorkspaceContext } from "../Core/WorkspaceContext";
 
 import { AgentFactory } from "./AgentFactory";
@@ -38,6 +37,7 @@ import { sessionManager } from "../Session/SessionManager";
 import { NoteDatabaseManager } from "./NoteDatabaseManager";
 import { WikiDatabaseManager } from "./WikiDatabaseManager";
 import { SaverPool } from "./SaverPool";
+import { AgendaService } from "../Agenda";
 
 export interface AgentRunOptions {
     /** 用户输入的消息 */
@@ -58,10 +58,18 @@ export interface AgentRunOptions {
     wikis?: string[];
     /** Agent 文件操作根目录，不传则默认为 assets/{threadId} */
     workPath?: string;
+    /** 关闭工作目录上下文文件（SBOT.md / AGENTS.md 等）的自动注入 */
+    disableWorkspaceContext?: boolean;
+    /** 关闭工作目录 .skills/ 子目录下 skill 的自动导入 */
+    disableWorkspaceSkills?: boolean;
     /** 动态注册到 Agent 的工具列表 */
     agentTools?: StructuredToolInterface[];
     /** 归属会话 DB 主键（channel_session.id） */
     dbSessionId: string;
+    /** Profile 级 Insight 配置 */
+    insightConfig?: InsightConfig | null;
+    /** Profile 级 Agenda 配置；disabled 时不注册 Agenda 工具和同步 */
+    agendaConfig?: AgendaConfig | null;
 }
 
 export class AgentRunner {
@@ -92,12 +100,12 @@ export class AgentRunner {
 
         /** 动态 system prompts（每次请求变化，不可缓存） */
         const dynamicPrompts: string[] = [
+            AgentRunner.createCurrentTimePrompt(timezone),
             ...(extraInfo?.trim() ? [extraInfo] : []),
         ];
 
-        // 目录级上下文自动发现（SBOT.md / AGENTS.md 等），可由 agent 配置 disableWorkspaceContext 关闭
-        const agentEntry = config.getAgent(agentId);
-        if (!agentEntry.disableWorkspaceContext) {
+        // 目录级上下文自动发现（SBOT.md / AGENTS.md 等），可由 profile/channel 配置关闭
+        if (!options.disableWorkspaceContext) {
             const contextFiles = loadWorkspaceContext(workPath, config.settings.contextFileNames);
             if (contextFiles.length > 0) {
                 const contextContent = contextFiles
@@ -111,19 +119,52 @@ export class AgentRunner {
         container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
         await AgentRunner.registerNoteServices(container, notes ?? []);
         await AgentRunner.registerWikiServices(container, wikis ?? []);
-        await AgentRunner.registerInsightService(container, agentId, threadId);
-        await AgentRunner.registerTodoService(container, agentId, threadId);
+        await AgentRunner.registerInsightService(container, options.insightConfig, threadId);
+        await AgentRunner.registerAgendaService(container, options.agendaConfig, threadId, dbSessionId);
 
         const saverHandle = await SaverPool.getInstance().acquire(saverId, threadId);
         container.registerInstance(IAgentSaverService, saverHandle.saver);
 
-        const agent = await AgentFactory.create({ agentId, container, extraPrompts, dynamicPrompts, agentTools, dbSessionId, workPath });
+        const agent = await AgentFactory.create({
+            agentId,
+            container,
+            extraPrompts,
+            dynamicPrompts,
+            agentTools,
+            dbSessionId,
+            workPath,
+            disableWorkspaceSkills: options.disableWorkspaceSkills,
+        });
         try {
             await agent.stream(query, callbacks, signal);
         } finally {
             await agent.dispose();
             await saverHandle.release();
         }
+    }
+
+    private static createCurrentTimePrompt(timezone: string): string {
+        const now = new Date();
+        const parts = new Intl.DateTimeFormat('en-US', {
+            timeZone: timezone,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            weekday: 'short',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hourCycle: 'h23',
+        }).formatToParts(now);
+        const value = (type: Intl.DateTimeFormatPartTypes) => parts.find(part => part.type === type)?.value ?? '';
+        const localTime = `${value('year')}-${value('month')}-${value('day')} ${value('hour')}:${value('minute')}:${value('second')} (${value('weekday')}, ${timezone})`;
+
+        return [
+            '<current-time>',
+            `Current local time: ${localTime}`,
+            `Current UTC time: ${now.toISOString()}`,
+            '</current-time>',
+        ].join('\n');
     }
 
     static async createNoteService(noteId: string): Promise<INoteService> {
@@ -204,16 +245,12 @@ export class AgentRunner {
 
     private static async registerInsightService(
         container: ServiceContainer,
-        agentName: string,
+        insightConfig: InsightConfig | null | undefined,
         threadId: string,
     ): Promise<void> {
-        const agentEntry = config.getAgent(agentName) as ToolAgentEntry;
-        const insightConfig = agentEntry.insight;
-        if (!insightConfig || insightConfig.scope === InsightScope.Disabled) return;
+        if (!insightConfig?.enabled) return;
 
-        const insightDir = insightConfig.scope === InsightScope.Profile
-            ? config.getProfileInsightsPath(threadId)
-            : config.getAgentInsightsPath(agentName);
+        const insightDir = config.getProfileInsightsPath(threadId);
 
         const extractorModel = await config.getModelService(insightConfig.extractor, true);
         container.registerWithArgs(IInsightExtractor, InsightExtractor, {
@@ -229,26 +266,45 @@ export class AgentRunner {
         });
     }
 
-    private static async registerTodoService(
+    private static async registerAgendaService(
         container: ServiceContainer,
-        agentName: string,
+        agendaConfig: AgendaConfig | null | undefined,
         threadId: string,
+        dbSessionId: string,
     ): Promise<void> {
-        const agentEntry = config.getAgent(agentName) as ToolAgentEntry;
-        const todoConfig = agentEntry.todo;
-        if (!todoConfig || todoConfig.scope === TodoScope.Disabled) return;
+        if (!agendaConfig?.enabled) return;
 
-        const filePath = config.getProfileTodoPath(threadId);
+        const syncModelId = agendaConfig.syncModel;
+        let extractor: IAgendaSyncExtractor | undefined;
+        if (syncModelId) {
+            const extractorModel = await config.getModelService(syncModelId, true);
+            const sub = new ServiceContainer();
+            if (container.isRegistered(ILoggerService)) {
+                sub.registerInstance(ILoggerService, await container.resolve(ILoggerService));
+            }
+            sub.registerInstance(IModelService, extractorModel);
+            sub.registerInstance(T_AgendaSyncSystemPrompt, loadPrompt(agendaConfig.syncPromptFile ?? 'agenda/sync/default.txt'));
+            sub.registerSingleton(IAgendaSyncExtractor, AgendaSyncExtractor);
+            extractor = await sub.resolve<IAgendaSyncExtractor>(IAgendaSyncExtractor);
+        }
 
-        const extractorModel = await config.getModelService(todoConfig.extractor, true);
-        container.registerWithArgs(ITodoExtractor, TodoExtractor, {
-            [IModelService]: extractorModel,
-            [T_TodoExtractorSystemPrompt]: loadPrompt(todoConfig.extractorPromptFile ?? 'todo/extractor/default.txt'),
-        });
+        const profileId = parseInt(threadId, 10);
+        const channelSessionId = parseInt(dbSessionId, 10);
+        if (!profileId || !channelSessionId) return;
 
-        container.registerWithArgs(ITodoService, TodoService, {
-            [T_TodoFilePath]: filePath,
-            [T_TodoToolDescs]: { list: loadPrompt('tools/todo/list.txt') },
-        });
+        const service = new AgendaService(
+            profileId,
+            channelSessionId,
+            {
+                create: loadPrompt('agenda/tools/create.txt'),
+                list: loadPrompt('agenda/tools/list.txt'),
+                update: loadPrompt('agenda/tools/update.txt'),
+                complete: loadPrompt('agenda/tools/complete.txt'),
+                cancel: loadPrompt('agenda/tools/cancel.txt'),
+                skipNext: loadPrompt('agenda/tools/skip_next.txt'),
+            },
+            extractor,
+        );
+        container.registerInstance(IAgendaService, service);
     }
 }

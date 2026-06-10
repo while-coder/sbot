@@ -7,9 +7,7 @@ export enum BuiltinProvider {
     WebFetch = 'builtin_webfetch',
     Archive = 'builtin_archive',
     Sleep = 'builtin_sleep',
-    Time = 'builtin_time',
 
-    Scheduler = 'builtin_scheduler',
     SessionSearch = 'builtin_session_search',
     Channel = 'builtin_channel',
 
@@ -42,16 +40,6 @@ export function initGlobalAgentToolService() {
         const { createSleepTool } = await import("../Tools/Sleep/index.js");
         return [createSleepTool()];
     }, '等待/暂停执行');
-    globalAgentToolService.registerToolFactory(BuiltinProvider.Time, async (_params) => {
-        const { createTimeTool } = await import("../Tools/Time/index.js");
-        return [createTimeTool()];
-    }, '获取当前时间');
-    // Scheduler 在全局服务里只用 preview 占位 ID 注册，仅供 admin 展示工具 schema；
-    // 实际运行时会被 AgentFactory.SESSION_TOOL_CREATORS 用真 channelSessionId/profileId 单独注册到 per-agent 的 ToolService 上。
-    globalAgentToolService.registerToolFactory(BuiltinProvider.Scheduler, async (_params) => {
-        const { createSchedulerTools } = await import("../Tools/Scheduler/index.js");
-        return createSchedulerTools(0, 0);
-    }, '定时任务调度');
     globalAgentToolService.registerToolFactory(BuiltinProvider.SessionSearch, async (_params) => {
         const { createSessionSearchTool } = await import("../Tools/SessionSearch/index.js");
         return [createSessionSearchTool(null)];
@@ -95,6 +83,5 @@ export function refreshBuiltinTools() {
         BuiltinProvider.WebFetch,
         BuiltinProvider.Archive,
         BuiltinProvider.Sleep,
-        BuiltinProvider.Time,
     );
 }

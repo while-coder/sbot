@@ -75,27 +75,16 @@ export interface EmbeddingConfig {
   model: string
 }
 
-export enum InsightScope {
-  Disabled = "disabled",
-  Agent    = "agent",
-  Profile  = "profile",
-}
-
 export interface InsightConfig {
-  scope: InsightScope
+  enabled: boolean
   extractor: string
   extractorPromptFile?: string
 }
 
-export enum TodoScope {
-  Disabled = "disabled",
-  Profile  = "profile",
-}
-
-export interface TodoConfig {
-  scope: TodoScope
-  extractor: string
-  extractorPromptFile?: string
+export interface AgendaConfig {
+  enabled: boolean
+  syncModel?: string
+  syncPromptFile?: string
 }
 
 export interface NoteConfig {
@@ -167,17 +156,11 @@ export interface AgentConfig {
   // 所有模式
   autoApproveTools?: string[]
   autoApproveAllTools?: boolean
-  /** 关闭工作目录上下文文件（SBOT.md / AGENTS.md 等）的自动注入 */
-  disableWorkspaceContext?: boolean
-  /** 关闭工作目录 .skills/ 子目录下 skill 的自动导入 */
-  disableWorkspaceSkills?: boolean
   // single / react（ToolAgent）
   mcp?: string[] | '*'
   mcpExclude?: string[]
   mcpParams?: Record<string, Record<string, string>>
   skills?: string[] | '*'
-  insight?: InsightConfig
-  todo?: TodoConfig
   compactModel?: string
   modelCallTimeout?: number
   // react
@@ -231,6 +214,14 @@ export interface SessionConfig {
   workPath?: string
   /** 自动批准所有工具调用 */
   autoApproveAllTools?: boolean
+  /** 关闭工作目录上下文文件（SBOT.md / AGENTS.md 等）的自动注入 */
+  disableWorkspaceContext?: boolean
+  /** 关闭工作目录 .skills/ 子目录下 skill 的自动导入 */
+  disableWorkspaceSkills?: boolean
+  /** 经验洞察配置 */
+  insight?: InsightConfig
+  /** Agenda 工具和同步配置 */
+  agenda?: AgendaConfig
 }
 
 /** Approval 超时返回值 */
@@ -263,6 +254,10 @@ export interface ChannelConfig {
   streamVerbose?: boolean
   /** 自动批准所有工具调用 */
   autoApproveAllTools?: boolean
+  /** 关闭工作目录上下文文件（SBOT.md / AGENTS.md 等）的自动注入 */
+  disableWorkspaceContext?: boolean
+  /** 关闭工作目录 .skills/ 子目录下 skill 的自动导入 */
+  disableWorkspaceSkills?: boolean
   /** Approval 等待超时（秒），<=0 或不设置则不超时 */
   approvalTimeout?: number
   /** Approval 超时后的默认结果，默认 'deny' */
@@ -279,9 +274,13 @@ export interface ChannelConfig {
   intentThreshold?: number
   /** 消息合并窗口（毫秒），同一会话在此时间内的连续消息会合并后再处理。0 或不设置表示不合并 */
   mergeWindow?: number
+  /** 经验洞察配置 */
+  insight?: InsightConfig
+  /** Agenda 工具和同步配置 */
+  agenda?: AgendaConfig
   /** 日常对话工具白名单。不设置：全部可用；空数组：屏蔽全部；非空：仅白名单内可用 */
   tools?: string[]
-  /** 后台触发（heartbeat / scheduler 等）工具白名单。不设置：全部可用；空数组：屏蔽全部；非空：仅白名单内可用 */
+  /** 后台触发（heartbeat / agenda 等）工具白名单。不设置：全部可用；空数组：屏蔽全部；非空：仅白名单内可用 */
   triggerTools?: string[]
 }
 

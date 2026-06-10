@@ -6,6 +6,7 @@ import { store } from '@/shared/store'
 import { useToast, useConfirm, SButton, SInput, SFormItem, SPageToolbar, SPageContent, STable, SModal } from 'sbot-ui'
 import type { STableColumn } from 'sbot-ui'
 import { ApprovalTimeoutValue } from 'sbot.commons'
+import { type AgendaConfig, type InsightConfig } from '@/shared/types'
 import { PathPickerModal, WebSocketTransport } from '@sbot/chat-ui'
 import SessionConfigOverridesEditor, { type SessionOverrides } from '@/components/SessionConfigOverridesEditor.vue'
 
@@ -22,6 +23,8 @@ interface ProfileRow {
   workPath: string | null
   streamVerbose: boolean | null
   autoApproveAllTools: boolean | null
+  disableWorkspaceContext: boolean | null
+  disableWorkspaceSkills: boolean | null
   approvalTimeout: number | null
   approvalTimeoutValue: ApprovalTimeoutValue | null
   askTimeout: number | null
@@ -29,6 +32,8 @@ interface ProfileRow {
   intentModel: string | null
   intentPrompt: string | null
   intentThreshold: number | null
+  insight: string | null
+  agenda: string | null
   inputTokens: number
   outputTokens: number
   totalTokens: number
@@ -127,9 +132,12 @@ function emptyOverrides(): SessionOverrides {
     agentId: null, saver: null, notes: null, wikis: null,
     useChannelNotes: null, useChannelWikis: null,
     workPath: null, streamVerbose: null, autoApproveAllTools: null,
+    disableWorkspaceContext: null, disableWorkspaceSkills: null,
     approvalTimeout: null, approvalTimeoutValue: null,
     askTimeout: null, askTimeoutMessage: null,
     intentModel: null, intentPrompt: null, intentThreshold: null,
+    insight: null,
+    agenda: null,
   }
 }
 
@@ -142,6 +150,34 @@ const form = ref<ProfileForm>(emptyForm())
 function parseList(raw: string | null): string[] {
   if (!raw) return []
   try { const v = JSON.parse(raw); return Array.isArray(v) ? v : [] } catch { return [] }
+}
+
+function parseAgenda(raw: string | null): AgendaConfig | null {
+  if (!raw) return null;
+  try { const v = JSON.parse(raw); return v && typeof v === 'object' ? v as AgendaConfig : null } catch { return null }
+}
+
+function parseInsight(raw: string | null): InsightConfig | null {
+  if (!raw) return null;
+  try { const v = JSON.parse(raw); return v && typeof v === 'object' ? v as InsightConfig : null } catch { return null }
+}
+
+function normalizeAgenda(raw: AgendaConfig | null): AgendaConfig | null {
+  if (!raw) return null
+  return {
+    enabled: !!raw.enabled,
+    syncModel: raw.syncModel || '',
+    syncPromptFile: raw.syncPromptFile || undefined,
+  }
+}
+
+function normalizeInsight(raw: InsightConfig | null): InsightConfig | null {
+  if (!raw) return null
+  return {
+    enabled: !!raw.enabled,
+    extractor: raw.extractor || '',
+    extractorPromptFile: raw.extractorPromptFile || undefined,
+  }
 }
 
 function openAdd() {
@@ -166,6 +202,8 @@ function openEdit(p: ProfileRow) {
       workPath: p.workPath,
       streamVerbose: toTriBool(p.streamVerbose),
       autoApproveAllTools: toTriBool(p.autoApproveAllTools),
+      disableWorkspaceContext: toTriBool(p.disableWorkspaceContext),
+      disableWorkspaceSkills: toTriBool(p.disableWorkspaceSkills),
       approvalTimeout: p.approvalTimeout,
       approvalTimeoutValue: p.approvalTimeoutValue,
       askTimeout: p.askTimeout,
@@ -173,6 +211,8 @@ function openEdit(p: ProfileRow) {
       intentModel: p.intentModel ?? null,
       intentPrompt: p.intentPrompt,
       intentThreshold: p.intentThreshold,
+      insight: parseInsight(p.insight),
+      agenda: parseAgenda(p.agenda),
     },
   }
 }
@@ -180,7 +220,9 @@ function openEdit(p: ProfileRow) {
 async function save() {
   const f = form.value
   if (!f.name.trim()) { show(t('common.name_required'), 'error'); return }
-
+  if (f.overrides.insight?.enabled && !f.overrides.insight.extractor) {
+    show(t('agents.error_insight_extractor'), 'error'); return
+  }
   // 编辑时若被多 session 共享，弹警告
   if (!isCreating.value && editing.value) {
     const count = editing.value.sessionCount ?? 0
@@ -221,6 +263,8 @@ function buildPayload(f: ProfileForm): Record<string, any> {
     workPath: o.workPath,
     streamVerbose: o.streamVerbose,
     autoApproveAllTools: o.autoApproveAllTools,
+    disableWorkspaceContext: o.disableWorkspaceContext,
+    disableWorkspaceSkills: o.disableWorkspaceSkills,
     approvalTimeout: o.approvalTimeout,
     approvalTimeoutValue: o.approvalTimeoutValue,
     askTimeout: o.askTimeout,
@@ -228,6 +272,8 @@ function buildPayload(f: ProfileForm): Record<string, any> {
     intentModel: o.intentModel,
     intentPrompt: o.intentModel == null ? null : o.intentPrompt,
     intentThreshold: o.intentModel == null ? null : o.intentThreshold,
+    insight: normalizeInsight(o.insight),
+    agenda: normalizeAgenda(o.agenda),
   }
 }
 
@@ -292,6 +338,7 @@ async function remove(p: ProfileRow) {
 
           <SessionConfigOverridesEditor
             v-model="form.overrides"
+            :default-open-sections="['common']"
             :agent-options="agentOptions"
             :saver-options="saverOptions"
             :note-options="noteOptions"
