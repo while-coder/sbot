@@ -83,7 +83,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: 'sbot ${{ steps.version.outputs.tag }}'
+          name: 'sbot v${{ steps.version.outputs.version }}'
           body: ${{ steps.notes.outputs.body }}
           draft: true
           prerelease: false
