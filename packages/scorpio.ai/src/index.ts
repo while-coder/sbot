@@ -75,7 +75,7 @@ export {
   T_NoteToolDescs,
   T_WikiToolDescs,
   T_MCPUtilityToolDescs,
-  T_AgendaSyncSystemPrompt,
+  T_AgendaExtractorSystemPrompt,
   T_AgendaProfileDbPath,
   type AgendaProfileDbPathFn,
   T_AgendaProfileId,

@@ -23,11 +23,11 @@ import {
     type AgendaUpdatePatch,
 } from "../types";
 import {
-    type AgendaSyncAction,
-    AgendaSyncActionType,
-    IAgendaSyncExtractor,
-} from "../Extractor/IAgendaSyncExtractor";
-import { IAgendaScheduler } from "../Scheduler/IAgendaScheduler";
+    type AgendaAction,
+    AgendaActionType,
+    IAgendaExtractor,
+} from "../Extractor/IAgendaExtractor";
+import { IAgendaTriggerEngine } from "../TriggerEngine/IAgendaTriggerEngine";
 import { IAgendaStore } from "../Storage/IAgendaStore";
 import { computeInitialNextFire, DEFAULT_GRACE_MS, formatWhen, parseAt, relativeToMs } from "../time";
 import { type AgendaToolDescs, IAgendaService } from "./IAgendaService";
@@ -40,8 +40,8 @@ export class AgendaService implements IAgendaService {
         @inject(T_AgendaChannelSessionId) private channelSessionId: number,
         @inject(T_AgendaToolDescs) private toolDescs: AgendaToolDescs,
         @inject(IAgendaStore) private agendaStore: IAgendaStore,
-        @inject(IAgendaScheduler) private agendaScheduler: IAgendaScheduler,
-        @inject(IAgendaSyncExtractor, { optional: true }) private syncExtractor?: IAgendaSyncExtractor,
+        @inject(IAgendaTriggerEngine) private triggerEngine: IAgendaTriggerEngine,
+        @inject(IAgendaExtractor, { optional: true }) private extractor?: IAgendaExtractor,
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
     ) {
         this.logger = loggerService?.getLogger("AgendaService.ts");
@@ -84,7 +84,7 @@ export class AgendaService implements IAgendaService {
         }));
 
         const trigger = await this.createTriggerIfNeeded(record.item, args, action, now);
-        if (trigger) await this.agendaScheduler.reload(trigger.id);
+        if (trigger) await this.triggerEngine.reload(trigger.id);
         const view = await this.getView(record.item.id) as AgendaItemView;
         return { item: view, created: true, existed: false };
     }
@@ -140,7 +140,7 @@ export class AgendaService implements IAgendaService {
                 message: patch.message ?? undefined,
             }, action, now);
             await this.disableItemTriggers(id, trigger?.id);
-            if (trigger) await this.agendaScheduler.reload(trigger.id);
+            if (trigger) await this.triggerEngine.reload(trigger.id);
         } else if (this.hasTriggerFieldPatch(patch)) {
             const triggerFields: Partial<AgendaTriggerRow> = {};
             if (patch.timezone !== undefined) triggerFields.timezone = patch.timezone;
@@ -149,9 +149,9 @@ export class AgendaService implements IAgendaService {
             const record = await this.agendaStore.findByItemId(id);
             const activeTriggers = record?.data.triggers.filter(t => t.enabled) ?? [];
             for (const trigger of activeTriggers) await this.agendaStore.updateTrigger(trigger.id, triggerFields);
-            await this.agendaScheduler.reloadItem(id);
+            await this.triggerEngine.reloadItem(id);
         } else {
-            await this.agendaScheduler.reloadItem(id);
+            await this.triggerEngine.reloadItem(id);
         }
         return this.getView(id);
     }
@@ -206,20 +206,20 @@ export class AgendaService implements IAgendaService {
                 skipNextFireAt: trigger.nextFireAt,
                 skipFireCount: trigger.fireCount ?? 0,
             });
-            this.agendaScheduler.cancel(trigger.id);
+            this.triggerEngine.cancel(trigger.id);
         } else {
             await this.agendaStore.updateTrigger(trigger.id, {
                 skipNextFireAt: trigger.nextFireAt,
                 skipFireCount: trigger.fireCount ?? 0,
             });
-            await this.agendaScheduler.reload(trigger.id);
+            await this.triggerEngine.reload(trigger.id);
         }
         return this.getView(id);
     }
 
     async delete(id: number): Promise<AgendaRecord | null> {
         const data = await this.agendaStore.deleteItem(id);
-        if (data) for (const trigger of data.triggers) this.agendaScheduler.cancel(trigger.id);
+        if (data) for (const trigger of data.triggers) this.triggerEngine.cancel(trigger.id);
         return data;
     }
 
@@ -243,25 +243,25 @@ export class AgendaService implements IAgendaService {
     }
 
     async extractFromConversation(userMessage: string, assistantMessages?: string[]): Promise<void> {
-        if (!this.syncExtractor) return;
+        if (!this.extractor) return;
         try {
             const existing = await this.list({ status: 'all', view: 'all', limit: 80 });
-            const actions = await this.syncExtractor.extract(userMessage, assistantMessages ?? [], existing);
+            const actions = await this.extractor.extract(userMessage, assistantMessages ?? [], existing);
             if (actions.length === 0) return;
-            for (const action of actions) await this.applySyncAction(action);
+            for (const action of actions) await this.applyAction(action);
         } catch (e: any) {
             this.logger?.warn(`Agenda sync failed: ${e.message}`);
         }
     }
 
-    private async applySyncAction(action: AgendaSyncAction): Promise<void> {
-        if (action.type === AgendaSyncActionType.Create) {
+    private async applyAction(action: AgendaAction): Promise<void> {
+        if (action.type === AgendaActionType.Create) {
             await this.create({ ...action.args, source: AgendaSource.Sync });
-        } else if (action.type === AgendaSyncActionType.Update) {
+        } else if (action.type === AgendaActionType.Update) {
             await this.update(action.id, action.patch);
-        } else if (action.type === AgendaSyncActionType.Complete) {
+        } else if (action.type === AgendaActionType.Complete) {
             await this.complete(action.id);
-        } else if (action.type === AgendaSyncActionType.Cancel) {
+        } else if (action.type === AgendaActionType.Cancel) {
             await this.cancel(action.id);
         }
     }
@@ -426,6 +426,6 @@ export class AgendaService implements IAgendaService {
 
     private async disableItemTriggers(itemId: number, exceptTriggerId?: number): Promise<void> {
         const ids = await this.agendaStore.updateActiveTriggersByItem(itemId, { enabled: false, nextFireAt: null }, exceptTriggerId);
-        for (const id of ids) this.agendaScheduler.cancel(id);
+        for (const id of ids) this.triggerEngine.cancel(id);
     }
 }

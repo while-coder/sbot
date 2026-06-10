@@ -3,7 +3,7 @@ import { inject } from "scorpio.di";
 import { IModelService } from "../../Model";
 import { ILoggerService, ILogger } from "../../Logger";
 import { MessageRole, type ChatMessage } from "../../Saver";
-import { T_AgendaSyncSystemPrompt } from "../../Core";
+import { T_AgendaExtractorSystemPrompt } from "../../Core";
 import {
     AgendaCategory,
     AgendaCompletionMode,
@@ -11,7 +11,7 @@ import {
     AgendaTriggerAction,
     type AgendaItemView,
 } from "../types";
-import { type AgendaSyncAction, AgendaSyncActionType, IAgendaSyncExtractor } from "./IAgendaSyncExtractor";
+import { type AgendaAction, AgendaActionType, IAgendaExtractor } from "./IAgendaExtractor";
 
 const RelativeTimeSchema = z.object({
     amount: z.number(),
@@ -40,27 +40,27 @@ const UpdatePatchSchema = z.object({
     dueAt: z.string().nullable().optional(),
 });
 
-const AgendaSyncSchema = z.object({
+const AgendaExtractSchema = z.object({
     actions: z.array(z.discriminatedUnion("type", [
-        z.object({ type: z.literal(AgendaSyncActionType.Create), args: CreateArgsSchema }),
-        z.object({ type: z.literal(AgendaSyncActionType.Update), id: z.number(), patch: UpdatePatchSchema }),
-        z.object({ type: z.literal(AgendaSyncActionType.Complete), id: z.number() }),
-        z.object({ type: z.literal(AgendaSyncActionType.Cancel), id: z.number() }),
+        z.object({ type: z.literal(AgendaActionType.Create), args: CreateArgsSchema }),
+        z.object({ type: z.literal(AgendaActionType.Update), id: z.number(), patch: UpdatePatchSchema }),
+        z.object({ type: z.literal(AgendaActionType.Complete), id: z.number() }),
+        z.object({ type: z.literal(AgendaActionType.Cancel), id: z.number() }),
     ])).describe("Agenda actions extracted from the conversation. Return [] if no agenda change is needed."),
 });
 
-export class AgendaSyncExtractor implements IAgendaSyncExtractor {
+export class AgendaExtractor implements IAgendaExtractor {
     private logger?: ILogger;
 
     constructor(
         @inject(IModelService) private modelService: IModelService,
-        @inject(T_AgendaSyncSystemPrompt) private systemPrompt: string,
+        @inject(T_AgendaExtractorSystemPrompt) private systemPrompt: string,
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
     ) {
-        this.logger = loggerService?.getLogger("AgendaSyncExtractor");
+        this.logger = loggerService?.getLogger("AgendaExtractor");
     }
 
-    async extract(userMessage: string, assistantMessages: string[], existingItems: AgendaItemView[]): Promise<AgendaSyncAction[]> {
+    async extract(userMessage: string, assistantMessages: string[], existingItems: AgendaItemView[]): Promise<AgendaAction[]> {
         try {
             const assistant = assistantMessages?.filter(Boolean) ?? [];
             let human = assistant.length
@@ -83,14 +83,14 @@ export class AgendaSyncExtractor implements IAgendaSyncExtractor {
                 { role: MessageRole.System, content: this.systemPrompt },
                 { role: MessageRole.Human, content: human },
             ];
-            const { actions } = await this.modelService.invokeStructured<{ actions: AgendaSyncAction[] }>(
-                AgendaSyncSchema,
+            const { actions } = await this.modelService.invokeStructured<{ actions: AgendaAction[] }>(
+                AgendaExtractSchema,
                 messages,
             );
             return actions;
         } catch (error: any) {
             const detail = error?.response?.data ? ` body=${JSON.stringify(error.response.data)}` : '';
-            this.logger?.warn(`Agenda sync extraction failed: ${error.message}${detail}`);
+            this.logger?.warn(`Agenda extraction failed: ${error.message}${detail}`);
             return [];
         }
     }
